@@ -589,6 +589,16 @@ export class Api<
       limit?: number;
       /** A list of keys to filter by */
       keys?: EventKey[];
+      /**
+       * Consider events that occurred after this time
+       * @format date-time
+       */
+      since?: string;
+      /**
+       * Consider events that occurred before this time
+       * @format date-time
+       */
+      until?: string;
     },
     params: RequestParams = {},
   ) =>

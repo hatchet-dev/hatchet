@@ -403,58 +403,63 @@ export function Waterfall({
     };
   }, [taskData]); // Only recompute when taskData changes
 
-  const closeTask = (taskId: string) => {
-    const newExpandedTasks = new Set(expandedTasks);
-    newExpandedTasks.delete(taskId);
+  const closeTask = useCallback(
+    (taskId: string) => {
+      const newExpandedTasks = new Set(expandedTasks);
+      newExpandedTasks.delete(taskId);
 
-    // Get all descendants and remove them from expanded set
-    const descendants =
-      taskRelationships.taskDescendantsMap.get(taskId) || new Set<string>();
-    descendants.forEach((descendantId) => {
-      newExpandedTasks.delete(descendantId);
-    });
-
-    // Also remove any descendants that might be in the expanded set
-    // This handles the case where some descendants might not be in the taskDescendantsMap
-    const processDescendants = (parentId: string) => {
-      const children = taskRelationships.taskParentMap.get(parentId) || [];
-      children.forEach((childId) => {
-        newExpandedTasks.delete(childId);
-        processDescendants(childId);
+      // Get all descendants and remove them from expanded set
+      const descendants =
+        taskRelationships.taskDescendantsMap.get(taskId) || new Set<string>();
+      descendants.forEach((descendantId) => {
+        newExpandedTasks.delete(descendantId);
       });
-    };
 
-    processDescendants(taskId);
-    setExpandedTasks(newExpandedTasks);
-  };
+      // Also remove any descendants that might be in the expanded set
+      // This handles the case where some descendants might not be in the taskDescendantsMap
+      const processDescendants = (parentId: string) => {
+        const children = taskRelationships.taskParentMap.get(parentId) || [];
+        children.forEach((childId) => {
+          newExpandedTasks.delete(childId);
+          processDescendants(childId);
+        });
+      };
 
-  const openTask = (taskId: string, taskDepth: number) => {
-    const newExpandedTasks = new Set(expandedTasks);
-    newExpandedTasks.add(taskId);
+      processDescendants(taskId);
+      setExpandedTasks(newExpandedTasks);
+    },
+    [expandedTasks, taskRelationships],
+  );
 
-    // If expanding requires a deeper query, update the depth
-    if (taskDepth + 1 >= depth) {
-      setDepth(depth + 1);
-    }
+  const openTask = useCallback(
+    (taskId: string, taskDepth: number) => {
+      const newExpandedTasks = new Set(expandedTasks);
+      newExpandedTasks.add(taskId);
 
-    setExpandedTasks(newExpandedTasks);
-  };
+      // If expanding requires a deeper query, update the depth
+      if (taskDepth + 1 >= depth) {
+        setDepth(depth + 1);
+      }
 
-  const toggleTask = (
-    taskId: string,
-    hasChildren: boolean,
-    taskDepth: number,
-  ) => {
-    if (!hasChildren) {
-      return;
-    }
+      setExpandedTasks(newExpandedTasks);
+    },
+    [expandedTasks, setDepth, depth],
+  );
 
-    if (expandedTasks.has(taskId)) {
-      closeTask(taskId);
-    } else {
-      openTask(taskId, taskDepth);
-    }
-  };
+  const toggleTask = useCallback(
+    (taskId: string, hasChildren: boolean, taskDepth: number) => {
+      if (!hasChildren) {
+        return;
+      }
+
+      if (expandedTasks.has(taskId)) {
+        closeTask(taskId);
+      } else {
+        openTask(taskId, taskDepth);
+      }
+    },
+    [expandedTasks, closeTask, openTask],
+  );
 
   // Transform and filter data based on expanded state
   const processedData = useMemo<ProcessedData>(() => {
@@ -606,19 +611,22 @@ export function Waterfall({
   }, [taskData, expandedTasks, autoExpandedInitially, taskRelationships]); // Only recompute when dependencies change
 
   // Handler for bar click events
-  const handleBarClick = (data: any) => {
-    if (data && data.id) {
-      // Handle task selection for sidebar
-      if (handleTaskSelect) {
-        handleTaskSelect(data.id, data.workflowRunId);
-      }
+  const handleBarClick = useCallback(
+    (data: any) => {
+      if (data && data.id) {
+        // Handle task selection for sidebar
+        if (handleTaskSelect) {
+          handleTaskSelect(data.id, data.workflowRunId);
+        }
 
-      // Handle expansion if the task has children
-      if (data.hasChildren) {
-        openTask(data.id, data.depth);
+        // Handle expansion if the task has children
+        if (data.hasChildren) {
+          openTask(data.id, data.depth);
+        }
       }
-    }
-  };
+    },
+    [handleTaskSelect, openTask],
+  );
 
   const renderTick = useCallback(
     (props: { x: number; y: number; payload: { value: string } }) => {

@@ -57,6 +57,8 @@ function WorkflowsProviderContent({
           ),
           limit: pagination.pageSize,
         });
+
+        pagination.setNumPages(res.data.pagination?.num_pages || 1);
         return {
           rows: res.data.rows,
           pagination: {
@@ -113,12 +115,7 @@ export function WorkflowsProvider({
   refetchInterval,
 }: WorkflowsProviderProps) {
   return (
-    <FilterProvider<WorkflowsFilters>
-      initialFilters={{
-        statuses: [],
-        search: '',
-      }}
-    >
+    <FilterProvider<WorkflowsFilters>>
       <PaginationProvider initialPage={1} initialPageSize={50}>
         <WorkflowsProviderContent refetchInterval={refetchInterval}>
           {children}

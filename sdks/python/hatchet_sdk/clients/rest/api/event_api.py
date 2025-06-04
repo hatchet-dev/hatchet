@@ -12,6 +12,7 @@
 """  # noqa: E501
 
 import warnings
+from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 from pydantic import Field, StrictFloat, StrictInt, StrictStr, validate_call
@@ -2566,6 +2567,14 @@ class EventApi:
         keys: Annotated[
             Optional[List[StrictStr]], Field(description="A list of keys to filter by")
         ] = None,
+        since: Annotated[
+            Optional[datetime],
+            Field(description="Consider events that occurred after this time"),
+        ] = None,
+        until: Annotated[
+            Optional[datetime],
+            Field(description="Consider events that occurred before this time"),
+        ] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
@@ -2590,6 +2599,10 @@ class EventApi:
         :type limit: int
         :param keys: A list of keys to filter by
         :type keys: List[str]
+        :param since: Consider events that occurred after this time
+        :type since: datetime
+        :param until: Consider events that occurred before this time
+        :type until: datetime
         :param _request_timeout: timeout setting for this request. If one
                                  number provided, it will be total request
                                  timeout. It can also be a pair (tuple) of
@@ -2617,6 +2630,8 @@ class EventApi:
             offset=offset,
             limit=limit,
             keys=keys,
+            since=since,
+            until=until,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
@@ -2655,6 +2670,14 @@ class EventApi:
         keys: Annotated[
             Optional[List[StrictStr]], Field(description="A list of keys to filter by")
         ] = None,
+        since: Annotated[
+            Optional[datetime],
+            Field(description="Consider events that occurred after this time"),
+        ] = None,
+        until: Annotated[
+            Optional[datetime],
+            Field(description="Consider events that occurred before this time"),
+        ] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
@@ -2679,6 +2702,10 @@ class EventApi:
         :type limit: int
         :param keys: A list of keys to filter by
         :type keys: List[str]
+        :param since: Consider events that occurred after this time
+        :type since: datetime
+        :param until: Consider events that occurred before this time
+        :type until: datetime
         :param _request_timeout: timeout setting for this request. If one
                                  number provided, it will be total request
                                  timeout. It can also be a pair (tuple) of
@@ -2706,6 +2733,8 @@ class EventApi:
             offset=offset,
             limit=limit,
             keys=keys,
+            since=since,
+            until=until,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
@@ -2744,6 +2773,14 @@ class EventApi:
         keys: Annotated[
             Optional[List[StrictStr]], Field(description="A list of keys to filter by")
         ] = None,
+        since: Annotated[
+            Optional[datetime],
+            Field(description="Consider events that occurred after this time"),
+        ] = None,
+        until: Annotated[
+            Optional[datetime],
+            Field(description="Consider events that occurred before this time"),
+        ] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
@@ -2768,6 +2805,10 @@ class EventApi:
         :type limit: int
         :param keys: A list of keys to filter by
         :type keys: List[str]
+        :param since: Consider events that occurred after this time
+        :type since: datetime
+        :param until: Consider events that occurred before this time
+        :type until: datetime
         :param _request_timeout: timeout setting for this request. If one
                                  number provided, it will be total request
                                  timeout. It can also be a pair (tuple) of
@@ -2795,6 +2836,8 @@ class EventApi:
             offset=offset,
             limit=limit,
             keys=keys,
+            since=since,
+            until=until,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
@@ -2817,6 +2860,8 @@ class EventApi:
         offset,
         limit,
         keys,
+        since,
+        until,
         _request_auth,
         _content_type,
         _headers,
@@ -2853,6 +2898,28 @@ class EventApi:
         if keys is not None:
 
             _query_params.append(("keys", keys))
+
+        if since is not None:
+            if isinstance(since, datetime):
+                _query_params.append(
+                    (
+                        "since",
+                        since.strftime(self.api_client.configuration.datetime_format),
+                    )
+                )
+            else:
+                _query_params.append(("since", since))
+
+        if until is not None:
+            if isinstance(until, datetime):
+                _query_params.append(
+                    (
+                        "until",
+                        until.strftime(self.api_client.configuration.datetime_format),
+                    )
+                )
+            else:
+                _query_params.append(("until", until))
 
         # process the header parameters
         # process the form parameters

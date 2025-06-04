@@ -35,6 +35,18 @@ V1EventList:
           type: array
           items:
             $ref: "../../../components/schemas/_index.yaml#/EventKey"
+      - description: Consider events that occurred after this time
+        in: query
+        name: since
+        schema:
+          type: string
+          format: date-time
+      - description: Consider events that occurred before this time
+        in: query
+        name: until
+        schema:
+          type: string
+          format: date-time
     responses:
       "200":
         content:

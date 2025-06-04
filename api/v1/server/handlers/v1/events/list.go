@@ -2,6 +2,7 @@ package eventsv1
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/labstack/echo/v4"
@@ -19,6 +20,7 @@ func (t *V1EventsService) V1EventList(ctx echo.Context, request gen.V1EventListR
 
 	limit := int64(50)
 	offset := int64(0)
+	since := time.Now().Add(-time.Hour * 24)
 
 	if request.Params.Limit != nil {
 		limit = *request.Params.Limit
@@ -26,6 +28,10 @@ func (t *V1EventsService) V1EventList(ctx echo.Context, request gen.V1EventListR
 
 	if request.Params.Offset != nil {
 		offset = *request.Params.Offset
+	}
+
+	if request.Params.Since != nil {
+		since = *request.Params.Since
 	}
 
 	opts := sqlcv1.ListEventsParams{
@@ -38,6 +44,10 @@ func (t *V1EventsService) V1EventList(ctx echo.Context, request gen.V1EventListR
 			Int64: offset,
 			Valid: true,
 		},
+		Since: pgtype.Timestamptz{
+			Time:  since,
+			Valid: true,
+		},
 	}
 
 	if request.Params.Keys != nil {
@@ -45,13 +55,26 @@ func (t *V1EventsService) V1EventList(ctx echo.Context, request gen.V1EventListR
 		opts.Keys = keys
 	}
 
-	events, err := t.config.V1.OLAP().ListEvents(ctx.Request().Context(), opts)
+	if request.Params.Until != nil {
+		opts.Until = pgtype.Timestamptz{
+			Time:  *request.Params.Until,
+			Valid: true,
+		}
+	}
+
+	events, maybeTotal, err := t.config.V1.OLAP().ListEvents(ctx.Request().Context(), opts)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to list events: %w", err)
 	}
 
-	rows := transformers.ToV1EventList(events)
+	total := int64(len(events))
+
+	if maybeTotal != nil {
+		total = *maybeTotal
+	}
+
+	rows := transformers.ToV1EventList(events, limit, offset, total)
 
 	return gen.V1EventList200JSONResponse(
 		rows,

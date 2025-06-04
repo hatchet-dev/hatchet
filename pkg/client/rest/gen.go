@@ -2003,6 +2003,12 @@ type V1EventListParams struct {
 
 	// Keys A list of keys to filter by
 	Keys *[]EventKey `form:"keys,omitempty" json:"keys,omitempty"`
+
+	// Since Consider events that occurred after this time
+	Since *time.Time `form:"since,omitempty" json:"since,omitempty"`
+
+	// Until Consider events that occurred before this time
+	Until *time.Time `form:"until,omitempty" json:"until,omitempty"`
 }
 
 // V1FilterListParams defines parameters for V1FilterList.
@@ -5397,6 +5403,38 @@ func NewV1EventListRequest(server string, tenant openapi_types.UUID, params *V1E
 		if params.Keys != nil {
 
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "keys", runtime.ParamLocationQuery, *params.Keys); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Since != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "since", runtime.ParamLocationQuery, *params.Since); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Until != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "until", runtime.ParamLocationQuery, *params.Until); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
 				return nil, err

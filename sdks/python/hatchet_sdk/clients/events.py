@@ -209,14 +209,20 @@ class EventClient(BaseRestClient):
         offset: int | None = None,
         limit: int | None = None,
         keys: list[str] | None = None,
+        since: datetime.datetime | None = None,
+        until: datetime.datetime | None = None,
     ) -> V1EventList:
-        return await asyncio.to_thread(self.list, offset=offset, limit=limit, keys=keys)
+        return await asyncio.to_thread(
+            self.list, offset=offset, limit=limit, keys=keys, since=since, until=until
+        )
 
     def list(
         self,
         offset: int | None = None,
         limit: int | None = None,
         keys: list[str] | None = None,
+        since: datetime.datetime | None = None,
+        until: datetime.datetime | None = None,
     ) -> V1EventList:
         with self.client() as client:
             return self._ea(client).v1_event_list(
@@ -224,4 +230,6 @@ class EventClient(BaseRestClient):
                 offset=offset,
                 limit=limit,
                 keys=keys,
+                since=since,
+                until=until,
             )

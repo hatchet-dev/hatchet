@@ -1264,6 +1264,12 @@ class WorkflowRunsApi:
                 description="The external id of the event that triggered the workflow run"
             ),
         ] = None,
+        include_payloads: Annotated[
+            Optional[StrictBool],
+            Field(
+                description="A flag for whether or not to include the input and output payloads in the response. Defaults to `true` if unset."
+            ),
+        ] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
@@ -1304,6 +1310,8 @@ class WorkflowRunsApi:
         :type parent_task_external_id: str
         :param triggering_event_external_id: The external id of the event that triggered the workflow run
         :type triggering_event_external_id: str
+        :param include_payloads: A flag for whether or not to include the input and output payloads in the response. Defaults to `true` if unset.
+        :type include_payloads: bool
         :param _request_timeout: timeout setting for this request. If one
                                  number provided, it will be total request
                                  timeout. It can also be a pair (tuple) of
@@ -1339,6 +1347,7 @@ class WorkflowRunsApi:
             worker_id=worker_id,
             parent_task_external_id=parent_task_external_id,
             triggering_event_external_id=triggering_event_external_id,
+            include_payloads=include_payloads,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
@@ -1411,6 +1420,12 @@ class WorkflowRunsApi:
                 description="The external id of the event that triggered the workflow run"
             ),
         ] = None,
+        include_payloads: Annotated[
+            Optional[StrictBool],
+            Field(
+                description="A flag for whether or not to include the input and output payloads in the response. Defaults to `true` if unset."
+            ),
+        ] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
@@ -1451,6 +1466,8 @@ class WorkflowRunsApi:
         :type parent_task_external_id: str
         :param triggering_event_external_id: The external id of the event that triggered the workflow run
         :type triggering_event_external_id: str
+        :param include_payloads: A flag for whether or not to include the input and output payloads in the response. Defaults to `true` if unset.
+        :type include_payloads: bool
         :param _request_timeout: timeout setting for this request. If one
                                  number provided, it will be total request
                                  timeout. It can also be a pair (tuple) of
@@ -1486,6 +1503,7 @@ class WorkflowRunsApi:
             worker_id=worker_id,
             parent_task_external_id=parent_task_external_id,
             triggering_event_external_id=triggering_event_external_id,
+            include_payloads=include_payloads,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
@@ -1558,6 +1576,12 @@ class WorkflowRunsApi:
                 description="The external id of the event that triggered the workflow run"
             ),
         ] = None,
+        include_payloads: Annotated[
+            Optional[StrictBool],
+            Field(
+                description="A flag for whether or not to include the input and output payloads in the response. Defaults to `true` if unset."
+            ),
+        ] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
@@ -1598,6 +1622,8 @@ class WorkflowRunsApi:
         :type parent_task_external_id: str
         :param triggering_event_external_id: The external id of the event that triggered the workflow run
         :type triggering_event_external_id: str
+        :param include_payloads: A flag for whether or not to include the input and output payloads in the response. Defaults to `true` if unset.
+        :type include_payloads: bool
         :param _request_timeout: timeout setting for this request. If one
                                  number provided, it will be total request
                                  timeout. It can also be a pair (tuple) of
@@ -1633,6 +1659,7 @@ class WorkflowRunsApi:
             worker_id=worker_id,
             parent_task_external_id=parent_task_external_id,
             triggering_event_external_id=triggering_event_external_id,
+            include_payloads=include_payloads,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
@@ -1664,6 +1691,7 @@ class WorkflowRunsApi:
         worker_id,
         parent_task_external_id,
         triggering_event_external_id,
+        include_payloads,
         _request_auth,
         _content_type,
         _headers,
@@ -1750,6 +1778,10 @@ class WorkflowRunsApi:
             _query_params.append(
                 ("triggering_event_external_id", triggering_event_external_id)
             )
+
+        if include_payloads is not None:
+
+            _query_params.append(("include_payloads", include_payloads))
 
         # process the header parameters
         # process the form parameters
