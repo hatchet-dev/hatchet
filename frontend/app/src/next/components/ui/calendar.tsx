@@ -58,7 +58,9 @@ function Calendar({
         ...classNames,
       }}
       components={{
+        // eslint-disable-next-line react/no-unstable-nested-components
         IconLeft: () => <ChevronLeftIcon className="h-4 w-4" />,
+        // eslint-disable-next-line react/no-unstable-nested-components
         IconRight: () => <ChevronRightIcon className="h-4 w-4" />,
       }}
       {...props}

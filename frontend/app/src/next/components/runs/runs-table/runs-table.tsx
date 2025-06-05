@@ -38,12 +38,14 @@ interface RunsTableProps {
   showActions?: boolean;
 }
 
+const defaultExcludedFilters: (keyof RunsFilters)[] = [];
+
 export function RunsTable({
   onRowClick,
   selectedTaskId,
   onSelectionChange,
   onTriggerRunClick,
-  excludedFilters = [],
+  excludedFilters = defaultExcludedFilters,
   showPagination = true,
   allowSelection = true,
   showActions = true,

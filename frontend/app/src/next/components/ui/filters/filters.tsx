@@ -268,16 +268,20 @@ export function FilterWorkerSelect<T>({
   );
 }
 
+type Option = {
+  label: string;
+  value: string;
+};
+
 interface FilterKeyValueProps<T> extends FilterBuilderProps<T> {
-  options?: {
-    label: string;
-    value: string;
-  }[];
+  options?: Option[];
 }
+
+const defaultOptions: Option[] = [];
 
 export function FilterKeyValue<T>({
   name,
-  options = [],
+  options = defaultOptions,
   placeholder = 'Add filter',
 }: FilterKeyValueProps<T>) {
   const { filters, setFilter } = useFilters<T>();

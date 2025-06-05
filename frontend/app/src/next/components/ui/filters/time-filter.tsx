@@ -201,10 +201,12 @@ export function TimeFilter({ className }: TimeFilterProps) {
             date={endDate}
             setDate={(date) => {
               if (date) {
-                setTimeFilter({
-                  startTime: startDate!.toISOString(),
-                  endTime: date?.toISOString(),
-                });
+                if (startDate) {
+                  setTimeFilter({
+                    startTime: startDate.toISOString(),
+                    endTime: date?.toISOString(),
+                  });
+                }
               } else {
                 handleClearTimeFilters();
               }

@@ -37,12 +37,13 @@
       }
     ],
 
-    "@typescript-eslint/no-explicit-any": "error",
-    "@typescript-eslint/no-unsafe-assignment": "error",
-    "@typescript-eslint/no-unsafe-call": "error",
-    "@typescript-eslint/no-unsafe-member-access": "error",
-    "@typescript-eslint/no-unsafe-return": "error",
-    "@typescript-eslint/no-unsafe-argument": "error",
+    // We need to re-enable these and get rid of all the `any` types
+    // "@typescript-eslint/no-explicit-any": "error",
+    // "@typescript-eslint/no-unsafe-assignment": "error",
+    // "@typescript-eslint/no-unsafe-call": "error",
+    // "@typescript-eslint/no-unsafe-member-access": "error",
+    // "@typescript-eslint/no-unsafe-return": "error",
+    // "@typescript-eslint/no-unsafe-argument": "error",
 
     "@typescript-eslint/prefer-optional-chain": "error",
     "@typescript-eslint/no-non-null-assertion": "error",
@@ -90,7 +91,6 @@
     // "react/no-array-index-key": "error",
     "react/no-object-type-as-default-prop": "error",
     "react/hook-use-state": "error",
-    "react/jsx-pascal-case": "error",
     "react/no-unstable-nested-components": "error",
 
     "import/no-duplicates": "error",

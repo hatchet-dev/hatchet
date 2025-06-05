@@ -104,6 +104,8 @@ function WithPreviousInput({
   return null;
 }
 
+const defaultDisabledCapabilities: TriggerRunCapability[] = [];
+
 function TriggerRunModalContent({
   show,
   onClose,
@@ -112,7 +114,7 @@ function TriggerRunModalContent({
   defaultAddlMeta = '{}',
   defaultWorkflowId,
   defaultRunId,
-  disabledCapabilities = [],
+  disabledCapabilities = defaultDisabledCapabilities,
   onRun,
 }: TriggerRunModalProps) {
   const navigate = useNavigate();

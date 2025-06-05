@@ -56,8 +56,8 @@ export function Duration({
     );
   }
 
-  const startDate = new Date(start!);
-  const endDate = isValidTimestamp(end) ? new Date(end!) : new Date();
+  const startDate = typeof start === 'string' ? new Date(start) : start;
+  const endDate = isValidTimestamp(end) ? new Date(end) : new Date();
   const duration = intervalToDuration({ start: startDate, end: endDate });
   const rawDuration = endDate.getTime() - startDate.getTime();
   const isRunning = status === 'RUNNING';
