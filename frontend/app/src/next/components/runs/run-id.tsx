@@ -78,7 +78,7 @@ export function RunId({
                 onDoubleClick={handleDoubleClick}
               >
                 {name}
-                {displayAttempt ? `/${displayAttempt}` : null}
+                {displayAttempt != null ? `/${displayAttempt}` : null}
               </span>
             )}
           </span>
