@@ -210,15 +210,6 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 		return nil, fmt.Errorf("failed to list workflows for events: %w", err)
 	}
 
-	workflowKeyToIncomingEventKey := make(map[string]string)
-
-	for _, workflow := range workflowVersionIdsAndEventKeys {
-		workflow.EventKey // user:*
-		for _, opt := range opts {
-			...
-		}
-	}
-
 	workflowIds := make([]pgtype.UUID, 0)
 	scopes := make([]*string, 0)
 

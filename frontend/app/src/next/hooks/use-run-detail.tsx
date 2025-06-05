@@ -70,10 +70,7 @@ export function RunDetailProvider({
 }: RunDetailProviderProps) {
   return (
     <RunsProvider>
-      <RunDetailProviderContent
-        runId={runId}
-        refetchInterval={refetchInterval}
-      >
+      <RunDetailProviderContent runId={runId} refetchInterval={refetchInterval}>
         {children}
       </RunDetailProviderContent>
     </RunsProvider>
