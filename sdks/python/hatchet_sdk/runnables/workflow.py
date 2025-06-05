@@ -12,6 +12,7 @@ from hatchet_sdk.clients.admin import (
     WorkflowRunTriggerConfig,
 )
 from hatchet_sdk.clients.rest.models.cron_workflows import CronWorkflows
+from hatchet_sdk.clients.rest.models.v1_filter import V1Filter
 from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
 from hatchet_sdk.clients.rest.models.v1_task_summary import V1TaskSummary
 from hatchet_sdk.context.context import Context, DurableContext
@@ -22,7 +23,6 @@ from hatchet_sdk.contracts.v1.workflows_pb2 import (
 from hatchet_sdk.contracts.v1.workflows_pb2 import StickyStrategy as StickyStrategyProto
 from hatchet_sdk.contracts.workflows_pb2 import WorkflowVersion
 from hatchet_sdk.labels import DesiredWorkerLabel
-from hatchet_sdk.logger import logger
 from hatchet_sdk.rate_limit import RateLimit
 from hatchet_sdk.runnables.task import Task
 from hatchet_sdk.runnables.types import (
@@ -274,6 +274,236 @@ class BaseWorkflow(Generic[TWorkflowInput]):
 
         return workflow.metadata.id
 
+    def list_runs(
+        self,
+        since: datetime | None = None,
+        until: datetime | None = None,
+        limit: int = 100,
+        offset: int | None = None,
+        statuses: list[V1TaskStatus] | None = None,
+        additional_metadata: dict[str, str] | None = None,
+        worker_id: str | None = None,
+        parent_task_external_id: str | None = None,
+        only_tasks: bool = False,
+        triggering_event_external_id: str | None = None,
+    ) -> list[V1TaskSummary]:
+        """
+        List runs of the workflow.
+
+        :param since: The start time for the runs to be listed.
+        :param until: The end time for the runs to be listed.
+        :param limit: The maximum number of runs to be listed.
+        :param offset: The offset for pagination.
+        :param statuses: The statuses of the runs to be listed.
+        :param additional_metadata: Additional metadata for filtering the runs.
+        :param worker_id: The ID of the worker that ran the tasks.
+        :param parent_task_external_id: The external ID of the parent task.
+        :param only_tasks: Whether to list only task runs.
+        :param triggering_event_external_id: The event id that triggered the task run.
+
+        :returns: A list of `V1TaskSummary` objects representing the runs of the workflow.
+        """
+        response = self.client.runs.list(
+            workflow_ids=[self.id],
+            since=since or datetime.now(tz=timezone.utc) - timedelta(days=1),
+            only_tasks=only_tasks,
+            offset=offset,
+            limit=limit,
+            statuses=statuses,
+            until=until,
+            additional_metadata=additional_metadata,
+            worker_id=worker_id,
+            parent_task_external_id=parent_task_external_id,
+            triggering_event_external_id=triggering_event_external_id,
+        )
+
+        return response.rows
+
+    async def aio_list_runs(
+        self,
+        since: datetime | None = None,
+        until: datetime | None = None,
+        limit: int = 100,
+        offset: int | None = None,
+        statuses: list[V1TaskStatus] | None = None,
+        additional_metadata: dict[str, str] | None = None,
+        worker_id: str | None = None,
+        parent_task_external_id: str | None = None,
+        only_tasks: bool = False,
+        triggering_event_external_id: str | None = None,
+    ) -> list[V1TaskSummary]:
+        """
+        List runs of the workflow.
+
+        :param since: The start time for the runs to be listed.
+        :param until: The end time for the runs to be listed.
+        :param limit: The maximum number of runs to be listed.
+        :param offset: The offset for pagination.
+        :param statuses: The statuses of the runs to be listed.
+        :param additional_metadata: Additional metadata for filtering the runs.
+        :param worker_id: The ID of the worker that ran the tasks.
+        :param parent_task_external_id: The external ID of the parent task.
+        :param only_tasks: Whether to list only task runs.
+        :param triggering_event_external_id: The event id that triggered the task run.
+
+        :returns: A list of `V1TaskSummary` objects representing the runs of the workflow.
+        """
+        return await asyncio.to_thread(
+            self.list_runs,
+            since=since or datetime.now(tz=timezone.utc) - timedelta(days=1),
+            only_tasks=only_tasks,
+            offset=offset,
+            limit=limit,
+            statuses=statuses,
+            until=until,
+            additional_metadata=additional_metadata,
+            worker_id=worker_id,
+            parent_task_external_id=parent_task_external_id,
+            triggering_event_external_id=triggering_event_external_id,
+        )
+
+    def create_filter(
+        self,
+        expression: str,
+        scope: str,
+        payload: JSONSerializableMapping = {},
+    ) -> V1Filter:
+        """
+        Create a new filter.
+
+        :param expression: The expression to evaluate for the filter.
+        :param scope: The scope for the filter.
+        :param payload: The payload to send with the filter.
+
+        :return: The created filter.
+        """
+        return self.client.filters.create(
+            workflow_id=self.id,
+            expression=expression,
+            scope=scope,
+            payload=payload,
+        )
+
+    async def aio_create_filter(
+        self,
+        expression: str,
+        scope: str,
+        payload: JSONSerializableMapping = {},
+    ) -> V1Filter:
+        """
+        Create a new filter.
+
+        :param expression: The expression to evaluate for the filter.
+        :param scope: The scope for the filter.
+        :param payload: The payload to send with the filter.
+
+        :return: The created filter.
+        """
+        return await self.client.filters.aio_create(
+            workflow_id=self.id,
+            expression=expression,
+            scope=scope,
+            payload=payload,
+        )
+
+    def schedule(
+        self,
+        run_at: datetime,
+        input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
+        options: ScheduleTriggerWorkflowOptions = ScheduleTriggerWorkflowOptions(),
+    ) -> WorkflowVersion:
+        """
+        Schedule a workflow to run at a specific time.
+
+        :param run_at: The time at which to schedule the workflow.
+        :param input: The input data for the workflow.
+        :param options: Additional options for workflow execution.
+        :returns: A `WorkflowVersion` object representing the scheduled workflow.
+        """
+        return self.client._client.admin.schedule_workflow(
+            name=self.config.name,
+            schedules=cast(list[datetime | timestamp_pb2.Timestamp], [run_at]),
+            input=self._serialize_input(input),
+            options=options,
+        )
+
+    async def aio_schedule(
+        self,
+        run_at: datetime,
+        input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
+        options: ScheduleTriggerWorkflowOptions = ScheduleTriggerWorkflowOptions(),
+    ) -> WorkflowVersion:
+        """
+        Schedule a workflow to run at a specific time.
+
+        :param run_at: The time at which to schedule the workflow.
+        :param input: The input data for the workflow.
+        :param options: Additional options for workflow execution.
+        :returns: A `WorkflowVersion` object representing the scheduled workflow.
+        """
+        return await self.client._client.admin.aio_schedule_workflow(
+            name=self.config.name,
+            schedules=cast(list[datetime | timestamp_pb2.Timestamp], [run_at]),
+            input=self._serialize_input(input),
+            options=options,
+        )
+
+    def create_cron(
+        self,
+        cron_name: str,
+        expression: str,
+        input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
+        additional_metadata: JSONSerializableMapping = {},
+        priority: int | None = None,
+    ) -> CronWorkflows:
+        """
+        Create a cron job for the workflow.
+
+        :param cron_name: The name of the cron job.
+        :param expression: The cron expression that defines the schedule for the cron job.
+        :param input: The input data for the workflow.
+        :param additional_metadata: Additional metadata for the cron job.
+        :param priority: The priority of the cron job. Must be between 1 and 3, inclusive.
+
+        :returns: A `CronWorkflows` object representing the created cron job.
+        """
+        return self.client.cron.create(
+            workflow_name=self.config.name,
+            cron_name=cron_name,
+            expression=expression,
+            input=self._serialize_input(input),
+            additional_metadata=additional_metadata,
+            priority=priority,
+        )
+
+    async def aio_create_cron(
+        self,
+        cron_name: str,
+        expression: str,
+        input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
+        additional_metadata: JSONSerializableMapping = {},
+        priority: int | None = None,
+    ) -> CronWorkflows:
+        """
+        Create a cron job for the workflow.
+
+        :param cron_name: The name of the cron job.
+        :param expression: The cron expression that defines the schedule for the cron job.
+        :param input: The input data for the workflow.
+        :param additional_metadata: Additional metadata for the cron job.
+        :param priority: The priority of the cron job. Must be between 1 and 3, inclusive.
+
+        :returns: A `CronWorkflows` object representing the created cron job.
+        """
+        return await self.client.cron.aio_create(
+            workflow_name=self.config.name,
+            cron_name=cron_name,
+            expression=expression,
+            input=self._serialize_input(input),
+            additional_metadata=additional_metadata,
+            priority=priority,
+        )
+
 
 class Workflow(BaseWorkflow[TWorkflowInput]):
     """
@@ -465,104 +695,6 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         """
         return await self.client._client.admin.aio_run_workflows(
             workflows=workflows,
-        )
-
-    def schedule(
-        self,
-        run_at: datetime,
-        input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
-        options: ScheduleTriggerWorkflowOptions = ScheduleTriggerWorkflowOptions(),
-    ) -> WorkflowVersion:
-        """
-        Schedule a workflow to run at a specific time.
-
-        :param run_at: The time at which to schedule the workflow.
-        :param input: The input data for the workflow.
-        :param options: Additional options for workflow execution.
-        :returns: A `WorkflowVersion` object representing the scheduled workflow.
-        """
-        return self.client._client.admin.schedule_workflow(
-            name=self.config.name,
-            schedules=cast(list[datetime | timestamp_pb2.Timestamp], [run_at]),
-            input=self._serialize_input(input),
-            options=options,
-        )
-
-    async def aio_schedule(
-        self,
-        run_at: datetime,
-        input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
-        options: ScheduleTriggerWorkflowOptions = ScheduleTriggerWorkflowOptions(),
-    ) -> WorkflowVersion:
-        """
-        Schedule a workflow to run at a specific time.
-
-        :param run_at: The time at which to schedule the workflow.
-        :param input: The input data for the workflow.
-        :param options: Additional options for workflow execution.
-        :returns: A `WorkflowVersion` object representing the scheduled workflow.
-        """
-        return await self.client._client.admin.aio_schedule_workflow(
-            name=self.config.name,
-            schedules=cast(list[datetime | timestamp_pb2.Timestamp], [run_at]),
-            input=self._serialize_input(input),
-            options=options,
-        )
-
-    def create_cron(
-        self,
-        cron_name: str,
-        expression: str,
-        input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
-        additional_metadata: JSONSerializableMapping = {},
-        priority: int | None = None,
-    ) -> CronWorkflows:
-        """
-        Create a cron job for the workflow.
-
-        :param cron_name: The name of the cron job.
-        :param expression: The cron expression that defines the schedule for the cron job.
-        :param input: The input data for the workflow.
-        :param additional_metadata: Additional metadata for the cron job.
-        :param priority: The priority of the cron job. Must be between 1 and 3, inclusive.
-
-        :returns: A `CronWorkflows` object representing the created cron job.
-        """
-        return self.client.cron.create(
-            workflow_name=self.config.name,
-            cron_name=cron_name,
-            expression=expression,
-            input=self._serialize_input(input),
-            additional_metadata=additional_metadata,
-            priority=priority,
-        )
-
-    async def aio_create_cron(
-        self,
-        cron_name: str,
-        expression: str,
-        input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
-        additional_metadata: JSONSerializableMapping = {},
-        priority: int | None = None,
-    ) -> CronWorkflows:
-        """
-        Create a cron job for the workflow.
-
-        :param cron_name: The name of the cron job.
-        :param expression: The cron expression that defines the schedule for the cron job.
-        :param input: The input data for the workflow.
-        :param additional_metadata: Additional metadata for the cron job.
-        :param priority: The priority of the cron job. Must be between 1 and 3, inclusive.
-
-        :returns: A `CronWorkflows` object representing the created cron job.
-        """
-        return await self.client.cron.aio_create(
-            workflow_name=self.config.name,
-            cron_name=cron_name,
-            expression=expression,
-            input=self._serialize_input(input),
-            additional_metadata=additional_metadata,
-            priority=priority,
         )
 
     def _parse_task_name(
@@ -923,91 +1055,3 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
                 self._on_success_task = _task
             case _:
                 raise ValueError("Invalid task type")
-
-    def list_runs(
-        self,
-        since: datetime | None = None,
-        until: datetime | None = None,
-        limit: int = 100,
-        offset: int | None = None,
-        statuses: list[V1TaskStatus] | None = None,
-        additional_metadata: dict[str, str] | None = None,
-        worker_id: str | None = None,
-        parent_task_external_id: str | None = None,
-        only_tasks: bool = False,
-        triggering_event_external_id: str | None = None,
-    ) -> list[V1TaskSummary]:
-        """
-        List runs of the workflow.
-
-        :param since: The start time for the runs to be listed.
-        :param until: The end time for the runs to be listed.
-        :param limit: The maximum number of runs to be listed.
-        :param offset: The offset for pagination.
-        :param statuses: The statuses of the runs to be listed.
-        :param additional_metadata: Additional metadata for filtering the runs.
-        :param worker_id: The ID of the worker that ran the tasks.
-        :param parent_task_external_id: The external ID of the parent task.
-        :param only_tasks: Whether to list only task runs.
-        :param triggering_event_external_id: The event id that triggered the task run.
-
-        :returns: A list of `V1TaskSummary` objects representing the runs of the workflow.
-        """
-        response = self.client.runs.list(
-            workflow_ids=[self.id],
-            since=since or datetime.now(tz=timezone.utc) - timedelta(days=1),
-            only_tasks=only_tasks,
-            offset=offset,
-            limit=limit,
-            statuses=statuses,
-            until=until,
-            additional_metadata=additional_metadata,
-            worker_id=worker_id,
-            parent_task_external_id=parent_task_external_id,
-            triggering_event_external_id=triggering_event_external_id,
-        )
-
-        return response.rows
-
-    async def aio_list_runs(
-        self,
-        since: datetime | None = None,
-        until: datetime | None = None,
-        limit: int = 100,
-        offset: int | None = None,
-        statuses: list[V1TaskStatus] | None = None,
-        additional_metadata: dict[str, str] | None = None,
-        worker_id: str | None = None,
-        parent_task_external_id: str | None = None,
-        only_tasks: bool = False,
-        triggering_event_external_id: str | None = None,
-    ) -> list[V1TaskSummary]:
-        """
-        List runs of the workflow.
-
-        :param since: The start time for the runs to be listed.
-        :param until: The end time for the runs to be listed.
-        :param limit: The maximum number of runs to be listed.
-        :param offset: The offset for pagination.
-        :param statuses: The statuses of the runs to be listed.
-        :param additional_metadata: Additional metadata for filtering the runs.
-        :param worker_id: The ID of the worker that ran the tasks.
-        :param parent_task_external_id: The external ID of the parent task.
-        :param only_tasks: Whether to list only task runs.
-        :param triggering_event_external_id: The event id that triggered the task run.
-
-        :returns: A list of `V1TaskSummary` objects representing the runs of the workflow.
-        """
-        return await asyncio.to_thread(
-            self.list_runs,
-            since=since or datetime.now(tz=timezone.utc) - timedelta(days=1),
-            only_tasks=only_tasks,
-            offset=offset,
-            limit=limit,
-            statuses=statuses,
-            until=until,
-            additional_metadata=additional_metadata,
-            worker_id=worker_id,
-            parent_task_external_id=parent_task_external_id,
-            triggering_event_external_id=triggering_event_external_id,
-        )
