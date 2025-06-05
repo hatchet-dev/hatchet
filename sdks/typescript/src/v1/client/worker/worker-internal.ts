@@ -431,7 +431,20 @@ export class V1Worker {
         ],
       });
       this.registeredWorkflowPromises.push(registeredWorkflow);
-      await registeredWorkflow;
+
+      const workflowId = (await registeredWorkflow).id;
+
+      await Promise.all(
+        workflow.defaultFilters?.map(async (filter) => {
+          await this.client.filters.create({
+            expression: filter.expression,
+            payload: filter.payload,
+            scope: filter.scope,
+            workflowId,
+          });
+        }) || []
+      );
+
       this.workflow_registry.push(workflow);
     } catch (e: any) {
       throw new HatchetError(`Could not register workflow: ${e.message}`);

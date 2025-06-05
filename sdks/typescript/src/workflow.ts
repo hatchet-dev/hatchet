@@ -5,6 +5,7 @@ import {
   ConcurrencyLimitStrategy as PbConcurrencyLimitStrategy,
   StickyStrategy as PbStickyStrategy,
 } from './protoc/workflows';
+import { V1CreateFilterRequest } from './clients/rest/generated/data-contracts';
 
 const CronConfigSchema = z.object({
   cron: z.string(),
@@ -14,6 +15,14 @@ const CronConfigSchema = z.object({
 const EventConfigSchema = z.object({
   cron: z.undefined(),
   event: z.string(),
+});
+
+type DefaultFilter = Omit<V1CreateFilterRequest, 'workflowId'>;
+
+const DefaultFilterSchema = z.object({
+  expression: z.string(),
+  scope: z.string(),
+  payload: z.record(z.any()).optional(),
 });
 
 const OnConfigSchema = z.union([CronConfigSchema, EventConfigSchema]).optional();
@@ -51,6 +60,7 @@ export const CreateWorkflowSchema = z.object({
   on: OnConfigSchema,
   steps: StepsSchema,
   onFailure: CreateStepSchema?.optional(),
+  defaultFilters: DefaultFilterSchema.array().optional(),
 });
 
 /**
