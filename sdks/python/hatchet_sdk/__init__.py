@@ -147,6 +147,7 @@ from hatchet_sdk.runnables.types import (
     EmptyModel,
     StickyStrategy,
     TaskDefaults,
+    DefaultFilter,
     WorkflowConfig,
 )
 from hatchet_sdk.utils.opentelemetry import OTelAttribute
@@ -275,4 +276,5 @@ __all__ = [
     "OTelAttribute",
     "OpenTelemetryConfig",
     "ClientTLSConfig",
+    "DefaultFilter",
 ]

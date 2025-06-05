@@ -23,7 +23,7 @@ from hatchet_sdk.logger import logger
 from hatchet_sdk.rate_limit import RateLimit
 from hatchet_sdk.runnables.types import (
     ConcurrencyExpression,
-    DefaultFilters,
+    DefaultFilter,
     EmptyModel,
     R,
     StickyStrategy,
@@ -214,7 +214,7 @@ class Hatchet:
         default_priority: int = 1,
         concurrency: ConcurrencyExpression | list[ConcurrencyExpression] | None = None,
         task_defaults: TaskDefaults = TaskDefaults(),
-        default_filters: list[DefaultFilters] = [],
+        default_filters: list[DefaultFilter] = [],
     ) -> Workflow[EmptyModel]: ...
 
     @overload
@@ -231,7 +231,7 @@ class Hatchet:
         default_priority: int = 1,
         concurrency: ConcurrencyExpression | list[ConcurrencyExpression] | None = None,
         task_defaults: TaskDefaults = TaskDefaults(),
-        default_filters: list[DefaultFilters] = [],
+        default_filters: list[DefaultFilter] = [],
     ) -> Workflow[TWorkflowInput]: ...
 
     def workflow(
@@ -247,7 +247,7 @@ class Hatchet:
         default_priority: int = 1,
         concurrency: ConcurrencyExpression | list[ConcurrencyExpression] | None = None,
         task_defaults: TaskDefaults = TaskDefaults(),
-        default_filters: list[DefaultFilters] = [],
+        default_filters: list[DefaultFilter] = [],
     ) -> Workflow[EmptyModel] | Workflow[TWorkflowInput]:
         """
         Define a Hatchet workflow, which can then declare `task`s and be `run`, `schedule`d, and so on.
@@ -315,7 +315,7 @@ class Hatchet:
         desired_worker_labels: dict[str, DesiredWorkerLabel] = {},
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
-        default_filters: list[DefaultFilters] = [],
+        default_filters: list[DefaultFilter] = [],
     ) -> Callable[
         [Callable[[EmptyModel, Context], R | CoroutineLike[R]]],
         Standalone[EmptyModel, R],
@@ -341,7 +341,7 @@ class Hatchet:
         desired_worker_labels: dict[str, DesiredWorkerLabel] = {},
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
-        default_filters: list[DefaultFilters] = [],
+        default_filters: list[DefaultFilter] = [],
     ) -> Callable[
         [Callable[[TWorkflowInput, Context], R | CoroutineLike[R]]],
         Standalone[TWorkflowInput, R],
@@ -366,7 +366,7 @@ class Hatchet:
         desired_worker_labels: dict[str, DesiredWorkerLabel] = {},
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
-        default_filters: list[DefaultFilters] = [],
+        default_filters: list[DefaultFilter] = [],
     ) -> (
         Callable[
             [Callable[[EmptyModel, Context], R | CoroutineLike[R]]],
@@ -487,7 +487,7 @@ class Hatchet:
         desired_worker_labels: dict[str, DesiredWorkerLabel] = {},
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
-        default_filters: list[DefaultFilters] = [],
+        default_filters: list[DefaultFilter] = [],
     ) -> Callable[
         [Callable[[EmptyModel, DurableContext], R | CoroutineLike[R]]],
         Standalone[EmptyModel, R],
@@ -513,7 +513,7 @@ class Hatchet:
         desired_worker_labels: dict[str, DesiredWorkerLabel] = {},
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
-        default_filters: list[DefaultFilters] = [],
+        default_filters: list[DefaultFilter] = [],
     ) -> Callable[
         [Callable[[TWorkflowInput, DurableContext], R | CoroutineLike[R]]],
         Standalone[TWorkflowInput, R],
@@ -538,7 +538,7 @@ class Hatchet:
         desired_worker_labels: dict[str, DesiredWorkerLabel] = {},
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
-        default_filters: list[DefaultFilters] = [],
+        default_filters: list[DefaultFilter] = [],
     ) -> (
         Callable[
             [Callable[[EmptyModel, DurableContext], R | CoroutineLike[R]]],

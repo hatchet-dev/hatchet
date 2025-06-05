@@ -220,11 +220,10 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         return tasks
 
     @property
-    def is_durable(self) -> bool:
-        return any(task.is_durable for task in self.tasks)
-
-    @property
     def name(self) -> str:
+        """
+        The (namespaced) name of the workflow.
+        """
         return self.client.config.namespace + self.config.name
 
     def create_bulk_run_item(

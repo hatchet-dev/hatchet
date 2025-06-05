@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 
-from hatchet_sdk import Context, Hatchet
+from hatchet_sdk import Context, Hatchet, DefaultFilter
 
 hatchet = Hatchet()
 EVENT_KEY = "user:create"
@@ -16,6 +16,17 @@ event_workflow = hatchet.workflow(
     name="EventWorkflow",
     on_events=[EVENT_KEY, SECONDARY_KEY],
     input_validator=EventWorkflowInput,
+    default_filters=[
+        DefaultFilter(
+            expression="true",
+            scope="example-scope",
+            payload={
+                "main_character": "Anna",
+                "supporting_character": "Stiva",
+                "location": "Moscow",
+            },
+        )
+    ],
 )
 
 

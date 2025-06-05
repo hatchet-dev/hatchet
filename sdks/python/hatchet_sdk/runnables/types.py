@@ -65,7 +65,7 @@ class TaskDefaults(BaseModel):
     backoff_max_seconds: int | None = None
 
 
-class DefaultFilters(BaseModel):
+class DefaultFilter(BaseModel):
     expression: str
     scope: str
     payload: JSONSerializableMapping = Field(default_factory=dict)
@@ -85,7 +85,7 @@ class WorkflowConfig(BaseModel):
     default_priority: int | None = None
 
     task_defaults: TaskDefaults = TaskDefaults()
-    default_filters: list[DefaultFilters] = Field(default_factory=list)
+    default_filters: list[DefaultFilter] = Field(default_factory=list)
 
 
 class StepType(str, Enum):

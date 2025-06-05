@@ -30,7 +30,6 @@
         - create_bulk_run_item
         - name
         - tasks
-        - is_durable
         - id
         - list_runs
         - aio_list_runs
@@ -56,7 +55,6 @@
         - create_cron
         - aio_create_cron
         - create_bulk_run_item
-        - is_durable
         - list_runs
         - aio_list_runs
         - create_filter
