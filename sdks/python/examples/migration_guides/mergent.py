@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Mapping
 
 import requests
@@ -123,7 +123,7 @@ async def schedule() -> None:
 
     # > Scheduling tasks (Hatchet)
     # Schedule the task to run at a specific time
-    run_at = datetime.now() + timedelta(days=1)
+    run_at = datetime.now(tz=timezone.utc) + timedelta(days=1)
     await image_processor.aio_schedule(
         run_at,
         ImageProcessInput(image_url="https://example.com/image.png", filters=["blur"]),

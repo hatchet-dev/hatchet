@@ -1,5 +1,5 @@
 import asyncio
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING, Literal, overload
 
 from pydantic import BaseModel, model_validator
@@ -162,7 +162,7 @@ class RunsClient(BaseRestClient):
         """
         return await asyncio.to_thread(
             self.list,
-            since=since or datetime.now() - timedelta(days=1),
+            since=since or datetime.now(tz=timezone.utc) - timedelta(days=1),
             only_tasks=only_tasks,
             offset=offset,
             limit=limit,
@@ -209,7 +209,7 @@ class RunsClient(BaseRestClient):
         with self.client() as client:
             return self._wra(client).v1_workflow_run_list(
                 tenant=self.client_config.tenant_id,
-                since=since or datetime.now() - timedelta(days=1),
+                since=since or datetime.now(tz=timezone.utc) - timedelta(days=1),
                 only_tasks=only_tasks,
                 offset=offset,
                 limit=limit,

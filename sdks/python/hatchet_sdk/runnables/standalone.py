@@ -1,5 +1,5 @@
 import asyncio
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Generic, cast, get_type_hints
 
 from hatchet_sdk.clients.admin import (
@@ -336,7 +336,7 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
 
         response = self.client.runs.list(
             workflow_ids=[workflow.metadata.id],
-            since=since or datetime.now() - timedelta(days=1),
+            since=since or datetime.now(tz=timezone.utc) - timedelta(days=1),
             only_tasks=True,
             offset=offset,
             limit=limit,
@@ -379,7 +379,7 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         """
         return await asyncio.to_thread(
             self.list_runs,
-            since=since or datetime.now() - timedelta(days=1),
+            since=since or datetime.now(tz=timezone.utc) - timedelta(days=1),
             offset=offset,
             limit=limit,
             statuses=statuses,

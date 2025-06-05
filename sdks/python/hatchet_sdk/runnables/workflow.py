@@ -1,5 +1,5 @@
 import asyncio
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from functools import cached_property
 from typing import TYPE_CHECKING, Any, Callable, Generic, TypeVar, cast
 
@@ -190,7 +190,9 @@ class BaseWorkflow(Generic[TWorkflowInput]):
             ## TODO: Fix this
             cron_input=None,
             on_failure_task=on_failure_task,
-            sticky=convert_python_enum_to_proto(self.config.sticky, StickyStrategyProto),  # type: ignore[arg-type]
+            sticky=convert_python_enum_to_proto(
+                self.config.sticky, StickyStrategyProto
+            ),  # type: ignore[arg-type]
             concurrency=_concurrency,
             concurrency_arr=_concurrency_arr,
             default_priority=self.config.default_priority,
@@ -961,7 +963,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
         response = self.client.runs.list(
             workflow_ids=[workflow.metadata.id],
-            since=since or datetime.now() - timedelta(days=1),
+            since=since or datetime.now(tz=timezone.utc) - timedelta(days=1),
             only_tasks=only_tasks,
             offset=offset,
             limit=limit,
@@ -1006,7 +1008,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         """
         return await asyncio.to_thread(
             self.list_runs,
-            since=since or datetime.now() - timedelta(days=1),
+            since=since or datetime.now(tz=timezone.utc) - timedelta(days=1),
             only_tasks=only_tasks,
             offset=offset,
             limit=limit,
