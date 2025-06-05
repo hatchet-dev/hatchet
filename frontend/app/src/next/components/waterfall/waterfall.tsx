@@ -130,7 +130,7 @@ const inferTaskState = (
 
   // Get all valid timestamps
   const startTimes = tasks
-    .filter((t) => t.startedAt)
+    .filter((t) => Boolean(t.startedAt))
     .map((t) => new Date(t.startedAt!).getTime());
   const finishedTimes = tasks
     .filter((t) => t.finishedAt)
@@ -356,7 +356,7 @@ export function Waterfall({
 
           // Update children to point to phantom parent
           taskIds.forEach((childId) => {
-            const child = taskMap.get(childId)!;
+            const child = taskMap.get(childId);
             child.parentTaskExternalId = phantomParent.metadata.id;
             child.depth = depth + 1;
             taskDepthMap.set(childId, depth + 1);

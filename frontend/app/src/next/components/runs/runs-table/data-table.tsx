@@ -55,6 +55,7 @@ interface DataTableProps<TData extends IDGetter, TValue> {
 }
 
 const nullCallback = () => {};
+const defaultRowSelection = {};
 
 export function DataTable<TData extends IDGetter, TValue>({
   columns,
@@ -64,7 +65,7 @@ export function DataTable<TData extends IDGetter, TValue>({
   selectedTaskId,
   onRowClick = nullCallback,
   onSelectionChange,
-  rowSelection = {},
+  rowSelection = defaultRowSelection,
   setRowSelection,
   selectAll = false,
   getSubRows,

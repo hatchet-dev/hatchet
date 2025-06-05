@@ -86,8 +86,8 @@ function WorkflowDetailsProviderContent({
       }
     },
     onError: handleApiError,
-    onSuccess: () => {
-      workflowQuery.refetch();
+    onSuccess: async () => {
+      await workflowQuery.refetch();
     },
   });
 

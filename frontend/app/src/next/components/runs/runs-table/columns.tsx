@@ -101,7 +101,7 @@ export const columns = (
         );
       },
       filterFn: (row, id, value: string) => {
-        return value.includes(row.getValue(id) as string);
+        return value.includes(row.getValue(id));
       },
       enableSorting: false,
       enableHiding: false,
@@ -183,10 +183,7 @@ export const columns = (
         />
       ),
       cell: ({ row }) => {
-        const startedAt = row.getValue('startedAt') as
-          | string
-          | null
-          | undefined;
+        const startedAt = row.getValue('startedAt') as string | null;
 
         if (!startedAt) {
           return <span>-</span>;
@@ -220,10 +217,7 @@ export const columns = (
         <DataTableColumnHeader column={column} title="Duration" />
       ),
       cell: ({ row }) => {
-        const startedAt = row.getValue('startedAt') as
-          | string
-          | null
-          | undefined;
+        const startedAt = row.getValue('startedAt') as string | null;
         const finishedAt = row.original.finishedAt as string | null;
         const status = row.getValue('status') as V1TaskStatus;
 
