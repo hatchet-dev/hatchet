@@ -21,7 +21,7 @@ plugins:
             show_overloads: false
             docstring_style: sphinx
             show_docstring_functions: false
-            inherited_members: false
+            inherited_members: true
             filters: ["!^_", "!^features$"]
             show_signature_annotations: false
             annotations_path: "brief"

@@ -30,8 +30,11 @@
         - name
         - tasks
         - is_durable
+        - id
         - list_runs
         - aio_list_runs
+        - create_filter
+        - aio_create_filter
 
 ## Standalone
 
@@ -54,3 +57,5 @@
         - is_durable
         - list_runs
         - aio_list_runs
+        - create_filter
+        - aio_create_filter

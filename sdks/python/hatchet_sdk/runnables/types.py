@@ -65,6 +65,12 @@ class TaskDefaults(BaseModel):
     backoff_max_seconds: int | None = None
 
 
+class DefaultFilters(BaseModel):
+    expression: str
+    scope: str
+    payload: JSONSerializableMapping = Field(default_factory=dict)
+
+
 class WorkflowConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", arbitrary_types_allowed=True)
 
@@ -79,6 +85,7 @@ class WorkflowConfig(BaseModel):
     default_priority: int | None = None
 
     task_defaults: TaskDefaults = TaskDefaults()
+    default_filters: list[DefaultFilters] = Field(default_factory=list)
 
 
 class StepType(str, Enum):
@@ -93,13 +100,13 @@ TaskFunc = Union[AsyncFunc[TWorkflowInput, R], SyncFunc[TWorkflowInput, R]]
 
 
 def is_async_fn(
-    fn: TaskFunc[TWorkflowInput, R]
+    fn: TaskFunc[TWorkflowInput, R],
 ) -> TypeGuard[AsyncFunc[TWorkflowInput, R]]:
     return asyncio.iscoroutinefunction(fn)
 
 
 def is_sync_fn(
-    fn: TaskFunc[TWorkflowInput, R]
+    fn: TaskFunc[TWorkflowInput, R],
 ) -> TypeGuard[SyncFunc[TWorkflowInput, R]]:
     return not asyncio.iscoroutinefunction(fn)
 
@@ -112,12 +119,12 @@ DurableTaskFunc = Union[
 
 
 def is_durable_async_fn(
-    fn: Callable[..., Any]
+    fn: Callable[..., Any],
 ) -> TypeGuard[DurableAsyncFunc[TWorkflowInput, R]]:
     return asyncio.iscoroutinefunction(fn)
 
 
 def is_durable_sync_fn(
-    fn: DurableTaskFunc[TWorkflowInput, R]
+    fn: DurableTaskFunc[TWorkflowInput, R],
 ) -> TypeGuard[DurableSyncFunc[TWorkflowInput, R]]:
     return not asyncio.iscoroutinefunction(fn)
