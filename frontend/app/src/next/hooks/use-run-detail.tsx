@@ -60,19 +60,19 @@ export function useRunDetail() {
 interface RunDetailProviderProps {
   children: React.ReactNode;
   runId: string;
-  defaultRefetchInterval?: number;
+  refetchInterval?: number;
 }
 
 export function RunDetailProvider({
   children,
   runId,
-  defaultRefetchInterval,
+  refetchInterval,
 }: RunDetailProviderProps) {
   return (
     <RunsProvider>
       <RunDetailProviderContent
         runId={runId}
-        defaultRefetchInterval={defaultRefetchInterval}
+        refetchInterval={refetchInterval}
       >
         {children}
       </RunDetailProviderContent>
@@ -83,10 +83,10 @@ export function RunDetailProvider({
 function RunDetailProviderContent({
   children,
   runId,
-  defaultRefetchInterval,
+  refetchInterval,
 }: RunDetailProviderProps) {
   const { cancel: cancelRun, replay: replayRun } = useRuns();
-  const [refetchInterval, _] = useState(defaultRefetchInterval);
+
   const [depth, setDepth] = useState(2);
   const [lastRefetchTime, setLastRefetchTime] = useState(Date.now());
   const { toast } = useToast();

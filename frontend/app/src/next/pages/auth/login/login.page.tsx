@@ -1,14 +1,17 @@
 import { Link } from 'react-router-dom';
 import { UserLoginForm } from './components/user-login-form';
-import { Button } from '@/components/ui/button';
 import { Loading } from '@/components/ui/loading';
-import { Icons } from '@/components/ui/icons';
 import React, { useState } from 'react';
 import useApiMeta from '@/next/hooks/use-api-meta';
 import useErrorParam from '@/pages/auth/hooks/use-error-param';
 import { ROUTES } from '@/next/lib/routes';
 import useUser from '@/next/hooks/use-user';
 import { AxiosError } from 'axios';
+import {
+  GithubLogin,
+  GoogleLogin,
+  OrContinueWith,
+} from '../components/shared-auth-components';
 
 export default function Login() {
   useErrorParam();
@@ -106,21 +109,6 @@ export default function Login() {
   );
 }
 
-export function OrContinueWith() {
-  return (
-    <div className="relative my-4">
-      <div className="absolute inset-0 flex items-center">
-        <span className="w-full border-t" />
-      </div>
-      <div className="relative flex justify-center text-xs uppercase">
-        <span className="bg-white px-2 text-gray-700 dark:bg-gray-800 dark:text-gray-300">
-          Or continue with
-        </span>
-      </div>
-    </div>
-  );
-}
-
 function BasicLogin() {
   const { login } = useUser();
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -139,27 +127,5 @@ function BasicLogin() {
       }}
       fieldErrors={fieldErrors}
     />
-  );
-}
-
-export function GoogleLogin() {
-  return (
-    <a href="/api/v1/users/google/start" className="w-full">
-      <Button variant="outline" type="button" className="w-full py-2">
-        <Icons.google className="mr-2 h-4 w-4" />
-        Google
-      </Button>
-    </a>
-  );
-}
-
-export function GithubLogin() {
-  return (
-    <a href="/api/v1/users/github/start" className="w-full">
-      <Button variant="outline" type="button" className="w-full py-2">
-        <Icons.gitHub className="mr-2 h-4 w-4" />
-        Github
-      </Button>
-    </a>
   );
 }

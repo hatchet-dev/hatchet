@@ -55,7 +55,7 @@ export interface PaginationProviderProps {
 }
 
 // Define the type for pagination state
-interface PaginationState {
+interface PaginationState extends Record<string, number> {
   page: number;
   pageSize: number;
 }

@@ -196,8 +196,8 @@ function GithubIntegrationProviderContent({
         throw error;
       }
     },
-    onSuccess: () => {
-      listInstallationsQuery.refetch();
+    onSuccess: async () => {
+      await listInstallationsQuery.refetch();
     },
     onError: handleApiError,
   });

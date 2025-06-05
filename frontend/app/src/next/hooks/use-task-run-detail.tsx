@@ -77,7 +77,7 @@ function TaskRunDetailProviderContent({
   attempt,
 }: TaskRunDetailProviderProps) {
   const { cancel: cancelRun, replay: replayRun } = useRuns();
-  const [refetchInterval] = useState(defaultRefetchInterval);
+  const [refetchInterval, _] = useState(defaultRefetchInterval);
   const lastRefetchTimeRef = useRef(Date.now());
   const { toast } = useToast();
 

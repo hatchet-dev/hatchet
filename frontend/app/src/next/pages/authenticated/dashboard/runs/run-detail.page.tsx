@@ -45,10 +45,7 @@ export default function RunDetailPage() {
   }>();
 
   return (
-    <RunDetailProvider
-      runId={workflowRunId || ''}
-      defaultRefetchInterval={1000}
-    >
+    <RunDetailProvider runId={workflowRunId || ''} refetchInterval={1000}>
       <RunDetailPageContent workflowRunId={workflowRunId || ''} />
     </RunDetailProvider>
   );

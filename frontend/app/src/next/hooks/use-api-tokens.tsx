@@ -148,8 +148,8 @@ export default function useApiTokens({
         throw error;
       }
     },
-    onSuccess: (data) => {
-      listTokensQuery.refetch();
+    onSuccess: async (data) => {
+      await listTokensQuery.refetch();
       return data;
     },
   });

@@ -41,7 +41,7 @@ export function RunDetailSheet(props: RunDetailSheetSerializableProps) {
   return (
     <RunDetailProvider
       runId={props.selectedWorkflowRunId}
-      defaultRefetchInterval={1000}
+      refetchInterval={1000}
     >
       <TaskRunDetailProvider
         taskRunId={props.selectedTaskId}
