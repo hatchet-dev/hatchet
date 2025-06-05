@@ -25,9 +25,7 @@
     "react/react-in-jsx-scope": "off",
     "react-refresh/only-export-components": "off",
     "unused-imports/no-unused-imports": "error",
-    "no-unused-vars": "off",
     "prettier/prettier": "error",
-    "@typescript-eslint/no-unused-vars": "error",
     "curly": "error",
     "import/prefer-default-export": "off",
     "import/no-extraneous-dependencies": [

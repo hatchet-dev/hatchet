@@ -129,15 +129,15 @@ const inferTaskState = (
   }
 
   // Get all valid timestamps
-  const startTimes = tasks
-    .filter((t) => Boolean(t.startedAt))
-    .map((t) => new Date(t.startedAt!).getTime());
-  const finishedTimes = tasks
-    .filter((t) => t.finishedAt)
-    .map((t) => new Date(t.finishedAt!).getTime());
-  const queueTimes = tasks
-    .filter((t) => t.queuedAt)
-    .map((t) => new Date(t.queuedAt!).getTime());
+  const startTimes = tasks.flatMap((t) =>
+    t.startedAt ? [new Date(t.startedAt).getTime()] : [],
+  );
+  const finishedTimes = tasks.flatMap((t) =>
+    t.finishedAt ? [new Date(t.finishedAt).getTime()] : [],
+  );
+  const queueTimes = tasks.flatMap((t) =>
+    t.queuedAt ? [new Date(t.queuedAt).getTime()] : [],
+  );
 
   // Infer status based on child tasks
   let status: V1TaskStatus = V1TaskStatus.QUEUED;
@@ -274,9 +274,11 @@ export function Waterfall({
     const getDescendants = (taskId: string): Set<string> => {
       // If we've already calculated this, return the cached result
       if (taskDescendantsMap.has(taskId)) {
-        return taskDescendantsMap.get(taskId)!;
+        const result = taskDescendantsMap.get(taskId);
+        if (result !== undefined) {
+          return result;
+        }
       }
-
       const descendants = new Set<string>();
       const children = taskParentMap.get(taskId) || [];
 
@@ -323,7 +325,9 @@ export function Waterfall({
       // Create phantom parents for groups with multiple tasks
       groups.forEach((taskIds, workflowRunId) => {
         if (taskIds.length > 1) {
-          const tasks = taskIds.map((id) => taskMap.get(id)!);
+          const tasks = taskIds
+            .map((id) => taskMap.get(id))
+            .flatMap((t) => t || []);
 
           // Infer state from child tasks
           const inferredState = inferTaskState(tasks);
@@ -357,6 +361,11 @@ export function Waterfall({
           // Update children to point to phantom parent
           taskIds.forEach((childId) => {
             const child = taskMap.get(childId);
+
+            if (!child) {
+              return;
+            }
+
             child.parentTaskExternalId = phantomParent.metadata.id;
             child.depth = depth + 1;
             taskDepthMap.set(childId, depth + 1);

@@ -136,7 +136,8 @@ export function CreateInviteForm({ className, close }: CreateInviteFormProps) {
             { email, role: data.role },
             {
               onSuccess: () => resolve(email),
-              onError: (error) => reject({ email, error }),
+              onError: (error) =>
+                reject(new Error(`Failed to invite ${email}: ${error}`)),
             },
           );
         }),
