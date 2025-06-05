@@ -953,16 +953,8 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
         :returns: A list of `V1TaskSummary` objects representing the runs of the workflow.
         """
-        workflows = self.client.workflows.list(workflow_name=self.name)
-
-        if not workflows.rows:
-            logger.warning(f"No runs found for {self.name}")
-            return []
-
-        workflow = workflows.rows[0]
-
         response = self.client.runs.list(
-            workflow_ids=[workflow.metadata.id],
+            workflow_ids=[self.id],
             since=since or datetime.now(tz=timezone.utc) - timedelta(days=1),
             only_tasks=only_tasks,
             offset=offset,

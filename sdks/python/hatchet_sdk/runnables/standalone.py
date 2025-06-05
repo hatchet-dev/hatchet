@@ -11,7 +11,6 @@ from hatchet_sdk.clients.rest.models.cron_workflows import CronWorkflows
 from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
 from hatchet_sdk.clients.rest.models.v1_task_summary import V1TaskSummary
 from hatchet_sdk.contracts.workflows_pb2 import WorkflowVersion
-from hatchet_sdk.logger import logger
 from hatchet_sdk.runnables.task import Task
 from hatchet_sdk.runnables.types import EmptyModel, R, TWorkflowInput
 from hatchet_sdk.runnables.workflow import BaseWorkflow, Workflow
@@ -326,16 +325,7 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
 
         :returns: A list of `V1TaskSummary` objects representing the runs of the workflow.
         """
-        workflows = self.client.workflows.list(workflow_name=self._workflow.name)
-
-        if not workflows.rows:
-            logger.warning(f"No runs found for {self.name}")
-            return []
-
-        workflow = workflows.rows[0]
-
-        response = self.client.runs.list(
-            workflow_ids=[workflow.metadata.id],
+        return self._workflow.list_runs(
             since=since or datetime.now(tz=timezone.utc) - timedelta(days=1),
             only_tasks=True,
             offset=offset,
@@ -347,8 +337,6 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
             parent_task_external_id=parent_task_external_id,
             triggering_event_external_id=triggering_event_external_id,
         )
-
-        return response.rows
 
     async def aio_list_runs(
         self,
