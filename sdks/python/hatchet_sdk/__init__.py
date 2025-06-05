@@ -144,10 +144,10 @@ from hatchet_sdk.runnables.task import Task
 from hatchet_sdk.runnables.types import (
     ConcurrencyExpression,
     ConcurrencyLimitStrategy,
+    DefaultFilter,
     EmptyModel,
     StickyStrategy,
     TaskDefaults,
-    DefaultFilter,
     WorkflowConfig,
 )
 from hatchet_sdk.utils.opentelemetry import OTelAttribute

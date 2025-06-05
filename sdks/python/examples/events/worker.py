@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 
-from hatchet_sdk import Context, Hatchet, DefaultFilter
+from hatchet_sdk import Context, DefaultFilter, Hatchet
 
 hatchet = Hatchet()
 EVENT_KEY = "user:create"
