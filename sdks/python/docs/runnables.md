@@ -9,6 +9,7 @@
 
 ::: runnables.workflow.Workflow
     options:
+      inherited_members: true
       members:
         - task
         - durable_task
@@ -38,8 +39,9 @@
 
 ## Standalone
 
-::: runnables.standalone.Standalone
+::: runnables.workflow.Standalone
     options:
+      inherited_members: true
       members:
         - run
         - aio_run
