@@ -340,21 +340,16 @@ export class V1Worker {
               : [],
         })),
         concurrency: concurrencySolo,
+        defaultFilters:
+          workflow.defaultFilters?.map((f) => ({
+            scope: f.scope,
+            expression: f.expression,
+            payload: f.payload ? JSON.stringify(f.payload) : undefined,
+          })) ?? [],
       });
       this.registeredWorkflowPromises.push(registeredWorkflow);
       await registeredWorkflow;
       this.workflow_registry.push(workflow);
-
-      const foo = await Promise.all(
-        workflow.defaultFilters?.map(async (filter) => {
-          return await this.client.filters.create({
-            workflowId: (await registeredWorkflow).workflowId,
-            scope: filter.scope,
-            expression: filter.expression,
-            payload: filter.payload,
-          });
-        }) || []
-      );
     } catch (e: any) {
       throw new HatchetError(`Could not register workflow: ${e.message}`);
     }

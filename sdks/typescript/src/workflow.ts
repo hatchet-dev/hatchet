@@ -16,7 +16,6 @@ const EventConfigSchema = z.object({
   event: z.string(),
 });
 
-
 const OnConfigSchema = z.union([CronConfigSchema, EventConfigSchema]).optional();
 
 const StepsSchema = z.array(CreateStepSchema);
