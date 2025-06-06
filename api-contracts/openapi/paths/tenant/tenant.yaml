@@ -96,7 +96,7 @@ updateTenants:
           application/json:
             schema:
               $ref: "../../components/schemas/_index.yaml#/Tenant"
-        description: Successfully created the tenant
+        description: Successfully got the tenant
       "400":
         content:
           application/json:
