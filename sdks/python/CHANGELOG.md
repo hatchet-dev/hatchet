@@ -5,6 +5,12 @@ All notable changes to Hatchet's Python SDK will be documented in this changelog
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.11.1] - 2025-06-05
+
+### Changed
+
+- Fixes a couple of blocking calls buried in the admin client causing loop blockages on child spawning
+
 ## [1.11.0] - 2025-05-29
 
 ### Changed
