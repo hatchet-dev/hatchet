@@ -2544,6 +2544,7 @@ type V1EventsOlap struct {
 	Key                string             `json:"key"`
 	Payload            []byte             `json:"payload"`
 	AdditionalMetadata []byte             `json:"additional_metadata"`
+	Scope              pgtype.Text        `json:"scope"`
 }
 
 type V1Filter struct {

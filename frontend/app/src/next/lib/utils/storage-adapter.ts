@@ -1,13 +1,15 @@
 import * as React from 'react';
 
-export interface StorageAdapter<T = any> {
+export interface StorageAdapter<T = unknown> {
   getValue<K extends keyof T>(key: string, defaultValue: T[K]): T[K];
   setValue<K extends keyof T>(key: string, value: T[K]): void;
   setValues(values: Partial<T>): void;
   getValues(): T;
 }
 
-class StateAdapter<T extends Record<string, any>> implements StorageAdapter<T> {
+class StateAdapter<T extends Record<string, unknown>>
+  implements StorageAdapter<T>
+{
   private setState: React.Dispatch<React.SetStateAction<T>>;
 
   private state: T;
@@ -48,7 +50,7 @@ class StateAdapter<T extends Record<string, any>> implements StorageAdapter<T> {
  * @param initialValues The initial values for the storage
  * @returns A storage adapter instance
  */
-export function useStateAdapter<T extends Record<string, any>>(
+export function useStateAdapter<T extends Record<string, unknown>>(
   initialValues: T,
 ): StorageAdapter<T> {
   const [stateValues, setStateValues] = React.useState<T>(initialValues);

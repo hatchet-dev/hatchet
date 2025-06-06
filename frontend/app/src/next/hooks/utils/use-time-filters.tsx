@@ -77,19 +77,23 @@ export function useTimeFilters() {
     },
     setTimeFilter,
     pause: () => {
-      setTimeFilter({
-        startTime: state.startTime!,
-        endTime: endOfMinute(new Date()).toISOString(),
-      });
+      if (state.startTime) {
+        setTimeFilter({
+          startTime: state.startTime,
+          endTime: endOfMinute(new Date()).toISOString(),
+        });
+      }
     },
     resume: () => {
       if (state.lastActivePreset) {
         setTimeFilter(state.lastActivePreset);
       } else {
-        setTimeFilter({
-          startTime: state.startTime!,
-          endTime: undefined,
-        });
+        if (state.startTime) {
+          setTimeFilter({
+            startTime: state.startTime,
+            endTime: undefined,
+          });
+        }
       }
     },
     isPaused: state.endTime !== undefined,

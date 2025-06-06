@@ -49,16 +49,16 @@ export function BillingRequired() {
                   <div className="mt-2 grid gap-2 text-sm">
                     <PricingTable />
                     {hasCredits &&
-                      costs.data?.creditsRemaining !== undefined && (
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">
-                            Monthly Free Credits:
-                          </span>
-                          <span className="font-medium text-green-500">
-                            ${costs.data.creditsRemaining.toFixed(2)}
-                          </span>
-                        </div>
-                      )}
+                    costs.data?.creditsRemaining !== undefined ? (
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">
+                          Monthly Free Credits:
+                        </span>
+                        <span className="font-medium text-green-500">
+                          ${costs.data.creditsRemaining.toFixed(2)}
+                        </span>
+                      </div>
+                    ) : null}
                   </div>
                 </div>
               </div>

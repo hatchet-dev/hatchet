@@ -79,7 +79,7 @@ function CronsProviderContent({
     queryKey: ['cron:list', tenantId, filters.filters, pagination],
     queryFn: async () => {
       try {
-        const queryParams: Record<string, any> = {
+        const queryParams: Record<string, number | string | string[]> = {
           limit: pagination.pageSize,
           offset: Math.max(
             0,
@@ -126,8 +126,8 @@ function CronsProviderContent({
         throw error;
       }
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['cron:list'] });
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['cron:list'] });
     },
   });
 
@@ -147,8 +147,8 @@ function CronsProviderContent({
         throw error;
       }
     },
-    onSuccess: () => {
-      listCronsQuery.refetch();
+    onSuccess: async () => {
+      await listCronsQuery.refetch();
     },
   });
 
@@ -177,8 +177,8 @@ function CronsProviderContent({
         throw error;
       }
     },
-    onSuccess: () => {
-      listCronsQuery.refetch();
+    onSuccess: async () => {
+      await listCronsQuery.refetch();
     },
   });
 

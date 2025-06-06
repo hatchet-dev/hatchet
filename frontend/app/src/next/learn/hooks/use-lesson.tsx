@@ -57,9 +57,9 @@ export function LessonProvider<
   C,
 >({ children, lesson }: LessonProviderProps<S, E, C>) {
   const [language, setLanguage] = useState(lesson.defaultLanguage);
-  const [activeStep, setActiveStepState] = useState<S>();
+  const [activeStep, setActiveStep] = useState<S>();
   const [extra, setExtra] = useState(lesson.extraDefaults);
-  const [highlights, setHighlightState] = useState<HighlightStateMap<S>>({});
+  const [highlights, setHighlights] = useState<HighlightStateMap<S>>({});
 
   const codeBlocksRef = useRef<Record<S, HTMLDivElement | null>>(
     Object.keys(lesson.steps).reduce(
@@ -96,8 +96,8 @@ export function LessonProvider<
     activeBlock.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }, [activeStep]);
 
-  const setActiveStep = (step: S) => {
-    setActiveStepState(step);
+  const onSetActiveStep = (step: S) => {
+    setActiveStep(step);
   };
 
   const commands = useMemo(() => {
@@ -127,21 +127,21 @@ export function LessonProvider<
       [language]: { ...prev[language], ...e },
     }));
 
-  const setHighlights = useCallback(
+  const onSetHighlights = useCallback(
     (highlightState?: HighlightStateMap<S>) =>
-      setHighlightState(highlightState || {}),
-    [setHighlightState],
+      setHighlights(highlightState || {}),
+    [setHighlights],
   );
 
   const value = {
     language,
     setLanguage,
     activeStep,
-    setActiveStep,
+    setActiveStep: onSetActiveStep,
     extra: extra[language],
     setExtra: setExtraWithLanguage,
     highlights,
-    setHighlights,
+    setHighlights: onSetHighlights,
     commands,
     stepKeys,
     currentStepIndex,

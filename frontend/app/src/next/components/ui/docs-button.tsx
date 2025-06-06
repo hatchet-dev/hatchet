@@ -9,6 +9,7 @@ import {
   TooltipTrigger,
 } from './tooltip';
 import { useSidePanel } from '@/next/hooks/use-side-panel';
+import useApiMeta from '@/next/hooks/use-api-meta';
 
 export type DocRef = {
   title: string;
@@ -25,33 +26,30 @@ interface DocsButtonProps
   titleOverride?: string;
 }
 
+// FIXME: this will need to be dynamic for OSS
+export const cloudDocsUrl = 'https://docs.onhatchet.run';
 export const baseDocsUrl = 'https://docs.hatchet.run';
 
 export function DocsButton({
   doc,
   prefix = 'Learn more about ',
   size = 'sm',
-  method = 'sheet',
   variant = 'outline',
   titleOverride,
   ...props
 }: DocsButtonProps) {
-  const { close: closeSideSheet, open } = useSidePanel();
+  const { open } = useSidePanel();
+  const { isCloud } = useApiMeta();
 
   const handleClick = (e: React.MouseEvent) => {
-    if (method === 'sheet') {
-      e.preventDefault();
-      closeSideSheet();
-      open({
-        type: 'docs',
-        content: {
-          href: `${baseDocsUrl}${doc.href}`,
-          title: doc.title,
-        },
-      });
-    } else {
-      window.open(`${baseDocsUrl}${doc.href}`, '_blank');
-    }
+    e.preventDefault();
+    open({
+      type: 'docs',
+      content: {
+        href: `${isCloud ? cloudDocsUrl : baseDocsUrl}${doc.href}`,
+        title: doc.title,
+      },
+    });
   };
 
   const buttonContent = (

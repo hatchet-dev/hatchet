@@ -64,7 +64,7 @@ export function InvitesTable({
               <TableCell>{formatDate(invite.metadata.createdAt)}</TableCell>
               <TableCell>{formatDate(invite.expires)}</TableCell>
               <TableCell className="text-right">
-                {onRevokeClick && can(members.invite(invite.role)) && (
+                {onRevokeClick && can(members.invite(invite.role)) ? (
                   <Button
                     variant="ghost"
                     size="sm"
@@ -73,7 +73,7 @@ export function InvitesTable({
                   >
                     Revoke
                   </Button>
-                )}
+                ) : null}
               </TableCell>
             </TableRow>
           ))}

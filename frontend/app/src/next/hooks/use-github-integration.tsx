@@ -3,9 +3,9 @@ import {
   useContext,
   PropsWithChildren,
   createElement,
+  useState,
 } from 'react';
 import { useCurrentTenantId } from './use-tenant';
-import { useState } from 'react';
 import {
   GithubAppInstallation,
   GithubBranch,
@@ -42,11 +42,16 @@ interface GithubIntegrationState {
   };
   linkInstallation: UseMutationResult<
     void,
-    AxiosError<unknown, any>,
+    AxiosError<unknown, unknown>,
     string,
     unknown
   >;
-  startOAuth: UseMutationResult<void, AxiosError<unknown, any>, void, unknown>;
+  startOAuth: UseMutationResult<
+    void,
+    AxiosError<unknown, unknown>,
+    void,
+    unknown
+  >;
   selectedInstallation: string | undefined;
   setSelectedInstallation: (installationId: string | undefined) => void;
   selectedRepo: GithubRepo | undefined;
@@ -191,8 +196,8 @@ function GithubIntegrationProviderContent({
         throw error;
       }
     },
-    onSuccess: () => {
-      listInstallationsQuery.refetch();
+    onSuccess: async () => {
+      await listInstallationsQuery.refetch();
     },
     onError: handleApiError,
   });
