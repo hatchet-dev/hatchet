@@ -81,6 +81,13 @@ export class RunsClient {
     return data;
   }
 
+  async get_status<T = any>(run: string | WorkflowRunRef<T>) {
+    const runId = typeof run === 'string' ? run : await run.getWorkflowRunId();
+
+    const { data } = await this.api.v1WorkflowRunGetStatus(runId);
+    return data;
+  }
+
   async list(opts?: Partial<ListRunsOpts>) {
     const { data } = await this.api.v1WorkflowRunList(this.tenantId, {
       ...(await this.prepareListFilter(opts || {})),
