@@ -11,6 +11,7 @@ from hatchet_sdk.features.metrics import MetricsClient
 from hatchet_sdk.features.rate_limits import RateLimitsClient
 from hatchet_sdk.features.runs import RunsClient
 from hatchet_sdk.features.scheduled import ScheduledClient
+from hatchet_sdk.features.tenant import TenantClient
 from hatchet_sdk.features.workers import WorkersClient
 from hatchet_sdk.features.workflows import WorkflowsClient
 
@@ -45,6 +46,7 @@ class Client:
             workflow_run_listener=self.workflow_listener,
         )
         self.scheduled = ScheduledClient(self.config)
+        self.tenant = TenantClient(self.config)
         self.workers = WorkersClient(self.config)
         self.workflows = WorkflowsClient(self.config)
 
