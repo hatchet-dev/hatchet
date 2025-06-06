@@ -13,7 +13,6 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/cel"
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/digest"
-	v1 "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
@@ -50,7 +49,7 @@ type CreateWorkflowVersionOpts struct {
 
 	DefaultPriority *int32 `validate:"omitempty,min=1,max=3"`
 
-	DefaultFilters []v1.DefaultFilter `json:"defaultFilters,omitempty" validate:"omitempty,dive"`
+	DefaultFilters []DefaultFilter `json:"defaultFilters,omitempty" validate:"omitempty,dive"`
 }
 
 type CreateCronWorkflowTriggerOpts struct {
@@ -180,6 +179,17 @@ type CreateWorkflowStepRateLimitOpts struct {
 
 	// (optional) the rate limit duration, defaults to MINUTE
 	Duration *string `validate:"omitnil,oneof=SECOND MINUTE HOUR DAY WEEK MONTH YEAR"`
+}
+
+type DefaultFilter struct {
+	// (required) the filter expression
+	Expression string `json:"expression" validate:"required"`
+
+	// (required) the scope for the filter
+	Scope string `json:"scope" validate:"required"`
+
+	// (optional) the payload for the filter
+	Payload *[]byte `json:"payload,omitempty" validate:"omitempty"`
 }
 
 type WorkflowRepository interface {
