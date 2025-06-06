@@ -437,6 +437,7 @@ export class V1Worker {
         ],
       });
       this.registeredWorkflowPromises.push(registeredWorkflow);
+      await registeredWorkflow;
       this.workflow_registry.push(workflow);
     } catch (e: any) {
       throw new HatchetError(`Could not register workflow: ${e.message}`);
