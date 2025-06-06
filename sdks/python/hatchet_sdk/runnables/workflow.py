@@ -199,6 +199,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
             concurrency=_concurrency,
             concurrency_arr=_concurrency_arr,
             default_priority=self.config.default_priority,
+            default_filters=[f.to_proto() for f in self.config.default_filters],
         )
 
     def _get_workflow_input(self, ctx: Context) -> TWorkflowInput:

@@ -1,4 +1,5 @@
 import asyncio
+import json
 from enum import Enum
 from typing import Any, Callable, ParamSpec, Type, TypeGuard, TypeVar, Union
 
@@ -6,6 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from hatchet_sdk.context.context import Context, DurableContext
 from hatchet_sdk.contracts.v1.workflows_pb2 import Concurrency
+from hatchet_sdk.contracts.v1.workflows_pb2 import DefaultFilter as DefaultFilterProto
 from hatchet_sdk.utils.timedelta_to_expression import Duration
 from hatchet_sdk.utils.typing import AwaitableLike, JSONSerializableMapping
 
@@ -69,6 +71,15 @@ class DefaultFilter(BaseModel):
     expression: str
     scope: str
     payload: JSONSerializableMapping = Field(default_factory=dict)
+
+    def to_proto(self) -> DefaultFilterProto:
+        payload_json = json.dumps(self.payload, default=str)
+
+        return DefaultFilterProto(
+            expression=self.expression,
+            scope=self.scope,
+            payload=payload_json,
+        )
 
 
 class WorkflowConfig(BaseModel):
