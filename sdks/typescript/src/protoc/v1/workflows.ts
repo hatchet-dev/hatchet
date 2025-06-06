@@ -283,6 +283,17 @@ export interface CreateWorkflowVersionRequest {
   defaultPriority?: number | undefined;
   /** (optional) the workflow concurrency options */
   concurrencyArr: Concurrency[];
+  /** (optional) the default filters for the workflow */
+  defaultFilters: DefaultFilter[];
+}
+
+export interface DefaultFilter {
+  /** (required) the CEL expression for the filter */
+  expression: string;
+  /** (required) the scope of the filter */
+  scope: string;
+  /** (optional) the payload for the filter, if any. A JSON object as a string. */
+  payload?: string | undefined;
 }
 
 export interface Concurrency {
@@ -988,6 +999,7 @@ function createBaseCreateWorkflowVersionRequest(): CreateWorkflowVersionRequest 
     sticky: undefined,
     defaultPriority: undefined,
     concurrencyArr: [],
+    defaultFilters: [],
   };
 }
 
@@ -1031,6 +1043,9 @@ export const CreateWorkflowVersionRequest: MessageFns<CreateWorkflowVersionReque
     }
     for (const v of message.concurrencyArr) {
       Concurrency.encode(v!, writer.uint32(98).fork()).join();
+    }
+    for (const v of message.defaultFilters) {
+      DefaultFilter.encode(v!, writer.uint32(106).fork()).join();
     }
     return writer;
   },
@@ -1138,6 +1153,14 @@ export const CreateWorkflowVersionRequest: MessageFns<CreateWorkflowVersionReque
           message.concurrencyArr.push(Concurrency.decode(reader, reader.uint32()));
           continue;
         }
+        case 13: {
+          if (tag !== 106) {
+            break;
+          }
+
+          message.defaultFilters.push(DefaultFilter.decode(reader, reader.uint32()));
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -1172,6 +1195,9 @@ export const CreateWorkflowVersionRequest: MessageFns<CreateWorkflowVersionReque
         : undefined,
       concurrencyArr: globalThis.Array.isArray(object?.concurrencyArr)
         ? object.concurrencyArr.map((e: any) => Concurrency.fromJSON(e))
+        : [],
+      defaultFilters: globalThis.Array.isArray(object?.defaultFilters)
+        ? object.defaultFilters.map((e: any) => DefaultFilter.fromJSON(e))
         : [],
     };
   },
@@ -1214,6 +1240,9 @@ export const CreateWorkflowVersionRequest: MessageFns<CreateWorkflowVersionReque
     if (message.concurrencyArr?.length) {
       obj.concurrencyArr = message.concurrencyArr.map((e) => Concurrency.toJSON(e));
     }
+    if (message.defaultFilters?.length) {
+      obj.defaultFilters = message.defaultFilters.map((e) => DefaultFilter.toJSON(e));
+    }
     return obj;
   },
 
@@ -1240,6 +1269,99 @@ export const CreateWorkflowVersionRequest: MessageFns<CreateWorkflowVersionReque
     message.sticky = object.sticky ?? undefined;
     message.defaultPriority = object.defaultPriority ?? undefined;
     message.concurrencyArr = object.concurrencyArr?.map((e) => Concurrency.fromPartial(e)) || [];
+    message.defaultFilters = object.defaultFilters?.map((e) => DefaultFilter.fromPartial(e)) || [];
+    return message;
+  },
+};
+
+function createBaseDefaultFilter(): DefaultFilter {
+  return { expression: '', scope: '', payload: undefined };
+}
+
+export const DefaultFilter: MessageFns<DefaultFilter> = {
+  encode(message: DefaultFilter, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.expression !== '') {
+      writer.uint32(10).string(message.expression);
+    }
+    if (message.scope !== '') {
+      writer.uint32(18).string(message.scope);
+    }
+    if (message.payload !== undefined) {
+      writer.uint32(26).string(message.payload);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): DefaultFilter {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseDefaultFilter();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.expression = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.scope = reader.string();
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
+
+          message.payload = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): DefaultFilter {
+    return {
+      expression: isSet(object.expression) ? globalThis.String(object.expression) : '',
+      scope: isSet(object.scope) ? globalThis.String(object.scope) : '',
+      payload: isSet(object.payload) ? globalThis.String(object.payload) : undefined,
+    };
+  },
+
+  toJSON(message: DefaultFilter): unknown {
+    const obj: any = {};
+    if (message.expression !== '') {
+      obj.expression = message.expression;
+    }
+    if (message.scope !== '') {
+      obj.scope = message.scope;
+    }
+    if (message.payload !== undefined) {
+      obj.payload = message.payload;
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<DefaultFilter>): DefaultFilter {
+    return DefaultFilter.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<DefaultFilter>): DefaultFilter {
+    const message = createBaseDefaultFilter();
+    message.expression = object.expression ?? '';
+    message.scope = object.scope ?? '';
+    message.payload = object.payload ?? undefined;
     return message;
   },
 };

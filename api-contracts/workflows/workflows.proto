@@ -46,6 +46,7 @@ message CreateWorkflowVersionOpts {
     optional int32 default_priority = 14; // (optional) the priority of the workflow
 }
 
+
 enum ConcurrencyLimitStrategy {
     CANCEL_IN_PROGRESS = 0;
     DROP_NEWEST = 1; // deprecated

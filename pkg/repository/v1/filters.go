@@ -26,19 +26,21 @@ func newFilterRepository(shared *sharedRepository) FilterRepository {
 }
 
 type CreateFilterOpts struct {
-	Workflowid pgtype.UUID `json:"workflowid" validate:"required,uuid"`
-	Scope      string      `json:"scope" validate:"required"`
-	Expression string      `json:"expression" validate:"required"`
-	Payload    []byte      `json:"payload"`
+	Workflowid    pgtype.UUID `json:"workflowid" validate:"required,uuid"`
+	Scope         string      `json:"scope" validate:"required"`
+	Expression    string      `json:"expression" validate:"required"`
+	Payload       []byte      `json:"payload"`
+	IsDeclarative bool        `json:"is_declarative"`
 }
 
 func (r *filterRepository) CreateFilter(ctx context.Context, tenantId string, opts CreateFilterOpts) (*sqlcv1.V1Filter, error) {
 	return r.queries.CreateFilter(ctx, r.pool, sqlcv1.CreateFilterParams{
-		Tenantid:   sqlchelpers.UUIDFromStr(tenantId),
-		Workflowid: opts.Workflowid,
-		Scope:      opts.Scope,
-		Expression: opts.Expression,
-		Payload:    opts.Payload,
+		Tenantid:      sqlchelpers.UUIDFromStr(tenantId),
+		Workflowid:    opts.Workflowid,
+		Scope:         opts.Scope,
+		Expression:    opts.Expression,
+		Payload:       opts.Payload,
+		Isdeclarative: opts.IsDeclarative,
 	})
 }
 

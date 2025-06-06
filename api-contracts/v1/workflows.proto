@@ -83,6 +83,14 @@ message CreateWorkflowVersionRequest {
     optional StickyStrategy sticky = 10; // (optional) the sticky strategy for assigning steps to workers
     optional int32 default_priority = 11; // (optional) the default priority for the workflow
     repeated Concurrency concurrency_arr = 12; // (optional) the workflow concurrency options
+    repeated DefaultFilter default_filters = 13; // (optional) the default filters for the workflow
+}
+
+
+message DefaultFilter {
+    string expression = 1; // (required) the CEL expression for the filter
+    string scope = 2; // (required) the scope of the filter
+    optional string payload = 3; // (optional) the payload for the filter, if any. A JSON object as a string.
 }
 
 enum ConcurrencyLimitStrategy {

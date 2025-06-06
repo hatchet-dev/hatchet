@@ -1,5 +1,5 @@
 import asyncio
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from random import choice
 from subprocess import Popen
 from typing import Any, AsyncGenerator, Literal
@@ -165,7 +165,7 @@ async def test_priority_via_scheduling(
     sleep_time = 3
     n = 30
     choices: list[Priority] = ["low", "medium", "high", "default"]
-    run_at = datetime.now() + timedelta(seconds=sleep_time)
+    run_at = datetime.now(tz=timezone.utc) + timedelta(seconds=sleep_time)
 
     versions = await asyncio.gather(
         *[
@@ -277,7 +277,7 @@ async def crons(
 
 
 def time_until_next_minute() -> float:
-    now = datetime.now()
+    now = datetime.now(tz=timezone.utc)
     next_minute = (now + timedelta(minutes=1)).replace(second=0, microsecond=0)
 
     return (next_minute - now).total_seconds()

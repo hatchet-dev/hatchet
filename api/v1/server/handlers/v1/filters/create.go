@@ -27,10 +27,11 @@ func (t *V1FiltersService) V1FilterCreate(ctx echo.Context, request gen.V1Filter
 	}
 
 	params := v1.CreateFilterOpts{
-		Workflowid: sqlchelpers.UUIDFromStr(request.Body.WorkflowId.String()),
-		Scope:      request.Body.Scope,
-		Expression: request.Body.Expression,
-		Payload:    payload,
+		Workflowid:    sqlchelpers.UUIDFromStr(request.Body.WorkflowId.String()),
+		Scope:         request.Body.Scope,
+		Expression:    request.Body.Expression,
+		Payload:       payload,
+		IsDeclarative: false,
 	}
 
 	filter, err := t.config.V1.Filters().CreateFilter(
