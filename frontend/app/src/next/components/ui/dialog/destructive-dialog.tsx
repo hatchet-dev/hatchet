@@ -77,12 +77,14 @@ export function DestructiveDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
-          {description && <DialogDescription>{description}</DialogDescription>}
+          {description ? (
+            <DialogDescription>{description}</DialogDescription>
+          ) : null}
         </DialogHeader>
 
         {children}
 
-        {requireTextConfirmation && (
+        {requireTextConfirmation ? (
           <div className="mt-2">
             <label
               htmlFor="confirmation"
@@ -102,7 +104,7 @@ export function DestructiveDialog({
               }
             />
           </div>
-        )}
+        ) : null}
 
         {!hideAlert && (
           <Alert variant="destructive" className="my-2">

@@ -104,6 +104,8 @@ function WithPreviousInput({
   return null;
 }
 
+const defaultDisabledCapabilities: TriggerRunCapability[] = [];
+
 function TriggerRunModalContent({
   show,
   onClose,
@@ -112,7 +114,7 @@ function TriggerRunModalContent({
   defaultAddlMeta = '{}',
   defaultWorkflowId,
   defaultRunId,
-  disabledCapabilities = [],
+  disabledCapabilities = defaultDisabledCapabilities,
   onRun,
 }: TriggerRunModalProps) {
   const navigate = useNavigate();
@@ -300,14 +302,14 @@ function TriggerRunModalContent({
         </DialogHeader>
 
         <div className="space-y-4">
-          {selectedRunId && !disabledCapabilities.includes('fromRecent') && (
+          {selectedRunId && !disabledCapabilities.includes('fromRecent') ? (
             <RunDetailProvider runId={selectedRunId}>
               <WithPreviousInput
                 setInput={setInput}
                 setAddlMeta={setAddlMeta}
               />
             </RunDetailProvider>
-          )}
+          ) : null}
           {!disabledCapabilities.includes('workflow') && (
             <div>
               <label className="text-sm font-medium">Workflow</label>

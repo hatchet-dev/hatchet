@@ -45,7 +45,7 @@ export interface BadgeProps
   tooltipContent?: React.ReactNode;
 }
 
-function Badge({
+export function Badge({
   className,
   variant,
   animated,
@@ -76,5 +76,3 @@ function Badge({
     />
   );
 }
-
-export { Badge, badgeVariants };

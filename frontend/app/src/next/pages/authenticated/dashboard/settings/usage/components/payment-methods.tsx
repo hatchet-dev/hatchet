@@ -53,8 +53,8 @@ export function PaymentMethods() {
                   <div className="flex flex-row gap-2 items-center">
                     <Icon size={24} />
                     {method.brand.toUpperCase()}
-                    {method.last4 && ` *** *** ${method.last4} `}
-                    {method.expiration && `(Expires {method.expiration})`}
+                    {method.last4 ? ` *** *** ${method.last4} ` : null}
+                    {method.expiration ? `(Expires {method.expiration})` : null}
                   </div>
                 </div>
               </div>

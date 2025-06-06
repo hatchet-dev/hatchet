@@ -92,7 +92,7 @@ export function ZoomableChart<T extends string>({
     return keys.reduce<ChartConfig>((acc, key, index) => {
       let color = `hsl(${(index * 360) / keys.length}, 70%, 50%)`;
 
-      if (colors && colors[key]) {
+      if (colors?.[key]) {
         color = colors[key];
       }
 
@@ -249,14 +249,14 @@ function ChildBarChart<T extends string>({
           minTickGap={16}
           style={{ fontSize: '10px', userSelect: 'none' }}
         />
-        {showYAxis && (
+        {showYAxis ? (
           <YAxis
             tickLine={false}
             axisLine={false}
             tickMargin={4}
             style={{ fontSize: '10px', userSelect: 'none' }}
           />
-        )}
+        ) : null}
         <ChartTooltip
           content={
             <ChartTooltipContent
@@ -277,7 +277,7 @@ function ChildBarChart<T extends string>({
           />
         ))}
 
-        {refAreaLeft && refAreaRight && (
+        {refAreaLeft && refAreaRight ? (
           <ReferenceArea
             x1={refAreaLeft}
             x2={refAreaRight}
@@ -285,7 +285,7 @@ function ChildBarChart<T extends string>({
             fill="hsl(var(--foreground))"
             fillOpacity={0.1}
           />
-        )}
+        ) : null}
       </BarChart>
     </ResponsiveContainer>
   );
@@ -327,14 +327,14 @@ function ChildLineChart<T extends string>({
           minTickGap={16}
           style={{ fontSize: '10px', userSelect: 'none' }}
         />
-        {showYAxis && (
+        {showYAxis ? (
           <YAxis
             tickLine={false}
             axisLine={false}
             tickMargin={4}
             style={{ fontSize: '10px', userSelect: 'none' }}
           />
-        )}
+        ) : null}
         <ChartTooltip
           content={
             <ChartTooltipContent
@@ -358,7 +358,7 @@ function ChildLineChart<T extends string>({
           );
         })}
 
-        {refAreaLeft && refAreaRight && (
+        {refAreaLeft && refAreaRight ? (
           <ReferenceArea
             x1={refAreaLeft}
             x2={refAreaRight}
@@ -366,7 +366,7 @@ function ChildLineChart<T extends string>({
             fill="hsl(var(--foreground))"
             fillOpacity={0.1}
           />
-        )}
+        ) : null}
       </LineChart>
     </ResponsiveContainer>
   );
@@ -408,14 +408,14 @@ function ChildAreaChart<T extends string>({
           minTickGap={16}
           style={{ fontSize: '10px', userSelect: 'none' }}
         />
-        {showYAxis && (
+        {showYAxis ? (
           <YAxis
             tickLine={false}
             axisLine={false}
             tickMargin={4}
             style={{ fontSize: '10px', userSelect: 'none' }}
           />
-        )}
+        ) : null}
         <ChartTooltip
           content={
             <ChartTooltipContent
@@ -440,7 +440,7 @@ function ChildAreaChart<T extends string>({
           );
         })}
 
-        {refAreaLeft && refAreaRight && (
+        {refAreaLeft && refAreaRight ? (
           <ReferenceArea
             x1={refAreaLeft}
             x2={refAreaRight}
@@ -448,7 +448,7 @@ function ChildAreaChart<T extends string>({
             fill="hsl(var(--foreground))"
             fillOpacity={0.1}
           />
-        )}
+        ) : null}
       </AreaChart>
     </ResponsiveContainer>
   );

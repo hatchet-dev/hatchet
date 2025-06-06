@@ -10,15 +10,14 @@ import { Skeleton } from '@/next/components/ui/skeleton';
 import { useMemo, useCallback, useState } from 'react';
 import { RunId } from '@/next/components/runs/run-id';
 import { RunsBadge } from '@/next/components/runs/runs-badge';
-import { MdOutlineReplay } from 'react-icons/md';
-import { MdOutlineCancel } from 'react-icons/md';
+import { MdOutlineReplay, MdOutlineCancel } from 'react-icons/md';
 import { SplitButton } from '@/next/components/ui/split-button';
 import {
   HeadlineActionItem,
   HeadlineActions,
   PageTitle,
+  Headline,
 } from '@/next/components/ui/page-header';
-import { Headline } from '@/next/components/ui/page-header';
 import { Duration } from '@/next/components/ui/duration';
 import {
   V1TaskStatus,
@@ -46,17 +45,14 @@ export default function RunDetailPage() {
   }>();
 
   return (
-    <RunDetailProvider
-      runId={workflowRunId || ''}
-      defaultRefetchInterval={1000}
-    >
-      <RunDetailPageContent workflowRunId={workflowRunId} />
+    <RunDetailProvider runId={workflowRunId || ''} refetchInterval={1000}>
+      <RunDetailPageContent workflowRunId={workflowRunId || ''} />
     </RunDetailProvider>
   );
 }
 
 type RunDetailPageProps = {
-  workflowRunId?: string;
+  workflowRunId: string;
   taskId?: string;
 };
 
@@ -77,7 +73,7 @@ function RunDetailPageContent({ workflowRunId }: RunDetailPageProps) {
       openSheet({
         type: 'run-details',
         content: {
-          pageWorkflowRunId: workflowRunId!,
+          pageWorkflowRunId: workflowRunId,
           selectedWorkflowRunId: childWorkflowRunId || taskId,
           selectedTaskId: taskId,
         },
@@ -293,7 +289,7 @@ function RunDetailPageContent({ workflowRunId }: RunDetailPageProps) {
 
       <Separator className="my-4" />
       <Waterfall
-        workflowRunId={workflowRunId!}
+        workflowRunId={workflowRunId}
         selectedTaskId={selectedTaskId}
         handleTaskSelect={handleTaskSelect}
       />
@@ -314,7 +310,7 @@ function RunDetailPageContent({ workflowRunId }: RunDetailPageProps) {
                 openSheet({
                   type: 'run-details',
                   content: {
-                    selectedWorkflowRunId: workflowRunId!,
+                    selectedWorkflowRunId: workflowRunId,
                     selectedTaskId: event.taskId,
                     attempt: event.attempt,
                   },

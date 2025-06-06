@@ -28,10 +28,12 @@ interface DataTableProps<TData, TValue> {
   emptyState?: ReactNode;
 }
 
+const defaultFilters: string[] = [];
+
 export function DataTable<TData, TValue>({
   columns,
   data,
-  filters = [],
+  filters = defaultFilters,
   getRowId,
   isLoading,
   emptyState,

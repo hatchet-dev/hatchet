@@ -18,11 +18,13 @@ import {
 } from '@/next/components/ui/card';
 import { DocsButton } from '@/next/components/ui/docs-button';
 import docs from '@/next/lib/docs';
-import { HeadlineActionItem } from '@/next/components/ui/page-header';
-import { HeadlineActions } from '@/next/components/ui/page-header';
-import { PageTitle } from '@/next/components/ui/page-header';
+import {
+  HeadlineActionItem,
+  HeadlineActions,
+  PageTitle,
+  Headline,
+} from '@/next/components/ui/page-header';
 import BasicLayout from '@/next/components/layouts/basic.layout';
-import { Headline } from '@/next/components/ui/page-header';
 import {
   PageSelector,
   PageSizeSelector,
@@ -73,8 +75,8 @@ function WorkflowsContent() {
     return (
       <div className="flex flex-1 flex-col gap-4 p-4 pt-16">
         <div className="grid auto-rows-min gap-4 md:grid-cols-3">
-          {Array.from({ length: 9 }).map((_, ix) => (
-            <Skeleton key={ix} className="h-40 rounded-md" />
+          {Array.from({ length: 9 }).map((_, key) => (
+            <Skeleton key={key} className="h-40 rounded-md" />
           ))}
         </div>
       </div>
@@ -119,7 +121,7 @@ function WorkflowsContent() {
               className="h-8 px-2 lg:px-3"
               size="sm"
               onClick={async () => {
-                invalidate();
+                await invalidate();
                 setRotate(!rotate);
               }}
               variant={'outline'}

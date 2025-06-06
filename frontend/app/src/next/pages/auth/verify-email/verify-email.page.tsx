@@ -5,8 +5,7 @@ import {
 } from '@/next/components/ui/alert';
 import { Button } from '@/next/components/ui/button';
 import useUser from '@/next/hooks/use-user';
-import { useState } from 'react';
-import { useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { FaEnvelope } from 'react-icons/fa';
 import { Navigate } from 'react-router-dom';
 import { ROUTES } from '@/next/lib/routes';
