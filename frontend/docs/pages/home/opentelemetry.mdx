@@ -68,14 +68,9 @@ First, configure the Langfuse client [as described by their documentation](https
   block="configure_langfuse"
 />
 
-Next, configure your tracer provider:
+Langfuse will set the global tracer provider, so you don't have to do it manually.
 
-<Snippet
-  src={snips.python.opentelemetry_instrumentation.langfuse.client}
-  block="configure_tracer_provider"
-/>
-
-Finally, create an OpenAI client [using Langfuse's OpenAI wrapper `langfuse.openai` as a drop-in replacement for the default OpenAI](https://langfuse.com/docs/integrations/openai/python/get-started) client:
+Next, create an OpenAI client [using Langfuse's OpenAI wrapper `langfuse.openai` as a drop-in replacement for the default OpenAI](https://langfuse.com/docs/integrations/openai/python/get-started) client:
 
 <Snippet
   src={snips.python.opentelemetry_instrumentation.langfuse.client}

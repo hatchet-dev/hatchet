@@ -1,17 +1,19 @@
 import asyncio
 
+from langfuse import get_client  # type: ignore[import-untyped]
 from opentelemetry.trace import StatusCode
 
-from examples.opentelemetry_instrumentation.langfuse.client import trace_provider
 from examples.opentelemetry_instrumentation.langfuse.worker import langfuse_task
 
 # > Trigger task
-tracer = trace_provider.get_tracer(__name__)
+tracer = get_client()
 
 
 async def main() -> None:
     # Traces will send to Langfuse
-    with tracer.start_as_current_span(name="trigger") as span:
+    # Use `_otel_tracer` to access the OpenTelemetry tracer if you need
+    # to e.g. log statuses or attributes manually.
+    with tracer._otel_tracer.start_as_current_span(name="trigger") as span:
         result = await langfuse_task.aio_run()
         location = result.get("location")
 

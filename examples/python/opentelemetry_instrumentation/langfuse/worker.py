@@ -1,13 +1,13 @@
-from examples.opentelemetry_instrumentation.langfuse.client import (
-    openai,
-    trace_provider,
-)
+from opentelemetry.trace import get_tracer_provider
+
+from examples.opentelemetry_instrumentation.langfuse.client import openai
 from hatchet_sdk import Context, EmptyModel, Hatchet
 from hatchet_sdk.opentelemetry.instrumentor import HatchetInstrumentor
 
 # > Task
 HatchetInstrumentor(
-    tracer_provider=trace_provider,
+    ## Langfuse sets the global tracer provider
+    tracer_provider=get_tracer_provider(),
 ).instrument()
 
 hatchet = Hatchet()
