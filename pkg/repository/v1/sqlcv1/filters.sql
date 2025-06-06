@@ -4,22 +4,66 @@ INSERT INTO v1_filter (
     workflow_id,
     scope,
     expression,
-    payload
+    payload,
+    is_declarative
 ) VALUES (
     @tenantId::UUID,
     @workflowId::UUID,
     @scope::TEXT,
     @expression::TEXT,
-    @payload::JSONB
+    @payload::JSONB,
+    @isDeclarative::BOOLEAN
 )
 ON CONFLICT (tenant_id, workflow_id, scope, expression) DO UPDATE
 SET
     payload = EXCLUDED.payload,
+    is_declarative = EXCLUDED.is_declarative,
     updated_at = NOW()
 WHERE v1_filter.tenant_id = @tenantId::UUID
   AND v1_filter.workflow_id = @workflowId::UUID
   AND v1_filter.scope = @scope::TEXT
   AND v1_filter.expression = @expression::TEXT
+RETURNING *;
+
+-- name: BulkUpsertDeclarativeFilters :many
+WITH inputs AS (
+    SELECT
+        UNNEST(@scopes::TEXT[]) AS scope,
+        UNNEST(@expressions::TEXT[]) AS expression,
+        UNNEST(@payloads::JSONB[]) AS payload,
+        UNNEST(@isDeclaratives::BOOLEAN[]) AS is_declarative
+), deletions AS (
+    DELETE FROM v1_filter
+    WHERE
+        tenant_id = @tenantId::UUID
+        AND workflow_id = @workflowId::UUID
+        AND (scope, expression, payload, is_declarative) IN (
+            SELECT scope, expression, payload, is_declarative
+            FROM inputs
+        )
+)
+
+INSERT INTO v1_filter (
+    tenant_id,
+    workflow_id,
+    scope,
+    expression,
+    payload,
+    is_declarative
+)
+SELECT
+    @tenantId::UUID,
+    @workflowId::UUID,
+    scope,
+    expression,
+    payload,
+    is_declarative
+FROM inputs
+ON CONFLICT (tenant_id, workflow_id, scope, expression) DO UPDATE
+SET
+    payload = EXCLUDED.payload,
+    is_declarative = EXCLUDED.is_declarative,
+    updated_at = NOW()
 RETURNING *;
 
 -- name: DeleteFilter :one
