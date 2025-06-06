@@ -31,15 +31,19 @@ export default function ApiTokensPage() {
   );
 }
 
+const CreateTokenButton = ({
+  setShowTokenDialog,
+}: {
+  setShowTokenDialog: (show: boolean) => void;
+}) => (
+  <Button key="create-api-token" onClick={() => setShowTokenDialog(true)}>
+    Create API Token
+  </Button>
+);
+
 function ApiTokensContent() {
   const { canWithReason } = useCan();
   const [showTokenDialog, setShowTokenDialog] = useState(false);
-
-  const CreateTokenButton = () => (
-    <Button key="create-api-token" onClick={() => setShowTokenDialog(true)}>
-      Create API Token
-    </Button>
-  );
 
   const { allowed: canManage, message: canManageMessage } = canWithReason(
     apiTokens.manage(),
@@ -55,22 +59,24 @@ function ApiTokensContent() {
           <HeadlineActionItem>
             <DocsButton doc={docs.home.setup} size="icon" />
           </HeadlineActionItem>
-          {canManage && (
+          {canManage ? (
             <HeadlineActionItem>
-              {canManage && <CreateTokenButton />}
+              {canManage ? (
+                <CreateTokenButton setShowTokenDialog={setShowTokenDialog} />
+              ) : null}
             </HeadlineActionItem>
-          )}
+          ) : null}
         </HeadlineActions>
       </Headline>
 
-      {canManageMessage && (
+      {canManageMessage ? (
         <Alert variant="warning">
           <Lock className="w-4 h-4 mr-2" />
           <AlertTitle>Role required</AlertTitle>
           <AlertDescription>{canManageMessage}</AlertDescription>
         </Alert>
-      )}
-      {canManage && (
+      ) : null}
+      {canManage ? (
         <>
           <Separator className="my-4" />
           <TokensTable
@@ -80,19 +86,21 @@ function ApiTokensContent() {
                 <p className="text-sm text-muted-foreground">
                   Create a new API token to get started.
                 </p>
-                {canManage && <CreateTokenButton />}
+                {canManage ? (
+                  <CreateTokenButton setShowTokenDialog={setShowTokenDialog} />
+                ) : null}
                 <DocsButton doc={docs.home.setup} />
               </div>
             }
           />
         </>
-      )}
+      ) : null}
 
-      {showTokenDialog && (
+      {showTokenDialog ? (
         <Dialog open={showTokenDialog} onOpenChange={setShowTokenDialog}>
           <CreateTokenDialog close={() => setShowTokenDialog(false)} />
         </Dialog>
-      )}
+      ) : null}
     </BasicLayout>
   );
 }

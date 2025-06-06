@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import {
   ColumnDef,
   ColumnFiltersState,
@@ -26,7 +26,6 @@ import {
   TableRow,
 } from '@/next/components/ui/table';
 import { cn } from '@/next/lib/utils';
-import React from 'react';
 
 const styles = {
   status: 'p-0 w-[40px]',
@@ -55,19 +54,22 @@ interface DataTableProps<TData extends IDGetter, TValue> {
   onDoubleClick?: (row: TData) => void;
 }
 
+const nullCallback = () => {};
+const defaultRowSelection = {};
+
 export function DataTable<TData extends IDGetter, TValue>({
   columns,
   data,
   emptyState,
   isLoading,
   selectedTaskId,
-  onRowClick = () => {},
+  onRowClick = nullCallback,
   onSelectionChange,
-  rowSelection = {},
+  rowSelection = defaultRowSelection,
   setRowSelection,
   selectAll = false,
   getSubRows,
-  onDoubleClick = () => {},
+  onDoubleClick = nullCallback,
 }: DataTableProps<TData, TValue>) {
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
@@ -222,7 +224,12 @@ export function DataTable<TData extends IDGetter, TValue>({
             table.getRowModel().rows.map((row) => {
               const isSelected = row.getIsSelected();
               const isTaskSelected =
-                selectedTaskId === (row.original as any).taskExternalId;
+                selectedTaskId ===
+                (
+                  row.original as TData & {
+                    taskExternalId?: string;
+                  }
+                )?.taskExternalId;
 
               return (
                 <React.Fragment key={row.id}>

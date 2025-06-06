@@ -84,11 +84,11 @@ export function DateRangePicker({
           ) : (
             placeholder
           )}
-          {timezone && (
+          {timezone ? (
             <span className="ml-1 text-xs text-muted-foreground">
               ({timezone})
             </span>
-          )}
+          ) : null}
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0" align="start">

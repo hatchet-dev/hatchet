@@ -9,8 +9,7 @@ import {
   SupportedLanguage,
   PackageManager,
 } from '@/next/learn/components/lesson-plan';
-import { Tabs, TabsTrigger } from '@/next/components/ui/tabs';
-import { TabsList } from '@/next/components/ui/tabs';
+import { Tabs, TabsTrigger, TabsList } from '@/next/components/ui/tabs';
 import { CommandConfig, commands } from './first-runs.commands';
 import { Code } from '@/next/components/ui/code';
 import { Button } from '@/next/components/ui/button';
@@ -227,14 +226,14 @@ ${commands.install}
           )}
         </SignInRequiredAction>
       </CardContent>
-      {showTokenDialog && (
+      {showTokenDialog ? (
         <Dialog open={showTokenDialog} onOpenChange={setShowTokenDialog}>
           <CreateTokenDialog
             close={() => setShowTokenDialog(false)}
             onSuccess={() => setHasToken(true)}
           />
         </Dialog>
-      )}
+      ) : null}
       <p>Now we can get into the code.</p>
     </Card>
   );
@@ -380,7 +379,7 @@ function RunStep() {
             setRunLink(link);
           }}
         />
-        {runLink && (
+        {runLink ? (
           <>
             <p>
               Congratulations! You've successfully set up a Hatchet task and
@@ -394,7 +393,7 @@ function RunStep() {
               </Link>
             </div>
           </>
-        )}
+        ) : null}
       </CardContent>
     </Card>
   );

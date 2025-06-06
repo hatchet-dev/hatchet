@@ -30,9 +30,9 @@ const PageTitle = React.forwardRef<HTMLDivElement, PageTitleProps>(
         <h1 className="text-2xl font-bold flex flex-row items-center gap-2">
           {children}
         </h1>
-        {description && (
+        {description ? (
           <p className="text-muted-foreground mt-2">{description}</p>
-        )}
+        ) : null}
       </div>
     );
   },

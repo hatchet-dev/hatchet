@@ -7,7 +7,7 @@ import {
   HeadlineActionItem,
 } from '@/next/components/ui/page-header';
 import { Button } from '@/next/components/ui/button';
-import { Plus } from 'lucide-react';
+import { Plus, Lock } from 'lucide-react';
 import { useState } from 'react';
 import {
   Dialog,
@@ -30,7 +30,6 @@ import {
   AlertTitle,
   AlertDescription,
 } from '@/next/components/ui/alert';
-import { Lock } from 'lucide-react';
 import useApiMeta from '@/next/hooks/use-api-meta';
 function GithubInstallationsEmptyState() {
   const { isCloud } = useApiMeta();
@@ -133,35 +132,35 @@ export default function GithubPage() {
         </PageTitle>
         <HeadlineActions>
           <HeadlineActionItem>
-            {isCloud && (
+            {isCloud ? (
               <a href="/api/v1/cloud/users/github-app/start">
                 <Button>
                   <Plus className="h-4 w-4 mr-2" />
                   Connect new account
                 </Button>
               </a>
-            )}
+            ) : null}
             {/* <DocsButton doc={docs.home['github-integration']} size="icon" /> */}
           </HeadlineActionItem>
         </HeadlineActions>
       </Headline>
 
-      {canManageMessage && (
+      {canManageMessage ? (
         <Alert variant="warning">
           <Lock className="w-4 h-4 mr-2" />
           <AlertTitle>Role required</AlertTitle>
           <AlertDescription>{canManageMessage}</AlertDescription>
         </Alert>
-      )}
+      ) : null}
 
-      {canManage && (
+      {canManage ? (
         <>
           <Separator className="my-4" />
           <GithubIntegrationProvider>
             <GithubInstallationsList />
           </GithubIntegrationProvider>
         </>
-      )}
+      ) : null}
     </BasicLayout>
   );
 }

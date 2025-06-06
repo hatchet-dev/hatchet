@@ -34,7 +34,7 @@ export function Highlight<F extends string>({
     }
   }, [setActiveStep, codeKeyFrames, frame]);
 
-  if (!codeKeyFrames || !codeKeyFrames[frame]) {
+  if (!codeKeyFrames?.[frame]) {
     return children;
   }
 

@@ -1,5 +1,5 @@
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
-import { ChevronsUpDown, UserIcon } from 'lucide-react';
+import { ChevronsUpDown, Sun, Moon, LogOut } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -10,11 +10,11 @@ import {
   DropdownMenuTrigger,
 } from '@/next/components/ui/dropdown-menu';
 import { useTheme } from '@/next/components/theme-provider';
-import { Sun, Moon, LogOut } from 'lucide-react';
 import useUser from '@/next/hooks/use-user';
 import { Button } from '@/next/components/ui/button';
 import { Logo } from '@/next/components/ui/logo';
 import { ROUTES } from '@/next/lib/routes';
+import { UserBlock } from '../../learn/learn.layout';
 
 export function OnboardingLayout() {
   const { toggleTheme, theme } = useTheme();
@@ -23,22 +23,6 @@ export function OnboardingLayout() {
   const { invites } = useUser({
     refetchInterval: 10 * 1000,
   });
-
-  // Simple user block component similar to dashboard's UserBlock
-  const UserBlock = () => (
-    <div className="flex items-center gap-2">
-      <div className="flex size-6 items-center justify-center rounded-full bg-primary text-primary-foreground">
-        {userData?.email?.[0]?.toUpperCase() || (
-          <UserIcon className="w-4 h-4" />
-        )}
-      </div>
-      <div className="flex flex-col">
-        <span className="text-xs font-medium">{userData?.email || 'User'}</span>
-      </div>
-    </div>
-  );
-
-  // if pathname is either ROUTES.onboarding.invites or ROUTES.onboarding.newTenant
 
   if (
     location.pathname === ROUTES.onboarding.invites ||
@@ -77,7 +61,7 @@ export function OnboardingLayout() {
                     variant="ghost"
                     className="flex items-center gap-2 p-1 px-2"
                   >
-                    <UserBlock />
+                    <UserBlock userData={userData} />
                     <ChevronsUpDown className="ml-auto size-4" />
                   </Button>
                 </DropdownMenuTrigger>
@@ -88,7 +72,7 @@ export function OnboardingLayout() {
                 >
                   <DropdownMenuLabel className="p-0 font-normal">
                     <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
-                      <UserBlock />
+                      <UserBlock userData={userData} />
                     </div>
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />

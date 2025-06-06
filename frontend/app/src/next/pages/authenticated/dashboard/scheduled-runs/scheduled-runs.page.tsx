@@ -40,7 +40,7 @@ export default function ScheduledRunsPage() {
           <HeadlineActionItem>
             <DocsButton doc={docs.home.scheduled_runs} size="icon" />
           </HeadlineActionItem>
-          {canManage && (
+          {canManage ? (
             <HeadlineActionItem>
               <Button
                 className="w-full md:w-auto"
@@ -50,17 +50,17 @@ export default function ScheduledRunsPage() {
                 Schedule New Run
               </Button>
             </HeadlineActionItem>
-          )}
+          ) : null}
         </HeadlineActions>
       </Headline>
-      {canManageMessage && (
+      {canManageMessage ? (
         <Alert variant="warning">
           <Lock className="w-4 h-4 mr-2" />
           <AlertTitle>Role required</AlertTitle>
           <AlertDescription>{canManageMessage}</AlertDescription>
         </Alert>
-      )}
-      {canManage && (
+      ) : null}
+      {canManage ? (
         <div className="space-y-4">
           <Separator className="my-4" />
           <SchedulesProvider>
@@ -75,7 +75,7 @@ export default function ScheduledRunsPage() {
             defaultTimingOption="schedule"
           />
         </div>
-      )}
+      ) : null}
     </BasicLayout>
   );
 }

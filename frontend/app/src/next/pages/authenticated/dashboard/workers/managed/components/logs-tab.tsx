@@ -79,8 +79,8 @@ export const LogsTab: FC = () => {
     setMergedLogs([]);
     setQueryParams({
       ...queryParams,
-      before: beforeInput && beforeInput.toISOString(),
-      after: afterInput && afterInput.toISOString(),
+      before: beforeInput?.toISOString(),
+      after: afterInput?.toISOString(),
     });
     setRotate(!rotate);
   };

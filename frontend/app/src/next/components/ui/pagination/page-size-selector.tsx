@@ -29,7 +29,7 @@ export function PageSizeSelector({
           <Button
             variant="outline"
             size="sm"
-            className="h-8 w-[110px] flex items-center justify-between"
+            className="h-8 w-[120px] flex items-center justify-between"
           >
             {pageSize} per page
             <ChevronDown className="h-4 w-4 opacity-50" />
