@@ -161,14 +161,6 @@ class Worker:
 
         try:
             self.client.admin.put_workflow(workflow.to_proto())
-
-            for filter in workflow.config.default_filters:
-                self.client.filters.create(
-                    workflow_id=workflow.id,
-                    expression=filter.expression,
-                    scope=filter.scope,
-                    payload=filter.payload,
-                )
         except Exception as e:
             logger.error(f"failed to register workflow: {workflow.name}")
             logger.error(e)
