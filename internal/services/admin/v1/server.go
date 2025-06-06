@@ -540,6 +540,21 @@ func getCreateWorkflowOpts(req *contracts.CreateWorkflowVersionRequest) (*v1.Cre
 		cronInput = []byte(*req.CronInput)
 	}
 
+	defaultFilters := make([]v1.DefaultFilter, 0)
+	for _, f := range req.DefaultFilters {
+		var payload []byte
+
+		if f.Payload != nil {
+			payload = []byte(*f.Payload)
+		}
+
+		defaultFilters = append(defaultFilters, v1.DefaultFilter{
+			Expression: f.Expression,
+			Scope:      f.Scope,
+			Payload:    &payload,
+		})
+	}
+
 	return &v1.CreateWorkflowVersionOpts{
 		Name:            req.Name,
 		Concurrency:     concurrency,
@@ -551,6 +566,7 @@ func getCreateWorkflowOpts(req *contracts.CreateWorkflowVersionRequest) (*v1.Cre
 		OnFailure:       onFailureTask,
 		Sticky:          sticky,
 		DefaultPriority: req.DefaultPriority,
+		DefaultFilters:  defaultFilters,
 	}, nil
 }
 
