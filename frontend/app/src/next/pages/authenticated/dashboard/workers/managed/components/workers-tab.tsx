@@ -5,9 +5,5 @@ interface WorkersTabProps {
 }
 
 export const WorkersTab: FC<WorkersTabProps> = ({ poolName }) => {
-  return (
-    <>
-      <WorkerTable poolName={poolName} />
-    </>
-  );
+  return <WorkerTable poolName={poolName} />;
 };

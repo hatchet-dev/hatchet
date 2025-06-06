@@ -94,12 +94,12 @@ export function CreateSNSDialog({
                 autoCorrect="off"
                 disabled={props.isLoading}
               />
-              {topicArnError && (
+              {topicArnError ? (
                 <div className="text-sm text-red-500">{topicArnError}</div>
-              )}
+              ) : null}
             </div>
             <Button disabled={props.isLoading}>
-              {props.isLoading && <Spinner />}
+              {props.isLoading ? <Spinner /> : null}
               Create integration
             </Button>
           </div>

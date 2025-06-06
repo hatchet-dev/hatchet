@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/go-co-op/gocron/v2"
-
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
@@ -70,18 +68,17 @@ func (t *TickerImpl) runPollSchedules(ctx context.Context) func() {
 func (t *TickerImpl) handleScheduleWorkflow(ctx context.Context, scheduledWorkflow *dbsqlc.PollScheduledWorkflowsRow) error {
 	t.l.Debug().Msg("ticker: scheduling workflow")
 
-	// create a new scheduler
-	s, err := gocron.NewScheduler(gocron.WithLocation(time.UTC))
-
-	if err != nil {
-		return fmt.Errorf("could not create scheduler: %w", err)
-	}
-
 	// parse trigger time
 	tenantId := sqlchelpers.UUIDToStr(scheduledWorkflow.TenantId)
 	workflowVersionId := sqlchelpers.UUIDToStr(scheduledWorkflow.WorkflowVersionId)
 	scheduledWorkflowId := sqlchelpers.UUIDToStr(scheduledWorkflow.ID)
 	triggerAt := scheduledWorkflow.TriggerAt.Time
+
+	key := getScheduledWorkflowKey(workflowVersionId, scheduledWorkflowId)
+
+	if _, exists := t.scheduledWorkflows.Load(key); exists {
+		return fmt.Errorf("workflow %s already scheduled", key)
+	}
 
 	// if start is in the past, run now
 	if triggerAt.Before(time.Now()) {
@@ -91,24 +88,29 @@ func (t *TickerImpl) handleScheduleWorkflow(ctx context.Context, scheduledWorkfl
 		return nil
 	}
 
-	// schedule the workflow
-	_, err = s.NewJob(
-		gocron.OneTimeJob(
-			gocron.OneTimeJobStartDateTime(triggerAt),
-		),
-		gocron.NewTask(
-			t.runScheduledWorkflow(tenantId, workflowVersionId, scheduledWorkflowId, scheduledWorkflow),
-		),
-	)
+	duration := time.Until(triggerAt)
 
-	if err != nil {
-		return fmt.Errorf("could not schedule workflow: %w", err)
-	}
+	// create a cancellation context for this specific scheduled workflow
+	cancelCtx, cancel := context.WithTimeout(context.Background(), duration*2)
 
-	// store the schedule in the cron map
-	t.scheduledWorkflows.Store(getScheduledWorkflowKey(workflowVersionId, scheduledWorkflowId), s)
+	// store the cancel function so we can cancel this scheduled workflow later
+	t.scheduledWorkflows.Store(key, cancel)
 
-	s.Start()
+	// start a goroutine to wait for the trigger time
+	go func() {
+		defer cancel()
+		defer t.scheduledWorkflows.Delete(key)
+
+		timer := time.After(duration)
+
+		select {
+		case <-cancelCtx.Done():
+			t.l.Debug().Msgf("ticker: scheduled workflow %s was cancelled", key)
+			return
+		case <-timer:
+			t.runScheduledWorkflow(tenantId, workflowVersionId, scheduledWorkflowId, scheduledWorkflow)()
+		}
+	}()
 
 	return nil
 }
@@ -148,28 +150,6 @@ func (t *TickerImpl) runScheduledWorkflow(tenantId, workflowVersionId, scheduled
 			t.l.Error().Err(err).Msg("could not run scheduled workflow")
 			return
 		}
-
-		// get the scheduler
-		schedulerVal, ok := t.scheduledWorkflows.Load(getScheduledWorkflowKey(workflowVersionId, scheduledWorkflowId))
-
-		if !ok {
-			t.l.Error().Msgf("could not find scheduled workflow %s", workflowVersionId)
-			return
-		}
-
-		defer t.scheduledWorkflows.Delete(getScheduledWorkflowKey(workflowVersionId, scheduledWorkflowId))
-
-		go func() {
-			scheduler := schedulerVal.(gocron.Scheduler)
-
-			// cancel the schedule
-			err = scheduler.Shutdown()
-
-			if err != nil {
-				t.l.Err(err).Msg("could not cancel scheduler")
-				return
-			}
-		}()
 	}
 }
 
@@ -254,8 +234,8 @@ func (t *TickerImpl) runScheduledWorkflowV0(ctx context.Context, tenantId string
 func (t *TickerImpl) handleCancelWorkflow(ctx context.Context, key string) error {
 	t.l.Debug().Msg("ticker: canceling scheduled workflow")
 
-	// get the scheduler
-	schedulerVal, ok := t.scheduledWorkflows.Load(key)
+	// get the cancel function
+	cancelVal, ok := t.scheduledWorkflows.Load(key)
 
 	if !ok {
 		return fmt.Errorf("could not find scheduled workflow with key %s", key)
@@ -263,14 +243,16 @@ func (t *TickerImpl) handleCancelWorkflow(ctx context.Context, key string) error
 
 	defer t.scheduledWorkflows.Delete(key)
 
-	scheduler, ok := schedulerVal.(gocron.Scheduler)
+	cancel, ok := cancelVal.(context.CancelFunc)
 
 	if !ok {
-		return fmt.Errorf("could not cast scheduler")
+		return fmt.Errorf("could not cast cancel function")
 	}
 
-	// cancel the schedule
-	return scheduler.Shutdown()
+	// cancel the scheduled workflow
+	cancel()
+
+	return nil
 }
 
 func getScheduledWorkflowKey(workflowVersionId, scheduledWorkflowId string) string {

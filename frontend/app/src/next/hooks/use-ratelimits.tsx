@@ -21,11 +21,13 @@ interface RateLimitsProviderProps extends PropsWithChildren {
   initialPagination?: PaginationProviderProps;
 }
 
+const defaultInitialPagination = {
+  initialPageSize: 50,
+};
+
 export function RateLimitsProvider({
   children,
-  initialPagination = {
-    initialPageSize: 50,
-  },
+  initialPagination = defaultInitialPagination,
 }: RateLimitsProviderProps) {
   return (
     <PaginationProvider {...initialPagination}>

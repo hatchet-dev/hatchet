@@ -33,18 +33,18 @@ export default function Alerting() {
       <Separator className="my-4" />
       <TenantAlertsProvider>
         <AlertingSettings />
-        {hasEmailIntegration && (
+        {hasEmailIntegration ? (
           <>
             <Separator className="my-4" />
             <EmailGroupsList />
           </>
-        )}
-        {hasSlackIntegration && (
+        ) : null}
+        {hasSlackIntegration ? (
           <>
             <Separator className="my-4" />
             <SlackWebhooksList />
           </>
-        )}
+        ) : null}
       </TenantAlertsProvider>
     </BasicLayout>
   );
@@ -60,7 +60,7 @@ const AlertingSettings: React.FC = () => {
   return (
     <div>
       <div className="flex items-center space-x-2">
-        {alertingSettings && (
+        {alertingSettings ? (
           <UpdateTenantAlertingSettings
             alertingSettings={alertingSettings}
             isLoading={isLoading}
@@ -69,7 +69,7 @@ const AlertingSettings: React.FC = () => {
             }}
             fieldErrors={{}}
           />
-        )}
+        ) : null}
       </div>
     </div>
   );
@@ -143,7 +143,7 @@ function EmailGroupsList() {
         filters={[]}
         getRowId={(row) => row.metadata.id}
       />
-      {showGroupsDialog && (
+      {showGroupsDialog ? (
         <Dialog open={showGroupsDialog} onOpenChange={setShowGroupsDialog}>
           <CreateEmailGroupDialog
             isLoading={create.isPending}
@@ -154,8 +154,8 @@ function EmailGroupsList() {
             // fieldErrors={create}
           />
         </Dialog>
-      )}
-      {deleteEmailGroup && (
+      ) : null}
+      {deleteEmailGroup ? (
         <DestructiveDialog
           open={true}
           onOpenChange={() => {}}
@@ -168,7 +168,7 @@ function EmailGroupsList() {
             setDeleteEmailGroup(null);
           }}
         />
-      )}
+      ) : null}
     </div>
   );
 }
@@ -204,7 +204,7 @@ function SlackWebhooksList() {
         filters={[]}
         getRowId={(row) => row.metadata.id}
       />
-      {deleteSlack && (
+      {deleteSlack ? (
         <DestructiveDialog
           open={true}
           onOpenChange={() => {}}
@@ -217,7 +217,7 @@ function SlackWebhooksList() {
             setDeleteSlack(null);
           }}
         />
-      )}
+      ) : null}
     </div>
   );
 }

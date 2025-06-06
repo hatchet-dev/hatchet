@@ -56,18 +56,18 @@ export function Duration({
     );
   }
 
-  const startDate = new Date(start!);
-  const endDate = isValidTimestamp(end) ? new Date(end!) : new Date();
+  const startDate = typeof start === 'string' ? new Date(start) : start;
+  const endDate = isValidTimestamp(end) ? new Date(end) : new Date();
   const duration = intervalToDuration({ start: startDate, end: endDate });
   const rawDuration = endDate.getTime() - startDate.getTime();
   const isRunning = status === 'RUNNING';
 
   const content = (
     <span className="flex items-center gap-1">
-      {showIcon && <Clock className="h-3.5 w-3.5" />}
+      {showIcon ? <Clock className="h-3.5 w-3.5" /> : null}
       <span className={isRunning ? 'animate-pulse' : ''}>
         {formatDuration(duration, rawDuration)}
-        {isRunning && '...'}
+        {isRunning ? '...' : null}
       </span>
     </span>
   );

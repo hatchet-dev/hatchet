@@ -55,10 +55,12 @@ export interface PaginationProviderProps {
 }
 
 // Define the type for pagination state
-interface PaginationState {
+interface PaginationState extends Record<string, number> {
   page: number;
   pageSize: number;
 }
+
+const defaultPageSizeOptions = [10, 50, 100, 500];
 
 /**
  * Provider component that manages pagination state
@@ -72,7 +74,7 @@ export function PaginationProvider({
   children,
   initialPage = 1,
   initialPageSize = 50,
-  pageSizeOptions = [10, 50, 100, 500],
+  pageSizeOptions = defaultPageSizeOptions,
 }: PaginationProviderProps & React.PropsWithChildren) {
   const state = useStateAdapter<PaginationState>({
     page: initialPage,

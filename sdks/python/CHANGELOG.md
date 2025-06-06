@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Adds a warning on client init if the SDK version is not compatible with the tenant (engine) version.
+- Fixes a couple of blocking calls buried in the admin client causing loop blockages on child spawning
 
 ## [1.11.0] - 2025-05-29
 

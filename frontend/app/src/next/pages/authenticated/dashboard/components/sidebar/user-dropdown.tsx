@@ -64,7 +64,7 @@ export function TenantBlock({
           <span className="truncate font-semibold">
             {name || <Skeleton className="h-4 w-24" />}
           </span>
-          {tagline && <span className="truncate text-xs">{tagline}</span>}
+          {tagline ? <span className="truncate text-xs">{tagline}</span> : null}
         </div>
       )}
     </>

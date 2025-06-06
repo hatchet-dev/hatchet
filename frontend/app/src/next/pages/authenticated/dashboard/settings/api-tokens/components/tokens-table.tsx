@@ -1,3 +1,5 @@
+/* eslint-disable react/no-unstable-nested-components */
+
 import { useState } from 'react';
 import {
   flexRender,
@@ -332,12 +334,12 @@ export function TokensTable({ emptyState }: TokensTableProps) {
         </UITable>
       </div>
 
-      {revokeToken && (
+      {revokeToken ? (
         <RevokeTokenForm
           apiToken={revokeToken}
           close={() => setRevokeToken(null)}
         />
-      )}
+      ) : null}
       <Pagination className="justify-between flex flex-row">
         <PageSizeSelector />
         <PageSelector variant="dropdown" />

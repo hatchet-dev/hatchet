@@ -115,9 +115,9 @@ export function useTenantDetails() {
         throw error;
       }
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['user:*'] });
-      queryClient.invalidateQueries({ queryKey: ['tenant:*'] });
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['user:*'] });
+      await queryClient.invalidateQueries({ queryKey: ['tenant:*'] });
     },
   });
 

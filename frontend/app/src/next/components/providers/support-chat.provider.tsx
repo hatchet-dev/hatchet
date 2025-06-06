@@ -12,6 +12,7 @@ interface PylonWindow extends Window {
       email_hash: string;
     };
   };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   Pylon?: (method: string, ...args: any[]) => void;
 }
 

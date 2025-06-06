@@ -151,12 +151,12 @@ export function BulkSecretsDialog({
             className="min-h-[200px] font-mono"
           />
 
-          {error && (
+          {error ? (
             <Alert variant="destructive">
               <FaExclamationTriangle className="h-4 w-4" />
               <AlertDescription>{error}</AlertDescription>
             </Alert>
-          )}
+          ) : null}
         </div>
 
         <DialogFooter>

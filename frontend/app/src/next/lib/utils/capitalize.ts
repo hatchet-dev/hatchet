@@ -1,9 +1,9 @@
 export function capitalize(s: string) {
   if (!s) {
     return '';
-  } else if (s.length == 0) {
+  } else if (s.length === 0) {
     return s;
-  } else if (s.length == 1) {
+  } else if (s.length === 1) {
     return s.charAt(0).toUpperCase();
   }
 

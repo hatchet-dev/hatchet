@@ -1,5 +1,5 @@
 import { createContext, useContext, useCallback, useMemo } from 'react';
-import api from '@/lib/api';
+import api, { Workflow } from '@/lib/api';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCurrentTenantId } from './use-tenant';
 import { FilterProvider, useFilters } from './utils/use-filters';
@@ -12,7 +12,7 @@ interface WorkflowsFilters {
 }
 
 interface WorkflowsState {
-  data: any[];
+  data: Workflow[];
   paginationData?: { current_page: number; num_pages: number };
   isLoading: boolean;
   invalidate: () => Promise<void>;
@@ -57,6 +57,8 @@ function WorkflowsProviderContent({
           ),
           limit: pagination.pageSize,
         });
+
+        pagination.setNumPages(res.data.pagination?.num_pages || 1);
         return {
           rows: res.data.rows,
           pagination: {
@@ -113,12 +115,7 @@ export function WorkflowsProvider({
   refetchInterval,
 }: WorkflowsProviderProps) {
   return (
-    <FilterProvider<WorkflowsFilters>
-      initialFilters={{
-        statuses: [],
-        search: '',
-      }}
-    >
+    <FilterProvider<WorkflowsFilters>>
       <PaginationProvider initialPage={1} initialPageSize={50}>
         <WorkflowsProviderContent refetchInterval={refetchInterval}>
           {children}
