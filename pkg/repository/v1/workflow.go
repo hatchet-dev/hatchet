@@ -582,10 +582,10 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 			filterPayloads[ix] = payload
 			filterIsDeclaratives[ix] = true
 		}
-		_, err := r.queries.BulkUpsertDeclarativeFilters(
+		_, err := r.queries.DangerouslyBulkUpsertDeclarativeFilters(
 			ctx,
 			tx,
-			sqlcv1.BulkUpsertDeclarativeFiltersParams{
+			sqlcv1.DangerouslyBulkUpsertDeclarativeFiltersParams{
 				Tenantid:       tenantId,
 				Workflowid:     workflowId,
 				Scopes:         filterScopes,

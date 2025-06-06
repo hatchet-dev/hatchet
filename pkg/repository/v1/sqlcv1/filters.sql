@@ -25,7 +25,9 @@ WHERE v1_filter.tenant_id = @tenantId::UUID
   AND v1_filter.expression = @expression::TEXT
 RETURNING *;
 
--- name: BulkUpsertDeclarativeFilters :many
+-- name: DangerouslyBulkUpsertDeclarativeFilters :many
+-- IMPORTANT: This query overwrites all existing declarative filters for a workflow.
+-- it's intended to be used when the workflow version is created.
 WITH inputs AS (
     SELECT
         UNNEST(@scopes::TEXT[]) AS scope,
@@ -37,10 +39,7 @@ WITH inputs AS (
     WHERE
         tenant_id = @tenantId::UUID
         AND workflow_id = @workflowId::UUID
-        AND (scope, expression, payload, is_declarative) IN (
-            SELECT scope, expression, payload, is_declarative
-            FROM inputs
-        )
+        AND is_declarative
 )
 
 INSERT INTO v1_filter (
