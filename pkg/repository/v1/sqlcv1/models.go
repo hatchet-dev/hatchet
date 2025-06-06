@@ -2547,14 +2547,15 @@ type V1EventsOlap struct {
 }
 
 type V1Filter struct {
-	ID         pgtype.UUID        `json:"id"`
-	TenantID   pgtype.UUID        `json:"tenant_id"`
-	WorkflowID pgtype.UUID        `json:"workflow_id"`
-	Scope      string             `json:"scope"`
-	Expression string             `json:"expression"`
-	Payload    []byte             `json:"payload"`
-	InsertedAt pgtype.Timestamptz `json:"inserted_at"`
-	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
+	ID            pgtype.UUID        `json:"id"`
+	TenantID      pgtype.UUID        `json:"tenant_id"`
+	WorkflowID    pgtype.UUID        `json:"workflow_id"`
+	Scope         string             `json:"scope"`
+	Expression    string             `json:"expression"`
+	Payload       []byte             `json:"payload"`
+	IsDeclarative bool               `json:"is_declarative"`
+	InsertedAt    pgtype.Timestamptz `json:"inserted_at"`
+	UpdatedAt     pgtype.Timestamptz `json:"updated_at"`
 }
 
 type V1LogLine struct {
