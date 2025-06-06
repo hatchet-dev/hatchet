@@ -44,14 +44,8 @@ message CreateWorkflowVersionOpts {
     optional StickyStrategy sticky = 12; // (optional) the sticky strategy for assigning steps to workers
     optional WorkflowKind kind = 13; // (optional) the kind of workflow
     optional int32 default_priority = 14; // (optional) the priority of the workflow
-    repeated DefaultFilter default_filters = 15; // (optional) the default filters for the workflow
 }
 
-message DefaultFilter {
-    string expression = 1; // (required) the CEL expression for the filter
-    string scope = 2; // (required) the scope of the filter
-    optional string payload = 3; // (optional) the payload for the filter, if any. A JSON object as a string.
-}
 
 enum ConcurrencyLimitStrategy {
     CANCEL_IN_PROGRESS = 0;

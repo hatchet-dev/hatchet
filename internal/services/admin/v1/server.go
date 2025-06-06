@@ -444,6 +444,37 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.Creat
 		return nil, err
 	}
 
+	if currWorkflow != nil {
+		workflowId := currWorkflow.WorkflowVersion.WorkflowId
+
+		for _, filter := range req.DefaultFilters {
+			if filter == nil {
+				continue
+			}
+
+			var payload []byte
+
+			if filter.Payload != nil {
+				payload = []byte(*filter.Payload)
+			}
+
+			_, err := a.repo.Filters().CreateFilter(
+				ctx,
+				tenantId,
+				v1.CreateFilterOpts{
+					Workflowid: workflowId,
+					Scope:      filter.Scope,
+					Expression: filter.Expression,
+					Payload:    payload,
+				},
+			)
+
+			if err != nil {
+				return nil, fmt.Errorf("could not create default filter: %w", err)
+			}
+		}
+	}
+
 	return &contracts.CreateWorkflowVersionResponse{
 		Id:         sqlchelpers.UUIDToStr(currWorkflow.WorkflowVersion.ID),
 		WorkflowId: sqlchelpers.UUIDToStr(currWorkflow.WorkflowVersion.WorkflowId),
