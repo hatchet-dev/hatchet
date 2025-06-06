@@ -22,6 +22,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/metered"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 )
 
 func (a *AdminServiceImpl) TriggerWorkflow(ctx context.Context, req *contracts.TriggerWorkflowRequest) (*contracts.TriggerWorkflowResponse, error) {
@@ -278,6 +279,29 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.PutWo
 	}
 
 	resp := toWorkflowVersion(workflowVersion, nil)
+
+	for _, filter := range req.Opts.DefaultFilters {
+		var payload []byte
+
+		if filter.Payload != nil {
+			payload = []byte(*filter.Payload)
+		}
+
+		_, err := a.repov1.Filters().CreateFilter(
+			ctx,
+			tenantId,
+			v1.CreateFilterOpts{
+				Workflowid: sqlchelpers.UUIDFromStr(resp.WorkflowId),
+				Scope:      filter.Scope,
+				Expression: filter.Expression,
+				Payload:    payload,
+			},
+		)
+
+		if err != nil {
+			return nil, fmt.Errorf("could not create default filter: %w", err)
+		}
+	}
 
 	return resp, nil
 }
