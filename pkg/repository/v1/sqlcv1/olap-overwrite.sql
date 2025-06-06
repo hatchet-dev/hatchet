@@ -193,3 +193,29 @@ WITH filtered AS (
 SELECT COUNT(*)
 FROM filtered
 ;
+
+-- name: BulkCreateEvents :many
+WITH to_insert AS (
+    SELECT
+        UNNEST(@tenantIds::UUID[]) AS tenant_id,
+        UNNEST(@externalIds::UUID[]) AS external_id,
+        UNNEST(@seenAts::TIMESTAMPTZ[]) AS seen_at,
+        UNNEST(@keys::TEXT[]) AS key,
+        UNNEST(@payloads::JSONB[]) AS payload,
+        UNNEST(@additionalMetadatas::JSONB[]) AS additional_metadata,
+        -- Scopes are nullable
+        UNNEST(@scopes::TEXT[]) AS scope
+)
+INSERT INTO v1_events_olap (
+    tenant_id,
+    external_id,
+    seen_at,
+    key,
+    payload,
+    additional_metadata,
+    scope
+)
+SELECT *
+FROM to_insert
+RETURNING *
+;

@@ -98,6 +98,8 @@ func (t *V1WorkflowRunsService) WithDags(ctx context.Context, request gen.V1Work
 		includePayloads = *request.Params.IncludePayloads
 	}
 
+	opts.IncludePayloads = includePayloads
+
 	dags, total, err := t.config.V1.OLAP().ListWorkflowRuns(
 		ctx,
 		tenantId,

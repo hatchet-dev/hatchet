@@ -1337,29 +1337,6 @@ WHERE
   tenant_id = @tenantId::uuid;
 
 
--- name: BulkCreateEvents :many
-WITH to_insert AS (
-    SELECT
-        UNNEST(@tenantIds::UUID[]) AS tenant_id,
-        UNNEST(@externalIds::UUID[]) AS external_id,
-        UNNEST(@seenAts::TIMESTAMPTZ[]) AS seen_at,
-        UNNEST(@keys::TEXT[]) AS key,
-        UNNEST(@payloads::JSONB[]) AS payload,
-        UNNEST(@additionalMetadatas::JSONB[]) AS additional_metadata
-)
-INSERT INTO v1_events_olap (
-    tenant_id,
-    external_id,
-    seen_at,
-    key,
-    payload,
-    additional_metadata
-)
-SELECT *
-FROM to_insert
-RETURNING *
-;
-
 -- name: BulkCreateEventTriggers :copyfrom
 INSERT INTO v1_event_to_run_olap(
     run_id,
