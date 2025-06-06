@@ -17,6 +17,9 @@ export interface CodeProps extends React.HTMLAttributes<HTMLDivElement> {
   link?: string;
 }
 
+const defaultHighlightLines: number[] = [];
+const defaultHighlightStrings: string[] = [];
+
 export function Code({
   variant = 'block',
   language,
@@ -24,8 +27,8 @@ export function Code({
   title,
   noHeader,
   showLineNumbers = false,
-  highlightLines = [],
-  highlightStrings = [],
+  highlightLines = defaultHighlightLines,
+  highlightStrings = defaultHighlightStrings,
   className,
   link,
   ...props

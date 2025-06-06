@@ -31,7 +31,7 @@ export default memo(({ data }: { data: NodeData }) => {
 
   return (
     <div className="flex flex-col justify-start min-w-fit grow">
-      {(variant == 'default' || variant == 'input_only') && (
+      {(variant === 'default' || variant === 'input_only') && (
         <Handle
           type="target"
           position={Position.Left}
@@ -52,7 +52,7 @@ export default memo(({ data }: { data: NodeData }) => {
         )}
         onClick={() => data.onClick()}
       >
-        {data.taskRun?.status == V1TaskStatus.RUNNING && (
+        {data.taskRun?.status === V1TaskStatus.RUNNING && (
           <span className="spark mask-gradient animate-flip before:animate-rotate absolute inset-0 h-[100%] w-[100%] overflow-hidden [mask:linear-gradient(#ccc,_transparent_50%)] before:absolute before:aspect-square before:w-[200%] before:rotate-[-90deg] before:bg-[conic-gradient(from_0deg,transparent_0_340deg,#ccc_360deg)] before:content-[''] before:[inset:0_auto_auto_50%] before:[translate:-50%_-15%]" />
         )}
         <span className="step-run-backdrop absolute inset-[1px] bg-background transition-colors duration-200" />
@@ -63,7 +63,7 @@ export default memo(({ data }: { data: NodeData }) => {
               {data.taskName}
             </div>
           </div>
-          {data.taskRun?.finishedAt && data.taskRun?.startedAt && (
+          {data.taskRun?.finishedAt && data.taskRun?.startedAt ? (
             <div className="text-xs text-gray-500 dark:text-gray-400">
               <Duration
                 className="text-xs"
@@ -72,10 +72,10 @@ export default memo(({ data }: { data: NodeData }) => {
                 status={data.taskRun?.status}
               />
             </div>
-          )}
+          ) : null}
         </div>
 
-        {(variant == 'default' || variant == 'output_only') && (
+        {(variant === 'default' || variant === 'output_only') && (
           <Handle
             type="source"
             position={Position.Right}

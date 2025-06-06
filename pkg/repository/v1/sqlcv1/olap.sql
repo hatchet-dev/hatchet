@@ -1362,7 +1362,12 @@ WITH included_events AS (
             sqlc.narg('keys')::TEXT[] IS NULL OR
             "key" = ANY(sqlc.narg('keys')::TEXT[])
         )
-    ORDER BY e.id DESC, e.seen_at DESC
+        AND e.seen_at >= @since::TIMESTAMPTZ
+        AND (
+            sqlc.narg('until')::TIMESTAMPTZ IS NULL OR
+            e.seen_at <= sqlc.narg('until')::TIMESTAMPTZ
+        )
+    ORDER BY e.seen_at DESC, e.id
     OFFSET
         COALESCE(sqlc.narg('offset')::BIGINT, 0)
     LIMIT
@@ -1405,4 +1410,27 @@ FROM
 LEFT JOIN
     status_counts sc ON (e.tenant_id, e.id, e.seen_at) = (sc.tenant_id, sc.id, sc.seen_at)
 ORDER BY e.seen_at DESC
+;
+
+-- name: CountEvents :one
+WITH included_events AS (
+    SELECT *
+    FROM v1_events_olap e
+    WHERE
+        e.tenant_id = @tenantId
+        AND (
+            sqlc.narg('keys')::TEXT[] IS NULL OR
+            "key" = ANY(sqlc.narg('keys')::TEXT[])
+        )
+        AND e.seen_at >= @since::TIMESTAMPTZ
+        AND (
+            sqlc.narg('until')::TIMESTAMPTZ IS NULL OR
+            e.seen_at <= sqlc.narg('until')::TIMESTAMPTZ
+        )
+    ORDER BY e.seen_at DESC, e.id
+    LIMIT 20000
+)
+
+SELECT COUNT(*)
+FROM included_events e
 ;

@@ -67,12 +67,12 @@ const SectionActions = ({
 
   return (
     <div className="flex justify-end gap-2 p-4">
-      {hasChanged && (
+      {hasChanged ? (
         <Button variant="outline" onClick={onRevert} className="gap-2">
           <RotateCcw className="h-4 w-4" />
           Revert
         </Button>
-      )}
+      ) : null}
       <Button disabled={!hasChanged} onClick={onDeploy}>
         Deploy
       </Button>

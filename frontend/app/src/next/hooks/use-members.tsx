@@ -86,10 +86,9 @@ export function MembersProvider({ children }: { children: React.ReactNode }) {
         throw error;
       }
     },
-    onSuccess: () => {
-      // Refresh the members list and invites list after successful invite
-      membersQuery.refetch();
-      invitesQuery.refetch();
+    onSuccess: async () => {
+      await membersQuery.refetch();
+      await invitesQuery.refetch();
     },
   });
 

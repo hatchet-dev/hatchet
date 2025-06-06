@@ -384,7 +384,7 @@ CREATE TABLE v1_events_olap (
     additional_metadata JSONB,
     scope TEXT,
 
-    PRIMARY KEY (tenant_id, id, seen_at)
+    PRIMARY KEY (tenant_id, seen_at, id)
 ) PARTITION BY RANGE(seen_at);
 
 CREATE INDEX v1_events_olap_key_idx ON v1_events_olap (tenant_id, key);

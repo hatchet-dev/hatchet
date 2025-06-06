@@ -38,17 +38,16 @@ export default function AuthenticatedGuard() {
   ) {
     return <Navigate to={ROUTES.onboarding.newTenant} />;
   }
+
+  if (!user) {
+    return null;
+  }
+
   return (
-    <>
-      {user && (
-        <>
-          <AnalyticsProvider>
-            <SupportChat>
-              <Outlet />
-            </SupportChat>
-          </AnalyticsProvider>
-        </>
-      )}
-    </>
+    <AnalyticsProvider>
+      <SupportChat>
+        <Outlet />
+      </SupportChat>
+    </AnalyticsProvider>
   );
 }

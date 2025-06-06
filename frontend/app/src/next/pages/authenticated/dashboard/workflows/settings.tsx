@@ -36,7 +36,7 @@ function TriggerSettings({
 
   return (
     <div className="flex flex-col gap-2">
-      {workflow.triggers.events && (
+      {workflow.triggers.events ? (
         <>
           <Label>Events</Label>
           {workflow.triggers.events.map((event) => (
@@ -48,8 +48,8 @@ function TriggerSettings({
             />
           ))}
         </>
-      )}
-      {workflow.triggers.crons && (
+      ) : null}
+      {workflow.triggers.crons ? (
         <>
           <Label>Crons</Label>
           {workflow.triggers.crons.map((event) => (
@@ -60,15 +60,15 @@ function TriggerSettings({
                 placeholder="shadcn"
                 value={event.cron}
               />
-              {event.cron && (
+              {event.cron ? (
                 <span className="text-sm mb-2 text-gray-500">
                   (runs {CronPrettifier.toString(event.cron).toLowerCase()} UTC)
                 </span>
-              )}
+              ) : null}
             </>
           ))}
         </>
-      )}
+      ) : null}
     </div>
   );
 }

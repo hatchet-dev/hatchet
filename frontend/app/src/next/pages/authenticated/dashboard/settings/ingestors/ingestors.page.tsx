@@ -6,12 +6,10 @@ import { Button } from '@/components/v1/ui/button';
 import { Dialog } from '@radix-ui/react-dialog';
 import { CreateSNSDialog } from './components/create-sns-dialog';
 import { columns as snsIntegrationsColumns } from './components/sns-integrations-columns';
-import { PageTitle } from '@/next/components/ui/page-header';
+import { PageTitle, Headline } from '@/next/components/ui/page-header';
 import BasicLayout from '@/next/components/layouts/basic.layout';
-import { Headline } from '@/next/components/ui/page-header';
-import { useIngestors } from '@/next/hooks/use-ingestors';
+import { useIngestors, IngestorsProvider } from '@/next/hooks/use-ingestors';
 import { DestructiveDialog } from '@/next/components/ui/dialog/index';
-import { IngestorsProvider } from '@/next/hooks/use-ingestors';
 export default function Ingestors() {
   return (
     <BasicLayout>
@@ -60,15 +58,15 @@ function SNSIntegrationsList() {
         filters={[]}
         getRowId={(row) => row.metadata.id}
       />
-      {showSNSDialog && (
+      {showSNSDialog ? (
         <Dialog open={showSNSDialog} onOpenChange={setShowSNSDialog}>
           <CreateSNSDialog
             isLoading={create.isPending}
             closeDialog={() => setShowSNSDialog(false)}
           />
         </Dialog>
-      )}
-      {deleteSNS && (
+      ) : null}
+      {deleteSNS ? (
         <DestructiveDialog
           open={true}
           onOpenChange={() => {}}
@@ -81,7 +79,7 @@ function SNSIntegrationsList() {
             setDeleteSNS(null);
           }}
         />
-      )}
+      ) : null}
     </div>
   );
 }

@@ -14,13 +14,12 @@ import {
 } from '@tanstack/react-query';
 import { WorkerType } from '@/lib/api';
 import { Worker } from '@/lib/api/generated/data-contracts';
-import { WorkerPool } from './use-workers';
+import { WorkerPool, useWorkers } from './use-workers';
 import { useCurrentTenantId } from './use-tenant';
 import { createContext, useContext, PropsWithChildren, useMemo } from 'react';
 import { FilterProvider, useFilters } from './utils/use-filters';
 import { PaginationProvider, usePagination } from './utils/use-pagination';
 import useApiMeta from './use-api-meta';
-import { useWorkers } from './use-workers';
 import { useToast } from './utils/use-toast';
 
 interface ManagedComputeFilters {
@@ -107,7 +106,7 @@ function ManagedComputeProviderContent({
 
       try {
         // Build query params
-        const queryParams: Record<string, any> = {
+        const queryParams: Record<string, number | string> = {
           page: pagination.currentPage,
           limit: pagination.pageSize,
         };
@@ -148,8 +147,8 @@ function ManagedComputeProviderContent({
         // Client-side sorting if API doesn't support it
         if (filters.filters.sortBy) {
           filteredRows.sort((a: ManagedWorker, b: ManagedWorker) => {
-            let valueA: any;
-            let valueB: any;
+            let valueA: string | number;
+            let valueB: string | number;
 
             switch (filters.filters.sortBy) {
               case 'name':
@@ -217,8 +216,8 @@ function ManagedComputeProviderContent({
         throw error;
       }
     },
-    onSuccess: () => {
-      listManagedComputeQuery.refetch();
+    onSuccess: async () => {
+      await listManagedComputeQuery.refetch();
     },
   });
 
@@ -249,8 +248,8 @@ function ManagedComputeProviderContent({
         throw error;
       }
     },
-    onSuccess: () => {
-      listManagedComputeQuery.refetch();
+    onSuccess: async () => {
+      await listManagedComputeQuery.refetch();
     },
   });
 
@@ -271,8 +270,8 @@ function ManagedComputeProviderContent({
         throw error;
       }
     },
-    onSuccess: () => {
-      listManagedComputeQuery.refetch();
+    onSuccess: async () => {
+      await listManagedComputeQuery.refetch();
     },
   });
 

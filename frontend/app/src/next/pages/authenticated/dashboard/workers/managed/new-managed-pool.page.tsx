@@ -137,7 +137,7 @@ function WorkerPoolDetailPageContent() {
     setActiveStep((prev) => Math.max(prev - 1, 0));
   };
 
-  if (rejectReason == RejectReason.BILLING_REQUIRED && !hasExistingWorkers) {
+  if (rejectReason === RejectReason.BILLING_REQUIRED && !hasExistingWorkers) {
     return <BillingRequired />;
   }
 
@@ -263,7 +263,7 @@ export default function WorkerPoolDetailPage() {
 
   const { rejectReason } = canWithReason(managedCompute.create());
 
-  if (rejectReason == RejectReason.CLOUD_ONLY) {
+  if (rejectReason === RejectReason.CLOUD_ONLY) {
     return <CloudOnly />;
   }
 

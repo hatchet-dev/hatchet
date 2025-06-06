@@ -361,7 +361,8 @@ class AdminClient:
         try:
             resp = cast(
                 v0_workflow_protos.TriggerWorkflowResponse,
-                client.TriggerWorkflow(
+                await asyncio.to_thread(
+                    client.TriggerWorkflow,
                     request,
                     metadata=get_metadata(self.token),
                 ),
@@ -450,7 +451,8 @@ class AdminClient:
 
             resp = cast(
                 v0_workflow_protos.BulkTriggerWorkflowResponse,
-                client.BulkTriggerWorkflow(
+                await asyncio.to_thread(
+                    client.BulkTriggerWorkflow,
                     bulk_request,
                     metadata=get_metadata(self.token),
                 ),
