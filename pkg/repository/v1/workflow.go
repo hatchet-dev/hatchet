@@ -13,6 +13,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/cel"
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/digest"
+	v1 "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
@@ -48,6 +49,8 @@ type CreateWorkflowVersionOpts struct {
 	Sticky *string `validate:"omitempty,oneof=SOFT HARD"`
 
 	DefaultPriority *int32 `validate:"omitempty,min=1,max=3"`
+
+	DefaultFilters []v1.DefaultFilter `json:"defaultFilters,omitempty" validate:"omitempty,dive"`
 }
 
 type CreateCronWorkflowTriggerOpts struct {
@@ -548,6 +551,42 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 
 		if err != nil {
 			return "", fmt.Errorf("could not move existing scheduled triggers to new workflow triggers: %w", err)
+		}
+	}
+
+	if len(opts.DefaultFilters) > 0 {
+		filterScopes := make([]string, len(opts.DefaultFilters))
+		filterExpressions := make([]string, len(opts.DefaultFilters))
+		filterPayloads := make([][]byte, len(opts.DefaultFilters))
+		filterIsDeclaratives := make([]bool, len(opts.DefaultFilters))
+
+		for ix, filter := range opts.DefaultFilters {
+			var payload []byte
+
+			if filter.Payload != nil {
+				payload = []byte(*filter.Payload)
+			}
+
+			filterScopes[ix] = filter.Scope
+			filterExpressions[ix] = filter.Expression
+			filterPayloads[ix] = payload
+			filterIsDeclaratives[ix] = true
+		}
+		_, err := r.queries.BulkUpsertDeclarativeFilters(
+			ctx,
+			tx,
+			sqlcv1.BulkUpsertDeclarativeFiltersParams{
+				Tenantid:       tenantId,
+				Workflowid:     workflowId,
+				Scopes:         filterScopes,
+				Expressions:    filterExpressions,
+				Payloads:       filterPayloads,
+				Isdeclaratives: filterIsDeclaratives,
+			},
+		)
+
+		if err != nil {
+			return "", fmt.Errorf("could not upsert declarative filters: %w", err)
 		}
 	}
 
