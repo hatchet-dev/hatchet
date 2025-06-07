@@ -913,13 +913,13 @@ func checksumV1(opts *CreateWorkflowVersionOpts) (string, error) {
 		return "", err
 	}
 
-	fmt.Printf("%s: %s", opts.Name, string(debugBytes))
-
 	workflowChecksum, err := digest.DigestValues(declaredValues)
 
 	if err != nil {
 		return "", err
 	}
+
+	fmt.Printf("%s: %s: %s", opts.Name, workflowChecksum.String(), string(debugBytes))
 
 	return workflowChecksum.String(), nil
 }
