@@ -2,6 +2,7 @@ package v1
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"sort"
@@ -906,11 +907,19 @@ func checksumV1(opts *CreateWorkflowVersionOpts) (string, error) {
 		return "", err
 	}
 
+	debugBytes, err := json.Marshal(opts)
+
+	if err != nil {
+		return "", err
+	}
+
 	workflowChecksum, err := digest.DigestValues(declaredValues)
 
 	if err != nil {
 		return "", err
 	}
+
+	fmt.Printf("%s: %s: %s", opts.Name, workflowChecksum.String(), string(debugBytes))
 
 	return workflowChecksum.String(), nil
 }
