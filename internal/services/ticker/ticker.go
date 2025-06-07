@@ -209,6 +209,7 @@ func (t *TickerImpl) Start() (func() error, error) {
 		gocron.NewTask(
 			t.runPollCronSchedules(ctx),
 		),
+		gocron.WithSingletonMode(gocron.LimitModeReschedule),
 	)
 
 	if err != nil {
@@ -222,6 +223,7 @@ func (t *TickerImpl) Start() (func() error, error) {
 		gocron.NewTask(
 			t.runPollSchedules(ctx),
 		),
+		gocron.WithSingletonMode(gocron.LimitModeReschedule),
 	)
 
 	if err != nil {
