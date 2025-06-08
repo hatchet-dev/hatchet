@@ -1,7 +1,7 @@
 import { Callout, Tabs } from "nextra/components";
 import { MailingListSubscription } from "@/components/mailing-list-subscription";
 
-# Why I'm excited about Go for agents
+# Why Go is a good fit for agents
 
 _Since you're here, you might be interested in checking out [Hatchet](https://hatchet.run) — the platform for running background tasks, data pipelines and AI agents at scale._
 
@@ -22,7 +22,7 @@ As a long-time Go developer, this is rather exciting; here's why I think this wi
 
 ## What's an agent?
 
-Terminology here is muddled, but in general I'm referring to a process which is executing in a loop, where the process has some agency over the next step in its execution path. How much agency? More than none. We'd call a fully deterministic path [a workflow](https://www.anthropic.com/engineering/building-effective-agents) (which can be a component of an agent).
+Terminology here is muddled, but in general I'm referring to a process which is executing in a loop, where the process has some agency over the next step in its execution path. Contrast this with a predefined execution path, like a set of steps defined as a directed acyclic graph, which we'd call a [workflow](https://www.anthropic.com/engineering/building-effective-agents). Agents typically contain an exit condition based on maximum depth or a condition (like "tests pass") being met.
 
 <img
   src="/anthropic_agent.png"
@@ -154,6 +154,8 @@ Agents seem to be quite susceptible to memory leaks because of their statefulnes
   alt="Example pprof memory profile"
   className="mx-auto max-w-full md:max-w-[60%] my-8"
 />
+
+_Source: One of my more embarrasing memory leaks_
 
 ## The bad parts
 
