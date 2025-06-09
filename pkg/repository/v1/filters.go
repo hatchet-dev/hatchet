@@ -52,7 +52,7 @@ type ListFiltersOpts struct {
 
 type UpdateFilterOpts struct {
 	Scope      *string `json:"scope"`
-	Expression *string `json:"expression" `
+	Expression *string `json:"expression"`
 	Payload    []byte  `json:"payload"`
 }
 
