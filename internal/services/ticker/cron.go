@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/go-co-op/gocron/v2"
+	"github.com/google/uuid"
 
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
@@ -32,21 +33,21 @@ func (t *TickerImpl) runPollCronSchedules(ctx context.Context) func() {
 			return
 		}
 
-		existingCrons := make(map[string]bool)
+		// guard access to the userCronScheduler and userCronSchedulesToIds
+		t.userCronSchedulerLock.Lock()
+		defer t.userCronSchedulerLock.Unlock()
 
-		t.crons.Range(func(key, value interface{}) bool {
-			existingCrons[key.(string)] = false
-			return true
-		})
+		newCronKeys := make(map[string]bool)
 
 		for _, cron := range crons {
 			cronKey := getCronKey(cron)
 
+			newCronKeys[cronKey] = true
+
 			t.l.Debug().Msgf("ticker: handling cron %s", cronKey)
 
-			// if the cron is already scheduled, mark it as existing
-			if _, ok := existingCrons[cronKey]; ok {
-				existingCrons[cronKey] = true
+			// if the cron is already scheduled, skip
+			if _, ok := t.userCronSchedulesToIds[cronKey]; ok {
 				continue
 			}
 
@@ -54,13 +55,11 @@ func (t *TickerImpl) runPollCronSchedules(ctx context.Context) func() {
 			if err := t.handleScheduleCron(ctx, cron); err != nil {
 				t.l.Err(err).Msg("could not schedule cron")
 			}
-
-			existingCrons[cronKey] = true
 		}
 
 		// cancel any crons that are no longer assigned to this ticker
-		for key, exists := range existingCrons {
-			if !exists {
+		for key := range t.userCronSchedulesToIds {
+			if _, ok := newCronKeys[key]; !ok {
 				if err := t.handleCancelCron(ctx, key); err != nil {
 					t.l.Err(err).Msg("could not cancel cron")
 				}
@@ -71,13 +70,6 @@ func (t *TickerImpl) runPollCronSchedules(ctx context.Context) func() {
 
 func (t *TickerImpl) handleScheduleCron(ctx context.Context, cron *dbsqlc.PollCronSchedulesRow) error {
 	t.l.Debug().Msg("ticker: scheduling cron")
-
-	// create a new scheduler
-	s, err := gocron.NewScheduler(gocron.WithLocation(time.UTC))
-
-	if err != nil {
-		return fmt.Errorf("could not create scheduler: %w", err)
-	}
 
 	tenantId := sqlchelpers.UUIDToStr(cron.TenantId)
 	workflowVersionId := sqlchelpers.UUIDToStr(cron.WorkflowVersionId)
@@ -91,12 +83,15 @@ func (t *TickerImpl) handleScheduleCron(ctx context.Context, cron *dbsqlc.PollCr
 		}
 	}
 
+	cronUUID := uuid.New()
+
 	// schedule the cron
-	_, err = s.NewJob(
+	_, err := t.userCronScheduler.NewJob(
 		gocron.CronJob(cron.Cron, false),
 		gocron.NewTask(
 			t.runCronWorkflow(tenantId, workflowVersionId, cron.Cron, cronParentId, &cron.Name.String, cron.Input, additionalMetadata, &cron.Priority),
 		),
+		gocron.WithIdentifier(cronUUID),
 	)
 
 	if err != nil {
@@ -104,9 +99,8 @@ func (t *TickerImpl) handleScheduleCron(ctx context.Context, cron *dbsqlc.PollCr
 	}
 
 	// store the schedule in the cron map
-	t.crons.Store(getCronKey(cron), s)
-
-	s.Start()
+	// NOTE: we already have a lock on the userCronSchedulerLock when we call this function, so we don't need to lock here
+	t.userCronSchedulesToIds[getCronKey(cron)] = cronUUID.String()
 
 	return nil
 }
@@ -182,24 +176,25 @@ func (t *TickerImpl) runCronWorkflowV0(ctx context.Context, tenantId string, wor
 func (t *TickerImpl) handleCancelCron(ctx context.Context, key string) error {
 	t.l.Debug().Msg("ticker: canceling cron")
 
-	// get the scheduler
-	schedulerVal, ok := t.crons.Load(key)
+	cronUUID, ok := t.userCronSchedulesToIds[key]
 
 	if !ok {
-		return fmt.Errorf("could not find cron with key %s ", key)
+		return nil
 	}
 
-	defer t.crons.Delete(key)
+	// Clean up the map entry if it exists
+	delete(t.userCronSchedulesToIds, key)
 
-	scheduler, ok := schedulerVal.(gocron.Scheduler)
+	cronAsUUID, err := uuid.Parse(cronUUID)
 
-	if !ok {
-		return fmt.Errorf("could not cast scheduler")
+	if err != nil {
+		return fmt.Errorf("could not parse cron UUID: %w", err)
 	}
 
-	// cancel the cron
-	if err := scheduler.Shutdown(); err != nil {
-		return fmt.Errorf("could not cancel cron: %w", err)
+	err = t.userCronScheduler.RemoveJob(cronAsUUID)
+
+	if err != nil {
+		return fmt.Errorf("could not remove job from scheduler: %w", err)
 	}
 
 	return nil
