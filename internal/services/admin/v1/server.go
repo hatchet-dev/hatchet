@@ -545,7 +545,7 @@ func getCreateWorkflowOpts(req *contracts.CreateWorkflowVersionRequest) (*v1.Cre
 
 	for _, f := range req.DefaultFilters {
 		if f.Payload != nil && !json.Valid(f.Payload) {
-			return nil, fmt.Errorf("default filter payload is not valid JSON: %s", f.Payload)
+			return nil, fmt.Errorf("default filter payload is not valid JSON")
 		}
 
 		defaultFilters = append(defaultFilters, v1.DefaultFilter{
