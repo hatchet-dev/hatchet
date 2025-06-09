@@ -189,7 +189,7 @@ type DefaultFilter struct {
 	Scope string `json:"scope" validate:"required"`
 
 	// (optional) the payload for the filter
-	Payload *[]byte `json:"payload,omitempty" validate:"omitempty"`
+	Payload []byte `json:"payload,omitempty" validate:"omitempty"`
 }
 
 type WorkflowRepository interface {
@@ -574,7 +574,7 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 			var payload []byte
 
 			if filter.Payload != nil {
-				payload = []byte(*filter.Payload)
+				payload = []byte(filter.Payload)
 			}
 
 			filterScopes[ix] = filter.Scope

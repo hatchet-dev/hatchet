@@ -90,7 +90,7 @@ message CreateWorkflowVersionRequest {
 message DefaultFilter {
     string expression = 1; // (required) the CEL expression for the filter
     string scope = 2; // (required) the scope of the filter
-    optional string payload = 3; // (optional) the payload for the filter, if any. A JSON object as a string.
+    optional bytes payload = 3; // (optional) the payload for the filter, if any. A JSON object as a string.
 }
 
 enum ConcurrencyLimitStrategy {
