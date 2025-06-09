@@ -58,11 +58,6 @@ SELECT
     payload,
     is_declarative
 FROM inputs
-ON CONFLICT (tenant_id, workflow_id, scope, expression) DO UPDATE
-SET
-    payload = EXCLUDED.payload,
-    is_declarative = EXCLUDED.is_declarative,
-    updated_at = NOW()
 RETURNING *;
 
 -- name: DeleteFilter :one
