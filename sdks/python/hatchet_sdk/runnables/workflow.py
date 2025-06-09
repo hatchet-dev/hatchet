@@ -1,7 +1,8 @@
 import asyncio
+from collections.abc import Callable
 from datetime import datetime, timedelta, timezone
 from functools import cached_property
-from typing import TYPE_CHECKING, Any, Callable, Generic, TypeVar, cast, get_type_hints
+from typing import TYPE_CHECKING, Any, Generic, TypeVar, cast, get_type_hints
 
 from google.protobuf import timestamp_pb2
 from pydantic import BaseModel, model_validator
@@ -371,7 +372,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         self,
         expression: str,
         scope: str,
-        payload: JSONSerializableMapping = {},
+        payload: JSONSerializableMapping | None = None,
     ) -> V1Filter:
         """
         Create a new filter.
@@ -393,7 +394,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         self,
         expression: str,
         scope: str,
-        payload: JSONSerializableMapping = {},
+        payload: JSONSerializableMapping | None = None,
     ) -> V1Filter:
         """
         Create a new filter.
@@ -458,7 +459,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         cron_name: str,
         expression: str,
         input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
-        additional_metadata: JSONSerializableMapping = {},
+        additional_metadata: JSONSerializableMapping | None = None,
         priority: int | None = None,
     ) -> CronWorkflows:
         """
@@ -477,7 +478,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
             cron_name=cron_name,
             expression=expression,
             input=self._serialize_input(input),
-            additional_metadata=additional_metadata,
+            additional_metadata=additional_metadata or {},
             priority=priority,
         )
 
@@ -486,7 +487,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         cron_name: str,
         expression: str,
         input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
-        additional_metadata: JSONSerializableMapping = {},
+        additional_metadata: JSONSerializableMapping | None = None,
         priority: int | None = None,
     ) -> CronWorkflows:
         """
@@ -505,7 +506,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
             cron_name=cron_name,
             expression=expression,
             input=self._serialize_input(input),
-            additional_metadata=additional_metadata,
+            additional_metadata=additional_metadata or {},
             priority=priority,
         )
 
@@ -716,16 +717,16 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         name: str | None = None,
         schedule_timeout: Duration = timedelta(minutes=5),
         execution_timeout: Duration = timedelta(seconds=60),
-        parents: list[Task[TWorkflowInput, Any]] = [],
+        parents: list[Task[TWorkflowInput, Any]] | None = None,
         retries: int = 0,
-        rate_limits: list[RateLimit] = [],
-        desired_worker_labels: dict[str, DesiredWorkerLabel] = {},
+        rate_limits: list[RateLimit] | None = None,
+        desired_worker_labels: dict[str, DesiredWorkerLabel] | None = None,
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
-        concurrency: list[ConcurrencyExpression] = [],
-        wait_for: list[Condition | OrGroup] = [],
-        skip_if: list[Condition | OrGroup] = [],
-        cancel_if: list[Condition | OrGroup] = [],
+        concurrency: list[ConcurrencyExpression] | None = None,
+        wait_for: list[Condition | OrGroup] | None = None,
+        skip_if: list[Condition | OrGroup] | None = None,
+        cancel_if: list[Condition | OrGroup] | None = None,
     ) -> Callable[
         [Callable[[TWorkflowInput, Context], R | CoroutineLike[R]]],
         Task[TWorkflowInput, R],
@@ -784,10 +785,10 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
                 schedule_timeout=computed_params.schedule_timeout,
                 parents=parents,
                 retries=computed_params.retries,
-                rate_limits=[r.to_proto() for r in rate_limits],
+                rate_limits=[r.to_proto() for r in rate_limits or []],
                 desired_worker_labels={
                     key: transform_desired_worker_label(d)
-                    for key, d in desired_worker_labels.items()
+                    for key, d in (desired_worker_labels or {}).items()
                 },
                 backoff_factor=computed_params.backoff_factor,
                 backoff_max_seconds=computed_params.backoff_max_seconds,
@@ -808,16 +809,16 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         name: str | None = None,
         schedule_timeout: Duration = timedelta(minutes=5),
         execution_timeout: Duration = timedelta(seconds=60),
-        parents: list[Task[TWorkflowInput, Any]] = [],
+        parents: list[Task[TWorkflowInput, Any]] | None = None,
         retries: int = 0,
-        rate_limits: list[RateLimit] = [],
-        desired_worker_labels: dict[str, DesiredWorkerLabel] = {},
+        rate_limits: list[RateLimit] | None = None,
+        desired_worker_labels: dict[str, DesiredWorkerLabel] | None = None,
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
-        concurrency: list[ConcurrencyExpression] = [],
-        wait_for: list[Condition | OrGroup] = [],
-        skip_if: list[Condition | OrGroup] = [],
-        cancel_if: list[Condition | OrGroup] = [],
+        concurrency: list[ConcurrencyExpression] | None = None,
+        wait_for: list[Condition | OrGroup] | None = None,
+        skip_if: list[Condition | OrGroup] | None = None,
+        cancel_if: list[Condition | OrGroup] | None = None,
     ) -> Callable[
         [Callable[[TWorkflowInput, DurableContext], R | CoroutineLike[R]]],
         Task[TWorkflowInput, R],
@@ -880,10 +881,10 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
                 schedule_timeout=computed_params.schedule_timeout,
                 parents=parents,
                 retries=computed_params.retries,
-                rate_limits=[r.to_proto() for r in rate_limits],
+                rate_limits=[r.to_proto() for r in rate_limits or []],
                 desired_worker_labels={
                     key: transform_desired_worker_label(d)
-                    for key, d in desired_worker_labels.items()
+                    for key, d in (desired_worker_labels or {}).items()
                 },
                 backoff_factor=computed_params.backoff_factor,
                 backoff_max_seconds=computed_params.backoff_max_seconds,
@@ -905,10 +906,10 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         schedule_timeout: Duration = timedelta(minutes=5),
         execution_timeout: Duration = timedelta(seconds=60),
         retries: int = 0,
-        rate_limits: list[RateLimit] = [],
+        rate_limits: list[RateLimit] | None = None,
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
-        concurrency: list[ConcurrencyExpression] = [],
+        concurrency: list[ConcurrencyExpression] | None = None,
     ) -> Callable[
         [Callable[[TWorkflowInput, Context], R | CoroutineLike[R]]],
         Task[TWorkflowInput, R],
@@ -947,10 +948,15 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
                 execution_timeout=execution_timeout,
                 schedule_timeout=schedule_timeout,
                 retries=retries,
-                rate_limits=[r.to_proto() for r in rate_limits],
+                rate_limits=[r.to_proto() for r in rate_limits or []],
                 backoff_factor=backoff_factor,
                 backoff_max_seconds=backoff_max_seconds,
                 concurrency=concurrency,
+                desired_worker_labels=None,
+                parents=None,
+                wait_for=None,
+                skip_if=None,
+                cancel_if=None,
             )
 
             if self._on_failure_task:
@@ -968,10 +974,10 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         schedule_timeout: Duration = timedelta(minutes=5),
         execution_timeout: Duration = timedelta(seconds=60),
         retries: int = 0,
-        rate_limits: list[RateLimit] = [],
+        rate_limits: list[RateLimit] | None = None,
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
-        concurrency: list[ConcurrencyExpression] = [],
+        concurrency: list[ConcurrencyExpression] | None = None,
     ) -> Callable[
         [Callable[[TWorkflowInput, Context], R | CoroutineLike[R]]],
         Task[TWorkflowInput, R],
@@ -1010,11 +1016,15 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
                 execution_timeout=execution_timeout,
                 schedule_timeout=schedule_timeout,
                 retries=retries,
-                rate_limits=[r.to_proto() for r in rate_limits],
+                rate_limits=[r.to_proto() for r in rate_limits or []],
                 backoff_factor=backoff_factor,
                 backoff_max_seconds=backoff_max_seconds,
                 concurrency=concurrency,
-                parents=[],
+                parents=None,
+                desired_worker_labels=None,
+                wait_for=None,
+                skip_if=None,
+                cancel_if=None,
             )
 
             if self._on_success_task:
