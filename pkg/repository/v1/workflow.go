@@ -568,7 +568,6 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 		filterScopes := make([]string, len(opts.DefaultFilters))
 		filterExpressions := make([]string, len(opts.DefaultFilters))
 		filterPayloads := make([][]byte, len(opts.DefaultFilters))
-		filterIsDeclaratives := make([]bool, len(opts.DefaultFilters))
 
 		for ix, filter := range opts.DefaultFilters {
 			var payload []byte
@@ -580,18 +579,16 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 			filterScopes[ix] = filter.Scope
 			filterExpressions[ix] = filter.Expression
 			filterPayloads[ix] = payload
-			filterIsDeclaratives[ix] = true
 		}
-		_, err := r.queries.DangerouslyBulkUpsertDeclarativeFilters(
+		_, err := r.queries.BulkUpsertDeclarativeFilters(
 			ctx,
 			tx,
-			sqlcv1.DangerouslyBulkUpsertDeclarativeFiltersParams{
-				Tenantid:       tenantId,
-				Workflowid:     workflowId,
-				Scopes:         filterScopes,
-				Expressions:    filterExpressions,
-				Payloads:       filterPayloads,
-				Isdeclaratives: filterIsDeclaratives,
+			sqlcv1.BulkUpsertDeclarativeFiltersParams{
+				Tenantid:    tenantId,
+				Workflowid:  workflowId,
+				Scopes:      filterScopes,
+				Expressions: filterExpressions,
+				Payloads:    filterPayloads,
 			},
 		)
 

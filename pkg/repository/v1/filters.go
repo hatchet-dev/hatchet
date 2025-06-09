@@ -35,12 +35,11 @@ type CreateFilterOpts struct {
 
 func (r *filterRepository) CreateFilter(ctx context.Context, tenantId string, opts CreateFilterOpts) (*sqlcv1.V1Filter, error) {
 	return r.queries.CreateFilter(ctx, r.pool, sqlcv1.CreateFilterParams{
-		Tenantid:      sqlchelpers.UUIDFromStr(tenantId),
-		Workflowid:    opts.Workflowid,
-		Scope:         opts.Scope,
-		Expression:    opts.Expression,
-		Payload:       opts.Payload,
-		Isdeclarative: opts.IsDeclarative,
+		Tenantid:   sqlchelpers.UUIDFromStr(tenantId),
+		Workflowid: opts.Workflowid,
+		Scope:      opts.Scope,
+		Expression: opts.Expression,
+		Payload:    opts.Payload,
 	})
 }
 

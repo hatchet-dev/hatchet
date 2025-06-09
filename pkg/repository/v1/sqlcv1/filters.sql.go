@@ -11,74 +11,12 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const createFilter = `-- name: CreateFilter :one
-INSERT INTO v1_filter (
-    tenant_id,
-    workflow_id,
-    scope,
-    expression,
-    payload,
-    is_declarative
-) VALUES (
-    $1::UUID,
-    $2::UUID,
-    $3::TEXT,
-    $4::TEXT,
-    $5::JSONB,
-    $6::BOOLEAN
-)
-ON CONFLICT (tenant_id, workflow_id, scope, expression) DO UPDATE
-SET
-    payload = EXCLUDED.payload,
-    is_declarative = EXCLUDED.is_declarative,
-    updated_at = NOW()
-WHERE v1_filter.tenant_id = $1::UUID
-  AND v1_filter.workflow_id = $2::UUID
-  AND v1_filter.scope = $3::TEXT
-  AND v1_filter.expression = $4::TEXT
-RETURNING id, tenant_id, workflow_id, scope, expression, payload, is_declarative, inserted_at, updated_at
-`
-
-type CreateFilterParams struct {
-	Tenantid      pgtype.UUID `json:"tenantid"`
-	Workflowid    pgtype.UUID `json:"workflowid"`
-	Scope         string      `json:"scope"`
-	Expression    string      `json:"expression"`
-	Payload       []byte      `json:"payload"`
-	Isdeclarative bool        `json:"isdeclarative"`
-}
-
-func (q *Queries) CreateFilter(ctx context.Context, db DBTX, arg CreateFilterParams) (*V1Filter, error) {
-	row := db.QueryRow(ctx, createFilter,
-		arg.Tenantid,
-		arg.Workflowid,
-		arg.Scope,
-		arg.Expression,
-		arg.Payload,
-		arg.Isdeclarative,
-	)
-	var i V1Filter
-	err := row.Scan(
-		&i.ID,
-		&i.TenantID,
-		&i.WorkflowID,
-		&i.Scope,
-		&i.Expression,
-		&i.Payload,
-		&i.IsDeclarative,
-		&i.InsertedAt,
-		&i.UpdatedAt,
-	)
-	return &i, err
-}
-
-const dangerouslyBulkUpsertDeclarativeFilters = `-- name: DangerouslyBulkUpsertDeclarativeFilters :many
+const bulkUpsertDeclarativeFilters = `-- name: BulkUpsertDeclarativeFilters :many
 WITH inputs AS (
     SELECT
         UNNEST($3::TEXT[]) AS scope,
         UNNEST($4::TEXT[]) AS expression,
-        UNNEST($5::JSONB[]) AS payload,
-        UNNEST($6::BOOLEAN[]) AS is_declarative
+        UNNEST($5::JSONB[]) AS payload
 ), deletions AS (
     DELETE FROM v1_filter
     WHERE
@@ -101,30 +39,28 @@ SELECT
     scope,
     expression,
     payload,
-    is_declarative
+    true
 FROM inputs
 RETURNING id, tenant_id, workflow_id, scope, expression, payload, is_declarative, inserted_at, updated_at
 `
 
-type DangerouslyBulkUpsertDeclarativeFiltersParams struct {
-	Tenantid       pgtype.UUID `json:"tenantid"`
-	Workflowid     pgtype.UUID `json:"workflowid"`
-	Scopes         []string    `json:"scopes"`
-	Expressions    []string    `json:"expressions"`
-	Payloads       [][]byte    `json:"payloads"`
-	Isdeclaratives []bool      `json:"isdeclaratives"`
+type BulkUpsertDeclarativeFiltersParams struct {
+	Tenantid    pgtype.UUID `json:"tenantid"`
+	Workflowid  pgtype.UUID `json:"workflowid"`
+	Scopes      []string    `json:"scopes"`
+	Expressions []string    `json:"expressions"`
+	Payloads    [][]byte    `json:"payloads"`
 }
 
 // IMPORTANT: This query overwrites all existing declarative filters for a workflow.
 // it's intended to be used when the workflow version is created.
-func (q *Queries) DangerouslyBulkUpsertDeclarativeFilters(ctx context.Context, db DBTX, arg DangerouslyBulkUpsertDeclarativeFiltersParams) ([]*V1Filter, error) {
-	rows, err := db.Query(ctx, dangerouslyBulkUpsertDeclarativeFilters,
+func (q *Queries) BulkUpsertDeclarativeFilters(ctx context.Context, db DBTX, arg BulkUpsertDeclarativeFiltersParams) ([]*V1Filter, error) {
+	rows, err := db.Query(ctx, bulkUpsertDeclarativeFilters,
 		arg.Tenantid,
 		arg.Workflowid,
 		arg.Scopes,
 		arg.Expressions,
 		arg.Payloads,
-		arg.Isdeclaratives,
 	)
 	if err != nil {
 		return nil, err
@@ -152,6 +88,64 @@ func (q *Queries) DangerouslyBulkUpsertDeclarativeFilters(ctx context.Context, d
 		return nil, err
 	}
 	return items, nil
+}
+
+const createFilter = `-- name: CreateFilter :one
+INSERT INTO v1_filter (
+    tenant_id,
+    workflow_id,
+    scope,
+    expression,
+    payload,
+    is_declarative
+) VALUES (
+    $1::UUID,
+    $2::UUID,
+    $3::TEXT,
+    $4::TEXT,
+    $5::JSONB,
+    false
+)
+ON CONFLICT (tenant_id, workflow_id, scope, expression) DO UPDATE
+SET
+    payload = EXCLUDED.payload,
+    updated_at = NOW()
+WHERE v1_filter.tenant_id = $1::UUID
+  AND v1_filter.workflow_id = $2::UUID
+  AND v1_filter.scope = $3::TEXT
+  AND v1_filter.expression = $4::TEXT
+RETURNING id, tenant_id, workflow_id, scope, expression, payload, is_declarative, inserted_at, updated_at
+`
+
+type CreateFilterParams struct {
+	Tenantid   pgtype.UUID `json:"tenantid"`
+	Workflowid pgtype.UUID `json:"workflowid"`
+	Scope      string      `json:"scope"`
+	Expression string      `json:"expression"`
+	Payload    []byte      `json:"payload"`
+}
+
+func (q *Queries) CreateFilter(ctx context.Context, db DBTX, arg CreateFilterParams) (*V1Filter, error) {
+	row := db.QueryRow(ctx, createFilter,
+		arg.Tenantid,
+		arg.Workflowid,
+		arg.Scope,
+		arg.Expression,
+		arg.Payload,
+	)
+	var i V1Filter
+	err := row.Scan(
+		&i.ID,
+		&i.TenantID,
+		&i.WorkflowID,
+		&i.Scope,
+		&i.Expression,
+		&i.Payload,
+		&i.IsDeclarative,
+		&i.InsertedAt,
+		&i.UpdatedAt,
+	)
+	return &i, err
 }
 
 const deleteFilter = `-- name: DeleteFilter :one
