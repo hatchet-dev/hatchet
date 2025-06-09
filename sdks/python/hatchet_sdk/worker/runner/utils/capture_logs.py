@@ -1,8 +1,9 @@
 import functools
 import logging
+from collections.abc import Awaitable, Callable
 from concurrent.futures import ThreadPoolExecutor
 from io import StringIO
-from typing import Awaitable, Callable, Literal, ParamSpec, TypeVar
+from typing import Literal, ParamSpec, TypeVar
 
 from pydantic import BaseModel
 

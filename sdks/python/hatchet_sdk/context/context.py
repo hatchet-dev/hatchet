@@ -64,7 +64,7 @@ class Context:
         self._lifespan_context = lifespan_context
 
     def was_skipped(self, task: "Task[TWorkflowInput, R]") -> bool:
-        return self.data.parents.get(task.name, {}).get("skipped", False)
+        return self.data.parents.get(task.name, {}).get("skipped", False) is True
 
     @property
     def trigger_data(self) -> JSONSerializableMapping:
@@ -78,8 +78,8 @@ class Context:
 
         try:
             parent_step_data = cast(R, self.data.parents[task.name])
-        except KeyError:
-            raise ValueError(f"Step output for '{task.name}' not found")
+        except KeyError as e:
+            raise ValueError(f"Step output for '{task.name}' not found") from e
 
         if parent_step_data and (v := task.validators.step_output):
             return cast(R, v.model_validate(parent_step_data))
@@ -90,6 +90,7 @@ class Context:
         warn(
             "`aio_task_output` is deprecated. Use `task_output` instead.",
             DeprecationWarning,
+            stacklevel=2,
         )
 
         if task.is_async_function:
@@ -160,16 +161,15 @@ class Context:
             if not success and exception:
                 if raise_on_error:
                     raise exception
-                else:
-                    thread_trace = "".join(
-                        traceback.format_exception(
-                            type(exception), exception, exception.__traceback__
-                        )
+                thread_trace = "".join(
+                    traceback.format_exception(
+                        type(exception), exception, exception.__traceback__
                     )
-                    call_site_trace = "".join(traceback.format_stack())
-                    logger.error(
-                        f"Error in log thread: {exception}\n{thread_trace}\nCalled from:\n{call_site_trace}"
-                    )
+                )
+                call_site_trace = "".join(traceback.format_stack())
+                logger.error(
+                    f"Error in log thread: {exception}\n{thread_trace}\nCalled from:\n{call_site_trace}"
+                )
 
         future.add_done_callback(handle_result)
 
