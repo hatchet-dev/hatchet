@@ -1305,6 +1305,23 @@ export class Api<
       ...params,
     });
   /**
+   * @description Get the details of a tenant
+   *
+   * @tags Tenant
+   * @name TenantGet
+   * @summary Get tenant
+   * @request GET:/api/v1/tenants/{tenant}
+   * @secure
+   */
+  tenantGet = (tenant: string, params: RequestParams = {}) =>
+    this.request<Tenant, APIErrors | APIError>({
+      path: `/api/v1/tenants/${tenant}`,
+      method: "GET",
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
    * @description Gets the alerting settings for a tenant
    *
    * @tags Tenant
