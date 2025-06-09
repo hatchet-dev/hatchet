@@ -421,6 +421,26 @@ export class Api<
       ...params,
     });
   /**
+   * @description Get the status of a workflow run.
+   *
+   * @tags Workflow Runs
+   * @name V1WorkflowRunGetStatus
+   * @summary Get workflow run status
+   * @request GET:/api/v1/stable/workflow-runs/{v1-workflow-run}/status
+   * @secure
+   */
+  v1WorkflowRunGetStatus = (
+    v1WorkflowRun: string,
+    params: RequestParams = {},
+  ) =>
+    this.request<V1TaskStatus, APIErrors>({
+      path: `/api/v1/stable/workflow-runs/${v1WorkflowRun}/status`,
+      method: "GET",
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
    * @description List all tasks for a workflow run
    *
    * @tags Workflow Runs

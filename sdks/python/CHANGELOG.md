@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.11.1] - 2025-06-09
 
+### Added
+
+- Adds `get_status` and `aio_get_status` methods to the `Runs` feature client, which return a workflow run's status by its ID.
+
 ### Changed
 
 - Adds a warning on client init if the SDK version is not compatible with the tenant (engine) version.
