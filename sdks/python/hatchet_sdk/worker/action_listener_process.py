@@ -164,7 +164,7 @@ class WorkerActionListenerProcess:
         threshold = 1
         while not self.killing:
             count = 0
-            for _, start_time in self.running_step_runs.items():
+            for start_time in self.running_step_runs.values():
                 diff = self.now() - start_time
                 if diff > threshold:
                     count += 1
