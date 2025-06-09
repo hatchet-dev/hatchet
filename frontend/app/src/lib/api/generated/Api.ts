@@ -100,6 +100,7 @@ import {
   V1TaskSummaryList,
   V1TaskTimingList,
   V1TriggerWorkflowRunRequest,
+  V1UpdateFilterRequest,
   V1WorkflowRunDetails,
   V1WorkflowRunDisplayNameList,
   WebhookWorkerCreateRequest,
@@ -698,6 +699,29 @@ export class Api<
       path: `/api/v1/stable/tenants/${tenant}/filters/${v1Filter}`,
       method: "DELETE",
       secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Update a filter
+   *
+   * @tags Filter
+   * @name V1FilterUpdate
+   * @request POST:/api/v1/stable/tenants/{tenant}/filters/{v1-filter}
+   * @secure
+   */
+  v1FilterUpdate = (
+    tenant: string,
+    v1Filter: string,
+    data: V1UpdateFilterRequest,
+    params: RequestParams = {},
+  ) =>
+    this.request<V1Filter, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/filters/${v1Filter}`,
+      method: "POST",
+      body: data,
+      secure: true,
+      type: ContentType.Json,
       format: "json",
       ...params,
     });

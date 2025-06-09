@@ -53,7 +53,7 @@ paths:
   /api/v1/stable/tenants/{tenant}/filters:
     $ref: "./paths/v1/filters/filter.yaml#/V1FilterListCreate"
   /api/v1/stable/tenants/{tenant}/filters/{v1-filter}:
-    $ref: "./paths/v1/filters/filter.yaml#/V1FilterGetDelete"
+    $ref: "./paths/v1/filters/filter.yaml#/V1FilterGetDeleteUpdate"
   /api/ready:
     $ref: "./paths/metadata/metadata.yaml#/readiness"
   /api/live:

@@ -1529,6 +1529,18 @@ type V1TriggerWorkflowRunRequest struct {
 	WorkflowName string `json:"workflowName"`
 }
 
+// V1UpdateFilterRequest defines model for V1UpdateFilterRequest.
+type V1UpdateFilterRequest struct {
+	// Expression The expression for the filter
+	Expression *string `json:"expression,omitempty"`
+
+	// Payload The payload for the filter
+	Payload *map[string]interface{} `json:"payload,omitempty"`
+
+	// Scope The scope associated with this filter. Used for subsetting candidate filters at evaluation time
+	Scope *string `json:"scope,omitempty"`
+}
+
 // V1WorkflowRun defines model for V1WorkflowRun.
 type V1WorkflowRun struct {
 	// AdditionalMetadata Additional metadata for the task run.
@@ -2380,6 +2392,9 @@ type AlertEmailGroupUpdateJSONRequestBody = UpdateTenantAlertEmailGroupRequest
 // V1FilterCreateJSONRequestBody defines body for V1FilterCreate for application/json ContentType.
 type V1FilterCreateJSONRequestBody = V1CreateFilterRequest
 
+// V1FilterUpdateJSONRequestBody defines body for V1FilterUpdate for application/json ContentType.
+type V1FilterUpdateJSONRequestBody = V1UpdateFilterRequest
+
 // V1TaskCancelJSONRequestBody defines body for V1TaskCancel for application/json ContentType.
 type V1TaskCancelJSONRequestBody = V1CancelTaskRequest
 
@@ -2609,6 +2624,11 @@ type ClientInterface interface {
 
 	// V1FilterGet request
 	V1FilterGet(ctx context.Context, tenant openapi_types.UUID, v1Filter openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// V1FilterUpdateWithBody request with any body
+	V1FilterUpdateWithBody(ctx context.Context, tenant openapi_types.UUID, v1Filter openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	V1FilterUpdate(ctx context.Context, tenant openapi_types.UUID, v1Filter openapi_types.UUID, body V1FilterUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// V1TaskListStatusMetrics request
 	V1TaskListStatusMetrics(ctx context.Context, tenant openapi_types.UUID, params *V1TaskListStatusMetricsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -3227,6 +3247,30 @@ func (c *Client) V1FilterDelete(ctx context.Context, tenant openapi_types.UUID, 
 
 func (c *Client) V1FilterGet(ctx context.Context, tenant openapi_types.UUID, v1Filter openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewV1FilterGetRequest(c.Server, tenant, v1Filter)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1FilterUpdateWithBody(ctx context.Context, tenant openapi_types.UUID, v1Filter openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1FilterUpdateRequestWithBody(c.Server, tenant, v1Filter, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1FilterUpdate(ctx context.Context, tenant openapi_types.UUID, v1Filter openapi_types.UUID, body V1FilterUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1FilterUpdateRequest(c.Server, tenant, v1Filter, body)
 	if err != nil {
 		return nil, err
 	}
@@ -5650,6 +5694,60 @@ func NewV1FilterGetRequest(server string, tenant openapi_types.UUID, v1Filter op
 	if err != nil {
 		return nil, err
 	}
+
+	return req, nil
+}
+
+// NewV1FilterUpdateRequest calls the generic V1FilterUpdate builder with application/json body
+func NewV1FilterUpdateRequest(server string, tenant openapi_types.UUID, v1Filter openapi_types.UUID, body V1FilterUpdateJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewV1FilterUpdateRequestWithBody(server, tenant, v1Filter, "application/json", bodyReader)
+}
+
+// NewV1FilterUpdateRequestWithBody generates requests for V1FilterUpdate with any type of body
+func NewV1FilterUpdateRequestWithBody(server string, tenant openapi_types.UUID, v1Filter openapi_types.UUID, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "v1-filter", runtime.ParamLocationPath, v1Filter)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/stable/tenants/%s/filters/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
 
 	return req, nil
 }
@@ -10870,6 +10968,11 @@ type ClientWithResponsesInterface interface {
 	// V1FilterGetWithResponse request
 	V1FilterGetWithResponse(ctx context.Context, tenant openapi_types.UUID, v1Filter openapi_types.UUID, reqEditors ...RequestEditorFn) (*V1FilterGetResponse, error)
 
+	// V1FilterUpdateWithBodyWithResponse request with any body
+	V1FilterUpdateWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, v1Filter openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1FilterUpdateResponse, error)
+
+	V1FilterUpdateWithResponse(ctx context.Context, tenant openapi_types.UUID, v1Filter openapi_types.UUID, body V1FilterUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*V1FilterUpdateResponse, error)
+
 	// V1TaskListStatusMetricsWithResponse request
 	V1TaskListStatusMetricsWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V1TaskListStatusMetricsParams, reqEditors ...RequestEditorFn) (*V1TaskListStatusMetricsResponse, error)
 
@@ -11737,6 +11840,31 @@ func (r V1FilterGetResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r V1FilterGetResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type V1FilterUpdateResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *V1Filter
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+	JSON404      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r V1FilterUpdateResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r V1FilterUpdateResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -14151,6 +14279,23 @@ func (c *ClientWithResponses) V1FilterGetWithResponse(ctx context.Context, tenan
 	return ParseV1FilterGetResponse(rsp)
 }
 
+// V1FilterUpdateWithBodyWithResponse request with arbitrary body returning *V1FilterUpdateResponse
+func (c *ClientWithResponses) V1FilterUpdateWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, v1Filter openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1FilterUpdateResponse, error) {
+	rsp, err := c.V1FilterUpdateWithBody(ctx, tenant, v1Filter, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1FilterUpdateResponse(rsp)
+}
+
+func (c *ClientWithResponses) V1FilterUpdateWithResponse(ctx context.Context, tenant openapi_types.UUID, v1Filter openapi_types.UUID, body V1FilterUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*V1FilterUpdateResponse, error) {
+	rsp, err := c.V1FilterUpdate(ctx, tenant, v1Filter, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1FilterUpdateResponse(rsp)
+}
+
 // V1TaskListStatusMetricsWithResponse request returning *V1TaskListStatusMetricsResponse
 func (c *ClientWithResponses) V1TaskListStatusMetricsWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V1TaskListStatusMetricsParams, reqEditors ...RequestEditorFn) (*V1TaskListStatusMetricsResponse, error) {
 	rsp, err := c.V1TaskListStatusMetrics(ctx, tenant, params, reqEditors...)
@@ -16051,6 +16196,53 @@ func ParseV1FilterGetResponse(rsp *http.Response) (*V1FilterGetResponse, error) 
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseV1FilterUpdateResponse parses an HTTP response from a V1FilterUpdateWithResponse call
+func ParseV1FilterUpdateResponse(rsp *http.Response) (*V1FilterUpdateResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &V1FilterUpdateResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest V1Filter
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
 
 	}
 

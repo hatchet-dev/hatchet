@@ -1,4 +1,4 @@
-V1FilterGetDelete:
+V1FilterGetDeleteUpdate:
   get:
     x-resources: ["tenant", "v1-filter"]
     description: Get a filter by its id
@@ -73,7 +73,7 @@ V1FilterGetDelete:
           application/json:
             schema:
               $ref: "../../../components/schemas/_index.yaml#/V1Filter"
-        description: Successfully created the cron job workflow trigger
+        description: Successfully deleted filter
       "400":
         content:
           application/json:
@@ -94,6 +94,64 @@ V1FilterGetDelete:
         description: Not found
     tags:
       - Filter
+  post:
+    x-resources: ["tenant", "v1-filter"]
+    description: Update a filter
+    operationId: v1-filter:update
+    parameters:
+      - description: The tenant id
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+      - description: The filter id to update
+        in: path
+        name: v1-filter
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    requestBody:
+      content:
+        application/json:
+          schema:
+            $ref: "../../../components/schemas/_index.yaml#/V1UpdateFilterRequest"
+      description: The input to the filter update
+      required: true
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/V1Filter"
+        description: Successfully updated filter
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+      "404":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Not found
+    tags:
+      - Filter
+
 V1FilterListCreate:
   get:
     x-resources: ["tenant"]
@@ -193,7 +251,7 @@ V1FilterListCreate:
           application/json:
             schema:
               $ref: "../../../components/schemas/_index.yaml#/V1Filter"
-        description: Successfully created the cron job workflow trigger
+        description: Successfully created the filter
       "400":
         content:
           application/json:
