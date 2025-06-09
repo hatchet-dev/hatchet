@@ -15,6 +15,9 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
+// runPollCronSchedules acquires a list of cron schedules from the database and schedules any which are not
+// already scheduled. This job runs in "singleton" mode, meaning that only one instance of this job will run at
+// a time.
 func (t *TickerImpl) runPollCronSchedules(ctx context.Context) func() {
 	return func() {
 		ctx, cancel := context.WithTimeout(ctx, 5*time.Second)

@@ -1,6 +1,6 @@
 export default {
   "go-agents": {
-    title: "Why I'm excited about Go for agents",
+    title: "Why Go is a good fit for agents",
   },
   "warning-event-loop-blocked": {
     title: "Warning: The Event Loop May Be Blocked",
