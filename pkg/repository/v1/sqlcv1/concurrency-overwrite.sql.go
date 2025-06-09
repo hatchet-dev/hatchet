@@ -44,12 +44,13 @@ WITH filled_parent_slots AS (
         cs.sort_id, cs.task_id, cs.task_inserted_at, cs.task_retry_count, cs.external_id, cs.tenant_id, cs.workflow_id, cs.workflow_version_id, cs.workflow_run_id, cs.strategy_id, cs.parent_strategy_id, cs.priority, cs.key, cs.is_filled, cs.next_parent_strategy_ids, cs.next_strategy_ids, cs.next_keys, cs.queue_to_notify, cs.schedule_timeout_at
     FROM
         v1_concurrency_slot cs
-    JOIN
-        eligible_slots_per_group es ON cs.task_id = es.task_id
     WHERE
-        cs.task_inserted_at = es.task_inserted_at
-        AND cs.task_retry_count = es.task_retry_count
-        AND cs.strategy_id = es.strategy_id
+        (cs.task_id, cs.task_inserted_at, cs.task_retry_count, cs.strategy_id) IN (
+            SELECT
+                task_id, task_inserted_at, task_retry_count, strategy_id
+            FROM
+                eligible_slots_per_group
+        )
         AND cs.is_filled = FALSE
     ORDER BY
         task_id, task_inserted_at

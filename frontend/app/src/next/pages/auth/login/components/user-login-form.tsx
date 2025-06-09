@@ -59,9 +59,9 @@ export function UserLoginForm({ className, ...props }: UserLoginFormProps) {
               autoCorrect="off"
               disabled={props.isLoading}
             />
-            {emailError && (
+            {emailError ? (
               <div className="text-sm text-red-500">{emailError}</div>
-            )}
+            ) : null}
           </div>
           <div className="grid gap-2">
             <Label htmlFor="password">Password</Label>
@@ -72,19 +72,19 @@ export function UserLoginForm({ className, ...props }: UserLoginFormProps) {
               type="password"
               disabled={props.isLoading}
             />
-            {passwordError && (
+            {passwordError ? (
               <div className="text-sm text-red-500">{passwordError}</div>
-            )}
+            ) : null}
           </div>
           <Button disabled={props.isLoading}>Sign In</Button>
-          {props.apiError && (
+          {props.apiError ? (
             <Alert variant="destructive">
               <AlertTitle>Login Request Failed</AlertTitle>
               <AlertDescription>
                 <code>{props.apiError}</code>
               </AlertDescription>
             </Alert>
-          )}
+          ) : null}
         </div>
       </form>
     </div>

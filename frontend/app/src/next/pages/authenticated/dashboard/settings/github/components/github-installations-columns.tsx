@@ -4,11 +4,11 @@ import { PlusCircle, CheckCircleIcon } from 'lucide-react';
 import {
   GithubAppInstallation,
   GithubIntegrationProvider,
+  useGithubIntegration,
 } from '@/next/hooks/use-github-integration';
 import { Time } from '@/next/components/ui/time';
 import { GearIcon } from '@radix-ui/react-icons';
 import { Link } from 'react-router-dom';
-import { useGithubIntegration } from '@/next/hooks/use-github-integration';
 import {
   Tooltip,
   TooltipContent,

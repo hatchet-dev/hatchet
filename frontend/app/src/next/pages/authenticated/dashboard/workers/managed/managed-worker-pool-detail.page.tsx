@@ -16,8 +16,10 @@ import {
   TabsList,
   TabsTrigger,
 } from '@/next/components/ui/tabs';
-import { useManagedComputeDetail } from '@/next/hooks/use-managed-compute-detail';
-import { ManagedComputeDetailProvider } from '@/next/hooks/use-managed-compute-detail';
+import {
+  useManagedComputeDetail,
+  ManagedComputeDetailProvider,
+} from '@/next/hooks/use-managed-compute-detail';
 import { UpdateWorkerPoolContent } from './components/update-pool';
 import { WorkersTab } from './components/workers-tab';
 import { LogsTab } from './components/logs-tab';
@@ -80,7 +82,7 @@ function WorkerPoolDetailPageContent() {
         </TabsContent> */}
         <TabsContent value="metrics">{/* <MetricsTab /> */}</TabsContent>
         <TabsContent value="configuration">
-          {pool && <UpdateWorkerPoolContent />}
+          {pool ? <UpdateWorkerPoolContent /> : null}
         </TabsContent>
       </Tabs>
     </BasicLayout>

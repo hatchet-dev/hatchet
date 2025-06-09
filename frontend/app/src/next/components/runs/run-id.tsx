@@ -35,7 +35,7 @@ export function RunId({
 
   const url = !isTaskRun
     ? ROUTES.runs.detail(tenantId, wfRun?.metadata.id || id || '')
-    : taskRun?.type == V1WorkflowType.TASK
+    : taskRun?.type === V1WorkflowType.TASK
       ? undefined
       : ROUTES.runs.detail(tenantId, taskRun?.workflowRunExternalId || '');
 
@@ -78,7 +78,7 @@ export function RunId({
                 onDoubleClick={handleDoubleClick}
               >
                 {name}
-                {displayAttempt && `/${displayAttempt}`}
+                {displayAttempt !== undefined ? `/${displayAttempt}` : null}
               </span>
             )}
           </span>
@@ -87,7 +87,7 @@ export function RunId({
           <div className="font-mono text-foreground">
             Run Id: {wfRun?.metadata.id || taskRun?.metadata.id || id || ''}
             <br />
-            {displayAttempt && `Attempt: ${displayAttempt}`}
+            {displayAttempt ? `Attempt: ${displayAttempt}` : null}
           </div>
         </TooltipContent>
       </Tooltip>

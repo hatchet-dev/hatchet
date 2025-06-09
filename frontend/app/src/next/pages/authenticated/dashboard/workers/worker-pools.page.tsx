@@ -380,7 +380,9 @@ function WorkerContext() {
           <TableBody>{renderTableContent()}</TableBody>
         </Table>
 
-        {showCloudCard && <HatchetCloudCard onDismiss={handleDismissCard} />}
+        {showCloudCard ? (
+          <HatchetCloudCard onDismiss={handleDismissCard} />
+        ) : null}
       </div>
     </BasicLayout>
   );

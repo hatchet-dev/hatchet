@@ -5,6 +5,7 @@ from hatchet_sdk import Context, DefaultFilter, Hatchet
 hatchet = Hatchet()
 EVENT_KEY = "user:create"
 SECONDARY_KEY = "foobarbaz"
+WILDCARD_KEY = "subscription:*"
 
 
 class EventWorkflowInput(BaseModel):
@@ -14,7 +15,7 @@ class EventWorkflowInput(BaseModel):
 # > Event trigger
 event_workflow = hatchet.workflow(
     name="EventWorkflow",
-    on_events=[EVENT_KEY, SECONDARY_KEY],
+    on_events=[EVENT_KEY, SECONDARY_KEY, WILDCARD_KEY],
     input_validator=EventWorkflowInput,
     default_filters=[
         DefaultFilter(
@@ -32,8 +33,10 @@ event_workflow = hatchet.workflow(
 
 
 @event_workflow.task()
-def task(input: EventWorkflowInput, ctx: Context) -> None:
+def task(input: EventWorkflowInput, ctx: Context) -> dict[str, str]:
     print("event received")
+
+    return dict(ctx.filter_payload)
 
 
 def main() -> None:

@@ -1,23 +1,23 @@
-// TODO error boundary
-
 import { Button } from '@/next/components/ui/button';
 import { PropsWithChildren } from 'react';
-import { ErrorResponse, useNavigate, useRouteError } from 'react-router-dom';
-import { useLocation } from 'react-router-dom';
+import {
+  ErrorResponse,
+  useNavigate,
+  useRouteError,
+  useLocation,
+} from 'react-router-dom';
+
+const Layout: React.FC<PropsWithChildren> = ({ children }) => (
+  <div className="flex flex-row justify-center items-center flex-1 w-full h-full">
+    <div className="flex flex-col space-y-2 text-center">{children}</div>
+  </div>
+);
 
 export default function ErrorBoundary() {
   const navigate = useNavigate();
   const location = useLocation();
 
   const error = useRouteError();
-
-  console.error(error);
-
-  const Layout: React.FC<PropsWithChildren> = ({ children }) => (
-    <div className="flex flex-row justify-center items-center flex-1 w-full h-full">
-      <div className="flex flex-col space-y-2 text-center">{children}</div>
-    </div>
-  );
 
   if (
     error instanceof TypeError &&
@@ -58,11 +58,11 @@ export default function ErrorBoundary() {
 
   return (
     <Layout>
-      {(error as ErrorResponse).status && (
+      {(error as ErrorResponse).status ? (
         <h1 className="text-2xl font-semibold tracking-tight">
           {(error as ErrorResponse).status}
         </h1>
-      )}
+      ) : null}
       <h2 className="text-xl font-semibold tracking-tight">
         {(error as ErrorResponse).statusText || 'Something went wrong'}
       </h2>

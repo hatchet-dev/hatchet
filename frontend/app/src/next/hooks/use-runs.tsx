@@ -116,14 +116,16 @@ export function useRuns() {
   return context;
 }
 
+const defaultInitialPagination = {
+  initialPageSize: 50,
+};
+
 export function RunsProvider({
   children,
   initialFilters,
   refetchInterval,
   initialTimeRange,
-  initialPagination = {
-    initialPageSize: 50,
-  },
+  initialPagination = defaultInitialPagination,
 }: RunsProviderProps) {
   return (
     <FilterProvider initialFilters={initialFilters}>
@@ -326,8 +328,8 @@ function RunsProviderContent({
         throw error;
       }
     },
-    onSuccess: () => {
-      listRunsQuery.refetch();
+    onSuccess: async () => {
+      await listRunsQuery.refetch();
     },
   });
 
@@ -360,8 +362,8 @@ function RunsProviderContent({
         throw error;
       }
     },
-    onSuccess: () => {
-      listRunsQuery.refetch();
+    onSuccess: async () => {
+      await listRunsQuery.refetch();
     },
   });
 
@@ -394,9 +396,9 @@ function RunsProviderContent({
         throw error;
       }
     },
-    onSuccess: () => {
-      listRunsQuery.refetch();
-      queryClient.invalidateQueries({
+    onSuccess: async () => {
+      await listRunsQuery.refetch();
+      await queryClient.invalidateQueries({
         queryKey: ['workflow-run-details:*'],
       });
     },
@@ -426,9 +428,9 @@ function RunsProviderContent({
         throw error;
       }
     },
-    onSuccess: () => {
-      listRunsQuery.refetch();
-      queryClient.invalidateQueries({
+    onSuccess: async () => {
+      await listRunsQuery.refetch();
+      await queryClient.invalidateQueries({
         queryKey: ['workflow-run-details:*'],
       });
     },

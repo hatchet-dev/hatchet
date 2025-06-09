@@ -145,11 +145,11 @@ export default function OnboardingNewPage() {
                   </Tooltip>
                 </TooltipProvider>
               </div>
-              {errors.name && (
+              {errors.name ? (
                 <p className="text-sm text-destructive mt-1">
                   {errors.name.message}
                 </p>
-              )}
+              ) : null}
             </div>
           </form>
         </CardContent>

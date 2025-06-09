@@ -1,3 +1,5 @@
+/* eslint-disable react/no-unstable-nested-components */
+
 import { Badge } from '@/next/components/ui/badge';
 import { DataTable } from '@/next/components/runs/runs-table/data-table';
 import {
