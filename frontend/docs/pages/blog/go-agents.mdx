@@ -39,7 +39,7 @@ Agents typically have a number of shared characteristics when they start to scal
 3. They often involve input from a user (or another agent!) at some point in their execution cycle.
 4. They spend a lot of time awaiting i/o or a human.
 
-Let's translate this set of characteristics into runtime. We're going to end up with a bunch of lightweight processes that are running concurrently, each representing the execution of an agent. Each process can be in a given state (for example, “Searching files,” “Generating code,” “Test”). Note that the ordering of states is not the same in for different agent executions.
+Let's translate this set of characteristics into runtime. To constrain the problem, let's assume that we're dealing with an agent that is executed _remotely_ and not on a user's machine (though Go would be a great choice for distributing a local agent as well). In the case of remote execution, it would be incredibly expensive to run a separate container for each agent execution, so in most cases (particularly when our agent is simple i/o and LLM calls), we are going to end up with a bunch of lightweight processes that are running concurrently. Each process can be in a given state (for example, “Searching files,” “Generating code,” “Test”). Note that the ordering of states is not the same in for different agent executions.
 
 <img
   src="/agent_architecture.png"
@@ -47,7 +47,7 @@ Let's translate this set of characteristics into runtime. We're going to end up 
   className="max-w-full mx-auto my-8"
 />
 
-This is quite different from a traditional web architecture of ~10 years ago, where thousands of daily users can be served efficiently using [some caches, efficient handlers and OLTP databases](https://nickcraver.com/blog/2013/11/22/what-it-takes-to-run-stack-overflow/).
+This system of many concurrent, long-running processes is quite different from a traditional web architecture of ~10 years ago, where requests to a server were much faster, and thousands of daily users could be served efficiently using [some caches, efficient handlers and OLTP databases](https://nickcraver.com/blog/2013/11/22/what-it-takes-to-run-stack-overflow/).
 
 It turns out, this shift in architecture is really well-suited to Go's concurrency model, reliance on channels for communication, centralized cancellation mechanism, and tooling built around i/o.
 
