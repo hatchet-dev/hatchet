@@ -3,6 +3,7 @@ package v1
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
@@ -136,7 +137,8 @@ func (c *ConcurrencyRepositoryImpl) runGroupRoundRobin(
 	strategy *sqlcv1.V1StepConcurrency,
 ) (res *RunConcurrencyResult, err error) {
 
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, c.pool, c.l, 5000)
+	// Reduced timeout from 5000ms to 2000ms to prevent long-held locks
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, c.pool, c.l, 2000)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to prepare transaction (strategy ID: %d): %w", strategy.ID, err)
@@ -144,10 +146,19 @@ func (c *ConcurrencyRepositoryImpl) runGroupRoundRobin(
 
 	defer rollback()
 
+	lockStart := time.Now()
 	err = c.queries.AdvisoryLock(ctx, tx, strategy.ID)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to acquire advisory lock (strategy ID: %d): %w", strategy.ID, err)
+	}
+
+	lockDuration := time.Since(lockStart)
+	if lockDuration > 100*time.Millisecond {
+		c.l.Warn().
+			Dur("lock_duration", lockDuration).
+			Int64("strategy_id", strategy.ID).
+			Msg("advisory lock acquisition took longer than 100ms")
 	}
 
 	var queued []TaskWithQueue
@@ -484,10 +495,20 @@ func (c *ConcurrencyRepositoryImpl) runCancelNewest(
 
 	defer rollback()
 
-	err = c.queries.AdvisoryLock(ctx, tx, strategy.ID)
+	// Use TryAdvisoryLock instead of blocking lock to reduce contention
+	acquired, err := c.queries.TryAdvisoryLock(ctx, tx, strategy.ID)
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to acquire advisory lock (strategy ID: %d): %w", strategy.ID, err)
+		return nil, fmt.Errorf("failed to try advisory lock (strategy ID: %d): %w", strategy.ID, err)
+	}
+
+	if !acquired {
+		// Lock not available, return empty result to avoid blocking
+		return &RunConcurrencyResult{
+			Queued:                    []TaskWithQueue{},
+			Cancelled:                 []TaskWithCancelledReason{},
+			NextConcurrencyStrategies: []int64{},
+		}, nil
 	}
 
 	var queued []TaskWithQueue
@@ -495,10 +516,20 @@ func (c *ConcurrencyRepositoryImpl) runCancelNewest(
 	var nextConcurrencyStrategies []int64
 
 	if strategy.ParentStrategyID.Valid {
-		err := c.queries.AdvisoryLock(ctx, tx, PARENT_STRATEGY_LOCK_OFFSET+strategy.ParentStrategyID.Int64)
+		// Also use TryAdvisoryLock for parent strategy
+		parentAcquired, err := c.queries.TryAdvisoryLock(ctx, tx, PARENT_STRATEGY_LOCK_OFFSET+strategy.ParentStrategyID.Int64)
 
 		if err != nil {
-			return nil, fmt.Errorf("failed to acquire parent advisory lock (strategy ID: %d, parent: %d): %w", strategy.ID, strategy.ParentStrategyID.Int64, err)
+			return nil, fmt.Errorf("failed to try parent advisory lock (strategy ID: %d, parent: %d): %w", strategy.ID, strategy.ParentStrategyID.Int64, err)
+		}
+
+		if !parentAcquired {
+			// Parent lock not available, return empty result
+			return &RunConcurrencyResult{
+				Queued:                    []TaskWithQueue{},
+				Cancelled:                 []TaskWithCancelledReason{},
+				NextConcurrencyStrategies: []int64{},
+			}, nil
 		}
 
 		_, err = tx.Exec(
