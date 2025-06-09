@@ -3,7 +3,6 @@ package v1
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
@@ -137,8 +136,7 @@ func (c *ConcurrencyRepositoryImpl) runGroupRoundRobin(
 	strategy *sqlcv1.V1StepConcurrency,
 ) (res *RunConcurrencyResult, err error) {
 
-	// Reduced timeout from 5000ms to 2000ms to prevent long-held locks
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, c.pool, c.l, 2000)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, c.pool, c.l, 5000)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to prepare transaction (strategy ID: %d): %w", strategy.ID, err)
@@ -146,19 +144,10 @@ func (c *ConcurrencyRepositoryImpl) runGroupRoundRobin(
 
 	defer rollback()
 
-	lockStart := time.Now()
 	err = c.queries.AdvisoryLock(ctx, tx, strategy.ID)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to acquire advisory lock (strategy ID: %d): %w", strategy.ID, err)
-	}
-
-	lockDuration := time.Since(lockStart)
-	if lockDuration > 100*time.Millisecond {
-		c.l.Warn().
-			Dur("lock_duration", lockDuration).
-			Int64("strategy_id", strategy.ID).
-			Msg("advisory lock acquisition took longer than 100ms")
 	}
 
 	var queued []TaskWithQueue
