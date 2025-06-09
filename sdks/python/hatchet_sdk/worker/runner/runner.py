@@ -1,5 +1,4 @@
 import asyncio
-import contextvars
 import ctypes
 import functools
 import json
@@ -45,7 +44,10 @@ from hatchet_sdk.runnables.contextvars import (
 from hatchet_sdk.runnables.task import Task
 from hatchet_sdk.runnables.types import R, TWorkflowInput
 from hatchet_sdk.worker.action_listener_process import ActionEvent
-from hatchet_sdk.worker.runner.utils.capture_logs import copy_context_vars
+from hatchet_sdk.worker.runner.utils.capture_logs import (
+    ContextVarToCopy,
+    copy_context_vars,
+)
 
 
 class WorkerStatus(Enum):
@@ -255,7 +257,16 @@ class Runner:
                     # we must copy the context vars to the new thread, as only asyncio natively supports
                     # contextvars
                     copy_context_vars,
-                    contextvars.copy_context().items(),
+                    [
+                        ContextVarToCopy(
+                            name="ctx_step_run_id",
+                            value=action.step_run_id,
+                        ),
+                        ContextVarToCopy(
+                            name="ctx_workflow_run_id",
+                            value=action.workflow_run_id,
+                        ),
+                    ],
                     self.thread_action_func,
                     ctx,
                     task,
