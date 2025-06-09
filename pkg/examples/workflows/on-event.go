@@ -1,6 +1,7 @@
 package v1_workflows
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/hatchet-dev/hatchet/pkg/client/create"
@@ -44,6 +45,16 @@ func Lower(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[EventInput, Lo
 
 // !!
 
+// > Accessing the filter payload
+func accessFilterPayload(ctx worker.HatchetContext, input EventInput) (*LowerTaskOutput, error) {
+	fmt.Println(ctx.FilterPayload())
+	return &LowerTaskOutput{
+		TransformedMessage: strings.ToLower(input.Message),
+	}, nil
+}
+
+// !!
+
 // > Declare with filter
 func LowerWithFilter(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[EventInput, LowerTaskOutput] {
 	return factory.NewTask(
@@ -59,12 +70,7 @@ func LowerWithFilter(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[Even
 					"supporting_character": "Stiva",
 					"location":             "Moscow"},
 			}},
-		}, func(ctx worker.HatchetContext, input EventInput) (*LowerTaskOutput, error) {
-			// Transform the input message to lowercase
-			return &LowerTaskOutput{
-				TransformedMessage: strings.ToLower(input.Message),
-			}, nil
-		},
+		}, accessFilterPayload,
 		hatchet,
 	)
 }

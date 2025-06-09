@@ -68,3 +68,11 @@ upper.task({
     };
   },
 });
+
+// > Accessing the filter payload
+lowerWithFilter.task({
+  name: "lowerWithFilter",
+  fn: (input, ctx) => {
+    console.log(ctx.filterPayload())
+  }
+})

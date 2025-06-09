@@ -49,6 +49,15 @@ def task(input: EventWorkflowInput, ctx: Context) -> dict[str, str]:
     return dict(ctx.filter_payload)
 
 
+# > Accessing the filter payload
+@event_workflow_with_filter.task()
+def filtered_task(input: EventWorkflowInput, ctx: Context) -> None:
+    print(ctx.filter_payload)
+
+
+# !!
+
+
 def main() -> None:
     worker = hatchet.worker(name="EventWorker", workflows=[event_workflow])
 
