@@ -3,7 +3,6 @@ package create
 import (
 	"time"
 
-	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
 )
 
@@ -57,5 +56,5 @@ type WorkflowCreateOpts[I any] struct {
 	// (optional) The default priority for tasks in this workflow
 	DefaultPriority *int32
 
-	DefaultFilters []contracts.DefaultFilter
+	DefaultFilters []types.DefaultFilter
 }
