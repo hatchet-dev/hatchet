@@ -1,6 +1,7 @@
 import asyncio
 import logging
 from datetime import timedelta
+from functools import cached_property
 from typing import Any, Callable, Type, Union, cast, overload
 
 from hatchet_sdk import Context, DurableContext
@@ -8,6 +9,7 @@ from hatchet_sdk.client import Client
 from hatchet_sdk.clients.dispatcher.dispatcher import DispatcherClient
 from hatchet_sdk.clients.events import EventClient
 from hatchet_sdk.clients.listeners.run_event_listener import RunEventListenerClient
+from hatchet_sdk.clients.rest.models.tenant_version import TenantVersion
 from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.features.cron import CronClient
 from hatchet_sdk.features.filters import FiltersClient
@@ -57,6 +59,11 @@ class Hatchet:
         self._client = (
             client if client else Client(config=config or ClientConfig(), debug=debug)
         )
+
+        if self.tenant_engine_version != TenantVersion.V1:
+            logger.warning(
+                "🚨⚠️‼️ YOU ARE USING A V0 ENGINE WITH A V1 SDK, WHICH IS NOT SUPPORTED. PLEASE UPGRADE YOUR ENGINE TO V1.🚨⚠️‼️"
+            )
 
     @property
     def cron(self) -> CronClient:
@@ -155,6 +162,19 @@ class Hatchet:
         The current namespace you're interacting with.
         """
         return self._client.config.namespace
+
+    @cached_property
+    def tenant_engine_version(self) -> TenantVersion:
+        """
+        Get the version of the Hatchet engine running in your tenant.
+        """
+        try:
+            return self._client.tenant.get().version
+        except Exception:
+            ## Nothing we can do here - if this fails, it's probably
+            ## because they don't have this endpoint yet, so we need to just
+            ## assume V1 to swallow the warning.
+            return TenantVersion.V1
 
     def worker(
         self,
