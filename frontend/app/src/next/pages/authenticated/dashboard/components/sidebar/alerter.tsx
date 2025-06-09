@@ -82,7 +82,7 @@ export function Alerter() {
         {alerts.map((alert) => (
           <DropdownMenuItem key={alert.id}>
             <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
-              {alert.invite && <InviteCard invite={alert.invite} />}
+              {alert.invite ? <InviteCard invite={alert.invite} /> : null}
             </div>
           </DropdownMenuItem>
         ))}

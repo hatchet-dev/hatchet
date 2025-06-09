@@ -104,42 +104,40 @@ function RootContent({ children }: PropsWithChildren) {
     }
   }, [isRightPanelOpen, leftPanelWidth, setLeftPanelWidth]);
 
-  return (
-    <>
-      {meta.isLoading ? (
-        <CenterStageLayout>
-          <div className="flex h-screen w-full items-center justify-center"></div>
-        </CenterStageLayout>
-      ) : meta.hasFailed ? (
-        <ApiConnectionError
-          retryInterval={meta.refetchInterval}
-          errorMessage={meta.hasFailed.message}
-        />
-      ) : (
+  return meta.isLoading ? (
+    <CenterStageLayout>
+      <div className="flex h-screen w-full items-center justify-center"></div>
+    </CenterStageLayout>
+  ) : meta.hasFailed ? (
+    <ApiConnectionError
+      retryInterval={meta.refetchInterval}
+      errorMessage={meta.hasFailed.message}
+    />
+  ) : (
+    <div
+      ref={containerRef}
+      className="h-screen flex flex-1 relative overflow-hidden"
+    >
+      {/* Left panel - main content */}
+      <div
+        className="h-full overflow-auto flex-shrink-0"
+        style={{
+          width: isRightPanelOpen ? `${leftPanelWidth}%` : '100%',
+        }}
+      >
+        {children ?? <Outlet />}
+      </div>
+
+      {/* Resize handle */}
+      {isRightPanelOpen ? (
         <div
-          ref={containerRef}
-          className="h-screen flex flex-1 relative overflow-hidden"
+          className="relative w-1 flex-shrink-0 group cursor-col-resize"
+          onMouseDown={handleMouseDown}
         >
-          {/* Left panel - main content */}
+          <div className="absolute inset-0 -left-2 -right-2 w-5" />
+
           <div
-            className="h-full overflow-auto flex-shrink-0"
-            style={{
-              width: isRightPanelOpen ? `${leftPanelWidth}%` : '100%',
-            }}
-          >
-            {children ?? <Outlet />}
-          </div>
-
-          {/* Resize handle */}
-          {isRightPanelOpen && (
-            <div
-              className="relative w-1 flex-shrink-0 group cursor-col-resize"
-              onMouseDown={handleMouseDown}
-            >
-              <div className="absolute inset-0 -left-2 -right-2 w-5" />
-
-              <div
-                className={`
+            className={`
                   h-full w-full transition-colors duration-150
                   ${
                     isDragging
@@ -147,27 +145,25 @@ function RootContent({ children }: PropsWithChildren) {
                       : 'bg-border hover:bg-blue-400/50 group-hover:bg-blue-400/50'
                   }
                 `}
-              />
+          />
 
-              <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
-                <div className="flex flex-col space-y-1">
-                  <div className="w-0.5 h-0.5 bg-white/60 rounded-full" />
-                  <div className="w-0.5 h-0.5 bg-white/60 rounded-full" />
-                  <div className="w-0.5 h-0.5 bg-white/60 rounded-full" />
-                </div>
-              </div>
+          <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+            <div className="flex flex-col space-y-1">
+              <div className="w-0.5 h-0.5 bg-white/60 rounded-full" />
+              <div className="w-0.5 h-0.5 bg-white/60 rounded-full" />
+              <div className="w-0.5 h-0.5 bg-white/60 rounded-full" />
             </div>
-          )}
-
-          {/* Right panel - side sheet */}
-          {isRightPanelOpen && (
-            <div className="flex flex-col overflow-hidden flex-1">
-              <SidePanel />
-            </div>
-          )}
+          </div>
         </div>
-      )}
-    </>
+      ) : null}
+
+      {/* Right panel - side sheet */}
+      {isRightPanelOpen ? (
+        <div className="flex flex-col overflow-hidden flex-1">
+          <SidePanel />
+        </div>
+      ) : null}
+    </div>
   );
 }
 

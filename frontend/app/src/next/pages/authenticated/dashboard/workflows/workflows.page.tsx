@@ -18,11 +18,18 @@ import {
 } from '@/next/components/ui/card';
 import { DocsButton } from '@/next/components/ui/docs-button';
 import docs from '@/next/lib/docs';
-import { HeadlineActionItem } from '@/next/components/ui/page-header';
-import { HeadlineActions } from '@/next/components/ui/page-header';
-import { PageTitle } from '@/next/components/ui/page-header';
+import {
+  HeadlineActionItem,
+  HeadlineActions,
+  PageTitle,
+  Headline,
+} from '@/next/components/ui/page-header';
 import BasicLayout from '@/next/components/layouts/basic.layout';
-import { Headline } from '@/next/components/ui/page-header';
+import {
+  PageSelector,
+  PageSizeSelector,
+  Pagination,
+} from '@/next/components/ui/pagination';
 
 const WorkflowCard: React.FC<{ data: Workflow }> = ({ data }) => {
   const { tenantId } = useCurrentTenantId();
@@ -68,8 +75,8 @@ function WorkflowsContent() {
     return (
       <div className="flex flex-1 flex-col gap-4 p-4 pt-16">
         <div className="grid auto-rows-min gap-4 md:grid-cols-3">
-          {Array.from({ length: 9 }).map((_, ix) => (
-            <Skeleton key={ix} className="h-40 rounded-md" />
+          {Array.from({ length: 9 }).map((_, key) => (
+            <Skeleton key={key} className="h-40 rounded-md" />
           ))}
         </div>
       </div>
@@ -114,7 +121,7 @@ function WorkflowsContent() {
               className="h-8 px-2 lg:px-3"
               size="sm"
               onClick={async () => {
-                invalidate();
+                await invalidate();
                 setRotate(!rotate);
               }}
               variant={'outline'}
@@ -132,11 +139,15 @@ function WorkflowsContent() {
         emptyState
       ) : (
         <div className="flex flex-col gap-4">
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-2">
             {data.map((workflow) => (
               <WorkflowCard key={workflow.metadata?.id} data={workflow} />
             ))}
           </div>
+          <Pagination className="mt-4 justify-between flex flex-row">
+            <PageSizeSelector />
+            <PageSelector variant="dropdown" />
+          </Pagination>
         </div>
       )}
     </BasicLayout>

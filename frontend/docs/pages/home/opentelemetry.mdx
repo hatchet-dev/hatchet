@@ -46,3 +46,55 @@ Some other important notes:
 
 1. The instrumentor will automatically propagate the trace context between task runs, so if you spawn a task from another task, the child will correctly show up as a child of its parent in the trace waterfall.
 2. You can exclude specific attributes from being attached to spans by providing the `otel` configuration option on the `ClientConfig` and passing a list of `excluded_attributes`, which come from [this list](https://github.com/hatchet-dev/hatchet/blob/main/sdks/python/hatchet_sdk/utils/opentelemetry.py).
+
+## Integrations
+
+Hatchet's instrumentor is easy to integrate with a number of third-party tracing tools.
+
+### Langfuse
+
+For example, you might be interested in using [Langfuse](https://langfuse.com/) for tracing an LLM-intensive application.
+
+<Callout type="warning" emoji="⚠️">
+  Note that this example uses Langfuse's [V3 (OTel-based)
+  SDK](https://langfuse.com/docs/sdk/python/sdk-v3). See their docs for more
+  information.
+</Callout>
+
+First, configure the Langfuse client [as described by their documentation](https://langfuse.com/docs/opentelemetry/example-python-sdk):
+
+<Snippet
+  src={snips.python.opentelemetry_instrumentation.langfuse.client}
+  block="configure_langfuse"
+/>
+
+Langfuse will set the global tracer provider, so you don't have to do it manually.
+
+Next, create an OpenAI client [using Langfuse's OpenAI wrapper `langfuse.openai` as a drop-in replacement for the default OpenAI](https://langfuse.com/docs/integrations/openai/python/get-started) client:
+
+<Snippet
+  src={snips.python.opentelemetry_instrumentation.langfuse.client}
+  block="create_openai_client"
+/>
+
+And that's it! Now you're ready to instrument your Hatchet workers with Langfuse. For example, create a task like this:
+
+<Snippet
+  src={snips.python.opentelemetry_instrumentation.langfuse.worker}
+  block="task"
+/>
+
+And finally, run the task to view the Langfuse traces (cost, usage, etc.) interspersed with Hatchet's traces, in addition to any other traces you may have:
+
+<Snippet
+  src={snips.python.opentelemetry_instrumentation.langfuse.trigger}
+  block="trigger_task"
+/>
+
+When you run this task, you'll see a trace like this in Langfuse!
+
+<img
+  src="/langfuse-trace.png"
+  alt="example-langfuse-trace"
+  className="max-w-full mx-auto my-8"
+/>

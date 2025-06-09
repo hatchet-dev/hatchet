@@ -109,8 +109,8 @@ function TenantAlertsProviderContent({ children }: TenantAlertsProviderProps) {
         throw error;
       }
     },
-    onSuccess: () => {
-      alertingSettingsQuery.refetch();
+    onSuccess: async () => {
+      await alertingSettingsQuery.refetch();
     },
   });
 
@@ -147,8 +147,8 @@ function TenantAlertsProviderContent({ children }: TenantAlertsProviderProps) {
         throw error;
       }
     },
-    onSuccess: () => {
-      listEmailGroupQuery.refetch();
+    onSuccess: async () => {
+      await listEmailGroupQuery.refetch();
     },
   });
 
@@ -167,8 +167,8 @@ function TenantAlertsProviderContent({ children }: TenantAlertsProviderProps) {
         throw error;
       }
     },
-    onSuccess: () => {
-      listEmailGroupQuery.refetch();
+    onSuccess: async () => {
+      await listEmailGroupQuery.refetch();
     },
   });
 
@@ -209,8 +209,8 @@ function TenantAlertsProviderContent({ children }: TenantAlertsProviderProps) {
         throw error;
       }
     },
-    onSuccess: () => {
-      listSlackWebhookQuery.refetch();
+    onSuccess: async () => {
+      await listSlackWebhookQuery.refetch();
     },
   });
 

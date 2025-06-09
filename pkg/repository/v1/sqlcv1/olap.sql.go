@@ -18,71 +18,46 @@ type BulkCreateEventTriggersParams struct {
 	EventSeenAt   pgtype.Timestamptz `json:"event_seen_at"`
 }
 
-const bulkCreateEvents = `-- name: BulkCreateEvents :many
-WITH to_insert AS (
-    SELECT
-        UNNEST($1::UUID[]) AS tenant_id,
-        UNNEST($2::UUID[]) AS external_id,
-        UNNEST($3::TIMESTAMPTZ[]) AS seen_at,
-        UNNEST($4::TEXT[]) AS key,
-        UNNEST($5::JSONB[]) AS payload,
-        UNNEST($6::JSONB[]) AS additional_metadata
+const countEvents = `-- name: CountEvents :one
+WITH included_events AS (
+    SELECT tenant_id, id, external_id, seen_at, key, payload, additional_metadata, scope
+    FROM v1_events_olap e
+    WHERE
+        e.tenant_id = $1
+        AND (
+            $2::TEXT[] IS NULL OR
+            "key" = ANY($2::TEXT[])
+        )
+        AND e.seen_at >= $3::TIMESTAMPTZ
+        AND (
+            $4::TIMESTAMPTZ IS NULL OR
+            e.seen_at <= $4::TIMESTAMPTZ
+        )
+    ORDER BY e.seen_at DESC, e.id
+    LIMIT 20000
 )
-INSERT INTO v1_events_olap (
-    tenant_id,
-    external_id,
-    seen_at,
-    key,
-    payload,
-    additional_metadata
-)
-SELECT tenant_id, external_id, seen_at, key, payload, additional_metadata
-FROM to_insert
-RETURNING tenant_id, id, external_id, seen_at, key, payload, additional_metadata
+
+SELECT COUNT(*)
+FROM included_events e
 `
 
-type BulkCreateEventsParams struct {
-	Tenantids           []pgtype.UUID        `json:"tenantids"`
-	Externalids         []pgtype.UUID        `json:"externalids"`
-	Seenats             []pgtype.Timestamptz `json:"seenats"`
-	Keys                []string             `json:"keys"`
-	Payloads            [][]byte             `json:"payloads"`
-	Additionalmetadatas [][]byte             `json:"additionalmetadatas"`
+type CountEventsParams struct {
+	Tenantid pgtype.UUID        `json:"tenantid"`
+	Keys     []string           `json:"keys"`
+	Since    pgtype.Timestamptz `json:"since"`
+	Until    pgtype.Timestamptz `json:"until"`
 }
 
-func (q *Queries) BulkCreateEvents(ctx context.Context, db DBTX, arg BulkCreateEventsParams) ([]*V1EventsOlap, error) {
-	rows, err := db.Query(ctx, bulkCreateEvents,
-		arg.Tenantids,
-		arg.Externalids,
-		arg.Seenats,
+func (q *Queries) CountEvents(ctx context.Context, db DBTX, arg CountEventsParams) (int64, error) {
+	row := db.QueryRow(ctx, countEvents,
+		arg.Tenantid,
 		arg.Keys,
-		arg.Payloads,
-		arg.Additionalmetadatas,
+		arg.Since,
+		arg.Until,
 	)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []*V1EventsOlap
-	for rows.Next() {
-		var i V1EventsOlap
-		if err := rows.Scan(
-			&i.TenantID,
-			&i.ID,
-			&i.ExternalID,
-			&i.SeenAt,
-			&i.Key,
-			&i.Payload,
-			&i.AdditionalMetadata,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, &i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
+	var count int64
+	err := row.Scan(&count)
+	return count, err
 }
 
 type CreateDAGsOLAPParams struct {
@@ -541,7 +516,7 @@ func (q *Queries) GetWorkflowRunIdFromDagIdInsertedAt(ctx context.Context, db DB
 
 const listEvents = `-- name: ListEvents :many
 WITH included_events AS (
-    SELECT tenant_id, id, external_id, seen_at, key, payload, additional_metadata
+    SELECT tenant_id, id, external_id, seen_at, key, payload, additional_metadata, scope
     FROM v1_events_olap e
     WHERE
         e.tenant_id = $1
@@ -549,11 +524,16 @@ WITH included_events AS (
             $2::TEXT[] IS NULL OR
             "key" = ANY($2::TEXT[])
         )
-    ORDER BY e.id DESC, e.seen_at DESC
+        AND e.seen_at >= $3::TIMESTAMPTZ
+        AND (
+            $4::TIMESTAMPTZ IS NULL OR
+            e.seen_at <= $4::TIMESTAMPTZ
+        )
+    ORDER BY e.seen_at DESC, e.id
     OFFSET
-        COALESCE($3::BIGINT, 0)
+        COALESCE($5::BIGINT, 0)
     LIMIT
-        COALESCE($4::BIGINT, 50)
+        COALESCE($6::BIGINT, 50)
 ), status_counts AS (
     SELECT
         e.tenant_id,
@@ -595,10 +575,12 @@ ORDER BY e.seen_at DESC
 `
 
 type ListEventsParams struct {
-	Tenantid pgtype.UUID `json:"tenantid"`
-	Keys     []string    `json:"keys"`
-	Offset   pgtype.Int8 `json:"offset"`
-	Limit    pgtype.Int8 `json:"limit"`
+	Tenantid pgtype.UUID        `json:"tenantid"`
+	Keys     []string           `json:"keys"`
+	Since    pgtype.Timestamptz `json:"since"`
+	Until    pgtype.Timestamptz `json:"until"`
+	Offset   pgtype.Int8        `json:"offset"`
+	Limit    pgtype.Int8        `json:"limit"`
 }
 
 type ListEventsRow struct {
@@ -620,6 +602,8 @@ func (q *Queries) ListEvents(ctx context.Context, db DBTX, arg ListEventsParams)
 	rows, err := db.Query(ctx, listEvents,
 		arg.Tenantid,
 		arg.Keys,
+		arg.Since,
+		arg.Until,
 		arg.Offset,
 		arg.Limit,
 	)

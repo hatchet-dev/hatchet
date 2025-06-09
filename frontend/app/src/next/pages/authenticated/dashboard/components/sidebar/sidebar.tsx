@@ -84,7 +84,8 @@ export function AppSidebar({ children }: PropsWithChildren) {
     const savedState = localStorage.getItem('sidebar_collapsible_state');
     if (savedState) {
       try {
-        setCollapsibleState(JSON.parse(savedState));
+        const parsed: Record<string, boolean> = JSON.parse(savedState);
+        setCollapsibleState(parsed);
       } catch (error) {
         console.error('Failed to parse sidebar collapsible state', error);
       }
@@ -333,12 +334,16 @@ name: ${user?.name}`;
           <CommandGroup>
             {memberships
               ?.filter((membership) => !!membership.tenant)
-              .sort((a, b) => a.tenant!.name.localeCompare(b.tenant!.name))
+              .sort((a, b) =>
+                (a?.tenant?.name ?? '').localeCompare(b?.tenant?.name ?? ''),
+              )
               .map((membership) => (
                 <CommandItem
                   key={membership.tenant?.metadata.id}
                   onSelect={() => {
-                    setTenant(membership.tenant!.metadata.id);
+                    if (membership.tenant) {
+                      setTenant(membership.tenant.metadata.id);
+                    }
                     setOpenTenant(false);
                   }}
                 >

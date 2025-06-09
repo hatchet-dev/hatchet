@@ -49,11 +49,11 @@ export function UpdateTenantForm({
         />
       </div>
 
-      {changed && (
+      {changed ? (
         <Button type="submit" loading={isLoading || !name.trim()}>
           Save Changes
         </Button>
-      )}
+      ) : null}
     </form>
   );
 }

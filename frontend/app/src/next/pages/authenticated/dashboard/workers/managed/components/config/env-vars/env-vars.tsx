@@ -29,9 +29,20 @@ interface SecretsEditorProps {
   type?: 'create' | 'update';
 }
 
+const defaultOriginal = {
+  directSecrets: [],
+  globalSecrets: [],
+};
+
+const defaultSecrets = {
+  add: [],
+  update: [],
+  delete: [],
+};
+
 export function EnvVarsEditor({
-  original = { directSecrets: [], globalSecrets: [] },
-  secrets = { add: [], update: [], delete: [] },
+  original = defaultOriginal,
+  secrets = defaultSecrets,
   setSecrets,
   actions,
   type = 'create',

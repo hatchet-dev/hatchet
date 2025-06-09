@@ -23,8 +23,8 @@ export function InlineCodeBlock({
 }: InlineCodeBlockProps) {
   const [copied, setCopied] = useState(false);
 
-  const copyToClipboard = () => {
-    navigator.clipboard.writeText(value);
+  const copyToClipboard = async () => {
+    await navigator.clipboard.writeText(value);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };

@@ -1,6 +1,5 @@
 import { Skeleton } from '@/next/components/ui/skeleton';
-import { DataPoint } from '@/next/components/ui/charts/zoomable';
-import { ZoomableChart } from '@/next/components/ui/charts/zoomable';
+import { DataPoint, ZoomableChart } from '@/next/components/ui/charts/zoomable';
 import { useRuns } from '@/next/hooks/use-runs';
 
 function GetWorkflowChart() {
@@ -16,7 +15,7 @@ function GetWorkflowChart() {
         kind="bar"
         data={
           histogram.data?.results?.map(
-            (result: any): DataPoint<'SUCCEEDED' | 'FAILED'> => ({
+            (result): DataPoint<'SUCCEEDED' | 'FAILED'> => ({
               date: result.time,
               SUCCEEDED: result.SUCCEEDED,
               FAILED: result.FAILED,

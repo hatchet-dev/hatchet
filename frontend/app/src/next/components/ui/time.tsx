@@ -11,7 +11,9 @@ import {
 } from '@/next/components/ui/tooltip';
 
 // Helper to check if a timestamp is valid (not empty or the special "0001-01-01" value)
-export const isValidTimestamp = (timestamp?: string | Date | null): boolean => {
+export const isValidTimestamp = (
+  timestamp?: string | Date | null,
+): timestamp is string | Date => {
   if (!timestamp) {
     return false;
   }
@@ -75,7 +77,7 @@ export function Time({
   const renderTime = (variant: TimeProps['variant']) => {
     // For timestamp and short variants, we'll format the date directly
     if (variant === 'timestamp' && isValidTimestamp(date)) {
-      const dateObj = typeof date === 'string' ? new Date(date) : date!;
+      const dateObj = typeof date === 'string' ? new Date(date) : date;
       const formattedTime = format(dateObj, 'yyyy-MM-dd HH:mm:ss.SSS');
 
       return (
@@ -89,7 +91,7 @@ export function Time({
     }
 
     if (variant === 'short' && isValidTimestamp(date)) {
-      const dateObj = typeof date === 'string' ? new Date(date) : date!;
+      const dateObj = typeof date === 'string' ? new Date(date) : date;
       const formattedTime = format(dateObj, 'MMM d, HH:mm');
 
       return (
@@ -104,7 +106,7 @@ export function Time({
 
     // Add compact variant
     if (variant === 'compact' && isValidTimestamp(date)) {
-      const dateObj = typeof date === 'string' ? new Date(date) : date!;
+      const dateObj = typeof date === 'string' ? new Date(date) : date;
       const formattedTime = format(dateObj, 'MM-dd HH:mm:ss.SSS');
 
       return (
@@ -141,7 +143,7 @@ export function Time({
         className={cn(!asChild && timeVariants({ variant }), className)}
         {...props}
       >
-        <TimeAgo datetime={date!} live={true} opts={opts} />
+        <TimeAgo datetime={date} live={true} opts={opts} />
       </span>
     );
   };

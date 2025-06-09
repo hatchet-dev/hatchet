@@ -124,45 +124,45 @@ func (q *Queries) GetFilter(ctx context.Context, db DBTX, arg GetFilterParams) (
 	return &i, err
 }
 
-const updateFilter = `-- name: UpdateFilter :one
-UPDATE v1_filter
-SET
-    scope = COALESCE($1::TEXT, scope),
-    expression = COALESCE($2::TEXT, expression),
-    payload = COALESCE($3::JSONB, payload),
-    updated_at = NOW()
+const listFilterCountsForWorkflows = `-- name: ListFilterCountsForWorkflows :many
+WITH inputs AS (
+    SELECT UNNEST($2::UUID[]) AS workflow_id
+)
+
+SELECT workflow_id, COUNT(*)
+FROM v1_filter
 WHERE
-    tenant_id = $4::UUID
-    AND id = $5::UUID
-RETURNING id, tenant_id, workflow_id, scope, expression, payload, inserted_at, updated_at
+    tenant_id = $1::UUID
+    AND workflow_id = ANY($2::UUID[])
+GROUP BY workflow_id
 `
 
-type UpdateFilterParams struct {
-	Scope      pgtype.Text `json:"scope"`
-	Expression pgtype.Text `json:"expression"`
-	Payload    []byte      `json:"payload"`
-	Tenantid   pgtype.UUID `json:"tenantid"`
-	ID         pgtype.UUID `json:"id"`
+type ListFilterCountsForWorkflowsParams struct {
+	Tenantid    pgtype.UUID   `json:"tenantid"`
+	Workflowids []pgtype.UUID `json:"workflowids"`
 }
 
-func (q *Queries) UpdateFilter(ctx context.Context, db DBTX, arg UpdateFilterParams) (*V1Filter, error) {
-	row := db.QueryRow(ctx, updateFilter,
-		arg.Scope,
-		arg.Expression,
-		arg.Payload,
-		arg.Tenantid,
-		arg.ID,
-	)
-	var i V1Filter
-	err := row.Scan(
-		&i.ID,
-		&i.TenantID,
-		&i.WorkflowID,
-		&i.Scope,
-		&i.Expression,
-		&i.Payload,
-		&i.InsertedAt,
-		&i.UpdatedAt,
-	)
-	return &i, err
+type ListFilterCountsForWorkflowsRow struct {
+	WorkflowID pgtype.UUID `json:"workflow_id"`
+	Count      int64       `json:"count"`
+}
+
+func (q *Queries) ListFilterCountsForWorkflows(ctx context.Context, db DBTX, arg ListFilterCountsForWorkflowsParams) ([]*ListFilterCountsForWorkflowsRow, error) {
+	rows, err := db.Query(ctx, listFilterCountsForWorkflows, arg.Tenantid, arg.Workflowids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ListFilterCountsForWorkflowsRow
+	for rows.Next() {
+		var i ListFilterCountsForWorkflowsRow
+		if err := rows.Scan(&i.WorkflowID, &i.Count); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }

@@ -10,6 +10,8 @@ Methods:
 | ----------------- | -------------------------------------------------------------------- |
 | `get`             | Get workflow run details for a given workflow run ID.                |
 | `aio_get`         | Get workflow run details for a given workflow run ID.                |
+| `get_status`      | Get workflow run status for a given workflow run ID.                 |
+| `aio_get_status`  | Get workflow run status for a given workflow run ID.                 |
 | `list`            | List task runs according to a set of filters.                        |
 | `aio_list`        | List task runs according to a set of filters.                        |
 | `create`          | Trigger a new workflow run.                                          |
@@ -59,6 +61,38 @@ Returns:
 | Type                   | Description                                             |
 | ---------------------- | ------------------------------------------------------- |
 | `V1WorkflowRunDetails` | Workflow run details for the specified workflow run ID. |
+
+#### `get_status`
+
+Get workflow run status for a given workflow run ID.
+
+Parameters:
+
+| Name              | Type  | Description                                         | Default    |
+| ----------------- | ----- | --------------------------------------------------- | ---------- |
+| `workflow_run_id` | `str` | The ID of the workflow run to retrieve details for. | _required_ |
+
+Returns:
+
+| Type           | Description     |
+| -------------- | --------------- |
+| `V1TaskStatus` | The task status |
+
+#### `aio_get_status`
+
+Get workflow run status for a given workflow run ID.
+
+Parameters:
+
+| Name              | Type  | Description                                         | Default    |
+| ----------------- | ----- | --------------------------------------------------- | ---------- |
+| `workflow_run_id` | `str` | The ID of the workflow run to retrieve details for. | _required_ |
+
+Returns:
+
+| Type           | Description     |
+| -------------- | --------------- |
+| `V1TaskStatus` | The task status |
 
 #### `list`
 

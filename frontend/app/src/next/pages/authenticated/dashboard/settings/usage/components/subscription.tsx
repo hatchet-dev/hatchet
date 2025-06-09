@@ -21,8 +21,6 @@ import { DestructiveDialog } from '@/next/components/ui/dialog/destructive-dialo
 import { ROUTES } from '@/next/lib/routes';
 
 export const Subscription: React.FC = () => {
-  // Implement the logic for the Subscription component here
-
   const { billing } = useBilling();
 
   const active = useMemo(() => billing.state?.subscription, [billing.state]);
@@ -30,7 +28,7 @@ export const Subscription: React.FC = () => {
   const coupons = useMemo(() => billing.state?.coupons, [billing.state]);
 
   const [showAnnual, setShowAnnual] = useState<boolean>(false);
-  const [isChangeConfirmOpen, setChangeConfirmOpen] = useState<
+  const [isChangeConfirmOpen, setIsChangeConfirmOpen] = useState<
     SubscriptionPlan | undefined
   >(undefined);
 
@@ -81,7 +79,7 @@ export const Subscription: React.FC = () => {
         open={!!isChangeConfirmOpen}
         onOpenChange={(open) => {
           if (!open) {
-            setChangeConfirmOpen(undefined);
+            setIsChangeConfirmOpen(undefined);
           }
         }}
         title={'Confirm Change Plan'}
@@ -101,12 +99,16 @@ export const Subscription: React.FC = () => {
         }
         confirmButtonText={'Change Plan'}
         onConfirm={async () => {
+          if (!isChangeConfirmOpen) {
+            return;
+          }
+
           await billing.changePlan.mutateAsync({
-            plan_code: isChangeConfirmOpen!.plan_code as Plan,
+            plan_code: isChangeConfirmOpen.plan_code as Plan,
           });
-          setChangeConfirmOpen(undefined);
+          setIsChangeConfirmOpen(undefined);
         }}
-        onCancel={() => setChangeConfirmOpen(undefined)}
+        onCancel={() => setIsChangeConfirmOpen(undefined)}
         isLoading={billing.changePlan.isPending}
       />
       <div className="flex flex-row justify-between items-center">
@@ -187,7 +189,7 @@ export const Subscription: React.FC = () => {
                 {(
                   plan.amount_cents /
                   100 /
-                  (plan.period == 'yearly' ? 12 : 1)
+                  (plan.period === 'yearly' ? 12 : 1)
                 ).toLocaleString()}{' '}
                 per month billed {plan.period}*
               </CardDescription>
@@ -202,7 +204,7 @@ export const Subscription: React.FC = () => {
                   variant={
                     plan.plan_code !== activePlanCode ? 'default' : 'outline'
                   }
-                  onClick={() => setChangeConfirmOpen(plan)}
+                  onClick={() => setIsChangeConfirmOpen(plan)}
                 >
                   {plan.plan_code === activePlanCode
                     ? 'Active'
@@ -215,7 +217,7 @@ export const Subscription: React.FC = () => {
           </Card>
         ))}
       </div>
-      {active?.note && <p className="mt-4">{active?.note}</p>}
+      {active?.note ? <p className="mt-4">{active?.note}</p> : null}
       <p className="text-sm text-gray-500 mt-4">
         * subscription fee billed upfront {showAnnual ? 'yearly' : 'monthly'},
         overages billed at the end of each month for usage in that month

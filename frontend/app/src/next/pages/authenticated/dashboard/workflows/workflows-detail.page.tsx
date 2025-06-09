@@ -70,11 +70,11 @@ function WorkflowDetailPageContent({ workflowId }: { workflowId: string }) {
             <h2 className="text-2xl font-bold leading-tight text-foreground">
               {workflow.name}
             </h2>
-            {currentVersion && (
+            {currentVersion ? (
               <Badge className="text-sm mt-1" variant="outline">
                 {currentVersion}
               </Badge>
-            )}
+            ) : null}
             <DropdownMenu>
               <DropdownMenuTrigger>
                 {workflow.isPaused ? (
@@ -139,17 +139,14 @@ function WorkflowDetailPageContent({ workflowId }: { workflowId: string }) {
         </div>
         <div className="flex flex-row justify-start items-center mt-4">
           <div className="text-sm text-gray-700 dark:text-gray-300">
-            Updated{' '}
-            {relativeDate(
-              workflow.versions && workflow.versions[0].metadata.updatedAt,
-            )}
+            Updated {relativeDate(workflow.versions?.[0].metadata.updatedAt)}
           </div>
         </div>
-        {workflow.description && (
+        {workflow.description ? (
           <div className="text-sm text-gray-700 dark:text-gray-300 mt-4">
             {workflow.description}
           </div>
-        )}
+        ) : null}
         <div className="flex flex-row justify-start items-center mt-4"></div>
         <Tabs defaultValue="runs">
           {/* TODO: Add layout */}
@@ -189,14 +186,14 @@ function WorkflowDetailPageContent({ workflowId }: { workflowId: string }) {
               <WorkflowGeneralSettings />
             )}
             <Separator className="my-4" />
-            {hasGithubIntegration && (
+            {hasGithubIntegration ? (
               <div className="hidden">
                 <h3 className="hidden text-xl font-bold leading-tight text-foreground mt-8">
                   Deployment Settings
                 </h3>
                 <Separator className="hidden my-4" />
               </div>
-            )}
+            ) : null}
             <h4 className="text-lg font-bold leading-tight text-foreground mt-8">
               Danger Zone
             </h4>

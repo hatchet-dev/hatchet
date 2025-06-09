@@ -293,6 +293,56 @@ getWorkflowRunDetails:
     tags:
       - Workflow Runs
 
+getWorkflowRunStatus:
+  get:
+    x-resources: ["tenant", "v1-workflow-run"]
+    description: Get the status of a workflow run.
+    operationId: v1-workflow-run:get-status
+    parameters:
+      - description: The workflow run id to get the status for
+        in: path
+        name: v1-workflow-run
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/V1TaskStatus"
+        description: Successfully listed the tasks
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+      "404":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Could not find the workflow run
+      "501":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Not implemented
+    summary: Get workflow run status
+    tags:
+      - Workflow Runs
+
 trigger:
   post:
     x-resources: ["tenant"]

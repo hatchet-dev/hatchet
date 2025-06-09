@@ -141,8 +141,8 @@ function SchedulesProviderContent({
         throw error;
       }
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['schedule:list'] });
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['schedule:list'] });
     },
   });
 
@@ -162,8 +162,8 @@ function SchedulesProviderContent({
         throw error;
       }
     },
-    onSuccess: () => {
-      listSchedulesQuery.refetch();
+    onSuccess: async () => {
+      await listSchedulesQuery.refetch();
     },
   });
 
@@ -197,8 +197,8 @@ function SchedulesProviderContent({
         throw error;
       }
     },
-    onSuccess: () => {
-      listSchedulesQuery.refetch();
+    onSuccess: async () => {
+      await listSchedulesQuery.refetch();
     },
   });
 

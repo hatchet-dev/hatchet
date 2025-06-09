@@ -86,8 +86,8 @@ function WorkflowDetailsProviderContent({
       }
     },
     onError: handleApiError,
-    onSuccess: () => {
-      workflowQuery.refetch();
+    onSuccess: async () => {
+      await workflowQuery.refetch();
     },
   });
 
@@ -131,8 +131,7 @@ function WorkflowDetailsProviderContent({
     () => ({
       workflow: workflowQuery.data,
       workflowVersion: workflowVersionQuery.data,
-      currentVersion:
-        workflowQuery.data && workflowQuery.data.versions?.at(0)?.version,
+      currentVersion: workflowQuery.data?.versions?.at(0)?.version,
       hasGithubIntegration:
         integrations?.some((i) => i.name === 'github') || false,
       deleteWorkflow,

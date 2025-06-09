@@ -1,8 +1,12 @@
 import { createContext, useContext, useMemo, useState } from 'react';
 import { useQuery, UseQueryResult } from '@tanstack/react-query';
-import api, { V1TaskTimingList } from '@/lib/api';
+import api, {
+  V1TaskTimingList,
+  V1TaskSummary,
+  V1WorkflowRunDetails,
+  V1TaskEvent,
+} from '@/lib/api';
 import { RunsProvider, useRuns } from '@/next/hooks/use-runs';
-import { V1TaskSummary, V1WorkflowRunDetails, V1TaskEvent } from '@/lib/api';
 import { useToast } from './utils/use-toast';
 
 interface RunDetailState {
@@ -56,20 +60,17 @@ export function useRunDetail() {
 interface RunDetailProviderProps {
   children: React.ReactNode;
   runId: string;
-  defaultRefetchInterval?: number;
+  refetchInterval?: number;
 }
 
 export function RunDetailProvider({
   children,
   runId,
-  defaultRefetchInterval,
+  refetchInterval,
 }: RunDetailProviderProps) {
   return (
     <RunsProvider>
-      <RunDetailProviderContent
-        runId={runId}
-        defaultRefetchInterval={defaultRefetchInterval}
-      >
+      <RunDetailProviderContent runId={runId} refetchInterval={refetchInterval}>
         {children}
       </RunDetailProviderContent>
     </RunsProvider>
@@ -79,10 +80,10 @@ export function RunDetailProvider({
 function RunDetailProviderContent({
   children,
   runId,
-  defaultRefetchInterval,
+  refetchInterval,
 }: RunDetailProviderProps) {
   const { cancel: cancelRun, replay: replayRun } = useRuns();
-  const [refetchInterval] = useState(defaultRefetchInterval);
+
   const [depth, setDepth] = useState(2);
   const [lastRefetchTime, setLastRefetchTime] = useState(Date.now());
   const { toast } = useToast();
