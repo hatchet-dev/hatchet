@@ -35,3 +35,15 @@ FROM v1_filter
 WHERE
     tenant_id = @tenantId::UUID
     AND id = @id::UUID;
+
+-- name: UpdateFilter :one
+UPDATE v1_filter
+SET
+    scope = COALESCE(sqlc.narg('scope')::TEXT, scope),
+    expression = COALESCE(sqlc.narg('expression')::TEXT, expression),
+    payload = COALESCE(sqlc.narg('payload')::JSONB, payload),
+    updated_at = NOW()
+WHERE
+    tenant_id = @tenantId::UUID
+    AND id = @id::UUID
+RETURNING *;
