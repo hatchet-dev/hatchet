@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Adds a warning on client init if the SDK version is not compatible with the tenant (engine) version.
 - Adds a `default_filters` parameter to the `Hatchet.workflow` and `Hatchet.task` methods to allow you to declaratively provide a list of filters that will be applied to the workflow by default when events are pushed.
 - Adds `get_status` and `aio_get_status` methods to the `Runs` feature client, which return a workflow run's status by its ID.
 - Adds a `update` methods to the `Filters` feature client.
@@ -23,7 +24,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Adds a warning on client init if the SDK version is not compatible with the tenant (engine) version.
 - Fixes a couple of blocking calls buried in the admin client causing loop blockages on child spawning
 
 ## [1.11.0] - 2025-05-29
