@@ -32,12 +32,30 @@ func Lower(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[EventInput, Lo
 			Name: "lower",
 			// 👀 Declare the event that will trigger the workflow
 			OnEvents: []string{SimpleEvent},
+		}, func(ctx worker.HatchetContext, input EventInput) (*LowerTaskOutput, error) {
+			// Transform the input message to lowercase
+			return &LowerTaskOutput{
+				TransformedMessage: strings.ToLower(input.Message),
+			}, nil
+		},
+		hatchet,
+	)
+}
+
+// > Declare with filter
+func LowerWithFilter(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[EventInput, LowerTaskOutput] {
+	return factory.NewTask(
+		create.StandaloneTask{
+			Name: "lower",
+			// 👀 Declare the event that will trigger the workflow
+			OnEvents: []string{SimpleEvent},
 			DefaultFilters: []types.DefaultFilter{{
 				Expression: "true",
 				Scope:      "example-scope",
 				Payload: map[string]interface{}{
-					"example_key": "example_value",
-				},
+					"main_character":       "Anna",
+					"supporting_character": "Stiva",
+					"location":             "Moscow"},
 			}},
 		}, func(ctx worker.HatchetContext, input EventInput) (*LowerTaskOutput, error) {
 			// Transform the input message to lowercase

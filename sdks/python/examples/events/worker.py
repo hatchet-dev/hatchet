@@ -23,7 +23,7 @@ event_workflow = hatchet.workflow(
 # !!
 
 # > Event trigger with filter
-event_workflow = hatchet.workflow(
+event_workflow_with_filter = hatchet.workflow(
     name="EventWorkflow",
     on_events=[EVENT_KEY, SECONDARY_KEY, WILDCARD_KEY],
     input_validator=EventWorkflowInput,

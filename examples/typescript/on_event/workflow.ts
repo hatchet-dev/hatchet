@@ -18,6 +18,13 @@ export const lower = hatchet.workflow<Input, LowerOutput>({
   name: 'lower',
   // 👀 Declare the event that will trigger the workflow
   onEvents: ['simple-event:create'],
+});
+
+// > Workflow with filter
+export const lowerWithFilter = hatchet.workflow<Input, LowerOutput>({
+  name: 'lower',
+  // 👀 Declare the event that will trigger the workflow
+  onEvents: ['simple-event:create'],
   defaultFilters: [
     {
       expression: "true",

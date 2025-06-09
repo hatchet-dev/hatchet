@@ -55,8 +55,9 @@ func LowerWithFilter(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[Even
 				Expression: "true",
 				Scope:      "example-scope",
 				Payload: map[string]interface{}{
-					"example_key": "example_value",
-				},
+					"main_character":       "Anna",
+					"supporting_character": "Stiva",
+					"location":             "Moscow"},
 			}},
 		}, func(ctx worker.HatchetContext, input EventInput) (*LowerTaskOutput, error) {
 			// Transform the input message to lowercase
