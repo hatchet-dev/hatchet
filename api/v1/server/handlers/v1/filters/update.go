@@ -39,7 +39,7 @@ func (t *V1FiltersService) V1FilterUpdate(ctx echo.Context, request gen.V1Filter
 	)
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to update filter")
+		return nil, fmt.Errorf("failed to update filter: %w", err)
 	}
 
 	transformed := transformers.ToV1Filter(filter)
