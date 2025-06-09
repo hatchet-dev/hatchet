@@ -492,6 +492,8 @@ func (c *ConcurrencyRepositoryImpl) runCancelNewest(
 	}
 
 	if !acquired {
+		// Log lock contention issue
+		c.l.Warnf("Advisory lock not acquired (strategy ID: %d). Possible lock contention.", strategy.ID)
 		// Lock not available, return empty result to avoid blocking
 		return &RunConcurrencyResult{
 			Queued:                    []TaskWithQueue{},
