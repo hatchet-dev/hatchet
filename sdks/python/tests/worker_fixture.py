@@ -2,10 +2,10 @@ import logging
 import os
 import subprocess
 import time
+from collections.abc import Callable, Generator
 from contextlib import contextmanager
 from io import BytesIO
 from threading import Thread
-from typing import Callable, Generator
 
 import psutil
 import requests

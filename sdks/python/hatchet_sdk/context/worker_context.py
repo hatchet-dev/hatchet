@@ -2,9 +2,9 @@ from hatchet_sdk.clients.dispatcher.dispatcher import DispatcherClient
 
 
 class WorkerContext:
-    _worker_id: str | None = None
-    _registered_workflow_names: list[str] = []
-    _labels: dict[str, str | int] = {}
+    _worker_id: str | None
+    _registered_workflow_names: list[str]
+    _labels: dict[str, str | int]
 
     def __init__(self, labels: dict[str, str | int], client: DispatcherClient):
         self._labels = labels

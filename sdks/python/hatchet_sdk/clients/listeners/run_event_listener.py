@@ -1,8 +1,9 @@
 import asyncio
+from collections.abc import AsyncGenerator, Callable, Generator
 from enum import Enum
 from queue import Empty, Queue
 from threading import Thread
-from typing import Any, AsyncGenerator, Callable, Generator, Literal, TypeVar, cast
+from typing import Any, Literal, TypeVar, cast
 
 import grpc
 from pydantic import BaseModel
@@ -216,7 +217,7 @@ class RunEventListener:
                             metadata=get_metadata(self.config.token),
                         ),
                     )
-                elif self.additional_meta_kv is not None:
+                if self.additional_meta_kv is not None:
                     return cast(
                         AsyncGenerator[WorkflowEvent, None],
                         self.client.SubscribeToWorkflowEvents(
@@ -227,14 +228,13 @@ class RunEventListener:
                             metadata=get_metadata(self.config.token),
                         ),
                     )
-                else:
-                    raise Exception("no listener method provided")
+                raise Exception("no listener method provided")
 
             except grpc.RpcError as e:
                 if e.code() == grpc.StatusCode.UNAVAILABLE:
                     retries = retries + 1
                 else:
-                    raise ValueError(f"gRPC error: {e}")
+                    raise ValueError("gRPC error") from e
 
         raise Exception("Failed to subscribe to workflow events")
 

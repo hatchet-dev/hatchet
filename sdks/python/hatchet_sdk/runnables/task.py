@@ -1,5 +1,5 @@
-from datetime import timedelta
-from typing import TYPE_CHECKING, Any, Callable, Generic, Union, cast, get_type_hints
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any, Generic, cast, get_type_hints
 
 from hatchet_sdk.context.context import Context, DurableContext
 from hatchet_sdk.contracts.v1.shared.condition_pb2 import TaskConditions
@@ -40,28 +40,30 @@ if TYPE_CHECKING:
 class Task(Generic[TWorkflowInput, R]):
     def __init__(
         self,
-        _fn: Union[
+        _fn: (
             Callable[[TWorkflowInput, Context], R | CoroutineLike[R]]
-            | Callable[[TWorkflowInput, Context], AwaitableLike[R]],
-            Callable[[TWorkflowInput, DurableContext], R | CoroutineLike[R]]
-            | Callable[[TWorkflowInput, DurableContext], AwaitableLike[R]],
-        ],
+            | Callable[[TWorkflowInput, Context], AwaitableLike[R]]
+            | (
+                Callable[[TWorkflowInput, DurableContext], R | CoroutineLike[R]]
+                | Callable[[TWorkflowInput, DurableContext], AwaitableLike[R]]
+            )
+        ),
         is_durable: bool,
         type: StepType,
         workflow: "Workflow[TWorkflowInput]",
         name: str,
-        execution_timeout: Duration = timedelta(seconds=60),
-        schedule_timeout: Duration = timedelta(minutes=5),
-        parents: "list[Task[TWorkflowInput, Any]]" = [],
-        retries: int = 0,
-        rate_limits: list[CreateTaskRateLimit] = [],
-        desired_worker_labels: dict[str, DesiredWorkerLabels] = {},
-        backoff_factor: float | None = None,
-        backoff_max_seconds: int | None = None,
-        concurrency: list[ConcurrencyExpression] = [],
-        wait_for: list[Condition | OrGroup] = [],
-        skip_if: list[Condition | OrGroup] = [],
-        cancel_if: list[Condition | OrGroup] = [],
+        execution_timeout: Duration,
+        schedule_timeout: Duration,
+        parents: "list[Task[TWorkflowInput, Any]]" | None,
+        retries: int,
+        rate_limits: list[CreateTaskRateLimit] | None,
+        desired_worker_labels: dict[str, DesiredWorkerLabels] | None,
+        backoff_factor: float | None,
+        backoff_max_seconds: int | None,
+        concurrency: list[ConcurrencyExpression] | None,
+        wait_for: list[Condition | OrGroup] | None,
+        skip_if: list[Condition | OrGroup] | None,
+        cancel_if: list[Condition | OrGroup] | None,
     ) -> None:
         self.is_durable = is_durable
 
@@ -74,17 +76,17 @@ class Task(Generic[TWorkflowInput, R]):
         self.execution_timeout = execution_timeout
         self.schedule_timeout = schedule_timeout
         self.name = name
-        self.parents = parents
+        self.parents = parents or []
         self.retries = retries
-        self.rate_limits = rate_limits
-        self.desired_worker_labels = desired_worker_labels
+        self.rate_limits = rate_limits or []
+        self.desired_worker_labels = desired_worker_labels or {}
         self.backoff_factor = backoff_factor
         self.backoff_max_seconds = backoff_max_seconds
-        self.concurrency = concurrency
+        self.concurrency = concurrency or []
 
-        self.wait_for = self._flatten_conditions(wait_for)
-        self.skip_if = self._flatten_conditions(skip_if)
-        self.cancel_if = self._flatten_conditions(cancel_if)
+        self.wait_for = self._flatten_conditions(wait_for or [])
+        self.skip_if = self._flatten_conditions(skip_if or [])
+        self.cancel_if = self._flatten_conditions(cancel_if or [])
 
         return_type = get_type_hints(_fn).get("return")
 

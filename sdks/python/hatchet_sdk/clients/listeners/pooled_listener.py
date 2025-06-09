@@ -256,6 +256,6 @@ class PooledListener(Generic[R, T, L], ABC):
                 if e.code() == grpc.StatusCode.UNAVAILABLE:
                     retries = retries + 1
                 else:
-                    raise ValueError(f"gRPC error: {e}")
+                    raise ValueError("gRPC error") from e
 
         raise ValueError("Failed to connect to listener")
