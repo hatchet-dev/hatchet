@@ -1,5 +1,6 @@
 import asyncio
-from typing import Callable, Generic, TypeVar, cast, overload
+from collections.abc import Callable
+from typing import Generic, TypeVar, cast, overload
 
 import grpc.aio
 from grpc._cython import cygrpc  # type: ignore[attr-defined]

@@ -106,8 +106,8 @@ class CronClient(BaseRestClient):
                 create_cron_workflow_trigger_request=CreateCronWorkflowTriggerRequest(
                     cronName=cron_name,
                     cronExpression=validated_input.expression,
-                    input=dict(validated_input.input),
-                    additionalMetadata=dict(validated_input.additional_metadata),
+                    input=validated_input.input,
+                    additionalMetadata=validated_input.additional_metadata,
                     priority=priority,
                 ),
             )

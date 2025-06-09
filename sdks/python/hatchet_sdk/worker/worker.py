@@ -5,13 +5,14 @@ import os
 import re
 import signal
 import sys
-from contextlib import AsyncExitStack, asynccontextmanager
+from collections.abc import AsyncGenerator, Callable
+from contextlib import AsyncExitStack, asynccontextmanager, suppress
 from dataclasses import dataclass, field
 from enum import Enum
 from multiprocessing import Queue
 from multiprocessing.process import BaseProcess
 from types import FrameType
-from typing import Any, AsyncGenerator, Callable, TypeVar, Union
+from typing import Any, TypeVar
 from warnings import warn
 
 from aiohttp import web
@@ -39,7 +40,7 @@ from hatchet_sdk.worker.runner.run_loop_manager import (
 T = TypeVar("T")
 
 
-class LoopAlreadyRunningException(Exception):
+class LoopAlreadyRunningError(Exception):
     pass
 
 
@@ -60,7 +61,7 @@ class HealthCheckResponse(BaseModel):
     name: str
     slots: int
     actions: list[str]
-    labels: dict[str, Union[str, int]]
+    labels: dict[str, str | int]
     python_version: str
 
 
@@ -75,10 +76,8 @@ async def _create_async_context_manager(
     try:
         yield
     finally:
-        try:
+        with suppress(StopAsyncIteration):
             await anext(gen)
-        except StopAsyncIteration:
-            pass
 
 
 class Worker:
@@ -88,11 +87,11 @@ class Worker:
         config: ClientConfig,
         slots: int,
         durable_slots: int,
-        labels: dict[str, Union[str, int]] = {},
+        labels: dict[str, str | int] | None = None,
         debug: bool = False,
         owned_loop: bool = True,
         handle_kill: bool = True,
-        workflows: list[BaseWorkflow[Any]] = [],
+        workflows: list[BaseWorkflow[Any]] | None = None,
         lifespan: LifespanFn | None = None,
     ) -> None:
         self.config = config
@@ -100,7 +99,7 @@ class Worker:
         self.slots = slots
         self.durable_slots = durable_slots
         self.debug = debug
-        self.labels = labels
+        self.labels = labels or {}
         self.handle_kill = handle_kill
         self.owned_loop = owned_loop
 
@@ -120,11 +119,11 @@ class Worker:
 
         self.ctx = multiprocessing.get_context("spawn")
 
-        self.action_queue: "Queue[Action | STOP_LOOP_TYPE]" = self.ctx.Queue()
-        self.event_queue: "Queue[ActionEvent]" = self.ctx.Queue()
+        self.action_queue: Queue[Action | STOP_LOOP_TYPE] = self.ctx.Queue()
+        self.event_queue: Queue[ActionEvent] = self.ctx.Queue()
 
-        self.durable_action_queue: "Queue[Action | STOP_LOOP_TYPE]" = self.ctx.Queue()
-        self.durable_event_queue: "Queue[ActionEvent]" = self.ctx.Queue()
+        self.durable_action_queue: Queue[Action | STOP_LOOP_TYPE] = self.ctx.Queue()
+        self.durable_event_queue: Queue[ActionEvent] = self.ctx.Queue()
 
         self.loop: asyncio.AbstractEventLoop | None
 
@@ -143,7 +142,7 @@ class Worker:
         self.lifespan = lifespan
         self.lifespan_stack: AsyncExitStack | None = None
 
-        self.register_workflows(workflows)
+        self.register_workflows(workflows or [])
 
     def register_workflow_from_opts(self, opts: CreateWorkflowVersionRequest) -> None:
         try:
@@ -187,7 +186,7 @@ class Worker:
     def _setup_loop(self) -> None:
         try:
             asyncio.get_running_loop()
-            raise LoopAlreadyRunningException(
+            raise LoopAlreadyRunningError(
                 "An event loop is already running. This worker requires its own dedicated event loop. "
                 "Make sure you're not using asyncio.run() or other loop-creating functions in the main thread."
             )
@@ -248,6 +247,7 @@ class Worker:
             warn(
                 "Passing a custom event loop is deprecated and will be removed in the future. This option no longer has any effect",
                 DeprecationWarning,
+                stacklevel=1,
             )
 
         self._setup_loop()
@@ -397,8 +397,7 @@ class Worker:
                     if self.loop:
                         self.loop.create_task(self.exit_gracefully())
                     break
-                else:
-                    self._status = WorkerStatus.HEALTHY
+                self._status = WorkerStatus.HEALTHY
                 await asyncio.sleep(1)
         except Exception as e:
             logger.error(f"error checking listener health: {e}")

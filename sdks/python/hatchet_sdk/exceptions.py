@@ -1,2 +1,2 @@
-class NonRetryableException(Exception):
+class NonRetryableException(Exception):  # noqa: N818
     pass

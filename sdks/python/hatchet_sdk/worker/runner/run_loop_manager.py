@@ -30,7 +30,7 @@ class WorkerActionRunLoopManager:
         loop: asyncio.AbstractEventLoop,
         handle_kill: bool = True,
         debug: bool = False,
-        labels: dict[str, str | int] = {},
+        labels: dict[str, str | int] | None = None,
         lifespan_context: Any | None = None,
     ) -> None:
         self.name = name
