@@ -3,6 +3,9 @@ from pydantic import BaseModel
 from hatchet_sdk import Context, DefaultFilter, Hatchet
 
 hatchet = Hatchet()
+
+
+# > Event trigger
 EVENT_KEY = "user:create"
 SECONDARY_KEY = "foobarbaz"
 WILDCARD_KEY = "subscription:*"
@@ -12,7 +15,14 @@ class EventWorkflowInput(BaseModel):
     should_skip: bool
 
 
-# > Event trigger
+event_workflow = hatchet.workflow(
+    name="EventWorkflow",
+    on_events=[EVENT_KEY, SECONDARY_KEY, WILDCARD_KEY],
+    input_validator=EventWorkflowInput,
+)
+# !!
+
+# > Event trigger with filter
 event_workflow = hatchet.workflow(
     name="EventWorkflow",
     on_events=[EVENT_KEY, SECONDARY_KEY, WILDCARD_KEY],

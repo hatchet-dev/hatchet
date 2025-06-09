@@ -2,6 +2,7 @@ package v1
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"sort"
@@ -14,6 +15,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/digest"
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
+	"github.com/hatchet-dev/hatchet/pkg/client/types"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 )
@@ -49,7 +51,7 @@ type CreateWorkflowVersionOpts struct {
 
 	DefaultPriority *int32 `validate:"omitempty,min=1,max=3"`
 
-	DefaultFilters []DefaultFilter `json:"defaultFilters,omitempty" validate:"omitempty,dive"`
+	DefaultFilters []types.DefaultFilter `json:"defaultFilters,omitempty" validate:"omitempty,dive"`
 }
 
 type CreateCronWorkflowTriggerOpts struct {
@@ -179,17 +181,6 @@ type CreateWorkflowStepRateLimitOpts struct {
 
 	// (optional) the rate limit duration, defaults to MINUTE
 	Duration *string `validate:"omitnil,oneof=SECOND MINUTE HOUR DAY WEEK MONTH YEAR"`
-}
-
-type DefaultFilter struct {
-	// (required) the filter expression
-	Expression string `json:"expression" validate:"required"`
-
-	// (required) the scope for the filter
-	Scope string `json:"scope" validate:"required"`
-
-	// (optional) the payload for the filter
-	Payload []byte `json:"payload,omitempty" validate:"omitempty"`
 }
 
 type WorkflowRepository interface {
@@ -573,7 +564,11 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 			var payload []byte
 
 			if filter.Payload != nil {
-				payload = []byte(filter.Payload)
+				payload, err = json.Marshal(filter.Payload)
+
+				if err != nil {
+					return "", fmt.Errorf("could not marshal filter payload: %w", err)
+				}
 			}
 
 			filterScopes[ix] = filter.Scope

@@ -149,7 +149,7 @@ type workflowDeclarationImpl[I any, O any] struct {
 	outputSetters map[string]func(*O, interface{})
 
 	DefaultPriority *int32
-	DefaultFilters  []contracts.DefaultFilter
+	DefaultFilters  []types.DefaultFilter
 }
 
 // NewWorkflowDeclaration creates a new workflow declaration with the specified options and client.

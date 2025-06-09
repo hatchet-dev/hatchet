@@ -541,17 +541,25 @@ func getCreateWorkflowOpts(req *contracts.CreateWorkflowVersionRequest) (*v1.Cre
 		cronInput = []byte(*req.CronInput)
 	}
 
-	defaultFilters := make([]v1.DefaultFilter, 0)
+	defaultFilters := make([]types.DefaultFilter, 0)
 
 	for _, f := range req.DefaultFilters {
 		if f.Payload != nil && !json.Valid(f.Payload) {
 			return nil, fmt.Errorf("default filter payload is not valid JSON")
 		}
 
-		defaultFilters = append(defaultFilters, v1.DefaultFilter{
+		payload := make(map[string]interface{})
+
+		if f.Payload != nil {
+			if err := json.Unmarshal(f.Payload, &payload); err != nil {
+				return nil, fmt.Errorf("default filter payload is not valid JSON: %w", err)
+			}
+		}
+
+		defaultFilters = append(defaultFilters, types.DefaultFilter{
 			Expression: f.Expression,
 			Scope:      f.Scope,
-			Payload:    f.Payload,
+			Payload:    payload,
 		})
 	}
 

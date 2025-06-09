@@ -3,7 +3,6 @@ package create
 import (
 	"time"
 
-	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
 	"github.com/hatchet-dev/hatchet/pkg/worker/condition"
 )
@@ -143,7 +142,7 @@ type StandaloneTask struct {
 
 	DefaultPriority *int32
 
-	DefaultFilters []contracts.DefaultFilter
+	DefaultFilters []types.DefaultFilter
 }
 
 // DurableTaskCreateOpts defines options for creating a standalone durable task.
