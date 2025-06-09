@@ -1,5 +1,6 @@
 import json
-from typing import Any, AsyncIterator, cast
+from collections.abc import AsyncIterator
+from typing import Any, cast
 
 import grpc
 import grpc.aio
@@ -27,16 +28,15 @@ class PooledWorkflowRunListener(
         return response.workflowRunId
 
     async def aio_result(self, id: str) -> dict[str, Any]:
-        from hatchet_sdk.clients.admin import DedupeViolationErr
+        from hatchet_sdk.clients.admin import DedupeViolationError
 
         event = await self.subscribe(id)
         errors = [result.error for result in event.results if result.error]
 
         if errors:
             if DEDUPE_MESSAGE in errors[0]:
-                raise DedupeViolationErr(errors[0])
-            else:
-                raise Exception(f"Workflow Errors: {errors}")
+                raise DedupeViolationError(errors[0])
+            raise Exception(f"Workflow Errors: {errors}")
 
         return {
             result.stepReadableId: json.loads(result.output)

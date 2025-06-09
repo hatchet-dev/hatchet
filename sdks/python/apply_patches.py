@@ -1,7 +1,7 @@
 import re
+from collections.abc import Callable
 from copy import deepcopy
 from pathlib import Path
-from typing import Callable
 
 
 def prepend_import(content: str, import_statement: str) -> str:
