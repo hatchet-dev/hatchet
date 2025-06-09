@@ -261,7 +261,7 @@ SET
 WHERE
     tenant_id = $4::UUID
     AND id = $5::UUID
-RETURNING id, tenant_id, workflow_id, scope, expression, payload, inserted_at, updated_at
+RETURNING id, tenant_id, workflow_id, scope, expression, payload, is_declarative, inserted_at, updated_at
 `
 
 type UpdateFilterParams struct {
@@ -288,6 +288,7 @@ func (q *Queries) UpdateFilter(ctx context.Context, db DBTX, arg UpdateFilterPar
 		&i.Scope,
 		&i.Expression,
 		&i.Payload,
+		&i.IsDeclarative,
 		&i.InsertedAt,
 		&i.UpdatedAt,
 	)
