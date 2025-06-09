@@ -12,6 +12,10 @@ RUN npm run build
 # Stage 2: Serve the built app with NGINX
 FROM nginxinc/nginx-unprivileged:alpine
 
+USER root
+RUN rm -rf /usr/share/nginx/html/*
+USER nginx
+
 ARG APP_TARGET=client
 
 COPY ./build/package/nginx.conf /etc/nginx/nginx.conf
