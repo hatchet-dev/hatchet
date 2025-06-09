@@ -139,19 +139,19 @@ target-version = "py310"
 
 [tool.ruff.lint]
 select = [
-    # Pyflakes (basic errors)
+    # Pyflakes
     "F",
     # pycodestyle errors
     "E",
     # pycodestyle warnings
     "W",
-    # isort (import sorting)
+    # isort
     "I",
     # pep8-naming
     "N",
     # pyupgrade (modern Python idioms)
     "UP",
-    # flake8-async (async/await best practices)
+    # flake8-async (async/await)
     "ASYNC",
     # flake8-bugbear (likely bugs)
     "B",
@@ -169,24 +169,28 @@ select = [
     "G",
     # Ruff-specific rules
     "RUF",
+    # Datetime (timezone) rules
+    "DTZ",
+    "FIX",
+    ## Performance-related rules
+    "PERF",
 ]
 
-# Rules to ignore initially (you can gradually enable these)
 ignore = [
-    # Allow long lines in some cases (gRPC can have long method names)
+    # Allow long lines
     "E501",
-    # Allow complex variable names (common in gRPC/protobuf)
+    # Allow complex variable names
     "N806",
     # Don't enforce specific exception types initially
     "B008",
-    # Allow unused function arguments (common in async handlers)
+    # Allow unused function arguments
     "ARG001",
     "ARG002",
-    # Allow print statements (useful for debugging long-running processes)
-    "T201",
-
     # Allow empty returns
     "RET503",
+
+    ## FIXME (ironic) - re-enable this later
+    "FIX",
 ]
 exclude = [
     "examples/*",
