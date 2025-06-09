@@ -130,8 +130,7 @@ class RunEventListener:
         thread.join()
 
     def __iter__(self) -> Generator[StepRunEvent, None, None]:
-        for item in self.async_to_sync_thread(self.__aiter__()):
-            yield item
+        yield from self.async_to_sync_thread(self.__aiter__())
 
     async def _generator(self) -> AsyncGenerator[StepRunEvent, None]:
         while True:
@@ -230,7 +229,7 @@ class RunEventListener:
                     )
                 raise Exception("no listener method provided")
 
-            except grpc.RpcError as e:
+            except grpc.RpcError as e:  # noqa: PERF203
                 if e.code() == grpc.StatusCode.UNAVAILABLE:
                     retries = retries + 1
                 else:
