@@ -12,10 +12,12 @@ Methods:
 | `aio_delete` | Delete a filter by its ID.       |
 | `aio_get`    | Get a filter by its ID.          |
 | `aio_list`   | List filters for a given tenant. |
+| `aio_update` | Update a filter by its ID.       |
 | `create`     | Create a new filter.             |
 | `delete`     | Delete a filter by its ID.       |
 | `get`        | Get a filter by its ID.          |
 | `list`       | List filters for a given tenant. |
+| `update`     | Update a filter by its ID.       |
 
 ### Functions
 
@@ -88,6 +90,23 @@ Returns:
 | -------------- | -------------------------------------------------- |
 | `V1FilterList` | A list of filters matching the specified criteria. |
 
+#### `aio_update`
+
+Update a filter by its ID.
+
+Parameters:
+
+| Name        | Type                    | Description                         | Default    |
+| ----------- | ----------------------- | ----------------------------------- | ---------- |
+| `filter_id` | `str`                   | The ID of the filter to delete.     | _required_ |
+| `updates`   | `V1UpdateFilterRequest` | The updates to apply to the filter. | _required_ |
+
+Returns:
+
+| Type       | Description         |
+| ---------- | ------------------- |
+| `V1Filter` | The updated filter. |
+
 #### `create`
 
 Create a new filter.
@@ -156,3 +175,20 @@ Returns:
 | Type           | Description                                        |
 | -------------- | -------------------------------------------------- |
 | `V1FilterList` | A list of filters matching the specified criteria. |
+
+#### `update`
+
+Update a filter by its ID.
+
+Parameters:
+
+| Name        | Type                    | Description                         | Default    |
+| ----------- | ----------------------- | ----------------------------------- | ---------- |
+| `filter_id` | `str`                   | The ID of the filter to delete.     | _required_ |
+| `updates`   | `V1UpdateFilterRequest` | The updates to apply to the filter. | _required_ |
+
+Returns:
+
+| Type       | Description         |
+| ---------- | ------------------- |
+| `V1Filter` | The updated filter. |
