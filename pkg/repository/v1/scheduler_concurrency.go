@@ -515,6 +515,8 @@ func (c *ConcurrencyRepositoryImpl) runCancelNewest(
 		}
 
 		if !parentAcquired {
+			// Log the event when the parent advisory lock is not acquired
+			c.l.Warnf("Parent advisory lock not acquired (strategy ID: %d, parent: %d)", strategy.ID, strategy.ParentStrategyID.Int64)
 			// Parent lock not available, return empty result
 			return &RunConcurrencyResult{
 				Queued:                    []TaskWithQueue{},
