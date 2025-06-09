@@ -1,9 +1,10 @@
 import functools
 import logging
 from concurrent.futures import ThreadPoolExecutor
-from contextvars import ContextVar
 from io import StringIO
-from typing import Any, Awaitable, Callable, ItemsView, ParamSpec, TypeVar
+from typing import Awaitable, Callable, Literal, ParamSpec, TypeVar
+
+from pydantic import BaseModel
 
 from hatchet_sdk.clients.events import EventClient
 from hatchet_sdk.logger import logger
@@ -13,14 +14,25 @@ T = TypeVar("T")
 P = ParamSpec("P")
 
 
+class ContextVarToCopy(BaseModel):
+    name: Literal["ctx_workflow_run_id", "ctx_step_run_id"]
+    value: str | None
+
+
 def copy_context_vars(
-    ctx_vars: ItemsView[ContextVar[Any], Any],
+    ctx_vars: list[ContextVarToCopy],
     func: Callable[P, T],
     *args: P.args,
     **kwargs: P.kwargs,
 ) -> T:
-    for var, value in ctx_vars:
-        var.set(value)
+    for var in ctx_vars:
+        if var.name == "ctx_workflow_run_id":
+            ctx_workflow_run_id.set(var.value)
+        elif var.name == "ctx_step_run_id":
+            ctx_step_run_id.set(var.value)
+        else:
+            raise ValueError(f"Unknown context variable name: {var.name}")
+
     return func(*args, **kwargs)
 
 
