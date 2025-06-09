@@ -707,7 +707,7 @@ export class Api<
    *
    * @tags Filter
    * @name V1FilterUpdate
-   * @request POST:/api/v1/stable/tenants/{tenant}/filters/{v1-filter}
+   * @request PATCH:/api/v1/stable/tenants/{tenant}/filters/{v1-filter}
    * @secure
    */
   v1FilterUpdate = (
@@ -718,7 +718,7 @@ export class Api<
   ) =>
     this.request<V1Filter, APIErrors>({
       path: `/api/v1/stable/tenants/${tenant}/filters/${v1Filter}`,
-      method: "POST",
+      method: "PATCH",
       body: data,
       secure: true,
       type: ContentType.Json,

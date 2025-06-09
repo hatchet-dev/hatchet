@@ -94,7 +94,7 @@ V1FilterGetDeleteUpdate:
         description: Not found
     tags:
       - Filter
-  post:
+  patch:
     x-resources: ["tenant", "v1-filter"]
     description: Update a filter
     operationId: v1-filter:update

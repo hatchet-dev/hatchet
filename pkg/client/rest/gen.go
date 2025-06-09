@@ -5742,7 +5742,7 @@ func NewV1FilterUpdateRequestWithBody(server string, tenant openapi_types.UUID, 
 		return nil, err
 	}
 
-	req, err := http.NewRequest("POST", queryURL.String(), body)
+	req, err := http.NewRequest("PATCH", queryURL.String(), body)
 	if err != nil {
 		return nil, err
 	}
