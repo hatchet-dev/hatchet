@@ -1,4 +1,5 @@
 import asyncio
+import json
 from enum import Enum
 from typing import Any, Callable, ParamSpec, Type, TypeGuard, TypeVar, Union
 
@@ -6,6 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from hatchet_sdk.context.context import Context, DurableContext
 from hatchet_sdk.contracts.v1.workflows_pb2 import Concurrency
+from hatchet_sdk.contracts.v1.workflows_pb2 import DefaultFilter as DefaultFilterProto
 from hatchet_sdk.utils.timedelta_to_expression import Duration
 from hatchet_sdk.utils.typing import AwaitableLike, JSONSerializableMapping
 
@@ -65,6 +67,21 @@ class TaskDefaults(BaseModel):
     backoff_max_seconds: int | None = None
 
 
+class DefaultFilter(BaseModel):
+    expression: str
+    scope: str
+    payload: JSONSerializableMapping = Field(default_factory=dict)
+
+    def to_proto(self) -> DefaultFilterProto:
+        payload_json = json.dumps(self.payload, default=str)
+
+        return DefaultFilterProto(
+            expression=self.expression,
+            scope=self.scope,
+            payload=payload_json,
+        )
+
+
 class WorkflowConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", arbitrary_types_allowed=True)
 
@@ -79,6 +96,7 @@ class WorkflowConfig(BaseModel):
     default_priority: int | None = None
 
     task_defaults: TaskDefaults = TaskDefaults()
+    default_filters: list[DefaultFilter] = Field(default_factory=list)
 
 
 class StepType(str, Enum):
@@ -93,13 +111,13 @@ TaskFunc = Union[AsyncFunc[TWorkflowInput, R], SyncFunc[TWorkflowInput, R]]
 
 
 def is_async_fn(
-    fn: TaskFunc[TWorkflowInput, R]
+    fn: TaskFunc[TWorkflowInput, R],
 ) -> TypeGuard[AsyncFunc[TWorkflowInput, R]]:
     return asyncio.iscoroutinefunction(fn)
 
 
 def is_sync_fn(
-    fn: TaskFunc[TWorkflowInput, R]
+    fn: TaskFunc[TWorkflowInput, R],
 ) -> TypeGuard[SyncFunc[TWorkflowInput, R]]:
     return not asyncio.iscoroutinefunction(fn)
 
@@ -112,12 +130,12 @@ DurableTaskFunc = Union[
 
 
 def is_durable_async_fn(
-    fn: Callable[..., Any]
+    fn: Callable[..., Any],
 ) -> TypeGuard[DurableAsyncFunc[TWorkflowInput, R]]:
     return asyncio.iscoroutinefunction(fn)
 
 
 def is_durable_sync_fn(
-    fn: DurableTaskFunc[TWorkflowInput, R]
+    fn: DurableTaskFunc[TWorkflowInput, R],
 ) -> TypeGuard[DurableSyncFunc[TWorkflowInput, R]]:
     return not asyncio.iscoroutinefunction(fn)

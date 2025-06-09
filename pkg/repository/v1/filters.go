@@ -27,10 +27,11 @@ func newFilterRepository(shared *sharedRepository) FilterRepository {
 }
 
 type CreateFilterOpts struct {
-	Workflowid pgtype.UUID `json:"workflowid" validate:"required,uuid"`
-	Scope      string      `json:"scope" validate:"required"`
-	Expression string      `json:"expression" validate:"required"`
-	Payload    []byte      `json:"payload"`
+	Workflowid    pgtype.UUID `json:"workflowid" validate:"required,uuid"`
+	Scope         string      `json:"scope" validate:"required"`
+	Expression    string      `json:"expression" validate:"required"`
+	Payload       []byte      `json:"payload"`
+	IsDeclarative bool        `json:"is_declarative"`
 }
 
 func (r *filterRepository) CreateFilter(ctx context.Context, tenantId string, opts CreateFilterOpts) (*sqlcv1.V1Filter, error) {

@@ -1,6 +1,7 @@
 import asyncio
 import json
 from contextlib import asynccontextmanager
+from datetime import datetime, timedelta, timezone
 from typing import AsyncGenerator, cast
 from uuid import uuid4
 
@@ -55,9 +56,10 @@ async def event_filter(
         payload={"test_run_id": test_run_id, **payload},
     )
 
-    yield
-
-    await hatchet.filters.aio_delete(f.metadata.id)
+    try:
+        yield
+    finally:
+        await hatchet.filters.aio_delete(f.metadata.id)
 
 
 async def fetch_runs_for_event(
@@ -96,7 +98,9 @@ async def wait_for_result(
 ) -> dict[ProcessedEvent, list[V1TaskSummary]]:
     await asyncio.sleep(3)
 
-    persisted = (await hatchet.event.aio_list(limit=100)).rows or []
+    since = datetime.now(tz=timezone.utc) - timedelta(minutes=2)
+
+    persisted = (await hatchet.event.aio_list(limit=100, since=since)).rows or []
 
     assert {e.eventId for e in events}.issubset({e.metadata.id for e in persisted})
 

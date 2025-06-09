@@ -5,12 +5,21 @@ All notable changes to Hatchet's Python SDK will be documented in this changelog
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.11.1] - 2025-06-09
+## [1.12.0] - 2025-06-06
 
 ### Added
 
+- Adds a `default_filters` parameter to the `Hatchet.workflow` and `Hatchet.task` methods to allow you to declaratively provide a list of filters that will be applied to the workflow by default when events are pushed.
 - Adds `get_status` and `aio_get_status` methods to the `Runs` feature client, which return a workflow run's status by its ID.
 - Adds a `update` methods to the `Filters` feature client.
+
+### Changed
+
+- Allows the `concurrency` parameter to tasks to be a `list`.
+- Fixes an internal bug with duplicate concurrency expressions being set when using `Hatchet.task`.
+- Modifies existing `datetime` handling to use UTC timestamps everywhere.
+
+## [1.11.1] - 2025-06-05
 
 ### Changed
 

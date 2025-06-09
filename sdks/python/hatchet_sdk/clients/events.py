@@ -28,7 +28,7 @@ from hatchet_sdk.utils.typing import JSONSerializableMapping
 
 
 def proto_timestamp_now() -> timestamp_pb2.Timestamp:
-    t = datetime.datetime.now().timestamp()
+    t = datetime.datetime.now(tz=datetime.timezone.utc).timestamp()
     seconds = int(t)
     nanos = int(t % 1 * 1e9)
 

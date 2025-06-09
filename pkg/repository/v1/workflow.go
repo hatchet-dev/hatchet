@@ -48,6 +48,8 @@ type CreateWorkflowVersionOpts struct {
 	Sticky *string `validate:"omitempty,oneof=SOFT HARD"`
 
 	DefaultPriority *int32 `validate:"omitempty,min=1,max=3"`
+
+	DefaultFilters []DefaultFilter `json:"defaultFilters,omitempty" validate:"omitempty,dive"`
 }
 
 type CreateCronWorkflowTriggerOpts struct {
@@ -177,6 +179,17 @@ type CreateWorkflowStepRateLimitOpts struct {
 
 	// (optional) the rate limit duration, defaults to MINUTE
 	Duration *string `validate:"omitnil,oneof=SECOND MINUTE HOUR DAY WEEK MONTH YEAR"`
+}
+
+type DefaultFilter struct {
+	// (required) the filter expression
+	Expression string `json:"expression" validate:"required"`
+
+	// (required) the scope for the filter
+	Scope string `json:"scope" validate:"required"`
+
+	// (optional) the payload for the filter
+	Payload []byte `json:"payload,omitempty" validate:"omitempty"`
 }
 
 type WorkflowRepository interface {
@@ -548,6 +561,39 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 
 		if err != nil {
 			return "", fmt.Errorf("could not move existing scheduled triggers to new workflow triggers: %w", err)
+		}
+	}
+
+	if len(opts.DefaultFilters) > 0 {
+		filterScopes := make([]string, len(opts.DefaultFilters))
+		filterExpressions := make([]string, len(opts.DefaultFilters))
+		filterPayloads := make([][]byte, len(opts.DefaultFilters))
+
+		for ix, filter := range opts.DefaultFilters {
+			var payload []byte
+
+			if filter.Payload != nil {
+				payload = []byte(filter.Payload)
+			}
+
+			filterScopes[ix] = filter.Scope
+			filterExpressions[ix] = filter.Expression
+			filterPayloads[ix] = payload
+		}
+		_, err := r.queries.BulkUpsertDeclarativeFilters(
+			ctx,
+			tx,
+			sqlcv1.BulkUpsertDeclarativeFiltersParams{
+				Tenantid:    tenantId,
+				Workflowid:  workflowId,
+				Scopes:      filterScopes,
+				Expressions: filterExpressions,
+				Payloads:    filterPayloads,
+			},
+		)
+
+		if err != nil {
+			return "", fmt.Errorf("could not upsert declarative filters: %w", err)
 		}
 	}
 

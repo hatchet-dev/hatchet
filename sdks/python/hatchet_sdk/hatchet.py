@@ -23,9 +23,9 @@ from hatchet_sdk.features.workflows import WorkflowsClient
 from hatchet_sdk.labels import DesiredWorkerLabel
 from hatchet_sdk.logger import logger
 from hatchet_sdk.rate_limit import RateLimit
-from hatchet_sdk.runnables.standalone import Standalone
 from hatchet_sdk.runnables.types import (
     ConcurrencyExpression,
+    DefaultFilter,
     EmptyModel,
     R,
     StickyStrategy,
@@ -33,7 +33,7 @@ from hatchet_sdk.runnables.types import (
     TWorkflowInput,
     WorkflowConfig,
 )
-from hatchet_sdk.runnables.workflow import BaseWorkflow, Workflow
+from hatchet_sdk.runnables.workflow import BaseWorkflow, Standalone, Workflow
 from hatchet_sdk.utils.timedelta_to_expression import Duration
 from hatchet_sdk.utils.typing import CoroutineLike
 from hatchet_sdk.worker.worker import LifespanFn, Worker
@@ -234,6 +234,7 @@ class Hatchet:
         default_priority: int = 1,
         concurrency: ConcurrencyExpression | list[ConcurrencyExpression] | None = None,
         task_defaults: TaskDefaults = TaskDefaults(),
+        default_filters: list[DefaultFilter] = [],
     ) -> Workflow[EmptyModel]: ...
 
     @overload
@@ -250,6 +251,7 @@ class Hatchet:
         default_priority: int = 1,
         concurrency: ConcurrencyExpression | list[ConcurrencyExpression] | None = None,
         task_defaults: TaskDefaults = TaskDefaults(),
+        default_filters: list[DefaultFilter] = [],
     ) -> Workflow[TWorkflowInput]: ...
 
     def workflow(
@@ -265,6 +267,7 @@ class Hatchet:
         default_priority: int = 1,
         concurrency: ConcurrencyExpression | list[ConcurrencyExpression] | None = None,
         task_defaults: TaskDefaults = TaskDefaults(),
+        default_filters: list[DefaultFilter] = [],
     ) -> Workflow[EmptyModel] | Workflow[TWorkflowInput]:
         """
         Define a Hatchet workflow, which can then declare `task`s and be `run`, `schedule`d, and so on.
@@ -289,6 +292,8 @@ class Hatchet:
 
         :param task_defaults: A `TaskDefaults` object controlling the default task settings for this workflow.
 
+        :param default_filters: A list of filters to create with the workflow is created. Note that this is a helper to allow you to create filters "declaratively" without needing to make a separate API call once the workflow is created to create them.
+
         :returns: The created `Workflow` object, which can be used to declare tasks, run the workflow, and so on.
         """
 
@@ -305,6 +310,7 @@ class Hatchet:
                 or cast(Type[TWorkflowInput], EmptyModel),
                 task_defaults=task_defaults,
                 default_priority=default_priority,
+                default_filters=default_filters,
             ),
             self,
         )
@@ -329,6 +335,7 @@ class Hatchet:
         desired_worker_labels: dict[str, DesiredWorkerLabel] = {},
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
+        default_filters: list[DefaultFilter] = [],
     ) -> Callable[
         [Callable[[EmptyModel, Context], R | CoroutineLike[R]]],
         Standalone[EmptyModel, R],
@@ -354,6 +361,7 @@ class Hatchet:
         desired_worker_labels: dict[str, DesiredWorkerLabel] = {},
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
+        default_filters: list[DefaultFilter] = [],
     ) -> Callable[
         [Callable[[TWorkflowInput, Context], R | CoroutineLike[R]]],
         Standalone[TWorkflowInput, R],
@@ -378,6 +386,7 @@ class Hatchet:
         desired_worker_labels: dict[str, DesiredWorkerLabel] = {},
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
+        default_filters: list[DefaultFilter] = [],
     ) -> (
         Callable[
             [Callable[[EmptyModel, Context], R | CoroutineLike[R]]],
@@ -423,6 +432,8 @@ class Hatchet:
 
         :param backoff_max_seconds: The maximum number of seconds to allow retries with exponential backoff to continue.
 
+        :param default_filters: A list of filters to create with the task is created. Note that this is a helper to allow you to create filters "declaratively" without needing to make a separate API call once the task is created to create them.
+
         :returns: A decorator which creates a `Standalone` task object.
         """
 
@@ -439,10 +450,10 @@ class Hatchet:
                     on_events=on_events,
                     on_crons=on_crons,
                     sticky=sticky,
-                    concurrency=concurrency,
                     default_priority=default_priority,
                     input_validator=input_validator
                     or cast(Type[TWorkflowInput], EmptyModel),
+                    default_filters=default_filters,
                 ),
                 self,
             )
@@ -488,7 +499,7 @@ class Hatchet:
         version: str | None = None,
         sticky: StickyStrategy | None = None,
         default_priority: int = 1,
-        concurrency: ConcurrencyExpression | None = None,
+        concurrency: ConcurrencyExpression | list[ConcurrencyExpression] | None = None,
         schedule_timeout: Duration = timedelta(minutes=5),
         execution_timeout: Duration = timedelta(seconds=60),
         retries: int = 0,
@@ -496,6 +507,7 @@ class Hatchet:
         desired_worker_labels: dict[str, DesiredWorkerLabel] = {},
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
+        default_filters: list[DefaultFilter] = [],
     ) -> Callable[
         [Callable[[EmptyModel, DurableContext], R | CoroutineLike[R]]],
         Standalone[EmptyModel, R],
@@ -513,7 +525,7 @@ class Hatchet:
         version: str | None = None,
         sticky: StickyStrategy | None = None,
         default_priority: int = 1,
-        concurrency: ConcurrencyExpression | None = None,
+        concurrency: ConcurrencyExpression | list[ConcurrencyExpression] | None = None,
         schedule_timeout: Duration = timedelta(minutes=5),
         execution_timeout: Duration = timedelta(seconds=60),
         retries: int = 0,
@@ -521,6 +533,7 @@ class Hatchet:
         desired_worker_labels: dict[str, DesiredWorkerLabel] = {},
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
+        default_filters: list[DefaultFilter] = [],
     ) -> Callable[
         [Callable[[TWorkflowInput, DurableContext], R | CoroutineLike[R]]],
         Standalone[TWorkflowInput, R],
@@ -537,7 +550,7 @@ class Hatchet:
         version: str | None = None,
         sticky: StickyStrategy | None = None,
         default_priority: int = 1,
-        concurrency: ConcurrencyExpression | None = None,
+        concurrency: ConcurrencyExpression | list[ConcurrencyExpression] | None = None,
         schedule_timeout: Duration = timedelta(minutes=5),
         execution_timeout: Duration = timedelta(seconds=60),
         retries: int = 0,
@@ -545,6 +558,7 @@ class Hatchet:
         desired_worker_labels: dict[str, DesiredWorkerLabel] = {},
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
+        default_filters: list[DefaultFilter] = [],
     ) -> (
         Callable[
             [Callable[[EmptyModel, DurableContext], R | CoroutineLike[R]]],
@@ -590,6 +604,8 @@ class Hatchet:
 
         :param backoff_max_seconds: The maximum number of seconds to allow retries with exponential backoff to continue.
 
+        :param default_filters: A list of filters to create with the task is created. Note that this is a helper to allow you to create filters "declaratively" without needing to make a separate API call once the task is created to create them.
+
         :returns: A decorator which creates a `Standalone` task object.
         """
 
@@ -605,13 +621,20 @@ class Hatchet:
                     on_events=on_events,
                     on_crons=on_crons,
                     sticky=sticky,
-                    concurrency=concurrency,
                     input_validator=input_validator
                     or cast(Type[TWorkflowInput], EmptyModel),
                     default_priority=default_priority,
+                    default_filters=default_filters,
                 ),
                 self,
             )
+
+            if isinstance(concurrency, list):
+                _concurrency = concurrency
+            elif isinstance(concurrency, ConcurrencyExpression):
+                _concurrency = [concurrency]
+            else:
+                _concurrency = []
 
             task_wrapper = workflow.durable_task(
                 name=inferred_name,
@@ -623,7 +646,7 @@ class Hatchet:
                 desired_worker_labels=desired_worker_labels,
                 backoff_factor=backoff_factor,
                 backoff_max_seconds=backoff_max_seconds,
-                concurrency=[concurrency] if concurrency else [],
+                concurrency=_concurrency,
             )
 
             created_task = task_wrapper(func)
