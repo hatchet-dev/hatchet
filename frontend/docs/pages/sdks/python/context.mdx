@@ -176,6 +176,12 @@ Returns:
 | ---- | ----------------------------------------------------------------------- |
 | `R`  | The output of the parent task, validated against the task's validators. |
 
+Raises:
+
+| Type         | Description                                                              |
+| ------------ | ------------------------------------------------------------------------ |
+| `ValueError` | If the task was skipped or if the step output for the task is not found. |
+
 #### `cancel`
 
 Cancel the current task run. This will call the Hatchet API to cancel the step run and set the exit flag to True.
@@ -222,12 +228,6 @@ Returns:
 | Type   | Description |
 | ------ | ----------- |
 | `None` | None        |
-
-Raises:
-
-| Type        | Description                                    |
-| ----------- | ---------------------------------------------- |
-| `Exception` | If `raise_on_error` is True and the log fails. |
 
 #### `release_slot`
 
@@ -306,16 +306,22 @@ Durably wait for either a sleep or an event.
 
 Parameters:
 
-| Name         | Type                                   | Description                                                                                  | Default    |
-| ------------ | -------------------------------------- | -------------------------------------------------------------------------------------------- | ---------- |
-| `signal_key` | `str`                                  | The key to use for the durable event. This is used to identify the event in the Hatchet API. | _required_ |
-| `conditions` | `SleepCondition \| UserEventCondition` | The conditions to wait for. Can be a SleepCondition or UserEventCondition.                   | `()`       |
+| Name          | Type                                   | Description                                                                                  | Default    |
+| ------------- | -------------------------------------- | -------------------------------------------------------------------------------------------- | ---------- |
+| `signal_key`  | `str`                                  | The key to use for the durable event. This is used to identify the event in the Hatchet API. | _required_ |
+| `*conditions` | `SleepCondition \| UserEventCondition` | The conditions to wait for. Can be a SleepCondition or UserEventCondition.                   | `()`       |
 
 Returns:
 
 | Type             | Description                                      |
 | ---------------- | ------------------------------------------------ |
 | `dict[str, Any]` | A dictionary containing the results of the wait. |
+
+Raises:
+
+| Type         | Description                                     |
+| ------------ | ----------------------------------------------- |
+| `ValueError` | If the durable event listener is not available. |
 
 #### `aio_sleep_for`
 
