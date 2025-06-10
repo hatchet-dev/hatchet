@@ -136,7 +136,8 @@ export function CreateInviteForm({ className, close }: CreateInviteFormProps) {
             { email, role: data.role },
             {
               onSuccess: () => resolve(email),
-              onError: (error) => reject({ email, error }),
+              onError: (error) =>
+                reject(new Error(`Failed to invite ${email}: ${error}`)),
             },
           );
         }),
@@ -201,9 +202,9 @@ export function CreateInviteForm({ className, close }: CreateInviteFormProps) {
                 className="resize-none flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                 disabled={invite.isPending}
               />
-              {emailsError && (
+              {emailsError ? (
                 <div className="text-sm text-destructive">{emailsError}</div>
-              )}
+              ) : null}
               <p className="text-xs text-muted-foreground">
                 Enter one or more email addresses separated by commas
               </p>
@@ -255,9 +256,9 @@ export function CreateInviteForm({ className, close }: CreateInviteFormProps) {
                   </Select>
                 )}
               />
-              {roleError && (
+              {roleError ? (
                 <div className="text-sm text-destructive">{roleError}</div>
-              )}
+              ) : null}
             </div>
             <div className="flex justify-end gap-2">
               <Button

@@ -340,6 +340,12 @@ export class V1Worker {
               : [],
         })),
         concurrency: concurrencySolo,
+        defaultFilters:
+          workflow.defaultFilters?.map((f) => ({
+            scope: f.scope,
+            expression: f.expression,
+            payload: f.payload ? JSON.stringify(f.payload) : undefined,
+          })) ?? [],
       });
       this.registeredWorkflowPromises.push(registeredWorkflow);
       await registeredWorkflow;

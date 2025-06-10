@@ -55,4 +55,6 @@ type WorkflowCreateOpts[I any] struct {
 
 	// (optional) The default priority for tasks in this workflow
 	DefaultPriority *int32
+
+	DefaultFilters []types.DefaultFilter
 }

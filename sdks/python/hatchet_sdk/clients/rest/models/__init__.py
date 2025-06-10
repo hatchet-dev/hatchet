@@ -171,6 +171,7 @@ from hatchet_sdk.clients.rest.models.tenant_resource_policy import TenantResourc
 from hatchet_sdk.clients.rest.models.tenant_step_run_queue_metrics import (
     TenantStepRunQueueMetrics,
 )
+from hatchet_sdk.clients.rest.models.tenant_ui_version import TenantUIVersion
 from hatchet_sdk.clients.rest.models.tenant_version import TenantVersion
 from hatchet_sdk.clients.rest.models.trigger_workflow_run_request import (
     TriggerWorkflowRunRequest,
@@ -224,6 +225,9 @@ from hatchet_sdk.clients.rest.models.v1_task_timing import V1TaskTiming
 from hatchet_sdk.clients.rest.models.v1_task_timing_list import V1TaskTimingList
 from hatchet_sdk.clients.rest.models.v1_trigger_workflow_run_request import (
     V1TriggerWorkflowRunRequest,
+)
+from hatchet_sdk.clients.rest.models.v1_update_filter_request import (
+    V1UpdateFilterRequest,
 )
 from hatchet_sdk.clients.rest.models.v1_workflow_run import V1WorkflowRun
 from hatchet_sdk.clients.rest.models.v1_workflow_run_details import V1WorkflowRunDetails

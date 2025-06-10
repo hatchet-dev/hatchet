@@ -9,10 +9,11 @@ child_task.run(SimpleInput(message="Hello, World!"))
 # !!
 
 # > Schedule a Task
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 child_task.schedule(
-    datetime.now() + timedelta(minutes=5), SimpleInput(message="Hello, World!")
+    datetime.now(tz=timezone.utc) + timedelta(minutes=5),
+    SimpleInput(message="Hello, World!"),
 )
 # !!
 

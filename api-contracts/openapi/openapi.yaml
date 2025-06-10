@@ -40,6 +40,8 @@ paths:
     $ref: "./paths/v1/workflow-runs/workflow_run.yaml#/trigger"
   /api/v1/stable/workflow-runs/{v1-workflow-run}:
     $ref: "./paths/v1/workflow-runs/workflow_run.yaml#/getWorkflowRunDetails"
+  /api/v1/stable/workflow-runs/{v1-workflow-run}/status:
+    $ref: "./paths/v1/workflow-runs/workflow_run.yaml#/getWorkflowRunStatus"
   /api/v1/stable/workflow-runs/{v1-workflow-run}/task-events:
     $ref: "./paths/v1/workflow-runs/workflow_run.yaml#/listTaskEventsForWorkflowRun"
   /api/v1/stable/workflow-runs/{v1-workflow-run}/task-timings:
@@ -53,7 +55,7 @@ paths:
   /api/v1/stable/tenants/{tenant}/filters:
     $ref: "./paths/v1/filters/filter.yaml#/V1FilterListCreate"
   /api/v1/stable/tenants/{tenant}/filters/{v1-filter}:
-    $ref: "./paths/v1/filters/filter.yaml#/V1FilterGetDelete"
+    $ref: "./paths/v1/filters/filter.yaml#/V1FilterGetDeleteUpdate"
   /api/ready:
     $ref: "./paths/metadata/metadata.yaml#/readiness"
   /api/live:

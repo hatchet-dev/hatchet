@@ -5,6 +5,7 @@ import { DataTableColumnHeader } from '@/next/components/runs/runs-table/data-ta
 import { RunsTable } from '@/next/components/runs/runs-table/runs-table';
 import { DataTable } from '@/next/components/ui/data-table';
 import { DocsButton } from '@/next/components/ui/docs-button';
+import { TimeFilters } from '@/next/components/ui/filters/time-filter-group';
 import {
   Headline,
   HeadlineActionItem,
@@ -53,6 +54,8 @@ function EventsContent() {
         </HeadlineActions>
       </Headline>
       <Separator className="my-4" />
+      <TimeFilters />
+
       <DataTable
         columns={columns()}
         data={data || []}

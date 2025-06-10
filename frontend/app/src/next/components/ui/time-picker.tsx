@@ -48,9 +48,9 @@ export function TimePicker({ date, setDate, timezone }: TimePickerProps) {
         className="w-[140px]"
         step="1"
       />
-      {timezone && (
+      {timezone ? (
         <span className="text-xs text-muted-foreground">{timezone}</span>
-      )}
+      ) : null}
     </div>
   );
 }

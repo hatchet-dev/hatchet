@@ -2,7 +2,11 @@
 /* eslint-disable no-underscore-dangle */
 /* eslint-disable no-dupe-class-members */
 import WorkflowRunRef from '@hatchet/util/workflow-run-ref';
-import { CronWorkflows, ScheduledWorkflows } from '@hatchet/clients/rest/generated/data-contracts';
+import {
+  CronWorkflows,
+  ScheduledWorkflows,
+  V1CreateFilterRequest,
+} from '@hatchet/clients/rest/generated/data-contracts';
 import { Workflow as WorkflowV0 } from '@hatchet/workflow';
 import { IHatchetClient } from './client/client.interface';
 import {
@@ -70,6 +74,8 @@ export type TaskOutputType<
     : InferredType
   : InferredType;
 
+type DefaultFilter = Omit<V1CreateFilterRequest, 'workflowId'>;
+
 export type CreateBaseWorkflowOpts = {
   /**
    * The name of the workflow.
@@ -114,6 +120,8 @@ export type CreateBaseWorkflowOpts = {
    * values: Priority.LOW, Priority.MEDIUM, Priority.HIGH (1, 2, or 3 )
    */
   defaultPriority?: Priority;
+
+  defaultFilters?: DefaultFilter[];
 };
 
 export type CreateTaskWorkflowOpts<

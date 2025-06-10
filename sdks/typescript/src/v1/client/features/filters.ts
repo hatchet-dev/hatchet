@@ -54,4 +54,12 @@ export class FiltersClient {
     const { data } = await this.api.v1FilterDelete(this.tenantId, filterId);
     return data;
   }
+
+  async update(
+    filterId: Parameters<typeof this.api.v1FilterDelete>[1],
+    updates: Parameters<typeof this.api.v1FilterUpdate>[2]
+  ) {
+    const { data } = await this.api.v1FilterUpdate(this.tenantId, filterId, updates);
+    return data;
+  }
 }

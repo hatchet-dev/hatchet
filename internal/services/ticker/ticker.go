@@ -35,12 +35,18 @@ type TickerImpl struct {
 	s      gocron.Scheduler
 	ta     *alerting.TenantAlertManager
 
-	crons              sync.Map
 	scheduledWorkflows sync.Map
 
 	dv datautils.DataDecoderValidator
 
 	tickerId string
+
+	userCronScheduler     gocron.Scheduler
+	userCronSchedulerLock sync.Mutex
+
+	// maps a unique key for the cron schedule to a UUID, because the gocron library depends on uuids
+	// as unique identifiers for scheduled jobs
+	userCronSchedulesToIds map[string]string
 }
 
 type TickerOpt func(*TickerOpts)
@@ -151,16 +157,17 @@ func New(fs ...TickerOpt) (*TickerImpl, error) {
 	}
 
 	return &TickerImpl{
-		mq:           opts.mq,
-		mqv1:         opts.mqv1,
-		l:            opts.l,
-		repo:         opts.repo,
-		repov1:       opts.repov1,
-		entitlements: opts.entitlements,
-		s:            s,
-		dv:           opts.dv,
-		tickerId:     opts.tickerId,
-		ta:           opts.ta,
+		mq:                     opts.mq,
+		mqv1:                   opts.mqv1,
+		l:                      opts.l,
+		repo:                   opts.repo,
+		repov1:                 opts.repov1,
+		entitlements:           opts.entitlements,
+		s:                      s,
+		dv:                     opts.dv,
+		tickerId:               opts.tickerId,
+		ta:                     opts.ta,
+		userCronSchedulesToIds: make(map[string]string),
 	}, nil
 }
 
@@ -209,6 +216,7 @@ func (t *TickerImpl) Start() (func() error, error) {
 		gocron.NewTask(
 			t.runPollCronSchedules(ctx),
 		),
+		gocron.WithSingletonMode(gocron.LimitModeReschedule),
 	)
 
 	if err != nil {
@@ -222,6 +230,7 @@ func (t *TickerImpl) Start() (func() error, error) {
 		gocron.NewTask(
 			t.runPollSchedules(ctx),
 		),
+		gocron.WithSingletonMode(gocron.LimitModeReschedule),
 	)
 
 	if err != nil {
@@ -280,7 +289,17 @@ func (t *TickerImpl) Start() (func() error, error) {
 		return nil, fmt.Errorf("could not schedule tenant resource limit alert polling: %w", err)
 	}
 
+	userCronScheduler, err := gocron.NewScheduler(gocron.WithLocation(time.UTC))
+
+	if err != nil {
+		cancel()
+		return nil, fmt.Errorf("could not create user cron scheduler: %w", err)
+	}
+
+	t.userCronScheduler = userCronScheduler
+
 	t.s.Start()
+	t.userCronScheduler.Start()
 
 	cleanup := func() error {
 		t.l.Debug().Msg("removing ticker")
@@ -289,6 +308,10 @@ func (t *TickerImpl) Start() (func() error, error) {
 
 		if err := t.s.Shutdown(); err != nil {
 			return fmt.Errorf("could not shutdown scheduler: %w", err)
+		}
+
+		if err := t.userCronScheduler.Shutdown(); err != nil {
+			return fmt.Errorf("could not shutdown user cron scheduler: %w", err)
 		}
 
 		deleteCtx, deleteCancel := context.WithTimeout(context.Background(), 5*time.Second)

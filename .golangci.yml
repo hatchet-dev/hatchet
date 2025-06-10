@@ -42,6 +42,9 @@ linters:
         text: "context-keys-type: should not use basic type string"
       - path: (.+)\.go$
         text: error strings should not be capitalized
+      - linters:
+          - staticcheck
+        text: "ST1003:"
 
     paths:
       - third_party$

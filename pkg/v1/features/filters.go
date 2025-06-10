@@ -16,6 +16,8 @@ type FiltersClient interface {
 	Create(ctx context.Context, opts rest.V1CreateFilterRequest) (*rest.V1Filter, error)
 
 	Delete(ctx context.Context, filterID string) (*rest.V1Filter, error)
+
+	Update(ctx context.Context, filterID string, opts rest.V1FilterUpdateJSONRequestBody) (*rest.V1Filter, error)
 }
 
 type filtersClientImpl struct {
@@ -80,6 +82,21 @@ func (c *filtersClientImpl) Delete(ctx context.Context, filterID string) (*rest.
 		ctx,
 		c.tenantID,
 		uuid.MustParse(filterID),
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return resp.JSON200, nil
+}
+
+func (c *filtersClientImpl) Update(ctx context.Context, filterID string, opts rest.V1FilterUpdateJSONRequestBody) (*rest.V1Filter, error) {
+	resp, err := c.api.V1FilterUpdateWithResponse(
+		ctx,
+		c.tenantID,
+		uuid.MustParse(filterID),
+		opts,
 	)
 
 	if err != nil {

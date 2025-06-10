@@ -342,3 +342,5 @@ V1TaskTimingList:
   $ref: "./v1/task.yaml#/V1TaskTimingList"
 V1CreateFilterRequest:
   $ref: "./v1/filter.yaml#/V1CreateFilterRequest"
+V1UpdateFilterRequest:
+  $ref: "./v1/filter.yaml#/V1UpdateFilterRequest"

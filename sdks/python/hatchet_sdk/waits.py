@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import TYPE_CHECKING
 from uuid import uuid4
@@ -116,7 +116,7 @@ class ParentCondition(Condition):
                     parent.name
                     + (f":{expression}" if expression else "")
                     + ":"
-                    + datetime.now().isoformat()
+                    + datetime.now(tz=timezone.utc).isoformat()
                 ),
                 expression=expression,
             )

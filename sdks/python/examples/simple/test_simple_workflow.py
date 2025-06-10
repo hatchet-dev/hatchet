@@ -2,13 +2,13 @@ import pytest
 
 from examples.simple.worker import simple, simple_durable
 from hatchet_sdk import EmptyModel
-from hatchet_sdk.runnables.standalone import Standalone
+from hatchet_sdk.runnables.workflow import Standalone
 
 
 @pytest.mark.parametrize("task", [simple, simple_durable])
 @pytest.mark.asyncio(loop_scope="session")
 async def test_simple_workflow_running_options(
-    task: Standalone[EmptyModel, dict[str, str]]
+    task: Standalone[EmptyModel, dict[str, str]],
 ) -> None:
     x1 = task.run()
     x2 = await task.aio_run()

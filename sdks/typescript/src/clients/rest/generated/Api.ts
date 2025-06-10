@@ -100,6 +100,7 @@ import {
   V1TaskSummaryList,
   V1TaskTimingList,
   V1TriggerWorkflowRunRequest,
+  V1UpdateFilterRequest,
   V1WorkflowRunDetails,
   V1WorkflowRunDisplayNameList,
   WebhookWorkerCreated,
@@ -332,6 +333,8 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
        * @maxLength 36
        */
       triggering_event_external_id?: string;
+      /** A flag for whether or not to include the input and output payloads in the response. Defaults to `true` if unset. */
+      include_payloads?: boolean;
     },
     params: RequestParams = {}
   ) =>
@@ -403,6 +406,23 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   v1WorkflowRunGet = (v1WorkflowRun: string, params: RequestParams = {}) =>
     this.request<V1WorkflowRunDetails, APIErrors>({
       path: `/api/v1/stable/workflow-runs/${v1WorkflowRun}`,
+      method: 'GET',
+      secure: true,
+      format: 'json',
+      ...params,
+    });
+  /**
+   * @description Get the status of a workflow run.
+   *
+   * @tags Workflow Runs
+   * @name V1WorkflowRunGetStatus
+   * @summary Get workflow run status
+   * @request GET:/api/v1/stable/workflow-runs/{v1-workflow-run}/status
+   * @secure
+   */
+  v1WorkflowRunGetStatus = (v1WorkflowRun: string, params: RequestParams = {}) =>
+    this.request<V1TaskStatus, APIErrors>({
+      path: `/api/v1/stable/workflow-runs/${v1WorkflowRun}/status`,
       method: 'GET',
       secure: true,
       format: 'json',
@@ -577,6 +597,16 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       limit?: number;
       /** A list of keys to filter by */
       keys?: EventKey[];
+      /**
+       * Consider events that occurred after this time
+       * @format date-time
+       */
+      since?: string;
+      /**
+       * Consider events that occurred before this time
+       * @format date-time
+       */
+      until?: string;
     },
     params: RequestParams = {}
   ) =>
@@ -674,6 +704,29 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       path: `/api/v1/stable/tenants/${tenant}/filters/${v1Filter}`,
       method: 'DELETE',
       secure: true,
+      format: 'json',
+      ...params,
+    });
+  /**
+   * @description Update a filter
+   *
+   * @tags Filter
+   * @name V1FilterUpdate
+   * @request PATCH:/api/v1/stable/tenants/{tenant}/filters/{v1-filter}
+   * @secure
+   */
+  v1FilterUpdate = (
+    tenant: string,
+    v1Filter: string,
+    data: V1UpdateFilterRequest,
+    params: RequestParams = {}
+  ) =>
+    this.request<V1Filter, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/filters/${v1Filter}`,
+      method: 'PATCH',
+      body: data,
+      secure: true,
+      type: ContentType.Json,
       format: 'json',
       ...params,
     });
@@ -1227,6 +1280,23 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       body: data,
       secure: true,
       type: ContentType.Json,
+      format: 'json',
+      ...params,
+    });
+  /**
+   * @description Get the details of a tenant
+   *
+   * @tags Tenant
+   * @name TenantGet
+   * @summary Get tenant
+   * @request GET:/api/v1/tenants/{tenant}
+   * @secure
+   */
+  tenantGet = (tenant: string, params: RequestParams = {}) =>
+    this.request<Tenant, APIErrors | APIError>({
+      path: `/api/v1/tenants/${tenant}`,
+      method: 'GET',
+      secure: true,
       format: 'json',
       ...params,
     });

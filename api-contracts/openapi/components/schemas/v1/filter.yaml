@@ -60,3 +60,16 @@ V1CreateFilterRequest:
     - workflowId
     - scope
     - expression
+
+V1UpdateFilterRequest:
+  type: object
+  properties:
+    expression:
+      type: string
+      description: The expression for the filter
+    scope:
+      type: string
+      description: The scope associated with this filter. Used for subsetting candidate filters at evaluation time
+    payload:
+      type: object
+      description: The payload for the filter
