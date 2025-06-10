@@ -52,7 +52,7 @@ export const columns = (
       <div
         className={cn(
           `pl-${row.depth * 4}`,
-          'flex flex-row items-center justify-start gap-x-2 max-w-6 mr-2',
+          'flex flex-row items-center justify-start gap-x-2 min-w-6 max-w-8 mr-2',
         )}
       >
         <Checkbox
