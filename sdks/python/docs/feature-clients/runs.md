@@ -5,6 +5,8 @@
       members:
         - get
         - aio_get
+        - get_status
+        - aio_get_status
         - list
         - aio_list
         - create

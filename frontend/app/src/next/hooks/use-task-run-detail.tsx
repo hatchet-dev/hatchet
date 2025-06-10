@@ -1,15 +1,7 @@
-import {
-  createContext,
-  useContext,
-  useMemo,
-  useState,
-  useCallback,
-  useRef,
-} from 'react';
+import { createContext, useContext, useMemo, useCallback, useRef } from 'react';
 import { useQuery, UseQueryResult } from '@tanstack/react-query';
-import api from '@/lib/api';
+import api, { V1TaskSummary } from '@/lib/api';
 import { RunsProvider, useRuns } from '@/next/hooks/use-runs';
-import { V1TaskSummary } from '@/lib/api';
 import { useToast } from './utils/use-toast';
 import { AxiosError } from 'axios';
 
@@ -49,21 +41,21 @@ interface TaskRunDetailProviderProps {
   children: React.ReactNode;
   taskRunId?: string;
   attempt?: number;
-  defaultRefetchInterval?: number;
+  refetchInterval?: number;
 }
 
 export function TaskRunDetailProvider({
   children,
   taskRunId,
   attempt,
-  defaultRefetchInterval,
+  refetchInterval,
 }: TaskRunDetailProviderProps) {
   return (
     <RunsProvider>
       <TaskRunDetailProviderContent
         taskRunId={taskRunId}
         attempt={attempt}
-        defaultRefetchInterval={defaultRefetchInterval}
+        refetchInterval={refetchInterval}
       >
         {children}
       </TaskRunDetailProviderContent>
@@ -74,11 +66,10 @@ export function TaskRunDetailProvider({
 function TaskRunDetailProviderContent({
   children,
   taskRunId,
-  defaultRefetchInterval,
+  refetchInterval,
   attempt,
 }: TaskRunDetailProviderProps) {
   const { cancel: cancelRun, replay: replayRun } = useRuns();
-  const [refetchInterval] = useState(defaultRefetchInterval);
   const lastRefetchTimeRef = useRef(Date.now());
   const { toast } = useToast();
 

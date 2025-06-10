@@ -71,12 +71,12 @@ export function CreateEmailGroupDialog({
                   );
                 }}
               />
-              {emailsError && (
+              {emailsError ? (
                 <div className="text-sm text-red-500">{emailsError}</div>
-              )}
+              ) : null}
             </div>
             <Button disabled={props.isLoading}>
-              {props.isLoading && <Spinner />}
+              {props.isLoading ? <Spinner /> : null}
               Create email group
             </Button>
           </div>

@@ -1,6 +1,6 @@
 {
   "name": "@hatchet-dev/typescript-sdk",
-  "version": "1.6.3",
+  "version": "1.7.0",
   "description": "Background task orchestration & visibility for developers",
   "types": "dist/index.d.ts",
   "files": [
@@ -25,7 +25,7 @@
     "test:e2e": "jest --testMatch='**/*.e2e.ts'",
     "test:unit:watch": "jest --testMatch='**/*.test.ts' --watch",
     "generate": "pnpm run '/generate-.*/'",
-    "generate-api": "npx --yes swagger-cli bundle ../../api-contracts/openapi/openapi.yaml --outfile openapi.yaml --type yaml && npx swagger-typescript-api generate -p openapi.yaml -o src/clients/rest/generated -n hatchet.ts --modular --axios",
+    "generate-api": "npx --yes swagger-cli bundle ../../api-contracts/openapi/openapi.yaml --outfile openapi.yaml --type yaml && npx swagger-typescript-api@13.1.0 generate -p openapi.yaml -o src/clients/rest/generated -n hatchet.ts --modular --axios",
     "generate-protoc": "./generate-protoc.sh",
     "lint:check": "npm run eslint:check && npm run prettier:check",
     "lint:fix": "npm run eslint:fix && npm run prettier:fix",

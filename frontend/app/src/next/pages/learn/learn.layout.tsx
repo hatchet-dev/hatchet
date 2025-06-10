@@ -1,5 +1,5 @@
 import { Outlet } from 'react-router-dom';
-import { ChevronsUpDown } from 'lucide-react';
+import { ChevronsUpDown, Sun, Moon, LogOut, UserIcon } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -10,27 +10,28 @@ import {
   DropdownMenuTrigger,
 } from '@/next/components/ui/dropdown-menu';
 import { useTheme } from '@/next/components/theme-provider';
-import { Sun, Moon, LogOut } from 'lucide-react';
 import useUser from '@/next/hooks/use-user';
 import { Button } from '@/next/components/ui/button';
 import { Logo } from '@/next/components/ui/logo';
 import { SignInRequiredAction } from './components/signin-required-action';
+import { User } from '@/lib/api';
+
+export const UserBlock = ({ userData }: { userData: User | undefined }) => (
+  <div className="flex items-center gap-2">
+    <div className="flex size-6 items-center justify-center rounded-full bg-primary text-primary-foreground">
+      {userData?.email?.[0]?.toUpperCase() || <UserIcon className="w-4 h-4" />}
+    </div>
+    <div className="flex flex-col">
+      <span className="text-xs font-medium">{userData?.email || 'User'}</span>
+    </div>
+  </div>
+);
 
 export function LearnLayout() {
   const { toggleTheme, theme } = useTheme();
   const { logout, data: userData } = useUser();
 
   // Simple user block component similar to dashboard's UserBlock
-  const UserBlock = () => (
-    <div className="flex items-center gap-2">
-      <div className="flex size-6 items-center justify-center rounded-full bg-primary text-primary-foreground">
-        {userData?.email?.[0]?.toUpperCase() || '?'}
-      </div>
-      <div className="flex flex-col">
-        <span className="text-xs font-medium">{userData?.email || 'User'}</span>
-      </div>
-    </div>
-  );
 
   return (
     <div className="flex flex-col min-h-screen w-full">
@@ -49,7 +50,7 @@ export function LearnLayout() {
                       variant="ghost"
                       className="flex items-center gap-2 p-1 px-2"
                     >
-                      <UserBlock />
+                      <UserBlock userData={userData} />
                       <ChevronsUpDown className="ml-auto size-4" />
                     </Button>
                   </DropdownMenuTrigger>
@@ -60,7 +61,7 @@ export function LearnLayout() {
                   >
                     <DropdownMenuLabel className="p-0 font-normal">
                       <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
-                        <UserBlock />
+                        <UserBlock userData={userData} />
                       </div>
                     </DropdownMenuLabel>
                     <DropdownMenuSeparator />

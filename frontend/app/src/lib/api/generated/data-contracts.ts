@@ -790,6 +790,15 @@ export interface V1CreateFilterRequest {
   payload?: object;
 }
 
+export interface V1UpdateFilterRequest {
+  /** The expression for the filter */
+  expression?: string;
+  /** The scope associated with this filter. Used for subsetting candidate filters at evaluation time */
+  scope?: string;
+  /** The payload for the filter */
+  payload?: object;
+}
+
 export interface APIMetaAuth {
   /**
    * the supported types of authentication

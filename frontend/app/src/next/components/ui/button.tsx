@@ -72,11 +72,11 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         disabled={isDisabled}
         {...props}
       >
-        {loading && (
+        {loading ? (
           <div className="absolute inset-0 flex items-center justify-center">
             <FaSpinner className="animate-spin h-5 w-5 text-secondary" />
           </div>
-        )}
+        ) : null}
         {props.children}
       </Comp>
     );

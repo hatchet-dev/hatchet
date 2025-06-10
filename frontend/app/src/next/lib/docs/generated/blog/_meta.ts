@@ -1,5 +1,9 @@
 // Generated from frontend/docs/pages/blog/_meta.js
 const meta = {
+  go_agents: {
+    title: 'Why Go is a good fit for agents',
+    href: '/blog/go-agents',
+  },
   warning_event_loop_blocked: {
     title: 'Warning: The Event Loop May Be Blocked',
     href: '/blog/warning-event-loop-blocked',

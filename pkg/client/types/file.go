@@ -134,6 +134,12 @@ type WorkflowStep struct {
 	RetryMaxBackoffSeconds *int32                         `yaml:"retryMaxBackoffSeconds,omitempty"`
 }
 
+type DefaultFilter struct {
+	Expression string                 `json:"expression"`
+	Scope      string                 `json:"scope"`
+	Payload    map[string]interface{} `json:"payload,omitempty"`
+}
+
 type RateLimit struct {
 	Key            string             `yaml:"key,omitempty"`
 	KeyExpr        *string            `yaml:"keyExpr,omitempty"`

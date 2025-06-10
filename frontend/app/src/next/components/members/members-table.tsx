@@ -91,7 +91,7 @@ export function MembersTable({ emptyState }: MembersTableProps) {
           </TableBody>
         </Table>
       </div>
-      {invites && invites.length > 0 && (
+      {invites && invites.length > 0 ? (
         <>
           <Separator className="my-8" />
 
@@ -113,26 +113,26 @@ export function MembersTable({ emptyState }: MembersTableProps) {
             }
           />
         </>
-      )}
+      ) : null}
 
-      {removeMember && (
+      {removeMember ? (
         <RemoveMemberForm
           member={removeMember}
-          close={() => {
+          close={async () => {
             setRemoveMember(null);
-            refetch();
+            await refetch();
           }}
         />
-      )}
+      ) : null}
 
-      {revokeInvite && (
+      {revokeInvite ? (
         <RevokeInviteForm
           invite={revokeInvite}
           close={() => {
             setRevokeInvite(null);
           }}
         />
-      )}
+      ) : null}
     </>
   );
 }
@@ -151,8 +151,8 @@ function MembersTableSkeleton() {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {Array.from({ length: 5 }).map((_, i) => (
-            <TableRow key={i}>
+          {Array.from({ length: 5 }).map((_, key) => (
+            <TableRow key={key}>
               <TableCell>
                 <Skeleton className="h-5 w-[150px]" />
               </TableCell>

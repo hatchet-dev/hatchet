@@ -66,9 +66,9 @@ export function UserRegisterForm({
               autoCorrect="off"
               disabled={props.isLoading}
             />
-            {nameError && (
+            {nameError ? (
               <div className="text-sm text-red-500">{nameError}</div>
-            )}
+            ) : null}
           </div>
           <div className="grid gap-2">
             <Label htmlFor="email">Email</Label>
@@ -82,9 +82,9 @@ export function UserRegisterForm({
               autoCorrect="off"
               disabled={props.isLoading}
             />
-            {emailError && (
+            {emailError ? (
               <div className="text-sm text-red-500">{emailError}</div>
-            )}
+            ) : null}
           </div>
           <div className="grid gap-2">
             <Label htmlFor="password">Password</Label>
@@ -95,17 +95,17 @@ export function UserRegisterForm({
               type="password"
               disabled={props.isLoading}
             />
-            {passwordError && (
+            {passwordError ? (
               <div className="text-sm text-red-500">{passwordError}</div>
-            )}
+            ) : null}
           </div>
           <Button loading={props.isLoading}>Create Account</Button>
-          {props.apiError && (
+          {props.apiError ? (
             <Alert variant="destructive">
               <AlertTitle>Registration Request Failed</AlertTitle>
               <AlertDescription>{props.apiError}</AlertDescription>
             </Alert>
-          )}
+          ) : null}
         </div>
       </form>
     </div>

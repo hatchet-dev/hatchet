@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from examples.priority.worker import priority_workflow
 from hatchet_sdk import ScheduleTriggerWorkflowOptions, TriggerWorkflowOptions
@@ -25,7 +25,7 @@ high_prio = priority_workflow.run_no_wait(
 
 # > Scheduled priority
 schedule = priority_workflow.schedule(
-    run_at=datetime.now() + timedelta(minutes=1),
+    run_at=datetime.now(tz=timezone.utc) + timedelta(minutes=1),
     options=ScheduleTriggerWorkflowOptions(priority=3),
 )
 

@@ -69,41 +69,46 @@ WITH latest_versions AS (
     JOIN
         "Workflow" as workflow ON workflow."id" = workflowVersions."workflowId"
     WHERE
-        workflow."tenantId" = $2::uuid
+        workflow."tenantId" = $1::uuid
         AND workflowVersions."deletedAt" IS NULL
     ORDER BY "workflowId", "order" DESC
+), event_keys AS (
+    SELECT
+        UNNEST($2::TEXT[]) AS event_key
 )
+
 SELECT
     latest_versions."workflowVersionId",
     latest_versions."workflowId",
     latest_versions."workflowName",
-    eventRef."eventKey" as "eventKey"
+    eventRef."eventKey" as "workflowTriggeringEventKeyPattern",
+    k.event_key::TEXT as "incomingEventKey"
 FROM
     latest_versions
 JOIN
     "WorkflowTriggers" as triggers ON triggers."workflowVersionId" = latest_versions."workflowVersionId"
 JOIN
     "WorkflowTriggerEventRef" as eventRef ON eventRef."parentId" = triggers."id"
-WHERE
-    eventRef."eventKey" = ANY($1::text[])
+JOIN event_keys k ON k.event_key LIKE REPLACE(eventRef."eventKey", '*', '%')
 `
 
 type ListWorkflowsForEventsParams struct {
-	Eventkeys []string    `json:"eventkeys"`
 	Tenantid  pgtype.UUID `json:"tenantid"`
+	Eventkeys []string    `json:"eventkeys"`
 }
 
 type ListWorkflowsForEventsRow struct {
-	WorkflowVersionId pgtype.UUID `json:"workflowVersionId"`
-	WorkflowId        pgtype.UUID `json:"workflowId"`
-	WorkflowName      string      `json:"workflowName"`
-	EventKey          string      `json:"eventKey"`
+	WorkflowVersionId                 pgtype.UUID `json:"workflowVersionId"`
+	WorkflowId                        pgtype.UUID `json:"workflowId"`
+	WorkflowName                      string      `json:"workflowName"`
+	WorkflowTriggeringEventKeyPattern string      `json:"workflowTriggeringEventKeyPattern"`
+	IncomingEventKey                  string      `json:"incomingEventKey"`
 }
 
 // Get all of the latest workflow versions
 // select the workflow versions that have the event trigger
 func (q *Queries) ListWorkflowsForEvents(ctx context.Context, db DBTX, arg ListWorkflowsForEventsParams) ([]*ListWorkflowsForEventsRow, error) {
-	rows, err := db.Query(ctx, listWorkflowsForEvents, arg.Eventkeys, arg.Tenantid)
+	rows, err := db.Query(ctx, listWorkflowsForEvents, arg.Tenantid, arg.Eventkeys)
 	if err != nil {
 		return nil, err
 	}
@@ -115,7 +120,8 @@ func (q *Queries) ListWorkflowsForEvents(ctx context.Context, db DBTX, arg ListW
 			&i.WorkflowVersionId,
 			&i.WorkflowId,
 			&i.WorkflowName,
-			&i.EventKey,
+			&i.WorkflowTriggeringEventKeyPattern,
+			&i.IncomingEventKey,
 		); err != nil {
 			return nil, err
 		}

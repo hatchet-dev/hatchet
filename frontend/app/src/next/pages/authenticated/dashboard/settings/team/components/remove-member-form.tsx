@@ -71,7 +71,9 @@ export function RemoveMemberForm({ member, close }: RemoveMemberFormProps) {
             tenant? This action cannot be undone.
           </AlertDialogDescription>
         </AlertDialogHeader>
-        {error && <p className="text-destructive text-sm mt-2">{error}</p>}
+        {error ? (
+          <p className="text-destructive text-sm mt-2">{error}</p>
+        ) : null}
         <AlertDialogFooter>
           <AlertDialogCancel onClick={close} disabled={mutation.isPending}>
             Cancel

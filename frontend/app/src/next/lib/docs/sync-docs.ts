@@ -329,4 +329,5 @@ export { ${metaFiles.map((file) => file.importName).join(', ')} };
 // Write the index file
 fs.writeFileSync(path.join(generatedDir, 'index.ts'), indexContent, 'utf8');
 
+// eslint-disable-next-line no-console
 console.log(`Generated ${metaFiles.length} meta files in ${generatedDir}`);

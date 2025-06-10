@@ -2,6 +2,7 @@ package v1
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -540,6 +541,28 @@ func getCreateWorkflowOpts(req *contracts.CreateWorkflowVersionRequest) (*v1.Cre
 		cronInput = []byte(*req.CronInput)
 	}
 
+	defaultFilters := make([]types.DefaultFilter, 0)
+
+	for _, f := range req.DefaultFilters {
+		if f.Payload != nil && !json.Valid(f.Payload) {
+			return nil, fmt.Errorf("default filter payload is not valid JSON")
+		}
+
+		payload := make(map[string]interface{})
+
+		if f.Payload != nil {
+			if err := json.Unmarshal(f.Payload, &payload); err != nil {
+				return nil, fmt.Errorf("default filter payload is not valid JSON: %w", err)
+			}
+		}
+
+		defaultFilters = append(defaultFilters, types.DefaultFilter{
+			Expression: f.Expression,
+			Scope:      f.Scope,
+			Payload:    payload,
+		})
+	}
+
 	return &v1.CreateWorkflowVersionOpts{
 		Name:            req.Name,
 		Concurrency:     concurrency,
@@ -551,6 +574,7 @@ func getCreateWorkflowOpts(req *contracts.CreateWorkflowVersionRequest) (*v1.Cre
 		OnFailure:       onFailureTask,
 		Sticky:          sticky,
 		DefaultPriority: req.DefaultPriority,
+		DefaultFilters:  defaultFilters,
 	}, nil
 }
 

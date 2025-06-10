@@ -26,6 +26,7 @@ func DagWorkflow(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[DagInput
 	simple := factory.NewWorkflow[DagInput, DagResult](
 		create.WorkflowCreateOpts[DagInput]{
 			Name: "simple-dag",
+
 		},
 		hatchet,
 	)

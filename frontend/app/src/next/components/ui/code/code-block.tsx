@@ -16,21 +16,24 @@ interface CodeBlockProps {
   link?: string;
 }
 
+const defaultHighlightLines: number[] = [];
+const defaultHighlightStrings: string[] = [];
+
 export function CodeBlock({
   noHeader = false,
   title,
   language,
   value,
   className,
-  highlightLines = [],
-  highlightStrings = [],
+  highlightLines = defaultHighlightLines,
+  highlightStrings = defaultHighlightStrings,
   link,
   ...props
 }: CodeBlockProps) {
   const [copied, setCopied] = useState(false);
 
-  const copyToClipboard = () => {
-    navigator.clipboard.writeText(value);
+  const copyToClipboard = async () => {
+    await navigator.clipboard.writeText(value);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };

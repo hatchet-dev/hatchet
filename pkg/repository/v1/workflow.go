@@ -2,6 +2,7 @@ package v1
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"sort"
@@ -14,6 +15,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/digest"
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
+	"github.com/hatchet-dev/hatchet/pkg/client/types"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 )
@@ -48,6 +50,8 @@ type CreateWorkflowVersionOpts struct {
 	Sticky *string `validate:"omitempty,oneof=SOFT HARD"`
 
 	DefaultPriority *int32 `validate:"omitempty,min=1,max=3"`
+
+	DefaultFilters []types.DefaultFilter `json:"defaultFilters,omitempty" validate:"omitempty,dive"`
 }
 
 type CreateCronWorkflowTriggerOpts struct {
@@ -553,6 +557,43 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 
 		if err != nil {
 			return "", fmt.Errorf("could not move existing scheduled triggers to new workflow triggers: %w", err)
+		}
+	}
+
+	if len(opts.DefaultFilters) > 0 {
+		filterScopes := make([]string, len(opts.DefaultFilters))
+		filterExpressions := make([]string, len(opts.DefaultFilters))
+		filterPayloads := make([][]byte, len(opts.DefaultFilters))
+
+		for ix, filter := range opts.DefaultFilters {
+			var payload []byte
+
+			if filter.Payload != nil {
+				payload, err = json.Marshal(filter.Payload)
+
+				if err != nil {
+					return "", fmt.Errorf("could not marshal filter payload: %w", err)
+				}
+			}
+
+			filterScopes[ix] = filter.Scope
+			filterExpressions[ix] = filter.Expression
+			filterPayloads[ix] = payload
+		}
+		_, err := r.queries.BulkUpsertDeclarativeFilters(
+			ctx,
+			tx,
+			sqlcv1.BulkUpsertDeclarativeFiltersParams{
+				Tenantid:    tenantId,
+				Workflowid:  workflowId,
+				Scopes:      filterScopes,
+				Expressions: filterExpressions,
+				Payloads:    filterPayloads,
+			},
+		)
+
+		if err != nil {
+			return "", fmt.Errorf("could not upsert declarative filters: %w", err)
 		}
 	}
 

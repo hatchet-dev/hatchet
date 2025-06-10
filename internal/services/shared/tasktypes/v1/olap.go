@@ -52,6 +52,7 @@ type CreatedEventTriggerPayloadSingleton struct {
 	EventExternalId         string     `json:"event_id"`
 	EventPayload            []byte     `json:"event_payload"`
 	EventAdditionalMetadata []byte     `json:"event_additional_metadata,omitempty"`
+	EventScope              *string    `json:"event_scope,omitempty"`
 }
 
 type CreatedEventTriggerPayload struct {

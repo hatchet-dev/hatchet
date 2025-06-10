@@ -11,12 +11,15 @@ interface CodeStyleRenderProps {
   showLineNumbers?: boolean;
 }
 
+const defaultHighlightLines: number[] = [];
+const defaultHighlightStrings: string[] = [];
+
 const CodeStyleRender = ({
   parsed,
   language,
   className = '',
-  highlightLines = [],
-  highlightStrings = [],
+  highlightLines = defaultHighlightLines,
+  highlightStrings = defaultHighlightStrings,
   showLineNumbers = false,
 }: CodeStyleRenderProps) => {
   const [html, setHtml] = useState<string>('');
@@ -98,6 +101,7 @@ const CodeStyleRender = ({
       }
     };
 
+    // eslint-disable-next-line @typescript-eslint/no-floating-promises
     asyncHighlight();
   }, [parsed, language, themeName, theme, highlightLines, highlightStrings]);
 
