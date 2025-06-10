@@ -10,22 +10,27 @@ import (
 	msgqueue "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 )
 
 func (tc *TasksControllerImpl) runTenantRetryQueueItems(ctx context.Context) func() {
 	return func() {
-		tc.l.Debug().Msgf("partition: running retry queue items for tasks")
+		tc.l.Debug().Msgf("partition(%s): running retry queue items for tasks", tc.p.GetControllerPartitionId())
 
 		// list all tenants
-		tenants, err := tc.p.ListTenantsForController(ctx, dbsqlc.TenantMajorEngineVersionV1)
+		tenants, err := tc.p.V1ListTenantsForController(ctx, repository.TenantControllerFilter{
+			WithFilter:          tc.opsTenantFilters,
+			WithRetryQueueItems: true,
+		})
 
 		if err != nil {
-			tc.l.Error().Err(err).Msg("could not list tenants")
+			tc.l.Error().Err(err).Msg("could not list tenants with retry queue items")
 			return
 		}
+
+		tc.l.Debug().Msgf("partition(%s): tenants with retry queue items: %d", tc.p.GetControllerPartitionId(), len(tenants))
 
 		tc.retryTaskOperations.SetTenants(tenants)
 

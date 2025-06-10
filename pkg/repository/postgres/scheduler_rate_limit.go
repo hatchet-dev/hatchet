@@ -39,6 +39,13 @@ func (d *rateLimitRepository) ListCandidateRateLimits(ctx context.Context, tenan
 }
 
 func (d *rateLimitRepository) UpdateRateLimits(ctx context.Context, tenantId pgtype.UUID, updates map[string]int) (map[string]int, error) {
+	// Check if context is already canceled before starting database operations
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	default:
+	}
+
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, d.pool, d.l, 5000)
 
 	if err != nil {
