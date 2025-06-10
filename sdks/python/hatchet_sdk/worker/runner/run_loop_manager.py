@@ -28,10 +28,10 @@ class WorkerActionRunLoopManager:
         action_queue: "Queue[Action | STOP_LOOP_TYPE]",
         event_queue: "Queue[ActionEvent]",
         loop: asyncio.AbstractEventLoop,
-        handle_kill: bool = True,
-        debug: bool = False,
-        labels: dict[str, str | int] | None = None,
-        lifespan_context: Any | None = None,
+        handle_kill: bool,
+        debug: bool,
+        labels: dict[str, str | int] | None,
+        lifespan_context: Any | None,
     ) -> None:
         self.name = name
         self.action_registry = action_registry
