@@ -17,6 +17,7 @@ from hatchet_sdk.contracts import workflows_pb2 as v0_workflow_protos
 from hatchet_sdk.contracts.v1 import workflows_pb2 as workflow_protos
 from hatchet_sdk.contracts.v1.workflows_pb2_grpc import AdminServiceStub
 from hatchet_sdk.contracts.workflows_pb2_grpc import WorkflowServiceStub
+from hatchet_sdk.exceptions import DedupeViolationError
 from hatchet_sdk.features.runs import RunsClient
 from hatchet_sdk.metadata import get_metadata
 from hatchet_sdk.rate_limit import RateLimitDuration
@@ -58,10 +59,6 @@ class WorkflowRunTriggerConfig(BaseModel):
     input: JSONSerializableMapping
     options: TriggerWorkflowOptions
     key: str | None = None
-
-
-class DedupeViolationError(Exception):
-    """Raised by the Hatchet library to indicate that a workflow has already been run with this deduplication value."""
 
 
 class AdminClient:
