@@ -54,7 +54,7 @@ class Task(Generic[TWorkflowInput, R]):
         name: str,
         execution_timeout: Duration,
         schedule_timeout: Duration,
-        parents: "list[Task[TWorkflowInput, Any]]" | None,
+        parents: "list[Task[TWorkflowInput, Any]] | None",
         retries: int,
         rate_limits: list[CreateTaskRateLimit] | None,
         desired_worker_labels: dict[str, DesiredWorkerLabels] | None,
