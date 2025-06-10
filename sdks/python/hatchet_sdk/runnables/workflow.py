@@ -619,7 +619,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         """
         Run the workflow asynchronously and wait for it to complete.
 
-        This method triggers a workflow run, blocks until completion, and returns the final result.
+        This method triggers a workflow run, awaits until completion, and returns the final result.
 
         :param input: The input data for the workflow, must match the workflow's input type.
         :param options: Additional options for workflow execution like metadata and parent workflow ID.
@@ -1131,13 +1131,14 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
     ) -> R:
         """
-        Synchronously trigger a workflow run without waiting for it to complete.
-        This method is useful for starting a workflow run and immediately returning a reference to the run without blocking while the workflow runs.
+        Run the workflow synchronously and wait for it to complete.
+
+        This method triggers a workflow run, blocks until completion, and returns the extracted result.
 
         :param input: The input data for the workflow.
         :param options: Additional options for workflow execution.
 
-        :returns: A `WorkflowRunRef` object representing the reference to the workflow run.
+        :returns: The extracted result of the workflow execution.
         """
         return self._extract_result(self._workflow.run(input, options))
 
@@ -1149,12 +1150,12 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         """
         Run the workflow asynchronously and wait for it to complete.
 
-        This method triggers a workflow run, blocks until completion, and returns the final result.
+        This method triggers a workflow run, awaits until completion, and returns the extracted result.
 
         :param input: The input data for the workflow, must match the workflow's input type.
         :param options: Additional options for workflow execution like metadata and parent workflow ID.
 
-        :returns: The result of the workflow execution as a dictionary.
+        :returns: The extracted result of the workflow execution.
         """
         result = await self._workflow.aio_run(input, options)
         return self._extract_result(result)
@@ -1165,14 +1166,14 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
     ) -> TaskRunRef[TWorkflowInput, R]:
         """
-        Run the workflow synchronously and wait for it to complete.
+        Trigger a workflow run without waiting for it to complete.
 
-        This method triggers a workflow run, blocks until completion, and returns the final result.
+        This method triggers a workflow run and immediately returns a reference to the run without blocking while the workflow runs.
 
         :param input: The input data for the workflow, must match the workflow's input type.
         :param options: Additional options for workflow execution like metadata and parent workflow ID.
 
-        :returns: The result of the workflow execution as a dictionary.
+        :returns: A `TaskRunRef` object representing the reference to the workflow run.
         """
         ref = self._workflow.run_no_wait(input, options)
 
@@ -1190,7 +1191,7 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         :param input: The input data for the workflow.
         :param options: Additional options for workflow execution.
 
-        :returns: A `WorkflowRunRef` object representing the reference to the workflow run.
+        :returns: A `TaskRunRef` object representing the reference to the workflow run.
         """
         ref = await self._workflow.aio_run_no_wait(input, options)
 
