@@ -87,7 +87,7 @@ export function RunDataCard({
           </CardHeader>
         </CollapsibleTrigger>
         <CollapsibleContent>
-          <CardContent className={cn(error && 'border-destructive')}>
+          <CardContent className={cn(error && 'border-destructive', 'pt-4')}>
             <Code
               language={error ? 'text' : 'json'}
               value={error ? errorData?.stack : JSON.stringify(output, null, 2)}
