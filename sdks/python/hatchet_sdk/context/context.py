@@ -82,6 +82,7 @@ class Context:
 
         :param task: The task whose output you want to retrieve.
         :return: The output of the parent task, validated against the task's validators.
+        :raises ValueError: If the task was skipped or if the step output for the task is not found.
         """
         from hatchet_sdk.runnables.types import R
 
@@ -196,8 +197,6 @@ class Context:
         :param line: The line to log. Can be a string or a JSON serializable mapping.
         :param raise_on_error: If True, will raise an exception if the log fails. Defaults to False.
         :return: None
-
-        :raises Exception: If `raise_on_error` is True and the log fails.
         """
 
         if self.step_run_id == "":
@@ -385,9 +384,10 @@ class DurableContext(Context):
         Durably wait for either a sleep or an event.
 
         :param signal_key: The key to use for the durable event. This is used to identify the event in the Hatchet API.
-        :param conditions: The conditions to wait for. Can be a SleepCondition or UserEventCondition.
+        :param *conditions: The conditions to wait for. Can be a SleepCondition or UserEventCondition.
 
         :return: A dictionary containing the results of the wait.
+        :raises ValueError: If the durable event listener is not available.
         """
         if self.durable_event_listener is None:
             raise ValueError("Durable event listener is not available")
