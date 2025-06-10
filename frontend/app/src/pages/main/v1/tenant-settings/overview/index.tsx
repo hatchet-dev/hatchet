@@ -230,17 +230,7 @@ function UIVersionSwitcher() {
                 }
 
                 setShowUpgradeModal(false);
-                navigate(
-                  {
-                    pathname: '/next',
-                    search: createSearchParams({
-                      tenant: tenant.data.metadata.id,
-                    }).toString(),
-                  },
-                  {
-                    replace: false,
-                  },
-                );
+                window.location.href = `/next/tenants/${tenant.data.metadata.id}/runs`;
               }}
               disabled={isPending}
             >
