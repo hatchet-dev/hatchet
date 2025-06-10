@@ -82,6 +82,8 @@ class ClientConfig(BaseSettings):
     enable_force_kill_sync_threads: bool = False
     enable_thread_pool_monitoring: bool = False
 
+    terminate_worker_after_num_tasks: int | None = None
+
     @model_validator(mode="after")
     def validate_token_and_tenant(self) -> "ClientConfig":
         if not self.token:
