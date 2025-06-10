@@ -41,6 +41,7 @@ from hatchet_sdk.runnables.contextvars import (
     ctx_worker_id,
     ctx_workflow_run_id,
     spawn_index_lock,
+    task_count,
     workflow_spawn_indices,
 )
 from hatchet_sdk.runnables.task import Task
@@ -65,10 +66,10 @@ class Runner:
         event_queue: "Queue[ActionEvent]",
         config: ClientConfig,
         slots: int,
-        handle_kill: bool = True,
-        action_registry: dict[str, Task[TWorkflowInput, R]] | None = None,
-        labels: dict[str, str | int] | None = None,
-        lifespan_context: Any | None = None,
+        handle_kill: bool,
+        action_registry: dict[str, Task[TWorkflowInput, R]],
+        labels: dict[str, str | int] | None,
+        lifespan_context: Any | None,
     ):
         # We store the config so we can dynamically create clients for the dispatcher client.
         self.config = config
@@ -398,6 +399,8 @@ class Runner:
 
             task.add_done_callback(self.step_run_callback(action))
             self.tasks[action.key] = task
+
+            task_count.increment()
 
             ## FIXME: Handle cancelled exceptions and other special exceptions
             ## that we don't want to suppress here
