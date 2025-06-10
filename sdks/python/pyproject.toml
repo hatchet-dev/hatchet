@@ -191,6 +191,8 @@ ignore = [
 
     ## FIXME (ironic) - re-enable this later
     "FIX",
+
+    "RET506",
 ]
 exclude = [
     "examples/*",
