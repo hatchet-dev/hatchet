@@ -3,7 +3,7 @@ from datetime import timedelta
 from typing import Any
 
 from hatchet_sdk import Context, EmptyModel, Hatchet, TriggerWorkflowOptions
-from hatchet_sdk.clients.admin import DedupeViolationError
+from hatchet_sdk.exceptions import DedupeViolationError
 
 hatchet = Hatchet(debug=True)
 

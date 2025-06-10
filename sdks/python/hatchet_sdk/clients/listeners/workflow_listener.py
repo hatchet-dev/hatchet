@@ -1,6 +1,7 @@
 import json
+import sys
 from collections.abc import AsyncIterator
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 import grpc
 import grpc.aio
@@ -12,6 +13,13 @@ from hatchet_sdk.contracts.dispatcher_pb2 import (
     WorkflowRunEvent,
 )
 from hatchet_sdk.contracts.dispatcher_pb2_grpc import DispatcherStub
+from hatchet_sdk.exceptions import DedupeViolationError, FailedWorkflowRunError
+
+## Trick Mypy / IDE into thinking we're running Python 3.10
+if TYPE_CHECKING:
+    PYTHON_VERSION = (3, 10)
+else:
+    PYTHON_VERSION = sys.version_info
 
 DEDUPE_MESSAGE = "DUPLICATE_WORKFLOW_RUN"
 
@@ -28,15 +36,29 @@ class PooledWorkflowRunListener(
         return response.workflowRunId
 
     async def aio_result(self, id: str) -> dict[str, Any]:
-        from hatchet_sdk.clients.admin import DedupeViolationError
-
         event = await self.subscribe(id)
         errors = [result.error for result in event.results if result.error]
+        workflow_run_id = event.workflowRunId
 
         if errors:
             if DEDUPE_MESSAGE in errors[0]:
                 raise DedupeViolationError(errors[0])
-            raise Exception(f"Workflow Errors: {errors}")
+
+            if PYTHON_VERSION >= (3, 11):
+                raise ExceptionGroup(  # noqa: F821
+                    f"Workflow run {workflow_run_id} failed with multiple errors.",
+                    [FailedWorkflowRunError(workflow_run_id, e) for e in errors],
+                )
+            else:
+                raise FailedWorkflowRunError(
+                    workflow_run_id=workflow_run_id,
+                    message="\n".join(
+                        [
+                            str(FailedWorkflowRunError(workflow_run_id, e))
+                            for e in errors
+                        ]
+                    ),
+                )
 
         return {
             result.stepReadableId: json.loads(result.output)
