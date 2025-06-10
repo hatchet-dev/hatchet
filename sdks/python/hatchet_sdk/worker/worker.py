@@ -37,6 +37,7 @@ from hatchet_sdk.worker.runner.run_loop_manager import (
     STOP_LOOP_TYPE,
     WorkerActionRunLoopManager,
 )
+from hatchet_sdk.runnables.contextvars import task_count
 
 T = TypeVar("T")
 
@@ -394,6 +395,12 @@ class Worker:
                     if self.loop:
                         self.loop.create_task(self.exit_gracefully())
                     break
+
+                if task_count.value >= self.config.terminate_worker_after_num_tasks:
+                    if self.loop:
+                        self.loop.create_task(self.exit_gracefully())
+                    break
+
                 self._status = WorkerStatus.HEALTHY
                 await asyncio.sleep(1)
         except Exception as e:
