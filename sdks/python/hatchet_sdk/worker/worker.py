@@ -24,6 +24,7 @@ from pydantic import BaseModel
 from hatchet_sdk.client import Client
 from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.contracts.v1.workflows_pb2 import CreateWorkflowVersionRequest
+from hatchet_sdk.exceptions import LoopAlreadyRunningError
 from hatchet_sdk.logger import logger
 from hatchet_sdk.runnables.action import Action
 from hatchet_sdk.runnables.task import Task
@@ -38,10 +39,6 @@ from hatchet_sdk.worker.runner.run_loop_manager import (
 )
 
 T = TypeVar("T")
-
-
-class LoopAlreadyRunningError(Exception):
-    pass
 
 
 class WorkerStatus(Enum):
