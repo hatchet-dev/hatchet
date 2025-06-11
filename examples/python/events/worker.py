@@ -44,7 +44,7 @@ event_workflow_with_filter = hatchet.workflow(
 def task(input: EventWorkflowInput, ctx: Context) -> dict[str, str]:
     print("event received")
 
-    return dict(ctx.filter_payload)
+    return ctx.filter_payload
 
 
 # > Accessing the filter payload
