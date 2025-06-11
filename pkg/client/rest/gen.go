@@ -458,6 +458,8 @@ type CreateTenantInviteRequest struct {
 
 // CreateTenantRequest defines model for CreateTenantRequest.
 type CreateTenantRequest struct {
+	EngineVersion *TenantVersion `json:"engineVersion,omitempty"`
+
 	// Name The name of the tenant.
 	Name string `json:"name" validate:"required"`
 

@@ -58,6 +58,12 @@ func (r *tenantAPIRepository) CreateTenant(ctx context.Context, opts *repository
 		uiVersion = dbsqlc.TenantMajorUIVersion(ver)
 	}
 
+	engineVersion := dbsqlc.TenantMajorEngineVersionV0
+	if opts.EngineVersion != nil {
+		ver := *opts.EngineVersion
+		engineVersion = dbsqlc.TenantMajorEngineVersion(ver)
+	}
+
 	tx, err := r.pool.Begin(ctx)
 
 	if err != nil {
@@ -72,7 +78,7 @@ func (r *tenantAPIRepository) CreateTenant(ctx context.Context, opts *repository
 		Name:                opts.Name,
 		DataRetentionPeriod: dataRetentionPeriod,
 		Version: dbsqlc.NullTenantMajorEngineVersion{
-			TenantMajorEngineVersion: r.defaultTenantVersion,
+			TenantMajorEngineVersion: engineVersion,
 			Valid:                    true,
 		},
 		UiVersion: dbsqlc.NullTenantMajorUIVersion{
