@@ -182,28 +182,53 @@ export function GithubRepoSelector({
                 </div>
               </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-full p-0">
+            <PopoverContent
+              className="w-full p-0 min-w-[200px]"
+              side="bottom"
+              align="start"
+            >
               <Command>
                 <CommandInput placeholder="Search accounts..." />
-                <CommandEmpty>No accounts found.</CommandEmpty>
-                <CommandGroup className="max-h-[300px] overflow-auto">
-                  {installations.data?.map((installation) => (
-                    <CommandItem
-                      key={installation.metadata.id}
-                      onSelect={() => {
-                        onChange({
-                          githubInstallationId: installation.metadata.id,
-                          githubRepositoryOwner: '',
-                          githubRepositoryName: '',
-                          githubRepositoryBranch: '',
-                        });
+                {!installations.data || installations.data.length === 0 ? (
+                  <div className="p-4 text-center">
+                    <p className="text-sm text-muted-foreground mb-3">
+                      No accounts found.
+                    </p>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
                         setOpenInstallation(false);
+                        window.location.href = ROUTES.settings.github(tenantId);
                       }}
+                      className="w-full"
                     >
-                      {installation.account_name}
-                    </CommandItem>
-                  ))}
-                </CommandGroup>
+                      Link other accounts
+                    </Button>
+                  </div>
+                ) : (
+                  <>
+                    <CommandEmpty>No accounts found.</CommandEmpty>
+                    <CommandGroup className="max-h-[300px] overflow-auto">
+                      {installations.data?.map((installation) => (
+                        <CommandItem
+                          key={installation.metadata.id}
+                          onSelect={() => {
+                            onChange({
+                              githubInstallationId: installation.metadata.id,
+                              githubRepositoryOwner: '',
+                              githubRepositoryName: '',
+                              githubRepositoryBranch: '',
+                            });
+                            setOpenInstallation(false);
+                          }}
+                        >
+                          {installation.account_name}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </>
+                )}
               </Command>
             </PopoverContent>
           </Popover>
