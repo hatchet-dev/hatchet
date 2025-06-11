@@ -58,7 +58,7 @@ func (r *tenantAPIRepository) CreateTenant(ctx context.Context, opts *repository
 		uiVersion = dbsqlc.TenantMajorUIVersion(ver)
 	}
 
-	engineVersion := dbsqlc.TenantMajorEngineVersionV0
+	engineVersion := r.defaultTenantVersion
 	if opts.EngineVersion != nil {
 		ver := *opts.EngineVersion
 		engineVersion = dbsqlc.TenantMajorEngineVersion(ver)
