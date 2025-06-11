@@ -279,7 +279,7 @@ function WorkflowRunVisualizerContent({
     setIsExpanded(!isExpanded);
     setTimeout(() => {
       recenter();
-    }, 100);
+    }, 500);
   }, [isExpanded, recenter]);
 
   return (
