@@ -28,7 +28,6 @@ import { Headline, PageTitle } from '@/next/components/ui/page-header';
 import { ROUTES } from '@/next/lib/routes';
 import useApiMeta from '@/next/hooks/use-api-meta';
 import useCloudFeatureFlags from '@/pages/auth/hooks/use-cloud-feature-flags';
-import { createSearchParams, useNavigate } from 'react-router-dom';
 
 export default function SettingsOverviewPage() {
   const { isCloud } = useApiMeta();
@@ -226,7 +225,6 @@ function TenantVersionSwitcher() {
 function UIVersionSwitcher() {
   const { tenant, update } = useTenantDetails();
   const [showDowngradeModal, setShowDowngradeModal] = useState(false);
-  const navigate = useNavigate();
 
   if (!tenant?.uiVersion || tenant.uiVersion === TenantUIVersion.V0) {
     return (
@@ -283,17 +281,7 @@ function UIVersionSwitcher() {
                 }
 
                 setShowDowngradeModal(false);
-                navigate(
-                  {
-                    pathname: '/v1/runs',
-                    search: createSearchParams({
-                      tenant: tenant.metadata.id,
-                    }).toString(),
-                  },
-                  {
-                    replace: false,
-                  },
-                );
+                window.location.href = `/v1/runs?tenant=${tenant.metadata.id}`;
               }}
               loading={update.isPending}
             >
