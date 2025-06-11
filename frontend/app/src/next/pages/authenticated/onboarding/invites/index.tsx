@@ -15,7 +15,7 @@ export async function loader(_args: LoaderFunctionArgs) {
 
   const invites = res.data.rows || [];
 
-  if (invites.length == 0) {
+  if (invites.length === 0) {
     throw redirect('/');
   }
 

@@ -6,7 +6,7 @@ import {
 } from '@/next/components/ui/dropdown-menu';
 import { Button } from '@/next/components/ui/button';
 import { Avatar, AvatarFallback } from '@/next/components/ui/avatar';
-import { Bell } from 'lucide-react';
+import { Bell, Loader2 } from 'lucide-react';
 import useNotifications from '@/next/hooks/use-notifications';
 import { useEffect, useState } from 'react';
 import {
@@ -16,6 +16,64 @@ import {
   TooltipTrigger,
 } from '@/next/components/ui/tooltip';
 import { cn } from '@/next/lib/utils';
+import { TenantInvite } from '@/lib/api';
+import useUser from '@/next/hooks/use-user';
+import { useTenantDetails } from '@/next/hooks/use-tenant';
+import { Card, CardHeader, CardTitle } from '@/next/components/ui/card';
+import { TenantBlock } from './user-dropdown';
+import { formatDistance } from 'date-fns';
+
+export function InviteCard({ invite }: { invite: TenantInvite }) {
+  const { invites } = useUser();
+  const { setTenant } = useTenantDetails();
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex flex-row gap-2 items-center justify-between">
+          <div className="flex flex-row gap-4 items-center">
+            <TenantBlock
+              variant="default"
+              tenant={{
+                name: invite.tenantName || 'Team',
+              }}
+            />
+          </div>
+          <div className="flex flex-row gap-2 items-center">
+            <span className="text-sm text-muted-foreground">
+              Expires{' '}
+              {formatDistance(new Date(invite.expires), new Date(), {
+                addSuffix: true,
+              })}
+            </span>
+            <Button
+              variant="outline"
+              onClick={() => invites.reject.mutate(invite.metadata.id)}
+              disabled={invites.reject.isPending}
+            >
+              {invites.reject.isPending ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : null}
+              Decline
+            </Button>
+            <Button
+              onClick={async () => {
+                await invites.accept.mutateAsync(invite.metadata.id);
+                setTenant(invite.tenantId);
+              }}
+              disabled={invites.accept.isPending}
+            >
+              {invites.accept.isPending ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : null}
+              Accept
+            </Button>
+          </div>
+        </CardTitle>
+      </CardHeader>
+    </Card>
+  );
+}
 
 export function Alerter() {
   const { notifications: alerts } = useNotifications();

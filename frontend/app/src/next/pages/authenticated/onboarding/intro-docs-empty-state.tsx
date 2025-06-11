@@ -42,7 +42,7 @@ export const IntroDocsEmptyState: React.FC<IntroDocsEmptyStateProps> = ({
 }) => {
   return (
     <div className="w-full h-full flex flex-col gap-y-4 text-foreground py-8">
-      {title && <p className="text-lg font-bold">{title}</p>}
+      {title ? <p className="text-lg font-bold">{title}</p> : null}
       <p className="text-sm">
         {linkPreambleText}{' '}
         <DocExternalLink

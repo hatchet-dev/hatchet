@@ -21,6 +21,7 @@ export const WorkerListener: React.FC<{
 
     if (connected && !prevConnectedRef.current) {
       const jsConfetti = new JSConfetti();
+      // eslint-disable-next-line @typescript-eslint/no-floating-promises
       jsConfetti.addConfetti({
         emojis: ['🪓'],
       });

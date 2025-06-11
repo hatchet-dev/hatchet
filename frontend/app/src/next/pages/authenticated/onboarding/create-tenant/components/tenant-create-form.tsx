@@ -103,9 +103,9 @@ export function TenantCreateForm({
                 }
               }}
             />
-            {nameError && (
+            {nameError ? (
               <div className="text-sm text-red-500">{nameError}</div>
-            )}
+            ) : null}
           </div>
           <div className="grid gap-2">
             <Label htmlFor="name">Slug</Label>
@@ -122,12 +122,12 @@ export function TenantCreateForm({
               disabled={props.isLoading}
               spellCheck={false}
             />
-            {slugError && (
+            {slugError ? (
               <div className="text-sm text-red-500">{slugError}</div>
-            )}
+            ) : null}
           </div>
           <Button disabled={props.isLoading}>
-            {props.isLoading && <Spinner />}
+            {props.isLoading ? <Spinner /> : null}
             Create
           </Button>
         </div>
