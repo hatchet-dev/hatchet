@@ -139,7 +139,7 @@ jobs:
         run: |
           echo "Using HATCHET_CLIENT_NAMESPACE: $HATCHET_CLIENT_NAMESPACE"
 
-          poetry run pytest -s -vvv --maxfail=5 --capture=no --retries 3 --retry-delay 2
+          poetry run pytest -s -vvv --maxfail=5 --capture=no --retries 3 --retry-delay 2 -n auto
 
       - name: Upload engine logs
         if: always()

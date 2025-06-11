@@ -52,6 +52,7 @@ pytest-asyncio = "^0.25.3"
 pytest-env = "^1.1.5"
 pytest-retry = "^1.7.0"
 psycopg = { extras = ["pool"], version = "^3.2.6" }
+pytest-xdist = "^3.7.0"
 
 
 [tool.poetry.group.docs.dependencies]
