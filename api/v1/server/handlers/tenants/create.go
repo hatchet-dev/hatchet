@@ -63,14 +63,15 @@ func (t *TenantService) TenantCreate(ctx echo.Context, request gen.TenantCreateR
 
 	createOpts.UIVersion = &uiVersion
 
-	engineVersion := dbsqlc.TenantMajorEngineVersionV0
+	var engineVersion *dbsqlc.TenantMajorEngineVersion
 
 	if request.Body.EngineVersion != nil {
 		ver := *request.Body.EngineVersion
-		engineVersion = dbsqlc.TenantMajorEngineVersion(ver)
+		dbVer := dbsqlc.TenantMajorEngineVersion(ver)
+		engineVersion = &dbVer
 	}
 
-	createOpts.EngineVersion = &engineVersion
+	createOpts.EngineVersion = engineVersion
 
 	// write the user to the db
 	tenant, err := t.config.APIRepository.Tenant().CreateTenant(ctx.Request().Context(), createOpts)
