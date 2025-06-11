@@ -52,10 +52,12 @@ class WorkerActionRunLoopManager:
         self.runner: Runner | None = None
 
         self.client = Client(config=self.config, debug=self.debug)
+        self.start_loop_manager_task: asyncio.Task[None] | None = None
+
         self.start()
 
     def start(self) -> None:
-        k = self.loop.create_task(self.aio_start())  # noqa: F841
+        self.start_loop_manager_task = self.loop.create_task(self.aio_start())
 
     async def aio_start(self, retry_count: int = 1) -> None:
         await capture_logs(
