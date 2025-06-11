@@ -15,7 +15,7 @@ import {
   ClearFiltersButton,
   FilterWorkerSelect,
 } from '@/next/components/ui/filters/filters';
-import { V1TaskStatus, V1TaskSummary } from '@/lib/api';
+import { V1TaskStatus, V1TaskSummary, V1WorkflowType } from '@/lib/api';
 import { DocsButton } from '@/next/components/ui/docs-button';
 import docs from '@/next/lib/docs';
 import { RowSelectionState, OnChangeFn } from '@tanstack/react-table';
@@ -75,10 +75,6 @@ export function RunsTable({
     }
   }, [pause, rowSelection, isPaused]);
 
-  const selectedDagAndStandalones = useMemo(() => {
-    return runs.filter((run) => rowSelection[run.metadata.id]);
-  }, [rowSelection, runs]);
-
   const selectedTasks = useMemo(() => {
     const dagsAndStandalones = runs.filter(
       (run) => rowSelection[run.metadata.id],
@@ -86,24 +82,51 @@ export function RunsTable({
 
     const dagChildren = runs
       .filter((run) => run.children?.length)
-      .flatMap((run) => run?.children)
-      .filter((child): child is NonNullable<typeof child> =>
-        Boolean(child && rowSelection[child.metadata.id]),
+      .flatMap((run) => {
+        const everyChildSelected =
+          run.children?.every((child) => rowSelection[child.metadata.id]) ??
+          false;
+
+        return run?.children?.map((child) => ({
+          parentId: run.metadata.id,
+          child,
+          everyChildSelected,
+        }));
+      })
+      .filter((record): record is NonNullable<typeof record> =>
+        Boolean(record),
       );
 
-    return [...dagsAndStandalones, ...dagChildren];
+    const implicitDagsFromEveryChildSelected = dagChildren
+      .filter((record) => record.everyChildSelected)
+      .map((record) => record.parentId);
+
+    const implicitDags = runs.filter((run) =>
+      implicitDagsFromEveryChildSelected.includes(run.metadata.id),
+    );
+
+    const dags = Array.from(new Set([...implicitDags, ...dagsAndStandalones]));
+
+    const dagChildrenWithoutSelectedParent = dagChildren
+      .filter(
+        (child) =>
+          !child.everyChildSelected && rowSelection[child.child.metadata.id],
+      )
+      .map((record) => record.child);
+
+    return [...dagChildrenWithoutSelectedParent, ...dags];
   }, [rowSelection, runs]);
 
   const canCancel = useMemo(() => {
-    return selectedDagAndStandalones.some(
+    return selectedTasks.some(
       (t) =>
         t.status === V1TaskStatus.RUNNING || t.status === V1TaskStatus.QUEUED,
     );
-  }, [selectedDagAndStandalones]);
+  }, [selectedTasks]);
 
   const canReplay = useMemo(() => {
-    return selectedDagAndStandalones.length > 0;
-  }, [selectedDagAndStandalones]);
+    return selectedTasks.length > 0;
+  }, [selectedTasks]);
 
   const additionalMetaOpts = useMemo(() => {
     if (!runs || runs.length === 0) {
@@ -136,27 +159,7 @@ export function RunsTable({
         : updaterOrValue;
 
     setRowSelection(newSelection);
-
-    // // Update the selected tasks map
-    // const newSelectedTasks = new Map();
-    // if (runs) {
-    //   Object.keys(newSelection).forEach((taskId) => {
-    //     const task = runs.find((run) => run.taskExternalId === taskId);
-    //     if (task) {
-    //       newSelectedTasks.set(taskId, task);
-    //     }
-    //   });
-    // }
-    // setSelectedTasks(newSelectedTasks);
   };
-
-  console.log({
-    selectedTasks,
-    rowSelection,
-    canCancel,
-    canReplay,
-    numSelectedRows,
-  });
 
   const clearSelection = useCallback(() => {
     setSelectAll(false);
@@ -290,7 +293,7 @@ export function RunsTable({
                 size="sm"
                 disabled={!canReplay || replay.isPending}
                 onClick={async () =>
-                  replay.mutateAsync({ tasks: selectedDagAndStandalones })
+                  replay.mutateAsync({ tasks: selectedTasks })
                 }
               >
                 <MdOutlineReplay className="h-4 w-4" />
@@ -308,7 +311,7 @@ export function RunsTable({
                 size="sm"
                 disabled={!canCancel || cancel.isPending}
                 onClick={async () =>
-                  cancel.mutateAsync({ tasks: selectedDagAndStandalones })
+                  cancel.mutateAsync({ tasks: selectedTasks })
                 }
               >
                 <MdOutlineCancel className="h-4 w-4" />
