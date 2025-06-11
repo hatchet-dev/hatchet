@@ -8,7 +8,6 @@ import { Button } from '@/next/components/ui/button';
 import { Avatar, AvatarFallback } from '@/next/components/ui/avatar';
 import { Bell } from 'lucide-react';
 import useNotifications from '@/next/hooks/use-notifications';
-import { InviteCard } from '@/next/pages/authenticated/onboarding/invites/invites.page';
 import { useEffect, useState } from 'react';
 import {
   Tooltip,

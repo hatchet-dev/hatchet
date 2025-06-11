@@ -30,7 +30,7 @@ export const ROUTES = {
   onboarding: {
     newTenant: `${FB.onboarding}/create-tenant`,
     invites: `${FB.onboarding}/invites`,
-    getStarted: `${FB.onboarding}/get-started`,
+    getStarted: (tenantId: string) => `${FB.onboarding}/tenants/${tenantId}/get-started`,
   },
   events: {
     list: (tenantId: string) => `${FB.events(tenantId)}`,
