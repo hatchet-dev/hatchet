@@ -123,8 +123,6 @@ export function RunsTable({
     return [...individuallySelectedChildren, ...allSelectedDags];
   }, [rowSelection, runs]);
 
-  console.log(selectedTasks);
-
   const canCancel = useMemo(() => {
     return selectedTasks.some(
       (t) =>
