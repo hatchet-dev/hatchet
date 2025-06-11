@@ -32,7 +32,7 @@ hatchet.event.push(
 hatchet.event.push(
     event_key=EVENT_KEY,
     payload={
-        "should_skip": True,
+        "should_skip": False,
     },
     options=PushEventOptions(
         scope="foobarbaz",
