@@ -1,4 +1,4 @@
-import { createContext, useContext, useMemo } from 'react';
+import { createContext, useContext, useMemo, useState } from 'react';
 import { useQuery, UseQueryResult } from '@tanstack/react-query';
 import { cloudApi } from '@/lib/api/api';
 import {
@@ -6,7 +6,8 @@ import {
   ManagedWorker,
   Matrix,
 } from '@/lib/api/generated/cloud/data-contracts';
-import { ListCloudLogsQuery } from '@/lib/api/queries';
+import { queries } from '@/lib/api';
+import { ListCloudLogsQuery, GetCloudMetricsQuery } from '@/lib/api/queries';
 import { subDays } from 'date-fns';
 import { useToast } from '@/next/hooks/utils/use-toast';
 
@@ -17,11 +18,15 @@ interface ManagedComputeDetailState {
   refetch: () => Promise<UseQueryResult<ManagedWorker | undefined, Error>>;
   logs: UseQueryResult<LogLineList, Error> | undefined;
   activity: UseQueryResult<LogLineList, Error> | undefined;
+  instances: UseQueryResult<any, Error> | undefined;
+  events: UseQueryResult<any, Error> | undefined;
   metrics: {
     cpu: UseQueryResult<Matrix, Error> | undefined;
     memory: UseQueryResult<Matrix, Error> | undefined;
     disk: UseQueryResult<Matrix, Error> | undefined;
   };
+  setLogsQuery: (query: ListCloudLogsQuery) => void;
+  setMetricsQuery: (query: GetCloudMetricsQuery) => void;
 }
 
 const ManagedComputeDetailContext =
@@ -41,24 +46,30 @@ interface ManagedComputeDetailProviderProps {
   children: React.ReactNode;
   managedWorkerId: string;
   defaultRefetchInterval?: number;
+  initialLogsQuery?: ListCloudLogsQuery;
 }
 
 export function ManagedComputeDetailProvider({
   children,
   managedWorkerId,
   defaultRefetchInterval,
+  initialLogsQuery,
 }: ManagedComputeDetailProviderProps) {
   const { toast } = useToast();
 
-  const logsQuery = useMemo<ListCloudLogsQuery>(
-    () => ({
-      before: subDays(new Date(), 1).toISOString(),
-      after: new Date().toISOString(),
+  const [logsQuery, setLogsQuery] = useState<ListCloudLogsQuery>(
+    initialLogsQuery || {
+      before: new Date().toISOString(),
+      after: subDays(new Date(), 1).toISOString(),
       direction: 'backward',
       search: '',
-    }),
-    [],
+    },
   );
+
+  const [metricsQuery, setMetricsQuery] = useState<GetCloudMetricsQuery>({
+    after: subDays(new Date(), 1).toISOString(),
+    before: new Date().toISOString(),
+  });
 
   const managedWorkerQuery = useQuery({
     queryKey: ['managed-worker:get', managedWorkerId],
@@ -79,7 +90,7 @@ export function ManagedComputeDetailProvider({
   });
 
   const managedWorkerLogsQuery = useQuery({
-    queryKey: ['managed-worker:logs', managedWorkerId],
+    queryKey: ['managed-worker:logs', managedWorkerId, logsQuery],
     queryFn: async () => {
       try {
         const res = await cloudApi.logList(managedWorkerId, logsQuery);
@@ -97,10 +108,10 @@ export function ManagedComputeDetailProvider({
   });
 
   const getCpuMetricsQuery = useQuery({
-    queryKey: ['managed-worker:get:cpu-metrics', managedWorkerId, logsQuery],
+    queryKey: ['managed-worker:get:cpu-metrics', managedWorkerId, metricsQuery],
     queryFn: async () => {
       try {
-        const res = await cloudApi.metricsCpuGet(managedWorkerId, logsQuery);
+        const res = await cloudApi.metricsCpuGet(managedWorkerId, metricsQuery);
         return res.data;
       } catch (error) {
         toast({
@@ -116,10 +127,17 @@ export function ManagedComputeDetailProvider({
   });
 
   const getMemoryMetricsQuery = useQuery({
-    queryKey: ['managed-worker:get:memory-metrics', managedWorkerId, logsQuery],
+    queryKey: [
+      'managed-worker:get:memory-metrics',
+      managedWorkerId,
+      metricsQuery,
+    ],
     queryFn: async () => {
       try {
-        const res = await cloudApi.metricsMemoryGet(managedWorkerId, logsQuery);
+        const res = await cloudApi.metricsMemoryGet(
+          managedWorkerId,
+          metricsQuery,
+        );
         return res.data;
       } catch (error) {
         toast({
@@ -135,10 +153,17 @@ export function ManagedComputeDetailProvider({
   });
 
   const getDiskMetricsQuery = useQuery({
-    queryKey: ['managed-worker:get:disk-metrics', managedWorkerId, logsQuery],
+    queryKey: [
+      'managed-worker:get:disk-metrics',
+      managedWorkerId,
+      metricsQuery,
+    ],
     queryFn: async () => {
       try {
-        const res = await cloudApi.metricsDiskGet(managedWorkerId, logsQuery);
+        const res = await cloudApi.metricsDiskGet(
+          managedWorkerId,
+          metricsQuery,
+        );
         return res.data;
       } catch (error) {
         toast({
@@ -153,6 +178,18 @@ export function ManagedComputeDetailProvider({
     refetchInterval: defaultRefetchInterval,
   });
 
+  const managedWorkerInstancesQuery = useQuery({
+    ...queries.cloud.listManagedWorkerInstances(managedWorkerId),
+    enabled: !!managedWorkerId,
+    refetchInterval: defaultRefetchInterval,
+  });
+
+  const managedWorkerEventsQuery = useQuery({
+    ...queries.cloud.listManagedWorkerEvents(managedWorkerId),
+    enabled: !!managedWorkerId,
+    refetchInterval: defaultRefetchInterval,
+  });
+
   const value = useMemo(
     () =>
       ({
@@ -161,15 +198,21 @@ export function ManagedComputeDetailProvider({
         error: managedWorkerQuery.error,
         refetch: managedWorkerQuery.refetch,
         logs: managedWorkerLogsQuery,
+        instances: managedWorkerInstancesQuery,
+        events: managedWorkerEventsQuery,
         metrics: {
           cpu: getCpuMetricsQuery,
           memory: getMemoryMetricsQuery,
           disk: getDiskMetricsQuery,
         },
+        setLogsQuery,
+        setMetricsQuery,
       }) as ManagedComputeDetailState,
     [
       managedWorkerQuery,
       managedWorkerLogsQuery,
+      managedWorkerInstancesQuery,
+      managedWorkerEventsQuery,
       getCpuMetricsQuery,
       getMemoryMetricsQuery,
       getDiskMetricsQuery,

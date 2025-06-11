@@ -1,9 +1,6 @@
 import { FC } from 'react';
-import { WorkerTable } from '../../components/worker-table';
-interface WorkersTabProps {
-  poolName: string;
-}
+import { ManagedWorkerInstancesTable } from './managed-worker-instances-table';
 
-export const WorkersTab: FC<WorkersTabProps> = ({ poolName }) => {
-  return <WorkerTable poolName={poolName} />;
+export const ManagedWorkerInstances: FC = () => {
+  return <ManagedWorkerInstancesTable />;
 };
