@@ -19,8 +19,25 @@ def find_id(runs: V1WorkflowRunDetails, match: str) -> str:
 async def test_no_retry(hatchet: Hatchet) -> None:
     ref = await non_retryable_workflow.aio_run_no_wait()
 
-    with pytest.raises(Exception, match="retry"):
+    with pytest.raises(ExceptionGroup) as exc_info:
         await ref.aio_result()
+
+    exception_group = exc_info.value
+
+    assert len(exception_group.exceptions) == 2
+
+    exc_text = [e.message for e in exception_group.exceptions]
+
+    non_retrys = [
+        e
+        for e in exc_text
+        if "This task should retry because it's not a NonRetryableException" in e
+    ]
+
+    other_errors = [e for e in exc_text if "This task should not retry" in e]
+
+    assert len(non_retrys) == 1
+    assert len(other_errors) == 1
 
     runs = await hatchet.runs.aio_get(ref.workflow_run_id)
     task_to_id = {
