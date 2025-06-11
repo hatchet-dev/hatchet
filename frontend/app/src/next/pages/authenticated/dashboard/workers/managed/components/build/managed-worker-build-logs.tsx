@@ -9,13 +9,16 @@ export function ManagedWorkerBuildLogs({ buildId }: { buildId: string }) {
     refetchInterval: 5000,
   });
 
-  const fallbackLogs = useMemo(() => [
-    {
-      line: 'Loading...',
-      timestamp: new Date().toISOString(),
-      instance: 'Hatchet',
-    },
-  ], []);
+  const fallbackLogs = useMemo(
+    () => [
+      {
+        line: 'Loading...',
+        timestamp: new Date().toISOString(),
+        instance: 'Hatchet',
+      },
+    ],
+    [],
+  );
 
   const logs = getBuildLogsQuery.data?.rows || fallbackLogs;
 
