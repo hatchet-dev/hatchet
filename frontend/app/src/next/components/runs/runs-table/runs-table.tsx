@@ -76,46 +76,54 @@ export function RunsTable({
   }, [pause, rowSelection, isPaused]);
 
   const selectedTasks = useMemo(() => {
-    const dagsAndStandalones = runs.filter(
+    const directlySelectedRuns = runs.filter(
       (run) => rowSelection[run.metadata.id],
     );
 
-    const dagChildren = runs
+    const flattenedDagChildren = runs
       .filter((run) => run.children?.length)
-      .flatMap((run) => {
-        const everyChildSelected =
-          run.children?.every((child) => rowSelection[child.metadata.id]) ??
+      .flatMap((dagRun) => {
+        const allChildrenSelected =
+          dagRun.children?.every((child) => rowSelection[child.metadata.id]) ??
           false;
 
-        return run?.children?.map((child) => ({
-          parentId: run.metadata.id,
-          child,
-          everyChildSelected,
+        return dagRun?.children?.map((child) => ({
+          parentDagId: dagRun.metadata.id,
+          childTask: child,
+          allSiblingsSelected: allChildrenSelected,
         }));
       })
       .filter((record): record is NonNullable<typeof record> =>
         Boolean(record),
       );
 
-    const implicitDagsFromEveryChildSelected = dagChildren
-      .filter((record) => record.everyChildSelected)
-      .map((record) => record.parentId);
+    const implicitlySelectedDagIds = flattenedDagChildren
+      .filter((child) => child.allSiblingsSelected)
+      .map((child) => child.parentDagId);
 
-    const implicitDags = runs.filter((run) =>
-      implicitDagsFromEveryChildSelected.includes(run.metadata.id),
+    const implicitlySelectedDags = runs.filter((run) =>
+      implicitlySelectedDagIds.includes(run.metadata.id),
     );
 
-    const dags = Array.from(new Set([...implicitDags, ...dagsAndStandalones]));
+    const allSelectedDags = Array.from(
+      new Set([...implicitlySelectedDags, ...directlySelectedRuns]),
+    );
 
-    const dagChildrenWithoutSelectedParent = dagChildren
+    // Find individual child tasks that are selected but whose parent DAG is not fully selected
+    // Doing this so we can simplify handling of bulk actions (e.g. if all of the tasks in a DAG
+    // are selected, we can just select the DAG instead of each individual task)
+    const individuallySelectedChildren = flattenedDagChildren
       .filter(
         (child) =>
-          !child.everyChildSelected && rowSelection[child.child.metadata.id],
+          !child.allSiblingsSelected &&
+          rowSelection[child.childTask.metadata.id],
       )
-      .map((record) => record.child);
+      .map((analysis) => analysis.childTask);
 
-    return [...dagChildrenWithoutSelectedParent, ...dags];
+    return [...individuallySelectedChildren, ...allSelectedDags];
   }, [rowSelection, runs]);
+
+  console.log(selectedTasks);
 
   const canCancel = useMemo(() => {
     return selectedTasks.some(
