@@ -3,7 +3,7 @@ from datetime import timedelta
 from typing import Any
 
 from hatchet_sdk import Context, EmptyModel, Hatchet, TriggerWorkflowOptions
-from hatchet_sdk.clients.admin import DedupeViolationErr
+from hatchet_sdk.exceptions import DedupeViolationError
 
 hatchet = Hatchet(debug=True)
 
@@ -28,7 +28,7 @@ async def spawn(input: EmptyModel, ctx: Context) -> dict[str, list[Any]]:
                     )
                 )
             )
-        except DedupeViolationErr as e:
+        except DedupeViolationError as e:
             print(f"dedupe violation {e}")
             continue
 
