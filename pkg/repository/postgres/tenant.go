@@ -60,8 +60,7 @@ func (r *tenantAPIRepository) CreateTenant(ctx context.Context, opts *repository
 
 	engineVersion := r.defaultTenantVersion
 	if opts.EngineVersion != nil {
-		ver := *opts.EngineVersion
-		engineVersion = dbsqlc.TenantMajorEngineVersion(ver)
+		engineVersion = *opts.EngineVersion
 	}
 
 	tx, err := r.pool.Begin(ctx)
