@@ -170,7 +170,6 @@ export function RunsTable({
   const clearSelection = useCallback(() => {
     setSelectAll(false);
     setRowSelection({});
-    // setSelectedTasks(new Map());
   }, [setSelectAll, setRowSelection]);
 
   useEffect(() => {
