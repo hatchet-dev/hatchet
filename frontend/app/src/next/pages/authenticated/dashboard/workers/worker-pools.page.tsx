@@ -9,13 +9,7 @@ import {
   useUnifiedWorkerPools,
 } from '@/next/hooks/use-managed-compute';
 import { Button } from '@/next/components/ui/button';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/next/components/ui/select';
+
 import {
   MoreHorizontal,
   ArrowUpRight,
@@ -53,7 +47,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/next/components/ui/card';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { SlotsBadge } from './components/worker-slots-badge';
 import { WorkerStatusBadge } from './components/worker-status-badge';
 import BasicLayout from '@/next/components/layouts/basic.layout';
@@ -69,8 +63,20 @@ import { Separator } from '@/next/components/ui/separator';
 import { ROUTES } from '@/next/lib/routes';
 import { WorkerType } from '@/lib/api';
 import { useCurrentTenantId } from '@/next/hooks/use-tenant';
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from '@/next/components/ui/tabs';
 
-const WorkerPoolRow = ({ pool }: { pool: WorkerPool }) => {
+const WorkerPoolRow = ({
+  pool,
+  showSlots = true,
+}: {
+  pool: WorkerPool;
+  showSlots?: boolean;
+}) => {
   const { bulkUpdate } = useWorkers();
   const { tenantId } = useCurrentTenantId();
 
@@ -143,20 +149,21 @@ const WorkerPoolRow = ({ pool }: { pool: WorkerPool }) => {
           )}
         </div>
       </TableCell>
-      <TableCell>
-        <SlotsBadge
-          available={pool.totalAvailableRuns}
-          max={pool.totalMaxRuns}
-        />
-      </TableCell>
+      {showSlots ? (
+        <TableCell>
+          <SlotsBadge
+            available={pool.totalAvailableRuns}
+            max={pool.totalMaxRuns}
+          />
+        </TableCell>
+      ) : null}
       <TableCell>{getLastActiveTime()}</TableCell>
-      <TableCell>{pool.type}</TableCell>
       <TableCell className="text-right">
         <div className="flex justify-end">
           <Link
             to={ROUTES.workers.poolDetail(
               tenantId,
-              encodeURIComponent(pool.name),
+              encodeURIComponent(pool.id || pool.name),
               pool.type,
             )}
           >
@@ -178,7 +185,7 @@ const WorkerPoolRow = ({ pool }: { pool: WorkerPool }) => {
                 <Link
                   to={ROUTES.workers.poolDetail(
                     tenantId,
-                    encodeURIComponent(pool.name),
+                    encodeURIComponent(pool.id || pool.name),
                     pool.type,
                   )}
                   className="w-full"
@@ -282,108 +289,144 @@ function WorkerContext() {
   const { pools, isLoading } = useUnifiedWorkerPools();
 
   const [showCloudCard, setShowCloudCard] = useState(true);
-  const [statusFilter, setStatusFilter] = useState('all');
   const { tenantId } = useCurrentTenantId();
 
   const handleDismissCard = () => {
     setShowCloudCard(false);
   };
 
-  const handleStatusChange = (status: string) => {
-    setStatusFilter(status);
-  };
+  const { selfHostedPools, managedPools } = useMemo(() => {
+    if (!pools) {
+      return { selfHostedPools: [], managedPools: [] };
+    }
 
-  const renderTableContent = () => {
+    const selfHosted = pools.filter(
+      (pool) => pool.type === WorkerType.SELFHOSTED,
+    );
+    const managed = pools.filter((pool) => pool.type === WorkerType.MANAGED);
+
+    return {
+      selfHostedPools: selfHosted,
+      managedPools: managed,
+    };
+  }, [pools]);
+
+  const renderTableContent = (
+    poolList: WorkerPool[],
+    emptyMessage: string,
+    showSlots: boolean = true,
+  ) => {
     if (isLoading) {
       return Array(5)
         .fill(null)
         .map((_, i) => <SkeletonRow key={i} />);
     }
 
-    if (!pools || pools.length === 0) {
+    if (!poolList || poolList.length === 0) {
       return (
         <TableRow>
-          <TableCell colSpan={5} className="text-center">
-            No worker pools found
+          <TableCell colSpan={showSlots ? 5 : 4} className="text-center">
+            {emptyMessage}
           </TableCell>
         </TableRow>
       );
     }
 
-    return pools.map((pool) => <WorkerPoolRow key={pool.name} pool={pool} />);
+    return poolList.map((pool) => (
+      <WorkerPoolRow key={pool.name} pool={pool} showSlots={showSlots} />
+    ));
   };
 
   return (
     <BasicLayout>
       <Headline>
-        <PageTitle description="Manage your workers and view their statuses and task runs">
-          Worker Pools
+        <PageTitle description="Deploy new workers or debug issues.">
+          Workers
         </PageTitle>
         <HeadlineActions>
           <HeadlineActionItem>
             <DocsButton doc={docs.home.workers} size="icon" />
-          </HeadlineActionItem>
-          <HeadlineActionItem>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button>
-                  <Plus className="h-4 w-4" />
-                  New Worker
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent>
-                <DropdownMenuItem asChild>
-                  <Link to={ROUTES.workers.new(tenantId, WorkerType.MANAGED)}>
-                    Managed Worker
-                  </Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <Link
-                    to={ROUTES.workers.new(tenantId, WorkerType.SELFHOSTED)}
-                  >
-                    Self-hosted Worker
-                  </Link>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
           </HeadlineActionItem>
         </HeadlineActions>
       </Headline>
 
       <Separator className="my-4" />
 
-      <div className="flex flex-col gap-4">
-        <div className="flex justify-between items-center">
-          <Select value={statusFilter} onValueChange={handleStatusChange}>
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="Filter by status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Statuses</SelectItem>
-              <SelectItem value="active">Active</SelectItem>
-              <SelectItem value="paused">Paused</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+      <Tabs defaultValue="self-hosted" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="self-hosted">
+            <Server className="h-4 w-4 mr-2" />
+            Running Workers ({selfHostedPools.length})
+          </TabsTrigger>
+          <TabsTrigger value="managed">
+            <Cloud className="h-4 w-4 mr-2" />
+            Managed Worker Pools ({managedPools.length})
+          </TabsTrigger>
+        </TabsList>
 
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Pool</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Slots</TableHead>
-              <TableHead>Last Active</TableHead>
-              <TableHead>Type</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>{renderTableContent()}</TableBody>
-        </Table>
+        <TabsContent value="self-hosted" className="space-y-4">
+          <div className="flex justify-end items-center">
+            <Link to={ROUTES.workers.new(tenantId, WorkerType.SELFHOSTED)}>
+              <Button>
+                <Plus className="h-4 w-4 mr-2" />
+                New Self-hosted Worker
+              </Button>
+            </Link>
+          </div>
 
-        {showCloudCard ? (
-          <HatchetCloudCard onDismiss={handleDismissCard} />
-        ) : null}
-      </div>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Pool</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Slots</TableHead>
+                <TableHead>Last Active</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {renderTableContent(
+                selfHostedPools,
+                'No self-hosted worker pools found',
+                true,
+              )}
+            </TableBody>
+          </Table>
+        </TabsContent>
+
+        <TabsContent value="managed" className="space-y-4">
+          <div className="flex justify-end items-center">
+            <Link to={ROUTES.workers.new(tenantId, WorkerType.MANAGED)}>
+              <Button>
+                <Plus className="h-4 w-4 mr-2" />
+                New Managed Worker
+              </Button>
+            </Link>
+          </div>
+
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Pool</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Last Active</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {renderTableContent(
+                managedPools,
+                'No managed worker pools found',
+                false,
+              )}
+            </TableBody>
+          </Table>
+
+          {showCloudCard ? (
+            <HatchetCloudCard onDismiss={handleDismissCard} />
+          ) : null}
+        </TabsContent>
+      </Tabs>
     </BasicLayout>
   );
 }
