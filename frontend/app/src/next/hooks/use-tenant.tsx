@@ -48,14 +48,13 @@ export function useTenantDetails() {
         );
 
         navigate(newPath);
-        return;
       } else if (targetEngineVersion === TenantVersion.V1) {
         window.location.href = `/v1/runs?tenant=${tenantId}`;
       } else if (targetEngineVersion === TenantVersion.V0) {
         window.location.href = `/workflow-runs?tenant=${tenantId}`;
       }
     },
-    [navigate, location.pathname],
+    [navigate, location.pathname, memberships],
   );
 
   const membership = useMemo(() => {

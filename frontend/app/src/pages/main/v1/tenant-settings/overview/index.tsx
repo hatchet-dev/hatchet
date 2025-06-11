@@ -2,11 +2,7 @@ import { Button } from '@/components/v1/ui/button';
 import { Separator } from '@/components/v1/ui/separator';
 import { TenantContextType } from '@/lib/outlet';
 import { useState } from 'react';
-import {
-  createSearchParams,
-  useNavigate,
-  useOutletContext,
-} from 'react-router-dom';
+import { useOutletContext } from 'react-router-dom';
 import { useApiError } from '@/lib/hooks';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import api, {
@@ -163,7 +159,6 @@ const TenantVersionSwitcher = () => {
 
 function UIVersionSwitcher() {
   const { tenant } = useOutletContext<TenantContextType>();
-  const navigate = useNavigate();
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const { handleApiError } = useApiError({});
 

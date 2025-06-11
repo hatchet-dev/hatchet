@@ -12,6 +12,21 @@ export default function AuthenticatedGuard() {
   const location = useLocation();
   const { tenant, isLoading: tenantIsLoading } = useTenantDetails();
 
+  useEffect(() => {
+    if (
+      !user.isLoading &&
+      !tenantIsLoading &&
+      tenant &&
+      tenant?.uiVersion !== TenantUIVersion.V1 &&
+      tenant.uiVersion
+    ) {
+      if (tenant.version === TenantVersion.V0) {
+        window.location.href = `/workflow-runs?tenant=${tenant?.metadata.id}`;
+      } else {
+        window.location.href = `/v1/runs?tenant=${tenant?.metadata.id}`;
+      }
+    }
+  });
   // user is not authenticated
   if (!user.isLoading && !user.data) {
     return <Navigate to="../auth/login" />;
@@ -21,23 +36,6 @@ export default function AuthenticatedGuard() {
   if (!user.isLoading && !user.data?.emailVerified) {
     return <Navigate to="../auth/verify-email" />;
   }
-
-  useEffect(() => {
-    if (
-      !user.isLoading &&
-      !tenantIsLoading &&
-      tenant &&
-      tenant?.uiVersion !== TenantUIVersion.V1 &&
-      tenant.uiVersion
-    ) {
-      console.log('Rendering effect');
-      if (tenant.version === TenantVersion.V0) {
-        window.location.href = `/workflow-runs?tenant=${tenant?.metadata.id}`;
-      } else {
-        window.location.href = `/v1/runs?tenant=${tenant?.metadata.id}`;
-      }
-    }
-  });
 
   if (
     !user.isLoading &&
