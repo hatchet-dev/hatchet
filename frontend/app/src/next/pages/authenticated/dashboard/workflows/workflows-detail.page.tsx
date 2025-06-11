@@ -164,15 +164,16 @@ function WorkflowDetailPageContent({ workflowId }: { workflowId: string }) {
             <RunsProvider
               initialFilters={{
                 workflow_ids: [workflowId],
-                statuses: [
-                  V1TaskStatus.RUNNING,
-                  V1TaskStatus.COMPLETED,
-                  V1TaskStatus.FAILED,
-                  V1TaskStatus.CANCELLED,
-                ],
               }}
             >
-              <RunsTable />
+              <RunsTable
+                excludedFilters={[
+                  'workflow_ids',
+                  'task_ids',
+                  'is_root_task',
+                  'only_tasks',
+                ]}
+              />
             </RunsProvider>
           </TabsContent>
           <TabsContent value="settings">

@@ -350,7 +350,8 @@ export function FilterKeyValue<T>({
                 className="w-full justify-start text-foreground gap-2"
               >
                 <PlusCircledIcon className="h-4 w-4" />
-                {placeholder} ({currentFilters.length})
+                {placeholder}{' '}
+                {currentFilters.length > 0 ? `(${currentFilters.length})` : ''}
               </Button>
             </TooltipTrigger>
           </PopoverTrigger>
