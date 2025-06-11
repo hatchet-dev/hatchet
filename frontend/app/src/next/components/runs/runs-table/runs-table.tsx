@@ -27,18 +27,21 @@ import { ROUTES } from '@/next/lib/routes';
 import { useNavigate } from 'react-router-dom';
 import { useCurrentTenantId } from '@/next/hooks/use-tenant';
 import { WorkersProvider } from '@/next/hooks/use-workers';
+
+type RunFilterOptions = keyof RunsFilters | 'task_ids';
+
 interface RunsTableProps {
   onRowClick?: (row: V1TaskSummary) => void;
   selectedTaskId?: string;
   onSelectionChange?: (selectedRows: V1TaskSummary[]) => void;
   onTriggerRunClick?: () => void;
-  excludedFilters?: (keyof RunsFilters)[];
+  excludedFilters?: RunFilterOptions[];
   showPagination?: boolean;
   allowSelection?: boolean;
   showActions?: boolean;
 }
 
-const defaultExcludedFilters: (keyof RunsFilters)[] = [];
+const defaultExcludedFilters: RunFilterOptions[] = [];
 
 export function RunsTable({
   onRowClick,
@@ -68,9 +71,6 @@ export function RunsTable({
   >(null);
 
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
-  const [selectedTasks, setSelectedTasks] = useState<
-    Map<string, V1TaskSummary>
-  >(new Map());
 
   useEffect(() => {
     if (Object.keys(rowSelection).length > 0 && !isPaused) {
@@ -78,20 +78,64 @@ export function RunsTable({
     }
   }, [pause, rowSelection, isPaused]);
 
-  const selectedRuns = useMemo(() => {
-    return Array.from(selectedTasks.values());
-  }, [selectedTasks]);
+  const selectedTasks = useMemo(() => {
+    const directlySelectedRuns = runs.filter(
+      (run) => rowSelection[run.metadata.id],
+    );
+
+    const flattenedDagChildren = runs
+      .filter((run) => run.children?.length)
+      .flatMap((dagRun) => {
+        const allChildrenSelected =
+          dagRun.children?.every((child) => rowSelection[child.metadata.id]) ??
+          false;
+
+        return dagRun?.children?.map((child) => ({
+          parentDagId: dagRun.metadata.id,
+          childTask: child,
+          allSiblingsSelected: allChildrenSelected,
+        }));
+      })
+      .filter((record): record is NonNullable<typeof record> =>
+        Boolean(record),
+      );
+
+    const implicitlySelectedDagIds = flattenedDagChildren
+      .filter((child) => child.allSiblingsSelected)
+      .map((child) => child.parentDagId);
+
+    const implicitlySelectedDags = runs.filter((run) =>
+      implicitlySelectedDagIds.includes(run.metadata.id),
+    );
+
+    const allSelectedDags = Array.from(
+      new Set([...implicitlySelectedDags, ...directlySelectedRuns]),
+    );
+
+    // Find individual child tasks that are selected but whose parent DAG is not fully selected
+    // Doing this so we can simplify handling of bulk actions (e.g. if all of the tasks in a DAG
+    // are selected, we can just select the DAG instead of each individual task)
+    const individuallySelectedChildren = flattenedDagChildren
+      .filter(
+        (child) =>
+          !child.allSiblingsSelected &&
+          rowSelection[child.childTask.metadata.id],
+      )
+      .map((analysis) => analysis.childTask);
+
+    return [...individuallySelectedChildren, ...allSelectedDags];
+  }, [rowSelection, runs]);
 
   const canCancel = useMemo(() => {
-    return selectedRuns.some(
+    return selectedTasks.some(
       (t) =>
         t.status === V1TaskStatus.RUNNING || t.status === V1TaskStatus.QUEUED,
     );
-  }, [selectedRuns]);
+  }, [selectedTasks]);
 
   const canReplay = useMemo(() => {
-    return selectedRuns.length > 0;
-  }, [selectedRuns]);
+    return selectedTasks.length > 0;
+  }, [selectedTasks]);
 
   const additionalMetaOpts = useMemo(() => {
     if (!runs || runs.length === 0) {
@@ -124,25 +168,12 @@ export function RunsTable({
         : updaterOrValue;
 
     setRowSelection(newSelection);
-
-    // Update the selected tasks map
-    const newSelectedTasks = new Map();
-    if (runs) {
-      Object.keys(newSelection).forEach((taskId) => {
-        const task = runs.find((run) => run.taskExternalId === taskId);
-        if (task) {
-          newSelectedTasks.set(taskId, task);
-        }
-      });
-    }
-    setSelectedTasks(newSelectedTasks);
   };
 
   const clearSelection = useCallback(() => {
     setSelectAll(false);
     setRowSelection({});
-    setSelectedTasks(new Map());
-  }, [setSelectAll, setRowSelection, setSelectedTasks]);
+  }, [setSelectAll, setRowSelection]);
 
   useEffect(() => {
     clearSelection();
@@ -193,7 +224,7 @@ export function RunsTable({
             ]}
           />
         )}
-        {!excludedFilters.includes('workflow_ids') && (
+        {!excludedFilters.includes('task_ids') && (
           <FilterTaskSelect<RunsFilters>
             name="workflow_ids"
             placeholder="Task Name"
@@ -217,7 +248,7 @@ export function RunsTable({
           />
         )}
         {/* IMPORTANT: Keep this count in sync with the number of filters above */}
-        {excludedFilters.length < 4 && <ClearFiltersButton />}
+        {excludedFilters.length < 6 && <ClearFiltersButton />}
       </FilterGroup>
       <div className="flex items-center justify-between">
         <div className="flex-1 text-sm text-muted-foreground">
@@ -270,7 +301,7 @@ export function RunsTable({
                 size="sm"
                 disabled={!canReplay || replay.isPending}
                 onClick={async () =>
-                  replay.mutateAsync({ tasks: selectedRuns })
+                  replay.mutateAsync({ tasks: selectedTasks })
                 }
               >
                 <MdOutlineReplay className="h-4 w-4" />
@@ -288,7 +319,7 @@ export function RunsTable({
                 size="sm"
                 disabled={!canCancel || cancel.isPending}
                 onClick={async () =>
-                  cancel.mutateAsync({ tasks: selectedRuns })
+                  cancel.mutateAsync({ tasks: selectedTasks })
                 }
               >
                 <MdOutlineCancel className="h-4 w-4" />

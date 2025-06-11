@@ -1070,6 +1070,8 @@ export interface CreateTenantRequest {
   slug: string;
   /** The UI version of the tenant. Defaults to V0. */
   uiVersion?: TenantUIVersion;
+  /** The engine version of the tenant. Defaults to V0. */
+  engineVersion?: TenantVersion;
 }
 
 export interface UpdateTenantRequest {

@@ -116,10 +116,10 @@ export function TogglePause() {
             ]}
           >
             {isPaused ? (
-              <>
+              <div className="flex flex-row gap-x-2">
                 <TbSnowflakeOff className="h-4 w-4" />
                 <span className="text-xs">Unfreeze</span>
-              </>
+              </div>
             ) : (
               <TbSnowflake className="h-4 w-4" />
             )}
@@ -182,7 +182,7 @@ export function TimeFilter({ className }: TimeFilterProps) {
           </DropdownMenuContent>
         </DropdownMenu>
       ) : (
-        <div className="flex items-center gap-4">
+        <div className="flex flex-col md:flex-row items-center gap-4">
           <DateTimePicker
             date={startDate}
             setDate={(date) => {
@@ -195,7 +195,6 @@ export function TimeFilter({ className }: TimeFilterProps) {
                 handleClearTimeFilters();
               }
             }}
-            label="Start Time"
           />
           <DateTimePicker
             date={endDate}
@@ -211,7 +210,6 @@ export function TimeFilter({ className }: TimeFilterProps) {
                 handleClearTimeFilters();
               }
             }}
-            label="End Time"
           />
         </div>
       )}

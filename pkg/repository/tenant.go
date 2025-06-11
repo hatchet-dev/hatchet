@@ -20,6 +20,8 @@ type CreateTenantOpts struct {
 	DataRetentionPeriod *string `validate:"omitempty,duration"`
 
 	UIVersion *dbsqlc.TenantMajorUIVersion `validate:"omitempty"`
+
+	EngineVersion *dbsqlc.TenantMajorEngineVersion `validate:"omitempty"`
 }
 
 type UpdateTenantOpts struct {

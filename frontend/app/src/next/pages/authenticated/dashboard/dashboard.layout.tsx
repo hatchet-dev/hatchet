@@ -24,10 +24,6 @@ import { Alerter } from './components/sidebar/alerter';
 import { cn } from '@/next/lib/utils';
 
 export default function DashboardLayout() {
-  return <DashboardLayoutContent />;
-}
-
-function DashboardLayoutContent() {
   const { tenant, isLoading } = useTenantDetails();
   const { toggleTheme, theme } = useTheme();
   const { logout } = useUser();

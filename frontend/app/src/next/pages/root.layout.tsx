@@ -13,7 +13,6 @@ import { Outlet } from 'react-router-dom';
 import { Toaster } from '@/next/components/ui/toaster';
 import { ToastProvider } from '@/next/hooks/utils/use-toast';
 import { SidePanel } from '../components/ui/sheet/side-sheet.layout';
-import { SidebarProvider } from '@/next/components/ui/sidebar';
 import { SidePanelProvider, useSidePanel } from '../hooks/use-side-panel';
 
 function usePersistentPanelWidth(defaultWidth: number = 67) {
@@ -171,12 +170,10 @@ function Root({ children }: PropsWithChildren) {
   return (
     <ToastProvider>
       <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
-        <SidebarProvider>
-          <SidePanelProvider>
-            <Toaster />
-            <RootContent>{children}</RootContent>
-          </SidePanelProvider>
-        </SidebarProvider>
+        <SidePanelProvider>
+          <Toaster />
+          <RootContent>{children}</RootContent>
+        </SidePanelProvider>
       </ThemeProvider>
     </ToastProvider>
   );

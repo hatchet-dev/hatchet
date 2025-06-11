@@ -220,7 +220,7 @@ const StatusBadgeWithTooltip = ({
   }
 
   return (
-    <Tooltip>
+    <Tooltip delayDuration={300}>
       <TooltipTrigger asChild>
         <div>
           <RunsBadge status={status} variant="default" />
@@ -242,6 +242,7 @@ const StatusBadgeWithTooltip = ({
               'triggering_event_external_id',
               'worker_id',
               'workflow_ids',
+              'task_ids',
             ]}
             showPagination={false}
             allowSelection={false}
