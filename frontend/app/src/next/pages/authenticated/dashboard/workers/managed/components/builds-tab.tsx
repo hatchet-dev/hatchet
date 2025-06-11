@@ -20,7 +20,7 @@ import {
 import RelativeDate from '@/next/components/ui/relative-date';
 import { cn } from '@/next/lib/utils';
 import { ArrowRightIcon } from '@radix-ui/react-icons';
-import { ManagedWorkerBuild } from './build/managed-worker-build';
+import { ManagedWorkerBuild } from './builds/managed-worker-build';
 
 export const BuildsTab: FC = () => {
   const { data: managedWorker } = useManagedComputeDetail();
