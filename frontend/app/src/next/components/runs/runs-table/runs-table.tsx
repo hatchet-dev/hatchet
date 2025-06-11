@@ -68,9 +68,6 @@ export function RunsTable({
   >(null);
 
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
-  const [selectedTasks, setSelectedTasks] = useState<
-    Map<string, V1TaskSummary>
-  >(new Map());
 
   useEffect(() => {
     if (Object.keys(rowSelection).length > 0 && !isPaused) {
@@ -78,20 +75,35 @@ export function RunsTable({
     }
   }, [pause, rowSelection, isPaused]);
 
-  const selectedRuns = useMemo(() => {
-    return Array.from(selectedTasks.values());
-  }, [selectedTasks]);
+  const selectedDagAndStandalones = useMemo(() => {
+    return runs.filter((run) => rowSelection[run.metadata.id]);
+  }, [rowSelection, runs]);
+
+  const selectedTasks = useMemo(() => {
+    const dagsAndStandalones = runs.filter(
+      (run) => rowSelection[run.metadata.id],
+    );
+
+    const dagChildren = runs
+      .filter((run) => run.children?.length)
+      .flatMap((run) => run?.children)
+      .filter((child): child is NonNullable<typeof child> =>
+        Boolean(child && rowSelection[child.metadata.id]),
+      );
+
+    return [...dagsAndStandalones, ...dagChildren];
+  }, [rowSelection, runs]);
 
   const canCancel = useMemo(() => {
-    return selectedRuns.some(
+    return selectedDagAndStandalones.some(
       (t) =>
         t.status === V1TaskStatus.RUNNING || t.status === V1TaskStatus.QUEUED,
     );
-  }, [selectedRuns]);
+  }, [selectedDagAndStandalones]);
 
   const canReplay = useMemo(() => {
-    return selectedRuns.length > 0;
-  }, [selectedRuns]);
+    return selectedDagAndStandalones.length > 0;
+  }, [selectedDagAndStandalones]);
 
   const additionalMetaOpts = useMemo(() => {
     if (!runs || runs.length === 0) {
@@ -125,24 +137,32 @@ export function RunsTable({
 
     setRowSelection(newSelection);
 
-    // Update the selected tasks map
-    const newSelectedTasks = new Map();
-    if (runs) {
-      Object.keys(newSelection).forEach((taskId) => {
-        const task = runs.find((run) => run.taskExternalId === taskId);
-        if (task) {
-          newSelectedTasks.set(taskId, task);
-        }
-      });
-    }
-    setSelectedTasks(newSelectedTasks);
+    // // Update the selected tasks map
+    // const newSelectedTasks = new Map();
+    // if (runs) {
+    //   Object.keys(newSelection).forEach((taskId) => {
+    //     const task = runs.find((run) => run.taskExternalId === taskId);
+    //     if (task) {
+    //       newSelectedTasks.set(taskId, task);
+    //     }
+    //   });
+    // }
+    // setSelectedTasks(newSelectedTasks);
   };
+
+  console.log({
+    selectedTasks,
+    rowSelection,
+    canCancel,
+    canReplay,
+    numSelectedRows,
+  });
 
   const clearSelection = useCallback(() => {
     setSelectAll(false);
     setRowSelection({});
-    setSelectedTasks(new Map());
-  }, [setSelectAll, setRowSelection, setSelectedTasks]);
+    // setSelectedTasks(new Map());
+  }, [setSelectAll, setRowSelection]);
 
   useEffect(() => {
     clearSelection();
@@ -270,7 +290,7 @@ export function RunsTable({
                 size="sm"
                 disabled={!canReplay || replay.isPending}
                 onClick={async () =>
-                  replay.mutateAsync({ tasks: selectedRuns })
+                  replay.mutateAsync({ tasks: selectedDagAndStandalones })
                 }
               >
                 <MdOutlineReplay className="h-4 w-4" />
@@ -288,7 +308,7 @@ export function RunsTable({
                 size="sm"
                 disabled={!canCancel || cancel.isPending}
                 onClick={async () =>
-                  cancel.mutateAsync({ tasks: selectedRuns })
+                  cancel.mutateAsync({ tasks: selectedDagAndStandalones })
                 }
               >
                 <MdOutlineCancel className="h-4 w-4" />
