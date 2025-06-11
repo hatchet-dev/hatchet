@@ -248,7 +248,7 @@ export function RunsTable({
           />
         )}
         {/* IMPORTANT: Keep this count in sync with the number of filters above */}
-        {excludedFilters.length < 4 && <ClearFiltersButton />}
+        {excludedFilters.length < 6 && <ClearFiltersButton />}
       </FilterGroup>
       <div className="flex items-center justify-between">
         <div className="flex-1 text-sm text-muted-foreground">
