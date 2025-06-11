@@ -1,86 +1,49 @@
 import { useManagedComputeDetail } from '@/next/hooks/use-managed-compute-detail';
-import { FC, useEffect, useState } from 'react';
-import { DateTimePicker } from '@/components/molecules/time-picker/date-time-picker';
-import { Button } from '@/next/components/ui/button';
-import { XCircleIcon } from '@heroicons/react/24/outline';
+import { FC, useEffect } from 'react';
 import { Separator } from '@/next/components/ui/separator';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/next/components/ui/select';
 import { Spinner } from '@/next/components/ui/spinner';
 import { Matrix } from '@/lib/api/generated/cloud/data-contracts';
 import {
   ZoomableChart,
   DataPoint,
 } from '@/components/molecules/charts/zoomable';
+import {
+  TimeFilter,
+  TimeFilterGroup,
+  TogglePause,
+} from '@/next/components/ui/filters/time-filter';
+import {
+  TimeFilterProvider,
+  useTimeFilters,
+} from '@/next/hooks/utils/use-time-filters';
 
-const getCreatedAfterFromTimeRange = (timeRange: string) => {
-  const now = new Date();
-  switch (timeRange) {
-    case '1h':
-      return new Date(now.getTime() - 60 * 60 * 1000).toISOString();
-    case '6h':
-      return new Date(now.getTime() - 6 * 60 * 60 * 1000).toISOString();
-    case '1d':
-      return new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
-    case '7d':
-      return new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
-    default:
-      return new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
-  }
-};
-
-export const MetricsTab: FC = () => {
+function MetricsContent() {
   const {
     data: managedWorker,
     metrics,
     setMetricsQuery,
   } = useManagedComputeDetail();
-
-  const [defaultTimeRange, setDefaultTimeRange] = useState('1d');
-  const [customTimeRange, setCustomTimeRange] = useState<
-    string[] | undefined
-  >();
-  const [createdAfter, setCreatedAfter] = useState<string>(
-    getCreatedAfterFromTimeRange('1d'),
-  );
-  const [finishedBefore, setFinishedBefore] = useState<string | undefined>();
+  const { filters, setTimeFilter, pause } = useTimeFilters();
 
   // Update metrics query when time range changes
   useEffect(() => {
     const newQuery = {
-      after: createdAfter,
-      before: finishedBefore,
+      after: filters.startTime,
+      before: filters.endTime,
     };
     setMetricsQuery(newQuery);
-  }, [createdAfter, finishedBefore, setMetricsQuery]);
+  }, [filters.startTime, filters.endTime, setMetricsQuery]);
 
-  // Auto-update time range
-  useEffect(() => {
-    const interval = setInterval(() => {
-      if (customTimeRange) {
-        return;
-      }
-      setCreatedAfter(getCreatedAfterFromTimeRange(defaultTimeRange));
-    }, 60 * 1000);
-
-    return () => clearInterval(interval);
-  }, [defaultTimeRange, customTimeRange]);
-
-  // Handle time range changes
-  useEffect(() => {
-    if (customTimeRange && customTimeRange.length === 2) {
-      setCreatedAfter(customTimeRange[0]);
-      setFinishedBefore(customTimeRange[1]);
-    } else if (defaultTimeRange) {
-      setCreatedAfter(getCreatedAfterFromTimeRange(defaultTimeRange));
-      setFinishedBefore(undefined);
-    }
-  }, [defaultTimeRange, customTimeRange]);
+  // Handle zoom functionality
+  const handleZoom = (startTime: string, endTime: string) => {
+    // Pause the time filter to enable custom range mode
+    pause();
+    // Set the custom time range based on zoom selection
+    setTimeFilter({
+      startTime,
+      endTime,
+    });
+  };
 
   if (
     !managedWorker ||
@@ -100,65 +63,10 @@ export const MetricsTab: FC = () => {
         <h3 className="text-xl font-bold leading-tight text-foreground">
           Metrics
         </h3>
-        <div className="flex flex-row justify-end items-center gap-2">
-          {customTimeRange
-            ? [
-                <Button
-                  key="clear"
-                  onClick={() => {
-                    setCustomTimeRange(undefined);
-                  }}
-                  variant="outline"
-                  size="sm"
-                  className="text-xs h-9 py-2"
-                >
-                  <XCircleIcon className="h-[18px] w-[18px] mr-2" />
-                  Clear
-                </Button>,
-                <DateTimePicker
-                  key="after"
-                  label="After"
-                  date={createdAfter ? new Date(createdAfter) : undefined}
-                  setDate={(date) => {
-                    setCreatedAfter(date?.toISOString() || '');
-                  }}
-                />,
-                <DateTimePicker
-                  key="before"
-                  label="Before"
-                  date={finishedBefore ? new Date(finishedBefore) : undefined}
-                  setDate={(date) => {
-                    setFinishedBefore(date?.toISOString());
-                  }}
-                />,
-              ]
-            : null}
-          <Select
-            value={customTimeRange ? 'custom' : defaultTimeRange}
-            onValueChange={(value) => {
-              if (value !== 'custom') {
-                setDefaultTimeRange(value);
-                setCustomTimeRange(undefined);
-              } else {
-                setCustomTimeRange([
-                  getCreatedAfterFromTimeRange(defaultTimeRange),
-                  new Date().toISOString(),
-                ]);
-              }
-            }}
-          >
-            <SelectTrigger className="w-fit">
-              <SelectValue placeholder="Choose time range" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="1h">1 hour</SelectItem>
-              <SelectItem value="6h">6 hours</SelectItem>
-              <SelectItem value="1d">1 day</SelectItem>
-              <SelectItem value="7d">7 days</SelectItem>
-              <SelectItem value="custom">Custom</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+        <TimeFilterGroup className="justify-end">
+          <TimeFilter />
+          <TogglePause />
+        </TimeFilterGroup>
       </div>
       <Separator />
 
@@ -170,9 +78,7 @@ export const MetricsTab: FC = () => {
         className="max-h-[25rem] min-h-[25rem]"
         data={transformToDataPoints(metrics.cpu.data)}
         kind="line"
-        zoom={(createdAfter, createdBefore) => {
-          setCustomTimeRange([createdAfter, createdBefore]);
-        }}
+        zoom={handleZoom}
         showYAxis={true}
       />
 
@@ -187,9 +93,7 @@ export const MetricsTab: FC = () => {
           (d) => d / (1000 * 1000),
         )}
         kind="line"
-        zoom={(createdAfter, createdBefore) => {
-          setCustomTimeRange([createdAfter, createdBefore]);
-        }}
+        zoom={handleZoom}
         showYAxis={true}
       />
 
@@ -204,12 +108,22 @@ export const MetricsTab: FC = () => {
           (d) => d / (1000 * 1000),
         )}
         kind="line"
-        zoom={(createdAfter, createdBefore) => {
-          setCustomTimeRange([createdAfter, createdBefore]);
-        }}
+        zoom={handleZoom}
         showYAxis={true}
       />
     </div>
+  );
+}
+
+export const MetricsTab: FC = () => {
+  return (
+    <TimeFilterProvider
+      initialTimeRange={{
+        activePreset: '1h',
+      }}
+    >
+      <MetricsContent />
+    </TimeFilterProvider>
   );
 };
 

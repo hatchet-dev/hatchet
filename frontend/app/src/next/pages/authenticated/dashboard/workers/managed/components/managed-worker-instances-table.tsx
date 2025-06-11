@@ -86,16 +86,22 @@ export function ManagedWorkerInstancesTable() {
   );
 }
 
-const INSTANCE_STATUSES: Record<
-  string,
-  {
-    text: string;
-    variant: 'secondary' | 'destructive' | 'outline' | 'default';
-  }
-> = {
+type InstanceStatus = {
+  text: string;
+  variant: 'successful' | 'secondary' | 'destructive' | 'outline' | 'default';
+};
+
+type InstanceStatusMap = {
+  started: InstanceStatus;
+  suspended: InstanceStatus;
+  destroyed: InstanceStatus;
+  stopped: InstanceStatus;
+};
+
+const INSTANCE_STATUSES: InstanceStatusMap = {
   started: {
     text: 'Running',
-    variant: 'secondary',
+    variant: 'successful',
   },
   suspended: {
     text: 'Suspended',
@@ -112,7 +118,7 @@ const INSTANCE_STATUSES: Record<
 };
 
 const StateBadge = ({ state }: { state: string }) => {
-  let instanceStatus = INSTANCE_STATUSES[state];
+  let instanceStatus = INSTANCE_STATUSES[state as keyof InstanceStatusMap];
 
   if (!instanceStatus) {
     instanceStatus = {
