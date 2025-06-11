@@ -497,16 +497,16 @@ function RunEventLogContent({
       );
     }
 
-    if (filters.taskId?.length) {
-      filtered = filtered.filter(
-        (event) => event.taskId && filters.taskId?.includes(event.taskId),
-      );
-    }
-
     if (filters.attempt !== undefined) {
       filtered = filtered.filter(
         (event) =>
           event.attempt !== undefined && event.attempt === filters.attempt,
+      );
+    }
+
+    if (filters.taskId?.length) {
+      filtered = filtered.filter((event) =>
+        filters.taskId?.includes(event.taskId),
       );
     }
 
@@ -515,8 +515,8 @@ function RunEventLogContent({
     mergedActivity,
     filters.search,
     filters.eventType,
-    filters.taskId,
     filters.attempt,
+    filters.taskId,
   ]);
 
   return (
