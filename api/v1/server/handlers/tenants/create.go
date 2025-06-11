@@ -66,9 +66,8 @@ func (t *TenantService) TenantCreate(ctx echo.Context, request gen.TenantCreateR
 	var engineVersion *dbsqlc.TenantMajorEngineVersion
 
 	if request.Body.EngineVersion != nil {
-		ver := *request.Body.EngineVersion
-		dbVer := dbsqlc.TenantMajorEngineVersion(ver)
-		engineVersion = &dbVer
+		ver := dbsqlc.TenantMajorEngineVersion(*request.Body.EngineVersion)
+		engineVersion = &ver
 	}
 
 	createOpts.EngineVersion = engineVersion
