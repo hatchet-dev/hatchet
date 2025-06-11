@@ -171,12 +171,10 @@ function Root({ children }: PropsWithChildren) {
   return (
     <ToastProvider>
       <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
-        <SidebarProvider>
-          <SidePanelProvider>
-            <Toaster />
-            <RootContent>{children}</RootContent>
-          </SidePanelProvider>
-        </SidebarProvider>
+        <SidePanelProvider>
+          <Toaster />
+          <RootContent>{children}</RootContent>
+        </SidePanelProvider>
       </ThemeProvider>
     </ToastProvider>
   );
