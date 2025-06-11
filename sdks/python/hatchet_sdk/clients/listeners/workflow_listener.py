@@ -44,7 +44,7 @@ class PooledWorkflowRunListener(
             if DEDUPE_MESSAGE in errors[0]:
                 raise DedupeViolationError(errors[0])
 
-            if PYTHON_VERSION >= (3, 11):
+            if PYTHON_VERSION >= (3, 11) and len(errors) > 1:
                 raise ExceptionGroup(  # noqa: F821
                     f"Workflow run {workflow_run_id} failed with multiple errors.",
                     [FailedWorkflowRunError(workflow_run_id, e) for e in errors],
