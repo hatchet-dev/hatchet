@@ -15,7 +15,7 @@ import {
   ClearFiltersButton,
   FilterWorkerSelect,
 } from '@/next/components/ui/filters/filters';
-import { V1TaskStatus, V1TaskSummary, V1WorkflowType } from '@/lib/api';
+import { V1TaskStatus, V1TaskSummary } from '@/lib/api';
 import { DocsButton } from '@/next/components/ui/docs-button';
 import docs from '@/next/lib/docs';
 import { RowSelectionState, OnChangeFn } from '@tanstack/react-table';
@@ -27,18 +27,21 @@ import { ROUTES } from '@/next/lib/routes';
 import { useNavigate } from 'react-router-dom';
 import { useCurrentTenantId } from '@/next/hooks/use-tenant';
 import { WorkersProvider } from '@/next/hooks/use-workers';
+
+type RunFilterOptions = keyof RunsFilters | 'task_ids';
+
 interface RunsTableProps {
   onRowClick?: (row: V1TaskSummary) => void;
   selectedTaskId?: string;
   onSelectionChange?: (selectedRows: V1TaskSummary[]) => void;
   onTriggerRunClick?: () => void;
-  excludedFilters?: (keyof RunsFilters)[];
+  excludedFilters?: RunFilterOptions[];
   showPagination?: boolean;
   allowSelection?: boolean;
   showActions?: boolean;
 }
 
-const defaultExcludedFilters: (keyof RunsFilters)[] = [];
+const defaultExcludedFilters: RunFilterOptions[] = [];
 
 export function RunsTable({
   onRowClick,
@@ -221,7 +224,7 @@ export function RunsTable({
             ]}
           />
         )}
-        {!excludedFilters.includes('workflow_ids') && (
+        {!excludedFilters.includes('task_ids') && (
           <FilterTaskSelect<RunsFilters>
             name="workflow_ids"
             placeholder="Task Name"
