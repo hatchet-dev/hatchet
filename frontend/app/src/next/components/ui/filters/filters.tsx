@@ -21,6 +21,8 @@ import useDefinitions from '@/next/hooks/use-definitions';
 import { useMemo } from 'react';
 import { PlusCircledIcon } from '@radix-ui/react-icons';
 import { useWorkers } from '@/next/hooks/use-workers';
+import { Tooltip, TooltipContent } from '../tooltip';
+import { TooltipTrigger } from '@radix-ui/react-tooltip';
 
 interface FiltersProps {
   children?: React.ReactNode;
@@ -338,77 +340,84 @@ export function FilterKeyValue<T>({
 
   return (
     <div className="flex flex-col gap-2">
-      {currentFilters.length > 0 && (
-        <div className="flex flex-wrap gap-2">
-          {currentFilters.map((filter, index) => {
-            const [key, value] = filter.split(':');
-            return (
-              <Badge
-                key={index}
-                variant="secondary"
-                className="flex items-center gap-1"
-              >
-                <span>{key === value ? value : `${key}: ${value}`}</span>
-                <button
-                  onClick={() => handleRemoveFilter(index)}
-                  className="ml-1 hover:brightness-75"
-                >
-                  ×
-                </button>
-              </Badge>
-            );
-          })}
-        </div>
-      )}
       <Popover open={open} onOpenChange={setOpen}>
-        <PopoverTrigger asChild>
-          <Button
-            variant="outline"
-            size="sm"
-            className="w-full justify-start text-foreground gap-2"
-          >
-            <PlusCircledIcon className="h-4 w-4" />
-            {placeholder}
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent className="w-80">
-          <div className="flex flex-col gap-4">
-            <div className="flex flex-col gap-2">
-              <Input
-                placeholder="Enter key"
-                value={key}
-                onChange={(e) => setKey(e.target.value)}
-              />
-              {filteredOptions.length > 0 && (
-                <div className="flex flex-wrap gap-1">
-                  {filteredOptions.map((option) => (
+        <Tooltip>
+          <PopoverTrigger asChild>
+            <TooltipTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full justify-start text-foreground gap-2"
+              >
+                <PlusCircledIcon className="h-4 w-4" />
+                {placeholder}{' '}
+                {currentFilters.length > 0 ? `(${currentFilters.length})` : ''}
+              </Button>
+            </TooltipTrigger>
+          </PopoverTrigger>
+          {currentFilters.length > 0 && (
+            <TooltipContent className="bg-background border">
+              <div className="flex flex-wrap gap-2 flex-col ">
+                {currentFilters.map((filter, index) => {
+                  const [key, value] = filter.split(':');
+                  return (
                     <Badge
-                      key={option.value}
-                      variant="outline"
-                      className="cursor-pointer"
-                      onClick={() => setKey(option.label)}
+                      key={index}
+                      variant="secondary"
+                      className="flex flex-row items-center justify-between gap-1 w-full"
                     >
-                      {option.label}
+                      <span>{key === value ? value : `${key}: ${value}`}</span>
+                      <button
+                        onClick={() => handleRemoveFilter(index)}
+                        className="ml-1 hover:brightness-75"
+                      >
+                        ×
+                      </button>
                     </Badge>
-                  ))}
-                </div>
-              )}
+                  );
+                })}
+              </div>
+            </TooltipContent>
+          )}
+          <PopoverContent className="w-80">
+            <div className="flex flex-col gap-4">
+              <div className="flex flex-col gap-2">
+                <Input
+                  placeholder="Enter key"
+                  value={key}
+                  onChange={(e) => setKey(e.target.value)}
+                />
+                {filteredOptions.length > 0 && (
+                  <div className="flex flex-wrap gap-1">
+                    {filteredOptions.map((option) => (
+                      <Badge
+                        key={option.value}
+                        variant="outline"
+                        className="cursor-pointer"
+                        onClick={() => setKey(option.label)}
+                      >
+                        {option.label}
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <Input
+                placeholder="Enter value"
+                value={value}
+                onChange={(e) => setValue(e.target.value)}
+              />
+              <Button
+                onClick={handleAddFilter}
+                disabled={
+                  !key || !value || currentFilters.includes(`${key}:${value}`)
+                }
+              >
+                Add Filter
+              </Button>
             </div>
-            <Input
-              placeholder="Enter value"
-              value={value}
-              onChange={(e) => setValue(e.target.value)}
-            />
-            <Button
-              onClick={handleAddFilter}
-              disabled={
-                !key || !value || currentFilters.includes(`${key}:${value}`)
-              }
-            >
-              Add Filter
-            </Button>
-          </div>
-        </PopoverContent>
+          </PopoverContent>
+        </Tooltip>
       </Popover>
     </div>
   );

@@ -30,6 +30,7 @@ import BasicLayout from '@/next/components/layouts/basic.layout';
 import { WorkerTable } from '../components';
 
 export enum ManagedWorkerPoolDetailTabs {
+  WORKERS = 'workers',
   INSTANCES = 'instances',
   LOGS = 'logs',
   BUILDS = 'builds',

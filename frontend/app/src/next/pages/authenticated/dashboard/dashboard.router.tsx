@@ -8,11 +8,16 @@ import { workflowRoutes } from './workflows/workflows.router';
 import { workerRoutes } from './workers/worker-pools.router';
 import { rateLimitsRoutes } from './rate-limits/rate-limits.router';
 import { eventsRoutes } from './events/events.router';
+import { SidebarProvider } from '@/next/components/ui/sidebar';
 
 export const dashboardRoutes: RouteObject[] = [
   {
     path: '',
-    element: <DashboardLayout />,
+    element: (
+      <SidebarProvider>
+        <DashboardLayout />
+      </SidebarProvider>
+    ),
     children: [
       {
         path: '',

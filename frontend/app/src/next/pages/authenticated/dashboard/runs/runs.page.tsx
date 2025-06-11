@@ -66,7 +66,12 @@ export default function RunsPage() {
             onRowClick={handleRowClick}
             selectedTaskId={selectedTaskId}
             onTriggerRunClick={() => setShowTriggerModal(true)}
-            excludedFilters={['worker_id']}
+            excludedFilters={[
+              'worker_id',
+              'is_root_task',
+              'only_tasks',
+              'task_ids',
+            ]}
           />
         </div>
         <TriggerRunModal

@@ -91,6 +91,7 @@ function WorkerDetailPageContent() {
           <RunsTable
             onRowClick={handleRowClick}
             selectedTaskId={selectedTaskId}
+            excludedFilters={['is_root_task', 'workflow_ids']}
           />
         </RunsProvider>
         <Separator className="my-4" />

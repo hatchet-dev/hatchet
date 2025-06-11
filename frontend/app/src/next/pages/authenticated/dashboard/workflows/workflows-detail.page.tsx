@@ -27,7 +27,6 @@ import { useParams } from 'react-router-dom';
 import WorkflowGeneralSettings from './settings';
 import { RunsProvider } from '@/next/hooks/use-runs';
 import { RunsTable } from '@/next/components/runs/runs-table/runs-table';
-import { V1TaskStatus } from '@/lib/api';
 
 export default function WorkflowDetailPage() {
   const { workflowId: workflowIdRaw } = useParams<{
@@ -164,15 +163,16 @@ function WorkflowDetailPageContent({ workflowId }: { workflowId: string }) {
             <RunsProvider
               initialFilters={{
                 workflow_ids: [workflowId],
-                statuses: [
-                  V1TaskStatus.RUNNING,
-                  V1TaskStatus.COMPLETED,
-                  V1TaskStatus.FAILED,
-                  V1TaskStatus.CANCELLED,
-                ],
               }}
             >
-              <RunsTable />
+              <RunsTable
+                excludedFilters={[
+                  'workflow_ids',
+                  'task_ids',
+                  'is_root_task',
+                  'only_tasks',
+                ]}
+              />
             </RunsProvider>
           </TabsContent>
           <TabsContent value="settings">

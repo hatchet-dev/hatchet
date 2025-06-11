@@ -27,8 +27,8 @@ import {
   useTaskRunDetail,
 } from '@/next/hooks/use-task-run-detail';
 import { WorkflowRunDetailPayloadContent } from './workflow-run-detail-payloads';
-import { RunDataCard } from '@/next/components/runs/run-output-card';
 import { useSidePanel } from '@/next/hooks/use-side-panel';
+
 export interface RunDetailSheetSerializableProps {
   pageWorkflowRunId?: string;
   selectedWorkflowRunId: string;
@@ -41,12 +41,12 @@ export function RunDetailSheet(props: RunDetailSheetSerializableProps) {
   return (
     <RunDetailProvider
       runId={props.selectedWorkflowRunId}
-      refetchInterval={1000}
+      refetchInterval={5000}
     >
       <TaskRunDetailProvider
         taskRunId={props.selectedTaskId}
         attempt={props.attempt}
-        refetchInterval={1000}
+        refetchInterval={5000}
       >
         <RunDetailSheetContent />
       </TaskRunDetailProvider>
@@ -235,14 +235,6 @@ function RunDetailSheetContent() {
             <TabsTrigger variant="underlined" value="activity">
               Activity
             </TabsTrigger>
-            {selectedTask ? (
-              <TabsTrigger variant="underlined" value="worker">
-                Worker
-              </TabsTrigger>
-            ) : null}
-            <TabsTrigger variant="underlined" value="raw">
-              Raw
-            </TabsTrigger>
           </TabsList>
           <TabsContent value="activity" className="flex-1 min-h-0">
             <div className="h-full overflow-y-auto px-4">
@@ -298,14 +290,6 @@ function RunDetailSheetContent() {
                           }
                         : undefined
                     }
-                    filters={{
-                      taskId: selectedTaskId ? [selectedTaskId] : undefined,
-                      attempt: populatedAttempt,
-                    }}
-                    showFilters={{
-                      taskId: false,
-                      attempt: false,
-                    }}
                     onTaskSelect={(event) => {
                       openSheet({
                         type: 'run-details',
@@ -335,21 +319,6 @@ function RunDetailSheetContent() {
                 <WorkflowRunDetailPayloadContent workflowRun={data?.run} />
               )}
             </div>
-          </TabsContent>
-          <TabsContent value="worker" className="flex-1 min-h-0 pb-4">
-            <div className="text-center text-gray-500">
-              Worker details coming soon
-            </div>
-          </TabsContent>
-          <TabsContent
-            value="raw"
-            className="flex-1 min-h-0 pb-4 h-full overflow-y-auto px-4 "
-          >
-            <RunDataCard
-              title="Raw"
-              output={selectedTask?.output || data?.run.output}
-              variant="input"
-            />
           </TabsContent>
         </Tabs>
       </div>
