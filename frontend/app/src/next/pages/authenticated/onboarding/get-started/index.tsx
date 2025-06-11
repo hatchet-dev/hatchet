@@ -9,6 +9,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { CodeHighlighter } from '@/components/ui/code-highlighter';
 import { useTenantDetails } from '@/next/hooks/use-tenant';
 import useUser from '@/next/hooks/use-user';
+import { Link } from 'react-router-dom';
+import { ROUTES } from '@/next/lib/routes';
 
 export default function GetStarted() {
   const { data: user, memberships } = useUser();
@@ -25,8 +27,6 @@ export default function GetStarted() {
   const [language, setLanguage] = useState('python');
   const [packageManager, setPackageManager] = useState('npm');
 
-  console.log(user, memberships, currTenant);
-
   if (!user || !memberships || !currTenant) {
     return <Loading />;
   }
@@ -37,9 +37,9 @@ export default function GetStarted() {
         <div className="flex flex-col justify-center space-y-4">
           <div className="flex flex-row justify-between mt-10">
             <h1 className="text-3xl font-bold">Quickstart</h1>
-            <a href="/">
+            <Link to={{ pathname: ROUTES.runs.list(currTenant.metadata.id) }}>
               <Button variant="outline">Skip Quickstart</Button>
-            </a>
+            </Link>
           </div>
 
           <p className="text-gray-600 dark:text-gray-300 text-sm">

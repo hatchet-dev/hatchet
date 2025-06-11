@@ -28,7 +28,6 @@ export default function CreateTenant() {
     onSuccess: async (tenant) => {
       setTenant(tenant.metadata.id);
       await listMembershipsQuery.refetch();
-      console.log('Tenant created successfully:', tenant);
       navigate(ROUTES.onboarding.getStarted(tenant.metadata.id));
     },
     onError: handleApiError,
