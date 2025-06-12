@@ -2,7 +2,6 @@ import asyncio
 import ctypes
 import functools
 import json
-import traceback
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import suppress
@@ -31,7 +30,7 @@ from hatchet_sdk.contracts.dispatcher_pb2 import (
     STEP_EVENT_TYPE_FAILED,
     STEP_EVENT_TYPE_STARTED,
 )
-from hatchet_sdk.exceptions import NonRetryableException
+from hatchet_sdk.exceptions import FailedTaskRunError, NonRetryableException
 from hatchet_sdk.features.runs import RunsClient
 from hatchet_sdk.logger import logger
 from hatchet_sdk.runnables.action import Action, ActionKey, ActionType
@@ -156,12 +155,14 @@ class Runner:
             except Exception as e:
                 should_not_retry = isinstance(e, NonRetryableException)
 
+                exc = FailedTaskRunError.from_exception(e)
+
                 # This except is coming from the application itself, so we want to send that to the Hatchet instance
                 self.event_queue.put(
                     ActionEvent(
                         action=action,
                         type=STEP_EVENT_TYPE_FAILED,
-                        payload=str(pretty_format_exception(f"{e}", e)),
+                        payload=exc.serialize(),
                         should_not_retry=should_not_retry,
                     )
                 )
@@ -191,21 +192,19 @@ class Runner:
         def inner_callback(task: asyncio.Task[Any]) -> None:
             self.cleanup_run_id(action.key)
 
-            errored = False
-            cancelled = task.cancelled()
-            output = None
+            if task.cancelled():
+                return
 
-            # Get the output from the future
             try:
-                if not cancelled:
-                    output = task.result()
+                output = task.result()
             except Exception as e:
-                errored = True
+                exc = FailedTaskRunError.from_exception(e)
+
                 self.event_queue.put(
                     ActionEvent(
                         action=action,
                         type=GROUP_KEY_EVENT_TYPE_FAILED,
-                        payload=str(pretty_format_exception(f"{e}", e)),
+                        payload=exc.serialize(),
                         should_not_retry=False,
                     )
                 )
@@ -214,19 +213,18 @@ class Runner:
                     f"failed step run: {action.action_id}/{action.step_run_id}"
                 )
 
-            if not errored and not cancelled:
-                self.event_queue.put(
-                    ActionEvent(
-                        action=action,
-                        type=GROUP_KEY_EVENT_TYPE_COMPLETED,
-                        payload=self.serialize_output(output),
-                        should_not_retry=False,
-                    )
-                )
+                return
 
-                logger.info(
-                    f"finished step run: {action.action_id}/{action.step_run_id}"
+            self.event_queue.put(
+                ActionEvent(
+                    action=action,
+                    type=GROUP_KEY_EVENT_TYPE_COMPLETED,
+                    payload=self.serialize_output(output),
+                    should_not_retry=False,
                 )
+            )
+
+            logger.info(f"finished step run: {action.action_id}/{action.step_run_id}")
 
         return inner_callback
 
@@ -275,14 +273,6 @@ class Runner:
 
             loop = asyncio.get_event_loop()
             return await loop.run_in_executor(self.thread_pool, pfunc)
-        except Exception as e:
-            logger.error(
-                pretty_format_exception(
-                    f"exception raised in action ({action.action_id}, retry={action.retry_count}):\n{e}",
-                    e,
-                )
-            )
-            raise e
         finally:
             self.cleanup_run_id(action.key)
 
@@ -518,8 +508,3 @@ class Runner:
             logger.info(f"waiting for {running} tasks to finish...")
             await asyncio.sleep(1)
             running = len(self.tasks.keys())
-
-
-def pretty_format_exception(message: str, e: Exception) -> str:
-    trace = "".join(traceback.format_exception(type(e), e, e.__traceback__))
-    return f"{message}\n{trace}"

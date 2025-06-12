@@ -1,6 +1,4 @@
 import asyncio
-import sys
-from typing import TYPE_CHECKING
 
 import pytest
 
@@ -13,32 +11,25 @@ from examples.non_retryable.worker import (
 from hatchet_sdk import Hatchet
 from hatchet_sdk.clients.rest.models.v1_task_event_type import V1TaskEventType
 from hatchet_sdk.clients.rest.models.v1_workflow_run_details import V1WorkflowRunDetails
-
-if TYPE_CHECKING:
-    PYTHON_VERSION = (3, 10)
-else:
-    PYTHON_VERSION = sys.version_info
+from hatchet_sdk.exceptions import FailedTaskRunExceptionGroup
 
 
 def find_id(runs: V1WorkflowRunDetails, match: str) -> str:
     return next(t.metadata.id for t in runs.tasks if match in t.display_name)
 
 
-@pytest.mark.skipif(
-    PYTHON_VERSION < (3, 11), reason="Requires Python 3.11+ for ExceptionGroup"
-)
 @pytest.mark.asyncio(loop_scope="session")
 async def test_no_retry(hatchet: Hatchet) -> None:
     ref = await non_retryable_workflow.aio_run_no_wait()
 
-    with pytest.raises(ExceptionGroup) as exc_info:
+    with pytest.raises(FailedTaskRunExceptionGroup) as exc_info:
         await ref.aio_result()
 
     exception_group = exc_info.value
 
     assert len(exception_group.exceptions) == 2
 
-    exc_text = [e.message for e in exception_group.exceptions]
+    exc_text = [e.exc for e in exception_group.exceptions]
 
     non_retries = [
         e
