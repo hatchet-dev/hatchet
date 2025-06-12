@@ -36,6 +36,7 @@ import useCloudFeatureFlags from '@/pages/auth/hooks/use-cloud-feature-flags';
 import { useSidebar } from '@/components/sidebar-provider';
 import invariant from 'tiny-invariant';
 import { ROUTES } from '@/next/lib/routes';
+import { SquareActivityIcon } from 'lucide-react';
 
 function Main() {
   const ctx = useOutletContext<UserContextType & MembershipsContextType>();
@@ -131,13 +132,22 @@ function Sidebar({ className, memberships, currTenant }: SidebarProps) {
             <h2 className="mb-2 text-lg font-semibold tracking-tight">
               Activity
             </h2>
-            <SidebarButtonPrimary
-              key={1}
-              onNavLinkClick={onNavLinkClick}
-              to="/v1/runs"
-              name="Runs"
-              icon={<PlayIcon className="mr-2 h-4 w-4" />}
-            />
+            <div className="flex flex-col gap-y-1">
+              <SidebarButtonPrimary
+                key={1}
+                onNavLinkClick={onNavLinkClick}
+                to="/v1/runs"
+                name="Runs"
+                icon={<PlayIcon className="mr-2 h-4 w-4" />}
+              />
+              <SidebarButtonPrimary
+                key={1}
+                onNavLinkClick={onNavLinkClick}
+                to="/v1/events"
+                name="Events"
+                icon={<SquareActivityIcon className="mr-2 h-4 w-4" />}
+              />
+            </div>
           </div>
           <div className="py-2">
             <h2 className="mb-2 text-lg font-semibold tracking-tight">

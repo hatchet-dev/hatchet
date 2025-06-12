@@ -30,7 +30,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/v1/ui/dialog';
-import { CodeEditor } from '@/components/v1/ui/code-editor';
 import { useOutletContext, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/v1/ui/button';
 import {
