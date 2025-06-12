@@ -620,6 +620,14 @@ export class Api<
        * @format date-time
        */
       until?: string;
+      /** Filter to events that are associated with a specific workflow run */
+      workflowIds?: string[];
+      /** Filter to events that are associated with workflow runs matching a certain status */
+      workflowRunStatuses?: V1TaskStatus[];
+      /** Filter to specific events by their ids */
+      eventIds?: string[];
+      /** Filter by additional metadata on the events */
+      additionalMetadata?: string[];
     },
     params: RequestParams = {},
   ) =>

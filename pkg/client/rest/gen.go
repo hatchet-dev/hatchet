@@ -2023,6 +2023,18 @@ type V1EventListParams struct {
 
 	// Until Consider events that occurred before this time
 	Until *time.Time `form:"until,omitempty" json:"until,omitempty"`
+
+	// WorkflowIds Filter to events that are associated with a specific workflow run
+	WorkflowIds *[]openapi_types.UUID `form:"workflowIds,omitempty" json:"workflowIds,omitempty"`
+
+	// WorkflowRunStatuses Filter to events that are associated with workflow runs matching a certain status
+	WorkflowRunStatuses *[]V1TaskStatus `form:"workflowRunStatuses,omitempty" json:"workflowRunStatuses,omitempty"`
+
+	// EventIds Filter to specific events by their ids
+	EventIds *[]openapi_types.UUID `form:"eventIds,omitempty" json:"eventIds,omitempty"`
+
+	// AdditionalMetadata Filter by additional metadata on the events
+	AdditionalMetadata *[]string `form:"additionalMetadata,omitempty" json:"additionalMetadata,omitempty"`
 }
 
 // V1FilterListParams defines parameters for V1FilterList.
@@ -5511,6 +5523,70 @@ func NewV1EventListRequest(server string, tenant openapi_types.UUID, params *V1E
 		if params.Until != nil {
 
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "until", runtime.ParamLocationQuery, *params.Until); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.WorkflowIds != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "workflowIds", runtime.ParamLocationQuery, *params.WorkflowIds); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.WorkflowRunStatuses != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "workflowRunStatuses", runtime.ParamLocationQuery, *params.WorkflowRunStatuses); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.EventIds != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "eventIds", runtime.ParamLocationQuery, *params.EventIds); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.AdditionalMetadata != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "additionalMetadata", runtime.ParamLocationQuery, *params.AdditionalMetadata); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
 				return nil, err

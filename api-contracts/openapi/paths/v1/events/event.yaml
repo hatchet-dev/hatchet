@@ -47,6 +47,42 @@ V1EventList:
         schema:
           type: string
           format: date-time
+      - description: Filter to events that are associated with a specific workflow run
+        in: query
+        name: workflowIds
+        schema:
+          type: array
+          items:
+            type: string
+            format: uuid
+            minLength: 36
+            maxLength: 36
+      - description: Filter to events that are associated with workflow runs matching a certain status
+        in: query
+        name: workflowRunStatuses
+        schema:
+          type: array
+          items:
+            $ref: "../../../components/schemas/_index.yaml#/V1TaskStatus"
+      - description: Filter to specific events by their ids
+        in: query
+        name: eventIds
+        schema:
+          type: array
+          items:
+            type: string
+            format: uuid
+            minLength: 36
+            maxLength: 36
+      - description: Filter by additional metadata on the events
+        in: query
+        name: additionalMetadata
+        schema:
+          type: array
+          items:
+            type: string
+            description: The metadata key-value pairs (delimited by a `:`) to filter by
+            minLength: 1
     responses:
       "200":
         content:
