@@ -168,7 +168,7 @@ class Runner:
                 )
 
                 logger.error(
-                    f"failed step run: {action.action_id}/{action.step_run_id}"
+                    f"failed step run: {action.action_id}/{action.step_run_id}\n{exc.serialize()}"
                 )
 
                 return
@@ -210,7 +210,7 @@ class Runner:
                 )
 
                 logger.error(
-                    f"failed step run: {action.action_id}/{action.step_run_id}"
+                    f"failed step run: {action.action_id}/{action.step_run_id}\n{exc.serialize()}"
                 )
 
                 return
