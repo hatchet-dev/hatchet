@@ -8,13 +8,11 @@ import {
   SortingState,
   VisibilityState,
 } from '@tanstack/react-table';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import api, {
-  CreateEventRequest,
   Event,
   EventOrderByDirection,
   EventOrderByField,
-  ReplayEventRequest,
   V1TaskStatus,
   queries,
 } from '@/lib/api';
@@ -32,17 +30,10 @@ import {
 } from '@/components/v1/ui/dialog';
 import { useOutletContext, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/v1/ui/button';
-import {
-  ArrowPathIcon,
-  ArrowPathRoundedSquareIcon,
-  PlusCircleIcon,
-} from '@heroicons/react/24/outline';
-import { useApiError } from '@/lib/hooks';
+import { ArrowPathIcon } from '@heroicons/react/24/outline';
 import { Loading } from '@/components/v1/ui/loading.tsx';
 import { TenantContextType } from '@/lib/outlet';
 import RelativeDate from '@/components/v1/molecules/relative-date';
-import { CreateEventForm } from './components/create-event-form';
-import { BiX } from 'react-icons/bi';
 import { DataTable } from '@/components/v1/molecules/data-table/data-table';
 import { TaskRunsTable } from '../workflow-runs-v1/components/task-runs-table';
 import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
@@ -63,19 +54,9 @@ export default function Events() {
 
 function EventsTable() {
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
-  const [showCreateEvent, setShowCreateEvent] = useState(false);
   const { tenant } = useOutletContext<TenantContextType>();
   const [searchParams, setSearchParams] = useSearchParams();
   const [rotate, setRotate] = useState(false);
-  const { handleApiError } = useApiError({});
-
-  const [createEventFieldErrors, setCreateEventFieldErrors] = useState<
-    Record<string, string>
-  >({});
-  const createEventApiError = useApiError({
-    setFieldErrors: setCreateEventFieldErrors,
-  });
-  const handleCreateEventApiError = createEventApiError.handleApiError;
 
   invariant(tenant);
 
@@ -119,6 +100,8 @@ function EventsTable() {
   });
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({
     EventId: false,
+    Payload: false,
+    scope: false,
   });
 
   const [pagination, setPagination] = useState<PaginationState>(() => {
@@ -275,42 +258,6 @@ function EventsTable() {
     refetchInterval: 2000,
   });
 
-  const cancelEventsMutation = useMutation({
-    mutationKey: ['event:update:cancel', tenant.metadata.id],
-    mutationFn: async (data: ReplayEventRequest) => {
-      await api.eventUpdateCancel(tenant.metadata.id, data);
-    },
-    onSuccess: () => {
-      refetch();
-    },
-    onError: handleApiError,
-  });
-
-  const replayEventsMutation = useMutation({
-    mutationKey: ['event:update:replay', tenant.metadata.id],
-    mutationFn: async (data: ReplayEventRequest) => {
-      await api.eventUpdateReplay(tenant.metadata.id, data);
-    },
-    onSuccess: () => {
-      refetch();
-    },
-    onError: handleApiError,
-  });
-
-  const createEventMutation = useMutation({
-    mutationKey: ['event:create', tenant.metadata.id],
-    mutationFn: async (input: CreateEventRequest) => {
-      const res = await api.eventCreate(tenant.metadata.id, input);
-
-      return res.data;
-    },
-    onError: handleCreateEventApiError,
-    onSuccess: () => {
-      refetch();
-      setShowCreateEvent(false);
-    },
-  });
-
   const {
     data: eventKeys,
     isLoading: eventKeysIsLoading,
@@ -383,36 +330,6 @@ function EventsTable() {
 
   const actions = [
     <Button
-      key="cancel"
-      disabled={Object.keys(rowSelection).length === 0}
-      variant={Object.keys(rowSelection).length === 0 ? 'outline' : 'default'}
-      size="sm"
-      className="h-8 px-2 lg:px-3 gap-2"
-      onClick={() => {
-        cancelEventsMutation.mutate({
-          eventIds: Object.keys(rowSelection),
-        });
-      }}
-    >
-      <BiX className="h-4 w-4" />
-      Cancel
-    </Button>,
-    <Button
-      key="replay"
-      disabled={Object.keys(rowSelection).length === 0}
-      variant={Object.keys(rowSelection).length === 0 ? 'outline' : 'default'}
-      size="sm"
-      className="h-8 px-2 lg:px-3 gap-2"
-      onClick={() => {
-        replayEventsMutation.mutate({
-          eventIds: Object.keys(rowSelection),
-        });
-      }}
-    >
-      <ArrowPathRoundedSquareIcon className="h-4 w-4" />
-      Replay
-    </Button>,
-    <Button
       key="refresh"
       className="h-8 px-2 lg:px-3"
       size="sm"
@@ -427,18 +344,6 @@ function EventsTable() {
         className={`h-4 w-4 transition-transform ${rotate ? 'rotate-180' : ''}`}
       />
     </Button>,
-    <Button
-      key="create-event"
-      className="h-8 px-2 lg:px-3"
-      size="sm"
-      onClick={() => {
-        setShowCreateEvent(true);
-      }}
-      variant={'default'}
-      aria-label="Create new event"
-    >
-      <PlusCircleIcon className="h-4 w-4" />
-    </Button>,
   ];
 
   return (
@@ -452,20 +357,6 @@ function EventsTable() {
         }}
       >
         {selectedEvent && <ExpandedEventContent event={selectedEvent} />}
-      </Dialog>
-      <Dialog
-        open={showCreateEvent}
-        onOpenChange={(open) => {
-          if (!open) {
-            setShowCreateEvent(false);
-          }
-        }}
-      >
-        <CreateEventForm
-          onSubmit={createEventMutation.mutate}
-          isLoading={createEventMutation.isPending}
-          fieldErrors={createEventFieldErrors}
-        />
       </Dialog>
       <DataTable
         error={eventsError || eventKeysError || workflowKeysError}
