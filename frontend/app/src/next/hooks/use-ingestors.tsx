@@ -87,8 +87,8 @@ function IngestorsProviderContent({ children }: IngestorsProviderProps) {
         throw error;
       }
     },
-    onSuccess: () => {
-      listSNSIntegrationsQuery.refetch();
+    onSuccess: async () => {
+      await listSNSIntegrationsQuery.refetch();
     },
   });
 
@@ -107,8 +107,8 @@ function IngestorsProviderContent({ children }: IngestorsProviderProps) {
         throw error;
       }
     },
-    onSuccess: () => {
-      listSNSIntegrationsQuery.refetch();
+    onSuccess: async () => {
+      await listSNSIntegrationsQuery.refetch();
     },
   });
 

@@ -19,8 +19,8 @@ const CopyIngestURL: React.FC<Props> = ({ ingestUrl }: Props) => {
     <Button
       className="cursor-pointer flex flex-row gap-2 items-center mt-2 w-[200px]"
       variant="ghost"
-      onClick={() => {
-        navigator.clipboard.writeText(ingestUrl);
+      onClick={async () => {
+        await navigator.clipboard.writeText(ingestUrl);
         setSuccessCopy(true);
 
         setTimeout(() => {

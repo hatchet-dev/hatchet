@@ -10,7 +10,7 @@ export const onboardingRoutes: RouteObject[] = [
       {
         path: ROUTES.onboarding.newTenant,
         lazy: () =>
-          import('./new/1.new.page').then((res) => {
+          import('./create-tenant/index').then((res) => {
             return {
               Component: res.default,
             };
@@ -19,7 +19,17 @@ export const onboardingRoutes: RouteObject[] = [
       {
         path: ROUTES.onboarding.invites,
         lazy: () =>
-          import('./invites/invites.page').then((res) => {
+          import('./invites/index').then((res) => {
+            return {
+              Component: res.default,
+              loader: res.loader,
+            };
+          }),
+      },
+      {
+        path: ROUTES.onboarding.getStarted(':tenantId'),
+        lazy: async () =>
+          import('./get-started/index').then((res) => {
             return {
               Component: res.default,
             };

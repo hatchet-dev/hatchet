@@ -9,7 +9,7 @@ import LoggingComponent from '@/components/v1/cloud/logging/logs';
 import { ListCloudLogsQuery } from '@/lib/api/queries';
 
 export const LogsTab: FC = () => {
-  const { logs: activity } = useManagedComputeDetail();
+  const { logs: activity, setLogsQuery } = useManagedComputeDetail();
   const [queryParams, setQueryParams] = useState<ListCloudLogsQuery>({});
   const [beforeInput, setBeforeInput] = useState<Date | undefined>();
   const [afterInput, setAfterInput] = useState<Date | undefined>();
@@ -50,12 +50,14 @@ export const LogsTab: FC = () => {
         beforeInput?.toISOString() >
           mergedLogs[mergedLogs.length - 1]?.timestamp)
     ) {
-      setQueryParams({
+      const newQuery = {
         ...queryParams,
         before: beforeInput?.toISOString(),
         after: mergedLogs[mergedLogs.length - 1]?.timestamp,
-        direction: 'forward',
-      });
+        direction: 'forward' as const,
+      };
+      setQueryParams(newQuery);
+      setLogsQuery(newQuery);
     }
   };
 
@@ -66,22 +68,26 @@ export const LogsTab: FC = () => {
       // after input should be before the first log in the list
       (!afterInput || afterInput?.toISOString() < mergedLogs[0]?.timestamp)
     ) {
-      setQueryParams({
+      const newQuery = {
         ...queryParams,
         before: mergedLogs[0]?.timestamp,
         after: afterInput?.toISOString(),
-        direction: 'backward',
-      });
+        direction: 'backward' as const,
+      };
+      setQueryParams(newQuery);
+      setLogsQuery(newQuery);
     }
   };
 
   const refreshLogs = () => {
     setMergedLogs([]);
-    setQueryParams({
+    const newQuery = {
       ...queryParams,
-      before: beforeInput && beforeInput.toISOString(),
-      after: afterInput && afterInput.toISOString(),
-    });
+      before: beforeInput?.toISOString(),
+      after: afterInput?.toISOString(),
+    };
+    setQueryParams(newQuery);
+    setLogsQuery(newQuery);
     setRotate(!rotate);
   };
 
@@ -93,12 +99,14 @@ export const LogsTab: FC = () => {
     <div className="flex flex-col gap-4">
       <div className="flex flex-row justify-between items-center">
         <form
-          onSubmit={() =>
-            setQueryParams({
+          onSubmit={() => {
+            const newQuery = {
               ...queryParams,
               search: searchInput,
-            })
-          }
+            };
+            setQueryParams(newQuery);
+            setLogsQuery(newQuery);
+          }}
         >
           <Input
             id="search-input"

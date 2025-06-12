@@ -10,9 +10,8 @@ import {
   HeadlineActionItem,
 } from '@/next/components/ui/page-header';
 import docs from '@/next/lib/docs';
-import { Badge } from '@/next/components/ui/badge';
 import BasicLayout from '@/next/components/layouts/basic.layout';
-import { WorkerTable } from '../components';
+import { SlotsBadge, WorkerTable } from '../components';
 import { WorkerActions } from '../components/actions';
 
 function WorkerPoolDetailPageContent() {
@@ -34,7 +33,11 @@ function WorkerPoolDetailPageContent() {
       <Headline>
         <div className="flex flex-col gap-y-2">
           <PageTitle>
-            {decodedPoolName} <Badge variant="outline">Self-hosted</Badge>
+            {decodedPoolName}
+            <SlotsBadge
+              available={pool.totalAvailableRuns}
+              max={pool.totalMaxRuns}
+            />
           </PageTitle>
           <p className="text-muted-foreground">
             Viewing workers in pool{'  '}

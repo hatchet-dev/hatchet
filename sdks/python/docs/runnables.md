@@ -9,6 +9,7 @@
 
 ::: runnables.workflow.Workflow
     options:
+      inherited_members: true
       members:
         - task
         - durable_task
@@ -29,14 +30,17 @@
         - create_bulk_run_item
         - name
         - tasks
-        - is_durable
+        - id
         - list_runs
         - aio_list_runs
+        - create_filter
+        - aio_create_filter
 
 ## Standalone
 
-::: runnables.standalone.Standalone
+::: runnables.workflow.Standalone
     options:
+      inherited_members: true
       members:
         - run
         - aio_run
@@ -51,6 +55,7 @@
         - create_cron
         - aio_create_cron
         - create_bulk_run_item
-        - is_durable
         - list_runs
         - aio_list_runs
+        - create_filter
+        - aio_create_filter

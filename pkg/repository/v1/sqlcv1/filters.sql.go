@@ -11,19 +11,100 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const bulkUpsertDeclarativeFilters = `-- name: BulkUpsertDeclarativeFilters :many
+WITH inputs AS (
+    SELECT
+        UNNEST($3::TEXT[]) AS scope,
+        UNNEST($4::TEXT[]) AS expression,
+        UNNEST($5::JSONB[]) AS payload
+), deletions AS (
+    DELETE FROM v1_filter
+    WHERE
+        tenant_id = $1::UUID
+        AND workflow_id = $2::UUID
+        AND is_declarative
+)
+
+INSERT INTO v1_filter (
+    tenant_id,
+    workflow_id,
+    scope,
+    expression,
+    payload,
+    is_declarative
+)
+SELECT
+    $1::UUID,
+    $2::UUID,
+    scope,
+    expression,
+    payload,
+    true
+FROM inputs
+RETURNING id, tenant_id, workflow_id, scope, expression, payload, is_declarative, inserted_at, updated_at
+`
+
+type BulkUpsertDeclarativeFiltersParams struct {
+	Tenantid    pgtype.UUID `json:"tenantid"`
+	Workflowid  pgtype.UUID `json:"workflowid"`
+	Scopes      []string    `json:"scopes"`
+	Expressions []string    `json:"expressions"`
+	Payloads    [][]byte    `json:"payloads"`
+}
+
+// IMPORTANT: This query overwrites all existing declarative filters for a workflow.
+// it's intended to be used when the workflow version is created.
+func (q *Queries) BulkUpsertDeclarativeFilters(ctx context.Context, db DBTX, arg BulkUpsertDeclarativeFiltersParams) ([]*V1Filter, error) {
+	rows, err := db.Query(ctx, bulkUpsertDeclarativeFilters,
+		arg.Tenantid,
+		arg.Workflowid,
+		arg.Scopes,
+		arg.Expressions,
+		arg.Payloads,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*V1Filter
+	for rows.Next() {
+		var i V1Filter
+		if err := rows.Scan(
+			&i.ID,
+			&i.TenantID,
+			&i.WorkflowID,
+			&i.Scope,
+			&i.Expression,
+			&i.Payload,
+			&i.IsDeclarative,
+			&i.InsertedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const createFilter = `-- name: CreateFilter :one
 INSERT INTO v1_filter (
     tenant_id,
     workflow_id,
     scope,
     expression,
-    payload
+    payload,
+    is_declarative
 ) VALUES (
     $1::UUID,
     $2::UUID,
     $3::TEXT,
     $4::TEXT,
-    $5::JSONB
+    $5::JSONB,
+    false
 )
 ON CONFLICT (tenant_id, workflow_id, scope, expression) DO UPDATE
 SET
@@ -33,7 +114,7 @@ WHERE v1_filter.tenant_id = $1::UUID
   AND v1_filter.workflow_id = $2::UUID
   AND v1_filter.scope = $3::TEXT
   AND v1_filter.expression = $4::TEXT
-RETURNING id, tenant_id, workflow_id, scope, expression, payload, inserted_at, updated_at
+RETURNING id, tenant_id, workflow_id, scope, expression, payload, is_declarative, inserted_at, updated_at
 `
 
 type CreateFilterParams struct {
@@ -60,6 +141,7 @@ func (q *Queries) CreateFilter(ctx context.Context, db DBTX, arg CreateFilterPar
 		&i.Scope,
 		&i.Expression,
 		&i.Payload,
+		&i.IsDeclarative,
 		&i.InsertedAt,
 		&i.UpdatedAt,
 	)
@@ -71,7 +153,7 @@ DELETE FROM v1_filter
 WHERE
     tenant_id = $1::UUID
     AND id = $2::UUID
-RETURNING id, tenant_id, workflow_id, scope, expression, payload, inserted_at, updated_at
+RETURNING id, tenant_id, workflow_id, scope, expression, payload, is_declarative, inserted_at, updated_at
 `
 
 type DeleteFilterParams struct {
@@ -89,6 +171,7 @@ func (q *Queries) DeleteFilter(ctx context.Context, db DBTX, arg DeleteFilterPar
 		&i.Scope,
 		&i.Expression,
 		&i.Payload,
+		&i.IsDeclarative,
 		&i.InsertedAt,
 		&i.UpdatedAt,
 	)
@@ -96,7 +179,7 @@ func (q *Queries) DeleteFilter(ctx context.Context, db DBTX, arg DeleteFilterPar
 }
 
 const getFilter = `-- name: GetFilter :one
-SELECT id, tenant_id, workflow_id, scope, expression, payload, inserted_at, updated_at
+SELECT id, tenant_id, workflow_id, scope, expression, payload, is_declarative, inserted_at, updated_at
 FROM v1_filter
 WHERE
     tenant_id = $1::UUID
@@ -118,6 +201,94 @@ func (q *Queries) GetFilter(ctx context.Context, db DBTX, arg GetFilterParams) (
 		&i.Scope,
 		&i.Expression,
 		&i.Payload,
+		&i.IsDeclarative,
+		&i.InsertedAt,
+		&i.UpdatedAt,
+	)
+	return &i, err
+}
+
+const listFilterCountsForWorkflows = `-- name: ListFilterCountsForWorkflows :many
+WITH inputs AS (
+    SELECT UNNEST($2::UUID[]) AS workflow_id
+)
+
+SELECT workflow_id, COUNT(*)
+FROM v1_filter
+WHERE
+    tenant_id = $1::UUID
+    AND workflow_id = ANY($2::UUID[])
+GROUP BY workflow_id
+`
+
+type ListFilterCountsForWorkflowsParams struct {
+	Tenantid    pgtype.UUID   `json:"tenantid"`
+	Workflowids []pgtype.UUID `json:"workflowids"`
+}
+
+type ListFilterCountsForWorkflowsRow struct {
+	WorkflowID pgtype.UUID `json:"workflow_id"`
+	Count      int64       `json:"count"`
+}
+
+func (q *Queries) ListFilterCountsForWorkflows(ctx context.Context, db DBTX, arg ListFilterCountsForWorkflowsParams) ([]*ListFilterCountsForWorkflowsRow, error) {
+	rows, err := db.Query(ctx, listFilterCountsForWorkflows, arg.Tenantid, arg.Workflowids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ListFilterCountsForWorkflowsRow
+	for rows.Next() {
+		var i ListFilterCountsForWorkflowsRow
+		if err := rows.Scan(&i.WorkflowID, &i.Count); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const updateFilter = `-- name: UpdateFilter :one
+UPDATE v1_filter
+SET
+    scope = COALESCE($1::TEXT, scope),
+    expression = COALESCE($2::TEXT, expression),
+    payload = COALESCE($3::JSONB, payload),
+    updated_at = NOW()
+WHERE
+    tenant_id = $4::UUID
+    AND id = $5::UUID
+RETURNING id, tenant_id, workflow_id, scope, expression, payload, is_declarative, inserted_at, updated_at
+`
+
+type UpdateFilterParams struct {
+	Scope      pgtype.Text `json:"scope"`
+	Expression pgtype.Text `json:"expression"`
+	Payload    []byte      `json:"payload"`
+	Tenantid   pgtype.UUID `json:"tenantid"`
+	ID         pgtype.UUID `json:"id"`
+}
+
+func (q *Queries) UpdateFilter(ctx context.Context, db DBTX, arg UpdateFilterParams) (*V1Filter, error) {
+	row := db.QueryRow(ctx, updateFilter,
+		arg.Scope,
+		arg.Expression,
+		arg.Payload,
+		arg.Tenantid,
+		arg.ID,
+	)
+	var i V1Filter
+	err := row.Scan(
+		&i.ID,
+		&i.TenantID,
+		&i.WorkflowID,
+		&i.Scope,
+		&i.Expression,
+		&i.Payload,
+		&i.IsDeclarative,
 		&i.InsertedAt,
 		&i.UpdatedAt,
 	)

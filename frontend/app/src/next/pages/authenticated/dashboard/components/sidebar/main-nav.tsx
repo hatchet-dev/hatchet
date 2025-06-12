@@ -98,7 +98,7 @@ export const getMainNavLinks = (
             isActive: isActive(ROUTES.workflows.list(tenantId)),
           },
           {
-            title: 'Worker Pools',
+            title: 'Workers',
             url: ROUTES.workers.list(tenantId),
             icon: Cpu,
             isActive: isActive(ROUTES.workers.list(tenantId)),

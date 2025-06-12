@@ -11,11 +11,13 @@ export interface GithubCodeProps extends Omit<CodeProps, 'value'> {
   showLineNumbers?: boolean;
 }
 
+const defaultHighlightLines: number[] = [];
+
 export function GithubCode({
   repo,
   path,
   branch = 'main',
-  highlightLines = [],
+  highlightLines = defaultHighlightLines,
   showLineNumbers = true,
   ...props
 }: GithubCodeProps) {

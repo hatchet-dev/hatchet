@@ -4,6 +4,7 @@ import api, {
   Tenant,
   CreateTenantRequest,
   TenantUIVersion,
+  TenantVersion,
 } from '@/lib/api';
 import useUser from './use-user';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
@@ -33,15 +34,27 @@ export function useTenantDetails() {
   const setTenant = useCallback(
     (tenantId?: string) => {
       const currentPath = location.pathname;
+      const targetTenant = memberships?.find(
+        (m) => m.tenant?.metadata.id === tenantId,
+      )?.tenant;
 
-      const newPath = currentPath.replace(
-        /\/tenants\/([^/]+)/,
-        `/tenants/${tenantId}`,
-      );
+      const targetEngineVersion = targetTenant?.version || TenantVersion.V1;
+      const targetUIVersion = targetTenant?.uiVersion || TenantUIVersion.V1;
 
-      navigate(newPath);
+      if (targetUIVersion === TenantUIVersion.V1) {
+        const newPath = currentPath.replace(
+          /\/tenants\/([^/]+)/,
+          `/tenants/${tenantId}`,
+        );
+
+        navigate(newPath);
+      } else if (targetEngineVersion === TenantVersion.V1) {
+        window.location.href = `/v1/runs?tenant=${tenantId}`;
+      } else if (targetEngineVersion === TenantVersion.V0) {
+        window.location.href = `/workflow-runs?tenant=${tenantId}`;
+      }
     },
-    [navigate, location.pathname],
+    [navigate, location.pathname, memberships],
   );
 
   const membership = useMemo(() => {
@@ -115,9 +128,9 @@ export function useTenantDetails() {
         throw error;
       }
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['user:*'] });
-      queryClient.invalidateQueries({ queryKey: ['tenant:*'] });
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['user:*'] });
+      await queryClient.invalidateQueries({ queryKey: ['tenant:*'] });
     },
   });
 

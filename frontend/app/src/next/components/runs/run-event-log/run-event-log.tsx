@@ -3,11 +3,11 @@ import {
   V1TaskEvent,
   V1TaskEventType,
   V1TaskSummary,
+  WorkflowRunStatus,
 } from '@/lib/api';
 import { useRunDetail } from '@/next/hooks/use-run-detail';
 import { cn } from '@/next/lib/utils';
 import { RunStatusConfigs } from '../runs-badge';
-import { WorkflowRunStatus } from '@/lib/api';
 import {
   CheckCircle2,
   PlayCircle,
@@ -43,8 +43,7 @@ import {
   FilterText,
   FilterSelect,
 } from '@/next/components/ui/filters/filters';
-import { useFilters } from '@/next/hooks/utils/use-filters';
-import { FilterProvider } from '@/next/hooks/utils/use-filters';
+import { useFilters, FilterProvider } from '@/next/hooks/utils/use-filters';
 
 interface RunEventLogProps {
   filters?: ActivityFilters;
@@ -244,7 +243,7 @@ const EventMessage = ({ event, onTaskSelect }: EventMessageProps) => {
     let error = { message: 'Unknown error' };
     try {
       error = event.errorMessage
-        ? JSON.parse(event.errorMessage)
+        ? (JSON.parse(event.errorMessage) as { message: string })
         : { message: 'Unknown error' };
     } catch {
       error = { message: 'Unknown error' };
@@ -253,7 +252,7 @@ const EventMessage = ({ event, onTaskSelect }: EventMessageProps) => {
     return (
       <div className="flex justify-between items-center gap-2">
         <span className="text-xs text-destructive">{error.message}</span>
-        {onTaskSelect && (
+        {onTaskSelect ? (
           <Button
             variant="outline"
             size="sm"
@@ -265,7 +264,7 @@ const EventMessage = ({ event, onTaskSelect }: EventMessageProps) => {
           >
             <Bug className="h-3 w-3" />
           </Button>
-        )}
+        ) : null}
       </div>
     );
   }
@@ -274,7 +273,7 @@ const EventMessage = ({ event, onTaskSelect }: EventMessageProps) => {
     return (
       <div className="flex justify-between items-center gap-2">
         <span className="text-xs">{message}</span>
-        {onTaskSelect && (
+        {onTaskSelect ? (
           <Button
             variant="outline"
             size="sm"
@@ -286,7 +285,7 @@ const EventMessage = ({ event, onTaskSelect }: EventMessageProps) => {
           >
             <VscJson className="h-3 w-3" />
           </Button>
-        )}
+        ) : null}
       </div>
     );
   }
@@ -294,7 +293,7 @@ const EventMessage = ({ event, onTaskSelect }: EventMessageProps) => {
   return (
     <div className="flex justify-between items-center gap-2">
       <span className="text-xs">{message}</span>
-      {config.showWorkerButton && event.workerId && onTaskSelect && (
+      {config.showWorkerButton && event.workerId && onTaskSelect ? (
         <Button
           variant="outline"
           size="sm"
@@ -306,7 +305,7 @@ const EventMessage = ({ event, onTaskSelect }: EventMessageProps) => {
         >
           <CpuIcon className="h-3 w-3" />
         </Button>
-      )}
+      ) : null}
     </div>
   );
 };
@@ -498,16 +497,16 @@ function RunEventLogContent({
       );
     }
 
-    if (filters.taskId?.length) {
-      filtered = filtered.filter(
-        (event) => event.taskId && filters.taskId?.includes(event.taskId),
-      );
-    }
-
     if (filters.attempt !== undefined) {
       filtered = filtered.filter(
         (event) =>
           event.attempt !== undefined && event.attempt === filters.attempt,
+      );
+    }
+
+    if (filters.taskId?.length) {
+      filtered = filtered.filter((event) =>
+        filters.taskId?.includes(event.taskId),
       );
     }
 
@@ -516,45 +515,45 @@ function RunEventLogContent({
     mergedActivity,
     filters.search,
     filters.eventType,
-    filters.taskId,
     filters.attempt,
+    filters.taskId,
   ]);
 
   return (
     <div className="space-y-2 h-full">
       <FilterGroup>
-        {showFilters.search && (
+        {showFilters.search ? (
           <FilterText<ActivityFilters>
             name="search"
             placeholder="Search activity..."
           />
-        )}
-        {showFilters.eventType && (
+        ) : null}
+        {showFilters.eventType ? (
           <FilterSelect<ActivityFilters, V1TaskEventType>
             name="eventType"
             placeholder="Event Type"
             options={eventTypeOptions}
             multi
           />
-        )}
-        {showFilters.taskId && taskOptions.length > 1 && (
+        ) : null}
+        {showFilters.taskId && taskOptions.length > 1 ? (
           <FilterSelect<ActivityFilters, string>
             name="taskId"
             placeholder="Task"
             options={taskOptions}
             multi
           />
-        )}
-        {showFilters.attempt && attemptOptions.length > 0 && (
+        ) : null}
+        {showFilters.attempt && attemptOptions.length > 0 ? (
           <FilterSelect<ActivityFilters, number>
             name="attempt"
             placeholder="Attempt"
             options={attemptOptions}
           />
-        )}
+        ) : null}
       </FilterGroup>
       <div className="space-y-2">
-        {showNextButton && (
+        {showNextButton ? (
           <Button
             variant="link"
             className="p-2 text-muted-foreground"
@@ -564,7 +563,7 @@ function RunEventLogContent({
             <ArrowUpCircle className="h-4 w-4" />
             {showNextButton.label}
           </Button>
-        )}
+        ) : null}
         <div className="space-y-0.5 bg-background p-1 rounded-md">
           {filteredActivity?.map((event) => (
             <div
@@ -593,12 +592,12 @@ function RunEventLogContent({
                         <span />
                       </Time>
                       <p className="text-gray-500 shrink-0">
-                        {tasks?.[event.taskId] && (
+                        {tasks?.[event.taskId] ? (
                           <RunId
-                            taskRun={tasks[event.taskId] as any}
+                            taskRun={tasks[event.taskId]}
                             attempt={event.attempt}
                           />
-                        )}
+                        ) : null}
                       </p>
                       {event.eventType === LogEventType ? (
                         <EventMessage
@@ -645,7 +644,7 @@ function RunEventLogContent({
             </div>
           ))}
         </div>
-        {showPreviousButton && (
+        {showPreviousButton ? (
           <Button
             variant="link"
             className="p-2 text-muted-foreground"
@@ -655,7 +654,7 @@ function RunEventLogContent({
             <ArrowDownCircle className="h-4 w-4" />
             {showPreviousButton.label}
           </Button>
-        )}
+        ) : null}
       </div>
     </div>
   );

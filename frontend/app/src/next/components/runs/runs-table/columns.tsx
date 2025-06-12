@@ -52,7 +52,7 @@ export const columns = (
       <div
         className={cn(
           `pl-${row.depth * 4}`,
-          'flex flex-row items-center justify-start gap-x-2 max-w-6 mr-2',
+          'flex flex-row items-center justify-start gap-x-2 min-w-6 max-w-8 mr-2',
         )}
       >
         <Checkbox
@@ -100,7 +100,7 @@ export const columns = (
           </div>
         );
       },
-      filterFn: (row, id, value) => {
+      filterFn: (row, id, value: string) => {
         return value.includes(row.getValue(id));
       },
       enableSorting: false,
@@ -124,7 +124,7 @@ export const columns = (
                 rowClicked?.(row.original);
               }}
             />
-            {url && (
+            {url ? (
               <Link
                 to={url}
                 className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-foreground"
@@ -138,7 +138,7 @@ export const columns = (
                   <ArrowDownFromLine className="w-4 h-4" />
                 </Button>
               </Link>
-            )}
+            ) : null}
           </div>
         );
       },
@@ -183,7 +183,8 @@ export const columns = (
         />
       ),
       cell: ({ row }) => {
-        const startedAt = row.getValue('startedAt') as string | null;
+        const startedAt: string = row.getValue('startedAt');
+
         if (!startedAt) {
           return <span>-</span>;
         }
@@ -216,7 +217,7 @@ export const columns = (
         <DataTableColumnHeader column={column} title="Duration" />
       ),
       cell: ({ row }) => {
-        const startedAt = row.getValue('startedAt') as string | null;
+        const startedAt: string | null = row.getValue('startedAt');
         const finishedAt = row.original.finishedAt as string | null;
         const status = row.getValue('status') as V1TaskStatus;
 

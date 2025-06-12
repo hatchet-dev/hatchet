@@ -28,7 +28,6 @@ import { Headline, PageTitle } from '@/next/components/ui/page-header';
 import { ROUTES } from '@/next/lib/routes';
 import useApiMeta from '@/next/hooks/use-api-meta';
 import useCloudFeatureFlags from '@/pages/auth/hooks/use-cloud-feature-flags';
-import { createSearchParams, useNavigate } from 'react-router-dom';
 
 export default function SettingsOverviewPage() {
   const { isCloud } = useApiMeta();
@@ -48,20 +47,20 @@ export default function SettingsOverviewPage() {
       </Headline>
       <Separator className="my-4" />
       <UpdateTenant />
-      {isCloud && (
+      {isCloud ? (
         <>
           <Separator className="my-4" />
           <AnalyticsOptOut />
         </>
-      )}
+      ) : null}
       <Separator className="my-4" />
       <TenantVersionSwitcher />
-      {hasUIVersionFlag && (
+      {hasUIVersionFlag ? (
         <>
           <Separator className="my-4" />
           <UIVersionSwitcher />
         </>
-      )}
+      ) : null}
     </BasicLayout>
   );
 }
@@ -88,11 +87,11 @@ function UpdateTenant() {
 
 function AnalyticsOptOut() {
   const { tenant, update } = useTenantDetails();
-  const [checkedState, setChecked] = useState(false);
+  const [checkedState, setCheckedState] = useState(false);
   const [changed, setChanged] = useState(false);
 
   useEffect(() => {
-    setChecked(!!tenant?.analyticsOptOut);
+    setCheckedState(!!tenant?.analyticsOptOut);
     setChanged(false);
   }, [tenant]);
 
@@ -102,7 +101,7 @@ function AnalyticsOptOut() {
 
   // Set initial state based on tenant data
   if (checkedState !== !!tenant.analyticsOptOut && !changed) {
-    setChecked(!!tenant.analyticsOptOut);
+    setCheckedState(!!tenant.analyticsOptOut);
   }
 
   const save = () => {
@@ -123,7 +122,7 @@ function AnalyticsOptOut() {
           id="analytics-opt-out"
           checked={checkedState}
           onCheckedChange={() => {
-            setChecked(!checkedState);
+            setCheckedState(!checkedState);
             setChanged(true);
           }}
         />
@@ -131,7 +130,7 @@ function AnalyticsOptOut() {
           Analytics Opt-Out
         </Label>
       </div>
-      {changed && (
+      {changed ? (
         <Button
           onClick={save}
           className="w-fit mt-2"
@@ -139,7 +138,7 @@ function AnalyticsOptOut() {
         >
           Save
         </Button>
-      )}
+      ) : null}
     </div>
   );
 }
@@ -226,9 +225,8 @@ function TenantVersionSwitcher() {
 function UIVersionSwitcher() {
   const { tenant, update } = useTenantDetails();
   const [showDowngradeModal, setShowDowngradeModal] = useState(false);
-  const navigate = useNavigate();
 
-  if (!tenant || !tenant.uiVersion || tenant.uiVersion === TenantUIVersion.V0) {
+  if (!tenant?.uiVersion || tenant.uiVersion === TenantUIVersion.V0) {
     return (
       <div>
         This is a V0 tenant. Please upgrade to V1 or use V0 from the frontend.
@@ -283,17 +281,7 @@ function UIVersionSwitcher() {
                 }
 
                 setShowDowngradeModal(false);
-                navigate(
-                  {
-                    pathname: '/v1/runs',
-                    search: createSearchParams({
-                      tenant: tenant.metadata.id,
-                    }).toString(),
-                  },
-                  {
-                    replace: false,
-                  },
-                );
+                window.location.href = `/v1/runs?tenant=${tenant.metadata.id}`;
               }}
               loading={update.isPending}
             >

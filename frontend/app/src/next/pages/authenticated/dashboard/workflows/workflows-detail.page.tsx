@@ -27,7 +27,6 @@ import { useParams } from 'react-router-dom';
 import WorkflowGeneralSettings from './settings';
 import { RunsProvider } from '@/next/hooks/use-runs';
 import { RunsTable } from '@/next/components/runs/runs-table/runs-table';
-import { V1TaskStatus } from '@/lib/api';
 
 export default function WorkflowDetailPage() {
   const { workflowId: workflowIdRaw } = useParams<{
@@ -70,11 +69,11 @@ function WorkflowDetailPageContent({ workflowId }: { workflowId: string }) {
             <h2 className="text-2xl font-bold leading-tight text-foreground">
               {workflow.name}
             </h2>
-            {currentVersion && (
+            {currentVersion ? (
               <Badge className="text-sm mt-1" variant="outline">
                 {currentVersion}
               </Badge>
-            )}
+            ) : null}
             <DropdownMenu>
               <DropdownMenuTrigger>
                 {workflow.isPaused ? (
@@ -139,17 +138,14 @@ function WorkflowDetailPageContent({ workflowId }: { workflowId: string }) {
         </div>
         <div className="flex flex-row justify-start items-center mt-4">
           <div className="text-sm text-gray-700 dark:text-gray-300">
-            Updated{' '}
-            {relativeDate(
-              workflow.versions && workflow.versions[0].metadata.updatedAt,
-            )}
+            Updated {relativeDate(workflow.versions?.[0].metadata.updatedAt)}
           </div>
         </div>
-        {workflow.description && (
+        {workflow.description ? (
           <div className="text-sm text-gray-700 dark:text-gray-300 mt-4">
             {workflow.description}
           </div>
-        )}
+        ) : null}
         <div className="flex flex-row justify-start items-center mt-4"></div>
         <Tabs defaultValue="runs">
           {/* TODO: Add layout */}
@@ -167,15 +163,16 @@ function WorkflowDetailPageContent({ workflowId }: { workflowId: string }) {
             <RunsProvider
               initialFilters={{
                 workflow_ids: [workflowId],
-                statuses: [
-                  V1TaskStatus.RUNNING,
-                  V1TaskStatus.COMPLETED,
-                  V1TaskStatus.FAILED,
-                  V1TaskStatus.CANCELLED,
-                ],
               }}
             >
-              <RunsTable />
+              <RunsTable
+                excludedFilters={[
+                  'workflow_ids',
+                  'task_ids',
+                  'is_root_task',
+                  'only_tasks',
+                ]}
+              />
             </RunsProvider>
           </TabsContent>
           <TabsContent value="settings">
@@ -189,14 +186,14 @@ function WorkflowDetailPageContent({ workflowId }: { workflowId: string }) {
               <WorkflowGeneralSettings />
             )}
             <Separator className="my-4" />
-            {hasGithubIntegration && (
+            {hasGithubIntegration ? (
               <div className="hidden">
                 <h3 className="hidden text-xl font-bold leading-tight text-foreground mt-8">
                   Deployment Settings
                 </h3>
                 <Separator className="hidden my-4" />
               </div>
-            )}
+            ) : null}
             <h4 className="text-lg font-bold leading-tight text-foreground mt-8">
               Danger Zone
             </h4>

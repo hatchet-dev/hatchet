@@ -35,6 +35,7 @@ import { RunDetailProvider, useRunDetail } from '@/next/hooks/use-run-detail';
 import { getFriendlyWorkflowRunId } from '@/next/components/runs/run-id';
 import { FaCodeBranch } from 'react-icons/fa';
 import { useCurrentTenantId } from '@/next/hooks/use-tenant';
+import { Label } from '../ui/label';
 
 type TimingOption = 'now' | 'schedule' | 'cron';
 
@@ -104,6 +105,8 @@ function WithPreviousInput({
   return null;
 }
 
+const defaultDisabledCapabilities: TriggerRunCapability[] = [];
+
 function TriggerRunModalContent({
   show,
   onClose,
@@ -112,7 +115,7 @@ function TriggerRunModalContent({
   defaultAddlMeta = '{}',
   defaultWorkflowId,
   defaultRunId,
-  disabledCapabilities = [],
+  disabledCapabilities = defaultDisabledCapabilities,
   onRun,
 }: TriggerRunModalProps) {
   const navigate = useNavigate();
@@ -300,14 +303,14 @@ function TriggerRunModalContent({
         </DialogHeader>
 
         <div className="space-y-4">
-          {selectedRunId && !disabledCapabilities.includes('fromRecent') && (
+          {selectedRunId && !disabledCapabilities.includes('fromRecent') ? (
             <RunDetailProvider runId={selectedRunId}>
               <WithPreviousInput
                 setInput={setInput}
                 setAddlMeta={setAddlMeta}
               />
             </RunDetailProvider>
-          )}
+          ) : null}
           {!disabledCapabilities.includes('workflow') && (
             <div>
               <label className="text-sm font-medium">Workflow</label>
@@ -338,10 +341,10 @@ function TriggerRunModalContent({
 
           {!disabledCapabilities.includes('fromRecent') && (
             <div>
-              <label className="text-sm font-medium flex items-center gap-2">
+              <Label className="text-sm font-medium flex items-center gap-2">
                 <FaCodeBranch className="text-muted-foreground" size={16} />
                 From Recent Run
-              </label>
+              </Label>
               <Select
                 value={selectedRunId}
                 disabled={!selectedWorkflowId}

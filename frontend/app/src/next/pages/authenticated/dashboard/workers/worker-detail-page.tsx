@@ -9,7 +9,6 @@ import {
   HeadlineActionItem,
 } from '@/next/components/ui/page-header';
 import docs from '@/next/lib/docs';
-import { Badge } from '@/next/components/ui/badge';
 import BasicLayout from '@/next/components/layouts/basic.layout';
 import { RunsProvider } from '@/next/hooks/use-runs';
 import { RunsTable } from '@/next/components/runs/runs-table/runs-table';
@@ -21,6 +20,7 @@ import { Spinner } from '@/next/components/ui/spinner';
 import { WorkerActions } from './components/actions';
 import { useSidePanel } from '@/next/hooks/use-side-panel';
 import { useState } from 'react';
+import { SlotsBadge } from './components/worker-slots-badge';
 
 function WorkerDetailPageContent() {
   const [selectedTaskId, setSelectedTaskId] = useState<string>();
@@ -56,8 +56,18 @@ function WorkerDetailPageContent() {
   return (
     <BasicLayout>
       <Headline>
-        <PageTitle description={`Viewing tasks executed by worker ${workerId}`}>
-          {workerDetails.name} <Badge variant="outline">Self-hosted</Badge>
+        <PageTitle
+          description={`Viewing tasks executed by worker ${workerDetails.name} (${workerId})`}
+        >
+          {workerDetails.name}
+          <SlotsBadge
+            available={
+              workerDetails.status === 'ACTIVE'
+                ? workerDetails.availableRuns || 0
+                : 0
+            }
+            max={workerDetails.maxRuns || 0}
+          />{' '}
         </PageTitle>
         <HeadlineActions>
           <HeadlineActionItem>
@@ -81,6 +91,7 @@ function WorkerDetailPageContent() {
           <RunsTable
             onRowClick={handleRowClick}
             selectedTaskId={selectedTaskId}
+            excludedFilters={['is_root_task', 'workflow_ids']}
           />
         </RunsProvider>
         <Separator className="my-4" />

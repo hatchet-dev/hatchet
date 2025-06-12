@@ -24,10 +24,6 @@ import { Alerter } from './components/sidebar/alerter';
 import { cn } from '@/next/lib/utils';
 
 export default function DashboardLayout() {
-  return <DashboardLayoutContent />;
-}
-
-function DashboardLayoutContent() {
   const { tenant, isLoading } = useTenantDetails();
   const { toggleTheme, theme } = useTheme();
   const { logout } = useUser();
@@ -51,7 +47,7 @@ function DashboardLayoutContent() {
           >
             <div className="flex w-full items-center justify-between">
               <div className="flex items-center gap-2">
-                {isMobile && (
+                {isMobile ? (
                   <>
                     <SidebarTrigger
                       className="-ml-1"
@@ -59,7 +55,7 @@ function DashboardLayoutContent() {
                     />
                     <Separator orientation="vertical" className="mr-2 h-4" />
                   </>
-                )}
+                ) : null}
               </div>
 
               <div className="flex items-center gap-2">
@@ -108,7 +104,7 @@ function DashboardLayoutContent() {
         </div>
         <main className="flex flex-1 flex-col gap-4 overflow-auto">
           {!isLoading && !tenant && <Unauthorized />}
-          {!isLoading && tenant && <Outlet />}
+          {!isLoading && tenant ? <Outlet /> : null}
         </main>
       </div>
     </AppSidebar>

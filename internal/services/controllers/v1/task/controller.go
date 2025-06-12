@@ -304,6 +304,7 @@ func (tc *TasksControllerImpl) Start() (func() error, error) {
 		gocron.NewTask(
 			tc.runTaskTablePartition(ctx),
 		),
+		gocron.WithSingletonMode(gocron.LimitModeReschedule),
 	)
 
 	if err != nil {
@@ -892,6 +893,7 @@ func (tc *TasksControllerImpl) handleProcessUserEventTrigger(ctx context.Context
 					EventExternalId:         opts.ExternalId,
 					EventPayload:            opts.Data,
 					EventAdditionalMetadata: opts.AdditionalMetadata,
+					EventScope:              opts.Scope,
 				})
 			}
 		}

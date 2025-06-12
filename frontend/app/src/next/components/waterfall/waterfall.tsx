@@ -76,7 +76,7 @@ const CustomTooltip = (props: {
 }) => {
   const { active, payload } = props;
 
-  if (active && payload && payload.length) {
+  if (active && payload?.length) {
     // Filter out any offset entries from the tooltip
     const filteredPayload = payload.filter(
       (entry) => entry.dataKey !== 'offset' && entry.name !== 'Offset',
@@ -129,15 +129,15 @@ const inferTaskState = (
   }
 
   // Get all valid timestamps
-  const startTimes = tasks
-    .filter((t) => t.startedAt)
-    .map((t) => new Date(t.startedAt!).getTime());
-  const finishedTimes = tasks
-    .filter((t) => t.finishedAt)
-    .map((t) => new Date(t.finishedAt!).getTime());
-  const queueTimes = tasks
-    .filter((t) => t.queuedAt)
-    .map((t) => new Date(t.queuedAt!).getTime());
+  const startTimes = tasks.flatMap((t) =>
+    t.startedAt ? [new Date(t.startedAt).getTime()] : [],
+  );
+  const finishedTimes = tasks.flatMap((t) =>
+    t.finishedAt ? [new Date(t.finishedAt).getTime()] : [],
+  );
+  const queueTimes = tasks.flatMap((t) =>
+    t.queuedAt ? [new Date(t.queuedAt).getTime()] : [],
+  );
 
   // Infer status based on child tasks
   let status: V1TaskStatus = V1TaskStatus.QUEUED;
@@ -274,9 +274,11 @@ export function Waterfall({
     const getDescendants = (taskId: string): Set<string> => {
       // If we've already calculated this, return the cached result
       if (taskDescendantsMap.has(taskId)) {
-        return taskDescendantsMap.get(taskId)!;
+        const result = taskDescendantsMap.get(taskId);
+        if (result !== undefined) {
+          return result;
+        }
       }
-
       const descendants = new Set<string>();
       const children = taskParentMap.get(taskId) || [];
 
@@ -323,7 +325,9 @@ export function Waterfall({
       // Create phantom parents for groups with multiple tasks
       groups.forEach((taskIds, workflowRunId) => {
         if (taskIds.length > 1) {
-          const tasks = taskIds.map((id) => taskMap.get(id)!);
+          const tasks = taskIds
+            .map((id) => taskMap.get(id))
+            .flatMap((t) => t || []);
 
           // Infer state from child tasks
           const inferredState = inferTaskState(tasks);
@@ -356,7 +360,12 @@ export function Waterfall({
 
           // Update children to point to phantom parent
           taskIds.forEach((childId) => {
-            const child = taskMap.get(childId)!;
+            const child = taskMap.get(childId);
+
+            if (!child) {
+              return;
+            }
+
             child.parentTaskExternalId = phantomParent.metadata.id;
             child.depth = depth + 1;
             taskDepthMap.set(childId, depth + 1);
@@ -403,58 +412,63 @@ export function Waterfall({
     };
   }, [taskData]); // Only recompute when taskData changes
 
-  const closeTask = (taskId: string) => {
-    const newExpandedTasks = new Set(expandedTasks);
-    newExpandedTasks.delete(taskId);
+  const closeTask = useCallback(
+    (taskId: string) => {
+      const newExpandedTasks = new Set(expandedTasks);
+      newExpandedTasks.delete(taskId);
 
-    // Get all descendants and remove them from expanded set
-    const descendants =
-      taskRelationships.taskDescendantsMap.get(taskId) || new Set<string>();
-    descendants.forEach((descendantId) => {
-      newExpandedTasks.delete(descendantId);
-    });
-
-    // Also remove any descendants that might be in the expanded set
-    // This handles the case where some descendants might not be in the taskDescendantsMap
-    const processDescendants = (parentId: string) => {
-      const children = taskRelationships.taskParentMap.get(parentId) || [];
-      children.forEach((childId) => {
-        newExpandedTasks.delete(childId);
-        processDescendants(childId);
+      // Get all descendants and remove them from expanded set
+      const descendants =
+        taskRelationships.taskDescendantsMap.get(taskId) || new Set<string>();
+      descendants.forEach((descendantId) => {
+        newExpandedTasks.delete(descendantId);
       });
-    };
 
-    processDescendants(taskId);
-    setExpandedTasks(newExpandedTasks);
-  };
+      // Also remove any descendants that might be in the expanded set
+      // This handles the case where some descendants might not be in the taskDescendantsMap
+      const processDescendants = (parentId: string) => {
+        const children = taskRelationships.taskParentMap.get(parentId) || [];
+        children.forEach((childId) => {
+          newExpandedTasks.delete(childId);
+          processDescendants(childId);
+        });
+      };
 
-  const openTask = (taskId: string, taskDepth: number) => {
-    const newExpandedTasks = new Set(expandedTasks);
-    newExpandedTasks.add(taskId);
+      processDescendants(taskId);
+      setExpandedTasks(newExpandedTasks);
+    },
+    [expandedTasks, taskRelationships],
+  );
 
-    // If expanding requires a deeper query, update the depth
-    if (taskDepth + 1 >= depth) {
-      setDepth(depth + 1);
-    }
+  const openTask = useCallback(
+    (taskId: string, taskDepth: number) => {
+      const newExpandedTasks = new Set(expandedTasks);
+      newExpandedTasks.add(taskId);
 
-    setExpandedTasks(newExpandedTasks);
-  };
+      // If expanding requires a deeper query, update the depth
+      if (taskDepth + 1 >= depth) {
+        setDepth(depth + 1);
+      }
 
-  const toggleTask = (
-    taskId: string,
-    hasChildren: boolean,
-    taskDepth: number,
-  ) => {
-    if (!hasChildren) {
-      return;
-    }
+      setExpandedTasks(newExpandedTasks);
+    },
+    [expandedTasks, setDepth, depth],
+  );
 
-    if (expandedTasks.has(taskId)) {
-      closeTask(taskId);
-    } else {
-      openTask(taskId, taskDepth);
-    }
-  };
+  const toggleTask = useCallback(
+    (taskId: string, hasChildren: boolean, taskDepth: number) => {
+      if (!hasChildren) {
+        return;
+      }
+
+      if (expandedTasks.has(taskId)) {
+        closeTask(taskId);
+      } else {
+        openTask(taskId, taskDepth);
+      }
+    },
+    [expandedTasks, closeTask, openTask],
+  );
 
   // Transform and filter data based on expanded state
   const processedData = useMemo<ProcessedData>(() => {
@@ -606,19 +620,22 @@ export function Waterfall({
   }, [taskData, expandedTasks, autoExpandedInitially, taskRelationships]); // Only recompute when dependencies change
 
   // Handler for bar click events
-  const handleBarClick = (data: any) => {
-    if (data && data.id) {
-      // Handle task selection for sidebar
-      if (handleTaskSelect) {
-        handleTaskSelect(data.id, data.workflowRunId);
-      }
+  const handleBarClick = useCallback(
+    (data: any) => {
+      if (data?.id) {
+        // Handle task selection for sidebar
+        if (handleTaskSelect) {
+          handleTaskSelect(data.id, data.workflowRunId);
+        }
 
-      // Handle expansion if the task has children
-      if (data.hasChildren) {
-        openTask(data.id, data.depth);
+        // Handle expansion if the task has children
+        if (data.hasChildren) {
+          openTask(data.id, data.depth);
+        }
       }
-    }
-  };
+    },
+    [handleTaskSelect, openTask],
+  );
 
   const renderTick = useCallback(
     (props: { x: number; y: number; payload: { value: string } }) => {
@@ -832,12 +849,13 @@ const Tick = ({
               toggleTask(task.id, task.hasChildren, task.depth)
             }
           >
-            {task.hasChildren &&
-              (task.isExpanded ? (
+            {task.hasChildren ? (
+              task.isExpanded ? (
                 <ChevronDown size={14} />
               ) : (
                 <ChevronRight size={14} />
-              ))}
+              )
+            ) : null}
           </div>
 
           {/* Task label */}
@@ -854,23 +872,23 @@ const Tick = ({
             />
           </div>
           {workflowRunId === task.workflowRunId &&
-            task.taskExternalId === workflowRunId &&
-            task.parentId && (
-              <Link
-                to={ROUTES.runs.detail(tenantId, task.parentId)}
-                onClick={(e) => e.stopPropagation()}
+          task.taskExternalId === workflowRunId &&
+          task.parentId ? (
+            <Link
+              to={ROUTES.runs.detail(tenantId, task.parentId)}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <Button
+                tooltip="Zoom out to parent task"
+                variant="link"
+                size="icon"
+                className="group-hover:opacity-100 opacity-0 transition-opacity duration-200"
               >
-                <Button
-                  tooltip="Zoom out to parent task"
-                  variant="link"
-                  size="icon"
-                  className="group-hover:opacity-100 opacity-0 transition-opacity duration-200"
-                >
-                  <BsArrowUpLeftCircle className="w-4 h-4 transform" />
-                </Button>
-              </Link>
-            )}
-          {task.hasChildren && (
+                <BsArrowUpLeftCircle className="w-4 h-4 transform" />
+              </Button>
+            </Link>
+          ) : null}
+          {task.hasChildren ? (
             <Link
               to={ROUTES.runs.detail(tenantId, task.workflowRunId || task.id)}
             >
@@ -884,7 +902,7 @@ const Tick = ({
                 <ArrowDownFromLine className="w-4 h-4" />
               </Button>
             </Link>
-          )}
+          ) : null}
           {task.queuedDuration === null && (
             <TooltipProvider>
               <BaseTooltip>

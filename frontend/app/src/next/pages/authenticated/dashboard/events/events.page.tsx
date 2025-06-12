@@ -5,6 +5,7 @@ import { DataTableColumnHeader } from '@/next/components/runs/runs-table/data-ta
 import { RunsTable } from '@/next/components/runs/runs-table/runs-table';
 import { DataTable } from '@/next/components/ui/data-table';
 import { DocsButton } from '@/next/components/ui/docs-button';
+import { TimeFilters } from '@/next/components/ui/filters/time-filter-group';
 import {
   Headline,
   HeadlineActionItem,
@@ -53,6 +54,8 @@ function EventsContent() {
         </HeadlineActions>
       </Headline>
       <Separator className="my-4" />
+      <TimeFilters />
+
       <DataTable
         columns={columns()}
         data={data || []}
@@ -217,7 +220,7 @@ const StatusBadgeWithTooltip = ({
   }
 
   return (
-    <Tooltip>
+    <Tooltip delayDuration={300}>
       <TooltipTrigger asChild>
         <div>
           <RunsBadge status={status} variant="default" />
@@ -239,6 +242,7 @@ const StatusBadgeWithTooltip = ({
               'triggering_event_external_id',
               'worker_id',
               'workflow_ids',
+              'task_ids',
             ]}
             showPagination={false}
             allowSelection={false}

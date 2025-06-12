@@ -5,13 +5,10 @@ import {
   useMemo,
   useState,
 } from 'react';
-import docMetadata from '@/next/lib/docs';
 import {
   RunDetailSheet,
   RunDetailSheetSerializableProps,
 } from '../pages/authenticated/dashboard/runs/detail-sheet/run-detail-sheet';
-
-export const pages = docMetadata;
 
 export type DocRef = {
   title: string;
@@ -48,7 +45,7 @@ type UseSidePanelProps =
       content: RunDetailSheetSerializableProps;
     };
 
-export function useSidePanelData(): SidePanelData {
+function useSidePanelData(): SidePanelData {
   const [isOpen, setIsOpen] = useState(false);
   const [props, setProps] = useState<UseSidePanelProps | null>(null);
 

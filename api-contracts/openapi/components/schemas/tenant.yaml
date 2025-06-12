@@ -82,6 +82,9 @@ CreateTenantRequest:
     uiVersion:
       $ref: "#/TenantUIVersion"
       description: The UI version of the tenant. Defaults to V0.
+    engineVersion:
+      $ref: "#/TenantVersion"
+      description: The engine version of the tenant. Defaults to V0.
   required:
     - name
     - slug

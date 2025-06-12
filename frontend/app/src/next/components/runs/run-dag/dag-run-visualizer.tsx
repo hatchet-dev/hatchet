@@ -124,7 +124,7 @@ function WorkflowRunVisualizerContent({
     [shape, theme, taskRuns],
   );
 
-  const nodes: Node[] = useMemo(
+  const nodes: Node<NodeData>[] = useMemo(
     () =>
       shape.map((shapeItem) => {
         const hasParent = shape.some((s) =>
@@ -163,7 +163,7 @@ function WorkflowRunVisualizerContent({
   const nodeHeight = 70;
 
   const getLayoutedElements = (
-    nodes: Node[],
+    nodes: Node<NodeData>[],
     edges: Edge[],
     direction = 'LR',
   ) => {
@@ -231,7 +231,8 @@ function WorkflowRunVisualizerContent({
       }
 
       const node = layoutedNodes?.find(
-        (n: Node) => n.data.taskRun?.taskExternalId === selectedTaskId,
+        (n: Node<NodeData>) =>
+          n.data.taskRun?.taskExternalId === selectedTaskId,
       );
 
       if (node) {
@@ -278,7 +279,7 @@ function WorkflowRunVisualizerContent({
     setIsExpanded(!isExpanded);
     setTimeout(() => {
       recenter();
-    }, 100);
+    }, 500);
   }, [isExpanded, recenter]);
 
   return (

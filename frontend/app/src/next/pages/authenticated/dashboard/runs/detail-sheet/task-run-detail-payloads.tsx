@@ -53,13 +53,13 @@ export const TaskRunDetailPayloadContent = ({
     <>
       <RunDataCard
         title="Input"
-        output={(selectedTask.input as any).input ?? {}}
+        output={(selectedTask.input as { input?: object }).input ?? {}}
         variant="input"
       />
       {selectedTask.type === V1WorkflowType.DAG && (
         <RunDataCard
           title="Parent Data"
-          output={(selectedTask.input as any).parents ?? {}}
+          output={(selectedTask.input as { parents?: object }).parents ?? {}}
           variant="input"
           collapsed
         />

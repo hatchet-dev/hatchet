@@ -144,6 +144,7 @@ from hatchet_sdk.runnables.task import Task
 from hatchet_sdk.runnables.types import (
     ConcurrencyExpression,
     ConcurrencyLimitStrategy,
+    DefaultFilter,
     EmptyModel,
     StickyStrategy,
     TaskDefaults,
@@ -275,4 +276,5 @@ __all__ = [
     "OTelAttribute",
     "OpenTelemetryConfig",
     "ClientTLSConfig",
+    "DefaultFilter",
 ]

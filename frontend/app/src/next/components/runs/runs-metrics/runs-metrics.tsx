@@ -118,6 +118,18 @@ export const RunsMetricsView = () => {
 
         <MetricBadge
           metrics={metrics.data}
+          status={V1TaskStatus.CANCELLED}
+          total={total}
+          onClick={handleMetricClick}
+          className={cn(
+            'cursor-pointer text-sm px-2 py-1 w-fit',
+            !isMetricActive(V1TaskStatus.CANCELLED) && 'opacity-50',
+          )}
+          isLoading={metrics.isLoading}
+        />
+
+        <MetricBadge
+          metrics={metrics.data}
           status={V1TaskStatus.QUEUED}
           total={total}
           onClick={handleMetricClick}

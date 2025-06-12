@@ -26,11 +26,11 @@ export function ManagedWorkerBuild({ buildId }: { buildId: string }) {
           <div className="text-sm text-gray-700 dark:text-gray-300">
             Created: <RelativeDate date={build?.metadata?.createdAt} />
           </div>
-          {build?.finishTime && (
+          {build?.finishTime ? (
             <div className="text-sm text-gray-700 dark:text-gray-300">
               Finished: <RelativeDate date={build?.finishTime} />
             </div>
-          )}
+          ) : null}
           <div className="text-sm text-gray-700 dark:text-gray-300">
             Status: {getBuildQuery.data?.status}
           </div>

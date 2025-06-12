@@ -1,5 +1,5 @@
 import asyncio
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING, Literal, overload
 
 from pydantic import BaseModel, model_validator
@@ -129,6 +129,25 @@ class RunsClient(BaseRestClient):
         """
         return await asyncio.to_thread(self.get, workflow_run_id)
 
+    def get_status(self, workflow_run_id: str) -> V1TaskStatus:
+        """
+        Get workflow run status for a given workflow run ID.
+
+        :param workflow_run_id: The ID of the workflow run to retrieve details for.
+        :return: The task status
+        """
+        with self.client() as client:
+            return self._wra(client).v1_workflow_run_get_status(str(workflow_run_id))
+
+    async def aio_get_status(self, workflow_run_id: str) -> V1TaskStatus:
+        """
+        Get workflow run status for a given workflow run ID.
+
+        :param workflow_run_id: The ID of the workflow run to retrieve details for.
+        :return: The task status
+        """
+        return await asyncio.to_thread(self.get_status, workflow_run_id)
+
     async def aio_list(
         self,
         since: datetime | None = None,
@@ -162,7 +181,7 @@ class RunsClient(BaseRestClient):
         """
         return await asyncio.to_thread(
             self.list,
-            since=since or datetime.now() - timedelta(days=1),
+            since=since or datetime.now(tz=timezone.utc) - timedelta(days=1),
             only_tasks=only_tasks,
             offset=offset,
             limit=limit,
@@ -209,7 +228,7 @@ class RunsClient(BaseRestClient):
         with self.client() as client:
             return self._wra(client).v1_workflow_run_list(
                 tenant=self.client_config.tenant_id,
-                since=since or datetime.now() - timedelta(days=1),
+                since=since or datetime.now(tz=timezone.utc) - timedelta(days=1),
                 only_tasks=only_tasks,
                 offset=offset,
                 limit=limit,

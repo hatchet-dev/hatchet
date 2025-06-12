@@ -45,15 +45,13 @@ export const Snippet = ({ src, block }: SnippetProps) => {
   const fixedSource = src.source.replace('out/', 'examples/');
 
   return (
-    <>
-      <CodeBlock
-        value={content}
-        language={language}
-        // highlightLines={src.blocks?.[block]?.start}
-        // highlightLines={src.blocks?.[block]?.stop}
-        title={fixedSource}
-        link={`https://github.com/hatchet-dev/hatchet/blob/main/${fixedSource}`}
-      />
-    </>
+    <CodeBlock
+      value={content}
+      language={language}
+      // highlightLines={src.blocks?.[block]?.start}
+      // highlightLines={src.blocks?.[block]?.stop}
+      title={fixedSource}
+      link={`https://github.com/hatchet-dev/hatchet/blob/main/${fixedSource}`}
+    />
   );
 };

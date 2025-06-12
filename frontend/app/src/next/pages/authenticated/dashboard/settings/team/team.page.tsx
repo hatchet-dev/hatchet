@@ -30,6 +30,23 @@ export default function MembersPage() {
   );
 }
 
+const InviteMemberButton = ({
+  canInvite,
+  setShowInviteDialog,
+}: {
+  canInvite: boolean;
+  setShowInviteDialog: (show: boolean) => void;
+}) => (
+  <Button
+    key="invite-member"
+    onClick={() => setShowInviteDialog(true)}
+    disabled={!canInvite}
+  >
+    <UserPlus className="mr-2 h-4 w-4" />
+    Invite
+  </Button>
+);
+
 function MembersContent() {
   const { canWithReason } = useCan();
   const { allowed: canViewMembers, message: canViewMembersMessage } =
@@ -42,29 +59,21 @@ function MembersContent() {
     members.invite(TenantMemberRole.MEMBER),
   );
 
-  const InviteMemberButton = () => (
-    <Button
-      key="invite-member"
-      onClick={() => setShowInviteDialog(true)}
-      disabled={!canInvite}
-    >
-      <UserPlus className="mr-2 h-4 w-4" />
-      Invite
-    </Button>
-  );
-
   return (
     <BasicLayout>
       <Headline>
         <PageTitle description="Manage your team">Team</PageTitle>
         <HeadlineActions>
           <HeadlineActionItem>
-            <InviteMemberButton />
+            <InviteMemberButton
+              canInvite={canInvite}
+              setShowInviteDialog={setShowInviteDialog}
+            />
           </HeadlineActionItem>
         </HeadlineActions>
       </Headline>
 
-      {(canViewMembersMessage || canInviteMessage) && (
+      {canViewMembersMessage || canInviteMessage ? (
         <Alert variant="warning">
           <Lock className="w-4 h-4 mr-2" />
           <AlertTitle>Role required</AlertTitle>
@@ -72,8 +81,8 @@ function MembersContent() {
             {canViewMembersMessage || canInviteMessage}
           </AlertDescription>
         </Alert>
-      )}
-      {canViewMembers && (
+      ) : null}
+      {canViewMembers ? (
         <>
           <Separator className="my-4" />
 
@@ -86,18 +95,23 @@ function MembersContent() {
                 <p className="text-sm text-muted-foreground">
                   No members found. Invite members to get started.
                 </p>
-                {canInvite && <InviteMemberButton />}
+                {canInvite ? (
+                  <InviteMemberButton
+                    canInvite={canInvite}
+                    setShowInviteDialog={setShowInviteDialog}
+                  />
+                ) : null}
               </div>
             }
           />
         </>
-      )}
+      ) : null}
 
-      {showInviteDialog && (
+      {showInviteDialog ? (
         <Dialog open={showInviteDialog} onOpenChange={setShowInviteDialog}>
           <CreateInviteForm close={() => setShowInviteDialog(false)} />
         </Dialog>
-      )}
+      ) : null}
     </BasicLayout>
   );
 }

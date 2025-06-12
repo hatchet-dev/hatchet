@@ -121,7 +121,7 @@ class TriggerWorkflowRunResponse(_message.Message):
     def __init__(self, external_id: _Optional[str] = ...) -> None: ...
 
 class CreateWorkflowVersionRequest(_message.Message):
-    __slots__ = ("name", "description", "version", "event_triggers", "cron_triggers", "tasks", "concurrency", "cron_input", "on_failure_task", "sticky", "default_priority", "concurrency_arr")
+    __slots__ = ("name", "description", "version", "event_triggers", "cron_triggers", "tasks", "concurrency", "cron_input", "on_failure_task", "sticky", "default_priority", "concurrency_arr", "default_filters")
     NAME_FIELD_NUMBER: _ClassVar[int]
     DESCRIPTION_FIELD_NUMBER: _ClassVar[int]
     VERSION_FIELD_NUMBER: _ClassVar[int]
@@ -134,6 +134,7 @@ class CreateWorkflowVersionRequest(_message.Message):
     STICKY_FIELD_NUMBER: _ClassVar[int]
     DEFAULT_PRIORITY_FIELD_NUMBER: _ClassVar[int]
     CONCURRENCY_ARR_FIELD_NUMBER: _ClassVar[int]
+    DEFAULT_FILTERS_FIELD_NUMBER: _ClassVar[int]
     name: str
     description: str
     version: str
@@ -146,7 +147,18 @@ class CreateWorkflowVersionRequest(_message.Message):
     sticky: StickyStrategy
     default_priority: int
     concurrency_arr: _containers.RepeatedCompositeFieldContainer[Concurrency]
-    def __init__(self, name: _Optional[str] = ..., description: _Optional[str] = ..., version: _Optional[str] = ..., event_triggers: _Optional[_Iterable[str]] = ..., cron_triggers: _Optional[_Iterable[str]] = ..., tasks: _Optional[_Iterable[_Union[CreateTaskOpts, _Mapping]]] = ..., concurrency: _Optional[_Union[Concurrency, _Mapping]] = ..., cron_input: _Optional[str] = ..., on_failure_task: _Optional[_Union[CreateTaskOpts, _Mapping]] = ..., sticky: _Optional[_Union[StickyStrategy, str]] = ..., default_priority: _Optional[int] = ..., concurrency_arr: _Optional[_Iterable[_Union[Concurrency, _Mapping]]] = ...) -> None: ...
+    default_filters: _containers.RepeatedCompositeFieldContainer[DefaultFilter]
+    def __init__(self, name: _Optional[str] = ..., description: _Optional[str] = ..., version: _Optional[str] = ..., event_triggers: _Optional[_Iterable[str]] = ..., cron_triggers: _Optional[_Iterable[str]] = ..., tasks: _Optional[_Iterable[_Union[CreateTaskOpts, _Mapping]]] = ..., concurrency: _Optional[_Union[Concurrency, _Mapping]] = ..., cron_input: _Optional[str] = ..., on_failure_task: _Optional[_Union[CreateTaskOpts, _Mapping]] = ..., sticky: _Optional[_Union[StickyStrategy, str]] = ..., default_priority: _Optional[int] = ..., concurrency_arr: _Optional[_Iterable[_Union[Concurrency, _Mapping]]] = ..., default_filters: _Optional[_Iterable[_Union[DefaultFilter, _Mapping]]] = ...) -> None: ...
+
+class DefaultFilter(_message.Message):
+    __slots__ = ("expression", "scope", "payload")
+    EXPRESSION_FIELD_NUMBER: _ClassVar[int]
+    SCOPE_FIELD_NUMBER: _ClassVar[int]
+    PAYLOAD_FIELD_NUMBER: _ClassVar[int]
+    expression: str
+    scope: str
+    payload: str
+    def __init__(self, expression: _Optional[str] = ..., scope: _Optional[str] = ..., payload: _Optional[str] = ...) -> None: ...
 
 class Concurrency(_message.Message):
     __slots__ = ("expression", "max_runs", "limit_strategy")

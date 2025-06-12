@@ -22,7 +22,7 @@ type RunOutputCardVariant = 'input' | 'output' | 'metadata';
 interface RunOutputCardProps {
   title: string;
   description?: string;
-  output?: any;
+  output?: object;
   status?: V1TaskStatus;
   variant: RunOutputCardVariant;
   error?: string;
@@ -69,9 +69,9 @@ export function RunDataCard({
                 <CardTitle className="text-sm font-medium">
                   {error ? 'Error' : title}
                 </CardTitle>
-                {variant === 'output' && status && (
+                {variant === 'output' && status ? (
                   <RunsBadge status={status} variant="xs" />
-                )}
+                ) : null}
               </div>
               {actions}
             </div>
@@ -87,10 +87,14 @@ export function RunDataCard({
           </CardHeader>
         </CollapsibleTrigger>
         <CollapsibleContent>
-          <CardContent className={cn(error && 'border-destructive')}>
+          <CardContent className={cn(error && 'border-destructive', 'pt-4')}>
             <Code
               language={error ? 'text' : 'json'}
-              value={error ? errorData?.stack : JSON.stringify(output, null, 2)}
+              value={
+                error
+                  ? error || errorData?.stack
+                  : JSON.stringify(output, null, 2)
+              }
             />
           </CardContent>
         </CollapsibleContent>

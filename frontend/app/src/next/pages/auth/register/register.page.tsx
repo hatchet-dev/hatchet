@@ -49,9 +49,9 @@ export default function Register() {
       {forms.map((form, index) => (
         <React.Fragment key={index}>
           {form}
-          {basicEnabled && schemes.length >= 2 && index == 0 && (
+          {basicEnabled && schemes.length >= 2 && index === 0 ? (
             <OrContinueWith />
-          )}
+          ) : null}
         </React.Fragment>
       ))}
       <div className="flex flex-col space-y-2">
@@ -88,7 +88,6 @@ function BasicRegister() {
 
         if (!tenant?.metadata.id) {
           navigate(ROUTES.onboarding.newTenant);
-          return;
         }
       }}
       apiError={register.error?.message}

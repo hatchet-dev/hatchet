@@ -238,6 +238,7 @@ func (o *OLAPControllerImpl) Start() (func() error, error) {
 		gocron.NewTask(
 			o.runOLAPTablePartition(ctx),
 		),
+		gocron.WithSingletonMode(gocron.LimitModeReschedule),
 	)
 
 	if err != nil {
@@ -282,6 +283,7 @@ func (o *OLAPControllerImpl) Start() (func() error, error) {
 		gocron.NewTask(
 			o.runTenantProcessAlerts(ctx),
 		),
+		gocron.WithSingletonMode(gocron.LimitModeReschedule),
 	)
 
 	if err != nil {
@@ -392,6 +394,7 @@ func (tc *OLAPControllerImpl) handleCreateEventTriggers(ctx context.Context, ten
 	keys := make([]string, 0)
 	payloadstoInsert := make([][]byte, 0)
 	additionalMetadatas := make([][]byte, 0)
+	scopes := make([]*string, 0)
 
 	for _, msg := range msgs {
 		for _, payload := range msg.Payloads {
@@ -417,6 +420,7 @@ func (tc *OLAPControllerImpl) handleCreateEventTriggers(ctx context.Context, ten
 			keys = append(keys, payload.EventKey)
 			payloadstoInsert = append(payloadstoInsert, payload.EventPayload)
 			additionalMetadatas = append(additionalMetadatas, payload.EventAdditionalMetadata)
+			scopes = append(scopes, payload.EventScope)
 		}
 	}
 
@@ -427,6 +431,7 @@ func (tc *OLAPControllerImpl) handleCreateEventTriggers(ctx context.Context, ten
 		Keys:                keys,
 		Payloads:            payloadstoInsert,
 		Additionalmetadatas: additionalMetadatas,
+		Scopes:              scopes,
 	}
 
 	return tc.repo.OLAP().BulkCreateEventsAndTriggers(

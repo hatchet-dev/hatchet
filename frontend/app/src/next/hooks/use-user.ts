@@ -197,8 +197,8 @@ export default function useUser({
         throw error;
       }
     },
-    onSuccess: () => {
-      invitesQuery.refetch();
+    onSuccess: async () => {
+      await invitesQuery.refetch();
     },
   });
 

@@ -41,7 +41,7 @@ class ActionPayload(BaseModel):
 
     @model_validator(mode="after")
     def validate_filter_payload(self) -> "ActionPayload":
-        self.filter_payload = self.triggers.get("filter_payload", {})
+        self.filter_payload = self.triggers.get("filter_payload", {}) or {}
 
         return self
 

@@ -3,7 +3,6 @@ import {
   flexRender,
   getCoreRowModel,
   useReactTable,
-  getPaginationRowModel,
   SortingState,
   getSortedRowModel,
   ColumnFiltersState,
@@ -29,10 +28,12 @@ interface DataTableProps<TData, TValue> {
   emptyState?: ReactNode;
 }
 
+const defaultFilters: string[] = [];
+
 export function DataTable<TData, TValue>({
   columns,
   data,
-  filters = [],
+  filters = defaultFilters,
   getRowId,
   isLoading,
   emptyState,
@@ -44,7 +45,6 @@ export function DataTable<TData, TValue>({
     data,
     columns,
     getCoreRowModel: getCoreRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
     onSortingChange: setSorting,
     getSortedRowModel: getSortedRowModel(),
     onColumnFiltersChange: setColumnFilters,

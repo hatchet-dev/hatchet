@@ -42,10 +42,10 @@ export function Toaster() {
           return (
             <Toast key={id} {...props}>
               <div className="grid gap-1">
-                {title && <ToastTitle>{title}</ToastTitle>}
-                {description && (
+                {title ? <ToastTitle>{title}</ToastTitle> : null}
+                {description ? (
                   <ToastDescription>{description}</ToastDescription>
-                )}
+                ) : null}
                 {!description && error instanceof Error && (
                   <Button
                     variant="link"
@@ -57,7 +57,7 @@ export function Toaster() {
                   </Button>
                 )}
               </div>
-              {currentError && (
+              {currentError ? (
                 <Button
                   variant="ghost"
                   size="sm"
@@ -66,7 +66,7 @@ export function Toaster() {
                 >
                   <AlertTriangle className="h-4 w-4" />
                 </Button>
-              )}
+              ) : null}
               {action}
               <ToastClose />
             </Toast>
@@ -80,7 +80,7 @@ export function Toaster() {
           <DialogHeader className="pb-2">
             <DialogTitle className="text-lg">Error Details</DialogTitle>
           </DialogHeader>
-          {currentError && (
+          {currentError ? (
             <div className="max-h-[70vh] overflow-auto">
               <Code
                 language="json"
@@ -93,7 +93,7 @@ export function Toaster() {
                 className="text-sm"
               />
             </div>
-          )}
+          ) : null}
         </DialogContent>
       </Dialog>
     </>

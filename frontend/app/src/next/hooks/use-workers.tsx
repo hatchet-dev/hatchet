@@ -286,8 +286,8 @@ function WorkersProviderContent({
         throw error;
       }
     },
-    onSuccess: () => {
-      listWorkersQuery.refetch();
+    onSuccess: async () => {
+      await listWorkersQuery.refetch();
     },
   });
 
