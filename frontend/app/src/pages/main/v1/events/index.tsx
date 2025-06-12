@@ -46,6 +46,7 @@ import { CreateEventForm } from './components/create-event-form';
 import { BiX } from 'react-icons/bi';
 import { DataTable } from '@/components/v1/molecules/data-table/data-table';
 import { TaskRunsTable } from '../workflow-runs-v1/components/task-runs-table';
+import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
 
 export default function Events() {
   return (
@@ -525,7 +526,7 @@ function EventsTable() {
 
 function ExpandedEventContent({ event }: { event: Event }) {
   return (
-    <DialogContent className="w-fit max-w-[700px] overflow-hidden">
+    <DialogContent className="w-fit max-w-[700px] max-h-[85%] overflow-auto">
       <DialogHeader>
         <DialogTitle>Event {event.key}</DialogTitle>
         <DialogDescription>
@@ -581,14 +582,11 @@ function EventDataSection({ event }: { event: Event }) {
   };
 
   return (
-    <>
-      <CodeEditor
-        language="json"
-        className="my-4"
-        height="400px"
-        code={JSON.stringify(dataToDisplay, null, 2)}
-      />
-    </>
+    <CodeHighlighter
+      language="json"
+      className="my-4"
+      code={JSON.stringify(dataToDisplay, null, 2)}
+    />
   );
 }
 
