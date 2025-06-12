@@ -1,7 +1,7 @@
 import { ColumnDef } from '@tanstack/react-table';
-import { WorkflowRun } from '@/lib/api';
+import { V1TaskSummary } from '@/lib/api';
 import { Link } from 'react-router-dom';
-import { RunStatus } from './run-statuses';
+import { V1RunStatus } from './run-statuses';
 import {
   AdditionalMetadata,
   AdditionalMetadataClick,
@@ -12,7 +12,7 @@ import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data
 
 export const columns: (
   onAdditionalMetadataClick?: (click: AdditionalMetadataClick) => void,
-) => ColumnDef<WorkflowRun>[] = (onAdditionalMetadataClick) => [
+) => ColumnDef<V1TaskSummary>[] = (onAdditionalMetadataClick) => [
   {
     id: 'select',
     header: ({ table }) => (
@@ -57,7 +57,7 @@ export const columns: (
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Status" />
     ),
-    cell: ({ row }) => <RunStatus status={row.original.status} />,
+    cell: ({ row }) => <V1RunStatus status={row.original.status} />,
     enableSorting: false,
     enableHiding: false,
   },
@@ -67,13 +67,12 @@ export const columns: (
       <DataTableColumnHeader column={column} title="Workflow" />
     ),
     cell: ({ row }) => {
-      const workflow = row.original.workflowVersion?.workflow;
-      const workflowName = workflow?.name;
-      const workflowId = workflow?.metadata.id;
+      const workflowName = row.original.workflowName;
+      const workflowId = row.original.workflowId;
 
       return (
         <div className="min-w-fit whitespace-nowrap">
-          {(workflow && (
+          {(workflowId && workflowName && (
             <a href={`/v1/tasks/${workflowId}`}>{workflowName}</a>
           )) ||
             'N/A'}

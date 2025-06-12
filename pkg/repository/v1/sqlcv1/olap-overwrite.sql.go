@@ -441,7 +441,7 @@ func (q *Queries) BulkCreateEvents(ctx context.Context, db DBTX, arg BulkCreateE
 
 const countEvents = `-- name: CountEvents :one
 WITH included_events AS (
-    SELECT e.tenant_id, e.id, e.external_id, e.seen_at, e.key, e.payload, e.additional_metadata, e.scope
+    SELECT DISTINCT e.tenant_id, e.id, e.external_id, e.seen_at, e.key, e.payload, e.additional_metadata, e.scope
     FROM v1_event_lookup_table_olap elt
     JOIN v1_events_olap e ON (elt.tenant_id, elt.event_id, elt.event_seen_at) = (e.tenant_id, e.id, e.seen_at)
     LEFT JOIN v1_event_to_run_olap etr ON (e.id, e.seen_at) = (etr.event_id, etr.event_seen_at)
@@ -516,7 +516,7 @@ func (q *Queries) CountEvents(ctx context.Context, db DBTX, arg CountEventsParam
 
 const listEvents = `-- name: ListEvents :many
 WITH included_events AS (
-    SELECT e.tenant_id, e.id, e.external_id, e.seen_at, e.key, e.payload, e.additional_metadata, e.scope
+    SELECT DISTINCT e.tenant_id, e.id, e.external_id, e.seen_at, e.key, e.payload, e.additional_metadata, e.scope
     FROM v1_event_lookup_table_olap elt
     JOIN v1_events_olap e ON (elt.tenant_id, elt.event_id, elt.event_seen_at) = (e.tenant_id, e.id, e.seen_at)
     LEFT JOIN v1_event_to_run_olap etr ON (e.id, e.seen_at) = (etr.event_id, etr.event_seen_at)

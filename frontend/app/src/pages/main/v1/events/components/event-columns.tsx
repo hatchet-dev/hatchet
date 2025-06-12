@@ -184,10 +184,14 @@ function WorkflowRunSummary({ event }: { event: V1Event }) {
   const numQueued = event.workflowRunSummary?.queued || 0;
 
   const listWorkflowRunsQuery = useQuery({
-    ...queries.workflowRuns.list(tenant.metadata.id, {
+    ...queries.v1WorkflowRuns.list(tenant.metadata.id, {
       offset: 0,
       limit: 10,
-      eventId: event.metadata.id,
+      triggering_event_external_id: event.metadata.id,
+      since: new Date(
+        new Date(event.metadata.createdAt).getTime() - 1000 * 60 * 60 * 24,
+      ).toISOString(),
+      only_tasks: false,
     }),
     enabled: !!hoverCardOpen,
   });
@@ -200,7 +204,7 @@ function WorkflowRunSummary({ event }: { event: V1Event }) {
             return run.status == 'FAILED';
           }
           if (hoverCardOpen == 'succeeded') {
-            return run.status == 'SUCCEEDED';
+            return run.status == 'COMPLETED';
           }
           if (hoverCardOpen == 'running') {
             return run.status == 'RUNNING';
