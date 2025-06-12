@@ -575,6 +575,7 @@ SELECT
     e.key AS event_key,
     e.payload AS event_payload,
     e.additional_metadata AS event_additional_metadata,
+	e.scope AS event_scope,
     sc.queued_count,
     sc.running_count,
     sc.completed_count,
@@ -608,6 +609,7 @@ type ListEventsRow struct {
 	EventKey                string             `json:"event_key"`
 	EventPayload            []byte             `json:"event_payload"`
 	EventAdditionalMetadata []byte             `json:"event_additional_metadata"`
+	EventScope              *string            `json:"event_scope,omitempty"`
 	QueuedCount             pgtype.Int8        `json:"queued_count"`
 	RunningCount            pgtype.Int8        `json:"running_count"`
 	CompletedCount          pgtype.Int8        `json:"completed_count"`
@@ -643,6 +645,7 @@ func (q *Queries) ListEvents(ctx context.Context, db DBTX, arg ListEventsParams)
 			&i.EventKey,
 			&i.EventPayload,
 			&i.EventAdditionalMetadata,
+			&i.EventScope,
 			&i.QueuedCount,
 			&i.RunningCount,
 			&i.CompletedCount,

@@ -1,5 +1,4 @@
 import { columns } from './components/event-columns';
-import { columns as workflowRunsColumns } from '../workflow-runs/components/workflow-runs-columns';
 import { Separator } from '@/components/v1/ui/separator';
 import { useEffect, useMemo, useState } from 'react';
 import {
@@ -17,7 +16,6 @@ import api, {
   EventOrderByField,
   ReplayEventRequest,
   V1TaskStatus,
-  WorkflowRunStatus,
   queries,
 } from '@/lib/api';
 import invariant from 'tiny-invariant';
@@ -47,6 +45,7 @@ import RelativeDate from '@/components/v1/molecules/relative-date';
 import { CreateEventForm } from './components/create-event-form';
 import { BiX } from 'react-icons/bi';
 import { DataTable } from '@/components/v1/molecules/data-table/data-table';
+import { TaskRunsTable } from '../workflow-runs-v1/components/task-runs-table';
 
 export default function Events() {
   return (
@@ -547,15 +546,35 @@ function ExpandedEventContent({ event }: { event: Event }) {
 }
 
 function EventDataSection({ event }: { event: Event }) {
-  const getEventDataQuery = useQuery({
-    ...queries.events.getData(event.metadata.id),
+  const { tenant } = useOutletContext<TenantContextType>();
+  invariant(tenant);
+
+  const { data, isLoading } = useQuery({
+    queryKey: ['v1:events:list', tenant.metadata.id, event.metadata.id],
+    queryFn: async () => {
+      const response = await api.v1EventList(tenant.metadata.id, {
+        eventIds: [event.metadata.id],
+      });
+
+      return response.data;
+    },
+    refetchInterval: 2000,
   });
 
-  if (getEventDataQuery.isLoading || !getEventDataQuery.data) {
+  if (isLoading || !data) {
     return <Loading />;
   }
 
-  const eventData = getEventDataQuery.data;
+  const eventData = data.rows?.at(0);
+
+  if (!eventData) {
+    return <div className="text-red-500">Event data not found</div>;
+  }
+
+  const d = {
+    key: eventData.key,
+    additionalMetadata: eventData.additionalMetadata,
+  };
 
   return (
     <>
@@ -563,36 +582,16 @@ function EventDataSection({ event }: { event: Event }) {
         language="json"
         className="my-4"
         height="400px"
-        code={JSON.stringify(JSON.parse(eventData.data), null, 2)}
+        code={JSON.stringify(d, null, 2)}
       />
     </>
   );
 }
 
 function EventWorkflowRunsList({ event }: { event: Event }) {
-  const { tenant } = useOutletContext<TenantContextType>();
-  invariant(tenant);
-
-  const listWorkflowRunsQuery = useQuery({
-    ...queries.workflowRuns.list(tenant.metadata.id, {
-      offset: 0,
-      limit: 10,
-      eventId: event.metadata.id,
-    }),
-  });
-
   return (
     <div className="w-full overflow-x-auto max-w-full">
-      <DataTable
-        columns={workflowRunsColumns()}
-        data={listWorkflowRunsQuery.data?.rows || []}
-        filters={[]}
-        pageCount={listWorkflowRunsQuery.data?.pagination?.num_pages || 0}
-        columnVisibility={{
-          'Triggered by': false,
-        }}
-        isLoading={listWorkflowRunsQuery.isLoading}
-      />
+      <TaskRunsTable triggeringEventExternalId={event.metadata.id} />
     </div>
   );
 }

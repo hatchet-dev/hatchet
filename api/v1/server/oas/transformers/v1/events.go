@@ -28,6 +28,7 @@ func ToV1EventList(events []*sqlcv1.ListEventsRow, limit, offset, total int64) g
 
 	for i, row := range events {
 		additionalMetadata := jsonToMap(row.EventAdditionalMetadata)
+		payload := jsonToMap(row.EventPayload)
 
 		rows[i] = gen.V1Event{
 			AdditionalMetadata: &additionalMetadata,
@@ -44,6 +45,9 @@ func ToV1EventList(events []*sqlcv1.ListEventsRow, limit, offset, total int64) g
 				Failed:    row.FailedCount.Int64,
 				Running:   row.RunningCount.Int64,
 			},
+			Payload: &payload,
+			SeenAt:  &row.EventSeenAt.Time,
+			Scope:   row.EventScope,
 		}
 	}
 

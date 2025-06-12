@@ -288,6 +288,7 @@ SELECT
     e.key AS event_key,
     e.payload AS event_payload,
     e.additional_metadata AS event_additional_metadata,
+    e.scope AS event_scope,
     sc.queued_count,
     sc.running_count,
     sc.completed_count,

@@ -1237,7 +1237,16 @@ type V1Event struct {
 	// Key The key for the event.
 	Key      string          `json:"key"`
 	Metadata APIResourceMeta `json:"metadata"`
-	Tenant   *Tenant         `json:"tenant,omitempty"`
+
+	// Payload The payload of the event, which can be any JSON-serializable object.
+	Payload *map[string]interface{} `json:"payload,omitempty"`
+
+	// Scope The scope of the event, which can be used to filter or categorize events.
+	Scope *string `json:"scope,omitempty"`
+
+	// SeenAt The timestamp when the event was seen.
+	SeenAt *time.Time `json:"seenAt,omitempty"`
+	Tenant *Tenant    `json:"tenant,omitempty"`
 
 	// TenantId The ID of the tenant associated with this event.
 	TenantId           string                    `json:"tenantId"`

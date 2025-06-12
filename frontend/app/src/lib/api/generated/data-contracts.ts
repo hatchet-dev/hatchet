@@ -743,6 +743,15 @@ export interface V1Event {
   workflowRunSummary: V1EventWorkflowRunSummary;
   /** Additional metadata for the event. */
   additionalMetadata?: object;
+  /** The payload of the event, which can be any JSON-serializable object. */
+  payload?: object;
+  /** The scope of the event, which can be used to filter or categorize events. */
+  scope?: string;
+  /**
+   * The timestamp when the event was seen.
+   * @format date-time
+   */
+  seenAt?: string;
 }
 
 export interface V1EventList {
