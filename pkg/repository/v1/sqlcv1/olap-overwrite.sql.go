@@ -473,6 +473,10 @@ WITH included_events AS (
             $8::v1_readable_status_olap[] IS NULL OR
             r.readable_status = ANY($8::v1_readable_status_olap[])
         )
+        AND (
+            $9::TEXT[] IS NULL OR
+            e.scope = ANY($9::TEXT[])
+        )
         ORDER BY e.seen_at DESC, e.id
     LIMIT 20000
 )
@@ -503,6 +507,7 @@ func (q *Queries) CountEvents(ctx context.Context, db DBTX, arg CountEventsParam
 		arg.EventIds,
 		arg.AdditionalMetadata,
 		arg.Statuses,
+		arg.Scopes,
 	)
 	var count int64
 	err := row.Scan(&count)
@@ -544,14 +549,14 @@ WITH included_events AS (
             r.readable_status = ANY($8::v1_readable_status_olap[])
         )
         AND (
-            $11::TEXT[] IS NULL OR
-            e.scope = ANY($11::TEXT[])
+            $9::TEXT[] IS NULL OR
+            e.scope = ANY($9::TEXT[])
         )
     ORDER BY e.seen_at DESC, e.id
     OFFSET
-        COALESCE($9::BIGINT, 0)
+        COALESCE($10::BIGINT, 0)
     LIMIT
-        COALESCE($10::BIGINT, 50)
+        COALESCE($11::BIGINT, 50)
 ), status_counts AS (
     SELECT
         e.tenant_id,
@@ -633,6 +638,7 @@ func (q *Queries) ListEvents(ctx context.Context, db DBTX, arg ListEventsParams)
 		arg.EventIds,
 		arg.AdditionalMetadata,
 		arg.Statuses,
+		arg.Scopes,
 		arg.Offset,
 		arg.Limit,
 	)
