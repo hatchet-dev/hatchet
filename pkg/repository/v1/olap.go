@@ -1529,7 +1529,7 @@ func (r *OLAPRepositoryImpl) ListEvents(ctx context.Context, opts sqlcv1.ListEve
 		WorkflowIds:        opts.WorkflowIds,
 		EventIds:           opts.EventIds,
 		AdditionalMetadata: opts.AdditionalMetadata,
-		Status:             opts.Status,
+		Statuses:           opts.Statuses,
 	})
 
 	if err != nil {

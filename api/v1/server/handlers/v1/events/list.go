@@ -75,11 +75,11 @@ func (t *V1EventsService) V1EventList(ctx echo.Context, request gen.V1EventListR
 	}
 
 	if request.Params.WorkflowRunStatuses != nil {
-		statuses := make([]sqlcv1.V1ReadableStatusOlap, len(*request.Params.WorkflowRunStatuses))
+		statuses := make([]string, len(*request.Params.WorkflowRunStatuses))
 		for i, status := range *request.Params.WorkflowRunStatuses {
-			statuses[i] = sqlcv1.V1ReadableStatusOlap(status)
+			statuses[i] = string(sqlcv1.V1ReadableStatusOlap(status))
 		}
-		opts.Status = statuses
+		opts.Statuses = statuses
 	}
 
 	if request.Params.EventIds != nil {
