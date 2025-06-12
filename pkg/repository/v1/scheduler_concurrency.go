@@ -285,10 +285,20 @@ func (c *ConcurrencyRepositoryImpl) runCancelInProgress(
 
 	defer rollback()
 
-	err = c.queries.AdvisoryLock(ctx, tx, strategy.ID)
+	acquired, err := c.queries.TryAdvisoryLock(ctx, tx, strategy.ID)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to acquire advisory lock (strategy ID: %d): %w", strategy.ID, err)
+	}
+
+	if !acquired {
+		c.l.Warn().Msgf("Advisory lock not acquired (strategy ID: %d). Possible lock contention.", strategy.ID)
+
+		return &RunConcurrencyResult{
+			Queued:                    []TaskWithQueue{},
+			Cancelled:                 []TaskWithCancelledReason{},
+			NextConcurrencyStrategies: []int64{},
+		}, nil
 	}
 
 	var queued []TaskWithQueue
@@ -296,7 +306,17 @@ func (c *ConcurrencyRepositoryImpl) runCancelInProgress(
 	var nextConcurrencyStrategies []int64
 
 	if strategy.ParentStrategyID.Valid {
-		err := c.queries.AdvisoryLock(ctx, tx, PARENT_STRATEGY_LOCK_OFFSET+strategy.ParentStrategyID.Int64)
+		acquired, err := c.queries.TryAdvisoryLock(ctx, tx, PARENT_STRATEGY_LOCK_OFFSET+strategy.ParentStrategyID.Int64)
+
+		if !acquired {
+			c.l.Warn().Msgf("Advisory lock not acquired (strategy ID: %d). Possible lock contention.", strategy.ID)
+
+			return &RunConcurrencyResult{
+				Queued:                    []TaskWithQueue{},
+				Cancelled:                 []TaskWithCancelledReason{},
+				NextConcurrencyStrategies: []int64{},
+			}, nil
+		}
 
 		if err != nil {
 			return nil, fmt.Errorf("failed to acquire parent advisory lock (strategy ID: %d, parent: %d): %w", strategy.ID, strategy.ParentStrategyID.Int64, err)
@@ -484,10 +504,22 @@ func (c *ConcurrencyRepositoryImpl) runCancelNewest(
 
 	defer rollback()
 
-	err = c.queries.AdvisoryLock(ctx, tx, strategy.ID)
+	// Use TryAdvisoryLock instead of blocking lock to reduce contention
+	acquired, err := c.queries.TryAdvisoryLock(ctx, tx, strategy.ID)
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to acquire advisory lock (strategy ID: %d): %w", strategy.ID, err)
+		return nil, fmt.Errorf("failed to try advisory lock (strategy ID: %d): %w", strategy.ID, err)
+	}
+
+	if !acquired {
+		// Log lock contention issue
+		c.l.Warn().Msgf("Advisory lock not acquired (strategy ID: %d). Possible lock contention.", strategy.ID)
+		// Lock not available, return empty result to avoid blocking
+		return &RunConcurrencyResult{
+			Queued:                    []TaskWithQueue{},
+			Cancelled:                 []TaskWithCancelledReason{},
+			NextConcurrencyStrategies: []int64{},
+		}, nil
 	}
 
 	var queued []TaskWithQueue
@@ -495,10 +527,22 @@ func (c *ConcurrencyRepositoryImpl) runCancelNewest(
 	var nextConcurrencyStrategies []int64
 
 	if strategy.ParentStrategyID.Valid {
-		err := c.queries.AdvisoryLock(ctx, tx, PARENT_STRATEGY_LOCK_OFFSET+strategy.ParentStrategyID.Int64)
+		// Also use TryAdvisoryLock for parent strategy
+		parentAcquired, err := c.queries.TryAdvisoryLock(ctx, tx, PARENT_STRATEGY_LOCK_OFFSET+strategy.ParentStrategyID.Int64)
 
 		if err != nil {
-			return nil, fmt.Errorf("failed to acquire parent advisory lock (strategy ID: %d, parent: %d): %w", strategy.ID, strategy.ParentStrategyID.Int64, err)
+			return nil, fmt.Errorf("failed to try parent advisory lock (strategy ID: %d, parent: %d): %w", strategy.ID, strategy.ParentStrategyID.Int64, err)
+		}
+
+		if !parentAcquired {
+			// Log the event when the parent advisory lock is not acquired
+			c.l.Warn().Msgf("Parent advisory lock not acquired (strategy ID: %d, parent: %d)", strategy.ID, strategy.ParentStrategyID.Int64)
+			// Parent lock not available, return empty result
+			return &RunConcurrencyResult{
+				Queued:                    []TaskWithQueue{},
+				Cancelled:                 []TaskWithCancelledReason{},
+				NextConcurrencyStrategies: []int64{},
+			}, nil
 		}
 
 		_, err = tx.Exec(

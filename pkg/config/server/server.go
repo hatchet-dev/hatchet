@@ -214,6 +214,9 @@ type ConfigFileRuntime struct {
 
 	// DefaultEngineVersion is the default engine version to use for new tenants
 	DefaultEngineVersion string `mapstructure:"defaultEngineVersion" json:"defaultEngineVersion,omitempty" default:"V0"`
+
+	// ReplayEnabled controls whether the server enables replay for tasks
+	ReplayEnabled bool `mapstructure:"replayEnabled" json:"replayEnabled,omitempty" default:"true"`
 }
 
 type InternalClientTLSConfigFile struct {
@@ -578,6 +581,7 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.maxInternalRetryCount", "SERVER_MAX_INTERNAL_RETRY_COUNT")
 	_ = v.BindEnv("runtime.preventTenantVersionUpgrade", "SERVER_PREVENT_TENANT_VERSION_UPGRADE")
 	_ = v.BindEnv("runtime.defaultEngineVersion", "SERVER_DEFAULT_ENGINE_VERSION")
+	_ = v.BindEnv("runtime.replayEnabled", "SERVER_REPLAY_ENABLED")
 
 	// security check options
 	_ = v.BindEnv("securityCheck.enabled", "SERVER_SECURITY_CHECK_ENABLED")
