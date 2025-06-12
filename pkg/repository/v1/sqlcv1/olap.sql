@@ -1354,8 +1354,11 @@ VALUES (
 
 -- name: ListEvents :many
 WITH included_events AS (
-    SELECT *
-    FROM v1_events_olap e
+    SELECT e.*
+    FROM v1_event_lookup_table_olap elt
+    JOIN v1_events_olap e ON (elt.tenant_id, elt.event_id, elt.event_seen_at) = (e.tenant_id, e.id, e.seen_at)
+    LEFT JOIN v1_event_to_run_olap etr ON (e.id, e.seen_at) = (etr.event_id, etr.event_seen_at)
+    LEFT JOIN v1_runs_olap r ON (etr.run_id, etr.run_inserted_at) = (r.id, r.inserted_at)
     WHERE
         e.tenant_id = @tenantId
         AND (
@@ -1366,6 +1369,18 @@ WITH included_events AS (
         AND (
             sqlc.narg('until')::TIMESTAMPTZ IS NULL OR
             e.seen_at <= sqlc.narg('until')::TIMESTAMPTZ
+        )
+        AND (
+            sqlc.narg('eventIds')::UUID[] IS NULL OR
+            elt.external_id = ANY(sqlc.narg('eventIds')::UUID[])
+        )
+        AND (
+            sqlc.narg('additionalMetadata')::JSONB IS NULL OR
+            e.additional_metadata @> sqlc.narg('additionalMetadata')::JSONB
+        )
+        AND (
+            sqlc.narg('status')::v1_readable_status_olap[] IS NULL OR
+            r.readable_status = ANY(sqlc.narg('status')::v1_readable_status_olap[])
         )
     ORDER BY e.seen_at DESC, e.id
     OFFSET

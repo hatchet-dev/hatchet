@@ -516,8 +516,11 @@ func (q *Queries) GetWorkflowRunIdFromDagIdInsertedAt(ctx context.Context, db DB
 
 const listEvents = `-- name: ListEvents :many
 WITH included_events AS (
-    SELECT tenant_id, id, external_id, seen_at, key, payload, additional_metadata, scope
-    FROM v1_events_olap e
+    SELECT e.tenant_id, e.id, e.external_id, e.seen_at, e.key, e.payload, e.additional_metadata, e.scope
+    FROM v1_event_lookup_table_olap elt
+    JOIN v1_events_olap e ON (elt.tenant_id, elt.event_id, elt.event_seen_at) = (e.tenant_id, e.id, e.seen_at)
+    LEFT JOIN v1_event_to_run_olap etr ON (e.id, e.seen_at) = (etr.event_id, etr.event_seen_at)
+    LEFT JOIN v1_runs_olap r ON (etr.run_id, etr.run_inserted_at) = (r.id, r.inserted_at)
     WHERE
         e.tenant_id = $1
         AND (
@@ -529,11 +532,23 @@ WITH included_events AS (
             $4::TIMESTAMPTZ IS NULL OR
             e.seen_at <= $4::TIMESTAMPTZ
         )
+        AND (
+            $5::UUID[] IS NULL OR
+            elt.external_id = ANY($5::UUID[])
+        )
+        AND (
+            $6::JSONB IS NULL OR
+            e.additional_metadata @> $6::JSONB
+        )
+        AND (
+            $7::v1_readable_status_olap[] IS NULL OR
+            r.readable_status = ANY($7::v1_readable_status_olap[])
+        )
     ORDER BY e.seen_at DESC, e.id
     OFFSET
-        COALESCE($5::BIGINT, 0)
+        COALESCE($8::BIGINT, 0)
     LIMIT
-        COALESCE($6::BIGINT, 50)
+        COALESCE($9::BIGINT, 50)
 ), status_counts AS (
     SELECT
         e.tenant_id,
@@ -575,12 +590,15 @@ ORDER BY e.seen_at DESC
 `
 
 type ListEventsParams struct {
-	Tenantid pgtype.UUID        `json:"tenantid"`
-	Keys     []string           `json:"keys"`
-	Since    pgtype.Timestamptz `json:"since"`
-	Until    pgtype.Timestamptz `json:"until"`
-	Offset   pgtype.Int8        `json:"offset"`
-	Limit    pgtype.Int8        `json:"limit"`
+	Tenantid           pgtype.UUID            `json:"tenantid"`
+	Keys               []string               `json:"keys"`
+	Since              pgtype.Timestamptz     `json:"since"`
+	Until              pgtype.Timestamptz     `json:"until"`
+	EventIds           []pgtype.UUID          `json:"eventIds"`
+	AdditionalMetadata []byte                 `json:"additionalMetadata"`
+	Status             []V1ReadableStatusOlap `json:"status"`
+	Offset             pgtype.Int8            `json:"offset"`
+	Limit              pgtype.Int8            `json:"limit"`
 }
 
 type ListEventsRow struct {
@@ -604,6 +622,9 @@ func (q *Queries) ListEvents(ctx context.Context, db DBTX, arg ListEventsParams)
 		arg.Keys,
 		arg.Since,
 		arg.Until,
+		arg.EventIds,
+		arg.AdditionalMetadata,
+		arg.Status,
 		arg.Offset,
 		arg.Limit,
 	)
