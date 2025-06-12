@@ -16,6 +16,7 @@ import api, {
   EventOrderByDirection,
   EventOrderByField,
   ReplayEventRequest,
+  V1TaskStatus,
   WorkflowRunStatus,
   queries,
 } from '@/lib/api';
@@ -204,7 +205,7 @@ function EventsTable() {
       return;
     }
 
-    return filter?.value as Array<WorkflowRunStatus>;
+    return filter?.value as Array<V1TaskStatus>;
   }, [columnFilters]);
 
   const eventIds = useMemo(() => {
@@ -241,18 +242,37 @@ function EventsTable() {
     refetch,
     error: eventsError,
   } = useQuery({
-    ...queries.events.list(tenant.metadata.id, {
-      keys,
-      workflows,
-      orderByField,
-      orderByDirection,
-      offset,
-      limit: pageSize,
-      search,
-      statuses,
-      additionalMetadata: AdditionalMetadataFilter,
-      eventIds: eventIds,
-    }),
+    queryKey: [
+      'v1:events:list',
+      tenant.metadata.id,
+      {
+        keys,
+        workflows,
+        orderByField,
+        orderByDirection,
+        offset,
+        limit: pageSize,
+        search,
+        statuses,
+        additionalMetadata: AdditionalMetadataFilter,
+        eventIds,
+      },
+    ],
+    queryFn: async () => {
+      const response = await api.v1EventList(tenant.metadata.id, {
+        offset,
+        limit: pageSize,
+        keys,
+        since: undefined,
+        until: undefined,
+        eventIds,
+        workflowRunStatuses: statuses,
+        additionalMetadata: AdditionalMetadataFilter,
+        workflowIds: workflows,
+      });
+
+      return response.data;
+    },
     refetchInterval: 2000,
   });
 
@@ -297,7 +317,12 @@ function EventsTable() {
     isLoading: eventKeysIsLoading,
     error: eventKeysError,
   } = useQuery({
-    ...queries.events.listKeys(tenant.metadata.id),
+    queryKey: ['v1:events:listKeys', tenant.metadata.id],
+    queryFn: async () => {
+      const response = await api.v1EventKeyList(tenant.metadata.id);
+
+      return response.data;
+    },
   });
 
   const eventKeyFilters = useMemo((): FilterOption[] => {
@@ -329,24 +354,24 @@ function EventsTable() {
   const workflowRunStatusFilters = useMemo((): FilterOption[] => {
     return [
       {
-        value: WorkflowRunStatus.SUCCEEDED,
+        value: V1TaskStatus.COMPLETED,
         label: 'Succeeded',
       },
       {
-        value: WorkflowRunStatus.FAILED,
+        value: V1TaskStatus.FAILED,
         label: 'Failed',
       },
       {
-        value: WorkflowRunStatus.RUNNING,
+        value: V1TaskStatus.RUNNING,
         label: 'Running',
       },
       {
-        value: WorkflowRunStatus.QUEUED,
+        value: V1TaskStatus.QUEUED,
         label: 'Queued',
       },
       {
-        value: WorkflowRunStatus.PENDING,
-        label: 'Pending',
+        value: V1TaskStatus.CANCELLED,
+        label: 'Cancelled',
       },
     ];
   }, []);
