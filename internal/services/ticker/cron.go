@@ -95,6 +95,7 @@ func (t *TickerImpl) handleScheduleCron(ctx context.Context, cron *dbsqlc.PollCr
 	)
 
 	if err != nil {
+		t.repo.Workflow().DeleteInvalidCron(ctx, cron.ID)
 		return fmt.Errorf("could not schedule cron: %w", err)
 	}
 
