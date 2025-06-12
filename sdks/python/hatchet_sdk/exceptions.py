@@ -28,9 +28,9 @@ class FailedTaskRunError(Exception):
 
     def serialize(self) -> str:
         return (
-            self.exc_type.replace(": ", "::")
+            self.exc_type.replace(": ", ":::")
             + ": "
-            + self.exc.replace("\n", "\\n")
+            + self.exc.replace("\n", "\\\n")
             + "\n"
             + self.trace
         )
@@ -39,8 +39,8 @@ class FailedTaskRunError(Exception):
     def deserialize(cls, serialized: str) -> "FailedTaskRunError":
         header, trace = serialized.split("\n", 1)
         exc_type, exc = header.split(": ", 1)
-        exc_type = exc_type.replace("::", ": ")
-        exc = exc.replace("\\n", "\n")
+        exc_type = exc_type.replace(":::", ": ")
+        exc = exc.replace("\\\n", "\n")
 
         return cls(
             exc=exc,
