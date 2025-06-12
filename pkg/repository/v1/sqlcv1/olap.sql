@@ -1351,3 +1351,12 @@ VALUES (
     $4
 )
 ;
+
+-- name: ListEventKeys :many
+SELECT DISTINCT key
+FROM
+    v1_events_olap
+WHERE
+    tenant_id = @tenantId::uuid
+    AND seen_at > NOW() - INTERVAL '1 day'
+;

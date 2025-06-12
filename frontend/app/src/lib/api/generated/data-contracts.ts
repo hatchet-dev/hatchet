@@ -750,6 +750,11 @@ export interface V1EventList {
   rows?: V1Event[];
 }
 
+export interface EventKeyList {
+  pagination?: PaginationResponse;
+  rows?: EventKey[];
+}
+
 export interface V1Filter {
   metadata: APIResourceMeta;
   /** The ID of the tenant associated with this filter. */
@@ -1305,11 +1310,6 @@ export interface TenantMemberList {
 export interface EventData {
   /** The data for the event (JSON bytes). */
   data: string;
-}
-
-export interface EventKeyList {
-  pagination?: PaginationResponse;
-  rows?: EventKey[];
 }
 
 export interface Workflow {

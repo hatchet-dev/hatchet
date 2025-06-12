@@ -640,6 +640,23 @@ export class Api<
       ...params,
     });
   /**
+   * @description Lists all event keys for a tenant.
+   *
+   * @tags Event
+   * @name EventKeyList
+   * @summary List event keys
+   * @request GET:/api/v1/stable/tenants/{tenant}/events/keys
+   * @secure
+   */
+  eventKeyList = (tenant: string, params: RequestParams = {}) =>
+    this.request<EventKeyList, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/events/keys`,
+      method: "GET",
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
    * @description Lists all filters for a tenant.
    *
    * @tags Filter
@@ -1820,12 +1837,14 @@ export class Api<
    * @description Lists all event keys for a tenant.
    *
    * @tags Event
-   * @name EventKeyList
+   * @name EventKeyList2
    * @summary List event keys
    * @request GET:/api/v1/tenants/{tenant}/events/keys
+   * @originalName eventKeyList
+   * @duplicate
    * @secure
    */
-  eventKeyList = (tenant: string, params: RequestParams = {}) =>
+  eventKeyList2 = (tenant: string, params: RequestParams = {}) =>
     this.request<EventKeyList, APIErrors>({
       path: `/api/v1/tenants/${tenant}/events/keys`,
       method: "GET",
