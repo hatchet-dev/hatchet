@@ -20,8 +20,11 @@ type BulkCreateEventTriggersParams struct {
 
 const countEvents = `-- name: CountEvents :one
 WITH included_events AS (
-    SELECT tenant_id, id, external_id, seen_at, key, payload, additional_metadata, scope
-    FROM v1_events_olap e
+    SELECT e.tenant_id, e.id, e.external_id, e.seen_at, e.key, e.payload, e.additional_metadata, e.scope
+    FROM v1_event_lookup_table_olap elt
+    JOIN v1_events_olap e ON (elt.tenant_id, elt.event_id, elt.event_seen_at) = (e.tenant_id, e.id, e.seen_at)
+    LEFT JOIN v1_event_to_run_olap etr ON (e.id, e.seen_at) = (etr.event_id, etr.event_seen_at)
+    LEFT JOIN v1_runs_olap r ON (etr.run_id, etr.run_inserted_at) = (r.id, r.inserted_at)
     WHERE
         e.tenant_id = $1
         AND (
@@ -33,7 +36,19 @@ WITH included_events AS (
             $4::TIMESTAMPTZ IS NULL OR
             e.seen_at <= $4::TIMESTAMPTZ
         )
-    ORDER BY e.seen_at DESC, e.id
+        AND (
+            $5::UUID[] IS NULL OR
+            elt.external_id = ANY($5::UUID[])
+        )
+        AND (
+            $6::JSONB IS NULL OR
+            e.additional_metadata @> $6::JSONB
+        )
+        AND (
+            $7::v1_readable_status_olap[] IS NULL OR
+            r.readable_status = ANY($7::v1_readable_status_olap[])
+        )
+        ORDER BY e.seen_at DESC, e.id
     LIMIT 20000
 )
 
@@ -42,10 +57,13 @@ FROM included_events e
 `
 
 type CountEventsParams struct {
-	Tenantid pgtype.UUID        `json:"tenantid"`
-	Keys     []string           `json:"keys"`
-	Since    pgtype.Timestamptz `json:"since"`
-	Until    pgtype.Timestamptz `json:"until"`
+	Tenantid           pgtype.UUID            `json:"tenantid"`
+	Keys               []string               `json:"keys"`
+	Since              pgtype.Timestamptz     `json:"since"`
+	Until              pgtype.Timestamptz     `json:"until"`
+	EventIds           []pgtype.UUID          `json:"eventIds"`
+	AdditionalMetadata []byte                 `json:"additionalMetadata"`
+	Status             []V1ReadableStatusOlap `json:"status"`
 }
 
 func (q *Queries) CountEvents(ctx context.Context, db DBTX, arg CountEventsParams) (int64, error) {
@@ -54,6 +72,9 @@ func (q *Queries) CountEvents(ctx context.Context, db DBTX, arg CountEventsParam
 		arg.Keys,
 		arg.Since,
 		arg.Until,
+		arg.EventIds,
+		arg.AdditionalMetadata,
+		arg.Status,
 	)
 	var count int64
 	err := row.Scan(&count)
