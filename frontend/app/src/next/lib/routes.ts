@@ -61,24 +61,33 @@ export const ROUTES = {
   },
   workers: {
     list: (tenantId: string) => `${FB.workers(tenantId)}`,
-    new: (tenantId: string, type: WorkerType) =>
-      `${FB.workers(tenantId)}/${type.toLowerCase()}`,
+    new: (tenantId: string, type: WorkerType) => {
+      const typeSlug =
+        type === WorkerType.SELFHOSTED ? 'selfhost' : type.toLowerCase();
+      return `${FB.workers(tenantId)}/${typeSlug}`;
+    },
     poolDetail: (
       tenantId: string,
-      poolName: string,
+      poolNameOrId: string,
       type: WorkerType,
       tab?: string,
-    ) =>
-      `${FB.workers(tenantId)}/${type.toLowerCase()}/${poolName}${
+    ) => {
+      const typeSlug =
+        type === WorkerType.SELFHOSTED ? 'selfhost' : type.toLowerCase();
+      return `${FB.workers(tenantId)}/${typeSlug}/${poolNameOrId}${
         tab ? `?tab=${tab}` : ''
-      }`,
+      }`;
+    },
     workerDetail: (
       tenantId: string,
       poolName: string,
       workerId: string,
       type: WorkerType,
-    ) =>
-      `${FB.workers(tenantId)}/${type.toLowerCase()}/${poolName}/${workerId}`,
+    ) => {
+      const typeSlug =
+        type === WorkerType.SELFHOSTED ? 'selfhost' : type.toLowerCase();
+      return `${FB.workers(tenantId)}/${typeSlug}/${poolName}/${workerId}`;
+    },
   },
   rateLimits: {
     list: (tenantId: string) => `${FB.rateLimits(tenantId)}`,

@@ -42,7 +42,7 @@ function WorkerPoolDetailPageContent() {
   const { data: pool } = useManagedComputeDetail();
   const [searchParams, setSearchParams] = useSearchParams();
   const tabParam = searchParams.get('tab');
-  const currentTab = tabParam || ManagedWorkerPoolDetailTabs.WORKERS;
+  const currentTab = tabParam || ManagedWorkerPoolDetailTabs.INSTANCES;
 
   const handleTabChange = (value: string) => {
     const newSearchParams = new URLSearchParams(searchParams);
@@ -69,9 +69,6 @@ function WorkerPoolDetailPageContent() {
         className="w-full"
       >
         <TabsList>
-          <TabsTrigger value={ManagedWorkerPoolDetailTabs.WORKERS}>
-            Workers
-          </TabsTrigger>
           <TabsTrigger value={ManagedWorkerPoolDetailTabs.INSTANCES}>
             Instances
           </TabsTrigger>
