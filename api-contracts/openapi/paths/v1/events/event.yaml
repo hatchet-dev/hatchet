@@ -83,6 +83,15 @@ V1EventList:
             type: string
             description: The metadata key-value pairs (delimited by a `:`) to filter by
             minLength: 1
+      - description: The scopes to filter by
+        in: query
+        name: scopes
+        schema:
+          type: array
+          items:
+            type: string
+            description: The scope to filter by
+            minLength: 1
     responses:
       "200":
         content:

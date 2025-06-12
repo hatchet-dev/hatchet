@@ -2044,6 +2044,9 @@ type V1EventListParams struct {
 
 	// AdditionalMetadata Filter by additional metadata on the events
 	AdditionalMetadata *[]string `form:"additionalMetadata,omitempty" json:"additionalMetadata,omitempty"`
+
+	// Scopes The scopes to filter by
+	Scopes *[]string `form:"scopes,omitempty" json:"scopes,omitempty"`
 }
 
 // V1FilterListParams defines parameters for V1FilterList.
@@ -5611,6 +5614,22 @@ func NewV1EventListRequest(server string, tenant openapi_types.UUID, params *V1E
 		if params.AdditionalMetadata != nil {
 
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "additionalMetadata", runtime.ParamLocationQuery, *params.AdditionalMetadata); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Scopes != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "scopes", runtime.ParamLocationQuery, *params.Scopes); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
 				return nil, err

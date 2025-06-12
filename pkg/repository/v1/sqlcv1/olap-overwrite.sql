@@ -255,6 +255,10 @@ WITH included_events AS (
             sqlc.narg('statuses')::v1_readable_status_olap[] IS NULL OR
             r.readable_status = ANY(sqlc.narg('statuses')::v1_readable_status_olap[])
         )
+        AND (
+            sqlc.narg('scopes')::TEXT[] IS NULL OR
+            e.scope = ANY(sqlc.narg('scopes')::TEXT[]
+        )
     ORDER BY e.seen_at DESC, e.id
     OFFSET
         COALESCE(sqlc.narg('offset')::BIGINT, 0)
@@ -334,6 +338,10 @@ WITH included_events AS (
         AND (
             sqlc.narg('statuses')::v1_readable_status_olap[] IS NULL OR
             r.readable_status = ANY(sqlc.narg('statuses')::v1_readable_status_olap[])
+        )
+        AND (
+            sqlc.narg('scopes')::TEXT[] IS NULL OR
+            e.scope = ANY(sqlc.narg('scopes')::TEXT[]
         )
         ORDER BY e.seen_at DESC, e.id
     LIMIT 20000

@@ -628,6 +628,8 @@ export class Api<
       eventIds?: string[];
       /** Filter by additional metadata on the events */
       additionalMetadata?: string[];
+      /** The scopes to filter by */
+      scopes?: string[];
     },
     params: RequestParams = {},
   ) =>

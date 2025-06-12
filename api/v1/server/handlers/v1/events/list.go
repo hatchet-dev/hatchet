@@ -90,6 +90,10 @@ func (t *V1EventsService) V1EventList(ctx echo.Context, request gen.V1EventListR
 		opts.EventIds = eventIds
 	}
 
+	if request.Params.Scopes != nil {
+		opts.Scopes = *request.Params.Scopes
+	}
+
 	if request.Params.AdditionalMetadata != nil {
 		additionalMeta := make(map[string]interface{})
 

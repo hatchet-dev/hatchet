@@ -490,6 +490,7 @@ type CountEventsParams struct {
 	EventIds           []pgtype.UUID      `json:"eventIds"`
 	AdditionalMetadata []byte             `json:"additionalMetadata"`
 	Statuses           []string           `json:"statuses"`
+	Scopes             []string           `json:"scopes"`
 }
 
 func (q *Queries) CountEvents(ctx context.Context, db DBTX, arg CountEventsParams) (int64, error) {
@@ -541,6 +542,10 @@ WITH included_events AS (
         AND (
             $8::v1_readable_status_olap[] IS NULL OR
             r.readable_status = ANY($8::v1_readable_status_olap[])
+        )
+        AND (
+            $11::TEXT[] IS NULL OR
+            e.scope = ANY($11::TEXT[])
         )
     ORDER BY e.seen_at DESC, e.id
     OFFSET
@@ -597,6 +602,7 @@ type ListEventsParams struct {
 	EventIds           []pgtype.UUID      `json:"eventIds"`
 	AdditionalMetadata []byte             `json:"additionalMetadata"`
 	Statuses           []string           `json:"statuses"`
+	Scopes             []string           `json:"scopes"`
 	Offset             pgtype.Int8        `json:"offset"`
 	Limit              pgtype.Int8        `json:"limit"`
 }
