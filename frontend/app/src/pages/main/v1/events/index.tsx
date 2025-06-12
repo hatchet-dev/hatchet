@@ -571,9 +571,13 @@ function EventDataSection({ event }: { event: Event }) {
     return <div className="text-red-500">Event data not found</div>;
   }
 
-  const d = {
+  const dataToDisplay = {
+    id: eventData.metadata.id,
+    seenAt: eventData.seenAt,
     key: eventData.key,
     additionalMetadata: eventData.additionalMetadata,
+    scope: eventData.scope,
+    payload: eventData.payload,
   };
 
   return (
@@ -582,7 +586,7 @@ function EventDataSection({ event }: { event: Event }) {
         language="json"
         className="my-4"
         height="400px"
-        code={JSON.stringify(d, null, 2)}
+        code={JSON.stringify(dataToDisplay, null, 2)}
       />
     </>
   );
