@@ -105,3 +105,41 @@ V1EventList:
     summary: List events
     tags:
       - Event
+
+keys:
+  get:
+    x-resources: ["tenant"]
+    description: Lists all event keys for a tenant.
+    operationId: v1:event-key:list
+    parameters:
+      - description: The tenant id
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/EventKeyList"
+        description: Successfully listed the event keys
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+    summary: List event keys
+    tags:
+      - Event

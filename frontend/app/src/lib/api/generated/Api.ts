@@ -643,12 +643,12 @@ export class Api<
    * @description Lists all event keys for a tenant.
    *
    * @tags Event
-   * @name EventKeyList
+   * @name V1EventKeyList
    * @summary List event keys
    * @request GET:/api/v1/stable/tenants/{tenant}/events/keys
    * @secure
    */
-  eventKeyList = (tenant: string, params: RequestParams = {}) =>
+  v1EventKeyList = (tenant: string, params: RequestParams = {}) =>
     this.request<EventKeyList, APIErrors>({
       path: `/api/v1/stable/tenants/${tenant}/events/keys`,
       method: "GET",
@@ -1837,14 +1837,12 @@ export class Api<
    * @description Lists all event keys for a tenant.
    *
    * @tags Event
-   * @name EventKeyList2
+   * @name EventKeyList
    * @summary List event keys
    * @request GET:/api/v1/tenants/{tenant}/events/keys
-   * @originalName eventKeyList
-   * @duplicate
    * @secure
    */
-  eventKeyList2 = (tenant: string, params: RequestParams = {}) =>
+  eventKeyList = (tenant: string, params: RequestParams = {}) =>
     this.request<EventKeyList, APIErrors>({
       path: `/api/v1/tenants/${tenant}/events/keys`,
       method: "GET",

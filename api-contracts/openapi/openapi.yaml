@@ -53,7 +53,7 @@ paths:
   /api/v1/stable/tenants/{tenant}/events:
     $ref: "./paths/v1/events/event.yaml#/V1EventList"
   /api/v1/stable/tenants/{tenant}/events/keys:
-    $ref: "./paths/event/event.yaml#/keys"
+    $ref: "./paths/v1/events/event.yaml#/keys"
   /api/v1/stable/tenants/{tenant}/filters:
     $ref: "./paths/v1/filters/filter.yaml#/V1FilterListCreate"
   /api/v1/stable/tenants/{tenant}/filters/{v1-filter}:

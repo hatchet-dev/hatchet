@@ -2631,8 +2631,8 @@ type ClientInterface interface {
 	// V1EventList request
 	V1EventList(ctx context.Context, tenant openapi_types.UUID, params *V1EventListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// EventKeyList request
-	EventKeyList(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// V1EventKeyList request
+	V1EventKeyList(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// V1FilterList request
 	V1FilterList(ctx context.Context, tenant openapi_types.UUID, params *V1FilterListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -3226,8 +3226,8 @@ func (c *Client) V1EventList(ctx context.Context, tenant openapi_types.UUID, par
 	return c.Client.Do(req)
 }
 
-func (c *Client) EventKeyList(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewEventKeyListRequest(c.Server, tenant)
+func (c *Client) V1EventKeyList(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1EventKeyListRequest(c.Server, tenant)
 	if err != nil {
 		return nil, err
 	}
@@ -5626,8 +5626,8 @@ func NewV1EventListRequest(server string, tenant openapi_types.UUID, params *V1E
 	return req, nil
 }
 
-// NewEventKeyListRequest generates requests for EventKeyList
-func NewEventKeyListRequest(server string, tenant openapi_types.UUID) (*http.Request, error) {
+// NewV1EventKeyListRequest generates requests for V1EventKeyList
+func NewV1EventKeyListRequest(server string, tenant openapi_types.UUID) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -11217,8 +11217,8 @@ type ClientWithResponsesInterface interface {
 	// V1EventListWithResponse request
 	V1EventListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V1EventListParams, reqEditors ...RequestEditorFn) (*V1EventListResponse, error)
 
-	// EventKeyListWithResponse request
-	EventKeyListWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*EventKeyListResponse, error)
+	// V1EventKeyListWithResponse request
+	V1EventKeyListWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*V1EventKeyListResponse, error)
 
 	// V1FilterListWithResponse request
 	V1FilterListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V1FilterListParams, reqEditors ...RequestEditorFn) (*V1FilterListResponse, error)
@@ -12020,7 +12020,7 @@ func (r V1EventListResponse) StatusCode() int {
 	return 0
 }
 
-type EventKeyListResponse struct {
+type V1EventKeyListResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *EventKeyList
@@ -12029,7 +12029,7 @@ type EventKeyListResponse struct {
 }
 
 // Status returns HTTPResponse.Status
-func (r EventKeyListResponse) Status() string {
+func (r V1EventKeyListResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -12037,7 +12037,7 @@ func (r EventKeyListResponse) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r EventKeyListResponse) StatusCode() int {
+func (r V1EventKeyListResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -14582,13 +14582,13 @@ func (c *ClientWithResponses) V1EventListWithResponse(ctx context.Context, tenan
 	return ParseV1EventListResponse(rsp)
 }
 
-// EventKeyListWithResponse request returning *EventKeyListResponse
-func (c *ClientWithResponses) EventKeyListWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*EventKeyListResponse, error) {
-	rsp, err := c.EventKeyList(ctx, tenant, reqEditors...)
+// V1EventKeyListWithResponse request returning *V1EventKeyListResponse
+func (c *ClientWithResponses) V1EventKeyListWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*V1EventKeyListResponse, error) {
+	rsp, err := c.V1EventKeyList(ctx, tenant, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseEventKeyListResponse(rsp)
+	return ParseV1EventKeyListResponse(rsp)
 }
 
 // V1FilterListWithResponse request returning *V1FilterListResponse
@@ -16402,15 +16402,15 @@ func ParseV1EventListResponse(rsp *http.Response) (*V1EventListResponse, error) 
 	return response, nil
 }
 
-// ParseEventKeyListResponse parses an HTTP response from a EventKeyListWithResponse call
-func ParseEventKeyListResponse(rsp *http.Response) (*EventKeyListResponse, error) {
+// ParseV1EventKeyListResponse parses an HTTP response from a V1EventKeyListWithResponse call
+func ParseV1EventKeyListResponse(rsp *http.Response) (*V1EventKeyListResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &EventKeyListResponse{
+	response := &V1EventKeyListResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
