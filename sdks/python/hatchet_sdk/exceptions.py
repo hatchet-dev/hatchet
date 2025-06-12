@@ -1,6 +1,4 @@
-import json
 import traceback
-from typing import cast
 
 
 class NonRetryableException(Exception):  # noqa: N818
@@ -23,28 +21,31 @@ class FailedTaskRunError(Exception):
         self.trace = trace
 
     def __str__(self) -> str:
-        return f"{self.exc}\n{self.trace}"
+        return self.serialize()
 
     def __repr__(self) -> str:
         return str(self)
 
     def serialize(self) -> str:
-        return json.dumps(
-            {
-                "exc": self.exc,
-                "exc_type": self.exc_type,
-                "trace": self.trace,
-            }
+        return (
+            self.exc_type.replace(": ", "::")
+            + ": "
+            + self.exc.replace("\n", "\\n")
+            + "\n"
+            + self.trace
         )
 
     @classmethod
     def deserialize(cls, serialized: str) -> "FailedTaskRunError":
-        parsed = cast(dict[str, str], json.loads(serialized))
+        header, trace = serialized.split("\n", 1)
+        exc_type, exc = header.split(": ", 1)
+        exc_type = exc_type.replace("::", ": ")
+        exc = exc.replace("\\n", "\n")
 
         return cls(
-            exc=parsed.get("exc", ""),
-            exc_type=parsed.get("exc_type", ""),
-            trace=parsed.get("trace", ""),
+            exc=exc,
+            exc_type=exc_type,
+            trace=trace,
         )
 
     @classmethod
