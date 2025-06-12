@@ -294,6 +294,7 @@ func (tc *TasksControllerImpl) Start() (func() error, error) {
 		gocron.NewTask(
 			tc.runTaskTablePartition(ctx),
 		),
+		gocron.WithSingletonMode(gocron.LimitModeReschedule),
 	)
 
 	if err != nil {

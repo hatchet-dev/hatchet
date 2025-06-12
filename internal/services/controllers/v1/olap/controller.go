@@ -238,6 +238,7 @@ func (o *OLAPControllerImpl) Start() (func() error, error) {
 		gocron.NewTask(
 			o.runOLAPTablePartition(ctx),
 		),
+		gocron.WithSingletonMode(gocron.LimitModeReschedule),
 	)
 
 	if err != nil {
@@ -282,6 +283,7 @@ func (o *OLAPControllerImpl) Start() (func() error, error) {
 		gocron.NewTask(
 			o.runTenantProcessAlerts(ctx),
 		),
+		gocron.WithSingletonMode(gocron.LimitModeReschedule),
 	)
 
 	if err != nil {

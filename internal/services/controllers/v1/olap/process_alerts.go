@@ -35,6 +35,9 @@ func (o *OLAPControllerImpl) runTenantProcessAlerts(ctx context.Context) func() 
 }
 
 func (o *OLAPControllerImpl) processTenantAlerts(ctx context.Context, tenantId string) (bool, error) {
+	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
+
 	ctx, span := telemetry.NewSpan(ctx, "process-tenant-alerts")
 	defer span.End()
 
