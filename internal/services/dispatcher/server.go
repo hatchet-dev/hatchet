@@ -492,6 +492,54 @@ func (s *DispatcherImpl) ListenV2(request *contracts.WorkerListenRequest, stream
 		s.workers.DeleteForSession(request.WorkerId, sessionId)
 	}()
 
+	// HOTFIX: Start a background goroutine to poll and ensure worker stays active
+	// This addresses the race condition where multiple listeners can interfere with each other's active status
+	//
+	// Race condition scenario:
+	// 1. Worker A establishes ListenV2 connection, sets worker active=true with timestamp T1
+	// 2. Worker B establishes ListenV2 connection, sets worker active=true with timestamp T2 (T2 > T1)
+	// 3. Worker A disconnects, sets worker active=false with timestamp T1
+	// 4. Since T1 <= T2, the database update succeeds and worker is marked inactive
+	// 5. Worker B is still connected but worker appears inactive, causing heartbeat rejections
+	//
+	// This polling goroutine ensures that as long as ANY ListenV2 connection is active,
+	// the worker status remains active=true, preventing the race condition
+	go func() {
+		ticker := time.NewTicker(2 * time.Second) // 2x heartbeat interval
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ctx.Done():
+				s.l.Debug().Msgf("worker id %s active status poller: context done", request.WorkerId)
+				return
+			case <-fin:
+				s.l.Debug().Msgf("worker id %s active status poller: connection finished", request.WorkerId)
+				return
+			case <-ticker.C:
+				// Check current worker status and set to active if it's not
+				currentWorker, err := s.repo.Worker().GetWorkerForEngine(ctx, tenantId, request.WorkerId)
+				if err != nil {
+					if errors.Is(err, pgx.ErrNoRows) {
+						s.l.Debug().Msgf("worker %s not found during active status poll", request.WorkerId)
+						return
+					}
+					s.l.Error().Err(err).Msgf("could not get worker %s during active status poll", request.WorkerId)
+					continue
+				}
+
+				// If worker is not active, set it to active
+				if !currentWorker.IsActive {
+					s.l.Debug().Msgf("worker %s active status poller: setting worker to active", request.WorkerId)
+					_, err := s.repo.Worker().UpdateWorkerActiveStatus(ctx, tenantId, request.WorkerId, true, sessionEstablished)
+					if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+						s.l.Error().Err(err).Msgf("could not update worker %s active status to true during polling", request.WorkerId)
+					}
+				}
+			}
+		}
+	}()
+
 	// Keep the connection alive for sending messages
 	for {
 		select {
