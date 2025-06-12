@@ -148,17 +148,12 @@ class Runner:
         def inner_callback(task: asyncio.Task[Any]) -> None:
             self.cleanup_run_id(action.key)
 
-            errored = False
-            cancelled = task.cancelled()
-            output = None
+            if task.cancelled():
+                return
 
-            # Get the output from the future
             try:
-                if not cancelled:
-                    output = task.result()
+                output = task.result()
             except Exception as e:
-                errored = True
-
                 should_not_retry = isinstance(e, NonRetryableException)
 
                 # This except is coming from the application itself, so we want to send that to the Hatchet instance
@@ -175,19 +170,18 @@ class Runner:
                     f"failed step run: {action.action_id}/{action.step_run_id}"
                 )
 
-            if not errored and not cancelled:
-                self.event_queue.put(
-                    ActionEvent(
-                        action=action,
-                        type=STEP_EVENT_TYPE_COMPLETED,
-                        payload=self.serialize_output(output),
-                        should_not_retry=False,
-                    )
-                )
+                return
 
-                logger.info(
-                    f"finished step run: {action.action_id}/{action.step_run_id}"
+            self.event_queue.put(
+                ActionEvent(
+                    action=action,
+                    type=STEP_EVENT_TYPE_COMPLETED,
+                    payload=self.serialize_output(output),
+                    should_not_retry=False,
                 )
+            )
+
+            logger.info(f"finished step run: {action.action_id}/{action.step_run_id}")
 
         return inner_callback
 
