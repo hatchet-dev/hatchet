@@ -259,6 +259,7 @@ func (o *OLAPControllerImpl) Start() (func() error, error) {
 		gocron.NewTask(
 			o.runTenantTaskStatusUpdates(ctx),
 		),
+		gocron.WithSingletonMode(gocron.LimitModeReschedule),
 	)
 
 	if err != nil {
@@ -271,6 +272,7 @@ func (o *OLAPControllerImpl) Start() (func() error, error) {
 		gocron.NewTask(
 			o.runTenantDAGStatusUpdates(ctx),
 		),
+		gocron.WithSingletonMode(gocron.LimitModeReschedule),
 	)
 
 	if err != nil {
