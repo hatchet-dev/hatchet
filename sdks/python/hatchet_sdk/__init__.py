@@ -137,7 +137,11 @@ from hatchet_sdk.contracts.workflows_pb2 import (
     RateLimitDuration,
     WorkerLabelComparator,
 )
-from hatchet_sdk.exceptions import DedupeViolationError, FailedWorkflowRunError
+from hatchet_sdk.exceptions import (
+    DedupeViolationError,
+    FailedTaskRunError,
+    FailedTaskRunExceptionGroup,
+)
 from hatchet_sdk.features.runs import BulkCancelReplayOpts, RunFilter
 from hatchet_sdk.hatchet import Hatchet
 from hatchet_sdk.runnables.task import Task
@@ -194,7 +198,7 @@ __all__ = [
     "EventOrderByDirection",
     "EventOrderByField",
     "EventWorkflowRunSummary",
-    "FailedWorkflowRunError",
+    "FailedTaskRunError",
     "GetStepRunDiffResponse",
     "GithubAppInstallation",
     "GithubBranch",
@@ -228,6 +232,7 @@ __all__ = [
     "RunFilter",
     "ScheduleTriggerWorkflowOptions",
     "SleepCondition",
+    "FailedTaskRunExceptionGroup",
     "StepRun",
     "StepRunDiff",
     "StepRunEventType",
