@@ -56,6 +56,7 @@ type TasksControllerImpl struct {
 	reassignTaskOperations *queueutils.OperationPool
 	retryTaskOperations    *queueutils.OperationPool
 	emitSleepOperations    *queueutils.OperationPool
+	replayEnabled          bool
 }
 
 type TasksControllerOpt func(*TasksControllerOpts)
@@ -72,6 +73,7 @@ type TasksControllerOpts struct {
 	pgxStatsLogger      *zerolog.Logger
 	opsPoolJitter       time.Duration
 	opsPoolPollInterval time.Duration
+	replayEnabled       bool
 }
 
 func defaultTasksControllerOpts() *TasksControllerOpts {
@@ -89,6 +91,7 @@ func defaultTasksControllerOpts() *TasksControllerOpts {
 		pgxStatsLogger:      &pgxStatsLogger,
 		opsPoolJitter:       1500 * time.Millisecond,
 		opsPoolPollInterval: 2 * time.Second,
+		replayEnabled:       true, // default to enabled for backward compatibility
 	}
 }
 
@@ -155,6 +158,12 @@ func WithOpsPoolJitter(cf server.ConfigFileOperations) TasksControllerOpt {
 	}
 }
 
+func WithReplayEnabled(enabled bool) TasksControllerOpt {
+	return func(opts *TasksControllerOpts) {
+		opts.replayEnabled = enabled
+	}
+}
+
 func New(fs ...TasksControllerOpt) (*TasksControllerImpl, error) {
 	opts := defaultTasksControllerOpts()
 
@@ -207,6 +216,7 @@ func New(fs ...TasksControllerOpt) (*TasksControllerImpl, error) {
 		celParser:           cel.NewCELParser(),
 		opsPoolJitter:       opts.opsPoolJitter,
 		opsPoolPollInterval: opts.opsPoolPollInterval,
+		replayEnabled:       opts.replayEnabled,
 	}
 
 	jitter := t.opsPoolJitter
@@ -622,6 +632,11 @@ func (tc *TasksControllerImpl) handleCancelTasks(ctx context.Context, tenantId s
 }
 
 func (tc *TasksControllerImpl) handleReplayTasks(ctx context.Context, tenantId string, payloads [][]byte) error {
+	if !tc.replayEnabled {
+		tc.l.Debug().Msg("replay is disabled, skipping handleReplayTasks")
+		return nil
+	}
+
 	// sure would be nice if we could use our own durable execution primitives here, but that's a bootstrapping
 	// problem that we don't have a clean way to solve (yet)
 	msgs := msgqueue.JSONConvert[tasktypes.ReplayTasksPayload](payloads)
@@ -1155,6 +1170,11 @@ func (tc *TasksControllerImpl) signalTasksCreated(ctx context.Context, tenantId 
 }
 
 func (tc *TasksControllerImpl) signalTasksReplayedFromMatch(ctx context.Context, tenantId string, tasks []*sqlcv1.V1Task) error {
+	if !tc.replayEnabled {
+		tc.l.Debug().Msg("replay is disabled, skipping signalTasksReplayedFromMatch")
+		return nil
+	}
+
 	// group tasks by initial states
 	queuedTasks := make([]*sqlcv1.V1Task, 0)
 	failedTasks := make([]*sqlcv1.V1Task, 0)
@@ -1575,6 +1595,11 @@ func (tc *TasksControllerImpl) signalTasksCreatedAndSkipped(ctx context.Context,
 }
 
 func (tc *TasksControllerImpl) signalTasksReplayed(ctx context.Context, tenantId string, tasks []v1.TaskIdInsertedAtRetryCount) error {
+	if !tc.replayEnabled {
+		tc.l.Debug().Msg("replay is disabled, skipping signalTasksReplayed")
+		return nil
+	}
+
 	// notify that tasks have been created
 	// TODO: make this transactionally safe?
 	for _, task := range tasks {

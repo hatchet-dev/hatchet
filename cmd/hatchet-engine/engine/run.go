@@ -799,6 +799,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 				task.WithQueueLoggerConfig(&sc.AdditionalLoggers.Queue),
 				task.WithPgxStatsLoggerConfig(&sc.AdditionalLoggers.PgxStats),
 				task.WithOpsPoolJitter(sc.Operations),
+				task.WithReplayEnabled(sc.Runtime.ReplayEnabled),
 			)
 
 			if err != nil {
