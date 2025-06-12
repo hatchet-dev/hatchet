@@ -500,13 +500,13 @@ func (r *OLAPRepositoryImpl) ListTasks(ctx context.Context, tenantId string, opt
 	ctx, span := telemetry.NewSpan(ctx, "list-tasks-olap")
 	defer span.End()
 
-	tx, err := r.readPool.Begin(ctx)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.readPool, r.l, 10000)
 
 	if err != nil {
 		return nil, 0, err
 	}
 
-	defer tx.Rollback(ctx)
+	defer rollback()
 
 	params := sqlcv1.ListTasksOlapParams{
 		Tenantid:                  sqlchelpers.UUIDFromStr(tenantId),
@@ -610,7 +610,7 @@ func (r *OLAPRepositoryImpl) ListTasks(ctx context.Context, tenantId string, opt
 		count = int64(len(tasksWithData))
 	}
 
-	if err := tx.Commit(ctx); err != nil {
+	if err := commit(ctx); err != nil {
 		return nil, 0, err
 	}
 
@@ -621,14 +621,14 @@ func (r *OLAPRepositoryImpl) ListTasksByDAGId(ctx context.Context, tenantId stri
 	ctx, span := telemetry.NewSpan(ctx, "list-tasks-by-dag-id-olap")
 	defer span.End()
 
-	tx, err := r.readPool.Begin(ctx)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.readPool, r.l, 15000)
 	taskIdToDagExternalId := make(map[int64]uuid.UUID)
 
 	if err != nil {
 		return nil, taskIdToDagExternalId, err
 	}
 
-	defer tx.Rollback(ctx)
+	defer rollback()
 
 	tasks, err := r.queries.ListTasksByDAGIds(ctx, tx, sqlcv1.ListTasksByDAGIdsParams{
 		Dagids:   dagids,
@@ -662,7 +662,7 @@ func (r *OLAPRepositoryImpl) ListTasksByDAGId(ctx context.Context, tenantId stri
 		return nil, taskIdToDagExternalId, err
 	}
 
-	if err := tx.Commit(ctx); err != nil {
+	if err := commit(ctx); err != nil {
 		return nil, taskIdToDagExternalId, err
 	}
 
@@ -670,13 +670,13 @@ func (r *OLAPRepositoryImpl) ListTasksByDAGId(ctx context.Context, tenantId stri
 }
 
 func (r *OLAPRepositoryImpl) ListTasksByIdAndInsertedAt(ctx context.Context, tenantId string, taskMetadata []TaskMetadata) ([]*sqlcv1.PopulateTaskRunDataRow, error) {
-	tx, err := r.readPool.Begin(ctx)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.readPool, r.l, 15000)
 
 	if err != nil {
 		return nil, err
 	}
 
-	defer tx.Rollback(ctx)
+	defer rollback()
 
 	taskIds := make([]int64, 0)
 	taskInsertedAts := make([]pgtype.Timestamptz, 0)
@@ -697,7 +697,7 @@ func (r *OLAPRepositoryImpl) ListTasksByIdAndInsertedAt(ctx context.Context, ten
 		return nil, err
 	}
 
-	if err := tx.Commit(ctx); err != nil {
+	if err := commit(ctx); err != nil {
 		return nil, err
 	}
 
@@ -708,13 +708,13 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId stri
 	ctx, span := telemetry.NewSpan(ctx, "list-workflow-runs-olap")
 	defer span.End()
 
-	tx, err := r.readPool.Begin(ctx)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.readPool, r.l, 30000)
 
 	if err != nil {
 		return nil, 0, err
 	}
 
-	defer tx.Rollback(ctx)
+	defer rollback()
 
 	params := sqlcv1.FetchWorkflowRunIdsParams{
 		Tenantid:                  sqlchelpers.UUIDFromStr(tenantId),
@@ -848,7 +848,7 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId stri
 		count = int64(len(workflowRunIds))
 	}
 
-	if err := tx.Commit(ctx); err != nil {
+	if err := commit(ctx); err != nil {
 		return nil, 0, err
 	}
 
