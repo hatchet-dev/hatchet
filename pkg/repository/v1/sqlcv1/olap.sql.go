@@ -38,15 +38,19 @@ WITH included_events AS (
         )
         AND (
             $5::UUID[] IS NULL OR
-            elt.external_id = ANY($5::UUID[])
+            r.workflow_id = ANY($5::UUID[])
         )
         AND (
-            $6::JSONB IS NULL OR
-            e.additional_metadata @> $6::JSONB
+            $6::UUID[] IS NULL OR
+            elt.external_id = ANY($6::UUID[])
         )
         AND (
-            $7::v1_readable_status_olap[] IS NULL OR
-            r.readable_status = ANY($7::v1_readable_status_olap[])
+            $7::JSONB IS NULL OR
+            e.additional_metadata @> $7::JSONB
+        )
+        AND (
+            $8::v1_readable_status_olap[] IS NULL OR
+            r.readable_status = ANY($8::v1_readable_status_olap[])
         )
         ORDER BY e.seen_at DESC, e.id
     LIMIT 20000
@@ -61,6 +65,7 @@ type CountEventsParams struct {
 	Keys               []string               `json:"keys"`
 	Since              pgtype.Timestamptz     `json:"since"`
 	Until              pgtype.Timestamptz     `json:"until"`
+	WorkflowIds        []pgtype.UUID          `json:"workflowIds"`
 	EventIds           []pgtype.UUID          `json:"eventIds"`
 	AdditionalMetadata []byte                 `json:"additionalMetadata"`
 	Status             []V1ReadableStatusOlap `json:"status"`
@@ -72,6 +77,7 @@ func (q *Queries) CountEvents(ctx context.Context, db DBTX, arg CountEventsParam
 		arg.Keys,
 		arg.Since,
 		arg.Until,
+		arg.WorkflowIds,
 		arg.EventIds,
 		arg.AdditionalMetadata,
 		arg.Status,
@@ -555,21 +561,25 @@ WITH included_events AS (
         )
         AND (
             $5::UUID[] IS NULL OR
-            elt.external_id = ANY($5::UUID[])
+            r.workflow_id = ANY($5::UUID[])
         )
         AND (
-            $6::JSONB IS NULL OR
-            e.additional_metadata @> $6::JSONB
+            $6::UUID[] IS NULL OR
+            elt.external_id = ANY($6::UUID[])
         )
         AND (
-            $7::v1_readable_status_olap[] IS NULL OR
-            r.readable_status = ANY($7::v1_readable_status_olap[])
+            $7::JSONB IS NULL OR
+            e.additional_metadata @> $7::JSONB
+        )
+        AND (
+            $8::v1_readable_status_olap[] IS NULL OR
+            r.readable_status = ANY($8::v1_readable_status_olap[])
         )
     ORDER BY e.seen_at DESC, e.id
     OFFSET
-        COALESCE($8::BIGINT, 0)
+        COALESCE($9::BIGINT, 0)
     LIMIT
-        COALESCE($9::BIGINT, 50)
+        COALESCE($10::BIGINT, 50)
 ), status_counts AS (
     SELECT
         e.tenant_id,
@@ -615,6 +625,7 @@ type ListEventsParams struct {
 	Keys               []string               `json:"keys"`
 	Since              pgtype.Timestamptz     `json:"since"`
 	Until              pgtype.Timestamptz     `json:"until"`
+	WorkflowIds        []pgtype.UUID          `json:"workflowIds"`
 	EventIds           []pgtype.UUID          `json:"eventIds"`
 	AdditionalMetadata []byte                 `json:"additionalMetadata"`
 	Status             []V1ReadableStatusOlap `json:"status"`
@@ -643,6 +654,7 @@ func (q *Queries) ListEvents(ctx context.Context, db DBTX, arg ListEventsParams)
 		arg.Keys,
 		arg.Since,
 		arg.Until,
+		arg.WorkflowIds,
 		arg.EventIds,
 		arg.AdditionalMetadata,
 		arg.Status,

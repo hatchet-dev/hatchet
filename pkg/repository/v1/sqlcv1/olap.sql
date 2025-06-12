@@ -1371,6 +1371,10 @@ WITH included_events AS (
             e.seen_at <= sqlc.narg('until')::TIMESTAMPTZ
         )
         AND (
+            sqlc.narg('workflowIds')::UUID[] IS NULL OR
+            r.workflow_id = ANY(sqlc.narg('workflowIds')::UUID[])
+        )
+        AND (
             sqlc.narg('eventIds')::UUID[] IS NULL OR
             elt.external_id = ANY(sqlc.narg('eventIds')::UUID[])
         )
@@ -1444,6 +1448,10 @@ WITH included_events AS (
         AND (
             sqlc.narg('until')::TIMESTAMPTZ IS NULL OR
             e.seen_at <= sqlc.narg('until')::TIMESTAMPTZ
+        )
+        AND (
+            sqlc.narg('workflowIds')::UUID[] IS NULL OR
+            r.workflow_id = ANY(sqlc.narg('workflowIds')::UUID[])
         )
         AND (
             sqlc.narg('eventIds')::UUID[] IS NULL OR

@@ -1522,10 +1522,14 @@ func (r *OLAPRepositoryImpl) ListEvents(ctx context.Context, opts sqlcv1.ListEve
 	}
 
 	eventCount, err := r.queries.CountEvents(ctx, r.readPool, sqlcv1.CountEventsParams{
-		Tenantid: opts.Tenantid,
-		Keys:     opts.Keys,
-		Since:    opts.Since,
-		Until:    opts.Until,
+		Tenantid:           opts.Tenantid,
+		Keys:               opts.Keys,
+		Since:              opts.Since,
+		Until:              opts.Until,
+		WorkflowIds:        opts.WorkflowIds,
+		EventIds:           opts.EventIds,
+		AdditionalMetadata: opts.AdditionalMetadata,
+		Status:             opts.Status,
 	})
 
 	if err != nil {
