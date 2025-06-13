@@ -20,12 +20,10 @@ async def spawn(input: EmptyModel, ctx: Context) -> dict[str, list[Any]]:
     for i in range(2):
         try:
             results.append(
-                (
-                    dedupe_child_wf.aio_run(
-                        options=TriggerWorkflowOptions(
-                            additional_metadata={"dedupe": "test"}, key=f"child{i}"
-                        ),
-                    )
+                dedupe_child_wf.aio_run(
+                    options=TriggerWorkflowOptions(
+                        additional_metadata={"dedupe": "test"}, key=f"child{i}"
+                    ),
                 )
             )
         except DedupeViolationError as e:

@@ -139,8 +139,8 @@ from hatchet_sdk.contracts.workflows_pb2 import (
 )
 from hatchet_sdk.exceptions import (
     DedupeViolationError,
-    FailedTaskRunError,
     FailedTaskRunExceptionGroup,
+    TaskRunError,
 )
 from hatchet_sdk.features.runs import BulkCancelReplayOpts, RunFilter
 from hatchet_sdk.hatchet import Hatchet
@@ -198,7 +198,6 @@ __all__ = [
     "EventOrderByDirection",
     "EventOrderByField",
     "EventWorkflowRunSummary",
-    "FailedTaskRunError",
     "FailedTaskRunExceptionGroup",
     "GetStepRunDiffResponse",
     "GithubAppInstallation",
@@ -240,6 +239,7 @@ __all__ = [
     "StickyStrategy",
     "Task",
     "TaskDefaults",
+    "TaskRunError",
     "Tenant",
     "TenantInvite",
     "TenantInviteList",
