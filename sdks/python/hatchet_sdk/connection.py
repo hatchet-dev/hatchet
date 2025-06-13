@@ -22,7 +22,8 @@ def new_conn(config: ClientConfig, aio: bool) -> grpc.Channel | grpc.aio.Channel
         root: bytes | None = None
 
         if config.tls_config.root_ca_file:
-            root = open(config.tls_config.root_ca_file, "rb").read()
+            with open(config.tls_config.root_ca_file, "rb") as f:
+                root = f.read()
 
         credentials = grpc.ssl_channel_credentials(root_certificates=root)
     elif config.tls_config.strategy == "mtls":
@@ -30,9 +31,14 @@ def new_conn(config: ClientConfig, aio: bool) -> grpc.Channel | grpc.aio.Channel
         assert config.tls_config.key_file
         assert config.tls_config.cert_file
 
-        root = open(config.tls_config.root_ca_file, "rb").read()
-        private_key = open(config.tls_config.key_file, "rb").read()
-        certificate_chain = open(config.tls_config.cert_file, "rb").read()
+        with open(config.tls_config.root_ca_file, "rb") as f:
+            root = f.read()
+
+        with open(config.tls_config.key_file, "rb") as f:
+            private_key = f.read()
+
+        with open(config.tls_config.cert_file, "rb") as f:
+            certificate_chain = f.read()
 
         credentials = grpc.ssl_channel_credentials(
             root_certificates=root,

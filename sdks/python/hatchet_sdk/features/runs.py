@@ -247,7 +247,7 @@ class RunsClient(BaseRestClient):
         self,
         workflow_name: str,
         input: JSONSerializableMapping,
-        additional_metadata: JSONSerializableMapping = {},
+        additional_metadata: JSONSerializableMapping | None = None,
         priority: int | None = None,
     ) -> V1WorkflowRunDetails:
         """
@@ -267,8 +267,8 @@ class RunsClient(BaseRestClient):
                 tenant=self.client_config.tenant_id,
                 v1_trigger_workflow_run_request=V1TriggerWorkflowRunRequest(
                     workflowName=self.client_config.apply_namespace(workflow_name),
-                    input=dict(input),
-                    additionalMetadata=dict(additional_metadata),
+                    input=input,
+                    additionalMetadata=additional_metadata,
                     priority=priority,
                 ),
             )
@@ -277,7 +277,7 @@ class RunsClient(BaseRestClient):
         self,
         workflow_name: str,
         input: JSONSerializableMapping,
-        additional_metadata: JSONSerializableMapping = {},
+        additional_metadata: JSONSerializableMapping | None = None,
         priority: int | None = None,
     ) -> V1WorkflowRunDetails:
         """

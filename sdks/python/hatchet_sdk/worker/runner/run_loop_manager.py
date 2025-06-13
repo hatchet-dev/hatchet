@@ -28,10 +28,10 @@ class WorkerActionRunLoopManager:
         action_queue: "Queue[Action | STOP_LOOP_TYPE]",
         event_queue: "Queue[ActionEvent]",
         loop: asyncio.AbstractEventLoop,
-        handle_kill: bool = True,
-        debug: bool = False,
-        labels: dict[str, str | int] = {},
-        lifespan_context: Any | None = None,
+        handle_kill: bool,
+        debug: bool,
+        labels: dict[str, str | int] | None,
+        lifespan_context: Any | None,
     ) -> None:
         self.name = name
         self.action_registry = action_registry
@@ -52,10 +52,12 @@ class WorkerActionRunLoopManager:
         self.runner: Runner | None = None
 
         self.client = Client(config=self.config, debug=self.debug)
+        self.start_loop_manager_task: asyncio.Task[None] | None = None
+
         self.start()
 
     def start(self) -> None:
-        k = self.loop.create_task(self.aio_start())  # noqa: F841
+        self.start_loop_manager_task = self.loop.create_task(self.aio_start())
 
     async def aio_start(self, retry_count: int = 1) -> None:
         await capture_logs(

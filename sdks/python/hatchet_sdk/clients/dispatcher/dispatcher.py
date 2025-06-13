@@ -93,10 +93,7 @@ class DispatcherClient:
             )
         except Exception as e:
             # for step action events, send a failure event when we cannot send the completed event
-            if (
-                event_type == STEP_EVENT_TYPE_COMPLETED
-                or event_type == STEP_EVENT_TYPE_FAILED
-            ):
+            if event_type in (STEP_EVENT_TYPE_COMPLETED, STEP_EVENT_TYPE_FAILED):
                 await self._try_send_step_action_event(
                     action,
                     STEP_EVENT_TYPE_FAILED,

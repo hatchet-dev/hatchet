@@ -34,7 +34,6 @@ def step1(input: WorkflowInput, ctx: Context) -> None:
     print("starting step1")
     time.sleep(2)
     print("finished step1")
-    pass
 
 
 def main() -> None:

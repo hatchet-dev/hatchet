@@ -111,7 +111,7 @@ class FiltersClient(BaseRestClient):
         workflow_id: str,
         expression: str,
         scope: str,
-        payload: JSONSerializableMapping = {},
+        payload: JSONSerializableMapping | None = None,
     ) -> V1Filter:
         """
         Create a new filter.
@@ -130,7 +130,7 @@ class FiltersClient(BaseRestClient):
                     workflowId=workflow_id,
                     expression=expression,
                     scope=scope,
-                    payload=dict(payload),
+                    payload=payload,
                 ),
             )
 
@@ -139,7 +139,7 @@ class FiltersClient(BaseRestClient):
         workflow_id: str,
         expression: str,
         scope: str,
-        payload: JSONSerializableMapping = {},
+        payload: JSONSerializableMapping | None = None,
     ) -> V1Filter:
         """
         Create a new filter.

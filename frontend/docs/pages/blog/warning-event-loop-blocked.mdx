@@ -197,6 +197,10 @@ First line of defense: look for things that are obviously blocking. API calls, d
 
 As a last resort, you can also change your tasks from being async to sync, although we don't recommend this in the majority of cases.
 
+### Use a linter
+
+[Ruff](https://docs.astral.sh/ruff/), via `flake8` (for example), has an [`ASYNC` linting rule](https://docs.astral.sh/ruff/rules/#flake8-async-async) to help you catch potential issues in async code.
+
 ### Instrument your code
 
 If you've resolved all of the obvious issues but the Scary Warning ™️ is still popping up, instrumenting your code can help find the bottleneck. Hatchet's Python SDK provides [an OpenTelemetry Instrumentor](../home/opentelemetry.mdx), which allows you to easily export traces and spans from your Hatchet workers. If you have some long-running tasks (or long start times), you can use the traces to get a better sense for what might be blocking. In particular, if there are some async operations that appear to just be hanging for significantly longer durations than they should take, this is a good indication they're being blocked by something.
