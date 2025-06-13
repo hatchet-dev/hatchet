@@ -549,7 +549,7 @@ func (s *DispatcherImpl) Heartbeat(ctx context.Context, req *contracts.Heartbeat
 		span.RecordError(err)
 		span.SetStatus(telemetry_codes.Error, "could not get worker")
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, fmt.Errorf("worker %s not found", req.WorkerId)
+			return nil, status.Errorf(codes.NotFound, "worker not found: %s", req.WorkerId)
 		}
 
 		return nil, err
