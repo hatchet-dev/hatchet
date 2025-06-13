@@ -153,7 +153,7 @@ func (a *AdminServiceImpl) CancelTasks(ctx context.Context, req *contracts.Cance
 
 type TaskIdInsertedAtRetryCountWithWorkflowRunId struct {
 	v1.TaskIdInsertedAtRetryCount
-	WorkflowRunId pgtype.UUID `json:"workflow_run_id" db:"workflow_run_id"`
+	WorkflowRunId pgtype.UUID `json:"workflow_run_id" validate:"required"`
 }
 
 func (a *AdminServiceImpl) ReplayTasks(ctx context.Context, req *contracts.ReplayTasksRequest) (*contracts.ReplayTasksResponse, error) {
