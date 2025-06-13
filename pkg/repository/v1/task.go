@@ -2585,6 +2585,10 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId string, t
 			ExternalId:         sqlchelpers.UUIDToStr(task.ExternalID),
 			InitialState:       sqlcv1.V1TaskInitialStateQUEUED,
 			AdditionalMetadata: task.AdditionalMetadata,
+			// NOTE: we require the input to be passed in to the replay method so we can re-evaluate the concurrency keys
+			// Ideally we could preserve the same concurrency keys, but the replay tasks method is currently unaware of existing concurrency
+			// keys because they may change between retries.
+			Input: r.newTaskInputFromExistingBytes(task.Input),
 		})
 	}
 
