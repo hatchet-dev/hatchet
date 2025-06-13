@@ -141,7 +141,7 @@ function Sidebar({ className, memberships, currTenant }: SidebarProps) {
                 icon={<PlayIcon className="mr-2 h-4 w-4" />}
               />
               <SidebarButtonPrimary
-                key={1}
+                key={2}
                 onNavLinkClick={onNavLinkClick}
                 to="/v1/events"
                 name="Events"
