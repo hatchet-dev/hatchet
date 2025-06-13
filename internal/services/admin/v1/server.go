@@ -278,18 +278,24 @@ func (a *AdminServiceImpl) ReplayTasks(ctx context.Context, req *contracts.Repla
 
 	for _, tasksForWorkflowRun := range workflowRunIdToTasksToReplay {
 		if len(currentBatch) > 0 && len(currentBatch)+len(tasksForWorkflowRun) > batchSize {
+			// If the current batch would exceed the batch size if we added the current workflow run's tasks,
+			// we "finalize" the batch and start a new one
 			batches = append(batches, currentBatch)
 			currentBatch = nil
 		}
 
 		if len(tasksForWorkflowRun) > batchSize {
+			// If the current workflow run's task count exceeds the batch size on its own,
+			// we let it be its own batch
 			batches = append(batches, tasksForWorkflowRun)
 		} else {
+			// Otherwise, add it to the current batch
 			currentBatch = append(currentBatch, tasksForWorkflowRun...)
 		}
 	}
 
 	if len(currentBatch) > 0 {
+		// Last case to handle - add the last batch if it has any tasks
 		batches = append(batches, currentBatch)
 	}
 
