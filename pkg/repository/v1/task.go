@@ -2585,6 +2585,7 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId string, t
 			ExternalId:         sqlchelpers.UUIDToStr(task.ExternalID),
 			InitialState:       sqlcv1.V1TaskInitialStateQUEUED,
 			AdditionalMetadata: task.AdditionalMetadata,
+			Input:              r.newTaskInputFromExistingBytes(task.Input),
 		})
 	}
 
