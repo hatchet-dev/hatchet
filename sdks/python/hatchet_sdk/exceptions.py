@@ -27,6 +27,9 @@ class FailedTaskRunError(Exception):
         return str(self)
 
     def serialize(self) -> str:
+        if not self.exc_type or not self.exc:
+            return ""
+
         return (
             self.exc_type.replace(": ", ":::")
             + ": "
@@ -37,8 +40,25 @@ class FailedTaskRunError(Exception):
 
     @classmethod
     def deserialize(cls, serialized: str) -> "FailedTaskRunError":
-        header, trace = serialized.split("\n", 1)
-        exc_type, exc = header.split(": ", 1)
+        if not serialized:
+            return cls(
+                exc="",
+                exc_type="",
+                trace="",
+            )
+
+        try:
+            header, trace = serialized.split("\n", 1)
+            exc_type, exc = header.split(": ", 1)
+        except ValueError:
+            ## If we get here, we saw an error that was not serialized how we expected,
+            ## but was also not empty. So we return it as-is and use `HatchetError` as the type.
+            return cls(
+                exc=serialized,
+                exc_type="HatchetError",
+                trace="",
+            )
+
         exc_type = exc_type.replace(":::", ": ")
         exc = exc.replace("\\\n", "\n")
 
