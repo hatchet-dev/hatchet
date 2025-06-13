@@ -1342,13 +1342,15 @@ INSERT INTO v1_event_to_run_olap(
     run_id,
     run_inserted_at,
     event_id,
-    event_seen_at
+    event_seen_at,
+    filter_id
 )
 VALUES (
     $1,
     $2,
     $3,
-    $4
+    $4,
+    $5
 )
 ;
 
