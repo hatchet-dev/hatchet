@@ -1,6 +1,7 @@
 # > Lifespan
 
-from typing import AsyncGenerator, cast
+from collections.abc import AsyncGenerator
+from typing import cast
 
 from pydantic import BaseModel
 
