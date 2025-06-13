@@ -20,30 +20,25 @@ import re  # noqa: F401
 from typing import Any, ClassVar, Dict, List, Optional, Set
 
 from pydantic import BaseModel, ConfigDict, Field, StrictStr
-from typing_extensions import Self
-
-from hatchet_sdk.clients.rest.models.tenant_ui_version import TenantUIVersion
-from hatchet_sdk.clients.rest.models.tenant_version import TenantVersion
+from typing_extensions import Annotated, Self
 
 
-class CreateTenantRequest(BaseModel):
+class V1EventTriggeredRun(BaseModel):
     """
-    CreateTenantRequest
+    V1EventTriggeredRun
     """  # noqa: E501
 
-    name: StrictStr = Field(description="The name of the tenant.")
-    slug: StrictStr = Field(description="The slug of the tenant.")
-    ui_version: Optional[TenantUIVersion] = Field(
-        default=None,
-        description="The UI version of the tenant. Defaults to V0.",
-        alias="uiVersion",
+    workflow_run_id: Annotated[
+        str, Field(min_length=36, strict=True, max_length=36)
+    ] = Field(
+        description="The external ID of the triggered run.", alias="workflowRunId"
     )
-    engine_version: Optional[TenantVersion] = Field(
+    filter_id: Optional[StrictStr] = Field(
         default=None,
-        description="The engine version of the tenant. Defaults to V0.",
-        alias="engineVersion",
+        description="The ID of the filter that triggered the run, if applicable.",
+        alias="filterId",
     )
-    __properties: ClassVar[List[str]] = ["name", "slug", "uiVersion", "engineVersion"]
+    __properties: ClassVar[List[str]] = ["workflowRunId", "filterId"]
 
     model_config = ConfigDict(
         populate_by_name=True,
@@ -62,7 +57,7 @@ class CreateTenantRequest(BaseModel):
 
     @classmethod
     def from_json(cls, json_str: str) -> Optional[Self]:
-        """Create an instance of CreateTenantRequest from a JSON string"""
+        """Create an instance of V1EventTriggeredRun from a JSON string"""
         return cls.from_dict(json.loads(json_str))
 
     def to_dict(self) -> Dict[str, Any]:
@@ -86,7 +81,7 @@ class CreateTenantRequest(BaseModel):
 
     @classmethod
     def from_dict(cls, obj: Optional[Dict[str, Any]]) -> Optional[Self]:
-        """Create an instance of CreateTenantRequest from a dict"""
+        """Create an instance of V1EventTriggeredRun from a dict"""
         if obj is None:
             return None
 
@@ -94,11 +89,6 @@ class CreateTenantRequest(BaseModel):
             return cls.model_validate(obj)
 
         _obj = cls.model_validate(
-            {
-                "name": obj.get("name"),
-                "slug": obj.get("slug"),
-                "uiVersion": obj.get("uiVersion"),
-                "engineVersion": obj.get("engineVersion"),
-            }
+            {"workflowRunId": obj.get("workflowRunId"), "filterId": obj.get("filterId")}
         )
         return _obj

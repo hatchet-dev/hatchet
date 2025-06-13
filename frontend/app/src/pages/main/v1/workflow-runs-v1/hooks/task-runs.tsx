@@ -12,6 +12,7 @@ type UseTaskRunProps = {
   workerId: string | undefined;
   workflow: string | undefined;
   parentTaskExternalId: string | undefined;
+  triggeringEventExternalId?: string | undefined;
   disablePagination?: boolean;
 };
 
@@ -20,6 +21,7 @@ export const useTaskRuns = ({
   workerId,
   workflow,
   parentTaskExternalId,
+  triggeringEventExternalId,
   disablePagination = false,
 }: UseTaskRunProps) => {
   const cf = useColumnFilters();
@@ -43,6 +45,7 @@ export const useTaskRuns = ({
       additional_metadata: cf.filters.additionalMetadata,
       worker_id: workerId,
       only_tasks: !!workerId,
+      triggering_event_external_id: triggeringEventExternalId,
     }),
     placeholderData: (prev) => prev,
     refetchInterval: () => {

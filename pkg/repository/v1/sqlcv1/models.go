@@ -2534,6 +2534,7 @@ type V1EventToRunOlap struct {
 	RunInsertedAt pgtype.Timestamptz `json:"run_inserted_at"`
 	EventID       int64              `json:"event_id"`
 	EventSeenAt   pgtype.Timestamptz `json:"event_seen_at"`
+	FilterID      pgtype.UUID        `json:"filter_id"`
 }
 
 type V1EventsOlap struct {

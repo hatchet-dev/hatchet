@@ -1237,10 +1237,22 @@ type V1Event struct {
 	// Key The key for the event.
 	Key      string          `json:"key"`
 	Metadata APIResourceMeta `json:"metadata"`
-	Tenant   *Tenant         `json:"tenant,omitempty"`
+
+	// Payload The payload of the event, which can be any JSON-serializable object.
+	Payload *map[string]interface{} `json:"payload,omitempty"`
+
+	// Scope The scope of the event, which can be used to filter or categorize events.
+	Scope *string `json:"scope,omitempty"`
+
+	// SeenAt The timestamp when the event was seen.
+	SeenAt *time.Time `json:"seenAt,omitempty"`
+	Tenant *Tenant    `json:"tenant,omitempty"`
 
 	// TenantId The ID of the tenant associated with this event.
-	TenantId           string                    `json:"tenantId"`
+	TenantId string `json:"tenantId"`
+
+	// TriggeredRuns The external IDs of the runs that were triggered by this event.
+	TriggeredRuns      *[]V1EventTriggeredRun    `json:"triggeredRuns,omitempty"`
 	WorkflowRunSummary V1EventWorkflowRunSummary `json:"workflowRunSummary"`
 }
 
@@ -1248,6 +1260,15 @@ type V1Event struct {
 type V1EventList struct {
 	Pagination *PaginationResponse `json:"pagination,omitempty"`
 	Rows       *[]V1Event          `json:"rows,omitempty"`
+}
+
+// V1EventTriggeredRun defines model for V1EventTriggeredRun.
+type V1EventTriggeredRun struct {
+	// FilterId The ID of the filter that triggered the run, if applicable.
+	FilterId *openapi_types.UUID `json:"filterId,omitempty"`
+
+	// WorkflowRunId The external ID of the triggered run.
+	WorkflowRunId openapi_types.UUID `json:"workflowRunId"`
 }
 
 // V1EventWorkflowRunSummary defines model for V1EventWorkflowRunSummary.
@@ -2023,6 +2044,21 @@ type V1EventListParams struct {
 
 	// Until Consider events that occurred before this time
 	Until *time.Time `form:"until,omitempty" json:"until,omitempty"`
+
+	// WorkflowIds Filter to events that are associated with a specific workflow run
+	WorkflowIds *[]openapi_types.UUID `form:"workflowIds,omitempty" json:"workflowIds,omitempty"`
+
+	// WorkflowRunStatuses Filter to events that are associated with workflow runs matching a certain status
+	WorkflowRunStatuses *[]V1TaskStatus `form:"workflowRunStatuses,omitempty" json:"workflowRunStatuses,omitempty"`
+
+	// EventIds Filter to specific events by their ids
+	EventIds *[]openapi_types.UUID `form:"eventIds,omitempty" json:"eventIds,omitempty"`
+
+	// AdditionalMetadata Filter by additional metadata on the events
+	AdditionalMetadata *[]string `form:"additionalMetadata,omitempty" json:"additionalMetadata,omitempty"`
+
+	// Scopes The scopes to filter by
+	Scopes *[]string `form:"scopes,omitempty" json:"scopes,omitempty"`
 }
 
 // V1FilterListParams defines parameters for V1FilterList.
@@ -2619,6 +2655,9 @@ type ClientInterface interface {
 	// V1EventList request
 	V1EventList(ctx context.Context, tenant openapi_types.UUID, params *V1EventListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// V1EventKeyList request
+	V1EventKeyList(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// V1FilterList request
 	V1FilterList(ctx context.Context, tenant openapi_types.UUID, params *V1FilterListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -3201,6 +3240,18 @@ func (c *Client) V1TaskEventList(ctx context.Context, task openapi_types.UUID, p
 
 func (c *Client) V1EventList(ctx context.Context, tenant openapi_types.UUID, params *V1EventListParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewV1EventListRequest(c.Server, tenant, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1EventKeyList(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1EventKeyListRequest(c.Server, tenant)
 	if err != nil {
 		return nil, err
 	}
@@ -5524,7 +5575,121 @@ func NewV1EventListRequest(server string, tenant openapi_types.UUID, params *V1E
 
 		}
 
+		if params.WorkflowIds != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "workflowIds", runtime.ParamLocationQuery, *params.WorkflowIds); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.WorkflowRunStatuses != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "workflowRunStatuses", runtime.ParamLocationQuery, *params.WorkflowRunStatuses); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.EventIds != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "eventIds", runtime.ParamLocationQuery, *params.EventIds); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.AdditionalMetadata != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "additionalMetadata", runtime.ParamLocationQuery, *params.AdditionalMetadata); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Scopes != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "scopes", runtime.ParamLocationQuery, *params.Scopes); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
 		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewV1EventKeyListRequest generates requests for V1EventKeyList
+func NewV1EventKeyListRequest(server string, tenant openapi_types.UUID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/stable/tenants/%s/events/keys", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
 	}
 
 	req, err := http.NewRequest("GET", queryURL.String(), nil)
@@ -11092,6 +11257,9 @@ type ClientWithResponsesInterface interface {
 	// V1EventListWithResponse request
 	V1EventListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V1EventListParams, reqEditors ...RequestEditorFn) (*V1EventListResponse, error)
 
+	// V1EventKeyListWithResponse request
+	V1EventKeyListWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*V1EventKeyListResponse, error)
+
 	// V1FilterListWithResponse request
 	V1FilterListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V1FilterListParams, reqEditors ...RequestEditorFn) (*V1FilterListResponse, error)
 
@@ -11886,6 +12054,30 @@ func (r V1EventListResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r V1EventListResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type V1EventKeyListResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *EventKeyList
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r V1EventKeyListResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r V1EventKeyListResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -14430,6 +14622,15 @@ func (c *ClientWithResponses) V1EventListWithResponse(ctx context.Context, tenan
 	return ParseV1EventListResponse(rsp)
 }
 
+// V1EventKeyListWithResponse request returning *V1EventKeyListResponse
+func (c *ClientWithResponses) V1EventKeyListWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*V1EventKeyListResponse, error) {
+	rsp, err := c.V1EventKeyList(ctx, tenant, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1EventKeyListResponse(rsp)
+}
+
 // V1FilterListWithResponse request returning *V1FilterListResponse
 func (c *ClientWithResponses) V1FilterListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V1FilterListParams, reqEditors ...RequestEditorFn) (*V1FilterListResponse, error) {
 	rsp, err := c.V1FilterList(ctx, tenant, params, reqEditors...)
@@ -16217,6 +16418,46 @@ func ParseV1EventListResponse(rsp *http.Response) (*V1EventListResponse, error) 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest V1EventList
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseV1EventKeyListResponse parses an HTTP response from a V1EventKeyListWithResponse call
+func ParseV1EventKeyListResponse(rsp *http.Response) (*V1EventKeyListResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &V1EventKeyListResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest EventKeyList
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

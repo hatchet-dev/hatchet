@@ -201,6 +201,7 @@ from hatchet_sdk.clients.rest.models.v1_create_filter_request import (
 from hatchet_sdk.clients.rest.models.v1_dag_children import V1DagChildren
 from hatchet_sdk.clients.rest.models.v1_event import V1Event
 from hatchet_sdk.clients.rest.models.v1_event_list import V1EventList
+from hatchet_sdk.clients.rest.models.v1_event_triggered_run import V1EventTriggeredRun
 from hatchet_sdk.clients.rest.models.v1_event_workflow_run_summary import (
     V1EventWorkflowRunSummary,
 )

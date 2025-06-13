@@ -55,6 +55,7 @@ export interface TaskRunsTableProps {
   showMetrics?: boolean;
   showCounts?: boolean;
   parentTaskExternalId?: string;
+  triggeringEventExternalId?: string;
   disableTaskRunPagination?: boolean;
 }
 
@@ -67,6 +68,7 @@ export function TaskRunsTable({
   workflowId,
   workerId,
   parentTaskExternalId,
+  triggeringEventExternalId,
   createdAfter: createdAfterProp,
   initColumnVisibility = {},
   filterVisibility = {},
@@ -115,6 +117,7 @@ export function TaskRunsTable({
     workerId,
     workflow,
     parentTaskExternalId: derivedParentTaskExternalId,
+    triggeringEventExternalId: triggeringEventExternalId,
     disablePagination: disableTaskRunPagination,
   });
 

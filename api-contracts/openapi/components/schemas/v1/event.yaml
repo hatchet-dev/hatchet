@@ -1,3 +1,19 @@
+V1EventTriggeredRun:
+  type: object
+  properties:
+    workflowRunId:
+      type: string
+      format: uuid
+      description: The external ID of the triggered run.
+      minLength: 36
+      maxLength: 36
+    filterId:
+      type: string
+      format: uuid
+      description: The ID of the filter that triggered the run, if applicable.
+  required:
+    - workflowRunId
+
 V1Event:
   properties:
     metadata:
@@ -17,6 +33,22 @@ V1Event:
     additionalMetadata:
       type: object
       description: Additional metadata for the event.
+    payload:
+      type: object
+      description: The payload of the event, which can be any JSON-serializable object.
+    scope:
+      type: string
+      description: The scope of the event, which can be used to filter or categorize events.
+    seenAt:
+      type: string
+      format: date-time
+      description: The timestamp when the event was seen.
+    triggeredRuns:
+      description: The external IDs of the runs that were triggered by this event.
+      type: array
+      items:
+        $ref: "#/V1EventTriggeredRun"
+
   required:
     - metadata
     - key
