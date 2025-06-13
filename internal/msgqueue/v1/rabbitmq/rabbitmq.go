@@ -18,7 +18,6 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	"github.com/hatchet-dev/hatchet/pkg/random"
-	"github.com/hatchet-dev/hatchet/pkg/repository/metered"
 )
 
 const MAX_RETRY_COUNT = 15
@@ -610,10 +609,6 @@ func (t *MessageQueueImpl) subscribe(
 
 				if err := preAck(msg); err != nil {
 					t.l.Error().Msgf("error in pre-ack on msg %s: %v", msg.ID, err)
-
-					if err == metered.ErrResourceExhausted {
-						return
-					}
 
 					// nack the message
 					if err := rabbitMsg.Reject(false); err != nil {
