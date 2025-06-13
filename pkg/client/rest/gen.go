@@ -1251,15 +1251,24 @@ type V1Event struct {
 	// TenantId The ID of the tenant associated with this event.
 	TenantId string `json:"tenantId"`
 
-	// TriggeredRunExternalIds The external IDs of the runs that were triggered by this event.
-	TriggeredRunExternalIds *[]openapi_types.UUID     `json:"triggeredRunExternalIds,omitempty"`
-	WorkflowRunSummary      V1EventWorkflowRunSummary `json:"workflowRunSummary"`
+	// TriggeredRuns The external IDs of the runs that were triggered by this event.
+	TriggeredRuns      *[]V1EventTriggeredRun    `json:"triggeredRuns,omitempty"`
+	WorkflowRunSummary V1EventWorkflowRunSummary `json:"workflowRunSummary"`
 }
 
 // V1EventList defines model for V1EventList.
 type V1EventList struct {
 	Pagination *PaginationResponse `json:"pagination,omitempty"`
 	Rows       *[]V1Event          `json:"rows,omitempty"`
+}
+
+// V1EventTriggeredRun defines model for V1EventTriggeredRun.
+type V1EventTriggeredRun struct {
+	// FilterId The ID of the filter that triggered the run, if applicable.
+	FilterId *openapi_types.UUID `json:"filterId,omitempty"`
+
+	// WorkflowRunId The external ID of the triggered run.
+	WorkflowRunId openapi_types.UUID `json:"workflowRunId"`
 }
 
 // V1EventWorkflowRunSummary defines model for V1EventWorkflowRunSummary.

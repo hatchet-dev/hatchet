@@ -731,6 +731,21 @@ export interface V1EventWorkflowRunSummary {
   cancelled: number;
 }
 
+export interface V1EventTriggeredRun {
+  /**
+   * The external ID of the triggered run.
+   * @format uuid
+   * @minLength 36
+   * @maxLength 36
+   */
+  workflowRunId: string;
+  /**
+   * The ID of the filter that triggered the run, if applicable.
+   * @format uuid
+   */
+  filterId?: string;
+}
+
 export interface V1Event {
   metadata: APIResourceMeta;
   /** The key for the event. */
@@ -753,7 +768,7 @@ export interface V1Event {
    */
   seenAt?: string;
   /** The external IDs of the runs that were triggered by this event. */
-  triggeredRunExternalIds?: string[];
+  triggeredRuns?: V1EventTriggeredRun[];
 }
 
 export interface V1EventList {

@@ -223,7 +223,9 @@ RETURNING *
 
 -- name: ListEvents :many
 WITH included_events AS (
-    SELECT e.*, ARRAY_AGG(r.external_id) FILTER (WHERE r.external_id IS NOT NULL)::UUID[] AS triggered_run_external_ids
+    SELECT
+        e.*,
+        JSON_AGG(JSON_BUILD_OBJECT('run_external_id', r.external_id, 'filter_id', etr.filter_id)) FILTER (WHERE r.external_id IS NOT NULL)::JSONB AS triggered_runs
     FROM v1_event_lookup_table_olap elt
     JOIN v1_events_olap e ON (elt.tenant_id, elt.event_id, elt.event_seen_at) = (e.tenant_id, e.id, e.seen_at)
     LEFT JOIN v1_event_to_run_olap etr ON (e.id, e.seen_at) = (etr.event_id, etr.event_seen_at)
@@ -307,7 +309,7 @@ SELECT
     sc.completed_count,
     sc.cancelled_count,
     sc.failed_count,
-    e.triggered_run_external_ids
+    e.triggered_runs
 FROM
     included_events e
 LEFT JOIN

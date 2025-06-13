@@ -1,3 +1,19 @@
+V1EventTriggeredRun:
+  type: object
+  properties:
+    workflowRunId:
+      type: string
+      format: uuid
+      description: The external ID of the triggered run.
+      minLength: 36
+      maxLength: 36
+    filterId:
+      type: string
+      format: uuid
+      description: The ID of the filter that triggered the run, if applicable.
+  required:
+    - workflowRunId
+
 V1Event:
   properties:
     metadata:
@@ -27,14 +43,12 @@ V1Event:
       type: string
       format: date-time
       description: The timestamp when the event was seen.
-    triggeredRunExternalIds:
+    triggeredRuns:
       description: The external IDs of the runs that were triggered by this event.
       type: array
       items:
-        type: string
-        format: uuid
-        minLength: 36
-        maxLength: 36
+        $ref: "#/V1EventTriggeredRun"
+
   required:
     - metadata
     - key
