@@ -56,7 +56,7 @@ async def test_bulk_replay(hatchet: Hatchet) -> None:
                         }
                     )
                 )
-                for _ in range((n // 2) - 1)
+                for _ in range((n // 2) - 2)
             ]
         )
 
@@ -86,9 +86,21 @@ async def test_bulk_replay(hatchet: Hatchet) -> None:
         limit=1000,
     )
 
-    assert len(runs.rows) == n + 1 + (n / 2 - 1) + (n / 2 - 1)
+    assert len(runs.rows) == n + 1 + (n / 2 - 1) + (n / 2 - 2)
 
     for run in runs.rows:
         assert run.status == V1TaskStatus.COMPLETED
         assert run.retry_count == 1
         assert run.attempt == 2
+
+    assert (
+        len([r for r in runs.rows if r.workflow_id == bulk_replay_test_1.id]) == n + 1
+    )
+    assert (
+        len([r for r in runs.rows if r.workflow_id == bulk_replay_test_2.id])
+        == n // 2 - 1
+    )
+    assert (
+        len([r for r in runs.rows if r.workflow_id == bulk_replay_test_3.id])
+        == n // 2 - 2
+    )
