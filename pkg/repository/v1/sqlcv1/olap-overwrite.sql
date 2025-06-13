@@ -306,7 +306,8 @@ SELECT
     sc.running_count,
     sc.completed_count,
     sc.cancelled_count,
-    sc.failed_count
+    sc.failed_count,
+    e.triggered_run_external_ids
 FROM
     included_events e
 LEFT JOIN
