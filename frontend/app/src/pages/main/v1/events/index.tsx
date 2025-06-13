@@ -466,7 +466,11 @@ function EventDataSection({ event }: { event: Event }) {
 function EventWorkflowRunsList({ event }: { event: Event }) {
   return (
     <div className="w-full overflow-x-auto max-w-full">
-      <TaskRunsTable triggeringEventExternalId={event.metadata.id} />
+      <TaskRunsTable
+        triggeringEventExternalId={event.metadata.id}
+        showMetrics={false}
+        showCounts={false}
+      />
     </div>
   );
 }
