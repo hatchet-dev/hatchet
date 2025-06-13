@@ -388,7 +388,7 @@ CREATE TABLE v1_events_olap (
 ) PARTITION BY RANGE(seen_at);
 
 CREATE INDEX v1_events_olap_key_idx ON v1_events_olap (tenant_id, key);
-CREATE INDEX v1_events_olap_scope_idx ON v1_events_olap (tenant_id, scope, seen_at DESC) WHERE scope IS NOT NULL;
+CREATE INDEX v1_events_olap_scope_idx ON v1_events_olap (tenant_id, scope) WHERE scope IS NOT NULL;
 
 CREATE TABLE v1_event_lookup_table_olap (
     tenant_id UUID NOT NULL,

@@ -1,6 +1,6 @@
 -- +goose Up
 -- +goose StatementBegin
-CREATE INDEX v1_events_olap_scope_idx ON v1_events_olap (tenant_id, scope, seen_at DESC) WHERE scope IS NOT NULL;
+CREATE INDEX v1_events_olap_scope_idx ON v1_events_olap (tenant_id, scope) WHERE scope IS NOT NULL;
 ALTER TABLE v1_event_to_run_olap ADD COLUMN filter_id UUID;
 -- +goose StatementEnd
 
