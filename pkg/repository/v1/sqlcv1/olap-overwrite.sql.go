@@ -516,7 +516,16 @@ func (q *Queries) CountEvents(ctx context.Context, db DBTX, arg CountEventsParam
 
 const listEvents = `-- name: ListEvents :many
 WITH included_events AS (
-    SELECT DISTINCT e.tenant_id, e.id, e.external_id, e.seen_at, e.key, e.payload, e.additional_metadata, e.scope
+    SELECT
+		e.tenant_id,
+		e.id,
+		e.external_id,
+		e.seen_at,
+		e.key,
+		e.payload,
+		e.additional_metadata,
+		e.scope,
+		ARRAY_AGG(r.external_id) FILTER (WHERE r.external_id IS NOT NULL)::UUID[] AS triggered_run_external_ids
     FROM v1_event_lookup_table_olap elt
     JOIN v1_events_olap e ON (elt.tenant_id, elt.event_id, elt.event_seen_at) = (e.tenant_id, e.id, e.seen_at)
     LEFT JOIN v1_event_to_run_olap etr ON (e.id, e.seen_at) = (etr.event_id, etr.event_seen_at)
@@ -552,6 +561,15 @@ WITH included_events AS (
             $9::TEXT[] IS NULL OR
             e.scope = ANY($9::TEXT[])
         )
+    GROUP BY
+        e.tenant_id,
+        e.id,
+        e.external_id,
+        e.seen_at,
+        e.key,
+        e.payload,
+        e.additional_metadata,
+        e.scope
     ORDER BY e.seen_at DESC, e.id
     OFFSET
         COALESCE($10::BIGINT, 0)
@@ -626,6 +644,7 @@ type ListEventsRow struct {
 	CompletedCount          pgtype.Int8        `json:"completed_count"`
 	CancelledCount          pgtype.Int8        `json:"cancelled_count"`
 	FailedCount             pgtype.Int8        `json:"failed_count"`
+	TriggeredRunExternalIds []pgtype.UUID      `json:"triggered_run_external_ids"`
 }
 
 func (q *Queries) ListEvents(ctx context.Context, db DBTX, arg ListEventsParams) ([]*ListEventsRow, error) {
@@ -663,6 +682,7 @@ func (q *Queries) ListEvents(ctx context.Context, db DBTX, arg ListEventsParams)
 			&i.CompletedCount,
 			&i.CancelledCount,
 			&i.FailedCount,
+			&i.TriggeredRunExternalIds,
 		); err != nil {
 			return nil, err
 		}

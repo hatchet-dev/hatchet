@@ -752,6 +752,8 @@ export interface V1Event {
    * @format date-time
    */
   seenAt?: string;
+  /** The external IDs of the runs that were triggered by this event. */
+  triggeredRunExternalIds?: string[];
 }
 
 export interface V1EventList {

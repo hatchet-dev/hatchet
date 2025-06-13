@@ -3,6 +3,7 @@ package transformers
 import (
 	"math"
 
+	"github.com/google/uuid"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 )
@@ -29,6 +30,13 @@ func ToV1EventList(events []*sqlcv1.ListEventsRow, limit, offset, total int64) g
 	for i, row := range events {
 		additionalMetadata := jsonToMap(row.EventAdditionalMetadata)
 		payload := jsonToMap(row.EventPayload)
+		triggeredRunExternalIds := make([]uuid.UUID, len(row.TriggeredRunExternalIds))
+
+		for j, runId := range row.TriggeredRunExternalIds {
+			u := uuid.MustParse(runId.String())
+
+			triggeredRunExternalIds[j] = u
+		}
 
 		rows[i] = gen.V1Event{
 			AdditionalMetadata: &additionalMetadata,
@@ -45,9 +53,10 @@ func ToV1EventList(events []*sqlcv1.ListEventsRow, limit, offset, total int64) g
 				Failed:    row.FailedCount.Int64,
 				Running:   row.RunningCount.Int64,
 			},
-			Payload: &payload,
-			SeenAt:  &row.EventSeenAt.Time,
-			Scope:   row.EventScope,
+			Payload:                 &payload,
+			SeenAt:                  &row.EventSeenAt.Time,
+			Scope:                   row.EventScope,
+			TriggeredRunExternalIds: &triggeredRunExternalIds,
 		}
 	}
 

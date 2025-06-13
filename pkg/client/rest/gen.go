@@ -1249,8 +1249,11 @@ type V1Event struct {
 	Tenant *Tenant    `json:"tenant,omitempty"`
 
 	// TenantId The ID of the tenant associated with this event.
-	TenantId           string                    `json:"tenantId"`
-	WorkflowRunSummary V1EventWorkflowRunSummary `json:"workflowRunSummary"`
+	TenantId string `json:"tenantId"`
+
+	// TriggeredRunExternalIds The external IDs of the runs that were triggered by this event.
+	TriggeredRunExternalIds *[]openapi_types.UUID     `json:"triggeredRunExternalIds,omitempty"`
+	WorkflowRunSummary      V1EventWorkflowRunSummary `json:"workflowRunSummary"`
 }
 
 // V1EventList defines model for V1EventList.

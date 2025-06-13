@@ -27,6 +27,14 @@ V1Event:
       type: string
       format: date-time
       description: The timestamp when the event was seen.
+    triggeredRunExternalIds:
+      description: The external IDs of the runs that were triggered by this event.
+      type: array
+      items:
+        type: string
+        format: uuid
+        minLength: 36
+        maxLength: 36
   required:
     - metadata
     - key

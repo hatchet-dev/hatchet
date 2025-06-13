@@ -223,7 +223,7 @@ RETURNING *
 
 -- name: ListEvents :many
 WITH included_events AS (
-    SELECT DISTINCT e.*
+    SELECT e.*, ARRAY_AGG(r.external_id) FILTER (WHERE r.external_id IS NOT NULL)::UUID[] AS triggered_run_external_ids
     FROM v1_event_lookup_table_olap elt
     JOIN v1_events_olap e ON (elt.tenant_id, elt.event_id, elt.event_seen_at) = (e.tenant_id, e.id, e.seen_at)
     LEFT JOIN v1_event_to_run_olap etr ON (e.id, e.seen_at) = (etr.event_id, etr.event_seen_at)
@@ -259,6 +259,15 @@ WITH included_events AS (
             sqlc.narg('scopes')::TEXT[] IS NULL OR
             e.scope = ANY(sqlc.narg('scopes')::TEXT[])
         )
+    GROUP BY
+        e.tenant_id,
+        e.id,
+        e.external_id,
+        e.seen_at,
+        e.key,
+        e.payload,
+        e.additional_metadata,
+        e.scope
     ORDER BY e.seen_at DESC, e.id
     OFFSET
         COALESCE(sqlc.narg('offset')::BIGINT, 0)
