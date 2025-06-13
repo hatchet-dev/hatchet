@@ -53,8 +53,7 @@ func (t *V1EventsService) V1EventList(ctx echo.Context, request gen.V1EventListR
 	}
 
 	if request.Params.Keys != nil {
-		keys := make([]string, len(*request.Params.Keys))
-		opts.Keys = keys
+		opts.Keys = *request.Params.Keys
 	}
 
 	if request.Params.Until != nil {
