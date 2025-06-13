@@ -404,6 +404,7 @@ CREATE TABLE v1_event_to_run_olap (
     run_inserted_at TIMESTAMPTZ NOT NULL,
     event_id BIGINT NOT NULL,
     event_seen_at TIMESTAMPTZ NOT NULL,
+    filter_id UUID,
 
     PRIMARY KEY (event_id, event_seen_at, run_id, run_inserted_at)
 ) PARTITION BY RANGE(event_seen_at);
