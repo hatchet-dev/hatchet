@@ -879,6 +879,7 @@ func (tc *TasksControllerImpl) handleProcessUserEventTrigger(ctx context.Context
 					EventPayload:            opts.Data,
 					EventAdditionalMetadata: opts.AdditionalMetadata,
 					EventScope:              opts.Scope,
+					FilterId:                run.FilterId,
 				})
 			}
 		}
