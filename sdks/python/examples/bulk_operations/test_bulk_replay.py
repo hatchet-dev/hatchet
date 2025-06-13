@@ -86,7 +86,7 @@ async def test_bulk_replay(hatchet: Hatchet) -> None:
         limit=1000,
     )
 
-    assert len(runs.rows) == n + 1 + (n / 2 - 1) + (n / 2 - 2)
+    assert len(runs.rows) == n + 1 + (n // 2 - 1) + (n // 2 - 2)
 
     for run in runs.rows:
         assert run.status == V1TaskStatus.COMPLETED
