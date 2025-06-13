@@ -30,7 +30,7 @@ from hatchet_sdk.contracts.dispatcher_pb2 import (
     STEP_EVENT_TYPE_FAILED,
     STEP_EVENT_TYPE_STARTED,
 )
-from hatchet_sdk.exceptions import FailedTaskRunError, NonRetryableException
+from hatchet_sdk.exceptions import NonRetryableException, TaskRunError
 from hatchet_sdk.features.runs import RunsClient
 from hatchet_sdk.logger import logger
 from hatchet_sdk.runnables.action import Action, ActionKey, ActionType
@@ -155,7 +155,7 @@ class Runner:
             except Exception as e:
                 should_not_retry = isinstance(e, NonRetryableException)
 
-                exc = FailedTaskRunError.from_exception(e)
+                exc = TaskRunError.from_exception(e)
 
                 # This except is coming from the application itself, so we want to send that to the Hatchet instance
                 self.event_queue.put(
@@ -198,7 +198,7 @@ class Runner:
             try:
                 output = task.result()
             except Exception as e:
-                exc = FailedTaskRunError.from_exception(e)
+                exc = TaskRunError.from_exception(e)
 
                 self.event_queue.put(
                     ActionEvent(

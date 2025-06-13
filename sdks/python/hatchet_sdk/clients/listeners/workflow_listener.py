@@ -14,8 +14,8 @@ from hatchet_sdk.contracts.dispatcher_pb2 import (
 from hatchet_sdk.contracts.dispatcher_pb2_grpc import DispatcherStub
 from hatchet_sdk.exceptions import (
     DedupeViolationError,
-    FailedTaskRunError,
     FailedTaskRunExceptionGroup,
+    TaskRunError,
 )
 
 DEDUPE_MESSAGE = "DUPLICATE_WORKFLOW_RUN"
@@ -42,8 +42,8 @@ class PooledWorkflowRunListener(
                 raise DedupeViolationError(errors[0])
 
             raise FailedTaskRunExceptionGroup(
-                f"Workflow run {workflow_run_id} failed with multiple errors.",
-                [FailedTaskRunError.deserialize(e) for e in errors],
+                f"Workflow run {workflow_run_id} failed.",
+                [TaskRunError.deserialize(e) for e in errors],
             )
 
         return {
