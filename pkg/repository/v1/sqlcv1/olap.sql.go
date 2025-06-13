@@ -19,6 +19,81 @@ type BulkCreateEventTriggersParams struct {
 	FilterID      pgtype.UUID        `json:"filter_id"`
 }
 
+const countEvents = `-- name: CountEvents :one
+WITH included_events AS (
+    SELECT DISTINCT e.tenant_id, e.id, e.external_id, e.seen_at, e.key, e.payload, e.additional_metadata, e.scope
+    FROM v1_event_lookup_table_olap elt
+    JOIN v1_events_olap e ON (elt.tenant_id, elt.event_id, elt.event_seen_at) = (e.tenant_id, e.id, e.seen_at)
+    LEFT JOIN v1_event_to_run_olap etr ON (e.id, e.seen_at) = (etr.event_id, etr.event_seen_at)
+    LEFT JOIN v1_runs_olap r ON (etr.run_id, etr.run_inserted_at) = (r.id, r.inserted_at)
+    WHERE
+        e.tenant_id = $1
+        AND (
+            $2::TEXT[] IS NULL OR
+            "key" = ANY($2::TEXT[])
+        )
+        AND e.seen_at >= $3::TIMESTAMPTZ
+        AND (
+            $4::TIMESTAMPTZ IS NULL OR
+            e.seen_at <= $4::TIMESTAMPTZ
+        )
+        AND (
+            $5::UUID[] IS NULL OR
+            r.workflow_id = ANY($5::UUID[])
+        )
+        AND (
+            $6::UUID[] IS NULL OR
+            elt.external_id = ANY($6::UUID[])
+        )
+        AND (
+            $7::JSONB IS NULL OR
+            e.additional_metadata @> $7::JSONB
+        )
+        AND (
+            CAST($8::text[] AS v1_readable_status_olap[]) IS NULL OR
+            r.readable_status = ANY(CAST($8::text[] AS v1_readable_status_olap[]))
+        )
+        AND (
+            $9::TEXT[] IS NULL OR
+            e.scope = ANY($9::TEXT[])
+        )
+        ORDER BY e.seen_at DESC, e.id
+    LIMIT 20000
+)
+
+SELECT COUNT(*)
+FROM included_events e
+`
+
+type CountEventsParams struct {
+	Tenantid           pgtype.UUID        `json:"tenantid"`
+	Keys               []string           `json:"keys"`
+	Since              pgtype.Timestamptz `json:"since"`
+	Until              pgtype.Timestamptz `json:"until"`
+	WorkflowIds        []pgtype.UUID      `json:"workflowIds"`
+	EventIds           []pgtype.UUID      `json:"eventIds"`
+	AdditionalMetadata []byte             `json:"additionalMetadata"`
+	Statuses           []string           `json:"statuses"`
+	Scopes             []string           `json:"scopes"`
+}
+
+func (q *Queries) CountEvents(ctx context.Context, db DBTX, arg CountEventsParams) (int64, error) {
+	row := db.QueryRow(ctx, countEvents,
+		arg.Tenantid,
+		arg.Keys,
+		arg.Since,
+		arg.Until,
+		arg.WorkflowIds,
+		arg.EventIds,
+		arg.AdditionalMetadata,
+		arg.Statuses,
+		arg.Scopes,
+	)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 type CreateDAGsOLAPParams struct {
 	TenantID             pgtype.UUID        `json:"tenant_id"`
 	ID                   int64              `json:"id"`
@@ -495,6 +570,180 @@ func (q *Queries) ListEventKeys(ctx context.Context, db DBTX, tenantid pgtype.UU
 			return nil, err
 		}
 		items = append(items, key)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listEvents = `-- name: ListEvents :many
+WITH included_events AS (
+    SELECT
+        e.tenant_id, e.id, e.external_id, e.seen_at, e.key, e.payload, e.additional_metadata, e.scope,
+        JSON_AGG(JSON_BUILD_OBJECT('run_external_id', r.external_id, 'filter_id', etr.filter_id)) FILTER (WHERE r.external_id IS NOT NULL)::JSONB AS triggered_runs
+    FROM v1_event_lookup_table_olap elt
+    JOIN v1_events_olap e ON (elt.tenant_id, elt.event_id, elt.event_seen_at) = (e.tenant_id, e.id, e.seen_at)
+    LEFT JOIN v1_event_to_run_olap etr ON (e.id, e.seen_at) = (etr.event_id, etr.event_seen_at)
+    LEFT JOIN v1_runs_olap r ON (etr.run_id, etr.run_inserted_at) = (r.id, r.inserted_at)
+    WHERE
+        e.tenant_id = $1
+        AND (
+            $2::TEXT[] IS NULL OR
+            "key" = ANY($2::TEXT[])
+        )
+        AND e.seen_at >= $3::TIMESTAMPTZ
+        AND (
+            $4::TIMESTAMPTZ IS NULL OR
+            e.seen_at <= $4::TIMESTAMPTZ
+        )
+        AND (
+            $5::UUID[] IS NULL OR
+            r.workflow_id = ANY($5::UUID[])
+        )
+        AND (
+            $6::UUID[] IS NULL OR
+            elt.external_id = ANY($6::UUID[])
+        )
+        AND (
+            $7::JSONB IS NULL OR
+            e.additional_metadata @> $7::JSONB
+        )
+        AND (
+            CAST($8::text[] AS v1_readable_status_olap[]) IS NULL OR
+            r.readable_status = ANY(CAST($8::text[] AS v1_readable_status_olap[]))
+        )
+        AND (
+            $9::TEXT[] IS NULL OR
+            e.scope = ANY($9::TEXT[])
+        )
+    GROUP BY
+        e.tenant_id,
+        e.id,
+        e.external_id,
+        e.seen_at,
+        e.key,
+        e.payload,
+        e.additional_metadata,
+        e.scope
+    ORDER BY e.seen_at DESC, e.id
+    OFFSET
+        COALESCE($10::BIGINT, 0)
+    LIMIT
+        COALESCE($11::BIGINT, 50)
+), status_counts AS (
+    SELECT
+        e.tenant_id,
+        e.id,
+        e.seen_at,
+        COUNT(*) FILTER (WHERE r.readable_status = 'QUEUED') AS queued_count,
+        COUNT(*) FILTER (WHERE r.readable_status = 'RUNNING') AS running_count,
+        COUNT(*) FILTER (WHERE r.readable_status = 'COMPLETED') AS completed_count,
+        COUNT(*) FILTER (WHERE r.readable_status = 'CANCELLED') AS cancelled_count,
+        COUNT(*) FILTER (WHERE r.readable_status = 'FAILED') AS failed_count
+    FROM
+        included_events e
+    LEFT JOIN
+        v1_event_to_run_olap etr ON (e.id, e.seen_at) = (etr.event_id, etr.event_seen_at)
+    LEFT JOIN
+        v1_runs_olap r ON (etr.run_id, etr.run_inserted_at) = (r.id, r.inserted_at)
+    GROUP BY
+        e.tenant_id, e.id, e.seen_at
+)
+
+SELECT
+    e.tenant_id,
+    e.id AS event_id,
+    e.external_id AS event_external_id,
+    e.seen_at AS event_seen_at,
+    e.key AS event_key,
+    e.payload AS event_payload,
+    e.additional_metadata AS event_additional_metadata,
+    e.scope AS event_scope,
+    sc.queued_count,
+    sc.running_count,
+    sc.completed_count,
+    sc.cancelled_count,
+    sc.failed_count,
+    e.triggered_runs
+FROM
+    included_events e
+LEFT JOIN
+    status_counts sc ON (e.tenant_id, e.id, e.seen_at) = (sc.tenant_id, sc.id, sc.seen_at)
+ORDER BY e.seen_at DESC
+`
+
+type ListEventsParams struct {
+	Tenantid           pgtype.UUID        `json:"tenantid"`
+	Keys               []string           `json:"keys"`
+	Since              pgtype.Timestamptz `json:"since"`
+	Until              pgtype.Timestamptz `json:"until"`
+	WorkflowIds        []pgtype.UUID      `json:"workflowIds"`
+	EventIds           []pgtype.UUID      `json:"eventIds"`
+	AdditionalMetadata []byte             `json:"additionalMetadata"`
+	Statuses           []string           `json:"statuses"`
+	Scopes             []string           `json:"scopes"`
+	Offset             pgtype.Int8        `json:"offset"`
+	Limit              pgtype.Int8        `json:"limit"`
+}
+
+type ListEventsRow struct {
+	TenantID                pgtype.UUID        `json:"tenant_id"`
+	EventID                 int64              `json:"event_id"`
+	EventExternalID         pgtype.UUID        `json:"event_external_id"`
+	EventSeenAt             pgtype.Timestamptz `json:"event_seen_at"`
+	EventKey                string             `json:"event_key"`
+	EventPayload            []byte             `json:"event_payload"`
+	EventAdditionalMetadata []byte             `json:"event_additional_metadata"`
+	EventScope              pgtype.Text        `json:"event_scope"`
+	QueuedCount             pgtype.Int8        `json:"queued_count"`
+	RunningCount            pgtype.Int8        `json:"running_count"`
+	CompletedCount          pgtype.Int8        `json:"completed_count"`
+	CancelledCount          pgtype.Int8        `json:"cancelled_count"`
+	FailedCount             pgtype.Int8        `json:"failed_count"`
+	TriggeredRuns           []byte             `json:"triggered_runs"`
+}
+
+func (q *Queries) ListEvents(ctx context.Context, db DBTX, arg ListEventsParams) ([]*ListEventsRow, error) {
+	rows, err := db.Query(ctx, listEvents,
+		arg.Tenantid,
+		arg.Keys,
+		arg.Since,
+		arg.Until,
+		arg.WorkflowIds,
+		arg.EventIds,
+		arg.AdditionalMetadata,
+		arg.Statuses,
+		arg.Scopes,
+		arg.Offset,
+		arg.Limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ListEventsRow
+	for rows.Next() {
+		var i ListEventsRow
+		if err := rows.Scan(
+			&i.TenantID,
+			&i.EventID,
+			&i.EventExternalID,
+			&i.EventSeenAt,
+			&i.EventKey,
+			&i.EventPayload,
+			&i.EventAdditionalMetadata,
+			&i.EventScope,
+			&i.QueuedCount,
+			&i.RunningCount,
+			&i.CompletedCount,
+			&i.CancelledCount,
+			&i.FailedCount,
+			&i.TriggeredRuns,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err

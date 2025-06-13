@@ -94,7 +94,7 @@ func ToV1EventList(events []*sqlcv1.ListEventsRow, limit, offset, total int64) g
 			},
 			Payload:       &payload,
 			SeenAt:        &row.EventSeenAt.Time,
-			Scope:         row.EventScope,
+			Scope:         &row.EventScope.String,
 			TriggeredRuns: &triggeredRuns,
 		}
 	}
