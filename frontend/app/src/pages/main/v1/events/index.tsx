@@ -80,9 +80,6 @@ function EventsTable() {
     }
   }, [selectedEvent, searchParams, setSearchParams]);
 
-  const [search, setSearch] = useState<string | undefined>(
-    searchParams.get('search') || undefined,
-  );
   const [sorting, setSorting] = useState<SortingState>(() => {
     const sortParam = searchParams.get('sort');
     if (sortParam) {
@@ -116,11 +113,7 @@ function EventsTable() {
 
   useEffect(() => {
     const newSearchParams = new URLSearchParams(searchParams);
-    if (search) {
-      newSearchParams.set('search', search);
-    } else {
-      newSearchParams.delete('search');
-    }
+
     newSearchParams.set(
       'sort',
       sorting.map((s) => `${s.id}:${s.desc ? 'desc' : 'asc'}`).join(','),
@@ -129,14 +122,7 @@ function EventsTable() {
     newSearchParams.set('pageIndex', pagination.pageIndex.toString());
     newSearchParams.set('pageSize', pagination.pageSize.toString());
     setSearchParams(newSearchParams);
-  }, [
-    search,
-    sorting,
-    columnFilters,
-    pagination,
-    setSearchParams,
-    searchParams,
-  ]);
+  }, [sorting, columnFilters, pagination, setSearchParams, searchParams]);
 
   const orderByDirection = useMemo((): EventOrderByDirection | undefined => {
     if (!sorting.length) {
@@ -234,7 +220,6 @@ function EventsTable() {
         orderByDirection,
         offset,
         limit: pageSize,
-        search,
         statuses,
         additionalMetadata: AdditionalMetadataFilter,
         eventIds,
@@ -398,8 +383,6 @@ function EventsTable() {
         actions={actions}
         sorting={sorting}
         setSorting={setSorting}
-        search={search}
-        setSearch={setSearch}
         columnFilters={columnFilters}
         setColumnFilters={setColumnFilters}
         pagination={pagination}
