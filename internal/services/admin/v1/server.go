@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -150,6 +151,11 @@ func (a *AdminServiceImpl) CancelTasks(ctx context.Context, req *contracts.Cance
 	}, nil
 }
 
+type TaskIdInsertedAtRetryCountWithWorkflowRunId struct {
+	v1.TaskIdInsertedAtRetryCount
+	WorkflowRunId pgtype.UUID `json:"workflow_run_id" db:"workflow_run_id"`
+}
+
 func (a *AdminServiceImpl) ReplayTasks(ctx context.Context, req *contracts.ReplayTasksRequest) (*contracts.ReplayTasksResponse, error) {
 	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
 
@@ -234,7 +240,7 @@ func (a *AdminServiceImpl) ReplayTasks(ctx context.Context, req *contracts.Repla
 		externalIds = append(externalIds, runExternalIds...)
 	}
 
-	tasksToReplay := []v1.TaskIdInsertedAtRetryCount{}
+	tasksToReplay := []TaskIdInsertedAtRetryCountWithWorkflowRunId{}
 
 	tasks, err := a.repo.Tasks().FlattenExternalIds(ctx, sqlchelpers.UUIDToStr(tenant.ID), externalIds)
 
@@ -242,41 +248,86 @@ func (a *AdminServiceImpl) ReplayTasks(ctx context.Context, req *contracts.Repla
 		return nil, err
 	}
 
+	taskIdInsertedAtRetryCountToExternalId := make(map[v1.TaskIdInsertedAtRetryCount]pgtype.UUID)
+
 	for _, task := range tasks {
-		tasksToReplay = append(tasksToReplay, v1.TaskIdInsertedAtRetryCount{
+		record := v1.TaskIdInsertedAtRetryCount{
 			Id:         task.ID,
 			InsertedAt: task.InsertedAt,
 			RetryCount: task.RetryCount,
+		}
+		tasksToReplay = append(tasksToReplay, TaskIdInsertedAtRetryCountWithWorkflowRunId{
+			TaskIdInsertedAtRetryCount: record,
+			WorkflowRunId:              task.WorkflowRunExternalID,
 		})
+
+		taskIdInsertedAtRetryCountToExternalId[record] = task.WorkflowRunExternalID
 	}
 
-	// FIXME: group tasks by their workflow run id, and send in batches of 50 workflow run ids...
-
-	// send the payload to the tasks controller, and send the list of tasks back to the client
-	toReplay := tasktypes.ReplayTasksPayload{
-		Tasks: tasksToReplay,
+	workflowRunIdToTasksToReplay := make(map[pgtype.UUID][]v1.TaskIdInsertedAtRetryCount)
+	for _, item := range tasksToReplay {
+		workflowRunIdToTasksToReplay[item.WorkflowRunId] = append(
+			workflowRunIdToTasksToReplay[item.WorkflowRunId],
+			item.TaskIdInsertedAtRetryCount,
+		)
 	}
 
-	msg, err := msgqueue.NewTenantMessage(
-		sqlchelpers.UUIDToStr(tenant.ID),
-		"replay-tasks",
-		false,
-		true,
-		toReplay,
-	)
+	var batches [][]v1.TaskIdInsertedAtRetryCount
+	var currentBatch []v1.TaskIdInsertedAtRetryCount
+	batchSize := 100
 
-	if err != nil {
-		return nil, err
+	for _, tasksForWorkflowRun := range workflowRunIdToTasksToReplay {
+		if len(currentBatch) > 0 && len(currentBatch)+len(tasksForWorkflowRun) > batchSize {
+			batches = append(batches, currentBatch)
+			currentBatch = nil
+		}
+
+		if len(tasksForWorkflowRun) > batchSize {
+			batches = append(batches, tasksForWorkflowRun)
+		} else {
+			currentBatch = append(currentBatch, tasksForWorkflowRun...)
+		}
 	}
 
-	err = a.mq.SendMessage(ctx, msgqueue.TASK_PROCESSING_QUEUE, msg)
+	if len(currentBatch) > 0 {
+		batches = append(batches, currentBatch)
+	}
 
-	if err != nil {
-		return nil, err
+	replayedIds := make([]string, 0)
+
+	for _, batch := range batches {
+		// send the payload to the tasks controller, and send the list of tasks back to the client
+		toReplay := tasktypes.ReplayTasksPayload{
+			Tasks: batch,
+		}
+
+		msg, err := msgqueue.NewTenantMessage(
+			sqlchelpers.UUIDToStr(tenant.ID),
+			"replay-tasks",
+			false,
+			true,
+			toReplay,
+		)
+
+		if err != nil {
+			return nil, err
+		}
+
+		err = a.mq.SendMessage(ctx, msgqueue.TASK_PROCESSING_QUEUE, msg)
+
+		if err != nil {
+			return nil, err
+		}
+
+		for _, task := range batch {
+			replayedIds = append(replayedIds, taskIdInsertedAtRetryCountToExternalId[task].String())
+		}
+
+		time.Sleep(200 * time.Millisecond)
 	}
 
 	return &contracts.ReplayTasksResponse{
-		ReplayedTasks: externalIds,
+		ReplayedTasks: replayedIds,
 	}, nil
 }
 
