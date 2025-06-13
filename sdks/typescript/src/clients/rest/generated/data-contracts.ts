@@ -401,6 +401,8 @@ export interface CreateTenantRequest {
   slug: string;
   /** The UI version of the tenant. Defaults to V0. */
   uiVersion?: any;
+  /** The engine version of the tenant. Defaults to V0. */
+  engineVersion?: any;
 }
 
 export interface UpdateTenantRequest {
@@ -569,6 +571,30 @@ export interface V1EventList {
     };
     /** Additional metadata for the event. */
     additionalMetadata?: object;
+    /** The payload of the event, which can be any JSON-serializable object. */
+    payload?: object;
+    /** The scope of the event, which can be used to filter or categorize events. */
+    scope?: string;
+    /**
+     * The timestamp when the event was seen.
+     * @format date-time
+     */
+    seenAt?: string;
+    /** The external IDs of the runs that were triggered by this event. */
+    triggeredRuns?: {
+      /**
+       * The external ID of the triggered run.
+       * @format uuid
+       * @minLength 36
+       * @maxLength 36
+       */
+      workflowRunId: string;
+      /**
+       * The ID of the filter that triggered the run, if applicable.
+       * @format uuid
+       */
+      filterId?: string;
+    }[];
   }[];
 }
 

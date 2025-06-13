@@ -607,6 +607,16 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
        * @format date-time
        */
       until?: string;
+      /** Filter to events that are associated with a specific workflow run */
+      workflowIds?: string[];
+      /** Filter to events that are associated with workflow runs matching a certain status */
+      workflowRunStatuses?: V1TaskStatus[];
+      /** Filter to specific events by their ids */
+      eventIds?: string[];
+      /** Filter by additional metadata on the events */
+      additionalMetadata?: string[];
+      /** The scopes to filter by */
+      scopes?: string[];
     },
     params: RequestParams = {}
   ) =>
@@ -614,6 +624,23 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       path: `/api/v1/stable/tenants/${tenant}/events`,
       method: 'GET',
       query: query,
+      secure: true,
+      format: 'json',
+      ...params,
+    });
+  /**
+   * @description Lists all event keys for a tenant.
+   *
+   * @tags Event
+   * @name V1EventKeyList
+   * @summary List event keys
+   * @request GET:/api/v1/stable/tenants/{tenant}/events/keys
+   * @secure
+   */
+  v1EventKeyList = (tenant: string, params: RequestParams = {}) =>
+    this.request<EventKeyList, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/events/keys`,
+      method: 'GET',
       secure: true,
       format: 'json',
       ...params,
