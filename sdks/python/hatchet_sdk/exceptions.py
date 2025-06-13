@@ -9,7 +9,7 @@ class DedupeViolationError(Exception):
     """Raised by the Hatchet library to indicate that a workflow has already been run with this deduplication value."""
 
 
-class FailedTaskRunError(Exception):
+class TaskRunError(Exception):
     def __init__(
         self,
         exc: str,
@@ -39,7 +39,7 @@ class FailedTaskRunError(Exception):
         )
 
     @classmethod
-    def deserialize(cls, serialized: str) -> "FailedTaskRunError":
+    def deserialize(cls, serialized: str) -> "TaskRunError":
         if not serialized:
             return cls(
                 exc="",
@@ -69,7 +69,7 @@ class FailedTaskRunError(Exception):
         )
 
     @classmethod
-    def from_exception(cls, exc: Exception) -> "FailedTaskRunError":
+    def from_exception(cls, exc: Exception) -> "TaskRunError":
         return cls(
             exc=str(exc),
             exc_type=type(exc).__name__,
@@ -80,14 +80,14 @@ class FailedTaskRunError(Exception):
 
 
 class FailedTaskRunExceptionGroup(Exception):  # noqa: N818
-    def __init__(self, message: str, exceptions: list[FailedTaskRunError]):
+    def __init__(self, message: str, exceptions: list[TaskRunError]):
         self.message = message
         self.exceptions = exceptions
 
         super().__init__(message)
 
     def __str__(self) -> str:
-        result = [self.message]
+        result = [self.message.strip()]
 
         for i, exc in enumerate(self.exceptions, 1):
             result.append(f"\n--- Exception {i} ---")
