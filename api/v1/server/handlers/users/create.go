@@ -16,6 +16,12 @@ import (
 )
 
 func (u *UserService) UserCreate(ctx echo.Context, request gen.UserCreateRequestObject) (gen.UserCreateResponseObject, error) {
+	// check that the server supports local registration
+	if !u.config.Auth.ConfigFile.BasicAuthEnabled {
+		return gen.UserCreate405JSONResponse(
+			apierrors.NewAPIErrors("local registration is not enabled"),
+		), nil
+	}
 
 	if !u.config.Runtime.AllowSignup {
 		return gen.UserCreate400JSONResponse(
