@@ -190,7 +190,7 @@ class EventClient(BaseRestClient):
         self.events_service_client.PutLog(request, metadata=get_metadata(self.token))
 
     @tenacity_retry
-    def stream(self, data: str | bytes, step_run_id: str) -> None:
+    def stream(self, data: str | bytes, step_run_id: str, index: int) -> None:
         if isinstance(data, str):
             data_bytes = data.encode("utf-8")
         elif isinstance(data, bytes):
@@ -202,6 +202,7 @@ class EventClient(BaseRestClient):
             stepRunId=step_run_id,
             createdAt=proto_timestamp_now(),
             message=data_bytes,
+            eventIndex=index,
         )
 
         self.events_service_client.PutStreamEvent(
