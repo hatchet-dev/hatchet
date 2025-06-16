@@ -1,3 +1,4 @@
+import asyncio
 import json
 import traceback
 from concurrent.futures import Future, ThreadPoolExecutor
@@ -56,12 +57,19 @@ class Context:
         # FIXME: this limits the number of concurrent log requests to 1, which means we can do about
         # 100 log lines per second but this depends on network.
         self.logger_thread_pool = ThreadPoolExecutor(max_workers=1)
-        self.stream_event_thread_pool = ThreadPoolExecutor(max_workers=1)
 
         self.input = self.data.input
         self.filter_payload = self.data.filter_payload
 
         self._lifespan_context = lifespan_context
+
+        self.stream_index = 0
+
+    def _increment_stream_index(self) -> int:
+        index = self.stream_index
+        self.stream_index += 1
+
+        return index
 
     def was_skipped(self, task: "Task[TWorkflowInput, R]") -> bool:
         """
@@ -236,12 +244,6 @@ class Context:
         """
         return self.dispatcher_client.release_slot(self.step_run_id)
 
-    def _put_stream(self, data: str | bytes) -> None:
-        try:
-            self.event_client.stream(data=data, step_run_id=self.step_run_id)
-        except Exception as e:
-            logger.error(f"Error putting stream event: {e}")
-
     def put_stream(self, data: str | bytes) -> None:
         """
         Put a stream event to the Hatchet API. This will send the data to the Hatchet API and return immediately. You can then subscribe to the stream from a separate consumer.
@@ -252,7 +254,15 @@ class Context:
         if self.step_run_id == "":
             return
 
-        self.stream_event_thread_pool.submit(self._put_stream, data)
+        try:
+            ix = self._increment_stream_index()
+
+            self.event_client.stream(data=data, step_run_id=self.step_run_id, index=ix)
+        except Exception as e:
+            logger.error(f"Error putting stream event: {e}")
+
+    async def aio_put_stream(self, data: str | bytes) -> None:
+        await asyncio.to_thread(self.put_stream, data)
 
     def refresh_timeout(self, increment_by: str | timedelta) -> None:
         """
