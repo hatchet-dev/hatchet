@@ -328,6 +328,8 @@ message WorkflowEvent {
 
     // (optional) the retry count of this step
     optional int32 retryCount = 9;
+
+    int64 eventIndex = 10;
 }
 
 enum WorkflowRunEventType {
