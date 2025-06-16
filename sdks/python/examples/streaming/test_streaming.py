@@ -11,12 +11,15 @@ async def test_streaming_ordering_and_completeness(execution_number: int) -> Non
     ix = 0
 
     async for chunk in ref._wrr.stream():
+        print(chunk, ix)
         if chunk.type != StepRunEventType.STEP_RUN_EVENT_TYPE_STREAM:
             assert ix == len(chunks)
             assert chunk.type == StepRunEventType.STEP_RUN_EVENT_TYPE_COMPLETED
-
-        assert (
-            chunk.payload == chunks[ix]
-        ), f"Expected chunk {ix} to be '{chunks[ix]}', but got '{chunk}' for execution {execution_number + 1}."
+        else:
+            assert chunk.payload == chunks[ix], (
+                f"Expected chunk {ix} to be '{chunks[ix]}', but got '{chunk}' for execution {execution_number + 1}."
+            )
 
         ix += 1
+
+    assert ix == len(chunks) + 1
