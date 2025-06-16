@@ -78,6 +78,8 @@ message PutStreamEventRequest {
 
     // associated stream event metadata
     string metadata = 5;
+
+    int64 eventIndex = 6;
 }
 
 message PutStreamEventResponse {}
