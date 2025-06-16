@@ -37,6 +37,7 @@ func (i *IngestorImpl) putStreamEventV1(ctx context.Context, tenant *dbsqlc.Tena
 			StepRunId:     req.StepRunId,
 			CreatedAt:     req.CreatedAt.AsTime(),
 			Payload:       req.Message,
+			EventIndex:    req.EventIndex,
 		},
 	)
 
