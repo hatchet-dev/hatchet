@@ -1,5 +1,4 @@
 import asyncio
-import re
 from typing import Generator
 
 from hatchet_sdk import Context, EmptyModel, Hatchet
