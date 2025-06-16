@@ -1,9 +1,7 @@
 import pytest
 
-from examples.streaming.worker import stream_task, chunks
-from hatchet_sdk.clients.listeners.run_event_listener import (
-    StepRunEventType,
-)
+from examples.streaming.worker import chunks, stream_task
+from hatchet_sdk.clients.listeners.run_event_listener import StepRunEventType
 
 
 @pytest.mark.parametrize("execution_number", range(1))
@@ -17,8 +15,8 @@ async def test_streaming_ordering_and_completeness(execution_number: int) -> Non
             assert ix == len(chunks)
             assert chunk.type == StepRunEventType.STEP_RUN_EVENT_TYPE_COMPLETED
 
-        assert chunk.payload == chunks[ix], (
-            f"Expected chunk {ix} to be '{chunks[ix]}', but got '{chunk}' for execution {execution_number + 1}."
-        )
+        assert (
+            chunk.payload == chunks[ix]
+        ), f"Expected chunk {ix} to be '{chunks[ix]}', but got '{chunk}' for execution {execution_number + 1}."
 
         ix += 1
