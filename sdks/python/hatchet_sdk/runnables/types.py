@@ -1,7 +1,8 @@
 import asyncio
 import json
+from collections.abc import Callable
 from enum import Enum
-from typing import Any, Callable, ParamSpec, Type, TypeGuard, TypeVar, Union
+from typing import Any, ParamSpec, TypeGuard, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -11,7 +12,7 @@ from hatchet_sdk.contracts.v1.workflows_pb2 import DefaultFilter as DefaultFilte
 from hatchet_sdk.utils.timedelta_to_expression import Duration
 from hatchet_sdk.utils.typing import AwaitableLike, JSONSerializableMapping
 
-ValidTaskReturnType = Union[BaseModel, JSONSerializableMapping, None]
+ValidTaskReturnType = BaseModel | JSONSerializableMapping | None
 
 R = TypeVar("R", bound=ValidTaskReturnType)
 P = ParamSpec("P")
@@ -92,7 +93,7 @@ class WorkflowConfig(BaseModel):
     on_crons: list[str] = Field(default_factory=list)
     sticky: StickyStrategy | None = None
     concurrency: ConcurrencyExpression | list[ConcurrencyExpression] | None = None
-    input_validator: Type[BaseModel] = EmptyModel
+    input_validator: type[BaseModel] = EmptyModel
     default_priority: int | None = None
 
     task_defaults: TaskDefaults = TaskDefaults()
@@ -107,7 +108,7 @@ class StepType(str, Enum):
 
 AsyncFunc = Callable[[TWorkflowInput, Context], AwaitableLike[R]]
 SyncFunc = Callable[[TWorkflowInput, Context], R]
-TaskFunc = Union[AsyncFunc[TWorkflowInput, R], SyncFunc[TWorkflowInput, R]]
+TaskFunc = AsyncFunc[TWorkflowInput, R] | SyncFunc[TWorkflowInput, R]
 
 
 def is_async_fn(
@@ -124,9 +125,9 @@ def is_sync_fn(
 
 DurableAsyncFunc = Callable[[TWorkflowInput, DurableContext], AwaitableLike[R]]
 DurableSyncFunc = Callable[[TWorkflowInput, DurableContext], R]
-DurableTaskFunc = Union[
-    DurableAsyncFunc[TWorkflowInput, R], DurableSyncFunc[TWorkflowInput, R]
-]
+DurableTaskFunc = (
+    DurableAsyncFunc[TWorkflowInput, R] | DurableSyncFunc[TWorkflowInput, R]
+)
 
 
 def is_durable_async_fn(

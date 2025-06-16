@@ -1,5 +1,6 @@
+from collections.abc import AsyncGenerator, Generator
 from subprocess import Popen
-from typing import AsyncGenerator, Generator, cast
+from typing import cast
 
 import pytest
 import pytest_asyncio
