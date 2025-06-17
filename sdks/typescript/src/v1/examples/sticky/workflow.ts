@@ -10,8 +10,7 @@ export const sticky = hatchet.task({
   sticky: StickyStrategy.SOFT,
   fn: async (_, ctx) => {
     // specify a child workflow to run on the same worker
-    const result = await ctx.runChild(
-      child,
+    const result = await child.run(
       {
         N: 1,
       },

@@ -36,6 +36,7 @@ import { WorkerLabels } from '@hatchet/clients/dispatcher/dispatcher-client';
 import { CreateStep, mapRateLimit, StepRunFunction } from '@hatchet/step';
 import { applyNamespace } from '@hatchet/util/apply-namespace';
 import { Context, DurableContext } from './context';
+import { parentRunContextManager } from '../../parent-run-context-vars';
 
 export type ActionRegistry = Record<Action['actionId'], Function>;
 
@@ -467,6 +468,12 @@ export class V1Worker {
       }
 
       const run = async () => {
+        parentRunContextManager.setContext({
+          parentId: action.workflowRunId,
+          parentRunId: action.stepRunId,
+          childIndex: 0,
+          desiredWorkerId: this.workerId || '',
+        });
         return step(context);
       };
 
