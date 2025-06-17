@@ -171,7 +171,6 @@ class WorkerActionListenerProcess:
 
             if count > 0:
                 logger.warning(f"{BLOCKED_THREAD_WARNING}: Waiting Steps {count}")
-                print(asyncio.current_task())
             await asyncio.sleep(1)
 
     async def send_event(self, event: ActionEvent, retry_attempt: int = 1) -> None:
