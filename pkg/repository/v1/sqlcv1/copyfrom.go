@@ -33,6 +33,7 @@ func (r iteratorForBulkCreateEventTriggers) Values() ([]interface{}, error) {
 		r.rows[0].RunInsertedAt,
 		r.rows[0].EventID,
 		r.rows[0].EventSeenAt,
+		r.rows[0].FilterID,
 	}, nil
 }
 
@@ -41,7 +42,7 @@ func (r iteratorForBulkCreateEventTriggers) Err() error {
 }
 
 func (q *Queries) BulkCreateEventTriggers(ctx context.Context, db DBTX, arg []BulkCreateEventTriggersParams) (int64, error) {
-	return db.CopyFrom(ctx, []string{"v1_event_to_run_olap"}, []string{"run_id", "run_inserted_at", "event_id", "event_seen_at"}, &iteratorForBulkCreateEventTriggers{rows: arg})
+	return db.CopyFrom(ctx, []string{"v1_event_to_run_olap"}, []string{"run_id", "run_inserted_at", "event_id", "event_seen_at", "filter_id"}, &iteratorForBulkCreateEventTriggers{rows: arg})
 }
 
 // iteratorForCreateDAGData implements pgx.CopyFromSource.

@@ -1342,20 +1342,37 @@ INSERT INTO v1_event_to_run_olap(
     run_id,
     run_inserted_at,
     event_id,
-    event_seen_at
+    event_seen_at,
+    filter_id
 )
 VALUES (
     $1,
     $2,
     $3,
-    $4
+    $4,
+    $5
 )
 ;
 
+-- name: ListEventKeys :many
+SELECT DISTINCT key
+FROM
+    v1_events_olap
+WHERE
+    tenant_id = @tenantId::uuid
+    AND seen_at > NOW() - INTERVAL '1 day'
+;
+
+
 -- name: ListEvents :many
 WITH included_events AS (
-    SELECT *
-    FROM v1_events_olap e
+    SELECT
+        e.*,
+        JSON_AGG(JSON_BUILD_OBJECT('run_external_id', r.external_id, 'filter_id', etr.filter_id)) FILTER (WHERE r.external_id IS NOT NULL)::JSONB AS triggered_runs
+    FROM v1_event_lookup_table_olap elt
+    JOIN v1_events_olap e ON (elt.tenant_id, elt.event_id, elt.event_seen_at) = (e.tenant_id, e.id, e.seen_at)
+    LEFT JOIN v1_event_to_run_olap etr ON (e.id, e.seen_at) = (etr.event_id, etr.event_seen_at)
+    LEFT JOIN v1_runs_olap r ON (etr.run_id, etr.run_inserted_at) = (r.id, r.inserted_at)
     WHERE
         e.tenant_id = @tenantId
         AND (
@@ -1367,6 +1384,35 @@ WITH included_events AS (
             sqlc.narg('until')::TIMESTAMPTZ IS NULL OR
             e.seen_at <= sqlc.narg('until')::TIMESTAMPTZ
         )
+        AND (
+            sqlc.narg('workflowIds')::UUID[] IS NULL OR
+            r.workflow_id = ANY(sqlc.narg('workflowIds')::UUID[])
+        )
+        AND (
+            sqlc.narg('eventIds')::UUID[] IS NULL OR
+            elt.external_id = ANY(sqlc.narg('eventIds')::UUID[])
+        )
+        AND (
+            sqlc.narg('additionalMetadata')::JSONB IS NULL OR
+            e.additional_metadata @> sqlc.narg('additionalMetadata')::JSONB
+        )
+        AND (
+            CAST(sqlc.narg('statuses')::text[] AS v1_readable_status_olap[]) IS NULL OR
+            r.readable_status = ANY(CAST(sqlc.narg('statuses')::text[] AS v1_readable_status_olap[]))
+        )
+        AND (
+            sqlc.narg('scopes')::TEXT[] IS NULL OR
+            e.scope = ANY(sqlc.narg('scopes')::TEXT[])
+        )
+    GROUP BY
+        e.tenant_id,
+        e.id,
+        e.external_id,
+        e.seen_at,
+        e.key,
+        e.payload,
+        e.additional_metadata,
+        e.scope
     ORDER BY e.seen_at DESC, e.id
     OFFSET
         COALESCE(sqlc.narg('offset')::BIGINT, 0)
@@ -1400,11 +1446,13 @@ SELECT
     e.key AS event_key,
     e.payload AS event_payload,
     e.additional_metadata AS event_additional_metadata,
+    e.scope AS event_scope,
     sc.queued_count,
     sc.running_count,
     sc.completed_count,
     sc.cancelled_count,
-    sc.failed_count
+    sc.failed_count,
+    e.triggered_runs
 FROM
     included_events e
 LEFT JOIN
@@ -1414,8 +1462,11 @@ ORDER BY e.seen_at DESC
 
 -- name: CountEvents :one
 WITH included_events AS (
-    SELECT *
-    FROM v1_events_olap e
+    SELECT DISTINCT e.*
+    FROM v1_event_lookup_table_olap elt
+    JOIN v1_events_olap e ON (elt.tenant_id, elt.event_id, elt.event_seen_at) = (e.tenant_id, e.id, e.seen_at)
+    LEFT JOIN v1_event_to_run_olap etr ON (e.id, e.seen_at) = (etr.event_id, etr.event_seen_at)
+    LEFT JOIN v1_runs_olap r ON (etr.run_id, etr.run_inserted_at) = (r.id, r.inserted_at)
     WHERE
         e.tenant_id = @tenantId
         AND (
@@ -1427,7 +1478,27 @@ WITH included_events AS (
             sqlc.narg('until')::TIMESTAMPTZ IS NULL OR
             e.seen_at <= sqlc.narg('until')::TIMESTAMPTZ
         )
-    ORDER BY e.seen_at DESC, e.id
+        AND (
+            sqlc.narg('workflowIds')::UUID[] IS NULL OR
+            r.workflow_id = ANY(sqlc.narg('workflowIds')::UUID[])
+        )
+        AND (
+            sqlc.narg('eventIds')::UUID[] IS NULL OR
+            elt.external_id = ANY(sqlc.narg('eventIds')::UUID[])
+        )
+        AND (
+            sqlc.narg('additionalMetadata')::JSONB IS NULL OR
+            e.additional_metadata @> sqlc.narg('additionalMetadata')::JSONB
+        )
+        AND (
+            CAST(sqlc.narg('statuses')::text[] AS v1_readable_status_olap[]) IS NULL OR
+            r.readable_status = ANY(CAST(sqlc.narg('statuses')::text[] AS v1_readable_status_olap[]))
+        )
+        AND (
+            sqlc.narg('scopes')::TEXT[] IS NULL OR
+            e.scope = ANY(sqlc.narg('scopes')::TEXT[])
+        )
+        ORDER BY e.seen_at DESC, e.id
     LIMIT 20000
 )
 

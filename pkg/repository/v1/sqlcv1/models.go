@@ -2534,6 +2534,7 @@ type V1EventToRunOlap struct {
 	RunInsertedAt pgtype.Timestamptz `json:"run_inserted_at"`
 	EventID       int64              `json:"event_id"`
 	EventSeenAt   pgtype.Timestamptz `json:"event_seen_at"`
+	FilterID      pgtype.UUID        `json:"filter_id"`
 }
 
 type V1EventsOlap struct {
@@ -2554,6 +2555,7 @@ type V1Filter struct {
 	Scope         string             `json:"scope"`
 	Expression    string             `json:"expression"`
 	Payload       []byte             `json:"payload"`
+	PayloadHash   pgtype.Text        `json:"payload_hash"`
 	IsDeclarative bool               `json:"is_declarative"`
 	InsertedAt    pgtype.Timestamptz `json:"inserted_at"`
 	UpdatedAt     pgtype.Timestamptz `json:"updated_at"`

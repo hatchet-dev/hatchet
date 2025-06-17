@@ -224,6 +224,7 @@ type OLAPRepository interface {
 	GetTaskTimings(ctx context.Context, tenantId string, workflowRunId pgtype.UUID, depth int32) ([]*sqlcv1.PopulateTaskRunDataRow, map[string]int32, error)
 	BulkCreateEventsAndTriggers(ctx context.Context, events sqlcv1.BulkCreateEventsParams, triggers []EventTriggersFromExternalId) error
 	ListEvents(ctx context.Context, opts sqlcv1.ListEventsParams) ([]*sqlcv1.ListEventsRow, *int64, error)
+	ListEventKeys(ctx context.Context, tenantId string) ([]string, error)
 }
 
 type OLAPRepositoryImpl struct {
@@ -1461,6 +1462,7 @@ type EventTriggersFromExternalId struct {
 	RunInsertedAt   pgtype.Timestamptz `json:"run_inserted_at"`
 	EventExternalId pgtype.UUID        `json:"event_external_id"`
 	EventSeenAt     pgtype.Timestamptz `json:"event_seen_at"`
+	FilterId        pgtype.UUID        `json:"filter_id"`
 }
 
 func (r *OLAPRepositoryImpl) BulkCreateEventsAndTriggers(ctx context.Context, events sqlcv1.BulkCreateEventsParams, triggers []EventTriggersFromExternalId) error {
@@ -1498,6 +1500,7 @@ func (r *OLAPRepositoryImpl) BulkCreateEventsAndTriggers(ctx context.Context, ev
 			RunInsertedAt: trigger.RunInsertedAt,
 			EventID:       eventId,
 			EventSeenAt:   trigger.EventSeenAt,
+			FilterID:      trigger.FilterId,
 		})
 	}
 
@@ -1522,10 +1525,15 @@ func (r *OLAPRepositoryImpl) ListEvents(ctx context.Context, opts sqlcv1.ListEve
 	}
 
 	eventCount, err := r.queries.CountEvents(ctx, r.readPool, sqlcv1.CountEventsParams{
-		Tenantid: opts.Tenantid,
-		Keys:     opts.Keys,
-		Since:    opts.Since,
-		Until:    opts.Until,
+		Tenantid:           opts.Tenantid,
+		Keys:               opts.Keys,
+		Since:              opts.Since,
+		Until:              opts.Until,
+		WorkflowIds:        opts.WorkflowIds,
+		EventIds:           opts.EventIds,
+		AdditionalMetadata: opts.AdditionalMetadata,
+		Statuses:           opts.Statuses,
+		Scopes:             opts.Scopes,
 	})
 
 	if err != nil {
@@ -1533,4 +1541,14 @@ func (r *OLAPRepositoryImpl) ListEvents(ctx context.Context, opts sqlcv1.ListEve
 	}
 
 	return events, &eventCount, nil
+}
+
+func (r *OLAPRepositoryImpl) ListEventKeys(ctx context.Context, tenantId string) ([]string, error) {
+	keys, err := r.queries.ListEventKeys(ctx, r.pool, sqlchelpers.UUIDFromStr(tenantId))
+
+	if err != nil {
+		return nil, err
+	}
+
+	return keys, nil
 }

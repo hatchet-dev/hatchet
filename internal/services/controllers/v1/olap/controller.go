@@ -401,11 +401,18 @@ func (tc *OLAPControllerImpl) handleCreateEventTriggers(ctx context.Context, ten
 	for _, msg := range msgs {
 		for _, payload := range msg.Payloads {
 			if payload.MaybeRunId != nil && payload.MaybeRunInsertedAt != nil {
+				var filterId pgtype.UUID
+
+				if payload.FilterId != nil {
+					filterId = sqlchelpers.UUIDFromStr(*payload.FilterId)
+				}
+
 				bulkCreateTriggersParams = append(bulkCreateTriggersParams, v1.EventTriggersFromExternalId{
 					RunID:           *payload.MaybeRunId,
 					RunInsertedAt:   sqlchelpers.TimestamptzFromTime(*payload.MaybeRunInsertedAt),
 					EventExternalId: sqlchelpers.UUIDFromStr(payload.EventExternalId),
 					EventSeenAt:     sqlchelpers.TimestamptzFromTime(payload.EventSeenAt),
+					FilterId:        filterId,
 				})
 			}
 

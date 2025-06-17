@@ -1,5 +1,4 @@
 import { columns } from './components/event-columns';
-import { columns as workflowRunsColumns } from '../workflow-runs/components/workflow-runs-columns';
 import { Separator } from '@/components/v1/ui/separator';
 import { useEffect, useMemo, useState } from 'react';
 import {
@@ -9,14 +8,12 @@ import {
   SortingState,
   VisibilityState,
 } from '@tanstack/react-table';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import api, {
-  CreateEventRequest,
   Event,
   EventOrderByDirection,
   EventOrderByField,
-  ReplayEventRequest,
-  WorkflowRunStatus,
+  V1TaskStatus,
   queries,
 } from '@/lib/api';
 import invariant from 'tiny-invariant';
@@ -31,21 +28,15 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/v1/ui/dialog';
-import { CodeEditor } from '@/components/v1/ui/code-editor';
 import { useOutletContext, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/v1/ui/button';
-import {
-  ArrowPathIcon,
-  ArrowPathRoundedSquareIcon,
-  PlusCircleIcon,
-} from '@heroicons/react/24/outline';
-import { useApiError } from '@/lib/hooks';
+import { ArrowPathIcon } from '@heroicons/react/24/outline';
 import { Loading } from '@/components/v1/ui/loading.tsx';
 import { TenantContextType } from '@/lib/outlet';
 import RelativeDate from '@/components/v1/molecules/relative-date';
-import { CreateEventForm } from './components/create-event-form';
-import { BiX } from 'react-icons/bi';
 import { DataTable } from '@/components/v1/molecules/data-table/data-table';
+import { TaskRunsTable } from '../workflow-runs-v1/components/task-runs-table';
+import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
 
 export default function Events() {
   return (
@@ -63,19 +54,9 @@ export default function Events() {
 
 function EventsTable() {
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
-  const [showCreateEvent, setShowCreateEvent] = useState(false);
   const { tenant } = useOutletContext<TenantContextType>();
   const [searchParams, setSearchParams] = useSearchParams();
   const [rotate, setRotate] = useState(false);
-  const { handleApiError } = useApiError({});
-
-  const [createEventFieldErrors, setCreateEventFieldErrors] = useState<
-    Record<string, string>
-  >({});
-  const createEventApiError = useApiError({
-    setFieldErrors: setCreateEventFieldErrors,
-  });
-  const handleCreateEventApiError = createEventApiError.handleApiError;
 
   invariant(tenant);
 
@@ -99,9 +80,6 @@ function EventsTable() {
     }
   }, [selectedEvent, searchParams, setSearchParams]);
 
-  const [search, setSearch] = useState<string | undefined>(
-    searchParams.get('search') || undefined,
-  );
   const [sorting, setSorting] = useState<SortingState>(() => {
     const sortParam = searchParams.get('sort');
     if (sortParam) {
@@ -119,6 +97,8 @@ function EventsTable() {
   });
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({
     EventId: false,
+    Payload: false,
+    scope: false,
   });
 
   const [pagination, setPagination] = useState<PaginationState>(() => {
@@ -133,11 +113,7 @@ function EventsTable() {
 
   useEffect(() => {
     const newSearchParams = new URLSearchParams(searchParams);
-    if (search) {
-      newSearchParams.set('search', search);
-    } else {
-      newSearchParams.delete('search');
-    }
+
     newSearchParams.set(
       'sort',
       sorting.map((s) => `${s.id}:${s.desc ? 'desc' : 'asc'}`).join(','),
@@ -146,14 +122,7 @@ function EventsTable() {
     newSearchParams.set('pageIndex', pagination.pageIndex.toString());
     newSearchParams.set('pageSize', pagination.pageSize.toString());
     setSearchParams(newSearchParams);
-  }, [
-    search,
-    sorting,
-    columnFilters,
-    pagination,
-    setSearchParams,
-    searchParams,
-  ]);
+  }, [sorting, columnFilters, pagination, setSearchParams, searchParams]);
 
   const orderByDirection = useMemo((): EventOrderByDirection | undefined => {
     if (!sorting.length) {
@@ -204,7 +173,7 @@ function EventsTable() {
       return;
     }
 
-    return filter?.value as Array<WorkflowRunStatus>;
+    return filter?.value as Array<V1TaskStatus>;
   }, [columnFilters]);
 
   const eventIds = useMemo(() => {
@@ -241,55 +210,37 @@ function EventsTable() {
     refetch,
     error: eventsError,
   } = useQuery({
-    ...queries.events.list(tenant.metadata.id, {
-      keys,
-      workflows,
-      orderByField,
-      orderByDirection,
-      offset,
-      limit: pageSize,
-      search,
-      statuses,
-      additionalMetadata: AdditionalMetadataFilter,
-      eventIds: eventIds,
-    }),
+    queryKey: [
+      'v1:events:list',
+      tenant.metadata.id,
+      {
+        keys,
+        workflows,
+        orderByField,
+        orderByDirection,
+        offset,
+        limit: pageSize,
+        statuses,
+        additionalMetadata: AdditionalMetadataFilter,
+        eventIds,
+      },
+    ],
+    queryFn: async () => {
+      const response = await api.v1EventList(tenant.metadata.id, {
+        offset,
+        limit: pageSize,
+        keys,
+        since: undefined,
+        until: undefined,
+        eventIds,
+        workflowRunStatuses: statuses,
+        additionalMetadata: AdditionalMetadataFilter,
+        workflowIds: workflows,
+      });
+
+      return response.data;
+    },
     refetchInterval: 2000,
-  });
-
-  const cancelEventsMutation = useMutation({
-    mutationKey: ['event:update:cancel', tenant.metadata.id],
-    mutationFn: async (data: ReplayEventRequest) => {
-      await api.eventUpdateCancel(tenant.metadata.id, data);
-    },
-    onSuccess: () => {
-      refetch();
-    },
-    onError: handleApiError,
-  });
-
-  const replayEventsMutation = useMutation({
-    mutationKey: ['event:update:replay', tenant.metadata.id],
-    mutationFn: async (data: ReplayEventRequest) => {
-      await api.eventUpdateReplay(tenant.metadata.id, data);
-    },
-    onSuccess: () => {
-      refetch();
-    },
-    onError: handleApiError,
-  });
-
-  const createEventMutation = useMutation({
-    mutationKey: ['event:create', tenant.metadata.id],
-    mutationFn: async (input: CreateEventRequest) => {
-      const res = await api.eventCreate(tenant.metadata.id, input);
-
-      return res.data;
-    },
-    onError: handleCreateEventApiError,
-    onSuccess: () => {
-      refetch();
-      setShowCreateEvent(false);
-    },
   });
 
   const {
@@ -297,7 +248,12 @@ function EventsTable() {
     isLoading: eventKeysIsLoading,
     error: eventKeysError,
   } = useQuery({
-    ...queries.events.listKeys(tenant.metadata.id),
+    queryKey: ['v1:events:listKeys', tenant.metadata.id],
+    queryFn: async () => {
+      const response = await api.v1EventKeyList(tenant.metadata.id);
+
+      return response.data;
+    },
   });
 
   const eventKeyFilters = useMemo((): FilterOption[] => {
@@ -329,24 +285,24 @@ function EventsTable() {
   const workflowRunStatusFilters = useMemo((): FilterOption[] => {
     return [
       {
-        value: WorkflowRunStatus.SUCCEEDED,
+        value: V1TaskStatus.COMPLETED,
         label: 'Succeeded',
       },
       {
-        value: WorkflowRunStatus.FAILED,
+        value: V1TaskStatus.FAILED,
         label: 'Failed',
       },
       {
-        value: WorkflowRunStatus.RUNNING,
+        value: V1TaskStatus.RUNNING,
         label: 'Running',
       },
       {
-        value: WorkflowRunStatus.QUEUED,
+        value: V1TaskStatus.QUEUED,
         label: 'Queued',
       },
       {
-        value: WorkflowRunStatus.PENDING,
-        label: 'Pending',
+        value: V1TaskStatus.CANCELLED,
+        label: 'Cancelled',
       },
     ];
   }, []);
@@ -358,36 +314,6 @@ function EventsTable() {
   });
 
   const actions = [
-    <Button
-      key="cancel"
-      disabled={Object.keys(rowSelection).length === 0}
-      variant={Object.keys(rowSelection).length === 0 ? 'outline' : 'default'}
-      size="sm"
-      className="h-8 px-2 lg:px-3 gap-2"
-      onClick={() => {
-        cancelEventsMutation.mutate({
-          eventIds: Object.keys(rowSelection),
-        });
-      }}
-    >
-      <BiX className="h-4 w-4" />
-      Cancel
-    </Button>,
-    <Button
-      key="replay"
-      disabled={Object.keys(rowSelection).length === 0}
-      variant={Object.keys(rowSelection).length === 0 ? 'outline' : 'default'}
-      size="sm"
-      className="h-8 px-2 lg:px-3 gap-2"
-      onClick={() => {
-        replayEventsMutation.mutate({
-          eventIds: Object.keys(rowSelection),
-        });
-      }}
-    >
-      <ArrowPathRoundedSquareIcon className="h-4 w-4" />
-      Replay
-    </Button>,
     <Button
       key="refresh"
       className="h-8 px-2 lg:px-3"
@@ -403,18 +329,6 @@ function EventsTable() {
         className={`h-4 w-4 transition-transform ${rotate ? 'rotate-180' : ''}`}
       />
     </Button>,
-    <Button
-      key="create-event"
-      className="h-8 px-2 lg:px-3"
-      size="sm"
-      onClick={() => {
-        setShowCreateEvent(true);
-      }}
-      variant={'default'}
-      aria-label="Create new event"
-    >
-      <PlusCircleIcon className="h-4 w-4" />
-    </Button>,
   ];
 
   return (
@@ -428,20 +342,6 @@ function EventsTable() {
         }}
       >
         {selectedEvent && <ExpandedEventContent event={selectedEvent} />}
-      </Dialog>
-      <Dialog
-        open={showCreateEvent}
-        onOpenChange={(open) => {
-          if (!open) {
-            setShowCreateEvent(false);
-          }
-        }}
-      >
-        <CreateEventForm
-          onSubmit={createEventMutation.mutate}
-          isLoading={createEventMutation.isPending}
-          fieldErrors={createEventFieldErrors}
-        />
       </Dialog>
       <DataTable
         error={eventsError || eventKeysError || workflowKeysError}
@@ -483,8 +383,6 @@ function EventsTable() {
         actions={actions}
         sorting={sorting}
         setSorting={setSorting}
-        search={search}
-        setSearch={setSearch}
         columnFilters={columnFilters}
         setColumnFilters={setColumnFilters}
         pagination={pagination}
@@ -501,7 +399,7 @@ function EventsTable() {
 
 function ExpandedEventContent({ event }: { event: Event }) {
   return (
-    <DialogContent className="w-fit max-w-[700px] overflow-hidden">
+    <DialogContent className="w-fit max-w-[700px] max-h-[85%] overflow-auto">
       <DialogHeader>
         <DialogTitle>Event {event.key}</DialogTitle>
         <DialogDescription>
@@ -522,51 +420,56 @@ function ExpandedEventContent({ event }: { event: Event }) {
 }
 
 function EventDataSection({ event }: { event: Event }) {
-  const getEventDataQuery = useQuery({
-    ...queries.events.getData(event.metadata.id),
+  const { tenant } = useOutletContext<TenantContextType>();
+  invariant(tenant);
+
+  const { data, isLoading } = useQuery({
+    queryKey: ['v1:events:list', tenant.metadata.id, event.metadata.id],
+    queryFn: async () => {
+      const response = await api.v1EventList(tenant.metadata.id, {
+        eventIds: [event.metadata.id],
+      });
+
+      return response.data;
+    },
+    refetchInterval: 2000,
   });
 
-  if (getEventDataQuery.isLoading || !getEventDataQuery.data) {
+  if (isLoading || !data) {
     return <Loading />;
   }
 
-  const eventData = getEventDataQuery.data;
+  const eventData = data.rows?.at(0);
+
+  if (!eventData) {
+    return <div className="text-red-500">Event data not found</div>;
+  }
+
+  const dataToDisplay = {
+    id: eventData.metadata.id,
+    seenAt: eventData.seenAt,
+    key: eventData.key,
+    additionalMetadata: eventData.additionalMetadata,
+    scope: eventData.scope,
+    payload: eventData.payload,
+  };
 
   return (
-    <>
-      <CodeEditor
-        language="json"
-        className="my-4"
-        height="400px"
-        code={JSON.stringify(JSON.parse(eventData.data), null, 2)}
-      />
-    </>
+    <CodeHighlighter
+      language="json"
+      className="my-4"
+      code={JSON.stringify(dataToDisplay, null, 2)}
+    />
   );
 }
 
 function EventWorkflowRunsList({ event }: { event: Event }) {
-  const { tenant } = useOutletContext<TenantContextType>();
-  invariant(tenant);
-
-  const listWorkflowRunsQuery = useQuery({
-    ...queries.workflowRuns.list(tenant.metadata.id, {
-      offset: 0,
-      limit: 10,
-      eventId: event.metadata.id,
-    }),
-  });
-
   return (
     <div className="w-full overflow-x-auto max-w-full">
-      <DataTable
-        columns={workflowRunsColumns()}
-        data={listWorkflowRunsQuery.data?.rows || []}
-        filters={[]}
-        pageCount={listWorkflowRunsQuery.data?.pagination?.num_pages || 0}
-        columnVisibility={{
-          'Triggered by': false,
-        }}
-        isLoading={listWorkflowRunsQuery.isLoading}
+      <TaskRunsTable
+        triggeringEventExternalId={event.metadata.id}
+        showMetrics={false}
+        showCounts={false}
       />
     </div>
   );
