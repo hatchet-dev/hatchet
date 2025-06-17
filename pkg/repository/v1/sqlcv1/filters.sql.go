@@ -106,14 +106,6 @@ INSERT INTO v1_filter (
     $5::JSONB,
     false
 )
-ON CONFLICT (tenant_id, workflow_id, scope, expression) DO UPDATE
-SET
-    payload = EXCLUDED.payload,
-    updated_at = NOW()
-WHERE v1_filter.tenant_id = $1::UUID
-  AND v1_filter.workflow_id = $2::UUID
-  AND v1_filter.scope = $3::TEXT
-  AND v1_filter.expression = $4::TEXT
 RETURNING id, tenant_id, workflow_id, scope, expression, payload, is_declarative, inserted_at, updated_at
 `
 

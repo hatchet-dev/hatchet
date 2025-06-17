@@ -486,11 +486,12 @@ CREATE TABLE v1_filter (
     PRIMARY KEY (tenant_id, id)
 );
 
-CREATE UNIQUE INDEX v1_filter_unique_idx ON v1_filter (
+CREATE UNIQUE INDEX v1_filter_unique_tenant_workflow_id_scope_expression_payload ON v1_filter (
     tenant_id ASC,
     workflow_id ASC,
     scope ASC,
-    expression ASC
+    expression ASC,
+    payload
 );
 
 CREATE INDEX v1_match_condition_filter_idx ON v1_match_condition (
