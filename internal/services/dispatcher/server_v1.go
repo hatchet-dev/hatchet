@@ -60,14 +60,14 @@ func isTerminalEvent(event *contracts.WorkflowEvent) bool {
 }
 
 func (b *StreamEventBuffer) AddEvent(event *contracts.WorkflowEvent) []*contracts.WorkflowEvent {
-	fmt.Println("Adding event to buffer:", event.EventIndex, event.ResourceId, event.EventType, event.ResourceType)
+	fmt.Println(time.Now().String(), "| Adding event to buffer | ", event.EventIndex, event.ResourceId, event.EventType, event.ResourceType)
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	if isTerminalEvent(event) {
-		stepRunId := event.ResourceId
-		now := time.Now()
+	stepRunId := event.ResourceId
+	now := time.Now()
 
+	if isTerminalEvent(event) {
 		b.stepRunIdToCompletionTime[stepRunId] = now
 
 		result := make([]*contracts.WorkflowEvent, 0)
@@ -82,6 +82,7 @@ func (b *StreamEventBuffer) AddEvent(event *contracts.WorkflowEvent) []*contract
 				}
 				return 0
 			})
+
 			result = append(result, events...)
 
 			b.stepRunIdToWorkflowEvents[stepRunId] = make([]*contracts.WorkflowEvent, 0)
@@ -95,8 +96,6 @@ func (b *StreamEventBuffer) AddEvent(event *contracts.WorkflowEvent) []*contract
 		return []*contracts.WorkflowEvent{event}
 	}
 
-	stepRunId := event.ResourceId
-	now := time.Now()
 	b.stepRunIdToLastSeenTime[stepRunId] = now
 
 	if completionTime, completed := b.stepRunIdToCompletionTime[stepRunId]; completed {
@@ -105,6 +104,8 @@ func (b *StreamEventBuffer) AddEvent(event *contracts.WorkflowEvent) []*contract
 				b.stepRunIdToWorkflowEvents[stepRunId] = make([]*contracts.WorkflowEvent, 0)
 			}
 
+			// If we've seen a completion event but we have not hit the grace period limit yet,
+			// we add the event to the buffer
 			b.stepRunIdToWorkflowEvents[stepRunId] = append(b.stepRunIdToWorkflowEvents[stepRunId], event)
 
 			slices.SortFunc(b.stepRunIdToWorkflowEvents[stepRunId], func(a, b *contracts.WorkflowEvent) int {
@@ -129,6 +130,7 @@ func (b *StreamEventBuffer) AddEvent(event *contracts.WorkflowEvent) []*contract
 
 			return result
 		} else {
+			// Otherwise, we've hit the grace period so we need to start dropping events
 			return []*contracts.WorkflowEvent{}
 		}
 	}
@@ -137,6 +139,39 @@ func (b *StreamEventBuffer) AddEvent(event *contracts.WorkflowEvent) []*contract
 		// IMPORTANT: Events are zero-indexed
 		b.stepRunIdToExpectedIndex[stepRunId] = 0
 	}
+
+	expectedIndex := b.stepRunIdToExpectedIndex[stepRunId]
+
+	// For stream events: if this event is the next expected one, send it immediately
+	// Only buffer if it's out of order
+	if event.EventIndex == expectedIndex {
+		fmt.Println(time.Now().String(), "| Streaming event immediately (in order) | ", event.EventIndex, event.ResourceId, event.EventType, event.ResourceType)
+		b.stepRunIdToExpectedIndex[stepRunId] = expectedIndex + 1
+
+		// Check if this unlocks any buffered events
+		if bufferedEvents, exists := b.stepRunIdToWorkflowEvents[stepRunId]; exists && len(bufferedEvents) > 0 {
+			// Add this event to the buffer, sort, and release what we can
+			b.stepRunIdToWorkflowEvents[stepRunId] = append(bufferedEvents, event)
+
+			slices.SortFunc(b.stepRunIdToWorkflowEvents[stepRunId], func(a, b *contracts.WorkflowEvent) int {
+				if a.EventIndex < b.EventIndex {
+					return -1
+				}
+				if a.EventIndex > b.EventIndex {
+					return 1
+				}
+				return 0
+			})
+
+			return b.getReadyEvents(stepRunId)
+		} else {
+			// No buffered events, just return this one
+			return []*contracts.WorkflowEvent{event}
+		}
+	}
+
+	// Event is out of order, buffer it
+	fmt.Println(time.Now().String(), "| Buffering out-of-order event | ", event.EventIndex, " (expected ", expectedIndex, ") ", event.ResourceId, event.EventType, event.ResourceType)
 
 	if _, exists := b.stepRunIdToWorkflowEvents[stepRunId]; !exists {
 		b.stepRunIdToWorkflowEvents[stepRunId] = make([]*contracts.WorkflowEvent, 0)
@@ -513,6 +548,8 @@ func (s *DispatcherImpl) handleTaskCompleted(inputCtx context.Context, task *sql
 	tenant := inputCtx.Value("tenant").(*dbsqlc.Tenant)
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
+	fmt.Println("Handling task completed for step run ID:", request.StepRunId)
+
 	// if request.RetryCount == nil {
 	// 	return nil, fmt.Errorf("retry count is required in v2")
 	// }
@@ -838,8 +875,6 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsByWorkflowRunIdV1(workflowRunI
 					isWorkflowRunCompletedEvent := e.ResourceType == contracts.ResourceType_RESOURCE_TYPE_WORKFLOW_RUN &&
 						e.EventType == contracts.ResourceEventType_RESOURCE_EVENT_TYPE_COMPLETED
 
-					fmt.Println("Got hangup event for workflow run:", e.WorkflowRunId, "is completed:", isWorkflowRunCompletedEvent)
-
 					if isWorkflowRunCompletedEvent {
 						e.Hangup = true
 					}
@@ -966,8 +1001,6 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsByAdditionalMetaV1(key string,
 
 					isWorkflowRunCompletedEvent := e.ResourceType == contracts.ResourceType_RESOURCE_TYPE_WORKFLOW_RUN &&
 						e.EventType == contracts.ResourceEventType_RESOURCE_EVENT_TYPE_COMPLETED
-
-					fmt.Println("Got hangup event for workflow run:", e.WorkflowRunId, "is completed:", isWorkflowRunCompletedEvent)
 
 					if !isWorkflowRunCompletedEvent {
 						// Add the run ID to active runs

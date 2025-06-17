@@ -2,12 +2,15 @@ package olap
 
 import (
 	"context"
+	"fmt"
+	"time"
 
 	msgqueue "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 )
 
 func (o *OLAPControllerImpl) runTenantTaskStatusUpdates(ctx context.Context) func() {
@@ -45,6 +48,10 @@ func (o *OLAPControllerImpl) updateTaskStatuses(ctx context.Context, tenantId st
 	payloads := make([]tasktypes.NotifyFinalizedPayload, 0, len(rows))
 
 	for _, row := range rows {
+		if row.ReadableStatus != sqlcv1.V1ReadableStatusOlapCOMPLETED && row.ReadableStatus != sqlcv1.V1ReadableStatusOlapCANCELLED && row.ReadableStatus != sqlcv1.V1ReadableStatusOlapFAILED {
+			continue
+		}
+
 		payloads = append(payloads, tasktypes.NotifyFinalizedPayload{
 			ExternalId: sqlchelpers.UUIDToStr(row.ExternalId),
 			Status:     row.ReadableStatus,
@@ -53,6 +60,10 @@ func (o *OLAPControllerImpl) updateTaskStatuses(ctx context.Context, tenantId st
 
 	// send to the tenant queue
 	if len(payloads) > 0 {
+		for _, p := range payloads {
+			fmt.Println(time.Now().String(), "| Sending workflow run finished message to queue | ", p.ExternalId)
+		}
+
 		msg, err := msgqueue.NewTenantMessage(
 			tenantId,
 			"workflow-run-finished",

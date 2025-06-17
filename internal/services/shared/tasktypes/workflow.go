@@ -61,7 +61,7 @@ func WorkflowRunFinishedToTask(tenantId, workflowRunId, status string) *msgqueue
 		TenantId: tenantId,
 	})
 
-	fmt.Println(time.Now().String(), "| Sending workflow run finished message to queue | ", workflowRunId)
+	fmt.Println(time.Now().String(), "| Sending workflow run finished message to queue from here | ", workflowRunId)
 
 	return &msgqueue.Message{
 		ID:       "workflow-run-finished",
