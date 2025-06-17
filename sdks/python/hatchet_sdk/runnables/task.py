@@ -122,7 +122,7 @@ class Task(Generic[TWorkflowInput, R]):
         else:
             fn = cast(Callable[[TWorkflowInput, Context], R], self.fn)
             if is_sync_fn(fn):
-                return fn(workflow_input, cast(Context, ctx))
+                return fn(workflow_input, ctx)
 
         raise TypeError(f"{self.name} is not a sync function. Use `acall` instead.")
 
