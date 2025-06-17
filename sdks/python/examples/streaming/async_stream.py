@@ -14,7 +14,6 @@ from hatchet_sdk.clients.listeners.run_event_listener import (
 
 
 async def main() -> None:
-    print(len(chunks))
     ref = await stream_task.aio_run_no_wait()
 
     ix = 0

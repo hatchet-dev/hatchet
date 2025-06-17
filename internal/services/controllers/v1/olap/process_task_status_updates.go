@@ -2,8 +2,6 @@ package olap
 
 import (
 	"context"
-	"fmt"
-	"time"
 
 	msgqueue "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
@@ -60,10 +58,6 @@ func (o *OLAPControllerImpl) updateTaskStatuses(ctx context.Context, tenantId st
 
 	// send to the tenant queue
 	if len(payloads) > 0 {
-		for _, p := range payloads {
-			fmt.Println(time.Now().String(), "| Sending workflow run finished message to queue | ", p.ExternalId)
-		}
-
 		msg, err := msgqueue.NewTenantMessage(
 			tenantId,
 			"workflow-run-finished",

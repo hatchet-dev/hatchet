@@ -3,6 +3,7 @@ package ingestor
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"time"
 
 	msgqueue "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
@@ -18,12 +19,16 @@ import (
 )
 
 func (i *IngestorImpl) putStreamEventV1(ctx context.Context, tenant *dbsqlc.Tenant, req *contracts.PutStreamEventRequest) (*contracts.PutStreamEventResponse, error) {
+	fmt.Printf("[Ingestor] Received stream event: StepRunId=%s, EventIndex=%d, Payload=%s\n",
+		req.StepRunId, req.EventIndex, string(req.Message))
+
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
 	// get single task
 	task, err := i.getSingleTask(ctx, tenantId, req.StepRunId, false)
 
 	if err != nil {
+		fmt.Printf("[Ingestor] Error getting task: %v\n", err)
 		return nil, err
 	}
 
@@ -42,16 +47,24 @@ func (i *IngestorImpl) putStreamEventV1(ctx context.Context, tenant *dbsqlc.Tena
 	)
 
 	if err != nil {
+		fmt.Printf("[Ingestor] Error creating message: %v\n", err)
 		return nil, err
 	}
 
 	q := msgqueue.TenantEventConsumerQueue(tenantId)
 
+	fmt.Printf("[Ingestor] Sending message to queue: StepRunId=%s, EventIndex=%d, Queue=%s\n",
+		req.StepRunId, req.EventIndex, q)
+
 	err = i.mqv1.SendMessage(ctx, q, msg)
 
 	if err != nil {
+		fmt.Printf("[Ingestor] Error sending message to queue: %v\n", err)
 		return nil, err
 	}
+
+	fmt.Printf("[Ingestor] Successfully sent message to queue: StepRunId=%s, EventIndex=%d\n",
+		req.StepRunId, req.EventIndex)
 
 	return &contracts.PutStreamEventResponse{}, nil
 }
