@@ -105,7 +105,7 @@ export default class WorkflowRunRef<T> {
       (async () => {
         for await (const event of streamable.stream()) {
           if (event.eventType === WorkflowRunEventType.WORKFLOW_RUN_EVENT_TYPE_FINISHED) {
-            if (event.results.some((r) => !!r.error)) {
+            if (event.results.some((r) => r.error !== undefined)) {
               reject(event.results);
               return;
             }
