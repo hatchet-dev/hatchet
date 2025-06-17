@@ -4,7 +4,7 @@ from typing import Generator
 
 from hatchet_sdk import Context, EmptyModel, Hatchet
 
-hatchet = Hatchet(debug=True)
+hatchet = Hatchet(debug=False)
 
 # > Streaming
 
@@ -32,8 +32,6 @@ async def stream_task(input: EmptyModel, ctx: Context) -> None:
         print(f"Putting chunk: {chunk}, ix: {ctx.stream_index}")
         ctx.put_stream(chunk)
         await asyncio.sleep(1)
-
-    print(datetime.now(timezone(timedelta(hours=-4), name="EST")).isoformat())
 
 
 def main() -> None:

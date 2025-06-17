@@ -59,81 +59,50 @@ func isTerminalEvent(event *contracts.WorkflowEvent) bool {
 			event.EventType == contracts.ResourceEventType_RESOURCE_EVENT_TYPE_CANCELLED)
 }
 
+func sortByEventIndex(a, b *contracts.WorkflowEvent) int {
+	if a.EventIndex < b.EventIndex {
+		return -1
+	}
+
+	if a.EventIndex > b.EventIndex {
+		return 1
+	}
+
+	return 0
+}
+
 func (b *StreamEventBuffer) AddEvent(event *contracts.WorkflowEvent) []*contracts.WorkflowEvent {
-	fmt.Println(time.Now().String(), "| Adding event to buffer | ", event.EventIndex, event.ResourceId, event.EventType, event.ResourceType)
+	fmt.Println("Adding event to buffer | ", event.ResourceId, event.EventIndex, event.EventPayload)
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
 	stepRunId := event.ResourceId
 	now := time.Now()
 
-	if isTerminalEvent(event) {
-		b.stepRunIdToCompletionTime[stepRunId] = now
-
-		result := make([]*contracts.WorkflowEvent, 0)
-
-		if events, exists := b.stepRunIdToWorkflowEvents[stepRunId]; exists && len(events) > 0 {
-			slices.SortFunc(events, func(a, b *contracts.WorkflowEvent) int {
-				if a.EventIndex < b.EventIndex {
-					return -1
-				}
-				if a.EventIndex > b.EventIndex {
-					return 1
-				}
-				return 0
-			})
-
-			result = append(result, events...)
-
-			b.stepRunIdToWorkflowEvents[stepRunId] = make([]*contracts.WorkflowEvent, 0)
-		}
-
-		return append(result, event)
-	}
-
 	if event.ResourceType != contracts.ResourceType_RESOURCE_TYPE_STEP_RUN ||
 		event.EventType != contracts.ResourceEventType_RESOURCE_EVENT_TYPE_STREAM {
+
+		if isTerminalEvent(event) {
+			if events, exists := b.stepRunIdToWorkflowEvents[stepRunId]; exists && len(events) > 0 {
+				result := make([]*contracts.WorkflowEvent, 0)
+
+				slices.SortFunc(events, sortByEventIndex)
+
+				result = append(result, events...)
+
+				delete(b.stepRunIdToWorkflowEvents, stepRunId)
+				delete(b.stepRunIdToExpectedIndex, stepRunId)
+				delete(b.stepRunIdToLastSeenTime, stepRunId)
+				delete(b.stepRunIdToCompletionTime, stepRunId)
+
+				return append(result, event)
+			}
+		}
+
 		return []*contracts.WorkflowEvent{event}
 	}
 
 	b.stepRunIdToLastSeenTime[stepRunId] = now
-
-	if completionTime, completed := b.stepRunIdToCompletionTime[stepRunId]; completed {
-		if now.Sub(completionTime) <= b.gracePeriod {
-			if _, exists := b.stepRunIdToWorkflowEvents[stepRunId]; !exists {
-				b.stepRunIdToWorkflowEvents[stepRunId] = make([]*contracts.WorkflowEvent, 0)
-			}
-
-			// If we've seen a completion event but we have not hit the grace period limit yet,
-			// we add the event to the buffer
-			b.stepRunIdToWorkflowEvents[stepRunId] = append(b.stepRunIdToWorkflowEvents[stepRunId], event)
-
-			slices.SortFunc(b.stepRunIdToWorkflowEvents[stepRunId], func(a, b *contracts.WorkflowEvent) int {
-				if a.EventIndex < b.EventIndex {
-					return -1
-				}
-
-				if a.EventIndex > b.EventIndex {
-					return 1
-				}
-
-				return 0
-			})
-
-			result := make([]*contracts.WorkflowEvent, len(b.stepRunIdToWorkflowEvents[stepRunId]))
-			copy(result, b.stepRunIdToWorkflowEvents[stepRunId])
-
-			delete(b.stepRunIdToWorkflowEvents, stepRunId)
-			delete(b.stepRunIdToExpectedIndex, stepRunId)
-			delete(b.stepRunIdToLastSeenTime, stepRunId)
-			delete(b.stepRunIdToCompletionTime, stepRunId)
-
-			return result
-		} else {
-			// Otherwise, we've hit the grace period so we need to start dropping events
-			return []*contracts.WorkflowEvent{}
-		}
-	}
 
 	if _, exists := b.stepRunIdToExpectedIndex[stepRunId]; !exists {
 		// IMPORTANT: Events are zero-indexed
@@ -145,33 +114,21 @@ func (b *StreamEventBuffer) AddEvent(event *contracts.WorkflowEvent) []*contract
 	// For stream events: if this event is the next expected one, send it immediately
 	// Only buffer if it's out of order
 	if event.EventIndex == expectedIndex {
-		fmt.Println(time.Now().String(), "| Streaming event immediately (in order) | ", event.EventIndex, event.ResourceId, event.EventType, event.ResourceType)
 		b.stepRunIdToExpectedIndex[stepRunId] = expectedIndex + 1
 
-		// Check if this unlocks any buffered events
 		if bufferedEvents, exists := b.stepRunIdToWorkflowEvents[stepRunId]; exists && len(bufferedEvents) > 0 {
-			// Add this event to the buffer, sort, and release what we can
 			b.stepRunIdToWorkflowEvents[stepRunId] = append(bufferedEvents, event)
 
-			slices.SortFunc(b.stepRunIdToWorkflowEvents[stepRunId], func(a, b *contracts.WorkflowEvent) int {
-				if a.EventIndex < b.EventIndex {
-					return -1
-				}
-				if a.EventIndex > b.EventIndex {
-					return 1
-				}
-				return 0
-			})
+			slices.SortFunc(b.stepRunIdToWorkflowEvents[stepRunId], sortByEventIndex)
 
 			return b.getReadyEvents(stepRunId)
 		} else {
-			// No buffered events, just return this one
 			return []*contracts.WorkflowEvent{event}
 		}
 	}
 
 	// Event is out of order, buffer it
-	fmt.Println(time.Now().String(), "| Buffering out-of-order event | ", event.EventIndex, " (expected ", expectedIndex, ") ", event.ResourceId, event.EventType, event.ResourceType)
+	fmt.Println("Buffering out-of-order event | ", event.EventIndex, " (expected ", expectedIndex, ") ", event.EventPayload)
 
 	if _, exists := b.stepRunIdToWorkflowEvents[stepRunId]; !exists {
 		b.stepRunIdToWorkflowEvents[stepRunId] = make([]*contracts.WorkflowEvent, 0)
@@ -179,17 +136,7 @@ func (b *StreamEventBuffer) AddEvent(event *contracts.WorkflowEvent) []*contract
 
 	b.stepRunIdToWorkflowEvents[stepRunId] = append(b.stepRunIdToWorkflowEvents[stepRunId], event)
 
-	slices.SortFunc(b.stepRunIdToWorkflowEvents[stepRunId], func(a, b *contracts.WorkflowEvent) int {
-		if a.EventIndex < b.EventIndex {
-			return -1
-		}
-
-		if a.EventIndex > b.EventIndex {
-			return 1
-		}
-
-		return 0
-	})
+	slices.SortFunc(b.stepRunIdToWorkflowEvents[stepRunId], sortByEventIndex)
 
 	return b.getReadyEvents(stepRunId)
 }
@@ -547,8 +494,6 @@ func (s *DispatcherImpl) handleTaskStarted(inputCtx context.Context, task *sqlcv
 func (s *DispatcherImpl) handleTaskCompleted(inputCtx context.Context, task *sqlcv1.FlattenExternalIdsRow, retryCount int32, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
 	tenant := inputCtx.Value("tenant").(*dbsqlc.Tenant)
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
-
-	fmt.Println("Handling task completed for step run ID:", request.StepRunId)
 
 	// if request.RetryCount == nil {
 	// 	return nil, fmt.Errorf("retry count is required in v2")
@@ -1124,6 +1069,11 @@ func (s *DispatcherImpl) listWorkflowRuns(ctx context.Context, tenantId string, 
 
 func (s *DispatcherImpl) msgsToWorkflowEvent(msgId string, payloads [][]byte, filter func(tasks []*contracts.WorkflowEvent) ([]*contracts.WorkflowEvent, error), hangupFunc func(tasks []*contracts.WorkflowEvent) ([]*contracts.WorkflowEvent, error)) ([]*contracts.WorkflowEvent, error) {
 	workflowEvents := []*contracts.WorkflowEvent{}
+	fmt.Printf("[Dispatcher] Processing message batch: msgId=%s, payloadCount=%d\n", msgId, len(payloads))
+
+	for i, payload := range payloads {
+		fmt.Printf("[Dispatcher] Processing payload %d: %s\n", i, string(payload))
+	}
 
 	switch msgId {
 	case "created-task":
@@ -1143,7 +1093,6 @@ func (s *DispatcherImpl) msgsToWorkflowEvent(msgId string, payloads [][]byte, fi
 		payloads := msgqueue.JSONConvert[tasktypes.CompletedTaskPayload](payloads)
 
 		for _, payload := range payloads {
-			fmt.Println("Received task completed event for step run:", payload.ExternalId)
 			workflowEvents = append(workflowEvents, &contracts.WorkflowEvent{
 				WorkflowRunId:  payload.WorkflowRunId,
 				ResourceType:   contracts.ResourceType_RESOURCE_TYPE_STEP_RUN,
@@ -1182,9 +1131,12 @@ func (s *DispatcherImpl) msgsToWorkflowEvent(msgId string, payloads [][]byte, fi
 			})
 		}
 	case "task-stream-event":
+		fmt.Printf("[Dispatcher] Processing %d stream event payloads\n", len(payloads))
 		payloads := msgqueue.JSONConvert[tasktypes.StreamEventPayload](payloads)
 
-		for _, payload := range payloads {
+		for i, payload := range payloads {
+			fmt.Printf("Stream payload %d: StepRunId=%s, EventIndex=%d, Payload=%s\n",
+				i, payload.StepRunId, payload.EventIndex, string(payload.Payload))
 			workflowEvents = append(workflowEvents, &contracts.WorkflowEvent{
 				WorkflowRunId:  payload.WorkflowRunId,
 				ResourceType:   contracts.ResourceType_RESOURCE_TYPE_STEP_RUN,
