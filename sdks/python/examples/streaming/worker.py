@@ -8,11 +8,9 @@ hatchet = Hatchet(debug=True)
 
 # > Streaming
 
-content = """
-Happy families are all alike; every unhappy family is unhappy in its own way.
-
-Everything was in confusion in the Oblonskys' house. The wife had discovered that the husband was carrying on an intrigue with a French girl, who had been a governess in their family, and she had announced to her husband that she could not go on living in the same house with him. This position of affairs had now lasted three days, and not only the husband and wife themselves, but all the members of their family and household, were painfully conscious of it. Every person in the house felt that there was so sense in their living together, and that the stray people brought together
-"""
+content = (
+    "Happy families are all alike; every unhappy family is unhappy in its own way."
+)
 # content = """
 # Happy families are all alike; every unhappy family is unhappy in its own way.
 
@@ -31,13 +29,10 @@ chunks = list(create_chunks(content, 10))
 @hatchet.task()
 async def stream_task(input: EmptyModel, ctx: Context) -> None:
     for chunk in chunks:
-        print(
-            f"Putting chunk: {chunk} at {datetime.now(timezone(timedelta(hours=-4), name='EST')).isoformat()}"
-        )
+        print(f"Putting chunk: {chunk}, ix: {ctx.stream_index}")
         ctx.put_stream(chunk)
-        await asyncio.sleep(0.025)
+        await asyncio.sleep(1)
 
-    await asyncio.sleep(10)
     print(datetime.now(timezone(timedelta(hours=-4), name="EST")).isoformat())
 
 
