@@ -478,6 +478,7 @@ CREATE TABLE v1_filter (
     scope TEXT NOT NULL,
     expression TEXT NOT NULL,
     payload JSONB NOT NULL DEFAULT '{}'::JSONB,
+    payload_hash TEXT GENERATED ALWAYS AS (MD5(payload::TEXT)) STORED,
     is_declarative BOOLEAN NOT NULL DEFAULT FALSE,
 
     inserted_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -491,7 +492,7 @@ CREATE UNIQUE INDEX v1_filter_unique_tenant_workflow_id_scope_expression_payload
     workflow_id ASC,
     scope ASC,
     expression ASC,
-    payload
+    payload_hash
 );
 
 CREATE INDEX v1_match_condition_filter_idx ON v1_match_condition (

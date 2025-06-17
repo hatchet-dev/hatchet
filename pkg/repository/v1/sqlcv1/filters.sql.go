@@ -41,7 +41,7 @@ SELECT
     payload,
     true
 FROM inputs
-RETURNING id, tenant_id, workflow_id, scope, expression, payload, is_declarative, inserted_at, updated_at
+RETURNING id, tenant_id, workflow_id, scope, expression, payload, payload_hash, is_declarative, inserted_at, updated_at
 `
 
 type BulkUpsertDeclarativeFiltersParams struct {
@@ -76,6 +76,7 @@ func (q *Queries) BulkUpsertDeclarativeFilters(ctx context.Context, db DBTX, arg
 			&i.Scope,
 			&i.Expression,
 			&i.Payload,
+			&i.PayloadHash,
 			&i.IsDeclarative,
 			&i.InsertedAt,
 			&i.UpdatedAt,
@@ -106,7 +107,7 @@ INSERT INTO v1_filter (
     $5::JSONB,
     false
 )
-RETURNING id, tenant_id, workflow_id, scope, expression, payload, is_declarative, inserted_at, updated_at
+RETURNING id, tenant_id, workflow_id, scope, expression, payload, payload_hash, is_declarative, inserted_at, updated_at
 `
 
 type CreateFilterParams struct {
@@ -133,6 +134,7 @@ func (q *Queries) CreateFilter(ctx context.Context, db DBTX, arg CreateFilterPar
 		&i.Scope,
 		&i.Expression,
 		&i.Payload,
+		&i.PayloadHash,
 		&i.IsDeclarative,
 		&i.InsertedAt,
 		&i.UpdatedAt,
@@ -145,7 +147,7 @@ DELETE FROM v1_filter
 WHERE
     tenant_id = $1::UUID
     AND id = $2::UUID
-RETURNING id, tenant_id, workflow_id, scope, expression, payload, is_declarative, inserted_at, updated_at
+RETURNING id, tenant_id, workflow_id, scope, expression, payload, payload_hash, is_declarative, inserted_at, updated_at
 `
 
 type DeleteFilterParams struct {
@@ -163,6 +165,7 @@ func (q *Queries) DeleteFilter(ctx context.Context, db DBTX, arg DeleteFilterPar
 		&i.Scope,
 		&i.Expression,
 		&i.Payload,
+		&i.PayloadHash,
 		&i.IsDeclarative,
 		&i.InsertedAt,
 		&i.UpdatedAt,
@@ -171,7 +174,7 @@ func (q *Queries) DeleteFilter(ctx context.Context, db DBTX, arg DeleteFilterPar
 }
 
 const getFilter = `-- name: GetFilter :one
-SELECT id, tenant_id, workflow_id, scope, expression, payload, is_declarative, inserted_at, updated_at
+SELECT id, tenant_id, workflow_id, scope, expression, payload, payload_hash, is_declarative, inserted_at, updated_at
 FROM v1_filter
 WHERE
     tenant_id = $1::UUID
@@ -193,6 +196,7 @@ func (q *Queries) GetFilter(ctx context.Context, db DBTX, arg GetFilterParams) (
 		&i.Scope,
 		&i.Expression,
 		&i.Payload,
+		&i.PayloadHash,
 		&i.IsDeclarative,
 		&i.InsertedAt,
 		&i.UpdatedAt,
@@ -253,7 +257,7 @@ SET
 WHERE
     tenant_id = $4::UUID
     AND id = $5::UUID
-RETURNING id, tenant_id, workflow_id, scope, expression, payload, is_declarative, inserted_at, updated_at
+RETURNING id, tenant_id, workflow_id, scope, expression, payload, payload_hash, is_declarative, inserted_at, updated_at
 `
 
 type UpdateFilterParams struct {
@@ -280,6 +284,7 @@ func (q *Queries) UpdateFilter(ctx context.Context, db DBTX, arg UpdateFilterPar
 		&i.Scope,
 		&i.Expression,
 		&i.Payload,
+		&i.PayloadHash,
 		&i.IsDeclarative,
 		&i.InsertedAt,
 		&i.UpdatedAt,

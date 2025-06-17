@@ -1,20 +1,9 @@
--- +goose NO TRANSACTION
-
 -- +goose Up
-DROP INDEX CONCURRENTLY v1_filter_unique_idx;
-CREATE UNIQUE INDEX CONCURRENTLY v1_filter_unique_tenant_workflow_id_scope_expression_payload ON v1_filter (
-    tenant_id ASC,
-    workflow_id ASC,
-    scope ASC,
-    expression ASC,
-    payload
-);
+-- +goose StatementBegin
+ALTER TABLE v1_filter ADD COLUMN payload_hash TEXT GENERATED ALWAYS AS (MD5(payload::TEXT)) STORED;
+-- +goose StatementEnd
 
 -- +goose Down
-DROP INDEX CONCURRENTLY v1_filter_unique_tenant_workflow_id_scope_expression_payload;
-CREATE UNIQUE INDEX CONCURRENTLY v1_filter_unique_idx ON v1_filter (
-    tenant_id ASC,
-    workflow_id ASC,
-    scope ASC,
-    expression ASC
-);
+-- +goose StatementBegin
+ALTER TABLE v1_filter DROP COLUMN payload_hash;
+-- +goose StatementEnd
