@@ -3,6 +3,7 @@ package ingestor
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"time"
 
 	msgqueue "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
@@ -46,6 +47,8 @@ func (i *IngestorImpl) putStreamEventV1(ctx context.Context, tenant *dbsqlc.Tena
 	}
 
 	q := msgqueue.TenantEventConsumerQueue(tenantId)
+
+	fmt.Println(time.Now().String(), "| Sending message to queue | ", req.StepRunId, " | ", req.EventIndex, " | ", string(req.Message))
 
 	err = i.mqv1.SendMessage(ctx, q, msg)
 

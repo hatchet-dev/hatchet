@@ -1,6 +1,9 @@
 package tasktypes
 
 import (
+	"fmt"
+	"time"
+
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 )
@@ -57,6 +60,8 @@ func WorkflowRunFinishedToTask(tenantId, workflowRunId, status string) *msgqueue
 	metadata, _ := datautils.ToJSONMap(WorkflowRunFinishedTaskMetadata{
 		TenantId: tenantId,
 	})
+
+	fmt.Println(time.Now().String(), "| Sending workflow run finished message to queue | ", workflowRunId)
 
 	return &msgqueue.Message{
 		ID:       "workflow-run-finished",
