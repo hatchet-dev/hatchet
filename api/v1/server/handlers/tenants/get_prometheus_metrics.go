@@ -4,22 +4,18 @@ import (
 	"bytes"
 
 	"github.com/labstack/echo/v4"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/expfmt"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
-	hatchetprom "github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 func (t *TenantService) TenantGetPrometheusMetrics(ctx echo.Context, request gen.TenantGetPrometheusMetricsRequestObject) (gen.TenantGetPrometheusMetricsResponseObject, error) {
-	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
-
-	tenantMetrics := hatchetprom.WithTenant(tenantId)
+	// tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
+	// tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
 	// Gather metrics
-	metricFamilies, err := tenantMetrics.Registry.Gather()
+	metricFamilies, err := prometheus.DefaultGatherer.Gather()
 	if err != nil {
 		return nil, err
 	}

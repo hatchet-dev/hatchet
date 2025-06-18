@@ -2105,6 +2105,22 @@ func (q *Queries) ReadWorkflowRunByExternalId(ctx context.Context, db DBTX, work
 	return &i, err
 }
 
+const taskHasDAG = `-- name: TaskHasDAG :one
+SELECT EXISTS
+    (
+        SELECT 1
+        FROM v1_dag_to_task_olap dt
+        WHERE dt.task_id = $1::bigint
+    )
+`
+
+func (q *Queries) TaskHasDAG(ctx context.Context, db DBTX, taskid int64) (bool, error) {
+	row := db.QueryRow(ctx, taskHasDAG, taskid)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const updateDAGStatuses = `-- name: UpdateDAGStatuses :one
 WITH locked_events AS (
     SELECT

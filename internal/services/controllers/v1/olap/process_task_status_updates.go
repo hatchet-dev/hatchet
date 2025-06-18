@@ -2,12 +2,15 @@ package olap
 
 import (
 	"context"
+	"fmt"
 
 	msgqueue "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
+	"github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 )
 
 func (o *OLAPControllerImpl) runTenantTaskStatusUpdates(ctx context.Context) func() {
@@ -49,6 +52,21 @@ func (o *OLAPControllerImpl) updateTaskStatuses(ctx context.Context, tenantId st
 			ExternalId: sqlchelpers.UUIDToStr(row.ExternalId),
 			Status:     row.ReadableStatus,
 		})
+
+		hasDAG, err := o.repo.OLAP().TaskHasDAG(ctx, row.TaskId)
+		if err != nil {
+			return false, err
+		}
+
+		if !hasDAG {
+			// instrumentation
+			if row.ReadableStatus == sqlcv1.V1ReadableStatusOlapCOMPLETED || row.ReadableStatus == sqlcv1.V1ReadableStatusOlapFAILED || row.ReadableStatus == sqlcv1.V1ReadableStatusOlapCANCELLED {
+				fmt.Println("updateTaskStatuses", tenantId)
+				fmt.Printf("%+v\n", row)
+
+				prometheus.TenantFinishedWorkflows.WithLabelValues(tenantId, "", "", string(row.ReadableStatus), "").Inc()
+			}
+		}
 	}
 
 	// send to the tenant queue

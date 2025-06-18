@@ -31,7 +31,41 @@ services:
       timeout: 10s
       retries: 5
 
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: hatchet-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./hack/dev/prometheus.yml:/etc/prometheus/prometheus.yml
+      - hatchet_prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: hatchet-grafana
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - hatchet_grafana_data:/var/lib/grafana
+      - ./hack/dev/grafana/provisioning:/etc/grafana/provisioning
+      - ./hack/dev/grafana/dashboards:/var/lib/grafana/dashboards
+    depends_on:
+      - prometheus
+
 volumes:
   hatchet_postgres_data:
   hatchet_rabbitmq_data:
   hatchet_rabbitmq.conf:
+  hatchet_prometheus_data:
+  hatchet_grafana_data:

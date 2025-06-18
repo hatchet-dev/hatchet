@@ -1505,3 +1505,12 @@ WITH included_events AS (
 SELECT COUNT(*)
 FROM included_events e
 ;
+
+-- name: TaskHasDAG :one
+SELECT EXISTS
+    (
+        SELECT 1
+        FROM v1_dag_to_task_olap dt
+        WHERE dt.task_id = @taskId::bigint
+    )
+;

@@ -225,6 +225,8 @@ type OLAPRepository interface {
 	BulkCreateEventsAndTriggers(ctx context.Context, events sqlcv1.BulkCreateEventsParams, triggers []EventTriggersFromExternalId) error
 	ListEvents(ctx context.Context, opts sqlcv1.ListEventsParams) ([]*sqlcv1.ListEventsRow, *int64, error)
 	ListEventKeys(ctx context.Context, tenantId string) ([]string, error)
+
+	TaskHasDAG(ctx context.Context, taskId int64) (bool, error)
 }
 
 type OLAPRepositoryImpl struct {
@@ -1551,4 +1553,18 @@ func (r *OLAPRepositoryImpl) ListEventKeys(ctx context.Context, tenantId string)
 	}
 
 	return keys, nil
+}
+
+func (r *OLAPRepositoryImpl) TaskHasDAG(ctx context.Context, taskId int64) (bool, error) {
+	hasDAG, err := r.queries.TaskHasDAG(ctx, r.readPool, taskId)
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return false, nil
+		}
+
+		return false, err
+	}
+
+	return hasDAG, nil
 }
