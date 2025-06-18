@@ -5,11 +5,67 @@ option go_package = "github.com/hatchet-dev/hatchet/internal/services/shared/pro
 package v1;
 
 import "v1/shared/condition.proto";
+import "google/protobuf/timestamp.proto";
 
 service V1Dispatcher {
     rpc RegisterDurableEvent(RegisterDurableEventRequest) returns (RegisterDurableEventResponse) {}
 
     rpc ListenForDurableEvent(stream ListenForDurableEventRequest) returns (stream DurableEvent) {}
+
+    rpc SubscribeToStreamEvents(stream SubscribeToStreamEventsRequest) returns (stream StreamEvent) {}
+}
+
+message SubscribeToStreamEventsRequest {
+    // the id of the tenant to subscribe to
+    string tenantId = 1;
+}
+
+enum ResourceType {
+    RESOURCE_TYPE_UNKNOWN = 0;
+    RESOURCE_TYPE_STEP_RUN = 1;
+    RESOURCE_TYPE_WORKFLOW_RUN = 2;
+}
+
+enum ResourceEventType {
+    RESOURCE_EVENT_TYPE_UNKNOWN = 0;
+    RESOURCE_EVENT_TYPE_STARTED = 1;
+    RESOURCE_EVENT_TYPE_COMPLETED = 2;
+    RESOURCE_EVENT_TYPE_FAILED = 3;
+    RESOURCE_EVENT_TYPE_CANCELLED = 4;
+    RESOURCE_EVENT_TYPE_TIMED_OUT = 5;
+    RESOURCE_EVENT_TYPE_STREAM = 6;
+}
+
+message StreamEvent {
+    string tenantId = 1;
+
+    // the id of the workflow run
+    string workflowRunId = 2;
+
+    string stepRunId = 3;
+
+    ResourceType resourceType = 4;
+
+    ResourceEventType eventType = 5;
+
+    string resourceId = 6;
+
+    google.protobuf.Timestamp eventTimestamp = 7;
+
+    // the event payload
+    string eventPayload = 8;
+
+    // whether this is the last event for the workflow run - server
+    // will hang up the connection but clients might want to case
+    bool hangup = 9;
+
+    // (optional) the max number of retries this step can handle
+    optional int32 stepRetries = 10;
+
+    // (optional) the retry count of this step
+    optional int32 retryCount = 11;
+
+    int64 eventIndex = 12;
 }
 
 message RegisterDurableEventRequest {
