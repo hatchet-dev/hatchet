@@ -105,8 +105,13 @@ export default class WorkflowRunRef<T> {
       (async () => {
         for await (const event of streamable.stream()) {
           if (event.eventType === WorkflowRunEventType.WORKFLOW_RUN_EVENT_TYPE_FINISHED) {
-            if (event.results.some((r) => !!r.error)) {
-              reject(event.results);
+            if (event.results.some((r) => r.error !== undefined)) {
+              // HACK: this might replace intentional empty errors but this is the more common case
+              const errors = event.results.map((r) =>
+                r.error !== '' ? r.error : 'task was cancelled'
+              );
+
+              reject(errors);
               return;
             }
 

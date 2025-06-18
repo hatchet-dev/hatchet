@@ -23,6 +23,7 @@ import { Duration } from './client/duration';
 import { MetricsClient } from './client/features/metrics';
 import { InputType, OutputType, UnknownInputType, JsonObject } from './types';
 import { Context, DurableContext } from './client/worker/context';
+import { parentRunContextManager } from './parent-run-context-vars';
 
 const UNBOUND_ERR = new Error('workflow unbound to hatchet client, hint: use client.run instead');
 
@@ -53,6 +54,18 @@ export type RunOpts = {
    * values: Priority.LOW, Priority.MEDIUM, Priority.HIGH (1, 2, or 3 )
    */
   priority?: Priority;
+
+  /**
+   * (optional) if the task run should be run on the same worker.
+   * only used if spawned from within a parent task.
+   */
+  sticky?: boolean;
+
+  /**
+   * (optional) the child key for the workflow run.
+   * only used if spawned from within a parent task.
+   */
+  childKey?: string;
 };
 
 /**
@@ -289,6 +302,25 @@ export class BaseWorkflowDeclaration<
       throw UNBOUND_ERR;
     }
 
+    // set the parent run context
+    const parentRunContext = parentRunContextManager.getContext();
+    parentRunContextManager.incrementChildIndex(Array.isArray(input) ? input.length : 1);
+
+    if (!parentRunContext && (options?.childKey || options?.sticky)) {
+      this.client.admin.logger.warn(
+        'ignoring childKey or sticky because run is not being spawned from a parent task'
+      );
+    }
+
+    const runOpts = {
+      ...options,
+      parentId: parentRunContext?.parentId,
+      parentStepRunId: parentRunContext?.parentRunId,
+      childIndex: parentRunContext?.childIndex,
+      sticky: options?.sticky ? parentRunContext?.desiredWorkerId : undefined,
+      childKey: options?.childKey,
+    };
+
     if (Array.isArray(input)) {
       let resp: WorkflowRunRef<O>[] = [];
       for (let i = 0; i < input.length; i += 500) {
@@ -297,7 +329,10 @@ export class BaseWorkflowDeclaration<
           batch.map((inp) => ({
             workflowName: this.definition.name,
             input: inp,
-            options,
+            options: {
+              ...runOpts,
+              childIndex: (runOpts.childIndex ?? 0) + i, // increment from initial child index state
+            },
           }))
         );
         resp = resp.concat(batchResp);
@@ -319,7 +354,7 @@ export class BaseWorkflowDeclaration<
       return res;
     }
 
-    const res = await this.client.admin.runWorkflow<I, O>(this.definition.name, input, options);
+    const res = await this.client.admin.runWorkflow<I, O>(this.definition.name, input, runOpts);
 
     if (_standaloneTaskName) {
       res._standaloneTaskName = _standaloneTaskName;
