@@ -2,7 +2,7 @@ import { ColumnDef } from '@tanstack/react-table';
 import { Badge } from '@/components/v1/ui/badge';
 import { Checkbox } from '@/components/v1/ui/checkbox';
 import { columns as workflowRunsColumns } from '../../workflow-runs/components/workflow-runs-columns';
-import { Event, queries } from '@/lib/api';
+import { queries, V1Event } from '@/lib/api';
 import { Button } from '@/components/v1/ui/button';
 import {
   Popover,
@@ -22,8 +22,8 @@ import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data
 export const columns = ({
   onRowClick,
 }: {
-  onRowClick?: (row: Event) => void;
-}): ColumnDef<Event>[] => {
+  onRowClick?: (row: V1Event) => void;
+}): ColumnDef<V1Event>[] => {
   return [
     {
       id: 'select',
@@ -138,7 +138,30 @@ export const columns = ({
       },
       enableSorting: false,
     },
-    // {
+    {
+      accessorKey: 'Payload',
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title="Payload" />
+      ),
+      cell: ({ row }) => {
+        if (!row.original.payload) {
+          return <div></div>;
+        }
+
+        return <AdditionalMetadata metadata={row.original.payload} />;
+      },
+      enableSorting: false,
+      enableHiding: true,
+    },
+    {
+      accessorKey: 'scope',
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title="Scope" />
+      ),
+      cell: ({ row }) => <div className="w-full">{row.getValue('scope')}</div>,
+      enableSorting: false,
+      enableHiding: true,
+    }, // {
     //   id: "actions",
     //   cell: ({ row }) => <DataTableRowActions row={row} labels={[]} />,
     // },
@@ -146,25 +169,29 @@ export const columns = ({
 };
 
 // eslint-disable-next-line react-refresh/only-export-components
-function WorkflowRunSummary({ event }: { event: Event }) {
+function WorkflowRunSummary({ event }: { event: V1Event }) {
   const { tenant } = useOutletContext<TenantContextType>();
   invariant(tenant);
 
   const [hoverCardOpen, setPopoverOpen] = useState<
-    'failed' | 'succeeded' | 'running' | 'queued' | 'pending'
+    'failed' | 'succeeded' | 'running' | 'queued' | 'cancelled'
   >();
 
   const numFailed = event.workflowRunSummary?.failed || 0;
   const numSucceeded = event.workflowRunSummary?.succeeded || 0;
   const numRunning = event.workflowRunSummary?.running || 0;
-  const numPending = event.workflowRunSummary?.pending || 0;
+  const numCancelled = event.workflowRunSummary?.cancelled || 0;
   const numQueued = event.workflowRunSummary?.queued || 0;
 
   const listWorkflowRunsQuery = useQuery({
-    ...queries.workflowRuns.list(tenant.metadata.id, {
+    ...queries.v1WorkflowRuns.list(tenant.metadata.id, {
       offset: 0,
       limit: 10,
-      eventId: event.metadata.id,
+      triggering_event_external_id: event.metadata.id,
+      since: new Date(
+        new Date(event.metadata.createdAt).getTime() - 1000 * 60 * 60 * 24,
+      ).toISOString(),
+      only_tasks: false,
     }),
     enabled: !!hoverCardOpen,
   });
@@ -177,13 +204,13 @@ function WorkflowRunSummary({ event }: { event: Event }) {
             return run.status == 'FAILED';
           }
           if (hoverCardOpen == 'succeeded') {
-            return run.status == 'SUCCEEDED';
+            return run.status == 'COMPLETED';
           }
           if (hoverCardOpen == 'running') {
             return run.status == 'RUNNING';
           }
-          if (hoverCardOpen == 'pending') {
-            return run.status == 'PENDING';
+          if (hoverCardOpen == 'cancelled') {
+            return run.status == 'CANCELLED';
           }
           if (hoverCardOpen == 'queued') {
             return run.status == 'QUEUED';
@@ -295,9 +322,9 @@ function WorkflowRunSummary({ event }: { event: Event }) {
           </PopoverContent>
         </Popover>
       )}
-      {numPending > 0 && (
+      {numCancelled > 0 && (
         <Popover
-          open={hoverCardOpen == 'pending'}
+          open={hoverCardOpen == 'cancelled'}
           onOpenChange={(open) => {
             if (!open) {
               setPopoverOpen(undefined);
@@ -308,9 +335,9 @@ function WorkflowRunSummary({ event }: { event: Event }) {
             <Badge
               variant="inProgress"
               className="cursor-pointer"
-              onClick={() => setPopoverOpen('pending')}
+              onClick={() => setPopoverOpen('cancelled')}
             >
-              {numPending} Pending
+              {numCancelled} Cancelled
             </Badge>
           </PopoverTrigger>
           <PopoverContent

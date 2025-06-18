@@ -10,8 +10,12 @@ from hatchet_sdk.clients.rest.api.event_api import EventApi
 from hatchet_sdk.clients.rest.api.workflow_runs_api import WorkflowRunsApi
 from hatchet_sdk.clients.rest.api_client import ApiClient
 from hatchet_sdk.clients.rest.models.v1_event_list import V1EventList
+from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
 from hatchet_sdk.clients.rest.tenacity_utils import tenacity_retry
-from hatchet_sdk.clients.v1.api_client import BaseRestClient
+from hatchet_sdk.clients.v1.api_client import (
+    BaseRestClient,
+    maybe_additional_metadata_to_kv,
+)
 from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.connection import new_conn
 from hatchet_sdk.contracts.events_pb2 import (
@@ -211,9 +215,24 @@ class EventClient(BaseRestClient):
         keys: list[str] | None = None,
         since: datetime.datetime | None = None,
         until: datetime.datetime | None = None,
+        workflow_ids: list[str] | None = None,
+        workflow_run_statuses: list[V1TaskStatus] | None = None,
+        event_ids: list[str] | None = None,
+        additional_metadata: JSONSerializableMapping | None = None,
+        scopes: list[str] | None = None,
     ) -> V1EventList:
         return await asyncio.to_thread(
-            self.list, offset=offset, limit=limit, keys=keys, since=since, until=until
+            self.list,
+            offset=offset,
+            limit=limit,
+            keys=keys,
+            since=since,
+            until=until,
+            workflow_ids=workflow_ids,
+            workflow_run_statuses=workflow_run_statuses,
+            event_ids=event_ids,
+            additional_metadata=additional_metadata,
+            scopes=scopes,
         )
 
     def list(
@@ -223,6 +242,11 @@ class EventClient(BaseRestClient):
         keys: list[str] | None = None,
         since: datetime.datetime | None = None,
         until: datetime.datetime | None = None,
+        workflow_ids: list[str] | None = None,
+        workflow_run_statuses: list[V1TaskStatus] | None = None,
+        event_ids: list[str] | None = None,
+        additional_metadata: JSONSerializableMapping | None = None,
+        scopes: list[str] | None = None,
     ) -> V1EventList:
         with self.client() as client:
             return self._ea(client).v1_event_list(
@@ -232,4 +256,11 @@ class EventClient(BaseRestClient):
                 keys=keys,
                 since=since,
                 until=until,
+                workflow_ids=workflow_ids,
+                workflow_run_statuses=workflow_run_statuses,
+                event_ids=event_ids,
+                additional_metadata=maybe_additional_metadata_to_kv(
+                    additional_metadata
+                ),
+                scopes=scopes,
             )

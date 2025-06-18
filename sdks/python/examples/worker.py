@@ -1,5 +1,10 @@
 from examples.affinity_workers.worker import affinity_worker_workflow
 from examples.bulk_fanout.worker import bulk_child_wf, bulk_parent_wf
+from examples.bulk_operations.worker import (
+    bulk_replay_test_1,
+    bulk_replay_test_2,
+    bulk_replay_test_3,
+)
 from examples.cancellation.worker import cancellation_workflow
 from examples.concurrency_limit.worker import concurrency_limit_workflow
 from examples.concurrency_limit_rr.worker import concurrency_limit_rr_workflow
@@ -57,6 +62,9 @@ def main() -> None:
             lifespan_task,
             simple,
             simple_durable,
+            bulk_replay_test_1,
+            bulk_replay_test_2,
+            bulk_replay_test_3,
         ],
         lifespan=lifespan,
     )

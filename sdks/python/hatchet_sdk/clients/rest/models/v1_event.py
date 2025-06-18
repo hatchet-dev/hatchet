@@ -17,6 +17,7 @@ from __future__ import annotations
 import json
 import pprint
 import re  # noqa: F401
+from datetime import datetime
 from typing import Any, ClassVar, Dict, List, Optional, Set
 
 from pydantic import BaseModel, ConfigDict, Field, StrictStr
@@ -24,6 +25,7 @@ from typing_extensions import Self
 
 from hatchet_sdk.clients.rest.models.api_resource_meta import APIResourceMeta
 from hatchet_sdk.clients.rest.models.tenant import Tenant
+from hatchet_sdk.clients.rest.models.v1_event_triggered_run import V1EventTriggeredRun
 from hatchet_sdk.clients.rest.models.v1_event_workflow_run_summary import (
     V1EventWorkflowRunSummary,
 )
@@ -51,6 +53,24 @@ class V1Event(BaseModel):
         description="Additional metadata for the event.",
         alias="additionalMetadata",
     )
+    payload: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="The payload of the event, which can be any JSON-serializable object.",
+    )
+    scope: Optional[StrictStr] = Field(
+        default=None,
+        description="The scope of the event, which can be used to filter or categorize events.",
+    )
+    seen_at: Optional[datetime] = Field(
+        default=None,
+        description="The timestamp when the event was seen.",
+        alias="seenAt",
+    )
+    triggered_runs: Optional[List[V1EventTriggeredRun]] = Field(
+        default=None,
+        description="The external IDs of the runs that were triggered by this event.",
+        alias="triggeredRuns",
+    )
     __properties: ClassVar[List[str]] = [
         "metadata",
         "key",
@@ -58,6 +78,10 @@ class V1Event(BaseModel):
         "tenantId",
         "workflowRunSummary",
         "additionalMetadata",
+        "payload",
+        "scope",
+        "seenAt",
+        "triggeredRuns",
     ]
 
     model_config = ConfigDict(
@@ -106,6 +130,13 @@ class V1Event(BaseModel):
         # override the default output from pydantic by calling `to_dict()` of workflow_run_summary
         if self.workflow_run_summary:
             _dict["workflowRunSummary"] = self.workflow_run_summary.to_dict()
+        # override the default output from pydantic by calling `to_dict()` of each item in triggered_runs (list)
+        _items = []
+        if self.triggered_runs:
+            for _item_triggered_runs in self.triggered_runs:
+                if _item_triggered_runs:
+                    _items.append(_item_triggered_runs.to_dict())
+            _dict["triggeredRuns"] = _items
         return _dict
 
     @classmethod
@@ -137,6 +168,17 @@ class V1Event(BaseModel):
                     else None
                 ),
                 "additionalMetadata": obj.get("additionalMetadata"),
+                "payload": obj.get("payload"),
+                "scope": obj.get("scope"),
+                "seenAt": obj.get("seenAt"),
+                "triggeredRuns": (
+                    [
+                        V1EventTriggeredRun.from_dict(_item)
+                        for _item in obj["triggeredRuns"]
+                    ]
+                    if obj.get("triggeredRuns") is not None
+                    else None
+                ),
             }
         )
         return _obj

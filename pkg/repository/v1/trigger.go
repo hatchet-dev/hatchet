@@ -111,6 +111,7 @@ func newTriggerRepository(s *sharedRepository) TriggerRepository {
 type Run struct {
 	Id         int64
 	InsertedAt time.Time
+	FilterId   *string
 }
 
 type TriggerFromEventsResult struct {
@@ -122,6 +123,7 @@ type TriggerFromEventsResult struct {
 type TriggerDecision struct {
 	ShouldTrigger bool
 	FilterPayload []byte
+	FilterId      *string
 }
 
 func (r *TriggerRepositoryImpl) makeTriggerDecisions(ctx context.Context, filters []*sqlcv1.V1Filter, hasAnyFilters bool, opt EventTriggerOpts) []TriggerDecision {
@@ -136,6 +138,7 @@ func (r *TriggerRepositoryImpl) makeTriggerDecisions(ctx context.Context, filter
 			TriggerDecision{
 				ShouldTrigger: true,
 				FilterPayload: nil,
+				FilterId:      nil,
 			},
 		}
 	}
@@ -147,6 +150,7 @@ func (r *TriggerRepositoryImpl) makeTriggerDecisions(ctx context.Context, filter
 			TriggerDecision{
 				ShouldTrigger: false,
 				FilterPayload: nil,
+				FilterId:      nil,
 			},
 		}
 	}
@@ -159,10 +163,13 @@ func (r *TriggerRepositoryImpl) makeTriggerDecisions(ctx context.Context, filter
 			continue
 		}
 
+		filterId := filter.ID.String()
+
 		if filter.Expression == "" {
 			decisions = append(decisions, TriggerDecision{
 				ShouldTrigger: false,
 				FilterPayload: filter.Payload,
+				FilterId:      &filterId,
 			})
 		} else {
 			shouldTrigger, err := r.processWorkflowExpression(ctx, filter.Expression, opt, filter.Payload)
@@ -178,17 +185,24 @@ func (r *TriggerRepositoryImpl) makeTriggerDecisions(ctx context.Context, filter
 				decisions = append(decisions, TriggerDecision{
 					ShouldTrigger: false,
 					FilterPayload: filter.Payload,
+					FilterId:      &filterId,
 				})
 			}
 
 			decisions = append(decisions, TriggerDecision{
 				ShouldTrigger: shouldTrigger,
 				FilterPayload: filter.Payload,
+				FilterId:      &filterId,
 			})
 		}
 	}
 
 	return decisions
+}
+
+type EventExternalIdFilterId struct {
+	ExternalId string
+	FilterId   *string
 }
 
 func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId string, opts []EventTriggerOpts) (*TriggerFromEventsResult, error) {
@@ -232,7 +246,7 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 	workflowIds := make([]pgtype.UUID, 0)
 	scopes := make([]*string, 0)
 
-	externalIdToEventId := make(map[string]string)
+	externalIdToEventIdAndFilterId := make(map[string]EventExternalIdFilterId)
 
 	for _, workflow := range workflowVersionIdsAndEventKeys {
 		workflowEventKeyToIncomingEventKey[workflow.WorkflowTriggeringEventKeyPattern] = workflow.IncomingEventKey
@@ -329,7 +343,10 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 					filterPayload:      decision.FilterPayload,
 				})
 
-				externalIdToEventId[externalId] = opt.ExternalId
+				externalIdToEventIdAndFilterId[externalId] = EventExternalIdFilterId{
+					ExternalId: opt.ExternalId,
+					FilterId:   decision.FilterId,
+				}
 			}
 		}
 	}
@@ -343,30 +360,32 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 	for _, task := range tasks {
 		externalId := task.ExternalID
 
-		eventId, ok := externalIdToEventId[externalId.String()]
+		eventIdAndFilterId, ok := externalIdToEventIdAndFilterId[externalId.String()]
 
 		if !ok {
 			continue
 		}
 
-		eventExternalIdToRuns[eventId] = append(eventExternalIdToRuns[eventId], &Run{
+		eventExternalIdToRuns[eventIdAndFilterId.ExternalId] = append(eventExternalIdToRuns[eventIdAndFilterId.ExternalId], &Run{
 			Id:         task.ID,
 			InsertedAt: task.InsertedAt.Time,
+			FilterId:   eventIdAndFilterId.FilterId,
 		})
 	}
 
 	for _, dag := range dags {
 		externalId := dag.ExternalID
 
-		eventId, ok := externalIdToEventId[externalId.String()]
+		eventIdAndFilterId, ok := externalIdToEventIdAndFilterId[externalId.String()]
 
 		if !ok {
 			continue
 		}
 
-		eventExternalIdToRuns[eventId] = append(eventExternalIdToRuns[eventId], &Run{
+		eventExternalIdToRuns[eventIdAndFilterId.ExternalId] = append(eventExternalIdToRuns[eventIdAndFilterId.ExternalId], &Run{
 			Id:         dag.ID,
 			InsertedAt: dag.InsertedAt.Time,
+			FilterId:   eventIdAndFilterId.FilterId,
 		})
 	}
 

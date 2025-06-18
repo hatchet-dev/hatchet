@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 var ErrDagParentNotFound = errors.New("dag parent not found")
@@ -332,4 +333,7 @@ type WorkflowEngineRepository interface {
 	// GetWorkflowVersionById returns a workflow version by its id. It will return db.ErrNotFound if the workflow
 	// version does not exist.
 	GetWorkflowVersionById(ctx context.Context, tenantId, workflowVersionId string) (*dbsqlc.GetWorkflowVersionForEngineRow, error)
+
+	// Delete a cron workflow by its id. Intended to be used by the ticker to delete an invalid cron.
+	DeleteInvalidCron(ctx context.Context, id pgtype.UUID) error
 }

@@ -26,6 +26,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/repository/metered"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
@@ -894,6 +895,7 @@ func (tc *TasksControllerImpl) handleProcessUserEventTrigger(ctx context.Context
 					EventPayload:            opts.Data,
 					EventAdditionalMetadata: opts.AdditionalMetadata,
 					EventScope:              opts.Scope,
+					FilterId:                run.FilterId,
 				})
 			}
 		}
@@ -947,6 +949,12 @@ func (tc *TasksControllerImpl) handleProcessTaskTrigger(ctx context.Context, ten
 	tasks, dags, err := tc.repov1.Triggers().TriggerFromWorkflowNames(ctx, tenantId, msgs)
 
 	if err != nil {
+		if err == metered.ErrResourceExhausted {
+			tc.l.Warn().Msg("resource exhausted while triggering workflows from names. Not retrying")
+
+			return nil
+		}
+
 		return fmt.Errorf("could not trigger workflows from names: %w", err)
 	}
 

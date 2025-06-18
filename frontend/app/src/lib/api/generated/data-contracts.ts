@@ -731,6 +731,21 @@ export interface V1EventWorkflowRunSummary {
   cancelled: number;
 }
 
+export interface V1EventTriggeredRun {
+  /**
+   * The external ID of the triggered run.
+   * @format uuid
+   * @minLength 36
+   * @maxLength 36
+   */
+  workflowRunId: string;
+  /**
+   * The ID of the filter that triggered the run, if applicable.
+   * @format uuid
+   */
+  filterId?: string;
+}
+
 export interface V1Event {
   metadata: APIResourceMeta;
   /** The key for the event. */
@@ -743,11 +758,27 @@ export interface V1Event {
   workflowRunSummary: V1EventWorkflowRunSummary;
   /** Additional metadata for the event. */
   additionalMetadata?: object;
+  /** The payload of the event, which can be any JSON-serializable object. */
+  payload?: object;
+  /** The scope of the event, which can be used to filter or categorize events. */
+  scope?: string;
+  /**
+   * The timestamp when the event was seen.
+   * @format date-time
+   */
+  seenAt?: string;
+  /** The external IDs of the runs that were triggered by this event. */
+  triggeredRuns?: V1EventTriggeredRun[];
 }
 
 export interface V1EventList {
   pagination?: PaginationResponse;
   rows?: V1Event[];
+}
+
+export interface EventKeyList {
+  pagination?: PaginationResponse;
+  rows?: EventKey[];
 }
 
 export interface V1Filter {
@@ -1305,11 +1336,6 @@ export interface TenantMemberList {
 export interface EventData {
   /** The data for the event (JSON bytes). */
   data: string;
-}
-
-export interface EventKeyList {
-  pagination?: PaginationResponse;
-  rows?: EventKey[];
 }
 
 export interface Workflow {
