@@ -15,6 +15,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/internal/telemetry/servertel"
+	"github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
@@ -362,6 +363,17 @@ func (wc *WorkflowsControllerImpl) handleWorkflowRunFinished(ctx context.Context
 			}
 		} else {
 			shouldAlertFailure = false
+
+			// instrumentation
+			if workflowRun.WorkflowRun.Status == dbsqlc.WorkflowRunStatusSUCCEEDED || workflowRun.WorkflowRun.Status == dbsqlc.WorkflowRunStatusFAILED || workflowRun.WorkflowRun.Status == dbsqlc.WorkflowRunStatusCANCELLED {
+				labelValues := []string{metadata.TenantId, workflowRunId, workflowRun.WorkflowName.String, string(workflowRun.WorkflowRun.Status)}
+
+				if workflowRun.WorkflowRun.Status == dbsqlc.WorkflowRunStatusSUCCEEDED {
+					labelValues = append(labelValues, fmt.Sprintf("%d", workflowRun.WorkflowRun.Duration.Int64))
+				}
+
+				prometheus.WithTenant(metadata.TenantId).WorkflowCompleted.WithLabelValues(labelValues...).Inc()
+			}
 		}
 	}
 

@@ -391,10 +391,8 @@ func (tc *TasksControllerImpl) handleTaskCompleted(ctx context.Context, tenantId
 	}
 
 	// instrumentation
-	for _, task := range res.ReleasedTasks {
+	for range res.ReleasedTasks {
 		prometheus.SucceededTasks.Inc()
-
-		prometheus.WithTenant(tenantId).WorkflowCompleted.WithLabelValues(tenantId, task.WorkflowRunID.String(), task.WorkerID.String(), "SUCCEEDED").Inc()
 	}
 
 	tc.notifyQueuesOnCompletion(ctx, tenantId, res.ReleasedTasks)
@@ -453,11 +451,6 @@ func (tc *TasksControllerImpl) handleTaskFailed(ctx context.Context, tenantId st
 
 	if err != nil {
 		return err
-	}
-
-	// instrumentation
-	for _, task := range res.ReleasedTasks {
-		prometheus.WithTenant(tenantId).WorkflowCompleted.WithLabelValues(tenantId, task.WorkflowRunID.String(), task.WorkerID.String(), "FAILED").Inc()
 	}
 
 	return tc.processFailTasksResponse(ctx, tenantId, res)
@@ -592,10 +585,8 @@ func (tc *TasksControllerImpl) handleTaskCancelled(ctx context.Context, tenantId
 	}
 
 	// instrumentation
-	for _, task := range res.ReleasedTasks {
+	for range res.ReleasedTasks {
 		prometheus.CancelledTasks.Inc()
-
-		prometheus.WithTenant(tenantId).WorkflowCompleted.WithLabelValues(tenantId, task.WorkflowRunID.String(), task.WorkerID.String(), "CANCELLED").Inc()
 	}
 
 	return err
@@ -1480,7 +1471,6 @@ func (tc *TasksControllerImpl) signalTasksCreatedAndCancelled(ctx context.Contex
 		for range tasks {
 			prometheus.CreatedTasks.Inc()
 			prometheus.CancelledTasks.Inc()
-			prometheus.WithTenant(tenantId).WorkflowCompleted.WithLabelValues(tenantId, "workflow_name", "worker_name", "CANCELLED").Inc()
 		}
 	}()
 
@@ -1545,7 +1535,6 @@ func (tc *TasksControllerImpl) signalTasksCreatedAndFailed(ctx context.Context, 
 		for range tasks {
 			prometheus.CreatedTasks.Inc()
 			prometheus.FailedTasks.Inc()
-			prometheus.WithTenant(tenantId).WorkflowCompleted.WithLabelValues(tenantId, "workflow_name", "worker_name", "FAILED").Inc()
 		}
 	}()
 
