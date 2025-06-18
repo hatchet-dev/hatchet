@@ -48,7 +48,7 @@ export const child3 = child.task({
 export const parent = hatchet.task({
   name: 'parent',
   fn: async (input: ParentInput, ctx) => {
-    const c = await ctx.runChild(child, {
+    const c = await child.run({
       Message: input.Message,
     });
 
