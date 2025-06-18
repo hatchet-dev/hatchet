@@ -202,7 +202,7 @@ WHERE
                         SELECT
                             t3."parentId"
                         FROM
-                            "public"."WorkflowTriggerEventRef" AS t3
+                            "WorkflowTriggerEventRef" AS t3
                         WHERE
                             t3."eventKey" = $2::text
                             AND t3."parentId" IS NOT NULL
@@ -1936,7 +1936,7 @@ WHERE
                         SELECT
                             t3."parentId"
                         FROM
-                            "public"."WorkflowTriggerEventRef" AS t3
+                            "WorkflowTriggerEventRef" AS t3
                         WHERE
                             t3."eventKey" = $2::text
                             AND t3."parentId" IS NOT NULL
