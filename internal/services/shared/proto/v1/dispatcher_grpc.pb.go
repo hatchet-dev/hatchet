@@ -24,6 +24,7 @@ const _ = grpc.SupportPackageIsVersion7
 type V1DispatcherClient interface {
 	RegisterDurableEvent(ctx context.Context, in *RegisterDurableEventRequest, opts ...grpc.CallOption) (*RegisterDurableEventResponse, error)
 	ListenForDurableEvent(ctx context.Context, opts ...grpc.CallOption) (V1Dispatcher_ListenForDurableEventClient, error)
+	SubscribeToStreamEvents(ctx context.Context, opts ...grpc.CallOption) (V1Dispatcher_SubscribeToStreamEventsClient, error)
 }
 
 type v1DispatcherClient struct {
@@ -74,12 +75,44 @@ func (x *v1DispatcherListenForDurableEventClient) Recv() (*DurableEvent, error) 
 	return m, nil
 }
 
+func (c *v1DispatcherClient) SubscribeToStreamEvents(ctx context.Context, opts ...grpc.CallOption) (V1Dispatcher_SubscribeToStreamEventsClient, error) {
+	stream, err := c.cc.NewStream(ctx, &V1Dispatcher_ServiceDesc.Streams[1], "/v1.V1Dispatcher/SubscribeToStreamEvents", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &v1DispatcherSubscribeToStreamEventsClient{stream}
+	return x, nil
+}
+
+type V1Dispatcher_SubscribeToStreamEventsClient interface {
+	Send(*SubscribeToStreamEventsRequest) error
+	Recv() (*StreamEvent, error)
+	grpc.ClientStream
+}
+
+type v1DispatcherSubscribeToStreamEventsClient struct {
+	grpc.ClientStream
+}
+
+func (x *v1DispatcherSubscribeToStreamEventsClient) Send(m *SubscribeToStreamEventsRequest) error {
+	return x.ClientStream.SendMsg(m)
+}
+
+func (x *v1DispatcherSubscribeToStreamEventsClient) Recv() (*StreamEvent, error) {
+	m := new(StreamEvent)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
 // V1DispatcherServer is the server API for V1Dispatcher service.
 // All implementations must embed UnimplementedV1DispatcherServer
 // for forward compatibility
 type V1DispatcherServer interface {
 	RegisterDurableEvent(context.Context, *RegisterDurableEventRequest) (*RegisterDurableEventResponse, error)
 	ListenForDurableEvent(V1Dispatcher_ListenForDurableEventServer) error
+	SubscribeToStreamEvents(V1Dispatcher_SubscribeToStreamEventsServer) error
 	mustEmbedUnimplementedV1DispatcherServer()
 }
 
@@ -92,6 +125,9 @@ func (UnimplementedV1DispatcherServer) RegisterDurableEvent(context.Context, *Re
 }
 func (UnimplementedV1DispatcherServer) ListenForDurableEvent(V1Dispatcher_ListenForDurableEventServer) error {
 	return status.Errorf(codes.Unimplemented, "method ListenForDurableEvent not implemented")
+}
+func (UnimplementedV1DispatcherServer) SubscribeToStreamEvents(V1Dispatcher_SubscribeToStreamEventsServer) error {
+	return status.Errorf(codes.Unimplemented, "method SubscribeToStreamEvents not implemented")
 }
 func (UnimplementedV1DispatcherServer) mustEmbedUnimplementedV1DispatcherServer() {}
 
@@ -150,6 +186,32 @@ func (x *v1DispatcherListenForDurableEventServer) Recv() (*ListenForDurableEvent
 	return m, nil
 }
 
+func _V1Dispatcher_SubscribeToStreamEvents_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(V1DispatcherServer).SubscribeToStreamEvents(&v1DispatcherSubscribeToStreamEventsServer{stream})
+}
+
+type V1Dispatcher_SubscribeToStreamEventsServer interface {
+	Send(*StreamEvent) error
+	Recv() (*SubscribeToStreamEventsRequest, error)
+	grpc.ServerStream
+}
+
+type v1DispatcherSubscribeToStreamEventsServer struct {
+	grpc.ServerStream
+}
+
+func (x *v1DispatcherSubscribeToStreamEventsServer) Send(m *StreamEvent) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+func (x *v1DispatcherSubscribeToStreamEventsServer) Recv() (*SubscribeToStreamEventsRequest, error) {
+	m := new(SubscribeToStreamEventsRequest)
+	if err := x.ServerStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
 // V1Dispatcher_ServiceDesc is the grpc.ServiceDesc for V1Dispatcher service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -166,6 +228,12 @@ var V1Dispatcher_ServiceDesc = grpc.ServiceDesc{
 		{
 			StreamName:    "ListenForDurableEvent",
 			Handler:       _V1Dispatcher_ListenForDurableEvent_Handler,
+			ServerStreams: true,
+			ClientStreams: true,
+		},
+		{
+			StreamName:    "SubscribeToStreamEvents",
+			Handler:       _V1Dispatcher_SubscribeToStreamEvents_Handler,
 			ServerStreams: true,
 			ClientStreams: true,
 		},
