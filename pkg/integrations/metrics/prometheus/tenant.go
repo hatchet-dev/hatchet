@@ -28,7 +28,7 @@ func WithTenant(tenantId string) *TenantMetrics {
 		workflowCompleted := prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name: string(TenantWorkflowCompleted),
 			Help: "The total number of workflows completed",
-		}, []string{"tenant_id", "workflow_name", "worker_name", "status"})
+		}, []string{"tenant_id", "workflow_id", "worker_id", "status"})
 
 		registry.MustRegister(workflowCompleted)
 
