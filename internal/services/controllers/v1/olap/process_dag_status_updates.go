@@ -2,7 +2,6 @@ package olap
 
 import (
 	"context"
-	"fmt"
 
 	msgqueue "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
@@ -59,9 +58,6 @@ func (o *OLAPControllerImpl) updateDAGStatuses(ctx context.Context, tenantId str
 
 		// instrumentation
 		if row.ReadableStatus == sqlcv1.V1ReadableStatusOlapCOMPLETED || row.ReadableStatus == sqlcv1.V1ReadableStatusOlapFAILED || row.ReadableStatus == sqlcv1.V1ReadableStatusOlapCANCELLED {
-			fmt.Println("updateDAGStatuses", tenantId)
-			fmt.Printf("%+v\n", row)
-
 			prometheus.TenantFinishedWorkflows.WithLabelValues(tenantId, "", "", string(row.ReadableStatus), "").Inc()
 		}
 	}
