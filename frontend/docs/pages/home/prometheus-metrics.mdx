@@ -23,6 +23,7 @@ Authorization: Bearer <API_TOKEN>
 ### Response Format
 
 The response is returned in standard Prometheus Text Format, including:
+
 - HELP comments describing each metric
 - TYPE declarations (counter, gauge, etc.)
 - Metric samples with labels and values
@@ -51,13 +52,13 @@ This endpoint can be used to configure Prometheus to scrape tenant-specific metr
 
 ```yaml
 scrape_configs:
-  - job_name: 'hatchet-tenant-metrics'
+  - job_name: "hatchet-tenant-metrics"
     static_configs:
-      - targets: ['cloud.onhatchet.run']
-    metrics_path: '/api/v1/tenants/707d0855-80ab-4e1f-a156-f1c4546cbf52/prometheus-metrics'
-    scheme: 'https'
+      - targets: ["cloud.onhatchet.run"]
+    metrics_path: "/api/v1/tenants/707d0855-80ab-4e1f-a156-f1c4546cbf52/prometheus-metrics"
+    scheme: "https"
     authorization:
-      credentials: 'your-api-token-here'
+      credentials: "your-api-token-here"
 ```
 
 **Note:** Replace `cloud.onhatchet.run` with the URL where your Hatchet instance is hosted.
