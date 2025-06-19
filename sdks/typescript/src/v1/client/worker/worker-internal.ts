@@ -355,7 +355,11 @@ export class V1Worker {
       throw new HatchetError(`Could not register workflow: ${e.message}`);
     }
 
-    this.registerActionsV1(workflow);
+    if (!durable) {
+      this.registerActionsV1(workflow);
+    } else {
+      this.registerDurableActionsV1(workflow);
+    }
   }
 
   async registerWorkflow(initWorkflow: Workflow) {

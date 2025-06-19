@@ -106,7 +106,6 @@ export class Worker {
             this.durable = new V1Worker(this._v1, opts);
             await this.durable.registerWorkflowV1(wf, true);
           }
-          this.durable.registerDurableActionsV1(wf.definition);
         }
       } else {
         // fallback to v0 client for backwards compatibility
