@@ -89,5 +89,5 @@ var (
 	TenantFinishedWorkflows = promauto.NewCounterVec(prometheus.CounterOpts{
 		Name: string(TenantFinishedWorkflowsTotal),
 		Help: "The total number of finished workflow runs",
-	}, []string{"tenant_id", "workflow_run_id", "workflow_name", "status", "duration"})
+	}, []string{"tenant_id", "workflow_name", "status", "duration"})
 )

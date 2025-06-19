@@ -88,7 +88,7 @@ func convertVectorToMetricFamilies(vector model.Vector) []*dto.MetricFamily {
 		labels := make([]*dto.LabelPair, 0, len(sample.Metric))
 		for name, value := range sample.Metric {
 			labelName := string(name)
-			if name != model.MetricNameLabel && labelName != "instance" && labelName != "job" {
+			if name != model.MetricNameLabel && labelName != "instance" && labelName != "job" { // TODO(mnafees): should depend on the labels in the metric definition
 				labelValue := string(value)
 				labels = append(labels, &dto.LabelPair{
 					Name:  &labelName,
@@ -118,6 +118,7 @@ func convertVectorToMetricFamilies(vector model.Vector) []*dto.MetricFamily {
 	return result
 }
 
+// TODO(mnafees): this is a temporary solution to generate help text for the metrics, should depend on the metric definition
 func generateHelpText(metricName string) string {
 	// Map common metric names to their help text
 	helpTexts := map[string]string{

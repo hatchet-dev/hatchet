@@ -10,6 +10,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 func (o *OLAPControllerImpl) runTenantTaskStatusUpdates(ctx context.Context) func() {
@@ -60,7 +61,18 @@ func (o *OLAPControllerImpl) updateTaskStatuses(ctx context.Context, tenantId st
 		if !hasDAG {
 			// instrumentation
 			if row.ReadableStatus == sqlcv1.V1ReadableStatusOlapCOMPLETED || row.ReadableStatus == sqlcv1.V1ReadableStatusOlapFAILED || row.ReadableStatus == sqlcv1.V1ReadableStatusOlapCANCELLED {
-				prometheus.TenantFinishedWorkflows.WithLabelValues(tenantId, "", "", string(row.ReadableStatus), "").Inc()
+				workflowRun, err := o.repo.OLAP().ListWorkflowRunDisplayNames(ctx, sqlchelpers.UUIDFromStr(tenantId), []pgtype.UUID{row.ExternalId})
+				if err != nil {
+					return false, err
+				}
+
+				if len(workflowRun) == 0 {
+					continue
+				}
+
+				name := workflowRun[0].DisplayName
+
+				prometheus.TenantFinishedWorkflows.WithLabelValues(tenantId, name, string(row.ReadableStatus), "").Inc()
 			}
 		}
 	}
