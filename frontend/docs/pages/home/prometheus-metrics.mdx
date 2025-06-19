@@ -1,0 +1,69 @@
+import { Callout } from "nextra/components";
+import snips from "@/lib/snips";
+import { Snippet } from "@/components/code";
+
+# Prometheus Metrics
+
+Hatchet exports Prometheus Metrics for your tenant which can be scraped with services like Grafana and DataDog.
+
+## Tenant-Specific Prometheus Metrics
+
+Metrics for individual tenants are available in Prometheus Text Format via the REST API endpoint.
+
+### Endpoint
+
+```
+GET /api/v1/tenants/{tenantId}/prometheus-metrics
+```
+
+### Authentication
+
+The endpoint requires Bearer token authentication using a valid API token:
+
+```
+Authorization: Bearer <API_TOKEN>
+```
+
+### Response Format
+
+The response is returned in standard Prometheus Text Format, including:
+- HELP comments describing each metric
+- TYPE declarations (counter, gauge, etc.)
+- Metric samples with labels and values
+
+### Example Usage
+
+```bash
+curl -H "Authorization: Bearer your-api-token-here" \
+  https://cloud.onhatchet.run/api/v1/tenants/707d0855-80ab-4e1f-a156-f1c4546cbf52/prometheus-metrics
+```
+
+**Note:** Replace `cloud.onhatchet.run` with the URL where your Hatchet instance is hosted.
+
+### Example Response
+
+```
+# HELP hatchet_workflow_completed Finished workflow runs
+# TYPE hatchet_workflow_completed counter
+hatchet_workflow_completed{tenant_id="707d0855-80ab-4e1f-a156-f1c4546cbf52",workflow_name="my-workflow",status="COMPLETED",duration="2"} 5
+hatchet_workflow_completed{tenant_id="707d0855-80ab-4e1f-a156-f1c4546cbf52",workflow_name="my-workflow",status="FAILED",duration="5"} 1
+```
+
+### Integration with Prometheus
+
+This endpoint can be used to configure Prometheus to scrape tenant-specific metrics:
+
+```yaml
+scrape_configs:
+  - job_name: 'hatchet-tenant-metrics'
+    static_configs:
+      - targets: ['cloud.onhatchet.run']
+    metrics_path: '/api/v1/tenants/707d0855-80ab-4e1f-a156-f1c4546cbf52/prometheus-metrics'
+    scheme: 'https'
+    authorization:
+      credentials: 'your-api-token-here'
+```
+
+**Note:** Replace `cloud.onhatchet.run` with the URL where your Hatchet instance is hosted.
+
+This provides tenant-isolated metrics that can be scraped directly by Prometheus or consumed by other monitoring tools that support the Prometheus text format.
