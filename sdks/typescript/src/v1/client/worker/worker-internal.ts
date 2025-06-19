@@ -149,8 +149,12 @@ export class V1Worker {
 
   registerDurableActionsV1(workflow: WorkflowDefinition) {
     const newActions = workflow._durableTasks.reduce<ActionRegistry>((acc, task) => {
-      acc[`${workflow.name}:${task.name.toLowerCase()}`] = (ctx: Context<any, any>) =>
-        task.fn(ctx.input, ctx as DurableContext<any, any>);
+      acc[
+        `${applyNamespace(
+          workflow.name,
+          this.client.config.namespace
+        ).toLowerCase()}:${task.name.toLowerCase()}`
+      ] = (ctx: Context<any, any>) => task.fn(ctx.input, ctx as DurableContext<any, any>);
       return acc;
     }, {});
 
