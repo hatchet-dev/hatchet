@@ -8,6 +8,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/labstack/echo/v4"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+
 	"github.com/hatchet-dev/hatchet/internal/services/admin"
 	adminv1 "github.com/hatchet-dev/hatchet/internal/services/admin/v1"
 	"github.com/hatchet-dev/hatchet/internal/services/controllers/events"
@@ -30,12 +33,11 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/config/loader"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
 	"github.com/hatchet-dev/hatchet/pkg/config/shared"
+	"github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
 	"github.com/rs/zerolog"
 
 	"golang.org/x/sync/errgroup"
-
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 type Teardown struct {
@@ -1104,16 +1106,34 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 }
 
 func startPrometheus(l *zerolog.Logger, c shared.PrometheusConfigFile) Teardown {
-	mux := http.NewServeMux()
-	mux.Handle(c.Path, promhttp.Handler())
+	e := echo.New()
+	e.HideBanner = true
+	e.HidePort = true
 
-	srv := &http.Server{
-		Addr:    c.Address,
-		Handler: mux,
-	}
+	// Standard Prometheus metrics endpoint
+	e.GET(c.Path, echo.WrapHandler(promhttp.Handler()))
+
+	// Add tenant-specific metrics endpoint
+	e.GET(c.Path+"/:tenantId", func(ctx echo.Context) error {
+		tenantId := ctx.Param("tenantId")
+		if tenantId == "" {
+			return echo.NewHTTPError(http.StatusBadRequest, "Tenant ID required")
+		}
+
+		// Get tenant-specific Prometheus registry
+		tenantMetric := prometheus.WithTenant(tenantId)
+
+		// Create a handler for this specific registry
+		handler := promhttp.HandlerFor(tenantMetric.Registry, promhttp.HandlerOpts{})
+
+		// Serve the metrics
+		handler.ServeHTTP(ctx.Response(), ctx.Request())
+
+		return nil
+	})
 
 	go func() {
-		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		if err := e.Start(c.Address); err != nil && err != http.ErrServerClosed {
 			l.Error().Err(err).Msg("failed to start prometheus server")
 		}
 	}()
@@ -1126,7 +1146,7 @@ func startPrometheus(l *zerolog.Logger, c shared.PrometheusConfigFile) Teardown 
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 
-			if err := srv.Shutdown(ctx); err != nil {
+			if err := e.Shutdown(ctx); err != nil {
 				return fmt.Errorf("failed to shutdown prometheus server: %w", err)
 			}
 

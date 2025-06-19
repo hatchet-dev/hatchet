@@ -707,3 +707,47 @@ getStepRunQueueMetrics:
     summary: Get step run metrics
     tags:
       - Tenant
+
+getPrometheusMetrics:
+  get:
+    x-resources: ["tenant"]
+    description: Get the prometheus metrics for the tenant
+    operationId: tenant:get:prometheus-metrics
+    parameters:
+      - description: The tenant id
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    responses:
+      "200":
+        content:
+          text/plain:
+            schema:
+              type: string
+        description: Successfully retrieved the prometheus metrics
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+      "404":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Not found
+    summary: Get prometheus metrics
+    tags:
+      - Tenant
