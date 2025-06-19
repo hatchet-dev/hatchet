@@ -13,7 +13,7 @@ _Since you're here, you might be interested in checking out [Hatchet](https://ha
   <h5 className="text-xl font-bold tracking-tight text-foreground">
     Matt Kaye
   </h5>
-  <p className="font-light text-foreground">Published on May 27th, 2025</p>
+  <p className="font-light text-foreground">Published on June 20th, 2025</p>
 </div>
 
 [FastAPI](https://fastapi.tiangolo.com/), Python's new favorite web framework, offers a lightweight, easy-to-use [background tasks](https://fastapi.tiangolo.com/tutorial/background-tasks/) feature for triggering async tasks that can run later without blocking an incoming request from completing. Of course, this is a killer feature: Eventually, every app needs a way to run background tasks.
@@ -73,7 +73,7 @@ class WelcomeEmailInput(BaseModel):
 @hatchet.task(input_validator=WelcomeEmailInput)
 async def send_welcome_email_task(input: WelcomeEmailInput, _ctx: Context) -> None:
     async with Session() as db:
-        user = await get_user(db, user_id)
+        user = await get_user(db, input.user_id)
 
         await send_welcome_email(user.email)
 
