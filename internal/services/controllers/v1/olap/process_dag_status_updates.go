@@ -70,7 +70,8 @@ func (o *OLAPControllerImpl) updateDAGStatuses(ctx context.Context, tenantId str
 
 			name := workflowRun[0].DisplayName
 
-			prometheus.TenantFinishedWorkflows.WithLabelValues(tenantId, name, string(row.ReadableStatus), "").Inc()
+			tenantMetric := prometheus.WithTenant(tenantId)
+			tenantMetric.WorkflowCompleted.WithLabelValues(tenantId, name, string(row.ReadableStatus), "").Inc()
 		}
 	}
 

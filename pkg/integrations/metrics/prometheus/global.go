@@ -20,8 +20,6 @@ const (
 	RateLimitedTotal            GlobalHatchetMetric = "hatchet_rate_limited_total"
 	QueuedToAssignedTotal       GlobalHatchetMetric = "hatchet_queued_to_assigned_total"
 	QueuedToAssignedTimeSeconds GlobalHatchetMetric = "hatchet_queued_to_assigned_seconds"
-
-	TenantFinishedWorkflowsTotal GlobalHatchetMetric = "tenant_finished_workflows_total"
 )
 
 var (
@@ -85,9 +83,4 @@ var (
 		Help:    "Buckets of time in seconds spent in the queue before being assigned to a worker",
 		Buckets: []float64{0.01, 0.02, 0.05, 0.1, 0.5, 1, 2, 5, 15},
 	})
-
-	TenantFinishedWorkflows = promauto.NewCounterVec(prometheus.CounterOpts{
-		Name: string(TenantFinishedWorkflowsTotal),
-		Help: "The total number of finished workflow runs",
-	}, []string{"tenant_id", "workflow_name", "status", "duration"})
 )
