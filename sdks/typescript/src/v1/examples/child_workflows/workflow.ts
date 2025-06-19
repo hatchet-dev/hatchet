@@ -29,7 +29,7 @@ export const parent = hatchet.task({
     const promises = [];
 
     for (let i = 0; i < n; i++) {
-      promises.push(ctx.runChild(child, { N: i }));
+      promises.push(child.run({ N: i }));
     }
 
     const childRes = await Promise.all(promises);

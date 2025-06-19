@@ -54,7 +54,7 @@ export const parent = hatchet.task({
 
     // Spawn multiple child tasks in parallel
     for (let i = 0; i < n; i++) {
-      promises.push(ctx.runChild(child, { N: i }));
+      promises.push(child.run({ N: i }));
     }
 
     // Wait for all child tasks to complete
@@ -221,7 +221,7 @@ child_result = child_task.run(child_input)
 
 ```typescript
 // Inside a parent task
-const childResult = await ctx.runChild(childTask, childInput);
+const childResult = await childTask.run(childInput);
 ```
 
 </Tabs.Tab>
@@ -267,7 +267,7 @@ child_results = await run_child_workflows(input.n)
 // Run multiple child tasks in parallel
 const promises = [];
 for (let i = 0; i < n; i++) {
-  promises.push(ctx.runChild(child, { N: i }));
+  promises.push(child.run({ N: i }));
 }
 const childResults = await Promise.all(promises);
 ```
@@ -331,7 +331,7 @@ except Exception as e:
 
 ```typescript
 try {
-  const childResult = await ctx.runChild(child, { N: i });
+  const childResult = await child.run({ N: i });
 } catch (error) {
   // Handle error from child workflow
   console.error(`Child workflow failed: ${error}`);
