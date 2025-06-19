@@ -161,8 +161,8 @@ tasks:
       - sh ./generate.sh
   generate-sqlc:
     cmds:
-      - go run github.com/sqlc-dev/sqlc/cmd/sqlc@v1.24.0 generate --file pkg/repository/postgres/dbsqlc/sqlc.yaml
-      - go run github.com/sqlc-dev/sqlc/cmd/sqlc@v1.24.0 generate --file pkg/repository/v1/sqlcv1/sqlc.yaml
+      - go run github.com/sqlc-dev/sqlc/cmd/sqlc@v1.29.0 generate --file pkg/repository/postgres/dbsqlc/sqlc.yaml
+      - go run github.com/sqlc-dev/sqlc/cmd/sqlc@v1.29.0 generate --file pkg/repository/v1/sqlcv1/sqlc.yaml
   lint:
     cmds:
       - task: lint-go
