@@ -790,8 +790,6 @@ export class V1Worker {
       return;
     }
 
-    console.log('action_registry', this.action_registry);
-
     try {
       this.listener = await this.client._v0.dispatcher.getActionListener({
         workerName: this.name,
