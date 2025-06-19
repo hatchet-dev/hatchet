@@ -75,30 +75,30 @@ func (q *Queries) DeleteMatchingSignalEvents(ctx context.Context, db DBTX, arg D
 }
 
 const ensureTablePartitionsExist = `-- name: EnsureTablePartitionsExist :one
-    WITH tomorrow_date AS (
-        SELECT (NOW() + INTERVAL '1 day')::date AS date
-    ), expected_partitions AS (
-        SELECT 
-            'v1_task_' || to_char((SELECT date FROM tomorrow_date), 'YYYYMMDD') AS expected_partition_name
-        UNION ALL
-        SELECT 'v1_dag_' || to_char((SELECT date FROM tomorrow_date), 'YYYYMMDD')
-        UNION ALL
-        SELECT 'v1_task_event_' || to_char((SELECT date FROM tomorrow_date), 'YYYYMMDD')
-        UNION ALL
-        SELECT 'v1_log_line_' || to_char((SELECT date FROM tomorrow_date), 'YYYYMMDD')
-    ), partition_check AS (
-        SELECT 
-            COUNT(*) AS total_tables,
-            COUNT(pt.tablename) AS existing_partitions
-        FROM expected_partitions ep
-        LEFT JOIN pg_catalog.pg_tables pt ON pt.tablename = ep.expected_partition_name
-    )
+WITH tomorrow_date AS (
+    SELECT (NOW() + INTERVAL '1 day')::date AS date
+), expected_partitions AS (
     SELECT 
-        CASE 
-            WHEN existing_partitions = total_tables THEN TRUE
-            ELSE FALSE
-        END AS all_partitions_exist
-    FROM partition_check
+        'v1_task_' || to_char((SELECT date FROM tomorrow_date), 'YYYYMMDD') AS expected_partition_name
+    UNION ALL
+    SELECT 'v1_dag_' || to_char((SELECT date FROM tomorrow_date), 'YYYYMMDD')
+    UNION ALL
+    SELECT 'v1_task_event_' || to_char((SELECT date FROM tomorrow_date), 'YYYYMMDD')
+    UNION ALL
+    SELECT 'v1_log_line_' || to_char((SELECT date FROM tomorrow_date), 'YYYYMMDD')
+), partition_check AS (
+    SELECT 
+        COUNT(*) AS total_tables,
+        COUNT(pt.tablename) AS existing_partitions
+    FROM expected_partitions ep
+    LEFT JOIN pg_catalog.pg_tables pt ON pt.tablename = ep.expected_partition_name
+)
+SELECT 
+    CASE 
+        WHEN existing_partitions = total_tables THEN TRUE
+        ELSE FALSE
+    END AS all_partitions_exist
+FROM partition_check
 `
 
 func (q *Queries) EnsureTablePartitionsExist(ctx context.Context, db DBTX) (bool, error) {
