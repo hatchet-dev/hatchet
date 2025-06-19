@@ -22,7 +22,6 @@ _Since you're here, you might be interested in checking out [Hatchet](https://ha
 
 Under the hood, FastAPI background tasks just [wrap](https://github.com/fastapi/fastapi/blob/master/fastapi/background.py#L38-L59) the [Starlette implementation](https://github.com/encode/starlette/blob/739ea4928b11d4b4cb2b366ccad11405ef3034c4/starlette/background.py#L18-L42), which simply [awaits the background task after sending the response to the client](https://github.com/encode/starlette/blob/739ea4928b11d4b4cb2b366ccad11405ef3034c4/starlette/responses.py#L167-L168).
 
-
 This is a handy trick. First, we send the response, and then we run the background task in a non-blocking way afterwards. As FastAPI advertises, this lets you do things like sending emails, processing data, etc. that the client does not need to wait for.
 
 ### Scaling Up
