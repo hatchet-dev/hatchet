@@ -149,8 +149,12 @@ export class V1Worker {
 
   registerDurableActionsV1(workflow: WorkflowDefinition) {
     const newActions = workflow._durableTasks.reduce<ActionRegistry>((acc, task) => {
-      acc[`${workflow.name}:${task.name.toLowerCase()}`] = (ctx: Context<any, any>) =>
-        task.fn(ctx.input, ctx as DurableContext<any, any>);
+      acc[
+        `${applyNamespace(
+          workflow.name,
+          this.client.config.namespace
+        ).toLowerCase()}:${task.name.toLowerCase()}`
+      ] = (ctx: Context<any, any>) => task.fn(ctx.input, ctx as DurableContext<any, any>);
       return acc;
     }, {});
 
@@ -355,11 +359,7 @@ export class V1Worker {
       throw new HatchetError(`Could not register workflow: ${e.message}`);
     }
 
-    if (!durable) {
-      this.registerActionsV1(workflow);
-    } else {
-      this.registerDurableActionsV1(workflow);
-    }
+    this.registerActionsV1(workflow);
   }
 
   async registerWorkflow(initWorkflow: Workflow) {
