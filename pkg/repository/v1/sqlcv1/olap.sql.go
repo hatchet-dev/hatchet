@@ -548,6 +548,50 @@ func (q *Queries) GetWorkflowRunIdFromDagIdInsertedAt(ctx context.Context, db DB
 	return external_id, err
 }
 
+const getWorkflowStatsByExternalId = `-- name: GetWorkflowStatsByExternalId :one
+SELECT
+    w.id AS workflow_id,
+    w.name AS workflow_name,
+    wr.duration AS duration,
+    ARRAY_REMOVE(ARRAY_AGG(DISTINCT t2.latest_worker_id), NULL) AS worker_ids
+FROM v1_lookup_table_olap lt
+LEFT JOIN v1_dags_olap d ON (lt.dag_id, lt.inserted_at) = (d.id, d.inserted_at)
+LEFT JOIN v1_tasks_olap t ON (lt.task_id, lt.inserted_at) = (t.id, t.inserted_at)
+LEFT JOIN v1_dag_to_task_olap dt ON d.id = dt.dag_id AND d.inserted_at = dt.dag_inserted_at
+LEFT JOIN v1_tasks_olap t2 ON dt.task_id = t2.id OR t.id = t2.id
+LEFT JOIN "WorkflowRun" wr ON t2.workflow_run_id = wr.id
+LEFT JOIN "Workflow" w ON d.workflow_id = w.id OR t.workflow_id = w.id
+WHERE
+    lt.external_id = $1::uuid
+    AND lt.tenant_id = $2::uuid
+GROUP BY
+    w.id, w.name, wr.duration
+`
+
+type GetWorkflowStatsByExternalIdParams struct {
+	Externalid pgtype.UUID `json:"externalid"`
+	Tenantid   pgtype.UUID `json:"tenantid"`
+}
+
+type GetWorkflowStatsByExternalIdRow struct {
+	WorkflowID   pgtype.UUID `json:"workflow_id"`
+	WorkflowName pgtype.Text `json:"workflow_name"`
+	Duration     pgtype.Int8 `json:"duration"`
+	WorkerIds    interface{} `json:"worker_ids"`
+}
+
+func (q *Queries) GetWorkflowStatsByExternalId(ctx context.Context, db DBTX, arg GetWorkflowStatsByExternalIdParams) (*GetWorkflowStatsByExternalIdRow, error) {
+	row := db.QueryRow(ctx, getWorkflowStatsByExternalId, arg.Externalid, arg.Tenantid)
+	var i GetWorkflowStatsByExternalIdRow
+	err := row.Scan(
+		&i.WorkflowID,
+		&i.WorkflowName,
+		&i.Duration,
+		&i.WorkerIds,
+	)
+	return &i, err
+}
+
 const listEventKeys = `-- name: ListEventKeys :many
 SELECT DISTINCT key
 FROM
@@ -2009,7 +2053,7 @@ WITH runs AS (
         e.tenant_id, e.id, e.inserted_at, e.task_id, e.task_inserted_at, e.event_type, e.workflow_id, e.event_timestamp, e.readable_status, e.retry_count, e.error_message, e.output, e.worker_id, e.additional__event_data, e.additional__event_message
     FROM runs r
     JOIN v1_dag_to_task_olap dt ON r.dag_id = dt.dag_id AND r.inserted_at = dt.dag_inserted_at
-    JOIN v1_task_events_olap e ON e.task_id = dt.task_id AND e.task_inserted_at = dt.task_inserted_at
+    JOIN v1_task_events_olap e ON (e.task_id, e.task_inserted_at) = (dt.task_id, dt.task_inserted_at)
     WHERE r.dag_id IS NOT NULL
 
     UNION ALL

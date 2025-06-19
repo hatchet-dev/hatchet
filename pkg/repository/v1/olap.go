@@ -221,6 +221,8 @@ type OLAPRepository interface {
 	// In the case of a DAG, we flatten the result into the list of tasks which belong to that DAG.
 	ListTasksByExternalIds(ctx context.Context, tenantId string, externalIds []string) ([]*sqlcv1.FlattenTasksByExternalIdsRow, error)
 
+	GetWorkflowStatsByExternalId(ctx context.Context, tenantId string, externalId pgtype.UUID) (*sqlcv1.GetWorkflowStatsByExternalIdRow, error)
+
 	GetTaskTimings(ctx context.Context, tenantId string, workflowRunId pgtype.UUID, depth int32) ([]*sqlcv1.PopulateTaskRunDataRow, map[string]int32, error)
 	BulkCreateEventsAndTriggers(ctx context.Context, events sqlcv1.BulkCreateEventsParams, triggers []EventTriggersFromExternalId) error
 	ListEvents(ctx context.Context, opts sqlcv1.ListEventsParams) ([]*sqlcv1.ListEventsRow, *int64, error)
@@ -1368,6 +1370,13 @@ func (r *OLAPRepositoryImpl) ListTasksByExternalIds(ctx context.Context, tenantI
 	return r.queries.FlattenTasksByExternalIds(ctx, r.readPool, sqlcv1.FlattenTasksByExternalIdsParams{
 		Tenantid:    sqlchelpers.UUIDFromStr(tenantId),
 		Externalids: externalUUIDs,
+	})
+}
+
+func (r *OLAPRepositoryImpl) GetWorkflowStatsByExternalId(ctx context.Context, tenantId string, externalId pgtype.UUID) (*sqlcv1.GetWorkflowStatsByExternalIdRow, error) {
+	return r.queries.GetWorkflowStatsByExternalId(ctx, r.readPool, sqlcv1.GetWorkflowStatsByExternalIdParams{
+		Tenantid:   sqlchelpers.UUIDFromStr(tenantId),
+		Externalid: externalId,
 	})
 }
 

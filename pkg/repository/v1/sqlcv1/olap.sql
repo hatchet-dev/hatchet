@@ -1155,7 +1155,7 @@ WITH runs AS (
         e.*
     FROM runs r
     JOIN v1_dag_to_task_olap dt ON r.dag_id = dt.dag_id AND r.inserted_at = dt.dag_inserted_at
-    JOIN v1_task_events_olap e ON e.task_id = dt.task_id AND e.task_inserted_at = dt.task_inserted_at
+    JOIN v1_task_events_olap e ON (e.task_id, e.task_inserted_at) = (dt.task_id, dt.task_inserted_at)
     WHERE r.dag_id IS NOT NULL
 
     UNION ALL
@@ -1269,6 +1269,24 @@ WHERE
     lt.external_id = ANY(@externalIds::uuid[])
     AND lt.tenant_id = @tenantId::uuid
 LIMIT 10000
+;
+
+-- name: GetWorkflowByExternalId :one
+SELECT DISTINCT
+    w.name AS workflow_name,
+    w.id AS workflow_id,
+    CASE
+        WHEN dt IS NOT NULL THEN TRUE
+        ELSE FALSE
+    END AS is_dag
+FROM v1_lookup_table_olap lt
+LEFT JOIN v1_dags_olap d ON (lt.dag_id, lt.inserted_at) = (d.id, d.inserted_at)
+LEFT JOIN v1_tasks_olap t ON (lt.task_id, lt.inserted_at) = (t.id, t.inserted_at)
+LEFT JOIN v1_dag_to_task_olap dt ON d.id = dt.dag_id AND d.inserted_at = dt.dag_inserted_at
+LEFT JOIN "Workflow" w ON d.workflow_id = w.id OR t.workflow_id = w.id
+WHERE
+    lt.external_id = @externalId::uuid
+    AND lt.tenant_id = @tenantId::uuid
 ;
 
 -- name: GetRunsListRecursive :many

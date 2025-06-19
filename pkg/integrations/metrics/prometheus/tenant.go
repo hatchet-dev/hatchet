@@ -14,8 +14,7 @@ const (
 )
 
 type TenantMetric struct {
-	Registry *prometheus.Registry
-
+	Registry          *prometheus.Registry
 	WorkflowCompleted *prometheus.CounterVec
 }
 
@@ -29,7 +28,7 @@ func WithTenant(tenantId string) *TenantMetric {
 		workflowCompleted := promauto.NewCounterVec(prometheus.CounterOpts{
 			Name: string(TenantWorkflowCompleted),
 			Help: "Finished workflow runs",
-		}, []string{"tenant_id", "workflow_name", "status", "duration"})
+		}, []string{"tenant_id", "workflow_name", "status", "duration", "worker_id"})
 
 		registry.MustRegister(workflowCompleted)
 

@@ -2,6 +2,7 @@ package olap
 
 import (
 	"context"
+	"errors"
 
 	msgqueue "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
@@ -10,7 +11,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
-	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5"
 )
 
 func (o *OLAPControllerImpl) runTenantDAGStatusUpdates(ctx context.Context) func() {
@@ -59,19 +60,17 @@ func (o *OLAPControllerImpl) updateDAGStatuses(ctx context.Context, tenantId str
 
 		// instrumentation
 		if row.ReadableStatus == sqlcv1.V1ReadableStatusOlapCOMPLETED || row.ReadableStatus == sqlcv1.V1ReadableStatusOlapFAILED || row.ReadableStatus == sqlcv1.V1ReadableStatusOlapCANCELLED {
-			workflowRun, err := o.repo.OLAP().ListWorkflowRunDisplayNames(ctx, sqlchelpers.UUIDFromStr(tenantId), []pgtype.UUID{row.ExternalId})
+			workflow, err := o.repo.OLAP().GetWorkflowByExternalId(ctx, tenantId, row.ExternalId)
 			if err != nil {
+				if errors.Is(err, pgx.ErrNoRows) {
+					continue
+				}
+
 				return false, err
 			}
 
-			if len(workflowRun) == 0 {
-				continue
-			}
-
-			name := workflowRun[0].DisplayName
-
 			tenantMetric := prometheus.WithTenant(tenantId)
-			tenantMetric.WorkflowCompleted.WithLabelValues(tenantId, name, string(row.ReadableStatus), "").Inc()
+			tenantMetric.WorkflowCompleted.WithLabelValues(tenantId, workflow.Name.String, string(row.ReadableStatus), "").Inc()
 		}
 	}
 
