@@ -1,4 +1,7 @@
 export default {
+  "background-tasks-fastapi-hatchet": {
+    title: "Background Tasks: From FastAPI to Hatchet",
+  },
   "go-agents": {
     title: "Why Go is a good fit for agents",
   },
