@@ -335,18 +335,23 @@ func (t *MessageQueueImpl) RegisterTenant(ctx context.Context, tenantId string) 
 
 	exchangeName := msgqueue.GetTenantExchangeName(tenantId)
 	holdingQueueName := getTaskStreamHoldingQueueName(tenantId)
+	alternateExchangeName := getAlternateExchangeName(tenantId)
 
-	holdingArgs := make(amqp.Table)
-	holdingArgs["x-message-ttl"] = t.deadLetterBackoff.Milliseconds()
-	holdingArgs["x-dead-letter-exchange"] = exchangeName // route back to original fanout
-	holdingArgs["x-dead-letter-routing-key"] = ""
+	err = sub.ExchangeDeclare(
+		exchangeName,
+		"fanout",
+		true,  // durable
+		false, // auto-deleted
+		false, // not internal
+		false, // no-wait
+		nil,   // arguments
+	)
 
-	if _, err := sub.QueueDeclare(holdingQueueName, true, false, false, false, holdingArgs); err != nil {
-		t.l.Error().Msgf("cannot declare holding queue: %s, %s", holdingQueueName, err.Error())
+	if err != nil {
+		t.l.Error().Msgf("cannot declare main exchange: %q, %v", exchangeName, err)
 		return err
 	}
 
-	alternateExchangeName := getAlternateExchangeName(tenantId)
 	err = sub.ExchangeDeclare(
 		alternateExchangeName,
 		"direct",
@@ -361,6 +366,16 @@ func (t *MessageQueueImpl) RegisterTenant(ctx context.Context, tenantId string) 
 		return err
 	}
 
+	holdingArgs := make(amqp.Table)
+	holdingArgs["x-message-ttl"] = int64(500)
+	holdingArgs["x-dead-letter-exchange"] = exchangeName // route back to original fanout
+	holdingArgs["x-dead-letter-routing-key"] = ""
+
+	if _, err := sub.QueueDeclare(holdingQueueName, true, false, false, false, holdingArgs); err != nil {
+		t.l.Error().Msgf("cannot declare holding queue: %s, %s", holdingQueueName, err.Error())
+		return err
+	}
+
 	err = sub.QueueBind(
 		holdingQueueName,      // queue name
 		"",                    // routing key (empty for catch-all)
@@ -370,24 +385,6 @@ func (t *MessageQueueImpl) RegisterTenant(ctx context.Context, tenantId string) 
 	)
 	if err != nil {
 		t.l.Error().Msgf("cannot bind holding queue to alternate exchange: %v", err)
-		return err
-	}
-
-	exchangeArgs := make(amqp.Table)
-	exchangeArgs["alternate-exchange"] = alternateExchangeName
-
-	err = sub.ExchangeDeclare(
-		msgqueue.GetTenantExchangeName(tenantId),
-		"fanout",
-		true,         // durable
-		false,        // auto-deleted
-		false,        // not internal, accepts publishings
-		false,        // no-wait
-		exchangeArgs, // arguments
-	)
-
-	if err != nil {
-		t.l.Error().Msgf("cannot declare exchange: %q, %v", tenantId, err)
 		return err
 	}
 
@@ -732,9 +729,9 @@ func getProcDLQName(dlxName string) string {
 }
 
 func getTaskStreamHoldingQueueName(tenantId string) string {
-	return fmt.Sprintf("task-stream-event-holding-%s", tenantId)
+	return fmt.Sprintf("holding-queue-%s", tenantId)
 }
 
 func getAlternateExchangeName(tenantId string) string {
-	return fmt.Sprintf("alternate-%s", msgqueue.GetTenantExchangeName(tenantId))
+	return fmt.Sprintf("unroutable-exchange-%s", tenantId)
 }
