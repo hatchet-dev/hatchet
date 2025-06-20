@@ -6,6 +6,7 @@ from uuid import uuid4
 
 from pydantic import BaseModel, Field
 
+from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.contracts.v1.shared.condition_pb2 import Action as ProtoAction
 from hatchet_sdk.contracts.v1.shared.condition_pb2 import (
     BaseMatchCondition,
@@ -53,7 +54,7 @@ class Condition(ABC):
 
     @abstractmethod
     def to_proto(
-        self,
+        self, config: ClientConfig
     ) -> UserEventMatchCondition | ParentOverrideMatchCondition | SleepMatchCondition:
         pass
 
@@ -71,7 +72,7 @@ class SleepCondition(Condition):
 
         self.duration = duration
 
-    def to_proto(self) -> SleepMatchCondition:
+    def to_proto(self, config: ClientConfig) -> SleepMatchCondition:
         return SleepMatchCondition(
             base=self.base.to_proto(),
             sleep_for=timedelta_to_expr(self.duration),
@@ -95,10 +96,10 @@ class UserEventCondition(Condition):
         self.event_key = event_key
         self.expression = expression
 
-    def to_proto(self) -> UserEventMatchCondition:
+    def to_proto(self, config: ClientConfig) -> UserEventMatchCondition:
         return UserEventMatchCondition(
             base=self.base.to_proto(),
-            user_event_key=self.event_key,
+            user_event_key=config.apply_namespace(self.event_key),
         )
 
 
@@ -124,7 +125,7 @@ class ParentCondition(Condition):
 
         self.parent = parent
 
-    def to_proto(self) -> ParentOverrideMatchCondition:
+    def to_proto(self, config: ClientConfig) -> ParentOverrideMatchCondition:
         return ParentOverrideMatchCondition(
             base=self.base.to_proto(),
             parent_readable_id=self.parent.name,
