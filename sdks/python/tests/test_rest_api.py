@@ -44,11 +44,11 @@ async def test_list_workflows(hatchet: Hatchet) -> None:
 
     workflow = workflows.rows[0]
 
-    """Using endswith because of namespacing in CI"""
-    assert workflow.name.endswith(dag_workflow.config.name)
+    assert workflow.name == hatchet.config.apply_namespace(dag_workflow.config.name)
 
     fetched_workflow = await hatchet.workflows.aio_get(workflow.metadata.id)
 
-    """Using endswith because of namespacing in CI"""
-    assert fetched_workflow.name.endswith(dag_workflow.config.name)
+    assert fetched_workflow.name == hatchet.config.apply_namespace(
+        dag_workflow.config.name
+    )
     assert fetched_workflow.metadata.id == workflow.metadata.id
