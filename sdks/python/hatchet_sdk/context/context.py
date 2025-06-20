@@ -394,12 +394,6 @@ class DurableContext(Context):
 
         task_id = self.step_run_id
 
-        for condition in conditions:
-            if isinstance(condition, UserEventCondition):
-                condition.event_key = self.runs_client.client_config.apply_namespace(
-                    condition.event_key
-                )
-
         request = RegisterDurableEventRequest(
             task_id=task_id,
             signal_key=signal_key,
