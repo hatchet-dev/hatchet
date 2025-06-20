@@ -295,7 +295,7 @@ class SubscribeToWorkflowRunsRequest(_message.Message):
     def __init__(self, workflowRunId: _Optional[str] = ...) -> None: ...
 
 class WorkflowEvent(_message.Message):
-    __slots__ = ("workflowRunId", "resourceType", "eventType", "resourceId", "eventTimestamp", "eventPayload", "hangup", "stepRetries", "retryCount")
+    __slots__ = ("workflowRunId", "resourceType", "eventType", "resourceId", "eventTimestamp", "eventPayload", "hangup", "stepRetries", "retryCount", "eventIndex")
     WORKFLOWRUNID_FIELD_NUMBER: _ClassVar[int]
     RESOURCETYPE_FIELD_NUMBER: _ClassVar[int]
     EVENTTYPE_FIELD_NUMBER: _ClassVar[int]
@@ -305,6 +305,7 @@ class WorkflowEvent(_message.Message):
     HANGUP_FIELD_NUMBER: _ClassVar[int]
     STEPRETRIES_FIELD_NUMBER: _ClassVar[int]
     RETRYCOUNT_FIELD_NUMBER: _ClassVar[int]
+    EVENTINDEX_FIELD_NUMBER: _ClassVar[int]
     workflowRunId: str
     resourceType: ResourceType
     eventType: ResourceEventType
@@ -314,7 +315,8 @@ class WorkflowEvent(_message.Message):
     hangup: bool
     stepRetries: int
     retryCount: int
-    def __init__(self, workflowRunId: _Optional[str] = ..., resourceType: _Optional[_Union[ResourceType, str]] = ..., eventType: _Optional[_Union[ResourceEventType, str]] = ..., resourceId: _Optional[str] = ..., eventTimestamp: _Optional[_Union[_timestamp_pb2.Timestamp, _Mapping]] = ..., eventPayload: _Optional[str] = ..., hangup: bool = ..., stepRetries: _Optional[int] = ..., retryCount: _Optional[int] = ...) -> None: ...
+    eventIndex: int
+    def __init__(self, workflowRunId: _Optional[str] = ..., resourceType: _Optional[_Union[ResourceType, str]] = ..., eventType: _Optional[_Union[ResourceEventType, str]] = ..., resourceId: _Optional[str] = ..., eventTimestamp: _Optional[_Union[_timestamp_pb2.Timestamp, _Mapping]] = ..., eventPayload: _Optional[str] = ..., hangup: bool = ..., stepRetries: _Optional[int] = ..., retryCount: _Optional[int] = ..., eventIndex: _Optional[int] = ...) -> None: ...
 
 class WorkflowRunEvent(_message.Message):
     __slots__ = ("workflowRunId", "eventType", "eventTimestamp", "results")

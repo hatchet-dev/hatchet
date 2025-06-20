@@ -51,16 +51,18 @@ class PutLogResponse(_message.Message):
     def __init__(self) -> None: ...
 
 class PutStreamEventRequest(_message.Message):
-    __slots__ = ("stepRunId", "createdAt", "message", "metadata")
+    __slots__ = ("stepRunId", "createdAt", "message", "metadata", "eventIndex")
     STEPRUNID_FIELD_NUMBER: _ClassVar[int]
     CREATEDAT_FIELD_NUMBER: _ClassVar[int]
     MESSAGE_FIELD_NUMBER: _ClassVar[int]
     METADATA_FIELD_NUMBER: _ClassVar[int]
+    EVENTINDEX_FIELD_NUMBER: _ClassVar[int]
     stepRunId: str
     createdAt: _timestamp_pb2.Timestamp
     message: bytes
     metadata: str
-    def __init__(self, stepRunId: _Optional[str] = ..., createdAt: _Optional[_Union[_timestamp_pb2.Timestamp, _Mapping]] = ..., message: _Optional[bytes] = ..., metadata: _Optional[str] = ...) -> None: ...
+    eventIndex: int
+    def __init__(self, stepRunId: _Optional[str] = ..., createdAt: _Optional[_Union[_timestamp_pb2.Timestamp, _Mapping]] = ..., message: _Optional[bytes] = ..., metadata: _Optional[str] = ..., eventIndex: _Optional[int] = ...) -> None: ...
 
 class PutStreamEventResponse(_message.Message):
     __slots__ = ()
