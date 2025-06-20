@@ -43,9 +43,9 @@ require (
 	golang.org/x/time v0.12.0
 	google.golang.org/api v0.238.0
 	google.golang.org/genproto/googleapis/api v0.0.0-20250519155744-55703ea1f237
-	k8s.io/api v0.33.1
+	k8s.io/api v0.33.2
 	k8s.io/apimachinery v0.33.2
-	k8s.io/client-go v0.33.1
+	k8s.io/client-go v0.33.2
 	sigs.k8s.io/yaml v1.4.0
 )
 
