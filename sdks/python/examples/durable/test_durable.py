@@ -23,6 +23,12 @@ async def test_durable(hatchet: Hatchet) -> None:
     active_workers = [w for w in workers.rows if w.status == "ACTIVE"]
 
     assert len(active_workers) == 2
-    assert any(w.name == "e2e-test-worker" for w in active_workers)
-    assert any(w.name.endswith("e2e-test-worker_durable") for w in active_workers)
+    assert any(
+        hatchet.config.apply_namespace(w.name) == "e2e-test-worker"
+        for w in active_workers
+    )
+    assert any(
+        hatchet.config.apply_namespace(w.name) == "e2e-test-worker_durable"
+        for w in active_workers
+    )
     assert result["durable_task"]["status"] == "success"
