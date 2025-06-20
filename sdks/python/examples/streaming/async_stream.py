@@ -16,15 +16,9 @@ from hatchet_sdk.clients.listeners.run_event_listener import (
 async def main() -> None:
     ref = await stream_task.aio_run_no_wait()
 
-    ix = 0
-    streamed_chunks: list[tuple[int, StepRunEvent]] = []
-
     async for chunk in ref._wrr.stream():
-        print(
-            f"Received chunk {ix}: {chunk} at {datetime.now(timezone(timedelta(hours=-4), name='EST'))}"
-        )
-        streamed_chunks.append((ix, chunk))
-        ix += 1
+        if chunk.type == StepRunEventType.STEP_RUN_EVENT_TYPE_STREAM:
+            print(chunk.payload, flush=True, end="")
 
 
 if __name__ == "__main__":
