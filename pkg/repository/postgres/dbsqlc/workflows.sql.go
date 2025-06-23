@@ -983,7 +983,7 @@ INSERT INTO "WorkflowVersion" (
     $9::"StickyStrategy",
     coalesce($10::"WorkflowKind", 'DAG'),
     $11::integer
-) RETURNING id, "createdAt", "updatedAt", "deletedAt", version, "order", "workflowId", checksum, "scheduleTimeout", "onFailureJobId", sticky, kind, "defaultPriority"
+) RETURNING id, "createdAt", "updatedAt", "deletedAt", version, "order", "workflowId", checksum, "scheduleTimeout", "onFailureJobId", sticky, kind, "defaultPriority", "createWorkflowVersionOpts"
 `
 
 type CreateWorkflowVersionParams struct {
@@ -1029,6 +1029,7 @@ func (q *Queries) CreateWorkflowVersion(ctx context.Context, db DBTX, arg Create
 		&i.Sticky,
 		&i.Kind,
 		&i.DefaultPriority,
+		&i.CreateWorkflowVersionOpts,
 	)
 	return &i, err
 }
@@ -1190,7 +1191,7 @@ func (q *Queries) GetWorkflowLatestVersion(ctx context.Context, db DBTX, workflo
 
 const getWorkflowVersionById = `-- name: GetWorkflowVersionById :one
 SELECT
-    wv.id, wv."createdAt", wv."updatedAt", wv."deletedAt", wv.version, wv."order", wv."workflowId", wv.checksum, wv."scheduleTimeout", wv."onFailureJobId", wv.sticky, wv.kind, wv."defaultPriority",
+    wv.id, wv."createdAt", wv."updatedAt", wv."deletedAt", wv.version, wv."order", wv."workflowId", wv.checksum, wv."scheduleTimeout", wv."onFailureJobId", wv.sticky, wv.kind, wv."defaultPriority", wv."createWorkflowVersionOpts",
     w.id, w."createdAt", w."updatedAt", w."deletedAt", w."tenantId", w.name, w.description, w."isPaused",
     wc."id" as "concurrencyId",
     wc."maxRuns" as "concurrencyMaxRuns",
@@ -1232,6 +1233,7 @@ func (q *Queries) GetWorkflowVersionById(ctx context.Context, db DBTX, id pgtype
 		&i.WorkflowVersion.Sticky,
 		&i.WorkflowVersion.Kind,
 		&i.WorkflowVersion.DefaultPriority,
+		&i.WorkflowVersion.CreateWorkflowVersionOpts,
 		&i.Workflow.ID,
 		&i.Workflow.CreatedAt,
 		&i.Workflow.UpdatedAt,
@@ -1324,7 +1326,7 @@ func (q *Queries) GetWorkflowVersionEventTriggerRefs(ctx context.Context, db DBT
 
 const getWorkflowVersionForEngine = `-- name: GetWorkflowVersionForEngine :many
 SELECT
-    workflowversions.id, workflowversions."createdAt", workflowversions."updatedAt", workflowversions."deletedAt", workflowversions.version, workflowversions."order", workflowversions."workflowId", workflowversions.checksum, workflowversions."scheduleTimeout", workflowversions."onFailureJobId", workflowversions.sticky, workflowversions.kind, workflowversions."defaultPriority",
+    workflowversions.id, workflowversions."createdAt", workflowversions."updatedAt", workflowversions."deletedAt", workflowversions.version, workflowversions."order", workflowversions."workflowId", workflowversions.checksum, workflowversions."scheduleTimeout", workflowversions."onFailureJobId", workflowversions.sticky, workflowversions.kind, workflowversions."defaultPriority", workflowversions."createWorkflowVersionOpts",
     w."name" as "workflowName",
     wc."limitStrategy" as "concurrencyLimitStrategy",
     wc."maxRuns" as "concurrencyMaxRuns",
@@ -1380,6 +1382,7 @@ func (q *Queries) GetWorkflowVersionForEngine(ctx context.Context, db DBTX, arg 
 			&i.WorkflowVersion.Sticky,
 			&i.WorkflowVersion.Kind,
 			&i.WorkflowVersion.DefaultPriority,
+			&i.WorkflowVersion.CreateWorkflowVersionOpts,
 			&i.WorkflowName,
 			&i.ConcurrencyLimitStrategy,
 			&i.ConcurrencyMaxRuns,
@@ -1579,7 +1582,7 @@ const linkOnFailureJob = `-- name: LinkOnFailureJob :one
 UPDATE "WorkflowVersion"
 SET "onFailureJobId" = $1::uuid
 WHERE "id" = $2::uuid
-RETURNING id, "createdAt", "updatedAt", "deletedAt", version, "order", "workflowId", checksum, "scheduleTimeout", "onFailureJobId", sticky, kind, "defaultPriority"
+RETURNING id, "createdAt", "updatedAt", "deletedAt", version, "order", "workflowId", checksum, "scheduleTimeout", "onFailureJobId", sticky, kind, "defaultPriority", "createWorkflowVersionOpts"
 `
 
 type LinkOnFailureJobParams struct {
@@ -1604,6 +1607,7 @@ func (q *Queries) LinkOnFailureJob(ctx context.Context, db DBTX, arg LinkOnFailu
 		&i.Sticky,
 		&i.Kind,
 		&i.DefaultPriority,
+		&i.CreateWorkflowVersionOpts,
 	)
 	return &i, err
 }

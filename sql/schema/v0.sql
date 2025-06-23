@@ -1073,6 +1073,7 @@ CREATE TABLE
         "sticky" "StickyStrategy",
         "kind" "WorkflowKind" NOT NULL DEFAULT 'DAG',
         "defaultPriority" INTEGER,
+        "createWorkflowVersionOpts" JSONB,
         CONSTRAINT "WorkflowVersion_pkey" PRIMARY KEY ("id")
     );
 

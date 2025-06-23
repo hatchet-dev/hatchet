@@ -1,6 +1,8 @@
 package transformers
 
 import (
+	"encoding/json"
+
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
@@ -66,6 +68,16 @@ func ToWorkflowVersion(
 	events []*dbsqlc.WorkflowTriggerEventRef,
 	schedules []*dbsqlc.WorkflowTriggerScheduledRef,
 ) *gen.WorkflowVersion {
+	wfConfig := make(map[string]interface{})
+
+	if version.CreateWorkflowVersionOpts != nil {
+		err := json.Unmarshal(version.CreateWorkflowVersionOpts, &wfConfig)
+
+		if err != nil {
+			return nil
+		}
+	}
+
 	res := &gen.WorkflowVersion{
 		Metadata: *toAPIMetadata(
 			sqlchelpers.UUIDToStr(version.ID),
@@ -77,6 +89,7 @@ func ToWorkflowVersion(
 		Version:         version.Version.String,
 		ScheduleTimeout: &version.ScheduleTimeout,
 		DefaultPriority: &version.DefaultPriority.Int32,
+		WorkflowConfig:  &wfConfig,
 	}
 
 	if version.Sticky.Valid {
