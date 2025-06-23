@@ -130,15 +130,13 @@ func (b *StreamEventBuffer) AddEvent(event *contracts.WorkflowEvent) []*contract
 	// For stream events: if this event is the next expected one, send it immediately
 	// Only buffer if it's out of order
 	if *event.EventIndex == expectedIndex {
-		b.stepRunIdToExpectedIndex[stepRunId] = expectedIndex + 1
-
 		if bufferedEvents, exists := b.stepRunIdToWorkflowEvents[stepRunId]; exists && len(bufferedEvents) > 0 {
 			b.stepRunIdToWorkflowEvents[stepRunId] = append(bufferedEvents, event)
-
 			slices.SortFunc(b.stepRunIdToWorkflowEvents[stepRunId], sortByEventIndex)
 
 			return b.getReadyEvents(stepRunId)
 		} else {
+			b.stepRunIdToExpectedIndex[stepRunId] = expectedIndex + 1
 			return []*contracts.WorkflowEvent{event}
 		}
 	}
