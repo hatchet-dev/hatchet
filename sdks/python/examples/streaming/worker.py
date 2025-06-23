@@ -29,7 +29,7 @@ async def stream_task(input: EmptyModel, ctx: Context) -> None:
 
     for chunk in chunks:
         ctx.put_stream(chunk)
-        await asyncio.sleep(0.20)
+        await asyncio.sleep(0.05)
 
 
 def main() -> None:
