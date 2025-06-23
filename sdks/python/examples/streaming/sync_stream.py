@@ -7,7 +7,7 @@ def main() -> None:
     ref = stream_task.run_no_wait()
     time.sleep(1)
 
-    stream = ref._wrr.stream()
+    stream = ref.stream()
 
     for chunk in stream:
         print(chunk)

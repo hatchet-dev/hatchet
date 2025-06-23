@@ -35,7 +35,7 @@ async def test_streaming_ordering_and_completeness(
     ix = 0
     anna_karenina = ""
 
-    async for chunk in ref._wrr.stream():
+    async for chunk in ref.stream():
         if chunk.type == StepRunEventType.STEP_RUN_EVENT_TYPE_STREAM:
             assert chunks[ix] == chunk.payload
             ix += 1
