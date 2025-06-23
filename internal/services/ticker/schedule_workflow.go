@@ -15,7 +15,7 @@ import (
 
 func (t *TickerImpl) runPollSchedules(ctx context.Context) func() {
 	return func() {
-		ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		ctx, cancel := context.WithTimeout(ctx, 1*time.Minute)
 		defer cancel()
 
 		t.l.Debug().Msgf("ticker: polling workflow schedules")
