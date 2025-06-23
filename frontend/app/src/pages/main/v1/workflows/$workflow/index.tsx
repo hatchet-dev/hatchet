@@ -1,4 +1,3 @@
-import { Separator } from '@/components/v1/ui/separator';
 import api, { queries, WorkflowUpdateRequest } from '@/lib/api';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useNavigate, useOutletContext, useParams } from 'react-router-dom';
@@ -12,7 +11,7 @@ import { TenantContextType } from '@/lib/outlet';
 import { TriggerWorkflowForm } from './components/trigger-workflow-form';
 import { useState } from 'react';
 import { Button } from '@/components/v1/ui/button';
-import { useApiError, useApiMetaIntegrations } from '@/lib/hooks';
+import { useApiError } from '@/lib/hooks';
 import {
   Tabs,
   TabsContent,
@@ -89,15 +88,12 @@ export default function ExpandedWorkflow() {
     },
   });
 
-  const integrations = useApiMetaIntegrations();
-
   const workflow = workflowQuery.data;
 
   if (workflowQuery.isLoading || !workflow) {
     return <Loading />;
   }
 
-  const hasGithubIntegration = integrations?.find((i) => i.name === 'github');
   const currVersion = workflow.versions && workflow.versions[0].version;
 
   return (
@@ -212,29 +208,37 @@ export default function ExpandedWorkflow() {
             ) : (
               <WorkflowGeneralSettings workflow={workflowVersionQuery.data} />
             )}
-            <Separator className="my-4" />
-            {hasGithubIntegration && (
-              <div className="hidden">
-                <h3 className="hidden text-xl font-bold leading-tight text-foreground mt-8">
-                  Deployment Settings
-                </h3>
-                <Separator className="hidden my-4" />
-              </div>
-            )}
 
-            <h4 className="text-lg font-bold leading-tight text-foreground mt-8">
-              Danger Zone
-            </h4>
-            <Separator className="my-4" />
-            <Button
-              variant="destructive"
-              className="mt-2"
-              onClick={() => {
-                setDeleteWorkflow(true);
-              }}
-            >
-              Delete Workflow
-            </Button>
+            <div className="mt-8">
+              <div className="space-y-2">
+                <h3 className="text-base font-semibold text-red-700 dark:text-red-400">
+                  Danger Zone
+                </h3>
+                <div className="border border-red-200 dark:border-red-800 rounded-md p-4 bg-red-50 dark:bg-red-950/30 max-w-xl">
+                  <div className="space-y-3">
+                    <div>
+                      <h4 className="text-sm font-medium text-red-800 dark:text-red-300">
+                        Delete Workflow
+                      </h4>
+                      <p className="text-sm text-red-600 dark:text-red-400 mt-1">
+                        Permanently delete this workflow and all its data. This
+                        action cannot be undone.
+                      </p>
+                    </div>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => {
+                        setDeleteWorkflow(true);
+                      }}
+                    >
+                      Delete Workflow
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <ConfirmDialog
               title={`Delete workflow`}
               description={`Are you sure you want to delete the workflow ${workflow.name}? This action cannot be undone, and will immediately prevent any services running with this workflow from executing steps.`}

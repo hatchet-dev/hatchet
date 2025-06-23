@@ -15,7 +15,7 @@ export default function WorkflowGeneralSettings({
   const [copySuccess, setCopySuccess] = useState(false);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <SettingsSection title="Triggers">
         <TriggerSettings workflow={workflow} />
       </SettingsSection>
@@ -28,31 +28,30 @@ export default function WorkflowGeneralSettings({
         <ConfigurationSettings workflow={workflow} />
       </SettingsSection>
 
-      <div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => {
-            navigator.clipboard.writeText(
-              JSON.stringify(workflow.workflowConfig),
-            );
-            setCopySuccess(true);
-            setTimeout(() => setCopySuccess(false), 2000);
-          }}
-        >
-          {copySuccess ? (
-            <>
-              <CheckIcon className="w-3 h-3 mr-2" />
-              Copied!
-            </>
-          ) : (
-            <>
-              <CopyIcon className="w-3 h-3 mr-2" />
-              Copy Config
-            </>
-          )}
-        </Button>
-      </div>
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => {
+          navigator.clipboard.writeText(
+            JSON.stringify(workflow.workflowConfig),
+          );
+          setCopySuccess(true);
+          setTimeout(() => setCopySuccess(false), 2000);
+        }}
+        className="mt-6"
+      >
+        {copySuccess ? (
+          <>
+            <CheckIcon className="w-3 h-3 mr-2" />
+            Copied!
+          </>
+        ) : (
+          <>
+            <CopyIcon className="w-3 h-3 mr-2" />
+            Copy Config
+          </>
+        )}
+      </Button>
     </div>
   );
 }
@@ -65,7 +64,7 @@ function SettingsSection({
   children: React.ReactNode;
 }) {
   return (
-    <div className="space-y-3">
+    <div className="space-y-2">
       <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">
         {title}
       </h3>
@@ -132,7 +131,7 @@ function TriggerSettings({ workflow }: { workflow: WorkflowVersion }) {
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-2">
       {workflow.triggers.events && workflow.triggers.events.length > 0 && (
         <FieldGroup label="Events">
           <div className="flex flex-wrap gap-1">
@@ -151,21 +150,24 @@ function TriggerSettings({ workflow }: { workflow: WorkflowVersion }) {
 
       {workflow.triggers.crons && workflow.triggers.crons.length > 0 && (
         <FieldGroup label="Cron Schedules">
-          {workflow.triggers.crons.map((cronTrigger) => (
-            <div key={cronTrigger.cron} className="space-y-1">
-              <Input
-                disabled
-                value={cronTrigger.cron}
-                className="font-mono h-8"
-              />
-              {cronTrigger.cron && (
-                <p className="text-sm text-gray-500 dark:text-gray-400">
-                  Runs {CronPrettifier.toString(cronTrigger.cron).toLowerCase()}{' '}
-                  UTC
-                </p>
-              )}
-            </div>
-          ))}
+          <div className="space-y-2">
+            {workflow.triggers.crons.map((cronTrigger) => (
+              <div key={cronTrigger.cron}>
+                <Input
+                  disabled
+                  value={cronTrigger.cron}
+                  className="font-mono h-8"
+                />
+                {cronTrigger.cron && (
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    Runs{' '}
+                    {CronPrettifier.toString(cronTrigger.cron).toLowerCase()}{' '}
+                    UTC
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
         </FieldGroup>
       )}
     </div>
@@ -180,10 +182,10 @@ function ConcurrencySettings({ workflow }: { workflow: WorkflowVersion }) {
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-2">
       <FieldGroup
         label="Max Runs"
-        description="The maximum number of concurrent workflow runs"
+        description="Maximum number of concurrent workflow runs"
       >
         <Input
           disabled
@@ -193,8 +195,8 @@ function ConcurrencySettings({ workflow }: { workflow: WorkflowVersion }) {
       </FieldGroup>
 
       <FieldGroup
-        label="Concurrency Strategy"
-        description="The strategy to use when the maximum number of concurrent runs is reached"
+        label="Strategy"
+        description="What happens when max runs is reached"
       >
         <Input
           disabled
@@ -216,7 +218,7 @@ function ConfigurationSettings({ workflow }: { workflow: WorkflowVersion }) {
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-2">
       {workflow.sticky && (
         <div className="flex items-center gap-2">
           <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">
