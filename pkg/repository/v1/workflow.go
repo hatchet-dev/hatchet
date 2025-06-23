@@ -359,7 +359,7 @@ func (r *workflowRepository) PutWorkflowVersion(ctx context.Context, tenantId st
 func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sqlcv1.DBTX, tenantId, workflowId pgtype.UUID, opts *CreateWorkflowVersionOpts, oldWorkflowVersion *sqlcv1.GetWorkflowVersionForEngineRow) (string, error) {
 	workflowVersionId := uuid.New().String()
 
-	cs, err := checksumV1(opts)
+	cs, modifiedOpts, err := checksumV1(opts)
 
 	if err != nil {
 		return "", err
@@ -370,7 +370,7 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 		return sqlchelpers.UUIDToStr(oldWorkflowVersion.WorkflowVersion.ID), nil
 	}
 
-	optsJson, err := json.Marshal(opts)
+	optsJson, err := json.Marshal(modifiedOpts)
 
 	if err != nil {
 		return "", err
@@ -944,12 +944,12 @@ func (r *workflowRepository) createJobTx(ctx context.Context, tx sqlcv1.DBTX, te
 	return jobId, nil
 }
 
-func checksumV1(opts *CreateWorkflowVersionOpts) (string, error) {
+func checksumV1(opts *CreateWorkflowVersionOpts) (string, *CreateWorkflowVersionOpts, error) {
 	var err error
 	opts.Tasks, err = orderWorkflowStepsV1(opts.Tasks)
 
 	if err != nil {
-		return "", err
+		return "", opts, err
 	}
 
 	// Generate a unique index for each or group id in the workflow, and add this to the trigger condition.
@@ -978,16 +978,16 @@ func checksumV1(opts *CreateWorkflowVersionOpts) (string, error) {
 	declaredValues, err := datautils.ToJSONMap(opts)
 
 	if err != nil {
-		return "", err
+		return "", opts, err
 	}
 
 	workflowChecksum, err := digest.DigestValues(declaredValues)
 
 	if err != nil {
-		return "", err
+		return "", opts, err
 	}
 
-	return workflowChecksum.String(), nil
+	return workflowChecksum.String(), opts, nil
 }
 
 func hasCycleV1(steps []CreateStepOpts) bool {
