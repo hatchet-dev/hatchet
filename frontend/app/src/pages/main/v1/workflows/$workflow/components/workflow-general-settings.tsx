@@ -1,13 +1,18 @@
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/v1/ui/input';
 import { Label } from '@/components/v1/ui/label';
 import { WorkflowVersion } from '@/lib/api';
 import CronPrettifier from 'cronstrue';
+import { CheckIcon, CopyIcon } from 'lucide-react';
+import { useState } from 'react';
 
 export default function WorkflowGeneralSettings({
   workflow,
 }: {
   workflow: WorkflowVersion;
 }) {
+  const [copySuccess, setCopySuccess] = useState(false);
+
   return (
     <>
       <h3 className="text-lg font-semibold mb-4">Trigger</h3>
@@ -18,6 +23,29 @@ export default function WorkflowGeneralSettings({
       <StickyStrategy workflow={workflow} />
       <h3 className="text-lg font-semibold my-4">Default Priority</h3>
       <DefaultPriority workflow={workflow} />
+      <h3 className="text-lg font-semibold my-4">Advanced</h3>
+      <Button
+        variant="default"
+        onClick={() => {
+          navigator.clipboard.writeText(
+            JSON.stringify(workflow.workflowConfig),
+          );
+          setCopySuccess(true);
+
+          setTimeout(() => {
+            setCopySuccess(false);
+          }, 2000);
+        }}
+      >
+        <div className="flex flex-row gap-x-2 items-center">
+          {copySuccess ? (
+            <CheckIcon className="w-4 h-4" />
+          ) : (
+            <CopyIcon className="w-4 h-4" />
+          )}
+          Copy Workflow Config
+        </div>
+      </Button>
     </>
   );
 }

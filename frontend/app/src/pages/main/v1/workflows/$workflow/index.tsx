@@ -29,14 +29,12 @@ import {
   DropdownMenuTrigger,
 } from '@/components/v1/ui/dropdown-menu';
 import { TaskRunsTable } from '../../workflow-runs-v1/components/task-runs-table';
-import { CheckIcon, CopyIcon } from 'lucide-react';
 
 export default function ExpandedWorkflow() {
   const { tenant } = useTenant();
 
   // TODO list previous versions and make selectable
   const [selectedVersion] = useState<string | undefined>();
-  const [copySuccess, setCopySuccess] = useState(false);
   const { handleApiError } = useApiError({});
 
   invariant(tenant);
@@ -231,45 +229,20 @@ export default function ExpandedWorkflow() {
                 <Separator className="hidden my-4" />
               </div>
             )}
+
             <h4 className="text-lg font-bold leading-tight text-foreground mt-8">
               Danger Zone
             </h4>
             <Separator className="my-4" />
-            <div className="flex flex-row gap-x-2">
-              <Button
-                variant="destructive"
-                className="mt-2"
-                onClick={() => {
-                  setDeleteWorkflow(true);
-                }}
-              >
-                Delete Workflow
-              </Button>
-              <Button
-                variant="default"
-                className="mt-2"
-                onClick={() => {
-                  navigator.clipboard.writeText(
-                    JSON.stringify(workflowVersionQuery.data?.workflowConfig),
-                  );
-                  setCopySuccess(true);
-
-                  setTimeout(() => {
-                    setCopySuccess(false);
-                  }, 2000);
-                }}
-              >
-                <div className="flex flex-row gap-x-2 items-center">
-                  {copySuccess ? (
-                    <CheckIcon className="w-4 h-4" />
-                  ) : (
-                    <CopyIcon className="w-4 h-4" />
-                  )}
-                  Copy Workflow Config
-                </div>
-              </Button>
-            </div>
-
+            <Button
+              variant="destructive"
+              className="mt-2"
+              onClick={() => {
+                setDeleteWorkflow(true);
+              }}
+            >
+              Delete Workflow
+            </Button>
             <ConfirmDialog
               title={`Delete workflow`}
               description={`Are you sure you want to delete the workflow ${workflow.name}? This action cannot be undone, and will immediately prevent any services running with this workflow from executing steps.`}
