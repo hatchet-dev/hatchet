@@ -22,25 +22,25 @@ export default function WorkflowGeneralSettings({
   );
 }
 
-function ScheduleTimeoutSettings({ workflow }: { workflow: WorkflowVersion }) {
-  if (!workflow.scheduleTimeout) {
-    return (
-      <div className="text-[0.8rem] text-gray-700 dark:text-gray-300">
-        No schedule timeout set for this workflow.
-      </div>
-    );
-  }
+// function ScheduleTimeoutSettings({ workflow }: { workflow: WorkflowVersion }) {
+//   if (!workflow.scheduleTimeout) {
+//     return (
+//       <div className="text-[0.8rem] text-gray-700 dark:text-gray-300">
+//         No schedule timeout set for this workflow.
+//       </div>
+//     );
+//   }
 
-  return (
-    <div className="flex flex-col gap-2">
-      <Input
-        disabled
-        placeholder="Schedule Timeout"
-        value={workflow.scheduleTimeout}
-      />
-    </div>
-  );
-}
+//   return (
+//     <div className="flex flex-col gap-2">
+//       <Input
+//         disabled
+//         placeholder="Schedule Timeout"
+//         value={workflow.scheduleTimeout}
+//       />
+//     </div>
+//   );
+// }
 
 function TriggerSettings({ workflow }: { workflow: WorkflowVersion }) {
   if (!workflow.triggers) {
