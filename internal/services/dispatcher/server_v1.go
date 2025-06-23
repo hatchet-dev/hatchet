@@ -127,6 +127,12 @@ func (b *StreamEventBuffer) AddEvent(event *contracts.WorkflowEvent) []*contract
 
 	expectedIndex := b.stepRunIdToExpectedIndex[stepRunId]
 
+	// IMPORTANT: if expected index is -1, it means we're starting fresh after a timeout
+	if expectedIndex == -1 && event.EventIndex != nil {
+		b.stepRunIdToExpectedIndex[stepRunId] = *event.EventIndex
+		expectedIndex = *event.EventIndex
+	}
+
 	// For stream events: if this event is the next expected one, send it immediately
 	// Only buffer if it's out of order
 	if *event.EventIndex == expectedIndex {
@@ -169,18 +175,13 @@ func (b *StreamEventBuffer) GetTimedOutEvents() []*contracts.WorkflowEvent {
 
 			if len(events) > 0 {
 				result = append(result, events...)
-
-				maxIndex := int64(0)
-				for _, event := range events {
-					if event.EventIndex != nil && *event.EventIndex > maxIndex {
-						maxIndex = *event.EventIndex
-					}
-				}
-
-				b.stepRunIdToExpectedIndex[stepRunId] = maxIndex + 1
 			}
 
+			// After timeout, clear all state and set expected index to -1 as a marker
+			// that the next event should start a fresh sequence (can't reset to 0
+			// since that's a real possible value)
 			delete(b.stepRunIdToWorkflowEvents, stepRunId)
+			b.stepRunIdToExpectedIndex[stepRunId] = -1
 			delete(b.stepRunIdToLastSeenTime, stepRunId)
 		}
 	}
