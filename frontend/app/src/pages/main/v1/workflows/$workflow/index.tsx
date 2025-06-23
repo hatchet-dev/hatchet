@@ -29,12 +29,14 @@ import {
   DropdownMenuTrigger,
 } from '@/components/v1/ui/dropdown-menu';
 import { TaskRunsTable } from '../../workflow-runs-v1/components/task-runs-table';
+import { CheckIcon, CopyIcon } from 'lucide-react';
 
 export default function ExpandedWorkflow() {
   const { tenant } = useTenant();
 
   // TODO list previous versions and make selectable
   const [selectedVersion] = useState<string | undefined>();
+  const [copySuccess, setCopySuccess] = useState(false);
   const { handleApiError } = useApiError({});
 
   invariant(tenant);
@@ -233,15 +235,40 @@ export default function ExpandedWorkflow() {
               Danger Zone
             </h4>
             <Separator className="my-4" />
-            <Button
-              variant="destructive"
-              className="mt-2"
-              onClick={() => {
-                setDeleteWorkflow(true);
-              }}
-            >
-              Delete Workflow
-            </Button>
+            <div className="flex flex-row gap-x-2">
+              <Button
+                variant="destructive"
+                className="mt-2"
+                onClick={() => {
+                  setDeleteWorkflow(true);
+                }}
+              >
+                Delete Workflow
+              </Button>
+              <Button
+                variant="default"
+                className="mt-2"
+                onClick={() => {
+                  navigator.clipboard.writeText(
+                    JSON.stringify(workflowVersionQuery.data?.workflowConfig),
+                  );
+                  setCopySuccess(true);
+
+                  setTimeout(() => {
+                    setCopySuccess(false);
+                  }, 2000);
+                }}
+              >
+                <div className="flex flex-row gap-x-1 items-center">
+                  Copy Workflow Config
+                  {copySuccess ? (
+                    <CheckIcon className="w-4 h-4" />
+                  ) : (
+                    <CopyIcon className="w-4 h-4" />
+                  )}
+                </div>
+              </Button>
+            </div>
 
             <ConfirmDialog
               title={`Delete workflow`}
