@@ -181,13 +181,19 @@ class Task(Generic[TWorkflowInput, R]):
             raise ValueError("Conditions must have unique readable data keys.")
 
         user_events = [
-            c.to_proto() for c in conditions if isinstance(c, UserEventCondition)
+            c.to_proto(self.workflow.client.config)
+            for c in conditions
+            if isinstance(c, UserEventCondition)
         ]
         parent_overrides = [
-            c.to_proto() for c in conditions if isinstance(c, ParentCondition)
+            c.to_proto(self.workflow.client.config)
+            for c in conditions
+            if isinstance(c, ParentCondition)
         ]
         sleep_conditions = [
-            c.to_proto() for c in conditions if isinstance(c, SleepCondition)
+            c.to_proto(self.workflow.client.config)
+            for c in conditions
+            if isinstance(c, SleepCondition)
         ]
 
         return TaskConditions(
