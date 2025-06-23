@@ -33,26 +33,15 @@ async def test_streaming_ordering_and_completeness(
     ref = await stream_task.aio_run_no_wait()
 
     ix = 0
-    streamed_chunks: list[tuple[int, StepRunEvent]] = []
+    anna_karenina = ""
 
     async for chunk in ref._wrr.stream():
-        print(
-            f"Received chunk {ix}: {chunk} at {datetime.now(timezone(timedelta(hours=-4), name='EST'))}"
-        )
-        streamed_chunks.append((ix, chunk))
-        ix += 1
+        if chunk.type == StepRunEventType.STEP_RUN_EVENT_TYPE_STREAM:
+            assert chunks[ix] == chunk.payload
+            ix += 1
+            anna_karenina += chunk.payload
 
-    await asyncio.sleep(10)
-
-    assert ix == len(chunks) + 1
-
-    for ix, chunk in streamed_chunks:
-        if chunk.type != StepRunEventType.STEP_RUN_EVENT_TYPE_STREAM:
-            assert ix == len(chunks)
-            assert chunk.type == StepRunEventType.STEP_RUN_EVENT_TYPE_COMPLETED
-        else:
-            assert (
-                chunk.payload == chunks[ix]
-            ), f"Expected chunk {ix} to be '{chunks[ix]}', but got '{chunk}' for execution {execution_number + 1}."
+    assert ix == len(chunks)
+    assert anna_karenina == "".join(chunks)
 
     await ref.aio_result()

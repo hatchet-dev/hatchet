@@ -25,9 +25,9 @@ chunks = list(create_chunks(content, 10))
 
 @hatchet.task()
 async def stream_task(input: EmptyModel, ctx: Context) -> None:
-    await asyncio.sleep(3)
+    await asyncio.sleep(2)
+
     for chunk in chunks:
-        print(f"Putting chunk: {chunk}, ix: {ctx.stream_index}")
         ctx.put_stream(chunk)
         await asyncio.sleep(0.20)
 
