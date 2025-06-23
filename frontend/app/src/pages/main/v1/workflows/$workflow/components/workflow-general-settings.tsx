@@ -15,7 +15,7 @@ export default function WorkflowGeneralSettings({
 
   return (
     <>
-      <h3 className="text-lg font-semibold mb-4">Trigger</h3>
+      <h3 className="text-lg font-semibold mb-4">Trigger Settings</h3>
       <TriggerSettings workflow={workflow} />
       <h3 className="text-lg font-semibold my-4">Concurrency</h3>
       <ConcurrencySettings workflow={workflow} />

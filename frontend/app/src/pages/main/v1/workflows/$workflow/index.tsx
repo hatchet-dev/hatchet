@@ -204,17 +204,9 @@ export default function ExpandedWorkflow() {
             </TabsTrigger>
           </TabsList>
           <TabsContent value="runs">
-            <h3 className="text-xl font-bold leading-tight text-foreground mt-4">
-              Recent Runs
-            </h3>
-            <Separator className="my-4" />
             <RecentRunsList />
           </TabsContent>
-          <TabsContent value="settings">
-            <h3 className="text-xl font-bold leading-tight text-foreground mt-4">
-              Settings
-            </h3>
-            <Separator className="my-4" />
+          <TabsContent value="settings" className="mt-4">
             {workflowVersionQuery.isLoading || !workflowVersionQuery.data ? (
               <Loading />
             ) : (
