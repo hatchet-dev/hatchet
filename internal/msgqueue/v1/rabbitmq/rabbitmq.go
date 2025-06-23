@@ -333,58 +333,20 @@ func (t *MessageQueueImpl) RegisterTenant(ctx context.Context, tenantId string) 
 
 	t.l.Debug().Msgf("registering tenant exchange: %s", tenantId)
 
-	exchangeName := msgqueue.GetTenantExchangeName(tenantId)
-	holdingQueueName := getTaskStreamHoldingQueueName(tenantId)
-	alternateExchangeName := getAlternateExchangeName(tenantId)
-
+	// create a fanout exchange for the tenant. each consumer of the fanout exchange will get notified
+	// with the tenant events.
 	err = sub.ExchangeDeclare(
-		exchangeName,
+		msgqueue.GetTenantExchangeName(tenantId),
 		"fanout",
 		true,  // durable
 		false, // auto-deleted
-		false, // not internal
+		false, // not internal, accepts publishings
 		false, // no-wait
 		nil,   // arguments
 	)
 
 	if err != nil {
-		t.l.Error().Msgf("cannot declare main exchange: %q, %v", exchangeName, err)
-		return err
-	}
-
-	err = sub.ExchangeDeclare(
-		alternateExchangeName,
-		"direct",
-		true,  // durable
-		false, // auto-deleted
-		false, // not internal
-		false, // no-wait
-		nil,   // arguments
-	)
-	if err != nil {
-		t.l.Error().Msgf("cannot declare alternate exchange: %q, %v", alternateExchangeName, err)
-		return err
-	}
-
-	holdingArgs := make(amqp.Table)
-	holdingArgs["x-message-ttl"] = int64(500)
-	holdingArgs["x-dead-letter-exchange"] = exchangeName // route back to original fanout
-	holdingArgs["x-dead-letter-routing-key"] = ""
-
-	if _, err := sub.QueueDeclare(holdingQueueName, true, false, false, false, holdingArgs); err != nil {
-		t.l.Error().Msgf("cannot declare holding queue: %s, %s", holdingQueueName, err.Error())
-		return err
-	}
-
-	err = sub.QueueBind(
-		holdingQueueName,      // queue name
-		"",                    // routing key (empty for catch-all)
-		alternateExchangeName, // exchange
-		false,                 // no-wait
-		nil,                   // arguments
-	)
-	if err != nil {
-		t.l.Error().Msgf("cannot bind holding queue to alternate exchange: %v", err)
+		t.l.Error().Msgf("cannot declare exchange: %q, %v", tenantId, err)
 		return err
 	}
 
@@ -726,12 +688,4 @@ func getTmpDLQName(dlxName string) string {
 
 func getProcDLQName(dlxName string) string {
 	return fmt.Sprintf("%s_proc", dlxName)
-}
-
-func getTaskStreamHoldingQueueName(tenantId string) string {
-	return fmt.Sprintf("holding-queue-%s", tenantId)
-}
-
-func getAlternateExchangeName(tenantId string) string {
-	return fmt.Sprintf("unroutable-exchange-%s", tenantId)
 }
