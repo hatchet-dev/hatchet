@@ -210,30 +210,32 @@ export default function ExpandedWorkflow() {
             )}
 
             <div className="mt-8">
-              <div className="space-y-2">
-                <h3 className="text-base font-semibold text-red-700 dark:text-red-400">
+              <div className="space-y-3">
+                <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100 border-b border-gray-200 dark:border-gray-700 pb-2">
                   Danger Zone
                 </h3>
-                <div className="border border-red-200 dark:border-red-800 rounded-md p-4 bg-red-50 dark:bg-red-950/30 max-w-xl">
-                  <div className="space-y-3">
-                    <div>
-                      <h4 className="text-sm font-medium text-red-800 dark:text-red-300">
+                <div className="pl-1">
+                  <div className="border border-gray-200 dark:border-gray-700 rounded-md p-4 bg-gray-50 dark:bg-gray-800/50 max-w-xl">
+                    <div className="space-y-3">
+                      <div>
+                        <h4 className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                          Delete Workflow
+                        </h4>
+                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                          Permanently delete this workflow and all its data.
+                          This action cannot be undone.
+                        </p>
+                      </div>
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => {
+                          setDeleteWorkflow(true);
+                        }}
+                      >
                         Delete Workflow
-                      </h4>
-                      <p className="text-sm text-red-600 dark:text-red-400 mt-1">
-                        Permanently delete this workflow and all its data. This
-                        action cannot be undone.
-                      </p>
+                      </Button>
                     </div>
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      onClick={() => {
-                        setDeleteWorkflow(true);
-                      }}
-                    >
-                      Delete Workflow
-                    </Button>
                   </div>
                 </div>
               </div>

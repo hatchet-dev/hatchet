@@ -64,11 +64,11 @@ function SettingsSection({
   children: React.ReactNode;
 }) {
   return (
-    <div className="space-y-2">
-      <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">
+    <div className="space-y-3">
+      <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100 border-b border-gray-200 dark:border-gray-700 pb-2">
         {title}
       </h3>
-      {children}
+      <div className="pl-1">{children}</div>
     </div>
   );
 }
