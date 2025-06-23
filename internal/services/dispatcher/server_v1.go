@@ -72,7 +72,6 @@ func sortByEventIndex(a, b *contracts.WorkflowEvent) int {
 }
 
 func (b *StreamEventBuffer) AddEvent(event *contracts.WorkflowEvent) []*contracts.WorkflowEvent {
-	fmt.Println("Adding event to buffer | ", event.ResourceId, event.EventIndex, event.EventPayload)
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
@@ -126,9 +125,6 @@ func (b *StreamEventBuffer) AddEvent(event *contracts.WorkflowEvent) []*contract
 			return []*contracts.WorkflowEvent{event}
 		}
 	}
-
-	// Event is out of order, buffer it
-	fmt.Println("Buffering out-of-order event | ", event.EventIndex, " (expected ", expectedIndex, ") ", event.EventPayload)
 
 	if _, exists := b.stepRunIdToWorkflowEvents[stepRunId]; !exists {
 		b.stepRunIdToWorkflowEvents[stepRunId] = make([]*contracts.WorkflowEvent, 0)
@@ -1069,11 +1065,6 @@ func (s *DispatcherImpl) listWorkflowRuns(ctx context.Context, tenantId string, 
 
 func (s *DispatcherImpl) msgsToWorkflowEvent(msgId string, payloads [][]byte, filter func(tasks []*contracts.WorkflowEvent) ([]*contracts.WorkflowEvent, error), hangupFunc func(tasks []*contracts.WorkflowEvent) ([]*contracts.WorkflowEvent, error)) ([]*contracts.WorkflowEvent, error) {
 	workflowEvents := []*contracts.WorkflowEvent{}
-	fmt.Printf("[Dispatcher] Processing message batch: msgId=%s, payloadCount=%d\n", msgId, len(payloads))
-
-	for i, payload := range payloads {
-		fmt.Printf("[Dispatcher] Processing payload %d: %s\n", i, string(payload))
-	}
 
 	switch msgId {
 	case "created-task":
@@ -1131,12 +1122,9 @@ func (s *DispatcherImpl) msgsToWorkflowEvent(msgId string, payloads [][]byte, fi
 			})
 		}
 	case "task-stream-event":
-		fmt.Printf("[Dispatcher] Processing %d stream event payloads\n", len(payloads))
 		payloads := msgqueue.JSONConvert[tasktypes.StreamEventPayload](payloads)
 
-		for i, payload := range payloads {
-			fmt.Printf("Stream payload %d: StepRunId=%s, EventIndex=%d, Payload=%s\n",
-				i, payload.StepRunId, payload.EventIndex, string(payload.Payload))
+		for _, payload := range payloads {
 			workflowEvents = append(workflowEvents, &contracts.WorkflowEvent{
 				WorkflowRunId:  payload.WorkflowRunId,
 				ResourceType:   contracts.ResourceType_RESOURCE_TYPE_STEP_RUN,
