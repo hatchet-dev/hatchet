@@ -61,6 +61,14 @@ func isTerminalEvent(event *contracts.WorkflowEvent) bool {
 
 func sortByEventIndex(a, b *contracts.WorkflowEvent) int {
 	if a.EventIndex == nil && b.EventIndex == nil {
+		if a.EventTimestamp.AsTime().Before(b.EventTimestamp.AsTime()) {
+			return -1
+		}
+
+		if a.EventTimestamp.AsTime().After(b.EventTimestamp.AsTime()) {
+			return 1
+		}
+
 		return 0
 	}
 
@@ -1190,23 +1198,7 @@ func (s *DispatcherImpl) msgsToWorkflowEvent(msgId string, payloads [][]byte, fi
 			return -1
 		}
 
-		if a.EventIndex != nil && b.EventIndex != nil {
-			if *a.EventIndex < *b.EventIndex {
-				return -1
-			} else if *a.EventIndex > *b.EventIndex {
-				return 1
-			}
-		}
-
-		if a.EventTimestamp.AsTime().Before(b.EventTimestamp.AsTime()) {
-			return -1
-		}
-
-		if a.EventTimestamp.AsTime().After(b.EventTimestamp.AsTime()) {
-			return 1
-		}
-
-		return 0
+		return sortByEventIndex(a, b)
 	})
 
 	return matches, nil
