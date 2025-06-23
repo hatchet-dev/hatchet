@@ -963,6 +963,12 @@ func (r *workflowEngineRepository) createWorkflowVersionTxs(ctx context.Context,
 		return "", err
 	}
 
+	optsJson, err := json.Marshal(opts)
+
+	if err != nil {
+		return "", err
+	}
+
 	var defaultPriority pgtype.Int4
 
 	if opts.DefaultPriority != nil {
