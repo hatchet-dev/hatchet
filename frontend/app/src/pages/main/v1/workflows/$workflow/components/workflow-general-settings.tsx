@@ -153,11 +153,13 @@ function TriggerSettings({ workflow }: { workflow: WorkflowVersion }) {
           <div className="space-y-2">
             {workflow.triggers.crons.map((cronTrigger) => (
               <div key={cronTrigger.cron}>
-                <Input
-                  disabled
-                  value={cronTrigger.cron}
-                  className="font-mono h-8"
-                />
+                <Badge
+                  key={cronTrigger.cron}
+                  variant="secondary"
+                  className="font-mono text-sm"
+                >
+                  {cronTrigger.cron}
+                </Badge>
                 {cronTrigger.cron && (
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                     Runs{' '}
