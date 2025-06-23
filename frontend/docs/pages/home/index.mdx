@@ -20,13 +20,13 @@ Background tasks are functions which are executed outside of the main request/re
 
 **Workers**
 
-Hatchet is responsible for invoking tasks which run on **workers**. Workers are long-running processes which are connected to Hatchet, and execute the functions defined in your tasks. They can be run on your own infrastructure, or on Hatchet's [managed compute](./compute) offering.
+Hatchet is responsible for invoking tasks which run on **workers**. Workers are long-running processes which are connected to Hatchet, and execute the functions defined in your tasks. They can be run on your own infrastructure, or on Hatchet's [managed compute](./home/compute) offering.
 
 One of the design goals of Hatchet is to ensure that workers can be run anywhere, from a PaaS like Heroku to a Kubernetes cluster running in your own data center.
 
 **What is a task?**
 
-A task is a unit of work that can be executed by Hatchet. Tasks can be run directly, or can be executed in response to an external trigger (an event, schedule, or API call). For example, if you'd like to send notifications to a user after they've signed up, you could create a task for that. Tasks can be spawned from within another task or can be built into a [directed acyclic graph based workflow](./dags).
+A task is a unit of work that can be executed by Hatchet. Tasks can be run directly, or can be executed in response to an external trigger (an event, schedule, or API call). For example, if you'd like to send notifications to a user after they've signed up, you could create a task for that. Tasks can be spawned from within another task or can be built into a [directed acyclic graph based workflow](./home/dags).
 
 **Durable queue**
 
@@ -36,8 +36,8 @@ Hatchet is built on top of a durable, low-latency queue, which means it can hand
 
 We have a number of quick start tutorials for getting up and running quickly with Hatchet:
 
-- [Hatchet Cloud Quickstart](hatchet-cloud-quickstart)
-- [Hatchet Self-Hosted Quickstarts](https://docs.hatchet.run/self-hosting)
+- [Hatchet Cloud Quickstart](./home/hatchet-cloud-quickstart)
+- [Hatchet Self-Hosted Quickstarts](./self-hosting)
 
 We also have a number of guides for getting started with the Hatchet SDKs:
 
