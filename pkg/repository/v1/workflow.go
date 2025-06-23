@@ -370,10 +370,17 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 		return sqlchelpers.UUIDToStr(oldWorkflowVersion.WorkflowVersion.ID), nil
 	}
 
+	optsJson, err := json.Marshal(opts)
+
+	if err != nil {
+		return "", err
+	}
+
 	createParams := sqlcv1.CreateWorkflowVersionParams{
-		ID:         sqlchelpers.UUIDFromStr(workflowVersionId),
-		Checksum:   cs,
-		Workflowid: workflowId,
+		ID:                        sqlchelpers.UUIDFromStr(workflowVersionId),
+		Checksum:                  cs,
+		Workflowid:                workflowId,
+		CreateWorkflowVersionOpts: optsJson,
 	}
 
 	if opts.Sticky != nil {

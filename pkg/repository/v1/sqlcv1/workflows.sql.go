@@ -728,7 +728,8 @@ INSERT INTO "WorkflowVersion" (
     "scheduleTimeout",
     "sticky",
     "kind",
-    "defaultPriority"
+    "defaultPriority",
+    "createWorkflowVersionOpts"
 ) VALUES (
     $1::uuid,
     coalesce($2::timestamp, CURRENT_TIMESTAMP),
@@ -741,21 +742,23 @@ INSERT INTO "WorkflowVersion" (
     '5m',
     $8::"StickyStrategy",
     coalesce($9::"WorkflowKind", 'DAG'),
-    $10 :: integer
+    $10 :: integer,
+    $11::jsonb
 ) RETURNING id, "createdAt", "updatedAt", "deletedAt", version, "order", "workflowId", checksum, "scheduleTimeout", "onFailureJobId", sticky, kind, "defaultPriority", "createWorkflowVersionOpts"
 `
 
 type CreateWorkflowVersionParams struct {
-	ID              pgtype.UUID        `json:"id"`
-	CreatedAt       pgtype.Timestamp   `json:"createdAt"`
-	UpdatedAt       pgtype.Timestamp   `json:"updatedAt"`
-	Deletedat       pgtype.Timestamp   `json:"deletedat"`
-	Checksum        string             `json:"checksum"`
-	Version         pgtype.Text        `json:"version"`
-	Workflowid      pgtype.UUID        `json:"workflowid"`
-	Sticky          NullStickyStrategy `json:"sticky"`
-	Kind            NullWorkflowKind   `json:"kind"`
-	DefaultPriority pgtype.Int4        `json:"defaultPriority"`
+	ID                        pgtype.UUID        `json:"id"`
+	CreatedAt                 pgtype.Timestamp   `json:"createdAt"`
+	UpdatedAt                 pgtype.Timestamp   `json:"updatedAt"`
+	Deletedat                 pgtype.Timestamp   `json:"deletedat"`
+	Checksum                  string             `json:"checksum"`
+	Version                   pgtype.Text        `json:"version"`
+	Workflowid                pgtype.UUID        `json:"workflowid"`
+	Sticky                    NullStickyStrategy `json:"sticky"`
+	Kind                      NullWorkflowKind   `json:"kind"`
+	DefaultPriority           pgtype.Int4        `json:"defaultPriority"`
+	CreateWorkflowVersionOpts []byte             `json:"createWorkflowVersionOpts"`
 }
 
 func (q *Queries) CreateWorkflowVersion(ctx context.Context, db DBTX, arg CreateWorkflowVersionParams) (*WorkflowVersion, error) {
@@ -770,6 +773,7 @@ func (q *Queries) CreateWorkflowVersion(ctx context.Context, db DBTX, arg Create
 		arg.Sticky,
 		arg.Kind,
 		arg.DefaultPriority,
+		arg.CreateWorkflowVersionOpts,
 	)
 	var i WorkflowVersion
 	err := row.Scan(
