@@ -12,8 +12,6 @@ export default function WorkflowGeneralSettings({
     <>
       <h3 className="text-lg font-semibold mb-4">Trigger</h3>
       <TriggerSettings workflow={workflow} />
-      <h3 className="text-lg font-semibold mb-4">Schedule Timeout</h3>
-      <ScheduleTimeoutSettings workflow={workflow} />
       <h3 className="text-lg font-semibold my-4">Concurrency</h3>
       <ConcurrencySettings workflow={workflow} />
       <h3 className="text-lg font-semibold my-4">Sticky Strategy</h3>
