@@ -112,11 +112,16 @@ func (b *StreamEventBuffer) AddEvent(event *contracts.WorkflowEvent) []*contract
 		b.stepRunIdToExpectedIndex[stepRunId] = 0
 	}
 
+	// If EventIndex is nil, don't buffer - just release the event immediately
+	if event.EventIndex == nil {
+		return []*contracts.WorkflowEvent{event}
+	}
+
 	expectedIndex := b.stepRunIdToExpectedIndex[stepRunId]
 
 	// For stream events: if this event is the next expected one, send it immediately
 	// Only buffer if it's out of order
-	if event.EventIndex != nil && *event.EventIndex == expectedIndex {
+	if *event.EventIndex == expectedIndex {
 		b.stepRunIdToExpectedIndex[stepRunId] = expectedIndex + 1
 
 		if bufferedEvents, exists := b.stepRunIdToWorkflowEvents[stepRunId]; exists && len(bufferedEvents) > 0 {
