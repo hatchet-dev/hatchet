@@ -191,10 +191,6 @@ class EventClient(BaseRestClient):
 
     @tenacity_retry
     def stream(self, data: str | bytes, step_run_id: str, index: int) -> None:
-        print(
-            f"[Python SDK] Sending stream event: step_run_id={step_run_id}, index={index}, data={data}"
-        )
-
         if isinstance(data, str):
             data_bytes = data.encode("utf-8")
         elif isinstance(data, bytes):
@@ -210,18 +206,10 @@ class EventClient(BaseRestClient):
         )
 
         try:
-            response = self.events_service_client.PutStreamEvent(
+            self.events_service_client.PutStreamEvent(
                 request, metadata=get_metadata(self.token)
             )
-
-            print(
-                f"[Python SDK] Stream event sent successfully: step_run_id={step_run_id}, index={index}"
-            )
-            return response
-        except Exception as e:
-            print(
-                f"[Python SDK] Error sending stream event: step_run_id={step_run_id}, index={index}, error={e}"
-            )
+        except Exception:
             raise
 
     async def aio_list(
