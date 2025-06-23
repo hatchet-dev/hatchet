@@ -116,3 +116,29 @@ func TestStreamBuffer_TimeoutWithSubsequentOrdering(t *testing.T) {
 	assert.Equal(t, 1, len(releasedEvents4))
 	assert.Equal(t, event6, releasedEvents4[0])
 }
+
+func TestStreamBuffer_HangupHandling(t *testing.T) {
+	buffer := NewStreamEventBuffer(500 * time.Millisecond)
+
+	event2 := genEvent("first-event", false, 1)
+	event3 := genEvent("second-event", false, 2)
+
+	releasedEvents := buffer.AddEvent(event2)
+	assert.Equal(t, 0, len(releasedEvents))
+
+	releasedEvents2 := buffer.AddEvent(event3)
+	assert.Equal(t, 0, len(releasedEvents2))
+
+	eventHangup := genEvent("hangup-event", true, 3)
+	releasedEvents3 := buffer.AddEvent(eventHangup)
+	assert.Equal(t, 0, len(releasedEvents3))
+
+	event0 := genEvent("first-event", false, 0)
+	releasedEvents4 := buffer.AddEvent(event0)
+	assert.Equal(t, 4, len(releasedEvents4))
+
+	assert.Equal(t, event0, releasedEvents4[0])
+	assert.Equal(t, event2, releasedEvents4[1])
+	assert.Equal(t, event3, releasedEvents4[2])
+	assert.Equal(t, eventHangup, releasedEvents4[3])
+}
