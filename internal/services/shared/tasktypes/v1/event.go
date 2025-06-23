@@ -32,5 +32,5 @@ type StreamEventPayload struct {
 	CreatedAt     time.Time `json:"created_at" validate:"required"`
 	Payload       []byte    `json:"payload"`
 	RetryCount    *int32    `json:"retry_count,omitempty"`
-	EventIndex    int64     `json:"event_index"`
+	EventIndex    *int64    `json:"event_index"`
 }

@@ -60,11 +60,15 @@ func isTerminalEvent(event *contracts.WorkflowEvent) bool {
 }
 
 func sortByEventIndex(a, b *contracts.WorkflowEvent) int {
-	if a.EventIndex < b.EventIndex {
+	if a.EventIndex == nil && b.EventIndex == nil {
+		return 0
+	}
+
+	if *a.EventIndex < *b.EventIndex {
 		return -1
 	}
 
-	if a.EventIndex > b.EventIndex {
+	if *a.EventIndex > *b.EventIndex {
 		return 1
 	}
 
@@ -112,7 +116,7 @@ func (b *StreamEventBuffer) AddEvent(event *contracts.WorkflowEvent) []*contract
 
 	// For stream events: if this event is the next expected one, send it immediately
 	// Only buffer if it's out of order
-	if event.EventIndex == expectedIndex {
+	if event.EventIndex != nil && *event.EventIndex == expectedIndex {
 		b.stepRunIdToExpectedIndex[stepRunId] = expectedIndex + 1
 
 		if bufferedEvents, exists := b.stepRunIdToWorkflowEvents[stepRunId]; exists && len(bufferedEvents) > 0 {
@@ -157,8 +161,8 @@ func (b *StreamEventBuffer) GetTimedOutEvents() []*contracts.WorkflowEvent {
 
 				maxIndex := int64(0)
 				for _, event := range events {
-					if event.EventIndex > maxIndex {
-						maxIndex = event.EventIndex
+					if event.EventIndex != nil && *event.EventIndex > maxIndex {
+						maxIndex = *event.EventIndex
 					}
 				}
 
@@ -187,7 +191,7 @@ func (b *StreamEventBuffer) getReadyEvents(stepRunId string) []*contracts.Workfl
 	events := b.stepRunIdToWorkflowEvents[stepRunId]
 	expectedIdx := b.stepRunIdToExpectedIndex[stepRunId]
 
-	for len(events) > 0 && events[0].EventIndex == expectedIdx {
+	for len(events) > 0 && events[0].EventIndex != nil && *events[0].EventIndex == expectedIdx {
 		result = append(result, events[0])
 		events = events[1:]
 		expectedIdx++
@@ -1179,6 +1183,14 @@ func (s *DispatcherImpl) msgsToWorkflowEvent(msgId string, payloads [][]byte, fi
 			return 1
 		} else if !a.Hangup && b.Hangup {
 			return -1
+		}
+
+		if a.EventIndex != nil && b.EventIndex != nil {
+			if *a.EventIndex < *b.EventIndex {
+				return -1
+			} else if *a.EventIndex > *b.EventIndex {
+				return 1
+			}
 		}
 
 		if a.EventTimestamp.AsTime().Before(b.EventTimestamp.AsTime()) {
