@@ -4,12 +4,12 @@ import { Tabs, Callout } from "nextra/components";
 
 Welcome to the Hatchet User Guide! Hatchet is a platform for running background tasks at scale. Instead of managing your own task queue or pub/sub system, you can use Hatchet to distribute your functions between a set of workers with minimal configuration or infrastructure. Hatchet supports the following features:
 
-- [📥 Queues](./your-first-task)
-- 🎻 Task Orchestration ([DAGs](./dags) and [durable execution](./durable-execution))
-- 🚦 Flow Control ([concurrency](./concurrency) or [rate limiting](./rate-limits))
-- 📅 Scheduling ([cron jobs](./cron-runs) and [scheduled tasks](./scheduled-runs))
-- 🚏 Task routing ([sticky execution](./sticky-assignment) and [affinity](./worker-affinity))
-- ⚡️ [Event triggers](./run-on-event) and [listeners](./durable-execution)
+- [📥 Queues](./home/your-first-task)
+- 🎻 Task Orchestration ([DAGs](./home/dags) and [durable execution](./home/durable-execution))
+- 🚦 Flow Control ([concurrency](./home/concurrency) or [rate limiting](./home/rate-limits))
+- 📅 Scheduling ([cron jobs](./home/cron-runs) and [scheduled tasks](./home/scheduled-runs))
+- 🚏 Task routing ([sticky execution](./home/sticky-assignment) and [affinity](./home/worker-affinity))
+- ⚡️ [Event triggers](./home/run-on-event) and [listeners](./home/durable-execution)
 - [🖥️ Real-time Observability Dashboard](https://cloud.onhatchet.run)
 
 ## Concepts
@@ -20,13 +20,13 @@ Background tasks are functions which are executed outside of the main request/re
 
 **Workers**
 
-Hatchet is responsible for invoking tasks which run on **workers**. Workers are long-running processes which are connected to Hatchet, and execute the functions defined in your tasks. They can be run on your own infrastructure, or on Hatchet's [managed compute](./compute) offering.
+Hatchet is responsible for invoking tasks which run on **workers**. Workers are long-running processes which are connected to Hatchet, and execute the functions defined in your tasks. They can be run on your own infrastructure, or on Hatchet's [managed compute](./home/compute) offering.
 
 One of the design goals of Hatchet is to ensure that workers can be run anywhere, from a PaaS like Heroku to a Kubernetes cluster running in your own data center.
 
 **What is a task?**
 
-A task is a unit of work that can be executed by Hatchet. Tasks can be run directly, or can be executed in response to an external trigger (an event, schedule, or API call). For example, if you'd like to send notifications to a user after they've signed up, you could create a task for that. Tasks can be spawned from within another task or can be built into a [directed acyclic graph based workflow](./dags).
+A task is a unit of work that can be executed by Hatchet. Tasks can be run directly, or can be executed in response to an external trigger (an event, schedule, or API call). For example, if you'd like to send notifications to a user after they've signed up, you could create a task for that. Tasks can be spawned from within another task or can be built into a [directed acyclic graph based workflow](./home/dags).
 
 **Durable queue**
 
@@ -36,8 +36,8 @@ Hatchet is built on top of a durable, low-latency queue, which means it can hand
 
 We have a number of quick start tutorials for getting up and running quickly with Hatchet:
 
-- [Hatchet Cloud Quickstart](hatchet-cloud-quickstart)
-- [Hatchet Self-Hosted Quickstarts](https://docs.hatchet.run/self-hosting)
+- [Hatchet Cloud Quickstart](./home/hatchet-cloud-quickstart)
+- [Hatchet Self-Hosted Quickstarts](./self-hosting)
 
 We also have a number of guides for getting started with the Hatchet SDKs:
 
