@@ -1,10 +1,10 @@
 import asyncio
-import re
+from datetime import datetime, timedelta, timezone
 from typing import Generator
 
 from hatchet_sdk import Context, EmptyModel, Hatchet
 
-hatchet = Hatchet(debug=True)
+hatchet = Hatchet(debug=False)
 
 # > Streaming
 
@@ -15,7 +15,7 @@ Everything was in confusion in the Oblonskys' house. The wife had discovered tha
 """
 
 
-def create_chunks(content: str, n: int) -> Generator[str, None]:
+def create_chunks(content: str, n: int) -> Generator[str, None, None]:
     for i in range(0, len(content), n):
         yield content[i : i + n]
 
@@ -25,9 +25,11 @@ chunks = list(create_chunks(content, 10))
 
 @hatchet.task()
 async def stream_task(input: EmptyModel, ctx: Context) -> None:
+    await asyncio.sleep(2)
+
     for chunk in chunks:
         ctx.put_stream(chunk)
-        await asyncio.sleep(0.025)
+        await asyncio.sleep(0.05)
 
 
 def main() -> None:

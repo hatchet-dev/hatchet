@@ -12,7 +12,6 @@ from examples.concurrency_multiple_keys.worker import concurrency_multiple_keys_
 from examples.concurrency_workflow_level.worker import (
     concurrency_workflow_level_workflow,
 )
-from examples.streaming.worker import stream_task
 from examples.dag.worker import dag_workflow
 from examples.dedupe.worker import dedupe_child_wf, dedupe_parent_wf
 from examples.durable.worker import durable_workflow
@@ -66,7 +65,6 @@ def main() -> None:
             bulk_replay_test_1,
             bulk_replay_test_2,
             bulk_replay_test_3,
-            stream_task,
         ],
         lifespan=lifespan,
     )
