@@ -259,13 +259,13 @@ export default function ExpandedWorkflow() {
                   }, 2000);
                 }}
               >
-                <div className="flex flex-row gap-x-1 items-center">
-                  Copy Workflow Config
+                <div className="flex flex-row gap-x-2 items-center">
                   {copySuccess ? (
                     <CheckIcon className="w-4 h-4" />
                   ) : (
                     <CopyIcon className="w-4 h-4" />
                   )}
+                  Copy Workflow Config
                 </div>
               </Button>
             </div>
