@@ -398,6 +398,7 @@ class DurableContext(Context):
             task_id=task_id,
             signal_key=signal_key,
             conditions=list(conditions),
+            config=self.runs_client.client_config,
         )
 
         self.durable_event_listener.register_durable_event(request)
