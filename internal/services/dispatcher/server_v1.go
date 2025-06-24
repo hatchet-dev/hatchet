@@ -27,6 +27,11 @@ import (
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
 )
 
+type timeoutEvent struct {
+	events    []*contracts.WorkflowEvent
+	timeoutAt time.Time
+}
+
 type StreamEventBuffer struct {
 	stepRunIdToWorkflowEvents map[string][]*contracts.WorkflowEvent
 	stepRunIdToExpectedIndex  map[string]int64
@@ -35,17 +40,32 @@ type StreamEventBuffer struct {
 	mu                        sync.Mutex
 	timeoutDuration           time.Duration
 	gracePeriod               time.Duration
+	eventsChan                chan *contracts.WorkflowEvent
+	timedOutEventProducer     chan timeoutEvent
+	ctx                       context.Context
+	cancel                    context.CancelFunc
 }
 
 func NewStreamEventBuffer(timeout time.Duration) *StreamEventBuffer {
-	return &StreamEventBuffer{
+	ctx, cancel := context.WithCancel(context.Background())
+
+	buffer := &StreamEventBuffer{
 		stepRunIdToWorkflowEvents: make(map[string][]*contracts.WorkflowEvent),
 		stepRunIdToExpectedIndex:  make(map[string]int64),
 		stepRunIdToLastSeenTime:   make(map[string]time.Time),
 		stepRunIdToCompletionTime: make(map[string]time.Time),
 		timeoutDuration:           timeout,
 		gracePeriod:               2 * time.Second, // Wait 2 seconds after completion for late events
+		eventsChan:                make(chan *contracts.WorkflowEvent, 100),
+		timedOutEventProducer:     make(chan timeoutEvent, 100),
+		ctx:                       ctx,
+		cancel:                    cancel,
 	}
+
+	go buffer.processTimeoutEvents()
+	go buffer.periodicCleanup()
+
+	return buffer
 }
 
 func isTerminalEvent(event *contracts.WorkflowEvent) bool {
@@ -83,7 +103,81 @@ func sortByEventIndex(a, b *contracts.WorkflowEvent) int {
 	return 0
 }
 
-func (b *StreamEventBuffer) AddEvent(event *contracts.WorkflowEvent) []*contracts.WorkflowEvent {
+func (b *StreamEventBuffer) processTimeoutEvents() {
+	for {
+		select {
+		case <-b.ctx.Done():
+			return
+		case timeoutEvent := <-b.timedOutEventProducer:
+			timer := time.NewTimer(time.Until(timeoutEvent.timeoutAt))
+
+			select {
+			case <-b.ctx.Done():
+				timer.Stop()
+				return
+			case <-timer.C:
+				b.mu.Lock()
+				for _, event := range timeoutEvent.events {
+					stepRunId := event.ResourceId
+
+					if bufferedEvents, exists := b.stepRunIdToWorkflowEvents[stepRunId]; exists {
+						for _, e := range bufferedEvents {
+							select {
+							case b.eventsChan <- e:
+							case <-b.ctx.Done():
+								b.mu.Unlock()
+								return
+							}
+						}
+
+						delete(b.stepRunIdToWorkflowEvents, stepRunId)
+						delete(b.stepRunIdToLastSeenTime, stepRunId)
+						b.stepRunIdToExpectedIndex[stepRunId] = -1
+					}
+				}
+				b.mu.Unlock()
+			}
+		}
+	}
+}
+
+func (b *StreamEventBuffer) Events() <-chan *contracts.WorkflowEvent {
+	return b.eventsChan
+}
+
+func (b *StreamEventBuffer) Close() {
+	b.cancel()
+	close(b.eventsChan)
+	close(b.timedOutEventProducer)
+}
+
+func (b *StreamEventBuffer) periodicCleanup() {
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-b.ctx.Done():
+			return
+		case <-ticker.C:
+			b.mu.Lock()
+			now := time.Now()
+
+			for stepRunId, completionTime := range b.stepRunIdToCompletionTime {
+				if now.Sub(completionTime) > b.gracePeriod {
+					delete(b.stepRunIdToWorkflowEvents, stepRunId)
+					delete(b.stepRunIdToExpectedIndex, stepRunId)
+					delete(b.stepRunIdToLastSeenTime, stepRunId)
+					delete(b.stepRunIdToCompletionTime, stepRunId)
+				}
+			}
+
+			b.mu.Unlock()
+		}
+	}
+}
+
+func (b *StreamEventBuffer) AddEvent(event *contracts.WorkflowEvent) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
@@ -95,22 +189,30 @@ func (b *StreamEventBuffer) AddEvent(event *contracts.WorkflowEvent) []*contract
 
 		if isTerminalEvent(event) {
 			if events, exists := b.stepRunIdToWorkflowEvents[stepRunId]; exists && len(events) > 0 {
-				result := make([]*contracts.WorkflowEvent, 0)
-
 				slices.SortFunc(events, sortByEventIndex)
 
-				result = append(result, events...)
+				for _, e := range events {
+					select {
+					case b.eventsChan <- e:
+					case <-b.ctx.Done():
+						return
+					}
+				}
 
 				delete(b.stepRunIdToWorkflowEvents, stepRunId)
 				delete(b.stepRunIdToExpectedIndex, stepRunId)
 				delete(b.stepRunIdToLastSeenTime, stepRunId)
-				delete(b.stepRunIdToCompletionTime, stepRunId)
-
-				return append(result, event)
 			}
+
+			b.stepRunIdToCompletionTime[stepRunId] = now
 		}
 
-		return []*contracts.WorkflowEvent{event}
+		select {
+		case b.eventsChan <- event:
+		case <-b.ctx.Done():
+			return
+		}
+		return
 	}
 
 	b.stepRunIdToLastSeenTime[stepRunId] = now
@@ -122,7 +224,12 @@ func (b *StreamEventBuffer) AddEvent(event *contracts.WorkflowEvent) []*contract
 
 	// If EventIndex is nil, don't buffer - just release the event immediately
 	if event.EventIndex == nil {
-		return []*contracts.WorkflowEvent{event}
+		select {
+		case b.eventsChan <- event:
+		case <-b.ctx.Done():
+			return
+		}
+		return
 	}
 
 	expectedIndex := b.stepRunIdToExpectedIndex[stepRunId]
@@ -140,11 +247,16 @@ func (b *StreamEventBuffer) AddEvent(event *contracts.WorkflowEvent) []*contract
 			b.stepRunIdToWorkflowEvents[stepRunId] = append(bufferedEvents, event)
 			slices.SortFunc(b.stepRunIdToWorkflowEvents[stepRunId], sortByEventIndex)
 
-			return b.getReadyEvents(stepRunId)
+			b.sendReadyEvents(stepRunId)
 		} else {
 			b.stepRunIdToExpectedIndex[stepRunId] = expectedIndex + 1
-			return []*contracts.WorkflowEvent{event}
+			select {
+			case b.eventsChan <- event:
+			case <-b.ctx.Done():
+				return
+			}
 		}
+		return
 	}
 
 	if _, exists := b.stepRunIdToWorkflowEvents[stepRunId]; !exists {
@@ -152,67 +264,48 @@ func (b *StreamEventBuffer) AddEvent(event *contracts.WorkflowEvent) []*contract
 	}
 
 	b.stepRunIdToWorkflowEvents[stepRunId] = append(b.stepRunIdToWorkflowEvents[stepRunId], event)
-
 	slices.SortFunc(b.stepRunIdToWorkflowEvents[stepRunId], sortByEventIndex)
 
-	return b.getReadyEvents(stepRunId)
+	b.sendReadyEvents(stepRunId)
+
+	b.scheduleTimeoutIfNeeded(stepRunId, now)
 }
 
-func (b *StreamEventBuffer) GetTimedOutEvents() []*contracts.WorkflowEvent {
-	b.mu.Lock()
-	defer b.mu.Unlock()
+func (b *StreamEventBuffer) scheduleTimeoutIfNeeded(stepRunId string, eventTime time.Time) {
+	if events, exists := b.stepRunIdToWorkflowEvents[stepRunId]; exists && len(events) > 0 {
+		timeoutAt := eventTime.Add(b.timeoutDuration)
 
-	now := time.Now()
-	result := make([]*contracts.WorkflowEvent, 0)
-
-	for stepRunId, lastSeen := range b.stepRunIdToLastSeenTime {
-		if _, completed := b.stepRunIdToCompletionTime[stepRunId]; completed {
-			continue
+		timeoutEvent := timeoutEvent{
+			events:    append([]*contracts.WorkflowEvent{}, events...),
+			timeoutAt: timeoutAt,
 		}
 
-		if now.Sub(lastSeen) > b.timeoutDuration {
-			events := b.stepRunIdToWorkflowEvents[stepRunId]
-
-			if len(events) > 0 {
-				result = append(result, events...)
-			}
-
-			// After timeout, clear all state and set expected index to -1 as a marker
-			// that the next event should start a fresh sequence (can't reset to 0
-			// since that's a real possible value)
-			delete(b.stepRunIdToWorkflowEvents, stepRunId)
-			b.stepRunIdToExpectedIndex[stepRunId] = -1
-			delete(b.stepRunIdToLastSeenTime, stepRunId)
+		select {
+		case b.timedOutEventProducer <- timeoutEvent:
+		case <-b.ctx.Done():
+			return
+		default:
+			// If the channel is full, we skip this timeout scheduling
 		}
 	}
-
-	for stepRunId, completionTime := range b.stepRunIdToCompletionTime {
-		if now.Sub(completionTime) > b.gracePeriod {
-			delete(b.stepRunIdToWorkflowEvents, stepRunId)
-			delete(b.stepRunIdToExpectedIndex, stepRunId)
-			delete(b.stepRunIdToLastSeenTime, stepRunId)
-			delete(b.stepRunIdToCompletionTime, stepRunId)
-		}
-	}
-
-	return result
 }
 
-func (b *StreamEventBuffer) getReadyEvents(stepRunId string) []*contracts.WorkflowEvent {
-	result := make([]*contracts.WorkflowEvent, 0)
+func (b *StreamEventBuffer) sendReadyEvents(stepRunId string) {
 	events := b.stepRunIdToWorkflowEvents[stepRunId]
 	expectedIdx := b.stepRunIdToExpectedIndex[stepRunId]
 
 	for len(events) > 0 && events[0].EventIndex != nil && *events[0].EventIndex == expectedIdx {
-		result = append(result, events[0])
+		select {
+		case b.eventsChan <- events[0]:
+		case <-b.ctx.Done():
+			return
+		}
 		events = events[1:]
 		expectedIdx++
 	}
 
 	b.stepRunIdToWorkflowEvents[stepRunId] = events
 	b.stepRunIdToExpectedIndex[stepRunId] = expectedIdx
-
-	return result
 }
 
 // SubscribeToWorkflowEvents registers workflow events with the dispatcher
@@ -747,32 +840,32 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsByWorkflowRunIdV1(workflowRunI
 	var sendMu sync.Mutex // Mutex to protect sending messages
 
 	streamBuffer := NewStreamEventBuffer(5 * time.Second)
+	defer streamBuffer.Close()
 
+	// Handle events from the stream buffer
 	go func() {
-		ticker := time.NewTicker(50 * time.Millisecond)
-
-		defer ticker.Stop()
-
 		for {
 			select {
 			case <-ctx.Done():
 				return
-			case <-ticker.C:
-				timedOutEvents := streamBuffer.GetTimedOutEvents()
-				for _, event := range timedOutEvents {
-					sendMu.Lock()
-					err := stream.Send(event)
-					sendMu.Unlock()
+			case event, ok := <-streamBuffer.Events():
+				if !ok {
+					return
+				}
 
-					if err != nil {
-						s.l.Error().Err(err).Msgf("could not send timed out workflow event to client")
-						return
-					}
+				sendMu.Lock()
+				err := stream.Send(event)
+				sendMu.Unlock()
 
-					if event.Hangup {
-						cancel()
-						return
-					}
+				if err != nil {
+					s.l.Error().Err(err).Msgf("could not send workflow event to client")
+					cancel()
+					return
+				}
+
+				if event.Hangup {
+					cancel()
+					return
 				}
 			}
 		}
@@ -851,23 +944,7 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsByWorkflowRunIdV1(workflowRunI
 
 		// send the task to the client
 		for _, e := range events {
-			orderedEvents := streamBuffer.AddEvent(e)
-
-			for _, orderedEvent := range orderedEvents {
-				sendMu.Lock()
-				err = stream.Send(orderedEvent)
-				sendMu.Unlock()
-
-				if err != nil {
-					cancel()
-					s.l.Error().Err(err).Msgf("could not send workflow event to client")
-					return nil
-				}
-
-				if orderedEvent.Hangup {
-					cancel()
-				}
-			}
+			streamBuffer.AddEvent(e)
 		}
 
 		return nil

@@ -26,19 +26,25 @@ func genEvent(payload string, hangup bool, eventIndex *int64) *contracts.Workflo
 
 func TestStreamBuffer_BasicEventRelease(t *testing.T) {
 	buffer := NewStreamEventBuffer(5 * time.Second)
+	defer buffer.Close()
 
 	ix := int64(0)
 
 	event := genEvent("test_payload", false, &ix)
 
-	releasedEvents := buffer.AddEvent(event)
+	buffer.AddEvent(event)
 
-	assert.Equal(t, 1, len(releasedEvents))
-	assert.Equal(t, event, releasedEvents[0])
+	select {
+	case receivedEvent := <-buffer.Events():
+		assert.Equal(t, event, receivedEvent)
+	case <-time.After(1 * time.Second):
+		t.Fatal("Expected event was not received")
+	}
 }
 
 func TestStreamBuffer_OutOfOrderRelease(t *testing.T) {
 	buffer := NewStreamEventBuffer(5 * time.Second)
+	defer buffer.Close()
 
 	ix0 := int64(0)
 	ix1 := int64(1)
@@ -46,58 +52,103 @@ func TestStreamBuffer_OutOfOrderRelease(t *testing.T) {
 
 	event2 := genEvent("test_payload", false, &ix1)
 
-	releasedEvents := buffer.AddEvent(event2)
+	buffer.AddEvent(event2)
 
-	assert.Equal(t, 0, len(releasedEvents))
+	select {
+	case <-buffer.Events():
+		t.Fatal("Should not receive out-of-order event")
+	case <-time.After(100 * time.Millisecond):
+		// Expected - no event should be received
+	}
 
 	event3 := genEvent("test_payload", false, &ix2)
-	releasedEvents2 := buffer.AddEvent(event3)
+	buffer.AddEvent(event3)
 
-	assert.Equal(t, 0, len(releasedEvents2))
+	select {
+	case <-buffer.Events():
+		t.Fatal("Should not receive out-of-order event")
+	case <-time.After(100 * time.Millisecond):
+		// Expected - no event should be received
+	}
 
 	event1 := genEvent("test_payload", false, &ix0)
-	releasedEvents3 := buffer.AddEvent(event1)
+	buffer.AddEvent(event1)
 
-	assert.Equal(t, 3, len(releasedEvents3))
+	receivedEvents := make([]*contracts.WorkflowEvent, 0, 3)
+	for i := 0; i < 3; i++ {
+		select {
+		case event := <-buffer.Events():
+			receivedEvents = append(receivedEvents, event)
+		case <-time.After(1 * time.Second):
+			t.Fatalf("Expected to receive event %d", i)
+		}
+	}
 
-	assert.Equal(t, event1, releasedEvents3[0])
-	assert.Equal(t, event2, releasedEvents3[1])
-	assert.Equal(t, event3, releasedEvents3[2])
+	assert.Equal(t, 3, len(receivedEvents))
+	assert.Equal(t, event1, receivedEvents[0])
+	assert.Equal(t, event2, receivedEvents[1])
+	assert.Equal(t, event3, receivedEvents[2])
 }
 
 func TestStreamBuffer_Timeout(t *testing.T) {
 	buffer := NewStreamEventBuffer(1 * time.Second)
+	defer buffer.Close()
 
 	ix1 := int64(1)
 	ix2 := int64(2)
 	ix0 := int64(0)
 
 	event2 := genEvent("test_payload", false, &ix1)
-	releasedEvents := buffer.AddEvent(event2)
-	assert.Equal(t, 0, len(releasedEvents))
+	buffer.AddEvent(event2)
+
+	select {
+	case <-buffer.Events():
+		t.Fatal("Should not receive out-of-order event")
+	case <-time.After(100 * time.Millisecond):
+		// Expected - no event should be received
+	}
 
 	event3 := genEvent("test_payload", false, &ix2)
-	releasedEvents2 := buffer.AddEvent(event3)
-	assert.Equal(t, 0, len(releasedEvents2))
+	buffer.AddEvent(event3)
+
+	select {
+	case <-buffer.Events():
+		t.Fatal("Should not receive out-of-order event")
+	case <-time.After(100 * time.Millisecond):
+		// Expected - no event should be received
+	}
 
 	time.Sleep(2 * time.Second)
 
-	timedOutEvents := buffer.GetTimedOutEvents()
+	receivedEvents := make([]*contracts.WorkflowEvent, 0, 2)
+	for i := 0; i < 2; i++ {
+		select {
+		case event := <-buffer.Events():
+			receivedEvents = append(receivedEvents, event)
+		case <-time.After(1 * time.Second):
+			t.Fatalf("Expected to receive timed out event %d", i)
+		}
+	}
 
-	assert.Equal(t, 2, len(timedOutEvents))
-	assert.Equal(t, event2, timedOutEvents[0])
-	assert.Equal(t, event3, timedOutEvents[1])
+	assert.Equal(t, 2, len(receivedEvents))
+	assert.Equal(t, event2, receivedEvents[0])
+	assert.Equal(t, event3, receivedEvents[1])
 
 	event1 := genEvent("test_payload", false, &ix0)
-	releasedEvents3 := buffer.AddEvent(event1)
+	buffer.AddEvent(event1)
 
-	// This should be released immediately
-	assert.Equal(t, 1, len(releasedEvents3))
-	assert.Equal(t, event1, releasedEvents3[0])
+	// This should be released immediately (fresh sequence after timeout)
+	select {
+	case receivedEvent := <-buffer.Events():
+		assert.Equal(t, event1, receivedEvent)
+	case <-time.After(1 * time.Second):
+		t.Fatal("Expected event was not received")
+	}
 }
 
 func TestStreamBuffer_TimeoutWithSubsequentOrdering(t *testing.T) {
 	buffer := NewStreamEventBuffer(500 * time.Millisecond)
+	defer buffer.Close()
 
 	ix1 := int64(1)
 	ix2 := int64(2)
@@ -105,35 +156,67 @@ func TestStreamBuffer_TimeoutWithSubsequentOrdering(t *testing.T) {
 	ix6 := int64(6)
 
 	event1 := genEvent("payload1", false, &ix1)
-	releasedEvents := buffer.AddEvent(event1)
-	assert.Equal(t, 0, len(releasedEvents))
+	buffer.AddEvent(event1)
+
+	select {
+	case <-buffer.Events():
+		t.Fatal("Should not receive out-of-order event")
+	case <-time.After(100 * time.Millisecond):
+		// Expected - no event should be received
+	}
 
 	event2 := genEvent("payload2", false, &ix2)
-	releasedEvents2 := buffer.AddEvent(event2)
-	assert.Equal(t, 0, len(releasedEvents2))
+	buffer.AddEvent(event2)
+
+	select {
+	case <-buffer.Events():
+		t.Fatal("Should not receive out-of-order event")
+	case <-time.After(100 * time.Millisecond):
+		// Expected - no event should be received
+	}
 
 	time.Sleep(1 * time.Second)
 
-	timedOutEvents := buffer.GetTimedOutEvents()
-	assert.Equal(t, 2, len(timedOutEvents))
-	assert.Equal(t, event1, timedOutEvents[0])
-	assert.Equal(t, event2, timedOutEvents[1])
+	receivedEvents := make([]*contracts.WorkflowEvent, 0, 2)
+	for i := 0; i < 2; i++ {
+		select {
+		case event := <-buffer.Events():
+			receivedEvents = append(receivedEvents, event)
+		case <-time.After(1 * time.Second):
+			t.Fatalf("Expected to receive timed out event %d", i)
+		}
+	}
+
+	assert.Equal(t, 2, len(receivedEvents))
+	assert.Equal(t, event1, receivedEvents[0])
+	assert.Equal(t, event2, receivedEvents[1])
 
 	// Now start a new sequence - event 5 should start a fresh sequence
 	event5 := genEvent("payload5", false, &ix5)
-	releasedEvents3 := buffer.AddEvent(event5)
-	assert.Equal(t, 1, len(releasedEvents3))
-	assert.Equal(t, event5, releasedEvents3[0])
+	buffer.AddEvent(event5)
+
+	select {
+	case receivedEvent := <-buffer.Events():
+		assert.Equal(t, event5, receivedEvent)
+	case <-time.After(1 * time.Second):
+		t.Fatal("Expected event was not received")
+	}
 
 	// Event 6 should be released immediately as it's the next in sequence
 	event6 := genEvent("payload6", false, &ix6)
-	releasedEvents4 := buffer.AddEvent(event6)
-	assert.Equal(t, 1, len(releasedEvents4))
-	assert.Equal(t, event6, releasedEvents4[0])
+	buffer.AddEvent(event6)
+
+	select {
+	case receivedEvent := <-buffer.Events():
+		assert.Equal(t, event6, receivedEvent)
+	case <-time.After(1 * time.Second):
+		t.Fatal("Expected event was not received")
+	}
 }
 
 func TestStreamBuffer_HangupHandling(t *testing.T) {
 	buffer := NewStreamEventBuffer(500 * time.Millisecond)
+	defer buffer.Close()
 
 	ix0 := int64(0)
 	ix1 := int64(1)
@@ -143,37 +226,76 @@ func TestStreamBuffer_HangupHandling(t *testing.T) {
 	event2 := genEvent("first-event", false, &ix1)
 	event3 := genEvent("second-event", false, &ix2)
 
-	releasedEvents := buffer.AddEvent(event2)
-	assert.Equal(t, 0, len(releasedEvents))
+	buffer.AddEvent(event2)
 
-	releasedEvents2 := buffer.AddEvent(event3)
-	assert.Equal(t, 0, len(releasedEvents2))
+	select {
+	case <-buffer.Events():
+		t.Fatal("Should not receive out-of-order event")
+	case <-time.After(100 * time.Millisecond):
+		// Expected - no event should be received
+	}
+
+	buffer.AddEvent(event3)
+
+	select {
+	case <-buffer.Events():
+		t.Fatal("Should not receive out-of-order event")
+	case <-time.After(100 * time.Millisecond):
+		// Expected - no event should be received
+	}
 
 	eventHangup := genEvent("hangup-event", true, &ix3)
-	releasedEvents3 := buffer.AddEvent(eventHangup)
-	assert.Equal(t, 0, len(releasedEvents3))
+	buffer.AddEvent(eventHangup)
+
+	select {
+	case <-buffer.Events():
+		t.Fatal("Should not receive out-of-order event")
+	case <-time.After(100 * time.Millisecond):
+		// Expected - no event should be received
+	}
 
 	event0 := genEvent("first-event", false, &ix0)
-	releasedEvents4 := buffer.AddEvent(event0)
-	assert.Equal(t, 4, len(releasedEvents4))
+	buffer.AddEvent(event0)
 
-	assert.Equal(t, event0, releasedEvents4[0])
-	assert.Equal(t, event2, releasedEvents4[1])
-	assert.Equal(t, event3, releasedEvents4[2])
-	assert.Equal(t, eventHangup, releasedEvents4[3])
+	receivedEvents := make([]*contracts.WorkflowEvent, 0, 4)
+	for i := 0; i < 4; i++ {
+		select {
+		case event := <-buffer.Events():
+			receivedEvents = append(receivedEvents, event)
+		case <-time.After(1 * time.Second):
+			t.Fatalf("Expected to receive event %d", i)
+		}
+	}
+
+	assert.Equal(t, 4, len(receivedEvents))
+	assert.Equal(t, event0, receivedEvents[0])
+	assert.Equal(t, event2, receivedEvents[1])
+	assert.Equal(t, event3, receivedEvents[2])
+	assert.Equal(t, eventHangup, receivedEvents[3])
 }
 
 func TestStreamBuffer_NoIndexSent(t *testing.T) {
 	buffer := NewStreamEventBuffer(500 * time.Millisecond)
+	defer buffer.Close()
 
 	event1 := genEvent("first-event", false, nil)
 	event2 := genEvent("second-event", false, nil)
 
-	releasedEvents := buffer.AddEvent(event2)
-	assert.Equal(t, 1, len(releasedEvents))
-	assert.Equal(t, event2, releasedEvents[0])
+	buffer.AddEvent(event2)
 
-	releasedEvents2 := buffer.AddEvent(event1)
-	assert.Equal(t, 1, len(releasedEvents2))
+	select {
+	case receivedEvent := <-buffer.Events():
+		assert.Equal(t, event2, receivedEvent)
+	case <-time.After(1 * time.Second):
+		t.Fatal("Expected event was not received")
+	}
 
+	buffer.AddEvent(event1)
+
+	select {
+	case receivedEvent := <-buffer.Events():
+		assert.Equal(t, event1, receivedEvent)
+	case <-time.After(1 * time.Second):
+		t.Fatal("Expected event was not received")
+	}
 }
