@@ -72,7 +72,7 @@ func (o *OLAPControllerImpl) updateTaskStatuses(ctx context.Context, tenantId st
 				}
 
 				tenantMetric := prometheus.WithTenant(tenantId)
-				tenantMetric.WorkflowCompleted.WithLabelValues(tenantId, workflow.Name.String, string(row.ReadableStatus), "").Inc()
+				tenantMetric.WorkflowCompleted.WithLabelValues(tenantId, workflow.WorkflowName.String, string(row.ReadableStatus), "").Inc()
 			}
 		}
 	}

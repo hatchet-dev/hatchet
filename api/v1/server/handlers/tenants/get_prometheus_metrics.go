@@ -1,6 +1,7 @@
 package tenants
 
 import (
+	"fmt"
 	"io"
 	"net/http"
 
@@ -15,22 +16,26 @@ func (t *TenantService) TenantGetPrometheusMetrics(ctx echo.Context, request gen
 	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
-	// Build URL to engine's tenant-specific metrics endpoint
-	prometheusURL := "http://" + t.config.Prometheus.Address + t.config.Prometheus.Path + "/" + tenantId
+	var response string
 
-	// Make HTTP GET request to the engine's metrics endpoint
-	resp, err := http.Get(prometheusURL)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
+	// connect to the prometheus server
+	if t.config.Prometheus.PrometheusServerAddress != "" {
+		endpoint := fmt.Sprintf("%s/federate?match[]={tenant_id=\"%s\"}", t.config.Prometheus.PrometheusServerAddress, tenantId)
 
-	// Read the response body
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
+		federatedMetrics, err := http.Get(endpoint)
+		if err != nil {
+			return nil, err
+		}
+		defer federatedMetrics.Body.Close()
+
+		body, err := io.ReadAll(federatedMetrics.Body)
+		if err != nil {
+			return nil, err
+		}
+
+		response = string(body)
 	}
 
 	// Return the metrics as text response
-	return gen.TenantGetPrometheusMetrics200TextResponse(string(body)), nil
+	return gen.TenantGetPrometheusMetrics200TextResponse(response), nil
 }

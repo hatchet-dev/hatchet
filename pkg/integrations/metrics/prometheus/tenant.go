@@ -14,7 +14,6 @@ const (
 )
 
 type TenantMetric struct {
-	Registry          *prometheus.Registry
 	WorkflowCompleted *prometheus.CounterVec
 }
 
@@ -23,17 +22,14 @@ var tenantMetricsMap sync.Map
 func WithTenant(tenantId string) *TenantMetric {
 	tenantMetric, ok := tenantMetricsMap.Load(tenantId)
 	if !ok {
-		registry := prometheus.NewRegistry()
-
 		workflowCompleted := promauto.NewCounterVec(prometheus.CounterOpts{
 			Name: string(TenantWorkflowCompleted),
 			Help: "Finished workflow runs",
 		}, []string{"tenant_id", "workflow_name", "status", "duration", "worker_id"})
 
-		registry.MustRegister(workflowCompleted)
+		prometheus.MustRegister(workflowCompleted)
 
 		tenantMetric = &TenantMetric{
-			Registry:          registry,
 			WorkflowCompleted: workflowCompleted,
 		}
 

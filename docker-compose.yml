@@ -35,7 +35,7 @@ services:
     image: prom/prometheus:latest
     container_name: hatchet-prometheus
     ports:
-      - "9090:9090"
+      - "9091:9090"
     volumes:
       - ./hack/dev/prometheus.yml:/etc/prometheus/prometheus.yml
       - hatchet_prometheus_data:/prometheus

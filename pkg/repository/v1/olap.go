@@ -221,13 +221,12 @@ type OLAPRepository interface {
 	// In the case of a DAG, we flatten the result into the list of tasks which belong to that DAG.
 	ListTasksByExternalIds(ctx context.Context, tenantId string, externalIds []string) ([]*sqlcv1.FlattenTasksByExternalIdsRow, error)
 
-	GetWorkflowStatsByExternalId(ctx context.Context, tenantId string, externalId pgtype.UUID) (*sqlcv1.GetWorkflowStatsByExternalIdRow, error)
-
 	GetTaskTimings(ctx context.Context, tenantId string, workflowRunId pgtype.UUID, depth int32) ([]*sqlcv1.PopulateTaskRunDataRow, map[string]int32, error)
 	BulkCreateEventsAndTriggers(ctx context.Context, events sqlcv1.BulkCreateEventsParams, triggers []EventTriggersFromExternalId) error
 	ListEvents(ctx context.Context, opts sqlcv1.ListEventsParams) ([]*sqlcv1.ListEventsRow, *int64, error)
 	ListEventKeys(ctx context.Context, tenantId string) ([]string, error)
 
+	GetWorkflowByExternalId(ctx context.Context, tenantId string, externalId pgtype.UUID) (*sqlcv1.GetWorkflowByExternalIdRow, error)
 	TaskHasDAG(ctx context.Context, taskId int64) (bool, error)
 }
 
@@ -1373,13 +1372,6 @@ func (r *OLAPRepositoryImpl) ListTasksByExternalIds(ctx context.Context, tenantI
 	})
 }
 
-func (r *OLAPRepositoryImpl) GetWorkflowStatsByExternalId(ctx context.Context, tenantId string, externalId pgtype.UUID) (*sqlcv1.GetWorkflowStatsByExternalIdRow, error) {
-	return r.queries.GetWorkflowStatsByExternalId(ctx, r.readPool, sqlcv1.GetWorkflowStatsByExternalIdParams{
-		Tenantid:   sqlchelpers.UUIDFromStr(tenantId),
-		Externalid: externalId,
-	})
-}
-
 func durationToPgInterval(d time.Duration) pgtype.Interval {
 	// Convert the time.Duration to microseconds
 	microseconds := d.Microseconds()
@@ -1562,6 +1554,13 @@ func (r *OLAPRepositoryImpl) ListEventKeys(ctx context.Context, tenantId string)
 	}
 
 	return keys, nil
+}
+
+func (r *OLAPRepositoryImpl) GetWorkflowByExternalId(ctx context.Context, tenantId string, externalId pgtype.UUID) (*sqlcv1.GetWorkflowByExternalIdRow, error) {
+	return r.queries.GetWorkflowByExternalId(ctx, r.readPool, sqlcv1.GetWorkflowByExternalIdParams{
+		Tenantid:   sqlchelpers.UUIDFromStr(tenantId),
+		Externalid: externalId,
+	})
 }
 
 func (r *OLAPRepositoryImpl) TaskHasDAG(ctx context.Context, taskId int64) (bool, error) {

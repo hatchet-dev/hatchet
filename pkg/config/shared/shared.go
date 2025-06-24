@@ -27,8 +27,11 @@ type OpenTelemetryConfigFile struct {
 }
 
 type PrometheusConfigFile struct {
-	// Address is the address to bind the prometheus server to
-	Address string `mapstructure:"address" json:"address,omitempty" default:"127.0.0.1:7007"`
+	// PrometheusServerAddress is the address of the prometheus server
+	PrometheusServerAddress string `mapstructure:"prometheusServerAddress" json:"prometheusServerAddress,omitempty" default:""`
+
+	// Address is the metrics endpoint address
+	Address string `mapstructure:"address" json:"address,omitempty" default:":9090"`
 
 	// Enabled is a boolean that enables or disables the prometheus server
 	Enabled bool `mapstructure:"enabled" json:"enabled,omitempty" default:"false"`
