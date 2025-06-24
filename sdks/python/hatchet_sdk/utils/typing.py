@@ -1,6 +1,6 @@
 import sys
 from collections.abc import Awaitable, Coroutine, Generator
-from typing import Any, TypeAlias, TypeGuard, TypeVar
+from typing import Any, Literal, TypeAlias, TypeGuard, TypeVar
 
 from pydantic import BaseModel
 
@@ -28,3 +28,6 @@ if sys.version_info >= (3, 12):
 else:
     AwaitableLike: TypeAlias = Generator[Any, None, _T_co] | Awaitable[_T_co]
     CoroutineLike: TypeAlias = Generator[Any, None, _T_co] | Coroutine[Any, Any, _T_co]
+
+STOP_LOOP_TYPE = Literal["STOP_LOOP"]
+STOP_LOOP: STOP_LOOP_TYPE = "STOP_LOOP"  # Sentinel object to stop the loop

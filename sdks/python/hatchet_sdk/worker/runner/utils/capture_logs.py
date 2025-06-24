@@ -2,7 +2,6 @@ import asyncio
 import functools
 import logging
 from collections.abc import Awaitable, Callable
-from concurrent.futures import ThreadPoolExecutor
 from io import StringIO
 from typing import Literal, ParamSpec, TypeVar
 
@@ -16,6 +15,7 @@ from hatchet_sdk.runnables.contextvars import (
     ctx_worker_id,
     ctx_workflow_run_id,
 )
+from hatchet_sdk.utils.typing import STOP_LOOP, STOP_LOOP_TYPE
 
 T = TypeVar("T")
 P = ParamSpec("P")
@@ -57,11 +57,14 @@ class LogRecord(BaseModel):
 class AsyncLogSender:
     def __init__(self, event_client: EventClient):
         self.event_client = event_client
-        self.q = asyncio.Queue[LogRecord](maxsize=1000)
+        self.q = asyncio.Queue[LogRecord | STOP_LOOP_TYPE](maxsize=1000)
 
     async def consume(self) -> None:
         while True:
             record = await self.q.get()
+
+            if record == STOP_LOOP:
+                break
 
             try:
                 self.event_client.log(
@@ -70,7 +73,7 @@ class AsyncLogSender:
             except Exception as e:
                 logger.error(f"Error logging: {e}")
 
-    def publish(self, record: LogRecord) -> None:
+    def publish(self, record: LogRecord | STOP_LOOP_TYPE) -> None:
         try:
             self.q.put_nowait(record)
         except asyncio.QueueFull:
@@ -81,7 +84,6 @@ class CustomLogHandler(logging.StreamHandler):  # type: ignore[type-arg]
     def __init__(self, log_sender: AsyncLogSender, stream: StringIO):
         super().__init__(stream)
 
-        self.logger_thread_pool = ThreadPoolExecutor(max_workers=1)
         self.log_sender = log_sender
 
     def emit(self, record: logging.LogRecord) -> None:

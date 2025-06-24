@@ -4,7 +4,7 @@ import signal
 import time
 from dataclasses import dataclass
 from multiprocessing import Queue
-from typing import Any, Literal
+from typing import Any
 
 import grpc
 from grpc.aio import UnaryUnaryCall
@@ -33,6 +33,7 @@ from hatchet_sdk.runnables.contextvars import (
     ctx_workflow_run_id,
 )
 from hatchet_sdk.utils.backoff import exp_backoff_sleep
+from hatchet_sdk.utils.typing import STOP_LOOP, STOP_LOOP_TYPE
 
 ACTION_EVENT_RETRY_COUNT = 5
 
@@ -44,9 +45,6 @@ class ActionEvent:
     payload: str
     should_not_retry: bool
 
-
-STOP_LOOP_TYPE = Literal["STOP_LOOP"]
-STOP_LOOP: STOP_LOOP_TYPE = "STOP_LOOP"  # Sentinel object to stop the loop
 
 BLOCKED_THREAD_WARNING = "THE TIME TO START THE TASK RUN IS TOO LONG, THE EVENT LOOP MAY BE BLOCKED. See https://docs.hatchet.run/blog/warning-event-loop-blocked for details and debugging help."
 
