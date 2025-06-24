@@ -2,7 +2,6 @@ package users
 
 import (
 	"errors"
-	"fmt"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/labstack/echo/v4"
@@ -31,8 +30,9 @@ func (u *UserService) UserUpdateLogin(ctx echo.Context, request gen.UserUpdateLo
 	}
 
 	if err := u.checkUserRestrictionsForEmail(u.config, string(request.Body.Email)); err != nil {
-		return gen.UserUpdateLogin401JSONResponse(
-			apierrors.NewAPIErrors("Email is not in the restricted domain group."),
+		u.config.Logger.Err(err).Msg("email not in restricted domain")
+		return gen.UserUpdateLogin400JSONResponse(
+			apierrors.NewAPIErrors(ErrInvalidCredentials),
 		), nil
 	}
 
@@ -40,26 +40,29 @@ func (u *UserService) UserUpdateLogin(ctx echo.Context, request gen.UserUpdateLo
 	existingUser, err := u.config.APIRepository.User().GetUserByEmail(ctx.Request().Context(), string(request.Body.Email))
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return gen.UserUpdateLogin400JSONResponse(apierrors.NewAPIErrors("user not found")), nil
+			return gen.UserUpdateLogin400JSONResponse(apierrors.NewAPIErrors(ErrInvalidCredentials)), nil
 		}
 
-		return nil, err
+		u.config.Logger.Err(err).Msg("failed to get user by email")
+		return gen.UserUpdateLogin400JSONResponse(apierrors.NewAPIErrors(ErrInvalidCredentials)), nil
 	}
 
 	userPass, err := u.config.APIRepository.User().GetUserPassword(ctx.Request().Context(), sqlchelpers.UUIDToStr(existingUser.ID))
 
 	if err != nil {
-		return nil, fmt.Errorf("could not get user password: %w", err)
+		u.config.Logger.Err(err).Msg("failed to get user password")
+		return gen.UserUpdateLogin400JSONResponse(apierrors.NewAPIErrors(ErrInvalidCredentials)), nil
 	}
 
 	if verified, err := repository.VerifyPassword(userPass.Hash, request.Body.Password); !verified || err != nil {
-		return gen.UserUpdateLogin400JSONResponse(apierrors.NewAPIErrors("invalid password")), nil
+		return gen.UserUpdateLogin400JSONResponse(apierrors.NewAPIErrors(ErrInvalidCredentials)), nil
 	}
 
 	err = authn.NewSessionHelpers(u.config).SaveAuthenticated(ctx, existingUser)
 
 	if err != nil {
-		return nil, err
+		u.config.Logger.Err(err).Msg("failed to save authenticated session")
+		return gen.UserUpdateLogin400JSONResponse(apierrors.NewAPIErrors(ErrInvalidCredentials)), nil
 	}
 
 	return gen.UserUpdateLogin200JSONResponse(

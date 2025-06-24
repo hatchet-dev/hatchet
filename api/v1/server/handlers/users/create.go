@@ -45,24 +45,33 @@ func (u *UserService) UserCreate(ctx echo.Context, request gen.UserCreateRequest
 	_, err := u.config.APIRepository.User().GetUserByEmail(ctx.Request().Context(), string(request.Body.Email))
 
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-		return nil, err
+		u.config.Logger.Err(err).Msg("failed to get user by email")
+		return gen.UserCreate400JSONResponse(
+			apierrors.NewAPIErrors(ErrRegistrationFailed),
+		), nil
 	}
 
 	if err == nil {
-		// just return bad request
+		// user already exists, return consistent error
 		return gen.UserCreate400JSONResponse(
-			apierrors.NewAPIErrors("Email is already registered."),
+			apierrors.NewAPIErrors(ErrRegistrationFailed),
 		), nil
 	}
 
 	hashedPw, err := repository.HashPassword(request.Body.Password)
 
 	if err != nil {
-		return nil, err
+		u.config.Logger.Err(err).Msg("failed to hash password")
+		return gen.UserCreate400JSONResponse(
+			apierrors.NewAPIErrors(ErrRegistrationFailed),
+		), nil
 	}
 
 	if hashedPw == nil {
-		return nil, errors.New("hashed password is nil")
+		u.config.Logger.Error().Msg("hashed password is nil")
+		return gen.UserCreate400JSONResponse(
+			apierrors.NewAPIErrors(ErrRegistrationFailed),
+		), nil
 	}
 
 	createOpts := &repository.CreateUserOpts{
@@ -75,13 +84,19 @@ func (u *UserService) UserCreate(ctx echo.Context, request gen.UserCreateRequest
 	// write the user to the db
 	user, err := u.config.APIRepository.User().CreateUser(ctx.Request().Context(), createOpts)
 	if err != nil {
-		return nil, err
+		u.config.Logger.Err(err).Msg("failed to create user")
+		return gen.UserCreate400JSONResponse(
+			apierrors.NewAPIErrors(ErrRegistrationFailed),
+		), nil
 	}
 
 	err = authn.NewSessionHelpers(u.config).SaveAuthenticated(ctx, user)
 
 	if err != nil {
-		return nil, err
+		u.config.Logger.Err(err).Msg("failed to save authenticated session")
+		return gen.UserCreate400JSONResponse(
+			apierrors.NewAPIErrors(ErrRegistrationFailed),
+		), nil
 	}
 
 	u.config.Analytics.Enqueue(

@@ -35,6 +35,9 @@ func (u *UserService) checkUserRestrictionsForEmail(conf *server.ServerConfig, e
 
 var ErrNotInRestrictedDomain = errors.New("email is not in the restricted domain group")
 
+const ErrInvalidCredentials = "invalid credentials"
+const ErrRegistrationFailed = "registration failed"
+
 func (u *UserService) checkUserRestrictions(conf *server.ServerConfig, emailDomain string) error {
 	if len(conf.Auth.ConfigFile.RestrictedEmailDomains) == 0 {
 		return nil
