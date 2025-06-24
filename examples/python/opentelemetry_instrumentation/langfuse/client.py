@@ -1,8 +1,8 @@
 import base64
 import os
 
-from langfuse import Langfuse  # type: ignore[import-not-found]
-from langfuse.openai import AsyncOpenAI  # type: ignore[import-not-found]
+from langfuse import Langfuse  # type: ignore
+from langfuse.openai import AsyncOpenAI  # type: ignore
 
 # > Configure Langfuse
 LANGFUSE_AUTH = base64.b64encode(
