@@ -48,38 +48,34 @@ def copy_context_vars(
     return func(*args, **kwargs)
 
 
-class InjectingFilter(logging.Filter):
-    # For some reason, only the InjectingFilter has access to the contextvars method sr.get(),
-    # otherwise we would use emit within the CustomLogHandler
-    def filter(self, record: logging.LogRecord) -> bool:
-        ## TODO: Change how we do this to not assign to the log record
-        record.workflow_run_id = ctx_workflow_run_id.get()
-        record.step_run_id = ctx_step_run_id.get()
-        return True
-
-
 class CustomLogHandler(logging.StreamHandler):  # type: ignore[type-arg]
     def __init__(self, event_client: EventClient, stream: StringIO):
         super().__init__(stream)
+
         self.logger_thread_pool = ThreadPoolExecutor(max_workers=1)
         self.event_client = event_client
 
     def _log(self, line: str, step_run_id: str | None) -> None:
-        try:
-            if not step_run_id:
-                return
+        if not step_run_id:
+            return
 
+        try:
             self.event_client.log(message=line, step_run_id=step_run_id)
         except Exception as e:
             logger.error(f"Error logging: {e}")
 
     def emit(self, record: logging.LogRecord) -> None:
         super().emit(record)
+        print(
+            "\nCalling emit",
+            record,
+            ctx_step_run_id.get(),
+            ctx_workflow_run_id.get(),
+        )
 
         log_entry = self.format(record)
 
-        ## TODO: Change how we do this to not assign to the log record
-        self.logger_thread_pool.submit(self._log, log_entry, record.step_run_id)  # type: ignore
+        self.logger_thread_pool.submit(self._log, log_entry, ctx_step_run_id.get())
 
 
 def capture_logs(
@@ -90,16 +86,15 @@ def capture_logs(
         log_stream = StringIO()
         custom_handler = CustomLogHandler(event_client, log_stream)
         custom_handler.setLevel(logging.INFO)
-        custom_handler.addFilter(InjectingFilter())
-        logger.addHandler(custom_handler)
+
+        if not any(h for h in logger.handlers if isinstance(h, CustomLogHandler)):
+            logger.addHandler(custom_handler)
 
         try:
-            result = await func(*args, **kwargs)
+            await func(*args, **kwargs)
         finally:
             custom_handler.flush()
             logger.removeHandler(custom_handler)
             log_stream.close()
-
-        return result
 
     return wrapper
