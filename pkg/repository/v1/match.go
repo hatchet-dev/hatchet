@@ -635,13 +635,15 @@ func (m *sharedRepository) processCELExpressions(ctx context.Context, events []C
 		ast, issues := m.env.Compile(expr)
 
 		if issues != nil {
-			return nil, issues.Err()
+			m.l.Error().Msgf("failed to compile CEL expression: %s", issues.String())
+			continue
 		}
 
 		program, err := m.env.Program(ast)
 
 		if err != nil {
-			return nil, err
+			m.l.Error().Err(err).Msgf("failed to create CEL program: %s", expr)
+			continue
 		}
 
 		programs[condition.ID] = program
