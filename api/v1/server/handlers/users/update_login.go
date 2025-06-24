@@ -2,6 +2,7 @@ package users
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/labstack/echo/v4"
@@ -19,6 +20,16 @@ func (u *UserService) UserUpdateLogin(ctx echo.Context, request gen.UserUpdateLo
 	if !u.config.Auth.ConfigFile.BasicAuthEnabled {
 		return gen.UserUpdateLogin405JSONResponse(
 			apierrors.NewAPIErrors("local registration is not enabled"),
+		), nil
+	}
+
+	// check rate limiting by IP
+	clientIP := ctx.RealIP()
+	if !u.rateLimiter.IsAllowed("user:update_login", clientIP) {
+		errMsg := fmt.Sprintf("%s for user login, try again in %s", ErrAuthAPIRateLimit, u.rateLimiter.GetWindow())
+		u.config.Logger.Warn().Str("ip", clientIP).Msg(errMsg)
+		return gen.UserUpdateLogin422JSONResponse(
+			apierrors.NewAPIErrors(errMsg),
 		), nil
 	}
 

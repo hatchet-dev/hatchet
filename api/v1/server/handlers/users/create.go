@@ -2,6 +2,7 @@ package users
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/labstack/echo/v4"
@@ -26,6 +27,16 @@ func (u *UserService) UserCreate(ctx echo.Context, request gen.UserCreateRequest
 	if !u.config.Runtime.AllowSignup {
 		return gen.UserCreate400JSONResponse(
 			apierrors.NewAPIErrors("user signups are disabled"),
+		), nil
+	}
+
+	// check rate limiting by IP
+	clientIP := ctx.RealIP()
+	if !u.rateLimiter.IsAllowed("user:create", clientIP) {
+		errMsg := fmt.Sprintf("%s for user registration, try again in %s", ErrAuthAPIRateLimit, u.rateLimiter.GetWindow())
+		u.config.Logger.Warn().Str("ip", clientIP).Msg(errMsg)
+		return gen.UserCreate422JSONResponse(
+			apierrors.NewAPIErrors(errMsg),
 		), nil
 	}
 

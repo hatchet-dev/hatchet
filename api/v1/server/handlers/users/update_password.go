@@ -1,6 +1,8 @@
 package users
 
 import (
+	"fmt"
+
 	"github.com/labstack/echo/v4"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
@@ -18,6 +20,16 @@ func (u *UserService) UserUpdatePassword(ctx echo.Context, request gen.UserUpdat
 	if !u.config.Runtime.AllowChangePassword {
 		return gen.UserUpdatePassword405JSONResponse(
 			apierrors.NewAPIErrors("password changes are disabled"),
+		), nil
+	}
+
+	// check rate limiting by IP
+	clientIP := ctx.RealIP()
+	if !u.rateLimiter.IsAllowed("user:update_password", clientIP) {
+		errMsg := fmt.Sprintf("%s for password update, try again in %s", ErrAuthAPIRateLimit, u.rateLimiter.GetWindow())
+		u.config.Logger.Warn().Str("ip", clientIP).Msg(errMsg)
+		return gen.UserUpdatePassword422JSONResponse(
+			apierrors.NewAPIErrors(errMsg),
 		), nil
 	}
 

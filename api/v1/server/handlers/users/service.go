@@ -4,17 +4,24 @@ import (
 	"errors"
 	"strings"
 
+	"github.com/hatchet-dev/hatchet/api/v1/server/serverutils"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
 )
 
 type UserService struct {
-	config *server.ServerConfig
+	config      *server.ServerConfig
+	rateLimiter *serverutils.AuthAPIRateLimiter
 }
 
 func NewUserService(config *server.ServerConfig) *UserService {
 	return &UserService{
-		config: config,
+		config:      config,
+		rateLimiter: serverutils.NewAuthAPIRateLimiter(config),
 	}
+}
+
+func (u *UserService) GetRateLimiter() *serverutils.AuthAPIRateLimiter {
+	return u.rateLimiter
 }
 
 func (u *UserService) checkUserRestrictionsForEmail(conf *server.ServerConfig, email string) error {
@@ -37,6 +44,7 @@ var ErrNotInRestrictedDomain = errors.New("email is not in the restricted domain
 
 const ErrInvalidCredentials = "invalid credentials"
 const ErrRegistrationFailed = "registration failed"
+const ErrAuthAPIRateLimit = "auth API rate limit exceeded"
 
 func (u *UserService) checkUserRestrictions(conf *server.ServerConfig, emailDomain string) error {
 	if len(conf.Auth.ConfigFile.RestrictedEmailDomains) == 0 {
