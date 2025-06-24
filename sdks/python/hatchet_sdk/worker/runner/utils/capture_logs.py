@@ -1,3 +1,4 @@
+import asyncio
 import functools
 import logging
 from collections.abc import Awaitable, Callable
@@ -48,47 +49,72 @@ def copy_context_vars(
     return func(*args, **kwargs)
 
 
+class LogRecord(BaseModel):
+    message: str
+    step_run_id: str
+
+
+class AsyncLogSender:
+    def __init__(self, event_client: EventClient):
+        self.event_client = event_client
+        self.q = asyncio.Queue[LogRecord](maxsize=1000)
+
+    async def consume(self) -> None:
+        while True:
+            record = await self.q.get()
+
+            try:
+                self.event_client.log(
+                    message=record.message, step_run_id=record.step_run_id
+                )
+            except Exception as e:
+                logger.error(f"Error logging: {e}")
+
+    def publish(self, record: LogRecord) -> None:
+        try:
+            self.q.put_nowait(record)
+        except asyncio.QueueFull:
+            logger.warning("Log queue is full, dropping log message")
+
+
 class CustomLogHandler(logging.StreamHandler):  # type: ignore[type-arg]
-    def __init__(self, event_client: EventClient, stream: StringIO):
+    def __init__(self, log_sender: AsyncLogSender, stream: StringIO):
         super().__init__(stream)
 
         self.logger_thread_pool = ThreadPoolExecutor(max_workers=1)
-        self.event_client = event_client
-
-    def _log(self, line: str, step_run_id: str | None) -> None:
-        if not step_run_id:
-            return
-
-        try:
-            self.event_client.log(message=line, step_run_id=step_run_id)
-        except Exception as e:
-            logger.error(f"Error logging: {e}")
+        self.log_sender = log_sender
 
     def emit(self, record: logging.LogRecord) -> None:
         super().emit(record)
 
         log_entry = self.format(record)
+        step_run_id = ctx_step_run_id.get()
 
-        self.logger_thread_pool.submit(self._log, log_entry, ctx_step_run_id.get())
+        if not step_run_id:
+            return
+
+        self.log_sender.publish(LogRecord(message=log_entry, step_run_id=step_run_id))
 
 
 def capture_logs(
-    logger: logging.Logger, event_client: "EventClient", func: Callable[P, Awaitable[T]]
+    logger: logging.Logger, log_sender: AsyncLogSender, func: Callable[P, Awaitable[T]]
 ) -> Callable[P, Awaitable[T]]:
     @functools.wraps(func)
     async def wrapper(*args: P.args, **kwargs: P.kwargs) -> T:
         log_stream = StringIO()
-        custom_handler = CustomLogHandler(event_client, log_stream)
+        custom_handler = CustomLogHandler(log_sender, log_stream)
         custom_handler.setLevel(logging.INFO)
 
         if not any(h for h in logger.handlers if isinstance(h, CustomLogHandler)):
             logger.addHandler(custom_handler)
 
         try:
-            await func(*args, **kwargs)
+            result = await func(*args, **kwargs)
         finally:
             custom_handler.flush()
             logger.removeHandler(custom_handler)
             log_stream.close()
+
+        return result
 
     return wrapper
