@@ -274,9 +274,11 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         if not workflows.rows:
             raise ValueError(f"No id found for {self.name}")
 
-        workflow = workflows.rows[0]
+        for row in workflows.rows:
+            if row.name == self.name:
+                return row.metadata.id
 
-        return workflow.metadata.id
+        raise ValueError(f"No id found for {self.name}")
 
     def list_runs(
         self,
