@@ -1,5 +1,5 @@
+import asyncio
 import json
-from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
 from typing import TYPE_CHECKING, Any, cast
 from warnings import warn
@@ -53,11 +53,6 @@ class Context:
         self.event_client = event_client
         self.runs_client = runs_client
         self.durable_event_listener = durable_event_listener
-
-        # FIXME: this limits the number of concurrent log requests to 1, which means we can do about
-        # 100 log lines per second but this depends on network.
-        self.logger_thread_pool = ThreadPoolExecutor(max_workers=1)
-        self.stream_event_thread_pool = ThreadPoolExecutor(max_workers=1)
 
         self.input = self.data.input
         self.filter_payload = self.data.filter_payload
@@ -182,14 +177,6 @@ class Context:
         """
         return self.exit_flag
 
-    def _log(self, line: str) -> tuple[bool, Exception | None]:
-        try:
-            self.event_client.log(message=line, step_run_id=self.step_run_id)
-            return True, None
-        except Exception as e:
-            # we don't want to raise an exception here, as it will kill the log thread
-            return False, e
-
     def log(
         self, line: str | JSONSerializableMapping, raise_on_error: bool = False
     ) -> None:
@@ -221,12 +208,6 @@ class Context:
         """
         return self.dispatcher_client.release_slot(self.step_run_id)
 
-    def _put_stream(self, data: str | bytes) -> None:
-        try:
-            self.event_client.stream(data=data, step_run_id=self.step_run_id)
-        except Exception as e:
-            logger.error(f"Error putting stream event: {e}")
-
     def put_stream(self, data: str | bytes) -> None:
         """
         Put a stream event to the Hatchet API. This will send the data to the Hatchet API and return immediately. You can then subscribe to the stream from a separate consumer.
@@ -234,10 +215,21 @@ class Context:
         :param data: The data to send to the Hatchet API. Can be a string or bytes.
         :return: None
         """
-        if self.step_run_id == "":
-            return
+        try:
+            self.event_client.stream(data=data, step_run_id=self.step_run_id)
+        except Exception as e:
+            logger.error(f"Error putting stream event: {e}")
 
-        self.stream_event_thread_pool.submit(self._put_stream, data)
+    async def aio_put_stream(self, data: str | bytes) -> None:
+        """
+        Put a stream event to the Hatchet API. This will send the data to the Hatchet API and return immediately. You can then subscribe to the stream from a separate consumer.
+
+        :param data: The data to send to the Hatchet API. Can be a string or bytes.
+        :return: None
+        """
+        await asyncio.to_thread(
+            self.event_client.stream, data=data, step_run_id=self.step_run_id
+        )
 
     def refresh_timeout(self, increment_by: str | timedelta) -> None:
         """
