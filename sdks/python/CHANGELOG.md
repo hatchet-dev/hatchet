@@ -22,6 +22,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Handles some potential bugs related to `asyncio` tasks being garbage collected.
 - Improves exception printing with `ExceptionGroup`s on Python 3.11+
 - Fixes a bug with namespacing of user event conditions where the namespace was not respected so the task waiting for it would hang
+- Fixes a memory leak in streaming and logging, and fixes some issues with log capture.
+
 
 ## [1.12.3] - 2025-06-25
 
