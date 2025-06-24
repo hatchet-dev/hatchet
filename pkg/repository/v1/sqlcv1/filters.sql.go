@@ -204,6 +204,52 @@ func (q *Queries) GetFilter(ctx context.Context, db DBTX, arg GetFilterParams) (
 	return &i, err
 }
 
+const listAllFilters = `-- name: ListAllFilters :many
+SELECT id, tenant_id, workflow_id, scope, expression, payload, payload_hash, is_declarative, inserted_at, updated_at
+FROM v1_filter
+WHERE tenant_id = $1::UUID
+ORDER BY id DESC
+LIMIT COALESCE($3::BIGINT, 20000)
+OFFSET COALESCE($2::BIGINT, 0)
+`
+
+type ListAllFiltersParams struct {
+	Tenantid     pgtype.UUID `json:"tenantid"`
+	FilterOffset pgtype.Int8 `json:"filterOffset"`
+	FilterLimit  pgtype.Int8 `json:"filterLimit"`
+}
+
+func (q *Queries) ListAllFilters(ctx context.Context, db DBTX, arg ListAllFiltersParams) ([]*V1Filter, error) {
+	rows, err := db.Query(ctx, listAllFilters, arg.Tenantid, arg.FilterOffset, arg.FilterLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*V1Filter
+	for rows.Next() {
+		var i V1Filter
+		if err := rows.Scan(
+			&i.ID,
+			&i.TenantID,
+			&i.WorkflowID,
+			&i.Scope,
+			&i.Expression,
+			&i.Payload,
+			&i.PayloadHash,
+			&i.IsDeclarative,
+			&i.InsertedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listFilterCountsForWorkflows = `-- name: ListFilterCountsForWorkflows :many
 WITH inputs AS (
     SELECT UNNEST($2::UUID[]) AS workflow_id
@@ -250,20 +296,15 @@ func (q *Queries) ListFilterCountsForWorkflows(ctx context.Context, db DBTX, arg
 const listFilters = `-- name: ListFilters :many
 WITH inputs AS (
     SELECT
-        UNNEST(COALESCE($4::UUID[], '{}')) AS workflow_id,
-        UNNEST(COALESCE($5::TEXT[], '{}')) AS scope
-), num_filter_inputs AS (
-    SELECT COUNT(*) AS ct
-    FROM inputs
-    WHERE workflow_id IS NOT NULL AND scope IS NOT NULL
+        UNNEST($4::UUID[]) AS workflow_id,
+        UNNEST($5::TEXT[]) AS scope
 )
 
 SELECT f.id, f.tenant_id, f.workflow_id, f.scope, f.expression, f.payload, f.payload_hash, f.is_declarative, f.inserted_at, f.updated_at
 FROM v1_filter f
-CROSS JOIN num_filter_inputs n
-JOIN inputs i ON (n.ct = 0) OR (f.workflow_id, f.scope) = (i.workflow_id, i.scope)
+JOIN inputs i ON (f.workflow_id, f.scope) = (i.workflow_id, i.scope)
 WHERE f.tenant_id = $1::UUID
-ORDER BY f.tenant_id, f.id DESC
+ORDER BY f.id DESC
 LIMIT COALESCE($3::BIGINT, 20000)
 OFFSET COALESCE($2::BIGINT, 0)
 `

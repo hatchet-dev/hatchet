@@ -79,13 +79,21 @@ func (r *filterRepository) ListFilters(ctx context.Context, tenantId string, opt
 		}
 	}
 
-	return r.queries.ListFilters(ctx, r.pool, sqlcv1.ListFiltersParams{
-		Tenantid:     sqlchelpers.UUIDFromStr(tenantId),
-		Workflowids:  opts.WorkflowIds,
-		Scopes:       opts.Scopes,
-		FilterLimit:  filterLimit,
-		FilterOffset: filterOffset,
-	})
+	if len(opts.Scopes) > 0 && len(opts.WorkflowIds) > 0 {
+		return r.queries.ListFilters(ctx, r.pool, sqlcv1.ListFiltersParams{
+			Tenantid:     sqlchelpers.UUIDFromStr(tenantId),
+			Workflowids:  opts.WorkflowIds,
+			Scopes:       opts.Scopes,
+			FilterLimit:  filterLimit,
+			FilterOffset: filterOffset,
+		})
+	} else {
+		return r.queries.ListAllFilters(ctx, r.pool, sqlcv1.ListAllFiltersParams{
+			Tenantid:     sqlchelpers.UUIDFromStr(tenantId),
+			FilterLimit:  filterLimit,
+			FilterOffset: filterOffset,
+		})
+	}
 }
 
 func (r *filterRepository) DeleteFilter(ctx context.Context, tenantId, filterId string) (*sqlcv1.V1Filter, error) {

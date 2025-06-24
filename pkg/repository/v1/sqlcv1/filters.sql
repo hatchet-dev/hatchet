@@ -92,20 +92,24 @@ GROUP BY workflow_id
 -- name: ListFilters :many
 WITH inputs AS (
     SELECT
-        UNNEST(COALESCE(sqlc.narg(workflowIds)::UUID[], '{}')) AS workflow_id,
-        UNNEST(COALESCE(sqlc.narg(scopes)::TEXT[], '{}')) AS scope
-), num_filter_inputs AS (
-    SELECT COUNT(*) AS ct
-    FROM inputs
-    WHERE workflow_id IS NOT NULL AND scope IS NOT NULL
+        UNNEST(sqlc.narg(workflowIds)::UUID[]) AS workflow_id,
+        UNNEST(sqlc.narg(scopes)::TEXT[]) AS scope
 )
 
 SELECT f.*
 FROM v1_filter f
-CROSS JOIN num_filter_inputs n
-JOIN inputs i ON (n.ct = 0) OR (f.workflow_id, f.scope) = (i.workflow_id, i.scope)
+JOIN inputs i ON (f.workflow_id, f.scope) = (i.workflow_id, i.scope)
 WHERE f.tenant_id = @tenantId::UUID
-ORDER BY f.tenant_id, f.id DESC
+ORDER BY f.id DESC
+LIMIT COALESCE(sqlc.narg('filterLimit')::BIGINT, 20000)
+OFFSET COALESCE(sqlc.narg('filterOffset')::BIGINT, 0)
+;
+
+-- name: ListAllFilters :many
+SELECT *
+FROM v1_filter
+WHERE tenant_id = @tenantId::UUID
+ORDER BY id DESC
 LIMIT COALESCE(sqlc.narg('filterLimit')::BIGINT, 20000)
 OFFSET COALESCE(sqlc.narg('filterOffset')::BIGINT, 0)
 ;
