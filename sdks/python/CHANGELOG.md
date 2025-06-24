@@ -5,6 +5,12 @@ All notable changes to Hatchet's Python SDK will be documented in this changelog
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.12.2] - 2025-06-25
+
+### Changed
+
+- Fixes a namespacing-related but in the `workflow.id` property that incorrectly (and inconsistently) returned incorrect IDs for namespaced workflows.
+
 ## [1.12.2] - 2025-06-17
 
 ### Changed
