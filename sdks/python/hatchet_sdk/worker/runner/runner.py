@@ -264,6 +264,14 @@ class Runner:
                         name="ctx_workflow_run_id",
                         value=action.workflow_run_id,
                     ),
+                    ContextVarToCopy(
+                        name="ctx_worker_id",
+                        value=action.worker_id,
+                    ),
+                    ContextVarToCopy(
+                        name="ctx_action_key",
+                        value=action.key,
+                    ),
                 ],
                 self.thread_action_func,
                 ctx,

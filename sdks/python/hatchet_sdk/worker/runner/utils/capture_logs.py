@@ -9,14 +9,21 @@ from pydantic import BaseModel
 
 from hatchet_sdk.clients.events import EventClient
 from hatchet_sdk.logger import logger
-from hatchet_sdk.runnables.contextvars import ctx_step_run_id, ctx_workflow_run_id
+from hatchet_sdk.runnables.contextvars import (
+    ctx_action_key,
+    ctx_step_run_id,
+    ctx_worker_id,
+    ctx_workflow_run_id,
+)
 
 T = TypeVar("T")
 P = ParamSpec("P")
 
 
 class ContextVarToCopy(BaseModel):
-    name: Literal["ctx_workflow_run_id", "ctx_step_run_id"]
+    name: Literal[
+        "ctx_workflow_run_id", "ctx_step_run_id", "ctx_action_key", "ctx_worker_id"
+    ]
     value: str | None
 
 
@@ -31,6 +38,10 @@ def copy_context_vars(
             ctx_workflow_run_id.set(var.value)
         elif var.name == "ctx_step_run_id":
             ctx_step_run_id.set(var.value)
+        elif var.name == "ctx_action_key":
+            ctx_action_key.set(var.value)
+        elif var.name == "ctx_worker_id":
+            ctx_worker_id.set(var.value)
         else:
             raise ValueError(f"Unknown context variable name: {var.name}")
 
@@ -48,7 +59,7 @@ class InjectingFilter(logging.Filter):
 
 
 class CustomLogHandler(logging.StreamHandler):  # type: ignore[type-arg]
-    def __init__(self, event_client: EventClient, stream: StringIO | None = None):
+    def __init__(self, event_client: EventClient, stream: StringIO):
         super().__init__(stream)
         self.logger_thread_pool = ThreadPoolExecutor(max_workers=1)
         self.event_client = event_client
