@@ -528,6 +528,42 @@ func (q *Queries) GetTenantStatusMetrics(ctx context.Context, db DBTX, arg GetTe
 	return &i, err
 }
 
+const getWorkflowByExternalId = `-- name: GetWorkflowByExternalId :one
+SELECT DISTINCT
+    w.name AS workflow_name,
+    w.id AS workflow_id,
+    CASE
+        WHEN dt IS NOT NULL THEN TRUE
+        ELSE FALSE
+    END AS is_dag
+FROM v1_lookup_table_olap lt
+LEFT JOIN v1_dags_olap d ON (lt.dag_id, lt.inserted_at) = (d.id, d.inserted_at)
+LEFT JOIN v1_tasks_olap t ON (lt.task_id, lt.inserted_at) = (t.id, t.inserted_at)
+LEFT JOIN v1_dag_to_task_olap dt ON d.id = dt.dag_id AND d.inserted_at = dt.dag_inserted_at
+LEFT JOIN "Workflow" w ON d.workflow_id = w.id OR t.workflow_id = w.id
+WHERE
+    lt.external_id = $1::uuid
+    AND lt.tenant_id = $2::uuid
+`
+
+type GetWorkflowByExternalIdParams struct {
+	Externalid pgtype.UUID `json:"externalid"`
+	Tenantid   pgtype.UUID `json:"tenantid"`
+}
+
+type GetWorkflowByExternalIdRow struct {
+	WorkflowName pgtype.Text `json:"workflow_name"`
+	WorkflowID   pgtype.UUID `json:"workflow_id"`
+	IsDag        bool        `json:"is_dag"`
+}
+
+func (q *Queries) GetWorkflowByExternalId(ctx context.Context, db DBTX, arg GetWorkflowByExternalIdParams) (*GetWorkflowByExternalIdRow, error) {
+	row := db.QueryRow(ctx, getWorkflowByExternalId, arg.Externalid, arg.Tenantid)
+	var i GetWorkflowByExternalIdRow
+	err := row.Scan(&i.WorkflowName, &i.WorkflowID, &i.IsDag)
+	return &i, err
+}
+
 const getWorkflowRunIdFromDagIdInsertedAt = `-- name: GetWorkflowRunIdFromDagIdInsertedAt :one
 SELECT external_id
 FROM v1_dags_olap
@@ -546,50 +582,6 @@ func (q *Queries) GetWorkflowRunIdFromDagIdInsertedAt(ctx context.Context, db DB
 	var external_id pgtype.UUID
 	err := row.Scan(&external_id)
 	return external_id, err
-}
-
-const getWorkflowStatsByExternalId = `-- name: GetWorkflowStatsByExternalId :one
-SELECT
-    w.id AS workflow_id,
-    w.name AS workflow_name,
-    wr.duration AS duration,
-    ARRAY_REMOVE(ARRAY_AGG(DISTINCT t2.latest_worker_id), NULL) AS worker_ids
-FROM v1_lookup_table_olap lt
-LEFT JOIN v1_dags_olap d ON (lt.dag_id, lt.inserted_at) = (d.id, d.inserted_at)
-LEFT JOIN v1_tasks_olap t ON (lt.task_id, lt.inserted_at) = (t.id, t.inserted_at)
-LEFT JOIN v1_dag_to_task_olap dt ON d.id = dt.dag_id AND d.inserted_at = dt.dag_inserted_at
-LEFT JOIN v1_tasks_olap t2 ON dt.task_id = t2.id OR t.id = t2.id
-LEFT JOIN "WorkflowRun" wr ON t2.workflow_run_id = wr.id
-LEFT JOIN "Workflow" w ON d.workflow_id = w.id OR t.workflow_id = w.id
-WHERE
-    lt.external_id = $1::uuid
-    AND lt.tenant_id = $2::uuid
-GROUP BY
-    w.id, w.name, wr.duration
-`
-
-type GetWorkflowStatsByExternalIdParams struct {
-	Externalid pgtype.UUID `json:"externalid"`
-	Tenantid   pgtype.UUID `json:"tenantid"`
-}
-
-type GetWorkflowStatsByExternalIdRow struct {
-	WorkflowID   pgtype.UUID `json:"workflow_id"`
-	WorkflowName pgtype.Text `json:"workflow_name"`
-	Duration     pgtype.Int8 `json:"duration"`
-	WorkerIds    interface{} `json:"worker_ids"`
-}
-
-func (q *Queries) GetWorkflowStatsByExternalId(ctx context.Context, db DBTX, arg GetWorkflowStatsByExternalIdParams) (*GetWorkflowStatsByExternalIdRow, error) {
-	row := db.QueryRow(ctx, getWorkflowStatsByExternalId, arg.Externalid, arg.Tenantid)
-	var i GetWorkflowStatsByExternalIdRow
-	err := row.Scan(
-		&i.WorkflowID,
-		&i.WorkflowName,
-		&i.Duration,
-		&i.WorkerIds,
-	)
-	return &i, err
 }
 
 const listEventKeys = `-- name: ListEventKeys :many

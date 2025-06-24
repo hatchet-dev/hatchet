@@ -1,4 +1,3 @@
-import { Separator } from '@/components/v1/ui/separator';
 import api, { queries, WorkflowUpdateRequest } from '@/lib/api';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useNavigate, useOutletContext, useParams } from 'react-router-dom';
@@ -12,7 +11,7 @@ import { TenantContextType } from '@/lib/outlet';
 import { TriggerWorkflowForm } from './components/trigger-workflow-form';
 import { useState } from 'react';
 import { Button } from '@/components/v1/ui/button';
-import { useApiError, useApiMetaIntegrations } from '@/lib/hooks';
+import { useApiError } from '@/lib/hooks';
 import {
   Tabs,
   TabsContent,
@@ -89,15 +88,12 @@ export default function ExpandedWorkflow() {
     },
   });
 
-  const integrations = useApiMetaIntegrations();
-
   const workflow = workflowQuery.data;
 
   if (workflowQuery.isLoading || !workflow) {
     return <Loading />;
   }
 
-  const hasGithubIntegration = integrations?.find((i) => i.name === 'github');
   const currVersion = workflow.versions && workflow.versions[0].version;
 
   return (
@@ -204,44 +200,46 @@ export default function ExpandedWorkflow() {
             </TabsTrigger>
           </TabsList>
           <TabsContent value="runs">
-            <h3 className="text-xl font-bold leading-tight text-foreground mt-4">
-              Recent Runs
-            </h3>
-            <Separator className="my-4" />
             <RecentRunsList />
           </TabsContent>
-          <TabsContent value="settings">
-            <h3 className="text-xl font-bold leading-tight text-foreground mt-4">
-              Settings
-            </h3>
-            <Separator className="my-4" />
+          <TabsContent value="settings" className="mt-4">
             {workflowVersionQuery.isLoading || !workflowVersionQuery.data ? (
               <Loading />
             ) : (
               <WorkflowGeneralSettings workflow={workflowVersionQuery.data} />
             )}
-            <Separator className="my-4" />
-            {hasGithubIntegration && (
-              <div className="hidden">
-                <h3 className="hidden text-xl font-bold leading-tight text-foreground mt-8">
-                  Deployment Settings
+
+            <div className="mt-8">
+              <div className="space-y-3">
+                <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100 border-b border-gray-200 dark:border-gray-700 pb-2">
+                  Danger Zone
                 </h3>
-                <Separator className="hidden my-4" />
+                <div className="pl-1">
+                  <div className="border border-gray-200 dark:border-gray-700 rounded-md p-4 bg-gray-50 dark:bg-gray-800/50 max-w-xl">
+                    <div className="space-y-3">
+                      <div>
+                        <h4 className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                          Delete Workflow
+                        </h4>
+                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                          Permanently delete this workflow and all its data.
+                          This action cannot be undone.
+                        </p>
+                      </div>
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => {
+                          setDeleteWorkflow(true);
+                        }}
+                      >
+                        Delete Workflow
+                      </Button>
+                    </div>
+                  </div>
+                </div>
               </div>
-            )}
-            <h4 className="text-lg font-bold leading-tight text-foreground mt-8">
-              Danger Zone
-            </h4>
-            <Separator className="my-4" />
-            <Button
-              variant="destructive"
-              className="mt-2"
-              onClick={() => {
-                setDeleteWorkflow(true);
-              }}
-            >
-              Delete Workflow
-            </Button>
+            </div>
 
             <ConfirmDialog
               title={`Delete workflow`}

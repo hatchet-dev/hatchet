@@ -204,6 +204,7 @@ type RefreshTimeoutBy struct {
 }
 
 type TaskRepository interface {
+	EnsureTablePartitionsExist(ctx context.Context) (bool, error)
 	UpdateTablePartitions(ctx context.Context) error
 
 	// GetTaskByExternalId is a heavily cached method to return task metadata by its external id
@@ -261,6 +262,10 @@ func newTaskRepository(s *sharedRepository, taskRetentionPeriod time.Duration, m
 		taskRetentionPeriod:   taskRetentionPeriod,
 		maxInternalRetryCount: maxInternalRetryCount,
 	}
+}
+
+func (r *TaskRepositoryImpl) EnsureTablePartitionsExist(ctx context.Context) (bool, error) {
+	return r.queries.EnsureTablePartitionsExist(ctx, r.pool)
 }
 
 func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {

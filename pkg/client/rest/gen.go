@@ -1981,9 +1981,10 @@ type WorkflowVersion struct {
 	Triggers *WorkflowTriggers `json:"triggers,omitempty"`
 
 	// Version The version of the workflow.
-	Version    string    `json:"version"`
-	Workflow   *Workflow `json:"workflow,omitempty"`
-	WorkflowId string    `json:"workflowId"`
+	Version        string                  `json:"version"`
+	Workflow       *Workflow               `json:"workflow,omitempty"`
+	WorkflowConfig *map[string]interface{} `json:"workflowConfig,omitempty"`
+	WorkflowId     string                  `json:"workflowId"`
 }
 
 // WorkflowVersionMeta defines model for WorkflowVersionMeta.

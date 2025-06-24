@@ -3083,17 +3083,18 @@ type WorkflowTriggers struct {
 }
 
 type WorkflowVersion struct {
-	ID              pgtype.UUID        `json:"id"`
-	CreatedAt       pgtype.Timestamp   `json:"createdAt"`
-	UpdatedAt       pgtype.Timestamp   `json:"updatedAt"`
-	DeletedAt       pgtype.Timestamp   `json:"deletedAt"`
-	Version         pgtype.Text        `json:"version"`
-	Order           int64              `json:"order"`
-	WorkflowId      pgtype.UUID        `json:"workflowId"`
-	Checksum        string             `json:"checksum"`
-	ScheduleTimeout string             `json:"scheduleTimeout"`
-	OnFailureJobId  pgtype.UUID        `json:"onFailureJobId"`
-	Sticky          NullStickyStrategy `json:"sticky"`
-	Kind            WorkflowKind       `json:"kind"`
-	DefaultPriority pgtype.Int4        `json:"defaultPriority"`
+	ID                        pgtype.UUID        `json:"id"`
+	CreatedAt                 pgtype.Timestamp   `json:"createdAt"`
+	UpdatedAt                 pgtype.Timestamp   `json:"updatedAt"`
+	DeletedAt                 pgtype.Timestamp   `json:"deletedAt"`
+	Version                   pgtype.Text        `json:"version"`
+	Order                     int64              `json:"order"`
+	WorkflowId                pgtype.UUID        `json:"workflowId"`
+	Checksum                  string             `json:"checksum"`
+	ScheduleTimeout           string             `json:"scheduleTimeout"`
+	OnFailureJobId            pgtype.UUID        `json:"onFailureJobId"`
+	Sticky                    NullStickyStrategy `json:"sticky"`
+	Kind                      WorkflowKind       `json:"kind"`
+	DefaultPriority           pgtype.Int4        `json:"defaultPriority"`
+	CreateWorkflowVersionOpts []byte             `json:"createWorkflowVersionOpts"`
 }
