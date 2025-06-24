@@ -20,10 +20,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Changed default arguments to many methods from mutable defaults like `[]` to None
 - Changes `JSONSerializableMapping` from `Mapping` to `dict`
 - Handles some potential bugs related to `asyncio` tasks being garbage collected.
-- Improves exception printing with `ExceptionGroup`s on Python 3.11+
+- Improves exception printing with an `ExceptionGroup` implementation
 - Fixes a bug with namespacing of user event conditions where the namespace was not respected so the task waiting for it would hang
 - Fixes a memory leak in streaming and logging, and fixes some issues with log capture.
-
 
 ## [1.12.2] - 2025-06-17
 
