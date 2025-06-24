@@ -66,12 +66,6 @@ class CustomLogHandler(logging.StreamHandler):  # type: ignore[type-arg]
 
     def emit(self, record: logging.LogRecord) -> None:
         super().emit(record)
-        print(
-            "\nCalling emit",
-            record,
-            ctx_step_run_id.get(),
-            ctx_workflow_run_id.get(),
-        )
 
         log_entry = self.format(record)
 
