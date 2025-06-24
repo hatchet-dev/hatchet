@@ -37,12 +37,10 @@ func (t *V1FiltersService) V1FilterList(ctx echo.Context, request gen.V1FilterLi
 		}
 	}
 
-	scopeParams := make([]*string, numScopesOrIds)
+	scopeParams := make([]string, numScopesOrIds)
 
 	if scopes != nil {
-		for ix, scope := range *scopes {
-			scopeParams[ix] = &scope
-		}
+		copy(scopeParams, *scopes)
 	}
 
 	filters, err := t.config.V1.Filters().ListFilters(

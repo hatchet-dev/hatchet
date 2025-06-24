@@ -247,6 +247,73 @@ func (q *Queries) ListFilterCountsForWorkflows(ctx context.Context, db DBTX, arg
 	return items, nil
 }
 
+const listFilters = `-- name: ListFilters :many
+WITH inputs AS (
+    SELECT
+        UNNEST(COALESCE($4::UUID[], '{}')) AS workflow_id,
+        UNNEST(COALESCE($5::TEXT[], '{}')) AS scope
+), num_filter_inputs AS (
+    SELECT COUNT(*) AS ct
+    FROM inputs
+    WHERE workflow_id IS NOT NULL AND scope IS NOT NULL
+)
+
+SELECT f.id, f.tenant_id, f.workflow_id, f.scope, f.expression, f.payload, f.payload_hash, f.is_declarative, f.inserted_at, f.updated_at
+FROM v1_filter f
+CROSS JOIN num_filter_inputs n
+LEFT JOIN inputs i ON (f.workflow_id, f.scope) = (i.workflow_id, i.scope)
+WHERE f.tenant_id = $1::UUID
+  AND (i.workflow_id IS NOT NULL OR n.ct = 0)
+ORDER BY f.tenant_id, f.id DESC
+LIMIT COALESCE($3::BIGINT, 20000)
+OFFSET COALESCE($2::BIGINT, 0)
+`
+
+type ListFiltersParams struct {
+	Tenantid     pgtype.UUID   `json:"tenantid"`
+	FilterOffset pgtype.Int8   `json:"filterOffset"`
+	FilterLimit  pgtype.Int8   `json:"filterLimit"`
+	Workflowids  []pgtype.UUID `json:"workflowids"`
+	Scopes       []string      `json:"scopes"`
+}
+
+func (q *Queries) ListFilters(ctx context.Context, db DBTX, arg ListFiltersParams) ([]*V1Filter, error) {
+	rows, err := db.Query(ctx, listFilters,
+		arg.Tenantid,
+		arg.FilterOffset,
+		arg.FilterLimit,
+		arg.Workflowids,
+		arg.Scopes,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*V1Filter
+	for rows.Next() {
+		var i V1Filter
+		if err := rows.Scan(
+			&i.ID,
+			&i.TenantID,
+			&i.WorkflowID,
+			&i.Scope,
+			&i.Expression,
+			&i.Payload,
+			&i.PayloadHash,
+			&i.IsDeclarative,
+			&i.InsertedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const updateFilter = `-- name: UpdateFilter :one
 UPDATE v1_filter
 SET
