@@ -1,6 +1,5 @@
 import json
-import traceback
-from concurrent.futures import Future, ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
 from typing import TYPE_CHECKING, Any, cast
 from warnings import warn
@@ -21,6 +20,7 @@ from hatchet_sdk.logger import logger
 from hatchet_sdk.utils.timedelta_to_expression import Duration, timedelta_to_expr
 from hatchet_sdk.utils.typing import JSONSerializableMapping
 from hatchet_sdk.waits import SleepCondition, UserEventCondition
+from hatchet_sdk.worker.runner.utils.capture_logs import AsyncLogSender, LogRecord
 
 if TYPE_CHECKING:
     from hatchet_sdk.runnables.task import Task
@@ -38,6 +38,7 @@ class Context:
         worker: WorkerContext,
         runs_client: RunsClient,
         lifespan_context: Any | None,
+        log_sender: AsyncLogSender,
     ):
         self.worker = worker
 
@@ -60,6 +61,7 @@ class Context:
 
         self.input = self.data.input
         self.filter_payload = self.data.filter_payload
+        self.log_sender = log_sender
 
         self._lifespan_context = lifespan_context
 
@@ -208,25 +210,8 @@ class Context:
             except Exception:
                 line = str(line)
 
-        future = self.logger_thread_pool.submit(self._log, line)
-
-        def handle_result(future: Future[tuple[bool, Exception | None]]) -> None:
-            success, exception = future.result()
-
-            if not success and exception:
-                if raise_on_error:
-                    raise exception
-                thread_trace = "".join(
-                    traceback.format_exception(
-                        type(exception), exception, exception.__traceback__
-                    )
-                )
-                call_site_trace = "".join(traceback.format_stack())
-                logger.error(
-                    f"Error in log thread: {exception}\n{thread_trace}\nCalled from:\n{call_site_trace}"
-                )
-
-        future.add_done_callback(handle_result)
+        logger.info(line)
+        self.log_sender.publish(LogRecord(message=line, step_run_id=self.step_run_id))
 
     def release_slot(self) -> None:
         """

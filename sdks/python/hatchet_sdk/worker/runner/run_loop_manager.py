@@ -92,6 +92,7 @@ class WorkerActionRunLoopManager:
             self.action_registry,
             self.labels,
             self.lifespan_context,
+            self.log_sender,
         )
 
         logger.debug(f"'{self.name}' waiting for {list(self.action_registry.keys())}")

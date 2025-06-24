@@ -47,6 +47,7 @@ from hatchet_sdk.runnables.task import Task
 from hatchet_sdk.runnables.types import R, TWorkflowInput
 from hatchet_sdk.worker.action_listener_process import ActionEvent
 from hatchet_sdk.worker.runner.utils.capture_logs import (
+    AsyncLogSender,
     ContextVarToCopy,
     copy_context_vars,
 )
@@ -69,6 +70,7 @@ class Runner:
         action_registry: dict[str, Task[TWorkflowInput, R]],
         labels: dict[str, str | int] | None,
         lifespan_context: Any | None,
+        log_sender: AsyncLogSender,
     ):
         # We store the config so we can dynamically create clients for the dispatcher client.
         self.config = config
@@ -110,6 +112,7 @@ class Runner:
         )
 
         self.lifespan_context = lifespan_context
+        self.log_sender = log_sender
 
         if self.config.enable_thread_pool_monitoring:
             self.start_background_monitoring()
@@ -359,6 +362,7 @@ class Runner:
             worker=self.worker_context,
             runs_client=self.runs_client,
             lifespan_context=self.lifespan_context,
+            log_sender=self.log_sender,
         )
 
     ## IMPORTANT: Keep this method's signature in sync with the wrapper in the OTel instrumentor
