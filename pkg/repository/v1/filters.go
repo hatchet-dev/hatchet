@@ -45,7 +45,7 @@ func (r *filterRepository) CreateFilter(ctx context.Context, tenantId string, op
 }
 
 type ListFiltersOpts struct {
-	WorkflowIds  []pgtype.UUID `json:"workflow_ids" validate:"required,dive,uuid"`
+	WorkflowIds  []pgtype.UUID `json:"workflow_ids" validate:"required"`
 	Scopes       []*string     `json:"scopes"`
 	FilterLimit  *int64        `json:"limit" validate:"omitnil,min=1"`
 	FilterOffset *int64        `json:"offset" validate:"omitnil,min=0"`
