@@ -32,7 +32,7 @@ type StreamEventBuffer struct {
 	stepRunIdToExpectedIndex  map[string]int64
 	stepRunIdToLastSeenTime   map[string]time.Time
 	stepRunIdToCompletionTime map[string]time.Time
-	mu                        sync.RWMutex
+	mu                        sync.Mutex
 	timeoutDuration           time.Duration
 	gracePeriod               time.Duration
 }
