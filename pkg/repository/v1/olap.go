@@ -226,8 +226,10 @@ type OLAPRepository interface {
 	ListEvents(ctx context.Context, opts sqlcv1.ListEventsParams) ([]*sqlcv1.ListEventsRow, *int64, error)
 	ListEventKeys(ctx context.Context, tenantId string) ([]string, error)
 
+	TaskBelongsToDAG(ctx context.Context, tenantId string, taskId int64) (bool, error)
 	GetWorkflowByExternalId(ctx context.Context, tenantId string, externalId pgtype.UUID) (*sqlcv1.GetWorkflowByExternalIdRow, error)
-	TaskHasDAG(ctx context.Context, taskId int64) (bool, error)
+	GetDAGDurationByExternalId(ctx context.Context, tenantId string, externalId pgtype.UUID) (*sqlcv1.GetDAGDurationByExternalIdRow, error)
+	GetTaskDurationByExternalId(ctx context.Context, tenantId string, externalId pgtype.UUID) (*sqlcv1.GetTaskDurationByExternalIdRow, error)
 }
 
 type OLAPRepositoryImpl struct {
@@ -1556,6 +1558,10 @@ func (r *OLAPRepositoryImpl) ListEventKeys(ctx context.Context, tenantId string)
 	return keys, nil
 }
 
+func (r *OLAPRepositoryImpl) TaskBelongsToDAG(ctx context.Context, tenantId string, taskId int64) (bool, error) {
+	return r.queries.TaskBelongsToDAG(ctx, r.readPool, taskId)
+}
+
 func (r *OLAPRepositoryImpl) GetWorkflowByExternalId(ctx context.Context, tenantId string, externalId pgtype.UUID) (*sqlcv1.GetWorkflowByExternalIdRow, error) {
 	return r.queries.GetWorkflowByExternalId(ctx, r.readPool, sqlcv1.GetWorkflowByExternalIdParams{
 		Tenantid:   sqlchelpers.UUIDFromStr(tenantId),
@@ -1563,16 +1569,10 @@ func (r *OLAPRepositoryImpl) GetWorkflowByExternalId(ctx context.Context, tenant
 	})
 }
 
-func (r *OLAPRepositoryImpl) TaskHasDAG(ctx context.Context, taskId int64) (bool, error) {
-	hasDAG, err := r.queries.TaskHasDAG(ctx, r.readPool, taskId)
+func (r *OLAPRepositoryImpl) GetDAGDurationByExternalId(ctx context.Context, tenantId string, externalId pgtype.UUID) (*sqlcv1.GetDAGDurationByExternalIdRow, error) {
+	return r.queries.GetDAGDurationByExternalId(ctx, r.readPool, externalId)
+}
 
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return false, nil
-		}
-
-		return false, err
-	}
-
-	return hasDAG, nil
+func (r *OLAPRepositoryImpl) GetTaskDurationByExternalId(ctx context.Context, tenantId string, externalId pgtype.UUID) (*sqlcv1.GetTaskDurationByExternalIdRow, error) {
+	return r.queries.GetTaskDurationByExternalId(ctx, r.readPool, externalId)
 }

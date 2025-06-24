@@ -54,25 +54,35 @@ func (o *OLAPControllerImpl) updateTaskStatuses(ctx context.Context, tenantId st
 			Status:     row.ReadableStatus,
 		})
 
-		hasDAG, err := o.repo.OLAP().TaskHasDAG(ctx, row.TaskId)
-		if err != nil {
-			return false, err
-		}
+		// instrumentation
+		if row.ReadableStatus == sqlcv1.V1ReadableStatusOlapCOMPLETED || row.ReadableStatus == sqlcv1.V1ReadableStatusOlapFAILED || row.ReadableStatus == sqlcv1.V1ReadableStatusOlapCANCELLED {
+			workflow, err := o.repo.OLAP().GetWorkflowByExternalId(ctx, tenantId, row.ExternalId)
+			if err != nil {
+				if errors.Is(err, pgx.ErrNoRows) {
+					continue
+				}
 
-		if !hasDAG {
-			// instrumentation
-			if row.ReadableStatus == sqlcv1.V1ReadableStatusOlapCOMPLETED || row.ReadableStatus == sqlcv1.V1ReadableStatusOlapFAILED || row.ReadableStatus == sqlcv1.V1ReadableStatusOlapCANCELLED {
-				workflow, err := o.repo.OLAP().GetWorkflowByExternalId(ctx, tenantId, row.ExternalId)
+				return false, err
+			}
+
+			belongsToDAG, err := o.repo.OLAP().TaskBelongsToDAG(ctx, tenantId, row.TaskId)
+			if err != nil {
+				return false, err
+			}
+
+			// Only track metrics for standalone tasks, not tasks within DAGs
+			// DAG-level metrics are tracked in process_dag_status_updates.go
+			if !belongsToDAG {
+				taskDuration, err := o.repo.OLAP().GetTaskDurationByExternalId(ctx, tenantId, row.ExternalId)
 				if err != nil {
-					if errors.Is(err, pgx.ErrNoRows) {
-						continue
-					}
-
 					return false, err
 				}
 
 				tenantMetric := prometheus.WithTenant(tenantId)
-				tenantMetric.WorkflowCompleted.WithLabelValues(tenantId, workflow.WorkflowName.String, string(row.ReadableStatus), "").Inc()
+
+				tenantMetric.WorkflowCompleted.WithLabelValues(tenantId, workflow.WorkflowName.String, string(row.ReadableStatus)).Inc()
+
+				tenantMetric.WorkflowDuration.WithLabelValues(tenantId, workflow.WorkflowName.String, string(row.ReadableStatus)).Observe(float64(taskDuration.DurationMilliseconds))
 			}
 		}
 	}

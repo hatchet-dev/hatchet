@@ -69,8 +69,16 @@ func (o *OLAPControllerImpl) updateDAGStatuses(ctx context.Context, tenantId str
 				return false, err
 			}
 
+			dagDuration, err := o.repo.OLAP().GetDAGDurationByExternalId(ctx, tenantId, row.ExternalId)
+			if err != nil {
+				return false, err
+			}
+
 			tenantMetric := prometheus.WithTenant(tenantId)
-			tenantMetric.WorkflowCompleted.WithLabelValues(tenantId, workflow.WorkflowName.String, string(row.ReadableStatus), "").Inc()
+
+			tenantMetric.WorkflowCompleted.WithLabelValues(tenantId, workflow.WorkflowName.String, string(row.ReadableStatus)).Inc()
+
+			tenantMetric.WorkflowDuration.WithLabelValues(tenantId, workflow.WorkflowName.String, string(row.ReadableStatus)).Observe(float64(dagDuration.DurationMilliseconds))
 		}
 	}
 

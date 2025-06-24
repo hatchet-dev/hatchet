@@ -276,6 +276,87 @@ func (q *Queries) FlattenTasksByExternalIds(ctx context.Context, db DBTX, arg Fl
 	return items, nil
 }
 
+const getDAGDurationByExternalId = `-- name: GetDAGDurationByExternalId :one
+WITH dag_lookup AS (
+    SELECT
+        tenant_id,
+        dag_id,
+        inserted_at
+    FROM
+        v1_lookup_table_olap
+    WHERE
+        external_id = $1::uuid
+        AND dag_id IS NOT NULL
+), dag_tasks AS (
+    SELECT
+        dt.task_id,
+        dt.task_inserted_at
+    FROM
+        dag_lookup dl
+    JOIN
+        v1_dag_to_task_olap dt ON dl.dag_id = dt.dag_id AND dl.inserted_at = dt.dag_inserted_at
+), task_events AS (
+    SELECT
+        e.tenant_id, e.id, e.inserted_at, e.task_id, e.task_inserted_at, e.event_type, e.workflow_id, e.event_timestamp, e.readable_status, e.retry_count, e.error_message, e.output, e.worker_id, e.additional__event_data, e.additional__event_message
+    FROM
+        dag_tasks dt
+    JOIN
+        v1_task_events_olap e ON (e.task_id, e.task_inserted_at) = (dt.task_id, dt.task_inserted_at)
+    WHERE
+        e.tenant_id = (SELECT tenant_id FROM dag_lookup)
+), dag_started_at AS (
+    SELECT MIN(event_timestamp) AS started_at
+    FROM task_events
+    WHERE event_type = 'STARTED'
+), dag_finished_at AS (
+    SELECT
+        MAX(event_timestamp) AS finished_at
+    FROM
+        task_events
+    WHERE
+        readable_status = ANY(ARRAY['COMPLETED', 'FAILED', 'CANCELLED']::v1_readable_status_olap[])
+)
+SELECT
+    d.external_id,
+    d.display_name,
+    s.started_at::timestamptz,
+    f.finished_at::timestamptz,
+    CASE
+        WHEN s.started_at IS NOT NULL AND f.finished_at IS NOT NULL
+        THEN (EXTRACT(EPOCH FROM (f.finished_at - s.started_at)) * 1000)::int
+        ELSE 0
+    END AS duration_milliseconds
+FROM
+    v1_dags_olap d
+JOIN
+    dag_lookup dl ON (d.tenant_id, d.id, d.inserted_at) = (dl.tenant_id, dl.dag_id, dl.inserted_at)
+LEFT JOIN
+    dag_started_at s ON true
+LEFT JOIN
+    dag_finished_at f ON true
+`
+
+type GetDAGDurationByExternalIdRow struct {
+	ExternalID           pgtype.UUID        `json:"external_id"`
+	DisplayName          string             `json:"display_name"`
+	SStartedAt           pgtype.Timestamptz `json:"s_started_at"`
+	FFinishedAt          pgtype.Timestamptz `json:"f_finished_at"`
+	DurationMilliseconds int32              `json:"duration_milliseconds"`
+}
+
+func (q *Queries) GetDAGDurationByExternalId(ctx context.Context, db DBTX, externalid pgtype.UUID) (*GetDAGDurationByExternalIdRow, error) {
+	row := db.QueryRow(ctx, getDAGDurationByExternalId, externalid)
+	var i GetDAGDurationByExternalIdRow
+	err := row.Scan(
+		&i.ExternalID,
+		&i.DisplayName,
+		&i.SStartedAt,
+		&i.FFinishedAt,
+		&i.DurationMilliseconds,
+	)
+	return &i, err
+}
+
 const getRunsListRecursive = `-- name: GetRunsListRecursive :many
 WITH RECURSIVE all_runs AS (
   -- seed term
@@ -388,6 +469,82 @@ func (q *Queries) GetRunsListRecursive(ctx context.Context, db DBTX, arg GetRuns
 		return nil, err
 	}
 	return items, nil
+}
+
+const getTaskDurationByExternalId = `-- name: GetTaskDurationByExternalId :one
+WITH task_lookup AS (
+    SELECT
+        tenant_id,
+        task_id,
+        inserted_at
+    FROM
+        v1_lookup_table_olap
+    WHERE
+        external_id = $1::uuid
+        AND task_id IS NOT NULL
+), task_events AS (
+    SELECT
+        e.tenant_id, e.id, e.inserted_at, e.task_id, e.task_inserted_at, e.event_type, e.workflow_id, e.event_timestamp, e.readable_status, e.retry_count, e.error_message, e.output, e.worker_id, e.additional__event_data, e.additional__event_message
+    FROM
+        task_lookup tl
+    JOIN
+        v1_task_events_olap e ON (e.task_id, e.task_inserted_at) = (tl.task_id, tl.inserted_at)
+    WHERE
+        e.tenant_id = tl.tenant_id
+), task_started_at AS (
+    SELECT
+        MAX(event_timestamp) AS started_at
+    FROM
+        task_events
+    WHERE
+        event_type = 'STARTED'
+), task_finished_at AS (
+    SELECT
+        MAX(event_timestamp) AS finished_at
+    FROM
+        task_events
+    WHERE
+        readable_status = ANY(ARRAY['COMPLETED', 'FAILED', 'CANCELLED']::v1_readable_status_olap[])
+)
+SELECT
+    t.external_id,
+    t.display_name,
+    s.started_at::timestamptz,
+    f.finished_at::timestamptz,
+    CASE
+        WHEN s.started_at IS NOT NULL AND f.finished_at IS NOT NULL
+        THEN (EXTRACT(EPOCH FROM (f.finished_at - s.started_at)) * 1000)::int
+        ELSE 0
+    END AS duration_milliseconds
+FROM
+    v1_tasks_olap t
+JOIN
+    task_lookup tl ON (t.tenant_id, t.id, t.inserted_at) = (tl.tenant_id, tl.task_id, tl.inserted_at)
+LEFT JOIN
+    task_started_at s ON true
+LEFT JOIN
+    task_finished_at f ON true
+`
+
+type GetTaskDurationByExternalIdRow struct {
+	ExternalID           pgtype.UUID        `json:"external_id"`
+	DisplayName          string             `json:"display_name"`
+	SStartedAt           pgtype.Timestamptz `json:"s_started_at"`
+	FFinishedAt          pgtype.Timestamptz `json:"f_finished_at"`
+	DurationMilliseconds int32              `json:"duration_milliseconds"`
+}
+
+func (q *Queries) GetTaskDurationByExternalId(ctx context.Context, db DBTX, externalid pgtype.UUID) (*GetTaskDurationByExternalIdRow, error) {
+	row := db.QueryRow(ctx, getTaskDurationByExternalId, externalid)
+	var i GetTaskDurationByExternalIdRow
+	err := row.Scan(
+		&i.ExternalID,
+		&i.DisplayName,
+		&i.SStartedAt,
+		&i.FFinishedAt,
+		&i.DurationMilliseconds,
+	)
+	return &i, err
 }
 
 const getTaskPointMetrics = `-- name: GetTaskPointMetrics :many
@@ -531,15 +688,10 @@ func (q *Queries) GetTenantStatusMetrics(ctx context.Context, db DBTX, arg GetTe
 const getWorkflowByExternalId = `-- name: GetWorkflowByExternalId :one
 SELECT DISTINCT
     w.name AS workflow_name,
-    w.id AS workflow_id,
-    CASE
-        WHEN dt IS NOT NULL THEN TRUE
-        ELSE FALSE
-    END AS is_dag
+    w.id AS workflow_id
 FROM v1_lookup_table_olap lt
 LEFT JOIN v1_dags_olap d ON (lt.dag_id, lt.inserted_at) = (d.id, d.inserted_at)
 LEFT JOIN v1_tasks_olap t ON (lt.task_id, lt.inserted_at) = (t.id, t.inserted_at)
-LEFT JOIN v1_dag_to_task_olap dt ON d.id = dt.dag_id AND d.inserted_at = dt.dag_inserted_at
 LEFT JOIN "Workflow" w ON d.workflow_id = w.id OR t.workflow_id = w.id
 WHERE
     lt.external_id = $1::uuid
@@ -554,13 +706,12 @@ type GetWorkflowByExternalIdParams struct {
 type GetWorkflowByExternalIdRow struct {
 	WorkflowName pgtype.Text `json:"workflow_name"`
 	WorkflowID   pgtype.UUID `json:"workflow_id"`
-	IsDag        bool        `json:"is_dag"`
 }
 
 func (q *Queries) GetWorkflowByExternalId(ctx context.Context, db DBTX, arg GetWorkflowByExternalIdParams) (*GetWorkflowByExternalIdRow, error) {
 	row := db.QueryRow(ctx, getWorkflowByExternalId, arg.Externalid, arg.Tenantid)
 	var i GetWorkflowByExternalIdRow
-	err := row.Scan(&i.WorkflowName, &i.WorkflowID, &i.IsDag)
+	err := row.Scan(&i.WorkflowName, &i.WorkflowID)
 	return &i, err
 }
 
@@ -2141,7 +2292,7 @@ func (q *Queries) ReadWorkflowRunByExternalId(ctx context.Context, db DBTX, work
 	return &i, err
 }
 
-const taskHasDAG = `-- name: TaskHasDAG :one
+const taskBelongsToDAG = `-- name: TaskBelongsToDAG :one
 SELECT EXISTS
     (
         SELECT 1
@@ -2150,8 +2301,8 @@ SELECT EXISTS
     )
 `
 
-func (q *Queries) TaskHasDAG(ctx context.Context, db DBTX, taskid int64) (bool, error) {
-	row := db.QueryRow(ctx, taskHasDAG, taskid)
+func (q *Queries) TaskBelongsToDAG(ctx context.Context, db DBTX, taskid int64) (bool, error) {
+	row := db.QueryRow(ctx, taskBelongsToDAG, taskid)
 	var exists bool
 	err := row.Scan(&exists)
 	return exists, err

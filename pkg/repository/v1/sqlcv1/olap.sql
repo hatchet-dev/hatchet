@@ -1274,19 +1274,23 @@ LIMIT 10000
 -- name: GetWorkflowByExternalId :one
 SELECT DISTINCT
     w.name AS workflow_name,
-    w.id AS workflow_id,
-    CASE
-        WHEN dt IS NOT NULL THEN TRUE
-        ELSE FALSE
-    END AS is_dag
+    w.id AS workflow_id
 FROM v1_lookup_table_olap lt
 LEFT JOIN v1_dags_olap d ON (lt.dag_id, lt.inserted_at) = (d.id, d.inserted_at)
 LEFT JOIN v1_tasks_olap t ON (lt.task_id, lt.inserted_at) = (t.id, t.inserted_at)
-LEFT JOIN v1_dag_to_task_olap dt ON d.id = dt.dag_id AND d.inserted_at = dt.dag_inserted_at
 LEFT JOIN "Workflow" w ON d.workflow_id = w.id OR t.workflow_id = w.id
 WHERE
     lt.external_id = @externalId::uuid
     AND lt.tenant_id = @tenantId::uuid
+;
+
+-- name: TaskBelongsToDAG :one
+SELECT EXISTS
+    (
+        SELECT 1
+        FROM v1_dag_to_task_olap dt
+        WHERE dt.task_id = @taskId::bigint
+    )
 ;
 
 -- name: GetRunsListRecursive :many
@@ -1524,11 +1528,115 @@ SELECT COUNT(*)
 FROM included_events e
 ;
 
--- name: TaskHasDAG :one
-SELECT EXISTS
-    (
-        SELECT 1
-        FROM v1_dag_to_task_olap dt
-        WHERE dt.task_id = @taskId::bigint
-    )
-;
+-- name: GetDAGDurationByExternalId :one
+WITH dag_lookup AS (
+    SELECT
+        tenant_id,
+        dag_id,
+        inserted_at
+    FROM
+        v1_lookup_table_olap
+    WHERE
+        external_id = @externalId::uuid
+        AND dag_id IS NOT NULL
+), dag_tasks AS (
+    SELECT
+        dt.task_id,
+        dt.task_inserted_at
+    FROM
+        dag_lookup dl
+    JOIN
+        v1_dag_to_task_olap dt ON dl.dag_id = dt.dag_id AND dl.inserted_at = dt.dag_inserted_at
+), task_events AS (
+    SELECT
+        e.*
+    FROM
+        dag_tasks dt
+    JOIN
+        v1_task_events_olap e ON (e.task_id, e.task_inserted_at) = (dt.task_id, dt.task_inserted_at)
+    WHERE
+        e.tenant_id = (SELECT tenant_id FROM dag_lookup)
+), dag_started_at AS (
+    SELECT MIN(event_timestamp) AS started_at
+    FROM task_events
+    WHERE event_type = 'STARTED'
+), dag_finished_at AS (
+    SELECT
+        MAX(event_timestamp) AS finished_at
+    FROM
+        task_events
+    WHERE
+        readable_status = ANY(ARRAY['COMPLETED', 'FAILED', 'CANCELLED']::v1_readable_status_olap[])
+)
+SELECT
+    d.external_id,
+    d.display_name,
+    s.started_at::timestamptz,
+    f.finished_at::timestamptz,
+    CASE
+        WHEN s.started_at IS NOT NULL AND f.finished_at IS NOT NULL
+        THEN (EXTRACT(EPOCH FROM (f.finished_at - s.started_at)) * 1000)::int
+        ELSE 0
+    END AS duration_milliseconds
+FROM
+    v1_dags_olap d
+JOIN
+    dag_lookup dl ON (d.tenant_id, d.id, d.inserted_at) = (dl.tenant_id, dl.dag_id, dl.inserted_at)
+LEFT JOIN
+    dag_started_at s ON true
+LEFT JOIN
+    dag_finished_at f ON true;
+
+-- name: GetTaskDurationByExternalId :one
+WITH task_lookup AS (
+    SELECT
+        tenant_id,
+        task_id,
+        inserted_at
+    FROM
+        v1_lookup_table_olap
+    WHERE
+        external_id = @externalId::uuid
+        AND task_id IS NOT NULL
+), task_events AS (
+    SELECT
+        e.*
+    FROM
+        task_lookup tl
+    JOIN
+        v1_task_events_olap e ON (e.task_id, e.task_inserted_at) = (tl.task_id, tl.inserted_at)
+    WHERE
+        e.tenant_id = tl.tenant_id
+), task_started_at AS (
+    SELECT
+        MAX(event_timestamp) AS started_at
+    FROM
+        task_events
+    WHERE
+        event_type = 'STARTED'
+), task_finished_at AS (
+    SELECT
+        MAX(event_timestamp) AS finished_at
+    FROM
+        task_events
+    WHERE
+        readable_status = ANY(ARRAY['COMPLETED', 'FAILED', 'CANCELLED']::v1_readable_status_olap[])
+)
+SELECT
+    t.external_id,
+    t.display_name,
+    s.started_at::timestamptz,
+    f.finished_at::timestamptz,
+    CASE
+        WHEN s.started_at IS NOT NULL AND f.finished_at IS NOT NULL
+        THEN (EXTRACT(EPOCH FROM (f.finished_at - s.started_at)) * 1000)::int
+        ELSE 0
+    END AS duration_milliseconds
+FROM
+    v1_tasks_olap t
+JOIN
+    task_lookup tl ON (t.tenant_id, t.id, t.inserted_at) = (tl.tenant_id, tl.task_id, tl.inserted_at)
+LEFT JOIN
+    task_started_at s ON true
+LEFT JOIN
+    task_finished_at f ON true;
