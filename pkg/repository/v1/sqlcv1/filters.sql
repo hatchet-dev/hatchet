@@ -103,9 +103,8 @@ WITH inputs AS (
 SELECT f.*
 FROM v1_filter f
 CROSS JOIN num_filter_inputs n
-LEFT JOIN inputs i ON (f.workflow_id, f.scope) = (i.workflow_id, i.scope)
+JOIN inputs i ON (n.ct = 0) OR (f.workflow_id, f.scope) = (i.workflow_id, i.scope)
 WHERE f.tenant_id = @tenantId::UUID
-  AND (i.workflow_id IS NOT NULL OR n.ct = 0)
 ORDER BY f.tenant_id, f.id DESC
 LIMIT COALESCE(sqlc.narg('filterLimit')::BIGINT, 20000)
 OFFSET COALESCE(sqlc.narg('filterOffset')::BIGINT, 0)

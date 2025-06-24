@@ -261,9 +261,8 @@ WITH inputs AS (
 SELECT f.id, f.tenant_id, f.workflow_id, f.scope, f.expression, f.payload, f.payload_hash, f.is_declarative, f.inserted_at, f.updated_at
 FROM v1_filter f
 CROSS JOIN num_filter_inputs n
-LEFT JOIN inputs i ON (f.workflow_id, f.scope) = (i.workflow_id, i.scope)
+JOIN inputs i ON (n.ct = 0) OR (f.workflow_id, f.scope) = (i.workflow_id, i.scope)
 WHERE f.tenant_id = $1::UUID
-  AND (i.workflow_id IS NOT NULL OR n.ct = 0)
 ORDER BY f.tenant_id, f.id DESC
 LIMIT COALESCE($3::BIGINT, 20000)
 OFFSET COALESCE($2::BIGINT, 0)
