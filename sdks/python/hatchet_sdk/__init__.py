@@ -141,6 +141,7 @@ from hatchet_sdk.contracts.workflows_pb2 import (
 from hatchet_sdk.exceptions import (
     DedupeViolationError,
     FailedTaskRunExceptionGroup,
+    NonRetryableException,
     TaskRunError,
 )
 from hatchet_sdk.features.runs import BulkCancelReplayOpts, RunFilter
@@ -219,6 +220,7 @@ __all__ = [
     "LogLineList",
     "LogLineOrderByDirection",
     "LogLineOrderByField",
+    "NonRetryableException",
     "OTelAttribute",
     "OpenTelemetryConfig",
     "OrGroup",
