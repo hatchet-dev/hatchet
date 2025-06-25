@@ -98,3 +98,7 @@ class FailedTaskRunExceptionGroup(Exception):  # noqa: N818
 
 class LoopAlreadyRunningError(Exception):
     pass
+
+
+class IllegalTaskOutputError(Exception):
+    pass

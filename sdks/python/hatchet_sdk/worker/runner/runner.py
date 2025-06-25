@@ -30,7 +30,11 @@ from hatchet_sdk.contracts.dispatcher_pb2 import (
     STEP_EVENT_TYPE_FAILED,
     STEP_EVENT_TYPE_STARTED,
 )
-from hatchet_sdk.exceptions import NonRetryableException, TaskRunError
+from hatchet_sdk.exceptions import (
+    IllegalTaskOutputError,
+    NonRetryableException,
+    TaskRunError,
+)
 from hatchet_sdk.features.runs import RunsClient
 from hatchet_sdk.logger import logger
 from hatchet_sdk.runnables.action import Action, ActionKey, ActionType
@@ -176,14 +180,33 @@ class Runner:
 
                 return
 
-            self.event_queue.put(
-                ActionEvent(
-                    action=action,
-                    type=STEP_EVENT_TYPE_COMPLETED,
-                    payload=self.serialize_output(output),
-                    should_not_retry=False,
+            try:
+                output = self.serialize_output(output)
+
+                self.event_queue.put(
+                    ActionEvent(
+                        action=action,
+                        type=STEP_EVENT_TYPE_COMPLETED,
+                        payload=output,
+                        should_not_retry=False,
+                    )
                 )
-            )
+            except IllegalTaskOutputError as e:
+                exc = TaskRunError.from_exception(e)
+                self.event_queue.put(
+                    ActionEvent(
+                        action=action,
+                        type=STEP_EVENT_TYPE_FAILED,
+                        payload=exc.serialize(),
+                        should_not_retry=False,
+                    )
+                )
+
+                logger.error(
+                    f"failed step run: {action.action_id}/{action.step_run_id}\n{exc.serialize()}"
+                )
+
+                return
 
             logger.info(f"finished step run: {action.action_id}/{action.step_run_id}")
 
@@ -506,8 +529,8 @@ class Runner:
             return output.model_dump_json()
 
         if not isinstance(output, dict):
-            raise TypeError(
-                "Tasks must return a dictionary or a Pydantic BaseModel which can be serialized to a JSON object"
+            raise IllegalTaskOutputError(
+                f"Tasks must return a dictionary or a Pydantic BaseModel which can be serialized to a JSON object. Got object of type {type(output)} instead."
             )
 
         if output is not None:
