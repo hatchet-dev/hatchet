@@ -14,7 +14,7 @@ export function CopyWorkflowConfigButton({
       variant="outline"
       size="sm"
       onClick={() => {
-        navigator.clipboard.writeText(JSON.stringify(workflowConfig));
+        navigator.clipboard.writeText(JSON.stringify(workflowConfig ?? {}));
         setCopySuccess(true);
         setTimeout(() => setCopySuccess(false), 2000);
       }}
