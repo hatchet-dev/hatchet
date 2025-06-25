@@ -1,7 +1,8 @@
 import asyncio
 import json
 import time
-from typing import TYPE_CHECKING, AsyncGenerator, cast
+from collections.abc import AsyncGenerator
+from typing import TYPE_CHECKING, cast
 
 import grpc
 import grpc.aio
@@ -302,7 +303,7 @@ class ActionListener:
             )
             self.run_heartbeat = False
             raise Exception("retry_exhausted")
-        elif self.retries >= 1:
+        if self.retries >= 1:
             # logger.info
             # if we are retrying, we wait for a bit. this should eventually be replaced with exp backoff + jitter
             await exp_backoff_sleep(
@@ -369,4 +370,4 @@ class ActionListener:
 
             return cast(WorkerUnsubscribeRequest, req)
         except grpc.RpcError as e:
-            raise Exception(f"Failed to unsubscribe: {e}")
+            raise Exception("Failed to unsubscribe") from e

@@ -1,7 +1,8 @@
 import asyncio
+from collections.abc import Callable
 from datetime import datetime, timedelta, timezone
 from functools import cached_property
-from typing import TYPE_CHECKING, Any, Callable, Generic, TypeVar, cast, get_type_hints
+from typing import TYPE_CHECKING, Any, Generic, TypeVar, cast, get_type_hints
 
 from google.protobuf import timestamp_pb2
 from pydantic import BaseModel, model_validator
@@ -11,6 +12,7 @@ from hatchet_sdk.clients.admin import (
     TriggerWorkflowOptions,
     WorkflowRunTriggerConfig,
 )
+from hatchet_sdk.clients.listeners.run_event_listener import RunEventListener
 from hatchet_sdk.clients.rest.models.cron_workflows import CronWorkflows
 from hatchet_sdk.clients.rest.models.v1_filter import V1Filter
 from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
@@ -371,7 +373,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         self,
         expression: str,
         scope: str,
-        payload: JSONSerializableMapping = {},
+        payload: JSONSerializableMapping | None = None,
     ) -> V1Filter:
         """
         Create a new filter.
@@ -393,7 +395,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         self,
         expression: str,
         scope: str,
-        payload: JSONSerializableMapping = {},
+        payload: JSONSerializableMapping | None = None,
     ) -> V1Filter:
         """
         Create a new filter.
@@ -458,7 +460,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         cron_name: str,
         expression: str,
         input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
-        additional_metadata: JSONSerializableMapping = {},
+        additional_metadata: JSONSerializableMapping | None = None,
         priority: int | None = None,
     ) -> CronWorkflows:
         """
@@ -477,7 +479,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
             cron_name=cron_name,
             expression=expression,
             input=self._serialize_input(input),
-            additional_metadata=additional_metadata,
+            additional_metadata=additional_metadata or {},
             priority=priority,
         )
 
@@ -486,7 +488,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         cron_name: str,
         expression: str,
         input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
-        additional_metadata: JSONSerializableMapping = {},
+        additional_metadata: JSONSerializableMapping | None = None,
         priority: int | None = None,
     ) -> CronWorkflows:
         """
@@ -505,7 +507,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
             cron_name=cron_name,
             expression=expression,
             input=self._serialize_input(input),
-            additional_metadata=additional_metadata,
+            additional_metadata=additional_metadata or {},
             priority=priority,
         )
 
@@ -620,7 +622,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         """
         Run the workflow asynchronously and wait for it to complete.
 
-        This method triggers a workflow run, blocks until completion, and returns the final result.
+        This method triggers a workflow run, awaits until completion, and returns the final result.
 
         :param input: The input data for the workflow, must match the workflow's input type.
         :param options: Additional options for workflow execution like metadata and parent workflow ID.
@@ -716,16 +718,16 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         name: str | None = None,
         schedule_timeout: Duration = timedelta(minutes=5),
         execution_timeout: Duration = timedelta(seconds=60),
-        parents: list[Task[TWorkflowInput, Any]] = [],
+        parents: list[Task[TWorkflowInput, Any]] | None = None,
         retries: int = 0,
-        rate_limits: list[RateLimit] = [],
-        desired_worker_labels: dict[str, DesiredWorkerLabel] = {},
+        rate_limits: list[RateLimit] | None = None,
+        desired_worker_labels: dict[str, DesiredWorkerLabel] | None = None,
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
-        concurrency: list[ConcurrencyExpression] = [],
-        wait_for: list[Condition | OrGroup] = [],
-        skip_if: list[Condition | OrGroup] = [],
-        cancel_if: list[Condition | OrGroup] = [],
+        concurrency: list[ConcurrencyExpression] | None = None,
+        wait_for: list[Condition | OrGroup] | None = None,
+        skip_if: list[Condition | OrGroup] | None = None,
+        cancel_if: list[Condition | OrGroup] | None = None,
     ) -> Callable[
         [Callable[[TWorkflowInput, Context], R | CoroutineLike[R]]],
         Task[TWorkflowInput, R],
@@ -784,10 +786,10 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
                 schedule_timeout=computed_params.schedule_timeout,
                 parents=parents,
                 retries=computed_params.retries,
-                rate_limits=[r.to_proto() for r in rate_limits],
+                rate_limits=[r.to_proto() for r in rate_limits or []],
                 desired_worker_labels={
                     key: transform_desired_worker_label(d)
-                    for key, d in desired_worker_labels.items()
+                    for key, d in (desired_worker_labels or {}).items()
                 },
                 backoff_factor=computed_params.backoff_factor,
                 backoff_max_seconds=computed_params.backoff_max_seconds,
@@ -808,16 +810,16 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         name: str | None = None,
         schedule_timeout: Duration = timedelta(minutes=5),
         execution_timeout: Duration = timedelta(seconds=60),
-        parents: list[Task[TWorkflowInput, Any]] = [],
+        parents: list[Task[TWorkflowInput, Any]] | None = None,
         retries: int = 0,
-        rate_limits: list[RateLimit] = [],
-        desired_worker_labels: dict[str, DesiredWorkerLabel] = {},
+        rate_limits: list[RateLimit] | None = None,
+        desired_worker_labels: dict[str, DesiredWorkerLabel] | None = None,
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
-        concurrency: list[ConcurrencyExpression] = [],
-        wait_for: list[Condition | OrGroup] = [],
-        skip_if: list[Condition | OrGroup] = [],
-        cancel_if: list[Condition | OrGroup] = [],
+        concurrency: list[ConcurrencyExpression] | None = None,
+        wait_for: list[Condition | OrGroup] | None = None,
+        skip_if: list[Condition | OrGroup] | None = None,
+        cancel_if: list[Condition | OrGroup] | None = None,
     ) -> Callable[
         [Callable[[TWorkflowInput, DurableContext], R | CoroutineLike[R]]],
         Task[TWorkflowInput, R],
@@ -880,10 +882,10 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
                 schedule_timeout=computed_params.schedule_timeout,
                 parents=parents,
                 retries=computed_params.retries,
-                rate_limits=[r.to_proto() for r in rate_limits],
+                rate_limits=[r.to_proto() for r in rate_limits or []],
                 desired_worker_labels={
                     key: transform_desired_worker_label(d)
-                    for key, d in desired_worker_labels.items()
+                    for key, d in (desired_worker_labels or {}).items()
                 },
                 backoff_factor=computed_params.backoff_factor,
                 backoff_max_seconds=computed_params.backoff_max_seconds,
@@ -905,10 +907,10 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         schedule_timeout: Duration = timedelta(minutes=5),
         execution_timeout: Duration = timedelta(seconds=60),
         retries: int = 0,
-        rate_limits: list[RateLimit] = [],
+        rate_limits: list[RateLimit] | None = None,
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
-        concurrency: list[ConcurrencyExpression] = [],
+        concurrency: list[ConcurrencyExpression] | None = None,
     ) -> Callable[
         [Callable[[TWorkflowInput, Context], R | CoroutineLike[R]]],
         Task[TWorkflowInput, R],
@@ -947,10 +949,15 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
                 execution_timeout=execution_timeout,
                 schedule_timeout=schedule_timeout,
                 retries=retries,
-                rate_limits=[r.to_proto() for r in rate_limits],
+                rate_limits=[r.to_proto() for r in rate_limits or []],
                 backoff_factor=backoff_factor,
                 backoff_max_seconds=backoff_max_seconds,
                 concurrency=concurrency,
+                desired_worker_labels=None,
+                parents=None,
+                wait_for=None,
+                skip_if=None,
+                cancel_if=None,
             )
 
             if self._on_failure_task:
@@ -968,10 +975,10 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         schedule_timeout: Duration = timedelta(minutes=5),
         execution_timeout: Duration = timedelta(seconds=60),
         retries: int = 0,
-        rate_limits: list[RateLimit] = [],
+        rate_limits: list[RateLimit] | None = None,
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
-        concurrency: list[ConcurrencyExpression] = [],
+        concurrency: list[ConcurrencyExpression] | None = None,
     ) -> Callable[
         [Callable[[TWorkflowInput, Context], R | CoroutineLike[R]]],
         Task[TWorkflowInput, R],
@@ -1010,11 +1017,15 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
                 execution_timeout=execution_timeout,
                 schedule_timeout=schedule_timeout,
                 retries=retries,
-                rate_limits=[r.to_proto() for r in rate_limits],
+                rate_limits=[r.to_proto() for r in rate_limits or []],
                 backoff_factor=backoff_factor,
                 backoff_max_seconds=backoff_max_seconds,
                 concurrency=concurrency,
-                parents=[],
+                parents=None,
+                desired_worker_labels=None,
+                wait_for=None,
+                skip_if=None,
+                cancel_if=None,
             )
 
             if self._on_success_task:
@@ -1087,6 +1098,9 @@ class TaskRunRef(Generic[TWorkflowInput, R]):
 
         return self._s._extract_result(result)
 
+    def stream(self) -> RunEventListener:
+        return self._wrr.stream()
+
 
 class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
     def __init__(
@@ -1123,13 +1137,14 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
     ) -> R:
         """
-        Synchronously trigger a workflow run without waiting for it to complete.
-        This method is useful for starting a workflow run and immediately returning a reference to the run without blocking while the workflow runs.
+        Run the workflow synchronously and wait for it to complete.
+
+        This method triggers a workflow run, blocks until completion, and returns the extracted result.
 
         :param input: The input data for the workflow.
         :param options: Additional options for workflow execution.
 
-        :returns: A `WorkflowRunRef` object representing the reference to the workflow run.
+        :returns: The extracted result of the workflow execution.
         """
         return self._extract_result(self._workflow.run(input, options))
 
@@ -1141,12 +1156,12 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         """
         Run the workflow asynchronously and wait for it to complete.
 
-        This method triggers a workflow run, blocks until completion, and returns the final result.
+        This method triggers a workflow run, awaits until completion, and returns the extracted result.
 
         :param input: The input data for the workflow, must match the workflow's input type.
         :param options: Additional options for workflow execution like metadata and parent workflow ID.
 
-        :returns: The result of the workflow execution as a dictionary.
+        :returns: The extracted result of the workflow execution.
         """
         result = await self._workflow.aio_run(input, options)
         return self._extract_result(result)
@@ -1157,14 +1172,14 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
     ) -> TaskRunRef[TWorkflowInput, R]:
         """
-        Run the workflow synchronously and wait for it to complete.
+        Trigger a workflow run without waiting for it to complete.
 
-        This method triggers a workflow run, blocks until completion, and returns the final result.
+        This method triggers a workflow run and immediately returns a reference to the run without blocking while the workflow runs.
 
         :param input: The input data for the workflow, must match the workflow's input type.
         :param options: Additional options for workflow execution like metadata and parent workflow ID.
 
-        :returns: The result of the workflow execution as a dictionary.
+        :returns: A `TaskRunRef` object representing the reference to the workflow run.
         """
         ref = self._workflow.run_no_wait(input, options)
 
@@ -1182,7 +1197,7 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         :param input: The input data for the workflow.
         :param options: Additional options for workflow execution.
 
-        :returns: A `WorkflowRunRef` object representing the reference to the workflow run.
+        :returns: A `TaskRunRef` object representing the reference to the workflow run.
         """
         ref = await self._workflow.aio_run_no_wait(input, options)
 

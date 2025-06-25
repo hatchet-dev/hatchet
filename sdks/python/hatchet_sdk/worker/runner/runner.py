@@ -1,14 +1,14 @@
 import asyncio
-import contextvars
 import ctypes
 import functools
 import json
-import traceback
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import suppress
 from enum import Enum
 from multiprocessing import Queue
 from threading import Thread, current_thread
-from typing import Any, Callable, Dict, Literal, cast, overload
+from typing import Any, Literal, cast, overload
 
 from pydantic import BaseModel
 
@@ -30,7 +30,7 @@ from hatchet_sdk.contracts.dispatcher_pb2 import (
     STEP_EVENT_TYPE_FAILED,
     STEP_EVENT_TYPE_STARTED,
 )
-from hatchet_sdk.exceptions import NonRetryableException
+from hatchet_sdk.exceptions import NonRetryableException, TaskRunError
 from hatchet_sdk.features.runs import RunsClient
 from hatchet_sdk.logger import logger
 from hatchet_sdk.runnables.action import Action, ActionKey, ActionType
@@ -40,12 +40,17 @@ from hatchet_sdk.runnables.contextvars import (
     ctx_worker_id,
     ctx_workflow_run_id,
     spawn_index_lock,
+    task_count,
     workflow_spawn_indices,
 )
 from hatchet_sdk.runnables.task import Task
 from hatchet_sdk.runnables.types import R, TWorkflowInput
 from hatchet_sdk.worker.action_listener_process import ActionEvent
-from hatchet_sdk.worker.runner.utils.capture_logs import copy_context_vars
+from hatchet_sdk.worker.runner.utils.capture_logs import (
+    AsyncLogSender,
+    ContextVarToCopy,
+    copy_context_vars,
+)
 
 
 class WorkerStatus(Enum):
@@ -61,10 +66,11 @@ class Runner:
         event_queue: "Queue[ActionEvent]",
         config: ClientConfig,
         slots: int,
-        handle_kill: bool = True,
-        action_registry: dict[str, Task[TWorkflowInput, R]] = {},
-        labels: dict[str, str | int] = {},
-        lifespan_context: Any | None = None,
+        handle_kill: bool,
+        action_registry: dict[str, Task[TWorkflowInput, R]],
+        labels: dict[str, str | int] | None,
+        lifespan_context: Any | None,
+        log_sender: AsyncLogSender,
     ):
         # We store the config so we can dynamically create clients for the dispatcher client.
         self.config = config
@@ -72,13 +78,14 @@ class Runner:
         self.slots = slots
         self.tasks: dict[ActionKey, asyncio.Task[Any]] = {}  # Store run ids and futures
         self.contexts: dict[ActionKey, Context] = {}  # Store run ids and contexts
-        self.action_registry = action_registry
+        self.action_registry = action_registry or {}
 
         self.event_queue = event_queue
 
         # The thread pool is used for synchronous functions which need to run concurrently
         self.thread_pool = ThreadPoolExecutor(max_workers=slots)
-        self.threads: Dict[ActionKey, Thread] = {}  # Store run ids and threads
+        self.threads: dict[ActionKey, Thread] = {}  # Store run ids and threads
+        self.running_tasks = set[asyncio.Task[Exception | None]]()
 
         self.killing = False
         self.handle_kill = handle_kill
@@ -101,10 +108,11 @@ class Runner:
         self.durable_event_listener = DurableEventListener(self.config)
 
         self.worker_context = WorkerContext(
-            labels=labels, client=Client(config=config).dispatcher
+            labels=labels or {}, client=Client(config=config).dispatcher
         )
 
         self.lifespan_context = lifespan_context
+        self.log_sender = log_sender
 
         if self.config.enable_thread_pool_monitoring:
             self.start_background_monitoring()
@@ -116,67 +124,68 @@ class Runner:
         if self.worker_context.id() is None:
             self.worker_context._worker_id = action.worker_id
 
+        t: asyncio.Task[Exception | None] | None = None
         match action.action_type:
             case ActionType.START_STEP_RUN:
                 log = f"run: start step: {action.action_id}/{action.step_run_id}"
                 logger.info(log)
-                asyncio.create_task(self.handle_start_step_run(action))
+                t = asyncio.create_task(self.handle_start_step_run(action))
             case ActionType.CANCEL_STEP_RUN:
                 log = f"cancel: step run:  {action.action_id}/{action.step_run_id}/{action.retry_count}"
                 logger.info(log)
-                asyncio.create_task(self.handle_cancel_action(action))
+                t = asyncio.create_task(self.handle_cancel_action(action))
             case ActionType.START_GET_GROUP_KEY:
                 log = f"run: get group key:  {action.action_id}/{action.get_group_key_run_id}"
                 logger.info(log)
-                asyncio.create_task(self.handle_start_group_key_run(action))
+                t = asyncio.create_task(self.handle_start_group_key_run(action))
             case _:
                 log = f"unknown action type: {action.action_type}"
                 logger.error(log)
+
+        if t is not None:
+            self.running_tasks.add(t)
+            t.add_done_callback(lambda task: self.running_tasks.discard(task))
 
     def step_run_callback(self, action: Action) -> Callable[[asyncio.Task[Any]], None]:
         def inner_callback(task: asyncio.Task[Any]) -> None:
             self.cleanup_run_id(action.key)
 
-            errored = False
-            cancelled = task.cancelled()
-            output = None
+            if task.cancelled():
+                return
 
-            # Get the output from the future
             try:
-                if not cancelled:
-                    output = task.result()
+                output = task.result()
             except Exception as e:
-                errored = True
-
                 should_not_retry = isinstance(e, NonRetryableException)
+
+                exc = TaskRunError.from_exception(e)
 
                 # This except is coming from the application itself, so we want to send that to the Hatchet instance
                 self.event_queue.put(
                     ActionEvent(
                         action=action,
                         type=STEP_EVENT_TYPE_FAILED,
-                        payload=str(pretty_format_exception(f"{e}", e)),
+                        payload=exc.serialize(),
                         should_not_retry=should_not_retry,
                     )
                 )
 
                 logger.error(
-                    f"failed step run: {action.action_id}/{action.step_run_id}"
+                    f"failed step run: {action.action_id}/{action.step_run_id}\n{exc.serialize()}"
                 )
 
-            if not errored and not cancelled:
-                self.event_queue.put(
-                    ActionEvent(
-                        action=action,
-                        type=STEP_EVENT_TYPE_COMPLETED,
-                        payload=self.serialize_output(output),
-                        should_not_retry=False,
-                    )
-                )
+                return
 
-                logger.info(
-                    f"finished step run: {action.action_id}/{action.step_run_id}"
+            self.event_queue.put(
+                ActionEvent(
+                    action=action,
+                    type=STEP_EVENT_TYPE_COMPLETED,
+                    payload=self.serialize_output(output),
+                    should_not_retry=False,
                 )
+            )
+
+            logger.info(f"finished step run: {action.action_id}/{action.step_run_id}")
 
         return inner_callback
 
@@ -186,51 +195,46 @@ class Runner:
         def inner_callback(task: asyncio.Task[Any]) -> None:
             self.cleanup_run_id(action.key)
 
-            errored = False
-            cancelled = task.cancelled()
-            output = None
+            if task.cancelled():
+                return
 
-            # Get the output from the future
             try:
-                if not cancelled:
-                    output = task.result()
+                output = task.result()
             except Exception as e:
-                errored = True
+                exc = TaskRunError.from_exception(e)
+
                 self.event_queue.put(
                     ActionEvent(
                         action=action,
                         type=GROUP_KEY_EVENT_TYPE_FAILED,
-                        payload=str(pretty_format_exception(f"{e}", e)),
+                        payload=exc.serialize(),
                         should_not_retry=False,
                     )
                 )
 
                 logger.error(
-                    f"failed step run: {action.action_id}/{action.step_run_id}"
+                    f"failed step run: {action.action_id}/{action.step_run_id}\n{exc.serialize()}"
                 )
 
-            if not errored and not cancelled:
-                self.event_queue.put(
-                    ActionEvent(
-                        action=action,
-                        type=GROUP_KEY_EVENT_TYPE_COMPLETED,
-                        payload=self.serialize_output(output),
-                        should_not_retry=False,
-                    )
-                )
+                return
 
-                logger.info(
-                    f"finished step run: {action.action_id}/{action.step_run_id}"
+            self.event_queue.put(
+                ActionEvent(
+                    action=action,
+                    type=GROUP_KEY_EVENT_TYPE_COMPLETED,
+                    payload=self.serialize_output(output),
+                    should_not_retry=False,
                 )
+            )
+
+            logger.info(f"finished step run: {action.action_id}/{action.step_run_id}")
 
         return inner_callback
 
     def thread_action_func(
         self, ctx: Context, task: Task[TWorkflowInput, R], action: Action
     ) -> R:
-        if action.step_run_id:
-            self.threads[action.key] = current_thread()
-        elif action.get_group_key_run_id:
+        if action.step_run_id or action.get_group_key_run_id:
             self.threads[action.key] = current_thread()
 
         return task.call(ctx)
@@ -250,28 +254,36 @@ class Runner:
         try:
             if task.is_async_function:
                 return await task.aio_call(ctx)
-            else:
-                pfunc = functools.partial(
-                    # we must copy the context vars to the new thread, as only asyncio natively supports
-                    # contextvars
-                    copy_context_vars,
-                    contextvars.copy_context().items(),
-                    self.thread_action_func,
-                    ctx,
-                    task,
-                    action,
-                )
-
-                loop = asyncio.get_event_loop()
-                return await loop.run_in_executor(self.thread_pool, pfunc)
-        except Exception as e:
-            logger.error(
-                pretty_format_exception(
-                    f"exception raised in action ({action.action_id}, retry={action.retry_count}):\n{e}",
-                    e,
-                )
+            pfunc = functools.partial(
+                # we must copy the context vars to the new thread, as only asyncio natively supports
+                # contextvars
+                copy_context_vars,
+                [
+                    ContextVarToCopy(
+                        name="ctx_step_run_id",
+                        value=action.step_run_id,
+                    ),
+                    ContextVarToCopy(
+                        name="ctx_workflow_run_id",
+                        value=action.workflow_run_id,
+                    ),
+                    ContextVarToCopy(
+                        name="ctx_worker_id",
+                        value=action.worker_id,
+                    ),
+                    ContextVarToCopy(
+                        name="ctx_action_key",
+                        value=action.key,
+                    ),
+                ],
+                self.thread_action_func,
+                ctx,
+                task,
+                action,
             )
-            raise e
+
+            loop = asyncio.get_event_loop()
+            return await loop.run_in_executor(self.thread_pool, pfunc)
         finally:
             self.cleanup_run_id(action.key)
 
@@ -295,7 +307,7 @@ class Runner:
             while True:
                 await self.log_thread_pool_status()
 
-                for key in self.threads.keys():
+                for key in self.threads:
                     if key not in self.tasks:
                         logger.debug(f"Potential zombie thread found for key {key}")
 
@@ -350,6 +362,7 @@ class Runner:
             worker=self.worker_context,
             runs_client=self.runs_client,
             lifespan_context=self.lifespan_context,
+            log_sender=self.log_sender,
         )
 
     ## IMPORTANT: Keep this method's signature in sync with the wrapper in the OTel instrumentor
@@ -361,7 +374,8 @@ class Runner:
 
         if action_func:
             context = self.create_context(
-                action, True if action_func.is_durable else False
+                action,
+                True if action_func.is_durable else False,  # noqa: SIM210
             )
 
             self.contexts[action.key] = context
@@ -382,11 +396,12 @@ class Runner:
             task.add_done_callback(self.step_run_callback(action))
             self.tasks[action.key] = task
 
-            try:
+            task_count.increment()
+
+            ## FIXME: Handle cancelled exceptions and other special exceptions
+            ## that we don't want to suppress here
+            with suppress(Exception):
                 await task
-            except Exception:
-                # do nothing, this should be caught in the callback
-                pass
 
         ## Once the step run completes, we need to remove the workflow spawn index
         ## so we don't leak memory
@@ -444,7 +459,7 @@ class Runner:
             res = ctypes.pythonapi.PyThreadState_SetAsyncExc(ctypes.c_long(ident), exc)
             if res == 0:
                 raise ValueError("Invalid thread ID")
-            elif res != 1:
+            if res != 1:
                 logger.error("PyThreadState_SetAsyncExc failed")
 
                 # Call with exception set to 0 is needed to cleanup properly.
@@ -505,8 +520,3 @@ class Runner:
             logger.info(f"waiting for {running} tasks to finish...")
             await asyncio.sleep(1)
             running = len(self.tasks.keys())
-
-
-def pretty_format_exception(message: str, e: Exception) -> str:
-    trace = "".join(traceback.format_exception(type(e), e, e.__traceback__))
-    return f"{message}\n{trace}"

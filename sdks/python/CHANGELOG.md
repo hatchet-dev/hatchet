@@ -5,7 +5,26 @@ All notable changes to Hatchet's Python SDK will be documented in this changelog
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.12.2] - 2025-06-25
+## [1.13.0] - 2025-06-25
+
+### Added
+
+- Documentation for the `Context` classes
+- Allows for a worker to be terminated after a certain number of tasks by providing the `terminate_worker_after_num_tasks` config option
+
+### Changed
+
+- Adds a number of helpful Ruff linting rules
+- `DedupeViolationErr` is now `DedupeViolationError`
+- Fixed events documentation to correctly have a skipped run example.
+- Changed default arguments to many methods from mutable defaults like `[]` to None
+- Changes `JSONSerializableMapping` from `Mapping` to `dict`
+- Handles some potential bugs related to `asyncio` tasks being garbage collected.
+- Improves exception printing with an `ExceptionGroup` implementation
+- Fixes a bug with namespacing of user event conditions where the namespace was not respected so the task waiting for it would hang
+- Fixes a memory leak in streaming and logging, and fixes some issues with log capture.
+
+## [1.12.3] - 2025-06-25
 
 ### Changed
 

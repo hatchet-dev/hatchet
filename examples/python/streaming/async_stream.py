@@ -1,19 +1,16 @@
 import asyncio
 
-from examples.streaming.worker import streaming_workflow
+from examples.streaming.worker import stream_task
+from hatchet_sdk.clients.listeners.run_event_listener import StepRunEventType
 
 
 async def main() -> None:
-    ref = await streaming_workflow.aio_run_no_wait()
-    await asyncio.sleep(1)
+    ref = await stream_task.aio_run_no_wait()
 
-    stream = ref.stream()
-
-    async for chunk in stream:
-        print(chunk)
+    async for chunk in ref.stream():
+        if chunk.type == StepRunEventType.STEP_RUN_EVENT_TYPE_STREAM:
+            print(chunk.payload, flush=True, end="")
 
 
 if __name__ == "__main__":
-    import asyncio
-
     asyncio.run(main())

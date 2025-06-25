@@ -7,7 +7,10 @@ from examples.timeout.worker import refresh_timeout_wf, timeout_wf
 async def test_execution_timeout() -> None:
     run = timeout_wf.run_no_wait()
 
-    with pytest.raises(Exception, match="(Task exceeded timeout|TIMED_OUT)"):
+    with pytest.raises(
+        Exception,
+        match="(Task exceeded timeout|TIMED_OUT|Workflow run .* failed with multiple errors)",
+    ):
         await run.aio_result()
 
 

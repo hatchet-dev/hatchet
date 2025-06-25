@@ -35,20 +35,27 @@ async def test_get_run(hatchet: Hatchet) -> None:
 
 @pytest.mark.asyncio(loop_scope="session")
 async def test_list_workflows(hatchet: Hatchet) -> None:
-    workflows = await hatchet.workflows.aio_list(
-        workflow_name=dag_workflow.config.name, limit=1, offset=0
-    )
+    workflows = await hatchet.workflows.aio_list(workflow_name=dag_workflow.config.name)
 
     assert workflows.rows
-    assert len(workflows.rows) == 1
+    assert len(workflows.rows) >= 1
 
-    workflow = workflows.rows[0]
+    relevant_wf = next(
+        iter(
+            [
+                wf
+                for wf in workflows.rows
+                if wf.name == hatchet.config.apply_namespace(dag_workflow.config.name)
+            ]
+        ),
+        None,
+    )
 
-    """Using endswith because of namespacing in CI"""
-    assert workflow.name.endswith(dag_workflow.config.name)
+    assert relevant_wf is not None
 
-    fetched_workflow = await hatchet.workflows.aio_get(workflow.metadata.id)
+    fetched_workflow = await hatchet.workflows.aio_get(relevant_wf.metadata.id)
 
-    """Using endswith because of namespacing in CI"""
-    assert fetched_workflow.name.endswith(dag_workflow.config.name)
-    assert fetched_workflow.metadata.id == workflow.metadata.id
+    assert fetched_workflow.name == hatchet.config.apply_namespace(
+        dag_workflow.config.name
+    )
+    assert fetched_workflow.metadata.id == relevant_wf.metadata.id

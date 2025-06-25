@@ -252,10 +252,10 @@ class PooledListener(Generic[R, T, L], ABC):
                     metadata=get_metadata(self.token),
                 )
 
-            except grpc.RpcError as e:
+            except grpc.RpcError as e:  # noqa: PERF203
                 if e.code() == grpc.StatusCode.UNAVAILABLE:
                     retries = retries + 1
                 else:
-                    raise ValueError(f"gRPC error: {e}")
+                    raise ValueError("gRPC error") from e
 
         raise ValueError("Failed to connect to listener")

@@ -1,4 +1,5 @@
-from typing import Callable, ParamSpec, TypeVar
+from collections.abc import Callable
+from typing import ParamSpec, TypeVar
 
 import grpc
 import tenacity
@@ -28,12 +29,9 @@ def tenacity_alert_retry(retry_state: tenacity.RetryCallState) -> None:
 
 
 def tenacity_should_retry(ex: BaseException) -> bool:
-    if isinstance(ex, (grpc.aio.AioRpcError, grpc.RpcError)):
-        if ex.code() in [
+    if isinstance(ex, grpc.aio.AioRpcError | grpc.RpcError):
+        return ex.code() not in [
             grpc.StatusCode.UNIMPLEMENTED,
             grpc.StatusCode.NOT_FOUND,
-        ]:
-            return False
-        return True
-    else:
-        return False
+        ]
+    return False

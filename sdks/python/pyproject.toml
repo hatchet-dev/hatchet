@@ -52,6 +52,7 @@ pytest-asyncio = "^0.25.3"
 pytest-env = "^1.1.5"
 pytest-retry = "^1.7.0"
 psycopg = { extras = ["pool"], version = "^3.2.6" }
+pytest-xdist = "^3.7.0"
 
 
 [tool.poetry.group.docs.dependencies]
@@ -62,7 +63,6 @@ markdownify = "^1.1.0"
 openai = "^1.75.0"
 bs4 = "^0.0.2"
 types-beautifulsoup4 = "^4.12.0.20250204"
-langfuse = "3.0.0b3"
 
 [tool.poetry.extras]
 otel = [
@@ -136,6 +136,78 @@ exclude = [
     "site/*",
 ]
 target-version = "py310"
+
+[tool.ruff.lint]
+select = [
+    # Pyflakes
+    "F",
+    # pycodestyle errors
+    "E",
+    # pycodestyle warnings
+    "W",
+    # isort
+    "I",
+    # pep8-naming
+    "N",
+    # pyupgrade (modern Python idioms)
+    "UP",
+    # flake8-async (async/await)
+    "ASYNC",
+    # flake8-bugbear (likely bugs)
+    "B",
+    # flake8-simplify (code simplification)
+    "SIM",
+    # flake8-comprehensions (list/dict comprehensions)
+    "C4",
+    # flake8-pie (misc improvements)
+    "PIE",
+    # flake8-return (return statement improvements)
+    "RET",
+    # flake8-unused-arguments
+    "ARG",
+    # flake8-logging-format
+    "G",
+    # Ruff-specific rules
+    "RUF",
+    # Datetime (timezone) rules
+    "DTZ",
+    "FIX",
+    ## Performance-related rules
+    "PERF",
+]
+
+ignore = [
+    # Allow long lines
+    "E501",
+    # Allow complex variable names
+    "N806",
+    # Don't enforce specific exception types initially
+    "B008",
+    # Allow unused function arguments
+    "ARG001",
+    "ARG002",
+    # Allow empty returns
+    "RET503",
+
+    ## FIXME (ironic) - re-enable this later
+    "FIX",
+
+    "RET506",
+]
+exclude = [
+    "examples/*",
+    "docs/*",
+    "hatchet_sdk/clients/rest/api/*",
+    "hatchet_sdk/clients/rest/models/*",
+    "hatchet_sdk/contracts",
+    "hatchet_sdk/clients/rest/api_client.py",
+    "hatchet_sdk/clients/rest/configuration.py",
+    "hatchet_sdk/clients/rest/exceptions.py",
+    "hatchet_sdk/clients/rest/rest.py",
+    "hatchet_sdk/v0/*",
+    "site/*",
+    "tests/*",
+]
 
 [tool.poetry.scripts]
 
