@@ -267,7 +267,7 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 		}
 	}
 
-	filters, err := r.queries.ListFilters(ctx, r.pool, sqlcv1.ListFiltersParams{
+	filters, err := r.queries.ListFiltersForEventTriggers(ctx, r.pool, sqlcv1.ListFiltersForEventTriggersParams{
 		Tenantid:    sqlchelpers.UUIDFromStr(tenantId),
 		Workflowids: workflowIds,
 		Scopes:      scopes,

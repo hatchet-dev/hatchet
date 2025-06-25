@@ -204,52 +204,6 @@ func (q *Queries) GetFilter(ctx context.Context, db DBTX, arg GetFilterParams) (
 	return &i, err
 }
 
-const listAllFilters = `-- name: ListAllFilters :many
-SELECT id, tenant_id, workflow_id, scope, expression, payload, payload_hash, is_declarative, inserted_at, updated_at
-FROM v1_filter
-WHERE tenant_id = $1::UUID
-ORDER BY id DESC
-LIMIT COALESCE($3::BIGINT, 20000)
-OFFSET COALESCE($2::BIGINT, 0)
-`
-
-type ListAllFiltersParams struct {
-	Tenantid     pgtype.UUID `json:"tenantid"`
-	FilterOffset pgtype.Int8 `json:"filterOffset"`
-	FilterLimit  pgtype.Int8 `json:"filterLimit"`
-}
-
-func (q *Queries) ListAllFilters(ctx context.Context, db DBTX, arg ListAllFiltersParams) ([]*V1Filter, error) {
-	rows, err := db.Query(ctx, listAllFilters, arg.Tenantid, arg.FilterOffset, arg.FilterLimit)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []*V1Filter
-	for rows.Next() {
-		var i V1Filter
-		if err := rows.Scan(
-			&i.ID,
-			&i.TenantID,
-			&i.WorkflowID,
-			&i.Scope,
-			&i.Expression,
-			&i.Payload,
-			&i.PayloadHash,
-			&i.IsDeclarative,
-			&i.InsertedAt,
-			&i.UpdatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, &i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const listFilterCountsForWorkflows = `-- name: ListFilterCountsForWorkflows :many
 WITH inputs AS (
     SELECT UNNEST($2::UUID[]) AS workflow_id
@@ -294,6 +248,67 @@ func (q *Queries) ListFilterCountsForWorkflows(ctx context.Context, db DBTX, arg
 }
 
 const listFilters = `-- name: ListFilters :many
+SELECT id, tenant_id, workflow_id, scope, expression, payload, payload_hash, is_declarative, inserted_at, updated_at
+FROM v1_filter
+WHERE
+    tenant_id = $1::UUID
+    AND ($2::UUID[] IS NULL OR workflow_id = ANY($3::UUID[]))
+    AND ($4::TEXT[] IS NULL OR scope = ANY($5::TEXT[]))
+ORDER BY id DESC
+LIMIT COALESCE($7::BIGINT, 20000)
+OFFSET COALESCE($6::BIGINT, 0)
+`
+
+type ListFiltersParams struct {
+	Tenantid     pgtype.UUID   `json:"tenantid"`
+	WorkflowIds  []pgtype.UUID `json:"workflowIds"`
+	WorkflowId   []pgtype.UUID `json:"workflowId"`
+	Scopes       []string      `json:"scopes"`
+	Scope        []string      `json:"scope"`
+	FilterOffset pgtype.Int8   `json:"filterOffset"`
+	FilterLimit  pgtype.Int8   `json:"filterLimit"`
+}
+
+func (q *Queries) ListFilters(ctx context.Context, db DBTX, arg ListFiltersParams) ([]*V1Filter, error) {
+	rows, err := db.Query(ctx, listFilters,
+		arg.Tenantid,
+		arg.WorkflowIds,
+		arg.WorkflowId,
+		arg.Scopes,
+		arg.Scope,
+		arg.FilterOffset,
+		arg.FilterLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*V1Filter
+	for rows.Next() {
+		var i V1Filter
+		if err := rows.Scan(
+			&i.ID,
+			&i.TenantID,
+			&i.WorkflowID,
+			&i.Scope,
+			&i.Expression,
+			&i.Payload,
+			&i.PayloadHash,
+			&i.IsDeclarative,
+			&i.InsertedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listFiltersForEventTriggers = `-- name: ListFiltersForEventTriggers :many
 WITH inputs AS (
     SELECT
         UNNEST($4::UUID[]) AS workflow_id,
@@ -309,7 +324,7 @@ LIMIT COALESCE($3::BIGINT, 20000)
 OFFSET COALESCE($2::BIGINT, 0)
 `
 
-type ListFiltersParams struct {
+type ListFiltersForEventTriggersParams struct {
 	Tenantid     pgtype.UUID   `json:"tenantid"`
 	FilterOffset pgtype.Int8   `json:"filterOffset"`
 	FilterLimit  pgtype.Int8   `json:"filterLimit"`
@@ -317,8 +332,8 @@ type ListFiltersParams struct {
 	Scopes       []string      `json:"scopes"`
 }
 
-func (q *Queries) ListFilters(ctx context.Context, db DBTX, arg ListFiltersParams) ([]*V1Filter, error) {
-	rows, err := db.Query(ctx, listFilters,
+func (q *Queries) ListFiltersForEventTriggers(ctx context.Context, db DBTX, arg ListFiltersForEventTriggersParams) ([]*V1Filter, error) {
+	rows, err := db.Query(ctx, listFiltersForEventTriggers,
 		arg.Tenantid,
 		arg.FilterOffset,
 		arg.FilterLimit,

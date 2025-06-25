@@ -89,7 +89,7 @@ WHERE
 GROUP BY workflow_id
 ;
 
--- name: ListFilters :many
+-- name: ListFiltersForEventTriggers :many
 WITH inputs AS (
     SELECT
         UNNEST(sqlc.narg(workflowIds)::UUID[]) AS workflow_id,
@@ -105,10 +105,13 @@ LIMIT COALESCE(sqlc.narg('filterLimit')::BIGINT, 20000)
 OFFSET COALESCE(sqlc.narg('filterOffset')::BIGINT, 0)
 ;
 
--- name: ListAllFilters :many
+-- name: ListFilters :many
 SELECT *
 FROM v1_filter
-WHERE tenant_id = @tenantId::UUID
+WHERE
+    tenant_id = @tenantId::UUID
+    AND (sqlc.narg('workflowIds')::UUID[] IS NULL OR workflow_id = ANY(sqlc.narg('workflowId')::UUID[]))
+    AND (sqlc.narg('scopes')::TEXT[] IS NULL OR scope = ANY(sqlc.narg('scope')::TEXT[]))
 ORDER BY id DESC
 LIMIT COALESCE(sqlc.narg('filterLimit')::BIGINT, 20000)
 OFFSET COALESCE(sqlc.narg('filterOffset')::BIGINT, 0)
