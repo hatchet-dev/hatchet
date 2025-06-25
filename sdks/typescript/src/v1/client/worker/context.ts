@@ -704,7 +704,7 @@ export class Context<T, K = {}> {
     this.streamIndex += 1;
 
     return index;
-}
+  }
 }
 
 export class DurableContext<T, K = {}> extends Context<T, K> {
