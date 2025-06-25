@@ -364,6 +364,7 @@ export interface V1TaskSummary {
    * @format uuid
    */
   workflowVersionId?: string;
+  workflowConfig?: object;
 }
 
 export interface APIError {
@@ -596,6 +597,7 @@ export interface V1WorkflowRunDetails {
   taskEvents: V1TaskEvent[];
   shape: WorkflowRunShapeForWorkflowRunDetails;
   tasks: V1TaskSummary[];
+  workflowConfig?: object;
 }
 
 export interface V1TaskTiming {
