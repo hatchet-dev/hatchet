@@ -47,10 +47,10 @@ func (o *OLAPControllerImpl) updateTaskStatuses(ctx context.Context, tenantId st
 
 	payloads := make([]tasktypes.NotifyFinalizedPayload, 0, len(rows))
 
-	var workflowIds []pgtype.UUID
-	var workerIds []pgtype.UUID
-	var taskIds []int64
-	var taskInsertedAts []pgtype.Timestamptz
+	workflowIds := make([]pgtype.UUID, 0, len(rows))
+	workerIds := make([]pgtype.UUID, 0, len(rows))
+	taskIds := make([]int64, 0, len(rows))
+	taskInsertedAts := make([]pgtype.Timestamptz, 0, len(rows))
 
 	for _, row := range rows {
 		if row.ReadableStatus != sqlcv1.V1ReadableStatusOlapCOMPLETED && row.ReadableStatus != sqlcv1.V1ReadableStatusOlapCANCELLED && row.ReadableStatus != sqlcv1.V1ReadableStatusOlapFAILED {
@@ -78,16 +78,19 @@ func (o *OLAPControllerImpl) updateTaskStatuses(ctx context.Context, tenantId st
 		return false, err
 	}
 
-	for i, row := range rows {
+	for _, row := range rows {
 		// Only track metrics for standalone tasks, not tasks within DAGs
 		// DAG-level metrics are tracked in process_dag_status_updates.go
-		if !row.IsDAGTask && (row.ReadableStatus == sqlcv1.V1ReadableStatusOlapCOMPLETED || row.ReadableStatus == sqlcv1.V1ReadableStatusOlapFAILED || row.ReadableStatus == sqlcv1.V1ReadableStatusOlapCANCELLED) {
+		if !row.IsDAGTask {
 			workflowName := workflowNames[row.WorkflowId]
 			if workflowName == "" {
 				continue
 			}
 
-			taskDuration := taskDurations[i]
+			taskDuration := taskDurations[row.TaskId]
+			if taskDuration == nil || !taskDuration.StartedAt.Valid || !taskDuration.FinishedAt.Valid {
+				continue
+			}
 
 			tenantMetric := prometheus.WithTenant(tenantId)
 

@@ -30,6 +30,12 @@ type PrometheusConfigFile struct {
 	// PrometheusServerAddress is the address of the prometheus server
 	PrometheusServerAddress string `mapstructure:"prometheusServerAddress" json:"prometheusServerAddress,omitempty" default:""`
 
+	// PrometheusServerUsername is the username for the prometheus server that supports basic auth
+	PrometheusServerUsername string `mapstructure:"prometheusServerUsername" json:"prometheusServerUsername,omitempty" default:""`
+
+	// PrometheusServerPassword is the password for the prometheus server that supports basic auth
+	PrometheusServerPassword string `mapstructure:"prometheusServerPassword" json:"prometheusServerPassword,omitempty" default:""`
+
 	// Address is the metrics endpoint address
 	Address string `mapstructure:"address" json:"address,omitempty" default:":9090"`
 

@@ -23,6 +23,23 @@ To enable and configure the Prometheus metrics endpoint in your Hatchet server, 
   - Default: `"/metrics"`
   - Description: The HTTP path at which metrics will be exposed.
 
+If you have set up a Prometheus instance to scrape Hatchet metrics, you can enable the [tenant API endpoint](/home/prometheus-metrics) by setting the following variables:
+
+- **`SERVER_PROMETHEUS_SERVER_ADDRESS`** (`prometheus.prometheusServerAddress`)
+
+  - Type: string
+  - Description: The Prometheus server address.
+
+- **`SERVER_PROMETHEUS_SERVER_USERNAME`** (`prometheus.prometheusServerUsername`)
+
+  - Type: string
+  - Description: The username to access the Prometheus instance via HTTP basic auth. 
+
+- **`SERVER_PROMETHEUS_SERVER_PASSWORD`** (`prometheus.prometheusServerPassword`)
+
+  - Type: string
+  - Description: The password to access the Prometheus instance via HTTP basic auth.
+
 **Example environment setup:**
 
 ```bash
@@ -35,7 +52,7 @@ Restart your Hatchet server after setting these variables to apply the changes.
 
 ---
 
-### Metrics
+### Global Metrics
 
 | Metric Name                          | Type      | Description                                                                       |
 | ------------------------------------ | --------- | --------------------------------------------------------------------------------- |
@@ -46,11 +63,17 @@ Restart your Hatchet server after setting these variables to apply the changes.
 | `hatchet_failed_tasks_total`         | Counter   | The total number of tasks that failed (in a final state, not including retries)   |
 | `hatchet_skipped_tasks_total`        | Counter   | The total number of tasks that were skipped                                       |
 | `hatchet_cancelled_tasks_total`      | Counter   | The total number of tasks cancelled                                               |
-| `hatchet_assigned_tasks_total`       | Counter   | The total number of tasks assigned to a worker                                    |
-| `hatchet_scheduling_timed_out_total` | Counter   | The total number of tasks that timed out while waiting to be scheduled            |
-| `hatchet_rate_limited_total`         | Counter   | The total number of tasks that were rate limited                                  |
-| `hatchet_queued_to_assigned_total`   | Counter   | The total number of unique tasks that were queued and later assigned to a worker  |
-| `hatchet_queued_to_assigned_seconds` | Histogram | Buckets of time (in seconds) spent in the queue before being assigned to a worker |
+
+### Tenant Metrics
+
+| Metric Name                          | Type      | Description                                                                       |
+| ------------------------------------ | --------- | --------------------------------------------------------------------------------- |
+| `hatchet_workflow_duration_milliseconds` | Histogram | Duration of workflow execution in milliseconds (DAGs and single tasks) |
+| `hatchet_assigned_tasks`             | Counter   | The total number of tasks assigned to a worker |
+| `hatchet_scheduling_timed_out`       | Counter   | The total number of tasks that timed out while waiting to be scheduled |
+| `hatchet_rate_limited`               | Counter   | The total number of tasks that were rate limited |
+| `hatchet_queued_to_assigned`         | Counter   | The total number of unique tasks that were queued and later got assigned to a worker |
+| `hatchet_queued_to_assigned_time_seconds` | Histogram | Buckets of time in seconds spent in the queue before being assigned to a worker |
 
 ### Example PromQL Queries
 
@@ -90,3 +113,22 @@ sum by (le) (
 rate(hatchet_created_tasks_total[5m])
 rate(hatchet_retried_tasks_total[5m])
 ```
+
+### Integration with Prometheus
+
+This endpoint can be used to configure Prometheus to scrape tenant-specific metrics:
+
+```yaml
+scrape_configs:
+  - job_name: "hatchet-tenant-metrics"
+    static_configs:
+      - targets: ["cloud.onhatchet.run"]
+    metrics_path: "/api/v1/tenants/707d0855-80ab-4e1f-a156-f1c4546cbf52/prometheus-metrics"
+    scheme: "https"
+    authorization:
+      credentials: "your-api-token-here"
+```
+
+**Note:** Replace `cloud.onhatchet.run` with the URL where your Hatchet instance is hosted.
+
+This provides tenant-isolated metrics that can be scraped directly by Prometheus or consumed by other monitoring tools that support the Prometheus text format.

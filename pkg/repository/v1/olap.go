@@ -231,7 +231,7 @@ type OLAPRepository interface {
 	ListEventKeys(ctx context.Context, tenantId string) ([]string, error)
 
 	GetDagDurationsByDagIds(ctx context.Context, tenantId string, dagIds []int64, dagInsertedAts []pgtype.Timestamptz) ([]*sqlcv1.GetDagDurationsByDagIdsRow, error)
-	GetTaskDurationsByTaskIds(ctx context.Context, tenantId string, taskIds []int64, taskInsertedAts []pgtype.Timestamptz) ([]*sqlcv1.GetTaskDurationsByTaskIdsRow, error)
+	GetTaskDurationsByTaskIds(ctx context.Context, tenantId string, taskIds []int64, taskInsertedAts []pgtype.Timestamptz) (map[int64]*sqlcv1.GetTaskDurationsByTaskIdsRow, error)
 }
 
 type OLAPRepositoryImpl struct {
@@ -1572,10 +1572,21 @@ func (r *OLAPRepositoryImpl) GetDagDurationsByDagIds(ctx context.Context, tenant
 	})
 }
 
-func (r *OLAPRepositoryImpl) GetTaskDurationsByTaskIds(ctx context.Context, tenantId string, taskIds []int64, taskInsertedAts []pgtype.Timestamptz) ([]*sqlcv1.GetTaskDurationsByTaskIdsRow, error) {
-	return r.queries.GetTaskDurationsByTaskIds(ctx, r.readPool, sqlcv1.GetTaskDurationsByTaskIdsParams{
+func (r *OLAPRepositoryImpl) GetTaskDurationsByTaskIds(ctx context.Context, tenantId string, taskIds []int64, taskInsertedAts []pgtype.Timestamptz) (map[int64]*sqlcv1.GetTaskDurationsByTaskIdsRow, error) {
+	rows, err := r.queries.GetTaskDurationsByTaskIds(ctx, r.readPool, sqlcv1.GetTaskDurationsByTaskIdsParams{
 		Taskids:         taskIds,
 		Taskinsertedats: taskInsertedAts,
 		Tenantid:        sqlchelpers.UUIDFromStr(tenantId),
 	})
+	if err != nil {
+		return nil, err
+	}
+
+	taskDurations := make(map[int64]*sqlcv1.GetTaskDurationsByTaskIdsRow)
+
+	for i, row := range rows {
+		taskDurations[taskIds[i]] = row
+	}
+
+	return taskDurations, nil
 }

@@ -22,7 +22,16 @@ func (t *TenantService) TenantGetPrometheusMetrics(ctx echo.Context, request gen
 	if t.config.Prometheus.PrometheusServerAddress != "" {
 		endpoint := fmt.Sprintf("%s/federate?match[]={tenant_id=\"%s\"}", t.config.Prometheus.PrometheusServerAddress, tenantId)
 
-		federatedMetrics, err := http.Get(endpoint)
+		req, err := http.NewRequestWithContext(ctx.Request().Context(), "GET", endpoint, nil)
+		if err != nil {
+			return nil, err
+		}
+
+		if t.config.Prometheus.PrometheusServerUsername != "" && t.config.Prometheus.PrometheusServerPassword != "" {
+			req.SetBasicAuth(t.config.Prometheus.PrometheusServerUsername, t.config.Prometheus.PrometheusServerPassword)
+		}
+
+		federatedMetrics, err := http.DefaultClient.Do(req)
 		if err != nil {
 			return nil, err
 		}
