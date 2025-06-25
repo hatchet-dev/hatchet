@@ -14,6 +14,7 @@ import { useWorkflowDetails } from '../../hooks/workflow-details';
 import { TaskRunActionButton } from '../../../task-runs-v1/actions';
 import { TASK_RUN_TERMINAL_STATUSES } from './step-run-detail/step-run-detail';
 import { WorkflowDefinitionLink } from '@/pages/main/workflow-runs/$run/v2components/workflow-definition';
+import { CopyWorkflowConfigButton } from '@/components/v1/shared/copy-workflow-config';
 
 export const WORKFLOW_RUN_TERMINAL_STATUSES = [
   WorkflowRunStatus.CANCELLED,
@@ -22,7 +23,11 @@ export const WORKFLOW_RUN_TERMINAL_STATUSES = [
 ];
 
 export const V1RunDetailHeader = () => {
-  const { workflowRun, isLoading: loading } = useWorkflowDetails();
+  const {
+    workflowRun,
+    workflowConfig,
+    isLoading: loading,
+  } = useWorkflowDetails();
 
   if (loading || !workflowRun) {
     return <div>Loading...</div>;
@@ -54,6 +59,7 @@ export const V1RunDetailHeader = () => {
             </h2>
           </div>
           <div className="flex flex-row gap-2 items-center">
+            <CopyWorkflowConfigButton workflowConfig={workflowConfig} />
             <WorkflowDefinitionLink workflowId={workflowRun.workflowId} />
             <TaskRunActionButton
               actionType="replay"

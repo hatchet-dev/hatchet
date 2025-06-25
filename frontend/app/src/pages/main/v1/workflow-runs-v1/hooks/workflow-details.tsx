@@ -45,6 +45,8 @@ export const useWorkflowDetails = () => {
   const taskRuns = data?.tasks || [];
   const taskEvents = data?.taskEvents || [];
   const workflowRun = data?.run;
+  const workflowConfig = data?.workflowConfig;
+
   let errStatusCode: number | undefined;
 
   // get the status code of the error
@@ -59,6 +61,7 @@ export const useWorkflowDetails = () => {
     taskRuns,
     taskEvents,
     workflowRun,
+    workflowConfig,
     isLoading,
     isError,
     errStatusCode,

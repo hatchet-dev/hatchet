@@ -318,6 +318,7 @@ func ToWorkflowRunDetails(
 	shape []*dbsqlc.GetWorkflowRunShapeRow,
 	tasks []*sqlcv1.PopulateTaskRunDataRow,
 	stepIdToTaskExternalId map[pgtype.UUID]pgtype.UUID,
+	workflowVersion *dbsqlc.GetWorkflowVersionByIdRow,
 ) (gen.V1WorkflowRunDetails, error) {
 	workflowVersionId := uuid.MustParse(sqlchelpers.UUIDToStr(workflowRun.WorkflowVersionId))
 	duration := int(workflowRun.FinishedAt.Time.Sub(workflowRun.StartedAt.Time).Milliseconds())
@@ -404,11 +405,18 @@ func ToWorkflowRunDetails(
 
 	parsedTasks := ToTaskSummaryRows(tasks)
 
+	workflowConfig := make(map[string]interface{})
+
+	if workflowVersion.WorkflowVersion.CreateWorkflowVersionOpts != nil {
+		workflowConfig = jsonToMap(workflowVersion.WorkflowVersion.CreateWorkflowVersionOpts)
+	}
+
 	return gen.V1WorkflowRunDetails{
-		Run:        parsedWorkflowRun,
-		Shape:      shapeRows,
-		TaskEvents: parsedTaskEvents,
-		Tasks:      parsedTasks,
+		Run:            parsedWorkflowRun,
+		Shape:          shapeRows,
+		TaskEvents:     parsedTaskEvents,
+		Tasks:          parsedTasks,
+		WorkflowConfig: &workflowConfig,
 	}, nil
 }
 
