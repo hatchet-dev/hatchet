@@ -241,14 +241,33 @@ class Runner:
 
                 return
 
-            self.event_queue.put(
-                ActionEvent(
-                    action=action,
-                    type=GROUP_KEY_EVENT_TYPE_COMPLETED,
-                    payload=self.serialize_output(output),
-                    should_not_retry=False,
+            try:
+                output = self.serialize_output(output)
+
+                self.event_queue.put(
+                    ActionEvent(
+                        action=action,
+                        type=GROUP_KEY_EVENT_TYPE_COMPLETED,
+                        payload=output,
+                        should_not_retry=False,
+                    )
                 )
-            )
+            except IllegalTaskOutputError as e:
+                exc = TaskRunError.from_exception(e)
+                self.event_queue.put(
+                    ActionEvent(
+                        action=action,
+                        type=STEP_EVENT_TYPE_FAILED,
+                        payload=exc.serialize(),
+                        should_not_retry=False,
+                    )
+                )
+
+                logger.error(
+                    f"failed step run: {action.action_id}/{action.step_run_id}\n{exc.serialize()}"
+                )
+
+                return
 
             logger.info(f"finished step run: {action.action_id}/{action.step_run_id}")
 
