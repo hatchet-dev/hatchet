@@ -95,6 +95,7 @@ function EventsTable() {
     }
     return [];
   });
+
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({
     EventId: false,
     Payload: false,
@@ -158,6 +159,16 @@ function EventsTable() {
 
   const workflows = useMemo(() => {
     const filter = columnFilters.find((filter) => filter.id === 'workflows');
+
+    if (!filter) {
+      return;
+    }
+
+    return filter?.value as Array<string>;
+  }, [columnFilters]);
+
+  const scopes = useMemo(() => {
+    const filter = columnFilters.find((filter) => filter.id === 'scope');
 
     if (!filter) {
       return;
@@ -236,6 +247,7 @@ function EventsTable() {
         workflowRunStatuses: statuses,
         additionalMetadata: AdditionalMetadataFilter,
         workflowIds: workflows,
+        scopes,
       });
 
       return response.data;
@@ -374,6 +386,11 @@ function EventsTable() {
           {
             columnId: 'EventId',
             title: 'Event Id',
+            type: ToolbarType.Array,
+          },
+          {
+            columnId: 'scope',
+            title: 'Scope',
             type: ToolbarType.Array,
           },
         ]}
