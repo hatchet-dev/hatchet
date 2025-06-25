@@ -109,6 +109,8 @@ V1TaskSummary:
       type: string
       format: uuid
       description: The version ID of the workflow
+    workflowConfig:
+      type: object
   required:
     - metadata
     - createdAt
