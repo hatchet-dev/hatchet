@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Type, TypeVar, overload
+from typing import TypeVar, overload
 
 from google.protobuf.internal.enum_type_wrapper import EnumTypeWrapper
 
@@ -26,19 +26,19 @@ def convert_python_enum_to_proto(
 
 @overload
 def convert_proto_enum_to_python(
-    value: TProtoEnumValue, python_enum_class: Type[TPythonEnum], proto_enum: TProtoEnum
+    value: TProtoEnumValue, python_enum_class: type[TPythonEnum], proto_enum: TProtoEnum
 ) -> TPythonEnum: ...
 
 
 @overload
 def convert_proto_enum_to_python(
-    value: None, python_enum_class: Type[TPythonEnum], proto_enum: TProtoEnum
+    value: None, python_enum_class: type[TPythonEnum], proto_enum: TProtoEnum
 ) -> None: ...
 
 
 def convert_proto_enum_to_python(
     value: TProtoEnumValue | None,
-    python_enum_class: Type[TPythonEnum],
+    python_enum_class: type[TPythonEnum],
     proto_enum: TProtoEnum,
 ) -> TPythonEnum | None:
     if value is None:

@@ -18,7 +18,6 @@ def timedelta_to_expr(td: Duration) -> str:
     ## IMPORTANT: We only support hours, minutes, and seconds on the engine
     if seconds % HOUR == 0:
         return f"{seconds // HOUR}h"
-    elif seconds % MINUTE == 0:
+    if seconds % MINUTE == 0:
         return f"{seconds // MINUTE}m"
-    else:
-        return f"{seconds}s"
+    return f"{seconds}s"

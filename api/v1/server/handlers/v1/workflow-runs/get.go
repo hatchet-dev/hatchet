@@ -82,7 +82,13 @@ func (t *V1WorkflowRunsService) getWorkflowRunDetails(
 		return nil, err
 	}
 
-	result, err := transformers.ToWorkflowRunDetails(taskRunEvents, workflowRun, shape, tasks, stepIdToTaskExternalId)
+	workflowVersion, _, _, _, err := t.config.APIRepository.Workflow().GetWorkflowVersionById(tenantId, workflowRun.WorkflowVersionId.String())
+
+	if err != nil {
+		return nil, err
+	}
+
+	result, err := transformers.ToWorkflowRunDetails(taskRunEvents, workflowRun, shape, tasks, stepIdToTaskExternalId, workflowVersion)
 
 	if err != nil {
 		return nil, err

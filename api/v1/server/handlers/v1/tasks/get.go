@@ -47,7 +47,13 @@ func (t *TasksService) V1TaskGet(ctx echo.Context, request gen.V1TaskGetRequestO
 		return nil, err
 	}
 
-	result := transformers.ToTask(taskWithData, workflowRunExternalId)
+	workflowVersion, _, _, _, err := t.config.APIRepository.Workflow().GetWorkflowVersionById(task.TenantID.String(), taskWithData.WorkflowVersionID.String())
+
+	if err != nil {
+		return nil, err
+	}
+
+	result := transformers.ToTask(taskWithData, workflowRunExternalId, workflowVersion)
 
 	return gen.V1TaskGet200JSONResponse(
 		result,

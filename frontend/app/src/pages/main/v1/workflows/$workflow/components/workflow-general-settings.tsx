@@ -1,19 +1,15 @@
-import { Button } from '@/components/ui/button';
+import { CopyWorkflowConfigButton } from '@/components/v1/shared/copy-workflow-config';
 import { Badge } from '@/components/v1/ui/badge';
 import { Input } from '@/components/v1/ui/input';
 import { Label } from '@/components/v1/ui/label';
 import { WorkflowVersion } from '@/lib/api';
 import CronPrettifier from 'cronstrue';
-import { CheckIcon, CopyIcon } from 'lucide-react';
-import { useState } from 'react';
 
 export default function WorkflowGeneralSettings({
   workflow,
 }: {
   workflow: WorkflowVersion;
 }) {
-  const [copySuccess, setCopySuccess] = useState(false);
-
   return (
     <div className="space-y-5">
       <SettingsSection title="Triggers">
@@ -28,30 +24,7 @@ export default function WorkflowGeneralSettings({
         <ConfigurationSettings workflow={workflow} />
       </SettingsSection>
 
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={() => {
-          navigator.clipboard.writeText(
-            JSON.stringify(workflow.workflowConfig),
-          );
-          setCopySuccess(true);
-          setTimeout(() => setCopySuccess(false), 2000);
-        }}
-        className="mt-6"
-      >
-        {copySuccess ? (
-          <>
-            <CheckIcon className="w-3 h-3 mr-2" />
-            Copied!
-          </>
-        ) : (
-          <>
-            <CopyIcon className="w-3 h-3 mr-2" />
-            Copy Config
-          </>
-        )}
-      </Button>
+      <CopyWorkflowConfigButton workflowConfig={workflow.workflowConfig} />
     </div>
   );
 }

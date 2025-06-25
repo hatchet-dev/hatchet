@@ -25,6 +25,7 @@ import { TaskRunMiniMap } from '../mini-map';
 import { WorkflowDefinitionLink } from '@/pages/main/workflow-runs/$run/v2components/workflow-definition';
 import { StepRunLogs } from './step-run-logs';
 import { isTerminalState } from '../../../hooks/workflow-details';
+import { CopyWorkflowConfigButton } from '@/components/v1/shared/copy-workflow-config';
 
 export enum TabOption {
   Output = 'output',
@@ -139,6 +140,7 @@ export const TaskRunDetail = ({
           showViewTaskRunButton={showViewTaskRunButton || false}
         />
         <WorkflowDefinitionLink workflowId={taskRun.workflowId} />
+        <CopyWorkflowConfigButton workflowConfig={taskRun.workflowConfig} />
       </div>
       <div className="flex flex-row gap-2 items-center">
         <V1StepRunSummary taskRunId={taskRunId} />

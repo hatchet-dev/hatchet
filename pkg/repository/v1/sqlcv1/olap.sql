@@ -1576,7 +1576,7 @@ WITH input AS (
         relevant_events e
     JOIN
         max_retry_counts mrc ON
-            (e.dag_id, e.dag_inserted_at, e.task_id, e.task_inserted_at, e.retry_count) = 
+            (e.dag_id, e.dag_inserted_at, e.task_id, e.task_inserted_at, e.retry_count) =
             (mrc.dag_id, mrc.dag_inserted_at, mrc.task_id, mrc.task_inserted_at, mrc.max_retry_count)
     GROUP BY e.dag_id, e.dag_inserted_at, e.external_id
 )
@@ -1623,7 +1623,7 @@ WITH input AS (
         task_id,
         inserted_at,
         MIN(CASE WHEN event_type = 'STARTED' THEN event_timestamp END) AS started_at,
-        MAX(CASE WHEN readable_status = ANY(ARRAY['COMPLETED', 'FAILED', 'CANCELLED']::v1_readable_status_olap[]) 
+        MAX(CASE WHEN readable_status = ANY(ARRAY['COMPLETED', 'FAILED', 'CANCELLED']::v1_readable_status_olap[])
             THEN event_timestamp END) AS finished_at
     FROM task_events
     GROUP BY task_id, inserted_at

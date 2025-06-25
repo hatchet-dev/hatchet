@@ -1375,7 +1375,14 @@ func (r *sharedRepository) releaseTasks(ctx context.Context, tx sqlcv1.DBTX, ten
 	}
 
 	if len(releasedTasks) != len(tasks) {
-		return nil, fmt.Errorf("failed to release all tasks: %d/%d", len(releasedTasks), len(tasks))
+		size := min(10, len(tasks))
+
+		taskIds := make([]int64, size)
+		for i := range size {
+			taskIds[i] = tasks[i].Id
+		}
+
+		return nil, fmt.Errorf("failed to release all tasks for tenant %s: %d/%d. Relevant task IDs: %v", tenantId, len(releasedTasks), size, taskIds)
 	}
 
 	res := make([]*sqlcv1.ReleaseTasksRow, len(tasks))

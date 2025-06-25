@@ -1468,10 +1468,11 @@ type V1TaskSummary struct {
 	TaskInsertedAt time.Time `json:"taskInsertedAt"`
 
 	// TenantId The ID of the tenant.
-	TenantId     openapi_types.UUID `json:"tenantId"`
-	Type         V1WorkflowType     `json:"type"`
-	WorkflowId   openapi_types.UUID `json:"workflowId"`
-	WorkflowName *string            `json:"workflowName,omitempty"`
+	TenantId       openapi_types.UUID      `json:"tenantId"`
+	Type           V1WorkflowType          `json:"type"`
+	WorkflowConfig *map[string]interface{} `json:"workflowConfig,omitempty"`
+	WorkflowId     openapi_types.UUID      `json:"workflowId"`
+	WorkflowName   *string                 `json:"workflowName,omitempty"`
 
 	// WorkflowRunExternalId The external ID of the workflow run
 	WorkflowRunExternalId openapi_types.UUID `json:"workflowRunExternalId"`
@@ -1610,8 +1611,9 @@ type V1WorkflowRunDetails struct {
 	Shape WorkflowRunShapeForWorkflowRunDetails `json:"shape"`
 
 	// TaskEvents The list of task events for the workflow run
-	TaskEvents []V1TaskEvent   `json:"taskEvents"`
-	Tasks      []V1TaskSummary `json:"tasks"`
+	TaskEvents     []V1TaskEvent           `json:"taskEvents"`
+	Tasks          []V1TaskSummary         `json:"tasks"`
+	WorkflowConfig *map[string]interface{} `json:"workflowConfig,omitempty"`
 }
 
 // V1WorkflowRunDisplayName defines model for V1WorkflowRunDisplayName.

@@ -53,6 +53,10 @@ func (o *OLAPControllerImpl) updateTaskStatuses(ctx context.Context, tenantId st
 	var taskInsertedAts []pgtype.Timestamptz
 
 	for _, row := range rows {
+		if row.ReadableStatus != sqlcv1.V1ReadableStatusOlapCOMPLETED && row.ReadableStatus != sqlcv1.V1ReadableStatusOlapCANCELLED && row.ReadableStatus != sqlcv1.V1ReadableStatusOlapFAILED {
+			continue
+		}
+
 		payloads = append(payloads, tasktypes.NotifyFinalizedPayload{
 			ExternalId: sqlchelpers.UUIDToStr(row.ExternalId),
 			Status:     row.ReadableStatus,

@@ -1,6 +1,7 @@
 import json
+from collections.abc import Callable, Collection, Coroutine
 from importlib.metadata import version
-from typing import Any, Callable, Collection, Coroutine, Union, cast
+from typing import Any, cast
 
 from hatchet_sdk.contracts import workflows_pb2 as v0_workflow_protos
 from hatchet_sdk.utils.typing import JSONSerializableMapping
@@ -23,10 +24,10 @@ try:
         TraceContextTextMapPropagator,
     )
     from wrapt import wrap_function_wrapper  # type: ignore[import-untyped]
-except (RuntimeError, ImportError, ModuleNotFoundError):
+except (RuntimeError, ImportError, ModuleNotFoundError) as e:
     raise ModuleNotFoundError(
         "To use the HatchetInstrumentor, you must install Hatchet's `otel` extra using (e.g.) `pip install hatchet-sdk[otel]`"
-    )
+    ) from e
 
 import inspect
 from datetime import datetime
@@ -204,7 +205,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         super().__init__()
 
     def instrumentation_dependencies(self) -> Collection[str]:
-        return tuple()
+        return ()
 
     def _instrument(self, **kwargs: InstrumentKwargs) -> None:
         self._tracer = get_tracer(__name__, hatchet_sdk_version, self.tracer_provider)
@@ -394,11 +395,11 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             options = PushEventOptions(
                 **options.model_dump(exclude={"additional_metadata"}),
                 additional_metadata=_inject_traceparent_into_metadata(
-                    dict(options.additional_metadata),
+                    options.additional_metadata,
                 ),
             )
 
-            return wrapped(event_key, dict(payload), options)
+            return wrapped(event_key, payload, options)
 
     ## IMPORTANT: Keep these types in sync with the wrapped method's signature
     def _wrap_bulk_push_event(
@@ -432,7 +433,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
                 BulkPushEventWithMetadata(
                     **event.model_dump(exclude={"additional_metadata"}),
                     additional_metadata=_inject_traceparent_into_metadata(
-                        dict(event.additional_metadata),
+                        event.additional_metadata,
                     ),
                 )
                 for event in bulk_events
@@ -494,7 +495,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             options = TriggerWorkflowOptions(
                 **options.model_dump(exclude={"additional_metadata"}),
                 additional_metadata=_inject_traceparent_into_metadata(
-                    dict(options.additional_metadata),
+                    options.additional_metadata,
                 ),
             )
 
@@ -551,19 +552,18 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             options = TriggerWorkflowOptions(
                 **options.model_dump(exclude={"additional_metadata"}),
                 additional_metadata=_inject_traceparent_into_metadata(
-                    dict(options.additional_metadata),
+                    options.additional_metadata,
                 ),
             )
 
             return await wrapped(workflow_name, payload, options)
 
-    def _ts_to_iso(self, ts: Union[datetime, timestamp_pb2.Timestamp]) -> str:
+    def _ts_to_iso(self, ts: datetime | timestamp_pb2.Timestamp) -> str:
         if isinstance(ts, datetime):
             return ts.isoformat()
-        elif isinstance(ts, timestamp_pb2.Timestamp):
+        if isinstance(ts, timestamp_pb2.Timestamp):
             return ts.ToJsonString()
-        else:
-            raise TypeError(f"Unsupported type for timestamp conversion: {type(ts)}")
+        raise TypeError(f"Unsupported type for timestamp conversion: {type(ts)}")
 
     ## IMPORTANT: Keep these types in sync with the wrapped method's signature
     def _wrap_schedule_workflow(
@@ -571,7 +571,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         wrapped: Callable[
             [
                 str,
-                list[Union[datetime, timestamp_pb2.Timestamp]],
+                list[datetime | timestamp_pb2.Timestamp],
                 JSONSerializableMapping,
                 ScheduleTriggerWorkflowOptions,
             ],
@@ -580,14 +580,14 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         instance: AdminClient,
         args: tuple[
             str,
-            list[Union[datetime, timestamp_pb2.Timestamp]],
+            list[datetime | timestamp_pb2.Timestamp],
             JSONSerializableMapping,
             ScheduleTriggerWorkflowOptions,
         ],
         kwargs: dict[
             str,
             str
-            | list[Union[datetime, timestamp_pb2.Timestamp]]
+            | list[datetime | timestamp_pb2.Timestamp]
             | JSONSerializableMapping
             | ScheduleTriggerWorkflowOptions,
         ],
@@ -595,7 +595,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         params = self.extract_bound_args(wrapped, args, kwargs)
 
         workflow_name = cast(str, params[0])
-        schedules = cast(list[Union[datetime, timestamp_pb2.Timestamp]], params[1])
+        schedules = cast(list[datetime | timestamp_pb2.Timestamp], params[1])
         input = cast(JSONSerializableMapping, params[2])
         options = cast(
             ScheduleTriggerWorkflowOptions,
@@ -633,7 +633,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             options = ScheduleTriggerWorkflowOptions(
                 **options.model_dump(exclude={"additional_metadata"}),
                 additional_metadata=_inject_traceparent_into_metadata(
-                    dict(options.additional_metadata),
+                    options.additional_metadata,
                 ),
             )
 
@@ -673,7 +673,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
                     options=TriggerWorkflowOptions(
                         **config.options.model_dump(exclude={"additional_metadata"}),
                         additional_metadata=_inject_traceparent_into_metadata(
-                            dict(config.options.additional_metadata),
+                            config.options.additional_metadata,
                         ),
                     ),
                 )
@@ -705,7 +705,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
                     options=TriggerWorkflowOptions(
                         **config.options.model_dump(exclude={"additional_metadata"}),
                         additional_metadata=_inject_traceparent_into_metadata(
-                            dict(config.options.additional_metadata),
+                            config.options.additional_metadata,
                         ),
                     ),
                 )

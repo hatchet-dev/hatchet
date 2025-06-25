@@ -1,19 +1,17 @@
 import asyncio
 import logging
 from multiprocessing import Queue
-from typing import Any, Literal, TypeVar
+from typing import Any, TypeVar
 
 from hatchet_sdk.client import Client
 from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.logger import logger
 from hatchet_sdk.runnables.action import Action
 from hatchet_sdk.runnables.task import Task
+from hatchet_sdk.utils.typing import STOP_LOOP, STOP_LOOP_TYPE
 from hatchet_sdk.worker.action_listener_process import ActionEvent
 from hatchet_sdk.worker.runner.runner import Runner
-from hatchet_sdk.worker.runner.utils.capture_logs import capture_logs
-
-STOP_LOOP_TYPE = Literal["STOP_LOOP"]
-STOP_LOOP: STOP_LOOP_TYPE = "STOP_LOOP"
+from hatchet_sdk.worker.runner.utils.capture_logs import AsyncLogSender, capture_logs
 
 T = TypeVar("T")
 
@@ -28,10 +26,10 @@ class WorkerActionRunLoopManager:
         action_queue: "Queue[Action | STOP_LOOP_TYPE]",
         event_queue: "Queue[ActionEvent]",
         loop: asyncio.AbstractEventLoop,
-        handle_kill: bool = True,
-        debug: bool = False,
-        labels: dict[str, str | int] = {},
-        lifespan_context: Any | None = None,
+        handle_kill: bool,
+        debug: bool,
+        labels: dict[str, str | int] | None,
+        lifespan_context: Any | None,
     ) -> None:
         self.name = name
         self.action_registry = action_registry
@@ -52,15 +50,19 @@ class WorkerActionRunLoopManager:
         self.runner: Runner | None = None
 
         self.client = Client(config=self.config, debug=self.debug)
+        self.start_loop_manager_task: asyncio.Task[None] | None = None
+        self.log_sender = AsyncLogSender(self.client.event)
+        self.log_task = self.loop.create_task(self.log_sender.consume())
+
         self.start()
 
     def start(self) -> None:
-        k = self.loop.create_task(self.aio_start())  # noqa: F841
+        self.start_loop_manager_task = self.loop.create_task(self.aio_start())
 
     async def aio_start(self, retry_count: int = 1) -> None:
         await capture_logs(
             self.client.log_interceptor,
-            self.client.event,
+            self.log_sender,
             self._async_start,
         )()
 
@@ -75,6 +77,7 @@ class WorkerActionRunLoopManager:
         self.killing = True
 
         self.action_queue.put(STOP_LOOP)
+        self.log_sender.publish(STOP_LOOP)
 
     async def wait_for_tasks(self) -> None:
         if self.runner:
@@ -89,6 +92,7 @@ class WorkerActionRunLoopManager:
             self.action_registry,
             self.labels,
             self.lifespan_context,
+            self.log_sender,
         )
 
         logger.debug(f"'{self.name}' waiting for {list(self.action_registry.keys())}")

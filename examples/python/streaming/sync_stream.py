@@ -1,10 +1,10 @@
 import time
 
-from examples.streaming.worker import streaming_workflow
+from examples.streaming.worker import stream_task
 
 
 def main() -> None:
-    ref = streaming_workflow.run_no_wait()
+    ref = stream_task.run_no_wait()
     time.sleep(1)
 
     stream = ref.stream()

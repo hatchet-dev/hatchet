@@ -3,7 +3,7 @@ from datetime import timedelta
 from typing import Any
 
 from hatchet_sdk import Context, EmptyModel, Hatchet, TriggerWorkflowOptions
-from hatchet_sdk.clients.admin import DedupeViolationErr
+from hatchet_sdk.exceptions import DedupeViolationError
 
 hatchet = Hatchet(debug=True)
 
@@ -20,15 +20,13 @@ async def spawn(input: EmptyModel, ctx: Context) -> dict[str, list[Any]]:
     for i in range(2):
         try:
             results.append(
-                (
-                    dedupe_child_wf.aio_run(
-                        options=TriggerWorkflowOptions(
-                            additional_metadata={"dedupe": "test"}, key=f"child{i}"
-                        ),
-                    )
+                dedupe_child_wf.aio_run(
+                    options=TriggerWorkflowOptions(
+                        additional_metadata={"dedupe": "test"}, key=f"child{i}"
+                    ),
                 )
             )
-        except DedupeViolationErr as e:
+        except DedupeViolationError as e:
             print(f"dedupe violation {e}")
             continue
 
