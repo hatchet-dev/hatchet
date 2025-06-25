@@ -4,7 +4,6 @@ from typing import AsyncGenerator
 
 import grpc
 
-from hatchet_sdk.v0.connection import new_conn
 from hatchet_sdk.contracts.dispatcher_pb2 import (
     RESOURCE_TYPE_STEP_RUN,
     RESOURCE_TYPE_WORKFLOW_RUN,
@@ -13,6 +12,7 @@ from hatchet_sdk.contracts.dispatcher_pb2 import (
     WorkflowEvent,
 )
 from hatchet_sdk.contracts.dispatcher_pb2_grpc import DispatcherStub
+from hatchet_sdk.v0.connection import new_conn
 
 from ..loader import ClientConfig
 from ..metadata import get_metadata

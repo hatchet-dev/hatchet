@@ -505,6 +505,11 @@ class Runner:
         if isinstance(output, BaseModel):
             return output.model_dump_json()
 
+        if not isinstance(output, dict):
+            raise TypeError(
+                "Tasks must return a dictionary or a Pydantic BaseModel which can be serialized to a JSON object"
+            )
+
         if output is not None:
             try:
                 return json.dumps(output, default=str)
