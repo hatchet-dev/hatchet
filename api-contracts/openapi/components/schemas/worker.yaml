@@ -40,7 +40,6 @@ SemaphoreSlots:
     - stepRunId
     - actionId
     - workflowRunId
-    - status
 
 RecentStepRuns:
   properties:
