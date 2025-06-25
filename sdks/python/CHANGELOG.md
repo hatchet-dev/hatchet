@@ -24,6 +24,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixes a bug with namespacing of user event conditions where the namespace was not respected so the task waiting for it would hang
 - Fixes a memory leak in streaming and logging, and fixes some issues with log capture.
 
+## [1.12.3] - 2025-06-25
+
+### Changed
+
+- Fixes a namespacing-related but in the `workflow.id` property that incorrectly (and inconsistently) returned incorrect IDs for namespaced workflows.
+
 ## [1.12.2] - 2025-06-17
 
 ### Changed

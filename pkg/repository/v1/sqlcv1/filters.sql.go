@@ -247,6 +247,130 @@ func (q *Queries) ListFilterCountsForWorkflows(ctx context.Context, db DBTX, arg
 	return items, nil
 }
 
+const listFilters = `-- name: ListFilters :many
+SELECT id, tenant_id, workflow_id, scope, expression, payload, payload_hash, is_declarative, inserted_at, updated_at
+FROM v1_filter
+WHERE
+    tenant_id = $1::UUID
+    AND (
+        $2::UUID[] IS NULL
+        OR workflow_id = ANY($2::UUID[])
+    )
+    AND (
+        $3::TEXT[] IS NULL
+        OR scope = ANY($3::TEXT[])
+    )
+ORDER BY id DESC
+LIMIT COALESCE($5::BIGINT, 20000)
+OFFSET COALESCE($4::BIGINT, 0)
+`
+
+type ListFiltersParams struct {
+	Tenantid     pgtype.UUID   `json:"tenantid"`
+	WorkflowIds  []pgtype.UUID `json:"workflowIds"`
+	Scopes       []string      `json:"scopes"`
+	FilterOffset pgtype.Int8   `json:"filterOffset"`
+	FilterLimit  pgtype.Int8   `json:"filterLimit"`
+}
+
+func (q *Queries) ListFilters(ctx context.Context, db DBTX, arg ListFiltersParams) ([]*V1Filter, error) {
+	rows, err := db.Query(ctx, listFilters,
+		arg.Tenantid,
+		arg.WorkflowIds,
+		arg.Scopes,
+		arg.FilterOffset,
+		arg.FilterLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*V1Filter
+	for rows.Next() {
+		var i V1Filter
+		if err := rows.Scan(
+			&i.ID,
+			&i.TenantID,
+			&i.WorkflowID,
+			&i.Scope,
+			&i.Expression,
+			&i.Payload,
+			&i.PayloadHash,
+			&i.IsDeclarative,
+			&i.InsertedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listFiltersForEventTriggers = `-- name: ListFiltersForEventTriggers :many
+WITH inputs AS (
+    SELECT
+        UNNEST($4::UUID[]) AS workflow_id,
+        UNNEST($5::TEXT[]) AS scope
+)
+
+SELECT f.id, f.tenant_id, f.workflow_id, f.scope, f.expression, f.payload, f.payload_hash, f.is_declarative, f.inserted_at, f.updated_at
+FROM v1_filter f
+JOIN inputs i ON (f.workflow_id, f.scope) = (i.workflow_id, i.scope)
+WHERE f.tenant_id = $1::UUID
+ORDER BY f.id DESC
+LIMIT COALESCE($3::BIGINT, 20000)
+OFFSET COALESCE($2::BIGINT, 0)
+`
+
+type ListFiltersForEventTriggersParams struct {
+	Tenantid     pgtype.UUID   `json:"tenantid"`
+	FilterOffset pgtype.Int8   `json:"filterOffset"`
+	FilterLimit  pgtype.Int8   `json:"filterLimit"`
+	Workflowids  []pgtype.UUID `json:"workflowids"`
+	Scopes       []string      `json:"scopes"`
+}
+
+func (q *Queries) ListFiltersForEventTriggers(ctx context.Context, db DBTX, arg ListFiltersForEventTriggersParams) ([]*V1Filter, error) {
+	rows, err := db.Query(ctx, listFiltersForEventTriggers,
+		arg.Tenantid,
+		arg.FilterOffset,
+		arg.FilterLimit,
+		arg.Workflowids,
+		arg.Scopes,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*V1Filter
+	for rows.Next() {
+		var i V1Filter
+		if err := rows.Scan(
+			&i.ID,
+			&i.TenantID,
+			&i.WorkflowID,
+			&i.Scope,
+			&i.Expression,
+			&i.Payload,
+			&i.PayloadHash,
+			&i.IsDeclarative,
+			&i.InsertedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const updateFilter = `-- name: UpdateFilter :one
 UPDATE v1_filter
 SET

@@ -244,7 +244,7 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 	workflowEventKeyToIncomingEventKey := make(map[string]string)
 
 	workflowIds := make([]pgtype.UUID, 0)
-	scopes := make([]*string, 0)
+	scopes := make([]string, 0)
 
 	externalIdToEventIdAndFilterId := make(map[string]EventExternalIdFilterId)
 
@@ -258,12 +258,16 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 		}
 
 		for _, opt := range opts {
+			if opt.Scope == nil {
+				continue
+			}
+
 			workflowIds = append(workflowIds, workflow.WorkflowId)
-			scopes = append(scopes, opt.Scope)
+			scopes = append(scopes, *opt.Scope)
 		}
 	}
 
-	filters, err := r.queries.ListFilters(ctx, r.pool, sqlcv1.ListFiltersParams{
+	filters, err := r.queries.ListFiltersForEventTriggers(ctx, r.pool, sqlcv1.ListFiltersForEventTriggersParams{
 		Tenantid:    sqlchelpers.UUIDFromStr(tenantId),
 		Workflowids: workflowIds,
 		Scopes:      scopes,
