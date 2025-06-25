@@ -12,6 +12,7 @@ from hatchet_sdk.clients.admin import (
     TriggerWorkflowOptions,
     WorkflowRunTriggerConfig,
 )
+from hatchet_sdk.clients.listeners.run_event_listener import RunEventListener
 from hatchet_sdk.clients.rest.models.cron_workflows import CronWorkflows
 from hatchet_sdk.clients.rest.models.v1_filter import V1Filter
 from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
@@ -1096,6 +1097,9 @@ class TaskRunRef(Generic[TWorkflowInput, R]):
         result = self._wrr.result()
 
         return self._s._extract_result(result)
+
+    def stream(self) -> RunEventListener:
+        return self._wrr.stream()
 
 
 class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):

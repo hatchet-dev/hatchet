@@ -60,6 +60,14 @@ class Context:
 
         self._lifespan_context = lifespan_context
 
+        self.stream_index = 0
+
+    def _increment_stream_index(self) -> int:
+        index = self.stream_index
+        self.stream_index += 1
+
+        return index
+
     def was_skipped(self, task: "Task[TWorkflowInput, R]") -> bool:
         """
         Check if a given task was skipped. You can read about skipping in [the docs](https://docs.hatchet.run/home/conditional-workflows#skip_if).
@@ -227,9 +235,20 @@ class Context:
         :param data: The data to send to the Hatchet API. Can be a string or bytes.
         :return: None
         """
-        await asyncio.to_thread(
-            self.event_client.stream, data=data, step_run_id=self.step_run_id
-        )
+        try:
+            ix = self._increment_stream_index()
+
+            await asyncio.to_thread(
+                self.event_client.stream,
+                data=data,
+                step_run_id=self.step_run_id,
+                index=ix,
+            )
+        except Exception as e:
+            logger.error(f"Error putting stream event: {e}")
+
+    async def aio_put_stream(self, data: str | bytes) -> None:
+        await asyncio.to_thread(self.put_stream, data)
 
     def refresh_timeout(self, increment_by: str | timedelta) -> None:
         """

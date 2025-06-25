@@ -79,7 +79,7 @@ class DefaultFilter(BaseModel):
         return DefaultFilterProto(
             expression=self.expression,
             scope=self.scope,
-            payload=payload_json,
+            payload=payload_json.encode("utf-8"),
         )
 
 
