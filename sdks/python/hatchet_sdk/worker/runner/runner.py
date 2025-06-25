@@ -174,7 +174,9 @@ class Runner:
                     )
                 )
 
-                logger.error(
+                log_with_level = logger.info if should_not_retry else logger.error
+
+                log_with_level(
                     f"failed step run: {action.action_id}/{action.step_run_id}\n{exc.serialize()}"
                 )
 
