@@ -45,8 +45,8 @@ func (r *filterRepository) CreateFilter(ctx context.Context, tenantId string, op
 }
 
 type ListFiltersOpts struct {
-	WorkflowIds  []pgtype.UUID `json:"workflow_ids" validate:"required,dive,uuid"`
-	Scopes       []*string     `json:"scopes"`
+	WorkflowIds  []pgtype.UUID `json:"workflow_ids"`
+	Scopes       []string      `json:"scopes"`
 	FilterLimit  *int64        `json:"limit" validate:"omitnil,min=1"`
 	FilterOffset *int64        `json:"offset" validate:"omitnil,min=0"`
 }
@@ -62,13 +62,31 @@ func (r *filterRepository) ListFilters(ctx context.Context, tenantId string, opt
 		return nil, err
 	}
 
+	var filterLimit pgtype.Int8
+	var filterOffset pgtype.Int8
+
+	if opts.FilterLimit != nil {
+		filterLimit = pgtype.Int8{
+			Int64: *opts.FilterLimit,
+			Valid: true,
+		}
+	}
+
+	if opts.FilterOffset != nil {
+		filterOffset = pgtype.Int8{
+			Int64: *opts.FilterOffset,
+			Valid: true,
+		}
+	}
+
 	return r.queries.ListFilters(ctx, r.pool, sqlcv1.ListFiltersParams{
 		Tenantid:     sqlchelpers.UUIDFromStr(tenantId),
-		Workflowids:  opts.WorkflowIds,
+		WorkflowIds:  opts.WorkflowIds,
 		Scopes:       opts.Scopes,
-		FilterLimit:  opts.FilterLimit,
-		FilterOffset: opts.FilterOffset,
+		FilterLimit:  filterLimit,
+		FilterOffset: filterOffset,
 	})
+
 }
 
 func (r *filterRepository) DeleteFilter(ctx context.Context, tenantId, filterId string) (*sqlcv1.V1Filter, error) {
