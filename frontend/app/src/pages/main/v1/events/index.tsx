@@ -171,7 +171,7 @@ function EventsTable() {
     const filter = columnFilters.find((filter) => filter.id === 'scope');
 
     if (!filter) {
-      return;
+      return [];
     }
 
     return filter?.value as Array<string>;
