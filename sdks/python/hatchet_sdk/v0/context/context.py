@@ -13,8 +13,8 @@ from hatchet_sdk.v0.clients.rest_client import RestApi
 from hatchet_sdk.v0.clients.run_event_listener import RunEventListenerClient
 from hatchet_sdk.v0.clients.workflow_listener import PooledWorkflowRunListener
 from hatchet_sdk.v0.context.worker_context import WorkerContext
-from hatchet_sdk.v0.contracts.dispatcher_pb2 import OverridesData
-from hatchet_sdk.v0.contracts.workflows_pb2 import (
+from hatchet_sdk.contracts.dispatcher_pb2 import OverridesData
+from hatchet_sdk.contracts.workflows_pb2 import (
     BulkTriggerWorkflowRequest,
     TriggerWorkflowRequest,
 )
@@ -33,7 +33,7 @@ from ..clients.dispatcher.dispatcher import (  # type: ignore[attr-defined]
     Action,
     DispatcherClient,
 )
-from ..logger import logger
+from ...logger import logger
 
 DEFAULT_WORKFLOW_POLLING_INTERVAL = 5  # Seconds
 

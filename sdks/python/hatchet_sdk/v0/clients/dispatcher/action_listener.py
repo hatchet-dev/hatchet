@@ -12,7 +12,7 @@ from hatchet_sdk.v0.clients.run_event_listener import (
     DEFAULT_ACTION_LISTENER_RETRY_INTERVAL,
 )
 from hatchet_sdk.v0.connection import new_conn
-from hatchet_sdk.v0.contracts.dispatcher_pb2 import (
+from hatchet_sdk.contracts.dispatcher_pb2 import (
     ActionType,
     AssignedAction,
     HeartbeatRequest,
@@ -20,8 +20,8 @@ from hatchet_sdk.v0.contracts.dispatcher_pb2 import (
     WorkerListenRequest,
     WorkerUnsubscribeRequest,
 )
-from hatchet_sdk.v0.contracts.dispatcher_pb2_grpc import DispatcherStub
-from hatchet_sdk.v0.logger import logger
+from hatchet_sdk.contracts.dispatcher_pb2_grpc import DispatcherStub
+from hatchet_sdk.logger import logger
 from hatchet_sdk.v0.utils.backoff import exp_backoff_sleep
 
 from ...loader import ClientConfig

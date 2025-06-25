@@ -10,7 +10,7 @@ from hatchet_sdk.v0.clients.rest.tenacity_utils import tenacity_retry
 from hatchet_sdk.v0.clients.run_event_listener import new_listener
 from hatchet_sdk.v0.clients.workflow_listener import PooledWorkflowRunListener
 from hatchet_sdk.v0.connection import new_conn
-from hatchet_sdk.v0.contracts.workflows_pb2 import (
+from hatchet_sdk.contracts.workflows_pb2 import (
     BulkTriggerWorkflowRequest,
     BulkTriggerWorkflowResponse,
     CreateWorkflowVersionOpts,
@@ -22,7 +22,7 @@ from hatchet_sdk.v0.contracts.workflows_pb2 import (
     TriggerWorkflowResponse,
     WorkflowVersion,
 )
-from hatchet_sdk.v0.contracts.workflows_pb2_grpc import WorkflowServiceStub
+from hatchet_sdk.contracts.workflows_pb2_grpc import WorkflowServiceStub
 from hatchet_sdk.v0.workflow_run import RunRef, WorkflowRunRef
 
 from ..loader import ClientConfig

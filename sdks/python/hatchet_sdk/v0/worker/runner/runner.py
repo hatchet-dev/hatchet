@@ -21,7 +21,7 @@ from hatchet_sdk.v0.clients.run_event_listener import new_listener
 from hatchet_sdk.v0.clients.workflow_listener import PooledWorkflowRunListener
 from hatchet_sdk.v0.context import Context  # type: ignore[attr-defined]
 from hatchet_sdk.v0.context.worker_context import WorkerContext
-from hatchet_sdk.v0.contracts.dispatcher_pb2 import (
+from hatchet_sdk.contracts.dispatcher_pb2 import (
     GROUP_KEY_EVENT_TYPE_COMPLETED,
     GROUP_KEY_EVENT_TYPE_FAILED,
     GROUP_KEY_EVENT_TYPE_STARTED,
@@ -31,7 +31,7 @@ from hatchet_sdk.v0.contracts.dispatcher_pb2 import (
     ActionType,
 )
 from hatchet_sdk.v0.loader import ClientConfig
-from hatchet_sdk.v0.logger import logger
+from hatchet_sdk.logger import logger
 from hatchet_sdk.v0.utils.types import WorkflowValidator
 from hatchet_sdk.v0.v2.callable import DurableContext
 from hatchet_sdk.v0.worker.action_listener_process import ActionEvent

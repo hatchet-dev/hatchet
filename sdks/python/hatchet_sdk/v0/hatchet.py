@@ -7,7 +7,7 @@ from typing_extensions import deprecated
 
 from hatchet_sdk.v0.clients.rest_client import RestApi
 from hatchet_sdk.v0.context.context import Context
-from hatchet_sdk.v0.contracts.workflows_pb2 import (
+from hatchet_sdk.contracts.workflows_pb2 import (
     ConcurrencyLimitStrategy,
     CreateStepRateLimit,
     DesiredWorkerLabels,
@@ -25,7 +25,7 @@ from .clients.admin import AdminClient
 from .clients.dispatcher.dispatcher import DispatcherClient
 from .clients.events import EventClient
 from .clients.run_event_listener import RunEventListenerClient
-from .logger import logger
+from ..logger import logger
 from .worker.worker import Worker
 from .workflow import (
     ConcurrencyExpression,

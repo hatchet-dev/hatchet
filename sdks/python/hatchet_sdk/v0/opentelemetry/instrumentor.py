@@ -36,7 +36,7 @@ from hatchet_sdk.v0.clients.events import (
     EventClient,
     PushEventOptions,
 )
-from hatchet_sdk.v0.contracts.events_pb2 import Event
+from hatchet_sdk.contracts.events_pb2 import Event
 from hatchet_sdk.v0.worker.runner.runner import Runner
 from hatchet_sdk.v0.workflow_run import WorkflowRunRef
 

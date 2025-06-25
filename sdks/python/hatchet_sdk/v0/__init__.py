@@ -121,7 +121,7 @@ from hatchet_sdk.v0.clients.rest.models.workflow_version_definition import (
     WorkflowVersionDefinition,
 )
 from hatchet_sdk.v0.clients.rest.models.workflow_version_meta import WorkflowVersionMeta
-from hatchet_sdk.v0.contracts.workflows_pb2 import (
+from hatchet_sdk.contracts.workflows_pb2 import (
     ConcurrencyLimitStrategy,
     CreateWorkflowVersionOpts,
     RateLimitDuration,
