@@ -6,6 +6,7 @@ services:
       - "9091:9090"
     volumes:
       - ./hack/dev/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./hack/dev/prometheus.web-config.yml:/etc/prometheus/web-config.yml
       - hatchet_prometheus_data:/prometheus
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
@@ -14,6 +15,7 @@ services:
       - '--web.console.templates=/etc/prometheus/consoles'
       - '--storage.tsdb.retention.time=200h'
       - '--web.enable-lifecycle'
+      - '--web.config.file=/etc/prometheus/web-config.yml'
 
   grafana:
     image: grafana/grafana:latest

@@ -2,7 +2,6 @@ package olap
 
 import (
 	"context"
-	"errors"
 
 	msgqueue "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
@@ -11,7 +10,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
-	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 func (o *OLAPControllerImpl) runTenantDAGStatusUpdates(ctx context.Context) func() {
@@ -48,6 +47,10 @@ func (o *OLAPControllerImpl) updateDAGStatuses(ctx context.Context, tenantId str
 
 	payloads := make([]tasktypes.NotifyFinalizedPayload, 0, len(rows))
 
+	var workflowIds []pgtype.UUID
+	var dagIds []int64
+	var dagInsertedAts []pgtype.Timestamptz
+
 	for _, row := range rows {
 		payloads = append(payloads, tasktypes.NotifyFinalizedPayload{
 			ExternalId: sqlchelpers.UUIDToStr(row.ExternalId),
@@ -58,27 +61,33 @@ func (o *OLAPControllerImpl) updateDAGStatuses(ctx context.Context, tenantId str
 			o.processTenantAlertOperations.RunOrContinue(tenantId)
 		}
 
-		// instrumentation
+		workflowIds = append(workflowIds, row.WorkflowId)
+		dagIds = append(dagIds, row.DagId)
+		dagInsertedAts = append(dagInsertedAts, row.DagInsertedAt)
+	}
+
+	workflowNames, err := o.repo.Workflows().ListWorkflowNamesByIds(ctx, tenantId, workflowIds)
+	if err != nil {
+		return false, err
+	}
+
+	dagDurations, err := o.repo.OLAP().GetDagDurationsByDagIds(ctx, tenantId, dagIds, dagInsertedAts)
+	if err != nil {
+		return false, err
+	}
+
+	for i, row := range rows {
 		if row.ReadableStatus == sqlcv1.V1ReadableStatusOlapCOMPLETED || row.ReadableStatus == sqlcv1.V1ReadableStatusOlapFAILED || row.ReadableStatus == sqlcv1.V1ReadableStatusOlapCANCELLED {
-			workflow, err := o.repo.OLAP().GetWorkflowByExternalId(ctx, tenantId, row.ExternalId)
-			if err != nil {
-				if errors.Is(err, pgx.ErrNoRows) {
-					continue
-				}
-
-				return false, err
+			workflowName := workflowNames[row.WorkflowId]
+			if workflowName == "" {
+				continue
 			}
 
-			dagDuration, err := o.repo.OLAP().GetDAGDurationByExternalId(ctx, tenantId, row.ExternalId)
-			if err != nil {
-				return false, err
-			}
+			dagDuration := dagDurations[i]
 
 			tenantMetric := prometheus.WithTenant(tenantId)
 
-			tenantMetric.WorkflowCompleted.WithLabelValues(tenantId, workflow.WorkflowName.String, string(row.ReadableStatus)).Inc()
-
-			tenantMetric.WorkflowDuration.WithLabelValues(tenantId, workflow.WorkflowName.String, string(row.ReadableStatus)).Observe(float64(dagDuration.DurationMilliseconds))
+			tenantMetric.WorkflowDuration.WithLabelValues(tenantId, workflowName, string(row.ReadableStatus)).Observe(float64(dagDuration.FinishedAt.Time.Sub(dagDuration.StartedAt.Time).Milliseconds()))
 		}
 	}
 

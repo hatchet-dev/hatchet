@@ -276,85 +276,111 @@ func (q *Queries) FlattenTasksByExternalIds(ctx context.Context, db DBTX, arg Fl
 	return items, nil
 }
 
-const getDAGDurationByExternalId = `-- name: GetDAGDurationByExternalId :one
-WITH dag_lookup AS (
+const getDagDurationsByDagIds = `-- name: GetDagDurationsByDagIds :many
+WITH input AS (
     SELECT
-        tenant_id,
-        dag_id,
-        inserted_at
+        UNNEST($1::bigint[]) AS dag_id,
+        UNNEST($2::timestamptz[]) AS inserted_at
+), dag_data AS (
+    SELECT
+        i.dag_id,
+        i.inserted_at,
+        d.external_id,
+        d.display_name,
+        d.tenant_id
     FROM
-        v1_lookup_table_olap
-    WHERE
-        external_id = $1::uuid
-        AND dag_id IS NOT NULL
+        input i
+    JOIN
+        v1_dags_olap d ON (d.id, d.inserted_at, d.tenant_id) = (i.dag_id, i.inserted_at, $3::uuid)
 ), dag_tasks AS (
     SELECT
+        dd.dag_id,
+        dd.inserted_at AS dag_inserted_at,
+        dd.external_id,
         dt.task_id,
         dt.task_inserted_at
     FROM
-        dag_lookup dl
+        dag_data dd
     JOIN
-        v1_dag_to_task_olap dt ON dl.dag_id = dt.dag_id AND dl.inserted_at = dt.dag_inserted_at
-), task_events AS (
+        v1_dag_to_task_olap dt ON (dt.dag_id, dt.dag_inserted_at) = (dd.dag_id, dd.inserted_at)
+), relevant_events AS (
     SELECT
+        dt.dag_id,
+        dt.dag_inserted_at,
+        dt.external_id,
         e.tenant_id, e.id, e.inserted_at, e.task_id, e.task_inserted_at, e.event_type, e.workflow_id, e.event_timestamp, e.readable_status, e.retry_count, e.error_message, e.output, e.worker_id, e.additional__event_data, e.additional__event_message
     FROM
         dag_tasks dt
     JOIN
         v1_task_events_olap e ON (e.task_id, e.task_inserted_at) = (dt.task_id, dt.task_inserted_at)
     WHERE
-        e.tenant_id = (SELECT tenant_id FROM dag_lookup)
-), dag_started_at AS (
-    SELECT MIN(event_timestamp) AS started_at
-    FROM task_events
-    WHERE event_type = 'STARTED'
-), dag_finished_at AS (
+        e.tenant_id = $3::uuid
+), max_retry_counts AS (
     SELECT
-        MAX(event_timestamp) AS finished_at
+        dag_id,
+        dag_inserted_at,
+        task_id,
+        task_inserted_at,
+        MAX(retry_count) AS max_retry_count
     FROM
-        task_events
-    WHERE
-        readable_status = ANY(ARRAY['COMPLETED', 'FAILED', 'CANCELLED']::v1_readable_status_olap[])
+        relevant_events
+    GROUP BY
+        dag_id, dag_inserted_at, task_id, task_inserted_at
+), dag_times AS (
+    SELECT
+        e.dag_id,
+        e.dag_inserted_at,
+        e.external_id,
+        MIN(CASE WHEN e.readable_status = 'RUNNING' THEN e.inserted_at END) AS started_at,
+        MAX(CASE WHEN e.readable_status = ANY(ARRAY['COMPLETED', 'FAILED', 'CANCELLED']::v1_readable_status_olap[])
+            THEN e.inserted_at END) AS finished_at
+    FROM
+        relevant_events e
+    JOIN
+        max_retry_counts mrc ON
+            (e.dag_id, e.dag_inserted_at, e.task_id, e.task_inserted_at, e.retry_count) = 
+            (mrc.dag_id, mrc.dag_inserted_at, mrc.task_id, mrc.task_inserted_at, mrc.max_retry_count)
+    GROUP BY e.dag_id, e.dag_inserted_at, e.external_id
 )
 SELECT
-    d.external_id,
-    d.display_name,
-    s.started_at::timestamptz,
-    f.finished_at::timestamptz,
-    CASE
-        WHEN s.started_at IS NOT NULL AND f.finished_at IS NOT NULL
-        THEN (EXTRACT(EPOCH FROM (f.finished_at - s.started_at)) * 1000)::int
-        ELSE 0
-    END AS duration_milliseconds
+    dt.started_at::timestamptz AS started_at,
+    dt.finished_at::timestamptz AS finished_at
 FROM
-    v1_dags_olap d
-JOIN
-    dag_lookup dl ON (d.tenant_id, d.id, d.inserted_at) = (dl.tenant_id, dl.dag_id, dl.inserted_at)
+    dag_data dd
 LEFT JOIN
-    dag_started_at s ON true
-LEFT JOIN
-    dag_finished_at f ON true
+    dag_times dt ON (dd.dag_id, dd.inserted_at) = (dt.dag_id, dt.dag_inserted_at)
+ORDER BY dd.dag_id, dd.inserted_at
 `
 
-type GetDAGDurationByExternalIdRow struct {
-	ExternalID           pgtype.UUID        `json:"external_id"`
-	DisplayName          string             `json:"display_name"`
-	SStartedAt           pgtype.Timestamptz `json:"s_started_at"`
-	FFinishedAt          pgtype.Timestamptz `json:"f_finished_at"`
-	DurationMilliseconds int32              `json:"duration_milliseconds"`
+type GetDagDurationsByDagIdsParams struct {
+	Dagids         []int64              `json:"dagids"`
+	Daginsertedats []pgtype.Timestamptz `json:"daginsertedats"`
+	Tenantid       pgtype.UUID          `json:"tenantid"`
 }
 
-func (q *Queries) GetDAGDurationByExternalId(ctx context.Context, db DBTX, externalid pgtype.UUID) (*GetDAGDurationByExternalIdRow, error) {
-	row := db.QueryRow(ctx, getDAGDurationByExternalId, externalid)
-	var i GetDAGDurationByExternalIdRow
-	err := row.Scan(
-		&i.ExternalID,
-		&i.DisplayName,
-		&i.SStartedAt,
-		&i.FFinishedAt,
-		&i.DurationMilliseconds,
-	)
-	return &i, err
+type GetDagDurationsByDagIdsRow struct {
+	StartedAt  pgtype.Timestamptz `json:"started_at"`
+	FinishedAt pgtype.Timestamptz `json:"finished_at"`
+}
+
+func (q *Queries) GetDagDurationsByDagIds(ctx context.Context, db DBTX, arg GetDagDurationsByDagIdsParams) ([]*GetDagDurationsByDagIdsRow, error) {
+	rows, err := db.Query(ctx, getDagDurationsByDagIds, arg.Dagids, arg.Daginsertedats, arg.Tenantid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*GetDagDurationsByDagIdsRow
+	for rows.Next() {
+		var i GetDagDurationsByDagIdsRow
+		if err := rows.Scan(&i.StartedAt, &i.FinishedAt); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getRunsListRecursive = `-- name: GetRunsListRecursive :many
@@ -471,80 +497,84 @@ func (q *Queries) GetRunsListRecursive(ctx context.Context, db DBTX, arg GetRuns
 	return items, nil
 }
 
-const getTaskDurationByExternalId = `-- name: GetTaskDurationByExternalId :one
-WITH task_lookup AS (
+const getTaskDurationsByTaskIds = `-- name: GetTaskDurationsByTaskIds :many
+WITH input AS (
     SELECT
-        tenant_id,
-        task_id,
-        inserted_at
+        UNNEST($1::bigint[]) AS task_id,
+        UNNEST($2::timestamptz[]) AS inserted_at
+), task_data AS (
+    SELECT
+        i.task_id,
+        i.inserted_at,
+        t.external_id,
+        t.display_name,
+        t.readable_status,
+        t.latest_retry_count,
+        t.tenant_id
     FROM
-        v1_lookup_table_olap
-    WHERE
-        external_id = $1::uuid
-        AND task_id IS NOT NULL
+        input i
+    JOIN
+        v1_tasks_olap t ON (t.inserted_at, t.id, t.tenant_id) = (i.inserted_at, i.task_id, $3::uuid)
 ), task_events AS (
     SELECT
-        e.tenant_id, e.id, e.inserted_at, e.task_id, e.task_inserted_at, e.event_type, e.workflow_id, e.event_timestamp, e.readable_status, e.retry_count, e.error_message, e.output, e.worker_id, e.additional__event_data, e.additional__event_message
+        td.task_id,
+        td.inserted_at,
+        e.event_type,
+        e.event_timestamp,
+        e.readable_status
     FROM
-        task_lookup tl
+        task_data td
     JOIN
-        v1_task_events_olap e ON (e.task_id, e.task_inserted_at) = (tl.task_id, tl.inserted_at)
-    WHERE
-        e.tenant_id = tl.tenant_id
-), task_started_at AS (
+        v1_task_events_olap e ON (e.tenant_id, e.task_id, e.task_inserted_at, e.retry_count) = (td.tenant_id, td.task_id, td.inserted_at, td.latest_retry_count)
+), task_times AS (
     SELECT
-        MAX(event_timestamp) AS started_at
-    FROM
-        task_events
-    WHERE
-        event_type = 'STARTED'
-), task_finished_at AS (
-    SELECT
-        MAX(event_timestamp) AS finished_at
-    FROM
-        task_events
-    WHERE
-        readable_status = ANY(ARRAY['COMPLETED', 'FAILED', 'CANCELLED']::v1_readable_status_olap[])
+        task_id,
+        inserted_at,
+        MIN(CASE WHEN event_type = 'STARTED' THEN event_timestamp END) AS started_at,
+        MAX(CASE WHEN readable_status = ANY(ARRAY['COMPLETED', 'FAILED', 'CANCELLED']::v1_readable_status_olap[]) 
+            THEN event_timestamp END) AS finished_at
+    FROM task_events
+    GROUP BY task_id, inserted_at
 )
 SELECT
-    t.external_id,
-    t.display_name,
-    s.started_at::timestamptz,
-    f.finished_at::timestamptz,
-    CASE
-        WHEN s.started_at IS NOT NULL AND f.finished_at IS NOT NULL
-        THEN (EXTRACT(EPOCH FROM (f.finished_at - s.started_at)) * 1000)::int
-        ELSE 0
-    END AS duration_milliseconds
+    tt.started_at::timestamptz AS started_at,
+    tt.finished_at::timestamptz AS finished_at
 FROM
-    v1_tasks_olap t
-JOIN
-    task_lookup tl ON (t.tenant_id, t.id, t.inserted_at) = (tl.tenant_id, tl.task_id, tl.inserted_at)
+    task_data td
 LEFT JOIN
-    task_started_at s ON true
-LEFT JOIN
-    task_finished_at f ON true
+    task_times tt ON (td.task_id, td.inserted_at) = (tt.task_id, tt.inserted_at)
+ORDER BY td.task_id, td.inserted_at
 `
 
-type GetTaskDurationByExternalIdRow struct {
-	ExternalID           pgtype.UUID        `json:"external_id"`
-	DisplayName          string             `json:"display_name"`
-	SStartedAt           pgtype.Timestamptz `json:"s_started_at"`
-	FFinishedAt          pgtype.Timestamptz `json:"f_finished_at"`
-	DurationMilliseconds int32              `json:"duration_milliseconds"`
+type GetTaskDurationsByTaskIdsParams struct {
+	Taskids         []int64              `json:"taskids"`
+	Taskinsertedats []pgtype.Timestamptz `json:"taskinsertedats"`
+	Tenantid        pgtype.UUID          `json:"tenantid"`
 }
 
-func (q *Queries) GetTaskDurationByExternalId(ctx context.Context, db DBTX, externalid pgtype.UUID) (*GetTaskDurationByExternalIdRow, error) {
-	row := db.QueryRow(ctx, getTaskDurationByExternalId, externalid)
-	var i GetTaskDurationByExternalIdRow
-	err := row.Scan(
-		&i.ExternalID,
-		&i.DisplayName,
-		&i.SStartedAt,
-		&i.FFinishedAt,
-		&i.DurationMilliseconds,
-	)
-	return &i, err
+type GetTaskDurationsByTaskIdsRow struct {
+	StartedAt  pgtype.Timestamptz `json:"started_at"`
+	FinishedAt pgtype.Timestamptz `json:"finished_at"`
+}
+
+func (q *Queries) GetTaskDurationsByTaskIds(ctx context.Context, db DBTX, arg GetTaskDurationsByTaskIdsParams) ([]*GetTaskDurationsByTaskIdsRow, error) {
+	rows, err := db.Query(ctx, getTaskDurationsByTaskIds, arg.Taskids, arg.Taskinsertedats, arg.Tenantid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*GetTaskDurationsByTaskIdsRow
+	for rows.Next() {
+		var i GetTaskDurationsByTaskIdsRow
+		if err := rows.Scan(&i.StartedAt, &i.FinishedAt); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getTaskPointMetrics = `-- name: GetTaskPointMetrics :many
@@ -682,36 +712,6 @@ func (q *Queries) GetTenantStatusMetrics(ctx context.Context, db DBTX, arg GetTe
 		&i.TotalCancelled,
 		&i.TotalFailed,
 	)
-	return &i, err
-}
-
-const getWorkflowByExternalId = `-- name: GetWorkflowByExternalId :one
-SELECT DISTINCT
-    w.name AS workflow_name,
-    w.id AS workflow_id
-FROM v1_lookup_table_olap lt
-LEFT JOIN v1_dags_olap d ON (lt.dag_id, lt.inserted_at) = (d.id, d.inserted_at)
-LEFT JOIN v1_tasks_olap t ON (lt.task_id, lt.inserted_at) = (t.id, t.inserted_at)
-LEFT JOIN "Workflow" w ON d.workflow_id = w.id OR t.workflow_id = w.id
-WHERE
-    lt.external_id = $1::uuid
-    AND lt.tenant_id = $2::uuid
-`
-
-type GetWorkflowByExternalIdParams struct {
-	Externalid pgtype.UUID `json:"externalid"`
-	Tenantid   pgtype.UUID `json:"tenantid"`
-}
-
-type GetWorkflowByExternalIdRow struct {
-	WorkflowName pgtype.Text `json:"workflow_name"`
-	WorkflowID   pgtype.UUID `json:"workflow_id"`
-}
-
-func (q *Queries) GetWorkflowByExternalId(ctx context.Context, db DBTX, arg GetWorkflowByExternalIdParams) (*GetWorkflowByExternalIdRow, error) {
-	row := db.QueryRow(ctx, getWorkflowByExternalId, arg.Externalid, arg.Tenantid)
-	var i GetWorkflowByExternalIdRow
-	err := row.Scan(&i.WorkflowName, &i.WorkflowID)
 	return &i, err
 }
 
@@ -2292,22 +2292,6 @@ func (q *Queries) ReadWorkflowRunByExternalId(ctx context.Context, db DBTX, work
 	return &i, err
 }
 
-const taskBelongsToDAG = `-- name: TaskBelongsToDAG :one
-SELECT EXISTS
-    (
-        SELECT 1
-        FROM v1_dag_to_task_olap dt
-        WHERE dt.task_id = $1::bigint
-    )
-`
-
-func (q *Queries) TaskBelongsToDAG(ctx context.Context, db DBTX, taskid int64) (bool, error) {
-	row := db.QueryRow(ctx, taskBelongsToDAG, taskid)
-	var exists bool
-	err := row.Scan(&exists)
-	return exists, err
-}
-
 const updateDAGStatuses = `-- name: UpdateDAGStatuses :one
 WITH locked_events AS (
     SELECT
@@ -2383,7 +2367,7 @@ WITH locked_events AS (
     WHERE
         (d.id, d.inserted_at) = (dtc.id, dtc.inserted_at)
     RETURNING
-        d.id, d.inserted_at, d.readable_status, d.external_id
+        d.id, d.inserted_at, d.readable_status, d.external_id, d.workflow_id
 ), events_to_requeue AS (
     -- Get events which don't have a corresponding locked_task
     SELECT
@@ -2434,7 +2418,8 @@ WITH locked_events AS (
         ARRAY_REMOVE(ARRAY_AGG(d.id), NULL)::bigint[] AS dag_ids,
         ARRAY_REMOVE(ARRAY_AGG(d.inserted_at), NULL)::timestamptz[] AS dag_inserted_ats,
         ARRAY_REMOVE(ARRAY_AGG(d.readable_status), NULL)::text[] AS readable_statuses,
-        ARRAY_REMOVE(ARRAY_AGG(d.external_id), NULL)::uuid[] AS external_ids
+        ARRAY_REMOVE(ARRAY_AGG(d.external_id), NULL)::uuid[] AS external_ids,
+        ARRAY_REMOVE(ARRAY_AGG(d.workflow_id), NULL)::uuid[] AS workflow_ids
     FROM
         updated_dags d
 )
@@ -2443,7 +2428,8 @@ SELECT
     dag_ids,
     dag_inserted_ats,
     readable_statuses,
-    external_ids
+    external_ids,
+    workflow_ids
 FROM
     rows_to_return
 `
@@ -2460,6 +2446,7 @@ type UpdateDAGStatusesRow struct {
 	DagInsertedAts   []pgtype.Timestamptz `json:"dag_inserted_ats"`
 	ReadableStatuses []string             `json:"readable_statuses"`
 	ExternalIds      []pgtype.UUID        `json:"external_ids"`
+	WorkflowIds      []pgtype.UUID        `json:"workflow_ids"`
 }
 
 func (q *Queries) UpdateDAGStatuses(ctx context.Context, db DBTX, arg UpdateDAGStatusesParams) (*UpdateDAGStatusesRow, error) {
@@ -2471,6 +2458,7 @@ func (q *Queries) UpdateDAGStatuses(ctx context.Context, db DBTX, arg UpdateDAGS
 		&i.DagInsertedAts,
 		&i.ReadableStatuses,
 		&i.ExternalIds,
+		&i.WorkflowIds,
 	)
 	return &i, err
 }
@@ -2568,7 +2556,7 @@ WITH locked_events AS (
                 )
             )
     RETURNING
-        t.tenant_id, t.id, t.inserted_at, t.readable_status, t.external_id
+        t.tenant_id, t.id, t.inserted_at, t.readable_status, t.external_id, t.latest_worker_id, t.workflow_id, (t.dag_id IS NOT NULL)::boolean AS is_dag_task
 ), events_to_requeue AS (
     -- Get events which don't have a corresponding locked_task
     SELECT
@@ -2628,7 +2616,10 @@ WITH locked_events AS (
         ARRAY_REMOVE(ARRAY_AGG(t.id), NULL)::bigint[] AS task_ids,
         ARRAY_REMOVE(ARRAY_AGG(t.inserted_at), NULL)::timestamptz[] AS task_inserted_ats,
         ARRAY_REMOVE(ARRAY_AGG(t.readable_status), NULL)::text[] AS readable_statuses,
-        ARRAY_REMOVE(ARRAY_AGG(t.external_id), NULL)::uuid[] AS external_ids
+        ARRAY_REMOVE(ARRAY_AGG(t.external_id), NULL)::uuid[] AS external_ids,
+        ARRAY_REMOVE(ARRAY_AGG(t.latest_worker_id), NULL)::uuid[] AS latest_worker_ids,
+        ARRAY_REMOVE(ARRAY_AGG(t.workflow_id), NULL)::uuid[] AS workflow_ids,
+        ARRAY_AGG(t.is_dag_task)::boolean[] AS is_dag_tasks -- can be used to determined if the task belongs to a DAG
     FROM
         updated_tasks t
 )
@@ -2637,7 +2628,10 @@ SELECT
     task_ids,
     task_inserted_ats,
     readable_statuses,
-    external_ids
+    external_ids,
+    latest_worker_ids,
+    workflow_ids,
+    is_dag_tasks
 FROM
     rows_to_return
 `
@@ -2654,6 +2648,9 @@ type UpdateTaskStatusesRow struct {
 	TaskInsertedAts  []pgtype.Timestamptz `json:"task_inserted_ats"`
 	ReadableStatuses []string             `json:"readable_statuses"`
 	ExternalIds      []pgtype.UUID        `json:"external_ids"`
+	LatestWorkerIds  []pgtype.UUID        `json:"latest_worker_ids"`
+	WorkflowIds      []pgtype.UUID        `json:"workflow_ids"`
+	IsDagTasks       []bool               `json:"is_dag_tasks"`
 }
 
 func (q *Queries) UpdateTaskStatuses(ctx context.Context, db DBTX, arg UpdateTaskStatusesParams) (*UpdateTaskStatusesRow, error) {
@@ -2665,6 +2662,9 @@ func (q *Queries) UpdateTaskStatuses(ctx context.Context, db DBTX, arg UpdateTas
 		&i.TaskInsertedAts,
 		&i.ReadableStatuses,
 		&i.ExternalIds,
+		&i.LatestWorkerIds,
+		&i.WorkflowIds,
+		&i.IsDagTasks,
 	)
 	return &i, err
 }

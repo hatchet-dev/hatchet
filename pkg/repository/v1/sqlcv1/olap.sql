@@ -735,7 +735,7 @@ WITH locked_events AS (
                 )
             )
     RETURNING
-        t.tenant_id, t.id, t.inserted_at, t.readable_status, t.external_id
+        t.tenant_id, t.id, t.inserted_at, t.readable_status, t.external_id, t.latest_worker_id, t.workflow_id, (t.dag_id IS NOT NULL)::boolean AS is_dag_task
 ), events_to_requeue AS (
     -- Get events which don't have a corresponding locked_task
     SELECT
@@ -795,7 +795,10 @@ WITH locked_events AS (
         ARRAY_REMOVE(ARRAY_AGG(t.id), NULL)::bigint[] AS task_ids,
         ARRAY_REMOVE(ARRAY_AGG(t.inserted_at), NULL)::timestamptz[] AS task_inserted_ats,
         ARRAY_REMOVE(ARRAY_AGG(t.readable_status), NULL)::text[] AS readable_statuses,
-        ARRAY_REMOVE(ARRAY_AGG(t.external_id), NULL)::uuid[] AS external_ids
+        ARRAY_REMOVE(ARRAY_AGG(t.external_id), NULL)::uuid[] AS external_ids,
+        ARRAY_REMOVE(ARRAY_AGG(t.latest_worker_id), NULL)::uuid[] AS latest_worker_ids,
+        ARRAY_REMOVE(ARRAY_AGG(t.workflow_id), NULL)::uuid[] AS workflow_ids,
+        ARRAY_AGG(t.is_dag_task)::boolean[] AS is_dag_tasks -- can be used to determined if the task belongs to a DAG
     FROM
         updated_tasks t
 )
@@ -804,7 +807,10 @@ SELECT
     task_ids,
     task_inserted_ats,
     readable_statuses,
-    external_ids
+    external_ids,
+    latest_worker_ids,
+    workflow_ids,
+    is_dag_tasks
 FROM
     rows_to_return;
 
@@ -883,7 +889,7 @@ WITH locked_events AS (
     WHERE
         (d.id, d.inserted_at) = (dtc.id, dtc.inserted_at)
     RETURNING
-        d.id, d.inserted_at, d.readable_status, d.external_id
+        d.id, d.inserted_at, d.readable_status, d.external_id, d.workflow_id
 ), events_to_requeue AS (
     -- Get events which don't have a corresponding locked_task
     SELECT
@@ -934,7 +940,8 @@ WITH locked_events AS (
         ARRAY_REMOVE(ARRAY_AGG(d.id), NULL)::bigint[] AS dag_ids,
         ARRAY_REMOVE(ARRAY_AGG(d.inserted_at), NULL)::timestamptz[] AS dag_inserted_ats,
         ARRAY_REMOVE(ARRAY_AGG(d.readable_status), NULL)::text[] AS readable_statuses,
-        ARRAY_REMOVE(ARRAY_AGG(d.external_id), NULL)::uuid[] AS external_ids
+        ARRAY_REMOVE(ARRAY_AGG(d.external_id), NULL)::uuid[] AS external_ids,
+        ARRAY_REMOVE(ARRAY_AGG(d.workflow_id), NULL)::uuid[] AS workflow_ids
     FROM
         updated_dags d
 )
@@ -943,7 +950,8 @@ SELECT
     dag_ids,
     dag_inserted_ats,
     readable_statuses,
-    external_ids
+    external_ids,
+    workflow_ids
 FROM
     rows_to_return;
 
@@ -1271,28 +1279,6 @@ WHERE
 LIMIT 10000
 ;
 
--- name: GetWorkflowByExternalId :one
-SELECT DISTINCT
-    w.name AS workflow_name,
-    w.id AS workflow_id
-FROM v1_lookup_table_olap lt
-LEFT JOIN v1_dags_olap d ON (lt.dag_id, lt.inserted_at) = (d.id, d.inserted_at)
-LEFT JOIN v1_tasks_olap t ON (lt.task_id, lt.inserted_at) = (t.id, t.inserted_at)
-LEFT JOIN "Workflow" w ON d.workflow_id = w.id OR t.workflow_id = w.id
-WHERE
-    lt.external_id = @externalId::uuid
-    AND lt.tenant_id = @tenantId::uuid
-;
-
--- name: TaskBelongsToDAG :one
-SELECT EXISTS
-    (
-        SELECT 1
-        FROM v1_dag_to_task_olap dt
-        WHERE dt.task_id = @taskId::bigint
-    )
-;
-
 -- name: GetRunsListRecursive :many
 WITH RECURSIVE all_runs AS (
   -- seed term
@@ -1528,115 +1514,125 @@ SELECT COUNT(*)
 FROM included_events e
 ;
 
--- name: GetDAGDurationByExternalId :one
-WITH dag_lookup AS (
+-- name: GetDagDurationsByDagIds :many
+WITH input AS (
     SELECT
-        tenant_id,
-        dag_id,
-        inserted_at
+        UNNEST(@dagIds::bigint[]) AS dag_id,
+        UNNEST(@dagInsertedAts::timestamptz[]) AS inserted_at
+), dag_data AS (
+    SELECT
+        i.dag_id,
+        i.inserted_at,
+        d.external_id,
+        d.display_name,
+        d.tenant_id
     FROM
-        v1_lookup_table_olap
-    WHERE
-        external_id = @externalId::uuid
-        AND dag_id IS NOT NULL
+        input i
+    JOIN
+        v1_dags_olap d ON (d.id, d.inserted_at, d.tenant_id) = (i.dag_id, i.inserted_at, @tenantId::uuid)
 ), dag_tasks AS (
     SELECT
+        dd.dag_id,
+        dd.inserted_at AS dag_inserted_at,
+        dd.external_id,
         dt.task_id,
         dt.task_inserted_at
     FROM
-        dag_lookup dl
+        dag_data dd
     JOIN
-        v1_dag_to_task_olap dt ON dl.dag_id = dt.dag_id AND dl.inserted_at = dt.dag_inserted_at
-), task_events AS (
+        v1_dag_to_task_olap dt ON (dt.dag_id, dt.dag_inserted_at) = (dd.dag_id, dd.inserted_at)
+), relevant_events AS (
     SELECT
+        dt.dag_id,
+        dt.dag_inserted_at,
+        dt.external_id,
         e.*
     FROM
         dag_tasks dt
     JOIN
         v1_task_events_olap e ON (e.task_id, e.task_inserted_at) = (dt.task_id, dt.task_inserted_at)
     WHERE
-        e.tenant_id = (SELECT tenant_id FROM dag_lookup)
-), dag_started_at AS (
-    SELECT MIN(event_timestamp) AS started_at
-    FROM task_events
-    WHERE event_type = 'STARTED'
-), dag_finished_at AS (
+        e.tenant_id = @tenantId::uuid
+), max_retry_counts AS (
     SELECT
-        MAX(event_timestamp) AS finished_at
+        dag_id,
+        dag_inserted_at,
+        task_id,
+        task_inserted_at,
+        MAX(retry_count) AS max_retry_count
     FROM
-        task_events
-    WHERE
-        readable_status = ANY(ARRAY['COMPLETED', 'FAILED', 'CANCELLED']::v1_readable_status_olap[])
+        relevant_events
+    GROUP BY
+        dag_id, dag_inserted_at, task_id, task_inserted_at
+), dag_times AS (
+    SELECT
+        e.dag_id,
+        e.dag_inserted_at,
+        e.external_id,
+        MIN(CASE WHEN e.readable_status = 'RUNNING' THEN e.inserted_at END) AS started_at,
+        MAX(CASE WHEN e.readable_status = ANY(ARRAY['COMPLETED', 'FAILED', 'CANCELLED']::v1_readable_status_olap[])
+            THEN e.inserted_at END) AS finished_at
+    FROM
+        relevant_events e
+    JOIN
+        max_retry_counts mrc ON
+            (e.dag_id, e.dag_inserted_at, e.task_id, e.task_inserted_at, e.retry_count) = 
+            (mrc.dag_id, mrc.dag_inserted_at, mrc.task_id, mrc.task_inserted_at, mrc.max_retry_count)
+    GROUP BY e.dag_id, e.dag_inserted_at, e.external_id
 )
 SELECT
-    d.external_id,
-    d.display_name,
-    s.started_at::timestamptz,
-    f.finished_at::timestamptz,
-    CASE
-        WHEN s.started_at IS NOT NULL AND f.finished_at IS NOT NULL
-        THEN (EXTRACT(EPOCH FROM (f.finished_at - s.started_at)) * 1000)::int
-        ELSE 0
-    END AS duration_milliseconds
+    dt.started_at::timestamptz AS started_at,
+    dt.finished_at::timestamptz AS finished_at
 FROM
-    v1_dags_olap d
-JOIN
-    dag_lookup dl ON (d.tenant_id, d.id, d.inserted_at) = (dl.tenant_id, dl.dag_id, dl.inserted_at)
+    dag_data dd
 LEFT JOIN
-    dag_started_at s ON true
-LEFT JOIN
-    dag_finished_at f ON true;
+    dag_times dt ON (dd.dag_id, dd.inserted_at) = (dt.dag_id, dt.dag_inserted_at)
+ORDER BY dd.dag_id, dd.inserted_at;
 
--- name: GetTaskDurationByExternalId :one
-WITH task_lookup AS (
+-- name: GetTaskDurationsByTaskIds :many
+WITH input AS (
     SELECT
-        tenant_id,
-        task_id,
-        inserted_at
+        UNNEST(@taskIds::bigint[]) AS task_id,
+        UNNEST(@taskInsertedAts::timestamptz[]) AS inserted_at
+), task_data AS (
+    SELECT
+        i.task_id,
+        i.inserted_at,
+        t.external_id,
+        t.display_name,
+        t.readable_status,
+        t.latest_retry_count,
+        t.tenant_id
     FROM
-        v1_lookup_table_olap
-    WHERE
-        external_id = @externalId::uuid
-        AND task_id IS NOT NULL
+        input i
+    JOIN
+        v1_tasks_olap t ON (t.inserted_at, t.id, t.tenant_id) = (i.inserted_at, i.task_id, @tenantId::uuid)
 ), task_events AS (
     SELECT
-        e.*
+        td.task_id,
+        td.inserted_at,
+        e.event_type,
+        e.event_timestamp,
+        e.readable_status
     FROM
-        task_lookup tl
+        task_data td
     JOIN
-        v1_task_events_olap e ON (e.task_id, e.task_inserted_at) = (tl.task_id, tl.inserted_at)
-    WHERE
-        e.tenant_id = tl.tenant_id
-), task_started_at AS (
+        v1_task_events_olap e ON (e.tenant_id, e.task_id, e.task_inserted_at, e.retry_count) = (td.tenant_id, td.task_id, td.inserted_at, td.latest_retry_count)
+), task_times AS (
     SELECT
-        MAX(event_timestamp) AS started_at
-    FROM
-        task_events
-    WHERE
-        event_type = 'STARTED'
-), task_finished_at AS (
-    SELECT
-        MAX(event_timestamp) AS finished_at
-    FROM
-        task_events
-    WHERE
-        readable_status = ANY(ARRAY['COMPLETED', 'FAILED', 'CANCELLED']::v1_readable_status_olap[])
+        task_id,
+        inserted_at,
+        MIN(CASE WHEN event_type = 'STARTED' THEN event_timestamp END) AS started_at,
+        MAX(CASE WHEN readable_status = ANY(ARRAY['COMPLETED', 'FAILED', 'CANCELLED']::v1_readable_status_olap[]) 
+            THEN event_timestamp END) AS finished_at
+    FROM task_events
+    GROUP BY task_id, inserted_at
 )
 SELECT
-    t.external_id,
-    t.display_name,
-    s.started_at::timestamptz,
-    f.finished_at::timestamptz,
-    CASE
-        WHEN s.started_at IS NOT NULL AND f.finished_at IS NOT NULL
-        THEN (EXTRACT(EPOCH FROM (f.finished_at - s.started_at)) * 1000)::int
-        ELSE 0
-    END AS duration_milliseconds
+    tt.started_at::timestamptz AS started_at,
+    tt.finished_at::timestamptz AS finished_at
 FROM
-    v1_tasks_olap t
-JOIN
-    task_lookup tl ON (t.tenant_id, t.id, t.inserted_at) = (tl.tenant_id, tl.task_id, tl.inserted_at)
+    task_data td
 LEFT JOIN
-    task_started_at s ON true
-LEFT JOIN
-    task_finished_at f ON true;
+    task_times tt ON (td.task_id, td.inserted_at) = (tt.task_id, tt.inserted_at)
+ORDER BY td.task_id, td.inserted_at;

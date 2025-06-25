@@ -184,6 +184,9 @@ type UpdateTaskStatusRow struct {
 	TaskInsertedAt pgtype.Timestamptz
 	ReadableStatus sqlcv1.V1ReadableStatusOlap
 	ExternalId     pgtype.UUID
+	LatestWorkerId pgtype.UUID
+	WorkflowId     pgtype.UUID
+	IsDAGTask      bool
 }
 
 type UpdateDAGStatusRow struct {
@@ -191,6 +194,7 @@ type UpdateDAGStatusRow struct {
 	DagInsertedAt  pgtype.Timestamptz
 	ReadableStatus sqlcv1.V1ReadableStatusOlap
 	ExternalId     pgtype.UUID
+	WorkflowId     pgtype.UUID
 }
 
 type OLAPRepository interface {
@@ -226,10 +230,8 @@ type OLAPRepository interface {
 	ListEvents(ctx context.Context, opts sqlcv1.ListEventsParams) ([]*sqlcv1.ListEventsRow, *int64, error)
 	ListEventKeys(ctx context.Context, tenantId string) ([]string, error)
 
-	TaskBelongsToDAG(ctx context.Context, tenantId string, taskId int64) (bool, error)
-	GetWorkflowByExternalId(ctx context.Context, tenantId string, externalId pgtype.UUID) (*sqlcv1.GetWorkflowByExternalIdRow, error)
-	GetDAGDurationByExternalId(ctx context.Context, tenantId string, externalId pgtype.UUID) (*sqlcv1.GetDAGDurationByExternalIdRow, error)
-	GetTaskDurationByExternalId(ctx context.Context, tenantId string, externalId pgtype.UUID) (*sqlcv1.GetTaskDurationByExternalIdRow, error)
+	GetDagDurationsByDagIds(ctx context.Context, tenantId string, dagIds []int64, dagInsertedAts []pgtype.Timestamptz) ([]*sqlcv1.GetDagDurationsByDagIdsRow, error)
+	GetTaskDurationsByTaskIds(ctx context.Context, tenantId string, taskIds []int64, taskInsertedAts []pgtype.Timestamptz) ([]*sqlcv1.GetTaskDurationsByTaskIdsRow, error)
 }
 
 type OLAPRepositoryImpl struct {
@@ -1155,6 +1157,9 @@ func (r *OLAPRepositoryImpl) UpdateTaskStatuses(ctx context.Context, tenantId st
 					TaskInsertedAt: statusUpdateRes.TaskInsertedAts[i],
 					ReadableStatus: sqlcv1.V1ReadableStatusOlap(statusUpdateRes.ReadableStatuses[i]),
 					ExternalId:     statusUpdateRes.ExternalIds[i],
+					LatestWorkerId: statusUpdateRes.LatestWorkerIds[i],
+					WorkflowId:     statusUpdateRes.WorkflowIds[i],
+					IsDAGTask:      statusUpdateRes.IsDagTasks[i],
 				})
 			}
 
@@ -1223,6 +1228,7 @@ func (r *OLAPRepositoryImpl) UpdateDAGStatuses(ctx context.Context, tenantId str
 					DagInsertedAt:  statusUpdateRes.DagInsertedAts[i],
 					ReadableStatus: sqlcv1.V1ReadableStatusOlap(statusUpdateRes.ReadableStatuses[i]),
 					ExternalId:     statusUpdateRes.ExternalIds[i],
+					WorkflowId:     statusUpdateRes.WorkflowIds[i],
 				})
 			}
 
@@ -1558,21 +1564,18 @@ func (r *OLAPRepositoryImpl) ListEventKeys(ctx context.Context, tenantId string)
 	return keys, nil
 }
 
-func (r *OLAPRepositoryImpl) TaskBelongsToDAG(ctx context.Context, tenantId string, taskId int64) (bool, error) {
-	return r.queries.TaskBelongsToDAG(ctx, r.readPool, taskId)
-}
-
-func (r *OLAPRepositoryImpl) GetWorkflowByExternalId(ctx context.Context, tenantId string, externalId pgtype.UUID) (*sqlcv1.GetWorkflowByExternalIdRow, error) {
-	return r.queries.GetWorkflowByExternalId(ctx, r.readPool, sqlcv1.GetWorkflowByExternalIdParams{
-		Tenantid:   sqlchelpers.UUIDFromStr(tenantId),
-		Externalid: externalId,
+func (r *OLAPRepositoryImpl) GetDagDurationsByDagIds(ctx context.Context, tenantId string, dagIds []int64, dagInsertedAts []pgtype.Timestamptz) ([]*sqlcv1.GetDagDurationsByDagIdsRow, error) {
+	return r.queries.GetDagDurationsByDagIds(ctx, r.readPool, sqlcv1.GetDagDurationsByDagIdsParams{
+		Dagids:         dagIds,
+		Daginsertedats: dagInsertedAts,
+		Tenantid:       sqlchelpers.UUIDFromStr(tenantId),
 	})
 }
 
-func (r *OLAPRepositoryImpl) GetDAGDurationByExternalId(ctx context.Context, tenantId string, externalId pgtype.UUID) (*sqlcv1.GetDAGDurationByExternalIdRow, error) {
-	return r.queries.GetDAGDurationByExternalId(ctx, r.readPool, externalId)
-}
-
-func (r *OLAPRepositoryImpl) GetTaskDurationByExternalId(ctx context.Context, tenantId string, externalId pgtype.UUID) (*sqlcv1.GetTaskDurationByExternalIdRow, error) {
-	return r.queries.GetTaskDurationByExternalId(ctx, r.readPool, externalId)
+func (r *OLAPRepositoryImpl) GetTaskDurationsByTaskIds(ctx context.Context, tenantId string, taskIds []int64, taskInsertedAts []pgtype.Timestamptz) ([]*sqlcv1.GetTaskDurationsByTaskIdsRow, error) {
+	return r.queries.GetTaskDurationsByTaskIds(ctx, r.readPool, sqlcv1.GetTaskDurationsByTaskIdsParams{
+		Taskids:         taskIds,
+		Taskinsertedats: taskInsertedAts,
+		Tenantid:        sqlchelpers.UUIDFromStr(tenantId),
+	})
 }

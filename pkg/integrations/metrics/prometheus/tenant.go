@@ -10,13 +10,11 @@ import (
 type TenantHatchetMetric string
 
 const (
-	TenantWorkflowCompleted TenantHatchetMetric = "hatchet_workflow_completed"
-	TenantWorkflowDuration  TenantHatchetMetric = "hatchet_workflow_duration_milliseconds"
+	TenantWorkflowDuration TenantHatchetMetric = "hatchet_workflow_duration_milliseconds"
 )
 
 type TenantMetric struct {
-	WorkflowCompleted *prometheus.CounterVec
-	WorkflowDuration  *prometheus.HistogramVec
+	WorkflowDuration *prometheus.HistogramVec
 }
 
 var tenantMetricsMap sync.Map
@@ -24,11 +22,6 @@ var tenantMetricsMap sync.Map
 func WithTenant(tenantId string) *TenantMetric {
 	tenantMetric, ok := tenantMetricsMap.Load(tenantId)
 	if !ok {
-		workflowCompleted := promauto.NewCounterVec(prometheus.CounterOpts{
-			Name: string(TenantWorkflowCompleted),
-			Help: "Finished workflow runs",
-		}, []string{"tenant_id", "workflow_name", "status"})
-
 		workflowDuration := promauto.NewHistogramVec(prometheus.HistogramOpts{
 			Name: string(TenantWorkflowDuration),
 			Help: "Duration of workflow execution in milliseconds (DAGs and single tasks)",
@@ -66,8 +59,7 @@ func WithTenant(tenantId string) *TenantMetric {
 		}, []string{"tenant_id", "workflow_name", "status"})
 
 		tenantMetric = &TenantMetric{
-			WorkflowCompleted: workflowCompleted,
-			WorkflowDuration:  workflowDuration,
+			WorkflowDuration: workflowDuration,
 		}
 
 		tenantMetricsMap.Store(tenantId, tenantMetric)

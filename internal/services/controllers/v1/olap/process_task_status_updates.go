@@ -2,7 +2,6 @@ package olap
 
 import (
 	"context"
-	"errors"
 
 	msgqueue "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
@@ -11,7 +10,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
-	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 func (o *OLAPControllerImpl) runTenantTaskStatusUpdates(ctx context.Context) func() {
@@ -48,42 +47,47 @@ func (o *OLAPControllerImpl) updateTaskStatuses(ctx context.Context, tenantId st
 
 	payloads := make([]tasktypes.NotifyFinalizedPayload, 0, len(rows))
 
+	var workflowIds []pgtype.UUID
+	var workerIds []pgtype.UUID
+	var taskIds []int64
+	var taskInsertedAts []pgtype.Timestamptz
+
 	for _, row := range rows {
 		payloads = append(payloads, tasktypes.NotifyFinalizedPayload{
 			ExternalId: sqlchelpers.UUIDToStr(row.ExternalId),
 			Status:     row.ReadableStatus,
 		})
 
-		// instrumentation
-		if row.ReadableStatus == sqlcv1.V1ReadableStatusOlapCOMPLETED || row.ReadableStatus == sqlcv1.V1ReadableStatusOlapFAILED || row.ReadableStatus == sqlcv1.V1ReadableStatusOlapCANCELLED {
-			workflow, err := o.repo.OLAP().GetWorkflowByExternalId(ctx, tenantId, row.ExternalId)
-			if err != nil {
-				if errors.Is(err, pgx.ErrNoRows) {
-					continue
-				}
+		taskIds = append(taskIds, row.TaskId)
+		taskInsertedAts = append(taskInsertedAts, row.TaskInsertedAt)
+		workflowIds = append(workflowIds, row.WorkflowId)
+		workerIds = append(workerIds, row.LatestWorkerId) // TODO(mnafees): use this information in workflow metrics below
+	}
 
-				return false, err
+	workflowNames, err := o.repo.Workflows().ListWorkflowNamesByIds(ctx, tenantId, workflowIds)
+	if err != nil {
+		return false, err
+	}
+
+	taskDurations, err := o.repo.OLAP().GetTaskDurationsByTaskIds(ctx, tenantId, taskIds, taskInsertedAts)
+	if err != nil {
+		return false, err
+	}
+
+	for i, row := range rows {
+		// Only track metrics for standalone tasks, not tasks within DAGs
+		// DAG-level metrics are tracked in process_dag_status_updates.go
+		if !row.IsDAGTask && (row.ReadableStatus == sqlcv1.V1ReadableStatusOlapCOMPLETED || row.ReadableStatus == sqlcv1.V1ReadableStatusOlapFAILED || row.ReadableStatus == sqlcv1.V1ReadableStatusOlapCANCELLED) {
+			workflowName := workflowNames[row.WorkflowId]
+			if workflowName == "" {
+				continue
 			}
 
-			belongsToDAG, err := o.repo.OLAP().TaskBelongsToDAG(ctx, tenantId, row.TaskId)
-			if err != nil {
-				return false, err
-			}
+			taskDuration := taskDurations[i]
 
-			// Only track metrics for standalone tasks, not tasks within DAGs
-			// DAG-level metrics are tracked in process_dag_status_updates.go
-			if !belongsToDAG {
-				taskDuration, err := o.repo.OLAP().GetTaskDurationByExternalId(ctx, tenantId, row.ExternalId)
-				if err != nil {
-					return false, err
-				}
+			tenantMetric := prometheus.WithTenant(tenantId)
 
-				tenantMetric := prometheus.WithTenant(tenantId)
-
-				tenantMetric.WorkflowCompleted.WithLabelValues(tenantId, workflow.WorkflowName.String, string(row.ReadableStatus)).Inc()
-
-				tenantMetric.WorkflowDuration.WithLabelValues(tenantId, workflow.WorkflowName.String, string(row.ReadableStatus)).Observe(float64(taskDuration.DurationMilliseconds))
-			}
+			tenantMetric.WorkflowDuration.WithLabelValues(tenantId, workflowName, string(row.ReadableStatus)).Observe(float64(taskDuration.FinishedAt.Time.Sub(taskDuration.StartedAt.Time).Milliseconds()))
 		}
 	}
 
