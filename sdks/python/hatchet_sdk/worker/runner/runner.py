@@ -525,6 +525,9 @@ class Runner:
             self.cleanup_run_id(key)
 
     def serialize_output(self, output: Any) -> str:
+        if not output:
+            return ""
+
         if isinstance(output, BaseModel):
             output = output.model_dump()
 
