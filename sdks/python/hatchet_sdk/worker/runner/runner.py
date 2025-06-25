@@ -526,11 +526,11 @@ class Runner:
 
     def serialize_output(self, output: Any) -> str:
         if isinstance(output, BaseModel):
-            return output.model_dump_json()
+            output = output.model_dump()
 
         if not isinstance(output, dict):
             raise IllegalTaskOutputError(
-                f"Tasks must return a dictionary or a Pydantic BaseModel which can be serialized to a JSON object. Got object of type {type(output)} instead."
+                f"Tasks must return either a dictionary or a Pydantic BaseModel which can be serialized to a JSON object. Got object of type {type(output)} instead."
             )
 
         if output is not None:
