@@ -2,6 +2,7 @@ package tenants
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/labstack/echo/v4"
@@ -24,6 +25,16 @@ func (t *TenantService) TenantInviteCreate(ctx echo.Context, request gen.TenantI
 		t.config.Logger.Warn().Msg("tenant invites are disabled")
 		return gen.TenantInviteCreate400JSONResponse(
 			apierrors.NewAPIErrors("tenant invites are disabled"),
+		), nil
+	}
+
+	// check rate limiting by IP
+	clientIP := ctx.RealIP()
+	if !t.rateLimiter.IsAllowed("tenant:invite:create", clientIP) {
+		errMsg := fmt.Sprintf("tenant invite ratelimit exceeded, try again in %s", t.rateLimiter.GetWindow())
+		t.config.Logger.Warn().Str("ip", clientIP).Msg(errMsg)
+		return gen.TenantInviteCreate422JSONResponse(
+			apierrors.NewAPIErrors(errMsg),
 		), nil
 	}
 

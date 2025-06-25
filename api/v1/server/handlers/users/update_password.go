@@ -23,6 +23,16 @@ func (u *UserService) UserUpdatePassword(ctx echo.Context, request gen.UserUpdat
 		), nil
 	}
 
+	// check rate limiting by IP
+	clientIP := ctx.RealIP()
+	if !u.rateLimiter.IsAllowed("user:update_password", clientIP) {
+		errMsg := fmt.Sprintf("%s for password update, try again in %s", ErrAuthAPIRateLimit, u.rateLimiter.GetWindow())
+		u.config.Logger.Warn().Str("ip", clientIP).Msg(errMsg)
+		return gen.UserUpdatePassword422JSONResponse(
+			apierrors.NewAPIErrors(errMsg),
+		), nil
+	}
+
 	// check that the server supports local registration
 	if !u.config.Auth.ConfigFile.BasicAuthEnabled {
 		return gen.UserUpdatePassword405JSONResponse(
@@ -42,11 +52,12 @@ func (u *UserService) UserUpdatePassword(ctx echo.Context, request gen.UserUpdat
 	userPass, err := u.config.APIRepository.User().GetUserPassword(ctx.Request().Context(), userId)
 
 	if err != nil {
-		return nil, fmt.Errorf("could not get user password: %w", err)
+		u.config.Logger.Err(err).Msg("failed to get user password")
+		return gen.UserUpdatePassword400JSONResponse(apierrors.NewAPIErrors(ErrInvalidCredentials)), nil
 	}
 
 	if verified, err := repository.VerifyPassword(userPass.Hash, request.Body.Password); !verified || err != nil {
-		return gen.UserUpdatePassword400JSONResponse(apierrors.NewAPIErrors("invalid password", "password")), nil
+		return gen.UserUpdatePassword400JSONResponse(apierrors.NewAPIErrors(ErrInvalidCredentials)), nil
 	}
 
 	// Update the user
@@ -54,7 +65,8 @@ func (u *UserService) UserUpdatePassword(ctx echo.Context, request gen.UserUpdat
 	newPass, err := repository.HashPassword(request.Body.NewPassword)
 
 	if err != nil {
-		return nil, fmt.Errorf("could not hash user password: %w", err)
+		u.config.Logger.Err(err).Msg("failed to hash new password")
+		return gen.UserUpdatePassword400JSONResponse(apierrors.NewAPIErrors(ErrInvalidCredentials)), nil
 	}
 
 	user, err := u.config.APIRepository.User().UpdateUser(ctx.Request().Context(), userId, &repository.UpdateUserOpts{
@@ -62,7 +74,8 @@ func (u *UserService) UserUpdatePassword(ctx echo.Context, request gen.UserUpdat
 	})
 
 	if err != nil {
-		return nil, fmt.Errorf("could not update user: %w", err)
+		u.config.Logger.Err(err).Msg("failed to update user password")
+		return gen.UserUpdatePassword400JSONResponse(apierrors.NewAPIErrors(ErrInvalidCredentials)), nil
 	}
 
 	return gen.UserUpdatePassword200JSONResponse(

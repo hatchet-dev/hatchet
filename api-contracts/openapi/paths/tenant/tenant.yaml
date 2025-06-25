@@ -393,6 +393,12 @@ invites:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIError"
         description: Forbidden
+      "422":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Rate limit exceeded
     summary: Create tenant invite
     tags:
       - Tenant
