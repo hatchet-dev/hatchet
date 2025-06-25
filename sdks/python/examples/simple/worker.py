@@ -1,10 +1,8 @@
 # > Simple
 
 from hatchet_sdk import Context, EmptyModel, Hatchet
-from hatchet_sdk.v0 import Hatchet as HatchetV0
 
 hatchet = Hatchet(debug=True)
-# hatchet_v0 = HatchetV0(debug=True)
 
 
 @hatchet.task()
