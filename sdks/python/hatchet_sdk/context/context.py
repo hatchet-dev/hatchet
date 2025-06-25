@@ -224,7 +224,13 @@ class Context:
         :return: None
         """
         try:
-            self.event_client.stream(data=data, step_run_id=self.step_run_id)
+            ix = self._increment_stream_index()
+
+            self.event_client.stream(
+                data=data,
+                step_run_id=self.step_run_id,
+                index=ix,
+            )
         except Exception as e:
             logger.error(f"Error putting stream event: {e}")
 
@@ -235,19 +241,6 @@ class Context:
         :param data: The data to send to the Hatchet API. Can be a string or bytes.
         :return: None
         """
-        try:
-            ix = self._increment_stream_index()
-
-            await asyncio.to_thread(
-                self.event_client.stream,
-                data=data,
-                step_run_id=self.step_run_id,
-                index=ix,
-            )
-        except Exception as e:
-            logger.error(f"Error putting stream event: {e}")
-
-    async def aio_put_stream(self, data: str | bytes) -> None:
         await asyncio.to_thread(self.put_stream, data)
 
     def refresh_timeout(self, increment_by: str | timedelta) -> None:
