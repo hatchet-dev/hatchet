@@ -252,19 +252,23 @@ SELECT id, tenant_id, workflow_id, scope, expression, payload, payload_hash, is_
 FROM v1_filter
 WHERE
     tenant_id = $1::UUID
-    AND ($2::UUID[] IS NULL OR workflow_id = ANY($3::UUID[]))
-    AND ($4::TEXT[] IS NULL OR scope = ANY($5::TEXT[]))
+    AND (
+        $2::UUID[] IS NULL
+        OR workflow_id = ANY($2::UUID[])
+    )
+    AND (
+        $3::TEXT[] IS NULL
+        OR scope = ANY($3::TEXT[])
+    )
 ORDER BY id DESC
-LIMIT COALESCE($7::BIGINT, 20000)
-OFFSET COALESCE($6::BIGINT, 0)
+LIMIT COALESCE($5::BIGINT, 20000)
+OFFSET COALESCE($4::BIGINT, 0)
 `
 
 type ListFiltersParams struct {
 	Tenantid     pgtype.UUID   `json:"tenantid"`
 	WorkflowIds  []pgtype.UUID `json:"workflowIds"`
-	WorkflowId   []pgtype.UUID `json:"workflowId"`
 	Scopes       []string      `json:"scopes"`
-	Scope        []string      `json:"scope"`
 	FilterOffset pgtype.Int8   `json:"filterOffset"`
 	FilterLimit  pgtype.Int8   `json:"filterLimit"`
 }
@@ -273,9 +277,7 @@ func (q *Queries) ListFilters(ctx context.Context, db DBTX, arg ListFiltersParam
 	rows, err := db.Query(ctx, listFilters,
 		arg.Tenantid,
 		arg.WorkflowIds,
-		arg.WorkflowId,
 		arg.Scopes,
-		arg.Scope,
 		arg.FilterOffset,
 		arg.FilterLimit,
 	)

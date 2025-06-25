@@ -110,8 +110,14 @@ SELECT *
 FROM v1_filter
 WHERE
     tenant_id = @tenantId::UUID
-    AND (sqlc.narg('workflowIds')::UUID[] IS NULL OR workflow_id = ANY(sqlc.narg('workflowId')::UUID[]))
-    AND (sqlc.narg('scopes')::TEXT[] IS NULL OR scope = ANY(sqlc.narg('scope')::TEXT[]))
+    AND (
+        sqlc.narg('workflowIds')::UUID[] IS NULL
+        OR workflow_id = ANY(sqlc.narg('workflowIds')::UUID[])
+    )
+    AND (
+        sqlc.narg('scopes')::TEXT[] IS NULL
+        OR scope = ANY(sqlc.narg('scopes')::TEXT[])
+    )
 ORDER BY id DESC
 LIMIT COALESCE(sqlc.narg('filterLimit')::BIGINT, 20000)
 OFFSET COALESCE(sqlc.narg('filterOffset')::BIGINT, 0)

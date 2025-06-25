@@ -17,30 +17,17 @@ func (t *V1FiltersService) V1FilterList(ctx echo.Context, request gen.V1FilterLi
 	scopes := request.Params.Scopes
 	workflowIds := request.Params.WorkflowIds
 
-	if scopes != nil && workflowIds != nil && len(*scopes) != len(*workflowIds) {
-		return gen.V1FilterList400JSONResponse(apierrors.NewAPIErrors("scopes and workflow ids must be the same length")), nil
-	}
-
-	numScopesOrIds := 1
-
-	if scopes != nil {
-		numScopesOrIds = len(*scopes)
-	} else if workflowIds != nil {
-		numScopesOrIds = len(*workflowIds)
-	}
-
-	workflowIdParams := make([]pgtype.UUID, numScopesOrIds)
+	var workflowIdParams []pgtype.UUID
+	var scopeParams []string
 
 	if workflowIds != nil {
-		for ix, id := range *workflowIds {
-			workflowIdParams[ix] = sqlchelpers.UUIDFromStr(id.String())
+		for _, id := range *workflowIds {
+			workflowIdParams = append(workflowIdParams, sqlchelpers.UUIDFromStr(id.String()))
 		}
 	}
 
-	scopeParams := make([]string, numScopesOrIds)
-
 	if scopes != nil {
-		copy(scopeParams, *scopes)
+		scopeParams = append(scopeParams, *scopes...)
 	}
 
 	filters, err := t.config.V1.Filters().ListFilters(
