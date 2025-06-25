@@ -92,6 +92,7 @@ fi
 
 git restore pyproject.toml poetry.lock
 
+poetry lock
 poetry install --all-extras
 
 set +e
