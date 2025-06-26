@@ -1,10 +1,9 @@
 import { hatchet } from '../hatchet-client';
-import { streaming_task } from './workflow';
-
+import { streamingTask } from './workflow';
 
 async function main() {
   const worker = await hatchet.worker('streaming-worker', {
-    workflows: [streaming_task],
+    workflows: [streamingTask],
   });
 
   await worker.start();

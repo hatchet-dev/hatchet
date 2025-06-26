@@ -1,9 +1,10 @@
 /* eslint-disable no-console */
 import { RunEventType } from '@hatchet-dev/typescript-sdk/clients/listeners/run-listener/child-listener-client';
-import { streaming_task } from './workflow';
+import { streamingTask } from './workflow';
 
 async function main() {
-  const ref = await streaming_task.runNoWait({});
+  // > Consume
+  const ref = await streamingTask.runNoWait({});
 
   const stream = await ref.stream();
 
@@ -12,6 +13,7 @@ async function main() {
       console.log(event.payload);
     }
   }
+  // !!
 }
 
 if (require.main === module) {
