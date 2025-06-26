@@ -1147,7 +1147,10 @@ func (r *OLAPRepositoryImpl) UpdateTaskStatuses(ctx context.Context, tenantId st
 
 			if len(statusUpdateRes.TaskIds) != len(statusUpdateRes.TaskInsertedAts) ||
 				len(statusUpdateRes.TaskIds) != len(statusUpdateRes.ReadableStatuses) ||
-				len(statusUpdateRes.TaskIds) != len(statusUpdateRes.ExternalIds) {
+				len(statusUpdateRes.TaskIds) != len(statusUpdateRes.ExternalIds) ||
+				len(statusUpdateRes.TaskIds) != len(statusUpdateRes.LatestWorkerIds) ||
+				len(statusUpdateRes.TaskIds) != len(statusUpdateRes.WorkflowIds) ||
+				len(statusUpdateRes.TaskIds) != len(statusUpdateRes.IsDagTasks) {
 				return fmt.Errorf("mismatched lengths in status update response")
 			}
 

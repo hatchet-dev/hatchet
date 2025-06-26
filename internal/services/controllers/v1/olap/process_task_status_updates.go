@@ -40,7 +40,6 @@ func (o *OLAPControllerImpl) updateTaskStatuses(ctx context.Context, tenantId st
 	defer span.End()
 
 	shouldContinue, rows, err := o.repo.OLAP().UpdateTaskStatuses(ctx, tenantId)
-
 	if err != nil {
 		return false, err
 	}
@@ -94,9 +93,7 @@ func (o *OLAPControllerImpl) updateTaskStatuses(ctx context.Context, tenantId st
 				continue
 			}
 
-			tenantMetric := prometheus.WithTenant(tenantId)
-
-			tenantMetric.WorkflowDuration.WithLabelValues(tenantId, workflowName, string(row.ReadableStatus)).Observe(float64(taskDuration.FinishedAt.Time.Sub(taskDuration.StartedAt.Time).Milliseconds()))
+			prometheus.TenantWorkflowDurationBuckets.WithLabelValues(tenantId, workflowName, string(row.ReadableStatus)).Observe(float64(taskDuration.FinishedAt.Time.Sub(taskDuration.StartedAt.Time).Milliseconds()))
 		}
 	}
 

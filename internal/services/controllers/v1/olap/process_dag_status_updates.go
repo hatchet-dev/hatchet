@@ -87,9 +87,7 @@ func (o *OLAPControllerImpl) updateDAGStatuses(ctx context.Context, tenantId str
 
 			dagDuration := dagDurations[i]
 
-			tenantMetric := prometheus.WithTenant(tenantId)
-
-			tenantMetric.WorkflowDuration.WithLabelValues(tenantId, workflowName, string(row.ReadableStatus)).Observe(float64(dagDuration.FinishedAt.Time.Sub(dagDuration.StartedAt.Time).Milliseconds()))
+			prometheus.TenantWorkflowDurationBuckets.WithLabelValues(tenantId, workflowName, string(row.ReadableStatus)).Observe(float64(dagDuration.FinishedAt.Time.Sub(dagDuration.StartedAt.Time).Milliseconds()))
 		}
 	}
 
