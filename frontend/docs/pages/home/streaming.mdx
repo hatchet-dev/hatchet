@@ -52,7 +52,7 @@ Everything was in confusion in the Oblonskys' house. The wife had discovered tha
 ```
 
 <Callout type="warning" emoji="❗️">
-  You must being consuming the stream before any events are published. Any
+  You must begin consuming the stream before any events are published. Any
   events published before a consumer is initialized will be dropped. In
   practice, this will not be an issue in most cases, but adding a short sleep
   before beginning streaming results back can help.
@@ -68,4 +68,4 @@ For example, with FastAPI, you'd do the following:
 
 <Snippet src={snips.python.streaming.fastapi_proxy} block="fastapi_proxy" />
 
-Then, assuming your run the server on port `8000`, running `curl -N -X GET http://localhost:8000/stream` would result in the text streaming back to your console from Hatchet through your FastAPI proxy.
+Then, assuming you run the server on port `8000`, running `curl -N -X GET http://localhost:8000/stream` would result in the text streaming back to your console from Hatchet through your FastAPI proxy.
