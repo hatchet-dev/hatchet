@@ -5,6 +5,7 @@ from hatchet_sdk.clients.listeners.run_event_listener import StepRunEventType
 
 
 async def main() -> None:
+    # > Consume
     ref = await stream_task.aio_run_no_wait()
 
     async for chunk in ref.stream():
