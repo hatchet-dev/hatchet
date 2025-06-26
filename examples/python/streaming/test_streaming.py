@@ -23,7 +23,7 @@ from hatchet_sdk.clients.listeners.run_event_listener import (
     ],
     indirect=True,
 )
-@pytest.mark.parametrize("execution_number", range(1))
+@pytest.mark.parametrize("execution_number", range(5))  # run test multiple times
 @pytest.mark.asyncio(loop_scope="session")
 async def test_streaming_ordering_and_completeness(
     execution_number: int,

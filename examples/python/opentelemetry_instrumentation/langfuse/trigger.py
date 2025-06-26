@@ -1,3 +1,5 @@
+# type: ignore
+
 import asyncio
 
 from langfuse import get_client  # type: ignore

@@ -5,7 +5,7 @@ const meta = {
     href: '/blog/go-agents',
   },
   warning_event_loop_blocked: {
-    title: 'Warning: The Event Loop May Be Blocked',
+    title: 'Warning! The Event Loop May Be Blocked',
     href: '/blog/warning-event-loop-blocked',
   },
   fastest_postgres_inserts: {
