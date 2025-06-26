@@ -417,6 +417,11 @@ type TaskMetadata struct {
 
 func ParseTaskMetadata(jsonData []byte) ([]TaskMetadata, error) {
 	var tasks []TaskMetadata
+
+	if len(jsonData) == 0 {
+		return tasks, nil
+	}
+
 	err := json.Unmarshal(jsonData, &tasks)
 	if err != nil {
 		return nil, err
