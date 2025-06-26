@@ -24,9 +24,9 @@ Under the hood, FastAPI background tasks just [wrap](https://github.com/fastapi/
 
 This is a handy trick. First, we send the response, and then we run the background task in a non-blocking way afterwards. As FastAPI advertises, this lets you do things like sending emails, processing data, etc. that the client does not need to wait for.
 
-### Scaling Up
+### Getting to Production
 
-As you scale up your FastAPI application and start operating in a production setting, you might notice some issues with how FastAPI handles background tasks. In no particular order, a handful of the most immediate issues are:
+As you start getting ready to move your FastAPI application to a production setting, you might notice some issues with how FastAPI handles background tasks. In no particular order, a handful of the most immediate issues are:
 
 1. There's very little observability here. Since the task is just awaited when the response is sent, it's difficult to know if the background tasks are actually completing or if they're being dropped.
 2. If the server shuts down, you might have background tasks still waiting to be run. If they don't complete before the application is terminated, those tasks will be dropped, leading to data loss.
