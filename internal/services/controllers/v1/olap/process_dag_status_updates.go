@@ -50,6 +50,7 @@ func (o *OLAPControllerImpl) updateDAGStatuses(ctx context.Context, tenantId str
 	var workflowIds []pgtype.UUID
 	var dagIds []int64
 	var dagInsertedAts []pgtype.Timestamptz
+	var readableStatuses []sqlcv1.V1ReadableStatusOlap
 
 	for _, row := range rows {
 		payloads = append(payloads, tasktypes.NotifyFinalizedPayload{
@@ -64,6 +65,7 @@ func (o *OLAPControllerImpl) updateDAGStatuses(ctx context.Context, tenantId str
 		workflowIds = append(workflowIds, row.WorkflowId)
 		dagIds = append(dagIds, row.DagId)
 		dagInsertedAts = append(dagInsertedAts, row.DagInsertedAt)
+		readableStatuses = append(readableStatuses, row.ReadableStatus)
 	}
 
 	workflowNames, err := o.repo.Workflows().ListWorkflowNamesByIds(ctx, tenantId, workflowIds)
@@ -71,7 +73,7 @@ func (o *OLAPControllerImpl) updateDAGStatuses(ctx context.Context, tenantId str
 		return false, err
 	}
 
-	dagDurations, err := o.repo.OLAP().GetDagDurationsByDagIds(ctx, tenantId, dagIds, dagInsertedAts)
+	dagDurations, err := o.repo.OLAP().GetDagDurationsByDagIds(ctx, tenantId, dagIds, dagInsertedAts, readableStatuses)
 	if err != nil {
 		return false, err
 	}

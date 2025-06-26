@@ -280,7 +280,8 @@ const getDagDurationsByDagIds = `-- name: GetDagDurationsByDagIds :many
 WITH input AS (
     SELECT
         UNNEST($1::bigint[]) AS dag_id,
-        UNNEST($2::timestamptz[]) AS inserted_at
+        UNNEST($2::timestamptz[]) AS inserted_at,
+        UNNEST($3::v1_readable_status_olap[]) AS readable_status
 ), dag_data AS (
     SELECT
         i.dag_id,
@@ -291,7 +292,7 @@ WITH input AS (
     FROM
         input i
     JOIN
-        v1_dags_olap d ON (d.id, d.inserted_at, d.tenant_id) = (i.dag_id, i.inserted_at, $3::uuid)
+        v1_dags_olap d ON (d.inserted_at, d.id, d.readable_status, d.tenant_id) = (i.inserted_at, i.dag_id, i.readable_status, $4::uuid)
 ), dag_tasks AS (
     SELECT
         dd.dag_id,
@@ -314,7 +315,7 @@ WITH input AS (
     JOIN
         v1_task_events_olap e ON (e.task_id, e.task_inserted_at) = (dt.task_id, dt.task_inserted_at)
     WHERE
-        e.tenant_id = $3::uuid
+        e.tenant_id = $4::uuid
 ), max_retry_counts AS (
     SELECT
         dag_id,
@@ -353,9 +354,10 @@ ORDER BY dd.dag_id, dd.inserted_at
 `
 
 type GetDagDurationsByDagIdsParams struct {
-	Dagids         []int64              `json:"dagids"`
-	Daginsertedats []pgtype.Timestamptz `json:"daginsertedats"`
-	Tenantid       pgtype.UUID          `json:"tenantid"`
+	Dagids           []int64                `json:"dagids"`
+	Daginsertedats   []pgtype.Timestamptz   `json:"daginsertedats"`
+	Readablestatuses []V1ReadableStatusOlap `json:"readablestatuses"`
+	Tenantid         pgtype.UUID            `json:"tenantid"`
 }
 
 type GetDagDurationsByDagIdsRow struct {
@@ -364,7 +366,12 @@ type GetDagDurationsByDagIdsRow struct {
 }
 
 func (q *Queries) GetDagDurationsByDagIds(ctx context.Context, db DBTX, arg GetDagDurationsByDagIdsParams) ([]*GetDagDurationsByDagIdsRow, error) {
-	rows, err := db.Query(ctx, getDagDurationsByDagIds, arg.Dagids, arg.Daginsertedats, arg.Tenantid)
+	rows, err := db.Query(ctx, getDagDurationsByDagIds,
+		arg.Dagids,
+		arg.Daginsertedats,
+		arg.Readablestatuses,
+		arg.Tenantid,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -501,7 +508,8 @@ const getTaskDurationsByTaskIds = `-- name: GetTaskDurationsByTaskIds :many
 WITH input AS (
     SELECT
         UNNEST($1::bigint[]) AS task_id,
-        UNNEST($2::timestamptz[]) AS inserted_at
+        UNNEST($2::timestamptz[]) AS inserted_at,
+        UNNEST($3::v1_readable_status_olap[]) AS readable_status
 ), task_data AS (
     SELECT
         i.task_id,
@@ -514,7 +522,7 @@ WITH input AS (
     FROM
         input i
     JOIN
-        v1_tasks_olap t ON (t.inserted_at, t.id, t.tenant_id) = (i.inserted_at, i.task_id, $3::uuid)
+        v1_tasks_olap t ON (t.inserted_at, t.id, t.readable_status, t.tenant_id) = (i.inserted_at, i.task_id, i.readable_status, $4::uuid)
 ), task_events AS (
     SELECT
         td.task_id,
@@ -547,9 +555,10 @@ ORDER BY td.task_id, td.inserted_at
 `
 
 type GetTaskDurationsByTaskIdsParams struct {
-	Taskids         []int64              `json:"taskids"`
-	Taskinsertedats []pgtype.Timestamptz `json:"taskinsertedats"`
-	Tenantid        pgtype.UUID          `json:"tenantid"`
+	Taskids          []int64                `json:"taskids"`
+	Taskinsertedats  []pgtype.Timestamptz   `json:"taskinsertedats"`
+	Readablestatuses []V1ReadableStatusOlap `json:"readablestatuses"`
+	Tenantid         pgtype.UUID            `json:"tenantid"`
 }
 
 type GetTaskDurationsByTaskIdsRow struct {
@@ -558,7 +567,12 @@ type GetTaskDurationsByTaskIdsRow struct {
 }
 
 func (q *Queries) GetTaskDurationsByTaskIds(ctx context.Context, db DBTX, arg GetTaskDurationsByTaskIdsParams) ([]*GetTaskDurationsByTaskIdsRow, error) {
-	rows, err := db.Query(ctx, getTaskDurationsByTaskIds, arg.Taskids, arg.Taskinsertedats, arg.Tenantid)
+	rows, err := db.Query(ctx, getTaskDurationsByTaskIds,
+		arg.Taskids,
+		arg.Taskinsertedats,
+		arg.Readablestatuses,
+		arg.Tenantid,
+	)
 	if err != nil {
 		return nil, err
 	}

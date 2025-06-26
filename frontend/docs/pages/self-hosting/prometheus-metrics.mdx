@@ -63,17 +63,22 @@ Restart your Hatchet server after setting these variables to apply the changes.
 | `hatchet_failed_tasks_total`         | Counter   | The total number of tasks that failed (in a final state, not including retries)   |
 | `hatchet_skipped_tasks_total`        | Counter   | The total number of tasks that were skipped                                       |
 | `hatchet_cancelled_tasks_total`      | Counter   | The total number of tasks cancelled                                               |
+| `hatchet_assigned_tasks_total`       | Counter   | The total number of tasks assigned to a worker                                    |
+| `hatchet_scheduling_timed_out_total` | Counter   | The total number of tasks that timed out while waiting to be scheduled            |
+| `hatchet_rate_limited_total`         | Counter   | The total number of tasks that were rate limited                                  |
+| `hatchet_queued_to_assigned_total`   | Counter   | The total number of unique tasks that were queued and later assigned to a worker  |
+| `hatchet_queued_to_assigned_seconds` | Histogram | Buckets of time (in seconds) spent in the queue before being assigned to a worker |
 
 ### Tenant Metrics
 
 | Metric Name                          | Type      | Description                                                                       |
 | ------------------------------------ | --------- | --------------------------------------------------------------------------------- |
-| `hatchet_workflow_duration_milliseconds` | Histogram | Duration of workflow execution in milliseconds (DAGs and single tasks) |
-| `hatchet_assigned_tasks`             | Counter   | The total number of tasks assigned to a worker |
-| `hatchet_scheduling_timed_out`       | Counter   | The total number of tasks that timed out while waiting to be scheduled |
-| `hatchet_rate_limited`               | Counter   | The total number of tasks that were rate limited |
-| `hatchet_queued_to_assigned`         | Counter   | The total number of unique tasks that were queued and later got assigned to a worker |
-| `hatchet_queued_to_assigned_time_seconds` | Histogram | Buckets of time in seconds spent in the queue before being assigned to a worker |
+| `tenant_workflow_duration_milliseconds` | Histogram | Duration of workflow execution in milliseconds (DAGs and single tasks) |
+| `tenant_assigned_tasks`             | Counter   | The total number of tasks assigned to a worker |
+| `tenant_scheduling_timed_out`       | Counter   | The total number of tasks that timed out while waiting to be scheduled |
+| `tenant_rate_limited`               | Counter   | The total number of tasks that were rate limited |
+| `tenant_queued_to_assigned`         | Counter   | The total number of unique tasks that were queued and later got assigned to a worker |
+| `tenant_queued_to_assigned_time_seconds` | Histogram | Buckets of time in seconds spent in the queue before being assigned to a worker |
 
 ### Example PromQL Queries
 

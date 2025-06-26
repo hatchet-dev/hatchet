@@ -1518,7 +1518,8 @@ FROM included_events e
 WITH input AS (
     SELECT
         UNNEST(@dagIds::bigint[]) AS dag_id,
-        UNNEST(@dagInsertedAts::timestamptz[]) AS inserted_at
+        UNNEST(@dagInsertedAts::timestamptz[]) AS inserted_at,
+        UNNEST(@readableStatuses::v1_readable_status_olap[]) AS readable_status
 ), dag_data AS (
     SELECT
         i.dag_id,
@@ -1529,7 +1530,7 @@ WITH input AS (
     FROM
         input i
     JOIN
-        v1_dags_olap d ON (d.id, d.inserted_at, d.tenant_id) = (i.dag_id, i.inserted_at, @tenantId::uuid)
+        v1_dags_olap d ON (d.inserted_at, d.id, d.readable_status, d.tenant_id) = (i.inserted_at, i.dag_id, i.readable_status, @tenantId::uuid)
 ), dag_tasks AS (
     SELECT
         dd.dag_id,
@@ -1593,7 +1594,8 @@ ORDER BY dd.dag_id, dd.inserted_at;
 WITH input AS (
     SELECT
         UNNEST(@taskIds::bigint[]) AS task_id,
-        UNNEST(@taskInsertedAts::timestamptz[]) AS inserted_at
+        UNNEST(@taskInsertedAts::timestamptz[]) AS inserted_at,
+        UNNEST(@readableStatuses::v1_readable_status_olap[]) AS readable_status
 ), task_data AS (
     SELECT
         i.task_id,
@@ -1606,7 +1608,7 @@ WITH input AS (
     FROM
         input i
     JOIN
-        v1_tasks_olap t ON (t.inserted_at, t.id, t.tenant_id) = (i.inserted_at, i.task_id, @tenantId::uuid)
+        v1_tasks_olap t ON (t.inserted_at, t.id, t.readable_status, t.tenant_id) = (i.inserted_at, i.task_id, i.readable_status, @tenantId::uuid)
 ), task_events AS (
     SELECT
         td.task_id,

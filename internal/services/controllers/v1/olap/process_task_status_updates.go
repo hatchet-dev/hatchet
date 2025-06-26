@@ -51,6 +51,7 @@ func (o *OLAPControllerImpl) updateTaskStatuses(ctx context.Context, tenantId st
 	workerIds := make([]pgtype.UUID, 0, len(rows))
 	taskIds := make([]int64, 0, len(rows))
 	taskInsertedAts := make([]pgtype.Timestamptz, 0, len(rows))
+	readableStatuses := make([]sqlcv1.V1ReadableStatusOlap, 0, len(rows))
 
 	for _, row := range rows {
 		if row.ReadableStatus != sqlcv1.V1ReadableStatusOlapCOMPLETED && row.ReadableStatus != sqlcv1.V1ReadableStatusOlapCANCELLED && row.ReadableStatus != sqlcv1.V1ReadableStatusOlapFAILED {
@@ -66,6 +67,7 @@ func (o *OLAPControllerImpl) updateTaskStatuses(ctx context.Context, tenantId st
 		taskInsertedAts = append(taskInsertedAts, row.TaskInsertedAt)
 		workflowIds = append(workflowIds, row.WorkflowId)
 		workerIds = append(workerIds, row.LatestWorkerId) // TODO(mnafees): use this information in workflow metrics below
+		readableStatuses = append(readableStatuses, row.ReadableStatus)
 	}
 
 	workflowNames, err := o.repo.Workflows().ListWorkflowNamesByIds(ctx, tenantId, workflowIds)
@@ -73,7 +75,7 @@ func (o *OLAPControllerImpl) updateTaskStatuses(ctx context.Context, tenantId st
 		return false, err
 	}
 
-	taskDurations, err := o.repo.OLAP().GetTaskDurationsByTaskIds(ctx, tenantId, taskIds, taskInsertedAts)
+	taskDurations, err := o.repo.OLAP().GetTaskDurationsByTaskIds(ctx, tenantId, taskIds, taskInsertedAts, readableStatuses)
 	if err != nil {
 		return false, err
 	}

@@ -214,6 +214,8 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 					now := time.Now()
 
 					for _, assignedItem := range ar.assigned {
+						prometheus.AssignedTasks.Inc()
+
 						tenantMetric := prometheus.WithTenant(q.tenantId.String())
 						tenantMetric.AssignedTasks.WithLabelValues(q.tenantId.String()).Inc()
 
@@ -226,22 +228,30 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 							continue
 						}
 
+						prometheus.QueuedToAssigned.Inc()
+
 						tenantMetric.QueuedToAssigned.WithLabelValues(q.tenantId.String()).Inc()
 
 						timeInQueueSeconds := now.Sub(qi.TaskInsertedAt.Time).Seconds()
 
 						if timeInQueueSeconds > 0 {
+							prometheus.QueuedToAssignedTimeBuckets.Observe(timeInQueueSeconds)
+
 							tenantMetric.QueuedToAssignedTimeBuckets.WithLabelValues(q.tenantId.String()).Observe(timeInQueueSeconds)
 						}
 					}
 				}
 
 				for range ar.schedulingTimedOut {
+					prometheus.SchedulingTimedOut.Inc()
+
 					tenantMetric := prometheus.WithTenant(q.tenantId.String())
 					tenantMetric.SchedulingTimedOut.WithLabelValues(q.tenantId.String()).Inc()
 				}
 
 				for range ar.rateLimited {
+					prometheus.RateLimited.Inc()
+
 					tenantMetric := prometheus.WithTenant(q.tenantId.String())
 					tenantMetric.RateLimited.WithLabelValues(q.tenantId.String()).Inc()
 				}

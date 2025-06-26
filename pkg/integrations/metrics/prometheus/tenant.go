@@ -10,12 +10,12 @@ import (
 type TenantHatchetMetric string
 
 const (
-	TenantWorkflowDuration            TenantHatchetMetric = "hatchet_workflow_duration_milliseconds"
-	TenantAssignedTasks               TenantHatchetMetric = "hatchet_assigned_tasks"
-	TenantSchedulingTimedOut          TenantHatchetMetric = "hatchet_scheduling_timed_out"
-	TenantRateLimited                 TenantHatchetMetric = "hatchet_rate_limited"
-	TenantQueuedToAssigned            TenantHatchetMetric = "hatchet_queued_to_assigned"
-	TenantQueuedToAssignedTimeBuckets TenantHatchetMetric = "hatchet_queued_to_assigned_time_seconds"
+	TenantWorkflowDuration            TenantHatchetMetric = "tenant_workflow_duration_milliseconds"
+	TenantAssignedTasks               TenantHatchetMetric = "tenant_assigned_tasks"
+	TenantSchedulingTimedOut          TenantHatchetMetric = "tenant_scheduling_timed_out"
+	TenantRateLimited                 TenantHatchetMetric = "tenant_rate_limited"
+	TenantQueuedToAssigned            TenantHatchetMetric = "tenant_queued_to_assigned"
+	TenantQueuedToAssignedTimeBuckets TenantHatchetMetric = "tenant_queued_to_assigned_time_seconds"
 )
 
 type TenantMetric struct {

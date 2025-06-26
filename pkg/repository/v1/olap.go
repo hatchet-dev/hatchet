@@ -230,8 +230,8 @@ type OLAPRepository interface {
 	ListEvents(ctx context.Context, opts sqlcv1.ListEventsParams) ([]*sqlcv1.ListEventsRow, *int64, error)
 	ListEventKeys(ctx context.Context, tenantId string) ([]string, error)
 
-	GetDagDurationsByDagIds(ctx context.Context, tenantId string, dagIds []int64, dagInsertedAts []pgtype.Timestamptz) ([]*sqlcv1.GetDagDurationsByDagIdsRow, error)
-	GetTaskDurationsByTaskIds(ctx context.Context, tenantId string, taskIds []int64, taskInsertedAts []pgtype.Timestamptz) (map[int64]*sqlcv1.GetTaskDurationsByTaskIdsRow, error)
+	GetDagDurationsByDagIds(ctx context.Context, tenantId string, dagIds []int64, dagInsertedAts []pgtype.Timestamptz, readableStatuses []sqlcv1.V1ReadableStatusOlap) ([]*sqlcv1.GetDagDurationsByDagIdsRow, error)
+	GetTaskDurationsByTaskIds(ctx context.Context, tenantId string, taskIds []int64, taskInsertedAts []pgtype.Timestamptz, readableStatuses []sqlcv1.V1ReadableStatusOlap) (map[int64]*sqlcv1.GetTaskDurationsByTaskIdsRow, error)
 }
 
 type OLAPRepositoryImpl struct {
@@ -1564,19 +1564,21 @@ func (r *OLAPRepositoryImpl) ListEventKeys(ctx context.Context, tenantId string)
 	return keys, nil
 }
 
-func (r *OLAPRepositoryImpl) GetDagDurationsByDagIds(ctx context.Context, tenantId string, dagIds []int64, dagInsertedAts []pgtype.Timestamptz) ([]*sqlcv1.GetDagDurationsByDagIdsRow, error) {
+func (r *OLAPRepositoryImpl) GetDagDurationsByDagIds(ctx context.Context, tenantId string, dagIds []int64, dagInsertedAts []pgtype.Timestamptz, readableStatuses []sqlcv1.V1ReadableStatusOlap) ([]*sqlcv1.GetDagDurationsByDagIdsRow, error) {
 	return r.queries.GetDagDurationsByDagIds(ctx, r.readPool, sqlcv1.GetDagDurationsByDagIdsParams{
-		Dagids:         dagIds,
-		Daginsertedats: dagInsertedAts,
-		Tenantid:       sqlchelpers.UUIDFromStr(tenantId),
+		Dagids:           dagIds,
+		Daginsertedats:   dagInsertedAts,
+		Tenantid:         sqlchelpers.UUIDFromStr(tenantId),
+		Readablestatuses: readableStatuses,
 	})
 }
 
-func (r *OLAPRepositoryImpl) GetTaskDurationsByTaskIds(ctx context.Context, tenantId string, taskIds []int64, taskInsertedAts []pgtype.Timestamptz) (map[int64]*sqlcv1.GetTaskDurationsByTaskIdsRow, error) {
+func (r *OLAPRepositoryImpl) GetTaskDurationsByTaskIds(ctx context.Context, tenantId string, taskIds []int64, taskInsertedAts []pgtype.Timestamptz, readableStatuses []sqlcv1.V1ReadableStatusOlap) (map[int64]*sqlcv1.GetTaskDurationsByTaskIdsRow, error) {
 	rows, err := r.queries.GetTaskDurationsByTaskIds(ctx, r.readPool, sqlcv1.GetTaskDurationsByTaskIdsParams{
-		Taskids:         taskIds,
-		Taskinsertedats: taskInsertedAts,
-		Tenantid:        sqlchelpers.UUIDFromStr(tenantId),
+		Taskids:          taskIds,
+		Taskinsertedats:  taskInsertedAts,
+		Tenantid:         sqlchelpers.UUIDFromStr(tenantId),
+		Readablestatuses: readableStatuses,
 	})
 	if err != nil {
 		return nil, err
