@@ -51,6 +51,13 @@ Happy families are all alike; every unhappy family is unhappy in its own way.
 Everything was in confusion in the Oblonskys' house. The wife had discovered that the husband was carrying on an intrigue with a French girl, who had been a governess in their family, and she had announced to her husband that she could not go on living in the same house with him.
 ```
 
+<Callout type="warning" emoji="❗️">
+  You must being consuming the stream before any events are published. Any
+  events published before a consumer is initialized will be dropped. In
+  practice, this will not be an issue in most cases, but adding a short sleep
+  before beginning streaming results back can help.
+</Callout>
+
 ## Streaming to a Web Application
 
 It's common to want to stream events out of a Hatchet task and back to the frontend of your application, for consumption by an end user. As mentioned before, some clear cases where this is useful would be for streaming back progress of some long-running task for a customer to monitor, or streaming back the results of an LLM call.
@@ -62,5 +69,3 @@ For example, with FastAPI, you'd do the following:
 <Snippet src={snips.python.streaming.fastapi_proxy} block="fastapi_proxy" />
 
 Then, assuming your run the server on port `8000`, running `curl -N -X GET http://localhost:8000/stream` would result in the text streaming back to your console from Hatchet through your FastAPI proxy.
-
-## Important Considerations
