@@ -77,7 +77,7 @@ async def send_welcome_email_task(input: WelcomeEmailInput, _ctx: Context) -> No
         await send_welcome_email(user.email)
 
 @app.post("/user")
-async def create_user(background_tasks: BackgroundTasks) -> User:
+async def create_user() -> User:
     async with Session() as db:
         user = await create_user(db)
 
@@ -89,3 +89,26 @@ async def create_user(background_tasks: BackgroundTasks) -> User:
 ```
 
 And that's it! When you trigger the Hatchet task (in this case, in ["fire and forget"](../home/run-no-wait.mdx) style), your task will be sent through the Hatchet Engine to your worker, where it will execute, and report its result in the dashboard for you to see. Or if something goes wrong, you can be notified.
+
+### Feature Comparison
+
+| Feature             | FastAPI Background Tasks | Hatchet                                           |
+| ------------------- | ------------------------ | ------------------------------------------------- |
+| Setup complexity    | ✅ Minimal               | ✅ Simple                                         |
+| Observability       | ❌ None                  | ✅ Full dashboard + metrics                       |
+| Reliability         | ❌ Tasks can be lost     | ✅ Guaranteed execution                           |
+| Retries             | ❌ Manual implementation | ✅ Built-in with policies                         |
+| Concurrency control | ❌ None                  | ✅ Configurable limits                            |
+| Scaling             | ❌ Tied to web server    | ✅ Independent worker scaling                     |
+| Error handling      | ❌ Basic                 | ✅ Alerts, configurable retries, on-failure tasks |
+
+### Ready to Migrate?
+
+Check out our [blog post on Hatchet using modern Python](./task-queue-modern-python) for a thorough introduction to Hatchet.
+
+You can get up and running in just five minutes on [Hatchet Cloud](https://cloud.onhatchet.run/). And if you'd like to learn more, you can find us:
+
+- On [GitHub](https://github.com/hatchet-dev/hatchet)
+- On [Discord](https://hatchet.run/discord)
+
+Or check out [our documentation](https://docs.hatchet.run/).
