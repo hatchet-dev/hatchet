@@ -58,6 +58,7 @@ export class Context<T, K = {}> {
   _logger: Logger;
 
   spawnIndex: number = 0;
+  streamIndex = 0;
 
   constructor(action: Action, v1: HatchetClient, worker: V1Worker) {
     try {
@@ -346,7 +347,9 @@ export class Context<T, K = {}> {
       return;
     }
 
-    await this.v1._v0.event.putStream(stepRunId, data);
+    const index = this._incrementStreamIndex();
+
+    await this.v1._v0.event.putStream(stepRunId, data, index);
   }
 
   private spawnOptions(workflow: string | Workflow | WorkflowV1<any, any>, options?: ChildRunOpts) {
@@ -694,6 +697,13 @@ export class Context<T, K = {}> {
     } catch (e: any) {
       throw new HatchetError(e.message);
     }
+  }
+
+  _incrementStreamIndex() {
+    const index = this.streamIndex;
+    this.streamIndex += 1;
+
+    return index;
   }
 }
 

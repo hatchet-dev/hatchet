@@ -103,7 +103,7 @@ class Worker:
         self.durable_action_registry: dict[str, Task[Any, Any]] = {}
 
         self.killing: bool = False
-        self._status: WorkerStatus
+        self._status: WorkerStatus = WorkerStatus.INITIALIZED
 
         self.action_listener_process: BaseProcess | None = None
         self.durable_action_listener_process: BaseProcess | None = None

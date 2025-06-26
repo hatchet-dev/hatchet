@@ -1,9 +1,9 @@
 from typing import Any, Callable
 
-from hatchet_sdk.v0.context.context import Context
-from hatchet_sdk.v0.contracts.workflows_pb2 import (  # type: ignore[attr-defined]
+from hatchet_sdk.contracts.workflows_pb2 import (  # type: ignore[attr-defined]
     ConcurrencyLimitStrategy,
 )
+from hatchet_sdk.v0.context.context import Context
 
 
 class ConcurrencyFunction:

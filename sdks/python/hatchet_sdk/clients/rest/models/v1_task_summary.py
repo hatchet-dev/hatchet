@@ -111,6 +111,9 @@ class V1TaskSummary(BaseModel):
         description="The version ID of the workflow",
         alias="workflowVersionId",
     )
+    workflow_config: Optional[Dict[str, Any]] = Field(
+        default=None, alias="workflowConfig"
+    )
     __properties: ClassVar[List[str]] = [
         "metadata",
         "actionId",
@@ -138,6 +141,7 @@ class V1TaskSummary(BaseModel):
         "workflowName",
         "workflowRunExternalId",
         "workflowVersionId",
+        "workflowConfig",
     ]
 
     model_config = ConfigDict(
@@ -234,6 +238,7 @@ class V1TaskSummary(BaseModel):
                 "workflowName": obj.get("workflowName"),
                 "workflowRunExternalId": obj.get("workflowRunExternalId"),
                 "workflowVersionId": obj.get("workflowVersionId"),
+                "workflowConfig": obj.get("workflowConfig"),
             }
         )
         return _obj

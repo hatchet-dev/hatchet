@@ -5,6 +5,19 @@ All notable changes to Hatchet's Python SDK will be documented in this changelog
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.14.0] - 2025-06-25
+
+### Added
+
+- Adds an `IllegalTaskOutputError` that handles cases where tasks return invalid outputs.
+- Logs `NonRetryableException` as an info-level log so it doesn't get picked up by Sentry and similar tools.
+
+### Changed
+
+- Exports `NonRetryableException` at the top level
+- Fixes an issue with the `status` field throwing a Pydantic error when calling `worker.get`
+- Fixes an issue with duplicate protobufs if you try to import both the v1 and v0 clients.
+
 ## [1.13.0] - 2025-06-25
 
 ### Added

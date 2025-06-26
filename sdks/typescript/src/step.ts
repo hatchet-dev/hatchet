@@ -373,7 +373,7 @@ export class V0Context<T, K = {}> {
       return;
     }
 
-    await this.v0.event.putStream(stepRunId, data);
+    await this.v0.event.putStream(stepRunId, data, undefined);
   }
 
   /**
