@@ -9,7 +9,7 @@ async function main() {
 
   for await (const event of stream) {
     if (event.type === RunEventType.STEP_RUN_EVENT_TYPE_STREAM) {
-      console.log(event.payload);
+      process.stdout.write(event.payload);
     }
   }
 }
