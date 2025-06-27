@@ -85,6 +85,7 @@ export default {
   },
   logging: "Logging",
   opentelemetry: "OpenTelemetry",
+  "prometheus-metrics": "Prometheus Metrics",
   "--deploying-workers": {
     title: "Deploying Workers",
     type: "separator",

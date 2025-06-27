@@ -23,6 +23,23 @@ To enable and configure the Prometheus metrics endpoint in your Hatchet server, 
   - Default: `"/metrics"`
   - Description: The HTTP path at which metrics will be exposed.
 
+If you have set up a Prometheus instance to scrape Hatchet metrics, you can enable the [tenant API endpoint](/home/prometheus-metrics) by setting the following variables:
+
+- **`SERVER_PROMETHEUS_SERVER_URL`** (`prometheus.prometheusServerURL`)
+
+  - Type: string
+  - Description: The Prometheus server URL.
+
+- **`SERVER_PROMETHEUS_SERVER_USERNAME`** (`prometheus.prometheusServerUsername`)
+
+  - Type: string
+  - Description: The username to access the Prometheus instance via HTTP basic auth.
+
+- **`SERVER_PROMETHEUS_SERVER_PASSWORD`** (`prometheus.prometheusServerPassword`)
+
+  - Type: string
+  - Description: The password to access the Prometheus instance via HTTP basic auth.
+
 **Example environment setup:**
 
 ```bash
@@ -35,7 +52,7 @@ Restart your Hatchet server after setting these variables to apply the changes.
 
 ---
 
-### Metrics
+### Global Metrics
 
 | Metric Name                          | Type      | Description                                                                       |
 | ------------------------------------ | --------- | --------------------------------------------------------------------------------- |
@@ -52,15 +69,15 @@ Restart your Hatchet server after setting these variables to apply the changes.
 | `hatchet_queued_to_assigned_total`   | Counter   | The total number of unique tasks that were queued and later assigned to a worker  |
 | `hatchet_queued_to_assigned_seconds` | Histogram | Buckets of time (in seconds) spent in the queue before being assigned to a worker |
 
-### Example PromQL Queries
+#### Example PromQL Queries
 
-#### 1. Rate of calls to the queuer method
+##### 1. Rate of calls to the queuer method
 
 ```promql
 rate(hatchet_queue_invocations_total[5m])
 ```
 
-#### 2. Average queue time in milliseconds
+##### 2. Average queue time in milliseconds
 
 ```promql
 # Calculates average queue time over the past 5 minutes, converted to ms
@@ -69,14 +86,14 @@ rate(hatchet_queued_to_assigned_seconds_sum[5m])
   * 1e3
 ```
 
-#### 3. Success and failure rates
+##### 3. Success and failure rates
 
 ```promql
 rate(hatchet_succeeded_tasks_total[5m])
 rate(hatchet_failed_tasks_total[5m])
 ```
 
-#### 4. Queue time distribution (histogram)
+##### 4. Queue time distribution (histogram)
 
 ```promql
 sum by (le) (
@@ -84,9 +101,199 @@ sum by (le) (
 )
 ```
 
-#### 5. Rate of tasks created vs. retried
+##### 5. Rate of tasks created vs. retried
 
 ```promql
 rate(hatchet_created_tasks_total[5m])
 rate(hatchet_retried_tasks_total[5m])
 ```
+
+##### 6. Task Assignment Rate
+
+```promql
+rate(hatchet_assigned_tasks_total[5m])
+```
+
+##### 7. Scheduling Timeout Rate
+
+```promql
+rate(hatchet_scheduling_timed_out_total[5m])
+```
+
+##### 8. Rate Limiting Impact
+
+```promql
+rate(hatchet_rate_limited_total[5m])
+```
+
+##### 9. Task Completion Ratio (Success vs Total)
+
+```promql
+rate(hatchet_succeeded_tasks_total[5m])
+/
+(rate(hatchet_succeeded_tasks_total[5m]) + rate(hatchet_failed_tasks_total[5m]))
+```
+
+##### 10. Task Cancellation Rate
+
+```promql
+rate(hatchet_cancelled_tasks_total[5m])
+```
+
+##### 11. Task Skip Rate
+
+```promql
+rate(hatchet_skipped_tasks_total[5m])
+```
+
+##### 12. Queue Processing Efficiency (Assigned vs Created)
+
+```promql
+rate(hatchet_assigned_tasks_total[5m]) / rate(hatchet_created_tasks_total[5m])
+```
+
+### Tenant Metrics
+
+| Metric Name                                      | Type      | Description                                                                          |
+| ------------------------------------------------ | --------- | ------------------------------------------------------------------------------------ |
+| `hatchet_tenant_workflow_duration_milliseconds`  | Histogram | Duration of workflow execution in milliseconds (DAGs and single tasks)               |
+| `hatchet_tenant_queue_invocations_total`         | Counter   | The total number of invocations of the queuer function                               |
+| `hatchet_tenant_created_tasks_total`             | Counter   | The total number of tasks created                                                    |
+| `hatchet_tenant_retried_tasks_total`             | Counter   | The total number of tasks retried                                                    |
+| `hatchet_tenant_succeeded_tasks_total`           | Counter   | The total number of tasks that succeeded                                             |
+| `hatchet_tenant_failed_tasks_total`              | Counter   | The total number of tasks that failed (in a final state, not including retries)      |
+| `hatchet_tenant_skipped_tasks_total`             | Counter   | The total number of tasks that were skipped                                          |
+| `hatchet_tenant_cancelled_tasks_total`           | Counter   | The total number of tasks cancelled                                                  |
+| `hatchet_tenant_assigned_tasks`                  | Counter   | The total number of tasks assigned to a worker                                       |
+| `hatchet_tenant_scheduling_timed_out`            | Counter   | The total number of tasks that timed out while waiting to be scheduled               |
+| `hatchet_tenant_rate_limited`                    | Counter   | The total number of tasks that were rate limited                                     |
+| `hatchet_tenant_queued_to_assigned`              | Counter   | The total number of unique tasks that were queued and later got assigned to a worker |
+| `hatchet_tenant_queued_to_assigned_time_seconds` | Histogram | Buckets of time in seconds spent in the queue before being assigned to a worker      |
+
+#### Example PromQL Queries
+
+##### 1. Workflow Duration by Tenant and Status
+
+```promql
+rate(hatchet_tenant_workflow_duration_milliseconds_sum[5m])
+by (tenant_id, workflow_name, status)
+/
+rate(hatchet_tenant_workflow_duration_milliseconds_count[5m])
+by (tenant_id, workflow_name, status)
+```
+
+##### 2. Tenant Queue Performance (95th percentile)
+
+```promql
+histogram_quantile(0.95,
+  rate(hatchet_tenant_queued_to_assigned_time_seconds_bucket[5m])
+) by (tenant_id)
+```
+
+##### 3. Tenant Error Rate by Workflow
+
+```promql
+rate(hatchet_tenant_failed_tasks_total[5m]) by (tenant_id)
+/
+rate(hatchet_tenant_created_tasks_total[5m]) by (tenant_id)
+```
+
+##### 4. Tenant Task Throughput
+
+```promql
+rate(hatchet_tenant_succeeded_tasks_total[5m]) by (tenant_id)
+```
+
+##### 5. Tenant Retry Rate
+
+```promql
+rate(hatchet_tenant_retried_tasks_total[5m]) by (tenant_id)
+/
+rate(hatchet_tenant_created_tasks_total[5m]) by (tenant_id)
+```
+
+##### 6. Workflow Duration Distribution by Tenant
+
+```promql
+sum by (tenant_id, le) (
+  rate(hatchet_tenant_workflow_duration_milliseconds_bucket[5m])
+)
+```
+
+##### 7. Tenant Rate Limiting Impact
+
+```promql
+rate(hatchet_tenant_rate_limited[5m]) by (tenant_id)
+```
+
+##### 8. Per-Tenant Queue Utilization
+
+```promql
+rate(hatchet_tenant_queue_invocations_total[5m]) by (tenant_id)
+```
+
+##### 9. Tenant Scheduling Timeouts
+
+```promql
+rate(hatchet_tenant_scheduling_timed_out[5m]) by (tenant_id)
+```
+
+##### 10. Tenant Task Assignment Success Rate
+
+```promql
+rate(hatchet_tenant_assigned_tasks[5m]) by (tenant_id)
+/
+rate(hatchet_tenant_created_tasks_total[5m]) by (tenant_id)
+```
+
+### Cross-Tenant Analysis
+
+#### Example PromQL Queries
+
+##### 1. Top 5 Tenants by Task Volume
+
+```promql
+topk(5,
+  sum by (tenant_id) (
+    rate(hatchet_tenant_created_tasks_total[1h])
+  )
+)
+```
+
+##### 2. Slowest Workflows Across All Tenants
+
+```promql
+topk(10,
+  rate(hatchet_tenant_workflow_duration_milliseconds_sum[5m])
+  /
+  rate(hatchet_tenant_workflow_duration_milliseconds_count[5m])
+) by (tenant_id, workflow_name)
+```
+
+##### 3. Tenant Resource Consumption Comparison
+
+```promql
+sum by (tenant_id) (
+  rate(hatchet_tenant_workflow_duration_milliseconds_sum[1h])
+)
+/ 1000 / 60  # Convert to minutes
+```
+
+### Integration with Prometheus
+
+This endpoint can be used to configure Prometheus to scrape tenant-specific metrics:
+
+```yaml
+scrape_configs:
+  - job_name: "hatchet-tenant-metrics"
+    static_configs:
+      - targets: ["cloud.onhatchet.run"]
+    metrics_path: "/api/v1/tenants/707d0855-80ab-4e1f-a156-f1c4546cbf52/prometheus-metrics"
+    scheme: "https"
+    authorization:
+      credentials: "your-api-token-here"
+```
+
+**Note:** Replace `cloud.onhatchet.run` with the URL where your Hatchet instance is hosted.
+
+This provides tenant-isolated metrics that can be scraped directly by Prometheus or consumed by other monitoring tools that support the Prometheus text format.

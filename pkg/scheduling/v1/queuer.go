@@ -126,6 +126,7 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 		}
 
 		prometheus.QueueInvocations.Inc()
+		prometheus.TenantQueueInvocations.WithLabelValues(q.tenantId.String()).Inc()
 
 		ctx, span := telemetry.NewSpanWithCarrier(ctx, "queue", carrier)
 
@@ -215,6 +216,7 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 
 					for _, assignedItem := range ar.assigned {
 						prometheus.AssignedTasks.Inc()
+						prometheus.TenantAssignedTasks.WithLabelValues(q.tenantId.String()).Inc()
 
 						qi := assignedItem.QueueItem
 
@@ -226,21 +228,25 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 						}
 
 						prometheus.QueuedToAssigned.Inc()
+						prometheus.TenantQueuedToAssigned.WithLabelValues(q.tenantId.String()).Inc()
 
 						timeInQueueSeconds := now.Sub(qi.TaskInsertedAt.Time).Seconds()
 
 						if timeInQueueSeconds > 0 {
 							prometheus.QueuedToAssignedTimeBuckets.Observe(timeInQueueSeconds)
+							prometheus.TenantQueuedToAssignedTimeBuckets.WithLabelValues(q.tenantId.String()).Observe(timeInQueueSeconds)
 						}
 					}
 				}
 
 				for range ar.schedulingTimedOut {
 					prometheus.SchedulingTimedOut.Inc()
+					prometheus.TenantSchedulingTimedOut.WithLabelValues(q.tenantId.String()).Inc()
 				}
 
 				for range ar.rateLimited {
 					prometheus.RateLimited.Inc()
+					prometheus.TenantRateLimited.WithLabelValues(q.tenantId.String()).Inc()
 				}
 			}(r)
 		}

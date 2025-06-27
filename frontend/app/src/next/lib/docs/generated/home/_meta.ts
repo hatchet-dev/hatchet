@@ -176,6 +176,10 @@ const meta = {
     title: 'OpenTelemetry',
     href: '/home/opentelemetry',
   },
+  prometheus_metrics: {
+    title: 'Prometheus Metrics',
+    href: '/home/prometheus-metrics',
+  },
   '--deploying-workers': {
     title: 'Deploying Workers',
     type: 'separator',

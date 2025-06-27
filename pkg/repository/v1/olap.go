@@ -184,6 +184,9 @@ type UpdateTaskStatusRow struct {
 	TaskInsertedAt pgtype.Timestamptz
 	ReadableStatus sqlcv1.V1ReadableStatusOlap
 	ExternalId     pgtype.UUID
+	LatestWorkerId pgtype.UUID
+	WorkflowId     pgtype.UUID
+	IsDAGTask      bool
 }
 
 type UpdateDAGStatusRow struct {
@@ -191,6 +194,7 @@ type UpdateDAGStatusRow struct {
 	DagInsertedAt  pgtype.Timestamptz
 	ReadableStatus sqlcv1.V1ReadableStatusOlap
 	ExternalId     pgtype.UUID
+	WorkflowId     pgtype.UUID
 }
 
 type OLAPRepository interface {
@@ -225,6 +229,9 @@ type OLAPRepository interface {
 	BulkCreateEventsAndTriggers(ctx context.Context, events sqlcv1.BulkCreateEventsParams, triggers []EventTriggersFromExternalId) error
 	ListEvents(ctx context.Context, opts sqlcv1.ListEventsParams) ([]*sqlcv1.ListEventsRow, *int64, error)
 	ListEventKeys(ctx context.Context, tenantId string) ([]string, error)
+
+	GetDagDurationsByDagIds(ctx context.Context, tenantId string, dagIds []int64, dagInsertedAts []pgtype.Timestamptz, readableStatuses []sqlcv1.V1ReadableStatusOlap) ([]*sqlcv1.GetDagDurationsByDagIdsRow, error)
+	GetTaskDurationsByTaskIds(ctx context.Context, tenantId string, taskIds []int64, taskInsertedAts []pgtype.Timestamptz, readableStatuses []sqlcv1.V1ReadableStatusOlap) (map[int64]*sqlcv1.GetTaskDurationsByTaskIdsRow, error)
 }
 
 type OLAPRepositoryImpl struct {
@@ -1145,7 +1152,10 @@ func (r *OLAPRepositoryImpl) UpdateTaskStatuses(ctx context.Context, tenantId st
 
 			if len(statusUpdateRes.TaskIds) != len(statusUpdateRes.TaskInsertedAts) ||
 				len(statusUpdateRes.TaskIds) != len(statusUpdateRes.ReadableStatuses) ||
-				len(statusUpdateRes.TaskIds) != len(statusUpdateRes.ExternalIds) {
+				len(statusUpdateRes.TaskIds) != len(statusUpdateRes.ExternalIds) ||
+				len(statusUpdateRes.TaskIds) != len(statusUpdateRes.LatestWorkerIds) ||
+				len(statusUpdateRes.TaskIds) != len(statusUpdateRes.WorkflowIds) ||
+				len(statusUpdateRes.TaskIds) != len(statusUpdateRes.IsDagTasks) {
 				return fmt.Errorf("mismatched lengths in status update response")
 			}
 
@@ -1155,6 +1165,9 @@ func (r *OLAPRepositoryImpl) UpdateTaskStatuses(ctx context.Context, tenantId st
 					TaskInsertedAt: statusUpdateRes.TaskInsertedAts[i],
 					ReadableStatus: sqlcv1.V1ReadableStatusOlap(statusUpdateRes.ReadableStatuses[i]),
 					ExternalId:     statusUpdateRes.ExternalIds[i],
+					LatestWorkerId: statusUpdateRes.LatestWorkerIds[i],
+					WorkflowId:     statusUpdateRes.WorkflowIds[i],
+					IsDAGTask:      statusUpdateRes.IsDagTasks[i],
 				})
 			}
 
@@ -1223,6 +1236,7 @@ func (r *OLAPRepositoryImpl) UpdateDAGStatuses(ctx context.Context, tenantId str
 					DagInsertedAt:  statusUpdateRes.DagInsertedAts[i],
 					ReadableStatus: sqlcv1.V1ReadableStatusOlap(statusUpdateRes.ReadableStatuses[i]),
 					ExternalId:     statusUpdateRes.ExternalIds[i],
+					WorkflowId:     statusUpdateRes.WorkflowIds[i],
 				})
 			}
 
@@ -1556,4 +1570,33 @@ func (r *OLAPRepositoryImpl) ListEventKeys(ctx context.Context, tenantId string)
 	}
 
 	return keys, nil
+}
+
+func (r *OLAPRepositoryImpl) GetDagDurationsByDagIds(ctx context.Context, tenantId string, dagIds []int64, dagInsertedAts []pgtype.Timestamptz, readableStatuses []sqlcv1.V1ReadableStatusOlap) ([]*sqlcv1.GetDagDurationsByDagIdsRow, error) {
+	return r.queries.GetDagDurationsByDagIds(ctx, r.readPool, sqlcv1.GetDagDurationsByDagIdsParams{
+		Dagids:           dagIds,
+		Daginsertedats:   dagInsertedAts,
+		Tenantid:         sqlchelpers.UUIDFromStr(tenantId),
+		Readablestatuses: readableStatuses,
+	})
+}
+
+func (r *OLAPRepositoryImpl) GetTaskDurationsByTaskIds(ctx context.Context, tenantId string, taskIds []int64, taskInsertedAts []pgtype.Timestamptz, readableStatuses []sqlcv1.V1ReadableStatusOlap) (map[int64]*sqlcv1.GetTaskDurationsByTaskIdsRow, error) {
+	rows, err := r.queries.GetTaskDurationsByTaskIds(ctx, r.readPool, sqlcv1.GetTaskDurationsByTaskIdsParams{
+		Taskids:          taskIds,
+		Taskinsertedats:  taskInsertedAts,
+		Tenantid:         sqlchelpers.UUIDFromStr(tenantId),
+		Readablestatuses: readableStatuses,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	taskDurations := make(map[int64]*sqlcv1.GetTaskDurationsByTaskIdsRow)
+
+	for i, row := range rows {
+		taskDurations[taskIds[i]] = row
+	}
+
+	return taskDurations, nil
 }

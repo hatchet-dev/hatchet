@@ -322,7 +322,7 @@ type EncryptionConfigFile struct {
 	JWT EncryptionConfigFileJWT `mapstructure:"jwt" json:"jwt,omitempty"`
 
 	// CloudKMS is the configuration for Google Cloud KMS. You must set either MasterKeyset or cloudKms.enabled.
-	CloudKMS EncryptionConfigFileCloudKMS `mapstructure:"cloudKms" json:"cloudKms,omitempty"`
+	CloudKMS EncryptionConfigFileCloudKMS `mapstructure:"cloudKms" json:"cloudKMS,omitempty"`
 }
 
 type EncryptionConfigFileJWT struct {
@@ -746,6 +746,9 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("otel.insecure", "SERVER_OTEL_INSECURE")
 
 	// prometheus options
+	_ = v.BindEnv("prometheus.prometheusServerURL", "SERVER_PROMETHEUS_SERVER_URL")
+	_ = v.BindEnv("prometheus.prometheusServerUsername", "SERVER_PROMETHEUS_SERVER_USERNAME")
+	_ = v.BindEnv("prometheus.prometheusServerPassword", "SERVER_PROMETHEUS_SERVER_PASSWORD")
 	_ = v.BindEnv("prometheus.enabled", "SERVER_PROMETHEUS_ENABLED")
 	_ = v.BindEnv("prometheus.address", "SERVER_PROMETHEUS_ADDRESS")
 	_ = v.BindEnv("prometheus.path", "SERVER_PROMETHEUS_PATH")

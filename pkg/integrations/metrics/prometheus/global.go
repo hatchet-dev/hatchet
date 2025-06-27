@@ -15,11 +15,11 @@ const (
 	FailedTasksTotal            GlobalHatchetMetric = "hatchet_failed_tasks_total"
 	SkippedTasksTotal           GlobalHatchetMetric = "hatchet_skipped_tasks_total"
 	CancelledTasksTotal         GlobalHatchetMetric = "hatchet_cancelled_tasks_total"
-	AssignedTasksTotal          GlobalHatchetMetric = "hatchet_assigned_tasks_total"
-	SchedulingTimedOutTotal     GlobalHatchetMetric = "hatchet_scheduling_timed_out_total"
-	RateLimitedTotal            GlobalHatchetMetric = "hatchet_rate_limited_total"
-	QueuedToAssignedTotal       GlobalHatchetMetric = "hatchet_queued_to_assigned_total"
-	QueuedToAssignedTimeSeconds GlobalHatchetMetric = "hatchet_queued_to_assigned_seconds"
+	AssignedTasksTotal          GlobalHatchetMetric = "hatchet_assigned_tasks"
+	SchedulingTimedOutTotal     GlobalHatchetMetric = "hatchet_scheduling_timed_out"
+	RateLimitedTotal            GlobalHatchetMetric = "hatchet_rate_limited"
+	QueuedToAssignedTotal       GlobalHatchetMetric = "hatchet_queued_to_assigned"
+	QueuedToAssignedTimeSeconds GlobalHatchetMetric = "hatchet_queued_to_assigned_time_seconds"
 )
 
 var (
