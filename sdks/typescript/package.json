@@ -37,7 +37,8 @@
     "publish:ci": "rm -rf ./dist && npm run dump-version && npm run tsc:build && npm run prepublish && cd dist && npm publish --access public --no-git-checks",
     "publish:ci:alpha": "rm -rf ./dist && npm run dump-version && npm run tsc:build && npm run prepublish && cd dist && npm publish --access public --no-git-checks --tag alpha",
     "generate-docs": "typedoc",
-    "exec": "npx dotenv -- ts-node -r tsconfig-paths/register --project tsconfig.json"
+    "exec": "npx dotenv -- ts-node -r tsconfig-paths/register --project tsconfig.json",
+    "next-streaming-example": "pnpm exec next dev src/v1/examples/streaming/nextjs"
   },
   "keywords": [],
   "author": "",
@@ -75,7 +76,16 @@
     "ts-proto": "^2.7.0",
     "typedoc": "^0.28.0",
     "typedoc-plugin-markdown": "^4.6.0",
-    "typescript": "^5.8.2"
+    "next": "15.3.4",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "@eslint/eslintrc": "^3",
+    "@tailwindcss/postcss": "^4",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint-config-next": "15.3.4",
+    "tailwindcss": "^4",
+    "typescript": "^5"
   },
   "dependencies": {
     "@bufbuild/protobuf": "^2.2.5",
