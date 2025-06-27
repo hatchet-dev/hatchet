@@ -1,3 +1,5 @@
+/* eslint-disable no-param-reassign */
+
 import type { NextConfig } from 'next';
 import path from 'path';
 
