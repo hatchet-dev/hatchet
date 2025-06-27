@@ -6,7 +6,7 @@
 app
 !frontend/app
 !sdks/typescript/src/v1/examples/streaming/nextjs/src/app
-!frontend/app/src/next/lib/docs/generated/snips/typescript/streaming/nextjs/src/app/
+!**/generated/snips/typescript/streaming/nextjs/src/app/** */
 *.db
 test.yaml
 dist
