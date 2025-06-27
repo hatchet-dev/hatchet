@@ -1,4 +1,5 @@
 {
+  "extends": "../../../../../tsconfig.json",
   "compilerOptions": {
     "target": "ES2017",
     "lib": ["dom", "dom.iterable", "esnext"],
@@ -17,13 +18,7 @@
       {
         "name": "next"
       }
-    ],
-    "baseUrl": "../../../../../../",
-    "paths": {
-      "@hatchet/v1": ["src/v1/index"],
-      "@hatchet/v1/*": ["src/v1/*"],
-      "@hatchet-dev/typescript-sdk/*": ["src/*"]
-    }
+    ]
   },
   "include": ["next-env.d.ts", ".next/types/**/*.ts", "**/*.ts", "**/*.tsx"],
   "exclude": ["node_modules"]
