@@ -30,7 +30,7 @@ async def test_streaming_ordering_and_completeness(
     ix = 0
     anna_karenina = ""
 
-    async for chunk in hatchet.subscribe_to_stream(ref.workflow_run_id):
+    async for chunk in hatchet.runs.subscribe_to_stream(ref.workflow_run_id):
         assert chunks[ix] == chunk
         ix += 1
         anna_karenina += chunk

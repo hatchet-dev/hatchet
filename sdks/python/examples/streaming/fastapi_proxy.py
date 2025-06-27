@@ -16,7 +16,7 @@ async def stream() -> StreamingResponse:
     ref = await stream_task.aio_run_no_wait()
 
     return StreamingResponse(
-        hatchet.subscribe_to_stream(ref.workflow_run_id), media_type="text/plain"
+        hatchet.runs.subscribe_to_stream(ref.workflow_run_id), media_type="text/plain"
     )
 
 
