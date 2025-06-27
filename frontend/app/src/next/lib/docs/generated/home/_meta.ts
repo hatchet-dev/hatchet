@@ -196,14 +196,17 @@ const meta = {
     title: 'Worker Health Checks',
     href: '/home/worker-healthchecks',
   },
-  '--cancellation': {
-    title: 'Cancellation',
+  '--advanced-tasks': {
+    title: 'Advanced Task Features',
     type: 'separator',
-    display: 'hidden',
   },
   cancellation: {
     title: 'Cancellation',
     href: '/home/cancellation',
+  },
+  streaming: {
+    title: 'Streaming',
+    href: '/home/streaming',
   },
   '--v1-migration-guides': {
     title: 'V1 Migration Guides',
