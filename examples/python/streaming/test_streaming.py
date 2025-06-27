@@ -30,11 +30,10 @@ async def test_streaming_ordering_and_completeness(
     ix = 0
     anna_karenina = ""
 
-    async for chunk in ref.stream():
-        if chunk.type == StepRunEventType.STEP_RUN_EVENT_TYPE_STREAM:
-            assert chunks[ix] == chunk.payload
-            ix += 1
-            anna_karenina += chunk.payload
+    async for chunk in hatchet.subscribe_to_stream(ref.workflow_run_id):
+        assert chunks[ix] == chunk
+        ix += 1
+        anna_karenina += chunk
 
     assert ix == len(chunks)
     assert anna_karenina == "".join(chunks)
