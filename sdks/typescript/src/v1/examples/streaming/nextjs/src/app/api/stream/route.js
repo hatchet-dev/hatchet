@@ -7,7 +7,6 @@ export async function GET() {
     const ref = await streamingTask.runNoWait({});
     const workflowRunId = await ref.getWorkflowRunId();
 
-    const encoder = new TextEncoder();
     const stream = Readable.from(hatchet.runs.subscribeToStream(workflowRunId));
 
     return new Response(Readable.toWeb(stream), {
