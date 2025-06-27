@@ -1,3 +1,4 @@
+import { Readable } from 'stream';
 import { hatchet } from '../../../../../../hatchet-client';
 import { streamingTask } from '../../../../../workflow';
 
@@ -7,27 +8,9 @@ export async function GET() {
     const workflowRunId = await ref.getWorkflowRunId();
 
     const encoder = new TextEncoder();
-    const stream = new ReadableStream({
-      async start(controller) {
-        try {
-          let chunkCount = 0;
-          for await (const content of hatchet.runs.subscribeToStream(workflowRunId)) {
-            console.log(`Received chunk ${chunkCount + 1}:`, content);
-            chunkCount += 1;
+    const stream = Readable.from(hatchet.runs.subscribeToStream(workflowRunId));
 
-            controller.enqueue(encoder.encode(content));
-          }
-
-          console.log(`Stream completed with ${chunkCount} chunks.`);
-
-          controller.close();
-        } catch (error) {
-          controller.error(error);
-        }
-      },
-    });
-
-    return new Response(stream, {
+    return new Response(Readable.toWeb(stream), {
       headers: {
         'Content-Type': 'text/plain',
         'Cache-Control': 'no-cache',
