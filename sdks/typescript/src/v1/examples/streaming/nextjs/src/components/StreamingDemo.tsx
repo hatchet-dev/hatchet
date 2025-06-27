@@ -28,13 +28,17 @@ export default function StreamingDemo() {
 
       const decoder = new TextDecoder();
 
-      while (true) {
-        const { done, value } = await reader.read();
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
 
-        if (done) break;
+          if (done) break;
 
-        const chunk = decoder.decode(value, { stream: true });
-        setStreamContent((prev) => prev + chunk);
+          const chunk = decoder.decode(value, { stream: true });
+          setStreamContent((prev) => prev + chunk);
+        }
+      } finally {
+        reader.releaseLock();
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
@@ -50,17 +54,13 @@ export default function StreamingDemo() {
 
   return (
     <div className="w-full max-w-2xl mx-auto">
-      {/* Main Card */}
       <div className="bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden">
-        {/* Header */}
         <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-8 py-6">
           <h1 className="text-2xl font-bold text-white mb-2">Hatchet Streaming</h1>
           <p className="text-blue-100 text-sm">Real-time workflow streaming with Next.js</p>
         </div>
 
-        {/* Content */}
         <div className="p-8 space-y-6">
-          {/* Action Buttons */}
           <div className="flex gap-3 justify-center">
             <button
               onClick={startStreaming}
@@ -82,7 +82,6 @@ export default function StreamingDemo() {
             </button>
           </div>
 
-          {/* Error Display */}
           {error && (
             <div className="p-4 bg-red-50 border border-red-200 text-red-700 rounded-lg">
               <div className="flex items-center gap-2">
@@ -98,7 +97,6 @@ export default function StreamingDemo() {
             </div>
           )}
 
-          {/* Stream Output */}
           <div className="relative">
             <div className="bg-slate-900 rounded-lg p-6 min-h-[300px] overflow-hidden">
               <div className="flex items-center gap-2 mb-4">
@@ -130,7 +128,6 @@ export default function StreamingDemo() {
             </div>
           </div>
 
-          {/* Status Indicator */}
           {isStreaming && (
             <div className="flex items-center justify-center gap-3 text-sm text-slate-600">
               <div className="flex items-center gap-2">
