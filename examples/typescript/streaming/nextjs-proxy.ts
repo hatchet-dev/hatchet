@@ -1,6 +1,6 @@
 import { Readable } from 'stream';
-import { hatchet } from '../../../../../../hatchet-client';
-import { streamingTask } from '../../../../../workflow';
+import { hatchet } from '../hatchet-client';
+import { streamingTask } from './workflow';
 
 // > NextJS Proxy
 export async function GET() {
@@ -22,4 +22,3 @@ export async function GET() {
     return new Response('Internal Server Error', { status: 500 });
   }
 }
-// !!
