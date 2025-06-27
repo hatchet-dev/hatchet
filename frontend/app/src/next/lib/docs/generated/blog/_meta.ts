@@ -1,5 +1,9 @@
 // Generated from frontend/docs/pages/blog/_meta.js
 const meta = {
+  background_tasks_fastapi_hatchet: {
+    title: 'Background Tasks: From FastAPI to Hatchet',
+    href: '/blog/background-tasks-fastapi-hatchet',
+  },
   go_agents: {
     title: 'Why Go is a good fit for agents',
     href: '/blog/go-agents',
