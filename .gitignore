@@ -5,6 +5,7 @@
 *.pem
 app
 !frontend/app
+!sdks/typescript/src/v1/examples/streaming/nextjs/src/app
 *.db
 test.yaml
 dist
