@@ -1,5 +1,3 @@
-import asyncio
-from datetime import datetime, timedelta, timezone
 from subprocess import Popen
 from typing import Any
 
@@ -7,10 +5,7 @@ import pytest
 
 from examples.streaming.worker import chunks, stream_task
 from hatchet_sdk import Hatchet
-from hatchet_sdk.clients.listeners.run_event_listener import (
-    StepRunEvent,
-    StepRunEventType,
-)
+from hatchet_sdk.clients.listeners.run_event_listener import StepRunEventType
 
 
 @pytest.mark.parametrize(

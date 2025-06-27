@@ -93,13 +93,15 @@ export default {
   docker: "Running with Docker",
   compute: "Managed Compute",
   "worker-healthchecks": "Worker Health Checks",
-  "--cancellation": {
-    title: "Cancellation",
+  "--advanced-tasks": {
+    title: "Advanced Task Features",
     type: "separator",
-    display: "hidden",
   },
   cancellation: {
     title: "Cancellation",
+  },
+  streaming: {
+    title: "Streaming",
   },
   "--v1-migration-guides": {
     title: "V1 Migration Guides",

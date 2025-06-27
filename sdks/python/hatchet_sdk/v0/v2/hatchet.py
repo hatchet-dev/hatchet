@@ -1,11 +1,11 @@
 from typing import Any, Callable, TypeVar, Union
 
-from hatchet_sdk.v0 import Worker
-from hatchet_sdk.v0.context.context import Context
-from hatchet_sdk.v0.contracts.workflows_pb2 import (  # type: ignore[attr-defined]
+from hatchet_sdk.contracts.workflows_pb2 import (  # type: ignore[attr-defined]
     ConcurrencyLimitStrategy,
     StickyStrategy,
 )
+from hatchet_sdk.v0 import Worker
+from hatchet_sdk.v0.context.context import Context
 from hatchet_sdk.v0.hatchet import Hatchet as HatchetV1
 from hatchet_sdk.v0.hatchet import workflow
 from hatchet_sdk.v0.labels import DesiredWorkerLabel

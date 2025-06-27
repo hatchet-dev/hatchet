@@ -814,8 +814,8 @@ type SemaphoreSlots struct {
 	ActionId string `json:"actionId"`
 
 	// StartedAt The time this slot was started.
-	StartedAt *time.Time    `json:"startedAt,omitempty"`
-	Status    StepRunStatus `json:"status"`
+	StartedAt *time.Time     `json:"startedAt,omitempty"`
+	Status    *StepRunStatus `json:"status,omitempty"`
 
 	// StepRunId The step run id.
 	StepRunId openapi_types.UUID `json:"stepRunId"`

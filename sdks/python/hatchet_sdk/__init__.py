@@ -7,6 +7,7 @@ from hatchet_sdk.clients.listeners.durable_event_listener import (
     RegisterDurableEventRequest,
 )
 from hatchet_sdk.clients.listeners.run_event_listener import (
+    RunEventListener,
     StepRunEventType,
     WorkflowRunEventType,
 )
@@ -140,6 +141,7 @@ from hatchet_sdk.contracts.workflows_pb2 import (
 from hatchet_sdk.exceptions import (
     DedupeViolationError,
     FailedTaskRunExceptionGroup,
+    NonRetryableException,
     TaskRunError,
 )
 from hatchet_sdk.features.runs import BulkCancelReplayOpts, RunFilter
@@ -154,6 +156,7 @@ from hatchet_sdk.runnables.types import (
     TaskDefaults,
     WorkflowConfig,
 )
+from hatchet_sdk.runnables.workflow import TaskRunRef
 from hatchet_sdk.utils.opentelemetry import OTelAttribute
 from hatchet_sdk.waits import (
     Condition,
@@ -164,6 +167,7 @@ from hatchet_sdk.waits import (
     or_,
 )
 from hatchet_sdk.worker.worker import Worker, WorkerStartOptions, WorkerStatus
+from hatchet_sdk.workflow_run import WorkflowRunRef
 
 __all__ = [
     "APIError",
@@ -216,6 +220,7 @@ __all__ = [
     "LogLineList",
     "LogLineOrderByDirection",
     "LogLineOrderByField",
+    "NonRetryableException",
     "OTelAttribute",
     "OpenTelemetryConfig",
     "OrGroup",
@@ -229,6 +234,7 @@ __all__ = [
     "RejectInviteRequest",
     "ReplayEventRequest",
     "RerunStepRunRequest",
+    "RunEventListener",
     "RunFilter",
     "ScheduleTriggerWorkflowOptions",
     "SleepCondition",
@@ -240,6 +246,7 @@ __all__ = [
     "Task",
     "TaskDefaults",
     "TaskRunError",
+    "TaskRunRef",
     "Tenant",
     "TenantInvite",
     "TenantInviteList",
@@ -272,6 +279,7 @@ __all__ = [
     "WorkflowRun",
     "WorkflowRunEventType",
     "WorkflowRunList",
+    "WorkflowRunRef",
     "WorkflowRunStatus",
     "WorkflowRunTriggeredBy",
     "WorkflowTag",

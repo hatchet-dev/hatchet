@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "hatchet-sdk"
-version = "1.13.0"
+version = "1.14.0"
 description = ""
 authors = ["Alexander Belanger <alexander@hatchet.run>"]
 readme = "README.md"
@@ -63,6 +63,8 @@ markdownify = "^1.1.0"
 openai = "^1.75.0"
 bs4 = "^0.0.2"
 types-beautifulsoup4 = "^4.12.0.20250204"
+fastapi = "^0.115.14"
+uvicorn = "^0.34.3"
 
 [tool.poetry.extras]
 otel = [

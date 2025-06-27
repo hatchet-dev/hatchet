@@ -6,16 +6,16 @@ from typing import AsyncGenerator
 import grpc
 from grpc._cython import cygrpc
 
-from hatchet_sdk.v0.clients.event_ts import ThreadSafeEvent, read_with_interrupt
-from hatchet_sdk.v0.connection import new_conn
-from hatchet_sdk.v0.contracts.dispatcher_pb2 import (
+from hatchet_sdk.contracts.dispatcher_pb2 import (
     SubscribeToWorkflowRunsRequest,
     WorkflowRunEvent,
 )
-from hatchet_sdk.v0.contracts.dispatcher_pb2_grpc import DispatcherStub
+from hatchet_sdk.contracts.dispatcher_pb2_grpc import DispatcherStub
+from hatchet_sdk.v0.clients.event_ts import ThreadSafeEvent, read_with_interrupt
+from hatchet_sdk.v0.connection import new_conn
 
+from ...logger import logger
 from ..loader import ClientConfig
-from ..logger import logger
 from ..metadata import get_metadata
 
 DEFAULT_WORKFLOW_LISTENER_RETRY_INTERVAL = 3  # seconds

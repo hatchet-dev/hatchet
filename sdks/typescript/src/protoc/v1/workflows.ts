@@ -293,7 +293,7 @@ export interface DefaultFilter {
   /** (required) the scope of the filter */
   scope: string;
   /** (optional) the payload for the filter, if any. A JSON object as a string. */
-  payload?: string | undefined;
+  payload?: Uint8Array | undefined;
 }
 
 export interface Concurrency {
@@ -1287,7 +1287,7 @@ export const DefaultFilter: MessageFns<DefaultFilter> = {
       writer.uint32(18).string(message.scope);
     }
     if (message.payload !== undefined) {
-      writer.uint32(26).string(message.payload);
+      writer.uint32(26).bytes(message.payload);
     }
     return writer;
   },
@@ -1320,7 +1320,7 @@ export const DefaultFilter: MessageFns<DefaultFilter> = {
             break;
           }
 
-          message.payload = reader.string();
+          message.payload = reader.bytes();
           continue;
         }
       }
@@ -1336,7 +1336,7 @@ export const DefaultFilter: MessageFns<DefaultFilter> = {
     return {
       expression: isSet(object.expression) ? globalThis.String(object.expression) : '',
       scope: isSet(object.scope) ? globalThis.String(object.scope) : '',
-      payload: isSet(object.payload) ? globalThis.String(object.payload) : undefined,
+      payload: isSet(object.payload) ? bytesFromBase64(object.payload) : undefined,
     };
   },
 
@@ -1349,7 +1349,7 @@ export const DefaultFilter: MessageFns<DefaultFilter> = {
       obj.scope = message.scope;
     }
     if (message.payload !== undefined) {
-      obj.payload = message.payload;
+      obj.payload = base64FromBytes(message.payload);
     }
     return obj;
   },

@@ -923,7 +923,7 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsByWorkflowRunIdV1(workflowRunI
 					}
 
 					isWorkflowRunCompletedEvent := e.ResourceType == contracts.ResourceType_RESOURCE_TYPE_WORKFLOW_RUN &&
-						e.EventType == contracts.ResourceEventType_RESOURCE_EVENT_TYPE_COMPLETED
+						(e.EventType == contracts.ResourceEventType_RESOURCE_EVENT_TYPE_COMPLETED || e.EventType == contracts.ResourceEventType_RESOURCE_EVENT_TYPE_FAILED || e.EventType == contracts.ResourceEventType_RESOURCE_EVENT_TYPE_CANCELLED)
 
 					if isWorkflowRunCompletedEvent {
 						e.Hangup = true
