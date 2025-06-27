@@ -1,10 +1,14 @@
 import asyncio
+from collections.abc import AsyncIterator
 from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING, Literal, overload
 
 from pydantic import BaseModel, model_validator
 
-from hatchet_sdk.clients.listeners.run_event_listener import RunEventListenerClient
+from hatchet_sdk.clients.listeners.run_event_listener import (
+    RunEventListenerClient,
+    StepRunEventType,
+)
 from hatchet_sdk.clients.listeners.workflow_listener import PooledWorkflowRunListener
 from hatchet_sdk.clients.rest.api.task_api import TaskApi
 from hatchet_sdk.clients.rest.api.workflow_runs_api import WorkflowRunsApi
@@ -413,3 +417,13 @@ class RunsClient(BaseRestClient):
             workflow_run_listener=self.workflow_run_listener,
             runs_client=self,
         )
+
+    async def subscribe_to_stream(
+        self,
+        workflow_run_id: str,
+    ) -> AsyncIterator[str]:
+        ref = self.get_run_ref(workflow_run_id=workflow_run_id)
+
+        async for chunk in ref.stream():
+            if chunk.type == StepRunEventType.STEP_RUN_EVENT_TYPE_STREAM:
+                yield chunk.payload
