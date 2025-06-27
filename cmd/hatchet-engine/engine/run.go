@@ -376,7 +376,6 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			olap.WithTenantAlertManager(sc.TenantAlerter),
 			olap.WithSamplingConfig(sc.Sampling),
 			olap.WithOperationsConfig(sc.Operations),
-			olap.WithPrometheusMetricsEnabled(sc.Prometheus.Enabled),
 		)
 
 		if err != nil {
@@ -829,6 +828,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 				olap.WithTenantAlertManager(sc.TenantAlerter),
 				olap.WithSamplingConfig(sc.Sampling),
 				olap.WithOperationsConfig(sc.Operations),
+				olap.WithPrometheusMetricsEnabled(sc.Prometheus.Enabled),
 			)
 
 			if err != nil {
