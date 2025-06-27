@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from collections.abc import Callable
+from collections.abc import AsyncIterator, Callable
 from datetime import timedelta
 from functools import cached_property
 from typing import Any, cast, overload
@@ -9,7 +9,10 @@ from hatchet_sdk import Context, DurableContext
 from hatchet_sdk.client import Client
 from hatchet_sdk.clients.dispatcher.dispatcher import DispatcherClient
 from hatchet_sdk.clients.events import EventClient
-from hatchet_sdk.clients.listeners.run_event_listener import RunEventListenerClient
+from hatchet_sdk.clients.listeners.run_event_listener import (
+    RunEventListenerClient,
+    StepRunEventType,
+)
 from hatchet_sdk.clients.rest.models.tenant_version import TenantVersion
 from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.features.cron import CronClient
@@ -38,6 +41,7 @@ from hatchet_sdk.runnables.workflow import BaseWorkflow, Standalone, Workflow
 from hatchet_sdk.utils.timedelta_to_expression import Duration
 from hatchet_sdk.utils.typing import CoroutineLike
 from hatchet_sdk.worker.worker import LifespanFn, Worker
+from hatchet_sdk.workflow_run import WorkflowRunRef
 
 
 class Hatchet:
@@ -658,3 +662,18 @@ class Hatchet:
             )
 
         return inner
+
+    async def subscribe_to_stream(
+        self,
+        workflow_run_id: str,
+    ) -> AsyncIterator[str]:
+        ref = WorkflowRunRef(
+            workflow_run_id=workflow_run_id,
+            workflow_run_event_listener=self.listener,
+            workflow_run_listener=self._client.workflow_listener,
+            runs_client=self.runs,
+        )
+
+        async for chunk in ref.stream():
+            if chunk.type == StepRunEventType.STEP_RUN_EVENT_TYPE_STREAM:
+                yield chunk.payload
