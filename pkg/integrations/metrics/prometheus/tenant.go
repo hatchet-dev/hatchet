@@ -8,12 +8,19 @@ import (
 type TenantHatchetMetric string
 
 const (
-	TenantWorkflowDurationMilliseconds TenantHatchetMetric = "tenant_workflow_duration_milliseconds"
-	TenantAssignedTasksTotal           TenantHatchetMetric = "tenant_assigned_tasks"
-	TenantSchedulingTimedOutTotal      TenantHatchetMetric = "tenant_scheduling_timed_out"
-	TenantRateLimitedTotal             TenantHatchetMetric = "tenant_rate_limited"
-	TenantQueuedToAssignedTotal        TenantHatchetMetric = "tenant_queued_to_assigned"
-	TenantQueuedToAssignedTimeSeconds  TenantHatchetMetric = "tenant_queued_to_assigned_time_seconds"
+	TenantWorkflowDurationMilliseconds TenantHatchetMetric = "hatchet_tenant_workflow_duration_milliseconds"
+	TenantAssignedTasksTotal           TenantHatchetMetric = "hatchet_tenant_assigned_tasks"
+	TenantSchedulingTimedOutTotal      TenantHatchetMetric = "hatchet_tenant_scheduling_timed_out"
+	TenantRateLimitedTotal             TenantHatchetMetric = "hatchet_tenant_rate_limited"
+	TenantQueuedToAssignedTotal        TenantHatchetMetric = "hatchet_tenant_queued_to_assigned"
+	TenantQueuedToAssignedTimeSeconds  TenantHatchetMetric = "hatchet_tenant_queued_to_assigned_time_seconds"
+	TenantQueueInvocationsTotal        TenantHatchetMetric = "hatchet_tenant_queue_invocations"
+	TenantCreatedTasksTotal            TenantHatchetMetric = "hatchet_tenant_created_tasks"
+	TenantRetriedTasksTotal            TenantHatchetMetric = "hatchet_tenant_retried_tasks"
+	TenantSucceededTasksTotal          TenantHatchetMetric = "hatchet_tenant_succeeded_tasks"
+	TenantFailedTasksTotal             TenantHatchetMetric = "hatchet_tenant_failed_tasks"
+	TenantSkippedTasksTotal            TenantHatchetMetric = "hatchet_tenant_skipped_tasks"
+	TenantCancelledTasksTotal          TenantHatchetMetric = "hatchet_tenant_cancelled_tasks"
 )
 
 var (
@@ -52,6 +59,41 @@ var (
 			86400000, // 24hr
 		},
 	}, []string{"tenant_id", "workflow_name", "status"})
+
+	TenantQueueInvocations = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: string(TenantQueueInvocationsTotal),
+		Help: "The total number of invocations of the queuer function",
+	}, []string{"tenant_id"})
+
+	TenantCreatedTasks = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: string(TenantCreatedTasksTotal),
+		Help: "The total number of tasks created",
+	}, []string{"tenant_id"})
+
+	TenantRetriedTasks = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: string(TenantRetriedTasksTotal),
+		Help: "The total number of tasks retried",
+	}, []string{"tenant_id"})
+
+	TenantSucceededTasks = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: string(TenantSucceededTasksTotal),
+		Help: "The total number of tasks that succeeded",
+	}, []string{"tenant_id"})
+
+	TenantFailedTasks = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: string(TenantFailedTasksTotal),
+		Help: "The total number of tasks that failed (in a final state, not including retries)",
+	}, []string{"tenant_id"})
+
+	TenantSkippedTasks = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: string(TenantSkippedTasksTotal),
+		Help: "The total number of tasks that were skipped",
+	}, []string{"tenant_id"})
+
+	TenantCancelledTasks = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: string(TenantCancelledTasksTotal),
+		Help: "The total number of tasks cancelled",
+	}, []string{"tenant_id"})
 
 	TenantAssignedTasks = promauto.NewCounterVec(prometheus.CounterOpts{
 		Name: string(TenantAssignedTasksTotal),

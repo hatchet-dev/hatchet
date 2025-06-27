@@ -20,7 +20,7 @@ func (t *TenantService) TenantGetPrometheusMetrics(ctx echo.Context, request gen
 
 	// connect to the prometheus server
 	if t.config.Prometheus.PrometheusServerAddress != "" {
-		endpoint := fmt.Sprintf("%s/federate?match[]={tenant_id=\"%s\"}", t.config.Prometheus.PrometheusServerAddress, tenantId)
+		endpoint := fmt.Sprintf("http://%s/federate?match[]={tenant_id=\"%s\"}", t.config.Prometheus.PrometheusServerAddress, tenantId)
 
 		req, err := http.NewRequestWithContext(ctx.Request().Context(), "GET", endpoint, nil)
 		if err != nil {

@@ -45,7 +45,6 @@ func (o *OLAPControllerImpl) updateTaskStatuses(ctx context.Context, tenantId st
 	}
 
 	payloads := make([]tasktypes.NotifyFinalizedPayload, 0, len(rows))
-
 	workflowIds := make([]pgtype.UUID, 0, len(rows))
 	workerIds := make([]pgtype.UUID, 0, len(rows))
 	taskIds := make([]int64, 0, len(rows))
@@ -69,31 +68,33 @@ func (o *OLAPControllerImpl) updateTaskStatuses(ctx context.Context, tenantId st
 		readableStatuses = append(readableStatuses, row.ReadableStatus)
 	}
 
-	workflowNames, err := o.repo.Workflows().ListWorkflowNamesByIds(ctx, tenantId, workflowIds)
-	if err != nil {
-		return false, err
-	}
+	if o.prometheusMetricsEnabled {
+		workflowNames, err := o.repo.Workflows().ListWorkflowNamesByIds(ctx, tenantId, workflowIds)
+		if err != nil {
+			return false, err
+		}
 
-	taskDurations, err := o.repo.OLAP().GetTaskDurationsByTaskIds(ctx, tenantId, taskIds, taskInsertedAts, readableStatuses)
-	if err != nil {
-		return false, err
-	}
+		taskDurations, err := o.repo.OLAP().GetTaskDurationsByTaskIds(ctx, tenantId, taskIds, taskInsertedAts, readableStatuses)
+		if err != nil {
+			return false, err
+		}
 
-	for _, row := range rows {
-		// Only track metrics for standalone tasks, not tasks within DAGs
-		// DAG-level metrics are tracked in process_dag_status_updates.go
-		if !row.IsDAGTask {
-			workflowName := workflowNames[row.WorkflowId]
-			if workflowName == "" {
-				continue
+		for _, row := range rows {
+			// Only track metrics for standalone tasks, not tasks within DAGs
+			// DAG-level metrics are tracked in process_dag_status_updates.go
+			if !row.IsDAGTask {
+				workflowName := workflowNames[row.WorkflowId]
+				if workflowName == "" {
+					continue
+				}
+
+				taskDuration := taskDurations[row.TaskId]
+				if taskDuration == nil || !taskDuration.StartedAt.Valid || !taskDuration.FinishedAt.Valid {
+					continue
+				}
+
+				prometheus.TenantWorkflowDurationBuckets.WithLabelValues(tenantId, workflowName, string(row.ReadableStatus)).Observe(float64(taskDuration.FinishedAt.Time.Sub(taskDuration.StartedAt.Time).Milliseconds()))
 			}
-
-			taskDuration := taskDurations[row.TaskId]
-			if taskDuration == nil || !taskDuration.StartedAt.Valid || !taskDuration.FinishedAt.Valid {
-				continue
-			}
-
-			prometheus.TenantWorkflowDurationBuckets.WithLabelValues(tenantId, workflowName, string(row.ReadableStatus)).Observe(float64(taskDuration.FinishedAt.Time.Sub(taskDuration.StartedAt.Time).Milliseconds()))
 		}
 	}
 

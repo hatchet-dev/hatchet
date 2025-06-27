@@ -45,20 +45,22 @@ type OLAPControllerImpl struct {
 	processTenantAlertOperations *queueutils.OperationPool
 	samplingHashThreshold        *int64
 	olapConfig                   *server.ConfigFileOperations
+	prometheusMetricsEnabled     bool
 }
 
 type OLAPControllerOpt func(*OLAPControllerOpts)
 
 type OLAPControllerOpts struct {
-	mq                    msgqueue.MessageQueue
-	l                     *zerolog.Logger
-	repo                  v1.Repository
-	dv                    datautils.DataDecoderValidator
-	alerter               hatcheterrors.Alerter
-	p                     *partition.Partition
-	ta                    *alerting.TenantAlertManager
-	samplingHashThreshold *int64
-	olapConfig            *server.ConfigFileOperations
+	mq                       msgqueue.MessageQueue
+	l                        *zerolog.Logger
+	repo                     v1.Repository
+	dv                       datautils.DataDecoderValidator
+	alerter                  hatcheterrors.Alerter
+	p                        *partition.Partition
+	ta                       *alerting.TenantAlertManager
+	samplingHashThreshold    *int64
+	olapConfig               *server.ConfigFileOperations
+	prometheusMetricsEnabled bool
 }
 
 func defaultOLAPControllerOpts() *OLAPControllerOpts {
@@ -66,9 +68,10 @@ func defaultOLAPControllerOpts() *OLAPControllerOpts {
 	alerter := hatcheterrors.NoOpAlerter{}
 
 	return &OLAPControllerOpts{
-		l:       &l,
-		dv:      datautils.NewDataDecoderValidator(),
-		alerter: alerter,
+		l:                        &l,
+		dv:                       datautils.NewDataDecoderValidator(),
+		alerter:                  alerter,
+		prometheusMetricsEnabled: false,
 	}
 }
 
@@ -131,6 +134,12 @@ func WithOperationsConfig(c server.ConfigFileOperations) OLAPControllerOpt {
 	}
 }
 
+func WithPrometheusMetricsEnabled(enabled bool) OLAPControllerOpt {
+	return func(opts *OLAPControllerOpts) {
+		opts.prometheusMetricsEnabled = enabled
+	}
+}
+
 func New(fs ...OLAPControllerOpt) (*OLAPControllerImpl, error) {
 	opts := defaultOLAPControllerOpts()
 
@@ -167,16 +176,17 @@ func New(fs ...OLAPControllerOpt) (*OLAPControllerImpl, error) {
 	a.WithData(map[string]interface{}{"service": "olap-controller"})
 
 	o := &OLAPControllerImpl{
-		mq:                    opts.mq,
-		l:                     opts.l,
-		s:                     s,
-		p:                     opts.p,
-		repo:                  opts.repo,
-		dv:                    opts.dv,
-		a:                     a,
-		ta:                    opts.ta,
-		samplingHashThreshold: opts.samplingHashThreshold,
-		olapConfig:            opts.olapConfig,
+		mq:                       opts.mq,
+		l:                        opts.l,
+		s:                        s,
+		p:                        opts.p,
+		repo:                     opts.repo,
+		dv:                       opts.dv,
+		a:                        a,
+		ta:                       opts.ta,
+		samplingHashThreshold:    opts.samplingHashThreshold,
+		olapConfig:               opts.olapConfig,
+		prometheusMetricsEnabled: opts.prometheusMetricsEnabled,
 	}
 
 	// Default jitter value

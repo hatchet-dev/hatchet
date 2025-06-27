@@ -126,6 +126,7 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 		}
 
 		prometheus.QueueInvocations.Inc()
+		prometheus.TenantQueueInvocations.WithLabelValues(q.tenantId.String()).Inc()
 
 		ctx, span := telemetry.NewSpanWithCarrier(ctx, "queue", carrier)
 

@@ -46,11 +46,10 @@ func (o *OLAPControllerImpl) updateDAGStatuses(ctx context.Context, tenantId str
 	}
 
 	payloads := make([]tasktypes.NotifyFinalizedPayload, 0, len(rows))
-
-	var workflowIds []pgtype.UUID
-	var dagIds []int64
-	var dagInsertedAts []pgtype.Timestamptz
-	var readableStatuses []sqlcv1.V1ReadableStatusOlap
+	workflowIds := make([]pgtype.UUID, 0, len(rows))
+	dagIds := make([]int64, 0, len(rows))
+	dagInsertedAts := make([]pgtype.Timestamptz, 0, len(rows))
+	readableStatuses := make([]sqlcv1.V1ReadableStatusOlap, 0, len(rows))
 
 	for _, row := range rows {
 		payloads = append(payloads, tasktypes.NotifyFinalizedPayload{
@@ -68,26 +67,28 @@ func (o *OLAPControllerImpl) updateDAGStatuses(ctx context.Context, tenantId str
 		readableStatuses = append(readableStatuses, row.ReadableStatus)
 	}
 
-	workflowNames, err := o.repo.Workflows().ListWorkflowNamesByIds(ctx, tenantId, workflowIds)
-	if err != nil {
-		return false, err
-	}
+	if o.prometheusMetricsEnabled {
+		workflowNames, err := o.repo.Workflows().ListWorkflowNamesByIds(ctx, tenantId, workflowIds)
+		if err != nil {
+			return false, err
+		}
 
-	dagDurations, err := o.repo.OLAP().GetDagDurationsByDagIds(ctx, tenantId, dagIds, dagInsertedAts, readableStatuses)
-	if err != nil {
-		return false, err
-	}
+		dagDurations, err := o.repo.OLAP().GetDagDurationsByDagIds(ctx, tenantId, dagIds, dagInsertedAts, readableStatuses)
+		if err != nil {
+			return false, err
+		}
 
-	for i, row := range rows {
-		if row.ReadableStatus == sqlcv1.V1ReadableStatusOlapCOMPLETED || row.ReadableStatus == sqlcv1.V1ReadableStatusOlapFAILED || row.ReadableStatus == sqlcv1.V1ReadableStatusOlapCANCELLED {
-			workflowName := workflowNames[row.WorkflowId]
-			if workflowName == "" {
-				continue
+		for i, row := range rows {
+			if row.ReadableStatus == sqlcv1.V1ReadableStatusOlapCOMPLETED || row.ReadableStatus == sqlcv1.V1ReadableStatusOlapFAILED || row.ReadableStatus == sqlcv1.V1ReadableStatusOlapCANCELLED {
+				workflowName := workflowNames[row.WorkflowId]
+				if workflowName == "" {
+					continue
+				}
+
+				dagDuration := dagDurations[i]
+
+				prometheus.TenantWorkflowDurationBuckets.WithLabelValues(tenantId, workflowName, string(row.ReadableStatus)).Observe(float64(dagDuration.FinishedAt.Time.Sub(dagDuration.StartedAt.Time).Milliseconds()))
 			}
-
-			dagDuration := dagDurations[i]
-
-			prometheus.TenantWorkflowDurationBuckets.WithLabelValues(tenantId, workflowName, string(row.ReadableStatus)).Observe(float64(dagDuration.FinishedAt.Time.Sub(dagDuration.StartedAt.Time).Milliseconds()))
 		}
 	}
 
