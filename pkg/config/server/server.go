@@ -746,7 +746,7 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("otel.insecure", "SERVER_OTEL_INSECURE")
 
 	// prometheus options
-	_ = v.BindEnv("prometheus.prometheusServerAddress", "SERVER_PROMETHEUS_SERVER_ADDRESS")
+	_ = v.BindEnv("prometheus.prometheusServerURL", "SERVER_PROMETHEUS_SERVER_URL")
 	_ = v.BindEnv("prometheus.prometheusServerUsername", "SERVER_PROMETHEUS_SERVER_USERNAME")
 	_ = v.BindEnv("prometheus.prometheusServerPassword", "SERVER_PROMETHEUS_SERVER_PASSWORD")
 	_ = v.BindEnv("prometheus.enabled", "SERVER_PROMETHEUS_ENABLED")
