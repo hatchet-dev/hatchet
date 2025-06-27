@@ -1,5 +1,9 @@
 import WorkflowRunRef from '@hatchet/util/workflow-run-ref';
 import { V1TaskStatus, V1TaskFilter } from '@hatchet/clients/rest/generated/data-contracts';
+import {
+  RunEventType,
+  RunListenerClient,
+} from '@hatchet-dev/typescript-sdk/clients/listeners/run-listener/child-listener-client';
 import { WorkflowsClient } from './workflows';
 import { HatchetClient } from '../client';
 
@@ -67,11 +71,13 @@ export class RunsClient {
   api: HatchetClient['api'];
   tenantId: string;
   workflows: WorkflowsClient;
+  listener: RunListenerClient;
 
   constructor(client: HatchetClient) {
     this.api = client.api;
     this.tenantId = client.tenantId;
     this.workflows = client.workflows;
+    this.listener = client.v0.listener;
   }
 
   async get<T = any>(run: string | WorkflowRunRef<T>) {
@@ -155,5 +161,20 @@ export class RunsClient {
       only_tasks: opts.onlyTasks || false,
       triggering_event_external_id: opts.triggeringEventExternalId,
     };
+  }
+
+  runRef<T extends Record<string, any> = any>(id: string): WorkflowRunRef<T> {
+    return new WorkflowRunRef<T>(id, this.listener, this);
+  }
+
+  async *subscribeToStream(workflowRunId: string): AsyncIterableIterator<string> {
+    const ref = this.runRef(workflowRunId);
+    const stream = await ref.stream();
+
+    for await (const event of stream) {
+      if (event.type === RunEventType.STEP_RUN_EVENT_TYPE_STREAM) {
+        yield event.payload;
+      }
+    }
   }
 }

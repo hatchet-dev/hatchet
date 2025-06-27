@@ -521,6 +521,6 @@ export class HatchetClient implements IHatchetClient {
   }
 
   runRef<T extends Record<string, any> = any>(id: string): WorkflowRunRef<T> {
-    return new WorkflowRunRef<T>(id, this.v0.listener, this.runs);
+    return this.runs.runRef(id);
   }
 }
