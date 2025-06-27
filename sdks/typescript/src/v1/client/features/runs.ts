@@ -77,7 +77,7 @@ export class RunsClient {
     this.api = client.api;
     this.tenantId = client.tenantId;
     this.workflows = client.workflows;
-    this.listener = client.v0.listener;
+    this.listener = client._listener;
   }
 
   async get<T = any>(run: string | WorkflowRunRef<T>) {

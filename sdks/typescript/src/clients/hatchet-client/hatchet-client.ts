@@ -42,7 +42,8 @@ export class LegacyHatchetClient {
     config?: Partial<ClientConfig>,
     options?: HatchetClientOptions,
     axiosOpts?: AxiosRequestConfig,
-    runs?: RunsClient
+    runs?: RunsClient,
+    listener?: RunListenerClient,
   ) {
     // Initializes a new Client instance.
     // Loads config in the following order: config param > yaml file > env vars
@@ -91,7 +92,7 @@ export class LegacyHatchetClient {
       channelFactory(this.config, this.credentials),
       clientFactory
     );
-    this.listener = new RunListenerClient(
+    this.listener = listener || new RunListenerClient(
       this.config,
       channelFactory(this.config, this.credentials),
       clientFactory,

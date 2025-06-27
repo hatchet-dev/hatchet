@@ -40,6 +40,9 @@ import { FiltersClient } from './features/filters';
 import { ScheduleClient } from './features/schedules';
 import { CronClient } from './features/crons';
 import { TenantClient } from './features/tenant';
+import { RunListenerClient } from '@hatchet-dev/typescript-sdk/clients/listeners/run-listener/child-listener-client';
+import { addTokenMiddleware, channelFactory } from '@hatchet-dev/typescript-sdk/util/grpc-helpers';
+import { createClientFactory } from 'nice-grpc';
 
 /**
  * HatchetV1 implements the main client interface for interacting with the Hatchet workflow engine.
@@ -49,6 +52,7 @@ export class HatchetClient implements IHatchetClient {
   /** The underlying v0 client instance */
   _v0: LegacyHatchetClient;
   _api: Api;
+  _listener: RunListenerClient;
 
   /**
    * @deprecated v0 client will be removed in a future release, please upgrade to v1
@@ -100,7 +104,17 @@ export class HatchetClient implements IHatchetClient {
       this.tenantId = clientConfig.tenant_id;
       this._api = api(clientConfig.api_url, clientConfig.token, axiosConfig);
 
-      this._v0 = new LegacyHatchetClient(clientConfig, options, axiosConfig, this.runs);
+      const clientFactory = createClientFactory().use(addTokenMiddleware(this.config.token));
+      const credentials = options?.credentials ?? ConfigLoader.createCredentials(this.config.tls_config);
+
+      this._listener = new RunListenerClient(
+        this.config,
+        channelFactory(this.config, credentials),
+        clientFactory,
+        this.api
+      );
+
+      this._v0 = new LegacyHatchetClient(clientConfig, options, axiosConfig, this.runs, this._listener);
     } catch (e) {
       if (e instanceof z.ZodError) {
         throw new Error(`Invalid client config: ${e.message}`);
