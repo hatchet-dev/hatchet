@@ -154,16 +154,16 @@ rate(hatchet_assigned_tasks_total[5m]) / rate(hatchet_created_tasks_total[5m])
 
 ### Tenant Metrics
 
-| Metric Name                              | Type      | Description                                                                          |
-| ---------------------------------------- | --------- | ------------------------------------------------------------------------------------ |
+| Metric Name                                      | Type      | Description                                                                          |
+| ------------------------------------------------ | --------- | ------------------------------------------------------------------------------------ |
 | `hatchet_tenant_workflow_duration_milliseconds`  | Histogram | Duration of workflow execution in milliseconds (DAGs and single tasks)               |
-| `hatchet_tenant_queue_invocations_total`    | Counter   | The total number of invocations of the queuer function                            |
-| `hatchet_tenant_created_tasks_total`        | Counter   | The total number of tasks created                                                 |
-| `hatchet_tenant_retried_tasks_total`        | Counter   | The total number of tasks retried                                                 |
-| `hatchet_tenant_succeeded_tasks_total`      | Counter   | The total number of tasks that succeeded                                          |
-| `hatchet_tenant_failed_tasks_total`         | Counter   | The total number of tasks that failed (in a final state, not including retries)   |
-| `hatchet_tenant_skipped_tasks_total`        | Counter   | The total number of tasks that were skipped                                       |
-| `hatchet_tenant_cancelled_tasks_total`      | Counter   | The total number of tasks cancelled                                               |
+| `hatchet_tenant_queue_invocations_total`         | Counter   | The total number of invocations of the queuer function                               |
+| `hatchet_tenant_created_tasks_total`             | Counter   | The total number of tasks created                                                    |
+| `hatchet_tenant_retried_tasks_total`             | Counter   | The total number of tasks retried                                                    |
+| `hatchet_tenant_succeeded_tasks_total`           | Counter   | The total number of tasks that succeeded                                             |
+| `hatchet_tenant_failed_tasks_total`              | Counter   | The total number of tasks that failed (in a final state, not including retries)      |
+| `hatchet_tenant_skipped_tasks_total`             | Counter   | The total number of tasks that were skipped                                          |
+| `hatchet_tenant_cancelled_tasks_total`           | Counter   | The total number of tasks cancelled                                                  |
 | `hatchet_tenant_assigned_tasks`                  | Counter   | The total number of tasks assigned to a worker                                       |
 | `hatchet_tenant_scheduling_timed_out`            | Counter   | The total number of tasks that timed out while waiting to be scheduled               |
 | `hatchet_tenant_rate_limited`                    | Counter   | The total number of tasks that were rate limited                                     |
