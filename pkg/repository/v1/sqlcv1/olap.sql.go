@@ -2306,7 +2306,7 @@ func (q *Queries) ReadWorkflowRunByExternalId(ctx context.Context, db DBTX, work
 	return &i, err
 }
 
-const updateDAGStatuses = `-- name: UpdateDAGStatuses :one
+const updateDAGStatuses = `-- name: UpdateDAGStatuses :many
 WITH locked_events AS (
     SELECT
         tenant_id, requeue_after, requeue_retries, id, dag_id, dag_inserted_at
@@ -2427,25 +2427,15 @@ WITH locked_events AS (
         COUNT(*) as count
     FROM
         locked_events
-), rows_to_return AS (
-    SELECT
-        ARRAY_REMOVE(ARRAY_AGG(d.id), NULL)::bigint[] AS dag_ids,
-        ARRAY_REMOVE(ARRAY_AGG(d.inserted_at), NULL)::timestamptz[] AS dag_inserted_ats,
-        ARRAY_REMOVE(ARRAY_AGG(d.readable_status), NULL)::text[] AS readable_statuses,
-        ARRAY_REMOVE(ARRAY_AGG(d.external_id), NULL)::uuid[] AS external_ids,
-        ARRAY_REMOVE(ARRAY_AGG(d.workflow_id), NULL)::uuid[] AS workflow_ids
-    FROM
-        updated_dags d
 )
 SELECT
+    -- Little wonky, but we return the count of events that were processed in each row. Potential edge case
+    -- where there are no tasks updated with a non-zero count, but this should be very rare and we'll get
+    -- updates on the next run.
     (SELECT count FROM event_count) AS count,
-    dag_ids,
-    dag_inserted_ats,
-    readable_statuses,
-    external_ids,
-    workflow_ids
+    d.id, d.inserted_at, d.readable_status, d.external_id, d.workflow_id
 FROM
-    rows_to_return
+    updated_dags d
 `
 
 type UpdateDAGStatusesParams struct {
@@ -2455,29 +2445,42 @@ type UpdateDAGStatusesParams struct {
 }
 
 type UpdateDAGStatusesRow struct {
-	Count            int64                `json:"count"`
-	DagIds           []int64              `json:"dag_ids"`
-	DagInsertedAts   []pgtype.Timestamptz `json:"dag_inserted_ats"`
-	ReadableStatuses []string             `json:"readable_statuses"`
-	ExternalIds      []pgtype.UUID        `json:"external_ids"`
-	WorkflowIds      []pgtype.UUID        `json:"workflow_ids"`
+	Count          int64                `json:"count"`
+	ID             int64                `json:"id"`
+	InsertedAt     pgtype.Timestamptz   `json:"inserted_at"`
+	ReadableStatus V1ReadableStatusOlap `json:"readable_status"`
+	ExternalID     pgtype.UUID          `json:"external_id"`
+	WorkflowID     pgtype.UUID          `json:"workflow_id"`
 }
 
-func (q *Queries) UpdateDAGStatuses(ctx context.Context, db DBTX, arg UpdateDAGStatusesParams) (*UpdateDAGStatusesRow, error) {
-	row := db.QueryRow(ctx, updateDAGStatuses, arg.Partitionnumber, arg.Tenantid, arg.Eventlimit)
-	var i UpdateDAGStatusesRow
-	err := row.Scan(
-		&i.Count,
-		&i.DagIds,
-		&i.DagInsertedAts,
-		&i.ReadableStatuses,
-		&i.ExternalIds,
-		&i.WorkflowIds,
-	)
-	return &i, err
+func (q *Queries) UpdateDAGStatuses(ctx context.Context, db DBTX, arg UpdateDAGStatusesParams) ([]*UpdateDAGStatusesRow, error) {
+	rows, err := db.Query(ctx, updateDAGStatuses, arg.Partitionnumber, arg.Tenantid, arg.Eventlimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*UpdateDAGStatusesRow
+	for rows.Next() {
+		var i UpdateDAGStatusesRow
+		if err := rows.Scan(
+			&i.Count,
+			&i.ID,
+			&i.InsertedAt,
+			&i.ReadableStatus,
+			&i.ExternalID,
+			&i.WorkflowID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
-const updateTaskStatuses = `-- name: UpdateTaskStatuses :one
+const updateTaskStatuses = `-- name: UpdateTaskStatuses :many
 WITH locked_events AS (
     SELECT
         tenant_id, requeue_after, requeue_retries, id, task_id, task_inserted_at, event_type, readable_status, retry_count, worker_id
@@ -2625,29 +2628,15 @@ WITH locked_events AS (
         COUNT(*) as count
     FROM
         locked_events
-), rows_to_return AS (
-    SELECT
-        ARRAY_REMOVE(ARRAY_AGG(t.id), NULL)::bigint[] AS task_ids,
-        ARRAY_REMOVE(ARRAY_AGG(t.inserted_at), NULL)::timestamptz[] AS task_inserted_ats,
-        ARRAY_REMOVE(ARRAY_AGG(t.readable_status), NULL)::text[] AS readable_statuses,
-        ARRAY_REMOVE(ARRAY_AGG(t.external_id), NULL)::uuid[] AS external_ids,
-        ARRAY_REMOVE(ARRAY_AGG(t.latest_worker_id), NULL)::uuid[] AS latest_worker_ids,
-        ARRAY_REMOVE(ARRAY_AGG(t.workflow_id), NULL)::uuid[] AS workflow_ids,
-        ARRAY_AGG(t.is_dag_task)::boolean[] AS is_dag_tasks -- can be used to determined if the task belongs to a DAG
-    FROM
-        updated_tasks t
 )
 SELECT
+    -- Little wonky, but we return the count of events that were processed in each row. Potential edge case
+    -- where there are no tasks updated with a non-zero count, but this should be very rare and we'll get
+    -- updates on the next run.
     (SELECT count FROM event_count) AS count,
-    task_ids,
-    task_inserted_ats,
-    readable_statuses,
-    external_ids,
-    latest_worker_ids,
-    workflow_ids,
-    is_dag_tasks
+    t.tenant_id, t.id, t.inserted_at, t.readable_status, t.external_id, t.latest_worker_id, t.workflow_id, t.is_dag_task
 FROM
-    rows_to_return
+    updated_tasks t
 `
 
 type UpdateTaskStatusesParams struct {
@@ -2657,28 +2646,43 @@ type UpdateTaskStatusesParams struct {
 }
 
 type UpdateTaskStatusesRow struct {
-	Count            int64                `json:"count"`
-	TaskIds          []int64              `json:"task_ids"`
-	TaskInsertedAts  []pgtype.Timestamptz `json:"task_inserted_ats"`
-	ReadableStatuses []string             `json:"readable_statuses"`
-	ExternalIds      []pgtype.UUID        `json:"external_ids"`
-	LatestWorkerIds  []pgtype.UUID        `json:"latest_worker_ids"`
-	WorkflowIds      []pgtype.UUID        `json:"workflow_ids"`
-	IsDagTasks       []bool               `json:"is_dag_tasks"`
+	Count          int64                `json:"count"`
+	TenantID       pgtype.UUID          `json:"tenant_id"`
+	ID             int64                `json:"id"`
+	InsertedAt     pgtype.Timestamptz   `json:"inserted_at"`
+	ReadableStatus V1ReadableStatusOlap `json:"readable_status"`
+	ExternalID     pgtype.UUID          `json:"external_id"`
+	LatestWorkerID pgtype.UUID          `json:"latest_worker_id"`
+	WorkflowID     pgtype.UUID          `json:"workflow_id"`
+	IsDagTask      bool                 `json:"is_dag_task"`
 }
 
-func (q *Queries) UpdateTaskStatuses(ctx context.Context, db DBTX, arg UpdateTaskStatusesParams) (*UpdateTaskStatusesRow, error) {
-	row := db.QueryRow(ctx, updateTaskStatuses, arg.Partitionnumber, arg.Tenantid, arg.Eventlimit)
-	var i UpdateTaskStatusesRow
-	err := row.Scan(
-		&i.Count,
-		&i.TaskIds,
-		&i.TaskInsertedAts,
-		&i.ReadableStatuses,
-		&i.ExternalIds,
-		&i.LatestWorkerIds,
-		&i.WorkflowIds,
-		&i.IsDagTasks,
-	)
-	return &i, err
+func (q *Queries) UpdateTaskStatuses(ctx context.Context, db DBTX, arg UpdateTaskStatusesParams) ([]*UpdateTaskStatusesRow, error) {
+	rows, err := db.Query(ctx, updateTaskStatuses, arg.Partitionnumber, arg.Tenantid, arg.Eventlimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*UpdateTaskStatusesRow
+	for rows.Next() {
+		var i UpdateTaskStatusesRow
+		if err := rows.Scan(
+			&i.Count,
+			&i.TenantID,
+			&i.ID,
+			&i.InsertedAt,
+			&i.ReadableStatus,
+			&i.ExternalID,
+			&i.LatestWorkerID,
+			&i.WorkflowID,
+			&i.IsDagTask,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }

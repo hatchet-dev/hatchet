@@ -1148,28 +1148,26 @@ func (r *OLAPRepositoryImpl) UpdateTaskStatuses(ctx context.Context, tenantId st
 			mu.Lock()
 			defer mu.Unlock()
 
-			isSaturated = isSaturated || statusUpdateRes.Count == int64(limit)
+			eventCount := 0
 
-			if len(statusUpdateRes.TaskIds) != len(statusUpdateRes.TaskInsertedAts) ||
-				len(statusUpdateRes.TaskIds) != len(statusUpdateRes.ReadableStatuses) ||
-				len(statusUpdateRes.TaskIds) != len(statusUpdateRes.ExternalIds) ||
-				len(statusUpdateRes.TaskIds) != len(statusUpdateRes.LatestWorkerIds) ||
-				len(statusUpdateRes.TaskIds) != len(statusUpdateRes.WorkflowIds) ||
-				len(statusUpdateRes.TaskIds) != len(statusUpdateRes.IsDagTasks) {
-				return fmt.Errorf("mismatched lengths in status update response")
-			}
+			for _, row := range statusUpdateRes {
+				if row.Count > 0 {
+					// not a bug: the total count is actually attached to each row
+					eventCount = int(row.Count)
+				}
 
-			for i, row := range statusUpdateRes.TaskIds {
 				rows = append(rows, UpdateTaskStatusRow{
-					TaskId:         row,
-					TaskInsertedAt: statusUpdateRes.TaskInsertedAts[i],
-					ReadableStatus: sqlcv1.V1ReadableStatusOlap(statusUpdateRes.ReadableStatuses[i]),
-					ExternalId:     statusUpdateRes.ExternalIds[i],
-					LatestWorkerId: statusUpdateRes.LatestWorkerIds[i],
-					WorkflowId:     statusUpdateRes.WorkflowIds[i],
-					IsDAGTask:      statusUpdateRes.IsDagTasks[i],
+					TaskId:         row.ID,
+					TaskInsertedAt: row.InsertedAt,
+					ReadableStatus: row.ReadableStatus,
+					ExternalId:     row.ExternalID,
+					LatestWorkerId: row.LatestWorkerID,
+					WorkflowId:     row.WorkflowID,
+					IsDAGTask:      row.IsDagTask,
 				})
 			}
+
+			isSaturated = isSaturated || eventCount == int(limit)
 
 			return nil
 		})
@@ -1222,23 +1220,24 @@ func (r *OLAPRepositoryImpl) UpdateDAGStatuses(ctx context.Context, tenantId str
 			mu.Lock()
 			defer mu.Unlock()
 
-			isSaturated = isSaturated || statusUpdateRes.Count == int64(limit)
+			eventCount := 0
 
-			if len(statusUpdateRes.DagIds) != len(statusUpdateRes.DagInsertedAts) ||
-				len(statusUpdateRes.DagIds) != len(statusUpdateRes.ReadableStatuses) ||
-				len(statusUpdateRes.DagIds) != len(statusUpdateRes.ExternalIds) {
-				return fmt.Errorf("mismatched lengths in status update response")
-			}
+			for _, row := range statusUpdateRes {
+				if row.Count > 0 {
+					// not a bug: the total count is actually attached to each row
+					eventCount = int(row.Count)
+				}
 
-			for i, row := range statusUpdateRes.DagIds {
 				rows = append(rows, UpdateDAGStatusRow{
-					DagId:          row,
-					DagInsertedAt:  statusUpdateRes.DagInsertedAts[i],
-					ReadableStatus: sqlcv1.V1ReadableStatusOlap(statusUpdateRes.ReadableStatuses[i]),
-					ExternalId:     statusUpdateRes.ExternalIds[i],
-					WorkflowId:     statusUpdateRes.WorkflowIds[i],
+					DagId:          row.ID,
+					DagInsertedAt:  row.InsertedAt,
+					ReadableStatus: row.ReadableStatus,
+					ExternalId:     row.ExternalID,
+					WorkflowId:     row.WorkflowID,
 				})
 			}
+
+			isSaturated = isSaturated || eventCount == int(limit)
 
 			return nil
 		})
