@@ -23,6 +23,9 @@ const multiplexChannel = "hatchet_listener"
 // multiplexedListener listens for messages on a single Postgres channel and
 // dispatches them to the appropriate handlers based on the queue name.
 type multiplexedListener struct {
+	isListening   bool
+	isListeningMu sync.Mutex
+
 	pool *pgxpool.Pool
 
 	bus *event.Dispatcher
@@ -32,7 +35,8 @@ type multiplexedListener struct {
 	eventTypes   map[string]uint32
 	eventTypesMu sync.Mutex
 
-	cancel context.CancelFunc
+	listenerCtx context.Context
+	cancel      context.CancelFunc
 }
 
 type busEvent struct {
@@ -50,8 +54,26 @@ func newMultiplexedListener(l *zerolog.Logger, pool *pgxpool.Pool) *multiplexedL
 
 	listenerCtx, cancel := context.WithCancel(context.Background())
 
+	return &multiplexedListener{
+		pool:        pool,
+		bus:         bus,
+		eventTypes:  make(map[string]uint32),
+		cancel:      cancel,
+		listenerCtx: listenerCtx,
+		l:           l,
+	}
+}
+
+func (m *multiplexedListener) startListening() {
+	m.isListeningMu.Lock()
+	defer m.isListeningMu.Unlock()
+
+	if m.isListening {
+		return
+	}
+
 	// acquire an exclusive connection
-	pgxpoolConn, _ := pool.Acquire(listenerCtx)
+	pgxpoolConn, _ := m.pool.Acquire(m.listenerCtx)
 
 	// listen for multiplexed messages
 	listener := &pgxlisten.Listener{
@@ -59,17 +81,9 @@ func newMultiplexedListener(l *zerolog.Logger, pool *pgxpool.Pool) *multiplexedL
 			return pgxpoolConn.Conn(), nil
 		},
 		LogError: func(innerCtx context.Context, err error) {
-			l.Warn().Err(err).Msg("error in listener")
+			m.l.Warn().Err(err).Msg("error in listener")
 		},
 		ReconnectDelay: 10 * time.Second,
-	}
-
-	m := &multiplexedListener{
-		pool:       pool,
-		bus:        bus,
-		eventTypes: make(map[string]uint32),
-		cancel:     cancel,
-		l:          l,
 	}
 
 	var handler pgxlisten.HandlerFunc = func(ctx context.Context, notification *pgconn.Notification, conn *pgx.Conn) error {
@@ -83,11 +97,11 @@ func newMultiplexedListener(l *zerolog.Logger, pool *pgxpool.Pool) *multiplexedL
 		err := json.Unmarshal([]byte(notification.Payload), pubSubMsg)
 
 		if err != nil {
-			l.Error().Err(err).Msg("error unmarshalling notification payload")
+			m.l.Error().Err(err).Msg("error unmarshalling notification payload")
 			return err
 		}
 
-		event.Publish(bus, busEvent{
+		event.Publish(m.bus, busEvent{
 			PubSubMessage: pubSubMsg,
 			eventType:     m.upsertEventType(pubSubMsg.QueueName),
 		})
@@ -98,16 +112,19 @@ func newMultiplexedListener(l *zerolog.Logger, pool *pgxpool.Pool) *multiplexedL
 	listener.Handle(multiplexChannel, handler)
 
 	go func() {
-		err := listener.Listen(listenerCtx)
+		err := listener.Listen(m.listenerCtx)
 
 		if err != nil {
-			l.Error().Err(err).Msg("error listening for multiplexed messages")
-			cancel() // Cancel the context to stop the listener
+			m.isListeningMu.Lock()
+			m.isListening = false
+			m.isListeningMu.Unlock()
+
+			m.l.Error().Err(err).Msg("error listening for multiplexed messages")
 			return
 		}
 	}()
 
-	return m
+	m.isListening = true
 }
 
 func (m *multiplexedListener) upsertEventType(name string) uint32 {
@@ -125,6 +142,8 @@ func (m *multiplexedListener) upsertEventType(name string) uint32 {
 
 // NOTE: name is the target channel, not the global multiplex channel
 func (m *multiplexedListener) listen(ctx context.Context, name string, f func(ctx context.Context, notification *repository.PubSubMessage) error) error {
+	m.startListening()
+
 	// Create a subscription to the bus for the specific event type
 	cancel := event.SubscribeTo(m.bus, m.upsertEventType(name), func(ev busEvent) {
 		err := f(ctx, ev.PubSubMessage)

@@ -20,13 +20,16 @@ type messageQueueRepository struct {
 	m *multiplexedListener
 }
 
-func NewMessageQueueRepository(shared *sharedRepository) *messageQueueRepository {
+func NewMessageQueueRepository(shared *sharedRepository) (*messageQueueRepository, func() error) {
 	m := newMultiplexedListener(shared.l, shared.pool)
 
 	return &messageQueueRepository{
-		sharedRepository: shared,
-		m:                m,
-	}
+			sharedRepository: shared,
+			m:                m,
+		}, func() error {
+			m.cancel()
+			return nil
+		}
 }
 
 func (mq *messageQueueRepository) Listen(ctx context.Context, name string, f func(ctx context.Context, notification *repository.PubSubMessage) error) error {
