@@ -292,7 +292,6 @@ export function ScheduledRunsTable({
   return (
     <>
       <DeleteScheduledRun
-        tenant={tenantId}
         scheduledRun={showScheduledRunRevoke}
         setShowScheduledRunRevoke={setShowScheduledRunRevoke}
         onSuccess={() => {

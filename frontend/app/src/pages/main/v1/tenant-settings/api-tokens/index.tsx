@@ -56,7 +56,6 @@ export default function APITokens() {
 
         {showTokenDialog && (
           <CreateToken
-            tenant={tenantId}
             showTokenDialog={showTokenDialog}
             setShowTokenDialog={setShowTokenDialog}
             onSuccess={() => {
@@ -66,7 +65,6 @@ export default function APITokens() {
         )}
         {revokeToken && (
           <RevokeToken
-            tenant={tenantId}
             apiToken={revokeToken}
             setShowTokenRevoke={() => setRevokeToken(null)}
             onSuccess={() => {
@@ -81,16 +79,15 @@ export default function APITokens() {
 }
 
 function CreateToken({
-  tenant,
   showTokenDialog,
   setShowTokenDialog,
   onSuccess,
 }: {
-  tenant: string;
   onSuccess: () => void;
   showTokenDialog: boolean;
   setShowTokenDialog: (show: boolean) => void;
 }) {
+  const { tenantId } = useCurrentTenantId();
   const [generatedToken, setGeneratedToken] = useState<string | undefined>();
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const { handleApiError } = useApiError({
@@ -98,9 +95,9 @@ function CreateToken({
   });
 
   const createTokenMutation = useMutation({
-    mutationKey: ['api-token:create', tenant],
+    mutationKey: ['api-token:create', tenantId],
     mutationFn: async (data: CreateAPITokenRequest) => {
-      const res = await api.apiTokenCreate(tenant, data);
+      const res = await api.apiTokenCreate(tenantId, data);
       return res.data;
     },
     onSuccess: (data) => {
@@ -123,20 +120,19 @@ function CreateToken({
 }
 
 function RevokeToken({
-  tenant,
   apiToken,
   setShowTokenRevoke,
   onSuccess,
 }: {
-  tenant: string;
   apiToken: APIToken;
   setShowTokenRevoke: (show: boolean) => void;
   onSuccess: () => void;
 }) {
+  const { tenantId } = useCurrentTenantId();
   const { handleApiError } = useApiError({});
 
   const revokeMutation = useMutation({
-    mutationKey: ['api-token:revoke', tenant, apiToken],
+    mutationKey: ['api-token:revoke', tenantId, apiToken],
     mutationFn: async () => {
       await api.apiTokenUpdateRevoke(apiToken.metadata.id);
     },

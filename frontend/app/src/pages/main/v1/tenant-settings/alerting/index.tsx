@@ -177,7 +177,6 @@ function EmailGroupsList() {
       />
       {showGroupsDialog && (
         <CreateEmailGroup
-          tenant={tenantId}
           onSuccess={() => {
             setShowGroupsDialog(false);
             listEmailGroupQuery.refetch();
@@ -188,7 +187,6 @@ function EmailGroupsList() {
       )}
       {deleteEmailGroup && (
         <DeleteEmailGroup
-          tenant={tenantId}
           emailGroup={deleteEmailGroup}
           setShowEmailGroupDelete={() => setDeleteEmailGroup(null)}
           onSuccess={() => {
@@ -202,25 +200,24 @@ function EmailGroupsList() {
 }
 
 function CreateEmailGroup({
-  tenant,
   showGroupDialog,
   setShowGroupDialog,
   onSuccess,
 }: {
-  tenant: string;
   onSuccess: () => void;
   showGroupDialog: boolean;
   setShowGroupDialog: (show: boolean) => void;
 }) {
+  const { tenantId } = useCurrentTenantId();
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const { handleApiError } = useApiError({
     setFieldErrors: setFieldErrors,
   });
 
   const createTokenMutation = useMutation({
-    mutationKey: ['api-token:create', tenant],
+    mutationKey: ['api-token:create', tenantId],
     mutationFn: async (data: CreateTenantAlertEmailGroupRequest) => {
-      const res = await api.alertEmailGroupCreate(tenant, data);
+      const res = await api.alertEmailGroupCreate(tenantId, data);
       return res.data;
     },
     onSuccess: () => {
@@ -241,20 +238,19 @@ function CreateEmailGroup({
 }
 
 function DeleteEmailGroup({
-  tenant,
   emailGroup,
   setShowEmailGroupDelete,
   onSuccess,
 }: {
-  tenant: string;
   emailGroup: TenantAlertEmailGroup;
   setShowEmailGroupDelete: (show: boolean) => void;
   onSuccess: () => void;
 }) {
+  const { tenantId } = useCurrentTenantId();
   const { handleApiError } = useApiError({});
 
   const deleteMutation = useMutation({
-    mutationKey: ['alert-email-group:delete', tenant, emailGroup],
+    mutationKey: ['alert-email-group:delete', tenantId, emailGroup],
     mutationFn: async () => {
       await api.alertEmailGroupDelete(emailGroup.metadata.id);
     },
@@ -308,7 +304,6 @@ function SlackWebhooksList() {
       />
       {deleteSlack && (
         <DeleteSlackWebhook
-          tenant={tenantId}
           slackWebhook={deleteSlack}
           setShowSlackWebhookDelete={() => setDeleteSlack(null)}
           onSuccess={() => {
@@ -322,20 +317,19 @@ function SlackWebhooksList() {
 }
 
 function DeleteSlackWebhook({
-  tenant,
   slackWebhook,
   setShowSlackWebhookDelete,
   onSuccess,
 }: {
-  tenant: string;
   slackWebhook: SlackWebhook;
   setShowSlackWebhookDelete: (show: boolean) => void;
   onSuccess: () => void;
 }) {
+  const { tenantId } = useCurrentTenantId();
   const { handleApiError } = useApiError({});
 
   const deleteMutation = useMutation({
-    mutationKey: ['slack-webhook:delete', tenant, slackWebhook],
+    mutationKey: ['slack-webhook:delete', tenantId, slackWebhook],
     mutationFn: async () => {
       await api.slackWebhookDelete(slackWebhook.metadata.id);
     },

@@ -199,7 +199,6 @@ export function CronsTable() {
     <>
       {showDeleteCron && (
         <DeleteCron
-          tenant={tenantId}
           cron={showDeleteCron}
           setShowCronRevoke={setShowDeleteCron}
           onSuccess={handleConfirmDelete}
