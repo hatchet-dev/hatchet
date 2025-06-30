@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"encoding/json"
+	"slices"
 	"sync"
 	"time"
 
@@ -11,8 +12,6 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgxlisten"
 	"github.com/rs/zerolog"
-
-	"github.com/kelindar/event"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 )
@@ -28,36 +27,21 @@ type multiplexedListener struct {
 
 	pool *pgxpool.Pool
 
-	bus *event.Dispatcher
-
 	l *zerolog.Logger
 
-	eventTypes   map[string]uint32
-	eventTypesMu sync.Mutex
+	subscribers   map[string][]chan *repository.PubSubMessage
+	subscribersMu sync.RWMutex
 
 	listenerCtx context.Context
 	cancel      context.CancelFunc
 }
 
-type busEvent struct {
-	*repository.PubSubMessage
-
-	eventType uint32
-}
-
-func (b busEvent) Type() uint32 {
-	return b.eventType
-}
-
 func newMultiplexedListener(l *zerolog.Logger, pool *pgxpool.Pool) *multiplexedListener {
-	bus := event.NewDispatcher()
-
 	listenerCtx, cancel := context.WithCancel(context.Background())
 
 	return &multiplexedListener{
 		pool:        pool,
-		bus:         bus,
-		eventTypes:  make(map[string]uint32),
+		subscribers: make(map[string][]chan *repository.PubSubMessage),
 		cancel:      cancel,
 		listenerCtx: listenerCtx,
 		l:           l,
@@ -101,10 +85,7 @@ func (m *multiplexedListener) startListening() {
 			return err
 		}
 
-		event.Publish(m.bus, busEvent{
-			PubSubMessage: pubSubMsg,
-			eventType:     m.upsertEventType(pubSubMsg.QueueName),
-		})
+		m.publishToSubscribers(pubSubMsg)
 
 		return nil
 	}
@@ -127,36 +108,75 @@ func (m *multiplexedListener) startListening() {
 	m.isListening = true
 }
 
-func (m *multiplexedListener) upsertEventType(name string) uint32 {
-	m.eventTypesMu.Lock()
-	defer m.eventTypesMu.Unlock()
+func (m *multiplexedListener) publishToSubscribers(msg *repository.PubSubMessage) {
+	m.subscribersMu.RLock()
+	defer m.subscribersMu.RUnlock()
 
-	if _, exists := m.eventTypes[name]; !exists {
-		eType := uint32(len(m.eventTypes) + 1) // nolint: gosec
-		m.eventTypes[name] = eType
-		return eType
+	if subscribers, exists := m.subscribers[msg.QueueName]; exists {
+		for _, ch := range subscribers {
+			select {
+			case ch <- msg:
+			default:
+				// Channel is full or closed, skip this subscriber
+				m.l.Warn().Str("queue", msg.QueueName).Msg("failed to send message to subscriber channel")
+			}
+		}
 	}
+}
 
-	return m.eventTypes[name]
+func (m *multiplexedListener) subscribe(queueName string) chan *repository.PubSubMessage {
+	m.subscribersMu.Lock()
+	defer m.subscribersMu.Unlock()
+
+	ch := make(chan *repository.PubSubMessage, 100) // Buffered channel
+	m.subscribers[queueName] = append(m.subscribers[queueName], ch)
+	return ch
+}
+
+func (m *multiplexedListener) unsubscribe(queueName string, ch chan *repository.PubSubMessage) {
+	m.subscribersMu.Lock()
+	defer m.subscribersMu.Unlock()
+
+	if subscribers, exists := m.subscribers[queueName]; exists {
+		for i, subscriber := range subscribers {
+			if subscriber == ch {
+				close(ch)
+				m.subscribers[queueName] = slices.Delete(subscribers, i, i+1)
+				if len(m.subscribers[queueName]) == 0 {
+					delete(m.subscribers, queueName)
+				}
+				break
+			}
+		}
+	}
 }
 
 // NOTE: name is the target channel, not the global multiplex channel
 func (m *multiplexedListener) listen(ctx context.Context, name string, f func(ctx context.Context, notification *repository.PubSubMessage) error) error {
 	m.startListening()
 
-	// Create a subscription to the bus for the specific event type
-	cancel := event.SubscribeTo(m.bus, m.upsertEventType(name), func(ev busEvent) {
-		err := f(ctx, ev.PubSubMessage)
+	// Subscribe to the channel for the specific queue
+	ch := m.subscribe(name)
+	defer m.unsubscribe(name, ch)
 
-		if err != nil {
-			m.l.Error().Err(err).Msg("error processing notification")
+	for {
+		select {
+		case msg, ok := <-ch:
+			if !ok {
+				// Channel was closed
+				return nil
+			}
+			// Spawn handler as goroutine to avoid blocking message processing
+			go func(msg *repository.PubSubMessage) {
+				err := f(ctx, msg)
+				if err != nil {
+					m.l.Error().Err(err).Msg("error processing notification")
+				}
+			}(msg)
+		case <-ctx.Done():
+			return ctx.Err()
 		}
-	})
-
-	<-ctx.Done()
-	cancel()
-
-	return nil
+	}
 }
 
 // notify sends a notification through the Postgres channel.
