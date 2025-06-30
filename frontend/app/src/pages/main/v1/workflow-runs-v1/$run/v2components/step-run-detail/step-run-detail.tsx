@@ -71,7 +71,7 @@ const TaskRunPermalinkOrBacklink = ({
       <Link to={`/tenants/${tenantId}/runs/${taskRun.workflowRunExternalId}`}>
         <Button size={'sm'} className="px-2 py-2 gap-2" variant={'outline'}>
           <LinkIcon className="w-4 h-4" />
-          View Run
+          View DAG
         </Button>
       </Link>
     );
