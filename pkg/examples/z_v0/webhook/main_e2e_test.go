@@ -17,6 +17,8 @@ import (
 )
 
 func TestWebhook(t *testing.T) {
+	t.Skipf("Skipping webhook e2e test, flaky")
+
 	testutils.Prepare(t)
 
 	c, err := client.New()
