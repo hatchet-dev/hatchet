@@ -778,6 +778,6 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("sampling.samplingRate", "SERVER_SAMPLING_RATE")
 
 	// operations options
-	_ = v.BindEnv("operations.jitter", "SERVER_OPERATIONS_JITTER")
-	_ = v.BindEnv("operations.pollInterval", "SERVER_OPERATIONS_POLL_INTERVAL")
+	_ = v.BindEnv("olap.operations.jitter", "SERVER_OPERATIONS_JITTER")
+	_ = v.BindEnv("olap.operations.pollInterval", "SERVER_OPERATIONS_POLL_INTERVAL")
 }
