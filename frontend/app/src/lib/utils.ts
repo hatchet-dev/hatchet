@@ -145,3 +145,5 @@ export function formatDuration(ms: number): string {
     return `${hours}h ${minutes}m ${seconds}s`;
   }
 }
+
+export const emptyGolangUUID = "00000000-0000-0000-0000-000000000000";

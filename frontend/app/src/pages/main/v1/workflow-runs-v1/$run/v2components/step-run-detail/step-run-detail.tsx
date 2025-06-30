@@ -15,7 +15,7 @@ import { Link } from 'react-router-dom';
 import { TaskRunsTable } from '../../../components/task-runs-table';
 import { V1RunIndicator } from '../../../components/run-statuses';
 import RelativeDate from '@/components/v1/molecules/relative-date';
-import { formatDuration } from '@/lib/utils';
+import { emptyGolangUUID, formatDuration } from '@/lib/utils';
 import { V1StepRunOutput } from './step-run-output';
 import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
 import { TaskRunActionButton } from '@/pages/main/v1/task-runs-v1/actions';
@@ -63,7 +63,10 @@ const TaskRunPermalinkOrBacklink = ({
         </Button>
       </Link>
     );
-  } else if (taskRun.workflowRunExternalId) {
+  } else if (
+    taskRun.workflowRunExternalId &&
+    taskRun.workflowRunExternalId !== emptyGolangUUID
+  ) {
     return (
       <Link to={`/tenants/${tenantId}/runs/${taskRun.workflowRunExternalId}`}>
         <Button size={'sm'} className="px-2 py-2 gap-2" variant={'outline'}>
