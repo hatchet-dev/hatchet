@@ -463,8 +463,8 @@ export const routes: RouteObject[] = [
                 path: '/tenants/:tenant/workers',
                 lazy: async () => {
                   return {
-                    loader: function () {
-                      return redirect('/v1/workers/all');
+                    loader: function ({ params }) {
+                      return redirect(`/tenants/${params.tenant}/workers/all`);
                     },
                   };
                 },
