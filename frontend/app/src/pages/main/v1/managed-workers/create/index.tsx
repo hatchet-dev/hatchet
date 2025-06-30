@@ -87,7 +87,6 @@ export default function CreateWorker() {
         <Separator className="my-4" />
         <CreateWorkerForm
           onSubmit={createManagedWorkerMutation.mutate}
-          tenantId={tenantId}
           isLoading={createManagedWorkerMutation.isPending}
           fieldErrors={fieldErrors}
         />

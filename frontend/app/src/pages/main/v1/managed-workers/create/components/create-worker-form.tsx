@@ -35,7 +35,7 @@ import {
   managedCompute,
   ComputeType,
 } from '@/lib/can/features/managed-compute';
-import { useTenantDetails } from '@/hooks/use-tenant';
+import { useCurrentTenantId, useTenantDetails } from '@/hooks/use-tenant';
 
 export const machineTypes = [
   {
@@ -298,18 +298,17 @@ const createManagedWorkerSchema = z.object({
 
 interface CreateWorkerFormProps {
   onSubmit: (opts: z.infer<typeof createManagedWorkerSchema>) => void;
-  tenantId: string;
   isLoading: boolean;
   fieldErrors?: Record<string, string>;
 }
 
 export default function CreateWorkerForm({
   onSubmit,
-  tenantId,
   isLoading,
   fieldErrors,
 }: CreateWorkerFormProps) {
   const { can } = useTenantDetails();
+  const { tenantId } = useCurrentTenantId();
 
   const {
     watch,

@@ -15,9 +15,6 @@ const getInitialValue = <T>(key: string, defaultValue?: T): T | undefined => {
   return;
 };
 
-
-
-
 type Plan = 'free' | 'starter' | 'growth';
 
 export type BillingContext = {
@@ -26,8 +23,6 @@ export type BillingContext = {
   plan: Plan;
   hasPaymentMethods: boolean;
 };
-
-
 
 const lastTimeRange = 'lastTimeRange';
 

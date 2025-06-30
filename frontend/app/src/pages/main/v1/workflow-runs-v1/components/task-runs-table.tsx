@@ -280,7 +280,6 @@ export function TaskRunsTable({
       )}
       {showMetrics && !derivedParentTaskExternalId && (
         <GetWorkflowChart
-          tenantId={tenantId}
           createdAfter={cf.filters.createdAfter}
           zoom={(createdAfter, createdBefore) => {
             cf.setCustomTimeRange({ start: createdAfter, end: createdBefore });
@@ -401,18 +400,17 @@ export function TaskRunsTable({
 }
 
 const GetWorkflowChart = ({
-  tenantId,
   createdAfter,
   finishedBefore,
   refetchInterval,
   zoom,
 }: {
-  tenantId: string;
   createdAfter?: string;
   finishedBefore?: string;
   refetchInterval?: number;
   zoom: (startTime: string, endTime: string) => void;
 }) => {
+  const { tenantId } = useCurrentTenantId();
   const workflowRunEventsMetricsQuery = useQuery({
     ...queries.v1TaskRuns.pointMetrics(tenantId, {
       createdAfter,
