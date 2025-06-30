@@ -361,9 +361,16 @@ func NewEngineRepository(pool *pgxpool.Pool, essentialPool *pgxpool.Pool, cf *se
 		logRepo = opts.logsEngineRepository.WithAdditionalConfig(opts.v, opts.l)
 	}
 
+	mq, cleanupMQ := NewMessageQueueRepository(shared)
+
 	return func() error {
 			rlCache.Stop()
 			queueCache.Stop()
+			if cleanupMQ != nil {
+				if err := cleanupMQ(); err != nil {
+					opts.l.Error().Err(err).Msg("error cleaning up message queue repository")
+				}
+			}
 
 			return cleanup()
 		}, &engineRepository{
@@ -386,7 +393,7 @@ func NewEngineRepository(pool *pgxpool.Pool, essentialPool *pgxpool.Pool, cf *se
 			rateLimit:      NewRateLimitEngineRepository(pool, opts.v, opts.l),
 			webhookWorker:  NewWebhookWorkerEngineRepository(pool, opts.v, opts.l),
 			scheduler:      newSchedulerRepository(shared),
-			mq:             NewMessageQueueRepository(shared),
+			mq:             mq,
 		},
 		err
 }
