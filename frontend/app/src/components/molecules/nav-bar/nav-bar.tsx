@@ -225,7 +225,6 @@ export default function MainNav({ user, setHasBanner }: MainNavProps) {
     <div className="fixed top-0 w-screen">
       {banner && <Banner {...banner} />}
 
-      {/* Main Navigation Bar */}
       <div className="h-16 border-b">
         <div className="flex h-16 items-center pr-4 pl-4">
           <button
