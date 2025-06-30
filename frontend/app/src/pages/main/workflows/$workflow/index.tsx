@@ -1,13 +1,14 @@
 import { Separator } from '@/components/ui/separator';
 import api, { queries, WorkflowUpdateRequest } from '@/lib/api';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useOutletContext, useParams } from 'react-router-dom';
 import invariant from 'tiny-invariant';
 import { WorkflowTags } from '../components/workflow-tags';
 import { Badge } from '@/components/ui/badge';
 import { relativeDate } from '@/lib/utils';
 import { Square3Stack3DIcon } from '@heroicons/react/24/outline';
 import { Loading } from '@/components/ui/loading.tsx';
+import { TenantContextType } from '@/lib/outlet';
 import { TriggerWorkflowForm } from './components/trigger-workflow-form';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
@@ -16,6 +17,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import WorkflowGeneralSettings from './components/workflow-general-settings';
 import { WorkflowRunsTable } from '../../workflow-runs/components/workflow-runs-table';
 import { ConfirmDialog } from '@/components/molecules/confirm-dialog';
+import { useTenant } from '@/lib/atoms';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -24,9 +26,13 @@ import {
 } from '@/components/ui/dropdown-menu';
 
 export default function ExpandedWorkflow() {
+  const { tenant } = useTenant();
+
   // TODO list previous versions and make selectable
   const [selectedVersion] = useState<string | undefined>();
   const { handleApiError } = useApiError({});
+
+  invariant(tenant);
 
   const [triggerWorkflow, setTriggerWorkflow] = useState(false);
   const [deleteWorkflow, setDeleteWorkflow] = useState(false);
@@ -253,6 +259,9 @@ export default function ExpandedWorkflow() {
 }
 
 function RecentRunsList() {
+  const { tenant } = useOutletContext<TenantContextType>();
+  invariant(tenant);
+
   const params = useParams();
   invariant(params.workflow);
 
