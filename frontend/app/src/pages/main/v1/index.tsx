@@ -167,7 +167,7 @@ function Sidebar({ className, memberships, currTenant }: SidebarProps) {
                 to={`/tenants/${tenantId}/workers/all`}
                 name="Workers"
                 icon={<ServerStackIcon className="mr-2 h-4 w-4" />}
-                prefix="/v1/workers"
+                prefix={`/tenants/${tenantId}/workers`}
                 collapsibleChildren={workers}
               />
               {featureFlags?.data['managed-worker'] && (
@@ -197,7 +197,7 @@ function Sidebar({ className, memberships, currTenant }: SidebarProps) {
                 key={1}
                 onNavLinkClick={onNavLinkClick}
                 to={`/tenants/${tenantId}/tenant-settings/overview`}
-                prefix="/v1/tenant-settings"
+                prefix={`/tenants/${tenantId}/tenant-settings`}
                 name="General"
                 icon={<GearIcon className="mr-2 h-4 w-4" />}
                 collapsibleChildren={[
