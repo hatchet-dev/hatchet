@@ -40,7 +40,7 @@ export function useCurrentTenantId() {
 
 export function useTenantDetails() {
   const params = useParams();
-  const tenantId = params.tenantId;
+  const tenantId = params.tenant;
 
   const membershipsQuery = useQuery({
     ...queries.user.listTenantMemberships,

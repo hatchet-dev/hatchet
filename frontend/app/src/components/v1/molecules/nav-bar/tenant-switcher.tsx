@@ -35,9 +35,8 @@ export function TenantSwitcher({
   memberships,
 }: TenantSwitcherProps) {
   const meta = useApiMeta();
-  const { setTenant: setCurrTenant } = useTenantDetails();
+  const { setTenant: setCurrTenant, tenant: currTenant } = useTenantDetails();
   const [open, setOpen] = React.useState(false);
-  const { tenant: currTenant } = useTenantDetails();
 
   if (!currTenant) {
     return <Spinner />;
