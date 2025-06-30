@@ -6,7 +6,9 @@ import { Link } from 'react-router-dom';
 import { RunStatus } from '@/pages/main/workflow-runs/components/run-statuses';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 
-export const columns: ColumnDef<RecentStepRuns>[] = [
+export const columns: (tenantId: string) => ColumnDef<RecentStepRuns>[] = (
+  tenantId,
+) => [
   {
     accessorKey: 'id',
     header: ({ column }) => (
@@ -14,7 +16,7 @@ export const columns: ColumnDef<RecentStepRuns>[] = [
     ),
     cell: ({ row }) => {
       return (
-        <Link to={'/v1/runs/' + row.original.workflowRunId}>
+        <Link to={`/tenants/${tenantId}/runs/${row.original.workflowRunId}`}>
           <div className="pl-0 cursor-pointer hover:underline min-w-fit whitespace-nowrap">
             {row.original.actionId}
           </div>

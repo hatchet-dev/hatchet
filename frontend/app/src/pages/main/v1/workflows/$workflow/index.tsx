@@ -26,11 +26,13 @@ import {
   DropdownMenuTrigger,
 } from '@/components/v1/ui/dropdown-menu';
 import { TaskRunsTable } from '../../workflow-runs-v1/components/task-runs-table';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
 
 export default function ExpandedWorkflow() {
   // TODO list previous versions and make selectable
   const [selectedVersion] = useState<string | undefined>();
   const { handleApiError } = useApiError({});
+  const { tenantId } = useCurrentTenantId();
 
   const [triggerWorkflow, setTriggerWorkflow] = useState(false);
   const [deleteWorkflow, setDeleteWorkflow] = useState(false);
@@ -78,7 +80,7 @@ export default function ExpandedWorkflow() {
       return res.data;
     },
     onSuccess: () => {
-      navigate('/v1/tasks');
+      navigate(`/tenants/${tenantId}/tasks`);
     },
   });
 

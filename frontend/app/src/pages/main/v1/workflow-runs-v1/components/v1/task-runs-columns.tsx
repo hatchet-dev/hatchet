@@ -27,9 +27,11 @@ export const TaskRunColumn = {
 } as const;
 
 export const columns: (
+  tenantId: string,
   onAdditionalMetadataClick?: (click: AdditionalMetadataClick) => void,
   onTaskRunIdClick?: (taskRunId: string) => void,
 ) => ColumnDef<V1TaskSummary>[] = (
+  tenantId,
   onAdditionalMetadataClick,
   onTaskRunIdClick,
 ) => [
@@ -104,7 +106,7 @@ export const columns: (
     cell: ({ row }) => {
       if (row.getCanExpand()) {
         return (
-          <Link to={'/v1/runs/' + row.original.metadata.id}>
+          <Link to={`/tenants/${tenantId}/runs/${row.original.metadata.id}`}>
             <div className="cursor-pointer hover:underline min-w-fit whitespace-nowrap">
               {row.original.displayName}
             </div>

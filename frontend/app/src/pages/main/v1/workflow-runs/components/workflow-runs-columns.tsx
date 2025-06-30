@@ -11,8 +11,9 @@ import { Checkbox } from '@/components/v1/ui/checkbox';
 import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
 
 export const columns: (
+  tenantId: string,
   onAdditionalMetadataClick?: (click: AdditionalMetadataClick) => void,
-) => ColumnDef<V1TaskSummary>[] = (onAdditionalMetadataClick) => [
+) => ColumnDef<V1TaskSummary>[] = (tenantId, onAdditionalMetadataClick) => [
   {
     id: 'select',
     header: ({ table }) => (
@@ -43,7 +44,7 @@ export const columns: (
       <DataTableColumnHeader column={column} title="Run Id" />
     ),
     cell: ({ row }) => (
-      <Link to={'/v1/runs/' + row.original.metadata.id}>
+      <Link to={`/tenants/${tenantId}/runs/${row.original.metadata.id}`}>
         <div className="cursor-pointer hover:underline min-w-fit whitespace-nowrap">
           {row.original.displayName || row.original.metadata.id}
         </div>

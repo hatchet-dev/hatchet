@@ -24,10 +24,12 @@ import UpdateWorkerForm from './components/update-form';
 import { cloudApi } from '@/lib/api/api';
 import { useApiError } from '@/lib/hooks';
 import GithubButton from './components/github-button';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
 
 export default function ExpandedWorkflow() {
   const navigate = useNavigate();
   const [deleteWorker, setDeleteWorker] = useState(false);
+  const { tenantId } = useCurrentTenantId();
 
   const params = useParams();
   invariant(params['managed-worker']);
@@ -74,7 +76,7 @@ export default function ExpandedWorkflow() {
     },
     onSuccess: () => {
       setDeleteWorker(false);
-      navigate('/v1/managed-workers');
+      navigate(`/tenants/${tenantId}/managed-workers`);
     },
     onError: handleApiError,
   });

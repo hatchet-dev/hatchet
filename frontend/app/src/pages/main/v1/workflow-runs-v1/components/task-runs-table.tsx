@@ -336,7 +336,7 @@ export function TaskRunsTable({
           />
         }
         isLoading={isFetching}
-        columns={columns(cf.setAdditionalMetadata, onTaskRunIdClick)}
+        columns={columns(tenantId, cf.setAdditionalMetadata, onTaskRunIdClick)}
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}
         data={tableRows}

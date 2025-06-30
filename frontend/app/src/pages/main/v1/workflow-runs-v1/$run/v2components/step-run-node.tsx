@@ -8,6 +8,7 @@ import RelativeDate from '@/components/v1/molecules/relative-date';
 import { TabOption } from './step-run-detail/step-run-detail';
 import { Link } from 'react-router-dom';
 import { useColumnFilters } from '../../hooks/column-filters';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
 
 export type NodeData = {
   taskRun: V1TaskSummary | undefined;
@@ -19,6 +20,7 @@ export type NodeData = {
 
 // eslint-disable-next-line react/display-name
 export default memo(({ data }: { data: NodeData }) => {
+  const { tenantId } = useCurrentTenantId();
   const variant = data.graphVariant;
 
   const startedAtEpoch = data.taskRun?.startedAt
@@ -82,7 +84,7 @@ export default memo(({ data }: { data: NodeData }) => {
       {data.childWorkflowsCount && data.taskRun ? (
         <Link
           to={{
-            pathname: '/v1/runs',
+            pathname: `/tenants/${tenantId}/runs`,
             search: new URLSearchParams({
               ...Object.fromEntries(new URLSearchParams(location.search)),
               [queryParamNames.parentTaskExternalId]: data.taskRun.metadata.id,

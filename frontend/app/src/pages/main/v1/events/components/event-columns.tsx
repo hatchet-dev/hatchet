@@ -221,7 +221,7 @@ function WorkflowRunSummary({ event }: { event: V1Event }) {
   const hoverCardContent = (
     <div className="min-w-fit z-40 bg-white/10 rounded">
       <DataTable
-        columns={workflowRunsColumns()}
+        columns={workflowRunsColumns(tenantId)}
         data={workflowRuns}
         filters={[]}
         pageCount={0}
