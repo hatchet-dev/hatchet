@@ -168,15 +168,21 @@ export function useTenant(): TenantContext {
       return;
     }
 
-    if (tenant?.version == TenantVersion.V0 && pathname.startsWith('/tenants')) {
+    if (
+      tenant?.version == TenantVersion.V0 &&
+      pathname.startsWith('/tenants')
+    ) {
       setLastRedirected(tenant?.slug);
       return navigate({
-        pathname: pathname.replace('/v1', ''),
+        pathname: pathname.replace(`/tenants/${tenant.metadata.id}`, ''),
         search: params.toString(),
       });
     }
 
-    if (tenant?.version == TenantVersion.V1 && !pathname.startsWith('/tenants')) {
+    if (
+      tenant?.version == TenantVersion.V1 &&
+      !pathname.startsWith('/tenants')
+    ) {
       setLastRedirected(tenant?.slug);
       return navigate({
         pathname: `/tenants/${tenant.metadata.id}${pathname}`,

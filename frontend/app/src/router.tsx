@@ -346,6 +346,16 @@ export const routes: RouteObject[] = [
         ],
       },
       {
+        path: '/v1/*',
+        lazy: async () => {
+          return {
+            loader: function () {
+              return redirect('/');
+            },
+          };
+        },
+      },
+      {
         path: '/tenants/:tenant',
         lazy: async () =>
           import('./pages/authenticated').then((res) => {
@@ -627,21 +637,11 @@ export const routes: RouteObject[] = [
                 },
               },
               {
-                path: '/v1/workflow-runs/:run',
+                path: '/tenants/:tenant/workflow-runs/:run',
                 lazy: async () => {
                   return {
                     loader: function ({ params }) {
                       return redirect(`/tenants/:tenant/runs/${params.run}`);
-                    },
-                  };
-                },
-              },
-              {
-                path: '/v1/*',
-                lazy: async () => {
-                  return {
-                    loader: function () {
-                      return redirect('/');
                     },
                   };
                 },

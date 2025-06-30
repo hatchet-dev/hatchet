@@ -57,7 +57,7 @@ const TenantVersionSwitcher = () => {
         queryKey: queries.user.listTenantMemberships.queryKey,
       });
 
-      window.location.reload();
+      window.location.href = '/';
     },
     onError: handleApiError,
   });

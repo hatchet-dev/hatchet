@@ -12,10 +12,11 @@ import { queries } from '@/lib/api/queries';
 import { useQuery } from '@tanstack/react-query';
 import { PlusIcon, ArrowUpIcon } from '@radix-ui/react-icons';
 import { MonthlyUsageCard } from './components/monthly-usage-card';
-import { useTenantDetails } from '@/hooks/use-tenant';
+import { useCurrentTenantId, useTenantDetails } from '@/hooks/use-tenant';
 
 export default function ManagedWorkers() {
   const { tenant, billing, can } = useTenantDetails();
+  const { tenantId } = useCurrentTenantId();
 
   const [portalLoading, setPortalLoading] = useState(false);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
@@ -126,7 +127,9 @@ export default function ManagedWorkers() {
             >
               Cancel
             </Button>
-            <Link to="/v1/tenant-settings/billing-and-limits">
+            <Link
+              to={`/tenants/${tenantId}/tenant-settings/billing-and-limits`}
+            >
               <Button>
                 <ArrowUpIcon className="h-4 w-4 mr-2" />
                 Upgrade Plan
@@ -146,7 +149,7 @@ export default function ManagedWorkers() {
             Managed Compute
           </h2>
           {canCreateMoreWorkerPools ? (
-            <Link to="/v1/managed-workers/create">
+            <Link to={`/tenants/${tenantId}/managed-workers/create`}>
               <Button>
                 <PlusIcon className="w-4 h-4 mr-2" />
                 Add Service

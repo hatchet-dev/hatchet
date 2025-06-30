@@ -346,7 +346,7 @@ func main() {
     <div className="flex-grow h-full w-full">
       <div className="mx-auto py-8 px-4 sm:px-6 lg:px-8">
         <div className="flex flex-row items-center mb-4">
-          <Link to="/v1/managed-workers" className="mr-4">
+          <Link to={`/tenants/${tenantId}/managed-workers`} className="mr-4">
             <Button variant="ghost" size="icon">
               <ArrowLeftIcon className="h-4 w-4" />
             </Button>
@@ -892,12 +892,12 @@ func main() {
 
                   {/* Secondary action buttons */}
                   <div className="grid grid-cols-2 gap-3">
-                    <Link to="/v1/runs">
+                    <Link to={`/tenants/${tenantId}/runs`}>
                       <Button variant="outline" className="w-full">
                         View Runs
                       </Button>
                     </Link>
-                    <Link to="/v1/tasks">
+                    <Link to={`/tenants/${tenantId}/</div>tasks`}>
                       <Button variant="outline" className="w-full">
                         View RegisteredTasks
                       </Button>
