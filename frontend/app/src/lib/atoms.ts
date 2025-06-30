@@ -70,6 +70,9 @@ export function useTenant(): TenantContext {
 
   const setTenant = useCallback(
     (tenant: Tenant) => {
+      if (tenant.version === TenantVersion.V1) {
+        return
+      }
       const newSearchParams = new URLSearchParams(searchParams);
       newSearchParams.set('tenant', tenant.metadata.id);
       setSearchParams(newSearchParams, { replace: true });
