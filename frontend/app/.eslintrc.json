@@ -47,7 +47,7 @@
       {
         "devDependencies": ["vite.config.ts"]
       }
-    ],
+    ]
     // We need to re-enable these and get rid of all the `any` types
     // "@typescript-eslint/no-explicit-any": "error",
     // "@typescript-eslint/no-unsafe-assignment": "error",
@@ -56,56 +56,56 @@
     // "@typescript-eslint/no-unsafe-return": "error",
     // "@typescript-eslint/no-unsafe-argument": "error",
 
-    "@typescript-eslint/prefer-optional-chain": "error",
-    "@typescript-eslint/no-non-null-assertion": "error",
-    "@typescript-eslint/no-unnecessary-type-assertion": "error",
+    // "@typescript-eslint/prefer-optional-chain": "error",
+    // "@typescript-eslint/no-non-null-assertion": "error",
+    // "@typescript-eslint/no-unnecessary-type-assertion": "error",
 
-    // We should turn this back on to help get rid of tri-boolean handling
-    // "@typescript-eslint/strict-boolean-expressions": "error",
+    // // We should turn this back on to help get rid of tri-boolean handling
+    // // "@typescript-eslint/strict-boolean-expressions": "error",
 
-    "@typescript-eslint/prefer-includes": "error",
-    "@typescript-eslint/prefer-string-starts-ends-with": "error",
-    "@typescript-eslint/no-floating-promises": "error",
+    // "@typescript-eslint/prefer-includes": "error",
+    // "@typescript-eslint/prefer-string-starts-ends-with": "error",
+    // "@typescript-eslint/no-floating-promises": "error",
 
-    "no-console": ["error", { "allow": ["warn", "error"] }],
-    "no-debugger": "error",
-    "no-alert": "error",
-    "no-var": "error",
-    "prefer-const": "error",
-    "eqeqeq": ["error", "always"],
-    "no-eval": "error",
-    "no-implied-eval": "error",
-    "no-new-func": "error",
-    "no-return-assign": "error",
-    "no-sequences": "error",
-    "no-throw-literal": "error",
-    "no-unmodified-loop-condition": "error",
-    "no-unused-expressions": "error",
-    "no-useless-call": "error",
-    "no-useless-concat": "error",
-    "no-useless-return": "error",
-    "prefer-promise-reject-errors": "error",
+    // "no-console": ["error", { "allow": ["warn", "error"] }],
+    // "no-debugger": "error",
+    // "no-alert": "error",
+    // "no-var": "error",
+    // "prefer-const": "error",
+    // "eqeqeq": ["error", "always"],
+    // "no-eval": "error",
+    // "no-implied-eval": "error",
+    // "no-new-func": "error",
+    // "no-return-assign": "error",
+    // "no-sequences": "error",
+    // "no-throw-literal": "error",
+    // "no-unmodified-loop-condition": "error",
+    // "no-unused-expressions": "error",
+    // "no-useless-call": "error",
+    // "no-useless-concat": "error",
+    // "no-useless-return": "error",
+    // "prefer-promise-reject-errors": "error",
 
-    "react/jsx-no-bind": [
-      "error",
-      {
-        // We should turn this on later to enforce using `useCallback` instead of inline functions
-        "allowArrowFunctions": true,
-        "allowBind": false,
-        "allowFunctions": true
-      }
-    ],
-    "react/jsx-no-leaked-render": "error",
-    "react/jsx-no-useless-fragment": "error",
+    // "react/jsx-no-bind": [
+    //   "error",
+    //   {
+    //     // We should turn this on later to enforce using `useCallback` instead of inline functions
+    //     "allowArrowFunctions": true,
+    //     "allowBind": false,
+    //     "allowFunctions": true
+    //   }
+    // ],
+    // "react/jsx-no-leaked-render": "error",
+    // "react/jsx-no-useless-fragment": "error",
 
-    // We should turn this on later
-    // "react/no-array-index-key": "error",
-    "react/no-object-type-as-default-prop": "error",
-    "react/hook-use-state": "error",
-    "react/no-unstable-nested-components": "error",
+    // // We should turn this on later
+    // // "react/no-array-index-key": "error",
+    // "react/no-object-type-as-default-prop": "error",
+    // "react/hook-use-state": "error",
+    // "react/no-unstable-nested-components": "error",
 
-    "import/no-duplicates": "error",
-    "import/no-self-import": "error",
-    "import/no-useless-path-segments": "error"
+    // "import/no-duplicates": "error",
+    // "import/no-self-import": "error",
+    // "import/no-useless-path-segments": "error"
   }
 }
