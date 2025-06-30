@@ -3,7 +3,6 @@ import api, {
   UpdateTenantRequest,
   Tenant,
   CreateTenantRequest,
-  TenantUIVersion,
   queries,
 } from '@/lib/api';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
@@ -67,17 +66,10 @@ export function useTenantDetails() {
 
   const createTenantMutation = useMutation({
     mutationKey: ['tenant:create'],
-    mutationFn: async ({
-      name,
-      uiVersion,
-    }: {
-      name: string;
-      uiVersion: TenantUIVersion;
-    }): Promise<Tenant> => {
+    mutationFn: async ({ name }: { name: string }): Promise<Tenant> => {
       const tenantData: CreateTenantRequest = {
         name,
         slug: name.toLowerCase().replace(/\s+/g, '-'),
-        uiVersion,
       };
 
       const response = await api.tenantCreate(tenantData);

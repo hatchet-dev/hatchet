@@ -9,16 +9,10 @@ import {
   Squares2X2Icon,
 } from '@heroicons/react/24/outline';
 
-import {
-  Link,
-  Outlet,
-  useLocation,
-  useNavigate,
-  useOutletContext,
-} from 'react-router-dom';
-import { Tenant, TenantMember, TenantUIVersion } from '@/lib/api';
+import { Link, Outlet, useLocation, useOutletContext } from 'react-router-dom';
+import { Tenant, TenantMember } from '@/lib/api';
 import { ClockIcon, GearIcon } from '@radix-ui/react-icons';
-import React, { useCallback, useEffect } from 'react';
+import React, { useCallback } from 'react';
 import {
   MembershipsContextType,
   UserContextType,
@@ -35,12 +29,10 @@ import useCloudApiMeta from '@/pages/auth/hooks/use-cloud-api-meta';
 import useCloudFeatureFlags from '@/pages/auth/hooks/use-cloud-feature-flags';
 import { useSidebar } from '@/components/sidebar-provider';
 import invariant from 'tiny-invariant';
-import { ROUTES } from '@/next/lib/routes';
 import { SquareActivityIcon } from 'lucide-react';
 
 function Main() {
   const ctx = useOutletContext<UserContextType & MembershipsContextType>();
-  const navigate = useNavigate();
   const { user, memberships } = ctx;
 
   const { tenant: currTenant } = useTenant();
@@ -50,17 +42,6 @@ function Main() {
     memberships,
     tenant: currTenant,
   });
-
-  useEffect(() => {
-    if (!currTenant) {
-      return;
-    }
-
-    if (currTenant.uiVersion === TenantUIVersion.V1) {
-      // Hard redirect here because the navigate hook is racy with other url updates
-      window.location.href = ROUTES.runs.list(currTenant.metadata.id);
-    }
-  }, [currTenant, navigate]);
 
   if (!user || !memberships || !currTenant) {
     return <Loading />;
@@ -168,13 +149,6 @@ function Sidebar({ className, memberships, currTenant }: SidebarProps) {
                 name="Cron Jobs"
                 icon={<ClockIcon className="mr-2 h-4 w-4" />}
               />
-              {/* <SidebarButtonPrimary
-                key={5}
-                onNavLinkClick={onNavLinkClick}
-                to="/v1/events"
-                name="Events"
-                icon={<QueueListIcon className="mr-2 h-4 w-4" />}
-              /> */}
             </div>
           </div>
           <div className="py-2">
