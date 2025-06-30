@@ -609,18 +609,18 @@ export const routes: RouteObject[] = [
                     },
                   ),
               },
+              {
+                path: '/tenants/:tenant/onboarding/get-started',
+                lazy: async () =>
+                  import('./pages/onboarding/get-started').then((res) => {
+                    return {
+                      Component: res.default,
+                    };
+                  }),
+              },
             ],
           },
         ],
-      },
-      {
-        path: '/v1/onboarding/get-started',
-        lazy: async () =>
-          import('./pages/onboarding/get-started').then((res) => {
-            return {
-              Component: res.default,
-            };
-          }),
       },
     ],
   },

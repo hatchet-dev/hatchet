@@ -25,7 +25,7 @@ export default function CreateTenant() {
     onSuccess: async (tenant) => {
       setTenant(tenant.metadata.id);
       await listMembershipsQuery.refetch();
-      window.location.href = `/onboarding/get-started?tenant=${tenant.metadata.id}`;
+      window.location.href = `/tenants/${tenant.metadata.id}/onboarding/get-started`;
     },
     onError: handleApiError,
   });
