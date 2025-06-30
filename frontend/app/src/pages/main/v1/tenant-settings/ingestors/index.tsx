@@ -9,12 +9,11 @@ import api, {
 } from '@/lib/api';
 import { DataTable } from '@/components/v1/molecules/data-table/data-table';
 import { Button } from '@/components/v1/ui/button';
-import { TenantContextType } from '@/lib/outlet';
 import { Dialog } from '@radix-ui/react-dialog';
-import { useOutletContext } from 'react-router-dom';
 import { CreateSNSDialog } from './components/create-sns-dialog';
 import { DeleteSNSForm } from './components/delete-sns-form';
 import { columns as snsIntegrationsColumns } from './components/sns-integrations-columns';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
 
 export default function Ingestors() {
   return (
@@ -34,12 +33,12 @@ export default function Ingestors() {
 }
 
 function SNSIntegrationsList() {
-  const { tenant } = useOutletContext<TenantContextType>();
+  const { tenantId } = useCurrentTenantId();
   const [showSNSDialog, setShowSNSDialog] = useState(false);
   const [deleteSNS, setDeleteSNS] = useState<SNSIntegration | null>(null);
 
   const listIntegrationsQuery = useQuery({
-    ...queries.snsIntegrations.list(tenant.metadata.id),
+    ...queries.snsIntegrations.list(tenantId),
   });
 
   const cols = snsIntegrationsColumns({
@@ -68,7 +67,6 @@ function SNSIntegrationsList() {
       />
       {showSNSDialog && (
         <CreateSNSIntegration
-          tenant={tenant.metadata.id}
           showSNSDialog={showSNSDialog}
           setShowSNSDialog={setShowSNSDialog}
           onSuccess={() => {
@@ -78,7 +76,6 @@ function SNSIntegrationsList() {
       )}
       {deleteSNS && (
         <DeleteSNSIntegration
-          tenant={tenant.metadata.id}
           snsIntegration={deleteSNS}
           setShowSNSDelete={() => setDeleteSNS(null)}
           onSuccess={() => {
@@ -92,16 +89,15 @@ function SNSIntegrationsList() {
 }
 
 function CreateSNSIntegration({
-  tenant,
   showSNSDialog,
   setShowSNSDialog,
   onSuccess,
 }: {
-  tenant: string;
   onSuccess: () => void;
   showSNSDialog: boolean;
   setShowSNSDialog: (show: boolean) => void;
 }) {
+  const { tenantId } = useCurrentTenantId();
   const [generatedIngestUrl, setGeneratedIngestUrl] = useState<
     string | undefined
   >();
@@ -111,9 +107,9 @@ function CreateSNSIntegration({
   });
 
   const createSNSIntegrationMutation = useMutation({
-    mutationKey: ['sns:create', tenant],
+    mutationKey: ['sns:create', tenantId],
     mutationFn: async (data: CreateSNSIntegrationRequest) => {
-      const res = await api.snsCreate(tenant, data);
+      const res = await api.snsCreate(tenantId, data);
       return res.data;
     },
     onSuccess: (data) => {
@@ -136,20 +132,19 @@ function CreateSNSIntegration({
 }
 
 function DeleteSNSIntegration({
-  tenant,
   snsIntegration,
   setShowSNSDelete,
   onSuccess,
 }: {
-  tenant: string;
   snsIntegration: SNSIntegration;
   setShowSNSDelete: (show: boolean) => void;
   onSuccess: () => void;
 }) {
+  const { tenantId } = useCurrentTenantId();
   const { handleApiError } = useApiError({});
 
   const deleteMutation = useMutation({
-    mutationKey: ['sns:delete', tenant, snsIntegration],
+    mutationKey: ['sns:delete', tenantId, snsIntegration],
     mutationFn: async () => {
       await api.snsDelete(snsIntegration.metadata.id);
     },

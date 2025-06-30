@@ -11,6 +11,7 @@ import {
 import { Label } from '@/components/v1/ui/label';
 import { Spinner } from '@/components/v1/ui/loading';
 import { Switch } from '@/components/v1/ui/switch';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { queries } from '@/lib/api';
 import { cloudApi } from '@/lib/api/api';
 import {
@@ -19,12 +20,10 @@ import {
   Coupon,
 } from '@/lib/api/generated/cloud/data-contracts';
 import { useApiError } from '@/lib/hooks';
-import { TenantContextType } from '@/lib/outlet';
 import queryClient from '@/query-client';
 import { ExclamationTriangleIcon } from '@radix-ui/react-icons';
 import { useMutation } from '@tanstack/react-query';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { useOutletContext } from 'react-router-dom';
 
 interface SubscriptionProps {
   active?: TenantSubscription;
@@ -47,7 +46,7 @@ export const Subscription: React.FC<SubscriptionProps> = ({
     SubscriptionPlan | undefined
   >(undefined);
 
-  const { tenant } = useOutletContext<TenantContextType>();
+  const { tenantId } = useCurrentTenantId();
   const { handleApiError } = useApiError({});
   const [portalLoading, setPortalLoading] = useState(false);
 
@@ -57,7 +56,7 @@ export const Subscription: React.FC<SubscriptionProps> = ({
         return;
       }
       setPortalLoading(true);
-      const link = await cloudApi.billingPortalLinkGet(tenant.metadata.id);
+      const link = await cloudApi.billingPortalLinkGet(tenantId);
       window.open(link.data.url, '_blank');
     } catch (e) {
       handleApiError(e as any);
@@ -71,16 +70,15 @@ export const Subscription: React.FC<SubscriptionProps> = ({
     mutationFn: async ({ plan_code }: { plan_code: string }) => {
       const [plan, period] = plan_code.split(':');
       setLoading(plan_code);
-      await cloudApi.subscriptionUpsert(tenant.metadata.id, { plan, period });
+      await cloudApi.subscriptionUpsert(tenantId, { plan, period });
     },
     onSuccess: async () => {
       await Promise.all([
         queryClient.invalidateQueries({
-          queryKey: queries.tenantResourcePolicy.get(tenant.metadata.id)
-            .queryKey,
+          queryKey: queries.tenantResourcePolicy.get(tenantId).queryKey,
         }),
         queryClient.invalidateQueries({
-          queryKey: queries.cloud.billing(tenant.metadata.id).queryKey,
+          queryKey: queries.cloud.billing(tenantId).queryKey,
         }),
       ]);
 

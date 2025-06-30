@@ -1,8 +1,6 @@
 import { Button } from '@/components/v1/ui/button';
 import { Separator } from '@/components/v1/ui/separator';
-import { TenantContextType } from '@/lib/outlet';
 import { useState } from 'react';
-import { useOutletContext } from 'react-router-dom';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import api, { APIToken, CreateAPITokenRequest, queries } from '@/lib/api';
 import { DataTable } from '@/components/v1/molecules/data-table/data-table';
@@ -11,14 +9,15 @@ import { CreateTokenDialog } from './components/create-token-dialog';
 import { RevokeTokenForm } from './components/revoke-token-form';
 import { Dialog } from '@/components/v1/ui/dialog';
 import { useApiError } from '@/lib/hooks';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
 
 export default function APITokens() {
-  const { tenant } = useOutletContext<TenantContextType>();
+  const { tenantId } = useCurrentTenantId();
   const [showTokenDialog, setShowTokenDialog] = useState(false);
   const [revokeToken, setRevokeToken] = useState<APIToken | null>(null);
 
   const listTokensQuery = useQuery({
-    ...queries.tokens.list(tenant.metadata.id),
+    ...queries.tokens.list(tenantId),
   });
 
   const cols = apiTokensColumns({
@@ -57,7 +56,7 @@ export default function APITokens() {
 
         {showTokenDialog && (
           <CreateToken
-            tenant={tenant.metadata.id}
+            tenant={tenantId}
             showTokenDialog={showTokenDialog}
             setShowTokenDialog={setShowTokenDialog}
             onSuccess={() => {
@@ -67,7 +66,7 @@ export default function APITokens() {
         )}
         {revokeToken && (
           <RevokeToken
-            tenant={tenant.metadata.id}
+            tenant={tenantId}
             apiToken={revokeToken}
             setShowTokenRevoke={() => setRevokeToken(null)}
             onSuccess={() => {

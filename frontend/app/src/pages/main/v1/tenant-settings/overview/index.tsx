@@ -1,16 +1,9 @@
 import { Button } from '@/components/v1/ui/button';
 import { Separator } from '@/components/v1/ui/separator';
-import { TenantContextType } from '@/lib/outlet';
 import { useState } from 'react';
-import { useOutletContext } from 'react-router-dom';
 import { useApiError } from '@/lib/hooks';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import api, {
-  queries,
-  Tenant,
-  TenantVersion,
-  UpdateTenantRequest,
-} from '@/lib/api';
+import api, { queries, TenantVersion, UpdateTenantRequest } from '@/lib/api';
 import { Switch } from '@/components/v1/ui/switch';
 import { Label } from '@radix-ui/react-label';
 import { Spinner } from '@/components/v1/ui/loading';
@@ -24,20 +17,21 @@ import {
   DialogTitle,
 } from '@/components/v1/ui/dialog';
 import { Alert, AlertDescription, AlertTitle } from '@/components/v1/ui/alert';
+import { useCurrentTenantId, useTenantDetails } from '@/hooks/use-tenant';
 
 export default function TenantSettings() {
-  const { tenant } = useOutletContext<TenantContextType>();
+  const { tenant } = useTenantDetails();
 
   return (
     <div className="flex-grow h-full w-full">
       <div className="mx-auto py-8 px-4 sm:px-6 lg:px-8">
         <h2 className="text-2xl font-bold leading-tight text-foreground">
-          {capitalize(tenant.name)} Overview
+          {capitalize(tenant?.name || '')} Overview
         </h2>
         <Separator className="my-4" />
-        <UpdateTenant tenant={tenant} />
+        <UpdateTenant />
         <Separator className="my-4" />
-        <AnalyticsOptOut tenant={tenant} />
+        <AnalyticsOptOut />
         <Separator className="my-4" />
         <TenantVersionSwitcher />
       </div>
@@ -46,7 +40,8 @@ export default function TenantSettings() {
 }
 
 const TenantVersionSwitcher = () => {
-  const { tenant } = useOutletContext<TenantContextType>();
+  const { tenantId } = useCurrentTenantId();
+  const { tenant } = useTenantDetails();
   const queryClient = useQueryClient();
   const [showDowngradeModal, setShowDowngradeModal] = useState(false);
 
@@ -55,7 +50,7 @@ const TenantVersionSwitcher = () => {
   const { mutate: updateTenant, isPending } = useMutation({
     mutationKey: ['tenant:update'],
     mutationFn: async (data: UpdateTenantRequest) => {
-      await api.tenantUpdate(tenant.metadata.id, data);
+      await api.tenantUpdate(tenantId, data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
@@ -68,7 +63,7 @@ const TenantVersionSwitcher = () => {
   });
 
   // Only show for V1 tenants
-  if (tenant.version === TenantVersion.V0) {
+  if (tenant?.version === TenantVersion.V0) {
     return null;
   }
 
@@ -143,15 +138,16 @@ const TenantVersionSwitcher = () => {
   );
 };
 
-const UpdateTenant: React.FC<{ tenant: Tenant }> = ({ tenant }) => {
+const UpdateTenant: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
+  const { tenantId } = useCurrentTenantId();
 
   const { handleApiError } = useApiError({});
 
   const updateMutation = useMutation({
     mutationKey: ['tenant:update'],
     mutationFn: async (data: UpdateTenantRequest) => {
-      await api.tenantUpdate(tenant.metadata.id, data);
+      await api.tenantUpdate(tenantId, data);
     },
     onMutate: () => {
       setIsLoading(true);
@@ -169,14 +165,15 @@ const UpdateTenant: React.FC<{ tenant: Tenant }> = ({ tenant }) => {
         onSubmit={(data) => {
           updateMutation.mutate(data);
         }}
-        tenant={tenant}
       />
     </div>
   );
 };
 
-const AnalyticsOptOut: React.FC<{ tenant: Tenant }> = ({ tenant }) => {
-  const checked = !!tenant.analyticsOptOut;
+const AnalyticsOptOut: React.FC = () => {
+  const { tenant } = useTenantDetails();
+  const { tenantId } = useCurrentTenantId();
+  const checked = !!tenant?.analyticsOptOut;
 
   const [changed, setChanged] = useState(false);
   const [checkedState, setChecked] = useState(checked);
@@ -187,7 +184,7 @@ const AnalyticsOptOut: React.FC<{ tenant: Tenant }> = ({ tenant }) => {
   const updateMutation = useMutation({
     mutationKey: ['tenant:update'],
     mutationFn: async (data: UpdateTenantRequest) => {
-      await api.tenantUpdate(tenant.metadata.id, data);
+      await api.tenantUpdate(tenantId, data);
     },
     onMutate: () => {
       setIsLoading(true);
