@@ -642,7 +642,7 @@ LEFT JOIN
     task_output o ON o.task_id = t.id
 ORDER BY t.inserted_at DESC, t.id DESC;
 
--- name: UpdateTaskStatuses :one
+-- name: UpdateTaskStatuses :many
 WITH locked_events AS (
     SELECT
         *
@@ -790,31 +790,17 @@ WITH locked_events AS (
         COUNT(*) as count
     FROM
         locked_events
-), rows_to_return AS (
-    SELECT
-        ARRAY_REMOVE(ARRAY_AGG(t.id), NULL)::bigint[] AS task_ids,
-        ARRAY_REMOVE(ARRAY_AGG(t.inserted_at), NULL)::timestamptz[] AS task_inserted_ats,
-        ARRAY_REMOVE(ARRAY_AGG(t.readable_status), NULL)::text[] AS readable_statuses,
-        ARRAY_REMOVE(ARRAY_AGG(t.external_id), NULL)::uuid[] AS external_ids,
-        ARRAY_REMOVE(ARRAY_AGG(t.latest_worker_id), NULL)::uuid[] AS latest_worker_ids,
-        ARRAY_REMOVE(ARRAY_AGG(t.workflow_id), NULL)::uuid[] AS workflow_ids,
-        ARRAY_REMOVE(ARRAY_AGG(t.is_dag_task), NULL)::boolean[] AS is_dag_tasks -- can be used to determined if the task belongs to a DAG
-    FROM
-        updated_tasks t
 )
 SELECT
+    -- Little wonky, but we return the count of events that were processed in each row. Potential edge case
+    -- where there are no tasks updated with a non-zero count, but this should be very rare and we'll get
+    -- updates on the next run.
     (SELECT count FROM event_count) AS count,
-    task_ids,
-    task_inserted_ats,
-    readable_statuses,
-    external_ids,
-    latest_worker_ids,
-    workflow_ids,
-    is_dag_tasks
+    t.*
 FROM
-    rows_to_return;
+    updated_tasks t;
 
--- name: UpdateDAGStatuses :one
+-- name: UpdateDAGStatuses :many
 WITH locked_events AS (
     SELECT
         *
@@ -935,25 +921,15 @@ WITH locked_events AS (
         COUNT(*) as count
     FROM
         locked_events
-), rows_to_return AS (
-    SELECT
-        ARRAY_REMOVE(ARRAY_AGG(d.id), NULL)::bigint[] AS dag_ids,
-        ARRAY_REMOVE(ARRAY_AGG(d.inserted_at), NULL)::timestamptz[] AS dag_inserted_ats,
-        ARRAY_REMOVE(ARRAY_AGG(d.readable_status), NULL)::text[] AS readable_statuses,
-        ARRAY_REMOVE(ARRAY_AGG(d.external_id), NULL)::uuid[] AS external_ids,
-        ARRAY_REMOVE(ARRAY_AGG(d.workflow_id), NULL)::uuid[] AS workflow_ids
-    FROM
-        updated_dags d
 )
 SELECT
+    -- Little wonky, but we return the count of events that were processed in each row. Potential edge case
+    -- where there are no tasks updated with a non-zero count, but this should be very rare and we'll get
+    -- updates on the next run.
     (SELECT count FROM event_count) AS count,
-    dag_ids,
-    dag_inserted_ats,
-    readable_statuses,
-    external_ids,
-    workflow_ids
+    d.*
 FROM
-    rows_to_return;
+    updated_dags d;
 
 -- name: PopulateDAGMetadata :many
 WITH input AS (
