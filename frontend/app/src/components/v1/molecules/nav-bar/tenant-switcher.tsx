@@ -14,7 +14,7 @@ import {
   CommandSeparator,
 } from '@/components/v1/ui/command';
 import { Link } from 'react-router-dom';
-import { TenantMember } from '@/lib/api';
+import { TenantMember, TenantVersion } from '@/lib/api';
 import { CaretSortIcon, PlusCircledIcon } from '@radix-ui/react-icons';
 import {
   PopoverTrigger,
@@ -68,6 +68,10 @@ export function TenantSwitcher({
                   invariant(membership.tenant);
                   setCurrTenant(membership.tenant.metadata.id);
                   setOpen(false);
+
+                  if (membership.tenant.version === TenantVersion.V0) {
+                    window.location.href = `/workflow-runs?tenant=${membership.tenant?.metadata.id}`;
+                  }
                 }}
                 value={membership.tenant?.slug}
                 className="text-sm cursor-pointer"
