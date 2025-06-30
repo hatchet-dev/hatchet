@@ -618,6 +618,12 @@ export const routes: RouteObject[] = [
                     };
                   }),
               },
+              {
+                path: '/tenants/:tenant/workflow-runs',
+                loader: ({ params }) => {
+                  return redirect(`/tenants/${params.tenant}/runs`);
+                },
+              },
             ],
           },
         ],

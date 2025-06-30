@@ -204,7 +204,7 @@ export default function MainNav({ user, setHasBanner }: MainNavProps) {
         actionText: 'View V1',
         onAction: () => {
           navigate({
-            pathname: '/v1' + pathname,
+            pathname: `/tenants/${tenant?.metadata.id}${pathname}`,
             search: '?previewV0=false',
           });
         },

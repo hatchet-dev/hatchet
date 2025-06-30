@@ -22,8 +22,6 @@ import { useCurrentTenantId, useTenantDetails } from '@/hooks/use-tenant';
 export default function TenantSettings() {
   const { tenant } = useTenantDetails();
 
-  console.log('Tenant', tenant);
-
   return (
     <div className="flex-grow h-full w-full">
       <div className="mx-auto py-8 px-4 sm:px-6 lg:px-8">
@@ -64,7 +62,6 @@ const TenantVersionSwitcher = () => {
     onError: handleApiError,
   });
 
-  console.log(tenant?.version);
   // Only show for V1 tenants
   if (tenant?.version === TenantVersion.V0) {
     return null;
