@@ -1,8 +1,7 @@
 import { queries } from '@/lib/api';
-import { useTenant } from '@/lib/atoms';
 import { useQuery } from '@tanstack/react-query';
-import invariant from 'tiny-invariant';
 import { useColumnFilters } from './column-filters';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
 
 export const useMetrics = ({
   workflow,
@@ -13,13 +12,11 @@ export const useMetrics = ({
   parentTaskExternalId: string | undefined;
   refetchInterval: number;
 }) => {
-  const { tenant } = useTenant();
-  invariant(tenant);
-
+  const { tenantId } = useCurrentTenantId();
   const cf = useColumnFilters();
 
   const metricsQuery = useQuery({
-    ...queries.v1TaskRuns.metrics(tenant.metadata.id, {
+    ...queries.v1TaskRuns.metrics(tenantId, {
       since: cf.filters.createdAfter,
       parent_task_external_id: parentTaskExternalId,
       workflow_ids: workflow ? [workflow] : [],
@@ -31,7 +28,7 @@ export const useMetrics = ({
   const metrics = metricsQuery.data || [];
 
   const tenantMetricsQuery = useQuery({
-    ...queries.metrics.getStepRunQueueMetrics(tenant.metadata.id),
+    ...queries.metrics.getStepRunQueueMetrics(tenantId),
     refetchInterval,
   });
 

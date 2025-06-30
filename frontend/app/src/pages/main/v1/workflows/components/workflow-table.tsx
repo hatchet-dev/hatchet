@@ -1,9 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Workflow, queries } from '@/lib/api';
-import invariant from 'tiny-invariant';
-import { TenantContextType } from '@/lib/outlet';
-import { Link, useOutletContext, useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { DataTable } from '@/components/v1/molecules/data-table/data-table.tsx';
 import { columns } from './workflow-columns';
 import { Loading } from '@/components/v1/ui/loading.tsx';
@@ -18,11 +16,11 @@ import { BiCard, BiTable } from 'react-icons/bi';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { Badge } from '@/components/v1/ui/badge';
 import { IntroDocsEmptyState } from '@/pages/onboarding/intro-docs-empty-state';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
 
 export function WorkflowTable() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const { tenant } = useOutletContext<TenantContextType>();
-  invariant(tenant);
+  const { tenantId } = useCurrentTenantId();
 
   const [sorting, setSorting] = useState<SortingState>([
     {
@@ -50,7 +48,7 @@ export function WorkflowTable() {
   );
 
   const listWorkflowQuery = useQuery({
-    ...queries.workflows.list(tenant.metadata.id, {
+    ...queries.workflows.list(tenantId, {
       limit: pagination.pageSize,
       offset: pagination.pageIndex * pageSize,
     }),

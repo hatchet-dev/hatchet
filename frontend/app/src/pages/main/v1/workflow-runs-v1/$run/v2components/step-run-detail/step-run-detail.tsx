@@ -1,6 +1,5 @@
 import { V1TaskStatus, V1TaskSummary, queries } from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
-import invariant from 'tiny-invariant';
 import { Button } from '@/components/v1/ui/button';
 import { Loading } from '@/components/v1/ui/loading';
 import { LinkIcon } from '@heroicons/react/24/outline';
@@ -81,11 +80,6 @@ export const TaskRunDetail = ({
   defaultOpenTab = TabOption.Output,
   showViewTaskRunButton,
 }: TaskRunDetailProps) => {
-  const { tenant } = useTenant();
-
-  const tenantId = tenant?.metadata.id;
-  invariant(tenantId);
-
   const taskRunQuery = useQuery({
     ...queries.v1Tasks.get(taskRunId),
     refetchInterval: (query) => {

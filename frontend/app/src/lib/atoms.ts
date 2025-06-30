@@ -176,7 +176,10 @@ export function useTenant(): TenantContext {
       });
     }
 
-    if (tenant?.version == TenantVersion.V1 && !pathname.startsWith('/tenants')) {
+    if (
+      tenant?.version == TenantVersion.V1 &&
+      !pathname.startsWith('/tenants')
+    ) {
       setLastRedirected(tenant?.slug);
       return navigate({
         pathname: `tenants/${tenant?.metadata.id}` + pathname,

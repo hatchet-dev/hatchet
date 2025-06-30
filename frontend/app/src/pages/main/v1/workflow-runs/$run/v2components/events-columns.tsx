@@ -9,10 +9,8 @@ import {
 } from '@heroicons/react/24/outline';
 import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
 import { cn } from '@/lib/utils';
-import { Link, useOutletContext } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { Button } from '@/components/v1/ui/button';
-import { TenantContextType } from '@/lib/outlet';
-import invariant from 'tiny-invariant';
 import { useRef, useState } from 'react';
 import {
   Popover,
@@ -222,10 +220,6 @@ function EventIndicator({ severity }: { severity: StepRunEventSeverity }) {
 }
 
 function ErrorWithHoverCard({ event }: { event: V1TaskEvent }) {
-  const { tenant } = useOutletContext<TenantContextType>();
-  invariant(tenant);
-  // invariant(event.taskId);
-
   const [popoverOpen, setPopoverOpen] = useState(false);
 
   // containerRef needed due to https://github.com/radix-ui/primitives/issues/1159#issuecomment-2105108943
@@ -273,9 +267,6 @@ function ErrorWithHoverCard({ event }: { event: V1TaskEvent }) {
 }
 
 function ErrorHoverContents({ event }: { event: V1TaskEvent }) {
-  // We cannot call this component without stepRun being defined.
-  // invariant(event.taskId);
-
   const errorText = event.errorMessage;
 
   if (!errorText) {

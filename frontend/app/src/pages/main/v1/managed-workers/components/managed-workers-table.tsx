@@ -1,9 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { queries } from '@/lib/api';
-import invariant from 'tiny-invariant';
-import { TenantContextType } from '@/lib/outlet';
-import { Link, useOutletContext } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { DataTable } from '@/components/v1/molecules/data-table/data-table.tsx';
 import { columns } from './managed-worker-columns';
 import { Loading } from '@/components/v1/ui/loading.tsx';
@@ -21,10 +19,10 @@ import { BiCard, BiTable } from 'react-icons/bi';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { ManagedWorker } from '@/lib/api/generated/cloud/data-contracts';
 import GithubButton from '../$managed-worker/components/github-button';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
 
 export function ManagedWorkersTable() {
-  const { tenant } = useOutletContext<TenantContextType>();
-  invariant(tenant);
+  const { tenantId } = useCurrentTenantId();
 
   const [sorting, setSorting] = useState<SortingState>([
     {
@@ -38,7 +36,7 @@ export function ManagedWorkersTable() {
   const [cardToggle, setCardToggle] = useState(true);
 
   const listManagedWorkersQuery = useQuery({
-    ...queries.cloud.listManagedWorkers(tenant.metadata.id),
+    ...queries.cloud.listManagedWorkers(tenantId),
     refetchInterval: 5000,
   });
 

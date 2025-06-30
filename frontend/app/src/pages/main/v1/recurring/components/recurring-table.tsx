@@ -13,9 +13,7 @@ import {
   WorkflowRunOrderByDirection,
   queries,
 } from '@/lib/api';
-import invariant from 'tiny-invariant';
-import { useOutletContext, useSearchParams } from 'react-router-dom';
-import { TenantContextType } from '@/lib/outlet';
+import { useSearchParams } from 'react-router-dom';
 import { DataTable } from '@/components/v1/molecules/data-table/data-table';
 import { columns } from './recurring-columns';
 import { Button } from '@/components/v1/ui/button';
@@ -26,12 +24,11 @@ import {
   ToolbarFilters,
   ToolbarType,
 } from '@/components/v1/molecules/data-table/data-table-toolbar';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
 
 export function CronsTable() {
-  const { tenant } = useOutletContext<TenantContextType>();
+  const { tenantId } = useCurrentTenantId();
   const [searchParams, setSearchParams] = useSearchParams();
-
-  invariant(tenant);
 
   const [sorting, setSorting] = useState<SortingState>(() => {
     const sortParam = searchParams.get('sort');
@@ -128,7 +125,7 @@ export function CronsTable() {
     error: queryError,
     refetch,
   } = useQuery({
-    ...queries.cronJobs.list(tenant.metadata.id, {
+    ...queries.cronJobs.list(tenantId, {
       orderByField,
       orderByDirection,
       offset,
@@ -157,7 +154,7 @@ export function CronsTable() {
   };
 
   const { data: workflowKeys } = useQuery({
-    ...queries.workflows.list(tenant.metadata.id, { limit: 200 }),
+    ...queries.workflows.list(tenantId, { limit: 200 }),
   });
 
   const workflowKeyFilters = useMemo((): FilterOption[] => {
@@ -202,7 +199,7 @@ export function CronsTable() {
     <>
       {showDeleteCron && (
         <DeleteCron
-          tenant={tenant.metadata.id}
+          tenant={tenantId}
           cron={showDeleteCron}
           setShowCronRevoke={setShowDeleteCron}
           onSuccess={handleConfirmDelete}

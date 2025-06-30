@@ -5,8 +5,6 @@ import invariant from 'tiny-invariant';
 import { useApiError } from '@/lib/hooks';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { cn } from '@/lib/utils';
-import { useOutletContext } from 'react-router-dom';
-import { TenantContextType } from '@/lib/outlet';
 import { PlayIcon } from '@radix-ui/react-icons';
 import { StepRunOutput } from './step-run-output';
 import { StepRunInputs } from './step-run-inputs';
@@ -30,6 +28,7 @@ import { QuestionMarkCircleIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import { StepRunEvents } from './step-run-events';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { TaskRunsTable } from '../../../workflow-runs-v1/components/task-runs-table';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
 
 export function StepRunPlayground({
   stepRun,
@@ -40,8 +39,7 @@ export function StepRunPlayground({
   setStepRun: (stepRun: StepRun | undefined) => void;
   workflowRun: WorkflowRun;
 }) {
-  const { tenant } = useOutletContext<TenantContextType>();
-  invariant(tenant);
+  const { tenantId } = useCurrentTenantId();
 
   const [errors, setErrors] = useState<string[]>([]);
 
@@ -99,7 +97,7 @@ export function StepRunPlayground({
   }, [originalInput]);
 
   const getStepRunQuery = useQuery({
-    ...queries.stepRuns.get(tenant.metadata.id, stepRun?.metadata.id || ''),
+    ...queries.stepRuns.get(tenantId, stepRun?.metadata.id || ''),
     enabled: !!stepRun,
     refetchInterval: (query) => {
       const data = query.state.data;
@@ -153,10 +151,8 @@ export function StepRunPlayground({
     },
     onSuccess: (stepRun: StepRun) => {
       queryClient.invalidateQueries({
-        queryKey: queries.workflowRuns.get(
-          tenant.metadata.id,
-          workflowRun.metadata.id,
-        ).queryKey,
+        queryKey: queries.workflowRuns.get(tenantId, workflowRun.metadata.id)
+          .queryKey,
       });
 
       setStepRun(stepRun);
@@ -186,10 +182,8 @@ export function StepRunPlayground({
     },
     onSuccess: (stepRun: StepRun) => {
       queryClient.invalidateQueries({
-        queryKey: queries.workflowRuns.get(
-          tenant.metadata.id,
-          workflowRun.metadata.id,
-        ).queryKey,
+        queryKey: queries.workflowRuns.get(tenantId, workflowRun.metadata.id)
+          .queryKey,
       });
 
       setStepRun(stepRun);
@@ -423,9 +417,6 @@ export function ChildWorkflowRuns({
 }: {
   refetchInterval?: number;
 }) {
-  const { tenant } = useOutletContext<TenantContextType>();
-  invariant(tenant);
-
   return (
     <TaskRunsTable
       refetchInterval={refetchInterval}

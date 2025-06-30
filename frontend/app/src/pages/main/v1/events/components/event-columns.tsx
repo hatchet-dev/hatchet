@@ -11,13 +11,11 @@ import {
 } from '@/components/v1/ui/popover';
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import invariant from 'tiny-invariant';
 import { DataTable } from '@/components/v1/molecules/data-table/data-table';
-import { TenantContextType } from '@/lib/outlet';
-import { useOutletContext } from 'react-router-dom';
 import { AdditionalMetadata } from './additional-metadata';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
 
 export const columns = ({
   onRowClick,
@@ -170,9 +168,7 @@ export const columns = ({
 
 // eslint-disable-next-line react-refresh/only-export-components
 function WorkflowRunSummary({ event }: { event: V1Event }) {
-  const { tenant } = useOutletContext<TenantContextType>();
-  invariant(tenant);
-
+  const { tenantId } = useCurrentTenantId();
   const [hoverCardOpen, setPopoverOpen] = useState<
     'failed' | 'succeeded' | 'running' | 'queued' | 'cancelled'
   >();
@@ -184,7 +180,7 @@ function WorkflowRunSummary({ event }: { event: V1Event }) {
   const numQueued = event.workflowRunSummary?.queued || 0;
 
   const listWorkflowRunsQuery = useQuery({
-    ...queries.v1WorkflowRuns.list(tenant.metadata.id, {
+    ...queries.v1WorkflowRuns.list(tenantId, {
       offset: 0,
       limit: 10,
       triggering_event_external_id: event.metadata.id,
