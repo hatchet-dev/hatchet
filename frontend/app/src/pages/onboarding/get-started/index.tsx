@@ -1,6 +1,6 @@
 import { Loading } from '@/components/ui/loading';
 import { UserContextType, MembershipsContextType } from '@/lib/outlet';
-import { useOutletContext } from 'react-router-dom';
+import { Link, useOutletContext } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Step, Steps } from '@/components/v1/ui/steps';
 import { DefaultOnboardingAuth } from './platforms/defaults/default-onboarding-auth';
@@ -37,9 +37,9 @@ export default function GetStarted() {
         <div className="flex flex-col justify-center space-y-4">
           <div className="flex flex-row justify-between mt-10">
             <h1 className="text-3xl font-bold">Quickstart</h1>
-            <a href="/">
+            <Link to={`/tenants/${currTenant.metadata.id}/runs`}>
               <Button variant="outline">Skip Quickstart</Button>
-            </a>
+            </Link>
           </div>
 
           <p className="text-gray-600 dark:text-gray-300 text-sm">

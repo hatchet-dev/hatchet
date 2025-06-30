@@ -9,15 +9,15 @@ import { CreateManagedWorkerRequest } from '@/lib/api/generated/cloud/data-contr
 import { cloudApi } from '@/lib/api/api';
 import { useState } from 'react';
 import { useApiError } from '@/lib/hooks';
+import { useTenant } from '@/lib/atoms';
 import { managedCompute } from '@/lib/can/features/managed-compute';
 import { RejectReason } from '@/lib/can/shared/permission.base';
 import { BillingRequired } from '../components/billing-required';
-import { useTenantDetails } from '@/hooks/use-tenant';
 
 export default function CreateWorker() {
   const navigate = useNavigate();
   const { tenant: contextTenant } = useOutletContext<TenantContextType>();
-  const { tenant, billing, can } = useTenantDetails();
+  const { tenant, billing, can } = useTenant();
   invariant(contextTenant);
 
   const [portalLoading, setPortalLoading] = useState(false);
