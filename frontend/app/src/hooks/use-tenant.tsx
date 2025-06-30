@@ -8,11 +8,10 @@ import api, {
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import invariant from 'tiny-invariant';
-import { useToast } from './use-toast';
 
 export function useCurrentTenantId() {
   const params = useParams();
-  const tenantId = params.tenantId;
+  const tenantId = params.tenant;
 
   invariant(tenantId, 'Tenant ID is required');
 
@@ -33,7 +32,6 @@ export function useTenantDetails() {
   );
 
   const queryClient = useQueryClient();
-  const { toast } = useToast();
   const location = useLocation();
   const navigate = useNavigate();
 

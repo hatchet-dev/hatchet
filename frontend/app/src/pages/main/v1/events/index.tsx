@@ -16,7 +16,6 @@ import api, {
   V1TaskStatus,
   queries,
 } from '@/lib/api';
-import invariant from 'tiny-invariant';
 import {
   FilterOption,
   ToolbarType,
@@ -28,17 +27,18 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/v1/ui/dialog';
-import { useOutletContext, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/v1/ui/button';
 import { ArrowPathIcon } from '@heroicons/react/24/outline';
 import { Loading } from '@/components/v1/ui/loading.tsx';
-import { TenantContextType } from '@/lib/outlet';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { DataTable } from '@/components/v1/molecules/data-table/data-table';
 import { TaskRunsTable } from '../workflow-runs-v1/components/task-runs-table';
 import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
 
 export default function Events() {
+  console.log('Rendering Events Page');
   return (
     <div className="flex-grow h-full w-full">
       <div className="mx-auto py-8 px-4 sm:px-6 lg:px-8">
@@ -54,11 +54,10 @@ export default function Events() {
 
 function EventsTable() {
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
-  const { tenant } = useOutletContext<TenantContextType>();
+  const { tenantId } = useCurrentTenantId();
+
   const [searchParams, setSearchParams] = useSearchParams();
   const [rotate, setRotate] = useState(false);
-
-  invariant(tenant);
 
   useEffect(() => {
     if (
@@ -223,7 +222,7 @@ function EventsTable() {
   } = useQuery({
     queryKey: [
       'v1:events:list',
-      tenant.metadata.id,
+      tenantId,
       {
         keys,
         workflows,
@@ -237,7 +236,7 @@ function EventsTable() {
       },
     ],
     queryFn: async () => {
-      const response = await api.v1EventList(tenant.metadata.id, {
+      const response = await api.v1EventList(tenantId, {
         offset,
         limit: pageSize,
         keys,
@@ -260,9 +259,9 @@ function EventsTable() {
     isLoading: eventKeysIsLoading,
     error: eventKeysError,
   } = useQuery({
-    queryKey: ['v1:events:listKeys', tenant.metadata.id],
+    queryKey: ['v1:events:listKeys', tenantId],
     queryFn: async () => {
-      const response = await api.v1EventKeyList(tenant.metadata.id);
+      const response = await api.v1EventKeyList(tenantId);
 
       return response.data;
     },
@@ -282,7 +281,7 @@ function EventsTable() {
     isLoading: workflowKeysIsLoading,
     error: workflowKeysError,
   } = useQuery({
-    ...queries.workflows.list(tenant.metadata.id, { limit: 200 }),
+    ...queries.workflows.list(tenantId, { limit: 200 }),
   });
 
   const workflowKeyFilters = useMemo((): FilterOption[] => {
@@ -437,13 +436,12 @@ function ExpandedEventContent({ event }: { event: Event }) {
 }
 
 function EventDataSection({ event }: { event: Event }) {
-  const { tenant } = useOutletContext<TenantContextType>();
-  invariant(tenant);
+  const { tenantId } = useCurrentTenantId();
 
   const { data, isLoading } = useQuery({
-    queryKey: ['v1:events:list', tenant.metadata.id, event.metadata.id],
+    queryKey: ['v1:events:list', tenantId, event.metadata.id],
     queryFn: async () => {
-      const response = await api.v1EventList(tenant.metadata.id, {
+      const response = await api.v1EventList(tenantId, {
         eventIds: [event.metadata.id],
       });
 

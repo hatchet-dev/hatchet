@@ -592,36 +592,14 @@ export const routes: RouteObject[] = [
           },
         ],
       },
-
       {
-        path: '/v1/',
+        path: '/v1/onboarding/get-started',
         lazy: async () =>
-          import('./pages/authenticated').then((res) => {
+          import('./pages/onboarding/get-started').then((res) => {
             return {
               Component: res.default,
             };
           }),
-        children: [
-          {
-            path: '/v1/',
-            lazy: async () => {
-              return {
-                loader: function () {
-                  return redirect('/');
-                },
-              };
-            },
-          },
-          {
-            path: '/v1/onboarding/get-started',
-            lazy: async () =>
-              import('./pages/onboarding/get-started').then((res) => {
-                return {
-                  Component: res.default,
-                };
-              }),
-          },
-        ],
       },
     ],
   },

@@ -176,10 +176,10 @@ export function useTenant(): TenantContext {
       });
     }
 
-    if (tenant?.version == TenantVersion.V1 && !pathname.startsWith('/v1')) {
+    if (tenant?.version == TenantVersion.V1 && !pathname.startsWith('/tenants')) {
       setLastRedirected(tenant?.slug);
       return navigate({
-        pathname: '/v1' + pathname,
+        pathname: `tenants/${tenant?.metadata.id}` + pathname,
         search: params.toString(),
       });
     }
