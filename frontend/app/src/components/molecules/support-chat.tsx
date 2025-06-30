@@ -1,5 +1,5 @@
-import { useTenantDetails } from '@/hooks/use-tenant';
 import { User } from '@/lib/api';
+import { useTenant } from '@/lib/atoms';
 import useApiMeta from '@/pages/auth/hooks/use-api-meta';
 import React, { PropsWithChildren, useEffect, useMemo } from 'react';
 
@@ -13,7 +13,7 @@ const SupportChat: React.FC<PropsWithChildren & SupportChatProps> = ({
 }) => {
   const meta = useApiMeta();
 
-  const { tenant } = useTenantDetails();
+  const { tenant } = useTenant();
 
   const APP_ID = useMemo(() => {
     if (!meta.data?.pylonAppId) {

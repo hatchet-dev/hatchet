@@ -29,9 +29,9 @@ import { useTheme } from '@/components/theme-provider';
 import { useEffect, useMemo } from 'react';
 import useApiMeta from '@/pages/auth/hooks/use-api-meta';
 import { VersionInfo } from '@/pages/main/info/components/version-info';
+import { useTenant } from '@/lib/atoms';
 import { routes } from '@/router';
 import { Banner, BannerProps } from './banner';
-import { useTenantDetails } from '@/hooks/use-tenant';
 
 function HelpDropdown() {
   const meta = useApiMeta();
@@ -97,7 +97,7 @@ function HelpDropdown() {
 
 function AccountDropdown({ user }: MainNavProps) {
   const navigate = useNavigate();
-  const { tenant } = useTenantDetails();
+  const { tenant } = useTenant();
 
   const { handleApiError } = useApiError({});
 
@@ -169,7 +169,7 @@ interface MainNavProps {
 export default function MainNav({ user, setHasBanner }: MainNavProps) {
   const { toggleSidebarOpen } = useSidebar();
   const { theme } = useTheme();
-  const { tenant } = useTenantDetails();
+  const { tenant } = useTenant();
   const { pathname } = useLocation();
   const navigate = useNavigate();
 
@@ -225,6 +225,7 @@ export default function MainNav({ user, setHasBanner }: MainNavProps) {
     <div className="fixed top-0 w-screen">
       {banner && <Banner {...banner} />}
 
+      {/* Main Navigation Bar */}
       <div className="h-16 border-b">
         <div className="flex h-16 items-center pr-4 pl-4">
           <button
