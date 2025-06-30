@@ -2633,7 +2633,7 @@ WITH locked_events AS (
         ARRAY_REMOVE(ARRAY_AGG(t.external_id), NULL)::uuid[] AS external_ids,
         ARRAY_REMOVE(ARRAY_AGG(t.latest_worker_id), NULL)::uuid[] AS latest_worker_ids,
         ARRAY_REMOVE(ARRAY_AGG(t.workflow_id), NULL)::uuid[] AS workflow_ids,
-        ARRAY_AGG(t.is_dag_task)::boolean[] AS is_dag_tasks -- can be used to determined if the task belongs to a DAG
+        ARRAY_REMOVE(ARRAY_AGG(t.is_dag_task), NULL)::boolean[] AS is_dag_tasks -- can be used to determined if the task belongs to a DAG
     FROM
         updated_tasks t
 )
