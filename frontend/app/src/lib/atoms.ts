@@ -1,6 +1,11 @@
 import { atom, useAtom } from 'jotai';
 import { Tenant, TenantVersion, queries } from './api';
-import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import {
+  useLocation,
+  useNavigate,
+  useParams,
+  useSearchParams,
+} from 'react-router-dom';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import useCloudApiMeta from '@/pages/auth/hooks/use-cloud-api-meta';
@@ -67,6 +72,7 @@ type TenantContext = TenantContextPresent | TenantContextMissing;
 export function useTenant(): TenantContext {
   const [lastTenant, setLastTenant] = useAtom(lastTenantAtom);
   const [searchParams, setSearchParams] = useSearchParams();
+  const pathParams = useParams();
 
   const setTenant = useCallback(
     (tenant: Tenant) => {
@@ -99,8 +105,17 @@ export function useTenant(): TenantContext {
   );
 
   const computedCurrTenant = useMemo(() => {
+    const tenantFromPath = pathParams.tenant;
     const currTenantId = searchParams.get('tenant') || undefined;
     const lastTenantId = lastTenant?.metadata.id || undefined;
+
+    if (tenantFromPath) {
+      const tenant = findTenant(tenantFromPath);
+
+      if (tenant) {
+        return tenant;
+      }
+    }
 
     // If the current tenant is set as a query param, use it
     if (currTenantId) {
