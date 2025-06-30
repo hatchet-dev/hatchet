@@ -618,10 +618,64 @@ export const routes: RouteObject[] = [
                     };
                   }),
               },
+
+              // Redirects for tenanted paths
               {
                 path: '/tenants/:tenant/workflow-runs',
                 loader: ({ params }) => {
                   return redirect(`/tenants/${params.tenant}/runs`);
+                },
+              },
+              {
+                path: '/v1/workflow-runs/:run',
+                lazy: async () => {
+                  return {
+                    loader: function ({ params }) {
+                      return redirect(`/tenants/:tenant/runs/${params.run}`);
+                    },
+                  };
+                },
+              },
+              {
+                path: '/v1/*',
+                lazy: async () => {
+                  return {
+                    loader: function () {
+                      return redirect('/');
+                    },
+                  };
+                },
+              },
+              {
+                path: '/tenants/:tenant/',
+                lazy: async () => {
+                  return {
+                    loader: function ({ params }) {
+                      return redirect(`/tenants/${params.tenant}/runs`);
+                    },
+                  };
+                },
+              },
+              {
+                path: '/tenants/:tenant/workflows',
+                lazy: async () => {
+                  return {
+                    loader: function ({ params }) {
+                      return redirect(`/tenants/${params.tenant}/tasks`);
+                    },
+                  };
+                },
+              },
+              {
+                path: '/tenants/:tenant/workflows/:workflow',
+                lazy: async () => {
+                  return {
+                    loader: function ({ params }) {
+                      return redirect(
+                        `/tenants/${params.tenant}/tasks/${params.workflow}`,
+                      );
+                    },
+                  };
                 },
               },
             ],
