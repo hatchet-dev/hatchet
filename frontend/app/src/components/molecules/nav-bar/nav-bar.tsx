@@ -29,9 +29,9 @@ import { useTheme } from '@/components/theme-provider';
 import { useEffect, useMemo } from 'react';
 import useApiMeta from '@/pages/auth/hooks/use-api-meta';
 import { VersionInfo } from '@/pages/main/info/components/version-info';
-import { useTenant } from '@/lib/atoms';
 import { routes } from '@/router';
 import { Banner, BannerProps } from './banner';
+import { useTenantDetails } from '@/hooks/use-tenant';
 
 function HelpDropdown() {
   const meta = useApiMeta();
@@ -97,7 +97,7 @@ function HelpDropdown() {
 
 function AccountDropdown({ user }: MainNavProps) {
   const navigate = useNavigate();
-  const { tenant } = useTenant();
+  const { tenant } = useTenantDetails();
 
   const { handleApiError } = useApiError({});
 
@@ -169,7 +169,7 @@ interface MainNavProps {
 export default function MainNav({ user, setHasBanner }: MainNavProps) {
   const { toggleSidebarOpen } = useSidebar();
   const { theme } = useTheme();
-  const { tenant } = useTenant();
+  const { tenant } = useTenantDetails();
   const { pathname } = useLocation();
   const navigate = useNavigate();
 

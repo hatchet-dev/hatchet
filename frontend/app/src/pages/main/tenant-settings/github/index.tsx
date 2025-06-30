@@ -6,12 +6,12 @@ import { columns as githubInstallationsColumns } from './components/github-insta
 import { DataTable } from '@/components/v1/molecules/data-table/data-table';
 import { Button } from '@/components/v1/ui/button';
 import useCloudApiMeta from '@/pages/auth/hooks/use-cloud-api-meta';
-import { useTenant } from '@/lib/atoms';
 import invariant from 'tiny-invariant';
 import { useState } from 'react';
 import { cloudApi } from '@/lib/api/api';
 import { useApiError } from '@/lib/hooks';
 import { ConfirmDialog } from '@/components/v1/molecules/confirm-dialog';
+import { useCurrentTenantId, useTenantDetails } from '@/hooks/use-tenant';
 
 export default function Github() {
   const cloudMeta = useCloudApiMeta();
@@ -47,15 +47,15 @@ export default function Github() {
 }
 
 function GithubInstallationsList() {
-  const tenant = useTenant();
-  invariant(tenant.tenantId, 'tenant should be set');
+  const { tenantId } = useCurrentTenantId();
+  const { tenant } = useTenantDetails();
 
   const [installationToLink, setInstallationToLink] = useState<
     string | undefined
   >();
 
   const listInstallationsQuery = useQuery({
-    ...queries.github.listInstallations(tenant.tenantId),
+    ...queries.github.listInstallations(tenantId),
   });
 
   const { handleApiError } = useApiError({});
@@ -63,7 +63,7 @@ function GithubInstallationsList() {
   const linkInstallationToTenantMutation = useMutation({
     mutationKey: [
       'github-app:update:installation',
-      tenant.tenantId,
+      tenantId,
       installationToLink,
     ],
     mutationFn: async () => {
@@ -71,7 +71,7 @@ function GithubInstallationsList() {
       const res = await cloudApi.githubAppUpdateInstallation(
         installationToLink,
         {
-          tenant: tenant.tenantId,
+          tenant: tenantId,
         },
       );
       return res.data;
@@ -107,7 +107,7 @@ function GithubInstallationsList() {
       />
       <ConfirmDialog
         title={`Are you sure?`}
-        description={`Linking this app to ${tenant.tenant.name} will allow other members of the tenant to view this installation. Users will only be able to deploy to repositories that they have access to.`}
+        description={`Linking this app to ${tenant?.name} will allow other members of the tenant to view this installation. Users will only be able to deploy to repositories that they have access to.`}
         submitLabel={'Yes, link to tenant'}
         submitVariant={'default'}
         onSubmit={linkInstallationToTenantMutation.mutate}

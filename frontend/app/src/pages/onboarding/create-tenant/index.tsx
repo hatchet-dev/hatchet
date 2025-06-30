@@ -3,14 +3,14 @@ import { useApiError } from '@/lib/hooks';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { TenantCreateForm } from './components/tenant-create-form';
-import { useTenant } from '@/lib/atoms';
+import { useTenantDetails } from '@/hooks/use-tenant';
 
 export default function CreateTenant() {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const { handleApiError } = useApiError({
     setFieldErrors: setFieldErrors,
   });
-  const { setTenant } = useTenant();
+  const { setTenant } = useTenantDetails();
 
   const listMembershipsQuery = useQuery({
     ...queries.user.listTenantMemberships,
@@ -23,7 +23,7 @@ export default function CreateTenant() {
       return tenant.data;
     },
     onSuccess: async (tenant) => {
-      setTenant(tenant);
+      setTenant(tenant.metadata.id);
       await listMembershipsQuery.refetch();
       window.location.href = `/onboarding/get-started?tenant=${tenant.metadata.id}`;
     },

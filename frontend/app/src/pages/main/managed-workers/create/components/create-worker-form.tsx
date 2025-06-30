@@ -31,11 +31,11 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from '@/components/v1/ui/accordion';
-import { useTenant } from '@/lib/atoms';
 import {
   managedCompute,
   ComputeType,
 } from '@/lib/can/features/managed-compute';
+import { useTenantDetails } from '@/hooks/use-tenant';
 
 export const machineTypes = [
   {
@@ -309,7 +309,7 @@ export default function CreateWorkerForm({
   isLoading,
   fieldErrors,
 }: CreateWorkerFormProps) {
-  const { can } = useTenant();
+  const { can } = useTenantDetails();
 
   const {
     watch,

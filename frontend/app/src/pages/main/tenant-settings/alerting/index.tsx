@@ -9,10 +9,8 @@ import api, {
   UpdateTenantRequest,
   queries,
 } from '@/lib/api';
-import { useTenant } from '@/lib/atoms';
 import { Spinner } from '@/components/ui/loading';
 import { UpdateTenantAlertingSettings } from './components/update-tenant-alerting-settings-form';
-import invariant from 'tiny-invariant';
 import { columns } from './components/slack-webhooks-columns';
 import { columns as emailGroupsColumns } from './components/email-groups-columns';
 
@@ -24,6 +22,7 @@ import { Dialog } from '@radix-ui/react-dialog';
 import { useOutletContext } from 'react-router-dom';
 import { CreateEmailGroupDialog } from './components/create-email-group-dialog';
 import { DeleteEmailGroupForm } from './components/delete-email-group-form';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
 
 export default function Alerting() {
   const integrations = useApiMetaIntegrations();
@@ -52,12 +51,10 @@ export default function Alerting() {
 }
 
 const AlertingSettings: React.FC = () => {
-  const { tenant } = useTenant();
-
-  invariant(tenant, 'tenant should be defined');
+  const { tenantId } = useCurrentTenantId();
 
   const alertingSettings = useQuery({
-    ...queries.alertingSettings.get(tenant.metadata.id),
+    ...queries.alertingSettings.get(tenantId),
   });
 
   const [isLoading, setIsLoading] = useState(false);
@@ -67,7 +64,7 @@ const AlertingSettings: React.FC = () => {
   const updateMutation = useMutation({
     mutationKey: ['tenant:update'],
     mutationFn: async (data: UpdateTenantRequest) => {
-      await api.tenantUpdate(tenant.metadata.id, data);
+      await api.tenantUpdate(tenantId, data);
     },
     onMutate: () => {
       setIsLoading(true);

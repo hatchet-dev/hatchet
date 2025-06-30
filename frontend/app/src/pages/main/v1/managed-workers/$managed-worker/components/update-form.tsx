@@ -47,9 +47,8 @@ import {
   ComputeType,
   managedCompute,
 } from '@/lib/can/features/managed-compute';
-import { useTenant } from '@/lib/atoms';
 import EnvGroupArray, { KeyValueType } from '@/components/v1/ui/envvar';
-import { useCurrentTenantId } from '@/hooks/use-tenant';
+import { useCurrentTenantId, useTenantDetails } from '@/hooks/use-tenant';
 
 interface UpdateWorkerFormProps {
   onSubmit: (opts: z.infer<typeof updateManagedWorkerSchema>) => void;
@@ -355,7 +354,7 @@ export default function UpdateWorkerForm({
     }
   }, [getValues, setValue, isIac]);
 
-  const { can } = useTenant();
+  const { can } = useTenantDetails();
 
   const [isComputeAllowed] = useMemo(() => {
     const selectedMachine = machineTypes.find((m) => m.title === machineType);

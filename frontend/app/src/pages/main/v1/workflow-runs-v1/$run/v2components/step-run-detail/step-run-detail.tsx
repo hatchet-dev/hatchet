@@ -13,7 +13,6 @@ import {
 import { StepRunEvents } from '../step-run-events-for-workflow-run';
 import { Link } from 'react-router-dom';
 import { TaskRunsTable } from '../../../components/task-runs-table';
-import { useTenant } from '@/lib/atoms';
 import { V1RunIndicator } from '../../../components/run-statuses';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { formatDuration } from '@/lib/utils';
@@ -54,7 +53,7 @@ const TaskRunPermalinkOrBacklink = ({
   showViewTaskRunButton: boolean;
 }) => {
   const { tenantId } = useCurrentTenantId();
-  
+
   if (showViewTaskRunButton) {
     return (
       <Link to={`/tenants/${tenantId}/task-runs/${taskRun.metadata.id}`}>
@@ -216,12 +215,6 @@ export const TaskRunDetail = ({
 };
 
 const V1StepRunSummary = ({ taskRunId }: { taskRunId: string }) => {
-  const { tenantId } = useTenant();
-
-  if (!tenantId) {
-    throw new Error('Tenant not found');
-  }
-
   const taskRunQuery = useQuery({
     ...queries.v1Tasks.get(taskRunId),
   });

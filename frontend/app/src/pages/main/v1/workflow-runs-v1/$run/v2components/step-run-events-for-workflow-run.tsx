@@ -2,7 +2,7 @@ import { queries, V1TaskEvent } from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
 import { DataTable } from '@/components/v1/molecules/data-table/data-table';
 import { columns } from './events-columns';
-import { useTenant } from '@/lib/atoms';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
 
 export function StepRunEvents({
   taskRunId,
@@ -15,12 +15,7 @@ export function StepRunEvents({
   fallbackTaskDisplayName: string;
   onClick: (stepRunId: string) => void;
 }) {
-  const tenant = useTenant();
-  const tenantId = tenant.tenant?.metadata.id;
-
-  if (!tenantId) {
-    throw new Error('Tenant ID not found');
-  }
+  const { tenantId } = useCurrentTenantId();
 
   const eventsQuery = useQuery({
     ...queries.v1TaskEvents.list(

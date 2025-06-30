@@ -1,6 +1,5 @@
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
-import { useTenant } from '@/lib/atoms';
 import { Link } from 'react-router-dom';
 import { useState, useEffect, useCallback } from 'react';
 import { ArrowLeftIcon } from '@radix-ui/react-icons';
@@ -25,9 +24,10 @@ import { cloudApi } from '@/lib/api/api';
 import api from '@/lib/api';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { GitHubLogoIcon } from '@radix-ui/react-icons';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
 
 export default function DemoTemplate() {
-  const { tenant } = useTenant();
+  const { tenantId } = useCurrentTenantId();
   const [deploying, setDeploying] = useState(false);
   const [deployed, setDeployed] = useState(false);
   const [deployedWorkerId, setDeployedWorkerId] = useState<string | null>(null);
@@ -54,7 +54,7 @@ export default function DemoTemplate() {
   // Create demo template mutation
   const { mutate: createComputeDemoTemplate, isPending } = useMutation({
     mutationFn: (template: TemplateOptions) =>
-      cloudApi.managedWorkerTemplateCreate(tenant!.metadata.id, {
+      cloudApi.managedWorkerTemplateCreate(tenantId, {
         name: template,
       }),
     onSuccess: (response) => {
@@ -122,7 +122,7 @@ export default function DemoTemplate() {
 
   // Trigger a workflow run
   const triggerWorkflow = useCallback(async () => {
-    if (!tenant || !workflowId) {
+    if (!workflowId) {
       return;
     }
 
@@ -156,7 +156,7 @@ export default function DemoTemplate() {
       console.error('Failed to trigger workflow:', error);
       setTriggering(false);
     }
-  }, [tenant, workflowId, isSimulation, runsTriggered]);
+  }, [tenantId, workflowId, isSimulation, runsTriggered]);
 
   // Automatically trigger workflow runs when success step is opened
   useEffect(() => {
@@ -215,10 +215,6 @@ export default function DemoTemplate() {
   }, [deployedWorkerId, workerEventsQuery.data, isSimulation, workflowId]);
 
   const handleDeploy = async () => {
-    if (!tenant) {
-      return;
-    }
-
     if (isSimulation) {
       simulateDeployment();
       return;
@@ -264,15 +260,9 @@ export default function DemoTemplate() {
         setIsGeneratingToken(false);
       }, 1500);
     } else {
-      // Use the real API to generate a token in real mode
-      if (!tenant) {
-        setIsGeneratingToken(false);
-        return;
-      }
-
       // Call the real API to generate a token
       api
-        .apiTokenCreate(tenant.metadata.id, { name: 'demo-template-token' })
+        .apiTokenCreate(tenantId, { name: 'demo-template-token' })
         .then((response: any) => {
           if (response.data && response.data.token) {
             setApiToken(response.data.token);
@@ -695,11 +685,7 @@ func main() {
                           </div>
                           <Button
                             onClick={handleDeploy}
-                            disabled={
-                              deploying ||
-                              !tenant ||
-                              (!isSimulation && isPending)
-                            }
+                            disabled={deploying || (!isSimulation && isPending)}
                             className="min-w-32"
                           >
                             {deploying || (!isSimulation && isPending)
