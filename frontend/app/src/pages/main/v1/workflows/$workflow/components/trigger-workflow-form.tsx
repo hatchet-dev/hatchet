@@ -25,12 +25,12 @@ import {
   TabsList,
   TabsTrigger,
 } from '@/components/v1/ui/tabs';
-import CronPrettifier from 'cronstrue';
 import { DateTimePicker } from '@/components/v1/molecules/time-picker/date-time-picker';
 import { ToolbarType } from '@/components/v1/molecules/data-table/data-table-toolbar';
 import { BiDownArrowCircle } from 'react-icons/bi';
 import { Combobox } from '@/components/v1/molecules/combobox/combobox';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
+import { formatCron } from '@/lib/utils';
 
 type TimingOption = 'now' | 'schedule' | 'cron';
 
@@ -79,7 +79,7 @@ export function TriggerWorkflowForm({
   const cronPretty = useMemo(() => {
     try {
       return {
-        pretty: CronPrettifier.toString(cronExpression || '').toLowerCase(),
+        pretty: formatCron(cronExpression),
       };
     } catch (e) {
       console.error(e);
@@ -418,7 +418,7 @@ export function TriggerWorkflowForm({
                   className="w-full"
                 />
                 <div className="text-sm text-gray-500">
-                  {cronPretty?.error || `(runs ${cronPretty?.pretty} UTC)`}
+                  {cronPretty?.error || `(runs ${cronPretty?.pretty})`}
                 </div>
               </div>
             </TabsContent>

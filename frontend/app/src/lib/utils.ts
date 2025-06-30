@@ -1,6 +1,7 @@
 import { type ClassValue, clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { APIErrors } from './api/generated/data-contracts';
+import CronPrettifier from 'cronstrue';
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -147,3 +148,14 @@ export function formatDuration(ms: number): string {
 }
 
 export const emptyGolangUUID = '00000000-0000-0000-0000-000000000000';
+
+export const extractCronTz = (cron: string): string => {
+  const tzMatch = cron.match(/^CRON_TZ=([^\s]+)\s+/);
+  return tzMatch ? tzMatch[1] : 'UTC';
+};
+
+export const formatCron = (cron: string) => {
+  const cronExpression = cron.replace(/^CRON_TZ=([^\s]+)\s+/, '');
+
+  return CronPrettifier.toString(cronExpression || '');
+};

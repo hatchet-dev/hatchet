@@ -1,12 +1,12 @@
 import { ColumnDef } from '@tanstack/react-table';
 import { CronWorkflows } from '@/lib/api';
-import CronPrettifier from 'cronstrue';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { Link } from 'react-router-dom';
 import { DataTableRowActions } from '@/components/v1/molecules/data-table/data-table-row-actions';
 import { AdditionalMetadata } from '../../events/components/additional-metadata';
 import { Badge } from '@/components/v1/ui/badge';
 import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
+import { extractCronTz, formatCron } from '@/lib/utils';
 
 export const columns = ({
   tenantId,
@@ -35,7 +35,19 @@ export const columns = ({
       ),
       cell: ({ row }) => (
         <div className="flex flex-row items-center gap-4">
-          Runs {CronPrettifier.toString(row.original.cron).toLowerCase()} UTC
+          Runs {formatCron(row.original.cron)}
+        </div>
+      ),
+      enableSorting: false,
+    },
+    {
+      accessorKey: 'readable',
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title="Timezone" />
+      ),
+      cell: ({ row }) => (
+        <div className="flex flex-row items-center gap-4">
+          {extractCronTz(row.original.cron)}
         </div>
       ),
       enableSorting: false,
