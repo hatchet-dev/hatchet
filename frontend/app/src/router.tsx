@@ -358,7 +358,7 @@ export const routes: RouteObject[] = [
           }),
         children: [
           {
-            path: '/tenants/:tenant/v1/events',
+            path: '/tenants/:tenant/events',
             lazy: async () =>
               import('./pages/main/v1/events').then((res) => {
                 return {
@@ -367,7 +367,7 @@ export const routes: RouteObject[] = [
               }),
           },
           {
-            path: '/tenants/:tenant/v1/rate-limits',
+            path: '/tenants/:tenant/rate-limits',
             lazy: async () =>
               import('./pages/main/v1/rate-limits').then((res) => {
                 return {
@@ -376,7 +376,7 @@ export const routes: RouteObject[] = [
               }),
           },
           {
-            path: '/tenants/:tenant/v1/scheduled',
+            path: '/tenants/:tenant/scheduled',
             lazy: async () =>
               import('./pages/main/v1/scheduled-runs').then((res) => {
                 return {
@@ -385,7 +385,7 @@ export const routes: RouteObject[] = [
               }),
           },
           {
-            path: '/tenants/:tenant/v1/cron-jobs',
+            path: '/tenants/:tenant/cron-jobs',
             lazy: async () =>
               import('./pages/main/v1/recurring').then((res) => {
                 return {
@@ -394,7 +394,7 @@ export const routes: RouteObject[] = [
               }),
           },
           {
-            path: '/tenants/:tenant/v1/tasks',
+            path: '/tenants/:tenant/tasks',
             lazy: async () =>
               import('./pages/main/v1/workflows').then((res) => {
                 return {
@@ -403,7 +403,7 @@ export const routes: RouteObject[] = [
               }),
           },
           {
-            path: '/tenants/:tenant/v1/tasks/:workflow',
+            path: '/tenants/:tenant/tasks/:workflow',
             lazy: async () =>
               import('./pages/main/v1/workflows/$workflow').then((res) => {
                 return {
@@ -412,7 +412,7 @@ export const routes: RouteObject[] = [
               }),
           },
           {
-            path: '/tenants/:tenant/v1/runs',
+            path: '/tenants/:tenant/runs',
             lazy: async () =>
               import('./pages/main/v1/workflow-runs-v1/index.tsx').then(
                 (res) => {
@@ -423,7 +423,7 @@ export const routes: RouteObject[] = [
               ),
           },
           {
-            path: '/tenants/:tenant/v1/runs/:run',
+            path: '/tenants/:tenant/runs/:run',
             lazy: async () =>
               import('./pages/main/v1/workflow-runs-v1/$run').then((res) => {
                 return {
@@ -433,7 +433,7 @@ export const routes: RouteObject[] = [
           },
           {
             // TODO: Fix this - just use the same `/runs` page
-            path: '/tenants/:tenant/v1/task-runs/:run',
+            path: '/tenants/:tenant/task-runs/:run',
             lazy: async () =>
               import('./pages/main/v1/task-runs-v1/$run').then((res) => {
                 return {
@@ -442,7 +442,7 @@ export const routes: RouteObject[] = [
               }),
           },
           {
-            path: '/tenants/:tenant/v1/workers',
+            path: '/tenants/:tenant/workers',
             lazy: async () => {
               return {
                 loader: function () {
@@ -452,7 +452,7 @@ export const routes: RouteObject[] = [
             },
           },
           {
-            path: '/tenants/:tenant/v1/workers/all',
+            path: '/tenants/:tenant/workers/all',
             lazy: async () =>
               import('./pages/main/v1/workers').then((res) => {
                 return {
@@ -461,7 +461,7 @@ export const routes: RouteObject[] = [
               }),
           },
           {
-            path: '/tenants/:tenant/v1/workers/webhook',
+            path: '/tenants/:tenant/workers/webhook',
             lazy: async () =>
               import('./pages/main/v1/workers/webhooks/index.tsx').then(
                 (res) => {
@@ -472,7 +472,7 @@ export const routes: RouteObject[] = [
               ),
           },
           {
-            path: '/tenants/:tenant/v1/workers/:worker',
+            path: '/tenants/:tenant/workers/:worker',
             lazy: async () =>
               import('./pages/main/v1/workers/$worker').then((res) => {
                 return {
@@ -481,7 +481,7 @@ export const routes: RouteObject[] = [
               }),
           },
           {
-            path: '/tenants/:tenant/v1/managed-workers',
+            path: '/tenants/:tenant/managed-workers',
             lazy: async () =>
               import('./pages/main/v1/managed-workers/index.tsx').then(
                 (res) => {
@@ -492,7 +492,7 @@ export const routes: RouteObject[] = [
               ),
           },
           {
-            path: '/tenants/:tenant/v1/managed-workers/demo-template',
+            path: '/tenants/:tenant/managed-workers/demo-template',
             lazy: async () =>
               import(
                 './pages/main/v1/managed-workers/demo-template/index.tsx'
@@ -503,7 +503,7 @@ export const routes: RouteObject[] = [
               }),
           },
           {
-            path: '/tenants/:tenant/v1/managed-workers/create',
+            path: '/tenants/:tenant/managed-workers/create',
             lazy: async () =>
               import('./pages/main/v1/managed-workers/create/index.tsx').then(
                 (res) => {
@@ -514,7 +514,7 @@ export const routes: RouteObject[] = [
               ),
           },
           {
-            path: '/tenants/:tenant/v1/managed-workers/:managed-worker',
+            path: '/tenants/:tenant/managed-workers/:managed-worker',
             lazy: async () =>
               import(
                 './pages/main/v1/managed-workers/$managed-worker/index.tsx'
@@ -525,7 +525,7 @@ export const routes: RouteObject[] = [
               }),
           },
           {
-            path: '/tenants/:tenant/v1/tenant-settings/overview',
+            path: '/tenants/:tenant/tenant-settings/overview',
             lazy: async () =>
               import('./pages/main/v1/tenant-settings/overview').then((res) => {
                 return {
@@ -534,7 +534,7 @@ export const routes: RouteObject[] = [
               }),
           },
           {
-            path: '/tenants/:tenant/v1/tenant-settings/api-tokens',
+            path: '/tenants/:tenant/tenant-settings/api-tokens',
             lazy: async () =>
               import('./pages/main/v1/tenant-settings/api-tokens').then(
                 (res) => {
@@ -545,7 +545,7 @@ export const routes: RouteObject[] = [
               ),
           },
           {
-            path: '/tenants/:tenant/v1/tenant-settings/github',
+            path: '/tenants/:tenant/tenant-settings/github',
             lazy: async () =>
               import('./pages/main/v1/tenant-settings/github').then((res) => {
                 return {
@@ -554,7 +554,7 @@ export const routes: RouteObject[] = [
               }),
           },
           {
-            path: '/tenants/:tenant/v1/tenant-settings/members',
+            path: '/tenants/:tenant/tenant-settings/members',
             lazy: async () =>
               import('./pages/main/v1/tenant-settings/members').then((res) => {
                 return {
@@ -563,7 +563,7 @@ export const routes: RouteObject[] = [
               }),
           },
           {
-            path: '/tenants/:tenant/v1/tenant-settings/alerting',
+            path: '/tenants/:tenant/tenant-settings/alerting',
             lazy: async () =>
               import('./pages/main/v1/tenant-settings/alerting').then((res) => {
                 return {
@@ -572,7 +572,7 @@ export const routes: RouteObject[] = [
               }),
           },
           {
-            path: '/tenants/:tenant/v1/tenant-settings/billing-and-limits',
+            path: '/tenants/:tenant/tenant-settings/billing-and-limits',
             lazy: async () =>
               import('./pages/main/v1/tenant-settings/resource-limits').then(
                 (res) => {
@@ -583,7 +583,7 @@ export const routes: RouteObject[] = [
               ),
           },
           {
-            path: '/tenants/:tenant/v1/tenant-settings/ingestors',
+            path: '/tenants/:tenant/tenant-settings/ingestors',
             lazy: async () =>
               import('./pages/main/v1/tenant-settings/ingestors').then(
                 (res) => {
