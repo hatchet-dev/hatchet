@@ -348,8 +348,253 @@ export const routes: RouteObject[] = [
           },
         ],
       },
-
-      // V1 Routes - These are explicitly listed for IDE support
+      {
+        path: '/tenants/:tenant',
+        lazy: async () =>
+          import('./pages/authenticated').then((res) => {
+            return {
+              Component: res.default,
+            };
+          }),
+        children: [
+          {
+            path: '/tenants/:tenant/v1/events',
+            lazy: async () =>
+              import('./pages/main/v1/events').then((res) => {
+                return {
+                  Component: res.default,
+                };
+              }),
+          },
+          {
+            path: '/tenants/:tenant/v1/rate-limits',
+            lazy: async () =>
+              import('./pages/main/v1/rate-limits').then((res) => {
+                return {
+                  Component: res.default,
+                };
+              }),
+          },
+          {
+            path: '/tenants/:tenant/v1/scheduled',
+            lazy: async () =>
+              import('./pages/main/v1/scheduled-runs').then((res) => {
+                return {
+                  Component: res.default,
+                };
+              }),
+          },
+          {
+            path: '/tenants/:tenant/v1/cron-jobs',
+            lazy: async () =>
+              import('./pages/main/v1/recurring').then((res) => {
+                return {
+                  Component: res.default,
+                };
+              }),
+          },
+          {
+            path: '/tenants/:tenant/v1/tasks',
+            lazy: async () =>
+              import('./pages/main/v1/workflows').then((res) => {
+                return {
+                  Component: res.default,
+                };
+              }),
+          },
+          {
+            path: '/tenants/:tenant/v1/tasks/:workflow',
+            lazy: async () =>
+              import('./pages/main/v1/workflows/$workflow').then((res) => {
+                return {
+                  Component: res.default,
+                };
+              }),
+          },
+          {
+            path: '/tenants/:tenant/v1/runs',
+            lazy: async () =>
+              import('./pages/main/v1/workflow-runs-v1/index.tsx').then(
+                (res) => {
+                  return {
+                    Component: res.default,
+                  };
+                },
+              ),
+          },
+          {
+            path: '/tenants/:tenant/v1/runs/:run',
+            lazy: async () =>
+              import('./pages/main/v1/workflow-runs-v1/$run').then((res) => {
+                return {
+                  Component: res.default,
+                };
+              }),
+          },
+          {
+            // TODO: Fix this - just use the same `/runs` page
+            path: '/tenants/:tenant/v1/task-runs/:run',
+            lazy: async () =>
+              import('./pages/main/v1/task-runs-v1/$run').then((res) => {
+                return {
+                  Component: res.default,
+                };
+              }),
+          },
+          {
+            path: '/tenants/:tenant/v1/workers',
+            lazy: async () => {
+              return {
+                loader: function () {
+                  return redirect('/v1/workers/all');
+                },
+              };
+            },
+          },
+          {
+            path: '/tenants/:tenant/v1/workers/all',
+            lazy: async () =>
+              import('./pages/main/v1/workers').then((res) => {
+                return {
+                  Component: res.default,
+                };
+              }),
+          },
+          {
+            path: '/tenants/:tenant/v1/workers/webhook',
+            lazy: async () =>
+              import('./pages/main/v1/workers/webhooks/index.tsx').then(
+                (res) => {
+                  return {
+                    Component: res.default,
+                  };
+                },
+              ),
+          },
+          {
+            path: '/tenants/:tenant/v1/workers/:worker',
+            lazy: async () =>
+              import('./pages/main/v1/workers/$worker').then((res) => {
+                return {
+                  Component: res.default,
+                };
+              }),
+          },
+          {
+            path: '/tenants/:tenant/v1/managed-workers',
+            lazy: async () =>
+              import('./pages/main/v1/managed-workers/index.tsx').then(
+                (res) => {
+                  return {
+                    Component: res.default,
+                  };
+                },
+              ),
+          },
+          {
+            path: '/tenants/:tenant/v1/managed-workers/demo-template',
+            lazy: async () =>
+              import(
+                './pages/main/v1/managed-workers/demo-template/index.tsx'
+              ).then((res) => {
+                return {
+                  Component: res.default,
+                };
+              }),
+          },
+          {
+            path: '/tenants/:tenant/v1/managed-workers/create',
+            lazy: async () =>
+              import('./pages/main/v1/managed-workers/create/index.tsx').then(
+                (res) => {
+                  return {
+                    Component: res.default,
+                  };
+                },
+              ),
+          },
+          {
+            path: '/tenants/:tenant/v1/managed-workers/:managed-worker',
+            lazy: async () =>
+              import(
+                './pages/main/v1/managed-workers/$managed-worker/index.tsx'
+              ).then((res) => {
+                return {
+                  Component: res.default,
+                };
+              }),
+          },
+          {
+            path: '/tenants/:tenant/v1/tenant-settings/overview',
+            lazy: async () =>
+              import('./pages/main/v1/tenant-settings/overview').then((res) => {
+                return {
+                  Component: res.default,
+                };
+              }),
+          },
+          {
+            path: '/tenants/:tenant/v1/tenant-settings/api-tokens',
+            lazy: async () =>
+              import('./pages/main/v1/tenant-settings/api-tokens').then(
+                (res) => {
+                  return {
+                    Component: res.default,
+                  };
+                },
+              ),
+          },
+          {
+            path: '/tenants/:tenant/v1/tenant-settings/github',
+            lazy: async () =>
+              import('./pages/main/v1/tenant-settings/github').then((res) => {
+                return {
+                  Component: res.default,
+                };
+              }),
+          },
+          {
+            path: '/tenants/:tenant/v1/tenant-settings/members',
+            lazy: async () =>
+              import('./pages/main/v1/tenant-settings/members').then((res) => {
+                return {
+                  Component: res.default,
+                };
+              }),
+          },
+          {
+            path: '/tenants/:tenant/v1/tenant-settings/alerting',
+            lazy: async () =>
+              import('./pages/main/v1/tenant-settings/alerting').then((res) => {
+                return {
+                  Component: res.default,
+                };
+              }),
+          },
+          {
+            path: '/tenants/:tenant/v1/tenant-settings/billing-and-limits',
+            lazy: async () =>
+              import('./pages/main/v1/tenant-settings/resource-limits').then(
+                (res) => {
+                  return {
+                    Component: res.default,
+                  };
+                },
+              ),
+          },
+          {
+            path: '/tenants/:tenant/v1/tenant-settings/ingestors',
+            lazy: async () =>
+              import('./pages/main/v1/tenant-settings/ingestors').then(
+                (res) => {
+                  return {
+                    Component: res.default,
+                  };
+                },
+              ),
+          },
+        ],
+      },
 
       {
         path: '/v1/',
