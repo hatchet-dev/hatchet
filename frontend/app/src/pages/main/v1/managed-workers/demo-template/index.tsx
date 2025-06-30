@@ -897,7 +897,7 @@ func main() {
                         View Runs
                       </Button>
                     </Link>
-                    <Link to={`/tenants/${tenantId}/</div>tasks`}>
+                    <Link to={`/tenants/${tenantId}/tasks`}>
                       <Button variant="outline" className="w-full">
                         View RegisteredTasks
                       </Button>
