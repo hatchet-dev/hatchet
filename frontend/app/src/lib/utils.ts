@@ -146,4 +146,4 @@ export function formatDuration(ms: number): string {
   }
 }
 
-export const emptyGolangUUID = "00000000-0000-0000-0000-000000000000";
+export const emptyGolangUUID = '00000000-0000-0000-0000-000000000000';
