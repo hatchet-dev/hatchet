@@ -14,7 +14,7 @@ import {
   CommandSeparator,
 } from '@/components/v1/ui/command';
 import { Link } from 'react-router-dom';
-import { Tenant, TenantMember } from '@/lib/api';
+import { TenantMember } from '@/lib/api';
 import { CaretSortIcon, PlusCircledIcon } from '@radix-ui/react-icons';
 import {
   PopoverTrigger,
@@ -22,23 +22,22 @@ import {
   PopoverContent,
 } from '@radix-ui/react-popover';
 import React from 'react';
-import { useTenant } from '@/lib/atoms';
 import { Spinner } from '@/components/v1/ui/loading.tsx';
 import useApiMeta from '@/pages/auth/hooks/use-api-meta';
+import { useTenantDetails } from '@/hooks/use-tenant';
 
 interface TenantSwitcherProps {
   className?: string;
   memberships: TenantMember[];
-  currTenant: Tenant;
 }
 export function TenantSwitcher({
   className,
   memberships,
-  currTenant,
 }: TenantSwitcherProps) {
   const meta = useApiMeta();
-  const { setTenant: setCurrTenant } = useTenant();
+  const { setTenant: setCurrTenant } = useTenantDetails();
   const [open, setOpen] = React.useState(false);
+  const { tenant: currTenant } = useTenantDetails();
 
   if (!currTenant) {
     return <Spinner />;
@@ -68,7 +67,7 @@ export function TenantSwitcher({
                 key={membership.metadata.id}
                 onSelect={() => {
                   invariant(membership.tenant);
-                  setCurrTenant(membership.tenant);
+                  setCurrTenant(membership.tenant.metadata.id);
                   setOpen(false);
                 }}
                 value={membership.tenant?.slug}

@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import api, {
   UpdateTenantRequest,
   Tenant,
@@ -8,6 +8,26 @@ import api, {
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import invariant from 'tiny-invariant';
+import { BillingContext } from '@/lib/atoms';
+import useCloudApiMeta from '@/pages/auth/hooks/use-cloud-api-meta';
+import { Evaluate } from '@/lib/can/shared/permission.base';
+
+export type Plan = 'free' | 'starter' | 'growth';
+
+export type EvaluateResult = {
+  allowed: boolean;
+  rejectReason?: RejectReason;
+  message?: string;
+};
+
+export type PermissionSet<K = any> = Record<string, (resource?: K) => Evaluate>;
+
+export enum RejectReason {
+  BILLING_REQUIRED = 'BILLING_REQUIRED',
+  UPGRADE_REQUIRED = 'UPGRADE_REQUIRED',
+  ROLE_REQUIRED = 'ROLE_REQUIRED',
+  CLOUD_ONLY = 'CLOUD_ONLY',
+}
 
 export function useCurrentTenantId() {
   const params = useParams();
@@ -106,6 +126,57 @@ export function useTenantDetails() {
     enabled: !!tenant?.metadata.id,
   });
 
+  const [pollBilling, setPollBilling] = useState(false);
+
+  const cloudMeta = useCloudApiMeta();
+
+  const billingState = useQuery({
+    ...queries.cloud.billing(tenant?.metadata?.id || ''),
+    enabled: tenant && !!cloudMeta?.data.canBill,
+    refetchInterval: pollBilling ? 1000 : false,
+  });
+
+  const subscriptionPlan: Plan = useMemo(() => {
+    const plan = billingState.data?.subscription?.plan;
+    if (!plan) {
+      return 'free';
+    }
+    return plan as Plan;
+  }, [billingState.data?.subscription?.plan]);
+
+  const hasPaymentMethods = useMemo(() => {
+    return (billingState.data?.paymentMethods?.length || 0) > 0;
+  }, [billingState.data?.paymentMethods]);
+
+  const billingContext: BillingContext | undefined = useMemo(() => {
+    if (!cloudMeta?.data.canBill) {
+      return;
+    }
+
+    return {
+      state: billingState.data,
+      setPollBilling,
+      plan: subscriptionPlan,
+      hasPaymentMethods,
+    };
+  }, [
+    cloudMeta?.data.canBill,
+    billingState.data,
+    subscriptionPlan,
+    hasPaymentMethods,
+  ]);
+
+  const can = useCallback(
+    (evalFn: Evaluate) => {
+      return evalFn({
+        tenant,
+        billing: billingContext,
+        meta: cloudMeta?.data,
+      });
+    },
+    [billingContext, cloudMeta?.data, tenant],
+  );
+
   return {
     tenantId,
     tenant,
@@ -121,5 +192,7 @@ export function useTenantDetails() {
       isPending: updateTenantMutation.isPending,
     },
     limit: resourcePolicyQuery,
+    billing: billingContext,
+    can,
   };
 }

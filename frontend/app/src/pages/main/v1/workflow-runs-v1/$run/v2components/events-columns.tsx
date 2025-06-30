@@ -43,9 +43,11 @@ function eventTypeToSeverity(
 const columnHelper = createColumnHelper<V1TaskEvent>();
 
 export const columns = ({
+  tenantId,
   onRowClick,
   fallbackTaskDisplayName,
 }: {
+  tenantId: string;
   onRowClick: (row: V1TaskEvent) => void;
   fallbackTaskDisplayName: string;
 }) => {
@@ -123,7 +125,7 @@ export const columns = ({
 
         if (event.workerId) {
           items.push(
-            <Link to={`/v1/workers/${event.workerId}`}>
+            <Link to={`/tenants/${tenantId}/workers/${event.workerId}`}>
               <Button
                 variant="link"
                 size="xs"

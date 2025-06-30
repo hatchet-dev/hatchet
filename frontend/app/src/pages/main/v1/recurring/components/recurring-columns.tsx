@@ -9,8 +9,10 @@ import { Badge } from '@/components/v1/ui/badge';
 import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
 
 export const columns = ({
+  tenantId,
   onDeleteClick,
 }: {
+  tenantId: string;
   onDeleteClick: (row: CronWorkflows) => void;
 }): ColumnDef<CronWorkflows>[] => {
   return [
@@ -61,7 +63,7 @@ export const columns = ({
       cell: ({ row }) => (
         <div className="flex flex-row items-center gap-4">
           <div className="cursor-pointer hover:underline min-w-fit whitespace-nowrap">
-            <Link to={`/v1/tasks/${row.original.workflowId}`}>
+            <Link to={`/tenants/${tenantId}/tasks/${row.original.workflowId}`}>
               {row.original.workflowName}
             </Link>
           </div>

@@ -305,6 +305,7 @@ export function ScheduledRunsTable({
         error={workflowKeysError}
         isLoading={isLoading}
         columns={columns({
+          tenantId,
           onDeleteClick: (row) => {
             setShowScheduledRunRevoke(row);
           },

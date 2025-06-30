@@ -209,6 +209,7 @@ export function CronsTable() {
         error={queryError}
         isLoading={queryIsLoading}
         columns={columns({
+          tenantId,
           onDeleteClick: handleDeleteClick,
         })}
         data={data?.rows || []}

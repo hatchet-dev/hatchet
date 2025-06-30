@@ -2,7 +2,6 @@ import { Separator } from '@/components/ui/separator';
 import { Link } from 'react-router-dom';
 import { ManagedWorkersTable } from './components/managed-workers-table';
 import { Button } from '@/components/ui/button';
-import { useTenant } from '@/lib/atoms';
 import { cloudApi } from '@/lib/api/api';
 import { useApiError } from '@/lib/hooks';
 import { useEffect, useState } from 'react';
@@ -13,9 +12,10 @@ import { queries } from '@/lib/api/queries';
 import { useQuery } from '@tanstack/react-query';
 import { PlusIcon, ArrowUpIcon } from '@radix-ui/react-icons';
 import { MonthlyUsageCard } from './components/monthly-usage-card';
+import { useTenantDetails } from '@/hooks/use-tenant';
 
 export default function ManagedWorkers() {
-  const { tenant, billing, can } = useTenant();
+  const { tenant, billing, can } = useTenantDetails();
 
   const [portalLoading, setPortalLoading] = useState(false);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);

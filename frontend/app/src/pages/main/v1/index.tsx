@@ -10,7 +10,7 @@ import {
 } from '@heroicons/react/24/outline';
 
 import { Link, Outlet, useLocation, useOutletContext } from 'react-router-dom';
-import { Tenant, TenantMember } from '@/lib/api';
+import { TenantMember } from '@/lib/api';
 import { ClockIcon, GearIcon } from '@radix-ui/react-icons';
 import React, { useCallback } from 'react';
 import {
@@ -18,7 +18,6 @@ import {
   UserContextType,
   useContextFromParent,
 } from '@/lib/outlet';
-import { useTenant } from '@/lib/atoms';
 import { Loading } from '@/components/v1/ui/loading.tsx';
 import { TenantSwitcher } from '@/components/v1/molecules/nav-bar/tenant-switcher';
 import {
@@ -35,21 +34,18 @@ function Main() {
   const ctx = useOutletContext<UserContextType & MembershipsContextType>();
   const { user, memberships } = ctx;
 
-  const { tenant: currTenant } = useTenant();
-
   const childCtx = useContextFromParent({
     user,
     memberships,
-    tenant: currTenant,
   });
 
-  if (!user || !memberships || !currTenant) {
+  if (!user || !memberships) {
     return <Loading />;
   }
 
   return (
     <div className="flex flex-row flex-1 w-full h-full">
-      <Sidebar memberships={memberships} currTenant={currTenant} />
+      <Sidebar memberships={memberships} />
       <div className="p-8 flex-grow overflow-y-auto overflow-x-hidden">
         <Outlet context={childCtx} />
       </div>
@@ -61,15 +57,14 @@ export default Main;
 
 interface SidebarProps extends React.HTMLAttributes<HTMLDivElement> {
   memberships: TenantMember[];
-  currTenant: Tenant;
 }
 
-function Sidebar({ className, memberships, currTenant }: SidebarProps) {
+function Sidebar({ className, memberships }: SidebarProps) {
   const { sidebarOpen, setSidebarOpen } = useSidebar();
   const { tenantId } = useCurrentTenantId();
 
   const meta = useCloudApiMeta();
-  const featureFlags = useCloudFeatureFlags(currTenant.metadata.id);
+  const featureFlags = useCloudFeatureFlags(tenantId);
 
   const onNavLinkClick = useCallback(() => {
     if (window.innerWidth > 768) {
@@ -252,7 +247,7 @@ function Sidebar({ className, memberships, currTenant }: SidebarProps) {
             </div>
           </div>
         </div>
-        <TenantSwitcher memberships={memberships} currTenant={currTenant} />
+        <TenantSwitcher memberships={memberships} />
       </div>
     </div>
   );

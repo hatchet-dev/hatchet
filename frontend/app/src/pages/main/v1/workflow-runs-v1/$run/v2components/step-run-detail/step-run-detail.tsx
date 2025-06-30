@@ -25,6 +25,7 @@ import { WorkflowDefinitionLink } from '@/pages/main/workflow-runs/$run/v2compon
 import { StepRunLogs } from './step-run-logs';
 import { isTerminalState } from '../../../hooks/workflow-details';
 import { CopyWorkflowConfigButton } from '@/components/v1/shared/copy-workflow-config';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
 
 export enum TabOption {
   Output = 'output',
@@ -52,9 +53,11 @@ const TaskRunPermalinkOrBacklink = ({
   taskRun: V1TaskSummary;
   showViewTaskRunButton: boolean;
 }) => {
+  const { tenantId } = useCurrentTenantId();
+  
   if (showViewTaskRunButton) {
     return (
-      <Link to={`/v1/task-runs/${taskRun.metadata.id}`}>
+      <Link to={`/tenants/${tenantId}/task-runs/${taskRun.metadata.id}`}>
         <Button size={'sm'} className="px-2 py-2 gap-2" variant={'outline'}>
           <LinkIcon className="w-4 h-4" />
           View Task Run
@@ -63,7 +66,7 @@ const TaskRunPermalinkOrBacklink = ({
     );
   } else if (taskRun.workflowRunExternalId) {
     return (
-      <Link to={`/v1/runs/${taskRun.workflowRunExternalId}`}>
+      <Link to={`/tenants/${tenantId}/runs/${taskRun.workflowRunExternalId}`}>
         <Button size={'sm'} className="px-2 py-2 gap-2" variant={'outline'}>
           <LinkIcon className="w-4 h-4" />
           View Run

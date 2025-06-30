@@ -53,6 +53,7 @@ export function StepRunEvents({
     })) || [];
 
   const cols = columns({
+    tenantId,
     onRowClick: (row) => onClick(`${row.taskId}`),
     fallbackTaskDisplayName,
   });

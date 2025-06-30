@@ -30,6 +30,7 @@ import {
   mapSemaphoreExtra,
 } from './step-runs-worker-label-columns';
 import { DataTable } from '@/components/v1/molecules/data-table/data-table';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
 
 export function StepRunEvents({ stepRun }: { stepRun: StepRun | undefined }) {
   const getLogsQuery = useQuery({
@@ -118,6 +119,8 @@ export function StepRunEvents({ stepRun }: { stepRun: StepRun | undefined }) {
 }
 
 function StepRunEventCard({ event }: { event: StepRunEvent }) {
+  const { tenantId } = useCurrentTenantId();
+
   return (
     <Card className=" bg-muted/30">
       <CardHeader>
@@ -135,7 +138,7 @@ function StepRunEventCard({ event }: { event: StepRunEvent }) {
       <CardContent className="p-0 z-10 ">
         <RenderSemaphoreExtra event={event} />
       </CardContent>
-      {renderCardFooter(event)}
+      {renderCardFooter(tenantId, event)}
     </Card>
   );
 }
@@ -257,14 +260,14 @@ const RenderSemaphoreExtra: React.FC<{ event: StepRunEvent }> = ({ event }) => {
   }
 };
 
-function renderCardFooter(event: StepRunEvent) {
+function renderCardFooter(tenantId: string, event: StepRunEvent) {
   if (event.data) {
     const data = event.data as any;
 
     if (data.worker_id) {
       return (
         <CardFooter>
-          <Link to={`/v1/workers/${data.worker_id}`}>
+          <Link to={`/tenants/${tenantId}/workers/${data.worker_id}`}>
             <Button variant="link" size="xs">
               <ArrowRightIcon className="w-4 h-4 mr-1" />
               View Worker

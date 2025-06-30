@@ -106,7 +106,9 @@ export function ManagedWorkersTable() {
         </div>
         <div className="px-4 py-4 sm:px-6">
           <div className="text-sm text-background-secondary">
-            <Link to={`/v1/managed-workers/${data.metadata?.id}`}>
+            <Link
+              to={`/tenants/${tenantId}/managed-workers/${data.metadata?.id}`}
+            >
               <Button>View Compute Instance</Button>
             </Link>
           </div>
@@ -151,7 +153,7 @@ export function ManagedWorkersTable() {
 
   return (
     <DataTable
-      columns={columns}
+      columns={columns(tenantId)}
       data={data}
       pageCount={1}
       filters={[]}

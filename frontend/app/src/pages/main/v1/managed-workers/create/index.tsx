@@ -1,7 +1,5 @@
 import { Separator } from '@/components/v1/ui/separator';
-import invariant from 'tiny-invariant';
-import { useNavigate, useOutletContext } from 'react-router-dom';
-import { TenantContextType } from '@/lib/outlet';
+import { useNavigate } from 'react-router-dom';
 import { ServerStackIcon } from '@heroicons/react/24/outline';
 import CreateWorkerForm from './components/create-worker-form';
 import { useMutation } from '@tanstack/react-query';
@@ -13,18 +11,19 @@ import { useTenant } from '@/lib/atoms';
 import { managedCompute } from '@/lib/can/features/managed-compute';
 import { RejectReason } from '@/lib/can/shared/permission.base';
 import { BillingRequired } from '../components/billing-required';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
 
 export default function CreateWorker() {
   const navigate = useNavigate();
-  const { tenant: contextTenant } = useOutletContext<TenantContextType>();
-  const { tenant, billing, can } = useTenant();
-  invariant(contextTenant);
+  const { billing, can } = useTenant();
+  const { tenantId } = useCurrentTenantId();
 
   const [portalLoading, setPortalLoading] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const { handleApiError } = useApiError({
     setFieldErrors: setFieldErrors,
   });
+
   // Check if billing is required
   const [, rejectReason] = can(managedCompute.create());
   const isBillingRequired = rejectReason === RejectReason.BILLING_REQUIRED;
@@ -36,7 +35,7 @@ export default function CreateWorker() {
       }
       setPortalLoading(true);
       billing?.setPollBilling(true);
-      const link = await cloudApi.billingPortalLinkGet(tenant!.metadata.id);
+      const link = await cloudApi.billingPortalLinkGet(tenantId);
       window.open(link.data.url, '_blank');
     } catch (e) {
       handleApiError(e as any);
@@ -46,7 +45,7 @@ export default function CreateWorker() {
   };
 
   const createManagedWorkerMutation = useMutation({
-    mutationKey: ['managed-worker:create', contextTenant],
+    mutationKey: ['managed-worker:create', tenantId],
     mutationFn: async (data: CreateManagedWorkerRequest) => {
       const dataCopy = { ...data };
 
@@ -54,14 +53,11 @@ export default function CreateWorker() {
         delete dataCopy.runtimeConfig;
       }
 
-      const res = await cloudApi.managedWorkerCreate(
-        contextTenant.metadata.id,
-        dataCopy,
-      );
+      const res = await cloudApi.managedWorkerCreate(tenantId, dataCopy);
       return res.data;
     },
     onSuccess: (data) => {
-      navigate(`/v1/managed-workers/${data.metadata.id}`);
+      navigate(`/tenants/${tenantId}/managed-workers/${data.metadata.id}`);
     },
     onError: handleApiError,
   });
@@ -70,7 +66,7 @@ export default function CreateWorker() {
   if (isBillingRequired) {
     return (
       <BillingRequired
-        tenant={tenant}
+        tenant={tenantId}
         billing={billing}
         manageClicked={manageClicked}
         portalLoading={portalLoading}
@@ -92,7 +88,7 @@ export default function CreateWorker() {
         <Separator className="my-4" />
         <CreateWorkerForm
           onSubmit={createManagedWorkerMutation.mutate}
-          tenantId={contextTenant.metadata.id}
+          tenantId={tenantId}
           isLoading={createManagedWorkerMutation.isPending}
           fieldErrors={fieldErrors}
         />
