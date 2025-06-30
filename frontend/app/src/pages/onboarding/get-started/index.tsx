@@ -1,6 +1,7 @@
 import { Loading } from '@/components/ui/loading';
+import { useTenant } from '@/lib/atoms';
 import { UserContextType, MembershipsContextType } from '@/lib/outlet';
-import { Link, useOutletContext } from 'react-router-dom';
+import { useOutletContext } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Step, Steps } from '@/components/v1/ui/steps';
 import { DefaultOnboardingAuth } from './platforms/defaults/default-onboarding-auth';
@@ -9,12 +10,11 @@ import { useState } from 'react';
 import { WorkerListener } from './platforms/defaults/default-worker-listener';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { CodeHighlighter } from '@/components/ui/code-highlighter';
-import { useTenantDetails } from '@/hooks/use-tenant';
 
 export default function GetStarted() {
   const ctx = useOutletContext<UserContextType & MembershipsContextType>();
   const { user, memberships } = ctx;
-  const { tenant: currTenant } = useTenantDetails();
+  const { tenant: currTenant } = useTenant();
 
   const [quickstartClonedOpen, setQuickstartClonedOpen] = useState(true);
   const [quickstartCloned, setQuickstartCloned] = useState(false);
@@ -37,9 +37,9 @@ export default function GetStarted() {
         <div className="flex flex-col justify-center space-y-4">
           <div className="flex flex-row justify-between mt-10">
             <h1 className="text-3xl font-bold">Quickstart</h1>
-            <Link to={`/tenants/${currTenant.metadata.id}/runs`}>
+            <a href="/">
               <Button variant="outline">Skip Quickstart</Button>
-            </Link>
+            </a>
           </div>
 
           <p className="text-gray-600 dark:text-gray-300 text-sm">
