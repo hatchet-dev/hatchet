@@ -14,7 +14,7 @@ import {
   CommandSeparator,
 } from '@/components/ui/command';
 import { Link } from 'react-router-dom';
-import { TenantMember } from '@/lib/api';
+import { Tenant, TenantMember } from '@/lib/api';
 import { CaretSortIcon, PlusCircledIcon } from '@radix-ui/react-icons';
 import {
   PopoverTrigger,
@@ -22,20 +22,22 @@ import {
   PopoverContent,
 } from '@radix-ui/react-popover';
 import React from 'react';
+import { useTenant } from '@/lib/atoms';
 import { Spinner } from '@/components/ui/loading.tsx';
 import useApiMeta from '@/pages/auth/hooks/use-api-meta';
-import { useTenantDetails } from '@/hooks/use-tenant';
 
 interface TenantSwitcherProps {
   className?: string;
   memberships: TenantMember[];
+  currTenant: Tenant;
 }
 export function TenantSwitcher({
   className,
   memberships,
+  currTenant,
 }: TenantSwitcherProps) {
   const meta = useApiMeta();
-  const { setTenant: setCurrTenant, tenant: currTenant } = useTenantDetails();
+  const { setTenant: setCurrTenant } = useTenant();
   const [open, setOpen] = React.useState(false);
 
   if (!currTenant) {
@@ -66,7 +68,7 @@ export function TenantSwitcher({
                 key={membership.metadata.id}
                 onSelect={() => {
                   invariant(membership.tenant);
-                  setCurrTenant(membership.tenant.metadata.id);
+                  setCurrTenant(membership.tenant);
                   setOpen(false);
                 }}
                 value={membership.tenant?.slug}
