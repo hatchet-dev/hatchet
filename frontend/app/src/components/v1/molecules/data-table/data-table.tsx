@@ -197,7 +197,7 @@ export function DataTable<TData extends IDGetter<TData>, TValue>({
   };
 
   const getTable = () => (
-    <div className="h-full overflow-auto">
+    <div className="h-full">
       <Table>
         <TableHeader className="sticky top-0 z-10 bg-background">
           {table.getHeaderGroups().map((headerGroup) => (
@@ -207,7 +207,7 @@ export function DataTable<TData extends IDGetter<TData>, TValue>({
                   <TableHead
                     key={header.id}
                     colSpan={header.colSpan}
-                    className="bg-background"
+                    className="bg-background border-b"
                   >
                     {header.isPlaceholder
                       ? null
