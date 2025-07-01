@@ -118,8 +118,8 @@ export default function Run() {
         throw new Error(`Task or Workflow Run with ID ${run} not found`);
       }
 
-      if (task) {
-        const taskData = task?.data;
+      if (task?.data) {
+        const taskData = task.data;
 
         return {
           status: taskData.status,
@@ -128,11 +128,11 @@ export default function Run() {
         };
       }
 
-      if (dag) {
-        const dagData = dag?.data;
+      if (dag?.data?.run) {
+        const dagData = dag.data;
 
         return {
-          status: dagData?.run.status,
+          status: dagData.run.status,
           type: 'dag',
           dag: dagData,
         };
