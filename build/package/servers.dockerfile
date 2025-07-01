@@ -57,7 +57,7 @@ RUN oapi-codegen -config ./api/v1/server/oas/gen/codegen.yaml ./bin/oas/openapi.
 
 RUN --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=cache,target=$GOPATH/pkg/mod \
-    go build -tags timetzdata -ldflags="-w -s -X 'main.Version=${VERSION}'" -a -o ./bin/hatchet-${SERVER_TARGET} ./cmd/hatchet-${SERVER_TARGET}
+    go build -ldflags="-w -s -X 'main.Version=${VERSION}'" -a -o ./bin/hatchet-${SERVER_TARGET} ./cmd/hatchet-${SERVER_TARGET}
 
 # Deployment environment
 # ----------------------
@@ -70,7 +70,7 @@ ENV SERVER_TARGET=${SERVER_TARGET}
 WORKDIR /hatchet
 
 # openssl and bash needed for admin build
-RUN apk update && apk add --no-cache gcc musl-dev openssl bash ca-certificates
+RUN apk update && apk add --no-cache gcc musl-dev openssl bash ca-certificates tzdata
 
 COPY --from=build-go /hatchet/bin/hatchet-${SERVER_TARGET} /hatchet/
 
