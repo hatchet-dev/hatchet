@@ -197,48 +197,54 @@ export function DataTable<TData extends IDGetter<TData>, TValue>({
   };
 
   const getTable = () => (
-    <Table>
-      <TableHeader>
-        {table.getHeaderGroups().map((headerGroup) => (
-          <TableRow key={headerGroup.id}>
-            {headerGroup.headers.map((header) => {
-              return (
-                <TableHead key={header.id} colSpan={header.colSpan}>
-                  {header.isPlaceholder
-                    ? null
-                    : flexRender(
-                        header.column.columnDef.header,
-                        header.getContext(),
-                      )}
-                </TableHead>
-              );
-            })}
-          </TableRow>
-        ))}
-      </TableHeader>
-      <TableBody>
-        {error ? (
-          <TableRow className="p-4 text-center text-red-500">
-            <TableCell colSpan={columns.length}>
-              {error.message || 'An error occurred.'}
-            </TableCell>
-          </TableRow>
-        ) : table.getRowModel().rows?.length ? (
-          table.getRowModel().rows.map((row) => (
-            <React.Fragment key={row.id}>
-              {getTableRow(row)}
-              {row.getIsExpanded() && row.subRows.map((r) => getTableRow(r))}
-            </React.Fragment>
-          ))
-        ) : (
-          <TableRow>
-            <TableCell colSpan={columns.length} className="h-24 text-center">
-              {emptyState || 'No results.'}
-            </TableCell>
-          </TableRow>
-        )}
-      </TableBody>
-    </Table>
+    <div className="h-full overflow-auto">
+      <Table>
+        <TableHeader className="sticky top-0 z-10 bg-background">
+          {table.getHeaderGroups().map((headerGroup) => (
+            <TableRow key={headerGroup.id}>
+              {headerGroup.headers.map((header) => {
+                return (
+                  <TableHead
+                    key={header.id}
+                    colSpan={header.colSpan}
+                    className="bg-background"
+                  >
+                    {header.isPlaceholder
+                      ? null
+                      : flexRender(
+                          header.column.columnDef.header,
+                          header.getContext(),
+                        )}
+                  </TableHead>
+                );
+              })}
+            </TableRow>
+          ))}
+        </TableHeader>
+        <TableBody>
+          {error ? (
+            <TableRow className="p-4 text-center text-red-500">
+              <TableCell colSpan={columns.length}>
+                {error.message || 'An error occurred.'}
+              </TableCell>
+            </TableRow>
+          ) : table.getRowModel().rows?.length ? (
+            table.getRowModel().rows.map((row) => (
+              <React.Fragment key={row.id}>
+                {getTableRow(row)}
+                {row.getIsExpanded() && row.subRows.map((r) => getTableRow(r))}
+              </React.Fragment>
+            ))
+          ) : (
+            <TableRow>
+              <TableCell colSpan={columns.length} className="h-24 text-center">
+                {emptyState || 'No results.'}
+              </TableCell>
+            </TableRow>
+          )}
+        </TableBody>
+      </Table>
+    </div>
   );
 
   const getCards = () => (
@@ -263,7 +269,7 @@ export function DataTable<TData extends IDGetter<TData>, TValue>({
   );
 
   return (
-    <div className="space-y-4">
+    <div className="flex flex-col h-full space-y-4">
       {(setSearch || actions || (filters && filters.length > 0)) && (
         <DataTableToolbar
           table={table}
@@ -276,7 +282,9 @@ export function DataTable<TData extends IDGetter<TData>, TValue>({
           onReset={onToolbarReset}
         />
       )}
-      <div className={`rounded-md ${!card && 'border'}`}>
+      <div
+        className={`flex-1 min-h-0 rounded-md ${!card && 'border'} ${!card && 'overflow-auto'}`}
+      >
         {!card ? getTable() : getCards()}
       </div>
       {pagination && (

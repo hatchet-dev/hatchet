@@ -39,14 +39,8 @@ import { useCurrentTenantId } from '@/hooks/use-tenant';
 
 export default function Events() {
   return (
-    <div className="flex-grow h-full w-full">
-      <div className="mx-auto py-8 px-4 sm:px-6 lg:px-8">
-        <h2 className="text-2xl font-bold leading-tight text-foreground">
-          Events
-        </h2>
-        <Separator className="my-4" />
-        <EventsTable />
-      </div>
+    <div className="flex flex-col h-full w-full overflow-hidden">
+      <EventsTable />
     </div>
   );
 }
