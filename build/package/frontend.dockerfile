@@ -29,6 +29,6 @@ WORKDIR /app
 COPY --from=build /app/dist ./dist
 COPY --from=staticfileserver /app/hatchet-staticfileserver ./hatchet-staticfileserver
 
-EXPOSE 3000
+EXPOSE 80
 
 CMD ["/app/hatchet-staticfileserver", "-static-asset-dir", "/app/dist"]

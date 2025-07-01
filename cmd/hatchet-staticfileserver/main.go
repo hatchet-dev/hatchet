@@ -12,7 +12,7 @@ import (
 )
 
 func main() {
-	port := flag.String("port", "3000", "port to listen on")
+	port := flag.String("port", "80", "port to listen on")
 	staticAssetDir := flag.String("static-asset-dir", ".", "directory to serve static assets from")
 	flag.Parse()
 
