@@ -1,17 +1,9 @@
 import { Button } from '@/components/v1/ui/button';
 import { Separator } from '@/components/v1/ui/separator';
-import { TenantContextType } from '@/lib/outlet';
 import { useState } from 'react';
-import { useOutletContext } from 'react-router-dom';
 import { useApiError } from '@/lib/hooks';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import api, {
-  queries,
-  Tenant,
-  TenantUIVersion,
-  TenantVersion,
-  UpdateTenantRequest,
-} from '@/lib/api';
+import api, { queries, TenantVersion, UpdateTenantRequest } from '@/lib/api';
 import { Switch } from '@/components/v1/ui/switch';
 import { Label } from '@radix-ui/react-label';
 import { Spinner } from '@/components/v1/ui/loading';
@@ -25,42 +17,31 @@ import {
   DialogTitle,
 } from '@/components/v1/ui/dialog';
 import { Alert, AlertDescription, AlertTitle } from '@/components/v1/ui/alert';
-import { AxiosError } from 'axios';
-import useCloudFeatureFlags from '@/pages/auth/hooks/use-cloud-feature-flags';
+import { useCurrentTenantId, useTenantDetails } from '@/hooks/use-tenant';
 
 export default function TenantSettings() {
-  const { tenant } = useOutletContext<TenantContextType>();
-  const featureFlags = useCloudFeatureFlags(tenant?.metadata.id || '');
-
-  const hasUIVersionFlag =
-    featureFlags?.data['has-ui-version-upgrade-available'] === 'true';
+  const { tenant } = useTenantDetails();
 
   return (
     <div className="flex-grow h-full w-full">
       <div className="mx-auto py-8 px-4 sm:px-6 lg:px-8">
         <h2 className="text-2xl font-bold leading-tight text-foreground">
-          {capitalize(tenant.name)} Overview
+          {capitalize(tenant?.name || '')} Overview
         </h2>
         <Separator className="my-4" />
-        <UpdateTenant tenant={tenant} />
+        <UpdateTenant />
         <Separator className="my-4" />
-        <AnalyticsOptOut tenant={tenant} />
+        <AnalyticsOptOut />
         <Separator className="my-4" />
         <TenantVersionSwitcher />
-        {hasUIVersionFlag && (
-          <>
-            {' '}
-            <Separator className="my-4" />
-            <UIVersionSwitcher />
-          </>
-        )}{' '}
       </div>
     </div>
   );
 }
 
 const TenantVersionSwitcher = () => {
-  const { tenant } = useOutletContext<TenantContextType>();
+  const { tenantId } = useCurrentTenantId();
+  const { tenant } = useTenantDetails();
   const queryClient = useQueryClient();
   const [showDowngradeModal, setShowDowngradeModal] = useState(false);
 
@@ -69,20 +50,20 @@ const TenantVersionSwitcher = () => {
   const { mutate: updateTenant, isPending } = useMutation({
     mutationKey: ['tenant:update'],
     mutationFn: async (data: UpdateTenantRequest) => {
-      await api.tenantUpdate(tenant.metadata.id, data);
+      await api.tenantUpdate(tenantId, data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
         queryKey: queries.user.listTenantMemberships.queryKey,
       });
 
-      window.location.reload();
+      window.location.href = '/';
     },
     onError: handleApiError,
   });
 
   // Only show for V1 tenants
-  if (tenant.version === TenantVersion.V0) {
+  if (tenant?.version === TenantVersion.V0) {
     return null;
   }
 
@@ -157,96 +138,16 @@ const TenantVersionSwitcher = () => {
   );
 };
 
-function UIVersionSwitcher() {
-  const { tenant } = useOutletContext<TenantContextType>();
-  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
-  const { handleApiError } = useApiError({});
-
-  const { mutateAsync: updateTenant, isPending } = useMutation({
-    mutationKey: ['tenant:update'],
-    mutationFn: async (data: UpdateTenantRequest) => {
-      return api.tenantUpdate(tenant.metadata.id, data);
-    },
-    onError: (error: AxiosError) => {
-      setShowUpgradeModal(false);
-      handleApiError(error);
-    },
-  });
-
-  // Only show for V0 tenants
-  if (!tenant.uiVersion || tenant?.uiVersion === TenantUIVersion.V1) {
-    return null;
-  }
-
-  return (
-    <div className="flex flex-col gap-y-2">
-      <h2 className="text-xl font-semibold leading-tight text-foreground">
-        UI Version
-      </h2>
-      <p className="text-sm text-muted-foreground">
-        You can downgrade your UI to V0 if needed.
-      </p>
-      <Button
-        onClick={() => setShowUpgradeModal(true)}
-        disabled={isPending}
-        variant="default"
-        className="w-fit"
-      >
-        Upgrade to the V1 UI
-      </Button>
-
-      <Dialog open={showUpgradeModal} onOpenChange={setShowUpgradeModal}>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle>Upgrade to the V1 UI</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            Please confirm your upgrade to the V1 UI version. Note that this
-            will have no effect on any of your workflows, and is a UI-only
-            change.
-          </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setShowUpgradeModal(false)}
-              disabled={isPending}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="default"
-              onClick={async () => {
-                const tenant = await updateTenant({
-                  uiVersion: TenantUIVersion.V1,
-                });
-
-                if (tenant.data.uiVersion !== TenantUIVersion.V1) {
-                  return;
-                }
-
-                setShowUpgradeModal(false);
-                window.location.href = `/next/tenants/${tenant.data.metadata.id}/runs`;
-              }}
-              disabled={isPending}
-            >
-              Confirm Upgrade 🎉🎉
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </div>
-  );
-}
-
-const UpdateTenant: React.FC<{ tenant: Tenant }> = ({ tenant }) => {
+const UpdateTenant: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
+  const { tenantId } = useCurrentTenantId();
 
   const { handleApiError } = useApiError({});
 
   const updateMutation = useMutation({
     mutationKey: ['tenant:update'],
     mutationFn: async (data: UpdateTenantRequest) => {
-      await api.tenantUpdate(tenant.metadata.id, data);
+      await api.tenantUpdate(tenantId, data);
     },
     onMutate: () => {
       setIsLoading(true);
@@ -264,14 +165,15 @@ const UpdateTenant: React.FC<{ tenant: Tenant }> = ({ tenant }) => {
         onSubmit={(data) => {
           updateMutation.mutate(data);
         }}
-        tenant={tenant}
       />
     </div>
   );
 };
 
-const AnalyticsOptOut: React.FC<{ tenant: Tenant }> = ({ tenant }) => {
-  const checked = !!tenant.analyticsOptOut;
+const AnalyticsOptOut: React.FC = () => {
+  const { tenant } = useTenantDetails();
+  const { tenantId } = useCurrentTenantId();
+  const checked = !!tenant?.analyticsOptOut;
 
   const [changed, setChanged] = useState(false);
   const [checkedState, setChecked] = useState(checked);
@@ -282,7 +184,7 @@ const AnalyticsOptOut: React.FC<{ tenant: Tenant }> = ({ tenant }) => {
   const updateMutation = useMutation({
     mutationKey: ['tenant:update'],
     mutationFn: async (data: UpdateTenantRequest) => {
-      await api.tenantUpdate(tenant.metadata.id, data);
+      await api.tenantUpdate(tenantId, data);
     },
     onMutate: () => {
       setIsLoading(true);

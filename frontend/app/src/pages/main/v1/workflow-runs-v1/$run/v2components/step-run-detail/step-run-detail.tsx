@@ -1,6 +1,5 @@
 import { V1TaskStatus, V1TaskSummary, queries } from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
-import invariant from 'tiny-invariant';
 import { Button } from '@/components/v1/ui/button';
 import { Loading } from '@/components/v1/ui/loading';
 import { LinkIcon } from '@heroicons/react/24/outline';
@@ -14,10 +13,9 @@ import {
 import { StepRunEvents } from '../step-run-events-for-workflow-run';
 import { Link } from 'react-router-dom';
 import { TaskRunsTable } from '../../../components/task-runs-table';
-import { useTenant } from '@/lib/atoms';
 import { V1RunIndicator } from '../../../components/run-statuses';
 import RelativeDate from '@/components/v1/molecules/relative-date';
-import { formatDuration } from '@/lib/utils';
+import { emptyGolangUUID, formatDuration } from '@/lib/utils';
 import { V1StepRunOutput } from './step-run-output';
 import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
 import { TaskRunActionButton } from '@/pages/main/v1/task-runs-v1/actions';
@@ -26,6 +24,7 @@ import { WorkflowDefinitionLink } from '@/pages/main/workflow-runs/$run/v2compon
 import { StepRunLogs } from './step-run-logs';
 import { isTerminalState } from '../../../hooks/workflow-details';
 import { CopyWorkflowConfigButton } from '@/components/v1/shared/copy-workflow-config';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
 
 export enum TabOption {
   Output = 'output',
@@ -53,21 +52,26 @@ const TaskRunPermalinkOrBacklink = ({
   taskRun: V1TaskSummary;
   showViewTaskRunButton: boolean;
 }) => {
+  const { tenantId } = useCurrentTenantId();
+
   if (showViewTaskRunButton) {
     return (
-      <Link to={`/v1/task-runs/${taskRun.metadata.id}`}>
+      <Link to={`/tenants/${tenantId}/task-runs/${taskRun.metadata.id}`}>
         <Button size={'sm'} className="px-2 py-2 gap-2" variant={'outline'}>
           <LinkIcon className="w-4 h-4" />
           View Task Run
         </Button>
       </Link>
     );
-  } else if (taskRun.workflowRunExternalId) {
+  } else if (
+    taskRun.workflowRunExternalId &&
+    taskRun.workflowRunExternalId !== emptyGolangUUID
+  ) {
     return (
-      <Link to={`/v1/runs/${taskRun.workflowRunExternalId}`}>
+      <Link to={`/tenants/${tenantId}/runs/${taskRun.workflowRunExternalId}`}>
         <Button size={'sm'} className="px-2 py-2 gap-2" variant={'outline'}>
           <LinkIcon className="w-4 h-4" />
-          View Run
+          View DAG Run
         </Button>
       </Link>
     );
@@ -81,11 +85,6 @@ export const TaskRunDetail = ({
   defaultOpenTab = TabOption.Output,
   showViewTaskRunButton,
 }: TaskRunDetailProps) => {
-  const { tenant } = useTenant();
-
-  const tenantId = tenant?.metadata.id;
-  invariant(tenantId);
-
   const taskRunQuery = useQuery({
     ...queries.v1Tasks.get(taskRunId),
     refetchInterval: (query) => {
@@ -219,12 +218,6 @@ export const TaskRunDetail = ({
 };
 
 const V1StepRunSummary = ({ taskRunId }: { taskRunId: string }) => {
-  const { tenantId } = useTenant();
-
-  if (!tenantId) {
-    throw new Error('Tenant not found');
-  }
-
   const taskRunQuery = useQuery({
     ...queries.v1Tasks.get(taskRunId),
   });

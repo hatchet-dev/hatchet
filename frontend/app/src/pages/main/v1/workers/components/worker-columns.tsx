@@ -5,14 +5,16 @@ import { Link } from 'react-router-dom';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { SdkInfo } from './sdk-info';
 
-export const columns: ColumnDef<Worker>[] = [
+export const columns: (tenantId: string) => ColumnDef<Worker>[] = (
+  tenantId,
+) => [
   {
     accessorKey: 'status',
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Status" />
     ),
     cell: ({ row }) => (
-      <Link to={`/v1/workers/${row.original.metadata.id}`}>
+      <Link to={`/tenants/${tenantId}/workers/${row.original.metadata.id}`}>
         <div className="cursor-pointer hover:underline min-w-fit whitespace-nowrap">
           {row.original.status}
         </div>
@@ -27,7 +29,7 @@ export const columns: ColumnDef<Worker>[] = [
       <DataTableColumnHeader column={column} title="Name" />
     ),
     cell: ({ row }) => (
-      <Link to={`/v1/workers/${row.original.metadata.id}`}>
+      <Link to={`/tenants/${tenantId}/workers/${row.original.metadata.id}`}>
         <div className="cursor-pointer hover:underline min-w-fit whitespace-nowrap">
           {row.original.webhookUrl || row.original.name}
         </div>

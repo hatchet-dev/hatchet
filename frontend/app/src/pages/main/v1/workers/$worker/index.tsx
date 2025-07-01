@@ -26,6 +26,7 @@ import {
 import { useState } from 'react';
 import { RecentWebhookRequests } from '../webhooks/components/recent-webhook-requests';
 import { TaskRunsTable } from '../../workflow-runs-v1/components/task-runs-table';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
 export const isHealthy = (worker?: Worker) => {
   const reasons = [];
 
@@ -88,6 +89,7 @@ export const WorkerStatus = ({
 
 export default function ExpandedWorkflowRun() {
   const { handleApiError } = useApiError({});
+  const { tenantId } = useCurrentTenantId();
 
   const params = useParams();
   invariant(params.worker);
@@ -127,7 +129,7 @@ export default function ExpandedWorkflowRun() {
             <ServerStackIcon className="h-6 w-6 text-foreground mt-1" />
             <Badge>{worker.type}</Badge>
             <h2 className="text-2xl font-bold leading-tight text-foreground">
-              <Link to="/v1/workers">Workers/</Link>
+              <Link to={`/tenants/${tenantId}/workers`}>Workers/</Link>
               {worker.webhookUrl || worker.name}
             </h2>
           </div>

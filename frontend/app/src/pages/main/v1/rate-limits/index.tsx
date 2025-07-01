@@ -14,10 +14,9 @@ import {
   RateLimitOrderByField,
   queries,
 } from '@/lib/api';
-import invariant from 'tiny-invariant';
-import { useOutletContext, useSearchParams } from 'react-router-dom';
-import { TenantContextType } from '@/lib/outlet';
+import { useSearchParams } from 'react-router-dom';
 import { DataTable } from '@/components/v1/molecules/data-table/data-table';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
 
 export default function RateLimits() {
   return (
@@ -34,10 +33,8 @@ export default function RateLimits() {
 }
 
 function RateLimitsTable() {
-  const { tenant } = useOutletContext<TenantContextType>();
+  const { tenantId } = useCurrentTenantId();
   const [searchParams, setSearchParams] = useSearchParams();
-
-  invariant(tenant);
 
   const [search, setSearch] = useState<string | undefined>(
     searchParams.get('search') || undefined,
@@ -137,7 +134,7 @@ function RateLimitsTable() {
     isLoading: rateLimitsIsLoading,
     error: rateLimitsError,
   } = useQuery({
-    ...queries.rate_limits.list(tenant.metadata.id, {
+    ...queries.rate_limits.list(tenantId, {
       search,
       orderByField,
       orderByDirection,

@@ -7,6 +7,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { useQuery } from '@tanstack/react-query';
 import { queries } from '@/lib/api/queries';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
 
 interface BillingRequiredProps {
   tenant: any;
@@ -20,6 +21,7 @@ export function BillingRequired({
   manageClicked,
   portalLoading,
 }: BillingRequiredProps) {
+  const { tenantId } = useCurrentTenantId();
   // Query for compute cost information to show available credits
   const computeCostQuery = useQuery({
     ...queries.cloud.getComputeCost(tenant?.metadata.id || ''),
@@ -125,7 +127,10 @@ export function BillingRequired({
                 </div>
               </div>
 
-              <Link to="/v1/managed-workers/demo-template" className="w-full">
+              <Link
+                to={`/tenants/${tenantId}/managed-workers/demo-template`}
+                className="w-full"
+              >
                 <Button
                   variant="outline"
                   className="min-w-40 py-6 px-8 text-base w-full"

@@ -1,15 +1,18 @@
 import MainNav from '@/components/molecules/nav-bar/nav-bar';
 import { Outlet } from 'react-router-dom';
-import api, { queries } from '@/lib/api';
+import api, { queries, TenantVersion } from '@/lib/api';
 import { Loading } from '@/components/ui/loading.tsx';
 import { useQuery } from '@tanstack/react-query';
 import SupportChat from '@/components/molecules/support-chat';
 import AnalyticsProvider from '@/components/molecules/analytics-provider';
 import { useState, useEffect } from 'react';
 import { useContextFromParent } from '@/lib/outlet';
+import { useTenant } from '@/lib/atoms';
 
 export default function Authenticated() {
   const [hasHasBanner, setHasBanner] = useState(false);
+
+  const { tenant } = useTenant();
 
   const userQuery = useQuery({
     queryKey: ['user:get:current'],
@@ -67,7 +70,20 @@ export default function Authenticated() {
       window.location.href = '/onboarding/create-tenant';
       return;
     }
-  }, [userQuery.data, invitesQuery.data, listMembershipsQuery.data]);
+
+    if (
+      tenant?.version === TenantVersion.V0 &&
+      currentUrl.startsWith('/tenants')
+    ) {
+      window.location.href = `/workflow-runs?tenant=${tenant.metadata.id}`;
+      return;
+    }
+  }, [
+    userQuery.data,
+    invitesQuery.data,
+    listMembershipsQuery.data,
+    tenant?.version,
+  ]);
 
   if (
     userQuery.isLoading ||
@@ -80,7 +96,6 @@ export default function Authenticated() {
   if (userQuery.error) {
     const currentUrl = window.location.pathname;
     if (
-      !currentUrl.startsWith('/next') &&
       !currentUrl.includes('/auth/login') &&
       !currentUrl.includes('/auth/register')
     ) {

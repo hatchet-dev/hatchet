@@ -15,6 +15,7 @@ import { TaskRunActionButton } from '../../../task-runs-v1/actions';
 import { TASK_RUN_TERMINAL_STATUSES } from './step-run-detail/step-run-detail';
 import { WorkflowDefinitionLink } from '@/pages/main/workflow-runs/$run/v2components/workflow-definition';
 import { CopyWorkflowConfigButton } from '@/components/v1/shared/copy-workflow-config';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
 
 export const WORKFLOW_RUN_TERMINAL_STATUSES = [
   WorkflowRunStatus.CANCELLED,
@@ -23,6 +24,7 @@ export const WORKFLOW_RUN_TERMINAL_STATUSES = [
 ];
 
 export const V1RunDetailHeader = () => {
+  const { tenantId } = useCurrentTenantId();
   const {
     workflowRun,
     workflowConfig,
@@ -38,11 +40,15 @@ export const V1RunDetailHeader = () => {
       <Breadcrumb>
         <BreadcrumbList>
           <BreadcrumbItem>
-            <BreadcrumbLink href="/v1">Home</BreadcrumbLink>
+            <BreadcrumbLink href={`/tenants/${tenantId}/runs`}>
+              Home
+            </BreadcrumbLink>
           </BreadcrumbItem>
           <BreadcrumbSeparator />
           <BreadcrumbItem>
-            <BreadcrumbLink href="/v1/runs">Runs</BreadcrumbLink>
+            <BreadcrumbLink href={`/tenants/${tenantId}/runs`}>
+              Runs
+            </BreadcrumbLink>
           </BreadcrumbItem>
           <BreadcrumbSeparator />
           <BreadcrumbItem>

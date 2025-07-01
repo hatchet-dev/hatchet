@@ -3,7 +3,7 @@ import { Badge } from '@/components/v1/ui/badge';
 import { Input } from '@/components/v1/ui/input';
 import { Label } from '@/components/v1/ui/label';
 import { WorkflowVersion } from '@/lib/api';
-import CronPrettifier from 'cronstrue';
+import { formatCron } from '@/lib/utils';
 
 export default function WorkflowGeneralSettings({
   workflow,
@@ -135,9 +135,7 @@ function TriggerSettings({ workflow }: { workflow: WorkflowVersion }) {
                 </Badge>
                 {cronTrigger.cron && (
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                    Runs{' '}
-                    {CronPrettifier.toString(cronTrigger.cron).toLowerCase()}{' '}
-                    UTC
+                    Runs {formatCron(cronTrigger.cron)}
                   </p>
                 )}
               </div>

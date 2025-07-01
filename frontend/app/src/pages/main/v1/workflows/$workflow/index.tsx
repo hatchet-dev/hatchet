@@ -1,13 +1,12 @@
 import api, { queries, WorkflowUpdateRequest } from '@/lib/api';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { useNavigate, useOutletContext, useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import invariant from 'tiny-invariant';
 import { WorkflowTags } from '../components/workflow-tags';
 import { Badge } from '@/components/v1/ui/badge';
 import { relativeDate } from '@/lib/utils';
 import { Square3Stack3DIcon } from '@heroicons/react/24/outline';
 import { Loading } from '@/components/v1/ui/loading.tsx';
-import { TenantContextType } from '@/lib/outlet';
 import { TriggerWorkflowForm } from './components/trigger-workflow-form';
 import { useState } from 'react';
 import { Button } from '@/components/v1/ui/button';
@@ -20,7 +19,6 @@ import {
 } from '@/components/v1/ui/tabs';
 import WorkflowGeneralSettings from './components/workflow-general-settings';
 import { ConfirmDialog } from '@/components/v1/molecules/confirm-dialog';
-import { useTenant } from '@/lib/atoms';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -28,15 +26,13 @@ import {
   DropdownMenuTrigger,
 } from '@/components/v1/ui/dropdown-menu';
 import { TaskRunsTable } from '../../workflow-runs-v1/components/task-runs-table';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
 
 export default function ExpandedWorkflow() {
-  const { tenant } = useTenant();
-
   // TODO list previous versions and make selectable
   const [selectedVersion] = useState<string | undefined>();
   const { handleApiError } = useApiError({});
-
-  invariant(tenant);
+  const { tenantId } = useCurrentTenantId();
 
   const [triggerWorkflow, setTriggerWorkflow] = useState(false);
   const [deleteWorkflow, setDeleteWorkflow] = useState(false);
@@ -84,7 +80,7 @@ export default function ExpandedWorkflow() {
       return res.data;
     },
     onSuccess: () => {
-      navigate('/v1/tasks');
+      navigate(`/tenants/${tenantId}/tasks`);
     },
   });
 
@@ -262,9 +258,6 @@ export default function ExpandedWorkflow() {
 }
 
 function RecentRunsList() {
-  const { tenant } = useOutletContext<TenantContextType>();
-  invariant(tenant);
-
   const params = useParams();
   invariant(params.workflow);
 

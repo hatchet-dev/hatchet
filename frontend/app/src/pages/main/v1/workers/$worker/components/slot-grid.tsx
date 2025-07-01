@@ -5,6 +5,7 @@ import {
   TooltipTrigger,
   TooltipContent,
 } from '@/components/v1/ui/tooltip';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { SemaphoreSlots } from '@/lib/api';
 import { Link } from 'react-router-dom';
 
@@ -26,6 +27,8 @@ interface WorkerSlotGridProps {
 }
 
 const WorkerSlotGrid: React.FC<WorkerSlotGridProps> = ({ slots = [] }) => {
+  const { tenantId } = useCurrentTenantId();
+
   return (
     <div className="flex flex-wrap gap-0.5">
       {slots?.map((slot, index) => (
@@ -46,7 +49,9 @@ const WorkerSlotGrid: React.FC<WorkerSlotGridProps> = ({ slots = [] }) => {
               {slot.status ? (
                 <>
                   <div>
-                    <Link to={'/v1/runs/' + slot.workflowRunId}>
+                    <Link
+                      to={`/tenants/${tenantId}/runs/` + slot.workflowRunId}
+                    >
                       <div className="pl-0 cursor-pointer hover:underline min-w-fit whitespace-nowrap">
                         {slot.actionId}:{slot.workflowRunId?.split('-')[0]}
                       </div>

@@ -1,15 +1,9 @@
 import { Separator } from '@/components/v1/ui/separator';
-import invariant from 'tiny-invariant';
-import { useOutletContext } from 'react-router-dom';
-import { TenantContextType } from '@/lib/outlet';
 
 import { WorkersTable } from './components/worker-table';
 import { ServerStackIcon } from '@heroicons/react/24/outline';
 
 export default function Workers() {
-  const { tenant } = useOutletContext<TenantContextType>();
-  invariant(tenant);
-
   return (
     <div className="flex-grow h-full w-full">
       <div className="mx-auto py-8 px-4 sm:px-6 lg:px-8">

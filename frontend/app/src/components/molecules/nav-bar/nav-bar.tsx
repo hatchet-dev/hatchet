@@ -173,23 +173,30 @@ export default function MainNav({ user, setHasBanner }: MainNavProps) {
   const { pathname } = useLocation();
   const navigate = useNavigate();
 
-  const versionedRoutes = useMemo(
+  const tenantedRoutes = useMemo(
     () =>
       routes
         .at(0)
-        ?.children?.find((r) => r.path === '/v1/')
-        ?.children?.find((r) => r.path === '/v1/' && r.children?.length)
+        ?.children?.find((r) => r.path?.startsWith('/tenants/'))
+        ?.children?.find(
+          (r) => r.path?.startsWith('/tenants/') && r.children?.length,
+        )
         ?.children?.map((c) => c.path)
-        ?.map((p) => p?.replace('/v1', '')) || [],
+        ?.map((p) => p?.replace('/tenants/:tenant', '')) || [],
     [],
   );
 
   const tenantVersion = tenant?.version || TenantVersion.V0;
 
   const banner: BannerProps | undefined = useMemo(() => {
+    const pathnameWithoutTenant = pathname.replace(
+      `/tenants/${tenant?.metadata.id}`,
+      '',
+    );
+
     const shouldShowVersionUpgradeButton =
-      versionedRoutes.includes(pathname) && // It is a versioned route
-      !pathname.includes('/v1') && // The user is not already on the v1 version
+      tenantedRoutes.includes(pathnameWithoutTenant) && // It is a versioned route
+      !pathname.startsWith('/tenants') && // The user is not already on the v1 version
       tenantVersion === TenantVersion.V1; // The tenant is on the v1 version
 
     if (shouldShowVersionUpgradeButton) {
@@ -204,7 +211,7 @@ export default function MainNav({ user, setHasBanner }: MainNavProps) {
         actionText: 'View V1',
         onAction: () => {
           navigate({
-            pathname: '/v1' + pathname,
+            pathname: `/tenants/${tenant?.metadata.id}${pathname}`,
             search: '?previewV0=false',
           });
         },
@@ -212,7 +219,7 @@ export default function MainNav({ user, setHasBanner }: MainNavProps) {
     }
 
     return;
-  }, [navigate, pathname, tenantVersion, versionedRoutes]);
+  }, [navigate, pathname, tenantVersion, tenantedRoutes]);
 
   useEffect(() => {
     if (!setHasBanner) {

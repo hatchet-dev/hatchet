@@ -3,10 +3,7 @@ import { columns } from './v1/task-runs-columns';
 import { useCallback, useMemo, useState } from 'react';
 import { RowSelectionState, VisibilityState } from '@tanstack/react-table';
 import { useQuery } from '@tanstack/react-query';
-import invariant from 'tiny-invariant';
 import { queries } from '@/lib/api';
-import { TenantContextType } from '@/lib/outlet';
-import { useOutletContext } from 'react-router-dom';
 import { Button } from '@/components/v1/ui/button';
 import { ArrowPathIcon, XCircleIcon } from '@heroicons/react/24/outline';
 import { V1WorkflowRunsMetricsView } from './task-runs-metrics';
@@ -43,6 +40,7 @@ import { useTaskRuns } from '../hooks/task-runs';
 import { useMetrics } from '../hooks/metrics';
 import { useToolbarFilters } from '../hooks/toolbar-filters';
 import { IntroDocsEmptyState } from '@/pages/onboarding/intro-docs-empty-state';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
 
 export interface TaskRunsTableProps {
   createdAfter?: string;
@@ -77,8 +75,7 @@ export function TaskRunsTable({
   showCounts = true,
   disableTaskRunPagination = false,
 }: TaskRunsTableProps) {
-  const { tenant } = useOutletContext<TenantContextType>();
-  invariant(tenant);
+  const { tenantId } = useCurrentTenantId();
 
   const [viewQueueMetrics, setViewQueueMetrics] = useState(false);
   const [rotate, setRotate] = useState(false);
@@ -283,7 +280,6 @@ export function TaskRunsTable({
       )}
       {showMetrics && !derivedParentTaskExternalId && (
         <GetWorkflowChart
-          tenantId={tenant.metadata.id}
           createdAfter={cf.filters.createdAfter}
           zoom={(createdAfter, createdBefore) => {
             cf.setCustomTimeRange({ start: createdAfter, end: createdBefore });
@@ -339,7 +335,7 @@ export function TaskRunsTable({
           />
         }
         isLoading={isFetching}
-        columns={columns(cf.setAdditionalMetadata, onTaskRunIdClick)}
+        columns={columns(tenantId, cf.setAdditionalMetadata, onTaskRunIdClick)}
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}
         data={tableRows}
@@ -404,18 +400,17 @@ export function TaskRunsTable({
 }
 
 const GetWorkflowChart = ({
-  tenantId,
   createdAfter,
   finishedBefore,
   refetchInterval,
   zoom,
 }: {
-  tenantId: string;
   createdAfter?: string;
   finishedBefore?: string;
   refetchInterval?: number;
   zoom: (startTime: string, endTime: string) => void;
 }) => {
+  const { tenantId } = useCurrentTenantId();
   const workflowRunEventsMetricsQuery = useQuery({
     ...queries.v1TaskRuns.pointMetrics(tenantId, {
       createdAfter,

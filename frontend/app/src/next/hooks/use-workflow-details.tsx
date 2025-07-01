@@ -10,6 +10,7 @@ import { useNavigate } from 'react-router-dom';
 import { FilterProvider } from './utils/use-filters';
 import { PaginationProvider } from './utils/use-pagination';
 import { useToast } from './utils/use-toast';
+import { useTenant } from '@/lib/atoms';
 
 interface WorkflowDetailsFilters {
   statuses?: string[];
@@ -50,6 +51,7 @@ function WorkflowDetailsProviderContent({
   children,
   workflowId,
 }: WorkflowDetailsProviderProps) {
+  const { tenant } = useTenant();
   const { handleApiError } = useApiError({});
   const navigate = useNavigate();
   const integrations = useApiMetaIntegrations();
@@ -119,7 +121,7 @@ function WorkflowDetailsProviderContent({
       }
     },
     onSuccess: () => {
-      navigate('/v1/next/runs');
+      navigate(`/tenants/${tenant?.metadata.id}/next/runs`);
     },
   });
 

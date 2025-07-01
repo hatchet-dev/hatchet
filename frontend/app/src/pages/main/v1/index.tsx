@@ -9,22 +9,15 @@ import {
   Squares2X2Icon,
 } from '@heroicons/react/24/outline';
 
-import {
-  Link,
-  Outlet,
-  useLocation,
-  useNavigate,
-  useOutletContext,
-} from 'react-router-dom';
-import { Tenant, TenantMember, TenantUIVersion } from '@/lib/api';
+import { Link, Outlet, useLocation, useOutletContext } from 'react-router-dom';
+import { TenantMember } from '@/lib/api';
 import { ClockIcon, GearIcon } from '@radix-ui/react-icons';
-import React, { useCallback, useEffect } from 'react';
+import React, { useCallback } from 'react';
 import {
   MembershipsContextType,
   UserContextType,
   useContextFromParent,
 } from '@/lib/outlet';
-import { useTenant } from '@/lib/atoms';
 import { Loading } from '@/components/v1/ui/loading.tsx';
 import { TenantSwitcher } from '@/components/v1/molecules/nav-bar/tenant-switcher';
 import {
@@ -34,41 +27,25 @@ import {
 import useCloudApiMeta from '@/pages/auth/hooks/use-cloud-api-meta';
 import useCloudFeatureFlags from '@/pages/auth/hooks/use-cloud-feature-flags';
 import { useSidebar } from '@/components/sidebar-provider';
-import invariant from 'tiny-invariant';
-import { ROUTES } from '@/next/lib/routes';
 import { SquareActivityIcon } from 'lucide-react';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
 
 function Main() {
   const ctx = useOutletContext<UserContextType & MembershipsContextType>();
-  const navigate = useNavigate();
   const { user, memberships } = ctx;
-
-  const { tenant: currTenant } = useTenant();
 
   const childCtx = useContextFromParent({
     user,
     memberships,
-    tenant: currTenant,
   });
 
-  useEffect(() => {
-    if (!currTenant) {
-      return;
-    }
-
-    if (currTenant.uiVersion === TenantUIVersion.V1) {
-      // Hard redirect here because the navigate hook is racy with other url updates
-      window.location.href = ROUTES.runs.list(currTenant.metadata.id);
-    }
-  }, [currTenant, navigate]);
-
-  if (!user || !memberships || !currTenant) {
+  if (!user || !memberships) {
     return <Loading />;
   }
 
   return (
     <div className="flex flex-row flex-1 w-full h-full">
-      <Sidebar memberships={memberships} currTenant={currTenant} />
+      <Sidebar memberships={memberships} />
       <div className="p-8 flex-grow overflow-y-auto overflow-x-hidden">
         <Outlet context={childCtx} />
       </div>
@@ -80,17 +57,14 @@ export default Main;
 
 interface SidebarProps extends React.HTMLAttributes<HTMLDivElement> {
   memberships: TenantMember[];
-  currTenant: Tenant;
 }
 
-function Sidebar({ className, memberships, currTenant }: SidebarProps) {
+function Sidebar({ className, memberships }: SidebarProps) {
   const { sidebarOpen, setSidebarOpen } = useSidebar();
-  const { tenant } = useTenant();
-
-  invariant(tenant);
+  const { tenantId } = useCurrentTenantId();
 
   const meta = useCloudApiMeta();
-  const featureFlags = useCloudFeatureFlags(currTenant.metadata.id);
+  const featureFlags = useCloudFeatureFlags(tenantId);
 
   const onNavLinkClick = useCallback(() => {
     if (window.innerWidth > 768) {
@@ -108,13 +82,13 @@ function Sidebar({ className, memberships, currTenant }: SidebarProps) {
     <SidebarButtonSecondary
       key={1}
       onNavLinkClick={onNavLinkClick}
-      to="/v1/workers/all"
+      to={`/tenants/${tenantId}/workers/all`}
       name="All Workers"
     />,
     <SidebarButtonSecondary
       key={1}
       onNavLinkClick={onNavLinkClick}
-      to="/v1/workers/webhook"
+      to={`/tenants/${tenantId}/workers/webhook`}
       name="Webhook Workers"
     />,
   ];
@@ -136,14 +110,14 @@ function Sidebar({ className, memberships, currTenant }: SidebarProps) {
               <SidebarButtonPrimary
                 key={1}
                 onNavLinkClick={onNavLinkClick}
-                to="/v1/runs"
+                to={`/tenants/${tenantId}/runs`}
                 name="Runs"
                 icon={<PlayIcon className="mr-2 h-4 w-4" />}
               />
               <SidebarButtonPrimary
                 key={2}
                 onNavLinkClick={onNavLinkClick}
-                to="/v1/events"
+                to={`/tenants/${tenantId}/events`}
                 name="Events"
                 icon={<SquareActivityIcon className="mr-2 h-4 w-4" />}
               />
@@ -157,24 +131,17 @@ function Sidebar({ className, memberships, currTenant }: SidebarProps) {
               <SidebarButtonPrimary
                 key={3}
                 onNavLinkClick={onNavLinkClick}
-                to="/v1/scheduled"
+                to={`/tenants/${tenantId}/scheduled`}
                 name="Scheduled Runs"
                 icon={<CalendarDaysIcon className="mr-2 h-4 w-4" />}
               />
               <SidebarButtonPrimary
                 key={4}
                 onNavLinkClick={onNavLinkClick}
-                to="/v1/cron-jobs"
+                to={`/tenants/${tenantId}/cron-jobs`}
                 name="Cron Jobs"
                 icon={<ClockIcon className="mr-2 h-4 w-4" />}
               />
-              {/* <SidebarButtonPrimary
-                key={5}
-                onNavLinkClick={onNavLinkClick}
-                to="/v1/events"
-                name="Events"
-                icon={<QueueListIcon className="mr-2 h-4 w-4" />}
-              /> */}
             </div>
           </div>
           <div className="py-2">
@@ -185,24 +152,24 @@ function Sidebar({ className, memberships, currTenant }: SidebarProps) {
               <SidebarButtonPrimary
                 key={1}
                 onNavLinkClick={onNavLinkClick}
-                to="/v1/tasks"
+                to={`/tenants/${tenantId}/tasks`}
                 name="Tasks & Workflows"
                 icon={<Squares2X2Icon className="mr-2 h-4 w-4" />}
               />
               <SidebarButtonPrimary
                 key={2}
                 onNavLinkClick={onNavLinkClick}
-                to="/v1/workers/all"
+                to={`/tenants/${tenantId}/workers/all`}
                 name="Workers"
                 icon={<ServerStackIcon className="mr-2 h-4 w-4" />}
-                prefix="/v1/workers"
+                prefix={`/tenants/${tenantId}/workers`}
                 collapsibleChildren={workers}
               />
               {featureFlags?.data['managed-worker'] && (
                 <SidebarButtonPrimary
                   key={3}
                   onNavLinkClick={onNavLinkClick}
-                  to="/v1/managed-workers"
+                  to={`/tenants/${tenantId}/managed-workers`}
                   name="Managed Compute"
                   icon={<CpuChipIcon className="mr-2 h-4 w-4" />}
                 />
@@ -210,7 +177,7 @@ function Sidebar({ className, memberships, currTenant }: SidebarProps) {
               <SidebarButtonPrimary
                 key={4}
                 onNavLinkClick={onNavLinkClick}
-                to="/v1/rate-limits"
+                to={`/tenants/${tenantId}/rate-limits`}
                 name="Rate Limits"
                 icon={<ScaleIcon className="mr-2 h-4 w-4" />}
               />
@@ -224,39 +191,39 @@ function Sidebar({ className, memberships, currTenant }: SidebarProps) {
               <SidebarButtonPrimary
                 key={1}
                 onNavLinkClick={onNavLinkClick}
-                to="/v1/tenant-settings/overview"
-                prefix="/v1/tenant-settings"
+                to={`/tenants/${tenantId}/tenant-settings/overview`}
+                prefix={`/tenants/${tenantId}/tenant-settings`}
                 name="General"
                 icon={<GearIcon className="mr-2 h-4 w-4" />}
                 collapsibleChildren={[
                   <SidebarButtonSecondary
                     key={1}
                     onNavLinkClick={onNavLinkClick}
-                    to="/v1/tenant-settings/overview"
+                    to={`/tenants/${tenantId}/tenant-settings/overview`}
                     name="Overview"
                   />,
                   <SidebarButtonSecondary
                     key={2}
                     onNavLinkClick={onNavLinkClick}
-                    to="/v1/tenant-settings/api-tokens"
+                    to={`/tenants/${tenantId}/tenant-settings/api-tokens`}
                     name="API Tokens"
                   />,
                   <SidebarButtonSecondary
                     key={3}
                     onNavLinkClick={onNavLinkClick}
-                    to="/v1/tenant-settings/github"
+                    to={`/tenants/${tenantId}/tenant-settings/github`}
                     name="Github"
                   />,
                   <SidebarButtonSecondary
                     key={5}
                     onNavLinkClick={onNavLinkClick}
-                    to="/v1/tenant-settings/members"
+                    to={`/tenants/${tenantId}/tenant-settings/members`}
                     name="Members"
                   />,
                   <SidebarButtonSecondary
                     key={6}
                     onNavLinkClick={onNavLinkClick}
-                    to="/v1/tenant-settings/billing-and-limits"
+                    to={`/tenants/${tenantId}/tenant-settings/billing-and-limits`}
                     name={
                       meta?.data.canBill
                         ? 'Billing & Limits'
@@ -266,13 +233,13 @@ function Sidebar({ className, memberships, currTenant }: SidebarProps) {
                   <SidebarButtonSecondary
                     key={7}
                     onNavLinkClick={onNavLinkClick}
-                    to="/v1/tenant-settings/alerting"
+                    to={`/tenants/${tenantId}/tenant-settings/alerting`}
                     name="Alerting"
                   />,
                   <SidebarButtonSecondary
                     key={8}
                     onNavLinkClick={onNavLinkClick}
-                    to="/v1/tenant-settings/ingestors"
+                    to={`/tenants/${tenantId}/tenant-settings/ingestors`}
                     name="Ingestors"
                   />,
                 ]}
@@ -280,7 +247,7 @@ function Sidebar({ className, memberships, currTenant }: SidebarProps) {
             </div>
           </div>
         </div>
-        <TenantSwitcher memberships={memberships} currTenant={currTenant} />
+        <TenantSwitcher memberships={memberships} />
       </div>
     </div>
   );

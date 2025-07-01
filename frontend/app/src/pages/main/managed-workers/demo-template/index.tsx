@@ -661,7 +661,7 @@ func main() {
                             <span>{deploymentStatus}</span>
                             {deployedWorkerId && (
                               <a
-                                href={`/v1/managed-workers/${deployedWorkerId}`}
+                                href={`/tenants/${tenant?.metadata.id}/managed-workers/${deployedWorkerId}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="text-primary hover:underline ml-2"
@@ -897,7 +897,9 @@ func main() {
 
                   {/* Main action button */}
                   {deployedWorkerId && (
-                    <Link to={`/v1/managed-workers/${deployedWorkerId}`}>
+                    <Link
+                      to={`/tenants/${tenant?.metadata.id}/managed-workers/${deployedWorkerId}`}
+                    >
                       <Button variant="default" className="w-full mb-4">
                         View Your Service
                       </Button>

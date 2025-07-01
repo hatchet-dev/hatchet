@@ -5,14 +5,16 @@ import RelativeDate from '@/components/v1/molecules/relative-date';
 import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
 import { ManagedWorker } from '@/lib/api/generated/cloud/data-contracts';
 
-export const columns: ColumnDef<ManagedWorker>[] = [
+export const columns: (tenantId: string) => ColumnDef<ManagedWorker>[] = (
+  tenantId,
+) => [
   {
     accessorKey: 'name',
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Name" />
     ),
     cell: ({ row }) => (
-      <Link to={`/v1/tasks/${row.original.metadata.id}`}>
+      <Link to={`/tenants/${tenantId}/tasks/${row.original.metadata.id}`}>
         <div className="cursor-pointer hover:underline min-w-fit whitespace-nowrap text-md p-2">
           {row.original.name}
         </div>
@@ -52,7 +54,7 @@ export const columns: ColumnDef<ManagedWorker>[] = [
     cell: ({ row }) => {
       return (
         <div className="flex gap-2 justify-end">
-          <Link to={`/v1/tasks/${row.original.metadata.id}`}>
+          <Link to={`/tenants/${tenantId}/tasks/${row.original.metadata.id}`}>
             <div className="cursor-pointer hover:underline min-w-fit whitespace-nowrap text-md p-2">
               <ChevronRightIcon
                 className="h-5 w-5 flex-none text-gray-700 dark:text-gray-300"

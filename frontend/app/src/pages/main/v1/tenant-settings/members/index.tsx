@@ -1,8 +1,6 @@
 import { Button } from '@/components/v1/ui/button';
 import { Separator } from '@/components/v1/ui/separator';
-import { TenantContextType } from '@/lib/outlet';
 import { useState } from 'react';
-import { useOutletContext } from 'react-router-dom';
 import { CreateInviteForm } from './components/create-invite-form';
 import { useApiError } from '@/lib/hooks';
 import { useMutation, useQuery } from '@tanstack/react-query';
@@ -22,6 +20,7 @@ import { DeleteInviteForm } from './components/delete-invite-form';
 import { ChangePasswordDialog } from './components/change-password-dialog';
 import { AxiosError } from 'axios';
 import useApiMeta from '@/pages/auth/hooks/use-api-meta';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
 
 export default function Members() {
   const meta = useApiMeta();
@@ -46,12 +45,12 @@ export default function Members() {
 }
 
 function MembersList() {
-  const { tenant } = useOutletContext<TenantContextType>();
+  const { tenantId } = useCurrentTenantId();
   const [showChangePasswordDialog, setShowChangePasswordDialog] =
     useState(false);
 
   const listMembersQuery = useQuery({
-    ...queries.members.list(tenant.metadata.id),
+    ...queries.members.list(tenantId),
   });
 
   return (
@@ -73,7 +72,6 @@ function MembersList() {
       />
       {showChangePasswordDialog && (
         <ChangePassword
-          tenant={tenant.metadata.id}
           showChangePasswordDialog={showChangePasswordDialog}
           setShowChangePasswordDialog={setShowChangePasswordDialog}
           onSuccess={() => {}}
@@ -84,13 +82,13 @@ function MembersList() {
 }
 
 function InvitesList() {
-  const { tenant } = useOutletContext<TenantContextType>();
+  const { tenantId } = useCurrentTenantId();
   const [showCreateInviteModal, setShowCreateInviteModal] = useState(false);
   const [updateInvite, setUpdateInvite] = useState<TenantInvite | null>(null);
   const [deleteInvite, setDeleteInvite] = useState<TenantInvite | null>(null);
 
   const listInvitesQuery = useQuery({
-    ...queries.invites.list(tenant.metadata.id),
+    ...queries.invites.list(tenantId),
   });
 
   const cols = columns({
@@ -125,7 +123,6 @@ function InvitesList() {
       />
       {showCreateInviteModal && (
         <CreateInvite
-          tenant={tenant.metadata.id}
           showCreateInviteModal={showCreateInviteModal}
           setShowCreateInviteModal={setShowCreateInviteModal}
           onSuccess={() => {
@@ -136,7 +133,6 @@ function InvitesList() {
       )}
       {updateInvite && (
         <UpdateInvite
-          tenant={tenant.metadata.id}
           tenantInvite={updateInvite}
           setShowTenantInvite={() => setUpdateInvite(null)}
           onSuccess={() => {
@@ -147,7 +143,6 @@ function InvitesList() {
       )}
       {deleteInvite && (
         <DeleteInvite
-          tenant={tenant.metadata.id}
           tenantInvite={deleteInvite}
           setShowTenantInviteDelete={() => setDeleteInvite(null)}
           onSuccess={() => {
@@ -161,25 +156,24 @@ function InvitesList() {
 }
 
 function CreateInvite({
-  tenant,
   showCreateInviteModal,
   setShowCreateInviteModal,
   onSuccess,
 }: {
-  tenant: string;
   showCreateInviteModal: boolean;
   setShowCreateInviteModal: (show: boolean) => void;
   onSuccess: () => void;
 }) {
+  const { tenantId } = useCurrentTenantId();
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const { handleApiError } = useApiError({
     setFieldErrors: setFieldErrors,
   });
 
   const createMutation = useMutation({
-    mutationKey: ['tenant-invite:create', tenant],
+    mutationKey: ['tenant-invite:create', tenantId],
     mutationFn: async (data: CreateTenantInviteRequest) => {
-      await api.tenantInviteCreate(tenant, data);
+      await api.tenantInviteCreate(tenantId, data);
     },
     onSuccess: onSuccess,
     onError: handleApiError,
@@ -200,25 +194,25 @@ function CreateInvite({
 }
 
 function UpdateInvite({
-  tenant,
   tenantInvite,
   setShowTenantInvite,
   onSuccess,
 }: {
-  tenant: string;
   tenantInvite: TenantInvite;
   setShowTenantInvite: (show: boolean) => void;
   onSuccess: () => void;
 }) {
+  const { tenantId } = useCurrentTenantId();
+
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const { handleApiError } = useApiError({
     setFieldErrors: setFieldErrors,
   });
 
   const updateMutation = useMutation({
-    mutationKey: ['tenant-invite:update', tenant, tenantInvite],
+    mutationKey: ['tenant-invite:update', tenantId, tenantInvite],
     mutationFn: async (data: UpdateTenantInviteRequest) => {
-      await api.tenantInviteUpdate(tenant, tenantInvite.metadata.id, data);
+      await api.tenantInviteUpdate(tenantId, tenantInvite.metadata.id, data);
     },
     onSuccess: onSuccess,
     onError: handleApiError,
@@ -237,22 +231,21 @@ function UpdateInvite({
 }
 
 function DeleteInvite({
-  tenant,
   tenantInvite,
   setShowTenantInviteDelete,
   onSuccess,
 }: {
-  tenant: string;
   tenantInvite: TenantInvite;
   setShowTenantInviteDelete: (show: boolean) => void;
   onSuccess: () => void;
 }) {
+  const { tenantId } = useCurrentTenantId();
   const { handleApiError } = useApiError({});
 
   const deleteMutation = useMutation({
-    mutationKey: ['tenant-invite:delete', tenant, tenantInvite],
+    mutationKey: ['tenant-invite:delete', tenantId, tenantInvite],
     mutationFn: async () => {
-      await api.tenantInviteDelete(tenant, tenantInvite.metadata.id);
+      await api.tenantInviteDelete(tenantId, tenantInvite.metadata.id);
     },
     onSuccess: onSuccess,
     onError: handleApiError,
@@ -271,23 +264,22 @@ function DeleteInvite({
 }
 
 function ChangePassword({
-  tenant,
   showChangePasswordDialog,
   setShowChangePasswordDialog,
   onSuccess,
 }: {
-  tenant: string;
   onSuccess: () => void;
   showChangePasswordDialog: boolean;
   setShowChangePasswordDialog: (show: boolean) => void;
 }) {
+  const { tenantId } = useCurrentTenantId();
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const { handleApiError } = useApiError({
     setFieldErrors: setFieldErrors,
   });
 
   const updatePasswordMutation = useMutation({
-    mutationKey: ['user:update', tenant],
+    mutationKey: ['user:update', tenantId],
     mutationFn: async (data: UserChangePasswordRequest) => {
       const res = await api.userUpdatePassword(data);
       return res.data;

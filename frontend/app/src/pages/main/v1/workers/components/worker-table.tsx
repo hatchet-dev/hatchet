@@ -1,9 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Worker, queries } from '@/lib/api';
-import invariant from 'tiny-invariant';
-import { TenantContextType } from '@/lib/outlet';
-import { Link, useOutletContext } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { DataTable } from '@/components/v1/molecules/data-table/data-table.tsx';
 import { columns } from './worker-columns';
 import { Loading } from '@/components/v1/ui/loading.tsx';
@@ -16,10 +14,10 @@ import RelativeDate from '@/components/v1/molecules/relative-date';
 import { Badge } from '@/components/v1/ui/badge';
 import { SdkInfo } from './sdk-info';
 import { IntroDocsEmptyState } from '@/pages/onboarding/intro-docs-empty-state';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
 
 export function WorkersTable() {
-  const { tenant } = useOutletContext<TenantContextType>();
-  invariant(tenant);
+  const { tenantId } = useCurrentTenantId();
 
   const [rotate, setRotate] = useState(false);
   const [cardToggle, setCardToggle] = useState(true);
@@ -31,7 +29,7 @@ export function WorkersTable() {
   ]);
 
   const listWorkersQuery = useQuery({
-    ...queries.workers.list(tenant.metadata.id),
+    ...queries.workers.list(tenantId),
     refetchInterval: 3000,
   });
 
@@ -78,7 +76,7 @@ export function WorkersTable() {
         </div>
         <h3 className="text-lg leading-6 font-medium text-foreground">
           <Link
-            to={`/v1/workers/${data.metadata?.id}`}
+            to={`/tenants/${tenantId}/workers/${data.metadata?.id}`}
             className="flex flex-row gap-2 hover:underline"
           >
             <SdkInfo runtimeInfo={data?.runtimeInfo} iconOnly={true} />
@@ -103,7 +101,7 @@ export function WorkersTable() {
       </div>
       <div className="px-4 py-4 sm:px-6">
         <div className="text-sm text-background-secondary">
-          <Link to={`/v1/workers/${data.metadata?.id}`}>
+          <Link to={`/tenants/${tenantId}/workers/${data.metadata?.id}`}>
             <Button>View worker</Button>
           </Link>
         </div>
@@ -147,7 +145,7 @@ export function WorkersTable() {
 
   return (
     <DataTable
-      columns={columns}
+      columns={columns(tenantId)}
       data={data}
       pageCount={1}
       filters={[

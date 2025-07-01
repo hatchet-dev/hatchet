@@ -1,9 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Workflow, queries } from '@/lib/api';
-import invariant from 'tiny-invariant';
-import { TenantContextType } from '@/lib/outlet';
-import { Link, useOutletContext, useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { DataTable } from '@/components/v1/molecules/data-table/data-table.tsx';
 import { columns } from './workflow-columns';
 import { Loading } from '@/components/v1/ui/loading.tsx';
@@ -18,11 +16,11 @@ import { BiCard, BiTable } from 'react-icons/bi';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { Badge } from '@/components/v1/ui/badge';
 import { IntroDocsEmptyState } from '@/pages/onboarding/intro-docs-empty-state';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
 
 export function WorkflowTable() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const { tenant } = useOutletContext<TenantContextType>();
-  invariant(tenant);
+  const { tenantId } = useCurrentTenantId();
 
   const [sorting, setSorting] = useState<SortingState>([
     {
@@ -50,7 +48,7 @@ export function WorkflowTable() {
   );
 
   const listWorkflowQuery = useQuery({
-    ...queries.workflows.list(tenant.metadata.id, {
+    ...queries.workflows.list(tenantId, {
       limit: pagination.pageSize,
       offset: pagination.pageIndex * pageSize,
     }),
@@ -86,7 +84,9 @@ export function WorkflowTable() {
       <div className="px-4 py-5 sm:p-6">
         <div className="flex flex-row justify-between items-center">
           <h3 className="text-lg leading-6 font-medium text-foreground">
-            <Link to={`/v1/tasks/${data.metadata?.id}`}>{data.name}</Link>
+            <Link to={`/tenants/${tenantId}/tasks/${data.metadata?.id}`}>
+              {data.name}
+            </Link>
           </h3>
           {data.isPaused ? (
             <Badge variant="inProgress">Paused</Badge>
@@ -103,7 +103,7 @@ export function WorkflowTable() {
       </div>
       <div className="px-4 py-4 sm:px-6">
         <div className="text-sm text-background-secondary">
-          <Link to={`/v1/tasks/${data.metadata?.id}`}>
+          <Link to={`/tenants/${tenantId}/tasks/${data.metadata?.id}`}>
             <Button>View Workflow</Button>
           </Link>
         </div>
@@ -147,7 +147,7 @@ export function WorkflowTable() {
 
   return (
     <DataTable
-      columns={columns}
+      columns={columns(tenantId)}
       data={data}
       filters={[]}
       emptyState={
