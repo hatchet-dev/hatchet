@@ -41,6 +41,7 @@ import { useMetrics } from '../hooks/metrics';
 import { useToolbarFilters } from '../hooks/toolbar-filters';
 import { IntroDocsEmptyState } from '@/pages/onboarding/intro-docs-empty-state';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
+import { TriggerWorkflowForm } from '../../workflows/$workflow/components/trigger-workflow-form';
 
 export interface TaskRunsTableProps {
   createdAfter?: string;
@@ -77,6 +78,7 @@ export function TaskRunsTable({
 }: TaskRunsTableProps) {
   const { tenantId } = useCurrentTenantId();
 
+  const [triggerWorkflow, setTriggerWorkflow] = useState(false);
   const [viewQueueMetrics, setViewQueueMetrics] = useState(false);
   const [rotate, setRotate] = useState(false);
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
@@ -165,6 +167,12 @@ export function TaskRunsTable({
 
   return (
     <>
+      <TriggerWorkflowForm
+        defaultWorkflow={undefined}
+        show={triggerWorkflow}
+        onClose={() => setTriggerWorkflow(false)}
+      />
+
       {cf.filters.parentTaskExternalId &&
         !parentTaskRun.isLoading &&
         parentTaskRun.data && (
@@ -211,7 +219,7 @@ export function TaskRunsTable({
         </Dialog>
       )}
       {!createdAfterProp && !derivedParentTaskExternalId && (
-        <div className="flex flex-row justify-end items-center my-4 gap-2">
+        <div className="flex flex-row justify-end items-center mb-4 gap-2">
           {cf.filters.isCustomTimeRange && [
             <Button
               key="clear"
@@ -341,6 +349,13 @@ export function TaskRunsTable({
         data={tableRows}
         filters={toolbarFilters}
         actions={[
+          <Button
+            className="h-8 border"
+            onClick={() => setTriggerWorkflow(true)}
+          >
+            Trigger Run
+          </Button>,
+
           <TaskRunActionButton
             key="cancel"
             actionType="cancel"
@@ -425,25 +440,23 @@ const GetWorkflowChart = ({
   }
 
   return (
-    <div className="">
-      <ZoomableChart
-        kind="bar"
-        data={
-          workflowRunEventsMetricsQuery.data?.results?.map(
-            (result): DataPoint<'SUCCEEDED' | 'FAILED'> => ({
-              date: result.time,
-              SUCCEEDED: result.SUCCEEDED,
-              FAILED: result.FAILED,
-            }),
-          ) || []
-        }
-        colors={{
-          SUCCEEDED: 'rgb(34 197 94 / 0.5)',
-          FAILED: 'hsl(var(--destructive))',
-        }}
-        zoom={zoom}
-        showYAxis={false}
-      />
-    </div>
+    <ZoomableChart
+      kind="bar"
+      data={
+        workflowRunEventsMetricsQuery.data?.results?.map(
+          (result): DataPoint<'SUCCEEDED' | 'FAILED'> => ({
+            date: result.time,
+            SUCCEEDED: result.SUCCEEDED,
+            FAILED: result.FAILED,
+          }),
+        ) || []
+      }
+      colors={{
+        SUCCEEDED: 'rgb(34 197 94 / 0.5)',
+        FAILED: 'hsl(var(--destructive))',
+      }}
+      zoom={zoom}
+      showYAxis={false}
+    />
   );
 };
