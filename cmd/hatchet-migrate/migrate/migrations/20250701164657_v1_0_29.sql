@@ -93,10 +93,76 @@ BEGIN
         rename_sql := format('ALTER INDEX %I RENAME TO %I', old_name, new_name);
         EXECUTE rename_sql;
     END LOOP;
+
+    ALTER INDEX v1_lookup_table_new_pkey RENAME TO v1_lookup_table_pkey;
 END $$;
 
 -- +goose StatementEnd
 
 -- +goose Down
 -- +goose StatementBegin
+
+-- +goose NO TRANSACTION
+
+DO $$
+DECLARE
+    snapshot_xmin BIGINT;
+    partition_record RECORD;
+BEGIN
+    SELECT txid_current() INTO snapshot_xmin;
+
+    CREATE TABLE v1_lookup_table_unpartitioned (
+        tenant_id UUID NOT NULL,
+        external_id UUID NOT NULL,
+        task_id BIGINT,
+        dag_id BIGINT,
+        inserted_at TIMESTAMPTZ NOT NULL,
+
+        PRIMARY KEY (external_id)
+    );
+
+    FOR partition_record IN
+        SELECT c.relname as partition_name
+        FROM pg_class c
+        JOIN pg_inherits i ON c.oid = i.inhrelid
+        JOIN pg_class parent ON i.inhparent = parent.oid
+        WHERE parent.relname = 'v1_lookup_table'
+        ORDER BY c.relname
+    LOOP
+        EXECUTE format(
+            'INSERT INTO v1_lookup_table_unpartitioned (tenant_id, external_id, task_id, dag_id, inserted_at)
+             SELECT tenant_id, external_id, task_id, dag_id, inserted_at
+             FROM %I
+             WHERE xmin::text::bigint < %s',
+            partition_record.partition_name,
+            snapshot_xmin
+        );
+    END LOOP;
+
+    LOCK TABLE v1_lookup_table IN ACCESS EXCLUSIVE MODE;
+
+    FOR partition_record IN
+        SELECT c.relname as partition_name
+        FROM pg_class c
+        JOIN pg_inherits i ON c.oid = i.inhrelid
+        JOIN pg_class parent ON i.inhparent = parent.oid
+        WHERE parent.relname = 'v1_lookup_table'
+        ORDER BY c.relname
+    LOOP
+        EXECUTE format(
+            'INSERT INTO v1_lookup_table_unpartitioned (tenant_id, external_id, task_id, dag_id, inserted_at)
+             SELECT tenant_id, external_id, task_id, dag_id, inserted_at
+             FROM %I
+             WHERE xmin::text::bigint >= %s',
+            partition_record.partition_name,
+            snapshot_xmin
+        );
+    END LOOP;
+
+    DROP TABLE v1_lookup_table;
+
+    ALTER TABLE v1_lookup_table_unpartitioned RENAME TO v1_lookup_table;
+    ALTER INDEX v1_lookup_table_unpartitioned_pkey RENAME TO v1_lookup_table_pkey;
+END $$;
+
 -- +goose StatementEnd
