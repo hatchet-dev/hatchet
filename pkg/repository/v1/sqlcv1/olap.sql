@@ -1350,7 +1350,7 @@ WHERE
 
 -- name: PopulateEventData :many
 SELECT
-    e.external_id,
+    elt.external_id,
     COUNT(*) FILTER (WHERE r.readable_status = 'QUEUED') AS queued_count,
     COUNT(*) FILTER (WHERE r.readable_status = 'RUNNING') AS running_count,
     COUNT(*) FILTER (WHERE r.readable_status = 'COMPLETED') AS completed_count,
@@ -1364,6 +1364,7 @@ JOIN v1_runs_olap r ON (etr.run_id, etr.run_inserted_at) = (r.id, r.inserted_at)
 WHERE
     elt.external_id = ANY(@eventExternalIds::uuid[])
     AND elt.tenant_id = @tenantId::uuid
+GROUP BY elt.external_id
 ;
 
 -- name: ListEvents :many

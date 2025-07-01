@@ -1575,11 +1575,9 @@ func (r *OLAPRepositoryImpl) ListEvents(ctx context.Context, opts sqlcv1.ListEve
 		return nil, nil, err
 	}
 
-	externalIdToEvent := make(map[pgtype.UUID]*sqlcv1.V1EventsOlap)
 	eventExternalIds := make([]pgtype.UUID, len(events))
 
 	for i, event := range events {
-		externalIdToEvent[event.ExternalID] = event
 		eventExternalIds[i] = event.ExternalID
 	}
 
@@ -1592,31 +1590,53 @@ func (r *OLAPRepositoryImpl) ListEvents(ctx context.Context, opts sqlcv1.ListEve
 		return nil, nil, fmt.Errorf("error populating event data: %v", err)
 	}
 
-	result := make([]*ListEventsRow, 0)
+	externalIdToEventData := make(map[pgtype.UUID][]*sqlcv1.PopulateEventDataRow)
 
 	for _, data := range eventData {
-		event, ok := externalIdToEvent[data.ExternalID]
+		externalIdToEventData[data.ExternalID] = append(externalIdToEventData[data.ExternalID], data)
+	}
 
-		if !ok {
-			continue
+	result := make([]*ListEventsRow, 0)
+
+	for _, event := range events {
+		data, exists := externalIdToEventData[event.ExternalID]
+
+		if !exists || len(data) == 0 {
+			result = append(result, &ListEventsRow{
+				TenantID:                event.TenantID,
+				EventID:                 event.ID,
+				EventExternalID:         event.ExternalID,
+				EventSeenAt:             event.SeenAt,
+				EventKey:                event.Key,
+				EventPayload:            event.Payload,
+				EventAdditionalMetadata: event.AdditionalMetadata,
+				EventScope:              event.Scope.String,
+				QueuedCount:             0,
+				RunningCount:            0,
+				CompletedCount:          0,
+				CancelledCount:          0,
+				FailedCount:             0,
+			})
+		} else {
+			for _, d := range data {
+				result = append(result, &ListEventsRow{
+					TenantID:                event.TenantID,
+					EventID:                 event.ID,
+					EventExternalID:         event.ExternalID,
+					EventSeenAt:             event.SeenAt,
+					EventKey:                event.Key,
+					EventPayload:            event.Payload,
+					EventAdditionalMetadata: event.AdditionalMetadata,
+					EventScope:              event.Scope.String,
+					QueuedCount:             d.QueuedCount,
+					RunningCount:            d.RunningCount,
+					CompletedCount:          d.CompletedCount,
+					CancelledCount:          d.CancelledCount,
+					FailedCount:             d.FailedCount,
+					TriggeredRuns:           d.TriggeredRuns,
+				})
+			}
 		}
-
-		result = append(result, &ListEventsRow{
-			TenantID:                event.TenantID,
-			EventID:                 event.ID,
-			EventExternalID:         event.ExternalID,
-			EventSeenAt:             event.SeenAt,
-			EventKey:                event.Key,
-			EventPayload:            event.Payload,
-			EventAdditionalMetadata: event.AdditionalMetadata,
-			EventScope:              event.Scope.String,
-			QueuedCount:             data.QueuedCount,
-			RunningCount:            data.RunningCount,
-			CompletedCount:          data.CompletedCount,
-			CancelledCount:          data.CancelledCount,
-			FailedCount:             data.FailedCount,
-			TriggeredRuns:           data.TriggeredRuns,
-		})
 	}
 
 	return result, &eventCount, nil
