@@ -1,5 +1,8 @@
-import {
+import api, {
+  queries,
   V1TaskStatus,
+  V1TaskSummary,
+  V1WorkflowRunDetails,
   WorkflowRunShapeForWorkflowRunDetails,
   WorkflowRunStatus,
 } from '@/lib/api';
@@ -27,7 +30,10 @@ import WorkflowRunVisualizer from './v2components/workflow-run-visualizer-v2';
 import { useAtom } from 'jotai';
 import { preferredWorkflowRunViewAtom } from '@/lib/atoms';
 import { JobMiniMap } from './v2components/mini-map';
-import { useWorkflowDetails } from '../hooks/workflow-details';
+import { isTerminalState, useWorkflowDetails } from '../hooks/workflow-details';
+import { useQuery } from '@tanstack/react-query';
+import invariant from 'tiny-invariant';
+import { Spinner } from '@/components/v1/ui/loading';
 
 export const WORKFLOW_RUN_TERMINAL_STATUSES = [
   WorkflowRunStatus.CANCELLED,
@@ -72,9 +78,107 @@ const GraphView = ({
   );
 };
 
-export default function ExpandedWorkflowRun() {
-  const params = useParams();
+type TaskRunDispatchQueryReturnType = {
+  status: V1TaskStatus;
+  type: 'task' | 'dag';
+  task?: V1TaskSummary;
+  dag?: V1WorkflowRunDetails;
+};
 
+async function fetchTaskRun(id: string) {
+  try {
+    return await api.v1TaskGet(id);
+  } catch (error) {
+    return undefined;
+  }
+}
+
+async function fetchDAGRun(id: string) {
+  try {
+    return await api.v1WorkflowRunGet(id);
+  } catch (error) {
+    return undefined;
+  }
+}
+
+export default function Run() {
+  const { run } = useParams();
+
+  invariant(run, 'Run ID is required');
+
+  const taskRunQuery = useQuery({
+    queryKey: ['workflow-run', run],
+    queryFn: async (): Promise<TaskRunDispatchQueryReturnType> => {
+      const [task, dag] = await Promise.all([
+        fetchTaskRun(run),
+        fetchDAGRun(run),
+      ]);
+
+      if (!task && !dag) {
+        throw new Error(`Task or Workflow Run with ID ${run} not found`);
+      }
+
+      if (task) {
+        const taskData = task?.data;
+
+        return {
+          status: taskData.status,
+          type: 'task',
+          task: taskData,
+        };
+      }
+
+      if (dag) {
+        const dagData = dag?.data;
+
+        return {
+          status: dagData?.run.status,
+          type: 'dag',
+          dag: dagData,
+        };
+      }
+
+      throw new Error(`Task or Workflow Run with ID ${run} not found`);
+    },
+    refetchInterval: (query) => {
+      const status = query.state.data?.status;
+
+      if (isTerminalState(status)) {
+        return 5000;
+      }
+
+      return 1000;
+    },
+  });
+
+  if (taskRunQuery.isLoading) {
+    return <Spinner />;
+  }
+
+  const runData = taskRunQuery.data;
+
+  if (!runData) {
+    return null;
+  }
+
+  if (runData.type === 'task') {
+    return <ExpandedTaskRun id={run} />;
+  }
+
+  if (runData.type === 'dag') {
+    return <ExpandedWorkflowRun id={run} />;
+  }
+}
+
+function ExpandedTaskRun({ id }: { id: string }) {
+  return (
+    <div className="px-8">
+      <TaskRunDetail taskRunId={id} defaultOpenTab={TabOption.Output} />
+    </div>
+  );
+}
+
+function ExpandedWorkflowRun({ id }: { id: string }) {
   const [selectedTaskRunId, setSelectedTaskRunId] = useState<string>();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
@@ -83,19 +187,7 @@ export default function ExpandedWorkflowRun() {
     setIsSidebarOpen(true);
   }, []);
 
-  const { workflowRun, shape, isLoading, isError, errStatusCode } =
-    useWorkflowDetails();
-
-  if (isError && errStatusCode == 404 && params.run) {
-    // see if this is actually a task run and redirect
-    return (
-      <div className="flex-grow h-full w-full">
-        <div className="mx-auto pt-2 px-4 sm:px-6 lg:px-8">
-          <TaskRunDetail taskRunId={params.run} />
-        </div>
-      </div>
-    );
-  }
+  const { workflowRun, shape, isLoading, isError } = useWorkflowDetails();
 
   if (isLoading || isError || !workflowRun) {
     return null;
@@ -136,7 +228,7 @@ export default function ExpandedWorkflowRun() {
           <TabsContent value="activity">
             <div className="h-4" />
             <StepRunEvents
-              workflowRunId={params.run}
+              workflowRunId={id}
               fallbackTaskDisplayName={workflowRun.displayName}
               onClick={handleTaskRunExpand}
             />
