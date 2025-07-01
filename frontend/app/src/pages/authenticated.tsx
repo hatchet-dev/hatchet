@@ -79,6 +79,7 @@ export default function Authenticated() {
       return;
     }
   }, [
+    tenant?.metadata.id,
     userQuery.data,
     invitesQuery.data,
     listMembershipsQuery.data,

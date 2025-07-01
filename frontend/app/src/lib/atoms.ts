@@ -140,7 +140,7 @@ export function useTenant(): TenantContext {
     const firstMembershipTenant = memberships.at(0)?.tenant;
 
     return firstMembershipTenant;
-  }, [memberships, searchParams, findTenant, lastTenant]);
+  }, [memberships, searchParams, findTenant, lastTenant, pathParams.tenant]);
 
   const currTenantId = searchParams.get('tenant');
   const currTenant = currTenantId ? findTenant(currTenantId) : undefined;

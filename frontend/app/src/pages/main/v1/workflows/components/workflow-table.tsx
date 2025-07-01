@@ -5,8 +5,6 @@ import { useSearchParams } from 'react-router-dom';
 import { DataTable } from '@/components/v1/molecules/data-table/data-table.tsx';
 import { columns } from './workflow-columns';
 import { Loading } from '@/components/v1/ui/loading.tsx';
-import { Button } from '@/components/v1/ui/button';
-import { ArrowPathIcon } from '@heroicons/react/24/outline';
 import {
   PaginationState,
   SortingState,
@@ -26,7 +24,6 @@ export function WorkflowTable() {
     },
   ]);
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
-  const [rotate, setRotate] = useState(false);
 
   const [pagination, setPagination] = useState<PaginationState>(() => {
     const pageIndex = Number(searchParams.get('pageIndex')) || 0;

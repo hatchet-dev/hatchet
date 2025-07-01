@@ -355,6 +355,7 @@ export function TaskRunsTable({
           filters={toolbarFilters}
           actions={[
             <Button
+              key="trigger"
               className="h-8 border"
               onClick={() => setTriggerWorkflow(true)}
             >

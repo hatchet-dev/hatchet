@@ -219,7 +219,7 @@ export default function MainNav({ user, setHasBanner }: MainNavProps) {
     }
 
     return;
-  }, [navigate, pathname, tenantVersion, tenantedRoutes]);
+  }, [navigate, pathname, tenantVersion, tenantedRoutes, tenant?.metadata.id]);
 
   useEffect(() => {
     if (!setHasBanner) {
