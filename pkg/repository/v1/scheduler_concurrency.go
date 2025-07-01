@@ -60,7 +60,7 @@ func (c *ConcurrencyRepositoryImpl) UpdateConcurrencyStrategyIsActive(
 	tenantId pgtype.UUID,
 	strategy *sqlcv1.V1StepConcurrency,
 ) error {
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, c.pool, c.l, 5000)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, c.pool, c.l, 30000)
 
 	if err != nil {
 		return err
@@ -136,7 +136,7 @@ func (c *ConcurrencyRepositoryImpl) runGroupRoundRobin(
 	strategy *sqlcv1.V1StepConcurrency,
 ) (res *RunConcurrencyResult, err error) {
 
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, c.pool, c.l, 5000)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, c.pool, c.l, 30000)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to prepare transaction (strategy ID: %d): %w", strategy.ID, err)
@@ -277,7 +277,7 @@ func (c *ConcurrencyRepositoryImpl) runCancelInProgress(
 	strategy *sqlcv1.V1StepConcurrency,
 ) (res *RunConcurrencyResult, err error) {
 
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, c.pool, c.l, 5000)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, c.pool, c.l, 30000)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to prepare transaction (strategy ID: %d): %w", strategy.ID, err)
@@ -496,7 +496,7 @@ func (c *ConcurrencyRepositoryImpl) runCancelNewest(
 	tenantId pgtype.UUID,
 	strategy *sqlcv1.V1StepConcurrency,
 ) (res *RunConcurrencyResult, err error) {
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, c.pool, c.l, 5000)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, c.pool, c.l, 30000)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to prepare transaction (strategy ID: %d): %w", strategy.ID, err)
