@@ -501,6 +501,7 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 						StepId:             sqlchelpers.UUIDToStr(match.TriggerStepID),
 						StepIndex:          int(match.TriggerStepIndex.Int64),
 						AdditionalMetadata: additionalMetadata,
+						InitialState:       sqlcv1.V1TaskInitialStateQUEUED,
 					}
 
 					switch matchData.Action() {
