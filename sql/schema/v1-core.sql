@@ -292,8 +292,8 @@ CREATE TABLE v1_lookup_table (
     dag_id BIGINT,
     inserted_at TIMESTAMPTZ NOT NULL,
 
-    PRIMARY KEY (external_id)
-);
+    PRIMARY KEY (external_id, inserted_at)
+) PARTITION BY RANGE(inserted_at);
 
 CREATE TYPE v1_task_event_type AS ENUM (
     'COMPLETED',
