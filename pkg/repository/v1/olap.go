@@ -227,7 +227,7 @@ type OLAPRepository interface {
 
 	GetTaskTimings(ctx context.Context, tenantId string, workflowRunId pgtype.UUID, depth int32) ([]*sqlcv1.PopulateTaskRunDataRow, map[string]int32, error)
 	BulkCreateEventsAndTriggers(ctx context.Context, events sqlcv1.BulkCreateEventsParams, triggers []EventTriggersFromExternalId) error
-	ListEvents(ctx context.Context, opts sqlcv1.ListEventsParams) ([]*sqlcv1.ListEventsRow, *int64, error)
+	ListEvents(ctx context.Context, opts sqlcv1.ListEventsParams) ([]*ListEventsRow, *int64, error)
 	ListEventKeys(ctx context.Context, tenantId string) ([]string, error)
 
 	GetDagDurationsByDagIds(ctx context.Context, tenantId string, dagIds []int64, dagInsertedAts []pgtype.Timestamptz, readableStatuses []sqlcv1.V1ReadableStatusOlap) ([]*sqlcv1.GetDagDurationsByDagIdsRow, error)
@@ -1535,7 +1535,24 @@ func (r *OLAPRepositoryImpl) BulkCreateEventsAndTriggers(ctx context.Context, ev
 	return nil
 }
 
-func (r *OLAPRepositoryImpl) ListEvents(ctx context.Context, opts sqlcv1.ListEventsParams) ([]*sqlcv1.ListEventsRow, *int64, error) {
+type ListEventsRow struct {
+	TenantID                pgtype.UUID        `json:"tenant_id"`
+	EventID                 int64              `json:"event_id"`
+	EventExternalID         pgtype.UUID        `json:"event_external_id"`
+	EventSeenAt             pgtype.Timestamptz `json:"event_seen_at"`
+	EventKey                string             `json:"event_key"`
+	EventPayload            []byte             `json:"event_payload"`
+	EventAdditionalMetadata []byte             `json:"event_additional_metadata"`
+	EventScope              string             `json:"event_scope"`
+	QueuedCount             int64              `json:"queued_count"`
+	RunningCount            int64              `json:"running_count"`
+	CompletedCount          int64              `json:"completed_count"`
+	CancelledCount          int64              `json:"cancelled_count"`
+	FailedCount             int64              `json:"failed_count"`
+	TriggeredRuns           []byte             `json:"triggered_runs"`
+}
+
+func (r *OLAPRepositoryImpl) ListEvents(ctx context.Context, opts sqlcv1.ListEventsParams) ([]*ListEventsRow, *int64, error) {
 	events, err := r.queries.ListEvents(ctx, r.readPool, opts)
 
 	if err != nil {
@@ -1558,7 +1575,51 @@ func (r *OLAPRepositoryImpl) ListEvents(ctx context.Context, opts sqlcv1.ListEve
 		return nil, nil, err
 	}
 
-	return events, &eventCount, nil
+	externalIdToEvent := make(map[pgtype.UUID]*sqlcv1.V1EventsOlap)
+	eventExternalIds := make([]pgtype.UUID, len(events))
+
+	for i, event := range events {
+		externalIdToEvent[event.ExternalID] = event
+		eventExternalIds[i] = event.ExternalID
+	}
+
+	eventData, err := r.queries.PopulateEventData(ctx, r.readPool, sqlcv1.PopulateEventDataParams{
+		Eventexternalids: eventExternalIds,
+		Tenantid:         opts.Tenantid,
+	})
+
+	if err != nil {
+		return nil, nil, fmt.Errorf("error populating event data: %v", err)
+	}
+
+	result := make([]*ListEventsRow, 0)
+
+	for _, data := range eventData {
+		event, ok := externalIdToEvent[data.ExternalID]
+
+		if !ok {
+			continue
+		}
+
+		result = append(result, &ListEventsRow{
+			TenantID:                event.TenantID,
+			EventID:                 event.ID,
+			EventExternalID:         event.ExternalID,
+			EventSeenAt:             event.SeenAt,
+			EventKey:                event.Key,
+			EventPayload:            event.Payload,
+			EventAdditionalMetadata: event.AdditionalMetadata,
+			EventScope:              event.Scope.String,
+			QueuedCount:             data.QueuedCount,
+			RunningCount:            data.RunningCount,
+			CompletedCount:          data.CompletedCount,
+			CancelledCount:          data.CancelledCount,
+			FailedCount:             data.FailedCount,
+			TriggeredRuns:           data.TriggeredRuns,
+		})
+	}
+
+	return result, &eventCount, nil
 }
 
 func (r *OLAPRepositoryImpl) ListEventKeys(ctx context.Context, tenantId string) ([]string, error) {
