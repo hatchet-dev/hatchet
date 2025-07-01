@@ -1,5 +1,4 @@
 import api, {
-  queries,
   V1TaskStatus,
   V1TaskSummary,
   V1WorkflowRunDetails,

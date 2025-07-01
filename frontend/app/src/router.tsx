@@ -452,12 +452,15 @@ export const routes: RouteObject[] = [
               {
                 // TODO: Fix this - just use the same `/runs` page
                 path: '/tenants/:tenant/task-runs/:run',
-                lazy: async () =>
-                  import('./pages/main/v1/task-runs-v1/$run').then((res) => {
-                    return {
-                      Component: res.default,
-                    };
-                  }),
+                lazy: async () => {
+                  return {
+                    loader: function ({ params }) {
+                      return redirect(
+                        `/tenants/${params.tenant}/runs/${params.run}`,
+                      );
+                    },
+                  };
+                },
               },
               {
                 path: '/tenants/:tenant/workers',
