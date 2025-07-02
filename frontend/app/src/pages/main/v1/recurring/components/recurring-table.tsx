@@ -183,7 +183,11 @@ export function CronsTable() {
   ];
 
   const actions = [
-    <Button onClick={() => setTriggerWorkflow(true)} className="h-8 border">
+    <Button
+      key="create-cron"
+      onClick={() => setTriggerWorkflow(true)}
+      className="h-8 border"
+    >
       Create Cron Job
     </Button>,
     <Button

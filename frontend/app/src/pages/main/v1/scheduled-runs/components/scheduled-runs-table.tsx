@@ -268,7 +268,11 @@ export function ScheduledRunsTable({
   };
 
   const actions = [
-    <Button onClick={() => setTriggerWorkflow(true)} className="h-8 border">
+    <Button
+      key="schedule-run"
+      onClick={() => setTriggerWorkflow(true)}
+      className="h-8 border"
+    >
       Schedule Run
     </Button>,
     <Button
