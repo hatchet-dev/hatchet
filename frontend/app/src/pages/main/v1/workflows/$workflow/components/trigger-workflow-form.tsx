@@ -272,7 +272,7 @@ export function TriggerWorkflowForm({
         }
       }}
     >
-      <DialogContent className="sm:max-w-[625px] py-12 max-h-screen overflow-auto">
+      <DialogContent className="sm:max-w-[625px] py-12 max-h-[90%] overflow-auto">
         <DialogHeader className="gap-2">
           <DialogTitle>Trigger Run</DialogTitle>
           <DialogDescription className="text-muted-foreground">
