@@ -69,32 +69,30 @@ export function WorkflowTable() {
   }
 
   return (
-    <div className="h-full">
-      <DataTable
-        columns={columns(tenantId)}
-        data={data}
-        filters={[]}
-        emptyState={
-          <IntroDocsEmptyState
-            link="/home/your-first-task"
-            title="No Registered Workflows"
-            linkPreambleText="To learn more about workflows function in Hatchet,"
-            linkText="check out our documentation."
-          />
-        }
-        columnVisibility={columnVisibility}
-        setColumnVisibility={setColumnVisibility}
-        pagination={pagination}
-        setPagination={setPagination}
-        onSetPageSize={setPageSize}
-        showSelectedRows={false}
-        pageCount={pageIndex}
-        sorting={sorting}
-        setSorting={setSorting}
-        isLoading={listWorkflowQuery.isLoading}
-        manualSorting={false}
-        manualFiltering={false}
-      />
-    </div>
+    <DataTable
+      columns={columns(tenantId)}
+      data={data}
+      filters={[]}
+      emptyState={
+        <IntroDocsEmptyState
+          link="/home/your-first-task"
+          title="No Registered Workflows"
+          linkPreambleText="To learn more about workflows function in Hatchet,"
+          linkText="check out our documentation."
+        />
+      }
+      columnVisibility={columnVisibility}
+      setColumnVisibility={setColumnVisibility}
+      pagination={pagination}
+      setPagination={setPagination}
+      onSetPageSize={setPageSize}
+      showSelectedRows={false}
+      pageCount={pageIndex}
+      sorting={sorting}
+      setSorting={setSorting}
+      isLoading={listWorkflowQuery.isLoading}
+      manualSorting={false}
+      manualFiltering={false}
+    />
   );
 }

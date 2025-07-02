@@ -18,11 +18,7 @@ import { DataTable } from '@/components/v1/molecules/data-table/data-table';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 
 export default function RateLimits() {
-  return (
-    <div className="flex flex-col h-full w-full overflow-hidden">
-      <RateLimitsTable />
-    </div>
-  );
+  return <RateLimitsTable />;
 }
 
 function RateLimitsTable() {

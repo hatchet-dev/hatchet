@@ -55,26 +55,24 @@ export function WorkersTable() {
   );
 
   return (
-    <div className="h-full">
-      <DataTable
-        columns={columns(tenantId)}
-        data={data}
-        pageCount={1}
-        filters={[
-          {
-            columnId: 'status',
-            title: 'Status',
-            options: [
-              { value: 'ACTIVE', label: 'Active' },
-              { value: 'PAUSED', label: 'Paused' },
-              { value: 'INACTIVE', label: 'Inactive' },
-            ],
-          },
-        ]}
-        emptyState={emptyState}
-        columnFilters={columnFilters}
-        setColumnFilters={setColumnFilters}
-      />
-    </div>
+    <DataTable
+      columns={columns(tenantId)}
+      data={data}
+      pageCount={1}
+      filters={[
+        {
+          columnId: 'status',
+          title: 'Status',
+          options: [
+            { value: 'ACTIVE', label: 'Active' },
+            { value: 'PAUSED', label: 'Paused' },
+            { value: 'INACTIVE', label: 'Inactive' },
+          ],
+        },
+      ]}
+      emptyState={emptyState}
+      columnFilters={columnFilters}
+      setColumnFilters={setColumnFilters}
+    />
   );
 }

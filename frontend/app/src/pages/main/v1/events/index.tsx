@@ -38,11 +38,7 @@ import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 
 export default function Events() {
-  return (
-    <div className="flex flex-col h-full w-full overflow-hidden">
-      <EventsTable />
-    </div>
-  );
+  return <EventsTable />;
 }
 
 function EventsTable() {
