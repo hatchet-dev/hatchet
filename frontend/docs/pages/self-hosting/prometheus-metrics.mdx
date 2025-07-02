@@ -68,7 +68,7 @@ Restart your Hatchet server after setting these variables to apply the changes.
 | `hatchet_rate_limited_total`         | Counter   | The total number of tasks that were rate limited                                  |
 | `hatchet_queued_to_assigned_total`   | Counter   | The total number of unique tasks that were queued and later assigned to a worker  |
 | `hatchet_queued_to_assigned_seconds` | Histogram | Buckets of time (in seconds) spent in the queue before being assigned to a worker |
-| `hatchet_reassigned_tasks_total` | Counter | The total number of tasks that were reassigned to a worker |
+| `hatchet_reassigned_tasks_total`     | Counter   | The total number of tasks that were reassigned to a worker                        |
 
 #### Example PromQL Queries
 
@@ -176,7 +176,7 @@ rate(hatchet_reassigned_tasks_total[5m])
 | `hatchet_tenant_rate_limited`                    | Counter   | The total number of tasks that were rate limited                                     |
 | `hatchet_tenant_queued_to_assigned`              | Counter   | The total number of unique tasks that were queued and later got assigned to a worker |
 | `hatchet_tenant_queued_to_assigned_time_seconds` | Histogram | Buckets of time in seconds spent in the queue before being assigned to a worker      |
-| `hatchet_tenant_reassigned_tasks` | Counter | The total number of tasks that were reassigned to a worker |
+| `hatchet_tenant_reassigned_tasks`                | Counter   | The total number of tasks that were reassigned to a worker                           |
 
 #### Example PromQL Queries
 
