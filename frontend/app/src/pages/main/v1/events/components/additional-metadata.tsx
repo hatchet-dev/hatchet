@@ -1,4 +1,3 @@
-import { Badge } from '@/components/v1/ui/badge';
 import {
   Popover,
   PopoverContent,
