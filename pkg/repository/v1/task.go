@@ -1586,6 +1586,9 @@ func (r *sharedRepository) insertTasks(
 		}
 
 		initialStates[i] = string(task.InitialState)
+		if initialStates[i] == "" {
+			initialStates[i] = string(sqlcv1.V1TaskInitialStateQUEUED)
+		}
 
 		if len(task.AdditionalMetadata) > 0 {
 			additionalMetadatas[i] = task.AdditionalMetadata
@@ -1996,6 +1999,9 @@ func (r *sharedRepository) replayTasks(
 			inputs[i] = r.ToV1StepRunData(task.Input).Bytes()
 		}
 		initialStates[i] = string(task.InitialState)
+		if initialStates[i] == "" {
+			initialStates[i] = string(sqlcv1.V1TaskInitialStateQUEUED)
+		}
 
 		if len(task.AdditionalMetadata) > 0 {
 			additionalMetadatas[i] = task.AdditionalMetadata
