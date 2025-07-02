@@ -12,7 +12,8 @@ import { cn } from '@/lib/utils';
 import { DataTableRowActions } from '@/components/v1/molecules/data-table/data-table-row-actions';
 import { V1RunStatus } from '../../../workflow-runs/components/run-statuses';
 import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
-import { V1TaskSummary } from '@/lib/api';
+import { V1TaskStatus, V1TaskSummary } from '@/lib/api';
+import { Duration } from '@/components/v1/shared/duration';
 
 export const TaskRunColumn = {
   taskName: 'task_name',
@@ -258,14 +259,21 @@ export const columns: (
   {
     accessorKey: TaskRunColumn.duration,
     header: ({ column }) => (
-      <DataTableColumnHeader
-        column={column}
-        title="Duration (ms)"
-        className="whitespace-nowrap"
-      />
+      <DataTableColumnHeader column={column} title="Duration" />
     ),
     cell: ({ row }) => {
-      return <div className="whitespace-nowrap">{row.original.duration}</div>;
+      const startedAt = row.original.startedAt;
+      const finishedAt = row.original.finishedAt;
+      const status = row.getValue('status') as V1TaskStatus;
+
+      return (
+        <Duration
+          start={startedAt}
+          end={finishedAt}
+          status={status}
+          variant="compact"
+        />
+      );
     },
     enableSorting: false,
     enableHiding: true,
