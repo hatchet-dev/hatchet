@@ -26,6 +26,7 @@ export const tenantedPaths = [
   '/tenants/:tenant/managed-workers/demo-template',
   '/tenants/:tenant/managed-workers/create',
   '/tenants/:tenant/managed-workers/:managed-worker',
+  '/tenants/:tenant/tenant-settings',
   '/tenants/:tenant/tenant-settings/overview',
   '/tenants/:tenant/tenant-settings/api-tokens',
   '/tenants/:tenant/tenant-settings/github',
@@ -352,6 +353,19 @@ const createTenantedRoute = (path: TenantedPath): RouteObject => {
             loader: function ({ params }) {
               return redirect(
                 `/tenants/${params.tenant}/tasks/${params.workflow}`,
+              );
+            },
+          };
+        },
+      };
+    case '/tenants/:tenant/tenant-settings':
+      return {
+        path,
+        lazy: async () => {
+          return {
+            loader: function ({ params }) {
+              return redirect(
+                `/tenants/${params.tenant}/tenant-settings/overview`,
               );
             },
           };
