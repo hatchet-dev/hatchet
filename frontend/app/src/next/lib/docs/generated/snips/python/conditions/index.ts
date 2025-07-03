@@ -1,7 +1,7 @@
-import test_waits from './test_waits';
+import test_conditions from './test_conditions';
 import trigger from './trigger';
 import worker from './worker';
 
-export { test_waits };
+export { test_conditions };
 export { trigger };
 export { worker };

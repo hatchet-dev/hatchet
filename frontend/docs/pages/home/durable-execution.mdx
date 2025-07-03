@@ -45,3 +45,9 @@ Second, we've added a durable task, which we've created by using the `durable_ta
 The durable task first waits for a sleep condition. Once the sleep has completed, it continues processing until it hits the second `wait_for`. At this point, it needs to wait for an event condition. Once it receives the event, the task prints `Event received` and completes.
 
 If this task is interrupted at any time, it will continue from where it left off. But more importantly, if an event comes into the system while the task is waiting, the task will immediately process the event. And if the task is interrupted while in a sleeping state, it will respect the original sleep duration on restart -- that is, if the task calls `ctx.aio_sleep_for` for 24 hours and is interrupted after 23 hours, it will only sleep for 1 more hour on restart.
+
+### Or Groups
+
+Similarly to in [conditional workflows](./conditional-workflows.mdx#or-groups), durable tasks can also use or groups in the wait conditions they use. For example, you could wait for either an event or a sleep (whichever comes first) like this:
+
+<Snippet src={snips.python.durable.worker} block="add_durable_tasks_that_wait_for_or_groups" />

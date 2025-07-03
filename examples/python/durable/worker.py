@@ -1,6 +1,16 @@
+import time
 from datetime import timedelta
+from uuid import uuid4
 
-from hatchet_sdk import Context, DurableContext, EmptyModel, Hatchet, UserEventCondition
+from hatchet_sdk import (
+    Context,
+    DurableContext,
+    EmptyModel,
+    Hatchet,
+    SleepCondition,
+    UserEventCondition,
+    or_,
+)
 
 hatchet = Hatchet(debug=True)
 
@@ -36,6 +46,57 @@ async def durable_task(input: EmptyModel, ctx: DurableContext) -> dict[str, str]
 
     return {
         "status": "success",
+    }
+
+
+
+
+# > Add durable tasks that wait for or groups
+
+
+@durable_workflow.durable_task()
+async def wait_for_or_group_1(
+    _i: EmptyModel, ctx: DurableContext
+) -> dict[str, str | int]:
+    start = time.time()
+    wait_result = await ctx.aio_wait_for(
+        uuid4().hex,
+        or_(
+            SleepCondition(timedelta(seconds=SLEEP_TIME)),
+            UserEventCondition(event_key=EVENT_KEY),
+        ),
+    )
+
+    key = list(wait_result.keys())[0]
+    event_id = list(wait_result[key].keys())[0]
+
+    return {
+        "runtime": int(time.time() - start),
+        "key": key,
+        "event_id": event_id,
+    }
+
+
+@durable_workflow.durable_task()
+async def wait_for_or_group_2(
+    _i: EmptyModel, ctx: DurableContext
+) -> dict[str, str | int]:
+    start = time.time()
+    wait_result = await ctx.aio_wait_for(
+        uuid4().hex,
+        or_(
+            SleepCondition(timedelta(seconds=6 * SLEEP_TIME)),
+            UserEventCondition(event_key=EVENT_KEY),
+        ),
+    )
+
+    key = list(wait_result.keys())[0]
+    event_id = list(wait_result[key].keys())[0]
+
+    return {
+        "runtime": int(time.time() - start),
+        "key": key,
+        "event_id": event_id,
     }
 
 
