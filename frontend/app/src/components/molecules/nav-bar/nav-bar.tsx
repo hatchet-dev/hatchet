@@ -31,7 +31,7 @@ import { useEffect, useMemo } from 'react';
 import useApiMeta from '@/pages/auth/hooks/use-api-meta';
 import { VersionInfo } from '@/pages/main/info/components/version-info';
 import { useTenant } from '@/lib/atoms';
-import { routes } from '@/router';
+import { routes, TenantedPath, tenantedPaths } from '@/router';
 import { Banner, BannerProps } from './banner';
 import {
   Breadcrumb,
@@ -184,30 +184,16 @@ export default function MainNav({ user, setHasBanner }: MainNavProps) {
   const navigate = useNavigate();
   const breadcrumbs = useBreadcrumbs();
 
-  const tenantedRoutes = useMemo(
-    () =>
-      routes
-        .at(0)
-        ?.children?.find((r) => r.path?.startsWith('/tenants/'))
-        ?.children?.find(
-          (r) => r.path?.startsWith('/tenants/') && r.children?.length,
-        )
-        ?.children?.map((c) => c.path)
-        ?.map((p) => p?.replace('/tenants/:tenant', '')) || [],
-    [],
-  );
-
   const tenantVersion = tenant?.version || TenantVersion.V0;
 
   const banner: BannerProps | undefined = useMemo(() => {
     const pathnameWithoutTenant = pathname.replace(
-      `/tenants/${tenant?.metadata.id}`,
-      '',
+      tenant?.metadata.id || 'placeholder',
+      ':tenant',
     );
 
     const shouldShowVersionUpgradeButton =
-      tenantedRoutes.includes(pathnameWithoutTenant) && // It is a versioned route
-      !pathname.startsWith('/tenants') && // The user is not already on the v1 version
+      tenantedPaths.includes(pathnameWithoutTenant as TenantedPath) && // It is a versioned route
       tenantVersion === TenantVersion.V1; // The tenant is on the v1 version
 
     if (shouldShowVersionUpgradeButton) {
@@ -230,7 +216,7 @@ export default function MainNav({ user, setHasBanner }: MainNavProps) {
     }
 
     return;
-  }, [navigate, pathname, tenantVersion, tenantedRoutes, tenant?.metadata.id]);
+  }, [navigate, pathname, tenantVersion, tenantedPaths, tenant?.metadata.id]);
 
   useEffect(() => {
     if (!setHasBanner) {
