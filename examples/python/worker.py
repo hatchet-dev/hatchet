@@ -12,6 +12,7 @@ from examples.concurrency_multiple_keys.worker import concurrency_multiple_keys_
 from examples.concurrency_workflow_level.worker import (
     concurrency_workflow_level_workflow,
 )
+from examples.conditions.worker import task_condition_workflow
 from examples.dag.worker import dag_workflow
 from examples.dedupe.worker import dedupe_child_wf, dedupe_parent_wf
 from examples.durable.worker import durable_workflow
@@ -24,7 +25,6 @@ from examples.non_retryable.worker import non_retryable_workflow
 from examples.on_failure.worker import on_failure_wf, on_failure_wf_with_details
 from examples.simple.worker import simple, simple_durable
 from examples.timeout.worker import refresh_timeout_wf, timeout_wf
-from examples.waits.worker import task_condition_workflow
 from hatchet_sdk import Hatchet
 
 hatchet = Hatchet(debug=True)

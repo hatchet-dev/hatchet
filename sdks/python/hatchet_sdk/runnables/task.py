@@ -1,6 +1,15 @@
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, Generic, cast, get_type_hints
 
+from hatchet_sdk.conditions import (
+    Action,
+    Condition,
+    OrGroup,
+    ParentCondition,
+    SleepCondition,
+    UserEventCondition,
+    flatten_conditions,
+)
 from hatchet_sdk.context.context import Context, DurableContext
 from hatchet_sdk.contracts.v1.shared.condition_pb2 import TaskConditions
 from hatchet_sdk.contracts.v1.workflows_pb2 import (
@@ -23,14 +32,6 @@ from hatchet_sdk.utils.typing import (
     CoroutineLike,
     TaskIOValidator,
     is_basemodel_subclass,
-)
-from hatchet_sdk.waits import (
-    Action,
-    Condition,
-    OrGroup,
-    ParentCondition,
-    SleepCondition,
-    UserEventCondition,
 )
 
 if TYPE_CHECKING:
@@ -84,9 +85,9 @@ class Task(Generic[TWorkflowInput, R]):
         self.backoff_max_seconds = backoff_max_seconds
         self.concurrency = concurrency or []
 
-        self.wait_for = self._flatten_conditions(wait_for or [])
-        self.skip_if = self._flatten_conditions(skip_if or [])
-        self.cancel_if = self._flatten_conditions(cancel_if or [])
+        self.wait_for = flatten_conditions(wait_for or [])
+        self.skip_if = flatten_conditions(skip_if or [])
+        self.cancel_if = flatten_conditions(cancel_if or [])
 
         return_type = get_type_hints(_fn).get("return")
 
@@ -94,22 +95,6 @@ class Task(Generic[TWorkflowInput, R]):
             workflow_input=workflow.config.input_validator,
             step_output=return_type if is_basemodel_subclass(return_type) else None,
         )
-
-    def _flatten_conditions(
-        self, conditions: list[Condition | OrGroup]
-    ) -> list[Condition]:
-        flattened: list[Condition] = []
-
-        for condition in conditions:
-            if isinstance(condition, OrGroup):
-                for or_condition in condition.conditions:
-                    or_condition.base.or_group_id = condition.or_group_id
-
-                flattened.extend(condition.conditions)
-            else:
-                flattened.append(condition)
-
-        return flattened
 
     def call(self, ctx: Context | DurableContext) -> R:
         if self.is_async_function:

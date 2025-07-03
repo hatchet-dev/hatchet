@@ -1007,6 +1007,7 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 					readableId := stepIdsToReadableIds[sqlchelpers.UUIDToStr(parent)]
 
 					hasUserEventOrSleepMatches := false
+					hasAnySkippingParentOverrides := false
 
 					parentOverrideMatches := make([]*sqlcv1.V1StepMatchCondition, 0)
 
@@ -1015,12 +1016,16 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 							if match.ParentReadableID.String == readableId {
 								parentOverrideMatches = append(parentOverrideMatches, match)
 							}
+
+							if match.Action == sqlcv1.V1MatchConditionActionSKIP {
+								hasAnySkippingParentOverrides = true
+							}
 						} else {
 							hasUserEventOrSleepMatches = true
 						}
 					}
 
-					conditions = append(conditions, getParentInDAGGroupMatch(cancelGroupId, parentExternalId, readableId, parentOverrideMatches, hasUserEventOrSleepMatches)...)
+					conditions = append(conditions, getParentInDAGGroupMatch(cancelGroupId, parentExternalId, readableId, parentOverrideMatches, hasUserEventOrSleepMatches, hasAnySkippingParentOverrides)...)
 				}
 
 				var (
@@ -1443,7 +1448,7 @@ func (r *TriggerRepositoryImpl) registerChildWorkflows(
 func getParentInDAGGroupMatch(
 	cancelGroupId, parentExternalId, parentReadableId string,
 	parentOverrideMatches []*sqlcv1.V1StepMatchCondition,
-	hasUserEventOrSleepMatches bool,
+	hasUserEventOrSleepMatches, hasAnySkippingParentOverrides bool,
 ) []GroupMatchCondition {
 	completeAction := sqlcv1.V1MatchConditionActionQUEUE
 
@@ -1497,7 +1502,7 @@ func getParentInDAGGroupMatch(
 				Action:            sqlcv1.V1MatchConditionActionSKIP,
 			})
 		}
-	} else {
+	} else if !hasAnySkippingParentOverrides {
 		res = append(res, GroupMatchCondition{
 			GroupId:           uuid.NewString(),
 			EventType:         sqlcv1.V1EventTypeINTERNAL,

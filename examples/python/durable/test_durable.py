@@ -12,7 +12,7 @@ async def test_durable(hatchet: Hatchet) -> None:
 
     await asyncio.sleep(SLEEP_TIME + 10)
 
-    hatchet.event.push(EVENT_KEY, {})
+    hatchet.event.push(EVENT_KEY, {"test": "test"})
 
     result = await ref.aio_result()
 
@@ -31,4 +31,15 @@ async def test_durable(hatchet: Hatchet) -> None:
         w.name == hatchet.config.apply_namespace("e2e-test-worker_durable")
         for w in active_workers
     )
+
     assert result["durable_task"]["status"] == "success"
+
+    wait_group_1 = result["wait_for_or_group_1"]
+    wait_group_2 = result["wait_for_or_group_2"]
+
+    assert abs(wait_group_1["runtime"] - SLEEP_TIME) < 3
+
+    assert wait_group_1["key"] == wait_group_2["key"]
+    assert wait_group_1["key"] == "CREATE"
+    assert "sleep" in wait_group_1["event_id"]
+    assert "event" in wait_group_2["event_id"]

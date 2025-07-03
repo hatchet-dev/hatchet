@@ -28,7 +28,6 @@ class RandomSum(BaseModel):
 
 task_condition_workflow = hatchet.workflow(name="TaskConditionWorkflow")
 
-# !!
 
 
 # > Add base task
@@ -37,7 +36,6 @@ def start(input: EmptyModel, ctx: Context) -> StepOutput:
     return StepOutput(random_number=random.randint(1, 100))
 
 
-# !!
 
 
 # > Add wait for sleep
@@ -48,7 +46,17 @@ def wait_for_sleep(input: EmptyModel, ctx: Context) -> StepOutput:
     return StepOutput(random_number=random.randint(1, 100))
 
 
-# !!
+
+
+# > Add skip condition override
+@task_condition_workflow.task(
+    parents=[start, wait_for_sleep],
+    skip_if=[ParentCondition(parent=start, expression="output.random_number > 0")],
+)
+def skip_with_multiple_parents(input: EmptyModel, ctx: Context) -> StepOutput:
+    return StepOutput(random_number=random.randint(1, 100))
+
+
 
 
 # > Add skip on event
@@ -61,7 +69,6 @@ def skip_on_event(input: EmptyModel, ctx: Context) -> StepOutput:
     return StepOutput(random_number=random.randint(1, 100))
 
 
-# !!
 
 
 # > Add branching
@@ -91,7 +98,6 @@ def right_branch(input: EmptyModel, ctx: Context) -> StepOutput:
     return StepOutput(random_number=random.randint(1, 100))
 
 
-# !!
 
 
 # > Add wait for event
@@ -108,7 +114,6 @@ def wait_for_event(input: EmptyModel, ctx: Context) -> StepOutput:
     return StepOutput(random_number=random.randint(1, 100))
 
 
-# !!
 
 
 # > Add sum
@@ -146,7 +151,6 @@ def sum(input: EmptyModel, ctx: Context) -> RandomSum:
     return RandomSum(sum=one + two + three + four + five + six)
 
 
-# !!
 
 
 def main() -> None:

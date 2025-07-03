@@ -8,6 +8,7 @@ from pydantic import BaseModel, ConfigDict
 
 from hatchet_sdk.clients.listeners.pooled_listener import PooledListener
 from hatchet_sdk.clients.rest.tenacity_utils import tenacity_retry
+from hatchet_sdk.conditions import Condition, SleepCondition, UserEventCondition
 from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.connection import new_conn
 from hatchet_sdk.contracts.v1.dispatcher_pb2 import (
@@ -20,7 +21,6 @@ from hatchet_sdk.contracts.v1.dispatcher_pb2 import (
 from hatchet_sdk.contracts.v1.dispatcher_pb2_grpc import V1DispatcherStub
 from hatchet_sdk.contracts.v1.shared.condition_pb2 import DurableEventListenerConditions
 from hatchet_sdk.metadata import get_metadata
-from hatchet_sdk.waits import SleepCondition, UserEventCondition
 
 DEFAULT_DURABLE_EVENT_LISTENER_RETRY_INTERVAL = 3  # seconds
 DEFAULT_DURABLE_EVENT_LISTENER_RETRY_COUNT = 5
@@ -32,7 +32,7 @@ class RegisterDurableEventRequest(BaseModel):
 
     task_id: str
     signal_key: str
-    conditions: list[SleepCondition | UserEventCondition]
+    conditions: list[Condition]
     config: ClientConfig
 
     def to_proto(self) -> RegisterDurableEventRequestProto:

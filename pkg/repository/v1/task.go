@@ -2790,6 +2790,7 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId string, t
 							readableId := otherTask.StepReadableID
 
 							hasUserEventOrSleepMatches := false
+							hasAnySkippingParentOverrides := false
 
 							parentOverrideMatches := make([]*sqlcv1.V1StepMatchCondition, 0)
 
@@ -2798,12 +2799,16 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId string, t
 									if match.ParentReadableID.String == readableId {
 										parentOverrideMatches = append(parentOverrideMatches, match)
 									}
+
+									if match.Action == sqlcv1.V1MatchConditionActionSKIP {
+										hasAnySkippingParentOverrides = true
+									}
 								} else {
 									hasUserEventOrSleepMatches = true
 								}
 							}
 
-							conditions = append(conditions, getParentInDAGGroupMatch(cancelGroupId, parentExternalId, readableId, parentOverrideMatches, hasUserEventOrSleepMatches)...)
+							conditions = append(conditions, getParentInDAGGroupMatch(cancelGroupId, parentExternalId, readableId, parentOverrideMatches, hasUserEventOrSleepMatches, hasAnySkippingParentOverrides)...)
 						}
 					}
 				}

@@ -2,13 +2,12 @@ import asyncio
 
 import pytest
 
-from examples.waits.worker import task_condition_workflow
+from examples.conditions.worker import task_condition_workflow
 from hatchet_sdk import Hatchet
 
 
 @pytest.mark.asyncio(loop_scope="session")
 async def test_waits(hatchet: Hatchet) -> None:
-
     ref = task_condition_workflow.run_no_wait()
 
     await asyncio.sleep(15)
@@ -28,6 +27,10 @@ async def test_waits(hatchet: Hatchet) -> None:
     right_branch = result["right_branch"]
 
     assert left_branch.get("skipped") is True or right_branch.get("skipped") is True
+
+    skip_with_multiple_parents = result["skip_with_multiple_parents"]
+
+    assert skip_with_multiple_parents.get("skipped") is True
 
     branch_random_number = left_branch.get("random_number") or right_branch.get(
         "random_number"
