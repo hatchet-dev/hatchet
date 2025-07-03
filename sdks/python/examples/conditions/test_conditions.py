@@ -28,6 +28,10 @@ async def test_waits(hatchet: Hatchet) -> None:
 
     assert left_branch.get("skipped") is True or right_branch.get("skipped") is True
 
+    skip_with_multiple_parents = result["skip_with_multiple_parents"]
+
+    assert skip_with_multiple_parents.get("skipped") is True
+
     branch_random_number = left_branch.get("random_number") or right_branch.get(
         "random_number"
     )

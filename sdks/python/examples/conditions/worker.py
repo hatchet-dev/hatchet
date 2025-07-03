@@ -51,6 +51,18 @@ def wait_for_sleep(input: EmptyModel, ctx: Context) -> StepOutput:
 # !!
 
 
+# > Add skip condition override
+@task_condition_workflow.task(
+    parents=[start, wait_for_sleep],
+    skip_if=[ParentCondition(parent=start, expression="output.random_number > 0")],
+)
+def skip_with_multiple_parents(input: EmptyModel, ctx: Context) -> StepOutput:
+    return StepOutput(random_number=random.randint(1, 100))
+
+
+# !!
+
+
 # > Add skip on event
 @task_condition_workflow.task(
     parents=[start],
