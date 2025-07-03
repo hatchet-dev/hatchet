@@ -1,6 +1,6 @@
 import asyncio
 from collections.abc import Callable
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from functools import cached_property
 from typing import TYPE_CHECKING, Any, Generic, TypeVar, cast, get_type_hints
 
@@ -310,9 +310,9 @@ class BaseWorkflow(Generic[TWorkflowInput]):
 
         :returns: A list of `V1TaskSummary` objects representing the runs of the workflow.
         """
-        response = self.client.runs.list(
+        return self.client.runs.list_with_pagination(
             workflow_ids=[self.id],
-            since=since or datetime.now(tz=timezone.utc) - timedelta(days=1),
+            since=since,
             only_tasks=only_tasks,
             offset=offset,
             limit=limit,
@@ -323,8 +323,6 @@ class BaseWorkflow(Generic[TWorkflowInput]):
             parent_task_external_id=parent_task_external_id,
             triggering_event_external_id=triggering_event_external_id,
         )
-
-        return response.rows
 
     async def aio_list_runs(
         self,
@@ -355,9 +353,9 @@ class BaseWorkflow(Generic[TWorkflowInput]):
 
         :returns: A list of `V1TaskSummary` objects representing the runs of the workflow.
         """
-        return await asyncio.to_thread(
-            self.list_runs,
-            since=since or datetime.now(tz=timezone.utc) - timedelta(days=1),
+        return await self.client.runs.aio_list_with_pagination(
+            workflow_ids=[self.id],
+            since=since,
             only_tasks=only_tasks,
             offset=offset,
             limit=limit,

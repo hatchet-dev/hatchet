@@ -550,7 +550,7 @@ class Runner:
             return ""
 
         if isinstance(output, BaseModel):
-            output = output.model_dump()
+            output = output.model_dump(mode="json")
 
         if not isinstance(output, dict):
             raise IllegalTaskOutputError(
