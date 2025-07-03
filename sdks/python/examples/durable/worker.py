@@ -57,7 +57,9 @@ async def durable_task(input: EmptyModel, ctx: DurableContext) -> dict[str, str]
 
 
 @durable_workflow.durable_task()
-async def wait_for_or_group_1(_i: EmptyModel, ctx: DurableContext) -> dict[str, int]:
+async def wait_for_or_group_1(
+    _i: EmptyModel, ctx: DurableContext
+) -> dict[str, str | int]:
     start = time.time()
     wait_result = await ctx.aio_wait_for(
         uuid4().hex,
@@ -78,7 +80,9 @@ async def wait_for_or_group_1(_i: EmptyModel, ctx: DurableContext) -> dict[str, 
 
 
 @durable_workflow.durable_task()
-async def wait_for_or_group_2(_i: EmptyModel, ctx: DurableContext) -> dict[str, int]:
+async def wait_for_or_group_2(
+    _i: EmptyModel, ctx: DurableContext
+) -> dict[str, str | int]:
     start = time.time()
     wait_result = await ctx.aio_wait_for(
         uuid4().hex,
