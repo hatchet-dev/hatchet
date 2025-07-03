@@ -244,7 +244,7 @@ function ExpandedWorkflowRun({ id }: { id: string }) {
         open={isSidebarOpen}
         onOpenChange={(open) => setIsSidebarOpen(open)}
       >
-        <SheetContent className="w-fit min-w-[56rem] max-w-4xl sm:max-w-2xl z-[60]">
+        <SheetContent className="w-fit min-w-[56rem] max-w-4xl sm:max-w-2xl z-[60] h-full overflow-auto">
           {selectedTaskRunId && (
             <TaskRunDetail
               taskRunId={selectedTaskRunId}
