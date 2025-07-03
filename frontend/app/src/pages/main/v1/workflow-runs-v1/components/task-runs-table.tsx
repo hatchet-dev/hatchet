@@ -339,7 +339,7 @@ export function TaskRunsTable({
             }))
           }
         >
-          <SheetContent className="w-fit min-w-[56rem] max-w-4xl sm:max-w-2xl z-[60]">
+          <SheetContent className="w-fit min-w-[56rem] max-w-4xl sm:max-w-2xl z-[60] h-full overflow-auto">
             <TaskRunDetail
               taskRunId={stepDetailSheetState.taskRunId}
               defaultOpenTab={TabOption.Output}
