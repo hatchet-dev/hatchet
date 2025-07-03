@@ -102,7 +102,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "histogram_quantile(0.95, rate(hatchet_tenant_queued_to_assigned_time_seconds_bucket{tenant_id=\"707d0855-80ab-4e1f-a156-f1c4546cbf52\"}[5m]))",
+          "expr": "histogram_quantile(0.95, rate(hatchet_tenant_queued_to_assigned_time_seconds_bucket{tenant_id=~\"$tenant_id\"}[5m]))",
           "interval": "",
           "legendFormat": "95th percentile",
           "refId": "A"
@@ -112,7 +112,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "histogram_quantile(0.50, rate(hatchet_tenant_queued_to_assigned_time_seconds_bucket{tenant_id=\"707d0855-80ab-4e1f-a156-f1c4546cbf52\"}[5m]))",
+          "expr": "histogram_quantile(0.50, rate(hatchet_tenant_queued_to_assigned_time_seconds_bucket{tenant_id=~\"$tenant_id\"}[5m]))",
           "interval": "",
           "legendFormat": "50th percentile",
           "refId": "B"
@@ -122,7 +122,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "histogram_quantile(0.99, rate(hatchet_tenant_queued_to_assigned_time_seconds_bucket{tenant_id=\"707d0855-80ab-4e1f-a156-f1c4546cbf52\"}[5m]))",
+          "expr": "histogram_quantile(0.99, rate(hatchet_tenant_queued_to_assigned_time_seconds_bucket{tenant_id=~\"$tenant_id\"}[5m]))",
           "interval": "",
           "legendFormat": "99th percentile",
           "refId": "C"
@@ -191,7 +191,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "histogram_quantile(0.95, rate(hatchet_tenant_queued_to_assigned_time_seconds_bucket{tenant_id=\"707d0855-80ab-4e1f-a156-f1c4546cbf52\"}[5m]))",
+          "expr": "histogram_quantile(0.95, rate(hatchet_tenant_queued_to_assigned_time_seconds_bucket{tenant_id=~\"$tenant_id\"}[5m]))",
           "interval": "",
           "legendFormat": "Queue Time (95th percentile)",
           "refId": "A"
@@ -280,7 +280,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "rate(hatchet_tenant_queued_to_assigned{tenant_id=\"707d0855-80ab-4e1f-a156-f1c4546cbf52\"}[5m])",
+          "expr": "rate(hatchet_tenant_queued_to_assigned{tenant_id=~\"$tenant_id\"}[5m])",
           "interval": "",
           "legendFormat": "Tasks Assigned from Queue",
           "refId": "A"
@@ -369,7 +369,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "rate(hatchet_tenant_queue_invocations{tenant_id=\"707d0855-80ab-4e1f-a156-f1c4546cbf52\"}[5m])",
+          "expr": "rate(hatchet_tenant_queue_invocations{tenant_id=~\"$tenant_id\"}[5m])",
           "interval": "",
           "legendFormat": "Queue Invocations",
           "refId": "A"
@@ -428,7 +428,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "hatchet_tenant_succeeded_tasks{tenant_id=\"707d0855-80ab-4e1f-a156-f1c4546cbf52\"} * 100 / hatchet_tenant_created_tasks{tenant_id=\"707d0855-80ab-4e1f-a156-f1c4546cbf52\"}",
+          "expr": "hatchet_tenant_succeeded_tasks{tenant_id=~\"$tenant_id\"} * 100 / hatchet_tenant_created_tasks{tenant_id=~\"$tenant_id\"}",
           "format": "table",
           "instant": true,
           "interval": "",
@@ -466,7 +466,35 @@
     "performance"
   ],
   "templating": {
-    "list": []
+    "list": [
+      {
+        "current": {
+          "selected": false,
+          "text": "All",
+          "value": "$__all"
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "definition": "label_values(hatchet_tenant_created_tasks, tenant_id)",
+        "hide": 0,
+        "includeAll": true,
+        "label": "Tenant ID",
+        "multi": false,
+        "name": "tenant_id",
+        "options": [],
+        "query": {
+          "query": "label_values(hatchet_tenant_created_tasks, tenant_id)",
+          "refId": "StandardVariableQuery"
+        },
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 0,
+        "type": "query"
+      }
+    ]
   },
   "time": {
     "from": "now-1h",

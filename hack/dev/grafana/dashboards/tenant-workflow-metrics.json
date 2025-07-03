@@ -102,7 +102,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "histogram_quantile(0.95, rate(hatchet_tenant_workflow_duration_milliseconds_bucket{tenant_id=\"707d0855-80ab-4e1f-a156-f1c4546cbf52\"}[5m]))",
+          "expr": "histogram_quantile(0.95, rate(hatchet_tenant_workflow_duration_milliseconds_bucket{tenant_id=~\"$tenant_id\", workflow_name=~\"$workflow_name\"}[5m]))",
           "interval": "",
           "legendFormat": "95th percentile",
           "refId": "A"
@@ -112,7 +112,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "histogram_quantile(0.50, rate(hatchet_tenant_workflow_duration_milliseconds_bucket{tenant_id=\"707d0855-80ab-4e1f-a156-f1c4546cbf52\"}[5m]))",
+          "expr": "histogram_quantile(0.50, rate(hatchet_tenant_workflow_duration_milliseconds_bucket{tenant_id=~\"$tenant_id\", workflow_name=~\"$workflow_name\"}[5m]))",
           "interval": "",
           "legendFormat": "50th percentile",
           "refId": "B"
@@ -177,9 +177,9 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "rate(hatchet_tenant_workflow_duration_milliseconds_count{tenant_id=\"707d0855-80ab-4e1f-a156-f1c4546cbf52\"}[5m]) * 60",
+          "expr": "rate(hatchet_tenant_workflow_duration_milliseconds_count{tenant_id=~\"$tenant_id\", workflow_name=~\"$workflow_name\"}[5m]) * 60",
           "interval": "",
-          "legendFormat": "Workflows per minute",
+          "legendFormat": "{{workflow_name}}",
           "refId": "A"
         }
       ],
@@ -266,7 +266,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "rate(hatchet_tenant_workflow_duration_milliseconds_count{tenant_id=\"707d0855-80ab-4e1f-a156-f1c4546cbf52\", status=\"COMPLETED\"}[5m])",
+          "expr": "rate(hatchet_tenant_workflow_duration_milliseconds_count{tenant_id=~\"$tenant_id\", status=\"COMPLETED\", workflow_name=~\"$workflow_name\"}[5m])",
           "interval": "",
           "legendFormat": "Succeeded - {{workflow_name}}",
           "refId": "A"
@@ -276,7 +276,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "rate(hatchet_tenant_workflow_duration_milliseconds_count{tenant_id=\"707d0855-80ab-4e1f-a156-f1c4546cbf52\", status=\"FAILED\"}[5m])",
+          "expr": "rate(hatchet_tenant_workflow_duration_milliseconds_count{tenant_id=~\"$tenant_id\", status=\"FAILED\", workflow_name=~\"$workflow_name\"}[5m])",
           "interval": "",
           "legendFormat": "Failed - {{workflow_name}}",
           "refId": "B"
@@ -286,7 +286,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "rate(hatchet_tenant_workflow_duration_milliseconds_count{tenant_id=\"707d0855-80ab-4e1f-a156-f1c4546cbf52\", status=\"CANCELLED\"}[5m])",
+          "expr": "rate(hatchet_tenant_workflow_duration_milliseconds_count{tenant_id=~\"$tenant_id\", status=\"CANCELLED\", workflow_name=~\"$workflow_name\"}[5m])",
           "interval": "",
           "legendFormat": "Cancelled - {{workflow_name}}",
           "refId": "C"
@@ -305,7 +305,62 @@
     "workflow"
   ],
   "templating": {
-    "list": []
+    "list": [
+      {
+        "current": {
+          "selected": false,
+          "text": "All",
+          "value": "$__all"
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "definition": "label_values(hatchet_tenant_workflow_duration_milliseconds_count, tenant_id)",
+        "hide": 0,
+        "includeAll": true,
+        "label": "Tenant ID",
+        "multi": false,
+        "name": "tenant_id",
+        "options": [],
+        "query": {
+          "query": "label_values(hatchet_tenant_workflow_duration_milliseconds_count, tenant_id)",
+          "refId": "StandardVariableQuery"
+        },
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 0,
+        "type": "query"
+      },
+      {
+        "current": {
+          "selected": false,
+          "text": "All",
+          "value": "$__all"
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "definition": "label_values(hatchet_tenant_workflow_duration_milliseconds_count{tenant_id=~\"$tenant_id\"}, workflow_name)",
+        "hide": 0,
+        "includeAll": true,
+        "label": "Workflow",
+        "multi": false,
+        "name": "workflow_name",
+        "options": [],
+        "query": {
+          "query": "label_values(hatchet_tenant_workflow_duration_milliseconds_count{tenant_id=~\"$tenant_id\"}, workflow_name)",
+          "refId": "StandardVariableQuery"
+        },
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 0,
+        "type": "query"
+      }
+    ]
   },
   "time": {
     "from": "now-1h",
