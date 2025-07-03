@@ -13,6 +13,7 @@ type UseTaskRunProps = {
   parentTaskExternalId: string | undefined;
   triggeringEventExternalId?: string | undefined;
   disablePagination?: boolean;
+  pauseRefetch?: boolean;
 };
 
 export const useTaskRuns = ({
@@ -22,6 +23,7 @@ export const useTaskRuns = ({
   parentTaskExternalId,
   triggeringEventExternalId,
   disablePagination = false,
+  pauseRefetch = false,
 }: UseTaskRunProps) => {
   const cf = useColumnFilters();
   const { pagination, offset } = usePagination();
@@ -47,7 +49,7 @@ export const useTaskRuns = ({
     }),
     placeholderData: (prev) => prev,
     refetchInterval: () => {
-      if (Object.keys(rowSelection).length > 0) {
+      if (Object.keys(rowSelection).length > 0 || pauseRefetch) {
         return false;
       }
 

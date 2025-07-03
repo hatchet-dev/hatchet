@@ -78,6 +78,8 @@ export function TaskRunsTable({
 }: TaskRunsTableProps) {
   const { tenantId } = useCurrentTenantId();
 
+  const [selectedAdditionalMetaRunId, setSelectedAdditionalMetaRunId] =
+    useState<string | null>(null);
   const [triggerWorkflow, setTriggerWorkflow] = useState(false);
   const [viewQueueMetrics, setViewQueueMetrics] = useState(false);
   const [rotate, setRotate] = useState(false);
@@ -103,6 +105,9 @@ export function TaskRunsTable({
   const derivedParentTaskExternalId =
     parentTaskExternalId || cf.filters.parentTaskExternalId;
 
+  const hasOpenUI =
+    !!selectedAdditionalMetaRunId || stepDetailSheetState.isOpen;
+
   const {
     tableRows,
     selectedRuns,
@@ -118,6 +123,7 @@ export function TaskRunsTable({
     parentTaskExternalId: derivedParentTaskExternalId,
     triggeringEventExternalId: triggeringEventExternalId,
     disablePagination: disableTaskRunPagination,
+    pauseRefetch: hasOpenUI,
   });
 
   const {
@@ -130,6 +136,7 @@ export function TaskRunsTable({
     workflow,
     refetchInterval,
     parentTaskExternalId: derivedParentTaskExternalId,
+    pauseRefetch: hasOpenUI,
   });
 
   const onTaskRunIdClick = useCallback((taskRunId: string) => {
@@ -164,6 +171,13 @@ export function TaskRunsTable({
   }, [isTaskRunsLoading, isMetricsLoading]);
 
   const isFetching = !hasLoaded && (isTaskRunsFetching || isMetricsFetching);
+
+  const handleSetSelectedAdditionalMetaRunId = useCallback(
+    (runId: string | null) => {
+      setSelectedAdditionalMetaRunId(runId);
+    },
+    [],
+  );
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
@@ -294,6 +308,7 @@ export function TaskRunsTable({
           }}
           finishedBefore={cf.filters.finishedBefore}
           refetchInterval={refetchInterval}
+          pauseRefetch={hasOpenUI}
         />
       )}
       {showCounts && (
@@ -346,6 +361,8 @@ export function TaskRunsTable({
           isLoading={isFetching}
           columns={columns(
             tenantId,
+            selectedAdditionalMetaRunId,
+            handleSetSelectedAdditionalMetaRunId,
             cf.setAdditionalMetadata,
             onTaskRunIdClick,
           )}
@@ -426,11 +443,13 @@ const GetWorkflowChart = ({
   finishedBefore,
   refetchInterval,
   zoom,
+  pauseRefetch = false,
 }: {
   createdAfter?: string;
   finishedBefore?: string;
   refetchInterval?: number;
   zoom: (startTime: string, endTime: string) => void;
+  pauseRefetch?: boolean;
 }) => {
   const { tenantId } = useCurrentTenantId();
   const workflowRunEventsMetricsQuery = useQuery({
@@ -439,7 +458,7 @@ const GetWorkflowChart = ({
       finishedBefore,
     }),
     placeholderData: (prev) => prev,
-    refetchInterval,
+    refetchInterval: pauseRefetch ? false : refetchInterval,
   });
 
   if (workflowRunEventsMetricsQuery.isLoading) {

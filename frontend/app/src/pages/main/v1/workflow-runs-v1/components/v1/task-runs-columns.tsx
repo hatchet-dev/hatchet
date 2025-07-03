@@ -29,10 +29,14 @@ export const TaskRunColumn = {
 
 export const columns: (
   tenantId: string,
+  selectedAdditionalMetaRunId: string | null,
+  setSelectedAdditionalMetaRunId: (runId: string | null) => void,
   onAdditionalMetadataClick?: (click: AdditionalMetadataClick) => void,
   onTaskRunIdClick?: (taskRunId: string) => void,
 ) => ColumnDef<V1TaskSummary>[] = (
   tenantId,
+  selectedAdditionalMetaRunId,
+  setSelectedAdditionalMetaRunId,
   onAdditionalMetadataClick,
   onTaskRunIdClick,
 ) => [
@@ -292,6 +296,14 @@ export const columns: (
         <AdditionalMetadata
           metadata={row.original.additionalMetadata}
           onClick={onAdditionalMetadataClick}
+          isOpen={selectedAdditionalMetaRunId === row.original.metadata.id}
+          onOpenChange={(open) => {
+            if (open) {
+              setSelectedAdditionalMetaRunId(row.original.metadata.id);
+            } else {
+              setSelectedAdditionalMetaRunId(null);
+            }
+          }}
         />
       );
     },

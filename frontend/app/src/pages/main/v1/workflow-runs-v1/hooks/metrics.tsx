@@ -7,13 +7,17 @@ export const useMetrics = ({
   workflow,
   parentTaskExternalId,
   refetchInterval,
+  pauseRefetch = false,
 }: {
   workflow: string | undefined;
   parentTaskExternalId: string | undefined;
   refetchInterval: number;
+  pauseRefetch?: boolean;
 }) => {
   const { tenantId } = useCurrentTenantId();
   const cf = useColumnFilters();
+
+  const effectiveRefetchInterval = pauseRefetch ? false : refetchInterval;
 
   const metricsQuery = useQuery({
     ...queries.v1TaskRuns.metrics(tenantId, {
@@ -22,14 +26,14 @@ export const useMetrics = ({
       workflow_ids: workflow ? [workflow] : [],
     }),
     placeholderData: (prev) => prev,
-    refetchInterval,
+    refetchInterval: effectiveRefetchInterval,
   });
 
   const metrics = metricsQuery.data || [];
 
   const tenantMetricsQuery = useQuery({
     ...queries.metrics.getStepRunQueueMetrics(tenantId),
-    refetchInterval,
+    refetchInterval: effectiveRefetchInterval,
   });
 
   const tenantMetrics = tenantMetricsQuery.data?.queues || {};
