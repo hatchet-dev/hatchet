@@ -41,7 +41,7 @@ require (
 	go.opentelemetry.io/otel/trace v1.37.0
 	go.uber.org/goleak v1.3.0
 	golang.org/x/time v0.12.0
-	google.golang.org/api v0.239.0
+	google.golang.org/api v0.240.0
 	google.golang.org/genproto/googleapis/api v0.0.0-20250603155806-513f23925822
 	k8s.io/api v0.33.2
 	k8s.io/apimachinery v0.33.2
