@@ -1,3 +1,12 @@
+from sdks.python.hatchet_sdk.conditions import (
+    Condition,
+    OrGroup,
+    ParentCondition,
+    SleepCondition,
+    UserEventCondition,
+    or_,
+)
+
 from hatchet_sdk.clients.admin import (
     ScheduleTriggerWorkflowOptions,
     TriggerWorkflowOptions,
@@ -158,14 +167,6 @@ from hatchet_sdk.runnables.types import (
 )
 from hatchet_sdk.runnables.workflow import TaskRunRef
 from hatchet_sdk.utils.opentelemetry import OTelAttribute
-from hatchet_sdk.waits import (
-    Condition,
-    OrGroup,
-    ParentCondition,
-    SleepCondition,
-    UserEventCondition,
-    or_,
-)
 from hatchet_sdk.worker.worker import Worker, WorkerStartOptions, WorkerStatus
 from hatchet_sdk.workflow_run import WorkflowRunRef
 

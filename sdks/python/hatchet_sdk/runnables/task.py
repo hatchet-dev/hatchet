@@ -1,6 +1,15 @@
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, Generic, cast, get_type_hints
 
+from sdks.python.hatchet_sdk.conditions import (
+    Action,
+    Condition,
+    OrGroup,
+    ParentCondition,
+    SleepCondition,
+    UserEventCondition,
+)
+
 from hatchet_sdk.context.context import Context, DurableContext
 from hatchet_sdk.contracts.v1.shared.condition_pb2 import TaskConditions
 from hatchet_sdk.contracts.v1.workflows_pb2 import (
@@ -23,14 +32,6 @@ from hatchet_sdk.utils.typing import (
     CoroutineLike,
     TaskIOValidator,
     is_basemodel_subclass,
-)
-from hatchet_sdk.waits import (
-    Action,
-    Condition,
-    OrGroup,
-    ParentCondition,
-    SleepCondition,
-    UserEventCondition,
 )
 
 if TYPE_CHECKING:

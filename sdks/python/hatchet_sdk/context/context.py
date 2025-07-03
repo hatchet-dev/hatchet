@@ -4,6 +4,8 @@ from datetime import timedelta
 from typing import TYPE_CHECKING, Any, cast
 from warnings import warn
 
+from sdks.python.hatchet_sdk.conditions import SleepCondition, UserEventCondition
+
 from hatchet_sdk.clients.admin import AdminClient
 from hatchet_sdk.clients.dispatcher.dispatcher import (  # type: ignore[attr-defined]
     Action,
@@ -19,7 +21,6 @@ from hatchet_sdk.features.runs import RunsClient
 from hatchet_sdk.logger import logger
 from hatchet_sdk.utils.timedelta_to_expression import Duration, timedelta_to_expr
 from hatchet_sdk.utils.typing import JSONSerializableMapping
-from hatchet_sdk.waits import SleepCondition, UserEventCondition
 from hatchet_sdk.worker.runner.utils.capture_logs import AsyncLogSender, LogRecord
 
 if TYPE_CHECKING:

@@ -5,6 +5,7 @@ from typing import Any, Literal, cast
 import grpc
 import grpc.aio
 from pydantic import BaseModel, ConfigDict
+from sdks.python.hatchet_sdk.conditions import SleepCondition, UserEventCondition
 
 from hatchet_sdk.clients.listeners.pooled_listener import PooledListener
 from hatchet_sdk.clients.rest.tenacity_utils import tenacity_retry
@@ -20,7 +21,6 @@ from hatchet_sdk.contracts.v1.dispatcher_pb2 import (
 from hatchet_sdk.contracts.v1.dispatcher_pb2_grpc import V1DispatcherStub
 from hatchet_sdk.contracts.v1.shared.condition_pb2 import DurableEventListenerConditions
 from hatchet_sdk.metadata import get_metadata
-from hatchet_sdk.waits import SleepCondition, UserEventCondition
 
 DEFAULT_DURABLE_EVENT_LISTENER_RETRY_INTERVAL = 3  # seconds
 DEFAULT_DURABLE_EVENT_LISTENER_RETRY_COUNT = 5

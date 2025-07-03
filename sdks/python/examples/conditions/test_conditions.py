@@ -2,13 +2,12 @@ import asyncio
 
 import pytest
 
-from examples.waits.worker import task_condition_workflow
+from examples.conditions.worker import task_condition_workflow
 from hatchet_sdk import Hatchet
 
 
 @pytest.mark.asyncio(loop_scope="session")
 async def test_waits(hatchet: Hatchet) -> None:
-
     ref = task_condition_workflow.run_no_wait()
 
     await asyncio.sleep(15)

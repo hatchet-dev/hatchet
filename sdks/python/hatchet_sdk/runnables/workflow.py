@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Any, Generic, TypeVar, cast, get_type_hints
 
 from google.protobuf import timestamp_pb2
 from pydantic import BaseModel, model_validator
+from sdks.python.hatchet_sdk.conditions import Condition, OrGroup
 
 from hatchet_sdk.clients.admin import (
     ScheduleTriggerWorkflowOptions,
@@ -43,7 +44,6 @@ from hatchet_sdk.utils.typing import (
     JSONSerializableMapping,
     is_basemodel_subclass,
 )
-from hatchet_sdk.waits import Condition, OrGroup
 from hatchet_sdk.workflow_run import WorkflowRunRef
 
 if TYPE_CHECKING:
