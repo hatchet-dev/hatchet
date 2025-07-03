@@ -1,3 +1,4 @@
+import React from 'react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -32,6 +33,15 @@ import { VersionInfo } from '@/pages/main/info/components/version-info';
 import { useTenant } from '@/lib/atoms';
 import { routes } from '@/router';
 import { Banner, BannerProps } from './banner';
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from '@/components/v1/ui/breadcrumb';
+import { useBreadcrumbs } from '@/hooks/use-breadcrumbs';
 
 function HelpDropdown() {
   const meta = useApiMeta();
@@ -172,6 +182,7 @@ export default function MainNav({ user, setHasBanner }: MainNavProps) {
   const { tenant } = useTenant();
   const { pathname } = useLocation();
   const navigate = useNavigate();
+  const breadcrumbs = useBreadcrumbs();
 
   const tenantedRoutes = useMemo(
     () =>
@@ -219,7 +230,7 @@ export default function MainNav({ user, setHasBanner }: MainNavProps) {
     }
 
     return;
-  }, [navigate, pathname, tenantVersion, tenantedRoutes]);
+  }, [navigate, pathname, tenantVersion, tenantedRoutes, tenant?.metadata.id]);
 
   useEffect(() => {
     if (!setHasBanner) {
@@ -232,19 +243,41 @@ export default function MainNav({ user, setHasBanner }: MainNavProps) {
     <div className="fixed top-0 w-screen">
       {banner && <Banner {...banner} />}
 
-      {/* Main Navigation Bar */}
       <div className="h-16 border-b">
         <div className="flex h-16 items-center pr-4 pl-4">
-          <button
-            onClick={() => toggleSidebarOpen()}
-            className="flex flex-row gap-4 items-center"
-          >
-            <img
-              src={theme == 'dark' ? hatchet : hatchetDark}
-              alt="Hatchet"
-              className="h-9 rounded"
-            />
-          </button>
+          <div className="flex flex-row items-center gap-x-8">
+            <button
+              onClick={() => toggleSidebarOpen()}
+              className="flex flex-row gap-4 items-center"
+            >
+              <img
+                src={theme == 'dark' ? hatchet : hatchetDark}
+                alt="Hatchet"
+                className="h-9 rounded"
+              />
+            </button>
+            {breadcrumbs.length > 0 && (
+              <Breadcrumb className="hidden md:block">
+                <BreadcrumbList>
+                  {breadcrumbs.map((crumb, index) => (
+                    <React.Fragment key={index}>
+                      {index > 0 && <BreadcrumbSeparator />}
+                      <BreadcrumbItem>
+                        {crumb.isCurrentPage ? (
+                          <BreadcrumbPage>{crumb.label}</BreadcrumbPage>
+                        ) : (
+                          <BreadcrumbLink href={crumb.href}>
+                            {crumb.label}
+                          </BreadcrumbLink>
+                        )}
+                      </BreadcrumbItem>
+                    </React.Fragment>
+                  ))}
+                </BreadcrumbList>
+              </Breadcrumb>
+            )}
+          </div>
+
           <div className="ml-auto flex items-center">
             <HelpDropdown />
             <AccountDropdown user={user} />

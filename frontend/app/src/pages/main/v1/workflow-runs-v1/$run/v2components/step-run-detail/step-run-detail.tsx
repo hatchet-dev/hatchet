@@ -56,10 +56,10 @@ const TaskRunPermalinkOrBacklink = ({
 
   if (showViewTaskRunButton) {
     return (
-      <Link to={`/tenants/${tenantId}/task-runs/${taskRun.metadata.id}`}>
+      <Link to={`/tenants/${tenantId}/runs/${taskRun.metadata.id}`}>
         <Button size={'sm'} className="px-2 py-2 gap-2" variant={'outline'}>
           <LinkIcon className="w-4 h-4" />
-          View Task Run
+          View Run
         </Button>
       </Link>
     );
@@ -109,7 +109,7 @@ export const TaskRunDetail = ({
   }
 
   return (
-    <div className="w-full h-screen overflow-y-scroll flex flex-col gap-4">
+    <div className="w-full flex flex-col gap-4">
       <div className="flex flex-row justify-between items-center">
         <div className="flex flex-row justify-between items-center w-full">
           <div className="flex flex-row gap-4 items-center">

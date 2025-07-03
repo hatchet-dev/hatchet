@@ -93,8 +93,8 @@ export default function ExpandedWorkflow() {
   const currVersion = workflow.versions && workflow.versions[0].version;
 
   return (
-    <div className="flex-grow h-full w-full">
-      <div className="mx-auto py-8 px-4 sm:px-6 lg:px-8">
+    <div className="flex-grow h-full w-full flex flex-col overflow-hidden gap-y-4">
+      <div className="flex-shrink-0 px-4 sm:px-6 lg:px-8">
         <div className="flex flex-row justify-between items-center">
           <div className="flex flex-row gap-4 items-center">
             <Square3Stack3DIcon className="h-6 w-6 text-foreground mt-1" />
@@ -185,9 +185,10 @@ export default function ExpandedWorkflow() {
             {workflow.description}
           </div>
         )}
-        <div className="flex flex-row justify-start items-center mt-4"></div>
-        <Tabs defaultValue="runs">
-          <TabsList layout="underlined">
+      </div>
+      <div className="flex-1 min-h-0 px-4 sm:px-6 lg:px-8">
+        <Tabs defaultValue="runs" className="flex flex-col h-full">
+          <TabsList layout="underlined" className="mb-4">
             <TabsTrigger variant="underlined" value="runs">
               Runs
             </TabsTrigger>
@@ -195,10 +196,13 @@ export default function ExpandedWorkflow() {
               Settings
             </TabsTrigger>
           </TabsList>
-          <TabsContent value="runs">
+          <TabsContent value="runs" className="flex-1 min-h-0">
             <RecentRunsList />
           </TabsContent>
-          <TabsContent value="settings" className="mt-4">
+          <TabsContent
+            value="settings"
+            className="flex-1 min-h-0 overflow-y-auto pt-4"
+          >
             {workflowVersionQuery.isLoading || !workflowVersionQuery.data ? (
               <Loading />
             ) : (

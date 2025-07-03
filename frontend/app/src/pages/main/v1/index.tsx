@@ -80,13 +80,13 @@ function Sidebar({ className, memberships }: SidebarProps) {
 
   const workers = [
     <SidebarButtonSecondary
-      key={1}
+      key="all-workers"
       onNavLinkClick={onNavLinkClick}
       to={`/tenants/${tenantId}/workers/all`}
       name="All Workers"
     />,
     <SidebarButtonSecondary
-      key={1}
+      key="webhook-workers"
       onNavLinkClick={onNavLinkClick}
       to={`/tenants/${tenantId}/workers/webhook`}
       name="Webhook Workers"
@@ -108,14 +108,14 @@ function Sidebar({ className, memberships }: SidebarProps) {
             </h2>
             <div className="flex flex-col gap-y-1">
               <SidebarButtonPrimary
-                key={1}
+                key="runs"
                 onNavLinkClick={onNavLinkClick}
                 to={`/tenants/${tenantId}/runs`}
                 name="Runs"
                 icon={<PlayIcon className="mr-2 h-4 w-4" />}
               />
               <SidebarButtonPrimary
-                key={2}
+                key="events"
                 onNavLinkClick={onNavLinkClick}
                 to={`/tenants/${tenantId}/events`}
                 name="Events"
@@ -129,14 +129,14 @@ function Sidebar({ className, memberships }: SidebarProps) {
             </h2>
             <div className="space-y-1">
               <SidebarButtonPrimary
-                key={3}
+                key="scheduled"
                 onNavLinkClick={onNavLinkClick}
                 to={`/tenants/${tenantId}/scheduled`}
                 name="Scheduled Runs"
                 icon={<CalendarDaysIcon className="mr-2 h-4 w-4" />}
               />
               <SidebarButtonPrimary
-                key={4}
+                key="crons"
                 onNavLinkClick={onNavLinkClick}
                 to={`/tenants/${tenantId}/cron-jobs`}
                 name="Cron Jobs"
@@ -150,14 +150,14 @@ function Sidebar({ className, memberships }: SidebarProps) {
             </h2>
             <div className="space-y-1">
               <SidebarButtonPrimary
-                key={1}
+                key="tasks"
                 onNavLinkClick={onNavLinkClick}
                 to={`/tenants/${tenantId}/tasks`}
                 name="Tasks & Workflows"
                 icon={<Squares2X2Icon className="mr-2 h-4 w-4" />}
               />
               <SidebarButtonPrimary
-                key={2}
+                key="workers"
                 onNavLinkClick={onNavLinkClick}
                 to={`/tenants/${tenantId}/workers/all`}
                 name="Workers"
@@ -167,7 +167,7 @@ function Sidebar({ className, memberships }: SidebarProps) {
               />
               {featureFlags?.data['managed-worker'] && (
                 <SidebarButtonPrimary
-                  key={3}
+                  key="managed-compute"
                   onNavLinkClick={onNavLinkClick}
                   to={`/tenants/${tenantId}/managed-workers`}
                   name="Managed Compute"
@@ -175,7 +175,7 @@ function Sidebar({ className, memberships }: SidebarProps) {
                 />
               )}
               <SidebarButtonPrimary
-                key={4}
+                key="rate-limits"
                 onNavLinkClick={onNavLinkClick}
                 to={`/tenants/${tenantId}/rate-limits`}
                 name="Rate Limits"
@@ -189,7 +189,7 @@ function Sidebar({ className, memberships }: SidebarProps) {
             </h2>
             <div className="space-y-1">
               <SidebarButtonPrimary
-                key={1}
+                key="tenant-settings"
                 onNavLinkClick={onNavLinkClick}
                 to={`/tenants/${tenantId}/tenant-settings/overview`}
                 prefix={`/tenants/${tenantId}/tenant-settings`}
@@ -197,31 +197,31 @@ function Sidebar({ className, memberships }: SidebarProps) {
                 icon={<GearIcon className="mr-2 h-4 w-4" />}
                 collapsibleChildren={[
                   <SidebarButtonSecondary
-                    key={1}
+                    key="tenant-settings-overview"
                     onNavLinkClick={onNavLinkClick}
                     to={`/tenants/${tenantId}/tenant-settings/overview`}
                     name="Overview"
                   />,
                   <SidebarButtonSecondary
-                    key={2}
+                    key="tenant-settings-api-tokens"
                     onNavLinkClick={onNavLinkClick}
                     to={`/tenants/${tenantId}/tenant-settings/api-tokens`}
                     name="API Tokens"
                   />,
                   <SidebarButtonSecondary
-                    key={3}
+                    key="tenant-settings-github"
                     onNavLinkClick={onNavLinkClick}
                     to={`/tenants/${tenantId}/tenant-settings/github`}
                     name="Github"
                   />,
                   <SidebarButtonSecondary
-                    key={5}
+                    key="tenant-settings-members"
                     onNavLinkClick={onNavLinkClick}
                     to={`/tenants/${tenantId}/tenant-settings/members`}
                     name="Members"
                   />,
                   <SidebarButtonSecondary
-                    key={6}
+                    key="tenant-settings-billing-and-limits"
                     onNavLinkClick={onNavLinkClick}
                     to={`/tenants/${tenantId}/tenant-settings/billing-and-limits`}
                     name={
@@ -231,13 +231,13 @@ function Sidebar({ className, memberships }: SidebarProps) {
                     }
                   />,
                   <SidebarButtonSecondary
-                    key={7}
+                    key="tenant-settings-alerting"
                     onNavLinkClick={onNavLinkClick}
                     to={`/tenants/${tenantId}/tenant-settings/alerting`}
                     name="Alerting"
                   />,
                   <SidebarButtonSecondary
-                    key={8}
+                    key="tenant-settings-ingestors"
                     onNavLinkClick={onNavLinkClick}
                     to={`/tenants/${tenantId}/tenant-settings/ingestors`}
                     name="Ingestors"

@@ -41,6 +41,7 @@ import { useMetrics } from '../hooks/metrics';
 import { useToolbarFilters } from '../hooks/toolbar-filters';
 import { IntroDocsEmptyState } from '@/pages/onboarding/intro-docs-empty-state';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
+import { TriggerWorkflowForm } from '../../workflows/$workflow/components/trigger-workflow-form';
 
 export interface TaskRunsTableProps {
   createdAfter?: string;
@@ -77,6 +78,9 @@ export function TaskRunsTable({
 }: TaskRunsTableProps) {
   const { tenantId } = useCurrentTenantId();
 
+  const [selectedAdditionalMetaRunId, setSelectedAdditionalMetaRunId] =
+    useState<string | null>(null);
+  const [triggerWorkflow, setTriggerWorkflow] = useState(false);
   const [viewQueueMetrics, setViewQueueMetrics] = useState(false);
   const [rotate, setRotate] = useState(false);
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
@@ -101,6 +105,9 @@ export function TaskRunsTable({
   const derivedParentTaskExternalId =
     parentTaskExternalId || cf.filters.parentTaskExternalId;
 
+  const hasOpenUI =
+    !!selectedAdditionalMetaRunId || stepDetailSheetState.isOpen;
+
   const {
     tableRows,
     selectedRuns,
@@ -116,6 +123,7 @@ export function TaskRunsTable({
     parentTaskExternalId: derivedParentTaskExternalId,
     triggeringEventExternalId: triggeringEventExternalId,
     disablePagination: disableTaskRunPagination,
+    pauseRefetch: hasOpenUI,
   });
 
   const {
@@ -128,6 +136,7 @@ export function TaskRunsTable({
     workflow,
     refetchInterval,
     parentTaskExternalId: derivedParentTaskExternalId,
+    pauseRefetch: hasOpenUI,
   });
 
   const onTaskRunIdClick = useCallback((taskRunId: string) => {
@@ -163,8 +172,21 @@ export function TaskRunsTable({
 
   const isFetching = !hasLoaded && (isTaskRunsFetching || isMetricsFetching);
 
+  const handleSetSelectedAdditionalMetaRunId = useCallback(
+    (runId: string | null) => {
+      setSelectedAdditionalMetaRunId(runId);
+    },
+    [],
+  );
+
   return (
-    <>
+    <div className="flex flex-col h-full overflow-hidden">
+      <TriggerWorkflowForm
+        defaultWorkflow={undefined}
+        show={triggerWorkflow}
+        onClose={() => setTriggerWorkflow(false)}
+      />
+
       {cf.filters.parentTaskExternalId &&
         !parentTaskRun.isLoading &&
         parentTaskRun.data && (
@@ -211,7 +233,7 @@ export function TaskRunsTable({
         </Dialog>
       )}
       {!createdAfterProp && !derivedParentTaskExternalId && (
-        <div className="flex flex-row justify-end items-center my-4 gap-2">
+        <div className="flex flex-row justify-end items-center mb-4 gap-2">
           {cf.filters.isCustomTimeRange && [
             <Button
               key="clear"
@@ -286,6 +308,7 @@ export function TaskRunsTable({
           }}
           finishedBefore={cf.filters.finishedBefore}
           refetchInterval={refetchInterval}
+          pauseRefetch={hasOpenUI}
         />
       )}
       {showCounts && (
@@ -325,77 +348,93 @@ export function TaskRunsTable({
           </SheetContent>
         </Sheet>
       )}
-      <DataTable
-        emptyState={
-          <IntroDocsEmptyState
-            link="/home/your-first-task"
-            title="No Runs Found"
-            linkPreambleText="To learn more about how workflows function in Hatchet,"
-            linkText="check out our documentation."
-          />
-        }
-        isLoading={isFetching}
-        columns={columns(tenantId, cf.setAdditionalMetadata, onTaskRunIdClick)}
-        columnVisibility={columnVisibility}
-        setColumnVisibility={setColumnVisibility}
-        data={tableRows}
-        filters={toolbarFilters}
-        actions={[
-          <TaskRunActionButton
-            key="cancel"
-            actionType="cancel"
-            disabled={!(hasRowsSelected || hasTaskFiltersSelected)}
-            params={
-              selectedRuns.length > 0
-                ? { externalIds: selectedRuns.map((run) => run?.metadata.id) }
-                : { filter: v1TaskFilters }
-            }
-            showModal
-          />,
-          <TaskRunActionButton
-            key="replay"
-            actionType="replay"
-            disabled={!(hasRowsSelected || hasTaskFiltersSelected)}
-            params={
-              selectedRuns.length > 0
-                ? { externalIds: selectedRuns.map((run) => run?.metadata.id) }
-                : { filter: v1TaskFilters }
-            }
-            showModal
-          />,
-          <Button
-            key="refresh"
-            className="h-8 px-2 lg:px-3"
-            size="sm"
-            onClick={() => {
-              refetchTaskRuns();
-              refetchMetrics();
-              setRotate(!rotate);
-            }}
-            variant={'outline'}
-            aria-label="Refresh events list"
-          >
-            <ArrowPathIcon
-              className={`h-4 w-4 transition-transform ${rotate ? 'rotate-180' : ''}`}
+      <div className="flex-1 min-h-0">
+        <DataTable
+          emptyState={
+            <IntroDocsEmptyState
+              link="/home/your-first-task"
+              title="No Runs Found"
+              linkPreambleText="To learn more about how workflows function in Hatchet,"
+              linkText="check out our documentation."
             />
-          </Button>,
-        ]}
-        columnFilters={cf.filters.columnFilters}
-        setColumnFilters={(updaterOrValue) => {
-          cf.setColumnFilters(updaterOrValue);
-        }}
-        pagination={pagination}
-        setPagination={setPagination}
-        onSetPageSize={setPageSize}
-        rowSelection={rowSelection}
-        setRowSelection={setRowSelection}
-        pageCount={numPages}
-        showColumnToggle={true}
-        getSubRows={(row) => row.children || []}
-        getRowId={getRowId}
-        onToolbarReset={cf.clearColumnFilters}
-      />
-    </>
+          }
+          isLoading={isFetching}
+          columns={columns(
+            tenantId,
+            selectedAdditionalMetaRunId,
+            handleSetSelectedAdditionalMetaRunId,
+            cf.setAdditionalMetadata,
+            onTaskRunIdClick,
+          )}
+          columnVisibility={columnVisibility}
+          setColumnVisibility={setColumnVisibility}
+          data={tableRows}
+          filters={toolbarFilters}
+          actions={[
+            <Button
+              key="trigger"
+              className="h-8 border"
+              onClick={() => setTriggerWorkflow(true)}
+            >
+              Trigger Run
+            </Button>,
+
+            <TaskRunActionButton
+              key="cancel"
+              actionType="cancel"
+              disabled={!(hasRowsSelected || hasTaskFiltersSelected)}
+              params={
+                selectedRuns.length > 0
+                  ? { externalIds: selectedRuns.map((run) => run?.metadata.id) }
+                  : { filter: v1TaskFilters }
+              }
+              showModal
+            />,
+            <TaskRunActionButton
+              key="replay"
+              actionType="replay"
+              disabled={!(hasRowsSelected || hasTaskFiltersSelected)}
+              params={
+                selectedRuns.length > 0
+                  ? { externalIds: selectedRuns.map((run) => run?.metadata.id) }
+                  : { filter: v1TaskFilters }
+              }
+              showModal
+            />,
+            <Button
+              key="refresh"
+              className="h-8 px-2 lg:px-3"
+              size="sm"
+              onClick={() => {
+                refetchTaskRuns();
+                refetchMetrics();
+                setRotate(!rotate);
+              }}
+              variant={'outline'}
+              aria-label="Refresh events list"
+            >
+              <ArrowPathIcon
+                className={`h-4 w-4 transition-transform ${rotate ? 'rotate-180' : ''}`}
+              />
+            </Button>,
+          ]}
+          columnFilters={cf.filters.columnFilters}
+          setColumnFilters={(updaterOrValue) => {
+            cf.setColumnFilters(updaterOrValue);
+          }}
+          pagination={pagination}
+          setPagination={setPagination}
+          onSetPageSize={setPageSize}
+          rowSelection={rowSelection}
+          setRowSelection={setRowSelection}
+          pageCount={numPages}
+          showColumnToggle={true}
+          getSubRows={(row) => row.children || []}
+          getRowId={getRowId}
+          onToolbarReset={cf.clearColumnFilters}
+        />
+      </div>
+    </div>
   );
 }
 
@@ -404,11 +443,13 @@ const GetWorkflowChart = ({
   finishedBefore,
   refetchInterval,
   zoom,
+  pauseRefetch = false,
 }: {
   createdAfter?: string;
   finishedBefore?: string;
   refetchInterval?: number;
   zoom: (startTime: string, endTime: string) => void;
+  pauseRefetch?: boolean;
 }) => {
   const { tenantId } = useCurrentTenantId();
   const workflowRunEventsMetricsQuery = useQuery({
@@ -417,7 +458,7 @@ const GetWorkflowChart = ({
       finishedBefore,
     }),
     placeholderData: (prev) => prev,
-    refetchInterval,
+    refetchInterval: pauseRefetch ? false : refetchInterval,
   });
 
   if (workflowRunEventsMetricsQuery.isLoading) {
@@ -425,25 +466,23 @@ const GetWorkflowChart = ({
   }
 
   return (
-    <div className="">
-      <ZoomableChart
-        kind="bar"
-        data={
-          workflowRunEventsMetricsQuery.data?.results?.map(
-            (result): DataPoint<'SUCCEEDED' | 'FAILED'> => ({
-              date: result.time,
-              SUCCEEDED: result.SUCCEEDED,
-              FAILED: result.FAILED,
-            }),
-          ) || []
-        }
-        colors={{
-          SUCCEEDED: 'rgb(34 197 94 / 0.5)',
-          FAILED: 'hsl(var(--destructive))',
-        }}
-        zoom={zoom}
-        showYAxis={false}
-      />
-    </div>
+    <ZoomableChart
+      kind="bar"
+      data={
+        workflowRunEventsMetricsQuery.data?.results?.map(
+          (result): DataPoint<'SUCCEEDED' | 'FAILED'> => ({
+            date: result.time,
+            SUCCEEDED: result.SUCCEEDED,
+            FAILED: result.FAILED,
+          }),
+        ) || []
+      }
+      colors={{
+        SUCCEEDED: 'rgb(34 197 94 / 0.5)',
+        FAILED: 'hsl(var(--destructive))',
+      }}
+      zoom={zoom}
+      showYAxis={false}
+    />
   );
 };

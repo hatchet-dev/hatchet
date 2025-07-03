@@ -156,7 +156,7 @@ export default function DemoTemplate() {
       console.error('Failed to trigger run:', error);
       setTriggering(false);
     }
-  }, [tenantId, workflowId, isSimulation, runsTriggered]);
+  }, [workflowId, isSimulation, runsTriggered]);
 
   // Automatically trigger task runs when success step is opened
   useEffect(() => {
