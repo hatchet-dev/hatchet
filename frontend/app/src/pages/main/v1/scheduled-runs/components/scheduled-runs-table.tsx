@@ -1,5 +1,5 @@
 import { DataTable } from '@/components/v1/molecules/data-table/data-table.tsx';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ColumnFiltersState,
   PaginationState,
@@ -55,13 +55,6 @@ export function ScheduledRunsTable({
   const [triggerWorkflow, setTriggerWorkflow] = useState(false);
   const [selectedAdditionalMetaJobId, setSelectedAdditionalMetaJobId] =
     useState<string | null>(null);
-
-  const handleSetSelectedAdditionalMetaJobId = useCallback(
-    (runId: string | null) => {
-      setSelectedAdditionalMetaJobId(runId);
-    },
-    [],
-  );
 
   const [sorting, setSorting] = useState<SortingState>(() => {
     const sortParam = searchParams.get('sort');
@@ -335,7 +328,7 @@ export function ScheduledRunsTable({
             setShowScheduledRunRevoke(row);
           },
           selectedAdditionalMetaJobId,
-          handleSetSelectedAdditionalMetaJobId,
+          handleSetSelectedAdditionalMetaJobId: setSelectedAdditionalMetaJobId,
         })}
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}

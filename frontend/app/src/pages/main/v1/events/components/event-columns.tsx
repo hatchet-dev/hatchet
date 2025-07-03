@@ -16,8 +16,12 @@ import { TaskRunsTable } from '../../workflow-runs-v1/components/task-runs-table
 
 export const columns = ({
   onRowClick,
+  hoveredEventId,
+  setHoveredEventId,
 }: {
   onRowClick?: (row: V1Event) => void;
+  hoveredEventId: string | null;
+  setHoveredEventId: (id: string | null) => void;
 }): ColumnDef<V1Event>[] => {
   return [
     {
@@ -128,7 +132,17 @@ export const columns = ({
         }
 
         return (
-          <AdditionalMetadata metadata={row.original.additionalMetadata} />
+          <AdditionalMetadata
+            metadata={row.original.additionalMetadata}
+            isOpen={hoveredEventId === row.original.metadata.id}
+            onOpenChange={(open) => {
+              if (open) {
+                setHoveredEventId(row.original.metadata.id);
+              } else {
+                setHoveredEventId(null);
+              }
+            }}
+          />
         );
       },
       enableSorting: false,
@@ -143,7 +157,19 @@ export const columns = ({
           return <div></div>;
         }
 
-        return <AdditionalMetadata metadata={row.original.payload} />;
+        return (
+          <AdditionalMetadata
+            metadata={row.original.payload}
+            isOpen={hoveredEventId === row.original.metadata.id}
+            onOpenChange={(open) => {
+              if (open) {
+                setHoveredEventId(row.original.metadata.id);
+              } else {
+                setHoveredEventId(null);
+              }
+            }}
+          />
+        );
       },
       enableSorting: false,
       enableHiding: true,
@@ -182,6 +208,8 @@ function WorkflowRunSummary({ event }: { event: V1Event }) {
         showCounts={false}
         showMetrics={false}
         showDateFilter={false}
+        showTriggerRunButton={false}
+        headerClassName="bg-slate-700"
       />
     </div>
   );

@@ -54,9 +54,11 @@ export interface TaskRunsTableProps {
   showMetrics?: boolean;
   showCounts?: boolean;
   showDateFilter?: boolean;
+  showTriggerRunButton?: boolean;
   parentTaskExternalId?: string;
   triggeringEventExternalId?: string;
   disableTaskRunPagination?: boolean;
+  headerClassName?: string;
 }
 
 type StepDetailSheetState = {
@@ -77,6 +79,8 @@ export function TaskRunsTable({
   showCounts = true,
   showDateFilter = true,
   disableTaskRunPagination = false,
+  showTriggerRunButton = true,
+  headerClassName,
 }: TaskRunsTableProps) {
   const { tenantId } = useCurrentTenantId();
 
@@ -173,6 +177,72 @@ export function TaskRunsTable({
   }, [isTaskRunsLoading, isMetricsLoading]);
 
   const isFetching = !hasLoaded && (isTaskRunsFetching || isMetricsFetching);
+
+  const actions = useMemo(() => {
+    let localActions = [
+      <TaskRunActionButton
+        key="cancel"
+        actionType="cancel"
+        disabled={!(hasRowsSelected || hasTaskFiltersSelected)}
+        params={
+          selectedRuns.length > 0
+            ? { externalIds: selectedRuns.map((run) => run?.metadata.id) }
+            : { filter: v1TaskFilters }
+        }
+        showModal
+      />,
+      <TaskRunActionButton
+        key="replay"
+        actionType="replay"
+        disabled={!(hasRowsSelected || hasTaskFiltersSelected)}
+        params={
+          selectedRuns.length > 0
+            ? { externalIds: selectedRuns.map((run) => run?.metadata.id) }
+            : { filter: v1TaskFilters }
+        }
+        showModal
+      />,
+      <Button
+        key="refresh"
+        className="h-8 px-2 lg:px-3"
+        size="sm"
+        onClick={() => {
+          refetchTaskRuns();
+          refetchMetrics();
+          setRotate(!rotate);
+        }}
+        variant={'outline'}
+        aria-label="Refresh events list"
+      >
+        <ArrowPathIcon
+          className={`h-4 w-4 transition-transform ${rotate ? 'rotate-180' : ''}`}
+        />
+      </Button>,
+    ];
+
+    if (showTriggerRunButton) {
+      localActions = [
+        <Button
+          key="trigger"
+          className="h-8 border"
+          onClick={() => setTriggerWorkflow(true)}
+        >
+          Trigger Run
+        </Button>,
+        ...localActions,
+      ];
+    }
+    return localActions;
+  }, [
+    showTriggerRunButton,
+    hasRowsSelected,
+    hasTaskFiltersSelected,
+    selectedRuns,
+    v1TaskFilters,
+    refetchTaskRuns,
+    refetchMetrics,
+    rotate,
+  ]);
 
   const handleSetSelectedAdditionalMetaRunId = useCallback(
     (runId: string | null) => {
@@ -372,54 +442,7 @@ export function TaskRunsTable({
           setColumnVisibility={setColumnVisibility}
           data={tableRows}
           filters={toolbarFilters}
-          actions={[
-            <Button
-              key="trigger"
-              className="h-8 border"
-              onClick={() => setTriggerWorkflow(true)}
-            >
-              Trigger Run
-            </Button>,
-
-            <TaskRunActionButton
-              key="cancel"
-              actionType="cancel"
-              disabled={!(hasRowsSelected || hasTaskFiltersSelected)}
-              params={
-                selectedRuns.length > 0
-                  ? { externalIds: selectedRuns.map((run) => run?.metadata.id) }
-                  : { filter: v1TaskFilters }
-              }
-              showModal
-            />,
-            <TaskRunActionButton
-              key="replay"
-              actionType="replay"
-              disabled={!(hasRowsSelected || hasTaskFiltersSelected)}
-              params={
-                selectedRuns.length > 0
-                  ? { externalIds: selectedRuns.map((run) => run?.metadata.id) }
-                  : { filter: v1TaskFilters }
-              }
-              showModal
-            />,
-            <Button
-              key="refresh"
-              className="h-8 px-2 lg:px-3"
-              size="sm"
-              onClick={() => {
-                refetchTaskRuns();
-                refetchMetrics();
-                setRotate(!rotate);
-              }}
-              variant={'outline'}
-              aria-label="Refresh events list"
-            >
-              <ArrowPathIcon
-                className={`h-4 w-4 transition-transform ${rotate ? 'rotate-180' : ''}`}
-              />
-            </Button>,
-          ]}
+          actions={actions}
           columnFilters={cf.filters.columnFilters}
           setColumnFilters={(updaterOrValue) => {
             cf.setColumnFilters(updaterOrValue);
@@ -434,6 +457,7 @@ export function TaskRunsTable({
           getSubRows={(row) => row.children || []}
           getRowId={getRowId}
           onToolbarReset={cf.clearColumnFilters}
+          headerClassName={headerClassName}
         />
       </div>
     </div>

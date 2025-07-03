@@ -47,6 +47,7 @@ function EventsTable() {
 
   const [searchParams, setSearchParams] = useSearchParams();
   const [rotate, setRotate] = useState(false);
+  const [hoveredEventId, setHoveredEventId] = useState<string | null>(null);
 
   useEffect(() => {
     if (
@@ -240,7 +241,7 @@ function EventsTable() {
 
       return response.data;
     },
-    refetchInterval: 2000,
+    refetchInterval: hoveredEventId ? false : 2000,
   });
 
   const {
@@ -311,6 +312,8 @@ function EventsTable() {
     onRowClick: (row: Event) => {
       setSelectedEvent(row);
     },
+    hoveredEventId,
+    setHoveredEventId,
   });
 
   const actions = [

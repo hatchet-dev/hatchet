@@ -77,6 +77,7 @@ interface DataTableProps<TData extends IDGetter<TData>, TValue> {
   manualSorting?: boolean;
   manualFiltering?: boolean;
   getSubRows?: (row: TData) => TData[];
+  headerClassName?: string;
 }
 
 interface ExtraDataTableProps {
@@ -118,6 +119,7 @@ export function DataTable<TData extends IDGetter<TData>, TValue>({
   manualFiltering = true,
   getSubRows,
   onToolbarReset,
+  headerClassName,
 }: DataTableProps<TData, TValue> & ExtraDataTableProps) {
   const [expanded, setExpanded] = React.useState<ExpandedState>({});
 
@@ -206,7 +208,7 @@ export function DataTable<TData extends IDGetter<TData>, TValue>({
                 <TableHead
                   key={header.id}
                   colSpan={header.colSpan}
-                  className="bg-background border-b"
+                  className={cn('bg-background border-b', headerClassName)}
                 >
                   {header.isPlaceholder
                     ? null
