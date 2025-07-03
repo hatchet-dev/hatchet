@@ -1,4 +1,4 @@
-import api, { CreateTenantRequest, queries } from '@/lib/api';
+import api, { CreateTenantRequest, queries, TenantVersion } from '@/lib/api';
 import { useApiError } from '@/lib/hooks';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
@@ -25,7 +25,12 @@ export default function CreateTenant() {
     onSuccess: async (tenant) => {
       setTenant(tenant);
       await listMembershipsQuery.refetch();
-      window.location.href = `/onboarding/get-started?tenant=${tenant.metadata.id}`;
+
+      if (tenant.version === TenantVersion.V1) {
+        window.location.href = `/tenants/${tenant.metadata.id}/onboarding/get-started`;
+      } else {
+        window.location.href = `/onboarding/get-started?tenant=${tenant.metadata.id}`;
+      }
     },
     onError: handleApiError,
   });
