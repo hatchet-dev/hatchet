@@ -53,6 +53,7 @@ export interface TaskRunsTableProps {
   refetchInterval?: number;
   showMetrics?: boolean;
   showCounts?: boolean;
+  showDateFilter?: boolean;
   parentTaskExternalId?: string;
   triggeringEventExternalId?: string;
   disableTaskRunPagination?: boolean;
@@ -74,6 +75,7 @@ export function TaskRunsTable({
   refetchInterval = 5000,
   showMetrics = false,
   showCounts = true,
+  showDateFilter = true,
   disableTaskRunPagination = false,
 }: TaskRunsTableProps) {
   const { tenantId } = useCurrentTenantId();
@@ -232,7 +234,7 @@ export function TaskRunsTable({
           </DialogContent>
         </Dialog>
       )}
-      {!createdAfterProp && !derivedParentTaskExternalId && (
+      {showDateFilter && !createdAfterProp && !derivedParentTaskExternalId && (
         <div className="flex flex-row justify-end items-center mb-4 gap-2">
           {cf.filters.isCustomTimeRange && [
             <Button

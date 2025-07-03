@@ -20,8 +20,8 @@ export interface AdditionalMetadataClick {
 interface AdditionalMetadataProps {
   metadata: object;
   onClick?: (click: AdditionalMetadataClick) => void;
-  isOpen?: boolean;
-  onOpenChange?: (open: boolean) => void;
+  isOpen: boolean;
+  onOpenChange: (open: boolean) => void;
 }
 
 export const AdditionalMetadata = memo(
