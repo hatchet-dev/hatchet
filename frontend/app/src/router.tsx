@@ -129,12 +129,13 @@ const createTenantedRoute = (path: TenantedPath): RouteObject => {
     case '/tenants/:tenant/task-runs/:run':
       return {
         path,
-        lazy: async () =>
-          import('./pages/main/v1/task-runs-v1/$run').then((res) => {
-            return {
-              Component: res.default,
-            };
-          }),
+        lazy: async () => {
+          return {
+            loader: function ({ params }) {
+              return redirect(`/tenants/${params.tenant}/runs/${params.run}`);
+            },
+          };
+        },
       };
     case '/tenants/:tenant/workers':
       return {

@@ -501,6 +501,7 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 						StepId:             sqlchelpers.UUIDToStr(match.TriggerStepID),
 						StepIndex:          int(match.TriggerStepIndex.Int64),
 						AdditionalMetadata: additionalMetadata,
+						InitialState:       sqlcv1.V1TaskInitialStateQUEUED,
 					}
 
 					switch matchData.Action() {
@@ -666,7 +667,7 @@ func (m *sharedRepository) processCELExpressions(ctx context.Context, events []C
 				err := json.Unmarshal(event.Data, &outputEventData)
 
 				if err != nil {
-					m.l.Warn().Err(err).Msgf("[0] failed to unmarshal output event data %s", string(event.Data))
+					m.l.Warn().Err(err).Msgf("[0] failed to unmarshal output event data. id: %s, key: %s", event.ID, event.Key)
 					continue
 				}
 
@@ -674,14 +675,14 @@ func (m *sharedRepository) processCELExpressions(ctx context.Context, events []C
 					err = json.Unmarshal(outputEventData.Output, &outputData)
 
 					if err != nil {
-						m.l.Warn().Err(err).Msgf("failed to unmarshal output event data, output subfield %s", string(event.Data))
+						m.l.Warn().Err(err).Msgf("failed to unmarshal output event data, output subfield for task %d", outputEventData.TaskId)
 						continue
 					}
 				} else {
 					err = json.Unmarshal(event.Data, &inputData)
 
 					if err != nil {
-						m.l.Warn().Err(err).Msgf("[1] failed to unmarshal output event data %s", string(event.Data))
+						m.l.Warn().Err(err).Msgf("[1] failed to unmarshal output event data. id: %s, key: %s", event.ID, event.Key)
 						continue
 					}
 				}

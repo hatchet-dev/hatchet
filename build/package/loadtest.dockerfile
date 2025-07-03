@@ -25,7 +25,7 @@ FROM alpine AS deployment
 WORKDIR /hatchet
 
 # openssl and bash needed for admin build
-RUN apk update && apk add --no-cache gcc musl-dev openssl bash ca-certificates
+RUN apk update && apk add --no-cache gcc musl-dev openssl bash ca-certificates tzdata
 
 COPY --from=build-go /hatchet/bin/hatchet-load-test /hatchet/
 

@@ -25,7 +25,7 @@ RUN npm run build
 FROM alpine AS deployment
 
 # install bash via apk
-RUN apk update && apk add --no-cache bash gcc musl-dev openssl bash ca-certificates curl postgresql-client
+RUN apk update && apk add --no-cache bash gcc musl-dev openssl bash ca-certificates curl postgresql-client tzdata
 
 COPY --from=lite-binary-base /hatchet/hatchet-lite ./hatchet-lite
 COPY --from=admin-binary-base /hatchet/hatchet-admin ./hatchet-admin
