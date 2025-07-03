@@ -27,6 +27,7 @@ from hatchet_sdk.clients.rest.models.v1_workflow_run_details import V1WorkflowRu
 from hatchet_sdk.clients.v1.api_client import (
     BaseRestClient,
     maybe_additional_metadata_to_kv,
+    retry,
 )
 from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.utils.aio import gather_max_concurrency
@@ -118,6 +119,7 @@ class RunsClient(BaseRestClient):
     def _ta(self, client: ApiClient) -> TaskApi:
         return TaskApi(client)
 
+    @retry
     def get(self, workflow_run_id: str) -> V1WorkflowRunDetails:
         """
         Get workflow run details for a given workflow run ID.
@@ -137,6 +139,7 @@ class RunsClient(BaseRestClient):
         """
         return await asyncio.to_thread(self.get, workflow_run_id)
 
+    @retry
     def get_status(self, workflow_run_id: str) -> V1TaskStatus:
         """
         Get workflow run status for a given workflow run ID.
@@ -156,6 +159,7 @@ class RunsClient(BaseRestClient):
         """
         return await asyncio.to_thread(self.get_status, workflow_run_id)
 
+    @retry
     def list_with_pagination(
         self,
         since: datetime | None = None,
@@ -225,6 +229,7 @@ class RunsClient(BaseRestClient):
                 reverse=True,
             )
 
+    @retry
     async def aio_list_with_pagination(
         self,
         since: datetime | None = None,
@@ -346,6 +351,7 @@ class RunsClient(BaseRestClient):
             triggering_event_external_id=triggering_event_external_id,
         )
 
+    @retry
     def list(
         self,
         since: datetime | None = None,
@@ -540,6 +546,7 @@ class RunsClient(BaseRestClient):
         """
         return await asyncio.to_thread(self.bulk_cancel, opts)
 
+    @retry
     def get_result(self, run_id: str) -> JSONSerializableMapping:
         """
         Get the result of a workflow run by its external ID.
