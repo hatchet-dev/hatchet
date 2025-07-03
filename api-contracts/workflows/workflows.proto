@@ -11,6 +11,15 @@ service WorkflowService {
     rpc TriggerWorkflow(TriggerWorkflowRequest) returns (TriggerWorkflowResponse);
     rpc BulkTriggerWorkflow(BulkTriggerWorkflowRequest) returns (BulkTriggerWorkflowResponse);
     rpc PutRateLimit(PutRateLimitRequest) returns (PutRateLimitResponse);
+    rpc GetOutput(GetWorkflowRunOutputRequest) returns (GetWorkflowRunOutputResponse);
+}
+
+message GetWorkflowRunOutputRequest {
+    string workflow_run_id = 1;
+}
+
+message GetWorkflowRunOutputResponse {
+    string output = 1;
 }
 
 message PutWorkflowRequest {
