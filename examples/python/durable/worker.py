@@ -77,6 +77,8 @@ async def wait_for_or_group_1(
     }
 
 
+
+
 @durable_workflow.durable_task()
 async def wait_for_or_group_2(
     _i: EmptyModel, ctx: DurableContext
@@ -98,8 +100,6 @@ async def wait_for_or_group_2(
         "key": key,
         "event_id": event_id,
     }
-
-
 
 
 @ephemeral_workflow.task()
