@@ -1,6 +1,7 @@
-from hatchet_sdk.utils.datetimes import partition_date_range
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
+
+from hatchet_sdk.utils.datetimes import partition_date_range
 
 
 def test_partition_date_ranges_single_day() -> None:

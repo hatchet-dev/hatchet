@@ -2,6 +2,7 @@ import asyncio
 from collections.abc import AsyncIterator
 from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING, Literal, overload
+from warnings import warn
 
 from pydantic import BaseModel, model_validator
 
@@ -332,7 +333,7 @@ class RunsClient(BaseRestClient):
         """
         return await asyncio.to_thread(
             self.list,
-            since=since or datetime.now(tz=timezone.utc) - timedelta(days=1),
+            since=since,
             only_tasks=only_tasks,
             offset=offset,
             limit=limit,
@@ -376,10 +377,22 @@ class RunsClient(BaseRestClient):
 
         :return: A list of task runs matching the specified filters.
         """
+
+        since = since or datetime.now(tz=timezone.utc) - timedelta(days=1)
+        until = until or datetime.now(tz=timezone.utc)
+
+        if (until - since).days >= 7:
+            warn(
+                "Listing runs with a date range longer than 7 days may result in performance issues. "
+                "Consider using `list_with_pagination` or `aio_list_with_pagination` instead.",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+
         with self.client() as client:
             return self._wra(client).v1_workflow_run_list(
                 tenant=self.client_config.tenant_id,
-                since=since or datetime.now(tz=timezone.utc) - timedelta(days=1),
+                since=since,
                 only_tasks=only_tasks,
                 offset=offset,
                 limit=limit,
