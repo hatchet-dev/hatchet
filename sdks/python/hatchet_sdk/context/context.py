@@ -14,7 +14,12 @@ from hatchet_sdk.clients.listeners.durable_event_listener import (
     DurableEventListener,
     RegisterDurableEventRequest,
 )
-from hatchet_sdk.conditions import SleepCondition, UserEventCondition
+from hatchet_sdk.conditions import (
+    OrGroup,
+    SleepCondition,
+    UserEventCondition,
+    flatten_conditions,
+)
 from hatchet_sdk.context.worker_context import WorkerContext
 from hatchet_sdk.features.runs import RunsClient
 from hatchet_sdk.logger import logger
@@ -367,7 +372,9 @@ class Context:
 
 class DurableContext(Context):
     async def aio_wait_for(
-        self, signal_key: str, *conditions: SleepCondition | UserEventCondition
+        self,
+        signal_key: str,
+        *conditions: SleepCondition | UserEventCondition | OrGroup,
     ) -> dict[str, Any]:
         """
         Durably wait for either a sleep or an event.
@@ -386,7 +393,7 @@ class DurableContext(Context):
         request = RegisterDurableEventRequest(
             task_id=task_id,
             signal_key=signal_key,
-            conditions=list(conditions),
+            conditions=flatten_conditions(list(conditions)),
             config=self.runs_client.client_config,
         )
 

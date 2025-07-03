@@ -140,3 +140,18 @@ class OrGroup:
 
 def or_(*conditions: Condition) -> OrGroup:
     return OrGroup(conditions=list(conditions))
+
+
+def flatten_conditions(conditions: list[Condition | OrGroup]) -> list[Condition]:
+    flattened: list[Condition] = []
+
+    for condition in conditions:
+        if isinstance(condition, OrGroup):
+            for or_condition in condition.conditions:
+                or_condition.base.or_group_id = condition.or_group_id
+
+            flattened.extend(condition.conditions)
+        else:
+            flattened.append(condition)
+
+    return flattened
