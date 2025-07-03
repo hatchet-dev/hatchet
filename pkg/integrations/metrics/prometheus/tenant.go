@@ -21,6 +21,7 @@ const (
 	TenantFailedTasksTotal             TenantHatchetMetric = "hatchet_tenant_failed_tasks"
 	TenantSkippedTasksTotal            TenantHatchetMetric = "hatchet_tenant_skipped_tasks"
 	TenantCancelledTasksTotal          TenantHatchetMetric = "hatchet_tenant_cancelled_tasks"
+	TenantReassignedTasksTotal         TenantHatchetMetric = "hatchet_tenant_reassigned_tasks"
 )
 
 var (
@@ -119,5 +120,10 @@ var (
 		Name:    string(TenantQueuedToAssignedTimeSeconds),
 		Help:    "Buckets of time in seconds spent in the queue before being assigned to a worker",
 		Buckets: []float64{0.01, 0.02, 0.05, 0.1, 0.5, 1, 2, 5, 15},
+	}, []string{"tenant_id"})
+
+	TenantReassignedTasks = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: string(TenantReassignedTasksTotal),
+		Help: "The total number of tasks that were reassigned to a worker",
 	}, []string{"tenant_id"})
 )

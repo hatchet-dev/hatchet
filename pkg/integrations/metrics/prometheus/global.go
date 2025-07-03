@@ -20,6 +20,7 @@ const (
 	RateLimitedTotal            GlobalHatchetMetric = "hatchet_rate_limited"
 	QueuedToAssignedTotal       GlobalHatchetMetric = "hatchet_queued_to_assigned"
 	QueuedToAssignedTimeSeconds GlobalHatchetMetric = "hatchet_queued_to_assigned_time_seconds"
+	ReassignedTasksTotal        GlobalHatchetMetric = "hatchet_reassigned_tasks"
 )
 
 var (
@@ -82,5 +83,10 @@ var (
 		Name:    string(QueuedToAssignedTimeSeconds),
 		Help:    "Buckets of time in seconds spent in the queue before being assigned to a worker",
 		Buckets: []float64{0.01, 0.02, 0.05, 0.1, 0.5, 1, 2, 5, 15},
+	})
+
+	ReassignedTasks = promauto.NewCounter(prometheus.CounterOpts{
+		Name: string(ReassignedTasksTotal),
+		Help: "The total number of tasks that were reassigned to a worker",
 	})
 )

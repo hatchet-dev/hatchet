@@ -525,7 +525,7 @@ function TriggerRunModalContent({
                 </TabsContent>
                 <TabsContent value="cron">
                   <div className="mt-4">
-                    <div className="font-bold mb-2">Cron Expression</div>
+                    <div className="font-bold mb-2">Cron Name</div>
                     <Input
                       type="text"
                       value={cronName}
