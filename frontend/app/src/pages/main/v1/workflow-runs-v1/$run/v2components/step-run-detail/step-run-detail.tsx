@@ -109,7 +109,7 @@ export const TaskRunDetail = ({
   }
 
   return (
-    <div className="w-full h-screen overflow-y-scroll flex flex-col gap-4">
+    <div className="w-full flex flex-col gap-4">
       <div className="flex flex-row justify-between items-center">
         <div className="flex flex-row justify-between items-center w-full">
           <div className="flex flex-row gap-4 items-center">
