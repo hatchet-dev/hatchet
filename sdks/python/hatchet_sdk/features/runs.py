@@ -17,6 +17,7 @@ from hatchet_sdk.clients.rest.models.v1_cancel_task_request import V1CancelTaskR
 from hatchet_sdk.clients.rest.models.v1_replay_task_request import V1ReplayTaskRequest
 from hatchet_sdk.clients.rest.models.v1_task_filter import V1TaskFilter
 from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
+from hatchet_sdk.clients.rest.models.v1_task_summary import V1TaskSummary
 from hatchet_sdk.clients.rest.models.v1_task_summary_list import V1TaskSummaryList
 from hatchet_sdk.clients.rest.models.v1_trigger_workflow_run_request import (
     V1TriggerWorkflowRunRequest,
@@ -27,6 +28,8 @@ from hatchet_sdk.clients.v1.api_client import (
     maybe_additional_metadata_to_kv,
 )
 from hatchet_sdk.config import ClientConfig
+from hatchet_sdk.utils.aio import gather_max_concurrency
+from hatchet_sdk.utils.datetimes import partition_date_range
 from hatchet_sdk.utils.typing import JSONSerializableMapping
 
 if TYPE_CHECKING:
@@ -151,6 +154,150 @@ class RunsClient(BaseRestClient):
         :return: The task status
         """
         return await asyncio.to_thread(self.get_status, workflow_run_id)
+
+    def list_with_pagination(
+        self,
+        since: datetime | None = None,
+        only_tasks: bool = False,
+        offset: int | None = None,
+        limit: int | None = None,
+        statuses: list[V1TaskStatus] | None = None,
+        until: datetime | None = None,
+        additional_metadata: dict[str, str] | None = None,
+        workflow_ids: list[str] | None = None,
+        worker_id: str | None = None,
+        parent_task_external_id: str | None = None,
+        triggering_event_external_id: str | None = None,
+    ) -> list[V1TaskSummary]:
+        """
+        List task runs according to a set of filters, paginating through days
+
+        :param since: The start time for filtering task runs.
+        :param only_tasks: Whether to only list task runs.
+        :param offset: The offset for pagination.
+        :param limit: The maximum number of task runs to return.
+        :param statuses: The statuses to filter task runs by.
+        :param until: The end time for filtering task runs.
+        :param additional_metadata: Additional metadata to filter task runs by.
+        :param workflow_ids: The workflow IDs to filter task runs by.
+        :param worker_id: The worker ID to filter task runs by.
+        :param parent_task_external_id: The parent task external ID to filter task runs by.
+        :param triggering_event_external_id: The event id that triggered the task run.
+
+        :return: A list of task runs matching the specified filters.
+        """
+
+        date_ranges = partition_date_range(
+            since=since or datetime.now(tz=timezone.utc) - timedelta(days=1),
+            until=until or datetime.now(tz=timezone.utc),
+        )
+
+        with self.client() as client:
+            responses = [
+                self._wra(client).v1_workflow_run_list(
+                    tenant=self.client_config.tenant_id,
+                    since=s,
+                    until=u,
+                    only_tasks=only_tasks,
+                    offset=offset,
+                    limit=limit,
+                    statuses=statuses,
+                    additional_metadata=maybe_additional_metadata_to_kv(
+                        additional_metadata
+                    ),
+                    workflow_ids=workflow_ids,
+                    worker_id=worker_id,
+                    parent_task_external_id=parent_task_external_id,
+                    triggering_event_external_id=triggering_event_external_id,
+                )
+                for s, u in date_ranges
+            ]
+
+            ## Hack for uniqueness
+            run_id_to_run = {
+                run.metadata.id: run for record in responses for run in record.rows
+            }
+
+            return sorted(
+                run_id_to_run.values(),
+                key=lambda x: x.created_at,
+                reverse=True,
+            )
+
+    async def aio_list_with_pagination(
+        self,
+        since: datetime | None = None,
+        only_tasks: bool = False,
+        offset: int | None = None,
+        limit: int | None = None,
+        statuses: list[V1TaskStatus] | None = None,
+        until: datetime | None = None,
+        additional_metadata: dict[str, str] | None = None,
+        workflow_ids: list[str] | None = None,
+        worker_id: str | None = None,
+        parent_task_external_id: str | None = None,
+        triggering_event_external_id: str | None = None,
+    ) -> list[V1TaskSummary]:
+        """
+        List task runs according to a set of filters, paginating through days
+
+        :param since: The start time for filtering task runs.
+        :param only_tasks: Whether to only list task runs.
+        :param offset: The offset for pagination.
+        :param limit: The maximum number of task runs to return.
+        :param statuses: The statuses to filter task runs by.
+        :param until: The end time for filtering task runs.
+        :param additional_metadata: Additional metadata to filter task runs by.
+        :param workflow_ids: The workflow IDs to filter task runs by.
+        :param worker_id: The worker ID to filter task runs by.
+        :param parent_task_external_id: The parent task external ID to filter task runs by.
+        :param triggering_event_external_id: The event id that triggered the task run.
+
+        :return: A list of task runs matching the specified filters.
+        """
+
+        date_ranges = partition_date_range(
+            since=since or datetime.now(tz=timezone.utc) - timedelta(days=1),
+            until=until or datetime.now(tz=timezone.utc),
+        )
+
+        with self.client() as client:
+            coros = [
+                asyncio.to_thread(
+                    self._wra(client).v1_workflow_run_list,
+                    tenant=self.client_config.tenant_id,
+                    since=s,
+                    until=u,
+                    only_tasks=only_tasks,
+                    offset=offset,
+                    limit=limit,
+                    statuses=statuses,
+                    additional_metadata=maybe_additional_metadata_to_kv(
+                        additional_metadata
+                    ),
+                    workflow_ids=workflow_ids,
+                    worker_id=worker_id,
+                    parent_task_external_id=parent_task_external_id,
+                    triggering_event_external_id=triggering_event_external_id,
+                )
+                for s, u in date_ranges
+            ]
+
+            responses = await gather_max_concurrency(
+                *coros,
+                max_concurrency=3,
+            )
+
+            ## Hack for uniqueness
+            run_id_to_run = {
+                run.metadata.id: run for record in responses for run in record.rows
+            }
+
+            return sorted(
+                run_id_to_run.values(),
+                key=lambda x: x.created_at,
+                reverse=True,
+            )
 
     async def aio_list(
         self,
