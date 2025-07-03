@@ -4,6 +4,7 @@ import { Worker } from '@/lib/api';
 import { Link } from 'react-router-dom';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { SdkInfo } from './sdk-info';
+import { WorkerStatusBadge } from '@/next/pages/authenticated/dashboard/workers/components';
 
 export const columns: (tenantId: string) => ColumnDef<Worker>[] = (
   tenantId,
@@ -15,9 +16,7 @@ export const columns: (tenantId: string) => ColumnDef<Worker>[] = (
     ),
     cell: ({ row }) => (
       <Link to={`/tenants/${tenantId}/workers/${row.original.metadata.id}`}>
-        <div className="cursor-pointer hover:underline min-w-fit whitespace-nowrap">
-          {row.original.status}
-        </div>
+        <WorkerStatusBadge status={row.original.status} />
       </Link>
     ),
     enableSorting: false,
@@ -45,7 +44,7 @@ export const columns: (tenantId: string) => ColumnDef<Worker>[] = (
     ),
     cell: ({ row }) => (
       <div className="cursor-pointer hover:underline min-w-fit whitespace-nowrap">
-        {row.original.type}
+        {row.original.type.toLocaleLowerCase()}
       </div>
     ),
     enableSorting: false,

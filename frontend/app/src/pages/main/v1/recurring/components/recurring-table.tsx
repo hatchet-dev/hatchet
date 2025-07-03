@@ -25,10 +25,12 @@ import {
   ToolbarType,
 } from '@/components/v1/molecules/data-table/data-table-toolbar';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
+import { TriggerWorkflowForm } from '../../workflows/$workflow/components/trigger-workflow-form';
 
 export function CronsTable() {
   const { tenantId } = useCurrentTenantId();
   const [searchParams, setSearchParams] = useSearchParams();
+  const [triggerWorkflow, setTriggerWorkflow] = useState(false);
 
   const [sorting, setSorting] = useState<SortingState>(() => {
     const sortParam = searchParams.get('sort');
@@ -182,6 +184,13 @@ export function CronsTable() {
 
   const actions = [
     <Button
+      key="create-cron"
+      onClick={() => setTriggerWorkflow(true)}
+      className="h-8 border"
+    >
+      Create Cron Job
+    </Button>,
+    <Button
       key="refresh"
       className="h-8 px-2 lg:px-3"
       size="sm"
@@ -204,6 +213,13 @@ export function CronsTable() {
           onSuccess={handleConfirmDelete}
         />
       )}
+      <TriggerWorkflowForm
+        defaultTimingOption="cron"
+        defaultWorkflow={undefined}
+        show={triggerWorkflow}
+        onClose={() => setTriggerWorkflow(false)}
+      />
+
       <DataTable
         error={queryError}
         isLoading={queryIsLoading}

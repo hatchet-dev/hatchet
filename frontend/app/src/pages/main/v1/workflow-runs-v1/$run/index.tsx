@@ -170,11 +170,7 @@ export default function Run() {
 }
 
 function ExpandedTaskRun({ id }: { id: string }) {
-  return (
-    <div className="px-8">
-      <TaskRunDetail taskRunId={id} defaultOpenTab={TabOption.Output} />
-    </div>
-  );
+  return <TaskRunDetail taskRunId={id} defaultOpenTab={TabOption.Output} />;
 }
 
 function ExpandedWorkflowRun({ id }: { id: string }) {

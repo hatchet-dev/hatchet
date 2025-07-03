@@ -1,5 +1,4 @@
 import { RateLimitRow, columns } from './components/rate-limit-columns';
-import { Separator } from '@/components/v1/ui/separator';
 import { useEffect, useMemo, useState } from 'react';
 import {
   ColumnFiltersState,
@@ -19,17 +18,7 @@ import { DataTable } from '@/components/v1/molecules/data-table/data-table';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 
 export default function RateLimits() {
-  return (
-    <div className="flex-grow h-full w-full">
-      <div className="mx-auto py-8 px-4 sm:px-6 lg:px-8">
-        <h2 className="text-2xl font-bold leading-tight text-foreground">
-          Rate Limits
-        </h2>
-        <Separator className="my-4" />
-        <RateLimitsTable />
-      </div>
-    </div>
-  );
+  return <RateLimitsTable />;
 }
 
 function RateLimitsTable() {

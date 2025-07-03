@@ -198,12 +198,16 @@ export function DataTable<TData extends IDGetter<TData>, TValue>({
 
   const getTable = () => (
     <Table>
-      <TableHeader>
+      <TableHeader className="sticky top-0 z-10 bg-background">
         {table.getHeaderGroups().map((headerGroup) => (
           <TableRow key={headerGroup.id}>
             {headerGroup.headers.map((header) => {
               return (
-                <TableHead key={header.id} colSpan={header.colSpan}>
+                <TableHead
+                  key={header.id}
+                  colSpan={header.colSpan}
+                  className="bg-background border-b"
+                >
                   {header.isPlaceholder
                     ? null
                     : flexRender(
@@ -263,7 +267,7 @@ export function DataTable<TData extends IDGetter<TData>, TValue>({
   );
 
   return (
-    <div className="space-y-4">
+    <div className="flex flex-col max-h-full space-y-4">
       {(setSearch || actions || (filters && filters.length > 0)) && (
         <DataTableToolbar
           table={table}
@@ -276,7 +280,9 @@ export function DataTable<TData extends IDGetter<TData>, TValue>({
           onReset={onToolbarReset}
         />
       )}
-      <div className={`rounded-md ${!card && 'border'}`}>
+      <div
+        className={`flex-1 min-h-0 rounded-md ${!card && 'border'} ${!card && 'overflow-auto'}`}
+      >
         {!card ? getTable() : getCards()}
       </div>
       {pagination && (
