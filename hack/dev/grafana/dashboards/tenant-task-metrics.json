@@ -293,6 +293,30 @@
           "interval": "",
           "legendFormat": "",
           "refId": "D"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "hatchet_tenant_reassigned_tasks{tenant_id=\"707d0855-80ab-4e1f-a156-f1c4546cbf52\"} or on() vector(0)",
+          "format": "table",
+          "instant": true,
+          "interval": "",
+          "legendFormat": "",
+          "refId": "E"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "hatchet_tenant_failed_tasks{tenant_id=\"707d0855-80ab-4e1f-a156-f1c4546cbf52\"} or on() vector(0)",
+          "format": "table",
+          "instant": true,
+          "interval": "",
+          "legendFormat": "",
+          "refId": "F"
         }
       ],
       "title": "Task Counters Summary",
@@ -424,6 +448,16 @@
           "interval": "",
           "legendFormat": "Rate Limited",
           "refId": "C"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "rate(hatchet_tenant_reassigned_tasks{tenant_id=\"707d0855-80ab-4e1f-a156-f1c4546cbf52\"}[5m])",
+          "interval": "",
+          "legendFormat": "Reassigned",
+          "refId": "D"
         }
       ],
       "title": "Task Scheduling Metrics",
@@ -519,6 +553,132 @@
         }
       ],
       "title": "Cancelled Tasks",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 16
+      },
+      "id": 5,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "hatchet_tenant_reassigned_tasks{tenant_id=\"707d0855-80ab-4e1f-a156-f1c4546cbf52\"} or on() vector(0)",
+          "interval": "",
+          "legendFormat": "Reassigned Tasks",
+          "refId": "A"
+        }
+      ],
+      "title": "Reassigned Tasks Total",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 16
+      },
+      "id": 6,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "hatchet_tenant_failed_tasks{tenant_id=\"707d0855-80ab-4e1f-a156-f1c4546cbf52\"} or on() vector(0)",
+          "interval": "",
+          "legendFormat": "Failed Tasks",
+          "refId": "A"
+        }
+      ],
+      "title": "Failed Tasks Total",
       "type": "stat"
     }
   ],
