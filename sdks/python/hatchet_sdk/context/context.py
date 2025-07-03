@@ -4,8 +4,6 @@ from datetime import timedelta
 from typing import TYPE_CHECKING, Any, cast
 from warnings import warn
 
-from sdks.python.hatchet_sdk.conditions import SleepCondition, UserEventCondition
-
 from hatchet_sdk.clients.admin import AdminClient
 from hatchet_sdk.clients.dispatcher.dispatcher import (  # type: ignore[attr-defined]
     Action,
@@ -16,6 +14,7 @@ from hatchet_sdk.clients.listeners.durable_event_listener import (
     DurableEventListener,
     RegisterDurableEventRequest,
 )
+from hatchet_sdk.conditions import SleepCondition, UserEventCondition
 from hatchet_sdk.context.worker_context import WorkerContext
 from hatchet_sdk.features.runs import RunsClient
 from hatchet_sdk.logger import logger

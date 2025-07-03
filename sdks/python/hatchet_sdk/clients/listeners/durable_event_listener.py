@@ -5,10 +5,10 @@ from typing import Any, Literal, cast
 import grpc
 import grpc.aio
 from pydantic import BaseModel, ConfigDict
-from sdks.python.hatchet_sdk.conditions import SleepCondition, UserEventCondition
 
 from hatchet_sdk.clients.listeners.pooled_listener import PooledListener
 from hatchet_sdk.clients.rest.tenacity_utils import tenacity_retry
+from hatchet_sdk.conditions import SleepCondition, UserEventCondition
 from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.connection import new_conn
 from hatchet_sdk.contracts.v1.dispatcher_pb2 import (

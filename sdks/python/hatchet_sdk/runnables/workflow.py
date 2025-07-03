@@ -6,7 +6,6 @@ from typing import TYPE_CHECKING, Any, Generic, TypeVar, cast, get_type_hints
 
 from google.protobuf import timestamp_pb2
 from pydantic import BaseModel, model_validator
-from sdks.python.hatchet_sdk.conditions import Condition, OrGroup
 
 from hatchet_sdk.clients.admin import (
     ScheduleTriggerWorkflowOptions,
@@ -18,6 +17,7 @@ from hatchet_sdk.clients.rest.models.cron_workflows import CronWorkflows
 from hatchet_sdk.clients.rest.models.v1_filter import V1Filter
 from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
 from hatchet_sdk.clients.rest.models.v1_task_summary import V1TaskSummary
+from hatchet_sdk.conditions import Condition, OrGroup
 from hatchet_sdk.context.context import Context, DurableContext
 from hatchet_sdk.contracts.v1.workflows_pb2 import (
     CreateWorkflowVersionRequest,

@@ -1,6 +1,6 @@
 import time
 
-from examples.waits.worker import hatchet, task_condition_workflow
+from examples.conditions.worker import hatchet, task_condition_workflow
 
 task_condition_workflow.run_no_wait()
 
