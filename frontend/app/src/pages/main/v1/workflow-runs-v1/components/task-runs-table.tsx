@@ -157,13 +157,22 @@ export function TaskRunsTable({
     enabled: !!derivedParentTaskExternalId,
   });
 
-  const v1TaskFilters = {
-    since: cf.filters.createdAfter,
-    until: cf.filters.finishedBefore,
-    statuses: cf.filters.status ? [cf.filters.status] : undefined,
-    workflowIds: workflow ? [workflow] : undefined,
-    additionalMetadata: cf.filters.additionalMetadata,
-  };
+  const v1TaskFilters = useMemo(
+    () => ({
+      since: cf.filters.createdAfter,
+      until: cf.filters.finishedBefore,
+      statuses: cf.filters.status ? [cf.filters.status] : undefined,
+      workflowIds: workflow ? [workflow] : undefined,
+      additionalMetadata: cf.filters.additionalMetadata,
+    }),
+    [
+      cf.filters.createdAfter,
+      cf.filters.finishedBefore,
+      cf.filters.status,
+      workflow,
+      cf.filters.additionalMetadata,
+    ],
+  );
 
   const hasRowsSelected = Object.values(rowSelection).some(
     (selected) => !!selected,
