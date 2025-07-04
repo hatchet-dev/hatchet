@@ -504,6 +504,8 @@ func (r *OLAPRepositoryImpl) ReadTaskRunData(ctx context.Context, tenantId pgtyp
 		if err != nil {
 			return nil, emptyUUID, err
 		}
+	} else {
+		workflowRunId = taskRun.ExternalID
 	}
 
 	return taskRun, workflowRunId, nil

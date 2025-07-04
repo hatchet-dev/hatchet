@@ -111,6 +111,10 @@ V1TaskSummary:
       description: The version ID of the workflow
     workflowConfig:
       type: object
+    parentTaskExternalId:
+      type: string
+      description: The external ID of the parent task.
+      format: uuid
   required:
     - metadata
     - createdAt

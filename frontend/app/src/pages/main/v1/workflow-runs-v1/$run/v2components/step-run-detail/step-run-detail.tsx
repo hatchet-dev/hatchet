@@ -10,6 +10,7 @@ import {
   TabsList,
   TabsTrigger,
 } from '@/components/v1/ui/tabs';
+import { Sheet, SheetContent } from '@/components/v1/ui/sheet';
 import { StepRunEvents } from '../step-run-events-for-workflow-run';
 import { Link } from 'react-router-dom';
 import { TaskRunsTable } from '../../../components/task-runs-table';
@@ -26,6 +27,7 @@ import { isTerminalState } from '../../../hooks/workflow-details';
 import { CopyWorkflowConfigButton } from '@/components/v1/shared/copy-workflow-config';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { Waterfall } from '../waterfall';
+import { useState, useCallback } from 'react';
 
 export enum TabOption {
   Output = 'output',
@@ -67,7 +69,8 @@ const TaskRunPermalinkOrBacklink = ({
     );
   } else if (
     taskRun.workflowRunExternalId &&
-    taskRun.workflowRunExternalId !== emptyGolangUUID
+    taskRun.workflowRunExternalId !== emptyGolangUUID &&
+    taskRun.workflowRunExternalId !== taskRun.metadata.id
   ) {
     return (
       <Link to={`/tenants/${tenantId}/runs/${taskRun.workflowRunExternalId}`}>
@@ -87,6 +90,13 @@ export const TaskRunDetail = ({
   defaultOpenTab = TabOption.Output,
   showViewTaskRunButton,
 }: TaskRunDetailProps) => {
+  const [selectedTaskRunId, setSelectedTaskRunId] = useState<string>();
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
+  const handleTaskRunExpand = useCallback((taskRunId: string) => {
+    setSelectedTaskRunId(taskRunId);
+    setIsSidebarOpen(true);
+  }, []);
   const taskRunQuery = useQuery({
     ...queries.v1Tasks.get(taskRunId),
     refetchInterval: (query) => {
@@ -123,6 +133,12 @@ export const TaskRunDetail = ({
         </div>
       </div>
 
+      {taskRun.parentTaskExternalId && (
+        <TriggeringParentWorkflowRunSection
+          tenantId={taskRun.tenantId}
+          parentTaskExternalId={taskRun.parentTaskExternalId}
+        />
+      )}
       <div className="flex flex-row gap-2 items-center">
         <TaskRunActionButton
           actionType="replay"
@@ -146,70 +162,72 @@ export const TaskRunDetail = ({
       <div className="flex flex-row gap-2 items-center">
         <V1StepRunSummary taskRunId={taskRunId} />
       </div>
-      <div className="w-full h-36 flex relative bg-slate-100 dark:bg-slate-900">
-        <TaskRunMiniMap onClick={() => {}} taskRunId={taskRunId} />
-      </div>
-      <Tabs defaultValue={defaultOpenTab}>
-        <TabsList layout="underlined">
-          <TabsTrigger variant="underlined" value={TabOption.Output}>
-            Output
+      <Tabs defaultValue="overview" className="flex flex-col h-full">
+        <TabsList layout="underlined" className="mb-4">
+          <TabsTrigger variant="underlined" value="overview">
+            Overview
           </TabsTrigger>
-          {taskRun.numSpawnedChildren > 0 && (
-            <TabsTrigger
-              variant="underlined"
-              value={TabOption.ChildWorkflowRuns}
-            >
-              Children ({taskRun.numSpawnedChildren})
-            </TabsTrigger>
-          )}
-          <TabsTrigger variant="underlined" value={TabOption.Input}>
-            Input
-          </TabsTrigger>
-          <TabsTrigger variant="underlined" value={TabOption.Logs}>
-            Logs
-          </TabsTrigger>
-          <TabsTrigger variant="underlined" value={TabOption.Waterfall}>
+          <TabsTrigger variant="underlined" value="waterfall">
             Waterfall
           </TabsTrigger>
         </TabsList>
-        <TabsContent value={TabOption.Output}>
-          <V1StepRunOutput taskRunId={taskRunId} />
+        <TabsContent value="overview" className="flex-1 min-h-0">
+          <div className="w-full h-36 flex relative bg-slate-100 dark:bg-slate-900">
+            <TaskRunMiniMap onClick={() => {}} taskRunId={taskRunId} />
+          </div>
+          <div className="h-4" />
+          <Tabs defaultValue={defaultOpenTab}>
+            <TabsList layout="underlined">
+              <TabsTrigger variant="underlined" value={TabOption.Output}>
+                Output
+              </TabsTrigger>
+              {taskRun.numSpawnedChildren > 0 && (
+                <TabsTrigger
+                  variant="underlined"
+                  value={TabOption.ChildWorkflowRuns}
+                >
+                  Children ({taskRun.numSpawnedChildren})
+                </TabsTrigger>
+              )}
+              <TabsTrigger variant="underlined" value={TabOption.Input}>
+                Input
+              </TabsTrigger>
+              <TabsTrigger variant="underlined" value={TabOption.Logs}>
+                Logs
+              </TabsTrigger>
+            </TabsList>
+            <TabsContent value={TabOption.Output}>
+              <V1StepRunOutput taskRunId={taskRunId} />
+            </TabsContent>
+            <TabsContent value={TabOption.ChildWorkflowRuns} className="mt-4">
+              <TaskRunsTable
+                parentTaskExternalId={taskRunId}
+                showCounts={false}
+                showMetrics={false}
+                disableTaskRunPagination={true}
+              />
+            </TabsContent>
+            <TabsContent value={TabOption.Input}>
+              {taskRun.input && (
+                <CodeHighlighter
+                  className="my-4 h-[400px] max-h-[400px] overflow-y-auto"
+                  maxHeight="400px"
+                  minHeight="400px"
+                  language="json"
+                  code={JSON.stringify(taskRun.input, null, 2)}
+                />
+              )}
+            </TabsContent>
+            <TabsContent value={TabOption.Logs}>
+              <StepRunLogs taskRun={taskRun} />
+            </TabsContent>
+          </Tabs>
         </TabsContent>
-        <TabsContent value={TabOption.ChildWorkflowRuns} className="mt-4">
-          <TaskRunsTable
-            parentTaskExternalId={taskRunId}
-            showCounts={false}
-            showMetrics={false}
-            disableTaskRunPagination={true}
-          />
-        </TabsContent>
-        <TabsContent value={TabOption.Input}>
-          {taskRun.input && (
-            <CodeHighlighter
-              className="my-4 h-[400px] max-h-[400px] overflow-y-auto"
-              maxHeight="400px"
-              minHeight="400px"
-              language="json"
-              code={JSON.stringify(taskRun.input, null, 2)}
-            />
-          )}
-        </TabsContent>
-        <TabsContent value={TabOption.Logs}>
-          {/* TODO Add this back */}
-          {/* <StepRunLogs
-            stepRun={stepRun}
-            readableId={step?.readableId || 'step'}
-          /> */}
-        </TabsContent>
-
-        <TabsContent value="logs">
-          <StepRunLogs taskRun={taskRun} />
-        </TabsContent>
-        <TabsContent value={TabOption.Waterfall} className="flex-1 min-h-0">
+        <TabsContent value="waterfall" className="flex-1 min-h-0">
           <Waterfall
             workflowRunId={taskRunId}
-            selectedTaskId={undefined}
-            handleTaskSelect={undefined}
+            selectedTaskId={selectedTaskRunId}
+            handleTaskSelect={handleTaskRunExpand}
           />
         </TabsContent>
       </Tabs>
@@ -225,6 +243,20 @@ export const TaskRunDetail = ({
           fallbackTaskDisplayName={taskRun.displayName}
         />
       </div>
+      <Sheet
+        open={isSidebarOpen}
+        onOpenChange={(open) => setIsSidebarOpen(open)}
+      >
+        <SheetContent className="w-fit min-w-[56rem] max-w-4xl sm:max-w-2xl z-[60] h-full overflow-auto">
+          {selectedTaskRunId && (
+            <TaskRunDetail
+              taskRunId={selectedTaskRunId}
+              defaultOpenTab={TabOption.Output}
+              showViewTaskRunButton
+            />
+          )}
+        </SheetContent>
+      </Sheet>
     </div>
   );
 };
@@ -295,3 +327,46 @@ const V1StepRunSummary = ({ taskRunId }: { taskRunId: string }) => {
     <div className="flex flex-row gap-4 items-center">{interleavedTimings}</div>
   );
 };
+
+function TriggeringParentWorkflowRunSection({
+  tenantId,
+  parentTaskExternalId,
+}: {
+  tenantId: string;
+  parentTaskExternalId: string;
+}) {
+  // Get the parent task to find the parent workflow run
+  const parentTaskQuery = useQuery({
+    ...queries.v1Tasks.get(parentTaskExternalId),
+  });
+
+  const parentTask = parentTaskQuery.data;
+  const parentWorkflowRunId = parentTask?.workflowRunExternalId;
+
+  const taskRunQuery = useQuery({
+    ...queries.v1Tasks.get(parentTaskExternalId),
+  });
+
+  // Show nothing while loading or if no data
+  if (parentTaskQuery.isLoading || !parentTask || !parentWorkflowRunId) {
+    return null;
+  }
+
+  if (taskRunQuery.isLoading || !taskRunQuery.data) {
+    return null;
+  }
+
+  const parentWorkflowRun = taskRunQuery.data;
+
+  return (
+    <div className="text-sm text-gray-700 dark:text-gray-300 flex flex-row gap-1">
+      Triggered by
+      <Link
+        to={`/tenants/${tenantId}/runs/${parentWorkflowRun.workflowRunExternalId}`}
+        className="font-semibold hover:underline text-indigo-500 dark:text-indigo-200"
+      >
+        {parentWorkflowRun.displayName} ➶
+      </Link>
+    </div>
+  );
+}

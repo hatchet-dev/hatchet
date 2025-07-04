@@ -9,20 +9,12 @@ import {
   ResponsiveContainer,
   Cell,
 } from 'recharts';
-import {
-  ArrowDownFromLine,
-  ChevronDown,
-  ChevronRight,
-  Loader,
-} from 'lucide-react';
+import { CirclePlus, CircleMinus, Loader } from 'lucide-react';
 
 import { ChartContainer, ChartTooltipContent } from '@/components/v1/ui/chart';
 import { V1TaskStatus, V1TaskTiming, queries } from '@/lib/api';
-import { Link } from 'react-router-dom';
 import { Button } from '@/components/v1/ui/button';
-import { BsArrowUpLeftCircle } from 'react-icons/bs';
 import { Skeleton } from '@/components/v1/ui/skeleton';
-import { useCurrentTenantId } from '@/hooks/use-tenant';
 import {
   TooltipProvider,
   Tooltip as BaseTooltip,
@@ -30,6 +22,55 @@ import {
   TooltipTrigger,
 } from '@/components/v1/ui/tooltip';
 import { useQuery } from '@tanstack/react-query';
+
+// Helper function to sort tasks in preorder traversal
+function sortTasksPreorder(
+  tasks: ProcessedTaskData[],
+  taskParentMap: Map<string, string[]>,
+  rootTasks: string[],
+): ProcessedTaskData[] {
+  const result: ProcessedTaskData[] = [];
+  const taskMap = new Map<string, ProcessedTaskData>();
+
+  // Create a map for quick lookup
+  tasks.forEach((task) => {
+    taskMap.set(task.id, task);
+  });
+
+  // Recursive function to add tasks in preorder
+  function addTasksPreorder(taskId: string) {
+    const task = taskMap.get(taskId);
+    if (task) {
+      result.push(task);
+
+      // Add children in order
+      const children = taskParentMap.get(taskId) || [];
+      // Sort children by their taskId for consistent ordering
+      const sortedChildren = children
+        .map((childId) => ({ childId, task: taskMap.get(childId) }))
+        .filter(({ task }) => task !== undefined)
+        .sort((a, b) => (a.task!.taskId || 0) - (b.task!.taskId || 0))
+        .map(({ childId }) => childId);
+
+      sortedChildren.forEach((childId) => {
+        addTasksPreorder(childId);
+      });
+    }
+  }
+
+  // Start with root tasks, sorted by taskId
+  const sortedRootTasks = rootTasks
+    .map((rootId) => ({ rootId, task: taskMap.get(rootId) }))
+    .filter(({ task }) => task !== undefined)
+    .sort((a, b) => (a.task!.taskId || 0) - (b.task!.taskId || 0))
+    .map(({ rootId }) => rootId);
+
+  sortedRootTasks.forEach((rootId) => {
+    addTasksPreorder(rootId);
+  });
+
+  return result;
+}
 
 // Status color configuration compatible with v1
 const StatusColors: Record<V1TaskStatus, string> = {
@@ -119,8 +160,6 @@ export function Waterfall({
   const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set());
   const [autoExpandedInitially, setAutoExpandedInitially] = useState(false);
   const [depth, setDepth] = useState(2);
-
-  const { tenantId } = useCurrentTenantId();
 
   // Use v1 style queries instead of _next hooks
   const taskTimingsQuery = useQuery({
@@ -292,7 +331,8 @@ export function Waterfall({
       rootTasks = [],
     } = taskRelationships;
 
-    if (!autoExpandedInitially && taskData) {
+    // Auto-expand root tasks with children on initial load
+    if (!autoExpandedInitially && taskData && rootTasks.length > 0) {
       const rootTasksWithChildren = rootTasks.filter((id) =>
         taskHasChildrenMap.get(id),
       );
@@ -305,7 +345,9 @@ export function Waterfall({
           });
           setExpandedTasks(newExpandedTasks);
           setAutoExpandedInitially(true);
-        }, 0);
+        }, 100);
+      } else {
+        setAutoExpandedInitially(true);
       }
     }
 
@@ -344,8 +386,6 @@ export function Waterfall({
       return acc;
     }, Number.MAX_SAFE_INTEGER);
 
-    console.log('🔍 Waterfall Debug - globalMinTime:', new Date(globalMinTime).toISOString());
-
     const data = [...visibleTasks]
       .map((id) => {
         const task = taskMap.get(id);
@@ -372,28 +412,11 @@ export function Waterfall({
               : startedAt;
 
         const offset = Math.max(0, (queuedAt - globalMinTime) / 1000);
-        const queuedDuration = Math.max(0, (startedAt - queuedAt) / 1000);
-        const ranDuration = Math.max(0, (finishedAt - startedAt) / 1000);
-        const totalDuration = offset + queuedDuration + ranDuration;
+        const startedOffset = Math.max(0, (startedAt - globalMinTime) / 1000);
+        const finishedOffset = Math.max(0, (finishedAt - globalMinTime) / 1000);
 
-        console.log(`🔍 Task: ${task.taskDisplayName}`, {
-          depth: task.depth,
-          queuedAt: task.queuedAt,
-          startedAt: task.startedAt,
-          finishedAt: task.finishedAt,
-          calculatedTimes: {
-            queuedAtMs: queuedAt,
-            startedAtMs: startedAt,
-            finishedAtMs: finishedAt,
-          },
-          durations: {
-            offset: offset,
-            queuedDuration: queuedDuration,
-            ranDuration: ranDuration,
-            total: totalDuration,
-          },
-          finishTimeFromStart: (finishedAt - globalMinTime) / 1000,
-        });
+        const queuedDuration = Math.max(0, startedOffset - offset);
+        const ranDuration = Math.max(0, finishedOffset - startedOffset);
 
         return {
           id: task.metadata.id,
@@ -412,31 +435,19 @@ export function Waterfall({
           attempt: task.attempt || 1,
         };
       })
-      .filter((task): task is NonNullable<typeof task> => task !== null)
-      .sort((a, b) => {
-        if (a.depth !== b.depth) {
-          return a.depth - b.depth;
-        }
+      .filter((task): task is NonNullable<typeof task> => task !== null);
 
-        return a.taskId - b.taskId;
-      });
+    // Sort tasks in preorder traversal to maintain hierarchical structure
+    const sortedData = sortTasksPreorder(data, taskParentMap, rootTasks);
 
-    console.log('🔍 Final waterfall data for chart:', data.map(d => ({
-      taskDisplayName: d.taskDisplayName,
-      depth: d.depth,
-      offset: d.offset,
-      queuedDuration: d.queuedDuration,
-      ranDuration: d.ranDuration,
-      totalFromStart: d.offset + d.queuedDuration + d.ranDuration,
-    })));
-
-    return { data, taskPathMap: new Map() };
+    return { data: sortedData, taskPathMap: new Map() };
   }, [taskData, expandedTasks, autoExpandedInitially, taskRelationships]);
 
   const handleBarClick = useCallback(
     (data: any) => {
       if (data?.id) {
-        if (handleTaskSelect) {
+        // Don't open the sheet if clicking on the current task run
+        if (data.id !== workflowRunId && handleTaskSelect) {
           handleTaskSelect(data.id, data.workflowRunId);
         }
 
@@ -445,7 +456,7 @@ export function Waterfall({
         }
       }
     },
-    [handleTaskSelect, openTask],
+    [handleTaskSelect, openTask, workflowRunId],
   );
 
   const renderTick = useCallback(
@@ -462,18 +473,10 @@ export function Waterfall({
           handleBarClick={handleBarClick}
           toggleTask={toggleTask}
           processedData={processedData}
-          tenantId={tenantId}
         />
       );
     },
-    [
-      workflowRunId,
-      selectedTaskId,
-      handleBarClick,
-      toggleTask,
-      processedData,
-      tenantId,
-    ],
+    [workflowRunId, selectedTaskId, handleBarClick, toggleTask, processedData],
   );
 
   if (
@@ -574,7 +577,6 @@ export function Waterfall({
               stackId="a"
               fill="transparent"
               maxBarSize={BAR_SIZE}
-              className="cursor-pointer"
             />
             <Bar
               dataKey="queuedDuration"
@@ -582,7 +584,6 @@ export function Waterfall({
               stackId="a"
               fill={chartConfig.queued.color}
               maxBarSize={BAR_SIZE}
-              className="cursor-pointer"
             />
             <Bar
               dataKey="ranDuration"
@@ -590,7 +591,6 @@ export function Waterfall({
               stackId="a"
               fill={chartConfig.runFor.color}
               maxBarSize={BAR_SIZE}
-              className="cursor-pointer"
             >
               {processedData.data.map((entry, index) => {
                 const color = StatusColors[entry.status];
@@ -613,7 +613,6 @@ const Tick = ({
   handleBarClick,
   toggleTask,
   processedData,
-  tenantId,
 }: {
   x: number;
   y: number;
@@ -623,7 +622,6 @@ const Tick = ({
   handleBarClick: (task: ProcessedTaskData) => void;
   toggleTask: (taskId: string, hasChildren: boolean, taskDepth: number) => void;
   processedData: ProcessedData;
-  tenantId: string;
 }) => {
   const task = processedData.data.find(
     (t) => t.taskDisplayName === payload.value,
@@ -632,84 +630,51 @@ const Tick = ({
     return <g transform={`translate(${x},${y})`}></g>;
   }
 
-  const indentation = task.depth * 12;
-
   return (
     <g transform={`translate(${x},${y})`}>
-      <foreignObject x={-180} y={-10} width={180} height={20}>
+      <foreignObject x={-160} y={-10} width={180} height={20}>
         <div
-          className={`group flex flex-row items-center pl-[${indentation}px] size-full`}
+          className={`group flex flex-row items-center pl-${task.depth * 2} size-full`}
         >
           <div
-            data-haschildren={task.hasChildren}
-            className="data-[haschildren=true]:cursor-info flex flex-row items-center justify-between size-[20px] h-[20px] mr-[4px]"
-            onClick={() =>
-              task.hasChildren &&
-              toggleTask(task.id, task.hasChildren, task.depth)
-            }
-          >
-            {task.hasChildren ? (
-              task.isExpanded ? (
-                <ChevronDown size={14} />
-              ) : (
-                <ChevronRight size={14} />
-              )
-            ) : null}
-          </div>
-
-          <div
-            className="cursor-pointer flex flex-row justify-between w-full grow text-left text-xs overflow-auto text-ellipsis whitespace-nowrap gap-2 items-center"
+            className={`${task.id === workflowRunId ? 'cursor-default' : 'cursor-pointer'} flex flex-row justify-between w-full grow text-left text-xs gap-2 items-center min-w-0`}
             onClick={() => handleBarClick(task)}
           >
             <span
-              className={`text-xs ${task.id === selectedTaskId ? 'underline' : ''}`}
+              className={`text-xs ${task.id === selectedTaskId ? 'underline' : ''} truncate max-w-[${180 - task.depth * 12}px]`}
+              title={task.taskDisplayName}
               onClick={() => handleBarClick(task)}
             >
               {task.taskDisplayName}
             </span>
           </div>
-          {workflowRunId === task.workflowRunId &&
-          task.taskExternalId === workflowRunId &&
-          task.parentId ? (
-            <Link
-              to={`/tenants/${tenantId}/runs/${task.parentId}`}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <TooltipProvider>
-                <BaseTooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="link"
-                      size="icon"
-                      className="group-hover:opacity-100 opacity-0 transition-opacity duration-200"
-                    >
-                      <BsArrowUpLeftCircle className="w-4 h-4 transform" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>Zoom out to parent task</TooltipContent>
-                </BaseTooltip>
-              </TooltipProvider>
-            </Link>
-          ) : null}
           {task.hasChildren ? (
-            <Link
-              to={`/tenants/${tenantId}/runs/${task.workflowRunId || task.id}`}
-            >
-              <TooltipProvider>
-                <BaseTooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="link"
-                      size="icon"
-                      className="group-hover:opacity-100 opacity-0 transition-opacity duration-200"
-                    >
-                      <ArrowDownFromLine className="w-4 h-4" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>Drill into child task</TooltipContent>
-                </BaseTooltip>
-              </TooltipProvider>
-            </Link>
+            <TooltipProvider>
+              <BaseTooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="link"
+                    size="icon"
+                    className="group-hover:opacity-100 opacity-0 transition-opacity duration-200"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (task.hasChildren) {
+                        toggleTask(task.id, task.hasChildren, task.depth);
+                      }
+                    }}
+                  >
+                    {task.isExpanded ? (
+                      <CircleMinus className="w-3 h-3" />
+                    ) : (
+                      <CirclePlus className="w-3 h-3" />
+                    )}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {task.isExpanded ? 'Collapse children' : 'Expand children'}
+                </TooltipContent>
+              </BaseTooltip>
+            </TooltipProvider>
           ) : null}
           {task.queuedDuration === null && (
             <TooltipProvider>

@@ -365,6 +365,11 @@ export interface V1TaskSummary {
    */
   workflowVersionId?: string;
   workflowConfig?: object;
+  /**
+   * The external ID of the parent task.
+   * @format uuid
+   */
+  parentTaskExternalId?: string;
 }
 
 export interface APIError {
