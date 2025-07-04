@@ -1448,6 +1448,9 @@ type V1TaskSummary struct {
 	// Output The output of the task run (for the latest run)
 	Output openapi.NonNullableJSON `json:"output"`
 
+	// ParentTaskExternalId The external ID of the parent task.
+	ParentTaskExternalId *openapi_types.UUID `json:"parentTaskExternalId,omitempty"`
+
 	// RetryCount The number of retries of the task.
 	RetryCount *int `json:"retryCount,omitempty"`
 

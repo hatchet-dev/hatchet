@@ -1,4 +1,4 @@
-import { V1TaskStatus, WorkflowRunStatus } from '@/lib/api';
+import { V1TaskStatus, WorkflowRunStatus, queries } from '@/lib/api';
 import { AdjustmentsHorizontalIcon } from '@heroicons/react/24/outline';
 import {
   Breadcrumb,
@@ -16,6 +16,8 @@ import { TASK_RUN_TERMINAL_STATUSES } from './step-run-detail/step-run-detail';
 import { WorkflowDefinitionLink } from '@/pages/main/workflow-runs/$run/v2components/workflow-definition';
 import { CopyWorkflowConfigButton } from '@/components/v1/shared/copy-workflow-config';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
+import { Link } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 
 export const WORKFLOW_RUN_TERMINAL_STATUSES = [
   WorkflowRunStatus.CANCELLED,
@@ -84,12 +86,12 @@ export const V1RunDetailHeader = () => {
           </div>
         </div>
       </div>
-      {/* {data.triggeredBy?.parentWorkflowRunId && (
+      {workflowRun.parentTaskExternalId && (
         <TriggeringParentWorkflowRunSection
-          tenantId={data.tenantId}
-          parentWorkflowRunId={data.triggeredBy.parentWorkflowRunId}
+          tenantId={tenantId}
+          parentTaskExternalId={workflowRun.parentTaskExternalId}
         />
-      )} */}
+      )}
       {/* {data.triggeredBy?.eventId && (
         <TriggeringEventSection eventId={data.triggeredBy.eventId} />
       )} */}
@@ -187,3 +189,48 @@ export const V1RunSummary = () => {
     <div className="flex flex-row gap-4 items-center">{interleavedTimings}</div>
   );
 };
+
+function TriggeringParentWorkflowRunSection({
+  tenantId,
+  parentTaskExternalId,
+}: {
+  tenantId: string;
+  parentTaskExternalId: string;
+}) {
+  // Get the parent task to find the parent workflow run
+  const parentTaskQuery = useQuery({
+    ...queries.v1Tasks.get(parentTaskExternalId),
+  });
+
+  const parentTask = parentTaskQuery.data;
+  const parentWorkflowRunId = parentTask?.workflowRunExternalId;
+
+  // Get the parent workflow run details - only enabled when we have a parent workflow run ID
+  const parentWorkflowRunQuery = useQuery({
+    ...queries.v1WorkflowRuns.details(parentWorkflowRunId || ''),
+    enabled: !!parentWorkflowRunId,
+  });
+
+  // Show nothing while loading or if no data
+  if (parentTaskQuery.isLoading || !parentTask || !parentWorkflowRunId) {
+    return null;
+  }
+
+  if (parentWorkflowRunQuery.isLoading || !parentWorkflowRunQuery.data) {
+    return null;
+  }
+
+  const parentWorkflowRun = parentWorkflowRunQuery.data.run;
+
+  return (
+    <div className="text-sm text-gray-700 dark:text-gray-300 flex flex-row gap-1">
+      Triggered by
+      <Link
+        to={`/tenants/${tenantId}/runs/${parentWorkflowRunId}`}
+        className="font-semibold hover:underline text-indigo-500 dark:text-indigo-200"
+      >
+        {parentWorkflowRun.displayName} ➶
+      </Link>
+    </div>
+  );
+}

@@ -33,6 +33,7 @@ import { isTerminalState, useWorkflowDetails } from '../hooks/workflow-details';
 import { useQuery } from '@tanstack/react-query';
 import invariant from 'tiny-invariant';
 import { Spinner } from '@/components/v1/ui/loading';
+import { Waterfall } from './v2components/waterfall';
 
 export const WORKFLOW_RUN_TERMINAL_STATUSES = [
   WorkflowRunStatus.CANCELLED,
@@ -202,40 +203,63 @@ function ExpandedWorkflowRun({ id }: { id: string }) {
             {workflowRun.status}
           </Badge>
         </div>
-        <div className="w-full h-fit flex overflow-auto relative bg-slate-100 dark:bg-slate-900">
-          <GraphView shape={shape} handleTaskRunExpand={handleTaskRunExpand} />
-          <ViewToggle />
-        </div>
         <div className="h-4" />
-        <Tabs defaultValue="activity">
-          <TabsList layout="underlined">
-            <TabsTrigger variant="underlined" value="activity">
-              Activity
+        <Tabs defaultValue="overview" className="flex flex-col h-full">
+          <TabsList layout="underlined" className="mb-4">
+            <TabsTrigger variant="underlined" value="overview">
+              Overview
             </TabsTrigger>
-            <TabsTrigger variant="underlined" value="input">
-              Input
+            <TabsTrigger variant="underlined" value="waterfall">
+              Waterfall
             </TabsTrigger>
-            <TabsTrigger variant="underlined" value="additional-metadata">
-              Additional Metadata
-            </TabsTrigger>
-            {/* <TabsTrigger value="logs">App Logs</TabsTrigger> */}
           </TabsList>
-          <TabsContent value="activity">
+          <TabsContent value="overview" className="flex-1 min-h-0">
+            <div className="w-full h-fit flex overflow-auto relative bg-slate-100 dark:bg-slate-900">
+              <GraphView
+                shape={shape}
+                handleTaskRunExpand={handleTaskRunExpand}
+              />
+              <ViewToggle />
+            </div>
             <div className="h-4" />
-            <StepRunEvents
+            <Tabs defaultValue="activity">
+              <TabsList layout="underlined">
+                <TabsTrigger variant="underlined" value="activity">
+                  Activity
+                </TabsTrigger>
+                <TabsTrigger variant="underlined" value="input">
+                  Input
+                </TabsTrigger>
+                <TabsTrigger variant="underlined" value="additional-metadata">
+                  Additional Metadata
+                </TabsTrigger>
+                {/* <TabsTrigger value="logs">App Logs</TabsTrigger> */}
+              </TabsList>
+              <TabsContent value="activity">
+                <div className="h-4" />
+                <StepRunEvents
+                  workflowRunId={id}
+                  fallbackTaskDisplayName={workflowRun.displayName}
+                  onClick={handleTaskRunExpand}
+                />
+              </TabsContent>
+              <TabsContent value="input">
+                <WorkflowRunInputDialog input={JSON.parse(inputData)} />
+              </TabsContent>
+              <TabsContent value="additional-metadata">
+                <CodeHighlighter
+                  className="my-4"
+                  language="json"
+                  code={JSON.stringify(additionalMetadata, null, 2)}
+                />
+              </TabsContent>
+            </Tabs>
+          </TabsContent>
+          <TabsContent value="waterfall" className="flex-1 min-h-0">
+            <Waterfall
               workflowRunId={id}
-              fallbackTaskDisplayName={workflowRun.displayName}
-              onClick={handleTaskRunExpand}
-            />
-          </TabsContent>
-          <TabsContent value="input">
-            <WorkflowRunInputDialog input={JSON.parse(inputData)} />
-          </TabsContent>
-          <TabsContent value="additional-metadata">
-            <CodeHighlighter
-              className="my-4"
-              language="json"
-              code={JSON.stringify(additionalMetadata, null, 2)}
+              selectedTaskId={selectedTaskRunId}
+              handleTaskSelect={handleTaskRunExpand}
             />
           </TabsContent>
         </Tabs>

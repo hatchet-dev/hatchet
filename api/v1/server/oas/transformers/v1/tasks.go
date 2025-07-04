@@ -280,6 +280,16 @@ func ToTask(taskWithData *sqlcv1.PopulateSingleTaskRunDataRow, workflowRunExtern
 		workflowConfig = jsonToMap(workflowVersion.WorkflowVersion.CreateWorkflowVersionOpts)
 	}
 
+	var parentTaskExternalId *uuid.UUID
+
+	if taskWithData.ParentTaskExternalID.Valid {
+		parentTaskUUID, err := uuid.Parse(sqlchelpers.UUIDToStr(taskWithData.ParentTaskExternalID))
+
+		if err == nil {
+			parentTaskExternalId = &parentTaskUUID
+		}
+	}
+
 	return gen.V1TaskSummary{
 		Metadata: gen.APIResourceMeta{
 			Id:        sqlchelpers.UUIDToStr(taskWithData.ExternalID),
@@ -309,6 +319,7 @@ func ToTask(taskWithData *sqlcv1.PopulateSingleTaskRunDataRow, workflowRunExtern
 		RetryCount:            &retryCount,
 		Attempt:               &attempt,
 		WorkflowConfig:        &workflowConfig,
+		ParentTaskExternalId:  parentTaskExternalId,
 	}
 }
 
