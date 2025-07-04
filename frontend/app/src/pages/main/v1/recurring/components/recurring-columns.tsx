@@ -11,9 +11,13 @@ import { extractCronTz, formatCron } from '@/lib/utils';
 export const columns = ({
   tenantId,
   onDeleteClick,
+  selectedJobId,
+  setSelectedJobId,
 }: {
   tenantId: string;
   onDeleteClick: (row: CronWorkflows) => void;
+  selectedJobId: string | null;
+  setSelectedJobId: (jobId: string | null) => void;
 }): ColumnDef<CronWorkflows>[] => {
   return [
     {
@@ -95,7 +99,17 @@ export const columns = ({
         }
 
         return (
-          <AdditionalMetadata metadata={row.original.additionalMetadata} />
+          <AdditionalMetadata
+            metadata={row.original.additionalMetadata}
+            isOpen={selectedJobId === row.original.metadata.id}
+            onOpenChange={(open) => {
+              if (open) {
+                setSelectedJobId(row.original.metadata.id);
+              } else {
+                setSelectedJobId(null);
+              }
+            }}
+          />
         );
       },
       enableSorting: false,

@@ -190,6 +190,8 @@ export const columns = (): ColumnDef<V1Event>[] => {
                 acc[k] = m[k];
                 return acc;
               }, {})}
+            isOpen={false}
+            onOpenChange={() => {}}
           />
         );
       },

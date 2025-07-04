@@ -53,6 +53,8 @@ export function ScheduledRunsTable({
   const { tenantId } = useCurrentTenantId();
   const [searchParams, setSearchParams] = useSearchParams();
   const [triggerWorkflow, setTriggerWorkflow] = useState(false);
+  const [selectedAdditionalMetaJobId, setSelectedAdditionalMetaJobId] =
+    useState<string | null>(null);
 
   const [sorting, setSorting] = useState<SortingState>(() => {
     const sortParam = searchParams.get('sort');
@@ -191,7 +193,7 @@ export function ScheduledRunsTable({
       additionalMetadata: AdditionalMetadataFilter,
     }),
     placeholderData: (prev) => prev,
-    refetchInterval,
+    refetchInterval: selectedAdditionalMetaJobId ? false : refetchInterval,
   });
 
   const {
@@ -200,6 +202,7 @@ export function ScheduledRunsTable({
     error: workflowKeysError,
   } = useQuery({
     ...queries.workflows.list(tenantId, { limit: 200 }),
+    refetchInterval: selectedAdditionalMetaJobId ? false : refetchInterval,
   });
 
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
@@ -324,6 +327,8 @@ export function ScheduledRunsTable({
           onDeleteClick: (row) => {
             setShowScheduledRunRevoke(row);
           },
+          selectedAdditionalMetaJobId,
+          handleSetSelectedAdditionalMetaJobId: setSelectedAdditionalMetaJobId,
         })}
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}

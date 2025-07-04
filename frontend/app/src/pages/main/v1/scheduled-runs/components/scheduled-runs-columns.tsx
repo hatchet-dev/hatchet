@@ -15,9 +15,13 @@ export type RateLimitRow = RateLimit & {
 export const columns = ({
   tenantId,
   onDeleteClick,
+  selectedAdditionalMetaJobId,
+  handleSetSelectedAdditionalMetaJobId,
 }: {
   tenantId: string;
   onDeleteClick: (row: ScheduledWorkflows) => void;
+  selectedAdditionalMetaJobId: string | null;
+  handleSetSelectedAdditionalMetaJobId: (runId: string | null) => void;
 }): ColumnDef<ScheduledWorkflows>[] => {
   return [
     {
@@ -83,7 +87,17 @@ export const columns = ({
         }
 
         return (
-          <AdditionalMetadata metadata={row.original.additionalMetadata} />
+          <AdditionalMetadata
+            metadata={row.original.additionalMetadata}
+            isOpen={selectedAdditionalMetaJobId === row.original.metadata.id}
+            onOpenChange={(open) => {
+              if (open) {
+                handleSetSelectedAdditionalMetaJobId(row.original.metadata.id);
+              } else {
+                handleSetSelectedAdditionalMetaJobId(null);
+              }
+            }}
+          />
         );
       },
       enableSorting: false,

@@ -31,6 +31,7 @@ export function CronsTable() {
   const { tenantId } = useCurrentTenantId();
   const [searchParams, setSearchParams] = useSearchParams();
   const [triggerWorkflow, setTriggerWorkflow] = useState(false);
+  const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
 
   const [sorting, setSorting] = useState<SortingState>(() => {
     const sortParam = searchParams.get('sort');
@@ -137,7 +138,7 @@ export function CronsTable() {
         (filter) => filter.id === 'Metadata',
       )?.value as string[] | undefined,
     }),
-    refetchInterval: 2000,
+    refetchInterval: selectedJobId ? false : 2000,
   });
 
   const [showDeleteCron, setShowDeleteCron] = useState<
@@ -157,6 +158,7 @@ export function CronsTable() {
 
   const { data: workflowKeys } = useQuery({
     ...queries.workflows.list(tenantId, { limit: 200 }),
+    refetchInterval: selectedJobId ? false : 2000,
   });
 
   const workflowKeyFilters = useMemo((): FilterOption[] => {
@@ -226,6 +228,8 @@ export function CronsTable() {
         columns={columns({
           tenantId,
           onDeleteClick: handleDeleteClick,
+          selectedJobId,
+          setSelectedJobId,
         })}
         data={data?.rows || []}
         filters={filters}
