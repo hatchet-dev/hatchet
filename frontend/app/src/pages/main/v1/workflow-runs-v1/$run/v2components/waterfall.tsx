@@ -164,7 +164,7 @@ export function Waterfall({
   // Use v1 style queries instead of _next hooks
   const taskTimingsQuery = useQuery({
     ...queries.v1WorkflowRuns.listTaskTimings(workflowRunId, depth),
-    refetchInterval: 1000,
+    refetchInterval: 5000,
     enabled: !!workflowRunId,
   });
 
@@ -435,7 +435,7 @@ export function Waterfall({
           attempt: task.attempt || 1,
         };
       })
-      .filter((task): task is NonNullable<typeof task> => task !== null);
+      .filter((task) => task !== null);
 
     // Sort tasks in preorder traversal to maintain hierarchical structure
     const sortedData = sortTasksPreorder(data, taskParentMap, rootTasks);
@@ -634,14 +634,16 @@ const Tick = ({
     <g transform={`translate(${x},${y})`}>
       <foreignObject x={-160} y={-10} width={180} height={20}>
         <div
-          className={`group flex flex-row items-center pl-${task.depth * 2} size-full`}
+          className={`group flex flex-row items-center size-full`}
+          style={{ paddingLeft: `${task.depth * 12}px` }}
         >
           <div
             className={`${task.id === workflowRunId ? 'cursor-default' : 'cursor-pointer'} flex flex-row justify-between w-full grow text-left text-xs gap-2 items-center min-w-0`}
             onClick={() => handleBarClick(task)}
           >
             <span
-              className={`text-xs ${task.id === selectedTaskId ? 'underline' : ''} truncate max-w-[${180 - task.depth * 12}px]`}
+              className={`text-xs ${task.id === selectedTaskId ? 'underline' : ''} truncate`}
+              style={{ maxWidth: `${180 - task.depth * 12}px` }}
               title={task.taskDisplayName}
               onClick={() => handleBarClick(task)}
             >
