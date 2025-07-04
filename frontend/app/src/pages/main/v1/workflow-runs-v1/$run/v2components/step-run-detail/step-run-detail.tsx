@@ -25,12 +25,14 @@ import { StepRunLogs } from './step-run-logs';
 import { isTerminalState } from '../../../hooks/workflow-details';
 import { CopyWorkflowConfigButton } from '@/components/v1/shared/copy-workflow-config';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
+import { Waterfall } from '../waterfall';
 
 export enum TabOption {
   Output = 'output',
   ChildWorkflowRuns = 'child-workflow-runs',
   Input = 'input',
   Logs = 'logs',
+  Waterfall = 'waterfall',
 }
 
 interface TaskRunDetailProps {
@@ -166,6 +168,9 @@ export const TaskRunDetail = ({
           <TabsTrigger variant="underlined" value={TabOption.Logs}>
             Logs
           </TabsTrigger>
+          <TabsTrigger variant="underlined" value={TabOption.Waterfall}>
+            Waterfall
+          </TabsTrigger>
         </TabsList>
         <TabsContent value={TabOption.Output}>
           <V1StepRunOutput taskRunId={taskRunId} />
@@ -199,6 +204,13 @@ export const TaskRunDetail = ({
 
         <TabsContent value="logs">
           <StepRunLogs taskRun={taskRun} />
+        </TabsContent>
+        <TabsContent value={TabOption.Waterfall} className="flex-1 min-h-0">
+          <Waterfall
+            workflowRunId={taskRunId}
+            selectedTaskId={undefined}
+            handleTaskSelect={undefined}
+          />
         </TabsContent>
       </Tabs>
       <Separator className="my-4" />
