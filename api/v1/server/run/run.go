@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/getkin/kin-openapi/openapi3"
@@ -165,6 +166,29 @@ func (t *APIServer) getCoreEchoService() (*echo.Echo, error) {
 	e := echo.New()
 	e.HideBanner = true
 	e.HidePort = true
+	e.IPExtractor = func(r *http.Request) string {
+		// Cloudflare sets CF-Connecting-IP header with the original client IP
+		if ip := r.Header.Get("CF-Connecting-IP"); ip != "" {
+			return ip
+		}
+
+		// Fallback to X-Forwarded-For
+		if ip := r.Header.Get("X-Forwarded-For"); ip != "" {
+			// X-Forwarded-For can contain multiple IPs, we only want the first one
+			ips := strings.Split(ip, ",")
+			if len(ips) > 0 {
+				return ips[0]
+			}
+		}
+
+		// Additional fallback to X-Real-IP used by certain proxies
+		if ip := r.Header.Get("X-Real-IP"); ip != "" {
+			return ip
+		}
+
+		// Final fallback to remote address
+		return r.RemoteAddr
+	}
 
 	g := e.Group("")
 
