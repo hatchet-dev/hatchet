@@ -1,5 +1,6 @@
+from collections.abc import Mapping
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List, Mapping
+from typing import Any
 
 import requests
 from pydantic import BaseModel
@@ -10,13 +11,13 @@ from hatchet_sdk.context.context import Context
 from .hatchet_client import hatchet
 
 
-async def process_image(image_url: str, filters: List[str]) -> Dict[str, Any]:
+async def process_image(image_url: str, filters: list[str]) -> dict[str, Any]:
     # Do some image processing
     return {"url": image_url, "size": 100, "format": "png"}
 
 
 # > Before (Mergent)
-async def process_image_task(request: Any) -> Dict[str, Any]:
+async def process_image_task(request: Any) -> dict[str, Any]:
     image_url = request.json["image_url"]
     filters = request.json["filters"]
     try:
@@ -33,12 +34,12 @@ async def process_image_task(request: Any) -> Dict[str, Any]:
 # > After (Hatchet)
 class ImageProcessInput(BaseModel):
     image_url: str
-    filters: List[str]
+    filters: list[str]
 
 
 class ImageProcessOutput(BaseModel):
     processed_url: str
-    metadata: Dict[str, Any]
+    metadata: dict[str, Any]
 
 
 @hatchet.task(

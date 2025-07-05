@@ -728,6 +728,7 @@ export interface WorkflowVersion {
   triggers?: WorkflowTriggers;
   scheduleTimeout?: string;
   jobs?: Job[];
+  workflowConfig?: object;
 }
 
 export interface WorkflowVersionDefinition {
@@ -1646,6 +1647,7 @@ export interface V1TaskSummary {
    * @format uuid
    */
   workflowVersionId?: string;
+  workflowConfig?: object;
 }
 
 export interface V1DagChildren {
@@ -1816,6 +1818,7 @@ export interface V1WorkflowRunDetails {
     taskName: string;
   }[];
   tasks: V1TaskSummary[];
+  workflowConfig?: object;
 }
 
 export enum V1TaskRunStatus {

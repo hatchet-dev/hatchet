@@ -364,6 +364,12 @@ export interface V1TaskSummary {
    * @format uuid
    */
   workflowVersionId?: string;
+  workflowConfig?: object;
+  /**
+   * The external ID of the parent task.
+   * @format uuid
+   */
+  parentTaskExternalId?: string;
 }
 
 export interface APIError {
@@ -596,6 +602,7 @@ export interface V1WorkflowRunDetails {
   taskEvents: V1TaskEvent[];
   shape: WorkflowRunShapeForWorkflowRunDetails;
   tasks: V1TaskSummary[];
+  workflowConfig?: object;
 }
 
 export interface V1TaskTiming {
@@ -1829,7 +1836,7 @@ export interface SemaphoreSlots {
    * @format uuid
    */
   workflowRunId: string;
-  status: StepRunStatus;
+  status?: StepRunStatus;
 }
 
 export interface RecentStepRuns {

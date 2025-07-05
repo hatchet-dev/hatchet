@@ -4,12 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
-	"github.com/jackc/pgxlisten"
 
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
@@ -19,59 +16,28 @@ import (
 
 type messageQueueRepository struct {
 	*sharedRepository
+
+	m *multiplexedListener
 }
 
-func NewMessageQueueRepository(shared *sharedRepository) *messageQueueRepository {
+func NewMessageQueueRepository(shared *sharedRepository) (*messageQueueRepository, func() error) {
+	m := newMultiplexedListener(shared.l, shared.pool)
+
 	return &messageQueueRepository{
-		sharedRepository: shared,
-	}
-}
-
-func (m *messageQueueRepository) Listen(ctx context.Context, name string, f func(ctx context.Context, notification *repository.PubMessage) error) error {
-	l := &pgxlisten.Listener{
-		Connect: func(ctx context.Context) (*pgx.Conn, error) {
-			pgxpoolConn, err := m.pool.Acquire(ctx)
-
-			if err != nil {
-				return nil, err
-			}
-
-			return pgxpoolConn.Conn(), nil
-		},
-		LogError: func(innerCtx context.Context, err error) {
-			if ctx.Err() != nil {
-				m.l.Warn().Err(err).Msg("error in listener")
-			}
-		},
-		ReconnectDelay: 10 * time.Second,
-	}
-
-	var handler pgxlisten.HandlerFunc = func(ctx context.Context, notification *pgconn.Notification, conn *pgx.Conn) error {
-		return f(ctx, &repository.PubMessage{
-			Channel: notification.Channel,
-			Payload: notification.Payload,
-		})
-	}
-
-	l.Handle(name, handler)
-
-	err := l.Listen(ctx)
-
-	if err != nil {
-		if errors.Is(err, context.Canceled) {
+			sharedRepository: shared,
+			m:                m,
+		}, func() error {
+			m.cancel()
 			return nil
 		}
-
-		return err
-	}
-
-	return nil
 }
 
-func (m *messageQueueRepository) Notify(ctx context.Context, name string, payload string) error {
-	_, err := m.pool.Exec(ctx, "select pg_notify($1,$2)", name, payload)
+func (mq *messageQueueRepository) Listen(ctx context.Context, name string, f func(ctx context.Context, notification *repository.PubSubMessage) error) error {
+	return mq.m.listen(ctx, name, f)
+}
 
-	return err
+func (mq *messageQueueRepository) Notify(ctx context.Context, name string, payload string) error {
+	return mq.m.notify(ctx, name, payload)
 }
 
 func (m *messageQueueRepository) AddMessage(ctx context.Context, queue string, payload []byte) error {

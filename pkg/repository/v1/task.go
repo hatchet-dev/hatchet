@@ -1375,7 +1375,14 @@ func (r *sharedRepository) releaseTasks(ctx context.Context, tx sqlcv1.DBTX, ten
 	}
 
 	if len(releasedTasks) != len(tasks) {
-		return nil, fmt.Errorf("failed to release all tasks: %d/%d", len(releasedTasks), len(tasks))
+		size := min(10, len(tasks))
+
+		taskIds := make([]int64, size)
+		for i := range size {
+			taskIds[i] = tasks[i].Id
+		}
+
+		return nil, fmt.Errorf("failed to release all tasks for tenant %s: %d/%d. Relevant task IDs: %v", tenantId, len(releasedTasks), size, taskIds)
 	}
 
 	res := make([]*sqlcv1.ReleaseTasksRow, len(tasks))
@@ -1579,6 +1586,9 @@ func (r *sharedRepository) insertTasks(
 		}
 
 		initialStates[i] = string(task.InitialState)
+		if initialStates[i] == "" {
+			initialStates[i] = string(sqlcv1.V1TaskInitialStateQUEUED)
+		}
 
 		if len(task.AdditionalMetadata) > 0 {
 			additionalMetadatas[i] = task.AdditionalMetadata
@@ -1989,6 +1999,9 @@ func (r *sharedRepository) replayTasks(
 			inputs[i] = r.ToV1StepRunData(task.Input).Bytes()
 		}
 		initialStates[i] = string(task.InitialState)
+		if initialStates[i] == "" {
+			initialStates[i] = string(sqlcv1.V1TaskInitialStateQUEUED)
+		}
 
 		if len(task.AdditionalMetadata) > 0 {
 			additionalMetadatas[i] = task.AdditionalMetadata
@@ -2777,6 +2790,7 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId string, t
 							readableId := otherTask.StepReadableID
 
 							hasUserEventOrSleepMatches := false
+							hasAnySkippingParentOverrides := false
 
 							parentOverrideMatches := make([]*sqlcv1.V1StepMatchCondition, 0)
 
@@ -2785,12 +2799,16 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId string, t
 									if match.ParentReadableID.String == readableId {
 										parentOverrideMatches = append(parentOverrideMatches, match)
 									}
+
+									if match.Action == sqlcv1.V1MatchConditionActionSKIP {
+										hasAnySkippingParentOverrides = true
+									}
 								} else {
 									hasUserEventOrSleepMatches = true
 								}
 							}
 
-							conditions = append(conditions, getParentInDAGGroupMatch(cancelGroupId, parentExternalId, readableId, parentOverrideMatches, hasUserEventOrSleepMatches)...)
+							conditions = append(conditions, getParentInDAGGroupMatch(cancelGroupId, parentExternalId, readableId, parentOverrideMatches, hasUserEventOrSleepMatches, hasAnySkippingParentOverrides)...)
 						}
 					}
 				}

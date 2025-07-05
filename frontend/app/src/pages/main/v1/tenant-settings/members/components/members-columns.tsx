@@ -4,7 +4,7 @@ import api, { TenantMember, queries } from '@/lib/api';
 import { capitalize } from '@/lib/utils';
 import { DataTableRowActions } from '@/components/v1/molecules/data-table/data-table-row-actions';
 import { useOutletContext } from 'react-router-dom';
-import { TenantContextType, UserContextType } from '@/lib/outlet';
+import { UserContextType } from '@/lib/outlet';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { useMutation } from '@tanstack/react-query';
 import { useApiError } from '@/lib/hooks';
@@ -12,6 +12,7 @@ import queryClient from '@/query-client';
 import { ConfirmDialog } from '@/components/v1/molecules/confirm-dialog';
 import { useState } from 'react';
 import useApiMeta from '@/pages/auth/hooks/use-api-meta';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
 
 export const columns = ({
   onChangePasswordClick,
@@ -76,7 +77,7 @@ function MemberActions({
 }) {
   const meta = useApiMeta();
   const { user } = useOutletContext<UserContextType>();
-  const { tenant } = useOutletContext<TenantContextType>();
+  const { tenantId } = useCurrentTenantId();
 
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const [isDeleteLoading, setIsDeleteLoading] = useState(false);
@@ -88,7 +89,7 @@ function MemberActions({
   const deleteUserMutation = useMutation({
     mutationKey: ['tenant-member:delete'],
     mutationFn: async (data: TenantMember) => {
-      await api.tenantMemberDelete(tenant.metadata.id, data.metadata.id);
+      await api.tenantMemberDelete(tenantId, data.metadata.id);
     },
     onMutate: () => {
       setIsDeleteLoading(true);
@@ -96,7 +97,7 @@ function MemberActions({
     onSuccess: async () => {
       setIsDeleteLoading(false);
       await queryClient.invalidateQueries({
-        queryKey: queries.members.list(tenant.metadata.id).queryKey,
+        queryKey: queries.members.list(tenantId).queryKey,
       });
       setIsDeleteConfirmOpen(false);
     },

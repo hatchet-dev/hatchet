@@ -49,7 +49,7 @@ export function useTenantDetails() {
 
         navigate(newPath);
       } else if (targetEngineVersion === TenantVersion.V1) {
-        window.location.href = `/v1/runs?tenant=${tenantId}`;
+        window.location.href = `/tenants/${tenantId}/runs`;
       } else if (targetEngineVersion === TenantVersion.V0) {
         window.location.href = `/workflow-runs?tenant=${tenantId}`;
       }

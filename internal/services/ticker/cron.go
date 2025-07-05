@@ -3,6 +3,7 @@ package ticker
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -95,7 +96,7 @@ func (t *TickerImpl) handleScheduleCron(ctx context.Context, cron *dbsqlc.PollCr
 	)
 
 	if err != nil {
-		if err == gocron.ErrCronJobParse || err == gocron.ErrCronJobInvalid {
+		if errors.Is(err, gocron.ErrCronJobParse) || errors.Is(err, gocron.ErrCronJobInvalid) {
 			deleteCronErr := t.repo.Workflow().DeleteInvalidCron(ctx, cron.ID)
 
 			if deleteCronErr != nil {

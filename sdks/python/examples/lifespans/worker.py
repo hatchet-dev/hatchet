@@ -1,4 +1,5 @@
-from typing import AsyncGenerator, cast
+from collections.abc import AsyncGenerator
+from typing import cast
 from uuid import UUID
 
 from psycopg_pool import ConnectionPool

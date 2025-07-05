@@ -12,6 +12,7 @@ from hatchet_sdk.clients.rest.models.workflow_run_status import WorkflowRunStatu
 from hatchet_sdk.clients.v1.api_client import (
     BaseRestClient,
     maybe_additional_metadata_to_kv,
+    retry,
 )
 from hatchet_sdk.utils.typing import JSONSerializableMapping
 
@@ -27,6 +28,7 @@ class MetricsClient(BaseRestClient):
     def _ta(self, client: ApiClient) -> TenantApi:
         return TenantApi(client)
 
+    @retry
     def get_workflow_metrics(
         self,
         workflow_id: str,
@@ -66,6 +68,7 @@ class MetricsClient(BaseRestClient):
             self.get_workflow_metrics, workflow_id, status, group_key
         )
 
+    @retry
     def get_queue_metrics(
         self,
         workflow_ids: list[str] | None = None,
@@ -105,6 +108,7 @@ class MetricsClient(BaseRestClient):
             self.get_queue_metrics, workflow_ids, additional_metadata
         )
 
+    @retry
     def get_task_metrics(self) -> TenantStepRunQueueMetrics:
         """
         Retrieve queue metrics

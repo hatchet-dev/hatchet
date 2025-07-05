@@ -1,7 +1,8 @@
 import asyncio
 import json
+from collections.abc import Generator
 from datetime import datetime
-from typing import Generator, TypeVar, Union, cast
+from typing import TypeVar, cast
 
 import grpc
 from google.protobuf import timestamp_pb2
@@ -16,6 +17,7 @@ from hatchet_sdk.contracts import workflows_pb2 as v0_workflow_protos
 from hatchet_sdk.contracts.v1 import workflows_pb2 as workflow_protos
 from hatchet_sdk.contracts.v1.workflows_pb2_grpc import AdminServiceStub
 from hatchet_sdk.contracts.workflows_pb2_grpc import WorkflowServiceStub
+from hatchet_sdk.exceptions import DedupeViolationError
 from hatchet_sdk.features.runs import RunsClient
 from hatchet_sdk.metadata import get_metadata
 from hatchet_sdk.rate_limit import RateLimitDuration
@@ -57,12 +59,6 @@ class WorkflowRunTriggerConfig(BaseModel):
     input: JSONSerializableMapping
     options: TriggerWorkflowOptions
     key: str | None = None
-
-
-class DedupeViolationErr(Exception):
-    """Raised by the Hatchet library to indicate that a workflow has already been run with this deduplication value."""
-
-    pass
 
 
 class AdminClient:
@@ -113,7 +109,7 @@ class AdminClient:
             try:
                 return json.dumps(v).encode("utf-8")
             except json.JSONDecodeError as e:
-                raise ValueError(f"Error encoding payload: {e}")
+                raise ValueError("Error encoding payload") from e
 
     def _prepare_workflow_request(
         self,
@@ -124,7 +120,7 @@ class AdminClient:
         try:
             payload_data = json.dumps(input)
         except json.JSONDecodeError as e:
-            raise ValueError(f"Error encoding payload: {e}")
+            raise ValueError("Error encoding payload") from e
 
         _options = self.TriggerWorkflowRequest.model_validate(options.model_dump())
 
@@ -148,18 +144,17 @@ class AdminClient:
             seconds = int(t)
             nanos = int(t % 1 * 1e9)
             return timestamp_pb2.Timestamp(seconds=seconds, nanos=nanos)
-        elif isinstance(schedule, timestamp_pb2.Timestamp):
+        if isinstance(schedule, timestamp_pb2.Timestamp):
             return schedule
-        else:
-            raise ValueError(
-                "Invalid schedule type. Must be datetime or timestamp_pb2.Timestamp."
-            )
+        raise ValueError(
+            "Invalid schedule type. Must be datetime or timestamp_pb2.Timestamp."
+        )
 
     def _prepare_schedule_workflow_request(
         self,
         name: str,
-        schedules: list[Union[datetime, timestamp_pb2.Timestamp]],
-        input: JSONSerializableMapping = {},
+        schedules: list[datetime | timestamp_pb2.Timestamp],
+        input: JSONSerializableMapping | None = None,
         options: ScheduleTriggerWorkflowOptions = ScheduleTriggerWorkflowOptions(),
     ) -> v0_workflow_protos.ScheduleWorkflowRequest:
         return v0_workflow_protos.ScheduleWorkflowRequest(
@@ -194,8 +189,8 @@ class AdminClient:
     async def aio_schedule_workflow(
         self,
         name: str,
-        schedules: list[Union[datetime, timestamp_pb2.Timestamp]],
-        input: JSONSerializableMapping = {},
+        schedules: list[datetime | timestamp_pb2.Timestamp],
+        input: JSONSerializableMapping | None = None,
         options: ScheduleTriggerWorkflowOptions = ScheduleTriggerWorkflowOptions(),
     ) -> v0_workflow_protos.WorkflowVersion:
         return await asyncio.to_thread(
@@ -245,8 +240,8 @@ class AdminClient:
     def schedule_workflow(
         self,
         name: str,
-        schedules: list[Union[datetime, timestamp_pb2.Timestamp]],
-        input: JSONSerializableMapping = {},
+        schedules: list[datetime | timestamp_pb2.Timestamp],
+        input: JSONSerializableMapping | None = None,
         options: ScheduleTriggerWorkflowOptions = ScheduleTriggerWorkflowOptions(),
     ) -> v0_workflow_protos.WorkflowVersion:
         try:
@@ -269,7 +264,7 @@ class AdminClient:
             )
         except (grpc.RpcError, grpc.aio.AioRpcError) as e:
             if e.code() == grpc.StatusCode.ALREADY_EXISTS:
-                raise DedupeViolationErr(e.details())
+                raise DedupeViolationError(e.details()) from e
 
             raise e
 
@@ -336,7 +331,7 @@ class AdminClient:
             )
         except (grpc.RpcError, grpc.aio.AioRpcError) as e:
             if e.code() == grpc.StatusCode.ALREADY_EXISTS:
-                raise DedupeViolationErr(e.details())
+                raise DedupeViolationError(e.details()) from e
             raise e
 
         return WorkflowRunRef(
@@ -369,7 +364,7 @@ class AdminClient:
             )
         except (grpc.RpcError, grpc.aio.AioRpcError) as e:
             if e.code() == grpc.StatusCode.ALREADY_EXISTS:
-                raise DedupeViolationErr(e.details())
+                raise DedupeViolationError(e.details()) from e
 
             raise e
 

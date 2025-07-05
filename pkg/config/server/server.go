@@ -217,7 +217,7 @@ type ConfigFileRuntime struct {
 	PreventTenantVersionUpgrade bool `mapstructure:"preventTenantVersionUpgrade" json:"preventTenantVersionUpgrade,omitempty" default:"false"`
 
 	// DefaultEngineVersion is the default engine version to use for new tenants
-	DefaultEngineVersion string `mapstructure:"defaultEngineVersion" json:"defaultEngineVersion,omitempty" default:"V0"`
+	DefaultEngineVersion string `mapstructure:"defaultEngineVersion" json:"defaultEngineVersion,omitempty" default:"V1"`
 
 	// ReplayEnabled controls whether the server enables replay for tasks
 	ReplayEnabled bool `mapstructure:"replayEnabled" json:"replayEnabled,omitempty" default:"true"`
@@ -326,7 +326,7 @@ type EncryptionConfigFile struct {
 	JWT EncryptionConfigFileJWT `mapstructure:"jwt" json:"jwt,omitempty"`
 
 	// CloudKMS is the configuration for Google Cloud KMS. You must set either MasterKeyset or cloudKms.enabled.
-	CloudKMS EncryptionConfigFileCloudKMS `mapstructure:"cloudKms" json:"cloudKms,omitempty"`
+	CloudKMS EncryptionConfigFileCloudKMS `mapstructure:"cloudKms" json:"cloudKMS,omitempty"`
 }
 
 type EncryptionConfigFileJWT struct {
@@ -752,6 +752,9 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("otel.insecure", "SERVER_OTEL_INSECURE")
 
 	// prometheus options
+	_ = v.BindEnv("prometheus.prometheusServerURL", "SERVER_PROMETHEUS_SERVER_URL")
+	_ = v.BindEnv("prometheus.prometheusServerUsername", "SERVER_PROMETHEUS_SERVER_USERNAME")
+	_ = v.BindEnv("prometheus.prometheusServerPassword", "SERVER_PROMETHEUS_SERVER_PASSWORD")
 	_ = v.BindEnv("prometheus.enabled", "SERVER_PROMETHEUS_ENABLED")
 	_ = v.BindEnv("prometheus.address", "SERVER_PROMETHEUS_ADDRESS")
 	_ = v.BindEnv("prometheus.path", "SERVER_PROMETHEUS_PATH")
@@ -781,6 +784,6 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("sampling.samplingRate", "SERVER_SAMPLING_RATE")
 
 	// operations options
-	_ = v.BindEnv("operations.jitter", "SERVER_OPERATIONS_JITTER")
-	_ = v.BindEnv("operations.pollInterval", "SERVER_OPERATIONS_POLL_INTERVAL")
+	_ = v.BindEnv("olap.jitter", "SERVER_OPERATIONS_JITTER")
+	_ = v.BindEnv("olap.pollInterval", "SERVER_OPERATIONS_POLL_INTERVAL")
 }

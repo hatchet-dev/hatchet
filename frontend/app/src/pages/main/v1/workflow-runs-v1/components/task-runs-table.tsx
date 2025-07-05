@@ -3,10 +3,7 @@ import { columns } from './v1/task-runs-columns';
 import { useCallback, useMemo, useState } from 'react';
 import { RowSelectionState, VisibilityState } from '@tanstack/react-table';
 import { useQuery } from '@tanstack/react-query';
-import invariant from 'tiny-invariant';
 import { queries } from '@/lib/api';
-import { TenantContextType } from '@/lib/outlet';
-import { useOutletContext } from 'react-router-dom';
 import { Button } from '@/components/v1/ui/button';
 import { ArrowPathIcon, XCircleIcon } from '@heroicons/react/24/outline';
 import { V1WorkflowRunsMetricsView } from './task-runs-metrics';
@@ -43,6 +40,8 @@ import { useTaskRuns } from '../hooks/task-runs';
 import { useMetrics } from '../hooks/metrics';
 import { useToolbarFilters } from '../hooks/toolbar-filters';
 import { IntroDocsEmptyState } from '@/pages/onboarding/intro-docs-empty-state';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
+import { TriggerWorkflowForm } from '../../workflows/$workflow/components/trigger-workflow-form';
 
 export interface TaskRunsTableProps {
   createdAfter?: string;
@@ -54,9 +53,12 @@ export interface TaskRunsTableProps {
   refetchInterval?: number;
   showMetrics?: boolean;
   showCounts?: boolean;
+  showDateFilter?: boolean;
+  showTriggerRunButton?: boolean;
   parentTaskExternalId?: string;
   triggeringEventExternalId?: string;
   disableTaskRunPagination?: boolean;
+  headerClassName?: string;
 }
 
 type StepDetailSheetState = {
@@ -75,11 +77,16 @@ export function TaskRunsTable({
   refetchInterval = 5000,
   showMetrics = false,
   showCounts = true,
+  showDateFilter = true,
   disableTaskRunPagination = false,
+  showTriggerRunButton = true,
+  headerClassName,
 }: TaskRunsTableProps) {
-  const { tenant } = useOutletContext<TenantContextType>();
-  invariant(tenant);
+  const { tenantId } = useCurrentTenantId();
 
+  const [selectedAdditionalMetaRunId, setSelectedAdditionalMetaRunId] =
+    useState<string | null>(null);
+  const [triggerWorkflow, setTriggerWorkflow] = useState(false);
   const [viewQueueMetrics, setViewQueueMetrics] = useState(false);
   const [rotate, setRotate] = useState(false);
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
@@ -104,6 +111,9 @@ export function TaskRunsTable({
   const derivedParentTaskExternalId =
     parentTaskExternalId || cf.filters.parentTaskExternalId;
 
+  const hasOpenUI =
+    !!selectedAdditionalMetaRunId || stepDetailSheetState.isOpen;
+
   const {
     tableRows,
     selectedRuns,
@@ -119,6 +129,7 @@ export function TaskRunsTable({
     parentTaskExternalId: derivedParentTaskExternalId,
     triggeringEventExternalId: triggeringEventExternalId,
     disablePagination: disableTaskRunPagination,
+    pauseRefetch: hasOpenUI,
   });
 
   const {
@@ -131,6 +142,7 @@ export function TaskRunsTable({
     workflow,
     refetchInterval,
     parentTaskExternalId: derivedParentTaskExternalId,
+    pauseRefetch: hasOpenUI,
   });
 
   const onTaskRunIdClick = useCallback((taskRunId: string) => {
@@ -145,13 +157,22 @@ export function TaskRunsTable({
     enabled: !!derivedParentTaskExternalId,
   });
 
-  const v1TaskFilters = {
-    since: cf.filters.createdAfter,
-    until: cf.filters.finishedBefore,
-    statuses: cf.filters.status ? [cf.filters.status] : undefined,
-    workflowIds: workflow ? [workflow] : undefined,
-    additionalMetadata: cf.filters.additionalMetadata,
-  };
+  const v1TaskFilters = useMemo(
+    () => ({
+      since: cf.filters.createdAfter,
+      until: cf.filters.finishedBefore,
+      statuses: cf.filters.status ? [cf.filters.status] : undefined,
+      workflowIds: workflow ? [workflow] : undefined,
+      additionalMetadata: cf.filters.additionalMetadata,
+    }),
+    [
+      cf.filters.createdAfter,
+      cf.filters.finishedBefore,
+      cf.filters.status,
+      workflow,
+      cf.filters.additionalMetadata,
+    ],
+  );
 
   const hasRowsSelected = Object.values(rowSelection).some(
     (selected) => !!selected,
@@ -166,8 +187,87 @@ export function TaskRunsTable({
 
   const isFetching = !hasLoaded && (isTaskRunsFetching || isMetricsFetching);
 
+  const actions = useMemo(() => {
+    let localActions = [
+      <TaskRunActionButton
+        key="cancel"
+        actionType="cancel"
+        disabled={!(hasRowsSelected || hasTaskFiltersSelected)}
+        params={
+          selectedRuns.length > 0
+            ? { externalIds: selectedRuns.map((run) => run?.metadata.id) }
+            : { filter: v1TaskFilters }
+        }
+        showModal
+      />,
+      <TaskRunActionButton
+        key="replay"
+        actionType="replay"
+        disabled={!(hasRowsSelected || hasTaskFiltersSelected)}
+        params={
+          selectedRuns.length > 0
+            ? { externalIds: selectedRuns.map((run) => run?.metadata.id) }
+            : { filter: v1TaskFilters }
+        }
+        showModal
+      />,
+      <Button
+        key="refresh"
+        className="h-8 px-2 lg:px-3"
+        size="sm"
+        onClick={() => {
+          refetchTaskRuns();
+          refetchMetrics();
+          setRotate(!rotate);
+        }}
+        variant={'outline'}
+        aria-label="Refresh events list"
+      >
+        <ArrowPathIcon
+          className={`h-4 w-4 transition-transform ${rotate ? 'rotate-180' : ''}`}
+        />
+      </Button>,
+    ];
+
+    if (showTriggerRunButton) {
+      localActions = [
+        <Button
+          key="trigger"
+          className="h-8 border"
+          onClick={() => setTriggerWorkflow(true)}
+        >
+          Trigger Run
+        </Button>,
+        ...localActions,
+      ];
+    }
+    return localActions;
+  }, [
+    showTriggerRunButton,
+    hasRowsSelected,
+    hasTaskFiltersSelected,
+    selectedRuns,
+    v1TaskFilters,
+    refetchTaskRuns,
+    refetchMetrics,
+    rotate,
+  ]);
+
+  const handleSetSelectedAdditionalMetaRunId = useCallback(
+    (runId: string | null) => {
+      setSelectedAdditionalMetaRunId(runId);
+    },
+    [],
+  );
+
   return (
-    <>
+    <div className="flex flex-col h-full overflow-hidden">
+      <TriggerWorkflowForm
+        defaultWorkflow={undefined}
+        show={triggerWorkflow}
+        onClose={() => setTriggerWorkflow(false)}
+      />
+
       {cf.filters.parentTaskExternalId &&
         !parentTaskRun.isLoading &&
         parentTaskRun.data && (
@@ -213,8 +313,8 @@ export function TaskRunsTable({
           </DialogContent>
         </Dialog>
       )}
-      {!createdAfterProp && !derivedParentTaskExternalId && (
-        <div className="flex flex-row justify-end items-center my-4 gap-2">
+      {showDateFilter && !createdAfterProp && !derivedParentTaskExternalId && (
+        <div className="flex flex-row justify-end items-center mb-4 gap-2">
           {cf.filters.isCustomTimeRange && [
             <Button
               key="clear"
@@ -283,13 +383,13 @@ export function TaskRunsTable({
       )}
       {showMetrics && !derivedParentTaskExternalId && (
         <GetWorkflowChart
-          tenantId={tenant.metadata.id}
           createdAfter={cf.filters.createdAfter}
           zoom={(createdAfter, createdBefore) => {
             cf.setCustomTimeRange({ start: createdAfter, end: createdBefore });
           }}
           finishedBefore={cf.filters.finishedBefore}
           refetchInterval={refetchInterval}
+          pauseRefetch={hasOpenUI}
         />
       )}
       {showCounts && (
@@ -320,7 +420,7 @@ export function TaskRunsTable({
             }))
           }
         >
-          <SheetContent className="w-fit min-w-[56rem] max-w-4xl sm:max-w-2xl z-[60]">
+          <SheetContent className="w-fit min-w-[56rem] max-w-4xl sm:max-w-2xl z-[60] h-full overflow-auto">
             <TaskRunDetail
               taskRunId={stepDetailSheetState.taskRunId}
               defaultOpenTab={TabOption.Output}
@@ -329,100 +429,71 @@ export function TaskRunsTable({
           </SheetContent>
         </Sheet>
       )}
-      <DataTable
-        emptyState={
-          <IntroDocsEmptyState
-            link="/home/your-first-task"
-            title="No Runs Found"
-            linkPreambleText="To learn more about how workflows function in Hatchet,"
-            linkText="check out our documentation."
-          />
-        }
-        isLoading={isFetching}
-        columns={columns(cf.setAdditionalMetadata, onTaskRunIdClick)}
-        columnVisibility={columnVisibility}
-        setColumnVisibility={setColumnVisibility}
-        data={tableRows}
-        filters={toolbarFilters}
-        actions={[
-          <TaskRunActionButton
-            key="cancel"
-            actionType="cancel"
-            disabled={!(hasRowsSelected || hasTaskFiltersSelected)}
-            params={
-              selectedRuns.length > 0
-                ? { externalIds: selectedRuns.map((run) => run?.metadata.id) }
-                : { filter: v1TaskFilters }
-            }
-            showModal
-          />,
-          <TaskRunActionButton
-            key="replay"
-            actionType="replay"
-            disabled={!(hasRowsSelected || hasTaskFiltersSelected)}
-            params={
-              selectedRuns.length > 0
-                ? { externalIds: selectedRuns.map((run) => run?.metadata.id) }
-                : { filter: v1TaskFilters }
-            }
-            showModal
-          />,
-          <Button
-            key="refresh"
-            className="h-8 px-2 lg:px-3"
-            size="sm"
-            onClick={() => {
-              refetchTaskRuns();
-              refetchMetrics();
-              setRotate(!rotate);
-            }}
-            variant={'outline'}
-            aria-label="Refresh events list"
-          >
-            <ArrowPathIcon
-              className={`h-4 w-4 transition-transform ${rotate ? 'rotate-180' : ''}`}
+      <div className="flex-1 min-h-0">
+        <DataTable
+          emptyState={
+            <IntroDocsEmptyState
+              link="/home/your-first-task"
+              title="No Runs Found"
+              linkPreambleText="To learn more about how workflows function in Hatchet,"
+              linkText="check out our documentation."
             />
-          </Button>,
-        ]}
-        columnFilters={cf.filters.columnFilters}
-        setColumnFilters={(updaterOrValue) => {
-          cf.setColumnFilters(updaterOrValue);
-        }}
-        pagination={pagination}
-        setPagination={setPagination}
-        onSetPageSize={setPageSize}
-        rowSelection={rowSelection}
-        setRowSelection={setRowSelection}
-        pageCount={numPages}
-        showColumnToggle={true}
-        getSubRows={(row) => row.children || []}
-        getRowId={getRowId}
-        onToolbarReset={cf.clearColumnFilters}
-      />
-    </>
+          }
+          isLoading={isFetching}
+          columns={columns(
+            tenantId,
+            selectedAdditionalMetaRunId,
+            handleSetSelectedAdditionalMetaRunId,
+            cf.setAdditionalMetadata,
+            onTaskRunIdClick,
+          )}
+          columnVisibility={columnVisibility}
+          setColumnVisibility={setColumnVisibility}
+          data={tableRows}
+          filters={toolbarFilters}
+          actions={actions}
+          columnFilters={cf.filters.columnFilters}
+          setColumnFilters={(updaterOrValue) => {
+            cf.setColumnFilters(updaterOrValue);
+          }}
+          pagination={pagination}
+          setPagination={setPagination}
+          onSetPageSize={setPageSize}
+          rowSelection={rowSelection}
+          setRowSelection={setRowSelection}
+          pageCount={numPages}
+          showColumnToggle={true}
+          getSubRows={(row) => row.children || []}
+          getRowId={getRowId}
+          onToolbarReset={cf.clearColumnFilters}
+          headerClassName={headerClassName}
+        />
+      </div>
+    </div>
   );
 }
 
 const GetWorkflowChart = ({
-  tenantId,
   createdAfter,
   finishedBefore,
   refetchInterval,
   zoom,
+  pauseRefetch = false,
 }: {
-  tenantId: string;
   createdAfter?: string;
   finishedBefore?: string;
   refetchInterval?: number;
   zoom: (startTime: string, endTime: string) => void;
+  pauseRefetch?: boolean;
 }) => {
+  const { tenantId } = useCurrentTenantId();
   const workflowRunEventsMetricsQuery = useQuery({
     ...queries.v1TaskRuns.pointMetrics(tenantId, {
       createdAfter,
       finishedBefore,
     }),
     placeholderData: (prev) => prev,
-    refetchInterval,
+    refetchInterval: pauseRefetch ? false : refetchInterval,
   });
 
   if (workflowRunEventsMetricsQuery.isLoading) {
@@ -430,25 +501,23 @@ const GetWorkflowChart = ({
   }
 
   return (
-    <div className="">
-      <ZoomableChart
-        kind="bar"
-        data={
-          workflowRunEventsMetricsQuery.data?.results?.map(
-            (result): DataPoint<'SUCCEEDED' | 'FAILED'> => ({
-              date: result.time,
-              SUCCEEDED: result.SUCCEEDED,
-              FAILED: result.FAILED,
-            }),
-          ) || []
-        }
-        colors={{
-          SUCCEEDED: 'rgb(34 197 94 / 0.5)',
-          FAILED: 'hsl(var(--destructive))',
-        }}
-        zoom={zoom}
-        showYAxis={false}
-      />
-    </div>
+    <ZoomableChart
+      kind="bar"
+      data={
+        workflowRunEventsMetricsQuery.data?.results?.map(
+          (result): DataPoint<'SUCCEEDED' | 'FAILED'> => ({
+            date: result.time,
+            SUCCEEDED: result.SUCCEEDED,
+            FAILED: result.FAILED,
+          }),
+        ) || []
+      }
+      colors={{
+        SUCCEEDED: 'rgb(34 197 94 / 0.5)',
+        FAILED: 'hsl(var(--destructive))',
+      }}
+      zoom={zoom}
+      showYAxis={false}
+    />
   );
 };

@@ -58,6 +58,7 @@ export interface PutStreamEventRequest {
   message: Uint8Array;
   /** associated stream event metadata */
   metadata: string;
+  eventIndex?: number | undefined;
 }
 
 export interface PutStreamEventResponse {}
@@ -508,7 +509,13 @@ export const PutLogResponse: MessageFns<PutLogResponse> = {
 };
 
 function createBasePutStreamEventRequest(): PutStreamEventRequest {
-  return { stepRunId: '', createdAt: undefined, message: new Uint8Array(0), metadata: '' };
+  return {
+    stepRunId: '',
+    createdAt: undefined,
+    message: new Uint8Array(0),
+    metadata: '',
+    eventIndex: undefined,
+  };
 }
 
 export const PutStreamEventRequest: MessageFns<PutStreamEventRequest> = {
@@ -524,6 +531,9 @@ export const PutStreamEventRequest: MessageFns<PutStreamEventRequest> = {
     }
     if (message.metadata !== '') {
       writer.uint32(42).string(message.metadata);
+    }
+    if (message.eventIndex !== undefined) {
+      writer.uint32(48).int64(message.eventIndex);
     }
     return writer;
   },
@@ -567,6 +577,14 @@ export const PutStreamEventRequest: MessageFns<PutStreamEventRequest> = {
           message.metadata = reader.string();
           continue;
         }
+        case 6: {
+          if (tag !== 48) {
+            break;
+          }
+
+          message.eventIndex = longToNumber(reader.int64());
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -582,6 +600,7 @@ export const PutStreamEventRequest: MessageFns<PutStreamEventRequest> = {
       createdAt: isSet(object.createdAt) ? fromJsonTimestamp(object.createdAt) : undefined,
       message: isSet(object.message) ? bytesFromBase64(object.message) : new Uint8Array(0),
       metadata: isSet(object.metadata) ? globalThis.String(object.metadata) : '',
+      eventIndex: isSet(object.eventIndex) ? globalThis.Number(object.eventIndex) : undefined,
     };
   },
 
@@ -599,6 +618,9 @@ export const PutStreamEventRequest: MessageFns<PutStreamEventRequest> = {
     if (message.metadata !== '') {
       obj.metadata = message.metadata;
     }
+    if (message.eventIndex !== undefined) {
+      obj.eventIndex = Math.round(message.eventIndex);
+    }
     return obj;
   },
 
@@ -611,6 +633,7 @@ export const PutStreamEventRequest: MessageFns<PutStreamEventRequest> = {
     message.createdAt = object.createdAt ?? undefined;
     message.message = object.message ?? new Uint8Array(0);
     message.metadata = object.metadata ?? '';
+    message.eventIndex = object.eventIndex ?? undefined;
     return message;
   },
 };
@@ -1080,6 +1103,17 @@ function fromJsonTimestamp(o: any): Date {
   } else {
     return fromTimestamp(Timestamp.fromJSON(o));
   }
+}
+
+function longToNumber(int64: { toString(): string }): number {
+  const num = globalThis.Number(int64.toString());
+  if (num > globalThis.Number.MAX_SAFE_INTEGER) {
+    throw new globalThis.Error('Value is larger than Number.MAX_SAFE_INTEGER');
+  }
+  if (num < globalThis.Number.MIN_SAFE_INTEGER) {
+    throw new globalThis.Error('Value is smaller than Number.MIN_SAFE_INTEGER');
+  }
+  return num;
 }
 
 function isSet(value: any): boolean {

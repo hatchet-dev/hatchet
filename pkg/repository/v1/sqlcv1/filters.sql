@@ -88,3 +88,37 @@ WHERE
     AND workflow_id = ANY(@workflowIds::UUID[])
 GROUP BY workflow_id
 ;
+
+-- name: ListFiltersForEventTriggers :many
+WITH inputs AS (
+    SELECT
+        UNNEST(sqlc.narg(workflowIds)::UUID[]) AS workflow_id,
+        UNNEST(sqlc.narg(scopes)::TEXT[]) AS scope
+)
+
+SELECT f.*
+FROM v1_filter f
+JOIN inputs i ON (f.workflow_id, f.scope) = (i.workflow_id, i.scope)
+WHERE f.tenant_id = @tenantId::UUID
+ORDER BY f.id DESC
+LIMIT COALESCE(sqlc.narg('filterLimit')::BIGINT, 20000)
+OFFSET COALESCE(sqlc.narg('filterOffset')::BIGINT, 0)
+;
+
+-- name: ListFilters :many
+SELECT *
+FROM v1_filter
+WHERE
+    tenant_id = @tenantId::UUID
+    AND (
+        sqlc.narg('workflowIds')::UUID[] IS NULL
+        OR workflow_id = ANY(sqlc.narg('workflowIds')::UUID[])
+    )
+    AND (
+        sqlc.narg('scopes')::TEXT[] IS NULL
+        OR scope = ANY(sqlc.narg('scopes')::TEXT[])
+    )
+ORDER BY id DESC
+LIMIT COALESCE(sqlc.narg('filterLimit')::BIGINT, 20000)
+OFFSET COALESCE(sqlc.narg('filterOffset')::BIGINT, 0)
+;

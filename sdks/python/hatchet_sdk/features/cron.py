@@ -19,6 +19,7 @@ from hatchet_sdk.clients.rest.models.workflow_run_order_by_direction import (
 from hatchet_sdk.clients.v1.api_client import (
     BaseRestClient,
     maybe_additional_metadata_to_kv,
+    retry,
 )
 from hatchet_sdk.utils.typing import JSONSerializableMapping
 
@@ -106,8 +107,8 @@ class CronClient(BaseRestClient):
                 create_cron_workflow_trigger_request=CreateCronWorkflowTriggerRequest(
                     cronName=cron_name,
                     cronExpression=validated_input.expression,
-                    input=dict(validated_input.input),
-                    additionalMetadata=dict(validated_input.additional_metadata),
+                    input=validated_input.input,
+                    additionalMetadata=validated_input.additional_metadata,
                     priority=priority,
                 ),
             )
@@ -201,6 +202,7 @@ class CronClient(BaseRestClient):
             cron_name=cron_name,
         )
 
+    @retry
     def list(
         self,
         offset: int | None = None,
@@ -241,6 +243,7 @@ class CronClient(BaseRestClient):
                 cron_name=cron_name,
             )
 
+    @retry
     def get(self, cron_id: str) -> CronWorkflows:
         """
         Retrieve a specific workflow cron trigger by ID.

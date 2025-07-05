@@ -12,7 +12,8 @@ import { cn } from '@/lib/utils';
 import { DataTableRowActions } from '@/components/v1/molecules/data-table/data-table-row-actions';
 import { V1RunStatus } from '../../../workflow-runs/components/run-statuses';
 import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
-import { V1TaskSummary } from '@/lib/api';
+import { V1TaskStatus, V1TaskSummary } from '@/lib/api';
+import { Duration } from '@/components/v1/shared/duration';
 
 export const TaskRunColumn = {
   taskName: 'task_name',
@@ -27,9 +28,15 @@ export const TaskRunColumn = {
 } as const;
 
 export const columns: (
+  tenantId: string,
+  selectedAdditionalMetaRunId: string | null,
+  setSelectedAdditionalMetaRunId: (runId: string | null) => void,
   onAdditionalMetadataClick?: (click: AdditionalMetadataClick) => void,
   onTaskRunIdClick?: (taskRunId: string) => void,
 ) => ColumnDef<V1TaskSummary>[] = (
+  tenantId,
+  selectedAdditionalMetaRunId,
+  setSelectedAdditionalMetaRunId,
   onAdditionalMetadataClick,
   onTaskRunIdClick,
 ) => [
@@ -104,7 +111,7 @@ export const columns: (
     cell: ({ row }) => {
       if (row.getCanExpand()) {
         return (
-          <Link to={'/v1/runs/' + row.original.metadata.id}>
+          <Link to={`/tenants/${tenantId}/runs/${row.original.metadata.id}`}>
             <div className="cursor-pointer hover:underline min-w-fit whitespace-nowrap">
               {row.original.displayName}
             </div>
@@ -154,7 +161,9 @@ export const columns: (
       return (
         <div className="min-w-fit whitespace-nowrap">
           {(workflowId && workflowName && (
-            <a href={`/v1/tasks/${workflowId}`}>{workflowName}</a>
+            <a href={`/tenants/${tenantId}/tasks/${workflowId}`}>
+              {workflowName}
+            </a>
           )) ||
             'N/A'}
         </div>
@@ -254,14 +263,21 @@ export const columns: (
   {
     accessorKey: TaskRunColumn.duration,
     header: ({ column }) => (
-      <DataTableColumnHeader
-        column={column}
-        title="Duration (ms)"
-        className="whitespace-nowrap"
-      />
+      <DataTableColumnHeader column={column} title="Duration" />
     ),
     cell: ({ row }) => {
-      return <div className="whitespace-nowrap">{row.original.duration}</div>;
+      const startedAt = row.original.startedAt;
+      const finishedAt = row.original.finishedAt;
+      const status = row.getValue('status') as V1TaskStatus;
+
+      return (
+        <Duration
+          start={startedAt}
+          end={finishedAt}
+          status={status}
+          variant="compact"
+        />
+      );
     },
     enableSorting: false,
     enableHiding: true,
@@ -280,6 +296,14 @@ export const columns: (
         <AdditionalMetadata
           metadata={row.original.additionalMetadata}
           onClick={onAdditionalMetadataClick}
+          isOpen={selectedAdditionalMetaRunId === row.original.metadata.id}
+          onOpenChange={(open) => {
+            if (open) {
+              setSelectedAdditionalMetaRunId(row.original.metadata.id);
+            } else {
+              setSelectedAdditionalMetaRunId(null);
+            }
+          }}
         />
       );
     },

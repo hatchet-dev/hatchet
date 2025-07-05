@@ -1,11 +1,10 @@
 import { queries, V1TaskSummary } from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
 import { useColumnFilters } from './column-filters';
-import { useTenant } from '@/lib/atoms';
-import invariant from 'tiny-invariant';
 import { usePagination } from './pagination';
 import { useCallback, useMemo, useState } from 'react';
 import { RowSelectionState } from '@tanstack/react-table';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
 
 type UseTaskRunProps = {
   rowSelection: RowSelectionState;
@@ -14,6 +13,7 @@ type UseTaskRunProps = {
   parentTaskExternalId: string | undefined;
   triggeringEventExternalId?: string | undefined;
   disablePagination?: boolean;
+  pauseRefetch?: boolean;
 };
 
 export const useTaskRuns = ({
@@ -23,18 +23,18 @@ export const useTaskRuns = ({
   parentTaskExternalId,
   triggeringEventExternalId,
   disablePagination = false,
+  pauseRefetch = false,
 }: UseTaskRunProps) => {
   const cf = useColumnFilters();
   const { pagination, offset } = usePagination();
-  const { tenant } = useTenant();
-  invariant(tenant, 'Tenant must be set');
+  const { tenantId } = useCurrentTenantId();
 
   const [initialRenderTime] = useState(
     new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
   );
 
   const listTasksQuery = useQuery({
-    ...queries.v1WorkflowRuns.list(tenant.metadata.id, {
+    ...queries.v1WorkflowRuns.list(tenantId, {
       offset: disablePagination ? 0 : offset,
       limit: disablePagination ? 500 : pagination.pageSize,
       statuses: cf.filters.status ? [cf.filters.status] : undefined,
@@ -49,7 +49,7 @@ export const useTaskRuns = ({
     }),
     placeholderData: (prev) => prev,
     refetchInterval: () => {
-      if (Object.keys(rowSelection).length > 0) {
+      if (Object.keys(rowSelection).length > 0 || pauseRefetch) {
         return false;
       }
 

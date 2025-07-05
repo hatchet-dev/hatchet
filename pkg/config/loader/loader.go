@@ -14,6 +14,7 @@ import (
 
 	"github.com/exaring/otelpgx"
 	pgxzero "github.com/jackc/pgx-zerolog"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgx/v5/tracelog"
 	"github.com/rs/zerolog"
@@ -138,6 +139,25 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 	config, err := pgxpool.ParseConfig(databaseUrl)
 	if err != nil {
 		return nil, err
+	}
+
+	// ref: https://github.com/jackc/pgx/issues/1549
+	config.AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
+		t, err := conn.LoadType(ctx, "v1_readable_status_olap")
+		if err != nil {
+			return err
+		}
+
+		conn.TypeMap().RegisterType(t)
+
+		t, err = conn.LoadType(ctx, "_v1_readable_status_olap")
+		if err != nil {
+			return err
+		}
+
+		conn.TypeMap().RegisterType(t)
+
+		return nil
 	}
 
 	if cf.LogQueries {

@@ -7,6 +7,8 @@ import snips from "@/lib/snips";
 
 # **Warning! The Event Loop May Be Blocked**
 
+_Since you're here, you might be interested in checking out [Hatchet](https://hatchet.run) — the platform for running background tasks, data pipelines and AI agents at scale._
+
 <div className="w-full pb-4 mx-auto border-b shadow-md flex flex-row justify-between items-center mt-10">
   <h5 className="text-xl font-bold tracking-tight text-foreground">
     Matt Kaye
@@ -196,6 +198,10 @@ First line of defense: look for things that are obviously blocking. API calls, d
 - Similarly, if you have some expensive CPU-bound work (see: solving Sudoku), use `asyncio.to_thread` there too to offload the work to a separate thread.
 
 As a last resort, you can also change your tasks from being async to sync, although we don't recommend this in the majority of cases.
+
+### Use a linter
+
+[Ruff](https://docs.astral.sh/ruff/), via `flake8` (for example), has an [`ASYNC` linting rule](https://docs.astral.sh/ruff/rules/#flake8-async-async) to help you catch potential issues in async code.
 
 ### Instrument your code
 

@@ -5,6 +5,57 @@ All notable changes to Hatchet's Python SDK will be documented in this changelog
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.14.2] - 2025-07-03
+
+### Added
+
+- The `Runs` client now has `list_with_pagination` and `aio_list_with_pagination` methods that allow for listing workflow runs with internal pagination. The wrappers on the `Standalone` and `Workflow` classes have been updated to use these methods.
+- Added retries with backoff to all of the REST API wrapper methods on the feature clients.
+
+## [1.14.1] - 2025-07-03
+
+### Changed
+
+- `DurableContext.aio_wait_for` can now accept an or group, in addition to sleep and event conditions.
+
+## [1.14.0] - 2025-06-25
+
+### Added
+
+- Adds an `IllegalTaskOutputError` that handles cases where tasks return invalid outputs.
+- Logs `NonRetryableException` as an info-level log so it doesn't get picked up by Sentry and similar tools.
+
+### Changed
+
+- Exports `NonRetryableException` at the top level
+- Fixes an issue with the `status` field throwing a Pydantic error when calling `worker.get`
+- Fixes an issue with duplicate protobufs if you try to import both the v1 and v0 clients.
+
+## [1.13.0] - 2025-06-25
+
+### Added
+
+- Documentation for the `Context` classes
+- Allows for a worker to be terminated after a certain number of tasks by providing the `terminate_worker_after_num_tasks` config option
+
+### Changed
+
+- Adds a number of helpful Ruff linting rules
+- `DedupeViolationErr` is now `DedupeViolationError`
+- Fixed events documentation to correctly have a skipped run example.
+- Changed default arguments to many methods from mutable defaults like `[]` to None
+- Changes `JSONSerializableMapping` from `Mapping` to `dict`
+- Handles some potential bugs related to `asyncio` tasks being garbage collected.
+- Improves exception printing with an `ExceptionGroup` implementation
+- Fixes a bug with namespacing of user event conditions where the namespace was not respected so the task waiting for it would hang
+- Fixes a memory leak in streaming and logging, and fixes some issues with log capture.
+
+## [1.12.3] - 2025-06-25
+
+### Changed
+
+- Fixes a namespacing-related but in the `workflow.id` property that incorrectly (and inconsistently) returned incorrect IDs for namespaced workflows.
+
 ## [1.12.2] - 2025-06-17
 
 ### Changed

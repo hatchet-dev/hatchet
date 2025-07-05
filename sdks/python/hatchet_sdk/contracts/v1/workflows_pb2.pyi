@@ -157,8 +157,8 @@ class DefaultFilter(_message.Message):
     PAYLOAD_FIELD_NUMBER: _ClassVar[int]
     expression: str
     scope: str
-    payload: str
-    def __init__(self, expression: _Optional[str] = ..., scope: _Optional[str] = ..., payload: _Optional[str] = ...) -> None: ...
+    payload: bytes
+    def __init__(self, expression: _Optional[str] = ..., scope: _Optional[str] = ..., payload: _Optional[bytes] = ...) -> None: ...
 
 class Concurrency(_message.Message):
     __slots__ = ("expression", "max_runs", "limit_strategy")

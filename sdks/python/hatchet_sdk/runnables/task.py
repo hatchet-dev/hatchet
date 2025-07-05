@@ -1,6 +1,15 @@
-from datetime import timedelta
-from typing import TYPE_CHECKING, Any, Callable, Generic, Union, cast, get_type_hints
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any, Generic, cast, get_type_hints
 
+from hatchet_sdk.conditions import (
+    Action,
+    Condition,
+    OrGroup,
+    ParentCondition,
+    SleepCondition,
+    UserEventCondition,
+    flatten_conditions,
+)
 from hatchet_sdk.context.context import Context, DurableContext
 from hatchet_sdk.contracts.v1.shared.condition_pb2 import TaskConditions
 from hatchet_sdk.contracts.v1.workflows_pb2 import (
@@ -24,14 +33,6 @@ from hatchet_sdk.utils.typing import (
     TaskIOValidator,
     is_basemodel_subclass,
 )
-from hatchet_sdk.waits import (
-    Action,
-    Condition,
-    OrGroup,
-    ParentCondition,
-    SleepCondition,
-    UserEventCondition,
-)
 
 if TYPE_CHECKING:
     from hatchet_sdk.runnables.workflow import Workflow
@@ -40,28 +41,30 @@ if TYPE_CHECKING:
 class Task(Generic[TWorkflowInput, R]):
     def __init__(
         self,
-        _fn: Union[
+        _fn: (
             Callable[[TWorkflowInput, Context], R | CoroutineLike[R]]
-            | Callable[[TWorkflowInput, Context], AwaitableLike[R]],
-            Callable[[TWorkflowInput, DurableContext], R | CoroutineLike[R]]
-            | Callable[[TWorkflowInput, DurableContext], AwaitableLike[R]],
-        ],
+            | Callable[[TWorkflowInput, Context], AwaitableLike[R]]
+            | (
+                Callable[[TWorkflowInput, DurableContext], R | CoroutineLike[R]]
+                | Callable[[TWorkflowInput, DurableContext], AwaitableLike[R]]
+            )
+        ),
         is_durable: bool,
         type: StepType,
         workflow: "Workflow[TWorkflowInput]",
         name: str,
-        execution_timeout: Duration = timedelta(seconds=60),
-        schedule_timeout: Duration = timedelta(minutes=5),
-        parents: "list[Task[TWorkflowInput, Any]]" = [],
-        retries: int = 0,
-        rate_limits: list[CreateTaskRateLimit] = [],
-        desired_worker_labels: dict[str, DesiredWorkerLabels] = {},
-        backoff_factor: float | None = None,
-        backoff_max_seconds: int | None = None,
-        concurrency: list[ConcurrencyExpression] = [],
-        wait_for: list[Condition | OrGroup] = [],
-        skip_if: list[Condition | OrGroup] = [],
-        cancel_if: list[Condition | OrGroup] = [],
+        execution_timeout: Duration,
+        schedule_timeout: Duration,
+        parents: "list[Task[TWorkflowInput, Any]] | None",
+        retries: int,
+        rate_limits: list[CreateTaskRateLimit] | None,
+        desired_worker_labels: dict[str, DesiredWorkerLabels] | None,
+        backoff_factor: float | None,
+        backoff_max_seconds: int | None,
+        concurrency: list[ConcurrencyExpression] | None,
+        wait_for: list[Condition | OrGroup] | None,
+        skip_if: list[Condition | OrGroup] | None,
+        cancel_if: list[Condition | OrGroup] | None,
     ) -> None:
         self.is_durable = is_durable
 
@@ -74,17 +77,17 @@ class Task(Generic[TWorkflowInput, R]):
         self.execution_timeout = execution_timeout
         self.schedule_timeout = schedule_timeout
         self.name = name
-        self.parents = parents
+        self.parents = parents or []
         self.retries = retries
-        self.rate_limits = rate_limits
-        self.desired_worker_labels = desired_worker_labels
+        self.rate_limits = rate_limits or []
+        self.desired_worker_labels = desired_worker_labels or {}
         self.backoff_factor = backoff_factor
         self.backoff_max_seconds = backoff_max_seconds
-        self.concurrency = concurrency
+        self.concurrency = concurrency or []
 
-        self.wait_for = self._flatten_conditions(wait_for)
-        self.skip_if = self._flatten_conditions(skip_if)
-        self.cancel_if = self._flatten_conditions(cancel_if)
+        self.wait_for = flatten_conditions(wait_for or [])
+        self.skip_if = flatten_conditions(skip_if or [])
+        self.cancel_if = flatten_conditions(cancel_if or [])
 
         return_type = get_type_hints(_fn).get("return")
 
@@ -92,22 +95,6 @@ class Task(Generic[TWorkflowInput, R]):
             workflow_input=workflow.config.input_validator,
             step_output=return_type if is_basemodel_subclass(return_type) else None,
         )
-
-    def _flatten_conditions(
-        self, conditions: list[Condition | OrGroup]
-    ) -> list[Condition]:
-        flattened: list[Condition] = []
-
-        for condition in conditions:
-            if isinstance(condition, OrGroup):
-                for or_condition in condition.conditions:
-                    or_condition.base.or_group_id = condition.or_group_id
-
-                flattened.extend(condition.conditions)
-            else:
-                flattened.append(condition)
-
-        return flattened
 
     def call(self, ctx: Context | DurableContext) -> R:
         if self.is_async_function:
@@ -179,13 +166,19 @@ class Task(Generic[TWorkflowInput, R]):
             raise ValueError("Conditions must have unique readable data keys.")
 
         user_events = [
-            c.to_proto() for c in conditions if isinstance(c, UserEventCondition)
+            c.to_proto(self.workflow.client.config)
+            for c in conditions
+            if isinstance(c, UserEventCondition)
         ]
         parent_overrides = [
-            c.to_proto() for c in conditions if isinstance(c, ParentCondition)
+            c.to_proto(self.workflow.client.config)
+            for c in conditions
+            if isinstance(c, ParentCondition)
         ]
         sleep_conditions = [
-            c.to_proto() for c in conditions if isinstance(c, SleepCondition)
+            c.to_proto(self.workflow.client.config)
+            for c in conditions
+            if isinstance(c, SleepCondition)
         ]
 
         return TaskConditions(

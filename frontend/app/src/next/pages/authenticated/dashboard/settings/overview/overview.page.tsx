@@ -281,7 +281,7 @@ function UIVersionSwitcher() {
                 }
 
                 setShowDowngradeModal(false);
-                window.location.href = `/v1/runs?tenant=${tenant.metadata.id}`;
+                window.location.href = `/tenants/${tenant.metadata.id}/runs`;
               }}
               loading={update.isPending}
             >

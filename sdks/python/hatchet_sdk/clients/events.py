@@ -1,7 +1,7 @@
 import asyncio
 import datetime
 import json
-from typing import List, cast
+from typing import cast
 
 from google.protobuf import timestamp_pb2
 from pydantic import BaseModel, Field
@@ -88,7 +88,7 @@ class EventClient(BaseRestClient):
         self,
         events: list[BulkPushEventWithMetadata],
         options: BulkPushEventOptions = BulkPushEventOptions(),
-    ) -> List[Event]:
+    ) -> list[Event]:
         return await asyncio.to_thread(self.bulk_push, events=events, options=options)
 
     ## IMPORTANT: Keep this method's signature in sync with the wrapper in the OTel instrumentor
@@ -105,12 +105,12 @@ class EventClient(BaseRestClient):
         try:
             meta_bytes = json.dumps(options.additional_metadata)
         except Exception as e:
-            raise ValueError(f"Error encoding meta: {e}")
+            raise ValueError("Error encoding meta") from e
 
         try:
             payload_str = json.dumps(payload)
         except (TypeError, ValueError) as e:
-            raise ValueError(f"Error encoding payload: {e}")
+            raise ValueError("Error encoding payload") from e
 
         request = PushEventRequest(
             key=namespaced_event_key,
@@ -139,12 +139,12 @@ class EventClient(BaseRestClient):
         try:
             meta_str = json.dumps(meta)
         except Exception as e:
-            raise ValueError(f"Error encoding meta: {e}")
+            raise ValueError("Error encoding meta") from e
 
         try:
             serialized_payload = json.dumps(payload)
         except (TypeError, ValueError) as e:
-            raise ValueError(f"Error serializing payload: {e}")
+            raise ValueError("Error serializing payload") from e
 
         return PushEventRequest(
             key=event_key,
@@ -159,9 +159,9 @@ class EventClient(BaseRestClient):
     @tenacity_retry
     def bulk_push(
         self,
-        events: List[BulkPushEventWithMetadata],
+        events: list[BulkPushEventWithMetadata],
         options: BulkPushEventOptions = BulkPushEventOptions(),
-    ) -> List[Event]:
+    ) -> list[Event]:
         namespace = options.namespace or self.namespace
 
         bulk_request = BulkPushEventRequest(
@@ -190,7 +190,7 @@ class EventClient(BaseRestClient):
         self.events_service_client.PutLog(request, metadata=get_metadata(self.token))
 
     @tenacity_retry
-    def stream(self, data: str | bytes, step_run_id: str) -> None:
+    def stream(self, data: str | bytes, step_run_id: str, index: int) -> None:
         if isinstance(data, str):
             data_bytes = data.encode("utf-8")
         elif isinstance(data, bytes):
@@ -202,11 +202,15 @@ class EventClient(BaseRestClient):
             stepRunId=step_run_id,
             createdAt=proto_timestamp_now(),
             message=data_bytes,
+            eventIndex=index,
         )
 
-        self.events_service_client.PutStreamEvent(
-            request, metadata=get_metadata(self.token)
-        )
+        try:
+            self.events_service_client.PutStreamEvent(
+                request, metadata=get_metadata(self.token)
+            )
+        except Exception:
+            raise
 
     async def aio_list(
         self,

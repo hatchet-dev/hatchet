@@ -6,6 +6,13 @@ export default {
     },
   },
 
+  context: {
+    title: "Context",
+    theme: {
+      toc: true,
+    },
+  },
+
   "feature-clients": {
     title: "Feature Clients",
     theme: {

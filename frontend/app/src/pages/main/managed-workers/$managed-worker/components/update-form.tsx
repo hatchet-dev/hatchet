@@ -451,7 +451,10 @@ export default function UpdateWorkerForm({
           </AlertTitle>
           <AlertDescription>
             Please make sure your linked{' '}
-            <a href="/v1/tenant-settings/github" className="text-indigo-400">
+            <a
+              href={`/tenants/${tenantId}/tenant-settings/github`}
+              className="text-indigo-400"
+            >
               Github account
             </a>{' '}
             has write access to the repository.

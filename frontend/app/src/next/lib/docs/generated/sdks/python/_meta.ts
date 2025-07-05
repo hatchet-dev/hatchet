@@ -7,6 +7,13 @@ const meta = {
     },
     href: '/sdks/python/client',
   },
+  context: {
+    title: 'Context',
+    theme: {
+      toc: true,
+    },
+    href: '/sdks/python/context',
+  },
   feature_clients: {
     title: 'Feature Clients',
     theme: {

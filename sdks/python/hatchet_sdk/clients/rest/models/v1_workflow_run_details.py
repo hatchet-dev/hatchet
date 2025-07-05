@@ -41,7 +41,16 @@ class V1WorkflowRunDetails(BaseModel):
     )
     shape: List[WorkflowRunShapeItemForWorkflowRunDetails]
     tasks: List[V1TaskSummary]
-    __properties: ClassVar[List[str]] = ["run", "taskEvents", "shape", "tasks"]
+    workflow_config: Optional[Dict[str, Any]] = Field(
+        default=None, alias="workflowConfig"
+    )
+    __properties: ClassVar[List[str]] = [
+        "run",
+        "taskEvents",
+        "shape",
+        "tasks",
+        "workflowConfig",
+    ]
 
     model_config = ConfigDict(
         populate_by_name=True,
@@ -140,6 +149,7 @@ class V1WorkflowRunDetails(BaseModel):
                     if obj.get("tasks") is not None
                     else None
                 ),
+                "workflowConfig": obj.get("workflowConfig"),
             }
         )
         return _obj

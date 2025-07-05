@@ -220,3 +220,5 @@ paths:
     $ref: "./paths/monitoring/monitoring.yaml#/probe"
   /api/v1/version:
     $ref: "./paths/info/version.yaml#/version"
+  /api/v1/tenants/{tenant}/prometheus-metrics:
+    $ref: "./paths/tenant/tenant.yaml#/getPrometheusMetrics"

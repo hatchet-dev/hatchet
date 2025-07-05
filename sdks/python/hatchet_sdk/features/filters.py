@@ -10,7 +10,7 @@ from hatchet_sdk.clients.rest.models.v1_filter_list import V1FilterList
 from hatchet_sdk.clients.rest.models.v1_update_filter_request import (
     V1UpdateFilterRequest,
 )
-from hatchet_sdk.clients.v1.api_client import BaseRestClient
+from hatchet_sdk.clients.v1.api_client import BaseRestClient, retry
 from hatchet_sdk.utils.typing import JSONSerializableMapping
 
 
@@ -26,47 +26,39 @@ class FiltersClient(BaseRestClient):
         self,
         limit: int | None = None,
         offset: int | None = None,
-        workflow_id_scope_pairs: list[tuple[str, str]] | None = None,
+        workflow_ids: list[str] | None = None,
+        scopes: list[str] | None = None,
     ) -> V1FilterList:
         """
         List filters for a given tenant.
 
         :param limit: The maximum number of filters to return.
         :param offset: The number of filters to skip before starting to collect the result set.
-        :param workflow_id_scope_pairs: A list of tuples containing workflow IDs and scopes to filter by. The workflow id is first, then the scope is second.
+        :param workflow_ids: A list of workflow IDs to filter by.
+        :param scopes: A list of scopes to filter by.
 
         :return: A list of filters matching the specified criteria.
         """
-        return await asyncio.to_thread(
-            self.list, limit, offset, workflow_id_scope_pairs
-        )
+        return await asyncio.to_thread(self.list, limit, offset, workflow_ids, scopes)
 
+    @retry
     def list(
         self,
         limit: int | None = None,
         offset: int | None = None,
-        workflow_id_scope_pairs: list[tuple[str, str]] | None = None,
+        workflow_ids: list[str] | None = None,
+        scopes: list[str] | None = None,
     ) -> V1FilterList:
         """
         List filters for a given tenant.
 
         :param limit: The maximum number of filters to return.
         :param offset: The number of filters to skip before starting to collect the result set.
-        :param workflow_id_scope_pairs: A list of tuples containing workflow IDs and scopes to filter by. The workflow id is first, then the scope is second.
+        :param workflow_ids: A list of workflow IDs to filter by.
+        :param scopes: A list of scopes to filter by.
 
         :return: A list of filters matching the specified criteria.
         """
-        workflow_ids = (
-            [pair[0] for pair in workflow_id_scope_pairs]
-            if workflow_id_scope_pairs
-            else None
-        )
-        scopes = (
-            [pair[1] for pair in workflow_id_scope_pairs]
-            if workflow_id_scope_pairs
-            else None
-        )
-
         with self.client() as client:
             return self._fa(client).v1_filter_list(
                 tenant=self.tenant_id,
@@ -76,6 +68,7 @@ class FiltersClient(BaseRestClient):
                 scopes=scopes,
             )
 
+    @retry
     def get(
         self,
         filter_id: str,
@@ -111,7 +104,7 @@ class FiltersClient(BaseRestClient):
         workflow_id: str,
         expression: str,
         scope: str,
-        payload: JSONSerializableMapping = {},
+        payload: JSONSerializableMapping | None = None,
     ) -> V1Filter:
         """
         Create a new filter.
@@ -130,7 +123,7 @@ class FiltersClient(BaseRestClient):
                     workflowId=workflow_id,
                     expression=expression,
                     scope=scope,
-                    payload=dict(payload),
+                    payload=payload,
                 ),
             )
 
@@ -139,7 +132,7 @@ class FiltersClient(BaseRestClient):
         workflow_id: str,
         expression: str,
         scope: str,
-        payload: JSONSerializableMapping = {},
+        payload: JSONSerializableMapping | None = None,
     ) -> V1Filter:
         """
         Create a new filter.

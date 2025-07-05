@@ -54,6 +54,9 @@ const meta = {
   },
   prometheus_metrics: {
     title: 'Prometheus Metrics',
+    theme: {
+      toc: true,
+    },
     href: '/self-hosting/prometheus-metrics',
   },
   worker_configuration_options: {

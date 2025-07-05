@@ -642,7 +642,7 @@ LEFT JOIN
     task_output o ON o.task_id = t.id
 ORDER BY t.inserted_at DESC, t.id DESC;
 
--- name: UpdateTaskStatuses :one
+-- name: UpdateTaskStatuses :many
 WITH locked_events AS (
     SELECT
         *
@@ -735,7 +735,7 @@ WITH locked_events AS (
                 )
             )
     RETURNING
-        t.tenant_id, t.id, t.inserted_at, t.readable_status, t.external_id
+        t.tenant_id, t.id, t.inserted_at, t.readable_status, t.external_id, t.latest_worker_id, t.workflow_id, (t.dag_id IS NOT NULL)::boolean AS is_dag_task
 ), events_to_requeue AS (
     -- Get events which don't have a corresponding locked_task
     SELECT
@@ -790,25 +790,17 @@ WITH locked_events AS (
         COUNT(*) as count
     FROM
         locked_events
-), rows_to_return AS (
-    SELECT
-        ARRAY_REMOVE(ARRAY_AGG(t.id), NULL)::bigint[] AS task_ids,
-        ARRAY_REMOVE(ARRAY_AGG(t.inserted_at), NULL)::timestamptz[] AS task_inserted_ats,
-        ARRAY_REMOVE(ARRAY_AGG(t.readable_status), NULL)::text[] AS readable_statuses,
-        ARRAY_REMOVE(ARRAY_AGG(t.external_id), NULL)::uuid[] AS external_ids
-    FROM
-        updated_tasks t
 )
 SELECT
+    -- Little wonky, but we return the count of events that were processed in each row. Potential edge case
+    -- where there are no tasks updated with a non-zero count, but this should be very rare and we'll get
+    -- updates on the next run.
     (SELECT count FROM event_count) AS count,
-    task_ids,
-    task_inserted_ats,
-    readable_statuses,
-    external_ids
+    t.*
 FROM
-    rows_to_return;
+    updated_tasks t;
 
--- name: UpdateDAGStatuses :one
+-- name: UpdateDAGStatuses :many
 WITH locked_events AS (
     SELECT
         *
@@ -883,7 +875,7 @@ WITH locked_events AS (
     WHERE
         (d.id, d.inserted_at) = (dtc.id, dtc.inserted_at)
     RETURNING
-        d.id, d.inserted_at, d.readable_status, d.external_id
+        d.id, d.inserted_at, d.readable_status, d.external_id, d.workflow_id
 ), events_to_requeue AS (
     -- Get events which don't have a corresponding locked_task
     SELECT
@@ -929,23 +921,15 @@ WITH locked_events AS (
         COUNT(*) as count
     FROM
         locked_events
-), rows_to_return AS (
-    SELECT
-        ARRAY_REMOVE(ARRAY_AGG(d.id), NULL)::bigint[] AS dag_ids,
-        ARRAY_REMOVE(ARRAY_AGG(d.inserted_at), NULL)::timestamptz[] AS dag_inserted_ats,
-        ARRAY_REMOVE(ARRAY_AGG(d.readable_status), NULL)::text[] AS readable_statuses,
-        ARRAY_REMOVE(ARRAY_AGG(d.external_id), NULL)::uuid[] AS external_ids
-    FROM
-        updated_dags d
 )
 SELECT
+    -- Little wonky, but we return the count of events that were processed in each row. Potential edge case
+    -- where there are no tasks updated with a non-zero count, but this should be very rare and we'll get
+    -- updates on the next run.
     (SELECT count FROM event_count) AS count,
-    dag_ids,
-    dag_inserted_ats,
-    readable_statuses,
-    external_ids
+    d.*
 FROM
-    rows_to_return;
+    updated_dags d;
 
 -- name: PopulateDAGMetadata :many
 WITH input AS (
@@ -1155,7 +1139,7 @@ WITH runs AS (
         e.*
     FROM runs r
     JOIN v1_dag_to_task_olap dt ON r.dag_id = dt.dag_id AND r.inserted_at = dt.dag_inserted_at
-    JOIN v1_task_events_olap e ON e.task_id = dt.task_id AND e.task_inserted_at = dt.task_inserted_at
+    JOIN v1_task_events_olap e ON (e.task_id, e.task_inserted_at) = (dt.task_id, dt.task_inserted_at)
     WHERE r.dag_id IS NOT NULL
 
     UNION ALL
@@ -1364,109 +1348,86 @@ WHERE
 ;
 
 
--- name: ListEvents :many
-WITH included_events AS (
-    SELECT
-        e.*,
-        JSON_AGG(JSON_BUILD_OBJECT('run_external_id', r.external_id, 'filter_id', etr.filter_id)) FILTER (WHERE r.external_id IS NOT NULL)::JSONB AS triggered_runs
-    FROM v1_event_lookup_table_olap elt
-    JOIN v1_events_olap e ON (elt.tenant_id, elt.event_id, elt.event_seen_at) = (e.tenant_id, e.id, e.seen_at)
-    LEFT JOIN v1_event_to_run_olap etr ON (e.id, e.seen_at) = (etr.event_id, etr.event_seen_at)
-    LEFT JOIN v1_runs_olap r ON (etr.run_id, etr.run_inserted_at) = (r.id, r.inserted_at)
-    WHERE
-        e.tenant_id = @tenantId
-        AND (
-            sqlc.narg('keys')::TEXT[] IS NULL OR
-            "key" = ANY(sqlc.narg('keys')::TEXT[])
-        )
-        AND e.seen_at >= @since::TIMESTAMPTZ
-        AND (
-            sqlc.narg('until')::TIMESTAMPTZ IS NULL OR
-            e.seen_at <= sqlc.narg('until')::TIMESTAMPTZ
-        )
-        AND (
-            sqlc.narg('workflowIds')::UUID[] IS NULL OR
-            r.workflow_id = ANY(sqlc.narg('workflowIds')::UUID[])
-        )
-        AND (
-            sqlc.narg('eventIds')::UUID[] IS NULL OR
-            elt.external_id = ANY(sqlc.narg('eventIds')::UUID[])
-        )
-        AND (
-            sqlc.narg('additionalMetadata')::JSONB IS NULL OR
-            e.additional_metadata @> sqlc.narg('additionalMetadata')::JSONB
-        )
-        AND (
-            CAST(sqlc.narg('statuses')::text[] AS v1_readable_status_olap[]) IS NULL OR
-            r.readable_status = ANY(CAST(sqlc.narg('statuses')::text[] AS v1_readable_status_olap[]))
-        )
-        AND (
-            sqlc.narg('scopes')::TEXT[] IS NULL OR
-            e.scope = ANY(sqlc.narg('scopes')::TEXT[])
-        )
-    GROUP BY
-        e.tenant_id,
-        e.id,
-        e.external_id,
-        e.seen_at,
-        e.key,
-        e.payload,
-        e.additional_metadata,
-        e.scope
-    ORDER BY e.seen_at DESC, e.id
-    OFFSET
-        COALESCE(sqlc.narg('offset')::BIGINT, 0)
-    LIMIT
-        COALESCE(sqlc.narg('limit')::BIGINT, 50)
-), status_counts AS (
-    SELECT
-        e.tenant_id,
-        e.id,
-        e.seen_at,
-        COUNT(*) FILTER (WHERE r.readable_status = 'QUEUED') AS queued_count,
-        COUNT(*) FILTER (WHERE r.readable_status = 'RUNNING') AS running_count,
-        COUNT(*) FILTER (WHERE r.readable_status = 'COMPLETED') AS completed_count,
-        COUNT(*) FILTER (WHERE r.readable_status = 'CANCELLED') AS cancelled_count,
-        COUNT(*) FILTER (WHERE r.readable_status = 'FAILED') AS failed_count
-    FROM
-        included_events e
-    LEFT JOIN
-        v1_event_to_run_olap etr ON (e.id, e.seen_at) = (etr.event_id, etr.event_seen_at)
-    LEFT JOIN
-        v1_runs_olap r ON (etr.run_id, etr.run_inserted_at) = (r.id, r.inserted_at)
-    GROUP BY
-        e.tenant_id, e.id, e.seen_at
-)
-
+-- name: PopulateEventData :many
 SELECT
-    e.tenant_id,
-    e.id AS event_id,
-    e.external_id AS event_external_id,
-    e.seen_at AS event_seen_at,
-    e.key AS event_key,
-    e.payload AS event_payload,
-    e.additional_metadata AS event_additional_metadata,
-    e.scope AS event_scope,
-    sc.queued_count,
-    sc.running_count,
-    sc.completed_count,
-    sc.cancelled_count,
-    sc.failed_count,
-    e.triggered_runs
-FROM
-    included_events e
-LEFT JOIN
-    status_counts sc ON (e.tenant_id, e.id, e.seen_at) = (sc.tenant_id, sc.id, sc.seen_at)
-ORDER BY e.seen_at DESC
+    elt.external_id,
+    COUNT(*) FILTER (WHERE r.readable_status = 'QUEUED') AS queued_count,
+    COUNT(*) FILTER (WHERE r.readable_status = 'RUNNING') AS running_count,
+    COUNT(*) FILTER (WHERE r.readable_status = 'COMPLETED') AS completed_count,
+    COUNT(*) FILTER (WHERE r.readable_status = 'CANCELLED') AS cancelled_count,
+    COUNT(*) FILTER (WHERE r.readable_status = 'FAILED') AS failed_count,
+    JSON_AGG(JSON_BUILD_OBJECT('run_external_id', r.external_id, 'filter_id', etr.filter_id)) FILTER (WHERE r.external_id IS NOT NULL)::JSONB AS triggered_runs
+FROM v1_event_lookup_table_olap elt
+JOIN v1_events_olap e ON (elt.tenant_id, elt.event_id, elt.event_seen_at) = (e.tenant_id, e.id, e.seen_at)
+JOIN v1_event_to_run_olap etr ON (e.id, e.seen_at) = (etr.event_id, etr.event_seen_at)
+JOIN v1_runs_olap r ON (etr.run_id, etr.run_inserted_at) = (r.id, r.inserted_at)
+WHERE
+    elt.external_id = ANY(@eventExternalIds::uuid[])
+    AND elt.tenant_id = @tenantId::uuid
+GROUP BY elt.external_id
+;
+
+-- name: ListEvents :many
+SELECT e.*
+FROM v1_event_lookup_table_olap elt
+JOIN v1_events_olap e ON (elt.tenant_id, elt.event_id, elt.event_seen_at) = (e.tenant_id, e.id, e.seen_at)
+WHERE
+    e.tenant_id = @tenantId
+    AND (
+        sqlc.narg('keys')::TEXT[] IS NULL OR
+        "key" = ANY(sqlc.narg('keys')::TEXT[])
+    )
+    AND e.seen_at >= @since::TIMESTAMPTZ
+    AND (
+        sqlc.narg('until')::TIMESTAMPTZ IS NULL OR
+        e.seen_at <= sqlc.narg('until')::TIMESTAMPTZ
+    )
+    AND (
+        sqlc.narg('workflowIds')::UUID[] IS NULL OR
+        EXISTS (
+            SELECT 1
+            FROM v1_event_to_run_olap etr
+            JOIN v1_runs_olap r ON (etr.run_id, etr.run_inserted_at) = (r.id, r.inserted_at)
+            WHERE
+                (etr.event_id, etr.event_seen_at) = (e.id, e.seen_at)
+                AND r.workflow_id = ANY(sqlc.narg('workflowIds')::UUID[]::UUID[])
+        )
+    )
+    AND (
+        sqlc.narg('eventIds')::UUID[] IS NULL OR
+        elt.external_id = ANY(sqlc.narg('eventIds')::UUID[])
+    )
+    AND (
+        sqlc.narg('additionalMetadata')::JSONB IS NULL OR
+        e.additional_metadata @> sqlc.narg('additionalMetadata')::JSONB
+    )
+    AND (
+        CAST(sqlc.narg('statuses')::TEXT[] AS v1_readable_status_olap[]) IS NULL OR
+        EXISTS (
+            SELECT 1
+            FROM v1_event_to_run_olap etr
+            JOIN v1_runs_olap r ON (etr.run_id, etr.run_inserted_at) = (r.id, r.inserted_at)
+            WHERE
+                (etr.event_id, etr.event_seen_at) = (e.id, e.seen_at)
+                AND r.readable_status = ANY(CAST(sqlc.narg('statuses')::text[]::TEXT[] AS v1_readable_status_olap[]))
+        )
+    )
+    AND (
+        sqlc.narg('scopes')::TEXT[] IS NULL OR
+        e.scope = ANY(sqlc.narg('scopes')::TEXT[])
+    )
+ORDER BY e.seen_at DESC, e.id
+OFFSET
+    COALESCE(sqlc.narg('offset')::BIGINT, 0)
+LIMIT
+    COALESCE(sqlc.narg('limit')::BIGINT, 50)
 ;
 
 -- name: CountEvents :one
 WITH included_events AS (
-    SELECT DISTINCT e.*
+    SELECT e.*
     FROM v1_event_lookup_table_olap elt
     JOIN v1_events_olap e ON (elt.tenant_id, elt.event_id, elt.event_seen_at) = (e.tenant_id, e.id, e.seen_at)
-    LEFT JOIN v1_event_to_run_olap etr ON (e.id, e.seen_at) = (etr.event_id, etr.event_seen_at)
-    LEFT JOIN v1_runs_olap r ON (etr.run_id, etr.run_inserted_at) = (r.id, r.inserted_at)
     WHERE
         e.tenant_id = @tenantId
         AND (
@@ -1480,7 +1441,14 @@ WITH included_events AS (
         )
         AND (
             sqlc.narg('workflowIds')::UUID[] IS NULL OR
-            r.workflow_id = ANY(sqlc.narg('workflowIds')::UUID[])
+            EXISTS (
+                SELECT 1
+                FROM v1_event_to_run_olap etr
+                JOIN v1_runs_olap r ON (etr.run_id, etr.run_inserted_at) = (r.id, r.inserted_at)
+                WHERE
+                    (etr.event_id, etr.event_seen_at) = (e.id, e.seen_at)
+                    AND r.workflow_id = ANY(sqlc.narg('workflowIds')::UUID[]::UUID[])
+            )
         )
         AND (
             sqlc.narg('eventIds')::UUID[] IS NULL OR
@@ -1491,8 +1459,15 @@ WITH included_events AS (
             e.additional_metadata @> sqlc.narg('additionalMetadata')::JSONB
         )
         AND (
-            CAST(sqlc.narg('statuses')::text[] AS v1_readable_status_olap[]) IS NULL OR
-            r.readable_status = ANY(CAST(sqlc.narg('statuses')::text[] AS v1_readable_status_olap[]))
+            CAST(sqlc.narg('statuses')::TEXT[] AS v1_readable_status_olap[]) IS NULL OR
+            EXISTS (
+                SELECT 1
+                FROM v1_event_to_run_olap etr
+                JOIN v1_runs_olap r ON (etr.run_id, etr.run_inserted_at) = (r.id, r.inserted_at)
+                WHERE
+                    (etr.event_id, etr.event_seen_at) = (e.id, e.seen_at)
+                    AND r.readable_status = ANY(CAST(sqlc.narg('statuses')::text[]::TEXT[] AS v1_readable_status_olap[]))
+            )
         )
         AND (
             sqlc.narg('scopes')::TEXT[] IS NULL OR
@@ -1505,3 +1480,128 @@ WITH included_events AS (
 SELECT COUNT(*)
 FROM included_events e
 ;
+
+-- name: GetDagDurationsByDagIds :many
+WITH input AS (
+    SELECT
+        UNNEST(@dagIds::bigint[]) AS dag_id,
+        UNNEST(@dagInsertedAts::timestamptz[]) AS inserted_at,
+        UNNEST(@readableStatuses::v1_readable_status_olap[]) AS readable_status
+), dag_data AS (
+    SELECT
+        i.dag_id,
+        i.inserted_at,
+        d.external_id,
+        d.display_name,
+        d.tenant_id
+    FROM
+        input i
+    JOIN
+        v1_dags_olap d ON (d.inserted_at, d.id, d.readable_status, d.tenant_id) = (i.inserted_at, i.dag_id, i.readable_status, @tenantId::uuid)
+), dag_tasks AS (
+    SELECT
+        dd.dag_id,
+        dd.inserted_at AS dag_inserted_at,
+        dd.external_id,
+        dt.task_id,
+        dt.task_inserted_at
+    FROM
+        dag_data dd
+    JOIN
+        v1_dag_to_task_olap dt ON (dt.dag_id, dt.dag_inserted_at) = (dd.dag_id, dd.inserted_at)
+), relevant_events AS (
+    SELECT
+        dt.dag_id,
+        dt.dag_inserted_at,
+        dt.external_id,
+        e.*
+    FROM
+        dag_tasks dt
+    JOIN
+        v1_task_events_olap e ON (e.task_id, e.task_inserted_at) = (dt.task_id, dt.task_inserted_at)
+    WHERE
+        e.tenant_id = @tenantId::uuid
+), max_retry_counts AS (
+    SELECT
+        dag_id,
+        dag_inserted_at,
+        task_id,
+        task_inserted_at,
+        MAX(retry_count) AS max_retry_count
+    FROM
+        relevant_events
+    GROUP BY
+        dag_id, dag_inserted_at, task_id, task_inserted_at
+), dag_times AS (
+    SELECT
+        e.dag_id,
+        e.dag_inserted_at,
+        e.external_id,
+        MIN(CASE WHEN e.readable_status = 'RUNNING' THEN e.inserted_at END) AS started_at,
+        MAX(CASE WHEN e.readable_status = ANY(ARRAY['COMPLETED', 'FAILED', 'CANCELLED']::v1_readable_status_olap[])
+            THEN e.inserted_at END) AS finished_at
+    FROM
+        relevant_events e
+    JOIN
+        max_retry_counts mrc ON
+            (e.dag_id, e.dag_inserted_at, e.task_id, e.task_inserted_at, e.retry_count) =
+            (mrc.dag_id, mrc.dag_inserted_at, mrc.task_id, mrc.task_inserted_at, mrc.max_retry_count)
+    GROUP BY e.dag_id, e.dag_inserted_at, e.external_id
+)
+SELECT
+    dt.started_at::timestamptz AS started_at,
+    dt.finished_at::timestamptz AS finished_at
+FROM
+    dag_data dd
+LEFT JOIN
+    dag_times dt ON (dd.dag_id, dd.inserted_at) = (dt.dag_id, dt.dag_inserted_at)
+ORDER BY dd.dag_id, dd.inserted_at;
+
+-- name: GetTaskDurationsByTaskIds :many
+WITH input AS (
+    SELECT
+        UNNEST(@taskIds::bigint[]) AS task_id,
+        UNNEST(@taskInsertedAts::timestamptz[]) AS inserted_at,
+        UNNEST(@readableStatuses::v1_readable_status_olap[]) AS readable_status
+), task_data AS (
+    SELECT
+        i.task_id,
+        i.inserted_at,
+        t.external_id,
+        t.display_name,
+        t.readable_status,
+        t.latest_retry_count,
+        t.tenant_id
+    FROM
+        input i
+    JOIN
+        v1_tasks_olap t ON (t.inserted_at, t.id, t.readable_status, t.tenant_id) = (i.inserted_at, i.task_id, i.readable_status, @tenantId::uuid)
+), task_events AS (
+    SELECT
+        td.task_id,
+        td.inserted_at,
+        e.event_type,
+        e.event_timestamp,
+        e.readable_status
+    FROM
+        task_data td
+    JOIN
+        v1_task_events_olap e ON (e.tenant_id, e.task_id, e.task_inserted_at, e.retry_count) = (td.tenant_id, td.task_id, td.inserted_at, td.latest_retry_count)
+), task_times AS (
+    SELECT
+        task_id,
+        inserted_at,
+        MIN(CASE WHEN event_type = 'STARTED' THEN event_timestamp END) AS started_at,
+        MAX(CASE WHEN readable_status = ANY(ARRAY['COMPLETED', 'FAILED', 'CANCELLED']::v1_readable_status_olap[])
+            THEN event_timestamp END) AS finished_at
+    FROM task_events
+    GROUP BY task_id, inserted_at
+)
+SELECT
+    tt.started_at::timestamptz AS started_at,
+    tt.finished_at::timestamptz AS finished_at
+FROM
+    task_data td
+LEFT JOIN
+    task_times tt ON (td.task_id, td.inserted_at) = (tt.task_id, tt.inserted_at)
+ORDER BY td.task_id, td.inserted_at;

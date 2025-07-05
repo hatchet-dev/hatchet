@@ -349,7 +349,7 @@ export class V1Worker {
           workflow.defaultFilters?.map((f) => ({
             scope: f.scope,
             expression: f.expression,
-            payload: f.payload ? JSON.stringify(f.payload) : undefined,
+            payload: f.payload ? new TextEncoder().encode(JSON.stringify(f.payload)) : undefined,
           })) ?? [],
       });
       this.registeredWorkflowPromises.push(registeredWorkflow);

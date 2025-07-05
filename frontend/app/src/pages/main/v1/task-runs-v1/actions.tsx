@@ -12,12 +12,10 @@ import api, {
   V1ReplayTaskRequest,
   V1TaskStatus,
 } from '@/lib/api';
-import { useTenant } from '@/lib/atoms';
 import { useApiError } from '@/lib/hooks';
 import { ArrowPathIcon, XCircleIcon } from '@heroicons/react/24/outline';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useCallback, useState } from 'react';
-import invariant from 'tiny-invariant';
 import {
   TimeWindow,
   useColumnFilters,
@@ -33,6 +31,7 @@ import {
   Select,
 } from '@/components/v1/ui/select';
 import { DateTimePicker } from '@/components/v1/molecules/time-picker/date-time-picker';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
 
 export const TASK_RUN_TERMINAL_STATUSES = [
   V1TaskStatus.CANCELLED,
@@ -79,9 +78,7 @@ type TaskRunActionsParams =
     };
 
 export const useTaskRunActions = () => {
-  const { tenant } = useTenant();
-
-  invariant(tenant?.metadata.id);
+  const { tenantId } = useCurrentTenantId();
 
   const { handleApiError } = useApiError({});
 
@@ -92,9 +89,9 @@ export const useTaskRunActions = () => {
 
       switch (actionType) {
         case 'cancel':
-          return api.v1TaskCancel(tenant.metadata.id, params);
+          return api.v1TaskCancel(tenantId, params);
         case 'replay':
-          return api.v1TaskReplay(tenant.metadata.id, params);
+          return api.v1TaskReplay(tenantId, params);
         default:
           // eslint-disable-next-line no-case-declarations
           const exhaustiveCheck: never = actionType;
@@ -141,12 +138,11 @@ type ModalContentProps = {
 };
 
 const CancelByExternalIdsContent = ({ label, params }: ModalContentProps) => {
-  const { tenant } = useTenant();
-  invariant(tenant);
+  const { tenantId } = useCurrentTenantId();
 
   const { data, isLoading, isError } = useQuery({
     ...queries.v1WorkflowRuns.listDisplayNames(
-      tenant.metadata.id,
+      tenantId,
       params.externalIds || [],
     ),
     enabled: !!params.externalIds,

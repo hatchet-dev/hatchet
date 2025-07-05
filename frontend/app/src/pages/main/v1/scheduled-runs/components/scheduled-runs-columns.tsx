@@ -13,9 +13,15 @@ export type RateLimitRow = RateLimit & {
 };
 
 export const columns = ({
+  tenantId,
   onDeleteClick,
+  selectedAdditionalMetaJobId,
+  handleSetSelectedAdditionalMetaJobId,
 }: {
+  tenantId: string;
   onDeleteClick: (row: ScheduledWorkflows) => void;
+  selectedAdditionalMetaJobId: string | null;
+  handleSetSelectedAdditionalMetaJobId: (runId: string | null) => void;
 }): ColumnDef<ScheduledWorkflows>[] => {
   return [
     {
@@ -25,7 +31,7 @@ export const columns = ({
       ),
       cell: ({ row }) => {
         return row.original.workflowRunId ? (
-          <Link to={`/v1/runs/${row.original.workflowRunId}`}>
+          <Link to={`/tenants/${tenantId}/runs/${row.original.workflowRunId}`}>
             <div className="cursor-pointer hover:underline min-w-fit whitespace-nowrap">
               {row.original.workflowRunName}
             </div>
@@ -61,7 +67,7 @@ export const columns = ({
       cell: ({ row }) => (
         <div className="flex flex-row items-center gap-4">
           <div className="cursor-pointer hover:underline min-w-fit whitespace-nowrap">
-            <a href={`/v1/tasks/${row.original.workflowId}`}>
+            <a href={`/tenants/${tenantId}/tasks/${row.original.workflowId}`}>
               {row.original.workflowName}
             </a>
           </div>
@@ -81,7 +87,17 @@ export const columns = ({
         }
 
         return (
-          <AdditionalMetadata metadata={row.original.additionalMetadata} />
+          <AdditionalMetadata
+            metadata={row.original.additionalMetadata}
+            isOpen={selectedAdditionalMetaJobId === row.original.metadata.id}
+            onOpenChange={(open) => {
+              if (open) {
+                handleSetSelectedAdditionalMetaJobId(row.original.metadata.id);
+              } else {
+                handleSetSelectedAdditionalMetaJobId(null);
+              }
+            }}
+          />
         );
       },
       enableSorting: false,

@@ -24,6 +24,7 @@ import * as rate_limit from './rate_limit';
 import * as retries from './retries';
 import * as simple from './simple';
 import * as sticky from './sticky';
+import * as streaming from './streaming';
 import * as timeouts from './timeouts';
 import * as with_timeouts from './with_timeouts';
 
@@ -53,5 +54,6 @@ export { rate_limit };
 export { retries };
 export { simple };
 export { sticky };
+export { streaming };
 export { timeouts };
 export { with_timeouts };

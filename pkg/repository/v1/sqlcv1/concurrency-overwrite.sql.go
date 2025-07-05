@@ -39,6 +39,7 @@ WITH filled_parent_slots AS (
     ORDER BY
         task_id, task_inserted_at
     FOR UPDATE
+    LIMIT 1000
 ), eligible_slots AS (
     SELECT
         cs.sort_id, cs.task_id, cs.task_inserted_at, cs.task_retry_count, cs.external_id, cs.tenant_id, cs.workflow_id, cs.workflow_version_id, cs.workflow_run_id, cs.strategy_id, cs.parent_strategy_id, cs.priority, cs.key, cs.is_filled, cs.next_parent_strategy_ids, cs.next_strategy_ids, cs.next_keys, cs.queue_to_notify, cs.schedule_timeout_at
@@ -207,6 +208,7 @@ WITH slots AS (
         strategy_id = $2::bigint AND
         schedule_timeout_at < NOW() AND
         is_filled = FALSE
+    LIMIT 1000
 ), eligible_running_slots AS (
     SELECT
         task_id,
@@ -429,6 +431,7 @@ WITH slots AS (
         strategy_id = $2::bigint AND
         schedule_timeout_at < NOW() AND
         is_filled = FALSE
+    LIMIT 1000
 ), eligible_running_slots AS (
     SELECT
         task_id,

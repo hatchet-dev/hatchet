@@ -1,13 +1,12 @@
 import api, { queries, WorkflowUpdateRequest } from '@/lib/api';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { useNavigate, useOutletContext, useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import invariant from 'tiny-invariant';
 import { WorkflowTags } from '../components/workflow-tags';
 import { Badge } from '@/components/v1/ui/badge';
 import { relativeDate } from '@/lib/utils';
 import { Square3Stack3DIcon } from '@heroicons/react/24/outline';
 import { Loading } from '@/components/v1/ui/loading.tsx';
-import { TenantContextType } from '@/lib/outlet';
 import { TriggerWorkflowForm } from './components/trigger-workflow-form';
 import { useState } from 'react';
 import { Button } from '@/components/v1/ui/button';
@@ -20,7 +19,6 @@ import {
 } from '@/components/v1/ui/tabs';
 import WorkflowGeneralSettings from './components/workflow-general-settings';
 import { ConfirmDialog } from '@/components/v1/molecules/confirm-dialog';
-import { useTenant } from '@/lib/atoms';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -28,15 +26,13 @@ import {
   DropdownMenuTrigger,
 } from '@/components/v1/ui/dropdown-menu';
 import { TaskRunsTable } from '../../workflow-runs-v1/components/task-runs-table';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
 
 export default function ExpandedWorkflow() {
-  const { tenant } = useTenant();
-
   // TODO list previous versions and make selectable
   const [selectedVersion] = useState<string | undefined>();
   const { handleApiError } = useApiError({});
-
-  invariant(tenant);
+  const { tenantId } = useCurrentTenantId();
 
   const [triggerWorkflow, setTriggerWorkflow] = useState(false);
   const [deleteWorkflow, setDeleteWorkflow] = useState(false);
@@ -84,7 +80,7 @@ export default function ExpandedWorkflow() {
       return res.data;
     },
     onSuccess: () => {
-      navigate('/v1/tasks');
+      navigate(`/tenants/${tenantId}/tasks`);
     },
   });
 
@@ -97,8 +93,8 @@ export default function ExpandedWorkflow() {
   const currVersion = workflow.versions && workflow.versions[0].version;
 
   return (
-    <div className="flex-grow h-full w-full">
-      <div className="mx-auto py-8 px-4 sm:px-6 lg:px-8">
+    <div className="flex-grow h-full w-full flex flex-col overflow-hidden gap-y-4">
+      <div className="flex-shrink-0 px-4 sm:px-6 lg:px-8">
         <div className="flex flex-row justify-between items-center">
           <div className="flex flex-row gap-4 items-center">
             <Square3Stack3DIcon className="h-6 w-6 text-foreground mt-1" />
@@ -189,9 +185,10 @@ export default function ExpandedWorkflow() {
             {workflow.description}
           </div>
         )}
-        <div className="flex flex-row justify-start items-center mt-4"></div>
-        <Tabs defaultValue="runs">
-          <TabsList layout="underlined">
+      </div>
+      <div className="flex-1 min-h-0 px-4 sm:px-6 lg:px-8">
+        <Tabs defaultValue="runs" className="flex flex-col h-full">
+          <TabsList layout="underlined" className="mb-4">
             <TabsTrigger variant="underlined" value="runs">
               Runs
             </TabsTrigger>
@@ -199,10 +196,13 @@ export default function ExpandedWorkflow() {
               Settings
             </TabsTrigger>
           </TabsList>
-          <TabsContent value="runs">
+          <TabsContent value="runs" className="flex-1 min-h-0">
             <RecentRunsList />
           </TabsContent>
-          <TabsContent value="settings" className="mt-4">
+          <TabsContent
+            value="settings"
+            className="flex-1 min-h-0 overflow-y-auto pt-4"
+          >
             {workflowVersionQuery.isLoading || !workflowVersionQuery.data ? (
               <Loading />
             ) : (
@@ -262,9 +262,6 @@ export default function ExpandedWorkflow() {
 }
 
 function RecentRunsList() {
-  const { tenant } = useOutletContext<TenantContextType>();
-  invariant(tenant);
-
   const params = useParams();
   invariant(params.workflow);
 

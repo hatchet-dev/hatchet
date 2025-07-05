@@ -52,7 +52,7 @@ export default function TenantInvites() {
             navigate(`/workflow-runs?tenant=${tenantId}`);
             break;
           case TenantVersion.V1:
-            navigate(`/v1/runs?tenant=${tenantId}`);
+            navigate(`/tenants/${tenantId}/runs`);
             break;
           default:
             navigate('/');

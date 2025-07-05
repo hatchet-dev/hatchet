@@ -5,7 +5,7 @@ from hatchet_sdk.clients.rest.api_client import ApiClient
 from hatchet_sdk.clients.rest.models.update_worker_request import UpdateWorkerRequest
 from hatchet_sdk.clients.rest.models.worker import Worker
 from hatchet_sdk.clients.rest.models.worker_list import WorkerList
-from hatchet_sdk.clients.v1.api_client import BaseRestClient
+from hatchet_sdk.clients.v1.api_client import BaseRestClient, retry
 
 
 class WorkersClient(BaseRestClient):
@@ -16,6 +16,7 @@ class WorkersClient(BaseRestClient):
     def _wa(self, client: ApiClient) -> WorkerApi:
         return WorkerApi(client)
 
+    @retry
     def get(self, worker_id: str) -> Worker:
         """
         Get a worker by its ID.
@@ -35,6 +36,7 @@ class WorkersClient(BaseRestClient):
         """
         return await asyncio.to_thread(self.get, worker_id)
 
+    @retry
     def list(
         self,
     ) -> WorkerList:

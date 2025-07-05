@@ -1,3 +1,4 @@
+import React from 'react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -32,6 +33,15 @@ import { VersionInfo } from '@/pages/main/info/components/version-info';
 import { useTenant } from '@/lib/atoms';
 import { routes } from '@/router';
 import { Banner, BannerProps } from './banner';
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from '@/components/v1/ui/breadcrumb';
+import { useBreadcrumbs } from '@/hooks/use-breadcrumbs';
 
 function HelpDropdown() {
   const meta = useApiMeta();
@@ -172,24 +182,32 @@ export default function MainNav({ user, setHasBanner }: MainNavProps) {
   const { tenant } = useTenant();
   const { pathname } = useLocation();
   const navigate = useNavigate();
+  const breadcrumbs = useBreadcrumbs();
 
-  const versionedRoutes = useMemo(
+  const tenantedRoutes = useMemo(
     () =>
       routes
         .at(0)
-        ?.children?.find((r) => r.path === '/v1/')
-        ?.children?.find((r) => r.path === '/v1/' && r.children?.length)
+        ?.children?.find((r) => r.path?.startsWith('/tenants/'))
+        ?.children?.find(
+          (r) => r.path?.startsWith('/tenants/') && r.children?.length,
+        )
         ?.children?.map((c) => c.path)
-        ?.map((p) => p?.replace('/v1', '')) || [],
+        ?.map((p) => p?.replace('/tenants/:tenant', '')) || [],
     [],
   );
 
   const tenantVersion = tenant?.version || TenantVersion.V0;
 
   const banner: BannerProps | undefined = useMemo(() => {
+    const pathnameWithoutTenant = pathname.replace(
+      `/tenants/${tenant?.metadata.id}`,
+      '',
+    );
+
     const shouldShowVersionUpgradeButton =
-      versionedRoutes.includes(pathname) && // It is a versioned route
-      !pathname.includes('/v1') && // The user is not already on the v1 version
+      tenantedRoutes.includes(pathnameWithoutTenant) && // It is a versioned route
+      !pathname.startsWith('/tenants') && // The user is not already on the v1 version
       tenantVersion === TenantVersion.V1; // The tenant is on the v1 version
 
     if (shouldShowVersionUpgradeButton) {
@@ -204,7 +222,7 @@ export default function MainNav({ user, setHasBanner }: MainNavProps) {
         actionText: 'View V1',
         onAction: () => {
           navigate({
-            pathname: '/v1' + pathname,
+            pathname: `/tenants/${tenant?.metadata.id}${pathname}`,
             search: '?previewV0=false',
           });
         },
@@ -212,7 +230,7 @@ export default function MainNav({ user, setHasBanner }: MainNavProps) {
     }
 
     return;
-  }, [navigate, pathname, tenantVersion, versionedRoutes]);
+  }, [navigate, pathname, tenantVersion, tenantedRoutes, tenant?.metadata.id]);
 
   useEffect(() => {
     if (!setHasBanner) {
@@ -225,19 +243,41 @@ export default function MainNav({ user, setHasBanner }: MainNavProps) {
     <div className="fixed top-0 w-screen">
       {banner && <Banner {...banner} />}
 
-      {/* Main Navigation Bar */}
       <div className="h-16 border-b">
         <div className="flex h-16 items-center pr-4 pl-4">
-          <button
-            onClick={() => toggleSidebarOpen()}
-            className="flex flex-row gap-4 items-center"
-          >
-            <img
-              src={theme == 'dark' ? hatchet : hatchetDark}
-              alt="Hatchet"
-              className="h-9 rounded"
-            />
-          </button>
+          <div className="flex flex-row items-center gap-x-8">
+            <button
+              onClick={() => toggleSidebarOpen()}
+              className="flex flex-row gap-4 items-center"
+            >
+              <img
+                src={theme == 'dark' ? hatchet : hatchetDark}
+                alt="Hatchet"
+                className="h-9 rounded"
+              />
+            </button>
+            {breadcrumbs.length > 0 && (
+              <Breadcrumb className="hidden md:block">
+                <BreadcrumbList>
+                  {breadcrumbs.map((crumb, index) => (
+                    <React.Fragment key={index}>
+                      {index > 0 && <BreadcrumbSeparator />}
+                      <BreadcrumbItem>
+                        {crumb.isCurrentPage ? (
+                          <BreadcrumbPage>{crumb.label}</BreadcrumbPage>
+                        ) : (
+                          <BreadcrumbLink href={crumb.href}>
+                            {crumb.label}
+                          </BreadcrumbLink>
+                        )}
+                      </BreadcrumbItem>
+                    </React.Fragment>
+                  ))}
+                </BreadcrumbList>
+              </Breadcrumb>
+            )}
+          </div>
+
           <div className="ml-auto flex items-center">
             <HelpDropdown />
             <AccountDropdown user={user} />

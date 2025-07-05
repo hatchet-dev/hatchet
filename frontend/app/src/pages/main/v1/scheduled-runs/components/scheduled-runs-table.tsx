@@ -8,7 +8,6 @@ import {
   VisibilityState,
 } from '@tanstack/react-table';
 import { useQuery } from '@tanstack/react-query';
-import invariant from 'tiny-invariant';
 import {
   ScheduledRunStatus,
   ScheduledWorkflows,
@@ -16,8 +15,7 @@ import {
   WorkflowRunOrderByDirection,
   queries,
 } from '@/lib/api';
-import { TenantContextType } from '@/lib/outlet';
-import { useOutletContext, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import {
   FilterOption,
   ToolbarFilters,
@@ -27,6 +25,8 @@ import { Button } from '@/components/v1/ui/button';
 import { ArrowPathIcon } from '@heroicons/react/24/outline';
 import { columns } from './scheduled-runs-columns';
 import { DeleteScheduledRun } from './delete-scheduled-runs';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
+import { TriggerWorkflowForm } from '../../workflows/$workflow/components/trigger-workflow-form';
 
 export interface ScheduledWorkflowRunsTableProps {
   createdAfter?: string;
@@ -50,9 +50,11 @@ export function ScheduledRunsTable({
   parentStepRunId,
   refetchInterval = 5000,
 }: ScheduledWorkflowRunsTableProps) {
+  const { tenantId } = useCurrentTenantId();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { tenant } = useOutletContext<TenantContextType>();
-  invariant(tenant);
+  const [triggerWorkflow, setTriggerWorkflow] = useState(false);
+  const [selectedAdditionalMetaJobId, setSelectedAdditionalMetaJobId] =
+    useState<string | null>(null);
 
   const [sorting, setSorting] = useState<SortingState>(() => {
     const sortParam = searchParams.get('sort');
@@ -179,7 +181,7 @@ export function ScheduledRunsTable({
   }, [sorting]);
 
   const listWorkflowRunsQuery = useQuery({
-    ...queries.scheduledRuns.list(tenant.metadata.id, {
+    ...queries.scheduledRuns.list(tenantId, {
       offset,
       limit: pageSize,
       statuses,
@@ -191,7 +193,7 @@ export function ScheduledRunsTable({
       additionalMetadata: AdditionalMetadataFilter,
     }),
     placeholderData: (prev) => prev,
-    refetchInterval,
+    refetchInterval: selectedAdditionalMetaJobId ? false : refetchInterval,
   });
 
   const {
@@ -199,41 +201,11 @@ export function ScheduledRunsTable({
     isLoading: workflowKeysIsLoading,
     error: workflowKeysError,
   } = useQuery({
-    ...queries.workflows.list(tenant.metadata.id, { limit: 200 }),
+    ...queries.workflows.list(tenantId, { limit: 200 }),
+    refetchInterval: selectedAdditionalMetaJobId ? false : refetchInterval,
   });
 
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
-
-  // const selectedRuns = useMemo(() => {
-  //   return Object.entries(rowSelection)
-  //     .filter(([, selected]) => !!selected)
-  //     .map(([id]) => (listWorkflowRunsQuery.data?.rows || [])[Number(id)]);
-  // }, [listWorkflowRunsQuery.data?.rows, rowSelection]);
-
-  // const { handleApiError } = useApiError({});
-
-  // const cancelWorkflowRunMutation = useMutation({
-  //   mutationKey: ['workflow-run:cancel', tenant.metadata.id, selectedRuns],
-  //   mutationFn: async () => {
-  //     const tenantId = tenant.metadata.id;
-  //     const workflowRunIds = selectedRuns.map((wr) => wr.metadata.id);
-
-  //     invariant(tenantId, 'has tenantId');
-  //     invariant(workflowRunIds, 'has runIds');
-
-  //     const res = await api.workflowRunCancel(tenantId, {
-  //       workflowRunIds,
-  //     });
-
-  //     return res.data;
-  //   },
-  //   onSuccess: () => {
-  //     queryClient.invalidateQueries({
-  //       queryKey: queries.workflowRuns.list(tenant.metadata.id, {}).queryKey,
-  //     });
-  //   },
-  //   onError: handleApiError,
-  // });
 
   const workflowKeyFilters = useMemo((): FilterOption[] => {
     return (
@@ -300,6 +272,13 @@ export function ScheduledRunsTable({
 
   const actions = [
     <Button
+      key="schedule-run"
+      onClick={() => setTriggerWorkflow(true)}
+      className="h-8 border"
+    >
+      Schedule Run
+    </Button>,
+    <Button
       key="refresh"
       className="h-8 px-2 lg:px-3"
       size="sm"
@@ -325,7 +304,6 @@ export function ScheduledRunsTable({
   return (
     <>
       <DeleteScheduledRun
-        tenant={tenant.metadata.id}
         scheduledRun={showScheduledRunRevoke}
         setShowScheduledRunRevoke={setShowScheduledRunRevoke}
         onSuccess={() => {
@@ -333,14 +311,24 @@ export function ScheduledRunsTable({
           setShowScheduledRunRevoke(undefined);
         }}
       />
+      <TriggerWorkflowForm
+        defaultTimingOption="schedule"
+        defaultWorkflow={undefined}
+        show={triggerWorkflow}
+        onClose={() => setTriggerWorkflow(false)}
+      />
+
       <DataTable
         emptyState={<>No runs found with the given filters.</>}
         error={workflowKeysError}
         isLoading={isLoading}
         columns={columns({
+          tenantId,
           onDeleteClick: (row) => {
             setShowScheduledRunRevoke(row);
           },
+          selectedAdditionalMetaJobId,
+          handleSetSelectedAdditionalMetaJobId: setSelectedAdditionalMetaJobId,
         })}
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}

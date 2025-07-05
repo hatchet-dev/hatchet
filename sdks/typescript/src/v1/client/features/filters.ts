@@ -20,21 +20,14 @@ export class FiltersClient {
   async list(opts?: {
     limit?: number;
     offset?: number;
-    workflowIdsAndScopes?: WorkflowIdScopePair[];
+    workflowIds?: string[];
+    scopes?: string[];
   }) {
-    const hasWorkflowIdsAndScopes = opts?.workflowIdsAndScopes !== undefined;
-    const workflowIds = hasWorkflowIdsAndScopes
-      ? opts.workflowIdsAndScopes?.map((pair) => pair.workflowId)
-      : undefined;
-    const scopes = hasWorkflowIdsAndScopes
-      ? opts.workflowIdsAndScopes?.map((pair) => pair.scope)
-      : undefined;
-
     const { data } = await this.api.v1FilterList(this.tenantId, {
       limit: opts?.limit,
       offset: opts?.offset,
-      workflowIds,
-      scopes,
+      workflowIds: opts?.workflowIds,
+      scopes: opts?.scopes,
     });
 
     return data;

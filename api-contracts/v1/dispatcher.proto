@@ -10,7 +10,10 @@ service V1Dispatcher {
     rpc RegisterDurableEvent(RegisterDurableEventRequest) returns (RegisterDurableEventResponse) {}
 
     rpc ListenForDurableEvent(stream ListenForDurableEventRequest) returns (stream DurableEvent) {}
+
 }
+
+
 
 message RegisterDurableEventRequest {
     string task_id = 1; // external uuid for the task run

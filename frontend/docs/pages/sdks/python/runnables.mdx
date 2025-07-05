@@ -44,29 +44,29 @@ Tasks within workflows can be defined with `@workflow.task()` or `@workflow.dura
 
 Methods:
 
-| Name                   | Description                                                                                                                |
-| ---------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| `task`                 | A decorator to transform a function into a Hatchet task that runs as part of a workflow.                                   |
-| `durable_task`         | A decorator to transform a function into a durable Hatchet task that runs as part of a workflow.                           |
-| `on_failure_task`      | A decorator to transform a function into a Hatchet on-failure task that runs as the last step in a workflow with failures. |
-| `on_success_task`      | A decorator to transform a function into a Hatchet on-success task that runs as the last step in a successful workflow.    |
-| `run`                  | Run the workflow synchronously and wait for it to complete.                                                                |
-| `aio_run`              | Run the workflow asynchronously and wait for it to complete.                                                               |
-| `run_no_wait`          | Synchronously trigger a workflow run without waiting for it to complete.                                                   |
-| `aio_run_no_wait`      | Asynchronously trigger a workflow run without waiting for it to complete.                                                  |
-| `run_many`             | Run a workflow in bulk and wait for all runs to complete.                                                                  |
-| `aio_run_many`         | Run a workflow in bulk and wait for all runs to complete.                                                                  |
-| `run_many_no_wait`     | Run a workflow in bulk without waiting for all runs to complete.                                                           |
-| `aio_run_many_no_wait` | Run a workflow in bulk without waiting for all runs to complete.                                                           |
-| `schedule`             | Schedule a workflow to run at a specific time.                                                                             |
-| `aio_schedule`         | Schedule a workflow to run at a specific time.                                                                             |
-| `create_cron`          | Create a cron job for the workflow.                                                                                        |
-| `aio_create_cron`      | Create a cron job for the workflow.                                                                                        |
-| `create_bulk_run_item` | Create a bulk run item for the workflow. Intended for use with `run_many` methods.                                         |
-| `list_runs`            | List runs of the workflow.                                                                                                 |
-| `aio_list_runs`        | List runs of the workflow.                                                                                                 |
-| `create_filter`        | Create a new filter.                                                                                                       |
-| `aio_create_filter`    | Create a new filter.                                                                                                       |
+| Name                   | Description                                                                                                                                      |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `task`                 | A decorator to transform a function into a Hatchet task that runs as part of a workflow.                                                         |
+| `durable_task`         | A decorator to transform a function into a durable Hatchet task that runs as part of a workflow.                                                 |
+| `on_failure_task`      | A decorator to transform a function into a Hatchet on-failure task that runs as the last step in a workflow that had at least one task fail.     |
+| `on_success_task`      | A decorator to transform a function into a Hatchet on-success task that runs as the last step in a workflow that had all upstream tasks succeed. |
+| `run`                  | Run the workflow synchronously and wait for it to complete.                                                                                      |
+| `aio_run`              | Run the workflow asynchronously and wait for it to complete.                                                                                     |
+| `run_no_wait`          | Synchronously trigger a workflow run without waiting for it to complete.                                                                         |
+| `aio_run_no_wait`      | Asynchronously trigger a workflow run without waiting for it to complete.                                                                        |
+| `run_many`             | Run a workflow in bulk and wait for all runs to complete.                                                                                        |
+| `aio_run_many`         | Run a workflow in bulk and wait for all runs to complete.                                                                                        |
+| `run_many_no_wait`     | Run a workflow in bulk without waiting for all runs to complete.                                                                                 |
+| `aio_run_many_no_wait` | Run a workflow in bulk without waiting for all runs to complete.                                                                                 |
+| `schedule`             | Schedule a workflow to run at a specific time.                                                                                                   |
+| `aio_schedule`         | Schedule a workflow to run at a specific time.                                                                                                   |
+| `create_cron`          | Create a cron job for the workflow.                                                                                                              |
+| `aio_create_cron`      | Create a cron job for the workflow.                                                                                                              |
+| `create_bulk_run_item` | Create a bulk run item for the workflow. This is intended to be used in conjunction with the various `run_many` methods.                         |
+| `list_runs`            | List runs of the workflow.                                                                                                                       |
+| `aio_list_runs`        | List runs of the workflow.                                                                                                                       |
+| `create_filter`        | Create a new filter.                                                                                                                             |
+| `aio_create_filter`    | Create a new filter.                                                                                                                             |
 
 ### Attributes
 
@@ -100,21 +100,21 @@ A decorator to transform a function into a Hatchet task that runs as part of a w
 
 Parameters:
 
-| Name                    | Type                              | Description                                                            | Default                 |
-| ----------------------- | --------------------------------- | ---------------------------------------------------------------------- | ----------------------- |
-| `name`                  | `str \| None`                     | The name of the task. Defaults to the name of the function.            | `None`                  |
-| `schedule_timeout`      | `Duration`                        | The maximum time to wait for the task to be scheduled.                 | `timedelta(minutes=5)`  |
-| `execution_timeout`     | `Duration`                        | The maximum time to wait for the task to complete.                     | `timedelta(seconds=60)` |
-| `parents`               | `list[Task[TWorkflowInput, Any]]` | A list of tasks that are parents of the task.                          | `[]`                    |
-| `retries`               | `int`                             | The number of times to retry the task before failing.                  | `0`                     |
-| `rate_limits`           | `list[RateLimit]`                 | A list of rate limit configurations for the task.                      | `[]`                    |
-| `desired_worker_labels` | `dict[str, DesiredWorkerLabel]`   | A dictionary determining worker assignment.                            | `{}`                    |
-| `backoff_factor`        | `float \| None`                   | The backoff factor for exponential backoff in retries.                 | `None`                  |
-| `backoff_max_seconds`   | `int \| None`                     | The maximum number of seconds for retries with exponential backoff.    | `None`                  |
-| `concurrency`           | `list[ConcurrencyExpression]`     | A list of concurrency expressions for the task.                        | `[]`                    |
-| `wait_for`              | `list[Condition \| OrGroup]`      | A list of conditions that must be met before the task can run.         | `[]`                    |
-| `skip_if`               | `list[Condition \| OrGroup]`      | A list of conditions that, if met, will cause the task to be skipped.  | `[]`                    |
-| `cancel_if`             | `list[Condition \| OrGroup]`      | A list of conditions that, if met, will cause the task to be canceled. | `[]`                    |
+| Name                    | Type                                      | Description                                                                                                                                                                      | Default                 |
+| ----------------------- | ----------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------- |
+| `name`                  | `str \| None`                             | The name of the task. If not specified, defaults to the name of the function being wrapped by the `task` decorator.                                                              | `None`                  |
+| `schedule_timeout`      | `Duration`                                | The maximum time to wait for the task to be scheduled. The run will be canceled if the task does not begin within this time.                                                     | `timedelta(minutes=5)`  |
+| `execution_timeout`     | `Duration`                                | The maximum time to wait for the task to complete. The run will be canceled if the task does not complete within this time.                                                      | `timedelta(seconds=60)` |
+| `parents`               | `list[Task[TWorkflowInput, Any]] \| None` | A list of tasks that are parents of the task. Note: Parents must be defined before their children.                                                                               | `None`                  |
+| `retries`               | `int`                                     | The number of times to retry the task before failing.                                                                                                                            | `0`                     |
+| `rate_limits`           | `list[RateLimit] \| None`                 | A list of rate limit configurations for the task.                                                                                                                                | `None`                  |
+| `desired_worker_labels` | `dict[str, DesiredWorkerLabel] \| None`   | A dictionary of desired worker labels that determine to which worker the task should be assigned. See documentation and examples on affinity and worker labels for more details. | `None`                  |
+| `backoff_factor`        | `float \| None`                           | The backoff factor for controlling exponential backoff in retries.                                                                                                               | `None`                  |
+| `backoff_max_seconds`   | `int \| None`                             | The maximum number of seconds to allow retries with exponential backoff to continue.                                                                                             | `None`                  |
+| `concurrency`           | `list[ConcurrencyExpression] \| None`     | A list of concurrency expressions for the task.                                                                                                                                  | `None`                  |
+| `wait_for`              | `list[Condition \| OrGroup] \| None`      | A list of conditions that must be met before the task can run.                                                                                                                   | `None`                  |
+| `skip_if`               | `list[Condition \| OrGroup] \| None`      | A list of conditions that, if met, will cause the task to be skipped.                                                                                                            | `None`                  |
+| `cancel_if`             | `list[Condition \| OrGroup] \| None`      | A list of conditions that, if met, will cause the task to be canceled.                                                                                                           | `None`                  |
 
 Returns:
 
@@ -126,25 +126,27 @@ Returns:
 
 A decorator to transform a function into a durable Hatchet task that runs as part of a workflow.
 
-**IMPORTANT:** This decorator creates a _durable_ task, which works using Hatchet's durable execution capabilities.
+**IMPORTANT:** This decorator creates a _durable_ task, which works using Hatchet's durable execution capabilities. This is an advanced feature of Hatchet.
+
+See the Hatchet docs for more information on durable execution to decide if this is right for you.
 
 Parameters:
 
-| Name                    | Type                              | Description                                                            | Default                 |
-| ----------------------- | --------------------------------- | ---------------------------------------------------------------------- | ----------------------- |
-| `name`                  | `str \| None`                     | The name of the task. Defaults to the name of the function.            | `None`                  |
-| `schedule_timeout`      | `Duration`                        | The maximum time to wait for the task to be scheduled.                 | `timedelta(minutes=5)`  |
-| `execution_timeout`     | `Duration`                        | The maximum time to wait for the task to complete.                     | `timedelta(seconds=60)` |
-| `parents`               | `list[Task[TWorkflowInput, Any]]` | A list of tasks that are parents of the task.                          | `[]`                    |
-| `retries`               | `int`                             | The number of times to retry the task before failing.                  | `0`                     |
-| `rate_limits`           | `list[RateLimit]`                 | A list of rate limit configurations for the task.                      | `[]`                    |
-| `desired_worker_labels` | `dict[str, DesiredWorkerLabel]`   | A dictionary determining worker assignment.                            | `{}`                    |
-| `backoff_factor`        | `float \| None`                   | The backoff factor for exponential backoff in retries.                 | `None`                  |
-| `backoff_max_seconds`   | `int \| None`                     | The maximum number of seconds for retries with exponential backoff.    | `None`                  |
-| `concurrency`           | `list[ConcurrencyExpression]`     | A list of concurrency expressions for the task.                        | `[]`                    |
-| `wait_for`              | `list[Condition \| OrGroup]`      | A list of conditions that must be met before the task can run.         | `[]`                    |
-| `skip_if`               | `list[Condition \| OrGroup]`      | A list of conditions that, if met, will cause the task to be skipped.  | `[]`                    |
-| `cancel_if`             | `list[Condition \| OrGroup]`      | A list of conditions that, if met, will cause the task to be canceled. | `[]`                    |
+| Name                    | Type                                      | Description                                                                                                                                                                      | Default                 |
+| ----------------------- | ----------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------- |
+| `name`                  | `str \| None`                             | The name of the task. If not specified, defaults to the name of the function being wrapped by the `task` decorator.                                                              | `None`                  |
+| `schedule_timeout`      | `Duration`                                | The maximum time to wait for the task to be scheduled. The run will be canceled if the task does not begin within this time.                                                     | `timedelta(minutes=5)`  |
+| `execution_timeout`     | `Duration`                                | The maximum time to wait for the task to complete. The run will be canceled if the task does not complete within this time.                                                      | `timedelta(seconds=60)` |
+| `parents`               | `list[Task[TWorkflowInput, Any]] \| None` | A list of tasks that are parents of the task. Note: Parents must be defined before their children.                                                                               | `None`                  |
+| `retries`               | `int`                                     | The number of times to retry the task before failing.                                                                                                                            | `0`                     |
+| `rate_limits`           | `list[RateLimit] \| None`                 | A list of rate limit configurations for the task.                                                                                                                                | `None`                  |
+| `desired_worker_labels` | `dict[str, DesiredWorkerLabel] \| None`   | A dictionary of desired worker labels that determine to which worker the task should be assigned. See documentation and examples on affinity and worker labels for more details. | `None`                  |
+| `backoff_factor`        | `float \| None`                           | The backoff factor for controlling exponential backoff in retries.                                                                                                               | `None`                  |
+| `backoff_max_seconds`   | `int \| None`                             | The maximum number of seconds to allow retries with exponential backoff to continue.                                                                                             | `None`                  |
+| `concurrency`           | `list[ConcurrencyExpression] \| None`     | A list of concurrency expressions for the task.                                                                                                                                  | `None`                  |
+| `wait_for`              | `list[Condition \| OrGroup] \| None`      | A list of conditions that must be met before the task can run.                                                                                                                   | `None`                  |
+| `skip_if`               | `list[Condition \| OrGroup] \| None`      | A list of conditions that, if met, will cause the task to be skipped.                                                                                                            | `None`                  |
+| `cancel_if`             | `list[Condition \| OrGroup] \| None`      | A list of conditions that, if met, will cause the task to be canceled.                                                                                                           | `None`                  |
 
 Returns:
 
@@ -158,16 +160,16 @@ A decorator to transform a function into a Hatchet on-failure task that runs as 
 
 Parameters:
 
-| Name                  | Type                          | Description                                                                          | Default                 |
-| --------------------- | ----------------------------- | ------------------------------------------------------------------------------------ | ----------------------- |
-| `name`                | `str \| None`                 | The name of the on-failure task. Defaults to the name of the function.               | `None`                  |
-| `schedule_timeout`    | `Duration`                    | The maximum time to wait for the task to be scheduled.                               | `timedelta(minutes=5)`  |
-| `execution_timeout`   | `Duration`                    | The maximum time to wait for the task to complete.                                   | `timedelta(seconds=60)` |
-| `retries`             | `int`                         | The number of times to retry the on-failure task before failing.                     | `0`                     |
-| `rate_limits`         | `list[RateLimit]`             | A list of rate limit configurations for the on-failure task.                         | `[]`                    |
-| `backoff_factor`      | `float \| None`               | The backoff factor for controlling exponential backoff in retries.                   | `None`                  |
-| `backoff_max_seconds` | `int \| None`                 | The maximum number of seconds to allow retries with exponential backoff to continue. | `None`                  |
-| `concurrency`         | `list[ConcurrencyExpression]` | A list of concurrency expressions for the on-success task.                           | `[]`                    |
+| Name                  | Type                                  | Description                                                                                                                               | Default                 |
+| --------------------- | ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | ----------------------- |
+| `name`                | `str \| None`                         | The name of the on-failure task. If not specified, defaults to the name of the function being wrapped by the `on_failure_task` decorator. | `None`                  |
+| `schedule_timeout`    | `Duration`                            | The maximum time to wait for the task to be scheduled. The run will be canceled if the task does not begin within this time.              | `timedelta(minutes=5)`  |
+| `execution_timeout`   | `Duration`                            | The maximum time to wait for the task to complete. The run will be canceled if the task does not complete within this time.               | `timedelta(seconds=60)` |
+| `retries`             | `int`                                 | The number of times to retry the on-failure task before failing.                                                                          | `0`                     |
+| `rate_limits`         | `list[RateLimit] \| None`             | A list of rate limit configurations for the on-failure task.                                                                              | `None`                  |
+| `backoff_factor`      | `float \| None`                       | The backoff factor for controlling exponential backoff in retries.                                                                        | `None`                  |
+| `backoff_max_seconds` | `int \| None`                         | The maximum number of seconds to allow retries with exponential backoff to continue.                                                      | `None`                  |
+| `concurrency`         | `list[ConcurrencyExpression] \| None` | A list of concurrency expressions for the on-success task.                                                                                | `None`                  |
 
 Returns:
 
@@ -181,16 +183,16 @@ A decorator to transform a function into a Hatchet on-success task that runs as 
 
 Parameters:
 
-| Name                  | Type                          | Description                                                                          | Default                 |
-| --------------------- | ----------------------------- | ------------------------------------------------------------------------------------ | ----------------------- |
-| `name`                | `str \| None`                 | The name of the on-success task. Defaults to the name of the function.               | `None`                  |
-| `schedule_timeout`    | `Duration`                    | The maximum time to wait for the task to be scheduled.                               | `timedelta(minutes=5)`  |
-| `execution_timeout`   | `Duration`                    | The maximum time to wait for the task to complete.                                   | `timedelta(seconds=60)` |
-| `retries`             | `int`                         | The number of times to retry the on-success task before failing.                     | `0`                     |
-| `rate_limits`         | `list[RateLimit]`             | A list of rate limit configurations for the on-success task.                         | `[]`                    |
-| `backoff_factor`      | `float \| None`               | The backoff factor for controlling exponential backoff in retries.                   | `None`                  |
-| `backoff_max_seconds` | `int \| None`                 | The maximum number of seconds to allow retries with exponential backoff to continue. | `None`                  |
-| `concurrency`         | `list[ConcurrencyExpression]` | A list of concurrency expressions for the on-success task.                           | `[]`                    |
+| Name                  | Type                                  | Description                                                                                                                               | Default                 |
+| --------------------- | ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | ----------------------- |
+| `name`                | `str \| None`                         | The name of the on-success task. If not specified, defaults to the name of the function being wrapped by the `on_success_task` decorator. | `None`                  |
+| `schedule_timeout`    | `Duration`                            | The maximum time to wait for the task to be scheduled. The run will be canceled if the task does not begin within this time.              | `timedelta(minutes=5)`  |
+| `execution_timeout`   | `Duration`                            | The maximum time to wait for the task to complete. The run will be canceled if the task does not complete within this time.               | `timedelta(seconds=60)` |
+| `retries`             | `int`                                 | The number of times to retry the on-success task before failing                                                                           | `0`                     |
+| `rate_limits`         | `list[RateLimit] \| None`             | A list of rate limit configurations for the on-success task.                                                                              | `None`                  |
+| `backoff_factor`      | `float \| None`                       | The backoff factor for controlling exponential backoff in retries.                                                                        | `None`                  |
+| `backoff_max_seconds` | `int \| None`                         | The maximum number of seconds to allow retries with exponential backoff to continue.                                                      | `None`                  |
+| `concurrency`         | `list[ConcurrencyExpression] \| None` | A list of concurrency expressions for the on-success task.                                                                                | `None`                  |
 
 Returns:
 
@@ -221,7 +223,7 @@ Returns:
 
 Run the workflow asynchronously and wait for it to complete.
 
-This method triggers a workflow run, blocks until completion, and returns the final result.
+This method triggers a workflow run, awaits until completion, and returns the final result.
 
 Parameters:
 
@@ -304,7 +306,9 @@ Returns:
 
 #### `run_many_no_wait`
 
-Run a workflow in bulk without waiting for all runs to complete. This method triggers multiple workflow runs and immediately returns a list of references to the runs without blocking while the workflows run.
+Run a workflow in bulk without waiting for all runs to complete.
+
+This method triggers multiple workflow runs and immediately returns a list of references to the runs without blocking while the workflows run.
 
 Parameters:
 
@@ -320,7 +324,9 @@ Returns:
 
 #### `aio_run_many_no_wait`
 
-Run a workflow in bulk without waiting for all runs to complete. This method triggers multiple workflow runs and immediately returns a list of references to the runs without blocking while the workflows run.
+Run a workflow in bulk without waiting for all runs to complete.
+
+This method triggers multiple workflow runs and immediately returns a list of references to the runs without blocking while the workflows run.
 
 Parameters:
 
@@ -376,13 +382,13 @@ Create a cron job for the workflow.
 
 Parameters:
 
-| Name                  | Type                      | Description                                                       | Default                              |
-| --------------------- | ------------------------- | ----------------------------------------------------------------- | ------------------------------------ |
-| `cron_name`           | `str`                     | The name of the cron job.                                         | _required_                           |
-| `expression`          | `str`                     | The cron expression that defines the schedule for the cron job.   | _required_                           |
-| `input`               | `TWorkflowInput`          | The input data for the workflow.                                  | `cast(TWorkflowInput, EmptyModel())` |
-| `additional_metadata` | `JSONSerializableMapping` | Additional metadata for the cron job.                             | `{}`                                 |
-| `priority`            | `int \| None`             | The priority of the cron job. Must be between 1 and 3, inclusive. | `None`                               |
+| Name                  | Type                              | Description                                                       | Default                              |
+| --------------------- | --------------------------------- | ----------------------------------------------------------------- | ------------------------------------ |
+| `cron_name`           | `str`                             | The name of the cron job.                                         | _required_                           |
+| `expression`          | `str`                             | The cron expression that defines the schedule for the cron job.   | _required_                           |
+| `input`               | `TWorkflowInput`                  | The input data for the workflow.                                  | `cast(TWorkflowInput, EmptyModel())` |
+| `additional_metadata` | `JSONSerializableMapping \| None` | Additional metadata for the cron job.                             | `None`                               |
+| `priority`            | `int \| None`                     | The priority of the cron job. Must be between 1 and 3, inclusive. | `None`                               |
 
 Returns:
 
@@ -396,13 +402,13 @@ Create a cron job for the workflow.
 
 Parameters:
 
-| Name                  | Type                      | Description                                                       | Default                              |
-| --------------------- | ------------------------- | ----------------------------------------------------------------- | ------------------------------------ |
-| `cron_name`           | `str`                     | The name of the cron job.                                         | _required_                           |
-| `expression`          | `str`                     | The cron expression that defines the schedule for the cron job.   | _required_                           |
-| `input`               | `TWorkflowInput`          | The input data for the workflow.                                  | `cast(TWorkflowInput, EmptyModel())` |
-| `additional_metadata` | `JSONSerializableMapping` | Additional metadata for the cron job.                             | `{}`                                 |
-| `priority`            | `int \| None`             | The priority of the cron job. Must be between 1 and 3, inclusive. | `None`                               |
+| Name                  | Type                              | Description                                                       | Default                              |
+| --------------------- | --------------------------------- | ----------------------------------------------------------------- | ------------------------------------ |
+| `cron_name`           | `str`                             | The name of the cron job.                                         | _required_                           |
+| `expression`          | `str`                             | The cron expression that defines the schedule for the cron job.   | _required_                           |
+| `input`               | `TWorkflowInput`                  | The input data for the workflow.                                  | `cast(TWorkflowInput, EmptyModel())` |
+| `additional_metadata` | `JSONSerializableMapping \| None` | Additional metadata for the cron job.                             | `None`                               |
+| `priority`            | `int \| None`                     | The priority of the cron job. Must be between 1 and 3, inclusive. | `None`                               |
 
 Returns:
 
@@ -416,17 +422,17 @@ Create a bulk run item for the workflow. This is intended to be used in conjunct
 
 Parameters:
 
-| Name      | Type                     | Description                              | Default                              |
-| --------- | ------------------------ | ---------------------------------------- | ------------------------------------ |
-| `input`   | `TWorkflowInput`         | The input data for the workflow.         | `cast(TWorkflowInput, EmptyModel())` |
-| `key`     | `str \| None`            | The key for the workflow run.            | `None`                               |
-| `options` | `TriggerWorkflowOptions` | Additional options for the workflow run. | `TriggerWorkflowOptions()`           |
+| Name      | Type                     | Description                                                                                                 | Default                              |
+| --------- | ------------------------ | ----------------------------------------------------------------------------------------------------------- | ------------------------------------ |
+| `input`   | `TWorkflowInput`         | The input data for the workflow.                                                                            | `cast(TWorkflowInput, EmptyModel())` |
+| `key`     | `str \| None`            | The key for the workflow run. This is used to identify the run in the bulk operation and for deduplication. | `None`                               |
+| `options` | `TriggerWorkflowOptions` | Additional options for the workflow run.                                                                    | `TriggerWorkflowOptions()`           |
 
 Returns:
 
-| Type                       | Description                                                                                  |
-| -------------------------- | -------------------------------------------------------------------------------------------- |
-| `WorkflowRunTriggerConfig` | A `WorkflowRunTriggerConfig` object to trigger the workflow run, used in `run_many` methods. |
+| Type                       | Description                                                                                                                        |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `WorkflowRunTriggerConfig` | A `WorkflowRunTriggerConfig` object that can be used to trigger the workflow run, which you then pass into the `run_many` methods. |
 
 #### `list_runs`
 
@@ -484,11 +490,11 @@ Create a new filter.
 
 Parameters:
 
-| Name         | Type                      | Description                                | Default    |
-| ------------ | ------------------------- | ------------------------------------------ | ---------- |
-| `expression` | `str`                     | The expression to evaluate for the filter. | _required_ |
-| `scope`      | `str`                     | The scope for the filter.                  | _required_ |
-| `payload`    | `JSONSerializableMapping` | The payload to send with the filter.       | `{}`       |
+| Name         | Type                              | Description                                | Default    |
+| ------------ | --------------------------------- | ------------------------------------------ | ---------- |
+| `expression` | `str`                             | The expression to evaluate for the filter. | _required_ |
+| `scope`      | `str`                             | The scope for the filter.                  | _required_ |
+| `payload`    | `JSONSerializableMapping \| None` | The payload to send with the filter.       | `None`     |
 
 Returns:
 
@@ -502,11 +508,11 @@ Create a new filter.
 
 Parameters:
 
-| Name         | Type                      | Description                                | Default    |
-| ------------ | ------------------------- | ------------------------------------------ | ---------- |
-| `expression` | `str`                     | The expression to evaluate for the filter. | _required_ |
-| `scope`      | `str`                     | The scope for the filter.                  | _required_ |
-| `payload`    | `JSONSerializableMapping` | The payload to send with the filter.       | `{}`       |
+| Name         | Type                              | Description                                | Default    |
+| ------------ | --------------------------------- | ------------------------------------------ | ---------- |
+| `expression` | `str`                             | The expression to evaluate for the filter. | _required_ |
+| `scope`      | `str`                             | The scope for the filter.                  | _required_ |
+| `payload`    | `JSONSerializableMapping \| None` | The payload to send with the filter.       | `None`     |
 
 Returns:
 
@@ -520,31 +526,33 @@ Bases: `BaseWorkflow[TWorkflowInput]`, `Generic[TWorkflowInput, R]`
 
 Methods:
 
-| Name                   | Description                                                                        |
-| ---------------------- | ---------------------------------------------------------------------------------- |
-| `run`                  | Synchronously trigger a workflow run without waiting for it to complete.           |
-| `aio_run`              | Run the workflow asynchronously and wait for it to complete.                       |
-| `run_no_wait`          | Run the workflow synchronously and wait for it to complete.                        |
-| `aio_run_no_wait`      | Asynchronously trigger a workflow run without waiting for it to complete.          |
-| `run_many`             | Run a workflow in bulk and wait for all runs to complete.                          |
-| `aio_run_many`         | Run a workflow in bulk and wait for all runs to complete.                          |
-| `run_many_no_wait`     | Run a workflow in bulk without waiting for all runs to complete.                   |
-| `aio_run_many_no_wait` | Run a workflow in bulk without waiting for all runs to complete.                   |
-| `schedule`             | Schedule a workflow to run at a specific time.                                     |
-| `aio_schedule`         | Schedule a workflow to run at a specific time.                                     |
-| `create_cron`          | Create a cron job for the workflow.                                                |
-| `aio_create_cron`      | Create a cron job for the workflow.                                                |
-| `create_bulk_run_item` | Create a bulk run item for the workflow. Intended for use with `run_many` methods. |
-| `list_runs`            | List runs of the workflow.                                                         |
-| `aio_list_runs`        | List runs of the workflow.                                                         |
-| `create_filter`        | Create a new filter.                                                               |
-| `aio_create_filter`    | Create a new filter.                                                               |
+| Name                   | Description                                                                                                              |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `run`                  | Run the workflow synchronously and wait for it to complete.                                                              |
+| `aio_run`              | Run the workflow asynchronously and wait for it to complete.                                                             |
+| `run_no_wait`          | Trigger a workflow run without waiting for it to complete.                                                               |
+| `aio_run_no_wait`      | Asynchronously trigger a workflow run without waiting for it to complete.                                                |
+| `run_many`             | Run a workflow in bulk and wait for all runs to complete.                                                                |
+| `aio_run_many`         | Run a workflow in bulk and wait for all runs to complete.                                                                |
+| `run_many_no_wait`     | Run a workflow in bulk without waiting for all runs to complete.                                                         |
+| `aio_run_many_no_wait` | Run a workflow in bulk without waiting for all runs to complete.                                                         |
+| `schedule`             | Schedule a workflow to run at a specific time.                                                                           |
+| `aio_schedule`         | Schedule a workflow to run at a specific time.                                                                           |
+| `create_cron`          | Create a cron job for the workflow.                                                                                      |
+| `aio_create_cron`      | Create a cron job for the workflow.                                                                                      |
+| `create_bulk_run_item` | Create a bulk run item for the workflow. This is intended to be used in conjunction with the various `run_many` methods. |
+| `list_runs`            | List runs of the workflow.                                                                                               |
+| `aio_list_runs`        | List runs of the workflow.                                                                                               |
+| `create_filter`        | Create a new filter.                                                                                                     |
+| `aio_create_filter`    | Create a new filter.                                                                                                     |
 
 ### Functions
 
 #### `run`
 
-Synchronously trigger a workflow run without waiting for it to complete. This method is useful for starting a workflow run and immediately returning a reference to the run without blocking while the workflow runs.
+Run the workflow synchronously and wait for it to complete.
+
+This method triggers a workflow run, blocks until completion, and returns the extracted result.
 
 Parameters:
 
@@ -555,15 +563,15 @@ Parameters:
 
 Returns:
 
-| Type | Description                                                               |
-| ---- | ------------------------------------------------------------------------- |
-| `R`  | A `WorkflowRunRef` object representing the reference to the workflow run. |
+| Type | Description                                     |
+| ---- | ----------------------------------------------- |
+| `R`  | The extracted result of the workflow execution. |
 
 #### `aio_run`
 
 Run the workflow asynchronously and wait for it to complete.
 
-This method triggers a workflow run, blocks until completion, and returns the final result.
+This method triggers a workflow run, awaits until completion, and returns the extracted result.
 
 Parameters:
 
@@ -574,15 +582,15 @@ Parameters:
 
 Returns:
 
-| Type | Description                                           |
-| ---- | ----------------------------------------------------- |
-| `R`  | The result of the workflow execution as a dictionary. |
+| Type | Description                                     |
+| ---- | ----------------------------------------------- |
+| `R`  | The extracted result of the workflow execution. |
 
 #### `run_no_wait`
 
-Run the workflow synchronously and wait for it to complete.
+Trigger a workflow run without waiting for it to complete.
 
-This method triggers a workflow run, blocks until completion, and returns the final result.
+This method triggers a workflow run and immediately returns a reference to the run without blocking while the workflow runs.
 
 Parameters:
 
@@ -593,9 +601,9 @@ Parameters:
 
 Returns:
 
-| Type                            | Description                                           |
-| ------------------------------- | ----------------------------------------------------- |
-| `TaskRunRef[TWorkflowInput, R]` | The result of the workflow execution as a dictionary. |
+| Type                            | Description                                                           |
+| ------------------------------- | --------------------------------------------------------------------- |
+| `TaskRunRef[TWorkflowInput, R]` | A `TaskRunRef` object representing the reference to the workflow run. |
 
 #### `aio_run_no_wait`
 
@@ -610,9 +618,9 @@ Parameters:
 
 Returns:
 
-| Type                            | Description                                                               |
-| ------------------------------- | ------------------------------------------------------------------------- |
-| `TaskRunRef[TWorkflowInput, R]` | A `WorkflowRunRef` object representing the reference to the workflow run. |
+| Type                            | Description                                                           |
+| ------------------------------- | --------------------------------------------------------------------- |
+| `TaskRunRef[TWorkflowInput, R]` | A `TaskRunRef` object representing the reference to the workflow run. |
 
 #### `run_many`
 
@@ -648,7 +656,9 @@ Returns:
 
 #### `run_many_no_wait`
 
-Run a workflow in bulk without waiting for all runs to complete. This method triggers multiple workflow runs and immediately returns a list of references to the runs without blocking while the workflows run.
+Run a workflow in bulk without waiting for all runs to complete.
+
+This method triggers multiple workflow runs and immediately returns a list of references to the runs without blocking while the workflows run.
 
 Parameters:
 
@@ -664,7 +674,9 @@ Returns:
 
 #### `aio_run_many_no_wait`
 
-Run a workflow in bulk without waiting for all runs to complete. This method triggers multiple workflow runs and immediately returns a list of references to the runs without blocking while the workflows run.
+Run a workflow in bulk without waiting for all runs to complete.
+
+This method triggers multiple workflow runs and immediately returns a list of references to the runs without blocking while the workflows run.
 
 Parameters:
 
@@ -720,13 +732,13 @@ Create a cron job for the workflow.
 
 Parameters:
 
-| Name                  | Type                      | Description                                                       | Default                              |
-| --------------------- | ------------------------- | ----------------------------------------------------------------- | ------------------------------------ |
-| `cron_name`           | `str`                     | The name of the cron job.                                         | _required_                           |
-| `expression`          | `str`                     | The cron expression that defines the schedule for the cron job.   | _required_                           |
-| `input`               | `TWorkflowInput`          | The input data for the workflow.                                  | `cast(TWorkflowInput, EmptyModel())` |
-| `additional_metadata` | `JSONSerializableMapping` | Additional metadata for the cron job.                             | `{}`                                 |
-| `priority`            | `int \| None`             | The priority of the cron job. Must be between 1 and 3, inclusive. | `None`                               |
+| Name                  | Type                              | Description                                                       | Default                              |
+| --------------------- | --------------------------------- | ----------------------------------------------------------------- | ------------------------------------ |
+| `cron_name`           | `str`                             | The name of the cron job.                                         | _required_                           |
+| `expression`          | `str`                             | The cron expression that defines the schedule for the cron job.   | _required_                           |
+| `input`               | `TWorkflowInput`                  | The input data for the workflow.                                  | `cast(TWorkflowInput, EmptyModel())` |
+| `additional_metadata` | `JSONSerializableMapping \| None` | Additional metadata for the cron job.                             | `None`                               |
+| `priority`            | `int \| None`                     | The priority of the cron job. Must be between 1 and 3, inclusive. | `None`                               |
 
 Returns:
 
@@ -740,13 +752,13 @@ Create a cron job for the workflow.
 
 Parameters:
 
-| Name                  | Type                      | Description                                                       | Default                              |
-| --------------------- | ------------------------- | ----------------------------------------------------------------- | ------------------------------------ |
-| `cron_name`           | `str`                     | The name of the cron job.                                         | _required_                           |
-| `expression`          | `str`                     | The cron expression that defines the schedule for the cron job.   | _required_                           |
-| `input`               | `TWorkflowInput`          | The input data for the workflow.                                  | `cast(TWorkflowInput, EmptyModel())` |
-| `additional_metadata` | `JSONSerializableMapping` | Additional metadata for the cron job.                             | `{}`                                 |
-| `priority`            | `int \| None`             | The priority of the cron job. Must be between 1 and 3, inclusive. | `None`                               |
+| Name                  | Type                              | Description                                                       | Default                              |
+| --------------------- | --------------------------------- | ----------------------------------------------------------------- | ------------------------------------ |
+| `cron_name`           | `str`                             | The name of the cron job.                                         | _required_                           |
+| `expression`          | `str`                             | The cron expression that defines the schedule for the cron job.   | _required_                           |
+| `input`               | `TWorkflowInput`                  | The input data for the workflow.                                  | `cast(TWorkflowInput, EmptyModel())` |
+| `additional_metadata` | `JSONSerializableMapping \| None` | Additional metadata for the cron job.                             | `None`                               |
+| `priority`            | `int \| None`                     | The priority of the cron job. Must be between 1 and 3, inclusive. | `None`                               |
 
 Returns:
 
@@ -760,17 +772,17 @@ Create a bulk run item for the workflow. This is intended to be used in conjunct
 
 Parameters:
 
-| Name      | Type                     | Description                              | Default                              |
-| --------- | ------------------------ | ---------------------------------------- | ------------------------------------ |
-| `input`   | `TWorkflowInput`         | The input data for the workflow.         | `cast(TWorkflowInput, EmptyModel())` |
-| `key`     | `str \| None`            | The key for the workflow run.            | `None`                               |
-| `options` | `TriggerWorkflowOptions` | Additional options for the workflow run. | `TriggerWorkflowOptions()`           |
+| Name      | Type                     | Description                                                                                                 | Default                              |
+| --------- | ------------------------ | ----------------------------------------------------------------------------------------------------------- | ------------------------------------ |
+| `input`   | `TWorkflowInput`         | The input data for the workflow.                                                                            | `cast(TWorkflowInput, EmptyModel())` |
+| `key`     | `str \| None`            | The key for the workflow run. This is used to identify the run in the bulk operation and for deduplication. | `None`                               |
+| `options` | `TriggerWorkflowOptions` | Additional options for the workflow run.                                                                    | `TriggerWorkflowOptions()`           |
 
 Returns:
 
-| Type                       | Description                                                                                  |
-| -------------------------- | -------------------------------------------------------------------------------------------- |
-| `WorkflowRunTriggerConfig` | A `WorkflowRunTriggerConfig` object to trigger the workflow run, used in `run_many` methods. |
+| Type                       | Description                                                                                                                        |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `WorkflowRunTriggerConfig` | A `WorkflowRunTriggerConfig` object that can be used to trigger the workflow run, which you then pass into the `run_many` methods. |
 
 #### `list_runs`
 
@@ -828,11 +840,11 @@ Create a new filter.
 
 Parameters:
 
-| Name         | Type                      | Description                                | Default    |
-| ------------ | ------------------------- | ------------------------------------------ | ---------- |
-| `expression` | `str`                     | The expression to evaluate for the filter. | _required_ |
-| `scope`      | `str`                     | The scope for the filter.                  | _required_ |
-| `payload`    | `JSONSerializableMapping` | The payload to send with the filter.       | `{}`       |
+| Name         | Type                              | Description                                | Default    |
+| ------------ | --------------------------------- | ------------------------------------------ | ---------- |
+| `expression` | `str`                             | The expression to evaluate for the filter. | _required_ |
+| `scope`      | `str`                             | The scope for the filter.                  | _required_ |
+| `payload`    | `JSONSerializableMapping \| None` | The payload to send with the filter.       | `None`     |
 
 Returns:
 
@@ -846,11 +858,11 @@ Create a new filter.
 
 Parameters:
 
-| Name         | Type                      | Description                                | Default    |
-| ------------ | ------------------------- | ------------------------------------------ | ---------- |
-| `expression` | `str`                     | The expression to evaluate for the filter. | _required_ |
-| `scope`      | `str`                     | The scope for the filter.                  | _required_ |
-| `payload`    | `JSONSerializableMapping` | The payload to send with the filter.       | `{}`       |
+| Name         | Type                              | Description                                | Default    |
+| ------------ | --------------------------------- | ------------------------------------------ | ---------- |
+| `expression` | `str`                             | The expression to evaluate for the filter. | _required_ |
+| `scope`      | `str`                             | The scope for the filter.                  | _required_ |
+| `payload`    | `JSONSerializableMapping \| None` | The payload to send with the filter.       | `None`     |
 
 Returns:
 

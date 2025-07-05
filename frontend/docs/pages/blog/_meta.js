@@ -1,9 +1,12 @@
 export default {
+  "background-tasks-fastapi-hatchet": {
+    title: "Background Tasks: From FastAPI to Hatchet",
+  },
   "go-agents": {
     title: "Why Go is a good fit for agents",
   },
   "warning-event-loop-blocked": {
-    title: "Warning: The Event Loop May Be Blocked",
+    title: "Warning! The Event Loop May Be Blocked",
   },
   "fastest-postgres-inserts": {
     title: "The fastest Postgres inserts",

@@ -393,6 +393,7 @@ func (tc *TasksControllerImpl) handleTaskCompleted(ctx context.Context, tenantId
 	// instrumentation
 	for range res.ReleasedTasks {
 		prometheus.SucceededTasks.Inc()
+		prometheus.TenantSucceededTasks.WithLabelValues(tenantId).Inc()
 	}
 
 	tc.notifyQueuesOnCompletion(ctx, tenantId, res.ReleasedTasks)
@@ -469,11 +470,13 @@ func (tc *TasksControllerImpl) processFailTasksResponse(ctx context.Context, ten
 		// if the task is retried, don't send a message to the trigger queue
 		if _, ok := retriedTaskIds[e.TaskID]; ok {
 			prometheus.RetriedTasks.Inc()
+			prometheus.TenantRetriedTasks.WithLabelValues(tenantId).Inc()
 			continue
 		}
 
 		internalEventsWithoutRetries = append(internalEventsWithoutRetries, e)
 		prometheus.FailedTasks.Inc()
+		prometheus.TenantFailedTasks.WithLabelValues(tenantId).Inc()
 	}
 
 	tc.notifyQueuesOnCompletion(ctx, tenantId, res.ReleasedTasks)
@@ -587,6 +590,7 @@ func (tc *TasksControllerImpl) handleTaskCancelled(ctx context.Context, tenantId
 	// instrumentation
 	for range res.ReleasedTasks {
 		prometheus.CancelledTasks.Inc()
+		prometheus.TenantCancelledTasks.WithLabelValues(tenantId).Inc()
 	}
 
 	return err
@@ -1408,6 +1412,7 @@ func (tc *TasksControllerImpl) signalTasksCreatedAndQueued(ctx context.Context, 
 	go func() {
 		for range tasks {
 			prometheus.CreatedTasks.Inc()
+			prometheus.TenantCreatedTasks.WithLabelValues(tenantId).Inc()
 		}
 	}()
 
@@ -1470,7 +1475,9 @@ func (tc *TasksControllerImpl) signalTasksCreatedAndCancelled(ctx context.Contex
 	go func() {
 		for range tasks {
 			prometheus.CreatedTasks.Inc()
+			prometheus.TenantCreatedTasks.WithLabelValues(tenantId).Inc()
 			prometheus.CancelledTasks.Inc()
+			prometheus.TenantCancelledTasks.WithLabelValues(tenantId).Inc()
 		}
 	}()
 
@@ -1534,7 +1541,9 @@ func (tc *TasksControllerImpl) signalTasksCreatedAndFailed(ctx context.Context, 
 	go func() {
 		for range tasks {
 			prometheus.CreatedTasks.Inc()
+			prometheus.TenantCreatedTasks.WithLabelValues(tenantId).Inc()
 			prometheus.FailedTasks.Inc()
+			prometheus.TenantFailedTasks.WithLabelValues(tenantId).Inc()
 		}
 	}()
 
@@ -1597,7 +1606,9 @@ func (tc *TasksControllerImpl) signalTasksCreatedAndSkipped(ctx context.Context,
 	go func() {
 		for range tasks {
 			prometheus.CreatedTasks.Inc()
+			prometheus.TenantCreatedTasks.WithLabelValues(tenantId).Inc()
 			prometheus.SkippedTasks.Inc()
+			prometheus.TenantSkippedTasks.WithLabelValues(tenantId).Inc()
 		}
 	}()
 

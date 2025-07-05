@@ -205,6 +205,7 @@ WITH eligible_slots_per_group AS (
     ORDER BY
         task_id, task_inserted_at
     FOR UPDATE
+    LIMIT 1000
 ), eligible_slots AS (
     SELECT
         cs.*
@@ -375,6 +376,7 @@ WITH slots AS (
         strategy_id = @strategyId::bigint AND
         schedule_timeout_at < NOW() AND
         is_filled = FALSE
+    LIMIT 1000
 ), eligible_running_slots AS (
     SELECT
         task_id,
@@ -601,6 +603,7 @@ WITH slots AS (
         strategy_id = @strategyId::bigint AND
         schedule_timeout_at < NOW() AND
         is_filled = FALSE
+    LIMIT 1000
 ), eligible_running_slots AS (
     SELECT
         task_id,

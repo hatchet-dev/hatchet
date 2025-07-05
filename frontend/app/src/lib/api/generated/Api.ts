@@ -2964,4 +2964,20 @@ export class Api<
       format: "json",
       ...params,
     });
+  /**
+   * @description Get the prometheus metrics for the tenant
+   *
+   * @tags Tenant
+   * @name TenantGetPrometheusMetrics
+   * @summary Get prometheus metrics
+   * @request GET:/api/v1/tenants/{tenant}/prometheus-metrics
+   * @secure
+   */
+  tenantGetPrometheusMetrics = (tenant: string, params: RequestParams = {}) =>
+    this.request<EventKey, APIErrors>({
+      path: `/api/v1/tenants/${tenant}/prometheus-metrics`,
+      method: "GET",
+      secure: true,
+      ...params,
+    });
 }

@@ -1,38 +1,39 @@
 import { queries } from '@/lib/api';
-import { useTenant } from '@/lib/atoms';
 import { useQuery } from '@tanstack/react-query';
-import invariant from 'tiny-invariant';
 import { useColumnFilters } from './column-filters';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
 
 export const useMetrics = ({
   workflow,
   parentTaskExternalId,
   refetchInterval,
+  pauseRefetch = false,
 }: {
   workflow: string | undefined;
   parentTaskExternalId: string | undefined;
   refetchInterval: number;
+  pauseRefetch?: boolean;
 }) => {
-  const { tenant } = useTenant();
-  invariant(tenant);
-
+  const { tenantId } = useCurrentTenantId();
   const cf = useColumnFilters();
 
+  const effectiveRefetchInterval = pauseRefetch ? false : refetchInterval;
+
   const metricsQuery = useQuery({
-    ...queries.v1TaskRuns.metrics(tenant.metadata.id, {
+    ...queries.v1TaskRuns.metrics(tenantId, {
       since: cf.filters.createdAfter,
       parent_task_external_id: parentTaskExternalId,
       workflow_ids: workflow ? [workflow] : [],
     }),
     placeholderData: (prev) => prev,
-    refetchInterval,
+    refetchInterval: effectiveRefetchInterval,
   });
 
   const metrics = metricsQuery.data || [];
 
   const tenantMetricsQuery = useQuery({
-    ...queries.metrics.getStepRunQueueMetrics(tenant.metadata.id),
-    refetchInterval,
+    ...queries.metrics.getStepRunQueueMetrics(tenantId),
+    refetchInterval: effectiveRefetchInterval,
   });
 
   const tenantMetrics = tenantMetricsQuery.data?.queues || {};

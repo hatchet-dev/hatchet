@@ -121,6 +121,8 @@ V1WorkflowRunDetails:
       type: array
       items:
         $ref: "./task.yaml#/V1TaskSummary"
+    workflowConfig:
+      type: object
   required:
     - run
     - taskEvents

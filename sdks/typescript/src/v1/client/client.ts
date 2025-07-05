@@ -15,6 +15,9 @@ import { ConfigLoader } from '@hatchet/util/config-loader';
 import { DEFAULT_LOGGER } from '@hatchet/clients/hatchet-client/hatchet-logger';
 import { z } from 'zod';
 import { LogLevel } from '@hatchet-dev/typescript-sdk/clients/event/event-client';
+import { RunListenerClient } from '@hatchet-dev/typescript-sdk/clients/listeners/run-listener/child-listener-client';
+import { addTokenMiddleware, channelFactory } from '@hatchet-dev/typescript-sdk/util/grpc-helpers';
+import { createClientFactory } from 'nice-grpc';
 import {
   CreateTaskWorkflowOpts,
   CreateWorkflow,
@@ -49,6 +52,7 @@ export class HatchetClient implements IHatchetClient {
   /** The underlying v0 client instance */
   _v0: LegacyHatchetClient;
   _api: Api;
+  _listener: RunListenerClient;
 
   /**
    * @deprecated v0 client will be removed in a future release, please upgrade to v1
@@ -100,7 +104,24 @@ export class HatchetClient implements IHatchetClient {
       this.tenantId = clientConfig.tenant_id;
       this._api = api(clientConfig.api_url, clientConfig.token, axiosConfig);
 
-      this._v0 = new LegacyHatchetClient(clientConfig, options, axiosConfig, this.runs);
+      const clientFactory = createClientFactory().use(addTokenMiddleware(this.config.token));
+      const credentials =
+        options?.credentials ?? ConfigLoader.createCredentials(this.config.tls_config);
+
+      this._listener = new RunListenerClient(
+        this.config,
+        channelFactory(this.config, credentials),
+        clientFactory,
+        this.api
+      );
+
+      this._v0 = new LegacyHatchetClient(
+        clientConfig,
+        options,
+        axiosConfig,
+        this.runs,
+        this._listener
+      );
     } catch (e) {
       if (e instanceof z.ZodError) {
         throw new Error(`Invalid client config: ${e.message}`);
@@ -521,6 +542,6 @@ export class HatchetClient implements IHatchetClient {
   }
 
   runRef<T extends Record<string, any> = any>(id: string): WorkflowRunRef<T> {
-    return new WorkflowRunRef<T>(id, this.v0.listener, this.runs);
+    return this.runs.runRef(id);
   }
 }

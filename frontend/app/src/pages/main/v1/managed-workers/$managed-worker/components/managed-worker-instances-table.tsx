@@ -1,9 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { queries } from '@/lib/api';
-import invariant from 'tiny-invariant';
-import { TenantContextType } from '@/lib/outlet';
-import { useOutletContext } from 'react-router-dom';
 import { DataTable } from '@/components/v1/molecules/data-table/data-table.tsx';
 import { columns } from './managed-worker-instances-columns';
 import { Loading } from '@/components/v1/ui/loading.tsx';
@@ -27,9 +24,6 @@ export function ManagedWorkerInstancesTable({
 }: {
   managedWorkerId: string;
 }) {
-  const { tenant } = useOutletContext<TenantContextType>();
-  invariant(tenant);
-
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
   const [rotate, setRotate] = useState(false);
 

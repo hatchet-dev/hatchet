@@ -8,6 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+
 	"github.com/hatchet-dev/hatchet/internal/services/admin"
 	adminv1 "github.com/hatchet-dev/hatchet/internal/services/admin/v1"
 	"github.com/hatchet-dev/hatchet/internal/services/controllers/events"
@@ -34,8 +36,6 @@ import (
 	"github.com/rs/zerolog"
 
 	"golang.org/x/sync/errgroup"
-
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 type Teardown struct {
@@ -828,6 +828,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 				olap.WithTenantAlertManager(sc.TenantAlerter),
 				olap.WithSamplingConfig(sc.Sampling),
 				olap.WithOperationsConfig(sc.Operations),
+				olap.WithPrometheusMetricsEnabled(sc.Prometheus.Enabled),
 			)
 
 			if err != nil {

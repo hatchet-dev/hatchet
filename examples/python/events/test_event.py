@@ -1,8 +1,9 @@
 import asyncio
 import json
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
-from typing import AsyncGenerator, cast
+from typing import cast
 from uuid import uuid4
 
 import pytest
@@ -255,7 +256,9 @@ async def test_async_event_bulk_push(hatchet: Hatchet) -> None:
     namespace = "bulk-test"
 
     # Check that the returned events match the original events
-    for original_event, returned_event in zip(sorted_events, sorted_returned_events):
+    for original_event, returned_event in zip(
+        sorted_events, sorted_returned_events, strict=False
+    ):
         assert returned_event.key == namespace + original_event.key
 
 

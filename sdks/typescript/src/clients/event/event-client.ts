@@ -145,7 +145,7 @@ export class EventClient {
       });
   }
 
-  async putStream(stepRunId: string, data: string | Uint8Array) {
+  async putStream(stepRunId: string, data: string | Uint8Array, index: number | undefined) {
     const createdAt = new Date();
 
     let dataBytes: Uint8Array;
@@ -163,6 +163,7 @@ export class EventClient {
           stepRunId,
           createdAt,
           message: dataBytes,
+          eventIndex: index,
         }),
       this.logger
     ).catch((e: any) => {

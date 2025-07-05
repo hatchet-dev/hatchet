@@ -13,9 +13,7 @@ import {
   WorkflowRunOrderByDirection,
   queries,
 } from '@/lib/api';
-import invariant from 'tiny-invariant';
-import { useOutletContext, useSearchParams } from 'react-router-dom';
-import { TenantContextType } from '@/lib/outlet';
+import { useSearchParams } from 'react-router-dom';
 import { DataTable } from '@/components/v1/molecules/data-table/data-table';
 import { columns } from './recurring-columns';
 import { Button } from '@/components/v1/ui/button';
@@ -26,12 +24,14 @@ import {
   ToolbarFilters,
   ToolbarType,
 } from '@/components/v1/molecules/data-table/data-table-toolbar';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
+import { TriggerWorkflowForm } from '../../workflows/$workflow/components/trigger-workflow-form';
 
 export function CronsTable() {
-  const { tenant } = useOutletContext<TenantContextType>();
+  const { tenantId } = useCurrentTenantId();
   const [searchParams, setSearchParams] = useSearchParams();
-
-  invariant(tenant);
+  const [triggerWorkflow, setTriggerWorkflow] = useState(false);
+  const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
 
   const [sorting, setSorting] = useState<SortingState>(() => {
     const sortParam = searchParams.get('sort');
@@ -128,7 +128,7 @@ export function CronsTable() {
     error: queryError,
     refetch,
   } = useQuery({
-    ...queries.cronJobs.list(tenant.metadata.id, {
+    ...queries.cronJobs.list(tenantId, {
       orderByField,
       orderByDirection,
       offset,
@@ -138,7 +138,7 @@ export function CronsTable() {
         (filter) => filter.id === 'Metadata',
       )?.value as string[] | undefined,
     }),
-    refetchInterval: 2000,
+    refetchInterval: selectedJobId ? false : 2000,
   });
 
   const [showDeleteCron, setShowDeleteCron] = useState<
@@ -157,7 +157,8 @@ export function CronsTable() {
   };
 
   const { data: workflowKeys } = useQuery({
-    ...queries.workflows.list(tenant.metadata.id, { limit: 200 }),
+    ...queries.workflows.list(tenantId, { limit: 200 }),
+    refetchInterval: selectedJobId ? false : 2000,
   });
 
   const workflowKeyFilters = useMemo((): FilterOption[] => {
@@ -185,6 +186,13 @@ export function CronsTable() {
 
   const actions = [
     <Button
+      key="create-cron"
+      onClick={() => setTriggerWorkflow(true)}
+      className="h-8 border"
+    >
+      Create Cron Job
+    </Button>,
+    <Button
       key="refresh"
       className="h-8 px-2 lg:px-3"
       size="sm"
@@ -202,17 +210,26 @@ export function CronsTable() {
     <>
       {showDeleteCron && (
         <DeleteCron
-          tenant={tenant.metadata.id}
           cron={showDeleteCron}
           setShowCronRevoke={setShowDeleteCron}
           onSuccess={handleConfirmDelete}
         />
       )}
+      <TriggerWorkflowForm
+        defaultTimingOption="cron"
+        defaultWorkflow={undefined}
+        show={triggerWorkflow}
+        onClose={() => setTriggerWorkflow(false)}
+      />
+
       <DataTable
         error={queryError}
         isLoading={queryIsLoading}
         columns={columns({
+          tenantId,
           onDeleteClick: handleDeleteClick,
+          selectedJobId,
+          setSelectedJobId,
         })}
         data={data?.rows || []}
         filters={filters}

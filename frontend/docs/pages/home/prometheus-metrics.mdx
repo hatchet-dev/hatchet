@@ -1,0 +1,42 @@
+import { Callout } from "nextra/components";
+
+# Prometheus Metrics
+
+<Callout type="info">
+  Only available in the Growth tier and above on Hatchet Cloud.
+</Callout>
+
+Hatchet exports Prometheus Metrics for your tenant which can be scraped with services like Grafana and DataDog.
+
+## Tenant Metrics
+
+Metrics for individual tenants are available in Prometheus Text Format via a REST API endpoint.
+
+### Endpoint
+
+```
+GET /api/v1/tenants/{tenantId}/prometheus-metrics
+```
+
+### Authentication
+
+The endpoint requires Bearer token authentication using a valid API token:
+
+```
+Authorization: Bearer <API_TOKEN>
+```
+
+### Response Format
+
+The response is returned in standard Prometheus Text Format, including:
+
+- HELP comments describing each metric
+- TYPE declarations (counter, gauge, etc.)
+- Metric samples with labels and values
+
+### Example Usage
+
+```bash
+curl -H "Authorization: Bearer your-api-token-here" \
+  https://cloud.onhatchet.run/api/v1/tenants/707d0855-80ab-4e1f-a156-f1c4546cbf52/prometheus-metrics
+```
