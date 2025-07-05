@@ -98,6 +98,9 @@ tasks:
       - task: start-api
       - task: start-engine
       - task: start-frontend
+  start-dev-tmux:
+    cmds:
+      - sh ./hack/dev/start-dev-tmux.sh
   start-api:
     cmds:
       - sh ./hack/dev/start-api.sh
