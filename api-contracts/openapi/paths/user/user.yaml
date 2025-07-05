@@ -32,7 +32,14 @@ login:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: Method not allowed
+      "422":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Unprocessable Entity - validation or processing errors
     security: []
+    x-enable-rate-limiting: true
     summary: Login user
     tags:
       - User
@@ -70,8 +77,15 @@ update-password:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: Method not allowed
+      "422":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Unprocessable Entity - validation or processing errors
     security:
       - cookieAuth: []
+    x-enable-rate-limiting: true
     summary: Change user password
     tags:
       - User
@@ -143,7 +157,14 @@ register:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: Method not allowed
+      "422":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Unprocessable Entity - validation or processing errors
     security: []
+    x-enable-rate-limiting: true
     summary: Register user
     tags:
       - User
