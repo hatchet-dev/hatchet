@@ -38,6 +38,7 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/headers"
 	hatchetmiddleware "github.com/hatchet-dev/hatchet/api/v1/server/middleware"
 	"github.com/hatchet-dev/hatchet/api/v1/server/middleware/populator"
+	"github.com/hatchet-dev/hatchet/api/v1/server/middleware/ratelimit"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
@@ -494,10 +495,13 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 		},
 	})
 
+	rateLimitMW := ratelimit.NewRateLimitMiddleware(t.config, spec)
+
 	// register echo middleware
 	g.Use(
 		loggerMiddleware,
 		middleware.Recover(),
+		rateLimitMW.Middleware(),
 		allHatchetMiddleware,
 	)
 

@@ -39,6 +39,7 @@ login:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: Unprocessable Entity - validation or processing errors
     security: []
+    x-enable-rate-limiting: true
     summary: Login user
     tags:
       - User
@@ -84,6 +85,7 @@ update-password:
         description: Unprocessable Entity - validation or processing errors
     security:
       - cookieAuth: []
+    x-enable-rate-limiting: true
     summary: Change user password
     tags:
       - User
@@ -162,6 +164,7 @@ register:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: Unprocessable Entity - validation or processing errors
     security: []
+    x-enable-rate-limiting: true
     summary: Register user
     tags:
       - User

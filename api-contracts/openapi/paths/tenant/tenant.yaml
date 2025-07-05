@@ -355,6 +355,7 @@ tenantResourcePolicy:
 invites:
   post:
     x-resources: ["tenant"]
+    x-enable-rate-limiting: true
     description: Creates a new tenant invite
     operationId: tenant-invite:create
     parameters:

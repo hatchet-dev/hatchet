@@ -4,24 +4,17 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/hatchet-dev/hatchet/api/v1/server/serverutils"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
 )
 
 type UserService struct {
-	config      *server.ServerConfig
-	rateLimiter *serverutils.AuthAPIRateLimiter
+	config *server.ServerConfig
 }
 
 func NewUserService(config *server.ServerConfig) *UserService {
 	return &UserService{
-		config:      config,
-		rateLimiter: serverutils.NewAuthAPIRateLimiter(config),
+		config: config,
 	}
-}
-
-func (u *UserService) GetRateLimiter() *serverutils.AuthAPIRateLimiter {
-	return u.rateLimiter
 }
 
 func (u *UserService) checkUserRestrictionsForEmail(conf *server.ServerConfig, email string) error {
