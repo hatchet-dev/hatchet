@@ -571,6 +571,8 @@ class Runner:
                 "Task outputs cannot contain the unicode null character \\u0000 \n\nPlease see this Discord thread: https://discord.com/channels/1088927970518909068/1384324576166678710/1386714014565928992\nRelevant Postgres documentation: https://www.postgresql.org/docs/current/datatype-json.html"
             )
 
+        return serialized_output
+
     async def wait_for_tasks(self) -> None:
         running = len(self.tasks.keys())
         while running > 0:
