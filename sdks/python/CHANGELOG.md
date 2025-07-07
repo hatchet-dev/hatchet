@@ -14,6 +14,7 @@ Adds `remove_null_unicode_character` utility function to remove null unicode cha
 ### Changed
 
 - Task outputs that contain a null unicode character (\u0000) will now throw an exception instead of being serialized.
+- OpenTelemetry instrumentor now correctly reports exceptions raised in tasks to the OTel collector.
 
 ## [1.14.2] - 2025-07-03
 
