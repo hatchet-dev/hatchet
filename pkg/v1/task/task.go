@@ -123,10 +123,42 @@ func makeContractTaskOpts(t *TaskShared, taskDefaults *create.TaskDefaults) *con
 	}
 
 	for j, rateLimit := range t.RateLimits {
-		taskOpts.RateLimits[j] = &contracts.CreateTaskRateLimit{
-			Key:     rateLimit.Key,
-			KeyExpr: rateLimit.KeyExpr,
+		rlContract := &contracts.CreateTaskRateLimit{
+			Key:             rateLimit.Key,
+			KeyExpr:         rateLimit.KeyExpr,
+			UnitsExpr:       rateLimit.UnitsExpr,
+			LimitValuesExpr: rateLimit.LimitValueExpr,
 		}
+
+		if rateLimit.Units != nil {
+			units32 := int32(*rateLimit.Units) // nolint: gosec
+			rlContract.Units = &units32
+		}
+
+		if rateLimit.Duration != nil {
+			var duration contracts.RateLimitDuration
+
+			switch *rateLimit.Duration {
+			case types.Year:
+				duration = contracts.RateLimitDuration_YEAR
+			case types.Month:
+				duration = contracts.RateLimitDuration_MONTH
+			case types.Day:
+				duration = contracts.RateLimitDuration_DAY
+			case types.Hour:
+				duration = contracts.RateLimitDuration_HOUR
+			case types.Minute:
+				duration = contracts.RateLimitDuration_MINUTE
+			case types.Second:
+				duration = contracts.RateLimitDuration_SECOND
+			default:
+				duration = contracts.RateLimitDuration_MINUTE
+			}
+
+			rlContract.Duration = &duration
+		}
+
+		taskOpts.RateLimits[j] = rlContract
 	}
 
 	for j, concurrency := range t.Concurrency {
