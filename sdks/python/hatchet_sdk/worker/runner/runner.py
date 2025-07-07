@@ -557,14 +557,19 @@ class Runner:
                 f"Tasks must return either a dictionary or a Pydantic BaseModel which can be serialized to a JSON object. Got object of type {type(output)} instead."
             )
 
-        if output is not None:
-            try:
-                return json.dumps(output, default=str)
-            except Exception as e:
-                logger.error(f"Could not serialize output: {e}")
-                return str(output)
+        if output is None:
+            return ""
 
-        return ""
+        try:
+            serialized_output = json.dumps(output, default=str)
+        except Exception as e:
+            logger.error(f"Could not serialize output: {e}")
+            serialized_output = str(output)
+
+        if "\\u0000" in serialized_output:
+            raise IllegalTaskOutputError(
+                "Task outputs cannot contain the unicode null character \\u0000 \n\nPlease see this Discord thread: https://discord.com/channels/1088927970518909068/1384324576166678710/1386714014565928992\nRelevant Postgres documentation: https://www.postgresql.org/docs/current/datatype-json.html"
+            )
 
     async def wait_for_tasks(self) -> None:
         running = len(self.tasks.keys())
