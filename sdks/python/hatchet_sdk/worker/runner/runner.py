@@ -4,7 +4,6 @@ import functools
 import json
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
-from contextlib import suppress
 from enum import Enum
 from multiprocessing import Queue
 from textwrap import dedent
@@ -412,7 +411,7 @@ class Runner:
         )
 
     ## IMPORTANT: Keep this method's signature in sync with the wrapper in the OTel instrumentor
-    async def handle_start_step_run(self, action: Action) -> None:
+    async def handle_start_step_run(self, action: Action) -> Exception | None:
         action_name = action.action_id
 
         # Find the corresponding action function from the registry
@@ -446,14 +445,19 @@ class Runner:
 
             ## FIXME: Handle cancelled exceptions and other special exceptions
             ## that we don't want to suppress here
-            with suppress(Exception):
+            try:
                 await task
+            except Exception as e:
+                ## Used for the OTel instrumentor to capture exceptions
+                return e
 
         ## Once the step run completes, we need to remove the workflow spawn index
         ## so we don't leak memory
         if action.key in workflow_spawn_indices:
             async with spawn_index_lock:
                 workflow_spawn_indices.pop(action.key)
+
+        return None
 
     ## IMPORTANT: Keep this method's signature in sync with the wrapper in the OTel instrumentor
     async def handle_start_group_key_run(self, action: Action) -> Exception | None:
