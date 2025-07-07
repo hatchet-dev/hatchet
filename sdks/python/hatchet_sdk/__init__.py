@@ -11,6 +11,8 @@ from hatchet_sdk.clients.listeners.run_event_listener import (
     StepRunEventType,
     WorkflowRunEventType,
 )
+
+# import models into sdk package
 from hatchet_sdk.clients.rest.models.accept_invite_request import AcceptInviteRequest
 from hatchet_sdk.clients.rest.models.api_error import APIError
 from hatchet_sdk.clients.rest.models.api_errors import APIErrors
@@ -164,8 +166,6 @@ from hatchet_sdk.runnables.types import (
 )
 from hatchet_sdk.runnables.workflow import TaskRunRef
 from hatchet_sdk.utils.opentelemetry import OTelAttribute
-
-# import models into sdk package
 from hatchet_sdk.utils.serde import remove_null_unicode_character
 from hatchet_sdk.worker.worker import Worker, WorkerStartOptions, WorkerStatus
 from hatchet_sdk.workflow_run import WorkflowRunRef
