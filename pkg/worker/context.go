@@ -72,6 +72,8 @@ type HatchetContext interface {
 	Log(message string)
 
 	StreamEvent(message []byte)
+	
+	PutStream(message string)
 
 	SpawnWorkflow(workflowName string, input any, opts *SpawnWorkflowOpts) (*client.Workflow, error)
 
@@ -335,6 +337,10 @@ func (h *hatchetContext) StreamEvent(message []byte) {
 	if err != nil {
 		h.l.Err(err).Msg("could not put stream event")
 	}
+}
+
+func (h *hatchetContext) PutStream(message string) {
+	h.StreamEvent([]byte(message))
 }
 
 func (h *hatchetContext) RetryCount() int {

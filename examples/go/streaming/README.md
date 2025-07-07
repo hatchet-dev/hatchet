@@ -1,77 +1,23 @@
-# Go Streaming Example
+# Streaming Example
 
-This example demonstrates streaming functionality in Hatchet using the v1 Go SDK, similar to the TypeScript streaming example.
+This example demonstrates how to use Hatchet's streaming capabilities in Go.
 
-## Files
+## Running the Example
 
-- **`worker/main.go`** - The worker that registers and executes the streaming workflow
-- **`client/main.go`** - A client that runs the workflow and consumes the stream events
+1. **Start the worker** (in one terminal):
+   ```bash
+   go run ./cmd/worker
+   ```
 
-## How to Test Streaming
+2. **Run the streaming client** (in another terminal):
+   ```bash
+   go run ./cmd/run
+   ```
 
-### 1. Start the Worker
+The worker will register the streaming workflow and wait for tasks. The client will trigger the workflow and subscribe to the stream, displaying the content as it's received.
 
-In one terminal, start the worker:
+## What it does
 
-```bash
-cd examples/go/streaming/worker
-go run main.go
-```
-
-You should see:
-```
-Starting streaming worker...
-```
-
-### 2. Run the Client
-
-In another terminal, run the client to trigger the workflow and consume the stream:
-
-```bash
-cd examples/go/streaming/client
-go run main.go
-```
-
-### 3. Verify Streaming Works
-
-**Worker terminal** will show:
-```
-Starting to stream 27 chunks
-Streaming chunk 0: "Happy fami"
-Streaming chunk 1: "lies are a"
-Streaming chunk 2: "ll alike; "
-...
-Finished streaming all chunks
-```
-
-**Client terminal** will show:
-```
-Running streaming workflow...
-Workflow started with run ID: 01234567-...
-Subscribing to stream events...
-Received stream event: "Happy fami"
-Received stream event: "lies are a"
-Received stream event: "ll alike; "
-...
-Stream completed!
-```
-
-## What This Tests
-
-- ✅ **Zero-indexed streaming**: Each stream event gets a sequential index (0, 1, 2...)
-- ✅ **Thread-safe index increment**: Multiple concurrent calls won't have race conditions
-- ✅ **Backward compatibility**: Uses the same `ctx.StreamEvent()` API as before
-- ✅ **Real-time streaming**: Events are sent and received with 200ms intervals
-- ✅ **v1 SDK compliance**: Uses modern Hatchet v1 patterns
-
-## Customizing the Stream
-
-You can test with custom text by modifying the `StreamTaskInput` in `client/main.go`:
-
-```go
-workflowRun, err := streamingWorkflow.RunNoWait(context.Background(), StreamTaskInput{
-    Text: "Your custom text here!",
-})
-```
-
-The text will be chunked into 10-character pieces and streamed in real-time.
+- **Worker**: Registers a streaming workflow that sends chunks of Anna Karenina text via `ctx.PutStream()`
+- **Client**: Triggers the workflow and subscribes to the stream using `hatchet.Runs().SubscribeToStream()`
+- **Streaming**: Content is sent in 10-character chunks with 200ms delays between chunks
