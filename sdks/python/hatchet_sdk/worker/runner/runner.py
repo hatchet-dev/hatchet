@@ -496,7 +496,7 @@ class Runner:
         return None
 
     def force_kill_thread(self, thread: Thread) -> None:
-        "Terminate a python threading.Thread."
+        """Terminate a python threading.Thread."""
         try:
             if not thread.is_alive():
                 return
