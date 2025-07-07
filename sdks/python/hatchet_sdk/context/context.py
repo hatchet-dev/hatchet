@@ -26,6 +26,7 @@ from hatchet_sdk.logger import logger
 from hatchet_sdk.utils.timedelta_to_expression import Duration, timedelta_to_expr
 from hatchet_sdk.utils.typing import JSONSerializableMapping
 from hatchet_sdk.worker.runner.utils.capture_logs import AsyncLogSender, LogRecord
+from threading import Lock
 
 if TYPE_CHECKING:
     from hatchet_sdk.runnables.task import Task
@@ -66,12 +67,14 @@ class Context:
         self._lifespan_context = lifespan_context
 
         self.stream_index = 0
+        self.stream_index_lock = Lock()
 
     def _increment_stream_index(self) -> int:
-        index = self.stream_index
-        self.stream_index += 1
+        with self.stream_index_lock:
+            index = self.stream_index
+            self.stream_index += 1
 
-        return index
+            return index
 
     def was_skipped(self, task: "Task[TWorkflowInput, R]") -> bool:
         """
