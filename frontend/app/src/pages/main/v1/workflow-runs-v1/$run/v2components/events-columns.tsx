@@ -259,11 +259,25 @@ function ErrorWithHoverCard({ event }: { event: V1TaskEvent }) {
           </Button>
         </PopoverTrigger>
         <PopoverContent
-          className="min-w-fit p-0 bg-background border-none z-[80]"
+          className="p-0 bg-background border-none z-[80]"
           align="start"
           container={containerRef.current}
+          style={{
+            width: '600px',
+            maxWidth: '80vw',
+            minWidth: '300px',
+          }}
         >
-          <ErrorHoverContents event={event} />
+          <div
+            className="p-4 overflow-hidden"
+            style={{
+              width: '600px',
+              maxWidth: '80vw',
+              minWidth: '300px',
+            }}
+          >
+            <ErrorHoverContents event={event} />
+          </div>
         </PopoverContent>
       </Popover>
     </div>
