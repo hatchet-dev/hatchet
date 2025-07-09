@@ -545,6 +545,8 @@ Methods:
 | `aio_list_runs`        | List runs of the workflow.                                                                                               |
 | `create_filter`        | Create a new filter.                                                                                                     |
 | `aio_create_filter`    | Create a new filter.                                                                                                     |
+| `delete`               | Permanently delete the workflow.                                                                                         |
+| `aio_delete`           | Permanently delete the workflow.                                                                                         |
 
 ### Functions
 
@@ -869,3 +871,15 @@ Returns:
 | Type       | Description         |
 | ---------- | ------------------- |
 | `V1Filter` | The created filter. |
+
+#### `delete`
+
+Permanently delete the workflow.
+
+**DANGEROUS: This will delete a workflow and all of its data**
+
+#### `aio_delete`
+
+Permanently delete the workflow.
+
+**DANGEROUS: This will delete a workflow and all of its data**
