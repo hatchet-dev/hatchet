@@ -808,9 +808,9 @@ export class Api<
        */
       limit?: number;
       /** The source names to filter by */
-      sourceName?: string[];
+      sourceNames?: string[];
       /** The webhook names to filter by */
-      scopes?: string[];
+      webhookNames?: string[];
     },
     params: RequestParams = {},
   ) =>

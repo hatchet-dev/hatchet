@@ -1,0 +1,18 @@
+package webhooksv1
+
+import (
+	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
+	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers/v1"
+	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
+	"github.com/labstack/echo/v4"
+)
+
+func (t *V1WebhooksService) V1WebhookGet(ctx echo.Context, request gen.V1WebhookGetRequestObject) (gen.V1WebhookGetResponseObject, error) {
+	webhook := ctx.Get("v1-webhook").(*sqlcv1.V1IncomingWebhook)
+
+	transformed := transformers.ToV1Webhook(webhook)
+
+	return gen.V1WebhookGet200JSONResponse(
+		transformed,
+	), nil
+}

@@ -126,7 +126,7 @@ V1WebhookListCreate:
           format: int64
       - description: The source names to filter by
         in: query
-        name: sourceName
+        name: sourceNames
         required: false
         schema:
           type: array
@@ -135,7 +135,7 @@ V1WebhookListCreate:
             description: The source name
       - description: The webhook names to filter by
         in: query
-        name: scopes
+        name: webhookNames
         required: false
         schema:
           type: array

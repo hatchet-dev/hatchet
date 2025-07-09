@@ -1274,6 +1274,9 @@ type V1CreateWebhookRequestAPIKey struct {
 	// EventKeyExpression The CEL expression to use for the event key. This is used to create the event key from the webhook payload.
 	EventKeyExpression string `json:"eventKeyExpression"`
 
+	// Id The unique identifier for the webhook
+	Id *openapi_types.UUID `json:"id,omitempty"`
+
 	// Name The name of the webhook
 	Name string `json:"name"`
 
@@ -1291,6 +1294,9 @@ type V1CreateWebhookRequestBase struct {
 	// EventKeyExpression The CEL expression to use for the event key. This is used to create the event key from the webhook payload.
 	EventKeyExpression string `json:"eventKeyExpression"`
 
+	// Id The unique identifier for the webhook
+	Id *openapi_types.UUID `json:"id,omitempty"`
+
 	// Name The name of the webhook
 	Name string `json:"name"`
 
@@ -1305,6 +1311,9 @@ type V1CreateWebhookRequestBasicAuth struct {
 
 	// EventKeyExpression The CEL expression to use for the event key. This is used to create the event key from the webhook payload.
 	EventKeyExpression string `json:"eventKeyExpression"`
+
+	// Id The unique identifier for the webhook
+	Id *openapi_types.UUID `json:"id,omitempty"`
 
 	// Name The name of the webhook
 	Name string `json:"name"`
@@ -1323,6 +1332,9 @@ type V1CreateWebhookRequestHMAC struct {
 
 	// EventKeyExpression The CEL expression to use for the event key. This is used to create the event key from the webhook payload.
 	EventKeyExpression string `json:"eventKeyExpression"`
+
+	// Id The unique identifier for the webhook
+	Id *openapi_types.UUID `json:"id,omitempty"`
 
 	// Name The name of the webhook
 	Name string `json:"name"`
@@ -2291,11 +2303,11 @@ type V1WebhookListParams struct {
 	// Limit The number to limit by
 	Limit *int64 `form:"limit,omitempty" json:"limit,omitempty"`
 
-	// SourceName The source names to filter by
-	SourceName *[]string `form:"sourceName,omitempty" json:"sourceName,omitempty"`
+	// SourceNames The source names to filter by
+	SourceNames *[]string `form:"sourceNames,omitempty" json:"sourceNames,omitempty"`
 
-	// Scopes The webhook names to filter by
-	Scopes *[]string `form:"scopes,omitempty" json:"scopes,omitempty"`
+	// WebhookNames The webhook names to filter by
+	WebhookNames *[]string `form:"webhookNames,omitempty" json:"webhookNames,omitempty"`
 }
 
 // V1WorkflowRunListParams defines parameters for V1WorkflowRunList.
@@ -6736,9 +6748,9 @@ func NewV1WebhookListRequest(server string, tenant openapi_types.UUID, params *V
 
 		}
 
-		if params.SourceName != nil {
+		if params.SourceNames != nil {
 
-			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "sourceName", runtime.ParamLocationQuery, *params.SourceName); err != nil {
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "sourceNames", runtime.ParamLocationQuery, *params.SourceNames); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
 				return nil, err
@@ -6752,9 +6764,9 @@ func NewV1WebhookListRequest(server string, tenant openapi_types.UUID, params *V
 
 		}
 
-		if params.Scopes != nil {
+		if params.WebhookNames != nil {
 
-			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "scopes", runtime.ParamLocationQuery, *params.Scopes); err != nil {
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "webhookNames", runtime.ParamLocationQuery, *params.WebhookNames); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
 				return nil, err
