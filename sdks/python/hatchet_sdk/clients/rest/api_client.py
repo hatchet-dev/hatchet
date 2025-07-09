@@ -180,6 +180,8 @@ class ApiClient:
         header_params.update(self.default_headers)
         if self.cookie:
             header_params["Cookie"] = self.cookie
+        if config.user_agent:
+            header_params["User-Agent"] = config.user_agent
         if header_params:
             header_params = self.sanitize_for_serialization(header_params)
             header_params = dict(

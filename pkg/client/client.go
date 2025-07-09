@@ -27,6 +27,8 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
 
+const version = "0.68.3"
+
 type Client interface {
 	Admin() AdminClient
 	Cron() CronClient
@@ -315,8 +317,11 @@ func newFromOpts(opts *ClientOpts) (Client, error) {
 	dispatcher := newDispatcher(conn, shared, opts.presetWorkerLabels)
 	event := newEvent(conn, shared)
 
+	userAgent := fmt.Sprintf("hatchet-go-sdk/%s", version)
+
 	rest, err := rest.NewClientWithResponses(opts.serverURL, rest.WithRequestEditorFn(func(ctx context.Context, req *http.Request) error {
 		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", opts.token))
+		req.Header.Set("User-Agent", userAgent)
 		return nil
 	}))
 
@@ -326,6 +331,7 @@ func newFromOpts(opts *ClientOpts) (Client, error) {
 
 	cloudrest, err := cloudrest.NewClientWithResponses(opts.serverURL, cloudrest.WithRequestEditorFn(func(ctx context.Context, req *http.Request) error {
 		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", opts.token))
+		req.Header.Set("User-Agent", userAgent)
 		return nil
 	}))
 
