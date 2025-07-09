@@ -65,7 +65,6 @@ export function useTenantDetails() {
 
   const setTenant = useCallback(
     (tenantId: string) => {
-      console.log('Switching tenant to:', tenantId);
       const currentPath = location.pathname;
 
       const newPath = currentPath.replace(

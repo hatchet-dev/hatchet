@@ -72,7 +72,7 @@ export function TenantSwitcher({
                   setOpen(false);
 
                   if (membership.tenant.version === TenantVersion.V1) {
-                    // Hack to wait for next event loop tick so localstorage is updated
+                    // Hack to wait for next event loop tick so local storage is updated
                     setTimeout(() => {
                       window.location.href = `/tenants/${membership.tenant?.metadata.id}`;
                     }, 0);

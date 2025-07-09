@@ -26,7 +26,7 @@ export default function CreateTenant() {
       setTenant(tenant);
       await listMembershipsQuery.refetch();
 
-      // Hack to wait for next event loop tick so localstorage is updated
+      // Hack to wait for next event loop tick so local storage is updated
       setTimeout(() => {
         if (tenant.version === TenantVersion.V1) {
           window.location.href = `/tenants/${tenant.metadata.id}/onboarding/get-started`;
