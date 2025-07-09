@@ -9,6 +9,7 @@ CREATE TABLE v1_incoming_webhook (
 
     tenant_id UUID NOT NULL,
 
+    source_name TEXT NOT NULL,
     name TEXT NOT NULL,
 
     -- CEL expression that creates an event key
@@ -64,6 +65,11 @@ CREATE TABLE v1_incoming_webhook (
 CREATE UNIQUE INDEX v1_incoming_webhook_unique_tenant_webhook_name ON v1_incoming_webhook (
 	tenant_id,
 	name
+);
+
+CREATE INDEX v1_incoming_webhook_tenant_source_name ON v1_incoming_webhook (
+	tenant_id,
+	source_name
 );
 -- +goose StatementEnd
 
