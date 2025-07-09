@@ -154,7 +154,6 @@ export function useTenant(): TenantContext {
   // NOTE: This is helpful mostly for debugging to easily grab
   // the tenant from the URL.
   useEffect(() => {
-    console.log('Calling useEffect to set tenant from search params');
     const currentTenantParam = searchParams.get('tenant');
     if (!currentTenantParam && tenant) {
       setTenant(tenant);
