@@ -58,6 +58,10 @@ paths:
     $ref: "./paths/v1/filters/filter.yaml#/V1FilterListCreate"
   /api/v1/stable/tenants/{tenant}/filters/{v1-filter}:
     $ref: "./paths/v1/filters/filter.yaml#/V1FilterGetDeleteUpdate"
+  /api/v1/stable/tenants/{tenant}/webhooks:
+    $ref: "./paths/v1/webhooks/webhook.yaml#/V1WebhookListCreate"
+  /api/v1/stable/tenants/{tenant}/webhooks/{v1-webhook}:
+    $ref: "./paths/v1/webhooks/webhook.yaml#/V1WebhookGetDeleteUpdate"
   /api/ready:
     $ref: "./paths/metadata/metadata.yaml#/readiness"
   /api/live:

@@ -1,0 +1,168 @@
+V1Webhook:
+  properties:
+    metadata:
+      $ref: "../metadata.yaml#/APIResourceMeta"
+    tenantId:
+      type: string
+      description: The ID of the tenant associated with this webhook.
+    name:
+      type: string
+      description: The name of the webhook
+    sourceName:
+      type: string
+      description: The name of the source for this webhook
+    eventKeyExpression:
+      type: string
+      description: The CEL expression to use for the event key. This is used to create the event key from the webhook payload.
+    authType:
+      $ref: "#/V1WebhookAuthType"
+      description: The type of authentication to use for the webhook
+  required:
+    - metadata
+    - tenantId
+    - name
+    - sourceName
+    - eventKeyExpression
+    - authType
+
+V1WebhookList:
+  type: object
+  properties:
+    pagination:
+      $ref: "../metadata.yaml#/PaginationResponse"
+    rows:
+      type: array
+      items:
+        $ref: "#/V1Webhook"
+
+
+V1WebhookAuthType:
+  type: string
+  enum:
+    - BASIC_AUTH
+    - API_KEY
+    - HMAC
+
+
+V1WebhookHMACAlgorithm:
+  type: string
+  enum:
+    - SHA1
+    - SHA256
+    - SHA512
+    - MD5
+
+V1WebhookHMACEncoding:
+  type: string
+  enum:
+    - HEX
+    - BASE64
+    - BASE64URL
+
+V1WebhookBasicAuth:
+  type: object
+  properties:
+    username:
+      type: string
+      description: The username for basic auth
+    password:
+      type: string
+      description: The password for basic auth
+
+V1WebhookAPIKeyAuth:
+  type: object
+  properties:
+    headerName:
+      type: string
+      description: The name of the header to use for the API key
+    apiKey:
+      type: string
+      description: The API key to use for authentication
+
+V1WebhookHMACAuth:
+  type: object
+  properties:
+    algorithm:
+      $ref: "#/V1WebhookHMACAlgorithm"
+      description: The HMAC algorithm to use for the webhook
+    encoding:
+      $ref: "#/V1WebhookHMACEncoding"
+      description: The encoding to use for the HMAC signature
+    signatureHeaderName:
+      type: string
+      description: The name of the header to use for the HMAC signature
+    signingSecret:
+      type: string
+      description: The secret key used to sign the HMAC signature
+
+V1CreateWebhookRequestBase:
+  type: object
+  properties:
+    sourceName:
+      type: string
+      description: The name of the source for this webhook
+    name:
+      type: string
+      description: The name of the webhook
+    eventKeyExpression:
+      type: string
+      description: The CEL expression to use for the event key. This is used to create the event key from the webhook payload.
+    authType:
+      $ref: "#/V1WebhookAuthType"
+      description: The type of authentication to use for the webhook
+  required:
+    - name
+    - sourceName
+    - eventKeyExpression
+    - authType
+
+V1CreateWebhookRequestBasicAuth:
+  allOf:
+    - $ref: "#/V1CreateWebhookRequestBase"
+    - type: object
+      properties:
+        authType:
+          type: string
+          enum: [BASIC_AUTH]
+        auth:
+          $ref: "#/V1WebhookBasicAuth"
+      required:
+        - auth
+
+V1CreateWebhookRequestAPIKey:
+  allOf:
+    - $ref: "#/V1CreateWebhookRequestBase"
+    - type: object
+      properties:
+        authType:
+          type: string
+          enum: [API_KEY]
+        auth:
+          $ref: "#/V1WebhookAPIKeyAuth"
+      required:
+        - auth
+
+V1CreateWebhookRequestHMAC:
+  allOf:
+    - $ref: "#/V1CreateWebhookRequestBase"
+    - type: object
+      properties:
+        authType:
+          type: string
+          enum: [HMAC]
+        auth:
+          $ref: "#/V1WebhookHMACAuth"
+      required:
+        - auth
+
+V1CreateWebhookRequest:
+  oneOf:
+    - $ref: "#/V1CreateWebhookRequestBasicAuth"
+    - $ref: "#/V1CreateWebhookRequestAPIKey"
+    - $ref: "#/V1CreateWebhookRequestHMAC"
+  discriminator:
+    propertyName: authType
+    mapping:
+      BASIC_AUTH: "#/V1CreateWebhookRequestBasicAuth"
+      API_KEY: "#/V1CreateWebhookRequestAPIKey"
+      HMAC: "#/V1CreateWebhookRequestHMAC"
