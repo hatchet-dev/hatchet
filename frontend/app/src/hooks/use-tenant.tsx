@@ -42,6 +42,14 @@ export function useTenantDetails() {
   const params = useParams();
   const tenantId = params.tenant;
 
+  const setTenantInLocalStorage = useCallback(async (tenantId: string) => {
+    localStorage.setItem('__hatchet.tenantId', tenantId);
+  }, []);
+
+  const getTenantFromLocalStorage = useCallback(() => {
+    return localStorage.getItem('__hatchet.tenantId') as string | undefined;
+  }, []);
+
   const membershipsQuery = useQuery({
     ...queries.user.listTenantMemberships,
   });
@@ -56,7 +64,8 @@ export function useTenantDetails() {
   const navigate = useNavigate();
 
   const setTenant = useCallback(
-    (tenantId?: string) => {
+    (tenantId: string) => {
+      console.log('Switching tenant to:', tenantId);
       const currentPath = location.pathname;
 
       const newPath = currentPath.replace(
@@ -64,6 +73,7 @@ export function useTenantDetails() {
         `/tenants/${tenantId}`,
       );
 
+      setTenantInLocalStorage(tenantId);
       navigate(newPath);
     },
     [navigate, location.pathname],
@@ -80,7 +90,7 @@ export function useTenantDetails() {
   }, [tenantId, memberships]);
 
   const tenant = membership?.tenant;
-  const defaultTenant = memberships?.[0]?.tenant;
+  const defaultTenant = getTenantFromLocalStorage() ?? memberships?.[0]?.tenant;
 
   const createTenantMutation = useMutation({
     mutationKey: ['tenant:create'],

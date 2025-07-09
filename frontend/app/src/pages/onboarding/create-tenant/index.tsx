@@ -26,11 +26,14 @@ export default function CreateTenant() {
       setTenant(tenant);
       await listMembershipsQuery.refetch();
 
-      if (tenant.version === TenantVersion.V1) {
-        window.location.href = `/tenants/${tenant.metadata.id}/onboarding/get-started`;
-      } else {
-        window.location.href = `/onboarding/get-started?tenant=${tenant.metadata.id}`;
-      }
+      // Hack to wait for next event loop tick so localstorage is updated
+      setTimeout(() => {
+        if (tenant.version === TenantVersion.V1) {
+          window.location.href = `/tenants/${tenant.metadata.id}/onboarding/get-started`;
+        } else {
+          window.location.href = `/onboarding/get-started?tenant=${tenant.metadata.id}`;
+        }
+      }, 0);
     },
     onError: handleApiError,
   });
