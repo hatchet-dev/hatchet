@@ -108,3 +108,10 @@ class WorkflowsClient(BaseRestClient):
         :return: The workflow version.
         """
         return await asyncio.to_thread(self.get_version, workflow_id, version)
+
+    def delete(self, workflow_id: str) -> None:
+        with self.client() as client:
+            return self._wa(client).workflow_delete(workflow_id)
+
+    async def aio_delete(self, workflow_id: str) -> None:
+        return await asyncio.to_thread(self.delete, workflow_id)
