@@ -42,12 +42,8 @@ export function useTenantDetails() {
   const params = useParams();
   const tenantId = params.tenant;
 
-  const setTenantInLocalStorage = useCallback(async (tenantId: string) => {
+  const setTenantInLocalStorage = useCallback((tenantId: string) => {
     localStorage.setItem('tenantId', tenantId);
-  }, []);
-
-  const getTenantFromLocalStorage = useCallback(() => {
-    return localStorage.getItem('tenantId') as string | undefined;
   }, []);
 
   const membershipsQuery = useQuery({
@@ -75,7 +71,7 @@ export function useTenantDetails() {
       setTenantInLocalStorage(tenantId);
       navigate(newPath);
     },
-    [navigate, location.pathname],
+    [navigate, location.pathname, setTenantInLocalStorage],
   );
 
   const membership = useMemo(() => {
@@ -89,7 +85,6 @@ export function useTenantDetails() {
   }, [tenantId, memberships]);
 
   const tenant = membership?.tenant;
-  const defaultTenant = getTenantFromLocalStorage() ?? memberships?.[0]?.tenant;
 
   const createTenantMutation = useMutation({
     mutationKey: ['tenant:create'],
@@ -189,7 +184,6 @@ export function useTenantDetails() {
   return {
     tenantId,
     tenant,
-    defaultTenant,
     isLoading: membershipsQuery.isLoading,
     membership: membership?.role,
     setTenant,

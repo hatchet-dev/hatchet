@@ -80,7 +80,7 @@ export function useTenant(): TenantContext {
       newSearchParams.set('tenant', tenant.metadata.id);
       setSearchParams(newSearchParams, { replace: true });
     },
-    [searchParams, setSearchParams],
+    [searchParams, setSearchParams, setTenantInLocalStorage],
   );
 
   const membershipsQuery = useQuery({
@@ -136,7 +136,7 @@ export function useTenant(): TenantContext {
     const firstMembershipTenant = memberships.at(0)?.tenant;
 
     return firstMembershipTenant;
-  }, [memberships, searchParams, findTenant, pathParams.tenant]);
+  }, [memberships, searchParams, findTenant, pathParams.tenant, getTenantFromLocalStorage]);
 
   const currTenantId = searchParams.get('tenant');
   const currTenant = currTenantId ? findTenant(currTenantId) : undefined;
