@@ -62,11 +62,11 @@ export function useTenant(): TenantContext {
   const pathParams = useParams();
 
   const setTenantInLocalStorage = useCallback(async (tenantId: string) => {
-    localStorage.setItem('__hatchet.tenantId', tenantId);
+    localStorage.setItem('tenantId', tenantId);
   }, []);
 
   const getTenantFromLocalStorage = useCallback(() => {
-    return localStorage.getItem('__hatchet.tenantId') as string | undefined;
+    return localStorage.getItem('tenantId') as string | undefined;
   }, []);
 
   const setTenant = useCallback(

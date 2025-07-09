@@ -43,11 +43,11 @@ export function useTenantDetails() {
   const tenantId = params.tenant;
 
   const setTenantInLocalStorage = useCallback(async (tenantId: string) => {
-    localStorage.setItem('__hatchet.tenantId', tenantId);
+    localStorage.setItem('tenantId', tenantId);
   }, []);
 
   const getTenantFromLocalStorage = useCallback(() => {
-    return localStorage.getItem('__hatchet.tenantId') as string | undefined;
+    return localStorage.getItem('tenantId') as string | undefined;
   }, []);
 
   const membershipsQuery = useQuery({
