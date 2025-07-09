@@ -1002,6 +1002,136 @@ func (ns NullV1EventTypeOlap) Value() (driver.Value, error) {
 	return string(ns.V1EventTypeOlap), nil
 }
 
+type V1IncomingWebhookAuthType string
+
+const (
+	V1IncomingWebhookAuthTypeBASICAUTH V1IncomingWebhookAuthType = "BASIC_AUTH"
+	V1IncomingWebhookAuthTypeAPIKEY    V1IncomingWebhookAuthType = "API_KEY"
+	V1IncomingWebhookAuthTypeHMAC      V1IncomingWebhookAuthType = "HMAC"
+)
+
+func (e *V1IncomingWebhookAuthType) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = V1IncomingWebhookAuthType(s)
+	case string:
+		*e = V1IncomingWebhookAuthType(s)
+	default:
+		return fmt.Errorf("unsupported scan type for V1IncomingWebhookAuthType: %T", src)
+	}
+	return nil
+}
+
+type NullV1IncomingWebhookAuthType struct {
+	V1IncomingWebhookAuthType V1IncomingWebhookAuthType `json:"v1_incoming_webhook_auth_type"`
+	Valid                     bool                      `json:"valid"` // Valid is true if V1IncomingWebhookAuthType is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullV1IncomingWebhookAuthType) Scan(value interface{}) error {
+	if value == nil {
+		ns.V1IncomingWebhookAuthType, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.V1IncomingWebhookAuthType.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullV1IncomingWebhookAuthType) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.V1IncomingWebhookAuthType), nil
+}
+
+type V1IncomingWebhookHmacAlgorithm string
+
+const (
+	V1IncomingWebhookHmacAlgorithmSHA1   V1IncomingWebhookHmacAlgorithm = "SHA1"
+	V1IncomingWebhookHmacAlgorithmSHA256 V1IncomingWebhookHmacAlgorithm = "SHA256"
+	V1IncomingWebhookHmacAlgorithmSHA512 V1IncomingWebhookHmacAlgorithm = "SHA512"
+	V1IncomingWebhookHmacAlgorithmMD5    V1IncomingWebhookHmacAlgorithm = "MD5"
+)
+
+func (e *V1IncomingWebhookHmacAlgorithm) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = V1IncomingWebhookHmacAlgorithm(s)
+	case string:
+		*e = V1IncomingWebhookHmacAlgorithm(s)
+	default:
+		return fmt.Errorf("unsupported scan type for V1IncomingWebhookHmacAlgorithm: %T", src)
+	}
+	return nil
+}
+
+type NullV1IncomingWebhookHmacAlgorithm struct {
+	V1IncomingWebhookHmacAlgorithm V1IncomingWebhookHmacAlgorithm `json:"v1_incoming_webhook_hmac_algorithm"`
+	Valid                          bool                           `json:"valid"` // Valid is true if V1IncomingWebhookHmacAlgorithm is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullV1IncomingWebhookHmacAlgorithm) Scan(value interface{}) error {
+	if value == nil {
+		ns.V1IncomingWebhookHmacAlgorithm, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.V1IncomingWebhookHmacAlgorithm.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullV1IncomingWebhookHmacAlgorithm) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.V1IncomingWebhookHmacAlgorithm), nil
+}
+
+type V1IncomingWebhookHmacEncoding string
+
+const (
+	V1IncomingWebhookHmacEncodingHEX       V1IncomingWebhookHmacEncoding = "HEX"
+	V1IncomingWebhookHmacEncodingBASE64    V1IncomingWebhookHmacEncoding = "BASE64"
+	V1IncomingWebhookHmacEncodingBASE64URL V1IncomingWebhookHmacEncoding = "BASE64URL"
+)
+
+func (e *V1IncomingWebhookHmacEncoding) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = V1IncomingWebhookHmacEncoding(s)
+	case string:
+		*e = V1IncomingWebhookHmacEncoding(s)
+	default:
+		return fmt.Errorf("unsupported scan type for V1IncomingWebhookHmacEncoding: %T", src)
+	}
+	return nil
+}
+
+type NullV1IncomingWebhookHmacEncoding struct {
+	V1IncomingWebhookHmacEncoding V1IncomingWebhookHmacEncoding `json:"v1_incoming_webhook_hmac_encoding"`
+	Valid                         bool                          `json:"valid"` // Valid is true if V1IncomingWebhookHmacEncoding is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullV1IncomingWebhookHmacEncoding) Scan(value interface{}) error {
+	if value == nil {
+		ns.V1IncomingWebhookHmacEncoding, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.V1IncomingWebhookHmacEncoding.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullV1IncomingWebhookHmacEncoding) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.V1IncomingWebhookHmacEncoding), nil
+}
+
 type V1LogLineLevel string
 
 const (
@@ -2559,6 +2689,24 @@ type V1Filter struct {
 	IsDeclarative bool               `json:"is_declarative"`
 	InsertedAt    pgtype.Timestamptz `json:"inserted_at"`
 	UpdatedAt     pgtype.Timestamptz `json:"updated_at"`
+}
+
+type V1IncomingWebhook struct {
+	ID                           pgtype.UUID                        `json:"id"`
+	TenantID                     pgtype.UUID                        `json:"tenant_id"`
+	Name                         string                             `json:"name"`
+	EventKeyExpression           string                             `json:"event_key_expression"`
+	AuthMethod                   V1IncomingWebhookAuthType          `json:"auth_method"`
+	AuthBasicUsername            pgtype.Text                        `json:"auth__basic__username"`
+	AuthBasicPassword            []byte                             `json:"auth__basic__password"`
+	AuthApiKeyHeaderName         pgtype.Text                        `json:"auth__api_key__header_name"`
+	AuthApiKeyKey                []byte                             `json:"auth__api_key__key"`
+	AuthHmacAlgorithm            NullV1IncomingWebhookHmacAlgorithm `json:"auth__hmac__algorithm"`
+	AuthHmacEncoding             NullV1IncomingWebhookHmacEncoding  `json:"auth__hmac__encoding"`
+	AuthHmacSignatureHeaderName  pgtype.Text                        `json:"auth__hmac__signature_header_name"`
+	AuthHmacWebhookSigningSecret []byte                             `json:"auth__hmac__webhook_signing_secret"`
+	InsertedAt                   pgtype.Timestamptz                 `json:"inserted_at"`
+	UpdatedAt                    pgtype.Timestamptz                 `json:"updated_at"`
 }
 
 type V1LogLine struct {
