@@ -59,3 +59,5 @@
         - aio_list_runs
         - create_filter
         - aio_create_filter
+        - delete
+        - aio_delete
