@@ -1,4 +1,4 @@
-V1WebhookGetDeleteUpdate:
+V1WebhookGetDelete:
   get:
     x-resources: ["tenant", "v1-webhook"]
     description: Get a webhook by its id
@@ -94,63 +94,6 @@ V1WebhookGetDeleteUpdate:
         description: Not found
     tags:
       - Webhook
-  # patch:
-  #   x-resources: ["tenant", "v1-webhook"]
-  #   description: Update a webhook
-  #   operationId: v1-webhook:update
-  #   parameters:
-  #     - description: The tenant id
-  #       in: path
-  #       name: tenant
-  #       required: true
-  #       schema:
-  #         type: string
-  #         format: uuid
-  #         minLength: 36
-  #         maxLength: 36
-  #     - description: The webhook id to update
-  #       in: path
-  #       name: v1-webhook
-  #       required: true
-  #       schema:
-  #         type: string
-  #         format: uuid
-  #         minLength: 36
-  #         maxLength: 36
-  #   requestBody:
-  #     content:
-  #       application/json:
-  #         schema:
-  #           $ref: "../../../components/schemas/_index.yaml#/V1UpdateWebhookRequest"
-  #     description: The input to the webhook update
-  #     required: true
-  #   responses:
-  #     "200":
-  #       content:
-  #         application/json:
-  #           schema:
-  #             $ref: "../../../components/schemas/_index.yaml#/V1Webhook"
-  #       description: Successfully updated webhook
-  #     "400":
-  #       content:
-  #         application/json:
-  #           schema:
-  #             $ref: "../../../components/schemas/_index.yaml#/APIErrors"
-  #       description: A malformed or bad request
-  #     "403":
-  #       content:
-  #         application/json:
-  #           schema:
-  #             $ref: "../../../components/schemas/_index.yaml#/APIErrors"
-  #       description: Forbidden
-  #     "404":
-  #       content:
-  #         application/json:
-  #           schema:
-  #             $ref: "../../../components/schemas/_index.yaml#/APIErrors"
-  #       description: Not found
-  #   tags:
-  #     - Webhook
 
 V1WebhookListCreate:
   get:
