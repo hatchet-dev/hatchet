@@ -6,14 +6,14 @@ The metrics client is a client for reading metrics out of Hatchet's metrics API.
 
 Methods:
 
-| Name                                | Description                                                                               |
-| ----------------------------------- | ----------------------------------------------------------------------------------------- |
-| `aio_get_queue_metrics`             | Retrieve the current queue metrics for the tenant.                                        |
-| `aio_get_task_metrics`              | Retrieve task metrics, grouped by status (queued, running, completed, failed, cancelled). |
-| `aio_get_tenant_prometheus_metrics` | Scrape Prometheus metrics for the tenant. Returns the metrics in Prometheus text format.  |
-| `get_queue_metrics`                 | Retrieve the current queue metrics for the tenant.                                        |
-| `get_task_metrics`                  | Retrieve task metrics, grouped by status (queued, running, completed, failed, cancelled). |
-| `get_tenant_prometheus_metrics`     | Scrape Prometheus metrics for the tenant. Returns the metrics in Prometheus text format.  |
+| Name                                   | Description                                                                               |
+| -------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `aio_get_queue_metrics`                | Retrieve the current queue metrics for the tenant.                                        |
+| `aio_get_task_metrics`                 | Retrieve task metrics, grouped by status (queued, running, completed, failed, cancelled). |
+| `aio_scrape_tenant_prometheus_metrics` | Scrape Prometheus metrics for the tenant. Returns the metrics in Prometheus text format.  |
+| `get_queue_metrics`                    | Retrieve the current queue metrics for the tenant.                                        |
+| `get_task_metrics`                     | Retrieve task metrics, grouped by status (queued, running, completed, failed, cancelled). |
+| `scrape_tenant_prometheus_metrics`     | Scrape Prometheus metrics for the tenant. Returns the metrics in Prometheus text format.  |
 
 ### Functions
 
@@ -47,7 +47,7 @@ Returns:
 | ------------- | ------------ |
 | `TaskMetrics` | Task metrics |
 
-#### `aio_get_tenant_prometheus_metrics`
+#### `aio_scrape_tenant_prometheus_metrics`
 
 Scrape Prometheus metrics for the tenant. Returns the metrics in Prometheus text format.
 
@@ -87,7 +87,7 @@ Returns:
 | ------------- | ------------ |
 | `TaskMetrics` | Task metrics |
 
-#### `get_tenant_prometheus_metrics`
+#### `scrape_tenant_prometheus_metrics`
 
 Scrape Prometheus metrics for the tenant. Returns the metrics in Prometheus text format.
 

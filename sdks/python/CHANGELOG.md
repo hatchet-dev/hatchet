@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.15.0] - 2025-07-10
 
+### Added
+
+- The `Metrics` client now includes a method to scrape Prometheus metrics from the tenant.
+
 ### Changed
 
 - The `Metrics` client's `get_task_metrics` and `get_queue_metrics` now return better-shaped, correctly-fetched data from the API.
