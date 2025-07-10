@@ -509,6 +509,22 @@ class BaseWorkflow(Generic[TWorkflowInput]):
             priority=priority,
         )
 
+    def delete(self) -> None:
+        """
+        Permanently delete the workflow.
+
+        **DANGEROUS: This will delete a workflow and all of its data**
+        """
+        self.client.workflows.delete(self.id)
+
+    async def aio_delete(self) -> None:
+        """
+        Permanently delete the workflow.
+
+        **DANGEROUS: This will delete a workflow and all of its data**
+        """
+        await self.client.workflows.aio_delete(self.id)
+
 
 class Workflow(BaseWorkflow[TWorkflowInput]):
     """

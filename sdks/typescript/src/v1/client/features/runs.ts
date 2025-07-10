@@ -62,6 +62,9 @@ export interface ListRunsOpts extends RunFilter {
    * @maxLength 36
    */
   triggeringEventExternalId?: string;
+
+  /** A flag for whether or not to include the input and output payloads in the response. Defaults to `true` if unset. */
+  includePayloads?: boolean;
 }
 
 /**
@@ -149,6 +152,8 @@ export class RunsClient {
     );
 
     return {
+      offset: opts.offset,
+      limit: opts.limit,
       // default to 1 hour ago
       since: opts.since
         ? opts.since.toISOString()
@@ -161,7 +166,9 @@ export class RunsClient {
       ),
       additional_metadata: am,
       only_tasks: opts.onlyTasks || false,
+      parent_task_external_id: opts.parentTaskExternalId,
       triggering_event_external_id: opts.triggeringEventExternalId,
+      include_payloads: opts.includePayloads,
     };
   }
 
