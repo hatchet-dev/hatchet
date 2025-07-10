@@ -5,7 +5,6 @@ from pydantic import BaseModel
 
 from hatchet_sdk.clients.rest.api.task_api import TaskApi
 from hatchet_sdk.clients.rest.api.tenant_api import TenantApi
-from hatchet_sdk.clients.rest.api.workflow_api import WorkflowApi
 from hatchet_sdk.clients.rest.api_client import ApiClient
 from hatchet_sdk.clients.v1.api_client import BaseRestClient, retry
 
@@ -22,9 +21,6 @@ class MetricsClient(BaseRestClient):
     """
     The metrics client is a client for reading metrics out of Hatchet's metrics API.
     """
-
-    def _wa(self, client: ApiClient) -> WorkflowApi:
-        return WorkflowApi(client)
 
     def _taskapi(self, client: ApiClient) -> TaskApi:
         return TaskApi(client)
