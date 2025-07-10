@@ -16,7 +16,6 @@ type StreamTaskOutput struct {
 	Message string `json:"message"`
 }
 
-// > Streaming
 const annaKarenina = `
 Happy families are all alike; every unhappy family is unhappy in its own way.
 
@@ -39,14 +38,14 @@ func createChunks(content string, n int) []string {
 func streamTask(ctx worker.HatchetContext, input StreamTaskInput) (*StreamTaskOutput, error) {
 	// 👀 Sleeping to avoid race conditions
 	time.Sleep(2 * time.Second)
-	
+
 	chunks := createChunks(annaKarenina, 10)
-	
+
 	for _, chunk := range chunks {
 		ctx.PutStream(chunk)
 		time.Sleep(200 * time.Millisecond)
 	}
-	
+
 	return &StreamTaskOutput{
 		Message: "Streaming completed",
 	}, nil
@@ -56,10 +55,8 @@ func StreamingWorkflow(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[St
 	return factory.NewTask(
 		create.StandaloneTask{
 			Name: "stream-example",
-		}, 
+		},
 		streamTask,
 		hatchet,
 	)
 }
-
-// !!
