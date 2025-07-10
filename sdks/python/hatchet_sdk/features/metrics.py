@@ -58,6 +58,31 @@ class MetricsClient(BaseRestClient):
         return await asyncio.to_thread(self.get_queue_metrics)
 
     @retry
+    def get_tenant_prometheus_metrics(
+        self,
+    ) -> str:
+        """
+        Scrape Prometheus metrics for the tenant. Returns the metrics in Prometheus text format.
+
+        :return: The metrics, returned in Prometheus text format
+        """
+        with self.client() as client:
+            return self._ta(client).tenant_get_prometheus_metrics(
+                tenant=self.client_config.tenant_id,
+            )
+
+    async def aio_get_tenant_prometheus_metrics(
+        self,
+    ) -> str:
+        """
+        Scrape Prometheus metrics for the tenant. Returns the metrics in Prometheus text format.
+
+        :return: The metrics, returned in Prometheus text format
+        """
+
+        return await asyncio.to_thread(self.get_tenant_prometheus_metrics)
+
+    @retry
     def get_task_metrics(
         self,
         since: datetime | None = None,
