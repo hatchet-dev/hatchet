@@ -27,38 +27,83 @@ func newWebhookRepository(shared *sharedRepository) WebhookRepository {
 }
 
 type BasicAuthCredentials struct {
-	Username string `json:"username"`
-	Password []byte `json:"password"`
+	Username string `json:"username" validate:"required"`
+	Password []byte `json:"password" validate:"required"`
 }
 
 type APIKeyAuthCredentials struct {
-	HeaderName string `json:"header_name"`
-	Key        []byte `json:"key"`
+	HeaderName string `json:"header_name" validate:"required"`
+	Key        []byte `json:"key" validate:"required"`
 }
 
 type HMACAuthCredentials struct {
-	Algorithm            sqlcv1.V1IncomingWebhookHmacAlgorithm `json:"algorithm"`
-	Encoding             sqlcv1.V1IncomingWebhookHmacEncoding  `json:"encoding"`
-	SignatureHeaderName  string                                `json:"signature_header_name"`
-	WebhookSigningSecret []byte                                `json:"webhook_signing_secret"`
+	Algorithm            sqlcv1.V1IncomingWebhookHmacAlgorithm `json:"algorithm" validate:"required"`
+	Encoding             sqlcv1.V1IncomingWebhookHmacEncoding  `json:"encoding" validate:"required"`
+	SignatureHeaderName  string                                `json:"signature_header_name" validate:"required"`
+	WebhookSigningSecret []byte                                `json:"webhook_signing_secret" validate:"required"`
 }
 
 type AuthConfig struct {
-	Type       sqlcv1.V1IncomingWebhookAuthType `json:"type"`
+	Type       sqlcv1.V1IncomingWebhookAuthType `json:"type" validate:"required"`
 	BasicAuth  *BasicAuthCredentials            `json:"basic_auth,omitempty"`
 	APIKeyAuth *APIKeyAuthCredentials           `json:"api_key_auth,omitempty"`
 	HMACAuth   *HMACAuthCredentials             `json:"hmac_auth,omitempty"`
 }
 
+func (ac *AuthConfig) Validate() error {
+	authMethodsSet := 0
+
+	if ac.BasicAuth != nil {
+		authMethodsSet++
+	}
+	if ac.APIKeyAuth != nil {
+		authMethodsSet++
+	}
+	if ac.HMACAuth != nil {
+		authMethodsSet++
+	}
+
+	if authMethodsSet != 1 {
+		return fmt.Errorf("exactly one auth method must be set, but %d were provided", authMethodsSet)
+	}
+
+	switch ac.Type {
+	case sqlcv1.V1IncomingWebhookAuthTypeBASICAUTH:
+		if ac.BasicAuth == nil {
+			return fmt.Errorf("basic auth credentials must be provided when type is BASIC_AUTH")
+		}
+	case sqlcv1.V1IncomingWebhookAuthTypeAPIKEY:
+		if ac.APIKeyAuth == nil {
+			return fmt.Errorf("api key auth credentials must be provided when type is API_KEY")
+		}
+	case sqlcv1.V1IncomingWebhookAuthTypeHMAC:
+		if ac.HMACAuth == nil {
+			return fmt.Errorf("hmac auth credentials must be provided when type is HMAC")
+		}
+	default:
+		return fmt.Errorf("unsupported auth type: %s", ac.Type)
+	}
+
+	return nil
+}
+
 type CreateWebhookOpts struct {
 	Tenantid           pgtype.UUID                        `json:"tenantid"`
 	Sourcename         sqlcv1.V1IncomingWebhookSourceName `json:"sourcename"`
-	Name               string                             `json:"name"`
+	Name               string                             `json:"name" validate:"required"`
 	Eventkeyexpression string                             `json:"eventkeyexpression"`
 	AuthConfig         AuthConfig                         `json:"auth_config,omitempty"`
 }
 
 func (r *webhookRepository) CreateWebhook(ctx context.Context, tenantId string, opts CreateWebhookOpts) (*sqlcv1.V1IncomingWebhook, error) {
+	if err := r.v.Validate(opts); err != nil {
+		return nil, err
+	}
+
+	if err := opts.AuthConfig.Validate(); err != nil {
+		return nil, err
+	}
+
 	params := sqlcv1.CreateWebhookParams{
 		Tenantid:           sqlchelpers.UUIDFromStr(tenantId),
 		Sourcename:         sqlcv1.V1IncomingWebhookSourceName(opts.Sourcename),
