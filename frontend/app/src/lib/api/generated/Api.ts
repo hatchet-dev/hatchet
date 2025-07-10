@@ -890,12 +890,12 @@ export class Api<
    * @description Post an incoming webhook message
    *
    * @tags Webhook
-   * @name V1WebhookPost
+   * @name V1WebhookReceive
    * @summary Post a webhook message
    * @request POST:/api/v1/stable/tenants/{tenant}/webhooks/{v1-webhook}
    * @secure
    */
-  v1WebhookPost = (
+  v1WebhookReceive = (
     tenant: string,
     v1Webhook: string,
     data?: Record<string, any>,
