@@ -2,7 +2,6 @@ package v1
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
