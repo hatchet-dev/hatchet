@@ -1,5 +1,6 @@
 import asyncio
 from datetime import datetime, timedelta, timezone
+from typing import Any
 
 from pydantic import BaseModel
 
@@ -31,7 +32,7 @@ class MetricsClient(BaseRestClient):
     @retry
     def get_queue_metrics(
         self,
-    ) -> dict[str, int]:
+    ) -> dict[str, Any]:
         """
         Retrieve the current queue metrics for the tenant.
 
@@ -48,7 +49,7 @@ class MetricsClient(BaseRestClient):
 
     async def aio_get_queue_metrics(
         self,
-    ) -> dict[str, int]:
+    ) -> dict[str, Any]:
         """
         Retrieve the current queue metrics for the tenant.
 
