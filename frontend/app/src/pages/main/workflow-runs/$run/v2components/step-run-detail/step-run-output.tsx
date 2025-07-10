@@ -1,7 +1,6 @@
 import { CodeHighlighter } from '@/components/ui/code-highlighter';
 import { StepRun, StepRunStatus, WorkflowRunShape } from '@/lib/api';
 import React from 'react';
-import StepRunCodeText from './step-run-error';
 import LoggingComponent from '@/components/cloud/logging/logs';
 
 const readableReason = (reason?: string): string => {
@@ -78,9 +77,20 @@ const StepRunOutputFailed = ({ stepRun }: StepRunOutputProps) => {
     return oneLiner('Step run failed with no error message');
   }
 
+  const errorLog = {
+    line: stepRun.error,
+    timestamp: new Date().toISOString(),
+    instance: 'Error',
+  };
+
   return (
     <div className="my-4">
-      <StepRunCodeText text={stepRun.error} />
+      <LoggingComponent
+        logs={[errorLog]}
+        onTopReached={() => {}}
+        onBottomReached={() => {}}
+        autoScroll={false}
+      />
     </div>
   );
 };

@@ -17,7 +17,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/v1/ui/popover';
-import StepRunError from './step-run-detail/step-run-error';
+import LoggingComponent from '@/components/v1/cloud/logging/logs';
 
 function eventTypeToSeverity(
   eventType: V1TaskEventType | undefined,
@@ -259,22 +259,12 @@ function ErrorWithHoverCard({ event }: { event: V1TaskEvent }) {
           </Button>
         </PopoverTrigger>
         <PopoverContent
-          className="p-0 bg-background border-none z-[80]"
+          className="p-0 bg-background border-none z-[80] w-[600px] max-w-[80vw] min-w-[300px]"
           align="start"
           container={containerRef.current}
-          style={{
-            width: '600px',
-            maxWidth: '80vw',
-            minWidth: '300px',
-          }}
         >
           <div
-            className="p-4 overflow-hidden"
-            style={{
-              width: '600px',
-              maxWidth: '80vw',
-              minWidth: '300px',
-            }}
+            className="p-4 overflow-hidden w-[600px] max-w-[80vw] min-w-[300px]"
           >
             <ErrorHoverContents event={event} />
           </div>
@@ -287,9 +277,20 @@ function ErrorWithHoverCard({ event }: { event: V1TaskEvent }) {
 function ErrorHoverContents({ event }: { event: V1TaskEvent }) {
   const errorText = event.errorMessage;
 
-  if (!errorText) {
-    return <StepRunError text="No error message found" />;
-  }
+  const errorLog = {
+    line: errorText || 'No error message found',
+    timestamp: new Date().toISOString(),
+    instance: 'Error',
+  };
 
-  return <StepRunError text={errorText} />;
+  return (
+    <div className="rounded-md h-[400px] overflow-hidden">
+      <LoggingComponent
+        logs={[errorLog]}
+        onTopReached={() => {}}
+        onBottomReached={() => {}}
+        autoScroll={false}
+      />
+    </div>
+  );
 }

@@ -28,7 +28,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
-import StepRunError from './step-run-detail/step-run-error';
+import LoggingComponent from '@/components/cloud/logging/logs';
 
 export type ActivityEventData = {
   metadata: APIResourceMeta;
@@ -249,22 +249,12 @@ function ErrorWithHoverCard({
           </Button>
         </PopoverTrigger>
         <PopoverContent
-          className="p-0 bg-background border-none z-[80]"
+          className="p-0 bg-background border-none z-[80] w-[600px] max-w-[80vw] min-w-[300px]"
           align="start"
           container={containerRef.current}
-          style={{
-            width: '600px',
-            maxWidth: '80vw',
-            minWidth: '300px',
-          }}
         >
           <div
-            className="p-4 overflow-hidden"
-            style={{
-              width: '600px',
-              maxWidth: '80vw',
-              minWidth: '300px',
-            }}
+            className="p-4 overflow-hidden w-[600px] max-w-[80vw] min-w-[300px]"
           >
             <ErrorHoverContents event={event} rows={rows} />
           </div>
@@ -373,5 +363,20 @@ function ErrorHoverContents({
     latestFailure.event.data,
   ]);
 
-  return <StepRunError text={errorString} />;
+  const errorLog = {
+    line: errorString || 'No error message available',
+    timestamp: new Date().toISOString(),
+    instance: 'Error',
+  };
+
+  return (
+    <div className="rounded-md h-[400px] overflow-hidden">
+      <LoggingComponent
+        logs={[errorLog]}
+        onTopReached={() => {}}
+        onBottomReached={() => {}}
+        autoScroll={false}
+      />
+    </div>
+  );
 }
