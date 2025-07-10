@@ -101,9 +101,7 @@ func (m *MiddlewareHandler) Use(mw MiddlewareFunc) {
 }
 
 func (m *MiddlewareHandler) Middleware() (echo.MiddlewareFunc, error) {
-
 	router, err := gorillamux.NewRouter(m.swagger)
-
 	if err != nil {
 		return nil, err
 	}
