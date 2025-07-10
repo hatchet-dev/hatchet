@@ -249,11 +249,11 @@ function ErrorWithHoverCard({
           </Button>
         </PopoverTrigger>
         <PopoverContent
-          className="p-0 bg-background border-none z-[80] w-[600px] max-w-[80vw] min-w-[300px]"
+          className="p-0 bg-popover border-border shadow-lg z-[80] w-[600px] max-w-[80vw] min-w-[300px]"
           align="start"
           container={containerRef.current}
         >
-          <div className="p-4 overflow-hidden w-[600px] max-w-[80vw] min-w-[300px]">
+          <div className="p-4 w-[600px] max-w-[80vw] min-w-[300px]">
             <ErrorHoverContents event={event} rows={rows} />
           </div>
         </PopoverContent>
@@ -362,13 +362,25 @@ function ErrorHoverContents({
   ]);
 
   return (
-    <div className="rounded-md h-[400px] overflow-hidden">
-      <LoggingComponent
-        logs={[{ line: errorString || 'No error message available' }]}
-        onTopReached={() => {}}
-        onBottomReached={() => {}}
-        autoScroll={false}
-      />
+    <div className="space-y-3">
+      <div className="flex items-center gap-2 pb-2 border-b border-border">
+        <XCircleIcon className="w-5 h-5 text-destructive" />
+        <h3 className="font-medium text-foreground">Error Details</h3>
+      </div>
+      <div className="rounded-md h-[400px] bg-muted/50 border border-border overflow-hidden">
+        <div 
+          className="h-full overflow-y-scroll overflow-x-hidden p-4 text-sm font-mono text-foreground" 
+          style={{
+            scrollbarWidth: 'thin',
+            scrollbarColor: 'hsl(var(--muted-foreground)) hsl(var(--muted))',
+            msOverflowStyle: 'scrollbar'
+          }}
+        >
+          <pre className="whitespace-pre-wrap break-words text-destructive min-h-[500px]">
+            {errorString || 'No error message available'}
+          </pre>
+        </div>
+      </div>
     </div>
   );
 }

@@ -73,8 +73,12 @@ export function CodeBlock({
       <div className={cn('relative')}>
         <pre
           className={cn(
-            'p-4 overflow-x-auto text-sm font-mono bg-muted/30 rounded-b-md',
+            'p-4 overflow-auto text-sm font-mono bg-muted/30 rounded-b-md max-h-96',
           )}
+          style={{
+            scrollbarWidth: 'thin',
+            scrollbarColor: 'hsl(var(--muted-foreground)) hsl(var(--muted))'
+          }}
         >
           <CodeStyleRender
             parsed={value}

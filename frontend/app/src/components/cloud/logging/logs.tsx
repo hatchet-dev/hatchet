@@ -143,6 +143,10 @@ const LoggingComponent: React.FC<LogProps> = ({
       className="w-full mx-auto overflow-y-auto p-6 text-indigo-300 font-mono text-xs rounded-md max-h-[25rem] min-h-[25rem] bg-muted"
       ref={containerRef}
       onScroll={handleScroll}
+      style={{
+        scrollbarWidth: 'thin',
+        scrollbarColor: 'hsl(var(--muted-foreground)) hsl(var(--muted))'
+      }}
     >
       {refreshing && (
         <div className="absolute top-0 left-0 right-0 bg-gray-800 text-white p-2 text-center">
