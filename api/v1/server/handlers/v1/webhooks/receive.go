@@ -31,107 +31,113 @@ func (w *V1WebhooksService) V1WebhookReceive(ctx echo.Context, request gen.V1Web
 		return nil, fmt.Errorf("failed to read request body: %w", err)
 	}
 
-	switch webhook.AuthMethod {
-	case sqlcv1.V1IncomingWebhookAuthTypeBASICAUTH:
-		username, password, ok := ctx.Request().BasicAuth()
+	switch webhook.SourceName {
+	case sqlcv1.V1IncomingWebhookSourceNameSTRIPE:
+		fmt.Println("Received Stripe webhook")
+	case sqlcv1.V1IncomingWebhookSourceNameGENERIC:
+	case sqlcv1.V1IncomingWebhookSourceNameGITHUB:
+		switch webhook.AuthMethod {
+		case sqlcv1.V1IncomingWebhookAuthTypeBASICAUTH:
+			username, password, ok := ctx.Request().BasicAuth()
 
-		if !ok {
+			if !ok {
+				return gen.V1WebhookReceive400JSONResponse{
+					Errors: []gen.APIError{
+						{
+							Description: "missing or invalid authorization header",
+						},
+					},
+				}, nil
+			}
+
+			decryptedPassword, err := w.config.Encryption.Decrypt(webhook.AuthBasicPassword, "v1_webhook_basic_auth_password")
+
+			if err != nil {
+				return nil, fmt.Errorf("failed to decrypt basic auth password: %w", err)
+			}
+
+			if username != webhook.AuthBasicUsername.String || password != string(decryptedPassword) {
+				return gen.V1WebhookReceive403JSONResponse{
+					Errors: []gen.APIError{
+						{
+							Description: "invalid basic auth credentials",
+						},
+					},
+				}, nil
+			}
+		case sqlcv1.V1IncomingWebhookAuthTypeAPIKEY:
+			apiKey := ctx.Request().Header.Get(webhook.AuthApiKeyHeaderName.String)
+
+			if apiKey == "" {
+				return gen.V1WebhookReceive400JSONResponse{
+					Errors: []gen.APIError{
+						{
+							Description: fmt.Sprintf("missing or invalid api key header: %s", webhook.AuthApiKeyHeaderName.String),
+						},
+					},
+				}, nil
+			}
+
+			decryptedApiKey, err := w.config.Encryption.Decrypt(webhook.AuthApiKeyKey, "v1_webhook_api_key")
+
+			if err != nil {
+				return nil, fmt.Errorf("failed to decrypt api key: %w", err)
+			}
+
+			if apiKey != string(decryptedApiKey) {
+				return gen.V1WebhookReceive403JSONResponse{
+					Errors: []gen.APIError{
+						{
+							Description: fmt.Sprintf("invalid api key: %s", webhook.AuthApiKeyHeaderName.String),
+						},
+					},
+				}, nil
+			}
+		case sqlcv1.V1IncomingWebhookAuthTypeHMAC:
+			signature := strings.Replace(ctx.Request().Header.Get(webhook.AuthHmacSignatureHeaderName.String), "sha256=", "", 1)
+
+			if signature == "" {
+				return gen.V1WebhookReceive400JSONResponse{
+					Errors: []gen.APIError{
+						{
+							Description: fmt.Sprintf("missing or invalid signature header: %s", webhook.AuthHmacSignatureHeaderName.String),
+						},
+					},
+				}, nil
+			}
+
+			decryptedSigningSecret, err := w.config.Encryption.Decrypt(webhook.AuthHmacWebhookSigningSecret, "v1_webhook_hmac_signing_secret")
+			if err != nil {
+				return nil, fmt.Errorf("failed to decrypt HMAC signing secret: %w", err)
+			}
+
+			algorithm := webhook.AuthHmacAlgorithm.V1IncomingWebhookHmacAlgorithm
+			encoding := webhook.AuthHmacEncoding.V1IncomingWebhookHmacEncoding
+
+			expectedSignature, err := computeHMACSignature(rawBody, decryptedSigningSecret, algorithm, encoding)
+
+			if err != nil {
+				return nil, fmt.Errorf("failed to compute HMAC signature: %w", err)
+			}
+
+			if signature != expectedSignature {
+				return gen.V1WebhookReceive403JSONResponse{
+					Errors: []gen.APIError{
+						{
+							Description: "invalid HMAC signature",
+						},
+					},
+				}, nil
+			}
+		default:
 			return gen.V1WebhookReceive400JSONResponse{
 				Errors: []gen.APIError{
 					{
-						Description: "missing or invalid authorization header",
+						Description: fmt.Sprintf("unsupported auth type: %s", webhook.AuthMethod),
 					},
 				},
 			}, nil
 		}
-
-		decryptedPassword, err := w.config.Encryption.Decrypt(webhook.AuthBasicPassword, "v1_webhook_basic_auth_password")
-
-		if err != nil {
-			return nil, fmt.Errorf("failed to decrypt basic auth password: %w", err)
-		}
-
-		if username != webhook.AuthBasicUsername.String || password != string(decryptedPassword) {
-			return gen.V1WebhookReceive403JSONResponse{
-				Errors: []gen.APIError{
-					{
-						Description: "invalid basic auth credentials",
-					},
-				},
-			}, nil
-		}
-	case sqlcv1.V1IncomingWebhookAuthTypeAPIKEY:
-		apiKey := ctx.Request().Header.Get(webhook.AuthApiKeyHeaderName.String)
-
-		if apiKey == "" {
-			return gen.V1WebhookReceive400JSONResponse{
-				Errors: []gen.APIError{
-					{
-						Description: fmt.Sprintf("missing or invalid api key header: %s", webhook.AuthApiKeyHeaderName.String),
-					},
-				},
-			}, nil
-		}
-
-		decryptedApiKey, err := w.config.Encryption.Decrypt(webhook.AuthApiKeyKey, "v1_webhook_api_key")
-
-		if err != nil {
-			return nil, fmt.Errorf("failed to decrypt api key: %w", err)
-		}
-
-		if apiKey != string(decryptedApiKey) {
-			return gen.V1WebhookReceive403JSONResponse{
-				Errors: []gen.APIError{
-					{
-						Description: fmt.Sprintf("invalid api key: %s", webhook.AuthApiKeyHeaderName.String),
-					},
-				},
-			}, nil
-		}
-	case sqlcv1.V1IncomingWebhookAuthTypeHMAC:
-		signature := strings.Replace(ctx.Request().Header.Get(webhook.AuthHmacSignatureHeaderName.String), "sha256=", "", 1)
-
-		if signature == "" {
-			return gen.V1WebhookReceive400JSONResponse{
-				Errors: []gen.APIError{
-					{
-						Description: fmt.Sprintf("missing or invalid signature header: %s", webhook.AuthHmacSignatureHeaderName.String),
-					},
-				},
-			}, nil
-		}
-
-		decryptedSigningSecret, err := w.config.Encryption.Decrypt(webhook.AuthHmacWebhookSigningSecret, "v1_webhook_hmac_signing_secret")
-		if err != nil {
-			return nil, fmt.Errorf("failed to decrypt HMAC signing secret: %w", err)
-		}
-
-		algorithm := webhook.AuthHmacAlgorithm.V1IncomingWebhookHmacAlgorithm
-		encoding := webhook.AuthHmacEncoding.V1IncomingWebhookHmacEncoding
-
-		expectedSignature, err := computeHMACSignature(rawBody, decryptedSigningSecret, algorithm, encoding)
-
-		if err != nil {
-			return nil, fmt.Errorf("failed to compute HMAC signature: %w", err)
-		}
-
-		if signature != expectedSignature {
-			return gen.V1WebhookReceive403JSONResponse{
-				Errors: []gen.APIError{
-					{
-						Description: "invalid HMAC signature",
-					},
-				},
-			}, nil
-		}
-	default:
-		return gen.V1WebhookReceive400JSONResponse{
-			Errors: []gen.APIError{
-				{
-					Description: fmt.Sprintf("unsupported auth type: %s", webhook.AuthMethod),
-				},
-			},
-		}, nil
 	}
 
 	payloadMap := make(map[string]interface{})
