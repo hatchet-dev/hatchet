@@ -80,7 +80,7 @@ class MetricsClient(BaseRestClient):
         :return: The metrics, returned in Prometheus text format
         """
 
-        return await asyncio.to_thread(self.get_tenant_prometheus_metrics)
+        return await asyncio.to_thread(self.scrape_tenant_prometheus_metrics)
 
     @retry
     def get_task_metrics(
