@@ -33,7 +33,71 @@ func (w *V1WebhooksService) V1WebhookReceive(ctx echo.Context, request gen.V1Web
 
 	switch webhook.SourceName {
 	case sqlcv1.V1IncomingWebhookSourceNameSTRIPE:
-		fmt.Println("Received Stripe webhook")
+		signatureHeader := ctx.Request().Header.Get(webhook.AuthHmacSignatureHeaderName.String)
+
+		if signatureHeader == "" {
+			return gen.V1WebhookReceive400JSONResponse{
+				Errors: []gen.APIError{
+					{
+						Description: fmt.Sprintf("missing or invalid signature header: %s", webhook.AuthHmacSignatureHeaderName.String),
+					},
+				},
+			}, nil
+		}
+
+		splitHeader := strings.Split(signatureHeader, ",")
+
+		timestampHeader := splitHeader[0]
+		v1SignatureHeader := splitHeader[1]
+
+		if timestampHeader == "" || v1SignatureHeader == "" {
+			return gen.V1WebhookReceive400JSONResponse{
+				Errors: []gen.APIError{
+					{
+						Description: fmt.Sprintf("missing or invalid signature header: %s", webhook.AuthHmacSignatureHeaderName.String),
+					},
+				},
+			}, nil
+		}
+
+		timestamp := strings.TrimPrefix(timestampHeader, "t=")
+		signature := strings.TrimPrefix(v1SignatureHeader, "v1=")
+
+		if timestamp == "" || signature == "" {
+			return gen.V1WebhookReceive400JSONResponse{
+				Errors: []gen.APIError{
+					{
+						Description: fmt.Sprintf("missing or invalid signature header: %s", webhook.AuthHmacSignatureHeaderName.String),
+					},
+				},
+			}, nil
+		}
+
+		decryptedSigningSecret, err := w.config.Encryption.Decrypt(webhook.AuthHmacWebhookSigningSecret, "v1_webhook_hmac_signing_secret")
+		if err != nil {
+			return nil, fmt.Errorf("failed to decrypt HMAC signing secret: %w", err)
+		}
+
+		algorithm := webhook.AuthHmacAlgorithm.V1IncomingWebhookHmacAlgorithm
+		encoding := webhook.AuthHmacEncoding.V1IncomingWebhookHmacEncoding
+
+		signedPayload := fmt.Sprintf("%s.%s", timestamp, rawBody)
+
+		expectedSignature, err := computeHMACSignature([]byte(signedPayload), decryptedSigningSecret, algorithm, encoding)
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to compute HMAC signature: %w", err)
+		}
+
+		if signature != expectedSignature {
+			return gen.V1WebhookReceive403JSONResponse{
+				Errors: []gen.APIError{
+					{
+						Description: "invalid HMAC signature",
+					},
+				},
+			}, nil
+		}
 	case sqlcv1.V1IncomingWebhookSourceNameGENERIC:
 	case sqlcv1.V1IncomingWebhookSourceNameGITHUB:
 		switch webhook.AuthMethod {
@@ -94,6 +158,7 @@ func (w *V1WebhooksService) V1WebhookReceive(ctx echo.Context, request gen.V1Web
 				}, nil
 			}
 		case sqlcv1.V1IncomingWebhookAuthTypeHMAC:
+			// TODO: Potentially remove this replace?
 			signature := strings.Replace(ctx.Request().Header.Get(webhook.AuthHmacSignatureHeaderName.String), "sha256=", "", 1)
 
 			if signature == "" {
