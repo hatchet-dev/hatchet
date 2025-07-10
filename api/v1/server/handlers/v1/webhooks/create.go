@@ -77,6 +77,7 @@ func (w *V1WebhooksService) constructCreateOpts(tenantId string, request gen.V1C
 			}
 		}
 
+		params.ID = sqlchelpers.UUIDFromStr(basicAuth.Id.String())
 		params.Sourcename = basicAuth.SourceName
 		params.Name = basicAuth.Name
 		params.Eventkeyexpression = basicAuth.EventKeyExpression
@@ -106,6 +107,7 @@ func (w *V1WebhooksService) constructCreateOpts(tenantId string, request gen.V1C
 			}
 		}
 
+		params.ID = sqlchelpers.UUIDFromStr(apiKeyAuth.Id.String())
 		params.Sourcename = apiKeyAuth.SourceName
 		params.Name = apiKeyAuth.Name
 		params.Eventkeyexpression = apiKeyAuth.EventKeyExpression
@@ -136,6 +138,7 @@ func (w *V1WebhooksService) constructCreateOpts(tenantId string, request gen.V1C
 			}
 		}
 
+		params.ID = sqlchelpers.UUIDFromStr(hmacAuth.Id.String())
 		params.Sourcename = hmacAuth.SourceName
 		params.Name = hmacAuth.Name
 		params.Eventkeyexpression = hmacAuth.EventKeyExpression

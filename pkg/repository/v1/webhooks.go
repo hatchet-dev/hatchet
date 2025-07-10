@@ -2,6 +2,7 @@ package v1
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
@@ -77,8 +78,14 @@ func (r *webhookRepository) CreateWebhook(ctx context.Context, tenantId string, 
 		params.Authapikeyheadername = opts.AuthConfig.APIKeyAuth.HeaderName
 		params.Authapikeykey = opts.AuthConfig.APIKeyAuth.Key
 	case sqlcv1.V1IncomingWebhookAuthTypeHMAC:
-		params.Authhmacalgorithm = opts.AuthConfig.HMACAuth.Algorithm
-		params.Authhmacencoding = opts.AuthConfig.HMACAuth.Encoding
+		params.AuthHmacAlgorithm = sqlcv1.NullV1IncomingWebhookHmacAlgorithm{
+			V1IncomingWebhookHmacAlgorithm: opts.AuthConfig.HMACAuth.Algorithm,
+			Valid:                          true,
+		}
+		params.AuthHmacEncoding = sqlcv1.NullV1IncomingWebhookHmacEncoding{
+			V1IncomingWebhookHmacEncoding: opts.AuthConfig.HMACAuth.Encoding,
+			Valid:                         true,
+		}
 		params.Authhmacsignatureheadername = opts.AuthConfig.HMACAuth.SignatureHeaderName
 		params.Authhmacwebhooksigningsecret = opts.AuthConfig.HMACAuth.WebhookSigningSecret
 	default:

@@ -26,8 +26,8 @@ INSERT INTO v1_incoming_webhook (
     @authBasicPassword::BYTEA,
     @authApiKeyHeaderName::TEXT,
     @authApiKeyKey::BYTEA,
-    @authHmacAlgorithm::v1_incoming_webhook_hmac_algorithm,
-    @authHmacEncoding::v1_incoming_webhook_hmac_encoding,
+    sqlc.narg('authHmacAlgorithm')::v1_incoming_webhook_hmac_algorithm,
+    sqlc.narg('authHmacEncoding')::v1_incoming_webhook_hmac_encoding,
     @authHmacSignatureHeaderName::TEXT,
     @authHmacWebhookSigningSecret::BYTEA
 )

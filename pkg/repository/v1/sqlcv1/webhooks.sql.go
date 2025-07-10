@@ -48,20 +48,20 @@ RETURNING id, tenant_id, source_name, name, event_key_expression, auth_method, a
 `
 
 type CreateWebhookParams struct {
-	ID                           pgtype.UUID                    `json:"id"`
-	Tenantid                     pgtype.UUID                    `json:"tenantid"`
-	Sourcename                   string                         `json:"sourcename"`
-	Name                         string                         `json:"name"`
-	Eventkeyexpression           string                         `json:"eventkeyexpression"`
-	Authmethod                   V1IncomingWebhookAuthType      `json:"authmethod"`
-	Authbasicusername            string                         `json:"authbasicusername"`
-	Authbasicpassword            []byte                         `json:"authbasicpassword"`
-	Authapikeyheadername         string                         `json:"authapikeyheadername"`
-	Authapikeykey                []byte                         `json:"authapikeykey"`
-	Authhmacalgorithm            V1IncomingWebhookHmacAlgorithm `json:"authhmacalgorithm"`
-	Authhmacencoding             V1IncomingWebhookHmacEncoding  `json:"authhmacencoding"`
-	Authhmacsignatureheadername  string                         `json:"authhmacsignatureheadername"`
-	Authhmacwebhooksigningsecret []byte                         `json:"authhmacwebhooksigningsecret"`
+	ID                           pgtype.UUID                        `json:"id"`
+	Tenantid                     pgtype.UUID                        `json:"tenantid"`
+	Sourcename                   string                             `json:"sourcename"`
+	Name                         string                             `json:"name"`
+	Eventkeyexpression           string                             `json:"eventkeyexpression"`
+	Authmethod                   V1IncomingWebhookAuthType          `json:"authmethod"`
+	Authbasicusername            string                             `json:"authbasicusername"`
+	Authbasicpassword            []byte                             `json:"authbasicpassword"`
+	Authapikeyheadername         string                             `json:"authapikeyheadername"`
+	Authapikeykey                []byte                             `json:"authapikeykey"`
+	AuthHmacAlgorithm            NullV1IncomingWebhookHmacAlgorithm `json:"authHmacAlgorithm"`
+	AuthHmacEncoding             NullV1IncomingWebhookHmacEncoding  `json:"authHmacEncoding"`
+	Authhmacsignatureheadername  string                             `json:"authhmacsignatureheadername"`
+	Authhmacwebhooksigningsecret []byte                             `json:"authhmacwebhooksigningsecret"`
 }
 
 func (q *Queries) CreateWebhook(ctx context.Context, db DBTX, arg CreateWebhookParams) (*V1IncomingWebhook, error) {
@@ -76,8 +76,8 @@ func (q *Queries) CreateWebhook(ctx context.Context, db DBTX, arg CreateWebhookP
 		arg.Authbasicpassword,
 		arg.Authapikeyheadername,
 		arg.Authapikeykey,
-		arg.Authhmacalgorithm,
-		arg.Authhmacencoding,
+		arg.AuthHmacAlgorithm,
+		arg.AuthHmacEncoding,
 		arg.Authhmacsignatureheadername,
 		arg.Authhmacwebhooksigningsecret,
 	)
