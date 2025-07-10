@@ -8,10 +8,10 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-func (t *V1WebhooksService) V1WebhookDelete(ctx echo.Context, request gen.V1WebhookDeleteRequestObject) (gen.V1WebhookDeleteResponseObject, error) {
+func (w *V1WebhooksService) V1WebhookDelete(ctx echo.Context, request gen.V1WebhookDeleteRequestObject) (gen.V1WebhookDeleteResponseObject, error) {
 	webhook := ctx.Get("v1-webhook").(*sqlcv1.V1IncomingWebhook)
 
-	webhook, err := t.config.V1.Webhooks().DeleteWebhook(
+	webhook, err := w.config.V1.Webhooks().DeleteWebhook(
 		ctx.Request().Context(),
 		webhook.TenantID.String(),
 		webhook.ID.String(),

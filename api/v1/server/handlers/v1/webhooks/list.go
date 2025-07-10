@@ -9,7 +9,7 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-func (t *V1WebhooksService) V1WebhookList(ctx echo.Context, request gen.V1WebhookListRequestObject) (gen.V1WebhookListResponseObject, error) {
+func (w *V1WebhooksService) V1WebhookList(ctx echo.Context, request gen.V1WebhookListRequestObject) (gen.V1WebhookListResponseObject, error) {
 	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
 
 	var sourceNames []string
@@ -23,7 +23,7 @@ func (t *V1WebhooksService) V1WebhookList(ctx echo.Context, request gen.V1Webhoo
 		webhookNames = *request.Params.WebhookNames
 	}
 
-	webhooks, err := t.config.V1.Webhooks().ListWebhooks(
+	webhooks, err := w.config.V1.Webhooks().ListWebhooks(
 		ctx.Request().Context(),
 		tenant.ID.String(),
 		v1.ListWebhooksOpts{

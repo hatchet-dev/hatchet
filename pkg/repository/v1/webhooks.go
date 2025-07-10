@@ -28,19 +28,19 @@ func newWebhookRepository(shared *sharedRepository) WebhookRepository {
 
 type BasicAuthCredentials struct {
 	Username string `json:"username"`
-	Password string `json:"password"`
+	Password []byte `json:"password"`
 }
 
 type APIKeyAuthCredentials struct {
 	HeaderName string `json:"header_name"`
-	Key        string `json:"key"`
+	Key        []byte `json:"key"`
 }
 
 type HMACAuthCredentials struct {
 	Algorithm            sqlcv1.V1IncomingWebhookHmacAlgorithm `json:"algorithm"`
 	Encoding             sqlcv1.V1IncomingWebhookHmacEncoding  `json:"encoding"`
 	SignatureHeaderName  string                                `json:"signature_header_name"`
-	WebhookSigningSecret string                                `json:"webhook_signing_secret"`
+	WebhookSigningSecret []byte                                `json:"webhook_signing_secret"`
 }
 
 type AuthConfig struct {

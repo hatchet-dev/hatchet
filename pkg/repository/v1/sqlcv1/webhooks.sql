@@ -23,13 +23,13 @@ INSERT INTO v1_incoming_webhook (
     @eventKeyExpression::TEXT,
     @authMethod::v1_incoming_webhook_auth_type,
     @authBasicUsername::TEXT,
-    @authBasicPassword::TEXT,
+    @authBasicPassword::BYTEA,
     @authApiKeyHeaderName::TEXT,
-    @authApiKeyKey::TEXT,
+    @authApiKeyKey::BYTEA,
     @authHmacAlgorithm::v1_incoming_webhook_hmac_algorithm,
     @authHmacEncoding::v1_incoming_webhook_hmac_encoding,
     @authHmacSignatureHeaderName::TEXT,
-    @authHmacWebhookSigningSecret::TEXT
+    @authHmacWebhookSigningSecret::BYTEA
 )
 RETURNING *;
 

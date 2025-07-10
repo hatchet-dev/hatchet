@@ -12,10 +12,10 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-func (t *V1WebhooksService) V1WebhookCreate(ctx echo.Context, request gen.V1WebhookCreateRequestObject) (gen.V1WebhookCreateResponseObject, error) {
+func (w *V1WebhooksService) V1WebhookCreate(ctx echo.Context, request gen.V1WebhookCreateRequestObject) (gen.V1WebhookCreateResponseObject, error) {
 	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
 
-	params, err := constructCreateOpts(tenant.ID.String(), *request.Body)
+	params, err := w.constructCreateOpts(tenant.ID.String(), *request.Body)
 	if err != nil {
 		return gen.V1WebhookCreate400JSONResponse{
 			Errors: []gen.APIError{
@@ -26,7 +26,7 @@ func (t *V1WebhooksService) V1WebhookCreate(ctx echo.Context, request gen.V1Webh
 		}, nil
 	}
 
-	webhook, err := t.config.V1.Webhooks().CreateWebhook(
+	webhook, err := w.config.V1.Webhooks().CreateWebhook(
 		ctx.Request().Context(),
 		tenant.ID.String(),
 		params,
@@ -42,7 +42,7 @@ func (t *V1WebhooksService) V1WebhookCreate(ctx echo.Context, request gen.V1Webh
 }
 
 // parseAuthConfig extracts the auth configuration from the discriminated union
-func constructCreateOpts(tenantId string, request gen.V1CreateWebhookRequest) (v1.CreateWebhookOpts, error) {
+func (w *V1WebhooksService) constructCreateOpts(tenantId string, request gen.V1CreateWebhookRequest) (v1.CreateWebhookOpts, error) {
 	discriminator, err := request.Discriminator()
 
 	params := v1.CreateWebhookOpts{
@@ -65,9 +65,15 @@ func constructCreateOpts(tenantId string, request gen.V1CreateWebhookRequest) (v
 		authConfig.Type = sqlcv1.V1IncomingWebhookAuthTypeBASICAUTH
 
 		if basicAuth.Auth.Username != nil && basicAuth.Auth.Password != nil {
+			passwordEncrypted, err := w.config.Encryption.Encrypt([]byte(*basicAuth.Auth.Password), "v1_webhook_basic_auth_password")
+
+			if err != nil {
+				return params, fmt.Errorf("failed to encrypt basic auth password: %s", err.Error())
+			}
+
 			authConfig.BasicAuth = &v1.BasicAuthCredentials{
 				Username: *basicAuth.Auth.Username,
-				Password: *basicAuth.Auth.Password,
+				Password: passwordEncrypted,
 			}
 		}
 
@@ -88,9 +94,15 @@ func constructCreateOpts(tenantId string, request gen.V1CreateWebhookRequest) (v
 		}
 
 		if apiKeyAuth.Auth.HeaderName != nil && apiKeyAuth.Auth.ApiKey != nil {
+			apiKeyEncrypted, err := w.config.Encryption.Encrypt([]byte(*apiKeyAuth.Auth.ApiKey), "v1_webhook_api_key")
+
+			if err != nil {
+				return params, fmt.Errorf("failed to encrypt api key: %s", err.Error())
+			}
+
 			authConfig.APIKeyAuth = &v1.APIKeyAuthCredentials{
 				HeaderName: *apiKeyAuth.Auth.HeaderName,
-				Key:        *apiKeyAuth.Auth.ApiKey,
+				Key:        apiKeyEncrypted,
 			}
 		}
 
@@ -110,11 +122,17 @@ func constructCreateOpts(tenantId string, request gen.V1CreateWebhookRequest) (v
 
 		if hmacAuth.Auth.Algorithm != nil && hmacAuth.Auth.Encoding != nil &&
 			hmacAuth.Auth.SignatureHeaderName != nil && hmacAuth.Auth.SigningSecret != nil {
+			signingSecretEncrypted, err := w.config.Encryption.Encrypt([]byte(*hmacAuth.Auth.SigningSecret), "v1_webhook_hmac_signing_secret")
+
+			if err != nil {
+				return params, fmt.Errorf("failed to encrypt api key: %s", err.Error())
+			}
+
 			authConfig.HMACAuth = &v1.HMACAuthCredentials{
 				Algorithm:            sqlcv1.V1IncomingWebhookHmacAlgorithm(*hmacAuth.Auth.Algorithm),
 				Encoding:             sqlcv1.V1IncomingWebhookHmacEncoding(*hmacAuth.Auth.Encoding),
 				SignatureHeaderName:  *hmacAuth.Auth.SignatureHeaderName,
-				WebhookSigningSecret: *hmacAuth.Auth.SigningSecret,
+				WebhookSigningSecret: signingSecretEncrypted,
 			}
 		}
 

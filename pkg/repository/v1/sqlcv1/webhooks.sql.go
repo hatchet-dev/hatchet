@@ -36,13 +36,13 @@ INSERT INTO v1_incoming_webhook (
     $5::TEXT,
     $6::v1_incoming_webhook_auth_type,
     $7::TEXT,
-    $8::TEXT,
+    $8::BYTEA,
     $9::TEXT,
-    $10::TEXT,
+    $10::BYTEA,
     $11::v1_incoming_webhook_hmac_algorithm,
     $12::v1_incoming_webhook_hmac_encoding,
     $13::TEXT,
-    $14::TEXT
+    $14::BYTEA
 )
 RETURNING id, tenant_id, source_name, name, event_key_expression, auth_method, auth__basic__username, auth__basic__password, auth__api_key__header_name, auth__api_key__key, auth__hmac__algorithm, auth__hmac__encoding, auth__hmac__signature_header_name, auth__hmac__webhook_signing_secret, inserted_at, updated_at
 `
@@ -55,13 +55,13 @@ type CreateWebhookParams struct {
 	Eventkeyexpression           string                         `json:"eventkeyexpression"`
 	Authmethod                   V1IncomingWebhookAuthType      `json:"authmethod"`
 	Authbasicusername            string                         `json:"authbasicusername"`
-	Authbasicpassword            string                         `json:"authbasicpassword"`
+	Authbasicpassword            []byte                         `json:"authbasicpassword"`
 	Authapikeyheadername         string                         `json:"authapikeyheadername"`
-	Authapikeykey                string                         `json:"authapikeykey"`
+	Authapikeykey                []byte                         `json:"authapikeykey"`
 	Authhmacalgorithm            V1IncomingWebhookHmacAlgorithm `json:"authhmacalgorithm"`
 	Authhmacencoding             V1IncomingWebhookHmacEncoding  `json:"authhmacencoding"`
 	Authhmacsignatureheadername  string                         `json:"authhmacsignatureheadername"`
-	Authhmacwebhooksigningsecret string                         `json:"authhmacwebhooksigningsecret"`
+	Authhmacwebhooksigningsecret []byte                         `json:"authhmacwebhooksigningsecret"`
 }
 
 func (q *Queries) CreateWebhook(ctx context.Context, db DBTX, arg CreateWebhookParams) (*V1IncomingWebhook, error) {
