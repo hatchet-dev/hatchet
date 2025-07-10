@@ -51,13 +51,13 @@ type CreateWebhookParams struct {
 	Sourcename                   V1IncomingWebhookSourceName        `json:"sourcename"`
 	Eventkeyexpression           string                             `json:"eventkeyexpression"`
 	Authmethod                   V1IncomingWebhookAuthType          `json:"authmethod"`
-	Authbasicusername            string                             `json:"authbasicusername"`
+	AuthBasicUsername            pgtype.Text                        `json:"authBasicUsername"`
 	Authbasicpassword            []byte                             `json:"authbasicpassword"`
-	Authapikeyheadername         string                             `json:"authapikeyheadername"`
+	AuthApiKeyHeaderName         pgtype.Text                        `json:"authApiKeyHeaderName"`
 	Authapikeykey                []byte                             `json:"authapikeykey"`
 	AuthHmacAlgorithm            NullV1IncomingWebhookHmacAlgorithm `json:"authHmacAlgorithm"`
 	AuthHmacEncoding             NullV1IncomingWebhookHmacEncoding  `json:"authHmacEncoding"`
-	Authhmacsignatureheadername  string                             `json:"authhmacsignatureheadername"`
+	AuthHmacSignatureHeaderName  pgtype.Text                        `json:"authHmacSignatureHeaderName"`
 	Authhmacwebhooksigningsecret []byte                             `json:"authhmacwebhooksigningsecret"`
 }
 
@@ -68,13 +68,13 @@ func (q *Queries) CreateWebhook(ctx context.Context, db DBTX, arg CreateWebhookP
 		arg.Sourcename,
 		arg.Eventkeyexpression,
 		arg.Authmethod,
-		arg.Authbasicusername,
+		arg.AuthBasicUsername,
 		arg.Authbasicpassword,
-		arg.Authapikeyheadername,
+		arg.AuthApiKeyHeaderName,
 		arg.Authapikeykey,
 		arg.AuthHmacAlgorithm,
 		arg.AuthHmacEncoding,
-		arg.Authhmacsignatureheadername,
+		arg.AuthHmacSignatureHeaderName,
 		arg.Authhmacwebhooksigningsecret,
 	)
 	var i V1IncomingWebhook

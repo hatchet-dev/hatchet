@@ -69,10 +69,16 @@ func (r *webhookRepository) CreateWebhook(ctx context.Context, tenantId string, 
 
 	switch opts.AuthConfig.Type {
 	case sqlcv1.V1IncomingWebhookAuthTypeBASICAUTH:
-		params.Authbasicusername = opts.AuthConfig.BasicAuth.Username
+		params.AuthBasicUsername = pgtype.Text{
+			String: opts.AuthConfig.BasicAuth.Username,
+			Valid:  true,
+		}
 		params.Authbasicpassword = opts.AuthConfig.BasicAuth.Password
 	case sqlcv1.V1IncomingWebhookAuthTypeAPIKEY:
-		params.Authapikeyheadername = opts.AuthConfig.APIKeyAuth.HeaderName
+		params.AuthApiKeyHeaderName = pgtype.Text{
+			String: opts.AuthConfig.APIKeyAuth.HeaderName,
+			Valid:  true,
+		}
 		params.Authapikeykey = opts.AuthConfig.APIKeyAuth.Key
 	case sqlcv1.V1IncomingWebhookAuthTypeHMAC:
 		params.AuthHmacAlgorithm = sqlcv1.NullV1IncomingWebhookHmacAlgorithm{
@@ -83,7 +89,10 @@ func (r *webhookRepository) CreateWebhook(ctx context.Context, tenantId string, 
 			V1IncomingWebhookHmacEncoding: opts.AuthConfig.HMACAuth.Encoding,
 			Valid:                         true,
 		}
-		params.Authhmacsignatureheadername = opts.AuthConfig.HMACAuth.SignatureHeaderName
+		params.AuthHmacSignatureHeaderName = pgtype.Text{
+			String: opts.AuthConfig.HMACAuth.SignatureHeaderName,
+			Valid:  true,
+		}
 		params.Authhmacwebhooksigningsecret = opts.AuthConfig.HMACAuth.WebhookSigningSecret
 	default:
 		return nil, fmt.Errorf("unsupported auth type: %s", opts.AuthConfig.Type)

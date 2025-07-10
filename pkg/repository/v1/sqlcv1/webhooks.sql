@@ -20,13 +20,13 @@ INSERT INTO v1_incoming_webhook (
     @sourceName::v1_incoming_webhook_source_name,
     @eventKeyExpression::TEXT,
     @authMethod::v1_incoming_webhook_auth_type,
-    @authBasicUsername::TEXT,
+    sqlc.narg('authBasicUsername')::TEXT,
     @authBasicPassword::BYTEA,
-    @authApiKeyHeaderName::TEXT,
+    sqlc.narg('authApiKeyHeaderName')::TEXT,
     @authApiKeyKey::BYTEA,
     sqlc.narg('authHmacAlgorithm')::v1_incoming_webhook_hmac_algorithm,
     sqlc.narg('authHmacEncoding')::v1_incoming_webhook_hmac_encoding,
-    @authHmacSignatureHeaderName::TEXT,
+    sqlc.narg('authHmacSignatureHeaderName')::TEXT,
     @authHmacWebhookSigningSecret::BYTEA
 )
 RETURNING *;
