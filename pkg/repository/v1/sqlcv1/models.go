@@ -1132,6 +1132,49 @@ func (ns NullV1IncomingWebhookHmacEncoding) Value() (driver.Value, error) {
 	return string(ns.V1IncomingWebhookHmacEncoding), nil
 }
 
+type V1IncomingWebhookSourceName string
+
+const (
+	V1IncomingWebhookSourceNameGENERIC V1IncomingWebhookSourceName = "GENERIC"
+	V1IncomingWebhookSourceNameGITHUB  V1IncomingWebhookSourceName = "GITHUB"
+	V1IncomingWebhookSourceNameSTRIPE  V1IncomingWebhookSourceName = "STRIPE"
+)
+
+func (e *V1IncomingWebhookSourceName) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = V1IncomingWebhookSourceName(s)
+	case string:
+		*e = V1IncomingWebhookSourceName(s)
+	default:
+		return fmt.Errorf("unsupported scan type for V1IncomingWebhookSourceName: %T", src)
+	}
+	return nil
+}
+
+type NullV1IncomingWebhookSourceName struct {
+	V1IncomingWebhookSourceName V1IncomingWebhookSourceName `json:"v1_incoming_webhook_source_name"`
+	Valid                       bool                        `json:"valid"` // Valid is true if V1IncomingWebhookSourceName is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullV1IncomingWebhookSourceName) Scan(value interface{}) error {
+	if value == nil {
+		ns.V1IncomingWebhookSourceName, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.V1IncomingWebhookSourceName.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullV1IncomingWebhookSourceName) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.V1IncomingWebhookSourceName), nil
+}
+
 type V1LogLineLevel string
 
 const (
@@ -1608,49 +1651,6 @@ func (ns NullV1TaskInitialState) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.V1TaskInitialState), nil
-}
-
-type V1WebhookSourceName string
-
-const (
-	V1WebhookSourceNameGENERIC V1WebhookSourceName = "GENERIC"
-	V1WebhookSourceNameGITHUB  V1WebhookSourceName = "GITHUB"
-	V1WebhookSourceNameSTRIPE  V1WebhookSourceName = "STRIPE"
-)
-
-func (e *V1WebhookSourceName) Scan(src interface{}) error {
-	switch s := src.(type) {
-	case []byte:
-		*e = V1WebhookSourceName(s)
-	case string:
-		*e = V1WebhookSourceName(s)
-	default:
-		return fmt.Errorf("unsupported scan type for V1WebhookSourceName: %T", src)
-	}
-	return nil
-}
-
-type NullV1WebhookSourceName struct {
-	V1WebhookSourceName V1WebhookSourceName `json:"v1_webhook_source_name"`
-	Valid               bool                `json:"valid"` // Valid is true if V1WebhookSourceName is not NULL
-}
-
-// Scan implements the Scanner interface.
-func (ns *NullV1WebhookSourceName) Scan(value interface{}) error {
-	if value == nil {
-		ns.V1WebhookSourceName, ns.Valid = "", false
-		return nil
-	}
-	ns.Valid = true
-	return ns.V1WebhookSourceName.Scan(value)
-}
-
-// Value implements the driver Valuer interface.
-func (ns NullV1WebhookSourceName) Value() (driver.Value, error) {
-	if !ns.Valid {
-		return nil, nil
-	}
-	return string(ns.V1WebhookSourceName), nil
 }
 
 type VcsProvider string
@@ -2737,7 +2737,7 @@ type V1Filter struct {
 type V1IncomingWebhook struct {
 	ID                           pgtype.UUID                        `json:"id"`
 	TenantID                     pgtype.UUID                        `json:"tenant_id"`
-	SourceName                   V1WebhookSourceName                `json:"source_name"`
+	SourceName                   V1IncomingWebhookSourceName        `json:"source_name"`
 	Name                         string                             `json:"name"`
 	EventKeyExpression           string                             `json:"event_key_expression"`
 	AuthMethod                   V1IncomingWebhookAuthType          `json:"auth_method"`

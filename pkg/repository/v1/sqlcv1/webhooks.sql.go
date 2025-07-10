@@ -31,7 +31,7 @@ INSERT INTO v1_incoming_webhook (
 ) VALUES (
     $1::UUID,
     $2::UUID,
-    $3::TEXT,
+    $3::v1_incoming_webhook_source_name,
     $4::TEXT,
     $5::TEXT,
     $6::v1_incoming_webhook_auth_type,
@@ -50,7 +50,7 @@ RETURNING id, tenant_id, source_name, name, event_key_expression, auth_method, a
 type CreateWebhookParams struct {
 	ID                           pgtype.UUID                        `json:"id"`
 	Tenantid                     pgtype.UUID                        `json:"tenantid"`
-	Sourcename                   string                             `json:"sourcename"`
+	Sourcename                   V1IncomingWebhookSourceName        `json:"sourcename"`
 	Name                         string                             `json:"name"`
 	Eventkeyexpression           string                             `json:"eventkeyexpression"`
 	Authmethod                   V1IncomingWebhookAuthType          `json:"authmethod"`

@@ -18,7 +18,7 @@ INSERT INTO v1_incoming_webhook (
 ) VALUES (
     @id::UUID,
     @tenantId::UUID,
-    @sourceName::TEXT,
+    @sourceName::v1_incoming_webhook_source_name,
     @name::TEXT,
     @eventKeyExpression::TEXT,
     @authMethod::v1_incoming_webhook_auth_type,
