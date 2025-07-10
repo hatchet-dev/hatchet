@@ -58,7 +58,7 @@ WHERE
         @webhookNames::TEXT[] IS NULL
         OR name = ANY(@webhookNames::TEXT[])
     )
-ORDER BY inserted_at DESC
+ORDER BY tenant_id, inserted_at DESC
 LIMIT COALESCE(sqlc.narg('webhookLimit')::BIGINT, 20000)
 OFFSET COALESCE(sqlc.narg('webhookOffset')::BIGINT, 0)
 ;

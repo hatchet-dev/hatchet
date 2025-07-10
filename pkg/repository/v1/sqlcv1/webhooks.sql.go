@@ -183,7 +183,7 @@ WHERE
         $3::TEXT[] IS NULL
         OR name = ANY($3::TEXT[])
     )
-ORDER BY inserted_at DESC
+ORDER BY tenant_id, inserted_at DESC
 LIMIT COALESCE($5::BIGINT, 20000)
 OFFSET COALESCE($4::BIGINT, 0)
 `
