@@ -145,7 +145,7 @@ const LoggingComponent: React.FC<LogProps> = ({
       onScroll={handleScroll}
       style={{
         scrollbarWidth: 'thin',
-        scrollbarColor: 'hsl(var(--muted-foreground)) hsl(var(--muted))'
+        scrollbarColor: 'hsl(var(--muted-foreground)) hsl(var(--muted))',
       }}
     >
       {refreshing && (

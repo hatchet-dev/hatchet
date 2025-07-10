@@ -77,7 +77,7 @@ export function CodeBlock({
           )}
           style={{
             scrollbarWidth: 'thin',
-            scrollbarColor: 'hsl(var(--muted-foreground)) hsl(var(--muted))'
+            scrollbarColor: 'hsl(var(--muted-foreground)) hsl(var(--muted))',
           }}
         >
           <CodeStyleRender

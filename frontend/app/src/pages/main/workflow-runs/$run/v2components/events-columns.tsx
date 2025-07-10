@@ -28,7 +28,6 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
-import LoggingComponent from '@/components/cloud/logging/logs';
 
 export type ActivityEventData = {
   metadata: APIResourceMeta;
@@ -368,12 +367,12 @@ function ErrorHoverContents({
         <h3 className="font-medium text-foreground">Error Details</h3>
       </div>
       <div className="rounded-md h-[400px] bg-muted/50 border border-border overflow-hidden">
-        <div 
-          className="h-full overflow-y-scroll overflow-x-hidden p-4 text-sm font-mono text-foreground" 
+        <div
+          className="h-full overflow-y-scroll overflow-x-hidden p-4 text-sm font-mono text-foreground"
           style={{
             scrollbarWidth: 'thin',
             scrollbarColor: 'hsl(var(--muted-foreground)) hsl(var(--muted))',
-            msOverflowStyle: 'scrollbar'
+            msOverflowStyle: 'scrollbar',
           }}
         >
           <pre className="whitespace-pre-wrap break-words text-destructive min-h-[500px]">
