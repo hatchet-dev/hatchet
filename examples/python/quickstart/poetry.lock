@@ -460,14 +460,14 @@ setuptools = "*"
 
 [[package]]
 name = "hatchet-sdk"
-version = "1.14.2"
+version = "1.14.4"
 description = ""
 optional = false
 python-versions = "<4.0,>=3.10"
 groups = ["main"]
 files = [
-    {file = "hatchet_sdk-1.14.2-py3-none-any.whl", hash = "sha256:75af4bf45e516ad3212463764ffe4242a71a1a10fcad278a6c04321e465b733c"},
-    {file = "hatchet_sdk-1.14.2.tar.gz", hash = "sha256:00404bc431abdf285c66d1cf31684f4f884fc22f515fa3e79fa11b30801f228f"},
+    {file = "hatchet_sdk-1.14.4-py3-none-any.whl", hash = "sha256:38bc887d56da6d2f3b6450439c186f116d1cfd6fa4ff591d4366f520184834b4"},
+    {file = "hatchet_sdk-1.14.4.tar.gz", hash = "sha256:b1aeaa2c8b6599eb25646375bf49fa7d7999e288867e3a09975e66234f5a697f"},
 ]
 
 [package.dependencies]
@@ -1238,4 +1238,4 @@ propcache = ">=0.2.0"
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.10"
-content-hash = "f97ce5425c150f6fd3bfc9433378bfee784d9b3694a95b1162cd578881727928"
+content-hash = "ccfd27bcc073049bbe694f4df45b8f8371d72357e0383cb1b9816575c78f10ed"

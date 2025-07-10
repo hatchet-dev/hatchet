@@ -70,7 +70,10 @@ export function TenantSwitcher({
                   setOpen(false);
 
                   if (membership.tenant.version === TenantVersion.V0) {
-                    window.location.href = `/workflow-runs?tenant=${membership.tenant?.metadata.id}`;
+                    // Hack to wait for next event loop tick so local storage is updated
+                    setTimeout(() => {
+                      window.location.href = `/workflow-runs?tenant=${membership.tenant?.metadata.id}`;
+                    }, 0);
                   }
                 }}
                 value={membership.tenant?.slug}
