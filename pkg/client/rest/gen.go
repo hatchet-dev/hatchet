@@ -270,6 +270,13 @@ const (
 	HEX       V1WebhookHMACEncoding = "HEX"
 )
 
+// Defines values for V1WebhookSourceName.
+const (
+	GENERIC V1WebhookSourceName = "GENERIC"
+	GITHUB  V1WebhookSourceName = "GITHUB"
+	STRIPE  V1WebhookSourceName = "STRIPE"
+)
+
 // Defines values for V1WorkflowType.
 const (
 	V1WorkflowTypeDAG  V1WorkflowType = "DAG"
@@ -1278,10 +1285,8 @@ type V1CreateWebhookRequestAPIKey struct {
 	Id *openapi_types.UUID `json:"id,omitempty"`
 
 	// Name The name of the webhook
-	Name string `json:"name"`
-
-	// SourceName The name of the source for this webhook
-	SourceName string `json:"sourceName"`
+	Name       string              `json:"name"`
+	SourceName V1WebhookSourceName `json:"sourceName"`
 }
 
 // V1CreateWebhookRequestAPIKeyAuthType defines model for V1CreateWebhookRequestAPIKey.AuthType.
@@ -1298,10 +1303,8 @@ type V1CreateWebhookRequestBase struct {
 	Id *openapi_types.UUID `json:"id,omitempty"`
 
 	// Name The name of the webhook
-	Name string `json:"name"`
-
-	// SourceName The name of the source for this webhook
-	SourceName string `json:"sourceName"`
+	Name       string              `json:"name"`
+	SourceName V1WebhookSourceName `json:"sourceName"`
 }
 
 // V1CreateWebhookRequestBasicAuth defines model for V1CreateWebhookRequestBasicAuth.
@@ -1316,10 +1319,8 @@ type V1CreateWebhookRequestBasicAuth struct {
 	Id *openapi_types.UUID `json:"id,omitempty"`
 
 	// Name The name of the webhook
-	Name string `json:"name"`
-
-	// SourceName The name of the source for this webhook
-	SourceName string `json:"sourceName"`
+	Name       string              `json:"name"`
+	SourceName V1WebhookSourceName `json:"sourceName"`
 }
 
 // V1CreateWebhookRequestBasicAuthAuthType defines model for V1CreateWebhookRequestBasicAuth.AuthType.
@@ -1337,10 +1338,8 @@ type V1CreateWebhookRequestHMAC struct {
 	Id *openapi_types.UUID `json:"id,omitempty"`
 
 	// Name The name of the webhook
-	Name string `json:"name"`
-
-	// SourceName The name of the source for this webhook
-	SourceName string `json:"sourceName"`
+	Name       string              `json:"name"`
+	SourceName V1WebhookSourceName `json:"sourceName"`
 }
 
 // V1CreateWebhookRequestHMACAuthType defines model for V1CreateWebhookRequestHMAC.AuthType.
@@ -1753,6 +1752,9 @@ type V1WebhookList struct {
 	Pagination *PaginationResponse `json:"pagination,omitempty"`
 	Rows       *[]V1Webhook        `json:"rows,omitempty"`
 }
+
+// V1WebhookSourceName defines model for V1WebhookSourceName.
+type V1WebhookSourceName string
 
 // V1WorkflowRun defines model for V1WorkflowRun.
 type V1WorkflowRun struct {

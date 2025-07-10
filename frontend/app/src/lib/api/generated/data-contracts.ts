@@ -218,6 +218,12 @@ export enum V1WebhookHMACAlgorithm {
   MD5 = "MD5",
 }
 
+export enum V1WebhookSourceName {
+  GENERIC = "GENERIC",
+  GITHUB = "GITHUB",
+  STRIPE = "STRIPE",
+}
+
 export enum V1WebhookAuthType {
   BASIC_AUTH = "BASIC_AUTH",
   API_KEY = "API_KEY",
@@ -884,7 +890,7 @@ export interface V1CreateWebhookRequestBase {
    */
   id?: string;
   /** The name of the source for this webhook */
-  sourceName: string;
+  sourceName: V1WebhookSourceName;
   /** The name of the webhook */
   name: string;
   /** The CEL expression to use for the event key. This is used to create the event key from the webhook payload. */

@@ -43,6 +43,14 @@ V1WebhookAuthType:
     - API_KEY
     - HMAC
 
+# TODO: Add more sources here as we support them
+# IMPORTANT: Keep these in sync with the database enum v1_incoming_webhook_source_name
+V1WebhookSourceName:
+  type: string
+  enum:
+    - GENERIC
+    - GITHUB
+    - STRIPE
 
 V1WebhookHMACAlgorithm:
   type: string
@@ -105,7 +113,7 @@ V1CreateWebhookRequestBase:
       minLength: 36
       maxLength: 36
     sourceName:
-      type: string
+      $ref: "#/V1WebhookSourceName"
       description: The name of the source for this webhook
     name:
       type: string
