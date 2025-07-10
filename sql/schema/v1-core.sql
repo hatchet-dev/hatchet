@@ -560,10 +560,6 @@ CREATE TABLE v1_incoming_webhook (
     )
 );
 
-CREATE INDEX v1_incoming_webhook_tenant_source_name ON v1_incoming_webhook (
-	tenant_id,
-	source_name
-);
 
 CREATE INDEX v1_match_condition_filter_idx ON v1_match_condition (
     tenant_id ASC,

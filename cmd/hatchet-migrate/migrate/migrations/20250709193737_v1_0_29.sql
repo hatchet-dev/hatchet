@@ -62,11 +62,6 @@ CREATE TABLE v1_incoming_webhook (
         )
     )
 );
-
-CREATE INDEX v1_incoming_webhook_tenant_source_name ON v1_incoming_webhook (
-	tenant_id,
-	source_name
-);
 -- +goose StatementEnd
 
 -- +goose Down
