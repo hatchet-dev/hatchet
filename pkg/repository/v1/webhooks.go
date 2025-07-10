@@ -51,12 +51,12 @@ type AuthConfig struct {
 }
 
 type CreateWebhookOpts struct {
-	ID                 pgtype.UUID `json:"id"`
-	Tenantid           pgtype.UUID `json:"tenantid"`
-	Sourcename         string      `json:"sourcename"`
-	Name               string      `json:"name"`
-	Eventkeyexpression string      `json:"eventkeyexpression"`
-	AuthConfig         AuthConfig  `json:"auth_config,omitempty"`
+	ID                 pgtype.UUID                        `json:"id"`
+	Tenantid           pgtype.UUID                        `json:"tenantid"`
+	Sourcename         sqlcv1.V1IncomingWebhookSourceName `json:"sourcename"`
+	Name               string                             `json:"name"`
+	Eventkeyexpression string                             `json:"eventkeyexpression"`
+	AuthConfig         AuthConfig                         `json:"auth_config,omitempty"`
 }
 
 func (r *webhookRepository) CreateWebhook(ctx context.Context, tenantId string, opts CreateWebhookOpts) (*sqlcv1.V1IncomingWebhook, error) {
@@ -95,10 +95,10 @@ func (r *webhookRepository) CreateWebhook(ctx context.Context, tenantId string, 
 }
 
 type ListWebhooksOpts struct {
-	WebhookNames       []string `json:"webhook_names"`
-	WebhookSourceNames []string `json:"webhook_source_names"`
-	Limit              *int64   `json:"limit" validate:"omitnil,min=1"`
-	Offset             *int64   `json:"offset" validate:"omitnil,min=0"`
+	WebhookNames       []string                             `json:"webhook_names"`
+	WebhookSourceNames []sqlcv1.V1IncomingWebhookSourceName `json:"webhook_source_names"`
+	Limit              *int64                               `json:"limit" validate:"omitnil,min=1"`
+	Offset             *int64                               `json:"offset" validate:"omitnil,min=0"`
 }
 
 func (r *webhookRepository) ListWebhooks(ctx context.Context, tenantId string, opts ListWebhooksOpts) ([]*sqlcv1.V1IncomingWebhook, error) {

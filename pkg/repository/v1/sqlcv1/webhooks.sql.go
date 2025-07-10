@@ -183,8 +183,8 @@ FROM v1_incoming_webhook
 WHERE
     tenant_id = $1::UUID
     AND (
-        $2::TEXT[] IS NULL
-        OR source_name = ANY($2::TEXT[])
+        $2::v1_incoming_webhook_source_name[] IS NULL
+        OR source_name = ANY($2::v1_incoming_webhook_source_name[])
     )
     AND (
         $3::TEXT[] IS NULL
@@ -196,11 +196,11 @@ OFFSET COALESCE($4::BIGINT, 0)
 `
 
 type ListWebhooksParams struct {
-	Tenantid      pgtype.UUID `json:"tenantid"`
-	Sourcenames   []string    `json:"sourcenames"`
-	Webhooknames  []string    `json:"webhooknames"`
-	WebhookOffset pgtype.Int8 `json:"webhookOffset"`
-	WebhookLimit  pgtype.Int8 `json:"webhookLimit"`
+	Tenantid      pgtype.UUID                   `json:"tenantid"`
+	Sourcenames   []V1IncomingWebhookSourceName `json:"sourcenames"`
+	Webhooknames  []string                      `json:"webhooknames"`
+	WebhookOffset pgtype.Int8                   `json:"webhookOffset"`
+	WebhookLimit  pgtype.Int8                   `json:"webhookLimit"`
 }
 
 func (q *Queries) ListWebhooks(ctx context.Context, db DBTX, arg ListWebhooksParams) ([]*V1IncomingWebhook, error) {

@@ -6,17 +6,20 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers/v1"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
+	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 	"github.com/labstack/echo/v4"
 )
 
 func (w *V1WebhooksService) V1WebhookList(ctx echo.Context, request gen.V1WebhookListRequestObject) (gen.V1WebhookListResponseObject, error) {
 	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
 
-	var sourceNames []string
+	var sourceNames []sqlcv1.V1IncomingWebhookSourceName
 	var webhookNames []string
 
 	if request.Params.SourceNames != nil {
-		sourceNames = *request.Params.SourceNames
+		for _, sourceName := range *request.Params.SourceNames {
+			sourceNames = append(sourceNames, sqlcv1.V1IncomingWebhookSourceName(sourceName))
+		}
 	}
 
 	if request.Params.WebhookNames != nil {

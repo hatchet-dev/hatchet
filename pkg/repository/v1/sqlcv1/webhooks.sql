@@ -53,8 +53,8 @@ FROM v1_incoming_webhook
 WHERE
     tenant_id = @tenantId::UUID
     AND (
-        @sourceNames::TEXT[] IS NULL
-        OR source_name = ANY(@sourceNames::TEXT[])
+        @sourceNames::v1_incoming_webhook_source_name[] IS NULL
+        OR source_name = ANY(@sourceNames::v1_incoming_webhook_source_name[])
     )
     AND (
         @webhookNames::TEXT[] IS NULL
