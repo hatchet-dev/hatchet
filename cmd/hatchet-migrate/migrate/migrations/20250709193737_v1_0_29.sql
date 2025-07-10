@@ -3,13 +3,15 @@
 CREATE TYPE v1_incoming_webhook_auth_type AS ENUM ('BASIC_AUTH', 'API_KEY', 'HMAC');
 CREATE TYPE v1_incoming_webhook_hmac_algorithm AS ENUM ('SHA1', 'SHA256', 'SHA512', 'MD5');
 CREATE TYPE v1_incoming_webhook_hmac_encoding AS ENUM ('HEX', 'BASE64', 'BASE64URL');
+CREATE TYPE v1_incoming_webhook_source_name AS ENUM ('GENERIC', 'GITHUB', 'STRIPE');
 
 CREATE TABLE v1_incoming_webhook (
     id UUID NOT NULL DEFAULT gen_random_uuid(),
 
     tenant_id UUID NOT NULL,
 
-    source_name TEXT NOT NULL,
+    source_name v1_incoming_webhook_source_name NOT NULL,
+
     name TEXT NOT NULL,
 
     -- CEL expression that creates an event key
@@ -79,4 +81,5 @@ DROP TABLE v1_incoming_webhook;
 DROP TYPE v1_incoming_webhook_auth_type;
 DROP TYPE v1_incoming_webhook_hmac_algorithm;
 DROP TYPE v1_incoming_webhook_hmac_encoding;
+DROP TYPE v1_incoming_webhook_source_name;
 -- +goose StatementEnd
