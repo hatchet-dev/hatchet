@@ -1670,6 +1670,11 @@ func (r *sharedRepository) insertTasks(
 						}
 					}
 
+					if task.Input == nil {
+						failTaskError = fmt.Errorf("failed to parse step expression (%s): input is nil", strat.Expression)
+						break
+					}
+
 					// Make sure to fail the task with a user-friendly error if we can't parse the CEL for priority
 					// Can set fail task error which will insert with an initial state of failed
 					res, err := r.celParser.ParseAndEvalStepRun(strat.Expression, cel.NewInput(
@@ -1730,6 +1735,11 @@ func (r *sharedRepository) insertTasks(
 							failTaskError = fmt.Errorf("failed to process additional metadata: not a json object")
 							break
 						}
+					}
+
+					if task.Input == nil {
+						failTaskError = fmt.Errorf("failed to parse step expression (%s): input is nil", expr.Expression)
+						break
 					}
 
 					res, err := r.celParser.ParseAndEvalStepRun(expr.Expression, cel.NewInput(
