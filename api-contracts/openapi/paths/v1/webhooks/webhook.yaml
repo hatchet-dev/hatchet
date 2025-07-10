@@ -1,4 +1,4 @@
-V1WebhookGetDelete:
+V1WebhookGetDeleteReceive:
   get:
     x-resources: ["tenant", "v1-webhook"]
     description: Get a webhook by its id
@@ -92,6 +92,64 @@ V1WebhookGetDelete:
             schema:
               $ref: "../../../components/schemas/_index.yaml#/APIErrors"
         description: Not found
+    tags:
+      - Webhook
+  post:
+    x-resources: ["tenant", "v1-webhook"]
+    description: Post an incoming webhook message
+    operationId: v1-webhook:post
+    parameters:
+      - description: The tenant id
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+      - description: The webhook id
+        in: path
+        name: v1-webhook
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    requestBody:
+      description: Any payload in any format
+      required: false
+      content:
+        application/json:
+          schema:
+            type: object
+            additionalProperties: true
+    responses:
+      '200':
+        description: 'Success'
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                message:
+                  type: string
+                  example: 'OK'
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+    summary: Post a webhook message
     tags:
       - Webhook
 

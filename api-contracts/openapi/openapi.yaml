@@ -61,7 +61,7 @@ paths:
   /api/v1/stable/tenants/{tenant}/webhooks:
     $ref: "./paths/v1/webhooks/webhook.yaml#/V1WebhookListCreate"
   /api/v1/stable/tenants/{tenant}/webhooks/{v1-webhook}:
-    $ref: "./paths/v1/webhooks/webhook.yaml#/V1WebhookGetDelete"
+    $ref: "./paths/v1/webhooks/webhook.yaml#/V1WebhookGetDeleteReceive"
   /api/ready:
     $ref: "./paths/metadata/metadata.yaml#/readiness"
   /api/live:

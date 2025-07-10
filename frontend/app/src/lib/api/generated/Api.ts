@@ -887,6 +887,36 @@ export class Api<
       ...params,
     });
   /**
+   * @description Post an incoming webhook message
+   *
+   * @tags Webhook
+   * @name V1WebhookPost
+   * @summary Post a webhook message
+   * @request POST:/api/v1/stable/tenants/{tenant}/webhooks/{v1-webhook}
+   * @secure
+   */
+  v1WebhookPost = (
+    tenant: string,
+    v1Webhook: string,
+    data?: Record<string, any>,
+    params: RequestParams = {},
+  ) =>
+    this.request<
+      {
+        /** @example "OK" */
+        message?: string;
+      },
+      APIErrors
+    >({
+      path: `/api/v1/stable/tenants/${tenant}/webhooks/${v1Webhook}`,
+      method: "POST",
+      body: data,
+      secure: true,
+      type: ContentType.Json,
+      format: "json",
+      ...params,
+    });
+  /**
    * @description Gets the readiness status
    *
    * @tags Healthcheck
