@@ -847,7 +847,7 @@ export class Api<
       ...params,
     });
   /**
-   * @description Get a webhook by its id
+   * @description Get a webhook by its name
    *
    * @tags Webhook
    * @name V1WebhookGet

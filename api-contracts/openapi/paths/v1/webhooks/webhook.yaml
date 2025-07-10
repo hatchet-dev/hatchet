@@ -1,7 +1,7 @@
 V1WebhookGetDeleteReceive:
   get:
     x-resources: ["tenant", "v1-webhook"]
-    description: Get a webhook by its id
+    description: Get a webhook by its name
     operationId: v1-webhook:get
     parameters:
       - description: The tenant id
@@ -13,15 +13,12 @@ V1WebhookGetDeleteReceive:
           format: uuid
           minLength: 36
           maxLength: 36
-      - description: The webhook id
+      - description: The webhook name
         in: path
         name: v1-webhook
         required: true
         schema:
           type: string
-          format: uuid
-          minLength: 36
-          maxLength: 36
     responses:
       "200":
         content:
@@ -58,15 +55,12 @@ V1WebhookGetDeleteReceive:
           format: uuid
           minLength: 36
           maxLength: 36
-      - description: The webhook id to delete
+      - description: The name of the webhook to delete
         in: path
         name: v1-webhook
         required: true
         schema:
           type: string
-          format: uuid
-          minLength: 36
-          maxLength: 36
     responses:
       "200":
         content:
@@ -109,15 +103,12 @@ V1WebhookGetDeleteReceive:
           format: uuid
           minLength: 36
           maxLength: 36
-      - description: The webhook id
+      - description: The webhook name
         in: path
         name: v1-webhook
         required: true
         schema:
           type: string
-          format: uuid
-          minLength: 36
-          maxLength: 36
     requestBody:
       description: Any payload in any format
       required: false

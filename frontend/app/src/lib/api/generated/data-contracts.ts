@@ -882,13 +882,6 @@ export interface V1WebhookList {
 }
 
 export interface V1CreateWebhookRequestBase {
-  /**
-   * The unique identifier for the webhook
-   * @format uuid
-   * @minLength 36
-   * @maxLength 36
-   */
-  id?: string;
   /** The name of the source for this webhook */
   sourceName: V1WebhookSourceName;
   /** The name of the webhook */

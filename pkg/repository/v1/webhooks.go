@@ -51,7 +51,6 @@ type AuthConfig struct {
 }
 
 type CreateWebhookOpts struct {
-	ID                 pgtype.UUID                        `json:"id"`
 	Tenantid           pgtype.UUID                        `json:"tenantid"`
 	Sourcename         sqlcv1.V1IncomingWebhookSourceName `json:"sourcename"`
 	Name               string                             `json:"name"`
@@ -61,7 +60,6 @@ type CreateWebhookOpts struct {
 
 func (r *webhookRepository) CreateWebhook(ctx context.Context, tenantId string, opts CreateWebhookOpts) (*sqlcv1.V1IncomingWebhook, error) {
 	params := sqlcv1.CreateWebhookParams{
-		ID:                 opts.ID,
 		Tenantid:           sqlchelpers.UUIDFromStr(tenantId),
 		Sourcename:         sqlcv1.V1IncomingWebhookSourceName(opts.Sourcename),
 		Name:               opts.Name,
@@ -133,16 +131,16 @@ func (r *webhookRepository) ListWebhooks(ctx context.Context, tenantId string, o
 
 }
 
-func (r *webhookRepository) DeleteWebhook(ctx context.Context, tenantId, webhookId string) (*sqlcv1.V1IncomingWebhook, error) {
+func (r *webhookRepository) DeleteWebhook(ctx context.Context, tenantId, name string) (*sqlcv1.V1IncomingWebhook, error) {
 	return r.queries.DeleteWebhook(ctx, r.pool, sqlcv1.DeleteWebhookParams{
 		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
-		ID:       sqlchelpers.UUIDFromStr(webhookId),
+		Name:     name,
 	})
 }
 
-func (r *webhookRepository) GetWebhook(ctx context.Context, tenantId, webhookId string) (*sqlcv1.V1IncomingWebhook, error) {
+func (r *webhookRepository) GetWebhook(ctx context.Context, tenantId, name string) (*sqlcv1.V1IncomingWebhook, error) {
 	return r.queries.GetWebhook(ctx, r.pool, sqlcv1.GetWebhookParams{
 		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
-		ID:       sqlchelpers.UUIDFromStr(webhookId),
+		Name:     name,
 	})
 }

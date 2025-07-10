@@ -2735,10 +2735,9 @@ type V1Filter struct {
 }
 
 type V1IncomingWebhook struct {
-	ID                           pgtype.UUID                        `json:"id"`
 	TenantID                     pgtype.UUID                        `json:"tenant_id"`
-	SourceName                   V1IncomingWebhookSourceName        `json:"source_name"`
 	Name                         string                             `json:"name"`
+	SourceName                   V1IncomingWebhookSourceName        `json:"source_name"`
 	EventKeyExpression           string                             `json:"event_key_expression"`
 	AuthMethod                   V1IncomingWebhookAuthType          `json:"auth_method"`
 	AuthBasicUsername            pgtype.Text                        `json:"auth__basic__username"`

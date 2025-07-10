@@ -1,9 +1,8 @@
 -- name: CreateWebhook :one
 INSERT INTO v1_incoming_webhook (
-    id,
     tenant_id,
-    source_name,
     name,
+    source_name,
     event_key_expression,
     auth_method,
     auth__basic__username,
@@ -16,10 +15,9 @@ INSERT INTO v1_incoming_webhook (
     auth__hmac__webhook_signing_secret
 
 ) VALUES (
-    @id::UUID,
     @tenantId::UUID,
-    @sourceName::v1_incoming_webhook_source_name,
     @name::TEXT,
+    @sourceName::v1_incoming_webhook_source_name,
     @eventKeyExpression::TEXT,
     @authMethod::v1_incoming_webhook_auth_type,
     @authBasicUsername::TEXT,
@@ -37,14 +35,14 @@ RETURNING *;
 SELECT *
 FROM v1_incoming_webhook
 WHERE
-    id = @id::UUID
+    name = @name::TEXT
     AND tenant_id = @tenantId::UUID;
 
 -- name: DeleteWebhook :one
 DELETE FROM v1_incoming_webhook
 WHERE
     tenant_id = @tenantId::UUID
-    AND id = @id::UUID
+    AND name = @name::TEXT
 RETURNING *;
 
 -- name: ListWebhooks :many

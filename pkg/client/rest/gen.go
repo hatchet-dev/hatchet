@@ -1281,9 +1281,6 @@ type V1CreateWebhookRequestAPIKey struct {
 	// EventKeyExpression The CEL expression to use for the event key. This is used to create the event key from the webhook payload.
 	EventKeyExpression string `json:"eventKeyExpression"`
 
-	// Id The unique identifier for the webhook
-	Id *openapi_types.UUID `json:"id,omitempty"`
-
 	// Name The name of the webhook
 	Name       string              `json:"name"`
 	SourceName V1WebhookSourceName `json:"sourceName"`
@@ -1299,9 +1296,6 @@ type V1CreateWebhookRequestBase struct {
 	// EventKeyExpression The CEL expression to use for the event key. This is used to create the event key from the webhook payload.
 	EventKeyExpression string `json:"eventKeyExpression"`
 
-	// Id The unique identifier for the webhook
-	Id *openapi_types.UUID `json:"id,omitempty"`
-
 	// Name The name of the webhook
 	Name       string              `json:"name"`
 	SourceName V1WebhookSourceName `json:"sourceName"`
@@ -1314,9 +1308,6 @@ type V1CreateWebhookRequestBasicAuth struct {
 
 	// EventKeyExpression The CEL expression to use for the event key. This is used to create the event key from the webhook payload.
 	EventKeyExpression string `json:"eventKeyExpression"`
-
-	// Id The unique identifier for the webhook
-	Id *openapi_types.UUID `json:"id,omitempty"`
 
 	// Name The name of the webhook
 	Name       string              `json:"name"`
@@ -1333,9 +1324,6 @@ type V1CreateWebhookRequestHMAC struct {
 
 	// EventKeyExpression The CEL expression to use for the event key. This is used to create the event key from the webhook payload.
 	EventKeyExpression string `json:"eventKeyExpression"`
-
-	// Id The unique identifier for the webhook
-	Id *openapi_types.UUID `json:"id,omitempty"`
 
 	// Name The name of the webhook
 	Name       string              `json:"name"`
@@ -3031,13 +3019,13 @@ type ClientInterface interface {
 	V1WebhookCreate(ctx context.Context, tenant openapi_types.UUID, body V1WebhookCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// V1WebhookDelete request
-	V1WebhookDelete(ctx context.Context, tenant openapi_types.UUID, v1Webhook openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+	V1WebhookDelete(ctx context.Context, tenant openapi_types.UUID, v1Webhook string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// V1WebhookGet request
-	V1WebhookGet(ctx context.Context, tenant openapi_types.UUID, v1Webhook openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+	V1WebhookGet(ctx context.Context, tenant openapi_types.UUID, v1Webhook string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// V1WebhookReceiveWithBody request with any body
-	V1WebhookReceiveWithBody(ctx context.Context, tenant openapi_types.UUID, v1Webhook openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+	V1WebhookReceiveWithBody(ctx context.Context, tenant openapi_types.UUID, v1Webhook string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// V1WorkflowRunList request
 	V1WorkflowRunList(ctx context.Context, tenant openapi_types.UUID, params *V1WorkflowRunListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -3803,7 +3791,7 @@ func (c *Client) V1WebhookCreate(ctx context.Context, tenant openapi_types.UUID,
 	return c.Client.Do(req)
 }
 
-func (c *Client) V1WebhookDelete(ctx context.Context, tenant openapi_types.UUID, v1Webhook openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+func (c *Client) V1WebhookDelete(ctx context.Context, tenant openapi_types.UUID, v1Webhook string, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewV1WebhookDeleteRequest(c.Server, tenant, v1Webhook)
 	if err != nil {
 		return nil, err
@@ -3815,7 +3803,7 @@ func (c *Client) V1WebhookDelete(ctx context.Context, tenant openapi_types.UUID,
 	return c.Client.Do(req)
 }
 
-func (c *Client) V1WebhookGet(ctx context.Context, tenant openapi_types.UUID, v1Webhook openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+func (c *Client) V1WebhookGet(ctx context.Context, tenant openapi_types.UUID, v1Webhook string, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewV1WebhookGetRequest(c.Server, tenant, v1Webhook)
 	if err != nil {
 		return nil, err
@@ -3827,7 +3815,7 @@ func (c *Client) V1WebhookGet(ctx context.Context, tenant openapi_types.UUID, v1
 	return c.Client.Do(req)
 }
 
-func (c *Client) V1WebhookReceiveWithBody(ctx context.Context, tenant openapi_types.UUID, v1Webhook openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+func (c *Client) V1WebhookReceiveWithBody(ctx context.Context, tenant openapi_types.UUID, v1Webhook string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewV1WebhookReceiveRequestWithBody(c.Server, tenant, v1Webhook, contentType, body)
 	if err != nil {
 		return nil, err
@@ -6854,7 +6842,7 @@ func NewV1WebhookCreateRequestWithBody(server string, tenant openapi_types.UUID,
 }
 
 // NewV1WebhookDeleteRequest generates requests for V1WebhookDelete
-func NewV1WebhookDeleteRequest(server string, tenant openapi_types.UUID, v1Webhook openapi_types.UUID) (*http.Request, error) {
+func NewV1WebhookDeleteRequest(server string, tenant openapi_types.UUID, v1Webhook string) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -6895,7 +6883,7 @@ func NewV1WebhookDeleteRequest(server string, tenant openapi_types.UUID, v1Webho
 }
 
 // NewV1WebhookGetRequest generates requests for V1WebhookGet
-func NewV1WebhookGetRequest(server string, tenant openapi_types.UUID, v1Webhook openapi_types.UUID) (*http.Request, error) {
+func NewV1WebhookGetRequest(server string, tenant openapi_types.UUID, v1Webhook string) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -6936,7 +6924,7 @@ func NewV1WebhookGetRequest(server string, tenant openapi_types.UUID, v1Webhook 
 }
 
 // NewV1WebhookReceiveRequestWithBody generates requests for V1WebhookReceive with any type of body
-func NewV1WebhookReceiveRequestWithBody(server string, tenant openapi_types.UUID, v1Webhook openapi_types.UUID, contentType string, body io.Reader) (*http.Request, error) {
+func NewV1WebhookReceiveRequestWithBody(server string, tenant openapi_types.UUID, v1Webhook string, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -12047,13 +12035,13 @@ type ClientWithResponsesInterface interface {
 	V1WebhookCreateWithResponse(ctx context.Context, tenant openapi_types.UUID, body V1WebhookCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*V1WebhookCreateResponse, error)
 
 	// V1WebhookDeleteWithResponse request
-	V1WebhookDeleteWithResponse(ctx context.Context, tenant openapi_types.UUID, v1Webhook openapi_types.UUID, reqEditors ...RequestEditorFn) (*V1WebhookDeleteResponse, error)
+	V1WebhookDeleteWithResponse(ctx context.Context, tenant openapi_types.UUID, v1Webhook string, reqEditors ...RequestEditorFn) (*V1WebhookDeleteResponse, error)
 
 	// V1WebhookGetWithResponse request
-	V1WebhookGetWithResponse(ctx context.Context, tenant openapi_types.UUID, v1Webhook openapi_types.UUID, reqEditors ...RequestEditorFn) (*V1WebhookGetResponse, error)
+	V1WebhookGetWithResponse(ctx context.Context, tenant openapi_types.UUID, v1Webhook string, reqEditors ...RequestEditorFn) (*V1WebhookGetResponse, error)
 
 	// V1WebhookReceiveWithBodyWithResponse request with any body
-	V1WebhookReceiveWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, v1Webhook openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1WebhookReceiveResponse, error)
+	V1WebhookReceiveWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, v1Webhook string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1WebhookReceiveResponse, error)
 
 	// V1WorkflowRunListWithResponse request
 	V1WorkflowRunListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V1WorkflowRunListParams, reqEditors ...RequestEditorFn) (*V1WorkflowRunListResponse, error)
@@ -15682,7 +15670,7 @@ func (c *ClientWithResponses) V1WebhookCreateWithResponse(ctx context.Context, t
 }
 
 // V1WebhookDeleteWithResponse request returning *V1WebhookDeleteResponse
-func (c *ClientWithResponses) V1WebhookDeleteWithResponse(ctx context.Context, tenant openapi_types.UUID, v1Webhook openapi_types.UUID, reqEditors ...RequestEditorFn) (*V1WebhookDeleteResponse, error) {
+func (c *ClientWithResponses) V1WebhookDeleteWithResponse(ctx context.Context, tenant openapi_types.UUID, v1Webhook string, reqEditors ...RequestEditorFn) (*V1WebhookDeleteResponse, error) {
 	rsp, err := c.V1WebhookDelete(ctx, tenant, v1Webhook, reqEditors...)
 	if err != nil {
 		return nil, err
@@ -15691,7 +15679,7 @@ func (c *ClientWithResponses) V1WebhookDeleteWithResponse(ctx context.Context, t
 }
 
 // V1WebhookGetWithResponse request returning *V1WebhookGetResponse
-func (c *ClientWithResponses) V1WebhookGetWithResponse(ctx context.Context, tenant openapi_types.UUID, v1Webhook openapi_types.UUID, reqEditors ...RequestEditorFn) (*V1WebhookGetResponse, error) {
+func (c *ClientWithResponses) V1WebhookGetWithResponse(ctx context.Context, tenant openapi_types.UUID, v1Webhook string, reqEditors ...RequestEditorFn) (*V1WebhookGetResponse, error) {
 	rsp, err := c.V1WebhookGet(ctx, tenant, v1Webhook, reqEditors...)
 	if err != nil {
 		return nil, err
@@ -15700,7 +15688,7 @@ func (c *ClientWithResponses) V1WebhookGetWithResponse(ctx context.Context, tena
 }
 
 // V1WebhookReceiveWithBodyWithResponse request with arbitrary body returning *V1WebhookReceiveResponse
-func (c *ClientWithResponses) V1WebhookReceiveWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, v1Webhook openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1WebhookReceiveResponse, error) {
+func (c *ClientWithResponses) V1WebhookReceiveWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, v1Webhook string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1WebhookReceiveResponse, error) {
 	rsp, err := c.V1WebhookReceiveWithBody(ctx, tenant, v1Webhook, contentType, body, reqEditors...)
 	if err != nil {
 		return nil, err

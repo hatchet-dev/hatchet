@@ -503,13 +503,12 @@ CREATE TYPE v1_incoming_webhook_hmac_encoding AS ENUM ('HEX', 'BASE64', 'BASE64U
 CREATE TYPE v1_incoming_webhook_source_name AS ENUM ('GENERIC', 'GITHUB', 'STRIPE');
 
 CREATE TABLE v1_incoming_webhook (
-    id UUID NOT NULL DEFAULT gen_random_uuid(),
-
     tenant_id UUID NOT NULL,
 
-    source_name v1_incoming_webhook_source_name NOT NULL,
-
+    -- names are tenant-unique
     name TEXT NOT NULL,
+
+    source_name v1_incoming_webhook_source_name NOT NULL,
 
     -- CEL expression that creates an event key
     -- from the payload of the webhook
@@ -531,7 +530,7 @@ CREATE TABLE v1_incoming_webhook (
     inserted_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    PRIMARY KEY (tenant_id, id),
+    PRIMARY KEY (tenant_id, name),
     CHECK (
         (
             auth_method = 'BASIC_AUTH'
@@ -559,11 +558,6 @@ CREATE TABLE v1_incoming_webhook (
             )
         )
     )
-);
-
-CREATE UNIQUE INDEX v1_incoming_webhook_unique_tenant_webhook_name ON v1_incoming_webhook (
-	tenant_id,
-	name
 );
 
 CREATE INDEX v1_incoming_webhook_tenant_source_name ON v1_incoming_webhook (
