@@ -9,7 +9,6 @@ type V1WebhooksService struct {
 }
 
 func NewV1WebhooksService(config *server.ServerConfig) *V1WebhooksService {
-
 	return &V1WebhooksService{
 		config: config,
 	}

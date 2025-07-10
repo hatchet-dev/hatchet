@@ -893,7 +893,6 @@ export class Api<
    * @name V1WebhookReceive
    * @summary Post a webhook message
    * @request POST:/api/v1/stable/tenants/{tenant}/webhooks/{v1-webhook}
-   * @secure
    */
   v1WebhookReceive = (
     tenant: string,
@@ -911,7 +910,6 @@ export class Api<
       path: `/api/v1/stable/tenants/${tenant}/webhooks/${v1Webhook}`,
       method: "POST",
       body: data,
-      secure: true,
       type: ContentType.Json,
       format: "json",
       ...params,

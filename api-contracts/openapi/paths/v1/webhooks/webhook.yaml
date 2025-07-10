@@ -98,6 +98,7 @@ V1WebhookGetDeleteReceive:
     x-resources: ["tenant", "v1-webhook"]
     description: Post an incoming webhook message
     operationId: v1-webhook:receive
+    security: []
     parameters:
       - description: The tenant id
         in: path
