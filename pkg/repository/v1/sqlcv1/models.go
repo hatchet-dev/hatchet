@@ -1005,9 +1005,9 @@ func (ns NullV1EventTypeOlap) Value() (driver.Value, error) {
 type V1IncomingWebhookAuthType string
 
 const (
-	V1IncomingWebhookAuthTypeBASICAUTH V1IncomingWebhookAuthType = "BASIC_AUTH"
-	V1IncomingWebhookAuthTypeAPIKEY    V1IncomingWebhookAuthType = "API_KEY"
-	V1IncomingWebhookAuthTypeHMAC      V1IncomingWebhookAuthType = "HMAC"
+	V1IncomingWebhookAuthTypeBASIC  V1IncomingWebhookAuthType = "BASIC"
+	V1IncomingWebhookAuthTypeAPIKEY V1IncomingWebhookAuthType = "API_KEY"
+	V1IncomingWebhookAuthTypeHMAC   V1IncomingWebhookAuthType = "HMAC"
 )
 
 func (e *V1IncomingWebhookAuthType) Scan(src interface{}) error {

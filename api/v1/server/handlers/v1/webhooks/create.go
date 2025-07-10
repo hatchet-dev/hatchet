@@ -55,13 +55,13 @@ func (w *V1WebhooksService) constructCreateOpts(tenantId string, request gen.V1C
 	authConfig := v1.AuthConfig{}
 
 	switch discriminator {
-	case "BASIC_AUTH":
+	case "BASIC":
 		basicAuth, err := request.AsV1CreateWebhookRequestBasicAuth()
 		if err != nil {
 			return params, fmt.Errorf("failed to parse basic auth: %w", err)
 		}
 
-		authConfig.Type = sqlcv1.V1IncomingWebhookAuthTypeBASICAUTH
+		authConfig.Type = sqlcv1.V1IncomingWebhookAuthTypeBASIC
 
 		if basicAuth.Auth.Username != nil && basicAuth.Auth.Password != nil {
 			passwordEncrypted, err := w.config.Encryption.Encrypt([]byte(*basicAuth.Auth.Password), "v1_webhook_basic_auth_password")

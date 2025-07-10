@@ -495,7 +495,7 @@ CREATE UNIQUE INDEX v1_filter_unique_tenant_workflow_id_scope_expression_payload
     payload_hash
 );
 
-CREATE TYPE v1_incoming_webhook_auth_type AS ENUM ('BASIC_AUTH', 'API_KEY', 'HMAC');
+CREATE TYPE v1_incoming_webhook_auth_type AS ENUM ('BASIC', 'API_KEY', 'HMAC');
 CREATE TYPE v1_incoming_webhook_hmac_algorithm AS ENUM ('SHA1', 'SHA256', 'SHA512', 'MD5');
 CREATE TYPE v1_incoming_webhook_hmac_encoding AS ENUM ('HEX', 'BASE64', 'BASE64URL');
 
@@ -533,7 +533,7 @@ CREATE TABLE v1_incoming_webhook (
     PRIMARY KEY (tenant_id, name),
     CHECK (
         (
-            auth_method = 'BASIC_AUTH'
+            auth_method = 'BASIC'
             AND (
                 auth__basic__username IS NOT NULL
                 AND auth__basic__password IS NOT NULL

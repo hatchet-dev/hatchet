@@ -68,9 +68,9 @@ func (ac *AuthConfig) Validate() error {
 	}
 
 	switch ac.Type {
-	case sqlcv1.V1IncomingWebhookAuthTypeBASICAUTH:
+	case sqlcv1.V1IncomingWebhookAuthTypeBASIC:
 		if ac.BasicAuth == nil {
-			return fmt.Errorf("basic auth credentials must be provided when type is BASIC_AUTH")
+			return fmt.Errorf("basic auth credentials must be provided when type is BASIC")
 		}
 	case sqlcv1.V1IncomingWebhookAuthTypeAPIKEY:
 		if ac.APIKeyAuth == nil {
@@ -113,7 +113,7 @@ func (r *webhookRepository) CreateWebhook(ctx context.Context, tenantId string, 
 	}
 
 	switch opts.AuthConfig.Type {
-	case sqlcv1.V1IncomingWebhookAuthTypeBASICAUTH:
+	case sqlcv1.V1IncomingWebhookAuthTypeBASIC:
 		params.AuthBasicUsername = pgtype.Text{
 			String: opts.AuthConfig.BasicAuth.Username,
 			Valid:  true,

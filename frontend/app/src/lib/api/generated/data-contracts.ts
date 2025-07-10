@@ -219,7 +219,7 @@ export enum V1WebhookHMACAlgorithm {
 }
 
 export enum V1WebhookAuthType {
-  BASIC_AUTH = "BASIC_AUTH",
+  BASIC = "BASIC",
   API_KEY = "API_KEY",
   HMAC = "HMAC",
 }
@@ -900,7 +900,7 @@ export interface V1WebhookBasicAuth {
 }
 
 export type V1CreateWebhookRequestBasicAuth = V1CreateWebhookRequestBase & {
-  authType?: "BASIC_AUTH";
+  authType?: "BASIC";
   auth: V1WebhookBasicAuth;
 };
 
@@ -934,7 +934,7 @@ export type V1CreateWebhookRequestHMAC = V1CreateWebhookRequestBase & {
 
 export type V1CreateWebhookRequest =
   | ({
-      authType: "BASIC_AUTH";
+      authType: "BASIC";
     } & V1CreateWebhookRequestBasicAuth)
   | ({
       authType: "API_KEY";

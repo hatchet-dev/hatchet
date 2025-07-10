@@ -101,7 +101,7 @@ func (w *V1WebhooksService) V1WebhookReceive(ctx echo.Context, request gen.V1Web
 	case sqlcv1.V1IncomingWebhookSourceNameGENERIC:
 	case sqlcv1.V1IncomingWebhookSourceNameGITHUB:
 		switch webhook.AuthMethod {
-		case sqlcv1.V1IncomingWebhookAuthTypeBASICAUTH:
+		case sqlcv1.V1IncomingWebhookAuthTypeBASIC:
 			username, password, ok := ctx.Request().BasicAuth()
 
 			if !ok {

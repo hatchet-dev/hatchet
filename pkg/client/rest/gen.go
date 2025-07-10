@@ -199,7 +199,7 @@ const (
 
 // Defines values for V1CreateWebhookRequestBasicAuthAuthType.
 const (
-	BASICAUTH V1CreateWebhookRequestBasicAuthAuthType = "BASIC_AUTH"
+	BASIC V1CreateWebhookRequestBasicAuthAuthType = "BASIC"
 )
 
 // Defines values for V1CreateWebhookRequestHMACAuthType.
@@ -250,9 +250,9 @@ const (
 
 // Defines values for V1WebhookAuthType.
 const (
-	V1WebhookAuthTypeAPIKEY    V1WebhookAuthType = "API_KEY"
-	V1WebhookAuthTypeBASICAUTH V1WebhookAuthType = "BASIC_AUTH"
-	V1WebhookAuthTypeHMAC      V1WebhookAuthType = "HMAC"
+	V1WebhookAuthTypeAPIKEY V1WebhookAuthType = "API_KEY"
+	V1WebhookAuthTypeBASIC  V1WebhookAuthType = "BASIC"
+	V1WebhookAuthTypeHMAC   V1WebhookAuthType = "HMAC"
 )
 
 // Defines values for V1WebhookHMACAlgorithm.
@@ -2730,7 +2730,7 @@ func (t V1CreateWebhookRequest) AsV1CreateWebhookRequestBasicAuth() (V1CreateWeb
 
 // FromV1CreateWebhookRequestBasicAuth overwrites any union data inside the V1CreateWebhookRequest as the provided V1CreateWebhookRequestBasicAuth
 func (t *V1CreateWebhookRequest) FromV1CreateWebhookRequestBasicAuth(v V1CreateWebhookRequestBasicAuth) error {
-	v.AuthType = "BASIC_AUTH"
+	v.AuthType = "BASIC"
 	b, err := json.Marshal(v)
 	t.union = b
 	return err
@@ -2738,7 +2738,7 @@ func (t *V1CreateWebhookRequest) FromV1CreateWebhookRequestBasicAuth(v V1CreateW
 
 // MergeV1CreateWebhookRequestBasicAuth performs a merge with any union data inside the V1CreateWebhookRequest, using the provided V1CreateWebhookRequestBasicAuth
 func (t *V1CreateWebhookRequest) MergeV1CreateWebhookRequestBasicAuth(v V1CreateWebhookRequestBasicAuth) error {
-	v.AuthType = "BASIC_AUTH"
+	v.AuthType = "BASIC"
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err
@@ -2821,7 +2821,7 @@ func (t V1CreateWebhookRequest) ValueByDiscriminator() (interface{}, error) {
 	switch discriminator {
 	case "API_KEY":
 		return t.AsV1CreateWebhookRequestAPIKey()
-	case "BASIC_AUTH":
+	case "BASIC":
 		return t.AsV1CreateWebhookRequestBasicAuth()
 	case "HMAC":
 		return t.AsV1CreateWebhookRequestHMAC()

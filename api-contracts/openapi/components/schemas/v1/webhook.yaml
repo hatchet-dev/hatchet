@@ -39,7 +39,7 @@ V1WebhookList:
 V1WebhookAuthType:
   type: string
   enum:
-    - BASIC_AUTH
+    - BASIC
     - API_KEY
     - HMAC
 
@@ -131,7 +131,7 @@ V1CreateWebhookRequestBasicAuth:
       properties:
         authType:
           type: string
-          enum: [BASIC_AUTH]
+          enum: [BASIC]
         auth:
           $ref: "#/V1WebhookBasicAuth"
       required:
@@ -171,6 +171,6 @@ V1CreateWebhookRequest:
   discriminator:
     propertyName: authType
     mapping:
-      BASIC_AUTH: "#/V1CreateWebhookRequestBasicAuth"
+      BASIC: "#/V1CreateWebhookRequestBasicAuth"
       API_KEY: "#/V1CreateWebhookRequestAPIKey"
       HMAC: "#/V1CreateWebhookRequestHMAC"
