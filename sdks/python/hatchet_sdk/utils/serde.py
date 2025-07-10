@@ -43,15 +43,19 @@ def remove_null_unicode_character(
 
     if isinstance(data, dict):
         return {
-            key: remove_null_unicode_character(cast(Any, value))
+            key: remove_null_unicode_character(cast(Any, value), replacement)
             for key, value in data.items()
         }
 
     if isinstance(data, list):
-        return [remove_null_unicode_character(cast(Any, item)) for item in data]
+        return [
+            remove_null_unicode_character(cast(Any, item), replacement) for item in data
+        ]
 
     if isinstance(data, tuple):
-        return tuple(remove_null_unicode_character(cast(Any, item)) for item in data)
+        return tuple(
+            remove_null_unicode_character(cast(Any, item), replacement) for item in data
+        )
 
     raise TypeError(
         f"Unsupported type {type(data)}. Expected str, dict, list, or tuple."
