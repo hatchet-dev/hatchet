@@ -41,7 +41,6 @@ func (w *V1WebhooksService) V1WebhookCreate(ctx echo.Context, request gen.V1Webh
 	return gen.V1WebhookCreate200JSONResponse(transformed), nil
 }
 
-// parseAuthConfig extracts the auth configuration from the discriminated union
 func (w *V1WebhooksService) constructCreateOpts(tenantId string, request gen.V1CreateWebhookRequest) (v1.CreateWebhookOpts, error) {
 	discriminator, err := request.Discriminator()
 
@@ -75,6 +74,8 @@ func (w *V1WebhooksService) constructCreateOpts(tenantId string, request gen.V1C
 				Username: *basicAuth.Auth.Username,
 				Password: passwordEncrypted,
 			}
+		} else {
+			return params, fmt.Errorf("basic auth requires both username and password")
 		}
 
 		params.Sourcename = sqlcv1.V1IncomingWebhookSourceName(basicAuth.SourceName)
@@ -104,6 +105,8 @@ func (w *V1WebhooksService) constructCreateOpts(tenantId string, request gen.V1C
 				HeaderName: *apiKeyAuth.Auth.HeaderName,
 				Key:        apiKeyEncrypted,
 			}
+		} else {
+			return params, fmt.Errorf("api key auth requires both header name and api key")
 		}
 
 		params.Sourcename = sqlcv1.V1IncomingWebhookSourceName(apiKeyAuth.SourceName)
@@ -134,6 +137,8 @@ func (w *V1WebhooksService) constructCreateOpts(tenantId string, request gen.V1C
 				SignatureHeaderName:  *hmacAuth.Auth.SignatureHeaderName,
 				WebhookSigningSecret: signingSecretEncrypted,
 			}
+		} else {
+			return params, fmt.Errorf("hmac auth requires algorithm, encoding, signature header name, and signing secret")
 		}
 
 		params.Sourcename = sqlcv1.V1IncomingWebhookSourceName(hmacAuth.SourceName)
