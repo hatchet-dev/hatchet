@@ -253,9 +253,7 @@ function ErrorWithHoverCard({
           align="start"
           container={containerRef.current}
         >
-          <div
-            className="p-4 overflow-hidden w-[600px] max-w-[80vw] min-w-[300px]"
-          >
+          <div className="p-4 overflow-hidden w-[600px] max-w-[80vw] min-w-[300px]">
             <ErrorHoverContents event={event} rows={rows} />
           </div>
         </PopoverContent>
