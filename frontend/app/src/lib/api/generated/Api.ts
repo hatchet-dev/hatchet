@@ -897,7 +897,7 @@ export class Api<
   v1WebhookReceive = (
     tenant: string,
     v1Webhook: string,
-    data?: Record<string, any>,
+    data?: any,
     params: RequestParams = {},
   ) =>
     this.request<
@@ -910,7 +910,6 @@ export class Api<
       path: `/api/v1/stable/tenants/${tenant}/webhooks/${v1Webhook}`,
       method: "POST",
       body: data,
-      type: ContentType.Json,
       format: "json",
       ...params,
     });

@@ -11,6 +11,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"hash"
+	"io"
+	"strings"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/internal/cel"
@@ -22,6 +24,12 @@ import (
 func (w *V1WebhooksService) V1WebhookReceive(ctx echo.Context, request gen.V1WebhookReceiveRequestObject) (gen.V1WebhookReceiveResponseObject, error) {
 	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
 	webhook := ctx.Get("v1-webhook").(*sqlcv1.V1IncomingWebhook)
+
+	rawBody, err := io.ReadAll(ctx.Request().Body)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to read request body: %w", err)
+	}
 
 	switch webhook.AuthMethod {
 	case sqlcv1.V1IncomingWebhookAuthTypeBASICAUTH:
@@ -81,7 +89,7 @@ func (w *V1WebhooksService) V1WebhookReceive(ctx echo.Context, request gen.V1Web
 			}, nil
 		}
 	case sqlcv1.V1IncomingWebhookAuthTypeHMAC:
-		signature := ctx.Request().Header.Get(webhook.AuthHmacSignatureHeaderName.String)
+		signature := strings.Replace(ctx.Request().Header.Get(webhook.AuthHmacSignatureHeaderName.String), "sha256=", "", 1)
 
 		if signature == "" {
 			return gen.V1WebhookReceive400JSONResponse{
@@ -93,29 +101,15 @@ func (w *V1WebhooksService) V1WebhookReceive(ctx echo.Context, request gen.V1Web
 			}, nil
 		}
 
-		// Decrypt the signing secret
 		decryptedSigningSecret, err := w.config.Encryption.Decrypt(webhook.AuthHmacWebhookSigningSecret, "v1_webhook_hmac_signing_secret")
 		if err != nil {
 			return nil, fmt.Errorf("failed to decrypt HMAC signing secret: %w", err)
 		}
 
-		// Get algorithm and encoding
 		algorithm := webhook.AuthHmacAlgorithm.V1IncomingWebhookHmacAlgorithm
 		encoding := webhook.AuthHmacEncoding.V1IncomingWebhookHmacEncoding
 
-		body, err := json.Marshal(request.Body)
-
-		if err != nil {
-			return gen.V1WebhookReceive400JSONResponse{
-				Errors: []gen.APIError{
-					{
-						Description: fmt.Sprintf("failed to marshal request body: %v", err),
-					},
-				},
-			}, nil
-		}
-
-		expectedSignature, err := computeHMACSignature(body, decryptedSigningSecret, algorithm, encoding)
+		expectedSignature, err := computeHMACSignature(rawBody, decryptedSigningSecret, algorithm, encoding)
 
 		if err != nil {
 			return nil, fmt.Errorf("failed to compute HMAC signature: %w", err)
@@ -142,8 +136,19 @@ func (w *V1WebhooksService) V1WebhookReceive(ctx echo.Context, request gen.V1Web
 
 	payloadMap := make(map[string]interface{})
 
-	if request.Body != nil {
-		payloadMap = map[string]interface{}(*request.Body)
+	if rawBody != nil {
+		err := json.Unmarshal(rawBody, &payloadMap)
+
+		if err != nil {
+			return gen.V1WebhookReceive400JSONResponse{
+				Errors: []gen.APIError{
+					{
+						Description: fmt.Sprintf("failed to unmarshal request body: %v", err),
+					},
+				},
+			}, nil
+		}
+
 		delete(payloadMap, "tenant")
 		delete(payloadMap, "v1-webhook")
 	}
