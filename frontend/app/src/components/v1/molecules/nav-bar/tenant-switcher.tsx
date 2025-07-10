@@ -66,7 +66,7 @@ export function TenantSwitcher({
                 key={membership.metadata.id}
                 onSelect={() => {
                   invariant(membership.tenant);
-                  setCurrTenant(membership.tenant.metadata.id);
+                  setCurrTenant(membership.tenant);
                   setOpen(false);
 
                   if (membership.tenant.version === TenantVersion.V0) {

@@ -1,4 +1,4 @@
-import { atom } from 'jotai';
+import { atom, useAtom } from 'jotai';
 import { Tenant, TenantVersion, queries } from './api';
 import {
   useLocation,
@@ -55,32 +55,39 @@ type TenantContextMissing = {
 
 type TenantContext = TenantContextPresent | TenantContextMissing;
 
+const lastTenantKey = 'lastTenant';
+
+const lastTenantAtomInit = atom(getInitialValue<Tenant>(lastTenantKey));
+
+export const lastTenantAtom = atom(
+  (get) => get(lastTenantAtomInit),
+  (_get, set, newVal: Tenant) => {
+    set(lastTenantAtomInit, newVal);
+    localStorage.setItem(lastTenantKey, JSON.stringify(newVal));
+  },
+);
+
 // search param sets the tenant, the last tenant set is used if the search param is empty,
 // otherwise the first membership is used
 export function useTenant(): TenantContext {
   const [searchParams, setSearchParams] = useSearchParams();
   const pathParams = useParams();
-
-  const setTenantInLocalStorage = useCallback(async (tenantId: string) => {
-    localStorage.setItem('tenantId', tenantId);
-  }, []);
-
-  const getTenantFromLocalStorage = useCallback(() => {
-    return localStorage.getItem('tenantId') as string | undefined;
-  }, []);
+  const [lastTenant, setLastTenant] = useAtom(lastTenantAtom);
 
   const setTenant = useCallback(
     (tenant: Tenant) => {
-      setTenantInLocalStorage(tenant.metadata.id);
+      console.log(tenant);
+      setLastTenant(tenant);
 
       if (tenant.version === TenantVersion.V1) {
         return;
       }
+
       const newSearchParams = new URLSearchParams(searchParams);
       newSearchParams.set('tenant', tenant.metadata.id);
       setSearchParams(newSearchParams, { replace: true });
     },
-    [searchParams, setSearchParams, setTenantInLocalStorage],
+    [searchParams, setSearchParams, setLastTenant],
   );
 
   const membershipsQuery = useQuery({
@@ -103,7 +110,7 @@ export function useTenant(): TenantContext {
   const computedCurrTenant = useMemo(() => {
     const tenantFromPath = pathParams.tenant;
     const currTenantId = searchParams.get('tenant') || undefined;
-    const lastTenantId = getTenantFromLocalStorage();
+    const lastTenantId = lastTenant?.metadata.id || undefined;
 
     if (tenantFromPath) {
       const tenant = findTenant(tenantFromPath);
@@ -136,13 +143,7 @@ export function useTenant(): TenantContext {
     const firstMembershipTenant = memberships.at(0)?.tenant;
 
     return firstMembershipTenant;
-  }, [
-    memberships,
-    searchParams,
-    findTenant,
-    pathParams.tenant,
-    getTenantFromLocalStorage,
-  ]);
+  }, [memberships, searchParams, findTenant, pathParams.tenant, lastTenant]);
 
   const currTenantId = searchParams.get('tenant');
   const currTenant = currTenantId ? findTenant(currTenantId) : undefined;
@@ -155,6 +156,7 @@ export function useTenant(): TenantContext {
   // the tenant from the URL.
   useEffect(() => {
     const currentTenantParam = searchParams.get('tenant');
+    console.log(currentTenantParam, tenant);
     if (!currentTenantParam && tenant) {
       setTenant(tenant);
     }
