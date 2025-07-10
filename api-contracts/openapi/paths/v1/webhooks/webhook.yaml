@@ -189,7 +189,7 @@ V1WebhookListCreate:
         schema:
           type: array
           items:
-            type: string
+            $ref: "../../../components/schemas/_index.yaml#/V1WebhookSourceName"
             description: The source name
       - description: The webhook names to filter by
         in: query

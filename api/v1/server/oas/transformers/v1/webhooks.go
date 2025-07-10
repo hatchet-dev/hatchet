@@ -16,7 +16,7 @@ func ToV1Webhook(webhook *sqlcv1.V1IncomingWebhook) gen.V1Webhook {
 		TenantId:           webhook.TenantID.String(),
 		EventKeyExpression: webhook.EventKeyExpression,
 		Name:               webhook.Name,
-		SourceName:         webhook.SourceName,
+		SourceName:         gen.V1WebhookSourceName(webhook.SourceName),
 	}
 }
 

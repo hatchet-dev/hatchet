@@ -104,6 +104,7 @@ import {
   V1UpdateFilterRequest,
   V1Webhook,
   V1WebhookList,
+  V1WebhookSourceName,
   V1WorkflowRunDetails,
   V1WorkflowRunDisplayNameList,
   WebhookWorkerCreateRequest,
@@ -808,7 +809,7 @@ export class Api<
        */
       limit?: number;
       /** The source names to filter by */
-      sourceNames?: string[];
+      sourceNames?: V1WebhookSourceName[];
       /** The webhook names to filter by */
       webhookNames?: string[];
     },

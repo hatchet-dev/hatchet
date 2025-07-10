@@ -1699,10 +1699,8 @@ type V1Webhook struct {
 	Metadata           APIResourceMeta `json:"metadata"`
 
 	// Name The name of the webhook
-	Name string `json:"name"`
-
-	// SourceName The name of the source for this webhook
-	SourceName string `json:"sourceName"`
+	Name       string              `json:"name"`
+	SourceName V1WebhookSourceName `json:"sourceName"`
 
 	// TenantId The ID of the tenant associated with this webhook.
 	TenantId string `json:"tenantId"`
@@ -2306,7 +2304,7 @@ type V1WebhookListParams struct {
 	Limit *int64 `form:"limit,omitempty" json:"limit,omitempty"`
 
 	// SourceNames The source names to filter by
-	SourceNames *[]string `form:"sourceNames,omitempty" json:"sourceNames,omitempty"`
+	SourceNames *[]V1WebhookSourceName `form:"sourceNames,omitempty" json:"sourceNames,omitempty"`
 
 	// WebhookNames The webhook names to filter by
 	WebhookNames *[]string `form:"webhookNames,omitempty" json:"webhookNames,omitempty"`

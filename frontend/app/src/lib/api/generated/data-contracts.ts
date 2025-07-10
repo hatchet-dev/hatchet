@@ -218,16 +218,16 @@ export enum V1WebhookHMACAlgorithm {
   MD5 = "MD5",
 }
 
-export enum V1WebhookSourceName {
-  GENERIC = "GENERIC",
-  GITHUB = "GITHUB",
-  STRIPE = "STRIPE",
-}
-
 export enum V1WebhookAuthType {
   BASIC_AUTH = "BASIC_AUTH",
   API_KEY = "API_KEY",
   HMAC = "HMAC",
+}
+
+export enum V1WebhookSourceName {
+  GENERIC = "GENERIC",
+  GITHUB = "GITHUB",
+  STRIPE = "STRIPE",
 }
 
 export enum TenantUIVersion {
@@ -869,7 +869,7 @@ export interface V1Webhook {
   /** The name of the webhook */
   name: string;
   /** The name of the source for this webhook */
-  sourceName: string;
+  sourceName: V1WebhookSourceName;
   /** The CEL expression to use for the event key. This is used to create the event key from the webhook payload. */
   eventKeyExpression: string;
   /** The type of authentication to use for the webhook */

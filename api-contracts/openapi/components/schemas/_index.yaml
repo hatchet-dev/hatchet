@@ -112,6 +112,10 @@ V1WebhookList:
   $ref: "./v1/webhook.yaml#/V1WebhookList"
 V1Webhook:
   $ref: "./v1/webhook.yaml#/V1Webhook"
+V1WebhookSourceName:
+  $ref: "./v1/webhook.yaml#/V1WebhookSourceName"
+V1WebhookAuthType:
+  $ref: "./v1/webhook.yaml#/V1WebhookAuthType"
 RateLimit:
   $ref: "./rate_limits.yaml#/RateLimit"
 RateLimitList:
