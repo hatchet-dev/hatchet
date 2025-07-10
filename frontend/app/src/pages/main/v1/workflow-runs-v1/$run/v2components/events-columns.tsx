@@ -277,16 +277,10 @@ function ErrorWithHoverCard({ event }: { event: V1TaskEvent }) {
 function ErrorHoverContents({ event }: { event: V1TaskEvent }) {
   const errorText = event.errorMessage;
 
-  const errorLog = {
-    line: errorText || 'No error message found',
-    timestamp: new Date().toISOString(),
-    instance: 'Error',
-  };
-
   return (
     <div className="rounded-md h-[400px] overflow-hidden">
       <LoggingComponent
-        logs={[errorLog]}
+        logs={[{ line: errorText || 'No error message found' }]}
         onTopReached={() => {}}
         onBottomReached={() => {}}
         autoScroll={false}

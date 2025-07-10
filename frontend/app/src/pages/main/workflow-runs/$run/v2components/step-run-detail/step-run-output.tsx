@@ -77,16 +77,10 @@ const StepRunOutputFailed = ({ stepRun }: StepRunOutputProps) => {
     return oneLiner('Step run failed with no error message');
   }
 
-  const errorLog = {
-    line: stepRun.error,
-    timestamp: new Date().toISOString(),
-    instance: 'Error',
-  };
-
   return (
     <div className="my-4">
       <LoggingComponent
-        logs={[errorLog]}
+        logs={[{ line: stepRun.error }]}
         onTopReached={() => {}}
         onBottomReached={() => {}}
         autoScroll={false}

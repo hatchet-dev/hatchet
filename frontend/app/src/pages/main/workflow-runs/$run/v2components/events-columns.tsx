@@ -363,16 +363,10 @@ function ErrorHoverContents({
     latestFailure.event.data,
   ]);
 
-  const errorLog = {
-    line: errorString || 'No error message available',
-    timestamp: new Date().toISOString(),
-    instance: 'Error',
-  };
-
   return (
     <div className="rounded-md h-[400px] overflow-hidden">
       <LoggingComponent
-        logs={[errorLog]}
+        logs={[{ line: errorString || 'No error message available' }]}
         onTopReached={() => {}}
         onBottomReached={() => {}}
         autoScroll={false}
