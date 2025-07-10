@@ -76,7 +76,6 @@ export function useTenant(): TenantContext {
 
   const setTenant = useCallback(
     (tenant: Tenant) => {
-      console.log(tenant);
       setLastTenant(tenant);
 
       if (tenant.version === TenantVersion.V1) {
@@ -156,7 +155,6 @@ export function useTenant(): TenantContext {
   // the tenant from the URL.
   useEffect(() => {
     const currentTenantParam = searchParams.get('tenant');
-    console.log(currentTenantParam, tenant);
     if (!currentTenantParam && tenant) {
       setTenant(tenant);
     }
