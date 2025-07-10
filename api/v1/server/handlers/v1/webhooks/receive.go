@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
+	"github.com/hatchet-dev/hatchet/internal/cel"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 	"github.com/labstack/echo/v4"
@@ -49,8 +50,6 @@ func (w *V1WebhooksService) V1WebhookReceive(ctx echo.Context, request gen.V1Web
 				},
 			}, nil
 		}
-
-		fmt.Println("Received webhook with Basic Auth", password)
 	case sqlcv1.V1IncomingWebhookAuthTypeAPIKEY:
 		fmt.Println("Received webhook with API Key Auth")
 	case sqlcv1.V1IncomingWebhookAuthTypeHMAC:
@@ -65,34 +64,54 @@ func (w *V1WebhooksService) V1WebhookReceive(ctx echo.Context, request gen.V1Web
 		}, nil
 	}
 
-	var payload []byte
-	var err error
+	payloadMap := make(map[string]interface{})
 
 	if request.Body != nil {
-		payloadMap := map[string]interface{}(*request.Body)
-
-		payload, err = json.Marshal(payloadMap)
-
-		if err != nil {
-			return gen.V1WebhookReceive400JSONResponse{
-				Errors: []gen.APIError{
-					{
-						Description: fmt.Sprintf("failed to marshal request body: %v", err),
-					},
-				},
-			}, nil
-		}
+		payloadMap = map[string]interface{}(*request.Body)
+		delete(payloadMap, "tenant")
+		delete(payloadMap, "v1-webhook")
 	}
 
-	w.config.Ingestor.IngestEvent(
+	eventKey, err := w.celParser.EvaluateIncomingWebhookExpression(webhook.EventKeyExpression, cel.NewInput(
+		cel.WithInput(payloadMap),
+	),
+	)
+
+	if err != nil {
+		// TODO: Store this error
+		return gen.V1WebhookReceive400JSONResponse{
+			Errors: []gen.APIError{
+				{
+					Description: fmt.Sprintf("failed to evaluate event key expression: %v", err),
+				},
+			},
+		}, nil
+	}
+
+	payload, err := json.Marshal(payloadMap)
+	if err != nil {
+		return gen.V1WebhookReceive400JSONResponse{
+			Errors: []gen.APIError{
+				{
+					Description: fmt.Sprintf("failed to marshal request body: %v", err),
+				},
+			},
+		}, nil
+	}
+
+	_, err = w.config.Ingestor.IngestEvent(
 		ctx.Request().Context(),
 		tenant,
-		"foo",
+		eventKey,
 		payload,
 		nil,
 		nil,
 		nil,
 	)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to ingest event")
+	}
 
 	msg := "ok"
 
