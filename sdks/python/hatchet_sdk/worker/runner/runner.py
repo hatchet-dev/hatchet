@@ -4,9 +4,9 @@ import functools
 import json
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
-from contextlib import suppress
 from enum import Enum
 from multiprocessing import Queue
+from textwrap import dedent
 from threading import Thread, current_thread
 from typing import Any, Literal, cast, overload
 
@@ -49,6 +49,7 @@ from hatchet_sdk.runnables.contextvars import (
 )
 from hatchet_sdk.runnables.task import Task
 from hatchet_sdk.runnables.types import R, TWorkflowInput
+from hatchet_sdk.utils.serde import remove_null_unicode_character
 from hatchet_sdk.worker.action_listener_process import ActionEvent
 from hatchet_sdk.worker.runner.utils.capture_logs import (
     AsyncLogSender,
@@ -410,7 +411,7 @@ class Runner:
         )
 
     ## IMPORTANT: Keep this method's signature in sync with the wrapper in the OTel instrumentor
-    async def handle_start_step_run(self, action: Action) -> None:
+    async def handle_start_step_run(self, action: Action) -> Exception | None:
         action_name = action.action_id
 
         # Find the corresponding action function from the registry
@@ -444,14 +445,19 @@ class Runner:
 
             ## FIXME: Handle cancelled exceptions and other special exceptions
             ## that we don't want to suppress here
-            with suppress(Exception):
+            try:
                 await task
+            except Exception as e:
+                ## Used for the OTel instrumentor to capture exceptions
+                return e
 
         ## Once the step run completes, we need to remove the workflow spawn index
         ## so we don't leak memory
         if action.key in workflow_spawn_indices:
             async with spawn_index_lock:
                 workflow_spawn_indices.pop(action.key)
+
+        return None
 
     ## IMPORTANT: Keep this method's signature in sync with the wrapper in the OTel instrumentor
     async def handle_start_group_key_run(self, action: Action) -> Exception | None:
@@ -557,14 +563,30 @@ class Runner:
                 f"Tasks must return either a dictionary or a Pydantic BaseModel which can be serialized to a JSON object. Got object of type {type(output)} instead."
             )
 
-        if output is not None:
-            try:
-                return json.dumps(output, default=str)
-            except Exception as e:
-                logger.error(f"Could not serialize output: {e}")
-                return str(output)
+        if output is None:
+            return ""
 
-        return ""
+        try:
+            serialized_output = json.dumps(output, default=str)
+        except Exception as e:
+            logger.error(f"Could not serialize output: {e}")
+            serialized_output = str(output)
+
+        if "\\u0000" in serialized_output:
+            raise IllegalTaskOutputError(
+                dedent(
+                    f"""
+                Task outputs cannot contain the unicode null character \\u0000
+
+                Please see this Discord thread: https://discord.com/channels/1088927970518909068/1384324576166678710/1386714014565928992
+                Relevant Postgres documentation: https://www.postgresql.org/docs/current/datatype-json.html
+
+                Use `hatchet_sdk.{remove_null_unicode_character.__name__}` to sanitize your output if you'd like to remove the character.
+                """
+                )
+            )
+
+        return serialized_output
 
     async def wait_for_tasks(self) -> None:
         running = len(self.tasks.keys())

@@ -120,6 +120,10 @@ export const TaskRunDetail = ({
     return <div>No events found</div>;
   }
 
+  const isStandaloneTaskRun =
+    taskRun.workflowRunExternalId === emptyGolangUUID ||
+    taskRun.workflowRunExternalId === taskRun.metadata.id;
+
   return (
     <div className="w-full flex flex-col gap-4">
       <div className="flex flex-row justify-between items-center">
@@ -167,9 +171,11 @@ export const TaskRunDetail = ({
           <TabsTrigger variant="underlined" value="overview">
             Overview
           </TabsTrigger>
-          <TabsTrigger variant="underlined" value="waterfall">
-            Waterfall
-          </TabsTrigger>
+          {isStandaloneTaskRun && (
+            <TabsTrigger variant="underlined" value="waterfall">
+              Waterfall
+            </TabsTrigger>
+          )}
         </TabsList>
         <TabsContent value="overview" className="flex-1 min-h-0">
           <div className="w-full h-36 flex relative bg-slate-100 dark:bg-slate-900">
@@ -223,13 +229,15 @@ export const TaskRunDetail = ({
             </TabsContent>
           </Tabs>
         </TabsContent>
-        <TabsContent value="waterfall" className="flex-1 min-h-0">
-          <Waterfall
-            workflowRunId={taskRunId}
-            selectedTaskId={selectedTaskRunId}
-            handleTaskSelect={handleTaskRunExpand}
-          />
-        </TabsContent>
+        {isStandaloneTaskRun && (
+          <TabsContent value="waterfall" className="flex-1 min-h-0">
+            <Waterfall
+              workflowRunId={taskRunId}
+              selectedTaskId={selectedTaskRunId}
+              handleTaskSelect={handleTaskRunExpand}
+            />
+          </TabsContent>
+        )}
       </Tabs>
       <Separator className="my-4" />
       <div className="mb-8">

@@ -3,6 +3,7 @@ package task
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
 )
@@ -35,7 +36,10 @@ func (tc *TasksControllerImpl) createTablePartition(ctx context.Context) error {
 	ctx, span := telemetry.NewSpan(ctx, "create-table-partition")
 	defer span.End()
 
-	err := tc.repov1.Tasks().UpdateTablePartitions(ctx)
+	qCtx, qCancel := context.WithTimeout(ctx, 10*time.Minute)
+	defer qCancel()
+
+	err := tc.repov1.Tasks().UpdateTablePartitions(qCtx)
 
 	if err != nil {
 		return fmt.Errorf("could not create table partition: %w", err)

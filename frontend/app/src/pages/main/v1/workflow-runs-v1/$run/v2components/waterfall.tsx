@@ -23,6 +23,31 @@ import {
 } from '@/components/v1/ui/tooltip';
 import { useQuery } from '@tanstack/react-query';
 
+// Helper function to check if a task is a descendant of another task
+function isDescendantOf(
+  task: ProcessedTaskData,
+  ancestorId: string,
+  allTasks: ProcessedTaskData[],
+): boolean {
+  let currentParentId = task.parentId;
+
+  while (currentParentId) {
+    if (currentParentId === ancestorId) {
+      return true;
+    }
+
+    // Find the parent task to continue traversing up
+    const parentTaskId = currentParentId;
+    const parentTask = allTasks.find((t) => t.id === parentTaskId);
+    if (!parentTask) {
+      break;
+    }
+    currentParentId = parentTask.parentId;
+  }
+
+  return false;
+}
+
 // Helper function to sort tasks in preorder traversal
 function sortTasksPreorder(
   tasks: ProcessedTaskData[],
@@ -96,6 +121,8 @@ interface ProcessedTaskData {
   status: V1TaskStatus;
   taskId: number;
   attempt: number;
+  isShowMoreEntry?: boolean;
+  totalChildren?: number;
 }
 
 interface ProcessedData {
@@ -160,6 +187,9 @@ export function Waterfall({
   const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set());
   const [autoExpandedInitially, setAutoExpandedInitially] = useState(false);
   const [depth, setDepth] = useState(2);
+  const [showAllChildren, setShowAllChildren] = useState<Set<string>>(
+    new Set(),
+  );
 
   // Use v1 style queries instead of _next hooks
   const taskTimingsQuery = useQuery({
@@ -317,6 +347,19 @@ export function Waterfall({
     [expandedTasks, closeTask, openTask],
   );
 
+  const toggleShowAllChildren = useCallback(
+    (taskId: string) => {
+      const newShowAllChildren = new Set(showAllChildren);
+      if (newShowAllChildren.has(taskId)) {
+        newShowAllChildren.delete(taskId);
+      } else {
+        newShowAllChildren.add(taskId);
+      }
+      setShowAllChildren(newShowAllChildren);
+    },
+    [showAllChildren],
+  );
+
   // Transform and filter data based on expanded state
   const processedData = useMemo<ProcessedData>(() => {
     if (!taskData?.rows || taskData.rows.length === 0) {
@@ -352,17 +395,50 @@ export function Waterfall({
     }
 
     const visibleTasks = new Set<string>();
+    const showMoreEntries = new Map<string, number>(); // parentId -> totalChildren
 
+    // Add root tasks first
     rootTasks.forEach((id) => {
       visibleTasks.add(id);
     });
 
-    expandedTasks.forEach((expandedId) => {
-      const children = taskParentMap.get(expandedId) || [];
-      children.forEach((childId) => {
-        visibleTasks.add(childId);
-      });
-    });
+    // Use a queue to process tasks level by level to ensure proper visibility
+    const taskQueue = [...rootTasks];
+    const processed = new Set<string>();
+
+    while (taskQueue.length > 0) {
+      const currentTaskId = taskQueue.shift()!;
+
+      if (processed.has(currentTaskId)) {
+        continue;
+      }
+      processed.add(currentTaskId);
+
+      // Only process children if this task is expanded
+      if (expandedTasks.has(currentTaskId)) {
+        const children = taskParentMap.get(currentTaskId) || [];
+        const shouldShowAll = showAllChildren.has(currentTaskId);
+
+        if (shouldShowAll || children.length <= 20) {
+          // Show all children
+          children.forEach((childId) => {
+            if (!visibleTasks.has(childId)) {
+              visibleTasks.add(childId);
+              taskQueue.push(childId);
+            }
+          });
+        } else {
+          // Show first 20 children and track the total for "show more"
+          children.slice(0, 20).forEach((childId) => {
+            if (!visibleTasks.has(childId)) {
+              visibleTasks.add(childId);
+              taskQueue.push(childId);
+            }
+          });
+          showMoreEntries.set(currentTaskId, children.length);
+        }
+      }
+    }
 
     if (visibleTasks.size === 0) {
       return { data: [], taskPathMap: new Map() };
@@ -437,26 +513,109 @@ export function Waterfall({
       })
       .filter((task) => task !== null);
 
-    // Sort tasks in preorder traversal to maintain hierarchical structure
+    // Sort tasks in preorder traversal first, then insert show more entries
     const sortedData = sortTasksPreorder(data, taskParentMap, rootTasks);
 
-    return { data: sortedData, taskPathMap: new Map() };
-  }, [taskData, expandedTasks, autoExpandedInitially, taskRelationships]);
+    // Insert "show more" entries at the correct positions
+    const finalData: Array<{ entry: ProcessedTaskData; index: number }> = [];
+    showMoreEntries.forEach((totalChildren, parentId) => {
+      const parentTask = taskMap.get(parentId);
+      if (parentTask) {
+        const parentDepth = taskDepthMap.get(parentId) || 0;
+        const showMoreEntry: ProcessedTaskData = {
+          id: `${parentId}-show-more`,
+          taskExternalId: `${parentId}-show-more`,
+          taskDisplayName: `Show ${totalChildren - 20} more...`,
+          parentId: parentId,
+          hasChildren: false,
+          depth: parentDepth + 1,
+          isExpanded: false,
+          offset: 0,
+          queuedDuration: 0,
+          ranDuration: 0,
+          status: V1TaskStatus.COMPLETED,
+          taskId: 0,
+          attempt: 1,
+          isShowMoreEntry: true,
+          totalChildren: totalChildren,
+        };
+
+        // Find the position where this show more entry should be inserted
+        // It should go after the last visible child of the parent AND their descendants
+        let insertIndex = -1;
+
+        // Find the last direct child of the parent
+        let lastChildIndex = -1;
+        for (let i = sortedData.length - 1; i >= 0; i--) {
+          if (sortedData[i].parentId === parentId) {
+            lastChildIndex = i;
+            break;
+          }
+        }
+
+        if (lastChildIndex !== -1) {
+          // Find the end of all descendants of the last child
+          const lastChildId = sortedData[lastChildIndex].id;
+          insertIndex = lastChildIndex + 1;
+
+          // Look for any descendants of the last child that come after it
+          for (let i = lastChildIndex + 1; i < sortedData.length; i++) {
+            const currentTask = sortedData[i];
+            // Check if this task is a descendant of the last child
+            if (isDescendantOf(currentTask, lastChildId, sortedData)) {
+              insertIndex = i + 1;
+            } else {
+              // If we hit a task that's not a descendant, stop looking
+              break;
+            }
+          }
+        }
+
+        if (insertIndex !== -1) {
+          finalData.push({ entry: showMoreEntry, index: insertIndex });
+        }
+      }
+    });
+
+    // Build the final sorted data with show more entries inserted
+    const result = [...sortedData];
+    finalData
+      .sort((a, b) => b.index - a.index) // Sort by index descending to insert from end
+      .forEach(({ entry, index }) => {
+        result.splice(index, 0, entry);
+      });
+
+    return { data: result, taskPathMap: new Map() };
+  }, [
+    taskData,
+    expandedTasks,
+    autoExpandedInitially,
+    taskRelationships,
+    showAllChildren,
+  ]);
 
   const handleBarClick = useCallback(
     (data: any) => {
       if (data?.id) {
+        // Handle "show more" entry clicks
+        if (data.isShowMoreEntry) {
+          const parentId = data.parentId;
+          if (parentId) {
+            toggleShowAllChildren(parentId);
+          }
+          return;
+        }
+
         // Don't open the sheet if clicking on the current task run
         if (data.id !== workflowRunId && handleTaskSelect) {
           handleTaskSelect(data.id, data.workflowRunId);
         }
 
-        if (data.hasChildren) {
-          openTask(data.id, data.depth);
-        }
+        // Remove the automatic expand behavior when clicking on a row
+        // Users should use the expand/collapse buttons instead
       }
     },
-    [handleTaskSelect, openTask, workflowRunId],
+    [handleTaskSelect, workflowRunId, toggleShowAllChildren],
   );
 
   const renderTick = useCallback(
@@ -541,7 +700,7 @@ export function Waterfall({
               orientation="top"
             />
             <YAxis
-              dataKey="taskDisplayName"
+              dataKey="id"
               type="category"
               width={180}
               axisLine={false}
@@ -559,9 +718,9 @@ export function Waterfall({
               maxBarSize={BAR_SIZE + ROW_GAP}
               className="cursor-pointer"
             >
-              {processedData.data.map((entry, index) => (
+              {processedData.data.map((entry) => (
                 <Cell
-                  key={`selected-${index}`}
+                  key={`selected-${entry.id}`}
                   fill={
                     entry.id === selectedTaskId
                       ? 'rgb(99 102 241 / 0.1)'
@@ -592,9 +751,18 @@ export function Waterfall({
               fill={chartConfig.runFor.color}
               maxBarSize={BAR_SIZE}
             >
-              {processedData.data.map((entry, index) => {
+              {processedData.data.map((entry) => {
+                // For "show more" entries, use a different color
+                if (entry.isShowMoreEntry) {
+                  return (
+                    <Cell
+                      key={`cell-${entry.id}`}
+                      fill="rgb(99 102 241 / 0.3)"
+                    />
+                  );
+                }
                 const color = StatusColors[entry.status];
-                return <Cell key={`cell-${index}`} fill={color} />;
+                return <Cell key={`cell-${entry.id}`} fill={color} />;
               })}
             </Bar>
           </BarChart>
@@ -623,9 +791,7 @@ const Tick = ({
   toggleTask: (taskId: string, hasChildren: boolean, taskDepth: number) => void;
   processedData: ProcessedData;
 }) => {
-  const task = processedData.data.find(
-    (t) => t.taskDisplayName === payload.value,
-  );
+  const task = processedData.data.find((t) => t.id === payload.value);
   if (!task) {
     return <g transform={`translate(${x},${y})`}></g>;
   }
@@ -642,7 +808,7 @@ const Tick = ({
             onClick={() => handleBarClick(task)}
           >
             <span
-              className={`text-xs ${task.id === selectedTaskId ? 'underline' : ''} truncate`}
+              className={`text-xs ${task.id === selectedTaskId ? 'underline' : ''} ${task.isShowMoreEntry ? 'text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer' : ''} truncate`}
               style={{ maxWidth: `${180 - task.depth * 12}px` }}
               title={task.taskDisplayName}
               onClick={() => handleBarClick(task)}
@@ -650,7 +816,7 @@ const Tick = ({
               {task.taskDisplayName}
             </span>
           </div>
-          {task.hasChildren ? (
+          {task.hasChildren && !task.isShowMoreEntry ? (
             <TooltipProvider>
               <BaseTooltip>
                 <TooltipTrigger asChild>
@@ -678,7 +844,7 @@ const Tick = ({
               </BaseTooltip>
             </TooltipProvider>
           ) : null}
-          {task.queuedDuration === null && (
+          {task.queuedDuration === null && !task.isShowMoreEntry && (
             <TooltipProvider>
               <BaseTooltip>
                 <TooltipTrigger>

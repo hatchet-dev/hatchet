@@ -10,14 +10,34 @@ Methods:
 
 | Name              | Description                                                                                   |
 | ----------------- | --------------------------------------------------------------------------------------------- |
+| `aio_delete`      | Permanently delete a workflow.                                                                |
 | `aio_get`         | Get a workflow by its ID.                                                                     |
 | `aio_get_version` | Get a workflow version by the workflow ID and an optional version.                            |
 | `aio_list`        | List all workflows in the tenant determined by the client config that match optional filters. |
+| `delete`          | Permanently delete a workflow.                                                                |
 | `get`             | Get a workflow by its ID.                                                                     |
 | `get_version`     | Get a workflow version by the workflow ID and an optional version.                            |
 | `list`            | List all workflows in the tenant determined by the client config that match optional filters. |
 
 ### Functions
+
+#### `aio_delete`
+
+Permanently delete a workflow.
+
+**DANGEROUS: This will delete a workflow and all of its data**
+
+Parameters:
+
+| Name          | Type  | Description                       | Default    |
+| ------------- | ----- | --------------------------------- | ---------- |
+| `workflow_id` | `str` | The ID of the workflow to delete. | _required_ |
+
+Returns:
+
+| Type   | Description |
+| ------ | ----------- |
+| `None` | None        |
 
 #### `aio_get`
 
@@ -69,6 +89,24 @@ Returns:
 | Type           | Description          |
 | -------------- | -------------------- |
 | `WorkflowList` | A list of workflows. |
+
+#### `delete`
+
+Permanently delete a workflow.
+
+**DANGEROUS: This will delete a workflow and all of its data**
+
+Parameters:
+
+| Name          | Type  | Description                       | Default    |
+| ------------- | ----- | --------------------------------- | ---------- |
+| `workflow_id` | `str` | The ID of the workflow to delete. | _required_ |
+
+Returns:
+
+| Type   | Description |
+| ------ | ----------- |
+| `None` | None        |
 
 #### `get`
 

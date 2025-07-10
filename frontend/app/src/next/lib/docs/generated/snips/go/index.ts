@@ -1,3 +1,4 @@
+import * as bulk_operations from './bulk-operations';
 import * as migration_guides from './migration-guides';
 import * as quickstart from './quickstart';
 import * as run from './run';
@@ -5,6 +6,7 @@ import * as worker from './worker';
 import * as workflows from './workflows';
 import * as z_v0 from './z_v0';
 
+export { bulk_operations };
 export { migration_guides };
 export { quickstart };
 export { run };
