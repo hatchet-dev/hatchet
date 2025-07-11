@@ -368,14 +368,9 @@ function ErrorHoverContents({
       </div>
       <div className="rounded-md h-[400px] bg-muted/50 border border-border overflow-hidden">
         <div
-          className="h-full overflow-y-scroll overflow-x-hidden p-4 text-sm font-mono text-foreground"
-          style={{
-            scrollbarWidth: 'thin',
-            scrollbarColor: 'hsl(var(--muted-foreground)) hsl(var(--muted))',
-            msOverflowStyle: 'scrollbar',
-          }}
+          className="h-full overflow-y-scroll overflow-x-hidden p-4 text-sm font-mono text-foreground scrollbar-thin scrollbar-track-muted scrollbar-thumb-muted-foreground"
         >
-          <pre className="whitespace-pre-wrap break-words text-destructive min-h-[500px]">
+          <pre className="whitespace-pre-wrap break-words min-h-[500px]">
             {errorString || 'No error message available'}
           </pre>
         </div>
