@@ -36,6 +36,7 @@ func NewAuthN(config *server.ServerConfig) *AuthN {
 func (a *AuthN) Middleware(r *middleware.RouteInfo) echo.HandlerFunc {
 	return func(c echo.Context) error {
 		err := a.authenticate(c, r)
+		fmt.Println("AuthN middleware running", err, errors.Is(err, &echo.HTTPError{}), errors.Unwrap(err))
 		if err != nil {
 			return err
 		}
@@ -58,12 +59,15 @@ func (a *AuthN) authenticate(c echo.Context, r *middleware.RouteInfo) error {
 
 	if r.Security.CookieAuth() {
 		cookieErr = a.handleCookieAuth(c)
+		fmt.Println("Cookie err", cookieErr)
 		c.Set("auth_strategy", "cookie")
 
 		if cookieErr == nil {
 			return nil
 		}
 	}
+
+	fmt.Println("security schemes", r.Security.BearerAuth())
 
 	if cookieErr != nil && !r.Security.BearerAuth() {
 		return cookieErr
@@ -73,6 +77,7 @@ func (a *AuthN) authenticate(c echo.Context, r *middleware.RouteInfo) error {
 
 	if r.Security.BearerAuth() {
 		bearerErr = a.handleBearerAuth(c)
+		fmt.Println("Bearer err", bearerErr)
 		c.Set("auth_strategy", "bearer")
 
 		if bearerErr == nil {
@@ -107,6 +112,7 @@ func (a *AuthN) handleNoAuth(c echo.Context) error {
 }
 
 func (a *AuthN) handleCookieAuth(c echo.Context) error {
+	fmt.Println("Running handleCookieAuth")
 	forbidden := echo.NewHTTPError(http.StatusForbidden, "Please provide valid credentials")
 
 	store := a.config.SessionStore
@@ -165,6 +171,7 @@ func (a *AuthN) handleCookieAuth(c echo.Context) error {
 }
 
 func (a *AuthN) handleBearerAuth(c echo.Context) error {
+	fmt.Println("Running handleBearerAuth")
 	forbidden := echo.NewHTTPError(http.StatusForbidden, "Please provide valid credentials")
 
 	// a tenant id must exist in the context in order for the bearer auth to succeed, since
