@@ -128,7 +128,11 @@ async def wait_for_event(
 ) -> V1Event | None:
     await asyncio.sleep(5)
 
+    print("\n\nWebhook name:", webhook_name)
+
     events = await hatchet.event.aio_list(since=test_start)
+
+    print("\n\nEvents:", events)
 
     if events.rows is None:
         return None
