@@ -30,6 +30,8 @@ type EventTriggerOpts struct {
 	Priority *int32
 
 	Scope *string
+
+	TriggeringWebhookName *string
 }
 
 type TriggerTaskData struct {

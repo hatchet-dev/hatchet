@@ -376,7 +376,7 @@ WITH to_insert AS (
         UNNEST($5::JSONB[]) AS payload,
         UNNEST($6::JSONB[]) AS additional_metadata,
         -- Scopes are nullable
-        UNNEST($7::TEXT[]) AS scope
+        UNNEST($7::TEXT[]) AS scope,
         -- Webhook names are nullable
         UNNEST($8::TEXT[]) AS triggering_webhook_name
 

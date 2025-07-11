@@ -1552,6 +1552,7 @@ type ListEventsRow struct {
 	CancelledCount          int64              `json:"cancelled_count"`
 	FailedCount             int64              `json:"failed_count"`
 	TriggeredRuns           []byte             `json:"triggered_runs"`
+	TriggeringWebhookName   *string            `json:"triggering_webhook_name,omitempty"`
 }
 
 func (r *OLAPRepositoryImpl) ListEvents(ctx context.Context, opts sqlcv1.ListEventsParams) ([]*ListEventsRow, *int64, error) {
@@ -1602,8 +1603,14 @@ func (r *OLAPRepositoryImpl) ListEvents(ctx context.Context, opts sqlcv1.ListEve
 
 	for _, event := range events {
 		data, exists := externalIdToEventData[event.ExternalID]
+		var triggeringWebhookName *string
+
+		if event.TriggeringWebhookName.Valid {
+			triggeringWebhookName = &event.TriggeringWebhookName.String
+		}
 
 		if !exists || len(data) == 0 {
+
 			result = append(result, &ListEventsRow{
 				TenantID:                event.TenantID,
 				EventID:                 event.ID,
@@ -1618,6 +1625,7 @@ func (r *OLAPRepositoryImpl) ListEvents(ctx context.Context, opts sqlcv1.ListEve
 				CompletedCount:          0,
 				CancelledCount:          0,
 				FailedCount:             0,
+				TriggeringWebhookName:   triggeringWebhookName,
 			})
 		} else {
 			for _, d := range data {
@@ -1636,6 +1644,7 @@ func (r *OLAPRepositoryImpl) ListEvents(ctx context.Context, opts sqlcv1.ListEve
 					CancelledCount:          d.CancelledCount,
 					FailedCount:             d.FailedCount,
 					TriggeredRuns:           d.TriggeredRuns,
+					TriggeringWebhookName:   triggeringWebhookName,
 				})
 			}
 		}

@@ -42,7 +42,7 @@ func (w *V1WebhooksService) V1WebhookCreate(ctx echo.Context, request gen.V1Webh
 }
 
 func (w *V1WebhooksService) constructCreateOpts(tenantId string, request gen.V1CreateWebhookRequest) (v1.CreateWebhookOpts, error) {
-	discriminator, err := request.Discriminator()
+	unparsedDiscriminator, err := request.Discriminator()
 
 	params := v1.CreateWebhookOpts{
 		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
@@ -53,9 +53,10 @@ func (w *V1WebhooksService) constructCreateOpts(tenantId string, request gen.V1C
 	}
 
 	authConfig := v1.AuthConfig{}
+	discriminator := sqlcv1.V1IncomingWebhookAuthType(unparsedDiscriminator)
 
 	switch discriminator {
-	case "BASIC":
+	case sqlcv1.V1IncomingWebhookAuthTypeBASIC:
 		basicAuth, err := request.AsV1CreateWebhookRequestBasicAuth()
 		if err != nil {
 			return params, fmt.Errorf("failed to parse basic auth: %w", err)
@@ -82,7 +83,7 @@ func (w *V1WebhooksService) constructCreateOpts(tenantId string, request gen.V1C
 		params.Name = basicAuth.Name
 		params.Eventkeyexpression = basicAuth.EventKeyExpression
 		params.AuthConfig = authConfig
-	case "API_KEY":
+	case sqlcv1.V1IncomingWebhookAuthTypeAPIKEY:
 		apiKeyAuth, err := request.AsV1CreateWebhookRequestAPIKey()
 		if err != nil {
 			return params, fmt.Errorf("failed to parse api key auth: %w", err)
@@ -113,7 +114,7 @@ func (w *V1WebhooksService) constructCreateOpts(tenantId string, request gen.V1C
 		params.Name = apiKeyAuth.Name
 		params.Eventkeyexpression = apiKeyAuth.EventKeyExpression
 		params.AuthConfig = authConfig
-	case "HMAC":
+	case sqlcv1.V1IncomingWebhookAuthTypeHMAC:
 		hmacAuth, err := request.AsV1CreateWebhookRequestHMAC()
 		if err != nil {
 			return params, fmt.Errorf("failed to parse hmac auth: %w", err)

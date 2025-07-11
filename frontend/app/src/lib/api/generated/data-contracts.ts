@@ -801,6 +801,8 @@ export interface V1Event {
   seenAt?: string;
   /** The external IDs of the runs that were triggered by this event. */
   triggeredRuns?: V1EventTriggeredRun[];
+  /** The name of the webhook that triggered this event, if applicable. */
+  triggeringWebhookName?: string;
 }
 
 export interface V1EventList {

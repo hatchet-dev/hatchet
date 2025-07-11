@@ -1,17 +1,21 @@
 package transformers
 
 import (
+	"github.com/google/uuid"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 )
 
 func ToV1Webhook(webhook *sqlcv1.V1IncomingWebhook) gen.V1Webhook {
+	// Intentionally empty uuid
+	var id uuid.UUID
+
 	return gen.V1Webhook{
 		AuthType: gen.V1WebhookAuthType(webhook.AuthMethod),
 		Metadata: gen.APIResourceMeta{
 			CreatedAt: webhook.InsertedAt.Time,
 			UpdatedAt: webhook.UpdatedAt.Time,
-			Id:        webhook.Name,
+			Id:        id.String(),
 		},
 		TenantId:           webhook.TenantID.String(),
 		EventKeyExpression: webhook.EventKeyExpression,

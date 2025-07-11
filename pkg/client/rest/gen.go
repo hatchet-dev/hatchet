@@ -1362,8 +1362,11 @@ type V1Event struct {
 	TenantId string `json:"tenantId"`
 
 	// TriggeredRuns The external IDs of the runs that were triggered by this event.
-	TriggeredRuns      *[]V1EventTriggeredRun    `json:"triggeredRuns,omitempty"`
-	WorkflowRunSummary V1EventWorkflowRunSummary `json:"workflowRunSummary"`
+	TriggeredRuns *[]V1EventTriggeredRun `json:"triggeredRuns,omitempty"`
+
+	// TriggeringWebhookName The name of the webhook that triggered this event, if applicable.
+	TriggeringWebhookName *string                   `json:"triggeringWebhookName,omitempty"`
+	WorkflowRunSummary    V1EventWorkflowRunSummary `json:"workflowRunSummary"`
 }
 
 // V1EventList defines model for V1EventList.
