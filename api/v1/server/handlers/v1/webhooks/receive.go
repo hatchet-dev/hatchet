@@ -243,7 +243,7 @@ func (w *V1WebhooksService) validateWebhook(webhookPayload []byte, webhook sqlcv
 		if err != nil {
 			return false, &ValidationError{
 				Code:      Http500,
-				ErrorText: fmt.Sprintf("failed to decrypt HMAC signing secret: %w", err),
+				ErrorText: fmt.Sprintf("failed to decrypt HMAC signing secret: %s", err),
 			}
 		}
 
@@ -257,7 +257,7 @@ func (w *V1WebhooksService) validateWebhook(webhookPayload []byte, webhook sqlcv
 		if err != nil {
 			return false, &ValidationError{
 				Code:      Http500,
-				ErrorText: fmt.Sprintf("failed to compute HMAC signature: %w", err),
+				ErrorText: fmt.Sprintf("failed to compute HMAC signature: %s", err),
 			}
 		}
 
@@ -268,6 +268,7 @@ func (w *V1WebhooksService) validateWebhook(webhookPayload []byte, webhook sqlcv
 			}
 		}
 	case sqlcv1.V1IncomingWebhookSourceNameGENERIC:
+		fallthrough
 	case sqlcv1.V1IncomingWebhookSourceNameGITHUB:
 		switch webhook.AuthMethod {
 		case sqlcv1.V1IncomingWebhookAuthTypeBASIC:
@@ -285,7 +286,7 @@ func (w *V1WebhooksService) validateWebhook(webhookPayload []byte, webhook sqlcv
 			if err != nil {
 				return false, &ValidationError{
 					Code:      Http500,
-					ErrorText: fmt.Sprintf("failed to decrypt basic auth password: %w", err),
+					ErrorText: fmt.Sprintf("failed to decrypt basic auth password: %s", err),
 				}
 			}
 
@@ -310,7 +311,7 @@ func (w *V1WebhooksService) validateWebhook(webhookPayload []byte, webhook sqlcv
 			if err != nil {
 				return false, &ValidationError{
 					Code:      Http500,
-					ErrorText: fmt.Sprintf("failed to decrypt api key: %w", err),
+					ErrorText: fmt.Sprintf("failed to decrypt api key: %s", err),
 				}
 			}
 
@@ -335,7 +336,7 @@ func (w *V1WebhooksService) validateWebhook(webhookPayload []byte, webhook sqlcv
 			if err != nil {
 				return false, &ValidationError{
 					Code:      Http500,
-					ErrorText: fmt.Sprintf("failed to decrypt HMAC signing secret: %w", err),
+					ErrorText: fmt.Sprintf("failed to decrypt HMAC signing secret: %s", err),
 				}
 			}
 
@@ -347,7 +348,7 @@ func (w *V1WebhooksService) validateWebhook(webhookPayload []byte, webhook sqlcv
 			if err != nil {
 				return false, &ValidationError{
 					Code:      Http500,
-					ErrorText: fmt.Sprintf("failed to compute HMAC signature: %w", err),
+					ErrorText: fmt.Sprintf("failed to compute HMAC signature: %s", err),
 				}
 			}
 
@@ -362,6 +363,11 @@ func (w *V1WebhooksService) validateWebhook(webhookPayload []byte, webhook sqlcv
 				Code:      Http400,
 				ErrorText: fmt.Sprintf("unsupported auth type: %s", webhook.AuthMethod),
 			}
+		}
+	default:
+		return false, &ValidationError{
+			Code:      Http400,
+			ErrorText: fmt.Sprintf("unsupported source name: %+v", webhook.SourceName),
 		}
 	}
 
