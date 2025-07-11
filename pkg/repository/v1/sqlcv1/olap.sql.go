@@ -120,6 +120,29 @@ type CreateDAGsOLAPParams struct {
 	TotalTasks           int32              `json:"total_tasks"`
 }
 
+const createFailedWebhookCELValidationLog = `-- name: CreateFailedWebhookCELValidationLog :exec
+INSERT INTO v1_incoming_webhook_validation_failures(
+    tenant_id,
+    incoming_webhook_name,
+    error
+) VALUES (
+    $1::UUID,
+    $2::TEXT,
+    $3::TEXT
+)
+`
+
+type CreateFailedWebhookCELValidationLogParams struct {
+	Tenantid            pgtype.UUID `json:"tenantid"`
+	Incomingwebhookname string      `json:"incomingwebhookname"`
+	Error               string      `json:"error"`
+}
+
+func (q *Queries) CreateFailedWebhookCELValidationLog(ctx context.Context, db DBTX, arg CreateFailedWebhookCELValidationLogParams) error {
+	_, err := db.Exec(ctx, createFailedWebhookCELValidationLog, arg.Tenantid, arg.Incomingwebhookname, arg.Error)
+	return err
+}
+
 const createOLAPEventPartitions = `-- name: CreateOLAPEventPartitions :exec
 SELECT
     create_v1_range_partition('v1_events_olap'::text, $1::date),
