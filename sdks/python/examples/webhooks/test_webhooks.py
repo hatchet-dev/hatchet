@@ -126,7 +126,7 @@ async def wait_for_event(
     webhook_name: str,
     test_start: datetime,
 ) -> V1Event | None:
-    await asyncio.sleep(1)
+    await asyncio.sleep(5)
 
     events = await hatchet.event.aio_list(since=test_start)
 
