@@ -72,7 +72,7 @@ type HatchetContext interface {
 	Log(message string)
 
 	StreamEvent(message []byte)
-	
+
 	PutStream(message string)
 
 	SpawnWorkflow(workflowName string, input any, opts *SpawnWorkflowOpts) (*client.Workflow, error)

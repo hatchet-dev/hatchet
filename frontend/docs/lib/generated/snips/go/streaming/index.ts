@@ -1,7 +1,9 @@
-import async_stream from './async_stream';
-import http_proxy from './http_proxy';
-import worker from './worker';
+import * as consumer from './consumer';
+import * as server from './server';
+import * as shared from './shared';
+import * as worker from './worker';
 
-export { async_stream }
-export { http_proxy }
-export { worker }
+export { consumer };
+export { server };
+export { shared };
+export { worker };

@@ -1,9 +1,6 @@
-package main
+package shared
 
 import (
-	"context"
-	"fmt"
-	"log"
 	"time"
 
 	"github.com/hatchet-dev/hatchet/pkg/client/create"
@@ -19,6 +16,7 @@ type StreamTaskOutput struct {
 	Message string `json:"message"`
 }
 
+// > Streaming
 const annaKarenina = `
 Happy families are all alike; every unhappy family is unhappy in its own way.
 
@@ -37,7 +35,7 @@ func createChunks(content string, n int) []string {
 	return chunks
 }
 
-func streamTask(ctx worker.HatchetContext, input StreamTaskInput) (*StreamTaskOutput, error) {
+func StreamTask(ctx worker.HatchetContext, input StreamTaskInput) (*StreamTaskOutput, error) {
 	time.Sleep(2 * time.Second)
 
 	chunks := createChunks(annaKarenina, 10)
@@ -52,43 +50,14 @@ func streamTask(ctx worker.HatchetContext, input StreamTaskInput) (*StreamTaskOu
 	}, nil
 }
 
+// !!
+
 func StreamingWorkflow(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[StreamTaskInput, StreamTaskOutput] {
 	return factory.NewTask(
 		create.StandaloneTask{
 			Name: "stream-example",
 		},
-		streamTask,
+		StreamTask,
 		hatchet,
 	)
 }
-
-// > Consume
-func main() {
-	hatchet, err := v1.NewHatchetClient()
-	if err != nil {
-		log.Fatalf("Failed to create Hatchet client: %v", err)
-	}
-
-	ctx := context.Background()
-
-	streamingWorkflow := StreamingWorkflow(hatchet)
-
-	workflowRun, err := streamingWorkflow.RunNoWait(ctx, StreamTaskInput{})
-	if err != nil {
-		log.Fatalf("Failed to run workflow: %v", err)
-	}
-
-	id := workflowRun.RunId()
-	stream, err := hatchet.Runs().SubscribeToStream(ctx, id)
-	if err != nil {
-		log.Fatalf("Failed to subscribe to stream: %v", err)
-	}
-
-	for content := range stream {
-		fmt.Print(content)
-	}
-
-	fmt.Println("\nStreaming completed!")
-}
-
-// !!
