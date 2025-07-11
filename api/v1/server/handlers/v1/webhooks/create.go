@@ -15,6 +15,28 @@ import (
 func (w *V1WebhooksService) V1WebhookCreate(ctx echo.Context, request gen.V1WebhookCreateRequestObject) (gen.V1WebhookCreateResponseObject, error) {
 	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
 
+	webhookLimit := int32(w.config.Runtime.Limits.DefaultIncomingWebhookLimit)
+
+	canCreate, err := w.config.V1.Webhooks().CanCreate(
+		ctx.Request().Context(),
+		tenant.ID.String(),
+		webhookLimit,
+	)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to check if webhook can be created: %w", err)
+	}
+
+	if !canCreate {
+		return gen.V1WebhookCreate400JSONResponse{
+			Errors: []gen.APIError{
+				{
+					Description: fmt.Sprintf("cannot create more than %d webhooks", webhookLimit),
+				},
+			},
+		}, nil
+	}
+
 	params, err := w.constructCreateOpts(tenant.ID.String(), *request.Body)
 	if err != nil {
 		return gen.V1WebhookCreate400JSONResponse{

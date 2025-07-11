@@ -11,6 +11,25 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const canCreateWebhook = `-- name: CanCreateWebhook :one
+SELECT COUNT(*) < $1::INT AS can_create_webhook
+FROM v1_incoming_webhook
+WHERE
+    tenant_id = $2::UUID
+`
+
+type CanCreateWebhookParams struct {
+	Webhooklimit int32       `json:"webhooklimit"`
+	Tenantid     pgtype.UUID `json:"tenantid"`
+}
+
+func (q *Queries) CanCreateWebhook(ctx context.Context, db DBTX, arg CanCreateWebhookParams) (bool, error) {
+	row := db.QueryRow(ctx, canCreateWebhook, arg.Webhooklimit, arg.Tenantid)
+	var can_create_webhook bool
+	err := row.Scan(&can_create_webhook)
+	return can_create_webhook, err
+}
+
 const createWebhook = `-- name: CreateWebhook :one
 INSERT INTO v1_incoming_webhook (
     tenant_id,

@@ -62,3 +62,10 @@ ORDER BY tenant_id, inserted_at DESC
 LIMIT COALESCE(sqlc.narg('webhookLimit')::BIGINT, 20000)
 OFFSET COALESCE(sqlc.narg('webhookOffset')::BIGINT, 0)
 ;
+
+-- name: CanCreateWebhook :one
+SELECT COUNT(*) < @webhookLimit::INT AS can_create_webhook
+FROM v1_incoming_webhook
+WHERE
+    tenant_id = @tenantId::UUID
+;
