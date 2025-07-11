@@ -175,7 +175,8 @@ type ValidationError struct {
 }
 
 func (vr ValidationError) ToResponse() (gen.V1WebhookReceiveResponseObject, error) {
-	if vr.Code != Http400 {
+	switch vr.Code {
+	case Http400:
 		return gen.V1WebhookReceive400JSONResponse{
 			Errors: []gen.APIError{
 				{
@@ -183,9 +184,7 @@ func (vr ValidationError) ToResponse() (gen.V1WebhookReceiveResponseObject, erro
 				},
 			},
 		}, nil
-	}
-
-	if vr.Code != Http403 {
+	case Http403:
 		return gen.V1WebhookReceive403JSONResponse{
 			Errors: []gen.APIError{
 				{
@@ -193,13 +192,11 @@ func (vr ValidationError) ToResponse() (gen.V1WebhookReceiveResponseObject, erro
 				},
 			},
 		}, nil
-	}
-
-	if vr.Code != Http500 {
+	case Http500:
 		return nil, errors.New(vr.ErrorText)
+	default:
+		return nil, fmt.Errorf("no validation error set")
 	}
-
-	return nil, fmt.Errorf("no validation error set")
 }
 
 func (w *V1WebhooksService) validateWebhook(webhookPayload []byte, webhook sqlcv1.V1IncomingWebhook, request http.Request) (
