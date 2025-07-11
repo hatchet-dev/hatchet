@@ -120,26 +120,32 @@ type CreateDAGsOLAPParams struct {
 	TotalTasks           int32              `json:"total_tasks"`
 }
 
-const createIncomingWebhookValidationFailureLog = `-- name: CreateIncomingWebhookValidationFailureLog :exec
+const createIncomingWebhookValidationFailureLogs = `-- name: CreateIncomingWebhookValidationFailureLogs :exec
+WITH inputs AS (
+    SELECT
+        UNNEST($2::TEXT[]) AS incoming_webhook_name,
+        UNNEST($3::TEXT[]) AS error
+)
 INSERT INTO v1_incoming_webhook_validation_failures(
     tenant_id,
     incoming_webhook_name,
     error
-) VALUES (
-    $1::UUID,
-    $2::TEXT,
-    $3::TEXT
 )
+SELECT
+    $1::UUID,
+    i.incoming_webhook_name,
+    i.error
+FROM inputs i
 `
 
-type CreateIncomingWebhookValidationFailureLogParams struct {
-	Tenantid            pgtype.UUID `json:"tenantid"`
-	Incomingwebhookname string      `json:"incomingwebhookname"`
-	Error               string      `json:"error"`
+type CreateIncomingWebhookValidationFailureLogsParams struct {
+	Tenantid             pgtype.UUID `json:"tenantid"`
+	Incomingwebhooknames []string    `json:"incomingwebhooknames"`
+	Errors               []string    `json:"errors"`
 }
 
-func (q *Queries) CreateIncomingWebhookValidationFailureLog(ctx context.Context, db DBTX, arg CreateIncomingWebhookValidationFailureLogParams) error {
-	_, err := db.Exec(ctx, createIncomingWebhookValidationFailureLog, arg.Tenantid, arg.Incomingwebhookname, arg.Error)
+func (q *Queries) CreateIncomingWebhookValidationFailureLogs(ctx context.Context, db DBTX, arg CreateIncomingWebhookValidationFailureLogsParams) error {
+	_, err := db.Exec(ctx, createIncomingWebhookValidationFailureLogs, arg.Tenantid, arg.Incomingwebhooknames, arg.Errors)
 	return err
 }
 

@@ -353,6 +353,8 @@ func (tc *OLAPControllerImpl) handleBufferedMsgs(tenantId, msgId string, payload
 		return tc.handleCreateMonitoringEvent(context.Background(), tenantId, payloads)
 	case "created-event-trigger":
 		return tc.handleCreateEventTriggers(context.Background(), tenantId, payloads)
+	case "failed-webhook-validation":
+		return tc.handleFailedWebhookValidation(context.Background(), tenantId, payloads)
 	}
 
 	return fmt.Errorf("unknown message id: %s", msgId)
@@ -605,6 +607,26 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 	}
 
 	return tc.repo.OLAP().CreateTaskEvents(ctx, tenantId, opts)
+}
+
+func (tc *OLAPControllerImpl) handleFailedWebhookValidation(ctx context.Context, tenantId string, payloads [][]byte) error {
+	createFailedWebhookValidationOpts := make([]v1.CreateIncomingWebhookFailureLogOpts, 0)
+
+	msgs := msgqueue.JSONConvert[tasktypes.FailedWebhookValidationPayload](payloads)
+
+	for _, msg := range msgs {
+		if !tc.sample(msg.ErrorText) {
+			tc.l.Debug().Msgf("skipping failure logging for webhook %s", msg.WebhookName)
+			continue
+		}
+
+		createFailedWebhookValidationOpts = append(createFailedWebhookValidationOpts, v1.CreateIncomingWebhookFailureLogOpts{
+			WebhookName: msg.WebhookName,
+			ErrorText:   msg.ErrorText,
+		})
+	}
+
+	return tc.repo.OLAP().CreateIncomingWebhookValidationFailureLogs(ctx, tenantId, createFailedWebhookValidationOpts)
 }
 
 func (tc *OLAPControllerImpl) sample(workflowRunID string) bool {

@@ -23,6 +23,7 @@ import (
 type Ingestor interface {
 	contracts.EventsServiceServer
 	IngestEvent(ctx context.Context, tenant *dbsqlc.Tenant, eventName string, data []byte, metadata []byte, priority *int32, scope, triggeringWebhookName *string) (*dbsqlc.Event, error)
+	IngestWebhookValidationFailure(ctx context.Context, tenant *dbsqlc.Tenant, webhookName, errorText string) error
 	BulkIngestEvent(ctx context.Context, tenant *dbsqlc.Tenant, eventOpts []*repository.CreateEventOpts) ([]*dbsqlc.Event, error)
 	IngestReplayedEvent(ctx context.Context, tenant *dbsqlc.Tenant, replayedEvent *dbsqlc.Event) (*dbsqlc.Event, error)
 }
@@ -172,6 +173,10 @@ func (i *IngestorImpl) IngestEvent(ctx context.Context, tenant *dbsqlc.Tenant, k
 	default:
 		return nil, fmt.Errorf("unsupported tenant version: %s", tenant.Version)
 	}
+}
+
+func (i *IngestorImpl) IngestWebhookValidationFailure(ctx context.Context, tenant *dbsqlc.Tenant, webhookName, errorText string) error {
+	return i.ingestWebhookValidationFailure(tenant.ID.String(), webhookName, errorText)
 }
 
 func (i *IngestorImpl) ingestEventV0(ctx context.Context, tenant *dbsqlc.Tenant, key string, data []byte, metadata []byte) (*dbsqlc.Event, error) {

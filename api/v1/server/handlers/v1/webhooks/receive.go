@@ -36,6 +36,17 @@ func (w *V1WebhooksService) V1WebhookReceive(ctx echo.Context, request gen.V1Web
 	ok, validationError := w.validateWebhook(rawBody, *webhook, *ctx.Request())
 
 	if !ok {
+		err := w.config.Ingestor.IngestWebhookValidationFailure(
+			ctx.Request().Context(),
+			tenant,
+			webhook.Name,
+			validationError.ErrorText,
+		)
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to ingest webhook validation failure: %w", err)
+		}
+
 		return validationError.ToResponse()
 	}
 
@@ -64,7 +75,17 @@ func (w *V1WebhooksService) V1WebhookReceive(ctx echo.Context, request gen.V1Web
 	)
 
 	if err != nil {
-		// TODO: Store this error
+		ingestionErr := w.config.Ingestor.IngestWebhookValidationFailure(
+			ctx.Request().Context(),
+			tenant,
+			webhook.Name,
+			err.Error(),
+		)
+
+		if ingestionErr != nil {
+			return nil, fmt.Errorf("failed to ingest webhook validation failure: %w", ingestionErr)
+		}
+
 		return gen.V1WebhookReceive400JSONResponse{
 			Errors: []gen.APIError{
 				{

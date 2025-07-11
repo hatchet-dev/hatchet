@@ -158,3 +158,38 @@ func eventToTaskV1(tenantId, eventExternalId, key string, data, additionalMeta [
 		payloadTyped,
 	)
 }
+
+func createWebhookValidationFailureMsg(tenantId, webhookName, errorText string) (*msgqueue.Message, error) {
+	payloadTyped := tasktypes.FailedWebhookValidationPayload{
+		WebhookName: webhookName,
+		ErrorText:   errorText,
+	}
+
+	return msgqueue.NewTenantMessage(
+		tenantId,
+		"failed-webhook-validation",
+		false,
+		true,
+		payloadTyped,
+	)
+}
+
+func (i *IngestorImpl) ingestWebhookValidationFailure(tenantId, webhookName, errorText string) error {
+	msg, err := createWebhookValidationFailureMsg(
+		tenantId,
+		webhookName,
+		errorText,
+	)
+
+	if err != nil {
+		return fmt.Errorf("could not create failed webhook validation payload: %w", err)
+	}
+
+	err = i.mqv1.SendMessage(context.Background(), msgqueue.OLAP_QUEUE, msg)
+
+	if err != nil {
+		return fmt.Errorf("could not add failed webhook validation to olap queue: %w", err)
+	}
+
+	return nil
+}

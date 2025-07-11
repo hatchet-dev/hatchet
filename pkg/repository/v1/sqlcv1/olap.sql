@@ -1606,13 +1606,20 @@ LEFT JOIN
     task_times tt ON (td.task_id, td.inserted_at) = (tt.task_id, tt.inserted_at)
 ORDER BY td.task_id, td.inserted_at;
 
--- name: CreateIncomingWebhookValidationFailureLog :exec
+-- name: CreateIncomingWebhookValidationFailureLogs :exec
+WITH inputs AS (
+    SELECT
+        UNNEST(@incomingWebhookNames::TEXT[]) AS incoming_webhook_name,
+        UNNEST(@errors::TEXT[]) AS error
+)
 INSERT INTO v1_incoming_webhook_validation_failures(
     tenant_id,
     incoming_webhook_name,
     error
-) VALUES (
+)
+SELECT
     @tenantId::UUID,
-    @incomingWebhookName::TEXT,
-    @error::TEXT
-);
+    i.incoming_webhook_name,
+    i.error
+FROM inputs i
+;

@@ -233,7 +233,7 @@ type OLAPRepository interface {
 	GetDagDurationsByDagIds(ctx context.Context, tenantId string, dagIds []int64, dagInsertedAts []pgtype.Timestamptz, readableStatuses []sqlcv1.V1ReadableStatusOlap) ([]*sqlcv1.GetDagDurationsByDagIdsRow, error)
 	GetTaskDurationsByTaskIds(ctx context.Context, tenantId string, taskIds []int64, taskInsertedAts []pgtype.Timestamptz, readableStatuses []sqlcv1.V1ReadableStatusOlap) (map[int64]*sqlcv1.GetTaskDurationsByTaskIdsRow, error)
 
-	CreateIncomingWebhookValidationFailureLog(ctx context.Context, tenantId, webhookName, errorText string) error
+	CreateIncomingWebhookValidationFailureLogs(ctx context.Context, tenantId string, opts []CreateIncomingWebhookFailureLogOpts) error
 }
 
 type OLAPRepositoryImpl struct {
@@ -1694,10 +1694,25 @@ func (r *OLAPRepositoryImpl) GetTaskDurationsByTaskIds(ctx context.Context, tena
 	return taskDurations, nil
 }
 
-func (r *OLAPRepositoryImpl) CreateIncomingWebhookValidationFailureLog(ctx context.Context, tenantId, webhookName, errorText string) error {
-	return r.queries.CreateIncomingWebhookValidationFailureLog(ctx, r.pool, sqlcv1.CreateIncomingWebhookValidationFailureLogParams{
-		Tenantid:            sqlchelpers.UUIDFromStr(tenantId),
-		Incomingwebhookname: webhookName,
-		Error:               errorText,
-	})
+type CreateIncomingWebhookFailureLogOpts struct {
+	WebhookName string
+	ErrorText   string
+}
+
+func (r *OLAPRepositoryImpl) CreateIncomingWebhookValidationFailureLogs(ctx context.Context, tenantId string, opts []CreateIncomingWebhookFailureLogOpts) error {
+	incomingWebhookNames := make([]string, len(opts))
+	errors := make([]string, len(opts))
+
+	for i, opt := range opts {
+		incomingWebhookNames[i] = opt.WebhookName
+		errors[i] = opt.ErrorText
+	}
+
+	params := sqlcv1.CreateIncomingWebhookValidationFailureLogsParams{
+		Tenantid:             sqlchelpers.UUIDFromStr(tenantId),
+		Incomingwebhooknames: incomingWebhookNames,
+		Errors:               errors,
+	}
+
+	return r.queries.CreateIncomingWebhookValidationFailureLogs(ctx, r.pool, params)
 }
