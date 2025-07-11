@@ -11,7 +11,7 @@ Hatchet tasks can stream data back to a consumer in real-time. This has a number
 
 You can stream data out of a task run by using the `put_stream` (or equivalent) method on the `Context`.
 
-<UniversalTabs items={["Python", "Typescript"]}>
+<UniversalTabs items={["Python", "Typescript", "Go"]}>
   <Tabs.Tab title="Python">
 <Snippet src={snips.python.streaming.worker} block="streaming" />
 
@@ -19,6 +19,11 @@ You can stream data out of a task run by using the `put_stream` (or equivalent) 
 <Tabs.Tab title="Typescript">
 
 <Snippet src={snips.typescript.streaming.workflow} block="streaming" />
+
+</Tabs.Tab>
+<Tabs.Tab title="Go">
+
+<Snippet src={snips.go.streaming.shared.task} block="streaming" />
 
 </Tabs.Tab>
 
@@ -30,7 +35,7 @@ This task will stream small chunks of content through Hatchet, which can then be
 
 You can easily consume stream events by using the stream method on the workflow run ref that the various [fire-and-forget](./run-no-wait.mdx) methods return.
 
-<UniversalTabs items={["Python", "Typescript"]}>
+<UniversalTabs items={["Python", "Typescript", "Go"]}>
   <Tabs.Tab title="Python">
 <Snippet src={snips.python.streaming.async_stream} block="consume" />
 
@@ -38,6 +43,11 @@ You can easily consume stream events by using the stream method on the workflow 
 <Tabs.Tab title="Typescript">
 
 <Snippet src={snips.typescript.streaming.run} block="consume" />
+
+</Tabs.Tab>
+<Tabs.Tab title="Go">
+
+<Snippet src={snips.go.streaming.consumer.main} block="consume" />
 
 </Tabs.Tab>
 
@@ -64,7 +74,7 @@ It's common to want to stream events out of a Hatchet task and back to the front
 
 In both cases, we recommend using your application's backend as a proxy for the stream, where you would subscribe to the stream of events from Hatchet, and then stream events through to the frontend as they're received by the backend.
 
-<UniversalTabs items={["Python", "Typescript"]}>
+<UniversalTabs items={["Python", "Typescript", "Go"]}>
   <Tabs.Tab title="Python">
 
 For example, with FastAPI, you'd do the following:
@@ -77,6 +87,13 @@ For example, with FastAPI, you'd do the following:
 For example, with NextJS backend-as-frontend, you'd do the following:
 
 <Snippet src={snips.typescript.streaming.nextjs_proxy} block="nextjs_proxy" />
+
+</Tabs.Tab>
+<Tabs.Tab title="Go">
+
+For example, with Go's built-in HTTP server, you'd do the following:
+
+<Snippet src={snips.go.streaming.server.main} block="server" />
 
 </Tabs.Tab>
 

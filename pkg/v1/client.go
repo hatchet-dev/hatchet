@@ -122,9 +122,8 @@ func (c *v1HatchetClientImpl) RateLimits() features.RateLimitsClient {
 
 func (c *v1HatchetClientImpl) Runs() features.RunsClient {
 	if c.runs == nil {
-		api := c.V0().API()
 		tenantId := c.V0().TenantId()
-		c.runs = features.NewRunsClient(api, &tenantId)
+		c.runs = features.NewRunsClient(c.V0().API(), &tenantId, c.V0())
 	}
 	return c.runs
 }

@@ -6,6 +6,9 @@ import (
 	"encoding/json"
 
 	"github.com/google/uuid"
+	"github.com/rs/zerolog"
+
+	"github.com/hatchet-dev/hatchet/pkg/client"
 	"github.com/hatchet-dev/hatchet/pkg/client/rest"
 )
 
@@ -29,24 +32,33 @@ type RunsClient interface {
 
 	// Cancel requests cancellation of a specific task within a workflow run.
 	Cancel(ctx context.Context, opts rest.V1CancelTaskRequest) (*rest.V1TaskCancelResponse, error)
+
+	// SubscribeToStream subscribes to streaming events for a specific workflow run.
+	SubscribeToStream(ctx context.Context, workflowRunId string) (<-chan string, error)
 }
 
 // runsClientImpl implements the RunsClient interface.
 type runsClientImpl struct {
 	api      *rest.ClientWithResponses
 	tenantId uuid.UUID
+	v0Client client.Client
+	l        *zerolog.Logger
 }
 
 // NewRunsClient creates a new client for interacting with workflow runs.
 func NewRunsClient(
 	api *rest.ClientWithResponses,
 	tenantId *string,
+	v0Client client.Client,
 ) RunsClient {
 	tenantIdUUID := uuid.MustParse(*tenantId)
+	logger := v0Client.Logger()
 
 	return &runsClientImpl{
 		api:      api,
 		tenantId: tenantIdUUID,
+		v0Client: v0Client,
+		l:        logger,
 	}
 }
 
@@ -112,4 +124,33 @@ func (r *runsClientImpl) Cancel(ctx context.Context, opts rest.V1CancelTaskReque
 		"application/json",
 		bytes.NewReader(json),
 	)
+}
+
+// SubscribeToStream subscribes to streaming events for a specific workflow run.
+func (r *runsClientImpl) SubscribeToStream(ctx context.Context, workflowRunId string) (<-chan string, error) {
+	ch := make(chan string)
+
+	go func() {
+		defer func() {
+			close(ch)
+			r.l.Debug().Str("workflowRunId", workflowRunId).Msg("stream subscription ended")
+		}()
+
+		r.l.Debug().Str("workflowRunId", workflowRunId).Msg("starting stream subscription")
+
+		err := r.v0Client.Subscribe().Stream(ctx, workflowRunId, func(event client.StreamEvent) error {
+			select {
+			case ch <- string(event.Message):
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+			return nil
+		})
+		if err != nil {
+			r.l.Error().Err(err).Str("workflowRunId", workflowRunId).Msg("failed to subscribe to stream")
+			return
+		}
+	}()
+
+	return ch, nil
 }

@@ -43,6 +43,7 @@ func Lower(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[EventInput, Lo
 	)
 }
 
+
 // > Accessing the filter payload
 func accessFilterPayload(ctx worker.HatchetContext, input EventInput) (*LowerTaskOutput, error) {
 	fmt.Println(ctx.FilterPayload())
@@ -50,6 +51,7 @@ func accessFilterPayload(ctx worker.HatchetContext, input EventInput) (*LowerTas
 		TransformedMessage: strings.ToLower(input.Message),
 	}, nil
 }
+
 
 // > Declare with filter
 func LowerWithFilter(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[EventInput, LowerTaskOutput] {
@@ -70,6 +72,7 @@ func LowerWithFilter(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[Even
 		hatchet,
 	)
 }
+
 
 func Upper(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[EventInput, UpperTaskOutput] {
 	return factory.NewTask(
