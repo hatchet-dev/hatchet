@@ -150,6 +150,12 @@ async def wait_for_event(
 async def wait_for_workflow_run(
     hatchet: Hatchet, event_id: str, test_start: datetime
 ) -> V1TaskSummary | None:
+    print(
+        "\nWaiting for workflow run with event ID:",
+        event_id,
+        "and test start:",
+        test_start,
+    )
     await asyncio.sleep(5)
 
     runs = await hatchet.runs.aio_list(
@@ -289,6 +295,7 @@ async def assert_has_runs(
     incoming_webhook: V1Webhook,
 ) -> None:
     triggered_event = await wait_for_event(hatchet, incoming_webhook.name, test_start)
+    print("\nTriggered event", triggered_event)
     assert triggered_event is not None
     assert triggered_event.key == f"webhook:{webhook_body.type}"
     assert triggered_event.payload == webhook_body.model_dump()
