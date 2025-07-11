@@ -2711,14 +2711,15 @@ type V1EventToRunOlap struct {
 }
 
 type V1EventsOlap struct {
-	TenantID           pgtype.UUID        `json:"tenant_id"`
-	ID                 int64              `json:"id"`
-	ExternalID         pgtype.UUID        `json:"external_id"`
-	SeenAt             pgtype.Timestamptz `json:"seen_at"`
-	Key                string             `json:"key"`
-	Payload            []byte             `json:"payload"`
-	AdditionalMetadata []byte             `json:"additional_metadata"`
-	Scope              pgtype.Text        `json:"scope"`
+	TenantID              pgtype.UUID        `json:"tenant_id"`
+	ID                    int64              `json:"id"`
+	ExternalID            pgtype.UUID        `json:"external_id"`
+	SeenAt                pgtype.Timestamptz `json:"seen_at"`
+	Key                   string             `json:"key"`
+	Payload               []byte             `json:"payload"`
+	AdditionalMetadata    []byte             `json:"additional_metadata"`
+	Scope                 pgtype.Text        `json:"scope"`
+	TriggeringWebhookName pgtype.Text        `json:"triggering_webhook_name"`
 }
 
 type V1Filter struct {
@@ -2750,6 +2751,15 @@ type V1IncomingWebhook struct {
 	AuthHmacWebhookSigningSecret []byte                             `json:"auth__hmac__webhook_signing_secret"`
 	InsertedAt                   pgtype.Timestamptz                 `json:"inserted_at"`
 	UpdatedAt                    pgtype.Timestamptz                 `json:"updated_at"`
+}
+
+type V1IncomingWebhookValidationFailures struct {
+	ID                  int64              `json:"id"`
+	TenantID            pgtype.UUID        `json:"tenant_id"`
+	IncomingWebhookName string             `json:"incoming_webhook_name"`
+	Error               string             `json:"error"`
+	InsertedAt          pgtype.Timestamptz `json:"inserted_at"`
+	UpdatedAt           pgtype.Timestamptz `json:"updated_at"`
 }
 
 type V1LogLine struct {

@@ -377,6 +377,9 @@ WITH to_insert AS (
         UNNEST($6::JSONB[]) AS additional_metadata,
         -- Scopes are nullable
         UNNEST($7::TEXT[]) AS scope
+        -- Webhook names are nullable
+        UNNEST($8::TEXT[]) AS triggering_webhook_name
+
 )
 INSERT INTO v1_events_olap (
     tenant_id,
@@ -385,21 +388,23 @@ INSERT INTO v1_events_olap (
     key,
     payload,
     additional_metadata,
-    scope
+    scope,
+	triggering_webhook_name
 )
-SELECT tenant_id, external_id, seen_at, key, payload, additional_metadata, scope
+SELECT tenant_id, external_id, seen_at, key, payload, additional_metadata, scope, triggering_webhook_name
 FROM to_insert
-RETURNING tenant_id, id, external_id, seen_at, key, payload, additional_metadata, scope
+RETURNING tenant_id, id, external_id, seen_at, key, payload, additional_metadata, scope, triggering_webhook_name
 `
 
 type BulkCreateEventsParams struct {
-	Tenantids           []pgtype.UUID        `json:"tenantids"`
-	Externalids         []pgtype.UUID        `json:"externalids"`
-	Seenats             []pgtype.Timestamptz `json:"seenats"`
-	Keys                []string             `json:"keys"`
-	Payloads            [][]byte             `json:"payloads"`
-	Additionalmetadatas [][]byte             `json:"additionalmetadatas"`
-	Scopes              []*string            `json:"scopes"`
+	Tenantids              []pgtype.UUID        `json:"tenantids"`
+	Externalids            []pgtype.UUID        `json:"externalids"`
+	Seenats                []pgtype.Timestamptz `json:"seenats"`
+	Keys                   []string             `json:"keys"`
+	Payloads               [][]byte             `json:"payloads"`
+	Additionalmetadatas    [][]byte             `json:"additionalmetadatas"`
+	Scopes                 []*string            `json:"scopes"`
+	TriggeringWebhookNames []*string            `json:"triggeringWebhookName"`
 }
 
 func (q *Queries) BulkCreateEvents(ctx context.Context, db DBTX, arg BulkCreateEventsParams) ([]*V1EventsOlap, error) {
@@ -411,6 +416,7 @@ func (q *Queries) BulkCreateEvents(ctx context.Context, db DBTX, arg BulkCreateE
 		arg.Payloads,
 		arg.Additionalmetadatas,
 		arg.Scopes,
+		arg.TriggeringWebhookNames,
 	)
 	if err != nil {
 		return nil, err
@@ -428,6 +434,7 @@ func (q *Queries) BulkCreateEvents(ctx context.Context, db DBTX, arg BulkCreateE
 			&i.Payload,
 			&i.AdditionalMetadata,
 			&i.Scope,
+			&i.TriggeringWebhookName,
 		); err != nil {
 			return nil, err
 		}

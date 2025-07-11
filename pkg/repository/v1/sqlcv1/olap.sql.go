@@ -21,7 +21,7 @@ type BulkCreateEventTriggersParams struct {
 
 const countEvents = `-- name: CountEvents :one
 WITH included_events AS (
-    SELECT e.tenant_id, e.id, e.external_id, e.seen_at, e.key, e.payload, e.additional_metadata, e.scope
+    SELECT e.tenant_id, e.id, e.external_id, e.seen_at, e.key, e.payload, e.additional_metadata, e.scope, e.triggering_webhook_name
     FROM v1_event_lookup_table_olap elt
     JOIN v1_events_olap e ON (elt.tenant_id, elt.event_id, elt.event_seen_at) = (e.tenant_id, e.id, e.seen_at)
     WHERE
@@ -791,7 +791,7 @@ func (q *Queries) ListEventKeys(ctx context.Context, db DBTX, tenantid pgtype.UU
 }
 
 const listEvents = `-- name: ListEvents :many
-SELECT e.tenant_id, e.id, e.external_id, e.seen_at, e.key, e.payload, e.additional_metadata, e.scope
+SELECT e.tenant_id, e.id, e.external_id, e.seen_at, e.key, e.payload, e.additional_metadata, e.scope, e.triggering_webhook_name
 FROM v1_event_lookup_table_olap elt
 JOIN v1_events_olap e ON (elt.tenant_id, elt.event_id, elt.event_seen_at) = (e.tenant_id, e.id, e.seen_at)
 WHERE
@@ -890,6 +890,7 @@ func (q *Queries) ListEvents(ctx context.Context, db DBTX, arg ListEventsParams)
 			&i.Payload,
 			&i.AdditionalMetadata,
 			&i.Scope,
+			&i.TriggeringWebhookName,
 		); err != nil {
 			return nil, err
 		}

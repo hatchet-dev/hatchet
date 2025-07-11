@@ -407,6 +407,7 @@ func (tc *OLAPControllerImpl) handleCreateEventTriggers(ctx context.Context, ten
 	payloadstoInsert := make([][]byte, 0)
 	additionalMetadatas := make([][]byte, 0)
 	scopes := make([]*string, 0)
+	triggeringWebhookNames := make([]*string, 0)
 
 	for _, msg := range msgs {
 		for _, payload := range msg.Payloads {
@@ -440,17 +441,19 @@ func (tc *OLAPControllerImpl) handleCreateEventTriggers(ctx context.Context, ten
 			payloadstoInsert = append(payloadstoInsert, payload.EventPayload)
 			additionalMetadatas = append(additionalMetadatas, payload.EventAdditionalMetadata)
 			scopes = append(scopes, payload.EventScope)
+			triggeringWebhookNames = append(triggeringWebhookNames, payload.TriggeringWebhookName)
 		}
 	}
 
 	bulkCreateEventParams := sqlcv1.BulkCreateEventsParams{
-		Tenantids:           tenantIds,
-		Externalids:         externalIds,
-		Seenats:             seenAts,
-		Keys:                keys,
-		Payloads:            payloadstoInsert,
-		Additionalmetadatas: additionalMetadatas,
-		Scopes:              scopes,
+		Tenantids:              tenantIds,
+		Externalids:            externalIds,
+		Seenats:                seenAts,
+		Keys:                   keys,
+		Payloads:               payloadstoInsert,
+		Additionalmetadatas:    additionalMetadatas,
+		Scopes:                 scopes,
+		TriggeringWebhookNames: triggeringWebhookNames,
 	}
 
 	return tc.repo.OLAP().BulkCreateEventsAndTriggers(

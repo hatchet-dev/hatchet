@@ -259,6 +259,7 @@ func (w *V1WebhooksService) V1WebhookReceive(ctx echo.Context, request gen.V1Web
 		nil,
 		nil,
 		nil,
+		&webhook.Name,
 	)
 
 	if err != nil {
