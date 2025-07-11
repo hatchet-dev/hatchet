@@ -233,7 +233,7 @@ type OLAPRepository interface {
 	GetDagDurationsByDagIds(ctx context.Context, tenantId string, dagIds []int64, dagInsertedAts []pgtype.Timestamptz, readableStatuses []sqlcv1.V1ReadableStatusOlap) ([]*sqlcv1.GetDagDurationsByDagIdsRow, error)
 	GetTaskDurationsByTaskIds(ctx context.Context, tenantId string, taskIds []int64, taskInsertedAts []pgtype.Timestamptz, readableStatuses []sqlcv1.V1ReadableStatusOlap) (map[int64]*sqlcv1.GetTaskDurationsByTaskIdsRow, error)
 
-	CreateFailedWebhookCELValidationLog(ctx context.Context, tenantId, webhookName, errorText string) error
+	CreateIncomingWebhookValidationFailureLog(ctx context.Context, tenantId, webhookName, errorText string) error
 }
 
 type OLAPRepositoryImpl struct {
@@ -1694,8 +1694,8 @@ func (r *OLAPRepositoryImpl) GetTaskDurationsByTaskIds(ctx context.Context, tena
 	return taskDurations, nil
 }
 
-func (r *OLAPRepositoryImpl) CreateFailedWebhookCELValidationLog(ctx context.Context, tenantId, webhookName, errorText string) error {
-	return r.queries.CreateFailedWebhookCELValidationLog(ctx, r.pool, sqlcv1.CreateFailedWebhookCELValidationLogParams{
+func (r *OLAPRepositoryImpl) CreateIncomingWebhookValidationFailureLog(ctx context.Context, tenantId, webhookName, errorText string) error {
+	return r.queries.CreateIncomingWebhookValidationFailureLog(ctx, r.pool, sqlcv1.CreateIncomingWebhookValidationFailureLogParams{
 		Tenantid:            sqlchelpers.UUIDFromStr(tenantId),
 		Incomingwebhookname: webhookName,
 		Error:               errorText,
