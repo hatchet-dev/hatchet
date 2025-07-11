@@ -1,6 +1,9 @@
 package main
 
 import (
+	"context"
+	"fmt"
+	"log"
 	"time"
 
 	"github.com/hatchet-dev/hatchet/pkg/client/create"
@@ -16,14 +19,12 @@ type StreamTaskOutput struct {
 	Message string `json:"message"`
 }
 
-// > Streaming
 const annaKarenina = `
 Happy families are all alike; every unhappy family is unhappy in its own way.
 
 Everything was in confusion in the Oblonskys' house. The wife had discovered that the husband was carrying on an intrigue with a French girl, who had been a governess in their family, and she had announced to her husband that she could not go on living in the same house with him.
 `
 
-// createChunks splits content into chunks of specified size
 func createChunks(content string, n int) []string {
 	var chunks []string
 	for i := 0; i < len(content); i += n {
@@ -37,16 +38,15 @@ func createChunks(content string, n int) []string {
 }
 
 func streamTask(ctx worker.HatchetContext, input StreamTaskInput) (*StreamTaskOutput, error) {
-	// 👀 Sleeping to avoid race conditions
 	time.Sleep(2 * time.Second)
-	
+
 	chunks := createChunks(annaKarenina, 10)
-	
+
 	for _, chunk := range chunks {
 		ctx.PutStream(chunk)
 		time.Sleep(200 * time.Millisecond)
 	}
-	
+
 	return &StreamTaskOutput{
 		Message: "Streaming completed",
 	}, nil
@@ -56,10 +56,37 @@ func StreamingWorkflow(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[St
 	return factory.NewTask(
 		create.StandaloneTask{
 			Name: "stream-example",
-		}, 
+		},
 		streamTask,
 		hatchet,
 	)
 }
 
-// !!
+// > Consume
+func main() {
+	hatchet, err := v1.NewHatchetClient()
+	if err != nil {
+		log.Fatalf("Failed to create Hatchet client: %v", err)
+	}
+
+	ctx := context.Background()
+
+	streamingWorkflow := StreamingWorkflow(hatchet)
+
+	workflowRun, err := streamingWorkflow.RunNoWait(ctx, StreamTaskInput{})
+	if err != nil {
+		log.Fatalf("Failed to run workflow: %v", err)
+	}
+
+	id := workflowRun.RunId()
+	stream, err := hatchet.Runs().SubscribeToStream(ctx, id)
+	if err != nil {
+		log.Fatalf("Failed to subscribe to stream: %v", err)
+	}
+
+	for content := range stream {
+		fmt.Print(content)
+	}
+
+	fmt.Println("\nStreaming completed!")
+}
