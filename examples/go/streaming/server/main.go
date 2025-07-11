@@ -49,9 +49,8 @@ func main() {
 
 	server := &http.Server{
 		Addr:         ":8000",
-		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 15 * time.Second,
-		IdleTimeout:  60 * time.Second,
+		ReadTimeout:  5 * time.Second,
+		WriteTimeout: 10 * time.Second,
 	}
 
 	if err := server.ListenAndServe(); err != nil {
