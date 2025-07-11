@@ -70,6 +70,19 @@ export const columns: (tenantId: string) => ColumnDef<Worker>[] = (
     enableHiding: true,
   },
   {
+    accessorKey: 'slots',
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Available Slots" />
+    ),
+    cell: ({ row }) => (
+      <div>
+        {row.original.availableRuns} / {row.original.maxRuns}
+      </div>
+    ),
+    enableSorting: false,
+    enableHiding: true,
+  },
+  {
     accessorKey: 'lastHeartbeatAt',
     header: ({ column }) => (
       <DataTableColumnHeader
