@@ -73,7 +73,7 @@ class AsyncLogSender:
                     step_run_id=record.step_run_id,
                 )
             except Exception as e:
-                logger.error(f"Error logging: {e}")
+                logger.error(f"Failed to send log to Hatchet: {e}")
 
     def publish(self, record: LogRecord | STOP_LOOP_TYPE) -> None:
         try:
