@@ -853,12 +853,13 @@ func (tc *TasksControllerImpl) handleProcessUserEventTrigger(ctx context.Context
 
 	for _, msg := range msgs {
 		opt := v1.EventTriggerOpts{
-			ExternalId:         msg.EventExternalId,
-			Key:                msg.EventKey,
-			Data:               msg.EventData,
-			AdditionalMetadata: msg.EventAdditionalMetadata,
-			Priority:           msg.EventPriority,
-			Scope:              msg.EventScope,
+			ExternalId:            msg.EventExternalId,
+			Key:                   msg.EventKey,
+			Data:                  msg.EventData,
+			AdditionalMetadata:    msg.EventAdditionalMetadata,
+			Priority:              msg.EventPriority,
+			Scope:                 msg.EventScope,
+			TriggeringWebhookName: msg.TriggeringWebhookName,
 		}
 
 		opts = append(opts, opt)
@@ -887,6 +888,7 @@ func (tc *TasksControllerImpl) handleProcessUserEventTrigger(ctx context.Context
 				EventExternalId:         opts.ExternalId,
 				EventPayload:            opts.Data,
 				EventAdditionalMetadata: opts.AdditionalMetadata,
+				TriggeringWebhookName:   opts.TriggeringWebhookName,
 			})
 		} else {
 			for _, run := range runs {
@@ -900,6 +902,7 @@ func (tc *TasksControllerImpl) handleProcessUserEventTrigger(ctx context.Context
 					EventAdditionalMetadata: opts.AdditionalMetadata,
 					EventScope:              opts.Scope,
 					FilterId:                run.FilterId,
+					TriggeringWebhookName:   opts.TriggeringWebhookName,
 				})
 			}
 		}

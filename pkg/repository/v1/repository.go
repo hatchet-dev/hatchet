@@ -23,6 +23,7 @@ type Repository interface {
 	Workflows() WorkflowRepository
 	Ticker() TickerRepository
 	Filters() FilterRepository
+	Webhooks() WebhookRepository
 }
 
 type repositoryImpl struct {
@@ -36,6 +37,7 @@ type repositoryImpl struct {
 	workflows WorkflowRepository
 	ticker    TickerRepository
 	filters   FilterRepository
+	webhooks  WebhookRepository
 }
 
 func NewRepository(pool *pgxpool.Pool, l *zerolog.Logger, taskRetentionPeriod, olapRetentionPeriod time.Duration, maxInternalRetryCount int32, entitlements repository.EntitlementsRepository) (Repository, func() error) {
@@ -60,6 +62,7 @@ func NewRepository(pool *pgxpool.Pool, l *zerolog.Logger, taskRetentionPeriod, o
 		workflows: newWorkflowRepository(shared),
 		ticker:    newTickerRepository(shared),
 		filters:   newFilterRepository(shared),
+		webhooks:  newWebhookRepository(shared),
 	}
 
 	return impl, func() error {
@@ -113,4 +116,8 @@ func (r *repositoryImpl) Ticker() TickerRepository {
 
 func (r *repositoryImpl) Filters() FilterRepository {
 	return r.filters
+}
+
+func (r *repositoryImpl) Webhooks() WebhookRepository {
+	return r.webhooks
 }
