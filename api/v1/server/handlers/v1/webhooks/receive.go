@@ -258,7 +258,7 @@ func (w *V1WebhooksService) validateWebhook(webhookPayload []byte, webhook sqlcv
 			}
 		}
 
-		if signature != expectedSignature {
+		if !signaturesMatch(signature, expectedSignature) {
 			return false, &ValidationError{
 				Code:      Http403,
 				ErrorText: "invalid HMAC signature",
@@ -319,8 +319,7 @@ func (w *V1WebhooksService) validateWebhook(webhookPayload []byte, webhook sqlcv
 				}
 			}
 		case sqlcv1.V1IncomingWebhookAuthTypeHMAC:
-			// TODO: Potentially remove this replace?
-			signature := strings.Replace(request.Header.Get(webhook.AuthHmacSignatureHeaderName.String), "sha256=", "", 1)
+			signature := request.Header.Get(webhook.AuthHmacSignatureHeaderName.String)
 
 			if signature == "" {
 				return false, &ValidationError{
@@ -330,6 +329,7 @@ func (w *V1WebhooksService) validateWebhook(webhookPayload []byte, webhook sqlcv
 			}
 
 			decryptedSigningSecret, err := w.config.Encryption.Decrypt(webhook.AuthHmacWebhookSigningSecret, "v1_webhook_hmac_signing_secret")
+
 			if err != nil {
 				return false, &ValidationError{
 					Code:      Http500,
@@ -349,7 +349,7 @@ func (w *V1WebhooksService) validateWebhook(webhookPayload []byte, webhook sqlcv
 				}
 			}
 
-			if signature != expectedSignature {
+			if !signaturesMatch(signature, expectedSignature) {
 				return false, &ValidationError{
 					Code:      Http403,
 					ErrorText: "invalid HMAC signature",
@@ -369,4 +369,20 @@ func (w *V1WebhooksService) validateWebhook(webhookPayload []byte, webhook sqlcv
 	}
 
 	return true, nil
+}
+
+func signaturesMatch(providedSignature, expectedSignature string) bool {
+	providedSignature = strings.TrimSpace(providedSignature)
+	expectedSignature = strings.TrimSpace(expectedSignature)
+
+	return strings.EqualFold(removePrefixesFromSignature(providedSignature), removePrefixesFromSignature(expectedSignature))
+}
+
+func removePrefixesFromSignature(signature string) string {
+	signature = strings.TrimPrefix(signature, "sha1=")
+	signature = strings.TrimPrefix(signature, "sha256=")
+	signature = strings.TrimPrefix(signature, "sha512=")
+	signature = strings.TrimPrefix(signature, "md5=")
+
+	return signature
 }
