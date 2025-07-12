@@ -67,11 +67,13 @@ class AsyncLogSender:
                 break
 
             try:
-                self.event_client.log(
-                    message=record.message, step_run_id=record.step_run_id
+                await asyncio.to_thread(
+                    self.event_client.log,
+                    message=record.message,
+                    step_run_id=record.step_run_id,
                 )
-            except Exception as e:
-                logger.error(f"Error logging: {e}")
+            except Exception:
+                logger.exception("Failed to send log to Hatchet")
 
     def publish(self, record: LogRecord | STOP_LOOP_TYPE) -> None:
         try:
