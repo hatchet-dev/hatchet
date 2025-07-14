@@ -121,7 +121,6 @@ class RunsClient(BaseRestClient):
 
     @retry
     def get(self, workflow_run_id: str) -> V1WorkflowRunDetails:
-        print("calling get with workflow_run_id:", workflow_run_id)
         """
         Get workflow run details for a given workflow run ID.
 
