@@ -344,34 +344,34 @@ class Runner:
             "threads_daemon": sum(1 for t in self.thread_pool._threads if t.daemon),
         }
 
-        logger.warning("Thread pool detailed status %s", thread_pool_details)
+        logger.warning("thread pool detailed status %s", thread_pool_details)
 
     async def _start_monitoring(self) -> None:
-        logger.debug("Thread pool monitoring started")
+        logger.debug("thread pool monitoring started")
         try:
             while True:
                 await self.log_thread_pool_status()
 
                 for key in self.threads:
                     if key not in self.tasks:
-                        logger.debug(f"Potential zombie thread found for key {key}")
+                        logger.debug(f"potential zombie thread found for key {key}")
 
                 for key, task in self.tasks.items():
                     if task.done() and key in self.threads:
                         logger.debug(
-                            f"Task is done but thread still exists for key {key}"
+                            f"task is done but thread still exists for key {key}"
                         )
 
                 await asyncio.sleep(60)
         except asyncio.CancelledError:
-            logger.warning("Thread pool monitoring task cancelled")
+            logger.warning("thread pool monitoring task cancelled")
         except Exception as e:
-            logger.exception(f"Error in thread pool monitoring: {e}")
+            logger.exception(f"error in thread pool monitoring: {e}")
 
     def start_background_monitoring(self) -> None:
         loop = asyncio.get_event_loop()
         self.monitoring_task = loop.create_task(self._start_monitoring())
-        logger.debug("Started thread pool monitoring background task")
+        logger.debug("started thread pool monitoring background task")
 
     def cleanup_run_id(self, key: ActionKey) -> None:
         if key in self.tasks:
@@ -503,7 +503,7 @@ class Runner:
 
             ident = cast(int, thread.ident)
 
-            logger.info(f"Forcefully terminating thread {ident}")
+            logger.info(f"forcefully terminating thread {ident}")
 
             exc = ctypes.py_object(SystemExit)
             res = ctypes.pythonapi.PyThreadState_SetAsyncExc(ctypes.c_long(ident), exc)
@@ -516,13 +516,13 @@ class Runner:
                 ctypes.pythonapi.PyThreadState_SetAsyncExc(thread.ident, 0)
                 raise SystemError("PyThreadState_SetAsyncExc failed")
 
-            logger.info(f"Successfully terminated thread {ident}")
+            logger.info(f"successfully terminated thread {ident}")
 
             # Immediately add a new thread to the thread pool, because we've actually killed a worker
             # in the ThreadPoolExecutor
             self.thread_pool.submit(lambda: None)
         except Exception as e:
-            logger.exception(f"Failed to terminate thread: {e}")
+            logger.exception(f"failed to terminate thread: {e}")
 
     ## IMPORTANT: Keep this method's signature in sync with the wrapper in the OTel instrumentor
     async def handle_cancel_action(self, action: Action) -> None:
@@ -546,7 +546,7 @@ class Runner:
                     await asyncio.sleep(1)
 
                 logger.warning(
-                    f"Thread {self.threads[key].ident} with key {key} is still running after cancellation. This could cause the thread pool to get blocked and prevent new tasks from running."
+                    f"thread {self.threads[key].ident} with key {key} is still running after cancellation. This could cause the thread pool to get blocked and prevent new tasks from running."
                 )
         finally:
             self.cleanup_run_id(key)
@@ -568,8 +568,8 @@ class Runner:
 
         try:
             serialized_output = json.dumps(output, default=str)
-        except Exception as e:
-            logger.error(f"Could not serialize output: {e}")
+        except Exception:
+            logger.exception("could not serialize output")
             serialized_output = str(output)
 
         if "\\u0000" in serialized_output:

@@ -73,13 +73,13 @@ class AsyncLogSender:
                     step_run_id=record.step_run_id,
                 )
             except Exception:
-                logger.exception("Failed to send log to Hatchet")
+                logger.exception("failed to send log to Hatchet")
 
     def publish(self, record: LogRecord | STOP_LOOP_TYPE) -> None:
         try:
             self.q.put_nowait(record)
         except asyncio.QueueFull:
-            logger.warning("Log queue is full, dropping log message")
+            logger.warning("log queue is full, dropping log message")
 
 
 class CustomLogHandler(logging.StreamHandler):  # type: ignore[type-arg]

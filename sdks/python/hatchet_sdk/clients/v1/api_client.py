@@ -61,7 +61,7 @@ def retry(func: Callable[P, R]) -> Callable[P, R]:
 
 def _alert_on_retry(retry_state: tenacity.RetryCallState) -> None:
     logger.debug(
-        f"Retrying {retry_state.fn}: attempt "
+        f"retrying {retry_state.fn}: attempt "
         f"{retry_state.attempt_number} ended with: {retry_state.outcome}",
     )
 
