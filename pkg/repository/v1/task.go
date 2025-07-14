@@ -271,7 +271,7 @@ func (r *TaskRepositoryImpl) EnsureTablePartitionsExist(ctx context.Context) (bo
 func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 	const PARTITION_LOCK_OFFSET = 9000000000000000000
 	const partitionLockKey = PARTITION_LOCK_OFFSET + 1
-	
+
 	lockTx, err := r.pool.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin lock transaction: %w", err)
@@ -282,9 +282,8 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to set statement timeout: %w", err)
 	}
-	
-	var acquired bool
-	err = lockTx.QueryRow(ctx, "SELECT pg_try_advisory_xact_lock($1)", partitionLockKey).Scan(&acquired)
+
+	acquired, err := r.queries.TryAdvisoryLock(ctx, lockTx, partitionLockKey)
 	if err != nil {
 		return fmt.Errorf("failed to try advisory lock for partition operations: %w", err)
 	}
@@ -295,7 +294,7 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 	}
 
 	r.l.Debug().Msg("acquired advisory lock for partition operations")
-	
+
 	today := time.Now().UTC()
 	tomorrow := today.AddDate(0, 0, 1)
 	removeBefore := today.Add(-1 * r.taskRetentionPeriod)
