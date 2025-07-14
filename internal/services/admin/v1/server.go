@@ -264,12 +264,47 @@ func (a *AdminServiceImpl) ReplayTasks(ctx context.Context, req *contracts.Repla
 		taskIdInsertedAtRetryCountToExternalId[record] = task.WorkflowRunExternalID
 	}
 
+	workflowRunIdToTasksToReplay := make(map[pgtype.UUID][]v1.TaskIdInsertedAtRetryCount)
+	for _, item := range tasksToReplay {
+		workflowRunIdToTasksToReplay[item.WorkflowRunId] = append(
+			workflowRunIdToTasksToReplay[item.WorkflowRunId],
+			item.TaskIdInsertedAtRetryCount,
+		)
+	}
+
+	var batches [][]v1.TaskIdInsertedAtRetryCount
+	var currentBatch []v1.TaskIdInsertedAtRetryCount
+	batchSize := 100
+
+	for _, tasksForWorkflowRun := range workflowRunIdToTasksToReplay {
+		if len(currentBatch) > 0 && len(currentBatch)+len(tasksForWorkflowRun) > batchSize {
+			// If the current batch would exceed the batch size if we added the current workflow run's tasks,
+			// we "finalize" the batch and start a new one
+			batches = append(batches, currentBatch)
+			currentBatch = nil
+		}
+
+		if len(tasksForWorkflowRun) > batchSize {
+			// If the current workflow run's task count exceeds the batch size on its own,
+			// we let it be its own batch
+			batches = append(batches, tasksForWorkflowRun)
+		} else {
+			// Otherwise, add it to the current batch
+			currentBatch = append(currentBatch, tasksForWorkflowRun...)
+		}
+	}
+
+	if len(currentBatch) > 0 {
+		// Last case to handle - add the last batch if it has any tasks
+		batches = append(batches, currentBatch)
+	}
+
 	replayedIds := make([]string, 0)
 
-	for _, taskToReplay := range tasksToReplay {
+	for _, batch := range batches {
 		// send the payload to the tasks controller, and send the list of tasks back to the client
 		toReplay := tasktypes.ReplayTasksPayload{
-			Tasks: []v1.TaskIdInsertedAtRetryCount{taskToReplay.TaskIdInsertedAtRetryCount},
+			Tasks: batch,
 		}
 
 		msg, err := msgqueue.NewTenantMessage(
@@ -290,9 +325,11 @@ func (a *AdminServiceImpl) ReplayTasks(ctx context.Context, req *contracts.Repla
 			return nil, err
 		}
 
-		replayedIds = append(replayedIds, taskIdInsertedAtRetryCountToExternalId[taskToReplay.TaskIdInsertedAtRetryCount].String())
+		for _, task := range batch {
+			replayedIds = append(replayedIds, taskIdInsertedAtRetryCountToExternalId[task].String())
+		}
 
-		time.Sleep(100 * time.Millisecond)
+		time.Sleep(200 * time.Millisecond)
 	}
 
 	return &contracts.ReplayTasksResponse{
