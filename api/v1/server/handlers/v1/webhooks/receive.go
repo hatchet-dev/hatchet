@@ -76,6 +76,10 @@ func (w *V1WebhooksService) V1WebhookReceive(ctx echo.Context, request gen.V1Web
 	)
 
 	if err != nil {
+		if eventKey == "" {
+			err = fmt.Errorf("event key evaluted to an empty string")
+		}
+
 		ingestionErr := w.config.Ingestor.IngestWebhookValidationFailure(
 			ctx.Request().Context(),
 			tenant,
@@ -216,6 +220,13 @@ func (w *V1WebhooksService) validateWebhook(webhookPayload []byte, webhook sqlcv
 		}
 
 		splitHeader := strings.Split(signatureHeader, ",")
+
+		if len(splitHeader) != 2 {
+			return false, &ValidationError{
+				Code:      Http400,
+				ErrorText: fmt.Sprintf("invalid signature header format: %s", webhook.AuthHmacSignatureHeaderName.String),
+			}
+		}
 
 		timestampHeader := splitHeader[0]
 		v1SignatureHeader := splitHeader[1]

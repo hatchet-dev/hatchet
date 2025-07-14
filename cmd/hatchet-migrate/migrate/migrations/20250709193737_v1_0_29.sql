@@ -60,7 +60,9 @@ CREATE TABLE v1_incoming_webhook (
                 AND auth__hmac__webhook_signing_secret IS NOT NULL
             )
         )
-    )
+    ),
+    CHECK (LENGTH(event_key_expression) > 0),
+    CHECK (LENGTH(name) > 0)
 );
 -- +goose StatementEnd
 
