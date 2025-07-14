@@ -65,6 +65,7 @@ func (w *V1WebhooksService) V1WebhookReceive(ctx echo.Context, request gen.V1Web
 			}, nil
 		}
 
+		// This could cause unexpected behavior if the payload contains a key named "tenant" or "v1-webhook"
 		delete(payloadMap, "tenant")
 		delete(payloadMap, "v1-webhook")
 	}
