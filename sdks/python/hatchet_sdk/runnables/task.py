@@ -256,6 +256,21 @@ class Task(Generic[TWorkflowInput, R]):
         retry_count: int = 0,
         lifespan_context: Any = None,
     ) -> R:
+        """
+        Mimic the execution of a task. This method is intended to be used to unit test
+        tasks without needing to interact with the Hatchet engine. Use `mock_run` for sync
+        tasks and `aio_mock_run` for async tasks.
+
+        :param input: The input to the task.
+        :param additional_metadata: Additional metadata to attach to the task.
+        :param parent_outputs: Outputs from parent tasks, if any. This is useful for mimicking DAG functionality. For instance, if you have a task `step_2` that has a `parent` which is `step_1`, you can pass `parent_outputs={"step_1": {"result": "Hello, world!"}}` to `step_2.mock_run()` to be able to access `ctx.task_output(step_1)` in `step_2`.
+        :param retry_count: The number of times the task has been retried.
+        :param lifespan_context: The lifespan to be used in the task, which is useful if one was set on the worker. This will allow you to access `ctx.lifespan` inside of your task.
+
+        :return: The output of the task.
+        :raises TypeError: If the task is an async function and `mock_run` is called, or if the task is a sync function and `aio_mock_run` is called.
+        """
+
         if self.is_async_function:
             raise TypeError(
                 f"{self.name} is not a sync function. Use `aio_mock_run` instead."
@@ -275,6 +290,21 @@ class Task(Generic[TWorkflowInput, R]):
         retry_count: int = 0,
         lifespan_context: Any = None,
     ) -> R:
+        """
+        Mimic the execution of a task. This method is intended to be used to unit test
+        tasks without needing to interact with the Hatchet engine. Use `mock_run` for sync
+        tasks and `aio_mock_run` for async tasks.
+
+        :param input: The input to the task.
+        :param additional_metadata: Additional metadata to attach to the task.
+        :param parent_outputs: Outputs from parent tasks, if any. This is useful for mimicking DAG functionality. For instance, if you have a task `step_2` that has a `parent` which is `step_1`, you can pass `parent_outputs={"step_1": {"result": "Hello, world!"}}` to `step_2.mock_run()` to be able to access `ctx.task_output(step_1)` in `step_2`.
+        :param retry_count: The number of times the task has been retried.
+        :param lifespan_context: The lifespan to be used in the task, which is useful if one was set on the worker. This will allow you to access `ctx.lifespan` inside of your task.
+
+        :return: The output of the task.
+        :raises TypeError: If the task is an async function and `mock_run` is called, or if the task is a sync function and `aio_mock_run` is called.
+        """
+
         if not self.is_async_function:
             raise TypeError(
                 f"{self.name} is not an async function. Use `mock_run` instead."
