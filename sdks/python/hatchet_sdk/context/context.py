@@ -285,7 +285,7 @@ class Context:
         return self.retry_count + 1
 
     @property
-    def additional_metadata(self) -> JSONSerializableMapping | None:
+    def additional_metadata(self) -> JSONSerializableMapping:
         """
         The additional metadata sent with the current task run.
 
