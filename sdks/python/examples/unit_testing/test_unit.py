@@ -43,6 +43,7 @@ def test_simple_unit_sync(func: Task[UnitTestInput, UnitTestOutput]) -> None:
         number=input.number,
         additional_metadata=additional_metadata,
         retry_count=retry_count,
+        mock_db_url=lifespan.mock_db_url,
     )
 
     assert (
@@ -80,6 +81,7 @@ async def test_simple_unit_async(func: Task[UnitTestInput, UnitTestOutput]) -> N
         number=input.number,
         additional_metadata=additional_metadata,
         retry_count=retry_count,
+        mock_db_url=lifespan.mock_db_url,
     )
 
     assert (

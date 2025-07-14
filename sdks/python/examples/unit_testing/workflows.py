@@ -1,3 +1,5 @@
+from typing import cast
+
 from pydantic import BaseModel
 
 from hatchet_sdk import Context, DurableContext, EmptyModel, Hatchet
@@ -8,13 +10,13 @@ class UnitTestInput(BaseModel):
     number: int
 
 
-class UnitTestOutput(UnitTestInput):
-    additional_metadata: dict[str, str]
-    retry_count: int
-
-
 class Lifespan(BaseModel):
     mock_db_url: str
+
+
+class UnitTestOutput(UnitTestInput, Lifespan):
+    additional_metadata: dict[str, str]
+    retry_count: int
 
 
 hatchet = Hatchet()
@@ -32,6 +34,7 @@ def sync_standalone(input: UnitTestInput, ctx: Context) -> UnitTestOutput:
         number=input.number,
         additional_metadata=ctx.additional_metadata,
         retry_count=ctx.retry_count,
+        mock_db_url=cast(Lifespan, ctx.lifespan).mock_db_url,
     )
 
 
@@ -42,6 +45,7 @@ async def async_standalone(input: UnitTestInput, ctx: Context) -> UnitTestOutput
         number=input.number,
         additional_metadata=ctx.additional_metadata,
         retry_count=ctx.retry_count,
+        mock_db_url=cast(Lifespan, ctx.lifespan).mock_db_url,
     )
 
 
@@ -54,6 +58,7 @@ def durable_sync_standalone(
         number=input.number,
         additional_metadata=ctx.additional_metadata,
         retry_count=ctx.retry_count,
+        mock_db_url=cast(Lifespan, ctx.lifespan).mock_db_url,
     )
 
 
@@ -66,6 +71,7 @@ async def durable_async_standalone(
         number=input.number,
         additional_metadata=ctx.additional_metadata,
         retry_count=ctx.retry_count,
+        mock_db_url=cast(Lifespan, ctx.lifespan).mock_db_url,
     )
 
 
@@ -81,6 +87,7 @@ def sync_simple_workflow(input: UnitTestInput, ctx: Context) -> UnitTestOutput:
         number=input.number,
         additional_metadata=ctx.additional_metadata,
         retry_count=ctx.retry_count,
+        mock_db_url=cast(Lifespan, ctx.lifespan).mock_db_url,
     )
 
 
@@ -91,6 +98,7 @@ async def async_simple_workflow(input: UnitTestInput, ctx: Context) -> UnitTestO
         number=input.number,
         additional_metadata=ctx.additional_metadata,
         retry_count=ctx.retry_count,
+        mock_db_url=cast(Lifespan, ctx.lifespan).mock_db_url,
     )
 
 
@@ -103,6 +111,7 @@ def durable_sync_simple_workflow(
         number=input.number,
         additional_metadata=ctx.additional_metadata,
         retry_count=ctx.retry_count,
+        mock_db_url=cast(Lifespan, ctx.lifespan).mock_db_url,
     )
 
 
@@ -115,6 +124,7 @@ async def durable_async_simple_workflow(
         number=input.number,
         additional_metadata=ctx.additional_metadata,
         retry_count=ctx.retry_count,
+        mock_db_url=cast(Lifespan, ctx.lifespan).mock_db_url,
     )
 
 
@@ -130,6 +140,7 @@ async def start(input: UnitTestInput, ctx: Context) -> UnitTestOutput:
         number=input.number,
         additional_metadata=ctx.additional_metadata,
         retry_count=ctx.retry_count,
+        mock_db_url=cast(Lifespan, ctx.lifespan).mock_db_url,
     )
 
 
