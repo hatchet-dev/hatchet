@@ -441,7 +441,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 
 			// note that the status code is not set yet as it gets picked up by the global err handler
 			// see here: https://github.com/labstack/echo/issues/2310#issuecomment-1288196898
-			if v.Error != nil {
+			if v.Error != nil && statusCode == 200 {
 				statusCode = 500
 			}
 
