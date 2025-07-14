@@ -15,13 +15,7 @@ import (
 func (w *V1WebhooksService) V1WebhookCreate(ctx echo.Context, request gen.V1WebhookCreateRequestObject) (gen.V1WebhookCreateResponseObject, error) {
 	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
 
-	webhookLimit := int32(w.config.Runtime.Limits.DefaultIncomingWebhookLimit)
-
-	canCreate, err := w.config.V1.Webhooks().CanCreate(
-		ctx.Request().Context(),
-		tenant.ID.String(),
-		webhookLimit,
-	)
+	canCreate, _, err := w.config.EntitlementRepository.TenantLimit().CanCreate(ctx.Request().Context(), dbsqlc.LimitResourceINCOMINGWEBHOOK, tenant.ID.String(), 1)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to check if webhook can be created: %w", err)
@@ -31,7 +25,7 @@ func (w *V1WebhooksService) V1WebhookCreate(ctx echo.Context, request gen.V1Webh
 		return gen.V1WebhookCreate400JSONResponse{
 			Errors: []gen.APIError{
 				{
-					Description: fmt.Sprintf("cannot create more than %d webhooks", webhookLimit),
+					Description: "incoming webhook limit reached",
 				},
 			},
 		}, nil
