@@ -42,7 +42,7 @@ Workflows support various execution patterns including:
 
 Tasks within workflows can be defined with `@workflow.task()` or `@workflow.durable_task()` decorators and can be arranged into complex dependency patterns.
 
-Methods:
+### Methods
 
 | Name                   | Description                                                                                                                                      |
 | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -524,7 +524,7 @@ Returns:
 
 Bases: `BaseWorkflow[TWorkflowInput]`, `Generic[TWorkflowInput, R]`
 
-Methods:
+### Methods
 
 | Name                   | Description                                                                                                              |
 | ---------------------- | ------------------------------------------------------------------------------------------------------------------------ |
@@ -603,9 +603,9 @@ Parameters:
 
 Returns:
 
-| Type                            | Description                                                           |
-| ------------------------------- | --------------------------------------------------------------------- |
-| `TaskRunRef[TWorkflowInput, R]` | A `TaskRunRef` object representing the reference to the workflow run. |
+| Type                           | Description                                                           |
+| ------------------------------ | --------------------------------------------------------------------- |
+| `TaskRunRef[TWorkflowInput,R]` | A `TaskRunRef` object representing the reference to the workflow run. |
 
 #### `aio_run_no_wait`
 
@@ -620,9 +620,9 @@ Parameters:
 
 Returns:
 
-| Type                            | Description                                                           |
-| ------------------------------- | --------------------------------------------------------------------- |
-| `TaskRunRef[TWorkflowInput, R]` | A `TaskRunRef` object representing the reference to the workflow run. |
+| Type                           | Description                                                           |
+| ------------------------------ | --------------------------------------------------------------------- |
+| `TaskRunRef[TWorkflowInput,R]` | A `TaskRunRef` object representing the reference to the workflow run. |
 
 #### `run_many`
 
@@ -670,9 +670,9 @@ Parameters:
 
 Returns:
 
-| Type                                  | Description                                                                          |
-| ------------------------------------- | ------------------------------------------------------------------------------------ |
-| `list[TaskRunRef[TWorkflowInput, R]]` | A list of `WorkflowRunRef` objects, each representing a reference to a workflow run. |
+| Type                                 | Description                                                                          |
+| ------------------------------------ | ------------------------------------------------------------------------------------ |
+| `list[TaskRunRef[TWorkflowInput,R]]` | A list of `WorkflowRunRef` objects, each representing a reference to a workflow run. |
 
 #### `aio_run_many_no_wait`
 
@@ -688,9 +688,9 @@ Parameters:
 
 Returns:
 
-| Type                                  | Description                                                                          |
-| ------------------------------------- | ------------------------------------------------------------------------------------ |
-| `list[TaskRunRef[TWorkflowInput, R]]` | A list of `WorkflowRunRef` objects, each representing a reference to a workflow run. |
+| Type                                 | Description                                                                          |
+| ------------------------------------ | ------------------------------------------------------------------------------------ |
+| `list[TaskRunRef[TWorkflowInput,R]]` | A list of `WorkflowRunRef` objects, each representing a reference to a workflow run. |
 
 #### `schedule`
 
