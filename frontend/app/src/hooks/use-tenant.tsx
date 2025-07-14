@@ -67,9 +67,10 @@ export function useTenantDetails() {
       );
 
       setLastTenant(tenant);
+      queryClient.clear();
       navigate(newPath);
     },
-    [navigate, location.pathname, setLastTenant],
+    [navigate, location.pathname, setLastTenant, queryClient],
   );
 
   const membership = useMemo(() => {
