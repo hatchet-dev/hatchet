@@ -308,8 +308,8 @@ V1DagChildren:
   $ref: "./v1/task.yaml#/V1DagChildren"
 V1TaskEventList:
   $ref: "./v1/task.yaml#/V1TaskEventList"
-V1TaskReplayResponse:
-  $ref: "./v1/task.yaml#/V1TaskReplayResponse"
+V1ReplayedTasks:
+  $ref: "./v1/task.yaml#/V1ReplayedTasks"
 V1TaskStatus:
   $ref: "./v1/task.yaml#/V1TaskStatus"
 V1TaskRunMetrics:

@@ -491,7 +491,7 @@ export interface V1ReplayTaskRequest {
   filter?: V1TaskFilter;
 }
 
-export interface V1TaskReplayResponse {
+export interface V1ReplayedTasks {
   /** The list of task external ids that were replayed */
   ids?: string[];
 }

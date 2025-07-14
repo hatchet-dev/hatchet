@@ -1349,6 +1349,12 @@ type V1ReplayTaskRequest struct {
 	Filter      *V1TaskFilter         `json:"filter,omitempty"`
 }
 
+// V1ReplayedTasks defines model for V1ReplayedTasks.
+type V1ReplayedTasks struct {
+	// Ids The list of task external ids that were replayed
+	Ids *[]openapi_types.UUID `json:"ids,omitempty"`
+}
+
 // V1TaskEvent defines model for V1TaskEvent.
 type V1TaskEvent struct {
 	// Attempt The attempt number of the task.
@@ -1395,12 +1401,6 @@ type V1TaskPointMetric struct {
 // V1TaskPointMetrics defines model for V1TaskPointMetrics.
 type V1TaskPointMetrics struct {
 	Results *[]V1TaskPointMetric `json:"results,omitempty"`
-}
-
-// V1TaskReplayResponse defines model for V1TaskReplayResponse.
-type V1TaskReplayResponse struct {
-	// Ids The list of task external ids that were replayed
-	Ids *[]string `json:"ids,omitempty"`
 }
 
 // V1TaskRunMetric defines model for V1TaskRunMetric.
@@ -12349,7 +12349,7 @@ func (r V1TaskCancelResponse) StatusCode() int {
 type V1TaskReplayResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *V1TaskReplayResponse
+	JSON200      *V1ReplayedTasks
 	JSON400      *APIErrors
 	JSON403      *APIErrors
 	JSON404      *APIErrors
@@ -16957,7 +16957,7 @@ func ParseV1TaskReplayResponse(rsp *http.Response) (*V1TaskReplayResponse, error
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest V1TaskReplayResponse
+		var dest V1ReplayedTasks
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

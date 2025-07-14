@@ -92,9 +92,9 @@ import {
   V1FilterList,
   V1LogLineList,
   V1ReplayTaskRequest,
+  V1ReplayedTasks,
   V1TaskEventList,
   V1TaskPointMetrics,
-  V1TaskReplayResponse,
   V1TaskRunMetrics,
   V1TaskStatus,
   V1TaskSummary,
@@ -244,7 +244,7 @@ export class Api<
     data: V1ReplayTaskRequest,
     params: RequestParams = {},
   ) =>
-    this.request<V1TaskReplayResponse, APIErrors>({
+    this.request<V1ReplayedTasks, APIErrors>({
       path: `/api/v1/stable/tenants/${tenant}/tasks/replay`,
       method: "POST",
       body: data,

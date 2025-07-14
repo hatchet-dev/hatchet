@@ -483,8 +483,14 @@ func ToTaskTimings(
 	return toReturn
 }
 
-func ToReplayedTaskResponse(replayedIds []string) gen.V1TaskReplayResponse {
-	return gen.V1TaskReplayResponse{
-		Ids: &replayedIds,
+func ToReplayedTaskResponse(replayedIds []string) gen.V1ReplayedTasks {
+	ids := make([]types.UUID, len(replayedIds))
+
+	for i, id := range replayedIds {
+		ids[i] = uuid.MustParse(id)
+	}
+
+	return gen.V1ReplayedTasks{
+		Ids: &ids,
 	}
 }

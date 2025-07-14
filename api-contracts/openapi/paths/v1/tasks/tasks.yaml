@@ -400,7 +400,7 @@ replayTasks:
         content:
           application/json:
             schema:
-              $ref: "../../../components/schemas/_index.yaml#/V1TaskReplayResponse"
+              $ref: "../../../components/schemas/_index.yaml#/V1ReplayedTasks"
       "400":
         content:
           application/json:
