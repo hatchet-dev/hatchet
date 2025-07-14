@@ -126,7 +126,7 @@ async def wait_for_event(
     webhook_name: str,
     test_start: datetime,
 ) -> V1Event | None:
-    await asyncio.sleep(1)
+    await asyncio.sleep(5)
 
     events = await hatchet.event.aio_list(since=test_start)
 
@@ -176,7 +176,7 @@ async def basic_auth_webhook(
     webhook_request = V1CreateWebhookRequestBasicAuth(
         sourceName=source_name,
         name=f"test-webhook-basic-{test_run_id}",
-        eventKeyExpression="'webhook:' + input.type",
+        eventKeyExpression=f"'{hatchet.config.apply_namespace('webhook')}:' + input.type",
         authType="BASIC",
         auth=V1WebhookBasicAuth(
             username=username,
@@ -212,7 +212,7 @@ async def api_key_webhook(
     webhook_request = V1CreateWebhookRequestAPIKey(
         sourceName=source_name,
         name=f"test-webhook-apikey-{test_run_id}",
-        eventKeyExpression="'webhook:' + input.type",
+        eventKeyExpression=f"'{hatchet.config.apply_namespace('webhook')}:' + input.type",
         authType="API_KEY",
         auth=V1WebhookAPIKeyAuth(
             headerName=header_name,
@@ -250,7 +250,7 @@ async def hmac_webhook(
     webhook_request = V1CreateWebhookRequestHMAC(
         sourceName=source_name,
         name=f"test-webhook-hmac-{test_run_id}",
-        eventKeyExpression="'webhook:' + input.type",
+        eventKeyExpression=f"'{hatchet.config.apply_namespace('webhook')}:' + input.type",
         authType="HMAC",
         auth=V1WebhookHMACAuth(
             algorithm=algorithm,
@@ -286,7 +286,10 @@ async def assert_has_runs(
 ) -> None:
     triggered_event = await wait_for_event(hatchet, incoming_webhook.name, test_start)
     assert triggered_event is not None
-    assert triggered_event.key == f"webhook:{webhook_body.type}"
+    assert (
+        triggered_event.key
+        == f"{hatchet.config.apply_namespace('webhook')}:{webhook_body.type}"
+    )
     assert triggered_event.payload == webhook_body.model_dump()
 
     workflow_run = await wait_for_workflow_run(
