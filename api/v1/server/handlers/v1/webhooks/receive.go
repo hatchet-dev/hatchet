@@ -264,9 +264,9 @@ func (w *V1WebhooksService) validateWebhook(webhookPayload []byte, webhook sqlcv
 				ErrorText: "invalid HMAC signature",
 			}
 		}
-	case sqlcv1.V1IncomingWebhookSourceNameGENERIC:
-		fallthrough
 	case sqlcv1.V1IncomingWebhookSourceNameGITHUB:
+		fallthrough
+	case sqlcv1.V1IncomingWebhookSourceNameGENERIC:
 		switch webhook.AuthMethod {
 		case sqlcv1.V1IncomingWebhookAuthTypeBASIC:
 			username, password, ok := request.BasicAuth()
