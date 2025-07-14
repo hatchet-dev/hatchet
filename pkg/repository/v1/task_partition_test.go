@@ -100,21 +100,21 @@ func TestUpdateTablePartitions_ConcurrentControllers(t *testing.T) {
 
 	const numControllers = 4
 	var wg sync.WaitGroup
-	
+
 	start := make(chan struct{})
-	
+
 	for i := 0; i < numControllers; i++ {
 		wg.Add(1)
 		go func(controllerID int) {
 			defer wg.Done()
-			
+
 			<-start
-			
+
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
-			
+
 			err := repos[controllerID].UpdateTablePartitions(ctx)
-			
+
 			if err != nil {
 				atomic.AddInt64(&errorCount, 1)
 				t.Logf("Controller %d encountered error: %v", controllerID, err)
@@ -124,17 +124,17 @@ func TestUpdateTablePartitions_ConcurrentControllers(t *testing.T) {
 			}
 		}(i)
 	}
-	
+
 	close(start)
-	
+
 	wg.Wait()
-	
+
 	finalSuccessCount := atomic.LoadInt64(&successCount)
 	finalErrorCount := atomic.LoadInt64(&errorCount)
-	
+
 	t.Logf("Successful executions: %d", finalSuccessCount)
 	t.Logf("Errors: %d", finalErrorCount)
-	
+
 	assert.Equal(t, int64(0), finalErrorCount, "No controllers should have encountered errors")
 	assert.Equal(t, int64(numControllers), finalSuccessCount, "All controllers should have completed successfully")
 }
@@ -147,23 +147,23 @@ func TestUpdateTablePartitions_SerialExecution(t *testing.T) {
 
 	const numRuns = 3
 	var successCount int64
-	
+
 	for i := 0; i < numRuns; i++ {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		
+
 		err := repo.UpdateTablePartitions(ctx)
 		cancel()
-		
+
 		if err == nil {
 			atomic.AddInt64(&successCount, 1)
 			t.Logf("Run %d completed successfully", i)
 		} else {
 			t.Logf("Run %d failed: %v", i, err)
 		}
-		
+
 		time.Sleep(100 * time.Millisecond)
 	}
-	
+
 	assert.Equal(t, int64(numRuns), atomic.LoadInt64(&successCount), "All serial runs should succeed")
 }
 
@@ -172,36 +172,36 @@ func TestUpdateTablePartitions_AdvisoryLockBehavior(t *testing.T) {
 	defer cleanup()
 
 	ctx := context.Background()
-	
+
 	const PARTITION_LOCK_OFFSET = 9000000000000000000
 	const partitionLockKey = PARTITION_LOCK_OFFSET + 1
-	
+
 	conn1, err := pool.Acquire(ctx)
 	require.NoError(t, err)
 	defer conn1.Release()
-	
+
 	conn2, err := pool.Acquire(ctx)
 	require.NoError(t, err)
 	defer conn2.Release()
-	
+
 	var acquired1 bool
 	err = conn1.QueryRow(ctx, "SELECT pg_try_advisory_lock($1)", partitionLockKey).Scan(&acquired1)
 	require.NoError(t, err)
 	assert.True(t, acquired1, "First connection should acquire lock")
-	
+
 	var acquired2 bool
 	err = conn2.QueryRow(ctx, "SELECT pg_try_advisory_lock($1)", partitionLockKey).Scan(&acquired2)
 	require.NoError(t, err)
 	assert.False(t, acquired2, "Second connection should not acquire lock")
-	
+
 	_, err = conn1.Exec(ctx, "SELECT pg_advisory_unlock($1)", partitionLockKey)
 	require.NoError(t, err)
-	
+
 	var acquired3 bool
 	err = conn2.QueryRow(ctx, "SELECT pg_try_advisory_lock($1)", partitionLockKey).Scan(&acquired3)
 	require.NoError(t, err)
 	assert.True(t, acquired3, "Second connection should acquire lock after first releases it")
-	
+
 	_, err = conn2.Exec(ctx, "SELECT pg_advisory_unlock($1)", partitionLockKey)
 	require.NoError(t, err)
 }
@@ -217,9 +217,9 @@ func TestUpdateTablePartitions_RealPartitionCreation(t *testing.T) {
 
 	var countBefore int
 	err := pool.QueryRow(ctx, `
-		SELECT COUNT(*) 
-		FROM pg_tables 
-		WHERE tablename LIKE 'v1_task_%' 
+		SELECT COUNT(*)
+		FROM pg_tables
+		WHERE tablename LIKE 'v1_task_%'
 		   OR tablename LIKE 'v1_dag_%'
 		   OR tablename LIKE 'v1_task_event_%'
 		   OR tablename LIKE 'v1_log_line_%'
@@ -231,9 +231,9 @@ func TestUpdateTablePartitions_RealPartitionCreation(t *testing.T) {
 
 	var countAfter int
 	err = pool.QueryRow(ctx, `
-		SELECT COUNT(*) 
-		FROM pg_tables 
-		WHERE tablename LIKE 'v1_task_%' 
+		SELECT COUNT(*)
+		FROM pg_tables
+		WHERE tablename LIKE 'v1_task_%'
 		   OR tablename LIKE 'v1_dag_%'
 		   OR tablename LIKE 'v1_task_event_%'
 		   OR tablename LIKE 'v1_log_line_%'
@@ -244,7 +244,7 @@ func TestUpdateTablePartitions_RealPartitionCreation(t *testing.T) {
 	// Tomorrow's partitions: 4 tables = 4 new partitions
 	expectedIncrease := 4
 	assert.Equal(t, countBefore+expectedIncrease, countAfter, "Should have created partitions for tomorrow (today already exists from migration)")
-	
+
 	t.Logf("Partitions before: %d, after: %d (increase: %d)", countBefore, countAfter, countAfter-countBefore)
 }
 
@@ -256,14 +256,14 @@ func TestUpdateTablePartitions_ContextCancellation(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
-	
+
 	err := repo.UpdateTablePartitions(ctx)
-	
+
 	if err != nil {
 		t.Logf("Function returned error due to context cancellation: %v", err)
 		assert.Contains(t, err.Error(), "context deadline exceeded")
 	}
-	
+
 	assert.True(t, true, "Function completed without panic")
 }
 
@@ -289,14 +289,14 @@ func TestUpdateTablePartitions_LockContention(t *testing.T) {
 		wg.Add(1)
 		go func(repoID int) {
 			defer wg.Done()
-			
+
 			<-start
-			
+
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
-			
+
 			err := repos[repoID].UpdateTablePartitions(ctx)
-			
+
 			if err != nil {
 				atomic.AddInt64(&errorCount, 1)
 				t.Logf("Repository %d encountered error: %v", repoID, err)

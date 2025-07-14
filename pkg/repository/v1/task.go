@@ -271,10 +271,10 @@ func (r *TaskRepositoryImpl) EnsureTablePartitionsExist(ctx context.Context) (bo
 func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 	const PARTITION_LOCK_OFFSET = 9000000000000000000
 	const partitionLockKey = PARTITION_LOCK_OFFSET + 1
-	
+
 	lockCtx, lockCancel := context.WithTimeout(ctx, 30*time.Second)
 	defer lockCancel()
-	
+
 	var acquired bool
 	err := r.pool.QueryRow(lockCtx, "SELECT pg_try_advisory_lock($1)", partitionLockKey).Scan(&acquired)
 	if err != nil {
@@ -291,7 +291,7 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 	defer func() {
 		unlockCtx, unlockCancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer unlockCancel()
-		
+
 		_, unlockErr := r.pool.Exec(unlockCtx, "SELECT pg_advisory_unlock($1)", partitionLockKey)
 		if unlockErr != nil {
 			r.l.Error().Err(unlockErr).Msg("failed to release advisory lock for partition operations")
