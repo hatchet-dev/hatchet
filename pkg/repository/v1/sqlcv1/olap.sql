@@ -12,7 +12,7 @@ SELECT
 SELECT
     create_v1_range_partition('v1_events_olap'::text, @date::date),
     create_v1_range_partition('v1_event_to_run_olap'::text, @date::date),
-    create_v1_range_partition('v1_incoming_webhook_validation_failures'::text, @date::date),
+    create_v1_range_partition('v1_incoming_webhook_validation_failures'::text, @date::date)
 ;
 
 -- name: ListOLAPPartitionsBeforeDate :many
