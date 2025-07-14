@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"hash/fnv"
 	"sort"
 	"time"
 
@@ -2422,11 +2423,23 @@ func makeEventTypeArr(status sqlcv1.V1TaskEventType, n int) []sqlcv1.V1TaskEvent
 	return a
 }
 
+func hash(s string) int64 {
+	h := fnv.New64a()
+	h.Write([]byte(s))
+	return int64(h.Sum64())
+}
+
 func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId string, tasks []TaskIdInsertedAtRetryCount) (*ReplayTasksResult, error) {
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 30000)
 
 	if err != nil {
 		return nil, err
+	}
+
+	err = r.queries.AdvisoryLock(ctx, tx, hash(tenantId))
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to acquire advisory lock: %w", err)
 	}
 
 	defer rollback()
