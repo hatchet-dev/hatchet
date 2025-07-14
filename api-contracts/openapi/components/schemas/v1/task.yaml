@@ -190,6 +190,14 @@ V1TaskEventList:
         $ref: "#/V1TaskEvent"
       type: array
 
+V1TaskReplayResponse:
+  properties:
+    ids:
+      type: array
+      description: The list of task external ids that were replayed
+      items:
+        type: string
+
 V1TaskEvent:
   type: object
   properties:

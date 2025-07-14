@@ -491,6 +491,11 @@ export interface V1ReplayTaskRequest {
   filter?: V1TaskFilter;
 }
 
+export interface V1TaskReplayResponse {
+  /** The list of task external ids that were replayed */
+  ids?: string[];
+}
+
 export interface V1DagChildren {
   /** @format uuid */
   dagId?: string;

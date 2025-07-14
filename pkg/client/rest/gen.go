@@ -1397,6 +1397,12 @@ type V1TaskPointMetrics struct {
 	Results *[]V1TaskPointMetric `json:"results,omitempty"`
 }
 
+// V1TaskReplayResponse defines model for V1TaskReplayResponse.
+type V1TaskReplayResponse struct {
+	// Ids The list of task external ids that were replayed
+	Ids *[]string `json:"ids,omitempty"`
+}
+
 // V1TaskRunMetric defines model for V1TaskRunMetric.
 type V1TaskRunMetric struct {
 	Count  int          `json:"count"`
@@ -12343,6 +12349,7 @@ func (r V1TaskCancelResponse) StatusCode() int {
 type V1TaskReplayResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
+	JSON200      *V1TaskReplayResponse
 	JSON400      *APIErrors
 	JSON403      *APIErrors
 	JSON404      *APIErrors
@@ -16949,6 +16956,13 @@ func ParseV1TaskReplayResponse(rsp *http.Response) (*V1TaskReplayResponse, error
 	}
 
 	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest V1TaskReplayResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
 		var dest APIErrors
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {

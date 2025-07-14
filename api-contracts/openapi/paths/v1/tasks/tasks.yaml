@@ -397,6 +397,10 @@ replayTasks:
     responses:
       "200":
         description: Successfully replayed the tasks
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/V1TaskReplayResponse"
       "400":
         content:
           application/json:

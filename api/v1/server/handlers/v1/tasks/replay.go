@@ -5,6 +5,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
+	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers/v1"
 	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 )
@@ -60,7 +61,7 @@ func (t *TasksService) V1TaskReplay(ctx echo.Context, request gen.V1TaskReplayRe
 		grpcReq.Filter = filter
 	}
 
-	_, err = t.proxyReplay.Do(
+	resp, err := t.proxyReplay.Do(
 		ctx.Request().Context(),
 		tenant,
 		grpcReq,
@@ -70,5 +71,9 @@ func (t *TasksService) V1TaskReplay(ctx echo.Context, request gen.V1TaskReplayRe
 		return nil, err
 	}
 
-	return gen.V1TaskReplay200Response{}, nil
+	ids := transformers.ToReplayedTaskResponse(resp.ReplayedTasks)
+
+	return gen.V1TaskReplay200JSONResponse(
+		ids,
+	), nil
 }
