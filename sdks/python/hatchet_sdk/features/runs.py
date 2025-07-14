@@ -121,6 +121,7 @@ class RunsClient(BaseRestClient):
 
     @retry
     def get(self, workflow_run_id: str) -> V1WorkflowRunDetails:
+        print("calling get with workflow_run_id:", workflow_run_id)
         """
         Get workflow run details for a given workflow run ID.
 
@@ -148,7 +149,7 @@ class RunsClient(BaseRestClient):
         :return: The task status
         """
         with self.client() as client:
-            return self._wra(client).v1_workflow_run_get_status(str(workflow_run_id))
+            return self._wra(client).v1_workflow_run_get_status(workflow_run_id)
 
     async def aio_get_status(self, workflow_run_id: str) -> V1TaskStatus:
         """

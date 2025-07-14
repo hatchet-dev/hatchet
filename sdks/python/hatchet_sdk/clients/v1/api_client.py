@@ -5,7 +5,7 @@ import tenacity
 
 from hatchet_sdk.clients.rest.api_client import ApiClient
 from hatchet_sdk.clients.rest.configuration import Configuration
-from hatchet_sdk.clients.rest.exceptions import ServiceException
+from hatchet_sdk.clients.rest.exceptions import NotFoundException, ServiceException
 from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.logger import logger
 from hatchet_sdk.utils.typing import JSONSerializableMapping
@@ -67,4 +67,4 @@ def _alert_on_retry(retry_state: tenacity.RetryCallState) -> None:
 
 
 def _should_retry(ex: BaseException) -> bool:
-    return isinstance(ex, ServiceException)
+    return isinstance(ex, ServiceException | NotFoundException)
