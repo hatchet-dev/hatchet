@@ -1273,3 +1273,35 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         refs = await self._workflow.aio_run_many_no_wait(workflows)
 
         return [TaskRunRef[TWorkflowInput, R](self, ref) for ref in refs]
+
+    def mock_run(
+        self,
+        input: TWorkflowInput | None = None,
+        additional_metadata: JSONSerializableMapping | None = None,
+        parent_outputs: dict[str, JSONSerializableMapping] | None = None,
+        retry_count: int = 0,
+        lifespan_context: Any = None,
+    ) -> R:
+        return self._task.mock_run(
+            input=input,
+            additional_metadata=additional_metadata,
+            parent_outputs=parent_outputs,
+            retry_count=retry_count,
+            lifespan_context=lifespan_context,
+        )
+
+    async def aio_mock_run(
+        self,
+        input: TWorkflowInput | None = None,
+        additional_metadata: JSONSerializableMapping | None = None,
+        parent_outputs: dict[str, JSONSerializableMapping] | None = None,
+        retry_count: int = 0,
+        lifespan_context: Any = None,
+    ) -> R:
+        return await self._task.aio_mock_run(
+            input=input,
+            additional_metadata=additional_metadata,
+            parent_outputs=parent_outputs,
+            retry_count=retry_count,
+            lifespan_context=lifespan_context,
+        )
