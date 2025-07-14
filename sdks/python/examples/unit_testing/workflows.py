@@ -21,11 +21,6 @@ class UnitTestOutput(UnitTestInput, Lifespan):
 
 hatchet = Hatchet()
 
-## sync and async for top level task and durable
-## sync and async for workflow task and durable
-## sync and async tasks in dag
-## 12 total
-
 
 @hatchet.task(input_validator=UnitTestInput)
 def sync_standalone(input: UnitTestInput, ctx: Context) -> UnitTestOutput:
