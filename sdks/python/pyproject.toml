@@ -176,6 +176,9 @@ select = [
     "FIX",
     ## Performance-related rules
     "PERF",
+
+    # Print statements
+    "T201",
 ]
 
 ignore = [
@@ -207,6 +210,7 @@ exclude = [
     "hatchet_sdk/clients/rest/exceptions.py",
     "hatchet_sdk/clients/rest/rest.py",
     "hatchet_sdk/v0/*",
+    "apply_patches.py",
     "site/*",
     "tests/*",
 ]
