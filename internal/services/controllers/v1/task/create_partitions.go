@@ -12,19 +12,7 @@ func (tc *TasksControllerImpl) runTaskTablePartition(ctx context.Context) func()
 	return func() {
 		tc.l.Debug().Msgf("partition: running task table partition")
 
-		// get internal tenant
-		tenant, err := tc.p.GetInternalTenantForController(ctx)
-
-		if err != nil {
-			tc.l.Error().Err(err).Msg("could not get internal tenant")
-			return
-		}
-
-		if tenant == nil {
-			return
-		}
-
-		err = tc.createTablePartition(ctx)
+		err := tc.createTablePartition(ctx)
 
 		if err != nil {
 			tc.l.Error().Err(err).Msg("could not create table partition")

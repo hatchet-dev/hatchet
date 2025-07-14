@@ -269,11 +269,41 @@ func (r *TaskRepositoryImpl) EnsureTablePartitionsExist(ctx context.Context) (bo
 }
 
 func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
+	const PARTITION_LOCK_OFFSET = 9000000000000000000
+	const partitionLockKey = PARTITION_LOCK_OFFSET + 1
+	
+	lockCtx, lockCancel := context.WithTimeout(ctx, 30*time.Second)
+	defer lockCancel()
+	
+	var acquired bool
+	err := r.pool.QueryRow(lockCtx, "SELECT pg_try_advisory_lock($1)", partitionLockKey).Scan(&acquired)
+	if err != nil {
+		return fmt.Errorf("failed to try advisory lock for partition operations: %w", err)
+	}
+
+	if !acquired {
+		r.l.Debug().Msg("partition operations already running on another controller instance, skipping")
+		return nil
+	}
+
+	r.l.Debug().Msg("acquired advisory lock for partition operations")
+
+	defer func() {
+		unlockCtx, unlockCancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer unlockCancel()
+		
+		_, unlockErr := r.pool.Exec(unlockCtx, "SELECT pg_advisory_unlock($1)", partitionLockKey)
+		if unlockErr != nil {
+			r.l.Error().Err(unlockErr).Msg("failed to release advisory lock for partition operations")
+		} else {
+			r.l.Debug().Msg("released advisory lock for partition operations")
+		}
+	}()
 	today := time.Now().UTC()
 	tomorrow := today.AddDate(0, 0, 1)
 	removeBefore := today.Add(-1 * r.taskRetentionPeriod)
 
-	err := r.queries.CreatePartitions(ctx, r.pool, pgtype.Date{
+	err = r.queries.CreatePartitions(ctx, r.pool, pgtype.Date{
 		Time:  today,
 		Valid: true,
 	})
