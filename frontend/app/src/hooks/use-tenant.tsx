@@ -70,7 +70,7 @@ export function useTenantDetails() {
       queryClient.clear();
       navigate(newPath);
     },
-    [navigate, location.pathname, setLastTenant],
+    [navigate, location.pathname, setLastTenant, queryClient],
   );
 
   const membership = useMemo(() => {
