@@ -111,6 +111,9 @@ type TaskIdInsertedAtRetryCount struct {
 
 	// (required) the retry count
 	RetryCount int32
+
+	// (optional - used for replays) the workflow run external id
+	WorkflowRunExternalId *pgtype.UUID
 }
 
 type TaskIdInsertedAtSignalKey struct {
@@ -2436,7 +2439,7 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId string, t
 		return nil, err
 	}
 
-	err = r.queries.AdvisoryLock(ctx, tx, hash("replay_" + tenantId))
+	err = r.queries.AdvisoryLock(ctx, tx, hash("replay_"+tenantId))
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to acquire advisory lock: %w", err)

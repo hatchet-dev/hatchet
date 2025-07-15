@@ -652,10 +652,22 @@ func (tc *TasksControllerImpl) handleReplayTasks(ctx context.Context, tenantId s
 	for _, msg := range msgs {
 		for _, task := range msg.Tasks {
 			taskIdRetryCounts = append(taskIdRetryCounts, v1.TaskIdInsertedAtRetryCount{
-				Id:         task.Id,
-				InsertedAt: task.InsertedAt,
-				RetryCount: task.RetryCount,
+				Id:                    task.Id,
+				InsertedAt:            task.InsertedAt,
+				RetryCount:            task.RetryCount,
+				WorkflowRunExternalId: task.WorkflowRunExternalId,
 			})
+		}
+	}
+
+	workflowRunIdToTasks := make(map[string][]v1.TaskIdInsertedAtRetryCount)
+	for _, task := range taskIdRetryCounts {
+		if task.WorkflowRunExternalId == nil || !task.WorkflowRunExternalId.Valid {
+			// Use a random uuid to effectively send tasks one at a time
+			randomUuid := uuid.NewString()
+			workflowRunIdToTasks[randomUuid] = append(workflowRunIdToTasks[randomUuid], task)
+		} else {
+			workflowRunIdToTasks[task.WorkflowRunExternalId.String()] = append(workflowRunIdToTasks[task.WorkflowRunExternalId.String()], task)
 		}
 	}
 
@@ -663,8 +675,8 @@ func (tc *TasksControllerImpl) handleReplayTasks(ctx context.Context, tenantId s
 	upsertedTasks := make([]*sqlcv1.V1Task, 0, len(taskIdRetryCounts))
 	createdTasks := make([]*sqlcv1.V1Task, 0, len(taskIdRetryCounts))
 
-	for _, task := range taskIdRetryCounts {
-		replayRes, err := tc.repov1.Tasks().ReplayTasks(ctx, tenantId, []v1.TaskIdInsertedAtRetryCount{task})
+	for _, tasks := range workflowRunIdToTasks {
+		replayRes, err := tc.repov1.Tasks().ReplayTasks(ctx, tenantId, tasks)
 
 		if err != nil {
 			return fmt.Errorf("failed to replay task: %w", err)

@@ -252,9 +252,10 @@ func (a *AdminServiceImpl) ReplayTasks(ctx context.Context, req *contracts.Repla
 
 	for _, task := range tasks {
 		record := v1.TaskIdInsertedAtRetryCount{
-			Id:         task.ID,
-			InsertedAt: task.InsertedAt,
-			RetryCount: task.RetryCount,
+			Id:                    task.ID,
+			InsertedAt:            task.InsertedAt,
+			RetryCount:            task.RetryCount,
+			WorkflowRunExternalId: &task.WorkflowRunExternalID,
 		}
 
 		if _, exists := taskIdInsertedAtRetryCountToExternalId[record]; !exists {
