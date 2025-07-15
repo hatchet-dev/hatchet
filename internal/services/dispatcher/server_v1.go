@@ -457,13 +457,6 @@ func (s *DispatcherImpl) subscribeToWorkflowRunsV1(server contracts.Dispatcher_S
 			}
 
 			acks.addWorkflowRun(req.WorkflowRunId)
-
-			err = iter([]string{req.WorkflowRunId})
-
-			if err != nil {
-				s.l.Error().Err(err).Msgf("could not iterate over workflow run %s", req.WorkflowRunId)
-				continue
-			}
 		}
 	}()
 
