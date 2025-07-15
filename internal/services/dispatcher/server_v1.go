@@ -325,7 +325,7 @@ func (s *DispatcherImpl) subscribeToWorkflowRunsV1(server contracts.Dispatcher_S
 	wg := sync.WaitGroup{}
 	sendMu := sync.Mutex{}
 	ringIndex := 0
-	iterMu := sync.Mutex{}
+	ringMu := sync.Mutex{}
 
 	sendEvent := func(e *contracts.WorkflowRunEvent) error {
 		results := s.cleanResults(e.Results)
@@ -335,17 +335,19 @@ func (s *DispatcherImpl) subscribeToWorkflowRunsV1(server contracts.Dispatcher_S
 			e.Results = nil
 		}
 
-		// send the task to the client
-		sendMu.Lock()
-		err := server.Send(e)
-		sendMu.Unlock()
+		shouldSend := acks.ackWorkflowRun(e.WorkflowRunId)
 
-		if err != nil {
-			s.l.Error().Err(err).Msgf("could not subscribe to workflow events for run %s", e.WorkflowRunId)
-			return err
+		// only send if it has not been concurrently sent by another process
+		if shouldSend {
+			sendMu.Lock()
+			err := server.Send(e)
+			sendMu.Unlock()
+
+			if err != nil {
+				s.l.Error().Err(err).Msgf("could not subscribe to workflow events for run %s", e.WorkflowRunId)
+				return err
+			}
 		}
-
-		acks.ackWorkflowRun(e.WorkflowRunId)
 
 		return nil
 	}
@@ -355,16 +357,11 @@ func (s *DispatcherImpl) subscribeToWorkflowRunsV1(server contracts.Dispatcher_S
 			return nil
 		}
 
-		if !iterMu.TryLock() {
-			s.l.Debug().Msg("could not acquire lock")
-			return nil
-		}
-
-		defer iterMu.Unlock()
-
 		bufferSize := 1000
 
 		if len(workflowRunIds) > bufferSize {
+			ringMu.Lock()
+
 			start := ringIndex % len(workflowRunIds)
 
 			if start+bufferSize <= len(workflowRunIds) {
@@ -379,6 +376,8 @@ func (s *DispatcherImpl) subscribeToWorkflowRunsV1(server contracts.Dispatcher_S
 			if ringIndex >= len(workflowRunIds) {
 				ringIndex = 0
 			}
+
+			ringMu.Unlock()
 		}
 
 		start := time.Now()
@@ -455,6 +454,13 @@ func (s *DispatcherImpl) subscribeToWorkflowRunsV1(server contracts.Dispatcher_S
 			}
 
 			acks.addWorkflowRun(req.WorkflowRunId)
+
+			err = iter([]string{req.WorkflowRunId})
+
+			if err != nil {
+				s.l.Error().Err(err).Msgf("could not iterate over workflow run %s", req.WorkflowRunId)
+				continue
+			}
 		}
 	}()
 
