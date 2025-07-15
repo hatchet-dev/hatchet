@@ -345,6 +345,10 @@ cancelTasks:
     responses:
       "200":
         description: Successfully cancelled the tasks
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/V1CancelledTasks"
       "400":
         content:
           application/json:

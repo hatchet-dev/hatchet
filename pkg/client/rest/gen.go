@@ -1208,6 +1208,12 @@ type V1CancelTaskRequest struct {
 	Filter      *V1TaskFilter         `json:"filter,omitempty"`
 }
 
+// V1CancelledTasks defines model for V1CancelledTasks.
+type V1CancelledTasks struct {
+	// Ids The list of task external ids that were cancelled
+	Ids *[]openapi_types.UUID `json:"ids,omitempty"`
+}
+
 // V1CreateFilterRequest defines model for V1CreateFilterRequest.
 type V1CreateFilterRequest struct {
 	// Expression The expression for the filter
@@ -12324,6 +12330,7 @@ func (r V1TaskGetPointMetricsResponse) StatusCode() int {
 type V1TaskCancelResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
+	JSON200      *V1CancelledTasks
 	JSON400      *APIErrors
 	JSON403      *APIErrors
 	JSON404      *APIErrors
@@ -16909,6 +16916,13 @@ func ParseV1TaskCancelResponse(rsp *http.Response) (*V1TaskCancelResponse, error
 	}
 
 	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest V1CancelledTasks
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
 		var dest APIErrors
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {

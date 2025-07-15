@@ -71,7 +71,7 @@ func (t *TasksService) V1TaskReplay(ctx echo.Context, request gen.V1TaskReplayRe
 		return nil, err
 	}
 
-	ids := transformers.ToReplayedTaskResponse(resp.ReplayedTasks)
+	ids := transformers.ToCancelledOrReplayedTaskResponse(resp.ReplayedTasks)
 
 	return gen.V1TaskReplay200JSONResponse(
 		ids,

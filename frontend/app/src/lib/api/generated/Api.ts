@@ -85,6 +85,7 @@ import {
   UserRegisterRequest,
   UserTenantMembershipsList,
   V1CancelTaskRequest,
+  V1CancelledTasks,
   V1CreateFilterRequest,
   V1DagChildren,
   V1EventList,
@@ -222,12 +223,13 @@ export class Api<
     data: V1CancelTaskRequest,
     params: RequestParams = {},
   ) =>
-    this.request<void, APIErrors>({
+    this.request<V1CancelledTasks, APIErrors>({
       path: `/api/v1/stable/tenants/${tenant}/tasks/cancel`,
       method: "POST",
       body: data,
       secure: true,
       type: ContentType.Json,
+      format: "json",
       ...params,
     });
   /**
