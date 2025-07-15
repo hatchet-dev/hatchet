@@ -4,6 +4,7 @@ import { TabOption } from './step-run-detail/step-run-detail';
 import StepRunNode from './step-run-node';
 import { useWorkflowDetails } from '../../hooks/workflow-details';
 import { useQuery } from '@tanstack/react-query';
+import { emptyGolangUUID } from '@/lib/utils';
 
 interface JobMiniMapProps {
   onClick: (stepRunId?: string, defaultOpenTab?: TabOption) => void;
@@ -144,6 +145,7 @@ export const useTaskRun = ({ taskRunId }: UseTaskRunProps) => {
   const taskRunQuery = useQuery({
     ...queries.v1WorkflowRuns.get(taskRunId),
     refetchInterval: 5000,
+    enabled: taskRunId !== emptyGolangUUID,
   });
 
   return {
