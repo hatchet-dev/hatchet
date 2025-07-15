@@ -8,7 +8,7 @@ import {
   BreadcrumbSeparator,
   BreadcrumbPage,
 } from '@/components/v1/ui/breadcrumb';
-import { emptyGolangUUID, formatDuration } from '@/lib/utils';
+import { formatDuration } from '@/lib/utils';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { useWorkflowDetails } from '../../hooks/workflow-details';
 import { TaskRunActionButton } from '../../../task-runs-v1/actions';
@@ -223,7 +223,6 @@ function TriggeringParentWorkflowRunSection({
   // Get the parent task to find the parent workflow run
   const parentTaskQuery = useQuery({
     ...queries.v1WorkflowRuns.get(parentTaskExternalId),
-    enabled: parentTaskExternalId !== emptyGolangUUID,
   });
 
   const parentTask = parentTaskQuery.data;
@@ -231,12 +230,12 @@ function TriggeringParentWorkflowRunSection({
 
   // Get the parent workflow run details - only enabled when we have a parent workflow run ID
   const parentWorkflowRunQuery = useQuery({
-    ...queries.v1WorkflowRuns.details(parentTaskExternalId || ''),
+    ...queries.v1WorkflowRuns.details(parentWorkflowRunId || ''),
     enabled: !!parentWorkflowRunId,
   });
 
   // Show nothing while loading or if no data
-  if (!parentWorkflowRunId) {
+  if (parentTaskQuery.isLoading || !parentTask || !parentWorkflowRunId) {
     return null;
   }
 

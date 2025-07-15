@@ -111,7 +111,6 @@ export const TaskRunDetail = ({
 
       return 1000;
     },
-    enabled: taskRunId !== emptyGolangUUID,
   });
 
   const onActionSubmit = useCallback(
@@ -295,7 +294,6 @@ export const TaskRunDetail = ({
 const V1StepRunSummary = ({ taskRunId }: { taskRunId: string }) => {
   const taskRunQuery = useQuery({
     ...queries.v1WorkflowRuns.get(taskRunId),
-    enabled: taskRunId !== emptyGolangUUID,
   });
 
   const timings = [];
@@ -370,7 +368,6 @@ function TriggeringParentWorkflowRunSection({
   // Get the parent task to find the parent workflow run
   const parentTaskQuery = useQuery({
     ...queries.v1WorkflowRuns.get(parentTaskExternalId),
-    enabled: parentTaskExternalId !== emptyGolangUUID,
   });
 
   const parentTask = parentTaskQuery.data;
@@ -378,7 +375,6 @@ function TriggeringParentWorkflowRunSection({
 
   const taskRunQuery = useQuery({
     ...queries.v1WorkflowRuns.get(parentTaskExternalId),
-    enabled: parentTaskExternalId !== emptyGolangUUID,
   });
 
   // Show nothing while loading or if no data

@@ -44,7 +44,6 @@ import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { TriggerWorkflowForm } from '../../workflows/$workflow/components/trigger-workflow-form';
 import { useToast } from '@/components/v1/hooks/use-toast';
 import { Toaster } from '@/components/v1/ui/toaster';
-import { emptyGolangUUID } from '@/lib/utils';
 
 export interface TaskRunsTableProps {
   createdAfter?: string;
@@ -162,9 +161,7 @@ export function TaskRunsTable({
 
   const parentTaskRun = useQuery({
     ...queries.v1WorkflowRuns.get(derivedParentTaskExternalId || ''),
-    enabled:
-      !!derivedParentTaskExternalId &&
-      derivedParentTaskExternalId !== emptyGolangUUID,
+    enabled: !!derivedParentTaskExternalId,
   });
 
   const v1TaskFilters = useMemo(

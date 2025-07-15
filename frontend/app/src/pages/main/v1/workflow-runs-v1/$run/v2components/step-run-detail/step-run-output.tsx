@@ -9,7 +9,6 @@ import {
 import React from 'react';
 import LoggingComponent from '@/components/v1/cloud/logging/logs';
 import { useQuery } from '@tanstack/react-query';
-import { emptyGolangUUID } from '@/lib/utils';
 
 const readableReason = (reason?: string): string => {
   return reason ? reason.toLowerCase().split('_').join(' ') : '';
@@ -121,7 +120,6 @@ const StepRunOutput: React.FC<StepRunOutputProps> = (props) => {
 export const V1StepRunOutput = (props: { taskRunId: string }) => {
   const { isLoading, data } = useQuery({
     ...queries.v1WorkflowRuns.get(props.taskRunId),
-    enabled: props.taskRunId !== emptyGolangUUID,
   });
 
   if (isLoading || !data) {
