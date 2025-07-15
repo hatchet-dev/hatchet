@@ -101,7 +101,7 @@ export const TaskRunDetail = ({
     setIsSidebarOpen(true);
   }, []);
   const taskRunQuery = useQuery({
-    ...queries.v1WorkflowRuns.get(taskRunId),
+    ...queries.v1Tasks.get(taskRunId),
     refetchInterval: (query) => {
       const status = query.state.data?.status;
 
@@ -293,7 +293,7 @@ export const TaskRunDetail = ({
 
 const V1StepRunSummary = ({ taskRunId }: { taskRunId: string }) => {
   const taskRunQuery = useQuery({
-    ...queries.v1WorkflowRuns.get(taskRunId),
+    ...queries.v1Tasks.get(taskRunId),
   });
 
   const timings = [];
@@ -367,14 +367,14 @@ function TriggeringParentWorkflowRunSection({
 }) {
   // Get the parent task to find the parent workflow run
   const parentTaskQuery = useQuery({
-    ...queries.v1WorkflowRuns.get(parentTaskExternalId),
+    ...queries.v1Tasks.get(parentTaskExternalId),
   });
 
   const parentTask = parentTaskQuery.data;
   const parentWorkflowRunId = parentTask?.workflowRunExternalId;
 
   const taskRunQuery = useQuery({
-    ...queries.v1WorkflowRuns.get(parentTaskExternalId),
+    ...queries.v1Tasks.get(parentTaskExternalId),
   });
 
   // Show nothing while loading or if no data

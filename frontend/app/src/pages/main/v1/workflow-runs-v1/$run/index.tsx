@@ -1,7 +1,7 @@
-import {
-  queries,
+import api, {
   V1TaskStatus,
-  V1WorkflowType,
+  V1TaskSummary,
+  V1WorkflowRunDetails,
   WorkflowRunShapeForWorkflowRunDetails,
   WorkflowRunStatus,
 } from '@/lib/api';
@@ -78,15 +78,70 @@ const GraphView = ({
   );
 };
 
+type TaskRunDispatchQueryReturnType = {
+  status: V1TaskStatus;
+  type: 'task' | 'dag';
+  task?: V1TaskSummary;
+  dag?: V1WorkflowRunDetails;
+};
+
+async function fetchTaskRun(id: string) {
+  try {
+    return await api.v1TaskGet(id);
+  } catch (error) {
+    return undefined;
+  }
+}
+
+async function fetchDAGRun(id: string) {
+  try {
+    return await api.v1WorkflowRunGet(id);
+  } catch (error) {
+    return undefined;
+  }
+}
+
 export default function Run() {
   const { run } = useParams();
 
   invariant(run, 'Run ID is required');
 
   const taskRunQuery = useQuery({
-    ...queries.v1WorkflowRuns.details(run),
+    queryKey: ['workflow-run', run],
+    queryFn: async (): Promise<TaskRunDispatchQueryReturnType> => {
+      const [task, dag] = await Promise.all([
+        fetchTaskRun(run),
+        fetchDAGRun(run),
+      ]);
+
+      if (!task && !dag) {
+        throw new Error(`Task or Workflow Run with ID ${run} not found`);
+      }
+
+      if (task?.data) {
+        const taskData = task.data;
+
+        return {
+          status: taskData.status,
+          type: 'task',
+          task: taskData,
+        };
+      }
+
+      if (dag?.data?.run) {
+        const dagData = dag.data;
+
+        return {
+          status: dagData.run.status,
+          type: 'dag',
+          dag: dagData,
+        };
+      }
+
+      throw new Error(`Task or Workflow Run with ID ${run} not found`);
+    },
     refetchInterval: (query) => {
-      const status = query.state.data?.run.status;
+      const status = query.state.data?.status;
 
       if (isTerminalState(status)) {
         return 5000;
@@ -106,11 +161,11 @@ export default function Run() {
     return null;
   }
 
-  if (runData.type === V1WorkflowType.TASK) {
+  if (runData.type === 'task') {
     return <ExpandedTaskRun id={run} />;
   }
 
-  if (runData.type === V1WorkflowType.DAG || !runData.type) {
+  if (runData.type === 'dag') {
     return <ExpandedWorkflowRun id={run} />;
   }
 }

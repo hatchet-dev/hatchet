@@ -222,7 +222,7 @@ function TriggeringParentWorkflowRunSection({
 }) {
   // Get the parent task to find the parent workflow run
   const parentTaskQuery = useQuery({
-    ...queries.v1WorkflowRuns.get(parentTaskExternalId),
+    ...queries.v1Tasks.get(parentTaskExternalId),
   });
 
   const parentTask = parentTaskQuery.data;
