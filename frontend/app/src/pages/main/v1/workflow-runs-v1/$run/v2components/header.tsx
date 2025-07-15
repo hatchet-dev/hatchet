@@ -18,6 +18,9 @@ import { CopyWorkflowConfigButton } from '@/components/v1/shared/copy-workflow-c
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
+import { useToast } from '@/components/v1/hooks/use-toast';
+import { useCallback } from 'react';
+import { Toaster } from '@/components/v1/ui/toaster';
 
 export const WORKFLOW_RUN_TERMINAL_STATUSES = [
   WorkflowRunStatus.CANCELLED,
@@ -27,11 +30,28 @@ export const WORKFLOW_RUN_TERMINAL_STATUSES = [
 
 export const V1RunDetailHeader = () => {
   const { tenantId } = useCurrentTenantId();
+  const { toast } = useToast();
   const {
     workflowRun,
     workflowConfig,
     isLoading: loading,
   } = useWorkflowDetails();
+
+  const onActionSubmit = useCallback(
+    (action: 'cancel' | 'replay') => {
+      const prefix = action === 'cancel' ? 'Canceling' : 'Replaying';
+
+      const t = toast({
+        title: `${prefix} task run`,
+        description: `This may take a few seconds. You don't need to hit ${action} again.`,
+      });
+
+      setTimeout(() => {
+        t.dismiss();
+      }, 5000);
+    },
+    [toast],
+  );
 
   if (loading || !workflowRun) {
     return <div>Loading...</div>;
@@ -39,6 +59,7 @@ export const V1RunDetailHeader = () => {
 
   return (
     <div className="flex flex-col gap-4">
+      <Toaster />
       <Breadcrumb>
         <BreadcrumbList>
           <BreadcrumbItem>
@@ -76,12 +97,14 @@ export const V1RunDetailHeader = () => {
                 !TASK_RUN_TERMINAL_STATUSES.includes(workflowRun.status)
               }
               showModal={false}
+              onActionSubmit={() => onActionSubmit('replay')}
             />
             <TaskRunActionButton
               actionType="cancel"
               params={{ externalIds: [workflowRun.metadata.id] }}
               disabled={TASK_RUN_TERMINAL_STATUSES.includes(workflowRun.status)}
               showModal={false}
+              onActionSubmit={() => onActionSubmit('cancel')}
             />
           </div>
         </div>

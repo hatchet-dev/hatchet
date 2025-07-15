@@ -28,6 +28,8 @@ import { CopyWorkflowConfigButton } from '@/components/v1/shared/copy-workflow-c
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { Waterfall } from '../waterfall';
 import { useState, useCallback } from 'react';
+import { useToast } from '@/components/v1/hooks/use-toast';
+import { Toaster } from '@/components/v1/ui/toaster';
 
 export enum TabOption {
   Output = 'output',
@@ -92,6 +94,7 @@ export const TaskRunDetail = ({
 }: TaskRunDetailProps) => {
   const [selectedTaskRunId, setSelectedTaskRunId] = useState<string>();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const { toast } = useToast();
 
   const handleTaskRunExpand = useCallback((taskRunId: string) => {
     setSelectedTaskRunId(taskRunId);
@@ -110,6 +113,22 @@ export const TaskRunDetail = ({
     },
   });
 
+  const onActionSubmit = useCallback(
+    (action: 'cancel' | 'replay') => {
+      const prefix = action === 'cancel' ? 'Canceling' : 'Replaying';
+
+      const t = toast({
+        title: `${prefix} task run`,
+        description: `This may take a few seconds. You don't need to hit ${action} again.`,
+      });
+
+      setTimeout(() => {
+        t.dismiss();
+      }, 5000);
+    },
+    [toast],
+  );
+
   const taskRun = taskRunQuery.data;
 
   if (taskRunQuery.isLoading) {
@@ -126,6 +145,7 @@ export const TaskRunDetail = ({
 
   return (
     <div className="w-full flex flex-col gap-4">
+      <Toaster />
       <div className="flex flex-row justify-between items-center">
         <div className="flex flex-row justify-between items-center w-full">
           <div className="flex flex-row gap-4 items-center">
@@ -149,12 +169,14 @@ export const TaskRunDetail = ({
           params={{ externalIds: [taskRunId] }}
           disabled={!TASK_RUN_TERMINAL_STATUSES.includes(taskRun.status)}
           showModal={false}
+          onActionSubmit={() => onActionSubmit('replay')}
         />
         <TaskRunActionButton
           actionType="cancel"
           params={{ externalIds: [taskRunId] }}
           disabled={TASK_RUN_TERMINAL_STATUSES.includes(taskRun.status)}
           showModal={false}
+          onActionSubmit={() => onActionSubmit('cancel')}
         />
         <TaskRunPermalinkOrBacklink
           taskRun={taskRun}

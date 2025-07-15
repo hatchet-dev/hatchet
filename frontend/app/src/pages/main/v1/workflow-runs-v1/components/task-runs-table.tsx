@@ -42,6 +42,8 @@ import { useToolbarFilters } from '../hooks/toolbar-filters';
 import { IntroDocsEmptyState } from '@/pages/onboarding/intro-docs-empty-state';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { TriggerWorkflowForm } from '../../workflows/$workflow/components/trigger-workflow-form';
+import { useToast } from '@/components/v1/hooks/use-toast';
+import { Toaster } from '@/components/v1/ui/toaster';
 
 export interface TaskRunsTableProps {
   createdAfter?: string;
@@ -83,6 +85,7 @@ export function TaskRunsTable({
   headerClassName,
 }: TaskRunsTableProps) {
   const { tenantId } = useCurrentTenantId();
+  const { toast } = useToast();
 
   const [selectedAdditionalMetaRunId, setSelectedAdditionalMetaRunId] =
     useState<string | null>(null);
@@ -101,6 +104,10 @@ export function TaskRunsTable({
       isOpen: false,
       taskRunId: undefined,
     });
+
+  const [taskIdsPendingAction, setTaskIdsPendingAction] = useState<string[]>(
+    [],
+  );
 
   const cf = useColumnFilters();
 
@@ -187,29 +194,56 @@ export function TaskRunsTable({
 
   const isFetching = !hasLoaded && (isTaskRunsFetching || isMetricsFetching);
 
+  const onActionSubmit = useCallback(
+    (action: 'cancel' | 'replay', ids: string[]) => {
+      const prefix = action === 'cancel' ? 'Canceling' : 'Replaying';
+      const count = ids.length;
+
+      setTaskIdsPendingAction(ids);
+      const t = toast({
+        title: `${prefix} ${count} task run${count > 1 ? 's' : ''}`,
+        description: `This may take a few seconds. You don't need to hit ${action} again.`,
+      });
+
+      setTimeout(() => {
+        setTaskIdsPendingAction([]);
+        t.dismiss();
+      }, 5000);
+    },
+    [toast],
+  );
+
   const actions = useMemo(() => {
     let localActions = [
       <TaskRunActionButton
         key="cancel"
         actionType="cancel"
-        disabled={!(hasRowsSelected || hasTaskFiltersSelected)}
+        disabled={
+          !(hasRowsSelected || hasTaskFiltersSelected) ||
+          taskIdsPendingAction.length > 0
+        }
         params={
           selectedRuns.length > 0
             ? { externalIds: selectedRuns.map((run) => run?.metadata.id) }
             : { filter: v1TaskFilters }
         }
         showModal
+        onActionSubmit={(ids) => onActionSubmit('cancel', ids)}
       />,
       <TaskRunActionButton
         key="replay"
         actionType="replay"
-        disabled={!(hasRowsSelected || hasTaskFiltersSelected)}
+        disabled={
+          !(hasRowsSelected || hasTaskFiltersSelected) ||
+          taskIdsPendingAction.length > 0
+        }
         params={
           selectedRuns.length > 0
             ? { externalIds: selectedRuns.map((run) => run?.metadata.id) }
             : { filter: v1TaskFilters }
         }
         showModal
+        onActionSubmit={(ids) => onActionSubmit('replay', ids)}
       />,
       <Button
         key="refresh"
@@ -251,6 +285,8 @@ export function TaskRunsTable({
     refetchTaskRuns,
     refetchMetrics,
     rotate,
+    onActionSubmit,
+    taskIdsPendingAction.length,
   ]);
 
   const handleSetSelectedAdditionalMetaRunId = useCallback(
@@ -262,12 +298,12 @@ export function TaskRunsTable({
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
+      <Toaster />
       <TriggerWorkflowForm
         defaultWorkflow={undefined}
         show={triggerWorkflow}
         onClose={() => setTriggerWorkflow(false)}
       />
-
       {cf.filters.parentTaskExternalId &&
         !parentTaskRun.isLoading &&
         parentTaskRun.data && (
