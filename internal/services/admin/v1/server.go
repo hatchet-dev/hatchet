@@ -256,12 +256,15 @@ func (a *AdminServiceImpl) ReplayTasks(ctx context.Context, req *contracts.Repla
 			InsertedAt: task.InsertedAt,
 			RetryCount: task.RetryCount,
 		}
-		tasksToReplay = append(tasksToReplay, TaskIdInsertedAtRetryCountWithWorkflowRunId{
-			TaskIdInsertedAtRetryCount: record,
-			WorkflowRunId:              task.WorkflowRunExternalID,
-		})
 
-		taskIdInsertedAtRetryCountToExternalId[record] = task.WorkflowRunExternalID
+		if _, exists := taskIdInsertedAtRetryCountToExternalId[record]; !exists {
+			tasksToReplay = append(tasksToReplay, TaskIdInsertedAtRetryCountWithWorkflowRunId{
+				TaskIdInsertedAtRetryCount: record,
+				WorkflowRunId:              task.WorkflowRunExternalID,
+			})
+
+			taskIdInsertedAtRetryCountToExternalId[record] = task.WorkflowRunExternalID
+		}
 	}
 
 	workflowRunIdToTasksToReplay := make(map[pgtype.UUID][]v1.TaskIdInsertedAtRetryCount)
