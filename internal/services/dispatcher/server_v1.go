@@ -335,19 +335,22 @@ func (s *DispatcherImpl) subscribeToWorkflowRunsV1(server contracts.Dispatcher_S
 			e.Results = nil
 		}
 
-		shouldSend := acks.ackWorkflowRun(e.WorkflowRunId)
+		sendMu.Lock()
+		defer sendMu.Unlock()
 
 		// only send if it has not been concurrently sent by another process
+		shouldSend := acks.hasWorkflowRun(e.WorkflowRunId)
+
 		if shouldSend {
-			sendMu.Lock()
 			err := server.Send(e)
-			sendMu.Unlock()
 
 			if err != nil {
-				s.l.Error().Err(err).Msgf("could not subscribe to workflow events for run %s", e.WorkflowRunId)
+				s.l.Error().Err(err).Msgf("could not send workflow event for run %s", e.WorkflowRunId)
 				return err
 			}
 		}
+
+		acks.ackWorkflowRun(e.WorkflowRunId)
 
 		return nil
 	}

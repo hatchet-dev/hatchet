@@ -826,15 +826,11 @@ func (w *workflowRunAcks) getNonAckdWorkflowRuns() []string {
 	return ids
 }
 
-func (w *workflowRunAcks) ackWorkflowRun(id string) bool {
+func (w *workflowRunAcks) ackWorkflowRun(id string) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
-	_, contains := w.acks[id]
-
 	delete(w.acks, id)
-
-	return contains
 }
 
 func (w *workflowRunAcks) hasWorkflowRun(id string) bool {
@@ -963,7 +959,7 @@ func (s *DispatcherImpl) subscribeToWorkflowRunsV0(server contracts.Dispatcher_S
 			return err
 		}
 
-		_ = acks.ackWorkflowRun(e.WorkflowRunId)
+		acks.ackWorkflowRun(e.WorkflowRunId)
 
 		return nil
 	}
