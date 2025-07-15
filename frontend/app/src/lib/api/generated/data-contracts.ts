@@ -613,6 +613,7 @@ export interface V1WorkflowRunDetails {
   shape: WorkflowRunShapeForWorkflowRunDetails;
   tasks: V1TaskSummary[];
   workflowConfig?: object;
+  type?: V1WorkflowType;
 }
 
 export interface V1TaskTiming {

@@ -142,7 +142,7 @@ type UseTaskRunProps = {
 
 export const useTaskRun = ({ taskRunId }: UseTaskRunProps) => {
   const taskRunQuery = useQuery({
-    ...queries.v1Tasks.get(taskRunId),
+    ...queries.v1WorkflowRuns.get(taskRunId),
     refetchInterval: 5000,
   });
 

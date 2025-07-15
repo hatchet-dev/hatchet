@@ -285,6 +285,10 @@ export const queries = createQueryKeyStore({
       queryKey: ['workflow-run-details:get', workflowRunId],
       queryFn: async () => (await api.v1WorkflowRunGet(workflowRunId)).data,
     }),
+    get: (task: string) => ({
+      queryKey: ['workflow-run-details:get', task],
+      queryFn: async () => (await api.v1WorkflowRunGet(task)).data?.tasks?.at(0),
+    }),
     listDisplayNames: (tenant: string, externalIds: string[]) => ({
       queryKey: ['workflow-run:display-names:list', tenant, externalIds],
       queryFn: async () =>
@@ -296,20 +300,6 @@ export const queries = createQueryKeyStore({
     }),
   },
   v1Tasks: {
-    get: (task: string) => ({
-      queryKey: ['v1-task:get', task],
-      queryFn: async () => (await api.v1TaskGet(task)).data,
-    }),
-    getByDagId: (tenant: string, dagIds: string[]) => ({
-      queryKey: ['v1-task:get-by-dag-id', dagIds],
-      queryFn: async () =>
-        (
-          await api.v1DagListTasks({
-            dag_ids: dagIds,
-            tenant,
-          })
-        ).data,
-    }),
     getLogs: (task: string) => ({
       queryKey: ['v1-log-line:list', task],
       queryFn: async () => (await api.v1LogLineList(task)).data,

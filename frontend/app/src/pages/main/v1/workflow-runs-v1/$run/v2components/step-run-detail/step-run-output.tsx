@@ -119,7 +119,7 @@ const StepRunOutput: React.FC<StepRunOutputProps> = (props) => {
 
 export const V1StepRunOutput = (props: { taskRunId: string }) => {
   const { isLoading, data } = useQuery({
-    ...queries.v1Tasks.get(props.taskRunId),
+    ...queries.v1WorkflowRuns.get(props.taskRunId),
   });
 
   if (isLoading || !data) {

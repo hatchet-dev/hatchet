@@ -160,7 +160,7 @@ export function TaskRunsTable({
   }, []);
 
   const parentTaskRun = useQuery({
-    ...queries.v1Tasks.get(derivedParentTaskExternalId || ''),
+    ...queries.v1WorkflowRuns.get(derivedParentTaskExternalId || ''),
     enabled: !!derivedParentTaskExternalId,
   });
 
