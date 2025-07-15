@@ -106,17 +106,11 @@ export default function Run() {
     return null;
   }
 
-  if (
-    runData.type === V1WorkflowType.TASK ||
-    (!runData.type && runData.tasks.length <= 1)
-  ) {
+  if (runData.type === V1WorkflowType.TASK) {
     return <ExpandedTaskRun id={run} />;
   }
 
-  if (
-    runData.type === V1WorkflowType.DAG ||
-    (!runData.type && runData.tasks.length > 1)
-  ) {
+  if (runData.type === V1WorkflowType.DAG || !runData.type) {
     return <ExpandedWorkflowRun id={run} />;
   }
 }
