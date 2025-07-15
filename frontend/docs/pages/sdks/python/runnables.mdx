@@ -42,7 +42,7 @@ Workflows support various execution patterns including:
 
 Tasks within workflows can be defined with `@workflow.task()` or `@workflow.durable_task()` decorators and can be arranged into complex dependency patterns.
 
-### Methods
+Methods:
 
 | Name                   | Description                                                                                                                                      |
 | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -524,7 +524,7 @@ Returns:
 
 Bases: `BaseWorkflow[TWorkflowInput]`, `Generic[TWorkflowInput, R]`
 
-### Methods
+Methods:
 
 | Name                   | Description                                                                                                              |
 | ---------------------- | ------------------------------------------------------------------------------------------------------------------------ |
@@ -547,6 +547,9 @@ Bases: `BaseWorkflow[TWorkflowInput]`, `Generic[TWorkflowInput, R]`
 | `aio_create_filter`    | Create a new filter.                                                                                                     |
 | `delete`               | Permanently delete the workflow.                                                                                         |
 | `aio_delete`           | Permanently delete the workflow.                                                                                         |
+| `get_run_ref`          | Get a reference to a task run by its run ID.                                                                             |
+| `get_result`           | Get the result of a task run by its run ID.                                                                              |
+| `aio_get_result`       | Get the result of a task run by its run ID.                                                                              |
 
 ### Functions
 
@@ -603,9 +606,9 @@ Parameters:
 
 Returns:
 
-| Type                           | Description                                                           |
-| ------------------------------ | --------------------------------------------------------------------- |
-| `TaskRunRef[TWorkflowInput,R]` | A `TaskRunRef` object representing the reference to the workflow run. |
+| Type                            | Description                                                           |
+| ------------------------------- | --------------------------------------------------------------------- |
+| `TaskRunRef[TWorkflowInput, R]` | A `TaskRunRef` object representing the reference to the workflow run. |
 
 #### `aio_run_no_wait`
 
@@ -620,9 +623,9 @@ Parameters:
 
 Returns:
 
-| Type                           | Description                                                           |
-| ------------------------------ | --------------------------------------------------------------------- |
-| `TaskRunRef[TWorkflowInput,R]` | A `TaskRunRef` object representing the reference to the workflow run. |
+| Type                            | Description                                                           |
+| ------------------------------- | --------------------------------------------------------------------- |
+| `TaskRunRef[TWorkflowInput, R]` | A `TaskRunRef` object representing the reference to the workflow run. |
 
 #### `run_many`
 
@@ -670,9 +673,9 @@ Parameters:
 
 Returns:
 
-| Type                                 | Description                                                                          |
-| ------------------------------------ | ------------------------------------------------------------------------------------ |
-| `list[TaskRunRef[TWorkflowInput,R]]` | A list of `WorkflowRunRef` objects, each representing a reference to a workflow run. |
+| Type                                  | Description                                                                          |
+| ------------------------------------- | ------------------------------------------------------------------------------------ |
+| `list[TaskRunRef[TWorkflowInput, R]]` | A list of `WorkflowRunRef` objects, each representing a reference to a workflow run. |
 
 #### `aio_run_many_no_wait`
 
@@ -688,9 +691,9 @@ Parameters:
 
 Returns:
 
-| Type                                 | Description                                                                          |
-| ------------------------------------ | ------------------------------------------------------------------------------------ |
-| `list[TaskRunRef[TWorkflowInput,R]]` | A list of `WorkflowRunRef` objects, each representing a reference to a workflow run. |
+| Type                                  | Description                                                                          |
+| ------------------------------------- | ------------------------------------------------------------------------------------ |
+| `list[TaskRunRef[TWorkflowInput, R]]` | A list of `WorkflowRunRef` objects, each representing a reference to a workflow run. |
 
 #### `schedule`
 
@@ -883,3 +886,51 @@ Permanently delete the workflow.
 Permanently delete the workflow.
 
 **DANGEROUS: This will delete a workflow and all of its data**
+
+#### `get_run_ref`
+
+Get a reference to a task run by its run ID.
+
+Parameters:
+
+| Name     | Type  | Description                                 | Default    |
+| -------- | ----- | ------------------------------------------- | ---------- |
+| `run_id` | `str` | The ID of the run to get the reference for. | _required_ |
+
+Returns:
+
+| Type                            | Description                                                       |
+| ------------------------------- | ----------------------------------------------------------------- |
+| `TaskRunRef[TWorkflowInput, R]` | A `TaskRunRef` object representing the reference to the task run. |
+
+#### `get_result`
+
+Get the result of a task run by its run ID.
+
+Parameters:
+
+| Name     | Type  | Description                              | Default    |
+| -------- | ----- | ---------------------------------------- | ---------- |
+| `run_id` | `str` | The ID of the run to get the result for. | _required_ |
+
+Returns:
+
+| Type | Description                 |
+| ---- | --------------------------- |
+| `R`  | The result of the task run. |
+
+#### `aio_get_result`
+
+Get the result of a task run by its run ID.
+
+Parameters:
+
+| Name     | Type  | Description                              | Default    |
+| -------- | ----- | ---------------------------------------- | ---------- |
+| `run_id` | `str` | The ID of the run to get the result for. | _required_ |
+
+Returns:
+
+| Type | Description                 |
+| ---- | --------------------------- |
+| `R`  | The result of the task run. |

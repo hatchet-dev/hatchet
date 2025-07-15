@@ -1342,3 +1342,35 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         :returns: True if the task is an async function, False otherwise.
         """
         return self._task.is_async_function
+
+    def get_run_ref(self, run_id: str) -> TaskRunRef[TWorkflowInput, R]:
+        """
+        Get a reference to a task run by its run ID.
+
+        :param run_id: The ID of the run to get the reference for.
+        :returns: A `TaskRunRef` object representing the reference to the task run.
+        """
+        wrr = self._workflow.client._client.runs.get_run_ref(run_id)
+        return TaskRunRef[TWorkflowInput, R](self, wrr)
+
+    async def aio_get_result(self, run_id: str) -> R:
+        """
+        Get the result of a task run by its run ID.
+
+        :param run_id: The ID of the run to get the result for.
+        :returns: The result of the task run.
+        """
+        run_ref = self.get_run_ref(run_id)
+
+        return await run_ref.aio_result()
+
+    def get_result(self, run_id: str) -> R:
+        """
+        Get the result of a task run by its run ID.
+
+        :param run_id: The ID of the run to get the result for.
+        :returns: The result of the task run.
+        """
+        run_ref = self.get_run_ref(run_id)
+
+        return run_ref.result()

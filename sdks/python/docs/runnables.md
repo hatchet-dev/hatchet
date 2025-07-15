@@ -61,3 +61,6 @@
         - aio_create_filter
         - delete
         - aio_delete
+        - get_run_ref
+        - get_result
+        - aio_get_result
