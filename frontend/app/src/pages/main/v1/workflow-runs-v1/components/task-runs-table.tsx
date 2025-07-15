@@ -285,6 +285,8 @@ export function TaskRunsTable({
     refetchTaskRuns,
     refetchMetrics,
     rotate,
+    onActionSubmit,
+    taskIdsPendingAction.length,
   ]);
 
   const handleSetSelectedAdditionalMetaRunId = useCallback(

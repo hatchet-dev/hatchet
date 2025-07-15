@@ -113,7 +113,7 @@ export const useTaskRunActions = ({
         onActionSubmit(resp.data.ids);
       }
     },
-    [handleAction],
+    [handleAction, onActionSubmit],
   );
 
   return { handleTaskRunAction };
