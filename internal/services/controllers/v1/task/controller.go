@@ -659,17 +659,27 @@ func (tc *TasksControllerImpl) handleReplayTasks(ctx context.Context, tenantId s
 		}
 	}
 
-	replayRes, err := tc.repov1.Tasks().ReplayTasks(ctx, tenantId, taskIdRetryCounts)
+	replayedTasks := make([]v1.TaskIdInsertedAtRetryCount, 0, len(taskIdRetryCounts))
+	upsertedTasks := make([]*sqlcv1.V1Task, 0, len(taskIdRetryCounts))
+	createdTasks := make([]*sqlcv1.V1Task, 0, len(taskIdRetryCounts))
 
-	if err != nil {
-		return fmt.Errorf("could not replay tasks: %w", err)
+	for _, task := range taskIdRetryCounts {
+		replayRes, err := tc.repov1.Tasks().ReplayTasks(ctx, tenantId, []v1.TaskIdInsertedAtRetryCount{task})
+
+		if err != nil {
+			return fmt.Errorf("failed to replay task: %w", err)
+		}
+
+		replayedTasks = append(replayedTasks, replayRes.ReplayedTasks...)
+		upsertedTasks = append(upsertedTasks, replayRes.UpsertedTasks...)
+		createdTasks = append(createdTasks, replayRes.InternalEventResults.CreatedTasks...)
 	}
 
 	eg := &errgroup.Group{}
 
-	if len(replayRes.ReplayedTasks) > 0 {
+	if len(replayedTasks) > 0 {
 		eg.Go(func() error {
-			err = tc.signalTasksReplayed(ctx, tenantId, replayRes.ReplayedTasks)
+			err := tc.signalTasksReplayed(ctx, tenantId, replayedTasks)
 
 			if err != nil {
 				return fmt.Errorf("could not signal replayed tasks: %w", err)
@@ -679,9 +689,9 @@ func (tc *TasksControllerImpl) handleReplayTasks(ctx context.Context, tenantId s
 		})
 	}
 
-	if len(replayRes.UpsertedTasks) > 0 {
+	if len(upsertedTasks) > 0 {
 		eg.Go(func() error {
-			err = tc.signalTasksUpdated(ctx, tenantId, replayRes.UpsertedTasks)
+			err := tc.signalTasksUpdated(ctx, tenantId, upsertedTasks)
 
 			if err != nil {
 				return fmt.Errorf("could not signal queued tasks: %w", err)
@@ -691,9 +701,9 @@ func (tc *TasksControllerImpl) handleReplayTasks(ctx context.Context, tenantId s
 		})
 	}
 
-	if len(replayRes.InternalEventResults.CreatedTasks) > 0 {
+	if len(createdTasks) > 0 {
 		eg.Go(func() error {
-			err = tc.signalTasksCreated(ctx, tenantId, replayRes.InternalEventResults.CreatedTasks)
+			err := tc.signalTasksCreated(ctx, tenantId, createdTasks)
 
 			if err != nil {
 				return fmt.Errorf("could not signal created tasks: %w", err)
