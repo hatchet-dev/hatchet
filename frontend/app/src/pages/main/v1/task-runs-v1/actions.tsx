@@ -78,9 +78,11 @@ type TaskRunActionsParams =
     };
 
 export const useTaskRunActions = ({
+  onActionProcessed,
   onActionSubmit,
 }: {
-  onActionSubmit: (ids: string[]) => void;
+  onActionProcessed: (ids: string[]) => void;
+  onActionSubmit: () => void;
 }) => {
   const { tenantId } = useCurrentTenantId();
 
@@ -103,6 +105,9 @@ export const useTaskRunActions = ({
       }
     },
     onError: handleApiError,
+    onMutate: () => {
+      onActionSubmit();
+    },
   });
 
   const handleTaskRunAction = useCallback(
@@ -110,10 +115,10 @@ export const useTaskRunActions = ({
       const resp = await handleAction(params);
 
       if (resp.data?.ids) {
-        onActionSubmit(resp.data.ids);
+        onActionProcessed(resp.data.ids);
       }
     },
-    [handleAction, onActionSubmit],
+    [handleAction, onActionProcessed],
   );
 
   return { handleTaskRunAction };
@@ -370,6 +375,7 @@ const BaseActionButton = ({
   icon,
   label,
   showModal,
+  onActionProcessed,
   onActionSubmit,
 }: {
   disabled: boolean;
@@ -377,10 +383,14 @@ const BaseActionButton = ({
   icon: JSX.Element;
   label: string;
   showModal: boolean;
-  onActionSubmit: (ids: string[]) => void;
+  onActionProcessed: (ids: string[]) => void;
+  onActionSubmit: () => void;
 }) => {
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
-  const { handleTaskRunAction } = useTaskRunActions({ onActionSubmit });
+  const { handleTaskRunAction } = useTaskRunActions({
+    onActionProcessed,
+    onActionSubmit,
+  });
 
   const handleAction = useCallback(() => {
     if (params.externalIds?.length) {
@@ -434,13 +444,15 @@ export const TaskRunActionButton = ({
   disabled,
   params,
   showModal,
+  onActionProcessed,
   onActionSubmit,
 }: {
   actionType: ActionType;
   disabled: boolean;
   params: BaseTaskRunActionParams;
   showModal: boolean;
-  onActionSubmit: (ids: string[]) => void;
+  onActionProcessed: (ids: string[]) => void;
+  onActionSubmit: () => void;
 }) => {
   switch (actionType) {
     case 'cancel':
@@ -451,6 +463,7 @@ export const TaskRunActionButton = ({
           icon={<XCircleIcon className="w-4 h-4" />}
           label={'Cancel'}
           showModal={showModal}
+          onActionProcessed={onActionProcessed}
           onActionSubmit={onActionSubmit}
         />
       );
@@ -462,6 +475,7 @@ export const TaskRunActionButton = ({
           icon={<ArrowPathIcon className="w-4 h-4" />}
           label={'Replay'}
           showModal={showModal}
+          onActionProcessed={onActionProcessed}
           onActionSubmit={onActionSubmit}
         />
       );

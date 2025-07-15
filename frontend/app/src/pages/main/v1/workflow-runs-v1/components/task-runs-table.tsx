@@ -194,7 +194,7 @@ export function TaskRunsTable({
 
   const isFetching = !hasLoaded && (isTaskRunsFetching || isMetricsFetching);
 
-  const onActionSubmit = useCallback(
+  const onActionProcessed = useCallback(
     (action: 'cancel' | 'replay', ids: string[]) => {
       const prefix = action === 'cancel' ? 'Canceling' : 'Replaying';
       const count = ids.length;
@@ -228,7 +228,13 @@ export function TaskRunsTable({
             : { filter: v1TaskFilters }
         }
         showModal
-        onActionSubmit={(ids) => onActionSubmit('cancel', ids)}
+        onActionProcessed={(ids) => onActionProcessed('cancel', ids)}
+        onActionSubmit={() => {
+          toast({
+            title: 'Cancel request submitted',
+            description: "No need to hit 'Cancel' again.",
+          });
+        }}
       />,
       <TaskRunActionButton
         key="replay"
@@ -243,7 +249,13 @@ export function TaskRunsTable({
             : { filter: v1TaskFilters }
         }
         showModal
-        onActionSubmit={(ids) => onActionSubmit('replay', ids)}
+        onActionProcessed={(ids) => onActionProcessed('replay', ids)}
+        onActionSubmit={() => {
+          toast({
+            title: 'Replay request submitted',
+            description: "No need to hit 'Replay' again.",
+          });
+        }}
       />,
       <Button
         key="refresh"
@@ -285,8 +297,9 @@ export function TaskRunsTable({
     refetchTaskRuns,
     refetchMetrics,
     rotate,
-    onActionSubmit,
+    onActionProcessed,
     taskIdsPendingAction.length,
+    toast,
   ]);
 
   const handleSetSelectedAdditionalMetaRunId = useCallback(

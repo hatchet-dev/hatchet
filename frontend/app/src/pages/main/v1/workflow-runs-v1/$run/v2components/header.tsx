@@ -37,7 +37,7 @@ export const V1RunDetailHeader = () => {
     isLoading: loading,
   } = useWorkflowDetails();
 
-  const onActionSubmit = useCallback(
+  const onActionProcessed = useCallback(
     (action: 'cancel' | 'replay') => {
       const prefix = action === 'cancel' ? 'Canceling' : 'Replaying';
 
@@ -97,14 +97,26 @@ export const V1RunDetailHeader = () => {
                 !TASK_RUN_TERMINAL_STATUSES.includes(workflowRun.status)
               }
               showModal={false}
-              onActionSubmit={() => onActionSubmit('replay')}
+              onActionProcessed={() => onActionProcessed('replay')}
+              onActionSubmit={() => {
+                toast({
+                  title: 'Replay request submitted',
+                  description: "No need to hit 'Replay' again.",
+                });
+              }}
             />
             <TaskRunActionButton
               actionType="cancel"
               params={{ externalIds: [workflowRun.metadata.id] }}
               disabled={TASK_RUN_TERMINAL_STATUSES.includes(workflowRun.status)}
               showModal={false}
-              onActionSubmit={() => onActionSubmit('cancel')}
+              onActionProcessed={() => onActionProcessed('cancel')}
+              onActionSubmit={() => {
+                toast({
+                  title: 'Cancel request submitted',
+                  description: "No need to hit 'Cancel' again.",
+                });
+              }}
             />
           </div>
         </div>
