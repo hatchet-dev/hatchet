@@ -1628,7 +1628,6 @@ type V1WorkflowRunDetails struct {
 	// TaskEvents The list of task events for the workflow run
 	TaskEvents     []V1TaskEvent           `json:"taskEvents"`
 	Tasks          []V1TaskSummary         `json:"tasks"`
-	Type           *V1WorkflowType         `json:"type,omitempty"`
 	WorkflowConfig *map[string]interface{} `json:"workflowConfig,omitempty"`
 }
 

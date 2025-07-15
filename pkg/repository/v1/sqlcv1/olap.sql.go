@@ -1904,20 +1904,7 @@ WITH input AS (
         readable_status = 'COMPLETED'
     GROUP BY
         task_id
-), spawned_children AS (
-    SELECT parent_task_external_id, COUNT(*) AS spawned_children
-    FROM v1_runs_olap
-    WHERE parent_task_external_id IN (
-        SELECT external_id
-        FROM v1_tasks_olap
-        WHERE (tenant_id, id, inserted_at) IN (
-            SELECT $4::UUID, id, inserted_at
-            FROM input
-        )
-    )
-    GROUP BY parent_task_external_id
 )
-
 SELECT
     t.tenant_id,
     t.id,
@@ -1949,8 +1936,7 @@ SELECT
     CASE
         WHEN $1::BOOLEAN THEN o.output::JSONB
         ELSE '{}'::JSONB
-    END::JSONB as output,
-    sc.spawned_children
+    END::JSONB as output
 FROM
     tasks t
 LEFT JOIN
@@ -1963,8 +1949,6 @@ LEFT JOIN
     error_message e ON e.task_id = t.id
 LEFT JOIN
     task_output o ON o.task_id = t.id
-LEFT JOIN
-    spawned_children sc ON sc.parent_task_external_id = t.external_id
 ORDER BY t.inserted_at DESC, t.id DESC
 `
 
@@ -2001,7 +1985,6 @@ type PopulateTaskRunDataRow struct {
 	ErrorMessage         pgtype.Text          `json:"error_message"`
 	RetryCount           int32                `json:"retry_count"`
 	Output               []byte               `json:"output"`
-	SpawnedChildren      pgtype.Int8          `json:"spawned_children"`
 }
 
 func (q *Queries) PopulateTaskRunData(ctx context.Context, db DBTX, arg PopulateTaskRunDataParams) ([]*PopulateTaskRunDataRow, error) {
@@ -2044,7 +2027,6 @@ func (q *Queries) PopulateTaskRunData(ctx context.Context, db DBTX, arg Populate
 			&i.ErrorMessage,
 			&i.RetryCount,
 			&i.Output,
-			&i.SpawnedChildren,
 		); err != nil {
 			return nil, err
 		}

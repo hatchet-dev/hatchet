@@ -595,20 +595,7 @@ WITH input AS (
         readable_status = 'COMPLETED'
     GROUP BY
         task_id
-), spawned_children AS (
-    SELECT parent_task_external_id, COUNT(*) AS spawned_children
-    FROM v1_runs_olap
-    WHERE parent_task_external_id IN (
-        SELECT external_id
-        FROM v1_tasks_olap
-        WHERE (tenant_id, id, inserted_at) IN (
-            SELECT @tenantId::UUID, id, inserted_at
-            FROM input
-        )
-    )
-    GROUP BY parent_task_external_id
 )
-
 SELECT
     t.tenant_id,
     t.id,
@@ -640,8 +627,7 @@ SELECT
     CASE
         WHEN @includePayloads::BOOLEAN THEN o.output::JSONB
         ELSE '{}'::JSONB
-    END::JSONB as output,
-    sc.spawned_children
+    END::JSONB as output
 FROM
     tasks t
 LEFT JOIN
@@ -654,8 +640,6 @@ LEFT JOIN
     error_message e ON e.task_id = t.id
 LEFT JOIN
     task_output o ON o.task_id = t.id
-LEFT JOIN
-    spawned_children sc ON sc.parent_task_external_id = t.external_id
 ORDER BY t.inserted_at DESC, t.id DESC;
 
 -- name: UpdateTaskStatuses :many
