@@ -2436,7 +2436,7 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId string, t
 		return nil, err
 	}
 
-	err = r.queries.AdvisoryLock(ctx, tx, hash(tenantId))
+	err = r.queries.AdvisoryLock(ctx, tx, hash("replay_" + tenantId))
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to acquire advisory lock: %w", err)
