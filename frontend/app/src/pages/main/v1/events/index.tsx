@@ -2,6 +2,7 @@ import { columns } from './components/event-columns';
 import { Separator } from '@/components/v1/ui/separator';
 import { useEffect, useMemo, useState } from 'react';
 import {
+  ColumnDef,
   ColumnFiltersState,
   PaginationState,
   RowSelectionState,
@@ -10,11 +11,12 @@ import {
 } from '@tanstack/react-table';
 import { useQuery } from '@tanstack/react-query';
 import api, {
-  Event,
+  V1Event,
   EventOrderByDirection,
   EventOrderByField,
   V1TaskStatus,
   queries,
+  V1Filter,
 } from '@/lib/api';
 import {
   FilterOption,
@@ -36,13 +38,21 @@ import { DataTable } from '@/components/v1/molecules/data-table/data-table';
 import { TaskRunsTable } from '../workflow-runs-v1/components/task-runs-table';
 import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
+import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/v1/ui/popover';
+import { ExpandIcon, EyeIcon } from 'lucide-react';
+import { ScrollArea } from '@/components/v1/ui/scroll-area';
 
 export default function Events() {
   return <EventsTable />;
 }
 
 function EventsTable() {
-  const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
+  const [selectedEvent, setSelectedEvent] = useState<V1Event | null>(null);
   const { tenantId } = useCurrentTenantId();
 
   const [searchParams, setSearchParams] = useSearchParams();
@@ -309,7 +319,7 @@ function EventsTable() {
   }, []);
 
   const tableColumns = columns({
-    onRowClick: (row: Event) => {
+    onRowClick: (row: V1Event) => {
       setSelectedEvent(row);
     },
     hoveredEventId,
@@ -405,9 +415,27 @@ function EventsTable() {
   );
 }
 
-function ExpandedEventContent({ event }: { event: Event }) {
+function ExpandedEventContent({ event }: { event: V1Event }) {
+  const { tenantId } = useCurrentTenantId();
+
+  const { data: filters } = useQuery({
+    queryKey: ['v1:filters:list', tenantId, event.metadata.id],
+    queryFn: async () => {
+      if (!event.scope) {
+        return [];
+      }
+
+      const response = await api.v1FilterList(tenantId, {
+        scopes: [event.scope],
+      });
+
+      return response.data.rows;
+    },
+    refetchInterval: 2000,
+  });
+
   return (
-    <DialogContent className="w-fit max-w-[700px] max-h-[85%] overflow-auto">
+    <DialogContent className="md:max-w-[700px] lg:max-w-[1200px] max-h-[85%] overflow-auto">
       <DialogHeader>
         <DialogTitle>Event {event.key}</DialogTitle>
         <DialogDescription>
@@ -420,14 +448,25 @@ function ExpandedEventContent({ event }: { event: Event }) {
       </h3>
       <Separator />
       <EventDataSection event={event} />
-      <h3 className="text-lg font-bold leading-tight text-foreground">Runs</h3>
-      <Separator />
+      {filters && (
+        <>
+          <h3 className="text-lg font-bold leading-tight text-foreground">
+            Filters
+          </h3>
+          <Separator />
+          <FiltersSection filters={filters} />
+          <h3 className="text-lg font-bold leading-tight text-foreground">
+            Runs
+          </h3>
+          <Separator />
+        </>
+      )}
       <EventWorkflowRunsList event={event} />
     </DialogContent>
   );
 }
 
-function EventDataSection({ event }: { event: Event }) {
+function EventDataSection({ event }: { event: V1Event }) {
   const { tenantId } = useCurrentTenantId();
 
   const { data, isLoading } = useQuery({
@@ -470,7 +509,11 @@ function EventDataSection({ event }: { event: Event }) {
   );
 }
 
-function EventWorkflowRunsList({ event }: { event: Event }) {
+function FiltersSection({ filters }: { filters: V1Filter[] }) {
+  return <DataTable columns={filterColumns} data={filters} filters={[]} />;
+}
+
+function EventWorkflowRunsList({ event }: { event: V1Event }) {
   return (
     <div className="w-full overflow-x-auto max-w-full">
       <TaskRunsTable
@@ -481,3 +524,83 @@ function EventWorkflowRunsList({ event }: { event: Event }) {
     </div>
   );
 }
+
+const filterColumns: ColumnDef<V1Filter>[] = [
+  {
+    accessorKey: 'id',
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="ID" />
+    ),
+    cell: ({ row }) => {
+      return <div className="text-sm">{row.original.metadata.id}</div>;
+    },
+    enableSorting: false,
+    enableHiding: false,
+  },
+  {
+    accessorKey: 'scope',
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Scope" />
+    ),
+    cell: ({ row }) => {
+      return <div className="text-sm">{row.original.scope}</div>;
+    },
+    enableSorting: false,
+    enableHiding: false,
+  },
+  {
+    accessorKey: 'workflowId',
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Workflow ID" />
+    ),
+    cell: ({ row }) => {
+      return <div className="text-sm">{row.original.workflowId}</div>;
+    },
+    enableSorting: false,
+    enableHiding: false,
+  },
+  {
+    accessorKey: 'expression',
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Expression" />
+    ),
+    cell: ({ row }) => {
+      return <div className="text-sm">{row.original.expression}</div>;
+    },
+    enableSorting: false,
+    enableHiding: false,
+  },
+  {
+    accessorKey: 'payload',
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Payload" />
+    ),
+    cell: ({ row }) => {
+      return (
+        <Popover modal={true}>
+          <PopoverTrigger asChild>
+            <Button
+              variant="ghost"
+              className="flex flex-row items-center gap-2 text-xs hover:bg-current-color pl-0"
+            >
+              View
+              <EyeIcon className="size-4" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="flex flex-col gap-y-2 min-w-0 max-w-[800px]">
+            Filter Payload
+            <ScrollArea className="h-[500px] rounded-md">
+              <CodeHighlighter
+                language="json"
+                className="whitespace-pre-wrap break-words"
+                code={JSON.stringify(row.original.payload, null, 2)}
+              />
+            </ScrollArea>
+          </PopoverContent>
+        </Popover>
+      );
+    },
+    enableSorting: false,
+    enableHiding: false,
+  },
+];
