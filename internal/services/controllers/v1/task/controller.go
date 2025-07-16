@@ -980,6 +980,21 @@ func (tc *TasksControllerImpl) handleProcessUserEventTrigger(ctx context.Context
 		return fmt.Errorf("could not trigger tasks from events: %w", err)
 	}
 
+	evalFailuresMsg, err := tasktypes.CELEvaluationFailureMessage(
+		tenantId,
+		result.CELEvalutionFailures,
+	)
+
+	if err != nil {
+		return fmt.Errorf("could not create CEL evaluation failure message: %w", err)
+	}
+
+	err = tc.pubBuffer.Pub(ctx, msgqueue.OLAP_QUEUE, evalFailuresMsg, false)
+
+	if err != nil {
+		return fmt.Errorf("could not deliver CEL evaluation failure message: %w", err)
+	}
+
 	eg := &errgroup.Group{}
 
 	eg.Go(func() error {
