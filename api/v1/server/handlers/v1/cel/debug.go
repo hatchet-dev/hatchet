@@ -29,7 +29,7 @@ func (c *V1CELService) V1CelDebug(ctx echo.Context, request gen.V1CelDebugReques
 	var output *bool
 	var errorMessage *string
 
-	success := err != nil
+	success := err == nil
 
 	if success {
 		output = &result
