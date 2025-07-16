@@ -151,11 +151,6 @@ func (a *AdminServiceImpl) CancelTasks(ctx context.Context, req *contracts.Cance
 	}, nil
 }
 
-type TaskIdInsertedAtRetryCountWithWorkflowRunId struct {
-	v1.TaskIdInsertedAtRetryCount
-	WorkflowRunId pgtype.UUID `json:"workflow_run_id" validate:"required"`
-}
-
 func (a *AdminServiceImpl) ReplayTasks(ctx context.Context, req *contracts.ReplayTasksRequest) (*contracts.ReplayTasksResponse, error) {
 	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
 
@@ -240,7 +235,7 @@ func (a *AdminServiceImpl) ReplayTasks(ctx context.Context, req *contracts.Repla
 		externalIds = append(externalIds, runExternalIds...)
 	}
 
-	tasksToReplay := []TaskIdInsertedAtRetryCountWithWorkflowRunId{}
+	tasksToReplay := []tasktypes.TaskIdInsertedAtRetryCountWithExternalId{}
 
 	tasks, err := a.repo.Tasks().FlattenExternalIds(ctx, sqlchelpers.UUIDToStr(tenant.ID), externalIds)
 
@@ -248,36 +243,35 @@ func (a *AdminServiceImpl) ReplayTasks(ctx context.Context, req *contracts.Repla
 		return nil, err
 	}
 
-	taskIdInsertedAtRetryCountToExternalId := make(map[v1.TaskIdInsertedAtRetryCount]pgtype.UUID)
+	taskIdInsertedAtRetryCountToExternalId := make(map[tasktypes.TaskIdInsertedAtRetryCountWithExternalId]pgtype.UUID)
 
 	for _, task := range tasks {
-		record := v1.TaskIdInsertedAtRetryCount{
-			Id:                    task.ID,
-			InsertedAt:            task.InsertedAt,
-			RetryCount:            task.RetryCount,
-			WorkflowRunExternalId: &task.WorkflowRunExternalID,
+		record := tasktypes.TaskIdInsertedAtRetryCountWithExternalId{
+			TaskIdInsertedAtRetryCount: v1.TaskIdInsertedAtRetryCount{
+				Id:         task.ID,
+				InsertedAt: task.InsertedAt,
+				RetryCount: task.RetryCount,
+			},
+			WorkflowRunExternalId: task.WorkflowRunExternalID,
 		}
 
 		if _, exists := taskIdInsertedAtRetryCountToExternalId[record]; !exists {
-			tasksToReplay = append(tasksToReplay, TaskIdInsertedAtRetryCountWithWorkflowRunId{
-				TaskIdInsertedAtRetryCount: record,
-				WorkflowRunId:              task.WorkflowRunExternalID,
-			})
+			tasksToReplay = append(tasksToReplay, record)
 
 			taskIdInsertedAtRetryCountToExternalId[record] = task.WorkflowRunExternalID
 		}
 	}
 
-	workflowRunIdToTasksToReplay := make(map[pgtype.UUID][]v1.TaskIdInsertedAtRetryCount)
+	workflowRunIdToTasksToReplay := make(map[pgtype.UUID][]tasktypes.TaskIdInsertedAtRetryCountWithExternalId)
 	for _, item := range tasksToReplay {
-		workflowRunIdToTasksToReplay[item.WorkflowRunId] = append(
-			workflowRunIdToTasksToReplay[item.WorkflowRunId],
-			item.TaskIdInsertedAtRetryCount,
+		workflowRunIdToTasksToReplay[item.WorkflowRunExternalId] = append(
+			workflowRunIdToTasksToReplay[item.WorkflowRunExternalId],
+			item,
 		)
 	}
 
-	var batches [][]v1.TaskIdInsertedAtRetryCount
-	var currentBatch []v1.TaskIdInsertedAtRetryCount
+	var batches [][]tasktypes.TaskIdInsertedAtRetryCountWithExternalId
+	var currentBatch []tasktypes.TaskIdInsertedAtRetryCountWithExternalId
 	batchSize := 100
 
 	for _, tasksForWorkflowRun := range workflowRunIdToTasksToReplay {

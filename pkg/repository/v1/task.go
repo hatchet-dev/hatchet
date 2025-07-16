@@ -111,9 +111,6 @@ type TaskIdInsertedAtRetryCount struct {
 
 	// (required) the retry count
 	RetryCount int32
-
-	// (optional - used for replays) the workflow run external id
-	WorkflowRunExternalId *pgtype.UUID
 }
 
 type TaskIdInsertedAtSignalKey struct {

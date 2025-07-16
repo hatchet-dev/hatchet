@@ -647,14 +647,16 @@ func (tc *TasksControllerImpl) handleReplayTasks(ctx context.Context, tenantId s
 	// problem that we don't have a clean way to solve (yet)
 	msgs := msgqueue.JSONConvert[tasktypes.ReplayTasksPayload](payloads)
 
-	taskIdRetryCounts := make([]v1.TaskIdInsertedAtRetryCount, 0)
+	taskIdRetryCounts := make([]tasktypes.TaskIdInsertedAtRetryCountWithExternalId, 0)
 
 	for _, msg := range msgs {
 		for _, task := range msg.Tasks {
-			taskIdRetryCounts = append(taskIdRetryCounts, v1.TaskIdInsertedAtRetryCount{
-				Id:                    task.Id,
-				InsertedAt:            task.InsertedAt,
-				RetryCount:            task.RetryCount,
+			taskIdRetryCounts = append(taskIdRetryCounts, tasktypes.TaskIdInsertedAtRetryCountWithExternalId{
+				TaskIdInsertedAtRetryCount: v1.TaskIdInsertedAtRetryCount{
+					Id:         task.Id,
+					InsertedAt: task.InsertedAt,
+					RetryCount: task.RetryCount,
+				},
 				WorkflowRunExternalId: task.WorkflowRunExternalId,
 			})
 		}
@@ -662,12 +664,12 @@ func (tc *TasksControllerImpl) handleReplayTasks(ctx context.Context, tenantId s
 
 	workflowRunIdToTasks := make(map[string][]v1.TaskIdInsertedAtRetryCount)
 	for _, task := range taskIdRetryCounts {
-		if task.WorkflowRunExternalId == nil || !task.WorkflowRunExternalId.Valid {
+		if !task.WorkflowRunExternalId.Valid {
 			// Use a random uuid to effectively send tasks one at a time
 			randomUuid := uuid.NewString()
-			workflowRunIdToTasks[randomUuid] = append(workflowRunIdToTasks[randomUuid], task)
+			workflowRunIdToTasks[randomUuid] = append(workflowRunIdToTasks[randomUuid], task.TaskIdInsertedAtRetryCount)
 		} else {
-			workflowRunIdToTasks[task.WorkflowRunExternalId.String()] = append(workflowRunIdToTasks[task.WorkflowRunExternalId.String()], task)
+			workflowRunIdToTasks[task.WorkflowRunExternalId.String()] = append(workflowRunIdToTasks[task.WorkflowRunExternalId.String()], task.TaskIdInsertedAtRetryCount)
 		}
 	}
 
