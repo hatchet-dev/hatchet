@@ -194,6 +194,7 @@ type CancelTasksPayload struct {
 type TaskIdInsertedAtRetryCountWithExternalId struct {
 	v1.TaskIdInsertedAtRetryCount `json:"task"`
 	WorkflowRunExternalId         pgtype.UUID `json:"workflow_run_external_id,omitempty"`
+	TaskExternalId                pgtype.UUID `json:"task_external_id,omitempty"`
 }
 
 type ReplayTasksPayload struct {

@@ -254,6 +254,7 @@ func (a *AdminServiceImpl) ReplayTasks(ctx context.Context, req *contracts.Repla
 				RetryCount: task.RetryCount,
 			},
 			WorkflowRunExternalId: task.WorkflowRunID,
+			TaskExternalId:        task.ExternalID,
 		}
 
 		if _, exists := existingReplays[record]; exists {
@@ -326,7 +327,7 @@ func (a *AdminServiceImpl) ReplayTasks(ctx context.Context, req *contracts.Repla
 		}
 
 		for _, task := range batch {
-			replayedIds = append(replayedIds, task.WorkflowRunExternalId.String())
+			replayedIds = append(replayedIds, task.TaskExternalId.String())
 		}
 
 		time.Sleep(200 * time.Millisecond)
