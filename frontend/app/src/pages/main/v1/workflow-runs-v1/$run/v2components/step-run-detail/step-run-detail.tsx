@@ -113,7 +113,7 @@ export const TaskRunDetail = ({
     },
   });
 
-  const onActionSubmit = useCallback(
+  const onActionProcessed = useCallback(
     (action: 'cancel' | 'replay') => {
       const prefix = action === 'cancel' ? 'Canceling' : 'Replaying';
 
@@ -169,14 +169,26 @@ export const TaskRunDetail = ({
           params={{ externalIds: [taskRunId] }}
           disabled={!TASK_RUN_TERMINAL_STATUSES.includes(taskRun.status)}
           showModal={false}
-          onActionSubmit={() => onActionSubmit('replay')}
+          onActionProcessed={() => onActionProcessed('replay')}
+          onActionSubmit={() => {
+            toast({
+              title: 'Replay request submitted',
+              description: "No need to hit 'Replay' again.",
+            });
+          }}
         />
         <TaskRunActionButton
           actionType="cancel"
           params={{ externalIds: [taskRunId] }}
           disabled={TASK_RUN_TERMINAL_STATUSES.includes(taskRun.status)}
           showModal={false}
-          onActionSubmit={() => onActionSubmit('cancel')}
+          onActionProcessed={() => onActionProcessed('cancel')}
+          onActionSubmit={() => {
+            toast({
+              title: 'Cancel request submitted',
+              description: "No need to hit 'Cancel' again.",
+            });
+          }}
         />
         <TaskRunPermalinkOrBacklink
           taskRun={taskRun}
