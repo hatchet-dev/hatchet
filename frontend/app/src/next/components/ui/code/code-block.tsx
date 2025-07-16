@@ -73,7 +73,7 @@ export function CodeBlock({
       <div className={cn('relative')}>
         <pre
           className={cn(
-            'p-4 overflow-x-auto text-sm font-mono bg-muted/30 rounded-b-md',
+            'p-4 overflow-auto text-sm font-mono bg-muted/30 rounded-b-md max-h-96 scrollbar-thin scrollbar-track-muted scrollbar-thumb-muted-foreground',
           )}
         >
           <CodeStyleRender

@@ -85,6 +85,7 @@ import {
   UserRegisterRequest,
   UserTenantMembershipsList,
   V1CancelTaskRequest,
+  V1CancelledTasks,
   V1CreateFilterRequest,
   V1CreateWebhookRequest,
   V1DagChildren,
@@ -93,6 +94,7 @@ import {
   V1FilterList,
   V1LogLineList,
   V1ReplayTaskRequest,
+  V1ReplayedTasks,
   V1TaskEventList,
   V1TaskPointMetrics,
   V1TaskRunMetrics,
@@ -225,12 +227,13 @@ export class Api<
     data: V1CancelTaskRequest,
     params: RequestParams = {},
   ) =>
-    this.request<void, APIErrors>({
+    this.request<V1CancelledTasks, APIErrors>({
       path: `/api/v1/stable/tenants/${tenant}/tasks/cancel`,
       method: "POST",
       body: data,
       secure: true,
       type: ContentType.Json,
+      format: "json",
       ...params,
     });
   /**
@@ -247,12 +250,13 @@ export class Api<
     data: V1ReplayTaskRequest,
     params: RequestParams = {},
   ) =>
-    this.request<void, APIErrors>({
+    this.request<V1ReplayedTasks, APIErrors>({
       path: `/api/v1/stable/tenants/${tenant}/tasks/replay`,
       method: "POST",
       body: data,
       secure: true,
       type: ContentType.Json,
+      format: "json",
       ...params,
     });
   /**

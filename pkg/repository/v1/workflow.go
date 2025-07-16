@@ -797,7 +797,7 @@ func (r *workflowRepository) createJobTx(ctx context.Context, tx sqlcv1.DBTX, te
 
 					if rateLimit.UnitsExpr != nil {
 						unitsExpr = *rateLimit.UnitsExpr
-					} else {
+					} else if rateLimit.Units != nil {
 						unitsExpr = cel.Int(*rateLimit.Units)
 					}
 
