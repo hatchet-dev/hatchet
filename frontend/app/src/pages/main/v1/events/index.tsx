@@ -434,7 +434,7 @@ function ExpandedEventContent({ event }: { event: V1Event }) {
   });
 
   return (
-    <DialogContent className="md:max-w-[700px] lg:max-w-[1200px] max-h-[85%] overflow-auto">
+    <DialogContent className="md:max-w-[700px] lg:max-w-[900px] xl:max-w-[1100px] max-h-[85%] overflow-auto">
       <DialogHeader>
         <DialogTitle>Event {event.key}</DialogTitle>
         <DialogDescription>
