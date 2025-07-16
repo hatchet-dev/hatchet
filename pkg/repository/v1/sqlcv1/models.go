@@ -859,7 +859,7 @@ func (ns NullTenantResourceLimitAlertType) Value() (driver.Value, error) {
 type V1CelEvaluationFailureSource string
 
 const (
-	V1CelEvaluationFailureSourceEVENT   V1CelEvaluationFailureSource = "EVENT"
+	V1CelEvaluationFailureSourceFILTER  V1CelEvaluationFailureSource = "FILTER"
 	V1CelEvaluationFailureSourceWEBHOOK V1CelEvaluationFailureSource = "WEBHOOK"
 	V1CelEvaluationFailureSourceDEBUG   V1CelEvaluationFailureSource = "DEBUG"
 )
