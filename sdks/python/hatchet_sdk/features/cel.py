@@ -29,7 +29,7 @@ class CELEvaluationResult(BaseModel):
 
 class CELClient(BaseRestClient):
     """
-    The logs client is a client for interacting with Hatchet's logs API.
+    The CEL client is a client for debugging CEL expressions within Hatchet
     """
 
     def _ca(self, client: ApiClient) -> CELApi:
