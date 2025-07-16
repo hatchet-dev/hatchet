@@ -454,12 +454,10 @@ function ExpandedEventContent({ event }: { event: V1Event }) {
           </h3>
           <Separator />
           <FiltersSection filters={filters} />
-          <h3 className="text-lg font-bold leading-tight text-foreground">
-            Runs
-          </h3>
-          <Separator />
         </>
       )}
+      <h3 className="text-lg font-bold leading-tight text-foreground">Runs</h3>
+      <Separator />
       <EventWorkflowRunsList event={event} />
     </DialogContent>
   );
