@@ -53,7 +53,7 @@ export class CELClient {
         };
       }
 
-      if (!response.data.output) {
+      if (response.data.output === undefined) {
         throw new Error('No output received from CEL debug API.');
       }
 
