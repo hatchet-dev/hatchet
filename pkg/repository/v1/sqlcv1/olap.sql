@@ -1698,7 +1698,7 @@ ORDER BY td.task_id, td.inserted_at;
 -- name: StoreCELEvaluationFailures :exec
 WITH inputs AS (
     SELECT
-        UNNEST(@sources::v1_cel_evaluation_failure_source[]) AS source,
+        UNNEST(CAST(@sources::TEXT[] AS v1_cel_evaluation_failure_source[])) AS source,
         UNNEST(@errors::TEXT[]) AS error
 )
 INSERT INTO v1_cel_evaluation_failures (
