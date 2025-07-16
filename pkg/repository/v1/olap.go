@@ -234,6 +234,8 @@ type OLAPRepository interface {
 
 	GetDagDurationsByDagIds(ctx context.Context, tenantId string, dagIds []int64, dagInsertedAts []pgtype.Timestamptz, readableStatuses []sqlcv1.V1ReadableStatusOlap) (map[string]*sqlcv1.GetDagDurationsByDagIdsRow, error)
 	GetTaskDurationsByTaskIds(ctx context.Context, tenantId string, taskIds []int64, taskInsertedAts []pgtype.Timestamptz, readableStatuses []sqlcv1.V1ReadableStatusOlap) (map[int64]*sqlcv1.GetTaskDurationsByTaskIdsRow, error)
+
+	StoreCELEvaluationFailures(ctx context.Context, tenantId string, failures []CELEvaluationFailure) error
 }
 
 type OLAPRepositoryImpl struct {
@@ -1729,4 +1731,25 @@ func (r *OLAPRepositoryImpl) GetTaskDurationsByTaskIds(ctx context.Context, tena
 	}
 
 	return taskDurations, nil
+}
+
+type CELEvaluationFailure struct {
+	Source       sqlcv1.V1CelEvaluationFailureSource `json:"source"`
+	ErrorMessage string                              `json:"error_message"`
+}
+
+func (r *OLAPRepositoryImpl) StoreCELEvaluationFailures(ctx context.Context, tenantId string, failures []CELEvaluationFailure) error {
+	errorMessages := make([]string, len(failures))
+	sources := make([]sqlcv1.V1CelEvaluationFailureSource, len(failures))
+
+	for i, failure := range failures {
+		errorMessages[i] = failure.ErrorMessage
+		sources[i] = failure.Source
+	}
+
+	return r.queries.StoreCELEvaluationFailures(ctx, r.pool, sqlcv1.StoreCELEvaluationFailuresParams{
+		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+		Sources:  sources,
+		Errors:   errorMessages,
+	})
 }

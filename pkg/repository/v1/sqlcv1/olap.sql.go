@@ -2415,6 +2415,32 @@ func (q *Queries) ReadWorkflowRunByExternalId(ctx context.Context, db DBTX, work
 	return &i, err
 }
 
+const storeCELEvaluationFailures = `-- name: StoreCELEvaluationFailures :exec
+WITH inputs AS (
+    SELECT
+        UNNEST($2::v1_cel_evaluation_failure_source[]) AS source,
+        UNNEST($3::TEXT[]) AS error
+)
+INSERT INTO v1_cel_evaluation_failures (
+    tenant_id,
+    source,
+    error
+)
+SELECT $1::UUID, source, error
+FROM inputs
+`
+
+type StoreCELEvaluationFailuresParams struct {
+	Tenantid pgtype.UUID                    `json:"tenantid"`
+	Sources  []V1CelEvaluationFailureSource `json:"sources"`
+	Errors   []string                       `json:"errors"`
+}
+
+func (q *Queries) StoreCELEvaluationFailures(ctx context.Context, db DBTX, arg StoreCELEvaluationFailuresParams) error {
+	_, err := db.Exec(ctx, storeCELEvaluationFailures, arg.Tenantid, arg.Sources, arg.Errors)
+	return err
+}
+
 const updateDAGStatuses = `-- name: UpdateDAGStatuses :many
 WITH tenants AS (
     SELECT UNNEST(
