@@ -58,6 +58,8 @@ paths:
     $ref: "./paths/v1/filters/filter.yaml#/V1FilterListCreate"
   /api/v1/stable/tenants/{tenant}/filters/{v1-filter}:
     $ref: "./paths/v1/filters/filter.yaml#/V1FilterGetDeleteUpdate"
+  /api/v1/stable/cel/debug:
+    $ref: "./paths/v1/cel/cel.yaml#/V1CELDebug"
   /api/ready:
     $ref: "./paths/metadata/metadata.yaml#/readiness"
   /api/live:

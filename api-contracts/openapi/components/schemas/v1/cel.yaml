@@ -1,0 +1,34 @@
+V1CELDebugRequest:
+  type: object
+  properties:
+    expression:
+      type: string
+      description: The CEL expression to evaluate
+    input:
+      type: object
+      description: The input, which simulates the workflow run input
+    filterPayload:
+      type: object
+      description: The filter payload, which simulates a payload set on a previous-created filter
+    additionalMetadata:
+      type: object
+      description: Additional metadata, which simulates metadata that could be sent with an event or a workflow run
+  required:
+    - expression
+    - input
+
+V1CELDebugResponse:
+  type: object
+  properties:
+    result:
+      oneOf:
+        - type: string
+        - type: number
+        - type: boolean
+      description: The result of the CEL expression evaluation
+    outputType:
+      type: string
+      description: The type of the output, e.g., "string", "number", "boolean"
+  required:
+    - result
+    - outputType

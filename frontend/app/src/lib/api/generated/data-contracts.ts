@@ -847,6 +847,24 @@ export interface V1UpdateFilterRequest {
   payload?: object;
 }
 
+export interface V1CELDebugRequest {
+  /** The CEL expression to evaluate */
+  expression: string;
+  /** The input, which simulates the workflow run input */
+  input: object;
+  /** The filter payload, which simulates a payload set on a previous-created filter */
+  filterPayload?: object;
+  /** Additional metadata, which simulates metadata that could be sent with an event or a workflow run */
+  additionalMetadata?: object;
+}
+
+export interface V1CELDebugResponse {
+  /** The result of the CEL expression evaluation */
+  result: string | number | boolean;
+  /** The type of the output, e.g., "string", "number", "boolean" */
+  outputType: string;
+}
+
 export interface APIMetaAuth {
   /**
    * the supported types of authentication

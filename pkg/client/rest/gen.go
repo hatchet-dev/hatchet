@@ -1201,6 +1201,44 @@ type UserTenantPublic struct {
 	Name *string `json:"name,omitempty"`
 }
 
+// V1CELDebugRequest defines model for V1CELDebugRequest.
+type V1CELDebugRequest struct {
+	// AdditionalMetadata Additional metadata, which simulates metadata that could be sent with an event or a workflow run
+	AdditionalMetadata *map[string]interface{} `json:"additionalMetadata,omitempty"`
+
+	// Expression The CEL expression to evaluate
+	Expression string `json:"expression"`
+
+	// FilterPayload The filter payload, which simulates a payload set on a previous-created filter
+	FilterPayload *map[string]interface{} `json:"filterPayload,omitempty"`
+
+	// Input The input, which simulates the workflow run input
+	Input map[string]interface{} `json:"input"`
+}
+
+// V1CELDebugResponse defines model for V1CELDebugResponse.
+type V1CELDebugResponse struct {
+	// OutputType The type of the output, e.g., "string", "number", "boolean"
+	OutputType string `json:"outputType"`
+
+	// Result The result of the CEL expression evaluation
+	Result V1CELDebugResponse_Result `json:"result"`
+}
+
+// V1CELDebugResponseResult0 defines model for .
+type V1CELDebugResponseResult0 = string
+
+// V1CELDebugResponseResult1 defines model for .
+type V1CELDebugResponseResult1 = float32
+
+// V1CELDebugResponseResult2 defines model for .
+type V1CELDebugResponseResult2 = bool
+
+// V1CELDebugResponse_Result The result of the CEL expression evaluation
+type V1CELDebugResponse_Result struct {
+	union json.RawMessage
+}
+
 // V1CancelTaskRequest defines model for V1CancelTaskRequest.
 type V1CancelTaskRequest struct {
 	// ExternalIds A list of external IDs, which can refer to either task or workflow run external IDs
@@ -2451,6 +2489,9 @@ type WorkflowVersionGetParams struct {
 // AlertEmailGroupUpdateJSONRequestBody defines body for AlertEmailGroupUpdate for application/json ContentType.
 type AlertEmailGroupUpdateJSONRequestBody = UpdateTenantAlertEmailGroupRequest
 
+// V1CelDebugJSONRequestBody defines body for V1CelDebug for application/json ContentType.
+type V1CelDebugJSONRequestBody = V1CELDebugRequest
+
 // V1FilterCreateJSONRequestBody defines body for V1FilterCreate for application/json ContentType.
 type V1FilterCreateJSONRequestBody = V1CreateFilterRequest
 
@@ -2540,6 +2581,94 @@ type WorkflowUpdateJSONRequestBody = WorkflowUpdateRequest
 
 // WorkflowRunCreateJSONRequestBody defines body for WorkflowRunCreate for application/json ContentType.
 type WorkflowRunCreateJSONRequestBody = TriggerWorkflowRunRequest
+
+// AsV1CELDebugResponseResult0 returns the union data inside the V1CELDebugResponse_Result as a V1CELDebugResponseResult0
+func (t V1CELDebugResponse_Result) AsV1CELDebugResponseResult0() (V1CELDebugResponseResult0, error) {
+	var body V1CELDebugResponseResult0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromV1CELDebugResponseResult0 overwrites any union data inside the V1CELDebugResponse_Result as the provided V1CELDebugResponseResult0
+func (t *V1CELDebugResponse_Result) FromV1CELDebugResponseResult0(v V1CELDebugResponseResult0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeV1CELDebugResponseResult0 performs a merge with any union data inside the V1CELDebugResponse_Result, using the provided V1CELDebugResponseResult0
+func (t *V1CELDebugResponse_Result) MergeV1CELDebugResponseResult0(v V1CELDebugResponseResult0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JsonMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsV1CELDebugResponseResult1 returns the union data inside the V1CELDebugResponse_Result as a V1CELDebugResponseResult1
+func (t V1CELDebugResponse_Result) AsV1CELDebugResponseResult1() (V1CELDebugResponseResult1, error) {
+	var body V1CELDebugResponseResult1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromV1CELDebugResponseResult1 overwrites any union data inside the V1CELDebugResponse_Result as the provided V1CELDebugResponseResult1
+func (t *V1CELDebugResponse_Result) FromV1CELDebugResponseResult1(v V1CELDebugResponseResult1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeV1CELDebugResponseResult1 performs a merge with any union data inside the V1CELDebugResponse_Result, using the provided V1CELDebugResponseResult1
+func (t *V1CELDebugResponse_Result) MergeV1CELDebugResponseResult1(v V1CELDebugResponseResult1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JsonMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsV1CELDebugResponseResult2 returns the union data inside the V1CELDebugResponse_Result as a V1CELDebugResponseResult2
+func (t V1CELDebugResponse_Result) AsV1CELDebugResponseResult2() (V1CELDebugResponseResult2, error) {
+	var body V1CELDebugResponseResult2
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromV1CELDebugResponseResult2 overwrites any union data inside the V1CELDebugResponse_Result as the provided V1CELDebugResponseResult2
+func (t *V1CELDebugResponse_Result) FromV1CELDebugResponseResult2(v V1CELDebugResponseResult2) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeV1CELDebugResponseResult2 performs a merge with any union data inside the V1CELDebugResponse_Result, using the provided V1CELDebugResponseResult2
+func (t *V1CELDebugResponse_Result) MergeV1CELDebugResponseResult2(v V1CELDebugResponseResult2) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JsonMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t V1CELDebugResponse_Result) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *V1CELDebugResponse_Result) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
 
 // RequestEditorFn  is the function signature for the RequestEditor callback function
 type RequestEditorFn func(ctx context.Context, req *http.Request) error
@@ -2657,6 +2786,11 @@ type ClientInterface interface {
 
 	// SnsUpdate request
 	SnsUpdate(ctx context.Context, tenant openapi_types.UUID, event string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// V1CelDebugWithBody request with any body
+	V1CelDebugWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	V1CelDebug(ctx context.Context, body V1CelDebugJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// V1DagListTasks request
 	V1DagListTasks(ctx context.Context, params *V1DagListTasksParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -3201,6 +3335,30 @@ func (c *Client) SnsDelete(ctx context.Context, sns openapi_types.UUID, reqEdito
 
 func (c *Client) SnsUpdate(ctx context.Context, tenant openapi_types.UUID, event string, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewSnsUpdateRequest(c.Server, tenant, event)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1CelDebugWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1CelDebugRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1CelDebug(ctx context.Context, body V1CelDebugJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1CelDebugRequest(c.Server, body)
 	if err != nil {
 		return nil, err
 	}
@@ -5276,6 +5434,46 @@ func NewSnsUpdateRequest(server string, tenant openapi_types.UUID, event string)
 	if err != nil {
 		return nil, err
 	}
+
+	return req, nil
+}
+
+// NewV1CelDebugRequest calls the generic V1CelDebug builder with application/json body
+func NewV1CelDebugRequest(server string, body V1CelDebugJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewV1CelDebugRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewV1CelDebugRequestWithBody generates requests for V1CelDebug with any type of body
+func NewV1CelDebugRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/stable/cel/debug")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
 
 	return req, nil
 }
@@ -11309,6 +11507,11 @@ type ClientWithResponsesInterface interface {
 	// SnsUpdateWithResponse request
 	SnsUpdateWithResponse(ctx context.Context, tenant openapi_types.UUID, event string, reqEditors ...RequestEditorFn) (*SnsUpdateResponse, error)
 
+	// V1CelDebugWithBodyWithResponse request with any body
+	V1CelDebugWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1CelDebugResponse, error)
+
+	V1CelDebugWithResponse(ctx context.Context, body V1CelDebugJSONRequestBody, reqEditors ...RequestEditorFn) (*V1CelDebugResponse, error)
+
 	// V1DagListTasksWithResponse request
 	V1DagListTasksWithResponse(ctx context.Context, params *V1DagListTasksParams, reqEditors ...RequestEditorFn) (*V1DagListTasksResponse, error)
 
@@ -11999,6 +12202,30 @@ func (r SnsUpdateResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r SnsUpdateResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type V1CelDebugResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *V1CELDebugResponse
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r V1CelDebugResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r V1CelDebugResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -14673,6 +14900,23 @@ func (c *ClientWithResponses) SnsUpdateWithResponse(ctx context.Context, tenant 
 	return ParseSnsUpdateResponse(rsp)
 }
 
+// V1CelDebugWithBodyWithResponse request with arbitrary body returning *V1CelDebugResponse
+func (c *ClientWithResponses) V1CelDebugWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1CelDebugResponse, error) {
+	rsp, err := c.V1CelDebugWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1CelDebugResponse(rsp)
+}
+
+func (c *ClientWithResponses) V1CelDebugWithResponse(ctx context.Context, body V1CelDebugJSONRequestBody, reqEditors ...RequestEditorFn) (*V1CelDebugResponse, error) {
+	rsp, err := c.V1CelDebug(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1CelDebugResponse(rsp)
+}
+
 // V1DagListTasksWithResponse request returning *V1DagListTasksResponse
 func (c *ClientWithResponses) V1DagListTasksWithResponse(ctx context.Context, params *V1DagListTasksParams, reqEditors ...RequestEditorFn) (*V1DagListTasksResponse, error) {
 	rsp, err := c.V1DagListTasks(ctx, params, reqEditors...)
@@ -16306,6 +16550,46 @@ func ParseSnsUpdateResponse(rsp *http.Response) (*SnsUpdateResponse, error) {
 			return nil, err
 		}
 		response.JSON405 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseV1CelDebugResponse parses an HTTP response from a V1CelDebugWithResponse call
+func ParseV1CelDebugResponse(rsp *http.Response) (*V1CelDebugResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &V1CelDebugResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest V1CELDebugResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
 
 	}
 
