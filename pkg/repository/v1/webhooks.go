@@ -28,20 +28,20 @@ func newWebhookRepository(shared *sharedRepository) WebhookRepository {
 }
 
 type BasicAuthCredentials struct {
-	Username string `json:"username" validate:"required"`
-	Password []byte `json:"password" validate:"required"`
+	Username          string `json:"username" validate:"required"`
+	EncryptedPassword []byte `json:"password" validate:"required"`
 }
 
 type APIKeyAuthCredentials struct {
-	HeaderName string `json:"header_name" validate:"required"`
-	Key        []byte `json:"key" validate:"required"`
+	HeaderName   string `json:"header_name" validate:"required"`
+	EncryptedKey []byte `json:"key" validate:"required"`
 }
 
 type HMACAuthCredentials struct {
-	Algorithm            sqlcv1.V1IncomingWebhookHmacAlgorithm `json:"algorithm" validate:"required"`
-	Encoding             sqlcv1.V1IncomingWebhookHmacEncoding  `json:"encoding" validate:"required"`
-	SignatureHeaderName  string                                `json:"signature_header_name" validate:"required"`
-	WebhookSigningSecret []byte                                `json:"webhook_signing_secret" validate:"required"`
+	Algorithm                     sqlcv1.V1IncomingWebhookHmacAlgorithm `json:"algorithm" validate:"required"`
+	Encoding                      sqlcv1.V1IncomingWebhookHmacEncoding  `json:"encoding" validate:"required"`
+	SignatureHeaderName           string                                `json:"signature_header_name" validate:"required"`
+	EncryptedWebhookSigningSecret []byte                                `json:"webhook_signing_secret" validate:"required"`
 }
 
 type AuthConfig struct {
@@ -119,13 +119,14 @@ func (r *webhookRepository) CreateWebhook(ctx context.Context, tenantId string, 
 			String: opts.AuthConfig.BasicAuth.Username,
 			Valid:  true,
 		}
-		params.Authbasicpassword = opts.AuthConfig.BasicAuth.Password
+		params.Authbasicpassword = opts.AuthConfig.BasicAuth.EncryptedPassword
 	case sqlcv1.V1IncomingWebhookAuthTypeAPIKEY:
 		params.AuthApiKeyHeaderName = pgtype.Text{
 			String: opts.AuthConfig.APIKeyAuth.HeaderName,
 			Valid:  true,
 		}
-		params.Authapikeykey = opts.AuthConfig.APIKeyAuth.Key
+
+		params.Authapikeykey = opts.AuthConfig.APIKeyAuth.EncryptedKey
 	case sqlcv1.V1IncomingWebhookAuthTypeHMAC:
 		params.AuthHmacAlgorithm = sqlcv1.NullV1IncomingWebhookHmacAlgorithm{
 			V1IncomingWebhookHmacAlgorithm: opts.AuthConfig.HMACAuth.Algorithm,
@@ -139,7 +140,7 @@ func (r *webhookRepository) CreateWebhook(ctx context.Context, tenantId string, 
 			String: opts.AuthConfig.HMACAuth.SignatureHeaderName,
 			Valid:  true,
 		}
-		params.Authhmacwebhooksigningsecret = opts.AuthConfig.HMACAuth.WebhookSigningSecret
+		params.Authhmacwebhooksigningsecret = opts.AuthConfig.HMACAuth.EncryptedWebhookSigningSecret
 	default:
 		return nil, fmt.Errorf("unsupported auth type: %s", opts.AuthConfig.Type)
 	}

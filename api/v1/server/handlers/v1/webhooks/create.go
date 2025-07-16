@@ -88,8 +88,8 @@ func (w *V1WebhooksService) constructCreateOpts(tenantId string, request gen.V1C
 			}
 
 			authConfig.BasicAuth = &v1.BasicAuthCredentials{
-				Username: *basicAuth.Auth.Username,
-				Password: passwordEncrypted,
+				Username:          *basicAuth.Auth.Username,
+				EncryptedPassword: passwordEncrypted,
 			}
 		} else {
 			return params, fmt.Errorf("basic auth requires both username and password")
@@ -119,8 +119,8 @@ func (w *V1WebhooksService) constructCreateOpts(tenantId string, request gen.V1C
 			}
 
 			authConfig.APIKeyAuth = &v1.APIKeyAuthCredentials{
-				HeaderName: *apiKeyAuth.Auth.HeaderName,
-				Key:        apiKeyEncrypted,
+				HeaderName:   *apiKeyAuth.Auth.HeaderName,
+				EncryptedKey: apiKeyEncrypted,
 			}
 		} else {
 			return params, fmt.Errorf("api key auth requires both header name and api key")
@@ -149,10 +149,10 @@ func (w *V1WebhooksService) constructCreateOpts(tenantId string, request gen.V1C
 			}
 
 			authConfig.HMACAuth = &v1.HMACAuthCredentials{
-				Algorithm:            sqlcv1.V1IncomingWebhookHmacAlgorithm(*hmacAuth.Auth.Algorithm),
-				Encoding:             sqlcv1.V1IncomingWebhookHmacEncoding(*hmacAuth.Auth.Encoding),
-				SignatureHeaderName:  *hmacAuth.Auth.SignatureHeaderName,
-				WebhookSigningSecret: signingSecretEncrypted,
+				Algorithm:                     sqlcv1.V1IncomingWebhookHmacAlgorithm(*hmacAuth.Auth.Algorithm),
+				Encoding:                      sqlcv1.V1IncomingWebhookHmacEncoding(*hmacAuth.Auth.Encoding),
+				SignatureHeaderName:           *hmacAuth.Auth.SignatureHeaderName,
+				EncryptedWebhookSigningSecret: signingSecretEncrypted,
 			}
 		} else {
 			return params, fmt.Errorf("hmac auth requires algorithm, encoding, signature header name, and signing secret")
