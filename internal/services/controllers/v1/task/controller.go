@@ -982,7 +982,7 @@ func (tc *TasksControllerImpl) handleProcessUserEventTrigger(ctx context.Context
 
 	evalFailuresMsg, err := tasktypes.CELEvaluationFailureMessage(
 		tenantId,
-		result.CELEvalutionFailures,
+		result.CELEvaluationFailures,
 	)
 
 	if err != nil {
