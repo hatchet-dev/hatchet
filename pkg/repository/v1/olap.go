@@ -1740,11 +1740,11 @@ type CELEvaluationFailure struct {
 
 func (r *OLAPRepositoryImpl) StoreCELEvaluationFailures(ctx context.Context, tenantId string, failures []CELEvaluationFailure) error {
 	errorMessages := make([]string, len(failures))
-	sources := make([]sqlcv1.V1CelEvaluationFailureSource, len(failures))
+	sources := make([]string, len(failures))
 
 	for i, failure := range failures {
 		errorMessages[i] = failure.ErrorMessage
-		sources[i] = failure.Source
+		sources[i] = string(failure.Source)
 	}
 
 	return r.queries.StoreCELEvaluationFailures(ctx, r.pool, sqlcv1.StoreCELEvaluationFailuresParams{

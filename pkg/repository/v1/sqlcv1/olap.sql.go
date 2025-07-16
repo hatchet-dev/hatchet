@@ -2418,7 +2418,7 @@ func (q *Queries) ReadWorkflowRunByExternalId(ctx context.Context, db DBTX, work
 const storeCELEvaluationFailures = `-- name: StoreCELEvaluationFailures :exec
 WITH inputs AS (
     SELECT
-        UNNEST($2::v1_cel_evaluation_failure_source[]) AS source,
+        UNNEST(CAST($2::TEXT[] AS v1_cel_evaluation_failure_source[])) AS source,
         UNNEST($3::TEXT[]) AS error
 )
 INSERT INTO v1_cel_evaluation_failures (
@@ -2431,9 +2431,9 @@ FROM inputs
 `
 
 type StoreCELEvaluationFailuresParams struct {
-	Tenantid pgtype.UUID                    `json:"tenantid"`
-	Sources  []V1CelEvaluationFailureSource `json:"sources"`
-	Errors   []string                       `json:"errors"`
+	Tenantid pgtype.UUID `json:"tenantid"`
+	Sources  []string    `json:"sources"`
+	Errors   []string    `json:"errors"`
 }
 
 func (q *Queries) StoreCELEvaluationFailures(ctx context.Context, db DBTX, arg StoreCELEvaluationFailuresParams) error {
