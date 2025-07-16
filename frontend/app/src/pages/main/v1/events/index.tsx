@@ -44,8 +44,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/v1/ui/popover';
-import { ExpandIcon, EyeIcon } from 'lucide-react';
-import { ScrollArea } from '@/components/v1/ui/scroll-area';
+import { EyeIcon } from 'lucide-react';
 
 export default function Events() {
   return <EventsTable />;
@@ -576,26 +575,44 @@ const filterColumns: ColumnDef<V1Filter>[] = [
       <DataTableColumnHeader column={column} title="Payload" />
     ),
     cell: ({ row }) => {
+      const payload = row.original.payload;
+      const payloadString = JSON.stringify(payload, null, 2);
+
       return (
         <Popover modal={true}>
           <PopoverTrigger asChild>
             <Button
               variant="ghost"
-              className="flex flex-row items-center gap-2 text-xs hover:bg-current-color pl-0"
+              className="flex items-center gap-2 text-xs hover:bg-muted/50 pl-0 h-8 transition-colors"
             >
               View
               <EyeIcon className="size-4" />
             </Button>
           </PopoverTrigger>
-          <PopoverContent className="flex flex-col gap-y-2 min-w-0 max-w-[800px]">
-            Filter Payload
-            <ScrollArea className="h-[500px] rounded-md">
-              <CodeHighlighter
-                language="json"
-                className="whitespace-pre-wrap break-words"
-                code={JSON.stringify(row.original.payload, null, 2)}
-              />
-            </ScrollArea>
+          <PopoverContent
+            className="md:w-[500px] lg:w-[700px] max-w-[90vw] p-0 my-4 shadow-xl border bg-background/95 backdrop-blur-sm rounded-lg"
+            align="center"
+            side="left"
+          >
+            <div className="bg-muted/50 px-4 py-3 border-b border-border/50 flex-shrink-0 rounded-t-lg">
+              <div className="flex items-center gap-2">
+                <EyeIcon className="h-4 w-4 text-muted-foreground" />
+                <span className="font-semibold text-sm text-foreground">
+                  Filter Payload
+                </span>
+              </div>
+            </div>
+            <div className="p-4">
+              <div className="max-h-[60vh] overflow-auto rounded-md border border-border/50 bg-muted/10">
+                <div className="p-4">
+                  <CodeHighlighter
+                    language="json"
+                    className="whitespace-pre-wrap break-words text-sm leading-relaxed"
+                    code={payloadString}
+                  />
+                </div>
+              </div>
+            </div>
           </PopoverContent>
         </Popover>
       );
