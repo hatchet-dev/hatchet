@@ -590,11 +590,11 @@ const filterColumns: ColumnDef<V1Filter>[] = [
             </Button>
           </PopoverTrigger>
           <PopoverContent
-            className="md:w-[500px] lg:w-[700px] max-w-[90vw] p-0 my-4 shadow-xl border bg-background/95 backdrop-blur-sm rounded-lg"
+            className="md:w-[500px] lg:w-[700px] max-w-[90vw] p-0 my-4 shadow-xl border-2 bg-background/95 backdrop-blur-sm rounded-lg"
             align="center"
             side="left"
           >
-            <div className="bg-muted/50 px-4 py-3 border-b border-border/50 flex-shrink-0 rounded-t-lg">
+            <div className="bg-muted/50 px-4 py-3 border-b border-border/50 flex-shrink-0">
               <div className="flex items-center gap-2">
                 <EyeIcon className="h-4 w-4 text-muted-foreground" />
                 <span className="font-semibold text-sm text-foreground">
@@ -603,7 +603,7 @@ const filterColumns: ColumnDef<V1Filter>[] = [
               </div>
             </div>
             <div className="p-4">
-              <div className="max-h-[60vh] overflow-auto rounded-md border border-border/50 bg-muted/10">
+              <div className="max-h-[60vh] overflow-auto rounded-lg border border-border/50 bg-muted/10">
                 <div className="p-4">
                   <CodeHighlighter
                     language="json"
