@@ -430,7 +430,6 @@ function ExpandedEventContent({ event }: { event: V1Event }) {
 
       return response.data.rows;
     },
-    refetchInterval: 2000,
   });
 
   return (
