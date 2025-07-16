@@ -463,7 +463,7 @@ CREATE TABLE v1_event_to_run_olap (
     PRIMARY KEY (event_id, event_seen_at, run_id, run_inserted_at)
 ) PARTITION BY RANGE(event_seen_at);
 
-CREATE TYPE v1_cel_evaluation_failure_source AS ENUM ('EVENT', 'WEBHOOK', 'DEBUG');
+CREATE TYPE v1_cel_evaluation_failure_source AS ENUM ('FILTER', 'WEBHOOK', 'DEBUG');
 
 CREATE TABLE v1_cel_evaluation_failures (
     id BIGINT NOT NULL GENERATED ALWAYS AS IDENTITY,
