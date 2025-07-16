@@ -24,40 +24,16 @@ V1CELDebugResponseStatus:
     - SUCCESS
     - ERROR
 
-V1CELDebugSuccessResponse:
+V1CELDebugResponse:
   type: object
   properties:
     status:
-      type: string
-      const: "SUCCESS"
+      $ref: "#/V1CELDebugResponseStatus"
     output:
       type: boolean
-      description: The result of the CEL expression evaluation
-  required:
-    - status
-    - output
-  additionalProperties: false
-
-V1CELDebugErrorResponse:
-  type: object
-  properties:
-    status:
-      type: string
-      const: "ERROR"
+      description: The result of the CEL expression evaluation, if successful
     error:
       type: string
       description: The error message if the evaluation failed
   required:
     - status
-    - error
-  additionalProperties: false
-
-V1CELDebugResponse:
-  oneOf:
-    - $ref: "#/V1CELDebugSuccessResponse"
-    - $ref: "#/V1CELDebugErrorResponse"
-  discriminator:
-    propertyName: status
-    mapping:
-      SUCCESS: "#/V1CELDebugSuccessResponse"
-      ERROR: "#/V1CELDebugErrorResponse"

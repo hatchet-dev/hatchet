@@ -10,12 +10,6 @@
  * ---------------------------------------------------------------
  */
 
-/** The status of the CEL evaluation */
-export enum V1CELDebugResponseStatus {
-  SUCCESS = "SUCCESS",
-  ERROR = "ERROR",
-}
-
 export enum V1TaskRunStatus {
   PENDING = "PENDING",
   RUNNING = "RUNNING",
@@ -209,6 +203,12 @@ export enum TenantResource {
   TASK_RUN = "TASK_RUN",
   CRON = "CRON",
   SCHEDULE = "SCHEDULE",
+}
+
+/** The status of the CEL evaluation */
+export enum V1CELDebugResponseStatus {
+  SUCCESS = "SUCCESS",
+  ERROR = "ERROR",
 }
 
 export enum TenantUIVersion {
@@ -864,25 +864,14 @@ export interface V1CELDebugRequest {
   additionalMetadata?: object;
 }
 
-export interface V1CELDebugSuccessResponse {
-  status: "SUCCESS";
-  /** The result of the CEL expression evaluation */
-  output: boolean;
-}
-
-export interface V1CELDebugErrorResponse {
-  status: "ERROR";
+export interface V1CELDebugResponse {
+  /** The status of the CEL evaluation */
+  status: V1CELDebugResponseStatus;
+  /** The result of the CEL expression evaluation, if successful */
+  output?: boolean;
   /** The error message if the evaluation failed */
-  error: string;
+  error?: string;
 }
-
-export type V1CELDebugResponse =
-  | ({
-      status: "SUCCESS";
-    } & V1CELDebugSuccessResponse)
-  | ({
-      status: "ERROR";
-    } & V1CELDebugErrorResponse);
 
 export interface APIMetaAuth {
   /**

@@ -39,6 +39,12 @@ class CELApi:
     @validate_call
     def v1_cel_debug(
         self,
+        tenant: Annotated[
+            str,
+            Field(
+                min_length=36, strict=True, max_length=36, description="The tenant id"
+            ),
+        ],
         v1_cel_debug_request: Annotated[
             V1CELDebugRequest,
             Field(description="The inputs to test the CEL expression against"),
@@ -59,6 +65,8 @@ class CELApi:
 
         Evaluate a CEL expression against provided input data.
 
+        :param tenant: The tenant id (required)
+        :type tenant: str
         :param v1_cel_debug_request: The inputs to test the CEL expression against (required)
         :type v1_cel_debug_request: V1CELDebugRequest
         :param _request_timeout: timeout setting for this request. If one
@@ -84,6 +92,7 @@ class CELApi:
         """  # noqa: E501
 
         _param = self._v1_cel_debug_serialize(
+            tenant=tenant,
             v1_cel_debug_request=v1_cel_debug_request,
             _request_auth=_request_auth,
             _content_type=_content_type,
@@ -108,6 +117,12 @@ class CELApi:
     @validate_call
     def v1_cel_debug_with_http_info(
         self,
+        tenant: Annotated[
+            str,
+            Field(
+                min_length=36, strict=True, max_length=36, description="The tenant id"
+            ),
+        ],
         v1_cel_debug_request: Annotated[
             V1CELDebugRequest,
             Field(description="The inputs to test the CEL expression against"),
@@ -128,6 +143,8 @@ class CELApi:
 
         Evaluate a CEL expression against provided input data.
 
+        :param tenant: The tenant id (required)
+        :type tenant: str
         :param v1_cel_debug_request: The inputs to test the CEL expression against (required)
         :type v1_cel_debug_request: V1CELDebugRequest
         :param _request_timeout: timeout setting for this request. If one
@@ -153,6 +170,7 @@ class CELApi:
         """  # noqa: E501
 
         _param = self._v1_cel_debug_serialize(
+            tenant=tenant,
             v1_cel_debug_request=v1_cel_debug_request,
             _request_auth=_request_auth,
             _content_type=_content_type,
@@ -177,6 +195,12 @@ class CELApi:
     @validate_call
     def v1_cel_debug_without_preload_content(
         self,
+        tenant: Annotated[
+            str,
+            Field(
+                min_length=36, strict=True, max_length=36, description="The tenant id"
+            ),
+        ],
         v1_cel_debug_request: Annotated[
             V1CELDebugRequest,
             Field(description="The inputs to test the CEL expression against"),
@@ -197,6 +221,8 @@ class CELApi:
 
         Evaluate a CEL expression against provided input data.
 
+        :param tenant: The tenant id (required)
+        :type tenant: str
         :param v1_cel_debug_request: The inputs to test the CEL expression against (required)
         :type v1_cel_debug_request: V1CELDebugRequest
         :param _request_timeout: timeout setting for this request. If one
@@ -222,6 +248,7 @@ class CELApi:
         """  # noqa: E501
 
         _param = self._v1_cel_debug_serialize(
+            tenant=tenant,
             v1_cel_debug_request=v1_cel_debug_request,
             _request_auth=_request_auth,
             _content_type=_content_type,
@@ -241,6 +268,7 @@ class CELApi:
 
     def _v1_cel_debug_serialize(
         self,
+        tenant,
         v1_cel_debug_request,
         _request_auth,
         _content_type,
@@ -262,6 +290,8 @@ class CELApi:
         _body_params: Optional[bytes] = None
 
         # process the path parameters
+        if tenant is not None:
+            _path_params["tenant"] = tenant
         # process the query parameters
         # process the header parameters
         # process the form parameters
@@ -290,7 +320,7 @@ class CELApi:
 
         return self.api_client.param_serialize(
             method="POST",
-            resource_path="/api/v1/stable/cel/debug",
+            resource_path="/api/v1/stable/tenants/{tenant}/cel/debug",
             path_params=_path_params,
             query_params=_query_params,
             header_params=_header_params,

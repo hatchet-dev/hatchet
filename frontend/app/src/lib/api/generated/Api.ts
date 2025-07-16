@@ -794,12 +794,16 @@ export class Api<
    * @tags CEL
    * @name V1CelDebug
    * @summary Debug a CEL expression
-   * @request POST:/api/v1/stable/cel/debug
+   * @request POST:/api/v1/stable/tenants/{tenant}/cel/debug
    * @secure
    */
-  v1CelDebug = (data: V1CELDebugRequest, params: RequestParams = {}) =>
+  v1CelDebug = (
+    tenant: string,
+    data: V1CELDebugRequest,
+    params: RequestParams = {},
+  ) =>
     this.request<V1CELDebugResponse, APIErrors>({
-      path: `/api/v1/stable/cel/debug`,
+      path: `/api/v1/stable/tenants/${tenant}/cel/debug`,
       method: "POST",
       body: data,
       secure: true,

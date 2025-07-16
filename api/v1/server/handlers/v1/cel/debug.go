@@ -8,7 +8,6 @@ import (
 )
 
 func (c *V1CELService) V1CelDebug(ctx echo.Context, request gen.V1CelDebugRequestObject) (gen.V1CelDebugResponseObject, error) {
-
 	additionalMetadata := make(map[string]interface{})
 	if request.Body.AdditionalMetadata != nil {
 		additionalMetadata = *request.Body.AdditionalMetadata
