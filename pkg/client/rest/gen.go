@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -1201,6 +1202,13 @@ type UserTenantPublic struct {
 	Name *string `json:"name,omitempty"`
 }
 
+// V1CELDebugErrorResponse defines model for V1CELDebugErrorResponse.
+type V1CELDebugErrorResponse struct {
+	// Error The error message if the evaluation failed
+	Error  string `json:"error"`
+	Status string `json:"status"`
+}
+
 // V1CELDebugRequest defines model for V1CELDebugRequest.
 type V1CELDebugRequest struct {
 	// AdditionalMetadata Additional metadata, which simulates metadata that could be sent with an event or a workflow run
@@ -1218,25 +1226,14 @@ type V1CELDebugRequest struct {
 
 // V1CELDebugResponse defines model for V1CELDebugResponse.
 type V1CELDebugResponse struct {
-	// OutputType The type of the output, e.g., "string", "number", "boolean"
-	OutputType string `json:"outputType"`
-
-	// Result The result of the CEL expression evaluation
-	Result V1CELDebugResponse_Result `json:"result"`
+	union json.RawMessage
 }
 
-// V1CELDebugResponseResult0 defines model for .
-type V1CELDebugResponseResult0 = string
-
-// V1CELDebugResponseResult1 defines model for .
-type V1CELDebugResponseResult1 = float32
-
-// V1CELDebugResponseResult2 defines model for .
-type V1CELDebugResponseResult2 = bool
-
-// V1CELDebugResponse_Result The result of the CEL expression evaluation
-type V1CELDebugResponse_Result struct {
-	union json.RawMessage
+// V1CELDebugSuccessResponse defines model for V1CELDebugSuccessResponse.
+type V1CELDebugSuccessResponse struct {
+	// Output The result of the CEL expression evaluation
+	Output bool   `json:"output"`
+	Status string `json:"status"`
 }
 
 // V1CancelTaskRequest defines model for V1CancelTaskRequest.
@@ -2582,22 +2579,24 @@ type WorkflowUpdateJSONRequestBody = WorkflowUpdateRequest
 // WorkflowRunCreateJSONRequestBody defines body for WorkflowRunCreate for application/json ContentType.
 type WorkflowRunCreateJSONRequestBody = TriggerWorkflowRunRequest
 
-// AsV1CELDebugResponseResult0 returns the union data inside the V1CELDebugResponse_Result as a V1CELDebugResponseResult0
-func (t V1CELDebugResponse_Result) AsV1CELDebugResponseResult0() (V1CELDebugResponseResult0, error) {
-	var body V1CELDebugResponseResult0
+// AsV1CELDebugSuccessResponse returns the union data inside the V1CELDebugResponse as a V1CELDebugSuccessResponse
+func (t V1CELDebugResponse) AsV1CELDebugSuccessResponse() (V1CELDebugSuccessResponse, error) {
+	var body V1CELDebugSuccessResponse
 	err := json.Unmarshal(t.union, &body)
 	return body, err
 }
 
-// FromV1CELDebugResponseResult0 overwrites any union data inside the V1CELDebugResponse_Result as the provided V1CELDebugResponseResult0
-func (t *V1CELDebugResponse_Result) FromV1CELDebugResponseResult0(v V1CELDebugResponseResult0) error {
+// FromV1CELDebugSuccessResponse overwrites any union data inside the V1CELDebugResponse as the provided V1CELDebugSuccessResponse
+func (t *V1CELDebugResponse) FromV1CELDebugSuccessResponse(v V1CELDebugSuccessResponse) error {
+	v.Status = "SUCCESS"
 	b, err := json.Marshal(v)
 	t.union = b
 	return err
 }
 
-// MergeV1CELDebugResponseResult0 performs a merge with any union data inside the V1CELDebugResponse_Result, using the provided V1CELDebugResponseResult0
-func (t *V1CELDebugResponse_Result) MergeV1CELDebugResponseResult0(v V1CELDebugResponseResult0) error {
+// MergeV1CELDebugSuccessResponse performs a merge with any union data inside the V1CELDebugResponse, using the provided V1CELDebugSuccessResponse
+func (t *V1CELDebugResponse) MergeV1CELDebugSuccessResponse(v V1CELDebugSuccessResponse) error {
+	v.Status = "SUCCESS"
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err
@@ -2608,22 +2607,24 @@ func (t *V1CELDebugResponse_Result) MergeV1CELDebugResponseResult0(v V1CELDebugR
 	return err
 }
 
-// AsV1CELDebugResponseResult1 returns the union data inside the V1CELDebugResponse_Result as a V1CELDebugResponseResult1
-func (t V1CELDebugResponse_Result) AsV1CELDebugResponseResult1() (V1CELDebugResponseResult1, error) {
-	var body V1CELDebugResponseResult1
+// AsV1CELDebugErrorResponse returns the union data inside the V1CELDebugResponse as a V1CELDebugErrorResponse
+func (t V1CELDebugResponse) AsV1CELDebugErrorResponse() (V1CELDebugErrorResponse, error) {
+	var body V1CELDebugErrorResponse
 	err := json.Unmarshal(t.union, &body)
 	return body, err
 }
 
-// FromV1CELDebugResponseResult1 overwrites any union data inside the V1CELDebugResponse_Result as the provided V1CELDebugResponseResult1
-func (t *V1CELDebugResponse_Result) FromV1CELDebugResponseResult1(v V1CELDebugResponseResult1) error {
+// FromV1CELDebugErrorResponse overwrites any union data inside the V1CELDebugResponse as the provided V1CELDebugErrorResponse
+func (t *V1CELDebugResponse) FromV1CELDebugErrorResponse(v V1CELDebugErrorResponse) error {
+	v.Status = "ERROR"
 	b, err := json.Marshal(v)
 	t.union = b
 	return err
 }
 
-// MergeV1CELDebugResponseResult1 performs a merge with any union data inside the V1CELDebugResponse_Result, using the provided V1CELDebugResponseResult1
-func (t *V1CELDebugResponse_Result) MergeV1CELDebugResponseResult1(v V1CELDebugResponseResult1) error {
+// MergeV1CELDebugErrorResponse performs a merge with any union data inside the V1CELDebugResponse, using the provided V1CELDebugErrorResponse
+func (t *V1CELDebugResponse) MergeV1CELDebugErrorResponse(v V1CELDebugErrorResponse) error {
+	v.Status = "ERROR"
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err
@@ -2634,38 +2635,35 @@ func (t *V1CELDebugResponse_Result) MergeV1CELDebugResponseResult1(v V1CELDebugR
 	return err
 }
 
-// AsV1CELDebugResponseResult2 returns the union data inside the V1CELDebugResponse_Result as a V1CELDebugResponseResult2
-func (t V1CELDebugResponse_Result) AsV1CELDebugResponseResult2() (V1CELDebugResponseResult2, error) {
-	var body V1CELDebugResponseResult2
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromV1CELDebugResponseResult2 overwrites any union data inside the V1CELDebugResponse_Result as the provided V1CELDebugResponseResult2
-func (t *V1CELDebugResponse_Result) FromV1CELDebugResponseResult2(v V1CELDebugResponseResult2) error {
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeV1CELDebugResponseResult2 performs a merge with any union data inside the V1CELDebugResponse_Result, using the provided V1CELDebugResponseResult2
-func (t *V1CELDebugResponse_Result) MergeV1CELDebugResponseResult2(v V1CELDebugResponseResult2) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
+func (t V1CELDebugResponse) Discriminator() (string, error) {
+	var discriminator struct {
+		Discriminator string `json:"status"`
 	}
-
-	merged, err := runtime.JsonMerge(t.union, b)
-	t.union = merged
-	return err
+	err := json.Unmarshal(t.union, &discriminator)
+	return discriminator.Discriminator, err
 }
 
-func (t V1CELDebugResponse_Result) MarshalJSON() ([]byte, error) {
+func (t V1CELDebugResponse) ValueByDiscriminator() (interface{}, error) {
+	discriminator, err := t.Discriminator()
+	if err != nil {
+		return nil, err
+	}
+	switch discriminator {
+	case "ERROR":
+		return t.AsV1CELDebugErrorResponse()
+	case "SUCCESS":
+		return t.AsV1CELDebugSuccessResponse()
+	default:
+		return nil, errors.New("unknown discriminator value: " + discriminator)
+	}
+}
+
+func (t V1CELDebugResponse) MarshalJSON() ([]byte, error) {
 	b, err := t.union.MarshalJSON()
 	return b, err
 }
 
-func (t *V1CELDebugResponse_Result) UnmarshalJSON(b []byte) error {
+func (t *V1CELDebugResponse) UnmarshalJSON(b []byte) error {
 	err := t.union.UnmarshalJSON(b)
 	return err
 }

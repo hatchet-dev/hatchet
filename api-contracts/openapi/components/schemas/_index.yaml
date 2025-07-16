@@ -352,3 +352,5 @@ V1CELDebugRequest:
   $ref: "./v1/cel.yaml#/V1CELDebugRequest"
 V1CELDebugResponse:
   $ref: "./v1/cel.yaml#/V1CELDebugResponse"
+V1CELDebugResponseStatus:
+  $ref: "./v1/cel.yaml#/V1CELDebugResponseStatus"

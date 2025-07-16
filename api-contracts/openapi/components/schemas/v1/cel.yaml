@@ -17,18 +17,47 @@ V1CELDebugRequest:
     - expression
     - input
 
-V1CELDebugResponse:
+V1CELDebugResponseStatus:
+  type: string
+  description: The status of the CEL evaluation
+  enum:
+    - SUCCESS
+    - ERROR
+
+V1CELDebugSuccessResponse:
   type: object
   properties:
-    result:
-      oneOf:
-        - type: string
-        - type: number
-        - type: boolean
-      description: The result of the CEL expression evaluation
-    outputType:
+    status:
       type: string
-      description: The type of the output, e.g., "string", "number", "boolean"
+      const: "SUCCESS"
+    output:
+      type: boolean
+      description: The result of the CEL expression evaluation
   required:
-    - result
-    - outputType
+    - status
+    - output
+  additionalProperties: false
+
+V1CELDebugErrorResponse:
+  type: object
+  properties:
+    status:
+      type: string
+      const: "ERROR"
+    error:
+      type: string
+      description: The error message if the evaluation failed
+  required:
+    - status
+    - error
+  additionalProperties: false
+
+V1CELDebugResponse:
+  oneOf:
+    - $ref: "#/V1CELDebugSuccessResponse"
+    - $ref: "#/V1CELDebugErrorResponse"
+  discriminator:
+    propertyName: status
+    mapping:
+      SUCCESS: "#/V1CELDebugSuccessResponse"
+      ERROR: "#/V1CELDebugErrorResponse"

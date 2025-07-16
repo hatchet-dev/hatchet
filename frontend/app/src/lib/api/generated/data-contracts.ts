@@ -10,6 +10,12 @@
  * ---------------------------------------------------------------
  */
 
+/** The status of the CEL evaluation */
+export enum V1CELDebugResponseStatus {
+  SUCCESS = "SUCCESS",
+  ERROR = "ERROR",
+}
+
 export enum V1TaskRunStatus {
   PENDING = "PENDING",
   RUNNING = "RUNNING",
@@ -858,12 +864,25 @@ export interface V1CELDebugRequest {
   additionalMetadata?: object;
 }
 
-export interface V1CELDebugResponse {
+export interface V1CELDebugSuccessResponse {
+  status: "SUCCESS";
   /** The result of the CEL expression evaluation */
-  result: string | number | boolean;
-  /** The type of the output, e.g., "string", "number", "boolean" */
-  outputType: string;
+  output: boolean;
 }
+
+export interface V1CELDebugErrorResponse {
+  status: "ERROR";
+  /** The error message if the evaluation failed */
+  error: string;
+}
+
+export type V1CELDebugResponse =
+  | ({
+      status: "SUCCESS";
+    } & V1CELDebugSuccessResponse)
+  | ({
+      status: "ERROR";
+    } & V1CELDebugErrorResponse);
 
 export interface APIMetaAuth {
   /**
