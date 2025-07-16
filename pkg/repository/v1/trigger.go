@@ -118,7 +118,7 @@ type TriggerFromEventsResult struct {
 	Tasks                 []*sqlcv1.V1Task
 	Dags                  []*DAGWithData
 	EventExternalIdToRuns map[string][]*Run
-	CELEvaluationFailures  []CELEvaluationFailure
+	CELEvaluationFailures []CELEvaluationFailure
 }
 
 type TriggerDecision struct {
@@ -410,7 +410,7 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 		Tasks:                 tasks,
 		Dags:                  dags,
 		EventExternalIdToRuns: eventExternalIdToRuns,
-		CELEvalutionFailures:  celEvaluationFailures,
+		CELEvaluationFailures: celEvaluationFailures,
 	}, nil
 }
 
