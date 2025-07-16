@@ -192,7 +192,7 @@ func (r *TriggerRepositoryImpl) makeTriggerDecisions(ctx context.Context, filter
 				})
 
 				celEvaluationFailures = append(celEvaluationFailures, CELEvaluationFailure{
-					Source:       sqlcv1.V1CelEvaluationFailureSourceEVENT,
+					Source:       sqlcv1.V1CelEvaluationFailureSourceFILTER,
 					ErrorMessage: err.Error(),
 				})
 			}
