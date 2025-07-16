@@ -12,6 +12,22 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 )
 
+type CELEvaluationFailure struct {
+	*v1.CELEvaluationFailure
+}
+
+func CELEvaluationFailureMessage(tenantId string, failure *v1.CELEvaluationFailure) (*msgqueue.Message, error) {
+	return msgqueue.NewTenantMessage(
+		tenantId,
+		"cel-evaluation-failure",
+		false,
+		true,
+		CELEvaluationFailure{
+			CELEvaluationFailure: failure,
+		},
+	)
+}
+
 type CreatedTaskPayload struct {
 	*sqlcv1.V1Task
 }

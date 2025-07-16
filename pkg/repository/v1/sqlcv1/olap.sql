@@ -1694,3 +1694,18 @@ FROM
 LEFT JOIN
     task_times tt ON (td.task_id, td.inserted_at) = (tt.task_id, tt.inserted_at)
 ORDER BY td.task_id, td.inserted_at;
+
+-- name: StoreCELEvaluationFailures :exec
+WITH inputs AS (
+    SELECT
+        UNNEST(@sources::v1_cel_evaluation_failure_source[]) AS source,
+        UNNEST(@errors::TEXT[]) AS error
+)
+INSERT INTO v1_cel_evaluation_failures (
+    tenant_id,
+    source,
+    error
+)
+SELECT @tenantId::UUID, source, error
+FROM inputs
+;
