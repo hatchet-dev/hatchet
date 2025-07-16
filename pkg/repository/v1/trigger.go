@@ -118,7 +118,7 @@ type TriggerFromEventsResult struct {
 	Tasks                 []*sqlcv1.V1Task
 	Dags                  []*DAGWithData
 	EventExternalIdToRuns map[string][]*Run
-	CELEvalutionFailures  []CELEvaluationFailure
+	CELEvaluationFailures  []CELEvaluationFailure
 }
 
 type TriggerDecision struct {
