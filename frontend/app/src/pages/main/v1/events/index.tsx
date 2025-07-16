@@ -447,7 +447,7 @@ function ExpandedEventContent({ event }: { event: V1Event }) {
       </h3>
       <Separator />
       <EventDataSection event={event} />
-      {filters && (
+      {filters && filters.length > 0 && (
         <>
           <h3 className="text-lg font-bold leading-tight text-foreground">
             Filters
