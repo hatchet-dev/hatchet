@@ -195,6 +195,18 @@ from hatchet_sdk.clients.rest.models.user_tenant_memberships_list import (
 )
 from hatchet_sdk.clients.rest.models.user_tenant_public import UserTenantPublic
 from hatchet_sdk.clients.rest.models.v1_cancel_task_request import V1CancelTaskRequest
+from hatchet_sdk.clients.rest.models.v1_cancelled_tasks import V1CancelledTasks
+from hatchet_sdk.clients.rest.models.v1_cel_debug_error_response import (
+    V1CELDebugErrorResponse,
+)
+from hatchet_sdk.clients.rest.models.v1_cel_debug_request import V1CELDebugRequest
+from hatchet_sdk.clients.rest.models.v1_cel_debug_response import V1CELDebugResponse
+from hatchet_sdk.clients.rest.models.v1_cel_debug_response_status import (
+    V1CELDebugResponseStatus,
+)
+from hatchet_sdk.clients.rest.models.v1_cel_debug_success_response import (
+    V1CELDebugSuccessResponse,
+)
 from hatchet_sdk.clients.rest.models.v1_create_filter_request import (
     V1CreateFilterRequest,
 )
@@ -211,6 +223,7 @@ from hatchet_sdk.clients.rest.models.v1_log_line import V1LogLine
 from hatchet_sdk.clients.rest.models.v1_log_line_level import V1LogLineLevel
 from hatchet_sdk.clients.rest.models.v1_log_line_list import V1LogLineList
 from hatchet_sdk.clients.rest.models.v1_replay_task_request import V1ReplayTaskRequest
+from hatchet_sdk.clients.rest.models.v1_replayed_tasks import V1ReplayedTasks
 from hatchet_sdk.clients.rest.models.v1_task_event import V1TaskEvent
 from hatchet_sdk.clients.rest.models.v1_task_event_list import V1TaskEventList
 from hatchet_sdk.clients.rest.models.v1_task_event_type import V1TaskEventType
