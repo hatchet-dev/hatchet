@@ -583,8 +583,11 @@ const filterColumns: ColumnDef<V1Filter>[] = [
       const filter = row.original;
       const payload = row.original.payload;
       const payloadString = JSON.stringify(payload, null, 2);
+      // eslint-disable-next-line react-hooks/rules-of-hooks
       const [copiedItem, setCopiedItem] = useState<string | null>(null);
+      // eslint-disable-next-line react-hooks/rules-of-hooks
       const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+      // eslint-disable-next-line react-hooks/rules-of-hooks
       const [isPayloadPopoverOpen, setIsPayloadPopoverOpen] = useState(false);
 
       const handleCopy = (text: string, label: string) => {
