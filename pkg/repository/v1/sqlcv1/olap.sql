@@ -802,7 +802,12 @@ FROM
 
 -- name: UpdateDAGStatuses :many
 WITH tenants AS (
-    SELECT find_matching_tenants_in_task_status_updates_tmp_partition(@partitionNumber::int, @tenantIds::UUID[]) AS tenant_id
+    SELECT UNNEST(
+        find_matching_tenants_in_task_status_updates_tmp_partition(
+            @partitionNumber::int,
+            @tenantIds::UUID[]
+        )
+    ) AS tenant_id
 ), locked_events AS (
     SELECT
         u.*

@@ -2319,7 +2319,7 @@ func (q *Queries) ReadWorkflowRunByExternalId(ctx context.Context, db DBTX, work
 
 const updateDAGStatuses = `-- name: UpdateDAGStatuses :many
 WITH tenants AS (
-    SELECT find_matching_tenants_in_task_status_updates_tmp_partition($1::int, $2::UUID[]) AS tenant_id
+    SELECT UNNEST(find_matching_tenants_in_task_status_updates_tmp_partition($1::int, $2::UUID[])) AS tenant_id
 ), locked_events AS (
     SELECT
         u.tenant_id, u.requeue_after, u.requeue_retries, u.id, u.dag_id, u.dag_inserted_at
