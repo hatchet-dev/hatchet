@@ -548,6 +548,17 @@ function EventWorkflowRunsList({ event }: { event: V1Event }) {
 
 const filterColumns: ColumnDef<V1Filter>[] = [
   {
+    accessorKey: 'workflowId',
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Workflow ID" />
+    ),
+    cell: ({ row }) => {
+      return <div className="text-sm">{row.original.workflowId}</div>;
+    },
+    enableSorting: false,
+    enableHiding: false,
+  },
+  {
     accessorKey: 'scope',
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Scope" />
@@ -629,23 +640,6 @@ const filterColumns: ColumnDef<V1Filter>[] = [
                 {copiedItem === 'filter'
                   ? 'Copied Filter ID!'
                   : 'Copy Filter ID'}
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  handleCopy(filter.workflowId, 'workflow');
-                }}
-                className="flex items-center gap-2 cursor-pointer"
-              >
-                {copiedItem === 'workflow' ? (
-                  <CheckIcon className="h-4 w-4 text-green-600" />
-                ) : (
-                  <CopyIcon className="h-4 w-4" />
-                )}
-                {copiedItem === 'workflow'
-                  ? 'Copied Workflow ID!'
-                  : 'Copy Workflow ID'}
               </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={handleViewPayload}
