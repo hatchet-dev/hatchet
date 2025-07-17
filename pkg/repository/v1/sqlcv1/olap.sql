@@ -645,7 +645,7 @@ ORDER BY t.inserted_at DESC, t.id DESC;
 -- name: UpdateTaskStatuses :many
 WITH tenants AS (
     SELECT UNNEST(
-        find_matching_tenants_in_task_status_updates_tmp_partition(
+        find_matching_tenants_in_task_events_tmp_partition(
             @partitionNumber::int,
             @tenantIds::UUID[]
         )
