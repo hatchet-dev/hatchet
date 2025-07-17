@@ -44,7 +44,14 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/v1/ui/popover';
-import { EyeIcon } from 'lucide-react';
+import { CopyIcon, EyeIcon, CheckIcon } from 'lucide-react';
+import { DotsVerticalIcon } from '@radix-ui/react-icons';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/v1/ui/dropdown-menu';
 
 export default function Events() {
   return <EventsTable />;
@@ -506,7 +513,25 @@ function EventDataSection({ event }: { event: V1Event }) {
 }
 
 function FiltersSection({ filters }: { filters: V1Filter[] }) {
-  return <DataTable columns={filterColumns} data={filters} filters={[]} />;
+  return (
+    <>
+      <style
+        dangerouslySetInnerHTML={{
+          __html: `
+          .filters-table th:last-child,
+          .filters-table td:last-child {
+            width: 60px !important;
+            min-width: 60px !important;
+            max-width: 60px !important;
+          }
+        `,
+        }}
+      />
+      <div className="filters-table">
+        <DataTable columns={filterColumns} data={filters} filters={[]} />
+      </div>
+    </>
+  );
 }
 
 function EventWorkflowRunsList({ event }: { event: V1Event }) {
@@ -523,17 +548,6 @@ function EventWorkflowRunsList({ event }: { event: V1Event }) {
 
 const filterColumns: ColumnDef<V1Filter>[] = [
   {
-    accessorKey: 'id',
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="ID" />
-    ),
-    cell: ({ row }) => {
-      return <div className="text-sm">{row.original.metadata.id}</div>;
-    },
-    enableSorting: false,
-    enableHiding: false,
-  },
-  {
     accessorKey: 'scope',
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Scope" />
@@ -545,76 +559,147 @@ const filterColumns: ColumnDef<V1Filter>[] = [
     enableHiding: false,
   },
   {
-    accessorKey: 'workflowId',
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Workflow ID" />
-    ),
-    cell: ({ row }) => {
-      return <div className="text-sm">{row.original.workflowId}</div>;
-    },
-    enableSorting: false,
-    enableHiding: false,
-  },
-  {
     accessorKey: 'expression',
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Expression" />
     ),
     cell: ({ row }) => {
-      return <div className="text-sm">{row.original.expression}</div>;
+      return (
+        <CodeHighlighter
+          language="text"
+          className="whitespace-pre-wrap break-words text-sm leading-relaxed"
+          code={row.original.expression}
+          copy={false}
+        />
+      );
     },
     enableSorting: false,
     enableHiding: false,
   },
   {
-    accessorKey: 'payload',
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Payload" />
-    ),
+    accessorKey: 'actions',
+    header: ({ column }) => <DataTableColumnHeader column={column} title="" />,
     cell: ({ row }) => {
+      const filter = row.original;
       const payload = row.original.payload;
       const payloadString = JSON.stringify(payload, null, 2);
+      const [copiedItem, setCopiedItem] = useState<string | null>(null);
+      const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+      const [isPayloadPopoverOpen, setIsPayloadPopoverOpen] = useState(false);
+
+      const handleCopy = (text: string, label: string) => {
+        navigator.clipboard.writeText(text);
+        setCopiedItem(label);
+        setTimeout(() => setCopiedItem(null), 1200);
+        setTimeout(() => setIsDropdownOpen(false), 300);
+      };
+
+      const handleViewPayload = (e: React.MouseEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDropdownOpen(false);
+        setTimeout(() => setIsPayloadPopoverOpen(true), 100);
+      };
 
       return (
-        <Popover modal={true}>
-          <PopoverTrigger asChild>
-            <Button
-              variant="ghost"
-              className="flex items-center gap-2 text-xs hover:bg-muted/50 pl-0 h-8 transition-colors"
-            >
-              View
-              <EyeIcon className="size-4" />
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent
-            className="md:w-[500px] lg:w-[700px] max-w-[90vw] p-0 my-4 shadow-xl border-2 bg-background/95 backdrop-blur-sm rounded-lg"
-            align="center"
-            side="left"
+        <div className="flex justify-center">
+          <DropdownMenu open={isDropdownOpen} onOpenChange={setIsDropdownOpen}>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" className="h-8 w-8 p-0 hover:bg-muted/50">
+                <DotsVerticalIcon className="h-4 w-4 text-muted-foreground cursor-pointer" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  handleCopy(filter.metadata.id, 'filter');
+                }}
+                className="flex items-center gap-2 cursor-pointer"
+              >
+                {copiedItem === 'filter' ? (
+                  <CheckIcon className="h-4 w-4 text-green-600" />
+                ) : (
+                  <CopyIcon className="h-4 w-4" />
+                )}
+                {copiedItem === 'filter'
+                  ? 'Copied Filter ID!'
+                  : 'Copy Filter ID'}
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  handleCopy(filter.workflowId, 'workflow');
+                }}
+                className="flex items-center gap-2 cursor-pointer"
+              >
+                {copiedItem === 'workflow' ? (
+                  <CheckIcon className="h-4 w-4 text-green-600" />
+                ) : (
+                  <CopyIcon className="h-4 w-4" />
+                )}
+                {copiedItem === 'workflow'
+                  ? 'Copied Workflow ID!'
+                  : 'Copy Workflow ID'}
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={handleViewPayload}
+                className="flex items-center gap-2 cursor-pointer"
+              >
+                <EyeIcon className="h-4 w-4" />
+                View Payload
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          <Popover
+            modal={true}
+            open={isPayloadPopoverOpen}
+            onOpenChange={setIsPayloadPopoverOpen}
           >
-            <div className="bg-muted/50 px-4 py-3 border-b border-border/50 flex-shrink-0">
-              <div className="flex items-center gap-2">
-                <EyeIcon className="h-4 w-4 text-muted-foreground" />
-                <span className="font-semibold text-sm text-foreground">
-                  Filter Payload
-                </span>
-              </div>
-            </div>
-            <div className="p-4">
-              <div className="max-h-[60vh] overflow-auto rounded-lg border border-border/50 bg-muted/10">
-                <div className="p-4">
-                  <CodeHighlighter
-                    language="json"
-                    className="whitespace-pre-wrap break-words text-sm leading-relaxed"
-                    code={payloadString}
-                  />
+            <PopoverTrigger asChild>
+              <Button
+                variant="ghost"
+                className="h-8 w-8 p-0 opacity-0 pointer-events-none absolute"
+              >
+                <DotsVerticalIcon className="h-4 w-4 text-muted-foreground cursor-pointer" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent
+              className="md:w-[500px] lg:w-[700px] max-w-[90vw] p-0 my-4 shadow-xl border-2 bg-background/95 backdrop-blur-sm rounded-lg"
+              align="center"
+              side="left"
+            >
+              <div className="bg-muted/50 px-4 py-3 border-b border-border/50 flex-shrink-0">
+                <div className="flex items-center gap-2">
+                  <EyeIcon className="h-4 w-4 text-muted-foreground" />
+                  <span className="font-semibold text-sm text-foreground">
+                    Filter Payload
+                  </span>
                 </div>
               </div>
-            </div>
-          </PopoverContent>
-        </Popover>
+              <div className="p-4">
+                <div className="max-h-[60vh] overflow-auto rounded-lg border border-border/50 bg-muted/10">
+                  <div className="p-4">
+                    <CodeHighlighter
+                      language="json"
+                      className="whitespace-pre-wrap break-words text-sm leading-relaxed"
+                      code={payloadString}
+                    />
+                  </div>
+                </div>
+              </div>
+            </PopoverContent>
+          </Popover>
+        </div>
       );
     },
     enableSorting: false,
     enableHiding: false,
+    size: 50,
+    minSize: 50,
+    maxSize: 50,
   },
 ];
