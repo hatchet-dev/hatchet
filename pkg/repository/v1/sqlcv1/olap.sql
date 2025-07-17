@@ -819,7 +819,7 @@ WITH tenants AS (
 )
 
 SELECT
-    MIN(u.inserted_at)
+    MIN(u.dag_inserted_at)::TIMESTAMPTZ AS min_inserted_at
 FROM tenants t,
     LATERAL list_task_status_updates_tmp(
         @partitionNumber::int,

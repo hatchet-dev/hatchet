@@ -212,7 +212,7 @@ WITH tenants AS (
 )
 
 SELECT
-    MIN(u.inserted_at)
+    MIN(u.dag_inserted_at)::TIMESTAMPTZ AS min_inserted_at
 FROM tenants t,
     LATERAL list_task_status_updates_tmp(
         $1::int,
@@ -227,11 +227,11 @@ type FindMinInsertedAtForDAGStatusUpdatesParams struct {
 	Tenantids       []pgtype.UUID `json:"tenantids"`
 }
 
-func (q *Queries) FindMinInsertedAtForDAGStatusUpdates(ctx context.Context, db DBTX, arg FindMinInsertedAtForDAGStatusUpdatesParams) (interface{}, error) {
+func (q *Queries) FindMinInsertedAtForDAGStatusUpdates(ctx context.Context, db DBTX, arg FindMinInsertedAtForDAGStatusUpdatesParams) (pgtype.Timestamptz, error) {
 	row := db.QueryRow(ctx, findMinInsertedAtForDAGStatusUpdates, arg.Partitionnumber, arg.Eventlimit, arg.Tenantids)
-	var min interface{}
-	err := row.Scan(&min)
-	return min, err
+	var min_inserted_at pgtype.Timestamptz
+	err := row.Scan(&min_inserted_at)
+	return min_inserted_at, err
 }
 
 const flattenTasksByExternalIds = `-- name: FlattenTasksByExternalIds :many
