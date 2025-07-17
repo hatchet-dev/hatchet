@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Improves exception logs throughout the SDK to provide more context for what went wrong when an exception is thrown.
 - Adds `create_run_ref`, `get_result`, and `aio_get_result` methods to the `Standalone` class, to allow for getting typed results of a run more easily.
 
+### Changed
+
+- Correctly propagates additional metadata through the various `run` methods to spawned children.
+
 ## [1.15.3] - 2025-07-14
 
 ### Changed

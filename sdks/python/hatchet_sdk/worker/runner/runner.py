@@ -40,6 +40,7 @@ from hatchet_sdk.logger import logger
 from hatchet_sdk.runnables.action import Action, ActionKey, ActionType
 from hatchet_sdk.runnables.contextvars import (
     ctx_action_key,
+    ctx_additional_metadata,
     ctx_step_run_id,
     ctx_worker_id,
     ctx_workflow_run_id,
@@ -54,6 +55,8 @@ from hatchet_sdk.worker.action_listener_process import ActionEvent
 from hatchet_sdk.worker.runner.utils.capture_logs import (
     AsyncLogSender,
     ContextVarToCopy,
+    ContextVarToCopyDict,
+    ContextVarToCopyStr,
     copy_context_vars,
 )
 
@@ -295,6 +298,7 @@ class Runner:
         ctx_workflow_run_id.set(action.workflow_run_id)
         ctx_worker_id.set(action.worker_id)
         ctx_action_key.set(action.key)
+        ctx_additional_metadata.set(action.additional_metadata)
 
         try:
             if task.is_async_function:
@@ -305,20 +309,34 @@ class Runner:
                 copy_context_vars,
                 [
                     ContextVarToCopy(
-                        name="ctx_step_run_id",
-                        value=action.step_run_id,
+                        var=ContextVarToCopyStr(
+                            name="ctx_step_run_id",
+                            value=action.step_run_id,
+                        )
                     ),
                     ContextVarToCopy(
-                        name="ctx_workflow_run_id",
-                        value=action.workflow_run_id,
+                        var=ContextVarToCopyStr(
+                            name="ctx_workflow_run_id",
+                            value=action.workflow_run_id,
+                        )
                     ),
                     ContextVarToCopy(
-                        name="ctx_worker_id",
-                        value=action.worker_id,
+                        var=ContextVarToCopyStr(
+                            name="ctx_worker_id",
+                            value=action.worker_id,
+                        )
                     ),
                     ContextVarToCopy(
-                        name="ctx_action_key",
-                        value=action.key,
+                        var=ContextVarToCopyStr(
+                            name="ctx_action_key",
+                            value=action.key,
+                        )
+                    ),
+                    ContextVarToCopy(
+                        var=ContextVarToCopyDict(
+                            name="ctx_additional_metadata",
+                            value=action.additional_metadata,
+                        )
                     ),
                 ],
                 self.thread_action_func,
