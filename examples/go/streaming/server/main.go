@@ -11,6 +11,7 @@ import (
 	v1 "github.com/hatchet-dev/hatchet/pkg/v1"
 )
 
+// > Server
 func main() {
 	hatchet, err := v1.NewHatchetClient()
 	if err != nil {
