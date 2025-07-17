@@ -841,11 +841,14 @@ WITH tenants AS (
         d.total_tasks
     FROM
         v1_dags_olap d
-    JOIN
-        distinct_dags dd ON
-            (d.tenant_id, d.id, d.inserted_at) = (dd.tenant_id, dd.dag_id, dd.dag_inserted_at)
+    WHERE (d.inserted_at, d.id, d.tenant_id) IN (
+        SELECT
+            dd.dag_inserted_at, dd.dag_id, dd.tenant_id
+        FROM
+            distinct_dags dd
+    )
     ORDER BY
-        d.id, d.inserted_at
+        d.inserted_at, d.id
     FOR UPDATE
 ), dag_task_counts AS (
     SELECT
@@ -899,10 +902,11 @@ WITH tenants AS (
         e.dag_inserted_at
     FROM
         locked_events e
-    LEFT JOIN
-        locked_dags d ON (e.tenant_id, e.dag_id, e.dag_inserted_at) = (d.tenant_id, d.id, d.inserted_at)
-    WHERE
-        d.id IS NULL
+    WHERE NOT EXISTS (
+        SELECT 1
+        FROM locked_dags d
+        WHERE (e.dag_inserted_at, e.dag_id, e.tenant_id) = (d.inserted_at, d.id, d.tenant_id)
+    )
 ), deleted_events AS (
     DELETE FROM
         v1_task_status_updates_tmp
