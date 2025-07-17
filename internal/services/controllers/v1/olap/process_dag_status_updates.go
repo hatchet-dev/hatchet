@@ -2,66 +2,63 @@ package olap
 
 import (
 	"context"
-	"strings"
 
 	msgqueue "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
-	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 	"github.com/jackc/pgx/v5/pgtype"
+	"golang.org/x/sync/errgroup"
 )
 
-func (o *OLAPControllerImpl) runTenantDAGStatusUpdates(ctx context.Context) func() {
+func (o *OLAPControllerImpl) runDAGStatusUpdates(ctx context.Context) func() {
 	return func() {
-		o.l.Debug().Msgf("partition: running status updates for dags")
+		shouldContinue := true
 
-		// list all tenants
-		tenants, err := o.p.ListTenantsForController(ctx, dbsqlc.TenantMajorEngineVersionV1)
+		for shouldContinue {
+			o.l.Debug().Msgf("partition: running status updates for dags")
 
-		if err != nil {
-			o.l.Error().Err(err).Msg("could not list tenants")
-			return
+			// list all tenants
+			tenants, err := o.p.ListTenantsForController(ctx, dbsqlc.TenantMajorEngineVersionV1)
+
+			if err != nil {
+				o.l.Error().Err(err).Msg("could not list tenants")
+				return
+			}
+
+			tenantIds := make([]string, 0, len(tenants))
+
+			for _, tenant := range tenants {
+				tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+				tenantIds = append(tenantIds, tenantId)
+			}
+
+			var rows []v1.UpdateDAGStatusRow
+
+			shouldContinue, rows, err = o.repo.OLAP().UpdateDAGStatuses(ctx, tenantIds)
+
+			if err != nil {
+				o.l.Error().Err(err).Msg("could not update DAG statuses")
+				return
+			}
+
+			err = o.notifyDAGsUpdated(ctx, rows)
+
+			if err != nil {
+				o.l.Error().Err(err).Msg("failed to notify updated DAG statuses")
+				return
+			}
 		}
 
-		o.updateDAGStatusOperations.SetTenants(tenants)
-
-		if len(tenants) == 0 {
-			return
-		}
-
-		tenantIds := make([]string, len(tenants))
-		for i, tenant := range tenants {
-			tenantIds[i] = sqlchelpers.UUIDToStr(tenant.ID)
-		}
-
-		underscoreDelimitedTenantIds := strings.Join(tenantIds, "_")
-
-		o.updateDAGStatusOperations.RunOrContinue(underscoreDelimitedTenantIds)
 	}
 }
 
-func (o *OLAPControllerImpl) updateDAGStatuses(ctx context.Context, underscoreDelimitedTenantIds string) (bool, error) {
-	ctx, span := telemetry.NewSpan(ctx, "update-dag-statuses")
-	defer span.End()
-
-	if len(underscoreDelimitedTenantIds) == 0 {
-		o.l.Warn().Msg("no tenant IDs provided for updating DAG statuses")
-		return false, nil
-	}
-
-	tenantIds := strings.Split(underscoreDelimitedTenantIds, "_")
-
-	shouldContinue, rows, err := o.repo.OLAP().UpdateDAGStatuses(ctx, tenantIds)
-
-	if err != nil {
-		return false, err
-	}
-
+func (o *OLAPControllerImpl) notifyDAGsUpdated(ctx context.Context, rows []v1.UpdateDAGStatusRow) error {
 	tenantIdToPayloads := make(map[pgtype.UUID][]tasktypes.NotifyFinalizedPayload)
-	workflowIds := make([]pgtype.UUID, 0, len(rows))
+	tenantIdToWorkflowIds := make(map[string][]pgtype.UUID)
 	dagIds := make([]int64, 0, len(rows))
 	dagInsertedAts := make([]pgtype.Timestamptz, 0, len(rows))
 	readableStatuses := make([]sqlcv1.V1ReadableStatusOlap, 0, len(rows))
@@ -76,36 +73,48 @@ func (o *OLAPControllerImpl) updateDAGStatuses(ctx context.Context, underscoreDe
 			o.processTenantAlertOperations.RunOrContinue(row.TenantId.String())
 		}
 
-		workflowIds = append(workflowIds, row.WorkflowId)
+		tenantId := sqlchelpers.UUIDToStr(row.TenantId)
+
+		tenantIdToWorkflowIds[tenantId] = append(tenantIdToWorkflowIds[tenantId], row.WorkflowId)
 		dagIds = append(dagIds, row.DagId)
 		dagInsertedAts = append(dagInsertedAts, row.DagInsertedAt)
 		readableStatuses = append(readableStatuses, row.ReadableStatus)
 	}
 
 	if o.prometheusMetricsEnabled {
-		for _, tenantId := range tenantIds {
-			workflowNames, err := o.repo.Workflows().ListWorkflowNamesByIds(ctx, tenantId, workflowIds)
-			if err != nil {
-				return false, err
-			}
+		var eg errgroup.Group
 
-			dagDurations, err := o.repo.OLAP().GetDagDurationsByDagIds(ctx, tenantId, dagIds, dagInsertedAts, readableStatuses)
-			if err != nil {
-				return false, err
-			}
-
-			for i, row := range rows {
-				if row.ReadableStatus == sqlcv1.V1ReadableStatusOlapCOMPLETED || row.ReadableStatus == sqlcv1.V1ReadableStatusOlapFAILED || row.ReadableStatus == sqlcv1.V1ReadableStatusOlapCANCELLED {
-					workflowName := workflowNames[row.WorkflowId]
-					if workflowName == "" {
-						continue
-					}
-
-					dagDuration := dagDurations[i]
-
-					prometheus.TenantWorkflowDurationBuckets.WithLabelValues(tenantId, workflowName, string(row.ReadableStatus)).Observe(float64(dagDuration.FinishedAt.Time.Sub(dagDuration.StartedAt.Time).Milliseconds()))
+		for tenantId, workflowIds := range tenantIdToWorkflowIds {
+			eg.Go(func() error {
+				workflowNames, err := o.repo.Workflows().ListWorkflowNamesByIds(ctx, tenantId, workflowIds)
+				if err != nil {
+					return err
 				}
-			}
+
+				dagDurations, err := o.repo.OLAP().GetDagDurationsByDagIds(ctx, tenantId, dagIds, dagInsertedAts, readableStatuses)
+				if err != nil {
+					return err
+				}
+
+				for i, row := range rows {
+					if row.ReadableStatus == sqlcv1.V1ReadableStatusOlapCOMPLETED || row.ReadableStatus == sqlcv1.V1ReadableStatusOlapFAILED || row.ReadableStatus == sqlcv1.V1ReadableStatusOlapCANCELLED {
+						workflowName := workflowNames[row.WorkflowId]
+						if workflowName == "" {
+							continue
+						}
+
+						dagDuration := dagDurations[i]
+
+						prometheus.TenantWorkflowDurationBuckets.WithLabelValues(tenantId, workflowName, string(row.ReadableStatus)).Observe(float64(dagDuration.FinishedAt.Time.Sub(dagDuration.StartedAt.Time).Milliseconds()))
+					}
+				}
+
+				return nil
+			})
+		}
+
+		if err := eg.Wait(); err != nil {
+			return err
 		}
 	}
 
@@ -121,7 +130,7 @@ func (o *OLAPControllerImpl) updateDAGStatuses(ctx context.Context, underscoreDe
 			)
 
 			if err != nil {
-				return false, err
+				return err
 			}
 
 			q := msgqueue.TenantEventConsumerQueue(tenantId.String())
@@ -129,10 +138,10 @@ func (o *OLAPControllerImpl) updateDAGStatuses(ctx context.Context, underscoreDe
 			err = o.mq.SendMessage(ctx, q, msg)
 
 			if err != nil {
-				return false, err
+				return err
 			}
 		}
 	}
 
-	return shouldContinue, nil
+	return nil
 }
