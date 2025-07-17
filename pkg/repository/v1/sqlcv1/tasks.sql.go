@@ -16,7 +16,8 @@ SELECT
     create_v1_range_partition('v1_task', $1::date),
     create_v1_range_partition('v1_dag', $1::date),
     create_v1_range_partition('v1_task_event', $1::date),
-    create_v1_range_partition('v1_log_line', $1::date)
+    create_v1_range_partition('v1_log_line', $1::date),
+    create_v1_weekly_range_partition('v1_lookup_table'::text, $1::date)
 `
 
 func (q *Queries) CreatePartitions(ctx context.Context, db DBTX, date pgtype.Date) error {
@@ -86,6 +87,8 @@ WITH tomorrow_date AS (
     SELECT 'v1_task_event_' || to_char((SELECT date FROM tomorrow_date), 'YYYYMMDD')
     UNION ALL
     SELECT 'v1_log_line_' || to_char((SELECT date FROM tomorrow_date), 'YYYYMMDD')
+    UNION ALL
+    SELECT 'v1_lookup_table_' || to_char((SELECT date FROM tomorrow_date), 'YYYYMMDD')
 ), partition_check AS (
     SELECT
         COUNT(*) AS total_tables,
@@ -647,7 +650,10 @@ WITH task_partitions AS (
     SELECT 'v1_task_event' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_task_event', $1::date) AS p
 ), log_line_partitions AS (
     SELECT 'v1_log_line' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_log_line', $1::date) AS p
+), lookup_partitions AS (
+    SELECT 'v1_lookup_table' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_lookup_table', $1::date) AS p
 )
+
 SELECT
     parent_table, partition_name
 FROM
@@ -673,6 +679,13 @@ SELECT
     parent_table, partition_name
 FROM
     log_line_partitions
+
+UNION ALL
+
+SELECT
+    parent_table, partition_name
+FROM
+    lookup_partitions
 `
 
 type ListPartitionsBeforeDateRow struct {
