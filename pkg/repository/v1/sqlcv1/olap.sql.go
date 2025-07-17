@@ -2318,15 +2318,17 @@ func (q *Queries) ReadWorkflowRunByExternalId(ctx context.Context, db DBTX, work
 }
 
 const updateDAGStatuses = `-- name: UpdateDAGStatuses :many
-WITH locked_events AS (
+WITH tenants AS (
+    SELECT find_matching_tenants_in_task_status_updates_tmp_partition($1::int, $2::UUID[]) AS tenant_id
+), locked_events AS (
     SELECT
-        tenant_id, requeue_after, requeue_retries, id, dag_id, dag_inserted_at
+        u.tenant_id, u.requeue_after, u.requeue_retries, u.id, u.dag_id, u.dag_inserted_at
     FROM
         list_task_status_updates_tmp(
             $1::int,
-            $2::uuid,
+            t.tenant_id,
             $3::int
-        )
+        ) u, tenants t
 ), distinct_dags AS (
     SELECT
         DISTINCT ON (e.tenant_id, e.dag_id, e.dag_inserted_at)
@@ -2450,9 +2452,9 @@ FROM
 `
 
 type UpdateDAGStatusesParams struct {
-	Partitionnumber int32       `json:"partitionnumber"`
-	Tenantid        pgtype.UUID `json:"tenantid"`
-	Eventlimit      int32       `json:"eventlimit"`
+	Partitionnumber int32         `json:"partitionnumber"`
+	Tenantids       []pgtype.UUID `json:"tenantids"`
+	Eventlimit      int32         `json:"eventlimit"`
 }
 
 type UpdateDAGStatusesRow struct {
@@ -2465,7 +2467,7 @@ type UpdateDAGStatusesRow struct {
 }
 
 func (q *Queries) UpdateDAGStatuses(ctx context.Context, db DBTX, arg UpdateDAGStatusesParams) ([]*UpdateDAGStatusesRow, error) {
-	rows, err := db.Query(ctx, updateDAGStatuses, arg.Partitionnumber, arg.Tenantid, arg.Eventlimit)
+	rows, err := db.Query(ctx, updateDAGStatuses, arg.Partitionnumber, arg.Tenantids, arg.Eventlimit)
 	if err != nil {
 		return nil, err
 	}

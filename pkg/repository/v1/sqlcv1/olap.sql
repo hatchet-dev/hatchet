@@ -801,15 +801,17 @@ FROM
     updated_tasks t;
 
 -- name: UpdateDAGStatuses :many
-WITH locked_events AS (
+WITH tenants AS (
+    SELECT find_matching_tenants_in_task_status_updates_tmp_partition(@partitionNumber::int, @tenantIds::UUID[]) AS tenant_id
+), locked_events AS (
     SELECT
-        *
+        u.*
     FROM
         list_task_status_updates_tmp(
             @partitionNumber::int,
-            @tenantId::uuid,
+            t.tenant_id,
             @eventLimit::int
-        )
+        ) u, tenants t
 ), distinct_dags AS (
     SELECT
         DISTINCT ON (e.tenant_id, e.dag_id, e.dag_inserted_at)
