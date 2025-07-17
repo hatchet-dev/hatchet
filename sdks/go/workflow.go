@@ -189,7 +189,7 @@ func (w *Workflow) NewTask(name string, fn any, options ...TaskOption) *Workflow
 
 	contextType := reflect.TypeOf((*Context)(nil)).Elem()
 	durableContextType := reflect.TypeOf((*worker.DurableHatchetContext)(nil)).Elem()
-	
+
 	if config.isDurable {
 		if !fnType.In(0).Implements(durableContextType) && fnType.In(0) != durableContextType {
 			panic("first parameter for durable task must be DurableHatchetContext")
@@ -261,7 +261,7 @@ func NewStandaloneTask(name string, fn any, v1Client v1.HatchetClient, options .
 	}
 
 	workflow := NewWorkflow(name, v1Client, workflowOptions...)
-	
+
 	taskOptions := make([]TaskOption, 0)
 	for _, opt := range options {
 		if isTaskLevelOption(opt) {
@@ -269,15 +269,15 @@ func NewStandaloneTask(name string, fn any, v1Client v1.HatchetClient, options .
 		}
 	}
 	workflow.NewTask(name, fn, taskOptions...)
-	
+
 	return workflow
 }
 
 func isTaskLevelOption(opt TaskOption) bool {
 	config := &taskConfig{}
 	opt(config)
-	
-	return config.retries != 0 || config.retryBackoffFactor != 0 || config.retryMaxBackoffSeconds != 0 || 
+
+	return config.retries != 0 || config.retryBackoffFactor != 0 || config.retryMaxBackoffSeconds != 0 ||
 		config.executionTimeout != 0 || len(config.concurrency) > 0 || config.isDurable
 }
 
