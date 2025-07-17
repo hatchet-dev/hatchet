@@ -48,9 +48,15 @@ func (o *OLAPControllerImpl) updateTaskStatuses(ctx context.Context, underscoreD
 	ctx, span := telemetry.NewSpan(ctx, "update-task-statuses")
 	defer span.End()
 
+	if len(underscoreDelimitedTenantIds) == 0 {
+		o.l.Warn().Msg("no tenant IDs provided for updating task statuses")
+		return false, nil
+	}
+
 	tenantIds := strings.Split(underscoreDelimitedTenantIds, "_")
 
 	shouldContinue, rows, err := o.repo.OLAP().UpdateTaskStatuses(ctx, tenantIds)
+
 	if err != nil {
 		return false, err
 	}
