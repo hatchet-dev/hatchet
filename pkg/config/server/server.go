@@ -217,6 +217,9 @@ type ConfigFileRuntime struct {
 
 	// ReplayEnabled controls whether the server enables replay for tasks
 	ReplayEnabled bool `mapstructure:"replayEnabled" json:"replayEnabled,omitempty" default:"true"`
+
+	// SchedulerConcurrencyRateLimit is the rate limit for scheduler concurrency strategy execution (per second)
+	SchedulerConcurrencyRateLimit int `mapstructure:"schedulerConcurrencyRateLimit" json:"schedulerConcurrencyRateLimit,omitempty" default:"20"`
 }
 
 type InternalClientTLSConfigFile struct {
@@ -565,6 +568,7 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.grpcInsecure", "SERVER_GRPC_INSECURE")
 	_ = v.BindEnv("runtime.grpcMaxMsgSize", "SERVER_GRPC_MAX_MSG_SIZE")
 	_ = v.BindEnv("runtime.grpcRateLimit", "SERVER_GRPC_RATE_LIMIT")
+	_ = v.BindEnv("runtime.schedulerConcurrencyRateLimit", "SCHEDULER_CONCURRENCY_RATE_LIMIT")
 	_ = v.BindEnv("runtime.shutdownWait", "SERVER_SHUTDOWN_WAIT")
 	_ = v.BindEnv("servicesString", "SERVER_SERVICES")
 	_ = v.BindEnv("pausedControllers", "SERVER_PAUSED_CONTROLLERS")
