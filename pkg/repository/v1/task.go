@@ -273,18 +273,13 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 	const PARTITION_LOCK_OFFSET = 9000000000000000000
 	const partitionLockKey = PARTITION_LOCK_OFFSET + 1
 
-	lockTx, err := r.pool.BeginTx(ctx, pgx.TxOptions{})
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 600000) // 10 minutes
 	if err != nil {
-		return fmt.Errorf("failed to begin lock transaction: %w", err)
+		return fmt.Errorf("failed to prepare transaction: %w", err)
 	}
-	defer lockTx.Rollback(ctx)
+	defer rollback()
 
-	_, err = lockTx.Exec(ctx, "SET statement_timeout = '10min'")
-	if err != nil {
-		return fmt.Errorf("failed to set statement timeout: %w", err)
-	}
-
-	acquired, err := r.queries.TryAdvisoryLock(ctx, lockTx, partitionLockKey)
+	acquired, err := r.queries.TryAdvisoryLock(ctx, tx, partitionLockKey)
 	if err != nil {
 		return fmt.Errorf("failed to try advisory lock for partition operations: %w", err)
 	}
@@ -353,9 +348,9 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 		}
 	}
 
-	err = lockTx.Commit(ctx)
+	err = commit(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to commit lock transaction: %w", err)
+		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
 	return nil
