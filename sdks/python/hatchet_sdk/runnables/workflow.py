@@ -2,7 +2,16 @@ import asyncio
 from collections.abc import Callable
 from datetime import datetime, timedelta
 from functools import cached_property
-from typing import TYPE_CHECKING, Any, Generic, TypeVar, cast, get_type_hints
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Generic,
+    Literal,
+    TypeVar,
+    cast,
+    get_type_hints,
+    overload,
+)
 
 from google.protobuf import timestamp_pb2
 from pydantic import BaseModel, model_validator
@@ -651,39 +660,83 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
         return await ref.aio_result()
 
+    def _get_result(
+        self, ref: WorkflowRunRef, return_exceptions: bool
+    ) -> dict[str, Any] | BaseException:
+        try:
+            return ref.result()
+        except Exception as e:
+            if return_exceptions:
+                return e
+            raise e
+
+    @overload
     def run_many(
         self,
         workflows: list[WorkflowRunTriggerConfig],
-    ) -> list[dict[str, Any]]:
+        return_exceptions: Literal[True],
+    ) -> list[dict[str, Any] | BaseException]: ...
+
+    @overload
+    def run_many(
+        self,
+        workflows: list[WorkflowRunTriggerConfig],
+        return_exceptions: Literal[False] = False,
+    ) -> list[dict[str, Any]]: ...
+
+    def run_many(
+        self,
+        workflows: list[WorkflowRunTriggerConfig],
+        return_exceptions: bool = False,
+    ) -> list[dict[str, Any]] | list[dict[str, Any] | BaseException]:
         """
         Run a workflow in bulk and wait for all runs to complete.
         This method triggers multiple workflow runs, blocks until all of them complete, and returns the final results.
 
         :param workflows: A list of `WorkflowRunTriggerConfig` objects, each representing a workflow run to be triggered.
+        :param return_exceptions: If `True`, exceptions will be returned as part of the results instead of raising them.
         :returns: A list of results for each workflow run.
         """
         refs = self.client._client.admin.run_workflows(
             workflows=workflows,
         )
 
-        return [ref.result() for ref in refs]
+        return [self._get_result(ref, return_exceptions) for ref in refs]
+
+    @overload
+    async def aio_run_many(
+        self,
+        workflows: list[WorkflowRunTriggerConfig],
+        return_exceptions: Literal[True],
+    ) -> list[dict[str, Any] | BaseException]: ...
+
+    @overload
+    async def aio_run_many(
+        self,
+        workflows: list[WorkflowRunTriggerConfig],
+        return_exceptions: Literal[False] = False,
+    ) -> list[dict[str, Any]]: ...
 
     async def aio_run_many(
         self,
         workflows: list[WorkflowRunTriggerConfig],
-    ) -> list[dict[str, Any]]:
+        return_exceptions: bool = False,
+    ) -> list[dict[str, Any]] | list[dict[str, Any] | BaseException]:
         """
         Run a workflow in bulk and wait for all runs to complete.
         This method triggers multiple workflow runs, blocks until all of them complete, and returns the final results.
 
         :param workflows: A list of `WorkflowRunTriggerConfig` objects, each representing a workflow run to be triggered.
+        :param return_exceptions: If `True`, exceptions will be returned as part of the results instead of raising them.
         :returns: A list of results for each workflow run.
         """
         refs = await self.client._client.admin.aio_run_workflows(
             workflows=workflows,
         )
 
-        return await asyncio.gather(*[ref.aio_result() for ref in refs])
+        return await asyncio.gather(
+            *[ref.aio_result() for ref in refs], return_exceptions=return_exceptions
+        )
 
     def run_many_no_wait(
         self,
@@ -1137,7 +1190,18 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
 
         self.config = self._workflow.config
 
-    def _extract_result(self, result: dict[str, Any]) -> R:
+    @overload
+    def _extract_result(self, result: dict[str, Any]) -> R: ...
+
+    @overload
+    def _extract_result(self, result: BaseException) -> BaseException: ...
+
+    def _extract_result(
+        self, result: dict[str, Any] | BaseException
+    ) -> R | BaseException:
+        if isinstance(result, BaseException):
+            return result
+
         output = result.get(self._task.name)
 
         if not self._output_validator:
@@ -1217,30 +1281,72 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
 
         return TaskRunRef[TWorkflowInput, R](self, ref)
 
-    def run_many(self, workflows: list[WorkflowRunTriggerConfig]) -> list[R]:
+    @overload
+    def run_many(
+        self,
+        workflows: list[WorkflowRunTriggerConfig],
+        return_exceptions: Literal[True],
+    ) -> list[R | BaseException]: ...
+
+    @overload
+    def run_many(
+        self,
+        workflows: list[WorkflowRunTriggerConfig],
+        return_exceptions: Literal[False] = False,
+    ) -> list[R]: ...
+
+    def run_many(
+        self, workflows: list[WorkflowRunTriggerConfig], return_exceptions: bool = False
+    ) -> list[R] | list[R | BaseException]:
         """
         Run a workflow in bulk and wait for all runs to complete.
         This method triggers multiple workflow runs, blocks until all of them complete, and returns the final results.
 
         :param workflows: A list of `WorkflowRunTriggerConfig` objects, each representing a workflow run to be triggered.
+        :param return_exceptions: If `True`, exceptions will be returned as part of the results instead of raising them.
         :returns: A list of results for each workflow run.
         """
         return [
             self._extract_result(result)
-            for result in self._workflow.run_many(workflows)
+            for result in self._workflow.run_many(
+                workflows,
+                ## hack: typing needs literal
+                True if return_exceptions else False,  # noqa: SIM210
+            )
         ]
 
-    async def aio_run_many(self, workflows: list[WorkflowRunTriggerConfig]) -> list[R]:
+    @overload
+    async def aio_run_many(
+        self,
+        workflows: list[WorkflowRunTriggerConfig],
+        return_exceptions: Literal[True],
+    ) -> list[R | BaseException]: ...
+
+    @overload
+    async def aio_run_many(
+        self,
+        workflows: list[WorkflowRunTriggerConfig],
+        return_exceptions: Literal[False] = False,
+    ) -> list[R]: ...
+
+    async def aio_run_many(
+        self, workflows: list[WorkflowRunTriggerConfig], return_exceptions: bool = False
+    ) -> list[R] | list[R | BaseException]:
         """
         Run a workflow in bulk and wait for all runs to complete.
         This method triggers multiple workflow runs, blocks until all of them complete, and returns the final results.
 
         :param workflows: A list of `WorkflowRunTriggerConfig` objects, each representing a workflow run to be triggered.
+        :param return_exceptions: If `True`, exceptions will be returned as part of the results instead of raising them.
         :returns: A list of results for each workflow run.
         """
         return [
             self._extract_result(result)
-            for result in await self._workflow.aio_run_many(workflows)
+            for result in await self._workflow.aio_run_many(
+                workflows,
+                ## hack: typing needs literal
+                True if return_exceptions else False,  # noqa: SIM210
+            )
         ]
 
     def run_many_no_wait(
