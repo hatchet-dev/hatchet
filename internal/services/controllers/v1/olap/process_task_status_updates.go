@@ -2,6 +2,7 @@ package olap
 
 import (
 	"context"
+	"strings"
 
 	msgqueue "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
@@ -27,24 +28,34 @@ func (o *OLAPControllerImpl) runTenantTaskStatusUpdates(ctx context.Context) fun
 
 		o.updateTaskStatusOperations.SetTenants(tenants)
 
-		for i := range tenants {
-			tenantId := sqlchelpers.UUIDToStr(tenants[i].ID)
-
-			o.updateTaskStatusOperations.RunOrContinue(tenantId)
+		tenantIds := make([]string, len(tenants))
+		for i, tenant := range tenants {
+			tenantIds[i] = sqlchelpers.UUIDToStr(tenant.ID)
 		}
+
+		if len(tenantIds) == 0 {
+			o.l.Warn().Msg("no tenants found for task status updates")
+			return
+		}
+
+		underscoreDelimitedTenantIds := strings.Join(tenantIds, "_")
+
+		o.updateTaskStatusOperations.RunOrContinue(underscoreDelimitedTenantIds)
 	}
 }
 
-func (o *OLAPControllerImpl) updateTaskStatuses(ctx context.Context, tenantId string) (bool, error) {
+func (o *OLAPControllerImpl) updateTaskStatuses(ctx context.Context, underscoreDelimitedTenantIds string) (bool, error) {
 	ctx, span := telemetry.NewSpan(ctx, "update-task-statuses")
 	defer span.End()
 
-	shouldContinue, rows, err := o.repo.OLAP().UpdateTaskStatuses(ctx, tenantId)
+	tenantIds := strings.Split(underscoreDelimitedTenantIds, "_")
+
+	shouldContinue, rows, err := o.repo.OLAP().UpdateTaskStatuses(ctx, tenantIds)
 	if err != nil {
 		return false, err
 	}
 
-	payloads := make([]tasktypes.NotifyFinalizedPayload, 0, len(rows))
+	tenantIdToPayloads := make(map[pgtype.UUID][]tasktypes.NotifyFinalizedPayload)
 	workflowIds := make([]pgtype.UUID, 0, len(rows))
 	workerIds := make([]pgtype.UUID, 0, len(rows))
 	taskIds := make([]int64, 0, len(rows))
@@ -56,7 +67,7 @@ func (o *OLAPControllerImpl) updateTaskStatuses(ctx context.Context, tenantId st
 			continue
 		}
 
-		payloads = append(payloads, tasktypes.NotifyFinalizedPayload{
+		tenantIdToPayloads[row.TenantId] = append(tenantIdToPayloads[row.TenantId], tasktypes.NotifyFinalizedPayload{
 			ExternalId: sqlchelpers.UUIDToStr(row.ExternalId),
 			Status:     row.ReadableStatus,
 		})
@@ -69,55 +80,59 @@ func (o *OLAPControllerImpl) updateTaskStatuses(ctx context.Context, tenantId st
 	}
 
 	if o.prometheusMetricsEnabled {
-		workflowNames, err := o.repo.Workflows().ListWorkflowNamesByIds(ctx, tenantId, workflowIds)
-		if err != nil {
-			return false, err
-		}
+		for _, tenantId := range tenantIds {
+			workflowNames, err := o.repo.Workflows().ListWorkflowNamesByIds(ctx, tenantId, workflowIds)
+			if err != nil {
+				return false, err
+			}
 
-		taskDurations, err := o.repo.OLAP().GetTaskDurationsByTaskIds(ctx, tenantId, taskIds, taskInsertedAts, readableStatuses)
-		if err != nil {
-			return false, err
-		}
+			taskDurations, err := o.repo.OLAP().GetTaskDurationsByTaskIds(ctx, tenantId, taskIds, taskInsertedAts, readableStatuses)
+			if err != nil {
+				return false, err
+			}
 
-		for _, row := range rows {
-			// Only track metrics for standalone tasks, not tasks within DAGs
-			// DAG-level metrics are tracked in process_dag_status_updates.go
-			if !row.IsDAGTask {
-				workflowName := workflowNames[row.WorkflowId]
-				if workflowName == "" {
-					continue
+			for _, row := range rows {
+				// Only track metrics for standalone tasks, not tasks within DAGs
+				// DAG-level metrics are tracked in process_dag_status_updates.go
+				if !row.IsDAGTask {
+					workflowName := workflowNames[row.WorkflowId]
+					if workflowName == "" {
+						continue
+					}
+
+					taskDuration := taskDurations[row.TaskId]
+					if taskDuration == nil || !taskDuration.StartedAt.Valid || !taskDuration.FinishedAt.Valid {
+						continue
+					}
+
+					prometheus.TenantWorkflowDurationBuckets.WithLabelValues(tenantId, workflowName, string(row.ReadableStatus)).Observe(float64(taskDuration.FinishedAt.Time.Sub(taskDuration.StartedAt.Time).Milliseconds()))
 				}
-
-				taskDuration := taskDurations[row.TaskId]
-				if taskDuration == nil || !taskDuration.StartedAt.Valid || !taskDuration.FinishedAt.Valid {
-					continue
-				}
-
-				prometheus.TenantWorkflowDurationBuckets.WithLabelValues(tenantId, workflowName, string(row.ReadableStatus)).Observe(float64(taskDuration.FinishedAt.Time.Sub(taskDuration.StartedAt.Time).Milliseconds()))
 			}
 		}
 	}
 
 	// send to the tenant queue
-	if len(payloads) > 0 {
-		msg, err := msgqueue.NewTenantMessage(
-			tenantId,
-			"workflow-run-finished",
-			true,
-			false,
-			payloads...,
-		)
+	if len(tenantIdToPayloads) > 0 {
+		for tenantId, payloads := range tenantIdToPayloads {
+			msg, err := msgqueue.NewTenantMessage(
+				tenantId.String(),
+				"workflow-run-finished",
+				true,
+				false,
+				payloads...,
+			)
 
-		if err != nil {
-			return false, err
-		}
+			if err != nil {
+				return false, err
+			}
 
-		q := msgqueue.TenantEventConsumerQueue(tenantId)
+			q := msgqueue.TenantEventConsumerQueue(tenantId.String())
 
-		err = o.mq.SendMessage(ctx, q, msg)
+			err = o.mq.SendMessage(ctx, q, msg)
 
-		if err != nil {
-			return false, err
+			if err != nil {
+				return false, err
+			}
 		}
 	}
 

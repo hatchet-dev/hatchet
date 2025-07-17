@@ -643,15 +643,22 @@ LEFT JOIN
 ORDER BY t.inserted_at DESC, t.id DESC;
 
 -- name: UpdateTaskStatuses :many
-WITH locked_events AS (
-    SELECT
-        *
-    FROM
-        list_task_events_tmp(
+WITH tenants AS (
+    SELECT UNNEST(
+        find_matching_tenants_in_task_status_updates_tmp_partition(
             @partitionNumber::int,
-            @tenantId::uuid,
-            @eventLimit::int
+            @tenantIds::UUID[]
         )
+    ) AS tenant_id
+), locked_events AS (
+    SELECT
+        e.*
+    FROM tenants t,
+        LATERAL list_task_events_tmp(
+            @partitionNumber::int,
+            t.tenant_id,
+            @eventLimit::int
+        ) e
 ), max_retry_counts AS (
     SELECT
         tenant_id,
