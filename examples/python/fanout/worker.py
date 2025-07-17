@@ -34,7 +34,7 @@ async def spawn(input: ParentInput, ctx: Context) -> dict[str, Any]:
                 ),
             )
             for i in range(input.n)
-        ]
+        ],
     )
 
     print(f"results {result}")

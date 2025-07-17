@@ -30,7 +30,7 @@ async def test_additional_metadata_propagation(hatchet: Hatchet) -> None:
     )
 
     await ref.aio_result()
-    await asyncio.sleep(3)
+    await asyncio.sleep(1)
 
     runs = await hatchet.runs.aio_list(
         parent_task_external_id=ref.workflow_run_id,
