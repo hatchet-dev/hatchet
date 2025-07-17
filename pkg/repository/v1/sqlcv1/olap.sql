@@ -806,12 +806,12 @@ WITH tenants AS (
 ), locked_events AS (
     SELECT
         u.*
-    FROM
-        list_task_status_updates_tmp(
+    FROM tenants t,
+        LATERAL list_task_status_updates_tmp(
             @partitionNumber::int,
             t.tenant_id,
             @eventLimit::int
-        ) u, tenants t
+        ) u
 ), distinct_dags AS (
     SELECT
         DISTINCT ON (e.tenant_id, e.dag_id, e.dag_inserted_at)

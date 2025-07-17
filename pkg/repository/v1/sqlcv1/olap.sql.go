@@ -2323,12 +2323,12 @@ WITH tenants AS (
 ), locked_events AS (
     SELECT
         u.tenant_id, u.requeue_after, u.requeue_retries, u.id, u.dag_id, u.dag_inserted_at
-    FROM
-        list_task_status_updates_tmp(
+    FROM tenants t,
+        LATERAL list_task_status_updates_tmp(
             $1::int,
             t.tenant_id,
             $3::int
-        ) u, tenants t
+        ) u
 ), distinct_dags AS (
     SELECT
         DISTINCT ON (e.tenant_id, e.dag_id, e.dag_inserted_at)

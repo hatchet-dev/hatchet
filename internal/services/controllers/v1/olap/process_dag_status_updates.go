@@ -2,6 +2,7 @@ package olap
 
 import (
 	"context"
+	"strings"
 
 	msgqueue "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
@@ -27,17 +28,31 @@ func (o *OLAPControllerImpl) runTenantDAGStatusUpdates(ctx context.Context) func
 
 		o.updateDAGStatusOperations.SetTenants(tenants)
 
-		for i := range tenants {
-			tenantId := sqlchelpers.UUIDToStr(tenants[i].ID)
-
-			o.updateDAGStatusOperations.RunOrContinue(tenantId)
+		if len(tenants) == 0 {
+			return
 		}
+
+		tenantIds := make([]string, len(tenants))
+		for i, tenant := range tenants {
+			tenantIds[i] = sqlchelpers.UUIDToStr(tenant.ID)
+		}
+
+		underscoreDelimitedTenantIds := strings.Join(tenantIds, "_")
+
+		o.updateDAGStatusOperations.RunOrContinue(underscoreDelimitedTenantIds)
 	}
 }
 
-func (o *OLAPControllerImpl) updateDAGStatuses(ctx context.Context, tenantIds []string) (bool, error) {
+func (o *OLAPControllerImpl) updateDAGStatuses(ctx context.Context, underscoreDelimitedTenantIds string) (bool, error) {
 	ctx, span := telemetry.NewSpan(ctx, "update-dag-statuses")
 	defer span.End()
+
+	if len(underscoreDelimitedTenantIds) == 0 {
+		o.l.Warn().Msg("no tenant IDs provided for updating DAG statuses")
+		return false, nil
+	}
+
+	tenantIds := strings.Split(underscoreDelimitedTenantIds, "_")
 
 	shouldContinue, rows, err := o.repo.OLAP().UpdateDAGStatuses(ctx, tenantIds)
 
