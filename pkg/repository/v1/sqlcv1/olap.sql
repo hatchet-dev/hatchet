@@ -807,6 +807,27 @@ SELECT
 FROM
     updated_tasks t;
 
+
+-- name: FindMinInsertedAtForDAGStatusUpdates :one
+WITH tenants AS (
+    SELECT UNNEST(
+        find_matching_tenants_in_task_status_updates_tmp_partition(
+            @partitionNumber::int,
+            @tenantIds::UUID[]
+        )
+    ) AS tenant_id
+)
+
+SELECT
+    MIN(u.inserted_at)
+FROM tenants t,
+    LATERAL list_task_status_updates_tmp(
+        @partitionNumber::int,
+        t.tenant_id,
+        @eventLimit::int
+    ) u
+;
+
 -- name: UpdateDAGStatuses :many
 WITH tenants AS (
     SELECT UNNEST(
@@ -841,12 +862,14 @@ WITH tenants AS (
         d.total_tasks
     FROM
         v1_dags_olap d
-    WHERE (d.inserted_at, d.id, d.tenant_id) IN (
-        SELECT
-            dd.dag_inserted_at, dd.dag_id, dd.tenant_id
-        FROM
-            distinct_dags dd
-    )
+    WHERE
+        d.inserted_at >= @minInsertedAt::TIMESTAMPTZ
+        AND (d.inserted_at, d.id, d.tenant_id) IN (
+            SELECT
+                dd.dag_inserted_at, dd.dag_id, dd.tenant_id
+            FROM
+                distinct_dags dd
+        )
     ORDER BY
         d.inserted_at, d.id
     FOR UPDATE
@@ -869,6 +892,7 @@ WITH tenants AS (
     LEFT JOIN
         v1_tasks_olap t ON
             (dt.task_id, dt.task_inserted_at) = (t.id, t.inserted_at)
+    WHERE t.inserted_at >= @minInsertedAt::TIMESTAMPTZ
     GROUP BY
         d.id, d.inserted_at, d.total_tasks
 ), updated_dags AS (

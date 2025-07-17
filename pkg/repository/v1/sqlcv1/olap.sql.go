@@ -201,6 +201,39 @@ type CreateTasksOLAPParams struct {
 	ParentTaskExternalID pgtype.UUID          `json:"parent_task_external_id"`
 }
 
+const findMinInsertedAtForDAGStatusUpdates = `-- name: FindMinInsertedAtForDAGStatusUpdates :one
+WITH tenants AS (
+    SELECT UNNEST(
+        find_matching_tenants_in_task_status_updates_tmp_partition(
+            $1::int,
+            $3::UUID[]
+        )
+    ) AS tenant_id
+)
+
+SELECT
+    MIN(u.inserted_at)
+FROM tenants t,
+    LATERAL list_task_status_updates_tmp(
+        $1::int,
+        t.tenant_id,
+        $2::int
+    ) u
+`
+
+type FindMinInsertedAtForDAGStatusUpdatesParams struct {
+	Partitionnumber int32         `json:"partitionnumber"`
+	Eventlimit      int32         `json:"eventlimit"`
+	Tenantids       []pgtype.UUID `json:"tenantids"`
+}
+
+func (q *Queries) FindMinInsertedAtForDAGStatusUpdates(ctx context.Context, db DBTX, arg FindMinInsertedAtForDAGStatusUpdatesParams) (interface{}, error) {
+	row := db.QueryRow(ctx, findMinInsertedAtForDAGStatusUpdates, arg.Partitionnumber, arg.Eventlimit, arg.Tenantids)
+	var min interface{}
+	err := row.Scan(&min)
+	return min, err
+}
+
 const flattenTasksByExternalIds = `-- name: FlattenTasksByExternalIds :many
 WITH lookups AS (
     SELECT
@@ -2351,12 +2384,14 @@ WITH tenants AS (
         d.total_tasks
     FROM
         v1_dags_olap d
-    WHERE (d.inserted_at, d.id, d.tenant_id) IN (
-        SELECT
-            dd.dag_inserted_at, dd.dag_id, dd.tenant_id
-        FROM
-            distinct_dags dd
-    )
+    WHERE
+        d.inserted_at >= $4::TIMESTAMPTZ
+        AND (d.inserted_at, d.id, d.tenant_id) IN (
+            SELECT
+                dd.dag_inserted_at, dd.dag_id, dd.tenant_id
+            FROM
+                distinct_dags dd
+        )
     ORDER BY
         d.inserted_at, d.id
     FOR UPDATE
@@ -2379,6 +2414,7 @@ WITH tenants AS (
     LEFT JOIN
         v1_tasks_olap t ON
             (dt.task_id, dt.task_inserted_at) = (t.id, t.inserted_at)
+    WHERE t.inserted_at >= $4::TIMESTAMPTZ
     GROUP BY
         d.id, d.inserted_at, d.total_tasks
 ), updated_dags AS (
@@ -2461,9 +2497,10 @@ FROM
 `
 
 type UpdateDAGStatusesParams struct {
-	Partitionnumber int32         `json:"partitionnumber"`
-	Tenantids       []pgtype.UUID `json:"tenantids"`
-	Eventlimit      int32         `json:"eventlimit"`
+	Partitionnumber int32              `json:"partitionnumber"`
+	Tenantids       []pgtype.UUID      `json:"tenantids"`
+	Eventlimit      int32              `json:"eventlimit"`
+	Mininsertedat   pgtype.Timestamptz `json:"mininsertedat"`
 }
 
 type UpdateDAGStatusesRow struct {
@@ -2477,7 +2514,12 @@ type UpdateDAGStatusesRow struct {
 }
 
 func (q *Queries) UpdateDAGStatuses(ctx context.Context, db DBTX, arg UpdateDAGStatusesParams) ([]*UpdateDAGStatusesRow, error) {
-	rows, err := db.Query(ctx, updateDAGStatuses, arg.Partitionnumber, arg.Tenantids, arg.Eventlimit)
+	rows, err := db.Query(ctx, updateDAGStatuses,
+		arg.Partitionnumber,
+		arg.Tenantids,
+		arg.Eventlimit,
+		arg.Mininsertedat,
+	)
 	if err != nil {
 		return nil, err
 	}
