@@ -16,6 +16,7 @@ type StreamTaskOutput struct {
 	Message string `json:"message"`
 }
 
+// > Streaming
 const annaKarenina = `
 Happy families are all alike; every unhappy family is unhappy in its own way.
 

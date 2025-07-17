@@ -34,7 +34,7 @@ async def spawn(input: ParentInput, ctx: Context) -> dict[str, Any]:
                 ),
             )
             for i in range(input.n)
-        ]
+        ],
     )
 
     print(f"results {result}")
@@ -46,13 +46,13 @@ async def spawn(input: ParentInput, ctx: Context) -> dict[str, Any]:
 
 # > FanoutChild
 @child_wf.task()
-def process(input: ChildInput, ctx: Context) -> dict[str, str]:
+async def process(input: ChildInput, ctx: Context) -> dict[str, str]:
     print(f"child process {input.a}")
     return {"status": input.a}
 
 
 @child_wf.task(parents=[process])
-def process2(input: ChildInput, ctx: Context) -> dict[str, str]:
+async def process2(input: ChildInput, ctx: Context) -> dict[str, str]:
     process_output = ctx.task_output(process)
     a = process_output["status"]
 

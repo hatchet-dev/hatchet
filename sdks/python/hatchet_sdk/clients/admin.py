@@ -23,6 +23,7 @@ from hatchet_sdk.metadata import get_metadata
 from hatchet_sdk.rate_limit import RateLimitDuration
 from hatchet_sdk.runnables.contextvars import (
     ctx_action_key,
+    ctx_additional_metadata,
     ctx_step_run_id,
     ctx_worker_id,
     ctx_workflow_run_id,
@@ -278,6 +279,7 @@ class AdminClient:
         step_run_id = ctx_step_run_id.get()
         worker_id = ctx_worker_id.get()
         action_key = ctx_action_key.get()
+        additional_metadata = ctx_additional_metadata.get() or {}
         spawn_index = workflow_spawn_indices[action_key] if action_key else 0
 
         ## Increment the spawn_index for the parent workflow
@@ -296,7 +298,7 @@ class AdminClient:
             parent_step_run_id=options.parent_step_run_id or step_run_id,
             child_key=options.child_key,
             child_index=child_index,
-            additional_metadata=options.additional_metadata,
+            additional_metadata={**additional_metadata, **options.additional_metadata},
             desired_worker_id=desired_worker_id,
             priority=options.priority,
             namespace=options.namespace,

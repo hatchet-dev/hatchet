@@ -36,6 +36,15 @@
         - create_filter
         - aio_create_filter
 
+## Task
+
+::: runnables.task.Task
+    options:
+      inherited_members: true
+      members:
+        - mock_run
+        - aio_mock_run
+
 ## Standalone
 
 ::: runnables.workflow.Standalone
@@ -61,3 +70,8 @@
         - aio_create_filter
         - delete
         - aio_delete
+        - get_run_ref
+        - get_result
+        - aio_get_result
+        - mock_run
+        - aio_mock_run

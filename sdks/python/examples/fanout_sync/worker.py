@@ -47,6 +47,14 @@ def process(input: ChildInput, ctx: Context) -> dict[str, str]:
     return {"status": "success " + input.a}
 
 
+@sync_fanout_child.task(parents=[process])
+def process2(input: ChildInput, ctx: Context) -> dict[str, str]:
+    process_output = ctx.task_output(process)
+    a = process_output["status"]
+
+    return {"status2": a + "2"}
+
+
 def main() -> None:
     worker = hatchet.worker(
         "sync-fanout-worker",

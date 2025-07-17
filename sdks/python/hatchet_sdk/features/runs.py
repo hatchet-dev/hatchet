@@ -120,6 +120,26 @@ class RunsClient(BaseRestClient):
         return TaskApi(client)
 
     @retry
+    def get_task_run(self, task_run_id: str) -> V1TaskSummary:
+        """
+        Get task run details for a given task run ID.
+
+        :param task_run_id: The ID of the task run to retrieve details for.
+        :return: Task run details for the specified task run ID.
+        """
+        with self.client() as client:
+            return self._ta(client).v1_task_get(task_run_id)
+
+    async def aio_get_task_run(self, task_run_id: str) -> V1TaskSummary:
+        """
+        Get task run details for a given task run ID.
+
+        :param task_run_id: The ID of the task run to retrieve details for.
+        :return: Task run details for the specified task run ID.
+        """
+        return await asyncio.to_thread(self.get_task_run, task_run_id)
+
+    @retry
     def get(self, workflow_run_id: str) -> V1WorkflowRunDetails:
         """
         Get workflow run details for a given workflow run ID.
@@ -148,7 +168,7 @@ class RunsClient(BaseRestClient):
         :return: The task status
         """
         with self.client() as client:
-            return self._wra(client).v1_workflow_run_get_status(str(workflow_run_id))
+            return self._wra(client).v1_workflow_run_get_status(workflow_run_id)
 
     async def aio_get_status(self, workflow_run_id: str) -> V1TaskStatus:
         """
