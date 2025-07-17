@@ -2318,15 +2318,22 @@ func (q *Queries) ReadWorkflowRunByExternalId(ctx context.Context, db DBTX, work
 }
 
 const updateDAGStatuses = `-- name: UpdateDAGStatuses :many
-WITH locked_events AS (
-    SELECT
-        tenant_id, requeue_after, requeue_retries, id, dag_id, dag_inserted_at
-    FROM
-        list_task_status_updates_tmp(
+WITH tenants AS (
+    SELECT UNNEST(
+        find_matching_tenants_in_task_status_updates_tmp_partition(
             $1::int,
-            $2::uuid,
-            $3::int
+            $2::UUID[]
         )
+    ) AS tenant_id
+), locked_events AS (
+    SELECT
+        u.tenant_id, u.requeue_after, u.requeue_retries, u.id, u.dag_id, u.dag_inserted_at
+    FROM tenants t,
+        LATERAL list_task_status_updates_tmp(
+            $1::int,
+            t.tenant_id,
+            $3::int
+        ) u
 ), distinct_dags AS (
     SELECT
         DISTINCT ON (e.tenant_id, e.dag_id, e.dag_inserted_at)
@@ -2392,7 +2399,7 @@ WITH locked_events AS (
     WHERE
         (d.id, d.inserted_at) = (dtc.id, dtc.inserted_at)
     RETURNING
-        d.id, d.inserted_at, d.readable_status, d.external_id, d.workflow_id
+        d.tenant_id, d.id, d.inserted_at, d.readable_status, d.external_id, d.workflow_id
 ), events_to_requeue AS (
     -- Get events which don't have a corresponding locked_task
     SELECT
@@ -2444,19 +2451,20 @@ SELECT
     -- where there are no tasks updated with a non-zero count, but this should be very rare and we'll get
     -- updates on the next run.
     (SELECT count FROM event_count) AS count,
-    d.id, d.inserted_at, d.readable_status, d.external_id, d.workflow_id
+    d.tenant_id, d.id, d.inserted_at, d.readable_status, d.external_id, d.workflow_id
 FROM
     updated_dags d
 `
 
 type UpdateDAGStatusesParams struct {
-	Partitionnumber int32       `json:"partitionnumber"`
-	Tenantid        pgtype.UUID `json:"tenantid"`
-	Eventlimit      int32       `json:"eventlimit"`
+	Partitionnumber int32         `json:"partitionnumber"`
+	Tenantids       []pgtype.UUID `json:"tenantids"`
+	Eventlimit      int32         `json:"eventlimit"`
 }
 
 type UpdateDAGStatusesRow struct {
 	Count          int64                `json:"count"`
+	TenantID       pgtype.UUID          `json:"tenant_id"`
 	ID             int64                `json:"id"`
 	InsertedAt     pgtype.Timestamptz   `json:"inserted_at"`
 	ReadableStatus V1ReadableStatusOlap `json:"readable_status"`
@@ -2465,7 +2473,7 @@ type UpdateDAGStatusesRow struct {
 }
 
 func (q *Queries) UpdateDAGStatuses(ctx context.Context, db DBTX, arg UpdateDAGStatusesParams) ([]*UpdateDAGStatusesRow, error) {
-	rows, err := db.Query(ctx, updateDAGStatuses, arg.Partitionnumber, arg.Tenantid, arg.Eventlimit)
+	rows, err := db.Query(ctx, updateDAGStatuses, arg.Partitionnumber, arg.Tenantids, arg.Eventlimit)
 	if err != nil {
 		return nil, err
 	}
@@ -2475,6 +2483,7 @@ func (q *Queries) UpdateDAGStatuses(ctx context.Context, db DBTX, arg UpdateDAGS
 		var i UpdateDAGStatusesRow
 		if err := rows.Scan(
 			&i.Count,
+			&i.TenantID,
 			&i.ID,
 			&i.InsertedAt,
 			&i.ReadableStatus,
@@ -2492,15 +2501,22 @@ func (q *Queries) UpdateDAGStatuses(ctx context.Context, db DBTX, arg UpdateDAGS
 }
 
 const updateTaskStatuses = `-- name: UpdateTaskStatuses :many
-WITH locked_events AS (
-    SELECT
-        tenant_id, requeue_after, requeue_retries, id, task_id, task_inserted_at, event_type, readable_status, retry_count, worker_id
-    FROM
-        list_task_events_tmp(
+WITH tenants AS (
+    SELECT UNNEST(
+        find_matching_tenants_in_task_events_tmp_partition(
             $1::int,
-            $2::uuid,
-            $3::int
+            $2::UUID[]
         )
+    ) AS tenant_id
+), locked_events AS (
+    SELECT
+        e.tenant_id, e.requeue_after, e.requeue_retries, e.id, e.task_id, e.task_inserted_at, e.event_type, e.readable_status, e.retry_count, e.worker_id
+    FROM tenants t,
+        LATERAL list_task_events_tmp(
+            $1::int,
+            t.tenant_id,
+            $3::int
+        ) e
 ), max_retry_counts AS (
     SELECT
         tenant_id,
@@ -2651,9 +2667,9 @@ FROM
 `
 
 type UpdateTaskStatusesParams struct {
-	Partitionnumber int32       `json:"partitionnumber"`
-	Tenantid        pgtype.UUID `json:"tenantid"`
-	Eventlimit      int32       `json:"eventlimit"`
+	Partitionnumber int32         `json:"partitionnumber"`
+	Tenantids       []pgtype.UUID `json:"tenantids"`
+	Eventlimit      int32         `json:"eventlimit"`
 }
 
 type UpdateTaskStatusesRow struct {
@@ -2669,7 +2685,7 @@ type UpdateTaskStatusesRow struct {
 }
 
 func (q *Queries) UpdateTaskStatuses(ctx context.Context, db DBTX, arg UpdateTaskStatusesParams) ([]*UpdateTaskStatusesRow, error) {
-	rows, err := db.Query(ctx, updateTaskStatuses, arg.Partitionnumber, arg.Tenantid, arg.Eventlimit)
+	rows, err := db.Query(ctx, updateTaskStatuses, arg.Partitionnumber, arg.Tenantids, arg.Eventlimit)
 	if err != nil {
 		return nil, err
 	}

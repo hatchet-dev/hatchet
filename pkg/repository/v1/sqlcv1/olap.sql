@@ -643,15 +643,22 @@ LEFT JOIN
 ORDER BY t.inserted_at DESC, t.id DESC;
 
 -- name: UpdateTaskStatuses :many
-WITH locked_events AS (
-    SELECT
-        *
-    FROM
-        list_task_events_tmp(
+WITH tenants AS (
+    SELECT UNNEST(
+        find_matching_tenants_in_task_events_tmp_partition(
             @partitionNumber::int,
-            @tenantId::uuid,
-            @eventLimit::int
+            @tenantIds::UUID[]
         )
+    ) AS tenant_id
+), locked_events AS (
+    SELECT
+        e.*
+    FROM tenants t,
+        LATERAL list_task_events_tmp(
+            @partitionNumber::int,
+            t.tenant_id,
+            @eventLimit::int
+        ) e
 ), max_retry_counts AS (
     SELECT
         tenant_id,
@@ -801,15 +808,22 @@ FROM
     updated_tasks t;
 
 -- name: UpdateDAGStatuses :many
-WITH locked_events AS (
-    SELECT
-        *
-    FROM
-        list_task_status_updates_tmp(
+WITH tenants AS (
+    SELECT UNNEST(
+        find_matching_tenants_in_task_status_updates_tmp_partition(
             @partitionNumber::int,
-            @tenantId::uuid,
-            @eventLimit::int
+            @tenantIds::UUID[]
         )
+    ) AS tenant_id
+), locked_events AS (
+    SELECT
+        u.*
+    FROM tenants t,
+        LATERAL list_task_status_updates_tmp(
+            @partitionNumber::int,
+            t.tenant_id,
+            @eventLimit::int
+        ) u
 ), distinct_dags AS (
     SELECT
         DISTINCT ON (e.tenant_id, e.dag_id, e.dag_inserted_at)
@@ -875,7 +889,7 @@ WITH locked_events AS (
     WHERE
         (d.id, d.inserted_at) = (dtc.id, dtc.inserted_at)
     RETURNING
-        d.id, d.inserted_at, d.readable_status, d.external_id, d.workflow_id
+        d.tenant_id, d.id, d.inserted_at, d.readable_status, d.external_id, d.workflow_id
 ), events_to_requeue AS (
     -- Get events which don't have a corresponding locked_task
     SELECT
