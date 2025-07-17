@@ -35,30 +35,30 @@ func (o *OLAPControllerImpl) runTenantDAGStatusUpdates(ctx context.Context) func
 	}
 }
 
-func (o *OLAPControllerImpl) updateDAGStatuses(ctx context.Context, tenantId string) (bool, error) {
+func (o *OLAPControllerImpl) updateDAGStatuses(ctx context.Context, tenantIds []string) (bool, error) {
 	ctx, span := telemetry.NewSpan(ctx, "update-dag-statuses")
 	defer span.End()
 
-	shouldContinue, rows, err := o.repo.OLAP().UpdateDAGStatuses(ctx, tenantId)
+	shouldContinue, rows, err := o.repo.OLAP().UpdateDAGStatuses(ctx, tenantIds)
 
 	if err != nil {
 		return false, err
 	}
 
-	payloads := make([]tasktypes.NotifyFinalizedPayload, 0, len(rows))
+	tenantIdToPayloads := make(map[pgtype.UUID][]tasktypes.NotifyFinalizedPayload)
 	workflowIds := make([]pgtype.UUID, 0, len(rows))
 	dagIds := make([]int64, 0, len(rows))
 	dagInsertedAts := make([]pgtype.Timestamptz, 0, len(rows))
 	readableStatuses := make([]sqlcv1.V1ReadableStatusOlap, 0, len(rows))
 
 	for _, row := range rows {
-		payloads = append(payloads, tasktypes.NotifyFinalizedPayload{
+		tenantIdToPayloads[row.TenantId] = append(tenantIdToPayloads[row.TenantId], tasktypes.NotifyFinalizedPayload{
 			ExternalId: sqlchelpers.UUIDToStr(row.ExternalId),
 			Status:     row.ReadableStatus,
 		})
 
 		if row.ReadableStatus == sqlcv1.V1ReadableStatusOlapFAILED {
-			o.processTenantAlertOperations.RunOrContinue(tenantId)
+			o.processTenantAlertOperations.RunOrContinue(row.TenantId.String())
 		}
 
 		workflowIds = append(workflowIds, row.WorkflowId)
@@ -68,50 +68,54 @@ func (o *OLAPControllerImpl) updateDAGStatuses(ctx context.Context, tenantId str
 	}
 
 	if o.prometheusMetricsEnabled {
-		workflowNames, err := o.repo.Workflows().ListWorkflowNamesByIds(ctx, tenantId, workflowIds)
-		if err != nil {
-			return false, err
-		}
+		for _, tenantId := range tenantIds {
+			workflowNames, err := o.repo.Workflows().ListWorkflowNamesByIds(ctx, tenantId, workflowIds)
+			if err != nil {
+				return false, err
+			}
 
-		dagDurations, err := o.repo.OLAP().GetDagDurationsByDagIds(ctx, tenantId, dagIds, dagInsertedAts, readableStatuses)
-		if err != nil {
-			return false, err
-		}
+			dagDurations, err := o.repo.OLAP().GetDagDurationsByDagIds(ctx, tenantId, dagIds, dagInsertedAts, readableStatuses)
+			if err != nil {
+				return false, err
+			}
 
-		for i, row := range rows {
-			if row.ReadableStatus == sqlcv1.V1ReadableStatusOlapCOMPLETED || row.ReadableStatus == sqlcv1.V1ReadableStatusOlapFAILED || row.ReadableStatus == sqlcv1.V1ReadableStatusOlapCANCELLED {
-				workflowName := workflowNames[row.WorkflowId]
-				if workflowName == "" {
-					continue
+			for i, row := range rows {
+				if row.ReadableStatus == sqlcv1.V1ReadableStatusOlapCOMPLETED || row.ReadableStatus == sqlcv1.V1ReadableStatusOlapFAILED || row.ReadableStatus == sqlcv1.V1ReadableStatusOlapCANCELLED {
+					workflowName := workflowNames[row.WorkflowId]
+					if workflowName == "" {
+						continue
+					}
+
+					dagDuration := dagDurations[i]
+
+					prometheus.TenantWorkflowDurationBuckets.WithLabelValues(tenantId, workflowName, string(row.ReadableStatus)).Observe(float64(dagDuration.FinishedAt.Time.Sub(dagDuration.StartedAt.Time).Milliseconds()))
 				}
-
-				dagDuration := dagDurations[i]
-
-				prometheus.TenantWorkflowDurationBuckets.WithLabelValues(tenantId, workflowName, string(row.ReadableStatus)).Observe(float64(dagDuration.FinishedAt.Time.Sub(dagDuration.StartedAt.Time).Milliseconds()))
 			}
 		}
 	}
 
 	// send to the tenant queue
-	if len(payloads) > 0 {
-		msg, err := msgqueue.NewTenantMessage(
-			tenantId,
-			"workflow-run-finished",
-			true,
-			false,
-			payloads...,
-		)
+	if len(tenantIdToPayloads) > 0 {
+		for tenantId, payloads := range tenantIdToPayloads {
+			msg, err := msgqueue.NewTenantMessage(
+				tenantId.String(),
+				"workflow-run-finished",
+				true,
+				false,
+				payloads...,
+			)
 
-		if err != nil {
-			return false, err
-		}
+			if err != nil {
+				return false, err
+			}
 
-		q := msgqueue.TenantEventConsumerQueue(tenantId)
+			q := msgqueue.TenantEventConsumerQueue(tenantId.String())
 
-		err = o.mq.SendMessage(ctx, q, msg)
+			err = o.mq.SendMessage(ctx, q, msg)
 
-		if err != nil {
-			return false, err
+			if err != nil {
+				return false, err
+			}
 		}
 	}
 

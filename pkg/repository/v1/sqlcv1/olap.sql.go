@@ -2394,7 +2394,7 @@ WITH tenants AS (
     WHERE
         (d.id, d.inserted_at) = (dtc.id, dtc.inserted_at)
     RETURNING
-        d.id, d.inserted_at, d.readable_status, d.external_id, d.workflow_id
+        d.tenant_id, d.id, d.inserted_at, d.readable_status, d.external_id, d.workflow_id
 ), events_to_requeue AS (
     -- Get events which don't have a corresponding locked_task
     SELECT
@@ -2446,7 +2446,7 @@ SELECT
     -- where there are no tasks updated with a non-zero count, but this should be very rare and we'll get
     -- updates on the next run.
     (SELECT count FROM event_count) AS count,
-    d.id, d.inserted_at, d.readable_status, d.external_id, d.workflow_id
+    d.tenant_id, d.id, d.inserted_at, d.readable_status, d.external_id, d.workflow_id
 FROM
     updated_dags d
 `
@@ -2459,6 +2459,7 @@ type UpdateDAGStatusesParams struct {
 
 type UpdateDAGStatusesRow struct {
 	Count          int64                `json:"count"`
+	TenantID       pgtype.UUID          `json:"tenant_id"`
 	ID             int64                `json:"id"`
 	InsertedAt     pgtype.Timestamptz   `json:"inserted_at"`
 	ReadableStatus V1ReadableStatusOlap `json:"readable_status"`
@@ -2477,6 +2478,7 @@ func (q *Queries) UpdateDAGStatuses(ctx context.Context, db DBTX, arg UpdateDAGS
 		var i UpdateDAGStatusesRow
 		if err := rows.Scan(
 			&i.Count,
+			&i.TenantID,
 			&i.ID,
 			&i.InsertedAt,
 			&i.ReadableStatus,
