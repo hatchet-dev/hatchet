@@ -190,6 +190,28 @@ V1TaskEventList:
         $ref: "#/V1TaskEvent"
       type: array
 
+V1ReplayedTasks:
+  properties:
+    ids:
+      type: array
+      description: The list of task external ids that were replayed
+      items:
+        type: string
+        format: uuid
+        minLength: 36
+        maxLength: 36
+
+V1CancelledTasks:
+  properties:
+    ids:
+      type: array
+      description: The list of task external ids that were cancelled
+      items:
+        type: string
+        format: uuid
+        minLength: 36
+        maxLength: 36
+
 V1TaskEvent:
   type: object
   properties:

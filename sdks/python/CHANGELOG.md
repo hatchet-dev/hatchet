@@ -5,6 +5,12 @@ All notable changes to Hatchet's Python SDK will be documented in this changelog
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.15.3] - 2025-07-14
+
+### Changed
+
+- `remove_null_unicode_character` now accepts any type of data, not just strings, dictionaries, lists, and tuples. If the data is not one of these types, it's returned as-is.
+
 ## [1.15.2] - 2025-07-12
 
 ### Changed

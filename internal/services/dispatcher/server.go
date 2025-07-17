@@ -830,7 +830,7 @@ func (w *workflowRunAcks) ackWorkflowRun(id string) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
-	w.acks[id] = true
+	delete(w.acks, id)
 }
 
 func (w *workflowRunAcks) hasWorkflowRun(id string) bool {

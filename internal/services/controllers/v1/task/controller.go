@@ -647,60 +647,76 @@ func (tc *TasksControllerImpl) handleReplayTasks(ctx context.Context, tenantId s
 	// problem that we don't have a clean way to solve (yet)
 	msgs := msgqueue.JSONConvert[tasktypes.ReplayTasksPayload](payloads)
 
-	taskIdRetryCounts := make([]v1.TaskIdInsertedAtRetryCount, 0)
+	taskIdRetryCounts := make([]tasktypes.TaskIdInsertedAtRetryCountWithExternalId, 0)
 
 	for _, msg := range msgs {
 		for _, task := range msg.Tasks {
-			taskIdRetryCounts = append(taskIdRetryCounts, v1.TaskIdInsertedAtRetryCount{
-				Id:         task.Id,
-				InsertedAt: task.InsertedAt,
-				RetryCount: task.RetryCount,
+			taskIdRetryCounts = append(taskIdRetryCounts, tasktypes.TaskIdInsertedAtRetryCountWithExternalId{
+				TaskIdInsertedAtRetryCount: v1.TaskIdInsertedAtRetryCount{
+					Id:         task.Id,
+					InsertedAt: task.InsertedAt,
+					RetryCount: task.RetryCount,
+				},
+				WorkflowRunExternalId: task.WorkflowRunExternalId,
 			})
 		}
 	}
 
-	replayRes, err := tc.repov1.Tasks().ReplayTasks(ctx, tenantId, taskIdRetryCounts)
-
-	if err != nil {
-		return fmt.Errorf("could not replay tasks: %w", err)
+	workflowRunIdToTasks := make(map[string][]v1.TaskIdInsertedAtRetryCount)
+	for _, task := range taskIdRetryCounts {
+		if !task.WorkflowRunExternalId.Valid {
+			// Use a random uuid to effectively send tasks one at a time
+			randomUuid := uuid.NewString()
+			workflowRunIdToTasks[randomUuid] = append(workflowRunIdToTasks[randomUuid], task.TaskIdInsertedAtRetryCount)
+		} else {
+			workflowRunIdToTasks[task.WorkflowRunExternalId.String()] = append(workflowRunIdToTasks[task.WorkflowRunExternalId.String()], task.TaskIdInsertedAtRetryCount)
+		}
 	}
 
 	eg := &errgroup.Group{}
 
-	if len(replayRes.ReplayedTasks) > 0 {
-		eg.Go(func() error {
-			err = tc.signalTasksReplayed(ctx, tenantId, replayRes.ReplayedTasks)
+	for _, tasks := range workflowRunIdToTasks {
+		replayRes, err := tc.repov1.Tasks().ReplayTasks(ctx, tenantId, tasks)
 
-			if err != nil {
-				return fmt.Errorf("could not signal replayed tasks: %w", err)
-			}
+		if err != nil {
+			return fmt.Errorf("failed to replay task: %w", err)
+		}
 
-			return nil
-		})
-	}
+		if len(replayRes.ReplayedTasks) > 0 {
+			eg.Go(func() error {
+				err := tc.signalTasksReplayed(ctx, tenantId, replayRes.ReplayedTasks)
 
-	if len(replayRes.UpsertedTasks) > 0 {
-		eg.Go(func() error {
-			err = tc.signalTasksUpdated(ctx, tenantId, replayRes.UpsertedTasks)
+				if err != nil {
+					return fmt.Errorf("could not signal replayed tasks: %w", err)
+				}
 
-			if err != nil {
-				return fmt.Errorf("could not signal queued tasks: %w", err)
-			}
+				return nil
+			})
+		}
 
-			return nil
-		})
-	}
+		if len(replayRes.UpsertedTasks) > 0 {
+			eg.Go(func() error {
+				err := tc.signalTasksUpdated(ctx, tenantId, replayRes.UpsertedTasks)
 
-	if len(replayRes.InternalEventResults.CreatedTasks) > 0 {
-		eg.Go(func() error {
-			err = tc.signalTasksCreated(ctx, tenantId, replayRes.InternalEventResults.CreatedTasks)
+				if err != nil {
+					return fmt.Errorf("could not signal queued tasks: %w", err)
+				}
 
-			if err != nil {
-				return fmt.Errorf("could not signal created tasks: %w", err)
-			}
+				return nil
+			})
+		}
 
-			return nil
-		})
+		if len(replayRes.InternalEventResults.CreatedTasks) > 0 {
+			eg.Go(func() error {
+				err := tc.signalTasksCreated(ctx, tenantId, replayRes.InternalEventResults.CreatedTasks)
+
+				if err != nil {
+					return fmt.Errorf("could not signal created tasks: %w", err)
+				}
+
+				return nil
+			})
+		}
 	}
 
 	return eg.Wait()

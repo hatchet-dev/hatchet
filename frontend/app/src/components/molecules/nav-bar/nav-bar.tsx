@@ -45,6 +45,8 @@ import { useBreadcrumbs } from '@/hooks/use-breadcrumbs';
 
 function HelpDropdown() {
   const meta = useApiMeta();
+  const navigate = useNavigate();
+  const { tenant } = useTenant();
 
   const hasPylon = useMemo(() => {
     if (!meta.data?.pylonAppId) {
@@ -95,7 +97,13 @@ function HelpDropdown() {
           Schedule Office Hours
         </DropdownMenuItem>
         <DropdownMenuItem
-          onClick={() => window.open('/onboarding/get-started', '_self')}
+          onClick={() => {
+            if (tenant?.version === TenantVersion.V1) {
+              navigate(`/tenants/${tenant.metadata.id}/onboarding/get-started`);
+            } else {
+              navigate('/onboarding/get-started');
+            }
+          }}
         >
           <BiSolidGraduation className="mr-2" />
           Restart Tutorial
