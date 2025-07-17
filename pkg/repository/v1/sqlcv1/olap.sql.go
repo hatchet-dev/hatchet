@@ -234,6 +234,39 @@ func (q *Queries) FindMinInsertedAtForDAGStatusUpdates(ctx context.Context, db D
 	return min_inserted_at, err
 }
 
+const findMinInsertedAtForTaskStatusUpdates = `-- name: FindMinInsertedAtForTaskStatusUpdates :one
+WITH tenants AS (
+    SELECT UNNEST(
+        find_matching_tenants_in_task_events_tmp_partition(
+            $1::int,
+            $3::UUID[]
+        )
+    ) AS tenant_id
+)
+
+SELECT
+    MIN(e.task_inserted_at)::TIMESTAMPTZ AS min_inserted_at
+FROM tenants t,
+    LATERAL list_task_events_tmp(
+        $1::int,
+        t.tenant_id,
+        $2::int
+    ) e
+`
+
+type FindMinInsertedAtForTaskStatusUpdatesParams struct {
+	Partitionnumber int32         `json:"partitionnumber"`
+	Eventlimit      int32         `json:"eventlimit"`
+	Tenantids       []pgtype.UUID `json:"tenantids"`
+}
+
+func (q *Queries) FindMinInsertedAtForTaskStatusUpdates(ctx context.Context, db DBTX, arg FindMinInsertedAtForTaskStatusUpdatesParams) (pgtype.Timestamptz, error) {
+	row := db.QueryRow(ctx, findMinInsertedAtForTaskStatusUpdates, arg.Partitionnumber, arg.Eventlimit, arg.Tenantids)
+	var min_inserted_at pgtype.Timestamptz
+	err := row.Scan(&min_inserted_at)
+	return min_inserted_at, err
+}
+
 const flattenTasksByExternalIds = `-- name: FlattenTasksByExternalIds :many
 WITH lookups AS (
     SELECT
@@ -2615,8 +2648,9 @@ WITH tenants AS (
     JOIN
         updatable_events e ON
             (t.tenant_id, t.id, t.inserted_at) = (e.tenant_id, e.task_id, e.task_inserted_at)
+    WHERE t.inserted_at >= $4::TIMESTAMPTZ
     ORDER BY
-        t.id
+        t.inserted_at, t.id
     FOR UPDATE
 ), updated_tasks AS (
     UPDATE
@@ -2659,10 +2693,11 @@ WITH tenants AS (
         e.retry_count
     FROM
         locked_events e
-    LEFT JOIN
-        locked_tasks t ON (e.tenant_id, e.task_id, e.task_inserted_at) = (t.tenant_id, t.id, t.inserted_at)
-    WHERE
-        t.id IS NULL
+    WHERE NOT EXISTS (
+        SELECT 1
+        FROM locked_tasks t
+        WHERE (e.tenant_id, e.task_id, e.task_inserted_at) = (t.tenant_id, t.id, t.inserted_at)
+    )
 ), deleted_events AS (
     DELETE FROM
         v1_task_events_olap_tmp
@@ -2713,9 +2748,10 @@ FROM
 `
 
 type UpdateTaskStatusesParams struct {
-	Partitionnumber int32         `json:"partitionnumber"`
-	Tenantids       []pgtype.UUID `json:"tenantids"`
-	Eventlimit      int32         `json:"eventlimit"`
+	Partitionnumber int32              `json:"partitionnumber"`
+	Tenantids       []pgtype.UUID      `json:"tenantids"`
+	Eventlimit      int32              `json:"eventlimit"`
+	Mininsertedat   pgtype.Timestamptz `json:"mininsertedat"`
 }
 
 type UpdateTaskStatusesRow struct {
@@ -2731,7 +2767,12 @@ type UpdateTaskStatusesRow struct {
 }
 
 func (q *Queries) UpdateTaskStatuses(ctx context.Context, db DBTX, arg UpdateTaskStatusesParams) ([]*UpdateTaskStatusesRow, error) {
-	rows, err := db.Query(ctx, updateTaskStatuses, arg.Partitionnumber, arg.Tenantids, arg.Eventlimit)
+	rows, err := db.Query(ctx, updateTaskStatuses,
+		arg.Partitionnumber,
+		arg.Tenantids,
+		arg.Eventlimit,
+		arg.Mininsertedat,
+	)
 	if err != nil {
 		return nil, err
 	}

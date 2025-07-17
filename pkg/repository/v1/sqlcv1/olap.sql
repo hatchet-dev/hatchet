@@ -642,6 +642,26 @@ LEFT JOIN
     task_output o ON o.task_id = t.id
 ORDER BY t.inserted_at DESC, t.id DESC;
 
+-- name: FindMinInsertedAtForTaskStatusUpdates :one
+WITH tenants AS (
+    SELECT UNNEST(
+        find_matching_tenants_in_task_events_tmp_partition(
+            @partitionNumber::int,
+            @tenantIds::UUID[]
+        )
+    ) AS tenant_id
+)
+
+SELECT
+    MIN(e.task_inserted_at)::TIMESTAMPTZ AS min_inserted_at
+FROM tenants t,
+    LATERAL list_task_events_tmp(
+        @partitionNumber::int,
+        t.tenant_id,
+        @eventLimit::int
+    ) e
+;
+
 -- name: UpdateTaskStatuses :many
 WITH tenants AS (
     SELECT UNNEST(
@@ -711,8 +731,9 @@ WITH tenants AS (
     JOIN
         updatable_events e ON
             (t.tenant_id, t.id, t.inserted_at) = (e.tenant_id, e.task_id, e.task_inserted_at)
+    WHERE t.inserted_at >= @minInsertedAt::TIMESTAMPTZ
     ORDER BY
-        t.id
+        t.inserted_at, t.id
     FOR UPDATE
 ), updated_tasks AS (
     UPDATE
@@ -755,10 +776,11 @@ WITH tenants AS (
         e.retry_count
     FROM
         locked_events e
-    LEFT JOIN
-        locked_tasks t ON (e.tenant_id, e.task_id, e.task_inserted_at) = (t.tenant_id, t.id, t.inserted_at)
-    WHERE
-        t.id IS NULL
+    WHERE NOT EXISTS (
+        SELECT 1
+        FROM locked_tasks t
+        WHERE (e.tenant_id, e.task_id, e.task_inserted_at) = (t.tenant_id, t.id, t.inserted_at)
+    )
 ), deleted_events AS (
     DELETE FROM
         v1_task_events_olap_tmp
