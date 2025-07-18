@@ -1,6 +1,7 @@
 package webhooksv1
 
 import (
+	"encoding/json"
 	"fmt"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
@@ -57,19 +58,45 @@ func (w *V1WebhooksService) V1WebhookCreate(ctx echo.Context, request gen.V1Webh
 	return gen.V1WebhookCreate200JSONResponse(transformed), nil
 }
 
-func (w *V1WebhooksService) constructCreateOpts(tenantId string, request gen.V1CreateWebhookRequest) (v1.CreateWebhookOpts, error) {
-	unparsedDiscriminator, err := request.Discriminator()
+func extractAuthType(request gen.V1CreateWebhookRequest) (sqlcv1.V1IncomingWebhookAuthType, error) {
+	j, err := request.MarshalJSON()
 
+	if err != nil {
+		return "", fmt.Errorf("failed to get marshal request: %w", err)
+	}
+
+	parsedBody := make(map[string]interface{})
+	if err := json.Unmarshal(j, &parsedBody); err != nil {
+		return "", fmt.Errorf("failed to unmarshal request body: %w", err)
+	}
+
+	unparsedDiscriminator, ok := parsedBody["authType"]
+	if !ok {
+		return "", fmt.Errorf("authType field is missing in the request body")
+	}
+
+	discriminator := unparsedDiscriminator.(string)
+
+	authType := sqlcv1.V1IncomingWebhookAuthType(discriminator)
+	if authType == "" {
+		return "", fmt.Errorf("invalid auth type: %s", unparsedDiscriminator)
+	}
+
+	return authType, nil
+}
+
+func (w *V1WebhooksService) constructCreateOpts(tenantId string, request gen.V1CreateWebhookRequest) (v1.CreateWebhookOpts, error) {
 	params := v1.CreateWebhookOpts{
 		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
 	}
+
+	discriminator, err := extractAuthType(request)
 
 	if err != nil {
 		return params, fmt.Errorf("failed to get discriminator: %w", err)
 	}
 
 	authConfig := v1.AuthConfig{}
-	discriminator := sqlcv1.V1IncomingWebhookAuthType(unparsedDiscriminator)
 
 	switch discriminator {
 	case sqlcv1.V1IncomingWebhookAuthTypeBASIC:
@@ -80,19 +107,15 @@ func (w *V1WebhooksService) constructCreateOpts(tenantId string, request gen.V1C
 
 		authConfig.Type = sqlcv1.V1IncomingWebhookAuthTypeBASIC
 
-		if basicAuth.Auth.Username != nil && basicAuth.Auth.Password != nil {
-			passwordEncrypted, err := w.config.Encryption.Encrypt([]byte(*basicAuth.Auth.Password), "v1_webhook_basic_auth_password")
+		passwordEncrypted, err := w.config.Encryption.Encrypt([]byte(basicAuth.Auth.Password), "v1_webhook_basic_auth_password")
 
-			if err != nil {
-				return params, fmt.Errorf("failed to encrypt basic auth password: %s", err.Error())
-			}
+		if err != nil {
+			return params, fmt.Errorf("failed to encrypt basic auth password: %s", err.Error())
+		}
 
-			authConfig.BasicAuth = &v1.BasicAuthCredentials{
-				Username:          *basicAuth.Auth.Username,
-				EncryptedPassword: passwordEncrypted,
-			}
-		} else {
-			return params, fmt.Errorf("basic auth requires both username and password")
+		authConfig.BasicAuth = &v1.BasicAuthCredentials{
+			Username:          basicAuth.Auth.Username,
+			EncryptedPassword: passwordEncrypted,
 		}
 
 		params.Sourcename = sqlcv1.V1IncomingWebhookSourceName(basicAuth.SourceName)
@@ -111,19 +134,15 @@ func (w *V1WebhooksService) constructCreateOpts(tenantId string, request gen.V1C
 			Type: sqlcv1.V1IncomingWebhookAuthTypeAPIKEY,
 		}
 
-		if apiKeyAuth.Auth.HeaderName != nil && apiKeyAuth.Auth.ApiKey != nil {
-			apiKeyEncrypted, err := w.config.Encryption.Encrypt([]byte(*apiKeyAuth.Auth.ApiKey), "v1_webhook_api_key")
+		apiKeyEncrypted, err := w.config.Encryption.Encrypt([]byte(apiKeyAuth.Auth.ApiKey), "v1_webhook_api_key")
 
-			if err != nil {
-				return params, fmt.Errorf("failed to encrypt api key: %s", err.Error())
-			}
+		if err != nil {
+			return params, fmt.Errorf("failed to encrypt api key: %s", err.Error())
+		}
 
-			authConfig.APIKeyAuth = &v1.APIKeyAuthCredentials{
-				HeaderName:   *apiKeyAuth.Auth.HeaderName,
-				EncryptedKey: apiKeyEncrypted,
-			}
-		} else {
-			return params, fmt.Errorf("api key auth requires both header name and api key")
+		authConfig.APIKeyAuth = &v1.APIKeyAuthCredentials{
+			HeaderName:   apiKeyAuth.Auth.HeaderName,
+			EncryptedKey: apiKeyEncrypted,
 		}
 
 		params.Sourcename = sqlcv1.V1IncomingWebhookSourceName(apiKeyAuth.SourceName)
@@ -140,22 +159,17 @@ func (w *V1WebhooksService) constructCreateOpts(tenantId string, request gen.V1C
 			Type: sqlcv1.V1IncomingWebhookAuthTypeHMAC,
 		}
 
-		if hmacAuth.Auth.Algorithm != nil && hmacAuth.Auth.Encoding != nil &&
-			hmacAuth.Auth.SignatureHeaderName != nil && hmacAuth.Auth.SigningSecret != nil {
-			signingSecretEncrypted, err := w.config.Encryption.Encrypt([]byte(*hmacAuth.Auth.SigningSecret), "v1_webhook_hmac_signing_secret")
+		signingSecretEncrypted, err := w.config.Encryption.Encrypt([]byte(hmacAuth.Auth.SigningSecret), "v1_webhook_hmac_signing_secret")
 
-			if err != nil {
-				return params, fmt.Errorf("failed to encrypt api key: %s", err.Error())
-			}
+		if err != nil {
+			return params, fmt.Errorf("failed to encrypt api key: %s", err.Error())
+		}
 
-			authConfig.HMACAuth = &v1.HMACAuthCredentials{
-				Algorithm:                     sqlcv1.V1IncomingWebhookHmacAlgorithm(*hmacAuth.Auth.Algorithm),
-				Encoding:                      sqlcv1.V1IncomingWebhookHmacEncoding(*hmacAuth.Auth.Encoding),
-				SignatureHeaderName:           *hmacAuth.Auth.SignatureHeaderName,
-				EncryptedWebhookSigningSecret: signingSecretEncrypted,
-			}
-		} else {
-			return params, fmt.Errorf("hmac auth requires algorithm, encoding, signature header name, and signing secret")
+		authConfig.HMACAuth = &v1.HMACAuthCredentials{
+			Algorithm:                     sqlcv1.V1IncomingWebhookHmacAlgorithm(hmacAuth.Auth.Algorithm),
+			Encoding:                      sqlcv1.V1IncomingWebhookHmacEncoding(hmacAuth.Auth.Encoding),
+			SignatureHeaderName:           hmacAuth.Auth.SignatureHeaderName,
+			EncryptedWebhookSigningSecret: signingSecretEncrypted,
 		}
 
 		params.Sourcename = sqlcv1.V1IncomingWebhookSourceName(hmacAuth.SourceName)
