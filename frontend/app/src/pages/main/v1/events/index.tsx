@@ -2,6 +2,7 @@ import { columns } from './components/event-columns';
 import { Separator } from '@/components/v1/ui/separator';
 import { useEffect, useMemo, useState } from 'react';
 import {
+  ColumnDef,
   ColumnFiltersState,
   PaginationState,
   RowSelectionState,
@@ -10,11 +11,12 @@ import {
 } from '@tanstack/react-table';
 import { useQuery } from '@tanstack/react-query';
 import api, {
-  Event,
+  V1Event,
   EventOrderByDirection,
   EventOrderByField,
   V1TaskStatus,
   queries,
+  V1Filter,
 } from '@/lib/api';
 import {
   FilterOption,
@@ -36,13 +38,27 @@ import { DataTable } from '@/components/v1/molecules/data-table/data-table';
 import { TaskRunsTable } from '../workflow-runs-v1/components/task-runs-table';
 import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
+import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/v1/ui/popover';
+import { CopyIcon, EyeIcon, CheckIcon } from 'lucide-react';
+import { DotsVerticalIcon } from '@radix-ui/react-icons';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/v1/ui/dropdown-menu';
 
 export default function Events() {
   return <EventsTable />;
 }
 
 function EventsTable() {
-  const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
+  const [selectedEvent, setSelectedEvent] = useState<V1Event | null>(null);
   const { tenantId } = useCurrentTenantId();
 
   const [searchParams, setSearchParams] = useSearchParams();
@@ -309,7 +325,7 @@ function EventsTable() {
   }, []);
 
   const tableColumns = columns({
-    onRowClick: (row: Event) => {
+    onRowClick: (row: V1Event) => {
       setSelectedEvent(row);
     },
     hoveredEventId,
@@ -405,9 +421,26 @@ function EventsTable() {
   );
 }
 
-function ExpandedEventContent({ event }: { event: Event }) {
+function ExpandedEventContent({ event }: { event: V1Event }) {
+  const { tenantId } = useCurrentTenantId();
+
+  const { data: filters } = useQuery({
+    queryKey: ['v1:filters:list', tenantId, event.metadata.id],
+    queryFn: async () => {
+      if (!event.scope) {
+        return [];
+      }
+
+      const response = await api.v1FilterList(tenantId, {
+        scopes: [event.scope],
+      });
+
+      return response.data.rows;
+    },
+  });
+
   return (
-    <DialogContent className="w-fit max-w-[700px] max-h-[85%] overflow-auto">
+    <DialogContent className="md:max-w-[700px] lg:max-w-[900px] xl:max-w-[1100px] max-h-[85%] overflow-auto">
       <DialogHeader>
         <DialogTitle>Event {event.key}</DialogTitle>
         <DialogDescription>
@@ -420,6 +453,15 @@ function ExpandedEventContent({ event }: { event: Event }) {
       </h3>
       <Separator />
       <EventDataSection event={event} />
+      {filters && filters.length > 0 && (
+        <>
+          <h3 className="text-lg font-bold leading-tight text-foreground">
+            Filters
+          </h3>
+          <Separator />
+          <FiltersSection filters={filters} />
+        </>
+      )}
       <h3 className="text-lg font-bold leading-tight text-foreground">Runs</h3>
       <Separator />
       <EventWorkflowRunsList event={event} />
@@ -427,7 +469,7 @@ function ExpandedEventContent({ event }: { event: Event }) {
   );
 }
 
-function EventDataSection({ event }: { event: Event }) {
+function EventDataSection({ event }: { event: V1Event }) {
   const { tenantId } = useCurrentTenantId();
 
   const { data, isLoading } = useQuery({
@@ -470,7 +512,15 @@ function EventDataSection({ event }: { event: Event }) {
   );
 }
 
-function EventWorkflowRunsList({ event }: { event: Event }) {
+function FiltersSection({ filters }: { filters: V1Filter[] }) {
+  return (
+    <div className="[&_th:last-child]:w-[60px] [&_th:last-child]:min-w-[60px] [&_th:last-child]:max-w-[60px] [&_td:last-child]:w-[60px] [&_td:last-child]:min-w-[60px] [&_td:last-child]:max-w-[60px]">
+      <DataTable columns={filterColumns} data={filters} filters={[]} />
+    </div>
+  );
+}
+
+function EventWorkflowRunsList({ event }: { event: V1Event }) {
   return (
     <div className="w-full overflow-x-auto max-w-full">
       <TaskRunsTable
@@ -481,3 +531,158 @@ function EventWorkflowRunsList({ event }: { event: Event }) {
     </div>
   );
 }
+
+const filterColumns: ColumnDef<V1Filter>[] = [
+  {
+    accessorKey: 'workflowId',
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Workflow ID" />
+    ),
+    cell: ({ row }) => {
+      return <div className="text-sm">{row.original.workflowId}</div>;
+    },
+    enableSorting: false,
+    enableHiding: false,
+  },
+  {
+    accessorKey: 'scope',
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Scope" />
+    ),
+    cell: ({ row }) => {
+      return <div className="text-sm">{row.original.scope}</div>;
+    },
+    enableSorting: false,
+    enableHiding: false,
+  },
+  {
+    accessorKey: 'expression',
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Expression" />
+    ),
+    cell: ({ row }) => {
+      return (
+        <CodeHighlighter
+          language="text"
+          className="whitespace-pre-wrap break-words text-sm leading-relaxed"
+          code={row.original.expression}
+          copy={false}
+        />
+      );
+    },
+    enableSorting: false,
+    enableHiding: false,
+  },
+  {
+    accessorKey: 'actions',
+    header: ({ column }) => <DataTableColumnHeader column={column} title="" />,
+    cell: ({ row }) => {
+      const filter = row.original;
+      const payload = row.original.payload;
+      const payloadString = JSON.stringify(payload, null, 2);
+      // eslint-disable-next-line react-hooks/rules-of-hooks
+      const [copiedItem, setCopiedItem] = useState<string | null>(null);
+      // eslint-disable-next-line react-hooks/rules-of-hooks
+      const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+      // eslint-disable-next-line react-hooks/rules-of-hooks
+      const [isPayloadPopoverOpen, setIsPayloadPopoverOpen] = useState(false);
+
+      const handleCopy = (text: string, label: string) => {
+        navigator.clipboard.writeText(text);
+        setCopiedItem(label);
+        setTimeout(() => setCopiedItem(null), 1200);
+        setTimeout(() => setIsDropdownOpen(false), 300);
+      };
+
+      const handleViewPayload = (e: React.MouseEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDropdownOpen(false);
+        setTimeout(() => setIsPayloadPopoverOpen(true), 100);
+      };
+
+      return (
+        <div className="flex justify-center">
+          <DropdownMenu open={isDropdownOpen} onOpenChange={setIsDropdownOpen}>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" className="h-8 w-8 p-0 hover:bg-muted/50">
+                <DotsVerticalIcon className="h-4 w-4 text-muted-foreground cursor-pointer" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  handleCopy(filter.metadata.id, 'filter');
+                }}
+                className="flex items-center gap-2 cursor-pointer"
+              >
+                {copiedItem === 'filter' ? (
+                  <CheckIcon className="h-4 w-4 text-green-600" />
+                ) : (
+                  <CopyIcon className="h-4 w-4" />
+                )}
+                {copiedItem === 'filter'
+                  ? 'Copied Filter ID!'
+                  : 'Copy Filter ID'}
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={handleViewPayload}
+                className="flex items-center gap-2 cursor-pointer"
+              >
+                <EyeIcon className="h-4 w-4" />
+                View Payload
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          <Popover
+            modal={true}
+            open={isPayloadPopoverOpen}
+            onOpenChange={setIsPayloadPopoverOpen}
+          >
+            <PopoverTrigger asChild>
+              <Button
+                variant="ghost"
+                className="h-8 w-8 p-0 opacity-0 pointer-events-none absolute"
+              >
+                <DotsVerticalIcon className="h-4 w-4 text-muted-foreground cursor-pointer" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent
+              className="md:w-[500px] lg:w-[700px] max-w-[90vw] p-0 my-4 shadow-xl border-2 bg-background/95 backdrop-blur-sm rounded-lg"
+              align="center"
+              side="left"
+            >
+              <div className="bg-muted/50 px-4 py-3 border-b border-border/50 flex-shrink-0">
+                <div className="flex items-center gap-2">
+                  <EyeIcon className="h-4 w-4 text-muted-foreground" />
+                  <span className="font-semibold text-sm text-foreground">
+                    Filter Payload
+                  </span>
+                </div>
+              </div>
+              <div className="p-4">
+                <div className="max-h-[60vh] overflow-auto rounded-lg border border-border/50 bg-muted/10">
+                  <div className="p-4">
+                    <CodeHighlighter
+                      language="json"
+                      className="whitespace-pre-wrap break-words text-sm leading-relaxed"
+                      code={payloadString}
+                    />
+                  </div>
+                </div>
+              </div>
+            </PopoverContent>
+          </Popover>
+        </div>
+      );
+    },
+    enableSorting: false,
+    enableHiding: false,
+    size: 50,
+    minSize: 50,
+    maxSize: 50,
+  },
+];
