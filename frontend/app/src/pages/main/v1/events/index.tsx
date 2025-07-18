@@ -514,23 +514,9 @@ function EventDataSection({ event }: { event: V1Event }) {
 
 function FiltersSection({ filters }: { filters: V1Filter[] }) {
   return (
-    <>
-      <style
-        dangerouslySetInnerHTML={{
-          __html: `
-          .filters-table th:last-child,
-          .filters-table td:last-child {
-            width: 60px !important;
-            min-width: 60px !important;
-            max-width: 60px !important;
-          }
-        `,
-        }}
-      />
-      <div className="filters-table">
-        <DataTable columns={filterColumns} data={filters} filters={[]} />
-      </div>
-    </>
+    <div className="[&_th:last-child]:w-[60px] [&_th:last-child]:min-w-[60px] [&_th:last-child]:max-w-[60px] [&_td:last-child]:w-[60px] [&_td:last-child]:min-w-[60px] [&_td:last-child]:max-w-[60px]">
+      <DataTable columns={filterColumns} data={filters} filters={[]} />
+    </div>
   );
 }
 
