@@ -170,6 +170,8 @@ const HMACAuth = ({ register, watch, setValue }: HMACAuthProps) => (
 );
 
 const StripeAuth = ({ register }: BaseAuthMethodProps) => (
+  // Stripe only requires a secret, as we know the header key and the encoding info (user doesn't need to provide them)
+  // See docs: https://docs.stripe.com/webhooks?verify=verify-manually#verify-manually
   <div className="space-y-4">
     <div className="space-y-2">
       <Label htmlFor="signingSecret" className="text-sm font-medium">
@@ -190,6 +192,8 @@ const StripeAuth = ({ register }: BaseAuthMethodProps) => (
 );
 
 const GithubAuth = ({ register }: BaseAuthMethodProps) => (
+  // Github only requires a secret, as we know the header key and the encoding info (user doesn't need to provide them)
+  // See docs: https://docs.github.com/en/webhooks/using-webhooks/validating-webhook-deliveries#validating-webhook-deliveries
   <div className="space-y-4">
     <div className="space-y-2">
       <Label htmlFor="signingSecret" className="text-sm font-medium">

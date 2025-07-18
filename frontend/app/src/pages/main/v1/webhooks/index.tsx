@@ -136,6 +136,10 @@ const buildWebhookPayload = (data: WebhookFormData): V1CreateWebhookRequest => {
         eventKeyExpression: data.eventKeyExpression,
         authType: V1WebhookAuthType.HMAC,
         auth: {
+          // Header name is 'X-Hub-Signature-256'
+          // Encoding algorithm is SHA256
+          // Encoding type is HEX
+          // See GitHub docs: https://docs.github.com/en/webhooks/using-webhooks/validating-webhook-deliveries#validating-webhook-deliveries
           algorithm: V1WebhookHMACAlgorithm.SHA256,
           encoding: V1WebhookHMACEncoding.HEX,
           signatureHeaderName: 'X-Hub-Signature-256',
@@ -153,6 +157,10 @@ const buildWebhookPayload = (data: WebhookFormData): V1CreateWebhookRequest => {
         eventKeyExpression: data.eventKeyExpression,
         authType: V1WebhookAuthType.HMAC,
         auth: {
+          // Header name is 'Stripe-Signature'
+          // Encoding algorithm is SHA256
+          // Encoding type is HEX
+          // See Stripe docs: https://docs.stripe.com/webhooks?verify=verify-manually#verify-manually
           algorithm: V1WebhookHMACAlgorithm.SHA256,
           encoding: V1WebhookHMACEncoding.HEX,
           signatureHeaderName: 'Stripe-Signature',
