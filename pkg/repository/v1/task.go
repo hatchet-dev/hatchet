@@ -270,11 +270,42 @@ func (r *TaskRepositoryImpl) EnsureTablePartitionsExist(ctx context.Context) (bo
 }
 
 func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
+	exists, err := r.EnsureTablePartitionsExist(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to check if table partitions exist: %w", err)
+	}
+
+	if exists {
+		r.l.Debug().Msg("table partitions already exist, skipping")
+		return nil
+	}
+
+	const PARTITION_LOCK_OFFSET = 9000000000000000000
+	const partitionLockKey = PARTITION_LOCK_OFFSET + 1
+
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 600000) // 10 minutes
+	if err != nil {
+		return fmt.Errorf("failed to prepare transaction: %w", err)
+	}
+	defer rollback()
+
+	acquired, err := r.queries.TryAdvisoryLock(ctx, tx, partitionLockKey)
+	if err != nil {
+		return fmt.Errorf("failed to try advisory lock for partition operations: %w", err)
+	}
+
+	if !acquired {
+		r.l.Debug().Msg("partition operations already running on another controller instance, skipping")
+		return nil
+	}
+
+	r.l.Debug().Msg("acquired advisory lock for partition operations")
+
 	today := time.Now().UTC()
 	tomorrow := today.AddDate(0, 0, 1)
 	removeBefore := today.Add(-1 * r.taskRetentionPeriod)
 
-	err := r.queries.CreatePartitions(ctx, r.pool, pgtype.Date{
+	err = r.queries.CreatePartitions(ctx, r.pool, pgtype.Date{
 		Time:  today,
 		Valid: true,
 	})
@@ -325,6 +356,11 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
+	}
+
+	err = commit(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
 	return nil
