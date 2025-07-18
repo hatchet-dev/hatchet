@@ -32,6 +32,7 @@ const BasicAuth = ({ register }: BaseAuthMethodProps) => (
         Username <span className="text-red-500">*</span>
       </Label>
       <Input
+        data-1p-ignore
         id="username"
         placeholder="username"
         {...register('username')}
@@ -45,6 +46,7 @@ const BasicAuth = ({ register }: BaseAuthMethodProps) => (
       </Label>
       <div className="relative">
         <Input
+          data-1p-ignore
           id="password"
           type={'text'}
           placeholder="password"
@@ -63,6 +65,7 @@ const APIKeyAuth = ({ register }: BaseAuthMethodProps) => (
         Header Name <span className="text-red-500">*</span>
       </Label>
       <Input
+        data-1p-ignore
         id="headerName"
         placeholder="X-API-Key"
         {...register('headerName')}
@@ -76,6 +79,7 @@ const APIKeyAuth = ({ register }: BaseAuthMethodProps) => (
       </Label>
       <div className="relative">
         <Input
+          data-1p-ignore
           id="apiKey"
           type={'text'}
           placeholder="API key..."
@@ -95,6 +99,7 @@ const HMACAuth = ({ register, watch, setValue }: HMACAuthProps) => (
       </Label>
       <div className="relative">
         <Input
+          data-1p-ignore
           id="signingSecret"
           type={'text'}
           placeholder="Secret key..."
@@ -154,6 +159,7 @@ const HMACAuth = ({ register, watch, setValue }: HMACAuthProps) => (
         Signature Header Name
       </Label>
       <Input
+        data-1p-ignore
         id="signatureHeaderName"
         placeholder="X-Signature"
         {...register('signatureHeaderName')}
@@ -171,6 +177,7 @@ const StripeAuth = ({ register }: BaseAuthMethodProps) => (
       </Label>
       <div className="relative">
         <Input
+          data-1p-ignore
           id="signingSecret"
           type={'text'}
           placeholder="whsec_..."
@@ -190,6 +197,7 @@ const GithubAuth = ({ register }: BaseAuthMethodProps) => (
       </Label>
       <div className="relative">
         <Input
+          data-1p-ignore
           id="signingSecret"
           type={'text'}
           placeholder="super-secret"

@@ -33,7 +33,7 @@ import {
   V1WebhookHMACAlgorithm,
   V1WebhookHMACEncoding,
 } from '@/lib/api';
-import { Webhook } from 'lucide-react';
+import { Webhook, Copy, Check } from 'lucide-react';
 import { Spinner } from '@/components/v1/ui/loading';
 import { SourceName } from './components/source-name';
 import { AuthMethod } from './components/auth-method';
@@ -170,6 +170,7 @@ const CreateWebhookModal = () => {
   const { mutations, createWebhookURL } = useWebhooks();
   const { createWebhook, isCreatePending } = mutations;
   const [open, setOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   const {
     register,
@@ -192,6 +193,18 @@ const CreateWebhookModal = () => {
   const sourceName = watch('sourceName');
   const authType = watch('authType');
   const webhookName = watch('name');
+
+  const copyToClipboard = useCallback(async () => {
+    if (webhookName) {
+      try {
+        await navigator.clipboard.writeText(createWebhookURL(webhookName));
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      } catch (err) {
+        console.error('Failed to copy URL:', err);
+      }
+    }
+  }, [webhookName, createWebhookURL]);
 
   const onSubmit = useCallback(
     (data: WebhookFormData) => {
@@ -224,21 +237,41 @@ const CreateWebhookModal = () => {
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
           <div className="space-y-2">
-            <Label htmlFor="eventKeyExpression" className="text-sm font-medium">
-              Webhook Name <span className="text-red-500">*</span>
+            <Label htmlFor="name" className="text-sm font-medium">
+              Webhook ID <span className="text-red-500">*</span>
             </Label>
             <Input
+              data-1p-ignore
               id="name"
-              placeholder="body.id"
+              placeholder="test-webhook"
               {...register('name')}
               className="h-10"
             />
             {errors.name && (
               <p className="text-xs text-red-500">{errors.name.message}</p>
             )}
-            <p className="text-xs text-muted-foreground">
-              Send incoming webhook requests to {createWebhookURL(webhookName)}.
-            </p>
+            <div className="flex flex-col items-start gap-2 text-xs text-muted-foreground">
+              <span className="">Send incoming webhook requests to:</span>
+              <div className="flex flex-row items-center gap-2">
+                <code className="max-w-full font-mono bg-muted px-2 py-1 rounded text-xs">
+                  {createWebhookURL(webhookName)}
+                </code>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={copyToClipboard}
+                  className="h-6 w-6 p-0 flex-shrink-0"
+                  disabled={!webhookName}
+                >
+                  {copied ? (
+                    <Check className="size-4 text-green-600" />
+                  ) : (
+                    <Copy className="size-4" />
+                  )}
+                </Button>
+              </div>
+            </div>
           </div>
 
           <div className="space-y-2">
@@ -275,7 +308,7 @@ const CreateWebhookModal = () => {
             </Label>
             <Input
               id="eventKeyExpression"
-              placeholder="body.id"
+              placeholder="input.id"
               {...register('eventKeyExpression')}
               className="h-10"
             />
@@ -286,6 +319,7 @@ const CreateWebhookModal = () => {
             )}
             <p className="text-xs text-muted-foreground">
               CEL expression to extract the event key from the webhook payload.
+              Use `input` to refer to the payload.
             </p>
           </div>
 
