@@ -227,35 +227,38 @@ const CreateWebhookModal = () => {
 
           <div className="space-y-4">
             <div className="space-y-4 pl-4 border-l-2 border-gray-200">
-              <div className="space-y-2">
-                <Label htmlFor="authType" className="text-sm font-medium">
-                  Authentication Type
-                </Label>
-                <Select
-                  value={authType}
-                  onValueChange={(value: V1WebhookAuthType) =>
-                    setValue('authType', value)
-                  }
-                >
-                  <SelectTrigger className="h-10">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={V1WebhookAuthType.BASIC}>
-                      <AuthMethod authMethod={V1WebhookAuthType.BASIC} />
-                    </SelectItem>
-                    <SelectItem value={V1WebhookAuthType.API_KEY}>
-                      <AuthMethod authMethod={V1WebhookAuthType.API_KEY} />
-                    </SelectItem>
-                    <SelectItem value={V1WebhookAuthType.HMAC}>
-                      <AuthMethod authMethod={V1WebhookAuthType.HMAC} />
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+              {sourceName === V1WebhookSourceName.GENERIC && (
+                <div className="space-y-2">
+                  <Label htmlFor="authType" className="text-sm font-medium">
+                    Authentication Type
+                  </Label>
+                  <Select
+                    value={authType}
+                    onValueChange={(value: V1WebhookAuthType) =>
+                      setValue('authType', value)
+                    }
+                  >
+                    <SelectTrigger className="h-10">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={V1WebhookAuthType.BASIC}>
+                        <AuthMethod authMethod={V1WebhookAuthType.BASIC} />
+                      </SelectItem>
+                      <SelectItem value={V1WebhookAuthType.API_KEY}>
+                        <AuthMethod authMethod={V1WebhookAuthType.API_KEY} />
+                      </SelectItem>
+                      <SelectItem value={V1WebhookAuthType.HMAC}>
+                        <AuthMethod authMethod={V1WebhookAuthType.HMAC} />
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
 
               <AuthSetup
                 authMethod={authType}
+                sourceName={sourceName}
                 register={register}
                 watch={watch}
                 setValue={setValue}

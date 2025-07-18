@@ -27,7 +27,7 @@ export const SourceName = ({
       return (
         <span className="flex flex-row gap-x-2 items-center">
           <FaStripeS className="size-4" />
-          GitHub
+          Stripe
         </span>
       );
 

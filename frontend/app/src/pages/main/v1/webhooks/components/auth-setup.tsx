@@ -12,6 +12,7 @@ import {
   V1WebhookAuthType,
   V1WebhookHMACAlgorithm,
   V1WebhookHMACEncoding,
+  V1WebhookSourceName,
 } from '@/lib/api';
 import { WebhookFormData } from '../hooks/use-webhooks';
 
@@ -162,22 +163,77 @@ const HMACAuth = ({ register, watch, setValue }: HMACAuthProps) => (
   </div>
 );
 
+const StripeAuth = ({ register }: BaseAuthMethodProps) => (
+  <div className="space-y-4">
+    <div className="space-y-2">
+      <Label htmlFor="signingSecret" className="text-sm font-medium">
+        Webhook Signing Secret <span className="text-red-500">*</span>
+      </Label>
+      <div className="relative">
+        <Input
+          id="signingSecret"
+          type={'text'}
+          placeholder="whsec_..."
+          {...register('signingSecret')}
+          className="h-10 pr-10"
+        />
+      </div>
+    </div>
+  </div>
+);
+
+const GithubAuth = ({ register }: BaseAuthMethodProps) => (
+  <div className="space-y-4">
+    <div className="space-y-2">
+      <Label htmlFor="signingSecret" className="text-sm font-medium">
+        Secret <span className="text-red-500">*</span>
+      </Label>
+      <div className="relative">
+        <Input
+          id="signingSecret"
+          type={'text'}
+          placeholder="super-secret"
+          {...register('signingSecret')}
+          className="h-10 pr-10"
+        />
+      </div>
+    </div>
+  </div>
+);
+
 export const AuthSetup = ({
   authMethod,
+  sourceName,
   register,
   watch,
   setValue,
 }: HMACAuthProps & {
   authMethod: V1WebhookAuthType;
+  sourceName: V1WebhookSourceName;
 }) => {
-  switch (authMethod) {
-    case V1WebhookAuthType.BASIC:
-      return <BasicAuth register={register} />;
-    case V1WebhookAuthType.API_KEY:
-      return <APIKeyAuth register={register} />;
-    case V1WebhookAuthType.HMAC:
-      return <HMACAuth register={register} watch={watch} setValue={setValue} />;
+  switch (sourceName) {
+    case V1WebhookSourceName.GENERIC:
+      switch (authMethod) {
+        case V1WebhookAuthType.BASIC:
+          return <BasicAuth register={register} />;
+        case V1WebhookAuthType.API_KEY:
+          return <APIKeyAuth register={register} />;
+        case V1WebhookAuthType.HMAC:
+          return (
+            <HMACAuth register={register} watch={watch} setValue={setValue} />
+          );
+        default:
+          // eslint-disable-next-line no-case-declarations
+          const exhaustiveCheck: never = authMethod;
+          throw new Error(`Unhandled auth method: ${exhaustiveCheck}`);
+      }
+    case V1WebhookSourceName.GITHUB:
+      return <GithubAuth register={register} />;
+    case V1WebhookSourceName.STRIPE:
+      return <StripeAuth register={register} />;
     default:
-      return null;
+      // eslint-disable-next-line no-case-declarations
+      const exhaustiveCheck: never = sourceName;
+      throw new Error(`Unhandled source name: ${exhaustiveCheck}`);
   }
 };
