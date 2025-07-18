@@ -18,6 +18,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
+	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
@@ -551,6 +552,14 @@ func (s *DispatcherImpl) sendStepActionEventV1(ctx context.Context, request *con
 		retryCount = *request.RetryCount
 	} else {
 		s.l.Warn().Msg("retry count is nil, using task's current retry count")
+	}
+
+	if request.EventType == contracts.StepActionEventType_STEP_EVENT_TYPE_COMPLETED {
+		if err := repository.ValidateJSONB([]byte(request.EventPayload), "taskOutput"); err != nil {
+			fmt.Println("Invalid JSONB payload for task output:", err)
+			request.EventPayload = err.Error()
+			request.EventType = contracts.StepActionEventType_STEP_EVENT_TYPE_FAILED
+		}
 	}
 
 	switch request.EventType {
