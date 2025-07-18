@@ -30,6 +30,8 @@ import {
   V1WebhookSourceName,
   V1WebhookAuthType,
   V1CreateWebhookRequest,
+  V1WebhookHMACAlgorithm,
+  V1WebhookHMACEncoding,
 } from '@/lib/api';
 import { Webhook } from 'lucide-react';
 import { Spinner } from '@/components/v1/ui/loading';
@@ -57,67 +59,110 @@ export default function Webhooks() {
 }
 
 const buildWebhookPayload = (data: WebhookFormData): V1CreateWebhookRequest => {
-  switch (data.authType) {
-    case V1WebhookAuthType.BASIC:
-      if (!data.username || !data.password) {
-        throw new Error('Username and password are required for basic auth');
+  switch (data.sourceName) {
+    case V1WebhookSourceName.GENERIC:
+      switch (data.authType) {
+        case V1WebhookAuthType.BASIC:
+          if (!data.username || !data.password) {
+            throw new Error(
+              'Username and password are required for basic auth',
+            );
+          }
+
+          return {
+            sourceName: data.sourceName,
+            name: data.name,
+            eventKeyExpression: data.eventKeyExpression,
+            authType: data.authType,
+            auth: {
+              username: data.username,
+              password: data.password,
+            },
+          };
+        case V1WebhookAuthType.API_KEY:
+          if (!data.headerName || !data.apiKey) {
+            throw new Error(
+              'Header name and API key are required for API key auth',
+            );
+          }
+
+          return {
+            sourceName: data.sourceName,
+            name: data.name,
+            eventKeyExpression: data.eventKeyExpression,
+            authType: data.authType,
+            auth: {
+              headerName: data.headerName,
+              apiKey: data.apiKey,
+            },
+          };
+        case V1WebhookAuthType.HMAC:
+          if (
+            !data.algorithm ||
+            !data.encoding ||
+            !data.signatureHeaderName ||
+            !data.signingSecret
+          ) {
+            throw new Error(
+              'Algorithm, encoding, signature header name, and signing secret are required for HMAC auth',
+            );
+          }
+
+          return {
+            sourceName: data.sourceName,
+            name: data.name,
+            eventKeyExpression: data.eventKeyExpression,
+            authType: data.authType,
+            auth: {
+              algorithm: data.algorithm,
+              encoding: data.encoding,
+              signatureHeaderName: data.signatureHeaderName,
+              signingSecret: data.signingSecret,
+            },
+          };
+        default:
+          // eslint-disable-next-line no-case-declarations
+          const exhaustiveCheck: never = data.authType;
+          throw new Error(`Unhandled auth type: ${exhaustiveCheck}`);
+      }
+    case V1WebhookSourceName.GITHUB:
+      if (!data.signingSecret) {
+        throw new Error('Signing secret is required for GitHub webhooks');
       }
 
       return {
         sourceName: data.sourceName,
         name: data.name,
         eventKeyExpression: data.eventKeyExpression,
-        authType: data.authType,
+        authType: V1WebhookAuthType.HMAC,
         auth: {
-          username: data.username,
-          password: data.password,
+          algorithm: V1WebhookHMACAlgorithm.SHA256,
+          encoding: V1WebhookHMACEncoding.HEX,
+          signatureHeaderName: 'X-Hub-Signature-256',
+          signingSecret: data.signingSecret,
         },
       };
-    case V1WebhookAuthType.API_KEY:
-      if (!data.headerName || !data.apiKey) {
-        throw new Error(
-          'Header name and API key are required for API key auth',
-        );
+    case V1WebhookSourceName.STRIPE:
+      if (!data.signingSecret) {
+        throw new Error('Signing secret is required for GitHub webhooks');
       }
 
       return {
         sourceName: data.sourceName,
         name: data.name,
         eventKeyExpression: data.eventKeyExpression,
-        authType: data.authType,
+        authType: V1WebhookAuthType.HMAC,
         auth: {
-          headerName: data.headerName,
-          apiKey: data.apiKey,
-        },
-      };
-    case V1WebhookAuthType.HMAC:
-      if (
-        !data.algorithm ||
-        !data.encoding ||
-        !data.signatureHeaderName ||
-        !data.signingSecret
-      ) {
-        throw new Error(
-          'Algorithm, encoding, signature header name, and signing secret are required for HMAC auth',
-        );
-      }
-
-      return {
-        sourceName: data.sourceName,
-        name: data.name,
-        eventKeyExpression: data.eventKeyExpression,
-        authType: data.authType,
-        auth: {
-          algorithm: data.algorithm,
-          encoding: data.encoding,
-          signatureHeaderName: data.signatureHeaderName,
+          algorithm: V1WebhookHMACAlgorithm.SHA256,
+          encoding: V1WebhookHMACEncoding.HEX,
+          signatureHeaderName: 'Stripe-Signature',
           signingSecret: data.signingSecret,
         },
       };
     default:
       // eslint-disable-next-line no-case-declarations
-      const exhaustiveCheck: never = data.authType;
-      throw new Error(`Unhandled auth type: ${exhaustiveCheck}`);
+      const exhaustiveCheck: never = data.sourceName;
+      throw new Error(`Unhandled source name: ${exhaustiveCheck}`);
   }
 };
 
