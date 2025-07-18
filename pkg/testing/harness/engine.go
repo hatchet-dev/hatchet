@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
 	"github.com/testcontainers/testcontainers-go/modules/rabbitmq"
 	"go.uber.org/goleak"
@@ -135,6 +136,9 @@ func startEngine() func() {
 		migrate.RunMigrations(ctx)
 	}
 
+	// Set higher rate limit for load tests
+	os.Setenv("SCHEDULER_CONCURRENCY_RATE_LIMIT", "1000")
+
 	cf := loader.NewConfigLoader("")
 
 	dl, err := cf.InitDataLayer()
@@ -186,12 +190,19 @@ func startEngine() func() {
 }
 
 func startPostgres(ctx context.Context, pgVersion string) (string, func() error) {
+	// Find an available port for PostgreSQL
+	pgPort, err := findAvailablePort(5432)
+	if err != nil {
+		log.Fatalf("failed to find available port for postgres: %v", err)
+	}
+
 	postgresContainer, err := postgres.Run(
 		ctx,
 		fmt.Sprintf("postgres:%s", pgVersion),
 		postgres.WithDatabase("test"),
 		postgres.WithUsername("user"),
 		postgres.WithPassword("password"),
+		testcontainers.WithHostPortAccess(pgPort),
 	)
 
 	if err != nil {

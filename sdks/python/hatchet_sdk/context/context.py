@@ -236,8 +236,8 @@ class Context:
                 step_run_id=self.step_run_id,
                 index=ix,
             )
-        except Exception as e:
-            logger.error(f"Error putting stream event: {e}")
+        except Exception:
+            logger.exception("error putting stream event")
 
     async def aio_put_stream(self, data: str | bytes) -> None:
         """
@@ -262,8 +262,8 @@ class Context:
             return self.dispatcher_client.refresh_timeout(
                 step_run_id=self.step_run_id, increment_by=increment_by
             )
-        except Exception as e:
-            logger.error(f"Error refreshing timeout: {e}")
+        except Exception:
+            logger.exception("error refreshing timeout")
 
     @property
     def retry_count(self) -> int:
@@ -285,7 +285,7 @@ class Context:
         return self.retry_count + 1
 
     @property
-    def additional_metadata(self) -> JSONSerializableMapping | None:
+    def additional_metadata(self) -> JSONSerializableMapping:
         """
         The additional metadata sent with the current task run.
 
@@ -350,7 +350,7 @@ class Context:
 
         if not errors:
             logger.error(
-                "No step run errors found. `context.task_run_errors` is intended to be run in an on-failure step, and will only work on engine versions more recent than v0.53.10"
+                "no step run errors found. `context.task_run_errors` is intended to be run in an on-failure step, and will only work on engine versions more recent than v0.53.10"
             )
 
         return errors

@@ -231,6 +231,72 @@ type CreateTasksOLAPParams struct {
 	ParentTaskExternalID pgtype.UUID          `json:"parent_task_external_id"`
 }
 
+const findMinInsertedAtForDAGStatusUpdates = `-- name: FindMinInsertedAtForDAGStatusUpdates :one
+WITH tenants AS (
+    SELECT UNNEST(
+        find_matching_tenants_in_task_status_updates_tmp_partition(
+            $1::int,
+            $3::UUID[]
+        )
+    ) AS tenant_id
+)
+
+SELECT
+    MIN(u.dag_inserted_at)::TIMESTAMPTZ AS min_inserted_at
+FROM tenants t,
+    LATERAL list_task_status_updates_tmp(
+        $1::int,
+        t.tenant_id,
+        $2::int
+    ) u
+`
+
+type FindMinInsertedAtForDAGStatusUpdatesParams struct {
+	Partitionnumber int32         `json:"partitionnumber"`
+	Eventlimit      int32         `json:"eventlimit"`
+	Tenantids       []pgtype.UUID `json:"tenantids"`
+}
+
+func (q *Queries) FindMinInsertedAtForDAGStatusUpdates(ctx context.Context, db DBTX, arg FindMinInsertedAtForDAGStatusUpdatesParams) (pgtype.Timestamptz, error) {
+	row := db.QueryRow(ctx, findMinInsertedAtForDAGStatusUpdates, arg.Partitionnumber, arg.Eventlimit, arg.Tenantids)
+	var min_inserted_at pgtype.Timestamptz
+	err := row.Scan(&min_inserted_at)
+	return min_inserted_at, err
+}
+
+const findMinInsertedAtForTaskStatusUpdates = `-- name: FindMinInsertedAtForTaskStatusUpdates :one
+WITH tenants AS (
+    SELECT UNNEST(
+        find_matching_tenants_in_task_events_tmp_partition(
+            $1::int,
+            $3::UUID[]
+        )
+    ) AS tenant_id
+)
+
+SELECT
+    MIN(e.task_inserted_at)::TIMESTAMPTZ AS min_inserted_at
+FROM tenants t,
+    LATERAL list_task_events_tmp(
+        $1::int,
+        t.tenant_id,
+        $2::int
+    ) e
+`
+
+type FindMinInsertedAtForTaskStatusUpdatesParams struct {
+	Partitionnumber int32         `json:"partitionnumber"`
+	Eventlimit      int32         `json:"eventlimit"`
+	Tenantids       []pgtype.UUID `json:"tenantids"`
+}
+
+func (q *Queries) FindMinInsertedAtForTaskStatusUpdates(ctx context.Context, db DBTX, arg FindMinInsertedAtForTaskStatusUpdatesParams) (pgtype.Timestamptz, error) {
+	row := db.QueryRow(ctx, findMinInsertedAtForTaskStatusUpdates, arg.Partitionnumber, arg.Eventlimit, arg.Tenantids)
+	var min_inserted_at pgtype.Timestamptz
+	err := row.Scan(&min_inserted_at)
+	return min_inserted_at, err
+}
+
 const flattenTasksByExternalIds = `-- name: FlattenTasksByExternalIds :many
 WITH lookups AS (
     SELECT
@@ -2358,15 +2424,22 @@ func (q *Queries) ReadWorkflowRunByExternalId(ctx context.Context, db DBTX, work
 }
 
 const updateDAGStatuses = `-- name: UpdateDAGStatuses :many
-WITH locked_events AS (
-    SELECT
-        tenant_id, requeue_after, requeue_retries, id, dag_id, dag_inserted_at
-    FROM
-        list_task_status_updates_tmp(
+WITH tenants AS (
+    SELECT UNNEST(
+        find_matching_tenants_in_task_status_updates_tmp_partition(
             $1::int,
-            $2::uuid,
-            $3::int
+            $2::UUID[]
         )
+    ) AS tenant_id
+), locked_events AS (
+    SELECT
+        u.tenant_id, u.requeue_after, u.requeue_retries, u.id, u.dag_id, u.dag_inserted_at
+    FROM tenants t,
+        LATERAL list_task_status_updates_tmp(
+            $1::int,
+            t.tenant_id,
+            $3::int
+        ) u
 ), distinct_dags AS (
     SELECT
         DISTINCT ON (e.tenant_id, e.dag_id, e.dag_inserted_at)
@@ -2384,11 +2457,16 @@ WITH locked_events AS (
         d.total_tasks
     FROM
         v1_dags_olap d
-    JOIN
-        distinct_dags dd ON
-            (d.tenant_id, d.id, d.inserted_at) = (dd.tenant_id, dd.dag_id, dd.dag_inserted_at)
+    WHERE
+        d.inserted_at >= $4::TIMESTAMPTZ
+        AND (d.inserted_at, d.id, d.tenant_id) IN (
+            SELECT
+                dd.dag_inserted_at, dd.dag_id, dd.tenant_id
+            FROM
+                distinct_dags dd
+        )
     ORDER BY
-        d.id, d.inserted_at
+        d.inserted_at, d.id
     FOR UPDATE
 ), dag_task_counts AS (
     SELECT
@@ -2409,6 +2487,7 @@ WITH locked_events AS (
     LEFT JOIN
         v1_tasks_olap t ON
             (dt.task_id, dt.task_inserted_at) = (t.id, t.inserted_at)
+    WHERE t.inserted_at >= $4::TIMESTAMPTZ
     GROUP BY
         d.id, d.inserted_at, d.total_tasks
 ), updated_dags AS (
@@ -2432,7 +2511,7 @@ WITH locked_events AS (
     WHERE
         (d.id, d.inserted_at) = (dtc.id, dtc.inserted_at)
     RETURNING
-        d.id, d.inserted_at, d.readable_status, d.external_id, d.workflow_id
+        d.tenant_id, d.id, d.inserted_at, d.readable_status, d.external_id, d.workflow_id
 ), events_to_requeue AS (
     -- Get events which don't have a corresponding locked_task
     SELECT
@@ -2442,10 +2521,11 @@ WITH locked_events AS (
         e.dag_inserted_at
     FROM
         locked_events e
-    LEFT JOIN
-        locked_dags d ON (e.tenant_id, e.dag_id, e.dag_inserted_at) = (d.tenant_id, d.id, d.inserted_at)
-    WHERE
-        d.id IS NULL
+    WHERE NOT EXISTS (
+        SELECT 1
+        FROM locked_dags d
+        WHERE (e.dag_inserted_at, e.dag_id, e.tenant_id) = (d.inserted_at, d.id, d.tenant_id)
+    )
 ), deleted_events AS (
     DELETE FROM
         v1_task_status_updates_tmp
@@ -2484,19 +2564,21 @@ SELECT
     -- where there are no tasks updated with a non-zero count, but this should be very rare and we'll get
     -- updates on the next run.
     (SELECT count FROM event_count) AS count,
-    d.id, d.inserted_at, d.readable_status, d.external_id, d.workflow_id
+    d.tenant_id, d.id, d.inserted_at, d.readable_status, d.external_id, d.workflow_id
 FROM
     updated_dags d
 `
 
 type UpdateDAGStatusesParams struct {
-	Partitionnumber int32       `json:"partitionnumber"`
-	Tenantid        pgtype.UUID `json:"tenantid"`
-	Eventlimit      int32       `json:"eventlimit"`
+	Partitionnumber int32              `json:"partitionnumber"`
+	Tenantids       []pgtype.UUID      `json:"tenantids"`
+	Eventlimit      int32              `json:"eventlimit"`
+	Mininsertedat   pgtype.Timestamptz `json:"mininsertedat"`
 }
 
 type UpdateDAGStatusesRow struct {
 	Count          int64                `json:"count"`
+	TenantID       pgtype.UUID          `json:"tenant_id"`
 	ID             int64                `json:"id"`
 	InsertedAt     pgtype.Timestamptz   `json:"inserted_at"`
 	ReadableStatus V1ReadableStatusOlap `json:"readable_status"`
@@ -2505,7 +2587,12 @@ type UpdateDAGStatusesRow struct {
 }
 
 func (q *Queries) UpdateDAGStatuses(ctx context.Context, db DBTX, arg UpdateDAGStatusesParams) ([]*UpdateDAGStatusesRow, error) {
-	rows, err := db.Query(ctx, updateDAGStatuses, arg.Partitionnumber, arg.Tenantid, arg.Eventlimit)
+	rows, err := db.Query(ctx, updateDAGStatuses,
+		arg.Partitionnumber,
+		arg.Tenantids,
+		arg.Eventlimit,
+		arg.Mininsertedat,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -2515,6 +2602,7 @@ func (q *Queries) UpdateDAGStatuses(ctx context.Context, db DBTX, arg UpdateDAGS
 		var i UpdateDAGStatusesRow
 		if err := rows.Scan(
 			&i.Count,
+			&i.TenantID,
 			&i.ID,
 			&i.InsertedAt,
 			&i.ReadableStatus,
@@ -2532,15 +2620,22 @@ func (q *Queries) UpdateDAGStatuses(ctx context.Context, db DBTX, arg UpdateDAGS
 }
 
 const updateTaskStatuses = `-- name: UpdateTaskStatuses :many
-WITH locked_events AS (
-    SELECT
-        tenant_id, requeue_after, requeue_retries, id, task_id, task_inserted_at, event_type, readable_status, retry_count, worker_id
-    FROM
-        list_task_events_tmp(
+WITH tenants AS (
+    SELECT UNNEST(
+        find_matching_tenants_in_task_events_tmp_partition(
             $1::int,
-            $2::uuid,
-            $3::int
+            $2::UUID[]
         )
+    ) AS tenant_id
+), locked_events AS (
+    SELECT
+        e.tenant_id, e.requeue_after, e.requeue_retries, e.id, e.task_id, e.task_inserted_at, e.event_type, e.readable_status, e.retry_count, e.worker_id
+    FROM tenants t,
+        LATERAL list_task_events_tmp(
+            $1::int,
+            t.tenant_id,
+            $3::int
+        ) e
 ), max_retry_counts AS (
     SELECT
         tenant_id,
@@ -2593,8 +2688,9 @@ WITH locked_events AS (
     JOIN
         updatable_events e ON
             (t.tenant_id, t.id, t.inserted_at) = (e.tenant_id, e.task_id, e.task_inserted_at)
+    WHERE t.inserted_at >= $4::TIMESTAMPTZ
     ORDER BY
-        t.id
+        t.inserted_at, t.id
     FOR UPDATE
 ), updated_tasks AS (
     UPDATE
@@ -2637,10 +2733,11 @@ WITH locked_events AS (
         e.retry_count
     FROM
         locked_events e
-    LEFT JOIN
-        locked_tasks t ON (e.tenant_id, e.task_id, e.task_inserted_at) = (t.tenant_id, t.id, t.inserted_at)
-    WHERE
-        t.id IS NULL
+    WHERE NOT EXISTS (
+        SELECT 1
+        FROM locked_tasks t
+        WHERE (e.tenant_id, e.task_id, e.task_inserted_at) = (t.tenant_id, t.id, t.inserted_at)
+    )
 ), deleted_events AS (
     DELETE FROM
         v1_task_events_olap_tmp
@@ -2691,9 +2788,10 @@ FROM
 `
 
 type UpdateTaskStatusesParams struct {
-	Partitionnumber int32       `json:"partitionnumber"`
-	Tenantid        pgtype.UUID `json:"tenantid"`
-	Eventlimit      int32       `json:"eventlimit"`
+	Partitionnumber int32              `json:"partitionnumber"`
+	Tenantids       []pgtype.UUID      `json:"tenantids"`
+	Eventlimit      int32              `json:"eventlimit"`
+	Mininsertedat   pgtype.Timestamptz `json:"mininsertedat"`
 }
 
 type UpdateTaskStatusesRow struct {
@@ -2709,7 +2807,12 @@ type UpdateTaskStatusesRow struct {
 }
 
 func (q *Queries) UpdateTaskStatuses(ctx context.Context, db DBTX, arg UpdateTaskStatusesParams) ([]*UpdateTaskStatusesRow, error) {
-	rows, err := db.Query(ctx, updateTaskStatuses, arg.Partitionnumber, arg.Tenantid, arg.Eventlimit)
+	rows, err := db.Query(ctx, updateTaskStatuses,
+		arg.Partitionnumber,
+		arg.Tenantids,
+		arg.Eventlimit,
+		arg.Mininsertedat,
+	)
 	if err != nil {
 		return nil, err
 	}

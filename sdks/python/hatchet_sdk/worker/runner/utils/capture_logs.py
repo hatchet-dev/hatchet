@@ -5,27 +5,40 @@ from collections.abc import Awaitable, Callable
 from io import StringIO
 from typing import Literal, ParamSpec, TypeVar
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from hatchet_sdk.clients.events import EventClient
 from hatchet_sdk.logger import logger
 from hatchet_sdk.runnables.contextvars import (
     ctx_action_key,
+    ctx_additional_metadata,
     ctx_step_run_id,
     ctx_worker_id,
     ctx_workflow_run_id,
 )
-from hatchet_sdk.utils.typing import STOP_LOOP, STOP_LOOP_TYPE
+from hatchet_sdk.utils.typing import STOP_LOOP, STOP_LOOP_TYPE, JSONSerializableMapping
 
 T = TypeVar("T")
 P = ParamSpec("P")
 
 
-class ContextVarToCopy(BaseModel):
+class ContextVarToCopyStr(BaseModel):
     name: Literal[
-        "ctx_workflow_run_id", "ctx_step_run_id", "ctx_action_key", "ctx_worker_id"
+        "ctx_workflow_run_id",
+        "ctx_step_run_id",
+        "ctx_action_key",
+        "ctx_worker_id",
     ]
     value: str | None
+
+
+class ContextVarToCopyDict(BaseModel):
+    name: Literal["ctx_additional_metadata"]
+    value: JSONSerializableMapping | None
+
+
+class ContextVarToCopy(BaseModel):
+    var: ContextVarToCopyStr | ContextVarToCopyDict = Field(discriminator="name")
 
 
 def copy_context_vars(
@@ -35,16 +48,18 @@ def copy_context_vars(
     **kwargs: P.kwargs,
 ) -> T:
     for var in ctx_vars:
-        if var.name == "ctx_workflow_run_id":
-            ctx_workflow_run_id.set(var.value)
-        elif var.name == "ctx_step_run_id":
-            ctx_step_run_id.set(var.value)
-        elif var.name == "ctx_action_key":
-            ctx_action_key.set(var.value)
-        elif var.name == "ctx_worker_id":
-            ctx_worker_id.set(var.value)
+        if var.var.name == "ctx_workflow_run_id":
+            ctx_workflow_run_id.set(var.var.value)
+        elif var.var.name == "ctx_step_run_id":
+            ctx_step_run_id.set(var.var.value)
+        elif var.var.name == "ctx_action_key":
+            ctx_action_key.set(var.var.value)
+        elif var.var.name == "ctx_worker_id":
+            ctx_worker_id.set(var.var.value)
+        elif var.var.name == "ctx_additional_metadata":
+            ctx_additional_metadata.set(var.var.value or {})
         else:
-            raise ValueError(f"Unknown context variable name: {var.name}")
+            raise ValueError(f"Unknown context variable name: {var.var.name}")
 
     return func(*args, **kwargs)
 
@@ -73,13 +88,13 @@ class AsyncLogSender:
                     step_run_id=record.step_run_id,
                 )
             except Exception:
-                logger.exception("Failed to send log to Hatchet")
+                logger.exception("failed to send log to Hatchet")
 
     def publish(self, record: LogRecord | STOP_LOOP_TYPE) -> None:
         try:
             self.q.put_nowait(record)
         except asyncio.QueueFull:
-            logger.warning("Log queue is full, dropping log message")
+            logger.warning("log queue is full, dropping log message")
 
 
 class CustomLogHandler(logging.StreamHandler):  # type: ignore[type-arg]

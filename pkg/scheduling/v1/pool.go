@@ -17,6 +17,8 @@ type sharedConfig struct {
 	l *zerolog.Logger
 
 	singleQueueLimit int
+
+	schedulerConcurrencyRateLimit int
 }
 
 // SchedulingPool is responsible for managing a pool of tenantManagers.
@@ -33,16 +35,17 @@ type SchedulingPool struct {
 	concurrencyResultsCh chan *ConcurrencyResults
 }
 
-func NewSchedulingPool(repo v1.SchedulerRepository, l *zerolog.Logger, singleQueueLimit int) (*SchedulingPool, func() error, error) {
+func NewSchedulingPool(repo v1.SchedulerRepository, l *zerolog.Logger, singleQueueLimit int, schedulerConcurrencyRateLimit int) (*SchedulingPool, func() error, error) {
 	resultsCh := make(chan *QueueResults, 1000)
 	concurrencyResultsCh := make(chan *ConcurrencyResults, 1000)
 
 	s := &SchedulingPool{
 		Extensions: &Extensions{},
 		cf: &sharedConfig{
-			repo:             repo,
-			l:                l,
-			singleQueueLimit: singleQueueLimit,
+			repo:                          repo,
+			l:                             l,
+			singleQueueLimit:              singleQueueLimit,
+			schedulerConcurrencyRateLimit: schedulerConcurrencyRateLimit,
 		},
 		resultsCh:            resultsCh,
 		concurrencyResultsCh: concurrencyResultsCh,

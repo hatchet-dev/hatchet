@@ -40,8 +40,6 @@ type OLAPControllerImpl struct {
 	p                            *partition.Partition
 	s                            gocron.Scheduler
 	ta                           *alerting.TenantAlertManager
-	updateTaskStatusOperations   *queueutils.OperationPool
-	updateDAGStatusOperations    *queueutils.OperationPool
 	processTenantAlertOperations *queueutils.OperationPool
 	samplingHashThreshold        *int64
 	olapConfig                   *server.ConfigFileOperations
@@ -200,20 +198,6 @@ func New(fs ...OLAPControllerOpt) (*OLAPControllerImpl, error) {
 	// Default timeout
 	timeout := 15 * time.Second
 
-	o.updateTaskStatusOperations = queueutils.NewOperationPool(
-		opts.l,
-		timeout,
-		"update task statuses",
-		o.updateTaskStatuses,
-	).WithJitter(jitter)
-
-	o.updateDAGStatusOperations = queueutils.NewOperationPool(
-		opts.l,
-		timeout,
-		"update dag statuses",
-		o.updateDAGStatuses,
-	).WithJitter(jitter)
-
 	o.processTenantAlertOperations = queueutils.NewOperationPool(
 		opts.l,
 		timeout,
@@ -267,7 +251,7 @@ func (o *OLAPControllerImpl) Start() (func() error, error) {
 	_, err = o.s.NewJob(
 		gocron.DurationJob(time.Second*time.Duration(pollIntervalSec)),
 		gocron.NewTask(
-			o.runTenantTaskStatusUpdates(ctx),
+			o.runTaskStatusUpdates(ctx),
 		),
 		gocron.WithSingletonMode(gocron.LimitModeReschedule),
 	)
@@ -280,7 +264,7 @@ func (o *OLAPControllerImpl) Start() (func() error, error) {
 	_, err = o.s.NewJob(
 		gocron.DurationJob(time.Second*time.Duration(pollIntervalSec)),
 		gocron.NewTask(
-			o.runTenantDAGStatusUpdates(ctx),
+			o.runDAGStatusUpdates(ctx),
 		),
 		gocron.WithSingletonMode(gocron.LimitModeReschedule),
 	)
