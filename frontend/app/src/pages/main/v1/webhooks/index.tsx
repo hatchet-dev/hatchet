@@ -167,7 +167,7 @@ const buildWebhookPayload = (data: WebhookFormData): V1CreateWebhookRequest => {
 };
 
 const CreateWebhookModal = () => {
-  const { mutations } = useWebhooks();
+  const { mutations, createWebhookURL } = useWebhooks();
   const { createWebhook, isCreatePending } = mutations;
   const [open, setOpen] = useState(false);
 
@@ -191,6 +191,7 @@ const CreateWebhookModal = () => {
 
   const sourceName = watch('sourceName');
   const authType = watch('authType');
+  const webhookName = watch('name');
 
   const onSubmit = useCallback(
     (data: WebhookFormData) => {
@@ -217,11 +218,29 @@ const CreateWebhookModal = () => {
             <div className="flex items-center justify-center w-8 h-8 bg-blue-100 rounded-full">
               <Webhook className="h-4 w-4 text-blue-600" />
             </div>
-            Create a Hatchet webhook
+            Create a webhook
           </DialogTitle>
         </DialogHeader>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+          <div className="space-y-2">
+            <Label htmlFor="eventKeyExpression" className="text-sm font-medium">
+              Webhook Name <span className="text-red-500">*</span>
+            </Label>
+            <Input
+              id="name"
+              placeholder="body.id"
+              {...register('name')}
+              className="h-10"
+            />
+            {errors.name && (
+              <p className="text-xs text-red-500">{errors.name.message}</p>
+            )}
+            <p className="text-xs text-muted-foreground">
+              Send incoming webhook requests to {createWebhookURL(webhookName)}.
+            </p>
+          </div>
+
           <div className="space-y-2">
             <Label htmlFor="sourceName" className="text-sm font-medium">
               Source Type <span className="text-red-500">*</span>

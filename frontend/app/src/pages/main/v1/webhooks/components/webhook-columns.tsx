@@ -78,12 +78,14 @@ export const columns = (): ColumnDef<V1Webhook>[] => {
 };
 
 const WebhookActionsCell = ({ row }: { row: Row<V1Webhook> }) => {
-  const { mutations } = useWebhooks(() => setIsDropdownOpen(false));
+  const { mutations, createWebhookURL } = useWebhooks(() =>
+    setIsDropdownOpen(false),
+  );
 
   const [isCopied, setIsCopied] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
-  const webhookUrl = `${window.location.protocol}//${window.location.hostname}/api/v1/stable/tenants/${row.original.tenantId}/webhooks/${row.original.name}`;
+  const webhookUrl = createWebhookURL(row.original.name);
 
   const handleCopy = (url: string) => {
     navigator.clipboard.writeText(url);

@@ -44,10 +44,15 @@ export const useWebhooks = (onDeleteSuccess?: () => void) => {
     },
   });
 
+  const createWebhookURL = (name: string) => {
+    return `${window.location.protocol}//${window.location.hostname}/api/v1/stable/tenants/${tenantId}/webhooks/${name}`;
+  };
+
   return {
     data: data?.rows || [],
     isLoading,
     error,
+    createWebhookURL,
     mutations: {
       deleteWebhook,
       isDeletePending,
@@ -59,10 +64,7 @@ export const useWebhooks = (onDeleteSuccess?: () => void) => {
 
 export const webhookFormSchema = z.object({
   sourceName: z.nativeEnum(V1WebhookSourceName),
-  name: z
-    .string()
-    .min(1, 'Name is required')
-    .max(255, 'Name must be less than 255 characters'),
+  name: z.string().min(1, 'Name expression is required'),
   eventKeyExpression: z.string().min(1, 'Event key expression is required'),
   authType: z.nativeEnum(V1WebhookAuthType),
   username: z.string().optional(),
