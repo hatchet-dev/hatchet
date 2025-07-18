@@ -24,7 +24,19 @@ import (
 )
 
 func (w *V1WebhooksService) V1WebhookReceive(ctx echo.Context, request gen.V1WebhookReceiveRequestObject) (gen.V1WebhookReceiveResponseObject, error) {
-	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
+	maybeTenant := ctx.Get("tenant")
+
+	if maybeTenant == nil {
+		return gen.V1WebhookReceive400JSONResponse{
+			Errors: []gen.APIError{
+				{
+					Description: "tenant not found",
+				},
+			},
+		}, nil
+	}
+
+	tenant := maybeTenant.(*dbsqlc.Tenant)
 	webhook := ctx.Get("v1-webhook").(*sqlcv1.V1IncomingWebhook)
 
 	rawBody, err := io.ReadAll(ctx.Request().Body)
