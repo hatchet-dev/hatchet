@@ -232,18 +232,23 @@ func (w *V1WebhooksService) validateWebhook(webhookPayload []byte, webhook sqlcv
 		}
 
 		splitHeader := strings.Split(signatureHeader, ",")
+		headersMap := make(map[string]string)
 
-		if len(splitHeader) != 2 {
-			return false, &ValidationError{
-				Code:      Http400,
-				ErrorText: fmt.Sprintf("invalid signature header format: %s", webhook.AuthHmacSignatureHeaderName.String),
+		for _, header := range splitHeader {
+			parts := strings.Split(header, "=")
+			if len(parts) != 2 {
+				return false, &ValidationError{
+					Code:      Http400,
+					ErrorText: fmt.Sprintf("invalid signature header format: %s", webhook.AuthHmacSignatureHeaderName.String),
+				}
 			}
+			headersMap[strings.TrimSpace(parts[0])] = strings.TrimSpace(parts[1])
 		}
 
-		timestampHeader := splitHeader[0]
-		v1SignatureHeader := splitHeader[1]
+		timestampHeader, hasTimestampHeader := headersMap["t"]
+		v1SignatureHeader, hasV1SignatureHeader := headersMap["v1"]
 
-		if timestampHeader == "" || v1SignatureHeader == "" {
+		if timestampHeader == "" || v1SignatureHeader == "" || !hasTimestampHeader || !hasV1SignatureHeader {
 			return false, &ValidationError{
 				Code:      Http400,
 				ErrorText: fmt.Sprintf("missing or invalid signature header: %s", webhook.AuthHmacSignatureHeaderName.String),
