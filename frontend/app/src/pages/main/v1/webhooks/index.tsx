@@ -192,6 +192,7 @@ const CreateWebhookModal = () => {
     defaultValues: {
       sourceName: V1WebhookSourceName.GENERIC,
       authType: V1WebhookAuthType.BASIC,
+      name: '',
       eventKeyExpression: 'input.id',
       username: '',
       password: '',
