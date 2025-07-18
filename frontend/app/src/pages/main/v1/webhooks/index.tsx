@@ -244,7 +244,7 @@ const CreateWebhookModal = () => {
       <DialogTrigger asChild>
         <Button variant="default">Create Webhook</Button>
       </DialogTrigger>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-[90%] md:max-w-[80%] lg:max-w-[60%] xl:max-w-[50%] max-h-[90dvh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <div className="flex items-center justify-center w-8 h-8 bg-blue-100 rounded-full">
