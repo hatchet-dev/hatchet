@@ -107,6 +107,14 @@ func (a *AdminServiceImpl) bulkTriggerWorkflowV1(ctx context.Context, req *contr
 			return nil, fmt.Errorf("could not create trigger opt: %w", err)
 		}
 
+		if err := repository.ValidateJSONB(opt.Data, "payload"); err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "Invalid request: %s", err)
+		}
+
+		if err := repository.ValidateJSONB(opt.AdditionalMetadata, "additionalMetadata"); err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "Invalid request: %s", err)
+		}
+
 		opts[i] = opt
 	}
 
