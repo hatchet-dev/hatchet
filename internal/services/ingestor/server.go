@@ -28,13 +28,13 @@ func (i *IngestorImpl) Push(ctx context.Context, req *contracts.PushEventRequest
 		additionalMeta = []byte(*req.AdditionalMetadata)
 	}
 
-	if err := repository.ValidateJSONB(&additionalMeta, "additionalMetadata"); err != nil {
+	if err := repository.ValidateJSONB(additionalMeta, "additionalMetadata"); err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "Invalid request: %s", err)
 	}
 
 	payloadBytes := []byte(req.Payload)
 
-	if err := repository.ValidateJSONB(&payloadBytes, "payload"); err != nil {
+	if err := repository.ValidateJSONB(payloadBytes, "payload"); err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "Invalid request: %s", err)
 	}
 
@@ -79,13 +79,13 @@ func (i *IngestorImpl) BulkPush(ctx context.Context, req *contracts.BulkPushEven
 			additionalMeta = []byte(*e.AdditionalMetadata)
 		}
 
-		if err := repository.ValidateJSONB(&additionalMeta, "additionalMetadata"); err != nil {
+		if err := repository.ValidateJSONB(additionalMeta, "additionalMetadata"); err != nil {
 			return nil, status.Errorf(codes.InvalidArgument, "Invalid request: %s", err)
 		}
 
 		payloadBytes := []byte(e.Payload)
 
-		if err := repository.ValidateJSONB(&payloadBytes, "payload"); err != nil {
+		if err := repository.ValidateJSONB(payloadBytes, "payload"); err != nil {
 			return nil, status.Errorf(codes.InvalidArgument, "Invalid request: %s", err)
 		}
 
