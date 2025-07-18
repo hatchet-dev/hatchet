@@ -22,68 +22,8 @@ import {
 } from '@/components/v1/ui/dropdown-menu';
 import { useState } from 'react';
 import { useWebhooks } from '../hooks/use-webhooks';
-
-const SourceName = ({ sourceName }: { sourceName: V1WebhookSourceName }) => {
-  switch (sourceName) {
-    case V1WebhookSourceName.GENERIC:
-      return (
-        <span className="flex flex-row gap-x-2 items-center">
-          <Webhook className="size-4" />
-          Generic
-        </span>
-      );
-    case V1WebhookSourceName.GITHUB:
-      return (
-        <span className="flex flex-row gap-x-2 items-center">
-          <GitHubLogoIcon className="size-4" />
-          GitHub
-        </span>
-      );
-    case V1WebhookSourceName.STRIPE:
-      return (
-        <span className="flex flex-row gap-x-2 items-center">
-          <FaStripeS className="size-4" />
-          GitHub
-        </span>
-      );
-
-    default:
-      // eslint-disable-next-line no-case-declarations
-      const exhaustiveCheck: never = sourceName;
-      throw new Error(`Unhandled source: ${exhaustiveCheck}`);
-  }
-};
-
-const AuthMethod = ({ authMethod }: { authMethod: V1WebhookAuthType }) => {
-  switch (authMethod) {
-    case V1WebhookAuthType.BASIC:
-      return (
-        <span className="flex flex-row gap-x-2 items-center">
-          <UserCheck className="size-4" />
-          Basic
-        </span>
-      );
-    case V1WebhookAuthType.API_KEY:
-      return (
-        <span className="flex flex-row gap-x-2 items-center">
-          <Key className="size-4" />
-          API Key
-        </span>
-      );
-    case V1WebhookAuthType.HMAC:
-      return (
-        <span className="flex flex-row gap-x-2 items-center">
-          <ShieldCheck className="size-4" />
-          HMAC
-        </span>
-      );
-
-    default:
-      // eslint-disable-next-line no-case-declarations
-      const exhaustiveCheck: never = authMethod;
-      throw new Error(`Unhandled auth method: ${exhaustiveCheck}`);
-  }
-};
+import { SourceName } from './source-name';
+import { AuthMethod } from './auth-method';
 
 export const columns = (): ColumnDef<V1Webhook>[] => {
   return [
