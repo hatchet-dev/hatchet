@@ -1140,10 +1140,21 @@ func (r *OLAPRepositoryImpl) UpdateTaskStatuses(ctx context.Context, tenantIds [
 
 			defer rollback()
 
+			minInsertedAt, err := r.queries.FindMinInsertedAtForTaskStatusUpdates(ctx, tx, sqlcv1.FindMinInsertedAtForTaskStatusUpdatesParams{
+				Partitionnumber: int32(partitionNumber), // nolint: gosec
+				Tenantids:       tenantIdUUIDs,
+				Eventlimit:      limit,
+			})
+
+			if err != nil {
+				return fmt.Errorf("failed to find min inserted at for task status updates: %w", err)
+			}
+
 			statusUpdateRes, err := r.queries.UpdateTaskStatuses(ctx, tx, sqlcv1.UpdateTaskStatusesParams{
 				Partitionnumber: int32(partitionNumber), // nolint: gosec
 				Tenantids:       tenantIdUUIDs,
 				Eventlimit:      limit,
+				Mininsertedat:   minInsertedAt,
 			})
 
 			if err != nil {
@@ -1218,10 +1229,21 @@ func (r *OLAPRepositoryImpl) UpdateDAGStatuses(ctx context.Context, tenantIds []
 
 			defer rollback()
 
+			minInsertedAt, err := r.queries.FindMinInsertedAtForDAGStatusUpdates(ctx, tx, sqlcv1.FindMinInsertedAtForDAGStatusUpdatesParams{
+				Partitionnumber: int32(partitionNumber), // nolint: gosec
+				Tenantids:       tenantIdUUIDs,
+				Eventlimit:      limit,
+			})
+
+			if err != nil {
+				return fmt.Errorf("failed to find min inserted at for DAG status updates: %w", err)
+			}
+
 			statusUpdateRes, err := r.queries.UpdateDAGStatuses(ctx, tx, sqlcv1.UpdateDAGStatusesParams{
 				Partitionnumber: int32(partitionNumber), // nolint: gosec
 				Tenantids:       tenantIdUUIDs,
 				Eventlimit:      limit,
+				Mininsertedat:   minInsertedAt,
 			})
 
 			if err != nil {
