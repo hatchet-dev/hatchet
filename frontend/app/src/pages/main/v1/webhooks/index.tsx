@@ -184,7 +184,7 @@ const CreateWebhookModal = () => {
     defaultValues: {
       sourceName: V1WebhookSourceName.GENERIC,
       authType: V1WebhookAuthType.BASIC,
-      eventKeyExpression: 'body.id',
+      eventKeyExpression: 'input.id',
       username: '',
       password: '',
     },
@@ -221,7 +221,17 @@ const CreateWebhookModal = () => {
   );
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog
+      open={open}
+      onOpenChange={(isOpen) => {
+        setOpen(isOpen);
+
+        if (!isOpen) {
+          reset();
+          setCopied(false);
+        }
+      }}
+    >
       <DialogTrigger asChild>
         <Button variant="default">Create Webhook</Button>
       </DialogTrigger>
