@@ -7,7 +7,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -1281,7 +1280,9 @@ type V1CreateWebhookRequest struct {
 
 // V1CreateWebhookRequestAPIKey defines model for V1CreateWebhookRequestAPIKey.
 type V1CreateWebhookRequestAPIKey struct {
-	Auth     V1WebhookAPIKeyAuth                  `json:"auth"`
+	Auth V1WebhookAPIKeyAuth `json:"auth"`
+
+	// AuthType The type of authentication to use for the webhook
 	AuthType V1CreateWebhookRequestAPIKeyAuthType `json:"authType"`
 
 	// EventKeyExpression The CEL expression to use for the event key. This is used to create the event key from the webhook payload.
@@ -1292,13 +1293,11 @@ type V1CreateWebhookRequestAPIKey struct {
 	SourceName V1WebhookSourceName `json:"sourceName"`
 }
 
-// V1CreateWebhookRequestAPIKeyAuthType defines model for V1CreateWebhookRequestAPIKey.AuthType.
+// V1CreateWebhookRequestAPIKeyAuthType The type of authentication to use for the webhook
 type V1CreateWebhookRequestAPIKeyAuthType string
 
 // V1CreateWebhookRequestBase defines model for V1CreateWebhookRequestBase.
 type V1CreateWebhookRequestBase struct {
-	AuthType V1WebhookAuthType `json:"authType"`
-
 	// EventKeyExpression The CEL expression to use for the event key. This is used to create the event key from the webhook payload.
 	EventKeyExpression string `json:"eventKeyExpression"`
 
@@ -1309,7 +1308,9 @@ type V1CreateWebhookRequestBase struct {
 
 // V1CreateWebhookRequestBasicAuth defines model for V1CreateWebhookRequestBasicAuth.
 type V1CreateWebhookRequestBasicAuth struct {
-	Auth     V1WebhookBasicAuth                      `json:"auth"`
+	Auth V1WebhookBasicAuth `json:"auth"`
+
+	// AuthType The type of authentication to use for the webhook
 	AuthType V1CreateWebhookRequestBasicAuthAuthType `json:"authType"`
 
 	// EventKeyExpression The CEL expression to use for the event key. This is used to create the event key from the webhook payload.
@@ -1320,12 +1321,14 @@ type V1CreateWebhookRequestBasicAuth struct {
 	SourceName V1WebhookSourceName `json:"sourceName"`
 }
 
-// V1CreateWebhookRequestBasicAuthAuthType defines model for V1CreateWebhookRequestBasicAuth.AuthType.
+// V1CreateWebhookRequestBasicAuthAuthType The type of authentication to use for the webhook
 type V1CreateWebhookRequestBasicAuthAuthType string
 
 // V1CreateWebhookRequestHMAC defines model for V1CreateWebhookRequestHMAC.
 type V1CreateWebhookRequestHMAC struct {
-	Auth     V1WebhookHMACAuth                  `json:"auth"`
+	Auth V1WebhookHMACAuth `json:"auth"`
+
+	// AuthType The type of authentication to use for the webhook
 	AuthType V1CreateWebhookRequestHMACAuthType `json:"authType"`
 
 	// EventKeyExpression The CEL expression to use for the event key. This is used to create the event key from the webhook payload.
@@ -1336,7 +1339,7 @@ type V1CreateWebhookRequestHMAC struct {
 	SourceName V1WebhookSourceName `json:"sourceName"`
 }
 
-// V1CreateWebhookRequestHMACAuthType defines model for V1CreateWebhookRequestHMAC.AuthType.
+// V1CreateWebhookRequestHMACAuthType The type of authentication to use for the webhook
 type V1CreateWebhookRequestHMACAuthType string
 
 // V1DagChildren defines model for V1DagChildren.
@@ -1712,10 +1715,10 @@ type V1Webhook struct {
 // V1WebhookAPIKeyAuth defines model for V1WebhookAPIKeyAuth.
 type V1WebhookAPIKeyAuth struct {
 	// ApiKey The API key to use for authentication
-	ApiKey *string `json:"apiKey,omitempty"`
+	ApiKey string `json:"apiKey"`
 
 	// HeaderName The name of the header to use for the API key
-	HeaderName *string `json:"headerName,omitempty"`
+	HeaderName string `json:"headerName"`
 }
 
 // V1WebhookAuthType defines model for V1WebhookAuthType.
@@ -1724,10 +1727,10 @@ type V1WebhookAuthType string
 // V1WebhookBasicAuth defines model for V1WebhookBasicAuth.
 type V1WebhookBasicAuth struct {
 	// Password The password for basic auth
-	Password *string `json:"password,omitempty"`
+	Password string `json:"password"`
 
 	// Username The username for basic auth
-	Username *string `json:"username,omitempty"`
+	Username string `json:"username"`
 }
 
 // V1WebhookHMACAlgorithm defines model for V1WebhookHMACAlgorithm.
@@ -1735,14 +1738,14 @@ type V1WebhookHMACAlgorithm string
 
 // V1WebhookHMACAuth defines model for V1WebhookHMACAuth.
 type V1WebhookHMACAuth struct {
-	Algorithm *V1WebhookHMACAlgorithm `json:"algorithm,omitempty"`
-	Encoding  *V1WebhookHMACEncoding  `json:"encoding,omitempty"`
+	Algorithm V1WebhookHMACAlgorithm `json:"algorithm"`
+	Encoding  V1WebhookHMACEncoding  `json:"encoding"`
 
 	// SignatureHeaderName The name of the header to use for the HMAC signature
-	SignatureHeaderName *string `json:"signatureHeaderName,omitempty"`
+	SignatureHeaderName string `json:"signatureHeaderName"`
 
 	// SigningSecret The secret key used to sign the HMAC signature
-	SigningSecret *string `json:"signingSecret,omitempty"`
+	SigningSecret string `json:"signingSecret"`
 }
 
 // V1WebhookHMACEncoding defines model for V1WebhookHMACEncoding.
@@ -2745,7 +2748,6 @@ func (t V1CreateWebhookRequest) AsV1CreateWebhookRequestBasicAuth() (V1CreateWeb
 
 // FromV1CreateWebhookRequestBasicAuth overwrites any union data inside the V1CreateWebhookRequest as the provided V1CreateWebhookRequestBasicAuth
 func (t *V1CreateWebhookRequest) FromV1CreateWebhookRequestBasicAuth(v V1CreateWebhookRequestBasicAuth) error {
-	v.AuthType = "BASIC"
 	b, err := json.Marshal(v)
 	t.union = b
 	return err
@@ -2753,7 +2755,6 @@ func (t *V1CreateWebhookRequest) FromV1CreateWebhookRequestBasicAuth(v V1CreateW
 
 // MergeV1CreateWebhookRequestBasicAuth performs a merge with any union data inside the V1CreateWebhookRequest, using the provided V1CreateWebhookRequestBasicAuth
 func (t *V1CreateWebhookRequest) MergeV1CreateWebhookRequestBasicAuth(v V1CreateWebhookRequestBasicAuth) error {
-	v.AuthType = "BASIC"
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err
@@ -2773,7 +2774,6 @@ func (t V1CreateWebhookRequest) AsV1CreateWebhookRequestAPIKey() (V1CreateWebhoo
 
 // FromV1CreateWebhookRequestAPIKey overwrites any union data inside the V1CreateWebhookRequest as the provided V1CreateWebhookRequestAPIKey
 func (t *V1CreateWebhookRequest) FromV1CreateWebhookRequestAPIKey(v V1CreateWebhookRequestAPIKey) error {
-	v.AuthType = "API_KEY"
 	b, err := json.Marshal(v)
 	t.union = b
 	return err
@@ -2781,7 +2781,6 @@ func (t *V1CreateWebhookRequest) FromV1CreateWebhookRequestAPIKey(v V1CreateWebh
 
 // MergeV1CreateWebhookRequestAPIKey performs a merge with any union data inside the V1CreateWebhookRequest, using the provided V1CreateWebhookRequestAPIKey
 func (t *V1CreateWebhookRequest) MergeV1CreateWebhookRequestAPIKey(v V1CreateWebhookRequestAPIKey) error {
-	v.AuthType = "API_KEY"
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err
@@ -2801,7 +2800,6 @@ func (t V1CreateWebhookRequest) AsV1CreateWebhookRequestHMAC() (V1CreateWebhookR
 
 // FromV1CreateWebhookRequestHMAC overwrites any union data inside the V1CreateWebhookRequest as the provided V1CreateWebhookRequestHMAC
 func (t *V1CreateWebhookRequest) FromV1CreateWebhookRequestHMAC(v V1CreateWebhookRequestHMAC) error {
-	v.AuthType = "HMAC"
 	b, err := json.Marshal(v)
 	t.union = b
 	return err
@@ -2809,7 +2807,6 @@ func (t *V1CreateWebhookRequest) FromV1CreateWebhookRequestHMAC(v V1CreateWebhoo
 
 // MergeV1CreateWebhookRequestHMAC performs a merge with any union data inside the V1CreateWebhookRequest, using the provided V1CreateWebhookRequestHMAC
 func (t *V1CreateWebhookRequest) MergeV1CreateWebhookRequestHMAC(v V1CreateWebhookRequestHMAC) error {
-	v.AuthType = "HMAC"
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err
@@ -2818,31 +2815,6 @@ func (t *V1CreateWebhookRequest) MergeV1CreateWebhookRequestHMAC(v V1CreateWebho
 	merged, err := runtime.JsonMerge(t.union, b)
 	t.union = merged
 	return err
-}
-
-func (t V1CreateWebhookRequest) Discriminator() (string, error) {
-	var discriminator struct {
-		Discriminator string `json:"authType"`
-	}
-	err := json.Unmarshal(t.union, &discriminator)
-	return discriminator.Discriminator, err
-}
-
-func (t V1CreateWebhookRequest) ValueByDiscriminator() (interface{}, error) {
-	discriminator, err := t.Discriminator()
-	if err != nil {
-		return nil, err
-	}
-	switch discriminator {
-	case "API_KEY":
-		return t.AsV1CreateWebhookRequestAPIKey()
-	case "BASIC":
-		return t.AsV1CreateWebhookRequestBasicAuth()
-	case "HMAC":
-		return t.AsV1CreateWebhookRequestHMAC()
-	default:
-		return nil, errors.New("unknown discriminator value: " + discriminator)
-	}
 }
 
 func (t V1CreateWebhookRequest) MarshalJSON() ([]byte, error) {

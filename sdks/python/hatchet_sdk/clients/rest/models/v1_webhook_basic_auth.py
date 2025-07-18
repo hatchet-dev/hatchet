@@ -28,12 +28,8 @@ class V1WebhookBasicAuth(BaseModel):
     V1WebhookBasicAuth
     """  # noqa: E501
 
-    username: Optional[StrictStr] = Field(
-        default=None, description="The username for basic auth"
-    )
-    password: Optional[StrictStr] = Field(
-        default=None, description="The password for basic auth"
-    )
+    username: StrictStr = Field(description="The username for basic auth")
+    password: StrictStr = Field(description="The password for basic auth")
     __properties: ClassVar[List[str]] = ["username", "password"]
 
     model_config = ConfigDict(

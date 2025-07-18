@@ -19,42 +19,21 @@ import pprint
 import re  # noqa: F401
 from typing import Any, ClassVar, Dict, List, Optional, Set
 
-from pydantic import BaseModel, ConfigDict, Field, StrictStr
-from typing_extensions import Self
-
-from hatchet_sdk.clients.rest.models.v1_webhook_hmac_algorithm import (
-    V1WebhookHMACAlgorithm,
-)
-from hatchet_sdk.clients.rest.models.v1_webhook_hmac_encoding import (
-    V1WebhookHMACEncoding,
-)
+from pydantic import BaseModel, ConfigDict, Field
+from typing_extensions import Annotated, Self
 
 
-class V1WebhookHMACAuth(BaseModel):
+class V1ReplayedTasks(BaseModel):
     """
-    V1WebhookHMACAuth
+    V1ReplayedTasks
     """  # noqa: E501
 
-    algorithm: V1WebhookHMACAlgorithm = Field(
-        description="The HMAC algorithm to use for the webhook"
+    ids: Optional[
+        List[Annotated[str, Field(min_length=36, strict=True, max_length=36)]]
+    ] = Field(
+        default=None, description="The list of task external ids that were replayed"
     )
-    encoding: V1WebhookHMACEncoding = Field(
-        description="The encoding to use for the HMAC signature"
-    )
-    signature_header_name: StrictStr = Field(
-        description="The name of the header to use for the HMAC signature",
-        alias="signatureHeaderName",
-    )
-    signing_secret: StrictStr = Field(
-        description="The secret key used to sign the HMAC signature",
-        alias="signingSecret",
-    )
-    __properties: ClassVar[List[str]] = [
-        "algorithm",
-        "encoding",
-        "signatureHeaderName",
-        "signingSecret",
-    ]
+    __properties: ClassVar[List[str]] = ["ids"]
 
     model_config = ConfigDict(
         populate_by_name=True,
@@ -73,7 +52,7 @@ class V1WebhookHMACAuth(BaseModel):
 
     @classmethod
     def from_json(cls, json_str: str) -> Optional[Self]:
-        """Create an instance of V1WebhookHMACAuth from a JSON string"""
+        """Create an instance of V1ReplayedTasks from a JSON string"""
         return cls.from_dict(json.loads(json_str))
 
     def to_dict(self) -> Dict[str, Any]:
@@ -97,19 +76,12 @@ class V1WebhookHMACAuth(BaseModel):
 
     @classmethod
     def from_dict(cls, obj: Optional[Dict[str, Any]]) -> Optional[Self]:
-        """Create an instance of V1WebhookHMACAuth from a dict"""
+        """Create an instance of V1ReplayedTasks from a dict"""
         if obj is None:
             return None
 
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate(
-            {
-                "algorithm": obj.get("algorithm"),
-                "encoding": obj.get("encoding"),
-                "signatureHeaderName": obj.get("signatureHeaderName"),
-                "signingSecret": obj.get("signingSecret"),
-            }
-        )
+        _obj = cls.model_validate({"ids": obj.get("ids")})
         return _obj

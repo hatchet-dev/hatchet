@@ -26,7 +26,11 @@ import {
 import { useCallback, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { V1WebhookSourceName, V1WebhookAuthType } from '@/lib/api';
+import {
+  V1WebhookSourceName,
+  V1WebhookAuthType,
+  V1CreateWebhookRequest,
+} from '@/lib/api';
 import { Webhook } from 'lucide-react';
 import { Spinner } from '@/components/v1/ui/loading';
 import { SourceName } from './components/source-name';
@@ -51,6 +55,71 @@ export default function Webhooks() {
     </div>
   );
 }
+
+const buildWebhookPayload = (data: WebhookFormData): V1CreateWebhookRequest => {
+  switch (data.authType) {
+    case V1WebhookAuthType.BASIC:
+      if (!data.username || !data.password) {
+        throw new Error('Username and password are required for basic auth');
+      }
+
+      return {
+        sourceName: data.sourceName,
+        name: data.name,
+        eventKeyExpression: data.eventKeyExpression,
+        authType: data.authType,
+        auth: {
+          username: data.username,
+          password: data.password,
+        },
+      };
+    case V1WebhookAuthType.API_KEY:
+      if (!data.headerName || !data.apiKey) {
+        throw new Error(
+          'Header name and API key are required for API key auth',
+        );
+      }
+
+      return {
+        sourceName: data.sourceName,
+        name: data.name,
+        eventKeyExpression: data.eventKeyExpression,
+        authType: data.authType,
+        auth: {
+          headerName: data.headerName,
+          apiKey: data.apiKey,
+        },
+      };
+    case V1WebhookAuthType.HMAC:
+      if (
+        !data.algorithm ||
+        !data.encoding ||
+        !data.signatureHeaderName ||
+        !data.signingSecret
+      ) {
+        throw new Error(
+          'Algorithm, encoding, signature header name, and signing secret are required for HMAC auth',
+        );
+      }
+
+      return {
+        sourceName: data.sourceName,
+        name: data.name,
+        eventKeyExpression: data.eventKeyExpression,
+        authType: data.authType,
+        auth: {
+          algorithm: data.algorithm,
+          encoding: data.encoding,
+          signatureHeaderName: data.signatureHeaderName,
+          signingSecret: data.signingSecret,
+        },
+      };
+    default:
+      // eslint-disable-next-line no-case-declarations
+      const exhaustiveCheck: never = data.authType;
+      throw new Error(`Unhandled auth type: ${exhaustiveCheck}`);
+  }
+};
 
 const CreateWebhookModal = () => {
   const { mutations } = useWebhooks();
@@ -80,35 +149,9 @@ const CreateWebhookModal = () => {
 
   const onSubmit = useCallback(
     (data: WebhookFormData) => {
-      const webhookData: any = {
-        name: data.name,
-        sourceName: data.sourceName,
-        eventKeyExpression: data.eventKeyExpression,
-        authType: data.authType,
-      };
+      const payload = buildWebhookPayload(data);
 
-      webhookData.authType = data.authType;
-
-      if (data.authType === V1WebhookAuthType.BASIC) {
-        webhookData.auth = {
-          username: data.username,
-          password: data.password,
-        };
-      } else if (data.authType === V1WebhookAuthType.API_KEY) {
-        webhookData.auth = {
-          headerName: data.headerName,
-          apiKey: data.apiKey,
-        };
-      } else if (data.authType === V1WebhookAuthType.HMAC) {
-        webhookData.auth = {
-          algorithm: data.algorithm,
-          encoding: data.encoding,
-          signatureHeaderName: data.signatureHeaderName,
-          signingSecret: data.signingSecret,
-        };
-      }
-
-      createWebhook(webhookData, {
+      createWebhook(payload, {
         onSuccess: () => {
           setOpen(false);
           reset();

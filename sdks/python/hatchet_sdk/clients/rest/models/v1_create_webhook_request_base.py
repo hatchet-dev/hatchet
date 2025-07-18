@@ -22,7 +22,6 @@ from typing import Any, ClassVar, Dict, List, Optional, Set
 from pydantic import BaseModel, ConfigDict, Field, StrictStr
 from typing_extensions import Self
 
-from hatchet_sdk.clients.rest.models.v1_webhook_auth_type import V1WebhookAuthType
 from hatchet_sdk.clients.rest.models.v1_webhook_source_name import V1WebhookSourceName
 
 
@@ -39,16 +38,7 @@ class V1CreateWebhookRequestBase(BaseModel):
         description="The CEL expression to use for the event key. This is used to create the event key from the webhook payload.",
         alias="eventKeyExpression",
     )
-    auth_type: V1WebhookAuthType = Field(
-        description="The type of authentication to use for the webhook",
-        alias="authType",
-    )
-    __properties: ClassVar[List[str]] = [
-        "sourceName",
-        "name",
-        "eventKeyExpression",
-        "authType",
-    ]
+    __properties: ClassVar[List[str]] = ["sourceName", "name", "eventKeyExpression"]
 
     model_config = ConfigDict(
         populate_by_name=True,
@@ -103,7 +93,6 @@ class V1CreateWebhookRequestBase(BaseModel):
                 "sourceName": obj.get("sourceName"),
                 "name": obj.get("name"),
                 "eventKeyExpression": obj.get("eventKeyExpression"),
-                "authType": obj.get("authType"),
             }
         )
         return _obj

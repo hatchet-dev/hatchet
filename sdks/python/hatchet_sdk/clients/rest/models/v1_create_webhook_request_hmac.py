@@ -39,7 +39,10 @@ class V1CreateWebhookRequestHMAC(BaseModel):
         description="The CEL expression to use for the event key. This is used to create the event key from the webhook payload.",
         alias="eventKeyExpression",
     )
-    auth_type: StrictStr = Field(alias="authType")
+    auth_type: StrictStr = Field(
+        description="The type of authentication to use for the webhook",
+        alias="authType",
+    )
     auth: V1WebhookHMACAuth
     __properties: ClassVar[List[str]] = [
         "sourceName",

@@ -28,15 +28,11 @@ class V1WebhookAPIKeyAuth(BaseModel):
     V1WebhookAPIKeyAuth
     """  # noqa: E501
 
-    header_name: Optional[StrictStr] = Field(
-        default=None,
-        description="The name of the header to use for the API key",
-        alias="headerName",
+    header_name: StrictStr = Field(
+        description="The name of the header to use for the API key", alias="headerName"
     )
-    api_key: Optional[StrictStr] = Field(
-        default=None,
-        description="The API key to use for authentication",
-        alias="apiKey",
+    api_key: StrictStr = Field(
+        description="The API key to use for authentication", alias="apiKey"
     )
     __properties: ClassVar[List[str]] = ["headerName", "apiKey"]
 

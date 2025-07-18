@@ -1,18 +1,8 @@
 import { ColumnDef, Row } from '@tanstack/react-table';
-import { V1Webhook, V1WebhookAuthType, V1WebhookSourceName } from '@/lib/api';
+import { V1Webhook } from '@/lib/api';
 import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
-import { DotsVerticalIcon, GitHubLogoIcon } from '@radix-ui/react-icons';
-import {
-  Check,
-  Copy,
-  Key,
-  Loader,
-  ShieldCheck,
-  Trash2,
-  UserCheck,
-  Webhook,
-} from 'lucide-react';
-import { FaStripeS } from 'react-icons/fa';
+import { DotsVerticalIcon } from '@radix-ui/react-icons';
+import { Check, Copy, Loader, Trash2 } from 'lucide-react';
 import { Button } from '@/components/v1/ui/button';
 import {
   DropdownMenu,

@@ -8,7 +8,11 @@ import {
   SelectValue,
 } from '@/components/v1/ui/select';
 import { useForm } from 'react-hook-form';
-import { V1WebhookAuthType } from '@/lib/api';
+import {
+  V1WebhookAuthType,
+  V1WebhookHMACAlgorithm,
+  V1WebhookHMACEncoding,
+} from '@/lib/api';
 import { WebhookFormData } from '../hooks/use-webhooks';
 
 type BaseAuthMethodProps = {
@@ -106,7 +110,7 @@ const HMACAuth = ({ register, watch, setValue }: HMACAuthProps) => (
         </Label>
         <Select
           value={watch('algorithm')}
-          onValueChange={(value: 'SHA1' | 'SHA256' | 'SHA512' | 'MD5') =>
+          onValueChange={(value: V1WebhookHMACAlgorithm) =>
             setValue('algorithm', value)
           }
         >
@@ -128,7 +132,7 @@ const HMACAuth = ({ register, watch, setValue }: HMACAuthProps) => (
         </Label>
         <Select
           value={watch('encoding')}
-          onValueChange={(value: 'HEX' | 'BASE64' | 'BASE64URL') =>
+          onValueChange={(value: V1WebhookHMACEncoding) =>
             setValue('encoding', value)
           }
         >

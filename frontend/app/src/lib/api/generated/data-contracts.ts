@@ -900,60 +900,55 @@ export interface V1CreateWebhookRequestBase {
   name: string;
   /** The CEL expression to use for the event key. This is used to create the event key from the webhook payload. */
   eventKeyExpression: string;
-  /** The type of authentication to use for the webhook */
-  authType: V1WebhookAuthType;
 }
 
 export interface V1WebhookBasicAuth {
   /** The username for basic auth */
-  username?: string;
+  username: string;
   /** The password for basic auth */
-  password?: string;
+  password: string;
 }
 
 export type V1CreateWebhookRequestBasicAuth = V1CreateWebhookRequestBase & {
-  authType?: "BASIC";
+  /** The type of authentication to use for the webhook */
+  authType: "BASIC";
   auth: V1WebhookBasicAuth;
 };
 
 export interface V1WebhookAPIKeyAuth {
   /** The name of the header to use for the API key */
-  headerName?: string;
+  headerName: string;
   /** The API key to use for authentication */
-  apiKey?: string;
+  apiKey: string;
 }
 
 export type V1CreateWebhookRequestAPIKey = V1CreateWebhookRequestBase & {
-  authType?: "API_KEY";
+  /** The type of authentication to use for the webhook */
+  authType: "API_KEY";
   auth: V1WebhookAPIKeyAuth;
 };
 
 export interface V1WebhookHMACAuth {
   /** The HMAC algorithm to use for the webhook */
-  algorithm?: V1WebhookHMACAlgorithm;
+  algorithm: V1WebhookHMACAlgorithm;
   /** The encoding to use for the HMAC signature */
-  encoding?: V1WebhookHMACEncoding;
+  encoding: V1WebhookHMACEncoding;
   /** The name of the header to use for the HMAC signature */
-  signatureHeaderName?: string;
+  signatureHeaderName: string;
   /** The secret key used to sign the HMAC signature */
-  signingSecret?: string;
+  signingSecret: string;
 }
 
 export type V1CreateWebhookRequestHMAC = V1CreateWebhookRequestBase & {
-  authType?: "HMAC";
+  /** The type of authentication to use for the webhook */
+  authType: "HMAC";
   auth: V1WebhookHMACAuth;
 };
 
 export type V1CreateWebhookRequest =
-  | ({
-      authType: "BASIC";
-    } & V1CreateWebhookRequestBasicAuth)
-  | ({
-      authType: "API_KEY";
-    } & V1CreateWebhookRequestAPIKey)
-  | ({
-      authType: "HMAC";
-    } & V1CreateWebhookRequestHMAC);
+  | V1CreateWebhookRequestBasicAuth
+  | V1CreateWebhookRequestAPIKey
+  | V1CreateWebhookRequestHMAC;
 
 export interface APIMetaAuth {
   /**

@@ -4,6 +4,8 @@ import api, {
   queries,
   V1CreateWebhookRequest,
   V1WebhookAuthType,
+  V1WebhookHMACAlgorithm,
+  V1WebhookHMACEncoding,
   V1WebhookSourceName,
 } from '@/lib/api';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -18,7 +20,7 @@ export const useWebhooks = (onDeleteSuccess?: () => void) => {
 
   const { mutate: deleteWebhook, isPending: isDeletePending } = useMutation({
     mutationFn: async ({ webhookName }: { webhookName: string }) =>
-      await api.v1WebhookDelete(tenantId, webhookName),
+      api.v1WebhookDelete(tenantId, webhookName),
     onSuccess: async () => {
       if (onDeleteSuccess) {
         onDeleteSuccess();
@@ -33,7 +35,7 @@ export const useWebhooks = (onDeleteSuccess?: () => void) => {
 
   const { mutate: createWebhook, isPending: isCreatePending } = useMutation({
     mutationFn: async (webhookData: V1CreateWebhookRequest) =>
-      await api.v1WebhookCreate(tenantId, webhookData),
+      api.v1WebhookCreate(tenantId, webhookData),
     onSuccess: async () => {
       const queryKey = queries.v1Webhooks.list(tenantId).queryKey;
       await queryClient.invalidateQueries({
@@ -68,8 +70,8 @@ export const webhookFormSchema = z.object({
   headerName: z.string().optional(),
   apiKey: z.string().optional(),
   signingSecret: z.string().optional(),
-  algorithm: z.enum(['SHA1', 'SHA256', 'SHA512', 'MD5']).optional(),
-  encoding: z.enum(['HEX', 'BASE64', 'BASE64URL']).optional(),
+  algorithm: z.nativeEnum(V1WebhookHMACAlgorithm).optional(),
+  encoding: z.nativeEnum(V1WebhookHMACEncoding).optional(),
   signatureHeaderName: z.string().optional(),
 });
 
