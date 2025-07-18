@@ -181,7 +181,7 @@ func (c *ConcurrencyManager) loopCheckActive(ctx context.Context) {
 }
 
 func newConcurrencyRateLimiter(rateLimit int) *rate.Limiter {
-	if rateLimit <= 0 || rateLimit > 100 {
+	if rateLimit <= 0 {
 		rateLimit = 20
 	}
 
