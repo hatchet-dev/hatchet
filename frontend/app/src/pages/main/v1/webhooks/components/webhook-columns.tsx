@@ -6,6 +6,7 @@ import {
   Check,
   Copy,
   Key,
+  Loader,
   ShieldCheck,
   Trash2,
   UserCheck,
@@ -147,7 +148,7 @@ export const columns = (): ColumnDef<V1Webhook>[] => {
 };
 
 const WebhookActionsCell = ({ row }: { row: Row<V1Webhook> }) => {
-  const { mutations } = useWebhooks();
+  const { mutations } = useWebhooks(() => setIsDropdownOpen(false));
 
   const [isCopied, setIsCopied] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -158,11 +159,6 @@ const WebhookActionsCell = ({ row }: { row: Row<V1Webhook> }) => {
     navigator.clipboard.writeText(url);
     setIsCopied(true);
     setTimeout(() => setIsCopied(false), 1000);
-    setTimeout(() => setIsDropdownOpen(false), 400);
-  };
-
-  const handleDelete = (webhookName: string) => {
-    mutations.deleteWebhook({ webhookName });
     setTimeout(() => setIsDropdownOpen(false), 400);
   };
 
@@ -194,10 +190,15 @@ const WebhookActionsCell = ({ row }: { row: Row<V1Webhook> }) => {
           onClick={(e) => {
             e.stopPropagation();
             e.preventDefault();
-            handleDelete(row.original.name);
+            mutations.deleteWebhook({ webhookName: row.original.name });
           }}
+          disabled={mutations.isDeletePending}
         >
-          <Trash2 className="size-4" />
+          {mutations.isDeletePending ? (
+            <Loader className="size-4 animate-spin" />
+          ) : (
+            <Trash2 className="size-4" />
+          )}
           Delete
         </DropdownMenuItem>
       </DropdownMenuContent>
