@@ -1214,7 +1214,7 @@ export interface SemaphoreSlots {
    * @format uuid
    */
   workflowRunId: string;
-  status: StepRunStatus;
+  status?: StepRunStatus;
 }
 
 export interface RecentStepRuns {
@@ -1648,6 +1648,11 @@ export interface V1TaskSummary {
    */
   workflowVersionId?: string;
   workflowConfig?: object;
+  /**
+   * The external ID of the parent task.
+   * @format uuid
+   */
+  parentTaskExternalId?: string;
 }
 
 export interface V1DagChildren {
@@ -1696,6 +1701,16 @@ export interface V1TaskEventList {
     /** The attempt number of the task. */
     attempt?: number;
   }[];
+}
+
+export interface V1ReplayedTasks {
+  /** The list of task external ids that were replayed */
+  ids?: string[];
+}
+
+export interface V1CancelledTasks {
+  /** The list of task external ids that were cancelled */
+  ids?: string[];
 }
 
 export enum V1TaskStatus {
@@ -1959,4 +1974,30 @@ export interface V1UpdateFilterRequest {
   scope?: string;
   /** The payload for the filter */
   payload?: object;
+}
+
+export interface V1CELDebugRequest {
+  /** The CEL expression to evaluate */
+  expression: string;
+  /** The input, which simulates the workflow run input */
+  input: object;
+  /** The filter payload, which simulates a payload set on a previous-created filter */
+  filterPayload?: object;
+  /** Additional metadata, which simulates metadata that could be sent with an event or a workflow run */
+  additionalMetadata?: object;
+}
+
+export interface V1CELDebugResponse {
+  /** The status of the CEL evaluation */
+  status: V1CELDebugResponseStatus;
+  /** The result of the CEL expression evaluation, if successful */
+  output?: boolean;
+  /** The error message if the evaluation failed */
+  error?: string;
+}
+
+/** The status of the CEL evaluation */
+export enum V1CELDebugResponseStatus {
+  SUCCESS = 'SUCCESS',
+  ERROR = 'ERROR',
 }

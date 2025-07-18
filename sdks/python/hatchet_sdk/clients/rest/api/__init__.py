@@ -2,6 +2,7 @@
 
 # import apis into api package
 from hatchet_sdk.clients.rest.api.api_token_api import APITokenApi
+from hatchet_sdk.clients.rest.api.cel_api import CELApi
 from hatchet_sdk.clients.rest.api.default_api import DefaultApi
 from hatchet_sdk.clients.rest.api.event_api import EventApi
 from hatchet_sdk.clients.rest.api.filter_api import FilterApi

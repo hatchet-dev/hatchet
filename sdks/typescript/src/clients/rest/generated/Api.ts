@@ -84,13 +84,17 @@ import {
   UserLoginRequest,
   UserRegisterRequest,
   UserTenantMembershipsList,
+  V1CancelledTasks,
   V1CancelTaskRequest,
+  V1CELDebugRequest,
+  V1CELDebugResponse,
   V1CreateFilterRequest,
   V1DagChildren,
   V1EventList,
   V1Filter,
   V1FilterList,
   V1LogLineList,
+  V1ReplayedTasks,
   V1ReplayTaskRequest,
   V1TaskEventList,
   V1TaskPointMetrics,
@@ -215,12 +219,13 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @secure
    */
   v1TaskCancel = (tenant: string, data: V1CancelTaskRequest, params: RequestParams = {}) =>
-    this.request<void, APIErrors>({
+    this.request<V1CancelledTasks, APIErrors>({
       path: `/api/v1/stable/tenants/${tenant}/tasks/cancel`,
       method: 'POST',
       body: data,
       secure: true,
       type: ContentType.Json,
+      format: 'json',
       ...params,
     });
   /**
@@ -233,12 +238,13 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @secure
    */
   v1TaskReplay = (tenant: string, data: V1ReplayTaskRequest, params: RequestParams = {}) =>
-    this.request<void, APIErrors>({
+    this.request<V1ReplayedTasks, APIErrors>({
       path: `/api/v1/stable/tenants/${tenant}/tasks/replay`,
       method: 'POST',
       body: data,
       secure: true,
       type: ContentType.Json,
+      format: 'json',
       ...params,
     });
   /**
@@ -751,6 +757,25 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
     this.request<V1Filter, APIErrors>({
       path: `/api/v1/stable/tenants/${tenant}/filters/${v1Filter}`,
       method: 'PATCH',
+      body: data,
+      secure: true,
+      type: ContentType.Json,
+      format: 'json',
+      ...params,
+    });
+  /**
+   * @description Evaluate a CEL expression against provided input data.
+   *
+   * @tags CEL
+   * @name V1CelDebug
+   * @summary Debug a CEL expression
+   * @request POST:/api/v1/stable/tenants/{tenant}/cel/debug
+   * @secure
+   */
+  v1CelDebug = (tenant: string, data: V1CELDebugRequest, params: RequestParams = {}) =>
+    this.request<V1CELDebugResponse, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/cel/debug`,
+      method: 'POST',
       body: data,
       secure: true,
       type: ContentType.Json,
@@ -2845,6 +2870,22 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       path: `/api/v1/version`,
       method: 'GET',
       format: 'json',
+      ...params,
+    });
+  /**
+   * @description Get the prometheus metrics for the tenant
+   *
+   * @tags Tenant
+   * @name TenantGetPrometheusMetrics
+   * @summary Get prometheus metrics
+   * @request GET:/api/v1/tenants/{tenant}/prometheus-metrics
+   * @secure
+   */
+  tenantGetPrometheusMetrics = (tenant: string, params: RequestParams = {}) =>
+    this.request<EventSearch, APIErrors>({
+      path: `/api/v1/tenants/${tenant}/prometheus-metrics`,
+      method: 'GET',
+      secure: true,
       ...params,
     });
 }
