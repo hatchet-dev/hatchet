@@ -295,7 +295,7 @@ const CreateWebhookModal = () => {
 
           <div className="space-y-2">
             <Label htmlFor="sourceName" className="text-sm font-medium">
-              Source Type <span className="text-red-500">*</span>
+              Source <span className="text-red-500">*</span>
             </Label>
             <Select
               value={sourceName}
