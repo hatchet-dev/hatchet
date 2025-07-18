@@ -1,296 +1,206 @@
-import { ColumnDef } from '@tanstack/react-table';
-import { Badge } from '@/components/v1/ui/badge';
-import { Checkbox } from '@/components/v1/ui/checkbox';
-import { V1Event } from '@/lib/api';
+import { ColumnDef, Row } from '@tanstack/react-table';
+import { V1Webhook, V1WebhookAuthType, V1WebhookSourceName } from '@/lib/api';
+import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
+import { DotsVerticalIcon, GitHubLogoIcon } from '@radix-ui/react-icons';
+import {
+  Check,
+  Copy,
+  Key,
+  ShieldCheck,
+  Trash2,
+  UserCheck,
+  Webhook,
+} from 'lucide-react';
+import { FaStripeS } from 'react-icons/fa';
 import { Button } from '@/components/v1/ui/button';
 import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/v1/ui/popover';
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/v1/ui/dropdown-menu';
 import { useState } from 'react';
-import RelativeDate from '@/components/v1/molecules/relative-date';
-import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
-import { TaskRunsTable } from '../../workflow-runs-v1/components/task-runs-table';
+import { useWebhooks } from '../hooks/use-webhooks';
 
-export const columns = ({
-  onRowClick,
-}: {
-  onRowClick?: (row: V1Event) => void;
-  hoveredEventId: string | null;
-  setHoveredEventId: (id: string | null) => void;
-}): ColumnDef<V1Event>[] => {
+const SourceName = ({ sourceName }: { sourceName: V1WebhookSourceName }) => {
+  switch (sourceName) {
+    case V1WebhookSourceName.GENERIC:
+      return (
+        <span className="flex flex-row gap-x-2 items-center">
+          <Webhook className="size-4" />
+          Generic
+        </span>
+      );
+    case V1WebhookSourceName.GITHUB:
+      return (
+        <span className="flex flex-row gap-x-2 items-center">
+          <GitHubLogoIcon className="size-4" />
+          GitHub
+        </span>
+      );
+    case V1WebhookSourceName.STRIPE:
+      return (
+        <span className="flex flex-row gap-x-2 items-center">
+          <FaStripeS className="size-4" />
+          GitHub
+        </span>
+      );
+
+    default:
+      // eslint-disable-next-line no-case-declarations
+      const exhaustiveCheck: never = sourceName;
+      throw new Error(`Unhandled source: ${exhaustiveCheck}`);
+  }
+};
+
+const AuthMethod = ({ authMethod }: { authMethod: V1WebhookAuthType }) => {
+  switch (authMethod) {
+    case V1WebhookAuthType.BASIC:
+      return (
+        <span className="flex flex-row gap-x-2 items-center">
+          <UserCheck className="size-4" />
+          Basic
+        </span>
+      );
+    case V1WebhookAuthType.API_KEY:
+      return (
+        <span className="flex flex-row gap-x-2 items-center">
+          <Key className="size-4" />
+          API Key
+        </span>
+      );
+    case V1WebhookAuthType.HMAC:
+      return (
+        <span className="flex flex-row gap-x-2 items-center">
+          <ShieldCheck className="size-4" />
+          HMAC
+        </span>
+      );
+
+    default:
+      // eslint-disable-next-line no-case-declarations
+      const exhaustiveCheck: never = authMethod;
+      throw new Error(`Unhandled auth method: ${exhaustiveCheck}`);
+  }
+};
+
+export const columns = (): ColumnDef<V1Webhook>[] => {
   return [
     {
-      id: 'select',
-      header: ({ table }) => (
-        <Checkbox
-          checked={
-            table.getIsAllPageRowsSelected() ||
-            (table.getIsSomePageRowsSelected() && 'indeterminate')
-          }
-          onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
-          aria-label="Select all"
-          className="translate-y-[2px]"
-        />
-      ),
-      cell: ({ row }) => (
-        <Checkbox
-          checked={row.getIsSelected()}
-          onCheckedChange={(value) => row.toggleSelected(!!value)}
-          aria-label="Select row"
-          className="translate-y-[2px]"
-        />
-      ),
-      enableSorting: false,
-      enableHiding: false,
-    },
-    {
-      accessorKey: 'EventId',
+      accessorKey: 'name',
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Event Id" />
+        <DataTableColumnHeader column={column} title="Name" />
       ),
-      cell: ({ row }) => (
-        <div className="w-full">{row.original.metadata.id}</div>
-      ),
+      cell: ({ row }) => <div className="w-full">{row.original.name}</div>,
       enableSorting: false,
       enableHiding: true,
     },
     {
-      accessorKey: 'key',
+      accessorKey: 'sourceName',
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Event" />
+        <DataTableColumnHeader column={column} title="Source" />
       ),
       cell: ({ row }) => (
         <div className="w-full">
-          <Button
-            className="w-fit cursor-pointer pl-0"
-            variant="link"
-            onClick={() => {
-              onRowClick?.(row.original);
-            }}
-          >
-            {row.getValue('key')}
-          </Button>
+          <SourceName sourceName={row.original.sourceName} />
         </div>
       ),
       enableSorting: false,
-      enableHiding: false,
+      enableHiding: true,
     },
     {
-      accessorKey: 'Seen at',
+      accessorKey: 'expression',
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Seen at" />
+        <DataTableColumnHeader column={column} title="Expression" />
       ),
-      cell: ({ row }) => {
-        return (
-          <div>
-            <RelativeDate date={row.original.metadata.createdAt} />
-          </div>
-        );
-      },
-    },
-    // empty columns to get column filtering to work properly
-    {
-      accessorKey: 'workflows',
-      header: () => <></>,
-      cell: () => {
-        return <div></div>;
-      },
-    },
-    {
-      accessorKey: 'status',
-      header: () => <></>,
-      cell: () => {
-        return <div></div>;
-      },
-    },
-    {
-      accessorKey: 'Runs',
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Runs" />
+      cell: ({ row }) => (
+        <code className="bg-muted relative rounded px-2 py-1 font-mono text-xs h-full">
+          {row.original.eventKeyExpression}
+        </code>
       ),
-      cell: ({ row }) => {
-        if (!row.original.workflowRunSummary) {
-          return <div>None</div>;
-        }
-
-        return <WorkflowRunSummary event={row.original} />;
-      },
-    },
-    {
-      accessorKey: 'scope',
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Scope" />
-      ),
-      cell: ({ row }) => <div className="w-full">{row.getValue('scope')}</div>,
       enableSorting: false,
       enableHiding: true,
-    }, // {
-    //   id: "actions",
-    //   cell: ({ row }) => <DataTableRowActions row={row} labels={[]} />,
-    // },
+    },
+    {
+      accessorKey: 'authType',
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title="Auth Method" />
+      ),
+      cell: ({ row }) => (
+        <div className="w-full">
+          <AuthMethod authMethod={row.original.authType} />
+        </div>
+      ),
+      enableSorting: false,
+      enableHiding: true,
+    },
+    {
+      accessorKey: 'actions',
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title="" />
+      ),
+      cell: ({ row }) => <WebhookActionsCell row={row} />,
+      enableSorting: false,
+      enableHiding: true,
+    },
   ];
 };
 
-// eslint-disable-next-line react-refresh/only-export-components
-function WorkflowRunSummary({ event }: { event: V1Event }) {
-  const [hoverCardOpen, setPopoverOpen] = useState<
-    'failed' | 'succeeded' | 'running' | 'queued' | 'cancelled'
-  >();
+const WebhookActionsCell = ({ row }: { row: Row<V1Webhook> }) => {
+  const { mutations } = useWebhooks();
 
-  const numFailed = event.workflowRunSummary?.failed || 0;
-  const numSucceeded = event.workflowRunSummary?.succeeded || 0;
-  const numRunning = event.workflowRunSummary?.running || 0;
-  const numCancelled = event.workflowRunSummary?.cancelled || 0;
-  const numQueued = event.workflowRunSummary?.queued || 0;
+  const [isCopied, setIsCopied] = useState(false);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
-  const hoverCardContent = (
-    <div className="min-w-fit z-40 p-4 bg-white/10 rounded">
-      <TaskRunsTable
-        triggeringEventExternalId={event.metadata.id}
-        showCounts={false}
-        showMetrics={false}
-        showDateFilter={false}
-        showTriggerRunButton={false}
-        headerClassName="bg-slate-700"
-      />
-    </div>
-  );
+  const webhookUrl = `${window.location.protocol}//${window.location.hostname}/api/v1/stable/tenants/${row.original.tenantId}/webhooks/${row.original.name}`;
+
+  const handleCopy = (url: string) => {
+    navigator.clipboard.writeText(url);
+    setIsCopied(true);
+    setTimeout(() => setIsCopied(false), 1000);
+    setTimeout(() => setIsDropdownOpen(false), 400);
+  };
+
+  const handleDelete = (webhookName: string) => {
+    mutations.deleteWebhook({ webhookName });
+    setTimeout(() => setIsDropdownOpen(false), 400);
+  };
 
   return (
-    <div className="flex flex-row gap-2 items-center justify-start">
-      {numFailed > 0 && (
-        <Popover
-          open={hoverCardOpen == 'failed'}
-          // open={true}
-          onOpenChange={(open) => {
-            if (!open) {
-              setPopoverOpen(undefined);
-            }
+    <DropdownMenu open={isDropdownOpen} onOpenChange={setIsDropdownOpen}>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" className="h-8 w-8 p-0 hover:bg-muted/50">
+          <DotsVerticalIcon className="h-4 w-4 text-muted-foreground cursor-pointer" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuItem
+          className="flex flex-row gap-x-2"
+          onClick={(e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            handleCopy(webhookUrl);
           }}
         >
-          <PopoverTrigger>
-            <Badge
-              variant="failed"
-              className="cursor-pointer"
-              onClick={() => setPopoverOpen('failed')}
-            >
-              {numFailed} Failed
-            </Badge>
-          </PopoverTrigger>
-          <PopoverContent
-            className="min-w-fit p-0 bg-background border-none z-40"
-            align="end"
-          >
-            {hoverCardContent}
-          </PopoverContent>
-        </Popover>
-      )}
-      {numSucceeded > 0 && (
-        <Popover
-          open={hoverCardOpen == 'succeeded'}
-          onOpenChange={(open) => {
-            if (!open) {
-              setPopoverOpen(undefined);
-            }
+          {isCopied ? (
+            <Check className="h-4 w-4 text-green-600" />
+          ) : (
+            <Copy className="size-4" />
+          )}
+          Copy Webhook URL
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          className="flex flex-row gap-x-2"
+          onClick={(e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            handleDelete(row.original.name);
           }}
         >
-          <PopoverTrigger>
-            <Badge
-              variant="successful"
-              className="cursor-pointer"
-              onClick={() => setPopoverOpen('succeeded')}
-            >
-              {numSucceeded} Succeeded
-            </Badge>
-          </PopoverTrigger>
-          <PopoverContent
-            className="min-w-fit p-0 bg-background border-none z-40"
-            align="end"
-          >
-            {hoverCardContent}
-          </PopoverContent>
-        </Popover>
-      )}
-      {numRunning > 0 && (
-        <Popover
-          open={hoverCardOpen == 'running'}
-          onOpenChange={(open) => {
-            if (!open) {
-              setPopoverOpen(undefined);
-            }
-          }}
-        >
-          <PopoverTrigger>
-            <Badge
-              variant="inProgress"
-              className="cursor-pointer"
-              onClick={() => setPopoverOpen('running')}
-            >
-              {numRunning} Running
-            </Badge>
-          </PopoverTrigger>
-          <PopoverContent
-            className="min-w-fit p-0 bg-background border-none z-40"
-            align="end"
-          >
-            {hoverCardContent}
-          </PopoverContent>
-        </Popover>
-      )}
-      {numCancelled > 0 && (
-        <Popover
-          open={hoverCardOpen == 'cancelled'}
-          onOpenChange={(open) => {
-            if (!open) {
-              setPopoverOpen(undefined);
-            }
-          }}
-        >
-          <PopoverTrigger>
-            <Badge
-              variant="inProgress"
-              className="cursor-pointer"
-              onClick={() => setPopoverOpen('cancelled')}
-            >
-              {numCancelled} Cancelled
-            </Badge>
-          </PopoverTrigger>
-          <PopoverContent
-            className="min-w-fit p-0 bg-background border-none z-40"
-            align="end"
-          >
-            {hoverCardContent}
-          </PopoverContent>
-        </Popover>
-      )}
-      {numQueued > 0 && (
-        <Popover
-          open={hoverCardOpen == 'queued'}
-          onOpenChange={(open) => {
-            if (!open) {
-              setPopoverOpen(undefined);
-            }
-          }}
-        >
-          <PopoverTrigger>
-            <Badge
-              variant="inProgress"
-              className="cursor-pointer"
-              onClick={() => setPopoverOpen('queued')}
-            >
-              {numQueued} Queued
-            </Badge>
-          </PopoverTrigger>
-          <PopoverContent
-            className="min-w-fit p-0 bg-background border-none z-40"
-            align="end"
-          >
-            {hoverCardContent}
-          </PopoverContent>
-        </Popover>
-      )}
-    </div>
+          <Trash2 className="size-4" />
+          Delete
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
-}
+};
