@@ -11,10 +11,10 @@ Webhooks allow external systems to trigger Hatchet workflows by sending HTTP req
 
 To create a webhook, you'll need to fill out some fields that tell Hatchet how to determine which workflows to trigger from your webhook, and how to validate it when it arrives from the sender. In particular, you'll need to provide the following fields:
 
-
 #### Name
 
 The **Webhook Name** is tenant-unique (meaning a single tenant can only use each name once), and is used to create the URL for where the incoming webhook request should be sent. For instance, if your tenant id was `d60181b7-da6c-4d4c-92ec-8aa0fc74b3e5` and your webhook name was `my-webhook`, then the URL might look like `https://cloud.onhatchet.run/api/v1/stable/tenants/d60181b7-da6c-4d4c-92ec-8aa0fc74b3e5/webhooks/my-webhook`. Note that you can copy this URL in the dashboard.
+
 #### Source
 
 The **Source** indicates the source of the webhook, which can be a pre-provided for easy setup one like Stripe or Github, or a "generic" one, which lets you configure all of the necessary fields for your webhook integration based on what the webhook sender provides.
@@ -24,7 +24,11 @@ The **Source** indicates the source of the webhook, which can be a pre-provided 
 The **Event Key Expression** is a [CEL](https://cel.dev/) expression that you can use to create a dynamic event key from the payload of the incoming webhook. You can either set this to a constant value, like `webhook`, or you could set it to something like `'stripe:' + input.type`, where `'stripe:'` is a prefix for all keys indicating the webhook came from Stripe, and `input.type` selects the `type` field off of the webhook payload and uses it to create the final event key, which would look something like `stripe:payment_intent.created`.
 
 <Callout type="info">
-The result of the event key expression is what Hatchet will use as the event key, so you'd need to set a matching event key as a trigger on your workflows in order to trigger them from the webhooks you create. For instance, you might add `on_events=["stripe:payment_intent.created"]` to listen for payment intent created events in the previous example.
+  The result of the event key expression is what Hatchet will use as the event
+  key, so you'd need to set a matching event key as a trigger on your workflows
+  in order to trigger them from the webhooks you create. For instance, you might
+  add `on_events=["stripe:payment_intent.created"]` to listen for payment intent
+  created events in the previous example.
 </Callout>
 
 #### Authentication
@@ -34,7 +38,7 @@ Finally, you'll need to specify how Hatchet should authenticate incoming webhook
 If you're using a generic source, then you'll need to specify an authentication method (either basic auth, an API key, HMAC-based auth), and provide the required fields (such as a username and password in the basic auth case).
 
 <Callout type="warning">
-Hatchet encrypts any secrets you provide for validating incoming webhooks.
+  Hatchet encrypts any secrets you provide for validating incoming webhooks.
 </Callout>
 
 ## Usage
@@ -44,4 +48,3 @@ While you're creating your webhook (and also after you've created it), you can c
 Once you've done that, the last thing to do is register the event keys you want your workers to listen for so that they can be triggered by incoming webhooks.
 
 -- TODO EXAMPLE HERE
-
