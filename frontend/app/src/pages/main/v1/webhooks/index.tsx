@@ -68,11 +68,10 @@ const CreateWebhookModal = () => {
     resolver: zodResolver(webhookFormSchema),
     defaultValues: {
       sourceName: V1WebhookSourceName.GENERIC,
-      authType: V1WebhookAuthType.HMAC,
+      authType: V1WebhookAuthType.BASIC,
       eventKeyExpression: 'body.id',
-      algorithm: 'SHA256',
-      encoding: 'HEX',
-      signatureHeaderName: 'X-Signature',
+      username: '',
+      password: '',
     },
   });
 
