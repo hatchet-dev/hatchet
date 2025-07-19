@@ -556,7 +556,6 @@ func (s *DispatcherImpl) sendStepActionEventV1(ctx context.Context, request *con
 
 	if request.EventType == contracts.StepActionEventType_STEP_EVENT_TYPE_COMPLETED {
 		if err := repository.ValidateJSONB([]byte(request.EventPayload), "taskOutput"); err != nil {
-			fmt.Println("Invalid JSONB payload for task output:", err)
 			request.EventPayload = err.Error()
 			request.EventType = contracts.StepActionEventType_STEP_EVENT_TYPE_FAILED
 		}
