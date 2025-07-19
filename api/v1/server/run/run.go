@@ -41,6 +41,7 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	"golang.org/x/time/rate"
 )
 
 type apiService struct {
@@ -492,6 +493,11 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 		loggerMiddleware,
 		middleware.Recover(),
 		allHatchetMiddleware,
+		hatchetmiddleware.WebhookRateLimitMiddleware(
+			rate.Limit(t.config.Runtime.WebhookRateLimit),
+			t.config.Runtime.WebhookRateLimitBurst,
+			t.config.Logger,
+		),
 	)
 
 	return populatorMW, nil
