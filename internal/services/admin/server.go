@@ -369,13 +369,23 @@ func (a *AdminServiceImpl) ScheduleWorkflow(ctx context.Context, req *contracts.
 		additionalMetadata = []byte(*req.AdditionalMetadata)
 	}
 
+	if err := repository.ValidateJSONB(additionalMetadata, "additionalMetadata"); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "Invalid request: %s", err)
+	}
+
+	payloadBytes := []byte(req.Input)
+
+	if err := repository.ValidateJSONB(payloadBytes, "payload"); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "Invalid request: %s", err)
+	}
+
 	scheduledRef, err := a.repo.Workflow().CreateSchedules(
 		ctx,
 		tenantId,
 		workflowVersionId,
 		&repository.CreateWorkflowSchedulesOpts{
 			ScheduledTriggers:  dbSchedules,
-			Input:              []byte(req.Input),
+			Input:              payloadBytes,
 			AdditionalMetadata: additionalMetadata,
 			Priority:           req.Priority,
 		},

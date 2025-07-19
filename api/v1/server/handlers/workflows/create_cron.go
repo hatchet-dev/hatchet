@@ -1,6 +1,7 @@
 package workflows
 
 import (
+	"encoding/json"
 	"strings"
 
 	"github.com/labstack/echo/v4"
@@ -31,6 +32,26 @@ func (t *WorkflowService) CronWorkflowTriggerCreate(ctx echo.Context, request ge
 
 	if request.Body.Priority != nil {
 		priority = *request.Body.Priority
+	}
+
+	inputBytes, err := json.Marshal(request.Body.Input)
+
+	if err != nil {
+		return gen.CronWorkflowTriggerCreate400JSONResponse(apierrors.NewAPIErrors("invalid input format")), nil
+	}
+
+	if err := repository.ValidateJSONB(inputBytes, "input"); err != nil {
+		return gen.CronWorkflowTriggerCreate400JSONResponse(apierrors.NewAPIErrors(err.Error())), nil
+	}
+
+	additionalMetaBytes, err := json.Marshal(request.Body.AdditionalMetadata)
+
+	if err != nil {
+		return gen.CronWorkflowTriggerCreate400JSONResponse(apierrors.NewAPIErrors("invalid additional metadata format")), nil
+	}
+
+	if err := repository.ValidateJSONB(additionalMetaBytes, "additionalMetadata"); err != nil {
+		return gen.CronWorkflowTriggerCreate400JSONResponse(apierrors.NewAPIErrors(err.Error())), nil
 	}
 
 	cronTrigger, err := t.config.APIRepository.Workflow().CreateCronWorkflow(
