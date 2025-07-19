@@ -13,7 +13,13 @@ func (t *TasksService) V1TaskGet(ctx echo.Context, request gen.V1TaskGetRequestO
 	taskInterface := ctx.Get("task")
 
 	if taskInterface == nil {
-		return nil, echo.NewHTTPError(404, "Task not found")
+		return gen.V1TaskGet404JSONResponse{
+			Errors: []gen.APIError{
+				{
+					Description: "task not found",
+				},
+			},
+		}, nil
 	}
 
 	task, ok := taskInterface.(*sqlcv1.V1TasksOlap)

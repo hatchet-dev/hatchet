@@ -34,8 +34,6 @@ async def test_additional_metadata_propagation_sync(hatchet: Hatchet) -> None:
         additional_metadata={"test_run_id": test_run_id},
     )
 
-    print(runs.model_dump_json(indent=2))
-
     assert runs.rows
 
     """Assert that the additional metadata is propagated to the child runs."""

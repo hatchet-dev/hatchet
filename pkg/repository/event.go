@@ -33,6 +33,9 @@ type CreateEventOpts struct {
 
 	// (optional) the event scope
 	Scope *string `validate:"omitempty"`
+
+	// (optional) the triggering webhook name
+	TriggeringWebhookName *string `validate:"omitempty"`
 }
 
 type ListEventOpts struct {

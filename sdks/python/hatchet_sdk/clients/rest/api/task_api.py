@@ -21,8 +21,10 @@ from typing_extensions import Annotated
 from hatchet_sdk.clients.rest.api_client import ApiClient, RequestSerialized
 from hatchet_sdk.clients.rest.api_response import ApiResponse
 from hatchet_sdk.clients.rest.models.v1_cancel_task_request import V1CancelTaskRequest
+from hatchet_sdk.clients.rest.models.v1_cancelled_tasks import V1CancelledTasks
 from hatchet_sdk.clients.rest.models.v1_dag_children import V1DagChildren
 from hatchet_sdk.clients.rest.models.v1_replay_task_request import V1ReplayTaskRequest
+from hatchet_sdk.clients.rest.models.v1_replayed_tasks import V1ReplayedTasks
 from hatchet_sdk.clients.rest.models.v1_task_event_list import V1TaskEventList
 from hatchet_sdk.clients.rest.models.v1_task_point_metrics import V1TaskPointMetrics
 from hatchet_sdk.clients.rest.models.v1_task_run_metric import V1TaskRunMetric
@@ -361,7 +363,7 @@ class TaskApi:
         _content_type: Optional[StrictStr] = None,
         _headers: Optional[Dict[StrictStr, Any]] = None,
         _host_index: Annotated[StrictInt, Field(ge=0, le=0)] = 0,
-    ) -> None:
+    ) -> V1CancelledTasks:
         """Cancel tasks
 
         Cancel tasks
@@ -402,7 +404,7 @@ class TaskApi:
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            "200": None,
+            "200": "V1CancelledTasks",
             "400": "APIErrors",
             "403": "APIErrors",
             "404": "APIErrors",
@@ -440,7 +442,7 @@ class TaskApi:
         _content_type: Optional[StrictStr] = None,
         _headers: Optional[Dict[StrictStr, Any]] = None,
         _host_index: Annotated[StrictInt, Field(ge=0, le=0)] = 0,
-    ) -> ApiResponse[None]:
+    ) -> ApiResponse[V1CancelledTasks]:
         """Cancel tasks
 
         Cancel tasks
@@ -481,7 +483,7 @@ class TaskApi:
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            "200": None,
+            "200": "V1CancelledTasks",
             "400": "APIErrors",
             "403": "APIErrors",
             "404": "APIErrors",
@@ -560,7 +562,7 @@ class TaskApi:
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            "200": None,
+            "200": "V1CancelledTasks",
             "400": "APIErrors",
             "403": "APIErrors",
             "404": "APIErrors",
@@ -2003,7 +2005,7 @@ class TaskApi:
         _content_type: Optional[StrictStr] = None,
         _headers: Optional[Dict[StrictStr, Any]] = None,
         _host_index: Annotated[StrictInt, Field(ge=0, le=0)] = 0,
-    ) -> None:
+    ) -> V1ReplayedTasks:
         """Replay tasks
 
         Replay tasks
@@ -2044,7 +2046,7 @@ class TaskApi:
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            "200": None,
+            "200": "V1ReplayedTasks",
             "400": "APIErrors",
             "403": "APIErrors",
             "404": "APIErrors",
@@ -2082,7 +2084,7 @@ class TaskApi:
         _content_type: Optional[StrictStr] = None,
         _headers: Optional[Dict[StrictStr, Any]] = None,
         _host_index: Annotated[StrictInt, Field(ge=0, le=0)] = 0,
-    ) -> ApiResponse[None]:
+    ) -> ApiResponse[V1ReplayedTasks]:
         """Replay tasks
 
         Replay tasks
@@ -2123,7 +2125,7 @@ class TaskApi:
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            "200": None,
+            "200": "V1ReplayedTasks",
             "400": "APIErrors",
             "403": "APIErrors",
             "404": "APIErrors",
@@ -2202,7 +2204,7 @@ class TaskApi:
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            "200": None,
+            "200": "V1ReplayedTasks",
             "400": "APIErrors",
             "403": "APIErrors",
             "404": "APIErrors",

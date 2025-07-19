@@ -22,7 +22,8 @@ import (
 
 type Ingestor interface {
 	contracts.EventsServiceServer
-	IngestEvent(ctx context.Context, tenant *dbsqlc.Tenant, eventName string, data []byte, metadata []byte, priority *int32, scope *string) (*dbsqlc.Event, error)
+	IngestEvent(ctx context.Context, tenant *dbsqlc.Tenant, eventName string, data []byte, metadata []byte, priority *int32, scope, triggeringWebhookName *string) (*dbsqlc.Event, error)
+	IngestWebhookValidationFailure(ctx context.Context, tenant *dbsqlc.Tenant, webhookName, errorText string) error
 	BulkIngestEvent(ctx context.Context, tenant *dbsqlc.Tenant, eventOpts []*repository.CreateEventOpts) ([]*dbsqlc.Event, error)
 	IngestReplayedEvent(ctx context.Context, tenant *dbsqlc.Tenant, replayedEvent *dbsqlc.Event) (*dbsqlc.Event, error)
 }
@@ -163,15 +164,19 @@ func NewIngestor(fs ...IngestorOptFunc) (Ingestor, error) {
 	}, nil
 }
 
-func (i *IngestorImpl) IngestEvent(ctx context.Context, tenant *dbsqlc.Tenant, key string, data []byte, metadata []byte, priority *int32, scope *string) (*dbsqlc.Event, error) {
+func (i *IngestorImpl) IngestEvent(ctx context.Context, tenant *dbsqlc.Tenant, key string, data []byte, metadata []byte, priority *int32, scope, triggeringWebhookName *string) (*dbsqlc.Event, error) {
 	switch tenant.Version {
 	case dbsqlc.TenantMajorEngineVersionV0:
 		return i.ingestEventV0(ctx, tenant, key, data, metadata)
 	case dbsqlc.TenantMajorEngineVersionV1:
-		return i.ingestEventV1(ctx, tenant, key, data, metadata, priority, scope)
+		return i.ingestEventV1(ctx, tenant, key, data, metadata, priority, scope, triggeringWebhookName)
 	default:
 		return nil, fmt.Errorf("unsupported tenant version: %s", tenant.Version)
 	}
+}
+
+func (i *IngestorImpl) IngestWebhookValidationFailure(ctx context.Context, tenant *dbsqlc.Tenant, webhookName, errorText string) error {
+	return i.ingestWebhookValidationFailure(tenant.ID.String(), webhookName, errorText)
 }
 
 func (i *IngestorImpl) ingestEventV0(ctx context.Context, tenant *dbsqlc.Tenant, key string, data []byte, metadata []byte) (*dbsqlc.Event, error) {

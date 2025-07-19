@@ -54,6 +54,7 @@ type CreatedEventTriggerPayloadSingleton struct {
 	EventAdditionalMetadata []byte     `json:"event_additional_metadata,omitempty"`
 	EventScope              *string    `json:"event_scope,omitempty"`
 	FilterId                *string    `json:"filter_id,omitempty"`
+	TriggeringWebhookName   *string    `json:"triggering_webhook_name,omitempty"`
 }
 
 type CreatedEventTriggerPayload struct {
