@@ -220,6 +220,10 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         )
 
     @property
+    def input_validator(self) -> type[TWorkflowInput]:
+        return cast(type[TWorkflowInput], self.config.input_validator)
+
+    @property
     def tasks(self) -> list[Task[TWorkflowInput, Any]]:
         tasks = self._default_tasks + self._durable_tasks
 
