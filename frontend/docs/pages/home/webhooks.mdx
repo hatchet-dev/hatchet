@@ -17,7 +17,7 @@ The **Webhook Name** is tenant-unique (meaning a single tenant can only use each
 
 #### Source
 
-The **Source** indicates the source of the webhook, which can be a pre-provided for easy setup one like Stripe or Github, or a "generic" one, which lets you configure all of the necessary fields for your webhook integration based on what the webhook sender provides.
+The **Source** indicates the source of the webhook, which can be a pre-provided one for easy setup like Stripe or Github, or a "generic" one, which lets you configure all of the necessary fields for your webhook integration based on what the webhook sender provides.
 
 #### Event Key Expression
 
@@ -41,10 +41,18 @@ If you're using a generic source, then you'll need to specify an authentication 
   Hatchet encrypts any secrets you provide for validating incoming webhooks.
 </Callout>
 
+The different authentication methods require different fields to be provided:
+
+- **Pre-configured sources** (Stripe, GitHub): Only require a webhook secret
+- **Generic sources** require different fields depending on the selected authentication method:
+  - **Basic Auth**: Requires a username and password
+  - **API Key**: Requires header name containing the key on incoming requests, and secret key itself
+  - **HMAC**: Requires a header name containing the secret on incoming requests, the secret itself, an encoding method (e.g. hex, base64), and an algorithm (e.g. `SHA256`, `SHA1`, etc.).
+
 ## Usage
 
 While you're creating your webhook (and also after you've created it), you can copy the webhook URL, which is what you'll provide to the webhook _sender_.
 
 Once you've done that, the last thing to do is register the event keys you want your workers to listen for so that they can be triggered by incoming webhooks.
 
--- TODO EXAMPLE HERE
+For examples on how to do this, see the [documentation on event triggers](./run-on-event.mdx).
