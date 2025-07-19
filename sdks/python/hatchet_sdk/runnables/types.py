@@ -14,7 +14,7 @@ from hatchet_sdk.utils.typing import AwaitableLike, JSONSerializableMapping
 
 ValidTaskReturnType = BaseModel | JSONSerializableMapping | None
 
-R = TypeVar("R", bound=ValidTaskReturnType)
+R = TypeVar("R", bound=ValidTaskReturnType, covariant=True)
 P = ParamSpec("P")
 
 
@@ -56,7 +56,7 @@ class ConcurrencyExpression(BaseModel):
         )
 
 
-TWorkflowInput = TypeVar("TWorkflowInput", bound=BaseModel)
+TWorkflowInput = TypeVar("TWorkflowInput", bound=BaseModel, covariant=True)
 
 
 class TaskDefaults(BaseModel):
