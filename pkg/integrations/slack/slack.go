@@ -66,7 +66,6 @@ func (s *SlackIntegration) createChannel(ctx context.Context, data *CreateChanne
 		ChannelName: data.ChannelName,
 		TeamID:      s.teamId,
 	})
-
 	if err != nil {
 		return nil, fmt.Errorf("error creating slack channel: %w", err)
 	}
@@ -85,7 +84,6 @@ type AddUsersToChannelOutput struct{}
 
 func (s *SlackIntegration) addUsersToChannel(ctx context.Context, data *AddUsersToChannelData) error {
 	_, err := s.api.InviteUsersToConversation(data.ChannelID, data.UserIDs...)
-
 	if err != nil {
 		return fmt.Errorf("error adding users to slack channel: %w", err)
 	}
@@ -100,7 +98,6 @@ type SendMessageToChannelData struct {
 
 func (s *SlackIntegration) sendMessageToChannel(ctx context.Context, data *SendMessageToChannelData) error {
 	_, _, err := s.api.PostMessage(data.ChannelID, slack.MsgOptionText(data.Message, false))
-
 	if err != nil {
 		return fmt.Errorf("error sending message to slack channel: %w", err)
 	}

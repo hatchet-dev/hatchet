@@ -23,7 +23,6 @@ func (t *WorkflowService) CronWorkflowTriggerCreate(ctx echo.Context, request ge
 	}
 
 	workflow, err := t.config.EngineRepository.Workflow().GetWorkflowByName(ctx.Request().Context(), tenantId, request.Workflow)
-
 	if err != nil {
 		return gen.CronWorkflowTriggerCreate400JSONResponse(apierrors.NewAPIErrors("workflow not found")), nil
 	}
@@ -35,7 +34,6 @@ func (t *WorkflowService) CronWorkflowTriggerCreate(ctx echo.Context, request ge
 	}
 
 	inputBytes, err := json.Marshal(request.Body.Input)
-
 	if err != nil {
 		return gen.CronWorkflowTriggerCreate400JSONResponse(apierrors.NewAPIErrors("invalid input format")), nil
 	}
@@ -45,7 +43,6 @@ func (t *WorkflowService) CronWorkflowTriggerCreate(ctx echo.Context, request ge
 	}
 
 	additionalMetaBytes, err := json.Marshal(request.Body.AdditionalMetadata)
-
 	if err != nil {
 		return gen.CronWorkflowTriggerCreate400JSONResponse(apierrors.NewAPIErrors("invalid additional metadata format")), nil
 	}
@@ -64,7 +61,6 @@ func (t *WorkflowService) CronWorkflowTriggerCreate(ctx echo.Context, request ge
 			Priority:           &priority,
 		},
 	)
-
 	if err != nil {
 		if strings.Contains(err.Error(), "unique constraint") {
 			return gen.CronWorkflowTriggerCreate400JSONResponse(apierrors.NewAPIErrors("cron trigger with that name-expression pair already exists")), nil

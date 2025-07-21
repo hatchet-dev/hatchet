@@ -46,7 +46,7 @@ func TestWebhook(t *testing.T) {
 					Description: workflow,
 					Steps: []*worker.WorkflowStep{
 						worker.Fn(func(ctx worker.HatchetContext) (*output, error) {
-							//verifyStepRuns(client, c.TenantId(), db.JobRunStatusRunning, db.StepRunStatusRunning, nil)
+							// verifyStepRuns(client, c.TenantId(), db.JobRunStatusRunning, db.StepRunStatusRunning, nil)
 
 							events <- "webhook-step-one"
 
@@ -65,7 +65,7 @@ func TestWebhook(t *testing.T) {
 
 							events <- "webhook-step-two"
 
-							//verifyStepRuns(client, c.TenantId(), db.JobRunStatusRunning, db.StepRunStatusRunning, nil)
+							// verifyStepRuns(client, c.TenantId(), db.JobRunStatusRunning, db.StepRunStatusRunning, nil)
 
 							return &output{
 								Message: "hi from " + ctx.StepName(),
@@ -198,7 +198,7 @@ func TestWebhook(t *testing.T) {
 					Description: workflow,
 					Steps: []*worker.WorkflowStep{
 						worker.Fn(func(ctx worker.HatchetContext) (*output, error) {
-							//verifyStepRuns(client, c.TenantId(), db.JobRunStatusRunning, db.StepRunStatusRunning, nil)
+							// verifyStepRuns(client, c.TenantId(), db.JobRunStatusRunning, db.StepRunStatusRunning, nil)
 
 							events <- "wha-webhook-step-one"
 
@@ -217,7 +217,7 @@ func TestWebhook(t *testing.T) {
 
 							events <- "wha-webhook-step-two"
 
-							//verifyStepRuns(client, c.TenantId(), db.JobRunStatusRunning, db.StepRunStatusRunning, nil)
+							// verifyStepRuns(client, c.TenantId(), db.JobRunStatusRunning, db.StepRunStatusRunning, nil)
 
 							return &output{
 								Message: "hi from " + ctx.StepName(),

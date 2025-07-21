@@ -23,7 +23,6 @@ type OnFailureSuccessResult struct {
 }
 
 func OnFailure(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[any, OnFailureSuccessResult] {
-
 	simple := factory.NewWorkflow[any, OnFailureSuccessResult](
 		create.WorkflowCreateOpts[any]{
 			Name: "on-failure",

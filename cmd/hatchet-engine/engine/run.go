@@ -63,7 +63,6 @@ func init() {
 		TraceIdRatio: traceIdRatio,
 		Insecure:     insecureBool,
 	})
-
 	if err != nil {
 		panic(fmt.Errorf("could not initialize tracer: %w", err))
 	}
@@ -75,10 +74,9 @@ func Run(ctx context.Context, cf *loader.ConfigLoader, version string) error {
 		return fmt.Errorf("could not load server config: %w", err)
 	}
 
-	var l = server.Logger
+	l := server.Logger
 
 	teardown, err := RunWithConfig(ctx, server)
-
 	if err != nil {
 		return fmt.Errorf("could not run with config: %w", err)
 	}
@@ -105,7 +103,6 @@ func Run(ctx context.Context, cf *loader.ConfigLoader, version string) error {
 	for i, t := range teardown {
 		l.Debug().Msgf("shutting down %s (%d/%d)", t.Name, i+1, len(teardown))
 		err := t.Fn()
-
 		if err != nil {
 			return fmt.Errorf("could not teardown %s: %w", t.Name, err)
 		}
@@ -129,7 +126,7 @@ func RunWithConfig(ctx context.Context, sc *server.ServerConfig) ([]Teardown, er
 }
 
 func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, error) {
-	var l = sc.Logger
+	l := sc.Logger
 
 	shutdown, err := telemetry.InitTracer(&telemetry.TracerOpts{
 		ServiceName:  sc.OpenTelemetry.ServiceName,
@@ -148,7 +145,6 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 	}
 
 	p, err := partition.NewPartition(l, sc.EngineRepository.Tenant())
-
 	if err != nil {
 		return nil, fmt.Errorf("could not create partitioner: %w", err)
 	}
@@ -208,7 +204,6 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 		})
 
 		schedulePartitionCleanup, err := p.StartSchedulerPartition(ctx)
-
 		if err != nil {
 			return nil, fmt.Errorf("could not create create scheduler partition: %w", err)
 		}
@@ -228,13 +223,11 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			scheduler.WithQueueLoggerConfig(&sc.AdditionalLoggers.Queue),
 			scheduler.WithSchedulerPool(sc.SchedulingPool),
 		)
-
 		if err != nil {
 			return nil, fmt.Errorf("could not create dispatcher: %w", err)
 		}
 
 		cleanup, err := s.Start()
-
 		if err != nil {
 			return nil, fmt.Errorf("could not start dispatcher: %w", err)
 		}
@@ -254,13 +247,11 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			schedulerv1.WithQueueLoggerConfig(&sc.AdditionalLoggers.Queue),
 			schedulerv1.WithSchedulerPool(sc.SchedulingPoolV1),
 		)
-
 		if err != nil {
 			return nil, fmt.Errorf("could not create scheduler (v1): %w", err)
 		}
 
 		cleanup, err = sv1.Start()
-
 		if err != nil {
 			return nil, fmt.Errorf("could not start scheduler (v1): %w", err)
 		}
@@ -281,7 +272,6 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			ticker.WithTenantAlerter(sc.TenantAlerter),
 			ticker.WithEntitlementsRepository(sc.EntitlementRepository),
 		)
-
 		if err != nil {
 			return nil, fmt.Errorf("could not create ticker: %w", err)
 		}
@@ -306,7 +296,6 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			jobs.WithQueueLoggerConfig(&sc.AdditionalLoggers.Queue),
 			jobs.WithPgxStatsLoggerConfig(&sc.AdditionalLoggers.PgxStats),
 		)
-
 		if err != nil {
 			return nil, fmt.Errorf("could not create jobs controller: %w", err)
 		}
@@ -351,13 +340,11 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			task.WithQueueLoggerConfig(&sc.AdditionalLoggers.Queue),
 			task.WithPgxStatsLoggerConfig(&sc.AdditionalLoggers.PgxStats),
 		)
-
 		if err != nil {
 			return nil, fmt.Errorf("could not create tasks controller: %w", err)
 		}
 
 		cleanupTasks, err := tasks.Start()
-
 		if err != nil {
 			return nil, fmt.Errorf("could not start tasks controller: %w", err)
 		}
@@ -377,13 +364,11 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			olap.WithSamplingConfig(sc.Sampling),
 			olap.WithOperationsConfig(sc.Operations),
 		)
-
 		if err != nil {
 			return nil, fmt.Errorf("could not create olap controller: %w", err)
 		}
 
 		cleanupOlap, err := olap.Start()
-
 		if err != nil {
 			return nil, fmt.Errorf("could not start olap controller: %w", err)
 		}
@@ -404,7 +389,6 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			retention.WithDataRetention(sc.EnableDataRetention),
 			retention.WithWorkerRetention(sc.EnableWorkerRetention),
 		)
-
 		if err != nil {
 			return nil, fmt.Errorf("could not create retention controller: %w", err)
 		}
@@ -434,7 +418,6 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			dispatcher.WithCache(cacheInstance),
 			dispatcher.WithPayloadSizeThreshold(sc.Runtime.GRPCMaxMsgSize),
 		)
-
 		if err != nil {
 			return nil, fmt.Errorf("could not create dispatcher: %w", err)
 		}
@@ -449,7 +432,6 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			dispatcherv1.WithMessageQueue(sc.MessageQueueV1),
 			dispatcherv1.WithLogger(sc.Logger),
 		)
-
 		if err != nil {
 			return nil, fmt.Errorf("could not create dispatcher (v1): %w", err)
 		}
@@ -472,7 +454,6 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			ingestor.WithRepositoryV1(sc.V1),
 			ingestor.WithLogIngestionEnabled(sc.Runtime.LogIngestionEnabled),
 		)
-
 		if err != nil {
 			return nil, fmt.Errorf("could not create ingestor: %w", err)
 		}
@@ -493,7 +474,6 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			adminv1.WithMessageQueue(sc.MessageQueueV1),
 			adminv1.WithEntitlementsRepository(sc.EntitlementRepository),
 		)
-
 		if err != nil {
 			return nil, fmt.Errorf("could not create admin service (v1): %w", err)
 		}
@@ -565,7 +545,6 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 
 	if sc.HasService("webhookscontroller") {
 		cleanup1, err := p.StartTenantWorkerPartition(ctx)
-
 		if err != nil {
 			return nil, fmt.Errorf("could not create rebalance controller partitions job: %w", err)
 		}
@@ -611,7 +590,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 }
 
 func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, error) {
-	var l = sc.Logger
+	l := sc.Logger
 
 	shutdown, err := telemetry.InitTracer(&telemetry.TracerOpts{
 		ServiceName:  sc.OpenTelemetry.ServiceName,
@@ -630,7 +609,6 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 	}
 
 	p, err := partition.NewPartition(l, sc.EngineRepository.Tenant())
-
 	if err != nil {
 		return nil, fmt.Errorf("could not create partitioner: %w", err)
 	}
@@ -647,7 +625,6 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 		h = health.New(sc.EngineRepository, sc.MessageQueue, sc.Version)
 
 		cleanup, err := h.Start(sc.Runtime.HealthcheckPort)
-
 		if err != nil {
 			return nil, fmt.Errorf("could not start health: %w", err)
 		}
@@ -660,7 +637,6 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 
 	if sc.HasService("all") || sc.HasService("controllers") {
 		partitionCleanup, err := p.StartControllerPartition(ctx)
-
 		if err != nil {
 			return nil, fmt.Errorf("could not create rebalance controller partitions job: %w", err)
 		}
@@ -681,7 +657,6 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 		}
 
 		cleanup, err := ec.Start()
-
 		if err != nil {
 			return nil, fmt.Errorf("could not start events controller: %w", err)
 		}
@@ -699,13 +674,11 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			ticker.WithTenantAlerter(sc.TenantAlerter),
 			ticker.WithEntitlementsRepository(sc.EntitlementRepository),
 		)
-
 		if err != nil {
 			return nil, fmt.Errorf("could not create ticker: %w", err)
 		}
 
 		cleanup, err = t.Start()
-
 		if err != nil {
 			return nil, fmt.Errorf("could not start ticker: %w", err)
 		}
@@ -724,13 +697,11 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			jobs.WithQueueLoggerConfig(&sc.AdditionalLoggers.Queue),
 			jobs.WithPgxStatsLoggerConfig(&sc.AdditionalLoggers.PgxStats),
 		)
-
 		if err != nil {
 			return nil, fmt.Errorf("could not create jobs controller: %w", err)
 		}
 
 		cleanupJobs, err := jc.Start()
-
 		if err != nil {
 			return nil, fmt.Errorf("could not start jobs controller: %w", err)
 		}
@@ -748,13 +719,11 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			workflows.WithTenantAlerter(sc.TenantAlerter),
 			workflows.WithPartition(p),
 		)
-
 		if err != nil {
 			return nil, fmt.Errorf("could not create workflows controller: %w", err)
 		}
 
 		cleanupWorkflows, err := wc.Start()
-
 		if err != nil {
 			return nil, fmt.Errorf("could not start workflows controller: %w", err)
 		}
@@ -773,13 +742,11 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			retention.WithDataRetention(sc.EnableDataRetention),
 			retention.WithWorkerRetention(sc.EnableWorkerRetention),
 		)
-
 		if err != nil {
 			return nil, fmt.Errorf("could not create retention controller: %w", err)
 		}
 
 		cleanupRetention, err := rc.Start()
-
 		if err != nil {
 			return nil, fmt.Errorf("could not start retention controller: %w", err)
 		}
@@ -802,13 +769,11 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 				task.WithOpsPoolJitter(sc.Operations),
 				task.WithReplayEnabled(sc.Runtime.ReplayEnabled),
 			)
-
 			if err != nil {
 				return nil, fmt.Errorf("could not create tasks controller: %w", err)
 			}
 
 			cleanupTasks, err := tasks.Start()
-
 			if err != nil {
 				return nil, fmt.Errorf("could not start tasks controller: %w", err)
 			}
@@ -831,13 +796,11 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 				olap.WithOperationsConfig(sc.Operations),
 				olap.WithPrometheusMetricsEnabled(sc.Prometheus.Enabled),
 			)
-
 			if err != nil {
 				return nil, fmt.Errorf("could not create olap controller: %w", err)
 			}
 
 			cleanupOlap, err := olap.Start()
-
 			if err != nil {
 				return nil, fmt.Errorf("could not start olap controller: %w", err)
 			}
@@ -849,7 +812,6 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 		}
 
 		cleanup1, err := p.StartTenantWorkerPartition(ctx)
-
 		if err != nil {
 			return nil, fmt.Errorf("could not create rebalance controller partitions job: %w", err)
 		}
@@ -862,7 +824,6 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 		wh := webhooks.New(sc, p, l)
 
 		cleanup2, err := wh.Start()
-
 		if err != nil {
 			return nil, fmt.Errorf("could not create webhook worker: %w", err)
 		}
@@ -888,13 +849,11 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			dispatcher.WithCache(cacheInstance),
 			dispatcher.WithPayloadSizeThreshold(sc.Runtime.GRPCMaxMsgSize),
 		)
-
 		if err != nil {
 			return nil, fmt.Errorf("could not create dispatcher: %w", err)
 		}
 
 		dispatcherCleanup, err := d.Start()
-
 		if err != nil {
 			return nil, fmt.Errorf("could not start dispatcher: %w", err)
 		}
@@ -904,7 +863,6 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			dispatcherv1.WithMessageQueue(sc.MessageQueueV1),
 			dispatcherv1.WithLogger(sc.Logger),
 		)
-
 		if err != nil {
 			return nil, fmt.Errorf("could not create dispatcher (v1): %w", err)
 		}
@@ -927,7 +885,6 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			ingestor.WithRepositoryV1(sc.V1),
 			ingestor.WithLogIngestionEnabled(sc.Runtime.LogIngestionEnabled),
 		)
-
 		if err != nil {
 			return nil, fmt.Errorf("could not create ingestor: %w", err)
 		}
@@ -939,7 +896,6 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			admin.WithMessageQueueV1(sc.MessageQueueV1),
 			admin.WithEntitlementsRepository(sc.EntitlementRepository),
 		)
-
 		if err != nil {
 			return nil, fmt.Errorf("could not create admin service: %w", err)
 		}
@@ -949,7 +905,6 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			adminv1.WithMessageQueue(sc.MessageQueueV1),
 			adminv1.WithEntitlementsRepository(sc.EntitlementRepository),
 		)
-
 		if err != nil {
 			return nil, fmt.Errorf("could not create admin service (v1): %w", err)
 		}
@@ -1021,7 +976,6 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 
 	if sc.HasService("all") || sc.HasService("scheduler") {
 		partitionCleanup, err := p.StartSchedulerPartition(ctx)
-
 		if err != nil {
 			return nil, fmt.Errorf("could not create create scheduler partition: %w", err)
 		}
@@ -1041,13 +995,11 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			scheduler.WithQueueLoggerConfig(&sc.AdditionalLoggers.Queue),
 			scheduler.WithSchedulerPool(sc.SchedulingPool),
 		)
-
 		if err != nil {
 			return nil, fmt.Errorf("could not create dispatcher: %w", err)
 		}
 
 		cleanup, err := s.Start()
-
 		if err != nil {
 			return nil, fmt.Errorf("could not start dispatcher: %w", err)
 		}
@@ -1067,13 +1019,11 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			schedulerv1.WithQueueLoggerConfig(&sc.AdditionalLoggers.Queue),
 			schedulerv1.WithSchedulerPool(sc.SchedulingPoolV1),
 		)
-
 		if err != nil {
 			return nil, fmt.Errorf("could not create scheduler (v1): %w", err)
 		}
 
 		cleanup, err = sv1.Start()
-
 		if err != nil {
 			return nil, fmt.Errorf("could not start scheduler (v1): %w", err)
 		}

@@ -46,7 +46,6 @@ func (r *retryWorkflow) StepOne(ctx worker.HatchetContext) (result *stepOneOutpu
 	input := &userCreateEvent{}
 
 	err = ctx.WorkflowInput(input)
-
 	if err != nil {
 		return nil, err
 	}
@@ -64,7 +63,6 @@ func (r *retryWorkflow) StepOne(ctx worker.HatchetContext) (result *stepOneOutpu
 
 func run(ch <-chan interface{}, events chan<- string) error {
 	c, err := client.New()
-
 	if err != nil {
 		return fmt.Errorf("error creating client: %w", err)
 	}
@@ -119,7 +117,6 @@ func run(ch <-chan interface{}, events chan<- string) error {
 		"user:create:simple",
 		testEvent,
 	)
-
 	if err != nil {
 		return fmt.Errorf("error pushing event: %w", err)
 	}

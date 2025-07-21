@@ -58,7 +58,8 @@ func handleInternalError(l *zerolog.Logger,
 	w http.ResponseWriter,
 	r *http.Request,
 	err error,
-	writeErr bool) {
+	writeErr bool,
+) {
 	event := l.Warn().
 		Str("internal_error", err.Error())
 

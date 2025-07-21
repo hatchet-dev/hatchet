@@ -26,7 +26,6 @@ func (a *APITokenService) ApiTokenCreate(ctx echo.Context, request gen.ApiTokenC
 
 	if request.Body.ExpiresIn != nil {
 		expiresIn, err := time.ParseDuration(*request.Body.ExpiresIn)
-
 		if err != nil {
 			return gen.ApiTokenCreate400JSONResponse(apierrors.NewAPIErrors("invalid expiration duration")), nil
 		}
@@ -37,7 +36,6 @@ func (a *APITokenService) ApiTokenCreate(ctx echo.Context, request gen.ApiTokenC
 	}
 
 	token, err := a.config.Auth.JWTManager.GenerateTenantToken(ctx.Request().Context(), tenantId, request.Body.Name, false, expiresAt)
-
 	if err != nil {
 		return nil, err
 	}

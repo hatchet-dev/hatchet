@@ -126,7 +126,6 @@ type WorkerOpts struct {
 }
 
 func defaultWorkerOpts() *WorkerOpts {
-
 	return &WorkerOpts{
 		name:         getHostName(),
 		integrations: []integrations.Integration{},
@@ -255,7 +254,6 @@ func NewWorker(fs ...WorkerOpt) (*Worker, error) {
 			action := fmt.Sprintf("%s:%s", integrationId, integrationAction)
 
 			err := w.registerAction(integrationId, action, integration.ActionHandler(integrationAction), nil)
-
 			if err != nil {
 				return nil, fmt.Errorf("could not register integration action %s: %w", action, err)
 			}
@@ -337,7 +335,6 @@ func (w *Worker) On(t triggerConverter, workflow workflowConverter) error {
 func (w *Worker) RegisterAction(actionId string, method any) error {
 	// parse the action
 	action, err := types.ParseActionID(actionId)
-
 	if err != nil {
 		return fmt.Errorf("could not parse action id: %w", err)
 	}
@@ -367,7 +364,6 @@ func (w *Worker) registerAction(service, verb string, method any, compute *compu
 	}
 
 	actionFunc, err := getFnFromMethod(method)
-
 	if err != nil {
 		fmt.Println("err", err)
 		return fmt.Errorf("could not get function from method: %w", err)
@@ -398,7 +394,6 @@ func (w *Worker) Start() (func() error, error) {
 
 	go func() {
 		err := w.startBlocking(ctx)
-
 		if err != nil {
 			// NOTE: this matches the behavior of the old worker, until we change the signature of Start
 			panic(err)
@@ -462,7 +457,6 @@ func (w *Worker) startBlocking(ctx context.Context) error {
 
 	defer func() {
 		err := listener.Unregister()
-
 		if err != nil {
 			w.l.Error().Err(err).Msg("could not unregister worker")
 		}
@@ -472,7 +466,6 @@ func (w *Worker) startBlocking(ctx context.Context) error {
 	defer cancel()
 
 	actionCh, errCh, err := listener.Actions(listenerCtx)
-
 	if err != nil {
 		return fmt.Errorf("could not get action channel: %w", err)
 	}
@@ -488,7 +481,6 @@ func (w *Worker) startBlocking(ctx context.Context) error {
 
 				go func(action *client.Action) {
 					err := w.executeAction(context.Background(), action)
-
 					if err != nil {
 						w.l.Error().Err(err).Msgf("could not execute action: %s", action.ActionId)
 					}
@@ -531,7 +523,6 @@ func (w *Worker) startStepRun(ctx context.Context, assignedAction *client.Action
 		ctx,
 		w.getActionEvent(assignedAction, client.ActionEventTypeStarted),
 	)
-
 	if err != nil {
 		return fmt.Errorf("could not send action event: %w", err)
 	}
@@ -543,7 +534,6 @@ func (w *Worker) startStepRun(ctx context.Context, assignedAction *client.Action
 	}
 
 	arg, err := decodeArgsToInterface(reflect.TypeOf(action.MethodFn()))
-
 	if err != nil {
 		return fmt.Errorf("could not decode args to interface: %w", err)
 	}
@@ -554,7 +544,6 @@ func (w *Worker) startStepRun(ctx context.Context, assignedAction *client.Action
 	defer w.cancelMap.Delete(assignedAction.StepRunId)
 
 	hCtx, err := newHatchetContext(runContext, assignedAction, w.client, w.l, w)
-
 	if err != nil {
 		return fmt.Errorf("could not create hatchet context: %w", err)
 	}
@@ -606,7 +595,6 @@ func (w *Worker) startStepRun(ctx context.Context, assignedAction *client.Action
 
 			// send a message that the step run completed
 			finishedEvent, err := w.getActionFinishedEvent(assignedAction, result)
-
 			if err != nil {
 				return fmt.Errorf("could not create finished event: %w", err)
 			}
@@ -615,7 +603,6 @@ func (w *Worker) startStepRun(ctx context.Context, assignedAction *client.Action
 				ctx,
 				finishedEvent,
 			)
-
 			if err != nil {
 				return fmt.Errorf("could not send action event: %w", err)
 			}
@@ -631,7 +618,6 @@ func (w *Worker) startGetGroupKey(ctx context.Context, assignedAction *client.Ac
 		ctx,
 		w.getActionEvent(assignedAction, client.ActionEventTypeStarted),
 	)
-
 	if err != nil {
 		return fmt.Errorf("could not send action event: %w", err)
 	}
@@ -652,13 +638,11 @@ func (w *Worker) startGetGroupKey(ctx context.Context, assignedAction *client.Ac
 	w.cancelConcurrencyMap.Store(assignedAction.WorkflowRunId, cancel)
 
 	hCtx, err := newHatchetContext(runContext, assignedAction, w.client, w.l, w)
-
 	if err != nil {
 		return fmt.Errorf("could not create hatchet context: %w", err)
 	}
 
 	concurrencyKey, err := action.ConcurrencyFn()(hCtx)
-
 	if err != nil {
 		failureEvent := w.getActionEvent(assignedAction, client.ActionEventTypeFailed)
 
@@ -676,7 +660,6 @@ func (w *Worker) startGetGroupKey(ctx context.Context, assignedAction *client.Ac
 			ctx,
 			failureEvent,
 		)
-
 		if err != nil {
 			return fmt.Errorf("could not send action event: %w", err)
 		}
@@ -686,7 +669,6 @@ func (w *Worker) startGetGroupKey(ctx context.Context, assignedAction *client.Ac
 
 	// send a message that the step run completed
 	finishedEvent, err := w.getGroupKeyActionFinishedEvent(assignedAction, concurrencyKey)
-
 	if err != nil {
 		return fmt.Errorf("could not create finished event: %w", err)
 	}
@@ -695,7 +677,6 @@ func (w *Worker) startGetGroupKey(ctx context.Context, assignedAction *client.Ac
 		ctx,
 		finishedEvent,
 	)
-
 	if err != nil {
 		return fmt.Errorf("could not send action event: %w", err)
 	}
@@ -773,7 +754,6 @@ func (w *Worker) sendFailureEvent(ctx HatchetContext, err error) error {
 		innerCtx,
 		failureEvent,
 	)
-
 	if err != nil {
 		return fmt.Errorf("could not send action event: %w", err)
 	}

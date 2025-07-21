@@ -21,7 +21,6 @@ type cloudkmsEncryptionService struct {
 // NewCloudKMSEncryption creates a GCP CloudKMS-backed encryption service.
 func NewCloudKMSEncryption(keyUri string, credentialsJSON, privateEc256, publicEc256 []byte) (*cloudkmsEncryptionService, error) {
 	client, err := gcpkms.NewClientWithOptions(context.Background(), keyUri, option.WithCredentialsJSON(credentialsJSON))
-
 	if err != nil {
 		return nil, err
 	}
@@ -31,7 +30,6 @@ func NewCloudKMSEncryption(keyUri string, credentialsJSON, privateEc256, publicE
 
 func GenerateJWTKeysetsFromCloudKMS(keyUri string, credentialsJSON []byte) (privateEc256 []byte, publicEc256 []byte, err error) {
 	client, err := gcpkms.NewClientWithOptions(context.Background(), keyUri, option.WithCredentialsJSON(credentialsJSON))
-
 	if err != nil {
 		return nil, nil, err
 	}
@@ -43,7 +41,6 @@ func generateJWTKeysetsWithClient(keyUri string, client registry.KMSClient) (pri
 	registry.RegisterKMSClient(client)
 
 	remote, err := client.GetAEAD(keyUri)
-
 	if err != nil {
 		return nil, nil, err
 	}
@@ -56,14 +53,12 @@ func newWithClient(client registry.KMSClient, keyUri string, privateEc256, publi
 
 	dek := aead.AES128CTRHMACSHA256KeyTemplate()
 	template, err := aead.CreateKMSEnvelopeAEADKeyTemplate(keyUri, dek)
-
 	if err != nil {
 		return nil, err
 	}
 
 	// get the remote KEK from the client
 	remote, err := client.GetAEAD(keyUri)
-
 	if err != nil {
 		return nil, err
 	}
@@ -75,13 +70,11 @@ func newWithClient(client registry.KMSClient, keyUri string, privateEc256, publi
 	}
 
 	privateEc256Handle, err := handleFromBytes(privateEc256, remote)
-
 	if err != nil {
 		return nil, err
 	}
 
 	publicEc256Handle, err := handleFromBytes(publicEc256, remote)
-
 	if err != nil {
 		return nil, err
 	}

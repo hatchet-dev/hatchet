@@ -11,7 +11,6 @@ type V1CELService struct {
 }
 
 func NewV1CELService(config *server.ServerConfig) *V1CELService {
-
 	return &V1CELService{
 		config:    config,
 		celParser: cel.NewCELParser(),

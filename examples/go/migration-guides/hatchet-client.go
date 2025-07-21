@@ -6,7 +6,6 @@ import (
 
 func HatchetClient() (v1.HatchetClient, error) {
 	hatchet, err := v1.NewHatchetClient()
-
 	if err != nil {
 		return nil, err
 	}

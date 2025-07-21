@@ -79,7 +79,6 @@ func (m *multiplexedListener) startListening() {
 		pubSubMsg := &repository.PubSubMessage{}
 
 		err := json.Unmarshal([]byte(notification.Payload), pubSubMsg)
-
 		if err != nil {
 			m.l.Error().Err(err).Msg("error unmarshalling notification payload")
 			return err
@@ -94,7 +93,6 @@ func (m *multiplexedListener) startListening() {
 
 	go func() {
 		err := listener.Listen(m.listenerCtx)
-
 		if err != nil {
 			m.isListeningMu.Lock()
 			m.isListening = false
@@ -187,7 +185,6 @@ func (m *multiplexedListener) notify(ctx context.Context, name string, payload s
 	}
 
 	payloadBytes, err := json.Marshal(pubSubMsg)
-
 	if err != nil {
 		m.l.Error().Err(err).Msg("error marshalling notification payload")
 		return err

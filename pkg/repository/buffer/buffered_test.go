@@ -65,7 +65,6 @@ func TestIngestBufInitialization(t *testing.T) {
 	assert.Equal(t, initialized, buf.state)
 	v := validator.NewDefaultValidator()
 	assert.NoError(t, v.Validate(opts))
-
 }
 
 func TestIngestBufValidation(t *testing.T) {
@@ -85,7 +84,6 @@ func TestIngestBufValidation(t *testing.T) {
 	err := v.Validate(opts)
 
 	require.Error(t, err)
-
 }
 
 func TestIngestBufBuffering(t *testing.T) {
@@ -150,7 +148,6 @@ func TestIngestBufAutoFlushOnCapacity(t *testing.T) {
 
 	assert.Equal(t, 0, buf.safeFetchSizeOfData())
 	assert.Equal(t, 0, buf.safeCheckSizeOfBuffer())
-
 }
 
 func TestIngestBufAutoFlushOnSize(t *testing.T) {
@@ -178,7 +175,6 @@ func TestIngestBufAutoFlushOnSize(t *testing.T) {
 
 	assert.Equal(t, 0, buf.safeFetchSizeOfData())
 	assert.Equal(t, 0, buf.safeCheckSizeOfBuffer())
-
 }
 
 func TestIngestBufTimeoutFlush(t *testing.T) {
@@ -262,5 +258,4 @@ func TestIngestBufOrderPreservation(t *testing.T) {
 	}
 
 	wg.Wait()
-
 }

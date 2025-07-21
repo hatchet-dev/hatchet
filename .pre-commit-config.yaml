@@ -19,3 +19,10 @@ repos:
       - id: golangci-lint
         args: ["--config=.golangci.yml"]
         exclude: ^examples/
+  - repo: local
+    hooks:
+      - id: gofumpt
+        name: gofumpt
+        entry: gofumpt -l -w .
+        language: system
+        types: [go]

@@ -213,7 +213,6 @@ func (s *Server) startGRPC() (func() error, error) {
 	s.l.Debug().Msgf("starting grpc server on %s:%d", s.bindAddress, s.port)
 
 	lis, err := net.Listen("tcp", fmt.Sprintf("%s:%d", s.bindAddress, s.port))
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to listen: %w", err)
 	}
@@ -280,14 +279,14 @@ func (s *Server) startGRPC() (func() error, error) {
 		recovery.UnaryServerInterceptor(recovery.WithRecoveryHandler(grpcPanicRecoveryHandler)),
 	))
 
-	var enforcement = keepalive.EnforcementPolicy{
+	enforcement := keepalive.EnforcementPolicy{
 		MinTime:             5 * time.Second,
 		PermitWithoutStream: true,
 	}
 
 	serverOpts = append(serverOpts, grpc.KeepaliveEnforcementPolicy(enforcement))
 
-	var kasp = keepalive.ServerParameters{
+	kasp := keepalive.ServerParameters{
 		// ping the client every 30 seconds if idle to ensure the connection is still active
 		Time: 30 * time.Second,
 	}

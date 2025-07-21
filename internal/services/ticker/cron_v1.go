@@ -19,7 +19,6 @@ func (t *TickerImpl) runCronWorkflowV1(ctx context.Context, tenantId string, wor
 
 	if additionalMetadata != nil {
 		additionalMetaBytes, err = json.Marshal(additionalMetadata)
-
 		if err != nil {
 			return fmt.Errorf("could not marshal additional metadata: %w", err)
 		}
@@ -41,13 +40,11 @@ func (t *TickerImpl) runCronWorkflowV1(ctx context.Context, tenantId string, wor
 		tenantId,
 		opt,
 	)
-
 	if err != nil {
 		return fmt.Errorf("could not create trigger task message: %w", err)
 	}
 
 	err = t.mqv1.SendMessage(ctx, msgqueuev1.TASK_PROCESSING_QUEUE, msg)
-
 	if err != nil {
 		return fmt.Errorf("could not send message to task queue: %w", err)
 	}

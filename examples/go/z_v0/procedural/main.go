@@ -50,7 +50,6 @@ func main() {
 
 func run(events chan<- string) (func() error, error) {
 	c, err := client.New()
-
 	if err != nil {
 		return nil, fmt.Errorf("error creating client: %w", err)
 	}
@@ -86,7 +85,6 @@ func run(events chan<- string) (func() error, error) {
 									"childKey": "childValue",
 								},
 							})
-
 							if err != nil {
 								return nil, err
 							}
@@ -107,7 +105,6 @@ func run(events chan<- string) (func() error, error) {
 							eg.Go(func(i int, childWorkflow *client.Workflow) func() error {
 								return func() error {
 									childResult, err := childWorkflow.Result()
-
 									if err != nil {
 										return err
 									}
@@ -115,7 +112,6 @@ func run(events chan<- string) (func() error, error) {
 									childOutput := proceduralChildOutput{}
 
 									err = childResult.StepOutput("step-one", &childOutput)
-
 									if err != nil {
 										return err
 									}
@@ -127,7 +123,6 @@ func run(events chan<- string) (func() error, error) {
 									events <- fmt.Sprintf("child-%d-completed", childOutput.Index)
 
 									return nil
-
 								}
 							}(i, childWorkflow))
 						}
@@ -180,7 +175,6 @@ func run(events chan<- string) (func() error, error) {
 			},
 		},
 	)
-
 	if err != nil {
 		return nil, fmt.Errorf("error registering workflow: %w", err)
 	}
@@ -196,7 +190,6 @@ func run(events chan<- string) (func() error, error) {
 						input := proceduralChildInput{}
 
 						err = ctx.WorkflowInput(&input)
-
 						if err != nil {
 							return nil, err
 						}
@@ -209,7 +202,6 @@ func run(events chan<- string) (func() error, error) {
 			},
 		},
 	)
-
 	if err != nil {
 		return nil, fmt.Errorf("error registering workflow: %w", err)
 	}
@@ -218,14 +210,12 @@ func run(events chan<- string) (func() error, error) {
 		time.Sleep(1 * time.Second)
 
 		_, err := c.Admin().RunWorkflow("procedural-parent-workflow", nil)
-
 		if err != nil {
 			panic(fmt.Errorf("error running workflow: %w", err))
 		}
 	}()
 
 	cleanup, err := w.Start()
-
 	if err != nil {
 		panic(err)
 	}

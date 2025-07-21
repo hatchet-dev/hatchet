@@ -78,7 +78,6 @@ func (r *rateLimitEngineRepository) ListRateLimits(ctx context.Context, tenantId
 	countParams.Orderby = orderByField + " " + orderByDirection
 
 	tx, err := r.pool.Begin(context.Background())
-
 	if err != nil {
 		return nil, err
 	}
@@ -86,7 +85,6 @@ func (r *rateLimitEngineRepository) ListRateLimits(ctx context.Context, tenantId
 	defer sqlchelpers.DeferRollback(context.Background(), r.l, tx.Rollback)
 
 	rls, err := r.queries.ListRateLimitsForTenantNoMutate(ctx, tx, queryParams)
-
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			rls = make([]*dbsqlc.ListRateLimitsForTenantNoMutateRow, 0)
@@ -96,7 +94,6 @@ func (r *rateLimitEngineRepository) ListRateLimits(ctx context.Context, tenantId
 	}
 
 	count, err := r.queries.CountRateLimits(ctx, tx, countParams)
-
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			count = 0
@@ -106,7 +103,6 @@ func (r *rateLimitEngineRepository) ListRateLimits(ctx context.Context, tenantId
 	}
 
 	err = tx.Commit(ctx)
-
 	if err != nil {
 		return nil, fmt.Errorf("could not commit transaction: %w", err)
 	}
@@ -133,7 +129,6 @@ func (r *rateLimitEngineRepository) UpsertRateLimit(ctx context.Context, tenantI
 	}
 
 	rateLimit, err := r.queries.UpsertRateLimit(ctx, r.pool, upsertParams)
-
 	if err != nil {
 		return nil, fmt.Errorf("could not upsert rate limit: %w", err)
 	}

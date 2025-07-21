@@ -50,5 +50,4 @@ outer:
 	if err := cleanup(); err != nil {
 		t.Fatalf("cleanup() error = %v", err)
 	}
-
 }

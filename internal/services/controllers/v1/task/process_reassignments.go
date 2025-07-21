@@ -20,7 +20,6 @@ func (tc *TasksControllerImpl) runTenantReassignTasks(ctx context.Context) func(
 
 		// list all tenants
 		tenants, err := tc.p.ListTenantsForController(ctx, dbsqlc.TenantMajorEngineVersionV1)
-
 		if err != nil {
 			tc.l.Error().Err(err).Msg("could not list tenants")
 			return
@@ -41,7 +40,6 @@ func (tc *TasksControllerImpl) processTaskReassignments(ctx context.Context, ten
 	defer span.End()
 
 	res, shouldContinue, err := tc.repov1.Tasks().ProcessTaskReassignments(ctx, tenantId)
-
 	if err != nil {
 		return false, fmt.Errorf("could not list step runs to reassign for tenant %s: %w", tenantId, err)
 	}
@@ -75,14 +73,12 @@ func (tc *TasksControllerImpl) processTaskReassignments(ctx context.Context, ten
 				WorkerId:       workerId,
 			},
 		)
-
 		if err != nil {
 			tc.l.Error().Err(err).Msg("could not create monitoring event message")
 			continue
 		}
 
 		err = tc.pubBuffer.Pub(ctx, msgqueue.OLAP_QUEUE, olapMsg, false)
-
 		if err != nil {
 			tc.l.Error().Err(err).Msg("could not create monitoring event message")
 			continue
@@ -103,14 +99,12 @@ func (tc *TasksControllerImpl) processTaskReassignments(ctx context.Context, ten
 					WorkerId:       workerId,
 				},
 			)
-
 			if err != nil {
 				tc.l.Error().Err(err).Msg("could not create monitoring event message")
 				continue
 			}
 
 			err = tc.pubBuffer.Pub(ctx, msgqueue.OLAP_QUEUE, olapMsg, false)
-
 			if err != nil {
 				tc.l.Error().Err(err).Msg("could not create monitoring event message")
 				continue
@@ -119,7 +113,6 @@ func (tc *TasksControllerImpl) processTaskReassignments(ctx context.Context, ten
 	}
 
 	err = tc.processFailTasksResponse(ctx, tenantId, res)
-
 	if err != nil {
 		return false, fmt.Errorf("could not process fail tasks response: %w", err)
 	}

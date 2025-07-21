@@ -8,6 +8,7 @@ package contracts
 
 import (
 	context "context"
+
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
@@ -280,45 +281,56 @@ type DispatcherServer interface {
 }
 
 // UnimplementedDispatcherServer must be embedded to have forward compatible implementations.
-type UnimplementedDispatcherServer struct {
-}
+type UnimplementedDispatcherServer struct{}
 
 func (UnimplementedDispatcherServer) Register(context.Context, *WorkerRegisterRequest) (*WorkerRegisterResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Register not implemented")
 }
+
 func (UnimplementedDispatcherServer) Listen(*WorkerListenRequest, Dispatcher_ListenServer) error {
 	return status.Errorf(codes.Unimplemented, "method Listen not implemented")
 }
+
 func (UnimplementedDispatcherServer) ListenV2(*WorkerListenRequest, Dispatcher_ListenV2Server) error {
 	return status.Errorf(codes.Unimplemented, "method ListenV2 not implemented")
 }
+
 func (UnimplementedDispatcherServer) Heartbeat(context.Context, *HeartbeatRequest) (*HeartbeatResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Heartbeat not implemented")
 }
+
 func (UnimplementedDispatcherServer) SubscribeToWorkflowEvents(*SubscribeToWorkflowEventsRequest, Dispatcher_SubscribeToWorkflowEventsServer) error {
 	return status.Errorf(codes.Unimplemented, "method SubscribeToWorkflowEvents not implemented")
 }
+
 func (UnimplementedDispatcherServer) SubscribeToWorkflowRuns(Dispatcher_SubscribeToWorkflowRunsServer) error {
 	return status.Errorf(codes.Unimplemented, "method SubscribeToWorkflowRuns not implemented")
 }
+
 func (UnimplementedDispatcherServer) SendStepActionEvent(context.Context, *StepActionEvent) (*ActionEventResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SendStepActionEvent not implemented")
 }
+
 func (UnimplementedDispatcherServer) SendGroupKeyActionEvent(context.Context, *GroupKeyActionEvent) (*ActionEventResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SendGroupKeyActionEvent not implemented")
 }
+
 func (UnimplementedDispatcherServer) PutOverridesData(context.Context, *OverridesData) (*OverridesDataResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method PutOverridesData not implemented")
 }
+
 func (UnimplementedDispatcherServer) Unsubscribe(context.Context, *WorkerUnsubscribeRequest) (*WorkerUnsubscribeResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Unsubscribe not implemented")
 }
+
 func (UnimplementedDispatcherServer) RefreshTimeout(context.Context, *RefreshTimeoutRequest) (*RefreshTimeoutResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method RefreshTimeout not implemented")
 }
+
 func (UnimplementedDispatcherServer) ReleaseSlot(context.Context, *ReleaseSlotRequest) (*ReleaseSlotResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ReleaseSlot not implemented")
 }
+
 func (UnimplementedDispatcherServer) UpsertWorkerLabels(context.Context, *UpsertWorkerLabelsRequest) (*UpsertWorkerLabelsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpsertWorkerLabels not implemented")
 }

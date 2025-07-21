@@ -29,13 +29,11 @@ func (t *TickerImpl) runScheduledWorkflowV1(ctx context.Context, tenantId string
 		tenantId,
 		opt,
 	)
-
 	if err != nil {
 		return fmt.Errorf("could not create trigger task message: %w", err)
 	}
 
 	err = t.mqv1.SendMessage(ctx, msgqueuev1.TASK_PROCESSING_QUEUE, msg)
-
 	if err != nil {
 		return fmt.Errorf("could not send message to task queue: %w", err)
 	}

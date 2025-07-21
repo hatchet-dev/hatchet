@@ -44,7 +44,6 @@ func (m *MonitoringService) MonitoringPostRunProbe(ctx echo.Context, request gen
 	}
 
 	token, err := getBearerTokenFromRequest(ctx.Request())
-
 	if err != nil {
 		return nil, err
 	}
@@ -80,7 +79,6 @@ func (m *MonitoringService) MonitoringPostRunProbe(ctx echo.Context, request gen
 	messageIndex := 0
 	stepMessages := []string{"step-one", "step-two"}
 	for {
-
 		select {
 		case <-cancellableContext.Done():
 
@@ -103,7 +101,6 @@ func (m *MonitoringService) MonitoringPostRunProbe(ctx echo.Context, request gen
 				for i := range stepMessages {
 					stepMessage := <-stepChan
 					if stepMessage != stepMessages[i] {
-
 						return nil, fmt.Errorf("probe did not complete successfully - step messages failed")
 					}
 				}
@@ -111,7 +108,6 @@ func (m *MonitoringService) MonitoringPostRunProbe(ctx echo.Context, request gen
 			}
 		}
 	}
-
 }
 
 type probeEvent struct {
@@ -124,11 +120,9 @@ type stepOneOutput struct {
 }
 
 func (m *MonitoringService) run(ctx context.Context, cf clientconfig.ClientConfigFile, workflowName string, events chan<- string, stepChan chan<- string, errors chan<- error) (func(), error) {
-
 	c, err := client.NewFromConfigFile(
 		&cf, client.WithLogLevel(m.l.GetLevel().String()),
 	)
-
 	if err != nil {
 		return nil, fmt.Errorf("error creating client: %w", err)
 	}
@@ -153,7 +147,6 @@ func (m *MonitoringService) run(ctx context.Context, cf clientconfig.ClientConfi
 			Description: "This is part of the monitoring system for testing the readiness of this Hatchet installation.",
 			Steps: []*worker.WorkflowStep{
 				worker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
-
 					input := &probeEvent{}
 
 					err = ctx.WorkflowInput(input)
@@ -184,7 +177,6 @@ func (m *MonitoringService) run(ctx context.Context, cf clientconfig.ClientConfi
 				worker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
 					input := &probeEvent{}
 					err = ctx.StepOutput("step-one", input)
-
 					if err != nil {
 						return nil, err
 					}
@@ -237,14 +229,12 @@ func (m *MonitoringService) run(ctx context.Context, cf clientconfig.ClientConfi
 			},
 			),
 		)
-
 		if err != nil {
 			errors <- fmt.Errorf("error pushing event: %w", err)
 		}
 	}()
 
 	cleanupWorker, err := w.Start()
-
 	if err != nil {
 		return nil, fmt.Errorf("error starting worker: %w", err)
 	}
@@ -266,10 +256,8 @@ func (m *MonitoringService) run(ctx context.Context, cf clientconfig.ClientConfi
 
 			for i := 0; i < 10; i++ {
 				wrfRow, err := m.config.APIRepository.WorkflowRun().GetWorkflowRunById(ctx, cf.TenantId, wfrId)
-
 				if err != nil {
 					m.l.Error().Msgf("error getting workflow run: %s", err)
-
 				}
 
 				if wrfRow.Status != dbsqlc.WorkflowRunStatusRUNNING {
@@ -292,7 +280,6 @@ func (m *MonitoringService) run(ctx context.Context, cf clientconfig.ClientConfi
 			}
 
 			m.l.Error().Msg("could not clean up workflow after 10 attempts")
-
 		}()
 	}
 

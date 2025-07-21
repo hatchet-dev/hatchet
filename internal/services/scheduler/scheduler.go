@@ -142,7 +142,6 @@ func New(
 	}
 
 	s, err := gocron.NewScheduler(gocron.WithLocation(time.UTC))
-
 	if err != nil {
 		return nil, fmt.Errorf("could not create scheduler: %w", err)
 	}
@@ -166,7 +165,6 @@ func New(
 }
 
 func (s *Scheduler) Start() (func() error, error) {
-
 	ctx, cancel := context.WithCancel(context.Background())
 
 	wg := sync.WaitGroup{}
@@ -177,7 +175,6 @@ func (s *Scheduler) Start() (func() error, error) {
 			s.runTenantSetQueues(ctx),
 		),
 	)
-
 	if err != nil {
 		cancel()
 		return nil, fmt.Errorf("could not schedule tenant set queues: %w", err)
@@ -203,7 +200,6 @@ func (s *Scheduler) Start() (func() error, error) {
 		msgqueue.NoOpHook, // the only handler is to check the queue, so we acknowledge immediately with the NoOpHook
 		postAck,
 	)
-
 	if err != nil {
 		cancel()
 		return nil, fmt.Errorf("could not subscribe to job processing queue: %w", err)
@@ -224,7 +220,6 @@ func (s *Scheduler) Start() (func() error, error) {
 				}
 
 				err = s.scheduleStepRuns(ctx, sqlchelpers.UUIDToStr(res.TenantId), res)
-
 				if err != nil {
 					s.l.Error().Err(err).Msg("could not schedule step runs")
 				}
@@ -282,7 +277,6 @@ func (s *Scheduler) handleCheckQueue(ctx context.Context, task *msgqueue.Message
 	metadata := tasktypes.CheckTenantQueueMetadata{}
 
 	err := s.dv.DecodeAndValidate(task.Metadata, &metadata)
-
 	if err != nil {
 		return fmt.Errorf("could not decode check queue metadata: %w", err)
 	}
@@ -309,7 +303,6 @@ func (s *Scheduler) runTenantSetQueues(ctx context.Context) func() {
 
 		// list all tenants
 		tenants, err := s.p.ListTenantsForScheduler(ctx, dbsqlc.TenantMajorEngineVersionV0)
-
 		if err != nil {
 			s.l.Err(err).Msg("could not list tenants")
 			return
@@ -338,7 +331,6 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId string, res *
 		var dispatcherIdWorkerIds map[string][]string
 
 		dispatcherIdWorkerIds, err = s.repo.Worker().GetDispatcherIdsForWorkers(ctx, tenantId, workerIds)
-
 		if err != nil {
 			s.internalRetry(ctx, tenantId, res.Assigned...)
 
@@ -384,7 +376,6 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId string, res *
 				msgqueue.QueueTypeFromDispatcherID(dispatcherId),
 				stepRunBulkAssignedTask(tenantId, dispatcherId, workerIdsToStepRuns),
 			)
-
 			if err != nil {
 				err = multierror.Append(err, fmt.Errorf("could not send bulk assigned task: %w", err))
 			}
@@ -417,7 +408,6 @@ func (s *Scheduler) internalRetry(ctx context.Context, tenantId string, assigned
 		_, err := s.repo.StepRun().QueueStepRun(ctx, tenantId, stepRunId, &repository.QueueStepRunOpts{
 			IsInternalRetry: true,
 		})
-
 		if err != nil {
 			s.l.Error().Err(err).Msg("could not requeue step run for internal retry")
 		}

@@ -25,7 +25,6 @@ func newBulkStepRunQueuer(shared *sharedRepository, conf buffer.ConfigFileBuffer
 	}
 
 	manager, err := buffer.NewTenantBufManager(stepRunQueuerBufOpts)
-
 	if err != nil {
 		shared.l.Err(err).Msg("could not create tenant buffer manager")
 		return nil, err
@@ -60,7 +59,6 @@ func (w *sharedRepository) bulkQueueStepRuns(ctx context.Context, opts []bulkQue
 
 	err := sqlchelpers.DeadlockRetry(w.l, func() (err error) {
 		tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, w.pool, w.l, 10000)
-
 		if err != nil {
 			return err
 		}
@@ -102,7 +100,6 @@ func (w *sharedRepository) bulkQueueStepRuns(ctx context.Context, opts []bulkQue
 				Inputs:      inputs,
 				Retrycounts: retryCountsWithInputs,
 			})
-
 			if err != nil {
 				return err
 			}
@@ -113,7 +110,6 @@ func (w *sharedRepository) bulkQueueStepRuns(ctx context.Context, opts []bulkQue
 				Ids:         stepRunIdWithoutInputs,
 				Retrycounts: retryCountsWithoutInputs,
 			})
-
 			if err != nil {
 				return err
 			}
@@ -142,7 +138,6 @@ func (w *sharedRepository) bulkQueueStepRuns(ctx context.Context, opts []bulkQue
 		}
 
 		n, err := w.queries.CreateQueueItemsBulk(ctx, tx, params)
-
 		if err != nil {
 			return err
 		}
@@ -153,7 +148,6 @@ func (w *sharedRepository) bulkQueueStepRuns(ctx context.Context, opts []bulkQue
 
 		return commit(ctx)
 	})
-
 	if err != nil {
 		return nil, err
 	}

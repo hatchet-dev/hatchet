@@ -46,7 +46,6 @@ func (wc *RetentionControllerImpl) runDeleteExpiredEventsTenant(ctx context.Cont
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
 	createdBefore, err := GetDataRetentionExpiredTime(tenant.DataRetentionPeriod)
-
 	if err != nil {
 		return fmt.Errorf("could not get data retention expired time: %w", err)
 	}
@@ -61,7 +60,6 @@ func (wc *RetentionControllerImpl) runDeleteExpiredEventsTenant(ctx context.Cont
 
 		// delete expired workflow runs
 		hasMore, err := wc.repo.Event().SoftDeleteExpiredEvents(ctx, tenantId, createdBefore)
-
 		if err != nil {
 			return fmt.Errorf("could not delete expired events: %w", err)
 		}
@@ -88,7 +86,6 @@ func (wc *RetentionControllerImpl) runClearDeletedEventsPayloadTenant(ctx contex
 
 		// delete expired workflow runs
 		hasMore, err := wc.repo.Event().ClearEventPayloadData(ctx, tenantId)
-
 		if err != nil {
 			return fmt.Errorf("could not clear deleted event payload: %w", err)
 		}

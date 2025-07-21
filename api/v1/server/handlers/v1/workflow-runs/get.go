@@ -27,7 +27,6 @@ func (t *V1WorkflowRunsService) V1WorkflowRunGet(ctx echo.Context, request gen.V
 		tenantId,
 		rawWorkflowRun,
 	)
-
 	if err != nil {
 		return nil, err
 	}
@@ -52,7 +51,6 @@ func (t *V1WorkflowRunsService) getWorkflowRunDetails(
 		tenantId,
 		workflowRunId,
 	)
-
 	if err != nil {
 		return nil, err
 	}
@@ -62,7 +60,6 @@ func (t *V1WorkflowRunsService) getWorkflowRunDetails(
 		tenantId,
 		taskMetadata,
 	)
-
 	if err != nil {
 		return nil, err
 	}
@@ -77,19 +74,16 @@ func (t *V1WorkflowRunsService) getWorkflowRunDetails(
 	shape, err := t.config.APIRepository.WorkflowRun().GetWorkflowRunShape(
 		ctx, workflowVersionId,
 	)
-
 	if err != nil {
 		return nil, err
 	}
 
 	workflowVersion, _, _, _, err := t.config.APIRepository.Workflow().GetWorkflowVersionById(tenantId, workflowRun.WorkflowVersionId.String())
-
 	if err != nil {
 		return nil, err
 	}
 
 	result, err := transformers.ToWorkflowRunDetails(taskRunEvents, workflowRun, shape, tasks, stepIdToTaskExternalId, workflowVersion)
-
 	if err != nil {
 		return nil, err
 	}

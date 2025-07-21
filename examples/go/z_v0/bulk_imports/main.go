@@ -31,12 +31,10 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-
 }
 
 func run() (func() error, error) {
 	c, err := client.New()
-
 	if err != nil {
 		return nil, fmt.Errorf("error creating client: %w", err)
 	}
@@ -62,7 +60,6 @@ func run() (func() error, error) {
 					input := &userCreateEvent{}
 
 					err = ctx.WorkflowInput(input)
-
 					if err != nil {
 						return nil, err
 					}
@@ -111,5 +108,4 @@ func run() (func() error, error) {
 	}
 
 	return nil, nil
-
 }

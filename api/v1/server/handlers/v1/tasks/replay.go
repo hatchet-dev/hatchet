@@ -66,7 +66,6 @@ func (t *TasksService) V1TaskReplay(ctx echo.Context, request gen.V1TaskReplayRe
 		tenant,
 		grpcReq,
 	)
-
 	if err != nil {
 		return nil, err
 	}

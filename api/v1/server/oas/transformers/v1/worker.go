@@ -44,7 +44,6 @@ func ToSlotState(slots []*sqlcv1.ListSemaphoreSlotsWithStateForWorkerRow, remain
 }
 
 func ToWorkerRuntimeInfo(worker *sqlcv1.Worker) *gen.WorkerRuntimeInfo {
-
 	runtime := &gen.WorkerRuntimeInfo{
 		SdkVersion:      &worker.SdkVersion.String,
 		LanguageVersion: &worker.LanguageVersion.String,
@@ -61,7 +60,6 @@ func ToWorkerRuntimeInfo(worker *sqlcv1.Worker) *gen.WorkerRuntimeInfo {
 }
 
 func ToWorkerSqlc(worker *sqlcv1.Worker, remainingSlots *int, webhookUrl *string, actions []string) *gen.Worker {
-
 	dispatcherId := uuid.MustParse(sqlchelpers.UUIDToStr(worker.DispatcherId))
 
 	maxRuns := int(worker.MaxRuns)

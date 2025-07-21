@@ -32,7 +32,6 @@ func (j *jobRunAPIRepository) RegisterWorkflowRunRunningCallback(callback reposi
 
 func (j *jobRunAPIRepository) SetJobRunStatusRunning(tenantId, jobRunId string) error {
 	wrId, err := j.setJobRunStatusRunning(context.Background(), j.pool, tenantId, jobRunId)
-
 	if err != nil {
 		return err
 	}
@@ -58,7 +57,6 @@ type jobRunEngineRepository struct {
 }
 
 func NewJobRunEngineRepository(shared *sharedRepository) repository.JobRunEngineRepository {
-
 	return &jobRunEngineRepository{
 		sharedRepository: shared,
 	}
@@ -73,9 +71,7 @@ func (j *jobRunEngineRepository) RegisterWorkflowRunRunningCallback(callback rep
 }
 
 func (j *jobRunEngineRepository) SetJobRunStatusRunning(ctx context.Context, tenantId, jobRunId string) error {
-
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, j.pool, j.l, 5000)
-
 	if err != nil {
 		return err
 	}
@@ -83,7 +79,6 @@ func (j *jobRunEngineRepository) SetJobRunStatusRunning(ctx context.Context, ten
 	defer rollback()
 
 	err = j.setJobRunStatusRunningWithTx(ctx, tx, tenantId, jobRunId)
-
 	if err != nil {
 		return err
 	}
@@ -91,7 +86,6 @@ func (j *jobRunEngineRepository) SetJobRunStatusRunning(ctx context.Context, ten
 	err = commit(ctx)
 	if err != nil {
 		return err
-
 	}
 
 	return nil
@@ -99,7 +93,6 @@ func (j *jobRunEngineRepository) SetJobRunStatusRunning(ctx context.Context, ten
 
 func (s *sharedRepository) setJobRunStatusRunningWithTx(ctx context.Context, tx dbsqlc.DBTX, tenantId, jobRunId string) error {
 	wrId, err := s.setJobRunStatusRunning(ctx, tx, tenantId, jobRunId)
-
 	if err != nil {
 		return err
 	}
@@ -135,13 +128,11 @@ func (j *jobRunEngineRepository) GetJobRunsByWorkflowRunId(ctx context.Context, 
 }
 
 func (s *sharedRepository) setJobRunStatusRunning(ctx context.Context, tx dbsqlc.DBTX, tenantId, jobRunId string) (*pgtype.UUID, error) {
-
 	jobRun, err := s.queries.UpdateJobRunStatus(context.Background(), tx, dbsqlc.UpdateJobRunStatusParams{
 		ID:       sqlchelpers.UUIDFromStr(jobRunId),
 		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
 		Status:   dbsqlc.JobRunStatusRUNNING,
 	})
-
 	if err != nil {
 		return nil, err
 	}
@@ -158,7 +149,6 @@ func (s *sharedRepository) setJobRunStatusRunning(ctx context.Context, tx dbsqlc
 			},
 		},
 	)
-
 	if err != nil {
 		return nil, err
 	}
@@ -171,7 +161,6 @@ func (r *jobRunEngineRepository) ClearJobRunPayloadData(ctx context.Context, ten
 		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
 		Limit:    1000,
 	})
-
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return false, nil

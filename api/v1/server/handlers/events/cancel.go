@@ -34,7 +34,6 @@ func (t *EventService) EventUpdateCancel(ctx echo.Context, request gen.EventUpda
 		runs, err := t.config.EngineRepository.WorkflowRun().ListWorkflowRuns(ctx.Request().Context(), tenantId, &repository.ListWorkflowRunsOpts{
 			EventId: &eventId,
 		})
-
 		if err != nil {
 			return nil, err
 		}
@@ -65,7 +64,7 @@ func (t *EventService) EventUpdateCancel(ctx echo.Context, request gen.EventUpda
 
 			for _, jobRun := range jobRun {
 				// If the step run is not in a final state, send a task to the taskqueue to cancel it
-				var reason = "CANCELLED_BY_USER"
+				reason := "CANCELLED_BY_USER"
 				// send a task to the taskqueue
 				jobRunId := sqlchelpers.UUIDToStr(jobRun.ID)
 				err = t.config.MessageQueue.AddMessage(

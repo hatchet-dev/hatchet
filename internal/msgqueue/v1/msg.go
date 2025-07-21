@@ -35,7 +35,6 @@ func NewTenantMessage[T any](tenantId, id string, immediatelyExpire, persistent 
 
 	for i, payload := range payloads {
 		payloadBytes, err := json.Marshal(payload)
-
 		if err != nil {
 			return nil, err
 		}

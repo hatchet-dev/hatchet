@@ -192,7 +192,6 @@ func New(fs ...TasksControllerOpt) (*TasksControllerImpl, error) {
 	opts.l = &newLogger
 
 	s, err := gocron.NewScheduler(gocron.WithLocation(time.UTC))
-
 	if err != nil {
 		return nil, fmt.Errorf("could not create scheduler: %w", err)
 	}
@@ -237,7 +236,6 @@ func (tc *TasksControllerImpl) Start() (func() error, error) {
 	tc.s.Start()
 
 	cleanupBuffer, err := mqBuffer.Start()
-
 	if err != nil {
 		return nil, fmt.Errorf("could not start message queue buffer: %w", err)
 	}
@@ -258,7 +256,6 @@ func (tc *TasksControllerImpl) Start() (func() error, error) {
 			tc.runTenantTimeoutTasks(ctx),
 		),
 	)
-
 	if err != nil {
 		cancel()
 		return nil, fmt.Errorf("could not schedule step run timeout: %w", err)
@@ -270,7 +267,6 @@ func (tc *TasksControllerImpl) Start() (func() error, error) {
 			tc.runTenantSleepEmitter(ctx),
 		),
 	)
-
 	if err != nil {
 		cancel()
 		return nil, fmt.Errorf("could not schedule step run emit sleep: %w", err)
@@ -282,7 +278,6 @@ func (tc *TasksControllerImpl) Start() (func() error, error) {
 			tc.runTenantReassignTasks(ctx),
 		),
 	)
-
 	if err != nil {
 		cancel()
 		return nil, fmt.Errorf("could not schedule step run reassignment: %w", err)
@@ -294,7 +289,6 @@ func (tc *TasksControllerImpl) Start() (func() error, error) {
 			tc.runTenantRetryQueueItems(ctx),
 		),
 	)
-
 	if err != nil {
 		cancel()
 		return nil, fmt.Errorf("could not schedule step run reassignment: %w", err)
@@ -307,7 +301,6 @@ func (tc *TasksControllerImpl) Start() (func() error, error) {
 		),
 		gocron.WithSingletonMode(gocron.LimitModeReschedule),
 	)
-
 	if err != nil {
 		cancel()
 		return nil, fmt.Errorf("could not schedule task partition method: %w", err)
@@ -385,7 +378,6 @@ func (tc *TasksControllerImpl) handleTaskCompleted(ctx context.Context, tenantId
 	}
 
 	res, err := tc.repov1.Tasks().CompleteTasks(ctx, tenantId, opts)
-
 	if err != nil {
 		return err
 	}
@@ -434,14 +426,12 @@ func (tc *TasksControllerImpl) handleTaskFailed(ctx context.Context, tenantId st
 				EventPayload:   msg.ErrorMsg,
 			},
 		)
-
 		if err != nil {
 			tc.l.Error().Err(err).Msg("could not create monitoring event message")
 			continue
 		}
 
 		err = tc.pubBuffer.Pub(ctx, msgqueue.OLAP_QUEUE, olapMsg, false)
-
 		if err != nil {
 			tc.l.Error().Err(err).Msg("could not create monitoring event message")
 			continue
@@ -449,7 +439,6 @@ func (tc *TasksControllerImpl) handleTaskFailed(ctx context.Context, tenantId st
 	}
 
 	res, err := tc.repov1.Tasks().FailTasks(ctx, tenantId, opts)
-
 	if err != nil {
 		return err
 	}
@@ -483,7 +472,6 @@ func (tc *TasksControllerImpl) processFailTasksResponse(ctx context.Context, ten
 
 	// TODO: MOVE THIS TO THE DATA LAYER?
 	err := tc.sendInternalEvents(ctx, tenantId, internalEventsWithoutRetries)
-
 	if err != nil {
 		return err
 	}
@@ -494,7 +482,6 @@ func (tc *TasksControllerImpl) processFailTasksResponse(ctx context.Context, ten
 	for _, task := range res.RetriedTasks {
 		if task.IsAppError {
 			err = tc.pubRetryEvent(ctx, tenantId, task)
-
 			if err != nil {
 				outerErr = multierror.Append(outerErr, fmt.Errorf("could not publish retry event: %w", err))
 			}
@@ -521,7 +508,6 @@ func (tc *TasksControllerImpl) handleTaskCancelled(ctx context.Context, tenantId
 	}
 
 	res, err := tc.repov1.Tasks().CancelTasks(ctx, tenantId, opts)
-
 	if err != nil {
 		return err
 	}
@@ -540,7 +526,6 @@ func (tc *TasksControllerImpl) handleTaskCancelled(ctx context.Context, tenantId
 
 	// send task cancellations to the dispatcher
 	err = tc.sendTaskCancellationsToDispatcher(ctx, tenantId, tasksToSendToDispatcher)
-
 	if err != nil {
 		return fmt.Errorf("could not send task cancellations to dispatcher: %w", err)
 	}
@@ -549,7 +534,6 @@ func (tc *TasksControllerImpl) handleTaskCancelled(ctx context.Context, tenantId
 
 	// TODO: MOVE THIS TO THE DATA LAYER?
 	err = tc.sendInternalEvents(ctx, tenantId, res.InternalEvents)
-
 	if err != nil {
 		return err
 	}
@@ -569,7 +553,6 @@ func (tc *TasksControllerImpl) handleTaskCancelled(ctx context.Context, tenantId
 				EventMessage:   msg.EventMessage,
 			},
 		)
-
 		if err != nil {
 			outerErr = multierror.Append(outerErr, fmt.Errorf("could not create monitoring event message: %w", err))
 			continue
@@ -581,7 +564,6 @@ func (tc *TasksControllerImpl) handleTaskCancelled(ctx context.Context, tenantId
 			olapMsg,
 			false,
 		)
-
 		if err != nil {
 			outerErr = multierror.Append(outerErr, fmt.Errorf("could not publish monitoring event message: %w", err))
 		}
@@ -624,7 +606,6 @@ func (tc *TasksControllerImpl) handleCancelTasks(ctx context.Context, tenantId s
 			true,
 			pubPayloads...,
 		)
-
 		if err != nil {
 			return fmt.Errorf("could not create message for task cancellation: %w", err)
 		}
@@ -677,7 +658,6 @@ func (tc *TasksControllerImpl) handleReplayTasks(ctx context.Context, tenantId s
 
 	for _, tasks := range workflowRunIdToTasks {
 		replayRes, err := tc.repov1.Tasks().ReplayTasks(ctx, tenantId, tasks)
-
 		if err != nil {
 			return fmt.Errorf("failed to replay task: %w", err)
 		}
@@ -685,7 +665,6 @@ func (tc *TasksControllerImpl) handleReplayTasks(ctx context.Context, tenantId s
 		if len(replayRes.ReplayedTasks) > 0 {
 			eg.Go(func() error {
 				err := tc.signalTasksReplayed(ctx, tenantId, replayRes.ReplayedTasks)
-
 				if err != nil {
 					return fmt.Errorf("could not signal replayed tasks: %w", err)
 				}
@@ -697,7 +676,6 @@ func (tc *TasksControllerImpl) handleReplayTasks(ctx context.Context, tenantId s
 		if len(replayRes.UpsertedTasks) > 0 {
 			eg.Go(func() error {
 				err := tc.signalTasksUpdated(ctx, tenantId, replayRes.UpsertedTasks)
-
 				if err != nil {
 					return fmt.Errorf("could not signal queued tasks: %w", err)
 				}
@@ -709,7 +687,6 @@ func (tc *TasksControllerImpl) handleReplayTasks(ctx context.Context, tenantId s
 		if len(replayRes.InternalEventResults.CreatedTasks) > 0 {
 			eg.Go(func() error {
 				err := tc.signalTasksCreated(ctx, tenantId, replayRes.InternalEventResults.CreatedTasks)
-
 				if err != nil {
 					return fmt.Errorf("could not signal created tasks: %w", err)
 				}
@@ -730,7 +707,6 @@ func (tc *TasksControllerImpl) sendTaskCancellationsToDispatcher(ctx context.Con
 	}
 
 	dispatcherIdWorkerIds, err := tc.repo.Worker().GetDispatcherIdsForWorkers(ctx, tenantId, workerIds)
-
 	if err != nil {
 		return fmt.Errorf("could not list dispatcher ids for workers: %w", err)
 	}
@@ -762,7 +738,6 @@ func (tc *TasksControllerImpl) sendTaskCancellationsToDispatcher(ctx context.Con
 			true,
 			payloads...,
 		)
-
 		if err != nil {
 			return fmt.Errorf("could not create message for task cancellation: %w", err)
 		}
@@ -772,7 +747,6 @@ func (tc *TasksControllerImpl) sendTaskCancellationsToDispatcher(ctx context.Con
 			msgqueue.QueueTypeFromDispatcherID(dispatcherId),
 			msg,
 		)
-
 		if err != nil {
 			return fmt.Errorf("could not send message for task cancellation: %w", err)
 		}
@@ -787,7 +761,6 @@ func (tc *TasksControllerImpl) notifyQueuesOnCompletion(ctx context.Context, ten
 	}
 
 	tenant, err := tc.repo.Tenant().GetTenantByID(ctx, tenantId)
-
 	if err != nil {
 		tc.l.Err(err).Msg("could not get tenant")
 		return
@@ -804,7 +777,6 @@ func (tc *TasksControllerImpl) notifyQueuesOnCompletion(ctx context.Context, ten
 				msgqueue.QueueTypeFromPartitionIDAndController(tenant.SchedulerPartitionId.String, msgqueue.Scheduler),
 				msg,
 			)
-
 			if err != nil {
 				tc.l.Err(err).Msg("could not add message to scheduler partition queue")
 			}
@@ -826,7 +798,6 @@ func (tc *TasksControllerImpl) notifyQueuesOnCompletion(ctx context.Context, ten
 		false,
 		payloads...,
 	)
-
 	if err != nil {
 		tc.l.Err(err).Msg("could not create message for workflow run finished candidate")
 		return
@@ -837,7 +808,6 @@ func (tc *TasksControllerImpl) notifyQueuesOnCompletion(ctx context.Context, ten
 		msgqueue.TenantEventConsumerQueue(tenantId),
 		msg,
 	)
-
 	if err != nil {
 		tc.l.Err(err).Msg("could not send workflow-run-finished-candidate message")
 		return
@@ -883,7 +853,6 @@ func (tc *TasksControllerImpl) handleProcessUserEventTrigger(ctx context.Context
 	}
 
 	result, err := tc.repov1.Triggers().TriggerFromEvents(ctx, tenantId, opts)
-
 	if err != nil {
 		return fmt.Errorf("could not trigger tasks from events: %w", err)
 	}
@@ -927,13 +896,11 @@ func (tc *TasksControllerImpl) handleProcessUserEventTrigger(ctx context.Context
 			Payloads: eventTriggerOpts,
 		},
 	)
-
 	if err != nil {
 		return fmt.Errorf("could not create event trigger message: %w", err)
 	}
 
 	err = tc.pubBuffer.Pub(ctx, msgqueue.OLAP_QUEUE, msg, false)
-
 	if err != nil {
 		return fmt.Errorf("could not trigger tasks from events: %w", err)
 	}
@@ -967,7 +934,6 @@ func (tc *TasksControllerImpl) handleProcessInternalEvents(ctx context.Context, 
 func (tc *TasksControllerImpl) handleProcessTaskTrigger(ctx context.Context, tenantId string, payloads [][]byte) error {
 	msgs := msgqueue.JSONConvert[v1.WorkflowNameTriggerOpts](payloads)
 	tasks, dags, err := tc.repov1.Triggers().TriggerFromWorkflowNames(ctx, tenantId, msgs)
-
 	if err != nil {
 		if err == metered.ErrResourceExhausted {
 			tc.l.Warn().Msg("resource exhausted while triggering workflows from names. Not retrying")
@@ -997,7 +963,6 @@ func (tc *TasksControllerImpl) sendInternalEvents(ctx context.Context, tenantId 
 	}
 
 	msg, err := tasktypes.NewInternalEventMessage(tenantId, time.Now(), events...)
-
 	if err != nil {
 		return fmt.Errorf("could not create internal event message: %w", err)
 	}
@@ -1024,14 +989,12 @@ func (tc *TasksControllerImpl) processUserEventMatches(ctx context.Context, tena
 	}
 
 	matchResult, err := tc.repov1.Matches().ProcessUserEventMatches(ctx, tenantId, candidateMatches)
-
 	if err != nil {
 		return fmt.Errorf("could not process user event matches: %w", err)
 	}
 
 	if len(matchResult.CreatedTasks) > 0 {
 		err = tc.signalTasksCreated(ctx, tenantId, matchResult.CreatedTasks)
-
 		if err != nil {
 			return fmt.Errorf("could not signal created tasks: %w", err)
 		}
@@ -1055,14 +1018,12 @@ func (tc *TasksControllerImpl) processInternalEvents(ctx context.Context, tenant
 	}
 
 	matchResult, err := tc.repov1.Matches().ProcessInternalEventMatches(ctx, tenantId, candidateMatches)
-
 	if err != nil {
 		return fmt.Errorf("could not process internal event matches: %w", err)
 	}
 
 	if len(matchResult.CreatedTasks) > 0 {
 		err = tc.signalTasksCreated(ctx, tenantId, matchResult.CreatedTasks)
-
 		if err != nil {
 			return fmt.Errorf("could not signal created tasks: %w", err)
 		}
@@ -1070,7 +1031,6 @@ func (tc *TasksControllerImpl) processInternalEvents(ctx context.Context, tenant
 
 	if len(matchResult.ReplayedTasks) > 0 {
 		err = tc.signalTasksReplayedFromMatch(ctx, tenantId, matchResult.ReplayedTasks)
-
 		if err != nil {
 			return fmt.Errorf("could not signal replayed tasks: %w", err)
 		}
@@ -1085,7 +1045,6 @@ func (tc *TasksControllerImpl) signalDAGsCreated(ctx context.Context, tenantId s
 	for _, dag := range dags {
 		dagCp := dag
 		msg, err := tasktypes.CreatedDAGMessage(tenantId, dagCp)
-
 		if err != nil {
 			tc.l.Err(err).Msg("could not create message for olap queue")
 			continue
@@ -1097,7 +1056,6 @@ func (tc *TasksControllerImpl) signalDAGsCreated(ctx context.Context, tenantId s
 			msg,
 			false,
 		)
-
 		if err != nil {
 			tc.l.Err(err).Msg("could not add message to olap queue")
 			continue
@@ -1127,7 +1085,6 @@ func (tc *TasksControllerImpl) signalTasksCreated(ctx context.Context, tenantId 
 		}
 
 		msg, err := tasktypes.CreatedTaskMessage(tenantId, task)
-
 		if err != nil {
 			tc.l.Err(err).Msg("could not create message for olap queue")
 			continue
@@ -1139,7 +1096,6 @@ func (tc *TasksControllerImpl) signalTasksCreated(ctx context.Context, tenantId 
 			msg,
 			false,
 		)
-
 		if err != nil {
 			tc.l.Err(err).Msg("could not add message to olap queue")
 			continue
@@ -1151,7 +1107,6 @@ func (tc *TasksControllerImpl) signalTasksCreated(ctx context.Context, tenantId 
 	if len(queuedTasks) > 0 {
 		eg.Go(func() error {
 			err := tc.signalTasksCreatedAndQueued(ctx, tenantId, queuedTasks)
-
 			if err != nil {
 				return fmt.Errorf("could not signal created tasks: %w", err)
 			}
@@ -1163,7 +1118,6 @@ func (tc *TasksControllerImpl) signalTasksCreated(ctx context.Context, tenantId 
 	if len(failedTasks) > 0 {
 		eg.Go(func() error {
 			err := tc.signalTasksCreatedAndFailed(ctx, tenantId, failedTasks)
-
 			if err != nil {
 				return fmt.Errorf("could not signal created tasks: %w", err)
 			}
@@ -1175,7 +1129,6 @@ func (tc *TasksControllerImpl) signalTasksCreated(ctx context.Context, tenantId 
 	if len(cancelledTasks) > 0 {
 		eg.Go(func() error {
 			err := tc.signalTasksCreatedAndCancelled(ctx, tenantId, cancelledTasks)
-
 			if err != nil {
 				return fmt.Errorf("could not signal created tasks: %w", err)
 			}
@@ -1187,7 +1140,6 @@ func (tc *TasksControllerImpl) signalTasksCreated(ctx context.Context, tenantId 
 	if len(skippedTasks) > 0 {
 		eg.Go(func() error {
 			err := tc.signalTasksCreatedAndSkipped(ctx, tenantId, skippedTasks)
-
 			if err != nil {
 				return fmt.Errorf("could not signal created tasks: %w", err)
 			}
@@ -1229,7 +1181,6 @@ func (tc *TasksControllerImpl) signalTasksReplayedFromMatch(ctx context.Context,
 	if len(queuedTasks) > 0 {
 		eg.Go(func() error {
 			err := tc.signalTasksCreatedAndQueued(ctx, tenantId, queuedTasks)
-
 			if err != nil {
 				return fmt.Errorf("could not signal created tasks: %w", err)
 			}
@@ -1241,7 +1192,6 @@ func (tc *TasksControllerImpl) signalTasksReplayedFromMatch(ctx context.Context,
 	if len(failedTasks) > 0 {
 		eg.Go(func() error {
 			err := tc.signalTasksCreatedAndFailed(ctx, tenantId, failedTasks)
-
 			if err != nil {
 				return fmt.Errorf("could not signal created tasks: %w", err)
 			}
@@ -1253,7 +1203,6 @@ func (tc *TasksControllerImpl) signalTasksReplayedFromMatch(ctx context.Context,
 	if len(cancelledTasks) > 0 {
 		eg.Go(func() error {
 			err := tc.signalTasksCreatedAndCancelled(ctx, tenantId, cancelledTasks)
-
 			if err != nil {
 				return fmt.Errorf("could not signal created tasks: %w", err)
 			}
@@ -1265,7 +1214,6 @@ func (tc *TasksControllerImpl) signalTasksReplayedFromMatch(ctx context.Context,
 	if len(skippedTasks) > 0 {
 		eg.Go(func() error {
 			err := tc.signalTasksCreatedAndSkipped(ctx, tenantId, skippedTasks)
-
 			if err != nil {
 				return fmt.Errorf("could not signal created tasks: %w", err)
 			}
@@ -1302,7 +1250,6 @@ func (tc *TasksControllerImpl) signalTasksUpdated(ctx context.Context, tenantId 
 	if len(queuedTasks) > 0 {
 		eg.Go(func() error {
 			err := tc.signalTasksCreatedAndQueued(ctx, tenantId, queuedTasks)
-
 			if err != nil {
 				return fmt.Errorf("could not signal created tasks: %w", err)
 			}
@@ -1314,7 +1261,6 @@ func (tc *TasksControllerImpl) signalTasksUpdated(ctx context.Context, tenantId 
 	if len(failedTasks) > 0 {
 		eg.Go(func() error {
 			err := tc.signalTasksCreatedAndFailed(ctx, tenantId, failedTasks)
-
 			if err != nil {
 				return fmt.Errorf("could not signal created tasks: %w", err)
 			}
@@ -1326,7 +1272,6 @@ func (tc *TasksControllerImpl) signalTasksUpdated(ctx context.Context, tenantId 
 	if len(cancelledTasks) > 0 {
 		eg.Go(func() error {
 			err := tc.signalTasksCreatedAndCancelled(ctx, tenantId, cancelledTasks)
-
 			if err != nil {
 				return fmt.Errorf("could not signal created tasks: %w", err)
 			}
@@ -1338,7 +1283,6 @@ func (tc *TasksControllerImpl) signalTasksUpdated(ctx context.Context, tenantId 
 	if len(skippedTasks) > 0 {
 		eg.Go(func() error {
 			err := tc.signalTasksCreatedAndSkipped(ctx, tenantId, skippedTasks)
-
 			if err != nil {
 				return fmt.Errorf("could not signal created tasks: %w", err)
 			}
@@ -1359,7 +1303,6 @@ func (tc *TasksControllerImpl) signalTasksCreatedAndQueued(ctx context.Context, 
 	}
 
 	tenant, err := tc.repo.Tenant().GetTenantByID(ctx, tenantId)
-
 	if err != nil {
 		return err
 	}
@@ -1375,7 +1318,6 @@ func (tc *TasksControllerImpl) signalTasksCreatedAndQueued(ctx context.Context, 
 				msgqueue.QueueTypeFromPartitionIDAndController(tenant.SchedulerPartitionId.String, msgqueue.Scheduler),
 				msg,
 			)
-
 			if err != nil {
 				tc.l.Err(err).Msg("could not add message to scheduler partition queue")
 			}
@@ -1405,7 +1347,6 @@ func (tc *TasksControllerImpl) signalTasksCreatedAndQueued(ctx context.Context, 
 				EventMessage:   msg,
 			},
 		)
-
 		if err != nil {
 			tc.l.Err(err).Msg("could not create monitoring event message")
 			continue
@@ -1417,7 +1358,6 @@ func (tc *TasksControllerImpl) signalTasksCreatedAndQueued(ctx context.Context, 
 			olapMsg,
 			false,
 		)
-
 		if err != nil {
 			tc.l.Err(err).Msg("could not add monitoring event message to olap queue")
 			continue
@@ -1454,7 +1394,6 @@ func (tc *TasksControllerImpl) signalTasksCreatedAndCancelled(ctx context.Contex
 	}
 
 	err := tc.sendInternalEvents(ctx, tenantId, internalEvents)
-
 	if err != nil {
 		return err
 	}
@@ -1468,7 +1407,6 @@ func (tc *TasksControllerImpl) signalTasksCreatedAndCancelled(ctx context.Contex
 			EventType:      sqlcv1.V1EventTypeOlapCANCELLED,
 			EventTimestamp: time.Now(),
 		})
-
 		if err != nil {
 			tc.l.Err(err).Msg("could not create message for olap queue")
 			continue
@@ -1480,7 +1418,6 @@ func (tc *TasksControllerImpl) signalTasksCreatedAndCancelled(ctx context.Contex
 			msg,
 			false,
 		)
-
 		if err != nil {
 			tc.l.Err(err).Msg("could not add message to olap queue")
 			continue
@@ -1519,7 +1456,6 @@ func (tc *TasksControllerImpl) signalTasksCreatedAndFailed(ctx context.Context, 
 	}
 
 	err := tc.sendInternalEvents(ctx, tenantId, internalEvents)
-
 	if err != nil {
 		return err
 	}
@@ -1534,7 +1470,6 @@ func (tc *TasksControllerImpl) signalTasksCreatedAndFailed(ctx context.Context, 
 			EventPayload:   task.InitialStateReason.String,
 			EventTimestamp: time.Now(),
 		})
-
 		if err != nil {
 			tc.l.Err(err).Msg("could not create message for olap queue")
 			continue
@@ -1546,7 +1481,6 @@ func (tc *TasksControllerImpl) signalTasksCreatedAndFailed(ctx context.Context, 
 			msg,
 			false,
 		)
-
 		if err != nil {
 			tc.l.Err(err).Msg("could not add message to olap queue")
 			continue
@@ -1585,7 +1519,6 @@ func (tc *TasksControllerImpl) signalTasksCreatedAndSkipped(ctx context.Context,
 	}
 
 	err := tc.sendInternalEvents(ctx, tenantId, internalEvents)
-
 	if err != nil {
 		return err
 	}
@@ -1599,7 +1532,6 @@ func (tc *TasksControllerImpl) signalTasksCreatedAndSkipped(ctx context.Context,
 			EventType:      sqlcv1.V1EventTypeOlapSKIPPED,
 			EventTimestamp: time.Now(),
 		})
-
 		if err != nil {
 			tc.l.Err(err).Msg("could not create message for olap queue")
 			continue
@@ -1611,7 +1543,6 @@ func (tc *TasksControllerImpl) signalTasksCreatedAndSkipped(ctx context.Context,
 			msg,
 			false,
 		)
-
 		if err != nil {
 			tc.l.Err(err).Msg("could not add message to olap queue")
 			continue
@@ -1652,7 +1583,6 @@ func (tc *TasksControllerImpl) signalTasksReplayed(ctx context.Context, tenantId
 				EventMessage:   msg,
 			},
 		)
-
 		if err != nil {
 			tc.l.Err(err).Msg("could not create monitoring event message")
 			continue
@@ -1664,7 +1594,6 @@ func (tc *TasksControllerImpl) signalTasksReplayed(ctx context.Context, tenantId
 			olapMsg,
 			false,
 		)
-
 		if err != nil {
 			tc.l.Err(err).Msg("could not add monitoring event message to olap queue")
 			continue
@@ -1701,7 +1630,6 @@ func (tc *TasksControllerImpl) pubRetryEvent(ctx context.Context, tenantId strin
 			EventMessage:   retryMsg,
 		},
 	)
-
 	if err != nil {
 		return fmt.Errorf("could not create monitoring event message: %w", err)
 	}
@@ -1712,7 +1640,6 @@ func (tc *TasksControllerImpl) pubRetryEvent(ctx context.Context, tenantId strin
 		olapMsg,
 		false,
 	)
-
 	if err != nil {
 		return fmt.Errorf("could not publish monitoring event message: %w", err)
 	}
@@ -1727,7 +1654,6 @@ func (tc *TasksControllerImpl) pubRetryEvent(ctx context.Context, tenantId strin
 				EventTimestamp: time.Now(),
 			},
 		)
-
 		if err != nil {
 			return fmt.Errorf("could not create monitoring event message: %w", err)
 		}
@@ -1738,7 +1664,6 @@ func (tc *TasksControllerImpl) pubRetryEvent(ctx context.Context, tenantId strin
 			olapMsg,
 			false,
 		)
-
 		if err != nil {
 			return fmt.Errorf("could not publish monitoring event message: %w", err)
 		}

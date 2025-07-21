@@ -16,7 +16,6 @@ func PrepareTx(ctx context.Context, pool *pgxpool.Pool, l *zerolog.Logger, timeo
 	start := time.Now()
 
 	tx, err := pool.Begin(ctx)
-
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -32,7 +31,6 @@ func PrepareTx(ctx context.Context, pool *pgxpool.Pool, l *zerolog.Logger, timeo
 	commit := func(ctx context.Context) error {
 		// reset statement timeout
 		_, err = tx.Exec(ctx, "SET statement_timeout=0")
-
 		if err != nil {
 			return err
 		}
@@ -46,7 +44,6 @@ func PrepareTx(ctx context.Context, pool *pgxpool.Pool, l *zerolog.Logger, timeo
 
 	// set tx timeout to 5 seconds to avoid deadlocks
 	_, err = tx.Exec(ctx, fmt.Sprintf("SET statement_timeout=%d", timeoutMs))
-
 	if err != nil {
 		return nil, nil, nil, err
 	}

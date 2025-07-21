@@ -50,7 +50,6 @@ func newQueue(
 	p *partition.Partition,
 ) (*queue, error) {
 	s, err := gocron.NewScheduler(gocron.WithLocation(time.UTC))
-
 	if err != nil {
 		return nil, fmt.Errorf("could not create scheduler: %w", err)
 	}
@@ -74,7 +73,6 @@ func newQueue(
 }
 
 func (q *queue) Start() (func() error, error) {
-
 	ctx, cancel := context.WithCancel(context.Background())
 
 	wg := sync.WaitGroup{}
@@ -85,7 +83,6 @@ func (q *queue) Start() (func() error, error) {
 			q.runTenantTimeoutStepRuns(ctx),
 		),
 	)
-
 	if err != nil {
 		cancel()
 		return nil, fmt.Errorf("could not schedule step run timeout: %w", err)
@@ -97,7 +94,6 @@ func (q *queue) Start() (func() error, error) {
 			q.runTenantRetryStepRuns(ctx),
 		),
 	)
-
 	if err != nil {
 		cancel()
 		return nil, fmt.Errorf("could not schedule step run retry: %w", err)
@@ -109,7 +105,6 @@ func (q *queue) Start() (func() error, error) {
 			q.runTenantUpdateStepRunsV2(ctx),
 		),
 	)
-
 	if err != nil {
 		cancel()
 		return nil, fmt.Errorf("could not schedule step run update (v2): %w", err)
@@ -135,7 +130,6 @@ func (q *queue) Start() (func() error, error) {
 		msgqueue.NoOpHook, // the only handler is to check the queue, so we acknowledge immediately with the NoOpHook
 		postAck,
 	)
-
 	if err != nil {
 		cancel()
 		return nil, fmt.Errorf("could not subscribe to job processing queue: %w", err)
@@ -191,7 +185,6 @@ func (q *queue) handleCheckQueue(ctx context.Context, task *msgqueue.Message) er
 	metadata := tasktypes.CheckTenantQueueMetadata{}
 
 	err := q.dv.DecodeAndValidate(task.Metadata, &metadata)
-
 	if err != nil {
 		return fmt.Errorf("could not decode check queue metadata: %w", err)
 	}
@@ -213,7 +206,6 @@ func (q *queue) runTenantUpdateStepRunsV2(ctx context.Context) func() {
 
 		// list all tenants
 		tenants, err := q.p.ListTenantsForController(ctx, dbsqlc.TenantMajorEngineVersionV0)
-
 		if err != nil {
 			q.l.Err(err).Msg("could not list tenants")
 			return
@@ -237,7 +229,6 @@ func (q *queue) processStepRunUpdatesV2(ctx context.Context, tenantId string) (b
 	defer cancel()
 
 	res, err := q.repo.StepRun().ProcessStepRunUpdatesV2(dbCtx, q.ql, tenantId)
-
 	if err != nil {
 		return false, fmt.Errorf("could not process step run updates (v2): %w", err)
 	}
@@ -254,7 +245,6 @@ func (q *queue) processStepRunUpdatesV2(ctx context.Context, tenantId string) (b
 			stepRunId := sqlchelpers.UUIDToStr(stepRun.SRID)
 
 			nextStepRuns, err := q.repo.StepRun().ListStartableStepRuns(ctx, tenantId, stepRunId, false)
-
 			if err != nil {
 				q.l.Error().Err(err).Msg("could not list startable step runs")
 				continue
@@ -266,7 +256,6 @@ func (q *queue) processStepRunUpdatesV2(ctx context.Context, tenantId string) (b
 					msgqueue.JOB_PROCESSING_QUEUE,
 					tasktypes.StepRunQueuedToTask(nextStepRun),
 				)
-
 				if err != nil {
 					q.l.Error().Err(err).Msg("could not queue next step run")
 				}
@@ -275,7 +264,6 @@ func (q *queue) processStepRunUpdatesV2(ctx context.Context, tenantId string) (b
 
 		return nil
 	})
-
 	if err != nil {
 		return false, fmt.Errorf("could not process succeeded step runs: %w", err)
 	}
@@ -294,7 +282,6 @@ func (q *queue) processStepRunUpdatesV2(ctx context.Context, tenantId string) (b
 				status,
 			),
 		)
-
 		if err != nil {
 			q.l.Error().Err(err).Msg("could not add workflow run finished task to task queue (v2)")
 		}
@@ -309,7 +296,6 @@ func (q *queue) runTenantTimeoutStepRuns(ctx context.Context) func() {
 
 		// list all tenants
 		tenants, err := q.p.ListTenantsForController(ctx, dbsqlc.TenantMajorEngineVersionV0)
-
 		if err != nil {
 			q.l.Err(err).Msg("could not list tenants")
 			return
@@ -331,7 +317,6 @@ func (q *queue) runTenantRetryStepRuns(ctx context.Context) func() {
 
 		// list all tenants
 		tenants, err := q.p.ListTenantsForController(ctx, dbsqlc.TenantMajorEngineVersionV0)
-
 		if err != nil {
 			q.l.Err(err).Msg("could not list tenants")
 			return
@@ -352,7 +337,6 @@ func (q *queue) processStepRunTimeouts(ctx context.Context, tenantId string) (bo
 	defer span.End()
 
 	shouldContinue, stepRuns, err := q.repo.StepRun().ListStepRunsToTimeout(ctx, tenantId)
-
 	if err != nil {
 		return false, fmt.Errorf("could not list step runs to timeout for tenant %s: %w", tenantId, err)
 	}
@@ -388,7 +372,6 @@ func (q *queue) processStepRunTimeouts(ctx context.Context, tenantId string) (bo
 
 		return nil
 	})
-
 	if err != nil {
 		return false, fmt.Errorf("could not process step run timeouts: %w", err)
 	}
@@ -401,7 +384,6 @@ func (q *queue) processStepRunRetries(ctx context.Context, tenantId string) (boo
 	defer span.End()
 
 	shouldContinue, err := q.repo.StepRun().RetryStepRuns(ctx, tenantId)
-
 	if err != nil {
 		return false, fmt.Errorf("could not retry step runs for tenant %s: %w", tenantId, err)
 	}

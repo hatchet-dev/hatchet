@@ -41,7 +41,6 @@ func (c *filtersClientImpl) List(ctx context.Context, opts *rest.V1FilterListPar
 		c.tenantID,
 		opts,
 	)
-
 	if err != nil {
 		return nil, err
 	}
@@ -55,7 +54,6 @@ func (c *filtersClientImpl) Get(ctx context.Context, filterID string) (*rest.V1F
 		c.tenantID,
 		uuid.MustParse(filterID),
 	)
-
 	if err != nil {
 		return nil, err
 	}
@@ -69,7 +67,6 @@ func (c *filtersClientImpl) Create(ctx context.Context, opts rest.V1CreateFilter
 		c.tenantID,
 		opts,
 	)
-
 	if err != nil {
 		return nil, err
 	}
@@ -83,7 +80,6 @@ func (c *filtersClientImpl) Delete(ctx context.Context, filterID string) (*rest.
 		c.tenantID,
 		uuid.MustParse(filterID),
 	)
-
 	if err != nil {
 		return nil, err
 	}
@@ -98,7 +94,6 @@ func (c *filtersClientImpl) Update(ctx context.Context, filterID string, opts re
 		uuid.MustParse(filterID),
 		opts,
 	)
-
 	if err != nil {
 		return nil, err
 	}

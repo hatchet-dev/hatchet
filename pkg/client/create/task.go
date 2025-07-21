@@ -7,8 +7,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/worker/condition"
 )
 
-type BaseTaskCreateOpts[I any] struct {
-}
+type BaseTaskCreateOpts[I any] struct{}
 
 // NamedTask defines an interface for task types that have a name
 type NamedTask interface {
@@ -100,7 +99,6 @@ type WorkflowOnFailureTask[I, O any] struct {
 // TaskCreateOpts defines options for creating a standalone task.
 // This combines both workflow and task properties in a single type.
 type StandaloneTask struct {
-
 	// (required) The name of the task and workflow
 	Name string
 

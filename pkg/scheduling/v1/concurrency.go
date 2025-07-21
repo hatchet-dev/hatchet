@@ -123,7 +123,6 @@ func (c *ConcurrencyManager) loopConcurrency(ctx context.Context) {
 		start := time.Now()
 
 		results, err := c.repo.RunConcurrencyStrategy(ctx, c.tenantId, c.strategy)
-
 		if err != nil {
 			span.End()
 			c.l.Error().Err(err).Msg("error running concurrency strategy")
@@ -164,7 +163,6 @@ func (c *ConcurrencyManager) loopCheckActive(ctx context.Context) {
 		start := time.Now()
 
 		err := c.repo.UpdateConcurrencyStrategyIsActive(ctx, c.tenantId, c.strategy)
-
 		if err != nil {
 			span.End()
 			c.l.Error().Err(err).Msg("error updating concurrency strategy is_active")

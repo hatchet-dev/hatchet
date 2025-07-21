@@ -17,7 +17,6 @@ func (t *TickerImpl) runPollTenantAlerts(ctx context.Context) func() {
 		t.l.Debug().Msgf("ticker: polling tenant alerts")
 
 		alerts, err := t.repo.Ticker().PollTenantAlerts(ctx, t.tickerId)
-
 		if err != nil {
 			t.l.Err(err).Msg("could not poll tenant alerts")
 			return
@@ -49,7 +48,6 @@ func (t *TickerImpl) runExpiringTokenAlerts(ctx context.Context) func() {
 		t.l.Debug().Msg("ticker: polling expiring tokens")
 
 		expiring_tokens, err := t.repo.Ticker().PollExpiringTokens(ctx)
-
 		if err != nil {
 			t.l.Err(err).Msg("could not poll expiring tokens")
 			return
@@ -83,7 +81,6 @@ func (t *TickerImpl) runTenantResourceLimitAlerts(ctx context.Context) func() {
 		t.l.Debug().Msg("ticker: resolving tenant resource limits")
 
 		err := t.entitlements.TenantLimit().ResolveAllTenantResourceLimits(ctx)
-
 		if err != nil {
 			t.l.Err(err).Msg("could not resolve tenant resource limits")
 			return
@@ -92,7 +89,6 @@ func (t *TickerImpl) runTenantResourceLimitAlerts(ctx context.Context) func() {
 		t.l.Debug().Msg("ticker: polling tenant resource limit alerts")
 
 		alerts, err := t.repo.Ticker().PollTenantResourceLimitAlerts(ctx)
-
 		if err != nil {
 			t.l.Err(err).Msg("could not poll tenant resource limit alerts")
 			return

@@ -12,7 +12,6 @@ import (
 
 func GetDataRetentionExpiredTime(duration string) (time.Time, error) {
 	d, err := time.ParseDuration(duration)
-
 	if err != nil {
 		return time.Time{}, fmt.Errorf("could not parse duration: %w", err)
 	}
@@ -21,10 +20,8 @@ func GetDataRetentionExpiredTime(duration string) (time.Time, error) {
 }
 
 func (wc *RetentionControllerImpl) ForTenants(ctx context.Context, f func(ctx context.Context, tenant dbsqlc.Tenant) error) error {
-
 	// list all tenants
 	tenants, err := wc.p.ListTenantsForController(ctx, dbsqlc.TenantMajorEngineVersionV0)
-
 	if err != nil {
 		return fmt.Errorf("could not list tenants: %w", err)
 	}
@@ -39,7 +36,6 @@ func (wc *RetentionControllerImpl) ForTenants(ctx context.Context, f func(ctx co
 	}
 
 	err = g.Wait()
-
 	if err != nil {
 		return fmt.Errorf("could not run for tenants: %w", err)
 	}

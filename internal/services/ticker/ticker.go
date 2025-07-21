@@ -151,7 +151,6 @@ func New(fs ...TickerOpt) (*TickerImpl, error) {
 	opts.l = &newLogger
 
 	s, err := gocron.NewScheduler(gocron.WithLocation(time.UTC))
-
 	if err != nil {
 		return nil, fmt.Errorf("could not create scheduler: %w", err)
 	}
@@ -180,7 +179,6 @@ func (t *TickerImpl) Start() (func() error, error) {
 	_, err := t.repo.Ticker().CreateNewTicker(ctx, &repository.CreateTickerOpts{
 		ID: t.tickerId,
 	})
-
 	if err != nil {
 		cancel()
 		return nil, err
@@ -192,7 +190,6 @@ func (t *TickerImpl) Start() (func() error, error) {
 			t.runUpdateHeartbeat(ctx),
 		),
 	)
-
 	if err != nil {
 		cancel()
 		return nil, fmt.Errorf("could not create update heartbeat job: %w", err)
@@ -204,7 +201,6 @@ func (t *TickerImpl) Start() (func() error, error) {
 			t.runPollGetGroupKeyRuns(ctx),
 		),
 	)
-
 	if err != nil {
 		cancel()
 		return nil, fmt.Errorf("could not create update heartbeat job: %w", err)
@@ -218,7 +214,6 @@ func (t *TickerImpl) Start() (func() error, error) {
 		),
 		gocron.WithSingletonMode(gocron.LimitModeReschedule),
 	)
-
 	if err != nil {
 		cancel()
 		return nil, fmt.Errorf("could not create poll cron schedules job: %w", err)
@@ -232,7 +227,6 @@ func (t *TickerImpl) Start() (func() error, error) {
 		),
 		gocron.WithSingletonMode(gocron.LimitModeReschedule),
 	)
-
 	if err != nil {
 		cancel()
 		return nil, fmt.Errorf("could not create poll cron schedules job: %w", err)
@@ -244,7 +238,6 @@ func (t *TickerImpl) Start() (func() error, error) {
 			t.runStreamEventCleanup(ctx),
 		),
 	)
-
 	if err != nil {
 		cancel()
 		return nil, fmt.Errorf("could not schedule stream event cleanup: %w", err)
@@ -257,7 +250,6 @@ func (t *TickerImpl) Start() (func() error, error) {
 			t.runPollTenantAlerts(ctx),
 		),
 	)
-
 	if err != nil {
 		cancel()
 		return nil, fmt.Errorf("could not schedule tenant alert polling: %w", err)
@@ -270,7 +262,6 @@ func (t *TickerImpl) Start() (func() error, error) {
 			t.runExpiringTokenAlerts(ctx),
 		),
 	)
-
 	if err != nil {
 		cancel()
 		return nil, fmt.Errorf("could not schedule tenant alert polling: %w", err)
@@ -283,14 +274,12 @@ func (t *TickerImpl) Start() (func() error, error) {
 			t.runTenantResourceLimitAlerts(ctx),
 		),
 	)
-
 	if err != nil {
 		cancel()
 		return nil, fmt.Errorf("could not schedule tenant resource limit alert polling: %w", err)
 	}
 
 	userCronScheduler, err := gocron.NewScheduler(gocron.WithLocation(time.UTC))
-
 	if err != nil {
 		cancel()
 		return nil, fmt.Errorf("could not create user cron scheduler: %w", err)
@@ -319,7 +308,6 @@ func (t *TickerImpl) Start() (func() error, error) {
 
 		// delete the ticker
 		err = t.repo.Ticker().DeactivateTicker(deleteCtx, t.tickerId)
-
 		if err != nil {
 			t.l.Err(err).Msg("could not delete ticker")
 			return err
@@ -341,7 +329,6 @@ func (t *TickerImpl) runUpdateHeartbeat(ctx context.Context) func() {
 		_, err := t.repo.Ticker().UpdateTicker(ctx, t.tickerId, &repository.UpdateTickerOpts{
 			LastHeartbeatAt: &now,
 		})
-
 		if err != nil {
 			t.l.Err(err).Msg("could not update heartbeat")
 		}
@@ -356,7 +343,6 @@ func (t *TickerImpl) runStreamEventCleanup(ctx context.Context) func() {
 		t.l.Debug().Msgf("ticker: cleaning up stream event")
 
 		err := t.repo.StreamEvent().CleanupStreamEvents(ctx)
-
 		if err != nil {
 			t.l.Err(err).Msg("could not cleanup stream events")
 		}

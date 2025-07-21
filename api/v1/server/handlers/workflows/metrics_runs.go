@@ -59,7 +59,6 @@ func (t *WorkflowService) WorkflowRunGetMetrics(ctx echo.Context, request gen.Wo
 				additionalMetadata[splitValue[0]] = splitValue[1]
 			} else {
 				return gen.WorkflowRunGetMetrics400JSONResponse(apierrors.NewAPIErrors("Additional metadata filters must be in the format key:value.")), nil
-
 			}
 		}
 
@@ -70,7 +69,6 @@ func (t *WorkflowService) WorkflowRunGetMetrics(ctx echo.Context, request gen.Wo
 	defer cancel()
 
 	workflowRunsMetricsCount, err := t.config.APIRepository.WorkflowRun().WorkflowRunMetricsCount(dbCtx, tenantId, listOpts)
-
 	if err != nil {
 		return nil, err
 	}

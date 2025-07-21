@@ -35,7 +35,6 @@ func (t *WorkerService) workerListV0(ctx echo.Context, tenant *dbsqlc.Tenant, re
 	workers, err := t.config.APIRepository.Worker().ListWorkers(tenantId, &repository.ListWorkersOpts{
 		LastHeartbeatAfter: &sixSecAgo,
 	})
-
 	if err != nil {
 		return nil, err
 	}
@@ -64,7 +63,6 @@ func (t *WorkerService) workerListV1(ctx echo.Context, tenant *dbsqlc.Tenant, re
 	workers, err := t.config.V1.Workers().ListWorkers(tenantId, &repository.ListWorkersOpts{
 		LastHeartbeatAfter: &sixSecAgo,
 	})
-
 	if err != nil {
 		return nil, err
 	}
@@ -84,7 +82,6 @@ func (t *WorkerService) workerListV1(ctx echo.Context, tenant *dbsqlc.Tenant, re
 		sqlchelpers.UUIDToStr(tenant.ID),
 		workerIds,
 	)
-
 	if err != nil {
 		return nil, err
 	}

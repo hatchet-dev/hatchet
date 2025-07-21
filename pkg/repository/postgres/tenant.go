@@ -64,7 +64,6 @@ func (r *tenantAPIRepository) CreateTenant(ctx context.Context, opts *repository
 	}
 
 	tx, err := r.pool.Begin(ctx)
-
 	if err != nil {
 		return nil, err
 	}
@@ -85,13 +84,11 @@ func (r *tenantAPIRepository) CreateTenant(ctx context.Context, opts *repository
 			Valid:                true,
 		},
 	})
-
 	if err != nil {
 		return nil, err
 	}
 
 	_, err = r.queries.CreateTenantAlertingSettings(ctx, tx, sqlchelpers.UUIDFromStr(tenantId))
-
 	if err != nil {
 		return nil, err
 	}
@@ -167,7 +164,6 @@ func (r *tenantAPIRepository) CreateTenantMember(ctx context.Context, tenantId s
 			Role:     dbsqlc.TenantMemberRole(opts.Role),
 		},
 	)
-
 	if err != nil {
 		return nil, err
 	}
@@ -181,7 +177,6 @@ func (r *tenantAPIRepository) GetTenantMemberByID(ctx context.Context, memberId 
 		r.pool,
 		sqlchelpers.UUIDFromStr(memberId),
 	)
-
 	if err != nil {
 		return nil, err
 	}
@@ -198,7 +193,6 @@ func (r *tenantAPIRepository) GetTenantMemberByUserID(ctx context.Context, tenan
 			Userid:   sqlchelpers.UUIDFromStr(userId),
 		},
 	)
-
 	if err != nil {
 		return nil, err
 	}
@@ -212,7 +206,6 @@ func (r *tenantAPIRepository) ListTenantMembers(ctx context.Context, tenantId st
 		r.pool,
 		sqlchelpers.UUIDFromStr(tenantId),
 	)
-
 	if err != nil {
 		return nil, err
 	}
@@ -235,7 +228,6 @@ func (r *tenantAPIRepository) GetTenantMemberByEmail(ctx context.Context, tenant
 			Email:    email,
 		},
 	)
-
 	if err != nil {
 		return nil, err
 	}
@@ -264,7 +256,6 @@ func (r *tenantAPIRepository) UpdateTenantMember(ctx context.Context, memberId s
 		r.pool,
 		params,
 	)
-
 	if err != nil {
 		return nil, err
 	}
@@ -274,7 +265,6 @@ func (r *tenantAPIRepository) UpdateTenantMember(ctx context.Context, memberId s
 
 func (r *sharedRepository) populateSingleTenantMember(ctx context.Context, ids pgtype.UUID) (*dbsqlc.PopulateTenantMembersRow, error) {
 	res, err := r.populateTenantMembers(ctx, []pgtype.UUID{ids})
-
 	if err != nil {
 		return nil, err
 	}
@@ -337,7 +327,6 @@ func (r *tenantAPIRepository) GetQueueMetrics(ctx context.Context, tenantId stri
 	}
 
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 60*1000)
-
 	if err != nil {
 		return nil, err
 	}
@@ -346,14 +335,12 @@ func (r *tenantAPIRepository) GetQueueMetrics(ctx context.Context, tenantId stri
 
 	// get the totals
 	total, err := r.queries.GetTenantTotalQueueMetrics(ctx, tx, totalParams)
-
 	if err != nil {
 		return nil, err
 	}
 
 	// get the workflow metrics
 	workflowMetrics, err := r.queries.GetTenantWorkflowQueueMetrics(ctx, tx, workflowParams)
-
 	if err != nil {
 		return nil, err
 	}
@@ -414,7 +401,6 @@ func (r *tenantEngineRepository) GetTenantByID(ctx context.Context, tenantId str
 
 func (r *tenantEngineRepository) UpdateControllerPartitionHeartbeat(ctx context.Context, partitionId string) (string, error) {
 	tx, err := r.pool.Begin(ctx)
-
 	if err != nil {
 		return "", err
 	}
@@ -423,18 +409,15 @@ func (r *tenantEngineRepository) UpdateControllerPartitionHeartbeat(ctx context.
 
 	// set tx timeout to 5 seconds to avoid deadlocks
 	_, err = tx.Exec(ctx, "SET statement_timeout=5000")
-
 	if err != nil {
 		return "", err
 	}
 
 	partition, err := r.queries.ControllerPartitionHeartbeat(ctx, tx, partitionId)
-
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			// create a new partition
 			partition, err = r.queries.CreateControllerPartition(ctx, tx, getPartitionName())
-
 			if err != nil {
 				return "", err
 			}
@@ -452,7 +435,6 @@ func (r *tenantEngineRepository) UpdateControllerPartitionHeartbeat(ctx context.
 
 func (r *tenantEngineRepository) UpdateWorkerPartitionHeartbeat(ctx context.Context, partitionId string) (string, error) {
 	tx, err := r.pool.Begin(ctx)
-
 	if err != nil {
 		return "", err
 	}
@@ -461,18 +443,15 @@ func (r *tenantEngineRepository) UpdateWorkerPartitionHeartbeat(ctx context.Cont
 
 	// set tx timeout to 5 seconds to avoid deadlocks
 	_, err = tx.Exec(ctx, "SET statement_timeout=5000")
-
 	if err != nil {
 		return "", err
 	}
 
 	partition, err := r.queries.WorkerPartitionHeartbeat(ctx, tx, partitionId)
-
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			// create a new partition
 			partition, err = r.queries.CreateTenantWorkerPartition(ctx, tx, getPartitionName())
-
 			if err != nil {
 				return "", err
 			}
@@ -523,9 +502,7 @@ func (r *tenantEngineRepository) ListTenantsByWorkerPartition(ctx context.Contex
 }
 
 func (r *tenantEngineRepository) CreateControllerPartition(ctx context.Context) (string, error) {
-
 	partition, err := r.queries.CreateControllerPartition(ctx, r.pool, getPartitionName())
-
 	if err != nil {
 		return "", err
 	}
@@ -548,7 +525,6 @@ func (r *tenantEngineRepository) RebalanceInactiveControllerPartitions(ctx conte
 
 func (r *tenantEngineRepository) CreateTenantWorkerPartition(ctx context.Context) (string, error) {
 	partition, err := r.queries.CreateTenantWorkerPartition(ctx, r.pool, getPartitionName())
-
 	if err != nil {
 		return "", err
 	}
@@ -571,7 +547,6 @@ func (r *tenantEngineRepository) RebalanceInactiveTenantWorkerPartitions(ctx con
 
 func (r *tenantEngineRepository) UpdateSchedulerPartitionHeartbeat(ctx context.Context, partitionId string) (string, error) {
 	tx, err := r.pool.Begin(ctx)
-
 	if err != nil {
 		return "", err
 	}
@@ -580,18 +555,15 @@ func (r *tenantEngineRepository) UpdateSchedulerPartitionHeartbeat(ctx context.C
 
 	// set tx timeout to 5 seconds to avoid deadlocks
 	_, err = tx.Exec(ctx, "SET statement_timeout=5000")
-
 	if err != nil {
 		return "", err
 	}
 
 	partition, err := r.queries.SchedulerPartitionHeartbeat(ctx, tx, partitionId)
-
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			// create a new partition
 			partition, err = r.queries.CreateSchedulerPartition(ctx, tx, getPartitionName())
-
 			if err != nil {
 				return "", err
 			}
@@ -619,9 +591,7 @@ func (r *tenantEngineRepository) ListTenantsBySchedulerPartition(ctx context.Con
 }
 
 func (r *tenantEngineRepository) CreateSchedulerPartition(ctx context.Context) (string, error) {
-
 	partition, err := r.queries.CreateSchedulerPartition(ctx, r.pool, getPartitionName())
-
 	if err != nil {
 		return "", err
 	}

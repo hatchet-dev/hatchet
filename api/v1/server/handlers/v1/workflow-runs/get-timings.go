@@ -41,7 +41,6 @@ func (t *V1WorkflowRunsService) V1WorkflowRunGetTimings(ctx echo.Context, reques
 		workflowRun.ExternalID,
 		depth,
 	)
-
 	if err != nil {
 		return nil, err
 	}

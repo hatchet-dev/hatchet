@@ -47,7 +47,6 @@ func ToTenantAlertEmailGroup(group *dbsqlc.TenantAlertEmailGroup) *gen.TenantAle
 }
 
 func ToTenantResourcePolicy(_limits []*dbsqlc.TenantResourceLimit) *gen.TenantResourcePolicy {
-
 	limits := make([]gen.TenantResourceLimit, len(_limits))
 
 	for i, limit := range _limits {

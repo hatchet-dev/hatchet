@@ -20,7 +20,6 @@ func RunTestWithDatabase(t *testing.T, test func(config *database.Layer) error) 
 	defer conf.Disconnect() // nolint: errcheck
 
 	err = test(conf)
-
 	if err != nil {
 		t.Fatalf("%v\n", err)
 	}

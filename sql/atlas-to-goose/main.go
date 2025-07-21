@@ -40,7 +40,6 @@ func main() {
 		}
 		return nil
 	})
-
 	if err != nil {
 		fmt.Printf("Error walking through source directory: %v\n", err)
 	}

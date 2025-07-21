@@ -14,7 +14,6 @@ import (
 
 func (i *IngestorsService) SnsUpdate(ctx echo.Context, req gen.SnsUpdateRequestObject) (gen.SnsUpdateResponseObject, error) {
 	body, err := io.ReadAll(ctx.Request().Body)
-
 	if err != nil {
 		return nil, err
 	}
@@ -22,7 +21,6 @@ func (i *IngestorsService) SnsUpdate(ctx echo.Context, req gen.SnsUpdateRequestO
 	payload := &sns.Payload{}
 
 	err = json.Unmarshal(body, payload)
-
 	if err != nil {
 		return nil, err
 	}
@@ -35,7 +33,6 @@ func (i *IngestorsService) SnsUpdate(ctx echo.Context, req gen.SnsUpdateRequestO
 
 	// verify that the tenant and the topic ARN are set in the database
 	snsInt, err := i.config.APIRepository.SNS().GetSNSIntegration(ctx.Request().Context(), tenantId, payload.TopicArn)
-
 	if err != nil {
 		return nil, err
 	}
@@ -45,7 +42,6 @@ func (i *IngestorsService) SnsUpdate(ctx echo.Context, req gen.SnsUpdateRequestO
 	}
 
 	tenant, err := i.config.APIRepository.Tenant().GetTenantByID(ctx.Request().Context(), tenantId)
-
 	if err != nil {
 		return nil, err
 	}
@@ -53,19 +49,16 @@ func (i *IngestorsService) SnsUpdate(ctx echo.Context, req gen.SnsUpdateRequestO
 	switch payload.Type {
 	case "SubscriptionConfirmation":
 		_, err := payload.Subscribe()
-
 		if err != nil {
 			return nil, err
 		}
 	case "UnsubscribeConfirmation":
 		_, err := payload.Unsubscribe()
-
 		if err != nil {
 			return nil, err
 		}
 	default:
 		_, err := i.config.Ingestor.IngestEvent(ctx.Request().Context(), tenant, req.Event, body, nil, nil, nil)
-
 		if err != nil {
 			return nil, err
 		}

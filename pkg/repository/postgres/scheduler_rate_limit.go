@@ -24,7 +24,6 @@ func (d *rateLimitRepository) ListCandidateRateLimits(ctx context.Context, tenan
 		Tenantid: tenantId,
 		Limit:    10000,
 	})
-
 	if err != nil {
 		return nil, err
 	}
@@ -40,7 +39,6 @@ func (d *rateLimitRepository) ListCandidateRateLimits(ctx context.Context, tenan
 
 func (d *rateLimitRepository) UpdateRateLimits(ctx context.Context, tenantId pgtype.UUID, updates map[string]int) (map[string]int, error) {
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, d.pool, d.l, 5000)
-
 	if err != nil {
 		return nil, err
 	}
@@ -59,13 +57,11 @@ func (d *rateLimitRepository) UpdateRateLimits(ctx context.Context, tenantId pgt
 	}
 
 	_, err = d.queries.BulkUpdateRateLimits(ctx, tx, params)
-
 	if err != nil {
 		return nil, err
 	}
 
 	newRls, err := d.queries.ListRateLimitsForTenantWithMutate(ctx, tx, tenantId)
-
 	if err != nil {
 		return nil, err
 	}

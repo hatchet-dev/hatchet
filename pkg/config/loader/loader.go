@@ -94,26 +94,22 @@ func NewConfigLoader(directory string) *ConfigLoader {
 func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 	sharedFilePath := filepath.Join(c.directory, "database.yaml")
 	configFileBytes, err := loaderutils.GetConfigBytes(sharedFilePath)
-
 	if err != nil {
 		return nil, err
 	}
 
 	cf, err := LoadDatabaseConfigFile(configFileBytes...)
-
 	if err != nil {
 		return nil, err
 	}
 
 	serverSharedFilePath := filepath.Join(c.directory, "server.yaml")
 	serverConfigFileBytes, err := loaderutils.GetConfigBytes(serverSharedFilePath)
-
 	if err != nil {
 		return nil, err
 	}
 
 	scf, err := LoadServerConfigFile(serverConfigFileBytes...)
-
 	if err != nil {
 		return nil, err
 	}
@@ -200,13 +196,11 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 	config.MaxConns -= essentialConfig.MaxConns
 
 	essentialPool, err := pgxpool.NewWithConfig(context.Background(), essentialConfig)
-
 	if err != nil {
 		return nil, fmt.Errorf("could not connect to database: %w", err)
 	}
 
 	pool, err := pgxpool.NewWithConfig(context.Background(), config)
-
 	if err != nil {
 		return nil, fmt.Errorf("could not connect to database: %w", err)
 	}
@@ -220,7 +214,6 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		}
 
 		readReplicaConfig, err := pgxpool.ParseConfig(cf.ReadReplicaDatabaseURL)
-
 		if err != nil {
 			return nil, fmt.Errorf("could not parse read replica database url: %w", err)
 		}
@@ -237,7 +230,6 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		readReplicaConfig.ConnConfig.Tracer = otelpgx.NewTracer()
 
 		readReplicaPool, err = pgxpool.NewWithConfig(context.Background(), readReplicaConfig)
-
 		if err != nil {
 			return nil, fmt.Errorf("could not connect to read replica database: %w", err)
 		}
@@ -258,7 +250,6 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 	}
 
 	cleanupEngine, engineRepo, err := postgresdb.NewEngineRepository(pool, essentialPool, &scf.Runtime, opts...)
-
 	if err != nil {
 		return nil, fmt.Errorf("could not create engine repository: %w", err)
 	}
@@ -268,7 +259,6 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 	}
 
 	retentionPeriod, err := time.ParseDuration(scf.Runtime.Limits.DefaultTenantRetentionPeriod)
-
 	if err != nil {
 		return nil, fmt.Errorf("could not parse retention period %s: %w", scf.Runtime.Limits.DefaultTenantRetentionPeriod, err)
 	}
@@ -276,7 +266,6 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 	v1, cleanupV1 := repov1.NewRepository(pool, &l, retentionPeriod, retentionPeriod, scf.Runtime.MaxInternalRetryCount, entitlementRepo)
 
 	apiRepo, cleanupApiRepo, err := postgresdb.NewAPIRepository(pool, &scf.Runtime, opts...)
-
 	if err != nil {
 		return nil, fmt.Errorf("could not create api repository: %w", err)
 	}
@@ -309,7 +298,6 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		V1:                    v1,
 		Seed:                  cf.Seed,
 	}, nil
-
 }
 
 type ServerConfigFileOverride func(*server.ServerConfigFile)
@@ -319,7 +307,6 @@ func (c *ConfigLoader) CreateServerFromConfig(version string, overrides ...Serve
 	sharedFilePath := filepath.Join(c.directory, "server.yaml")
 
 	configFileBytes, err := loaderutils.GetConfigBytes(sharedFilePath)
-
 	if err != nil {
 		return nil, nil, err
 	}
@@ -346,7 +333,6 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 	queueLogger := logger.NewStdErr(&cf.AdditionalLoggers.Queue, "queue")
 
 	tls, err := loaderutils.LoadServerTLSConfig(&cf.TLS)
-
 	if err != nil {
 		return nil, nil, fmt.Errorf("could not load TLS config: %w", err)
 	}
@@ -358,7 +344,6 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		cookie.WithCookieName(cf.Auth.Cookie.Name),
 		cookie.WithCookieSecrets(getStrArr(cf.Auth.Cookie.Secrets)...),
 	)
-
 	if err != nil {
 		return nil, nil, fmt.Errorf("could not create session store: %w", err)
 	}
@@ -433,7 +418,6 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 			ingestor.WithStepRunRepository(dc.EngineRepository.StepRun()),
 			ingestor.WithRepositoryV1(dc.V1),
 		)
-
 		if err != nil {
 			return nil, nil, fmt.Errorf("could not create ingestor: %w", err)
 		}
@@ -447,7 +431,6 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 			Environment: cf.Alerting.Sentry.Environment,
 			SampleRate:  cf.Alerting.Sentry.SampleRate,
 		})
-
 		if err != nil {
 			return nil, nil, fmt.Errorf("could not create sentry alerter: %w", err)
 		}
@@ -476,7 +459,6 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		})
 
 		if cf.Analytics.Posthog.FeApiKey != "" && cf.Analytics.Posthog.FeApiHost != "" {
-
 			feAnalyticsConfig = &server.FePosthogConfig{
 				ApiKey:  cf.Analytics.Posthog.FeApiKey,
 				ApiHost: cf.Analytics.Posthog.FeApiHost,
@@ -543,7 +525,6 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 	}
 
 	encryptionSvc, err := LoadEncryptionSvc(cf)
-
 	if err != nil {
 		return nil, nil, fmt.Errorf("could not load encryption service: %w", err)
 	}
@@ -555,7 +536,6 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		GRPCBroadcastAddress: cf.Runtime.GRPCBroadcastAddress,
 		ServerURL:            cf.Runtime.ServerURL,
 	})
-
 	if err != nil {
 		return nil, nil, fmt.Errorf("could not create JWT manager: %w", err)
 	}
@@ -589,7 +569,6 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		&queueLogger,
 		cf.Runtime.SingleQueueLimit,
 	)
-
 	if err != nil {
 		return nil, nil, fmt.Errorf("could not create scheduling pool: %w", err)
 	}
@@ -600,7 +579,6 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		cf.Runtime.SingleQueueLimit,
 		cf.Runtime.SchedulerConcurrencyRateLimit,
 	)
-
 	if err != nil {
 		return nil, nil, fmt.Errorf("could not create scheduling pool (v1): %w", err)
 	}
@@ -642,7 +620,6 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 	}
 
 	internalClientFactory, err := loadInternalClient(&l, &cf.InternalClient, cf.TLS, cf.Runtime.GRPCBroadcastAddress, cf.Runtime.GRPCInsecure)
-
 	if err != nil {
 		return nil, nil, fmt.Errorf("could not load internal client: %w", err)
 	}
@@ -711,7 +688,6 @@ func LoadEncryptionSvc(cf *server.ServerConfigFile) (encryption.EncryptionServic
 
 	if cf.Encryption.JWT.PrivateJWTKeysetFile != "" {
 		privateJWTBytes, err := loaderutils.GetFileBytes(cf.Encryption.JWT.PrivateJWTKeysetFile)
-
 		if err != nil {
 			return nil, fmt.Errorf("could not load private jwt keyset file: %w", err)
 		}
@@ -723,7 +699,6 @@ func LoadEncryptionSvc(cf *server.ServerConfigFile) (encryption.EncryptionServic
 
 	if cf.Encryption.JWT.PublicJWTKeysetFile != "" {
 		publicJWTBytes, err := loaderutils.GetFileBytes(cf.Encryption.JWT.PublicJWTKeysetFile)
-
 		if err != nil {
 			return nil, fmt.Errorf("could not load public jwt keyset file: %w", err)
 		}
@@ -738,7 +713,6 @@ func LoadEncryptionSvc(cf *server.ServerConfigFile) (encryption.EncryptionServic
 
 		if cf.Encryption.MasterKeysetFile != "" {
 			masterKeysetBytes, err := loaderutils.GetFileBytes(cf.Encryption.MasterKeysetFile)
-
 			if err != nil {
 				return nil, fmt.Errorf("could not load master keyset file: %w", err)
 			}
@@ -751,7 +725,6 @@ func LoadEncryptionSvc(cf *server.ServerConfigFile) (encryption.EncryptionServic
 			[]byte(privateJWT),
 			[]byte(publicJWT),
 		)
-
 		if err != nil {
 			return nil, fmt.Errorf("could not create raw keyset encryption service: %w", err)
 		}
@@ -764,7 +737,6 @@ func LoadEncryptionSvc(cf *server.ServerConfigFile) (encryption.EncryptionServic
 			[]byte(privateJWT),
 			[]byte(publicJWT),
 		)
-
 		if err != nil {
 			return nil, fmt.Errorf("could not create CloudKMS encryption service: %w", err)
 		}
@@ -786,7 +758,6 @@ func loadInternalClient(l *zerolog.Logger, conf *server.InternalClientTLSConfigF
 	if tlsServerName == "" {
 		// parse host from broadcast address
 		host, _, err := net.SplitHostPort(broadcastAddress)
-
 		if err != nil {
 			return nil, fmt.Errorf("could not parse host from broadcast address %s: %w", broadcastAddress, err)
 		}
@@ -811,7 +782,6 @@ func loadInternalClient(l *zerolog.Logger, conf *server.InternalClientTLSConfigF
 		Base:          base,
 		TLSServerName: tlsServerName,
 	}, tlsServerName)
-
 	if err != nil {
 		return nil, fmt.Errorf("could not load client TLS config: %w", err)
 	}

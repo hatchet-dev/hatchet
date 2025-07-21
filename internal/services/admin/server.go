@@ -90,7 +90,6 @@ func (a *AdminServiceImpl) triggerWorkflowV0(ctx context.Context, req *contracts
 		msgqueue.WORKFLOW_PROCESSING_QUEUE,
 		tasktypes.WorkflowRunQueuedToTask(tenantId, workflowRunId),
 	)
-
 	if err != nil {
 		return nil, fmt.Errorf("could not queue workflow run: %w", err)
 	}
@@ -163,7 +162,6 @@ func (a *AdminServiceImpl) bulkTriggerWorkflowV0(ctx context.Context, req *contr
 			msgqueue.WORKFLOW_PROCESSING_QUEUE,
 			tasktypes.WorkflowRunQueuedToTask(tenantId, workflowRunId),
 		)
-
 		if err != nil {
 			return nil, fmt.Errorf("could not queue workflow run: %w", err)
 		}
@@ -178,7 +176,6 @@ func (a *AdminServiceImpl) bulkTriggerWorkflowV0(ctx context.Context, req *contr
 	}
 
 	return &contracts.BulkTriggerWorkflowResponse{WorkflowRunIds: workflowRunIds}, nil
-
 }
 
 func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.PutWorkflowRequest) (*contracts.WorkflowVersion, error) {
@@ -186,7 +183,6 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.PutWo
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
 	createOpts, err := getCreateWorkflowOpts(req)
-
 	if err != nil {
 		return nil, err
 	}
@@ -222,7 +218,6 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.PutWo
 			tenantId,
 			createOpts,
 		)
-
 		if err != nil {
 
 			if strings.Contains(err.Error(), "23503") {
@@ -241,14 +236,12 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.PutWo
 			tenantId,
 			sqlchelpers.UUIDToStr(currWorkflow.ID),
 		)
-
 		if err != nil {
 			return nil, err
 		}
 
 		// workflow exists, look at checksum
 		newCS, err := dagutils.Checksum(createOpts)
-
 		if err != nil {
 			return nil, err
 		}
@@ -260,7 +253,6 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.PutWo
 				createOpts,
 				oldWorkflowVersion,
 			)
-
 			if err != nil {
 
 				if strings.Contains(err.Error(), "23503") {
@@ -291,7 +283,6 @@ func (a *AdminServiceImpl) ScheduleWorkflow(ctx context.Context, req *contracts.
 		tenantId,
 		req.Name,
 	)
-
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, status.Error(
@@ -310,7 +301,6 @@ func (a *AdminServiceImpl) ScheduleWorkflow(ctx context.Context, req *contracts.
 		tenantId,
 		workflowId,
 	)
-
 	if err != nil {
 		if !errors.Is(err, pgx.ErrNoRows) {
 			return nil, fmt.Errorf("workflow with id %s does not exist", workflowId)
@@ -343,7 +333,6 @@ func (a *AdminServiceImpl) ScheduleWorkflow(ctx context.Context, req *contracts.
 			int(*req.ChildIndex),
 			req.ChildKey,
 		)
-
 		if err != nil {
 			if !errors.Is(err, pgx.ErrNoRows) {
 				return nil, fmt.Errorf("could not get scheduled child workflow run: %w", err)
@@ -390,7 +379,6 @@ func (a *AdminServiceImpl) ScheduleWorkflow(ctx context.Context, req *contracts.
 			Priority:           req.Priority,
 		},
 	)
-
 	if err != nil {
 		return nil, err
 	}
@@ -420,7 +408,6 @@ func (a *AdminServiceImpl) PutRateLimit(ctx context.Context, req *contracts.PutR
 	}
 
 	_, err := a.repo.RateLimit().UpsertRateLimit(ctx, tenantId, req.Key, createOpts)
-
 	if err != nil {
 		return nil, err
 	}
@@ -434,7 +421,6 @@ func getCreateWorkflowOpts(req *contracts.PutWorkflowRequest) (*repository.Creat
 	for i, job := range req.Opts.Jobs {
 		jobCp := job
 		res, err := getCreateJobOpts(jobCp, "DEFAULT")
-
 		if err != nil {
 
 			if errors.Is(err, repository.ErrDagParentNotFound) {
@@ -455,7 +441,6 @@ func getCreateWorkflowOpts(req *contracts.PutWorkflowRequest) (*repository.Creat
 
 	if req.Opts.OnFailureJob != nil {
 		onFailureJobCp, err := getCreateJobOpts(req.Opts.OnFailureJob, "ON_FAILURE")
-
 		if err != nil {
 			return nil, err
 		}
@@ -538,7 +523,6 @@ func getCreateJobOpts(req *contracts.CreateWorkflowJobOpts, kind string) (*repos
 		stepCp := step
 
 		parsedAction, err := types.ParseActionID(step.Action)
-
 		if err != nil {
 			return nil, err
 		}
@@ -712,7 +696,6 @@ func getOpts(ctx context.Context, requests []*contracts.TriggerWorkflowRequest, 
 			createContext,
 			childWorkflowRunChecks,
 		)
-
 		if err != nil {
 			return nil, nil, fmt.Errorf("could not get child workflow runs: %w", err)
 		}
@@ -750,7 +733,6 @@ func getOpts(ctx context.Context, requests []*contracts.TriggerWorkflowRequest, 
 	}
 
 	workflowMap, err := getWorkflowsForWorkflowNames(createContext, tenantId, nonParentWorkflows, a)
-
 	if err != nil {
 		return nil, nil, err
 	}
@@ -762,7 +744,6 @@ func getOpts(ctx context.Context, requests []*contracts.TriggerWorkflowRequest, 
 	}
 
 	workflowVersions, err := a.repo.Workflow().GetLatestWorkflowVersions(createContext, tenantId, workflowIds)
-
 	if err != nil {
 		return nil, nil, fmt.Errorf("could not get latest workflow versions: %w", err)
 	}
@@ -785,7 +766,6 @@ func getOpts(ctx context.Context, requests []*contracts.TriggerWorkflowRequest, 
 	}
 
 	parentWorkflowRuns, err := a.repo.WorkflowRun().GetWorkflowRunByIds(createContext, tenantId, parentIds)
-
 	if err != nil {
 		return nil, nil, status.Errorf(codes.InvalidArgument, "could not get parent workflow runs: %s -  %v", strings.Join(parentIds, ","), err)
 	}
@@ -844,7 +824,6 @@ func getOpts(ctx context.Context, requests []*contracts.TriggerWorkflowRequest, 
 				parentAdditionalMeta,
 				req.Priority,
 			)
-
 			if err != nil {
 				return nil, nil, fmt.Errorf("Trigger Workflow could not create workflow run opts: %w", err)
 			}
@@ -881,7 +860,6 @@ func getOpts(ctx context.Context, requests []*contracts.TriggerWorkflowRequest, 
 // lets grab all of the workflows by name
 
 func getWorkflowsForWorkflowNames(ctx context.Context, tenantId string, reqs []*contracts.TriggerWorkflowRequest, a *AdminServiceImpl) (map[string]*dbsqlc.Workflow, error) {
-
 	workflowNames := make([]string, len(reqs))
 
 	for i, req := range reqs {
@@ -893,7 +871,6 @@ func getWorkflowsForWorkflowNames(ctx context.Context, tenantId string, reqs []*
 		tenantId,
 		workflowNames,
 	)
-
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "could not get workflows by names: %v", err)
 	}
@@ -901,13 +878,10 @@ func getWorkflowsForWorkflowNames(ctx context.Context, tenantId string, reqs []*
 	workflowMap := make(map[string]*dbsqlc.Workflow)
 
 	for _, w := range workflows {
-
 		workflowMap[w.Name] = w
-
 	}
 
 	return workflowMap, nil
-
 }
 
 func getChildKey(parentStepRunId string, childIndex int, childKey *string) string {

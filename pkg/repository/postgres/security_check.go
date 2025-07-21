@@ -19,7 +19,6 @@ func NewSecurityCheckRepository(shared *sharedRepository) repository.SecurityChe
 
 func (a *securityCheckRepository) GetIdent() (string, error) {
 	id, err := a.queries.GetSecurityCheckIdent(context.Background(), a.pool)
-
 	if err != nil {
 		return "", err
 	}

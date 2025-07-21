@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"net/http"
 	"os"
 	"time"
 
@@ -11,7 +12,6 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/config/shared"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 
-	"net/http"
 	_ "net/http/pprof" // nolint: gosec
 )
 
@@ -39,7 +39,7 @@ type LoadTestConfig struct {
 func main() {
 	config := LoadTestConfig{}
 
-	var loadtest = &cobra.Command{
+	loadtest := &cobra.Command{
 		Use: "loadtest",
 		Run: func(cmd *cobra.Command, args []string) {
 			l = logger.NewStdErr(

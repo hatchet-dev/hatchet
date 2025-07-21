@@ -96,8 +96,7 @@ func newAdmin(conn *grpc.ClientConn, opts *sharedClientOpts, subscriber Subscrib
 	}
 }
 
-type putOpts struct {
-}
+type putOpts struct{}
 
 type PutOptFunc func(*putOpts)
 
@@ -113,13 +112,11 @@ func (a *adminClientImpl) PutWorkflow(workflow *types.Workflow, fs ...PutOptFunc
 	}
 
 	req, err := a.getPutRequest(workflow)
-
 	if err != nil {
 		return fmt.Errorf("could not get put opts: %w", err)
 	}
 
 	_, err = a.client.PutWorkflow(a.ctx.newContext(context.Background()), req)
-
 	if err != nil {
 		return fmt.Errorf("could not create workflow %s: %w", workflow.Name, err)
 	}
@@ -135,7 +132,6 @@ func (a *adminClientImpl) PutWorkflowV1(workflow *v1contracts.CreateWorkflowVers
 	}
 
 	_, err := a.v1Client.PutWorkflow(a.ctx.newContext(context.Background()), workflow)
-
 	if err != nil {
 		return fmt.Errorf("could not create workflow %s: %w", workflow.Name, err)
 	}
@@ -185,7 +181,6 @@ func (a *adminClientImpl) ScheduleWorkflow(workflowName string, fs ...ScheduleOp
 	}
 
 	inputBytes, err := json.Marshal(opts.input)
-
 	if err != nil {
 		return err
 	}
@@ -198,7 +193,6 @@ func (a *adminClientImpl) ScheduleWorkflow(workflowName string, fs ...ScheduleOp
 		Input:     string(inputBytes),
 		Priority:  opts.priority,
 	})
-
 	if err != nil {
 		return fmt.Errorf("could not schedule workflow: %w", err)
 	}
@@ -241,7 +235,6 @@ func WithPriority(priority int32) RunOptFunc {
 
 func (a *adminClientImpl) RunWorkflow(workflowName string, input interface{}, options ...RunOptFunc) (*Workflow, error) {
 	inputBytes, err := json.Marshal(input)
-
 	if err != nil {
 		return nil, fmt.Errorf("could not marshal input: %w", err)
 	}
@@ -261,7 +254,6 @@ func (a *adminClientImpl) RunWorkflow(workflowName string, input interface{}, op
 	}
 
 	res, err := a.client.TriggerWorkflow(a.ctx.newContext(context.Background()), request)
-
 	if err != nil {
 		if status.Code(err) == codes.AlreadyExists {
 			return nil, &DedupeViolationErr{
@@ -273,7 +265,6 @@ func (a *adminClientImpl) RunWorkflow(workflowName string, input interface{}, op
 	}
 
 	listener, err := a.saveOrLoadListener()
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to subscribe to workflow run events: %w", err)
 	}
@@ -285,7 +276,6 @@ func (a *adminClientImpl) RunWorkflow(workflowName string, input interface{}, op
 }
 
 func (a *adminClientImpl) BulkRunWorkflow(workflows []*WorkflowRun) ([]string, error) {
-
 	triggerWorkflowRequests := make([]*admincontracts.TriggerWorkflowRequest, len(workflows))
 
 	for i, workflow := range workflows {
@@ -312,18 +302,15 @@ func (a *adminClientImpl) BulkRunWorkflow(workflows []*WorkflowRun) ([]string, e
 	}
 
 	res, err := a.client.BulkTriggerWorkflow(a.ctx.newContext(context.Background()), &r)
-
 	if err != nil {
 		return nil, fmt.Errorf("could not bulk trigger workflows: %w", err)
 	}
 
 	return res.WorkflowRunIds, nil
-
 }
 
 func (a *adminClientImpl) RunChildWorkflow(workflowName string, input interface{}, opts *ChildWorkflowOpts) (string, error) {
 	inputBytes, err := json.Marshal(input)
-
 	if err != nil {
 		return "", fmt.Errorf("could not marshal input: %w", err)
 	}
@@ -333,7 +320,6 @@ func (a *adminClientImpl) RunChildWorkflow(workflowName string, input interface{
 	childIndex := int32(opts.ChildIndex) // nolint: gosec
 
 	metadataBytes, err := a.getAdditionalMetaBytes(opts.AdditionalMetadata)
-
 	if err != nil {
 		return "", fmt.Errorf("could not get additional metadata: %w", err)
 	}
@@ -351,7 +337,6 @@ func (a *adminClientImpl) RunChildWorkflow(workflowName string, input interface{
 		AdditionalMetadata: &metadata,
 		Priority:           opts.Priority,
 	})
-
 	if err != nil {
 		if status.Code(err) == codes.AlreadyExists {
 			return "", &DedupeViolationErr{
@@ -363,7 +348,6 @@ func (a *adminClientImpl) RunChildWorkflow(workflowName string, input interface{
 	}
 
 	return res.WorkflowRunId, nil
-
 }
 
 type RunChildWorkflowsOpts struct {
@@ -373,7 +357,6 @@ type RunChildWorkflowsOpts struct {
 }
 
 func (a *adminClientImpl) RunChildWorkflows(workflows []*RunChildWorkflowsOpts) ([]string, error) {
-
 	triggerWorkflowRequests := make([]*admincontracts.TriggerWorkflowRequest, len(workflows))
 
 	for i, workflow := range workflows {
@@ -382,7 +365,6 @@ func (a *adminClientImpl) RunChildWorkflows(workflows []*RunChildWorkflowsOpts) 
 		}
 
 		inputBytes, err := json.Marshal(workflow.Input)
-
 		if err != nil {
 			return nil, fmt.Errorf("could not marshal input: %w", err)
 		}
@@ -395,7 +377,6 @@ func (a *adminClientImpl) RunChildWorkflows(workflows []*RunChildWorkflowsOpts) 
 		childIndex := int32(workflow.Opts.ChildIndex) // nolint: gosec
 
 		metadataBytes, err := a.getAdditionalMetaBytes(workflow.Opts.AdditionalMetadata)
-
 		if err != nil {
 			return nil, fmt.Errorf("could not get additional metadata: %w", err)
 		}
@@ -419,9 +400,7 @@ func (a *adminClientImpl) RunChildWorkflows(workflows []*RunChildWorkflowsOpts) 
 	res, err := a.client.BulkTriggerWorkflow(a.ctx.newContext(context.Background()), &admincontracts.BulkTriggerWorkflowRequest{
 		Workflows: triggerWorkflowRequests,
 	})
-
 	if err != nil {
-
 		return nil, fmt.Errorf("could not trigger child workflow: %w", err)
 	}
 
@@ -450,7 +429,6 @@ func (a *adminClientImpl) PutRateLimit(key string, opts *types.RateLimitOpts) er
 	}
 
 	_, err := a.client.PutRateLimit(a.ctx.newContext(context.Background()), putParams)
-
 	if err != nil {
 		return fmt.Errorf("could not upsert rate limit: %w", err)
 	}
@@ -505,7 +483,6 @@ func (a *adminClientImpl) getPutRequest(workflow *types.Workflow) (*admincontrac
 
 	if workflow.OnFailureJob != nil {
 		onFailureJob, err := a.getJobOpts("on-failure", workflow.OnFailureJob)
-
 		if err != nil {
 			return nil, fmt.Errorf("could not get on failure job opts: %w", err)
 		}
@@ -519,7 +496,6 @@ func (a *adminClientImpl) getPutRequest(workflow *types.Workflow) (*admincontrac
 		jobCp := job
 
 		res, err := a.getJobOpts(jobName, &jobCp)
-
 		if err != nil {
 			return nil, fmt.Errorf("could not get job opts: %w", err)
 		}
@@ -550,13 +526,11 @@ func (a *adminClientImpl) getJobOpts(jobName string, job *types.WorkflowJob) (*a
 
 	for i, step := range job.Steps {
 		inputBytes, err := json.Marshal(step.With)
-
 		if err != nil {
 			return nil, fmt.Errorf("could not marshal step inputs: %w", err)
 		}
 
 		userDataBytes, err := json.Marshal(step.UserData)
-
 		if err != nil {
 			return nil, fmt.Errorf("could not marshal step user data: %w", err)
 		}
@@ -668,7 +642,6 @@ func (a *adminClientImpl) getAdditionalMetaBytes(opt *map[string]string) ([]byte
 	}
 
 	metadataBytes, err := json.Marshal(additionalMeta)
-
 	if err != nil {
 		return nil, fmt.Errorf("could not marshal additional metadata: %w", err)
 	}
@@ -685,7 +658,6 @@ func (h *adminClientImpl) saveOrLoadListener() (*WorkflowRunsListener, error) {
 	}
 
 	listener, err := h.subscriber.SubscribeToWorkflowRunEvents(context.Background())
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to subscribe to workflow run events: %w", err)
 	}

@@ -22,7 +22,6 @@ func NewBulkSemaphoreReleaser(shared *sharedRepository, conf buffer.ConfigFileBu
 	}
 
 	manager, err := buffer.NewTenantBufManager(eventBufOpts)
-
 	if err != nil {
 		shared.l.Err(err).Msg("could not create tenant buffer manager")
 		return nil, err
@@ -70,14 +69,12 @@ func (w *sharedRepository) bulkReleaseSemaphores(ctx context.Context, opts []sem
 		Steprunids: stepRunIds,
 		Tenantids:  tenantIds,
 	})
-
 	if err != nil {
 		return nil, err
 	}
 
 	err = sqlchelpers.DeadlockRetry(w.l, func() (err error) {
 		tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, w.pool, w.l, 5000)
-
 		if err != nil {
 			return err
 		}
@@ -85,21 +82,18 @@ func (w *sharedRepository) bulkReleaseSemaphores(ctx context.Context, opts []sem
 		defer rollback()
 
 		err = w.queries.UpdateStepRunUnsetWorkerIdBulk(ctx, tx, verifiedStepRunIds)
-
 		if err != nil {
 			return err
 		}
 
 		return commit(ctx)
 	})
-
 	if err != nil {
 		return nil, err
 	}
 
 	err = sqlchelpers.DeadlockRetry(w.l, func() (err error) {
 		tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, w.pool, w.l, 5000)
-
 		if err != nil {
 			return err
 		}
@@ -107,14 +101,12 @@ func (w *sharedRepository) bulkReleaseSemaphores(ctx context.Context, opts []sem
 		defer rollback()
 
 		err = w.queries.RemoveTimeoutQueueItems(ctx, tx, verifiedStepRunIds)
-
 		if err != nil {
 			return err
 		}
 
 		return commit(ctx)
 	})
-
 	if err != nil {
 		return nil, err
 	}

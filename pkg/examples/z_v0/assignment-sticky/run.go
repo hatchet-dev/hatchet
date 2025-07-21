@@ -37,13 +37,11 @@ func run() (func() error, error) {
 			StickyStrategy: types.StickyStrategyPtr(types.StickyStrategy_HARD),
 			Steps: []*worker.WorkflowStep{
 				worker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
-
 					sticky := true
 
 					_, err = ctx.SpawnWorkflow("sticky-child", nil, &worker.SpawnWorkflowOpts{
 						Sticky: &sticky,
 					})
-
 					if err != nil {
 						return nil, fmt.Errorf("error spawning workflow: %w", err)
 					}
@@ -65,9 +63,7 @@ func run() (func() error, error) {
 			},
 		},
 	)
-
 	// !!
-
 	if err != nil {
 		return nil, fmt.Errorf("error registering workflow: %w", err)
 	}
@@ -88,9 +84,7 @@ func run() (func() error, error) {
 			},
 		},
 	)
-
 	// !!
-
 	if err != nil {
 		return nil, fmt.Errorf("error registering workflow: %w", err)
 	}

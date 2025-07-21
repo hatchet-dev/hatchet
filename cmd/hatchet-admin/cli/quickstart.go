@@ -19,10 +19,12 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/random"
 )
 
-var certDir string
-var generatedConfigDir string
-var skip []string
-var overwrite bool
+var (
+	certDir            string
+	generatedConfigDir string
+	skip               []string
+	overwrite          bool
+)
 
 const (
 	StageCerts string = "certs"
@@ -35,7 +37,6 @@ var quickstartCmd = &cobra.Command{
 	Short: "Command used to setup a Hatchet instance",
 	Run: func(cmd *cobra.Command, args []string) {
 		err := runQuickstart()
-
 		if err != nil {
 			red := color.New(color.FgRed)
 			red.Printf("Error running [%s]:%s\n", cmd.Use, err.Error())
@@ -78,14 +79,12 @@ func init() {
 
 func runQuickstart() error {
 	generated, err := loadBaseConfigFiles()
-
 	if err != nil {
 		return fmt.Errorf("could not get base config files: %w", err)
 	}
 
 	if !shouldSkip(StageCerts) {
 		err := setupCerts(generated)
-
 		if err != nil {
 			return fmt.Errorf("could not setup certs: %w", err)
 		}
@@ -93,14 +92,12 @@ func runQuickstart() error {
 
 	if !shouldSkip(StageKeys) {
 		err := generateKeys(generated)
-
 		if err != nil {
 			return fmt.Errorf("could not generate keys: %w", err)
 		}
 	}
 
 	err = writeGeneratedConfig(generated)
-
 	if err != nil {
 		return fmt.Errorf("could not write generated config files: %w", err)
 	}
@@ -109,7 +106,6 @@ func runQuickstart() error {
 		// reload config at this point
 		configLoader := loader.NewConfigLoader(configDirectory)
 		err = runSeed(configLoader)
-
 		if err != nil {
 			return fmt.Errorf("could not run seed: %w", err)
 		}
@@ -159,31 +155,26 @@ func setupCerts(generated *generatedConfigFiles) error {
 
 	// write certificate config files to system
 	fullPathCertDir, err := filepath.Abs(certDir)
-
 	if err != nil {
 		return err
 	}
 
 	err = os.MkdirAll(fullPathCertDir, os.ModePerm)
-
 	if err != nil {
 		return fmt.Errorf("could not create cert directory: %w", err)
 	}
 
-	err = os.WriteFile(filepath.Join(fullPathCertDir, "./cluster-cert.conf"), ClusterCertConf, 0600)
-
+	err = os.WriteFile(filepath.Join(fullPathCertDir, "./cluster-cert.conf"), ClusterCertConf, 0o600)
 	if err != nil {
 		return fmt.Errorf("could not create cluster-cert.conf file: %w", err)
 	}
 
-	err = os.WriteFile(filepath.Join(fullPathCertDir, "./internal-admin-client-cert.conf"), InternalAdminClientCertConf, 0600)
-
+	err = os.WriteFile(filepath.Join(fullPathCertDir, "./internal-admin-client-cert.conf"), InternalAdminClientCertConf, 0o600)
 	if err != nil {
 		return fmt.Errorf("could not create internal-admin-client-cert.conf file: %w", err)
 	}
 
-	err = os.WriteFile(filepath.Join(fullPathCertDir, "./worker-client-cert.conf"), WorkerClientCertConf, 0600)
-
+	err = os.WriteFile(filepath.Join(fullPathCertDir, "./worker-client-cert.conf"), WorkerClientCertConf, 0o600)
 	if err != nil {
 		return fmt.Errorf("could not create worker-client-cert.conf file: %w", err)
 	}
@@ -198,7 +189,6 @@ func setupCerts(generated *generatedConfigFiles) error {
 		c.Stderr = os.Stderr
 
 		err = c.Run()
-
 		if err != nil {
 			return err
 		}
@@ -215,13 +205,11 @@ func generateKeys(generated *generatedConfigFiles) error {
 	color.New(color.FgGreen).Printf("Generating encryption keys for Hatchet server\n")
 
 	cookieHashKey, err := random.Generate(16)
-
 	if err != nil {
 		return fmt.Errorf("could not generate hash key for instance: %w", err)
 	}
 
 	cookieBlockKey, err := random.Generate(16)
-
 	if err != nil {
 		return fmt.Errorf("could not generate block key for instance: %w", err)
 	}
@@ -233,7 +221,6 @@ func generateKeys(generated *generatedConfigFiles) error {
 	// if using local keys, generate master key
 	if !generated.sc.Encryption.CloudKMS.Enabled {
 		masterKeyBytes, privateEc256, publicEc256, err := encryption.GenerateLocalKeys()
-
 		if err != nil {
 			return err
 		}
@@ -254,7 +241,6 @@ func generateKeys(generated *generatedConfigFiles) error {
 			generated.sc.Encryption.CloudKMS.KeyURI,
 			[]byte(generated.sc.Encryption.CloudKMS.CredentialsJSON),
 		)
-
 		if err != nil {
 			return err
 		}
@@ -284,13 +270,11 @@ func loadBaseConfigFiles() (*generatedConfigFiles, error) {
 	var err error
 
 	res.dc, err = loader.LoadDatabaseConfigFile(getFiles("database.yaml")...)
-
 	if err != nil {
 		return nil, err
 	}
 
 	res.sc, err = loader.LoadServerConfigFile(getFiles("server.yaml")...)
-
 	if err != nil {
 		return nil, err
 	}
@@ -305,7 +289,6 @@ func getFiles(name string) [][]byte {
 
 	if fileExists(basePath) {
 		configFileBytes, err := os.ReadFile(basePath)
-
 		if err != nil {
 			panic(err)
 		}
@@ -317,7 +300,6 @@ func getFiles(name string) [][]byte {
 
 	if fileExists(generatedPath) {
 		generatedFileBytes, err := os.ReadFile(filepath.Join(generatedConfigDir, name))
-
 		if err != nil {
 			panic(err)
 		}
@@ -332,7 +314,6 @@ func writeGeneratedConfig(generated *generatedConfigFiles) error {
 	color.New(color.FgGreen).Printf("Generating config files %s\n", generatedConfigDir)
 
 	err := os.MkdirAll(generatedConfigDir, os.ModePerm)
-
 	if err != nil {
 		return fmt.Errorf("could not create generated config directory: %w", err)
 	}
@@ -340,13 +321,11 @@ func writeGeneratedConfig(generated *generatedConfigFiles) error {
 	databasePath := filepath.Join(generatedConfigDir, "./database.yaml")
 
 	databaseConfigBytes, err := yaml.Marshal(generated.dc)
-
 	if err != nil {
 		return err
 	}
 
-	err = os.WriteFile(databasePath, databaseConfigBytes, 0600)
-
+	err = os.WriteFile(databasePath, databaseConfigBytes, 0o600)
 	if err != nil {
 		return fmt.Errorf("could not write database.yaml file: %w", err)
 	}
@@ -354,13 +333,11 @@ func writeGeneratedConfig(generated *generatedConfigFiles) error {
 	serverPath := filepath.Join(generatedConfigDir, "./server.yaml")
 
 	serverConfigBytes, err := yaml.Marshal(generated.sc)
-
 	if err != nil {
 		return err
 	}
 
-	err = os.WriteFile(serverPath, serverConfigBytes, 0600)
-
+	err = os.WriteFile(serverPath, serverConfigBytes, 0o600)
 	if err != nil {
 		return fmt.Errorf("could not write server.yaml file: %w", err)
 	}

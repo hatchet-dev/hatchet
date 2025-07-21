@@ -153,7 +153,6 @@ func TestLoadCLI(t *testing.T) {
 			t.Parallel()
 
 			namespace, err := random.Generate(8)
-
 			if err != nil {
 				t.Fatalf("could not generate random namespace: %s", err)
 			}

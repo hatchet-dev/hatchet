@@ -19,7 +19,6 @@ func (t *WorkflowService) WorkflowGetWorkersCount(ctx echo.Context, request gen.
 	workflow := sqlchelpers.UUIDToStr(w.Workflow.ID)
 
 	freeSlotCount, maxSlotCount, err := t.config.APIRepository.Workflow().GetWorkflowWorkerCount(tenantId, workflow)
-
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return gen.WorkflowGetWorkersCount400JSONResponse(
@@ -35,5 +34,4 @@ func (t *WorkflowService) WorkflowGetWorkersCount(ctx echo.Context, request gen.
 		MaxSlotCount:  &maxSlotCount,
 		WorkflowRunId: &workflow,
 	}), nil
-
 }

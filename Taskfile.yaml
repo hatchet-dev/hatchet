@@ -126,9 +126,14 @@ tasks:
       - task: pre-commit-run
   install-dependencies:
     cmds:
+      - task: install-go-tools
       - go mod download
       - cd frontend/app/ && pnpm install
       - cd frontend/docs/ && pnpm install
+  install-go-tools:
+    desc: Install required Go tools
+    cmds:
+      - gofumpt --version > /dev/null 2>&1 || go install mvdan.cc/gofumpt@latest
   generate-api:
     cmds:
       - task: generate-api-server
@@ -192,6 +197,8 @@ tasks:
       - pip install pre-commit # can use brew install pre-commit if you are on macOS
       - pre-commit install
   pre-commit-run:
+    deps:
+      - install-go-tools
     cmds:
       - pre-commit run --all-files || pre-commit run --all-files
   docs:

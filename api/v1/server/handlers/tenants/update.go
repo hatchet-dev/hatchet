@@ -68,7 +68,6 @@ func (t *TenantService) TenantUpdate(ctx echo.Context, request gen.TenantUpdateR
 
 	// update the tenant
 	tenant, err := t.config.APIRepository.Tenant().UpdateTenant(ctx.Request().Context(), tenantId, updateOpts)
-
 	if err != nil {
 		return nil, err
 	}
@@ -88,7 +87,6 @@ func (t *TenantService) TenantUpdate(ctx echo.Context, request gen.TenantUpdateR
 				EnableTenantResourceLimitAlerts: request.Body.EnableTenantResourceLimitAlerts,
 			},
 		)
-
 		if err != nil {
 			return nil, err
 		}

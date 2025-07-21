@@ -23,14 +23,12 @@ func (g *SlackAppService) UserUpdateSlackOauthCallback(ctx echo.Context, _ gen.U
 	sh := authn.NewSessionHelpers(g.config)
 
 	tenantId, err := sh.GetKey(ctx, "tenant")
-
 	if err != nil {
 		return nil, redirect.GetRedirectWithError(ctx, g.config.Logger, err, "Could not link Slack account. Please try again and make sure cookies are enabled.")
 	}
 
 	defer func() {
 		err := sh.RemoveKey(ctx, "tenant")
-
 		if err != nil {
 			g.config.Logger.Error().Msgf("Could not remove tenant key: %v", err)
 		}
@@ -50,13 +48,11 @@ func (g *SlackAppService) UserUpdateSlackOauthCallback(ctx echo.Context, _ gen.U
 		ctx.Request().URL.Query().Get("code"),
 		oauth.RedirectURL,
 	)
-
 	if err != nil {
 		return nil, redirect.GetRedirectWithError(ctx, g.config.Logger, err, "Forbidden")
 	}
 
 	webhookURLEncrypted, err := g.config.Encryption.Encrypt([]byte(resp.IncomingWebhook.URL), "incoming_webhook_url")
-
 	if err != nil {
 		return nil, redirect.GetRedirectWithError(ctx, g.config.Logger, err, "Could not link Slack account. An internal error occurred.")
 	}
@@ -72,7 +68,6 @@ func (g *SlackAppService) UserUpdateSlackOauthCallback(ctx echo.Context, _ gen.U
 			WebhookURL:  webhookURLEncrypted,
 		},
 	)
-
 	if err != nil {
 		return nil, redirect.GetRedirectWithError(ctx, g.config.Logger, err, "Could not link Slack account. An internal error occurred.")
 	}

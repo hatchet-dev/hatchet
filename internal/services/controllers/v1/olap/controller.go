@@ -165,7 +165,6 @@ func New(fs ...OLAPControllerOpt) (*OLAPControllerImpl, error) {
 	opts.l = &newLogger
 
 	s, err := gocron.NewScheduler(gocron.WithLocation(time.UTC))
-
 	if err != nil {
 		return nil, fmt.Errorf("could not create scheduler: %w", err)
 	}
@@ -234,7 +233,6 @@ func (o *OLAPControllerImpl) Start() (func() error, error) {
 		),
 		gocron.WithSingletonMode(gocron.LimitModeReschedule),
 	)
-
 	if err != nil {
 		cancel()
 		return nil, fmt.Errorf("could not schedule task table partition: %w", err)
@@ -255,7 +253,6 @@ func (o *OLAPControllerImpl) Start() (func() error, error) {
 		),
 		gocron.WithSingletonMode(gocron.LimitModeReschedule),
 	)
-
 	if err != nil {
 		cancel()
 		return nil, fmt.Errorf("could not schedule task status updates: %w", err)
@@ -268,7 +265,6 @@ func (o *OLAPControllerImpl) Start() (func() error, error) {
 		),
 		gocron.WithSingletonMode(gocron.LimitModeReschedule),
 	)
-
 	if err != nil {
 		cancel()
 		return nil, fmt.Errorf("could not schedule dag status updates: %w", err)
@@ -281,14 +277,12 @@ func (o *OLAPControllerImpl) Start() (func() error, error) {
 		),
 		gocron.WithSingletonMode(gocron.LimitModeReschedule),
 	)
-
 	if err != nil {
 		cancel()
 		return nil, fmt.Errorf("could not schedule process tenant alerts: %w", err)
 	}
 
 	cleanupBuffer, err := mqBuffer.Start()
-
 	if err != nil {
 		cancel()
 		return nil, fmt.Errorf("could not start message queue buffer: %w", err)
@@ -455,7 +449,6 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 	}
 
 	metas, err := tc.repo.Tasks().ListTaskMetas(ctx, tenantId, taskIdsToLookup)
-
 	if err != nil {
 		return err
 	}

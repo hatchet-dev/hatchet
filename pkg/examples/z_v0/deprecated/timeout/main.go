@@ -18,7 +18,6 @@ type timeoutInput struct{}
 
 func main() {
 	err := godotenv.Load()
-
 	if err != nil {
 		panic(err)
 	}
@@ -26,7 +25,6 @@ func main() {
 	client, err := client.New(
 		client.InitWorkflows(),
 	)
-
 	if err != nil {
 		panic(err)
 	}
@@ -36,7 +34,6 @@ func main() {
 			client,
 		),
 	)
-
 	if err != nil {
 		panic(err)
 	}
@@ -49,7 +46,6 @@ func main() {
 
 		return map[string]interface{}{}, nil
 	})
-
 	if err != nil {
 		panic(err)
 	}
@@ -70,7 +66,6 @@ func main() {
 		"user:create",
 		event,
 	)
-
 	if err != nil {
 		panic(err)
 	}

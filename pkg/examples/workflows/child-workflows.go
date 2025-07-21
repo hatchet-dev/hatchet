@@ -40,20 +40,17 @@ func Child(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[ChildInput, Va
 }
 
 func Parent(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[ParentInput, SumOutput] {
-
 	child := Child(hatchet)
 	parent := factory.NewTask(
 		create.StandaloneTask{
 			Name: "parent",
 		}, func(ctx worker.HatchetContext, input ParentInput) (*SumOutput, error) {
-
 			sum := 0
 
 			// Launch child workflows in parallel
 			results := make([]*ValueOutput, 0, input.N)
 			for j := 0; j < input.N; j++ {
 				result, err := child.RunAsChild(ctx, ChildInput{N: j}, workflow.RunAsChildOpts{})
-
 				if err != nil {
 					// firstErr = err
 					return nil, err

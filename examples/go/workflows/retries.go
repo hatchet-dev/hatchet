@@ -11,8 +11,10 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/worker"
 )
 
-type RetriesInput struct{}
-type RetriesResult struct{}
+type (
+	RetriesInput  struct{}
+	RetriesResult struct{}
+)
 
 // Simple retries example that always fails
 func Retries(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[RetriesInput, RetriesResult] {
@@ -30,10 +32,12 @@ func Retries(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[RetriesInput
 	return retries
 }
 
-type RetriesWithCountInput struct{}
-type RetriesWithCountResult struct {
-	Message string `json:"message"`
-}
+type (
+	RetriesWithCountInput  struct{}
+	RetriesWithCountResult struct {
+		Message string `json:"message"`
+	}
+)
 
 // Retries example that succeeds after a certain number of retries
 func RetriesWithCount(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[RetriesWithCountInput, RetriesWithCountResult] {
@@ -62,8 +66,10 @@ func RetriesWithCount(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[Ret
 	return retriesWithCount
 }
 
-type BackoffInput struct{}
-type BackoffResult struct{}
+type (
+	BackoffInput  struct{}
+	BackoffResult struct{}
+)
 
 // Retries example with simple backoff (no configuration in this API version)
 func WithBackoff(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[BackoffInput, BackoffResult] {

@@ -23,25 +23,21 @@ type localEncryptionService struct {
 func NewLocalEncryption(masterKey []byte, privateEc256 []byte, publicEc256 []byte) (*localEncryptionService, error) {
 	// get the master keyset handle
 	aes256GcmHandle, err := insecureHandleFromBytes(masterKey)
-
 	if err != nil {
 		return nil, err
 	}
 
 	a, err := aead.New(aes256GcmHandle)
-
 	if err != nil {
 		return nil, err
 	}
 
 	privateEc256Handle, err := handleFromBytes(privateEc256, a)
-
 	if err != nil {
 		return nil, err
 	}
 
 	publicEc256Handle, err := handleFromBytes(publicEc256, a)
-
 	if err != nil {
 		return nil, err
 	}
@@ -61,19 +57,16 @@ func NewLocalEncryption(masterKey []byte, privateEc256 []byte, publicEc256 []byt
 
 func GenerateLocalKeys() (masterKey []byte, privateEc256 []byte, publicEc256 []byte, err error) {
 	masterKey, masterHandle, err := generateLocalMasterKey()
-
 	if err != nil {
 		return nil, nil, nil, err
 	}
 
 	a, err := aead.New(masterHandle)
-
 	if err != nil {
 		return nil, nil, nil, err
 	}
 
 	privateEc256, publicEc256, err = generateJWTKeysets(a)
-
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -85,13 +78,11 @@ func generateLocalMasterKey() ([]byte, *keyset.Handle, error) {
 	aeadTemplate := aead.AES256GCMKeyTemplate()
 
 	aes256GcmHandle, err := keyset.NewHandle(aeadTemplate)
-
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create new keyset handle with AES256GCM template: %w", err)
 	}
 
 	bytes, err := insecureBytesFromHandle(aes256GcmHandle)
-
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to get bytes from handle: %w", err)
 	}
@@ -103,27 +94,23 @@ func generateLocalMasterKey() ([]byte, *keyset.Handle, error) {
 // masterKey. The masterKey can be from a remote KMS service or a local keyset.
 func generateJWTKeysets(masterKey tink.AEAD) (privateEc256 []byte, publicEc256 []byte, err error) {
 	privateHandle, err := keyset.NewHandle(jwt.ES256Template())
-
 	if err != nil {
 		err = fmt.Errorf("failed to create new keyset handle with ES256 template: %w", err)
 		return
 	}
 
 	privateEc256, err = bytesFromHandle(privateHandle, masterKey)
-
 	if err != nil {
 		return
 	}
 
 	publicHandle, err := privateHandle.Public()
-
 	if err != nil {
 		err = fmt.Errorf("failed to get public keyset: %w", err)
 		return
 	}
 
 	publicEc256, err = bytesFromHandle(publicHandle, masterKey)
-
 	if err != nil {
 		return
 	}
@@ -137,7 +124,6 @@ func bytesFromHandle(kh *keyset.Handle, masterKey tink.AEAD) ([]byte, error) {
 	buf := new(bytes.Buffer)
 	writer := keyset.NewJSONWriter(buf)
 	err := kh.Write(writer, masterKey)
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to write keyset: %w", err)
 	}
@@ -154,7 +140,6 @@ func insecureBytesFromHandle(kh *keyset.Handle) ([]byte, error) {
 	buf := new(bytes.Buffer)
 	writer := keyset.NewJSONWriter(buf)
 	err := insecurecleartextkeyset.Write(kh, writer)
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to write keyset: %w", err)
 	}
@@ -170,14 +155,12 @@ func handleFromBytes(keysetBytes []byte, masterKey tink.AEAD) (*keyset.Handle, e
 	// base64-decode bytes
 	keysetJsonBytes := make([]byte, base64.RawStdEncoding.DecodedLen(len(keysetBytes)))
 	_, err := base64.RawStdEncoding.Decode(keysetJsonBytes, keysetBytes)
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode keyset bytes: %w", err)
 	}
 
 	// read keyset
 	handle, err := keyset.Read(keyset.NewJSONReader(bytes.NewReader(keysetJsonBytes)), masterKey)
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to read keyset: %w", err)
 	}
@@ -189,14 +172,12 @@ func insecureHandleFromBytes(keysetBytes []byte) (*keyset.Handle, error) {
 	// base64-decode bytes
 	keysetJsonBytes := make([]byte, base64.RawStdEncoding.DecodedLen(len(keysetBytes)))
 	_, err := base64.RawStdEncoding.Decode(keysetJsonBytes, keysetBytes)
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode keyset bytes: %w", err)
 	}
 
 	// read keyset
 	handle, err := insecurecleartextkeyset.Read(keyset.NewJSONReader(bytes.NewReader(keysetJsonBytes)))
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to read keyset: %w", err)
 	}

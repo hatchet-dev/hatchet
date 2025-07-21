@@ -29,7 +29,6 @@ func (g *SlackAppService) UserUpdateSlackOauthStart(ctx echo.Context, _ gen.User
 	}
 
 	state, err := sh.SaveOAuthState(ctx, "slack")
-
 	if err != nil {
 		return nil, redirect.GetRedirectWithError(ctx, g.config.Logger, err, "Could not get cookie. Please make sure cookies are enabled.")
 	}

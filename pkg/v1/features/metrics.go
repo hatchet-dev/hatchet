@@ -44,9 +44,7 @@ func NewMetricsClient(
 
 // GetWorkflowMetrics retrieves metrics for a specific workflow.
 func (m *metricsClientImpl) GetWorkflowMetrics(ctx context.Context, workflowName string, opts *rest.WorkflowGetMetricsParams) (*rest.WorkflowMetrics, error) {
-
 	workflowId, err := (*m.workflows).GetId(ctx, workflowName)
-
 	if err != nil {
 		return nil, err
 	}
@@ -56,7 +54,6 @@ func (m *metricsClientImpl) GetWorkflowMetrics(ctx context.Context, workflowName
 		workflowId,
 		opts,
 	)
-
 	if err != nil {
 		return nil, err
 	}

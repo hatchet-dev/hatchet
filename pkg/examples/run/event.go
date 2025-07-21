@@ -19,7 +19,6 @@ func event() {
 	}
 
 	hatchet, err := v1.NewHatchetClient()
-
 	if err != nil {
 		panic(err)
 	}
@@ -50,7 +49,6 @@ func event() {
 		},
 	)
 	// !!
-
 	if err != nil {
 		panic(err)
 	}
@@ -67,7 +65,6 @@ func event() {
 		client.WithFilterScope(&skipScope),
 	)
 	// !!
-
 	if err != nil {
 		panic(err)
 	}
@@ -84,7 +81,6 @@ func event() {
 		client.WithFilterScope(&triggerScope),
 	)
 	// !!
-
 	if err != nil {
 		panic(err)
 	}

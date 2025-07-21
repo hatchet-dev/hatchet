@@ -114,7 +114,6 @@ func (t *V1EventsService) V1EventList(ctx echo.Context, request gen.V1EventListR
 		}
 
 		jsonbytes, err := json.Marshal(additionalMeta)
-
 		if err != nil {
 			return nil, fmt.Errorf("failed to marshal additional metadata: %w", err)
 		}
@@ -123,7 +122,6 @@ func (t *V1EventsService) V1EventList(ctx echo.Context, request gen.V1EventListR
 	}
 
 	events, maybeTotal, err := t.config.V1.OLAP().ListEvents(ctx.Request().Context(), opts)
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to list events: %w", err)
 	}

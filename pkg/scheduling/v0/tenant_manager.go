@@ -162,7 +162,6 @@ func (t *tenantManager) refreshAll(ctx context.Context) {
 
 func (t *tenantManager) replenish(ctx context.Context) {
 	err := t.scheduler.replenish(ctx, false)
-
 	if err != nil {
 		t.cf.l.Error().Err(err).Msg("error replenishing scheduler")
 	}

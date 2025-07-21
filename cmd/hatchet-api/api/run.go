@@ -30,7 +30,6 @@ func init() {
 		TraceIdRatio: traceIDRatio,
 		Insecure:     insecureBool,
 	})
-
 	if err != nil {
 		panic(fmt.Errorf("could not initialize tracer: %w", err))
 	}

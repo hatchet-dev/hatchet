@@ -139,7 +139,6 @@ func ImageProcessor(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[Image
 }
 
 func RunMergentTask() error {
-
 	return nil
 }
 

@@ -22,7 +22,6 @@ func (t *WorkflowService) WorkflowCronDelete(ctx echo.Context, request gen.Workf
 		sqlchelpers.UUIDToStr(cron.TenantId),
 		sqlchelpers.UUIDToStr(cron.CronId),
 	)
-
 	if err != nil {
 		return nil, err
 	}

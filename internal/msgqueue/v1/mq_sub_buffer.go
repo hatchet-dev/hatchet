@@ -334,7 +334,6 @@ func (m *msgIdBuffer) flush() {
 	}
 
 	err := m.dst(m.tenantId, m.msgId, payloads)
-
 	if err != nil {
 		// write err to all the message channels
 		for _, msg := range msgsWithResultCh {

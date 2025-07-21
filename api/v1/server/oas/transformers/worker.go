@@ -79,7 +79,6 @@ func ToWorkerLabels(labels []*dbsqlc.ListWorkerLabelsRow) *[]gen.WorkerLabel {
 }
 
 func ToWorkerRuntimeInfo(worker *dbsqlc.Worker) *gen.WorkerRuntimeInfo {
-
 	runtime := &gen.WorkerRuntimeInfo{
 		SdkVersion:      &worker.SdkVersion.String,
 		LanguageVersion: &worker.LanguageVersion.String,
@@ -96,7 +95,6 @@ func ToWorkerRuntimeInfo(worker *dbsqlc.Worker) *gen.WorkerRuntimeInfo {
 }
 
 func ToWorkerSqlc(worker *dbsqlc.Worker, remainingSlots *int, webhookUrl *string, actions []string) *gen.Worker {
-
 	dispatcherId := uuid.MustParse(pgUUIDToStr(worker.DispatcherId))
 
 	maxRuns := int(worker.MaxRuns)

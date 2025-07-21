@@ -40,7 +40,6 @@ func (u *UserService) UserUpdatePassword(ctx echo.Context, request gen.UserUpdat
 	userId := sqlchelpers.UUIDToStr(existingUser.ID)
 
 	userPass, err := u.config.APIRepository.User().GetUserPassword(ctx.Request().Context(), userId)
-
 	if err != nil {
 		return nil, fmt.Errorf("could not get user password: %w", err)
 	}
@@ -52,7 +51,6 @@ func (u *UserService) UserUpdatePassword(ctx echo.Context, request gen.UserUpdat
 	// Update the user
 
 	newPass, err := repository.HashPassword(request.Body.NewPassword)
-
 	if err != nil {
 		return nil, fmt.Errorf("could not hash user password: %w", err)
 	}
@@ -60,7 +58,6 @@ func (u *UserService) UserUpdatePassword(ctx echo.Context, request gen.UserUpdat
 	user, err := u.config.APIRepository.User().UpdateUser(ctx.Request().Context(), userId, &repository.UpdateUserOpts{
 		Password: newPass,
 	})
-
 	if err != nil {
 		return nil, fmt.Errorf("could not update user: %w", err)
 	}

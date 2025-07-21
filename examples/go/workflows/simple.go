@@ -21,7 +21,6 @@ type SimpleResult struct {
 }
 
 func Simple(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[SimpleInput, SimpleResult] {
-
 	// Create a simple standalone task using the task factory
 	// Note the use of typed generics for both input and output
 
@@ -72,7 +71,6 @@ func Simple(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[SimpleInput, 
 }
 
 func ParentTask(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[SimpleInput, SimpleResult] {
-
 	// > Spawning Tasks from within a Task
 	simple := Simple(hatchet)
 
@@ -80,7 +78,6 @@ func ParentTask(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[SimpleInp
 		create.StandaloneTask{
 			Name: "parent-task",
 		}, func(ctx worker.HatchetContext, input SimpleInput) (*SimpleResult, error) {
-
 			// Run the child task
 			child, err := workflow.RunChildWorkflow(ctx, simple, SimpleInput{Message: input.Message})
 			if err != nil {

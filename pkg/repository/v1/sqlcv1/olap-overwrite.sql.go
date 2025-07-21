@@ -242,7 +242,6 @@ func (q *Queries) FetchWorkflowRunIds(ctx context.Context, db DBTX, arg FetchWor
 		arg.ParentTaskExternalId,
 		arg.TriggeringEventExternalId,
 	)
-
 	if err != nil {
 		return nil, err
 	}

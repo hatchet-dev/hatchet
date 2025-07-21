@@ -26,7 +26,6 @@ func newUserEventBuffer(shared *sharedRepository, conf buffer.ConfigFileBuffer) 
 	}
 
 	manager, err := buffer.NewTenantBufManager(userEventBufOpts)
-
 	if err != nil {
 		shared.l.Err(err).Msg("could not create tenant buffer manager")
 		return nil, err
@@ -50,7 +49,6 @@ func (r *sharedRepository) bulkWriteUserEvents(ctx context.Context, opts []*repo
 	defer span.End()
 
 	for _, opt := range opts {
-
 		if err := r.v.Validate(opt); err != nil {
 			return nil, err
 		}
@@ -84,7 +82,6 @@ func (r *sharedRepository) bulkWriteUserEvents(ctx context.Context, opts []*repo
 
 	// start a transaction
 	tx, err := r.pool.Begin(ctx)
-
 	if err != nil {
 		return nil, err
 	}
@@ -96,7 +93,6 @@ func (r *sharedRepository) bulkWriteUserEvents(ctx context.Context, opts []*repo
 		tx,
 		params,
 	)
-
 	if err != nil {
 		return nil, fmt.Errorf("could not create events: %w", err)
 	}
@@ -104,12 +100,10 @@ func (r *sharedRepository) bulkWriteUserEvents(ctx context.Context, opts []*repo
 	r.l.Info().Msgf("inserted %d events", insertCount)
 
 	events, err := r.queries.GetInsertedEvents(ctx, tx, ids)
-
 	if err != nil {
 		return nil, fmt.Errorf("could not retrieve inserted events: %w", err)
 	}
 	err = tx.Commit(ctx)
-
 	if err != nil {
 		return nil, fmt.Errorf("could not commit transaction: %w", err)
 	}

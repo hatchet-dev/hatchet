@@ -37,7 +37,6 @@ func (s *Service) On(t triggerConverter, workflow workflowConverter) error {
 
 	// create the workflow via the API
 	err := s.worker.client.Admin().PutWorkflow(&apiWorkflow)
-
 	if err != nil {
 		return err
 	}
@@ -45,7 +44,6 @@ func (s *Service) On(t triggerConverter, workflow workflowConverter) error {
 	// register all steps as actions
 	for actionId, action := range workflow.ToActionMap(s.Name) {
 		parsedAction, err := types.ParseActionID(actionId)
-
 		if err != nil {
 			return err
 		}
@@ -58,7 +56,6 @@ func (s *Service) On(t triggerConverter, workflow workflowConverter) error {
 		}
 
 		err = s.worker.registerAction(parsedAction.Service, parsedAction.Verb, action.fn, action.compute)
-
 		if err != nil {
 			return err
 		}
