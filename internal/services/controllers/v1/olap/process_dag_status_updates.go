@@ -96,14 +96,19 @@ func (o *OLAPControllerImpl) notifyDAGsUpdated(ctx context.Context, rows []v1.Up
 					return err
 				}
 
-				for i, row := range rows {
+				for _, row := range rows {
 					if row.ReadableStatus == sqlcv1.V1ReadableStatusOlapCOMPLETED || row.ReadableStatus == sqlcv1.V1ReadableStatusOlapFAILED || row.ReadableStatus == sqlcv1.V1ReadableStatusOlapCANCELLED {
 						workflowName := workflowNames[row.WorkflowId]
+
 						if workflowName == "" {
 							continue
 						}
 
-						dagDuration := dagDurations[i]
+						dagDuration := dagDurations[row.ExternalId]
+
+						if dagDuration == nil {
+							continue
+						}
 
 						prometheus.TenantWorkflowDurationBuckets.WithLabelValues(tenantId, workflowName, string(row.ReadableStatus)).Observe(float64(dagDuration.FinishedAt.Time.Sub(dagDuration.StartedAt.Time).Milliseconds()))
 					}

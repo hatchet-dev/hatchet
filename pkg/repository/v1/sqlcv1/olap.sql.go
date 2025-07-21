@@ -422,6 +422,7 @@ WITH input AS (
     GROUP BY e.dag_id, e.dag_inserted_at, e.external_id
 )
 SELECT
+    dd.external_id,
     dt.started_at::timestamptz AS started_at,
     dt.finished_at::timestamptz AS finished_at
 FROM
@@ -439,6 +440,7 @@ type GetDagDurationsByDagIdsParams struct {
 }
 
 type GetDagDurationsByDagIdsRow struct {
+	ExternalID pgtype.UUID        `json:"external_id"`
 	StartedAt  pgtype.Timestamptz `json:"started_at"`
 	FinishedAt pgtype.Timestamptz `json:"finished_at"`
 }
@@ -457,7 +459,7 @@ func (q *Queries) GetDagDurationsByDagIds(ctx context.Context, db DBTX, arg GetD
 	var items []*GetDagDurationsByDagIdsRow
 	for rows.Next() {
 		var i GetDagDurationsByDagIdsRow
-		if err := rows.Scan(&i.StartedAt, &i.FinishedAt); err != nil {
+		if err := rows.Scan(&i.ExternalID, &i.StartedAt, &i.FinishedAt); err != nil {
 			return nil, err
 		}
 		items = append(items, &i)

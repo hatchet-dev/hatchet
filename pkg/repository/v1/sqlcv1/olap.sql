@@ -1613,6 +1613,7 @@ WITH input AS (
     GROUP BY e.dag_id, e.dag_inserted_at, e.external_id
 )
 SELECT
+    dd.external_id,
     dt.started_at::timestamptz AS started_at,
     dt.finished_at::timestamptz AS finished_at
 FROM
