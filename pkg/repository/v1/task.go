@@ -420,7 +420,7 @@ func (r *sharedRepository) lookupExternalIds(ctx context.Context, tx sqlcv1.DBTX
 func (r *TaskRepositoryImpl) verifyAllTasksFinalized(ctx context.Context, tx sqlcv1.DBTX, tenantId string, flattenedTasks []*sqlcv1.FlattenExternalIdsRow) ([]string, map[string]int64, error) {
 	taskIdsToCheck := make([]int64, 0, len(flattenedTasks))
 	taskIdsToTasks := make(map[int64]*sqlcv1.FlattenExternalIdsRow)
-	minInsertedAt := sqlchelpers.TimestamptzFromTime(time.Now().Add(-1 * r.taskRetentionPeriod))
+	minInsertedAt := sqlchelpers.TimestamptzFromTime(time.Now().Add(-24 * time.Hour)) // 1d ago as a placeholder
 
 	for _, task := range flattenedTasks {
 		taskIdsToCheck = append(taskIdsToCheck, task.ID)
@@ -2473,7 +2473,7 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId string, t
 	subtreeStepIds := make(map[int64]map[string]bool) // dag id -> step id -> true
 	subtreeExternalIds := make(map[string]struct{})
 	dagIdsToLockMap := make(map[int64]struct{})
-	minInsertedAt := sqlchelpers.TimestamptzFromTime(time.Now().Add(-time.Hour * 24 * 14)) // 14d ago as a placeholder
+	minInsertedAt := sqlchelpers.TimestamptzFromTime(time.Now().Add(-time.Hour * 24)) // 1d ago as a placeholder
 
 	for i, task := range lockedTasks {
 		lockedTaskIds[i] = task.ID
