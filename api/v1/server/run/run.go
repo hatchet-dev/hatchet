@@ -301,7 +301,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 		}
 
 		if scheduled == nil {
-			return nil, "", fmt.Errorf("scheduled workflow run not found")
+			return nil, "", echo.NewHTTPError(http.StatusNotFound, "scheduled workflow run not found")
 		}
 
 		return scheduled, sqlchelpers.UUIDToStr(scheduled.TenantId), nil
@@ -315,7 +315,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 		}
 
 		if scheduled == nil {
-			return nil, "", fmt.Errorf("cron workflow not found")
+			return nil, "", echo.NewHTTPError(http.StatusNotFound, "cron workflow not found")
 		}
 
 		return scheduled, sqlchelpers.UUIDToStr(scheduled.TenantId), nil
@@ -381,7 +381,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 		}
 
 		if task == nil {
-			return nil, "", fmt.Errorf("task not found")
+			return nil, "", echo.NewHTTPError(http.StatusNotFound, "task not found")
 		}
 
 		return task, sqlchelpers.UUIDToStr(task.TenantID), nil
