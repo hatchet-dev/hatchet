@@ -817,21 +817,22 @@ FROM
 -- concurrency slots, or retry queue items. Returns the tasks which cannot be replayed.
 WITH input AS (
     SELECT
-        *
+        UNNEST(@taskIds::bigint[]) AS task_id,
+        UNNEST(@taskInsertedAts::timestamptz[]) AS task_inserted_at
+), relevant_tasks AS (
+    SELECT
+        t.id,
+        t.dag_id
     FROM
-        (
-            SELECT
-                unnest(@taskIds::bigint[]) AS task_id,
-                unnest(@taskInsertedAts::timestamptz[]) AS task_inserted_at
-        ) AS subquery
+        v1_task t
+    JOIN
+        input i ON i.task_id = t.id AND i.task_inserted_at = t.inserted_at
+    WHERE
+        t.inserted_at >= @minInsertedAt::TIMESTAMPTZ
 )
-SELECT
-    t.id,
-    t.dag_id
-FROM
-    v1_task t
-JOIN
-    input i ON i.task_id = t.id AND i.task_inserted_at = t.inserted_at
+
+SELECT t.*
+FROM relevant_tasks t
 LEFT JOIN
     v1_task_event e ON e.task_id = t.id AND e.task_inserted_at = t.inserted_at AND e.retry_count = t.retry_count AND e.event_type = ANY('{COMPLETED, FAILED, CANCELLED}'::v1_task_event_type[])
 LEFT JOIN
@@ -842,7 +843,6 @@ LEFT JOIN
     v1_retry_queue_item rqi ON rqi.task_id = t.id AND rqi.task_inserted_at = t.inserted_at AND rqi.task_retry_count = t.retry_count
 WHERE
     t.tenant_id = @tenantId::uuid
-    AND t.inserted_at >= @minInsertedAt::TIMESTAMPTZ
     AND e.id IS NULL
     AND (tr.task_id IS NOT NULL OR cs.task_id IS NOT NULL OR rqi.task_id IS NOT NULL);
 
