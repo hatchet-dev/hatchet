@@ -68,9 +68,12 @@ jobs:
         uses: arduino/setup-protoc@v3
         with:
           version: '25.1'
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install Task
         uses: arduino/setup-task@v2
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Go
         uses: actions/setup-go@v5

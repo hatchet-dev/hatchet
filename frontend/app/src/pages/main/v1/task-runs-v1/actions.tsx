@@ -77,12 +77,18 @@ type TaskRunActionsParams =
       externalIds?: never;
     };
 
-export const useTaskRunActions = () => {
+export const useTaskRunActions = ({
+  onActionProcessed,
+  onActionSubmit,
+}: {
+  onActionProcessed: (ids: string[]) => void;
+  onActionSubmit: () => void;
+}) => {
   const { tenantId } = useCurrentTenantId();
 
   const { handleApiError } = useApiError({});
 
-  const { mutate: handleAction } = useMutation({
+  const { mutateAsync: handleAction } = useMutation({
     mutationKey: ['task-run:action'],
     mutationFn: async (params: TaskRunActionsParams) => {
       const actionType: ActionType = params.actionType;
@@ -99,13 +105,20 @@ export const useTaskRunActions = () => {
       }
     },
     onError: handleApiError,
+    onMutate: () => {
+      onActionSubmit();
+    },
   });
 
   const handleTaskRunAction = useCallback(
-    (params: TaskRunActionsParams) => {
-      handleAction(params);
+    async (params: TaskRunActionsParams) => {
+      const resp = await handleAction(params);
+
+      if (resp.data?.ids) {
+        onActionProcessed(resp.data.ids);
+      }
     },
-    [handleAction],
+    [handleAction, onActionProcessed],
   );
 
   return { handleTaskRunAction };
@@ -362,15 +375,22 @@ const BaseActionButton = ({
   icon,
   label,
   showModal,
+  onActionProcessed,
+  onActionSubmit,
 }: {
   disabled: boolean;
   params: TaskRunActionsParams;
   icon: JSX.Element;
   label: string;
   showModal: boolean;
+  onActionProcessed: (ids: string[]) => void;
+  onActionSubmit: () => void;
 }) => {
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
-  const { handleTaskRunAction } = useTaskRunActions();
+  const { handleTaskRunAction } = useTaskRunActions({
+    onActionProcessed,
+    onActionSubmit,
+  });
 
   const handleAction = useCallback(() => {
     if (params.externalIds?.length) {
@@ -424,11 +444,15 @@ export const TaskRunActionButton = ({
   disabled,
   params,
   showModal,
+  onActionProcessed,
+  onActionSubmit,
 }: {
   actionType: ActionType;
   disabled: boolean;
   params: BaseTaskRunActionParams;
   showModal: boolean;
+  onActionProcessed: (ids: string[]) => void;
+  onActionSubmit: () => void;
 }) => {
   switch (actionType) {
     case 'cancel':
@@ -439,6 +463,8 @@ export const TaskRunActionButton = ({
           icon={<XCircleIcon className="w-4 h-4" />}
           label={'Cancel'}
           showModal={showModal}
+          onActionProcessed={onActionProcessed}
+          onActionSubmit={onActionSubmit}
         />
       );
     case 'replay':
@@ -449,6 +475,8 @@ export const TaskRunActionButton = ({
           icon={<ArrowPathIcon className="w-4 h-4" />}
           label={'Replay'}
           showModal={showModal}
+          onActionProcessed={onActionProcessed}
+          onActionSubmit={onActionSubmit}
         />
       );
     default:

@@ -11,6 +11,7 @@ from hatchet_sdk.conditions import (
     flatten_conditions,
 )
 from hatchet_sdk.context.context import Context, DurableContext
+from hatchet_sdk.context.worker_context import WorkerContext
 from hatchet_sdk.contracts.v1.shared.condition_pb2 import TaskConditions
 from hatchet_sdk.contracts.v1.workflows_pb2 import (
     CreateTaskOpts,
@@ -19,6 +20,7 @@ from hatchet_sdk.contracts.v1.workflows_pb2 import (
 )
 from hatchet_sdk.runnables.types import (
     ConcurrencyExpression,
+    EmptyModel,
     R,
     StepType,
     TWorkflowInput,
@@ -30,9 +32,11 @@ from hatchet_sdk.utils.timedelta_to_expression import Duration, timedelta_to_exp
 from hatchet_sdk.utils.typing import (
     AwaitableLike,
     CoroutineLike,
+    JSONSerializableMapping,
     TaskIOValidator,
     is_basemodel_subclass,
 )
+from hatchet_sdk.worker.runner.utils.capture_logs import AsyncLogSender
 
 if TYPE_CHECKING:
     from hatchet_sdk.runnables.workflow import Workflow
@@ -186,3 +190,132 @@ class Task(Generic[TWorkflowInput, R]):
             sleep_conditions=sleep_conditions,
             user_event_conditions=user_events,
         )
+
+    def _create_mock_context(
+        self,
+        input: TWorkflowInput | None,
+        additional_metadata: JSONSerializableMapping | None = None,
+        parent_outputs: dict[str, JSONSerializableMapping] | None = None,
+        retry_count: int = 0,
+        lifespan_context: Any = None,
+    ) -> Context | DurableContext:
+        from hatchet_sdk.runnables.action import Action, ActionPayload, ActionType
+
+        additional_metadata = additional_metadata or {}
+        parent_outputs = parent_outputs or {}
+
+        if input is None:
+            input = cast(TWorkflowInput, EmptyModel())
+
+        action_payload = ActionPayload(input=input.model_dump(), parents=parent_outputs)
+
+        action = Action(
+            tenant_id=self.workflow.client.config.tenant_id,
+            worker_id="mock-worker-id",
+            workflow_run_id="mock-workflow-run-id",
+            get_group_key_run_id="mock-get-group-key-run-id",
+            job_id="mock-job-id",
+            job_name="mock-job-name",
+            job_run_id="mock-job-run-id",
+            step_id="mock-step-id",
+            step_run_id="mock-step-run-id",
+            action_id="mock:action",
+            action_payload=action_payload,
+            action_type=ActionType.START_STEP_RUN,
+            retry_count=retry_count,
+            additional_metadata=additional_metadata,
+            child_workflow_index=None,
+            child_workflow_key=None,
+            parent_workflow_run_id=None,
+            priority=1,
+            workflow_version_id="mock-workflow-version-id",
+            workflow_id="mock-workflow-id",
+        )
+
+        constructor = DurableContext if self.is_durable else Context
+
+        return constructor(
+            action=action,
+            dispatcher_client=self.workflow.client._client.dispatcher,
+            admin_client=self.workflow.client._client.admin,
+            event_client=self.workflow.client._client.event,
+            durable_event_listener=None,
+            worker=WorkerContext(
+                labels={}, client=self.workflow.client._client.dispatcher
+            ),
+            runs_client=self.workflow.client._client.runs,
+            lifespan_context=lifespan_context,
+            log_sender=AsyncLogSender(self.workflow.client._client.event),
+        )
+
+    def mock_run(
+        self,
+        input: TWorkflowInput | None = None,
+        additional_metadata: JSONSerializableMapping | None = None,
+        parent_outputs: dict[str, JSONSerializableMapping] | None = None,
+        retry_count: int = 0,
+        lifespan: Any = None,
+    ) -> R:
+        """
+        Mimic the execution of a task. This method is intended to be used to unit test
+        tasks without needing to interact with the Hatchet engine. Use `mock_run` for sync
+        tasks and `aio_mock_run` for async tasks.
+
+        :param input: The input to the task.
+        :param additional_metadata: Additional metadata to attach to the task.
+        :param parent_outputs: Outputs from parent tasks, if any. This is useful for mimicking DAG functionality. For instance, if you have a task `step_2` that has a `parent` which is `step_1`, you can pass `parent_outputs={"step_1": {"result": "Hello, world!"}}` to `step_2.mock_run()` to be able to access `ctx.task_output(step_1)` in `step_2`.
+        :param retry_count: The number of times the task has been retried.
+        :param lifespan: The lifespan to be used in the task, which is useful if one was set on the worker. This will allow you to access `ctx.lifespan` inside of your task.
+
+        :return: The output of the task.
+        :raises TypeError: If the task is an async function and `mock_run` is called, or if the task is a sync function and `aio_mock_run` is called.
+        """
+
+        if self.is_async_function:
+            raise TypeError(
+                f"{self.name} is not a sync function. Use `aio_mock_run` instead."
+            )
+
+        ctx = self._create_mock_context(
+            input, additional_metadata, parent_outputs, retry_count, lifespan
+        )
+
+        return self.call(ctx)
+
+    async def aio_mock_run(
+        self,
+        input: TWorkflowInput | None = None,
+        additional_metadata: JSONSerializableMapping | None = None,
+        parent_outputs: dict[str, JSONSerializableMapping] | None = None,
+        retry_count: int = 0,
+        lifespan: Any = None,
+    ) -> R:
+        """
+        Mimic the execution of a task. This method is intended to be used to unit test
+        tasks without needing to interact with the Hatchet engine. Use `mock_run` for sync
+        tasks and `aio_mock_run` for async tasks.
+
+        :param input: The input to the task.
+        :param additional_metadata: Additional metadata to attach to the task.
+        :param parent_outputs: Outputs from parent tasks, if any. This is useful for mimicking DAG functionality. For instance, if you have a task `step_2` that has a `parent` which is `step_1`, you can pass `parent_outputs={"step_1": {"result": "Hello, world!"}}` to `step_2.mock_run()` to be able to access `ctx.task_output(step_1)` in `step_2`.
+        :param retry_count: The number of times the task has been retried.
+        :param lifespan: The lifespan to be used in the task, which is useful if one was set on the worker. This will allow you to access `ctx.lifespan` inside of your task.
+
+        :return: The output of the task.
+        :raises TypeError: If the task is an async function and `mock_run` is called, or if the task is a sync function and `aio_mock_run` is called.
+        """
+
+        if not self.is_async_function:
+            raise TypeError(
+                f"{self.name} is not an async function. Use `mock_run` instead."
+            )
+
+        ctx = self._create_mock_context(
+            input,
+            additional_metadata,
+            parent_outputs,
+            retry_count,
+            lifespan,
+        )
+
+        return await self.aio_call(ctx)

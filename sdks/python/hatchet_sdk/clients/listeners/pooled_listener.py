@@ -103,7 +103,7 @@ class PooledListener(Generic[R, T, L], ABC):
                     try:
                         self.listener = await self._retry_subscribe()
 
-                        logger.debug("Listener connected.")
+                        logger.debug("listener connected.")
 
                         # spawn an interrupter task
                         if self.interrupter is not None and not self.interrupter.done():
@@ -125,7 +125,7 @@ class PooledListener(Generic[R, T, L], ABC):
 
                             if not t.done():
                                 logger.warning(
-                                    "Interrupted read_with_interrupt task of listener"
+                                    "interrupted read_with_interrupt task of listener"
                                 )
 
                                 t.cancel()
@@ -138,7 +138,7 @@ class PooledListener(Generic[R, T, L], ABC):
 
                             if isinstance(event, UnexpectedEOF):
                                 logger.debug(
-                                    f"Handling EOF in Pooled Listener {self.__class__.__name__}"
+                                    f"handling EOF in Pooled Listener {self.__class__.__name__}"
                                 )
                                 break
 
@@ -153,7 +153,7 @@ class PooledListener(Generic[R, T, L], ABC):
                         continue
 
         except Exception as e:
-            logger.error(f"Error in listener: {e}")
+            logger.exception("error in listener")
 
             self.listener = None
 

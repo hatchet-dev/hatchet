@@ -308,6 +308,10 @@ V1DagChildren:
   $ref: "./v1/task.yaml#/V1DagChildren"
 V1TaskEventList:
   $ref: "./v1/task.yaml#/V1TaskEventList"
+V1ReplayedTasks:
+  $ref: "./v1/task.yaml#/V1ReplayedTasks"
+V1CancelledTasks:
+  $ref: "./v1/task.yaml#/V1CancelledTasks"
 V1TaskStatus:
   $ref: "./v1/task.yaml#/V1TaskStatus"
 V1TaskRunMetrics:
@@ -344,3 +348,9 @@ V1CreateFilterRequest:
   $ref: "./v1/filter.yaml#/V1CreateFilterRequest"
 V1UpdateFilterRequest:
   $ref: "./v1/filter.yaml#/V1UpdateFilterRequest"
+V1CELDebugRequest:
+  $ref: "./v1/cel.yaml#/V1CELDebugRequest"
+V1CELDebugResponse:
+  $ref: "./v1/cel.yaml#/V1CELDebugResponse"
+V1CELDebugResponseStatus:
+  $ref: "./v1/cel.yaml#/V1CELDebugResponseStatus"

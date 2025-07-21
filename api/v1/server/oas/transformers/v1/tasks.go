@@ -482,3 +482,15 @@ func ToTaskTimings(
 
 	return toReturn
 }
+
+func ToCancelledOrReplayedTaskResponse(ids []string) gen.V1ReplayedTasks {
+	idUuids := make([]types.UUID, len(ids))
+
+	for i, id := range ids {
+		idUuids[i] = uuid.MustParse(id)
+	}
+
+	return gen.V1ReplayedTasks{
+		Ids: &idUuids,
+	}
+}

@@ -5,6 +5,25 @@ All notable changes to Hatchet's Python SDK will be documented in this changelog
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.16.1] - 2025-07-18
+
+### Added
+
+- Adds a `CEL` feature client for debugging CEL expressions
+
+## [1.16.0] - 2025-07-17
+
+### Added
+
+- Adds new methods for unit testing tasks and standalones, called `mock_run` and `aio_mock_run`, which allow you to run tasks and standalones in a mocked environment without needing to start a worker or connect to the engine.
+- Improves exception logs throughout the SDK to provide more context for what went wrong when an exception is thrown.
+- Adds `create_run_ref`, `get_result`, and `aio_get_result` methods to the `Standalone` class, to allow for getting typed results of a run more easily.
+- Adds `return_exceptions` option to the `run_many` and `aio_run_many` methods to be more similar to e.g. `asyncio.gather`. If `True`, exceptions will be returned as part of the results instead of raising them.
+
+### Changed
+
+- Correctly propagates additional metadata through the various `run` methods to spawned children.
+
 ## [1.15.3] - 2025-07-14
 
 ### Changed
