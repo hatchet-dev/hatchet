@@ -32,7 +32,10 @@ SET
     "expiresAt" = EXCLUDED."expiresAt"
 WHERE
     "Lease"."expiresAt" < now() OR
-    "Lease"."id" = ANY($5::bigint[])
+    (
+        "Lease"."id" = ANY($5::bigint[]) AND
+        "Lease"."expiresAt" < now() + INTERVAL '10 seconds'
+    )
 RETURNING id, "expiresAt", "tenantId", "resourceId", kind
 `
 
