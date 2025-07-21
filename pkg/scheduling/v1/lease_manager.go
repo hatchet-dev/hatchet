@@ -14,6 +14,23 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 )
 
+// leaseExpiryThreshold is the time threshold for extending leases.
+// Only leases that expire within this duration will be extended.
+const leaseExpiryThreshold = 10 * time.Second
+
+// shouldExtendLease returns true if the lease should be extended.
+// This happens when:
+// 1. ExpiresAt is not set (treat as expired), or
+// 2. ExpiresAt is set and expires within the threshold
+func shouldExtendLease(lease *sqlcv1.Lease) bool {
+	if !lease.ExpiresAt.Valid {
+		// If ExpiresAt is not set, treat it as expired and extend it
+		return true
+	}
+
+	return time.Until(lease.ExpiresAt.Time) < leaseExpiryThreshold
+}
+
 // LeaseManager is responsible for leases on multiple queues and multiplexing
 // queue results to callers. It is still tenant-scoped.
 type LeaseManager struct {
@@ -124,14 +141,20 @@ func (l *LeaseManager) acquireWorkerLeases(ctx context.Context) error {
 	leasesToExtend := make([]*sqlcv1.Lease, 0, len(activeWorkers))
 	leasesToRelease := make([]*sqlcv1.Lease, 0, len(currResourceIdsToLease))
 
+	// Track existing valid leases that don't need extension
+	existingValidLeases := make([]*sqlcv1.Lease, 0, len(activeWorkers))
+
 	for _, activeWorker := range activeWorkers {
 		activeWorkerIdsToResults[activeWorker.ID] = activeWorker
 
 		if lease, ok := currResourceIdsToLease[activeWorker.ID]; ok {
 			// only extend leases that are about to expire
-			if time.Until(lease.ExpiresAt.Time) < 10*time.Second {
+			if shouldExtendLease(lease) {
 				leasesToExtend = append(leasesToExtend, lease)
 				workerIdsStr = append(workerIdsStr, activeWorker.ID)
+			} else {
+				// This is a valid lease that doesn't need extension yet
+				existingValidLeases = append(existingValidLeases, lease)
 			}
 			delete(currResourceIdsToLease, activeWorker.ID)
 			continue
@@ -140,8 +163,21 @@ func (l *LeaseManager) acquireWorkerLeases(ctx context.Context) error {
 		workerIdsStr = append(workerIdsStr, activeWorker.ID)
 	}
 
-	successfullyAcquiredWorkerIds := make([]*v1.ListActiveWorkersResult, 0)
+	for _, lease := range currResourceIdsToLease {
+		leasesToRelease = append(leasesToRelease, lease)
+	}
 
+	successfullyAcquiredWorkerIds := make([]*v1.ListActiveWorkersResult, 0, len(activeWorkers))
+
+	allWorkerLeases := make([]*sqlcv1.Lease, 0, len(activeWorkers))
+
+	// First, add existing valid leases that don't need extension
+	allWorkerLeases = append(allWorkerLeases, existingValidLeases...)
+	for _, lease := range existingValidLeases {
+		successfullyAcquiredWorkerIds = append(successfullyAcquiredWorkerIds, activeWorkerIdsToResults[lease.ResourceId])
+	}
+
+	// Then, add newly acquired/extended leases
 	if len(workerIdsStr) != 0 {
 		workerLeases, err := l.lr.AcquireOrExtendLeases(ctx, l.tenantId, sqlcv1.LeaseKindWORKER, workerIdsStr, leasesToExtend)
 
@@ -149,12 +185,14 @@ func (l *LeaseManager) acquireWorkerLeases(ctx context.Context) error {
 			return err
 		}
 
-		l.workerLeases = workerLeases
+		allWorkerLeases = append(allWorkerLeases, workerLeases...)
 
 		for _, lease := range workerLeases {
 			successfullyAcquiredWorkerIds = append(successfullyAcquiredWorkerIds, activeWorkerIdsToResults[lease.ResourceId])
 		}
 	}
+
+	l.workerLeases = allWorkerLeases
 
 	l.sendWorkerIds(successfullyAcquiredWorkerIds)
 
@@ -180,17 +218,28 @@ func (l *LeaseManager) acquireQueueLeases(ctx context.Context) error {
 		currResourceIdsToLease[lease.ResourceId] = lease
 	}
 
-	queueIdsStr := make([]string, len(queues))
+	queueIdsStr := make([]string, 0, len(queues))
 	leasesToExtend := make([]*sqlcv1.Lease, 0, len(queues))
 	leasesToRelease := make([]*sqlcv1.Lease, 0, len(currResourceIdsToLease))
 
-	for i, q := range queues {
-		queueIdsStr[i] = q.Name
+	// Track existing valid leases that don't need extension
+	existingValidLeases := make([]*sqlcv1.Lease, 0, len(queues))
 
-		if lease, ok := currResourceIdsToLease[queueIdsStr[i]]; ok {
-			leasesToExtend = append(leasesToExtend, lease)
-			delete(currResourceIdsToLease, queueIdsStr[i])
+	for _, q := range queues {
+		if lease, ok := currResourceIdsToLease[q.Name]; ok {
+			// only extend leases that are about to expire
+			if shouldExtendLease(lease) {
+				leasesToExtend = append(leasesToExtend, lease)
+				queueIdsStr = append(queueIdsStr, q.Name)
+			} else {
+				// This is a valid lease that doesn't need extension yet
+				existingValidLeases = append(existingValidLeases, lease)
+			}
+			delete(currResourceIdsToLease, q.Name)
+			continue
 		}
+
+		queueIdsStr = append(queueIdsStr, q.Name)
 	}
 
 	for _, lease := range currResourceIdsToLease {
@@ -198,7 +247,15 @@ func (l *LeaseManager) acquireQueueLeases(ctx context.Context) error {
 	}
 
 	successfullyAcquiredQueues := []string{}
+	allQueueLeases := make([]*sqlcv1.Lease, 0, len(queues))
 
+	// First, add existing valid leases that don't need extension
+	allQueueLeases = append(allQueueLeases, existingValidLeases...)
+	for _, lease := range existingValidLeases {
+		successfullyAcquiredQueues = append(successfullyAcquiredQueues, lease.ResourceId)
+	}
+
+	// Then, add newly acquired/extended leases
 	if len(queueIdsStr) != 0 {
 
 		queueLeases, err := l.lr.AcquireOrExtendLeases(ctx, l.tenantId, sqlcv1.LeaseKindQUEUE, queueIdsStr, leasesToExtend)
@@ -207,12 +264,14 @@ func (l *LeaseManager) acquireQueueLeases(ctx context.Context) error {
 			return err
 		}
 
-		l.queueLeases = queueLeases
+		allQueueLeases = append(allQueueLeases, queueLeases...)
 
 		for _, lease := range queueLeases {
 			successfullyAcquiredQueues = append(successfullyAcquiredQueues, lease.ResourceId)
 		}
 	}
+
+	l.queueLeases = allQueueLeases
 
 	l.sendQueues(successfullyAcquiredQueues)
 
@@ -238,21 +297,33 @@ func (l *LeaseManager) acquireConcurrencyLeases(ctx context.Context) error {
 		currResourceIdsToLease[lease.ResourceId] = lease
 	}
 
-	strategyIdsStr := make([]string, len(strats))
+	strategyIdsStr := make([]string, 0, len(strats))
 	activeStratIdsToStrategies := make(map[string]*sqlcv1.V1StepConcurrency, len(strats))
 
 	leasesToExtend := make([]*sqlcv1.Lease, 0, len(strats))
 	leasesToRelease := make([]*sqlcv1.Lease, 0, len(currResourceIdsToLease))
 
-	for i, s := range strats {
-		strategyIdsStr[i] = fmt.Sprintf("%d", s.ID)
+	// Track existing valid leases that don't need extension
+	existingValidLeases := make([]*sqlcv1.Lease, 0, len(strats))
 
-		if lease, ok := currResourceIdsToLease[strategyIdsStr[i]]; ok {
-			leasesToExtend = append(leasesToExtend, lease)
-			delete(currResourceIdsToLease, strategyIdsStr[i])
+	for _, s := range strats {
+		strategyId := fmt.Sprintf("%d", s.ID)
+		activeStratIdsToStrategies[strategyId] = s
+
+		if lease, ok := currResourceIdsToLease[strategyId]; ok {
+			// only extend leases that are about to expire
+			if shouldExtendLease(lease) {
+				leasesToExtend = append(leasesToExtend, lease)
+				strategyIdsStr = append(strategyIdsStr, strategyId)
+			} else {
+				// This is a valid lease that doesn't need extension yet
+				existingValidLeases = append(existingValidLeases, lease)
+			}
+			delete(currResourceIdsToLease, strategyId)
+			continue
 		}
 
-		activeStratIdsToStrategies[strategyIdsStr[i]] = s
+		strategyIdsStr = append(strategyIdsStr, strategyId)
 	}
 
 	for _, lease := range currResourceIdsToLease {
@@ -260,7 +331,15 @@ func (l *LeaseManager) acquireConcurrencyLeases(ctx context.Context) error {
 	}
 
 	successfullyAcquiredStrats := []*sqlcv1.V1StepConcurrency{}
+	allConcurrencyLeases := make([]*sqlcv1.Lease, 0, len(strats))
 
+	// First, add existing valid leases that don't need extension
+	allConcurrencyLeases = append(allConcurrencyLeases, existingValidLeases...)
+	for _, lease := range existingValidLeases {
+		successfullyAcquiredStrats = append(successfullyAcquiredStrats, activeStratIdsToStrategies[lease.ResourceId])
+	}
+
+	// Then, add newly acquired/extended leases
 	if len(strategyIdsStr) != 0 {
 
 		concurrencyLeases, err := l.lr.AcquireOrExtendLeases(ctx, l.tenantId, sqlcv1.LeaseKindCONCURRENCYSTRATEGY, strategyIdsStr, leasesToExtend)
@@ -269,12 +348,14 @@ func (l *LeaseManager) acquireConcurrencyLeases(ctx context.Context) error {
 			return err
 		}
 
-		l.concurrencyLeases = concurrencyLeases
+		allConcurrencyLeases = append(allConcurrencyLeases, concurrencyLeases...)
 
 		for _, lease := range concurrencyLeases {
 			successfullyAcquiredStrats = append(successfullyAcquiredStrats, activeStratIdsToStrategies[lease.ResourceId])
 		}
 	}
+
+	l.concurrencyLeases = allConcurrencyLeases
 
 	l.sendConcurrencyLeases(successfullyAcquiredStrats)
 
