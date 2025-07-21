@@ -59,9 +59,6 @@ func (o *OLAPControllerImpl) runDAGStatusUpdates(ctx context.Context) func() {
 func (o *OLAPControllerImpl) notifyDAGsUpdated(ctx context.Context, rows []v1.UpdateDAGStatusRow) error {
 	tenantIdToPayloads := make(map[pgtype.UUID][]tasktypes.NotifyFinalizedPayload)
 	tenantIdToWorkflowIds := make(map[string][]pgtype.UUID)
-	dagIds := make([]int64, 0, len(rows))
-	dagInsertedAts := make([]pgtype.Timestamptz, 0, len(rows))
-	readableStatuses := make([]sqlcv1.V1ReadableStatusOlap, 0, len(rows))
 
 	for _, row := range rows {
 		tenantIdToPayloads[row.TenantId] = append(tenantIdToPayloads[row.TenantId], tasktypes.NotifyFinalizedPayload{
@@ -74,38 +71,62 @@ func (o *OLAPControllerImpl) notifyDAGsUpdated(ctx context.Context, rows []v1.Up
 		}
 
 		tenantId := sqlchelpers.UUIDToStr(row.TenantId)
-
 		tenantIdToWorkflowIds[tenantId] = append(tenantIdToWorkflowIds[tenantId], row.WorkflowId)
-		dagIds = append(dagIds, row.DagId)
-		dagInsertedAts = append(dagInsertedAts, row.DagInsertedAt)
-		readableStatuses = append(readableStatuses, row.ReadableStatus)
 	}
 
 	if o.prometheusMetricsEnabled {
 		var eg errgroup.Group
 
-		for tenantId, workflowIds := range tenantIdToWorkflowIds {
+		for currentTenantId, workflowIds := range tenantIdToWorkflowIds {
+			tenantId := currentTenantId
+			workflowIds := workflowIds
+
+			var tenantDagIds []int64
+			var tenantDagInsertedAts []pgtype.Timestamptz
+			var tenantReadableStatuses []sqlcv1.V1ReadableStatusOlap
+			var tenantRows []v1.UpdateDAGStatusRow
+
+			for _, row := range rows {
+				if sqlchelpers.UUIDToStr(row.TenantId) == tenantId {
+					tenantDagIds = append(tenantDagIds, row.DagId)
+					tenantDagInsertedAts = append(tenantDagInsertedAts, row.DagInsertedAt)
+					tenantReadableStatuses = append(tenantReadableStatuses, row.ReadableStatus)
+					tenantRows = append(tenantRows, row)
+				}
+			}
+
 			eg.Go(func() error {
 				workflowNames, err := o.repo.Workflows().ListWorkflowNamesByIds(ctx, tenantId, workflowIds)
 				if err != nil {
 					return err
 				}
 
-				dagDurations, err := o.repo.OLAP().GetDagDurationsByDagIds(ctx, tenantId, dagIds, dagInsertedAts, readableStatuses)
+				dagDurationsArray, err := o.repo.OLAP().GetDagDurationsByDagIds(ctx, tenantId, tenantDagIds, tenantDagInsertedAts, tenantReadableStatuses)
 				if err != nil {
 					return err
 				}
 
-				for i, row := range rows {
+				dagDurations := make(map[int64]*sqlcv1.GetDagDurationsByDagIdsRow)
+				for i, duration := range dagDurationsArray {
+					if i < len(tenantDagIds) {
+						dagDurations[tenantDagIds[i]] = duration
+					}
+				}
+
+				for _, row := range tenantRows {
 					if row.ReadableStatus == sqlcv1.V1ReadableStatusOlapCOMPLETED || row.ReadableStatus == sqlcv1.V1ReadableStatusOlapFAILED || row.ReadableStatus == sqlcv1.V1ReadableStatusOlapCANCELLED {
 						workflowName := workflowNames[row.WorkflowId]
 						if workflowName == "" {
 							continue
 						}
 
-						dagDuration := dagDurations[i]
+						dagDuration := dagDurations[row.DagId]
+						if dagDuration == nil || !dagDuration.StartedAt.Valid || !dagDuration.FinishedAt.Valid {
+							continue
+						}
 
-						prometheus.TenantWorkflowDurationBuckets.WithLabelValues(tenantId, workflowName, string(row.ReadableStatus)).Observe(float64(dagDuration.FinishedAt.Time.Sub(dagDuration.StartedAt.Time).Milliseconds()))
+						duration := int(dagDuration.FinishedAt.Time.Sub(dagDuration.StartedAt.Time).Milliseconds())
+						prometheus.TenantWorkflowDurationBuckets.WithLabelValues(tenantId, workflowName, string(row.ReadableStatus)).Observe(float64(duration))
 					}
 				}
 
