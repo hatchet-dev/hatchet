@@ -205,6 +205,11 @@ type EventExternalIdFilterId struct {
 	FilterId   *string
 }
 
+type WorkflowAndScope struct {
+	WorkflowId string
+	Scope      string
+}
+
 func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId string, opts []EventTriggerOpts) (*TriggerFromEventsResult, error) {
 	pre, post := r.m.Meter(ctx, dbsqlc.LimitResourceEVENT, tenantId, int32(len(opts))) // nolint: gosec
 
@@ -241,16 +246,12 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 		return nil, fmt.Errorf("failed to list workflows for events: %w", err)
 	}
 
-	workflowEventKeyToIncomingEventKey := make(map[string]string)
-
 	workflowIds := make([]pgtype.UUID, 0)
 	scopes := make([]string, 0)
 
 	externalIdToEventIdAndFilterId := make(map[string]EventExternalIdFilterId)
 
 	for _, workflow := range workflowVersionIdsAndEventKeys {
-		workflowEventKeyToIncomingEventKey[workflow.WorkflowTriggeringEventKeyPattern] = workflow.IncomingEventKey
-
 		opts, ok := eventKeysToOpts[workflow.IncomingEventKey]
 
 		if !ok {
@@ -277,10 +278,15 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 		return nil, fmt.Errorf("failed to list filters: %w", err)
 	}
 
-	workflowIdToFilters := make(map[string][]*sqlcv1.V1Filter)
+	workflowIdAndScopeToFilters := make(map[WorkflowAndScope][]*sqlcv1.V1Filter)
 
 	for _, filter := range filters {
-		workflowIdToFilters[filter.WorkflowID.String()] = append(workflowIdToFilters[filter.WorkflowID.String()], filter)
+		key := WorkflowAndScope{
+			WorkflowId: filter.WorkflowID.String(),
+			Scope:      filter.Scope,
+		}
+
+		workflowIdAndScopeToFilters[key] = append(workflowIdAndScopeToFilters[key], filter)
 	}
 
 	filterCounts, err := r.queries.ListFilterCountsForWorkflows(ctx, r.pool, sqlcv1.ListFilterCountsForWorkflowsParams{
@@ -302,24 +308,28 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 	triggerOpts := make([]triggerTuple, 0)
 
 	for _, workflow := range workflowVersionIdsAndEventKeys {
-		incomingEventKey, ok := workflowEventKeyToIncomingEventKey[workflow.WorkflowTriggeringEventKeyPattern]
+		opts, ok := eventKeysToOpts[workflow.IncomingEventKey]
 
 		if !ok {
 			continue
 		}
 
-		opts, ok := eventKeysToOpts[incomingEventKey]
-
-		if !ok {
-			continue
-		}
-
-		filters := workflowIdToFilters[sqlchelpers.UUIDToStr(workflow.WorkflowId)]
 		numFilters := workflowIdToCount[sqlchelpers.UUIDToStr(workflow.WorkflowId)]
 
 		hasAnyFilters := numFilters > 0
 
 		for _, opt := range opts {
+			var filters []*sqlcv1.V1Filter
+
+			if opt.Scope != nil {
+				key := WorkflowAndScope{
+					WorkflowId: workflow.WorkflowId.String(),
+					Scope:      *opt.Scope,
+				}
+
+				filters = workflowIdAndScopeToFilters[key]
+			}
+
 			triggerDecisions := r.makeTriggerDecisions(ctx, filters, hasAnyFilters, opt)
 
 			for _, decision := range triggerDecisions {
