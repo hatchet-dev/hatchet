@@ -41,16 +41,6 @@ func (d *leaseRepository) AcquireOrExtendLeases(ctx context.Context, tenantId pg
 
 	defer rollback()
 
-	err = d.queries.GetLeasesToAcquire(ctx, tx, dbsqlc.GetLeasesToAcquireParams{
-		Kind:        kind,
-		Resourceids: resourceIds,
-		Tenantid:    tenantId,
-	})
-
-	if err != nil {
-		return nil, err
-	}
-
 	leases, err := d.queries.AcquireOrExtendLeases(ctx, tx, dbsqlc.AcquireOrExtendLeasesParams{
 		Kind:             kind,
 		Resourceids:      resourceIds,
