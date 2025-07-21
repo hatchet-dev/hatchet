@@ -418,12 +418,14 @@ func (r *sharedRepository) lookupExternalIds(ctx context.Context, tx sqlcv1.DBTX
 }
 
 func (r *TaskRepositoryImpl) verifyAllTasksFinalized(ctx context.Context, tx sqlcv1.DBTX, tenantId string, flattenedTasks []*sqlcv1.FlattenExternalIdsRow) ([]string, map[string]int64, error) {
-	taskIdsToCheck := make([]int64, 0, len(flattenedTasks))
+	taskIdsToCheck := make([]int64, len(flattenedTasks))
+	taskInsertedAtsToCheck := make([]pgtype.Timestamptz, len(flattenedTasks))
 	taskIdsToTasks := make(map[int64]*sqlcv1.FlattenExternalIdsRow)
 	minInsertedAt := sqlchelpers.TimestamptzFromTime(time.Now()) // current time as a placeholder - will be overwritten
 
-	for _, task := range flattenedTasks {
-		taskIdsToCheck = append(taskIdsToCheck, task.ID)
+	for i, task := range flattenedTasks {
+		taskIdsToCheck[i] = task.ID
+		taskInsertedAtsToCheck[i] = task.InsertedAt
 		taskIdsToTasks[task.ID] = task
 
 		if task.InsertedAt.Time.Before(minInsertedAt.Time) {
@@ -433,9 +435,10 @@ func (r *TaskRepositoryImpl) verifyAllTasksFinalized(ctx context.Context, tx sql
 
 	// run preflight check on tasks
 	notFinalized, err := r.queries.PreflightCheckTasksForReplay(ctx, tx, sqlcv1.PreflightCheckTasksForReplayParams{
-		Tenantid:      sqlchelpers.UUIDFromStr(tenantId),
-		Taskids:       taskIdsToCheck,
-		Mininsertedat: minInsertedAt,
+		Tenantid:        sqlchelpers.UUIDFromStr(tenantId),
+		Taskids:         taskIdsToCheck,
+		Taskinsertedats: taskInsertedAtsToCheck,
+		Mininsertedat:   minInsertedAt,
 	})
 
 	if err != nil {
@@ -2470,6 +2473,7 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId string, t
 	}
 
 	lockedTaskIds := make([]int64, len(lockedTasks))
+	lockedTaskInsertedAts := make([]pgtype.Timestamptz, len(lockedTasks))
 	subtreeStepIds := make(map[int64]map[string]bool) // dag id -> step id -> true
 	subtreeExternalIds := make(map[string]struct{})
 	dagIdsToLockMap := make(map[int64]struct{})
@@ -2477,6 +2481,7 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId string, t
 
 	for i, task := range lockedTasks {
 		lockedTaskIds[i] = task.ID
+		lockedTaskInsertedAts[i] = task.InsertedAt
 
 		if task.DagID.Valid {
 			if _, ok := subtreeStepIds[task.DagID.Int64]; !ok {
@@ -2539,9 +2544,10 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId string, t
 	tasksFailedPreflight := make(map[int64]bool)
 
 	failedPreflightChecks, err := r.queries.PreflightCheckTasksForReplay(ctx, tx, sqlcv1.PreflightCheckTasksForReplayParams{
-		Taskids:       lockedTaskIds,
-		Tenantid:      sqlchelpers.UUIDFromStr(tenantId),
-		Mininsertedat: minInsertedAt,
+		Taskids:         lockedTaskIds,
+		Taskinsertedats: lockedTaskInsertedAts,
+		Tenantid:        sqlchelpers.UUIDFromStr(tenantId),
+		Mininsertedat:   minInsertedAt,
 	})
 
 	if err != nil {
