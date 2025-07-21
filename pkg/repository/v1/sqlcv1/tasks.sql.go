@@ -1647,8 +1647,8 @@ WITH input AS (
     FROM
         (
             SELECT
-                unnest($2::bigint[]) AS task_id,
-                unnest($3::timestamptz[]) AS task_inserted_at
+                unnest($3::bigint[]) AS task_id,
+                unnest($4::timestamptz[]) AS task_inserted_at
         ) AS subquery
 )
 SELECT
@@ -1668,12 +1668,14 @@ LEFT JOIN
     v1_retry_queue_item rqi ON rqi.task_id = t.id AND rqi.task_inserted_at = t.inserted_at AND rqi.task_retry_count = t.retry_count
 WHERE
     t.tenant_id = $1::uuid
+    AND t.inserted_at >= $2::TIMESTAMPTZ
     AND e.id IS NULL
     AND (tr.task_id IS NOT NULL OR cs.task_id IS NOT NULL OR rqi.task_id IS NOT NULL)
 `
 
 type PreflightCheckTasksForReplayParams struct {
 	Tenantid        pgtype.UUID          `json:"tenantid"`
+	Mininsertedat   pgtype.Timestamptz   `json:"mininsertedat"`
 	Taskids         []int64              `json:"taskids"`
 	Taskinsertedats []pgtype.Timestamptz `json:"taskinsertedats"`
 }
@@ -1686,7 +1688,12 @@ type PreflightCheckTasksForReplayRow struct {
 // Checks whether tasks can be replayed by ensuring that they don't have any active runtimes,
 // concurrency slots, or retry queue items. Returns the tasks which cannot be replayed.
 func (q *Queries) PreflightCheckTasksForReplay(ctx context.Context, db DBTX, arg PreflightCheckTasksForReplayParams) ([]*PreflightCheckTasksForReplayRow, error) {
-	rows, err := db.Query(ctx, preflightCheckTasksForReplay, arg.Tenantid, arg.Taskids, arg.Taskinsertedats)
+	rows, err := db.Query(ctx, preflightCheckTasksForReplay,
+		arg.Tenantid,
+		arg.Mininsertedat,
+		arg.Taskids,
+		arg.Taskinsertedats,
+	)
 	if err != nil {
 		return nil, err
 	}

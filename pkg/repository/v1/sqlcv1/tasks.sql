@@ -842,6 +842,7 @@ LEFT JOIN
     v1_retry_queue_item rqi ON rqi.task_id = t.id AND rqi.task_inserted_at = t.inserted_at AND rqi.task_retry_count = t.retry_count
 WHERE
     t.tenant_id = @tenantId::uuid
+    AND t.inserted_at >= @minInsertedAt::TIMESTAMPTZ
     AND e.id IS NULL
     AND (tr.task_id IS NOT NULL OR cs.task_id IS NOT NULL OR rqi.task_id IS NOT NULL);
 

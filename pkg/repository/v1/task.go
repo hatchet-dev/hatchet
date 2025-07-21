@@ -420,16 +420,22 @@ func (r *sharedRepository) lookupExternalIds(ctx context.Context, tx sqlcv1.DBTX
 func (r *TaskRepositoryImpl) verifyAllTasksFinalized(ctx context.Context, tx sqlcv1.DBTX, tenantId string, flattenedTasks []*sqlcv1.FlattenExternalIdsRow) ([]string, map[string]int64, error) {
 	taskIdsToCheck := make([]int64, 0, len(flattenedTasks))
 	taskIdsToTasks := make(map[int64]*sqlcv1.FlattenExternalIdsRow)
+	minInsertedAt := sqlchelpers.TimestamptzFromTime(time.Now().Add(-1 * r.taskRetentionPeriod))
 
 	for _, task := range flattenedTasks {
 		taskIdsToCheck = append(taskIdsToCheck, task.ID)
 		taskIdsToTasks[task.ID] = task
+
+		if task.InsertedAt.Time.Before(minInsertedAt.Time) {
+			minInsertedAt = task.InsertedAt
+		}
 	}
 
 	// run preflight check on tasks
 	notFinalized, err := r.queries.PreflightCheckTasksForReplay(ctx, tx, sqlcv1.PreflightCheckTasksForReplayParams{
-		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
-		Taskids:  taskIdsToCheck,
+		Tenantid:      sqlchelpers.UUIDFromStr(tenantId),
+		Taskids:       taskIdsToCheck,
+		Mininsertedat: minInsertedAt,
 	})
 
 	if err != nil {
@@ -2467,6 +2473,7 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId string, t
 	subtreeStepIds := make(map[int64]map[string]bool) // dag id -> step id -> true
 	subtreeExternalIds := make(map[string]struct{})
 	dagIdsToLockMap := make(map[int64]struct{})
+	minInsertedAt := sqlchelpers.TimestamptzFromTime(time.Now().Add(-time.Hour * 24 * 14)) // 14d ago as a placeholder
 
 	for i, task := range lockedTasks {
 		lockedTaskIds[i] = task.ID
@@ -2479,6 +2486,10 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId string, t
 			dagIdsToLockMap[task.DagID.Int64] = struct{}{}
 			subtreeStepIds[task.DagID.Int64][sqlchelpers.UUIDToStr(task.StepID)] = true
 			subtreeExternalIds[sqlchelpers.UUIDToStr(task.ExternalID)] = struct{}{}
+		}
+
+		if task.InsertedAt.Time.Before(minInsertedAt.Time) {
+			minInsertedAt = task.InsertedAt
 		}
 	}
 
@@ -2528,8 +2539,9 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId string, t
 	tasksFailedPreflight := make(map[int64]bool)
 
 	failedPreflightChecks, err := r.queries.PreflightCheckTasksForReplay(ctx, tx, sqlcv1.PreflightCheckTasksForReplayParams{
-		Taskids:  lockedTaskIds,
-		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+		Taskids:       lockedTaskIds,
+		Tenantid:      sqlchelpers.UUIDFromStr(tenantId),
+		Mininsertedat: minInsertedAt,
 	})
 
 	if err != nil {
