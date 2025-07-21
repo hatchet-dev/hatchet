@@ -118,25 +118,26 @@ func (l *LeaseManager) acquireWorkerLeases(ctx context.Context) error {
 		currResourceIdsToLease[lease.ResourceId] = lease
 	}
 
-	workerIdsStr := make([]string, len(activeWorkers))
+	workerIdsStr := make([]string, 0, len(activeWorkers))
 	activeWorkerIdsToResults := make(map[string]*v1.ListActiveWorkersResult, len(activeWorkers))
 
 	leasesToExtend := make([]*sqlcv1.Lease, 0, len(activeWorkers))
 	leasesToRelease := make([]*sqlcv1.Lease, 0, len(currResourceIdsToLease))
 
-	for i, activeWorker := range activeWorkers {
-		aw := activeWorker
-		workerIdsStr[i] = activeWorker.ID
-		activeWorkerIdsToResults[workerIdsStr[i]] = aw
+	for _, activeWorker := range activeWorkers {
+		activeWorkerIdsToResults[activeWorker.ID] = activeWorker
 
-		if lease, ok := currResourceIdsToLease[workerIdsStr[i]]; ok {
-			leasesToExtend = append(leasesToExtend, lease)
-			delete(currResourceIdsToLease, workerIdsStr[i])
+		if lease, ok := currResourceIdsToLease[activeWorker.ID]; ok {
+			// only extend leases that are about to expire
+			if time.Until(lease.ExpiresAt.Time) < 10*time.Second {
+				leasesToExtend = append(leasesToExtend, lease)
+				workerIdsStr = append(workerIdsStr, activeWorker.ID)
+			}
+			delete(currResourceIdsToLease, activeWorker.ID)
+			continue
 		}
-	}
 
-	for _, lease := range currResourceIdsToLease {
-		leasesToRelease = append(leasesToRelease, lease)
+		workerIdsStr = append(workerIdsStr, activeWorker.ID)
 	}
 
 	successfullyAcquiredWorkerIds := make([]*v1.ListActiveWorkersResult, 0)
