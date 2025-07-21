@@ -820,21 +820,18 @@ WITH input AS (
         UNNEST(@taskIds::bigint[]) AS task_id,
         UNNEST(@taskInsertedAts::timestamptz[]) AS task_inserted_at
 ), relevant_tasks AS (
-    SELECT
-        t.id,
-        t.dag_id
+    SELECT *
     FROM
         v1_task t
     JOIN
         input i ON i.task_id = t.id AND i.task_inserted_at = t.inserted_at
     WHERE
+        -- prune partitions with minInsertedAt
         t.inserted_at >= @minInsertedAt::TIMESTAMPTZ
 )
 
-SELECT t.*
+SELECT t.id, t.dag_id
 FROM relevant_tasks t
-LEFT JOIN
-    v1_task_event e ON e.task_id = t.id AND e.task_inserted_at = t.inserted_at AND e.retry_count = t.retry_count AND e.event_type = ANY('{COMPLETED, FAILED, CANCELLED}'::v1_task_event_type[])
 LEFT JOIN
     v1_task_runtime tr ON tr.task_id = t.id AND tr.task_inserted_at = t.inserted_at AND tr.retry_count = t.retry_count
 LEFT JOIN
@@ -843,8 +840,17 @@ LEFT JOIN
     v1_retry_queue_item rqi ON rqi.task_id = t.id AND rqi.task_inserted_at = t.inserted_at AND rqi.task_retry_count = t.retry_count
 WHERE
     t.tenant_id = @tenantId::uuid
-    AND e.id IS NULL
-    AND (tr.task_id IS NOT NULL OR cs.task_id IS NOT NULL OR rqi.task_id IS NOT NULL);
+    AND NOT EXISTS (
+        SELECT 1
+        FROM v1_task_event e
+        WHERE
+            -- prune partitions with minInsertedAt
+            e.task_inserted_at >= @minInsertedAt::TIMESTAMPTZ
+            AND (e.task_id, e.task_inserted_at, e.retry_count) = (t.id, t.inserted_at, t.retry_count)
+            AND e.event_type = ANY('{COMPLETED, FAILED, CANCELLED}'::v1_task_event_type[])
+    )
+    AND (tr.task_id IS NOT NULL OR cs.task_id IS NOT NULL OR rqi.task_id IS NOT NULL)
+;
 
 -- name: ListAllTasksInDags :many
 SELECT
