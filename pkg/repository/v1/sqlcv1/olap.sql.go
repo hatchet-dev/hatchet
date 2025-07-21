@@ -405,23 +405,38 @@ WITH input AS (
         relevant_events
     GROUP BY
         dag_id, dag_inserted_at, task_id, task_inserted_at
-), dag_times AS (
+), dag_task_times AS (
     SELECT
         e.dag_id,
         e.dag_inserted_at,
-        e.external_id,
-        MIN(CASE WHEN e.readable_status = 'RUNNING' THEN e.inserted_at END) AS started_at,
+        e.task_id,
+        e.task_inserted_at,
+        MIN(CASE WHEN e.readable_status = 'RUNNING' THEN e.inserted_at END) AS task_started_at,
         MAX(CASE WHEN e.readable_status = ANY(ARRAY['COMPLETED', 'FAILED', 'CANCELLED']::v1_readable_status_olap[])
-            THEN e.inserted_at END) AS finished_at
+            THEN e.inserted_at END) AS task_finished_at
     FROM
         relevant_events e
     JOIN
         max_retry_counts mrc ON
             (e.dag_id, e.dag_inserted_at, e.task_id, e.task_inserted_at, e.retry_count) =
             (mrc.dag_id, mrc.dag_inserted_at, mrc.task_id, mrc.task_inserted_at, mrc.max_retry_count)
-    GROUP BY e.dag_id, e.dag_inserted_at, e.external_id
+    GROUP BY e.dag_id, e.dag_inserted_at, e.task_id, e.task_inserted_at
+), dag_times AS (
+    SELECT
+        dtt.dag_id,
+        dtt.dag_inserted_at,
+        dd.external_id,
+        MIN(dtt.task_started_at) AS started_at,
+        MAX(dtt.task_finished_at) AS finished_at
+    FROM
+        dag_task_times dtt
+    JOIN
+        dag_data dd ON (dd.dag_id, dd.inserted_at) = (dtt.dag_id, dtt.dag_inserted_at)
+    GROUP BY dtt.dag_id, dtt.dag_inserted_at, dd.external_id
 )
 SELECT
+    dd.external_id,
+    dd.tenant_id,
     dt.started_at::timestamptz AS started_at,
     dt.finished_at::timestamptz AS finished_at
 FROM
@@ -439,6 +454,8 @@ type GetDagDurationsByDagIdsParams struct {
 }
 
 type GetDagDurationsByDagIdsRow struct {
+	ExternalID pgtype.UUID        `json:"external_id"`
+	TenantID   pgtype.UUID        `json:"tenant_id"`
 	StartedAt  pgtype.Timestamptz `json:"started_at"`
 	FinishedAt pgtype.Timestamptz `json:"finished_at"`
 }
@@ -457,7 +474,12 @@ func (q *Queries) GetDagDurationsByDagIds(ctx context.Context, db DBTX, arg GetD
 	var items []*GetDagDurationsByDagIdsRow
 	for rows.Next() {
 		var i GetDagDurationsByDagIdsRow
-		if err := rows.Scan(&i.StartedAt, &i.FinishedAt); err != nil {
+		if err := rows.Scan(
+			&i.ExternalID,
+			&i.TenantID,
+			&i.StartedAt,
+			&i.FinishedAt,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, &i)

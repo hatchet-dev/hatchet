@@ -101,16 +101,9 @@ func (o *OLAPControllerImpl) notifyDAGsUpdated(ctx context.Context, rows []v1.Up
 					return err
 				}
 
-				dagDurationsArray, err := o.repo.OLAP().GetDagDurationsByDagIds(ctx, tenantId, tenantDagIds, tenantDagInsertedAts, tenantReadableStatuses)
+				dagDurations, err := o.repo.OLAP().GetDagDurationsByDagIds(ctx, tenantId, tenantDagIds, tenantDagInsertedAts, tenantReadableStatuses)
 				if err != nil {
 					return err
-				}
-
-				dagDurations := make(map[int64]*sqlcv1.GetDagDurationsByDagIdsRow)
-				for i, duration := range dagDurationsArray {
-					if i < len(tenantDagIds) {
-						dagDurations[tenantDagIds[i]] = duration
-					}
 				}
 
 				for _, row := range tenantRows {
@@ -120,7 +113,7 @@ func (o *OLAPControllerImpl) notifyDAGsUpdated(ctx context.Context, rows []v1.Up
 							continue
 						}
 
-						dagDuration := dagDurations[row.DagId]
+						dagDuration := dagDurations[sqlchelpers.UUIDToStr(row.ExternalId)]
 						if dagDuration == nil || !dagDuration.StartedAt.Valid || !dagDuration.FinishedAt.Valid {
 							continue
 						}
