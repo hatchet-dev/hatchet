@@ -205,6 +205,12 @@ export enum TenantResource {
   SCHEDULE = "SCHEDULE",
 }
 
+/** The status of the CEL evaluation */
+export enum V1CELDebugResponseStatus {
+  SUCCESS = "SUCCESS",
+  ERROR = "ERROR",
+}
+
 export enum TenantUIVersion {
   V0 = "V0",
   V1 = "V1",
@@ -845,6 +851,26 @@ export interface V1UpdateFilterRequest {
   scope?: string;
   /** The payload for the filter */
   payload?: object;
+}
+
+export interface V1CELDebugRequest {
+  /** The CEL expression to evaluate */
+  expression: string;
+  /** The input, which simulates the workflow run input */
+  input: object;
+  /** The filter payload, which simulates a payload set on a previous-created filter */
+  filterPayload?: object;
+  /** Additional metadata, which simulates metadata that could be sent with an event or a workflow run */
+  additionalMetadata?: object;
+}
+
+export interface V1CELDebugResponse {
+  /** The status of the CEL evaluation */
+  status: V1CELDebugResponseStatus;
+  /** The result of the CEL expression evaluation, if successful */
+  output?: boolean;
+  /** The error message if the evaluation failed */
+  error?: string;
 }
 
 export interface APIMetaAuth {

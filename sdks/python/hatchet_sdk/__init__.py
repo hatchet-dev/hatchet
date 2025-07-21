@@ -152,6 +152,7 @@ from hatchet_sdk.exceptions import (
     NonRetryableException,
     TaskRunError,
 )
+from hatchet_sdk.features.cel import CELEvaluationResult, CELFailure, CELSuccess
 from hatchet_sdk.features.runs import BulkCancelReplayOpts, RunFilter
 from hatchet_sdk.hatchet import Hatchet
 from hatchet_sdk.runnables.task import Task
@@ -180,6 +181,9 @@ __all__ = [
     "APIToken",
     "AcceptInviteRequest",
     "BulkCancelReplayOpts",
+    "CELEvaluationResult",
+    "CELFailure",
+    "CELSuccess",
     "ClientConfig",
     "ClientTLSConfig",
     "ConcurrencyExpression",

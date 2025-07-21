@@ -42,6 +42,7 @@ import { AdminClient } from './admin';
 import { FiltersClient } from './features/filters';
 import { ScheduleClient } from './features/schedules';
 import { CronClient } from './features/crons';
+import { CELClient } from './features/cel';
 import { TenantClient } from './features/tenant';
 
 /**
@@ -326,6 +327,19 @@ export class HatchetClient implements IHatchetClient {
   ): Promise<O> {
     const run = await this.runNoWait<I, O>(workflow, input, options);
     return run.output as Promise<O>;
+  }
+
+  private _cel: CELClient | undefined;
+
+  /**
+   * Get the CEL client for debugging CEL expressions
+   * @returns A CEL client instance
+   */
+  get cel() {
+    if (!this._cel) {
+      this._cel = new CELClient(this);
+    }
+    return this._cel;
   }
 
   private _crons: CronClient | undefined;

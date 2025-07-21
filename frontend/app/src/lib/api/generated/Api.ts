@@ -84,6 +84,8 @@ import {
   UserLoginRequest,
   UserRegisterRequest,
   UserTenantMembershipsList,
+  V1CELDebugRequest,
+  V1CELDebugResponse,
   V1CancelTaskRequest,
   V1CancelledTasks,
   V1CreateFilterRequest,
@@ -780,6 +782,29 @@ export class Api<
     this.request<V1Filter, APIErrors>({
       path: `/api/v1/stable/tenants/${tenant}/filters/${v1Filter}`,
       method: "PATCH",
+      body: data,
+      secure: true,
+      type: ContentType.Json,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Evaluate a CEL expression against provided input data.
+   *
+   * @tags CEL
+   * @name V1CelDebug
+   * @summary Debug a CEL expression
+   * @request POST:/api/v1/stable/tenants/{tenant}/cel/debug
+   * @secure
+   */
+  v1CelDebug = (
+    tenant: string,
+    data: V1CELDebugRequest,
+    params: RequestParams = {},
+  ) =>
+    this.request<V1CELDebugResponse, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/cel/debug`,
+      method: "POST",
       body: data,
       secure: true,
       type: ContentType.Json,
