@@ -76,6 +76,7 @@ func (o *OLAPControllerImpl) notifyDAGsUpdated(ctx context.Context, rows []v1.Up
 		tenantId := sqlchelpers.UUIDToStr(row.TenantId)
 
 		tenantIdToWorkflowIds[tenantId] = append(tenantIdToWorkflowIds[tenantId], row.WorkflowId)
+
 		dagIds = append(dagIds, row.DagId)
 		dagInsertedAts = append(dagInsertedAts, row.DagInsertedAt)
 		readableStatuses = append(readableStatuses, row.ReadableStatus)
@@ -96,21 +97,15 @@ func (o *OLAPControllerImpl) notifyDAGsUpdated(ctx context.Context, rows []v1.Up
 					return err
 				}
 
-				for _, row := range rows {
-					if row.ReadableStatus == sqlcv1.V1ReadableStatusOlapCOMPLETED || row.ReadableStatus == sqlcv1.V1ReadableStatusOlapFAILED || row.ReadableStatus == sqlcv1.V1ReadableStatusOlapCANCELLED {
-						workflowName := workflowNames[row.WorkflowId]
+				for _, duration := range dagDurations {
+					if duration.ReadableStatus == sqlcv1.V1ReadableStatusOlapCOMPLETED || duration.ReadableStatus == sqlcv1.V1ReadableStatusOlapFAILED || duration.ReadableStatus == sqlcv1.V1ReadableStatusOlapCANCELLED {
+						workflowName := workflowNames[duration.WorkflowID]
 
 						if workflowName == "" {
 							continue
 						}
 
-						dagDuration := dagDurations[row.ExternalId]
-
-						if dagDuration == nil {
-							continue
-						}
-
-						prometheus.TenantWorkflowDurationBuckets.WithLabelValues(tenantId, workflowName, string(row.ReadableStatus)).Observe(float64(dagDuration.FinishedAt.Time.Sub(dagDuration.StartedAt.Time).Milliseconds()))
+						prometheus.TenantWorkflowDurationBuckets.WithLabelValues(tenantId, workflowName, string(duration.ReadableStatus)).Observe(float64(duration.FinishedAt.Time.Sub(duration.StartedAt.Time).Milliseconds()))
 					}
 				}
 

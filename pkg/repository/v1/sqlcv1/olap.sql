@@ -1557,7 +1557,9 @@ WITH input AS (
         i.inserted_at,
         d.external_id,
         d.display_name,
-        d.tenant_id
+        d.tenant_id,
+        d.workflow_id,
+        d.readable_status
     FROM
         input i
     JOIN
@@ -1614,6 +1616,8 @@ WITH input AS (
 )
 SELECT
     dd.external_id,
+    dd.workflow_id,
+    dd.readable_status,
     dt.started_at::timestamptz AS started_at,
     dt.finished_at::timestamptz AS finished_at
 FROM

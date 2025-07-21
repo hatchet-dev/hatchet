@@ -366,7 +366,9 @@ WITH input AS (
         i.inserted_at,
         d.external_id,
         d.display_name,
-        d.tenant_id
+        d.tenant_id,
+        d.workflow_id,
+        d.readable_status
     FROM
         input i
     JOIN
@@ -423,6 +425,8 @@ WITH input AS (
 )
 SELECT
     dd.external_id,
+    dd.workflow_id,
+    dd.readable_status,
     dt.started_at::timestamptz AS started_at,
     dt.finished_at::timestamptz AS finished_at
 FROM
@@ -440,9 +444,11 @@ type GetDagDurationsByDagIdsParams struct {
 }
 
 type GetDagDurationsByDagIdsRow struct {
-	ExternalID pgtype.UUID        `json:"external_id"`
-	StartedAt  pgtype.Timestamptz `json:"started_at"`
-	FinishedAt pgtype.Timestamptz `json:"finished_at"`
+	ExternalID     pgtype.UUID          `json:"external_id"`
+	WorkflowID     pgtype.UUID          `json:"workflow_id"`
+	ReadableStatus V1ReadableStatusOlap `json:"readable_status"`
+	StartedAt      pgtype.Timestamptz   `json:"started_at"`
+	FinishedAt     pgtype.Timestamptz   `json:"finished_at"`
 }
 
 func (q *Queries) GetDagDurationsByDagIds(ctx context.Context, db DBTX, arg GetDagDurationsByDagIdsParams) ([]*GetDagDurationsByDagIdsRow, error) {
@@ -459,7 +465,13 @@ func (q *Queries) GetDagDurationsByDagIds(ctx context.Context, db DBTX, arg GetD
 	var items []*GetDagDurationsByDagIdsRow
 	for rows.Next() {
 		var i GetDagDurationsByDagIdsRow
-		if err := rows.Scan(&i.ExternalID, &i.StartedAt, &i.FinishedAt); err != nil {
+		if err := rows.Scan(
+			&i.ExternalID,
+			&i.WorkflowID,
+			&i.ReadableStatus,
+			&i.StartedAt,
+			&i.FinishedAt,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, &i)
