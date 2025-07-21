@@ -203,7 +203,6 @@ func (t *tenantManager) setConcurrencyStrategies(strategies []*sqlcv1.V1StepConc
 
 func (t *tenantManager) replenish(ctx context.Context) {
 	err := t.scheduler.replenish(ctx, false)
-
 	if err != nil {
 		t.cf.l.Error().Err(err).Msg("error replenishing scheduler")
 	}
@@ -251,7 +250,6 @@ func (t *tenantManager) notifyConcurrency(ctx context.Context, strategyIds []int
 
 				if !found {
 					childStrategyIds = append(childStrategyIds, c.strategy.ID)
-
 				}
 			} else {
 				childStrategyIds = []int64{c.strategy.ID}

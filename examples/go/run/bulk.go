@@ -16,7 +16,6 @@ func bulk() {
 	}
 
 	hatchet, err := v1.NewHatchetClient()
-
 	if err != nil {
 		panic(err)
 	}
@@ -32,7 +31,6 @@ func bulk() {
 			Message: "Hello, Moon!",
 		},
 	})
-
 	if err != nil {
 		panic(err)
 	}

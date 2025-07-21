@@ -21,12 +21,14 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-var k8sQuickstartSkip []string
-var k8sQuickstartOverwrite bool
-var namespace string
-var k8sQuickstartConfigName string
-var k8sClientConfigName string
-var k8sConfigResourceType string
+var (
+	k8sQuickstartSkip       []string
+	k8sQuickstartOverwrite  bool
+	namespace               string
+	k8sQuickstartConfigName string
+	k8sClientConfigName     string
+	k8sConfigResourceType   string
+)
 
 var k8sCmd = &cobra.Command{
 	Use:   "k8s",
@@ -38,7 +40,6 @@ var k8sQuickstartCmd = &cobra.Command{
 	Short: "Quickstart for generating environment variables on a Hatchet instance on Kubernetes. This command is only meant to run within a pod on a cluster with read/write access to configmaps within the namespace.",
 	Run: func(cmd *cobra.Command, args []string) {
 		err := runK8sQuickstart()
-
 		if err != nil {
 			red := color.New(color.FgRed)
 			red.Printf("Error running [%s]:%s\n", cmd.Use, err.Error())
@@ -52,7 +53,6 @@ var k8sWorkerTokenCmd = &cobra.Command{
 	Short: "Generates a worker token within a secret on a Hatchet instance on Kubernetes. This command is only meant to run within a pod on a cluster with read/write access to secrets within the namespace.",
 	Run: func(cmd *cobra.Command, args []string) {
 		err := runCreateWorkerToken()
-
 		if err != nil {
 			red := color.New(color.FgRed)
 			red.Printf("Error running [%s]:%s\n", cmd.Use, err.Error())
@@ -127,7 +127,6 @@ func runK8sQuickstart() error {
 
 	// creates the clientset
 	clientset, err := kubernetes.NewForConfig(config)
-
 	if err != nil {
 		return err
 	}
@@ -174,13 +173,11 @@ func runK8sQuickstart() error {
 	if k8sQuickstartOverwrite || res.authCookieSecrets == "" {
 		// generate the random strings for SERVER_AUTH_COOKIE_SECRETS
 		authCookieSecret1, err := random.Generate(16)
-
 		if err != nil {
 			return err
 		}
 
 		authCookieSecret2, err := random.Generate(16)
-
 		if err != nil {
 			return err
 		}
@@ -190,7 +187,6 @@ func runK8sQuickstart() error {
 
 	if k8sQuickstartOverwrite || res.encryptionMasterKeyset == "" || res.encryptionJwtPrivateKeyset == "" || res.encryptionJwtPublicKeyset == "" {
 		masterKeyBytes, privateEc256, publicEc256, err := encryption.GenerateLocalKeys()
-
 		if err != nil {
 			return err
 		}
@@ -228,7 +224,6 @@ func runCreateWorkerToken() error {
 
 	// creates the clientset
 	clientset, err := kubernetes.NewForConfig(config)
-
 	if err != nil {
 		return err
 	}
@@ -243,7 +238,6 @@ func runCreateWorkerToken() error {
 		// disable security checks since we're not running the server
 		scf.SecurityCheck.Enabled = false
 	})
-
 	if err != nil {
 		return err
 	}
@@ -261,7 +255,6 @@ func runCreateWorkerToken() error {
 	}
 
 	defaultTok, err := server.Auth.JWTManager.GenerateTenantToken(context.Background(), tenantId, tokenName, false, &expiresAt)
-
 	if err != nil {
 		return err
 	}
@@ -379,7 +372,6 @@ func (c *configModifier) get(key string) string {
 func (c *configModifier) createResource(clientset *kubernetes.Clientset) error {
 	if c.Secret != nil {
 		_, err := clientset.CoreV1().Secrets(namespace).Create(context.Background(), c.Secret, metav1.CreateOptions{})
-
 		if err != nil {
 			return fmt.Errorf("error creating secret: %w", err)
 		}
@@ -387,7 +379,6 @@ func (c *configModifier) createResource(clientset *kubernetes.Clientset) error {
 
 	if c.ConfigMap != nil {
 		_, err := clientset.CoreV1().ConfigMaps(namespace).Create(context.Background(), c.ConfigMap, metav1.CreateOptions{})
-
 		if err != nil {
 			return fmt.Errorf("error creating configmap: %w", err)
 		}
@@ -399,7 +390,6 @@ func (c *configModifier) createResource(clientset *kubernetes.Clientset) error {
 func (c *configModifier) updateResource(clientset *kubernetes.Clientset) error {
 	if c.Secret != nil {
 		_, err := clientset.CoreV1().Secrets(namespace).Update(context.Background(), c.Secret, metav1.UpdateOptions{})
-
 		if err != nil {
 			return fmt.Errorf("error updating secret: %w", err)
 		}
@@ -407,7 +397,6 @@ func (c *configModifier) updateResource(clientset *kubernetes.Clientset) error {
 
 	if c.ConfigMap != nil {
 		_, err := clientset.CoreV1().ConfigMaps(namespace).Update(context.Background(), c.ConfigMap, metav1.UpdateOptions{})
-
 		if err != nil {
 			return fmt.Errorf("error updating configmap: %w", err)
 		}

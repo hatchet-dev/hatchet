@@ -21,7 +21,6 @@ func NewHealthAPIRepository(shared *sharedRepository) repository.HealthRepositor
 
 func (a *healthAPIRepository) IsHealthy() bool {
 	_, err := a.queries.Health(context.Background(), a.pool)
-
 	if err != nil { //nolint:gosimple
 		return false
 	}
@@ -50,7 +49,6 @@ func NewHealthEngineRepository(pool *pgxpool.Pool) repository.HealthRepository {
 
 func (a *healthEngineRepository) IsHealthy() bool {
 	_, err := a.queries.Health(context.Background(), a.pool)
-
 	if err != nil { //nolint:gosimple
 		return false
 	}

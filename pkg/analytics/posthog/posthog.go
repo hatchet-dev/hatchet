@@ -26,7 +26,6 @@ func NewPosthogAnalytics(opts *PosthogAnalyticsOpts) (*PosthogAnalytics, error) 
 			Endpoint: opts.Endpoint,
 		},
 	)
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to create posthog client: %w", err)
 	}
@@ -37,14 +36,13 @@ func NewPosthogAnalytics(opts *PosthogAnalyticsOpts) (*PosthogAnalytics, error) 
 }
 
 func (p *PosthogAnalytics) Enqueue(event string, userId string, tenantId *string, data map[string]interface{}) {
-
 	var group posthog.Groups
 
 	if tenantId != nil {
 		group = posthog.NewGroups().Set("tenant", *tenantId)
 	}
 
-	var _ = (*p.client).Enqueue(posthog.Capture{
+	_ = (*p.client).Enqueue(posthog.Capture{
 		DistinctId: userId,
 		Event:      event,
 		Properties: map[string]interface{}{
@@ -55,7 +53,7 @@ func (p *PosthogAnalytics) Enqueue(event string, userId string, tenantId *string
 }
 
 func (p *PosthogAnalytics) Tenant(tenantId string, data map[string]interface{}) {
-	var _ = (*p.client).Enqueue(posthog.GroupIdentify{
+	_ = (*p.client).Enqueue(posthog.GroupIdentify{
 		Type: "tenant",
 		Key:  tenantId,
 		Properties: map[string]interface{}{

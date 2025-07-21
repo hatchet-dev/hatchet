@@ -93,7 +93,6 @@ func (a *AdminServiceImpl) CancelTasks(ctx context.Context, req *contracts.Cance
 		}
 
 		runs, _, err := a.repo.OLAP().ListWorkflowRuns(ctx, sqlchelpers.UUIDToStr(tenant.ID), opts)
-
 		if err != nil {
 			return nil, err
 		}
@@ -108,7 +107,6 @@ func (a *AdminServiceImpl) CancelTasks(ctx context.Context, req *contracts.Cance
 	}
 
 	tasks, err := a.repo.Tasks().FlattenExternalIds(ctx, sqlchelpers.UUIDToStr(tenant.ID), externalIds)
-
 	if err != nil {
 		return nil, err
 	}
@@ -135,13 +133,11 @@ func (a *AdminServiceImpl) CancelTasks(ctx context.Context, req *contracts.Cance
 		true,
 		toCancel,
 	)
-
 	if err != nil {
 		return nil, err
 	}
 
 	err = a.mq.SendMessage(ctx, msgqueue.TASK_PROCESSING_QUEUE, msg)
-
 	if err != nil {
 		return nil, err
 	}
@@ -221,7 +217,6 @@ func (a *AdminServiceImpl) ReplayTasks(ctx context.Context, req *contracts.Repla
 		}
 
 		runs, _, err := a.repo.OLAP().ListWorkflowRuns(ctx, sqlchelpers.UUIDToStr(tenant.ID), opts)
-
 		if err != nil {
 			return nil, err
 		}
@@ -238,7 +233,6 @@ func (a *AdminServiceImpl) ReplayTasks(ctx context.Context, req *contracts.Repla
 	tasksToReplay := []tasktypes.TaskIdInsertedAtRetryCountWithExternalId{}
 
 	tasks, err := a.repo.Tasks().FlattenExternalIds(ctx, sqlchelpers.UUIDToStr(tenant.ID), externalIds)
-
 	if err != nil {
 		return nil, err
 	}
@@ -315,13 +309,11 @@ func (a *AdminServiceImpl) ReplayTasks(ctx context.Context, req *contracts.Repla
 			true,
 			toReplay,
 		)
-
 		if err != nil {
 			return nil, err
 		}
 
 		err = a.mq.SendMessage(ctx, msgqueue.TASK_PROCESSING_QUEUE, msg)
-
 		if err != nil {
 			return nil, err
 		}
@@ -348,7 +340,6 @@ func (a *AdminServiceImpl) TriggerWorkflowRun(ctx context.Context, req *contract
 		tenantId,
 		1,
 	)
-
 	if err != nil {
 		return nil, fmt.Errorf("could not check tenant limit: %w", err)
 	}
@@ -368,7 +359,6 @@ func (a *AdminServiceImpl) TriggerWorkflowRun(ctx context.Context, req *contract
 		// if we've exceeded the limit
 		1,
 	)
-
 	if err != nil {
 		return nil, fmt.Errorf("could not check tenant limit: %w", err)
 	}
@@ -381,13 +371,11 @@ func (a *AdminServiceImpl) TriggerWorkflowRun(ctx context.Context, req *contract
 	}
 
 	opt, err := a.newTriggerOpt(ctx, tenantId, req)
-
 	if err != nil {
 		return nil, fmt.Errorf("could not create trigger opt: %w", err)
 	}
 
 	err = a.generateExternalIds(ctx, tenantId, []*v1.WorkflowNameTriggerOpts{opt})
-
 	if err != nil {
 		return nil, fmt.Errorf("could not generate external ids: %w", err)
 	}
@@ -397,7 +385,6 @@ func (a *AdminServiceImpl) TriggerWorkflowRun(ctx context.Context, req *contract
 		tenantId,
 		opt,
 	)
-
 	if err != nil {
 		return nil, err
 	}
@@ -458,13 +445,11 @@ func (i *AdminServiceImpl) ingest(ctx context.Context, tenantId string, opts ...
 			tenantId,
 			optsToSend...,
 		)
-
 		if err != nil {
 			return fmt.Errorf("could not create event task: %w", err)
 		}
 
 		err = i.mq.SendMessage(ctx, msgqueue.TASK_PROCESSING_QUEUE, msg)
-
 		if err != nil {
 			return fmt.Errorf("could not add event to task queue: %w", err)
 		}
@@ -478,7 +463,6 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.Creat
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
 	createOpts, err := getCreateWorkflowOpts(req)
-
 	if err != nil {
 		return nil, err
 	}
@@ -498,7 +482,6 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.Creat
 		tenantId,
 		createOpts,
 	)
-
 	if err != nil {
 		return nil, err
 	}
@@ -511,7 +494,6 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.Creat
 
 func getCreateWorkflowOpts(req *contracts.CreateWorkflowVersionRequest) (*v1.CreateWorkflowVersionOpts, error) {
 	tasks, err := getCreateTaskOpts(req.Tasks, "DEFAULT")
-
 	if err != nil {
 		if errors.Is(err, v1.ErrDagParentNotFound) {
 			// Extract the additional error information
@@ -528,7 +510,6 @@ func getCreateWorkflowOpts(req *contracts.CreateWorkflowVersionRequest) (*v1.Cre
 
 	if req.OnFailureTask != nil {
 		onFailureTasks, err := getCreateTaskOpts([]*contracts.CreateTaskOpts{req.OnFailureTask}, "ON_FAILURE")
-
 		if err != nil {
 			return nil, err
 		}

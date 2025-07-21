@@ -10,9 +10,7 @@ import (
 )
 
 func main() {
-
 	hatchet, err := hatchet_client.HatchetClient()
-
 	if err != nil {
 		panic(err)
 	}
@@ -25,7 +23,6 @@ func main() {
 			},
 		},
 	)
-
 	if err != nil {
 		panic(err)
 	}
@@ -37,7 +34,6 @@ func main() {
 	defer cancel()
 
 	err = worker.StartBlocking(interruptCtx)
-
 	if err != nil {
 		panic(err)
 	}

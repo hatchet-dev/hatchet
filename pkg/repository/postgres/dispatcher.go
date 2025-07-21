@@ -60,7 +60,6 @@ func (d *dispatcherRepository) Delete(ctx context.Context, dispatcherId string) 
 
 func (d *dispatcherRepository) UpdateStaleDispatchers(ctx context.Context, onStale func(dispatcherId string, getValidDispatcherId func() string) error) error {
 	tx, err := d.pool.Begin(ctx)
-
 	if err != nil {
 		return err
 	}
@@ -68,13 +67,11 @@ func (d *dispatcherRepository) UpdateStaleDispatchers(ctx context.Context, onSta
 	defer sqlchelpers.DeferRollback(context.Background(), d.l, tx.Rollback)
 
 	staleDispatchers, err := d.queries.ListStaleDispatchers(context.Background(), tx)
-
 	if err != nil {
 		return err
 	}
 
 	activeDispatchers, err := d.queries.ListActiveDispatchers(context.Background(), tx)
-
 	if err != nil {
 		return err
 	}
@@ -86,7 +83,6 @@ func (d *dispatcherRepository) UpdateStaleDispatchers(ctx context.Context, onSta
 			// assign tickers in round-robin fashion
 			return sqlchelpers.UUIDToStr(activeDispatchers[i%len(activeDispatchers)].Dispatcher.ID)
 		})
-
 		if err != nil {
 			return err
 		}
@@ -95,7 +91,6 @@ func (d *dispatcherRepository) UpdateStaleDispatchers(ctx context.Context, onSta
 	}
 
 	_, err = d.queries.SetDispatchersInactive(context.Background(), tx, dispatchersToDelete)
-
 	if err != nil {
 		return err
 	}

@@ -76,7 +76,6 @@ func (a *AuthZ) handleCookieAuth(c echo.Context, r *middleware.RouteInfo) error 
 
 		// check if the user is a member of the tenant
 		tenantMember, err := a.config.APIRepository.Tenant().GetTenantMemberByUserID(c.Request().Context(), sqlchelpers.UUIDToStr(tenant.ID), sqlchelpers.UUIDToStr(user.ID))
-
 		if err != nil {
 			a.l.Debug().Err(err).Msgf("error getting tenant member")
 

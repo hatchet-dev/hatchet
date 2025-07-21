@@ -8,6 +8,7 @@ package v1
 
 import (
 	context "context"
+
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
@@ -84,18 +85,20 @@ type AdminServiceServer interface {
 }
 
 // UnimplementedAdminServiceServer must be embedded to have forward compatible implementations.
-type UnimplementedAdminServiceServer struct {
-}
+type UnimplementedAdminServiceServer struct{}
 
 func (UnimplementedAdminServiceServer) PutWorkflow(context.Context, *CreateWorkflowVersionRequest) (*CreateWorkflowVersionResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method PutWorkflow not implemented")
 }
+
 func (UnimplementedAdminServiceServer) CancelTasks(context.Context, *CancelTasksRequest) (*CancelTasksResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CancelTasks not implemented")
 }
+
 func (UnimplementedAdminServiceServer) ReplayTasks(context.Context, *ReplayTasksRequest) (*ReplayTasksResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ReplayTasks not implemented")
 }
+
 func (UnimplementedAdminServiceServer) TriggerWorkflowRun(context.Context, *TriggerWorkflowRunRequest) (*TriggerWorkflowRunResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method TriggerWorkflowRun not implemented")
 }

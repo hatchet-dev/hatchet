@@ -24,7 +24,6 @@ func NewSessionHelpers(config *server.ServerConfig) *SessionHelpers {
 
 func (s *SessionHelpers) SaveAuthenticated(c echo.Context, user *dbsqlc.User) error {
 	session, err := s.config.SessionStore.Get(c.Request(), s.config.SessionStore.GetName())
-
 	if err != nil {
 		return err
 	}
@@ -37,7 +36,6 @@ func (s *SessionHelpers) SaveAuthenticated(c echo.Context, user *dbsqlc.User) er
 
 func (s *SessionHelpers) SaveUnauthenticated(c echo.Context) error {
 	session, err := s.config.SessionStore.Get(c.Request(), s.config.SessionStore.GetName())
-
 	if err != nil {
 		return err
 	}
@@ -59,7 +57,6 @@ func (s *SessionHelpers) SaveKV(
 	k, v string,
 ) error {
 	session, err := s.config.SessionStore.Get(c.Request(), s.config.SessionStore.GetName())
-
 	if err != nil {
 		return err
 	}
@@ -74,7 +71,6 @@ func (s *SessionHelpers) GetKey(
 	k string,
 ) (string, error) {
 	session, err := s.config.SessionStore.Get(c.Request(), s.config.SessionStore.GetName())
-
 	if err != nil {
 		return "", err
 	}
@@ -99,7 +95,6 @@ func (s *SessionHelpers) RemoveKey(
 	k string,
 ) error {
 	session, err := s.config.SessionStore.Get(c.Request(), s.config.SessionStore.GetName())
-
 	if err != nil {
 		return err
 	}
@@ -114,13 +109,11 @@ func (s *SessionHelpers) SaveOAuthState(
 	integration string,
 ) (string, error) {
 	state, err := random.Generate(32)
-
 	if err != nil {
 		return "", err
 	}
 
 	session, err := s.config.SessionStore.Get(c.Request(), s.config.SessionStore.GetName())
-
 	if err != nil {
 		return "", err
 	}
@@ -147,7 +140,6 @@ func (s *SessionHelpers) ValidateOAuthState(
 	stateKey := fmt.Sprintf("oauth_state_%s", integration)
 
 	session, err := s.config.SessionStore.Get(c.Request(), s.config.SessionStore.GetName())
-
 	if err != nil {
 		return false, false, err
 	}

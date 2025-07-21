@@ -38,13 +38,11 @@ func OnFailure(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
 func main() {
 	// ...
 	err := godotenv.Load()
-
 	if err != nil {
 		panic(err)
 	}
 
 	c, err := client.New()
-
 	if err != nil {
 		panic(err)
 	}
@@ -54,7 +52,6 @@ func main() {
 			c,
 		),
 	)
-
 	if err != nil {
 		panic(err)
 	}
@@ -77,9 +74,7 @@ func main() {
 			},
 		},
 	)
-
 	// ...
-
 	if err != nil {
 		panic(err)
 	}
@@ -105,4 +100,3 @@ func main() {
 	}
 	// ,
 }
-

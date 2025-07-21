@@ -15,7 +15,6 @@ func (i *IngestorsService) SnsList(ctx echo.Context, req gen.SnsListRequestObjec
 
 	// create the SNS integration
 	snsIntegrations, err := i.config.APIRepository.SNS().ListSNSIntegrations(ctx.Request().Context(), tenantId)
-
 	if err != nil {
 		return nil, err
 	}

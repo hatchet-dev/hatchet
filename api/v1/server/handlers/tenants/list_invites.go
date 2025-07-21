@@ -18,7 +18,6 @@ func (t *TenantService) TenantInviteList(ctx echo.Context, request gen.TenantInv
 		Expired: repository.BoolPtr(false),
 		Status:  repository.StringPtr("PENDING"),
 	})
-
 	if err != nil {
 		return nil, err
 	}

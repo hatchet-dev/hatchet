@@ -28,7 +28,6 @@ func (t *WorkflowService) WorkflowList(ctx echo.Context, request gen.WorkflowLis
 
 	if request.Params.Name == nil {
 		request.Params.Name = new(string)
-
 	}
 
 	name := *request.Params.Name
@@ -43,7 +42,6 @@ func (t *WorkflowService) WorkflowList(ctx echo.Context, request gen.WorkflowLis
 	}
 
 	listResp, err := t.config.APIRepository.Workflow().ListWorkflows(tenantId, listOpts)
-
 	if err != nil {
 		return nil, err
 	}

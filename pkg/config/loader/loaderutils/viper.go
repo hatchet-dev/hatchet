@@ -15,7 +15,6 @@ func LoadConfigFromViper(bindFunc func(v *viper.Viper), configFile interface{}, 
 
 	for _, f := range files {
 		err := v.MergeConfig(bytes.NewBuffer(f))
-
 		if err != nil {
 			return nil, fmt.Errorf("could not load viper config: %w", err)
 		}
@@ -26,7 +25,6 @@ func LoadConfigFromViper(bindFunc func(v *viper.Viper), configFile interface{}, 
 	}
 
 	err := v.Unmarshal(configFile)
-
 	if err != nil {
 		return nil, fmt.Errorf("could not unmarshal viper config: %w", err)
 	}

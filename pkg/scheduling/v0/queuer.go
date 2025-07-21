@@ -137,7 +137,6 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 		checkpoint := start
 		var err error
 		qis, err := q.refillQueue(ctx)
-
 		if err != nil {
 			span.End()
 			q.l.Error().Err(err).Msg("error refilling queue")
@@ -151,7 +150,6 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 		checkpoint = time.Now()
 
 		rls, err := q.repo.GetStepRunRateLimits(ctx, qis)
-
 		if err != nil {
 			q.l.Error().Err(err).Msg("error getting rate limits")
 
@@ -169,7 +167,6 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 		}
 
 		labels, err := q.repo.GetDesiredLabels(ctx, stepIds)
-
 		if err != nil {
 			q.l.Error().Err(err).Msg("error getting desired labels")
 
@@ -286,7 +283,6 @@ func (q *Queuer) refillQueue(ctx context.Context) ([]*dbsqlc.QueueItem, error) {
 
 		var err error
 		curr, err = q.repo.ListQueueItems(ctx, limit)
-
 		if err != nil {
 			return nil, err
 		}
@@ -406,7 +402,6 @@ func (q *Queuer) flushToDatabase(ctx context.Context, r *assignResults) int {
 	}
 
 	succeeded, failed, err := q.repo.MarkQueueItemsProcessed(ctx, opts)
-
 	if err != nil {
 		q.l.Error().Err(err).Msg("error marking queue items processed")
 

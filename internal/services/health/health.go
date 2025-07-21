@@ -55,14 +55,12 @@ func (h *Health) Start(port int) (func() error, error) {
 	})
 
 	mux.HandleFunc("/version", func(w http.ResponseWriter, r *http.Request) {
-
 		w.WriteHeader(http.StatusOK)
 		e := json.NewEncoder(w).Encode(map[string]string{"version": h.version})
 		if e != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-
 	})
 	server := &http.Server{
 		Addr:         fmt.Sprintf(":%d", port),

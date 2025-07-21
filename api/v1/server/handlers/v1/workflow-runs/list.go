@@ -105,7 +105,6 @@ func (t *V1WorkflowRunsService) WithDags(ctx context.Context, request gen.V1Work
 		tenantId,
 		opts,
 	)
-
 	if err != nil {
 		return nil, err
 	}
@@ -124,7 +123,6 @@ func (t *V1WorkflowRunsService) WithDags(ctx context.Context, request gen.V1Work
 		dagExternalIds,
 		includePayloads,
 	)
-
 	if err != nil {
 		return nil, err
 	}
@@ -140,7 +138,6 @@ func (t *V1WorkflowRunsService) WithDags(ctx context.Context, request gen.V1Work
 		tenantId,
 		pgWorkflowIds,
 	)
-
 	if err != nil {
 		return nil, err
 	}
@@ -261,7 +258,6 @@ func (t *V1WorkflowRunsService) OnlyTasks(ctx context.Context, request gen.V1Wor
 		tenantId,
 		opts,
 	)
-
 	if err != nil {
 		return nil, err
 	}
@@ -304,7 +300,6 @@ func (t *V1WorkflowRunsService) V1WorkflowRunDisplayNamesList(ctx echo.Context, 
 		tenant.ID,
 		externalIds,
 	)
-
 	if err != nil {
 		return nil, err
 	}

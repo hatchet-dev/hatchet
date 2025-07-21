@@ -51,7 +51,6 @@ func (s *getGroupKeyRunRepository) AssignGetGroupKeyRunToWorker(ctx context.Cont
 			Getgroupkeyrunid: sqlchelpers.UUIDFromStr(getGroupKeyRunId),
 			Tenantid:         sqlchelpers.UUIDFromStr(tenantId),
 		})
-
 		if err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
 				return repository.ErrNoWorkerAvailable
@@ -62,7 +61,6 @@ func (s *getGroupKeyRunRepository) AssignGetGroupKeyRunToWorker(ctx context.Cont
 
 		return nil
 	})
-
 	if err != nil {
 		return "", "", err
 	}
@@ -79,7 +77,6 @@ func (s *getGroupKeyRunRepository) AssignGetGroupKeyRunToTicker(ctx context.Cont
 			Getgroupkeyrunid: sqlchelpers.UUIDFromStr(getGroupKeyRunId),
 			Tenantid:         sqlchelpers.UUIDFromStr(tenantId),
 		})
-
 		if err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
 				return repository.ErrNoWorkerAvailable
@@ -90,7 +87,6 @@ func (s *getGroupKeyRunRepository) AssignGetGroupKeyRunToTicker(ctx context.Cont
 
 		return nil
 	})
-
 	if err != nil {
 		return "", err
 	}
@@ -159,7 +155,6 @@ func (s *getGroupKeyRunRepository) UpdateGetGroupKeyRun(ctx context.Context, ten
 	}
 
 	tx, err := s.pool.Begin(ctx)
-
 	if err != nil {
 		return nil, err
 	}
@@ -167,7 +162,6 @@ func (s *getGroupKeyRunRepository) UpdateGetGroupKeyRun(ctx context.Context, ten
 	defer sqlchelpers.DeferRollback(ctx, s.l, tx.Rollback)
 
 	res1, err := s.queries.UpdateGetGroupKeyRun(ctx, tx, updateParams)
-
 	if err != nil {
 		return nil, fmt.Errorf("could not update get group key run: %w", err)
 	}
@@ -175,7 +169,6 @@ func (s *getGroupKeyRunRepository) UpdateGetGroupKeyRun(ctx context.Context, ten
 	// only update workflow run if status or output has changed
 	if opts.Status != nil || opts.Output != nil {
 		_, err = s.queries.UpdateWorkflowRunGroupKeyFromRun(ctx, tx, updateWorkflowRunParams)
-
 		if err != nil {
 			return nil, fmt.Errorf("could not resolve workflow run status from get group key run: %w", err)
 		}
@@ -185,13 +178,11 @@ func (s *getGroupKeyRunRepository) UpdateGetGroupKeyRun(ctx context.Context, ten
 		Ids:      []pgtype.UUID{res1.ID},
 		Tenantid: pgTenantId,
 	})
-
 	if err != nil {
 		return nil, err
 	}
 
 	err = tx.Commit(ctx)
-
 	if err != nil {
 		return nil, err
 	}
@@ -210,7 +201,6 @@ func (s *getGroupKeyRunRepository) GetGroupKeyRunForEngine(ctx context.Context, 
 		Ids:      []pgtype.UUID{sqlchelpers.UUIDFromStr(getGroupKeyRunId)},
 		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
 	})
-
 	if err != nil {
 		return nil, err
 	}

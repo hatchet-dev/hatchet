@@ -7,10 +7,11 @@
 package v1
 
 import (
-	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
-	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
 	sync "sync"
+
+	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
+	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 )
 
 const (
@@ -512,17 +513,20 @@ func file_v1_shared_condition_proto_rawDescGZIP() []byte {
 	return file_v1_shared_condition_proto_rawDescData
 }
 
-var file_v1_shared_condition_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_v1_shared_condition_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
-var file_v1_shared_condition_proto_goTypes = []interface{}{
-	(Action)(0),                            // 0: v1.Action
-	(*BaseMatchCondition)(nil),             // 1: v1.BaseMatchCondition
-	(*ParentOverrideMatchCondition)(nil),   // 2: v1.ParentOverrideMatchCondition
-	(*SleepMatchCondition)(nil),            // 3: v1.SleepMatchCondition
-	(*UserEventMatchCondition)(nil),        // 4: v1.UserEventMatchCondition
-	(*TaskConditions)(nil),                 // 5: v1.TaskConditions
-	(*DurableEventListenerConditions)(nil), // 6: v1.DurableEventListenerConditions
-}
+var (
+	file_v1_shared_condition_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
+	file_v1_shared_condition_proto_msgTypes  = make([]protoimpl.MessageInfo, 6)
+	file_v1_shared_condition_proto_goTypes   = []interface{}{
+		(Action)(0),                            // 0: v1.Action
+		(*BaseMatchCondition)(nil),             // 1: v1.BaseMatchCondition
+		(*ParentOverrideMatchCondition)(nil),   // 2: v1.ParentOverrideMatchCondition
+		(*SleepMatchCondition)(nil),            // 3: v1.SleepMatchCondition
+		(*UserEventMatchCondition)(nil),        // 4: v1.UserEventMatchCondition
+		(*TaskConditions)(nil),                 // 5: v1.TaskConditions
+		(*DurableEventListenerConditions)(nil), // 6: v1.DurableEventListenerConditions
+	}
+)
+
 var file_v1_shared_condition_proto_depIdxs = []int32{
 	0, // 0: v1.BaseMatchCondition.action:type_name -> v1.Action
 	1, // 1: v1.ParentOverrideMatchCondition.base:type_name -> v1.BaseMatchCondition

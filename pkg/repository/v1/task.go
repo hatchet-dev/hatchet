@@ -278,7 +278,6 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 		Time:  today,
 		Valid: true,
 	})
-
 	if err != nil {
 		return err
 	}
@@ -287,7 +286,6 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 		Time:  tomorrow,
 		Valid: true,
 	})
-
 	if err != nil {
 		return err
 	}
@@ -296,7 +294,6 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 		Time:  removeBefore,
 		Valid: true,
 	})
-
 	if err != nil {
 		return err
 	}
@@ -312,7 +309,6 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 			ctx,
 			fmt.Sprintf("ALTER TABLE %s DETACH PARTITION %s CONCURRENTLY", partition.ParentTable, partition.PartitionName),
 		)
-
 		if err != nil {
 			return err
 		}
@@ -321,7 +317,6 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 			ctx,
 			fmt.Sprintf("DROP TABLE %s", partition.PartitionName),
 		)
-
 		if err != nil {
 			return err
 		}
@@ -348,7 +343,6 @@ func (r *TaskRepositoryImpl) GetTaskByExternalId(ctx context.Context, tenantId, 
 		Tenantid:    sqlchelpers.UUIDFromStr(tenantId),
 		Externalids: []pgtype.UUID{sqlchelpers.UUIDFromStr(taskExternalId)},
 	})
-
 	if err != nil {
 		return nil, err
 	}
@@ -396,7 +390,6 @@ func (r *sharedRepository) lookupExternalIds(ctx context.Context, tx sqlcv1.DBTX
 		Tenantid:    sqlchelpers.UUIDFromStr(tenantId),
 		Externalids: externalIdsToLookup,
 	})
-
 	if err != nil {
 		return nil, err
 	}
@@ -431,7 +424,6 @@ func (r *TaskRepositoryImpl) verifyAllTasksFinalized(ctx context.Context, tx sql
 		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
 		Taskids:  taskIdsToCheck,
 	})
-
 	if err != nil {
 		return nil, nil, err
 	}
@@ -457,7 +449,6 @@ func (r *TaskRepositoryImpl) verifyAllTasksFinalized(ctx context.Context, tx sql
 		Dagids:   dagsToCheck,
 		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
 	})
-
 	if err != nil {
 		return nil, nil, err
 	}
@@ -526,7 +517,6 @@ func (r *TaskRepositoryImpl) CompleteTasks(ctx context.Context, tenantId string,
 	}
 
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 5000)
-
 	if err != nil {
 		return nil, err
 	}
@@ -537,7 +527,6 @@ func (r *TaskRepositoryImpl) CompleteTasks(ctx context.Context, tenantId string,
 
 	// release queue items
 	releasedTasks, err := r.releaseTasks(ctx, tx, tenantId, taskIdRetryCounts)
-
 	if err != nil {
 		return nil, err
 	}
@@ -563,7 +552,6 @@ func (r *TaskRepositoryImpl) CompleteTasks(ctx context.Context, tenantId string,
 		releasedTasks,
 		sqlcv1.V1TaskEventTypeCOMPLETED,
 	)
-
 	if err != nil {
 		return nil, err
 	}
@@ -581,7 +569,6 @@ func (r *TaskRepositoryImpl) CompleteTasks(ctx context.Context, tenantId string,
 
 func (r *TaskRepositoryImpl) FailTasks(ctx context.Context, tenantId string, failureOpts []FailTaskOpts) (*FailTasksResponse, error) {
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 5000)
-
 	if err != nil {
 		return nil, err
 	}
@@ -589,7 +576,6 @@ func (r *TaskRepositoryImpl) FailTasks(ctx context.Context, tenantId string, fai
 	defer rollback()
 
 	res, err := r.failTasksTx(ctx, tx, tenantId, failureOpts)
-
 	if err != nil {
 		return nil, err
 	}
@@ -648,7 +634,6 @@ func (r *TaskRepositoryImpl) failTasksTx(ctx context.Context, tx sqlcv1.DBTX, te
 			Taskretrycounts: appFailureTaskRetryCounts,
 			Isnonretryables: appFailureIsNonRetryableStatuses,
 		})
-
 		if err != nil {
 			return nil, err
 		}
@@ -678,7 +663,6 @@ func (r *TaskRepositoryImpl) failTasksTx(ctx context.Context, tx sqlcv1.DBTX, te
 			Taskretrycounts:    internalFailureTaskRetryCounts,
 			Maxinternalretries: r.maxInternalRetryCount,
 		})
-
 		if err != nil {
 			return nil, err
 		}
@@ -698,7 +682,6 @@ func (r *TaskRepositoryImpl) failTasksTx(ctx context.Context, tx sqlcv1.DBTX, te
 	// NOTE: it's important that we do this after we've written the retries, as some of the triggers for concurrency
 	// slots case on the retry queue item's existence.
 	releasedTasks, err := r.releaseTasks(ctx, tx, tenantId, tasks)
-
 	if err != nil {
 		return nil, err
 	}
@@ -720,7 +703,6 @@ func (r *TaskRepositoryImpl) failTasksTx(ctx context.Context, tx sqlcv1.DBTX, te
 		releasedTasks,
 		sqlcv1.V1TaskEventTypeFAILED,
 	)
-
 	if err != nil {
 		return nil, err
 	}
@@ -739,7 +721,6 @@ func (r *TaskRepositoryImpl) ListFinalizedWorkflowRuns(ctx context.Context, tena
 	checkpoint := time.Now()
 
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 30000)
-
 	if err != nil {
 		return nil, err
 	}
@@ -749,7 +730,6 @@ func (r *TaskRepositoryImpl) ListFinalizedWorkflowRuns(ctx context.Context, tena
 	externalIdsToEvents := make(map[string][]*TaskOutputEvent)
 
 	tasks, err := r.lookupExternalIds(ctx, tx, tenantId, rootExternalIds)
-
 	if err != nil {
 		return nil, err
 	}
@@ -758,7 +738,6 @@ func (r *TaskRepositoryImpl) ListFinalizedWorkflowRuns(ctx context.Context, tena
 	checkpoint = time.Now()
 
 	finalizedRootIds, rootIdToStepCounts, err := r.verifyAllTasksFinalized(ctx, tx, tenantId, tasks)
-
 	if err != nil {
 		return nil, err
 	}
@@ -775,7 +754,6 @@ func (r *TaskRepositoryImpl) ListFinalizedWorkflowRuns(ctx context.Context, tena
 	}
 
 	outputEvents, err := r.listTaskOutputEvents(ctx, tx, tenantId, taskExternalIds)
-
 	if err != nil {
 		return nil, err
 	}
@@ -875,7 +853,6 @@ func (r *TaskRepositoryImpl) CancelTasks(ctx context.Context, tenantId string, t
 	// }
 
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 5000)
-
 	if err != nil {
 		return nil, err
 	}
@@ -884,7 +861,6 @@ func (r *TaskRepositoryImpl) CancelTasks(ctx context.Context, tenantId string, t
 
 	// release queue items
 	res, err := r.cancelTasks(ctx, tx, tenantId, tasks)
-
 	if err != nil {
 		return nil, err
 	}
@@ -903,7 +879,6 @@ func (r *sharedRepository) cancelTasks(ctx context.Context, dbtx sqlcv1.DBTX, te
 
 	// release queue items
 	releasedTasks, err := r.releaseTasks(ctx, dbtx, tenantId, tasks)
-
 	if err != nil {
 		return nil, err
 	}
@@ -925,7 +900,6 @@ func (r *sharedRepository) cancelTasks(ctx context.Context, dbtx sqlcv1.DBTX, te
 		releasedTasks,
 		sqlcv1.V1TaskEventTypeCANCELLED,
 	)
-
 	if err != nil {
 		return nil, err
 	}
@@ -965,7 +939,6 @@ func (r *TaskRepositoryImpl) listTaskOutputEvents(ctx context.Context, tx sqlcv1
 		Taskexternalids: externalIds,
 		Eventtypes:      eventTypes,
 	})
-
 	if err != nil {
 		return nil, err
 	}
@@ -974,7 +947,6 @@ func (r *TaskRepositoryImpl) listTaskOutputEvents(ctx context.Context, tx sqlcv1
 
 	for _, event := range matchedEvents {
 		o, err := newTaskEventFromBytes(event.Data)
-
 		if err != nil {
 			return nil, err
 		}
@@ -994,7 +966,6 @@ func (r *TaskRepositoryImpl) ListTaskMetas(ctx context.Context, tenantId string,
 
 func (r *TaskRepositoryImpl) ProcessTaskTimeouts(ctx context.Context, tenantId string) (*TimeoutTasksResponse, bool, error) {
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 5000)
-
 	if err != nil {
 		return nil, false, err
 	}
@@ -1012,7 +983,6 @@ func (r *TaskRepositoryImpl) ProcessTaskTimeouts(ctx context.Context, tenantId s
 			Valid: true,
 		},
 	})
-
 	if err != nil {
 		return nil, false, err
 	}
@@ -1048,7 +1018,6 @@ func (r *TaskRepositoryImpl) ProcessTaskTimeouts(ctx context.Context, tenantId s
 
 	// fail the tasks
 	failResp, err := r.failTasksTx(ctx, tx, tenantId, failOpts)
-
 	if err != nil {
 		return nil, false, err
 	}
@@ -1066,7 +1035,6 @@ func (r *TaskRepositoryImpl) ProcessTaskTimeouts(ctx context.Context, tenantId s
 
 func (r *TaskRepositoryImpl) ProcessTaskReassignments(ctx context.Context, tenantId string) (*FailTasksResponse, bool, error) {
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 5000)
-
 	if err != nil {
 		return nil, false, err
 	}
@@ -1083,7 +1051,6 @@ func (r *TaskRepositoryImpl) ProcessTaskReassignments(ctx context.Context, tenan
 			Valid: true,
 		},
 	})
-
 	if err != nil {
 		return nil, false, err
 	}
@@ -1115,7 +1082,6 @@ func (r *TaskRepositoryImpl) ProcessTaskReassignments(ctx context.Context, tenan
 
 	// fail the tasks
 	res, err := r.failTasksTx(ctx, tx, tenantId, failOpts)
-
 	if err != nil {
 		return nil, false, err
 	}
@@ -1130,7 +1096,6 @@ func (r *TaskRepositoryImpl) ProcessTaskReassignments(ctx context.Context, tenan
 
 func (r *TaskRepositoryImpl) ProcessTaskRetryQueueItems(ctx context.Context, tenantId string) ([]*sqlcv1.V1RetryQueueItem, bool, error) {
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 5000)
-
 	if err != nil {
 		return nil, false, err
 	}
@@ -1148,7 +1113,6 @@ func (r *TaskRepositoryImpl) ProcessTaskRetryQueueItems(ctx context.Context, ten
 			Valid: true,
 		},
 	})
-
 	if err != nil {
 		return nil, false, err
 	}
@@ -1167,7 +1131,6 @@ type durableSleepEventData struct {
 
 func (r *TaskRepositoryImpl) ProcessDurableSleeps(ctx context.Context, tenantId string) (*EventMatchResults, bool, error) {
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 5000)
-
 	if err != nil {
 		return nil, false, err
 	}
@@ -1180,7 +1143,6 @@ func (r *TaskRepositoryImpl) ProcessDurableSleeps(ctx context.Context, tenantId 
 		TenantID: sqlchelpers.UUIDFromStr(tenantId),
 		Limit:    pgtype.Int4{Int32: int32(limit), Valid: true},
 	})
-
 	if err != nil {
 		return nil, false, err
 	}
@@ -1192,7 +1154,6 @@ func (r *TaskRepositoryImpl) ProcessDurableSleeps(ctx context.Context, tenantId 
 		data, err := json.Marshal(durableSleepEventData{
 			SleepDuration: sleep.SleepDuration,
 		})
-
 		if err != nil {
 			return nil, false, err
 		}
@@ -1206,7 +1167,6 @@ func (r *TaskRepositoryImpl) ProcessDurableSleeps(ctx context.Context, tenantId 
 	}
 
 	results, err := r.processEventMatches(ctx, tx, tenantId, events, sqlcv1.V1EventTypeINTERNAL)
-
 	if err != nil {
 		return nil, false, err
 	}
@@ -1220,13 +1180,11 @@ func (r *TaskRepositoryImpl) ProcessDurableSleeps(ctx context.Context, tenantId 
 
 func (r *TaskRepositoryImpl) GetQueueCounts(ctx context.Context, tenantId string) (map[string]interface{}, error) {
 	counts, err := r.getFIFOQueuedCounts(ctx, tenantId)
-
 	if err != nil {
 		return nil, err
 	}
 
 	concurrencyCounts, err := r.getConcurrencyQueuedCounts(ctx, tenantId)
-
 	if err != nil {
 		return nil, err
 	}
@@ -1246,7 +1204,6 @@ func (r *TaskRepositoryImpl) GetQueueCounts(ctx context.Context, tenantId string
 
 func (r *TaskRepositoryImpl) getFIFOQueuedCounts(ctx context.Context, tenantId string) (map[string]interface{}, error) {
 	counts, err := r.queries.GetQueuedCounts(ctx, r.pool, sqlchelpers.UUIDFromStr(tenantId))
-
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return map[string]interface{}{}, nil
@@ -1266,7 +1223,6 @@ func (r *TaskRepositoryImpl) getFIFOQueuedCounts(ctx context.Context, tenantId s
 
 func (r *TaskRepositoryImpl) getConcurrencyQueuedCounts(ctx context.Context, tenantId string) (map[string]interface{}, error) {
 	concurrencyCounts, err := r.queries.GetWorkflowConcurrencyQueueCounts(ctx, r.pool, sqlchelpers.UUIDFromStr(tenantId))
-
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return map[string]interface{}{}, nil
@@ -1298,7 +1254,6 @@ func (r *TaskRepositoryImpl) RefreshTimeoutBy(ctx context.Context, tenantId stri
 	}
 
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 5000)
-
 	if err != nil {
 		return nil, err
 	}
@@ -1310,7 +1265,6 @@ func (r *TaskRepositoryImpl) RefreshTimeoutBy(ctx context.Context, tenantId stri
 		Externalid:         sqlchelpers.UUIDFromStr(opt.TaskExternalId),
 		IncrementTimeoutBy: sqlchelpers.TextFromStr(opt.IncrementTimeoutBy),
 	})
-
 	if err != nil {
 		return nil, err
 	}
@@ -1324,7 +1278,6 @@ func (r *TaskRepositoryImpl) RefreshTimeoutBy(ctx context.Context, tenantId stri
 
 func (r *TaskRepositoryImpl) ReleaseSlot(ctx context.Context, tenantId, externalId string) (*sqlcv1.V1TaskRuntime, error) {
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 5000)
-
 	if err != nil {
 		return nil, err
 	}
@@ -1339,7 +1292,6 @@ func (r *TaskRepositoryImpl) ReleaseSlot(ctx context.Context, tenantId, external
 			Externalid: sqlchelpers.UUIDFromStr(externalId),
 		},
 	)
-
 	if err != nil {
 		return nil, err
 	}
@@ -1370,7 +1322,6 @@ func (r *sharedRepository) releaseTasks(ctx context.Context, tx sqlcv1.DBTX, ten
 		Taskinsertedats: taskInsertedAts,
 		Retrycounts:     retryCounts,
 	})
-
 	if err != nil {
 		return nil, err
 	}
@@ -1423,7 +1374,6 @@ func (r *sharedRepository) upsertQueues(ctx context.Context, tx sqlcv1.DBTX, ten
 		TenantID: sqlchelpers.UUIDFromStr(tenantId),
 		Names:    uniqueQueues,
 	})
-
 	if err != nil {
 		return nil, err
 	}
@@ -1464,7 +1414,6 @@ func (r *sharedRepository) createTasks(
 		Ids:      stepIds,
 		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
 	})
-
 	if err != nil {
 		return nil, err
 	}
@@ -1492,13 +1441,11 @@ func (r *sharedRepository) insertTasks(
 	}
 
 	expressions, err := r.getStepExpressions(ctx, tx, stepIdsToConfig)
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to get step expressions: %w", err)
 	}
 
 	concurrencyStrats, err := r.getConcurrencyExpressions(ctx, tx, tenantId, stepIdsToConfig)
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to get concurrency expressions: %w", err)
 	}
@@ -1684,7 +1631,6 @@ func (r *sharedRepository) insertTasks(
 						cel.WithWorkflowRunID(task.ExternalId),
 						cel.WithParents(task.Input.TriggerData),
 					))
-
 					if err != nil {
 						failTaskError = fmt.Errorf("failed to parse step expression (%s): %w", strat.Expression, err)
 						break
@@ -1749,7 +1695,6 @@ func (r *sharedRepository) insertTasks(
 						cel.WithWorkflowRunID(task.ExternalId),
 						cel.WithParents(task.Input.TriggerData),
 					))
-
 					if err != nil {
 						failTaskError = fmt.Errorf("failed to parse step expression (%s): %w", expr.Expression, err)
 						break
@@ -1786,7 +1731,6 @@ func (r *sharedRepository) insertTasks(
 	}
 
 	saveQueueCache, err := r.upsertQueues(ctx, tx, tenantId, queues)
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to upsert queues: %w", err)
 	}
@@ -1882,7 +1826,6 @@ func (r *sharedRepository) insertTasks(
 
 	for stepId, params := range stepIdsToParams {
 		createdTasks, err := r.queries.CreateTasks(ctx, tx, params)
-
 		if err != nil {
 			return nil, fmt.Errorf("failed to create tasks for step id %s: %w", stepId, err)
 		}
@@ -1926,14 +1869,12 @@ func (r *sharedRepository) insertTasks(
 		eventTypes,
 		make([]string, len(eventTaskIdRetryCounts)),
 	)
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to create task events: %w", err)
 	}
 
 	if len(createExpressionOpts) > 0 {
 		err = r.createExpressionEvals(ctx, tx, res, createExpressionOpts)
-
 		if err != nil {
 			return nil, fmt.Errorf("failed to create expression evals: %w", err)
 		}
@@ -1971,7 +1912,6 @@ func (r *sharedRepository) replayTasks(
 		Ids:      stepIds,
 		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
 	})
-
 	if err != nil {
 		return nil, err
 	}
@@ -1983,7 +1923,6 @@ func (r *sharedRepository) replayTasks(
 	}
 
 	concurrencyStrats, err := r.getConcurrencyExpressions(ctx, tx, tenantId, stepIdsToConfig)
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to get step expressions: %w", err)
 	}
@@ -2048,7 +1987,6 @@ func (r *sharedRepository) replayTasks(
 						cel.WithWorkflowRunID(task.ExternalId),
 						cel.WithParents(task.Input.TriggerData),
 					))
-
 					if err != nil {
 						failTaskError = fmt.Errorf("failed to parse step expression (%s): %w", strat.Expression, err)
 						break
@@ -2086,7 +2024,6 @@ func (r *sharedRepository) replayTasks(
 	}
 
 	saveQueueCache, err := r.upsertQueues(ctx, tx, tenantId, queues)
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to upsert queues: %w", err)
 	}
@@ -2127,7 +2064,6 @@ func (r *sharedRepository) replayTasks(
 
 	for stepId, params := range stepIdsToParams {
 		replayRes, err := r.queries.ReplayTasks(ctx, tx, params)
-
 		if err != nil {
 			return nil, fmt.Errorf("failed to replay tasks for step id %s: %w", stepId, err)
 		}
@@ -2171,7 +2107,6 @@ func (r *sharedRepository) replayTasks(
 		eventTypes,
 		make([]string, len(eventTaskIdRetryCounts)),
 	)
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to create task events: %w", err)
 	}
@@ -2210,7 +2145,6 @@ func (r *sharedRepository) getConcurrencyExpressions(
 		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
 		Stepids:  stepIds,
 	})
-
 	if err != nil {
 		return nil, err
 	}
@@ -2273,7 +2207,6 @@ func (r *sharedRepository) getStepExpressions(
 	}
 
 	expressions, err := r.queries.ListStepExpressions(ctx, tx, stepIds)
-
 	if err != nil {
 		return nil, err
 	}
@@ -2405,7 +2338,6 @@ func (r *sharedRepository) createTaskEvents(
 		Datas:           paramDatas,
 		Eventkeys:       paramKeys,
 	})
-
 	if err != nil {
 		return nil, err
 	}
@@ -2431,13 +2363,11 @@ func hash(s string) int64 {
 
 func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId string, tasks []TaskIdInsertedAtRetryCount) (*ReplayTasksResult, error) {
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 30000)
-
 	if err != nil {
 		return nil, err
 	}
 
 	err = r.queries.AdvisoryLock(ctx, tx, hash("replay_"+tenantId))
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to acquire advisory lock: %w", err)
 	}
@@ -2458,7 +2388,6 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId string, t
 		Taskinsertedats: taskInsertedAts,
 		Tenantid:        sqlchelpers.UUIDFromStr(tenantId),
 	})
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to list tasks for replay: %w", err)
 	}
@@ -2493,7 +2422,6 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId string, t
 		Dagids:   dagIdsToLock,
 		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
 	})
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to lock DAGs for replay: %w", err)
 	}
@@ -2514,7 +2442,6 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId string, t
 		Dagids:   successfullyLockedDAGIds,
 		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
 	})
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to preflight check DAGs for replay: %w", err)
 	}
@@ -2531,7 +2458,6 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId string, t
 		Taskids:  lockedTaskIds,
 		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
 	})
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to preflight check tasks for replay: %w", err)
 	}
@@ -2643,7 +2569,6 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId string, t
 		Dagids:   dagIdsArr,
 		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
 	})
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to list all tasks in DAGs: %w", err)
 	}
@@ -2666,7 +2591,6 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId string, t
 	// NOTE: the tasks which are passed in represent a *subtree* of the DAG.
 	if len(replayOpts) > 0 {
 		upsertedTasks, err = r.replayTasks(ctx, tx, tenantId, replayOpts)
-
 		if err != nil {
 			return nil, fmt.Errorf("failed to replay existing tasks: %w", err)
 		}
@@ -2726,7 +2650,6 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId string, t
 			Taskinsertedats: parentTaskInsertedAts,
 			Eventtype:       sqlcv1.V1TaskEventTypeSIGNALCOMPLETED,
 		})
-
 		if err != nil {
 			return nil, fmt.Errorf("failed to delete matching signal events: %w", err)
 		}
@@ -2744,7 +2667,6 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId string, t
 			Stepids:  sqlchelpers.UniqueSet(stepIdsInDAGs),
 			Tenantid: sqlchelpers.UUIDFromStr(tenantId),
 		})
-
 		if err != nil {
 			return nil, fmt.Errorf("failed to list step match conditions: %w", err)
 		}
@@ -2859,14 +2781,12 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId string, t
 
 	// reconstruct group conditions
 	reconstructedMatches, candidateEvents, err := r.reconstructGroupConditions(ctx, tx, tenantId, subtreeExternalIds, eventMatches)
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to reconstruct group conditions: %w", err)
 	}
 
 	// create the event matches
 	err = r.createEventMatches(ctx, tx, tenantId, reconstructedMatches)
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to create event matches: %w", err)
 	}
@@ -2874,7 +2794,6 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId string, t
 	// process event matches
 	// TODO: signal the event matches to the caller
 	internalMatchResults, err := r.processEventMatches(ctx, tx, tenantId, candidateEvents, sqlcv1.V1EventTypeINTERNAL)
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to process internal event matches: %w", err)
 	}
@@ -2937,7 +2856,6 @@ func (r *TaskRepositoryImpl) reconstructGroupConditions(
 		Taskexternalids: externalIds,
 		Eventtypes:      eventTypes,
 	})
-
 	if err != nil {
 		return nil, nil, err
 	}
@@ -3107,7 +3025,6 @@ func (r *TaskRepositoryImpl) ListTaskParentOutputs(ctx context.Context, tenantId
 		Taskids:         taskIds,
 		Taskinsertedats: taskInsertedAts,
 	})
-
 	if err != nil {
 		return nil, err
 	}
@@ -3119,7 +3036,6 @@ func (r *TaskRepositoryImpl) ListTaskParentOutputs(ctx context.Context, tenantId
 			wrId := sqlchelpers.UUIDToStr(outputTask.WorkflowRunID)
 
 			e, err := newTaskEventFromBytes(outputTask.Output)
-
 			if err != nil {
 				r.l.Warn().Msgf("failed to parse task output: %v", err)
 				continue

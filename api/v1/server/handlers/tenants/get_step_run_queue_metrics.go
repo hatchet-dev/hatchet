@@ -27,7 +27,6 @@ func (t *TenantService) tenantGetStepRunQueueMetricsV0(ctx echo.Context, tenant 
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
 	stepRunQueueCounts, err := t.config.EngineRepository.StepRun().GetQueueCounts(ctx.Request().Context(), tenantId)
-
 	if err != nil {
 		return nil, err
 	}
@@ -49,7 +48,6 @@ func (t *TenantService) tenantGetStepRunQueueMetricsV1(ctx echo.Context, tenant 
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
 	stepRunQueueCounts, err := t.config.V1.Tasks().GetQueueCounts(ctx.Request().Context(), tenantId)
-
 	if err != nil {
 		return nil, err
 	}

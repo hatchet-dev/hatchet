@@ -20,7 +20,6 @@ func newCreateWorkflowRunBuffer(shared *sharedRepository, conf buffer.ConfigFile
 	}
 
 	manager, err := buffer.NewTenantBufManager(workflowRunBufOpts)
-
 	if err != nil {
 		shared.l.Err(err).Msg("could not create tenant buffer manager")
 		return nil, err

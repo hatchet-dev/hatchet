@@ -171,13 +171,11 @@ func newHatchetContext(
 
 	if action.GetGroupKeyRunId != "" {
 		err := c.populateStepDataForGroupKeyRun()
-
 		if err != nil {
 			return nil, err
 		}
 	} else {
 		err := c.populateStepData()
-
 		if err != nil {
 			return nil, err
 		}
@@ -300,7 +298,6 @@ func (h *hatchetContext) WorkflowVersionId() *string {
 
 func (h *hatchetContext) Log(message string) {
 	err := h.c.Event().PutLog(h, h.a.StepRunId, message)
-
 	if err != nil {
 		h.l.Err(err).Msg("could not put log")
 	}
@@ -308,7 +305,6 @@ func (h *hatchetContext) Log(message string) {
 
 func (h *hatchetContext) ReleaseSlot() error {
 	err := h.c.Dispatcher().ReleaseSlot(h, h.a.StepRunId)
-
 	if err != nil {
 		return fmt.Errorf("failed to release slot: %w", err)
 	}
@@ -318,7 +314,6 @@ func (h *hatchetContext) ReleaseSlot() error {
 
 func (h *hatchetContext) RefreshTimeout(incrementTimeoutBy string) error {
 	err := h.c.Dispatcher().RefreshTimeout(h, h.a.StepRunId, incrementTimeoutBy)
-
 	if err != nil {
 		return fmt.Errorf("failed to refresh timeout: %w", err)
 	}
@@ -333,7 +328,6 @@ func (h *hatchetContext) StreamEvent(message []byte) {
 	h.streamEventIndexMu.Unlock()
 
 	err := h.c.Event().PutStreamEvent(h, h.a.StepRunId, message, client.WithStreamEventIndex(currentIndex))
-
 	if err != nil {
 		h.l.Err(err).Msg("could not put stream event")
 	}
@@ -384,7 +378,6 @@ func (h *hatchetContext) SpawnWorkflow(workflowName string, input any, opts *Spa
 	}
 
 	listener, err := h.saveOrLoadListener()
-
 	if err != nil {
 		return nil, err
 	}
@@ -406,7 +399,6 @@ func (h *hatchetContext) SpawnWorkflow(workflowName string, input any, opts *Spa
 			Priority:           opts.Priority,
 		},
 	)
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to spawn workflow: %w", err)
 	}
@@ -426,7 +418,6 @@ type SpawnWorkflowsOpts struct {
 }
 
 func (h *hatchetContext) SpawnWorkflows(childWorkflows []*SpawnWorkflowsOpts) ([]*client.Workflow, error) {
-
 	triggerWorkflows := make([]*client.RunChildWorkflowsOpts, len(childWorkflows))
 	listener, err := h.saveOrLoadListener()
 
@@ -471,7 +462,6 @@ func (h *hatchetContext) SpawnWorkflows(childWorkflows []*SpawnWorkflowsOpts) ([
 	workflowRunIds, err := h.client().Admin().RunChildWorkflows(
 		triggerWorkflows,
 	)
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to spawn workflow: %w", err)
 	}
@@ -509,7 +499,6 @@ func (h *hatchetContext) populateStepDataForGroupKeyRun() error {
 	inputData := map[string]interface{}{}
 
 	err := json.Unmarshal(h.a.ActionPayload, &inputData)
-
 	if err != nil {
 		return err
 	}
@@ -535,7 +524,6 @@ func (h *hatchetContext) populateStepData() error {
 	}
 
 	err := json.Unmarshal(jsonBytes, h.stepData)
-
 	if err != nil {
 		return err
 	}
@@ -547,13 +535,11 @@ func (h *hatchetContext) populateStepData() error {
 
 func toTarget(data interface{}, target interface{}) error {
 	dataBytes, err := json.Marshal(data)
-
 	if err != nil {
 		return err
 	}
 
 	err = json.Unmarshal(dataBytes, target)
-
 	if err != nil {
 		return err
 	}
@@ -582,13 +568,11 @@ func (wc *hatchetWorkerContext) GetLabels() map[string]interface{} {
 }
 
 func (wc *hatchetWorkerContext) UpsertLabels(labels map[string]interface{}) error {
-
 	if wc.id == nil {
 		return fmt.Errorf("worker id is nil, cannot upsert labels (are on web worker?)")
 	}
 
 	err := wc.worker.client.Dispatcher().UpsertWorkerLabels(wc.Context, *wc.id, labels)
-
 	if err != nil {
 		return fmt.Errorf("failed to upsert labels: %w", err)
 	}
@@ -626,7 +610,6 @@ func newWaitResult(dataBytes []byte) (*WaitResult, error) {
 	var allResults map[string]map[string][]map[string]interface{}
 
 	err := json.Unmarshal(dataBytes, &allResults)
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to unmarshal wait result: %w", err)
 	}
@@ -668,13 +651,11 @@ func (w *WaitResult) Unmarshal(key string, in interface{}) error {
 	for _, v := range w.allResults {
 		if _, exists := v[key]; exists && len(v[key]) > 0 {
 			data, err := json.Marshal(v[key][0])
-
 			if err != nil {
 				return fmt.Errorf("failed to marshal data: %w", err)
 			}
 
 			err = json.Unmarshal(data, in)
-
 			if err != nil {
 				return fmt.Errorf("failed to unmarshal data: %w", err)
 			}
@@ -723,7 +704,6 @@ func (d *durableHatchetContext) SleepFor(duration time.Duration) (*SingleWaitRes
 	c := condition.SleepCondition(duration)
 
 	wr, err := d.WaitFor(c)
-
 	if err != nil {
 		return nil, err
 	}
@@ -736,7 +716,6 @@ func (d *durableHatchetContext) WaitForEvent(eventKey, expression string) (*Sing
 	// Implement WaitForEvent functionality
 	// Call appropriate client methods to register a durable event
 	wr, err := d.WaitFor(condition.UserEventCondition(eventKey, expression))
-
 	if err != nil {
 		return nil, err
 	}
@@ -754,7 +733,6 @@ func (d *durableHatchetContext) WaitFor(conditions condition.Condition) (*WaitRe
 
 	// TODO: MOVE SAVE OR LOAD DURABLE EVENT LISTENER TO THE CLIENT
 	durableListener, err := d.saveOrLoadDurableEventListener()
-
 	if err != nil {
 		return nil, err
 	}
@@ -771,7 +749,6 @@ func (d *durableHatchetContext) WaitFor(conditions condition.Condition) (*WaitRe
 			UserEventConditions: c.UserEventConditions,
 		},
 	})
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to register durable event: %w", err)
 	}
@@ -783,7 +760,6 @@ func (d *durableHatchetContext) WaitFor(conditions condition.Condition) (*WaitRe
 
 		return nil
 	})
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to add signal: %w", err)
 	}

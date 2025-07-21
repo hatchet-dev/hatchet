@@ -19,7 +19,6 @@ func (t *V1FiltersService) V1FilterCreate(ctx echo.Context, request gen.V1Filter
 	var payload []byte
 	if request.Body.Payload != nil {
 		marshalledPayload, err := json.Marshal(request.Body.Payload)
-
 		if err != nil {
 			return gen.V1FilterCreate400JSONResponse(apierrors.NewAPIErrors("failed to marshal payload to json")), nil
 		}
@@ -39,7 +38,6 @@ func (t *V1FiltersService) V1FilterCreate(ctx echo.Context, request gen.V1Filter
 		tenant.ID.String(),
 		params,
 	)
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to create filter")
 	}

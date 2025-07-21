@@ -26,13 +26,11 @@ func print(ctx context.Context) (result *printOutput, err error) {
 func main() {
 	// ... initialize client, worker and workflow
 	err := godotenv.Load()
-
 	if err != nil {
 		panic(err)
 	}
 
 	c, err := client.New()
-
 	if err != nil {
 		panic(err)
 	}
@@ -42,7 +40,6 @@ func main() {
 			c,
 		),
 	)
-
 	if err != nil {
 		panic(err)
 	}
@@ -57,7 +54,6 @@ func main() {
 			},
 		},
 	)
-
 	if err != nil {
 		panic(err)
 	}
@@ -65,7 +61,6 @@ func main() {
 	interrupt := cmdutils.InterruptChan()
 
 	cleanup, err := w.Start()
-
 	if err != nil {
 		panic(err)
 	}
@@ -86,7 +81,6 @@ func main() {
 				AdditionalMetadata: map[string]string{},
 			},
 		)
-
 		if err != nil {
 			panic(err)
 		}
@@ -105,17 +99,14 @@ func main() {
 	// ,
 }
 
-
 func ListScheduledWorkflows() {
 	c, err := client.New()
-
 	if err != nil {
 		panic(err)
 	}
 
 	// > List
 	schedules, err := c.Schedule().List(context.Background())
-
 	if err != nil {
 		panic(err)
 	}
@@ -127,7 +118,6 @@ func ListScheduledWorkflows() {
 
 func DeleteScheduledWorkflow(id string) {
 	c, err := client.New()
-
 	if err != nil {
 		panic(err)
 	}
@@ -135,7 +125,6 @@ func DeleteScheduledWorkflow(id string) {
 	// > Delete
 	// 👀 id is the schedule's metadata id, can get it via schedule.Metadata.Id
 	err = c.Schedule().Delete(context.Background(), id)
-
 	if err != nil {
 		panic(err)
 	}

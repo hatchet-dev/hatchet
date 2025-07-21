@@ -18,7 +18,6 @@ func priority() {
 	}
 
 	hatchet, err := v1.NewHatchetClient()
-
 	if err != nil {
 		panic(err)
 	}
@@ -34,7 +33,6 @@ func priority() {
 		UserId: "1234",
 	}, client.WithPriority(priority))
 	// !!
-
 	if err != nil {
 		panic(err)
 	}

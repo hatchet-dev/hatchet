@@ -42,13 +42,11 @@ func (t *TasksService) V1TaskGet(ctx echo.Context, request gen.V1TaskGetRequestO
 		task.InsertedAt,
 		retryCount,
 	)
-
 	if err != nil {
 		return nil, err
 	}
 
 	workflowVersion, _, _, _, err := t.config.APIRepository.Workflow().GetWorkflowVersionById(task.TenantID.String(), taskWithData.WorkflowVersionID.String())
-
 	if err != nil {
 		return nil, err
 	}

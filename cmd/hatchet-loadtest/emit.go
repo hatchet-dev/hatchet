@@ -47,7 +47,6 @@ func emit(ctx context.Context, namespace string, amountPerSecond int, duration t
 			Logger:    &l,
 		},
 	)
-
 	if err != nil {
 		panic(err)
 	}

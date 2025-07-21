@@ -10,7 +10,6 @@ import (
 
 func main() {
 	hatchet, err := hatchet_client.HatchetClient()
-
 	if err != nil {
 		panic(err)
 	}
@@ -20,7 +19,6 @@ func main() {
 	result, err := simple.Run(context.Background(), workflows.SimpleInput{
 		Message: "Hello, World!",
 	})
-
 	if err != nil {
 		panic(err)
 	}

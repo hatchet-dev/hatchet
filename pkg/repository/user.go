@@ -66,7 +66,6 @@ type SecurityCheckRepository interface {
 func HashPassword(pw string) (*string, error) {
 	// hash the new password using bcrypt
 	hashedPw, err := bcrypt.GenerateFromPassword([]byte(pw), 10)
-
 	if err != nil {
 		return nil, fmt.Errorf("could not hash password: %w", err)
 	}

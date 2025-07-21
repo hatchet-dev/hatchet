@@ -81,7 +81,6 @@ func run(events chan<- string) (func() error, error) {
 		workflows, err := c.API().WorkflowListWithResponse(context.Background(), uuid.MustParse(c.TenantId()), &rest.WorkflowListParams{
 			Name: &workflowName,
 		})
-
 		if err != nil {
 			panic(fmt.Errorf("error listing workflows: %w", err))
 		}
@@ -101,7 +100,6 @@ func run(events chan<- string) (func() error, error) {
 		workflowRuns, err := c.API().WorkflowRunListWithResponse(context.Background(), uuid.MustParse(c.TenantId()), &rest.WorkflowRunListParams{
 			WorkflowId: &workflowId,
 		})
-
 		if err != nil {
 			panic(fmt.Errorf("error listing workflow runs: %w", err))
 		}
@@ -115,7 +113,6 @@ func run(events chan<- string) (func() error, error) {
 		_, err = c.API().WorkflowRunCancelWithResponse(context.Background(), uuid.MustParse(c.TenantId()), rest.WorkflowRunsCancelRequest{
 			WorkflowRunIds: []uuid.UUID{uuid.MustParse(workflowRunsRows[0].Metadata.Id)},
 		})
-
 		if err != nil {
 			panic(fmt.Errorf("error cancelling workflow run: %w", err))
 		}

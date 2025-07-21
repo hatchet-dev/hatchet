@@ -22,7 +22,6 @@ type DagWithConditionsResult struct {
 type conditionOpts = create.WorkflowTask[DagWithConditionsInput, DagWithConditionsResult]
 
 func DagWithConditionsWorkflow(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[DagWithConditionsInput, DagWithConditionsResult] {
-
 	simple := factory.NewWorkflow[DagWithConditionsInput, DagWithConditionsResult](
 		create.WorkflowCreateOpts[DagWithConditionsInput]{
 			Name: "simple-dag",
@@ -47,7 +46,6 @@ func DagWithConditionsWorkflow(hatchet v1.HatchetClient) workflow.WorkflowDeclar
 				step1,
 			},
 		}, func(ctx worker.HatchetContext, input DagWithConditionsInput) (interface{}, error) {
-
 			var step1Output SimpleOutput
 			err := ctx.ParentOutput(step1, &step1Output)
 			if err != nil {

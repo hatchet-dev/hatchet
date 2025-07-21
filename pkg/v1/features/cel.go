@@ -49,7 +49,6 @@ func (c *celClientImpl) Debug(ctx context.Context, expression string, input map[
 			Input:              input,
 		},
 	)
-
 	if err != nil {
 		return nil, err
 	}

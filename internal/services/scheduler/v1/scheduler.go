@@ -157,7 +157,6 @@ func New(
 	}
 
 	s, err := gocron.NewScheduler(gocron.WithLocation(time.UTC))
-
 	if err != nil {
 		return nil, fmt.Errorf("could not create scheduler: %w", err)
 	}
@@ -185,7 +184,6 @@ func New(
 }
 
 func (s *Scheduler) Start() (func() error, error) {
-
 	ctx, cancel := context.WithCancel(context.Background())
 
 	wg := sync.WaitGroup{}
@@ -197,7 +195,6 @@ func (s *Scheduler) Start() (func() error, error) {
 		),
 		gocron.WithSingletonMode(gocron.LimitModeReschedule),
 	)
-
 	if err != nil {
 		cancel()
 		return nil, fmt.Errorf("could not schedule tenant set queues: %w", err)
@@ -223,7 +220,6 @@ func (s *Scheduler) Start() (func() error, error) {
 		msgqueue.NoOpHook, // the only handler is to check the queue, so we acknowledge immediately with the NoOpHook
 		postAck,
 	)
-
 	if err != nil {
 		cancel()
 		return nil, fmt.Errorf("could not subscribe to job processing queue: %w", err)
@@ -245,7 +241,6 @@ func (s *Scheduler) Start() (func() error, error) {
 
 				go func(results *v1.QueueResults) {
 					err := s.scheduleStepRuns(ctx, sqlchelpers.UUIDToStr(results.TenantId), results)
-
 					if err != nil {
 						s.l.Error().Err(err).Msg("could not schedule step runs")
 					}
@@ -341,7 +336,6 @@ func (s *Scheduler) runSetTenants(ctx context.Context) func() {
 
 		// list all tenants
 		tenants, err := s.repo.Tenant().ListTenantsBySchedulerPartition(ctx, s.p.GetSchedulerPartitionId(), dbsqlc.TenantMajorEngineVersionV1)
-
 		if err != nil {
 			s.l.Err(err).Msg("could not list tenants")
 			return
@@ -370,7 +364,6 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId string, res *
 		var dispatcherIdWorkerIds map[string][]string
 
 		dispatcherIdWorkerIds, err := s.repo.Worker().GetDispatcherIdsForWorkers(ctx, tenantId, workerIds)
-
 		if err != nil {
 			s.internalRetry(ctx, tenantId, res.Assigned...)
 
@@ -422,7 +415,6 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId string, res *
 					EventTimestamp: time.Now(),
 				},
 			)
-
 			if err != nil {
 				outerErr = multierror.Append(outerErr, fmt.Errorf("could not create monitoring event message: %w", err))
 				continue
@@ -434,7 +426,6 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId string, res *
 		// for each dispatcher, send a bulk assigned task
 		for dispatcherId, workerIdsToStepRuns := range dispatcherIdToWorkerIdsToStepRuns {
 			msg, err := taskBulkAssignedTask(tenantId, workerIdsToStepRuns)
-
 			if err != nil {
 				outerErr = multierror.Append(outerErr, fmt.Errorf("could not create bulk assigned task: %w", err))
 			}
@@ -444,7 +435,6 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId string, res *
 				msgqueue.QueueTypeFromDispatcherID(dispatcherId),
 				msg,
 			)
-
 			if err != nil {
 				outerErr = multierror.Append(outerErr, fmt.Errorf("could not send bulk assigned task: %w", err))
 			}
@@ -457,7 +447,6 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId string, res *
 				assignedMsg,
 				false,
 			)
-
 			if err != nil {
 				outerErr = multierror.Append(outerErr, fmt.Errorf("could not send monitoring event message: %w", err))
 			}
@@ -483,7 +472,6 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId string, res *
 					EventMessage:   message,
 				},
 			)
-
 			if err != nil {
 				outerErr = multierror.Append(outerErr, fmt.Errorf("could not create cancelled task: %w", err))
 				continue
@@ -495,7 +483,6 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId string, res *
 				msg,
 				false,
 			)
-
 			if err != nil {
 				outerErr = multierror.Append(outerErr, fmt.Errorf("could not send cancelled task: %w", err))
 			}
@@ -515,7 +502,6 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId string, res *
 				"",
 				false,
 			)
-
 			if err != nil {
 				outerErr = multierror.Append(outerErr, fmt.Errorf("could not create cancelled task: %w", err))
 				continue
@@ -526,7 +512,6 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId string, res *
 				msgqueue.TASK_PROCESSING_QUEUE,
 				msg,
 			)
-
 			if err != nil {
 				outerErr = multierror.Append(outerErr, fmt.Errorf("could not send cancelled task: %w", err))
 			}
@@ -546,7 +531,6 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId string, res *
 					EventTimestamp: time.Now(),
 				},
 			)
-
 			if err != nil {
 				outerErr = multierror.Append(outerErr, fmt.Errorf("could not create cancelled task: %w", err))
 				continue
@@ -558,7 +542,6 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId string, res *
 				msg,
 				false,
 			)
-
 			if err != nil {
 				outerErr = multierror.Append(outerErr, fmt.Errorf("could not send cancelled task: %w", err))
 			}
@@ -581,7 +564,6 @@ func (s *Scheduler) internalRetry(ctx context.Context, tenantId string, assigned
 			"could not assign step run to worker",
 			false,
 		)
-
 		if err != nil {
 			s.l.Error().Err(err).Msg("could not create failed task")
 			continue
@@ -592,7 +574,6 @@ func (s *Scheduler) internalRetry(ctx context.Context, tenantId string, assigned
 			msgqueue.TASK_PROCESSING_QUEUE,
 			msg,
 		)
-
 		if err != nil {
 			s.l.Error().Err(err).Msg("could not send failed task")
 			continue
@@ -653,7 +634,6 @@ func (s *Scheduler) notifyAfterConcurrency(ctx context.Context, tenantId string,
 			eventMessage,
 			shouldNotify,
 		)
-
 		if err != nil {
 			s.l.Error().Err(err).Msg("could not create cancelled task")
 			continue
@@ -664,7 +644,6 @@ func (s *Scheduler) notifyAfterConcurrency(ctx context.Context, tenantId string,
 			msgqueue.TASK_PROCESSING_QUEUE,
 			msg,
 		)
-
 		if err != nil {
 			s.l.Error().Err(err).Msg("could not send cancelled task")
 			continue

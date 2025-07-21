@@ -58,7 +58,6 @@ func (o *SerialOperation) Run(ql *zerolog.Logger) {
 			defer cancel()
 
 			shouldContinue, err := o.method(ctx, o.id)
-
 			if err != nil {
 				ql.Err(err).Msgf("could not %s", o.description)
 				return
@@ -86,7 +85,6 @@ func (o *SerialOperation) setRunning(isRunning bool, ql *zerolog.Logger) bool {
 	defer o.mu.Unlock()
 
 	if isRunning == o.isRunning {
-
 		return false
 	}
 

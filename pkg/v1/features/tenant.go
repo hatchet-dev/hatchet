@@ -33,7 +33,6 @@ func NewTenantCliet(
 
 func (t *tenantClientImpl) Get(ctx context.Context) (*rest.Tenant, error) {
 	resp, err := t.api.TenantGetWithResponse(ctx, t.tenantId)
-
 	if err != nil {
 		return nil, err
 	}

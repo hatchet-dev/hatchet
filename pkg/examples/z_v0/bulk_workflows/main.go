@@ -36,13 +36,11 @@ func main() {
 	}
 	workflowName := "simple-bulk-workflow"
 	c, err := client.New()
-
 	if err != nil {
 		panic(fmt.Errorf("error creating client: %w", err))
 	}
 
 	_, err = registerWorkflow(c, workflowName)
-
 	if err != nil {
 		panic(fmt.Errorf("error registering workflow: %w", err))
 	}
@@ -94,7 +92,6 @@ func main() {
 	if err := cleanup(); err != nil {
 		panic(fmt.Errorf("error cleaning up: %w", err))
 	}
-
 }
 
 func getConcurrencyKey(ctx worker.HatchetContext) (string, error) {
@@ -102,7 +99,6 @@ func getConcurrencyKey(ctx worker.HatchetContext) (string, error) {
 }
 
 func registerWorkflow(c client.Client, workflowName string) (w *worker.Worker, err error) {
-
 	w, err = worker.NewWorker(
 		worker.WithClient(
 			c,
@@ -123,7 +119,6 @@ func registerWorkflow(c client.Client, workflowName string) (w *worker.Worker, e
 					input := &userCreateEvent{}
 
 					err = ctx.WorkflowInput(input)
-
 					if err != nil {
 						return nil, err
 					}
@@ -138,7 +133,6 @@ func registerWorkflow(c client.Client, workflowName string) (w *worker.Worker, e
 				worker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
 					input := &stepOneOutput{}
 					err = ctx.StepOutput("step-one", input)
-
 					if err != nil {
 						return nil, err
 					}

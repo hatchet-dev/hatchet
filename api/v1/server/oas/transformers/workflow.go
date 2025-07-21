@@ -14,7 +14,6 @@ func ToWorkflow(
 	workflow *dbsqlc.Workflow,
 	version *dbsqlc.WorkflowVersion,
 ) *gen.Workflow {
-
 	res := &gen.Workflow{
 		Metadata: *toAPIMetadata(
 			sqlchelpers.UUIDToStr(workflow.ID),
@@ -72,7 +71,6 @@ func ToWorkflowVersion(
 
 	if version.CreateWorkflowVersionOpts != nil {
 		err := json.Unmarshal(version.CreateWorkflowVersionOpts, &wfConfig)
-
 		if err != nil {
 			return nil
 		}

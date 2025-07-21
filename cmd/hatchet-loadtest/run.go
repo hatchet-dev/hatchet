@@ -29,7 +29,6 @@ func run(ctx context.Context, config LoadTestConfig, executions chan<- time.Dura
 			Logger:    &l,
 		},
 	)
-
 	if err != nil {
 		panic(err)
 	}
@@ -86,7 +85,6 @@ func run(ctx context.Context, config LoadTestConfig, executions chan<- time.Dura
 				Duration: types.RateLimitDuration(config.RlDurationUnit),
 			},
 		)
-
 		if err != nil {
 			panic(fmt.Errorf("error creating rate limit: %w", err))
 		}
@@ -167,7 +165,6 @@ func run(ctx context.Context, config LoadTestConfig, executions chan<- time.Dura
 			Logger:    &l,
 		},
 	)
-
 	if err != nil {
 		panic(fmt.Errorf("error creating worker: %w", err))
 	}

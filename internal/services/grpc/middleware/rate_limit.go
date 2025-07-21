@@ -121,7 +121,6 @@ func ServerNameStreamingInterceptor(
 	info *grpc.StreamServerInfo,
 	handler grpc.StreamHandler,
 ) error {
-
 	ctx := context.WithValue(ss.Context(), grpcServiceName, info.FullMethod)
 
 	wrappedStream := &wrappedServerStream{

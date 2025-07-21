@@ -208,7 +208,6 @@ func (w *workflowRepository) ListWorkflowNamesByIds(ctx context.Context, tenantI
 	defer span.End()
 
 	workflowNames, err := w.queries.ListWorkflowNamesByIds(ctx, w.pool, workflowIds)
-
 	if err != nil {
 		return nil, err
 	}
@@ -243,13 +242,11 @@ func (r *workflowRepository) PutWorkflowVersion(ctx context.Context, tenantId st
 
 	var err error
 	opts.Tasks, err = orderWorkflowStepsV1(opts.Tasks)
-
 	if err != nil {
 		return nil, err
 	}
 
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 25000)
-
 	if err != nil {
 		return nil, err
 	}
@@ -281,7 +278,6 @@ func (r *workflowRepository) PutWorkflowVersion(ctx context.Context, tenantId st
 				Description: *opts.Description,
 			},
 		)
-
 		if err != nil {
 			return nil, err
 		}
@@ -303,7 +299,6 @@ func (r *workflowRepository) PutWorkflowVersion(ctx context.Context, tenantId st
 			Tenantid:    pgTenantId,
 			Workflowids: []pgtype.UUID{workflowId},
 		})
-
 		if err != nil {
 			return nil, err
 		}
@@ -316,7 +311,6 @@ func (r *workflowRepository) PutWorkflowVersion(ctx context.Context, tenantId st
 			Tenantid: pgTenantId,
 			Ids:      []pgtype.UUID{workflowVersionIds[0]},
 		})
-
 		if err != nil {
 			return nil, err
 		}
@@ -329,7 +323,6 @@ func (r *workflowRepository) PutWorkflowVersion(ctx context.Context, tenantId st
 	}
 
 	workflowVersionId, err := r.createWorkflowVersionTxs(ctx, tx, pgTenantId, workflowId, opts, oldWorkflowVersion)
-
 	if err != nil {
 		return nil, err
 	}
@@ -338,7 +331,6 @@ func (r *workflowRepository) PutWorkflowVersion(ctx context.Context, tenantId st
 		Tenantid: pgTenantId,
 		Ids:      []pgtype.UUID{sqlchelpers.UUIDFromStr(workflowVersionId)},
 	})
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch workflow version: %w", err)
 	}
@@ -348,7 +340,6 @@ func (r *workflowRepository) PutWorkflowVersion(ctx context.Context, tenantId st
 	}
 
 	err = commit(ctx)
-
 	if err != nil {
 		return nil, err
 	}
@@ -360,7 +351,6 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 	workflowVersionId := uuid.New().String()
 
 	cs, modifiedOpts, err := checksumV1(opts)
-
 	if err != nil {
 		return "", err
 	}
@@ -371,7 +361,6 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 	}
 
 	optsJson, err := json.Marshal(modifiedOpts)
-
 	if err != nil {
 		return "", err
 	}
@@ -401,13 +390,11 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 		tx,
 		createParams,
 	)
-
 	if err != nil {
 		return "", err
 	}
 
 	_, err = r.createJobTx(ctx, tx, tenantId, workflowId, sqlcWorkflowVersion.ID, sqlcv1.JobKindDEFAULT, opts.Tasks)
-
 	if err != nil {
 		return "", err
 	}
@@ -415,7 +402,6 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 	// create the onFailure job if exists
 	if opts.OnFailure != nil {
 		jobId, err := r.createJobTx(ctx, tx, tenantId, workflowId, sqlcWorkflowVersion.ID, sqlcv1.JobKindONFAILURE, []CreateStepOpts{*opts.OnFailure})
-
 		if err != nil {
 			return "", err
 		}
@@ -424,7 +410,6 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 			Workflowversionid: sqlcWorkflowVersion.ID,
 			Jobid:             sqlchelpers.UUIDFromStr(jobId),
 		})
-
 		if err != nil {
 			return "", err
 		}
@@ -463,7 +448,6 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 			tx,
 			params,
 		)
-
 		if err != nil {
 			return "", fmt.Errorf("could not create concurrency group: %w", err)
 		}
@@ -478,7 +462,6 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 				Childstrategyids:      wcs.ChildStrategyIds,
 			},
 		)
-
 		if err != nil {
 			return "", fmt.Errorf("could not create concurrency group: %w", err)
 		}
@@ -496,7 +479,6 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 			Tenantid:          tenantId,
 		},
 	)
-
 	if err != nil {
 		return "", err
 	}
@@ -510,7 +492,6 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 				Eventtrigger:       eventTrigger,
 			},
 		)
-
 		if err != nil {
 			return "", err
 		}
@@ -538,7 +519,6 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 				Priority: priority,
 			},
 		)
-
 		if err != nil {
 			return "", err
 		}
@@ -551,7 +531,6 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 			Oldworkflowversionid: oldWorkflowVersion.WorkflowVersion.ID,
 			Newworkflowtriggerid: sqlcWorkflowTriggers.ID,
 		})
-
 		if err != nil {
 			return "", fmt.Errorf("could not move existing cron triggers to new workflow triggers: %w", err)
 		}
@@ -561,7 +540,6 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 			Oldworkflowversionid: oldWorkflowVersion.WorkflowVersion.ID,
 			Newworkflowtriggerid: sqlcWorkflowTriggers.ID,
 		})
-
 		if err != nil {
 			return "", fmt.Errorf("could not move existing scheduled triggers to new workflow triggers: %w", err)
 		}
@@ -577,7 +555,6 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 
 			if filter.Payload != nil {
 				payload, err = json.Marshal(filter.Payload)
-
 				if err != nil {
 					return "", fmt.Errorf("could not marshal filter payload: %w", err)
 				}
@@ -598,7 +575,6 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 				Payloads:    filterPayloads,
 			},
 		)
-
 		if err != nil {
 			return "", fmt.Errorf("could not upsert declarative filters: %w", err)
 		}
@@ -629,7 +605,6 @@ func (r *workflowRepository) createJobTx(ctx context.Context, tx sqlcv1.DBTX, te
 			},
 		},
 	)
-
 	if err != nil {
 		return "", err
 	}
@@ -663,7 +638,6 @@ func (r *workflowRepository) createJobTx(ctx context.Context, tx sqlcv1.DBTX, te
 				Tenantid: tenantId,
 			},
 		)
-
 		if err != nil {
 			return "", err
 		}
@@ -702,7 +676,6 @@ func (r *workflowRepository) createJobTx(ctx context.Context, tx sqlcv1.DBTX, te
 			tx,
 			createStepParams,
 		)
-
 		if err != nil {
 			return "", err
 		}
@@ -749,7 +722,6 @@ func (r *workflowRepository) createJobTx(ctx context.Context, tx sqlcv1.DBTX, te
 					tx,
 					opts,
 				)
-
 				if err != nil {
 					return "", err
 				}
@@ -766,7 +738,6 @@ func (r *workflowRepository) createJobTx(ctx context.Context, tx sqlcv1.DBTX, te
 					Jobid:   sqlcJob.ID,
 				},
 			)
-
 			if err != nil {
 				return "", err
 			}
@@ -842,7 +813,6 @@ func (r *workflowRepository) createJobTx(ctx context.Context, tx sqlcv1.DBTX, te
 							Kind:         sqlcv1.StepRateLimitKindSTATIC,
 						},
 					)
-
 					if err != nil {
 						return "", fmt.Errorf("could not create step rate limit: %w", err)
 					}
@@ -855,7 +825,6 @@ func (r *workflowRepository) createJobTx(ctx context.Context, tx sqlcv1.DBTX, te
 					tx,
 					createStepExprParams,
 				)
-
 				if err != nil {
 					return "", err
 				}
@@ -889,7 +858,6 @@ func (r *workflowRepository) createJobTx(ctx context.Context, tx sqlcv1.DBTX, te
 						Strategy:          sqlcv1.V1ConcurrencyStrategy(strategy),
 					},
 				)
-
 				if err != nil {
 					return "", err
 				}
@@ -932,7 +900,6 @@ func (r *workflowRepository) createJobTx(ctx context.Context, tx sqlcv1.DBTX, te
 						SleepDuration:    sleepDuration,
 					},
 				)
-
 				if err != nil {
 					return "", err
 				}
@@ -947,7 +914,6 @@ func (r *workflowRepository) createJobTx(ctx context.Context, tx sqlcv1.DBTX, te
 func checksumV1(opts *CreateWorkflowVersionOpts) (string, *CreateWorkflowVersionOpts, error) {
 	var err error
 	opts.Tasks, err = orderWorkflowStepsV1(opts.Tasks)
-
 	if err != nil {
 		return "", opts, err
 	}
@@ -976,13 +942,11 @@ func checksumV1(opts *CreateWorkflowVersionOpts) (string, *CreateWorkflowVersion
 
 	// compute a checksum for the workflow
 	declaredValues, err := datautils.ToJSONMap(opts)
-
 	if err != nil {
 		return "", opts, err
 	}
 
 	workflowChecksum, err := digest.DigestValues(declaredValues)
-
 	if err != nil {
 		return "", opts, err
 	}

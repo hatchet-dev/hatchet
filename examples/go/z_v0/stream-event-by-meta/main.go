@@ -24,7 +24,6 @@ func StepOne(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
 	input := &streamEventInput{}
 
 	err = ctx.WorkflowInput(input)
-
 	if err != nil {
 		return nil, err
 	}
@@ -38,13 +37,11 @@ func StepOne(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
 
 func main() {
 	err := godotenv.Load()
-
 	if err != nil {
 		panic(err)
 	}
 
 	c, err := client.New()
-
 	if err != nil {
 		panic(err)
 	}
@@ -54,7 +51,6 @@ func main() {
 			c,
 		),
 	)
-
 	if err != nil {
 		panic(err)
 	}
@@ -69,7 +65,6 @@ func main() {
 			},
 		},
 	)
-
 	if err != nil {
 		panic(err)
 	}
@@ -78,7 +73,6 @@ func main() {
 	defer cancel()
 
 	_, err = w.Start()
-
 	if err != nil {
 		panic(fmt.Errorf("error cleaning up: %w", err))
 	}
@@ -94,7 +88,6 @@ func main() {
 			streamKey: streamValue,
 		}),
 	)
-
 	if err != nil {
 		panic(err)
 	}
@@ -103,7 +96,6 @@ func main() {
 		fmt.Println(string(event.Message))
 		return nil
 	})
-
 	if err != nil {
 		panic(err)
 	}

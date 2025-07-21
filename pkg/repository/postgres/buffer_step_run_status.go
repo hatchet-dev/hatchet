@@ -25,7 +25,6 @@ func newBulkStepRunStatusBuffer(shared *sharedRepository) (*buffer.TenantBufferM
 
 	var err error
 	manager, err := buffer.NewTenantBufManager(statusBufOpts)
-
 	if err != nil {
 		shared.l.Err(err).Msg("could not create tenant buffer manager")
 		return nil, err
@@ -128,7 +127,6 @@ func (s *sharedRepository) bulkUpdateStepRunStatuses(ctx context.Context, opts [
 				insertInternalQIQueues,
 				insertInternalQIData,
 			)
-
 			if err != nil {
 				return err
 			}
@@ -147,7 +145,6 @@ func (s *sharedRepository) bulkUpdateStepRunStatuses(ctx context.Context, opts [
 				Timestamp:     &eventTimeSeen[i],
 				EventData:     eventData[i],
 			})
-
 			if err != nil {
 				s.l.Err(err).Msg("could not buffer step run event")
 			}
@@ -155,7 +152,6 @@ func (s *sharedRepository) bulkUpdateStepRunStatuses(ctx context.Context, opts [
 	}
 
 	err := eg.Wait()
-
 	if err != nil {
 		return nil, err
 	}

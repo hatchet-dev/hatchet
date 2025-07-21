@@ -1,22 +1,23 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"os"
 
 	"github.com/spf13/cobra"
 
-	"context"
-
 	"github.com/hatchet-dev/hatchet/cmd/hatchet-engine/engine"
 	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
 	"github.com/hatchet-dev/hatchet/pkg/config/loader"
 )
 
-var printVersion bool
-var configDirectory string
-var noGracefulShutdown bool
+var (
+	printVersion       bool
+	configDirectory    string
+	noGracefulShutdown bool
+)
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{

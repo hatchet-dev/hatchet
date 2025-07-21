@@ -49,7 +49,6 @@ func InitTracer(opts *TracerOpts) (func(context.Context) error, error) {
 			otlptracegrpc.WithEndpoint(opts.CollectorURL),
 		),
 	)
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to create exporter: %w", err)
 	}
@@ -61,7 +60,6 @@ func InitTracer(opts *TracerOpts) (func(context.Context) error, error) {
 			attribute.String("library.language", "go"),
 		),
 	)
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to set resources: %w", err)
 	}
@@ -70,7 +68,6 @@ func InitTracer(opts *TracerOpts) (func(context.Context) error, error) {
 
 	if opts.TraceIdRatio != "" {
 		traceIdRatio, err = strconv.ParseFloat(opts.TraceIdRatio, 64)
-
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse traceIdRatio: %w", err)
 		}

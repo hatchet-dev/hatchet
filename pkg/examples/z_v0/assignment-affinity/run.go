@@ -37,7 +37,6 @@ func run() (func() error, error) {
 			Description: "affinity",
 			Steps: []*worker.WorkflowStep{
 				worker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
-
 					model := ctx.Worker().GetLabels()["model"]
 
 					if model != "fancy-ai-model-v3" {

@@ -30,7 +30,6 @@ func (u *UserService) UserUpdateGoogleOauthCallback(ctx echo.Context, _ gen.User
 	}
 
 	token, err := u.config.Auth.GoogleOAuthConfig.Exchange(context.Background(), ctx.Request().URL.Query().Get("code"))
-
 	if err != nil {
 		return nil, redirect.GetRedirectWithError(ctx, u.config.Logger, err, "Forbidden")
 	}
@@ -40,7 +39,6 @@ func (u *UserService) UserUpdateGoogleOauthCallback(ctx echo.Context, _ gen.User
 	}
 
 	user, err := u.upsertGoogleUserFromToken(ctx.Request().Context(), u.config, token)
-
 	if err != nil {
 		if errors.Is(err, ErrNotInRestrictedDomain) {
 			return nil, redirect.GetRedirectWithError(ctx, u.config.Logger, err, "Email is not in the restricted domain group.")
@@ -50,7 +48,6 @@ func (u *UserService) UserUpdateGoogleOauthCallback(ctx echo.Context, _ gen.User
 	}
 
 	err = authn.NewSessionHelpers(u.config).SaveAuthenticated(ctx, user)
-
 	if err != nil {
 		return nil, redirect.GetRedirectWithError(ctx, u.config.Logger, err, "Internal error.")
 	}
@@ -76,13 +73,11 @@ func (u *UserService) upsertGoogleUserFromToken(ctx context.Context, config *ser
 
 	// use the encryption service to encrypt the access and refresh token
 	accessTokenEncrypted, err := config.Encryption.Encrypt([]byte(tok.AccessToken), "google_access_token")
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to encrypt access token: %s", err.Error())
 	}
 
 	refreshTokenEncrypted, err := config.Encryption.Encrypt([]byte(tok.RefreshToken), "google_refresh_token")
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to encrypt refresh token: %s", err.Error())
 	}
@@ -104,7 +99,6 @@ func (u *UserService) upsertGoogleUserFromToken(ctx context.Context, config *ser
 			Name:          repository.StringPtr(gInfo.Name),
 			OAuth:         oauthOpts,
 		})
-
 		if err != nil {
 			return nil, fmt.Errorf("failed to update user: %s", err.Error())
 		}
@@ -115,7 +109,6 @@ func (u *UserService) upsertGoogleUserFromToken(ctx context.Context, config *ser
 			Name:          repository.StringPtr(gInfo.Name),
 			OAuth:         oauthOpts,
 		})
-
 		if err != nil {
 			return nil, fmt.Errorf("failed to create user: %s", err.Error())
 		}
@@ -139,7 +132,6 @@ func getGoogleUserInfoFromToken(tok *oauth2.Token) (*googleUserInfo, error) {
 	url := "https://openidconnect.googleapis.com/v1/userinfo"
 
 	req, err := http.NewRequest("GET", url, nil)
-
 	if err != nil {
 		return nil, fmt.Errorf("failed creating request: %s", err.Error())
 	}
@@ -163,7 +155,6 @@ func getGoogleUserInfoFromToken(tok *oauth2.Token) (*googleUserInfo, error) {
 	// parse contents into Google userinfo claims
 	gInfo := &googleUserInfo{}
 	err = json.Unmarshal(contents, &gInfo)
-
 	if err != nil {
 		return nil, fmt.Errorf("failed parsing response body: %s", err.Error())
 	}

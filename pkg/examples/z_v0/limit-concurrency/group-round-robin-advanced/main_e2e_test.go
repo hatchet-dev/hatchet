@@ -27,9 +27,7 @@ func TestAdvancedConcurrency(t *testing.T) {
 	}()
 
 	err := run(ctx)
-
 	if err != nil {
 		t.Fatalf("/run() error = %v", err)
 	}
-
 }

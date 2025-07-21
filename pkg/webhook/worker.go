@@ -32,7 +32,6 @@ func New(opts WorkerOpts) (*WebhookWorker, error) {
 		client.WithToken(opts.Token),
 		client.WithLogger(opts.Logger),
 	)
-
 	if err != nil {
 		return nil, fmt.Errorf("could not create client: %w", err)
 	}

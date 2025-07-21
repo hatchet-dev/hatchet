@@ -16,7 +16,6 @@ func (t *V1FiltersService) V1FilterDelete(ctx echo.Context, request gen.V1Filter
 		filter.TenantID.String(),
 		filter.ID.String(),
 	)
-
 	if err != nil {
 		return gen.V1FilterDelete400JSONResponse(apierrors.NewAPIErrors("failed to delete filter")), nil
 	}

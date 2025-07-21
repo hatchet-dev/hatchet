@@ -25,7 +25,6 @@ func (t *V1WorkflowRunsService) V1WorkflowRunCreate(ctx echo.Context, request ge
 
 	// make sure input can be marshalled and unmarshalled to input type
 	inputBytes, err := json.Marshal(request.Body.Input)
-
 	if err != nil {
 		return gen.V1WorkflowRunCreate400JSONResponse(
 			apierrors.NewAPIErrors("Invalid input"),
@@ -37,7 +36,6 @@ func (t *V1WorkflowRunsService) V1WorkflowRunCreate(ctx echo.Context, request ge
 	if request.Body.AdditionalMetadata != nil {
 
 		additionalMetadataBytes, err = json.Marshal(request.Body.AdditionalMetadata)
-
 		if err != nil {
 			return gen.V1WorkflowRunCreate400JSONResponse(
 				apierrors.NewAPIErrors("Invalid additional metadata"),
@@ -63,7 +61,6 @@ func (t *V1WorkflowRunsService) V1WorkflowRunCreate(ctx echo.Context, request ge
 		tenant,
 		grpcReq,
 	)
-
 	if err != nil {
 		if e, ok := status.FromError(err); ok {
 			switch e.Code() { // nolint: gocritic
@@ -117,7 +114,6 @@ func (t *V1WorkflowRunsService) V1WorkflowRunCreate(ctx echo.Context, request ge
 		tenantId,
 		rawWorkflowRun,
 	)
-
 	if err != nil {
 		return nil, err
 	}

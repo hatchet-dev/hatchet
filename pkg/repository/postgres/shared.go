@@ -42,49 +42,41 @@ func newSharedRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.L
 	}
 
 	statusBuffer, err := newBulkStepRunStatusBuffer(s)
-
 	if err != nil {
 		return nil, nil, err
 	}
 
 	eventBuffer, err := newBulkEventWriter(s, cf.EventBuffer)
-
 	if err != nil {
 		return nil, nil, err
 	}
 
 	semaphoreReleaser, err := NewBulkSemaphoreReleaser(s, cf.ReleaseSemaphoreBuffer)
-
 	if err != nil {
 		return nil, nil, err
 	}
 
 	queuer, err := newBulkStepRunQueuer(s, cf.QueueStepRunBuffer)
-
 	if err != nil {
 		return nil, nil, err
 	}
 
 	userEventBuffer, err := newUserEventBuffer(s, cf.EventBuffer)
-
 	if err != nil {
 		return nil, nil, err
 	}
 
 	workflowRunBuffer, err := newCreateWorkflowRunBuffer(s, cf.WorkflowRunBuffer)
-
 	if err != nil {
 		return nil, nil, err
 	}
 
 	ackMQBuffer, err := newAckMQBuffer(s)
-
 	if err != nil {
 		return nil, nil, err
 	}
 
 	addMQBuffer, err := newAddMQBuffer(s)
-
 	if err != nil {
 		return nil, nil, err
 	}
@@ -102,49 +94,41 @@ func newSharedRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.L
 		var multiErr error
 
 		err := statusBuffer.Cleanup()
-
 		if err != nil {
 			multiErr = multierror.Append(multiErr, err)
 		}
 
 		err = eventBuffer.Cleanup()
-
 		if err != nil {
 			multiErr = multierror.Append(multiErr, err)
 		}
 
 		err = semaphoreReleaser.Cleanup()
-
 		if err != nil {
 			multiErr = multierror.Append(multiErr, err)
 		}
 
 		err = queuer.Cleanup()
-
 		if err != nil {
 			multiErr = multierror.Append(multiErr, err)
 		}
 
 		err = userEventBuffer.Cleanup()
-
 		if err != nil {
 			multiErr = multierror.Append(multiErr, err)
 		}
 
 		err = workflowRunBuffer.Cleanup()
-
 		if err != nil {
 			multiErr = multierror.Append(multiErr, err)
 		}
 
 		err = ackMQBuffer.Cleanup()
-
 		if err != nil {
 			multiErr = multierror.Append(multiErr, err)
 		}
 
 		err = addMQBuffer.Cleanup()
-
 		if err != nil {
 			multiErr = multierror.Append(multiErr, err)
 		}

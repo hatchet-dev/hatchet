@@ -12,7 +12,6 @@ func (t *UserService) UserListTenantInvites(ctx echo.Context, request gen.UserLi
 	user := ctx.Get("user").(*dbsqlc.User)
 
 	invites, err := t.config.APIRepository.TenantInvite().ListTenantInvitesByEmail(ctx.Request().Context(), user.Email)
-
 	if err != nil {
 		return nil, err
 	}
@@ -26,5 +25,4 @@ func (t *UserService) UserListTenantInvites(ctx echo.Context, request gen.UserLi
 	return gen.UserListTenantInvites200JSONResponse(gen.TenantInviteList200JSONResponse{
 		Rows: &rows,
 	}), nil
-
 }

@@ -274,7 +274,6 @@ func (d *dispatcherClientImpl) newActionListener(ctx context.Context, req *GetAc
 
 	// register the worker
 	resp, err := d.client.Register(d.ctx.newContext(ctx), registerReq)
-
 	if err != nil {
 		return nil, nil, fmt.Errorf("could not register the worker: %w", err)
 	}
@@ -285,7 +284,6 @@ func (d *dispatcherClientImpl) newActionListener(ctx context.Context, req *GetAc
 	listener, err := d.client.ListenV2(d.ctx.newContext(ctx), &dispatchercontracts.WorkerListenRequest{
 		WorkerId: resp.WorkerId,
 	})
-
 	if err != nil {
 		return nil, nil, fmt.Errorf("could not subscribe to the worker: %w", err)
 	}
@@ -328,7 +326,6 @@ func (a *actionListenerImpl) Actions(ctx context.Context) (<-chan *Action, <-cha
 						WorkerId:    a.workerId,
 						HeartbeatAt: timestamppb.New(now),
 					})
-
 					if err != nil {
 						a.l.Error().Err(err).Msgf("could not update worker %s heartbeat", a.workerId)
 
@@ -349,7 +346,6 @@ func (a *actionListenerImpl) Actions(ctx context.Context) (<-chan *Action, <-cha
 
 		for retries < DefaultActionListenerRetryCount {
 			assignedAction, err := a.listenClient.Recv()
-
 			if err != nil {
 				// if context is cancelled, unsubscribe and close the channel
 				if ctx.Err() != nil {
@@ -359,7 +355,6 @@ func (a *actionListenerImpl) Actions(ctx context.Context) (<-chan *Action, <-cha
 					defer close(errCh)
 
 					err := a.listenClient.CloseSend()
-
 					if err != nil {
 						a.l.Error().Msgf("Failed to close send: %v", err)
 					}
@@ -376,7 +371,6 @@ func (a *actionListenerImpl) Actions(ctx context.Context) (<-chan *Action, <-cha
 				}
 
 				err = a.retrySubscribe(ctx)
-
 				if err != nil {
 					a.l.Error().Msgf("Failed to resubscribe: %v", err)
 					errCh <- fmt.Errorf("failed to resubscribe: %w", err)
@@ -458,7 +452,6 @@ func (a *actionListenerImpl) Actions(ctx context.Context) (<-chan *Action, <-cha
 		defer close(errCh)
 
 		err := a.listenClient.CloseSend()
-
 		if err != nil {
 			a.l.Error().Msgf("Failed to close send: %v", err)
 		}
@@ -507,7 +500,6 @@ func (a *actionListenerImpl) Unregister() error {
 			WorkerId: a.workerId,
 		},
 	)
-
 	if err != nil {
 		return err
 	}
@@ -526,7 +518,6 @@ func (d *dispatcherClientImpl) SendStepActionEvent(ctx context.Context, in *Acti
 	}
 
 	payloadBytes, err := json.Marshal(in.EventPayload)
-
 	if err != nil {
 		return nil, err
 	}
@@ -557,7 +548,6 @@ func (d *dispatcherClientImpl) SendStepActionEvent(ctx context.Context, in *Acti
 		RetryCount:     &in.RetryCount,
 		ShouldNotRetry: in.ShouldNotRetry,
 	})
-
 	if err != nil {
 		return nil, err
 	}
@@ -575,7 +565,6 @@ func (d *dispatcherClientImpl) SendGroupKeyActionEvent(ctx context.Context, in *
 	}
 
 	payloadBytes, err := json.Marshal(in.EventPayload)
-
 	if err != nil {
 		return nil, err
 	}
@@ -602,7 +591,6 @@ func (d *dispatcherClientImpl) SendGroupKeyActionEvent(ctx context.Context, in *
 		EventType:        actionEventType,
 		EventPayload:     string(payloadBytes),
 	})
-
 	if err != nil {
 		return nil, err
 	}
@@ -617,7 +605,6 @@ func (a *dispatcherClientImpl) ReleaseSlot(ctx context.Context, stepRunId string
 	_, err := a.client.ReleaseSlot(a.ctx.newContext(ctx), &dispatchercontracts.ReleaseSlotRequest{
 		StepRunId: stepRunId,
 	})
-
 	if err != nil {
 		return err
 	}
@@ -630,7 +617,6 @@ func (a *dispatcherClientImpl) RefreshTimeout(ctx context.Context, stepRunId str
 		StepRunId:          stepRunId,
 		IncrementTimeoutBy: incrementTimeoutBy,
 	})
-
 	if err != nil {
 		return err
 	}
@@ -645,7 +631,6 @@ func (a *dispatcherClientImpl) UpsertWorkerLabels(ctx context.Context, workerId 
 		WorkerId: workerId,
 		Labels:   labels,
 	})
-
 	if err != nil {
 		return err
 	}

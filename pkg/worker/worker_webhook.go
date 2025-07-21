@@ -61,14 +61,12 @@ func (w *Worker) StartWebhook(ww WebhookWorkerOpts) (func() error, error) {
 		MaxRuns:    w.maxRuns,
 		WebhookId:  &ww.WebhookId,
 	})
-
 	if err != nil {
 		cancel()
 		return nil, fmt.Errorf("could not get action listener: %w", err)
 	}
 
 	actionCh, errCh, err := listener.Actions(ctx)
-
 	if err != nil {
 		cancel()
 		return nil, fmt.Errorf("could not get action channel: %w", err)
@@ -83,7 +81,6 @@ func (w *Worker) StartWebhook(ww WebhookWorkerOpts) (func() error, error) {
 			case action := <-actionCh:
 				go func(action *client.Action) {
 					err := w.sendWebhook(context.Background(), action, ww)
-
 					if err != nil {
 						w.l.Error().Err(err).Msgf("could not execute action: %s", action.ActionId)
 					}
@@ -150,7 +147,6 @@ func (w *Worker) markFailed(action *client.Action, err error) error {
 		context.Background(),
 		failureEvent,
 	)
-
 	if err != nil {
 		return fmt.Errorf("could not send action event: %w", err)
 	}

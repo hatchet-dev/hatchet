@@ -38,7 +38,6 @@ func object(ctx context.Context, input *userCreateEvent) error {
 
 func main() {
 	err := godotenv.Load()
-
 	if err != nil {
 		panic(err)
 	}
@@ -46,7 +45,6 @@ func main() {
 	client, err := client.New(
 		client.InitWorkflows(),
 	)
-
 	if err != nil {
 		panic(err)
 	}
@@ -56,7 +54,6 @@ func main() {
 			client,
 		),
 	)
-
 	if err != nil {
 		panic(err)
 	}
@@ -64,13 +61,11 @@ func main() {
 	echoSvc := worker.NewService("echo")
 
 	err = echoSvc.RegisterAction(echo)
-
 	if err != nil {
 		panic(err)
 	}
 
 	err = echoSvc.RegisterAction(object)
-
 	if err != nil {
 		panic(err)
 	}
@@ -98,7 +93,6 @@ func main() {
 		"user:create",
 		testEvent,
 	)
-
 	if err != nil {
 		panic(err)
 	}

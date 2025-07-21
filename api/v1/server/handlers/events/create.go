@@ -17,7 +17,6 @@ func (t *EventService) EventCreate(ctx echo.Context, request gen.EventCreateRequ
 
 	// marshal the data object to bytes
 	dataBytes, err := json.Marshal(request.Body.Data)
-
 	if err != nil {
 		return nil, err
 	}
@@ -26,14 +25,12 @@ func (t *EventService) EventCreate(ctx echo.Context, request gen.EventCreateRequ
 
 	if request.Body.AdditionalMetadata != nil {
 		additionalMetadata, err = json.Marshal(request.Body.AdditionalMetadata)
-
 		if err != nil {
 			return nil, err
 		}
 	}
 
 	newEvent, err := t.config.Ingestor.IngestEvent(ctx.Request().Context(), tenant, request.Body.Key, dataBytes, additionalMetadata, request.Body.Priority, request.Body.Scope)
-
 	if err != nil {
 		if err == metered.ErrResourceExhausted {
 			return gen.EventCreate429JSONResponse(

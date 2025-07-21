@@ -62,7 +62,6 @@ func (s *SharedTenantReader) Subscribe(tenantId string, postAck AckHook) (func()
 
 			return innerErr
 		})
-
 		if err != nil {
 			return nil, err
 		}

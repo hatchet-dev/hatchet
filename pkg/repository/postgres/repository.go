@@ -106,7 +106,6 @@ func NewAPIRepository(pool *pgxpool.Pool, cf *server.ConfigFileRuntime, fs ...Po
 	}
 
 	shared, cleanup, err := newSharedRepository(pool, opts.v, opts.l, cf)
-
 	if err != nil {
 		return nil, nil, err
 	}
@@ -349,7 +348,6 @@ func NewEngineRepository(pool *pgxpool.Pool, essentialPool *pgxpool.Pool, cf *se
 	queueCache := cache.New(5 * time.Minute)
 
 	shared, cleanup, err := newSharedRepository(pool, opts.v, opts.l, cf)
-
 	if err != nil {
 		return nil, nil, err
 	}

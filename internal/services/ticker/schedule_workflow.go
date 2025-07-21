@@ -21,7 +21,6 @@ func (t *TickerImpl) runPollSchedules(ctx context.Context) func() {
 		t.l.Debug().Msgf("ticker: polling workflow schedules")
 
 		scheduledWorkflows, err := t.repo.Ticker().PollScheduledWorkflows(ctx, t.tickerId)
-
 		if err != nil {
 			t.l.Err(err).Msg("could not poll workflow schedules")
 			return
@@ -123,14 +122,12 @@ func (t *TickerImpl) runScheduledWorkflow(tenantId, workflowVersionId, scheduled
 		t.l.Debug().Msgf("ticker: running workflow %s", workflowVersionId)
 
 		tenant, err := t.repo.Tenant().GetTenantByID(ctx, tenantId)
-
 		if err != nil {
 			t.l.Error().Err(err).Msg("could not get tenant")
 			return
 		}
 
 		workflowVersion, err := t.repo.Workflow().GetWorkflowVersionById(ctx, tenantId, workflowVersionId)
-
 		if err != nil {
 			t.l.Err(err).Msg("could not get workflow version")
 			return
@@ -173,7 +170,6 @@ func (t *TickerImpl) runScheduledWorkflowV0(ctx context.Context, tenantId string
 		}
 
 		parent, err := t.repo.WorkflowRun().GetWorkflowRunById(ctx, tenantId, sqlchelpers.UUIDToStr(scheduled.ParentWorkflowRunId))
-
 		if err != nil {
 			return fmt.Errorf("could not get parent workflow run: %w", err)
 		}
@@ -205,13 +201,11 @@ func (t *TickerImpl) runScheduledWorkflowV0(ctx context.Context, tenantId string
 		additionalMetadata,
 		fs...,
 	)
-
 	if err != nil {
 		return fmt.Errorf("could not get create workflow run opts: %w", err)
 	}
 
 	workflowRun, err := t.repo.WorkflowRun().CreateNewWorkflowRun(ctx, tenantId, createOpts)
-
 	if err != nil {
 		return fmt.Errorf("could not create workflow run: %w", err)
 	}
@@ -223,7 +217,6 @@ func (t *TickerImpl) runScheduledWorkflowV0(ctx context.Context, tenantId string
 		msgqueue.WORKFLOW_PROCESSING_QUEUE,
 		tasktypes.WorkflowRunQueuedToTask(tenantId, workflowRunId),
 	)
-
 	if err != nil {
 		return fmt.Errorf("could not add workflow run queued task: %w", err)
 	}

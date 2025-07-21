@@ -40,7 +40,6 @@ func (t *WorkflowService) WorkflowRunCreate(ctx echo.Context, request gen.Workfl
 	}
 
 	workflowVersion, err := t.config.EngineRepository.Workflow().GetWorkflowVersionById(ctx.Request().Context(), tenantId, workflowVersionId)
-
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return gen.WorkflowRunCreate400JSONResponse(
@@ -53,7 +52,6 @@ func (t *WorkflowService) WorkflowRunCreate(ctx echo.Context, request gen.Workfl
 
 	// make sure input can be marshalled and unmarshalled to input type
 	inputBytes, err := json.Marshal(request.Body.Input)
-
 	if err != nil {
 		return gen.WorkflowRunCreate400JSONResponse(
 			apierrors.NewAPIErrors("Invalid input"),
@@ -105,19 +103,16 @@ func (t *WorkflowService) WorkflowRunCreate(ctx echo.Context, request gen.Workfl
 			sqlchelpers.UUIDToStr(createdWorkflowRun.ID),
 		),
 	)
-
 	if err != nil {
 		return nil, fmt.Errorf("could not add workflow run to queue: %w", err)
 	}
 
 	workflowRun, err := t.config.APIRepository.WorkflowRun().GetWorkflowRunById(ctx.Request().Context(), tenantId, sqlchelpers.UUIDToStr(createdWorkflowRun.ID))
-
 	if err != nil {
 		return nil, fmt.Errorf("could not get workflow run: %w", err)
 	}
 
 	res, err := transformers.ToWorkflowRun(workflowRun, nil, nil, nil)
-
 	if err != nil {
 		return nil, err
 	}

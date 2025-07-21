@@ -20,13 +20,11 @@ func (t *StepRunService) StepRunGetSchema(ctx echo.Context, request gen.StepRunG
 
 	if input != nil {
 		schemaBytes, err := schema.SchemaBytesFromBytes(input)
-
 		if err != nil {
 			return nil, fmt.Errorf("could not get schema bytes: %w", err)
 		}
 
 		err = json.Unmarshal(schemaBytes, &res)
-
 		if err != nil {
 			return nil, fmt.Errorf("could not unmarshal schema: %w", err)
 		}

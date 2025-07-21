@@ -9,8 +9,10 @@ import (
 )
 
 // Region represents a managed worker region
-type Region = rest.ManagedWorkerRegion
-type GPUKind = rest.CreateManagedWorkerRuntimeConfigRequestGpuKind
+type (
+	Region  = rest.ManagedWorkerRegion
+	GPUKind = rest.CreateManagedWorkerRuntimeConfigRequestGpuKind
+)
 
 // Compute is the base struct for different compute configurations.
 type Compute struct {

@@ -33,7 +33,6 @@ func (u *UserService) TenantInviteAccept(ctx echo.Context, request gen.TenantInv
 
 	// get the invite
 	invite, err := u.config.APIRepository.TenantInvite().GetTenantInvite(ctx.Request().Context(), inviteId)
-
 	if err != nil {
 		return nil, err
 	}
@@ -69,7 +68,6 @@ func (u *UserService) TenantInviteAccept(ctx echo.Context, request gen.TenantInv
 
 	// update the invite
 	invite, err = u.config.APIRepository.TenantInvite().UpdateTenantInvite(ctx.Request().Context(), sqlchelpers.UUIDToStr(invite.ID), updateOpts)
-
 	if err != nil {
 		return nil, err
 	}
@@ -79,7 +77,6 @@ func (u *UserService) TenantInviteAccept(ctx echo.Context, request gen.TenantInv
 		UserId: userId,
 		Role:   string(invite.Role),
 	})
-
 	if err != nil {
 		return nil, err
 	}

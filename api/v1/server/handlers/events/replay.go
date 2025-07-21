@@ -23,7 +23,6 @@ func (t *EventService) EventUpdateReplay(ctx echo.Context, request gen.EventUpda
 	}
 
 	events, err := t.config.EngineRepository.Event().ListEventsByIds(ctx.Request().Context(), tenantId, eventIds)
-
 	if err != nil {
 		return nil, err
 	}
@@ -55,7 +54,6 @@ func (t *EventService) EventUpdateReplay(ctx echo.Context, request gen.EventUpda
 	}
 
 	newEvents, err := t.config.APIRepository.Event().ListEventsById(ctx.Request().Context(), tenantId, newEventIds)
-
 	if err != nil {
 		return nil, err
 	}

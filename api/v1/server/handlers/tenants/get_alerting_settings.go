@@ -14,7 +14,6 @@ func (t *TenantService) TenantAlertingSettingsGet(ctx echo.Context, request gen.
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
 	tenantAlerting, err := t.config.APIRepository.TenantAlertingSettings().GetTenantAlertingSettings(ctx.Request().Context(), tenantId)
-
 	if err != nil {
 		return nil, err
 	}

@@ -62,6 +62,7 @@ func (c *testHatchetContext) AdditionalMetadata() map[string]string {
 func (c *testHatchetContext) SpawnWorkflow(workflowName string, input any, opts *SpawnWorkflowOpts) (*client.Workflow, error) {
 	panic("not implemented")
 }
+
 func (c *testHatchetContext) SpawnWorkflows(opts []*SpawnWorkflowsOpts) ([]*client.Workflow, error) {
 	panic("not implemented")
 }
@@ -159,7 +160,6 @@ func TestRunAllWithNoMiddleware(t *testing.T) {
 	err := m.runAll(&testHatchetContext{context.Background()}, func(ctx HatchetContext) error {
 		return nil
 	})
-
 	if err != nil {
 		t.Errorf("Expected no error, got %v", err)
 	}
@@ -177,7 +177,6 @@ func TestRunAllWithMiddleware(t *testing.T) {
 	err := m.runAll(&testHatchetContext{context.Background()}, func(ctx HatchetContext) error {
 		return nil
 	})
-
 	if err != nil {
 		t.Errorf("Expected no error, got %v", err)
 	}
@@ -207,7 +206,6 @@ func TestRunAllWithPropagatedContext(t *testing.T) {
 		}
 		return nil
 	})
-
 	if err != nil {
 		t.Errorf("Expected no error, got %v", err)
 	}

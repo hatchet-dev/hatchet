@@ -16,7 +16,6 @@ func (t *TenantService) TenantResourcePolicyGet(ctx echo.Context, request gen.Te
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
 	limits, err := t.config.EntitlementRepository.TenantLimit().GetLimits(context.Background(), tenantId)
-
 	if err != nil {
 		return nil, err
 	}

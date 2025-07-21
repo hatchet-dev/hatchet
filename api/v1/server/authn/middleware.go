@@ -87,7 +87,6 @@ func (a *AuthN) handleNoAuth(c echo.Context) error {
 	store := a.config.SessionStore
 
 	session, err := store.Get(c.Request(), store.GetName())
-
 	if err != nil {
 		a.l.Debug().Err(err).Msg("error getting session")
 
@@ -114,7 +113,6 @@ func (a *AuthN) handleCookieAuth(c echo.Context) error {
 	session, err := store.Get(c.Request(), store.GetName())
 	if err != nil {
 		err = a.helpers.SaveUnauthenticated(c)
-
 		if err != nil {
 			a.l.Error().Err(err).Msg("error saving unauthenticated session")
 			return fmt.Errorf("error saving unauthenticated session")
@@ -178,7 +176,6 @@ func (a *AuthN) handleBearerAuth(c echo.Context) error {
 	}
 
 	token, err := getBearerTokenFromRequest(c.Request())
-
 	if err != nil {
 		a.l.Debug().Err(err).Msg("error getting bearer token from request")
 
@@ -187,7 +184,6 @@ func (a *AuthN) handleBearerAuth(c echo.Context) error {
 
 	// Validate the token.
 	tenantId, _, err := a.config.Auth.JWTManager.ValidateTenantToken(c.Request().Context(), token)
-
 	if err != nil {
 		a.l.Debug().Err(err).Msg("error validating tenant token")
 

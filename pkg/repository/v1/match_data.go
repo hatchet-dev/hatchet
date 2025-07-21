@@ -55,7 +55,6 @@ func (m *MatchData) TriggerDataValue(key string) map[string]interface{} {
 	for _, v := range values {
 		// convert the values to a byte array, then to a map
 		vBytes, err := json.Marshal(v)
-
 		if err != nil {
 			continue
 		}
@@ -63,7 +62,6 @@ func (m *MatchData) TriggerDataValue(key string) map[string]interface{} {
 		data := map[string]interface{}{}
 
 		err = json.Unmarshal(vBytes, &data)
-
 		if err != nil {
 			continue
 		}
@@ -81,7 +79,6 @@ func (m *MatchData) DataValueAsTaskOutputEvent(key string) *TaskOutputEvent {
 	for _, v := range values {
 		// convert the values to a byte array, then to a TaskOutputEvent
 		vBytes, err := json.Marshal(v)
-
 		if err != nil {
 			continue
 		}
@@ -89,7 +86,6 @@ func (m *MatchData) DataValueAsTaskOutputEvent(key string) *TaskOutputEvent {
 		event := &TaskOutputEvent{}
 
 		err = json.Unmarshal(vBytes, event)
-
 		if err != nil {
 			continue
 		}
@@ -105,7 +101,6 @@ func NewMatchData(mcAggregatedData []byte) (*MatchData, error) {
 
 	if len(mcAggregatedData) > 0 {
 		err := json.Unmarshal(mcAggregatedData, &triggerDataMap)
-
 		if err != nil {
 			return nil, err
 		}

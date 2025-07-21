@@ -34,7 +34,6 @@ type jwtManagerImpl struct {
 
 func NewJWTManager(encryptionSvc encryption.EncryptionService, tokenRepo repository.APITokenRepository, opts *TokenOpts) (JWTManager, error) {
 	verifier, err := jwt.NewVerifier(encryptionSvc.GetPublicJWTHandle())
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to create JWT Verifier: %v", err)
 	}
@@ -56,7 +55,6 @@ type Token struct {
 func (j *jwtManagerImpl) createToken(ctx context.Context, tenantId, name string, id *string, expires *time.Time) (*Token, error) {
 	// Retrieve the JWT Signer primitive from privateKeysetHandle.
 	signer, err := jwt.NewSigner(j.encryption.GetPrivateJWTHandle())
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to create JWT Signer: %v", err)
 	}
@@ -64,13 +62,11 @@ func (j *jwtManagerImpl) createToken(ctx context.Context, tenantId, name string,
 	tokenId, expiresAt, opts := j.getJWTOptionsForTenant(tenantId, id, expires)
 
 	rawJWT, err := jwt.NewRawJWT(opts)
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to create raw JWT: %v", err)
 	}
 
 	token, err := signer.SignAndEncode(rawJWT)
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to sign and encode JWT: %v", err)
 	}
@@ -113,13 +109,11 @@ func (j *jwtManagerImpl) ValidateTenantToken(ctx context.Context, token string) 
 		FixedNow:              time.Now(),
 		ExpectIssuedInThePast: true,
 	})
-
 	if err != nil {
 		return "", "", fmt.Errorf("failed to create JWT Validator: %v", err)
 	}
 
 	verifiedJwt, err := j.verifier.VerifyAndDecode(token, validator)
-
 	if err != nil {
 		return "", "", fmt.Errorf("failed to verify and decode JWT: %v", err)
 	}
@@ -130,7 +124,6 @@ func (j *jwtManagerImpl) ValidateTenantToken(ctx context.Context, token string) 
 	}
 
 	tokenId, err := verifiedJwt.StringClaim("token_id")
-
 	if err != nil {
 		return "", "", fmt.Errorf("failed to read token_id claim: %v", err)
 	}
@@ -138,7 +131,6 @@ func (j *jwtManagerImpl) ValidateTenantToken(ctx context.Context, token string) 
 	// ensure the current server url matches the token, if present
 	if hasServerURL := verifiedJwt.HasStringClaim("server_url"); hasServerURL {
 		serverURL, err := verifiedJwt.StringClaim("server_url")
-
 		if err != nil {
 			return "", "", fmt.Errorf("failed to read server_url claim: %v", err)
 		}
@@ -150,7 +142,6 @@ func (j *jwtManagerImpl) ValidateTenantToken(ctx context.Context, token string) 
 
 	// read the token from the database
 	dbToken, err := j.tokenRepo.GetAPITokenById(ctx, tokenId)
-
 	if err != nil {
 		return "", "", fmt.Errorf("failed to read token from database: %v", err)
 	}
@@ -169,7 +160,6 @@ func (j *jwtManagerImpl) ValidateTenantToken(ctx context.Context, token string) 
 	}
 
 	subject, err := verifiedJwt.Subject()
-
 	if err != nil {
 		return "", "", fmt.Errorf("failed to read subject claim: %v", err)
 	}
@@ -178,7 +168,6 @@ func (j *jwtManagerImpl) ValidateTenantToken(ctx context.Context, token string) 
 }
 
 func (j *jwtManagerImpl) getJWTOptionsForTenant(tenantId string, id *string, expires *time.Time) (tokenId string, expiresAt time.Time, opts *jwt.RawJWTOptions) {
-
 	if expires != nil {
 		expiresAt = *expires
 	} else {

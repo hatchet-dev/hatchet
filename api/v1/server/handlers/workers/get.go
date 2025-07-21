@@ -33,7 +33,6 @@ func (t *WorkerService) workerGetV0(ctx echo.Context, tenant *dbsqlc.Tenant, req
 		sqlchelpers.UUIDToStr(worker.Worker.ID),
 		int(worker.Worker.MaxRuns),
 	)
-
 	if err != nil {
 		return nil, err
 	}
@@ -42,7 +41,6 @@ func (t *WorkerService) workerGetV0(ctx echo.Context, tenant *dbsqlc.Tenant, req
 		sqlchelpers.UUIDToStr(worker.Worker.TenantId),
 		[]string{sqlchelpers.UUIDToStr(worker.Worker.ID)},
 	)
-
 	if err != nil {
 		return nil, err
 	}
@@ -57,7 +55,6 @@ func (t *WorkerService) workerGetV0(ctx echo.Context, tenant *dbsqlc.Tenant, req
 
 	for i := range recent {
 		genStepRun, err := transformers.ToRecentStepRun(recent[i])
-
 		if err != nil {
 			return nil, err
 		}
@@ -76,7 +73,6 @@ func (t *WorkerService) workerGetV0(ctx echo.Context, tenant *dbsqlc.Tenant, req
 		sqlchelpers.UUIDToStr(worker.Worker.TenantId),
 		sqlchelpers.UUIDToStr(worker.Worker.ID),
 	)
-
 	if err != nil {
 		return nil, err
 	}
@@ -90,7 +86,6 @@ func (t *WorkerService) workerGetV1(ctx echo.Context, tenant *dbsqlc.Tenant, req
 	workerV0 := ctx.Get("worker").(*dbsqlc.GetWorkerByIdRow)
 
 	worker, err := t.config.V1.Workers().GetWorkerById(sqlchelpers.UUIDToStr(workerV0.Worker.ID))
-
 	if err != nil {
 		return nil, err
 	}
@@ -100,7 +95,6 @@ func (t *WorkerService) workerGetV1(ctx echo.Context, tenant *dbsqlc.Tenant, req
 		sqlchelpers.UUIDToStr(worker.Worker.ID),
 		int(worker.Worker.MaxRuns),
 	)
-
 	if err != nil {
 		return nil, err
 	}
@@ -109,7 +103,6 @@ func (t *WorkerService) workerGetV1(ctx echo.Context, tenant *dbsqlc.Tenant, req
 		sqlchelpers.UUIDToStr(worker.Worker.TenantId),
 		[]string{sqlchelpers.UUIDToStr(worker.Worker.ID)},
 	)
-
 	if err != nil {
 		return nil, err
 	}
@@ -123,7 +116,6 @@ func (t *WorkerService) workerGetV1(ctx echo.Context, tenant *dbsqlc.Tenant, req
 
 	for i := range recent {
 		genStepRun, err := transformers.ToRecentStepRun(recent[i])
-
 		if err != nil {
 			return nil, err
 		}
@@ -142,7 +134,6 @@ func (t *WorkerService) workerGetV1(ctx echo.Context, tenant *dbsqlc.Tenant, req
 		sqlchelpers.UUIDToStr(worker.Worker.TenantId),
 		sqlchelpers.UUIDToStr(worker.Worker.ID),
 	)
-
 	if err != nil {
 		return nil, err
 	}

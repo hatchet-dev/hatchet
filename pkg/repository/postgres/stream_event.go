@@ -67,7 +67,6 @@ func (r *streamEventEngineRepository) PutStreamEvent(ctx context.Context, tenant
 	}
 
 	tx, err := r.pool.Begin(ctx)
-
 	if err != nil {
 		return nil, err
 	}
@@ -79,13 +78,11 @@ func (r *streamEventEngineRepository) PutStreamEvent(ctx context.Context, tenant
 		tx,
 		createParams,
 	)
-
 	if err != nil {
 		return nil, fmt.Errorf("could not create stream event: %w", err)
 	}
 
 	err = tx.Commit(ctx)
-
 	if err != nil {
 		return nil, fmt.Errorf("could not commit transaction: %w", err)
 	}
@@ -106,7 +103,6 @@ func (r *streamEventEngineRepository) GetStreamEvent(ctx context.Context, tenant
 		ID:       streamEventId,
 		Tenantid: pgTenantId,
 	})
-
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, fmt.Errorf("stream event not found")
@@ -115,7 +111,6 @@ func (r *streamEventEngineRepository) GetStreamEvent(ctx context.Context, tenant
 	}
 
 	err = tx.Commit(ctx)
-
 	if err != nil {
 		return nil, fmt.Errorf("could not commit transaction: %w", err)
 	}
@@ -132,7 +127,6 @@ func (r *streamEventEngineRepository) CleanupStreamEvents(ctx context.Context) e
 	defer sqlchelpers.DeferRollback(ctx, r.l, tx.Rollback)
 
 	err = r.queries.CleanupStreamEvents(ctx, r.pool)
-
 	if err != nil {
 		return fmt.Errorf("could not cleanup stream events: %w", err)
 	}

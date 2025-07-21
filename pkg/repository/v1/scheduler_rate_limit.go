@@ -24,7 +24,6 @@ func newRateLimitRepository(shared *sharedRepository) *rateLimitRepository {
 
 func (d *rateLimitRepository) UpdateRateLimits(ctx context.Context, tenantId pgtype.UUID, updates map[string]int) (map[string]int, *time.Time, error) {
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, d.pool, d.l, 5000)
-
 	if err != nil {
 		return nil, nil, err
 	}
@@ -45,19 +44,16 @@ func (d *rateLimitRepository) UpdateRateLimits(ctx context.Context, tenantId pgt
 	tenantInt := tenantAdvisoryInt(sqlchelpers.UUIDToStr(tenantId))
 
 	err = d.queries.AdvisoryLock(ctx, tx, tenantInt)
-
 	if err != nil {
 		return nil, nil, err
 	}
 
 	_, err = d.queries.BulkUpdateRateLimits(ctx, tx, params)
-
 	if err != nil {
 		return nil, nil, err
 	}
 
 	newRls, err := d.queries.ListRateLimitsForTenantWithMutate(ctx, tx, tenantId)
-
 	if err != nil {
 		return nil, nil, err
 	}

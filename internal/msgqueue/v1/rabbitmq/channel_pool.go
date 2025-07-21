@@ -25,7 +25,6 @@ type channelPool struct {
 
 func (p *channelPool) newConnection() error {
 	conn, err := amqp.Dial(p.url)
-
 	if err != nil {
 		p.l.Error().Msgf("cannot (re)dial: %v: %q", err, p.url)
 		return err
@@ -58,7 +57,6 @@ func newChannelPool(ctx context.Context, l *zerolog.Logger, url string) (*channe
 	}
 
 	err := p.newConnection()
-
 	if err != nil {
 		return nil, err
 	}
@@ -67,7 +65,6 @@ func newChannelPool(ctx context.Context, l *zerolog.Logger, url string) (*channe
 		conn := p.getConnection()
 
 		ch, err := conn.Channel()
-
 		if err != nil {
 			l.Error().Msgf("cannot create channel: %v", err)
 			return nil, err
@@ -79,7 +76,6 @@ func newChannelPool(ctx context.Context, l *zerolog.Logger, url string) (*channe
 	destructor := func(ch *amqp.Channel) {
 		if !ch.IsClosed() {
 			err := ch.Close()
-
 			if err != nil {
 				l.Error().Msgf("error closing channel: %v", err)
 			}
@@ -102,7 +98,6 @@ func newChannelPool(ctx context.Context, l *zerolog.Logger, url string) (*channe
 
 			if conn.IsClosed() {
 				err := p.newConnection()
-
 				if err != nil {
 					l.Error().Msgf("cannot (re)dial: %v: %q", err, p.url)
 					queueutils.SleepWithExponentialBackoff(10*time.Millisecond, 5*time.Second, retries)
@@ -123,7 +118,6 @@ func newChannelPool(ctx context.Context, l *zerolog.Logger, url string) (*channe
 		Destructor:  destructor,
 		MaxSize:     maxPoolSize,
 	})
-
 	if err != nil {
 		l.Error().Err(err).Msg("cannot create connection pool")
 		return nil, nil

@@ -18,7 +18,6 @@ func (wc *RetentionControllerImpl) runDeleteExpiredJobRuns(ctx context.Context) 
 		wc.l.Debug().Msgf("retention controller: deleting expired job runs")
 
 		err := wc.ForTenants(ctx, wc.runDeleteExpireJobRunsTenant)
-
 		if err != nil {
 			wc.l.Err(err).Msg("could not run delete expired job runs")
 		}
@@ -40,7 +39,6 @@ func (wc *RetentionControllerImpl) runDeleteExpireJobRunsTenant(ctx context.Cont
 		}
 
 		hasMore, err := wc.repo.JobRun().ClearJobRunPayloadData(ctx, tenantId)
-
 		if err != nil {
 			return fmt.Errorf("could not delete expired job runs: %w", err)
 		}

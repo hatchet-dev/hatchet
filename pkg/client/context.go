@@ -1,9 +1,9 @@
 package client
 
 import (
-	grpcMetadata "google.golang.org/grpc/metadata"
-
 	"context"
+
+	grpcMetadata "google.golang.org/grpc/metadata"
 )
 
 type contextLoader struct {

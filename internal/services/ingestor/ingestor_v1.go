@@ -37,7 +37,6 @@ func (i *IngestorImpl) ingestEventV1(ctx context.Context, tenant *dbsqlc.Tenant,
 		tenantId,
 		1,
 	)
-
 	if err != nil {
 		return nil, fmt.Errorf("could not check tenant limit: %w", err)
 	}
@@ -64,13 +63,11 @@ func (i *IngestorImpl) ingestSingleton(tenantId, key string, data []byte, metada
 		priority,
 		scope,
 	)
-
 	if err != nil {
 		return nil, fmt.Errorf("could not create event task: %w", err)
 	}
 
 	err = i.mqv1.SendMessage(context.Background(), msgqueue.TASK_PROCESSING_QUEUE, msg)
-
 	if err != nil {
 		return nil, fmt.Errorf("could not add event to task queue: %w", err)
 	}
@@ -102,7 +99,6 @@ func (i *IngestorImpl) bulkIngestEventV1(ctx context.Context, tenant *dbsqlc.Ten
 		tenantId,
 		int32(count), // nolint: gosec
 	)
-
 	if err != nil {
 		return nil, fmt.Errorf("could not check tenant limit: %w", err)
 	}
@@ -118,7 +114,6 @@ func (i *IngestorImpl) bulkIngestEventV1(ctx context.Context, tenant *dbsqlc.Ten
 
 	for _, event := range eventOpts {
 		res, err := i.ingestSingleton(tenantId, event.Key, event.Data, event.AdditionalMetadata, event.Priority, event.Scope)
-
 		if err != nil {
 			return nil, fmt.Errorf("could not ingest event: %w", err)
 		}

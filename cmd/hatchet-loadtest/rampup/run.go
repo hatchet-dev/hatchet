@@ -22,7 +22,6 @@ func run(ctx context.Context, delay time.Duration, concurrency int, maxAcceptabl
 	c, err := client.New(
 		client.WithLogLevel("warn"), // nolint: staticcheck
 	)
-
 	if err != nil {
 		panic(err)
 	}
@@ -34,7 +33,6 @@ func run(ctx context.Context, delay time.Duration, concurrency int, maxAcceptabl
 		worker.WithLogLevel("warn"),
 		worker.WithMaxRuns(200),
 	)
-
 	if err != nil {
 		panic(err)
 	}
@@ -100,7 +98,6 @@ func run(ctx context.Context, delay time.Duration, concurrency int, maxAcceptabl
 			},
 		},
 	)
-
 	if err != nil {
 		panic(err)
 	}

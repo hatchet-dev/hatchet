@@ -16,7 +16,6 @@ func (rc *RetentionControllerImpl) runDeleteMessageQueueItems(ctx context.Contex
 
 		// get internal tenant
 		tenant, err := rc.p.GetInternalTenantForController(ctx)
-
 		if err != nil {
 			rc.l.Error().Err(err).Msg("could not get internal tenant")
 			return
@@ -27,7 +26,6 @@ func (rc *RetentionControllerImpl) runDeleteMessageQueueItems(ctx context.Contex
 		}
 
 		err = rc.runDeleteMessageQueueItemsQueries(ctx)
-
 		if err != nil {
 			rc.l.Err(err).Msg("could not run delete mq queue items")
 		}
@@ -39,7 +37,6 @@ func (rc *RetentionControllerImpl) runDeleteMessageQueueItemsQueries(ctx context
 	defer span.End()
 
 	err := rc.repo.MessageQueue().CleanupQueues(ctx)
-
 	if err != nil {
 		return err
 	}

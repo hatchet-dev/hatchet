@@ -11,7 +11,6 @@ import (
 
 func DefaultLoader() []*Workflow {
 	workflowFiles, err := ReadAllValidFilesInDir("./.hatchet")
-
 	if err != nil {
 		panic(err)
 	}
@@ -21,7 +20,6 @@ func DefaultLoader() []*Workflow {
 
 func ReadAllValidFilesInDir(filedir string) ([]*Workflow, error) {
 	files, err := readYAMLFiles(filedir)
-
 	if err != nil {
 		return nil, err
 	}
@@ -30,7 +28,6 @@ func ReadAllValidFilesInDir(filedir string) ([]*Workflow, error) {
 
 	for _, file := range files {
 		workflowFile, err := ParseYAML(context.Background(), file)
-
 		if err != nil {
 			continue
 		}
@@ -64,7 +61,6 @@ func readYAMLFiles(rootDir string) ([][]byte, error) {
 
 		return nil
 	})
-
 	if err != nil {
 		return nil, fmt.Errorf("error walking the path %s: %v", rootDir, err)
 	}

@@ -18,7 +18,8 @@ type ErrorInterceptor struct {
 }
 
 func NewErrorInterceptor(a errors.Alerter,
-	l *zerolog.Logger) *ErrorInterceptor {
+	l *zerolog.Logger,
+) *ErrorInterceptor {
 	return &ErrorInterceptor{
 		a, l,
 	}

@@ -15,7 +15,6 @@ func (i *WebhookWorkersService) WebhookRequestsList(ctx echo.Context, request ge
 	defer cancel()
 
 	requests, err := i.config.EngineRepository.WebhookWorker().ListWebhookWorkerRequests(dbCtx, request.Webhook.String())
-
 	if err != nil {
 		return nil, err
 	}

@@ -29,7 +29,6 @@ func (p *Proxy[in, out]) Do(ctx context.Context, tenant *dbsqlc.Tenant, input *i
 
 	// generate the API token for the proxy request
 	tok, err := p.config.Auth.JWTManager.GenerateTenantToken(ctx, tenantId, "proxy", true, &expiresAt)
-
 	if err != nil {
 		return nil, err
 	}
@@ -40,21 +39,18 @@ func (p *Proxy[in, out]) Do(ctx context.Context, tenant *dbsqlc.Tenant, input *i
 
 		// delete the API token
 		err = p.config.APIRepository.APIToken().DeleteAPIToken(deleteCtx, tenantId, tok.TokenId)
-
 		if err != nil {
 			p.config.Logger.Error().Err(err).Msg("failed to delete API token")
 		}
 	}()
 
 	c, err := p.config.InternalClientFactory.NewGRPCClient(tok.Token)
-
 	if err != nil {
 		return nil, err
 	}
 
 	// call the client method
 	res, err := p.method(client.AuthContext(ctx, tok.Token), c, input)
-
 	if err != nil {
 		return nil, err
 	}

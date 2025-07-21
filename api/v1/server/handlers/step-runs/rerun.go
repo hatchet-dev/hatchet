@@ -30,7 +30,6 @@ func (t *StepRunService) StepRunUpdateRerun(ctx echo.Context, request gen.StepRu
 		tenantId,
 		sqlchelpers.UUIDToStr(stepRun.ID),
 	)
-
 	if err != nil {
 
 		if errors.Is(err, repository.ErrNoWorkerAvailable) {
@@ -56,7 +55,6 @@ func (t *StepRunService) StepRunUpdateRerun(ctx echo.Context, request gen.StepRu
 
 	// make sure input can be marshalled and unmarshalled to input type
 	inputBytes, err := json.Marshal(request.Body.Input)
-
 	if err != nil {
 		return gen.StepRunUpdateRerun400JSONResponse(
 			apierrors.NewAPIErrors("Invalid input"),
@@ -72,7 +70,6 @@ func (t *StepRunService) StepRunUpdateRerun(ctx echo.Context, request gen.StepRu
 	}
 
 	inputBytes, err = json.Marshal(data)
-
 	if err != nil {
 		return gen.StepRunUpdateRerun400JSONResponse(
 			apierrors.NewAPIErrors("Invalid input"),
@@ -84,7 +81,6 @@ func (t *StepRunService) StepRunUpdateRerun(ctx echo.Context, request gen.StepRu
 		tenantId,
 		sqlchelpers.UUIDToStr(stepRun.ID),
 	)
-
 	if err != nil {
 		return nil, fmt.Errorf("could not get step run for engine: %w", err)
 	}
@@ -95,7 +91,6 @@ func (t *StepRunService) StepRunUpdateRerun(ctx echo.Context, request gen.StepRu
 		msgqueue.JOB_PROCESSING_QUEUE,
 		tasktypes.StepRunReplayToTask(engineStepRun, inputBytes),
 	)
-
 	if err != nil {
 		return nil, fmt.Errorf("could not add step queued task to task queue: %w", err)
 	}
@@ -105,7 +100,6 @@ func (t *StepRunService) StepRunUpdateRerun(ctx echo.Context, request gen.StepRu
 	// wait for a short period of time
 	for i := 0; i < 5; i++ {
 		result, err = t.config.APIRepository.StepRun().GetStepRunById(sqlchelpers.UUIDToStr(stepRun.ID))
-
 		if err != nil {
 			return nil, fmt.Errorf("could not get step run: %w", err)
 		}

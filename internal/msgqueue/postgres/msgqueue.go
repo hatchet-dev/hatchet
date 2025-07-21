@@ -96,20 +96,17 @@ func (p *PostgresMessageQueue) AddMessage(ctx context.Context, queue msgqueue.Qu
 	}
 
 	err := p.upsertQueue(ctx, queue)
-
 	if err != nil {
 		return err
 	}
 
 	msgBytes, err := json.Marshal(task)
-
 	if err != nil {
 		p.l.Error().Err(err).Msg("error marshalling message")
 		return err
 	}
 
 	err = p.repo.AddMessage(ctx, queue.Name(), msgBytes)
-
 	if err != nil {
 		p.l.Error().Err(err).Msg("error adding message")
 		return err
@@ -124,7 +121,6 @@ func (p *PostgresMessageQueue) AddMessage(ctx context.Context, queue msgqueue.Qu
 
 func (p *PostgresMessageQueue) Subscribe(queue msgqueue.Queue, preAck msgqueue.AckHook, postAck msgqueue.AckHook) (func() error, error) {
 	err := p.upsertQueue(context.Background(), queue)
-
 	if err != nil {
 		return nil, err
 	}
@@ -142,7 +138,6 @@ func (p *PostgresMessageQueue) Subscribe(queue msgqueue.Queue, preAck msgqueue.A
 				return
 			case <-ticker.C:
 				err := p.repo.UpdateQueueLastActive(subscribeCtx, queue.Name())
-
 				if err != nil {
 					p.l.Error().Err(err).Msg("error updating lastActive time")
 				}
@@ -152,7 +147,6 @@ func (p *PostgresMessageQueue) Subscribe(queue msgqueue.Queue, preAck msgqueue.A
 
 	doTask := func(task msgqueue.Message, ackId *int64) error {
 		err := preAck(&task)
-
 		if err != nil {
 			p.l.Error().Err(err).Msg("error pre-acking message")
 			return err
@@ -160,7 +154,6 @@ func (p *PostgresMessageQueue) Subscribe(queue msgqueue.Queue, preAck msgqueue.A
 
 		if ackId != nil {
 			err = p.repo.AckMessage(subscribeCtx, *ackId)
-
 			if err != nil {
 				p.l.Error().Err(err).Msg("error acking message")
 				return err
@@ -168,7 +161,6 @@ func (p *PostgresMessageQueue) Subscribe(queue msgqueue.Queue, preAck msgqueue.A
 		}
 
 		err = postAck(&task)
-
 		if err != nil {
 			p.l.Error().Err(err).Msg("error post-acking message")
 			return err
@@ -183,14 +175,12 @@ func (p *PostgresMessageQueue) Subscribe(queue msgqueue.Queue, preAck msgqueue.A
 			var task msgqueue.Message
 
 			err := json.Unmarshal(message.Payload, &task)
-
 			if err != nil {
 				p.l.Error().Err(err).Msg("error unmarshalling message")
 				errs = multierror.Append(errs, err)
 			}
 
 			err = doTask(task, &message.ID)
-
 			if err != nil {
 				p.l.Error().Err(err).Msg("error running task")
 				errs = multierror.Append(errs, err)
@@ -202,7 +192,6 @@ func (p *PostgresMessageQueue) Subscribe(queue msgqueue.Queue, preAck msgqueue.A
 
 	op := queueutils.NewOperationPool(p.l, 60*time.Second, "postgresmq", queueutils.OpMethod(func(ctx context.Context, id string) (bool, error) {
 		messages, err := p.repo.ReadMessages(subscribeCtx, queue.Name(), p.qos)
-
 		if err != nil {
 			p.l.Error().Err(err).Msg("error reading messages")
 		}
@@ -214,7 +203,6 @@ func (p *PostgresMessageQueue) Subscribe(queue msgqueue.Queue, preAck msgqueue.A
 		})
 
 		err = eg.Wait()
-
 		if err != nil {
 			p.l.Error().Err(err).Msg("error processing messages")
 		}
@@ -236,7 +224,6 @@ func (p *PostgresMessageQueue) Subscribe(queue msgqueue.Queue, preAck msgqueue.A
 				var task msgqueue.Message
 
 				err := json.Unmarshal([]byte(notification.Payload), &task)
-
 				if err != nil {
 					p.l.Error().Err(err).Msg("error unmarshalling message")
 					return err
@@ -248,7 +235,6 @@ func (p *PostgresMessageQueue) Subscribe(queue msgqueue.Queue, preAck msgqueue.A
 			newMsgCh <- struct{}{}
 			return nil
 		})
-
 		if err != nil {
 			p.l.Error().Err(err).Msg("error listening for new messages")
 			return
@@ -307,7 +293,6 @@ func (p *PostgresMessageQueue) upsertQueue(ctx context.Context, queue msgqueue.Q
 
 	// bind the queue
 	err := p.repo.BindQueue(ctx, queue.Name(), queue.Durable(), queue.AutoDeleted(), exclusive, consumer)
-
 	if err != nil {
 		p.l.Error().Err(err).Msg("error binding queue")
 		return err

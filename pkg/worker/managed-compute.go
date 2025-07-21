@@ -76,7 +76,6 @@ func getComputeConfigs(actions *ActionRegistry, maxRuns int) []rest.CreateManage
 		}
 
 		key, err := compute.ComputeHash()
-
 		if err != nil {
 			panic(err)
 		}
@@ -120,7 +119,6 @@ func (mc *ManagedCompute) CloudRegister(ctx context.Context) {
 		}
 
 		_, err := mc.Client.CloudAPI().InfraAsCodeCreateWithResponse(ctx, uuid.MustParse(*mc.CloudRegisterID), req)
-
 		if err != nil {
 			mc.Logger.Error().Err(err).Msg("Could not register cloud compute plan.")
 			os.Exit(1)

@@ -76,7 +76,6 @@ func (w *Worker) Call(action string) *WorkflowStep {
 	}
 
 	parsedAction, err := types.ParseActionID(action)
-
 	if err != nil {
 		panic(err)
 	}
@@ -188,7 +187,6 @@ func (c *WorkflowConcurrency) LimitStrategy(limitStrategy types.WorkflowConcurre
 
 func (j *WorkflowJob) ToWorkflow(svcName string, namespace string) types.Workflow {
 	apiJob, err := j.ToWorkflowJob(svcName, namespace)
-
 	if err != nil {
 		panic(err)
 	}
@@ -197,7 +195,6 @@ func (j *WorkflowJob) ToWorkflow(svcName string, namespace string) types.Workflo
 
 	if j.OnFailure != nil {
 		onFailureJob, err = j.OnFailure.ToWorkflowJob(svcName, namespace)
-
 		if err != nil {
 			panic(err)
 		}
@@ -251,7 +248,6 @@ func (j *WorkflowJob) ToWorkflowJob(svcName string, namespace string) (*types.Wo
 	for i := range j.Steps {
 
 		newStep, err := j.Steps[i].ToWorkflowStep(svcName, i, namespace)
-
 		if err != nil {
 			return nil, err
 		}
@@ -470,7 +466,6 @@ func (w *WorkflowStep) ToWorkflowStep(svcName string, index int, namespace strin
 	}
 
 	inputs, err := decodeFnArgTypes(fnType)
-
 	if err != nil {
 		return nil, err
 	}
@@ -480,7 +475,6 @@ func (w *WorkflowStep) ToWorkflowStep(svcName string, index int, namespace strin
 	}
 
 	outputs, err := decodeFnReturnTypes(fnType)
-
 	if err != nil {
 		return nil, err
 	}

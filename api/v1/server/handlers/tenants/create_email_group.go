@@ -27,7 +27,6 @@ func (t *TenantService) AlertEmailGroupCreate(ctx echo.Context, request gen.Aler
 	}
 
 	emailGroup, err := t.config.APIRepository.TenantAlertingSettings().CreateTenantAlertGroup(ctx.Request().Context(), tenantId, createOpts)
-
 	if err != nil {
 		return nil, err
 	}

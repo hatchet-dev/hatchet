@@ -129,7 +129,6 @@ func New(fs ...RetentionControllerOpt) (*RetentionControllerImpl, error) {
 	}
 
 	s, err := gocron.NewScheduler(gocron.WithLocation(time.UTC))
-
 	if err != nil {
 		return nil, fmt.Errorf("could not create scheduler: %w", err)
 	}
@@ -168,7 +167,6 @@ func (rc *RetentionControllerImpl) Start() (func() error, error) {
 				rc.runDeleteExpiredWorkflowRuns(ctx),
 			),
 		)
-
 		if err != nil {
 			cancel()
 			return nil, fmt.Errorf("could not set up runDeleteExpiredWorkflowRuns: %w", err)
@@ -180,7 +178,6 @@ func (rc *RetentionControllerImpl) Start() (func() error, error) {
 				rc.runDeleteExpiredEvents(ctx),
 			),
 		)
-
 		if err != nil {
 			cancel()
 			return nil, fmt.Errorf("could not set up runDeleteExpiredEvents: %w", err)
@@ -192,7 +189,6 @@ func (rc *RetentionControllerImpl) Start() (func() error, error) {
 				rc.runDeleteExpiredStepRuns(ctx),
 			),
 		)
-
 		if err != nil {
 			cancel()
 			return nil, fmt.Errorf("could not set up runDeleteExpiredStepRuns: %w", err)
@@ -204,7 +200,6 @@ func (rc *RetentionControllerImpl) Start() (func() error, error) {
 				rc.runDeleteExpiredJobRuns(ctx),
 			),
 		)
-
 		if err != nil {
 			cancel()
 			return nil, fmt.Errorf("could not set up runDeleteExpiredJobRuns: %w", err)
@@ -220,7 +215,6 @@ func (rc *RetentionControllerImpl) Start() (func() error, error) {
 				rc.runDeleteOldWorkers(ctx),
 			),
 		)
-
 		if err != nil {
 			cancel()
 			return nil, fmt.Errorf("could not set up runDeleteOldWorkers: %w", err)
@@ -236,7 +230,6 @@ func (rc *RetentionControllerImpl) Start() (func() error, error) {
 				rc.runDeleteQueueItems(ctx),
 			),
 		)
-
 		if err != nil {
 			cancel()
 			return nil, fmt.Errorf("could not set up runDeleteQueueItems: %w", err)
@@ -248,7 +241,6 @@ func (rc *RetentionControllerImpl) Start() (func() error, error) {
 				rc.runDeleteInternalQueueItems(ctx),
 			),
 		)
-
 		if err != nil {
 			cancel()
 			return nil, fmt.Errorf("could not set up runDeleteInternalQueueItems: %w", err)
@@ -260,7 +252,6 @@ func (rc *RetentionControllerImpl) Start() (func() error, error) {
 				rc.runDeleteRetryQueueItems(ctx),
 			),
 		)
-
 		if err != nil {
 			cancel()
 			return nil, fmt.Errorf("could not set up runDeleteRetryQueueItems: %w", err)
@@ -272,7 +263,6 @@ func (rc *RetentionControllerImpl) Start() (func() error, error) {
 				rc.runDeleteMessageQueueItems(ctx),
 			),
 		)
-
 		if err != nil {
 			cancel()
 			return nil, fmt.Errorf("could not set up runDeleteMessageQueueItems: %w", err)

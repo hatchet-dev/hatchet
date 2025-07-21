@@ -102,7 +102,6 @@ func (m *messageQueueRepository) CleanupMessageQueueItems(ctx context.Context) e
 
 	// get the min and max queue items
 	minMax, err := m.queries.GetMinMaxExpiredMessageQueueItems(ctx, m.pool)
-
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil
@@ -144,7 +143,6 @@ func (m *messageQueueRepository) CleanupMessageQueueItems(ctx context.Context) e
 			Minid: minId,
 			Maxid: minId + batchSize*currBatch,
 		})
-
 		if err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
 				return nil

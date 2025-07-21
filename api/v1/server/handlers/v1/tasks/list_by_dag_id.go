@@ -25,7 +25,6 @@ func (t *TasksService) V1DagListTasks(ctx echo.Context, request gen.V1DagListTas
 		pguuids,
 		true,
 	)
-
 	if err != nil {
 		return nil, err
 	}

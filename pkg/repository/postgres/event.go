@@ -115,7 +115,6 @@ func (r *eventAPIRepository) ListEvents(ctx context.Context, tenantId string, op
 	countParams.Orderby = orderByField + " " + orderByDirection
 
 	tx, err := r.pool.Begin(context.Background())
-
 	if err != nil {
 		return nil, err
 	}
@@ -123,7 +122,6 @@ func (r *eventAPIRepository) ListEvents(ctx context.Context, tenantId string, op
 	defer sqlchelpers.DeferRollback(context.Background(), r.l, tx.Rollback)
 
 	events, err := r.queries.ListEvents(ctx, tx, queryParams)
-
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			events = make([]*dbsqlc.ListEventsRow, 0)
@@ -133,7 +131,6 @@ func (r *eventAPIRepository) ListEvents(ctx context.Context, tenantId string, op
 	}
 
 	count, err := r.queries.CountEvents(ctx, tx, countParams)
-
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			count = 0
@@ -143,7 +140,6 @@ func (r *eventAPIRepository) ListEvents(ctx context.Context, tenantId string, op
 	}
 
 	err = tx.Commit(ctx)
-
 	if err != nil {
 		return nil, fmt.Errorf("could not commit transaction: %w", err)
 	}
@@ -159,7 +155,6 @@ func (r *eventAPIRepository) ListEventKeys(tenantId string) ([]string, error) {
 	defer cancel()
 
 	keys, err := r.queries.ListEventKeys(ctx, r.pool, sqlchelpers.UUIDFromStr(tenantId))
-
 	if err != nil {
 		return nil, err
 	}
@@ -221,8 +216,8 @@ func (r *eventEngineRepository) GetEventForEngine(ctx context.Context, tenantId,
 func (r *eventEngineRepository) createEventKeys(ctx context.Context, tx pgx.Tx, keys map[string]struct {
 	key      string
 	tenantId string
-}) error {
-
+},
+) error {
 	eventKeys := make([]string, 0)
 	eventKeysTenantIds := make([]pgtype.UUID, 0)
 
@@ -243,7 +238,6 @@ func (r *eventEngineRepository) createEventKeys(ctx context.Context, tx pgx.Tx, 
 		Tenantids: eventKeysTenantIds,
 		Keys:      eventKeys,
 	})
-
 	if err != nil {
 		return err
 	}
@@ -258,7 +252,6 @@ func (r *eventEngineRepository) createEventKeys(ctx context.Context, tx pgx.Tx, 
 
 func (r *eventEngineRepository) CreateEvent(ctx context.Context, opts *repository.CreateEventOpts) (*dbsqlc.Event, error) {
 	return metered.MakeMetered(ctx, r.m, dbsqlc.LimitResourceEVENT, opts.TenantId, 1, func() (*string, *dbsqlc.Event, error) {
-
 		_, span := telemetry.NewSpan(ctx, "db-create-event")
 		defer span.End()
 
@@ -277,7 +270,6 @@ func (r *eventEngineRepository) CreateEvent(ctx context.Context, opts *repositor
 		}
 
 		event, err := r.bulkUserEventBuffer.FireAndWait(ctx, opts.TenantId, &createOpts)
-
 		if err != nil {
 			return nil, nil, fmt.Errorf("could not buffer event: %w", err)
 		}
@@ -297,14 +289,12 @@ func (r *eventEngineRepository) CreateEvent(ctx context.Context, opts *repositor
 }
 
 func (r *eventEngineRepository) BulkCreateEvent(ctx context.Context, opts *repository.BulkCreateEventOpts) (*repository.BulkCreateEventResult, error) {
-
 	numberOfResources := len(opts.Events)
 	if numberOfResources < math.MinInt32 || numberOfResources > math.MaxInt32 {
 		return nil, fmt.Errorf("number of resources is out of range")
 	}
 
 	return metered.MakeMetered(ctx, r.m, dbsqlc.LimitResourceEVENT, opts.TenantId, int32(numberOfResources), func() (*string, *repository.BulkCreateEventResult, error) {
-
 		ctx, span := telemetry.NewSpan(ctx, "db-bulk-create-event")
 		defer span.End()
 
@@ -347,7 +337,6 @@ func (r *eventEngineRepository) BulkCreateEvent(ctx context.Context, opts *repos
 
 		// start a transaction
 		tx, err := r.pool.Begin(ctx)
-
 		if err != nil {
 			return nil, nil, err
 		}
@@ -355,7 +344,6 @@ func (r *eventEngineRepository) BulkCreateEvent(ctx context.Context, opts *repos
 		defer sqlchelpers.DeferRollback(ctx, r.l, tx.Rollback)
 
 		err = r.createEventKeys(ctx, tx, uniqueEventKeys)
-
 		if err != nil {
 			return nil, nil, fmt.Errorf("could not create event keys: %w", err)
 		}
@@ -365,7 +353,6 @@ func (r *eventEngineRepository) BulkCreateEvent(ctx context.Context, opts *repos
 			tx,
 			params,
 		)
-
 		if err != nil {
 			return nil, nil, fmt.Errorf("could not create events: %w", err)
 		}
@@ -373,12 +360,10 @@ func (r *eventEngineRepository) BulkCreateEvent(ctx context.Context, opts *repos
 		r.l.Info().Msgf("inserted %d events", insertCount)
 
 		events, err := r.queries.GetInsertedEvents(ctx, tx, ids)
-
 		if err != nil {
 			return nil, nil, fmt.Errorf("could not retrieve inserted events: %w", err)
 		}
 		err = tx.Commit(ctx)
-
 		if err != nil {
 			return nil, nil, fmt.Errorf("could not commit transaction: %w", err)
 		}
@@ -386,15 +371,12 @@ func (r *eventEngineRepository) BulkCreateEvent(ctx context.Context, opts *repos
 		var returnString string
 
 		for _, e := range events {
-
 			for _, cb := range r.callbacks {
 				cb.Do(r.l, opts.TenantId, e)
 			}
-
 		}
 
 		if len(events) > 0 {
-
 			returnString = sqlchelpers.UUIDToStr(events[0].ID)
 		}
 
@@ -402,8 +384,8 @@ func (r *eventEngineRepository) BulkCreateEvent(ctx context.Context, opts *repos
 		return &returnString, &repository.BulkCreateEventResult{Events: events}, nil
 	})
 }
-func (r *eventEngineRepository) BulkCreateEventSharedTenant(ctx context.Context, opts []*repository.CreateEventOpts) ([]*dbsqlc.Event, error) {
 
+func (r *eventEngineRepository) BulkCreateEventSharedTenant(ctx context.Context, opts []*repository.CreateEventOpts) ([]*dbsqlc.Event, error) {
 	// need to do the metering beforehand
 	numberOfResources := len(opts)
 	if numberOfResources < math.MinInt32 || numberOfResources > math.MaxInt32 {
@@ -414,7 +396,6 @@ func (r *eventEngineRepository) BulkCreateEventSharedTenant(ctx context.Context,
 	defer span.End()
 
 	for _, opt := range opts {
-
 		if err := r.v.Validate(opt); err != nil {
 			return nil, err
 		}
@@ -448,7 +429,6 @@ func (r *eventEngineRepository) BulkCreateEventSharedTenant(ctx context.Context,
 
 	// start a transaction
 	tx, err := r.pool.Begin(ctx)
-
 	if err != nil {
 		return nil, err
 	}
@@ -460,7 +440,6 @@ func (r *eventEngineRepository) BulkCreateEventSharedTenant(ctx context.Context,
 		tx,
 		params,
 	)
-
 	if err != nil {
 		return nil, fmt.Errorf("could not create events: %w", err)
 	}
@@ -468,12 +447,10 @@ func (r *eventEngineRepository) BulkCreateEventSharedTenant(ctx context.Context,
 	r.l.Info().Msgf("inserted %d events", insertCount)
 
 	events, err := r.queries.GetInsertedEvents(ctx, tx, ids)
-
 	if err != nil {
 		return nil, fmt.Errorf("could not retrieve inserted events: %w", err)
 	}
 	err = tx.Commit(ctx)
-
 	if err != nil {
 		return nil, fmt.Errorf("could not commit transaction: %w", err)
 	}
@@ -490,7 +467,6 @@ func (r *eventEngineRepository) BulkCreateEventSharedTenant(ctx context.Context,
 
 	// TODO is this return string important?
 	return events, nil
-
 }
 
 func (r *eventEngineRepository) ListEventsByIds(ctx context.Context, tenantId string, ids []string) ([]*dbsqlc.Event, error) {
@@ -516,7 +492,6 @@ func (r *eventEngineRepository) SoftDeleteExpiredEvents(ctx context.Context, ten
 		Createdbefore: sqlchelpers.TimestampFromTime(before),
 		Limit:         1000,
 	})
-
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return false, nil
@@ -533,7 +508,6 @@ func (r *eventEngineRepository) ClearEventPayloadData(ctx context.Context, tenan
 		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
 		Limit:    1000,
 	})
-
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return false, nil

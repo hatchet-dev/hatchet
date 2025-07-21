@@ -249,7 +249,6 @@ func (store *UserSessionStore) save(ctx context.Context, session *sessions.Sessi
 	}
 
 	jsonBytes, err := json.Marshal(jsonData)
-
 	if err != nil {
 		return err
 	}
@@ -289,7 +288,6 @@ func (store *UserSessionStore) load(ctx context.Context, session *sessions.Sessi
 
 	if len(res.Data) > 0 {
 		err = json.Unmarshal(res.Data, &data)
-
 		if err != nil {
 			return err
 		}

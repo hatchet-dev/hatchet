@@ -56,7 +56,6 @@ func (u *UserService) UserCreate(ctx echo.Context, request gen.UserCreateRequest
 	}
 
 	hashedPw, err := repository.HashPassword(request.Body.Password)
-
 	if err != nil {
 		return nil, err
 	}
@@ -79,7 +78,6 @@ func (u *UserService) UserCreate(ctx echo.Context, request gen.UserCreateRequest
 	}
 
 	err = authn.NewSessionHelpers(u.config).SaveAuthenticated(ctx, user)
-
 	if err != nil {
 		return nil, err
 	}

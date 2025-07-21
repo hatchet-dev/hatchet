@@ -39,7 +39,6 @@ func (d *leaseRepository) AcquireOrExtendLeases(ctx context.Context, tenantId pg
 	}
 
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, d.pool, d.l, 5000)
-
 	if err != nil {
 		return nil, err
 	}
@@ -51,7 +50,6 @@ func (d *leaseRepository) AcquireOrExtendLeases(ctx context.Context, tenantId pg
 		Resourceids: resourceIds,
 		Tenantid:    tenantId,
 	})
-
 	if err != nil {
 		return nil, err
 	}
@@ -62,7 +60,6 @@ func (d *leaseRepository) AcquireOrExtendLeases(ctx context.Context, tenantId pg
 		Tenantid:         tenantId,
 		Existingleaseids: leaseIds,
 	})
-
 	if err != nil {
 		return nil, err
 	}
@@ -85,7 +82,6 @@ func (d *leaseRepository) ReleaseLeases(ctx context.Context, tenantId pgtype.UUI
 	}
 
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, d.pool, d.l, 5000)
-
 	if err != nil {
 		return err
 	}
@@ -93,7 +89,6 @@ func (d *leaseRepository) ReleaseLeases(ctx context.Context, tenantId pgtype.UUI
 	defer rollback()
 
 	_, err = d.queries.ReleaseLeases(ctx, tx, leaseIds)
-
 	if err != nil {
 		return err
 	}
@@ -117,7 +112,6 @@ func (d *leaseRepository) ListActiveWorkers(ctx context.Context, tenantId pgtype
 	defer span.End()
 
 	activeWorkers, err := d.queries.ListActiveWorkers(ctx, d.pool, tenantId)
-
 	if err != nil {
 		return nil, err
 	}

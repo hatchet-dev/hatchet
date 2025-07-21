@@ -28,7 +28,6 @@ func (u *UserService) UserUpdateGithubOauthCallback(ctx echo.Context, _ gen.User
 	}
 
 	token, err := u.config.Auth.GithubOAuthConfig.Exchange(context.Background(), ctx.Request().URL.Query().Get("code"))
-
 	if err != nil {
 		return nil, redirect.GetRedirectWithError(ctx, u.config.Logger, err, "Forbidden")
 	}
@@ -38,7 +37,6 @@ func (u *UserService) UserUpdateGithubOauthCallback(ctx echo.Context, _ gen.User
 	}
 
 	user, err := u.upsertGithubUserFromToken(ctx.Request().Context(), u.config, token)
-
 	if err != nil {
 		if errors.Is(err, ErrNotInRestrictedDomain) {
 			return nil, redirect.GetRedirectWithError(ctx, u.config.Logger, err, "Email is not in the restricted domain group.")
@@ -56,7 +54,6 @@ func (u *UserService) UserUpdateGithubOauthCallback(ctx echo.Context, _ gen.User
 	}
 
 	err = authn.NewSessionHelpers(u.config).SaveAuthenticated(ctx, user)
-
 	if err != nil {
 		return nil, redirect.GetRedirectWithError(ctx, u.config.Logger, err, "Internal error.")
 	}
@@ -70,7 +67,6 @@ func (u *UserService) UserUpdateGithubOauthCallback(ctx echo.Context, _ gen.User
 
 func (u *UserService) upsertGithubUserFromToken(ctx context.Context, config *server.ServerConfig, tok *oauth2.Token) (*dbsqlc.User, error) {
 	gInfo, err := u.getGithubEmailFromToken(tok)
-
 	if err != nil {
 		return nil, err
 	}
@@ -83,13 +79,11 @@ func (u *UserService) upsertGithubUserFromToken(ctx context.Context, config *ser
 
 	// use the encryption service to encrypt the access and refresh token
 	accessTokenEncrypted, err := config.Encryption.Encrypt([]byte(tok.AccessToken), "github_access_token")
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to encrypt access token: %s", err.Error())
 	}
 
 	refreshTokenEncrypted, err := config.Encryption.Encrypt([]byte(tok.RefreshToken), "github_refresh_token")
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to encrypt refresh token: %s", err.Error())
 	}
@@ -111,7 +105,6 @@ func (u *UserService) upsertGithubUserFromToken(ctx context.Context, config *ser
 			Name:          repository.StringPtr(gInfo.Name),
 			OAuth:         oauthOpts,
 		})
-
 		if err != nil {
 			return nil, fmt.Errorf("failed to update user: %s", err.Error())
 		}
@@ -122,7 +115,6 @@ func (u *UserService) upsertGithubUserFromToken(ctx context.Context, config *ser
 			Name:          repository.StringPtr(gInfo.Name),
 			OAuth:         oauthOpts,
 		})
-
 		if err != nil {
 			return nil, fmt.Errorf("failed to create user: %s", err.Error())
 		}
@@ -133,8 +125,10 @@ func (u *UserService) upsertGithubUserFromToken(ctx context.Context, config *ser
 	return user, nil
 }
 
-var ErrGithubNotVerified = fmt.Errorf("Please verify your email on Github")
-var ErrGithubNoEmail = fmt.Errorf("Github user must have an email")
+var (
+	ErrGithubNotVerified = fmt.Errorf("Please verify your email on Github")
+	ErrGithubNoEmail     = fmt.Errorf("Github user must have an email")
+)
 
 type githubInfo struct {
 	Email         string
@@ -147,13 +141,11 @@ func (u *UserService) getGithubEmailFromToken(tok *oauth2.Token) (*githubInfo, e
 	client := githubsdk.NewClient(u.config.Auth.GithubOAuthConfig.Client(context.Background(), tok))
 
 	user, _, err := client.Users.Get(context.Background(), "")
-
 	if err != nil {
 		return nil, err
 	}
 
 	emails, _, err := client.Users.ListEmails(context.Background(), &githubsdk.ListOptions{})
-
 	if err != nil {
 		return nil, err
 	}

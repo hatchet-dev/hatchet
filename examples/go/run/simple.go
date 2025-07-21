@@ -17,7 +17,6 @@ func simple() {
 	}
 
 	hatchet, err := v1.NewHatchetClient()
-
 	if err != nil {
 		panic(err)
 	}
@@ -28,7 +27,6 @@ func simple() {
 	result, err := simple.Run(ctx, v1_workflows.SimpleInput{
 		Message: "Hello, World!",
 	})
-
 	if err != nil {
 		panic(err)
 	}
@@ -49,7 +47,6 @@ func simple() {
 		result, err := simple.Run(ctx, v1_workflows.SimpleInput{
 			Message: "Hello, World!",
 		})
-
 		if err != nil {
 			errsMutex.Lock()
 			errs = append(errs, err)
@@ -67,7 +64,6 @@ func simple() {
 		result, err := simple.Run(ctx, v1_workflows.SimpleInput{
 			Message: "Hello, Moon!",
 		})
-
 		if err != nil {
 			errsMutex.Lock()
 			errs = append(errs, err)
@@ -87,7 +83,6 @@ func simple() {
 	runRef, err := simple.RunNoWait(ctx, v1_workflows.SimpleInput{
 		Message: "Hello, World!",
 	})
-
 	if err != nil {
 		panic(err)
 	}
@@ -100,7 +95,6 @@ func simple() {
 	// > Subscribing to results
 	// finally, we can wait for the task to complete and get the result
 	finalResult, err := runRef.Result()
-
 	if err != nil {
 		panic(err)
 	}

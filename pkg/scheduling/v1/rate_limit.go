@@ -72,7 +72,6 @@ func (r *rateLimiter) loopFlush(ctx context.Context) {
 			return
 		case <-ticker.C:
 			err := r.flushToDatabase(ctx)
-
 			if err != nil {
 				r.l.Error().Err(err).Msg("error flushing rate limits to database")
 			}
@@ -100,7 +99,6 @@ func (r *rateLimiter) use(ctx context.Context, taskId int64, rls map[string]int3
 	// if we don't have all rate limits in memory, check the database to determine if it exists
 	if !r.rateLimitsExist(rls) {
 		err := r.flushToDatabase(ctx)
-
 		if err != nil {
 			r.l.Error().Err(err).Msg("error flushing rate limits to database")
 			return res
@@ -111,7 +109,6 @@ func (r *rateLimiter) use(ctx context.Context, taskId int64, rls map[string]int3
 		}
 	} else if r.shouldRefill() {
 		err := r.flushToDatabase(ctx)
-
 		if err != nil {
 			r.l.Error().Err(err).Msg("error flushing rate limits to database")
 			return res
@@ -285,7 +282,6 @@ func (r *rateLimiter) flushToDatabase(ctx context.Context) error {
 	}
 
 	newRateLimits, nextRefillAt, err := r.rateLimitRepo.UpdateRateLimits(ctx, r.tenantId, updates)
-
 	if err != nil {
 		return err
 	}

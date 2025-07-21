@@ -258,7 +258,6 @@ func NewOLAPRepositoryFromPool(pool *pgxpool.Pool, l *zerolog.Logger, olapRetent
 
 func newOLAPRepository(shared *sharedRepository, olapRetentionPeriod time.Duration, shouldPartitionEventsTables bool) OLAPRepository {
 	eventCache, err := lru.New[string, bool](100000)
-
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -284,7 +283,6 @@ func (o *OLAPRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 		},
 		Partitions: NUM_PARTITIONS,
 	})
-
 	if err != nil {
 		return err
 	}
@@ -294,7 +292,6 @@ func (o *OLAPRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 			Time:  today,
 			Valid: true,
 		})
-
 		if err != nil {
 			return err
 		}
@@ -307,7 +304,6 @@ func (o *OLAPRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 		},
 		Partitions: NUM_PARTITIONS,
 	})
-
 	if err != nil {
 		return err
 	}
@@ -317,7 +313,6 @@ func (o *OLAPRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 			Time:  tomorrow,
 			Valid: true,
 		})
-
 		if err != nil {
 			return err
 		}
@@ -332,7 +327,6 @@ func (o *OLAPRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 	}
 
 	partitions, err := o.queries.ListOLAPPartitionsBeforeDate(ctx, o.pool, params)
-
 	if err != nil {
 		return err
 	}
@@ -348,7 +342,6 @@ func (o *OLAPRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 			ctx,
 			fmt.Sprintf("ALTER TABLE %s DETACH PARTITION %s CONCURRENTLY", partition.ParentTable, partition.PartitionName),
 		)
-
 		if err != nil {
 			return err
 		}
@@ -357,7 +350,6 @@ func (o *OLAPRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 			ctx,
 			fmt.Sprintf("DROP TABLE %s", partition.PartitionName),
 		)
-
 		if err != nil {
 			return err
 		}
@@ -389,7 +381,6 @@ func StringToReadableStatus(status string) ReadableTaskStatus {
 
 func (r *OLAPRepositoryImpl) ReadTaskRun(ctx context.Context, taskExternalId string) (*sqlcv1.V1TasksOlap, error) {
 	row, err := r.queries.ReadTaskByExternalID(ctx, r.readPool, sqlchelpers.UUIDFromStr(taskExternalId))
-
 	if err != nil {
 		return nil, err
 	}
@@ -440,13 +431,11 @@ func ParseTaskMetadata(jsonData []byte) ([]TaskMetadata, error) {
 
 func (r *OLAPRepositoryImpl) ReadWorkflowRun(ctx context.Context, workflowRunExternalId pgtype.UUID) (*V1WorkflowRunPopulator, error) {
 	row, err := r.queries.ReadWorkflowRunByExternalId(ctx, r.readPool, workflowRunExternalId)
-
 	if err != nil {
 		return nil, err
 	}
 
 	taskMetadata, err := ParseTaskMetadata(row.TaskMetadata)
-
 	if err != nil {
 		return nil, err
 	}
@@ -487,7 +476,6 @@ func (r *OLAPRepositoryImpl) ReadTaskRunData(ctx context.Context, tenantId pgtyp
 	}
 
 	taskRun, err := r.queries.PopulateSingleTaskRunData(ctx, r.readPool, params)
-
 	if err != nil {
 		return nil, emptyUUID, err
 	}
@@ -502,7 +490,6 @@ func (r *OLAPRepositoryImpl) ReadTaskRunData(ctx context.Context, tenantId pgtyp
 			Dagid:         dagId,
 			Daginsertedat: dagInsertedAt,
 		})
-
 		if err != nil {
 			return nil, emptyUUID, err
 		}
@@ -518,7 +505,6 @@ func (r *OLAPRepositoryImpl) ListTasks(ctx context.Context, tenantId string, opt
 	defer span.End()
 
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.readPool, r.l, 10000)
-
 	if err != nil {
 		return nil, 0, err
 	}
@@ -597,7 +583,6 @@ func (r *OLAPRepositoryImpl) ListTasks(ctx context.Context, tenantId string, opt
 	}
 
 	rows, err := r.queries.ListTasksOlap(ctx, tx, params)
-
 	if err != nil {
 		return nil, 0, err
 	}
@@ -622,7 +607,6 @@ func (r *OLAPRepositoryImpl) ListTasks(ctx context.Context, tenantId string, opt
 	}
 
 	count, err := r.queries.CountTasks(ctx, tx, countParams)
-
 	if err != nil {
 		count = int64(len(tasksWithData))
 	}
@@ -651,7 +635,6 @@ func (r *OLAPRepositoryImpl) ListTasksByDAGId(ctx context.Context, tenantId stri
 		Dagids:   dagids,
 		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
 	})
-
 	if err != nil {
 		return nil, taskIdToDagExternalId, err
 	}
@@ -688,7 +671,6 @@ func (r *OLAPRepositoryImpl) ListTasksByDAGId(ctx context.Context, tenantId stri
 
 func (r *OLAPRepositoryImpl) ListTasksByIdAndInsertedAt(ctx context.Context, tenantId string, taskMetadata []TaskMetadata) ([]*sqlcv1.PopulateTaskRunDataRow, error) {
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.readPool, r.l, 15000)
-
 	if err != nil {
 		return nil, err
 	}
@@ -726,7 +708,6 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId stri
 	defer span.End()
 
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.readPool, r.l, 30000)
-
 	if err != nil {
 		return nil, 0, err
 	}
@@ -801,7 +782,6 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId stri
 	}
 
 	workflowRunIds, err := r.queries.FetchWorkflowRunIds(ctx, tx, params)
-
 	if err != nil {
 		return nil, 0, err
 	}
@@ -859,7 +839,6 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId stri
 	}
 
 	count, err := r.queries.CountWorkflowRuns(ctx, tx, countParams)
-
 	if err != nil {
 		r.l.Error().Msgf("error counting workflow runs: %v", err)
 		count = int64(len(workflowRunIds))
@@ -951,7 +930,6 @@ func (r *OLAPRepositoryImpl) ListTaskRunEvents(ctx context.Context, tenantId str
 		Taskid:         taskId,
 		Taskinsertedat: taskInsertedAt,
 	})
-
 	if err != nil {
 		return nil, err
 	}
@@ -964,7 +942,6 @@ func (r *OLAPRepositoryImpl) ListTaskRunEventsByWorkflowRunId(ctx context.Contex
 		Tenantid:      sqlchelpers.UUIDFromStr(tenantId),
 		Workflowrunid: workflowRunId,
 	})
-
 	if err != nil {
 		return nil, err
 	}
@@ -1084,7 +1061,6 @@ func (r *OLAPRepositoryImpl) writeTaskEventBatch(ctx context.Context, tenantId s
 	}
 
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 5000)
-
 	if err != nil {
 		return err
 	}
@@ -1092,13 +1068,11 @@ func (r *OLAPRepositoryImpl) writeTaskEventBatch(ctx context.Context, tenantId s
 	defer rollback()
 
 	_, err = r.queries.CreateTaskEventsOLAP(ctx, tx, eventsToWrite)
-
 	if err != nil {
 		return err
 	}
 
 	_, err = r.queries.CreateTaskEventsOLAPTmp(ctx, tx, tmpEventsToWrite)
-
 	if err != nil {
 		return err
 	}
@@ -1133,7 +1107,6 @@ func (r *OLAPRepositoryImpl) UpdateTaskStatuses(ctx context.Context, tenantIds [
 
 		eg.Go(func() error {
 			tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 15000)
-
 			if err != nil {
 				return err
 			}
@@ -1145,7 +1118,6 @@ func (r *OLAPRepositoryImpl) UpdateTaskStatuses(ctx context.Context, tenantIds [
 				Tenantids:       tenantIdUUIDs,
 				Eventlimit:      limit,
 			})
-
 			if err != nil {
 				return fmt.Errorf("failed to find min inserted at for task status updates: %w", err)
 			}
@@ -1156,7 +1128,6 @@ func (r *OLAPRepositoryImpl) UpdateTaskStatuses(ctx context.Context, tenantIds [
 				Eventlimit:      limit,
 				Mininsertedat:   minInsertedAt,
 			})
-
 			if err != nil {
 				return err
 			}
@@ -1222,7 +1193,6 @@ func (r *OLAPRepositoryImpl) UpdateDAGStatuses(ctx context.Context, tenantIds []
 
 		eg.Go(func() error {
 			tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 15000)
-
 			if err != nil {
 				return fmt.Errorf("failed to prepare transaction: %w", err)
 			}
@@ -1234,7 +1204,6 @@ func (r *OLAPRepositoryImpl) UpdateDAGStatuses(ctx context.Context, tenantIds []
 				Tenantids:       tenantIdUUIDs,
 				Eventlimit:      limit,
 			})
-
 			if err != nil {
 				return fmt.Errorf("failed to find min inserted at for DAG status updates: %w", err)
 			}
@@ -1245,7 +1214,6 @@ func (r *OLAPRepositoryImpl) UpdateDAGStatuses(ctx context.Context, tenantIds []
 				Eventlimit:      limit,
 				Mininsertedat:   minInsertedAt,
 			})
-
 			if err != nil {
 				return fmt.Errorf("failed to update DAG statuses: %w", err)
 			}
@@ -1339,7 +1307,7 @@ func (r *OLAPRepositoryImpl) writeDAGBatch(ctx context.Context, tenantId string,
 	params := make([]sqlcv1.CreateDAGsOLAPParams, 0)
 
 	for _, dag := range dags {
-		var parentTaskExternalID = pgtype.UUID{}
+		parentTaskExternalID := pgtype.UUID{}
 		if dag.ParentTaskExternalID != nil {
 			parentTaskExternalID = *dag.ParentTaskExternalID
 		}
@@ -1396,7 +1364,6 @@ func (r *OLAPRepositoryImpl) GetTaskPointMetrics(ctx context.Context, tenantId s
 		Createdafter:  sqlchelpers.TimestamptzFromTime(*startTimestamp),
 		Createdbefore: sqlchelpers.TimestamptzFromTime(*endTimestamp),
 	})
-
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return []*sqlcv1.GetTaskPointMetricsRow{}, nil
@@ -1456,7 +1423,6 @@ func (r *OLAPRepositoryImpl) GetTaskTimings(ctx context.Context, tenantId string
 		Externalids: []pgtype.UUID{workflowRunId},
 		Tenantid:    sqlchelpers.UUIDFromStr(tenantId),
 	})
-
 	if err != nil {
 		return nil, nil, err
 	}
@@ -1482,7 +1448,6 @@ func (r *OLAPRepositoryImpl) GetTaskTimings(ctx context.Context, tenantId string
 		Depth:           depth,
 		Createdafter:    sqlchelpers.TimestamptzFromTime(minInsertedAt),
 	})
-
 	if err != nil {
 		return nil, nil, err
 	}
@@ -1523,7 +1488,6 @@ type EventTriggersFromExternalId struct {
 
 func (r *OLAPRepositoryImpl) BulkCreateEventsAndTriggers(ctx context.Context, events sqlcv1.BulkCreateEventsParams, triggers []EventTriggersFromExternalId) error {
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 5000)
-
 	if err != nil {
 		return fmt.Errorf("error beginning transaction: %v", err)
 	}
@@ -1531,7 +1495,6 @@ func (r *OLAPRepositoryImpl) BulkCreateEventsAndTriggers(ctx context.Context, ev
 	defer rollback()
 
 	insertedEvents, err := r.queries.BulkCreateEvents(ctx, tx, events)
-
 	if err != nil {
 		return fmt.Errorf("error creating events: %v", err)
 	}
@@ -1561,7 +1524,6 @@ func (r *OLAPRepositoryImpl) BulkCreateEventsAndTriggers(ctx context.Context, ev
 	}
 
 	_, err = r.queries.BulkCreateEventTriggers(ctx, tx, bulkCreateTriggersParams)
-
 	if err != nil {
 		return fmt.Errorf("error creating event triggers: %v", err)
 	}
@@ -1592,7 +1554,6 @@ type ListEventsRow struct {
 
 func (r *OLAPRepositoryImpl) ListEvents(ctx context.Context, opts sqlcv1.ListEventsParams) ([]*ListEventsRow, *int64, error) {
 	events, err := r.queries.ListEvents(ctx, r.readPool, opts)
-
 	if err != nil {
 		return nil, nil, err
 	}
@@ -1608,7 +1569,6 @@ func (r *OLAPRepositoryImpl) ListEvents(ctx context.Context, opts sqlcv1.ListEve
 		Statuses:           opts.Statuses,
 		Scopes:             opts.Scopes,
 	})
-
 	if err != nil {
 		return nil, nil, err
 	}
@@ -1623,7 +1583,6 @@ func (r *OLAPRepositoryImpl) ListEvents(ctx context.Context, opts sqlcv1.ListEve
 		Eventexternalids: eventExternalIds,
 		Tenantid:         opts.Tenantid,
 	})
-
 	if err != nil {
 		return nil, nil, fmt.Errorf("error populating event data: %v", err)
 	}
@@ -1682,7 +1641,6 @@ func (r *OLAPRepositoryImpl) ListEvents(ctx context.Context, opts sqlcv1.ListEve
 
 func (r *OLAPRepositoryImpl) ListEventKeys(ctx context.Context, tenantId string) ([]string, error) {
 	keys, err := r.queries.ListEventKeys(ctx, r.pool, sqlchelpers.UUIDFromStr(tenantId))
-
 	if err != nil {
 		return nil, err
 	}

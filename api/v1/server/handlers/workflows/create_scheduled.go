@@ -16,7 +16,6 @@ func (t *WorkflowService) ScheduledWorkflowRunCreate(ctx echo.Context, request g
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
 	workflow, err := t.config.EngineRepository.Workflow().GetWorkflowByName(ctx.Request().Context(), tenantId, request.Workflow)
-
 	if err != nil {
 		return gen.ScheduledWorkflowRunCreate400JSONResponse(apierrors.NewAPIErrors("workflow not found")), nil
 	}
@@ -34,7 +33,6 @@ func (t *WorkflowService) ScheduledWorkflowRunCreate(ctx echo.Context, request g
 		WorkflowId:         sqlchelpers.UUIDToStr(workflow.ID),
 		Priority:           &priority,
 	})
-
 	if err != nil {
 		return gen.ScheduledWorkflowRunCreate400JSONResponse(
 			apierrors.NewAPIErrors(err.Error()),

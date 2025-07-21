@@ -28,7 +28,6 @@ func (s *sharedRepository) newTaskInputFromExistingBytes(inputBytes []byte) *Tas
 	i := &TaskInput{}
 
 	err := json.Unmarshal(inputBytes, i)
-
 	if err != nil {
 		s.l.Error().Err(err).Msg("failed to unmarshal input bytes")
 	}
@@ -41,7 +40,6 @@ func (s *sharedRepository) newTaskInput(inputBytes []byte, triggerData *MatchDat
 
 	if len(inputBytes) > 0 {
 		err := json.Unmarshal(inputBytes, &input)
-
 		if err != nil {
 			s.l.Error().Err(err).Msg("failed to unmarshal input bytes")
 		}
@@ -68,7 +66,6 @@ func (t *TaskInput) Bytes() []byte {
 	}
 
 	out, err := json.Marshal(t)
-
 	if err != nil {
 		return nil
 	}
@@ -94,7 +91,6 @@ func (s *sharedRepository) ToV1StepRunData(t *TaskInput) *V1StepRunData {
 				dataMap := make(map[string]interface{})
 
 				err := json.Unmarshal(data.Output, &dataMap)
-
 				if err != nil {
 					s.l.Warn().Err(err).Msg("failed to unmarshal output")
 				}
@@ -142,7 +138,6 @@ type V1StepRunData struct {
 
 func (v1 *V1StepRunData) Bytes() []byte {
 	out, err := json.Marshal(v1)
-
 	if err != nil {
 		return []byte("{}")
 	}

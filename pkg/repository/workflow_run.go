@@ -97,7 +97,6 @@ func WithParent(
 		for k, v := range additionalMetadata {
 			opts.AdditionalMetadata[k] = v
 		}
-
 	}
 }
 
@@ -489,9 +488,7 @@ type WorkflowRunAPIRepository interface {
 	GetWorkflowRunShape(ctx context.Context, workflowVersionId uuid.UUID) ([]*dbsqlc.GetWorkflowRunShapeRow, error)
 }
 
-var (
-	ErrWorkflowRunNotFound = fmt.Errorf("workflow run not found")
-)
+var ErrWorkflowRunNotFound = fmt.Errorf("workflow run not found")
 
 type ErrDedupeValueExists struct {
 	DedupeValue string

@@ -89,7 +89,6 @@ func (t *tenantLimitRepository) DefaultLimits() []repository.Limit {
 }
 
 func (t *tenantLimitRepository) planLimitMap(plan *string) []repository.Limit {
-
 	if t.plans == nil || plan == nil {
 		return t.DefaultLimits()
 	}
@@ -103,7 +102,6 @@ func (t *tenantLimitRepository) planLimitMap(plan *string) []repository.Limit {
 }
 
 func (t *tenantLimitRepository) SelectOrInsertTenantLimits(ctx context.Context, tenantId string, plan *string) error {
-
 	planLimits := t.planLimitMap(plan)
 
 	for _, limits := range planLimits {
@@ -130,7 +128,6 @@ func (t *tenantLimitRepository) UpsertTenantLimits(ctx context.Context, tenantId
 }
 
 func (t *tenantLimitRepository) patchTenantResourceLimit(ctx context.Context, tenantId string, limits repository.Limit, upsert bool) error {
-
 	limit := pgtype.Int4{}
 
 	if limits.Limit >= 0 {
@@ -195,7 +192,6 @@ func (t *tenantLimitRepository) GetLimits(ctx context.Context, tenantId string) 
 	}
 
 	limits, err := t.queries.ListTenantResourceLimits(ctx, t.pool, sqlchelpers.UUIDFromStr(tenantId))
-
 	if err != nil {
 		return nil, err
 	}
@@ -225,7 +221,6 @@ func (t *tenantLimitRepository) GetLimits(ctx context.Context, tenantId string) 
 }
 
 func (t *tenantLimitRepository) CanCreate(ctx context.Context, resource dbsqlc.LimitResource, tenantId string, numberOfResources int32) (bool, int, error) {
-
 	if !t.config.EnforceLimits {
 		return true, 0, nil
 	}
@@ -242,7 +237,6 @@ func (t *tenantLimitRepository) CanCreate(ctx context.Context, resource dbsqlc.L
 		t.l.Warn().Msgf("no %s tenant limit found, creating default limit", string(resource))
 
 		err = t.SelectOrInsertTenantLimits(ctx, tenantId, nil)
-
 		if err != nil {
 			return false, 0, err
 		}
@@ -252,7 +246,7 @@ func (t *tenantLimitRepository) CanCreate(ctx context.Context, resource dbsqlc.L
 		return false, 0, err
 	}
 
-	var value = limit.Value
+	value := limit.Value
 
 	// patch custom worker limits aggregate methods
 	if resource == dbsqlc.LimitResourceWORKER {
@@ -291,7 +285,6 @@ func (t *tenantLimitRepository) Meter(ctx context.Context, resource dbsqlc.Limit
 		},
 		Numresources: numberOfResources,
 	})
-
 	if err != nil {
 		return nil, err
 	}

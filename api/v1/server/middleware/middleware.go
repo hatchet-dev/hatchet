@@ -84,7 +84,6 @@ type MiddlewareHandler struct {
 
 func NewMiddlewareHandler(swagger *openapi3.T) (*MiddlewareHandler, error) {
 	cache, err := lru.New[string, *RouteInfo](1000)
-
 	if err != nil {
 		return nil, err
 	}
@@ -101,9 +100,7 @@ func (m *MiddlewareHandler) Use(mw MiddlewareFunc) {
 }
 
 func (m *MiddlewareHandler) Middleware() (echo.MiddlewareFunc, error) {
-
 	router, err := gorillamux.NewRouter(m.swagger)
-
 	if err != nil {
 		return nil, err
 	}
@@ -118,7 +115,6 @@ func (m *MiddlewareHandler) Middleware() (echo.MiddlewareFunc, error) {
 			// check the cache for a match, otherwise parse the openapi spec
 			if routeInfo, ok = m.cache.Get(getCacheKey(req)); !ok {
 				route, _, err := router.FindRoute(req)
-
 				// We failed to find a matching route for the request.
 				if err != nil {
 					switch e := err.(type) {

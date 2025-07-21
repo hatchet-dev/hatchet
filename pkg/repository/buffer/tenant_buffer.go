@@ -49,10 +49,8 @@ type TenantBufManagerOpts[T any, U any] struct {
 
 // Create a new TenantBufferManager with generic types T for input and U for output
 func NewTenantBufManager[T any, U any](opts TenantBufManagerOpts[T, U]) (*TenantBufferManager[T, U], error) {
-
 	v := opts.V
 	err := v.Validate(opts)
-
 	if err != nil {
 		return nil, err
 	}
@@ -111,7 +109,6 @@ func (t *TenantBufferManager[T, U]) createTenantBuf(
 	tenantKey string,
 	opts IngestBufOpts[T, U],
 ) (*IngestBuf[T, U], error) {
-
 	err := t.v.Validate(opts)
 	if err != nil {
 		return nil, err
@@ -158,7 +155,6 @@ func (t *TenantBufferManager[T, U]) getOrCreateTenantBuf(
 	tenantBufKey string,
 	opts IngestBufOpts[T, U],
 ) (*IngestBuf[T, U], error) {
-
 	tlock, _ := t.tenantLock.LoadOrStore(tenantBufKey, &sync.Mutex{})
 	tlock.(*sync.Mutex).Lock()
 	defer tlock.(*sync.Mutex).Unlock()

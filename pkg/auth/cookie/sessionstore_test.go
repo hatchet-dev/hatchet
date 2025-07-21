@@ -44,7 +44,6 @@ func TestSessionStoreGet(t *testing.T) {
 		httpCookie, _ := generateHTTPCookie(t, ss, cookieName)
 
 		req, err := http.NewRequest("GET", "http://www.example.com", nil)
-
 		if err != nil {
 			t.Fatal(err.Error())
 		}
@@ -52,7 +51,6 @@ func TestSessionStoreGet(t *testing.T) {
 		req.AddCookie(httpCookie)
 
 		sess, err := ss.Get(req, cookieName)
-
 		if err != nil {
 			t.Fatal(err.Error())
 		}
@@ -66,13 +64,11 @@ func TestSessionStoreGet(t *testing.T) {
 
 func newSessionStore(t *testing.T, conf *database.Layer, cookieName string) *cookie.UserSessionStore {
 	hashKey, err := random.Generate(16)
-
 	if err != nil {
 		t.Fatalf("%s", err.Error())
 	}
 
 	blockKey, err := random.Generate(16)
-
 	if err != nil {
 		t.Fatalf("%s", err.Error())
 	}
@@ -84,7 +80,6 @@ func newSessionStore(t *testing.T, conf *database.Layer, cookieName string) *coo
 		cookie.WithCookieAllowInsecure(false),
 		cookie.WithSessionRepository(conf.APIRepository.UserSession()),
 	)
-
 	if err != nil {
 		t.Fatalf("%s", err.Error())
 	}
@@ -95,13 +90,11 @@ func newSessionStore(t *testing.T, conf *database.Layer, cookieName string) *coo
 func generateHTTPCookie(t *testing.T, ss *cookie.UserSessionStore, cookieName string) (*http.Cookie, string) {
 	// construct a new mock request for the domain
 	req, err := http.NewRequest("GET", "https://hatchet.run", nil)
-
 	if err != nil {
 		t.Fatal("failed to create request", err)
 	}
 
 	session, err := ss.Get(req, cookieName)
-
 	if err != nil {
 		t.Fatal("failed to get session", err.Error())
 	}

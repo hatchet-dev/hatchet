@@ -1,6 +1,7 @@
 package v1
 
 import (
+	"context"
 	"crypto/tls"
 	"errors"
 	"net"
@@ -15,8 +16,6 @@ import (
 
 	admincontracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
-
-	"context"
 )
 
 type GRPCClient struct {
@@ -76,7 +75,6 @@ func validateOpts(opts *clientOpts) error {
 	}
 
 	_, _, err := net.SplitHostPort(opts.hostPort)
-
 	if err != nil {
 		return err
 	}
@@ -92,7 +90,6 @@ func NewGRPCClient(fs ...GRPCClientOpt) (*GRPCClient, error) {
 	}
 
 	err := validateOpts(opts)
-
 	if err != nil {
 		return nil, err
 	}
@@ -124,7 +121,6 @@ func NewGRPCClient(fs ...GRPCClientOpt) (*GRPCClient, error) {
 		opts.hostPort,
 		grpcOpts...,
 	)
-
 	if err != nil {
 		return nil, err
 	}

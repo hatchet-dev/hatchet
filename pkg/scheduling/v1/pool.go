@@ -78,7 +78,6 @@ func (p *SchedulingPool) cleanup() {
 	p.cleanupTenants(toCleanup)
 
 	err := p.Extensions.Cleanup()
-
 	if err != nil {
 		p.cf.l.Error().Err(err).Msg("failed to cleanup extensions")
 	}
@@ -137,7 +136,6 @@ func (p *SchedulingPool) cleanupTenants(toCleanup []*tenantManager) {
 			defer wg.Done()
 
 			err := tm.Cleanup()
-
 			if err != nil {
 				p.cf.l.Error().Err(err).Msgf("failed to cleanup tenant manager for tenant %s", sqlchelpers.UUIDToStr(tm.tenantId))
 			}

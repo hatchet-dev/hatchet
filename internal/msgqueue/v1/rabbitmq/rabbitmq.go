@@ -20,9 +20,11 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/random"
 )
 
-const MAX_RETRY_COUNT = 15
-const RETRY_INTERVAL = 2 * time.Second
-const RETRY_RESET_INTERVAL = 30 * time.Second
+const (
+	MAX_RETRY_COUNT      = 15
+	RETRY_INTERVAL       = 2 * time.Second
+	RETRY_RESET_INTERVAL = 30 * time.Second
+)
 
 // MessageQueueImpl implements MessageQueue interface using AMQP.
 type MessageQueueImpl struct {
@@ -112,7 +114,6 @@ func New(fs ...MessageQueueImplOpt) (func() error, *MessageQueueImpl) {
 	opts.l = &newLogger
 
 	channelPool, err := newChannelPool(ctx, opts.l, opts.url)
-
 	if err != nil {
 		cancel()
 		return nil, nil
@@ -134,7 +135,6 @@ func New(fs ...MessageQueueImplOpt) (func() error, *MessageQueueImpl) {
 
 	// init the queues in a blocking fashion
 	poolCh, err := channelPool.Acquire(ctx)
-
 	if err != nil {
 		t.l.Error().Msgf("cannot acquire channel: %v", err)
 		cancel()
@@ -184,7 +184,6 @@ func (t *MessageQueueImpl) pubMessage(ctx context.Context, q msgqueue.Queue, msg
 	msg.SetOtelCarrier(otelCarrier)
 
 	poolCh, err := t.channels.Acquire(ctx)
-
 	if err != nil {
 		t.l.Error().Msgf("cannot acquire channel: %v", err)
 		return err
@@ -200,7 +199,6 @@ func (t *MessageQueueImpl) pubMessage(ctx context.Context, q msgqueue.Queue, msg
 	defer poolCh.Release()
 
 	body, err := json.Marshal(msg)
-
 	if err != nil {
 		t.l.Error().Msgf("error marshaling msg queue: %v", err)
 		return err
@@ -224,7 +222,6 @@ func (t *MessageQueueImpl) pubMessage(ctx context.Context, q msgqueue.Queue, msg
 	}
 
 	err = pub.PublishWithContext(ctx, "", q.Name(), false, false, pubMsg)
-
 	// retry failed delivery on the next session
 	if err != nil {
 		return err
@@ -236,7 +233,6 @@ func (t *MessageQueueImpl) pubMessage(ctx context.Context, q msgqueue.Queue, msg
 		if _, ok := t.tenantIdCache.Get(msg.TenantID); !ok {
 			// register the tenant exchange
 			err = t.RegisterTenant(ctx, msg.TenantID)
-
 			if err != nil {
 				t.l.Error().Msgf("error registering tenant exchange: %v", err)
 				return err
@@ -248,7 +244,6 @@ func (t *MessageQueueImpl) pubMessage(ctx context.Context, q msgqueue.Queue, msg
 		err = pub.PublishWithContext(ctx, msgqueue.GetTenantExchangeName(msg.TenantID), "", false, false, amqp.Publishing{
 			Body: body,
 		})
-
 		if err != nil {
 			t.l.Error().Msgf("error publishing tenant msg: %v", err)
 			return err
@@ -271,7 +266,6 @@ func (t *MessageQueueImpl) Subscribe(
 	t.l.Debug().Msgf("subscribing to queue: %s", q.Name())
 
 	cleanupSub, err := t.subscribe(ctx, t.identity, q, preAck, postAck)
-
 	if err != nil {
 		cancel()
 		return nil, err
@@ -279,7 +273,6 @@ func (t *MessageQueueImpl) Subscribe(
 
 	if q.DLQ() != nil {
 		cleanupSubDLQ, err := t.subscribe(ctx, t.identity, q.DLQ(), preAck, postAck)
-
 		if err != nil {
 			cancel()
 			return nil, err
@@ -316,7 +309,6 @@ func (t *MessageQueueImpl) Subscribe(
 func (t *MessageQueueImpl) RegisterTenant(ctx context.Context, tenantId string) error {
 	// create a new fanout exchange for the tenant
 	poolCh, err := t.channels.Acquire(ctx)
-
 	if err != nil {
 		t.l.Error().Msgf("cannot acquire channel: %v", err)
 		return err
@@ -344,7 +336,6 @@ func (t *MessageQueueImpl) RegisterTenant(ctx context.Context, tenantId string) 
 		false, // no-wait
 		nil,   // arguments
 	)
-
 	if err != nil {
 		t.l.Error().Msgf("cannot declare exchange: %q, %v", tenantId, err)
 		return err
@@ -366,7 +357,6 @@ func (t *MessageQueueImpl) initQueue(ch *amqp.Channel, q msgqueue.Queue) (string
 
 	if q.FanoutExchangeKey() != "" {
 		suffix, err := random.Generate(8)
-
 		if err != nil {
 			t.l.Error().Msgf("error generating random bytes: %v", err)
 			return "", err
@@ -426,7 +416,6 @@ func (t *MessageQueueImpl) initQueue(ch *amqp.Channel, q msgqueue.Queue) (string
 // deleteQueue is a helper function for removing durable queues which are used for tests.
 func (t *MessageQueueImpl) deleteQueue(q msgqueue.Queue) error {
 	poolCh, err := t.channels.Acquire(context.Background())
-
 	if err != nil {
 		t.l.Error().Msgf("cannot acquire channel for deleting queue: %v", err)
 		return err
@@ -442,7 +431,6 @@ func (t *MessageQueueImpl) deleteQueue(q msgqueue.Queue) error {
 	defer poolCh.Release()
 
 	_, err = ch.QueueDelete(q.Name(), true, true, false)
-
 	if err != nil {
 		t.l.Error().Msgf("cannot delete queue: %q, %v", q.Name(), err)
 		return err
@@ -453,14 +441,12 @@ func (t *MessageQueueImpl) deleteQueue(q msgqueue.Queue) error {
 		dlq2 := getProcDLQName(q.DLQ().Name())
 
 		_, err = ch.QueueDelete(dlq1, true, true, false)
-
 		if err != nil {
 			t.l.Error().Msgf("cannot delete dead letter queue: %q, %v", dlq1, err)
 			return err
 		}
 
 		_, err = ch.QueueDelete(dlq2, true, true, false)
-
 		if err != nil {
 			t.l.Error().Msgf("cannot delete dead letter queue: %q, %v", dlq2, err)
 			return err
@@ -484,7 +470,6 @@ func (t *MessageQueueImpl) subscribe(
 
 	if !q.Exclusive() {
 		poolCh, err := t.channels.Acquire(ctx)
-
 		if err != nil {
 			return nil, fmt.Errorf("cannot acquire channel for initializing queue: %v", err)
 		}
@@ -499,7 +484,6 @@ func (t *MessageQueueImpl) subscribe(
 		// we initialize the queue here because exclusive queues are bound to the session/connection. however, it's not clear
 		// if the exclusive queue will be available to the next session.
 		queueName, err = t.initQueue(sub, q)
-
 		if err != nil {
 			poolCh.Release()
 			return nil, fmt.Errorf("error initializing queue: %v", err)
@@ -514,7 +498,6 @@ func (t *MessageQueueImpl) subscribe(
 
 	innerFn := func() error {
 		poolCh, err := t.channels.Acquire(ctx)
-
 		if err != nil {
 			return err
 		}
@@ -532,7 +515,6 @@ func (t *MessageQueueImpl) subscribe(
 		// if the exclusive queue will be available to the next session.
 		if q.Exclusive() {
 			queueName, err = t.initQueue(sub, q)
-
 			if err != nil {
 				return err
 			}
@@ -540,13 +522,11 @@ func (t *MessageQueueImpl) subscribe(
 
 		// We'd like to limit to 1k TPS per engine. The max channels on an instance is 10.
 		err = sub.Qos(t.qos, 0, false)
-
 		if err != nil {
 			return err
 		}
 
 		deliveries, err := sub.ConsumeWithContext(ctx, queueName, subId, false, q.Exclusive(), false, false, nil)
-
 		if err != nil {
 			return err
 		}

@@ -26,7 +26,6 @@ func (t *TenantService) AlertEmailGroupUpdate(ctx echo.Context, request gen.Aler
 	}
 
 	emailGroup, err := t.config.APIRepository.TenantAlertingSettings().UpdateTenantAlertGroup(ctx.Request().Context(), sqlchelpers.UUIDToStr(emailGroup.ID), updateOpts)
-
 	if err != nil {
 		return nil, err
 	}

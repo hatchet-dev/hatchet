@@ -107,7 +107,6 @@ func (l *LeaseManager) sendConcurrencyLeases(concurrencyLeases []*sqlcv1.V1StepC
 
 func (l *LeaseManager) acquireWorkerLeases(ctx context.Context) error {
 	activeWorkers, err := l.lr.ListActiveWorkers(ctx, l.tenantId)
-
 	if err != nil {
 		return err
 	}
@@ -143,7 +142,6 @@ func (l *LeaseManager) acquireWorkerLeases(ctx context.Context) error {
 
 	if len(workerIdsStr) != 0 {
 		workerLeases, err := l.lr.AcquireOrExtendLeases(ctx, l.tenantId, sqlcv1.LeaseKindWORKER, workerIdsStr, leasesToExtend)
-
 		if err != nil {
 			return err
 		}
@@ -168,7 +166,6 @@ func (l *LeaseManager) acquireWorkerLeases(ctx context.Context) error {
 
 func (l *LeaseManager) acquireQueueLeases(ctx context.Context) error {
 	queues, err := l.lr.ListQueues(ctx, l.tenantId)
-
 	if err != nil {
 		return err
 	}
@@ -201,7 +198,6 @@ func (l *LeaseManager) acquireQueueLeases(ctx context.Context) error {
 	if len(queueIdsStr) != 0 {
 
 		queueLeases, err := l.lr.AcquireOrExtendLeases(ctx, l.tenantId, sqlcv1.LeaseKindQUEUE, queueIdsStr, leasesToExtend)
-
 		if err != nil {
 			return err
 		}
@@ -226,7 +222,6 @@ func (l *LeaseManager) acquireQueueLeases(ctx context.Context) error {
 
 func (l *LeaseManager) acquireConcurrencyLeases(ctx context.Context) error {
 	strats, err := l.lr.ListConcurrencyStrategies(ctx, l.tenantId)
-
 	if err != nil {
 		return err
 	}
@@ -263,7 +258,6 @@ func (l *LeaseManager) acquireConcurrencyLeases(ctx context.Context) error {
 	if len(strategyIdsStr) != 0 {
 
 		concurrencyLeases, err := l.lr.AcquireOrExtendLeases(ctx, l.tenantId, sqlcv1.LeaseKindCONCURRENCYSTRATEGY, strategyIdsStr, leasesToExtend)
-
 		if err != nil {
 			return err
 		}

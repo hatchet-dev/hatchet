@@ -27,14 +27,12 @@ func NewAuthN(config *server.ServerConfig) *GRPCAuthN {
 func (a *GRPCAuthN) Middleware(ctx context.Context) (context.Context, error) {
 	forbidden := status.Errorf(codes.Unauthenticated, "invalid auth token")
 	token, err := auth.AuthFromMD(ctx, "bearer")
-
 	if err != nil {
 		a.l.Debug().Err(err).Msgf("error getting bearer token from request: %s", err)
 		return nil, forbidden
 	}
 
 	tenantId, tokenUUID, err := a.config.Auth.JWTManager.ValidateTenantToken(ctx, token)
-
 	if err != nil {
 		a.l.Debug().Err(err).Msgf("error validating tenant token: %s", err)
 
@@ -45,12 +43,10 @@ func (a *GRPCAuthN) Middleware(ctx context.Context) (context.Context, error) {
 
 	// get the tenant id
 	queriedTenant, err := a.config.EngineRepository.Tenant().GetTenantByID(ctx, tenantId)
-
 	if err != nil {
 		a.l.Debug().Err(err).Msgf("error getting tenant by id: %s", err)
 		return nil, forbidden
 	}
 
 	return context.WithValue(ctx, "tenant", queriedTenant), nil
-
 }

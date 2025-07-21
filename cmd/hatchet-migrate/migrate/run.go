@@ -52,21 +52,18 @@ func RunMigrations(ctx context.Context, opts ...RunMigrationsOpt) {
 		var err error
 		if db == nil {
 			db, err = goose.OpenDBWithDriver("postgres", os.Getenv("DATABASE_URL"))
-
 			if err != nil {
 				return retry.RetryableError(fmt.Errorf("failed to open DB: %w", err))
 			}
 		}
 
 		conn, err = db.Conn(ctx)
-
 		if err != nil {
 			return retry.RetryableError(fmt.Errorf("failed to open DB connection: %w", err))
 		}
 
 		return nil
 	})
-
 	if err != nil {
 		log.Fatalf("goose: failed to open DB: %v", err)
 	}
@@ -86,13 +83,11 @@ func RunMigrations(ctx context.Context, opts ...RunMigrationsOpt) {
 	}
 
 	locker, err := lock.NewPostgresSessionLocker()
-
 	if err != nil {
 		log.Fatalf("goose: failed to create locker: %v", err)
 	}
 
 	err = locker.SessionLock(ctx, conn)
-
 	if err != nil {
 		log.Fatalf("goose: failed to lock session: %v", err)
 	}
@@ -119,7 +114,6 @@ func RunMigrations(ctx context.Context, opts ...RunMigrationsOpt) {
 		// Insert a 0 version.
 		insertQuery := InsertVersion("goose_db_version")
 		_, err = conn.ExecContext(ctx, insertQuery, 0, true)
-
 		if err != nil {
 			log.Fatalf("goose: failed to insert baseline migration: %v", err)
 		}
@@ -222,7 +216,6 @@ func RunMigrations(ctx context.Context, opts ...RunMigrationsOpt) {
 	}
 
 	err = locker.SessionUnlock(ctx, conn)
-
 	if err != nil {
 		log.Fatalf("goose: failed to unlock session: %v", err)
 	}
@@ -238,7 +231,6 @@ func RunMigrations(ctx context.Context, opts ...RunMigrationsOpt) {
 	case options.upToPenultimate:
 		// Get the second-to-last migration version.
 		migrations, err := listMigrations()
-
 		if err != nil {
 			log.Fatalf("goose: failed to list migrations: %v", err)
 		}
@@ -251,7 +243,6 @@ func RunMigrations(ctx context.Context, opts ...RunMigrationsOpt) {
 		secondToLastVersion := migrations[len(migrations)-2].Version
 
 		err = goose.UpTo(db, ".", secondToLastVersion)
-
 		if err != nil {
 			log.Fatalf("goose: failed to apply migrations up to penultimate version: %v", err)
 		}

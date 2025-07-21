@@ -18,7 +18,6 @@ func (t *TickerImpl) runPollGetGroupKeyRuns(ctx context.Context) func() {
 		t.l.Debug().Msgf("ticker: polling get group key runs")
 
 		getGroupKeyRuns, err := t.repo.Ticker().PollGetGroupKeyRuns(ctx, t.tickerId)
-
 		if err != nil {
 			t.l.Err(err).Msg("could not poll get group key runs")
 			return
@@ -33,7 +32,6 @@ func (t *TickerImpl) runPollGetGroupKeyRuns(ctx context.Context) func() {
 				msgqueue.WORKFLOW_PROCESSING_QUEUE,
 				taskGetGroupKeyRunTimedOut(tenantId, getGroupKeyRunId),
 			)
-
 			if err != nil {
 				t.l.Err(err).Msg("could not add step run timeout task")
 			}

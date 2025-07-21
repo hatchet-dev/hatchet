@@ -36,7 +36,6 @@ func main() {
 func getConcurrencyKey(ctx worker.HatchetContext) (string, error) {
 	input := &concurrencyLimitEvent{}
 	err := ctx.WorkflowInput(input)
-
 	if err != nil {
 		return "", fmt.Errorf("error getting input: %w", err)
 	}
@@ -46,7 +45,6 @@ func getConcurrencyKey(ctx worker.HatchetContext) (string, error) {
 
 func run(ch <-chan interface{}, events chan<- string) error {
 	c, err := client.New()
-
 	if err != nil {
 		return fmt.Errorf("error creating client: %w", err)
 	}
@@ -73,7 +71,6 @@ func run(ch <-chan interface{}, events chan<- string) error {
 					input := &concurrencyLimitEvent{}
 
 					err = ctx.WorkflowInput(input)
-
 					if err != nil {
 						return nil, fmt.Errorf("error getting input: %w", err)
 					}
@@ -127,7 +124,7 @@ func run(ch <-chan interface{}, events chan<- string) error {
 		case <-interruptCtx.Done(): // context cancelled
 			fmt.Println("interrupted")
 			return
-		case <-time.After(10 * time.Second): //timeout
+		case <-time.After(10 * time.Second): // timeout
 		}
 	}()
 

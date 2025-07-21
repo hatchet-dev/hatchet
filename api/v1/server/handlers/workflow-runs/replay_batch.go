@@ -33,7 +33,6 @@ func (t *WorkflowRunsService) WorkflowRunUpdateReplay(ctx echo.Context, request 
 		Ids:   workflowRunIds,
 		Limit: &limit,
 	})
-
 	if err != nil {
 		return nil, err
 	}
@@ -47,7 +46,6 @@ func (t *WorkflowRunsService) WorkflowRunUpdateReplay(ctx echo.Context, request 
 			msgqueue.WORKFLOW_PROCESSING_QUEUE,
 			tasktypes.WorkflowRunReplayToTask(tenantId, sqlchelpers.UUIDToStr(filteredWorkflowRuns.Rows[i].WorkflowRun.ID)),
 		)
-
 		if err != nil {
 			allErrs = multierror.Append(allErrs, err)
 		}
@@ -64,7 +62,6 @@ func (t *WorkflowRunsService) WorkflowRunUpdateReplay(ctx echo.Context, request 
 		Ids:   workflowRunIds,
 		Limit: &limit,
 	})
-
 	if err != nil {
 		return nil, err
 	}

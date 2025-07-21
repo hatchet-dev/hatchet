@@ -7,9 +7,7 @@ import (
 )
 
 func (t *WorkflowRunsService) WorkflowRunGetInput(ctx echo.Context, request gen.WorkflowRunGetInputRequestObject) (gen.WorkflowRunGetInputResponseObject, error) {
-
 	input, err := t.config.EngineRepository.WorkflowRun().GetWorkflowRunInputData(request.Tenant.String(), request.WorkflowRun.String())
-
 	if err != nil {
 		return nil, err
 	}

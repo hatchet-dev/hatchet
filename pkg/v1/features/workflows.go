@@ -76,7 +76,6 @@ func (w *workflowsClientImpl) Get(ctx context.Context, workflowName string) (*re
 			Name: &workflowName,
 		},
 	)
-
 	if err != nil {
 		return nil, err
 	}
@@ -129,7 +128,6 @@ func (w *workflowsClientImpl) Delete(ctx context.Context, workflowName string) (
 		ctx,
 		workflowId,
 	)
-
 	if err != nil {
 		return nil, err
 	}

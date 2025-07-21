@@ -38,7 +38,6 @@ func getConcurrencyKey(ctx worker.HatchetContext) (string, error) {
 
 func run(ch <-chan interface{}, events chan<- string) error {
 	c, err := client.New()
-
 	if err != nil {
 		return fmt.Errorf("error creating client: %w", err)
 	}
@@ -104,7 +103,6 @@ func run(ch <-chan interface{}, events chan<- string) error {
 			"concurrency-test-event",
 			firstEvent,
 		)
-
 		if err != nil {
 			panic(err)
 		}
@@ -124,7 +122,6 @@ func run(ch <-chan interface{}, events chan<- string) error {
 				Index: 1,
 			},
 		)
-
 		if err != nil {
 			panic(err)
 		}

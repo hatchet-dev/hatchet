@@ -30,7 +30,6 @@ func (t *WorkerService) WorkerUpdate(ctx echo.Context, request gen.WorkerUpdateR
 		sqlchelpers.UUIDToStr(worker.Worker.TenantId),
 		sqlchelpers.UUIDToStr(worker.Worker.ID),
 		update)
-
 	if err != nil {
 		return nil, err
 	}

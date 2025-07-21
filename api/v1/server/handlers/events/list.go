@@ -80,12 +80,10 @@ func (t *EventService) EventList(ctx echo.Context, request gen.EventListRequestO
 				additionalMetadata[splitValue[0]] = splitValue[1]
 			} else {
 				return gen.EventList400JSONResponse(apierrors.NewAPIErrors("Additional metadata filters must be in the format key:value.")), nil
-
 			}
 		}
 
 		additionalMetadataBytes, err := json.Marshal(additionalMetadata)
-
 		if err != nil {
 			return nil, err
 		}
@@ -108,7 +106,6 @@ func (t *EventService) EventList(ctx echo.Context, request gen.EventListRequestO
 	defer cancel()
 
 	listRes, err := t.config.APIRepository.Event().ListEvents(dbCtx, tenantId, listOpts)
-
 	if err != nil {
 		return nil, err
 	}

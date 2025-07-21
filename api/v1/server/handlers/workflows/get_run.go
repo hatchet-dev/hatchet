@@ -17,7 +17,6 @@ func (t *WorkflowService) WorkflowRunGet(ctx echo.Context, request gen.WorkflowR
 		sqlchelpers.UUIDToStr(run.TenantId),
 		sqlchelpers.UUIDToStr(run.ID),
 	)
-
 	if err != nil {
 		return nil, err
 	}
@@ -39,13 +38,11 @@ func (t *WorkflowService) WorkflowRunGet(ctx echo.Context, request gen.WorkflowR
 		ctx.Request().Context(),
 		sqlchelpers.UUIDToStr(run.TenantId),
 		jobIds)
-
 	if err != nil {
 		return nil, err
 	}
 
 	resp, err := transformers.ToWorkflowRun(run, jobs, steps, stepRuns)
-
 	if err != nil {
 		return nil, err
 	}

@@ -19,7 +19,6 @@ func main() {
 	}
 
 	c, err := client.New()
-
 	if err != nil {
 		panic(fmt.Sprintf("error creating client: %v", err))
 	}

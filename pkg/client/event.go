@@ -113,7 +113,6 @@ func (a *eventClientImpl) Push(ctx context.Context, eventKey string, payload int
 	}
 
 	payloadBytes, err := json.Marshal(payload)
-
 	if err != nil {
 		return err
 	}
@@ -130,7 +129,6 @@ func (a *eventClientImpl) Push(ctx context.Context, eventKey string, payload int
 	}
 
 	additionalMetaBytes, err := a.getAdditionalMetaBytes(&opts.additionalMetadata)
-
 	if err != nil {
 		return err
 	}
@@ -142,7 +140,6 @@ func (a *eventClientImpl) Push(ctx context.Context, eventKey string, payload int
 	request.Scope = opts.scope
 
 	_, err = a.client.Push(a.ctx.newContext(ctx), &request)
-
 	if err != nil {
 		return err
 	}
@@ -151,7 +148,6 @@ func (a *eventClientImpl) Push(ctx context.Context, eventKey string, payload int
 }
 
 func (a *eventClientImpl) BulkPush(ctx context.Context, payload []EventWithAdditionalMetadata, options ...BulkPushOpFunc) error {
-
 	request := eventcontracts.BulkPushEventRequest{}
 
 	var events []*eventcontracts.PushEventRequest
@@ -181,7 +177,6 @@ func (a *eventClientImpl) BulkPush(ctx context.Context, payload []EventWithAddit
 	request.Events = events
 
 	_, err := a.client.BulkPush(a.ctx.newContext(ctx), &request)
-
 	if err != nil {
 		return err
 	}
@@ -235,7 +230,6 @@ func (e *eventClientImpl) getAdditionalMetaBytes(opt *map[string]string) ([]byte
 	}
 
 	metadataBytes, err := json.Marshal(additionalMeta)
-
 	if err != nil {
 		return nil, fmt.Errorf("could not marshal additional metadata: %w", err)
 	}

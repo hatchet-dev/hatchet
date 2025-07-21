@@ -62,7 +62,6 @@ func (t *LogService) LogLineList(ctx echo.Context, request gen.LogLineListReques
 	}
 
 	listRes, err := t.config.APIRepository.Log().ListLogLines(tenantId, listOpts)
-
 	if err != nil {
 		return nil, err
 	}

@@ -90,11 +90,13 @@ func StepRunEventSeverityPtr(severity dbsqlc.StepRunEventSeverity) *dbsqlc.StepR
 	return &severity
 }
 
-var ErrNoWorkerAvailable = fmt.Errorf("no worker available")
-var ErrRateLimitExceeded = fmt.Errorf("rate limit exceeded")
-var ErrStepRunIsNotAssigned = fmt.Errorf("step run is not assigned")
-var ErrAlreadyQueued = fmt.Errorf("step run is already queued")
-var ErrAlreadyRunning = fmt.Errorf("step run is already running")
+var (
+	ErrNoWorkerAvailable    = fmt.Errorf("no worker available")
+	ErrRateLimitExceeded    = fmt.Errorf("rate limit exceeded")
+	ErrStepRunIsNotAssigned = fmt.Errorf("step run is not assigned")
+	ErrAlreadyQueued        = fmt.Errorf("step run is already queued")
+	ErrAlreadyRunning       = fmt.Errorf("step run is already running")
+)
 
 type StepRunUpdateInfo struct {
 	WorkflowRunFinalState bool
@@ -136,8 +138,10 @@ type RefreshTimeoutBy struct {
 	IncrementTimeoutBy string `validate:"required,duration"`
 }
 
-var ErrPreflightReplayStepRunNotInFinalState = fmt.Errorf("step run is not in a final state")
-var ErrPreflightReplayChildStepRunNotInFinalState = fmt.Errorf("child step run is not in a final state")
+var (
+	ErrPreflightReplayStepRunNotInFinalState      = fmt.Errorf("step run is not in a final state")
+	ErrPreflightReplayChildStepRunNotInFinalState = fmt.Errorf("child step run is not in a final state")
+)
 
 type StepRunAPIRepository interface {
 	GetStepRunById(stepRunId string) (*GetStepRunFull, error)

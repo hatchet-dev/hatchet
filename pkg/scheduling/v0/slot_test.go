@@ -14,8 +14,10 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
-var stableWorkerId1 = uuid.New().String()
-var stableWorkerId2 = uuid.New().String()
+var (
+	stableWorkerId1 = uuid.New().String()
+	stableWorkerId2 = uuid.New().String()
+)
 
 func TestGetRankedSlots(t *testing.T) {
 	tests := []struct {

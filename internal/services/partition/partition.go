@@ -37,19 +37,16 @@ type Partition struct {
 
 func NewPartition(l *zerolog.Logger, repo repository.TenantEngineRepository) (*Partition, error) {
 	s1, err := gocron.NewScheduler(gocron.WithLocation(time.UTC))
-
 	if err != nil {
 		return nil, err
 	}
 
 	s2, err := gocron.NewScheduler(gocron.WithLocation(time.UTC))
-
 	if err != nil {
 		return nil, err
 	}
 
 	s3, err := gocron.NewScheduler(gocron.WithLocation(time.UTC))
-
 	if err != nil {
 		return nil, err
 	}
@@ -77,19 +74,16 @@ func (p *Partition) GetSchedulerPartitionId() string {
 
 func (p *Partition) Shutdown() error {
 	err := p.controllerCron.Shutdown()
-
 	if err != nil {
 		return fmt.Errorf("could not shutdown controller cron: %w", err)
 	}
 
 	err = p.workerCron.Shutdown()
-
 	if err != nil {
 		return fmt.Errorf("could not shutdown worker cron: %w", err)
 	}
 
 	err = p.schedulerCron.Shutdown()
-
 	if err != nil {
 		return fmt.Errorf("could not shutdown scheduler cron: %w", err)
 	}
@@ -102,7 +96,6 @@ func (p *Partition) Shutdown() error {
 
 func (p *Partition) StartControllerPartition(ctx context.Context) (func() error, error) {
 	partitionId, err := p.repo.CreateControllerPartition(ctx)
-
 	if err != nil {
 		return nil, err
 	}
@@ -112,7 +105,6 @@ func (p *Partition) StartControllerPartition(ctx context.Context) (func() error,
 		defer cancel()
 
 		err = p.repo.DeleteControllerPartition(deleteCtx, p.GetControllerPartitionId())
-
 		if err != nil {
 			return fmt.Errorf("could not delete controller partition: %w", err)
 		}
@@ -129,7 +121,6 @@ func (p *Partition) StartControllerPartition(ctx context.Context) (func() error,
 			p.runControllerPartitionHeartbeat(ctx), // nolint: errcheck
 		),
 	)
-
 	if err != nil {
 		return nil, fmt.Errorf("could not create controller partition heartbeat job: %w", err)
 	}
@@ -145,7 +136,6 @@ func (p *Partition) StartControllerPartition(ctx context.Context) (func() error,
 			},
 		),
 	)
-
 	if err != nil {
 		return nil, fmt.Errorf("could not create rebalance all controller partitions job: %w", err)
 	}
@@ -158,7 +148,6 @@ func (p *Partition) StartControllerPartition(ctx context.Context) (func() error,
 			},
 		),
 	)
-
 	if err != nil {
 		return nil, fmt.Errorf("could not create rebalance inactive controller partitions job: %w", err)
 	}
@@ -202,7 +191,6 @@ func (p *Partition) runControllerPartitionHeartbeat(ctx context.Context) func() 
 		p.l.Debug().Msg("running controller partition heartbeat")
 
 		partitionId, err := p.repo.UpdateControllerPartitionHeartbeat(ctx, p.GetControllerPartitionId())
-
 		if err != nil {
 			p.l.Err(err).Msg("could not heartbeat partition")
 			return
@@ -216,7 +204,6 @@ func (p *Partition) runControllerPartitionHeartbeat(ctx context.Context) func() 
 
 func (p *Partition) StartSchedulerPartition(ctx context.Context) (func() error, error) {
 	partitionId, err := p.repo.CreateSchedulerPartition(ctx)
-
 	if err != nil {
 		return nil, err
 	}
@@ -226,7 +213,6 @@ func (p *Partition) StartSchedulerPartition(ctx context.Context) (func() error, 
 		defer cancel()
 
 		err = p.repo.DeleteSchedulerPartition(deleteCtx, p.GetSchedulerPartitionId())
-
 		if err != nil {
 			return fmt.Errorf("could not delete scheduler partition: %w", err)
 		}
@@ -243,7 +229,6 @@ func (p *Partition) StartSchedulerPartition(ctx context.Context) (func() error, 
 			p.runSchedulerPartitionHeartbeat(ctx), // nolint: errcheck
 		),
 	)
-
 	if err != nil {
 		return nil, fmt.Errorf("could not create scheduler partition heartbeat job: %w", err)
 	}
@@ -259,7 +244,6 @@ func (p *Partition) StartSchedulerPartition(ctx context.Context) (func() error, 
 			},
 		),
 	)
-
 	if err != nil {
 		return nil, fmt.Errorf("could not create rebalance all scheduler partitions job: %w", err)
 	}
@@ -272,7 +256,6 @@ func (p *Partition) StartSchedulerPartition(ctx context.Context) (func() error, 
 			},
 		),
 	)
-
 	if err != nil {
 		return nil, fmt.Errorf("could not create rebalance inactive scheduler partitions job: %w", err)
 	}
@@ -300,7 +283,6 @@ func (p *Partition) runSchedulerPartitionHeartbeat(ctx context.Context) func() {
 		p.l.Debug().Msg("running scheduler partition heartbeat")
 
 		partitionId, err := p.repo.UpdateSchedulerPartitionHeartbeat(ctx, p.GetSchedulerPartitionId())
-
 		if err != nil {
 			p.l.Err(err).Msg("could not heartbeat partition")
 			return
@@ -314,7 +296,6 @@ func (p *Partition) runSchedulerPartitionHeartbeat(ctx context.Context) func() {
 
 func (p *Partition) StartTenantWorkerPartition(ctx context.Context) (func() error, error) {
 	partitionId, err := p.repo.CreateTenantWorkerPartition(ctx)
-
 	if err != nil {
 		return nil, err
 	}
@@ -326,7 +307,6 @@ func (p *Partition) StartTenantWorkerPartition(ctx context.Context) (func() erro
 		defer cancel()
 
 		err = p.repo.DeleteTenantWorkerPartition(deleteCtx, p.GetWorkerPartitionId())
-
 		if err != nil {
 			return fmt.Errorf("could not delete worker partition: %w", err)
 		}
@@ -341,7 +321,6 @@ func (p *Partition) StartTenantWorkerPartition(ctx context.Context) (func() erro
 			p.runTenantWorkerPartitionHeartbeat(ctx), // nolint: errcheck
 		),
 	)
-
 	if err != nil {
 		return nil, fmt.Errorf("could not create controller partition heartbeat job: %w", err)
 	}
@@ -357,7 +336,6 @@ func (p *Partition) StartTenantWorkerPartition(ctx context.Context) (func() erro
 			},
 		),
 	)
-
 	if err != nil {
 		return nil, fmt.Errorf("could not create rebalance all tenant worker partitions job: %w", err)
 	}
@@ -370,7 +348,6 @@ func (p *Partition) StartTenantWorkerPartition(ctx context.Context) (func() erro
 			},
 		),
 	)
-
 	if err != nil {
 		return nil, fmt.Errorf("could not create rebalance inactive tenant worker partitions job: %w", err)
 	}
@@ -398,7 +375,6 @@ func (p *Partition) runTenantWorkerPartitionHeartbeat(ctx context.Context) func(
 		p.l.Debug().Msg("running worker partition heartbeat")
 
 		partitionId, err := p.repo.UpdateWorkerPartitionHeartbeat(ctx, p.GetWorkerPartitionId())
-
 		if err != nil {
 			p.l.Err(err).Msg("could not heartbeat partition")
 			return
@@ -412,7 +388,6 @@ func (p *Partition) runTenantWorkerPartitionHeartbeat(ctx context.Context) func(
 
 func rebalanceAllControllerPartitions(ctx context.Context, l *zerolog.Logger, r repository.TenantEngineRepository) error {
 	err := r.RebalanceAllControllerPartitions(ctx)
-
 	if err != nil {
 		l.Err(err).Msg("could not rebalance controller partitions")
 	}
@@ -422,7 +397,6 @@ func rebalanceAllControllerPartitions(ctx context.Context, l *zerolog.Logger, r 
 
 func rebalanceAllTenantWorkerPartitions(ctx context.Context, l *zerolog.Logger, r repository.TenantEngineRepository) error {
 	err := r.RebalanceAllTenantWorkerPartitions(ctx)
-
 	if err != nil {
 		l.Err(err).Msg("could not rebalance tenant worker partitions")
 	}
@@ -432,7 +406,6 @@ func rebalanceAllTenantWorkerPartitions(ctx context.Context, l *zerolog.Logger, 
 
 func rebalanceInactiveControllerPartitions(ctx context.Context, l *zerolog.Logger, r repository.TenantEngineRepository) error {
 	err := r.RebalanceInactiveControllerPartitions(ctx)
-
 	if err != nil {
 		l.Err(err).Msg("could not rebalance inactive controller partitions")
 	}
@@ -442,7 +415,6 @@ func rebalanceInactiveControllerPartitions(ctx context.Context, l *zerolog.Logge
 
 func rebalanceInactiveTenantWorkerPartitions(ctx context.Context, l *zerolog.Logger, r repository.TenantEngineRepository) error {
 	err := r.RebalanceInactiveTenantWorkerPartitions(ctx)
-
 	if err != nil {
 		l.Err(err).Msg("could not rebalance inactive tenant worker partitions")
 	}
@@ -452,7 +424,6 @@ func rebalanceInactiveTenantWorkerPartitions(ctx context.Context, l *zerolog.Log
 
 func rebalanceAllSchedulerPartitions(ctx context.Context, l *zerolog.Logger, r repository.TenantEngineRepository) error {
 	err := r.RebalanceAllSchedulerPartitions(ctx)
-
 	if err != nil {
 		l.Err(err).Msg("could not rebalance scheduler partitions")
 	}
@@ -462,7 +433,6 @@ func rebalanceAllSchedulerPartitions(ctx context.Context, l *zerolog.Logger, r r
 
 func rebalanceInactiveSchedulerPartitions(ctx context.Context, l *zerolog.Logger, r repository.TenantEngineRepository) error {
 	err := r.RebalanceInactiveSchedulerPartitions(ctx)
-
 	if err != nil {
 		l.Err(err).Msg("could not rebalance inactive scheduler partitions")
 	}

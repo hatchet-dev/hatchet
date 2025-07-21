@@ -35,7 +35,6 @@ func main() {
 
 func run(ch <-chan interface{}, events chan<- string) error {
 	c, err := client.New()
-
 	if err != nil {
 		return fmt.Errorf("error creating client: %w", err)
 	}

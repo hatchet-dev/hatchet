@@ -33,7 +33,6 @@ func newBulkEventWriter(shared *sharedRepository, conf buffer.ConfigFileBuffer) 
 	}
 
 	manager, err := buffer.NewTenantBufManager(eventBufOpts)
-
 	if err != nil {
 		shared.l.Err(err).Msg("could not create tenant buffer manager")
 		return nil, err
@@ -53,7 +52,6 @@ func sizeOfEventData(item *repository.CreateStepRunEventOpts) int {
 }
 
 func sortByStepRunId(opts []*repository.CreateStepRunEventOpts) []*repository.CreateStepRunEventOpts {
-
 	sort.SliceStable(opts, func(i, j int) bool {
 		return opts[i].StepRunId < opts[j].StepRunId
 	})
@@ -72,7 +70,6 @@ func (w *sharedRepository) serialWriteStepRunEvent(ctx context.Context, opts []*
 
 		if item.EventData != nil {
 			eventData, err = json.Marshal(item.EventData)
-
 			if err != nil {
 				return nil, fmt.Errorf("could not marshal step run event data: %w", err)
 			}
@@ -90,7 +87,6 @@ func (w *sharedRepository) serialWriteStepRunEvent(ctx context.Context, opts []*
 			Message:   *item.EventMessage,
 			Data:      eventData,
 		})
-
 		if err != nil {
 			return nil, fmt.Errorf("could not create step run event: %w", err)
 		}
@@ -102,7 +98,6 @@ func (w *sharedRepository) serialWriteStepRunEvent(ctx context.Context, opts []*
 	}
 
 	return res, nil
-
 }
 
 func (w *sharedRepository) bulkWriteStepRunEvents(ctx context.Context, opts []*repository.CreateStepRunEventOpts) ([]*int, error) {
@@ -159,7 +154,6 @@ func (w *sharedRepository) bulkWriteStepRunEvents(ctx context.Context, opts []*r
 
 	err := sqlchelpers.DeadlockRetry(w.l, func() (err error) {
 		tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, w.pool, w.l, 10000)
-
 		if err != nil {
 			return err
 		}
@@ -178,14 +172,12 @@ func (w *sharedRepository) bulkWriteStepRunEvents(ctx context.Context, opts []*r
 			eventMessages,
 			eventData,
 		)
-
 		if err != nil {
 			return err
 		}
 
 		return commit(ctx)
 	})
-
 	if err != nil {
 		return nil, err
 	}
@@ -211,7 +203,6 @@ func bulkStepRunEvents(
 
 	for _, d := range data {
 		dataBytes, err := json.Marshal(d)
-
 		if err != nil {
 			l.Err(err).Msg("could not marshal deferred step run event data")
 			return err
@@ -236,7 +227,6 @@ func bulkStepRunEvents(
 		Data:       inputData,
 		Timeseen:   timeSeen,
 	})
-
 	if err != nil {
 		l.Error().Err(err).Msg("could not create deferred step run event")
 		return fmt.Errorf("bulk_events - could not create deferred step run event: %w", err)

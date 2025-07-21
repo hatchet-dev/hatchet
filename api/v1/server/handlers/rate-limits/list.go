@@ -53,7 +53,6 @@ func (t *RateLimitService) RateLimitList(ctx echo.Context, request gen.RateLimit
 	defer cancel()
 
 	listRes, err := t.config.EngineRepository.RateLimit().ListRateLimits(dbCtx, tenantId, listOpts)
-
 	if err != nil {
 		return nil, err
 	}

@@ -23,7 +23,6 @@ func newTickerRepository(shared *sharedRepository) TickerRepository {
 
 func (t *tickerRepository) IsTenantAlertActive(ctx context.Context, tenantId string) (bool, time.Time, error) {
 	res, err := t.queries.IsTenantAlertActive(ctx, t.pool, sqlchelpers.UUIDFromStr(tenantId))
-
 	if err != nil {
 		return false, time.Now(), err
 	}

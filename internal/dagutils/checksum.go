@@ -17,7 +17,6 @@ func Checksum(opts *repository.CreateWorkflowVersionOpts) (string, error) {
 
 		var err error
 		opts.Jobs[i].Steps, err = OrderWorkflowSteps(job.Steps)
-
 		if err != nil {
 			return "", err
 		}
@@ -25,13 +24,11 @@ func Checksum(opts *repository.CreateWorkflowVersionOpts) (string, error) {
 
 	// compute a checksum for the workflow
 	declaredValues, err := datautils.ToJSONMap(opts)
-
 	if err != nil {
 		return "", err
 	}
 
 	workflowChecksum, err := digest.DigestValues(declaredValues)
-
 	if err != nil {
 		return "", err
 	}

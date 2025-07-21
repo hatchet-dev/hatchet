@@ -25,13 +25,11 @@ func print(ctx context.Context) (result *printOutput, err error) {
 func main() {
 	// ... initialize client, worker and workflow
 	err := godotenv.Load()
-
 	if err != nil {
 		panic(err)
 	}
 
 	c, err := client.New()
-
 	if err != nil {
 		panic(err)
 	}
@@ -41,7 +39,6 @@ func main() {
 			c,
 		),
 	)
-
 	if err != nil {
 		panic(err)
 	}
@@ -56,7 +53,6 @@ func main() {
 			},
 		},
 	)
-
 	if err != nil {
 		panic(err)
 	}
@@ -64,7 +60,6 @@ func main() {
 	interrupt := cmdutils.InterruptChan()
 
 	cleanup, err := w.Start()
-
 	if err != nil {
 		panic(err)
 	}
@@ -85,7 +80,6 @@ func main() {
 				AdditionalMetadata: map[string]string{},
 			},
 		)
-
 		if err != nil {
 			panic(err)
 		}
@@ -104,18 +98,14 @@ func main() {
 	// ,
 }
 
-
 func ListCrons() {
-
 	c, err := client.New()
-
 	if err != nil {
 		panic(err)
 	}
 
 	// > List
 	crons, err := c.Cron().List(context.Background())
-
 	if err != nil {
 		panic(err)
 	}
@@ -127,7 +117,6 @@ func ListCrons() {
 
 func DeleteCron(id string) {
 	c, err := client.New()
-
 	if err != nil {
 		panic(err)
 	}
@@ -135,9 +124,7 @@ func DeleteCron(id string) {
 	// > Delete
 	// 👀 id is the cron's metadata id, can get it via cron.Metadata.Id
 	err = c.Cron().Delete(context.Background(), id)
-
 	if err != nil {
 		panic(err)
 	}
-
 }

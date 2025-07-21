@@ -78,7 +78,6 @@ func (t *WorkflowService) WorkflowScheduledList(ctx echo.Context, request gen.Wo
 				additionalMetadata[splitValue[0]] = splitValue[1]
 			} else {
 				return gen.WorkflowScheduledList400JSONResponse(apierrors.NewAPIErrors("Additional metadata filters must be in the format key:value.")), nil
-
 			}
 		}
 
@@ -89,7 +88,6 @@ func (t *WorkflowService) WorkflowScheduledList(ctx echo.Context, request gen.Wo
 	defer cancel()
 
 	scheduled, count, err := t.config.APIRepository.WorkflowRun().ListScheduledWorkflows(dbCtx, tenantId, listOpts)
-
 	if err != nil {
 		return nil, err
 	}

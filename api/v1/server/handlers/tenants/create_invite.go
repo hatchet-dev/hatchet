@@ -62,7 +62,6 @@ func (t *TenantService) TenantInviteCreate(ctx echo.Context, request gen.TenantI
 
 	// create the invite
 	invite, err := t.config.APIRepository.TenantInvite().CreateTenantInvite(ctx.Request().Context(), tenantId, createOpts)
-
 	if err != nil {
 		t.config.Logger.Err(err).Msg("could not create tenant invite")
 

@@ -13,7 +13,6 @@ func (t *EventService) EventKeyList(ctx echo.Context, request gen.EventKeyListRe
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
 	eventKeys, err := t.config.APIRepository.Event().ListEventKeys(tenantId)
-
 	if err != nil {
 		return nil, err
 	}

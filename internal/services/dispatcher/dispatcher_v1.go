@@ -138,7 +138,6 @@ func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *ms
 		}
 
 		bulkDatas, err := d.repov1.Tasks().ListTasks(ctx, msg.TenantID, taskIds)
-
 		if err != nil {
 			for _, task := range bulkDatas {
 				requeue(task)
@@ -149,7 +148,6 @@ func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *ms
 		}
 
 		parentDataMap, err := d.repov1.Tasks().ListTaskParentOutputs(ctx, msg.TenantID, bulkDatas)
-
 		if err != nil {
 			for _, task := range bulkDatas {
 				requeue(task)
@@ -165,7 +163,6 @@ func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *ms
 
 				if task.Input != nil {
 					err := json.Unmarshal(task.Input, currInput)
-
 					if err != nil {
 						d.l.Warn().Err(err).Msg("failed to unmarshal input")
 						continue
@@ -179,7 +176,6 @@ func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *ms
 
 					if outputEvent.Output != nil {
 						err := json.Unmarshal(outputEvent.Output, &outputMap)
-
 						if err != nil {
 							d.l.Warn().Err(err).Msg("failed to unmarshal output")
 							continue
@@ -284,7 +280,6 @@ func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *ms
 					"Could not send task to worker",
 					false,
 				)
-
 				if err != nil {
 					return fmt.Errorf("could not create failed task message: %w", err)
 				}
@@ -292,7 +287,6 @@ func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *ms
 				queueutils.SleepWithExponentialBackoff(100*time.Millisecond, 5*time.Second, int(task.InternalRetryCount))
 
 				err = d.mqv1.SendMessage(retryCtx, msgqueuev1.TASK_PROCESSING_QUEUE, msg)
-
 				if err != nil {
 					return fmt.Errorf("could not send failed task message: %w", err)
 				}
@@ -332,7 +326,6 @@ func (d *DispatcherImpl) handleTaskCancelled(ctx context.Context, msg *msgqueuev
 	}
 
 	tasks, err := d.repov1.Tasks().ListTasks(ctx, msg.TenantID, taskIds)
-
 	if err != nil {
 		return fmt.Errorf("could not list tasks: %w", err)
 	}
@@ -391,7 +384,6 @@ func (d *DispatcherImpl) handleTaskCancelled(ctx context.Context, msg *msgqueuev
 
 				for _, retryCount := range retryCounts {
 					err = w.CancelTask(ctx, msg.TenantID, task, retryCount)
-
 					if err != nil {
 						multiErr = multierror.Append(multiErr, fmt.Errorf("could not send job to worker: %w", err))
 					}

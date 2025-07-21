@@ -52,13 +52,11 @@ func newSharedRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.L
 		celgo.Variable("input", celgo.MapType(celgo.StringType, celgo.DynType)),
 		celgo.Variable("output", celgo.MapType(celgo.StringType, celgo.DynType)),
 	)
-
 	if err != nil {
 		log.Fatalf("failed to create CEL environment: %v", err)
 	}
 
 	lookupCache, err := lru.New[taskExternalIdTenantIdTuple, *sqlcv1.FlattenExternalIdsRow](20000)
-
 	if err != nil {
 		log.Fatalf("failed to create LRU cache: %v", err)
 	}

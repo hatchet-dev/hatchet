@@ -13,7 +13,6 @@ func (t *V1EventsService) V1EventKeyList(ctx echo.Context, request gen.V1EventKe
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
 	eventKeys, err := t.config.V1.OLAP().ListEventKeys(ctx.Request().Context(), tenantId)
-
 	if err != nil {
 		return nil, err
 	}

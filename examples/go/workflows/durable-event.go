@@ -28,14 +28,12 @@ func DurableEvent(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[Durable
 		},
 		func(ctx worker.DurableHatchetContext, input DurableEventInput) (*DurableEventOutput, error) {
 			eventData, err := ctx.WaitForEvent("user:update", "")
-
 			if err != nil {
 				return nil, err
 			}
 
 			v := EventData{}
 			err = eventData.Unmarshal(&v)
-
 			if err != nil {
 				return nil, err
 			}
@@ -54,14 +52,12 @@ func DurableEvent(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[Durable
 		func(ctx worker.DurableHatchetContext, input DurableEventInput) (*DurableEventOutput, error) {
 			// > Durable Event With Filter
 			eventData, err := ctx.WaitForEvent("user:update", "input.user_id == '1234'")
-
 			if err != nil {
 				return nil, err
 			}
 
 			v := EventData{}
 			err = eventData.Unmarshal(&v)
-
 			if err != nil {
 				return nil, err
 			}

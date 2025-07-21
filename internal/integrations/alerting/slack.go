@@ -14,7 +14,6 @@ func (t *TenantAlertManager) sendSlackWorkflowRunAlert(slackWebhook *dbsqlc.Slac
 
 	// decrypt the webhook url
 	whDecrypted, err := t.enc.Decrypt(slackWebhook.WebhookURL, "incoming_webhook_url")
-
 	if err != nil {
 		return err
 	}
@@ -23,7 +22,6 @@ func (t *TenantAlertManager) sendSlackWorkflowRunAlert(slackWebhook *dbsqlc.Slac
 		Text:   headerText,
 		Blocks: blocks,
 	})
-
 	if err != nil {
 		return err
 	}
@@ -85,7 +83,6 @@ func (t *TenantAlertManager) sendSlackExpiringTokenAlert(slackWebhook *dbsqlc.Sl
 
 	// decrypt the webhook url
 	whDecrypted, err := t.enc.Decrypt(slackWebhook.WebhookURL, "incoming_webhook_url")
-
 	if err != nil {
 		return err
 	}
@@ -94,7 +91,6 @@ func (t *TenantAlertManager) sendSlackExpiringTokenAlert(slackWebhook *dbsqlc.Sl
 		Text:   headerText,
 		Blocks: blocks,
 	})
-
 	if err != nil {
 		return err
 	}
@@ -145,7 +141,6 @@ func (t *TenantAlertManager) sendSlackTenantResourceLimitAlert(slackWebhook *dbs
 
 	// decrypt the webhook url
 	whDecrypted, err := t.enc.Decrypt(slackWebhook.WebhookURL, "incoming_webhook_url")
-
 	if err != nil {
 		return err
 	}
@@ -154,7 +149,6 @@ func (t *TenantAlertManager) sendSlackTenantResourceLimitAlert(slackWebhook *dbs
 		Text:   headerText,
 		Blocks: blocks,
 	})
-
 	if err != nil {
 		return err
 	}
@@ -203,7 +197,6 @@ func (t *TenantAlertManager) getSlackTenantResourceLimitTextAndBlocks(payload *a
 			nil,
 			nil,
 		))
-
 	}
 
 	res = append(res, slack.NewSectionBlock(

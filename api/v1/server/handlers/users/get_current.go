@@ -35,7 +35,6 @@ func (u *UserService) UserGetCurrent(ctx echo.Context, request gen.UserGetCurren
 
 	if u.config.Pylon.Secret != "" {
 		hashedEmail, err = signMessageWithHMAC(user.Email, u.config.Pylon.Secret)
-
 		if err != nil {
 			return nil, err
 		}

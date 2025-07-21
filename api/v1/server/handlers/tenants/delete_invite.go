@@ -14,7 +14,6 @@ func (t *TenantService) TenantInviteDelete(ctx echo.Context, request gen.TenantI
 
 	// delete the invite
 	err := t.config.APIRepository.TenantInvite().DeleteTenantInvite(ctx.Request().Context(), sqlchelpers.UUIDToStr(invite.ID))
-
 	if err != nil {
 		return nil, err
 	}

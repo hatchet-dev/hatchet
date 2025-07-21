@@ -40,14 +40,12 @@ func main() {
 	<-interrupt
 
 	if err := cleanup(); err != nil {
-
 		panic(fmt.Errorf("error cleaning up: %w", err))
 	}
 }
 
 func run(events chan<- string) (func() error, error) {
 	c, err := client.New()
-
 	if err != nil {
 		return nil, fmt.Errorf("error creating client: %w", err)
 	}
@@ -77,7 +75,6 @@ func run(events chan<- string) (func() error, error) {
 					time.Sleep(10 * time.Second)
 
 					if err != nil {
-
 						return nil, err
 					}
 
@@ -96,7 +93,6 @@ func run(events chan<- string) (func() error, error) {
 				worker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
 					input := &stepOneOutput{}
 					err = ctx.StepOutput("step-one", input)
-
 					if err != nil {
 						return nil, err
 					}

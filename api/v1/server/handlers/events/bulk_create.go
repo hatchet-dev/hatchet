@@ -22,7 +22,6 @@ func (t *EventService) EventCreateBulk(ctx echo.Context, request gen.EventCreate
 
 	for i, event := range request.Body.Events {
 		dataBytes, err := json.Marshal(event.Data)
-
 		if err != nil {
 			return nil, err
 		}
@@ -31,7 +30,6 @@ func (t *EventService) EventCreateBulk(ctx echo.Context, request gen.EventCreate
 
 		if event.AdditionalMetadata != nil {
 			additionalMetadata, err = json.Marshal(event.AdditionalMetadata)
-
 			if err != nil {
 				return nil, err
 			}
@@ -47,7 +45,6 @@ func (t *EventService) EventCreateBulk(ctx echo.Context, request gen.EventCreate
 		}
 	}
 	events, err := t.config.Ingestor.BulkIngestEvent(ctx.Request().Context(), tenant, eventOpts)
-
 	if err != nil {
 
 		if err == metered.ErrResourceExhausted {
@@ -61,6 +58,6 @@ func (t *EventService) EventCreateBulk(ctx echo.Context, request gen.EventCreate
 	}
 
 	return gen.EventCreateBulk200JSONResponse{
-		Events: transformers.ToEventList(events)}, nil
-
+		Events: transformers.ToEventList(events),
+	}, nil
 }

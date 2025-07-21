@@ -52,7 +52,6 @@ func (t *TasksService) V1TaskGetPointMetrics(ctx echo.Context, request gen.V1Tas
 	}
 
 	metrics, err := t.config.V1.OLAP().GetTaskPointMetrics(ctx.Request().Context(), tenantId, &lowerBound, &upperBound, bucketInterval)
-
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return gen.V1TaskGetPointMetrics400JSONResponse(

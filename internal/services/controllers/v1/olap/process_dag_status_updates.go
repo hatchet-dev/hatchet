@@ -23,7 +23,6 @@ func (o *OLAPControllerImpl) runDAGStatusUpdates(ctx context.Context) func() {
 
 			// list all tenants
 			tenants, err := o.p.ListTenantsForController(ctx, dbsqlc.TenantMajorEngineVersionV1)
-
 			if err != nil {
 				o.l.Error().Err(err).Msg("could not list tenants")
 				return
@@ -39,20 +38,17 @@ func (o *OLAPControllerImpl) runDAGStatusUpdates(ctx context.Context) func() {
 			var rows []v1.UpdateDAGStatusRow
 
 			shouldContinue, rows, err = o.repo.OLAP().UpdateDAGStatuses(ctx, tenantIds)
-
 			if err != nil {
 				o.l.Error().Err(err).Msg("could not update DAG statuses")
 				return
 			}
 
 			err = o.notifyDAGsUpdated(ctx, rows)
-
 			if err != nil {
 				o.l.Error().Err(err).Msg("failed to notify updated DAG statuses")
 				return
 			}
 		}
-
 	}
 }
 
@@ -128,7 +124,6 @@ func (o *OLAPControllerImpl) notifyDAGsUpdated(ctx context.Context, rows []v1.Up
 				false,
 				payloads...,
 			)
-
 			if err != nil {
 				return err
 			}
@@ -136,7 +131,6 @@ func (o *OLAPControllerImpl) notifyDAGsUpdated(ctx context.Context, rows []v1.Up
 			q := msgqueue.TenantEventConsumerQueue(tenantId.String())
 
 			err = o.mq.SendMessage(ctx, q, msg)
-
 			if err != nil {
 				return err
 			}

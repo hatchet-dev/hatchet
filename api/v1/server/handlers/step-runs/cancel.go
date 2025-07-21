@@ -39,12 +39,11 @@ func (t *StepRunService) StepRunUpdateCancel(ctx echo.Context, request gen.StepR
 		tenantId,
 		sqlchelpers.UUIDToStr(stepRun.ID),
 	)
-
 	if err != nil {
 		return nil, fmt.Errorf("could not get step run for engine: %w", err)
 	}
 
-	var reason = "CANCELLED_BY_USER"
+	reason := "CANCELLED_BY_USER"
 
 	// send a task to the taskqueue
 	err = t.config.MessageQueue.AddMessage(
@@ -52,7 +51,6 @@ func (t *StepRunService) StepRunUpdateCancel(ctx echo.Context, request gen.StepR
 		msgqueue.JOB_PROCESSING_QUEUE,
 		tasktypes.StepRunCancelToTask(engineStepRun, reason, true),
 	)
-
 	if err != nil {
 		return nil, fmt.Errorf("could not add step queued task to task queue: %w", err)
 	}
@@ -60,7 +58,6 @@ func (t *StepRunService) StepRunUpdateCancel(ctx echo.Context, request gen.StepR
 	// wait for a short period of time
 	for i := 0; i < 5; i++ {
 		newStepRun, err := t.config.APIRepository.StepRun().GetStepRunById(sqlchelpers.UUIDToStr(stepRun.ID))
-
 		if err != nil {
 			return nil, fmt.Errorf("could not get step run: %w", err)
 		}

@@ -34,7 +34,6 @@ type WebhooksController struct {
 }
 
 func New(sc *server.ServerConfig, p *partition.Partition, l *zerolog.Logger) *WebhooksController {
-
 	wc := &WebhooksController{
 		l:                   l,
 		sc:                  sc,
@@ -84,7 +83,6 @@ func (c *WebhooksController) check(ctx context.Context, id string) (bool, error)
 		ctx,
 		c.p.GetWorkerPartitionId(),
 	)
-
 	if err != nil {
 		return false, fmt.Errorf("could not get webhook workers: %w", err)
 	}
@@ -217,7 +215,6 @@ func (c *WebhooksController) cleanupDeletedWorker(id, tenantId string) {
 	c.mu.Unlock()
 
 	err = c.sc.EngineRepository.WebhookWorker().HardDeleteWebhookWorker(context.Background(), id, tenantId)
-
 	if err != nil {
 		c.sc.Logger.Err(err).Msgf("could not delete webhook worker")
 	}
@@ -257,7 +254,6 @@ func (c *WebhooksController) getOrCreateToken(ww *dbsqlc.WebhookWorker, tenantId
 			TokenID:    &tok.TokenId,
 			TokenValue: &encTokStr,
 		})
-
 	if err != nil {
 		return "", fmt.Errorf("could not update webhook worker: %w", err)
 	}
@@ -320,7 +316,6 @@ func (c *WebhooksController) run(tenantId string, webhookWorker *dbsqlc.WebhookW
 		WebhookId: sqlchelpers.UUIDToStr(webhookWorker.ID),
 		Logger:    c.l,
 	})
-
 	if err != nil {
 		return nil, fmt.Errorf("could not create webhook worker: %w", err)
 	}

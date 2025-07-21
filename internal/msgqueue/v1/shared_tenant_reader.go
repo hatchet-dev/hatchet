@@ -50,7 +50,6 @@ func (s *SharedTenantReader) Subscribe(tenantId string, postAck AckHook) (func()
 		q := TenantEventConsumerQueue(tenantId)
 
 		err := s.mq.RegisterTenant(context.Background(), tenantId)
-
 		if err != nil {
 			return nil, err
 		}
@@ -70,7 +69,6 @@ func (s *SharedTenantReader) Subscribe(tenantId string, postAck AckHook) (func()
 
 			return innerErr
 		})
-
 		if err != nil {
 			return nil, err
 		}
@@ -133,7 +131,6 @@ func (s *SharedBufferedTenantReader) Subscribe(tenantId string, f DstFunc) (func
 		q := TenantEventConsumerQueue(tenantId)
 
 		err := s.mq.RegisterTenant(context.Background(), tenantId)
-
 		if err != nil {
 			return nil, err
 		}
@@ -155,7 +152,6 @@ func (s *SharedBufferedTenantReader) Subscribe(tenantId string, f DstFunc) (func
 		}, WithKind(PostAck), WithMaxConcurrency(1), WithFlushInterval(20*time.Millisecond), WithDisableImmediateFlush(true))
 
 		cleanupSingleSub, err := subBuffer.Start()
-
 		if err != nil {
 			return nil, err
 		}

@@ -77,7 +77,6 @@ func (p *Populator) populate(c echo.Context, r *middleware.RouteInfo) error {
 	}
 
 	err := p.traverseNode(c, rootResource)
-
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return c.NoContent(404)
@@ -118,7 +117,6 @@ func (p *Populator) traverseNode(c echo.Context, node *resource) error {
 	// determine if we have a resource locator to populate the node
 	if node.ResourceID != "" {
 		err := p.callGetter(node, node.ParentID, node.ResourceID)
-
 		if err != nil {
 			return fmt.Errorf("could not populate resource %s: %w", node.ResourceKey, err)
 		}
@@ -133,7 +131,6 @@ func (p *Populator) traverseNode(c echo.Context, node *resource) error {
 			}
 
 			err := p.traverseNode(c, child)
-
 			if err != nil {
 				return err
 			}
@@ -141,7 +138,6 @@ func (p *Populator) traverseNode(c echo.Context, node *resource) error {
 			if !populated && child.ParentID != "" {
 				// use the parent locator to populate the resource
 				err = p.callGetter(node, node.ParentID, child.ParentID)
-
 				if err != nil {
 					return err
 				}

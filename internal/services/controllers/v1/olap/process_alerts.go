@@ -18,7 +18,6 @@ func (o *OLAPControllerImpl) runTenantProcessAlerts(ctx context.Context) func() 
 
 		// list all tenants
 		tenants, err := o.p.ListTenantsForController(ctx, dbsqlc.TenantMajorEngineVersionV1)
-
 		if err != nil {
 			o.l.Error().Err(err).Msg("could not list tenants")
 			return
@@ -42,7 +41,6 @@ func (o *OLAPControllerImpl) processTenantAlerts(ctx context.Context, tenantId s
 	defer span.End()
 
 	isActive, lastAlerted, err := o.repo.Ticker().IsTenantAlertActive(ctx, tenantId)
-
 	if err != nil {
 		return false, fmt.Errorf("could not check if tenant is active: %w", err)
 	}
@@ -63,13 +61,11 @@ func (o *OLAPControllerImpl) processTenantAlerts(ctx context.Context, tenantId s
 		Limit:           1000,
 		IncludePayloads: false,
 	})
-
 	if err != nil {
 		return false, fmt.Errorf("could not list workflow runs: %w", err)
 	}
 
 	err = o.ta.SendWorkflowRunAlertV1(tenantId, failedRuns)
-
 	if err != nil {
 		return false, fmt.Errorf("could not send alert: %w", err)
 	}

@@ -19,7 +19,6 @@ func (t *WorkflowService) WorkflowGet(ctx echo.Context, request gen.WorkflowGetR
 	}
 
 	version, _, _, _, err := t.config.APIRepository.Workflow().GetWorkflowVersionById(tenantId, sqlchelpers.UUIDToStr(workflow.WorkflowVersionId))
-
 	if err != nil {
 		return nil, err
 	}

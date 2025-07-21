@@ -19,7 +19,6 @@ var seedCmd = &cobra.Command{
 
 		configLoader := loader.NewConfigLoader(configDirectory)
 		err = runSeed(configLoader)
-
 		if err != nil {
 			log.Printf("Fatal: could not run seed command: %v", err)
 			os.Exit(1)
@@ -34,7 +33,6 @@ func init() {
 func runSeed(cf *loader.ConfigLoader) error {
 	// load the config
 	dc, err := cf.InitDataLayer()
-
 	if err != nil {
 		panic(err)
 	}

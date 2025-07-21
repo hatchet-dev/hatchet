@@ -8,6 +8,7 @@ package v1
 
 import (
 	context "context"
+
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
@@ -84,12 +85,12 @@ type V1DispatcherServer interface {
 }
 
 // UnimplementedV1DispatcherServer must be embedded to have forward compatible implementations.
-type UnimplementedV1DispatcherServer struct {
-}
+type UnimplementedV1DispatcherServer struct{}
 
 func (UnimplementedV1DispatcherServer) RegisterDurableEvent(context.Context, *RegisterDurableEventRequest) (*RegisterDurableEventResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method RegisterDurableEvent not implemented")
 }
+
 func (UnimplementedV1DispatcherServer) ListenForDurableEvent(V1Dispatcher_ListenForDurableEventServer) error {
 	return status.Errorf(codes.Unimplemented, "method ListenForDurableEvent not implemented")
 }

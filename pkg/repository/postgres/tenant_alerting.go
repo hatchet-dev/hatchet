@@ -121,7 +121,6 @@ func (r *tenantAlertingRepository) DeleteTenantAlertGroup(ctx context.Context, t
 
 func (r *tenantAlertingRepository) GetTenantAlertingSettings(ctx context.Context, tenantId string) (*repository.GetTenantAlertingSettingsResponse, error) {
 	tx, err := r.pool.Begin(ctx)
-
 	if err != nil {
 		return nil, err
 	}
@@ -131,13 +130,11 @@ func (r *tenantAlertingRepository) GetTenantAlertingSettings(ctx context.Context
 	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
 
 	settings, err := r.queries.GetTenantAlertingSettings(ctx, tx, pgTenantId)
-
 	if err != nil {
 		return nil, err
 	}
 
 	webhooks, err := r.queries.GetSlackWebhooks(ctx, tx, pgTenantId)
-
 	if err != nil {
 		return nil, err
 	}
@@ -145,7 +142,6 @@ func (r *tenantAlertingRepository) GetTenantAlertingSettings(ctx context.Context
 	groupsForSend := make([]*repository.TenantAlertEmailGroupForSend, 0)
 
 	emailGroups, err := r.queries.GetEmailGroups(ctx, tx, pgTenantId)
-
 	if err != nil {
 		return nil, err
 	}
@@ -160,7 +156,6 @@ func (r *tenantAlertingRepository) GetTenantAlertingSettings(ctx context.Context
 	}
 
 	tenant, err := r.queries.GetTenantByID(ctx, tx, pgTenantId)
-
 	if err != nil {
 		return nil, err
 	}
@@ -183,7 +178,6 @@ func (r *tenantAlertingRepository) GetTenantAlertingSettings(ctx context.Context
 	}
 
 	err = tx.Commit(ctx)
-
 	if err != nil {
 		return nil, err
 	}

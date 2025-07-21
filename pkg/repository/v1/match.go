@@ -160,7 +160,6 @@ func (m *MatchRepositoryImpl) RegisterSignalMatchConditions(ctx context.Context,
 	// }
 
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, m.pool, m.l, 5000)
-
 	if err != nil {
 		return err
 	}
@@ -188,7 +187,6 @@ func (m *MatchRepositoryImpl) RegisterSignalMatchConditions(ctx context.Context,
 					*condition.SleepFor,
 					sqlcv1.V1MatchConditionActionCREATE,
 				)
-
 				if err != nil {
 					return err
 				}
@@ -224,7 +222,6 @@ func (m *MatchRepositoryImpl) RegisterSignalMatchConditions(ctx context.Context,
 	}
 
 	err = m.createEventMatches(ctx, tx, tenantId, eventMatches)
-
 	if err != nil {
 		return err
 	}
@@ -239,7 +236,6 @@ func (m *MatchRepositoryImpl) RegisterSignalMatchConditions(ctx context.Context,
 // ProcessInternalEventMatches processes a list of internal events
 func (m *MatchRepositoryImpl) ProcessInternalEventMatches(ctx context.Context, tenantId string, events []CandidateEventMatch) (*EventMatchResults, error) {
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, m.pool, m.l, 5000)
-
 	if err != nil {
 		return nil, err
 	}
@@ -247,7 +243,6 @@ func (m *MatchRepositoryImpl) ProcessInternalEventMatches(ctx context.Context, t
 	defer rollback()
 
 	res, err := m.processEventMatches(ctx, tx, tenantId, events, sqlcv1.V1EventTypeINTERNAL)
-
 	if err != nil {
 		return nil, err
 	}
@@ -262,7 +257,6 @@ func (m *MatchRepositoryImpl) ProcessInternalEventMatches(ctx context.Context, t
 // ProcessUserEventMatches processes a list of user events
 func (m *MatchRepositoryImpl) ProcessUserEventMatches(ctx context.Context, tenantId string, events []CandidateEventMatch) (*EventMatchResults, error) {
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, m.pool, m.l, 5000)
-
 	if err != nil {
 		return nil, err
 	}
@@ -270,7 +264,6 @@ func (m *MatchRepositoryImpl) ProcessUserEventMatches(ctx context.Context, tenan
 	defer rollback()
 
 	res, err := m.processEventMatches(ctx, tx, tenantId, events, sqlcv1.V1EventTypeUSER)
-
 	if err != nil {
 		return nil, err
 	}
@@ -325,7 +318,6 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 				Eventresourcehints: resourceHints,
 			},
 		)
-
 		if err != nil {
 			return nil, fmt.Errorf("failed to list match conditions with hints for event: %w", err)
 		}
@@ -343,7 +335,6 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 				Eventkeys: eventKeysWithoutHints,
 			},
 		)
-
 		if err != nil {
 			return nil, fmt.Errorf("failed to list match conditions without hints for event: %w", err)
 		}
@@ -353,7 +344,6 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 
 	// pass match conditions through CEL expressions parser
 	matches, err := m.processCELExpressions(ctx, events, matchConditions, eventType)
-
 	if err != nil {
 		return nil, err
 	}
@@ -391,7 +381,6 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 			Datas:        datas,
 		},
 	)
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to get satisfied match conditions: %w", err)
 	}
@@ -404,7 +393,6 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 			tx,
 			satisfiedMatchIds,
 		)
-
 		if err != nil {
 			return nil, fmt.Errorf("failed to save satisfied match conditions: %w", err)
 		}
@@ -434,7 +422,6 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 			Dagids:         dagIds,
 			Daginsertedats: dagInsertedAts,
 		})
-
 		if err != nil {
 			return nil, fmt.Errorf("failed to get DAG data: %w", err)
 		}
@@ -468,7 +455,6 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 				}
 
 				matchData, err := NewMatchData(match.McAggregatedData)
-
 				if err != nil {
 					return nil, err
 				}
@@ -549,7 +535,6 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 		// create dependent matches
 		if len(dependentMatches) > 0 {
 			err = m.createAdditionalMatches(ctx, tx, tenantId, dependentMatches)
-
 			if err != nil {
 				return nil, fmt.Errorf("failed to create additional matches: %w", err)
 			}
@@ -557,14 +542,12 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 
 		// create tasks
 		tasks, err = m.createTasks(ctx, tx, tenantId, createTaskOpts)
-
 		if err != nil {
 			return nil, fmt.Errorf("failed to create tasks: %w", err)
 		}
 
 		if len(replayTaskOpts) > 0 {
 			replayedTasks, err := m.replayTasks(ctx, tx, tenantId, replayTaskOpts)
-
 			if err != nil {
 				return nil, fmt.Errorf("failed to replay %d tasks: %w", len(replayTaskOpts), err)
 			}
@@ -606,7 +589,6 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 			makeEventTypeArr(sqlcv1.V1TaskEventTypeSIGNALCOMPLETED, len(taskIds)),
 			eventKeys,
 		)
-
 		if err != nil {
 			return nil, fmt.Errorf("failed to create signal completed events: %w", err)
 		}
@@ -641,7 +623,6 @@ func (m *sharedRepository) processCELExpressions(ctx context.Context, events []C
 		}
 
 		program, err := m.env.Program(ast)
-
 		if err != nil {
 			m.l.Error().Err(err).Msgf("failed to create CEL program: %s", expr)
 			continue
@@ -665,7 +646,6 @@ func (m *sharedRepository) processCELExpressions(ctx context.Context, events []C
 				outputEventData := &TaskOutputEvent{}
 
 				err := json.Unmarshal(event.Data, &outputEventData)
-
 				if err != nil {
 					m.l.Warn().Err(err).Msgf("[0] failed to unmarshal output event data. id: %s, key: %s", event.ID, event.Key)
 					continue
@@ -673,14 +653,12 @@ func (m *sharedRepository) processCELExpressions(ctx context.Context, events []C
 
 				if len(outputEventData.Output) > 0 {
 					err = json.Unmarshal(outputEventData.Output, &outputData)
-
 					if err != nil {
 						m.l.Warn().Err(err).Msgf("failed to unmarshal output event data, output subfield for task %d", outputEventData.TaskId)
 						continue
 					}
 				} else {
 					err = json.Unmarshal(event.Data, &inputData)
-
 					if err != nil {
 						m.l.Warn().Err(err).Msgf("[1] failed to unmarshal output event data. id: %s, key: %s", event.ID, event.Key)
 						continue
@@ -688,7 +666,6 @@ func (m *sharedRepository) processCELExpressions(ctx context.Context, events []C
 				}
 			case sqlcv1.V1EventTypeUSER:
 				err := json.Unmarshal(event.Data, &inputData)
-
 				if err != nil {
 					m.l.Warn().Err(err).Msgf("failed to unmarshal user event data %s", string(event.Data))
 					continue
@@ -712,7 +689,6 @@ func (m *sharedRepository) processCELExpressions(ctx context.Context, events []C
 				"input":  inputData,
 				"output": outputData,
 			})
-
 			if err != nil {
 				// FIXME: we'd like to display this error to the user somehow, which is difficult as the
 				// task hasn't necessarily been created yet. Additionally, we might have other conditions
@@ -829,7 +805,6 @@ func (m *sharedRepository) createEventMatches(ctx context.Context, tx sqlcv1.DBT
 				TriggerChildKey:               triggerChildKeys,
 			},
 		)
-
 		if err != nil {
 			return err
 		}
@@ -895,7 +870,6 @@ func (m *sharedRepository) createEventMatches(ctx context.Context, tx sqlcv1.DBT
 				Signalkeys:            signalKeys,
 			},
 		)
-
 		if err != nil {
 			return err
 		}
@@ -923,7 +897,6 @@ func (m *sharedRepository) createEventMatches(ctx context.Context, tx sqlcv1.DBT
 	}
 
 	_, err := m.queries.CreateMatchConditions(ctx, tx, matchConditionParams)
-
 	if err != nil {
 		return err
 	}
@@ -1018,7 +991,6 @@ func (m *sharedRepository) createAdditionalMatches(ctx context.Context, tx sqlcv
 			Stepids:  additionalMatchStepIds,
 		},
 	)
-
 	if err != nil {
 		return err
 	}
@@ -1085,7 +1057,6 @@ func (m *sharedRepository) createAdditionalMatches(ctx context.Context, tx sqlcv
 						condition.SleepDuration.String,
 						condition.Action,
 					)
-
 					if err != nil {
 						return err
 					}
@@ -1111,7 +1082,6 @@ func (m *sharedRepository) createAdditionalMatches(ctx context.Context, tx sqlcv
 
 	if len(additionalMatches) > 0 {
 		err := m.createEventMatches(ctx, tx, tenantId, additionalMatches)
-
 		if err != nil {
 			return err
 		}
@@ -1126,7 +1096,6 @@ func (m *sharedRepository) durableSleepCondition(ctx context.Context, tx sqlcv1.
 		TenantID:       sqlchelpers.UUIDFromStr(tenantId),
 		SleepDurations: []string{sleepDuration},
 	})
-
 	if err != nil {
 		return nil, err
 	}

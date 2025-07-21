@@ -10,7 +10,6 @@ func GetConfigBytes(configFilePath string) ([][]byte, error) {
 
 	if fileExists(configFilePath) {
 		fileBytes, err := os.ReadFile(configFilePath) // #nosec G304 -- config files are meant to be read from user-supplied directory
-
 		if err != nil {
 			return nil, fmt.Errorf("could not read config file at path %s: %w", configFilePath, err)
 		}
@@ -24,7 +23,6 @@ func GetConfigBytes(configFilePath string) ([][]byte, error) {
 func GetFileBytes(filename string) ([]byte, error) {
 	if fileExists(filename) {
 		fileBytes, err := os.ReadFile(filename) // #nosec G304 -- config files are meant to be read from user-supplied directory
-
 		if err != nil {
 			return nil, fmt.Errorf("could not read config file at path %s: %w", filename, err)
 		}

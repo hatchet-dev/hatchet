@@ -19,8 +19,10 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/config/loader"
 )
 
-var printVersion bool
-var configDirectory string
+var (
+	printVersion    bool
+	configDirectory string
+)
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
@@ -87,25 +89,21 @@ func start(cf *loader.ConfigLoader, interruptCh <-chan interface{}, version stri
 
 	// we hard code the msg queue kind to postgres
 	err := os.Setenv("SERVER_MSGQUEUE_KIND", "postgres")
-
 	if err != nil {
 		return fmt.Errorf("error setting SERVER_MSGQUEUE_KIND to postgres: %w", err)
 	}
 
 	feURL, err := url.Parse(fmt.Sprintf("http://localhost:%s", frontendPort))
-
 	if err != nil {
 		return fmt.Errorf("error parsing frontend URL: %w", err)
 	}
 
 	_, sc, err := cf.CreateServerFromConfig(version)
-
 	if err != nil {
 		return fmt.Errorf("error loading server config: %w", err)
 	}
 
 	apiURL, err := url.Parse(fmt.Sprintf("http://localhost:%d", sc.Runtime.Port))
-
 	if err != nil {
 		return fmt.Errorf("error parsing API URL: %w", err)
 	}

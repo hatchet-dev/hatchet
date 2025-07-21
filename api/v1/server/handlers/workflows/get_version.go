@@ -28,7 +28,6 @@ func (t *WorkflowService) WorkflowVersionGet(ctx echo.Context, request gen.Workf
 			ctx.Request().Context(),
 			sqlchelpers.UUIDToStr(workflow.Workflow.ID),
 		)
-
 		if err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
 				return gen.WorkflowVersionGet404JSONResponse(
@@ -44,7 +43,6 @@ func (t *WorkflowService) WorkflowVersionGet(ctx echo.Context, request gen.Workf
 	}
 
 	row, crons, events, scheduleT, err := t.config.APIRepository.Workflow().GetWorkflowVersionById(tenantId, workflowVersionId)
-
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return gen.WorkflowVersionGet404JSONResponse(

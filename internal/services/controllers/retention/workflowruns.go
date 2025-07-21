@@ -18,7 +18,6 @@ func (wc *RetentionControllerImpl) runDeleteExpiredWorkflowRuns(ctx context.Cont
 		wc.l.Debug().Msgf("retention controller: deleting expired workflow runs")
 
 		err := wc.ForTenants(ctx, wc.runDeleteExpiredWorkflowRunsTenant)
-
 		if err != nil {
 			wc.l.Err(err).Msg("could not run delete expired workflow runs")
 		}
@@ -32,7 +31,6 @@ func (wc *RetentionControllerImpl) runDeleteExpiredWorkflowRunsTenant(ctx contex
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
 	createdBefore, err := GetDataRetentionExpiredTime(tenant.DataRetentionPeriod)
-
 	if err != nil {
 		return fmt.Errorf("could not get data retention expired time: %w", err)
 	}
@@ -50,7 +48,6 @@ func (wc *RetentionControllerImpl) runDeleteExpiredWorkflowRunsTenant(ctx contex
 			dbsqlc.WorkflowRunStatusSUCCEEDED,
 			dbsqlc.WorkflowRunStatusFAILED,
 		}, createdBefore)
-
 		if err != nil {
 			return fmt.Errorf("could not delete expired workflow runs: %w", err)
 		}

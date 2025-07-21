@@ -44,7 +44,6 @@ func runBulk(workflowName string, quantity int) error {
 	}
 
 	return nil
-
 }
 
 func runSingles(workflowName string, quantity int) error {
@@ -73,7 +72,6 @@ func runSingles(workflowName string, quantity int) error {
 	}
 
 	for _, wf := range workflows {
-
 		go func() {
 			out, err := c.Admin().RunWorkflow(wf.Name, wf.Input, wf.Options...)
 			if err != nil {
@@ -82,7 +80,6 @@ func runSingles(workflowName string, quantity int) error {
 
 			log.Printf("workflow run id: %v", out)
 		}()
-
 	}
 
 	return nil

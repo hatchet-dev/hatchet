@@ -29,7 +29,6 @@ func (t *WorkflowService) WorkflowGetMetrics(ctx echo.Context, request gen.Workf
 	}
 
 	metrics, err := t.config.APIRepository.Workflow().GetWorkflowMetrics(tenantId, sqlchelpers.UUIDToStr(workflow.Workflow.ID), opts)
-
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return gen.WorkflowGetMetrics404JSONResponse(

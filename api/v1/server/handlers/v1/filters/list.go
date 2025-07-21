@@ -40,7 +40,6 @@ func (t *V1FiltersService) V1FilterList(ctx echo.Context, request gen.V1FilterLi
 			FilterOffset: request.Params.Offset,
 		},
 	)
-
 	if err != nil {
 		return gen.V1FilterList400JSONResponse(apierrors.NewAPIErrors("failed to list filters")), nil
 	}

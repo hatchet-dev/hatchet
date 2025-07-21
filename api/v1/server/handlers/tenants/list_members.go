@@ -14,7 +14,6 @@ func (t *TenantService) TenantMemberList(ctx echo.Context, request gen.TenantMem
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
 	members, err := t.config.APIRepository.Tenant().ListTenantMembers(ctx.Request().Context(), tenantId)
-
 	if err != nil {
 		return nil, err
 	}

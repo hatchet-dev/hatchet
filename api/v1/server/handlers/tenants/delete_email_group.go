@@ -15,7 +15,6 @@ func (t *TenantService) AlertEmailGroupDelete(ctx echo.Context, request gen.Aler
 
 	// delete the invite
 	err := t.config.APIRepository.TenantAlertingSettings().DeleteTenantAlertGroup(ctx.Request().Context(), tenantId, sqlchelpers.UUIDToStr(emailGroup.ID))
-
 	if err != nil {
 		return nil, err
 	}

@@ -108,7 +108,6 @@ type APIServerExtensionOpt func(config *server.ServerConfig) (*openapi3.T, func(
 
 func (t *APIServer) Run(opts ...APIServerExtensionOpt) (func() error, error) {
 	e, err := t.getCoreEchoService()
-
 	if err != nil {
 		return nil, err
 	}
@@ -119,13 +118,11 @@ func (t *APIServer) Run(opts ...APIServerExtensionOpt) (func() error, error) {
 		g := e.Group("")
 
 		spec, f, err := opt(t.config)
-
 		if err != nil {
 			return nil, err
 		}
 
 		populator, err := t.registerSpec(g, spec)
-
 		if err != nil {
 			return nil, err
 		}
@@ -160,7 +157,6 @@ func (t *APIServer) RunWithServer(e *echo.Echo) (func() error, error) {
 
 func (t *APIServer) getCoreEchoService() (*echo.Echo, error) {
 	oaspec, err := gen.GetSwagger()
-
 	if err != nil {
 		return nil, err
 	}
@@ -193,7 +189,6 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 		defer cancel()
 
 		tenant, err := config.APIRepository.Tenant().GetTenantByID(ctxTimeout, id)
-
 		if err != nil {
 			return nil, "", err
 		}
@@ -206,7 +201,6 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 		defer cancel()
 
 		apiToken, err := config.APIRepository.APIToken().GetAPITokenById(ctxTimeout, id)
-
 		if err != nil {
 			return nil, "", err
 		}
@@ -226,7 +220,6 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 		defer cancel()
 
 		tenantInvite, err := config.APIRepository.TenantInvite().GetTenantInvite(timeoutCtx, id)
-
 		if err != nil {
 			return nil, "", err
 		}
@@ -239,7 +232,6 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 		defer cancel()
 
 		slackWebhook, err := config.APIRepository.Slack().GetSlackWebhookById(timeoutCtx, id)
-
 		if err != nil {
 			return nil, "", err
 		}
@@ -252,7 +244,6 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 		defer cancel()
 
 		emailGroup, err := config.APIRepository.TenantAlertingSettings().GetTenantAlertGroupById(timeoutCtx, id)
-
 		if err != nil {
 			return nil, "", err
 		}
@@ -265,7 +256,6 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 		defer cancel()
 
 		snsIntegration, err := config.APIRepository.SNS().GetSNSIntegrationById(timeoutCtx, id)
-
 		if err != nil {
 			return nil, "", err
 		}
@@ -275,7 +265,6 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 
 	populatorMW.RegisterGetter("workflow", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
 		workflow, err := config.APIRepository.Workflow().GetWorkflowById(context.Background(), id)
-
 		if err != nil {
 			return nil, "", err
 		}
@@ -285,7 +274,6 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 
 	populatorMW.RegisterGetter("workflow-run", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
 		workflowRun, err := config.APIRepository.WorkflowRun().GetWorkflowRunById(context.Background(), parentId, id)
-
 		if err != nil {
 			return nil, "", err
 		}
@@ -295,7 +283,6 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 
 	populatorMW.RegisterGetter("scheduled-workflow-run", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
 		scheduled, err := config.APIRepository.WorkflowRun().GetScheduledWorkflow(context.Background(), parentId, id)
-
 		if err != nil {
 			return nil, "", err
 		}
@@ -309,7 +296,6 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 
 	populatorMW.RegisterGetter("cron-workflow", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
 		scheduled, err := config.APIRepository.Workflow().GetCronWorkflow(context.Background(), parentId, id)
-
 		if err != nil {
 			return nil, "", err
 		}
@@ -323,7 +309,6 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 
 	populatorMW.RegisterGetter("step-run", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
 		stepRun, err := config.APIRepository.StepRun().GetStepRunById(id)
-
 		if err != nil {
 			return nil, "", err
 		}
@@ -340,7 +325,6 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 		defer cancel()
 
 		event, err := config.APIRepository.Event().GetEventById(timeoutCtx, id)
-
 		if err != nil {
 			return nil, "", err
 		}
@@ -350,7 +334,6 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 
 	populatorMW.RegisterGetter("worker", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
 		worker, err := config.APIRepository.Worker().GetWorkerById(id)
-
 		if err != nil {
 			return nil, "", err
 		}
@@ -375,7 +358,6 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 		defer cancel()
 
 		task, err := config.V1.OLAP().ReadTaskRun(ctx, id)
-
 		if err != nil {
 			return nil, "", err
 		}
@@ -389,7 +371,6 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 
 	populatorMW.RegisterGetter("v1-workflow-run", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
 		workflowRun, err := t.config.V1.OLAP().ReadWorkflowRun(context.Background(), sqlchelpers.UUIDFromStr(id))
-
 		if err != nil {
 			return nil, "", err
 		}
@@ -402,7 +383,6 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 			parentId,
 			id,
 		)
-
 		if err != nil {
 			return nil, "", err
 		}
@@ -414,7 +394,6 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 	authzMW := authz.NewAuthZ(t.config)
 
 	mw, err := hatchetmiddleware.NewMiddlewareHandler(spec)
-
 	if err != nil {
 		return nil, err
 	}
@@ -424,7 +403,6 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 	mw.Use(authzMW.Middleware)
 
 	allHatchetMiddleware, err := mw.Middleware()
-
 	if err != nil {
 		return nil, err
 	}

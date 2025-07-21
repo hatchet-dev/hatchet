@@ -61,7 +61,6 @@ func (r *webhookWorkerEngineRepository) InsertWebhookWorkerRequest(ctx context.C
 }
 
 func (r *webhookWorkerEngineRepository) CreateWebhookWorker(ctx context.Context, opts *repository.CreateWebhookWorkerOpts) (*dbsqlc.WebhookWorker, error) {
-
 	if err := r.v.Validate(opts); err != nil {
 		return nil, err
 	}
@@ -86,7 +85,6 @@ func (r *webhookWorkerEngineRepository) CreateWebhookWorker(ctx context.Context,
 	}
 
 	worker, err := r.queries.CreateWebhookWorker(ctx, r.pool, params)
-
 	if err != nil {
 		if pgErr, ok := err.(*pgconn.PgError); ok && pgErr.Code == "23505" {
 			return nil, repository.ErrDuplicateKey
@@ -116,7 +114,6 @@ func (r *webhookWorkerEngineRepository) UpdateWebhookWorkerToken(ctx context.Con
 	}
 
 	worker, err := r.queries.UpdateWebhookWorkerToken(ctx, r.pool, params)
-
 	if err != nil {
 		return nil, err
 	}

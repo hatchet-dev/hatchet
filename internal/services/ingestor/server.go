@@ -49,7 +49,6 @@ func (i *IngestorImpl) Push(ctx context.Context, req *contracts.PushEventRequest
 	}
 
 	e, err := toEvent(event)
-
 	if err != nil {
 		return nil, err
 	}
@@ -63,7 +62,6 @@ func (i *IngestorImpl) BulkPush(ctx context.Context, req *contracts.BulkPushEven
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
 	if len(req.Events) == 0 {
-
 		return nil, status.Errorf(codes.InvalidArgument, "No events to ingest")
 	}
 
@@ -109,7 +107,6 @@ func (i *IngestorImpl) BulkPush(ctx context.Context, req *contracts.BulkPushEven
 	}
 
 	for _, e := range opts.Events {
-
 		if err := i.v.Validate(e); err != nil {
 			return nil, status.Errorf(codes.InvalidArgument, "Invalid request: events failing validation %s", err)
 		}
@@ -128,7 +125,6 @@ func (i *IngestorImpl) BulkPush(ctx context.Context, req *contracts.BulkPushEven
 	for _, e := range createdEvents {
 
 		contractEvent, err := toEvent(e)
-
 		if err != nil {
 			return nil, err
 		}
@@ -146,19 +142,16 @@ func (i *IngestorImpl) ReplaySingleEvent(ctx context.Context, req *contracts.Rep
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
 	oldEvent, err := i.eventRepository.GetEventForEngine(ctx, tenantId, req.EventId)
-
 	if err != nil {
 		return nil, err
 	}
 
 	newEvent, err := i.IngestReplayedEvent(ctx, tenant, oldEvent)
-
 	if err != nil {
 		return nil, err
 	}
 
 	e, err := toEvent(newEvent)
-
 	if err != nil {
 		return nil, err
 	}
@@ -206,13 +199,11 @@ func (i *IngestorImpl) putStreamEventV0(ctx context.Context, tenant *dbsqlc.Tena
 	}
 
 	meta, err := i.streamEventRepository.GetStreamEventMeta(ctx, tenantId, req.StepRunId)
-
 	if err != nil {
 		return nil, err
 	}
 
 	streamEvent, err := i.streamEventRepository.PutStreamEvent(ctx, tenantId, &opts)
-
 	if err != nil {
 		return nil, err
 	}
@@ -222,7 +213,6 @@ func (i *IngestorImpl) putStreamEventV0(ctx context.Context, tenant *dbsqlc.Tena
 	e := streamEventToTask(streamEvent, sqlchelpers.UUIDToStr(meta.WorkflowRunId), &meta.RetryCount, &meta.Retries)
 
 	err = i.mq.AddMessage(context.Background(), q, e)
-
 	if err != nil {
 		return nil, err
 	}
@@ -287,7 +277,6 @@ func (i *IngestorImpl) putLogV0(ctx context.Context, tenant *dbsqlc.Tenant, req 
 	}
 
 	_, err := i.logRepository.PutLog(ctx, tenantId, opts)
-
 	if err != nil {
 		return nil, err
 	}

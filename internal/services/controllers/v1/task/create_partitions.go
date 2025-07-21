@@ -14,7 +14,6 @@ func (tc *TasksControllerImpl) runTaskTablePartition(ctx context.Context) func()
 
 		// get internal tenant
 		tenant, err := tc.p.GetInternalTenantForController(ctx)
-
 		if err != nil {
 			tc.l.Error().Err(err).Msg("could not get internal tenant")
 			return
@@ -25,7 +24,6 @@ func (tc *TasksControllerImpl) runTaskTablePartition(ctx context.Context) func()
 		}
 
 		err = tc.createTablePartition(ctx)
-
 		if err != nil {
 			tc.l.Error().Err(err).Msg("could not create table partition")
 		}
@@ -40,7 +38,6 @@ func (tc *TasksControllerImpl) createTablePartition(ctx context.Context) error {
 	defer qCancel()
 
 	err := tc.repov1.Tasks().UpdateTablePartitions(qCtx)
-
 	if err != nil {
 		return fmt.Errorf("could not create table partition: %w", err)
 	}
