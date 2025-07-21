@@ -470,6 +470,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			ingestor.WithEntitlementsRepository(sc.EntitlementRepository),
 			ingestor.WithStepRunRepository(sc.EngineRepository.StepRun()),
 			ingestor.WithRepositoryV1(sc.V1),
+			ingestor.WithLogIngestionEnabled(sc.Runtime.LogIngestionEnabled),
 		)
 
 		if err != nil {
@@ -924,6 +925,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			ingestor.WithEntitlementsRepository(sc.EntitlementRepository),
 			ingestor.WithStepRunRepository(sc.EngineRepository.StepRun()),
 			ingestor.WithRepositoryV1(sc.V1),
+			ingestor.WithLogIngestionEnabled(sc.Runtime.LogIngestionEnabled),
 		)
 
 		if err != nil {
