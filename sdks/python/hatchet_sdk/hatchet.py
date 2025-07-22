@@ -12,6 +12,7 @@ from hatchet_sdk.clients.events import EventClient
 from hatchet_sdk.clients.listeners.run_event_listener import RunEventListenerClient
 from hatchet_sdk.clients.rest.models.tenant_version import TenantVersion
 from hatchet_sdk.config import ClientConfig
+from hatchet_sdk.features.cel import CELClient
 from hatchet_sdk.features.cron import CronClient
 from hatchet_sdk.features.filters import FiltersClient
 from hatchet_sdk.features.logs import LogsClient
@@ -65,6 +66,13 @@ class Hatchet:
             logger.warning(
                 "🚨⚠️‼️ YOU ARE USING A V0 ENGINE WITH A V1 SDK, WHICH IS NOT SUPPORTED. PLEASE UPGRADE YOUR ENGINE TO V1.🚨⚠️‼️"
             )
+
+    @property
+    def cel(self) -> CELClient:
+        """
+        The CEL client is a client for interacting with Hatchet's CEL API.
+        """
+        return self._client.cel
 
     @property
     def cron(self) -> CronClient:
