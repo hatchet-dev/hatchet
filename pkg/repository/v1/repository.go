@@ -99,7 +99,7 @@ func (r *repositoryImpl) Logs() LogLineRepository {
 	return r.logs
 }
 
-func (r *repositoryImpl) PayloadStore() PayloadStoreRepository {
+func (r *repositoryImpl) Payloads() PayloadStoreRepository {
 	return r.payloads
 }
 
