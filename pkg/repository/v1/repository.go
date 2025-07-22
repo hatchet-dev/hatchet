@@ -19,6 +19,8 @@ type Repository interface {
 	OverwriteOLAPRepository(o OLAPRepository)
 	Logs() LogLineRepository
 	OverwriteLogsRepository(l LogLineRepository)
+	Payloads() PayloadStoreRepository
+	OverwritePayloadsRepository(p PayloadStoreRepository)
 	Workers() WorkerRepository
 	Workflows() WorkflowRepository
 	Ticker() TickerRepository
@@ -97,8 +99,16 @@ func (r *repositoryImpl) Logs() LogLineRepository {
 	return r.logs
 }
 
+func (r *repositoryImpl) PayloadStore() PayloadStoreRepository {
+	return r.payloads
+}
+
 func (r *repositoryImpl) OverwriteLogsRepository(l LogLineRepository) {
 	r.logs = l
+}
+
+func (r *repositoryImpl) OverwritePayloadsRepository(p PayloadStoreRepository) {
+	r.payloads = p
 }
 
 func (r *repositoryImpl) Workers() WorkerRepository {
