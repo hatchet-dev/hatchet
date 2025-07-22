@@ -1510,3 +1510,11 @@ CREATE TABLE v1_durable_sleep (
     sleep_duration TEXT NOT NULL,
     PRIMARY KEY (tenant_id, sleep_until, id)
 );
+
+CREATE TABLE v1_payload (
+    tenant_id UUID NOT NULL,
+    key TEXT NOT NULL,
+    value JSONB NOT NULL,
+
+    PRIMARY KEY (tenant_id, key)
+);
