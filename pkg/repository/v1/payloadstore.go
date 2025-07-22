@@ -9,7 +9,8 @@ import (
 
 type PayloadStoreRepository interface {
 	Store(ctx context.Context, tenantId string, payloads []StorePayloadOpts) error
-	Retrieve(ctx context.Context, tenantId, key string, payloadType sqlcv1.V1PayloadType) ([]byte, error)
+	Retrieve(ctx context.Context, tenantId string, opts RetrievePayloadOpts) ([]byte, error)
+	BulkRetrieve(ctx context.Context, tenantId string, opts []RetrievePayloadOpts) (map[RetrievePayloadOpts][]byte, error)
 }
 
 type payloadStoreRepositoryImpl struct {
@@ -20,6 +21,11 @@ func newPayloadStoreRepository(s *sharedRepository) PayloadStoreRepository {
 	return &payloadStoreRepositoryImpl{
 		sharedRepository: s,
 	}
+}
+
+type RetrievePayloadOpts struct {
+	Key  string
+	Type sqlcv1.V1PayloadType
 }
 
 type StorePayloadOpts struct {
@@ -38,8 +44,14 @@ func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tenantId string,
 	defer rollback()
 
 	keys := make([]string, len(payloads))
-	payloadTypes := make([]sqlcv1.V1PayloadType, len(payloads))
+	payloadTypes := make([]string, len(payloads))
 	payloadData := make([][]byte, len(payloads))
+
+	for i, payload := range payloads {
+		keys[i] = payload.Key
+		payloadTypes[i] = string(payload.Type)
+		payloadData[i] = payload.Payload
+	}
 
 	err = p.queries.WritePayloads(ctx, tx, sqlcv1.WritePayloadsParams{
 		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
@@ -59,11 +71,11 @@ func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tenantId string,
 	return nil
 }
 
-func (p *payloadStoreRepositoryImpl) Retrieve(ctx context.Context, tenantId, key string, payloadType sqlcv1.V1PayloadType) ([]byte, error) {
+func (p *payloadStoreRepositoryImpl) Retrieve(ctx context.Context, tenantId string, opts RetrievePayloadOpts) ([]byte, error) {
 	payload, err := p.queries.ReadPayload(ctx, p.pool, sqlcv1.ReadPayloadParams{
 		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
-		Key:      key,
-		Type:     payloadType,
+		Key:      opts.Key,
+		Type:     opts.Type,
 	})
 
 	if err != nil {
@@ -75,4 +87,39 @@ func (p *payloadStoreRepositoryImpl) Retrieve(ctx context.Context, tenantId, key
 	}
 
 	return payload.Value, nil
+}
+
+func (p *payloadStoreRepositoryImpl) BulkRetrieve(ctx context.Context, tenantId string, opts []RetrievePayloadOpts) (map[RetrievePayloadOpts][]byte, error) {
+	keys := make([]string, len(opts))
+	payloadTypes := make([]string, len(opts))
+
+	for i, opt := range opts {
+		keys[i] = opt.Key
+		payloadTypes[i] = string(opt.Type)
+	}
+
+	payloads, err := p.queries.ReadPayloads(ctx, p.pool, sqlcv1.ReadPayloadsParams{
+		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+		Keys:     keys,
+		Types:    payloadTypes,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	optsToPayload := make(map[RetrievePayloadOpts][]byte)
+
+	for _, payload := range payloads {
+		if payload == nil {
+			continue
+		}
+
+		optsToPayload[RetrievePayloadOpts{
+			Key:  payload.Key,
+			Type: payload.Type,
+		}] = payload.Value
+	}
+
+	return optsToPayload, nil
 }

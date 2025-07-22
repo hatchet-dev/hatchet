@@ -100,11 +100,14 @@ type TriggerRepository interface {
 
 type TriggerRepositoryImpl struct {
 	*sharedRepository
+
+	payloadStore PayloadStoreRepository
 }
 
-func newTriggerRepository(s *sharedRepository) TriggerRepository {
+func newTriggerRepository(s *sharedRepository, p PayloadStoreRepository) TriggerRepository {
 	return &TriggerRepositoryImpl{
 		sharedRepository: s,
+		payloadStore:     p,
 	}
 }
 
@@ -1165,6 +1168,22 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create event matches: %w", err)
+	}
+
+	storePayloadOpts := make([]StorePayloadOpts, 0, len(tasks))
+
+	for _, task := range tasks {
+		storePayloadOpts = append(storePayloadOpts, StorePayloadOpts{
+			Key:     task.ExternalID.String(),
+			Type:    sqlcv1.V1PayloadTypeWORKFLOWINPUT,
+			Payload: task.Input,
+		})
+	}
+
+	err = r.payloadStore.Store(ctx, tenantId, storePayloadOpts)
+
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to store payloads: %w", err)
 	}
 
 	// commit

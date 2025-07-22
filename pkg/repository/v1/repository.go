@@ -52,14 +52,16 @@ func NewRepository(pool *pgxpool.Pool, l *zerolog.Logger, taskRetentionPeriod, o
 		l.Fatal().Err(err).Msg("cannot create match repository")
 	}
 
+	payloadStore := newPayloadStoreRepository(shared)
+
 	impl := &repositoryImpl{
-		triggers:  newTriggerRepository(shared),
+		triggers:  newTriggerRepository(shared, payloadStore),
 		tasks:     newTaskRepository(shared, taskRetentionPeriod, maxInternalRetryCount),
 		scheduler: newSchedulerRepository(shared),
 		matches:   matchRepo,
 		olap:      newOLAPRepository(shared, olapRetentionPeriod, true),
 		logs:      newLogLineRepository(shared),
-		payloads:  newPayloadStoreRepository(shared),
+		payloads:  payloadStore,
 		workers:   newWorkerRepository(shared),
 		workflows: newWorkflowRepository(shared),
 		ticker:    newTickerRepository(shared),

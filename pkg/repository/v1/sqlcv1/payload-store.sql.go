@@ -38,11 +38,59 @@ func (q *Queries) ReadPayload(ctx context.Context, db DBTX, arg ReadPayloadParam
 	return &i, err
 }
 
+const readPayloads = `-- name: ReadPayloads :many
+WITH inputs AS (
+    SELECT
+        UNNEST($2::TEXT[]) AS key,
+        UNNEST(CAST($3::TEXT[] AS v1_payload_type[])) AS type
+)
+
+SELECT tenant_id, key, type, value
+FROM v1_payload
+WHERE
+    tenant_id = $1::UUID
+    AND (key, type) IN (
+        SELECT key, type
+        FROM inputs
+    )
+`
+
+type ReadPayloadsParams struct {
+	Tenantid pgtype.UUID `json:"tenantid"`
+	Keys     []string    `json:"keys"`
+	Types    []string    `json:"types"`
+}
+
+func (q *Queries) ReadPayloads(ctx context.Context, db DBTX, arg ReadPayloadsParams) ([]*V1Payload, error) {
+	rows, err := db.Query(ctx, readPayloads, arg.Tenantid, arg.Keys, arg.Types)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*V1Payload
+	for rows.Next() {
+		var i V1Payload
+		if err := rows.Scan(
+			&i.TenantID,
+			&i.Key,
+			&i.Type,
+			&i.Value,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const writePayloads = `-- name: WritePayloads :exec
 WITH inputs AS (
     SELECT
         UNNEST($2::TEXT[]) AS key,
-        UNNEST($3::v1_payload_type[]) AS type,
+        UNNEST(CAST($3::TEXT[] AS v1_payload_type[])) AS type,
         UNNEST($4::JSONB[]) AS payload
 )
 INSERT INTO v1_payload (
@@ -61,10 +109,10 @@ FROM
 `
 
 type WritePayloadsParams struct {
-	Tenantid pgtype.UUID     `json:"tenantid"`
-	Keys     []string        `json:"keys"`
-	Types    []V1PayloadType `json:"types"`
-	Payloads [][]byte        `json:"payloads"`
+	Tenantid pgtype.UUID `json:"tenantid"`
+	Keys     []string    `json:"keys"`
+	Types    []string    `json:"types"`
+	Payloads [][]byte    `json:"payloads"`
 }
 
 func (q *Queries) WritePayloads(ctx context.Context, db DBTX, arg WritePayloadsParams) error {

@@ -66,6 +66,7 @@ func (worker *subscribedWorker) CancelTask(
 }
 
 func populateAssignedAction(tenantID string, task *sqlcv1.V1Task, retryCount int32) *contracts.AssignedAction {
+	fmt.Println("populateAssignedAction called with task:", task)
 	workflowId := sqlchelpers.UUIDToStr(task.WorkflowID)
 	workflowVersionId := sqlchelpers.UUIDToStr(task.WorkflowVersionID)
 
@@ -159,18 +160,44 @@ func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *ms
 			continue
 		}
 
+		retrivePayloadOpts := make([]v1.RetrievePayloadOpts, len(bulkDatas))
+
+		for i, task := range bulkDatas {
+			retrivePayloadOpts[i] = v1.RetrievePayloadOpts{
+				Key:  task.ExternalID.String(),
+				Type: sqlcv1.V1PayloadTypeWORKFLOWINPUT,
+			}
+		}
+
+		inputs, err := d.repov1.Payloads().BulkRetrieve(ctx, msg.TenantID, retrivePayloadOpts)
+
+		if err != nil {
+			d.l.Error().Err(err).Msgf("could not bulk retrieve inputs for %d tasks", len(bulkDatas))
+		}
+
 		for _, task := range bulkDatas {
+			input := inputs[v1.RetrievePayloadOpts{
+				Key:  task.ExternalID.String(),
+				Type: sqlcv1.V1PayloadTypeWORKFLOWINPUT,
+			}]
+
+			fmt.Println("Retrieved input", string(input), "for task", sqlchelpers.UUIDToStr(task.ExternalID))
+
+			task.Input = input
+
 			if parentData, ok := parentDataMap[task.ID]; ok {
 				currInput := &v1.V1StepRunData{}
 
-				if task.Input != nil {
-					err := json.Unmarshal(task.Input, currInput)
+				if input != nil {
+					err := json.Unmarshal(input, currInput)
 
 					if err != nil {
 						d.l.Warn().Err(err).Msg("failed to unmarshal input")
 						continue
 					}
 				}
+
+				fmt.Println("curr input before parents:", currInput)
 
 				readableIdToData := make(map[string]map[string]interface{})
 
@@ -192,6 +219,7 @@ func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *ms
 				currInput.Parents = readableIdToData
 
 				task.Input = currInput.Bytes()
+				fmt.Println("Task input after parents:", string(task.Input))
 			}
 		}
 
@@ -232,6 +260,7 @@ func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *ms
 						var success bool
 
 						for i, w := range workers {
+							fmt.Println("starting task for worker:", workerId, "task:", sqlchelpers.UUIDToStr(task.ExternalID), "attempt:", i+1, "/", len(workers))
 							err := w.StartTaskFromBulk(ctx, msg.TenantID, task)
 
 							if err != nil {

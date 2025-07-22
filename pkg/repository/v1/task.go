@@ -1525,7 +1525,6 @@ func (r *sharedRepository) insertTasks(
 	desiredWorkerIds := make([]pgtype.UUID, len(tasks))
 	externalIds := make([]pgtype.UUID, len(tasks))
 	displayNames := make([]string, len(tasks))
-	inputs := make([][]byte, len(tasks))
 	retryCounts := make([]int32, len(tasks))
 	additionalMetadatas := make([][]byte, len(tasks))
 	initialStates := make([]string, len(tasks))
@@ -1549,6 +1548,8 @@ func (r *sharedRepository) insertTasks(
 
 	unix := time.Now().UnixMilli()
 
+	externalIdToInput := make(map[string][]byte)
+
 	for i, task := range tasks {
 		stepConfig := stepIdsToConfig[task.StepId]
 		tenantIds[i] = sqlchelpers.UUIDFromStr(tenantId)
@@ -1569,7 +1570,7 @@ func (r *sharedRepository) insertTasks(
 
 		// TODO: case on whether this is a v1 or v2 task by looking at the step data. for now,
 		// we're assuming a v1 task.
-		inputs[i] = r.ToV1StepRunData(task.Input).Bytes()
+		externalIdToInput[task.ExternalId] = r.ToV1StepRunData(task.Input).Bytes()
 		retryCounts[i] = 0
 
 		defaultPriority := stepConfig.DefaultPriority
@@ -1821,7 +1822,6 @@ func (r *sharedRepository) insertTasks(
 				Desiredworkerids:             make([]pgtype.UUID, 0),
 				Externalids:                  make([]pgtype.UUID, 0),
 				Displaynames:                 make([]string, 0),
-				Inputs:                       make([][]byte, 0),
 				Retrycounts:                  make([]int32, 0),
 				Additionalmetadatas:          make([][]byte, 0),
 				InitialStates:                make([]string, 0),
@@ -1857,7 +1857,6 @@ func (r *sharedRepository) insertTasks(
 		params.Desiredworkerids = append(params.Desiredworkerids, desiredWorkerIds[i])
 		params.Externalids = append(params.Externalids, externalIds[i])
 		params.Displaynames = append(params.Displaynames, displayNames[i])
-		params.Inputs = append(params.Inputs, inputs[i])
 		params.Retrycounts = append(params.Retrycounts, retryCounts[i])
 		params.Additionalmetadatas = append(params.Additionalmetadatas, additionalMetadatas[i])
 		params.InitialStates = append(params.InitialStates, initialStates[i])
@@ -1896,7 +1895,15 @@ func (r *sharedRepository) insertTasks(
 			return nil, fmt.Errorf("failed to create tasks for step id %s: %w", stepId, err)
 		}
 
-		res = append(res, createdTasks...)
+		for _, task := range createdTasks {
+			input, ok := externalIdToInput[sqlchelpers.UUIDToStr(task.ExternalID)]
+
+			if ok {
+				task.Input = input
+			}
+
+			res = append(res, task)
+		}
 
 		for _, createdTask := range createdTasks {
 			idRetryCount := TaskIdInsertedAtRetryCount{

@@ -9,7 +9,7 @@ import (
 const createTasks = `-- name: CreateTasks :many
 WITH input AS (
     SELECT
-        tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, retry_count, additional_metadata, initial_state, dag_id, dag_inserted_at, concurrency_parent_strategy_ids, concurrency_strategy_ids, concurrency_keys, initial_state_reason, parent_task_external_id, parent_task_id, parent_task_inserted_at, child_index, child_key, step_index, retry_backoff_factor, retry_max_backoff, workflow_version_id, workflow_run_id
+        tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, retry_count, additional_metadata, initial_state, dag_id, dag_inserted_at, concurrency_parent_strategy_ids, concurrency_strategy_ids, concurrency_keys, initial_state_reason, parent_task_external_id, parent_task_id, parent_task_inserted_at, child_index, child_key, step_index, retry_backoff_factor, retry_max_backoff, workflow_version_id, workflow_run_id
     FROM
         (
             SELECT
@@ -40,8 +40,8 @@ WITH input AS (
 				unnest($24::bigint[]) AS parent_task_id,
 				unnest($25::timestamptz[]) AS parent_task_inserted_at,
 				unnest($26::integer[]) AS child_index,
-				unnest($28::text[]) AS child_key,
-				unnest($29::bigint[]) AS step_index,
+				unnest($27::text[]) AS child_key,
+				unnest($28::bigint[]) AS step_index,
 				unnest($29::double precision[]) AS retry_backoff_factor,
 				unnest($30::integer[]) AS retry_max_backoff,
 				unnest($31::uuid[]) AS workflow_version_id,
@@ -97,7 +97,7 @@ SELECT
     i.desired_worker_id,
     i.external_id,
     i.display_name,
-    NULL::JSONB,
+    '{}'::JSONB,
     i.retry_count,
     i.additional_metadata,
 	i.initial_state,
