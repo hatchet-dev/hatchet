@@ -23,5 +23,7 @@ func main() {
 		log.Fatalf("failed to create hatchet worker: %v", err)
 	}
 
-	worker.StartBlocking(context.Background())
+	if err := worker.StartBlocking(context.Background()); err != nil {
+		log.Fatalf("failed to start hatchet worker: %v", err)
+	}
 }
