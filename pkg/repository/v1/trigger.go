@@ -206,7 +206,7 @@ type EventExternalIdFilterId struct {
 }
 
 type WorkflowAndScope struct {
-	WorkflowId string
+	WorkflowId pgtype.UUID
 	Scope      string
 }
 
@@ -246,10 +246,9 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 		return nil, fmt.Errorf("failed to list workflows for events: %w", err)
 	}
 
-	workflowIds := make([]pgtype.UUID, 0)
-	scopes := make([]string, 0)
-
 	externalIdToEventIdAndFilterId := make(map[string]EventExternalIdFilterId)
+
+	workflowIdScopePairs := make(map[WorkflowAndScope]bool)
 
 	for _, workflow := range workflowVersionIdsAndEventKeys {
 		opts, ok := eventKeysToOpts[workflow.IncomingEventKey]
@@ -263,9 +262,19 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 				continue
 			}
 
-			workflowIds = append(workflowIds, workflow.WorkflowId)
-			scopes = append(scopes, *opt.Scope)
+			workflowIdScopePairs[WorkflowAndScope{
+				WorkflowId: workflow.WorkflowId,
+				Scope:      *opt.Scope,
+			}] = true
 		}
+	}
+
+	workflowIds := make([]pgtype.UUID, 0)
+	scopes := make([]string, 0)
+
+	for pair := range workflowIdScopePairs {
+		workflowIds = append(workflowIds, pair.WorkflowId)
+		scopes = append(scopes, pair.Scope)
 	}
 
 	filters, err := r.queries.ListFiltersForEventTriggers(ctx, r.pool, sqlcv1.ListFiltersForEventTriggersParams{
@@ -282,7 +291,7 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 
 	for _, filter := range filters {
 		key := WorkflowAndScope{
-			WorkflowId: filter.WorkflowID.String(),
+			WorkflowId: filter.WorkflowID,
 			Scope:      filter.Scope,
 		}
 
@@ -323,7 +332,7 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 
 			if opt.Scope != nil {
 				key := WorkflowAndScope{
-					WorkflowId: workflow.WorkflowId.String(),
+					WorkflowId: workflow.WorkflowId,
 					Scope:      *opt.Scope,
 				}
 
