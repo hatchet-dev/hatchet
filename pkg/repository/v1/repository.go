@@ -32,6 +32,7 @@ type repositoryImpl struct {
 	matches   MatchRepository
 	olap      OLAPRepository
 	logs      LogLineRepository
+	payloads  PayloadStoreRepository
 	workers   WorkerRepository
 	workflows WorkflowRepository
 	ticker    TickerRepository
@@ -56,6 +57,7 @@ func NewRepository(pool *pgxpool.Pool, l *zerolog.Logger, taskRetentionPeriod, o
 		matches:   matchRepo,
 		olap:      newOLAPRepository(shared, olapRetentionPeriod, true),
 		logs:      newLogLineRepository(shared),
+		payloads:  newPayloadStoreRepository(shared),
 		workers:   newWorkerRepository(shared),
 		workflows: newWorkflowRepository(shared),
 		ticker:    newTickerRepository(shared),

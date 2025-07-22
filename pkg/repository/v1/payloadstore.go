@@ -7,19 +7,22 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 )
 
-type payloadStoreRepository struct {
+type PayloadStoreRepository interface {
+	Store(ctx context.Context, tenantId, key string, payloadType sqlcv1.V1PayloadType, payload []byte) error
+	Retrieve(ctx context.Context, tenantId, key string, payloadType sqlcv1.V1PayloadType) ([]byte, error)
+}
+
+type payloadStoreRepositoryImpl struct {
 	*sharedRepository
 }
 
-func NewPayloadStoreRepository(shared *sharedRepository) (*payloadStoreRepository, func() error) {
-	return &payloadStoreRepository{
-			sharedRepository: shared,
-		}, func() error {
-			return nil
-		}
+func newPayloadStoreRepository(s *sharedRepository) PayloadStoreRepository {
+	return &payloadStoreRepositoryImpl{
+		sharedRepository: s,
+	}
 }
 
-func (p *payloadStoreRepository) Store(ctx context.Context, tenantId, key string, payloadType sqlcv1.V1PayloadType, payload []byte) error {
+func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tenantId, key string, payloadType sqlcv1.V1PayloadType, payload []byte) error {
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, p.pool, p.l, 5000)
 	if err != nil {
 		return err
@@ -45,7 +48,7 @@ func (p *payloadStoreRepository) Store(ctx context.Context, tenantId, key string
 	return nil
 }
 
-func (p *payloadStoreRepository) Retrieve(ctx context.Context, tenantId, key string, payloadType sqlcv1.V1PayloadType) ([]byte, error) {
+func (p *payloadStoreRepositoryImpl) Retrieve(ctx context.Context, tenantId, key string, payloadType sqlcv1.V1PayloadType) ([]byte, error) {
 	payload, err := p.queries.ReadPayload(ctx, p.pool, sqlcv1.ReadPayloadParams{
 		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
 		Key:      key,
