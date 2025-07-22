@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 
 	"github.com/google/uuid"
 
@@ -14,15 +15,25 @@ import (
 )
 
 func (t *TickerImpl) runCronWorkflowV1(ctx context.Context, tenantId string, workflowVersion *dbsqlc.GetWorkflowVersionForEngineRow, cron, cronParentId string, cronName *string, input []byte, additionalMetadata map[string]interface{}, priority *int32) error {
-	var additionalMetaBytes []byte
-	var err error
+	if additionalMetadata == nil {
+		additionalMetadata = make(map[string]interface{})
+	}
 
-	if additionalMetadata != nil {
-		additionalMetaBytes, err = json.Marshal(additionalMetadata)
+	metadata := map[string]any{
+		"hatchet_cron_expression": cron,
+		"hatchet_cron_parent_id":  cronParentId,
+	}
 
-		if err != nil {
-			return fmt.Errorf("could not marshal additional metadata: %w", err)
-		}
+	if cronName != nil {
+		metadata["hatchet_cron_name"] = *cronName
+	}
+
+	// copy metadata into additionalMetadata as to not override hatchet_* keys
+	maps.Copy(additionalMetadata, metadata)
+
+	additionalMetaBytes, err := json.Marshal(additionalMetadata)
+	if err != nil {
+		return fmt.Errorf("could not marshal additional metadata: %w", err)
 	}
 
 	// send workflow run to task controller
