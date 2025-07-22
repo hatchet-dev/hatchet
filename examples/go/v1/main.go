@@ -18,6 +18,8 @@ func main() {
 		return "Hello, World!", nil
 	})
 
+	// workflow.Run()
+
 	worker, err := client.NewWorker("my-worker", hatchet.WithWorkflows(workflow))
 	if err != nil {
 		log.Fatalf("failed to create hatchet worker: %v", err)
