@@ -1133,6 +1133,48 @@ func (ns NullV1MatchKind) Value() (driver.Value, error) {
 	return string(ns.V1MatchKind), nil
 }
 
+type V1PayloadType string
+
+const (
+	V1PayloadTypeWORKFLOWINPUT V1PayloadType = "WORKFLOW_INPUT"
+	V1PayloadTypeTASKOUTPUT    V1PayloadType = "TASK_OUTPUT"
+)
+
+func (e *V1PayloadType) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = V1PayloadType(s)
+	case string:
+		*e = V1PayloadType(s)
+	default:
+		return fmt.Errorf("unsupported scan type for V1PayloadType: %T", src)
+	}
+	return nil
+}
+
+type NullV1PayloadType struct {
+	V1PayloadType V1PayloadType `json:"v1_payload_type"`
+	Valid         bool          `json:"valid"` // Valid is true if V1PayloadType is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullV1PayloadType) Scan(value interface{}) error {
+	if value == nil {
+		ns.V1PayloadType, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.V1PayloadType.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullV1PayloadType) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.V1PayloadType), nil
+}
+
 type V1ReadableStatusOlap string
 
 const (
@@ -2628,6 +2670,13 @@ type V1MatchCondition struct {
 	OrGroupID         pgtype.UUID            `json:"or_group_id"`
 	Expression        pgtype.Text            `json:"expression"`
 	Data              []byte                 `json:"data"`
+}
+
+type V1Payload struct {
+	TenantID pgtype.UUID   `json:"tenant_id"`
+	Key      string        `json:"key"`
+	Type     V1PayloadType `json:"type"`
+	Value    []byte        `json:"value"`
 }
 
 type V1Queue struct {
