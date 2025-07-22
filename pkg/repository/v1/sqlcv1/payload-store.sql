@@ -7,17 +7,24 @@ WHERE
     AND key = @key::TEXT
 ;
 
--- name: WritePayload :exec
+-- name: WritePayloads :exec
+WITH inputs AS (
+    SELECT
+        UNNEST(@keys::TEXT[]) AS key,
+        UNNEST(@types::v1_payload_type[]) AS type,
+        UNNEST(@payloads::JSONB[]) AS payload
+)
 INSERT INTO v1_payload (
     tenant_id,
     key,
     type,
     value
 )
-VALUES (
+SELECT
     @tenantId::UUID,
-    @key::TEXT,
-    @type::v1_payload_type,
-    @payload::JSONB
-)
+    i.key,
+    i.type,
+    i.payload
+FROM
+    inputs i
 ;

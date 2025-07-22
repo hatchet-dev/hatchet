@@ -38,34 +38,41 @@ func (q *Queries) ReadPayload(ctx context.Context, db DBTX, arg ReadPayloadParam
 	return &i, err
 }
 
-const writePayload = `-- name: WritePayload :exec
+const writePayloads = `-- name: WritePayloads :exec
+WITH inputs AS (
+    SELECT
+        UNNEST($2::TEXT[]) AS key,
+        UNNEST($3::v1_payload_type[]) AS type,
+        UNNEST($4::JSONB[]) AS payload
+)
 INSERT INTO v1_payload (
     tenant_id,
     key,
     type,
     value
 )
-VALUES (
+SELECT
     $1::UUID,
-    $2::TEXT,
-    $3::v1_payload_type,
-    $4::JSONB
-)
+    i.key,
+    i.type,
+    i.payload
+FROM
+    inputs i
 `
 
-type WritePayloadParams struct {
-	Tenantid pgtype.UUID   `json:"tenantid"`
-	Key      string        `json:"key"`
-	Type     V1PayloadType `json:"type"`
-	Payload  []byte        `json:"payload"`
+type WritePayloadsParams struct {
+	Tenantid pgtype.UUID     `json:"tenantid"`
+	Keys     []string        `json:"keys"`
+	Types    []V1PayloadType `json:"types"`
+	Payloads [][]byte        `json:"payloads"`
 }
 
-func (q *Queries) WritePayload(ctx context.Context, db DBTX, arg WritePayloadParams) error {
-	_, err := db.Exec(ctx, writePayload,
+func (q *Queries) WritePayloads(ctx context.Context, db DBTX, arg WritePayloadsParams) error {
+	_, err := db.Exec(ctx, writePayloads,
 		arg.Tenantid,
-		arg.Key,
-		arg.Type,
-		arg.Payload,
+		arg.Keys,
+		arg.Types,
+		arg.Payloads,
 	)
 	return err
 }

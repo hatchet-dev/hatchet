@@ -26,27 +26,26 @@ WITH input AS (
                 unnest($11::uuid[]) AS desired_worker_id,
                 unnest($12::uuid[]) AS external_id,
                 unnest($13::text[]) AS display_name,
-                unnest($14::jsonb[]) AS input,
-                unnest($15::integer[]) AS retry_count,
-                unnest($16::jsonb[]) AS additional_metadata,
-				unnest(cast($17::text[] as v1_task_initial_state[])) AS initial_state,
+                unnest($14::integer[]) AS retry_count,
+                unnest($15::jsonb[]) AS additional_metadata,
+				unnest(cast($16::text[] as v1_task_initial_state[])) AS initial_state,
                 -- NOTE: these are nullable, so sqlc doesn't support casting to a type
-                unnest($18::bigint[]) AS dag_id,
-                unnest($19::timestamptz[]) AS dag_inserted_at,
-				unnest_nd_1d($20::bigint[][]) AS concurrency_parent_strategy_ids,
-				unnest_nd_1d($21::bigint[][]) AS concurrency_strategy_ids,
-				unnest_nd_1d($22::text[][]) AS concurrency_keys,
-				unnest($23::text[]) AS initial_state_reason,
-				unnest($24::uuid[]) AS parent_task_external_id,
-				unnest($25::bigint[]) AS parent_task_id,
-				unnest($26::timestamptz[]) AS parent_task_inserted_at,
-				unnest($27::integer[]) AS child_index,
+                unnest($17::bigint[]) AS dag_id,
+                unnest($18::timestamptz[]) AS dag_inserted_at,
+				unnest_nd_1d($19::bigint[][]) AS concurrency_parent_strategy_ids,
+				unnest_nd_1d($20::bigint[][]) AS concurrency_strategy_ids,
+				unnest_nd_1d($21::text[][]) AS concurrency_keys,
+				unnest($22::text[]) AS initial_state_reason,
+				unnest($23::uuid[]) AS parent_task_external_id,
+				unnest($24::bigint[]) AS parent_task_id,
+				unnest($25::timestamptz[]) AS parent_task_inserted_at,
+				unnest($26::integer[]) AS child_index,
 				unnest($28::text[]) AS child_key,
 				unnest($29::bigint[]) AS step_index,
-				unnest($30::double precision[]) AS retry_backoff_factor,
-				unnest($31::integer[]) AS retry_max_backoff,
-				unnest($32::uuid[]) AS workflow_version_id,
-				unnest($33::uuid[]) AS workflow_run_id
+				unnest($29::double precision[]) AS retry_backoff_factor,
+				unnest($30::integer[]) AS retry_max_backoff,
+				unnest($31::uuid[]) AS workflow_version_id,
+				unnest($32::uuid[]) AS workflow_run_id
         ) AS subquery
 )
 INSERT INTO v1_task (
@@ -98,7 +97,7 @@ SELECT
     i.desired_worker_id,
     i.external_id,
     i.display_name,
-    i.input,
+    NULL::JSONB,
     i.retry_count,
     i.additional_metadata,
 	i.initial_state,
@@ -138,7 +137,6 @@ type CreateTasksParams struct {
 	Desiredworkerids    []pgtype.UUID        `json:"desiredworkerids"`
 	Externalids         []pgtype.UUID        `json:"externalids"`
 	Displaynames        []string             `json:"displaynames"`
-	Inputs              [][]byte             `json:"inputs"`
 	Retrycounts         []int32              `json:"retrycounts"`
 	Additionalmetadatas [][]byte             `json:"additionalmetadatas"`
 	InitialStates       []string             `json:"initialstates"`
@@ -191,7 +189,6 @@ func (q *Queries) CreateTasks(ctx context.Context, db DBTX, arg CreateTasksParam
 		arg.Desiredworkerids,
 		arg.Externalids,
 		arg.Displaynames,
-		arg.Inputs,
 		arg.Retrycounts,
 		arg.Additionalmetadatas,
 		arg.InitialStates,

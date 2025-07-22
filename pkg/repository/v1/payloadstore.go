@@ -8,7 +8,7 @@ import (
 )
 
 type PayloadStoreRepository interface {
-	Store(ctx context.Context, tenantId, key string, payloadType sqlcv1.V1PayloadType, payload []byte) error
+	Store(ctx context.Context, tenantId string, payloads []StorePayloadOpts) error
 	Retrieve(ctx context.Context, tenantId, key string, payloadType sqlcv1.V1PayloadType) ([]byte, error)
 }
 
@@ -22,19 +22,30 @@ func newPayloadStoreRepository(s *sharedRepository) PayloadStoreRepository {
 	}
 }
 
-func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tenantId, key string, payloadType sqlcv1.V1PayloadType, payload []byte) error {
+type StorePayloadOpts struct {
+	Key     string
+	Type    sqlcv1.V1PayloadType
+	Payload []byte
+}
+
+func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tenantId string, payloads []StorePayloadOpts) error {
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, p.pool, p.l, 5000)
+
 	if err != nil {
 		return err
 	}
 
 	defer rollback()
 
-	err = p.queries.WritePayload(ctx, tx, sqlcv1.WritePayloadParams{
+	keys := make([]string, len(payloads))
+	payloadTypes := make([]sqlcv1.V1PayloadType, len(payloads))
+	payloadData := make([][]byte, len(payloads))
+
+	err = p.queries.WritePayloads(ctx, tx, sqlcv1.WritePayloadsParams{
 		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
-		Key:      key,
-		Type:     payloadType,
-		Payload:  payload,
+		Keys:     keys,
+		Types:    payloadTypes,
+		Payloads: payloadData,
 	})
 
 	if err != nil {
