@@ -43,3 +43,7 @@ async def test_durable(hatchet: Hatchet) -> None:
     assert wait_group_1["key"] == "CREATE"
     assert "sleep" in wait_group_1["event_id"]
     assert "event" in wait_group_2["event_id"]
+
+    wait_for_multi_sleep = result["wait_for_multi_sleep"]
+
+    assert wait_for_multi_sleep["runtime"] > 3 * SLEEP_TIME

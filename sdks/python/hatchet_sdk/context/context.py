@@ -3,6 +3,7 @@ import json
 from datetime import timedelta
 from typing import TYPE_CHECKING, Any, cast
 from warnings import warn
+from datetime import datetime, timezone
 
 from hatchet_sdk.clients.admin import AdminClient
 from hatchet_sdk.clients.dispatcher.dispatcher import (  # type: ignore[attr-defined]
@@ -411,6 +412,8 @@ class DurableContext(Context):
         For more complicated conditions, use `ctx.aio_wait_for` directly.
         """
 
+        now = datetime.now(tz=timezone.utc).strftime("%Y%m%dT%H%M%S")
         return await self.aio_wait_for(
-            f"sleep:{timedelta_to_expr(duration)}", SleepCondition(duration=duration)
+            f"sleep:{timedelta_to_expr(duration)}-{now}",
+            SleepCondition(duration=duration),
         )
