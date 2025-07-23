@@ -91,7 +91,7 @@ type createDAGOpts struct {
 type TriggerRepository interface {
 	TriggerFromEvents(ctx context.Context, tenantId string, opts []EventTriggerOpts) (*TriggerFromEventsResult, error)
 
-	TriggerFromWorkflowNames(ctx context.Context, tenantId string, opts []*WorkflowNameTriggerOpts) ([]*sqlcv1.V1Task, []*DAGWithData, error)
+	TriggerFromWorkflowNames(ctx context.Context, tenantId string, opts []*WorkflowNameTriggerOpts) ([]*V1TaskWithPayload, []*DAGWithData, error)
 
 	PopulateExternalIdsForWorkflow(ctx context.Context, tenantId string, opts []*WorkflowNameTriggerOpts) error
 
@@ -118,7 +118,7 @@ type Run struct {
 }
 
 type TriggerFromEventsResult struct {
-	Tasks                 []*sqlcv1.V1Task
+	Tasks                 []*V1TaskWithPayload
 	Dags                  []*DAGWithData
 	EventExternalIdToRuns map[string][]*Run
 }
@@ -424,7 +424,7 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 	}, nil
 }
 
-func (r *TriggerRepositoryImpl) TriggerFromWorkflowNames(ctx context.Context, tenantId string, opts []*WorkflowNameTriggerOpts) ([]*sqlcv1.V1Task, []*DAGWithData, error) {
+func (r *TriggerRepositoryImpl) TriggerFromWorkflowNames(ctx context.Context, tenantId string, opts []*WorkflowNameTriggerOpts) ([]*V1TaskWithPayload, []*DAGWithData, error) {
 	workflowNames := make([]string, 0, len(opts))
 	uniqueNames := make(map[string]struct{})
 	namesToOpts := make(map[string][]*WorkflowNameTriggerOpts)
@@ -626,7 +626,7 @@ type triggerTuple struct {
 	childKey             *string
 }
 
-func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId string, tuples []triggerTuple) ([]*sqlcv1.V1Task, []*DAGWithData, error) {
+func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId string, tuples []triggerTuple) ([]*V1TaskWithPayload, []*DAGWithData, error) {
 	// get unique workflow version ids
 	uniqueWorkflowVersionIds := make(map[string]struct{})
 
@@ -1207,6 +1207,11 @@ type DAGWithData struct {
 	ParentTaskExternalID *pgtype.UUID
 
 	TotalTasks int
+}
+
+type V1TaskWithPayload struct {
+	*sqlcv1.V1Task
+	Payload []byte `json:"payload"`
 }
 
 func (r *TriggerRepositoryImpl) createDAGs(ctx context.Context, tx sqlcv1.DBTX, tenantId string, opts []createDAGOpts) ([]*DAGWithData, error) {

@@ -2,6 +2,7 @@ package v1
 
 import (
 	msgqueue "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 )
 
@@ -46,7 +47,7 @@ func NotifyTaskReleased(tenantId string, tasks []*sqlcv1.ReleaseTasksRow) (*msgq
 	)
 }
 
-func NotifyTaskCreated(tenantId string, tasks []*sqlcv1.V1Task) (*msgqueue.Message, error) {
+func NotifyTaskCreated(tenantId string, tasks []*v1.V1TaskWithPayload) (*msgqueue.Message, error) {
 	uniqueQueueNames := make(map[string]struct{})
 	uniqueStrategies := make(map[int64]struct{})
 

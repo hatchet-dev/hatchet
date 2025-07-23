@@ -109,10 +109,10 @@ type CreateMatchOpts struct {
 
 type EventMatchResults struct {
 	// The list of tasks which were created from the matches
-	CreatedTasks []*sqlcv1.V1Task
+	CreatedTasks []*V1TaskWithPayload
 
 	// The list of tasks which were replayed from the matches
-	ReplayedTasks []*sqlcv1.V1Task
+	ReplayedTasks []*V1TaskWithPayload
 }
 
 type GroupMatchCondition struct {
@@ -467,7 +467,7 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 		}
 	}
 
-	tasks := make([]*sqlcv1.V1Task, 0)
+	tasks := make([]*V1TaskWithPayload, 0)
 
 	if len(dagIds) > 0 {
 		dagInputDatas, err := m.queries.GetDAGData(ctx, tx, sqlcv1.GetDAGDataParams{

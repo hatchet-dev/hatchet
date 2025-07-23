@@ -13,17 +13,17 @@ import (
 )
 
 type CreatedTaskPayload struct {
-	*sqlcv1.V1Task
+	*v1.V1TaskWithPayload
 }
 
-func CreatedTaskMessage(tenantId string, task *sqlcv1.V1Task) (*msgqueue.Message, error) {
+func CreatedTaskMessage(tenantId string, task *v1.V1TaskWithPayload) (*msgqueue.Message, error) {
 	return msgqueue.NewTenantMessage(
 		tenantId,
 		"created-task",
 		false,
 		true,
 		CreatedTaskPayload{
-			V1Task: task,
+			V1TaskWithPayload: task,
 		},
 	)
 }

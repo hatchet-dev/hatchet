@@ -1107,12 +1107,12 @@ func (tc *TasksControllerImpl) signalDAGsCreated(ctx context.Context, tenantId s
 	return nil
 }
 
-func (tc *TasksControllerImpl) signalTasksCreated(ctx context.Context, tenantId string, tasks []*sqlcv1.V1Task) error {
+func (tc *TasksControllerImpl) signalTasksCreated(ctx context.Context, tenantId string, tasks []*v1.V1TaskWithPayload) error {
 	// group tasks by initial states
-	queuedTasks := make([]*sqlcv1.V1Task, 0)
-	failedTasks := make([]*sqlcv1.V1Task, 0)
-	cancelledTasks := make([]*sqlcv1.V1Task, 0)
-	skippedTasks := make([]*sqlcv1.V1Task, 0)
+	queuedTasks := make([]*v1.V1TaskWithPayload, 0)
+	failedTasks := make([]*v1.V1TaskWithPayload, 0)
+	cancelledTasks := make([]*v1.V1TaskWithPayload, 0)
+	skippedTasks := make([]*v1.V1TaskWithPayload, 0)
 
 	for _, task := range tasks {
 		switch task.InitialState {
@@ -1199,17 +1199,17 @@ func (tc *TasksControllerImpl) signalTasksCreated(ctx context.Context, tenantId 
 	return eg.Wait()
 }
 
-func (tc *TasksControllerImpl) signalTasksReplayedFromMatch(ctx context.Context, tenantId string, tasks []*sqlcv1.V1Task) error {
+func (tc *TasksControllerImpl) signalTasksReplayedFromMatch(ctx context.Context, tenantId string, tasks []*v1.V1TaskWithPayload) error {
 	if !tc.replayEnabled {
 		tc.l.Debug().Msg("replay is disabled, skipping signalTasksReplayedFromMatch")
 		return nil
 	}
 
 	// group tasks by initial states
-	queuedTasks := make([]*sqlcv1.V1Task, 0)
-	failedTasks := make([]*sqlcv1.V1Task, 0)
-	cancelledTasks := make([]*sqlcv1.V1Task, 0)
-	skippedTasks := make([]*sqlcv1.V1Task, 0)
+	queuedTasks := make([]*v1.V1TaskWithPayload, 0)
+	failedTasks := make([]*v1.V1TaskWithPayload, 0)
+	cancelledTasks := make([]*v1.V1TaskWithPayload, 0)
+	skippedTasks := make([]*v1.V1TaskWithPayload, 0)
 
 	for _, task := range tasks {
 		switch task.InitialState {
@@ -1277,12 +1277,12 @@ func (tc *TasksControllerImpl) signalTasksReplayedFromMatch(ctx context.Context,
 	return eg.Wait()
 }
 
-func (tc *TasksControllerImpl) signalTasksUpdated(ctx context.Context, tenantId string, tasks []*sqlcv1.V1Task) error {
+func (tc *TasksControllerImpl) signalTasksUpdated(ctx context.Context, tenantId string, tasks []*v1.V1TaskWithPayload) error {
 	// group tasks by initial states
-	queuedTasks := make([]*sqlcv1.V1Task, 0)
-	failedTasks := make([]*sqlcv1.V1Task, 0)
-	cancelledTasks := make([]*sqlcv1.V1Task, 0)
-	skippedTasks := make([]*sqlcv1.V1Task, 0)
+	queuedTasks := make([]*v1.V1TaskWithPayload, 0)
+	failedTasks := make([]*v1.V1TaskWithPayload, 0)
+	cancelledTasks := make([]*v1.V1TaskWithPayload, 0)
+	skippedTasks := make([]*v1.V1TaskWithPayload, 0)
 
 	for _, task := range tasks {
 		switch task.InitialState {
@@ -1350,7 +1350,7 @@ func (tc *TasksControllerImpl) signalTasksUpdated(ctx context.Context, tenantId 
 	return eg.Wait()
 }
 
-func (tc *TasksControllerImpl) signalTasksCreatedAndQueued(ctx context.Context, tenantId string, tasks []*sqlcv1.V1Task) error {
+func (tc *TasksControllerImpl) signalTasksCreatedAndQueued(ctx context.Context, tenantId string, tasks []*v1.V1TaskWithPayload) error {
 	// get all unique queues and notify them
 	queues := make(map[string]struct{})
 
@@ -1435,7 +1435,7 @@ func (tc *TasksControllerImpl) signalTasksCreatedAndQueued(ctx context.Context, 
 	return nil
 }
 
-func (tc *TasksControllerImpl) signalTasksCreatedAndCancelled(ctx context.Context, tenantId string, tasks []*sqlcv1.V1Task) error {
+func (tc *TasksControllerImpl) signalTasksCreatedAndCancelled(ctx context.Context, tenantId string, tasks []*v1.V1TaskWithPayload) error {
 	internalEvents := make([]v1.InternalTaskEvent, 0)
 
 	for _, task := range tasks {
@@ -1500,7 +1500,7 @@ func (tc *TasksControllerImpl) signalTasksCreatedAndCancelled(ctx context.Contex
 	return nil
 }
 
-func (tc *TasksControllerImpl) signalTasksCreatedAndFailed(ctx context.Context, tenantId string, tasks []*sqlcv1.V1Task) error {
+func (tc *TasksControllerImpl) signalTasksCreatedAndFailed(ctx context.Context, tenantId string, tasks []*v1.V1TaskWithPayload) error {
 	internalEvents := make([]v1.InternalTaskEvent, 0)
 
 	for _, task := range tasks {
@@ -1566,7 +1566,7 @@ func (tc *TasksControllerImpl) signalTasksCreatedAndFailed(ctx context.Context, 
 	return nil
 }
 
-func (tc *TasksControllerImpl) signalTasksCreatedAndSkipped(ctx context.Context, tenantId string, tasks []*sqlcv1.V1Task) error {
+func (tc *TasksControllerImpl) signalTasksCreatedAndSkipped(ctx context.Context, tenantId string, tasks []*v1.V1TaskWithPayload) error {
 	internalEvents := make([]v1.InternalTaskEvent, 0)
 
 	for _, task := range tasks {
