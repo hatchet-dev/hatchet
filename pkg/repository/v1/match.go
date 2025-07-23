@@ -261,7 +261,7 @@ func (m *MatchRepositoryImpl) ProcessInternalEventMatches(ctx context.Context, t
 		storePayloadOpts[i] = StorePayloadOpts{
 			Key:     task.ExternalID.String(),
 			Type:    sqlcv1.V1PayloadTypeWORKFLOWINPUT,
-			Payload: task.Input,
+			Payload: task.Payload,
 		}
 	}
 
@@ -301,7 +301,7 @@ func (m *MatchRepositoryImpl) ProcessUserEventMatches(ctx context.Context, tenan
 		storePayloadOpts[i] = StorePayloadOpts{
 			Key:     task.ExternalID.String(),
 			Type:    sqlcv1.V1PayloadTypeWORKFLOWINPUT,
-			Payload: task.Input,
+			Payload: task.Payload,
 		}
 	}
 
