@@ -1,7 +1,7 @@
+import asyncio
 import time
 from datetime import timedelta
 from uuid import uuid4
-import asyncio
 
 from hatchet_sdk import (
     Context,

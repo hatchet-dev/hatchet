@@ -1,6 +1,6 @@
 import asyncio
 import json
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
 from typing import TYPE_CHECKING, Any, cast
 from warnings import warn
 
@@ -401,7 +401,7 @@ class DurableContext(Context):
     def wait_index(self) -> int:
         return self._wait_index
 
-    def _increment_wait_index(self):
+    def _increment_wait_index(self) -> int:
         index = self._wait_index
         self._wait_index += 1
 
