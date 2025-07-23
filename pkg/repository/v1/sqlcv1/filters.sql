@@ -91,7 +91,7 @@ GROUP BY workflow_id
 
 -- name: ListFiltersForEventTriggers :many
 WITH inputs AS (
-    SELECT
+    SELECT DISTINCT
         UNNEST(sqlc.narg(workflowIds)::UUID[]) AS workflow_id,
         UNNEST(sqlc.narg(scopes)::TEXT[]) AS scope
 )

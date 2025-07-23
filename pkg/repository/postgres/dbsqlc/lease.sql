@@ -34,10 +34,7 @@ SET
     "expiresAt" = EXCLUDED."expiresAt"
 WHERE
     "Lease"."expiresAt" < now() OR
-    (
-        "Lease"."id" = ANY(@existingLeaseIds::bigint[]) AND
-        "Lease"."expiresAt" < now() + INTERVAL '10 seconds'
-    )
+    "Lease"."id" = ANY(@existingLeaseIds::bigint[])
 RETURNING *;
 
 -- name: ReleaseLeases :many
