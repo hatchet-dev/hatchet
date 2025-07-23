@@ -26,6 +26,7 @@ import (
 	stepruns "github.com/hatchet-dev/hatchet/api/v1/server/handlers/step-runs"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/tenants"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/users"
+	celv1 "github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/cel"
 	eventsv1 "github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/events"
 	filtersv1 "github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/filters"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/tasks"
@@ -66,6 +67,7 @@ type apiService struct {
 	*eventsv1.V1EventsService
 	*filtersv1.V1FiltersService
 	*webhooksv1.V1WebhooksService
+	*celv1.V1CELService
 }
 
 func newAPIService(config *server.ServerConfig) *apiService {
@@ -91,6 +93,7 @@ func newAPIService(config *server.ServerConfig) *apiService {
 		V1EventsService:       eventsv1.NewV1EventsService(config),
 		V1FiltersService:      filtersv1.NewV1FiltersService(config),
 		V1WebhooksService:     webhooksv1.NewV1WebhooksService(config),
+		V1CELService:          celv1.NewV1CELService(config),
 	}
 }
 
@@ -302,7 +305,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 		}
 
 		if scheduled == nil {
-			return nil, "", fmt.Errorf("scheduled workflow run not found")
+			return nil, "", echo.NewHTTPError(http.StatusNotFound, "scheduled workflow run not found")
 		}
 
 		return scheduled, sqlchelpers.UUIDToStr(scheduled.TenantId), nil
@@ -316,7 +319,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 		}
 
 		if scheduled == nil {
-			return nil, "", fmt.Errorf("cron workflow not found")
+			return nil, "", echo.NewHTTPError(http.StatusNotFound, "cron workflow not found")
 		}
 
 		return scheduled, sqlchelpers.UUIDToStr(scheduled.TenantId), nil
@@ -382,7 +385,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 		}
 
 		if task == nil {
-			return nil, "", fmt.Errorf("task not found")
+			return nil, "", echo.NewHTTPError(http.StatusNotFound, "task not found")
 		}
 
 		return task, sqlchelpers.UUIDToStr(task.TenantID), nil

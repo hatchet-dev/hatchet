@@ -8,6 +8,7 @@ import (
 	msgqueue "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
 	"github.com/hatchet-dev/hatchet/internal/services/admin/contracts"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
+	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
@@ -64,6 +65,14 @@ func (a *AdminServiceImpl) triggerWorkflowV1(ctx context.Context, req *contracts
 		return nil, fmt.Errorf("could not create trigger opt: %w", err)
 	}
 
+	if err := repository.ValidateJSONB(opt.Data, "payload"); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "Invalid request: %s", err)
+	}
+
+	if err := repository.ValidateJSONB(opt.AdditionalMetadata, "additionalMetadata"); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "Invalid request: %s", err)
+	}
+
 	err = a.generateExternalIds(ctx, tenantId, []*v1.WorkflowNameTriggerOpts{opt})
 
 	if err != nil {
@@ -96,6 +105,14 @@ func (a *AdminServiceImpl) bulkTriggerWorkflowV1(ctx context.Context, req *contr
 
 		if err != nil {
 			return nil, fmt.Errorf("could not create trigger opt: %w", err)
+		}
+
+		if err := repository.ValidateJSONB(opt.Data, "payload"); err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "Invalid request: %s", err)
+		}
+
+		if err := repository.ValidateJSONB(opt.AdditionalMetadata, "additionalMetadata"); err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "Invalid request: %s", err)
 		}
 
 		opts[i] = opt

@@ -65,6 +65,8 @@ paths:
   # changing this path will break the rate limiter. !!!
   /api/v1/stable/tenants/{tenant}/webhooks/{v1-webhook}:
     $ref: "./paths/v1/webhooks/webhook.yaml#/V1WebhookGetDeleteReceive"
+  /api/v1/stable/tenants/{tenant}/cel/debug:
+    $ref: "./paths/v1/cel/cel.yaml#/V1CELDebug"
   /api/ready:
     $ref: "./paths/metadata/metadata.yaml#/readiness"
   /api/live:

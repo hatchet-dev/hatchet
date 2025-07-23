@@ -28,6 +28,16 @@ func (i *IngestorImpl) Push(ctx context.Context, req *contracts.PushEventRequest
 		additionalMeta = []byte(*req.AdditionalMetadata)
 	}
 
+	if err := repository.ValidateJSONB(additionalMeta, "additionalMetadata"); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "Invalid request: %s", err)
+	}
+
+	payloadBytes := []byte(req.Payload)
+
+	if err := repository.ValidateJSONB(payloadBytes, "payload"); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "Invalid request: %s", err)
+	}
+
 	event, err := i.IngestEvent(ctx, tenant, req.Key, []byte(req.Payload), additionalMeta, req.Priority, req.Scope, nil)
 
 	if err == metered.ErrResourceExhausted {
@@ -68,10 +78,21 @@ func (i *IngestorImpl) BulkPush(ctx context.Context, req *contracts.BulkPushEven
 		if e.AdditionalMetadata != nil {
 			additionalMeta = []byte(*e.AdditionalMetadata)
 		}
+
+		if err := repository.ValidateJSONB(additionalMeta, "additionalMetadata"); err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "Invalid request: %s", err)
+		}
+
+		payloadBytes := []byte(e.Payload)
+
+		if err := repository.ValidateJSONB(payloadBytes, "payload"); err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "Invalid request: %s", err)
+		}
+
 		events = append(events, &repository.CreateEventOpts{
 			TenantId:           tenantId,
 			Key:                e.Key,
-			Data:               []byte(e.Payload),
+			Data:               payloadBytes,
 			AdditionalMetadata: additionalMeta,
 			Priority:           e.Priority,
 			Scope:              e.Scope,

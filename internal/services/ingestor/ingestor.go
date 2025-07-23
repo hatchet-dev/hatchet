@@ -39,6 +39,7 @@ type IngestorOpts struct {
 	mq                     msgqueue.MessageQueue
 	mqv1                   msgqueuev1.MessageQueue
 	repov1                 v1.Repository
+	isLogIngestionEnabled  bool
 }
 
 func WithEventRepository(r repository.EventEngineRepository) IngestorOptFunc {
@@ -89,8 +90,16 @@ func WithRepositoryV1(r v1.Repository) IngestorOptFunc {
 	}
 }
 
+func WithLogIngestionEnabled(isEnabled bool) IngestorOptFunc {
+	return func(opts *IngestorOpts) {
+		opts.isLogIngestionEnabled = isEnabled
+	}
+}
+
 func defaultIngestorOpts() *IngestorOpts {
-	return &IngestorOpts{}
+	return &IngestorOpts{
+		isLogIngestionEnabled: true,
+	}
 }
 
 type IngestorImpl struct {
@@ -107,6 +116,8 @@ type IngestorImpl struct {
 	mqv1   msgqueuev1.MessageQueue
 	v      validator.Validator
 	repov1 v1.Repository
+
+	isLogIngestionEnabled bool
 }
 
 func NewIngestor(fs ...IngestorOptFunc) (Ingestor, error) {
@@ -161,6 +172,7 @@ func NewIngestor(fs ...IngestorOptFunc) (Ingestor, error) {
 		mqv1:                     opts.mqv1,
 		v:                        validator.NewDefaultValidator(),
 		repov1:                   opts.repov1,
+		isLogIngestionEnabled:    opts.isLogIngestionEnabled,
 	}, nil
 }
 

@@ -312,7 +312,7 @@ func (q *Queries) ListFilters(ctx context.Context, db DBTX, arg ListFiltersParam
 
 const listFiltersForEventTriggers = `-- name: ListFiltersForEventTriggers :many
 WITH inputs AS (
-    SELECT
+    SELECT DISTINCT
         UNNEST($4::UUID[]) AS workflow_id,
         UNNEST($5::TEXT[]) AS scope
 )

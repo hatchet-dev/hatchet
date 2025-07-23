@@ -6,10 +6,12 @@ import { WorkflowsClient } from './features/workflows';
 import { AdminClient } from './admin';
 import { ScheduleClient } from './features/schedules';
 import { CronClient } from './features/crons';
+import { CELClient } from './features/cel';
 
 export interface IHatchetClient {
   _v0: LegacyHatchetClient;
 
+  cel: CELClient;
   metrics: MetricsClient;
   runs: RunsClient;
   workflows: WorkflowsClient;

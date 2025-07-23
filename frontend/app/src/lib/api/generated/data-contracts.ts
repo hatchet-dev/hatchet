@@ -205,29 +205,10 @@ export enum TenantResource {
   SCHEDULE = "SCHEDULE",
 }
 
-export enum V1WebhookHMACEncoding {
-  HEX = "HEX",
-  BASE64 = "BASE64",
-  BASE64URL = "BASE64URL",
-}
-
-export enum V1WebhookHMACAlgorithm {
-  SHA1 = "SHA1",
-  SHA256 = "SHA256",
-  SHA512 = "SHA512",
-  MD5 = "MD5",
-}
-
-export enum V1WebhookAuthType {
-  BASIC = "BASIC",
-  API_KEY = "API_KEY",
-  HMAC = "HMAC",
-}
-
-export enum V1WebhookSourceName {
-  GENERIC = "GENERIC",
-  GITHUB = "GITHUB",
-  STRIPE = "STRIPE",
+/** The status of the CEL evaluation */
+export enum V1CELDebugResponseStatus {
+  SUCCESS = "SUCCESS",
+  ERROR = "ERROR",
 }
 
 export enum TenantUIVersion {
@@ -811,8 +792,6 @@ export interface V1Event {
   seenAt?: string;
   /** The external IDs of the runs that were triggered by this event. */
   triggeredRuns?: V1EventTriggeredRun[];
-  /** The name of the webhook that triggered this event, if applicable. */
-  triggeringWebhookName?: string;
 }
 
 export interface V1EventList {
@@ -874,81 +853,25 @@ export interface V1UpdateFilterRequest {
   payload?: object;
 }
 
-export interface V1Webhook {
-  metadata: APIResourceMeta;
-  /** The ID of the tenant associated with this webhook. */
-  tenantId: string;
-  /** The name of the webhook */
-  name: string;
-  /** The name of the source for this webhook */
-  sourceName: V1WebhookSourceName;
-  /** The CEL expression to use for the event key. This is used to create the event key from the webhook payload. */
-  eventKeyExpression: string;
-  /** The type of authentication to use for the webhook */
-  authType: V1WebhookAuthType;
+export interface V1CELDebugRequest {
+  /** The CEL expression to evaluate */
+  expression: string;
+  /** The input, which simulates the workflow run input */
+  input: object;
+  /** The filter payload, which simulates a payload set on a previous-created filter */
+  filterPayload?: object;
+  /** Additional metadata, which simulates metadata that could be sent with an event or a workflow run */
+  additionalMetadata?: object;
 }
 
-export interface V1WebhookList {
-  pagination?: PaginationResponse;
-  rows?: V1Webhook[];
+export interface V1CELDebugResponse {
+  /** The status of the CEL evaluation */
+  status: V1CELDebugResponseStatus;
+  /** The result of the CEL expression evaluation, if successful */
+  output?: boolean;
+  /** The error message if the evaluation failed */
+  error?: string;
 }
-
-export interface V1CreateWebhookRequestBase {
-  /** The name of the source for this webhook */
-  sourceName: V1WebhookSourceName;
-  /** The name of the webhook */
-  name: string;
-  /** The CEL expression to use for the event key. This is used to create the event key from the webhook payload. */
-  eventKeyExpression: string;
-}
-
-export interface V1WebhookBasicAuth {
-  /** The username for basic auth */
-  username: string;
-  /** The password for basic auth */
-  password: string;
-}
-
-export type V1CreateWebhookRequestBasicAuth = V1CreateWebhookRequestBase & {
-  /** The type of authentication to use for the webhook */
-  authType: "BASIC";
-  auth: V1WebhookBasicAuth;
-};
-
-export interface V1WebhookAPIKeyAuth {
-  /** The name of the header to use for the API key */
-  headerName: string;
-  /** The API key to use for authentication */
-  apiKey: string;
-}
-
-export type V1CreateWebhookRequestAPIKey = V1CreateWebhookRequestBase & {
-  /** The type of authentication to use for the webhook */
-  authType: "API_KEY";
-  auth: V1WebhookAPIKeyAuth;
-};
-
-export interface V1WebhookHMACAuth {
-  /** The HMAC algorithm to use for the webhook */
-  algorithm: V1WebhookHMACAlgorithm;
-  /** The encoding to use for the HMAC signature */
-  encoding: V1WebhookHMACEncoding;
-  /** The name of the header to use for the HMAC signature */
-  signatureHeaderName: string;
-  /** The secret key used to sign the HMAC signature */
-  signingSecret: string;
-}
-
-export type V1CreateWebhookRequestHMAC = V1CreateWebhookRequestBase & {
-  /** The type of authentication to use for the webhook */
-  authType: "HMAC";
-  auth: V1WebhookHMACAuth;
-};
-
-export type V1CreateWebhookRequest =
-  | V1CreateWebhookRequestBasicAuth
-  | V1CreateWebhookRequestAPIKey
-  | V1CreateWebhookRequestHMAC;
 
 export interface APIMetaAuth {
   /**
