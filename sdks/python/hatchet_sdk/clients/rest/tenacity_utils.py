@@ -33,5 +33,9 @@ def tenacity_should_retry(ex: BaseException) -> bool:
         return ex.code() not in [
             grpc.StatusCode.UNIMPLEMENTED,
             grpc.StatusCode.NOT_FOUND,
+            grpc.StatusCode.INVALID_ARGUMENT,
+            grpc.StatusCode.ALREADY_EXISTS,
+            grpc.StatusCode.UNAUTHENTICATED,
+            grpc.StatusCode.PERMISSION_DENIED,
         ]
     return False

@@ -122,7 +122,17 @@ def capture_logs(
     async def wrapper(*args: P.args, **kwargs: P.kwargs) -> T:
         log_stream = StringIO()
         custom_handler = CustomLogHandler(log_sender, log_stream)
-        custom_handler.setLevel(logging.INFO)
+        custom_handler.setLevel(logger.level)
+
+        if logger.handlers:
+            for handler in logger.handlers:
+                if handler.formatter:
+                    custom_handler.setFormatter(handler.formatter)
+                    break
+
+            for handler in logger.handlers:
+                for filter_obj in handler.filters:
+                    custom_handler.addFilter(filter_obj)
 
         if not any(h for h in logger.handlers if isinstance(h, CustomLogHandler)):
             logger.addHandler(custom_handler)
