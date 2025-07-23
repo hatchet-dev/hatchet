@@ -55,7 +55,7 @@ func NewRepository(pool *pgxpool.Pool, l *zerolog.Logger, taskRetentionPeriod, o
 
 	impl := &repositoryImpl{
 		triggers:  newTriggerRepository(shared, payloadStore),
-		tasks:     newTaskRepository(shared, taskRetentionPeriod, maxInternalRetryCount),
+		tasks:     newTaskRepository(shared, taskRetentionPeriod, maxInternalRetryCount, payloadStore),
 		scheduler: newSchedulerRepository(shared),
 		matches:   matchRepo,
 		olap:      newOLAPRepository(shared, olapRetentionPeriod, true),

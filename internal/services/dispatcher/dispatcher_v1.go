@@ -24,18 +24,18 @@ import (
 func (worker *subscribedWorker) StartTaskFromBulk(
 	ctx context.Context,
 	tenantId string,
-	task *sqlcv1.V1Task,
+	task *v1.V1TaskWithPayload,
 ) error {
 	ctx, span := telemetry.NewSpan(ctx, "start-step-run-from-bulk") // nolint:ineffassign
 	defer span.End()
 
 	inputBytes := []byte{}
 
-	if task.Input != nil {
-		inputBytes = task.Input
+	if task.Payload != nil {
+		inputBytes = task.Payload
 	}
 
-	action := populateAssignedAction(tenantId, task, task.RetryCount)
+	action := populateAssignedAction(tenantId, task.ListTasksRow, task.RetryCount)
 
 	action.ActionType = contracts.ActionType_START_STEP_RUN
 	action.ActionPayload = string(inputBytes)
@@ -49,7 +49,7 @@ func (worker *subscribedWorker) StartTaskFromBulk(
 func (worker *subscribedWorker) CancelTask(
 	ctx context.Context,
 	tenantId string,
-	task *sqlcv1.V1Task,
+	task *sqlcv1.ListTasksRow,
 	retryCount int32,
 ) error {
 	ctx, span := telemetry.NewSpan(ctx, "cancel-task") // nolint:ineffassign
@@ -65,7 +65,7 @@ func (worker *subscribedWorker) CancelTask(
 	return worker.stream.Send(action)
 }
 
-func populateAssignedAction(tenantID string, task *sqlcv1.V1Task, retryCount int32) *contracts.AssignedAction {
+func populateAssignedAction(tenantID string, task *sqlcv1.ListTasksRow, retryCount int32) *contracts.AssignedAction {
 	workflowId := sqlchelpers.UUIDToStr(task.WorkflowID)
 	workflowVersionId := sqlchelpers.UUIDToStr(task.WorkflowVersionID)
 
@@ -120,10 +120,10 @@ func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *ms
 	msgs := msgqueuev1.JSONConvert[tasktypesv1.TaskAssignedBulkTaskPayload](msg.Payloads)
 	outerEg := errgroup.Group{}
 
-	toRetry := []*sqlcv1.V1Task{}
+	toRetry := []*sqlcv1.ListTasksRow{}
 	toRetryMu := sync.Mutex{}
 
-	requeue := func(task *sqlcv1.V1Task) {
+	requeue := func(task *sqlcv1.ListTasksRow) {
 		toRetryMu.Lock()
 		toRetry = append(toRetry, task)
 		toRetryMu.Unlock()
@@ -180,8 +180,6 @@ func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *ms
 				Type: sqlcv1.V1PayloadTypeWORKFLOWINPUT,
 			}]
 
-			task.Input = input
-
 			if parentData, ok := parentDataMap[task.ID]; ok {
 				currInput := &v1.V1StepRunData{}
 
@@ -213,14 +211,21 @@ func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *ms
 
 				currInput.Parents = readableIdToData
 
-				task.Input = currInput.Bytes()
+				input = currInput.Bytes()
+				inputs[v1.RetrievePayloadOpts{
+					Key:  task.ExternalID.String(),
+					Type: sqlcv1.V1PayloadTypeWORKFLOWINPUT,
+				}] = input
 			}
 		}
 
-		taskIdToData := make(map[int64]*sqlcv1.V1Task)
+		taskIdToData := make(map[int64]*v1.V1TaskWithPayload)
 
 		for _, task := range bulkDatas {
-			taskIdToData[task.ID] = task
+			taskIdToData[task.ID] = &v1.V1TaskWithPayload{
+				ListTasksRow: task,
+				Payload:      inputs[v1.RetrievePayloadOpts{Key: task.ExternalID.String(), Type: sqlcv1.V1PayloadTypeWORKFLOWINPUT}],
+			}
 		}
 
 		for workerId, stepRunIds := range innerMsg.WorkerIdToTaskIds {
@@ -246,7 +251,7 @@ func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *ms
 
 						// if we've reached the context deadline, this should be requeued
 						if ctx.Err() != nil {
-							requeue(task)
+							requeue(task.ListTasksRow)
 							return nil
 						}
 
@@ -271,7 +276,7 @@ func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *ms
 							return nil
 						}
 
-						requeue(task)
+						requeue(task.ListTasksRow)
 
 						return multiErr
 					})
@@ -359,18 +364,18 @@ func (d *DispatcherImpl) handleTaskCancelled(ctx context.Context, msg *msgqueuev
 		return fmt.Errorf("could not list tasks: %w", err)
 	}
 
-	taskIdsToTasks := make(map[int64]*sqlcv1.V1Task)
+	taskIdsToTasks := make(map[int64]*sqlcv1.ListTasksRow)
 
 	for _, task := range tasks {
 		taskIdsToTasks[task.ID] = task
 	}
 
 	// group by worker id
-	workerIdToTasks := make(map[string][]*sqlcv1.V1Task)
+	workerIdToTasks := make(map[string][]*sqlcv1.ListTasksRow)
 
 	for _, msg := range msgs {
 		if _, ok := workerIdToTasks[msg.WorkerId]; !ok {
-			workerIdToTasks[msg.WorkerId] = []*sqlcv1.V1Task{}
+			workerIdToTasks[msg.WorkerId] = []*sqlcv1.ListTasksRow{}
 		}
 
 		task, ok := taskIdsToTasks[msg.TaskId]

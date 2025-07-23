@@ -344,7 +344,7 @@ func (tc *OLAPControllerImpl) handleBufferedMsgs(tenantId, msgId string, payload
 
 // handleCreatedTask is responsible for flushing a created task to the OLAP repository
 func (tc *OLAPControllerImpl) handleCreatedTask(ctx context.Context, tenantId string, payloads [][]byte) error {
-	createTaskOpts := make([]*sqlcv1.V1Task, 0)
+	createTaskOpts := make([]*v1.V1TaskWithPayload, 0)
 
 	msgs := msgqueue.JSONConvert[tasktypes.CreatedTaskPayload](payloads)
 
@@ -354,7 +354,7 @@ func (tc *OLAPControllerImpl) handleCreatedTask(ctx context.Context, tenantId st
 			continue
 		}
 
-		createTaskOpts = append(createTaskOpts, msg.V1Task)
+		createTaskOpts = append(createTaskOpts, msg.V1TaskWithPayload)
 	}
 
 	return tc.repo.OLAP().CreateTasks(ctx, tenantId, createTaskOpts)
