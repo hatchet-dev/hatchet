@@ -130,6 +130,10 @@ def capture_logs(
                     custom_handler.setFormatter(handler.formatter)
                     break
 
+            for handler in logger.handlers:
+                for filter_obj in handler.filters:
+                    custom_handler.addFilter(filter_obj)
+
         if not any(h for h in logger.handlers if isinstance(h, CustomLogHandler)):
             logger.addHandler(custom_handler)
 
