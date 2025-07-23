@@ -105,6 +105,22 @@ async def wait_for_or_group_2(
     }
 
 
+@durable_workflow.durable_task()
+async def wait_for_multi_sleep(
+    _i: EmptyModel, ctx: DurableContext
+) -> dict[str, str | int]:
+    start = time.time()
+
+    for _ in range(3):
+        await ctx.aio_sleep_for(
+            timedelta(seconds=SLEEP_TIME),
+        )
+
+    return {
+        "runtime": int(time.time() - start),
+    }
+
+
 @ephemeral_workflow.task()
 def ephemeral_task_2(input: EmptyModel, ctx: Context) -> None:
     print("Running non-durable task")
