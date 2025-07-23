@@ -145,11 +145,14 @@ type MatchRepository interface {
 
 type MatchRepositoryImpl struct {
 	*sharedRepository
+
+	payloadStore PayloadStoreRepository
 }
 
-func newMatchRepository(s *sharedRepository) (MatchRepository, error) {
+func newMatchRepository(s *sharedRepository, p PayloadStoreRepository) (MatchRepository, error) {
 	return &MatchRepositoryImpl{
 		sharedRepository: s,
+		payloadStore:     p,
 	}, nil
 }
 
@@ -252,6 +255,24 @@ func (m *MatchRepositoryImpl) ProcessInternalEventMatches(ctx context.Context, t
 		return nil, err
 	}
 
+	storePayloadOpts := make([]StorePayloadOpts, len(res.CreatedTasks))
+
+	for i, task := range res.CreatedTasks {
+		storePayloadOpts[i] = StorePayloadOpts{
+			Key:     task.ExternalID.String(),
+			Type:    sqlcv1.V1PayloadTypeWORKFLOWINPUT,
+			Payload: task.Input,
+		}
+	}
+
+	if len(storePayloadOpts) > 0 {
+		err = m.payloadStore.Store(ctx, tenantId, storePayloadOpts)
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to store payloads for created tasks for internal event matches: %w", err)
+		}
+	}
+
 	if err := commit(ctx); err != nil {
 		return nil, err
 	}
@@ -273,6 +294,24 @@ func (m *MatchRepositoryImpl) ProcessUserEventMatches(ctx context.Context, tenan
 
 	if err != nil {
 		return nil, err
+	}
+
+	storePayloadOpts := make([]StorePayloadOpts, len(res.CreatedTasks))
+	for i, task := range res.CreatedTasks {
+		storePayloadOpts[i] = StorePayloadOpts{
+			Key:     task.ExternalID.String(),
+			Type:    sqlcv1.V1PayloadTypeWORKFLOWINPUT,
+			Payload: task.Input,
+		}
+	}
+
+	// TODO: This is pretty risky - we're assuming writing these with the external id is always safe
+	if len(storePayloadOpts) > 0 {
+		err = m.payloadStore.Store(ctx, tenantId, storePayloadOpts)
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to store payloads for created tasks for user event matches: %w", err)
+		}
 	}
 
 	if err := commit(ctx); err != nil {
@@ -377,6 +416,7 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 
 			matchIds = append(matchIds, condition.V1MatchID)
 			conditionIds = append(conditionIds, condition.ID)
+
 			datas = append(datas, event.Data)
 		}
 	}

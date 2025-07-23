@@ -1571,6 +1571,7 @@ func (r *sharedRepository) insertTasks(
 		// TODO: case on whether this is a v1 or v2 task by looking at the step data. for now,
 		// we're assuming a v1 task.
 		externalIdToInput[task.ExternalId] = r.ToV1StepRunData(task.Input).Bytes()
+
 		retryCounts[i] = 0
 
 		defaultPriority := stepConfig.DefaultPriority

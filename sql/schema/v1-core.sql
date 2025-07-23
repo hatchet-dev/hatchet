@@ -1518,6 +1518,8 @@ CREATE TABLE v1_payload (
     key TEXT NOT NULL,
     type v1_payload_type NOT NULL,
     value JSONB NOT NULL,
+    inserted_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     PRIMARY KEY (tenant_id, key, type)
 );
