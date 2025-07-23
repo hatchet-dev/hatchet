@@ -149,6 +149,7 @@ var adminAndOwnerOnly = []string{
 	"TenantInviteUpdate",
 	"TenantInviteDelete",
 	"TenantMemberList",
+	"TenantMemberUpdate",
 	// members cannot create API tokens for a tenant, because they have admin permissions
 	"ApiTokenList",
 	"ApiTokenCreate",

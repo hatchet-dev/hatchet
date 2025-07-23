@@ -12,6 +12,7 @@ import {
   CreateTenantInviteRequest,
   TenantInvite,
   TenantInviteList,
+  UpdateTenantMemberRequest,
 } from '@/lib/api/generated/data-contracts';
 import { useToast } from './utils/use-toast';
 
@@ -23,6 +24,12 @@ interface MembersState {
     TenantInvite,
     Error,
     CreateTenantInviteRequest,
+    unknown
+  >;
+  updateMember: UseMutationResult<
+    TenantMember,
+    Error,
+    { memberId: string; data: UpdateTenantMemberRequest },
     unknown
   >;
   invites: TenantInvite[];
@@ -92,11 +99,39 @@ export function MembersProvider({ children }: { children: React.ReactNode }) {
     },
   });
 
+  const updateMemberMutation = useMutation({
+    mutationKey: ['tenant-member:update', tenantId],
+    mutationFn: async ({
+      memberId,
+      data,
+    }: {
+      memberId: string;
+      data: UpdateTenantMemberRequest;
+    }) => {
+      try {
+        const res = await api.tenantMemberUpdate(tenantId, memberId, data);
+        return res.data;
+      } catch (error) {
+        toast({
+          title: 'Error updating member role',
+
+          variant: 'destructive',
+          error,
+        });
+        throw error;
+      }
+    },
+    onSuccess: async () => {
+      await membersQuery.refetch();
+    },
+  });
+
   const value = {
     data: membersQuery.data?.rows || [],
     isLoading: membersQuery.isLoading,
     refetch: membersQuery.refetch,
     invite: inviteMutation,
+    updateMember: updateMemberMutation,
     invites: invitesQuery.data?.rows || [],
     isLoadingInvites: invitesQuery.isLoading,
     refetchInvites: invitesQuery.refetch,

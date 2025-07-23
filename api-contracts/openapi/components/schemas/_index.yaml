@@ -46,6 +46,8 @@ CreateTenantInviteRequest:
   $ref: "./tenant.yaml#/CreateTenantInviteRequest"
 UpdateTenantInviteRequest:
   $ref: "./tenant.yaml#/UpdateTenantInviteRequest"
+UpdateTenantMemberRequest:
+  $ref: "./tenant.yaml#/UpdateTenantMemberRequest"
 TenantAlertingSettings:
   $ref: "./tenant.yaml#/TenantAlertingSettings"
 TenantAlertEmailGroup:
