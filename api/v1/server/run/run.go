@@ -94,7 +94,8 @@ func newAPIService(config *server.ServerConfig) *apiService {
 }
 
 type APIServer struct {
-	config *server.ServerConfig
+	config                *server.ServerConfig
+	additionalMiddlewares []gen.StrictMiddlewareFunc
 }
 
 func NewAPIServer(config *server.ServerConfig) *APIServer {
@@ -138,6 +139,12 @@ func (t *APIServer) Run(opts ...APIServerExtensionOpt) (func() error, error) {
 	return t.RunWithServer(e)
 }
 
+func (t *APIServer) RunWithMiddlewares(middlewares []gen.StrictMiddlewareFunc, opts ...APIServerExtensionOpt) (func() error, error) {
+	t.additionalMiddlewares = middlewares
+
+	return t.Run(opts...)
+}
+
 func (t *APIServer) RunWithServer(e *echo.Echo) (func() error, error) {
 	routes := e.Routes()
 
@@ -177,7 +184,7 @@ func (t *APIServer) getCoreEchoService() (*echo.Echo, error) {
 
 	service := newAPIService(t.config)
 
-	myStrictApiHandler := gen.NewStrictHandler(service, []gen.StrictMiddlewareFunc{})
+	myStrictApiHandler := gen.NewStrictHandler(service, t.additionalMiddlewares)
 
 	gen.RegisterHandlers(g, myStrictApiHandler)
 
