@@ -1,6 +1,7 @@
 import time
 from datetime import timedelta
 from uuid import uuid4
+import asyncio
 
 from hatchet_sdk import (
     Context,
@@ -126,9 +127,28 @@ def ephemeral_task_2(input: EmptyModel, ctx: Context) -> None:
     print("Running non-durable task")
 
 
+@hatchet.durable_task()
+async def wait_for_sleep_twice(
+    input: EmptyModel, ctx: DurableContext
+) -> dict[str, int]:
+    try:
+        start = time.time()
+
+        await ctx.aio_sleep_for(
+            timedelta(seconds=SLEEP_TIME),
+        )
+
+        return {
+            "runtime": int(time.time() - start),
+        }
+    except asyncio.CancelledError:
+        return {"runtime": -1}
+
+
 def main() -> None:
     worker = hatchet.worker(
-        "durable-worker", workflows=[durable_workflow, ephemeral_workflow]
+        "durable-worker",
+        workflows=[durable_workflow, ephemeral_workflow, wait_for_sleep_twice],
     )
     worker.start()
 

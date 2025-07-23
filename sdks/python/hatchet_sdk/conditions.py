@@ -63,11 +63,10 @@ class SleepCondition(Condition):
     def __init__(
         self, duration: Duration, readable_data_key: str | None = None
     ) -> None:
-        now = datetime.now(tz=timezone.utc).strftime("%Y%m%dT%H%M%S")
         super().__init__(
             BaseCondition(
                 readable_data_key=readable_data_key
-                or f"sleep:{timedelta_to_expr(duration)}-{now}",
+                or f"sleep:{timedelta_to_expr(duration)}",
             )
         )
 

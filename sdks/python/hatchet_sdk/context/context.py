@@ -371,6 +371,42 @@ class Context:
 
 
 class DurableContext(Context):
+    def __init__(
+        self,
+        action: Action,
+        dispatcher_client: DispatcherClient,
+        admin_client: AdminClient,
+        event_client: EventClient,
+        durable_event_listener: DurableEventListener | None,
+        worker: WorkerContext,
+        runs_client: RunsClient,
+        lifespan_context: Any | None,
+        log_sender: AsyncLogSender,
+    ):
+        super().__init__(
+            action,
+            dispatcher_client,
+            admin_client,
+            event_client,
+            durable_event_listener,
+            worker,
+            runs_client,
+            lifespan_context,
+            log_sender,
+        )
+
+        self._wait_index = 0
+
+    @property
+    def wait_index(self) -> int:
+        return self._wait_index
+
+    def _increment_wait_index(self):
+        index = self._wait_index
+        self._wait_index += 1
+
+        return index
+
     async def aio_wait_for(
         self,
         signal_key: str,
@@ -411,8 +447,9 @@ class DurableContext(Context):
         For more complicated conditions, use `ctx.aio_wait_for` directly.
         """
 
-        now = datetime.now(tz=timezone.utc).strftime("%Y%m%dT%H%M%S")
+        wait_index = self._increment_wait_index()
+
         return await self.aio_wait_for(
-            f"sleep:{timedelta_to_expr(duration)}-{now}",
+            f"sleep:{timedelta_to_expr(duration)}-{wait_index}",
             SleepCondition(duration=duration),
         )
