@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Fixes a bug in `aio_sleep_for` and the `SleepCondition` that did not allow duplicate sleeps to be awaited correctly.
+- Stops retrying gRPC requests on 4XX failures, since retrying won't help
 
 ## [1.16.2] - 2025-07-22
 
