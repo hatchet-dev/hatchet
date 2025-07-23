@@ -20,12 +20,11 @@ func (t *TickerImpl) runCronWorkflowV1(ctx context.Context, tenantId string, wor
 	}
 
 	metadata := map[string]any{
-		"hatchet_cron_expression": cron,
-		"hatchet_cron_parent_id":  cronParentId,
+		"hatchet__cron_expression": cron,
 	}
 
 	if cronName != nil {
-		metadata["hatchet_cron_name"] = *cronName
+		metadata["hatchet__cron_name"] = *cronName
 	}
 
 	// copy metadata into additionalMetadata as to not override hatchet_* keys
