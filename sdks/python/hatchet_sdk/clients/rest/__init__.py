@@ -18,6 +18,7 @@ __version__ = "1.0.0"
 
 # import apis into sdk package
 from hatchet_sdk.clients.rest.api.api_token_api import APITokenApi
+from hatchet_sdk.clients.rest.api.cel_api import CELApi
 from hatchet_sdk.clients.rest.api.default_api import DefaultApi
 from hatchet_sdk.clients.rest.api.event_api import EventApi
 from hatchet_sdk.clients.rest.api.filter_api import FilterApi
@@ -233,6 +234,11 @@ from hatchet_sdk.clients.rest.models.user_tenant_memberships_list import (
 from hatchet_sdk.clients.rest.models.user_tenant_public import UserTenantPublic
 from hatchet_sdk.clients.rest.models.v1_cancel_task_request import V1CancelTaskRequest
 from hatchet_sdk.clients.rest.models.v1_cancelled_tasks import V1CancelledTasks
+from hatchet_sdk.clients.rest.models.v1_cel_debug_request import V1CELDebugRequest
+from hatchet_sdk.clients.rest.models.v1_cel_debug_response import V1CELDebugResponse
+from hatchet_sdk.clients.rest.models.v1_cel_debug_response_status import (
+    V1CELDebugResponseStatus,
+)
 from hatchet_sdk.clients.rest.models.v1_create_filter_request import (
     V1CreateFilterRequest,
 )

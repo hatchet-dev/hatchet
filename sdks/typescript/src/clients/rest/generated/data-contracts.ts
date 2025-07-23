@@ -595,6 +595,8 @@ export interface V1EventList {
        */
       filterId?: string;
     }[];
+    /** The name of the webhook that triggered this event, if applicable. */
+    triggeringWebhookName?: string;
   }[];
 }
 
@@ -620,6 +622,37 @@ export interface V1Filter {
   expression: string;
   /** Additional payload data associated with the filter */
   payload: object;
+}
+
+export interface V1WebhookList {
+  pagination?: PaginationResponse;
+  rows?: V1Webhook[];
+}
+
+export interface V1Webhook {
+  metadata: APIResourceMeta;
+  /** The ID of the tenant associated with this webhook. */
+  tenantId: string;
+  /** The name of the webhook */
+  name: string;
+  /** The name of the source for this webhook */
+  sourceName: V1WebhookSourceName;
+  /** The CEL expression to use for the event key. This is used to create the event key from the webhook payload. */
+  eventKeyExpression: string;
+  /** The type of authentication to use for the webhook */
+  authType: V1WebhookAuthType;
+}
+
+export enum V1WebhookSourceName {
+  GENERIC = 'GENERIC',
+  GITHUB = 'GITHUB',
+  STRIPE = 'STRIPE',
+}
+
+export enum V1WebhookAuthType {
+  BASIC = 'BASIC',
+  API_KEY = 'API_KEY',
+  HMAC = 'HMAC',
 }
 
 export interface RateLimit {
@@ -1966,6 +1999,49 @@ export interface V1CreateFilterRequest {
   /** The payload for the filter */
   payload?: object;
 }
+
+export type V1CreateWebhookRequest =
+  | ({
+      /** The name of the source for this webhook */
+      sourceName: V1WebhookSourceName;
+      /** The name of the webhook */
+      name: string;
+      /** The CEL expression to use for the event key. This is used to create the event key from the webhook payload. */
+      eventKeyExpression: string;
+    } & {
+      /** The type of authentication to use for the webhook */
+      authType: 'BASIC';
+      auth: {
+        /** The username for basic auth */
+        username: string;
+        /** The password for basic auth */
+        password: string;
+      };
+    })
+  | {
+      /** The type of authentication to use for the webhook */
+      authType: 'API_KEY';
+      auth: {
+        /** The name of the header to use for the API key */
+        headerName: string;
+        /** The API key to use for authentication */
+        apiKey: string;
+      };
+    }
+  | {
+      /** The type of authentication to use for the webhook */
+      authType: 'HMAC';
+      auth: {
+        /** The HMAC algorithm to use for the webhook */
+        algorithm: 'SHA1' | 'SHA256' | 'SHA512' | 'MD5';
+        /** The encoding to use for the HMAC signature */
+        encoding: 'HEX' | 'BASE64' | 'BASE64URL';
+        /** The name of the header to use for the HMAC signature */
+        signatureHeaderName: string;
+        /** The secret key used to sign the HMAC signature */
+        signingSecret: string;
+      };
+    };
 
 export interface V1UpdateFilterRequest {
   /** The expression for the filter */
