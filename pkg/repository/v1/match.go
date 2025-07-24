@@ -147,10 +147,10 @@ type MatchRepositoryImpl struct {
 	*sharedRepository
 }
 
-func newMatchRepository(s *sharedRepository) (MatchRepository, error) {
+func newMatchRepository(s *sharedRepository) MatchRepository {
 	return &MatchRepositoryImpl{
 		sharedRepository: s,
-	}, nil
+	}
 }
 
 func (m *MatchRepositoryImpl) RegisterSignalMatchConditions(ctx context.Context, tenantId string, signalMatches []ExternalCreateSignalMatchOpts) error {
@@ -256,9 +256,10 @@ func (m *MatchRepositoryImpl) ProcessInternalEventMatches(ctx context.Context, t
 
 	for i, task := range res.CreatedTasks {
 		storePayloadOpts[i] = StorePayloadOpts{
-			Key:     task.ExternalID.String(),
-			Type:    sqlcv1.V1PayloadTypeWORKFLOWINPUT,
-			Payload: task.Payload,
+			TaskId:         task.ID,
+			TaskInsertedAt: task.InsertedAt,
+			Type:           sqlcv1.V1PayloadTypeWORKFLOWINPUT,
+			Payload:        task.Payload,
 		}
 	}
 
@@ -296,9 +297,10 @@ func (m *MatchRepositoryImpl) ProcessUserEventMatches(ctx context.Context, tenan
 	storePayloadOpts := make([]StorePayloadOpts, len(res.CreatedTasks))
 	for i, task := range res.CreatedTasks {
 		storePayloadOpts[i] = StorePayloadOpts{
-			Key:     task.ExternalID.String(),
-			Type:    sqlcv1.V1PayloadTypeWORKFLOWINPUT,
-			Payload: task.Payload,
+			TaskId:         task.ID,
+			TaskInsertedAt: task.InsertedAt,
+			Type:           sqlcv1.V1PayloadTypeWORKFLOWINPUT,
+			Payload:        task.Payload,
 		}
 	}
 

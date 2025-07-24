@@ -1171,9 +1171,10 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 
 	for _, task := range tasks {
 		storePayloadOpts = append(storePayloadOpts, StorePayloadOpts{
-			Key:     task.ExternalID.String(),
-			Type:    sqlcv1.V1PayloadTypeWORKFLOWINPUT,
-			Payload: task.Payload,
+			TaskId:         task.ID,
+			TaskInsertedAt: task.InsertedAt,
+			Type:           sqlcv1.V1PayloadTypeWORKFLOWINPUT,
+			Payload:        task.Payload,
 		})
 	}
 

@@ -4,13 +4,15 @@ FROM v1_payload
 WHERE
     tenant_id = @tenantId::UUID
     AND type = @type::v1_payload_type
-    AND key = @key::TEXT
+    AND task_id = @taskId::BIGINT
+    AND task_inserted_at = @taskInsertedAt::TIMESTAMPTZ
 ;
 
 -- name: ReadPayloads :many
 WITH inputs AS (
     SELECT
-        UNNEST(@keys::TEXT[]) AS key,
+        UNNEST(@taskIds::BIGINT[]) AS task_id,
+        UNNEST(@taskInsertedAts::TIMESTAMPTZ[]) AS task_inserted_at,
         UNNEST(CAST(@types::TEXT[] AS v1_payload_type[])) AS type
 )
 
@@ -18,8 +20,8 @@ SELECT *
 FROM v1_payload
 WHERE
     tenant_id = @tenantId::UUID
-    AND (key, type) IN (
-        SELECT key, type
+    AND (task_id, task_inserted_at, type) IN (
+        SELECT task_id, task_inserted_at, type
         FROM inputs
     )
 ;
@@ -27,19 +29,22 @@ WHERE
 -- name: WritePayloads :exec
 WITH inputs AS (
     SELECT
-        UNNEST(@keys::TEXT[]) AS key,
+        UNNEST(@taskIds::BIGINT[]) AS key,
+        UNNEST(@taskInsertedAts::TIMESTAMPTZ[]) AS task_inserted_at,
         UNNEST(CAST(@types::TEXT[] AS v1_payload_type[])) AS type,
         UNNEST(@payloads::JSONB[]) AS payload
 )
 INSERT INTO v1_payload (
     tenant_id,
-    key,
+    task_id,
+    task_inserted_at,
     type,
     value
 )
 SELECT
     @tenantId::UUID,
-    i.key,
+    i.task_id,
+    i.task_inserted_at,
     i.type,
     i.payload
 FROM

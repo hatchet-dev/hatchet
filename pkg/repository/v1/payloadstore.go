@@ -5,6 +5,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
 )
@@ -32,14 +33,16 @@ func newPayloadStoreRepository(
 }
 
 type RetrievePayloadOpts struct {
-	Key  string
-	Type sqlcv1.V1PayloadType
+	TaskId         int64
+	TaskInsertedAt pgtype.Timestamptz
+	Type           sqlcv1.V1PayloadType
 }
 
 type StorePayloadOpts struct {
-	Key     string
-	Type    sqlcv1.V1PayloadType
-	Payload []byte
+	TaskId         int64
+	TaskInsertedAt pgtype.Timestamptz
+	Type           sqlcv1.V1PayloadType
+	Payload        []byte
 }
 
 func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tenantId string, payloads []StorePayloadOpts) error {
@@ -51,21 +54,24 @@ func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tenantId string,
 
 	defer rollback()
 
-	keys := make([]string, len(payloads))
+	taskIds := make([]int64, len(payloads))
+	taskInsertedAts := make([]pgtype.Timestamptz, len(payloads))
 	payloadTypes := make([]string, len(payloads))
 	payloadData := make([][]byte, len(payloads))
 
 	for i, payload := range payloads {
-		keys[i] = payload.Key
+		taskIds[i] = payload.TaskId
+		taskInsertedAts[i] = payload.TaskInsertedAt
 		payloadTypes[i] = string(payload.Type)
 		payloadData[i] = payload.Payload
 	}
 
 	err = p.queries.WritePayloads(ctx, tx, sqlcv1.WritePayloadsParams{
-		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
-		Keys:     keys,
-		Types:    payloadTypes,
-		Payloads: payloadData,
+		Tenantid:        sqlchelpers.UUIDFromStr(tenantId),
+		Taskids:         taskIds,
+		Taskinsertedats: taskInsertedAts,
+		Types:           payloadTypes,
+		Payloads:        payloadData,
 	})
 
 	if err != nil {
@@ -81,9 +87,10 @@ func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tenantId string,
 
 func (p *payloadStoreRepositoryImpl) Retrieve(ctx context.Context, tenantId string, opts RetrievePayloadOpts) ([]byte, error) {
 	payload, err := p.queries.ReadPayload(ctx, p.pool, sqlcv1.ReadPayloadParams{
-		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
-		Key:      opts.Key,
-		Type:     opts.Type,
+		Tenantid:       sqlchelpers.UUIDFromStr(tenantId),
+		Taskid:         opts.TaskId,
+		Taskinsertedat: opts.TaskInsertedAt,
+		Type:           opts.Type,
 	})
 
 	if err != nil {
@@ -98,18 +105,21 @@ func (p *payloadStoreRepositoryImpl) Retrieve(ctx context.Context, tenantId stri
 }
 
 func (p *payloadStoreRepositoryImpl) BulkRetrieve(ctx context.Context, tenantId string, opts []RetrievePayloadOpts) (map[RetrievePayloadOpts][]byte, error) {
-	keys := make([]string, len(opts))
+	taskIds := make([]int64, len(opts))
+	taskInsertedAts := make([]pgtype.Timestamptz, len(opts))
 	payloadTypes := make([]string, len(opts))
 
 	for i, opt := range opts {
-		keys[i] = opt.Key
+		taskIds[i] = opt.TaskId
+		taskInsertedAts[i] = opt.TaskInsertedAt
 		payloadTypes[i] = string(opt.Type)
 	}
 
 	payloads, err := p.queries.ReadPayloads(ctx, p.pool, sqlcv1.ReadPayloadsParams{
-		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
-		Keys:     keys,
-		Types:    payloadTypes,
+		Tenantid:        sqlchelpers.UUIDFromStr(tenantId),
+		Taskids:         taskIds,
+		Taskinsertedats: taskInsertedAts,
+		Types:           payloadTypes,
 	})
 
 	if err != nil {
@@ -124,8 +134,9 @@ func (p *payloadStoreRepositoryImpl) BulkRetrieve(ctx context.Context, tenantId 
 		}
 
 		optsToPayload[RetrievePayloadOpts{
-			Key:  payload.Key,
-			Type: payload.Type,
+			TaskId:         payload.TaskID,
+			TaskInsertedAt: payload.TaskInsertedAt,
+			Type:           payload.Type,
 		}] = payload.Value
 	}
 
