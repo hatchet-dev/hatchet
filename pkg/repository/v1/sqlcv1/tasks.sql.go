@@ -16,7 +16,8 @@ SELECT
     create_v1_range_partition('v1_task', $1::date),
     create_v1_range_partition('v1_dag', $1::date),
     create_v1_range_partition('v1_task_event', $1::date),
-    create_v1_range_partition('v1_log_line', $1::date)
+    create_v1_range_partition('v1_log_line', $1::date),
+    create_v1_range_partition('v1_payload', $1::date)
 `
 
 func (q *Queries) CreatePartitions(ctx context.Context, db DBTX, date pgtype.Date) error {
@@ -647,6 +648,8 @@ WITH task_partitions AS (
     SELECT 'v1_task_event' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_task_event', $1::date) AS p
 ), log_line_partitions AS (
     SELECT 'v1_log_line' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_log_line', $1::date) AS p
+), payload_partitions AS (
+    SELECT 'v1_payload' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_payload', $1::date) AS p
 )
 SELECT
     parent_table, partition_name
@@ -673,6 +676,13 @@ SELECT
     parent_table, partition_name
 FROM
     log_line_partitions
+
+UNION ALL
+
+SELECT
+    parent_table, partition_name
+FROM
+    payload_partitions
 `
 
 type ListPartitionsBeforeDateRow struct {

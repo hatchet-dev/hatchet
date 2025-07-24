@@ -12,7 +12,7 @@ import (
 )
 
 const readPayload = `-- name: ReadPayload :one
-SELECT tenant_id, key, type, value, inserted_at, updated_at
+SELECT tenant_id, task_id, task_inserted_at, type, value, updated_at
 FROM v1_payload
 WHERE
     tenant_id = $1::UUID
@@ -31,10 +31,10 @@ func (q *Queries) ReadPayload(ctx context.Context, db DBTX, arg ReadPayloadParam
 	var i V1Payload
 	err := row.Scan(
 		&i.TenantID,
-		&i.Key,
+		&i.TaskID,
+		&i.TaskInsertedAt,
 		&i.Type,
 		&i.Value,
-		&i.InsertedAt,
 		&i.UpdatedAt,
 	)
 	return &i, err
@@ -47,7 +47,7 @@ WITH inputs AS (
         UNNEST(CAST($3::TEXT[] AS v1_payload_type[])) AS type
 )
 
-SELECT tenant_id, key, type, value, inserted_at, updated_at
+SELECT tenant_id, task_id, task_inserted_at, type, value, updated_at
 FROM v1_payload
 WHERE
     tenant_id = $1::UUID
@@ -74,10 +74,10 @@ func (q *Queries) ReadPayloads(ctx context.Context, db DBTX, arg ReadPayloadsPar
 		var i V1Payload
 		if err := rows.Scan(
 			&i.TenantID,
-			&i.Key,
+			&i.TaskID,
+			&i.TaskInsertedAt,
 			&i.Type,
 			&i.Value,
-			&i.InsertedAt,
 			&i.UpdatedAt,
 		); err != nil {
 			return nil, err

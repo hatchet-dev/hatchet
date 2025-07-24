@@ -2673,12 +2673,12 @@ type V1MatchCondition struct {
 }
 
 type V1Payload struct {
-	TenantID   pgtype.UUID        `json:"tenant_id"`
-	Key        string             `json:"key"`
-	Type       V1PayloadType      `json:"type"`
-	Value      []byte             `json:"value"`
-	InsertedAt pgtype.Timestamptz `json:"inserted_at"`
-	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
+	TenantID       pgtype.UUID        `json:"tenant_id"`
+	TaskID         int64              `json:"task_id"`
+	TaskInsertedAt pgtype.Timestamptz `json:"task_inserted_at"`
+	Type           V1PayloadType      `json:"type"`
+	Value          []byte             `json:"value"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
 }
 
 type V1Queue struct {
