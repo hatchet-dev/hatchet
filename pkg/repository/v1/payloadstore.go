@@ -5,6 +5,8 @@ import (
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/rs/zerolog"
 )
 
 type PayloadStoreRepository interface {
@@ -14,12 +16,18 @@ type PayloadStoreRepository interface {
 }
 
 type payloadStoreRepositoryImpl struct {
-	*sharedRepository
+	pool    *pgxpool.Pool
+	l       *zerolog.Logger
+	queries *sqlcv1.Queries
 }
 
-func newPayloadStoreRepository(s *sharedRepository) PayloadStoreRepository {
+func newPayloadStoreRepository(
+	pool *pgxpool.Pool, l *zerolog.Logger, queries *sqlcv1.Queries,
+) PayloadStoreRepository {
 	return &payloadStoreRepositoryImpl{
-		sharedRepository: s,
+		pool:    pool,
+		l:       l,
+		queries: queries,
 	}
 }
 

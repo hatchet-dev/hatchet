@@ -19,8 +19,6 @@ type Repository interface {
 	OverwriteOLAPRepository(o OLAPRepository)
 	Logs() LogLineRepository
 	OverwriteLogsRepository(l LogLineRepository)
-	Payloads() PayloadStoreRepository
-	OverwritePayloadsRepository(p PayloadStoreRepository)
 	Workers() WorkerRepository
 	Workflows() WorkflowRepository
 	Ticker() TickerRepository
@@ -34,7 +32,6 @@ type repositoryImpl struct {
 	matches   MatchRepository
 	olap      OLAPRepository
 	logs      LogLineRepository
-	payloads  PayloadStoreRepository
 	workers   WorkerRepository
 	workflows WorkflowRepository
 	ticker    TickerRepository
@@ -45,22 +42,20 @@ func NewRepository(pool *pgxpool.Pool, l *zerolog.Logger, taskRetentionPeriod, o
 	v := validator.NewDefaultValidator()
 
 	shared, cleanupShared := newSharedRepository(pool, v, l, entitlements)
-	payloadStore := newPayloadStoreRepository(shared)
 
-	matchRepo, err := newMatchRepository(shared, payloadStore)
+	matchRepo, err := newMatchRepository(shared)
 
 	if err != nil {
 		l.Fatal().Err(err).Msg("cannot create match repository")
 	}
 
 	impl := &repositoryImpl{
-		triggers:  newTriggerRepository(shared, payloadStore),
-		tasks:     newTaskRepository(shared, taskRetentionPeriod, maxInternalRetryCount, payloadStore),
+		triggers:  newTriggerRepository(shared),
+		tasks:     newTaskRepository(shared, taskRetentionPeriod, maxInternalRetryCount),
 		scheduler: newSchedulerRepository(shared),
 		matches:   matchRepo,
 		olap:      newOLAPRepository(shared, olapRetentionPeriod, true),
 		logs:      newLogLineRepository(shared),
-		payloads:  payloadStore,
 		workers:   newWorkerRepository(shared),
 		workflows: newWorkflowRepository(shared),
 		ticker:    newTickerRepository(shared),
@@ -100,16 +95,8 @@ func (r *repositoryImpl) Logs() LogLineRepository {
 	return r.logs
 }
 
-func (r *repositoryImpl) Payloads() PayloadStoreRepository {
-	return r.payloads
-}
-
 func (r *repositoryImpl) OverwriteLogsRepository(l LogLineRepository) {
 	r.logs = l
-}
-
-func (r *repositoryImpl) OverwritePayloadsRepository(p PayloadStoreRepository) {
-	r.payloads = p
 }
 
 func (r *repositoryImpl) Workers() WorkerRepository {

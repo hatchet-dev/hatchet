@@ -255,15 +255,13 @@ type TaskRepositoryImpl struct {
 
 	taskRetentionPeriod   time.Duration
 	maxInternalRetryCount int32
-	payloadStore          PayloadStoreRepository
 }
 
-func newTaskRepository(s *sharedRepository, taskRetentionPeriod time.Duration, maxInternalRetryCount int32, p PayloadStoreRepository) TaskRepository {
+func newTaskRepository(s *sharedRepository, taskRetentionPeriod time.Duration, maxInternalRetryCount int32) TaskRepository {
 	return &TaskRepositoryImpl{
 		sharedRepository:      s,
 		taskRetentionPeriod:   taskRetentionPeriod,
 		maxInternalRetryCount: maxInternalRetryCount,
-		payloadStore:          p,
 	}
 }
 

@@ -145,14 +145,11 @@ type MatchRepository interface {
 
 type MatchRepositoryImpl struct {
 	*sharedRepository
-
-	payloadStore PayloadStoreRepository
 }
 
-func newMatchRepository(s *sharedRepository, p PayloadStoreRepository) (MatchRepository, error) {
+func newMatchRepository(s *sharedRepository) (MatchRepository, error) {
 	return &MatchRepositoryImpl{
 		sharedRepository: s,
-		payloadStore:     p,
 	}, nil
 }
 

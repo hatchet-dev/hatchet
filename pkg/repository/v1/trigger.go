@@ -100,14 +100,11 @@ type TriggerRepository interface {
 
 type TriggerRepositoryImpl struct {
 	*sharedRepository
-
-	payloadStore PayloadStoreRepository
 }
 
-func newTriggerRepository(s *sharedRepository, p PayloadStoreRepository) TriggerRepository {
+func newTriggerRepository(s *sharedRepository) TriggerRepository {
 	return &TriggerRepositoryImpl{
 		sharedRepository: s,
-		payloadStore:     p,
 	}
 }
 
