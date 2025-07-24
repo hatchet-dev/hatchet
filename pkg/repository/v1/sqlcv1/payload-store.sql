@@ -29,7 +29,7 @@ WHERE
 -- name: WritePayloads :exec
 WITH inputs AS (
     SELECT
-        UNNEST(@taskIds::BIGINT[]) AS key,
+        UNNEST(@taskIds::BIGINT[]) AS task_id,
         UNNEST(@taskInsertedAts::TIMESTAMPTZ[]) AS task_inserted_at,
         UNNEST(CAST(@types::TEXT[] AS v1_payload_type[])) AS type,
         UNNEST(@payloads::JSONB[]) AS payload

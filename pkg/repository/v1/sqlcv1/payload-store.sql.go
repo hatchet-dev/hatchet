@@ -107,7 +107,7 @@ func (q *Queries) ReadPayloads(ctx context.Context, db DBTX, arg ReadPayloadsPar
 const writePayloads = `-- name: WritePayloads :exec
 WITH inputs AS (
     SELECT
-        UNNEST($2::BIGINT[]) AS key,
+        UNNEST($2::BIGINT[]) AS task_id,
         UNNEST($3::TIMESTAMPTZ[]) AS task_inserted_at,
         UNNEST(CAST($4::TEXT[] AS v1_payload_type[])) AS type,
         UNNEST($5::JSONB[]) AS payload
