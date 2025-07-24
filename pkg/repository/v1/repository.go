@@ -19,6 +19,8 @@ type Repository interface {
 	OverwriteOLAPRepository(o OLAPRepository)
 	Logs() LogLineRepository
 	OverwriteLogsRepository(l LogLineRepository)
+	Payloads() PayloadStoreRepository
+	OverwritePayloadsRepository(p PayloadStoreRepository)
 	Workers() WorkerRepository
 	Workflows() WorkflowRepository
 	Ticker() TickerRepository
@@ -26,16 +28,17 @@ type Repository interface {
 }
 
 type repositoryImpl struct {
-	triggers  TriggerRepository
-	tasks     TaskRepository
-	scheduler SchedulerRepository
-	matches   MatchRepository
-	olap      OLAPRepository
-	logs      LogLineRepository
-	workers   WorkerRepository
-	workflows WorkflowRepository
-	ticker    TickerRepository
-	filters   FilterRepository
+	triggers     TriggerRepository
+	tasks        TaskRepository
+	scheduler    SchedulerRepository
+	matches      MatchRepository
+	olap         OLAPRepository
+	logs         LogLineRepository
+	workers      WorkerRepository
+	workflows    WorkflowRepository
+	ticker       TickerRepository
+	filters      FilterRepository
+	payloadStore PayloadStoreRepository
 }
 
 func NewRepository(pool *pgxpool.Pool, l *zerolog.Logger, taskRetentionPeriod, olapRetentionPeriod time.Duration, maxInternalRetryCount int32, entitlements repository.EntitlementsRepository) (Repository, func() error) {
@@ -44,16 +47,17 @@ func NewRepository(pool *pgxpool.Pool, l *zerolog.Logger, taskRetentionPeriod, o
 	shared, cleanupShared := newSharedRepository(pool, v, l, entitlements)
 
 	impl := &repositoryImpl{
-		triggers:  newTriggerRepository(shared),
-		tasks:     newTaskRepository(shared, taskRetentionPeriod, maxInternalRetryCount),
-		scheduler: newSchedulerRepository(shared),
-		matches:   newMatchRepository(shared),
-		olap:      newOLAPRepository(shared, olapRetentionPeriod, true),
-		logs:      newLogLineRepository(shared),
-		workers:   newWorkerRepository(shared),
-		workflows: newWorkflowRepository(shared),
-		ticker:    newTickerRepository(shared),
-		filters:   newFilterRepository(shared),
+		triggers:     newTriggerRepository(shared),
+		tasks:        newTaskRepository(shared, taskRetentionPeriod, maxInternalRetryCount),
+		scheduler:    newSchedulerRepository(shared),
+		matches:      newMatchRepository(shared),
+		olap:         newOLAPRepository(shared, olapRetentionPeriod, true),
+		logs:         newLogLineRepository(shared),
+		workers:      newWorkerRepository(shared),
+		workflows:    newWorkflowRepository(shared),
+		ticker:       newTickerRepository(shared),
+		filters:      newFilterRepository(shared),
+		payloadStore: shared.payloadStore,
 	}
 
 	return impl, func() error {
@@ -91,6 +95,14 @@ func (r *repositoryImpl) Logs() LogLineRepository {
 
 func (r *repositoryImpl) OverwriteLogsRepository(l LogLineRepository) {
 	r.logs = l
+}
+
+func (r *repositoryImpl) Payloads() PayloadStoreRepository {
+	return r.payloadStore
+}
+
+func (r *repositoryImpl) OverwritePayloadsRepository(p PayloadStoreRepository) {
+	r.payloadStore = p
 }
 
 func (r *repositoryImpl) Workers() WorkerRepository {

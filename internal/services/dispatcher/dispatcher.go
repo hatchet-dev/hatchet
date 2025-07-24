@@ -28,7 +28,6 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
-	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 
 	hatcheterrors "github.com/hatchet-dev/hatchet/pkg/errors"
@@ -571,30 +570,9 @@ func (d *DispatcherImpl) handleStepRunBulkAssignedTask(ctx context.Context, task
 		return fmt.Errorf("could not bulk list step run data: %w", err)
 	}
 
-	retrieveOpts := make([]v1.RetrievePayloadOpts, 0, len(bulkDatas))
-
-	for _, sr := range bulkDatas {
-		retrieveOpts = append(retrieveOpts, v1.RetrievePayloadOpts{
-			Key:  sr.SRID.String(),
-			Type: sqlcv1.V1PayloadTypeWORKFLOWINPUT,
-		})
-	}
-
-	inputs, err := d.repov1.Payloads().BulkRetrieve(ctx, metadata.TenantId, retrieveOpts)
-
-	if err != nil {
-		return fmt.Errorf("could not bulk retrieve step run inputs: %w", err)
-	}
-
 	stepRunIdToData := make(map[string]*dbsqlc.GetStepRunBulkDataForEngineRow)
 
 	for _, sr := range bulkDatas {
-		input := inputs[v1.RetrievePayloadOpts{
-			Key:  sqlchelpers.UUIDToStr(sr.SRID),
-			Type: sqlcv1.V1PayloadTypeWORKFLOWINPUT,
-		}]
-
-		sr.Input = input
 
 		stepRunIdToData[sqlchelpers.UUIDToStr(sr.SRID)] = sr
 	}
