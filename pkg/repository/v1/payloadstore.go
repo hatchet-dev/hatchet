@@ -67,11 +67,11 @@ func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tenantId string,
 	}
 
 	err = p.queries.WritePayloads(ctx, tx, sqlcv1.WritePayloadsParams{
-		Tenantid:        sqlchelpers.UUIDFromStr(tenantId),
-		Taskids:         taskIds,
-		Taskinsertedats: taskInsertedAts,
-		Types:           payloadTypes,
-		Payloads:        payloadData,
+		Tenantid:    sqlchelpers.UUIDFromStr(tenantId),
+		Ids:         taskIds,
+		Insertedats: taskInsertedAts,
+		Types:       payloadTypes,
+		Payloads:    payloadData,
 	})
 
 	if err != nil {
@@ -87,10 +87,10 @@ func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tenantId string,
 
 func (p *payloadStoreRepositoryImpl) Retrieve(ctx context.Context, tenantId string, opts RetrievePayloadOpts) ([]byte, error) {
 	payload, err := p.queries.ReadPayload(ctx, p.pool, sqlcv1.ReadPayloadParams{
-		Tenantid:       sqlchelpers.UUIDFromStr(tenantId),
-		Taskid:         opts.Id,
-		Taskinsertedat: opts.InsertedAt,
-		Type:           opts.Type,
+		Tenantid:   sqlchelpers.UUIDFromStr(tenantId),
+		ID:         opts.Id,
+		Insertedat: opts.InsertedAt,
+		Type:       opts.Type,
 	})
 
 	if err != nil {
@@ -116,10 +116,10 @@ func (p *payloadStoreRepositoryImpl) BulkRetrieve(ctx context.Context, tenantId 
 	}
 
 	payloads, err := p.queries.ReadPayloads(ctx, p.pool, sqlcv1.ReadPayloadsParams{
-		Tenantid:        sqlchelpers.UUIDFromStr(tenantId),
-		Taskids:         taskIds,
-		Taskinsertedats: taskInsertedAts,
-		Types:           payloadTypes,
+		Tenantid:    sqlchelpers.UUIDFromStr(tenantId),
+		Ids:         taskIds,
+		Insertedats: taskInsertedAts,
+		Types:       payloadTypes,
 	})
 
 	if err != nil {

@@ -17,23 +17,23 @@ FROM v1_payload
 WHERE
     tenant_id = $1::UUID
     AND type = $2::v1_payload_type
-    AND task_id = $3::BIGINT
-    AND task_inserted_at = $4::TIMESTAMPTZ
+    AND id = $3::BIGINT
+    AND inserted_at = $4::TIMESTAMPTZ
 `
 
 type ReadPayloadParams struct {
-	Tenantid       pgtype.UUID        `json:"tenantid"`
-	Type           V1PayloadType      `json:"type"`
-	Taskid         int64              `json:"taskid"`
-	Taskinsertedat pgtype.Timestamptz `json:"taskinsertedat"`
+	Tenantid   pgtype.UUID        `json:"tenantid"`
+	Type       V1PayloadType      `json:"type"`
+	ID         int64              `json:"id"`
+	Insertedat pgtype.Timestamptz `json:"insertedat"`
 }
 
 func (q *Queries) ReadPayload(ctx context.Context, db DBTX, arg ReadPayloadParams) (*V1Payload, error) {
 	row := db.QueryRow(ctx, readPayload,
 		arg.Tenantid,
 		arg.Type,
-		arg.Taskid,
-		arg.Taskinsertedat,
+		arg.ID,
+		arg.Insertedat,
 	)
 	var i V1Payload
 	err := row.Scan(
@@ -50,8 +50,8 @@ func (q *Queries) ReadPayload(ctx context.Context, db DBTX, arg ReadPayloadParam
 const readPayloads = `-- name: ReadPayloads :many
 WITH inputs AS (
     SELECT
-        UNNEST($2::BIGINT[]) AS task_id,
-        UNNEST($3::TIMESTAMPTZ[]) AS task_inserted_at,
+        UNNEST($2::BIGINT[]) AS id,
+        UNNEST($3::TIMESTAMPTZ[]) AS inserted_at,
         UNNEST(CAST($4::TEXT[] AS v1_payload_type[])) AS type
 )
 
@@ -59,24 +59,24 @@ SELECT tenant_id, id, inserted_at, type, value, updated_at
 FROM v1_payload
 WHERE
     tenant_id = $1::UUID
-    AND (task_id, task_inserted_at, type) IN (
-        SELECT task_id, task_inserted_at, type
+    AND (id, inserted_at, type) IN (
+        SELECT id, inserted_at, type
         FROM inputs
     )
 `
 
 type ReadPayloadsParams struct {
-	Tenantid        pgtype.UUID          `json:"tenantid"`
-	Taskids         []int64              `json:"taskids"`
-	Taskinsertedats []pgtype.Timestamptz `json:"taskinsertedats"`
-	Types           []string             `json:"types"`
+	Tenantid    pgtype.UUID          `json:"tenantid"`
+	Ids         []int64              `json:"ids"`
+	Insertedats []pgtype.Timestamptz `json:"insertedats"`
+	Types       []string             `json:"types"`
 }
 
 func (q *Queries) ReadPayloads(ctx context.Context, db DBTX, arg ReadPayloadsParams) ([]*V1Payload, error) {
 	rows, err := db.Query(ctx, readPayloads,
 		arg.Tenantid,
-		arg.Taskids,
-		arg.Taskinsertedats,
+		arg.Ids,
+		arg.Insertedats,
 		arg.Types,
 	)
 	if err != nil {
@@ -107,22 +107,22 @@ func (q *Queries) ReadPayloads(ctx context.Context, db DBTX, arg ReadPayloadsPar
 const writePayloads = `-- name: WritePayloads :exec
 WITH inputs AS (
     SELECT
-        UNNEST($2::BIGINT[]) AS task_id,
-        UNNEST($3::TIMESTAMPTZ[]) AS task_inserted_at,
+        UNNEST($2::BIGINT[]) AS id,
+        UNNEST($3::TIMESTAMPTZ[]) AS inserted_at,
         UNNEST(CAST($4::TEXT[] AS v1_payload_type[])) AS type,
         UNNEST($5::JSONB[]) AS payload
 )
 INSERT INTO v1_payload (
     tenant_id,
-    task_id,
-    task_inserted_at,
+    id,
+    inserted_at,
     type,
     value
 )
 SELECT
     $1::UUID,
-    i.task_id,
-    i.task_inserted_at,
+    i.id,
+    i.inserted_at,
     i.type,
     i.payload
 FROM
@@ -130,18 +130,18 @@ FROM
 `
 
 type WritePayloadsParams struct {
-	Tenantid        pgtype.UUID          `json:"tenantid"`
-	Taskids         []int64              `json:"taskids"`
-	Taskinsertedats []pgtype.Timestamptz `json:"taskinsertedats"`
-	Types           []string             `json:"types"`
-	Payloads        [][]byte             `json:"payloads"`
+	Tenantid    pgtype.UUID          `json:"tenantid"`
+	Ids         []int64              `json:"ids"`
+	Insertedats []pgtype.Timestamptz `json:"insertedats"`
+	Types       []string             `json:"types"`
+	Payloads    [][]byte             `json:"payloads"`
 }
 
 func (q *Queries) WritePayloads(ctx context.Context, db DBTX, arg WritePayloadsParams) error {
 	_, err := db.Exec(ctx, writePayloads,
 		arg.Tenantid,
-		arg.Taskids,
-		arg.Taskinsertedats,
+		arg.Ids,
+		arg.Insertedats,
 		arg.Types,
 		arg.Payloads,
 	)

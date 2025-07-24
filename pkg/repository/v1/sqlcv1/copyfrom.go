@@ -107,6 +107,7 @@ func (r iteratorForCreateDAGsOLAP) Values() ([]interface{}, error) {
 		r.rows[0].DisplayName,
 		r.rows[0].WorkflowID,
 		r.rows[0].WorkflowVersionID,
+		r.rows[0].Input,
 		r.rows[0].AdditionalMetadata,
 		r.rows[0].ParentTaskExternalID,
 		r.rows[0].TotalTasks,
@@ -118,7 +119,7 @@ func (r iteratorForCreateDAGsOLAP) Err() error {
 }
 
 func (q *Queries) CreateDAGsOLAP(ctx context.Context, db DBTX, arg []CreateDAGsOLAPParams) (int64, error) {
-	return db.CopyFrom(ctx, []string{"v1_dags_olap"}, []string{"tenant_id", "id", "inserted_at", "external_id", "display_name", "workflow_id", "workflow_version_id", "additional_metadata", "parent_task_external_id", "total_tasks"}, &iteratorForCreateDAGsOLAP{rows: arg})
+	return db.CopyFrom(ctx, []string{"v1_dags_olap"}, []string{"tenant_id", "id", "inserted_at", "external_id", "display_name", "workflow_id", "workflow_version_id", "input", "additional_metadata", "parent_task_external_id", "total_tasks"}, &iteratorForCreateDAGsOLAP{rows: arg})
 }
 
 // iteratorForCreateMatchConditions implements pgx.CopyFromSource.
@@ -281,6 +282,7 @@ func (r iteratorForCreateTasksOLAP) Values() ([]interface{}, error) {
 		r.rows[0].DesiredWorkerID,
 		r.rows[0].ExternalID,
 		r.rows[0].DisplayName,
+		r.rows[0].Input,
 		r.rows[0].AdditionalMetadata,
 		r.rows[0].DagID,
 		r.rows[0].DagInsertedAt,
@@ -293,7 +295,7 @@ func (r iteratorForCreateTasksOLAP) Err() error {
 }
 
 func (q *Queries) CreateTasksOLAP(ctx context.Context, db DBTX, arg []CreateTasksOLAPParams) (int64, error) {
-	return db.CopyFrom(ctx, []string{"v1_tasks_olap"}, []string{"tenant_id", "id", "inserted_at", "queue", "action_id", "step_id", "workflow_id", "workflow_version_id", "workflow_run_id", "schedule_timeout", "step_timeout", "priority", "sticky", "desired_worker_id", "external_id", "display_name", "additional_metadata", "dag_id", "dag_inserted_at", "parent_task_external_id"}, &iteratorForCreateTasksOLAP{rows: arg})
+	return db.CopyFrom(ctx, []string{"v1_tasks_olap"}, []string{"tenant_id", "id", "inserted_at", "queue", "action_id", "step_id", "workflow_id", "workflow_version_id", "workflow_run_id", "schedule_timeout", "step_timeout", "priority", "sticky", "desired_worker_id", "external_id", "display_name", "input", "additional_metadata", "dag_id", "dag_inserted_at", "parent_task_external_id"}, &iteratorForCreateTasksOLAP{rows: arg})
 }
 
 // iteratorForInsertLogLine implements pgx.CopyFromSource.

@@ -96,6 +96,7 @@ INSERT INTO v1_tasks_olap (
     desired_worker_id,
     external_id,
     display_name,
+    input,
     additional_metadata,
     dag_id,
     dag_inserted_at,
@@ -120,7 +121,8 @@ INSERT INTO v1_tasks_olap (
     $17,
     $18,
     $19,
-    $20
+    $20,
+    $21
 );
 
 -- name: CreateDAGsOLAP :copyfrom
@@ -132,6 +134,7 @@ INSERT INTO v1_dags_olap (
     display_name,
     workflow_id,
     workflow_version_id,
+    input,
     additional_metadata,
     parent_task_external_id,
     total_tasks
@@ -145,7 +148,8 @@ INSERT INTO v1_dags_olap (
     $7,
     $8,
     $9,
-    $10
+    $10,
+    $11
 );
 
 -- name: CreateTaskEventsOLAPTmp :copyfrom
