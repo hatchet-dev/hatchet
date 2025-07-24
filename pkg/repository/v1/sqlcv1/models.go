@@ -1137,6 +1137,7 @@ type V1PayloadType string
 
 const (
 	V1PayloadTypeTASKINPUT  V1PayloadType = "TASK_INPUT"
+	V1PayloadTypeDAGINPUT   V1PayloadType = "DAG_INPUT"
 	V1PayloadTypeTASKOUTPUT V1PayloadType = "TASK_OUTPUT"
 )
 
@@ -2673,12 +2674,12 @@ type V1MatchCondition struct {
 }
 
 type V1Payload struct {
-	TenantID       pgtype.UUID        `json:"tenant_id"`
-	TaskID         int64              `json:"task_id"`
-	TaskInsertedAt pgtype.Timestamptz `json:"task_inserted_at"`
-	Type           V1PayloadType      `json:"type"`
-	Value          []byte             `json:"value"`
-	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+	TenantID   pgtype.UUID        `json:"tenant_id"`
+	ID         int64              `json:"id"`
+	InsertedAt pgtype.Timestamptz `json:"inserted_at"`
+	Type       V1PayloadType      `json:"type"`
+	Value      []byte             `json:"value"`
+	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
 }
 
 type V1Queue struct {

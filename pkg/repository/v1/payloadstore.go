@@ -33,16 +33,16 @@ func newPayloadStoreRepository(
 }
 
 type RetrievePayloadOpts struct {
-	TaskId         int64
-	TaskInsertedAt pgtype.Timestamptz
-	Type           sqlcv1.V1PayloadType
+	Id         int64
+	InsertedAt pgtype.Timestamptz
+	Type       sqlcv1.V1PayloadType
 }
 
 type StorePayloadOpts struct {
-	TaskId         int64
-	TaskInsertedAt pgtype.Timestamptz
-	Type           sqlcv1.V1PayloadType
-	Payload        []byte
+	Id         int64
+	InsertedAt pgtype.Timestamptz
+	Type       sqlcv1.V1PayloadType
+	Payload    []byte
 }
 
 func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tenantId string, payloads []StorePayloadOpts) error {
@@ -60,8 +60,8 @@ func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tenantId string,
 	payloadData := make([][]byte, len(payloads))
 
 	for i, payload := range payloads {
-		taskIds[i] = payload.TaskId
-		taskInsertedAts[i] = payload.TaskInsertedAt
+		taskIds[i] = payload.Id
+		taskInsertedAts[i] = payload.InsertedAt
 		payloadTypes[i] = string(payload.Type)
 		payloadData[i] = payload.Payload
 	}
@@ -88,8 +88,8 @@ func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tenantId string,
 func (p *payloadStoreRepositoryImpl) Retrieve(ctx context.Context, tenantId string, opts RetrievePayloadOpts) ([]byte, error) {
 	payload, err := p.queries.ReadPayload(ctx, p.pool, sqlcv1.ReadPayloadParams{
 		Tenantid:       sqlchelpers.UUIDFromStr(tenantId),
-		Taskid:         opts.TaskId,
-		Taskinsertedat: opts.TaskInsertedAt,
+		Taskid:         opts.Id,
+		Taskinsertedat: opts.InsertedAt,
 		Type:           opts.Type,
 	})
 
@@ -110,8 +110,8 @@ func (p *payloadStoreRepositoryImpl) BulkRetrieve(ctx context.Context, tenantId 
 	payloadTypes := make([]string, len(opts))
 
 	for i, opt := range opts {
-		taskIds[i] = opt.TaskId
-		taskInsertedAts[i] = opt.TaskInsertedAt
+		taskIds[i] = opt.Id
+		taskInsertedAts[i] = opt.InsertedAt
 		payloadTypes[i] = string(opt.Type)
 	}
 
@@ -134,9 +134,9 @@ func (p *payloadStoreRepositoryImpl) BulkRetrieve(ctx context.Context, tenantId 
 		}
 
 		optsToPayload[RetrievePayloadOpts{
-			TaskId:         payload.TaskID,
-			TaskInsertedAt: payload.TaskInsertedAt,
-			Type:           payload.Type,
+			Id:         payload.ID,
+			InsertedAt: payload.InsertedAt,
+			Type:       payload.Type,
 		}] = payload.Value
 	}
 

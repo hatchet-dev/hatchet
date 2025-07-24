@@ -163,9 +163,9 @@ func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *ms
 
 		for i, task := range bulkDatas {
 			retrivePayloadOpts[i] = v1.RetrievePayloadOpts{
-				TaskId:         task.ID,
-				TaskInsertedAt: task.InsertedAt,
-				Type:           sqlcv1.V1PayloadTypeTASKINPUT,
+				Id:         task.ID,
+				InsertedAt: task.InsertedAt,
+				Type:       sqlcv1.V1PayloadTypeTASKINPUT,
 			}
 		}
 
@@ -177,9 +177,9 @@ func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *ms
 
 		for _, task := range bulkDatas {
 			input := inputs[v1.RetrievePayloadOpts{
-				TaskId:         task.ID,
-				TaskInsertedAt: task.InsertedAt,
-				Type:           sqlcv1.V1PayloadTypeTASKINPUT,
+				Id:         task.ID,
+				InsertedAt: task.InsertedAt,
+				Type:       sqlcv1.V1PayloadTypeTASKINPUT,
 			}]
 
 			if parentData, ok := parentDataMap[task.ID]; ok {
@@ -215,9 +215,9 @@ func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *ms
 
 				input = currInput.Bytes()
 				inputs[v1.RetrievePayloadOpts{
-					TaskId:         task.ID,
-					TaskInsertedAt: task.InsertedAt,
-					Type:           sqlcv1.V1PayloadTypeTASKINPUT,
+					Id:         task.ID,
+					InsertedAt: task.InsertedAt,
+					Type:       sqlcv1.V1PayloadTypeTASKINPUT,
 				}] = input
 			}
 		}
@@ -228,9 +228,9 @@ func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *ms
 			taskIdToData[task.ID] = &v1.V1TaskWithPayload{
 				ListTasksRow: task,
 				Payload: inputs[v1.RetrievePayloadOpts{
-					TaskId:         task.ID,
-					TaskInsertedAt: task.InsertedAt,
-					Type:           sqlcv1.V1PayloadTypeTASKINPUT,
+					Id:         task.ID,
+					InsertedAt: task.InsertedAt,
+					Type:       sqlcv1.V1PayloadTypeTASKINPUT,
 				}],
 			}
 		}

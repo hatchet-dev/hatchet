@@ -1171,10 +1171,19 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 
 	for _, task := range tasks {
 		storePayloadOpts = append(storePayloadOpts, StorePayloadOpts{
-			TaskId:         task.ID,
-			TaskInsertedAt: task.InsertedAt,
-			Type:           sqlcv1.V1PayloadTypeTASKINPUT,
-			Payload:        task.Payload,
+			Id:         task.ID,
+			InsertedAt: task.InsertedAt,
+			Type:       sqlcv1.V1PayloadTypeTASKINPUT,
+			Payload:    task.Payload,
+		})
+	}
+
+	for _, dag := range dags {
+		storePayloadOpts = append(storePayloadOpts, StorePayloadOpts{
+			Id:         dag.ID,
+			InsertedAt: dag.InsertedAt,
+			Type:       sqlcv1.V1PayloadTypeDAGINPUT,
+			Payload:    dag.Input,
 		})
 	}
 

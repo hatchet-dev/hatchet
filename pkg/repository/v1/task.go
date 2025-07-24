@@ -2664,9 +2664,9 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId string, t
 		}
 
 		input, err := r.payloadStore.Retrieve(ctx, tenantId, RetrievePayloadOpts{
-			TaskId:         task.ID,
-			TaskInsertedAt: task.InsertedAt,
-			Type:           sqlcv1.V1PayloadTypeTASKINPUT,
+			Id:         task.ID,
+			InsertedAt: task.InsertedAt,
+			Type:       sqlcv1.V1PayloadTypeTASKINPUT,
 		})
 
 		if err != nil {

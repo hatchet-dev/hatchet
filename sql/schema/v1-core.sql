@@ -1511,15 +1511,15 @@ CREATE TABLE v1_durable_sleep (
     PRIMARY KEY (tenant_id, sleep_until, id)
 );
 
-CREATE TYPE v1_payload_type AS ENUM ('TASK_INPUT', 'TASK_OUTPUT');
+CREATE TYPE v1_payload_type AS ENUM ('TASK_INPUT', 'DAG_INPUT', 'TASK_OUTPUT');
 
 CREATE TABLE v1_payload (
     tenant_id UUID NOT NULL,
-    task_id BIGINT NOT NULL,
-    task_inserted_at TIMESTAMPTZ NOT NULL,
+    id BIGINT NOT NULL,
+    inserted_at TIMESTAMPTZ NOT NULL,
     type v1_payload_type NOT NULL,
     value JSONB NOT NULL,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    PRIMARY KEY (tenant_id, task_inserted_at, task_id, type)
-) PARTITION BY RANGE(task_inserted_at);
+    PRIMARY KEY (tenant_id, inserted_at, id, type)
+) PARTITION BY RANGE(inserted_at);

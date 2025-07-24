@@ -114,7 +114,6 @@ type CreateDAGsOLAPParams struct {
 	DisplayName          string             `json:"display_name"`
 	WorkflowID           pgtype.UUID        `json:"workflow_id"`
 	WorkflowVersionID    pgtype.UUID        `json:"workflow_version_id"`
-	Input                []byte             `json:"input"`
 	AdditionalMetadata   []byte             `json:"additional_metadata"`
 	ParentTaskExternalID pgtype.UUID        `json:"parent_task_external_id"`
 	TotalTasks           int32              `json:"total_tasks"`
@@ -194,7 +193,6 @@ type CreateTasksOLAPParams struct {
 	DesiredWorkerID      pgtype.UUID          `json:"desired_worker_id"`
 	ExternalID           pgtype.UUID          `json:"external_id"`
 	DisplayName          string               `json:"display_name"`
-	Input                []byte               `json:"input"`
 	AdditionalMetadata   []byte               `json:"additional_metadata"`
 	DagID                pgtype.Int8          `json:"dag_id"`
 	DagInsertedAt        pgtype.Timestamptz   `json:"dag_inserted_at"`

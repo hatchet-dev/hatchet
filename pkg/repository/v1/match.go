@@ -256,10 +256,10 @@ func (m *MatchRepositoryImpl) ProcessInternalEventMatches(ctx context.Context, t
 
 	for i, task := range res.CreatedTasks {
 		storePayloadOpts[i] = StorePayloadOpts{
-			TaskId:         task.ID,
-			TaskInsertedAt: task.InsertedAt,
-			Type:           sqlcv1.V1PayloadTypeTASKINPUT,
-			Payload:        task.Payload,
+			Id:         task.ID,
+			InsertedAt: task.InsertedAt,
+			Type:       sqlcv1.V1PayloadTypeTASKINPUT,
+			Payload:    task.Payload,
 		}
 	}
 
@@ -297,10 +297,10 @@ func (m *MatchRepositoryImpl) ProcessUserEventMatches(ctx context.Context, tenan
 	storePayloadOpts := make([]StorePayloadOpts, len(res.CreatedTasks))
 	for i, task := range res.CreatedTasks {
 		storePayloadOpts[i] = StorePayloadOpts{
-			TaskId:         task.ID,
-			TaskInsertedAt: task.InsertedAt,
-			Type:           sqlcv1.V1PayloadTypeTASKINPUT,
-			Payload:        task.Payload,
+			Id:         task.ID,
+			InsertedAt: task.InsertedAt,
+			Type:       sqlcv1.V1PayloadTypeTASKINPUT,
+			Payload:    task.Payload,
 		}
 	}
 
