@@ -165,7 +165,7 @@ func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *ms
 			retrivePayloadOpts[i] = v1.RetrievePayloadOpts{
 				TaskId:         task.ID,
 				TaskInsertedAt: task.InsertedAt,
-				Type:           sqlcv1.V1PayloadTypeWORKFLOWINPUT,
+				Type:           sqlcv1.V1PayloadTypeTASKINPUT,
 			}
 		}
 
@@ -179,7 +179,7 @@ func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *ms
 			input := inputs[v1.RetrievePayloadOpts{
 				TaskId:         task.ID,
 				TaskInsertedAt: task.InsertedAt,
-				Type:           sqlcv1.V1PayloadTypeWORKFLOWINPUT,
+				Type:           sqlcv1.V1PayloadTypeTASKINPUT,
 			}]
 
 			if parentData, ok := parentDataMap[task.ID]; ok {
@@ -217,7 +217,7 @@ func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *ms
 				inputs[v1.RetrievePayloadOpts{
 					TaskId:         task.ID,
 					TaskInsertedAt: task.InsertedAt,
-					Type:           sqlcv1.V1PayloadTypeWORKFLOWINPUT,
+					Type:           sqlcv1.V1PayloadTypeTASKINPUT,
 				}] = input
 			}
 		}
@@ -230,7 +230,7 @@ func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *ms
 				Payload: inputs[v1.RetrievePayloadOpts{
 					TaskId:         task.ID,
 					TaskInsertedAt: task.InsertedAt,
-					Type:           sqlcv1.V1PayloadTypeWORKFLOWINPUT,
+					Type:           sqlcv1.V1PayloadTypeTASKINPUT,
 				}],
 			}
 		}

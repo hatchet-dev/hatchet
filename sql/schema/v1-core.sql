@@ -1511,7 +1511,7 @@ CREATE TABLE v1_durable_sleep (
     PRIMARY KEY (tenant_id, sleep_until, id)
 );
 
-CREATE TYPE v1_payload_type AS ENUM ('WORKFLOW_INPUT', 'TASK_OUTPUT');
+CREATE TYPE v1_payload_type AS ENUM ('TASK_INPUT', 'TASK_OUTPUT');
 
 CREATE TABLE v1_payload (
     tenant_id UUID NOT NULL,

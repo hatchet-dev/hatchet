@@ -258,7 +258,7 @@ func (m *MatchRepositoryImpl) ProcessInternalEventMatches(ctx context.Context, t
 		storePayloadOpts[i] = StorePayloadOpts{
 			TaskId:         task.ID,
 			TaskInsertedAt: task.InsertedAt,
-			Type:           sqlcv1.V1PayloadTypeWORKFLOWINPUT,
+			Type:           sqlcv1.V1PayloadTypeTASKINPUT,
 			Payload:        task.Payload,
 		}
 	}
@@ -299,7 +299,7 @@ func (m *MatchRepositoryImpl) ProcessUserEventMatches(ctx context.Context, tenan
 		storePayloadOpts[i] = StorePayloadOpts{
 			TaskId:         task.ID,
 			TaskInsertedAt: task.InsertedAt,
-			Type:           sqlcv1.V1PayloadTypeWORKFLOWINPUT,
+			Type:           sqlcv1.V1PayloadTypeTASKINPUT,
 			Payload:        task.Payload,
 		}
 	}

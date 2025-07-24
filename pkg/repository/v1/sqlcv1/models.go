@@ -1136,8 +1136,8 @@ func (ns NullV1MatchKind) Value() (driver.Value, error) {
 type V1PayloadType string
 
 const (
-	V1PayloadTypeWORKFLOWINPUT V1PayloadType = "WORKFLOW_INPUT"
-	V1PayloadTypeTASKOUTPUT    V1PayloadType = "TASK_OUTPUT"
+	V1PayloadTypeTASKINPUT  V1PayloadType = "TASK_INPUT"
+	V1PayloadTypeTASKOUTPUT V1PayloadType = "TASK_OUTPUT"
 )
 
 func (e *V1PayloadType) Scan(src interface{}) error {
