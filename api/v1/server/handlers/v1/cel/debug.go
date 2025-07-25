@@ -7,6 +7,7 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers/v1"
 	"github.com/hatchet-dev/hatchet/internal/cel"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 	"github.com/labstack/echo/v4"
 )
 
@@ -31,7 +32,12 @@ func (c *V1CELService) V1CelDebug(ctx echo.Context, request gen.V1CelDebugReques
 	)
 
 	if err != nil {
-		ingestErr := c.config.Ingestor.IngestCELEvaluationFailure(ctx.Request().Context(), tenant.ID.String(), err.Error())
+		ingestErr := c.config.Ingestor.IngestCELEvaluationFailure(
+			ctx.Request().Context(),
+			tenant.ID.String(),
+			err.Error(),
+			sqlcv1.V1CelEvaluationFailureSourceDEBUG,
+		)
 
 		if ingestErr != nil {
 			return nil, fmt.Errorf("failed to ingest CEL evaluation failure: %w", ingestErr)
