@@ -857,6 +857,49 @@ func (ns NullTenantResourceLimitAlertType) Value() (driver.Value, error) {
 	return string(ns.TenantResourceLimitAlertType), nil
 }
 
+type V1CelEvaluationFailureSource string
+
+const (
+	V1CelEvaluationFailureSourceFILTER  V1CelEvaluationFailureSource = "FILTER"
+	V1CelEvaluationFailureSourceWEBHOOK V1CelEvaluationFailureSource = "WEBHOOK"
+	V1CelEvaluationFailureSourceDEBUG   V1CelEvaluationFailureSource = "DEBUG"
+)
+
+func (e *V1CelEvaluationFailureSource) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = V1CelEvaluationFailureSource(s)
+	case string:
+		*e = V1CelEvaluationFailureSource(s)
+	default:
+		return fmt.Errorf("unsupported scan type for V1CelEvaluationFailureSource: %T", src)
+	}
+	return nil
+}
+
+type NullV1CelEvaluationFailureSource struct {
+	V1CelEvaluationFailureSource V1CelEvaluationFailureSource `json:"v1_cel_evaluation_failure_source"`
+	Valid                        bool                         `json:"valid"` // Valid is true if V1CelEvaluationFailureSource is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullV1CelEvaluationFailureSource) Scan(value interface{}) error {
+	if value == nil {
+		ns.V1CelEvaluationFailureSource, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.V1CelEvaluationFailureSource.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullV1CelEvaluationFailureSource) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.V1CelEvaluationFailureSource), nil
+}
+
 type V1ConcurrencyStrategy string
 
 const (
@@ -2618,6 +2661,15 @@ type UserSession struct {
 	UserId    pgtype.UUID      `json:"userId"`
 	Data      []byte           `json:"data"`
 	ExpiresAt pgtype.Timestamp `json:"expiresAt"`
+}
+
+type V1CelEvaluationFailures struct {
+	ID         int64                        `json:"id"`
+	TenantID   pgtype.UUID                  `json:"tenant_id"`
+	Source     V1CelEvaluationFailureSource `json:"source"`
+	Error      string                       `json:"error"`
+	InsertedAt pgtype.Timestamptz           `json:"inserted_at"`
+	UpdatedAt  pgtype.Timestamptz           `json:"updated_at"`
 }
 
 type V1ConcurrencySlot struct {

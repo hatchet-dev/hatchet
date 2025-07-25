@@ -339,9 +339,30 @@ func (tc *OLAPControllerImpl) handleBufferedMsgs(tenantId, msgId string, payload
 		return tc.handleCreateEventTriggers(context.Background(), tenantId, payloads)
 	case "failed-webhook-validation":
 		return tc.handleFailedWebhookValidation(context.Background(), tenantId, payloads)
+	case "cel-evaluation-failure":
+		return tc.handleCelEvaluationFailure(context.Background(), tenantId, payloads)
 	}
 
 	return fmt.Errorf("unknown message id: %s", msgId)
+}
+
+func (tc *OLAPControllerImpl) handleCelEvaluationFailure(ctx context.Context, tenantId string, payloads [][]byte) error {
+	failures := make([]v1.CELEvaluationFailure, 0)
+
+	msgs := msgqueue.JSONConvert[tasktypes.CELEvaluationFailures](payloads)
+
+	for _, msg := range msgs {
+		for _, failure := range msg.Failures {
+			if !tc.sample(failure.ErrorMessage) {
+				tc.l.Debug().Msgf("skipping CEL evaluation failure %s for source %s", failure.ErrorMessage, failure.Source)
+				continue
+			}
+
+			failures = append(failures, failure)
+		}
+	}
+
+	return tc.repo.OLAP().StoreCELEvaluationFailures(ctx, tenantId, failures)
 }
 
 // handleCreatedTask is responsible for flushing a created task to the OLAP repository

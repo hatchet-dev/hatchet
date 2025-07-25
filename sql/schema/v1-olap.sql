@@ -483,6 +483,22 @@ CREATE TABLE v1_event_to_run_olap (
     PRIMARY KEY (event_id, event_seen_at, run_id, run_inserted_at)
 ) PARTITION BY RANGE(event_seen_at);
 
+CREATE TYPE v1_cel_evaluation_failure_source AS ENUM ('FILTER', 'WEBHOOK', 'DEBUG');
+
+CREATE TABLE v1_cel_evaluation_failures (
+    id BIGINT NOT NULL GENERATED ALWAYS AS IDENTITY,
+
+    tenant_id UUID NOT NULL,
+
+    source v1_cel_evaluation_failure_source NOT NULL,
+
+    error TEXT NOT NULL,
+
+    inserted_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (inserted_at, id)
+) PARTITION BY RANGE(inserted_at);
 
 -- TRIGGERS TO LINK TASKS, DAGS AND EVENTS --
 CREATE OR REPLACE FUNCTION v1_tasks_olap_insert_function()

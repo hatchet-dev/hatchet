@@ -236,6 +236,7 @@ type OLAPRepository interface {
 	GetTaskDurationsByTaskIds(ctx context.Context, tenantId string, taskIds []int64, taskInsertedAts []pgtype.Timestamptz, readableStatuses []sqlcv1.V1ReadableStatusOlap) (map[int64]*sqlcv1.GetTaskDurationsByTaskIdsRow, error)
 
 	CreateIncomingWebhookValidationFailureLogs(ctx context.Context, tenantId string, opts []CreateIncomingWebhookFailureLogOpts) error
+	StoreCELEvaluationFailures(ctx context.Context, tenantId string, failures []CELEvaluationFailure) error
 }
 
 type OLAPRepositoryImpl struct {
@@ -1763,4 +1764,25 @@ func (r *OLAPRepositoryImpl) CreateIncomingWebhookValidationFailureLogs(ctx cont
 	}
 
 	return r.queries.CreateIncomingWebhookValidationFailureLogs(ctx, r.pool, params)
+}
+
+type CELEvaluationFailure struct {
+	Source       sqlcv1.V1CelEvaluationFailureSource `json:"source"`
+	ErrorMessage string                              `json:"error_message"`
+}
+
+func (r *OLAPRepositoryImpl) StoreCELEvaluationFailures(ctx context.Context, tenantId string, failures []CELEvaluationFailure) error {
+	errorMessages := make([]string, len(failures))
+	sources := make([]string, len(failures))
+
+	for i, failure := range failures {
+		errorMessages[i] = failure.ErrorMessage
+		sources[i] = string(failure.Source)
+	}
+
+	return r.queries.StoreCELEvaluationFailures(ctx, r.pool, sqlcv1.StoreCELEvaluationFailuresParams{
+		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+		Sources:  sources,
+		Errors:   errorMessages,
+	})
 }
