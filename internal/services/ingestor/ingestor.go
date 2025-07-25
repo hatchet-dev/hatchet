@@ -25,6 +25,7 @@ type Ingestor interface {
 	IngestEvent(ctx context.Context, tenant *dbsqlc.Tenant, eventName string, data []byte, metadata []byte, priority *int32, scope *string) (*dbsqlc.Event, error)
 	BulkIngestEvent(ctx context.Context, tenant *dbsqlc.Tenant, eventOpts []*repository.CreateEventOpts) ([]*dbsqlc.Event, error)
 	IngestReplayedEvent(ctx context.Context, tenant *dbsqlc.Tenant, replayedEvent *dbsqlc.Event) (*dbsqlc.Event, error)
+	IngestCELEvaluationFailure(ctx context.Context, tenantId, errorText string) error
 }
 
 type IngestorOptFunc func(*IngestorOpts)
@@ -338,4 +339,12 @@ func eventToTask(e *dbsqlc.Event) *msgqueue.Message {
 		Metadata: metadata,
 		Retries:  3,
 	}
+}
+
+func (i *IngestorImpl) IngestCELEvaluationFailure(ctx context.Context, tenantId, errorText string) error {
+	return i.ingestCELEvaluationFailure(
+		ctx,
+		tenantId,
+		errorText,
+	)
 }
