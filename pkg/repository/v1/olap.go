@@ -235,6 +235,7 @@ type OLAPRepository interface {
 	GetDagDurationsByDagIds(ctx context.Context, tenantId string, dagIds []int64, dagInsertedAts []pgtype.Timestamptz, readableStatuses []sqlcv1.V1ReadableStatusOlap) (map[string]*sqlcv1.GetDagDurationsByDagIdsRow, error)
 	GetTaskDurationsByTaskIds(ctx context.Context, tenantId string, taskIds []int64, taskInsertedAts []pgtype.Timestamptz, readableStatuses []sqlcv1.V1ReadableStatusOlap) (map[int64]*sqlcv1.GetTaskDurationsByTaskIdsRow, error)
 
+	CreateIncomingWebhookValidationFailureLogs(ctx context.Context, tenantId string, opts []CreateIncomingWebhookFailureLogOpts) error
 	StoreCELEvaluationFailures(ctx context.Context, tenantId string, failures []CELEvaluationFailure) error
 }
 
@@ -1590,6 +1591,7 @@ type ListEventsRow struct {
 	CancelledCount          int64              `json:"cancelled_count"`
 	FailedCount             int64              `json:"failed_count"`
 	TriggeredRuns           []byte             `json:"triggered_runs"`
+	TriggeringWebhookName   *string            `json:"triggering_webhook_name,omitempty"`
 }
 
 func (r *OLAPRepositoryImpl) ListEvents(ctx context.Context, opts sqlcv1.ListEventsParams) ([]*ListEventsRow, *int64, error) {
@@ -1640,8 +1642,14 @@ func (r *OLAPRepositoryImpl) ListEvents(ctx context.Context, opts sqlcv1.ListEve
 
 	for _, event := range events {
 		data, exists := externalIdToEventData[event.ExternalID]
+		var triggeringWebhookName *string
+
+		if event.TriggeringWebhookName.Valid {
+			triggeringWebhookName = &event.TriggeringWebhookName.String
+		}
 
 		if !exists || len(data) == 0 {
+
 			result = append(result, &ListEventsRow{
 				TenantID:                event.TenantID,
 				EventID:                 event.ID,
@@ -1656,6 +1664,7 @@ func (r *OLAPRepositoryImpl) ListEvents(ctx context.Context, opts sqlcv1.ListEve
 				CompletedCount:          0,
 				CancelledCount:          0,
 				FailedCount:             0,
+				TriggeringWebhookName:   triggeringWebhookName,
 			})
 		} else {
 			for _, d := range data {
@@ -1674,6 +1683,7 @@ func (r *OLAPRepositoryImpl) ListEvents(ctx context.Context, opts sqlcv1.ListEve
 					CancelledCount:          d.CancelledCount,
 					FailedCount:             d.FailedCount,
 					TriggeredRuns:           d.TriggeredRuns,
+					TriggeringWebhookName:   triggeringWebhookName,
 				})
 			}
 		}
@@ -1731,6 +1741,29 @@ func (r *OLAPRepositoryImpl) GetTaskDurationsByTaskIds(ctx context.Context, tena
 	}
 
 	return taskDurations, nil
+}
+
+type CreateIncomingWebhookFailureLogOpts struct {
+	WebhookName string
+	ErrorText   string
+}
+
+func (r *OLAPRepositoryImpl) CreateIncomingWebhookValidationFailureLogs(ctx context.Context, tenantId string, opts []CreateIncomingWebhookFailureLogOpts) error {
+	incomingWebhookNames := make([]string, len(opts))
+	errors := make([]string, len(opts))
+
+	for i, opt := range opts {
+		incomingWebhookNames[i] = opt.WebhookName
+		errors[i] = opt.ErrorText
+	}
+
+	params := sqlcv1.CreateIncomingWebhookValidationFailureLogsParams{
+		Tenantid:             sqlchelpers.UUIDFromStr(tenantId),
+		Incomingwebhooknames: incomingWebhookNames,
+		Errors:               errors,
+	}
+
+	return r.queries.CreateIncomingWebhookValidationFailureLogs(ctx, r.pool, params)
 }
 
 type CELEvaluationFailure struct {

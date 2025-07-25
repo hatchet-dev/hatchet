@@ -204,7 +204,9 @@ WITH to_insert AS (
         UNNEST(@payloads::JSONB[]) AS payload,
         UNNEST(@additionalMetadatas::JSONB[]) AS additional_metadata,
         -- Scopes are nullable
-        UNNEST(@scopes::TEXT[]) AS scope
+        UNNEST(@scopes::TEXT[]) AS scope,
+        -- Webhook names are nullable
+        UNNEST(@triggeringWebhookName::TEXT[]) AS triggering_webhook_name
 )
 INSERT INTO v1_events_olap (
     tenant_id,
@@ -213,7 +215,8 @@ INSERT INTO v1_events_olap (
     key,
     payload,
     additional_metadata,
-    scope
+    scope,
+    triggering_webhook_name
 )
 SELECT *
 FROM to_insert

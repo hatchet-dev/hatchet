@@ -36,6 +36,7 @@ func NewAuthN(config *server.ServerConfig) *AuthN {
 func (a *AuthN) Middleware(r *middleware.RouteInfo) echo.HandlerFunc {
 	return func(c echo.Context) error {
 		err := a.authenticate(c, r)
+
 		if err != nil {
 			return err
 		}
@@ -58,6 +59,7 @@ func (a *AuthN) authenticate(c echo.Context, r *middleware.RouteInfo) error {
 
 	if r.Security.CookieAuth() {
 		cookieErr = a.handleCookieAuth(c)
+
 		c.Set("auth_strategy", "cookie")
 
 		if cookieErr == nil {
@@ -73,6 +75,7 @@ func (a *AuthN) authenticate(c echo.Context, r *middleware.RouteInfo) error {
 
 	if r.Security.BearerAuth() {
 		bearerErr = a.handleBearerAuth(c)
+
 		c.Set("auth_strategy", "bearer")
 
 		if bearerErr == nil {

@@ -337,6 +337,8 @@ func (tc *OLAPControllerImpl) handleBufferedMsgs(tenantId, msgId string, payload
 		return tc.handleCreateMonitoringEvent(context.Background(), tenantId, payloads)
 	case "created-event-trigger":
 		return tc.handleCreateEventTriggers(context.Background(), tenantId, payloads)
+	case "failed-webhook-validation":
+		return tc.handleFailedWebhookValidation(context.Background(), tenantId, payloads)
 	case "cel-evaluation-failure":
 		return tc.handleCelEvaluationFailure(context.Background(), tenantId, payloads)
 	}
@@ -412,6 +414,7 @@ func (tc *OLAPControllerImpl) handleCreateEventTriggers(ctx context.Context, ten
 	payloadstoInsert := make([][]byte, 0)
 	additionalMetadatas := make([][]byte, 0)
 	scopes := make([]*string, 0)
+	triggeringWebhookNames := make([]*string, 0)
 
 	for _, msg := range msgs {
 		for _, payload := range msg.Payloads {
@@ -445,17 +448,19 @@ func (tc *OLAPControllerImpl) handleCreateEventTriggers(ctx context.Context, ten
 			payloadstoInsert = append(payloadstoInsert, payload.EventPayload)
 			additionalMetadatas = append(additionalMetadatas, payload.EventAdditionalMetadata)
 			scopes = append(scopes, payload.EventScope)
+			triggeringWebhookNames = append(triggeringWebhookNames, payload.TriggeringWebhookName)
 		}
 	}
 
 	bulkCreateEventParams := sqlcv1.BulkCreateEventsParams{
-		Tenantids:           tenantIds,
-		Externalids:         externalIds,
-		Seenats:             seenAts,
-		Keys:                keys,
-		Payloads:            payloadstoInsert,
-		Additionalmetadatas: additionalMetadatas,
-		Scopes:              scopes,
+		Tenantids:              tenantIds,
+		Externalids:            externalIds,
+		Seenats:                seenAts,
+		Keys:                   keys,
+		Payloads:               payloadstoInsert,
+		Additionalmetadatas:    additionalMetadatas,
+		Scopes:                 scopes,
+		TriggeringWebhookNames: triggeringWebhookNames,
 	}
 
 	return tc.repo.OLAP().BulkCreateEventsAndTriggers(
@@ -607,6 +612,26 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 	}
 
 	return tc.repo.OLAP().CreateTaskEvents(ctx, tenantId, opts)
+}
+
+func (tc *OLAPControllerImpl) handleFailedWebhookValidation(ctx context.Context, tenantId string, payloads [][]byte) error {
+	createFailedWebhookValidationOpts := make([]v1.CreateIncomingWebhookFailureLogOpts, 0)
+
+	msgs := msgqueue.JSONConvert[tasktypes.FailedWebhookValidationPayload](payloads)
+
+	for _, msg := range msgs {
+		if !tc.sample(msg.ErrorText) {
+			tc.l.Debug().Msgf("skipping failure logging for webhook %s", msg.WebhookName)
+			continue
+		}
+
+		createFailedWebhookValidationOpts = append(createFailedWebhookValidationOpts, v1.CreateIncomingWebhookFailureLogOpts{
+			WebhookName: msg.WebhookName,
+			ErrorText:   msg.ErrorText,
+		})
+	}
+
+	return tc.repo.OLAP().CreateIncomingWebhookValidationFailureLogs(ctx, tenantId, createFailedWebhookValidationOpts)
 }
 
 func (tc *OLAPControllerImpl) sample(workflowRunID string) bool {
