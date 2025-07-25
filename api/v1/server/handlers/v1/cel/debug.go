@@ -48,7 +48,7 @@ func (c *V1CELService) V1CelDebug(ctx echo.Context, request gen.V1CelDebugReques
 		return nil, fmt.Errorf("failed to create CEL evaluation failure message: %w", err)
 	}
 
-	err = c.config.MessageQueueV1.SendMessage(ctx.Request().Context(), msgqueue.TASK_PROCESSING_QUEUE, msg)
+	err = c.config.MessageQueueV1.SendMessage(ctx.Request().Context(), msgqueue.OLAP_QUEUE, msg)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to send CEL evaluation failure message: %w", err)
