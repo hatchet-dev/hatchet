@@ -123,7 +123,8 @@ type CreateDAGsOLAPParams struct {
 const createOLAPEventPartitions = `-- name: CreateOLAPEventPartitions :exec
 SELECT
     create_v1_range_partition('v1_events_olap'::text, $1::date),
-    create_v1_range_partition('v1_event_to_run_olap'::text, $1::date)
+    create_v1_range_partition('v1_event_to_run_olap'::text, $1::date),
+    create_v1_weekly_range_partition('v1_event_lookup_table_olap'::text, $1::date)
 `
 
 func (q *Queries) CreateOLAPEventPartitions(ctx context.Context, db DBTX, date pgtype.Date) error {
@@ -137,8 +138,7 @@ SELECT
     create_v1_hash_partitions('v1_task_status_updates_tmp'::text, $1::int),
     create_v1_olap_partition_with_date_and_status('v1_tasks_olap'::text, $2::date),
     create_v1_olap_partition_with_date_and_status('v1_runs_olap'::text, $2::date),
-    create_v1_olap_partition_with_date_and_status('v1_dags_olap'::text, $2::date),
-    create_v1_weekly_range_partition('v1_event_lookup_table_olap'::text, $2::date)
+    create_v1_olap_partition_with_date_and_status('v1_dags_olap'::text, $2::date)
 `
 
 type CreateOLAPPartitionsParams struct {
