@@ -485,7 +485,7 @@ CREATE TABLE v1_event_to_run_olap (
 
 CREATE TYPE v1_cel_evaluation_failure_source AS ENUM ('FILTER', 'WEBHOOK', 'DEBUG');
 
-CREATE TABLE v1_cel_evaluation_failures (
+CREATE TABLE v1_cel_evaluation_failures_olap (
     id BIGINT NOT NULL GENERATED ALWAYS AS IDENTITY,
 
     tenant_id UUID NOT NULL,
