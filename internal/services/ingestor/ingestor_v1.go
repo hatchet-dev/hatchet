@@ -15,6 +15,8 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
+	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 )
 
 type EventResult struct {
@@ -155,4 +157,28 @@ func eventToTaskV1(tenantId, eventExternalId, key string, data, additionalMeta [
 		true,
 		payloadTyped,
 	)
+}
+
+func (i *IngestorImpl) ingestCELEvaluationFailure(ctx context.Context, tenantId, errorText string) error {
+	msg, err := tasktypes.CELEvaluationFailureMessage(
+		tenantId,
+		[]v1.CELEvaluationFailure{
+			{
+				Source:       sqlcv1.V1CelEvaluationFailureSourceDEBUG,
+				ErrorMessage: errorText,
+			},
+		},
+	)
+
+	if err != nil {
+		return fmt.Errorf("failed to create CEL evaluation failure message: %w", err)
+	}
+
+	err = i.mqv1.SendMessage(ctx, msgqueue.OLAP_QUEUE, msg)
+
+	if err != nil {
+		return fmt.Errorf("failed to send CEL evaluation failure message: %w", err)
+	}
+
+	return nil
 }
