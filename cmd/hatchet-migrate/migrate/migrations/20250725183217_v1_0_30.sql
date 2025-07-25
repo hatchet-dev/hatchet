@@ -2,7 +2,7 @@
 -- +goose StatementBegin
 CREATE TYPE v1_cel_evaluation_failure_source AS ENUM ('FILTER', 'WEBHOOK', 'DEBUG');
 
-CREATE TABLE v1_cel_evaluation_failures (
+CREATE TABLE v1_cel_evaluation_failures_olap (
     id BIGINT NOT NULL GENERATED ALWAYS AS IDENTITY,
 
     tenant_id UUID NOT NULL,
@@ -20,6 +20,6 @@ CREATE TABLE v1_cel_evaluation_failures (
 
 -- +goose Down
 -- +goose StatementBegin
-DROP TABLE v1_cel_evaluation_failures;
+DROP TABLE v1_cel_evaluation_failures_olap;
 DROP TYPE v1_cel_evaluation_failure_source;
 -- +goose StatementEnd

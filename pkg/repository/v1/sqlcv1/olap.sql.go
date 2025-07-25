@@ -124,7 +124,7 @@ const createOLAPEventPartitions = `-- name: CreateOLAPEventPartitions :exec
 SELECT
     create_v1_range_partition('v1_events_olap'::text, $1::date),
     create_v1_range_partition('v1_event_to_run_olap'::text, $1::date),
-    create_v1_range_partition('v1_cel_evaluation_failures'::text, $1::date)
+    create_v1_range_partition('v1_cel_evaluation_failures_olap'::text, $1::date)
 `
 
 func (q *Queries) CreateOLAPEventPartitions(ctx context.Context, db DBTX, date pgtype.Date) error {
@@ -1004,7 +1004,7 @@ WITH task_partitions AS (
 ), events_lookup_table_partitions AS (
     SELECT 'v1_event_lookup_table_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_event_lookup_table_olap', $2::date) AS p
 ), cel_evaluation_failures_partitions AS (
-    SELECT 'v1_cel_evaluation_failures' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_cel_evaluation_failures', $2::date) AS p
+    SELECT 'v1_cel_evaluation_failures_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_cel_evaluation_failures_olap', $2::date) AS p
 ), candidates AS (
     SELECT
         parent_table, partition_name
@@ -1059,7 +1059,7 @@ FROM candidates
 WHERE
     CASE
         WHEN $1::BOOLEAN THEN TRUE
-        ELSE parent_table NOT IN ('v1_events_olap', 'v1_event_to_run_olap', 'v1_cel_evaluation_failures')
+        ELSE parent_table NOT IN ('v1_events_olap', 'v1_event_to_run_olap', 'v1_cel_evaluation_failures_olap')
     END
 `
 
@@ -2421,7 +2421,7 @@ WITH inputs AS (
         UNNEST(CAST($2::TEXT[] AS v1_cel_evaluation_failure_source[])) AS source,
         UNNEST($3::TEXT[]) AS error
 )
-INSERT INTO v1_cel_evaluation_failures (
+INSERT INTO v1_cel_evaluation_failures_olap (
     tenant_id,
     source,
     error

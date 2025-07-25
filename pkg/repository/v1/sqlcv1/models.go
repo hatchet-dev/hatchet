@@ -2489,7 +2489,7 @@ type UserSession struct {
 	ExpiresAt pgtype.Timestamp `json:"expiresAt"`
 }
 
-type V1CelEvaluationFailures struct {
+type V1CelEvaluationFailuresOlap struct {
 	ID         int64                        `json:"id"`
 	TenantID   pgtype.UUID                  `json:"tenant_id"`
 	Source     V1CelEvaluationFailureSource `json:"source"`
