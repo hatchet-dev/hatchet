@@ -100,6 +100,11 @@ export interface APICloudMetadata {
    * @example true
    */
   requireBillingForManagedCompute?: boolean;
+  /**
+   * the inactivity timeout to log out for user sessions in milliseconds
+   * @example 3600000
+   */
+  inactivityLogoutMs?: number;
 }
 
 export interface APIErrors {
@@ -494,6 +499,9 @@ export interface LogLine {
   timestamp: string;
   instance: string;
   line: string;
+  metadata?: object;
+  retryCount?: number;
+  level?: string;
 }
 
 export interface LogLineList {
