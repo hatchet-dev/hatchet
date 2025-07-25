@@ -21,7 +21,7 @@ CREATE TABLE v1_incoming_webhook_validation_failures_olap (
 CREATE INDEX v1_incoming_webhook_validation_failures_olap_tenant_id_incoming_webhook_name_idx ON v1_incoming_webhook_validation_failures_olap (tenant_id, incoming_webhook_name);
 
 SELECT create_v1_range_partition('v1_incoming_webhook_validation_failures_olap', NOW()::DATE);
-SELECT create_v1_range_partition('v1_incoming_webhook_validation_failures_olap', (NOW() - INTERVAL '1 day')::DATE);
+SELECT create_v1_range_partition('v1_incoming_webhook_validation_failures_olap', (NOW() + INTERVAL '1 day')::DATE);
 -- +goose StatementEnd
 
 -- +goose Down
