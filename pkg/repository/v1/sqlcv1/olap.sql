@@ -12,7 +12,7 @@ SELECT
 SELECT
     create_v1_range_partition('v1_events_olap'::text, @date::date),
     create_v1_range_partition('v1_event_to_run_olap'::text, @date::date),
-    create_v1_range_partition('v1_cel_evaluation_failures'::text, @date::date)
+    create_v1_range_partition('v1_cel_evaluation_failures_olap'::text, @date::date)
 ;
 
 -- name: ListOLAPPartitionsBeforeDate :many
@@ -29,7 +29,7 @@ WITH task_partitions AS (
 ), events_lookup_table_partitions AS (
     SELECT 'v1_event_lookup_table_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_event_lookup_table_olap', @date::date) AS p
 ), cel_evaluation_failures_partitions AS (
-    SELECT 'v1_cel_evaluation_failures' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_cel_evaluation_failures', @date::date) AS p
+    SELECT 'v1_cel_evaluation_failures_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_cel_evaluation_failures_olap', @date::date) AS p
 ), candidates AS (
     SELECT
         *
@@ -84,7 +84,7 @@ FROM candidates
 WHERE
     CASE
         WHEN @shouldPartitionEventsTables::BOOLEAN THEN TRUE
-        ELSE parent_table NOT IN ('v1_events_olap', 'v1_event_to_run_olap', 'v1_cel_evaluation_failures')
+        ELSE parent_table NOT IN ('v1_events_olap', 'v1_event_to_run_olap', 'v1_cel_evaluation_failures_olap')
     END
 ;
 
@@ -1701,7 +1701,7 @@ WITH inputs AS (
         UNNEST(CAST(@sources::TEXT[] AS v1_cel_evaluation_failure_source[])) AS source,
         UNNEST(@errors::TEXT[]) AS error
 )
-INSERT INTO v1_cel_evaluation_failures (
+INSERT INTO v1_cel_evaluation_failures_olap (
     tenant_id,
     source,
     error
