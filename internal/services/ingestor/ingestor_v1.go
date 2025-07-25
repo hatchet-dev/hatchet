@@ -196,12 +196,12 @@ func (i *IngestorImpl) ingestWebhookValidationFailure(tenantId, webhookName, err
 	return nil
 }
 
-func (i *IngestorImpl) ingestCELEvaluationFailure(ctx context.Context, tenantId, errorText string) error {
+func (i *IngestorImpl) ingestCELEvaluationFailure(ctx context.Context, tenantId, errorText string, source sqlcv1.V1CelEvaluationFailureSource) error {
 	msg, err := tasktypes.CELEvaluationFailureMessage(
 		tenantId,
 		[]v1.CELEvaluationFailure{
 			{
-				Source:       sqlcv1.V1CelEvaluationFailureSourceDEBUG,
+				Source:       source,
 				ErrorMessage: errorText,
 			},
 		},
