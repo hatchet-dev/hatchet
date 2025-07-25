@@ -92,11 +92,11 @@ func (w *V1WebhooksService) V1WebhookReceive(ctx echo.Context, request gen.V1Web
 			err = fmt.Errorf("event key evaluted to an empty string")
 		}
 
-		ingestionErr := w.config.Ingestor.IngestWebhookValidationFailure(
+		ingestionErr := w.config.Ingestor.IngestCELEvaluationFailure(
 			ctx.Request().Context(),
-			tenant,
-			webhook.Name,
+			tenant.ID.String(),
 			err.Error(),
+			sqlcv1.V1CelEvaluationFailureSourceWEBHOOK,
 		)
 
 		if ingestionErr != nil {
