@@ -36,6 +36,7 @@ type sharedRepository struct {
 	env                       *celgo.Env
 	taskLookupCache           *lru.Cache[taskExternalIdTenantIdTuple, *sqlcv1.FlattenExternalIdsRow]
 	m                         *metered.Metered
+	payloadStore              PayloadStoreRepository
 }
 
 func newSharedRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger, entitlements repository.EntitlementsRepository) (*sharedRepository, func() error) {
@@ -45,6 +46,7 @@ func newSharedRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.L
 	queueCache := cache.New(5 * time.Minute)
 	stepExpressionCache := cache.New(5 * time.Minute)
 	tenantIdWorkflowNameCache := cache.New(5 * time.Minute)
+	payloadStore := newPayloadStoreRepository(pool, l, queries)
 
 	celParser := cel.NewCELParser()
 
@@ -75,6 +77,7 @@ func newSharedRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.L
 			env:                       env,
 			taskLookupCache:           lookupCache,
 			m:                         m,
+			payloadStore:              payloadStore,
 		}, func() error {
 			queueCache.Stop()
 			stepExpressionCache.Stop()

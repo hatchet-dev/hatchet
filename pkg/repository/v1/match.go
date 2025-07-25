@@ -109,10 +109,10 @@ type CreateMatchOpts struct {
 
 type EventMatchResults struct {
 	// The list of tasks which were created from the matches
-	CreatedTasks []*sqlcv1.V1Task
+	CreatedTasks []*V1TaskWithPayload
 
 	// The list of tasks which were replayed from the matches
-	ReplayedTasks []*sqlcv1.V1Task
+	ReplayedTasks []*V1TaskWithPayload
 }
 
 type GroupMatchCondition struct {
@@ -147,10 +147,10 @@ type MatchRepositoryImpl struct {
 	*sharedRepository
 }
 
-func newMatchRepository(s *sharedRepository) (MatchRepository, error) {
+func newMatchRepository(s *sharedRepository) MatchRepository {
 	return &MatchRepositoryImpl{
 		sharedRepository: s,
-	}, nil
+	}
 }
 
 func (m *MatchRepositoryImpl) RegisterSignalMatchConditions(ctx context.Context, tenantId string, signalMatches []ExternalCreateSignalMatchOpts) error {
@@ -252,6 +252,25 @@ func (m *MatchRepositoryImpl) ProcessInternalEventMatches(ctx context.Context, t
 		return nil, err
 	}
 
+	storePayloadOpts := make([]StorePayloadOpts, len(res.CreatedTasks))
+
+	for i, task := range res.CreatedTasks {
+		storePayloadOpts[i] = StorePayloadOpts{
+			Id:         task.ID,
+			InsertedAt: task.InsertedAt,
+			Type:       sqlcv1.V1PayloadTypeTASKINPUT,
+			Payload:    task.Payload,
+		}
+	}
+
+	if len(storePayloadOpts) > 0 {
+		err = m.payloadStore.Store(ctx, tenantId, storePayloadOpts)
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to store payloads for created tasks for internal event matches: %w", err)
+		}
+	}
+
 	if err := commit(ctx); err != nil {
 		return nil, err
 	}
@@ -273,6 +292,25 @@ func (m *MatchRepositoryImpl) ProcessUserEventMatches(ctx context.Context, tenan
 
 	if err != nil {
 		return nil, err
+	}
+
+	storePayloadOpts := make([]StorePayloadOpts, len(res.CreatedTasks))
+	for i, task := range res.CreatedTasks {
+		storePayloadOpts[i] = StorePayloadOpts{
+			Id:         task.ID,
+			InsertedAt: task.InsertedAt,
+			Type:       sqlcv1.V1PayloadTypeTASKINPUT,
+			Payload:    task.Payload,
+		}
+	}
+
+	// TODO: This is pretty risky - we're assuming writing these with the external id is always safe
+	if len(storePayloadOpts) > 0 {
+		err = m.payloadStore.Store(ctx, tenantId, storePayloadOpts)
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to store payloads for created tasks for user event matches: %w", err)
+		}
 	}
 
 	if err := commit(ctx); err != nil {
@@ -377,6 +415,7 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 
 			matchIds = append(matchIds, condition.V1MatchID)
 			conditionIds = append(conditionIds, condition.ID)
+
 			datas = append(datas, event.Data)
 		}
 	}
@@ -427,7 +466,7 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 		}
 	}
 
-	tasks := make([]*sqlcv1.V1Task, 0)
+	tasks := make([]*V1TaskWithPayload, 0)
 
 	if len(dagIds) > 0 {
 		dagInputDatas, err := m.queries.GetDAGData(ctx, tx, sqlcv1.GetDAGDataParams{

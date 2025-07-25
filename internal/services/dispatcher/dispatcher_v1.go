@@ -24,18 +24,18 @@ import (
 func (worker *subscribedWorker) StartTaskFromBulk(
 	ctx context.Context,
 	tenantId string,
-	task *sqlcv1.V1Task,
+	task *v1.V1TaskWithPayload,
 ) error {
 	ctx, span := telemetry.NewSpan(ctx, "start-step-run-from-bulk") // nolint:ineffassign
 	defer span.End()
 
 	inputBytes := []byte{}
 
-	if task.Input != nil {
-		inputBytes = task.Input
+	if task.Payload != nil {
+		inputBytes = task.Payload
 	}
 
-	action := populateAssignedAction(tenantId, task, task.RetryCount)
+	action := populateAssignedAction(tenantId, task.ListTasksRow, task.RetryCount)
 
 	action.ActionType = contracts.ActionType_START_STEP_RUN
 	action.ActionPayload = string(inputBytes)
@@ -49,7 +49,7 @@ func (worker *subscribedWorker) StartTaskFromBulk(
 func (worker *subscribedWorker) CancelTask(
 	ctx context.Context,
 	tenantId string,
-	task *sqlcv1.V1Task,
+	task *sqlcv1.ListTasksRow,
 	retryCount int32,
 ) error {
 	ctx, span := telemetry.NewSpan(ctx, "cancel-task") // nolint:ineffassign
@@ -65,7 +65,7 @@ func (worker *subscribedWorker) CancelTask(
 	return worker.stream.Send(action)
 }
 
-func populateAssignedAction(tenantID string, task *sqlcv1.V1Task, retryCount int32) *contracts.AssignedAction {
+func populateAssignedAction(tenantID string, task *sqlcv1.ListTasksRow, retryCount int32) *contracts.AssignedAction {
 	workflowId := sqlchelpers.UUIDToStr(task.WorkflowID)
 	workflowVersionId := sqlchelpers.UUIDToStr(task.WorkflowVersionID)
 
@@ -120,10 +120,10 @@ func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *ms
 	msgs := msgqueuev1.JSONConvert[tasktypesv1.TaskAssignedBulkTaskPayload](msg.Payloads)
 	outerEg := errgroup.Group{}
 
-	toRetry := []*sqlcv1.V1Task{}
+	toRetry := []*sqlcv1.ListTasksRow{}
 	toRetryMu := sync.Mutex{}
 
-	requeue := func(task *sqlcv1.V1Task) {
+	requeue := func(task *sqlcv1.ListTasksRow) {
 		toRetryMu.Lock()
 		toRetry = append(toRetry, task)
 		toRetryMu.Unlock()
@@ -159,12 +159,34 @@ func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *ms
 			continue
 		}
 
+		retrivePayloadOpts := make([]v1.RetrievePayloadOpts, len(bulkDatas))
+
+		for i, task := range bulkDatas {
+			retrivePayloadOpts[i] = v1.RetrievePayloadOpts{
+				Id:         task.ID,
+				InsertedAt: task.InsertedAt,
+				Type:       sqlcv1.V1PayloadTypeTASKINPUT,
+			}
+		}
+
+		inputs, err := d.repov1.Payloads().BulkRetrieve(ctx, msg.TenantID, retrivePayloadOpts)
+
+		if err != nil {
+			d.l.Error().Err(err).Msgf("could not bulk retrieve inputs for %d tasks", len(bulkDatas))
+		}
+
 		for _, task := range bulkDatas {
+			input := inputs[v1.RetrievePayloadOpts{
+				Id:         task.ID,
+				InsertedAt: task.InsertedAt,
+				Type:       sqlcv1.V1PayloadTypeTASKINPUT,
+			}]
+
 			if parentData, ok := parentDataMap[task.ID]; ok {
 				currInput := &v1.V1StepRunData{}
 
-				if task.Input != nil {
-					err := json.Unmarshal(task.Input, currInput)
+				if input != nil {
+					err := json.Unmarshal(input, currInput)
 
 					if err != nil {
 						d.l.Warn().Err(err).Msg("failed to unmarshal input")
@@ -191,14 +213,31 @@ func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *ms
 
 				currInput.Parents = readableIdToData
 
-				task.Input = currInput.Bytes()
+				// Didn't need this before, which I think is an indication of a bug somewhere
+				if currInput.Triggers == nil {
+					currInput.Triggers = make(map[string]map[string]interface{})
+				}
+
+				input = currInput.Bytes()
+				inputs[v1.RetrievePayloadOpts{
+					Id:         task.ID,
+					InsertedAt: task.InsertedAt,
+					Type:       sqlcv1.V1PayloadTypeTASKINPUT,
+				}] = input
 			}
 		}
 
-		taskIdToData := make(map[int64]*sqlcv1.V1Task)
+		taskIdToData := make(map[int64]*v1.V1TaskWithPayload)
 
 		for _, task := range bulkDatas {
-			taskIdToData[task.ID] = task
+			taskIdToData[task.ID] = &v1.V1TaskWithPayload{
+				ListTasksRow: task,
+				Payload: inputs[v1.RetrievePayloadOpts{
+					Id:         task.ID,
+					InsertedAt: task.InsertedAt,
+					Type:       sqlcv1.V1PayloadTypeTASKINPUT,
+				}],
+			}
 		}
 
 		for workerId, stepRunIds := range innerMsg.WorkerIdToTaskIds {
@@ -224,7 +263,7 @@ func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *ms
 
 						// if we've reached the context deadline, this should be requeued
 						if ctx.Err() != nil {
-							requeue(task)
+							requeue(task.ListTasksRow)
 							return nil
 						}
 
@@ -249,7 +288,7 @@ func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *ms
 							return nil
 						}
 
-						requeue(task)
+						requeue(task.ListTasksRow)
 
 						return multiErr
 					})
@@ -337,18 +376,18 @@ func (d *DispatcherImpl) handleTaskCancelled(ctx context.Context, msg *msgqueuev
 		return fmt.Errorf("could not list tasks: %w", err)
 	}
 
-	taskIdsToTasks := make(map[int64]*sqlcv1.V1Task)
+	taskIdsToTasks := make(map[int64]*sqlcv1.ListTasksRow)
 
 	for _, task := range tasks {
 		taskIdsToTasks[task.ID] = task
 	}
 
 	// group by worker id
-	workerIdToTasks := make(map[string][]*sqlcv1.V1Task)
+	workerIdToTasks := make(map[string][]*sqlcv1.ListTasksRow)
 
 	for _, msg := range msgs {
 		if _, ok := workerIdToTasks[msg.WorkerId]; !ok {
-			workerIdToTasks[msg.WorkerId] = []*sqlcv1.V1Task{}
+			workerIdToTasks[msg.WorkerId] = []*sqlcv1.ListTasksRow{}
 		}
 
 		task, ok := taskIdsToTasks[msg.TaskId]

@@ -9,7 +9,7 @@ import (
 const createTasks = `-- name: CreateTasks :many
 WITH input AS (
     SELECT
-        tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, retry_count, additional_metadata, initial_state, dag_id, dag_inserted_at, concurrency_parent_strategy_ids, concurrency_strategy_ids, concurrency_keys, initial_state_reason, parent_task_external_id, parent_task_id, parent_task_inserted_at, child_index, child_key, step_index, retry_backoff_factor, retry_max_backoff, workflow_version_id, workflow_run_id
+        tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, retry_count, additional_metadata, initial_state, dag_id, dag_inserted_at, concurrency_parent_strategy_ids, concurrency_strategy_ids, concurrency_keys, initial_state_reason, parent_task_external_id, parent_task_id, parent_task_inserted_at, child_index, child_key, step_index, retry_backoff_factor, retry_max_backoff, workflow_version_id, workflow_run_id
     FROM
         (
             SELECT
@@ -26,27 +26,26 @@ WITH input AS (
                 unnest($11::uuid[]) AS desired_worker_id,
                 unnest($12::uuid[]) AS external_id,
                 unnest($13::text[]) AS display_name,
-                unnest($14::jsonb[]) AS input,
-                unnest($15::integer[]) AS retry_count,
-                unnest($16::jsonb[]) AS additional_metadata,
-				unnest(cast($17::text[] as v1_task_initial_state[])) AS initial_state,
+                unnest($14::integer[]) AS retry_count,
+                unnest($15::jsonb[]) AS additional_metadata,
+				unnest(cast($16::text[] as v1_task_initial_state[])) AS initial_state,
                 -- NOTE: these are nullable, so sqlc doesn't support casting to a type
-                unnest($18::bigint[]) AS dag_id,
-                unnest($19::timestamptz[]) AS dag_inserted_at,
-				unnest_nd_1d($20::bigint[][]) AS concurrency_parent_strategy_ids,
-				unnest_nd_1d($21::bigint[][]) AS concurrency_strategy_ids,
-				unnest_nd_1d($22::text[][]) AS concurrency_keys,
-				unnest($23::text[]) AS initial_state_reason,
-				unnest($24::uuid[]) AS parent_task_external_id,
-				unnest($25::bigint[]) AS parent_task_id,
-				unnest($26::timestamptz[]) AS parent_task_inserted_at,
-				unnest($27::integer[]) AS child_index,
-				unnest($28::text[]) AS child_key,
-				unnest($29::bigint[]) AS step_index,
-				unnest($30::double precision[]) AS retry_backoff_factor,
-				unnest($31::integer[]) AS retry_max_backoff,
-				unnest($32::uuid[]) AS workflow_version_id,
-				unnest($33::uuid[]) AS workflow_run_id
+                unnest($17::bigint[]) AS dag_id,
+                unnest($18::timestamptz[]) AS dag_inserted_at,
+				unnest_nd_1d($19::bigint[][]) AS concurrency_parent_strategy_ids,
+				unnest_nd_1d($20::bigint[][]) AS concurrency_strategy_ids,
+				unnest_nd_1d($21::text[][]) AS concurrency_keys,
+				unnest($22::text[]) AS initial_state_reason,
+				unnest($23::uuid[]) AS parent_task_external_id,
+				unnest($24::bigint[]) AS parent_task_id,
+				unnest($25::timestamptz[]) AS parent_task_inserted_at,
+				unnest($26::integer[]) AS child_index,
+				unnest($27::text[]) AS child_key,
+				unnest($28::bigint[]) AS step_index,
+				unnest($29::double precision[]) AS retry_backoff_factor,
+				unnest($30::integer[]) AS retry_max_backoff,
+				unnest($31::uuid[]) AS workflow_version_id,
+				unnest($32::uuid[]) AS workflow_run_id
         ) AS subquery
 )
 INSERT INTO v1_task (
@@ -98,7 +97,7 @@ SELECT
     i.desired_worker_id,
     i.external_id,
     i.display_name,
-    i.input,
+    '{}'::JSONB,
     i.retry_count,
     i.additional_metadata,
 	i.initial_state,
@@ -121,7 +120,7 @@ SELECT
 FROM
     input i
 RETURNING
-    id, inserted_at, tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, retry_count, internal_retry_count, app_retry_count, additional_metadata, initial_state, dag_id, dag_inserted_at, concurrency_parent_strategy_ids, concurrency_strategy_ids, concurrency_keys, initial_state_reason, parent_task_external_id, parent_task_id, parent_task_inserted_at, child_index, child_key, step_index, retry_backoff_factor, retry_max_backoff, workflow_version_id, workflow_run_id
+    id, inserted_at, tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, retry_count, internal_retry_count, app_retry_count, additional_metadata, initial_state, dag_id, dag_inserted_at, concurrency_parent_strategy_ids, concurrency_strategy_ids, concurrency_keys, initial_state_reason, parent_task_external_id, parent_task_id, parent_task_inserted_at, child_index, child_key, step_index, retry_backoff_factor, retry_max_backoff, workflow_version_id, workflow_run_id
 `
 
 type CreateTasksParams struct {
@@ -138,7 +137,6 @@ type CreateTasksParams struct {
 	Desiredworkerids    []pgtype.UUID        `json:"desiredworkerids"`
 	Externalids         []pgtype.UUID        `json:"externalids"`
 	Displaynames        []string             `json:"displaynames"`
-	Inputs              [][]byte             `json:"inputs"`
 	Retrycounts         []int32              `json:"retrycounts"`
 	Additionalmetadatas [][]byte             `json:"additionalmetadatas"`
 	InitialStates       []string             `json:"initialstates"`
@@ -163,7 +161,7 @@ type CreateTasksParams struct {
 	WorkflowRunIds               []pgtype.UUID        `json:"workflowRunIds"`
 }
 
-func (q *Queries) CreateTasks(ctx context.Context, db DBTX, arg CreateTasksParams) ([]*V1Task, error) {
+func (q *Queries) CreateTasks(ctx context.Context, db DBTX, arg CreateTasksParams) ([]*ListTasksRow, error) {
 	// panic-recover
 	// defer func() {
 	// 	if r := recover(); r != nil {
@@ -191,7 +189,6 @@ func (q *Queries) CreateTasks(ctx context.Context, db DBTX, arg CreateTasksParam
 		arg.Desiredworkerids,
 		arg.Externalids,
 		arg.Displaynames,
-		arg.Inputs,
 		arg.Retrycounts,
 		arg.Additionalmetadatas,
 		arg.InitialStates,
@@ -216,9 +213,9 @@ func (q *Queries) CreateTasks(ctx context.Context, db DBTX, arg CreateTasksParam
 		return nil, err
 	}
 	defer rows.Close()
-	var items []*V1Task
+	var items []*ListTasksRow
 	for rows.Next() {
-		var i V1Task
+		var i ListTasksRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.InsertedAt,
@@ -235,7 +232,6 @@ func (q *Queries) CreateTasks(ctx context.Context, db DBTX, arg CreateTasksParam
 			&i.DesiredWorkerID,
 			&i.ExternalID,
 			&i.DisplayName,
-			&i.Input,
 			&i.RetryCount,
 			&i.InternalRetryCount,
 			&i.AppRetryCount,
@@ -363,7 +359,6 @@ SET
     retry_count = retry_count + 1,
     app_retry_count = 0,
     internal_retry_count = 0,
-    input = CASE WHEN i.input IS NOT NULL THEN i.input ELSE v1_task.input END,
     initial_state = i.initial_state,
     concurrency_keys = i.concurrency_keys,
     initial_state_reason = i.initial_state_reason
@@ -372,7 +367,7 @@ FROM
 WHERE
 	(v1_task.id, v1_task.inserted_at) = (i.task_id, i.task_inserted_at)
 RETURNING
-    v1_task.id, v1_task.inserted_at, v1_task.tenant_id, v1_task.queue, v1_task.action_id, v1_task.step_id, v1_task.step_readable_id, v1_task.workflow_id, v1_task.schedule_timeout, v1_task.step_timeout, v1_task.priority, v1_task.sticky, v1_task.desired_worker_id, v1_task.external_id, v1_task.display_name, v1_task.input, v1_task.retry_count, v1_task.internal_retry_count, v1_task.app_retry_count, v1_task.additional_metadata, v1_task.dag_id, v1_task.dag_inserted_at, v1_task.parent_task_id, v1_task.child_index, v1_task.child_key, v1_task.initial_state, v1_task.initial_state_reason, v1_task.concurrency_parent_strategy_ids, v1_task.concurrency_strategy_ids, v1_task.concurrency_keys, v1_task.retry_backoff_factor, v1_task.retry_max_backoff
+    v1_task.id, v1_task.inserted_at, v1_task.tenant_id, v1_task.queue, v1_task.action_id, v1_task.step_id, v1_task.step_readable_id, v1_task.workflow_id, v1_task.schedule_timeout, v1_task.step_timeout, v1_task.priority, v1_task.sticky, v1_task.desired_worker_id, v1_task.external_id, v1_task.display_name, v1_task.retry_count, v1_task.internal_retry_count, v1_task.app_retry_count, v1_task.additional_metadata, v1_task.dag_id, v1_task.dag_inserted_at, v1_task.parent_task_id, v1_task.child_index, v1_task.child_key, v1_task.initial_state, v1_task.initial_state_reason, v1_task.concurrency_parent_strategy_ids, v1_task.concurrency_strategy_ids, v1_task.concurrency_keys, v1_task.retry_backoff_factor, v1_task.retry_max_backoff
 `
 
 type ReplayTasksParams struct {
@@ -388,7 +383,7 @@ type ReplayTasksParams struct {
 }
 
 // NOTE: at this point, we assume we have a lock on tasks and therefor we can update the tasks
-func (q *Queries) ReplayTasks(ctx context.Context, db DBTX, arg ReplayTasksParams) ([]*V1Task, error) {
+func (q *Queries) ReplayTasks(ctx context.Context, db DBTX, arg ReplayTasksParams) ([]*ListTasksRow, error) {
 	rows, err := db.Query(ctx, replayTasks,
 		arg.Taskids,
 		arg.Taskinsertedats,
@@ -401,9 +396,9 @@ func (q *Queries) ReplayTasks(ctx context.Context, db DBTX, arg ReplayTasksParam
 		return nil, err
 	}
 	defer rows.Close()
-	var items []*V1Task
+	var items []*ListTasksRow
 	for rows.Next() {
-		var i V1Task
+		var i ListTasksRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.InsertedAt,
@@ -420,7 +415,6 @@ func (q *Queries) ReplayTasks(ctx context.Context, db DBTX, arg ReplayTasksParam
 			&i.DesiredWorkerID,
 			&i.ExternalID,
 			&i.DisplayName,
-			&i.Input,
 			&i.RetryCount,
 			&i.InternalRetryCount,
 			&i.AppRetryCount,
