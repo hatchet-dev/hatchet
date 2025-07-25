@@ -34,24 +34,26 @@ func (c *V1CELService) V1CelDebug(ctx echo.Context, request gen.V1CelDebugReques
 	),
 	)
 
-	msg, err := tasktypes.CELEvaluationFailureMessage(
-		tenant.ID.String(),
-		[]v1.CELEvaluationFailure{
-			{
-				Source:       sqlcv1.V1CelEvaluationFailureSourceDEBUG,
-				ErrorMessage: err.Error(),
+	if err != nil {
+		msg, innerErr := tasktypes.CELEvaluationFailureMessage(
+			tenant.ID.String(),
+			[]v1.CELEvaluationFailure{
+				{
+					Source:       sqlcv1.V1CelEvaluationFailureSourceDEBUG,
+					ErrorMessage: err.Error(),
+				},
 			},
-		},
-	)
+		)
 
-	if err != nil {
-		return nil, fmt.Errorf("failed to create CEL evaluation failure message: %w", err)
-	}
+		if innerErr != nil {
+			return nil, fmt.Errorf("failed to create CEL evaluation failure message: %w", innerErr)
+		}
 
-	err = c.config.MessageQueueV1.SendMessage(ctx.Request().Context(), msgqueue.OLAP_QUEUE, msg)
+		innerErr = c.config.MessageQueueV1.SendMessage(ctx.Request().Context(), msgqueue.OLAP_QUEUE, msg)
 
-	if err != nil {
-		return nil, fmt.Errorf("failed to send CEL evaluation failure message: %w", err)
+		if innerErr != nil {
+			return nil, fmt.Errorf("failed to send CEL evaluation failure message: %w", innerErr)
+		}
 	}
 
 	var output *bool
