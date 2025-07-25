@@ -1720,7 +1720,7 @@ SELECT
     @tenantId::UUID,
     i.incoming_webhook_name,
     i.error
-FROM inputs i
+FROM inputs i;
 
 -- name: StoreCELEvaluationFailures :exec
 WITH inputs AS (
