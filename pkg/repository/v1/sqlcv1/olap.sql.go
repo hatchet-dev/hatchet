@@ -126,7 +126,7 @@ WITH inputs AS (
         UNNEST($2::TEXT[]) AS incoming_webhook_name,
         UNNEST($3::TEXT[]) AS error
 )
-INSERT INTO v1_incoming_webhook_validation_failures(
+INSERT INTO v1_incoming_webhook_validation_failures_olap(
     tenant_id,
     incoming_webhook_name,
     error
@@ -153,7 +153,7 @@ const createOLAPEventPartitions = `-- name: CreateOLAPEventPartitions :exec
 SELECT
     create_v1_range_partition('v1_events_olap'::text, $1::date),
     create_v1_range_partition('v1_event_to_run_olap'::text, $1::date),
-    create_v1_range_partition('v1_incoming_webhook_validation_failures'::text, $1::date),
+    create_v1_range_partition('v1_incoming_webhook_validation_failures_olap'::text, $1::date),
     create_v1_range_partition('v1_cel_evaluation_failures'::text, $1::date)
 `
 
@@ -1035,7 +1035,7 @@ WITH task_partitions AS (
 ), events_lookup_table_partitions AS (
     SELECT 'v1_event_lookup_table_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_event_lookup_table_olap', $2::date) AS p
 ), incoming_webhook_validation_failure_partitions AS (
-    SELECT 'v1_incoming_webhook_validation_failures' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_incoming_webhook_validation_failures', $2::date) AS p
+    SELECT 'v1_incoming_webhook_validation_failures_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_incoming_webhook_validation_failures_olap', $2::date) AS p
 ), cel_evaluation_failures_partitions AS (
     SELECT 'v1_cel_evaluation_failures' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_cel_evaluation_failures', $2::date) AS p
 ), candidates AS (
@@ -1099,7 +1099,7 @@ FROM candidates
 WHERE
     CASE
         WHEN $1::BOOLEAN THEN TRUE
-        ELSE parent_table NOT IN ('v1_events_olap', 'v1_event_to_run_olap', 'v1_cel_evaluation_failures', 'v1_incoming_webhook_validation_failures')
+        ELSE parent_table NOT IN ('v1_events_olap', 'v1_event_to_run_olap', 'v1_cel_evaluation_failures', 'v1_incoming_webhook_validation_failures_olap')
     END
 `
 

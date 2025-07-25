@@ -336,7 +336,7 @@ CREATE TABLE v1_task_events_olap (
 
 CREATE INDEX v1_task_events_olap_task_id_idx ON v1_task_events_olap (task_id);
 
-CREATE TABLE v1_incoming_webhook_validation_failures (
+CREATE TABLE v1_incoming_webhook_validation_failures_olap (
     id BIGINT NOT NULL GENERATED ALWAYS AS IDENTITY,
 
     tenant_id UUID NOT NULL,
@@ -352,7 +352,7 @@ CREATE TABLE v1_incoming_webhook_validation_failures (
     PRIMARY KEY (id, inserted_at)
 ) PARTITION BY RANGE(inserted_at);
 
-CREATE INDEX v1_incoming_webhook_validation_failures_tenant_id_incoming_webhook_name_idx ON v1_incoming_webhook_validation_failures (tenant_id, incoming_webhook_name);
+CREATE INDEX v1_incoming_webhook_validation_failures_olap_tenant_id_incoming_webhook_name_idx ON v1_incoming_webhook_validation_failures_olap (tenant_id, incoming_webhook_name);
 
 
 -- this is a hash-partitioned table on the dag_id, so that we can process batches of events in parallel

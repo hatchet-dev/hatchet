@@ -2806,7 +2806,7 @@ type V1IncomingWebhook struct {
 	UpdatedAt                    pgtype.Timestamptz                 `json:"updated_at"`
 }
 
-type V1IncomingWebhookValidationFailures struct {
+type V1IncomingWebhookValidationFailuresOlap struct {
 	ID                  int64              `json:"id"`
 	TenantID            pgtype.UUID        `json:"tenant_id"`
 	IncomingWebhookName string             `json:"incoming_webhook_name"`
