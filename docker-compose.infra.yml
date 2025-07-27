@@ -33,6 +33,19 @@ services:
     depends_on:
       - prometheus
 
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    container_name: hatchet-jaeger
+    ports:
+      - "16686:16686"  # Jaeger UI
+      - "4317:4317"  # gRPC
+      - "4318:4318"  # HTTP
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+    volumes:
+      - hatchet_jaeger_data:/badger
+
 volumes:
   hatchet_prometheus_data:
   hatchet_grafana_data:
+  hatchet_jaeger_data:
