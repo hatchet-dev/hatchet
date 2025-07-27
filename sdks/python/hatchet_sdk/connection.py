@@ -60,7 +60,7 @@ def new_conn(config: ClientConfig, aio: bool) -> grpc.Channel | grpc.aio.Channel
 
     # Set environment variable to disable fork support. Reference: https://github.com/grpc/grpc/issues/28557
     # When steps execute via os.fork, we see `TSI_DATA_CORRUPTED` errors.
-    os.environ["GRPC_ENABLE_FORK_SUPPORT"] = "False"
+    os.environ["GRPC_ENABLE_FORK_SUPPORT"] = config.grpc_enable_fork_support
 
     if config.tls_config.strategy == "none":
         conn = start.insecure_channel(

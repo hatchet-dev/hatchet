@@ -1,6 +1,6 @@
 import json
 from logging import Logger, getLogger
-from typing import overload
+from typing import Literal, overload
 
 from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -84,6 +84,7 @@ class ClientConfig(BaseSettings):
 
     terminate_worker_after_num_tasks: int | None = None
     disable_log_capture: bool = False
+    grpc_enable_fork_support: Literal["True", "False"] = "False"
 
     @model_validator(mode="after")
     def validate_token_and_tenant(self) -> "ClientConfig":
