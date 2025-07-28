@@ -324,7 +324,7 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 		hasAnyFilters := numFilters > 0
 
 		for _, opt := range opts {
-			var filters = []*sqlcv1.V1Filter{}
+			filters := []*sqlcv1.V1Filter{}
 
 			if opt.Scope != nil {
 				key := WorkflowAndScope{

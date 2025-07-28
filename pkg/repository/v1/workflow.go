@@ -573,7 +573,6 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 				Workflowid: workflowId,
 			},
 		)
-
 		if err != nil {
 			return "", fmt.Errorf("could not delete existing declarative filters: %w", err)
 		}

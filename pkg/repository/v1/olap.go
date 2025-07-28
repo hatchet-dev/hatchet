@@ -1655,7 +1655,6 @@ func (r *OLAPRepositoryImpl) GetDagDurationsByDagIds(ctx context.Context, tenant
 		Tenantid:         sqlchelpers.UUIDFromStr(tenantId),
 		Readablestatuses: readableStatuses,
 	})
-
 	if err != nil {
 		return nil, err
 	}
