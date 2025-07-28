@@ -10,7 +10,7 @@ import (
 
 func (tc *TasksControllerImpl) runTaskTablePartition(ctx context.Context) func() {
 	return func() {
-		ctx, span := telemetry.NewSpan(ctx, "runTaskTablePartition")
+		ctx, span := telemetry.NewSpan(ctx, "TasksControllerImpl.runTaskTablePartition")
 		defer span.End()
 
 		tc.l.Debug().Msgf("partition: running task table partition")
@@ -43,7 +43,7 @@ func (tc *TasksControllerImpl) runTaskTablePartition(ctx context.Context) func()
 }
 
 func (tc *TasksControllerImpl) createTablePartition(ctx context.Context) error {
-	ctx, span := telemetry.NewSpan(ctx, "createTablePartition")
+	ctx, span := telemetry.NewSpan(ctx, "TasksControllerImpl.createTablePartition")
 	defer span.End()
 
 	qCtx, qCancel := context.WithTimeout(ctx, 10*time.Minute)
