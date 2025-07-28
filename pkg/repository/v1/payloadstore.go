@@ -5,13 +5,14 @@ import (
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
 )
 
 type PayloadStoreRepository interface {
-	Store(ctx context.Context, tenantId string, payloads []StorePayloadOpts) error
+	Store(ctx context.Context, tx pgx.Tx, tenantId string, payloads []StorePayloadOpts) error
 	Retrieve(ctx context.Context, tenantId string, opts RetrievePayloadOpts) ([]byte, error)
 	BulkRetrieve(ctx context.Context, tenantId string, opts []RetrievePayloadOpts) (map[RetrievePayloadOpts][]byte, error)
 }
@@ -45,15 +46,7 @@ type StorePayloadOpts struct {
 	Payload    []byte
 }
 
-func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tenantId string, payloads []StorePayloadOpts) error {
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, p.pool, p.l, 5000)
-
-	if err != nil {
-		return err
-	}
-
-	defer rollback()
-
+func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx pgx.Tx, tenantId string, payloads []StorePayloadOpts) error {
 	taskIds := make([]int64, len(payloads))
 	taskInsertedAts := make([]pgtype.Timestamptz, len(payloads))
 	payloadTypes := make([]string, len(payloads))
@@ -66,23 +59,13 @@ func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tenantId string,
 		payloadData[i] = payload.Payload
 	}
 
-	err = p.queries.WritePayloads(ctx, tx, sqlcv1.WritePayloadsParams{
+	return p.queries.WritePayloads(ctx, tx, sqlcv1.WritePayloadsParams{
 		Tenantid:    sqlchelpers.UUIDFromStr(tenantId),
 		Ids:         taskIds,
 		Insertedats: taskInsertedAts,
 		Types:       payloadTypes,
 		Payloads:    payloadData,
 	})
-
-	if err != nil {
-		return err
-	}
-
-	if err := commit(ctx); err != nil {
-		return err
-	}
-
-	return nil
 }
 
 func (p *payloadStoreRepositoryImpl) Retrieve(ctx context.Context, tenantId string, opts RetrievePayloadOpts) ([]byte, error) {
