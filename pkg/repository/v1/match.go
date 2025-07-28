@@ -264,7 +264,7 @@ func (m *MatchRepositoryImpl) ProcessInternalEventMatches(ctx context.Context, t
 	}
 
 	if len(storePayloadOpts) > 0 {
-		err = m.payloadStore.Store(ctx, tx, tenantId, storePayloadOpts)
+		err = m.payloadStore.Store(ctx, tx, tenantId, storePayloadOpts...)
 
 		if err != nil {
 			return nil, fmt.Errorf("failed to store payloads for created tasks for internal event matches: %w", err)
@@ -304,9 +304,8 @@ func (m *MatchRepositoryImpl) ProcessUserEventMatches(ctx context.Context, tenan
 		}
 	}
 
-	// TODO: This is pretty risky - we're assuming writing these with the external id is always safe
 	if len(storePayloadOpts) > 0 {
-		err = m.payloadStore.Store(ctx, tx, tenantId, storePayloadOpts)
+		err = m.payloadStore.Store(ctx, tx, tenantId, storePayloadOpts...)
 
 		if err != nil {
 			return nil, fmt.Errorf("failed to store payloads for created tasks for user event matches: %w", err)

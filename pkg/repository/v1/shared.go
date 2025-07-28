@@ -46,7 +46,7 @@ func newSharedRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.L
 	queueCache := cache.New(5 * time.Minute)
 	stepExpressionCache := cache.New(5 * time.Minute)
 	tenantIdWorkflowNameCache := cache.New(5 * time.Minute)
-	payloadStore := newPayloadStoreRepository(pool, l, queries)
+	payloadStore := NewPayloadStoreRepository(pool, l, queries)
 
 	celParser := cel.NewCELParser()
 

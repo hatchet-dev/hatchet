@@ -1187,7 +1187,7 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 		})
 	}
 
-	err = r.payloadStore.Store(ctx, tx, tenantId, storePayloadOpts)
+	err = r.payloadStore.Store(ctx, tx, tenantId, storePayloadOpts...)
 
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to store payloads: %w", err)

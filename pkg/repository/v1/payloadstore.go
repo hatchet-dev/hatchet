@@ -46,7 +46,8 @@ type ExternalHandler interface {
 
 type PayloadStoreRepository interface {
 	Store(ctx context.Context, tx pgx.Tx, tenantId string, payloads ...StorePayloadOpts) error
-	Retrieve(ctx context.Context, tenantId string, opts ...RetrievePayloadOpts) (map[RetrievePayloadOpts][]byte, error)
+	Retrieve(ctx context.Context, tenantId string, opts RetrievePayloadOpts) ([]byte, error)
+	BulkRetrieve(ctx context.Context, tenantId string, opts ...RetrievePayloadOpts) (map[RetrievePayloadOpts][]byte, error)
 	ExternalHandler
 }
 
@@ -169,7 +170,23 @@ func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx pgx.Tx, tenan
 	})
 }
 
-func (p *payloadStoreRepositoryImpl) Retrieve(ctx context.Context, tenantId string, opts ...RetrievePayloadOpts) (map[RetrievePayloadOpts][]byte, error) {
+func (p *payloadStoreRepositoryImpl) Retrieve(ctx context.Context, tenantId string, opts RetrievePayloadOpts) ([]byte, error) {
+	payloadMap, err := p.BulkRetrieve(ctx, tenantId, opts)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to read payload metadata: %w", err)
+	}
+
+	payload, ok := payloadMap[opts]
+
+	if !ok {
+		return nil, fmt.Errorf("no payload found for opts: %+v", opts)
+	}
+
+	return payload, nil
+}
+
+func (p *payloadStoreRepositoryImpl) BulkRetrieve(ctx context.Context, tenantId string, opts ...RetrievePayloadOpts) (map[RetrievePayloadOpts][]byte, error) {
 	if len(opts) == 0 {
 		return make(map[RetrievePayloadOpts][]byte), nil
 	}
@@ -251,8 +268,7 @@ func (p *payloadStoreRepositoryImpl) RetrieveFromExternal(ctx context.Context, t
 	return p.externalHandler.RetrieveFromExternal(ctx, tenantId, opts...)
 }
 
-type DefaultExternalHandler struct {
-}
+type DefaultExternalHandler struct{}
 
 func NewDefaultExternalHandler() ExternalHandler {
 	return &DefaultExternalHandler{}
