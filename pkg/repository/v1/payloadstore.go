@@ -2,6 +2,8 @@ package v1
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
@@ -11,25 +13,53 @@ import (
 	"github.com/rs/zerolog"
 )
 
+type OffloadToExternalOpts struct {
+	Key  string
+	Data []byte
+}
+
+type ExternalHandler interface {
+	OffloadToExternal(ctx context.Context, tenantId string, opts ...OffloadToExternalOpts) error
+	RetrieveFromExternal(ctx context.Context, tenantId string, keys ...string) (map[string][]byte, error)
+}
+
 type PayloadStoreRepository interface {
 	Store(ctx context.Context, tx pgx.Tx, tenantId string, payloads []StorePayloadOpts) error
-	Retrieve(ctx context.Context, tenantId string, opts RetrievePayloadOpts) ([]byte, error)
-	BulkRetrieve(ctx context.Context, tenantId string, opts []RetrievePayloadOpts) (map[RetrievePayloadOpts][]byte, error)
+	Retrieve(ctx context.Context, tenantId string, opts ...RetrievePayloadOpts) (map[RetrievePayloadOpts][]byte, error)
+	ExternalHandler
 }
 
 type payloadStoreRepositoryImpl struct {
-	pool    *pgxpool.Pool
-	l       *zerolog.Logger
-	queries *sqlcv1.Queries
+	pool                      *pgxpool.Pool
+	l                         *zerolog.Logger
+	queries                   *sqlcv1.Queries
+	externalStoreEnabled      bool
+	externalStoreLocationName *string
+	nativeStoreTTL            *int64
+	externalHandler           ExternalHandler
 }
 
-func newPayloadStoreRepository(
-	pool *pgxpool.Pool, l *zerolog.Logger, queries *sqlcv1.Queries,
+func NewPayloadStoreRepository(
+	pool *pgxpool.Pool,
+	l *zerolog.Logger,
+	queries *sqlcv1.Queries,
+	externalStoreEnabled bool,
+	externalStoreLocationName *string,
+	nativeStoreTTL *int64,
+	externalHandler ExternalHandler,
 ) PayloadStoreRepository {
+	if externalStoreEnabled && nativeStoreTTL == nil {
+		panic("nativeStoreTTL must be set when externalStoreEnabled is true")
+	}
+
 	return &payloadStoreRepositoryImpl{
-		pool:    pool,
-		l:       l,
-		queries: queries,
+		pool:                      pool,
+		l:                         l,
+		queries:                   queries,
+		externalStoreEnabled:      externalStoreEnabled,
+		externalStoreLocationName: externalStoreLocationName,
+		nativeStoreTTL:            nativeStoreTTL,
+		externalHandler:           externalHandler,
 	}
 }
 
@@ -39,11 +69,87 @@ type RetrievePayloadOpts struct {
 	Type       sqlcv1.V1PayloadType
 }
 
+type PayloadLocation string
+
+const (
+	PayloadLocationInline   PayloadLocation = "inline"
+	PayloadLocationExternal PayloadLocation = "external"
+)
+
+type PayloadContent struct {
+	Location            PayloadLocation `json:"location"`
+	ExternalLocationKey *string         `json:"external_location_key,omitempty"`
+	InlineContent       []byte          `json:"inline_content,omitempty"`
+}
+
 type StorePayloadOpts struct {
 	Id         int64
 	InsertedAt pgtype.Timestamptz
 	Type       sqlcv1.V1PayloadType
 	Payload    []byte
+}
+
+func (p PayloadContent) Validate() error {
+	switch p.Location {
+	case PayloadLocationInline:
+		if len(p.InlineContent) == 0 {
+			return fmt.Errorf("inline content cannot be empty when location is %s", PayloadLocationInline)
+		}
+
+		if p.ExternalLocationKey != nil {
+			return fmt.Errorf("external location key must be nil when location is %s", PayloadLocationInline)
+		}
+
+		return nil
+	case PayloadLocationExternal:
+		if p.ExternalLocationKey == nil || len(*p.ExternalLocationKey) == 0 {
+			return fmt.Errorf("external location key cannot be empty when location is %s", PayloadLocationExternal)
+		}
+
+		if len(p.InlineContent) > 0 {
+			return fmt.Errorf("inline content must be empty when location is %s", PayloadLocationExternal)
+		}
+
+		return nil
+	default:
+		return fmt.Errorf("invalid payload location: %s", p.Location)
+	}
+}
+
+func (p PayloadContent) Marshal() ([]byte, error) {
+	if err := p.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid payload: %w", err)
+	}
+
+	j, err := json.Marshal(p)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal payload: %w", err)
+	}
+
+	return j, nil
+}
+
+func UnmarshalPayloadContent(data []byte) (*PayloadContent, error) {
+	var content PayloadContent
+	if err := json.Unmarshal(data, &content); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal payload content: %w", err)
+	}
+
+	if err := content.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid payload content: %w", err)
+	}
+
+	return &content, nil
+}
+
+func (p *payloadStoreRepositoryImpl) generateExternalKey(tenantId string, payload StorePayloadOpts) string {
+	// TODO: Not sure if I need a key generator like this
+	return fmt.Sprintf("%s/%s/%d/%d", tenantId, payload.Type, payload.Id, payload.InsertedAt.Time.Unix())
+}
+
+func (p *payloadStoreRepositoryImpl) shouldOffloadToExternal(payload []byte) bool {
+	// TODO - need to add some logic here based on TTL
+	return p.externalStoreEnabled
 }
 
 func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx pgx.Tx, tenantId string, payloads []StorePayloadOpts) error {
@@ -68,26 +174,11 @@ func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx pgx.Tx, tenan
 	})
 }
 
-func (p *payloadStoreRepositoryImpl) Retrieve(ctx context.Context, tenantId string, opts RetrievePayloadOpts) ([]byte, error) {
-	payload, err := p.queries.ReadPayload(ctx, p.pool, sqlcv1.ReadPayloadParams{
-		Tenantid:   sqlchelpers.UUIDFromStr(tenantId),
-		ID:         opts.Id,
-		Insertedat: opts.InsertedAt,
-		Type:       opts.Type,
-	})
-
-	if err != nil {
-		return nil, err
+func (p *payloadStoreRepositoryImpl) Retrieve(ctx context.Context, tenantId string, opts ...RetrievePayloadOpts) (map[RetrievePayloadOpts][]byte, error) {
+	if len(opts) == 0 {
+		return make(map[RetrievePayloadOpts][]byte), nil
 	}
 
-	if payload == nil {
-		return nil, nil
-	}
-
-	return payload.Value, nil
-}
-
-func (p *payloadStoreRepositoryImpl) BulkRetrieve(ctx context.Context, tenantId string, opts []RetrievePayloadOpts) (map[RetrievePayloadOpts][]byte, error) {
 	taskIds := make([]int64, len(opts))
 	taskInsertedAts := make([]pgtype.Timestamptz, len(opts))
 	payloadTypes := make([]string, len(opts))
@@ -106,7 +197,7 @@ func (p *payloadStoreRepositoryImpl) BulkRetrieve(ctx context.Context, tenantId 
 	})
 
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to read payload metadata: %w", err)
 	}
 
 	optsToPayload := make(map[RetrievePayloadOpts][]byte)
@@ -116,12 +207,51 @@ func (p *payloadStoreRepositoryImpl) BulkRetrieve(ctx context.Context, tenantId 
 			continue
 		}
 
-		optsToPayload[RetrievePayloadOpts{
+		content, err := UnmarshalPayloadContent(payload.Value)
+		if err != nil {
+			p.l.Error().Err(err).Msg("failed to unmarshal payload content")
+			continue
+		}
+
+		opts := RetrievePayloadOpts{
 			Id:         payload.ID,
 			InsertedAt: payload.InsertedAt,
 			Type:       payload.Type,
-		}] = payload.Value
+		}
+
+		optsToPayload[opts] = content.InlineContent
 	}
 
 	return optsToPayload, nil
+}
+
+func (p *payloadStoreRepositoryImpl) OffloadToExternal(ctx context.Context, tenantId string, opts ...OffloadToExternalOpts) error {
+	if p.externalHandler == nil {
+		return fmt.Errorf("no external handler configured")
+	}
+
+	return p.externalHandler.OffloadToExternal(ctx, tenantId, opts...)
+}
+
+func (p *payloadStoreRepositoryImpl) RetrieveFromExternal(ctx context.Context, tenantId string, keys ...string) (map[string][]byte, error) {
+	if p.externalHandler == nil {
+		return nil, fmt.Errorf("no external handler configured")
+	}
+
+	return p.externalHandler.RetrieveFromExternal(ctx, tenantId, keys...)
+}
+
+type DefaultExternalHandler struct {
+}
+
+func NewDefaultExternalHandler() ExternalHandler {
+	return &DefaultExternalHandler{}
+}
+
+func (d *DefaultExternalHandler) OffloadToExternal(ctx context.Context, tenantId string, opts ...OffloadToExternalOpts) error {
+	return nil
+}
+
+func (d *DefaultExternalHandler) RetrieveFromExternal(ctx context.Context, tenantId string, keys ...string) (map[string][]byte, error) {
+	return nil, fmt.Errorf("retrieve from external not implemented")
 }
