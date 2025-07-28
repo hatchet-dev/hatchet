@@ -194,6 +194,9 @@ func cleanAdditionalMetadata(additionalMetadata map[string]interface{}) map[stri
 }
 
 func (ec *EventsControllerImpl) processEvent(ctx context.Context, tenantId, eventId, eventKey string, data []byte, additionalMetadata map[string]interface{}) error {
+	ctx, span := telemetry.NewSpan(ctx, "EventsControllerImpl.processEvent")
+	defer span.End()
+
 	additionalMetadata = cleanAdditionalMetadata(additionalMetadata)
 
 	additionalMetadata["hatchet__event_id"] = eventId
@@ -204,7 +207,9 @@ func (ec *EventsControllerImpl) processEvent(ctx context.Context, tenantId, even
 	workflowVersions, err := ec.repo.Workflow().ListWorkflowsForEvent(ctx, tenantId, eventKey)
 
 	if err != nil {
-		return fmt.Errorf("could not query workflows for event: %w", err)
+		err := fmt.Errorf("could not query workflows for event: %w", err)
+		span.RecordError(err)
+		return err
 	}
 
 	// create a new workflow run in the database
@@ -219,13 +224,17 @@ func (ec *EventsControllerImpl) processEvent(ctx context.Context, tenantId, even
 			createOpts, err := repository.GetCreateWorkflowRunOptsFromEvent(eventId, workflowCp, data, additionalMetadata)
 
 			if err != nil {
-				return fmt.Errorf("could not get create workflow run opts: %w", err)
+				err := fmt.Errorf("could not get create workflow run opts: %w", err)
+				span.RecordError(err)
+				return err
 			}
 
 			workflowRun, err := ec.repo.WorkflowRun().CreateNewWorkflowRun(ctx, tenantId, createOpts)
 
 			if err != nil {
-				return fmt.Errorf("processEvent: could not create workflow run: %w", err)
+				err := fmt.Errorf("processEvent: could not create workflow run: %w", err)
+				span.RecordError(err)
+				return err
 			}
 
 			workflowRunId := sqlchelpers.UUIDToStr(workflowRun.ID)
@@ -241,7 +250,9 @@ func (ec *EventsControllerImpl) processEvent(ctx context.Context, tenantId, even
 			)
 
 			if err != nil {
-				return fmt.Errorf("could not add workflow run queued task: %w", err)
+				err := fmt.Errorf("could not add workflow run queued task: %w", err)
+				span.RecordError(err)
+				return err
 			}
 
 			return nil

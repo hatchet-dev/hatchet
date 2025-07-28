@@ -43,7 +43,9 @@ func (tc *TasksControllerImpl) processTaskReassignments(ctx context.Context, ten
 	res, shouldContinue, err := tc.repov1.Tasks().ProcessTaskReassignments(ctx, tenantId)
 
 	if err != nil {
-		return false, fmt.Errorf("could not list step runs to reassign for tenant %s: %w", tenantId, err)
+		err := fmt.Errorf("could not list step runs to reassign for tenant %s: %w", tenantId, err)
+		span.RecordError(err)
+		return false, err
 	}
 
 	retriedTasks := make(map[int64]bool)

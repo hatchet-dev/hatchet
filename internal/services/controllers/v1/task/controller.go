@@ -20,6 +20,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/partition"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/recoveryutils"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
+	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
 	"github.com/hatchet-dev/hatchet/pkg/config/shared"
 	hatcheterrors "github.com/hatchet-dev/hatchet/pkg/errors"
@@ -458,6 +459,9 @@ func (tc *TasksControllerImpl) handleTaskFailed(ctx context.Context, tenantId st
 }
 
 func (tc *TasksControllerImpl) processFailTasksResponse(ctx context.Context, tenantId string, res *v1.FailTasksResponse) error {
+	ctx, span := telemetry.NewSpan(ctx, "TasksControllerImpl.processFailTasksResponse")
+	defer span.End()
+
 	retriedTaskIds := make(map[int64]struct{})
 
 	for _, task := range res.RetriedTasks {
@@ -485,6 +489,7 @@ func (tc *TasksControllerImpl) processFailTasksResponse(ctx context.Context, ten
 	err := tc.sendInternalEvents(ctx, tenantId, internalEventsWithoutRetries)
 
 	if err != nil {
+		span.RecordError(err)
 		return err
 	}
 
@@ -496,9 +501,15 @@ func (tc *TasksControllerImpl) processFailTasksResponse(ctx context.Context, ten
 			err = tc.pubRetryEvent(ctx, tenantId, task)
 
 			if err != nil {
-				outerErr = multierror.Append(outerErr, fmt.Errorf("could not publish retry event: %w", err))
+				err := fmt.Errorf("could not publish retry event: %w", err)
+				span.RecordError(err)
+				outerErr = multierror.Append(outerErr, err)
 			}
 		}
+	}
+
+	if outerErr != nil {
+		span.RecordError(outerErr)
 	}
 
 	return outerErr
@@ -1011,6 +1022,9 @@ func (tc *TasksControllerImpl) sendInternalEvents(ctx context.Context, tenantId 
 
 // processUserEventMatches looks for user event matches
 func (tc *TasksControllerImpl) processUserEventMatches(ctx context.Context, tenantId string, events []*tasktypes.UserEventTaskPayload) error {
+	ctx, span := telemetry.NewSpan(ctx, "TasksControllerImpl.processUserEventMatches")
+	defer span.End()
+
 	candidateMatches := make([]v1.CandidateEventMatch, 0)
 
 	for _, event := range events {
@@ -1026,14 +1040,18 @@ func (tc *TasksControllerImpl) processUserEventMatches(ctx context.Context, tena
 	matchResult, err := tc.repov1.Matches().ProcessUserEventMatches(ctx, tenantId, candidateMatches)
 
 	if err != nil {
-		return fmt.Errorf("could not process user event matches: %w", err)
+		err := fmt.Errorf("could not process user event matches: %w", err)
+		span.RecordError(err)
+		return err
 	}
 
 	if len(matchResult.CreatedTasks) > 0 {
 		err = tc.signalTasksCreated(ctx, tenantId, matchResult.CreatedTasks)
 
 		if err != nil {
-			return fmt.Errorf("could not signal created tasks: %w", err)
+			err := fmt.Errorf("could not signal created tasks: %w", err)
+			span.RecordError(err)
+			return err
 		}
 	}
 
@@ -1041,6 +1059,9 @@ func (tc *TasksControllerImpl) processUserEventMatches(ctx context.Context, tena
 }
 
 func (tc *TasksControllerImpl) processInternalEvents(ctx context.Context, tenantId string, events []*v1.InternalTaskEvent) error {
+	ctx, span := telemetry.NewSpan(ctx, "TasksControllerImpl.processInternalEvents")
+	defer span.End()
+
 	candidateMatches := make([]v1.CandidateEventMatch, 0)
 
 	for _, event := range events {
@@ -1057,14 +1078,18 @@ func (tc *TasksControllerImpl) processInternalEvents(ctx context.Context, tenant
 	matchResult, err := tc.repov1.Matches().ProcessInternalEventMatches(ctx, tenantId, candidateMatches)
 
 	if err != nil {
-		return fmt.Errorf("could not process internal event matches: %w", err)
+		err := fmt.Errorf("could not process internal event matches: %w", err)
+		span.RecordError(err)
+		return err
 	}
 
 	if len(matchResult.CreatedTasks) > 0 {
 		err = tc.signalTasksCreated(ctx, tenantId, matchResult.CreatedTasks)
 
 		if err != nil {
-			return fmt.Errorf("could not signal created tasks: %w", err)
+			err := fmt.Errorf("could not signal created tasks: %w", err)
+			span.RecordError(err)
+			return err
 		}
 	}
 
@@ -1072,7 +1097,9 @@ func (tc *TasksControllerImpl) processInternalEvents(ctx context.Context, tenant
 		err = tc.signalTasksReplayedFromMatch(ctx, tenantId, matchResult.ReplayedTasks)
 
 		if err != nil {
-			return fmt.Errorf("could not signal replayed tasks: %w", err)
+			err := fmt.Errorf("could not signal replayed tasks: %w", err)
+			span.RecordError(err)
+			return err
 		}
 	}
 

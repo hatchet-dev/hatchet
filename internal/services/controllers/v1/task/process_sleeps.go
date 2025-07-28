@@ -38,14 +38,18 @@ func (tc *TasksControllerImpl) processSleeps(ctx context.Context, tenantId strin
 	matchResult, shouldContinue, err := tc.repov1.Tasks().ProcessDurableSleeps(ctx, tenantId)
 
 	if err != nil {
-		return false, fmt.Errorf("could not list process durable sleeps for tenant %s: %w", tenantId, err)
+		err := fmt.Errorf("could not list process durable sleeps for tenant %s: %w", tenantId, err)
+		span.RecordError(err)
+		return false, err
 	}
 
 	if len(matchResult.CreatedTasks) > 0 {
 		err = tc.signalTasksCreated(ctx, tenantId, matchResult.CreatedTasks)
 
 		if err != nil {
-			return false, fmt.Errorf("could not signal created tasks: %w", err)
+			err := fmt.Errorf("could not signal created tasks: %w", err)
+			span.RecordError(err)
+			return false, err
 		}
 	}
 

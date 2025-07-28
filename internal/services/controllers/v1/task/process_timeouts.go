@@ -42,13 +42,17 @@ func (tc *TasksControllerImpl) processTaskTimeouts(ctx context.Context, tenantId
 	res, shouldContinue, err := tc.repov1.Tasks().ProcessTaskTimeouts(ctx, tenantId)
 
 	if err != nil {
-		return false, fmt.Errorf("could not list step runs to timeout for tenant %s: %w", tenantId, err)
+		err := fmt.Errorf("could not list step runs to timeout for tenant %s: %w", tenantId, err)
+		span.RecordError(err)
+		return false, err
 	}
 
 	err = tc.processFailTasksResponse(ctx, tenantId, res.FailTasksResponse)
 
 	if err != nil {
-		return false, fmt.Errorf("could not process fail tasks response: %w", err)
+		err := fmt.Errorf("could not process fail tasks response: %w", err)
+		span.RecordError(err)
+		return false, err
 	}
 
 	cancellationSignals := make([]tasktypes.SignalTaskCancelledPayload, 0, len(res.TimeoutTasks))

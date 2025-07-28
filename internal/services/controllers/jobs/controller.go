@@ -692,7 +692,9 @@ func (ec *JobsControllerImpl) runStepRunReassignTenant(ctx context.Context, tena
 	_, stepRunsToFail, err := ec.repo.StepRun().ListStepRunsToReassign(ctx, tenantId)
 
 	if err != nil {
-		return fmt.Errorf("could not list step runs to reassign for tenant %s: %w", tenantId, err)
+		err := fmt.Errorf("could not list step runs to reassign for tenant %s: %w", tenantId, err)
+		span.RecordError(err)
+		return err
 	}
 
 	return queueutils.BatchConcurrent(50, stepRunsToFail, func(stepRuns []*dbsqlc.GetStepRunForEngineRow) error {
@@ -1080,10 +1082,15 @@ func (ec *JobsControllerImpl) handleStepRunFailed(ctx context.Context, task *msg
 }
 
 func (ec *JobsControllerImpl) failStepRun(ctx context.Context, tenantId, stepRunId, errorReason string, failedAt time.Time) error {
+	ctx, span := telemetry.NewSpan(ctx, "JobsControllerImpl.failStepRun")
+	defer span.End()
+
 	oldStepRun, err := ec.repo.StepRun().GetStepRunForEngine(ctx, tenantId, stepRunId)
 
 	if err != nil {
-		return fmt.Errorf("could not get step run: %w", err)
+		err := fmt.Errorf("could not get step run: %w", err)
+		span.RecordError(err)
+		return err
 	}
 
 	// check the queue on failure
@@ -1126,7 +1133,9 @@ func (ec *JobsControllerImpl) failStepRun(ctx context.Context, tenantId, stepRun
 	err = ec.repo.StepRun().StepRunFailed(ctx, tenantId, sqlchelpers.UUIDToStr(oldStepRun.WorkflowRunId), stepRunId, failedAt, errorReason, int(oldStepRun.SRRetryCount))
 
 	if err != nil {
-		return fmt.Errorf("could not fail step run: %w", err)
+		err := fmt.Errorf("could not fail step run: %w", err)
+		span.RecordError(err)
+		return err
 	}
 
 	attemptCancel := false
@@ -1150,9 +1159,13 @@ func (ec *JobsControllerImpl) failStepRun(ctx context.Context, tenantId, stepRun
 		worker, err := ec.repo.Worker().GetWorkerForEngine(ctx, tenantId, workerId)
 
 		if err != nil {
-			return fmt.Errorf("could not get worker: %w", err)
+			err := fmt.Errorf("could not get worker: %w", err)
+			span.RecordError(err)
+			return err
 		} else if !worker.DispatcherId.Valid {
-			return fmt.Errorf("worker has no dispatcher id")
+			err := fmt.Errorf("worker has no dispatcher id")
+			span.RecordError(err)
+			return err
 		}
 
 		dispatcherId := sqlchelpers.UUIDToStr(worker.DispatcherId)
@@ -1173,7 +1186,9 @@ func (ec *JobsControllerImpl) failStepRun(ctx context.Context, tenantId, stepRun
 		)
 
 		if err != nil {
-			return fmt.Errorf("could not add job assigned task to task queue: %w", err)
+			err := fmt.Errorf("could not add job assigned task to task queue: %w", err)
+			span.RecordError(err)
+			return err
 		}
 	}
 
@@ -1235,13 +1250,17 @@ func (ec *JobsControllerImpl) cancelStepRun(ctx context.Context, tenantId, stepR
 	oldStepRun, err := ec.repo.StepRun().GetStepRunForEngine(ctx, tenantId, stepRunId)
 
 	if err != nil {
-		return fmt.Errorf("could not get step run: %w", err)
+		err := fmt.Errorf("could not get step run: %w", err)
+		span.RecordError(err)
+		return err
 	}
 
 	err = ec.repo.StepRun().StepRunCancelled(ctx, tenantId, sqlchelpers.UUIDToStr(oldStepRun.WorkflowRunId), stepRunId, now, reason, propagate)
 
 	if err != nil {
-		return fmt.Errorf("could not cancel step run: %w", err)
+		err := fmt.Errorf("could not cancel step run: %w", err)
+		span.RecordError(err)
+		return err
 	}
 
 	if !oldStepRun.SRWorkerId.Valid {
@@ -1258,9 +1277,13 @@ func (ec *JobsControllerImpl) cancelStepRun(ctx context.Context, tenantId, stepR
 	worker, err := ec.repo.Worker().GetWorkerForEngine(ctx, tenantId, workerId)
 
 	if err != nil {
-		return fmt.Errorf("could not get worker: %w", err)
+		err := fmt.Errorf("could not get worker: %w", err)
+		span.RecordError(err)
+		return err
 	} else if !worker.DispatcherId.Valid {
-		return fmt.Errorf("worker has no dispatcher id")
+		err := fmt.Errorf("worker has no dispatcher id")
+		span.RecordError(err)
+		return err
 	}
 
 	dispatcherId := sqlchelpers.UUIDToStr(worker.DispatcherId)
@@ -1274,7 +1297,9 @@ func (ec *JobsControllerImpl) cancelStepRun(ctx context.Context, tenantId, stepR
 	)
 
 	if err != nil {
-		return fmt.Errorf("could not add job assigned task to task queue: %w", err)
+		err := fmt.Errorf("could not add job assigned task to task queue: %w", err)
+		span.RecordError(err)
+		return err
 	}
 
 	return nil

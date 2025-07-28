@@ -44,7 +44,9 @@ func (tc *TasksControllerImpl) processTaskRetryQueueItems(ctx context.Context, t
 	retryQueueItems, shouldContinue, err := tc.repov1.Tasks().ProcessTaskRetryQueueItems(ctx, tenantId)
 
 	if err != nil {
-		return false, fmt.Errorf("could not list step runs to reassign for tenant %s: %w", tenantId, err)
+		err := fmt.Errorf("could not list step runs to reassign for tenant %s: %w", tenantId, err)
+		span.RecordError(err)
+		return false, err
 	}
 
 	if num := len(retryQueueItems); num > 0 {
