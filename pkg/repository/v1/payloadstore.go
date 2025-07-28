@@ -44,6 +44,17 @@ type ExternalHandler interface {
 	RetrieveFromExternal(ctx context.Context, tenantId string, opts ...RetrievePayloadOpts) (map[RetrievePayloadOpts][]byte, error)
 }
 
+type PayloadStoreOption func(*payloadStoreRepositoryImpl)
+
+func WithExternalHandler(handler ExternalHandler, externalStoreLocationName string, nativeStoreTTL int64) PayloadStoreOption {
+	return func(p *payloadStoreRepositoryImpl) {
+		p.externalStoreEnabled = true
+		p.externalStoreLocationName = &externalStoreLocationName
+		p.nativeStoreTTL = &nativeStoreTTL
+		p.externalHandler = handler
+	}
+}
+
 type PayloadStoreRepository interface {
 	Store(ctx context.Context, tx pgx.Tx, tenantId string, payloads ...StorePayloadOpts) error
 	Retrieve(ctx context.Context, tenantId string, opts RetrievePayloadOpts) ([]byte, error)
@@ -65,24 +76,23 @@ func NewPayloadStoreRepository(
 	pool *pgxpool.Pool,
 	l *zerolog.Logger,
 	queries *sqlcv1.Queries,
-	externalStoreEnabled bool,
-	externalStoreLocationName *string,
-	nativeStoreTTL *int64,
-	externalHandler ExternalHandler,
+	opts ...PayloadStoreOption,
 ) PayloadStoreRepository {
-	if externalStoreEnabled && nativeStoreTTL == nil {
-		panic("nativeStoreTTL must be set when externalStoreEnabled is true")
-	}
-
-	return &payloadStoreRepositoryImpl{
+	repo := &payloadStoreRepositoryImpl{
 		pool:                      pool,
 		l:                         l,
 		queries:                   queries,
-		externalStoreEnabled:      externalStoreEnabled,
-		externalStoreLocationName: externalStoreLocationName,
-		nativeStoreTTL:            nativeStoreTTL,
-		externalHandler:           externalHandler,
+		externalStoreEnabled:      false,
+		externalStoreLocationName: nil,
+		nativeStoreTTL:            nil,
+		externalHandler:           NewDefaultExternalHandler(),
 	}
+
+	for _, opt := range opts {
+		opt(repo)
+	}
+
+	return repo
 }
 
 func (p PayloadContent) Validate() error {
