@@ -220,6 +220,9 @@ type ConfigFileRuntime struct {
 
 	// SchedulerConcurrencyRateLimit is the rate limit for scheduler concurrency strategy execution (per second)
 	SchedulerConcurrencyRateLimit int `mapstructure:"schedulerConcurrencyRateLimit" json:"schedulerConcurrencyRateLimit,omitempty" default:"20"`
+
+	// LogIngestionEnabled controls whether the server enables log ingestion for tasks
+	LogIngestionEnabled bool `mapstructure:"logIngestionEnabled" json:"logIngestionEnabled,omitempty" default:"true"`
 }
 
 type InternalClientTLSConfigFile struct {
@@ -649,6 +652,9 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.flushPeriodMilliseconds", "SERVER_FLUSH_PERIOD_MILLISECONDS")
 	_ = v.BindEnv("runtime.flushItemsThreshold", "SERVER_FLUSH_ITEMS_THRESHOLD")
 	_ = v.BindEnv("runtime.flushStrategy", "SERVER_FLUSH_STRATEGY")
+
+	// log ingestion
+	_ = v.BindEnv("runtime.logIngestionEnabled", "SERVER_LOG_INGESTION_ENABLED")
 
 	// alerting options
 	_ = v.BindEnv("alerting.sentry.enabled", "SERVER_ALERTING_SENTRY_ENABLED")

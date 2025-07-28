@@ -94,7 +94,8 @@ func newAPIService(config *server.ServerConfig) *apiService {
 }
 
 type APIServer struct {
-	config *server.ServerConfig
+	config                *server.ServerConfig
+	additionalMiddlewares []gen.StrictMiddlewareFunc
 }
 
 func NewAPIServer(config *server.ServerConfig) *APIServer {
@@ -135,6 +136,12 @@ func (t *APIServer) Run(opts ...APIServerExtensionOpt) (func() error, error) {
 	return t.RunWithServer(e)
 }
 
+func (t *APIServer) RunWithMiddlewares(middlewares []gen.StrictMiddlewareFunc, opts ...APIServerExtensionOpt) (func() error, error) {
+	t.additionalMiddlewares = middlewares
+
+	return t.Run(opts...)
+}
+
 func (t *APIServer) RunWithServer(e *echo.Echo) (func() error, error) {
 	routes := e.Routes()
 
@@ -173,7 +180,7 @@ func (t *APIServer) getCoreEchoService() (*echo.Echo, error) {
 
 	service := newAPIService(t.config)
 
-	myStrictApiHandler := gen.NewStrictHandler(service, []gen.StrictMiddlewareFunc{})
+	myStrictApiHandler := gen.NewStrictHandler(service, t.additionalMiddlewares)
 
 	gen.RegisterHandlers(g, myStrictApiHandler)
 
@@ -288,7 +295,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 		}
 
 		if scheduled == nil {
-			return nil, "", fmt.Errorf("scheduled workflow run not found")
+			return nil, "", echo.NewHTTPError(http.StatusNotFound, "scheduled workflow run not found")
 		}
 
 		return scheduled, sqlchelpers.UUIDToStr(scheduled.TenantId), nil
@@ -301,7 +308,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 		}
 
 		if scheduled == nil {
-			return nil, "", fmt.Errorf("cron workflow not found")
+			return nil, "", echo.NewHTTPError(http.StatusNotFound, "cron workflow not found")
 		}
 
 		return scheduled, sqlchelpers.UUIDToStr(scheduled.TenantId), nil
@@ -363,7 +370,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 		}
 
 		if task == nil {
-			return nil, "", fmt.Errorf("task not found")
+			return nil, "", echo.NewHTTPError(http.StatusNotFound, "task not found")
 		}
 
 		return task, sqlchelpers.UUIDToStr(task.TenantID), nil

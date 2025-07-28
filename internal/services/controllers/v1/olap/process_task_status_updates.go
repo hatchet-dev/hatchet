@@ -55,10 +55,6 @@ func (o *OLAPControllerImpl) runTaskStatusUpdates(ctx context.Context) func() {
 func (o *OLAPControllerImpl) notifyTasksUpdated(ctx context.Context, rows []v1.UpdateTaskStatusRow) error {
 	tenantIdToPayloads := make(map[pgtype.UUID][]tasktypes.NotifyFinalizedPayload)
 	tenantIdToWorkflowIds := make(map[string][]pgtype.UUID)
-	workerIds := make([]pgtype.UUID, 0, len(rows))
-	taskIds := make([]int64, 0, len(rows))
-	taskInsertedAts := make([]pgtype.Timestamptz, 0, len(rows))
-	readableStatuses := make([]sqlcv1.V1ReadableStatusOlap, 0, len(rows))
 
 	for _, row := range rows {
 		if row.ReadableStatus != sqlcv1.V1ReadableStatusOlapCOMPLETED && row.ReadableStatus != sqlcv1.V1ReadableStatusOlapCANCELLED && row.ReadableStatus != sqlcv1.V1ReadableStatusOlapFAILED {
@@ -71,33 +67,42 @@ func (o *OLAPControllerImpl) notifyTasksUpdated(ctx context.Context, rows []v1.U
 		})
 
 		tenantId := sqlchelpers.UUIDToStr(row.TenantId)
-
 		tenantIdToWorkflowIds[tenantId] = append(tenantIdToWorkflowIds[tenantId], row.WorkflowId)
-
-		taskIds = append(taskIds, row.TaskId)
-		taskInsertedAts = append(taskInsertedAts, row.TaskInsertedAt)
-		workerIds = append(workerIds, row.LatestWorkerId) // TODO(mnafees): use this information in workflow metrics below
-		readableStatuses = append(readableStatuses, row.ReadableStatus)
 	}
 
 	if o.prometheusMetricsEnabled {
 		var eg errgroup.Group
 
-		for tenantId, workflowIds := range tenantIdToWorkflowIds {
+		for currentTenantId, workflowIds := range tenantIdToWorkflowIds {
+			tenantId := currentTenantId
+			workflowIds := workflowIds
+
+			var tenantTaskIds []int64
+			var tenantTaskInsertedAts []pgtype.Timestamptz
+			var tenantReadableStatuses []sqlcv1.V1ReadableStatusOlap
+			var tenantRows []v1.UpdateTaskStatusRow
+
+			for _, row := range rows {
+				if sqlchelpers.UUIDToStr(row.TenantId) == tenantId {
+					tenantTaskIds = append(tenantTaskIds, row.TaskId)
+					tenantTaskInsertedAts = append(tenantTaskInsertedAts, row.TaskInsertedAt)
+					tenantReadableStatuses = append(tenantReadableStatuses, row.ReadableStatus)
+					tenantRows = append(tenantRows, row)
+				}
+			}
+
 			eg.Go(func() error {
 				workflowNames, err := o.repo.Workflows().ListWorkflowNamesByIds(ctx, tenantId, workflowIds)
 				if err != nil {
 					return err
 				}
 
-				taskDurations, err := o.repo.OLAP().GetTaskDurationsByTaskIds(ctx, tenantId, taskIds, taskInsertedAts, readableStatuses)
+				taskDurations, err := o.repo.OLAP().GetTaskDurationsByTaskIds(ctx, tenantId, tenantTaskIds, tenantTaskInsertedAts, tenantReadableStatuses)
 				if err != nil {
 					return err
 				}
 
-				for _, row := range rows {
-					// Only track metrics for standalone tasks, not tasks within DAGs
-					// DAG-level metrics are tracked in process_dag_status_updates.go
+				for _, row := range tenantRows {
 					if !row.IsDAGTask {
 						workflowName := workflowNames[row.WorkflowId]
 						if workflowName == "" {
@@ -109,7 +114,8 @@ func (o *OLAPControllerImpl) notifyTasksUpdated(ctx context.Context, rows []v1.U
 							continue
 						}
 
-						prometheus.TenantWorkflowDurationBuckets.WithLabelValues(tenantId, workflowName, string(row.ReadableStatus)).Observe(float64(taskDuration.FinishedAt.Time.Sub(taskDuration.StartedAt.Time).Milliseconds()))
+						duration := int(taskDuration.FinishedAt.Time.Sub(taskDuration.StartedAt.Time).Milliseconds())
+						prometheus.TenantWorkflowDurationBuckets.WithLabelValues(tenantId, workflowName, string(row.ReadableStatus)).Observe(float64(duration))
 					}
 				}
 

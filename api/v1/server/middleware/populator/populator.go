@@ -118,6 +118,10 @@ func (p *Populator) traverseNode(c echo.Context, node *resource) error {
 	if node.ResourceID != "" {
 		err := p.callGetter(node, node.ParentID, node.ResourceID)
 		if err != nil {
+			if httpErr, ok := err.(*echo.HTTPError); ok {
+				return httpErr
+			}
+
 			return fmt.Errorf("could not populate resource %s: %w", node.ResourceKey, err)
 		}
 

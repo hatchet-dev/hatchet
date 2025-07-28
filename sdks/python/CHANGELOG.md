@@ -5,6 +5,24 @@ All notable changes to Hatchet's Python SDK will be documented in this changelog
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.16.3] - 2025-07-23
+
+### Added
+
+- Adds support for filters and formatters in the logger that's passed to the Hatchet client.
+- Adds a flag to disable log capture.
+
+### Changed
+
+- Fixes a bug in `aio_sleep_for` and the `SleepCondition` that did not allow duplicate sleeps to be awaited correctly.
+- Stops retrying gRPC requests on 4XX failures, since retrying won't help
+
+## [1.16.2] - 2025-07-22
+
+### Added
+
+- Adds an `input_validator` property to `BaseWorkflow` which returns a typechecker-aware version of the validator class.
+
 ## [1.16.1] - 2025-07-18
 
 ### Added

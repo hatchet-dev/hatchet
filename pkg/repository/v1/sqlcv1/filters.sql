@@ -16,20 +16,22 @@ INSERT INTO v1_filter (
 )
 RETURNING *;
 
--- name: BulkUpsertDeclarativeFilters :many
+-- name: DeleteExistingDeclarativeFiltersForOverwrite :exec
 -- IMPORTANT: This query overwrites all existing declarative filters for a workflow.
 -- it's intended to be used when the workflow version is created.
+DELETE FROM v1_filter
+WHERE
+    tenant_id = @tenantId::UUID
+    AND workflow_id = @workflowId::UUID
+    AND is_declarative;
+
+-- name: BulkInsertDeclarativeFilters :exec
+-- IMPORTANT: This is intended to be used in conjunction with the `DeleteExistingDeclarativeFiltersForOverwrite` query.
 WITH inputs AS (
     SELECT
         UNNEST(@scopes::TEXT[]) AS scope,
         UNNEST(@expressions::TEXT[]) AS expression,
         UNNEST(@payloads::JSONB[]) AS payload
-), deletions AS (
-    DELETE FROM v1_filter
-    WHERE
-        tenant_id = @tenantId::UUID
-        AND workflow_id = @workflowId::UUID
-        AND is_declarative
 )
 
 INSERT INTO v1_filter (
@@ -48,7 +50,7 @@ SELECT
     payload,
     true
 FROM inputs
-RETURNING *;
+;
 
 -- name: DeleteFilter :one
 DELETE FROM v1_filter
@@ -91,7 +93,7 @@ GROUP BY workflow_id
 
 -- name: ListFiltersForEventTriggers :many
 WITH inputs AS (
-    SELECT
+    SELECT DISTINCT
         UNNEST(sqlc.narg(workflowIds)::UUID[]) AS workflow_id,
         UNNEST(sqlc.narg(scopes)::TEXT[]) AS scope
 )
