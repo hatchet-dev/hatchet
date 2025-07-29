@@ -174,8 +174,11 @@ func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx sqlcv1.DBTX, 
 
 		if p.externalStoreEnabled {
 			offloadAts[i] = pgtype.Timestamptz{Time: payload.InsertedAt.Time.Add(*p.nativeStoreTTL), Valid: true}
-			operations[i] = string(sqlcv1.V1PayloadWalOperationINSERT)
+		} else {
+			offloadAts[i] = pgtype.Timestamptz{Time: time.Now(), Valid: true}
 		}
+
+		operations[i] = string(sqlcv1.V1PayloadWalOperationINSERT)
 
 		// Always store inline initially - offloading happens via cron job
 		content := PayloadContent{
@@ -201,19 +204,17 @@ func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx sqlcv1.DBTX, 
 		return fmt.Errorf("failed to write payloads: %w", err)
 	}
 
-	if p.externalStoreEnabled {
-		err := p.queries.WritePayloadWAL(ctx, tx, sqlcv1.WritePayloadWALParams{
-			Tenantid:           sqlchelpers.UUIDFromStr(tenantId),
-			Payloadids:         taskIds,
-			Payloadinsertedats: taskInsertedAts,
-			Payloadtypes:       payloadTypes,
-			Offloadats:         offloadAts,
-			Operations:         operations,
-		})
+	err = p.queries.WritePayloadWAL(ctx, tx, sqlcv1.WritePayloadWALParams{
+		Tenantid:           sqlchelpers.UUIDFromStr(tenantId),
+		Payloadids:         taskIds,
+		Payloadinsertedats: taskInsertedAts,
+		Payloadtypes:       payloadTypes,
+		Offloadats:         offloadAts,
+		Operations:         operations,
+	})
 
-		if err != nil {
-			return fmt.Errorf("failed to write payload WAL: %w", err)
-		}
+	if err != nil {
+		return fmt.Errorf("failed to write payload WAL: %w", err)
 	}
 
 	return err
@@ -312,7 +313,7 @@ func (p *payloadStoreRepositoryImpl) bulkRetrieve(ctx context.Context, tx sqlcv1
 
 func (p *payloadStoreRepositoryImpl) offloadToExternal(ctx context.Context, tx sqlcv1.DBTX, tenantId string, payloads ...StorePayloadOpts) error {
 	if !p.externalStoreEnabled {
-		return fmt.Errorf("external store not enabled")
+		return nil
 	}
 
 	retrieveOpts, err := p.externalStore.Store(ctx, tenantId, payloads...)
@@ -359,10 +360,18 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadWAL(ctx context.Context, tena
 
 	defer rollback()
 
+	if err != nil {
+		return false, fmt.Errorf("failed to prepare transaction: %w", err)
+	}
+
 	walRecords, err := p.queries.PollPayloadWALForRecordsToOffload(ctx, tx, sqlcv1.PollPayloadWALForRecordsToOffloadParams{
 		Tenantid:  sqlchelpers.UUIDFromStr(tenantId),
 		Polllimit: 1000,
 	})
+
+	if len(walRecords) == 0 {
+		return false, nil
+	}
 
 	if err != nil {
 		return false, err

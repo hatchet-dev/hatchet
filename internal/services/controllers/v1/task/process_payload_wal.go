@@ -18,12 +18,12 @@ func (tc *TasksControllerImpl) runProcessPayloadWAL(ctx context.Context) func() 
 			return
 		}
 
-		tc.timeoutTaskOperations.SetTenants(tenants)
+		tc.processPayloadWALOperations.SetTenants(tenants)
 
 		for i := range tenants {
 			tenantId := sqlchelpers.UUIDToStr(tenants[i].ID)
 
-			tc.timeoutTaskOperations.RunOrContinue(tenantId)
+			tc.processPayloadWALOperations.RunOrContinue(tenantId)
 		}
 	}
 }
