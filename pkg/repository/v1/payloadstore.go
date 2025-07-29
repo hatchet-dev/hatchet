@@ -28,6 +28,7 @@ type RetrievePayloadOpts struct {
 }
 
 type PayloadLocation string
+type ExternalPayloadLocationKey string
 
 const (
 	PayloadLocationInline   PayloadLocation = "inline"
@@ -35,14 +36,14 @@ const (
 )
 
 type PayloadContent struct {
-	Location            PayloadLocation `json:"location"`
-	ExternalLocationKey *string         `json:"external_location_key,omitempty"`
-	InlineContent       []byte          `json:"inline_content,omitempty"`
+	Location            PayloadLocation             `json:"location"`
+	ExternalLocationKey *ExternalPayloadLocationKey `json:"external_location_key,omitempty"`
+	InlineContent       []byte                      `json:"inline_content,omitempty"`
 }
 
 type ExternalStore interface {
-	Store(ctx context.Context, tenantId string, payloads ...StorePayloadOpts) (map[RetrievePayloadOpts]string, error)
-	BulkRetrieve(ctx context.Context, tenantId string, keys ...string) (map[string][]byte, error)
+	Store(ctx context.Context, tenantId string, payloads ...StorePayloadOpts) (map[RetrievePayloadOpts]ExternalPayloadLocationKey, error)
+	BulkRetrieve(ctx context.Context, tenantId string, keys ...ExternalPayloadLocationKey) (map[ExternalPayloadLocationKey][]byte, error)
 }
 
 type PayloadStoreOption func(*payloadStoreRepositoryImpl)
@@ -268,8 +269,8 @@ func (p *payloadStoreRepositoryImpl) bulkRetrieve(ctx context.Context, tx sqlcv1
 
 	optsToPayload := make(map[RetrievePayloadOpts][]byte)
 
-	externalKeysToOpts := make(map[string]RetrievePayloadOpts)
-	externalKeys := make([]string, 0)
+	externalKeysToOpts := make(map[ExternalPayloadLocationKey]RetrievePayloadOpts)
+	externalKeys := make([]ExternalPayloadLocationKey, 0)
 
 	for _, payload := range payloads {
 		if payload == nil {
@@ -440,10 +441,10 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadWAL(ctx context.Context, tena
 
 type NoOpExternalStore struct{}
 
-func (n *NoOpExternalStore) Store(ctx context.Context, tenantId string, payloads ...StorePayloadOpts) (map[RetrievePayloadOpts]string, error) {
+func (n *NoOpExternalStore) Store(ctx context.Context, tenantId string, payloads ...StorePayloadOpts) (map[RetrievePayloadOpts]ExternalPayloadLocationKey, error) {
 	return nil, fmt.Errorf("external store disabled")
 }
 
-func (n *NoOpExternalStore) BulkRetrieve(ctx context.Context, tenantId string, keys ...string) (map[string][]byte, error) {
+func (n *NoOpExternalStore) BulkRetrieve(ctx context.Context, tenantId string, keys ...ExternalPayloadLocationKey) (map[ExternalPayloadLocationKey][]byte, error) {
 	return nil, fmt.Errorf("external store disabled")
 }
