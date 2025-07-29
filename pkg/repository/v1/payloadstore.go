@@ -40,8 +40,8 @@ type PayloadContent struct {
 }
 
 type ExternalStore interface {
-	Store(ctx context.Context, key string, data []byte) error
-	Retrieve(ctx context.Context, key string) ([]byte, error)
+	Store(ctx context.Context, tenantId string, payloads ...StorePayloadOpts) (map[RetrievePayloadOpts]string, error)
+	BulkRetrieve(ctx context.Context, tenantId string, keys ...string) (map[string][]byte, error)
 }
 
 type PayloadStoreOption func(*payloadStoreRepositoryImpl)
@@ -59,6 +59,7 @@ type PayloadStoreRepository interface {
 	Store(ctx context.Context, tx pgx.Tx, tenantId string, payloads ...StorePayloadOpts) error
 	Retrieve(ctx context.Context, tenantId string, opts RetrievePayloadOpts) ([]byte, error)
 	BulkRetrieve(ctx context.Context, tenantId string, opts ...RetrievePayloadOpts) (map[RetrievePayloadOpts][]byte, error)
+	OffloadToExternal(ctx context.Context, tenantId string, payloads ...StorePayloadOpts) error
 }
 
 type payloadStoreRepositoryImpl struct {
@@ -232,7 +233,9 @@ func (p *payloadStoreRepositoryImpl) BulkRetrieve(ctx context.Context, tenantId 
 	}
 
 	optsToPayload := make(map[RetrievePayloadOpts][]byte)
-	externalOptsToRetrieve := make([]RetrievePayloadOpts, 0)
+
+	externalKeysToOpts := make(map[string]RetrievePayloadOpts)
+	externalKeys := make([]string, 0)
 
 	for _, payload := range payloads {
 		if payload == nil {
@@ -241,8 +244,7 @@ func (p *payloadStoreRepositoryImpl) BulkRetrieve(ctx context.Context, tenantId 
 
 		content, err := UnmarshalPayloadContent(payload.Value)
 		if err != nil {
-			p.l.Error().Err(err).Msg("failed to unmarshal payload content")
-			continue
+			return nil, fmt.Errorf("failed to unmarshal payload content: %w", err)
 		}
 
 		opts := RetrievePayloadOpts{
@@ -252,43 +254,51 @@ func (p *payloadStoreRepositoryImpl) BulkRetrieve(ctx context.Context, tenantId 
 		}
 
 		if content.Location == PayloadLocationExternal && content.ExternalLocationKey != nil {
-			externalOptsToRetrieve = append(externalOptsToRetrieve, opts)
+			externalKeysToOpts[*content.ExternalLocationKey] = opts
+			externalKeys = append(externalKeys, *content.ExternalLocationKey)
 		} else {
 			optsToPayload[opts] = content.InlineContent
 		}
 	}
 
-	// Retrieve external payloads
-	for _, opt := range externalOptsToRetrieve {
-		externalKey := p.generateExternalKey(tenantId, StorePayloadOpts{
-			Id:         opt.Id,
-			InsertedAt: opt.InsertedAt,
-			Type:       opt.Type,
-		})
-		
-		data, err := p.externalStore.Retrieve(ctx, externalKey)
+	if len(externalKeys) > 0 {
+		externalData, err := p.externalStore.BulkRetrieve(ctx, tenantId, externalKeys...)
 		if err != nil {
-			p.l.Error().Err(err).Str("key", externalKey).Msg("failed to retrieve payload from external store")
-			continue
+			return nil, fmt.Errorf("failed to retrieve external payloads: %w", err)
 		}
-		
-		if data == nil {
-			p.l.Warn().Str("key", externalKey).Msg("external payload content is nil")
-			continue
+
+		for externalKey, data := range externalData {
+			if opt, exists := externalKeysToOpts[externalKey]; exists {
+				optsToPayload[opt] = data
+			}
 		}
-		
-		optsToPayload[opt] = data
 	}
 
 	return optsToPayload, nil
 }
 
-type NoOpExternalStore struct{}
+func (p *payloadStoreRepositoryImpl) OffloadToExternal(ctx context.Context, tenantId string, payloads ...StorePayloadOpts) error {
+	if !p.externalStoreEnabled {
+		return fmt.Errorf("external store not enabled")
+	}
 
-func (n *NoOpExternalStore) Store(ctx context.Context, key string, data []byte) error {
+	_, err := p.externalStore.Store(ctx, tenantId, payloads...)
+
+	// TODO: Update payloads in the db in a tx-safe way here?
+
+	if err != nil {
+		return fmt.Errorf("failed to store payloads externally: %w", err)
+	}
+
 	return nil
 }
 
-func (n *NoOpExternalStore) Retrieve(ctx context.Context, key string) ([]byte, error) {
+type NoOpExternalStore struct{}
+
+func (n *NoOpExternalStore) Store(ctx context.Context, tenantId string, payloads ...StorePayloadOpts) (map[RetrievePayloadOpts]string, error) {
+	return nil, fmt.Errorf("external store disabled")
+}
+
+func (n *NoOpExternalStore) BulkRetrieve(ctx context.Context, tenantId string, keys ...string) (map[string][]byte, error) {
 	return nil, fmt.Errorf("external store disabled")
 }
