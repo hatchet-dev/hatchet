@@ -69,3 +69,60 @@ WHERE
     AND v1_payload.id = i.id
     AND v1_payload.inserted_at = i.inserted_at
 ;
+
+-- name: WritePayloadWAL :exec
+WITH inputs AS (
+    SELECT
+        UNNEST(@payloadIds::BIGINT[]) AS payload_id,
+        UNNEST(@payloadInsertedAts::TIMESTAMPTZ[]) AS payload_inserted_at,
+        UNNEST(CAST(@payloadTypes::TEXT[] AS v1_payload_type[])) AS payload_type,
+        UNNEST(@offloadAts::TIMESTAMPTZ[]) AS offload_at,
+        UNNEST(CAST(@operations::TEXT[] AS v1_payload_wal_operation[])) AS operation
+)
+
+INSERT INTO v1_payload_wal (
+    tenant_id,
+    offload_at,
+    payload_id,
+    payload_inserted_at,
+    payload_type,
+    operation
+)
+SELECT
+    @tenantId::UUID,
+    i.offload_at,
+    i.payload_id,
+    i.payload_inserted_at,
+    i.payload_type,
+    i.operation
+FROM
+    inputs i
+;
+
+-- name: PollPayloadWALForRecordsToOffload :exec
+SELECT *
+FROM v1_payload_wal
+WHERE
+    tenant_id = @tenantId::UUID
+    AND offload_at <= NOW()
+ORDER BY offload_at, payload_id, payload_inserted_at, payload_type
+LIMIT @pollLimit::INT
+FOR UPDATE SKIP LOCKED
+;
+
+-- name: EvictPayloadWALRecords :exec
+WITH inputs AS (
+    SELECT
+        UNNEST(@offloadAts::TIMESTAMPTZ[]) AS offload_at,
+        UNNEST(@payloadIds::BIGINT[]) AS payload_id,
+        UNNEST(@payloadInsertedAts::TIMESTAMPTZ[]) AS payload_inserted_at,
+        UNNEST(CAST(@payloadTypes::TEXT[] AS v1_payload_type[])) AS payload_type
+)
+DELETE FROM v1_payload_wal
+WHERE
+    tenant_id = @tenantId::UUID
+    AND (offload_at, payload_id, payload_inserted_at, payload_type) IN (
+        SELECT offload_at, payload_id, payload_inserted_at, payload_type
+        FROM inputs
+    )
+;

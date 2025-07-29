@@ -11,6 +11,42 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const evictPayloadWALRecords = `-- name: EvictPayloadWALRecords :exec
+WITH inputs AS (
+    SELECT
+        UNNEST($2::TIMESTAMPTZ[]) AS offload_at,
+        UNNEST($3::BIGINT[]) AS payload_id,
+        UNNEST($4::TIMESTAMPTZ[]) AS payload_inserted_at,
+        UNNEST(CAST($5::TEXT[] AS v1_payload_type[])) AS payload_type
+)
+DELETE FROM v1_payload_wal
+WHERE
+    tenant_id = $1::UUID
+    AND (offload_at, payload_id, payload_inserted_at, payload_type) IN (
+        SELECT offload_at, payload_id, payload_inserted_at, payload_type
+        FROM inputs
+    )
+`
+
+type EvictPayloadWALRecordsParams struct {
+	Tenantid           pgtype.UUID          `json:"tenantid"`
+	Offloadats         []pgtype.Timestamptz `json:"offloadats"`
+	Payloadids         []int64              `json:"payloadids"`
+	Payloadinsertedats []pgtype.Timestamptz `json:"payloadinsertedats"`
+	Payloadtypes       []string             `json:"payloadtypes"`
+}
+
+func (q *Queries) EvictPayloadWALRecords(ctx context.Context, db DBTX, arg EvictPayloadWALRecordsParams) error {
+	_, err := db.Exec(ctx, evictPayloadWALRecords,
+		arg.Tenantid,
+		arg.Offloadats,
+		arg.Payloadids,
+		arg.Payloadinsertedats,
+		arg.Payloadtypes,
+	)
+	return err
+}
+
 const offloadPayloadsToExternalStore = `-- name: OffloadPayloadsToExternalStore :exec
 WITH inputs AS (
     SELECT
@@ -44,6 +80,27 @@ func (q *Queries) OffloadPayloadsToExternalStore(ctx context.Context, db DBTX, a
 		arg.Insertedats,
 		arg.Values,
 	)
+	return err
+}
+
+const pollPayloadWALForRecordsToOffload = `-- name: PollPayloadWALForRecordsToOffload :exec
+SELECT tenant_id, offload_at, payload_id, payload_inserted_at, payload_type, operation
+FROM v1_payload_wal
+WHERE
+    tenant_id = $1::UUID
+    AND offload_at <= NOW()
+ORDER BY offload_at, payload_id, payload_inserted_at, payload_type
+LIMIT $2::INT
+FOR UPDATE SKIP LOCKED
+`
+
+type PollPayloadWALForRecordsToOffloadParams struct {
+	Tenantid  pgtype.UUID `json:"tenantid"`
+	Polllimit int32       `json:"polllimit"`
+}
+
+func (q *Queries) PollPayloadWALForRecordsToOffload(ctx context.Context, db DBTX, arg PollPayloadWALForRecordsToOffloadParams) error {
+	_, err := db.Exec(ctx, pollPayloadWALForRecordsToOffload, arg.Tenantid, arg.Polllimit)
 	return err
 }
 
@@ -138,6 +195,56 @@ func (q *Queries) ReadPayloads(ctx context.Context, db DBTX, arg ReadPayloadsPar
 		return nil, err
 	}
 	return items, nil
+}
+
+const writePayloadWAL = `-- name: WritePayloadWAL :exec
+WITH inputs AS (
+    SELECT
+        UNNEST($2::BIGINT[]) AS payload_id,
+        UNNEST($3::TIMESTAMPTZ[]) AS payload_inserted_at,
+        UNNEST(CAST($4::TEXT[] AS v1_payload_type[])) AS payload_type,
+        UNNEST($5::TIMESTAMPTZ[]) AS offload_at,
+        UNNEST(CAST($6::TEXT[] AS v1_payload_wal_operation[])) AS operation
+)
+
+INSERT INTO v1_payload_wal (
+    tenant_id,
+    offload_at,
+    payload_id,
+    payload_inserted_at,
+    payload_type,
+    operation
+)
+SELECT
+    $1::UUID,
+    i.offload_at,
+    i.payload_id,
+    i.payload_inserted_at,
+    i.payload_type,
+    i.operation
+FROM
+    inputs i
+`
+
+type WritePayloadWALParams struct {
+	Tenantid           pgtype.UUID          `json:"tenantid"`
+	Payloadids         []int64              `json:"payloadids"`
+	Payloadinsertedats []pgtype.Timestamptz `json:"payloadinsertedats"`
+	Payloadtypes       []string             `json:"payloadtypes"`
+	Offloadats         []pgtype.Timestamptz `json:"offloadats"`
+	Operations         []string             `json:"operations"`
+}
+
+func (q *Queries) WritePayloadWAL(ctx context.Context, db DBTX, arg WritePayloadWALParams) error {
+	_, err := db.Exec(ctx, writePayloadWAL,
+		arg.Tenantid,
+		arg.Payloadids,
+		arg.Payloadinsertedats,
+		arg.Payloadtypes,
+		arg.Offloadats,
+		arg.Operations,
+	)
+	return err
 }
 
 const writePayloads = `-- name: WritePayloads :exec
