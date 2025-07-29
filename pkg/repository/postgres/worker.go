@@ -524,18 +524,18 @@ func (w *workerEngineRepository) UpdateWorkersByWebhookId(ctx context.Context, p
 	return err
 }
 
-func (w *workerEngineRepository) UpdateWorkerActiveStatus(ctx context.Context, tenantId, workerId string, isActive bool, timestamp time.Time) (*dbsqlc.Worker, error) {
-	worker, err := w.queries.UpdateWorkerActiveStatus(ctx, w.pool, dbsqlc.UpdateWorkerActiveStatusParams{
+func (w *workerEngineRepository) UpdateWorkerActiveStatus(ctx context.Context, tenantId, workerId string, isActive bool, timestamp time.Time) error {
+	err := w.queries.UpdateWorkerActiveStatus(ctx, w.pool, dbsqlc.UpdateWorkerActiveStatusParams{
 		ID:                      sqlchelpers.UUIDFromStr(workerId),
 		Isactive:                isActive,
 		LastListenerEstablished: sqlchelpers.TimestampFromTime(timestamp),
 	})
 
 	if err != nil {
-		return nil, fmt.Errorf("could not update worker active status: %w", err)
+		return fmt.Errorf("could not update worker active status: %w", err)
 	}
 
-	return worker, nil
+	return nil
 }
 
 func (w *workerEngineRepository) UpsertWorkerLabels(ctx context.Context, workerId pgtype.UUID, opts []repository.UpsertWorkerLabelOpts) ([]*dbsqlc.WorkerLabel, error) {
