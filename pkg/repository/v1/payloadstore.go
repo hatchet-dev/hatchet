@@ -39,19 +39,19 @@ type PayloadContent struct {
 	InlineContent       []byte          `json:"inline_content,omitempty"`
 }
 
-type ExternalHandler interface {
-	OffloadToExternal(ctx context.Context, tenantId string, payloads ...StorePayloadOpts) error
-	RetrieveFromExternal(ctx context.Context, tenantId string, opts ...RetrievePayloadOpts) (map[RetrievePayloadOpts][]byte, error)
+type ExternalStore interface {
+	Store(ctx context.Context, key string, data []byte) error
+	Retrieve(ctx context.Context, key string) ([]byte, error)
 }
 
 type PayloadStoreOption func(*payloadStoreRepositoryImpl)
 
-func WithExternalHandler(handler ExternalHandler, externalStoreLocationName string, nativeStoreTTL int64) PayloadStoreOption {
+func WithExternalStore(store ExternalStore, externalStoreLocationName string, nativeStoreTTL int64) PayloadStoreOption {
 	return func(p *payloadStoreRepositoryImpl) {
 		p.externalStoreEnabled = true
 		p.externalStoreLocationName = &externalStoreLocationName
 		p.nativeStoreTTL = &nativeStoreTTL
-		p.externalHandler = handler
+		p.externalStore = store
 	}
 }
 
@@ -59,7 +59,6 @@ type PayloadStoreRepository interface {
 	Store(ctx context.Context, tx pgx.Tx, tenantId string, payloads ...StorePayloadOpts) error
 	Retrieve(ctx context.Context, tenantId string, opts RetrievePayloadOpts) ([]byte, error)
 	BulkRetrieve(ctx context.Context, tenantId string, opts ...RetrievePayloadOpts) (map[RetrievePayloadOpts][]byte, error)
-	ExternalHandler
 }
 
 type payloadStoreRepositoryImpl struct {
@@ -69,7 +68,7 @@ type payloadStoreRepositoryImpl struct {
 	externalStoreEnabled      bool
 	externalStoreLocationName *string
 	nativeStoreTTL            *int64
-	externalHandler           ExternalHandler
+	externalStore             ExternalStore
 }
 
 func NewPayloadStoreRepository(
@@ -85,7 +84,7 @@ func NewPayloadStoreRepository(
 		externalStoreEnabled:      false,
 		externalStoreLocationName: nil,
 		nativeStoreTTL:            nil,
-		externalHandler:           NewDefaultExternalHandler(),
+		externalStore:             &NoOpExternalStore{},
 	}
 
 	for _, opt := range opts {
@@ -168,7 +167,17 @@ func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx pgx.Tx, tenan
 		taskIds[i] = payload.Id
 		taskInsertedAts[i] = payload.InsertedAt
 		payloadTypes[i] = string(payload.Type)
-		payloadData[i] = payload.Payload
+
+		// Always store inline initially - offloading happens via cron job
+		content := PayloadContent{
+			Location:      PayloadLocationInline,
+			InlineContent: payload.Payload,
+		}
+		marshaledContent, err := content.Marshal()
+		if err != nil {
+			return fmt.Errorf("failed to marshal inline payload: %w", err)
+		}
+		payloadData[i] = marshaledContent
 	}
 
 	return p.queries.WritePayloads(ctx, tx, sqlcv1.WritePayloadsParams{
@@ -249,45 +258,37 @@ func (p *payloadStoreRepositoryImpl) BulkRetrieve(ctx context.Context, tenantId 
 		}
 	}
 
-	data, err := p.externalHandler.RetrieveFromExternal(ctx, tenantId, externalOptsToRetrieve...)
-
-	for opt, content := range data {
-		if content == nil {
-			p.l.Warn().Interface("opt", opt).Msg("external payload content is nil")
+	// Retrieve external payloads
+	for _, opt := range externalOptsToRetrieve {
+		externalKey := p.generateExternalKey(tenantId, StorePayloadOpts{
+			Id:         opt.Id,
+			InsertedAt: opt.InsertedAt,
+			Type:       opt.Type,
+		})
+		
+		data, err := p.externalStore.Retrieve(ctx, externalKey)
+		if err != nil {
+			p.l.Error().Err(err).Str("key", externalKey).Msg("failed to retrieve payload from external store")
 			continue
 		}
-		optsToPayload[opt] = content
+		
+		if data == nil {
+			p.l.Warn().Str("key", externalKey).Msg("external payload content is nil")
+			continue
+		}
+		
+		optsToPayload[opt] = data
 	}
 
 	return optsToPayload, nil
 }
 
-func (p *payloadStoreRepositoryImpl) OffloadToExternal(ctx context.Context, tenantId string, payloads ...StorePayloadOpts) error {
-	if p.externalHandler == nil {
-		return fmt.Errorf("no external handler configured")
-	}
+type NoOpExternalStore struct{}
 
-	return p.externalHandler.OffloadToExternal(ctx, tenantId, payloads...)
-}
-
-func (p *payloadStoreRepositoryImpl) RetrieveFromExternal(ctx context.Context, tenantId string, opts ...RetrievePayloadOpts) (map[RetrievePayloadOpts][]byte, error) {
-	if p.externalHandler == nil {
-		return nil, fmt.Errorf("no external handler configured")
-	}
-
-	return p.externalHandler.RetrieveFromExternal(ctx, tenantId, opts...)
-}
-
-type DefaultExternalHandler struct{}
-
-func NewDefaultExternalHandler() ExternalHandler {
-	return &DefaultExternalHandler{}
-}
-
-func (d *DefaultExternalHandler) OffloadToExternal(ctx context.Context, tenantId string, payloads ...StorePayloadOpts) error {
+func (n *NoOpExternalStore) Store(ctx context.Context, key string, data []byte) error {
 	return nil
 }
 
-func (d *DefaultExternalHandler) RetrieveFromExternal(ctx context.Context, tenantId string, opts ...RetrievePayloadOpts) (map[RetrievePayloadOpts][]byte, error) {
-	return nil, fmt.Errorf("retrieve from external not implemented")
+func (n *NoOpExternalStore) Retrieve(ctx context.Context, key string) ([]byte, error) {
+	return nil, fmt.Errorf("external store disabled")
 }
