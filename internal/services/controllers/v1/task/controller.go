@@ -41,25 +41,26 @@ type TasksController interface {
 }
 
 type TasksControllerImpl struct {
-	mq                     msgqueue.MessageQueue
-	pubBuffer              *msgqueue.MQPubBuffer
-	l                      *zerolog.Logger
-	queueLogger            *zerolog.Logger
-	pgxStatsLogger         *zerolog.Logger
-	repo                   repository.EngineRepository
-	repov1                 v1.Repository
-	dv                     datautils.DataDecoderValidator
-	s                      gocron.Scheduler
-	a                      *hatcheterrors.Wrapped
-	p                      *partition.Partition
-	celParser              *cel.CELParser
-	opsPoolPollInterval    time.Duration
-	opsPoolJitter          time.Duration
-	timeoutTaskOperations  *queueutils.OperationPool
-	reassignTaskOperations *queueutils.OperationPool
-	retryTaskOperations    *queueutils.OperationPool
-	emitSleepOperations    *queueutils.OperationPool
-	replayEnabled          bool
+	mq                          msgqueue.MessageQueue
+	pubBuffer                   *msgqueue.MQPubBuffer
+	l                           *zerolog.Logger
+	queueLogger                 *zerolog.Logger
+	pgxStatsLogger              *zerolog.Logger
+	repo                        repository.EngineRepository
+	repov1                      v1.Repository
+	dv                          datautils.DataDecoderValidator
+	s                           gocron.Scheduler
+	a                           *hatcheterrors.Wrapped
+	p                           *partition.Partition
+	celParser                   *cel.CELParser
+	opsPoolPollInterval         time.Duration
+	opsPoolJitter               time.Duration
+	timeoutTaskOperations       *queueutils.OperationPool
+	reassignTaskOperations      *queueutils.OperationPool
+	retryTaskOperations         *queueutils.OperationPool
+	emitSleepOperations         *queueutils.OperationPool
+	processPayloadWALOperations *queueutils.OperationPool
+	replayEnabled               bool
 }
 
 type TasksControllerOpt func(*TasksControllerOpts)
@@ -229,6 +230,7 @@ func New(fs ...TasksControllerOpt) (*TasksControllerImpl, error) {
 	t.emitSleepOperations = queueutils.NewOperationPool(opts.l, timeout, "emit sleep step runs", t.processSleeps).WithJitter(jitter)
 	t.reassignTaskOperations = queueutils.NewOperationPool(opts.l, timeout, "reassign step runs", t.processTaskReassignments).WithJitter(jitter)
 	t.retryTaskOperations = queueutils.NewOperationPool(opts.l, timeout, "retry step runs", t.processTaskRetryQueueItems).WithJitter(jitter)
+	t.processPayloadWALOperations = queueutils.NewOperationPool(opts.l, timeout, "process payload WAL", t.processPayloadWAL).WithJitter(jitter)
 
 	return t, nil
 }
@@ -345,6 +347,19 @@ func (tc *TasksControllerImpl) Start() (func() error, error) {
 		span.End()
 
 		return nil, wrappedErr
+	}
+
+	_, err = tc.s.NewJob(
+		// TODO: Make this configurable
+		gocron.DurationJob(time.Second*15),
+		gocron.NewTask(
+			tc.runProcessPayloadWAL(ctx),
+		),
+	)
+
+	if err != nil {
+		cancel()
+		return nil, fmt.Errorf("could not schedule process payload WAL: %w", err)
 	}
 
 	cleanup := func() error {
@@ -1149,12 +1164,12 @@ func (tc *TasksControllerImpl) signalDAGsCreated(ctx context.Context, tenantId s
 	return nil
 }
 
-func (tc *TasksControllerImpl) signalTasksCreated(ctx context.Context, tenantId string, tasks []*sqlcv1.V1Task) error {
+func (tc *TasksControllerImpl) signalTasksCreated(ctx context.Context, tenantId string, tasks []*v1.V1TaskWithPayload) error {
 	// group tasks by initial states
-	queuedTasks := make([]*sqlcv1.V1Task, 0)
-	failedTasks := make([]*sqlcv1.V1Task, 0)
-	cancelledTasks := make([]*sqlcv1.V1Task, 0)
-	skippedTasks := make([]*sqlcv1.V1Task, 0)
+	queuedTasks := make([]*v1.V1TaskWithPayload, 0)
+	failedTasks := make([]*v1.V1TaskWithPayload, 0)
+	cancelledTasks := make([]*v1.V1TaskWithPayload, 0)
+	skippedTasks := make([]*v1.V1TaskWithPayload, 0)
 
 	for _, task := range tasks {
 		switch task.InitialState {
@@ -1241,17 +1256,17 @@ func (tc *TasksControllerImpl) signalTasksCreated(ctx context.Context, tenantId 
 	return eg.Wait()
 }
 
-func (tc *TasksControllerImpl) signalTasksReplayedFromMatch(ctx context.Context, tenantId string, tasks []*sqlcv1.V1Task) error {
+func (tc *TasksControllerImpl) signalTasksReplayedFromMatch(ctx context.Context, tenantId string, tasks []*v1.V1TaskWithPayload) error {
 	if !tc.replayEnabled {
 		tc.l.Debug().Msg("replay is disabled, skipping signalTasksReplayedFromMatch")
 		return nil
 	}
 
 	// group tasks by initial states
-	queuedTasks := make([]*sqlcv1.V1Task, 0)
-	failedTasks := make([]*sqlcv1.V1Task, 0)
-	cancelledTasks := make([]*sqlcv1.V1Task, 0)
-	skippedTasks := make([]*sqlcv1.V1Task, 0)
+	queuedTasks := make([]*v1.V1TaskWithPayload, 0)
+	failedTasks := make([]*v1.V1TaskWithPayload, 0)
+	cancelledTasks := make([]*v1.V1TaskWithPayload, 0)
+	skippedTasks := make([]*v1.V1TaskWithPayload, 0)
 
 	for _, task := range tasks {
 		switch task.InitialState {
@@ -1319,12 +1334,12 @@ func (tc *TasksControllerImpl) signalTasksReplayedFromMatch(ctx context.Context,
 	return eg.Wait()
 }
 
-func (tc *TasksControllerImpl) signalTasksUpdated(ctx context.Context, tenantId string, tasks []*sqlcv1.V1Task) error {
+func (tc *TasksControllerImpl) signalTasksUpdated(ctx context.Context, tenantId string, tasks []*v1.V1TaskWithPayload) error {
 	// group tasks by initial states
-	queuedTasks := make([]*sqlcv1.V1Task, 0)
-	failedTasks := make([]*sqlcv1.V1Task, 0)
-	cancelledTasks := make([]*sqlcv1.V1Task, 0)
-	skippedTasks := make([]*sqlcv1.V1Task, 0)
+	queuedTasks := make([]*v1.V1TaskWithPayload, 0)
+	failedTasks := make([]*v1.V1TaskWithPayload, 0)
+	cancelledTasks := make([]*v1.V1TaskWithPayload, 0)
+	skippedTasks := make([]*v1.V1TaskWithPayload, 0)
 
 	for _, task := range tasks {
 		switch task.InitialState {
@@ -1392,7 +1407,7 @@ func (tc *TasksControllerImpl) signalTasksUpdated(ctx context.Context, tenantId 
 	return eg.Wait()
 }
 
-func (tc *TasksControllerImpl) signalTasksCreatedAndQueued(ctx context.Context, tenantId string, tasks []*sqlcv1.V1Task) error {
+func (tc *TasksControllerImpl) signalTasksCreatedAndQueued(ctx context.Context, tenantId string, tasks []*v1.V1TaskWithPayload) error {
 	// get all unique queues and notify them
 	queues := make(map[string]struct{})
 
@@ -1477,7 +1492,7 @@ func (tc *TasksControllerImpl) signalTasksCreatedAndQueued(ctx context.Context, 
 	return nil
 }
 
-func (tc *TasksControllerImpl) signalTasksCreatedAndCancelled(ctx context.Context, tenantId string, tasks []*sqlcv1.V1Task) error {
+func (tc *TasksControllerImpl) signalTasksCreatedAndCancelled(ctx context.Context, tenantId string, tasks []*v1.V1TaskWithPayload) error {
 	internalEvents := make([]v1.InternalTaskEvent, 0)
 
 	for _, task := range tasks {
@@ -1542,7 +1557,7 @@ func (tc *TasksControllerImpl) signalTasksCreatedAndCancelled(ctx context.Contex
 	return nil
 }
 
-func (tc *TasksControllerImpl) signalTasksCreatedAndFailed(ctx context.Context, tenantId string, tasks []*sqlcv1.V1Task) error {
+func (tc *TasksControllerImpl) signalTasksCreatedAndFailed(ctx context.Context, tenantId string, tasks []*v1.V1TaskWithPayload) error {
 	internalEvents := make([]v1.InternalTaskEvent, 0)
 
 	for _, task := range tasks {
@@ -1608,7 +1623,7 @@ func (tc *TasksControllerImpl) signalTasksCreatedAndFailed(ctx context.Context, 
 	return nil
 }
 
-func (tc *TasksControllerImpl) signalTasksCreatedAndSkipped(ctx context.Context, tenantId string, tasks []*sqlcv1.V1Task) error {
+func (tc *TasksControllerImpl) signalTasksCreatedAndSkipped(ctx context.Context, tenantId string, tasks []*v1.V1TaskWithPayload) error {
 	internalEvents := make([]v1.InternalTaskEvent, 0)
 
 	for _, task := range tasks {

@@ -39,7 +39,7 @@ func (e *TaskOutputEvent) IsCancelled() bool {
 	return e.EventType == sqlcv1.V1TaskEventTypeCANCELLED
 }
 
-func NewSkippedTaskOutputEventFromTask(task *sqlcv1.V1Task) *TaskOutputEvent {
+func NewSkippedTaskOutputEventFromTask(task *V1TaskWithPayload) *TaskOutputEvent {
 	outputMap := map[string]bool{
 		"skipped": true,
 	}
@@ -58,7 +58,7 @@ func NewSkippedTaskOutputEventFromTask(task *sqlcv1.V1Task) *TaskOutputEvent {
 	return e
 }
 
-func NewFailedTaskOutputEventFromTask(task *sqlcv1.V1Task) *TaskOutputEvent {
+func NewFailedTaskOutputEventFromTask(task *V1TaskWithPayload) *TaskOutputEvent {
 	e := baseFromTasksRow(task)
 	e.IsFailure = true
 	e.ErrorMessage = task.InitialStateReason.String
@@ -72,13 +72,13 @@ func NewFailedTaskOutputEventFromTask(task *sqlcv1.V1Task) *TaskOutputEvent {
 	return e
 }
 
-func NewCancelledTaskOutputEventFromTask(task *sqlcv1.V1Task) *TaskOutputEvent {
+func NewCancelledTaskOutputEventFromTask(task *V1TaskWithPayload) *TaskOutputEvent {
 	e := baseFromTasksRow(task)
 	e.EventType = sqlcv1.V1TaskEventTypeCANCELLED
 	return e
 }
 
-func baseFromTasksRow(task *sqlcv1.V1Task) *TaskOutputEvent {
+func baseFromTasksRow(task *V1TaskWithPayload) *TaskOutputEvent {
 	return &TaskOutputEvent{
 		TaskExternalId: sqlchelpers.UUIDToStr(task.ExternalID),
 		TaskId:         task.ID,
