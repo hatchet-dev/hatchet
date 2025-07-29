@@ -1534,6 +1534,12 @@ CREATE TABLE v1_payload_wal (
     payload_type v1_payload_type NOT NULL,
     operation v1_payload_wal_operation NOT NULL,
 
+    offload_process_lease_id UUID,
+    offload_process_lease_expires_at TIMESTAMPTZ,
+
     PRIMARY KEY (offload_at, payload_id, payload_inserted_at, payload_type, tenant_id),
     CONSTRAINT "v1_payload_wal_payload" FOREIGN KEY (payload_id, payload_inserted_at, payload_type, tenant_id) REFERENCES v1_payload (id, inserted_at, type, tenant_id) ON DELETE CASCADE
 );
+
+CREATE INDEX idx_payload_wal_lease_expiry ON v1_payload_wal (tenant_id, offload_process_lease_id) WHERE offload_process_lease_id IS NOT NULL;
+CREATE INDEX idx_payload_wal_lease_acquisition ON v1_payload_wal (tenant_id, offload_process_lease_id) WHERE offload_process_lease_id IS NULL;

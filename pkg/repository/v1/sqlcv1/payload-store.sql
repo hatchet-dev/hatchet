@@ -51,24 +51,6 @@ FROM
     inputs i
 ;
 
--- name: OffloadPayloadsToExternalStore :exec
-WITH inputs AS (
-    SELECT
-        UNNEST(@ids::BIGINT[]) AS id,
-        UNNEST(@insertedAts::TIMESTAMPTZ[]) AS inserted_at,
-        UNNEST(@values::JSONB[]) AS value
-)
-
-UPDATE v1_payload
-SET
-    value = i.value,
-    updated_at = NOW()
-FROM inputs i
-WHERE
-    v1_payload.tenant_id = @tenantId::UUID
-    AND v1_payload.id = i.id
-    AND v1_payload.inserted_at = i.inserted_at
-;
 
 -- name: WritePayloadWAL :exec
 WITH inputs AS (
@@ -100,29 +82,57 @@ FROM
 ;
 
 -- name: PollPayloadWALForRecordsToOffload :many
-SELECT *
-FROM v1_payload_wal
+WITH to_update AS (
+    SELECT *
+    FROM v1_payload_wal
+    WHERE
+        tenant_id = @tenantId::UUID
+        AND offload_at < NOW()
+        AND offload_process_lease_id IS NULL OR offload_process_lease_expires_at < NOW()
+    ORDER BY offload_at, payload_id, payload_inserted_at, payload_type
+    LIMIT @pollLimit::INT
+    FOR UPDATE SKIP LOCKED
+)
+
+UPDATE v1_payload_wal
+SET
+    offload_process_lease_id = @leaseId::UUID,
+    offload_process_lease_expires_at = NOW() + INTERVAL '5 minutes'
+FROM to_update
 WHERE
-    tenant_id = @tenantId::UUID
-    AND offload_at <= NOW()
-ORDER BY offload_at, payload_id, payload_inserted_at, payload_type
-LIMIT @pollLimit::INT
-FOR UPDATE SKIP LOCKED
+    v1_payload_wal.tenant_id = to_update.tenant_id
+    AND v1_payload_wal.offload_at = to_update.offload_at
+    AND v1_payload_wal.payload_id = to_update.payload_id
+    AND v1_payload_wal.payload_inserted_at = to_update.payload_inserted_at
+    AND v1_payload_wal.payload_type = to_update.payload_type
+RETURNING to_update.*
 ;
 
--- name: EvictPayloadWALRecords :exec
+-- name: FinalizePayloadOffloads :exec
 WITH inputs AS (
     SELECT
+        UNNEST(@ids::BIGINT[]) AS id,
+        UNNEST(@insertedAts::TIMESTAMPTZ[]) AS inserted_at,
+        UNNEST(CAST(@payloadTypes::TEXT[] AS v1_payload_type[])) AS type,
         UNNEST(@offloadAts::TIMESTAMPTZ[]) AS offload_at,
-        UNNEST(@payloadIds::BIGINT[]) AS payload_id,
-        UNNEST(@payloadInsertedAts::TIMESTAMPTZ[]) AS payload_inserted_at,
-        UNNEST(CAST(@payloadTypes::TEXT[] AS v1_payload_type[])) AS payload_type
+        UNNEST(@values::JSONB[]) AS value
+), payload_updates AS (
+    UPDATE v1_payload
+    SET
+        value = i.value,
+        updated_at = NOW()
+    FROM inputs i
+    WHERE
+        v1_payload.tenant_id = @tenantId::UUID
+        AND v1_payload.id = i.id
+        AND v1_payload.inserted_at = i.inserted_at
 )
+
 DELETE FROM v1_payload_wal
 WHERE
     tenant_id = @tenantId::UUID
     AND (offload_at, payload_id, payload_inserted_at, payload_type) IN (
-        SELECT offload_at, payload_id, payload_inserted_at, payload_type
+        SELECT offload_at, id, inserted_at, type
         FROM inputs
     )
 ;

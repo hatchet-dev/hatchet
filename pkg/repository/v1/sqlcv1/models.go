@@ -2726,12 +2726,14 @@ type V1Payload struct {
 }
 
 type V1PayloadWal struct {
-	TenantID          pgtype.UUID           `json:"tenant_id"`
-	OffloadAt         pgtype.Timestamptz    `json:"offload_at"`
-	PayloadID         int64                 `json:"payload_id"`
-	PayloadInsertedAt pgtype.Timestamptz    `json:"payload_inserted_at"`
-	PayloadType       V1PayloadType         `json:"payload_type"`
-	Operation         V1PayloadWalOperation `json:"operation"`
+	TenantID                     pgtype.UUID           `json:"tenant_id"`
+	OffloadAt                    pgtype.Timestamptz    `json:"offload_at"`
+	PayloadID                    int64                 `json:"payload_id"`
+	PayloadInsertedAt            pgtype.Timestamptz    `json:"payload_inserted_at"`
+	PayloadType                  V1PayloadType         `json:"payload_type"`
+	Operation                    V1PayloadWalOperation `json:"operation"`
+	OffloadProcessLeaseID        pgtype.UUID           `json:"offload_process_lease_id"`
+	OffloadProcessLeaseExpiresAt pgtype.Timestamptz    `json:"offload_process_lease_expires_at"`
 }
 
 type V1Queue struct {

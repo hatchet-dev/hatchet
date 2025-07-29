@@ -11,103 +11,109 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const evictPayloadWALRecords = `-- name: EvictPayloadWALRecords :exec
-WITH inputs AS (
-    SELECT
-        UNNEST($2::TIMESTAMPTZ[]) AS offload_at,
-        UNNEST($3::BIGINT[]) AS payload_id,
-        UNNEST($4::TIMESTAMPTZ[]) AS payload_inserted_at,
-        UNNEST(CAST($5::TEXT[] AS v1_payload_type[])) AS payload_type
-)
-DELETE FROM v1_payload_wal
-WHERE
-    tenant_id = $1::UUID
-    AND (offload_at, payload_id, payload_inserted_at, payload_type) IN (
-        SELECT offload_at, payload_id, payload_inserted_at, payload_type
-        FROM inputs
-    )
-`
-
-type EvictPayloadWALRecordsParams struct {
-	Tenantid           pgtype.UUID          `json:"tenantid"`
-	Offloadats         []pgtype.Timestamptz `json:"offloadats"`
-	Payloadids         []int64              `json:"payloadids"`
-	Payloadinsertedats []pgtype.Timestamptz `json:"payloadinsertedats"`
-	Payloadtypes       []string             `json:"payloadtypes"`
-}
-
-func (q *Queries) EvictPayloadWALRecords(ctx context.Context, db DBTX, arg EvictPayloadWALRecordsParams) error {
-	_, err := db.Exec(ctx, evictPayloadWALRecords,
-		arg.Tenantid,
-		arg.Offloadats,
-		arg.Payloadids,
-		arg.Payloadinsertedats,
-		arg.Payloadtypes,
-	)
-	return err
-}
-
-const offloadPayloadsToExternalStore = `-- name: OffloadPayloadsToExternalStore :exec
+const finalizePayloadOffloads = `-- name: FinalizePayloadOffloads :exec
 WITH inputs AS (
     SELECT
         UNNEST($2::BIGINT[]) AS id,
         UNNEST($3::TIMESTAMPTZ[]) AS inserted_at,
-        UNNEST($4::JSONB[]) AS value
+        UNNEST(CAST($4::TEXT[] AS v1_payload_type[])) AS type,
+        UNNEST($5::TIMESTAMPTZ[]) AS offload_at,
+        UNNEST($6::JSONB[]) AS value
+), payload_updates AS (
+    UPDATE v1_payload
+    SET
+        value = i.value,
+        updated_at = NOW()
+    FROM inputs i
+    WHERE
+        v1_payload.tenant_id = $1::UUID
+        AND v1_payload.id = i.id
+        AND v1_payload.inserted_at = i.inserted_at
 )
 
-UPDATE v1_payload
-SET
-    value = i.value,
-    updated_at = NOW()
-FROM inputs i
+DELETE FROM v1_payload_wal
 WHERE
-    v1_payload.tenant_id = $1::UUID
-    AND v1_payload.id = i.id
-    AND v1_payload.inserted_at = i.inserted_at
+    tenant_id = $1::UUID
+    AND (offload_at, payload_id, payload_inserted_at, payload_type) IN (
+        SELECT offload_at, id, inserted_at, type
+        FROM inputs
+    )
 `
 
-type OffloadPayloadsToExternalStoreParams struct {
-	Tenantid    pgtype.UUID          `json:"tenantid"`
-	Ids         []int64              `json:"ids"`
-	Insertedats []pgtype.Timestamptz `json:"insertedats"`
-	Values      [][]byte             `json:"values"`
+type FinalizePayloadOffloadsParams struct {
+	Tenantid     pgtype.UUID          `json:"tenantid"`
+	Ids          []int64              `json:"ids"`
+	Insertedats  []pgtype.Timestamptz `json:"insertedats"`
+	Payloadtypes []string             `json:"payloadtypes"`
+	Offloadats   []pgtype.Timestamptz `json:"offloadats"`
+	Values       [][]byte             `json:"values"`
 }
 
-func (q *Queries) OffloadPayloadsToExternalStore(ctx context.Context, db DBTX, arg OffloadPayloadsToExternalStoreParams) error {
-	_, err := db.Exec(ctx, offloadPayloadsToExternalStore,
+func (q *Queries) FinalizePayloadOffloads(ctx context.Context, db DBTX, arg FinalizePayloadOffloadsParams) error {
+	_, err := db.Exec(ctx, finalizePayloadOffloads,
 		arg.Tenantid,
 		arg.Ids,
 		arg.Insertedats,
+		arg.Payloadtypes,
+		arg.Offloadats,
 		arg.Values,
 	)
 	return err
 }
 
 const pollPayloadWALForRecordsToOffload = `-- name: PollPayloadWALForRecordsToOffload :many
-SELECT tenant_id, offload_at, payload_id, payload_inserted_at, payload_type, operation
-FROM v1_payload_wal
+WITH to_update AS (
+    SELECT tenant_id, offload_at, payload_id, payload_inserted_at, payload_type, operation, offload_process_lease_id, offload_process_lease_expires_at
+    FROM v1_payload_wal
+    WHERE
+        tenant_id = $2::UUID
+        AND offload_at < NOW()
+        AND offload_process_lease_id IS NULL OR offload_process_lease_expires_at < NOW()
+    ORDER BY offload_at, payload_id, payload_inserted_at, payload_type
+    LIMIT $3::INT
+    FOR UPDATE SKIP LOCKED
+)
+
+UPDATE v1_payload_wal
+SET
+    offload_process_lease_id = $1::UUID,
+    offload_process_lease_expires_at = NOW() + INTERVAL '5 minutes'
+FROM to_update
 WHERE
-    tenant_id = $1::UUID
-    AND offload_at <= NOW()
-ORDER BY offload_at, payload_id, payload_inserted_at, payload_type
-LIMIT $2::INT
-FOR UPDATE SKIP LOCKED
+    v1_payload_wal.tenant_id = to_update.tenant_id
+    AND v1_payload_wal.offload_at = to_update.offload_at
+    AND v1_payload_wal.payload_id = to_update.payload_id
+    AND v1_payload_wal.payload_inserted_at = to_update.payload_inserted_at
+    AND v1_payload_wal.payload_type = to_update.payload_type
+RETURNING to_update.tenant_id, to_update.offload_at, to_update.payload_id, to_update.payload_inserted_at, to_update.payload_type, to_update.operation, to_update.offload_process_lease_id, to_update.offload_process_lease_expires_at
 `
 
 type PollPayloadWALForRecordsToOffloadParams struct {
+	Leaseid   pgtype.UUID `json:"leaseid"`
 	Tenantid  pgtype.UUID `json:"tenantid"`
 	Polllimit int32       `json:"polllimit"`
 }
 
-func (q *Queries) PollPayloadWALForRecordsToOffload(ctx context.Context, db DBTX, arg PollPayloadWALForRecordsToOffloadParams) ([]*V1PayloadWal, error) {
-	rows, err := db.Query(ctx, pollPayloadWALForRecordsToOffload, arg.Tenantid, arg.Polllimit)
+type PollPayloadWALForRecordsToOffloadRow struct {
+	TenantID                     pgtype.UUID           `json:"tenant_id"`
+	OffloadAt                    pgtype.Timestamptz    `json:"offload_at"`
+	PayloadID                    int64                 `json:"payload_id"`
+	PayloadInsertedAt            pgtype.Timestamptz    `json:"payload_inserted_at"`
+	PayloadType                  V1PayloadType         `json:"payload_type"`
+	Operation                    V1PayloadWalOperation `json:"operation"`
+	OffloadProcessLeaseID        pgtype.UUID           `json:"offload_process_lease_id"`
+	OffloadProcessLeaseExpiresAt pgtype.Timestamptz    `json:"offload_process_lease_expires_at"`
+}
+
+func (q *Queries) PollPayloadWALForRecordsToOffload(ctx context.Context, db DBTX, arg PollPayloadWALForRecordsToOffloadParams) ([]*PollPayloadWALForRecordsToOffloadRow, error) {
+	rows, err := db.Query(ctx, pollPayloadWALForRecordsToOffload, arg.Leaseid, arg.Tenantid, arg.Polllimit)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []*V1PayloadWal
+	var items []*PollPayloadWALForRecordsToOffloadRow
 	for rows.Next() {
-		var i V1PayloadWal
+		var i PollPayloadWALForRecordsToOffloadRow
 		if err := rows.Scan(
 			&i.TenantID,
 			&i.OffloadAt,
@@ -115,6 +121,8 @@ func (q *Queries) PollPayloadWALForRecordsToOffload(ctx context.Context, db DBTX
 			&i.PayloadInsertedAt,
 			&i.PayloadType,
 			&i.Operation,
+			&i.OffloadProcessLeaseID,
+			&i.OffloadProcessLeaseExpiresAt,
 		); err != nil {
 			return nil, err
 		}
