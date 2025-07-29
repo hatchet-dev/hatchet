@@ -282,9 +282,40 @@ func (p *payloadStoreRepositoryImpl) OffloadToExternal(ctx context.Context, tena
 		return fmt.Errorf("external store not enabled")
 	}
 
-	_, err := p.externalStore.Store(ctx, tenantId, payloads...)
+	retrieveOpts, err := p.externalStore.Store(ctx, tenantId, payloads...)
+
+	if err != nil {
+		return fmt.Errorf("failed to store payloads externally: %w", err)
+	}
+
+	ids := make([]int64, len(retrieveOpts))
+	insertedAts := make([]pgtype.Timestamptz, len(retrieveOpts))
+	payloadsToOffload := make([][]byte, len(retrieveOpts))
+
+	for opt, key := range retrieveOpts {
+		content := PayloadContent{
+			Location:            PayloadLocationExternal,
+			ExternalLocationKey: &key,
+		}
+
+		marshaledContent, err := content.Marshal()
+
+		if err != nil {
+			return fmt.Errorf("failed to marshal external payload content: %w", err)
+		}
+
+		ids = append(ids, opt.Id)
+		insertedAts = append(insertedAts, opt.InsertedAt)
+		payloadsToOffload = append(payloadsToOffload, marshaledContent)
+	}
 
 	// TODO: Update payloads in the db in a tx-safe way here?
+	err = p.queries.OffloadPayloadsToExternalStore(ctx, p.pool, sqlcv1.OffloadPayloadsToExternalStoreParams{
+		Tenantid:    sqlchelpers.UUIDFromStr(tenantId),
+		Ids:         ids,
+		Insertedats: insertedAts,
+		Values:      payloadsToOffload,
+	})
 
 	if err != nil {
 		return fmt.Errorf("failed to store payloads externally: %w", err)
