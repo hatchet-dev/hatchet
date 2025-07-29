@@ -11,6 +11,42 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const offloadPayloadsToExternalStore = `-- name: OffloadPayloadsToExternalStore :exec
+WITH inputs AS (
+    SELECT
+        UNNEST($2::BIGINT[]) AS id,
+        UNNEST($3::TIMESTAMPTZ[]) AS inserted_at,
+        UNNEST($4::JSONB[]) AS value
+)
+
+UPDATE v1_payload
+SET
+    value = i.value,
+    updated_at = NOW()
+FROM inputs i
+WHERE
+    v1_payload.tenant_id = $1::UUID
+    AND v1_payload.id = i.id
+    AND v1_payload.inserted_at = i.inserted_at
+`
+
+type OffloadPayloadsToExternalStoreParams struct {
+	Tenantid    pgtype.UUID          `json:"tenantid"`
+	Ids         []int64              `json:"ids"`
+	Insertedats []pgtype.Timestamptz `json:"insertedats"`
+	Values      [][]byte             `json:"values"`
+}
+
+func (q *Queries) OffloadPayloadsToExternalStore(ctx context.Context, db DBTX, arg OffloadPayloadsToExternalStoreParams) error {
+	_, err := db.Exec(ctx, offloadPayloadsToExternalStore,
+		arg.Tenantid,
+		arg.Ids,
+		arg.Insertedats,
+		arg.Values,
+	)
+	return err
+}
+
 const readPayload = `-- name: ReadPayload :one
 SELECT tenant_id, id, inserted_at, type, value, updated_at
 FROM v1_payload

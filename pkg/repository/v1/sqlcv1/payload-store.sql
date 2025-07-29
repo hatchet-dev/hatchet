@@ -50,3 +50,22 @@ SELECT
 FROM
     inputs i
 ;
+
+-- name: OffloadPayloadsToExternalStore :exec
+WITH inputs AS (
+    SELECT
+        UNNEST(@ids::BIGINT[]) AS id,
+        UNNEST(@insertedAts::TIMESTAMPTZ[]) AS inserted_at,
+        UNNEST(@values::JSONB[]) AS value
+)
+
+UPDATE v1_payload
+SET
+    value = i.value,
+    updated_at = NOW()
+FROM inputs i
+WHERE
+    v1_payload.tenant_id = @tenantId::UUID
+    AND v1_payload.id = i.id
+    AND v1_payload.inserted_at = i.inserted_at
+;
