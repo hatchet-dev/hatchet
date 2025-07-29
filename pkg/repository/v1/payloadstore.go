@@ -365,10 +365,14 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadWAL(ctx context.Context, tena
 		return false, fmt.Errorf("failed to prepare transaction: %w", err)
 	}
 
+	pollLimit := 1000
+
 	walRecords, err := p.queries.PollPayloadWALForRecordsToOffload(ctx, tx, sqlcv1.PollPayloadWALForRecordsToOffloadParams{
 		Tenantid:  sqlchelpers.UUIDFromStr(tenantId),
-		Polllimit: 1000,
+		Polllimit: int32(pollLimit),
 	})
+
+	hasMoreWALRecords := len(walRecords) == pollLimit
 
 	if len(walRecords) == 0 {
 		return false, nil
@@ -436,7 +440,7 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadWAL(ctx context.Context, tena
 		return false, err
 	}
 
-	return true, nil
+	return hasMoreWALRecords, nil
 }
 
 type NoOpExternalStore struct{}
