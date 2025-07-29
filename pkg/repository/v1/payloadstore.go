@@ -47,22 +47,12 @@ type ExternalStore interface {
 	BulkRetrieve(ctx context.Context, tenantId string, keys ...ExternalPayloadLocationKey) (map[ExternalPayloadLocationKey][]byte, error)
 }
 
-type PayloadStoreOption func(*payloadStoreRepositoryImpl)
-
-func WithExternalStore(store ExternalStore, externalStoreLocationName string, nativeStoreTTL time.Duration) PayloadStoreOption {
-	return func(p *payloadStoreRepositoryImpl) {
-		p.externalStoreEnabled = true
-		p.externalStoreLocationName = &externalStoreLocationName
-		p.nativeStoreTTL = &nativeStoreTTL
-		p.externalStore = store
-	}
-}
-
 type PayloadStoreRepository interface {
 	Store(ctx context.Context, tx sqlcv1.DBTX, tenantId string, payloads ...StorePayloadOpts) error
 	Retrieve(ctx context.Context, tenantId string, opts RetrievePayloadOpts) ([]byte, error)
 	BulkRetrieve(ctx context.Context, tenantId string, opts ...RetrievePayloadOpts) (map[RetrievePayloadOpts][]byte, error)
 	ProcessPayloadWAL(ctx context.Context, tenantId string) (bool, error)
+	OverwriteExternalStore(store ExternalStore, externalStoreLocationName string, nativeStoreTTL time.Duration)
 }
 
 type payloadStoreRepositoryImpl struct {
@@ -79,9 +69,8 @@ func NewPayloadStoreRepository(
 	pool *pgxpool.Pool,
 	l *zerolog.Logger,
 	queries *sqlcv1.Queries,
-	opts ...PayloadStoreOption,
 ) PayloadStoreRepository {
-	repo := &payloadStoreRepositoryImpl{
+	return &payloadStoreRepositoryImpl{
 		pool:                      pool,
 		l:                         l,
 		queries:                   queries,
@@ -90,12 +79,6 @@ func NewPayloadStoreRepository(
 		nativeStoreTTL:            nil,
 		externalStore:             &NoOpExternalStore{},
 	}
-
-	for _, opt := range opts {
-		opt(repo)
-	}
-
-	return repo
 }
 
 func (p PayloadContent) Validate() error {
@@ -149,16 +132,6 @@ func UnmarshalPayloadContent(data []byte) (*PayloadContent, error) {
 	}
 
 	return &content, nil
-}
-
-func (p *payloadStoreRepositoryImpl) generateExternalKey(tenantId string, payload StorePayloadOpts) string {
-	// TODO: Not sure if I need a key generator like this
-	return fmt.Sprintf("%s/%s/%d/%d", tenantId, payload.Type, payload.Id, payload.InsertedAt.Time.Unix())
-}
-
-func (p *payloadStoreRepositoryImpl) shouldOffloadToExternal(payload []byte) bool {
-	// TODO - need to add some logic here based on TTL
-	return p.externalStoreEnabled
 }
 
 func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx sqlcv1.DBTX, tenantId string, payloads ...StorePayloadOpts) error {
@@ -447,6 +420,13 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadWAL(ctx context.Context, tena
 	}
 
 	return hasMoreWALRecords, nil
+}
+
+func (p *payloadStoreRepositoryImpl) OverwriteExternalStore(store ExternalStore, externalStoreLocationName string, nativeStoreTTL time.Duration) {
+	p.externalStoreEnabled = true
+	p.externalStoreLocationName = &externalStoreLocationName
+	p.nativeStoreTTL = &nativeStoreTTL
+	p.externalStore = store
 }
 
 type NoOpExternalStore struct{}
