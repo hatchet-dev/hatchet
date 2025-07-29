@@ -83,7 +83,7 @@ func (q *Queries) OffloadPayloadsToExternalStore(ctx context.Context, db DBTX, a
 	return err
 }
 
-const pollPayloadWALForRecordsToOffload = `-- name: PollPayloadWALForRecordsToOffload :exec
+const pollPayloadWALForRecordsToOffload = `-- name: PollPayloadWALForRecordsToOffload :many
 SELECT tenant_id, offload_at, payload_id, payload_inserted_at, payload_type, operation
 FROM v1_payload_wal
 WHERE
@@ -99,9 +99,31 @@ type PollPayloadWALForRecordsToOffloadParams struct {
 	Polllimit int32       `json:"polllimit"`
 }
 
-func (q *Queries) PollPayloadWALForRecordsToOffload(ctx context.Context, db DBTX, arg PollPayloadWALForRecordsToOffloadParams) error {
-	_, err := db.Exec(ctx, pollPayloadWALForRecordsToOffload, arg.Tenantid, arg.Polllimit)
-	return err
+func (q *Queries) PollPayloadWALForRecordsToOffload(ctx context.Context, db DBTX, arg PollPayloadWALForRecordsToOffloadParams) ([]*V1PayloadWal, error) {
+	rows, err := db.Query(ctx, pollPayloadWALForRecordsToOffload, arg.Tenantid, arg.Polllimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*V1PayloadWal
+	for rows.Next() {
+		var i V1PayloadWal
+		if err := rows.Scan(
+			&i.TenantID,
+			&i.OffloadAt,
+			&i.PayloadID,
+			&i.PayloadInsertedAt,
+			&i.PayloadType,
+			&i.Operation,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const readPayload = `-- name: ReadPayload :one

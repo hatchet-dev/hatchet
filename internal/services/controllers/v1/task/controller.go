@@ -39,25 +39,26 @@ type TasksController interface {
 }
 
 type TasksControllerImpl struct {
-	mq                     msgqueue.MessageQueue
-	pubBuffer              *msgqueue.MQPubBuffer
-	l                      *zerolog.Logger
-	queueLogger            *zerolog.Logger
-	pgxStatsLogger         *zerolog.Logger
-	repo                   repository.EngineRepository
-	repov1                 v1.Repository
-	dv                     datautils.DataDecoderValidator
-	s                      gocron.Scheduler
-	a                      *hatcheterrors.Wrapped
-	p                      *partition.Partition
-	celParser              *cel.CELParser
-	opsPoolPollInterval    time.Duration
-	opsPoolJitter          time.Duration
-	timeoutTaskOperations  *queueutils.OperationPool
-	reassignTaskOperations *queueutils.OperationPool
-	retryTaskOperations    *queueutils.OperationPool
-	emitSleepOperations    *queueutils.OperationPool
-	replayEnabled          bool
+	mq                          msgqueue.MessageQueue
+	pubBuffer                   *msgqueue.MQPubBuffer
+	l                           *zerolog.Logger
+	queueLogger                 *zerolog.Logger
+	pgxStatsLogger              *zerolog.Logger
+	repo                        repository.EngineRepository
+	repov1                      v1.Repository
+	dv                          datautils.DataDecoderValidator
+	s                           gocron.Scheduler
+	a                           *hatcheterrors.Wrapped
+	p                           *partition.Partition
+	celParser                   *cel.CELParser
+	opsPoolPollInterval         time.Duration
+	opsPoolJitter               time.Duration
+	timeoutTaskOperations       *queueutils.OperationPool
+	reassignTaskOperations      *queueutils.OperationPool
+	retryTaskOperations         *queueutils.OperationPool
+	emitSleepOperations         *queueutils.OperationPool
+	processPayloadWALOperations *queueutils.OperationPool
+	replayEnabled               bool
 }
 
 type TasksControllerOpt func(*TasksControllerOpts)
@@ -227,6 +228,7 @@ func New(fs ...TasksControllerOpt) (*TasksControllerImpl, error) {
 	t.emitSleepOperations = queueutils.NewOperationPool(opts.l, timeout, "emit sleep step runs", t.processSleeps).WithJitter(jitter)
 	t.reassignTaskOperations = queueutils.NewOperationPool(opts.l, timeout, "reassign step runs", t.processTaskReassignments).WithJitter(jitter)
 	t.retryTaskOperations = queueutils.NewOperationPool(opts.l, timeout, "retry step runs", t.processTaskRetryQueueItems).WithJitter(jitter)
+	t.processPayloadWALOperations = queueutils.NewOperationPool(opts.l, timeout, "process payload WAL", t.processPayloadWAL).WithJitter(jitter)
 
 	return t, nil
 }
@@ -311,6 +313,19 @@ func (tc *TasksControllerImpl) Start() (func() error, error) {
 	if err != nil {
 		cancel()
 		return nil, fmt.Errorf("could not schedule task partition method: %w", err)
+	}
+
+	_, err = tc.s.NewJob(
+		// TODO: Make this configurable
+		gocron.DurationJob(time.Second*15),
+		gocron.NewTask(
+			tc.runProcessPayloadWAL(ctx),
+		),
+	)
+
+	if err != nil {
+		cancel()
+		return nil, fmt.Errorf("could not schedule process payload WAL: %w", err)
 	}
 
 	cleanup := func() error {

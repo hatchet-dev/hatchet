@@ -99,7 +99,7 @@ FROM
     inputs i
 ;
 
--- name: PollPayloadWALForRecordsToOffload :exec
+-- name: PollPayloadWALForRecordsToOffload :many
 SELECT *
 FROM v1_payload_wal
 WHERE
