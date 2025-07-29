@@ -1523,3 +1523,17 @@ CREATE TABLE v1_payload (
 
     PRIMARY KEY (tenant_id, inserted_at, id, type)
 ) PARTITION BY RANGE(inserted_at);
+
+CREATE TYPE v1_payload_wal_operation AS ENUM ('INSERT', 'UPDATE', 'DELETE');
+
+CREATE TABLE v1_payload_wal (
+    tenant_id UUID NOT NULL,
+    offload_at TIMESTAMPTZ NOT NULL,
+    payload_id BIGINT NOT NULL,
+    payload_inserted_at TIMESTAMPTZ NOT NULL,
+    payload_type v1_payload_type NOT NULL,
+    operation v1_payload_wal_operation NOT NULL,
+
+    PRIMARY KEY (tenant_id, offload_at, payload_id, payload_inserted_at, payload_type),
+    CONSTRAINT "v1_payload_wal_payload" FOREIGN KEY (tenant_id, payload_id, payload_inserted_at, payload_type) REFERENCES v1_payload (tenant_id, id, inserted_at, type) ON DELETE CASCADE
+);
