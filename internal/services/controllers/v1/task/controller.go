@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/hashicorp/go-multierror"
 	"github.com/rs/zerolog"
+	"go.opentelemetry.io/otel/codes"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/hatchet-dev/hatchet/internal/cel"
@@ -253,7 +254,7 @@ func (tc *TasksControllerImpl) Start() (func() error, error) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 
-	spanContext, span := telemetry.NewSpan(ctx, "tasks-controller-start")
+	spanContext, span := telemetry.NewSpan(ctx, "TasksControllerImpl.Start")
 
 	_, err = tc.s.NewJob(
 		gocron.DurationJob(tc.opsPoolPollInterval),
@@ -263,13 +264,14 @@ func (tc *TasksControllerImpl) Start() (func() error, error) {
 	)
 
 	if err != nil {
-		err := fmt.Errorf("could not schedule step run timeout: %w", err)
+		wrappedErr := fmt.Errorf("could not schedule step run timeout: %w", err)
 
 		cancel()
 		span.RecordError(err)
+		span.SetStatus(codes.Error, "could not schedule step run timeout")
 		span.End()
 
-		return nil, err
+		return nil, wrappedErr
 	}
 
 	_, err = tc.s.NewJob(
@@ -280,13 +282,14 @@ func (tc *TasksControllerImpl) Start() (func() error, error) {
 	)
 
 	if err != nil {
-		err := fmt.Errorf("could not schedule step run emit sleep: %w", err)
+		wrappedErr := fmt.Errorf("could not schedule step run emit sleep: %w", err)
 
 		cancel()
 		span.RecordError(err)
+		span.SetStatus(codes.Error, "could not schedule step run emit sleep")
 		span.End()
 
-		return nil, err
+		return nil, wrappedErr
 	}
 
 	_, err = tc.s.NewJob(
@@ -297,13 +300,14 @@ func (tc *TasksControllerImpl) Start() (func() error, error) {
 	)
 
 	if err != nil {
-		err := fmt.Errorf("could not schedule step run reassignment: %w", err)
+		wrappedErr := fmt.Errorf("could not schedule step run reassignment: %w", err)
 
 		cancel()
 		span.RecordError(err)
+		span.SetStatus(codes.Error, "could not schedule step run reassignment")
 		span.End()
 
-		return nil, err
+		return nil, wrappedErr
 	}
 
 	_, err = tc.s.NewJob(
@@ -314,13 +318,14 @@ func (tc *TasksControllerImpl) Start() (func() error, error) {
 	)
 
 	if err != nil {
-		err := fmt.Errorf("could not schedule step run retry queue items: %w", err)
+		wrappedErr := fmt.Errorf("could not schedule step run retry queue items: %w", err)
 
 		cancel()
 		span.RecordError(err)
+		span.SetStatus(codes.Error, "could not schedule step run retry queue items")
 		span.End()
 
-		return nil, err
+		return nil, wrappedErr
 	}
 
 	_, err = tc.s.NewJob(
@@ -332,13 +337,14 @@ func (tc *TasksControllerImpl) Start() (func() error, error) {
 	)
 
 	if err != nil {
-		err := fmt.Errorf("could not schedule task partition method: %w", err)
+		wrappedErr := fmt.Errorf("could not schedule task partition method: %w", err)
 
 		cancel()
 		span.RecordError(err)
+		span.SetStatus(codes.Error, "could not schedule task partition method")
 		span.End()
 
-		return nil, err
+		return nil, wrappedErr
 	}
 
 	cleanup := func() error {
@@ -346,6 +352,7 @@ func (tc *TasksControllerImpl) Start() (func() error, error) {
 
 		if err := cleanupBuffer(); err != nil {
 			span.RecordError(err)
+			span.SetStatus(codes.Error, "could not cleanup buffer")
 			return err
 		}
 
@@ -355,6 +362,7 @@ func (tc *TasksControllerImpl) Start() (func() error, error) {
 			err := fmt.Errorf("could not shutdown scheduler: %w", err)
 
 			span.RecordError(err)
+			span.SetStatus(codes.Error, "could not shutdown scheduler")
 			return err
 		}
 

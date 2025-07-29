@@ -2,10 +2,10 @@ package task
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
+	"go.opentelemetry.io/otel/codes"
 )
 
 func (tc *TasksControllerImpl) runTaskTablePartition(ctx context.Context) func() {
@@ -19,9 +19,8 @@ func (tc *TasksControllerImpl) runTaskTablePartition(ctx context.Context) func()
 		tenant, err := tc.p.GetInternalTenantForController(ctx)
 
 		if err != nil {
-			err := fmt.Errorf("could not get internal tenant: %w", err)
-
 			span.RecordError(err)
+			span.SetStatus(codes.Error, "could not get internal tenant")
 			tc.l.Error().Err(err).Msg("could not get internal tenant")
 
 			return
@@ -34,9 +33,8 @@ func (tc *TasksControllerImpl) runTaskTablePartition(ctx context.Context) func()
 		err = tc.createTablePartition(ctx)
 
 		if err != nil {
-			err := fmt.Errorf("could not create table partition: %w", err)
-
 			span.RecordError(err)
+			span.SetStatus(codes.Error, "could not create table partition")
 			tc.l.Error().Err(err).Msg("could not create table partition")
 		}
 	}
@@ -52,9 +50,8 @@ func (tc *TasksControllerImpl) createTablePartition(ctx context.Context) error {
 	err := tc.repov1.Tasks().UpdateTablePartitions(qCtx)
 
 	if err != nil {
-		err := fmt.Errorf("could not create table partition: %w", err)
-
 		span.RecordError(err)
+		span.SetStatus(codes.Error, "could not create table partition")
 		return err
 	}
 
