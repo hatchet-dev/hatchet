@@ -27,7 +27,7 @@ type EventResult struct {
 	AdditionalMetadata string
 }
 
-func (i *IngestorImpl) ingestEventV1(ctx context.Context, tenant *dbsqlc.Tenant, key string, data []byte, metadata []byte, priority *int32, scope *string) (*dbsqlc.Event, error) {
+func (i *IngestorImpl) ingestEventV1(ctx context.Context, tenant *dbsqlc.Tenant, key string, data []byte, metadata []byte, priority *int32, scope, triggeringWebhookName *string) (*dbsqlc.Event, error) {
 	ctx, span := telemetry.NewSpan(ctx, "ingest-event")
 	defer span.End()
 
@@ -51,10 +51,10 @@ func (i *IngestorImpl) ingestEventV1(ctx context.Context, tenant *dbsqlc.Tenant,
 		)
 	}
 
-	return i.ingestSingleton(tenantId, key, data, metadata, priority, scope)
+	return i.ingestSingleton(tenantId, key, data, metadata, priority, scope, triggeringWebhookName)
 }
 
-func (i *IngestorImpl) ingestSingleton(tenantId, key string, data []byte, metadata []byte, priority *int32, scope *string) (*dbsqlc.Event, error) {
+func (i *IngestorImpl) ingestSingleton(tenantId, key string, data []byte, metadata []byte, priority *int32, scope, triggeringWebhookName *string) (*dbsqlc.Event, error) {
 	eventId := uuid.New().String()
 
 	msg, err := eventToTaskV1(
@@ -65,6 +65,7 @@ func (i *IngestorImpl) ingestSingleton(tenantId, key string, data []byte, metada
 		metadata,
 		priority,
 		scope,
+		triggeringWebhookName,
 	)
 
 	if err != nil {
@@ -119,7 +120,7 @@ func (i *IngestorImpl) bulkIngestEventV1(ctx context.Context, tenant *dbsqlc.Ten
 	results := make([]*dbsqlc.Event, 0, len(eventOpts))
 
 	for _, event := range eventOpts {
-		res, err := i.ingestSingleton(tenantId, event.Key, event.Data, event.AdditionalMetadata, event.Priority, event.Scope)
+		res, err := i.ingestSingleton(tenantId, event.Key, event.Data, event.AdditionalMetadata, event.Priority, event.Scope, event.TriggeringWebhookName)
 
 		if err != nil {
 			return nil, fmt.Errorf("could not ingest event: %w", err)
@@ -137,10 +138,10 @@ func (i *IngestorImpl) ingestReplayedEventV1(ctx context.Context, tenant *dbsqlc
 
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
-	return i.ingestSingleton(tenantId, replayedEvent.Key, replayedEvent.Data, replayedEvent.AdditionalMetadata, nil, nil)
+	return i.ingestSingleton(tenantId, replayedEvent.Key, replayedEvent.Data, replayedEvent.AdditionalMetadata, nil, nil, nil)
 }
 
-func eventToTaskV1(tenantId, eventExternalId, key string, data, additionalMeta []byte, priority *int32, scope *string) (*msgqueue.Message, error) {
+func eventToTaskV1(tenantId, eventExternalId, key string, data, additionalMeta []byte, priority *int32, scope *string, triggeringWebhookName *string) (*msgqueue.Message, error) {
 	payloadTyped := tasktypes.UserEventTaskPayload{
 		EventExternalId:         eventExternalId,
 		EventKey:                key,
@@ -148,6 +149,7 @@ func eventToTaskV1(tenantId, eventExternalId, key string, data, additionalMeta [
 		EventAdditionalMetadata: additionalMeta,
 		EventPriority:           priority,
 		EventScope:              scope,
+		TriggeringWebhookName:   triggeringWebhookName,
 	}
 
 	return msgqueue.NewTenantMessage(
@@ -157,6 +159,41 @@ func eventToTaskV1(tenantId, eventExternalId, key string, data, additionalMeta [
 		true,
 		payloadTyped,
 	)
+}
+
+func createWebhookValidationFailureMsg(tenantId, webhookName, errorText string) (*msgqueue.Message, error) {
+	payloadTyped := tasktypes.FailedWebhookValidationPayload{
+		WebhookName: webhookName,
+		ErrorText:   errorText,
+	}
+
+	return msgqueue.NewTenantMessage(
+		tenantId,
+		"failed-webhook-validation",
+		false,
+		true,
+		payloadTyped,
+	)
+}
+
+func (i *IngestorImpl) ingestWebhookValidationFailure(tenantId, webhookName, errorText string) error {
+	msg, err := createWebhookValidationFailureMsg(
+		tenantId,
+		webhookName,
+		errorText,
+	)
+
+	if err != nil {
+		return fmt.Errorf("could not create failed webhook validation payload: %w", err)
+	}
+
+	err = i.mqv1.SendMessage(context.Background(), msgqueue.OLAP_QUEUE, msg)
+
+	if err != nil {
+		return fmt.Errorf("could not add failed webhook validation to olap queue: %w", err)
+	}
+
+	return nil
 }
 
 func (i *IngestorImpl) ingestCELEvaluationFailure(ctx context.Context, tenantId, errorText string, source sqlcv1.V1CelEvaluationFailureSource) error {
