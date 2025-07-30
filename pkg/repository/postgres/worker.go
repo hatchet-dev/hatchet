@@ -207,24 +207,22 @@ func (w *workerAPIRepository) UpdateWorker(tenantId, workerId string, opts repos
 }
 
 type workerEngineRepository struct {
-	pool          *pgxpool.Pool
-	essentialPool *pgxpool.Pool
-	v             validator.Validator
-	queries       *dbsqlc.Queries
-	l             *zerolog.Logger
-	m             *metered.Metered
+	pool    *pgxpool.Pool
+	v       validator.Validator
+	queries *dbsqlc.Queries
+	l       *zerolog.Logger
+	m       *metered.Metered
 }
 
-func NewWorkerEngineRepository(pool *pgxpool.Pool, essentialPool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger, m *metered.Metered) repository.WorkerEngineRepository {
+func NewWorkerEngineRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger, m *metered.Metered) repository.WorkerEngineRepository {
 	queries := dbsqlc.New()
 
 	return &workerEngineRepository{
-		pool:          pool,
-		essentialPool: essentialPool,
-		v:             v,
-		queries:       queries,
-		l:             l,
-		m:             m,
+		pool:    pool,
+		v:       v,
+		queries: queries,
+		l:       l,
+		m:       m,
 	}
 }
 
@@ -500,8 +498,7 @@ func (w *workerEngineRepository) UpdateWorker(ctx context.Context, tenantId, wor
 }
 
 func (w *workerEngineRepository) UpdateWorkerHeartbeat(ctx context.Context, tenantId, workerId string, lastHeartbeat time.Time) error {
-
-	_, err := w.queries.UpdateWorkerHeartbeat(ctx, w.essentialPool, dbsqlc.UpdateWorkerHeartbeatParams{
+	_, err := w.queries.UpdateWorkerHeartbeat(ctx, w.pool, dbsqlc.UpdateWorkerHeartbeatParams{
 		ID:              sqlchelpers.UUIDFromStr(workerId),
 		LastHeartbeatAt: sqlchelpers.TimestampFromTime(lastHeartbeat),
 	})

@@ -20,10 +20,11 @@ import (
 )
 
 type TracerOpts struct {
-	ServiceName  string
-	CollectorURL string
-	Insecure     bool
-	TraceIdRatio string
+	ServiceName   string
+	CollectorURL  string
+	Insecure      bool
+	TraceIdRatio  string
+	CollectorAuth string
 }
 
 func InitTracer(opts *TracerOpts) (func(context.Context) error, error) {
@@ -47,6 +48,9 @@ func InitTracer(opts *TracerOpts) (func(context.Context) error, error) {
 		otlptracegrpc.NewClient(
 			secureOption,
 			otlptracegrpc.WithEndpoint(opts.CollectorURL),
+			otlptracegrpc.WithHeaders(map[string]string{
+				"Authorization": opts.CollectorAuth,
+			}),
 		),
 	)
 
