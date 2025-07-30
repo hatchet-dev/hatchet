@@ -5,6 +5,12 @@ All notable changes to Hatchet's Python SDK will be documented in this changelog
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.17.0] - 2025-07-31
+
+### Added
+
+- Adds support for dependency injection in tasks via the `Depends` class.
+
 ## [1.16.4] - 2025-07-28
 
 ### Added
