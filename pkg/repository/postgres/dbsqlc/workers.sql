@@ -250,7 +250,7 @@ WHERE
   "webhookId" = @webhookId::uuid
 RETURNING *;
 
--- name: UpdateWorkerActiveStatus :one
+-- name: UpdateWorkerActiveStatus :exec
 UPDATE "Worker"
 SET
     "isActive" = @isActive::boolean,
@@ -258,10 +258,10 @@ SET
 WHERE
     "id" = @id::uuid
     AND (
-        "lastListenerEstablished" IS NULL
-        OR "lastListenerEstablished" <= sqlc.narg('lastListenerEstablished')::timestamp
-        )
-RETURNING *;
+        "isActive" != @isActive::boolean
+        OR "lastListenerEstablished" IS NULL
+        OR "lastListenerEstablished" < sqlc.narg('lastListenerEstablished')::timestamp - INTERVAL '100 milliseconds'
+    );
 
 -- name: ListWorkerLabels :many
 SELECT

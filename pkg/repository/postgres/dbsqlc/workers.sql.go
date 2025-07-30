@@ -859,7 +859,7 @@ func (q *Queries) UpdateWorker(ctx context.Context, db DBTX, arg UpdateWorkerPar
 	return &i, err
 }
 
-const updateWorkerActiveStatus = `-- name: UpdateWorkerActiveStatus :one
+const updateWorkerActiveStatus = `-- name: UpdateWorkerActiveStatus :exec
 UPDATE "Worker"
 SET
     "isActive" = $1::boolean,
@@ -867,10 +867,10 @@ SET
 WHERE
     "id" = $3::uuid
     AND (
-        "lastListenerEstablished" IS NULL
-        OR "lastListenerEstablished" <= $2::timestamp
-        )
-RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "lastHeartbeatAt", name, "dispatcherId", "maxRuns", "isActive", "lastListenerEstablished", "isPaused", type, "webhookId", language, "languageVersion", os, "runtimeExtra", "sdkVersion"
+        "isActive" != $1::boolean
+        OR "lastListenerEstablished" IS NULL
+        OR "lastListenerEstablished" < $2::timestamp - INTERVAL '100 milliseconds'
+    )
 `
 
 type UpdateWorkerActiveStatusParams struct {
@@ -879,31 +879,9 @@ type UpdateWorkerActiveStatusParams struct {
 	ID                      pgtype.UUID      `json:"id"`
 }
 
-func (q *Queries) UpdateWorkerActiveStatus(ctx context.Context, db DBTX, arg UpdateWorkerActiveStatusParams) (*Worker, error) {
-	row := db.QueryRow(ctx, updateWorkerActiveStatus, arg.Isactive, arg.LastListenerEstablished, arg.ID)
-	var i Worker
-	err := row.Scan(
-		&i.ID,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.DeletedAt,
-		&i.TenantId,
-		&i.LastHeartbeatAt,
-		&i.Name,
-		&i.DispatcherId,
-		&i.MaxRuns,
-		&i.IsActive,
-		&i.LastListenerEstablished,
-		&i.IsPaused,
-		&i.Type,
-		&i.WebhookId,
-		&i.Language,
-		&i.LanguageVersion,
-		&i.Os,
-		&i.RuntimeExtra,
-		&i.SdkVersion,
-	)
-	return &i, err
+func (q *Queries) UpdateWorkerActiveStatus(ctx context.Context, db DBTX, arg UpdateWorkerActiveStatusParams) error {
+	_, err := db.Exec(ctx, updateWorkerActiveStatus, arg.Isactive, arg.LastListenerEstablished, arg.ID)
+	return err
 }
 
 const updateWorkerHeartbeat = `-- name: UpdateWorkerHeartbeat :one
