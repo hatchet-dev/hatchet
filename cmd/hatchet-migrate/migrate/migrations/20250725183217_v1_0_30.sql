@@ -1,6 +1,6 @@
 -- +goose Up
 -- +goose StatementBegin
-CREATE TYPE v1_cel_evaluation_failure_source AS ENUM ('FILTER', 'WEBHOOK', 'DEBUG');
+CREATE TYPE v1_cel_evaluation_failure_source AS ENUM ('FILTER', 'WEBHOOK');
 
 CREATE TABLE v1_cel_evaluation_failures_olap (
     id BIGINT NOT NULL GENERATED ALWAYS AS IDENTITY,
