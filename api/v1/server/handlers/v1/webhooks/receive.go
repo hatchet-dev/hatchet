@@ -14,19 +14,23 @@ import (
 	"hash"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/internal/cel"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 	"github.com/labstack/echo/v4"
 )
 
 func (w *V1WebhooksService) V1WebhookReceive(ctx echo.Context, request gen.V1WebhookReceiveRequestObject) (gen.V1WebhookReceiveResponseObject, error) {
-	maybeTenant := ctx.Get("tenant")
+	tenantId := request.Tenant.String()
+	webhookName := request.V1Webhook
 
-	if maybeTenant == nil {
+	tenant, err := w.config.APIRepository.Tenant().GetTenantByID(ctx.Request().Context(), tenantId)
+
+	if err != nil || tenant == nil {
 		return gen.V1WebhookReceive400JSONResponse{
 			Errors: []gen.APIError{
 				{
@@ -36,8 +40,27 @@ func (w *V1WebhooksService) V1WebhookReceive(ctx echo.Context, request gen.V1Web
 		}, nil
 	}
 
-	tenant := maybeTenant.(*dbsqlc.Tenant)
-	webhook := ctx.Get("v1-webhook").(*sqlcv1.V1IncomingWebhook)
+	webhook, err := w.config.V1.Webhooks().GetWebhook(ctx.Request().Context(), tenantId, webhookName)
+
+	if err != nil || webhook == nil {
+		return gen.V1WebhookReceive400JSONResponse{
+			Errors: []gen.APIError{
+				{
+					Description: fmt.Sprintf("webhook %s not found for tenant %s", webhookName, tenantId),
+				},
+			},
+		}, nil
+	}
+
+	if webhook.TenantID.String() != tenantId {
+		return gen.V1WebhookReceive403JSONResponse{
+			Errors: []gen.APIError{
+				{
+					Description: fmt.Sprintf("webhook %s does not belong to tenant %s", webhookName, tenantId),
+				},
+			},
+		}, nil
+	}
 
 	rawBody, err := io.ReadAll(ctx.Request().Body)
 
@@ -265,6 +288,22 @@ func (w *V1WebhooksService) validateWebhook(webhookPayload []byte, webhook sqlcv
 			}
 		}
 
+		parsedTimestamp, err := strconv.ParseInt(timestamp, 10, 64)
+
+		if err != nil {
+			return false, &ValidationError{
+				Code:      Http400,
+				ErrorText: fmt.Sprintf("invalid timestamp in signature header: %s", err),
+			}
+		}
+
+		if time.Unix(parsedTimestamp, 0).UTC().Before(time.Now().Add(-10 * time.Minute)) {
+			return false, &ValidationError{
+				Code:      Http400,
+				ErrorText: "timestamp in signature header is out of range",
+			}
+		}
+
 		decryptedSigningSecret, err := w.config.Encryption.Decrypt(webhook.AuthHmacWebhookSigningSecret, "v1_webhook_hmac_signing_secret")
 		if err != nil {
 			return false, &ValidationError{
@@ -282,7 +321,7 @@ func (w *V1WebhooksService) validateWebhook(webhookPayload []byte, webhook sqlcv
 
 		if err != nil {
 			return false, &ValidationError{
-				Code:      Http500,
+				Code:      Http403,
 				ErrorText: fmt.Sprintf("failed to compute HMAC signature: %s", err),
 			}
 		}
@@ -404,7 +443,10 @@ func signaturesMatch(providedSignature, expectedSignature string) bool {
 	providedSignature = strings.TrimSpace(providedSignature)
 	expectedSignature = strings.TrimSpace(expectedSignature)
 
-	return strings.EqualFold(removePrefixesFromSignature(providedSignature), removePrefixesFromSignature(expectedSignature))
+	return hmac.Equal(
+		[]byte(removePrefixesFromSignature(providedSignature)),
+		[]byte(removePrefixesFromSignature(expectedSignature)),
+	)
 }
 
 func removePrefixesFromSignature(signature string) string {
