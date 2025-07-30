@@ -10,27 +10,25 @@ import UniversalTabs from "@/components/UniversalTabs";
   to change.
 </Callout>
 
-Hatchet's Python SDK allows you inject **_dependencies_** into your tasks, FastAPI style. These dependencies can be either sync or async functions, and are executed before the task is triggered and their results are injected into the task as parameters. This behaves almost identically to [FastAPI's dependency injection](https://fastapi.tiangolo.com/tutorial/dependencies/), and is intended to be used in the same way. Dependencies are useful for sharing any logic between tasks that you'd like to avoid repeating, or would like to factor out of the task logic itself (e.g. for ease of testing).
+Hatchet's Python SDK allows you to inject **_dependencies_** into your tasks, FastAPI style. These dependencies can be either synchronous or asynchronous functions. They are executed before the task is triggered, and their results are injected into the task as parameters. This behaves almost identically to [FastAPI's dependency injection](https://fastapi.tiangolo.com/tutorial/dependencies/), and is intended to be used in the same way. Dependencies are useful for sharing logic between tasks that you'd like to avoid repeating, or would like to factor out of the task logic itself (e.g. to make testing easier).
 
 <Callout type="warning" emoji="⚠️">
-  Since dependencies are run before tasks are executed, having a large number of
-  dependencies (or any that take a long time to evaluate) can cause tasks to see
-  significantly delayed start times, caused by waiting for the dependencies to
-  finish evaluating.
+Since dependencies are run before tasks are executed, having many dependencies (or any that take a long time to evaluate) can cause tasks to experience significantly delayed start times, as they must wait for all dependencies to finish evaluating.
+
 </Callout>
 
 ## Usage
 
-To use add dependencies to your tasks, import `Depends` from the `hatchet_sdk`. Then:
+To add dependencies to your tasks, import `Depends` from the `hatchet_sdk`. Then:
 
 <Snippet
   src={snips.python.dependency_injection.worker}
   block="declare_dependencies"
 />
 
-In this example, we've declared two dependencies: one sync, and one async. You can do whatever you like in your dependencies, such as creating database sessions, managing configuration, sharing instances of service-layer logic, and so on.
+In this example, we've declared two dependencies: one synchronous and one asynchronous. You can do anything you like in your dependencies, such as creating database sessions, managing configuration, sharing instances of service-layer logic, and more.
 
-Once you've defined your dependency functions, inject them into your tasks like this:
+Once you've defined your dependency functions, inject them into your tasks as follows:
 
 <Snippet
   src={snips.python.dependency_injection.worker}
@@ -38,7 +36,7 @@ Once you've defined your dependency functions, inject them into your tasks like 
 />
 
 <Callout type="warning" emoji="⚠️">
-  Important note: your dependency functions must take no arguments.
+  Important note: Your dependency functions must not take any arguments.
 </Callout>
 
-And that's it! Now, any time your task is triggered, its dependencies will be evaluated and the results will be injected into the task at runtime for you to use as you wish.
+That's it! Now, whenever your task is triggered, its dependencies will be evaluated, and the results will be injected into the task at runtime for you to use as needed.
