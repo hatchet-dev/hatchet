@@ -1,6 +1,6 @@
 import asyncio
 from collections.abc import Callable
-from inspect import iscoroutinefunction, signature
+from inspect import Parameter, iscoroutinefunction, signature
 from typing import (
     TYPE_CHECKING,
     Annotated,
@@ -14,6 +14,8 @@ from typing import (
     get_origin,
     get_type_hints,
 )
+
+from pydantic import BaseModel, ConfigDict
 
 from hatchet_sdk.conditions import (
     Action,
@@ -61,6 +63,13 @@ P = ParamSpec("P")
 class Depends(Generic[T]):
     def __init__(self, fn: Callable[..., T | CoroutineLike[T]]) -> None:
         self.fn = fn
+
+
+class DependencyToInject(BaseModel):
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    name: str
+    value: Any
 
 
 class Task(Generic[TWorkflowInput, R]):
@@ -125,31 +134,37 @@ class Task(Generic[TWorkflowInput, R]):
             step_output=return_type if is_basemodel_subclass(return_type) else None,
         )
 
+    async def _parse_parameter(
+        self, name: str, param: Parameter
+    ) -> DependencyToInject | None:
+        annotation = param.annotation
+
+        if get_origin(annotation) is Annotated:
+            args = get_args(annotation)
+
+            if len(args) < 2:
+                return None
+
+            metadata = args[1:]
+
+            for item in metadata:
+                if isinstance(item, Depends):
+                    if iscoroutinefunction(item.fn):
+                        return DependencyToInject(name=name, value=await item.fn())
+
+                    return DependencyToInject(
+                        name=name, value=await asyncio.to_thread(item.fn)
+                    )
+
+        return None
+
     async def _unpack_dependencies(self) -> dict[str, Any]:
         sig = signature(self.fn)
-        dependencies: dict[str, Any] = {}
-
-        for name, param in sig.parameters.items():
-            annotation = param.annotation
-
-            if get_origin(annotation) is Annotated:
-                args = get_args(annotation)
-
-                if len(args) < 2:
-                    continue
-
-                metadata = args[1:]
-
-                for item in metadata:
-                    if isinstance(item, Depends):
-                        if iscoroutinefunction(item.fn):
-                            dependencies[name] = await item.fn()
-                        else:
-                            dependencies[name] = await asyncio.to_thread(item.fn)
-
-                        break
-
-        return dependencies
+        return {
+            parsed.name: parsed.value
+            for n, p in sig.parameters.items()
+            if (parsed := await self._parse_parameter(n, p)) is not None
+        }
 
     def call(
         self, ctx: Context | DurableContext, dependencies: dict[str, Any] | None = None
