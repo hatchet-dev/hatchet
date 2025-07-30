@@ -1,5 +1,19 @@
+import asyncio
 from collections.abc import Callable
-from typing import TYPE_CHECKING, Any, Generic, cast, get_type_hints
+from inspect import iscoroutinefunction, signature
+from typing import (
+    TYPE_CHECKING,
+    Annotated,
+    Any,
+    Concatenate,
+    Generic,
+    ParamSpec,
+    TypeVar,
+    cast,
+    get_args,
+    get_origin,
+    get_type_hints,
+)
 
 from hatchet_sdk.conditions import (
     Action,
@@ -25,7 +39,6 @@ from hatchet_sdk.runnables.types import (
     StepType,
     TWorkflowInput,
     is_async_fn,
-    is_durable_sync_fn,
     is_sync_fn,
 )
 from hatchet_sdk.utils.timedelta_to_expression import Duration, timedelta_to_expr
@@ -41,16 +54,28 @@ from hatchet_sdk.worker.runner.utils.capture_logs import AsyncLogSender
 if TYPE_CHECKING:
     from hatchet_sdk.runnables.workflow import Workflow
 
+T = TypeVar("T")
+P = ParamSpec("P")
+
+
+class Depends(Generic[T]):
+    def __init__(self, fn: Callable[..., T | CoroutineLike[T]]) -> None:
+        self.fn = fn
+
 
 class Task(Generic[TWorkflowInput, R]):
     def __init__(
         self,
         _fn: (
-            Callable[[TWorkflowInput, Context], R | CoroutineLike[R]]
-            | Callable[[TWorkflowInput, Context], AwaitableLike[R]]
+            Callable[Concatenate[TWorkflowInput, Context, P], R | CoroutineLike[R]]
+            | Callable[Concatenate[TWorkflowInput, Context, P], AwaitableLike[R]]
             | (
-                Callable[[TWorkflowInput, DurableContext], R | CoroutineLike[R]]
-                | Callable[[TWorkflowInput, DurableContext], AwaitableLike[R]]
+                Callable[
+                    Concatenate[TWorkflowInput, DurableContext, P], R | CoroutineLike[R]
+                ]
+                | Callable[
+                    Concatenate[TWorkflowInput, DurableContext, P], AwaitableLike[R]
+                ]
             )
         ),
         is_durable: bool,
@@ -100,33 +125,59 @@ class Task(Generic[TWorkflowInput, R]):
             step_output=return_type if is_basemodel_subclass(return_type) else None,
         )
 
-    def call(self, ctx: Context | DurableContext) -> R:
+    async def _unpack_dependencies(self) -> dict[str, Any]:
+        sig = signature(self.fn)
+        dependencies: dict[str, Any] = {}
+
+        for name, param in sig.parameters.items():
+            annotation = param.annotation
+
+            if get_origin(annotation) is Annotated:
+                args = get_args(annotation)
+
+                if len(args) < 2:
+                    continue
+
+                metadata = args[1:]
+
+                for item in metadata:
+                    if isinstance(item, Depends):
+                        if iscoroutinefunction(item.fn):
+                            dependencies[name] = await item.fn()
+                        else:
+                            dependencies[name] = await asyncio.to_thread(item.fn)
+
+                        break
+
+        return dependencies
+
+    def call(
+        self, ctx: Context | DurableContext, dependencies: dict[str, Any] | None = None
+    ) -> R:
         if self.is_async_function:
             raise TypeError(f"{self.name} is not a sync function. Use `acall` instead.")
 
         workflow_input = self.workflow._get_workflow_input(ctx)
+        dependencies = dependencies or {}
 
-        if self.is_durable:
-            fn = cast(Callable[[TWorkflowInput, DurableContext], R], self.fn)
-            if is_durable_sync_fn(fn):
-                return fn(workflow_input, cast(DurableContext, ctx))
-        else:
-            fn = cast(Callable[[TWorkflowInput, Context], R], self.fn)
-            if is_sync_fn(fn):
-                return fn(workflow_input, ctx)
+        if is_sync_fn(self.fn):  # type: ignore
+            return self.fn(workflow_input, cast(Context, ctx), **dependencies)  # type: ignore
 
         raise TypeError(f"{self.name} is not a sync function. Use `acall` instead.")
 
-    async def aio_call(self, ctx: Context | DurableContext) -> R:
+    async def aio_call(
+        self, ctx: Context | DurableContext, dependencies: dict[str, Any] | None = None
+    ) -> R:
         if not self.is_async_function:
             raise TypeError(
                 f"{self.name} is not an async function. Use `call` instead."
             )
 
         workflow_input = self.workflow._get_workflow_input(ctx)
+        dependencies = dependencies or {}
 
         if is_async_fn(self.fn):  # type: ignore
-            return await self.fn(workflow_input, cast(Context, ctx))  # type: ignore
+            return await self.fn(workflow_input, cast(Context, ctx), **dependencies)  # type: ignore
 
         raise TypeError(f"{self.name} is not an async function. Use `call` instead.")
 
@@ -255,6 +306,7 @@ class Task(Generic[TWorkflowInput, R]):
         parent_outputs: dict[str, JSONSerializableMapping] | None = None,
         retry_count: int = 0,
         lifespan: Any = None,
+        dependencies: dict[str, Any] | None = None,
     ) -> R:
         """
         Mimic the execution of a task. This method is intended to be used to unit test
@@ -266,6 +318,7 @@ class Task(Generic[TWorkflowInput, R]):
         :param parent_outputs: Outputs from parent tasks, if any. This is useful for mimicking DAG functionality. For instance, if you have a task `step_2` that has a `parent` which is `step_1`, you can pass `parent_outputs={"step_1": {"result": "Hello, world!"}}` to `step_2.mock_run()` to be able to access `ctx.task_output(step_1)` in `step_2`.
         :param retry_count: The number of times the task has been retried.
         :param lifespan: The lifespan to be used in the task, which is useful if one was set on the worker. This will allow you to access `ctx.lifespan` inside of your task.
+        :param dependencies: Dependencies to be injected into the task. This is useful for tasks that have dependencies defined using `Depends`. **IMPORTANT**: You must pass the dependencies _directly_, **not** the `Depends` objects themselves. For example, if you have a task that has a dependency `config: Annotated[str, Depends(get_config)]`, you should pass `dependencies={"config": "config_value"}` to `aio_mock_run`.
 
         :return: The output of the task.
         :raises TypeError: If the task is an async function and `mock_run` is called, or if the task is a sync function and `aio_mock_run` is called.
@@ -280,7 +333,7 @@ class Task(Generic[TWorkflowInput, R]):
             input, additional_metadata, parent_outputs, retry_count, lifespan
         )
 
-        return self.call(ctx)
+        return self.call(ctx, dependencies)
 
     async def aio_mock_run(
         self,
@@ -289,6 +342,7 @@ class Task(Generic[TWorkflowInput, R]):
         parent_outputs: dict[str, JSONSerializableMapping] | None = None,
         retry_count: int = 0,
         lifespan: Any = None,
+        dependencies: dict[str, Any] | None = None,
     ) -> R:
         """
         Mimic the execution of a task. This method is intended to be used to unit test
@@ -300,6 +354,7 @@ class Task(Generic[TWorkflowInput, R]):
         :param parent_outputs: Outputs from parent tasks, if any. This is useful for mimicking DAG functionality. For instance, if you have a task `step_2` that has a `parent` which is `step_1`, you can pass `parent_outputs={"step_1": {"result": "Hello, world!"}}` to `step_2.mock_run()` to be able to access `ctx.task_output(step_1)` in `step_2`.
         :param retry_count: The number of times the task has been retried.
         :param lifespan: The lifespan to be used in the task, which is useful if one was set on the worker. This will allow you to access `ctx.lifespan` inside of your task.
+        :param dependencies: Dependencies to be injected into the task. This is useful for tasks that have dependencies defined using `Depends`. **IMPORTANT**: You must pass the dependencies _directly_, **not** the `Depends` objects themselves. For example, if you have a task that has a dependency `config: Annotated[str, Depends(get_config)]`, you should pass `dependencies={"config": "config_value"}` to `aio_mock_run`.
 
         :return: The output of the task.
         :raises TypeError: If the task is an async function and `mock_run` is called, or if the task is a sync function and `aio_mock_run` is called.
@@ -318,4 +373,4 @@ class Task(Generic[TWorkflowInput, R]):
             lifespan,
         )
 
-        return await self.aio_call(ctx)
+        return await self.aio_call(ctx, dependencies)
