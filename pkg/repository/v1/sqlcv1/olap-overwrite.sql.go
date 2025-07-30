@@ -403,8 +403,8 @@ type BulkCreateEventsParams struct {
 	Keys                   []string             `json:"keys"`
 	Payloads               [][]byte             `json:"payloads"`
 	Additionalmetadatas    [][]byte             `json:"additionalmetadatas"`
-	Scopes                 []*string            `json:"scopes"`
-	TriggeringWebhookNames []*string            `json:"triggeringWebhookName"`
+	Scopes                 []pgtype.Text        `json:"scopes"`
+	TriggeringWebhookNames []pgtype.Text        `json:"triggeringWebhookName"`
 }
 
 func (q *Queries) BulkCreateEvents(ctx context.Context, db DBTX, arg BulkCreateEventsParams) ([]*V1EventsOlap, error) {

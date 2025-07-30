@@ -413,8 +413,8 @@ func (tc *OLAPControllerImpl) handleCreateEventTriggers(ctx context.Context, ten
 	keys := make([]string, 0)
 	payloadstoInsert := make([][]byte, 0)
 	additionalMetadatas := make([][]byte, 0)
-	scopes := make([]*string, 0)
-	triggeringWebhookNames := make([]*string, 0)
+	scopes := make([]pgtype.Text, 0)
+	triggeringWebhookNames := make([]pgtype.Text, 0)
 
 	for _, msg := range msgs {
 		for _, payload := range msg.Payloads {
@@ -447,8 +447,20 @@ func (tc *OLAPControllerImpl) handleCreateEventTriggers(ctx context.Context, ten
 			keys = append(keys, payload.EventKey)
 			payloadstoInsert = append(payloadstoInsert, payload.EventPayload)
 			additionalMetadatas = append(additionalMetadatas, payload.EventAdditionalMetadata)
-			scopes = append(scopes, payload.EventScope)
-			triggeringWebhookNames = append(triggeringWebhookNames, payload.TriggeringWebhookName)
+
+			var scope pgtype.Text
+			if payload.EventScope != nil {
+				scope = sqlchelpers.TextFromStr(*payload.EventScope)
+			}
+
+			scopes = append(scopes, scope)
+
+			var triggeringWebhookName pgtype.Text
+			if payload.TriggeringWebhookName != nil {
+				triggeringWebhookName = sqlchelpers.TextFromStr(*payload.TriggeringWebhookName)
+			}
+
+			triggeringWebhookNames = append(triggeringWebhookNames, triggeringWebhookName)
 		}
 	}
 
