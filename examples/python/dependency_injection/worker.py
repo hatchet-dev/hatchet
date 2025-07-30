@@ -18,7 +18,6 @@ def sync_dep() -> str:
     return "sync_dependency_value"
 
 
-# !!
 
 
 class Output(BaseModel):
@@ -40,7 +39,6 @@ async def async_task_with_dependencies(
     )
 
 
-# !!
 
 
 @hatchet.task()
@@ -153,7 +151,6 @@ def main() -> None:
     worker.start()
 
 
-# !!
 
 if __name__ == "__main__":
     main()
