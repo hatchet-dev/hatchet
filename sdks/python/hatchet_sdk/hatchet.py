@@ -449,7 +449,9 @@ class Hatchet:
         """
 
         def inner(
-            func: Callable[[TWorkflowInput, Context], R | CoroutineLike[R]],
+            func: Callable[
+                Concatenate[TWorkflowInput, Context, P], R | CoroutineLike[R]
+            ],
         ) -> Standalone[TWorkflowInput, R]:
             inferred_name = name or func.__name__
 
@@ -520,7 +522,7 @@ class Hatchet:
         backoff_max_seconds: int | None = None,
         default_filters: list[DefaultFilter] | None = None,
     ) -> Callable[
-        [Callable[[EmptyModel, DurableContext], R | CoroutineLike[R]]],
+        [Callable[Concatenate[EmptyModel, DurableContext, P], R | CoroutineLike[R]]],
         Standalone[EmptyModel, R],
     ]: ...
 
@@ -546,7 +548,11 @@ class Hatchet:
         backoff_max_seconds: int | None = None,
         default_filters: list[DefaultFilter] | None = None,
     ) -> Callable[
-        [Callable[[TWorkflowInput, DurableContext], R | CoroutineLike[R]]],
+        [
+            Callable[
+                Concatenate[TWorkflowInput, DurableContext, P], R | CoroutineLike[R]
+            ]
+        ],
         Standalone[TWorkflowInput, R],
     ]: ...
 
@@ -572,11 +578,19 @@ class Hatchet:
         default_filters: list[DefaultFilter] | None = None,
     ) -> (
         Callable[
-            [Callable[[EmptyModel, DurableContext], R | CoroutineLike[R]]],
+            [
+                Callable[
+                    Concatenate[EmptyModel, DurableContext, P], R | CoroutineLike[R]
+                ]
+            ],
             Standalone[EmptyModel, R],
         ]
         | Callable[
-            [Callable[[TWorkflowInput, DurableContext], R | CoroutineLike[R]]],
+            [
+                Callable[
+                    Concatenate[TWorkflowInput, DurableContext, P], R | CoroutineLike[R]
+                ]
+            ],
             Standalone[TWorkflowInput, R],
         ]
     ):
@@ -621,7 +635,9 @@ class Hatchet:
         """
 
         def inner(
-            func: Callable[[TWorkflowInput, DurableContext], R | CoroutineLike[R]],
+            func: Callable[
+                Concatenate[TWorkflowInput, DurableContext, P], R | CoroutineLike[R]
+            ],
         ) -> Standalone[TWorkflowInput, R]:
             inferred_name = name or func.__name__
             workflow = Workflow[TWorkflowInput](

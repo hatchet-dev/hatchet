@@ -17,6 +17,9 @@ from examples.dag.worker import dag_workflow
 from examples.dedupe.worker import dedupe_child_wf, dedupe_parent_wf
 from examples.dependency_injection.worker import (
     async_task_with_dependencies,
+    di_workflow,
+    durable_async_task_with_dependencies,
+    durable_sync_task_with_dependencies,
     sync_task_with_dependencies,
 )
 from examples.durable.worker import durable_workflow, wait_for_sleep_twice
@@ -65,6 +68,7 @@ def main() -> None:
             sync_fanout_child,
             non_retryable_workflow,
             concurrency_workflow_level_workflow,
+            di_workflow,
             lifespan_task,
             simple,
             simple_durable,
@@ -76,6 +80,8 @@ def main() -> None:
             wait_for_sleep_twice,
             async_task_with_dependencies,
             sync_task_with_dependencies,
+            durable_async_task_with_dependencies,
+            durable_sync_task_with_dependencies,
         ],
         lifespan=lifespan,
     )

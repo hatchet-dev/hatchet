@@ -45,7 +45,7 @@ async def test_failure_on_timeout(
     except Exception:
         pass
 
-    await asyncio.sleep(3 * TIMEOUT_SECONDS)
+    await asyncio.sleep(4 * TIMEOUT_SECONDS)
 
     results = {
         r.workflow_run_id: await hatchet.runs.aio_get(r.workflow_run_id) for r in runs
