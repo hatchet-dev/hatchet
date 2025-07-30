@@ -1479,6 +1479,11 @@ export interface TenantMemberList {
   rows?: TenantMember[];
 }
 
+export interface UpdateTenantMemberRequest {
+  /** The role of the user in the tenant. */
+  role: TenantMemberRole;
+}
+
 export interface EventData {
   /** The data for the event (JSON bytes). */
   data: string;

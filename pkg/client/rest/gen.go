@@ -1155,6 +1155,11 @@ type UpdateTenantInviteRequest struct {
 	Role TenantMemberRole `json:"role"`
 }
 
+// UpdateTenantMemberRequest defines model for UpdateTenantMemberRequest.
+type UpdateTenantMemberRequest struct {
+	Role TenantMemberRole `json:"role"`
+}
+
 // UpdateTenantRequest defines model for UpdateTenantRequest.
 type UpdateTenantRequest struct {
 	// AlertMemberEmails Whether to alert tenant members.
@@ -2733,6 +2738,9 @@ type TenantInviteCreateJSONRequestBody = CreateTenantInviteRequest
 // TenantInviteUpdateJSONRequestBody defines body for TenantInviteUpdate for application/json ContentType.
 type TenantInviteUpdateJSONRequestBody = UpdateTenantInviteRequest
 
+// TenantMemberUpdateJSONRequestBody defines body for TenantMemberUpdate for application/json ContentType.
+type TenantMemberUpdateJSONRequestBody = UpdateTenantMemberRequest
+
 // SnsCreateJSONRequestBody defines body for SnsCreate for application/json ContentType.
 type SnsCreateJSONRequestBody = CreateSNSIntegrationRequest
 
@@ -3169,6 +3177,11 @@ type ClientInterface interface {
 
 	// TenantMemberDelete request
 	TenantMemberDelete(ctx context.Context, tenant openapi_types.UUID, member openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// TenantMemberUpdateWithBody request with any body
+	TenantMemberUpdateWithBody(ctx context.Context, tenant openapi_types.UUID, member openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	TenantMemberUpdate(ctx context.Context, tenant openapi_types.UUID, member openapi_types.UUID, body TenantMemberUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// TenantGetPrometheusMetrics request
 	TenantGetPrometheusMetrics(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -4364,6 +4377,30 @@ func (c *Client) TenantMemberList(ctx context.Context, tenant openapi_types.UUID
 
 func (c *Client) TenantMemberDelete(ctx context.Context, tenant openapi_types.UUID, member openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewTenantMemberDeleteRequest(c.Server, tenant, member)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) TenantMemberUpdateWithBody(ctx context.Context, tenant openapi_types.UUID, member openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewTenantMemberUpdateRequestWithBody(c.Server, tenant, member, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) TenantMemberUpdate(ctx context.Context, tenant openapi_types.UUID, member openapi_types.UUID, body TenantMemberUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewTenantMemberUpdateRequest(c.Server, tenant, member, body)
 	if err != nil {
 		return nil, err
 	}
@@ -8857,6 +8894,60 @@ func NewTenantMemberDeleteRequest(server string, tenant openapi_types.UUID, memb
 	return req, nil
 }
 
+// NewTenantMemberUpdateRequest calls the generic TenantMemberUpdate builder with application/json body
+func NewTenantMemberUpdateRequest(server string, tenant openapi_types.UUID, member openapi_types.UUID, body TenantMemberUpdateJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewTenantMemberUpdateRequestWithBody(server, tenant, member, "application/json", bodyReader)
+}
+
+// NewTenantMemberUpdateRequestWithBody generates requests for TenantMemberUpdate with any type of body
+func NewTenantMemberUpdateRequestWithBody(server string, tenant openapi_types.UUID, member openapi_types.UUID, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "member", runtime.ParamLocationPath, member)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/tenants/%s/members/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PATCH", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewTenantGetPrometheusMetricsRequest generates requests for TenantGetPrometheusMetrics
 func NewTenantGetPrometheusMetricsRequest(server string, tenant openapi_types.UUID) (*http.Request, error) {
 	var err error
@@ -12262,6 +12353,11 @@ type ClientWithResponsesInterface interface {
 	// TenantMemberDeleteWithResponse request
 	TenantMemberDeleteWithResponse(ctx context.Context, tenant openapi_types.UUID, member openapi_types.UUID, reqEditors ...RequestEditorFn) (*TenantMemberDeleteResponse, error)
 
+	// TenantMemberUpdateWithBodyWithResponse request with any body
+	TenantMemberUpdateWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, member openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*TenantMemberUpdateResponse, error)
+
+	TenantMemberUpdateWithResponse(ctx context.Context, tenant openapi_types.UUID, member openapi_types.UUID, body TenantMemberUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*TenantMemberUpdateResponse, error)
+
 	// TenantGetPrometheusMetricsWithResponse request
 	TenantGetPrometheusMetricsWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*TenantGetPrometheusMetricsResponse, error)
 
@@ -14044,6 +14140,31 @@ func (r TenantMemberDeleteResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r TenantMemberDeleteResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type TenantMemberUpdateResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *TenantMember
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+	JSON404      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r TenantMemberUpdateResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r TenantMemberUpdateResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -16202,6 +16323,23 @@ func (c *ClientWithResponses) TenantMemberDeleteWithResponse(ctx context.Context
 		return nil, err
 	}
 	return ParseTenantMemberDeleteResponse(rsp)
+}
+
+// TenantMemberUpdateWithBodyWithResponse request with arbitrary body returning *TenantMemberUpdateResponse
+func (c *ClientWithResponses) TenantMemberUpdateWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, member openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*TenantMemberUpdateResponse, error) {
+	rsp, err := c.TenantMemberUpdateWithBody(ctx, tenant, member, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseTenantMemberUpdateResponse(rsp)
+}
+
+func (c *ClientWithResponses) TenantMemberUpdateWithResponse(ctx context.Context, tenant openapi_types.UUID, member openapi_types.UUID, body TenantMemberUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*TenantMemberUpdateResponse, error) {
+	rsp, err := c.TenantMemberUpdate(ctx, tenant, member, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseTenantMemberUpdateResponse(rsp)
 }
 
 // TenantGetPrometheusMetricsWithResponse request returning *TenantGetPrometheusMetricsResponse
@@ -19538,6 +19676,53 @@ func ParseTenantMemberDeleteResponse(rsp *http.Response) (*TenantMemberDeleteRes
 			return nil, err
 		}
 		response.JSON204 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseTenantMemberUpdateResponse parses an HTTP response from a TenantMemberUpdateWithResponse call
+func ParseTenantMemberUpdateResponse(rsp *http.Response) (*TenantMemberUpdateResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &TenantMemberUpdateResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest TenantMember
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
 		var dest APIErrors

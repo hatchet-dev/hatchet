@@ -77,6 +77,7 @@ import {
   TriggerWorkflowRunRequest,
   UpdateTenantAlertEmailGroupRequest,
   UpdateTenantInviteRequest,
+  UpdateTenantMemberRequest,
   UpdateTenantRequest,
   UpdateWorkerRequest,
   User,
@@ -1938,6 +1939,30 @@ export class Api<
       path: `/api/v1/tenants/${tenant}/members`,
       method: "GET",
       secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Update a tenant member
+   *
+   * @tags Tenant
+   * @name TenantMemberUpdate
+   * @summary Update a tenant member
+   * @request PATCH:/api/v1/tenants/{tenant}/members/{member}
+   * @secure
+   */
+  tenantMemberUpdate = (
+    tenant: string,
+    member: string,
+    data: UpdateTenantMemberRequest,
+    params: RequestParams = {},
+  ) =>
+    this.request<TenantMember, APIErrors>({
+      path: `/api/v1/tenants/${tenant}/members/${member}`,
+      method: "PATCH",
+      body: data,
+      secure: true,
+      type: ContentType.Json,
       format: "json",
       ...params,
     });
