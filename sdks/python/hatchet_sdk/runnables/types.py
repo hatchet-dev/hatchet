@@ -1,6 +1,6 @@
 import asyncio
 import json
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from enum import Enum
 from typing import Any, ParamSpec, TypeGuard, TypeVar
 
@@ -12,7 +12,7 @@ from hatchet_sdk.contracts.v1.workflows_pb2 import DefaultFilter as DefaultFilte
 from hatchet_sdk.utils.timedelta_to_expression import Duration
 from hatchet_sdk.utils.typing import AwaitableLike, JSONSerializableMapping
 
-ValidTaskReturnType = BaseModel | JSONSerializableMapping | None
+ValidTaskReturnType = BaseModel | Mapping[str, Any] | None
 
 R = TypeVar("R", bound=ValidTaskReturnType)
 P = ParamSpec("P")
