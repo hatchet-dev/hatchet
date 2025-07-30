@@ -95,7 +95,7 @@ func newAPIService(config *server.ServerConfig) *apiService {
 
 type APIServer struct {
 	config                *server.ServerConfig
-	additionalMiddlewares []gen.StrictMiddlewareFunc
+	additionalMiddlewares []hatchetmiddleware.MiddlewareFunc
 }
 
 func NewAPIServer(config *server.ServerConfig) *APIServer {
@@ -125,7 +125,7 @@ func (t *APIServer) Run(opts ...APIServerExtensionOpt) (func() error, error) {
 			return nil, err
 		}
 
-		populator, err := t.registerSpec(g, spec)
+		populator, err := t.registerSpec(g, spec, t.additionalMiddlewares)
 
 		if err != nil {
 			return nil, err
@@ -139,7 +139,7 @@ func (t *APIServer) Run(opts ...APIServerExtensionOpt) (func() error, error) {
 	return t.RunWithServer(e)
 }
 
-func (t *APIServer) RunWithMiddlewares(middlewares []gen.StrictMiddlewareFunc, opts ...APIServerExtensionOpt) (func() error, error) {
+func (t *APIServer) RunWithMiddlewares(middlewares []hatchetmiddleware.MiddlewareFunc, opts ...APIServerExtensionOpt) (func() error, error) {
 	t.additionalMiddlewares = middlewares
 
 	return t.Run(opts...)
@@ -178,20 +178,20 @@ func (t *APIServer) getCoreEchoService() (*echo.Echo, error) {
 
 	g := e.Group("")
 
-	if _, err := t.registerSpec(g, oaspec); err != nil {
+	if _, err := t.registerSpec(g, oaspec, t.additionalMiddlewares); err != nil {
 		return nil, err
 	}
 
 	service := newAPIService(t.config)
 
-	myStrictApiHandler := gen.NewStrictHandler(service, t.additionalMiddlewares)
+	myStrictApiHandler := gen.NewStrictHandler(service)
 
 	gen.RegisterHandlers(g, myStrictApiHandler)
 
 	return e, nil
 }
 
-func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Populator, error) {
+func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T, middlewares []hatchetmiddleware.MiddlewareFunc) (*populator.Populator, error) {
 	// application middleware
 	populatorMW := populator.NewPopulator(t.config)
 
@@ -429,6 +429,9 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 	mw.Use(populatorMW.Middleware)
 	mw.Use(authnMW.Middleware)
 	mw.Use(authzMW.Middleware)
+	for _, m := range t.additionalMiddlewares {
+		mw.Use(m)
+	}
 
 	allHatchetMiddleware, err := mw.Middleware()
 
