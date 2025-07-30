@@ -5,8 +5,10 @@ from functools import cached_property
 from typing import (
     TYPE_CHECKING,
     Any,
+    Concatenate,
     Generic,
     Literal,
+    ParamSpec,
     TypeVar,
     cast,
     get_type_hints,
@@ -60,6 +62,7 @@ if TYPE_CHECKING:
 
 
 T = TypeVar("T")
+P = ParamSpec("P")
 
 
 def fall_back_to_default(value: T, param_default: T, fallback_value: T | None) -> T:
@@ -800,7 +803,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         skip_if: list[Condition | OrGroup] | None = None,
         cancel_if: list[Condition | OrGroup] | None = None,
     ) -> Callable[
-        [Callable[[TWorkflowInput, Context], R | CoroutineLike[R]]],
+        [Callable[Concatenate[TWorkflowInput, Context, P], R | CoroutineLike[R]]],
         Task[TWorkflowInput, R],
     ]:
         """
@@ -845,7 +848,9 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         )
 
         def inner(
-            func: Callable[[TWorkflowInput, Context], R | CoroutineLike[R]],
+            func: Callable[
+                Concatenate[TWorkflowInput, Context, P], R | CoroutineLike[R]
+            ],
         ) -> Task[TWorkflowInput, R]:
             task = Task(
                 _fn=func,
@@ -892,7 +897,11 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         skip_if: list[Condition | OrGroup] | None = None,
         cancel_if: list[Condition | OrGroup] | None = None,
     ) -> Callable[
-        [Callable[[TWorkflowInput, DurableContext], R | CoroutineLike[R]]],
+        [
+            Callable[
+                Concatenate[TWorkflowInput, DurableContext, P], R | CoroutineLike[R]
+            ]
+        ],
         Task[TWorkflowInput, R],
     ]:
         """
@@ -941,7 +950,9 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         )
 
         def inner(
-            func: Callable[[TWorkflowInput, DurableContext], R | CoroutineLike[R]],
+            func: Callable[
+                Concatenate[TWorkflowInput, DurableContext, P], R | CoroutineLike[R]
+            ],
         ) -> Task[TWorkflowInput, R]:
             task = Task(
                 _fn=func,
@@ -983,7 +994,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         backoff_max_seconds: int | None = None,
         concurrency: list[ConcurrencyExpression] | None = None,
     ) -> Callable[
-        [Callable[[TWorkflowInput, Context], R | CoroutineLike[R]]],
+        [Callable[Concatenate[TWorkflowInput, Context, P], R | CoroutineLike[R]]],
         Task[TWorkflowInput, R],
     ]:
         """
@@ -1009,7 +1020,9 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         """
 
         def inner(
-            func: Callable[[TWorkflowInput, Context], R | CoroutineLike[R]],
+            func: Callable[
+                Concatenate[TWorkflowInput, Context, P], R | CoroutineLike[R]
+            ],
         ) -> Task[TWorkflowInput, R]:
             task = Task(
                 is_durable=False,
@@ -1051,7 +1064,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         backoff_max_seconds: int | None = None,
         concurrency: list[ConcurrencyExpression] | None = None,
     ) -> Callable[
-        [Callable[[TWorkflowInput, Context], R | CoroutineLike[R]]],
+        [Callable[Concatenate[TWorkflowInput, Context, P], R | CoroutineLike[R]]],
         Task[TWorkflowInput, R],
     ]:
         """
@@ -1077,7 +1090,9 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         """
 
         def inner(
-            func: Callable[[TWorkflowInput, Context], R | CoroutineLike[R]],
+            func: Callable[
+                Concatenate[TWorkflowInput, Context, P], R | CoroutineLike[R]
+            ],
         ) -> Task[TWorkflowInput, R]:
             task = Task(
                 is_durable=False,
