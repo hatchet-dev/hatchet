@@ -92,10 +92,11 @@ func ToV1EventList(events []*v1.ListEventsRow, limit, offset, total int64) gen.V
 				Failed:    row.FailedCount,
 				Running:   row.RunningCount,
 			},
-			Payload:       &payload,
-			SeenAt:        &row.EventSeenAt.Time,
-			Scope:         &row.EventScope,
-			TriggeredRuns: &triggeredRuns,
+			Payload:               &payload,
+			SeenAt:                &row.EventSeenAt.Time,
+			Scope:                 &row.EventScope,
+			TriggeredRuns:         &triggeredRuns,
+			TriggeringWebhookName: row.TriggeringWebhookName,
 		}
 	}
 
