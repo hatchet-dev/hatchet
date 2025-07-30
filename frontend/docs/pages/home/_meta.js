@@ -121,6 +121,7 @@ export default {
   asyncio: "Asyncio",
   pydantic: "Pydantic",
   lifespans: "Lifespans",
+  "dependency-injection": "Dependency Injection",
   blog: {
     title: "Blog",
     type: "page",
