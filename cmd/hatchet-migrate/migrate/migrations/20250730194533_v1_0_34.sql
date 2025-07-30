@@ -16,7 +16,7 @@ BEGIN
         inhparent = targetTableName::regclass
         AND substring(inhrelid::regclass::text, format('%s_(\d{8})', targetTableName)) ~ '^\d{8}'
         AND (substring(inhrelid::regclass::text, format('%s_(\d{8})', targetTableName))::date) < targetDate
-        AND targetDate < NOW() - INTERVAL '1 week'
+        AND (substring(inhrelid::regclass::text, format('%s_(\d{8})', targetTableName))::date) < NOW() - INTERVAL '1 week'
     ;
 END;
 $$;
