@@ -945,6 +945,7 @@ func (tc *TasksControllerImpl) handleProcessUserEventTrigger(ctx context.Context
 				EventExternalId:         opts.ExternalId,
 				EventPayload:            opts.Data,
 				EventAdditionalMetadata: opts.AdditionalMetadata,
+				EventScope:              opts.Scope,
 			})
 		} else {
 			for _, run := range runs {
