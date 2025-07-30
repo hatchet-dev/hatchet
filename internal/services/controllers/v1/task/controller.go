@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/hashicorp/go-multierror"
 	"github.com/rs/zerolog"
+	"go.opentelemetry.io/otel/codes"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/hatchet-dev/hatchet/internal/cel"
@@ -20,6 +21,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/partition"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/recoveryutils"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
+	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
 	"github.com/hatchet-dev/hatchet/pkg/config/shared"
 	hatcheterrors "github.com/hatchet-dev/hatchet/pkg/errors"
@@ -252,79 +254,119 @@ func (tc *TasksControllerImpl) Start() (func() error, error) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 
+	spanContext, span := telemetry.NewSpan(ctx, "TasksControllerImpl.Start")
+
 	_, err = tc.s.NewJob(
 		gocron.DurationJob(tc.opsPoolPollInterval),
 		gocron.NewTask(
-			tc.runTenantTimeoutTasks(ctx),
+			tc.runTenantTimeoutTasks(spanContext),
 		),
 	)
 
 	if err != nil {
+		wrappedErr := fmt.Errorf("could not schedule step run timeout: %w", err)
+
 		cancel()
-		return nil, fmt.Errorf("could not schedule step run timeout: %w", err)
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "could not schedule step run timeout")
+		span.End()
+
+		return nil, wrappedErr
 	}
 
 	_, err = tc.s.NewJob(
 		gocron.DurationJob(tc.opsPoolPollInterval),
 		gocron.NewTask(
-			tc.runTenantSleepEmitter(ctx),
+			tc.runTenantSleepEmitter(spanContext),
 		),
 	)
 
 	if err != nil {
+		wrappedErr := fmt.Errorf("could not schedule step run emit sleep: %w", err)
+
 		cancel()
-		return nil, fmt.Errorf("could not schedule step run emit sleep: %w", err)
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "could not schedule step run emit sleep")
+		span.End()
+
+		return nil, wrappedErr
 	}
 
 	_, err = tc.s.NewJob(
 		gocron.DurationJob(tc.opsPoolPollInterval),
 		gocron.NewTask(
-			tc.runTenantReassignTasks(ctx),
+			tc.runTenantReassignTasks(spanContext),
 		),
 	)
 
 	if err != nil {
+		wrappedErr := fmt.Errorf("could not schedule step run reassignment: %w", err)
+
 		cancel()
-		return nil, fmt.Errorf("could not schedule step run reassignment: %w", err)
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "could not schedule step run reassignment")
+		span.End()
+
+		return nil, wrappedErr
 	}
 
 	_, err = tc.s.NewJob(
 		gocron.DurationJob(tc.opsPoolPollInterval),
 		gocron.NewTask(
-			tc.runTenantRetryQueueItems(ctx),
+			tc.runTenantRetryQueueItems(spanContext),
 		),
 	)
 
 	if err != nil {
+		wrappedErr := fmt.Errorf("could not schedule step run retry queue items: %w", err)
+
 		cancel()
-		return nil, fmt.Errorf("could not schedule step run reassignment: %w", err)
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "could not schedule step run retry queue items")
+		span.End()
+
+		return nil, wrappedErr
 	}
 
 	_, err = tc.s.NewJob(
 		gocron.DurationJob(time.Minute*15),
 		gocron.NewTask(
-			tc.runTaskTablePartition(ctx),
+			tc.runTaskTablePartition(spanContext),
 		),
 		gocron.WithSingletonMode(gocron.LimitModeReschedule),
 	)
 
 	if err != nil {
+		wrappedErr := fmt.Errorf("could not schedule task partition method: %w", err)
+
 		cancel()
-		return nil, fmt.Errorf("could not schedule task partition method: %w", err)
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "could not schedule task partition method")
+		span.End()
+
+		return nil, wrappedErr
 	}
 
 	cleanup := func() error {
 		cancel()
 
 		if err := cleanupBuffer(); err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, "could not cleanup buffer")
 			return err
 		}
 
 		tc.pubBuffer.Stop()
 
 		if err := tc.s.Shutdown(); err != nil {
-			return fmt.Errorf("could not shutdown scheduler: %w", err)
+			err := fmt.Errorf("could not shutdown scheduler: %w", err)
+
+			span.RecordError(err)
+			span.SetStatus(codes.Error, "could not shutdown scheduler")
+			return err
 		}
+
+		span.End()
 
 		return nil
 	}
@@ -869,12 +911,13 @@ func (tc *TasksControllerImpl) handleProcessUserEventTrigger(ctx context.Context
 
 	for _, msg := range msgs {
 		opt := v1.EventTriggerOpts{
-			ExternalId:         msg.EventExternalId,
-			Key:                msg.EventKey,
-			Data:               msg.EventData,
-			AdditionalMetadata: msg.EventAdditionalMetadata,
-			Priority:           msg.EventPriority,
-			Scope:              msg.EventScope,
+			ExternalId:            msg.EventExternalId,
+			Key:                   msg.EventKey,
+			Data:                  msg.EventData,
+			AdditionalMetadata:    msg.EventAdditionalMetadata,
+			Priority:              msg.EventPriority,
+			Scope:                 msg.EventScope,
+			TriggeringWebhookName: msg.TriggeringWebhookName,
 		}
 
 		opts = append(opts, opt)
@@ -903,6 +946,7 @@ func (tc *TasksControllerImpl) handleProcessUserEventTrigger(ctx context.Context
 				EventExternalId:         opts.ExternalId,
 				EventPayload:            opts.Data,
 				EventAdditionalMetadata: opts.AdditionalMetadata,
+				TriggeringWebhookName:   opts.TriggeringWebhookName,
 			})
 		} else {
 			for _, run := range runs {
@@ -916,6 +960,7 @@ func (tc *TasksControllerImpl) handleProcessUserEventTrigger(ctx context.Context
 					EventAdditionalMetadata: opts.AdditionalMetadata,
 					EventScope:              opts.Scope,
 					FilterId:                run.FilterId,
+					TriggeringWebhookName:   opts.TriggeringWebhookName,
 				})
 			}
 		}
@@ -936,6 +981,21 @@ func (tc *TasksControllerImpl) handleProcessUserEventTrigger(ctx context.Context
 
 	if err != nil {
 		return fmt.Errorf("could not trigger tasks from events: %w", err)
+	}
+
+	evalFailuresMsg, err := tasktypes.CELEvaluationFailureMessage(
+		tenantId,
+		result.CELEvaluationFailures,
+	)
+
+	if err != nil {
+		return fmt.Errorf("could not create CEL evaluation failure message: %w", err)
+	}
+
+	err = tc.pubBuffer.Pub(ctx, msgqueue.OLAP_QUEUE, evalFailuresMsg, false)
+
+	if err != nil {
+		return fmt.Errorf("could not deliver CEL evaluation failure message: %w", err)
 	}
 
 	eg := &errgroup.Group{}

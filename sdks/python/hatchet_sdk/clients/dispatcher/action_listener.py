@@ -140,15 +140,15 @@ class ActionListener:
                     # todo case on "recvmsg:Connection reset by peer" for updates?
                     if self.missed_heartbeats >= 3:
                         # we don't reraise the error here, as we don't want to stop the heartbeat thread
-                        logger.error(
-                            f"⛔️ failed heartbeat ({self.missed_heartbeats}): {e.details()}"
+                        logger.exception(
+                            f"⛔️ failed heartbeat ({self.missed_heartbeats})"
                         )
                     elif self.missed_heartbeats > 1:
                         logger.warning(
                             f"failed to send heartbeat ({self.missed_heartbeats}): {e.details()}"
                         )
                 else:
-                    logger.error(f"failed to send heartbeat: {e}")
+                    logger.exception("failed to send heartbeat")
 
                 if self.interrupt is not None:
                     self.interrupt.set()
@@ -195,7 +195,7 @@ class ActionListener:
 
                     if not t.done():
                         logger.warning(
-                            "Interrupted read_with_interrupt task of action listener"
+                            "interrupted read_with_interrupt task of action listener"
                         )
 
                         t.cancel()
@@ -206,7 +206,7 @@ class ActionListener:
                     result = t.result()
 
                     if isinstance(result, UnexpectedEOF):
-                        logger.debug("Handling EOF in Action Listener")
+                        logger.debug("handling EOF in Action Listener")
                         self.retries = self.retries + 1
                         break
 
@@ -222,8 +222,8 @@ class ActionListener:
                                 assigned_action.actionPayload
                             )
                         )
-                    except (ValueError, json.JSONDecodeError) as e:
-                        logger.error(f"Error decoding payload: {e}")
+                    except (ValueError, json.JSONDecodeError):
+                        logger.exception("error decoding payload")
 
                         action_payload = ActionPayload()
 
@@ -263,9 +263,9 @@ class ActionListener:
                 # Handle different types of errors
                 if e.code() == grpc.StatusCode.CANCELLED:
                     # Context cancelled, unsubscribe and close
-                    logger.debug("Context cancelled, closing listener")
+                    logger.debug("context cancelled, closing listener")
                 elif e.code() == grpc.StatusCode.DEADLINE_EXCEEDED:
-                    logger.info("Deadline exceeded, retrying subscription")
+                    logger.info("deadline exceeded, retrying subscription")
                 elif (
                     self.listen_strategy == "v2"
                     and e.code() == grpc.StatusCode.UNIMPLEMENTED
@@ -277,10 +277,10 @@ class ActionListener:
                 else:
                     # TODO retry
                     if e.code() == grpc.StatusCode.UNAVAILABLE:
-                        logger.error(f"action listener error: {e.details()}")
+                        logger.exception("action listener error")
                     else:
                         # Unknown error, report and break
-                        logger.error(f"action listener error: {e}")
+                        logger.exception("action listener error")
 
                     self.retries = self.retries + 1
 
@@ -346,8 +346,8 @@ class ActionListener:
 
         try:
             self.unregister()
-        except Exception as e:
-            logger.error(f"failed to unregister: {e}")
+        except Exception:
+            logger.exception("failed to unregister")
 
         if self.interrupt:  # type: ignore[truthy-bool]
             self.interrupt.set()

@@ -236,8 +236,8 @@ class Context:
                 step_run_id=self.step_run_id,
                 index=ix,
             )
-        except Exception as e:
-            logger.error(f"Error putting stream event: {e}")
+        except Exception:
+            logger.exception("error putting stream event")
 
     async def aio_put_stream(self, data: str | bytes) -> None:
         """
@@ -262,8 +262,8 @@ class Context:
             return self.dispatcher_client.refresh_timeout(
                 step_run_id=self.step_run_id, increment_by=increment_by
             )
-        except Exception as e:
-            logger.error(f"Error refreshing timeout: {e}")
+        except Exception:
+            logger.exception("error refreshing timeout")
 
     @property
     def retry_count(self) -> int:
@@ -285,7 +285,7 @@ class Context:
         return self.retry_count + 1
 
     @property
-    def additional_metadata(self) -> JSONSerializableMapping | None:
+    def additional_metadata(self) -> JSONSerializableMapping:
         """
         The additional metadata sent with the current task run.
 
@@ -350,7 +350,7 @@ class Context:
 
         if not errors:
             logger.error(
-                "No step run errors found. `context.task_run_errors` is intended to be run in an on-failure step, and will only work on engine versions more recent than v0.53.10"
+                "no step run errors found. `context.task_run_errors` is intended to be run in an on-failure step, and will only work on engine versions more recent than v0.53.10"
             )
 
         return errors
@@ -371,6 +371,42 @@ class Context:
 
 
 class DurableContext(Context):
+    def __init__(
+        self,
+        action: Action,
+        dispatcher_client: DispatcherClient,
+        admin_client: AdminClient,
+        event_client: EventClient,
+        durable_event_listener: DurableEventListener | None,
+        worker: WorkerContext,
+        runs_client: RunsClient,
+        lifespan_context: Any | None,
+        log_sender: AsyncLogSender,
+    ):
+        super().__init__(
+            action,
+            dispatcher_client,
+            admin_client,
+            event_client,
+            durable_event_listener,
+            worker,
+            runs_client,
+            lifespan_context,
+            log_sender,
+        )
+
+        self._wait_index = 0
+
+    @property
+    def wait_index(self) -> int:
+        return self._wait_index
+
+    def _increment_wait_index(self) -> int:
+        index = self._wait_index
+        self._wait_index += 1
+
+        return index
+
     async def aio_wait_for(
         self,
         signal_key: str,
@@ -411,6 +447,9 @@ class DurableContext(Context):
         For more complicated conditions, use `ctx.aio_wait_for` directly.
         """
 
+        wait_index = self._increment_wait_index()
+
         return await self.aio_wait_for(
-            f"sleep:{timedelta_to_expr(duration)}", SleepCondition(duration=duration)
+            f"sleep:{timedelta_to_expr(duration)}-{wait_index}",
+            SleepCondition(duration=duration),
         )

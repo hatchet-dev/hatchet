@@ -188,23 +188,6 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		config.BeforeAcquire = debugger.beforeAcquire
 	}
 
-	// a smaller pool for essential services like the heartbeat
-	essentialConfig := config.Copy()
-	essentialConfig.MinConns = 1
-
-	essentialConfig.MaxConns /= 100
-	if essentialConfig.MaxConns < 1 {
-		essentialConfig.MaxConns = 1
-	}
-
-	config.MaxConns -= essentialConfig.MaxConns
-
-	essentialPool, err := pgxpool.NewWithConfig(context.Background(), essentialConfig)
-
-	if err != nil {
-		return nil, fmt.Errorf("could not connect to database: %w", err)
-	}
-
 	pool, err := pgxpool.NewWithConfig(context.Background(), config)
 
 	if err != nil {
@@ -257,7 +240,7 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		opts = append(opts, postgresdb.WithLogsEngineRepository(c.RepositoryOverrides.LogsEngineRepository))
 	}
 
-	cleanupEngine, engineRepo, err := postgresdb.NewEngineRepository(pool, essentialPool, &scf.Runtime, opts...)
+	cleanupEngine, engineRepo, err := postgresdb.NewEngineRepository(pool, &scf.Runtime, opts...)
 
 	if err != nil {
 		return nil, fmt.Errorf("could not create engine repository: %w", err)
@@ -301,7 +284,6 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 			return cleanupApiRepo()
 		},
 		Pool:                  pool,
-		EssentialPool:         essentialPool,
 		QueuePool:             pool,
 		APIRepository:         apiRepo,
 		EngineRepository:      engineRepo,
@@ -598,6 +580,7 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		dc.V1.Scheduler(),
 		&queueLogger,
 		cf.Runtime.SingleQueueLimit,
+		cf.Runtime.SchedulerConcurrencyRateLimit,
 	)
 
 	if err != nil {

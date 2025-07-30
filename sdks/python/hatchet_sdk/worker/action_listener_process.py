@@ -132,8 +132,8 @@ class WorkerActionListenerProcess:
             )
 
             logger.debug(f"acquired action listener: {self.listener.worker_id}")
-        except grpc.RpcError as rpc_error:
-            logger.error(f"could not start action listener: {rpc_error}")
+        except grpc.RpcError:
+            logger.exception("could not start action listener")
             return
 
         # Start both loops as background tasks
@@ -168,7 +168,7 @@ class WorkerActionListenerProcess:
                     count += 1
 
             if count > 0:
-                logger.warning(f"{BLOCKED_THREAD_WARNING}: Waiting Steps {count}")
+                logger.warning(f"{BLOCKED_THREAD_WARNING} Waiting Steps {count}")
             await asyncio.sleep(1)
 
     async def send_event(self, event: ActionEvent, retry_attempt: int = 1) -> None:
@@ -188,7 +188,7 @@ class WorkerActionListenerProcess:
                             )
                             if diff > 0.1:
                                 logger.warning(
-                                    f"{BLOCKED_THREAD_WARNING}: time to start: {diff}s"
+                                    f"{BLOCKED_THREAD_WARNING} time to start: {diff}s"
                                 )
                             else:
                                 logger.debug(f"start time: {diff}")
@@ -225,9 +225,9 @@ class WorkerActionListenerProcess:
                     )
                 case _:
                     logger.error("unknown action type for event send")
-        except Exception as e:
-            logger.error(
-                f"could not send action event ({retry_attempt}/{ACTION_EVENT_RETRY_COUNT}): {e}"
+        except Exception:
+            logger.exception(
+                f"could not send action event ({retry_attempt}/{ACTION_EVENT_RETRY_COUNT})"
             )
             if retry_attempt <= ACTION_EVENT_RETRY_COUNT:
                 await exp_backoff_sleep(retry_attempt, 1)
@@ -291,11 +291,11 @@ class WorkerActionListenerProcess:
                         )
                 try:
                     self.action_queue.put(action)
-                except Exception as e:
-                    logger.error(f"error putting action: {e}")
+                except Exception:
+                    logger.exception("error putting action")
 
-        except Exception as e:
-            logger.error(f"error in action loop: {e}")
+        except Exception:
+            logger.exception("error in action loop")
         finally:
             logger.info("action loop closed")
             if not self.killing:

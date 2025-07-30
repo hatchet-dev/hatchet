@@ -134,6 +134,12 @@ type ConfigFileRuntime struct {
 	// GRPCRateLimit is the rate limit for the grpc server. We count limits separately for the Workflow, Dispatcher and Events services. Workflow and Events service are set to this rate, Dispatcher is 10X this rate. The rate limit is per second, per engine, per api token.
 	GRPCRateLimit float64 `mapstructure:"grpcRateLimit" json:"grpcRateLimit,omitempty" default:"1000"`
 
+	// WebhookRateLimit is the rate limit for webhook endpoints per second, per webhook
+	WebhookRateLimit float64 `mapstructure:"webhookRateLimit" json:"webhookRateLimit,omitempty" default:"50"`
+
+	// WebhookRateLimitBurst is the burst size for webhook rate limiting
+	WebhookRateLimitBurst int `mapstructure:"webhookRateLimitBurst" json:"webhookRateLimitBurst,omitempty" default:"100"`
+
 	// ShutdownWait is the time between the readiness probe being offline when a shutdown is triggered and the actual start of cleaning up resources.
 	ShutdownWait time.Duration `mapstructure:"shutdownWait" json:"shutdownWait,omitempty" default:"20s"`
 
@@ -217,6 +223,12 @@ type ConfigFileRuntime struct {
 
 	// ReplayEnabled controls whether the server enables replay for tasks
 	ReplayEnabled bool `mapstructure:"replayEnabled" json:"replayEnabled,omitempty" default:"true"`
+
+	// SchedulerConcurrencyRateLimit is the rate limit for scheduler concurrency strategy execution (per second)
+	SchedulerConcurrencyRateLimit int `mapstructure:"schedulerConcurrencyRateLimit" json:"schedulerConcurrencyRateLimit,omitempty" default:"20"`
+
+	// LogIngestionEnabled controls whether the server enables log ingestion for tasks
+	LogIngestionEnabled bool `mapstructure:"logIngestionEnabled" json:"logIngestionEnabled,omitempty" default:"true"`
 }
 
 type InternalClientTLSConfigFile struct {
@@ -268,6 +280,9 @@ type LimitConfigFile struct {
 
 	DefaultScheduleLimit      int `mapstructure:"defaultScheduleLimit" json:"defaultScheduleLimit,omitempty" default:"1000"`
 	DefaultScheduleAlarmLimit int `mapstructure:"defaultScheduleAlarmLimit" json:"defaultScheduleAlarmLimit,omitempty" default:"750"`
+
+	DefaultIncomingWebhookLimit      int `mapstructure:"defaultIncomingWebhookLimit" json:"defaultIncomingWebhookLimit,omitempty" default:"5"`
+	DefaultIncomingWebhookAlarmLimit int `mapstructure:"defaultIncomingWebhookAlarmLimit" json:"defaultIncomingWebhookALarmLimit,omitempty" default:"4"`
 }
 
 // Alerting options
@@ -565,6 +580,9 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.grpcInsecure", "SERVER_GRPC_INSECURE")
 	_ = v.BindEnv("runtime.grpcMaxMsgSize", "SERVER_GRPC_MAX_MSG_SIZE")
 	_ = v.BindEnv("runtime.grpcRateLimit", "SERVER_GRPC_RATE_LIMIT")
+	_ = v.BindEnv("runtime.webhookRateLimit", "SERVER_INCOMING_WEBHOOK_RATE_LIMIT")
+	_ = v.BindEnv("runtime.webhookRateLimitBurst", "SERVER_INCOMING_WEBHOOK_RATE_LIMIT_BURST")
+	_ = v.BindEnv("runtime.schedulerConcurrencyRateLimit", "SCHEDULER_CONCURRENCY_RATE_LIMIT")
 	_ = v.BindEnv("runtime.shutdownWait", "SERVER_SHUTDOWN_WAIT")
 	_ = v.BindEnv("servicesString", "SERVER_SERVICES")
 	_ = v.BindEnv("pausedControllers", "SERVER_PAUSED_CONTROLLERS")
@@ -614,6 +632,8 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.limits.defaultScheduleLimit", "SERVER_LIMITS_DEFAULT_SCHEDULE_LIMIT")
 	_ = v.BindEnv("runtime.limits.defaultScheduleAlarmLimit", "SERVER_LIMITS_DEFAULT_SCHEDULE_ALARM_LIMIT")
 
+	_ = v.BindEnv("runtime.limits.defaultIncomingWebhookLimit", "SERVER_LIMITS_DEFAULT_INCOMING_WEBHOOK_LIMIT")
+
 	// buffer options
 	_ = v.BindEnv("runtime.workflowRunBuffer.waitForFlush", "SERVER_WORKFLOWRUNBUFFER_WAIT_FOR_FLUSH")
 	_ = v.BindEnv("runtime.workflowRunBuffer.maxConcurrent", "SERVER_WORKFLOWRUNBUFFER_MAX_CONCURRENT")
@@ -645,6 +665,9 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.flushPeriodMilliseconds", "SERVER_FLUSH_PERIOD_MILLISECONDS")
 	_ = v.BindEnv("runtime.flushItemsThreshold", "SERVER_FLUSH_ITEMS_THRESHOLD")
 	_ = v.BindEnv("runtime.flushStrategy", "SERVER_FLUSH_STRATEGY")
+
+	// log ingestion
+	_ = v.BindEnv("runtime.logIngestionEnabled", "SERVER_LOG_INGESTION_ENABLED")
 
 	// alerting options
 	_ = v.BindEnv("alerting.sentry.enabled", "SERVER_ALERTING_SENTRY_ENABLED")
@@ -744,6 +767,7 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("otel.collectorURL", "SERVER_OTEL_COLLECTOR_URL")
 	_ = v.BindEnv("otel.traceIdRatio", "SERVER_OTEL_TRACE_ID_RATIO")
 	_ = v.BindEnv("otel.insecure", "SERVER_OTEL_INSECURE")
+	_ = v.BindEnv("otel.collectorAuth", "SERVER_OTEL_COLLECTOR_AUTH")
 
 	// prometheus options
 	_ = v.BindEnv("prometheus.prometheusServerURL", "SERVER_PROMETHEUS_SERVER_URL")

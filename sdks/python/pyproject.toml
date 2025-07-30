@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "hatchet-sdk"
-version = "1.15.3"
+version = "1.16.3"
 description = ""
 authors = ["Alexander Belanger <alexander@hatchet.run>"]
 readme = "README.md"
@@ -176,6 +176,9 @@ select = [
     "FIX",
     ## Performance-related rules
     "PERF",
+
+    # Print statements
+    "T201",
 ]
 
 ignore = [
@@ -207,6 +210,7 @@ exclude = [
     "hatchet_sdk/clients/rest/exceptions.py",
     "hatchet_sdk/clients/rest/rest.py",
     "hatchet_sdk/v0/*",
+    "apply_patches.py",
     "site/*",
     "tests/*",
 ]

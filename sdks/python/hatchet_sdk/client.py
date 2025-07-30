@@ -4,6 +4,7 @@ from hatchet_sdk.clients.events import EventClient
 from hatchet_sdk.clients.listeners.run_event_listener import RunEventListenerClient
 from hatchet_sdk.clients.listeners.workflow_listener import PooledWorkflowRunListener
 from hatchet_sdk.config import ClientConfig
+from hatchet_sdk.features.cel import CELClient
 from hatchet_sdk.features.cron import CronClient
 from hatchet_sdk.features.filters import FiltersClient
 from hatchet_sdk.features.logs import LogsClient
@@ -35,6 +36,7 @@ class Client:
         self.log_interceptor = config.logger
         self.debug = debug
 
+        self.cel = CELClient(self.config)
         self.cron = CronClient(self.config)
         self.filters = FiltersClient(self.config)
         self.logs = LogsClient(self.config)

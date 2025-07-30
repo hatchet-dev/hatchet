@@ -15,7 +15,7 @@ from examples.concurrency_workflow_level.worker import (
 from examples.conditions.worker import task_condition_workflow
 from examples.dag.worker import dag_workflow
 from examples.dedupe.worker import dedupe_child_wf, dedupe_parent_wf
-from examples.durable.worker import durable_workflow
+from examples.durable.worker import durable_workflow, wait_for_sleep_twice
 from examples.events.worker import event_workflow
 from examples.fanout.worker import child_wf, parent_wf
 from examples.fanout_sync.worker import sync_fanout_child, sync_fanout_parent
@@ -23,8 +23,10 @@ from examples.lifespans.simple import lifespan, lifespan_task
 from examples.logger.workflow import logging_workflow
 from examples.non_retryable.worker import non_retryable_workflow
 from examples.on_failure.worker import on_failure_wf, on_failure_wf_with_details
+from examples.return_exceptions.worker import return_exceptions_task
 from examples.simple.worker import simple, simple_durable
 from examples.timeout.worker import refresh_timeout_wf, timeout_wf
+from examples.webhooks.worker import webhook
 from hatchet_sdk import Hatchet
 
 hatchet = Hatchet(debug=True)
@@ -65,6 +67,9 @@ def main() -> None:
             bulk_replay_test_1,
             bulk_replay_test_2,
             bulk_replay_test_3,
+            webhook,
+            return_exceptions_task,
+            wait_for_sleep_twice,
         ],
         lifespan=lifespan,
     )

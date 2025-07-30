@@ -180,6 +180,7 @@ func (s ReadableTaskStatus) EnumValue() int {
 }
 
 type UpdateTaskStatusRow struct {
+	TenantId       pgtype.UUID
 	TaskId         int64
 	TaskInsertedAt pgtype.Timestamptz
 	ReadableStatus sqlcv1.V1ReadableStatusOlap
@@ -190,6 +191,7 @@ type UpdateTaskStatusRow struct {
 }
 
 type UpdateDAGStatusRow struct {
+	TenantId       pgtype.UUID
 	DagId          int64
 	DagInsertedAt  pgtype.Timestamptz
 	ReadableStatus sqlcv1.V1ReadableStatusOlap
@@ -215,8 +217,8 @@ type OLAPRepository interface {
 	CreateTaskEvents(ctx context.Context, tenantId string, events []sqlcv1.CreateTaskEventsOLAPParams) error
 	CreateDAGs(ctx context.Context, tenantId string, dags []*DAGWithData) error
 	GetTaskPointMetrics(ctx context.Context, tenantId string, startTimestamp *time.Time, endTimestamp *time.Time, bucketInterval time.Duration) ([]*sqlcv1.GetTaskPointMetricsRow, error)
-	UpdateTaskStatuses(ctx context.Context, tenantId string) (bool, []UpdateTaskStatusRow, error)
-	UpdateDAGStatuses(ctx context.Context, tenantId string) (bool, []UpdateDAGStatusRow, error)
+	UpdateTaskStatuses(ctx context.Context, tenantIds []string) (bool, []UpdateTaskStatusRow, error)
+	UpdateDAGStatuses(ctx context.Context, tenantIds []string) (bool, []UpdateDAGStatusRow, error)
 	ReadDAG(ctx context.Context, dagExternalId string) (*sqlcv1.V1DagsOlap, error)
 	ListTasksByDAGId(ctx context.Context, tenantId string, dagIds []pgtype.UUID, includePayloads bool) ([]*sqlcv1.PopulateTaskRunDataRow, map[int64]uuid.UUID, error)
 	ListTasksByIdAndInsertedAt(ctx context.Context, tenantId string, taskMetadata []TaskMetadata) ([]*sqlcv1.PopulateTaskRunDataRow, error)
@@ -230,8 +232,11 @@ type OLAPRepository interface {
 	ListEvents(ctx context.Context, opts sqlcv1.ListEventsParams) ([]*ListEventsRow, *int64, error)
 	ListEventKeys(ctx context.Context, tenantId string) ([]string, error)
 
-	GetDagDurationsByDagIds(ctx context.Context, tenantId string, dagIds []int64, dagInsertedAts []pgtype.Timestamptz, readableStatuses []sqlcv1.V1ReadableStatusOlap) ([]*sqlcv1.GetDagDurationsByDagIdsRow, error)
+	GetDagDurationsByDagIds(ctx context.Context, tenantId string, dagIds []int64, dagInsertedAts []pgtype.Timestamptz, readableStatuses []sqlcv1.V1ReadableStatusOlap) (map[string]*sqlcv1.GetDagDurationsByDagIdsRow, error)
 	GetTaskDurationsByTaskIds(ctx context.Context, tenantId string, taskIds []int64, taskInsertedAts []pgtype.Timestamptz, readableStatuses []sqlcv1.V1ReadableStatusOlap) (map[int64]*sqlcv1.GetTaskDurationsByTaskIdsRow, error)
+
+	CreateIncomingWebhookValidationFailureLogs(ctx context.Context, tenantId string, opts []CreateIncomingWebhookFailureLogOpts) error
+	StoreCELEvaluationFailures(ctx context.Context, tenantId string, failures []CELEvaluationFailure) error
 }
 
 type OLAPRepositoryImpl struct {
@@ -1110,7 +1115,7 @@ func (r *OLAPRepositoryImpl) writeTaskEventBatch(ctx context.Context, tenantId s
 	return nil
 }
 
-func (r *OLAPRepositoryImpl) UpdateTaskStatuses(ctx context.Context, tenantId string) (bool, []UpdateTaskStatusRow, error) {
+func (r *OLAPRepositoryImpl) UpdateTaskStatuses(ctx context.Context, tenantIds []string) (bool, []UpdateTaskStatusRow, error) {
 	var limit int32 = 10000
 
 	// each partition gets its own goroutine
@@ -1120,6 +1125,11 @@ func (r *OLAPRepositoryImpl) UpdateTaskStatuses(ctx context.Context, tenantId st
 
 	// if any of the partitions are saturated, we return true
 	isSaturated := false
+
+	tenantIdUUIDs := make([]pgtype.UUID, len(tenantIds))
+	for i, tenantId := range tenantIds {
+		tenantIdUUIDs[i] = sqlchelpers.UUIDFromStr(tenantId)
+	}
 
 	for i := 0; i < NUM_PARTITIONS; i++ {
 		partitionNumber := i
@@ -1133,10 +1143,21 @@ func (r *OLAPRepositoryImpl) UpdateTaskStatuses(ctx context.Context, tenantId st
 
 			defer rollback()
 
+			minInsertedAt, err := r.queries.FindMinInsertedAtForTaskStatusUpdates(ctx, tx, sqlcv1.FindMinInsertedAtForTaskStatusUpdatesParams{
+				Partitionnumber: int32(partitionNumber), // nolint: gosec
+				Tenantids:       tenantIdUUIDs,
+				Eventlimit:      limit,
+			})
+
+			if err != nil {
+				return fmt.Errorf("failed to find min inserted at for task status updates: %w", err)
+			}
+
 			statusUpdateRes, err := r.queries.UpdateTaskStatuses(ctx, tx, sqlcv1.UpdateTaskStatusesParams{
 				Partitionnumber: int32(partitionNumber), // nolint: gosec
-				Tenantid:        sqlchelpers.UUIDFromStr(tenantId),
+				Tenantids:       tenantIdUUIDs,
 				Eventlimit:      limit,
+				Mininsertedat:   minInsertedAt,
 			})
 
 			if err != nil {
@@ -1159,6 +1180,7 @@ func (r *OLAPRepositoryImpl) UpdateTaskStatuses(ctx context.Context, tenantId st
 				}
 
 				rows = append(rows, UpdateTaskStatusRow{
+					TenantId:       row.TenantID,
 					TaskId:         row.ID,
 					TaskInsertedAt: row.InsertedAt,
 					ReadableStatus: row.ReadableStatus,
@@ -1182,7 +1204,7 @@ func (r *OLAPRepositoryImpl) UpdateTaskStatuses(ctx context.Context, tenantId st
 	return isSaturated, rows, nil
 }
 
-func (r *OLAPRepositoryImpl) UpdateDAGStatuses(ctx context.Context, tenantId string) (bool, []UpdateDAGStatusRow, error) {
+func (r *OLAPRepositoryImpl) UpdateDAGStatuses(ctx context.Context, tenantIds []string) (bool, []UpdateDAGStatusRow, error) {
 	var limit int32 = 10000
 
 	// each partition gets its own goroutine
@@ -1192,6 +1214,11 @@ func (r *OLAPRepositoryImpl) UpdateDAGStatuses(ctx context.Context, tenantId str
 
 	// if any of the partitions are saturated, we return true
 	isSaturated := false
+
+	tenantIdUUIDs := make([]pgtype.UUID, len(tenantIds))
+	for i, tenantId := range tenantIds {
+		tenantIdUUIDs[i] = sqlchelpers.UUIDFromStr(tenantId)
+	}
 
 	for i := 0; i < NUM_PARTITIONS; i++ {
 		partitionNumber := i
@@ -1205,10 +1232,21 @@ func (r *OLAPRepositoryImpl) UpdateDAGStatuses(ctx context.Context, tenantId str
 
 			defer rollback()
 
+			minInsertedAt, err := r.queries.FindMinInsertedAtForDAGStatusUpdates(ctx, tx, sqlcv1.FindMinInsertedAtForDAGStatusUpdatesParams{
+				Partitionnumber: int32(partitionNumber), // nolint: gosec
+				Tenantids:       tenantIdUUIDs,
+				Eventlimit:      limit,
+			})
+
+			if err != nil {
+				return fmt.Errorf("failed to find min inserted at for DAG status updates: %w", err)
+			}
+
 			statusUpdateRes, err := r.queries.UpdateDAGStatuses(ctx, tx, sqlcv1.UpdateDAGStatusesParams{
 				Partitionnumber: int32(partitionNumber), // nolint: gosec
-				Tenantid:        sqlchelpers.UUIDFromStr(tenantId),
+				Tenantids:       tenantIdUUIDs,
 				Eventlimit:      limit,
+				Mininsertedat:   minInsertedAt,
 			})
 
 			if err != nil {
@@ -1231,6 +1269,7 @@ func (r *OLAPRepositoryImpl) UpdateDAGStatuses(ctx context.Context, tenantId str
 				}
 
 				rows = append(rows, UpdateDAGStatusRow{
+					TenantId:       row.TenantID,
 					DagId:          row.ID,
 					DagInsertedAt:  row.InsertedAt,
 					ReadableStatus: row.ReadableStatus,
@@ -1552,6 +1591,7 @@ type ListEventsRow struct {
 	CancelledCount          int64              `json:"cancelled_count"`
 	FailedCount             int64              `json:"failed_count"`
 	TriggeredRuns           []byte             `json:"triggered_runs"`
+	TriggeringWebhookName   *string            `json:"triggering_webhook_name,omitempty"`
 }
 
 func (r *OLAPRepositoryImpl) ListEvents(ctx context.Context, opts sqlcv1.ListEventsParams) ([]*ListEventsRow, *int64, error) {
@@ -1602,8 +1642,14 @@ func (r *OLAPRepositoryImpl) ListEvents(ctx context.Context, opts sqlcv1.ListEve
 
 	for _, event := range events {
 		data, exists := externalIdToEventData[event.ExternalID]
+		var triggeringWebhookName *string
+
+		if event.TriggeringWebhookName.Valid {
+			triggeringWebhookName = &event.TriggeringWebhookName.String
+		}
 
 		if !exists || len(data) == 0 {
+
 			result = append(result, &ListEventsRow{
 				TenantID:                event.TenantID,
 				EventID:                 event.ID,
@@ -1618,6 +1664,7 @@ func (r *OLAPRepositoryImpl) ListEvents(ctx context.Context, opts sqlcv1.ListEve
 				CompletedCount:          0,
 				CancelledCount:          0,
 				FailedCount:             0,
+				TriggeringWebhookName:   triggeringWebhookName,
 			})
 		} else {
 			for _, d := range data {
@@ -1636,6 +1683,7 @@ func (r *OLAPRepositoryImpl) ListEvents(ctx context.Context, opts sqlcv1.ListEve
 					CancelledCount:          d.CancelledCount,
 					FailedCount:             d.FailedCount,
 					TriggeredRuns:           d.TriggeredRuns,
+					TriggeringWebhookName:   triggeringWebhookName,
 				})
 			}
 		}
@@ -1654,13 +1702,25 @@ func (r *OLAPRepositoryImpl) ListEventKeys(ctx context.Context, tenantId string)
 	return keys, nil
 }
 
-func (r *OLAPRepositoryImpl) GetDagDurationsByDagIds(ctx context.Context, tenantId string, dagIds []int64, dagInsertedAts []pgtype.Timestamptz, readableStatuses []sqlcv1.V1ReadableStatusOlap) ([]*sqlcv1.GetDagDurationsByDagIdsRow, error) {
-	return r.queries.GetDagDurationsByDagIds(ctx, r.readPool, sqlcv1.GetDagDurationsByDagIdsParams{
+func (r *OLAPRepositoryImpl) GetDagDurationsByDagIds(ctx context.Context, tenantId string, dagIds []int64, dagInsertedAts []pgtype.Timestamptz, readableStatuses []sqlcv1.V1ReadableStatusOlap) (map[string]*sqlcv1.GetDagDurationsByDagIdsRow, error) {
+	rows, err := r.queries.GetDagDurationsByDagIds(ctx, r.readPool, sqlcv1.GetDagDurationsByDagIdsParams{
 		Dagids:           dagIds,
 		Daginsertedats:   dagInsertedAts,
 		Tenantid:         sqlchelpers.UUIDFromStr(tenantId),
 		Readablestatuses: readableStatuses,
 	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	dagDurations := make(map[string]*sqlcv1.GetDagDurationsByDagIdsRow)
+
+	for _, row := range rows {
+		dagDurations[sqlchelpers.UUIDToStr(row.ExternalID)] = row
+	}
+
+	return dagDurations, nil
 }
 
 func (r *OLAPRepositoryImpl) GetTaskDurationsByTaskIds(ctx context.Context, tenantId string, taskIds []int64, taskInsertedAts []pgtype.Timestamptz, readableStatuses []sqlcv1.V1ReadableStatusOlap) (map[int64]*sqlcv1.GetTaskDurationsByTaskIdsRow, error) {
@@ -1681,4 +1741,48 @@ func (r *OLAPRepositoryImpl) GetTaskDurationsByTaskIds(ctx context.Context, tena
 	}
 
 	return taskDurations, nil
+}
+
+type CreateIncomingWebhookFailureLogOpts struct {
+	WebhookName string
+	ErrorText   string
+}
+
+func (r *OLAPRepositoryImpl) CreateIncomingWebhookValidationFailureLogs(ctx context.Context, tenantId string, opts []CreateIncomingWebhookFailureLogOpts) error {
+	incomingWebhookNames := make([]string, len(opts))
+	errors := make([]string, len(opts))
+
+	for i, opt := range opts {
+		incomingWebhookNames[i] = opt.WebhookName
+		errors[i] = opt.ErrorText
+	}
+
+	params := sqlcv1.CreateIncomingWebhookValidationFailureLogsParams{
+		Tenantid:             sqlchelpers.UUIDFromStr(tenantId),
+		Incomingwebhooknames: incomingWebhookNames,
+		Errors:               errors,
+	}
+
+	return r.queries.CreateIncomingWebhookValidationFailureLogs(ctx, r.pool, params)
+}
+
+type CELEvaluationFailure struct {
+	Source       sqlcv1.V1CelEvaluationFailureSource `json:"source"`
+	ErrorMessage string                              `json:"error_message"`
+}
+
+func (r *OLAPRepositoryImpl) StoreCELEvaluationFailures(ctx context.Context, tenantId string, failures []CELEvaluationFailure) error {
+	errorMessages := make([]string, len(failures))
+	sources := make([]string, len(failures))
+
+	for i, failure := range failures {
+		errorMessages[i] = failure.ErrorMessage
+		sources[i] = string(failure.Source)
+	}
+
+	return r.queries.StoreCELEvaluationFailures(ctx, r.pool, sqlcv1.StoreCELEvaluationFailuresParams{
+		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+		Sources:  sources,
+		Errors:   errorMessages,
+	})
 }

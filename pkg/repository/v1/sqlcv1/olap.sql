@@ -11,7 +11,9 @@ SELECT
 -- name: CreateOLAPEventPartitions :exec
 SELECT
     create_v1_range_partition('v1_events_olap'::text, @date::date),
-    create_v1_range_partition('v1_event_to_run_olap'::text, @date::date)
+    create_v1_range_partition('v1_event_to_run_olap'::text, @date::date),
+    create_v1_range_partition('v1_incoming_webhook_validation_failures_olap'::text, @date::date),
+    create_v1_range_partition('v1_cel_evaluation_failures_olap'::text, @date::date)
 ;
 
 -- name: ListOLAPPartitionsBeforeDate :many
@@ -26,7 +28,11 @@ WITH task_partitions AS (
 ), event_trigger_partitions AS (
     SELECT 'v1_event_to_run_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_event_to_run_olap', @date::date) AS p
 ), events_lookup_table_partitions AS (
-    SELECT 'v1_event_lookup_table_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_event_lookup_table_olap', @date::date) AS p
+    SELECT 'v1_event_lookup_table_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_weekly_partitions_before_date('v1_event_lookup_table_olap', @date::date) AS p
+), incoming_webhook_validation_failure_partitions AS (
+    SELECT 'v1_incoming_webhook_validation_failures_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_incoming_webhook_validation_failures_olap', @date::date) AS p
+), cel_evaluation_failures_partitions AS (
+    SELECT 'v1_cel_evaluation_failures_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_cel_evaluation_failures_olap', @date::date) AS p
 ), candidates AS (
     SELECT
         *
@@ -67,6 +73,20 @@ WITH task_partitions AS (
         *
     FROM
         events_lookup_table_partitions
+
+    UNION ALL
+
+    SELECT
+        *
+    FROM
+        incoming_webhook_validation_failure_partitions
+
+    UNION ALL
+
+    SELECT
+        *
+    FROM
+        cel_evaluation_failures_partitions
 )
 
 SELECT *
@@ -74,7 +94,7 @@ FROM candidates
 WHERE
     CASE
         WHEN @shouldPartitionEventsTables::BOOLEAN THEN TRUE
-        ELSE parent_table NOT IN ('v1_events_olap', 'v1_event_to_run_olap')
+        ELSE parent_table NOT IN ('v1_events_olap', 'v1_event_to_run_olap', 'v1_cel_evaluation_failures_olap', 'v1_incoming_webhook_validation_failures_olap')
     END
 ;
 
@@ -642,16 +662,43 @@ LEFT JOIN
     task_output o ON o.task_id = t.id
 ORDER BY t.inserted_at DESC, t.id DESC;
 
--- name: UpdateTaskStatuses :many
-WITH locked_events AS (
-    SELECT
-        *
-    FROM
-        list_task_events_tmp(
+-- name: FindMinInsertedAtForTaskStatusUpdates :one
+WITH tenants AS (
+    SELECT UNNEST(
+        find_matching_tenants_in_task_events_tmp_partition(
             @partitionNumber::int,
-            @tenantId::uuid,
-            @eventLimit::int
+            @tenantIds::UUID[]
         )
+    ) AS tenant_id
+)
+
+SELECT
+    MIN(e.task_inserted_at)::TIMESTAMPTZ AS min_inserted_at
+FROM tenants t,
+    LATERAL list_task_events_tmp(
+        @partitionNumber::int,
+        t.tenant_id,
+        @eventLimit::int
+    ) e
+;
+
+-- name: UpdateTaskStatuses :many
+WITH tenants AS (
+    SELECT UNNEST(
+        find_matching_tenants_in_task_events_tmp_partition(
+            @partitionNumber::int,
+            @tenantIds::UUID[]
+        )
+    ) AS tenant_id
+), locked_events AS (
+    SELECT
+        e.*
+    FROM tenants t,
+        LATERAL list_task_events_tmp(
+            @partitionNumber::int,
+            t.tenant_id,
+            @eventLimit::int
+        ) e
 ), max_retry_counts AS (
     SELECT
         tenant_id,
@@ -704,8 +751,9 @@ WITH locked_events AS (
     JOIN
         updatable_events e ON
             (t.tenant_id, t.id, t.inserted_at) = (e.tenant_id, e.task_id, e.task_inserted_at)
+    WHERE t.inserted_at >= @minInsertedAt::TIMESTAMPTZ
     ORDER BY
-        t.id
+        t.inserted_at, t.id
     FOR UPDATE
 ), updated_tasks AS (
     UPDATE
@@ -748,10 +796,11 @@ WITH locked_events AS (
         e.retry_count
     FROM
         locked_events e
-    LEFT JOIN
-        locked_tasks t ON (e.tenant_id, e.task_id, e.task_inserted_at) = (t.tenant_id, t.id, t.inserted_at)
-    WHERE
-        t.id IS NULL
+    WHERE NOT EXISTS (
+        SELECT 1
+        FROM locked_tasks t
+        WHERE (e.tenant_id, e.task_id, e.task_inserted_at) = (t.tenant_id, t.id, t.inserted_at)
+    )
 ), deleted_events AS (
     DELETE FROM
         v1_task_events_olap_tmp
@@ -800,16 +849,44 @@ SELECT
 FROM
     updated_tasks t;
 
--- name: UpdateDAGStatuses :many
-WITH locked_events AS (
-    SELECT
-        *
-    FROM
-        list_task_status_updates_tmp(
+
+-- name: FindMinInsertedAtForDAGStatusUpdates :one
+WITH tenants AS (
+    SELECT UNNEST(
+        find_matching_tenants_in_task_status_updates_tmp_partition(
             @partitionNumber::int,
-            @tenantId::uuid,
-            @eventLimit::int
+            @tenantIds::UUID[]
         )
+    ) AS tenant_id
+)
+
+SELECT
+    MIN(u.dag_inserted_at)::TIMESTAMPTZ AS min_inserted_at
+FROM tenants t,
+    LATERAL list_task_status_updates_tmp(
+        @partitionNumber::int,
+        t.tenant_id,
+        @eventLimit::int
+    ) u
+;
+
+-- name: UpdateDAGStatuses :many
+WITH tenants AS (
+    SELECT UNNEST(
+        find_matching_tenants_in_task_status_updates_tmp_partition(
+            @partitionNumber::int,
+            @tenantIds::UUID[]
+        )
+    ) AS tenant_id
+), locked_events AS (
+    SELECT
+        u.*
+    FROM tenants t,
+        LATERAL list_task_status_updates_tmp(
+            @partitionNumber::int,
+            t.tenant_id,
+            @eventLimit::int
+        ) u
 ), distinct_dags AS (
     SELECT
         DISTINCT ON (e.tenant_id, e.dag_id, e.dag_inserted_at)
@@ -827,11 +904,16 @@ WITH locked_events AS (
         d.total_tasks
     FROM
         v1_dags_olap d
-    JOIN
-        distinct_dags dd ON
-            (d.tenant_id, d.id, d.inserted_at) = (dd.tenant_id, dd.dag_id, dd.dag_inserted_at)
+    WHERE
+        d.inserted_at >= @minInsertedAt::TIMESTAMPTZ
+        AND (d.inserted_at, d.id, d.tenant_id) IN (
+            SELECT
+                dd.dag_inserted_at, dd.dag_id, dd.tenant_id
+            FROM
+                distinct_dags dd
+        )
     ORDER BY
-        d.id, d.inserted_at
+        d.inserted_at, d.id
     FOR UPDATE
 ), dag_task_counts AS (
     SELECT
@@ -852,6 +934,7 @@ WITH locked_events AS (
     LEFT JOIN
         v1_tasks_olap t ON
             (dt.task_id, dt.task_inserted_at) = (t.id, t.inserted_at)
+    WHERE t.inserted_at >= @minInsertedAt::TIMESTAMPTZ
     GROUP BY
         d.id, d.inserted_at, d.total_tasks
 ), updated_dags AS (
@@ -875,7 +958,7 @@ WITH locked_events AS (
     WHERE
         (d.id, d.inserted_at) = (dtc.id, dtc.inserted_at)
     RETURNING
-        d.id, d.inserted_at, d.readable_status, d.external_id, d.workflow_id
+        d.tenant_id, d.id, d.inserted_at, d.readable_status, d.external_id, d.workflow_id
 ), events_to_requeue AS (
     -- Get events which don't have a corresponding locked_task
     SELECT
@@ -885,10 +968,11 @@ WITH locked_events AS (
         e.dag_inserted_at
     FROM
         locked_events e
-    LEFT JOIN
-        locked_dags d ON (e.tenant_id, e.dag_id, e.dag_inserted_at) = (d.tenant_id, d.id, d.inserted_at)
-    WHERE
-        d.id IS NULL
+    WHERE NOT EXISTS (
+        SELECT 1
+        FROM locked_dags d
+        WHERE (e.dag_inserted_at, e.dag_id, e.tenant_id) = (d.inserted_at, d.id, d.tenant_id)
+    )
 ), deleted_events AS (
     DELETE FROM
         v1_task_status_updates_tmp
@@ -1532,23 +1616,38 @@ WITH input AS (
         relevant_events
     GROUP BY
         dag_id, dag_inserted_at, task_id, task_inserted_at
-), dag_times AS (
+), dag_task_times AS (
     SELECT
         e.dag_id,
         e.dag_inserted_at,
-        e.external_id,
-        MIN(CASE WHEN e.readable_status = 'RUNNING' THEN e.inserted_at END) AS started_at,
+        e.task_id,
+        e.task_inserted_at,
+        MIN(CASE WHEN e.readable_status = 'RUNNING' THEN e.inserted_at END) AS task_started_at,
         MAX(CASE WHEN e.readable_status = ANY(ARRAY['COMPLETED', 'FAILED', 'CANCELLED']::v1_readable_status_olap[])
-            THEN e.inserted_at END) AS finished_at
+            THEN e.inserted_at END) AS task_finished_at
     FROM
         relevant_events e
     JOIN
         max_retry_counts mrc ON
             (e.dag_id, e.dag_inserted_at, e.task_id, e.task_inserted_at, e.retry_count) =
             (mrc.dag_id, mrc.dag_inserted_at, mrc.task_id, mrc.task_inserted_at, mrc.max_retry_count)
-    GROUP BY e.dag_id, e.dag_inserted_at, e.external_id
+    GROUP BY e.dag_id, e.dag_inserted_at, e.task_id, e.task_inserted_at
+), dag_times AS (
+    SELECT
+        dtt.dag_id,
+        dtt.dag_inserted_at,
+        dd.external_id,
+        MIN(dtt.task_started_at) AS started_at,
+        MAX(dtt.task_finished_at) AS finished_at
+    FROM
+        dag_task_times dtt
+    JOIN
+        dag_data dd ON (dd.dag_id, dd.inserted_at) = (dtt.dag_id, dtt.dag_inserted_at)
+    GROUP BY dtt.dag_id, dtt.dag_inserted_at, dd.external_id
 )
 SELECT
+    dd.external_id,
+    dd.tenant_id,
     dt.started_at::timestamptz AS started_at,
     dt.finished_at::timestamptz AS finished_at
 FROM
@@ -1605,3 +1704,35 @@ FROM
 LEFT JOIN
     task_times tt ON (td.task_id, td.inserted_at) = (tt.task_id, tt.inserted_at)
 ORDER BY td.task_id, td.inserted_at;
+
+-- name: CreateIncomingWebhookValidationFailureLogs :exec
+WITH inputs AS (
+    SELECT
+        UNNEST(@incomingWebhookNames::TEXT[]) AS incoming_webhook_name,
+        UNNEST(@errors::TEXT[]) AS error
+)
+INSERT INTO v1_incoming_webhook_validation_failures_olap(
+    tenant_id,
+    incoming_webhook_name,
+    error
+)
+SELECT
+    @tenantId::UUID,
+    i.incoming_webhook_name,
+    i.error
+FROM inputs i;
+
+-- name: StoreCELEvaluationFailures :exec
+WITH inputs AS (
+    SELECT
+        UNNEST(CAST(@sources::TEXT[] AS v1_cel_evaluation_failure_source[])) AS source,
+        UNNEST(@errors::TEXT[]) AS error
+)
+INSERT INTO v1_cel_evaluation_failures_olap (
+    tenant_id,
+    source,
+    error
+)
+SELECT @tenantId::UUID, source, error
+FROM inputs
+;
