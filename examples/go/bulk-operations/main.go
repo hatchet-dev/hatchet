@@ -35,7 +35,6 @@ func main() {
 	selectedWorkflow := (*workflows.Rows)[0]
 	selectedWorkflowUUID := uuid.MustParse(selectedWorkflow.Metadata.Id)
 
-
 	// > List runs
 	workflowRuns, err := hatchet.Runs().List(ctx, rest.V1WorkflowRunListParams{
 		WorkflowIds: &[]types.UUID{selectedWorkflowUUID},
@@ -50,7 +49,6 @@ func main() {
 		runIds = append(runIds, uuid.MustParse(run.Metadata.Id))
 	}
 
-
 	// > Cancel by run ids
 	_, err = hatchet.Runs().Cancel(ctx, rest.V1CancelTaskRequest{
 		ExternalIds: &runIds,
@@ -58,7 +56,6 @@ func main() {
 	if err != nil {
 		log.Fatalf("failed to cancel runs by ids: %v", err)
 	}
-
 
 	// > Cancel by filters
 	tNow := time.Now().UTC()
@@ -75,7 +72,6 @@ func main() {
 	if err != nil {
 		log.Fatalf("failed to cancel runs by filters: %v", err)
 	}
-
 
 	fmt.Println("cancelled all runs for workflow", selectedWorkflow.Name)
 }

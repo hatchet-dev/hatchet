@@ -90,6 +90,7 @@ import {
   V1CancelTaskRequest,
   V1CancelledTasks,
   V1CreateFilterRequest,
+  V1CreateWebhookRequest,
   V1DagChildren,
   V1EventList,
   V1Filter,
@@ -106,6 +107,9 @@ import {
   V1TaskTimingList,
   V1TriggerWorkflowRunRequest,
   V1UpdateFilterRequest,
+  V1Webhook,
+  V1WebhookList,
+  V1WebhookSourceName,
   V1WorkflowRunDetails,
   V1WorkflowRunDisplayNameList,
   WebhookWorkerCreateRequest,
@@ -786,6 +790,134 @@ export class Api<
       body: data,
       secure: true,
       type: ContentType.Json,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Lists all webhook for a tenant.
+   *
+   * @tags Webhook
+   * @name V1WebhookList
+   * @summary List webhooks
+   * @request GET:/api/v1/stable/tenants/{tenant}/webhooks
+   * @secure
+   */
+  v1WebhookList = (
+    tenant: string,
+    query?: {
+      /**
+       * The number to skip
+       * @format int64
+       */
+      offset?: number;
+      /**
+       * The number to limit by
+       * @format int64
+       */
+      limit?: number;
+      /** The source names to filter by */
+      sourceNames?: V1WebhookSourceName[];
+      /** The webhook names to filter by */
+      webhookNames?: string[];
+    },
+    params: RequestParams = {},
+  ) =>
+    this.request<V1WebhookList, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/webhooks`,
+      method: "GET",
+      query: query,
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Create a new webhook
+   *
+   * @tags Webhook
+   * @name V1WebhookCreate
+   * @summary Create a webhook
+   * @request POST:/api/v1/stable/tenants/{tenant}/webhooks
+   * @secure
+   */
+  v1WebhookCreate = (
+    tenant: string,
+    data: V1CreateWebhookRequest,
+    params: RequestParams = {},
+  ) =>
+    this.request<V1Webhook, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/webhooks`,
+      method: "POST",
+      body: data,
+      secure: true,
+      type: ContentType.Json,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Get a webhook by its name
+   *
+   * @tags Webhook
+   * @name V1WebhookGet
+   * @summary Get a webhook
+   * @request GET:/api/v1/stable/tenants/{tenant}/webhooks/{v1-webhook}
+   * @secure
+   */
+  v1WebhookGet = (
+    tenant: string,
+    v1Webhook: string,
+    params: RequestParams = {},
+  ) =>
+    this.request<V1Webhook, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/webhooks/${v1Webhook}`,
+      method: "GET",
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Delete a webhook
+   *
+   * @tags Webhook
+   * @name V1WebhookDelete
+   * @request DELETE:/api/v1/stable/tenants/{tenant}/webhooks/{v1-webhook}
+   * @secure
+   */
+  v1WebhookDelete = (
+    tenant: string,
+    v1Webhook: string,
+    params: RequestParams = {},
+  ) =>
+    this.request<V1Webhook, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/webhooks/${v1Webhook}`,
+      method: "DELETE",
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Post an incoming webhook message
+   *
+   * @tags Webhook
+   * @name V1WebhookReceive
+   * @summary Post a webhook message
+   * @request POST:/api/v1/stable/tenants/{tenant}/webhooks/{v1-webhook}
+   */
+  v1WebhookReceive = (
+    tenant: string,
+    v1Webhook: string,
+    data?: any,
+    params: RequestParams = {},
+  ) =>
+    this.request<
+      {
+        /** @example "OK" */
+        message?: string;
+      },
+      APIErrors
+    >({
+      path: `/api/v1/stable/tenants/${tenant}/webhooks/${v1Webhook}`,
+      method: "POST",
+      body: data,
       format: "json",
       ...params,
     });
