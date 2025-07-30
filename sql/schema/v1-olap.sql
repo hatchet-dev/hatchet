@@ -349,7 +349,7 @@ CREATE TABLE v1_incoming_webhook_validation_failures_olap (
     inserted_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    PRIMARY KEY (id, inserted_at)
+    PRIMARY KEY (inserted_at, id)
 ) PARTITION BY RANGE(inserted_at);
 
 CREATE INDEX v1_incoming_webhook_validation_failures_olap_tenant_id_incoming_webhook_name_idx ON v1_incoming_webhook_validation_failures_olap (tenant_id, incoming_webhook_name);
