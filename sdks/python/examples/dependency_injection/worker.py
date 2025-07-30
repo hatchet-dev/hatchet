@@ -4,7 +4,7 @@ from typing import Annotated
 
 from pydantic import BaseModel
 
-from hatchet_sdk import Context, Depends, EmptyModel, Hatchet
+from hatchet_sdk import Context, Depends, DurableContext, EmptyModel, Hatchet
 
 hatchet = Hatchet(debug=True)
 
@@ -48,10 +48,99 @@ def sync_task_with_dependencies(
     )
 
 
+@hatchet.durable_task()
+async def durable_async_task_with_dependencies(
+    input: EmptyModel,
+    ctx: DurableContext,
+    async_dep: Annotated[str, Depends(async_dep)],
+    sync_dep: Annotated[str, Depends(sync_dep)],
+) -> Output:
+    return Output(
+        sync_dep=sync_dep,
+        async_dep=async_dep,
+    )
+
+
+@hatchet.durable_task()
+def durable_sync_task_with_dependencies(
+    input: EmptyModel,
+    ctx: DurableContext,
+    async_dep: Annotated[str, Depends(async_dep)],
+    sync_dep: Annotated[str, Depends(sync_dep)],
+) -> Output:
+    return Output(
+        sync_dep=sync_dep,
+        async_dep=async_dep,
+    )
+
+
+di_workflow = hatchet.workflow(
+    name="dependency-injection-workflow",
+)
+
+
+@di_workflow.task()
+async def wf_async_task_with_dependencies(
+    input: EmptyModel,
+    ctx: Context,
+    async_dep: Annotated[str, Depends(async_dep)],
+    sync_dep: Annotated[str, Depends(sync_dep)],
+) -> Output:
+    return Output(
+        sync_dep=sync_dep,
+        async_dep=async_dep,
+    )
+
+
+@di_workflow.task()
+def wf_sync_task_with_dependencies(
+    input: EmptyModel,
+    ctx: Context,
+    async_dep: Annotated[str, Depends(async_dep)],
+    sync_dep: Annotated[str, Depends(sync_dep)],
+) -> Output:
+    return Output(
+        sync_dep=sync_dep,
+        async_dep=async_dep,
+    )
+
+
+@di_workflow.durable_task()
+async def wf_durable_async_task_with_dependencies(
+    input: EmptyModel,
+    ctx: DurableContext,
+    async_dep: Annotated[str, Depends(async_dep)],
+    sync_dep: Annotated[str, Depends(sync_dep)],
+) -> Output:
+    return Output(
+        sync_dep=sync_dep,
+        async_dep=async_dep,
+    )
+
+
+@di_workflow.durable_task()
+def wf_durable_sync_task_with_dependencies(
+    input: EmptyModel,
+    ctx: DurableContext,
+    async_dep: Annotated[str, Depends(async_dep)],
+    sync_dep: Annotated[str, Depends(sync_dep)],
+) -> Output:
+    return Output(
+        sync_dep=sync_dep,
+        async_dep=async_dep,
+    )
+
+
 def main() -> None:
     worker = hatchet.worker(
         "dependency-injection-worker",
-        workflows=[async_task_with_dependencies, sync_task_with_dependencies],
+        workflows=[
+            async_task_with_dependencies,
+            sync_task_with_dependencies,
+            durable_async_task_with_dependencies,
+            durable_async_task_with_dependencies,
+            di_workflow,
+        ],
     )
     worker.start()
 
