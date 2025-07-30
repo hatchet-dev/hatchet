@@ -30,6 +30,8 @@ type EventTriggerOpts struct {
 	Priority *int32
 
 	Scope *string
+
+	TriggeringWebhookName *string
 }
 
 type TriggerTaskData struct {
@@ -118,6 +120,7 @@ type TriggerFromEventsResult struct {
 	Tasks                 []*sqlcv1.V1Task
 	Dags                  []*DAGWithData
 	EventExternalIdToRuns map[string][]*Run
+	CELEvaluationFailures []CELEvaluationFailure
 }
 
 type TriggerDecision struct {
@@ -126,7 +129,9 @@ type TriggerDecision struct {
 	FilterId      *string
 }
 
-func (r *TriggerRepositoryImpl) makeTriggerDecisions(ctx context.Context, filters []*sqlcv1.V1Filter, hasAnyFilters bool, opt EventTriggerOpts) []TriggerDecision {
+func (r *TriggerRepositoryImpl) makeTriggerDecisions(ctx context.Context, filters []*sqlcv1.V1Filter, hasAnyFilters bool, opt EventTriggerOpts) ([]TriggerDecision, []CELEvaluationFailure) {
+	celEvaluationFailures := make([]CELEvaluationFailure, 0)
+
 	// Cases to handle:
 	// 1. If there are no filters that exist for the workflow, we should trigger it.
 	// 2. If there _are_ filters that exist, but the list is empty, then there were no scope matches so we should _not_ trigger.
@@ -140,7 +145,7 @@ func (r *TriggerRepositoryImpl) makeTriggerDecisions(ctx context.Context, filter
 				FilterPayload: nil,
 				FilterId:      nil,
 			},
-		}
+		}, celEvaluationFailures
 	}
 
 	// Case 2 - no filters were found matching the provided scope,
@@ -152,7 +157,7 @@ func (r *TriggerRepositoryImpl) makeTriggerDecisions(ctx context.Context, filter
 				FilterPayload: nil,
 				FilterId:      nil,
 			},
-		}
+		}, celEvaluationFailures
 	}
 
 	// Case 3 - we have filters, so we should evaluate each expression and return a list of decisions
@@ -187,6 +192,11 @@ func (r *TriggerRepositoryImpl) makeTriggerDecisions(ctx context.Context, filter
 					FilterPayload: filter.Payload,
 					FilterId:      &filterId,
 				})
+
+				celEvaluationFailures = append(celEvaluationFailures, CELEvaluationFailure{
+					Source:       sqlcv1.V1CelEvaluationFailureSourceFILTER,
+					ErrorMessage: err.Error(),
+				})
 			}
 
 			decisions = append(decisions, TriggerDecision{
@@ -197,7 +207,7 @@ func (r *TriggerRepositoryImpl) makeTriggerDecisions(ctx context.Context, filter
 		}
 	}
 
-	return decisions
+	return decisions, celEvaluationFailures
 }
 
 type EventExternalIdFilterId struct {
@@ -315,6 +325,7 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 
 	// each (workflowVersionId, eventKey, opt) is a separate workflow that we need to create
 	triggerOpts := make([]triggerTuple, 0)
+	celEvaluationFailures := make([]CELEvaluationFailure, 0)
 
 	for _, workflow := range workflowVersionIdsAndEventKeys {
 		opts, ok := eventKeysToOpts[workflow.IncomingEventKey]
@@ -339,7 +350,9 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 				filters = workflowIdAndScopeToFilters[key]
 			}
 
-			triggerDecisions := r.makeTriggerDecisions(ctx, filters, hasAnyFilters, opt)
+			triggerDecisions, evalFailures := r.makeTriggerDecisions(ctx, filters, hasAnyFilters, opt)
+
+			celEvaluationFailures = append(celEvaluationFailures, evalFailures...)
 
 			for _, decision := range triggerDecisions {
 				if !decision.ShouldTrigger {
@@ -418,6 +431,7 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 		Tasks:                 tasks,
 		Dags:                  dags,
 		EventExternalIdToRuns: eventExternalIdToRuns,
+		CELEvaluationFailures: celEvaluationFailures,
 	}, nil
 }
 

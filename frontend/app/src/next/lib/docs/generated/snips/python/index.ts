@@ -43,6 +43,7 @@ import * as sticky_workers from './sticky_workers';
 import * as streaming from './streaming';
 import * as timeout from './timeout';
 import * as unit_testing from './unit_testing';
+import * as webhooks from './webhooks';
 import * as worker_existing_loop from './worker_existing_loop';
 import * as workflow_registration from './workflow_registration';
 
@@ -91,5 +92,6 @@ export { sticky_workers };
 export { streaming };
 export { timeout };
 export { unit_testing };
+export { webhooks };
 export { worker_existing_loop };
 export { workflow_registration };

@@ -24,6 +24,7 @@ type V2TaskGetPointMetricsQuery = Parameters<
   typeof api.v1TaskGetPointMetrics
 >[1];
 type GetTaskMetricsQuery = Parameters<typeof api.v1TaskListStatusMetrics>[1];
+type ListWebhooksQuery = Parameters<typeof api.v1WebhookList>[1];
 
 export const queries = createQueryKeyStore({
   cloud: {
@@ -254,6 +255,12 @@ export const queries = createQueryKeyStore({
       queryKey: ['workflow-run:list:step-run-events', workflowRun],
       queryFn: async () =>
         (await api.workflowRunListStepRunEvents(tenantId, workflowRun)).data,
+    }),
+  },
+  v1Webhooks: {
+    list: (tenant: string, params?: ListWebhooksQuery | undefined) => ({
+      queryKey: ['v1:webhook:list', tenant],
+      queryFn: async () => (await api.v1WebhookList(tenant, params)).data,
     }),
   },
   v1Events: {

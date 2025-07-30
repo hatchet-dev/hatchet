@@ -71,6 +71,11 @@ class V1Event(BaseModel):
         description="The external IDs of the runs that were triggered by this event.",
         alias="triggeredRuns",
     )
+    triggering_webhook_name: Optional[StrictStr] = Field(
+        default=None,
+        description="The name of the webhook that triggered this event, if applicable.",
+        alias="triggeringWebhookName",
+    )
     __properties: ClassVar[List[str]] = [
         "metadata",
         "key",
@@ -82,6 +87,7 @@ class V1Event(BaseModel):
         "scope",
         "seenAt",
         "triggeredRuns",
+        "triggeringWebhookName",
     ]
 
     model_config = ConfigDict(
@@ -179,6 +185,7 @@ class V1Event(BaseModel):
                     if obj.get("triggeredRuns") is not None
                     else None
                 ),
+                "triggeringWebhookName": obj.get("triggeringWebhookName"),
             }
         )
         return _obj

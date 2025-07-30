@@ -11,7 +11,9 @@ SELECT
 -- name: CreateOLAPEventPartitions :exec
 SELECT
     create_v1_range_partition('v1_events_olap'::text, @date::date),
-    create_v1_range_partition('v1_event_to_run_olap'::text, @date::date)
+    create_v1_range_partition('v1_event_to_run_olap'::text, @date::date),
+    create_v1_range_partition('v1_incoming_webhook_validation_failures_olap'::text, @date::date),
+    create_v1_range_partition('v1_cel_evaluation_failures_olap'::text, @date::date)
 ;
 
 -- name: ListOLAPPartitionsBeforeDate :many
@@ -26,7 +28,11 @@ WITH task_partitions AS (
 ), event_trigger_partitions AS (
     SELECT 'v1_event_to_run_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_event_to_run_olap', @date::date) AS p
 ), events_lookup_table_partitions AS (
-    SELECT 'v1_event_lookup_table_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_event_lookup_table_olap', @date::date) AS p
+    SELECT 'v1_event_lookup_table_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_weekly_partitions_before_date('v1_event_lookup_table_olap', @date::date) AS p
+), incoming_webhook_validation_failure_partitions AS (
+    SELECT 'v1_incoming_webhook_validation_failures_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_incoming_webhook_validation_failures_olap', @date::date) AS p
+), cel_evaluation_failures_partitions AS (
+    SELECT 'v1_cel_evaluation_failures_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_cel_evaluation_failures_olap', @date::date) AS p
 ), candidates AS (
     SELECT
         *
@@ -67,6 +73,20 @@ WITH task_partitions AS (
         *
     FROM
         events_lookup_table_partitions
+
+    UNION ALL
+
+    SELECT
+        *
+    FROM
+        incoming_webhook_validation_failure_partitions
+
+    UNION ALL
+
+    SELECT
+        *
+    FROM
+        cel_evaluation_failures_partitions
 )
 
 SELECT *
@@ -74,7 +94,7 @@ FROM candidates
 WHERE
     CASE
         WHEN @shouldPartitionEventsTables::BOOLEAN THEN TRUE
-        ELSE parent_table NOT IN ('v1_events_olap', 'v1_event_to_run_olap')
+        ELSE parent_table NOT IN ('v1_events_olap', 'v1_event_to_run_olap', 'v1_cel_evaluation_failures_olap', 'v1_incoming_webhook_validation_failures_olap')
     END
 ;
 
@@ -1684,3 +1704,35 @@ FROM
 LEFT JOIN
     task_times tt ON (td.task_id, td.inserted_at) = (tt.task_id, tt.inserted_at)
 ORDER BY td.task_id, td.inserted_at;
+
+-- name: CreateIncomingWebhookValidationFailureLogs :exec
+WITH inputs AS (
+    SELECT
+        UNNEST(@incomingWebhookNames::TEXT[]) AS incoming_webhook_name,
+        UNNEST(@errors::TEXT[]) AS error
+)
+INSERT INTO v1_incoming_webhook_validation_failures_olap(
+    tenant_id,
+    incoming_webhook_name,
+    error
+)
+SELECT
+    @tenantId::UUID,
+    i.incoming_webhook_name,
+    i.error
+FROM inputs i;
+
+-- name: StoreCELEvaluationFailures :exec
+WITH inputs AS (
+    SELECT
+        UNNEST(CAST(@sources::TEXT[] AS v1_cel_evaluation_failure_source[])) AS source,
+        UNNEST(@errors::TEXT[]) AS error
+)
+INSERT INTO v1_cel_evaluation_failures_olap (
+    tenant_id,
+    source,
+    error
+)
+SELECT @tenantId::UUID, source, error
+FROM inputs
+;

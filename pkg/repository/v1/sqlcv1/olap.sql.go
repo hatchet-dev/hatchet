@@ -21,7 +21,7 @@ type BulkCreateEventTriggersParams struct {
 
 const countEvents = `-- name: CountEvents :one
 WITH included_events AS (
-    SELECT e.tenant_id, e.id, e.external_id, e.seen_at, e.key, e.payload, e.additional_metadata, e.scope
+    SELECT e.tenant_id, e.id, e.external_id, e.seen_at, e.key, e.payload, e.additional_metadata, e.scope, e.triggering_webhook_name
     FROM v1_event_lookup_table_olap elt
     JOIN v1_events_olap e ON (elt.tenant_id, elt.event_id, elt.event_seen_at) = (e.tenant_id, e.id, e.seen_at)
     WHERE
@@ -120,10 +120,41 @@ type CreateDAGsOLAPParams struct {
 	TotalTasks           int32              `json:"total_tasks"`
 }
 
+const createIncomingWebhookValidationFailureLogs = `-- name: CreateIncomingWebhookValidationFailureLogs :exec
+WITH inputs AS (
+    SELECT
+        UNNEST($2::TEXT[]) AS incoming_webhook_name,
+        UNNEST($3::TEXT[]) AS error
+)
+INSERT INTO v1_incoming_webhook_validation_failures_olap(
+    tenant_id,
+    incoming_webhook_name,
+    error
+)
+SELECT
+    $1::UUID,
+    i.incoming_webhook_name,
+    i.error
+FROM inputs i
+`
+
+type CreateIncomingWebhookValidationFailureLogsParams struct {
+	Tenantid             pgtype.UUID `json:"tenantid"`
+	Incomingwebhooknames []string    `json:"incomingwebhooknames"`
+	Errors               []string    `json:"errors"`
+}
+
+func (q *Queries) CreateIncomingWebhookValidationFailureLogs(ctx context.Context, db DBTX, arg CreateIncomingWebhookValidationFailureLogsParams) error {
+	_, err := db.Exec(ctx, createIncomingWebhookValidationFailureLogs, arg.Tenantid, arg.Incomingwebhooknames, arg.Errors)
+	return err
+}
+
 const createOLAPEventPartitions = `-- name: CreateOLAPEventPartitions :exec
 SELECT
     create_v1_range_partition('v1_events_olap'::text, $1::date),
-    create_v1_range_partition('v1_event_to_run_olap'::text, $1::date)
+    create_v1_range_partition('v1_event_to_run_olap'::text, $1::date),
+    create_v1_range_partition('v1_incoming_webhook_validation_failures_olap'::text, $1::date),
+    create_v1_range_partition('v1_cel_evaluation_failures_olap'::text, $1::date)
 `
 
 func (q *Queries) CreateOLAPEventPartitions(ctx context.Context, db DBTX, date pgtype.Date) error {
@@ -879,7 +910,7 @@ func (q *Queries) ListEventKeys(ctx context.Context, db DBTX, tenantid pgtype.UU
 }
 
 const listEvents = `-- name: ListEvents :many
-SELECT e.tenant_id, e.id, e.external_id, e.seen_at, e.key, e.payload, e.additional_metadata, e.scope
+SELECT e.tenant_id, e.id, e.external_id, e.seen_at, e.key, e.payload, e.additional_metadata, e.scope, e.triggering_webhook_name
 FROM v1_event_lookup_table_olap elt
 JOIN v1_events_olap e ON (elt.tenant_id, elt.event_id, elt.event_seen_at) = (e.tenant_id, e.id, e.seen_at)
 WHERE
@@ -978,6 +1009,7 @@ func (q *Queries) ListEvents(ctx context.Context, db DBTX, arg ListEventsParams)
 			&i.Payload,
 			&i.AdditionalMetadata,
 			&i.Scope,
+			&i.TriggeringWebhookName,
 		); err != nil {
 			return nil, err
 		}
@@ -1001,7 +1033,11 @@ WITH task_partitions AS (
 ), event_trigger_partitions AS (
     SELECT 'v1_event_to_run_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_event_to_run_olap', $2::date) AS p
 ), events_lookup_table_partitions AS (
-    SELECT 'v1_event_lookup_table_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_event_lookup_table_olap', $2::date) AS p
+    SELECT 'v1_event_lookup_table_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_weekly_partitions_before_date('v1_event_lookup_table_olap', $2::date) AS p
+), incoming_webhook_validation_failure_partitions AS (
+    SELECT 'v1_incoming_webhook_validation_failures_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_incoming_webhook_validation_failures_olap', $2::date) AS p
+), cel_evaluation_failures_partitions AS (
+    SELECT 'v1_cel_evaluation_failures_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_cel_evaluation_failures_olap', $2::date) AS p
 ), candidates AS (
     SELECT
         parent_table, partition_name
@@ -1042,6 +1078,20 @@ WITH task_partitions AS (
         parent_table, partition_name
     FROM
         events_lookup_table_partitions
+
+    UNION ALL
+
+    SELECT
+        parent_table, partition_name
+    FROM
+        incoming_webhook_validation_failure_partitions
+
+    UNION ALL
+
+    SELECT
+        parent_table, partition_name
+    FROM
+        cel_evaluation_failures_partitions
 )
 
 SELECT parent_table, partition_name
@@ -1049,7 +1099,7 @@ FROM candidates
 WHERE
     CASE
         WHEN $1::BOOLEAN THEN TRUE
-        ELSE parent_table NOT IN ('v1_events_olap', 'v1_event_to_run_olap')
+        ELSE parent_table NOT IN ('v1_events_olap', 'v1_event_to_run_olap', 'v1_cel_evaluation_failures_olap', 'v1_incoming_webhook_validation_failures_olap')
     END
 `
 
@@ -2403,6 +2453,32 @@ func (q *Queries) ReadWorkflowRunByExternalId(ctx context.Context, db DBTX, work
 		&i.TaskMetadata,
 	)
 	return &i, err
+}
+
+const storeCELEvaluationFailures = `-- name: StoreCELEvaluationFailures :exec
+WITH inputs AS (
+    SELECT
+        UNNEST(CAST($2::TEXT[] AS v1_cel_evaluation_failure_source[])) AS source,
+        UNNEST($3::TEXT[]) AS error
+)
+INSERT INTO v1_cel_evaluation_failures_olap (
+    tenant_id,
+    source,
+    error
+)
+SELECT $1::UUID, source, error
+FROM inputs
+`
+
+type StoreCELEvaluationFailuresParams struct {
+	Tenantid pgtype.UUID `json:"tenantid"`
+	Sources  []string    `json:"sources"`
+	Errors   []string    `json:"errors"`
+}
+
+func (q *Queries) StoreCELEvaluationFailures(ctx context.Context, db DBTX, arg StoreCELEvaluationFailuresParams) error {
+	_, err := db.Exec(ctx, storeCELEvaluationFailures, arg.Tenantid, arg.Sources, arg.Errors)
+	return err
 }
 
 const updateDAGStatuses = `-- name: UpdateDAGStatuses :many

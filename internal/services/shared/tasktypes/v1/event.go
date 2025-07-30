@@ -14,6 +14,7 @@ type UserEventTaskPayload struct {
 	EventAdditionalMetadata []byte  `json:"event_additional_metadata"`
 	EventPriority           *int32  `json:"event_priority,omitempty"`
 	EventScope              *string `json:"event_scope,omitempty"`
+	TriggeringWebhookName   *string `json:"triggering_webhook_name,omitempty"`
 }
 
 func NewInternalEventMessage(tenantId string, timestamp time.Time, events ...v1.InternalTaskEvent) (*msgqueue.Message, error) {

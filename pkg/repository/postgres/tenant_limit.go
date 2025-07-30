@@ -85,6 +85,13 @@ func (t *tenantLimitRepository) DefaultLimits() []repository.Limit {
 			Window:           nil,
 			CustomValueMeter: true,
 		},
+		{
+			Resource:         dbsqlc.LimitResourceINCOMINGWEBHOOK,
+			Limit:            int32(t.config.Limits.DefaultIncomingWebhookLimit),      // nolint: gosec
+			Alarm:            int32(t.config.Limits.DefaultIncomingWebhookAlarmLimit), // nolint: gosec
+			Window:           nil,
+			CustomValueMeter: true,
+		},
 	}
 }
 

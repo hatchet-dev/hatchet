@@ -300,6 +300,17 @@ UpdateTenantInviteRequest:
     - role
   type: object
 
+UpdateTenantMemberRequest:
+  properties:
+    role:
+      $ref: "#/TenantMemberRole"
+      description: The role of the user in the tenant.
+      x-oapi-codegen-extra-tags:
+        validate: "required"
+  required:
+    - role
+  type: object
+
 TenantInvite:
   properties:
     metadata:
