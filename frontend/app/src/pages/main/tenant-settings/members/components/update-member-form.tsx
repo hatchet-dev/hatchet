@@ -21,11 +21,7 @@ import {
 import { TenantMember, TenantMemberRole } from '@/lib/api';
 
 const schema = z.object({
-  role: z.enum([
-    TenantMemberRole.OWNER,
-    TenantMemberRole.ADMIN,
-    TenantMemberRole.MEMBER,
-  ]),
+  role: z.nativeEnum(TenantMemberRole),
 });
 
 interface UpdateMemberFormProps {

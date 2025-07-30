@@ -2,6 +2,7 @@ import { createContext, useContext } from 'react';
 import {
   useQuery,
   useMutation,
+  useQueryClient,
   UseMutationResult,
 } from '@tanstack/react-query';
 import api from '@/lib/api';
@@ -42,6 +43,7 @@ const MembersContext = createContext<MembersState | null>(null);
 export function MembersProvider({ children }: { children: React.ReactNode }) {
   const { tenantId } = useCurrentTenantId();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   const membersQuery = useQuery({
     queryKey: ['tenant-members:list', tenantId],
@@ -94,8 +96,8 @@ export function MembersProvider({ children }: { children: React.ReactNode }) {
       }
     },
     onSuccess: async () => {
-      await membersQuery.refetch();
-      await invitesQuery.refetch();
+      await queryClient.invalidateQueries({ queryKey: ['tenant-members:list', tenantId] });
+      await queryClient.invalidateQueries({ queryKey: ['tenant-invites:list', tenantId] });
     },
   });
 
@@ -122,7 +124,7 @@ export function MembersProvider({ children }: { children: React.ReactNode }) {
       }
     },
     onSuccess: async () => {
-      await membersQuery.refetch();
+      await queryClient.invalidateQueries({ queryKey: ['tenant-members:list', tenantId] });
     },
   });
 

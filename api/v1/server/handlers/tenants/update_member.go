@@ -19,7 +19,6 @@ func (t *TenantService) TenantMemberUpdate(ctx echo.Context, request gen.TenantM
 		return nil, err
 	}
 
-	// validate the request
 	if apiErrors, err := t.config.Validator.ValidateAPI(request.Body); err != nil {
 		return nil, err
 	} else if apiErrors != nil {
@@ -56,12 +55,10 @@ func (t *TenantService) TenantMemberUpdate(ctx echo.Context, request gen.TenantM
 		), nil
 	}
 
-	// construct the database query
 	updateOpts := &repository.UpdateTenantMemberOpts{
 		Role: repository.StringPtr(string(request.Body.Role)),
 	}
 
-	// update the member
 	updatedMember, err := t.config.APIRepository.Tenant().UpdateTenantMember(ctx.Request().Context(), sqlchelpers.UUIDToStr(memberToUpdate.ID), updateOpts)
 
 	if err != nil {
