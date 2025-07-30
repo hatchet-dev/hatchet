@@ -24,13 +24,6 @@ import { RemoveMemberForm } from '@/next/pages/authenticated/dashboard/settings/
 import { RevokeInviteForm } from '@/next/pages/authenticated/dashboard/settings/team/components/revoke-invite-form';
 import { Separator } from '@radix-ui/react-separator';
 import { InvitesTable } from '@/next/pages/authenticated/dashboard/settings/team/components/invites-table';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/next/components/ui/select';
 
 interface MembersTableProps {
   emptyState?: React.ReactNode;
@@ -39,31 +32,9 @@ interface MembersTableProps {
 export function MembersTable({ emptyState }: MembersTableProps) {
   const { can } = useCan();
   const { data: user } = useUser();
-  const { data, isLoading, invites, isLoadingInvites, refetch, updateMember } =
-    useMembers();
+  const { data, isLoading, invites, isLoadingInvites, refetch } = useMembers();
   const [removeMember, setRemoveMember] = useState<TenantMember | null>(null);
   const [revokeInvite, setRevokeInvite] = useState<TenantInvite | null>(null);
-
-  const handleRoleChange = (
-    member: TenantMember,
-    newRole: TenantMemberRole,
-  ) => {
-    updateMember.mutate({
-      memberId: member.metadata.id,
-      data: { role: newRole },
-    });
-  };
-
-  const canUpdateMemberRole = (
-    member: TenantMember,
-    newRole?: TenantMemberRole,
-  ) => {
-    // For checking if role selection should be shown, use current role
-    const roleToCheck = newRole || member.role;
-    return can(
-      members.updateRole({ targetMember: member, newRole: roleToCheck }),
-    );
-  };
 
   if (isLoading) {
     return <MembersTableSkeleton />;
@@ -101,32 +72,7 @@ export function MembersTable({ emptyState }: MembersTableProps) {
                   </div>
                 </TableCell>
                 <TableCell>{member.user.email}</TableCell>
-                <TableCell>
-                  {canUpdateMemberRole(member) ? (
-                    <Select
-                      value={member.role}
-                      onValueChange={(value: TenantMemberRole) =>
-                        handleRoleChange(member, value)
-                      }
-                      disabled={updateMember.isPending}
-                    >
-                      <SelectTrigger className="w-[120px]">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {Object.values(TenantMemberRole)
-                          .filter((role) => canUpdateMemberRole(member, role))
-                          .map((role) => (
-                            <SelectItem key={role} value={role}>
-                              {RoleMap[role]}
-                            </SelectItem>
-                          ))}
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <span>{RoleMap[member.role]}</span>
-                  )}
-                </TableCell>
+                <TableCell>{RoleMap[member.role]}</TableCell>
                 <TableCell>{formatDate(member.metadata.createdAt)}</TableCell>
                 <TableCell className="text-right">
                   {can(members.remove(member)) && (

@@ -2,7 +2,6 @@ import { createContext, useContext } from 'react';
 import {
   useQuery,
   useMutation,
-  useQueryClient,
   UseMutationResult,
 } from '@tanstack/react-query';
 import api from '@/lib/api';
@@ -13,7 +12,6 @@ import {
   CreateTenantInviteRequest,
   TenantInvite,
   TenantInviteList,
-  UpdateTenantMemberRequest,
 } from '@/lib/api/generated/data-contracts';
 import { useToast } from './utils/use-toast';
 
@@ -27,12 +25,6 @@ interface MembersState {
     CreateTenantInviteRequest,
     unknown
   >;
-  updateMember: UseMutationResult<
-    TenantMember,
-    Error,
-    { memberId: string; data: UpdateTenantMemberRequest },
-    unknown
-  >;
   invites: TenantInvite[];
   isLoadingInvites: boolean;
   refetchInvites: () => Promise<unknown>;
@@ -43,7 +35,6 @@ const MembersContext = createContext<MembersState | null>(null);
 export function MembersProvider({ children }: { children: React.ReactNode }) {
   const { tenantId } = useCurrentTenantId();
   const { toast } = useToast();
-  const queryClient = useQueryClient();
 
   const membersQuery = useQuery({
     queryKey: ['tenant-members:list', tenantId],
@@ -96,35 +87,8 @@ export function MembersProvider({ children }: { children: React.ReactNode }) {
       }
     },
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['tenant-members:list', tenantId] });
-      await queryClient.invalidateQueries({ queryKey: ['tenant-invites:list', tenantId] });
-    },
-  });
-
-  const updateMemberMutation = useMutation({
-    mutationKey: ['tenant-member:update', tenantId],
-    mutationFn: async ({
-      memberId,
-      data,
-    }: {
-      memberId: string;
-      data: UpdateTenantMemberRequest;
-    }) => {
-      try {
-        const res = await api.tenantMemberUpdate(tenantId, memberId, data);
-        return res.data;
-      } catch (error) {
-        toast({
-          title: 'Error updating member role',
-
-          variant: 'destructive',
-          error,
-        });
-        throw error;
-      }
-    },
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['tenant-members:list', tenantId] });
+      await membersQuery.refetch();
+      await invitesQuery.refetch();
     },
   });
 
@@ -133,7 +97,6 @@ export function MembersProvider({ children }: { children: React.ReactNode }) {
     isLoading: membersQuery.isLoading,
     refetch: membersQuery.refetch,
     invite: inviteMutation,
-    updateMember: updateMemberMutation,
     invites: invitesQuery.data?.rows || [],
     isLoadingInvites: invitesQuery.isLoading,
     refetchInvites: invitesQuery.refetch,
