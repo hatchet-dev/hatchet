@@ -146,20 +146,17 @@ output-options:
     "strict/strict-echo.tmpl": >-
       type StrictHandlerFunc func(ctx echo.Context, args interface{}) (interface{}, error)
 
-      type StrictMiddlewareFunc func(f StrictHandlerFunc, operationID string) StrictHandlerFunc
-
-      func NewStrictHandler(ssi StrictServerInterface, middlewares []StrictMiddlewareFunc) ServerInterface {
-          return &strictHandler{ssi: ssi, middlewares: middlewares}
+      func NewStrictHandler(ssi StrictServerInterface) ServerInterface {
+          return &strictHandler{ssi: ssi}
       }
 
       type strictHandler struct {
           ssi StrictServerInterface
-          middlewares []StrictMiddlewareFunc
       }
 
       {{range .}}
           {{$opid := .OperationId}}
-          // {{$opid}} operation middleware
+          // {{$opid}} operation
           func (sh *strictHandler) {{.OperationId}}(ctx echo.Context{{genParamArgs .PathParams}}{{if .RequiresParamObject}}, params {{.OperationId}}Params{{end}}) error {
               var request {{$opid | ucFirst}}RequestObject
 
@@ -216,9 +213,6 @@ output-options:
 
               handler := func(ctx echo.Context, request interface{}) (interface{}, error){
                   return sh.ssi.{{.OperationId}}(ctx, request.({{$opid | ucFirst}}RequestObject))
-              }
-              for _, middleware := range sh.middlewares {
-                  handler = middleware(handler, "{{.OperationId}}")
               }
 
               response, err := handler(ctx, request)
