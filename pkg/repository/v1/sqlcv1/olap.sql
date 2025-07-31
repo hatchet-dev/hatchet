@@ -4,14 +4,14 @@ SELECT
     create_v1_hash_partitions('v1_task_status_updates_tmp'::text, @partitions::int),
     create_v1_olap_partition_with_date_and_status('v1_tasks_olap'::text, @date::date),
     create_v1_olap_partition_with_date_and_status('v1_runs_olap'::text, @date::date),
-    create_v1_olap_partition_with_date_and_status('v1_dags_olap'::text, @date::date),
-    create_v1_weekly_range_partition('v1_event_lookup_table_olap'::text, @date::date)
+    create_v1_olap_partition_with_date_and_status('v1_dags_olap'::text, @date::date)
 ;
 
 -- name: CreateOLAPEventPartitions :exec
 SELECT
     create_v1_range_partition('v1_events_olap'::text, @date::date),
     create_v1_range_partition('v1_event_to_run_olap'::text, @date::date),
+    create_v1_weekly_range_partition('v1_event_lookup_table_olap'::text, @date::date),
     create_v1_range_partition('v1_incoming_webhook_validation_failures_olap'::text, @date::date),
     create_v1_range_partition('v1_cel_evaluation_failures_olap'::text, @date::date)
 ;
