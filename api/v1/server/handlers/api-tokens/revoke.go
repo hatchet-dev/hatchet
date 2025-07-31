@@ -24,7 +24,7 @@ func (a *APITokenService) ApiTokenUpdateRevoke(ctx echo.Context, request gen.Api
 		return nil, err
 	}
 
-	ctx.Set("correlationId", apiToken.ID)
+	ctx.Set("correlationId", apiToken.ID.String())
 
 	return gen.ApiTokenUpdateRevoke204Response{}, nil
 }

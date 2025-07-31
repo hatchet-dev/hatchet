@@ -122,6 +122,8 @@ func (t *V1WorkflowRunsService) V1WorkflowRunCreate(ctx echo.Context, request ge
 		return nil, err
 	}
 
+	ctx.Set("correlationId", sqlchelpers.UUIDToStr(rawWorkflowRun.WorkflowRun.ExternalID))
+
 	// Search for api errors to see how we handle errors in other cases
 	return gen.V1WorkflowRunCreate200JSONResponse(
 		*details,

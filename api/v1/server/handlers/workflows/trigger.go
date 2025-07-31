@@ -122,6 +122,8 @@ func (t *WorkflowService) WorkflowRunCreate(ctx echo.Context, request gen.Workfl
 		return nil, err
 	}
 
+	ctx.Set("correlationId", sqlchelpers.UUIDToStr(createdWorkflowRun.ID))
+
 	return gen.WorkflowRunCreate200JSONResponse(
 		*res,
 	), nil
