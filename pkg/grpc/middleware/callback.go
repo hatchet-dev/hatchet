@@ -27,7 +27,7 @@ func CallbackInterceptor(logger *zerolog.Logger, onCallback func(ctx context.Con
 	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
 		// Store method name in context
 		ctx = context.WithValue(ctx, "grpc_method", info.FullMethod)
-		
+
 		ctx = WithCallback(ctx, func(method, correlationID string) {
 			if err := onCallback(ctx, method, correlationID); err != nil {
 				logger.Error().Err(err).Msg("Callback error")
