@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 
 interface UseInactivityDetectionOptions {
   timeoutMs?: number;
@@ -29,7 +29,7 @@ export function useInactivityDetection(
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const throttleRef = useRef<NodeJS.Timeout | null>(null);
 
-  const resetTimeout = () => {
+  const resetTimeout = useCallback(() => {
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current);
     }
@@ -37,9 +37,9 @@ export function useInactivityDetection(
     timeoutRef.current = setTimeout(() => {
       onInactive();
     }, timeoutMs);
-  };
+  }, [onInactive, timeoutMs]);
 
-  const throttledResetTimeout = () => {
+  const throttledResetTimeout = useCallback(() => {
     if (throttleRef.current) {
       return; // Already throttled
     }
@@ -49,22 +49,19 @@ export function useInactivityDetection(
     }, throttleMs);
 
     resetTimeout();
-  };
+  }, [throttleMs, resetTimeout]);
 
   useEffect(() => {
     if (!enabled) {
       return;
     }
 
-    // Set initial timeout
     resetTimeout();
 
-    // Add event listeners
     events.forEach((event) => {
       document.addEventListener(event, throttledResetTimeout, true);
     });
 
-    // Cleanup
     return () => {
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
@@ -76,7 +73,14 @@ export function useInactivityDetection(
         document.removeEventListener(event, throttledResetTimeout, true);
       });
     };
-  }, [enabled, timeoutMs, throttleMs, events.join(',')]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [
+    enabled,
+    timeoutMs,
+    throttleMs,
+    resetTimeout,
+    events,
+    throttledResetTimeout,
+  ]);
 
   return {};
 }
