@@ -18,6 +18,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/admin/contracts"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
+	grpcmiddleware "github.com/hatchet-dev/hatchet/pkg/grpc/middleware"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/metered"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
@@ -94,6 +95,8 @@ func (a *AdminServiceImpl) triggerWorkflowV0(ctx context.Context, req *contracts
 	if err != nil {
 		return nil, fmt.Errorf("could not queue workflow run: %w", err)
 	}
+
+	grpcmiddleware.TriggerCallback(ctx, workflowRunId)
 
 	return &contracts.TriggerWorkflowResponse{
 		WorkflowRunId: workflowRunId,
@@ -175,6 +178,10 @@ func (a *AdminServiceImpl) bulkTriggerWorkflowV0(ctx context.Context, req *contr
 
 	if len(workflowRunIds) == 0 {
 		return nil, status.Error(codes.InvalidArgument, "no workflows created")
+	}
+
+	for _, workflowRunId := range workflowRunIds {
+		grpcmiddleware.TriggerCallback(ctx, workflowRunId)
 	}
 
 	return &contracts.BulkTriggerWorkflowResponse{WorkflowRunIds: workflowRunIds}, nil

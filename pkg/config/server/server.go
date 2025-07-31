@@ -7,6 +7,7 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/spf13/viper"
 	"golang.org/x/oauth2"
+	"google.golang.org/grpc"
 
 	"github.com/hatchet-dev/hatchet/internal/integrations/alerting"
 	"github.com/hatchet-dev/hatchet/internal/integrations/email"
@@ -546,6 +547,8 @@ type ServerConfig struct {
 
 	Operations ConfigFileOperations
 
+	GRPCInterceptors []grpc.UnaryServerInterceptor
+
 	Version string
 }
 
@@ -557,6 +560,10 @@ func (c *ServerConfig) HasService(name string) bool {
 	}
 
 	return false
+}
+
+func (c *ServerConfig) AddGRPCUnaryInterceptor(interceptor grpc.UnaryServerInterceptor) {
+	c.GRPCInterceptors = append(c.GRPCInterceptors, interceptor)
 }
 
 func BindAllEnv(v *viper.Viper) {

@@ -8,6 +8,7 @@ import (
 	msgqueue "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
 	"github.com/hatchet-dev/hatchet/internal/services/admin/contracts"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
+	grpcmiddleware "github.com/hatchet-dev/hatchet/pkg/grpc/middleware"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
@@ -89,6 +90,8 @@ func (a *AdminServiceImpl) triggerWorkflowV1(ctx context.Context, req *contracts
 		return nil, fmt.Errorf("could not trigger workflow: %w", err)
 	}
 
+	grpcmiddleware.TriggerCallback(ctx, opt.ExternalId)
+
 	return &contracts.TriggerWorkflowResponse{
 		WorkflowRunId: opt.ExternalId,
 	}, nil
@@ -138,6 +141,10 @@ func (a *AdminServiceImpl) bulkTriggerWorkflowV1(ctx context.Context, req *contr
 
 	for i, opt := range opts {
 		runIds[i] = opt.ExternalId
+	}
+
+	for _, runId := range runIds {
+		grpcmiddleware.TriggerCallback(ctx, runId)
 	}
 
 	return &contracts.BulkTriggerWorkflowResponse{

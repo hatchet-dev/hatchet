@@ -125,7 +125,7 @@ func (t *APIServer) Run(opts ...APIServerExtensionOpt) (func() error, error) {
 			return nil, err
 		}
 
-		populator, err := t.registerSpec(g, spec, t.additionalMiddlewares)
+		populator, err := t.registerSpec(g, spec)
 
 		if err != nil {
 			return nil, err
@@ -178,7 +178,7 @@ func (t *APIServer) getCoreEchoService() (*echo.Echo, error) {
 
 	g := e.Group("")
 
-	if _, err := t.registerSpec(g, oaspec, t.additionalMiddlewares); err != nil {
+	if _, err := t.registerSpec(g, oaspec); err != nil {
 		return nil, err
 	}
 
@@ -191,7 +191,7 @@ func (t *APIServer) getCoreEchoService() (*echo.Echo, error) {
 	return e, nil
 }
 
-func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T, middlewares []hatchetmiddleware.MiddlewareFunc) (*populator.Populator, error) {
+func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Populator, error) {
 	// application middleware
 	populatorMW := populator.NewPopulator(t.config)
 
