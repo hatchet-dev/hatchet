@@ -44,6 +44,7 @@ async def event_filter(
     test_run_id: str,
     expression: str | None = None,
     payload: dict[str, str] = {},
+    scope: str | None = None,
 ) -> AsyncGenerator[None, None]:
     expression = (
         expression
@@ -53,7 +54,7 @@ async def event_filter(
     f = await hatchet.filters.aio_create(
         workflow_id=event_workflow.id,
         expression=expression,
-        scope=test_run_id,
+        scope=scope or test_run_id,
         payload={"test_run_id": test_run_id, **payload},
     )
 
@@ -529,3 +530,40 @@ async def test_multiple_runs_for_multiple_scope_matches(
             assert len(runs) == 2
 
             assert {r.output.get("filter_id") for r in runs} == {"1", "2"}
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_multi_scope_bug(hatchet: Hatchet, test_run_id: str) -> None:
+    async with event_filter(hatchet, test_run_id, expression="1 == 1", scope="a"):
+        async with event_filter(
+            hatchet,
+            test_run_id,
+            expression="2 == 2",
+            scope="b",
+        ):
+            events = await hatchet.event.aio_bulk_push(
+                [
+                    BulkPushEventWithMetadata(
+                        key=EVENT_KEY,
+                        payload={
+                            "should_skip": False,
+                        },
+                        additional_metadata={
+                            "should_have_runs": True,
+                            "test_run_id": test_run_id,
+                        },
+                        scope="a" if i % 2 == 0 else "b",
+                    )
+                    for i in range(100)
+                ],
+            )
+
+            await asyncio.sleep(15)
+
+            for event in events:
+                runs = await hatchet.runs.aio_list(
+                    triggering_event_external_id=event.eventId,
+                    additional_metadata={"test_run_id": test_run_id},
+                )
+
+                assert len(runs.rows) == 1

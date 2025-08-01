@@ -8,6 +8,7 @@ import (
 	"github.com/google/cel-go/checker/decls"
 	"github.com/google/cel-go/common/types"
 	"github.com/google/cel-go/common/types/ref"
+	"github.com/google/cel-go/ext"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
@@ -55,6 +56,7 @@ func NewCELParser() *CELParser {
 			checksumDecl,
 		),
 		checksum,
+		ext.Strings(),
 	)
 
 	stepRunEnv, _ := cel.NewEnv(
@@ -66,6 +68,7 @@ func NewCELParser() *CELParser {
 			checksumDecl,
 		),
 		checksum,
+		ext.Strings(),
 	)
 
 	eventEnv, _ := cel.NewEnv(
@@ -77,6 +80,7 @@ func NewCELParser() *CELParser {
 			decls.NewVar("event_key", decls.String),
 			checksumDecl,
 		),
+		ext.Strings(),
 	)
 
 	return &CELParser{

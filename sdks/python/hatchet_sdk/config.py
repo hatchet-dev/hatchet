@@ -83,6 +83,8 @@ class ClientConfig(BaseSettings):
     enable_thread_pool_monitoring: bool = False
 
     terminate_worker_after_num_tasks: int | None = None
+    disable_log_capture: bool = False
+    grpc_enable_fork_support: bool = False
 
     @model_validator(mode="after")
     def validate_token_and_tenant(self) -> "ClientConfig":

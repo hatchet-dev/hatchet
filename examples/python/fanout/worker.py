@@ -60,8 +60,6 @@ async def process2(input: ChildInput, ctx: Context) -> dict[str, str]:
 
 
 
-child_wf.create_bulk_run_item()
-
 
 def main() -> None:
     worker = hatchet.worker("fanout-worker", slots=40, workflows=[parent_wf, child_wf])
