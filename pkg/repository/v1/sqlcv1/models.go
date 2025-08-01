@@ -2916,6 +2916,14 @@ type V1RetryQueueItem struct {
 	TenantID       pgtype.UUID        `json:"tenant_id"`
 }
 
+type V1RunIdempotencyKey struct {
+	TenantID   pgtype.UUID        `json:"tenant_id"`
+	Key        string             `json:"key"`
+	ExpiresAt  pgtype.Timestamptz `json:"expires_at"`
+	InsertedAt pgtype.Timestamptz `json:"inserted_at"`
+	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
+}
+
 type V1RunsOlap struct {
 	TenantID             pgtype.UUID          `json:"tenant_id"`
 	ID                   int64                `json:"id"`

@@ -1599,3 +1599,15 @@ CREATE TABLE v1_durable_sleep (
     sleep_duration TEXT NOT NULL,
     PRIMARY KEY (tenant_id, sleep_until, id)
 );
+
+CREATE TABLE v1_run_idempotency_key (
+    tenant_id UUID NOT NULL,
+    key TEXT NOT NULL,
+    expires_at TIMESTAMPTZ NOT NULL,
+    inserted_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (tenant_id, key, inserted_at)
+) PARTITION BY RANGE(inserted_at);
+
+CREATE INDEX v1_run_idempotency_key_expires_at_idx ON v1_run_idempotency_key (tenant_id, expires_at DESC);
