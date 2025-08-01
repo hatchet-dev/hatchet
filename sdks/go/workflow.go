@@ -1,14 +1,18 @@
 package hatchet
 
 import (
+	"context"
 	"reflect"
 	"time"
 
 	"github.com/hatchet-dev/hatchet/pkg/client/create"
+	"github.com/hatchet-dev/hatchet/pkg/client/rest"
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
+	v0Client "github.com/hatchet-dev/hatchet/pkg/client"
 	v1 "github.com/hatchet-dev/hatchet/pkg/v1"
 	"github.com/hatchet-dev/hatchet/pkg/v1/workflow"
 	"github.com/hatchet-dev/hatchet/pkg/worker"
+	"github.com/hatchet-dev/hatchet/pkg/worker/condition"
 	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 )
 
@@ -96,7 +100,11 @@ type taskConfig struct {
 	onEvents             []string
 	defaultFilters       []types.DefaultFilter
 	concurrency          []*types.Concurrency
+	rateLimits           []*types.RateLimit
 	isDurable            bool
+	parents              []create.NamedTask
+	waitFor              condition.Condition
+	skipIf               condition.Condition
 }
 
 // WithRetries sets the number of retry attempts for failed tasks.
@@ -156,6 +164,39 @@ func WithDurable() TaskOption {
 	return func(config *taskConfig) {
 		config.isDurable = true
 	}
+}
+
+// WithRateLimits sets rate limiting for task execution.
+func WithRateLimits(rateLimits ...*types.RateLimit) TaskOption {
+	return func(config *taskConfig) {
+		config.rateLimits = rateLimits
+	}
+}
+
+// WithParents sets parent task dependencies.
+func WithParents(parents ...create.NamedTask) TaskOption {
+	return func(config *taskConfig) {
+		config.parents = parents
+	}
+}
+
+// WithWaitFor sets a condition that must be met before the task executes.
+func WithWaitFor(condition condition.Condition) TaskOption {
+	return func(config *taskConfig) {
+		config.waitFor = condition
+	}
+}
+
+// WithSkipIf sets a condition that will skip the task if met.
+func WithSkipIf(condition condition.Condition) TaskOption {
+	return func(config *taskConfig) {
+		config.skipIf = condition
+	}
+}
+
+// Task represents a task reference for building DAGs.
+type Task struct {
+	NamedTask create.NamedTask
 }
 
 // NewTask adds a task to the workflow.
@@ -229,11 +270,97 @@ func (w *Workflow) NewTask(name string, fn any, options ...TaskOption) *Workflow
 		RetryMaxBackoffSeconds: config.retryMaxBackoffSeconds,
 		ExecutionTimeout:       config.executionTimeout,
 		Concurrency:           config.concurrency,
+		RateLimits:            config.rateLimits,
+		Parents:               config.parents,
+		WaitFor:               config.waitFor,
+		SkipIf:                config.skipIf,
 	}
 
 	w.declaration.Task(taskOpts, wrapper)
 
 	return w
+}
+
+// AddTask adds a task to the workflow and returns a Task reference for DAG building.
+//
+// The function parameter must have the signature:
+//   func(ctx Context, input T) (T, error)
+//
+// For durable tasks, use:
+//   func(ctx DurableContext, input T) (T, error)
+//
+// Function signatures are validated at runtime using reflection.
+func (w *Workflow) AddTask(name string, fn any, options ...TaskOption) *Task {
+	config := &taskConfig{}
+
+	for _, opt := range options {
+		opt(config)
+	}
+
+	fnValue := reflect.ValueOf(fn)
+	fnType := fnValue.Type()
+
+	if fnType.Kind() != reflect.Func {
+		panic("task function must be a function")
+	}
+	if fnType.NumIn() != 2 {
+		panic("task function must have exactly 2 parameters: (ctx Context, input T)")
+	}
+	if fnType.NumOut() != 2 {
+		panic("task function must return exactly 2 values: (output T, error)")
+	}
+
+	contextType := reflect.TypeOf((*Context)(nil)).Elem()
+	durableContextType := reflect.TypeOf((*worker.DurableHatchetContext)(nil)).Elem()
+
+	if config.isDurable {
+		if !fnType.In(0).Implements(durableContextType) && fnType.In(0) != durableContextType {
+			panic("first parameter for durable task must be DurableHatchetContext")
+		}
+	} else {
+		if !fnType.In(0).Implements(contextType) && fnType.In(0) != contextType {
+			panic("first parameter must be Context")
+		}
+	}
+
+	errorType := reflect.TypeOf((*error)(nil)).Elem()
+	if !fnType.Out(1).Implements(errorType) {
+		panic("second return value must be error")
+	}
+
+	wrapper := func(ctx Context, input any) (any, error) {
+		args := []reflect.Value{
+			reflect.ValueOf(ctx),
+			reflect.ValueOf(input),
+		}
+
+		results := fnValue.Call(args)
+
+		output := results[0].Interface()
+		var err error
+		if !results[1].IsNil() {
+			err = results[1].Interface().(error)
+		}
+
+		return output, err
+	}
+
+	taskOpts := create.WorkflowTask[any, any]{
+		Name:                   name,
+		Retries:                config.retries,
+		RetryBackoffFactor:     config.retryBackoffFactor,
+		RetryMaxBackoffSeconds: config.retryMaxBackoffSeconds,
+		ExecutionTimeout:       config.executionTimeout,
+		Concurrency:           config.concurrency,
+		RateLimits:            config.rateLimits,
+		Parents:               config.parents,
+		WaitFor:               config.waitFor,
+		SkipIf:                config.skipIf,
+	}
+
+	namedTask := w.declaration.Task(taskOpts, wrapper)
+
+	return &Task{NamedTask: namedTask}
 }
 
 // NewDurableTask adds a durable task to the workflow.
@@ -335,4 +462,27 @@ func (w *Workflow) OnFailure(fn any) *Workflow {
 // Dump implements the WorkflowBase interface for internal use.
 func (w *Workflow) Dump() (*contracts.CreateWorkflowVersionRequest, []workflow.NamedFunction, []workflow.NamedFunction, workflow.WrappedTaskFn) {
 	return w.declaration.Dump()
+}
+
+// Workflow execution methods
+
+// Run executes the workflow with the provided input and waits for completion.
+func (w *Workflow) Run(ctx context.Context, input any) (any, error) {
+	return w.declaration.Run(ctx, input)
+}
+
+// RunNoWait executes the workflow with the provided input without waiting for completion.
+// Returns a workflow run reference that can be used to track the run status.
+func (w *Workflow) RunNoWait(ctx context.Context, input any) (*v0Client.Workflow, error) {
+	return w.declaration.RunNoWait(ctx, input)
+}
+
+// Cron schedules the workflow to run on a regular basis using a cron expression.
+func (w *Workflow) Cron(ctx context.Context, name string, cronExpr string, input any) (*rest.CronWorkflows, error) {
+	return w.declaration.Cron(ctx, name, cronExpr, input)
+}
+
+// Schedule schedules the workflow to run at a specific time.
+func (w *Workflow) Schedule(ctx context.Context, triggerAt time.Time, input any) (*rest.ScheduledWorkflows, error) {
+	return w.declaration.Schedule(ctx, triggerAt, input)
 }
