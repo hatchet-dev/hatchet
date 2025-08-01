@@ -19,7 +19,6 @@ var genericRetry = func(l *zerolog.Event, maxRetries int, f func() error, msg st
 
 	for {
 		err := f()
-
 		if err != nil {
 			// condition detected, retry
 			if ok, overrideErr := condition(err); ok {

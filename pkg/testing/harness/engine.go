@@ -96,7 +96,6 @@ func startEngine() func() {
 	postgresConnStr, cleanupPostgres := startPostgres(ctx, pgVersion)
 
 	grpcPort, err := findAvailablePort(7077)
-
 	if err != nil {
 		log.Fatalf("failed to find available port: %v", err)
 	}
@@ -142,7 +141,6 @@ func startEngine() func() {
 	cf := loader.NewConfigLoader("")
 
 	dl, err := cf.InitDataLayer()
-
 	if err != nil {
 		log.Fatalf("failed to initialize data layer: %v", err)
 	}
@@ -168,20 +166,17 @@ func startEngine() func() {
 		cancel()
 
 		err := <-engineCh
-
 		if err != nil {
 			log.Fatalf("failed to run engine: %v", err)
 		}
 
 		err = cleanupPostgres()
-
 		if err != nil {
 			log.Fatalf("failed to cleanup postgres: %v", err)
 		}
 
 		if rabbitmqEnabled {
 			err = cleanupRabbitMQ()
-
 			if err != nil {
 				log.Fatalf("failed to cleanup rabbitmq: %v", err)
 			}
@@ -204,7 +199,6 @@ func startPostgres(ctx context.Context, pgVersion string) (string, func() error)
 		postgres.WithPassword("password"),
 		testcontainers.WithHostPortAccess(pgPort),
 	)
-
 	if err != nil {
 		log.Fatalf("failed to start postgres container: %v", err)
 	}
@@ -218,7 +212,6 @@ func startPostgres(ctx context.Context, pgVersion string) (string, func() error)
 	for i := 0; i < 10; i++ {
 		var db *pgx.Conn
 		db, err = pgx.Connect(ctx, connStr)
-
 		if err != nil {
 			time.Sleep(time.Second * 2)
 			continue
@@ -226,7 +219,6 @@ func startPostgres(ctx context.Context, pgVersion string) (string, func() error)
 
 		// make sure we can ping the database
 		err = db.Ping(ctx)
-
 		if err != nil {
 			time.Sleep(time.Second * 2)
 			continue
@@ -257,7 +249,6 @@ func startRabbitMQ(ctx context.Context) (string, func() error) {
 		ctx,
 		"rabbitmq:3-management-alpine",
 	)
-
 	if err != nil {
 		log.Fatalf("failed to start rabbitmq container: %v", err)
 	}
@@ -272,7 +263,6 @@ func startRabbitMQ(ctx context.Context) (string, func() error) {
 	for i := 0; i < 10; i++ {
 		var conn *amqp.Connection
 		conn, err = amqp.Dial(amqpURI)
-
 		if err != nil {
 			time.Sleep(time.Second * 2)
 			continue
@@ -281,7 +271,6 @@ func startRabbitMQ(ctx context.Context) (string, func() error) {
 		// make sure we can create a channel
 		var ch *amqp.Channel
 		ch, err = conn.Channel()
-
 		if err != nil {
 			conn.Close()
 			time.Sleep(time.Second * 2)
@@ -313,7 +302,6 @@ func seedDatabase(dc *database.Layer) {
 	log.Printf("Seeding database")
 
 	err := seed.SeedDatabase(dc)
-
 	if err != nil {
 		log.Fatalf("could not seed database: %v", err)
 	}
@@ -325,7 +313,6 @@ func setAPIToken(ctx context.Context, cf *loader.ConfigLoader, tenantID string) 
 	log.Printf("Generating API token for Hatchet server")
 
 	cleanup, server, err := cf.CreateServerFromConfig("testing")
-
 	if err != nil {
 		log.Fatalf("could not create server config: %v", err)
 	}
@@ -339,19 +326,16 @@ func setAPIToken(ctx context.Context, cf *loader.ConfigLoader, tenantID string) 
 		false,
 		&expiresAt,
 	)
-
 	if err != nil {
 		log.Fatalf("could not generate token: %v", err)
 	}
 
 	err = cleanup()
-
 	if err != nil {
 		log.Fatalf("could not cleanup server: %v", err)
 	}
 
 	err = server.Disconnect()
-
 	if err != nil {
 		log.Fatalf("could not disconnect server: %v", err)
 	}
@@ -365,13 +349,11 @@ func setTestingKeysInEnv() {
 	log.Println("Generating encryption keys for Hatchet server")
 
 	cookieHashKey, err := random.Generate(16)
-
 	if err != nil {
 		log.Fatalf("could not generate hash key for instance: %v", err)
 	}
 
 	cookieBlockKey, err := random.Generate(16)
-
 	if err != nil {
 		log.Fatalf("could not generate block key for instance: %v", err)
 	}
@@ -379,7 +361,6 @@ func setTestingKeysInEnv() {
 	_ = os.Setenv("SERVER_AUTH_COOKIE_SECRETS", fmt.Sprintf("%s %s", cookieHashKey, cookieBlockKey))
 
 	masterKeyBytes, privateEc256, publicEc256, err := encryption.GenerateLocalKeys()
-
 	if err != nil {
 		log.Fatalf("could not generate local keys: %v", err)
 	}

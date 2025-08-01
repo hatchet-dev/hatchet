@@ -93,7 +93,6 @@ func (r *logAPIRepository) ListLogLines(tenantId string, opts *repository.ListLo
 	queryParams.OrderBy = sqlchelpers.TextFromStr(orderByField + " " + orderByDirection)
 
 	tx, err := r.pool.Begin(context.Background())
-
 	if err != nil {
 		return nil, err
 	}
@@ -101,7 +100,6 @@ func (r *logAPIRepository) ListLogLines(tenantId string, opts *repository.ListLo
 	defer sqlchelpers.DeferRollback(context.Background(), r.l, tx.Rollback)
 
 	logLines, err := r.queries.ListLogLines(context.Background(), tx, queryParams)
-
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			logLines = make([]*dbsqlc.LogLine, 0)
@@ -111,7 +109,6 @@ func (r *logAPIRepository) ListLogLines(tenantId string, opts *repository.ListLo
 	}
 
 	count, err := r.queries.CountLogLines(context.Background(), tx, countParams)
-
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			count = 0
@@ -121,7 +118,6 @@ func (r *logAPIRepository) ListLogLines(tenantId string, opts *repository.ListLo
 	}
 
 	err = tx.Commit(context.Background())
-
 	if err != nil {
 		return nil, fmt.Errorf("could not commit transaction: %w", err)
 	}
@@ -142,7 +138,6 @@ type logEngineRepository struct {
 // Used as hook a hook to allow for additional configuration to be passed to the repository if it is instantiated a different way
 func (le *logAPIRepository) WithAdditionalConfig(v validator.Validator, l *zerolog.Logger) repository.LogsAPIRepository {
 	panic("not implemented in this repo")
-
 }
 
 // Used as hook a hook to allow for additional configuration to be passed to the repository if it is instantiated a different way
@@ -189,7 +184,6 @@ func (r *logEngineRepository) PutLog(ctx context.Context, tenantId string, opts 
 	}
 
 	tx, err := r.pool.Begin(ctx)
-
 	if err != nil {
 		return nil, err
 	}
@@ -201,13 +195,11 @@ func (r *logEngineRepository) PutLog(ctx context.Context, tenantId string, opts 
 		tx,
 		createParams,
 	)
-
 	if err != nil {
 		return nil, fmt.Errorf("could not create log line: %w", err)
 	}
 
 	err = tx.Commit(ctx)
-
 	if err != nil {
 		return nil, fmt.Errorf("could not commit transaction: %w", err)
 	}

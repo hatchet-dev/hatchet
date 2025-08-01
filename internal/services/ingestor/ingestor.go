@@ -155,7 +155,6 @@ func NewIngestor(fs ...IngestorOptFunc) (Ingestor, error) {
 	}
 	// estimate of 1000 * 2 * UUID string size (roughly 104kb max)
 	stepRunCache, err := lru.New[string, string](1000)
-
 	if err != nil {
 		return nil, fmt.Errorf("could not create step run cache: %w", err)
 	}
@@ -215,14 +214,12 @@ func (i *IngestorImpl) ingestEventV0(ctx context.Context, tenant *dbsqlc.Tenant,
 	err = i.mq.AddMessage(context.Background(), msgqueue.EVENT_PROCESSING_QUEUE, eventToTask(event))
 	if err != nil {
 		return nil, fmt.Errorf("could not add event to task queue: %w", err)
-
 	}
 
 	return event, nil
 }
 
 func (i *IngestorImpl) BulkIngestEvent(ctx context.Context, tenant *dbsqlc.Tenant, eventOpts []*repository.CreateEventOpts) ([]*dbsqlc.Event, error) {
-
 	switch tenant.Version {
 	case dbsqlc.TenantMajorEngineVersionV0:
 		return i.bulkIngestEventV0(ctx, tenant, eventOpts)
@@ -270,7 +267,6 @@ func (i *IngestorImpl) bulkIngestEventV0(ctx context.Context, tenant *dbsqlc.Ten
 }
 
 func (i *IngestorImpl) IngestReplayedEvent(ctx context.Context, tenant *dbsqlc.Tenant, replayedEvent *dbsqlc.Event) (*dbsqlc.Event, error) {
-
 	switch tenant.Version {
 	case dbsqlc.TenantMajorEngineVersionV0:
 		return i.ingestReplayedEventV0(ctx, tenant, replayedEvent)
@@ -306,7 +302,6 @@ func (i *IngestorImpl) ingestReplayedEventV0(ctx context.Context, tenant *dbsqlc
 	}
 
 	err = i.mq.AddMessage(context.Background(), msgqueue.EVENT_PROCESSING_QUEUE, eventToTask(event))
-
 	if err != nil {
 		return nil, fmt.Errorf("could not add event to task queue: %w", err)
 	}

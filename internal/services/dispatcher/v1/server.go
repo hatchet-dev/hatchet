@@ -31,7 +31,6 @@ func (d *DispatcherServiceImpl) RegisterDurableEvent(ctx context.Context, req *c
 	}
 
 	task, err := d.repo.Tasks().GetTaskByExternalId(ctx, tenantId, req.TaskId, false)
-
 	if err != nil {
 		return nil, err
 	}
@@ -68,7 +67,6 @@ func (d *DispatcherServiceImpl) RegisterDurableEvent(ctx context.Context, req *c
 	})
 
 	err = d.repo.Matches().RegisterSignalMatchConditions(ctx, tenantId, createMatchOpts)
-
 	if err != nil {
 		return nil, err
 	}
@@ -203,7 +201,6 @@ func (d *DispatcherServiceImpl) ListenForDurableEvent(server contracts.V1Dispatc
 		start := time.Now()
 
 		dbEvents, err := d.repo.Tasks().ListSignalCompletedEvents(ctx, tenantId, signalEvents)
-
 		if err != nil {
 			d.l.Error().Err(err).Msg("could not list signal completed events")
 			return err
@@ -211,7 +208,6 @@ func (d *DispatcherServiceImpl) ListenForDurableEvent(server contracts.V1Dispatc
 
 		for _, dbEvent := range dbEvents {
 			err := sendEvent(dbEvent)
-
 			if err != nil {
 				return err
 			}
@@ -228,7 +224,6 @@ func (d *DispatcherServiceImpl) ListenForDurableEvent(server contracts.V1Dispatc
 	go func() {
 		for {
 			req, err := server.Recv()
-
 			if err != nil {
 				cancel()
 				if errors.Is(err, io.EOF) || status.Code(err) == codes.Canceled {
@@ -246,7 +241,6 @@ func (d *DispatcherServiceImpl) ListenForDurableEvent(server contracts.V1Dispatc
 
 			// FIXME: buffer/batch this to make it more efficient
 			task, err := d.repo.Tasks().GetTaskByExternalId(ctx, tenantId, req.TaskId, false)
-
 			if err != nil {
 				d.l.Error().Err(err).Msg("could not get task by external id")
 				continue

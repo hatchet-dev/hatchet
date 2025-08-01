@@ -20,7 +20,6 @@ func (t *WorkflowService) WorkflowUpdate(ctx echo.Context, request gen.WorkflowU
 	}
 
 	updated, err := t.config.APIRepository.Workflow().UpdateWorkflow(ctx.Request().Context(), tenantId, sqlchelpers.UUIDToStr(workflow.Workflow.ID), &opts)
-
 	if err != nil {
 		return nil, err
 	}

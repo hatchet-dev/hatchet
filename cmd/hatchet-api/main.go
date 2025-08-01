@@ -12,8 +12,10 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/config/loader"
 )
 
-var printVersion bool
-var configDirectory string
+var (
+	printVersion    bool
+	configDirectory string
+)
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{

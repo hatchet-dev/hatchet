@@ -55,7 +55,6 @@ type cronClientImpl struct {
 
 func NewCronClient(restClient *rest.ClientWithResponses, l *zerolog.Logger, v validator.Validator, tenantId, namespace string) (CronClient, error) {
 	tenantIdUUID, err := uuid.Parse(tenantId)
-
 	if err != nil {
 		return nil, err
 	}
@@ -88,7 +87,6 @@ func (c *cronClientImpl) Create(ctx context.Context, workflow string, opts *Cron
 			Priority:           opts.Priority,
 		},
 	)
-
 	if err != nil {
 		return nil, err
 	}
@@ -102,7 +100,6 @@ func (c *cronClientImpl) Create(ctx context.Context, workflow string, opts *Cron
 	cron := &gen.CronWorkflows{}
 
 	err = json.NewDecoder(resp.Body).Decode(cron)
-
 	if err != nil {
 		return nil, fmt.Errorf("could not unmarshal response body: %w", err)
 	}
@@ -112,7 +109,6 @@ func (c *cronClientImpl) Create(ctx context.Context, workflow string, opts *Cron
 
 func (c *cronClientImpl) Delete(ctx context.Context, id string) error {
 	idUUID, err := uuid.Parse(id)
-
 	if err != nil {
 		return fmt.Errorf("could not parse id: %w", err)
 	}
@@ -122,7 +118,6 @@ func (c *cronClientImpl) Delete(ctx context.Context, id string) error {
 		c.tenantId,
 		idUUID,
 	)
-
 	if err != nil {
 		return err
 	}
@@ -141,7 +136,6 @@ func (c *cronClientImpl) List(ctx context.Context) (*gen.CronWorkflowsList, erro
 		c.tenantId,
 		&rest.CronWorkflowListParams{},
 	)
-
 	if err != nil {
 		return nil, err
 	}
@@ -150,7 +144,6 @@ func (c *cronClientImpl) List(ctx context.Context) (*gen.CronWorkflowsList, erro
 	cronList := &gen.CronWorkflowsList{}
 
 	err = json.NewDecoder(resp.Body).Decode(&cronList)
-
 	if err != nil {
 		return nil, fmt.Errorf("could not unmarshal response body: %w", err)
 	}

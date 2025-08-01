@@ -97,7 +97,6 @@ func (l *LeaseManager) acquireWorkerLeases(ctx context.Context) error {
 	defer l.workerLeasesMu.Unlock()
 
 	activeWorkers, err := l.lr.ListActiveWorkers(ctx, l.tenantId)
-
 	if err != nil {
 		return err
 	}
@@ -133,7 +132,6 @@ func (l *LeaseManager) acquireWorkerLeases(ctx context.Context) error {
 
 	if len(workerIdsStr) != 0 {
 		workerLeases, err := l.lr.AcquireOrExtendLeases(ctx, l.tenantId, dbsqlc.LeaseKindWORKER, workerIdsStr, leasesToExtend)
-
 		if err != nil {
 			return err
 		}
@@ -164,7 +162,6 @@ func (l *LeaseManager) acquireQueueLeases(ctx context.Context) error {
 	defer l.queueLeasesMu.Unlock()
 
 	queues, err := l.lr.ListQueues(ctx, l.tenantId)
-
 	if err != nil {
 		return err
 	}
@@ -197,7 +194,6 @@ func (l *LeaseManager) acquireQueueLeases(ctx context.Context) error {
 	if len(queueIdsStr) != 0 {
 
 		queueLeases, err := l.lr.AcquireOrExtendLeases(ctx, l.tenantId, dbsqlc.LeaseKindQUEUE, queueIdsStr, leasesToExtend)
-
 		if err != nil {
 			return err
 		}

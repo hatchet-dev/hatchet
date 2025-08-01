@@ -36,7 +36,6 @@ func (t *StepRunService) StepRunListEvents(ctx echo.Context, request gen.StepRun
 		sqlchelpers.UUIDToStr(stepRun.ID),
 		listOpts,
 	)
-
 	if err != nil {
 		return nil, err
 	}

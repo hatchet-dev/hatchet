@@ -27,7 +27,6 @@ func (a *AdminServiceImpl) triggerWorkflowV1(ctx context.Context, req *contracts
 		tenantId,
 		1,
 	)
-
 	if err != nil {
 		return nil, fmt.Errorf("could not check tenant limit: %w", err)
 	}
@@ -47,7 +46,6 @@ func (a *AdminServiceImpl) triggerWorkflowV1(ctx context.Context, req *contracts
 		// if we've exceeded the limit
 		1,
 	)
-
 	if err != nil {
 		return nil, fmt.Errorf("could not check tenant limit: %w", err)
 	}
@@ -60,7 +58,6 @@ func (a *AdminServiceImpl) triggerWorkflowV1(ctx context.Context, req *contracts
 	}
 
 	opt, err := a.newTriggerOpt(ctx, tenantId, req)
-
 	if err != nil {
 		return nil, fmt.Errorf("could not create trigger opt: %w", err)
 	}
@@ -74,7 +71,6 @@ func (a *AdminServiceImpl) triggerWorkflowV1(ctx context.Context, req *contracts
 	}
 
 	err = a.generateExternalIds(ctx, tenantId, []*v1.WorkflowNameTriggerOpts{opt})
-
 	if err != nil {
 		return nil, fmt.Errorf("could not generate external ids: %w", err)
 	}
@@ -84,7 +80,6 @@ func (a *AdminServiceImpl) triggerWorkflowV1(ctx context.Context, req *contracts
 		tenantId,
 		opt,
 	)
-
 	if err != nil {
 		return nil, fmt.Errorf("could not trigger workflow: %w", err)
 	}
@@ -102,7 +97,6 @@ func (a *AdminServiceImpl) bulkTriggerWorkflowV1(ctx context.Context, req *contr
 
 	for i, workflow := range req.Workflows {
 		opt, err := a.newTriggerOpt(ctx, tenantId, workflow)
-
 		if err != nil {
 			return nil, fmt.Errorf("could not create trigger opt: %w", err)
 		}
@@ -119,7 +113,6 @@ func (a *AdminServiceImpl) bulkTriggerWorkflowV1(ctx context.Context, req *contr
 	}
 
 	err := a.generateExternalIds(ctx, tenantId, opts)
-
 	if err != nil {
 		return nil, fmt.Errorf("could not generate external ids: %w", err)
 	}
@@ -129,7 +122,6 @@ func (a *AdminServiceImpl) bulkTriggerWorkflowV1(ctx context.Context, req *contr
 		tenantId,
 		opts...,
 	)
-
 	if err != nil {
 		return nil, err
 	}
@@ -176,7 +168,6 @@ func (i *AdminServiceImpl) newTriggerOpt(
 			*req.ParentStepRunId,
 			false,
 		)
-
 		if err != nil {
 			return nil, fmt.Errorf("could not find parent task: %w", err)
 		}
@@ -231,13 +222,11 @@ func (i *AdminServiceImpl) ingest(ctx context.Context, tenantId string, opts ...
 			tenantId,
 			optsToSend...,
 		)
-
 		if err != nil {
 			return fmt.Errorf("could not create event task: %w", err)
 		}
 
 		err = i.mqv1.SendMessage(ctx, msgqueue.TASK_PROCESSING_QUEUE, msg)
-
 		if err != nil {
 			return fmt.Errorf("could not add event to task queue: %w", err)
 		}

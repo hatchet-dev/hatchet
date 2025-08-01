@@ -115,7 +115,6 @@ func (d *queueRepository) ListQueueItems(ctx context.Context, limit int) ([]*sql
 			Valid: true,
 		},
 	})
-
 	if err != nil {
 		return nil, err
 	}
@@ -162,7 +161,6 @@ func (d *queueRepository) updateMinId() {
 		Tenantid: d.tenantId,
 		Queue:    d.queueName,
 	})
-
 	if err != nil {
 		d.l.Error().Err(err).Msg("error getting min id")
 		return
@@ -181,7 +179,6 @@ func (d *queueRepository) MarkQueueItemsProcessed(ctx context.Context, r *Assign
 	checkpoint := start
 
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, d.pool, d.l, 5000)
-
 	if err != nil {
 		return nil, nil, err
 	}
@@ -213,13 +210,11 @@ func (d *queueRepository) MarkQueueItemsProcessed(ctx context.Context, r *Assign
 	}
 
 	queuedItemIds, err := d.queries.BulkQueueItems(ctx, tx, idsToUnqueue)
-
 	if err != nil {
 		return nil, nil, err
 	}
 
 	_, err = d.releaseTasks(ctx, tx, sqlchelpers.UUIDToStr(d.tenantId), tasksToRelease)
-
 	if err != nil {
 		return nil, nil, err
 	}
@@ -250,7 +245,6 @@ func (d *queueRepository) MarkQueueItemsProcessed(ctx context.Context, r *Assign
 		Workerids: workerIds,
 		Tenantid:  d.tenantId,
 	})
-
 	if err != nil {
 		return nil, nil, err
 	}
@@ -340,7 +334,6 @@ func (d *queueRepository) GetTaskRateLimits(ctx context.Context, queueItems []*s
 		Taskids:         taskIds,
 		Taskinsertedats: taskInsertedAts,
 	})
-
 	if err != nil {
 		return nil, err
 	}
@@ -404,7 +397,6 @@ func (d *queueRepository) GetTaskRateLimits(ctx context.Context, queueItems []*s
 					duration = eval.ValueStr.String
 				} else if duration != eval.ValueStr.String {
 					largerDuration, err := getLargerDuration(duration, eval.ValueStr.String)
-
 					if err != nil {
 						skip = true
 						break
@@ -485,7 +477,6 @@ func (d *queueRepository) GetTaskRateLimits(ctx context.Context, queueItems []*s
 	if len(upsertRateLimitBulkParams.Keys) > 0 {
 		// upsert all rate limits based on the keys, limit values, and durations
 		err = d.queries.UpsertRateLimitsBulk(ctx, d.pool, upsertRateLimitBulkParams)
-
 		if err != nil {
 			return nil, fmt.Errorf("could not bulk upsert dynamic rate limits: %w", err)
 		}
@@ -502,7 +493,6 @@ func (d *queueRepository) GetTaskRateLimits(ctx context.Context, queueItems []*s
 		Tenantid: d.tenantId,
 		Stepids:  uniqueStepIds,
 	})
-
 	if err != nil {
 		return nil, fmt.Errorf("could not list rate limits for steps: %w", err)
 	}
@@ -537,7 +527,6 @@ func (d *queueRepository) GetDesiredLabels(ctx context.Context, stepIds []pgtype
 	uniqueStepIds := sqlchelpers.UniqueSet(stepIds)
 
 	labels, err := d.queries.GetDesiredLabels(ctx, d.pool, uniqueStepIds)
-
 	if err != nil {
 		return nil, err
 	}

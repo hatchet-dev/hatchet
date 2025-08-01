@@ -19,13 +19,11 @@ func SeedDatabase(dc *database.Layer) error {
 	if shouldSeedUser {
 		// seed an example user
 		hashedPw, err := repository.HashPassword(dc.Seed.AdminPassword)
-
 		if err != nil {
 			return err
 		}
 
 		user, err := dc.APIRepository.User().GetUserByEmail(context.Background(), dc.Seed.AdminEmail)
-
 		if err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
 				user, err = dc.APIRepository.User().CreateUser(context.Background(), &repository.CreateUserOpts{
@@ -34,7 +32,6 @@ func SeedDatabase(dc *database.Layer) error {
 					EmailVerified: repository.BoolPtr(true),
 					Password:      hashedPw,
 				})
-
 				if err != nil {
 					return err
 				}
@@ -47,7 +44,6 @@ func SeedDatabase(dc *database.Layer) error {
 	}
 
 	_, err := dc.APIRepository.Tenant().GetTenantBySlug(context.Background(), "default")
-
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			// seed an example tenant
@@ -57,13 +53,11 @@ func SeedDatabase(dc *database.Layer) error {
 				Name: dc.Seed.DefaultTenantName,
 				Slug: dc.Seed.DefaultTenantSlug,
 			})
-
 			if err != nil {
 				return err
 			}
 
 			tenant, err := dc.APIRepository.Tenant().GetTenantByID(context.Background(), sqlchelpers.UUIDToStr(sqlcTenant.ID))
-
 			if err != nil {
 				return err
 			}
@@ -75,7 +69,6 @@ func SeedDatabase(dc *database.Layer) error {
 				Role:   "OWNER",
 				UserId: userID,
 			})
-
 			if err != nil {
 				return err
 			}

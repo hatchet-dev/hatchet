@@ -23,7 +23,6 @@ func main() {
 	}
 
 	hatchet, err := v1.NewHatchetClient()
-
 	if err != nil {
 		panic(err)
 	}
@@ -59,7 +58,6 @@ func main() {
 			result, err := parent.Run(ctx, v1_workflows.ParentInput{
 				N: 50,
 			})
-
 			if err != nil {
 				return err
 			}
@@ -94,7 +92,6 @@ func main() {
 			run, err := durableEventWorkflow.RunNoWait(ctx, v1_workflows.DurableEventInput{
 				Message: "Hello, World!",
 			})
-
 			if err != nil {
 				return err
 			}
@@ -102,13 +99,11 @@ func main() {
 			_, err = hatchet.Runs().Cancel(ctx, rest.V1CancelTaskRequest{
 				ExternalIds: &[]types.UUID{uuid.MustParse(run.WorkflowRunId())},
 			})
-
 			if err != nil {
 				return nil // We expect an error here
 			}
 
 			_, err = run.Result()
-
 			if err != nil {
 				fmt.Println("Received expected error:", err)
 				return nil // We expect an error here
@@ -196,7 +191,6 @@ func main() {
 			return nil
 		},
 		"priority": func() error {
-
 			nRuns := 10
 			priorityWorkflow := v1_workflows.Priority(hatchet)
 

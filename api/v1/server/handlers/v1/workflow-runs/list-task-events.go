@@ -23,7 +23,6 @@ func (t *V1WorkflowRunsService) V1WorkflowRunTaskEventsList(ctx echo.Context, re
 		tenantId,
 		workflowRun.ExternalID,
 	)
-
 	if err != nil {
 		return nil, err
 	}

@@ -44,7 +44,6 @@ func NewRepository(pool *pgxpool.Pool, l *zerolog.Logger, taskRetentionPeriod, o
 	shared, cleanupShared := newSharedRepository(pool, v, l, entitlements)
 
 	matchRepo, err := newMatchRepository(shared)
-
 	if err != nil {
 		l.Fatal().Err(err).Msg("cannot create match repository")
 	}

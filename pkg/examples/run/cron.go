@@ -17,7 +17,6 @@ func cron() {
 	}
 
 	hatchet, err := v1.NewHatchetClient()
-
 	if err != nil {
 		panic(err)
 	}
@@ -34,7 +33,6 @@ func cron() {
 			Message: "Hello, World!",
 		},
 	)
-
 	if err != nil {
 		panic(err)
 	}

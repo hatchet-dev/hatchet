@@ -29,13 +29,11 @@ func StepOne(ctx context.Context) (result *stepOneOutput, err error) {
 
 func main() {
 	err := godotenv.Load()
-
 	if err != nil {
 		panic(err)
 	}
 
 	client, err := client.New()
-
 	if err != nil {
 		panic(err)
 	}
@@ -44,7 +42,6 @@ func main() {
 		DSN:         os.Getenv("SENTRY_DSN"),
 		Environment: os.Getenv("SENTRY_ENVIRONMENT"),
 	})
-
 	if err != nil {
 		panic(err)
 	}
@@ -55,7 +52,6 @@ func main() {
 		),
 		worker.WithErrorAlerter(sentryAlerter),
 	)
-
 	if err != nil {
 		panic(err)
 	}
@@ -69,7 +65,6 @@ func main() {
 			},
 		},
 	})
-
 	if err != nil {
 		panic(err)
 	}
@@ -113,7 +108,6 @@ func main() {
 		"user:create",
 		testEvent,
 	)
-
 	if err != nil {
 		panic(err)
 	}

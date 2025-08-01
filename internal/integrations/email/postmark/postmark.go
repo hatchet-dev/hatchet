@@ -88,7 +88,6 @@ func (c *PostmarkClient) sendTemplateEmail(ctx context.Context, to, templateAlia
 }
 
 func (c *PostmarkClient) sendTemplateEmailBCC(ctx context.Context, bcc, templateAlias string, templateModelData interface{}, bccSupport bool) error {
-
 	if bccSupport {
 		bcc = fmt.Sprintf("%s,%s", bcc, c.supportEmail)
 	}

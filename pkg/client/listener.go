@@ -20,16 +20,20 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
 
-type WorkflowEvent *dispatchercontracts.WorkflowEvent
-type WorkflowRunEvent *dispatchercontracts.WorkflowRunEvent
+type (
+	WorkflowEvent    *dispatchercontracts.WorkflowEvent
+	WorkflowRunEvent *dispatchercontracts.WorkflowRunEvent
+)
 
 type StreamEvent struct {
 	Message []byte
 }
 
-type RunHandler func(event WorkflowEvent) error
-type StreamHandler func(event StreamEvent) error
-type WorkflowRunEventHandler func(event WorkflowRunEvent) error
+type (
+	RunHandler              func(event WorkflowEvent) error
+	StreamHandler           func(event StreamEvent) error
+	WorkflowRunEventHandler func(event WorkflowRunEvent) error
+)
 
 type WorkflowRunsListener struct {
 	constructor func(context.Context) (dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient, error)
@@ -63,7 +67,6 @@ func (r *subscribeClientImpl) getWorkflowRunsListener(
 	}
 
 	err := w.retrySubscribe(ctx)
-
 	if err != nil {
 		return nil, err
 	}
@@ -73,7 +76,6 @@ func (r *subscribeClientImpl) getWorkflowRunsListener(
 	go func() {
 		defer func() {
 			err := w.Close()
-
 			if err != nil {
 				r.l.Error().Err(err).Msg("failed to close workflow run events listener")
 			}
@@ -84,7 +86,6 @@ func (r *subscribeClientImpl) getWorkflowRunsListener(
 		}()
 
 		err := w.Listen(ctx)
-
 		if err != nil {
 			r.l.Error().Err(err).Msg("failed to listen for workflow run events")
 		}
@@ -105,7 +106,6 @@ func (w *WorkflowRunsListener) retrySubscribe(ctx context.Context) error {
 		}
 
 		client, err := w.constructor(ctx)
-
 		if err != nil {
 			retries++
 			w.l.Error().Err(err).Msgf("could not resubscribe to the listener")
@@ -123,7 +123,6 @@ func (w *WorkflowRunsListener) retrySubscribe(ctx context.Context) error {
 			err := w.client.Send(&dispatchercontracts.SubscribeToWorkflowRunsRequest{
 				WorkflowRunId: workflowRunId,
 			})
-
 			if err != nil {
 				w.l.Error().Err(err).Msgf("could not subscribe to the worker for workflow run id %s", workflowRunId)
 				rangeErr = err
@@ -166,7 +165,6 @@ func (l *WorkflowRunsListener) AddWorkflowRun(
 	h.mu.Unlock()
 
 	err := l.retrySend(workflowRunId)
-
 	if err != nil {
 		return err
 	}
@@ -330,14 +328,12 @@ func (r *subscribeClientImpl) On(ctx context.Context, workflowRunId string, hand
 	stream, err := r.client.SubscribeToWorkflowEvents(r.ctx.newContext(ctx), &dispatchercontracts.SubscribeToWorkflowEventsRequest{
 		WorkflowRunId: &workflowRunId,
 	}, grpc_retry.Disable())
-
 	if err != nil {
 		return err
 	}
 
 	for {
 		event, err := stream.Recv()
-
 		if err != nil {
 			if errors.Is(err, io.EOF) {
 				return nil
@@ -360,14 +356,12 @@ func (r *subscribeClientImpl) Stream(ctx context.Context, workflowRunId string, 
 	stream, err := r.client.SubscribeToWorkflowEvents(r.ctx.newContext(ctx), &dispatchercontracts.SubscribeToWorkflowEventsRequest{
 		WorkflowRunId: &workflowRunId,
 	}, grpc_retry.Disable())
-
 	if err != nil {
 		return err
 	}
 
 	for {
 		event, err := stream.Recv()
-
 		if err != nil {
 			if errors.Is(err, io.EOF) {
 				return nil
@@ -393,14 +387,12 @@ func (r *subscribeClientImpl) StreamByAdditionalMetadata(ctx context.Context, ke
 		AdditionalMetaKey:   &key,
 		AdditionalMetaValue: &value,
 	})
-
 	if err != nil {
 		return err
 	}
 
 	for {
 		event, err := stream.Recv()
-
 		if err != nil {
 			if errors.Is(err, io.EOF) {
 				return nil

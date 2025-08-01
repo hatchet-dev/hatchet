@@ -18,7 +18,6 @@ type requeueInput struct{}
 
 func main() {
 	err := godotenv.Load()
-
 	if err != nil {
 		panic(err)
 	}
@@ -26,7 +25,6 @@ func main() {
 	client, err := client.New(
 		client.InitWorkflows(),
 	)
-
 	if err != nil {
 		panic(err)
 	}
@@ -36,7 +34,6 @@ func main() {
 			client,
 		),
 	)
-
 	if err != nil {
 		panic(err)
 	}
@@ -44,7 +41,6 @@ func main() {
 	err = worker.RegisterAction("requeue:requeue", func(ctx context.Context, input *requeueInput) (result any, err error) {
 		return map[string]interface{}{}, nil
 	})
-
 	if err != nil {
 		panic(err)
 	}
@@ -60,7 +56,6 @@ func main() {
 		"example:event",
 		event,
 	)
-
 	if err != nil {
 		panic(err)
 	}

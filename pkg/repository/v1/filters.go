@@ -86,7 +86,6 @@ func (r *filterRepository) ListFilters(ctx context.Context, tenantId string, opt
 		FilterLimit:  filterLimit,
 		FilterOffset: filterOffset,
 	})
-
 }
 
 func (r *filterRepository) DeleteFilter(ctx context.Context, tenantId, filterId string) (*sqlcv1.V1Filter, error) {

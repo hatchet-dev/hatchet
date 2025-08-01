@@ -18,7 +18,6 @@ func priority() {
 	}
 
 	hatchet, err := v1.NewHatchetClient()
-
 	if err != nil {
 		panic(err)
 	}
@@ -33,7 +32,6 @@ func priority() {
 	runId, err := priorityWorkflow.RunNoWait(ctx, v1_workflows.PriorityInput{
 		UserId: "1234",
 	}, client.WithPriority(priority))
-
 	if err != nil {
 		panic(err)
 	}
@@ -54,5 +52,4 @@ func priority() {
 
 	fmt.Println(scheduledRunId)
 	fmt.Println(cronId)
-
 }

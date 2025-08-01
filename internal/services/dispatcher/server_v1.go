@@ -344,7 +344,6 @@ func (s *DispatcherImpl) subscribeToWorkflowRunsV1(server contracts.Dispatcher_S
 
 		if shouldSend {
 			err := server.Send(e)
-
 			if err != nil {
 				s.l.Error().Err(err).Msgf("could not send workflow event for run %s", e.WorkflowRunId)
 				return err
@@ -387,14 +386,12 @@ func (s *DispatcherImpl) subscribeToWorkflowRunsV1(server contracts.Dispatcher_S
 		start := time.Now()
 
 		finalizedWorkflowRuns, err := s.repov1.Tasks().ListFinalizedWorkflowRuns(ctx, tenantId, workflowRunIds)
-
 		if err != nil {
 			s.l.Error().Err(err).Msg("could not list finalized workflow runs")
 			return err
 		}
 
 		events, err := s.taskEventsToWorkflowRunEvent(tenantId, finalizedWorkflowRuns)
-
 		if err != nil {
 			s.l.Error().Err(err).Msg("could not convert task events to workflow run events")
 			return err
@@ -406,7 +403,6 @@ func (s *DispatcherImpl) subscribeToWorkflowRunsV1(server contracts.Dispatcher_S
 
 		for _, event := range events {
 			err := sendEvent(event)
-
 			if err != nil {
 				return err
 			}
@@ -430,7 +426,6 @@ func (s *DispatcherImpl) subscribeToWorkflowRunsV1(server contracts.Dispatcher_S
 
 	// subscribe to the task queue for the tenant
 	cleanupQueue, err := s.sharedNonBufferedReaderv1.Subscribe(tenantId, f)
-
 	if err != nil {
 		return err
 	}
@@ -439,7 +434,6 @@ func (s *DispatcherImpl) subscribeToWorkflowRunsV1(server contracts.Dispatcher_S
 	go func() {
 		for {
 			req, err := server.Recv()
-
 			if err != nil {
 				cancel()
 				if errors.Is(err, io.EOF) || status.Code(err) == codes.Canceled {
@@ -516,7 +510,7 @@ func (s *DispatcherImpl) taskEventsToWorkflowRunEvent(tenantId string, finalized
 			case sqlcv1.V1TaskEventTypeFAILED:
 				res.Error = &event.ErrorMessage
 			case sqlcv1.V1TaskEventTypeCANCELLED:
-				//FIXME: this should be more specific for schedule timeouts
+				// FIXME: this should be more specific for schedule timeouts
 				res.Error = &event.ErrorMessage
 			}
 
@@ -541,7 +535,6 @@ func (s *DispatcherImpl) sendStepActionEventV1(ctx context.Context, request *con
 	skipCache := request.RetryCount == nil
 
 	task, err := s.getSingleTask(ctx, sqlchelpers.UUIDToStr(tenant.ID), request.StepRunId, skipCache)
-
 	if err != nil {
 		return nil, fmt.Errorf("could not get task %s: %w", request.StepRunId, err)
 	}
@@ -589,13 +582,11 @@ func (s *DispatcherImpl) handleTaskStarted(inputCtx context.Context, task *sqlcv
 		retryCount,
 		request,
 	)
-
 	if err != nil {
 		return nil, err
 	}
 
 	err = s.pubBuffer.Pub(inputCtx, msgqueue.OLAP_QUEUE, msg, false)
-
 	if err != nil {
 		return nil, err
 	}
@@ -621,14 +612,12 @@ func (s *DispatcherImpl) handleTaskCompleted(inputCtx context.Context, task *sql
 			retryCount,
 			request,
 		)
-
 		if err != nil {
 			s.l.Error().Err(err).Msg("could not create monitoring event message")
 			return
 		}
 
 		err = s.pubBuffer.Pub(inputCtx, msgqueue.OLAP_QUEUE, olapMsg, false)
-
 		if err != nil {
 			s.l.Error().Err(err).Msg("could not publish to OLAP queue")
 		}
@@ -643,13 +632,11 @@ func (s *DispatcherImpl) handleTaskCompleted(inputCtx context.Context, task *sql
 		retryCount,
 		[]byte(request.EventPayload),
 	)
-
 	if err != nil {
 		return nil, err
 	}
 
 	err = s.mqv1.SendMessage(inputCtx, msgqueue.TASK_PROCESSING_QUEUE, msg)
-
 	if err != nil {
 		return nil, err
 	}
@@ -681,13 +668,11 @@ func (s *DispatcherImpl) handleTaskFailed(inputCtx context.Context, task *sqlcv1
 		request.EventPayload,
 		shouldNotRetry,
 	)
-
 	if err != nil {
 		return nil, err
 	}
 
 	err = s.mqv1.SendMessage(inputCtx, msgqueue.TASK_PROCESSING_QUEUE, msg)
-
 	if err != nil {
 		return nil, err
 	}
@@ -717,7 +702,6 @@ func (d *DispatcherImpl) refreshTimeoutV1(ctx context.Context, tenant *dbsqlc.Te
 	}
 
 	taskRuntime, err := d.repov1.Tasks().RefreshTimeoutBy(ctx, tenantId, opts)
-
 	if err != nil {
 		return nil, err
 	}
@@ -736,13 +720,11 @@ func (d *DispatcherImpl) refreshTimeoutV1(ctx context.Context, tenant *dbsqlc.Te
 			EventMessage:   fmt.Sprintf("Timeout refreshed by %s", request.IncrementTimeoutBy),
 		},
 	)
-
 	if err != nil {
 		return nil, err
 	}
 
 	err = d.pubBuffer.Pub(ctx, msgqueue.OLAP_QUEUE, msg, false)
-
 	if err != nil {
 		return nil, err
 	}
@@ -756,7 +738,6 @@ func (d *DispatcherImpl) releaseSlotV1(ctx context.Context, tenant *dbsqlc.Tenan
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
 	releasedSlot, err := d.repov1.Tasks().ReleaseSlot(ctx, tenantId, request.StepRunId)
-
 	if err != nil {
 		return nil, err
 	}
@@ -774,13 +755,11 @@ func (d *DispatcherImpl) releaseSlotV1(ctx context.Context, tenant *dbsqlc.Tenan
 			EventType:      sqlcv1.V1EventTypeOlapSLOTRELEASED,
 		},
 	)
-
 	if err != nil {
 		return nil, err
 	}
 
 	err = d.pubBuffer.Pub(ctx, msgqueue.OLAP_QUEUE, msg, false)
-
 	if err != nil {
 		return nil, err
 	}
@@ -810,7 +789,6 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsByWorkflowRunIdV1(workflowRunI
 
 	for retries < 10 {
 		wr, err := s.repov1.OLAP().ReadWorkflowRun(ctx, sqlchelpers.UUIDFromStr(workflowRunId))
-
 		if err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
 				retries++
@@ -902,7 +880,6 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsByWorkflowRunIdV1(workflowRunI
 				}
 
 				workflowRuns, err := s.listWorkflowRuns(ctx, tenantId, workflowRunIds)
-
 				if err != nil {
 					return nil, err
 				}
@@ -962,7 +939,6 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsByWorkflowRunIdV1(workflowRunI
 
 	// subscribe to the task queue for the tenant
 	cleanupQueue, err := s.sharedBufferedReaderv1.Subscribe(tenantId, f)
-
 	if err != nil {
 		return fmt.Errorf("could not subscribe to shared tenant queue: %w", err)
 	}
@@ -1009,7 +985,6 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsByAdditionalMetaV1(key string,
 				}
 
 				workflowRuns, err := s.listWorkflowRuns(ctx, tenantId, workflowRunIds)
-
 				if err != nil {
 					return nil, err
 				}
@@ -1094,7 +1069,6 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsByAdditionalMetaV1(key string,
 
 	// subscribe to the task queue for the tenant
 	cleanupQueue, err := s.sharedBufferedReaderv1.Subscribe(tenantId, f)
-
 	if err != nil {
 		return err
 	}
@@ -1135,7 +1109,6 @@ func (s *DispatcherImpl) listWorkflowRuns(ctx context.Context, tenantId string, 
 	foundWorkflowRuns := make(map[string]*listWorkflowRunsResult)
 
 	flattenedRows, err := s.repov1.Tasks().FlattenExternalIds(ctx, tenantId, workflowRunIdsToLookup)
-
 	if err != nil {
 		return nil, err
 	}
@@ -1264,13 +1237,11 @@ func (s *DispatcherImpl) msgsToWorkflowEvent(msgId string, payloads [][]byte, fi
 	}
 
 	matches, err := filter(workflowEvents)
-
 	if err != nil {
 		return nil, err
 	}
 
 	matches, err = hangupFunc(matches)
-
 	if err != nil {
 		return nil, err
 	}

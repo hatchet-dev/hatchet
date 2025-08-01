@@ -41,7 +41,7 @@ func (t *WorkflowService) WorkflowRunCancel(ctx echo.Context, request gen.Workfl
 
 			for _, jobRun := range jobRun {
 				// If the step run is not in a final state, send a task to the taskqueue to cancel it
-				var reason = "CANCELLED_BY_USER"
+				reason := "CANCELLED_BY_USER"
 				// send a task to the taskqueue
 				jobRunId := sqlchelpers.UUIDToStr(jobRun.ID)
 				err = t.config.MessageQueue.AddMessage(

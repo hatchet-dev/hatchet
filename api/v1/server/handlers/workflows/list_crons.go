@@ -76,7 +76,6 @@ func (t *WorkflowService) CronWorkflowList(ctx echo.Context, request gen.CronWor
 				additionalMetadata[splitValue[0]] = splitValue[1]
 			} else {
 				return gen.CronWorkflowList400JSONResponse(apierrors.NewAPIErrors("Additional metadata filters must be in the format key:value.")), nil
-
 			}
 		}
 
@@ -87,7 +86,6 @@ func (t *WorkflowService) CronWorkflowList(ctx echo.Context, request gen.CronWor
 	defer cancel()
 
 	crons, count, err := t.config.APIRepository.Workflow().ListCronWorkflows(dbCtx, tenantId, listOpts)
-
 	if err != nil {
 		return nil, err
 	}

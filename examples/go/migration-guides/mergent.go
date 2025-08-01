@@ -49,7 +49,6 @@ func ProcessImageMergent(req MergentRequest) (*MergentResponse, error) {
 	}, nil
 }
 
-
 // > After (Hatchet)
 type ImageProcessInput struct {
 	ImageURL string   `json:"image_url"`
@@ -135,7 +134,6 @@ func ImageProcessor(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[Image
 }
 
 func RunMergentTask() error {
-
 	return nil
 }
 

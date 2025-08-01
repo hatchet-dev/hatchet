@@ -122,7 +122,6 @@ func ToWorkflowRun(
 
 		additionalMetadata := make(map[string]interface{})
 		err := json.Unmarshal(run.AdditionalMetadata, &additionalMetadata)
-
 		if err != nil {
 			return nil, err
 		}
@@ -138,7 +137,6 @@ func ToJobRun(
 	steps []*dbsqlc.GetStepsForJobsRow,
 	stepRuns []*repository.StepRunForJobRun,
 ) *gen.JobRun {
-
 	res := &gen.JobRun{
 		Metadata: *toAPIMetadata(
 			sqlchelpers.UUIDToStr(jobRun.ID),
@@ -475,7 +473,6 @@ func ToWorkflowRunFromSQLC(row *dbsqlc.ListWorkflowRunsRow) *gen.WorkflowRun {
 
 	if run.AdditionalMetadata != nil {
 		err := json.Unmarshal(run.AdditionalMetadata, &additionalMetadata)
-
 		if err != nil {
 			return nil
 		}
@@ -506,7 +503,6 @@ func ToWorkflowRunFromSQLC(row *dbsqlc.ListWorkflowRunsRow) *gen.WorkflowRun {
 }
 
 func ToScheduledWorkflowsFromSQLC(scheduled *dbsqlc.ListScheduledWorkflowsRow) *gen.ScheduledWorkflows {
-
 	var additionalMetadata map[string]interface{}
 
 	if scheduled.AdditionalMetadata != nil {

@@ -16,14 +16,12 @@ func RenderTemplateFields(data map[string]interface{}, input map[string]interfac
 		switch v := val.(type) {
 		case string:
 			tmpl, err := template.New(key).Parse(v)
-
 			if err != nil {
 				return nil, fmt.Errorf("error creating template for key %s: %v", key, err)
 			}
 
 			var tpl bytes.Buffer
 			err = tmpl.Execute(&tpl, data)
-
 			if err != nil {
 				return nil, fmt.Errorf("error executing template for key %s: %v", key, err)
 			}

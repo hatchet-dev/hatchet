@@ -66,7 +66,6 @@ func newChildWorkflowSignalCreatedDataFromBytes(b []byte) (*ChildWorkflowSignalC
 	var c ChildWorkflowSignalCreatedData
 
 	err := json.Unmarshal(b, &c)
-
 	if err != nil {
 		return nil, err
 	}
@@ -97,7 +96,6 @@ func (s *sharedRepository) PopulateExternalIdsForWorkflow(ctx context.Context, t
 
 	if len(optsWithParents) > 0 {
 		err := s.generateExternalIdsForChildWorkflows(ctx, tenantId, optsWithParents)
-
 		if err != nil {
 			return err
 		}
@@ -108,7 +106,6 @@ func (s *sharedRepository) PopulateExternalIdsForWorkflow(ctx context.Context, t
 
 func (s *sharedRepository) generateExternalIdsForChildWorkflows(ctx context.Context, tenantId string, opts []*WorkflowNameTriggerOpts) error {
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, s.pool, s.l, 5000)
-
 	if err != nil {
 		return err
 	}
@@ -128,7 +125,6 @@ func (s *sharedRepository) generateExternalIdsForChildWorkflows(ctx context.Cont
 		Externalids: externalIds,
 		Tenantid:    sqlchelpers.UUIDFromStr(tenantId),
 	})
-
 	if err != nil {
 		return err
 	}
@@ -161,7 +157,6 @@ func (s *sharedRepository) generateExternalIdsForChildWorkflows(ctx context.Cont
 		Taskinsertedats: eventTaskInsertedAts,
 		Eventkeys:       eventKeys,
 	})
-
 	if err != nil {
 		return err
 	}
@@ -171,7 +166,6 @@ func (s *sharedRepository) generateExternalIdsForChildWorkflows(ctx context.Cont
 		opt := spawnKeyToOpt[lockedEvent.EventKey.String]
 
 		c, err := newChildWorkflowSignalCreatedDataFromBytes(lockedEvent.Data)
-
 		if err != nil {
 			return err
 		}
@@ -225,7 +219,6 @@ func (s *sharedRepository) generateExternalIdsForChildWorkflows(ctx context.Cont
 		makeEventTypeArr(sqlcv1.V1TaskEventTypeSIGNALCREATED, len(taskIds)),
 		newEventKeys,
 	)
-
 	if err != nil {
 		return err
 	}

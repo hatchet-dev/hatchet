@@ -53,7 +53,6 @@ type scheduleClientImpl struct {
 
 func NewScheduleClient(restClient *rest.ClientWithResponses, l *zerolog.Logger, v validator.Validator, tenantId, namespace string) (ScheduleClient, error) {
 	tenantIdUUID, err := uuid.Parse(tenantId)
-
 	if err != nil {
 		return nil, err
 	}
@@ -86,7 +85,6 @@ func (c *scheduleClientImpl) Create(ctx context.Context, workflow string, opts *
 			Priority:           opts.Priority,
 		},
 	)
-
 	if err != nil {
 		return nil, err
 	}
@@ -100,7 +98,6 @@ func (c *scheduleClientImpl) Create(ctx context.Context, workflow string, opts *
 	scheduledWorkflow := &gen.ScheduledWorkflows{}
 
 	err = json.NewDecoder(resp.Body).Decode(scheduledWorkflow)
-
 	if err != nil {
 		return nil, fmt.Errorf("could not unmarshal response body: %w", err)
 	}
@@ -110,7 +107,6 @@ func (c *scheduleClientImpl) Create(ctx context.Context, workflow string, opts *
 
 func (c *scheduleClientImpl) Delete(ctx context.Context, id string) error {
 	idUUID, err := uuid.Parse(id)
-
 	if err != nil {
 		return fmt.Errorf("could not parse id: %w", err)
 	}
@@ -120,7 +116,6 @@ func (c *scheduleClientImpl) Delete(ctx context.Context, id string) error {
 		c.tenantId,
 		idUUID,
 	)
-
 	if err != nil {
 		return err
 	}
@@ -139,7 +134,6 @@ func (c *scheduleClientImpl) List(ctx context.Context) (*gen.ScheduledWorkflowsL
 		c.tenantId,
 		&rest.WorkflowScheduledListParams{},
 	)
-
 	if err != nil {
 		return nil, err
 	}
@@ -148,7 +142,6 @@ func (c *scheduleClientImpl) List(ctx context.Context) (*gen.ScheduledWorkflowsL
 	scheduleList := &gen.ScheduledWorkflowsList{}
 
 	err = json.NewDecoder(resp.Body).Decode(&scheduleList)
-
 	if err != nil {
 		return nil, fmt.Errorf("could not unmarshal response body: %w", err)
 	}

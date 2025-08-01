@@ -137,7 +137,8 @@ func TestTenantBufferManager_CreateMultipleBuffers(t *testing.T) {
 		go func(tc struct {
 			tenantKey string
 			event     testMockEvent
-		}) {
+		},
+		) {
 			defer wg.Done()
 
 			// Buff events for the given tenant
@@ -148,7 +149,6 @@ func TestTenantBufferManager_CreateMultipleBuffers(t *testing.T) {
 	}
 
 	wg.Wait()
-
 }
 
 func TestTenantBufferManager_OrderPreservation(t *testing.T) {
@@ -187,7 +187,6 @@ func TestTenantBufferManager_OrderPreservation(t *testing.T) {
 	}
 
 	wg.Wait()
-
 }
 
 func TestTenantBufferManager_Cleanup(t *testing.T) {

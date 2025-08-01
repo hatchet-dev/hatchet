@@ -12,7 +12,6 @@ import (
 
 func LoadClientTLSConfig(tlsConfig *client.ClientTLSConfigFile, serverName string) (*tls.Config, error) {
 	res, ca, err := LoadBaseTLSConfig(&tlsConfig.Base)
-
 	if err != nil {
 		return nil, err
 	}
@@ -38,7 +37,6 @@ func LoadClientTLSConfig(tlsConfig *client.ClientTLSConfigFile, serverName strin
 
 func LoadServerTLSConfig(tlsConfig *shared.TLSConfigFile) (*tls.Config, error) {
 	res, ca, err := LoadBaseTLSConfig(tlsConfig)
-
 	if err != nil {
 		return nil, err
 	}

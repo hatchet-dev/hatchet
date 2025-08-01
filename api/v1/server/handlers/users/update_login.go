@@ -47,7 +47,6 @@ func (u *UserService) UserUpdateLogin(ctx echo.Context, request gen.UserUpdateLo
 	}
 
 	userPass, err := u.config.APIRepository.User().GetUserPassword(ctx.Request().Context(), sqlchelpers.UUIDToStr(existingUser.ID))
-
 	if err != nil {
 		return nil, fmt.Errorf("could not get user password: %w", err)
 	}
@@ -57,7 +56,6 @@ func (u *UserService) UserUpdateLogin(ctx echo.Context, request gen.UserUpdateLo
 	}
 
 	err = authn.NewSessionHelpers(u.config).SaveAuthenticated(ctx, existingUser)
-
 	if err != nil {
 		return nil, err
 	}

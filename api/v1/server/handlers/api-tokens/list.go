@@ -14,7 +14,6 @@ func (a *APITokenService) ApiTokenList(ctx echo.Context, request gen.ApiTokenLis
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
 	tokens, err := a.config.APIRepository.APIToken().ListAPITokensByTenant(ctx.Request().Context(), tenantId)
-
 	if err != nil {
 		return nil, err
 	}

@@ -4,8 +4,9 @@ import (
 	"context"
 	"time"
 
-	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"go.opentelemetry.io/otel/codes"
+
+	"github.com/hatchet-dev/hatchet/internal/telemetry"
 )
 
 func (tc *TasksControllerImpl) runTaskTablePartition(ctx context.Context) func() {
@@ -17,7 +18,6 @@ func (tc *TasksControllerImpl) runTaskTablePartition(ctx context.Context) func()
 
 		// get internal tenant
 		tenant, err := tc.p.GetInternalTenantForController(ctx)
-
 		if err != nil {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, "could not get internal tenant")
@@ -31,7 +31,6 @@ func (tc *TasksControllerImpl) runTaskTablePartition(ctx context.Context) func()
 		}
 
 		err = tc.createTablePartition(ctx)
-
 		if err != nil {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, "could not create table partition")
@@ -48,7 +47,6 @@ func (tc *TasksControllerImpl) createTablePartition(ctx context.Context) error {
 	defer qCancel()
 
 	err := tc.repov1.Tasks().UpdateTablePartitions(qCtx)
-
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "could not create table partition")

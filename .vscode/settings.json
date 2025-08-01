@@ -1,0 +1,9 @@
+{
+  "go.formatTool": "gofumpt",
+  "go.useLanguageServer": true,
+  "gopls": {
+    "formatting.gofumpt": true,
+    "ui.semanticTokens": true
+  },
+  "go.lintOnSave": "workspace",
+}

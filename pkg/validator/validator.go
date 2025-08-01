@@ -43,7 +43,6 @@ func newValidator() *validator.Validate {
 
 	_ = validate.RegisterValidation("actionId", func(fl validator.FieldLevel) bool {
 		action, err := types.ParseActionID(fl.Field().String())
-
 		if err != nil {
 			return false
 		}

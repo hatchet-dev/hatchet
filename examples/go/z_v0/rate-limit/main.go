@@ -25,7 +25,6 @@ func StepOne(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
 	input := &rateLimitInput{}
 
 	err = ctx.WorkflowInput(input)
-
 	if err != nil {
 		return nil, err
 	}
@@ -39,13 +38,11 @@ func StepOne(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
 
 func main() {
 	err := godotenv.Load()
-
 	if err != nil {
 		panic(err)
 	}
 
 	c, err := client.New()
-
 	if err != nil {
 		panic(err)
 	}
@@ -54,7 +51,6 @@ func main() {
 		Max:      12,
 		Duration: types.Minute,
 	})
-
 	if err != nil {
 		panic(err)
 	}
@@ -64,7 +60,6 @@ func main() {
 			c,
 		),
 	)
-
 	if err != nil {
 		panic(err)
 	}
@@ -90,7 +85,6 @@ func main() {
 			},
 		},
 	)
-
 	if err != nil {
 		panic(err)
 	}
@@ -101,7 +95,6 @@ func main() {
 				Index:  j,
 				UserId: fmt.Sprintf("user-%d", i),
 			})
-
 			if err != nil {
 				panic(err)
 			}

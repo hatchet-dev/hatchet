@@ -9,7 +9,6 @@ type V1FiltersService struct {
 }
 
 func NewV1FiltersService(config *server.ServerConfig) *V1FiltersService {
-
 	return &V1FiltersService{
 		config: config,
 	}

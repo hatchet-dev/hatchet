@@ -23,7 +23,6 @@ func (t *WorkflowService) WorkflowRunGetShape(ctx echo.Context, request gen.Work
 		sqlchelpers.UUIDToStr(run.TenantId),
 		sqlchelpers.UUIDToStr(run.ID),
 	)
-
 	if err != nil {
 		return nil, err
 	}
@@ -32,7 +31,6 @@ func (t *WorkflowService) WorkflowRunGetShape(ctx echo.Context, request gen.Work
 		sqlchelpers.UUIDToStr(run.TenantId),
 		sqlchelpers.UUIDToStr(run.WorkflowVersionId),
 	)
-
 	if err != nil {
 		return nil, err
 	}
@@ -51,7 +49,6 @@ func (t *WorkflowService) WorkflowRunGetShape(ctx echo.Context, request gen.Work
 		sqlchelpers.UUIDToStr(run.TenantId),
 		jobIds,
 	)
-
 	if err != nil {
 		return nil, err
 	}
@@ -63,7 +60,6 @@ func (t *WorkflowService) WorkflowRunGetShape(ctx echo.Context, request gen.Work
 		sqlchelpers.UUIDToStr(run.TenantId),
 		jobRunIds,
 	)
-
 	if err != nil {
 		return nil, err
 	}

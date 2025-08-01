@@ -23,7 +23,6 @@ func (i *IngestorImpl) putStreamEventV1(ctx context.Context, tenant *dbsqlc.Tena
 
 	// get single task
 	task, err := i.getSingleTask(ctx, tenantId, req.StepRunId, false)
-
 	if err != nil {
 		return nil, err
 	}
@@ -41,7 +40,6 @@ func (i *IngestorImpl) putStreamEventV1(ctx context.Context, tenant *dbsqlc.Tena
 			EventIndex:    req.EventIndex,
 		},
 	)
-
 	if err != nil {
 		return nil, err
 	}
@@ -49,7 +47,6 @@ func (i *IngestorImpl) putStreamEventV1(ctx context.Context, tenant *dbsqlc.Tena
 	q := msgqueue.TenantEventConsumerQueue(tenantId)
 
 	err = i.mqv1.SendMessage(ctx, q, msg)
-
 	if err != nil {
 		return nil, err
 	}
@@ -69,7 +66,6 @@ func (i *IngestorImpl) putLogV1(ctx context.Context, tenant *dbsqlc.Tenant, req 
 	}
 
 	task, err := i.getSingleTask(ctx, tenantId, req.StepRunId, false)
-
 	if err != nil {
 		return nil, err
 	}
@@ -125,7 +121,6 @@ func (i *IngestorImpl) putLogV1(ctx context.Context, tenant *dbsqlc.Tenant, req 
 	}
 
 	err = i.repov1.Logs().PutLog(ctx, tenantId, opts)
-
 	if err != nil {
 		return nil, err
 	}

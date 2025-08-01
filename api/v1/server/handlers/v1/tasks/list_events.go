@@ -17,7 +17,6 @@ func (t *TasksService) V1TaskEventList(ctx echo.Context, request gen.V1TaskEvent
 	task := ctx.Get("task").(*sqlcv1.V1TasksOlap)
 
 	taskRunEvents, err := t.config.V1.OLAP().ListTaskRunEvents(ctx.Request().Context(), tenantId, task.ID, task.InsertedAt, *request.Params.Limit, *request.Params.Offset)
-
 	if err != nil {
 		return nil, err
 	}

@@ -135,7 +135,7 @@ func (r *TriggerRepositoryImpl) makeTriggerDecisions(ctx context.Context, filter
 	// Case 1 - no filters exist for the workflow
 	if !hasAnyFilters {
 		return []TriggerDecision{
-			TriggerDecision{
+			{
 				ShouldTrigger: true,
 				FilterPayload: nil,
 				FilterId:      nil,
@@ -147,7 +147,7 @@ func (r *TriggerRepositoryImpl) makeTriggerDecisions(ctx context.Context, filter
 	// so we should not trigger the workflow
 	if len(filters) == 0 {
 		return []TriggerDecision{
-			TriggerDecision{
+			{
 				ShouldTrigger: false,
 				FilterPayload: nil,
 				FilterId:      nil,
@@ -173,7 +173,6 @@ func (r *TriggerRepositoryImpl) makeTriggerDecisions(ctx context.Context, filter
 			})
 		} else {
 			shouldTrigger, err := r.processWorkflowExpression(ctx, filter.Expression, opt, filter.Payload)
-
 			if err != nil {
 				r.l.Error().
 					Err(err).
@@ -241,7 +240,6 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 		Eventkeys: eventKeys,
 		Tenantid:  sqlchelpers.UUIDFromStr(tenantId),
 	})
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to list workflows for events: %w", err)
 	}
@@ -282,7 +280,6 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 		Workflowids: workflowIds,
 		Scopes:      scopes,
 	})
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to list filters: %w", err)
 	}
@@ -302,7 +299,6 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 		Tenantid:    sqlchelpers.UUIDFromStr(tenantId),
 		Workflowids: workflowIds,
 	})
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to list filter counts: %w", err)
 	}
@@ -328,7 +324,7 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 		hasAnyFilters := numFilters > 0
 
 		for _, opt := range opts {
-			var filters = []*sqlcv1.V1Filter{}
+			filters := []*sqlcv1.V1Filter{}
 
 			if opt.Scope != nil {
 				key := WorkflowAndScope{
@@ -375,7 +371,6 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 	}
 
 	tasks, dags, err := r.triggerWorkflows(ctx, tenantId, triggerOpts)
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to trigger workflows: %w", err)
 	}
@@ -442,7 +437,6 @@ func (r *TriggerRepositoryImpl) TriggerFromWorkflowNames(ctx context.Context, te
 		Tenantid:      sqlchelpers.UUIDFromStr(tenantId),
 		Workflownames: workflowNames,
 	})
-
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to list workflows for names: %w", err)
 	}
@@ -519,7 +513,6 @@ func (r *TriggerRepositoryImpl) PreflightVerifyWorkflowNameOpts(ctx context.Cont
 		Tenantid:      sqlchelpers.UUIDFromStr(tenantId),
 		Workflownames: workflowNamesToLookup,
 	})
-
 	if err != nil {
 		return fmt.Errorf("failed to list workflows by names: %w", err)
 	}
@@ -565,7 +558,6 @@ func cleanAdditionalMetadata(additionalMetadata []byte) map[string]interface{} {
 		res = make(map[string]interface{})
 	} else {
 		err := json.Unmarshal(additionalMetadata, &res)
-
 		if err != nil {
 			res = make(map[string]interface{})
 		}
@@ -587,7 +579,6 @@ func (t *TriggeredByEvent) ToMetadata(additionalMetadata []byte) []byte {
 	res["hatchet__event_key"] = t.eventKey
 
 	resBytes, err := json.Marshal(res)
-
 	if err != nil {
 		t.l.Error().Err(err).Msg("failed to marshal additional metadata")
 		return nil
@@ -643,7 +634,6 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 		Ids:      workflowVersionIds,
 		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
 	})
-
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to get workflow versions for engine: %w", err)
 	}
@@ -703,7 +693,6 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 			Stepids:  stepsWithAdditionalMatchConditions,
 			Tenantid: sqlchelpers.UUIDFromStr(tenantId),
 		})
-
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to list step match conditions: %w", err)
 		}
@@ -777,7 +766,6 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 	}
 
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 5000)
-
 	if err != nil {
 		return nil, nil, err
 	}
@@ -787,7 +775,6 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 	// check if we should skip the creation of any workflows if they're child workflows which
 	// already have a signal registered
 	tuplesToSkip, err := r.registerChildWorkflows(ctx, tx, tenantId, tuples, stepsToExternalIds, workflowVersionToSteps)
-
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to register child workflows: %w", err)
 	}
@@ -913,7 +900,6 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 								condition.SleepDuration.String,
 								condition.Action,
 							)
-
 							if err != nil {
 								return nil, nil, fmt.Errorf("failed to create sleep condition: %w", err)
 							}
@@ -1120,7 +1106,6 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 
 	// create DAGs
 	dags, err := r.createDAGs(ctx, tx, tenantId, dagOpts)
-
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create DAGs: %w", err)
 	}
@@ -1145,7 +1130,6 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 
 	// create tasks
 	tasks, err := r.createTasks(ctx, tx, tenantId, createTaskOpts)
-
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create tasks: %w", err)
 	}
@@ -1162,7 +1146,6 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 	}
 
 	err = r.createEventMatches(ctx, tx, tenantId, createMatchOpts)
-
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create event matches: %w", err)
 	}
@@ -1229,7 +1212,6 @@ func (r *TriggerRepositoryImpl) createDAGs(ctx context.Context, tx sqlcv1.DBTX, 
 		Workflowversionids:    workflowVersionIds,
 		Parenttaskexternalids: parentTaskExternalIds,
 	})
-
 	if err != nil {
 		return nil, err
 	}
@@ -1281,7 +1263,6 @@ func (r *TriggerRepositoryImpl) createDAGs(ctx context.Context, tx sqlcv1.DBTX, 
 	}
 
 	_, err = r.queries.CreateDAGData(ctx, tx, dagDataParams)
-
 	if err != nil {
 		return nil, err
 	}
@@ -1364,7 +1345,6 @@ func (r *TriggerRepositoryImpl) registerChildWorkflows(
 			Eventkeys:       potentialMatchKeys,
 		},
 	)
-
 	if err != nil {
 		return nil, err
 	}
@@ -1375,7 +1355,6 @@ func (r *TriggerRepositoryImpl) registerChildWorkflows(
 
 	for _, event := range matchingEvents {
 		c, err := newChildWorkflowSignalCreatedDataFromBytes(event.Data)
-
 		if err != nil {
 			r.l.Error().Msgf("failed to unmarshal child workflow signal created data: %s", err)
 			continue
@@ -1391,7 +1370,6 @@ func (r *TriggerRepositoryImpl) registerChildWorkflows(
 		Tenantid:    sqlchelpers.UUIDFromStr(tenantId),
 		Externalids: rootExternalIdsToLookup,
 	})
-
 	if err != nil {
 		return nil, err
 	}
@@ -1448,7 +1426,6 @@ func (r *TriggerRepositoryImpl) registerChildWorkflows(
 
 	// create the relevant matches
 	err = r.createEventMatches(ctx, tx, tenantId, createMatchOpts)
-
 	if err != nil {
 		return nil, err
 	}
@@ -1691,7 +1668,6 @@ func (r *sharedRepository) processWorkflowExpression(ctx context.Context, expres
 	payload := make(map[string]interface{})
 	if filterPayload != nil {
 		err := json.Unmarshal(filterPayload, &payload)
-
 		if err != nil {
 			return false, fmt.Errorf("failed to unmarshal filter payload: %w", err)
 		}
@@ -1707,7 +1683,6 @@ func (r *sharedRepository) processWorkflowExpression(ctx context.Context, expres
 			cel.WithEventKey(opt.Key),
 		),
 	)
-
 	if err != nil {
 		r.l.Warn().
 			Err(err).

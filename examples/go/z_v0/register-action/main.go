@@ -40,13 +40,11 @@ func StepTwo(ctx context.Context, input *stepOneOutput) (result *stepOneOutput, 
 
 func main() {
 	err := godotenv.Load()
-
 	if err != nil {
 		panic(err)
 	}
 
 	client, err := client.New()
-
 	if err != nil {
 		panic(err)
 	}
@@ -56,7 +54,6 @@ func main() {
 			client,
 		),
 	)
-
 	if err != nil {
 		panic(err)
 	}
@@ -69,13 +66,11 @@ func main() {
 	})
 
 	err = testSvc.RegisterAction(StepOne, worker.WithActionName("step-one"))
-
 	if err != nil {
 		panic(err)
 	}
 
 	err = testSvc.RegisterAction(StepTwo, worker.WithActionName("step-two"))
-
 	if err != nil {
 		panic(err)
 	}
@@ -93,7 +88,6 @@ func main() {
 			},
 		},
 	)
-
 	if err != nil {
 		panic(err)
 	}
@@ -137,7 +131,6 @@ func main() {
 		"user:create",
 		testEvent,
 	)
-
 	if err != nil {
 		panic(err)
 	}

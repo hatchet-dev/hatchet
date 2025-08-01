@@ -67,7 +67,6 @@ func (r *userRepository) CreateUser(ctx context.Context, opts *repository.Create
 	}
 
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 5000)
-
 	if err != nil {
 		return nil, err
 	}
@@ -75,7 +74,6 @@ func (r *userRepository) CreateUser(ctx context.Context, opts *repository.Create
 	defer rollback()
 
 	user, err := r.queries.CreateUser(ctx, tx, params)
-
 	if err != nil {
 		return nil, err
 	}
@@ -101,7 +99,6 @@ func (r *userRepository) CreateUser(ctx context.Context, opts *repository.Create
 		}
 
 		_, err = r.queries.CreateUserOAuth(ctx, tx, createOAuthParams)
-
 		if err != nil {
 			return nil, err
 		}
@@ -136,7 +133,6 @@ func (r *userRepository) UpdateUser(ctx context.Context, id string, opts *reposi
 	}
 
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 5000)
-
 	if err != nil {
 		return nil, err
 	}
@@ -144,7 +140,6 @@ func (r *userRepository) UpdateUser(ctx context.Context, id string, opts *reposi
 	defer rollback()
 
 	user, err := r.queries.UpdateUser(ctx, tx, params)
-
 	if err != nil {
 		return nil, err
 	}
@@ -170,7 +165,6 @@ func (r *userRepository) UpdateUser(ctx context.Context, id string, opts *reposi
 		}
 
 		_, err = r.queries.UpsertUserOAuth(ctx, tx, createOAuthParams)
-
 		if err != nil {
 			return nil, err
 		}
@@ -185,7 +179,6 @@ func (r *userRepository) UpdateUser(ctx context.Context, id string, opts *reposi
 
 func (r *userRepository) ListTenantMemberships(ctx context.Context, userId string) ([]*dbsqlc.PopulateTenantMembersRow, error) {
 	memberships, err := r.queries.ListTenantMemberships(ctx, r.pool, sqlchelpers.UUIDFromStr(userId))
-
 	if err != nil {
 		return nil, err
 	}

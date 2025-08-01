@@ -57,7 +57,6 @@ func (r *workerRepository) ListWorkers(tenantId string, opts *repository.ListWor
 	}
 
 	workers, err := r.queries.ListWorkersWithSlotCount(context.Background(), r.pool, queryParams)
-
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			workers = make([]*sqlcv1.ListWorkersWithSlotCountRow, 0)
@@ -82,7 +81,6 @@ func (w *workerRepository) ListWorkerState(tenantId, workerId string, maxRuns in
 			Valid: true,
 		},
 	})
-
 	if err != nil {
 		return nil, nil, fmt.Errorf("could not list worker slot state: %w", err)
 	}

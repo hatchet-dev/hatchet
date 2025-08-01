@@ -102,7 +102,6 @@ func defaultClientOpts(token *string, cf *client.ClientConfigFile) *ClientOpts {
 		// read from environment variables and hostname by default
 
 		clientConfig, err = configLoader.LoadClientConfig(token)
-
 		if err != nil {
 			panic(err)
 		}
@@ -112,7 +111,6 @@ func defaultClientOpts(token *string, cf *client.ClientConfigFile) *ClientOpts {
 			cf.Token = *token
 		}
 		clientConfig, err = loader.GetClientConfigFromConfigFile(cf)
-
 		if err != nil {
 			panic(err)
 		}
@@ -277,7 +275,6 @@ func newFromOpts(opts *ClientOpts) (Client, error) {
 		}
 
 		retryOpts := []grpc_retry.CallOption{
-
 			grpc_retry.WithBackoff(grpc_retry.BackoffExponentialWithJitter(5*time.Second, 0.10)),
 			grpc_retry.WithMax(5),
 			grpc_retry.WithPerRetryTimeout(30 * time.Second),
@@ -296,7 +293,6 @@ func newFromOpts(opts *ClientOpts) (Client, error) {
 		opts.hostPort,
 		grpcOpts...,
 	)
-
 	if err != nil {
 		return nil, err
 	}
@@ -319,7 +315,6 @@ func newFromOpts(opts *ClientOpts) (Client, error) {
 		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", opts.token))
 		return nil
 	}))
-
 	if err != nil {
 		return nil, fmt.Errorf("could not create rest client: %w", err)
 	}
@@ -328,19 +323,16 @@ func newFromOpts(opts *ClientOpts) (Client, error) {
 		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", opts.token))
 		return nil
 	}))
-
 	if err != nil {
 		return nil, fmt.Errorf("could not create cloud REST client: %w", err)
 	}
 
 	cronClient, err := NewCronClient(rest, opts.l, opts.v, opts.tenantId, opts.namespace)
-
 	if err != nil {
 		return nil, fmt.Errorf("could not create cron client: %w", err)
 	}
 
 	scheduleClient, err := NewScheduleClient(rest, opts.l, opts.v, opts.tenantId, opts.namespace)
-
 	if err != nil {
 		return nil, fmt.Errorf("could not create schedule client: %w", err)
 	}

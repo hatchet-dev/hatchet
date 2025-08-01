@@ -62,7 +62,6 @@ func run(events chan<- string) (func() error, error) {
 					input := &userCreateEvent{}
 
 					err = ctx.WorkflowInput(input)
-
 					if err != nil {
 						return nil, err
 					}
@@ -83,7 +82,6 @@ func run(events chan<- string) (func() error, error) {
 				worker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
 					input := &stepOneOutput{}
 					err = ctx.StepOutput("step-one", input)
-
 					if err != nil {
 						return nil, err
 					}

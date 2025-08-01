@@ -131,7 +131,6 @@ func (ec *EventsControllerImpl) Start() (func() error, error) {
 	}
 
 	cleanupQueue, err := ec.mq.Subscribe(msgqueue.EVENT_PROCESSING_QUEUE, f, msgqueue.NoOpHook)
-
 	if err != nil {
 		cancel()
 		return nil, fmt.Errorf("could not subscribe to event processing queue: %w", err)
@@ -156,13 +155,11 @@ func (ec *EventsControllerImpl) handleTask(ctx context.Context, task *msgqueue.M
 	metadata := tasktypes.EventTaskMetadata{}
 
 	err := ec.dv.DecodeAndValidate(task.Payload, &payload)
-
 	if err != nil {
 		return fmt.Errorf("could not decode task payload: %w", err)
 	}
 
 	err = ec.dv.DecodeAndValidate(task.Metadata, &metadata)
-
 	if err != nil {
 		return fmt.Errorf("could not decode task metadata: %w", err)
 	}
@@ -171,7 +168,6 @@ func (ec *EventsControllerImpl) handleTask(ctx context.Context, task *msgqueue.M
 
 	if payload.EventAdditionalMetadata != "" {
 		err = json.Unmarshal([]byte(payload.EventAdditionalMetadata), &additionalMetadata)
-
 		if err != nil {
 			return fmt.Errorf("could not unmarshal additional metadata: %w", err)
 		}
@@ -202,28 +198,24 @@ func (ec *EventsControllerImpl) processEvent(ctx context.Context, tenantId, even
 
 	// query for matching workflows in the system
 	workflowVersions, err := ec.repo.Workflow().ListWorkflowsForEvent(ctx, tenantId, eventKey)
-
 	if err != nil {
 		return fmt.Errorf("could not query workflows for event: %w", err)
 	}
 
 	// create a new workflow run in the database
-	var g = new(errgroup.Group)
+	g := new(errgroup.Group)
 
 	for _, workflowVersion := range workflowVersions {
 		workflowCp := workflowVersion
 
 		g.Go(func() error {
-
 			// create a new workflow run in the database
 			createOpts, err := repository.GetCreateWorkflowRunOptsFromEvent(eventId, workflowCp, data, additionalMetadata)
-
 			if err != nil {
 				return fmt.Errorf("could not get create workflow run opts: %w", err)
 			}
 
 			workflowRun, err := ec.repo.WorkflowRun().CreateNewWorkflowRun(ctx, tenantId, createOpts)
-
 			if err != nil {
 				return fmt.Errorf("processEvent: could not create workflow run: %w", err)
 			}
@@ -239,7 +231,6 @@ func (ec *EventsControllerImpl) processEvent(ctx context.Context, tenantId, even
 					workflowRunId,
 				),
 			)
-
 			if err != nil {
 				return fmt.Errorf("could not add workflow run queued task: %w", err)
 			}

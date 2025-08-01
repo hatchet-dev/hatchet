@@ -16,7 +16,6 @@ type Event struct {
 
 func emit(ctx context.Context, startEventsPerSecond, amount int, increase, duration, maxAcceptableSchedule time.Duration, hook <-chan time.Duration, scheduled chan<- int64) int64 {
 	c, err := client.New()
-
 	if err != nil {
 		panic(err)
 	}

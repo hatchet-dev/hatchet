@@ -37,7 +37,6 @@ func (t *StepRunService) StepRunListArchives(ctx echo.Context, request gen.StepR
 		sqlchelpers.UUIDToStr(stepRun.ID),
 		listOpts,
 	)
-
 	if err != nil {
 		return nil, err
 	}

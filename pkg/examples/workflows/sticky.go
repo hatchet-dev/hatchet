@@ -70,7 +70,6 @@ func Sticky(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[StickyInput, 
 			childResult, err := childWorkflow.RunAsChild(ctx, ChildInput{N: 1}, workflow.RunAsChildOpts{
 				Sticky: &sticky,
 			})
-
 			if err != nil {
 				return nil, err
 			}

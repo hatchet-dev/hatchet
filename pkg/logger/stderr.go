@@ -3,12 +3,11 @@ package logger
 import (
 	"io"
 	"os"
+	"time"
 
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/pkg/config/shared"
-
-	"time"
 )
 
 func init() {
@@ -25,7 +24,6 @@ func NewStdErr(cf *shared.LoggerConfigFile, service string) zerolog.Logger {
 
 	if cf.Level != "" {
 		lvl, err = zerolog.ParseLevel(cf.Level)
-
 		if err != nil {
 			panic(err)
 		}

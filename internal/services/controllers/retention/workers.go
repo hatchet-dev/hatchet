@@ -18,7 +18,6 @@ func (rc *RetentionControllerImpl) runDeleteOldWorkers(ctx context.Context) func
 		rc.l.Debug().Msgf("retention controller: deleting old workers")
 
 		err := rc.ForTenants(ctx, rc.runDeleteOldWorkerDataTenant)
-
 		if err != nil {
 			rc.l.Err(err).Msg("could not run delete old workers")
 		}
@@ -26,15 +25,12 @@ func (rc *RetentionControllerImpl) runDeleteOldWorkers(ctx context.Context) func
 }
 
 func (wc *RetentionControllerImpl) runDeleteOldWorkerDataTenant(ctx context.Context, tenant dbsqlc.Tenant) error {
-
 	err := wc.runDeleteOldWorkersTenant(ctx, tenant)
-
 	if err != nil {
 		return err
 	}
 
 	err = wc.runDeleteOldWorkerAssignEventsTenant(ctx, tenant)
-
 	if err != nil {
 		return err
 	}
@@ -61,7 +57,6 @@ func (wc *RetentionControllerImpl) runDeleteOldWorkersTenant(ctx context.Context
 
 		// delete expired workflow runs
 		hasMore, err := wc.repo.Worker().DeleteOldWorkers(ctx, tenantId, lastHeartbeatBefore)
-
 		if err != nil {
 			return fmt.Errorf("could not delete old workers: %w", err)
 		}
@@ -82,7 +77,6 @@ func (wc *RetentionControllerImpl) runDeleteOldWorkerAssignEventsTenant(ctx cont
 	lastHeartbeatAfter := time.Now().UTC().Add(-24 * time.Hour)
 
 	err := wc.repo.Worker().DeleteOldWorkerEvents(ctx, tenantId, lastHeartbeatAfter)
-
 	if err != nil {
 		return fmt.Errorf("could not delete expired worker assign events: %w", err)
 	}

@@ -18,7 +18,6 @@ func (t *TasksService) V1LogLineList(ctx echo.Context, request gen.V1LogLineList
 	task := ctx.Get("task").(*sqlcv1.V1TasksOlap)
 
 	logLines, err := t.config.V1.Logs().ListLogLines(ctx.Request().Context(), tenantId, task.ID, task.InsertedAt, &v1.ListLogsOpts{})
-
 	if err != nil {
 		return nil, err
 	}

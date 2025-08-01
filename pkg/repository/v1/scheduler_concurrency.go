@@ -61,7 +61,6 @@ func (c *ConcurrencyRepositoryImpl) UpdateConcurrencyStrategyIsActive(
 	strategy *sqlcv1.V1StepConcurrency,
 ) error {
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, c.pool, c.l, 30000)
-
 	if err != nil {
 		return err
 	}
@@ -69,7 +68,6 @@ func (c *ConcurrencyRepositoryImpl) UpdateConcurrencyStrategyIsActive(
 	defer rollback()
 
 	err = c.queries.AdvisoryLock(ctx, tx, strategy.ID)
-
 	if err != nil {
 		return err
 	}
@@ -80,7 +78,6 @@ func (c *ConcurrencyRepositoryImpl) UpdateConcurrencyStrategyIsActive(
 		Workflowversionid: strategy.WorkflowVersionID,
 		Strategyid:        strategy.ID,
 	})
-
 	if err != nil {
 		return err
 	}
@@ -92,7 +89,6 @@ func (c *ConcurrencyRepositoryImpl) UpdateConcurrencyStrategyIsActive(
 			Stepid:            strategy.StepID,
 			Strategyid:        strategy.ID,
 		})
-
 		if err != nil {
 			return err
 		}
@@ -109,19 +105,16 @@ func (c *ConcurrencyRepositoryImpl) RunConcurrencyStrategy(
 	switch strategy.Strategy {
 	case sqlcv1.V1ConcurrencyStrategyGROUPROUNDROBIN:
 		res, err = c.runGroupRoundRobin(ctx, tenantId, strategy)
-
 		if err != nil {
 			return nil, fmt.Errorf("group round robin (strategy ID: %d): %w", strategy.ID, err)
 		}
 	case sqlcv1.V1ConcurrencyStrategyCANCELINPROGRESS:
 		res, err = c.runCancelInProgress(ctx, tenantId, strategy)
-
 		if err != nil {
 			return nil, fmt.Errorf("cancel in progress (strategy ID: %d): %w", strategy.ID, err)
 		}
 	case sqlcv1.V1ConcurrencyStrategyCANCELNEWEST:
 		res, err = c.runCancelNewest(ctx, tenantId, strategy)
-
 		if err != nil {
 			return nil, fmt.Errorf("cancel newest (strategy ID: %d): %w", strategy.ID, err)
 		}
@@ -135,9 +128,7 @@ func (c *ConcurrencyRepositoryImpl) runGroupRoundRobin(
 	tenantId pgtype.UUID,
 	strategy *sqlcv1.V1StepConcurrency,
 ) (res *RunConcurrencyResult, err error) {
-
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, c.pool, c.l, 30000)
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to prepare transaction (strategy ID: %d): %w", strategy.ID, err)
 	}
@@ -145,7 +136,6 @@ func (c *ConcurrencyRepositoryImpl) runGroupRoundRobin(
 	defer rollback()
 
 	err = c.queries.AdvisoryLock(ctx, tx, strategy.ID)
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to acquire advisory lock (strategy ID: %d): %w", strategy.ID, err)
 	}
@@ -156,7 +146,6 @@ func (c *ConcurrencyRepositoryImpl) runGroupRoundRobin(
 
 	if strategy.ParentStrategyID.Valid {
 		acquired, err := c.queries.TryAdvisoryLock(ctx, tx, PARENT_STRATEGY_LOCK_OFFSET+strategy.ParentStrategyID.Int64)
-
 		if err != nil {
 			return nil, fmt.Errorf("failed to acquire parent advisory lock (strategy ID: %d, parent: %d): %w", strategy.ID, strategy.ParentStrategyID.Int64, err)
 		}
@@ -167,7 +156,6 @@ func (c *ConcurrencyRepositoryImpl) runGroupRoundRobin(
 				Strategyid: strategy.ParentStrategyID.Int64,
 				Maxruns:    strategy.MaxConcurrency,
 			})
-
 			if err != nil {
 				return nil, fmt.Errorf("failed to run parent group round robin (strategy ID: %d, parent: %d): %w", strategy.ID, strategy.ParentStrategyID.Int64, err)
 			}
@@ -178,7 +166,6 @@ func (c *ConcurrencyRepositoryImpl) runGroupRoundRobin(
 			Strategyid:       strategy.ID,
 			Parentstrategyid: strategy.ParentStrategyID.Int64,
 		})
-
 		if err != nil {
 			return nil, fmt.Errorf("failed to run child group round robin (strategy ID: %d, parent: %d): %w", strategy.ID, strategy.ParentStrategyID.Int64, err)
 		}
@@ -221,7 +208,6 @@ func (c *ConcurrencyRepositoryImpl) runGroupRoundRobin(
 			Strategyid: strategy.ID,
 			Maxruns:    strategy.MaxConcurrency,
 		})
-
 		if err != nil {
 			return nil, fmt.Errorf("failed to run group round robin: %w", err)
 		}
@@ -276,9 +262,7 @@ func (c *ConcurrencyRepositoryImpl) runCancelInProgress(
 	tenantId pgtype.UUID,
 	strategy *sqlcv1.V1StepConcurrency,
 ) (res *RunConcurrencyResult, err error) {
-
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, c.pool, c.l, 30000)
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to prepare transaction (strategy ID: %d): %w", strategy.ID, err)
 	}
@@ -286,7 +270,6 @@ func (c *ConcurrencyRepositoryImpl) runCancelInProgress(
 	defer rollback()
 
 	acquired, err := c.queries.TryAdvisoryLock(ctx, tx, strategy.ID)
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to acquire advisory lock (strategy ID: %d): %w", strategy.ID, err)
 	}
@@ -333,7 +316,6 @@ WHERE tenant_id = $1::uuid AND strategy_id = $2::bigint;`,
 			tenantId,
 			strategy.ParentStrategyID.Int64,
 		)
-
 		if err != nil {
 			return nil, fmt.Errorf("error creating parent temp table (strategy ID: %d, parent: %d): %w", strategy.ID, strategy.ParentStrategyID.Int64, err)
 		}
@@ -343,7 +325,6 @@ WHERE tenant_id = $1::uuid AND strategy_id = $2::bigint;`,
 			Strategyid: strategy.ParentStrategyID.Int64,
 			Maxruns:    strategy.MaxConcurrency,
 		})
-
 		if err != nil {
 			return nil, fmt.Errorf("error running parent cancel in progress (strategy ID: %d, parent: %d): %w", strategy.ID, strategy.ParentStrategyID.Int64, err)
 		}
@@ -353,7 +334,6 @@ WHERE tenant_id = $1::uuid AND strategy_id = $2::bigint;`,
 			Strategyid: strategy.ID,
 			Maxruns:    strategy.MaxConcurrency,
 		})
-
 		if err != nil {
 			return nil, fmt.Errorf("error running child cancel in progress (strategy ID: %d): %w", strategy.ID, err)
 		}
@@ -403,7 +383,6 @@ WHERE tenant_id = $1::uuid AND strategy_id = $2::bigint;`,
 			Strategyid: strategy.ID,
 			Maxruns:    strategy.MaxConcurrency,
 		})
-
 		if err != nil {
 			return nil, fmt.Errorf("error running cancel in progress (strategy ID: %d): %w", strategy.ID, err)
 		}
@@ -434,7 +413,6 @@ WHERE tenant_id = $1::uuid AND strategy_id = $2::bigint;`,
 			Taskids:     taskIds,
 			Retrycounts: retryCounts,
 		})
-
 		if err != nil {
 			return nil, fmt.Errorf("error deleting tasks from queue (strategy ID: %d): %w", strategy.ID, err)
 		}
@@ -497,7 +475,6 @@ func (c *ConcurrencyRepositoryImpl) runCancelNewest(
 	strategy *sqlcv1.V1StepConcurrency,
 ) (res *RunConcurrencyResult, err error) {
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, c.pool, c.l, 30000)
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to prepare transaction (strategy ID: %d): %w", strategy.ID, err)
 	}
@@ -506,7 +483,6 @@ func (c *ConcurrencyRepositoryImpl) runCancelNewest(
 
 	// Use TryAdvisoryLock instead of blocking lock to reduce contention
 	acquired, err := c.queries.TryAdvisoryLock(ctx, tx, strategy.ID)
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to try advisory lock (strategy ID: %d): %w", strategy.ID, err)
 	}
@@ -529,7 +505,6 @@ func (c *ConcurrencyRepositoryImpl) runCancelNewest(
 	if strategy.ParentStrategyID.Valid {
 		// Also use TryAdvisoryLock for parent strategy
 		parentAcquired, err := c.queries.TryAdvisoryLock(ctx, tx, PARENT_STRATEGY_LOCK_OFFSET+strategy.ParentStrategyID.Int64)
-
 		if err != nil {
 			return nil, fmt.Errorf("failed to try parent advisory lock (strategy ID: %d, parent: %d): %w", strategy.ID, strategy.ParentStrategyID.Int64, err)
 		}
@@ -556,7 +531,6 @@ WHERE tenant_id = $1::uuid AND strategy_id = $2::bigint;`,
 			tenantId,
 			strategy.ParentStrategyID.Int64,
 		)
-
 		if err != nil {
 			return nil, fmt.Errorf("error creating parent temp table (strategy ID: %d, parent: %d): %w", strategy.ID, strategy.ParentStrategyID.Int64, err)
 		}
@@ -566,7 +540,6 @@ WHERE tenant_id = $1::uuid AND strategy_id = $2::bigint;`,
 			Strategyid: strategy.ParentStrategyID.Int64,
 			Maxruns:    strategy.MaxConcurrency,
 		})
-
 		if err != nil {
 			return nil, fmt.Errorf("error running parent cancel newest (strategy ID: %d, parent: %d): %w", strategy.ID, strategy.ParentStrategyID.Int64, err)
 		}
@@ -576,7 +549,6 @@ WHERE tenant_id = $1::uuid AND strategy_id = $2::bigint;`,
 			Strategyid: strategy.ID,
 			Maxruns:    strategy.MaxConcurrency,
 		})
-
 		if err != nil {
 			return nil, fmt.Errorf("error running child cancel newest (strategy ID: %d): %w", strategy.ID, err)
 		}
@@ -607,7 +579,6 @@ WHERE tenant_id = $1::uuid AND strategy_id = $2::bigint;`,
 			Taskids:     taskIds,
 			Retrycounts: retryCounts,
 		})
-
 		if err != nil {
 			return nil, fmt.Errorf("error deleting tasks from queue (strategy ID: %d): %w", strategy.ID, err)
 		}
@@ -657,7 +628,6 @@ WHERE tenant_id = $1::uuid AND strategy_id = $2::bigint;`,
 			Strategyid: strategy.ID,
 			Maxruns:    strategy.MaxConcurrency,
 		})
-
 		if err != nil {
 			return nil, fmt.Errorf("error running cancel newest (strategy ID: %d): %w", strategy.ID, err)
 		}
@@ -688,7 +658,6 @@ WHERE tenant_id = $1::uuid AND strategy_id = $2::bigint;`,
 			Taskids:     taskIds,
 			Retrycounts: retryCounts,
 		})
-
 		if err != nil {
 			return nil, fmt.Errorf("error deleting tasks from queue (strategy ID: %d): %w", strategy.ID, err)
 		}

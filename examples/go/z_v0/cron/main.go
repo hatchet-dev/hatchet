@@ -25,13 +25,11 @@ func print(ctx context.Context) (result *printOutput, err error) {
 func main() {
 	// ... initialize client and worker
 	err := godotenv.Load()
-
 	if err != nil {
 		panic(err)
 	}
 
 	client, err := client.New()
-
 	if err != nil {
 		panic(err)
 	}
@@ -41,7 +39,6 @@ func main() {
 			client,
 		),
 	)
-
 	if err != nil {
 		panic(err)
 	}
@@ -58,7 +55,6 @@ func main() {
 			},
 		},
 	)
-
 	if err != nil {
 		panic(err)
 	}
@@ -68,7 +64,6 @@ func main() {
 	interrupt := cmdutils.InterruptChan()
 
 	cleanup, err := w.Start()
-
 	if err != nil {
 		panic(err)
 	}
@@ -81,4 +76,3 @@ func main() {
 
 	// ,
 }
-

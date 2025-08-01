@@ -169,7 +169,6 @@ func ToYAML(ctx context.Context, workflow *Workflow) ([]byte, error) {
 	yamlEncoder := yaml.NewEncoder(&b)
 	yamlEncoder.SetIndent(2)
 	err := yamlEncoder.Encode(&workflow)
-
 	if err != nil {
 		return nil, fmt.Errorf("error marshaling workflow yaml: %w", err)
 	}

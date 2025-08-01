@@ -21,7 +21,6 @@ func (t *TenantService) TenantMemberDelete(ctx echo.Context, request gen.TenantM
 	}
 
 	memberToDelete, err := t.config.APIRepository.Tenant().GetTenantMemberByID(ctx.Request().Context(), request.Member.String())
-
 	if err != nil {
 		return nil, err
 	}
@@ -39,7 +38,6 @@ func (t *TenantService) TenantMemberDelete(ctx echo.Context, request gen.TenantM
 	}
 
 	err = t.config.APIRepository.Tenant().DeleteTenantMember(ctx.Request().Context(), sqlchelpers.UUIDToStr(memberToDelete.ID))
-
 	if err != nil {
 		return nil, err
 	}

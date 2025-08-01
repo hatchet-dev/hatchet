@@ -17,7 +17,6 @@ func (p *PostgresMessageQueue) addTenantExchangeMessage(ctx context.Context, q m
 	}
 
 	err := p.RegisterTenant(ctx, tenantId)
-
 	if err != nil {
 		p.l.Error().Msgf("error registering tenant exchange: %v", err)
 		return err

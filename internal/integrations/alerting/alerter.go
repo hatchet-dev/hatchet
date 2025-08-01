@@ -35,14 +35,12 @@ func (t *TenantAlertManager) HandleAlert(tenantId string) error {
 
 	// read in the tenant alerting settings and determine if we should alert
 	tenantAlerting, err := t.repo.TenantAlertingSettings().GetTenantAlertingSettings(ctx, tenantId)
-
 	if err != nil {
 		return err
 	}
 
 	lastAlertedAt := tenantAlerting.Settings.LastAlertedAt.Time.UTC()
 	maxFrequency, err := time.ParseDuration(tenantAlerting.Settings.MaxFrequency)
-
 	if err != nil {
 		return err
 	}
@@ -61,7 +59,6 @@ func (t *TenantAlertManager) HandleAlert(tenantId string) error {
 		err = t.repo.TenantAlertingSettings().UpdateTenantAlertingSettings(ctx, tenantId, &repository.UpdateTenantAlertingSettingsOpts{
 			LastAlertedAt: &now,
 		})
-
 		if err != nil {
 			return err
 		}
@@ -82,7 +79,6 @@ func (t *TenantAlertManager) SendWorkflowRunAlertV1(tenantId string, failedRuns 
 
 	// read in the tenant alerting settings and determine if we should alert
 	tenantAlerting, err := t.repo.TenantAlertingSettings().GetTenantAlertingSettings(ctx, tenantId)
-
 	if err != nil {
 		return fmt.Errorf("could not get tenant alerting settings: %w", err)
 	}
@@ -98,7 +94,6 @@ func (t *TenantAlertManager) SendWorkflowRunAlertV1(tenantId string, failedRuns 
 	err = t.repo.TenantAlertingSettings().UpdateTenantAlertingSettings(ctx, tenantId, &repository.UpdateTenantAlertingSettingsOpts{
 		LastAlertedAt: &now,
 	})
-
 	if err != nil {
 		return fmt.Errorf("could not update tenant alerting settings: %w", err)
 	}
@@ -129,7 +124,6 @@ func (t *TenantAlertManager) SendWorkflowRunAlert(tenantId string, prevLastAlert
 
 	// read in the tenant alerting settings and determine if we should alert
 	tenantAlerting, err := t.repo.TenantAlertingSettings().GetTenantAlertingSettings(ctx, tenantId)
-
 	if err != nil {
 		return err
 	}
@@ -138,7 +132,6 @@ func (t *TenantAlertManager) SendWorkflowRunAlert(tenantId string, prevLastAlert
 }
 
 func (t *TenantAlertManager) sendWorkflowRunAlert(ctx context.Context, tenantAlerting *repository.GetTenantAlertingSettingsResponse, prevLastAlertedAt time.Time) error {
-
 	if !tenantAlerting.Settings.EnableWorkflowRunFailureAlerts {
 		return nil
 	}
@@ -163,7 +156,6 @@ func (t *TenantAlertManager) sendWorkflowRunAlert(ctx context.Context, tenantAle
 			FinishedAfter:  &prevLastAlertedAt,
 		},
 	)
-
 	if err != nil {
 		return err
 	}
@@ -256,7 +248,6 @@ func (t *TenantAlertManager) SendExpiringTokenAlert(tenantId string, token *dbsq
 
 	// read in the tenant alerting settings and determine if we should alert
 	tenantAlerting, err := t.repo.TenantAlertingSettings().GetTenantAlertingSettings(ctx, tenantId)
-
 	if err != nil {
 		return err
 	}
@@ -272,7 +263,6 @@ func (t *TenantAlertManager) SendExpiringTokenAlert(tenantId string, token *dbsq
 }
 
 func (t *TenantAlertManager) sendExpiringTokenAlert(ctx context.Context, tenantAlerting *repository.GetTenantAlertingSettingsResponse, payload *alerttypes.ExpiringTokenItem) error {
-
 	if !tenantAlerting.Settings.EnableExpiringTokenAlerts {
 		return nil
 	}
@@ -301,7 +291,6 @@ func (t *TenantAlertManager) SendTenantResourceLimitAlert(tenantId string, alert
 
 	// read in the tenant alerting settings and determine if we should alert
 	tenantAlerting, err := t.repo.TenantAlertingSettings().GetTenantAlertingSettings(ctx, tenantId)
-
 	if err != nil {
 		return err
 	}
@@ -309,7 +298,6 @@ func (t *TenantAlertManager) SendTenantResourceLimitAlert(tenantId string, alert
 	percentage := int(float64(alert.Value) / float64(alert.Limit) * 100)
 
 	state, err := t.repo.TenantAlertingSettings().GetTenantResourceLimitState(ctx, tenantId, string(alert.Resource))
-
 	if err != nil {
 		return err
 	}
@@ -343,7 +331,6 @@ func (t *TenantAlertManager) SendTenantResourceLimitAlert(tenantId string, alert
 }
 
 func (t *TenantAlertManager) sendTenantResourceLimitAlert(ctx context.Context, tenantAlerting *repository.GetTenantAlertingSettingsResponse, payload *alerttypes.ResourceLimitAlert) error {
-
 	if !tenantAlerting.Settings.EnableExpiringTokenAlerts {
 		return nil
 	}

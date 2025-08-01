@@ -32,7 +32,6 @@ func init() {
 		Insecure:      insecureBool,
 		CollectorAuth: collectorAuth,
 	})
-
 	if err != nil {
 		panic(fmt.Errorf("could not initialize tracer: %w", err))
 	}

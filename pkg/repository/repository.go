@@ -75,7 +75,6 @@ func (c TenantScopedCallback[T]) Do(l *zerolog.Logger, tenantId string, v T) {
 
 	go func() {
 		err := c(tenantId, v)
-
 		if err != nil {
 			l.Error().Err(err).Msg("callback failed")
 		}
@@ -96,7 +95,6 @@ func (c UnscopedCallback[T]) Do(l *zerolog.Logger, v T) {
 
 	go func() {
 		err := c(v)
-
 		if err != nil {
 			l.Error().Err(err).Msg("callback failed")
 		}

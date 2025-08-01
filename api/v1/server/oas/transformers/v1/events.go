@@ -72,7 +72,6 @@ func ToV1EventList(events []*v1.ListEventsRow, limit, offset, total int64) gen.V
 		additionalMetadata := jsonToMap(row.EventAdditionalMetadata)
 		payload := jsonToMap(row.EventPayload)
 		triggeredRuns, err := parseTriggeredRuns(row.TriggeredRuns)
-
 		if err != nil {
 			triggeredRuns = []gen.V1EventTriggeredRun{}
 		}

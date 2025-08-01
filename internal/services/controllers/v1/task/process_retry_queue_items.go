@@ -21,7 +21,6 @@ func (tc *TasksControllerImpl) runTenantRetryQueueItems(ctx context.Context) fun
 
 		// list all tenants
 		tenants, err := tc.p.ListTenantsForController(ctx, dbsqlc.TenantMajorEngineVersionV1)
-
 		if err != nil {
 			tc.l.Error().Err(err).Msg("could not list tenants")
 			return
@@ -42,7 +41,6 @@ func (tc *TasksControllerImpl) processTaskRetryQueueItems(ctx context.Context, t
 	defer span.End()
 
 	retryQueueItems, shouldContinue, err := tc.repov1.Tasks().ProcessTaskRetryQueueItems(ctx, tenantId)
-
 	if err != nil {
 		return false, fmt.Errorf("could not list step runs to reassign for tenant %s: %w", tenantId, err)
 	}

@@ -16,7 +16,6 @@ func (i *WebhookWorkersService) WebhookList(ctx echo.Context, request gen.Webhoo
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
 	webhooks, err := i.config.EngineRepository.WebhookWorker().ListActiveWebhookWorkers(context.Background(), tenantId)
-
 	if err != nil {
 		return nil, err
 	}

@@ -20,8 +20,10 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/random"
 )
 
-const MAX_RETRY_COUNT = 15
-const RETRY_INTERVAL = 2 * time.Second
+const (
+	MAX_RETRY_COUNT = 15
+	RETRY_INTERVAL  = 2 * time.Second
+)
 
 // session composes an amqp.Connection with an amqp.Channel
 type session struct {
@@ -81,6 +83,7 @@ func (t *MessageQueueImpl) safeCheckReady() bool {
 	defer t.readyMux.Unlock()
 	return t.ready
 }
+
 func (t *MessageQueueImpl) safeSetReady(ready bool) {
 	t.readyMux.Lock()
 	defer t.readyMux.Unlock()
@@ -157,7 +160,6 @@ func New(fs ...MessageQueueImplOpt) (func() error, *MessageQueueImpl) {
 
 	constructor := func(context.Context) (*amqp.Connection, error) {
 		conn, err := amqp.Dial(opts.url)
-
 		if err != nil {
 			opts.l.Error().Msgf("cannot (re)dial: %v: %q", err, opts.url)
 			return nil, err
@@ -169,7 +171,6 @@ func New(fs ...MessageQueueImplOpt) (func() error, *MessageQueueImpl) {
 	destructor := func(conn *amqp.Connection) {
 		if !conn.IsClosed() {
 			err := conn.Close()
-
 			if err != nil {
 				opts.l.Error().Msgf("error closing connection: %v", err)
 			}
@@ -179,7 +180,6 @@ func New(fs ...MessageQueueImplOpt) (func() error, *MessageQueueImpl) {
 	maxPoolSize := int32(10)
 
 	pool, err := puddle.NewPool(&puddle.Config[*amqp.Connection]{Constructor: constructor, Destructor: destructor, MaxSize: maxPoolSize})
-
 	if err != nil {
 		t.l.Error().Err(err).Msg("cannot create connection pool")
 		cancel()
@@ -326,7 +326,6 @@ func (t *MessageQueueImpl) RegisterTenant(ctx context.Context, tenantId string) 
 		false, // no-wait
 		nil,   // arguments
 	)
-
 	if err != nil {
 		t.l.Error().Msgf("cannot declare exchange: %q, %v", tenantId, err)
 		return err
@@ -343,7 +342,6 @@ func (t *MessageQueueImpl) initQueue(sub session, q msgqueue.Queue) (string, err
 
 	if q.FanoutExchangeKey() != "" {
 		suffix, err := random.Generate(8)
-
 		if err != nil {
 			t.l.Error().Msgf("error generating random bytes: %v", err)
 			return "", err
@@ -417,7 +415,6 @@ func (t *MessageQueueImpl) startPublishing() func() error {
 					return
 				case msg := <-t.msgs:
 					go func(msg *msgWithQueue) {
-
 						// we don't allow the message to be failed when we are processing it
 						msg.failedMutex.Lock()
 						defer msg.failedMutex.Unlock()
@@ -428,7 +425,6 @@ func (t *MessageQueueImpl) startPublishing() func() error {
 						}
 
 						body, err := json.Marshal(msg)
-
 						if err != nil {
 							t.l.Error().Msgf("error marshaling msg queue: %v", err)
 							return
@@ -451,7 +447,6 @@ func (t *MessageQueueImpl) startPublishing() func() error {
 						}
 
 						err = pub.PublishWithContext(ctx, "", msg.q.Name(), false, false, pubMsg)
-
 						if err != nil {
 							select {
 							case msg.ackChan <- ack{e: &err}:
@@ -468,7 +463,6 @@ func (t *MessageQueueImpl) startPublishing() func() error {
 							if _, ok := t.tenantIdCache.Get(msg.TenantID()); !ok {
 								// register the tenant exchange
 								err = t.RegisterTenant(ctx, msg.TenantID())
-
 								if err != nil {
 									t.l.Error().Msgf("error registering tenant exchange: %v", err)
 									return
@@ -480,7 +474,6 @@ func (t *MessageQueueImpl) startPublishing() func() error {
 							err = pub.PublishWithContext(ctx, msg.TenantID(), "", false, false, amqp.Publishing{
 								Body: body,
 							})
-
 							if err != nil {
 								t.l.Error().Msgf("error publishing tenant msg: %v", err)
 								return
@@ -497,14 +490,12 @@ func (t *MessageQueueImpl) startPublishing() func() error {
 							t.l.Error().Msgf("timeout sending ack for message %s", msg.ID)
 							return
 						}
-
 					}(msg)
 				}
 			}
 
 			if !pub.Channel.IsClosed() {
 				err := pub.Channel.Close()
-
 				if err != nil {
 					t.l.Error().Msgf("cannot close channel: %s, %v", conn.LocalAddr().String(), err)
 				}
@@ -542,21 +533,18 @@ func (t *MessageQueueImpl) subscribe(
 			// we initialize the queue here because exclusive queues are bound to the session/connection. however, it's not clear
 			// if the exclusive queue will be available to the next session.
 			queueName, err := t.initQueue(sub, q)
-
 			if err != nil {
 				return
 			}
 
 			// We'd like to limit to 1k TPS per engine. The max channels on an instance is 10.
 			err = sub.Qos(t.qos, 0, false)
-
 			if err != nil {
 				t.l.Error().Msgf("cannot set qos: %v", err)
 				return
 			}
 
 			deliveries, err := sub.Consume(queueName, subId, false, q.Exclusive(), false, false, nil)
-
 			if err != nil {
 				t.l.Error().Msgf("cannot consume from: %s, %v", queueName, err)
 				return
@@ -567,7 +555,6 @@ func (t *MessageQueueImpl) subscribe(
 
 				if !sub.Channel.IsClosed() {
 					err = sub.Channel.Close()
-
 					if err != nil {
 						t.l.Error().Msgf("cannot close channel: %s, %v", conn.LocalAddr().String(), err)
 					}
@@ -765,7 +752,6 @@ func identity() string {
 
 func getSession(ctx context.Context, l *zerolog.Logger, pool *puddle.Pool[*amqp.Connection]) (session, error) {
 	connFromPool, err := pool.Acquire(ctx)
-
 	if err != nil {
 		l.Error().Msgf("cannot acquire connection: %v", err)
 		return session{}, err
@@ -774,7 +760,6 @@ func getSession(ctx context.Context, l *zerolog.Logger, pool *puddle.Pool[*amqp.
 	conn := connFromPool.Value()
 
 	ch, err := conn.Channel()
-
 	if err != nil {
 		connFromPool.Destroy()
 		l.Error().Msgf("cannot create channel: %v", err)

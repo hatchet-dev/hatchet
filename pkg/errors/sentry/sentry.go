@@ -29,7 +29,6 @@ func NewSentryAlerter(opts *SentryAlerterOpts) (*SentryAlerter, error) {
 		Environment:      opts.Environment,
 		SampleRate:       opts.SampleRate,
 	})
-
 	if err != nil {
 		return nil, err
 	}

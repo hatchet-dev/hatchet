@@ -22,7 +22,6 @@ func newAddMQBuffer(shared *sharedRepository) (*buffer.TenantBufferManager[addMe
 	}
 
 	manager, err := buffer.NewTenantBufManager(userEventBufOpts)
-
 	if err != nil {
 		shared.l.Err(err).Msg("could not create tenant buffer manager")
 		return nil, err
@@ -60,7 +59,6 @@ func (r *sharedRepository) bulkAddMessages(ctx context.Context, opts []addMessag
 	}
 
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 10000)
-
 	if err != nil {
 		return nil, fmt.Errorf("could not prepare transaction: %w", err)
 	}
@@ -68,13 +66,11 @@ func (r *sharedRepository) bulkAddMessages(ctx context.Context, opts []addMessag
 	defer rollback()
 
 	_, err = r.queries.BulkAddMessage(ctx, tx, p)
-
 	if err != nil {
 		return nil, fmt.Errorf("could not ack messages: %w", err)
 	}
 
 	err = commit(ctx)
-
 	if err != nil {
 		return nil, fmt.Errorf("could not commit transaction: %w", err)
 	}

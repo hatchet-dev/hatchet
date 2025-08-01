@@ -29,7 +29,6 @@ var tokenCreateAPICmd = &cobra.Command{
 	Short: "create a new API token.",
 	Run: func(cmd *cobra.Command, args []string) {
 		err := runCreateAPIToken(expiresIn)
-
 		if err != nil {
 			log.Printf("Fatal: could not run [token create] command: %v", err)
 			os.Exit(1)
@@ -65,7 +64,6 @@ func init() {
 		90*24*time.Hour,
 		"Expiration duration for the API token",
 	)
-
 }
 
 func runCreateAPIToken(expiresIn time.Duration) error {
@@ -79,7 +77,6 @@ func runCreateAPIToken(expiresIn time.Duration) error {
 		// disable security checks since we're not running the server
 		scf.SecurityCheck.Enabled = false
 	})
-
 	if err != nil {
 		return err
 	}
@@ -97,7 +94,6 @@ func runCreateAPIToken(expiresIn time.Duration) error {
 	}
 
 	defaultTok, err := server.Auth.JWTManager.GenerateTenantToken(context.Background(), tenantId, tokenName, false, &expiresAt)
-
 	if err != nil {
 		return err
 	}

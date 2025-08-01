@@ -13,7 +13,6 @@ func (oc *OLAPControllerImpl) runOLAPTablePartition(ctx context.Context) func() 
 
 		// list all tenants
 		tenant, err := oc.p.GetInternalTenantForController(ctx)
-
 		if err != nil {
 			oc.l.Error().Err(err).Msg("could not get internal tenant")
 			return
@@ -24,7 +23,6 @@ func (oc *OLAPControllerImpl) runOLAPTablePartition(ctx context.Context) func() 
 		}
 
 		err = oc.createTablePartition(ctx)
-
 		if err != nil {
 			oc.l.Error().Err(err).Msg("could not create table partition")
 		}
@@ -36,7 +34,6 @@ func (oc *OLAPControllerImpl) createTablePartition(ctx context.Context) error {
 	defer span.End()
 
 	err := oc.repo.OLAP().UpdateTablePartitions(ctx)
-
 	if err != nil {
 		return fmt.Errorf("could not create table partition: %w", err)
 	}

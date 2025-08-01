@@ -42,15 +42,15 @@ func getConcurrencyKey(ctx worker.HatchetContext) (string, error) {
 	return "concurrency", nil
 }
 
-var done = make(chan struct{})
-var errChan = make(chan error)
+var (
+	done    = make(chan struct{})
+	errChan = make(chan error)
+)
 
 var workflowCount int
-var countMux sync.Mutex
 
 func run(ctx context.Context) error {
 	c, err := client.New()
-
 	if err != nil {
 		return fmt.Errorf("error creating client: %w", err)
 	}
@@ -68,7 +68,7 @@ func run(ctx context.Context) error {
 
 	countMux := sync.Mutex{}
 
-	var countMap = make(map[string]int)
+	countMap := make(map[string]int)
 	maxConcurrent := 2
 
 	err = w.RegisterWorkflow(
@@ -84,7 +84,6 @@ func run(ctx context.Context) error {
 					input := &concurrencyLimitEvent{}
 
 					err = ctx.WorkflowInput(input)
-
 					if err != nil {
 						return nil, fmt.Errorf("error getting input: %w", err)
 					}
@@ -164,7 +163,6 @@ func run(ctx context.Context) error {
 		}
 
 		fmt.Println("ran workflows")
-
 	}()
 
 	time.Sleep(2 * time.Second)

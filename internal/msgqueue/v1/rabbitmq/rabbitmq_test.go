@@ -54,7 +54,6 @@ func TestMessageQueueIntegration(t *testing.T) {
 	}()
 
 	task, err := msgqueue.NewTenantMessage("test-tenant-v1", id, false, true, map[string]interface{}{"key": "value"})
-
 	if err != nil {
 		t.Fatalf("error creating task: %v", err)
 	}
@@ -156,7 +155,6 @@ func TestBufferedSubMessageQueueIntegration(t *testing.T) {
 	})
 
 	cleanupQueue, err := mqBuffer.Start()
-
 	if err != nil {
 		t.Fatalf("error starting buffer: %v", err)
 	}
@@ -164,7 +162,6 @@ func TestBufferedSubMessageQueueIntegration(t *testing.T) {
 	task, err := msgqueue.NewTenantMessage("test-tenant-v1", id, false, true, &testMessagePayload{
 		Key: "value",
 	})
-
 	if err != nil {
 		t.Fatalf("error creating task: %v", err)
 	}
@@ -172,7 +169,6 @@ func TestBufferedSubMessageQueueIntegration(t *testing.T) {
 	// send tasks to queue
 	for i := 0; i < 10; i++ {
 		err = tq.SendMessage(ctx, staticQueue, task)
-
 		if err != nil {
 			t.Fatalf("error sending task: %v", err)
 		}
@@ -219,13 +215,12 @@ func TestBufferedPubMessageQueueIntegration(t *testing.T) {
 	}()
 
 	cleanupQueue, err := tq.Subscribe(staticQueue, func(receivedMessage *msgqueue.Message) error {
-		for _ = range receivedMessage.Payloads {
+		for range receivedMessage.Payloads {
 			wg.Done()
 		}
 
 		return nil
 	}, msgqueue.NoOpHook)
-
 	if err != nil {
 		t.Fatalf("error subscribing to queue: %v", err)
 	}
@@ -235,7 +230,6 @@ func TestBufferedPubMessageQueueIntegration(t *testing.T) {
 	task, err := msgqueue.NewTenantMessage("test-tenant-v1", id, false, true, &testMessagePayload{
 		Key: "value",
 	})
-
 	if err != nil {
 		t.Fatalf("error creating task: %v", err)
 	}
@@ -243,7 +237,6 @@ func TestBufferedPubMessageQueueIntegration(t *testing.T) {
 	// send tasks to queue
 	for i := 0; i < 10; i++ {
 		err := pub.Pub(ctx, staticQueue, task, false)
-
 		if err != nil {
 			t.Fatalf("error sending task: %v", err)
 		}
@@ -293,7 +286,6 @@ func TestDeadLetteringSuccess(t *testing.T) {
 	task, err := msgqueue.NewTenantMessage("test-tenant-v1", id, false, true, &testMessagePayload{
 		Key: "value",
 	})
-
 	if err != nil {
 		t.Fatalf("error creating task: %v", err)
 	}

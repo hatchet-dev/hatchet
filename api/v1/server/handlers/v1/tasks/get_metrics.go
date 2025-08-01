@@ -45,7 +45,6 @@ func (t *TasksService) V1TaskListStatusMetrics(ctx echo.Context, request gen.V1T
 		ParentTaskExternalID:      parentTaskExternalId,
 		TriggeringEventExternalId: triggeringEventExternalId,
 	})
-
 	if err != nil {
 		return nil, err
 	}

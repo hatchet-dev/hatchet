@@ -145,7 +145,6 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 	checkpoint := start
 
 	workersToActiveActions, err := s.repo.ListActionsForWorkers(ctx, s.tenantId, workerIds)
-
 	if err != nil {
 		return err
 	}
@@ -266,7 +265,6 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 		Tenantid:  s.tenantId,
 		Workerids: workerUUIDs,
 	})
-
 	if err != nil {
 		return err
 	}
@@ -379,7 +377,6 @@ func (s *Scheduler) loopReplenish(ctx context.Context) {
 			return
 		case <-ticker.C:
 			err := s.replenish(ctx, true)
-
 			if err != nil {
 				s.l.Error().Err(err).Msg("error replenishing slots")
 			}
@@ -560,7 +557,6 @@ func (s *Scheduler) tryAssignBatch(
 			rlAcks[i],
 			rlNacks[i],
 		)
-
 		if err != nil {
 			s.l.Error().Err(err).Msg("error assigning queue item")
 		}
@@ -730,7 +726,6 @@ func (s *Scheduler) tryAssign(
 					batchStart := time.Now()
 
 					results, newRingOffset, err := s.tryAssignBatch(ctx, actionId, batchQis, ringOffset, stepIdsToLabels, taskIdsToRateLimits)
-
 					if err != nil {
 						return err
 					}
@@ -777,7 +772,6 @@ func (s *Scheduler) tryAssign(
 
 					return nil
 				})
-
 				if err != nil {
 					s.l.Error().Err(err).Msg("error assigning queue items")
 				}

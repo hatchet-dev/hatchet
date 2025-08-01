@@ -28,7 +28,6 @@ func (t *TickerImpl) runPollCronSchedules(ctx context.Context) func() {
 		t.l.Debug().Msgf("ticker: polling cron schedules")
 
 		crons, err := t.repo.Ticker().PollCronSchedules(ctx, t.tickerId)
-
 		if err != nil {
 			t.l.Err(err).Msg("could not poll cron schedules")
 			return
@@ -94,7 +93,6 @@ func (t *TickerImpl) handleScheduleCron(ctx context.Context, cron *dbsqlc.PollCr
 		),
 		gocron.WithIdentifier(cronUUID),
 	)
-
 	if err != nil {
 		if errors.Is(err, gocron.ErrCronJobParse) || errors.Is(err, gocron.ErrCronJobInvalid) {
 			deleteCronErr := t.repo.Workflow().DeleteInvalidCron(ctx, cron.ID)
@@ -122,14 +120,12 @@ func (t *TickerImpl) runCronWorkflow(tenantId, workflowVersionId, cron, cronPare
 		t.l.Debug().Msgf("ticker: running workflow %s", workflowVersionId)
 
 		tenant, err := t.repo.Tenant().GetTenantByID(ctx, tenantId)
-
 		if err != nil {
 			t.l.Error().Err(err).Msg("could not get tenant")
 			return
 		}
 
 		workflowVersion, err := t.repo.Workflow().GetWorkflowVersionById(ctx, tenantId, workflowVersionId)
-
 		if err != nil {
 			t.l.Error().Err(err).Msg("could not get workflow version")
 			return
@@ -154,13 +150,11 @@ func (t *TickerImpl) runCronWorkflow(tenantId, workflowVersionId, cron, cronPare
 func (t *TickerImpl) runCronWorkflowV0(ctx context.Context, tenantId string, workflowVersion *dbsqlc.GetWorkflowVersionForEngineRow, cron, cronParentId string, cronName *string, input []byte, additionalMetadata map[string]interface{}) error {
 	// create a new workflow run in the database
 	createOpts, err := repository.GetCreateWorkflowRunOptsFromCron(cron, cronParentId, cronName, workflowVersion, input, additionalMetadata)
-
 	if err != nil {
 		return fmt.Errorf("could not get create workflow run opts: %w", err)
 	}
 
 	workflowRun, err := t.repo.WorkflowRun().CreateNewWorkflowRun(ctx, tenantId, createOpts)
-
 	if err != nil {
 		t.l.Err(err).Msg("could not create workflow run")
 		return fmt.Errorf("could not create workflow run: %w", err)
@@ -173,7 +167,6 @@ func (t *TickerImpl) runCronWorkflowV0(ctx context.Context, tenantId string, wor
 		msgqueue.WORKFLOW_PROCESSING_QUEUE,
 		tasktypes.WorkflowRunQueuedToTask(tenantId, workflowRunId),
 	)
-
 	if err != nil {
 		t.l.Err(err).Msg("could not add workflow run queued task")
 		return fmt.Errorf("could not add workflow run queued task: %w", err)
@@ -195,13 +188,11 @@ func (t *TickerImpl) handleCancelCron(ctx context.Context, key string) error {
 	delete(t.userCronSchedulesToIds, key)
 
 	cronAsUUID, err := uuid.Parse(cronUUID)
-
 	if err != nil {
 		return fmt.Errorf("could not parse cron UUID: %w", err)
 	}
 
 	err = t.userCronScheduler.RemoveJob(cronAsUUID)
-
 	if err != nil {
 		return fmt.Errorf("could not remove job from scheduler: %w", err)
 	}

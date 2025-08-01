@@ -8,7 +8,6 @@ import (
 )
 
 func ToV1LogLine(log *sqlcv1.V1LogLine) *gen.V1LogLine {
-
 	retryCount := int(log.RetryCount)
 	attempt := retryCount + 1
 

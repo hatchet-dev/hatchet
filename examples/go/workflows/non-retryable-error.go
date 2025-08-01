@@ -10,8 +10,10 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/worker"
 )
 
-type NonRetryableInput struct{}
-type NonRetryableResult struct{}
+type (
+	NonRetryableInput  struct{}
+	NonRetryableResult struct{}
+)
 
 // NonRetryableError returns a workflow which throws a non-retryable error
 func NonRetryableError(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[NonRetryableInput, NonRetryableResult] {

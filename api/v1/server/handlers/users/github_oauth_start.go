@@ -15,7 +15,6 @@ func (u *UserService) UserUpdateGithubOauthStart(ctx echo.Context, _ gen.UserUpd
 	}
 
 	state, err := authn.NewSessionHelpers(u.config).SaveOAuthState(ctx, "github")
-
 	if err != nil {
 		return nil, redirect.GetRedirectWithError(ctx, u.config.Logger, err, "Could not get cookie. Please make sure cookies are enabled.")
 	}

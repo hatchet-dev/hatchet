@@ -27,7 +27,6 @@ func (t *StepRunService) WorkflowRunListStepRunEvents(ctx echo.Context, request 
 		request.WorkflowRun.String(),
 		lastId,
 	)
-
 	if err != nil {
 		return nil, err
 	}

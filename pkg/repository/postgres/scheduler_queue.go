@@ -94,7 +94,6 @@ func (d *queueRepository) ListQueueItems(ctx context.Context, limit int) ([]*dbs
 			Valid: true,
 		},
 	})
-
 	if err != nil {
 		return nil, err
 	}
@@ -107,7 +106,6 @@ func (d *queueRepository) ListQueueItems(ctx context.Context, limit int) ([]*dbs
 	checkpoint = time.Now()
 
 	resQis, err := d.removeInvalidStepRuns(ctx, qis)
-
 	if err != nil {
 		return nil, err
 	}
@@ -180,7 +178,6 @@ func (s *queueRepository) removeInvalidStepRuns(ctx context.Context, qis []*dbsq
 	// If we've reached this point, we have queue items to cancel. We prepare a transaction in order
 	// to set a statement timeout.
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, s.pool, s.l, 5000)
-
 	if err != nil {
 		return nil, err
 	}
@@ -188,7 +185,6 @@ func (s *queueRepository) removeInvalidStepRuns(ctx context.Context, qis []*dbsq
 	defer rollback()
 
 	err = s.queries.BulkQueueItems(ctx, tx, cancelled)
-
 	if err != nil {
 		return nil, err
 	}
@@ -233,7 +229,6 @@ func (s *queueRepository) bulkStepRunsAssigned(
 			Timestamp:     &timeSeen,
 			EventData:     data,
 		})
-
 		if err != nil {
 			s.l.Err(err).Msg("could not buffer step run event")
 		}
@@ -252,7 +247,6 @@ func (s *queueRepository) bulkStepRunsAssigned(
 		Workerids:        orderedWorkerIds,
 		Assignedstepruns: assignedStepRuns,
 	})
-
 	if err != nil {
 		s.l.Err(err).Msg("could not create worker assign events")
 	}
@@ -277,7 +271,6 @@ func (s *queueRepository) bulkStepRunsUnassigned(
 			Timestamp:     &timeSeen,
 			EventData:     data,
 		})
-
 		if err != nil {
 			s.l.Err(err).Msg("could not buffer step run event")
 		}
@@ -311,7 +304,6 @@ func (s *queueRepository) bulkStepRunsRateLimited(
 			Timestamp:     &timeSeen,
 			EventData:     data,
 		})
-
 		if err != nil {
 			s.l.Err(err).Msg("could not buffer step run event")
 		}
@@ -331,7 +323,6 @@ func (d *queueRepository) updateMinId() {
 		Tenantid: d.tenantId,
 		Queue:    d.queueName,
 	})
-
 	if err != nil {
 		d.l.Error().Err(err).Msg("error getting min id")
 		return
@@ -350,7 +341,6 @@ func (d *queueRepository) MarkQueueItemsProcessed(ctx context.Context, r *reposi
 	checkpoint := start
 
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, d.pool, d.l, 5000)
-
 	if err != nil {
 		return nil, nil, err
 	}
@@ -386,7 +376,6 @@ func (d *queueRepository) MarkQueueItemsProcessed(ctx context.Context, r *reposi
 	}
 
 	_, err = d.queries.BulkMarkStepRunsAsCancelling(ctx, tx, timedOutStepRuns)
-
 	if err != nil {
 		return nil, nil, fmt.Errorf("could not bulk mark step runs as cancelling: %w", err)
 	}
@@ -397,7 +386,6 @@ func (d *queueRepository) MarkQueueItemsProcessed(ctx context.Context, r *reposi
 		Stepruntimeouts: stepTimeouts,
 		Tenantid:        d.tenantId,
 	})
-
 	if err != nil {
 		return nil, nil, err
 	}
@@ -406,7 +394,6 @@ func (d *queueRepository) MarkQueueItemsProcessed(ctx context.Context, r *reposi
 	checkpoint = time.Now()
 
 	err = d.queries.BulkQueueItems(ctx, tx, idsToUnqueue)
-
 	if err != nil {
 		return nil, nil, err
 	}
@@ -523,7 +510,6 @@ func (d *queueRepository) GetStepRunRateLimits(ctx context.Context, queueItems [
 
 	// get all step run expression evals which correspond to rate limits, grouped by step run id
 	expressionEvals, err := d.queries.ListStepRunExpressionEvals(ctx, d.pool, stepRunIds)
-
 	if err != nil {
 		return nil, err
 	}
@@ -587,7 +573,6 @@ func (d *queueRepository) GetStepRunRateLimits(ctx context.Context, queueItems [
 					duration = eval.ValueStr.String
 				} else if duration != eval.ValueStr.String {
 					largerDuration, err := getLargerDuration(duration, eval.ValueStr.String)
-
 					if err != nil {
 						skip = true
 						break
@@ -666,7 +651,6 @@ func (d *queueRepository) GetStepRunRateLimits(ctx context.Context, queueItems [
 	if len(upsertRateLimitBulkParams.Keys) > 0 {
 		// upsert all rate limits based on the keys, limit values, and durations
 		err = d.queries.UpsertRateLimitsBulk(ctx, d.pool, upsertRateLimitBulkParams)
-
 		if err != nil {
 			return nil, fmt.Errorf("could not bulk upsert dynamic rate limits: %w", err)
 		}
@@ -683,7 +667,6 @@ func (d *queueRepository) GetStepRunRateLimits(ctx context.Context, queueItems [
 		Tenantid: d.tenantId,
 		Stepids:  uniqueStepIds,
 	})
-
 	if err != nil {
 		return nil, fmt.Errorf("could not list rate limits for steps: %w", err)
 	}
@@ -718,7 +701,6 @@ func (d *queueRepository) GetDesiredLabels(ctx context.Context, stepIds []pgtype
 	uniqueStepIds := sqlchelpers.UniqueSet(stepIds)
 
 	labels, err := d.queries.GetDesiredLabels(ctx, d.pool, uniqueStepIds)
-
 	if err != nil {
 		return nil, err
 	}

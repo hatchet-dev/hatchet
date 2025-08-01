@@ -29,7 +29,6 @@ func (t *TenantService) TenantGetQueueMetrics(ctx echo.Context, request gen.Tena
 				additionalMetadata[splitValue[0]] = splitValue[1]
 			} else {
 				return gen.TenantGetQueueMetrics400JSONResponse(apierrors.NewAPIErrors("Additional metadata filters must be in the format key:value.")), nil
-
 			}
 		}
 
@@ -41,13 +40,11 @@ func (t *TenantService) TenantGetQueueMetrics(ctx echo.Context, request gen.Tena
 	}
 
 	metrics, err := t.config.APIRepository.Tenant().GetQueueMetrics(ctx.Request().Context(), tenantId, &opts)
-
 	if err != nil {
 		return nil, err
 	}
 
 	stepRunQueueCounts, err := t.config.EngineRepository.StepRun().GetQueueCounts(ctx.Request().Context(), tenantId)
-
 	if err != nil {
 		return nil, err
 	}

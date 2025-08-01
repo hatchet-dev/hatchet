@@ -20,7 +20,6 @@ func main() {
 	}
 
 	hatchet, err := v1.NewHatchetClient()
-
 	if err != nil {
 		panic(err)
 	}
@@ -77,7 +76,6 @@ func main() {
 			Slots:     slots,
 		},
 	)
-
 	if err != nil {
 		panic(err)
 	}
@@ -85,7 +83,6 @@ func main() {
 	interruptCtx, cancel := cmdutils.NewInterruptContext()
 
 	err = worker.StartBlocking(interruptCtx)
-
 	if err != nil {
 		panic(err)
 	}

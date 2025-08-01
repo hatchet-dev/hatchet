@@ -255,7 +255,6 @@ func New(fs ...DispatcherOpt) (*DispatcherImpl, error) {
 
 	// create a new scheduler
 	s, err := gocron.NewScheduler(gocron.WithLocation(time.UTC))
-
 	if err != nil {
 		return nil, fmt.Errorf("could not create scheduler for dispatcher: %w", err)
 	}
@@ -297,7 +296,6 @@ func (d *DispatcherImpl) Start() (func() error, error) {
 	dispatcher, err := d.repo.Dispatcher().CreateNewDispatcher(ctx, &repository.CreateDispatcherOpts{
 		ID: d.dispatcherId,
 	})
-
 	if err != nil {
 		cancel()
 		return nil, err
@@ -309,7 +307,6 @@ func (d *DispatcherImpl) Start() (func() error, error) {
 			d.runUpdateHeartbeat(ctx),
 		),
 	)
-
 	if err != nil {
 		cancel()
 		return nil, fmt.Errorf("could not schedule heartbeat update: %w", err)
@@ -335,7 +332,6 @@ func (d *DispatcherImpl) Start() (func() error, error) {
 	// subscribe to a task queue with the dispatcher id
 	dispatcherId := sqlchelpers.UUIDToStr(dispatcher.ID)
 	cleanupQueue, err := d.mq.Subscribe(msgqueue.QueueTypeFromDispatcherID(dispatcherId), f, msgqueue.NoOpHook)
-
 	if err != nil {
 		cancel()
 		return nil, err
@@ -356,7 +352,6 @@ func (d *DispatcherImpl) Start() (func() error, error) {
 
 	// subscribe to a task queue with the dispatcher id
 	cleanupQueueV1, err := d.mqv1.Subscribe(msgqueuev1.QueueTypeFromDispatcherID(dispatcherId), fv1, msgqueuev1.NoOpHook)
-
 	if err != nil {
 		cancel()
 		return nil, err
@@ -474,27 +469,23 @@ func (d *DispatcherImpl) handleGroupKeyActionAssignedTask(ctx context.Context, t
 	metadata := tasktypes.GroupKeyActionAssignedTaskMetadata{}
 
 	err := d.dv.DecodeAndValidate(task.Payload, &payload)
-
 	if err != nil {
 		return fmt.Errorf("could not decode dispatcher task payload: %w", err)
 	}
 
 	err = d.dv.DecodeAndValidate(task.Metadata, &metadata)
-
 	if err != nil {
 		return fmt.Errorf("could not decode dispatcher task metadata: %w", err)
 	}
 
 	// get the worker for this task
 	workers, err := d.workers.Get(payload.WorkerId)
-
 	if err != nil {
 		return fmt.Errorf("could not get worker: %w", err)
 	}
 
 	// load the workflow run from the database
 	workflowRun, err := d.repo.WorkflowRun().GetWorkflowRunById(ctx, metadata.TenantId, payload.WorkflowRunId)
-
 	if err != nil {
 		return fmt.Errorf("could not get workflow run: %w", err)
 	}
@@ -508,7 +499,6 @@ func (d *DispatcherImpl) handleGroupKeyActionAssignedTask(ctx context.Context, t
 	}
 
 	sqlcGroupKeyRun, err := d.repo.GetGroupKeyRun().GetGroupKeyRunForEngine(ctx, metadata.TenantId, groupKeyRunId)
-
 	if err != nil {
 		return fmt.Errorf("could not get group key run for engine: %w", err)
 	}
@@ -546,13 +536,11 @@ func (d *DispatcherImpl) handleStepRunBulkAssignedTask(ctx context.Context, task
 	metadata := tasktypes.StepRunAssignedBulkTaskMetadata{}
 
 	err := d.dv.DecodeAndValidate(task.Payload, &payload)
-
 	if err != nil {
 		return fmt.Errorf("could not decode dispatcher task payload: %w", err)
 	}
 
 	err = d.dv.DecodeAndValidate(task.Metadata, &metadata)
-
 	if err != nil {
 		return fmt.Errorf("could not decode dispatcher task metadata: %w", err)
 	}
@@ -565,7 +553,6 @@ func (d *DispatcherImpl) handleStepRunBulkAssignedTask(ctx context.Context, task
 	}
 
 	bulkDatas, err := d.repo.StepRun().GetStepRunBulkDataForEngine(ctx, metadata.TenantId, stepRunIds)
-
 	if err != nil {
 		return fmt.Errorf("could not bulk list step run data: %w", err)
 	}
@@ -573,7 +560,6 @@ func (d *DispatcherImpl) handleStepRunBulkAssignedTask(ctx context.Context, task
 	stepRunIdToData := make(map[string]*dbsqlc.GetStepRunBulkDataForEngineRow)
 
 	for _, sr := range bulkDatas {
-
 		stepRunIdToData[sqlchelpers.UUIDToStr(sr.SRID)] = sr
 	}
 
@@ -688,7 +674,6 @@ func (d *DispatcherImpl) handleStepRunBulkAssignedTask(ctx context.Context, task
 				defer cancel()
 
 				_, stepRunsToFail, err := d.repo.StepRun().InternalRetryStepRuns(retryCtx, metadata.TenantId, toRetry)
-
 				if err != nil {
 					innerErr = multierror.Append(innerErr, fmt.Errorf("could not requeue step runs: %w", err))
 				}
@@ -709,7 +694,6 @@ func (d *DispatcherImpl) handleStepRunBulkAssignedTask(ctx context.Context, task
 									&now,
 								),
 							)
-
 							if err != nil {
 								innerBatchErr = multierror.Append(innerBatchErr, err)
 							}
@@ -739,13 +723,11 @@ func (d *DispatcherImpl) handleStepRunCancelled(ctx context.Context, task *msgqu
 	metadata := tasktypes.StepRunCancelledTaskMetadata{}
 
 	err := d.dv.DecodeAndValidate(task.Payload, &payload)
-
 	if err != nil {
 		return fmt.Errorf("could not decode dispatcher task payload: %w", err)
 	}
 
 	err = d.dv.DecodeAndValidate(task.Metadata, &metadata)
-
 	if err != nil {
 		return fmt.Errorf("could not decode dispatcher task metadata: %w", err)
 	}
@@ -763,7 +745,6 @@ func (d *DispatcherImpl) handleStepRunCancelled(ctx context.Context, task *msgqu
 
 	// load the step run from the database
 	stepRun, err := d.repo.StepRun().GetStepRunForEngine(ctx, metadata.TenantId, payload.StepRunId)
-
 	if err != nil {
 		return fmt.Errorf("could not get step run: %w", err)
 	}
@@ -800,7 +781,6 @@ func (d *DispatcherImpl) runUpdateHeartbeat(ctx context.Context) func() {
 		_, err := d.repo.Dispatcher().UpdateDispatcher(ctx, d.dispatcherId, &repository.UpdateDispatcherOpts{
 			LastHeartbeatAt: &now,
 		})
-
 		if err != nil {
 			d.l.Err(err).Msg("dispatcher: could not update heartbeat")
 		}

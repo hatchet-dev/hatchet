@@ -58,7 +58,6 @@ func (r *subscribeClientImpl) getDurableEventsListener(
 	}
 
 	err := w.retryListen(ctx)
-
 	if err != nil {
 		return nil, err
 	}
@@ -68,7 +67,6 @@ func (r *subscribeClientImpl) getDurableEventsListener(
 	go func() {
 		defer func() {
 			err := w.Close()
-
 			if err != nil {
 				r.l.Error().Err(err).Msg("failed to close durable events listener")
 			}
@@ -79,7 +77,6 @@ func (r *subscribeClientImpl) getDurableEventsListener(
 		}()
 
 		err := w.Listen(ctx)
-
 		if err != nil {
 			r.l.Error().Err(err).Msg("failed to listen for durable events")
 		}
@@ -100,7 +97,6 @@ func (w *DurableEventsListener) retryListen(ctx context.Context) error {
 		}
 
 		client, err := w.constructor(ctx)
-
 		if err != nil {
 			retries++
 			w.l.Error().Err(err).Msgf("could not resubscribe to the durable event listener")
@@ -119,7 +115,6 @@ func (w *DurableEventsListener) retryListen(ctx context.Context) error {
 				TaskId:    t.taskId,
 				SignalKey: t.signalKey,
 			})
-
 			if err != nil {
 				w.l.Error().Err(err).Msgf("could not listen for durable events on the worker")
 				rangeErr = err
@@ -165,7 +160,6 @@ func (l *DurableEventsListener) AddSignal(
 	h.mu.Unlock()
 
 	err := l.retrySend(t)
-
 	if err != nil {
 		return err
 	}

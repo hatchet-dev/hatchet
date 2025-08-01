@@ -29,7 +29,6 @@ func (r *tenantInviteRepository) CreateTenantInvite(ctx context.Context, tenantI
 	}
 
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 5000)
-
 	if err != nil {
 		return nil, err
 	}
@@ -42,7 +41,6 @@ func (r *tenantInviteRepository) CreateTenantInvite(ctx context.Context, tenantI
 			tx,
 			sqlchelpers.UUIDFromStr(tenantId),
 		)
-
 		if err != nil {
 			r.l.Error().Err(err).Msg("error counting pending invites")
 			return nil, err
@@ -78,7 +76,6 @@ func (r *tenantInviteRepository) CreateTenantInvite(ctx context.Context, tenantI
 			Role:         dbsqlc.TenantMemberRole(opts.Role),
 		},
 	)
-
 	if err != nil {
 		return nil, err
 	}

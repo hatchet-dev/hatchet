@@ -17,7 +17,6 @@ func (rc *RetentionControllerImpl) runDeleteQueueItems(ctx context.Context) func
 		rc.l.Debug().Msgf("retention controller: deleting queue items")
 
 		err := rc.ForTenants(ctx, rc.runDeleteQueueItemsTenant)
-
 		if err != nil {
 			rc.l.Err(err).Msg("could not run delete queue items")
 		}
@@ -40,7 +39,6 @@ func (rc *RetentionControllerImpl) runDeleteInternalQueueItems(ctx context.Conte
 		rc.l.Debug().Msgf("retention controller: deleting internal queue items")
 
 		err := rc.ForTenants(ctx, rc.runDeleteInternalQueueItemsTenant)
-
 		if err != nil {
 			rc.l.Err(err).Msg("could not run delete internal queue items")
 		}
@@ -63,7 +61,6 @@ func (rc *RetentionControllerImpl) runDeleteRetryQueueItems(ctx context.Context)
 		rc.l.Debug().Msgf("retention controller: deleting retry queue items")
 
 		err := rc.ForTenants(ctx, rc.runDeleteRetryQueueItemsTenant)
-
 		if err != nil {
 			rc.l.Err(err).Msg("could not run delete retry queue items")
 		}

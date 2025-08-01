@@ -66,7 +66,6 @@ func (t *TasksService) V1TaskCancel(ctx echo.Context, request gen.V1TaskCancelRe
 		tenant,
 		grpcReq,
 	)
-
 	if err != nil {
 		return nil, err
 	}

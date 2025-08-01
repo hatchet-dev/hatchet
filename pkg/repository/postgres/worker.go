@@ -47,7 +47,6 @@ func (w *workerAPIRepository) GetWorkerActionsByWorkerId(tenantid string, worker
 		Workerids: uuidWorkerIds,
 		Tenantid:  sqlchelpers.UUIDFromStr(tenantid),
 	})
-
 	if err != nil {
 		return nil, err
 	}
@@ -77,7 +76,6 @@ func (w *workerAPIRepository) ListWorkerState(tenantId, workerId string, maxRuns
 			Valid: true,
 		},
 	})
-
 	if err != nil {
 		return nil, nil, fmt.Errorf("could not list worker slot state: %w", err)
 	}
@@ -90,7 +88,6 @@ func (w *workerAPIRepository) ListWorkerState(tenantId, workerId string, maxRuns
 			Valid: true,
 		},
 	})
-
 	if err != nil {
 		return nil, nil, fmt.Errorf("could not list worker recent assigned events: %w", err)
 	}
@@ -130,7 +127,6 @@ func (w *workerAPIRepository) ListWorkerState(tenantId, workerId string, maxRuns
 		Ids:      stepRunIds,
 		TenantId: sqlchelpers.UUIDFromStr(tenantId),
 	})
-
 	if err != nil {
 		return nil, nil, fmt.Errorf("could not list worker recent step runs: %w", err)
 	}
@@ -165,7 +161,6 @@ func (r *workerAPIRepository) ListWorkers(tenantId string, opts *repository.List
 	}
 
 	workers, err := r.queries.ListWorkersWithSlotCount(context.Background(), r.pool, queryParams)
-
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			workers = make([]*dbsqlc.ListWorkersWithSlotCountRow, 0)
@@ -198,7 +193,6 @@ func (w *workerAPIRepository) UpdateWorker(tenantId, workerId string, opts repos
 	}
 
 	worker, err := w.queries.UpdateWorker(context.Background(), w.pool, updateParams)
-
 	if err != nil {
 		return nil, fmt.Errorf("could not update worker: %w", err)
 	}
@@ -257,7 +251,6 @@ func (w *workerEngineRepository) CreateNewWorker(ctx context.Context, tenantId s
 	}
 
 	tx, err := w.pool.Begin(ctx)
-
 	if err != nil {
 		return nil, err
 	}
@@ -354,7 +347,6 @@ func (w *workerEngineRepository) CreateNewWorker(ctx context.Context, tenantId s
 
 	if worker == nil {
 		worker, err = w.queries.CreateWorker(ctx, tx, createParams)
-
 		if err != nil {
 			return nil, fmt.Errorf("could not create worker: %w", err)
 		}
@@ -367,7 +359,6 @@ func (w *workerEngineRepository) CreateNewWorker(ctx context.Context, tenantId s
 			Name:     svc,
 			Tenantid: pgTenantId,
 		})
-
 		if err != nil {
 			return nil, fmt.Errorf("could not upsert service: %w", err)
 		}
@@ -379,7 +370,6 @@ func (w *workerEngineRepository) CreateNewWorker(ctx context.Context, tenantId s
 		Services: svcUUIDs,
 		Workerid: worker.ID,
 	})
-
 	if err != nil {
 		return nil, fmt.Errorf("could not link services to worker: %w", err)
 	}
@@ -391,7 +381,6 @@ func (w *workerEngineRepository) CreateNewWorker(ctx context.Context, tenantId s
 			Action:   action,
 			Tenantid: pgTenantId,
 		})
-
 		if err != nil {
 			return nil, fmt.Errorf("could not upsert action: %w", err)
 		}
@@ -403,13 +392,11 @@ func (w *workerEngineRepository) CreateNewWorker(ctx context.Context, tenantId s
 		Actionids: actionUUIDs,
 		Workerid:  worker.ID,
 	})
-
 	if err != nil {
 		return nil, fmt.Errorf("could not link actions to worker: %w", err)
 	}
 
 	err = tx.Commit(ctx)
-
 	if err != nil {
 		return nil, fmt.Errorf("could not commit transaction: %w", err)
 	}
@@ -428,7 +415,6 @@ func (w *workerEngineRepository) UpdateWorker(ctx context.Context, tenantId, wor
 	}
 
 	tx, err := w.pool.Begin(ctx)
-
 	if err != nil {
 		return nil, err
 	}
@@ -457,7 +443,6 @@ func (w *workerEngineRepository) UpdateWorker(ctx context.Context, tenantId, wor
 	}
 
 	worker, err := w.queries.UpdateWorker(ctx, tx, updateParams)
-
 	if err != nil {
 		return nil, fmt.Errorf("could not update worker: %w", err)
 	}
@@ -470,7 +455,6 @@ func (w *workerEngineRepository) UpdateWorker(ctx context.Context, tenantId, wor
 				Action:   action,
 				Tenantid: pgTenantId,
 			})
-
 			if err != nil {
 				return nil, fmt.Errorf("could not upsert action: %w", err)
 			}
@@ -482,14 +466,12 @@ func (w *workerEngineRepository) UpdateWorker(ctx context.Context, tenantId, wor
 			Actionids: actionUUIDs,
 			Workerid:  sqlchelpers.UUIDFromStr(workerId),
 		})
-
 		if err != nil {
 			return nil, fmt.Errorf("could not link actions to worker: %w", err)
 		}
 	}
 
 	err = tx.Commit(ctx)
-
 	if err != nil {
 		return nil, fmt.Errorf("could not commit transaction: %w", err)
 	}
@@ -502,7 +484,6 @@ func (w *workerEngineRepository) UpdateWorkerHeartbeat(ctx context.Context, tena
 		ID:              sqlchelpers.UUIDFromStr(workerId),
 		LastHeartbeatAt: sqlchelpers.TimestampFromTime(lastHeartbeat),
 	})
-
 	if err != nil {
 		return fmt.Errorf("could not update worker heartbeat: %w", err)
 	}
@@ -527,7 +508,6 @@ func (w *workerEngineRepository) UpdateWorkerActiveStatus(ctx context.Context, t
 		Isactive:                isActive,
 		LastListenerEstablished: sqlchelpers.TimestampFromTime(timestamp),
 	})
-
 	if err != nil {
 		return nil, fmt.Errorf("could not update worker active status: %w", err)
 	}
@@ -584,7 +564,6 @@ func (r *workerEngineRepository) DeleteOldWorkers(ctx context.Context, tenantId 
 		Lastheartbeatbefore: sqlchelpers.TimestampFromTime(lastHeartbeatBefore),
 		Limit:               20,
 	})
-
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return false, nil
@@ -602,7 +581,6 @@ func (r *workerEngineRepository) DeleteOldWorkerEvents(ctx context.Context, tena
 		Tenantid:           sqlchelpers.UUIDFromStr(tenantId),
 		LastHeartbeatAfter: sqlchelpers.TimestampFromTime(lastHeartbeatAfter),
 	})
-
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil
@@ -625,7 +603,6 @@ func (r *workerEngineRepository) DeleteOldWorkerEvents(ctx context.Context, tena
 				MaxRuns:  worker.Worker.MaxRuns,
 				Limit:    100,
 			})
-
 			if err != nil {
 				if errors.Is(err, pgx.ErrNoRows) {
 					break
@@ -650,7 +627,6 @@ func (r *workerEngineRepository) GetDispatcherIdsForWorkers(ctx context.Context,
 		Tenantid:  sqlchelpers.UUIDFromStr(tenantId),
 		Workerids: sqlchelpers.UniqueSet(pgWorkerIds),
 	})
-
 	if err != nil {
 		return nil, fmt.Errorf("could not get dispatcher ids for workers: %w", err)
 	}

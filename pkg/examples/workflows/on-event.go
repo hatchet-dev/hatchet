@@ -68,7 +68,8 @@ func LowerWithFilter(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[Even
 				Payload: map[string]interface{}{
 					"main_character":       "Anna",
 					"supporting_character": "Stiva",
-					"location":             "Moscow"},
+					"location":             "Moscow",
+				},
 			}},
 		}, accessFilterPayload,
 		hatchet,

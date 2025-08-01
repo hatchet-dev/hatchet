@@ -18,13 +18,11 @@ type ConfigLoader struct {
 func (c *ConfigLoader) LoadClientConfig(token *string) (res *client.ClientConfig, err error) {
 	sharedFilePath := filepath.Join(c.directory, "client.yaml")
 	configFileBytes, err := loaderutils.GetConfigBytes(sharedFilePath)
-
 	if err != nil {
 		return nil, err
 	}
 
 	cf, err := LoadClientConfigFile(configFileBytes...)
-
 	if err != nil {
 		return nil, err
 	}
@@ -50,7 +48,6 @@ func GetClientConfigFromConfigFile(cf *client.ClientConfigFile) (res *client.Cli
 	f := client.BindAllEnv
 
 	_, err = loaderutils.LoadConfigFromViper(f, cf)
-
 	if err != nil {
 		return nil, fmt.Errorf("could not load config from viper: %w", err)
 	}
@@ -95,7 +92,6 @@ func GetClientConfigFromConfigFile(cf *client.ClientConfigFile) (res *client.Cli
 	if tlsServerName == "" {
 		// parse the domain from the host:port
 		domain, err := parseDomain(grpcBroadcastAddress)
-
 		if err != nil {
 			return nil, fmt.Errorf("could not parse domain: %w", err)
 		}
@@ -104,7 +100,6 @@ func GetClientConfigFromConfigFile(cf *client.ClientConfigFile) (res *client.Cli
 	}
 
 	tlsConf, err := loaderutils.LoadClientTLSConfig(&cf.TLS, tlsServerName)
-
 	if err != nil {
 		return nil, fmt.Errorf("could not load TLS config: %w", err)
 	}
