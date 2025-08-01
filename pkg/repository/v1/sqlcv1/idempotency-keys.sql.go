@@ -11,26 +11,62 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const createIdempotencyKey = `-- name: CreateIdempotencyKey :one
-WITH upserted AS (
-    INSERT INTO v1_idempotency_key (
-        tenant_id,
-        key,
-        expires_at
-    )
-    VALUES (
-        $1::UUID,
-        $2::TEXT,
-        $3::TIMESTAMPTZ
-    )
-    ON CONFLICT (tenant_id, key, expires_at) DO NOTHING
+const claimIdempotencyKey = `-- name: ClaimIdempotencyKey :one
+WITH claim AS (
+    UPDATE v1_idempotency_key
+    SET
+        claimed_by_external_id = $1::UUID,
+        updated_at = NOW()
+    WHERE
+        tenant_id = $2::UUID
+        AND key = $3::TEXT
+        AND claimed_by_external_id IS NULL
     RETURNING 1
 )
 
 SELECT NOT EXISTS (
     SELECT 1
-    FROM upserted
-) AS already_existed
+    FROM claim
+) AS already_claimed
+`
+
+type ClaimIdempotencyKeyParams struct {
+	Claimedbyexternalid pgtype.UUID `json:"claimedbyexternalid"`
+	Tenantid            pgtype.UUID `json:"tenantid"`
+	Key                 string      `json:"key"`
+}
+
+func (q *Queries) ClaimIdempotencyKey(ctx context.Context, db DBTX, arg ClaimIdempotencyKeyParams) (bool, error) {
+	row := db.QueryRow(ctx, claimIdempotencyKey, arg.Claimedbyexternalid, arg.Tenantid, arg.Key)
+	var already_claimed bool
+	err := row.Scan(&already_claimed)
+	return already_claimed, err
+}
+
+const cleanUpExpiredIdempotencyKeys = `-- name: CleanUpExpiredIdempotencyKeys :exec
+DELETE FROM v1_idempotency_key
+WHERE
+    tenant_id = ANY($1::UUID[])
+    AND expires_at < (NOW() - INTERVAL '1 minute')
+`
+
+func (q *Queries) CleanUpExpiredIdempotencyKeys(ctx context.Context, db DBTX, tenantids []pgtype.UUID) error {
+	_, err := db.Exec(ctx, cleanUpExpiredIdempotencyKeys, tenantids)
+	return err
+}
+
+const createIdempotencyKey = `-- name: CreateIdempotencyKey :one
+INSERT INTO v1_idempotency_key (
+    tenant_id,
+    key,
+    expires_at
+)
+VALUES (
+    $1::UUID,
+    $2::TEXT,
+    $3::TIMESTAMPTZ
+)
+RETURNING tenant_id, key, expires_at, claimed_by_external_id, inserted_at, updated_at
 `
 
 type CreateIdempotencyKeyParams struct {
@@ -39,9 +75,16 @@ type CreateIdempotencyKeyParams struct {
 	Expiresat pgtype.Timestamptz `json:"expiresat"`
 }
 
-func (q *Queries) CreateIdempotencyKey(ctx context.Context, db DBTX, arg CreateIdempotencyKeyParams) (bool, error) {
+func (q *Queries) CreateIdempotencyKey(ctx context.Context, db DBTX, arg CreateIdempotencyKeyParams) (*V1IdempotencyKey, error) {
 	row := db.QueryRow(ctx, createIdempotencyKey, arg.Tenantid, arg.Key, arg.Expiresat)
-	var already_existed bool
-	err := row.Scan(&already_existed)
-	return already_existed, err
+	var i V1IdempotencyKey
+	err := row.Scan(
+		&i.TenantID,
+		&i.Key,
+		&i.ExpiresAt,
+		&i.ClaimedByExternalID,
+		&i.InsertedAt,
+		&i.UpdatedAt,
+	)
+	return &i, err
 }

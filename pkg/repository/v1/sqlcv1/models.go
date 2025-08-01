@@ -2788,11 +2788,12 @@ type V1Filter struct {
 }
 
 type V1IdempotencyKey struct {
-	TenantID   pgtype.UUID        `json:"tenant_id"`
-	Key        string             `json:"key"`
-	ExpiresAt  pgtype.Timestamptz `json:"expires_at"`
-	InsertedAt pgtype.Timestamptz `json:"inserted_at"`
-	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
+	TenantID            pgtype.UUID        `json:"tenant_id"`
+	Key                 string             `json:"key"`
+	ExpiresAt           pgtype.Timestamptz `json:"expires_at"`
+	ClaimedByExternalID pgtype.UUID        `json:"claimed_by_external_id"`
+	InsertedAt          pgtype.Timestamptz `json:"inserted_at"`
+	UpdatedAt           pgtype.Timestamptz `json:"updated_at"`
 }
 
 type V1IncomingWebhook struct {
