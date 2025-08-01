@@ -165,7 +165,7 @@ func (a *AdminServiceImpl) bulkTriggerWorkflowV0(ctx context.Context, req *contr
 		workflowRunIds = append(workflowRunIds, sqlchelpers.UUIDToStr(workflowRun.ID))
 	}
 
-	for _, workflowRunId := range workflowRunIds {
+	for i, workflowRunId := range workflowRunIds {
 		err = a.mq.AddMessage(
 			context.Background(),
 			msgqueue.WORKFLOW_PROCESSING_QUEUE,
@@ -175,6 +175,12 @@ func (a *AdminServiceImpl) bulkTriggerWorkflowV0(ctx context.Context, req *contr
 		if err != nil {
 			return nil, fmt.Errorf("could not queue workflow run: %w", err)
 		}
+
+		var corrId *string
+		if req.Workflows[i].AdditionalMetadata != nil {
+			corrId = extractCorrelationId(*req.Workflows[i].AdditionalMetadata)
+		}
+		grpcmiddleware.TriggerCallback(ctx, workflowRunId, "workflow-run", corrId)
 	}
 
 	// adding in the pre-existing workflows to the response.
@@ -183,14 +189,6 @@ func (a *AdminServiceImpl) bulkTriggerWorkflowV0(ctx context.Context, req *contr
 
 	if len(workflowRunIds) == 0 {
 		return nil, status.Error(codes.InvalidArgument, "no workflows created")
-	}
-
-	for i, workflowRunId := range workflowRunIds {
-		var corrId *string
-		if req.Workflows[i].AdditionalMetadata != nil {
-			corrId = extractCorrelationId(*req.Workflows[i].AdditionalMetadata)
-		}
-		grpcmiddleware.TriggerCallback(ctx, workflowRunId, "workflow-run", corrId)
 	}
 
 	return &contracts.BulkTriggerWorkflowResponse{WorkflowRunIds: workflowRunIds}, nil
