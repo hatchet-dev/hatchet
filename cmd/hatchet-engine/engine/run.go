@@ -48,6 +48,7 @@ func init() {
 	collectorURL := os.Getenv("SERVER_OTEL_COLLECTOR_URL")
 	insecure := os.Getenv("SERVER_OTEL_INSECURE")
 	traceIdRatio := os.Getenv("SERVER_OTEL_TRACE_ID_RATIO")
+	collectorAuth := os.Getenv("SERVER_OTEL_COLLECTOR_AUTH")
 
 	var insecureBool bool
 
@@ -58,10 +59,11 @@ func init() {
 	// we do this to we get the tracer set globally, which is needed by some of the otel
 	// integrations for the database before start
 	_, err := telemetry.InitTracer(&telemetry.TracerOpts{
-		ServiceName:  svcName,
-		CollectorURL: collectorURL,
-		TraceIdRatio: traceIdRatio,
-		Insecure:     insecureBool,
+		ServiceName:   svcName,
+		CollectorURL:  collectorURL,
+		TraceIdRatio:  traceIdRatio,
+		Insecure:      insecureBool,
+		CollectorAuth: collectorAuth,
 	})
 	if err != nil {
 		panic(fmt.Errorf("could not initialize tracer: %w", err))
@@ -129,10 +131,11 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 	l := sc.Logger
 
 	shutdown, err := telemetry.InitTracer(&telemetry.TracerOpts{
-		ServiceName:  sc.OpenTelemetry.ServiceName,
-		CollectorURL: sc.OpenTelemetry.CollectorURL,
-		TraceIdRatio: sc.OpenTelemetry.TraceIdRatio,
-		Insecure:     sc.OpenTelemetry.Insecure,
+		ServiceName:   sc.OpenTelemetry.ServiceName,
+		CollectorURL:  sc.OpenTelemetry.CollectorURL,
+		TraceIdRatio:  sc.OpenTelemetry.TraceIdRatio,
+		Insecure:      sc.OpenTelemetry.Insecure,
+		CollectorAuth: sc.OpenTelemetry.CollectorAuth,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("could not initialize tracer: %w", err)
@@ -593,10 +596,11 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 	l := sc.Logger
 
 	shutdown, err := telemetry.InitTracer(&telemetry.TracerOpts{
-		ServiceName:  sc.OpenTelemetry.ServiceName,
-		CollectorURL: sc.OpenTelemetry.CollectorURL,
-		TraceIdRatio: sc.OpenTelemetry.TraceIdRatio,
-		Insecure:     sc.OpenTelemetry.Insecure,
+		ServiceName:   sc.OpenTelemetry.ServiceName,
+		CollectorURL:  sc.OpenTelemetry.CollectorURL,
+		TraceIdRatio:  sc.OpenTelemetry.TraceIdRatio,
+		Insecure:      sc.OpenTelemetry.Insecure,
+		CollectorAuth: sc.OpenTelemetry.CollectorAuth,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("could not initialize tracer: %w", err)

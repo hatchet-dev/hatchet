@@ -11131,29 +11131,22 @@ type StrictServerInterface interface {
 
 	WorkflowVersionGet(ctx echo.Context, request WorkflowVersionGetRequestObject) (WorkflowVersionGetResponseObject, error)
 }
-type (
-	StrictHandlerFunc    func(ctx echo.Context, args interface{}) (interface{}, error)
-	StrictMiddlewareFunc func(f StrictHandlerFunc, operationID string) StrictHandlerFunc
-)
+type StrictHandlerFunc func(ctx echo.Context, args interface{}) (interface{}, error)
 
-func NewStrictHandler(ssi StrictServerInterface, middlewares []StrictMiddlewareFunc) ServerInterface {
-	return &strictHandler{ssi: ssi, middlewares: middlewares}
+func NewStrictHandler(ssi StrictServerInterface) ServerInterface {
+	return &strictHandler{ssi: ssi}
 }
 
 type strictHandler struct {
-	ssi         StrictServerInterface
-	middlewares []StrictMiddlewareFunc
+	ssi StrictServerInterface
 }
 
-// LivenessGet operation middleware
+// LivenessGet operation
 func (sh *strictHandler) LivenessGet(ctx echo.Context) error {
 	var request LivenessGetRequestObject
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.LivenessGet(ctx, request.(LivenessGetRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "LivenessGet")
 	}
 
 	response, err := handler(ctx, request)
@@ -11168,15 +11161,12 @@ func (sh *strictHandler) LivenessGet(ctx echo.Context) error {
 	return nil
 }
 
-// ReadinessGet operation middleware
+// ReadinessGet operation
 func (sh *strictHandler) ReadinessGet(ctx echo.Context) error {
 	var request ReadinessGetRequestObject
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.ReadinessGet(ctx, request.(ReadinessGetRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "ReadinessGet")
 	}
 
 	response, err := handler(ctx, request)
@@ -11191,7 +11181,7 @@ func (sh *strictHandler) ReadinessGet(ctx echo.Context) error {
 	return nil
 }
 
-// AlertEmailGroupDelete operation middleware
+// AlertEmailGroupDelete operation
 func (sh *strictHandler) AlertEmailGroupDelete(ctx echo.Context, alertEmailGroup openapi_types.UUID) error {
 	var request AlertEmailGroupDeleteRequestObject
 
@@ -11199,9 +11189,6 @@ func (sh *strictHandler) AlertEmailGroupDelete(ctx echo.Context, alertEmailGroup
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.AlertEmailGroupDelete(ctx, request.(AlertEmailGroupDeleteRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "AlertEmailGroupDelete")
 	}
 
 	response, err := handler(ctx, request)
@@ -11216,7 +11203,7 @@ func (sh *strictHandler) AlertEmailGroupDelete(ctx echo.Context, alertEmailGroup
 	return nil
 }
 
-// AlertEmailGroupUpdate operation middleware
+// AlertEmailGroupUpdate operation
 func (sh *strictHandler) AlertEmailGroupUpdate(ctx echo.Context, alertEmailGroup openapi_types.UUID) error {
 	var request AlertEmailGroupUpdateRequestObject
 
@@ -11231,9 +11218,6 @@ func (sh *strictHandler) AlertEmailGroupUpdate(ctx echo.Context, alertEmailGroup
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.AlertEmailGroupUpdate(ctx, request.(AlertEmailGroupUpdateRequestObject))
 	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "AlertEmailGroupUpdate")
-	}
 
 	response, err := handler(ctx, request)
 
@@ -11247,7 +11231,7 @@ func (sh *strictHandler) AlertEmailGroupUpdate(ctx echo.Context, alertEmailGroup
 	return nil
 }
 
-// ApiTokenUpdateRevoke operation middleware
+// ApiTokenUpdateRevoke operation
 func (sh *strictHandler) ApiTokenUpdateRevoke(ctx echo.Context, apiToken openapi_types.UUID) error {
 	var request ApiTokenUpdateRevokeRequestObject
 
@@ -11255,9 +11239,6 @@ func (sh *strictHandler) ApiTokenUpdateRevoke(ctx echo.Context, apiToken openapi
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.ApiTokenUpdateRevoke(ctx, request.(ApiTokenUpdateRevokeRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "ApiTokenUpdateRevoke")
 	}
 
 	response, err := handler(ctx, request)
@@ -11272,15 +11253,12 @@ func (sh *strictHandler) ApiTokenUpdateRevoke(ctx echo.Context, apiToken openapi
 	return nil
 }
 
-// CloudMetadataGet operation middleware
+// CloudMetadataGet operation
 func (sh *strictHandler) CloudMetadataGet(ctx echo.Context) error {
 	var request CloudMetadataGetRequestObject
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.CloudMetadataGet(ctx, request.(CloudMetadataGetRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "CloudMetadataGet")
 	}
 
 	response, err := handler(ctx, request)
@@ -11295,7 +11273,7 @@ func (sh *strictHandler) CloudMetadataGet(ctx echo.Context) error {
 	return nil
 }
 
-// EventGet operation middleware
+// EventGet operation
 func (sh *strictHandler) EventGet(ctx echo.Context, event openapi_types.UUID) error {
 	var request EventGetRequestObject
 
@@ -11303,9 +11281,6 @@ func (sh *strictHandler) EventGet(ctx echo.Context, event openapi_types.UUID) er
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.EventGet(ctx, request.(EventGetRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "EventGet")
 	}
 
 	response, err := handler(ctx, request)
@@ -11320,7 +11295,7 @@ func (sh *strictHandler) EventGet(ctx echo.Context, event openapi_types.UUID) er
 	return nil
 }
 
-// EventDataGet operation middleware
+// EventDataGet operation
 func (sh *strictHandler) EventDataGet(ctx echo.Context, event openapi_types.UUID) error {
 	var request EventDataGetRequestObject
 
@@ -11328,9 +11303,6 @@ func (sh *strictHandler) EventDataGet(ctx echo.Context, event openapi_types.UUID
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.EventDataGet(ctx, request.(EventDataGetRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "EventDataGet")
 	}
 
 	response, err := handler(ctx, request)
@@ -11345,15 +11317,12 @@ func (sh *strictHandler) EventDataGet(ctx echo.Context, event openapi_types.UUID
 	return nil
 }
 
-// MetadataGet operation middleware
+// MetadataGet operation
 func (sh *strictHandler) MetadataGet(ctx echo.Context) error {
 	var request MetadataGetRequestObject
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.MetadataGet(ctx, request.(MetadataGetRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "MetadataGet")
 	}
 
 	response, err := handler(ctx, request)
@@ -11368,15 +11337,12 @@ func (sh *strictHandler) MetadataGet(ctx echo.Context) error {
 	return nil
 }
 
-// MetadataListIntegrations operation middleware
+// MetadataListIntegrations operation
 func (sh *strictHandler) MetadataListIntegrations(ctx echo.Context) error {
 	var request MetadataListIntegrationsRequestObject
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.MetadataListIntegrations(ctx, request.(MetadataListIntegrationsRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "MetadataListIntegrations")
 	}
 
 	response, err := handler(ctx, request)
@@ -11391,7 +11357,7 @@ func (sh *strictHandler) MetadataListIntegrations(ctx echo.Context) error {
 	return nil
 }
 
-// MonitoringPostRunProbe operation middleware
+// MonitoringPostRunProbe operation
 func (sh *strictHandler) MonitoringPostRunProbe(ctx echo.Context, tenant openapi_types.UUID) error {
 	var request MonitoringPostRunProbeRequestObject
 
@@ -11399,9 +11365,6 @@ func (sh *strictHandler) MonitoringPostRunProbe(ctx echo.Context, tenant openapi
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.MonitoringPostRunProbe(ctx, request.(MonitoringPostRunProbeRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "MonitoringPostRunProbe")
 	}
 
 	response, err := handler(ctx, request)
@@ -11416,7 +11379,7 @@ func (sh *strictHandler) MonitoringPostRunProbe(ctx echo.Context, tenant openapi
 	return nil
 }
 
-// SlackWebhookDelete operation middleware
+// SlackWebhookDelete operation
 func (sh *strictHandler) SlackWebhookDelete(ctx echo.Context, slack openapi_types.UUID) error {
 	var request SlackWebhookDeleteRequestObject
 
@@ -11424,9 +11387,6 @@ func (sh *strictHandler) SlackWebhookDelete(ctx echo.Context, slack openapi_type
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.SlackWebhookDelete(ctx, request.(SlackWebhookDeleteRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "SlackWebhookDelete")
 	}
 
 	response, err := handler(ctx, request)
@@ -11441,7 +11401,7 @@ func (sh *strictHandler) SlackWebhookDelete(ctx echo.Context, slack openapi_type
 	return nil
 }
 
-// SnsDelete operation middleware
+// SnsDelete operation
 func (sh *strictHandler) SnsDelete(ctx echo.Context, sns openapi_types.UUID) error {
 	var request SnsDeleteRequestObject
 
@@ -11449,9 +11409,6 @@ func (sh *strictHandler) SnsDelete(ctx echo.Context, sns openapi_types.UUID) err
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.SnsDelete(ctx, request.(SnsDeleteRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "SnsDelete")
 	}
 
 	response, err := handler(ctx, request)
@@ -11466,7 +11423,7 @@ func (sh *strictHandler) SnsDelete(ctx echo.Context, sns openapi_types.UUID) err
 	return nil
 }
 
-// SnsUpdate operation middleware
+// SnsUpdate operation
 func (sh *strictHandler) SnsUpdate(ctx echo.Context, tenant openapi_types.UUID, event string) error {
 	var request SnsUpdateRequestObject
 
@@ -11475,9 +11432,6 @@ func (sh *strictHandler) SnsUpdate(ctx echo.Context, tenant openapi_types.UUID, 
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.SnsUpdate(ctx, request.(SnsUpdateRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "SnsUpdate")
 	}
 
 	response, err := handler(ctx, request)
@@ -11492,7 +11446,7 @@ func (sh *strictHandler) SnsUpdate(ctx echo.Context, tenant openapi_types.UUID, 
 	return nil
 }
 
-// V1DagListTasks operation middleware
+// V1DagListTasks operation
 func (sh *strictHandler) V1DagListTasks(ctx echo.Context, params V1DagListTasksParams) error {
 	var request V1DagListTasksRequestObject
 
@@ -11500,9 +11454,6 @@ func (sh *strictHandler) V1DagListTasks(ctx echo.Context, params V1DagListTasksP
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.V1DagListTasks(ctx, request.(V1DagListTasksRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "V1DagListTasks")
 	}
 
 	response, err := handler(ctx, request)
@@ -11517,7 +11468,7 @@ func (sh *strictHandler) V1DagListTasks(ctx echo.Context, params V1DagListTasksP
 	return nil
 }
 
-// V1TaskGet operation middleware
+// V1TaskGet operation
 func (sh *strictHandler) V1TaskGet(ctx echo.Context, task openapi_types.UUID, params V1TaskGetParams) error {
 	var request V1TaskGetRequestObject
 
@@ -11526,9 +11477,6 @@ func (sh *strictHandler) V1TaskGet(ctx echo.Context, task openapi_types.UUID, pa
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.V1TaskGet(ctx, request.(V1TaskGetRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "V1TaskGet")
 	}
 
 	response, err := handler(ctx, request)
@@ -11543,7 +11491,7 @@ func (sh *strictHandler) V1TaskGet(ctx echo.Context, task openapi_types.UUID, pa
 	return nil
 }
 
-// V1LogLineList operation middleware
+// V1LogLineList operation
 func (sh *strictHandler) V1LogLineList(ctx echo.Context, task openapi_types.UUID) error {
 	var request V1LogLineListRequestObject
 
@@ -11551,9 +11499,6 @@ func (sh *strictHandler) V1LogLineList(ctx echo.Context, task openapi_types.UUID
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.V1LogLineList(ctx, request.(V1LogLineListRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "V1LogLineList")
 	}
 
 	response, err := handler(ctx, request)
@@ -11568,7 +11513,7 @@ func (sh *strictHandler) V1LogLineList(ctx echo.Context, task openapi_types.UUID
 	return nil
 }
 
-// V1TaskEventList operation middleware
+// V1TaskEventList operation
 func (sh *strictHandler) V1TaskEventList(ctx echo.Context, task openapi_types.UUID, params V1TaskEventListParams) error {
 	var request V1TaskEventListRequestObject
 
@@ -11577,9 +11522,6 @@ func (sh *strictHandler) V1TaskEventList(ctx echo.Context, task openapi_types.UU
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.V1TaskEventList(ctx, request.(V1TaskEventListRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "V1TaskEventList")
 	}
 
 	response, err := handler(ctx, request)
@@ -11594,7 +11536,7 @@ func (sh *strictHandler) V1TaskEventList(ctx echo.Context, task openapi_types.UU
 	return nil
 }
 
-// V1CelDebug operation middleware
+// V1CelDebug operation
 func (sh *strictHandler) V1CelDebug(ctx echo.Context, tenant openapi_types.UUID) error {
 	var request V1CelDebugRequestObject
 
@@ -11609,9 +11551,6 @@ func (sh *strictHandler) V1CelDebug(ctx echo.Context, tenant openapi_types.UUID)
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.V1CelDebug(ctx, request.(V1CelDebugRequestObject))
 	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "V1CelDebug")
-	}
 
 	response, err := handler(ctx, request)
 
@@ -11625,7 +11564,7 @@ func (sh *strictHandler) V1CelDebug(ctx echo.Context, tenant openapi_types.UUID)
 	return nil
 }
 
-// V1EventList operation middleware
+// V1EventList operation
 func (sh *strictHandler) V1EventList(ctx echo.Context, tenant openapi_types.UUID, params V1EventListParams) error {
 	var request V1EventListRequestObject
 
@@ -11634,9 +11573,6 @@ func (sh *strictHandler) V1EventList(ctx echo.Context, tenant openapi_types.UUID
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.V1EventList(ctx, request.(V1EventListRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "V1EventList")
 	}
 
 	response, err := handler(ctx, request)
@@ -11651,7 +11587,7 @@ func (sh *strictHandler) V1EventList(ctx echo.Context, tenant openapi_types.UUID
 	return nil
 }
 
-// V1EventKeyList operation middleware
+// V1EventKeyList operation
 func (sh *strictHandler) V1EventKeyList(ctx echo.Context, tenant openapi_types.UUID) error {
 	var request V1EventKeyListRequestObject
 
@@ -11659,9 +11595,6 @@ func (sh *strictHandler) V1EventKeyList(ctx echo.Context, tenant openapi_types.U
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.V1EventKeyList(ctx, request.(V1EventKeyListRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "V1EventKeyList")
 	}
 
 	response, err := handler(ctx, request)
@@ -11676,7 +11609,7 @@ func (sh *strictHandler) V1EventKeyList(ctx echo.Context, tenant openapi_types.U
 	return nil
 }
 
-// V1FilterList operation middleware
+// V1FilterList operation
 func (sh *strictHandler) V1FilterList(ctx echo.Context, tenant openapi_types.UUID, params V1FilterListParams) error {
 	var request V1FilterListRequestObject
 
@@ -11685,9 +11618,6 @@ func (sh *strictHandler) V1FilterList(ctx echo.Context, tenant openapi_types.UUI
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.V1FilterList(ctx, request.(V1FilterListRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "V1FilterList")
 	}
 
 	response, err := handler(ctx, request)
@@ -11702,7 +11632,7 @@ func (sh *strictHandler) V1FilterList(ctx echo.Context, tenant openapi_types.UUI
 	return nil
 }
 
-// V1FilterCreate operation middleware
+// V1FilterCreate operation
 func (sh *strictHandler) V1FilterCreate(ctx echo.Context, tenant openapi_types.UUID) error {
 	var request V1FilterCreateRequestObject
 
@@ -11717,9 +11647,6 @@ func (sh *strictHandler) V1FilterCreate(ctx echo.Context, tenant openapi_types.U
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.V1FilterCreate(ctx, request.(V1FilterCreateRequestObject))
 	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "V1FilterCreate")
-	}
 
 	response, err := handler(ctx, request)
 
@@ -11733,7 +11660,7 @@ func (sh *strictHandler) V1FilterCreate(ctx echo.Context, tenant openapi_types.U
 	return nil
 }
 
-// V1FilterDelete operation middleware
+// V1FilterDelete operation
 func (sh *strictHandler) V1FilterDelete(ctx echo.Context, tenant openapi_types.UUID, v1Filter openapi_types.UUID) error {
 	var request V1FilterDeleteRequestObject
 
@@ -11742,9 +11669,6 @@ func (sh *strictHandler) V1FilterDelete(ctx echo.Context, tenant openapi_types.U
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.V1FilterDelete(ctx, request.(V1FilterDeleteRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "V1FilterDelete")
 	}
 
 	response, err := handler(ctx, request)
@@ -11759,7 +11683,7 @@ func (sh *strictHandler) V1FilterDelete(ctx echo.Context, tenant openapi_types.U
 	return nil
 }
 
-// V1FilterGet operation middleware
+// V1FilterGet operation
 func (sh *strictHandler) V1FilterGet(ctx echo.Context, tenant openapi_types.UUID, v1Filter openapi_types.UUID) error {
 	var request V1FilterGetRequestObject
 
@@ -11768,9 +11692,6 @@ func (sh *strictHandler) V1FilterGet(ctx echo.Context, tenant openapi_types.UUID
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.V1FilterGet(ctx, request.(V1FilterGetRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "V1FilterGet")
 	}
 
 	response, err := handler(ctx, request)
@@ -11785,7 +11706,7 @@ func (sh *strictHandler) V1FilterGet(ctx echo.Context, tenant openapi_types.UUID
 	return nil
 }
 
-// V1FilterUpdate operation middleware
+// V1FilterUpdate operation
 func (sh *strictHandler) V1FilterUpdate(ctx echo.Context, tenant openapi_types.UUID, v1Filter openapi_types.UUID) error {
 	var request V1FilterUpdateRequestObject
 
@@ -11801,9 +11722,6 @@ func (sh *strictHandler) V1FilterUpdate(ctx echo.Context, tenant openapi_types.U
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.V1FilterUpdate(ctx, request.(V1FilterUpdateRequestObject))
 	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "V1FilterUpdate")
-	}
 
 	response, err := handler(ctx, request)
 
@@ -11817,7 +11735,7 @@ func (sh *strictHandler) V1FilterUpdate(ctx echo.Context, tenant openapi_types.U
 	return nil
 }
 
-// V1TaskListStatusMetrics operation middleware
+// V1TaskListStatusMetrics operation
 func (sh *strictHandler) V1TaskListStatusMetrics(ctx echo.Context, tenant openapi_types.UUID, params V1TaskListStatusMetricsParams) error {
 	var request V1TaskListStatusMetricsRequestObject
 
@@ -11826,9 +11744,6 @@ func (sh *strictHandler) V1TaskListStatusMetrics(ctx echo.Context, tenant openap
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.V1TaskListStatusMetrics(ctx, request.(V1TaskListStatusMetricsRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "V1TaskListStatusMetrics")
 	}
 
 	response, err := handler(ctx, request)
@@ -11843,7 +11758,7 @@ func (sh *strictHandler) V1TaskListStatusMetrics(ctx echo.Context, tenant openap
 	return nil
 }
 
-// V1TaskGetPointMetrics operation middleware
+// V1TaskGetPointMetrics operation
 func (sh *strictHandler) V1TaskGetPointMetrics(ctx echo.Context, tenant openapi_types.UUID, params V1TaskGetPointMetricsParams) error {
 	var request V1TaskGetPointMetricsRequestObject
 
@@ -11852,9 +11767,6 @@ func (sh *strictHandler) V1TaskGetPointMetrics(ctx echo.Context, tenant openapi_
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.V1TaskGetPointMetrics(ctx, request.(V1TaskGetPointMetricsRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "V1TaskGetPointMetrics")
 	}
 
 	response, err := handler(ctx, request)
@@ -11869,7 +11781,7 @@ func (sh *strictHandler) V1TaskGetPointMetrics(ctx echo.Context, tenant openapi_
 	return nil
 }
 
-// V1TaskCancel operation middleware
+// V1TaskCancel operation
 func (sh *strictHandler) V1TaskCancel(ctx echo.Context, tenant openapi_types.UUID) error {
 	var request V1TaskCancelRequestObject
 
@@ -11884,9 +11796,6 @@ func (sh *strictHandler) V1TaskCancel(ctx echo.Context, tenant openapi_types.UUI
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.V1TaskCancel(ctx, request.(V1TaskCancelRequestObject))
 	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "V1TaskCancel")
-	}
 
 	response, err := handler(ctx, request)
 
@@ -11900,7 +11809,7 @@ func (sh *strictHandler) V1TaskCancel(ctx echo.Context, tenant openapi_types.UUI
 	return nil
 }
 
-// V1TaskReplay operation middleware
+// V1TaskReplay operation
 func (sh *strictHandler) V1TaskReplay(ctx echo.Context, tenant openapi_types.UUID) error {
 	var request V1TaskReplayRequestObject
 
@@ -11915,9 +11824,6 @@ func (sh *strictHandler) V1TaskReplay(ctx echo.Context, tenant openapi_types.UUI
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.V1TaskReplay(ctx, request.(V1TaskReplayRequestObject))
 	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "V1TaskReplay")
-	}
 
 	response, err := handler(ctx, request)
 
@@ -11931,7 +11837,7 @@ func (sh *strictHandler) V1TaskReplay(ctx echo.Context, tenant openapi_types.UUI
 	return nil
 }
 
-// V1WorkflowRunList operation middleware
+// V1WorkflowRunList operation
 func (sh *strictHandler) V1WorkflowRunList(ctx echo.Context, tenant openapi_types.UUID, params V1WorkflowRunListParams) error {
 	var request V1WorkflowRunListRequestObject
 
@@ -11940,9 +11846,6 @@ func (sh *strictHandler) V1WorkflowRunList(ctx echo.Context, tenant openapi_type
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.V1WorkflowRunList(ctx, request.(V1WorkflowRunListRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "V1WorkflowRunList")
 	}
 
 	response, err := handler(ctx, request)
@@ -11957,7 +11860,7 @@ func (sh *strictHandler) V1WorkflowRunList(ctx echo.Context, tenant openapi_type
 	return nil
 }
 
-// V1WorkflowRunDisplayNamesList operation middleware
+// V1WorkflowRunDisplayNamesList operation
 func (sh *strictHandler) V1WorkflowRunDisplayNamesList(ctx echo.Context, tenant openapi_types.UUID, params V1WorkflowRunDisplayNamesListParams) error {
 	var request V1WorkflowRunDisplayNamesListRequestObject
 
@@ -11966,9 +11869,6 @@ func (sh *strictHandler) V1WorkflowRunDisplayNamesList(ctx echo.Context, tenant 
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.V1WorkflowRunDisplayNamesList(ctx, request.(V1WorkflowRunDisplayNamesListRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "V1WorkflowRunDisplayNamesList")
 	}
 
 	response, err := handler(ctx, request)
@@ -11983,7 +11883,7 @@ func (sh *strictHandler) V1WorkflowRunDisplayNamesList(ctx echo.Context, tenant 
 	return nil
 }
 
-// V1WorkflowRunCreate operation middleware
+// V1WorkflowRunCreate operation
 func (sh *strictHandler) V1WorkflowRunCreate(ctx echo.Context, tenant openapi_types.UUID) error {
 	var request V1WorkflowRunCreateRequestObject
 
@@ -11998,9 +11898,6 @@ func (sh *strictHandler) V1WorkflowRunCreate(ctx echo.Context, tenant openapi_ty
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.V1WorkflowRunCreate(ctx, request.(V1WorkflowRunCreateRequestObject))
 	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "V1WorkflowRunCreate")
-	}
 
 	response, err := handler(ctx, request)
 
@@ -12014,7 +11911,7 @@ func (sh *strictHandler) V1WorkflowRunCreate(ctx echo.Context, tenant openapi_ty
 	return nil
 }
 
-// V1WorkflowRunGet operation middleware
+// V1WorkflowRunGet operation
 func (sh *strictHandler) V1WorkflowRunGet(ctx echo.Context, v1WorkflowRun openapi_types.UUID) error {
 	var request V1WorkflowRunGetRequestObject
 
@@ -12022,9 +11919,6 @@ func (sh *strictHandler) V1WorkflowRunGet(ctx echo.Context, v1WorkflowRun openap
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.V1WorkflowRunGet(ctx, request.(V1WorkflowRunGetRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "V1WorkflowRunGet")
 	}
 
 	response, err := handler(ctx, request)
@@ -12039,7 +11933,7 @@ func (sh *strictHandler) V1WorkflowRunGet(ctx echo.Context, v1WorkflowRun openap
 	return nil
 }
 
-// V1WorkflowRunGetStatus operation middleware
+// V1WorkflowRunGetStatus operation
 func (sh *strictHandler) V1WorkflowRunGetStatus(ctx echo.Context, v1WorkflowRun openapi_types.UUID) error {
 	var request V1WorkflowRunGetStatusRequestObject
 
@@ -12047,9 +11941,6 @@ func (sh *strictHandler) V1WorkflowRunGetStatus(ctx echo.Context, v1WorkflowRun 
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.V1WorkflowRunGetStatus(ctx, request.(V1WorkflowRunGetStatusRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "V1WorkflowRunGetStatus")
 	}
 
 	response, err := handler(ctx, request)
@@ -12064,7 +11955,7 @@ func (sh *strictHandler) V1WorkflowRunGetStatus(ctx echo.Context, v1WorkflowRun 
 	return nil
 }
 
-// V1WorkflowRunTaskEventsList operation middleware
+// V1WorkflowRunTaskEventsList operation
 func (sh *strictHandler) V1WorkflowRunTaskEventsList(ctx echo.Context, v1WorkflowRun openapi_types.UUID, params V1WorkflowRunTaskEventsListParams) error {
 	var request V1WorkflowRunTaskEventsListRequestObject
 
@@ -12073,9 +11964,6 @@ func (sh *strictHandler) V1WorkflowRunTaskEventsList(ctx echo.Context, v1Workflo
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.V1WorkflowRunTaskEventsList(ctx, request.(V1WorkflowRunTaskEventsListRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "V1WorkflowRunTaskEventsList")
 	}
 
 	response, err := handler(ctx, request)
@@ -12090,7 +11978,7 @@ func (sh *strictHandler) V1WorkflowRunTaskEventsList(ctx echo.Context, v1Workflo
 	return nil
 }
 
-// V1WorkflowRunGetTimings operation middleware
+// V1WorkflowRunGetTimings operation
 func (sh *strictHandler) V1WorkflowRunGetTimings(ctx echo.Context, v1WorkflowRun openapi_types.UUID, params V1WorkflowRunGetTimingsParams) error {
 	var request V1WorkflowRunGetTimingsRequestObject
 
@@ -12099,9 +11987,6 @@ func (sh *strictHandler) V1WorkflowRunGetTimings(ctx echo.Context, v1WorkflowRun
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.V1WorkflowRunGetTimings(ctx, request.(V1WorkflowRunGetTimingsRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "V1WorkflowRunGetTimings")
 	}
 
 	response, err := handler(ctx, request)
@@ -12116,7 +12001,7 @@ func (sh *strictHandler) V1WorkflowRunGetTimings(ctx echo.Context, v1WorkflowRun
 	return nil
 }
 
-// StepRunListArchives operation middleware
+// StepRunListArchives operation
 func (sh *strictHandler) StepRunListArchives(ctx echo.Context, stepRun openapi_types.UUID, params StepRunListArchivesParams) error {
 	var request StepRunListArchivesRequestObject
 
@@ -12125,9 +12010,6 @@ func (sh *strictHandler) StepRunListArchives(ctx echo.Context, stepRun openapi_t
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.StepRunListArchives(ctx, request.(StepRunListArchivesRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "StepRunListArchives")
 	}
 
 	response, err := handler(ctx, request)
@@ -12142,7 +12024,7 @@ func (sh *strictHandler) StepRunListArchives(ctx echo.Context, stepRun openapi_t
 	return nil
 }
 
-// StepRunListEvents operation middleware
+// StepRunListEvents operation
 func (sh *strictHandler) StepRunListEvents(ctx echo.Context, stepRun openapi_types.UUID, params StepRunListEventsParams) error {
 	var request StepRunListEventsRequestObject
 
@@ -12151,9 +12033,6 @@ func (sh *strictHandler) StepRunListEvents(ctx echo.Context, stepRun openapi_typ
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.StepRunListEvents(ctx, request.(StepRunListEventsRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "StepRunListEvents")
 	}
 
 	response, err := handler(ctx, request)
@@ -12168,7 +12047,7 @@ func (sh *strictHandler) StepRunListEvents(ctx echo.Context, stepRun openapi_typ
 	return nil
 }
 
-// LogLineList operation middleware
+// LogLineList operation
 func (sh *strictHandler) LogLineList(ctx echo.Context, stepRun openapi_types.UUID, params LogLineListParams) error {
 	var request LogLineListRequestObject
 
@@ -12177,9 +12056,6 @@ func (sh *strictHandler) LogLineList(ctx echo.Context, stepRun openapi_types.UUI
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.LogLineList(ctx, request.(LogLineListRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "LogLineList")
 	}
 
 	response, err := handler(ctx, request)
@@ -12194,7 +12070,7 @@ func (sh *strictHandler) LogLineList(ctx echo.Context, stepRun openapi_types.UUI
 	return nil
 }
 
-// TenantCreate operation middleware
+// TenantCreate operation
 func (sh *strictHandler) TenantCreate(ctx echo.Context) error {
 	var request TenantCreateRequestObject
 
@@ -12206,9 +12082,6 @@ func (sh *strictHandler) TenantCreate(ctx echo.Context) error {
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.TenantCreate(ctx, request.(TenantCreateRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "TenantCreate")
 	}
 
 	response, err := handler(ctx, request)
@@ -12223,7 +12096,7 @@ func (sh *strictHandler) TenantCreate(ctx echo.Context) error {
 	return nil
 }
 
-// TenantGet operation middleware
+// TenantGet operation
 func (sh *strictHandler) TenantGet(ctx echo.Context, tenant openapi_types.UUID) error {
 	var request TenantGetRequestObject
 
@@ -12231,9 +12104,6 @@ func (sh *strictHandler) TenantGet(ctx echo.Context, tenant openapi_types.UUID) 
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.TenantGet(ctx, request.(TenantGetRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "TenantGet")
 	}
 
 	response, err := handler(ctx, request)
@@ -12248,7 +12118,7 @@ func (sh *strictHandler) TenantGet(ctx echo.Context, tenant openapi_types.UUID) 
 	return nil
 }
 
-// TenantUpdate operation middleware
+// TenantUpdate operation
 func (sh *strictHandler) TenantUpdate(ctx echo.Context, tenant openapi_types.UUID) error {
 	var request TenantUpdateRequestObject
 
@@ -12263,9 +12133,6 @@ func (sh *strictHandler) TenantUpdate(ctx echo.Context, tenant openapi_types.UUI
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.TenantUpdate(ctx, request.(TenantUpdateRequestObject))
 	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "TenantUpdate")
-	}
 
 	response, err := handler(ctx, request)
 
@@ -12279,7 +12146,7 @@ func (sh *strictHandler) TenantUpdate(ctx echo.Context, tenant openapi_types.UUI
 	return nil
 }
 
-// AlertEmailGroupList operation middleware
+// AlertEmailGroupList operation
 func (sh *strictHandler) AlertEmailGroupList(ctx echo.Context, tenant openapi_types.UUID) error {
 	var request AlertEmailGroupListRequestObject
 
@@ -12287,9 +12154,6 @@ func (sh *strictHandler) AlertEmailGroupList(ctx echo.Context, tenant openapi_ty
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.AlertEmailGroupList(ctx, request.(AlertEmailGroupListRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "AlertEmailGroupList")
 	}
 
 	response, err := handler(ctx, request)
@@ -12304,7 +12168,7 @@ func (sh *strictHandler) AlertEmailGroupList(ctx echo.Context, tenant openapi_ty
 	return nil
 }
 
-// AlertEmailGroupCreate operation middleware
+// AlertEmailGroupCreate operation
 func (sh *strictHandler) AlertEmailGroupCreate(ctx echo.Context, tenant openapi_types.UUID) error {
 	var request AlertEmailGroupCreateRequestObject
 
@@ -12319,9 +12183,6 @@ func (sh *strictHandler) AlertEmailGroupCreate(ctx echo.Context, tenant openapi_
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.AlertEmailGroupCreate(ctx, request.(AlertEmailGroupCreateRequestObject))
 	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "AlertEmailGroupCreate")
-	}
 
 	response, err := handler(ctx, request)
 
@@ -12335,7 +12196,7 @@ func (sh *strictHandler) AlertEmailGroupCreate(ctx echo.Context, tenant openapi_
 	return nil
 }
 
-// TenantAlertingSettingsGet operation middleware
+// TenantAlertingSettingsGet operation
 func (sh *strictHandler) TenantAlertingSettingsGet(ctx echo.Context, tenant openapi_types.UUID) error {
 	var request TenantAlertingSettingsGetRequestObject
 
@@ -12343,9 +12204,6 @@ func (sh *strictHandler) TenantAlertingSettingsGet(ctx echo.Context, tenant open
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.TenantAlertingSettingsGet(ctx, request.(TenantAlertingSettingsGetRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "TenantAlertingSettingsGet")
 	}
 
 	response, err := handler(ctx, request)
@@ -12360,7 +12218,7 @@ func (sh *strictHandler) TenantAlertingSettingsGet(ctx echo.Context, tenant open
 	return nil
 }
 
-// ApiTokenList operation middleware
+// ApiTokenList operation
 func (sh *strictHandler) ApiTokenList(ctx echo.Context, tenant openapi_types.UUID) error {
 	var request ApiTokenListRequestObject
 
@@ -12368,9 +12226,6 @@ func (sh *strictHandler) ApiTokenList(ctx echo.Context, tenant openapi_types.UUI
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.ApiTokenList(ctx, request.(ApiTokenListRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "ApiTokenList")
 	}
 
 	response, err := handler(ctx, request)
@@ -12385,7 +12240,7 @@ func (sh *strictHandler) ApiTokenList(ctx echo.Context, tenant openapi_types.UUI
 	return nil
 }
 
-// ApiTokenCreate operation middleware
+// ApiTokenCreate operation
 func (sh *strictHandler) ApiTokenCreate(ctx echo.Context, tenant openapi_types.UUID) error {
 	var request ApiTokenCreateRequestObject
 
@@ -12400,9 +12255,6 @@ func (sh *strictHandler) ApiTokenCreate(ctx echo.Context, tenant openapi_types.U
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.ApiTokenCreate(ctx, request.(ApiTokenCreateRequestObject))
 	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "ApiTokenCreate")
-	}
 
 	response, err := handler(ctx, request)
 
@@ -12416,7 +12268,7 @@ func (sh *strictHandler) ApiTokenCreate(ctx echo.Context, tenant openapi_types.U
 	return nil
 }
 
-// EventList operation middleware
+// EventList operation
 func (sh *strictHandler) EventList(ctx echo.Context, tenant openapi_types.UUID, params EventListParams) error {
 	var request EventListRequestObject
 
@@ -12425,9 +12277,6 @@ func (sh *strictHandler) EventList(ctx echo.Context, tenant openapi_types.UUID, 
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.EventList(ctx, request.(EventListRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "EventList")
 	}
 
 	response, err := handler(ctx, request)
@@ -12442,7 +12291,7 @@ func (sh *strictHandler) EventList(ctx echo.Context, tenant openapi_types.UUID, 
 	return nil
 }
 
-// EventCreate operation middleware
+// EventCreate operation
 func (sh *strictHandler) EventCreate(ctx echo.Context, tenant openapi_types.UUID) error {
 	var request EventCreateRequestObject
 
@@ -12457,9 +12306,6 @@ func (sh *strictHandler) EventCreate(ctx echo.Context, tenant openapi_types.UUID
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.EventCreate(ctx, request.(EventCreateRequestObject))
 	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "EventCreate")
-	}
 
 	response, err := handler(ctx, request)
 
@@ -12473,7 +12319,7 @@ func (sh *strictHandler) EventCreate(ctx echo.Context, tenant openapi_types.UUID
 	return nil
 }
 
-// EventCreateBulk operation middleware
+// EventCreateBulk operation
 func (sh *strictHandler) EventCreateBulk(ctx echo.Context, tenant openapi_types.UUID) error {
 	var request EventCreateBulkRequestObject
 
@@ -12488,9 +12334,6 @@ func (sh *strictHandler) EventCreateBulk(ctx echo.Context, tenant openapi_types.
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.EventCreateBulk(ctx, request.(EventCreateBulkRequestObject))
 	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "EventCreateBulk")
-	}
 
 	response, err := handler(ctx, request)
 
@@ -12504,7 +12347,7 @@ func (sh *strictHandler) EventCreateBulk(ctx echo.Context, tenant openapi_types.
 	return nil
 }
 
-// EventUpdateCancel operation middleware
+// EventUpdateCancel operation
 func (sh *strictHandler) EventUpdateCancel(ctx echo.Context, tenant openapi_types.UUID) error {
 	var request EventUpdateCancelRequestObject
 
@@ -12519,9 +12362,6 @@ func (sh *strictHandler) EventUpdateCancel(ctx echo.Context, tenant openapi_type
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.EventUpdateCancel(ctx, request.(EventUpdateCancelRequestObject))
 	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "EventUpdateCancel")
-	}
 
 	response, err := handler(ctx, request)
 
@@ -12535,7 +12375,7 @@ func (sh *strictHandler) EventUpdateCancel(ctx echo.Context, tenant openapi_type
 	return nil
 }
 
-// EventKeyList operation middleware
+// EventKeyList operation
 func (sh *strictHandler) EventKeyList(ctx echo.Context, tenant openapi_types.UUID) error {
 	var request EventKeyListRequestObject
 
@@ -12543,9 +12383,6 @@ func (sh *strictHandler) EventKeyList(ctx echo.Context, tenant openapi_types.UUI
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.EventKeyList(ctx, request.(EventKeyListRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "EventKeyList")
 	}
 
 	response, err := handler(ctx, request)
@@ -12560,7 +12397,7 @@ func (sh *strictHandler) EventKeyList(ctx echo.Context, tenant openapi_types.UUI
 	return nil
 }
 
-// EventUpdateReplay operation middleware
+// EventUpdateReplay operation
 func (sh *strictHandler) EventUpdateReplay(ctx echo.Context, tenant openapi_types.UUID) error {
 	var request EventUpdateReplayRequestObject
 
@@ -12575,9 +12412,6 @@ func (sh *strictHandler) EventUpdateReplay(ctx echo.Context, tenant openapi_type
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.EventUpdateReplay(ctx, request.(EventUpdateReplayRequestObject))
 	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "EventUpdateReplay")
-	}
 
 	response, err := handler(ctx, request)
 
@@ -12591,7 +12425,7 @@ func (sh *strictHandler) EventUpdateReplay(ctx echo.Context, tenant openapi_type
 	return nil
 }
 
-// TenantInviteList operation middleware
+// TenantInviteList operation
 func (sh *strictHandler) TenantInviteList(ctx echo.Context, tenant openapi_types.UUID) error {
 	var request TenantInviteListRequestObject
 
@@ -12599,9 +12433,6 @@ func (sh *strictHandler) TenantInviteList(ctx echo.Context, tenant openapi_types
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.TenantInviteList(ctx, request.(TenantInviteListRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "TenantInviteList")
 	}
 
 	response, err := handler(ctx, request)
@@ -12616,7 +12447,7 @@ func (sh *strictHandler) TenantInviteList(ctx echo.Context, tenant openapi_types
 	return nil
 }
 
-// TenantInviteCreate operation middleware
+// TenantInviteCreate operation
 func (sh *strictHandler) TenantInviteCreate(ctx echo.Context, tenant openapi_types.UUID) error {
 	var request TenantInviteCreateRequestObject
 
@@ -12631,9 +12462,6 @@ func (sh *strictHandler) TenantInviteCreate(ctx echo.Context, tenant openapi_typ
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.TenantInviteCreate(ctx, request.(TenantInviteCreateRequestObject))
 	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "TenantInviteCreate")
-	}
 
 	response, err := handler(ctx, request)
 
@@ -12647,7 +12475,7 @@ func (sh *strictHandler) TenantInviteCreate(ctx echo.Context, tenant openapi_typ
 	return nil
 }
 
-// TenantInviteDelete operation middleware
+// TenantInviteDelete operation
 func (sh *strictHandler) TenantInviteDelete(ctx echo.Context, tenant openapi_types.UUID, tenantInvite openapi_types.UUID) error {
 	var request TenantInviteDeleteRequestObject
 
@@ -12656,9 +12484,6 @@ func (sh *strictHandler) TenantInviteDelete(ctx echo.Context, tenant openapi_typ
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.TenantInviteDelete(ctx, request.(TenantInviteDeleteRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "TenantInviteDelete")
 	}
 
 	response, err := handler(ctx, request)
@@ -12673,7 +12498,7 @@ func (sh *strictHandler) TenantInviteDelete(ctx echo.Context, tenant openapi_typ
 	return nil
 }
 
-// TenantInviteUpdate operation middleware
+// TenantInviteUpdate operation
 func (sh *strictHandler) TenantInviteUpdate(ctx echo.Context, tenant openapi_types.UUID, tenantInvite openapi_types.UUID) error {
 	var request TenantInviteUpdateRequestObject
 
@@ -12689,9 +12514,6 @@ func (sh *strictHandler) TenantInviteUpdate(ctx echo.Context, tenant openapi_typ
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.TenantInviteUpdate(ctx, request.(TenantInviteUpdateRequestObject))
 	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "TenantInviteUpdate")
-	}
 
 	response, err := handler(ctx, request)
 
@@ -12705,7 +12527,7 @@ func (sh *strictHandler) TenantInviteUpdate(ctx echo.Context, tenant openapi_typ
 	return nil
 }
 
-// TenantMemberList operation middleware
+// TenantMemberList operation
 func (sh *strictHandler) TenantMemberList(ctx echo.Context, tenant openapi_types.UUID) error {
 	var request TenantMemberListRequestObject
 
@@ -12713,9 +12535,6 @@ func (sh *strictHandler) TenantMemberList(ctx echo.Context, tenant openapi_types
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.TenantMemberList(ctx, request.(TenantMemberListRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "TenantMemberList")
 	}
 
 	response, err := handler(ctx, request)
@@ -12730,7 +12549,7 @@ func (sh *strictHandler) TenantMemberList(ctx echo.Context, tenant openapi_types
 	return nil
 }
 
-// TenantMemberDelete operation middleware
+// TenantMemberDelete operation
 func (sh *strictHandler) TenantMemberDelete(ctx echo.Context, tenant openapi_types.UUID, member openapi_types.UUID) error {
 	var request TenantMemberDeleteRequestObject
 
@@ -12739,9 +12558,6 @@ func (sh *strictHandler) TenantMemberDelete(ctx echo.Context, tenant openapi_typ
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.TenantMemberDelete(ctx, request.(TenantMemberDeleteRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "TenantMemberDelete")
 	}
 
 	response, err := handler(ctx, request)
@@ -12756,7 +12572,7 @@ func (sh *strictHandler) TenantMemberDelete(ctx echo.Context, tenant openapi_typ
 	return nil
 }
 
-// TenantGetPrometheusMetrics operation middleware
+// TenantGetPrometheusMetrics operation
 func (sh *strictHandler) TenantGetPrometheusMetrics(ctx echo.Context, tenant openapi_types.UUID) error {
 	var request TenantGetPrometheusMetricsRequestObject
 
@@ -12764,9 +12580,6 @@ func (sh *strictHandler) TenantGetPrometheusMetrics(ctx echo.Context, tenant ope
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.TenantGetPrometheusMetrics(ctx, request.(TenantGetPrometheusMetricsRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "TenantGetPrometheusMetrics")
 	}
 
 	response, err := handler(ctx, request)
@@ -12781,7 +12594,7 @@ func (sh *strictHandler) TenantGetPrometheusMetrics(ctx echo.Context, tenant ope
 	return nil
 }
 
-// TenantGetQueueMetrics operation middleware
+// TenantGetQueueMetrics operation
 func (sh *strictHandler) TenantGetQueueMetrics(ctx echo.Context, tenant openapi_types.UUID, params TenantGetQueueMetricsParams) error {
 	var request TenantGetQueueMetricsRequestObject
 
@@ -12790,9 +12603,6 @@ func (sh *strictHandler) TenantGetQueueMetrics(ctx echo.Context, tenant openapi_
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.TenantGetQueueMetrics(ctx, request.(TenantGetQueueMetricsRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "TenantGetQueueMetrics")
 	}
 
 	response, err := handler(ctx, request)
@@ -12807,7 +12617,7 @@ func (sh *strictHandler) TenantGetQueueMetrics(ctx echo.Context, tenant openapi_
 	return nil
 }
 
-// RateLimitList operation middleware
+// RateLimitList operation
 func (sh *strictHandler) RateLimitList(ctx echo.Context, tenant openapi_types.UUID, params RateLimitListParams) error {
 	var request RateLimitListRequestObject
 
@@ -12816,9 +12626,6 @@ func (sh *strictHandler) RateLimitList(ctx echo.Context, tenant openapi_types.UU
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.RateLimitList(ctx, request.(RateLimitListRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "RateLimitList")
 	}
 
 	response, err := handler(ctx, request)
@@ -12833,7 +12640,7 @@ func (sh *strictHandler) RateLimitList(ctx echo.Context, tenant openapi_types.UU
 	return nil
 }
 
-// TenantResourcePolicyGet operation middleware
+// TenantResourcePolicyGet operation
 func (sh *strictHandler) TenantResourcePolicyGet(ctx echo.Context, tenant openapi_types.UUID) error {
 	var request TenantResourcePolicyGetRequestObject
 
@@ -12841,9 +12648,6 @@ func (sh *strictHandler) TenantResourcePolicyGet(ctx echo.Context, tenant openap
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.TenantResourcePolicyGet(ctx, request.(TenantResourcePolicyGetRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "TenantResourcePolicyGet")
 	}
 
 	response, err := handler(ctx, request)
@@ -12858,7 +12662,7 @@ func (sh *strictHandler) TenantResourcePolicyGet(ctx echo.Context, tenant openap
 	return nil
 }
 
-// SlackWebhookList operation middleware
+// SlackWebhookList operation
 func (sh *strictHandler) SlackWebhookList(ctx echo.Context, tenant openapi_types.UUID) error {
 	var request SlackWebhookListRequestObject
 
@@ -12866,9 +12670,6 @@ func (sh *strictHandler) SlackWebhookList(ctx echo.Context, tenant openapi_types
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.SlackWebhookList(ctx, request.(SlackWebhookListRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "SlackWebhookList")
 	}
 
 	response, err := handler(ctx, request)
@@ -12883,7 +12684,7 @@ func (sh *strictHandler) SlackWebhookList(ctx echo.Context, tenant openapi_types
 	return nil
 }
 
-// UserUpdateSlackOauthStart operation middleware
+// UserUpdateSlackOauthStart operation
 func (sh *strictHandler) UserUpdateSlackOauthStart(ctx echo.Context, tenant openapi_types.UUID) error {
 	var request UserUpdateSlackOauthStartRequestObject
 
@@ -12891,9 +12692,6 @@ func (sh *strictHandler) UserUpdateSlackOauthStart(ctx echo.Context, tenant open
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.UserUpdateSlackOauthStart(ctx, request.(UserUpdateSlackOauthStartRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "UserUpdateSlackOauthStart")
 	}
 
 	response, err := handler(ctx, request)
@@ -12908,7 +12706,7 @@ func (sh *strictHandler) UserUpdateSlackOauthStart(ctx echo.Context, tenant open
 	return nil
 }
 
-// SnsList operation middleware
+// SnsList operation
 func (sh *strictHandler) SnsList(ctx echo.Context, tenant openapi_types.UUID) error {
 	var request SnsListRequestObject
 
@@ -12916,9 +12714,6 @@ func (sh *strictHandler) SnsList(ctx echo.Context, tenant openapi_types.UUID) er
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.SnsList(ctx, request.(SnsListRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "SnsList")
 	}
 
 	response, err := handler(ctx, request)
@@ -12933,7 +12728,7 @@ func (sh *strictHandler) SnsList(ctx echo.Context, tenant openapi_types.UUID) er
 	return nil
 }
 
-// SnsCreate operation middleware
+// SnsCreate operation
 func (sh *strictHandler) SnsCreate(ctx echo.Context, tenant openapi_types.UUID) error {
 	var request SnsCreateRequestObject
 
@@ -12948,9 +12743,6 @@ func (sh *strictHandler) SnsCreate(ctx echo.Context, tenant openapi_types.UUID) 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.SnsCreate(ctx, request.(SnsCreateRequestObject))
 	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "SnsCreate")
-	}
 
 	response, err := handler(ctx, request)
 
@@ -12964,7 +12756,7 @@ func (sh *strictHandler) SnsCreate(ctx echo.Context, tenant openapi_types.UUID) 
 	return nil
 }
 
-// TenantGetStepRunQueueMetrics operation middleware
+// TenantGetStepRunQueueMetrics operation
 func (sh *strictHandler) TenantGetStepRunQueueMetrics(ctx echo.Context, tenant openapi_types.UUID) error {
 	var request TenantGetStepRunQueueMetricsRequestObject
 
@@ -12972,9 +12764,6 @@ func (sh *strictHandler) TenantGetStepRunQueueMetrics(ctx echo.Context, tenant o
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.TenantGetStepRunQueueMetrics(ctx, request.(TenantGetStepRunQueueMetricsRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "TenantGetStepRunQueueMetrics")
 	}
 
 	response, err := handler(ctx, request)
@@ -12989,7 +12778,7 @@ func (sh *strictHandler) TenantGetStepRunQueueMetrics(ctx echo.Context, tenant o
 	return nil
 }
 
-// StepRunGet operation middleware
+// StepRunGet operation
 func (sh *strictHandler) StepRunGet(ctx echo.Context, tenant openapi_types.UUID, stepRun openapi_types.UUID) error {
 	var request StepRunGetRequestObject
 
@@ -12998,9 +12787,6 @@ func (sh *strictHandler) StepRunGet(ctx echo.Context, tenant openapi_types.UUID,
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.StepRunGet(ctx, request.(StepRunGetRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "StepRunGet")
 	}
 
 	response, err := handler(ctx, request)
@@ -13015,7 +12801,7 @@ func (sh *strictHandler) StepRunGet(ctx echo.Context, tenant openapi_types.UUID,
 	return nil
 }
 
-// StepRunUpdateCancel operation middleware
+// StepRunUpdateCancel operation
 func (sh *strictHandler) StepRunUpdateCancel(ctx echo.Context, tenant openapi_types.UUID, stepRun openapi_types.UUID) error {
 	var request StepRunUpdateCancelRequestObject
 
@@ -13024,9 +12810,6 @@ func (sh *strictHandler) StepRunUpdateCancel(ctx echo.Context, tenant openapi_ty
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.StepRunUpdateCancel(ctx, request.(StepRunUpdateCancelRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "StepRunUpdateCancel")
 	}
 
 	response, err := handler(ctx, request)
@@ -13041,7 +12824,7 @@ func (sh *strictHandler) StepRunUpdateCancel(ctx echo.Context, tenant openapi_ty
 	return nil
 }
 
-// StepRunUpdateRerun operation middleware
+// StepRunUpdateRerun operation
 func (sh *strictHandler) StepRunUpdateRerun(ctx echo.Context, tenant openapi_types.UUID, stepRun openapi_types.UUID) error {
 	var request StepRunUpdateRerunRequestObject
 
@@ -13057,9 +12840,6 @@ func (sh *strictHandler) StepRunUpdateRerun(ctx echo.Context, tenant openapi_typ
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.StepRunUpdateRerun(ctx, request.(StepRunUpdateRerunRequestObject))
 	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "StepRunUpdateRerun")
-	}
 
 	response, err := handler(ctx, request)
 
@@ -13073,7 +12853,7 @@ func (sh *strictHandler) StepRunUpdateRerun(ctx echo.Context, tenant openapi_typ
 	return nil
 }
 
-// StepRunGetSchema operation middleware
+// StepRunGetSchema operation
 func (sh *strictHandler) StepRunGetSchema(ctx echo.Context, tenant openapi_types.UUID, stepRun openapi_types.UUID) error {
 	var request StepRunGetSchemaRequestObject
 
@@ -13082,9 +12862,6 @@ func (sh *strictHandler) StepRunGetSchema(ctx echo.Context, tenant openapi_types
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.StepRunGetSchema(ctx, request.(StepRunGetSchemaRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "StepRunGetSchema")
 	}
 
 	response, err := handler(ctx, request)
@@ -13099,7 +12876,7 @@ func (sh *strictHandler) StepRunGetSchema(ctx echo.Context, tenant openapi_types
 	return nil
 }
 
-// WebhookList operation middleware
+// WebhookList operation
 func (sh *strictHandler) WebhookList(ctx echo.Context, tenant openapi_types.UUID) error {
 	var request WebhookListRequestObject
 
@@ -13107,9 +12884,6 @@ func (sh *strictHandler) WebhookList(ctx echo.Context, tenant openapi_types.UUID
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.WebhookList(ctx, request.(WebhookListRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WebhookList")
 	}
 
 	response, err := handler(ctx, request)
@@ -13124,7 +12898,7 @@ func (sh *strictHandler) WebhookList(ctx echo.Context, tenant openapi_types.UUID
 	return nil
 }
 
-// WebhookCreate operation middleware
+// WebhookCreate operation
 func (sh *strictHandler) WebhookCreate(ctx echo.Context, tenant openapi_types.UUID) error {
 	var request WebhookCreateRequestObject
 
@@ -13139,9 +12913,6 @@ func (sh *strictHandler) WebhookCreate(ctx echo.Context, tenant openapi_types.UU
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.WebhookCreate(ctx, request.(WebhookCreateRequestObject))
 	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WebhookCreate")
-	}
 
 	response, err := handler(ctx, request)
 
@@ -13155,7 +12926,7 @@ func (sh *strictHandler) WebhookCreate(ctx echo.Context, tenant openapi_types.UU
 	return nil
 }
 
-// WorkerList operation middleware
+// WorkerList operation
 func (sh *strictHandler) WorkerList(ctx echo.Context, tenant openapi_types.UUID) error {
 	var request WorkerListRequestObject
 
@@ -13163,9 +12934,6 @@ func (sh *strictHandler) WorkerList(ctx echo.Context, tenant openapi_types.UUID)
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.WorkerList(ctx, request.(WorkerListRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WorkerList")
 	}
 
 	response, err := handler(ctx, request)
@@ -13180,7 +12948,7 @@ func (sh *strictHandler) WorkerList(ctx echo.Context, tenant openapi_types.UUID)
 	return nil
 }
 
-// WorkflowRunUpdateReplay operation middleware
+// WorkflowRunUpdateReplay operation
 func (sh *strictHandler) WorkflowRunUpdateReplay(ctx echo.Context, tenant openapi_types.UUID) error {
 	var request WorkflowRunUpdateReplayRequestObject
 
@@ -13195,9 +12963,6 @@ func (sh *strictHandler) WorkflowRunUpdateReplay(ctx echo.Context, tenant openap
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.WorkflowRunUpdateReplay(ctx, request.(WorkflowRunUpdateReplayRequestObject))
 	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WorkflowRunUpdateReplay")
-	}
 
 	response, err := handler(ctx, request)
 
@@ -13211,7 +12976,7 @@ func (sh *strictHandler) WorkflowRunUpdateReplay(ctx echo.Context, tenant openap
 	return nil
 }
 
-// WorkflowRunGet operation middleware
+// WorkflowRunGet operation
 func (sh *strictHandler) WorkflowRunGet(ctx echo.Context, tenant openapi_types.UUID, workflowRun openapi_types.UUID) error {
 	var request WorkflowRunGetRequestObject
 
@@ -13220,9 +12985,6 @@ func (sh *strictHandler) WorkflowRunGet(ctx echo.Context, tenant openapi_types.U
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.WorkflowRunGet(ctx, request.(WorkflowRunGetRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WorkflowRunGet")
 	}
 
 	response, err := handler(ctx, request)
@@ -13237,7 +12999,7 @@ func (sh *strictHandler) WorkflowRunGet(ctx echo.Context, tenant openapi_types.U
 	return nil
 }
 
-// WorkflowRunGetInput operation middleware
+// WorkflowRunGetInput operation
 func (sh *strictHandler) WorkflowRunGetInput(ctx echo.Context, tenant openapi_types.UUID, workflowRun openapi_types.UUID) error {
 	var request WorkflowRunGetInputRequestObject
 
@@ -13246,9 +13008,6 @@ func (sh *strictHandler) WorkflowRunGetInput(ctx echo.Context, tenant openapi_ty
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.WorkflowRunGetInput(ctx, request.(WorkflowRunGetInputRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WorkflowRunGetInput")
 	}
 
 	response, err := handler(ctx, request)
@@ -13263,7 +13022,7 @@ func (sh *strictHandler) WorkflowRunGetInput(ctx echo.Context, tenant openapi_ty
 	return nil
 }
 
-// WorkflowRunGetShape operation middleware
+// WorkflowRunGetShape operation
 func (sh *strictHandler) WorkflowRunGetShape(ctx echo.Context, tenant openapi_types.UUID, workflowRun openapi_types.UUID) error {
 	var request WorkflowRunGetShapeRequestObject
 
@@ -13272,9 +13031,6 @@ func (sh *strictHandler) WorkflowRunGetShape(ctx echo.Context, tenant openapi_ty
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.WorkflowRunGetShape(ctx, request.(WorkflowRunGetShapeRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WorkflowRunGetShape")
 	}
 
 	response, err := handler(ctx, request)
@@ -13289,7 +13045,7 @@ func (sh *strictHandler) WorkflowRunGetShape(ctx echo.Context, tenant openapi_ty
 	return nil
 }
 
-// WorkflowRunListStepRunEvents operation middleware
+// WorkflowRunListStepRunEvents operation
 func (sh *strictHandler) WorkflowRunListStepRunEvents(ctx echo.Context, tenant openapi_types.UUID, workflowRun openapi_types.UUID, params WorkflowRunListStepRunEventsParams) error {
 	var request WorkflowRunListStepRunEventsRequestObject
 
@@ -13299,9 +13055,6 @@ func (sh *strictHandler) WorkflowRunListStepRunEvents(ctx echo.Context, tenant o
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.WorkflowRunListStepRunEvents(ctx, request.(WorkflowRunListStepRunEventsRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WorkflowRunListStepRunEvents")
 	}
 
 	response, err := handler(ctx, request)
@@ -13316,7 +13069,7 @@ func (sh *strictHandler) WorkflowRunListStepRunEvents(ctx echo.Context, tenant o
 	return nil
 }
 
-// WorkflowList operation middleware
+// WorkflowList operation
 func (sh *strictHandler) WorkflowList(ctx echo.Context, tenant openapi_types.UUID, params WorkflowListParams) error {
 	var request WorkflowListRequestObject
 
@@ -13325,9 +13078,6 @@ func (sh *strictHandler) WorkflowList(ctx echo.Context, tenant openapi_types.UUI
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.WorkflowList(ctx, request.(WorkflowListRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WorkflowList")
 	}
 
 	response, err := handler(ctx, request)
@@ -13342,7 +13092,7 @@ func (sh *strictHandler) WorkflowList(ctx echo.Context, tenant openapi_types.UUI
 	return nil
 }
 
-// WorkflowRunCancel operation middleware
+// WorkflowRunCancel operation
 func (sh *strictHandler) WorkflowRunCancel(ctx echo.Context, tenant openapi_types.UUID) error {
 	var request WorkflowRunCancelRequestObject
 
@@ -13357,9 +13107,6 @@ func (sh *strictHandler) WorkflowRunCancel(ctx echo.Context, tenant openapi_type
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.WorkflowRunCancel(ctx, request.(WorkflowRunCancelRequestObject))
 	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WorkflowRunCancel")
-	}
 
 	response, err := handler(ctx, request)
 
@@ -13373,7 +13120,7 @@ func (sh *strictHandler) WorkflowRunCancel(ctx echo.Context, tenant openapi_type
 	return nil
 }
 
-// CronWorkflowList operation middleware
+// CronWorkflowList operation
 func (sh *strictHandler) CronWorkflowList(ctx echo.Context, tenant openapi_types.UUID, params CronWorkflowListParams) error {
 	var request CronWorkflowListRequestObject
 
@@ -13382,9 +13129,6 @@ func (sh *strictHandler) CronWorkflowList(ctx echo.Context, tenant openapi_types
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.CronWorkflowList(ctx, request.(CronWorkflowListRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "CronWorkflowList")
 	}
 
 	response, err := handler(ctx, request)
@@ -13399,7 +13143,7 @@ func (sh *strictHandler) CronWorkflowList(ctx echo.Context, tenant openapi_types
 	return nil
 }
 
-// WorkflowCronDelete operation middleware
+// WorkflowCronDelete operation
 func (sh *strictHandler) WorkflowCronDelete(ctx echo.Context, tenant openapi_types.UUID, cronWorkflow openapi_types.UUID) error {
 	var request WorkflowCronDeleteRequestObject
 
@@ -13408,9 +13152,6 @@ func (sh *strictHandler) WorkflowCronDelete(ctx echo.Context, tenant openapi_typ
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.WorkflowCronDelete(ctx, request.(WorkflowCronDeleteRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WorkflowCronDelete")
 	}
 
 	response, err := handler(ctx, request)
@@ -13425,7 +13166,7 @@ func (sh *strictHandler) WorkflowCronDelete(ctx echo.Context, tenant openapi_typ
 	return nil
 }
 
-// WorkflowCronGet operation middleware
+// WorkflowCronGet operation
 func (sh *strictHandler) WorkflowCronGet(ctx echo.Context, tenant openapi_types.UUID, cronWorkflow openapi_types.UUID) error {
 	var request WorkflowCronGetRequestObject
 
@@ -13434,9 +13175,6 @@ func (sh *strictHandler) WorkflowCronGet(ctx echo.Context, tenant openapi_types.
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.WorkflowCronGet(ctx, request.(WorkflowCronGetRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WorkflowCronGet")
 	}
 
 	response, err := handler(ctx, request)
@@ -13451,7 +13189,7 @@ func (sh *strictHandler) WorkflowCronGet(ctx echo.Context, tenant openapi_types.
 	return nil
 }
 
-// WorkflowRunList operation middleware
+// WorkflowRunList operation
 func (sh *strictHandler) WorkflowRunList(ctx echo.Context, tenant openapi_types.UUID, params WorkflowRunListParams) error {
 	var request WorkflowRunListRequestObject
 
@@ -13460,9 +13198,6 @@ func (sh *strictHandler) WorkflowRunList(ctx echo.Context, tenant openapi_types.
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.WorkflowRunList(ctx, request.(WorkflowRunListRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WorkflowRunList")
 	}
 
 	response, err := handler(ctx, request)
@@ -13477,7 +13212,7 @@ func (sh *strictHandler) WorkflowRunList(ctx echo.Context, tenant openapi_types.
 	return nil
 }
 
-// WorkflowRunGetMetrics operation middleware
+// WorkflowRunGetMetrics operation
 func (sh *strictHandler) WorkflowRunGetMetrics(ctx echo.Context, tenant openapi_types.UUID, params WorkflowRunGetMetricsParams) error {
 	var request WorkflowRunGetMetricsRequestObject
 
@@ -13486,9 +13221,6 @@ func (sh *strictHandler) WorkflowRunGetMetrics(ctx echo.Context, tenant openapi_
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.WorkflowRunGetMetrics(ctx, request.(WorkflowRunGetMetricsRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WorkflowRunGetMetrics")
 	}
 
 	response, err := handler(ctx, request)
@@ -13503,7 +13235,7 @@ func (sh *strictHandler) WorkflowRunGetMetrics(ctx echo.Context, tenant openapi_
 	return nil
 }
 
-// WorkflowScheduledList operation middleware
+// WorkflowScheduledList operation
 func (sh *strictHandler) WorkflowScheduledList(ctx echo.Context, tenant openapi_types.UUID, params WorkflowScheduledListParams) error {
 	var request WorkflowScheduledListRequestObject
 
@@ -13512,9 +13244,6 @@ func (sh *strictHandler) WorkflowScheduledList(ctx echo.Context, tenant openapi_
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.WorkflowScheduledList(ctx, request.(WorkflowScheduledListRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WorkflowScheduledList")
 	}
 
 	response, err := handler(ctx, request)
@@ -13529,7 +13258,7 @@ func (sh *strictHandler) WorkflowScheduledList(ctx echo.Context, tenant openapi_
 	return nil
 }
 
-// WorkflowScheduledDelete operation middleware
+// WorkflowScheduledDelete operation
 func (sh *strictHandler) WorkflowScheduledDelete(ctx echo.Context, tenant openapi_types.UUID, scheduledWorkflowRun openapi_types.UUID) error {
 	var request WorkflowScheduledDeleteRequestObject
 
@@ -13538,9 +13267,6 @@ func (sh *strictHandler) WorkflowScheduledDelete(ctx echo.Context, tenant openap
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.WorkflowScheduledDelete(ctx, request.(WorkflowScheduledDeleteRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WorkflowScheduledDelete")
 	}
 
 	response, err := handler(ctx, request)
@@ -13555,7 +13281,7 @@ func (sh *strictHandler) WorkflowScheduledDelete(ctx echo.Context, tenant openap
 	return nil
 }
 
-// WorkflowScheduledGet operation middleware
+// WorkflowScheduledGet operation
 func (sh *strictHandler) WorkflowScheduledGet(ctx echo.Context, tenant openapi_types.UUID, scheduledWorkflowRun openapi_types.UUID) error {
 	var request WorkflowScheduledGetRequestObject
 
@@ -13564,9 +13290,6 @@ func (sh *strictHandler) WorkflowScheduledGet(ctx echo.Context, tenant openapi_t
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.WorkflowScheduledGet(ctx, request.(WorkflowScheduledGetRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WorkflowScheduledGet")
 	}
 
 	response, err := handler(ctx, request)
@@ -13581,7 +13304,7 @@ func (sh *strictHandler) WorkflowScheduledGet(ctx echo.Context, tenant openapi_t
 	return nil
 }
 
-// CronWorkflowTriggerCreate operation middleware
+// CronWorkflowTriggerCreate operation
 func (sh *strictHandler) CronWorkflowTriggerCreate(ctx echo.Context, tenant openapi_types.UUID, workflow string) error {
 	var request CronWorkflowTriggerCreateRequestObject
 
@@ -13597,9 +13320,6 @@ func (sh *strictHandler) CronWorkflowTriggerCreate(ctx echo.Context, tenant open
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.CronWorkflowTriggerCreate(ctx, request.(CronWorkflowTriggerCreateRequestObject))
 	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "CronWorkflowTriggerCreate")
-	}
 
 	response, err := handler(ctx, request)
 
@@ -13613,7 +13333,7 @@ func (sh *strictHandler) CronWorkflowTriggerCreate(ctx echo.Context, tenant open
 	return nil
 }
 
-// ScheduledWorkflowRunCreate operation middleware
+// ScheduledWorkflowRunCreate operation
 func (sh *strictHandler) ScheduledWorkflowRunCreate(ctx echo.Context, tenant openapi_types.UUID, workflow string) error {
 	var request ScheduledWorkflowRunCreateRequestObject
 
@@ -13629,9 +13349,6 @@ func (sh *strictHandler) ScheduledWorkflowRunCreate(ctx echo.Context, tenant ope
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.ScheduledWorkflowRunCreate(ctx, request.(ScheduledWorkflowRunCreateRequestObject))
 	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "ScheduledWorkflowRunCreate")
-	}
 
 	response, err := handler(ctx, request)
 
@@ -13645,7 +13362,7 @@ func (sh *strictHandler) ScheduledWorkflowRunCreate(ctx echo.Context, tenant ope
 	return nil
 }
 
-// WorkflowGetWorkersCount operation middleware
+// WorkflowGetWorkersCount operation
 func (sh *strictHandler) WorkflowGetWorkersCount(ctx echo.Context, tenant openapi_types.UUID, workflow openapi_types.UUID) error {
 	var request WorkflowGetWorkersCountRequestObject
 
@@ -13654,9 +13371,6 @@ func (sh *strictHandler) WorkflowGetWorkersCount(ctx echo.Context, tenant openap
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.WorkflowGetWorkersCount(ctx, request.(WorkflowGetWorkersCountRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WorkflowGetWorkersCount")
 	}
 
 	response, err := handler(ctx, request)
@@ -13671,15 +13385,12 @@ func (sh *strictHandler) WorkflowGetWorkersCount(ctx echo.Context, tenant openap
 	return nil
 }
 
-// UserGetCurrent operation middleware
+// UserGetCurrent operation
 func (sh *strictHandler) UserGetCurrent(ctx echo.Context) error {
 	var request UserGetCurrentRequestObject
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.UserGetCurrent(ctx, request.(UserGetCurrentRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "UserGetCurrent")
 	}
 
 	response, err := handler(ctx, request)
@@ -13694,15 +13405,12 @@ func (sh *strictHandler) UserGetCurrent(ctx echo.Context) error {
 	return nil
 }
 
-// UserUpdateGithubOauthCallback operation middleware
+// UserUpdateGithubOauthCallback operation
 func (sh *strictHandler) UserUpdateGithubOauthCallback(ctx echo.Context) error {
 	var request UserUpdateGithubOauthCallbackRequestObject
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.UserUpdateGithubOauthCallback(ctx, request.(UserUpdateGithubOauthCallbackRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "UserUpdateGithubOauthCallback")
 	}
 
 	response, err := handler(ctx, request)
@@ -13717,15 +13425,12 @@ func (sh *strictHandler) UserUpdateGithubOauthCallback(ctx echo.Context) error {
 	return nil
 }
 
-// UserUpdateGithubOauthStart operation middleware
+// UserUpdateGithubOauthStart operation
 func (sh *strictHandler) UserUpdateGithubOauthStart(ctx echo.Context) error {
 	var request UserUpdateGithubOauthStartRequestObject
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.UserUpdateGithubOauthStart(ctx, request.(UserUpdateGithubOauthStartRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "UserUpdateGithubOauthStart")
 	}
 
 	response, err := handler(ctx, request)
@@ -13740,15 +13445,12 @@ func (sh *strictHandler) UserUpdateGithubOauthStart(ctx echo.Context) error {
 	return nil
 }
 
-// UserUpdateGoogleOauthCallback operation middleware
+// UserUpdateGoogleOauthCallback operation
 func (sh *strictHandler) UserUpdateGoogleOauthCallback(ctx echo.Context) error {
 	var request UserUpdateGoogleOauthCallbackRequestObject
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.UserUpdateGoogleOauthCallback(ctx, request.(UserUpdateGoogleOauthCallbackRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "UserUpdateGoogleOauthCallback")
 	}
 
 	response, err := handler(ctx, request)
@@ -13763,15 +13465,12 @@ func (sh *strictHandler) UserUpdateGoogleOauthCallback(ctx echo.Context) error {
 	return nil
 }
 
-// UserUpdateGoogleOauthStart operation middleware
+// UserUpdateGoogleOauthStart operation
 func (sh *strictHandler) UserUpdateGoogleOauthStart(ctx echo.Context) error {
 	var request UserUpdateGoogleOauthStartRequestObject
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.UserUpdateGoogleOauthStart(ctx, request.(UserUpdateGoogleOauthStartRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "UserUpdateGoogleOauthStart")
 	}
 
 	response, err := handler(ctx, request)
@@ -13786,15 +13485,12 @@ func (sh *strictHandler) UserUpdateGoogleOauthStart(ctx echo.Context) error {
 	return nil
 }
 
-// UserListTenantInvites operation middleware
+// UserListTenantInvites operation
 func (sh *strictHandler) UserListTenantInvites(ctx echo.Context) error {
 	var request UserListTenantInvitesRequestObject
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.UserListTenantInvites(ctx, request.(UserListTenantInvitesRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "UserListTenantInvites")
 	}
 
 	response, err := handler(ctx, request)
@@ -13809,7 +13505,7 @@ func (sh *strictHandler) UserListTenantInvites(ctx echo.Context) error {
 	return nil
 }
 
-// TenantInviteAccept operation middleware
+// TenantInviteAccept operation
 func (sh *strictHandler) TenantInviteAccept(ctx echo.Context) error {
 	var request TenantInviteAcceptRequestObject
 
@@ -13821,9 +13517,6 @@ func (sh *strictHandler) TenantInviteAccept(ctx echo.Context) error {
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.TenantInviteAccept(ctx, request.(TenantInviteAcceptRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "TenantInviteAccept")
 	}
 
 	response, err := handler(ctx, request)
@@ -13838,7 +13531,7 @@ func (sh *strictHandler) TenantInviteAccept(ctx echo.Context) error {
 	return nil
 }
 
-// TenantInviteReject operation middleware
+// TenantInviteReject operation
 func (sh *strictHandler) TenantInviteReject(ctx echo.Context) error {
 	var request TenantInviteRejectRequestObject
 
@@ -13850,9 +13543,6 @@ func (sh *strictHandler) TenantInviteReject(ctx echo.Context) error {
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.TenantInviteReject(ctx, request.(TenantInviteRejectRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "TenantInviteReject")
 	}
 
 	response, err := handler(ctx, request)
@@ -13867,7 +13557,7 @@ func (sh *strictHandler) TenantInviteReject(ctx echo.Context) error {
 	return nil
 }
 
-// UserUpdateLogin operation middleware
+// UserUpdateLogin operation
 func (sh *strictHandler) UserUpdateLogin(ctx echo.Context) error {
 	var request UserUpdateLoginRequestObject
 
@@ -13879,9 +13569,6 @@ func (sh *strictHandler) UserUpdateLogin(ctx echo.Context) error {
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.UserUpdateLogin(ctx, request.(UserUpdateLoginRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "UserUpdateLogin")
 	}
 
 	response, err := handler(ctx, request)
@@ -13896,15 +13583,12 @@ func (sh *strictHandler) UserUpdateLogin(ctx echo.Context) error {
 	return nil
 }
 
-// UserUpdateLogout operation middleware
+// UserUpdateLogout operation
 func (sh *strictHandler) UserUpdateLogout(ctx echo.Context) error {
 	var request UserUpdateLogoutRequestObject
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.UserUpdateLogout(ctx, request.(UserUpdateLogoutRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "UserUpdateLogout")
 	}
 
 	response, err := handler(ctx, request)
@@ -13919,15 +13603,12 @@ func (sh *strictHandler) UserUpdateLogout(ctx echo.Context) error {
 	return nil
 }
 
-// TenantMembershipsList operation middleware
+// TenantMembershipsList operation
 func (sh *strictHandler) TenantMembershipsList(ctx echo.Context) error {
 	var request TenantMembershipsListRequestObject
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.TenantMembershipsList(ctx, request.(TenantMembershipsListRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "TenantMembershipsList")
 	}
 
 	response, err := handler(ctx, request)
@@ -13942,7 +13623,7 @@ func (sh *strictHandler) TenantMembershipsList(ctx echo.Context) error {
 	return nil
 }
 
-// UserUpdatePassword operation middleware
+// UserUpdatePassword operation
 func (sh *strictHandler) UserUpdatePassword(ctx echo.Context) error {
 	var request UserUpdatePasswordRequestObject
 
@@ -13954,9 +13635,6 @@ func (sh *strictHandler) UserUpdatePassword(ctx echo.Context) error {
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.UserUpdatePassword(ctx, request.(UserUpdatePasswordRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "UserUpdatePassword")
 	}
 
 	response, err := handler(ctx, request)
@@ -13971,7 +13649,7 @@ func (sh *strictHandler) UserUpdatePassword(ctx echo.Context) error {
 	return nil
 }
 
-// UserCreate operation middleware
+// UserCreate operation
 func (sh *strictHandler) UserCreate(ctx echo.Context) error {
 	var request UserCreateRequestObject
 
@@ -13983,9 +13661,6 @@ func (sh *strictHandler) UserCreate(ctx echo.Context) error {
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.UserCreate(ctx, request.(UserCreateRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "UserCreate")
 	}
 
 	response, err := handler(ctx, request)
@@ -14000,15 +13675,12 @@ func (sh *strictHandler) UserCreate(ctx echo.Context) error {
 	return nil
 }
 
-// UserUpdateSlackOauthCallback operation middleware
+// UserUpdateSlackOauthCallback operation
 func (sh *strictHandler) UserUpdateSlackOauthCallback(ctx echo.Context) error {
 	var request UserUpdateSlackOauthCallbackRequestObject
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.UserUpdateSlackOauthCallback(ctx, request.(UserUpdateSlackOauthCallbackRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "UserUpdateSlackOauthCallback")
 	}
 
 	response, err := handler(ctx, request)
@@ -14023,15 +13695,12 @@ func (sh *strictHandler) UserUpdateSlackOauthCallback(ctx echo.Context) error {
 	return nil
 }
 
-// InfoGetVersion operation middleware
+// InfoGetVersion operation
 func (sh *strictHandler) InfoGetVersion(ctx echo.Context) error {
 	var request InfoGetVersionRequestObject
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.InfoGetVersion(ctx, request.(InfoGetVersionRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "InfoGetVersion")
 	}
 
 	response, err := handler(ctx, request)
@@ -14046,7 +13715,7 @@ func (sh *strictHandler) InfoGetVersion(ctx echo.Context) error {
 	return nil
 }
 
-// WebhookDelete operation middleware
+// WebhookDelete operation
 func (sh *strictHandler) WebhookDelete(ctx echo.Context, webhook openapi_types.UUID) error {
 	var request WebhookDeleteRequestObject
 
@@ -14054,9 +13723,6 @@ func (sh *strictHandler) WebhookDelete(ctx echo.Context, webhook openapi_types.U
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.WebhookDelete(ctx, request.(WebhookDeleteRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WebhookDelete")
 	}
 
 	response, err := handler(ctx, request)
@@ -14071,7 +13737,7 @@ func (sh *strictHandler) WebhookDelete(ctx echo.Context, webhook openapi_types.U
 	return nil
 }
 
-// WebhookRequestsList operation middleware
+// WebhookRequestsList operation
 func (sh *strictHandler) WebhookRequestsList(ctx echo.Context, webhook openapi_types.UUID) error {
 	var request WebhookRequestsListRequestObject
 
@@ -14079,9 +13745,6 @@ func (sh *strictHandler) WebhookRequestsList(ctx echo.Context, webhook openapi_t
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.WebhookRequestsList(ctx, request.(WebhookRequestsListRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WebhookRequestsList")
 	}
 
 	response, err := handler(ctx, request)
@@ -14096,7 +13759,7 @@ func (sh *strictHandler) WebhookRequestsList(ctx echo.Context, webhook openapi_t
 	return nil
 }
 
-// WorkerGet operation middleware
+// WorkerGet operation
 func (sh *strictHandler) WorkerGet(ctx echo.Context, worker openapi_types.UUID) error {
 	var request WorkerGetRequestObject
 
@@ -14104,9 +13767,6 @@ func (sh *strictHandler) WorkerGet(ctx echo.Context, worker openapi_types.UUID) 
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.WorkerGet(ctx, request.(WorkerGetRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WorkerGet")
 	}
 
 	response, err := handler(ctx, request)
@@ -14121,7 +13781,7 @@ func (sh *strictHandler) WorkerGet(ctx echo.Context, worker openapi_types.UUID) 
 	return nil
 }
 
-// WorkerUpdate operation middleware
+// WorkerUpdate operation
 func (sh *strictHandler) WorkerUpdate(ctx echo.Context, worker openapi_types.UUID) error {
 	var request WorkerUpdateRequestObject
 
@@ -14136,9 +13796,6 @@ func (sh *strictHandler) WorkerUpdate(ctx echo.Context, worker openapi_types.UUI
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.WorkerUpdate(ctx, request.(WorkerUpdateRequestObject))
 	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WorkerUpdate")
-	}
 
 	response, err := handler(ctx, request)
 
@@ -14152,7 +13809,7 @@ func (sh *strictHandler) WorkerUpdate(ctx echo.Context, worker openapi_types.UUI
 	return nil
 }
 
-// WorkflowDelete operation middleware
+// WorkflowDelete operation
 func (sh *strictHandler) WorkflowDelete(ctx echo.Context, workflow openapi_types.UUID) error {
 	var request WorkflowDeleteRequestObject
 
@@ -14160,9 +13817,6 @@ func (sh *strictHandler) WorkflowDelete(ctx echo.Context, workflow openapi_types
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.WorkflowDelete(ctx, request.(WorkflowDeleteRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WorkflowDelete")
 	}
 
 	response, err := handler(ctx, request)
@@ -14177,7 +13831,7 @@ func (sh *strictHandler) WorkflowDelete(ctx echo.Context, workflow openapi_types
 	return nil
 }
 
-// WorkflowGet operation middleware
+// WorkflowGet operation
 func (sh *strictHandler) WorkflowGet(ctx echo.Context, workflow openapi_types.UUID) error {
 	var request WorkflowGetRequestObject
 
@@ -14185,9 +13839,6 @@ func (sh *strictHandler) WorkflowGet(ctx echo.Context, workflow openapi_types.UU
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.WorkflowGet(ctx, request.(WorkflowGetRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WorkflowGet")
 	}
 
 	response, err := handler(ctx, request)
@@ -14202,7 +13853,7 @@ func (sh *strictHandler) WorkflowGet(ctx echo.Context, workflow openapi_types.UU
 	return nil
 }
 
-// WorkflowUpdate operation middleware
+// WorkflowUpdate operation
 func (sh *strictHandler) WorkflowUpdate(ctx echo.Context, workflow openapi_types.UUID) error {
 	var request WorkflowUpdateRequestObject
 
@@ -14217,9 +13868,6 @@ func (sh *strictHandler) WorkflowUpdate(ctx echo.Context, workflow openapi_types
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.WorkflowUpdate(ctx, request.(WorkflowUpdateRequestObject))
 	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WorkflowUpdate")
-	}
 
 	response, err := handler(ctx, request)
 
@@ -14233,7 +13881,7 @@ func (sh *strictHandler) WorkflowUpdate(ctx echo.Context, workflow openapi_types
 	return nil
 }
 
-// WorkflowGetMetrics operation middleware
+// WorkflowGetMetrics operation
 func (sh *strictHandler) WorkflowGetMetrics(ctx echo.Context, workflow openapi_types.UUID, params WorkflowGetMetricsParams) error {
 	var request WorkflowGetMetricsRequestObject
 
@@ -14242,9 +13890,6 @@ func (sh *strictHandler) WorkflowGetMetrics(ctx echo.Context, workflow openapi_t
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.WorkflowGetMetrics(ctx, request.(WorkflowGetMetricsRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WorkflowGetMetrics")
 	}
 
 	response, err := handler(ctx, request)
@@ -14259,7 +13904,7 @@ func (sh *strictHandler) WorkflowGetMetrics(ctx echo.Context, workflow openapi_t
 	return nil
 }
 
-// WorkflowRunCreate operation middleware
+// WorkflowRunCreate operation
 func (sh *strictHandler) WorkflowRunCreate(ctx echo.Context, workflow openapi_types.UUID, params WorkflowRunCreateParams) error {
 	var request WorkflowRunCreateRequestObject
 
@@ -14275,9 +13920,6 @@ func (sh *strictHandler) WorkflowRunCreate(ctx echo.Context, workflow openapi_ty
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.WorkflowRunCreate(ctx, request.(WorkflowRunCreateRequestObject))
 	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WorkflowRunCreate")
-	}
 
 	response, err := handler(ctx, request)
 
@@ -14291,7 +13933,7 @@ func (sh *strictHandler) WorkflowRunCreate(ctx echo.Context, workflow openapi_ty
 	return nil
 }
 
-// WorkflowVersionGet operation middleware
+// WorkflowVersionGet operation
 func (sh *strictHandler) WorkflowVersionGet(ctx echo.Context, workflow openapi_types.UUID, params WorkflowVersionGetParams) error {
 	var request WorkflowVersionGetRequestObject
 
@@ -14300,9 +13942,6 @@ func (sh *strictHandler) WorkflowVersionGet(ctx echo.Context, workflow openapi_t
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.WorkflowVersionGet(ctx, request.(WorkflowVersionGetRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "WorkflowVersionGet")
 	}
 
 	response, err := handler(ctx, request)

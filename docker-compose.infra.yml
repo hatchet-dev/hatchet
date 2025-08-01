@@ -33,6 +33,19 @@ services:
     depends_on:
       - prometheus
 
+  hyperdx:
+    image: docker.hyperdx.io/hyperdx/hyperdx-all-in-one:latest
+    container_name: hatchet-hyperdx
+    ports:
+      - "8081:8080" # HyperDX UI
+      - "4317:4317" # OTLP gRPC
+      - "4318:4318" # OTLP HTTP
+    volumes:
+      - hatchet_hyperdx_data:/data/db
+      - hatchet_hyperdx_data:/var/lib/clickhouse
+      - hatchet_hyperdx_data:/var/log/clickhouse-server
+
 volumes:
   hatchet_prometheus_data:
   hatchet_grafana_data:
+  hatchet_hyperdx_data:
