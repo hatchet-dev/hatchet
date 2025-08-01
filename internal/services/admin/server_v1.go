@@ -9,6 +9,7 @@ import (
 	msgqueue "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
 	"github.com/hatchet-dev/hatchet/internal/services/admin/contracts"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
+	"github.com/hatchet-dev/hatchet/pkg/constants"
 	grpcmiddleware "github.com/hatchet-dev/hatchet/pkg/grpc/middleware"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
@@ -116,7 +117,12 @@ func (a *AdminServiceImpl) triggerWorkflowV1(ctx context.Context, req *contracts
 		additionalMeta = *req.AdditionalMetadata
 	}
 	corrId := extractCorrelationId(additionalMeta)
-	grpcmiddleware.TriggerCallback(ctx, opt.ExternalId, "workflow-run", corrId)
+
+	ctx = context.WithValue(ctx, constants.CorrelationIDKey, corrId)
+	ctx = context.WithValue(ctx, constants.ResourceIdKey, opt.ExternalId)
+	ctx = context.WithValue(ctx, constants.ResourceTypeKey, "workflow-run")
+
+	grpcmiddleware.TriggerCallback(ctx)
 
 	return &contracts.TriggerWorkflowResponse{
 		WorkflowRunId: opt.ExternalId,
@@ -175,7 +181,12 @@ func (a *AdminServiceImpl) bulkTriggerWorkflowV1(ctx context.Context, req *contr
 			additionalMeta = *req.Workflows[i].AdditionalMetadata
 		}
 		corrId := extractCorrelationId(additionalMeta)
-		grpcmiddleware.TriggerCallback(ctx, runId, "workflow-run", corrId)
+
+		ctx = context.WithValue(ctx, constants.CorrelationIDKey, corrId)
+		ctx = context.WithValue(ctx, constants.ResourceIdKey, runId)
+		ctx = context.WithValue(ctx, constants.ResourceTypeKey, "workflow-run")
+
+		grpcmiddleware.TriggerCallback(ctx)
 	}
 
 	return &contracts.BulkTriggerWorkflowResponse{

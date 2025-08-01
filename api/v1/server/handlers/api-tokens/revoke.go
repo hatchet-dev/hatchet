@@ -5,6 +5,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
+	"github.com/hatchet-dev/hatchet/pkg/constants"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
@@ -24,8 +25,8 @@ func (a *APITokenService) ApiTokenUpdateRevoke(ctx echo.Context, request gen.Api
 		return nil, err
 	}
 
-	ctx.Set("resourceId", apiToken.ID.String())
-	ctx.Set("resourceType", "api-token")
+	ctx.Set(string(constants.ResourceIdKey), apiToken.ID.String())
+	ctx.Set(string(constants.ResourceTypeKey), string(constants.ResourceTypeApiToken))
 
 	return gen.ApiTokenUpdateRevoke204Response{}, nil
 }

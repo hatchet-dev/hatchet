@@ -18,6 +18,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/admin/contracts"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
+	"github.com/hatchet-dev/hatchet/pkg/constants"
 	grpcmiddleware "github.com/hatchet-dev/hatchet/pkg/grpc/middleware"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/metered"
@@ -101,7 +102,12 @@ func (a *AdminServiceImpl) triggerWorkflowV0(ctx context.Context, req *contracts
 		additionalMeta = *req.AdditionalMetadata
 	}
 	corrId := extractCorrelationId(additionalMeta)
-	grpcmiddleware.TriggerCallback(ctx, workflowRunId, "workflow-run", corrId)
+
+	ctx = context.WithValue(ctx, constants.CorrelationIDKey, corrId)
+	ctx = context.WithValue(ctx, constants.ResourceIdKey, workflowRunId)
+	ctx = context.WithValue(ctx, constants.ResourceTypeKey, "workflow-run")
+
+	grpcmiddleware.TriggerCallback(ctx)
 
 	return &contracts.TriggerWorkflowResponse{
 		WorkflowRunId: workflowRunId,
@@ -180,7 +186,12 @@ func (a *AdminServiceImpl) bulkTriggerWorkflowV0(ctx context.Context, req *contr
 		if req.Workflows[i].AdditionalMetadata != nil {
 			corrId = extractCorrelationId(*req.Workflows[i].AdditionalMetadata)
 		}
-		grpcmiddleware.TriggerCallback(ctx, workflowRunId, "workflow-run", corrId)
+
+		ctx = context.WithValue(ctx, constants.CorrelationIDKey, corrId)
+		ctx = context.WithValue(ctx, constants.ResourceIdKey, workflowRunId)
+		ctx = context.WithValue(ctx, constants.ResourceTypeKey, "workflow-run")
+
+		grpcmiddleware.TriggerCallback(ctx)
 	}
 
 	// adding in the pre-existing workflows to the response.
