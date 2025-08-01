@@ -7,12 +7,11 @@
 package v1
 
 import (
-	reflect "reflect"
-	sync "sync"
-
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
+	reflect "reflect"
+	sync "sync"
 )
 
 const (
@@ -1565,34 +1564,31 @@ func file_v1_workflows_proto_rawDescGZIP() []byte {
 	return file_v1_workflows_proto_rawDescData
 }
 
-var (
-	file_v1_workflows_proto_enumTypes = make([]protoimpl.EnumInfo, 4)
-	file_v1_workflows_proto_msgTypes  = make([]protoimpl.MessageInfo, 15)
-	file_v1_workflows_proto_goTypes   = []interface{}{
-		(StickyStrategy)(0),                   // 0: v1.StickyStrategy
-		(RateLimitDuration)(0),                // 1: v1.RateLimitDuration
-		(ConcurrencyLimitStrategy)(0),         // 2: v1.ConcurrencyLimitStrategy
-		(WorkerLabelComparator)(0),            // 3: v1.WorkerLabelComparator
-		(*CancelTasksRequest)(nil),            // 4: v1.CancelTasksRequest
-		(*ReplayTasksRequest)(nil),            // 5: v1.ReplayTasksRequest
-		(*TasksFilter)(nil),                   // 6: v1.TasksFilter
-		(*CancelTasksResponse)(nil),           // 7: v1.CancelTasksResponse
-		(*ReplayTasksResponse)(nil),           // 8: v1.ReplayTasksResponse
-		(*TriggerWorkflowRunRequest)(nil),     // 9: v1.TriggerWorkflowRunRequest
-		(*TriggerWorkflowRunResponse)(nil),    // 10: v1.TriggerWorkflowRunResponse
-		(*CreateWorkflowVersionRequest)(nil),  // 11: v1.CreateWorkflowVersionRequest
-		(*DefaultFilter)(nil),                 // 12: v1.DefaultFilter
-		(*Concurrency)(nil),                   // 13: v1.Concurrency
-		(*DesiredWorkerLabels)(nil),           // 14: v1.DesiredWorkerLabels
-		(*CreateTaskOpts)(nil),                // 15: v1.CreateTaskOpts
-		(*CreateTaskRateLimit)(nil),           // 16: v1.CreateTaskRateLimit
-		(*CreateWorkflowVersionResponse)(nil), // 17: v1.CreateWorkflowVersionResponse
-		nil,                                   // 18: v1.CreateTaskOpts.WorkerLabelsEntry
-		(*timestamppb.Timestamp)(nil),         // 19: google.protobuf.Timestamp
-		(*TaskConditions)(nil),                // 20: v1.TaskConditions
-	}
-)
-
+var file_v1_workflows_proto_enumTypes = make([]protoimpl.EnumInfo, 4)
+var file_v1_workflows_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
+var file_v1_workflows_proto_goTypes = []interface{}{
+	(StickyStrategy)(0),                   // 0: v1.StickyStrategy
+	(RateLimitDuration)(0),                // 1: v1.RateLimitDuration
+	(ConcurrencyLimitStrategy)(0),         // 2: v1.ConcurrencyLimitStrategy
+	(WorkerLabelComparator)(0),            // 3: v1.WorkerLabelComparator
+	(*CancelTasksRequest)(nil),            // 4: v1.CancelTasksRequest
+	(*ReplayTasksRequest)(nil),            // 5: v1.ReplayTasksRequest
+	(*TasksFilter)(nil),                   // 6: v1.TasksFilter
+	(*CancelTasksResponse)(nil),           // 7: v1.CancelTasksResponse
+	(*ReplayTasksResponse)(nil),           // 8: v1.ReplayTasksResponse
+	(*TriggerWorkflowRunRequest)(nil),     // 9: v1.TriggerWorkflowRunRequest
+	(*TriggerWorkflowRunResponse)(nil),    // 10: v1.TriggerWorkflowRunResponse
+	(*CreateWorkflowVersionRequest)(nil),  // 11: v1.CreateWorkflowVersionRequest
+	(*DefaultFilter)(nil),                 // 12: v1.DefaultFilter
+	(*Concurrency)(nil),                   // 13: v1.Concurrency
+	(*DesiredWorkerLabels)(nil),           // 14: v1.DesiredWorkerLabels
+	(*CreateTaskOpts)(nil),                // 15: v1.CreateTaskOpts
+	(*CreateTaskRateLimit)(nil),           // 16: v1.CreateTaskRateLimit
+	(*CreateWorkflowVersionResponse)(nil), // 17: v1.CreateWorkflowVersionResponse
+	nil,                                   // 18: v1.CreateTaskOpts.WorkerLabelsEntry
+	(*timestamppb.Timestamp)(nil),         // 19: google.protobuf.Timestamp
+	(*TaskConditions)(nil),                // 20: v1.TaskConditions
+}
 var file_v1_workflows_proto_depIdxs = []int32{
 	6,  // 0: v1.CancelTasksRequest.filter:type_name -> v1.TasksFilter
 	6,  // 1: v1.ReplayTasksRequest.filter:type_name -> v1.TasksFilter

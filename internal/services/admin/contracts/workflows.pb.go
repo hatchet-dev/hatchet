@@ -7,12 +7,11 @@
 package contracts
 
 import (
-	reflect "reflect"
-	sync "sync"
-
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
+	reflect "reflect"
+	sync "sync"
 )
 
 const (
@@ -2066,39 +2065,36 @@ func file_workflows_proto_rawDescGZIP() []byte {
 	return file_workflows_proto_rawDescData
 }
 
-var (
-	file_workflows_proto_enumTypes = make([]protoimpl.EnumInfo, 5)
-	file_workflows_proto_msgTypes  = make([]protoimpl.MessageInfo, 20)
-	file_workflows_proto_goTypes   = []interface{}{
-		(StickyStrategy)(0),                 // 0: StickyStrategy
-		(WorkflowKind)(0),                   // 1: WorkflowKind
-		(ConcurrencyLimitStrategy)(0),       // 2: ConcurrencyLimitStrategy
-		(WorkerLabelComparator)(0),          // 3: WorkerLabelComparator
-		(RateLimitDuration)(0),              // 4: RateLimitDuration
-		(*PutWorkflowRequest)(nil),          // 5: PutWorkflowRequest
-		(*CreateWorkflowVersionOpts)(nil),   // 6: CreateWorkflowVersionOpts
-		(*WorkflowConcurrencyOpts)(nil),     // 7: WorkflowConcurrencyOpts
-		(*CreateWorkflowJobOpts)(nil),       // 8: CreateWorkflowJobOpts
-		(*DesiredWorkerLabels)(nil),         // 9: DesiredWorkerLabels
-		(*CreateWorkflowStepOpts)(nil),      // 10: CreateWorkflowStepOpts
-		(*CreateStepRateLimit)(nil),         // 11: CreateStepRateLimit
-		(*ListWorkflowsRequest)(nil),        // 12: ListWorkflowsRequest
-		(*ScheduleWorkflowRequest)(nil),     // 13: ScheduleWorkflowRequest
-		(*ScheduledWorkflow)(nil),           // 14: ScheduledWorkflow
-		(*WorkflowVersion)(nil),             // 15: WorkflowVersion
-		(*WorkflowTriggerEventRef)(nil),     // 16: WorkflowTriggerEventRef
-		(*WorkflowTriggerCronRef)(nil),      // 17: WorkflowTriggerCronRef
-		(*BulkTriggerWorkflowRequest)(nil),  // 18: BulkTriggerWorkflowRequest
-		(*BulkTriggerWorkflowResponse)(nil), // 19: BulkTriggerWorkflowResponse
-		(*TriggerWorkflowRequest)(nil),      // 20: TriggerWorkflowRequest
-		(*TriggerWorkflowResponse)(nil),     // 21: TriggerWorkflowResponse
-		(*PutRateLimitRequest)(nil),         // 22: PutRateLimitRequest
-		(*PutRateLimitResponse)(nil),        // 23: PutRateLimitResponse
-		nil,                                 // 24: CreateWorkflowStepOpts.WorkerLabelsEntry
-		(*timestamppb.Timestamp)(nil),       // 25: google.protobuf.Timestamp
-	}
-)
-
+var file_workflows_proto_enumTypes = make([]protoimpl.EnumInfo, 5)
+var file_workflows_proto_msgTypes = make([]protoimpl.MessageInfo, 20)
+var file_workflows_proto_goTypes = []interface{}{
+	(StickyStrategy)(0),                 // 0: StickyStrategy
+	(WorkflowKind)(0),                   // 1: WorkflowKind
+	(ConcurrencyLimitStrategy)(0),       // 2: ConcurrencyLimitStrategy
+	(WorkerLabelComparator)(0),          // 3: WorkerLabelComparator
+	(RateLimitDuration)(0),              // 4: RateLimitDuration
+	(*PutWorkflowRequest)(nil),          // 5: PutWorkflowRequest
+	(*CreateWorkflowVersionOpts)(nil),   // 6: CreateWorkflowVersionOpts
+	(*WorkflowConcurrencyOpts)(nil),     // 7: WorkflowConcurrencyOpts
+	(*CreateWorkflowJobOpts)(nil),       // 8: CreateWorkflowJobOpts
+	(*DesiredWorkerLabels)(nil),         // 9: DesiredWorkerLabels
+	(*CreateWorkflowStepOpts)(nil),      // 10: CreateWorkflowStepOpts
+	(*CreateStepRateLimit)(nil),         // 11: CreateStepRateLimit
+	(*ListWorkflowsRequest)(nil),        // 12: ListWorkflowsRequest
+	(*ScheduleWorkflowRequest)(nil),     // 13: ScheduleWorkflowRequest
+	(*ScheduledWorkflow)(nil),           // 14: ScheduledWorkflow
+	(*WorkflowVersion)(nil),             // 15: WorkflowVersion
+	(*WorkflowTriggerEventRef)(nil),     // 16: WorkflowTriggerEventRef
+	(*WorkflowTriggerCronRef)(nil),      // 17: WorkflowTriggerCronRef
+	(*BulkTriggerWorkflowRequest)(nil),  // 18: BulkTriggerWorkflowRequest
+	(*BulkTriggerWorkflowResponse)(nil), // 19: BulkTriggerWorkflowResponse
+	(*TriggerWorkflowRequest)(nil),      // 20: TriggerWorkflowRequest
+	(*TriggerWorkflowResponse)(nil),     // 21: TriggerWorkflowResponse
+	(*PutRateLimitRequest)(nil),         // 22: PutRateLimitRequest
+	(*PutRateLimitResponse)(nil),        // 23: PutRateLimitResponse
+	nil,                                 // 24: CreateWorkflowStepOpts.WorkerLabelsEntry
+	(*timestamppb.Timestamp)(nil),       // 25: google.protobuf.Timestamp
+}
 var file_workflows_proto_depIdxs = []int32{
 	6,  // 0: PutWorkflowRequest.opts:type_name -> CreateWorkflowVersionOpts
 	25, // 1: CreateWorkflowVersionOpts.scheduled_triggers:type_name -> google.protobuf.Timestamp

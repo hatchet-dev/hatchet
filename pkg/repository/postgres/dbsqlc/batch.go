@@ -13,7 +13,9 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-var ErrBatchAlreadyClosed = errors.New("batch already closed")
+var (
+	ErrBatchAlreadyClosed = errors.New("batch already closed")
+)
 
 const listQueueItems = `-- name: ListQueueItems :batchmany
 SELECT

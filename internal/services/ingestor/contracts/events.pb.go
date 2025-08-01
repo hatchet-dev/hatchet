@@ -7,12 +7,11 @@
 package contracts
 
 import (
-	reflect "reflect"
-	sync "sync"
-
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
+	reflect "reflect"
+	sync "sync"
 )
 
 const (
@@ -731,22 +730,19 @@ func file_events_proto_rawDescGZIP() []byte {
 	return file_events_proto_rawDescData
 }
 
-var (
-	file_events_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
-	file_events_proto_goTypes  = []interface{}{
-		(*Event)(nil),                  // 0: Event
-		(*Events)(nil),                 // 1: Events
-		(*PutLogRequest)(nil),          // 2: PutLogRequest
-		(*PutLogResponse)(nil),         // 3: PutLogResponse
-		(*PutStreamEventRequest)(nil),  // 4: PutStreamEventRequest
-		(*PutStreamEventResponse)(nil), // 5: PutStreamEventResponse
-		(*BulkPushEventRequest)(nil),   // 6: BulkPushEventRequest
-		(*PushEventRequest)(nil),       // 7: PushEventRequest
-		(*ReplayEventRequest)(nil),     // 8: ReplayEventRequest
-		(*timestamppb.Timestamp)(nil),  // 9: google.protobuf.Timestamp
-	}
-)
-
+var file_events_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
+var file_events_proto_goTypes = []interface{}{
+	(*Event)(nil),                  // 0: Event
+	(*Events)(nil),                 // 1: Events
+	(*PutLogRequest)(nil),          // 2: PutLogRequest
+	(*PutLogResponse)(nil),         // 3: PutLogResponse
+	(*PutStreamEventRequest)(nil),  // 4: PutStreamEventRequest
+	(*PutStreamEventResponse)(nil), // 5: PutStreamEventResponse
+	(*BulkPushEventRequest)(nil),   // 6: BulkPushEventRequest
+	(*PushEventRequest)(nil),       // 7: PushEventRequest
+	(*ReplayEventRequest)(nil),     // 8: ReplayEventRequest
+	(*timestamppb.Timestamp)(nil),  // 9: google.protobuf.Timestamp
+}
 var file_events_proto_depIdxs = []int32{
 	9,  // 0: Event.eventTimestamp:type_name -> google.protobuf.Timestamp
 	0,  // 1: Events.events:type_name -> Event

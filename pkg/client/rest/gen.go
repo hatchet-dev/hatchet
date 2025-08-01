@@ -5435,6 +5435,7 @@ func NewV1TaskGetRequest(server string, task openapi_types.UUID, params *V1TaskG
 		queryValues := queryURL.Query()
 
 		if params.Attempt != nil {
+
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "attempt", runtime.ParamLocationQuery, *params.Attempt); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
@@ -5446,6 +5447,7 @@ func NewV1TaskGetRequest(server string, task openapi_types.UUID, params *V1TaskG
 					}
 				}
 			}
+
 		}
 
 		queryURL.RawQuery = queryValues.Encode()
@@ -5523,6 +5525,7 @@ func NewV1TaskEventListRequest(server string, task openapi_types.UUID, params *V
 		queryValues := queryURL.Query()
 
 		if params.Offset != nil {
+
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "offset", runtime.ParamLocationQuery, *params.Offset); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
@@ -5534,9 +5537,11 @@ func NewV1TaskEventListRequest(server string, task openapi_types.UUID, params *V
 					}
 				}
 			}
+
 		}
 
 		if params.Limit != nil {
+
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
@@ -5548,6 +5553,7 @@ func NewV1TaskEventListRequest(server string, task openapi_types.UUID, params *V
 					}
 				}
 			}
+
 		}
 
 		queryURL.RawQuery = queryValues.Encode()
@@ -5638,6 +5644,7 @@ func NewV1EventListRequest(server string, tenant openapi_types.UUID, params *V1E
 		queryValues := queryURL.Query()
 
 		if params.Offset != nil {
+
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "offset", runtime.ParamLocationQuery, *params.Offset); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
@@ -5649,9 +5656,11 @@ func NewV1EventListRequest(server string, tenant openapi_types.UUID, params *V1E
 					}
 				}
 			}
+
 		}
 
 		if params.Limit != nil {
+
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
@@ -5663,9 +5672,11 @@ func NewV1EventListRequest(server string, tenant openapi_types.UUID, params *V1E
 					}
 				}
 			}
+
 		}
 
 		if params.Keys != nil {
+
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "keys", runtime.ParamLocationQuery, *params.Keys); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
@@ -5677,9 +5688,11 @@ func NewV1EventListRequest(server string, tenant openapi_types.UUID, params *V1E
 					}
 				}
 			}
+
 		}
 
 		if params.Since != nil {
+
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "since", runtime.ParamLocationQuery, *params.Since); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
@@ -5691,9 +5704,11 @@ func NewV1EventListRequest(server string, tenant openapi_types.UUID, params *V1E
 					}
 				}
 			}
+
 		}
 
 		if params.Until != nil {
+
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "until", runtime.ParamLocationQuery, *params.Until); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
@@ -5705,9 +5720,11 @@ func NewV1EventListRequest(server string, tenant openapi_types.UUID, params *V1E
 					}
 				}
 			}
+
 		}
 
 		if params.WorkflowIds != nil {
+
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "workflowIds", runtime.ParamLocationQuery, *params.WorkflowIds); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
@@ -5719,9 +5736,11 @@ func NewV1EventListRequest(server string, tenant openapi_types.UUID, params *V1E
 					}
 				}
 			}
+
 		}
 
 		if params.WorkflowRunStatuses != nil {
+
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "workflowRunStatuses", runtime.ParamLocationQuery, *params.WorkflowRunStatuses); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
@@ -5733,9 +5752,11 @@ func NewV1EventListRequest(server string, tenant openapi_types.UUID, params *V1E
 					}
 				}
 			}
+
 		}
 
 		if params.EventIds != nil {
+
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "eventIds", runtime.ParamLocationQuery, *params.EventIds); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
@@ -5747,9 +5768,11 @@ func NewV1EventListRequest(server string, tenant openapi_types.UUID, params *V1E
 					}
 				}
 			}
+
 		}
 
 		if params.AdditionalMetadata != nil {
+
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "additionalMetadata", runtime.ParamLocationQuery, *params.AdditionalMetadata); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
@@ -5761,9 +5784,11 @@ func NewV1EventListRequest(server string, tenant openapi_types.UUID, params *V1E
 					}
 				}
 			}
+
 		}
 
 		if params.Scopes != nil {
+
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "scopes", runtime.ParamLocationQuery, *params.Scopes); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
@@ -5775,6 +5800,7 @@ func NewV1EventListRequest(server string, tenant openapi_types.UUID, params *V1E
 					}
 				}
 			}
+
 		}
 
 		queryURL.RawQuery = queryValues.Encode()
@@ -5852,6 +5878,7 @@ func NewV1FilterListRequest(server string, tenant openapi_types.UUID, params *V1
 		queryValues := queryURL.Query()
 
 		if params.Offset != nil {
+
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "offset", runtime.ParamLocationQuery, *params.Offset); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
@@ -5863,9 +5890,11 @@ func NewV1FilterListRequest(server string, tenant openapi_types.UUID, params *V1
 					}
 				}
 			}
+
 		}
 
 		if params.Limit != nil {
+
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
@@ -5877,9 +5906,11 @@ func NewV1FilterListRequest(server string, tenant openapi_types.UUID, params *V1
 					}
 				}
 			}
+
 		}
 
 		if params.WorkflowIds != nil {
+
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "workflowIds", runtime.ParamLocationQuery, *params.WorkflowIds); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
@@ -5891,9 +5922,11 @@ func NewV1FilterListRequest(server string, tenant openapi_types.UUID, params *V1
 					}
 				}
 			}
+
 		}
 
 		if params.Scopes != nil {
+
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "scopes", runtime.ParamLocationQuery, *params.Scopes); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
@@ -5905,6 +5938,7 @@ func NewV1FilterListRequest(server string, tenant openapi_types.UUID, params *V1
 					}
 				}
 			}
+
 		}
 
 		queryURL.RawQuery = queryValues.Encode()
@@ -6143,6 +6177,7 @@ func NewV1TaskListStatusMetricsRequest(server string, tenant openapi_types.UUID,
 		}
 
 		if params.Until != nil {
+
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "until", runtime.ParamLocationQuery, *params.Until); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
@@ -6154,9 +6189,11 @@ func NewV1TaskListStatusMetricsRequest(server string, tenant openapi_types.UUID,
 					}
 				}
 			}
+
 		}
 
 		if params.WorkflowIds != nil {
+
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "workflow_ids", runtime.ParamLocationQuery, *params.WorkflowIds); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
@@ -6168,9 +6205,11 @@ func NewV1TaskListStatusMetricsRequest(server string, tenant openapi_types.UUID,
 					}
 				}
 			}
+
 		}
 
 		if params.ParentTaskExternalId != nil {
+
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "parent_task_external_id", runtime.ParamLocationQuery, *params.ParentTaskExternalId); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
@@ -6182,9 +6221,11 @@ func NewV1TaskListStatusMetricsRequest(server string, tenant openapi_types.UUID,
 					}
 				}
 			}
+
 		}
 
 		if params.TriggeringEventExternalId != nil {
+
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "triggering_event_external_id", runtime.ParamLocationQuery, *params.TriggeringEventExternalId); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
@@ -6196,6 +6237,7 @@ func NewV1TaskListStatusMetricsRequest(server string, tenant openapi_types.UUID,
 					}
 				}
 			}
+
 		}
 
 		queryURL.RawQuery = queryValues.Encode()
@@ -6239,6 +6281,7 @@ func NewV1TaskGetPointMetricsRequest(server string, tenant openapi_types.UUID, p
 		queryValues := queryURL.Query()
 
 		if params.CreatedAfter != nil {
+
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "createdAfter", runtime.ParamLocationQuery, *params.CreatedAfter); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
@@ -6250,9 +6293,11 @@ func NewV1TaskGetPointMetricsRequest(server string, tenant openapi_types.UUID, p
 					}
 				}
 			}
+
 		}
 
 		if params.FinishedBefore != nil {
+
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "finishedBefore", runtime.ParamLocationQuery, *params.FinishedBefore); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
@@ -6264,6 +6309,7 @@ func NewV1TaskGetPointMetricsRequest(server string, tenant openapi_types.UUID, p
 					}
 				}
 			}
+
 		}
 
 		queryURL.RawQuery = queryValues.Encode()
@@ -6401,6 +6447,7 @@ func NewV1WorkflowRunListRequest(server string, tenant openapi_types.UUID, param
 		queryValues := queryURL.Query()
 
 		if params.Offset != nil {
+
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "offset", runtime.ParamLocationQuery, *params.Offset); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
@@ -6412,9 +6459,11 @@ func NewV1WorkflowRunListRequest(server string, tenant openapi_types.UUID, param
 					}
 				}
 			}
+
 		}
 
 		if params.Limit != nil {
+
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
@@ -6426,9 +6475,11 @@ func NewV1WorkflowRunListRequest(server string, tenant openapi_types.UUID, param
 					}
 				}
 			}
+
 		}
 
 		if params.Statuses != nil {
+
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "statuses", runtime.ParamLocationQuery, *params.Statuses); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
@@ -6440,6 +6491,7 @@ func NewV1WorkflowRunListRequest(server string, tenant openapi_types.UUID, param
 					}
 				}
 			}
+
 		}
 
 		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "since", runtime.ParamLocationQuery, params.Since); err != nil {
@@ -6455,6 +6507,7 @@ func NewV1WorkflowRunListRequest(server string, tenant openapi_types.UUID, param
 		}
 
 		if params.Until != nil {
+
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "until", runtime.ParamLocationQuery, *params.Until); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
@@ -6466,9 +6519,11 @@ func NewV1WorkflowRunListRequest(server string, tenant openapi_types.UUID, param
 					}
 				}
 			}
+
 		}
 
 		if params.AdditionalMetadata != nil {
+
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "additional_metadata", runtime.ParamLocationQuery, *params.AdditionalMetadata); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
@@ -6480,9 +6535,11 @@ func NewV1WorkflowRunListRequest(server string, tenant openapi_types.UUID, param
 					}
 				}
 			}
+
 		}
 
 		if params.WorkflowIds != nil {
+
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "workflow_ids", runtime.ParamLocationQuery, *params.WorkflowIds); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
@@ -6494,9 +6551,11 @@ func NewV1WorkflowRunListRequest(server string, tenant openapi_types.UUID, param
 					}
 				}
 			}
+
 		}
 
 		if params.WorkerId != nil {
+
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "worker_id", runtime.ParamLocationQuery, *params.WorkerId); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
@@ -6508,6 +6567,7 @@ func NewV1WorkflowRunListRequest(server string, tenant openapi_types.UUID, param
 					}
 				}
 			}
+
 		}
 
 		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "only_tasks", runtime.ParamLocationQuery, params.OnlyTasks); err != nil {
@@ -6523,6 +6583,7 @@ func NewV1WorkflowRunListRequest(server string, tenant openapi_types.UUID, param
 		}
 
 		if params.ParentTaskExternalId != nil {
+
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "parent_task_external_id", runtime.ParamLocationQuery, *params.ParentTaskExternalId); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
@@ -6534,9 +6595,11 @@ func NewV1WorkflowRunListRequest(server string, tenant openapi_types.UUID, param
 					}
 				}
 			}
+
 		}
 
 		if params.TriggeringEventExternalId != nil {
+
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "triggering_event_external_id", runtime.ParamLocationQuery, *params.TriggeringEventExternalId); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
@@ -6548,9 +6611,11 @@ func NewV1WorkflowRunListRequest(server string, tenant openapi_types.UUID, param
 					}
 				}
 			}
+
 		}
 
 		if params.IncludePayloads != nil {
+
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "include_payloads", runtime.ParamLocationQuery, *params.IncludePayloads); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
@@ -6562,6 +6627,7 @@ func NewV1WorkflowRunListRequest(server string, tenant openapi_types.UUID, param
 					}
 				}
 			}
+
 		}
 
 		queryURL.RawQuery = queryValues.Encode()
@@ -6772,6 +6838,7 @@ func NewV1WorkflowRunTaskEventsListRequest(server string, v1WorkflowRun openapi_
 		queryValues := queryURL.Query()
 
 		if params.Offset != nil {
+
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "offset", runtime.ParamLocationQuery, *params.Offset); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
@@ -6783,9 +6850,11 @@ func NewV1WorkflowRunTaskEventsListRequest(server string, v1WorkflowRun openapi_
 					}
 				}
 			}
+
 		}
 
 		if params.Limit != nil {
+
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
@@ -6797,6 +6866,7 @@ func NewV1WorkflowRunTaskEventsListRequest(server string, v1WorkflowRun openapi_
 					}
 				}
 			}
+
 		}
 
 		queryURL.RawQuery = queryValues.Encode()
@@ -6840,6 +6910,7 @@ func NewV1WorkflowRunGetTimingsRequest(server string, v1WorkflowRun openapi_type
 		queryValues := queryURL.Query()
 
 		if params.Depth != nil {
+
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "depth", runtime.ParamLocationQuery, *params.Depth); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
@@ -6851,6 +6922,7 @@ func NewV1WorkflowRunGetTimingsRequest(server string, v1WorkflowRun openapi_type
 					}
 				}
 			}
+
 		}
 
 		queryURL.RawQuery = queryValues.Encode()
@@ -6894,6 +6966,7 @@ func NewStepRunListArchivesRequest(server string, stepRun openapi_types.UUID, pa
 		queryValues := queryURL.Query()
 
 		if params.Offset != nil {
+
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "offset", runtime.ParamLocationQuery, *params.Offset); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
@@ -6905,9 +6978,11 @@ func NewStepRunListArchivesRequest(server string, stepRun openapi_types.UUID, pa
 					}
 				}
 			}
+
 		}
 
 		if params.Limit != nil {
+
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
@@ -6919,6 +6994,7 @@ func NewStepRunListArchivesRequest(server string, stepRun openapi_types.UUID, pa
 					}
 				}
 			}
+
 		}
 
 		queryURL.RawQuery = queryValues.Encode()
@@ -6962,6 +7038,7 @@ func NewStepRunListEventsRequest(server string, stepRun openapi_types.UUID, para
 		queryValues := queryURL.Query()
 
 		if params.Offset != nil {
+
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "offset", runtime.ParamLocationQuery, *params.Offset); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
@@ -6973,9 +7050,11 @@ func NewStepRunListEventsRequest(server string, stepRun openapi_types.UUID, para
 					}
 				}
 			}
+
 		}
 
 		if params.Limit != nil {
+
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
@@ -6987,6 +7066,7 @@ func NewStepRunListEventsRequest(server string, stepRun openapi_types.UUID, para
 					}
 				}
 			}
+
 		}
 
 		queryURL.RawQuery = queryValues.Encode()
@@ -7030,6 +7110,7 @@ func NewLogLineListRequest(server string, stepRun openapi_types.UUID, params *Lo
 		queryValues := queryURL.Query()
 
 		if params.Offset != nil {
+
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "offset", runtime.ParamLocationQuery, *params.Offset); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
@@ -7041,9 +7122,11 @@ func NewLogLineListRequest(server string, stepRun openapi_types.UUID, params *Lo
 					}
 				}
 			}
+
 		}
 
 		if params.Limit != nil {
+
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
@@ -7055,9 +7138,11 @@ func NewLogLineListRequest(server string, stepRun openapi_types.UUID, params *Lo
 					}
 				}
 			}
+
 		}
 
 		if params.Levels != nil {
+
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "levels", runtime.ParamLocationQuery, *params.Levels); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
@@ -7069,9 +7154,11 @@ func NewLogLineListRequest(server string, stepRun openapi_types.UUID, params *Lo
 					}
 				}
 			}
+
 		}
 
 		if params.Search != nil {
+
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "search", runtime.ParamLocationQuery, *params.Search); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
@@ -7083,9 +7170,11 @@ func NewLogLineListRequest(server string, stepRun openapi_types.UUID, params *Lo
 					}
 				}
 			}
+
 		}
 
 		if params.OrderByField != nil {
+
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "orderByField", runtime.ParamLocationQuery, *params.OrderByField); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
@@ -7097,9 +7186,11 @@ func NewLogLineListRequest(server string, stepRun openapi_types.UUID, params *Lo
 					}
 				}
 			}
+
 		}
 
 		if params.OrderByDirection != nil {
+
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "orderByDirection", runtime.ParamLocationQuery, *params.OrderByDirection); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
@@ -7111,6 +7202,7 @@ func NewLogLineListRequest(server string, stepRun openapi_types.UUID, params *Lo
 					}
 				}
 			}
+
 		}
 
 		queryURL.RawQuery = queryValues.Encode()
@@ -7471,6 +7563,7 @@ func NewEventListRequest(server string, tenant openapi_types.UUID, params *Event
 		queryValues := queryURL.Query()
 
 		if params.Offset != nil {
+
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "offset", runtime.ParamLocationQuery, *params.Offset); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
@@ -7482,9 +7575,11 @@ func NewEventListRequest(server string, tenant openapi_types.UUID, params *Event
 					}
 				}
 			}
+
 		}
 
 		if params.Limit != nil {
+
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
@@ -7496,9 +7591,11 @@ func NewEventListRequest(server string, tenant openapi_types.UUID, params *Event
 					}
 				}
 			}
+
 		}
 
 		if params.Keys != nil {
+
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "keys", runtime.ParamLocationQuery, *params.Keys); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
@@ -7510,9 +7607,11 @@ func NewEventListRequest(server string, tenant openapi_types.UUID, params *Event
 					}
 				}
 			}
+
 		}
 
 		if params.Workflows != nil {
+
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "workflows", runtime.ParamLocationQuery, *params.Workflows); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
@@ -7524,9 +7623,11 @@ func NewEventListRequest(server string, tenant openapi_types.UUID, params *Event
 					}
 				}
 			}
+
 		}
 
 		if params.Statuses != nil {
+
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "statuses", runtime.ParamLocationQuery, *params.Statuses); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
@@ -7538,9 +7639,11 @@ func NewEventListRequest(server string, tenant openapi_types.UUID, params *Event
 					}
 				}
 			}
+
 		}
 
 		if params.Search != nil {
+
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "search", runtime.ParamLocationQuery, *params.Search); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
@@ -7552,9 +7655,11 @@ func NewEventListRequest(server string, tenant openapi_types.UUID, params *Event
 					}
 				}
 			}
+
 		}
 
 		if params.OrderByField != nil {
+
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "orderByField", runtime.ParamLocationQuery, *params.OrderByField); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
@@ -7566,9 +7671,11 @@ func NewEventListRequest(server string, tenant openapi_types.UUID, params *Event
 					}
 				}
 			}
+
 		}
 
 		if params.OrderByDirection != nil {
+
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "orderByDirection", runtime.ParamLocationQuery, *params.OrderByDirection); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
@@ -7580,9 +7687,11 @@ func NewEventListRequest(server string, tenant openapi_types.UUID, params *Event
 					}
 				}
 			}
+
 		}
 
 		if params.AdditionalMetadata != nil {
+
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "additionalMetadata", runtime.ParamLocationQuery, *params.AdditionalMetadata); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
@@ -7594,9 +7703,11 @@ func NewEventListRequest(server string, tenant openapi_types.UUID, params *Event
 					}
 				}
 			}
+
 		}
 
 		if params.EventIds != nil {
+
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "eventIds", runtime.ParamLocationQuery, *params.EventIds); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
@@ -7608,6 +7719,7 @@ func NewEventListRequest(server string, tenant openapi_types.UUID, params *Event
 					}
 				}
 			}
+
 		}
 
 		queryURL.RawQuery = queryValues.Encode()
@@ -8158,6 +8270,7 @@ func NewTenantGetQueueMetricsRequest(server string, tenant openapi_types.UUID, p
 		queryValues := queryURL.Query()
 
 		if params.Workflows != nil {
+
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "workflows", runtime.ParamLocationQuery, *params.Workflows); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
@@ -8169,9 +8282,11 @@ func NewTenantGetQueueMetricsRequest(server string, tenant openapi_types.UUID, p
 					}
 				}
 			}
+
 		}
 
 		if params.AdditionalMetadata != nil {
+
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "additionalMetadata", runtime.ParamLocationQuery, *params.AdditionalMetadata); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
@@ -8183,6 +8298,7 @@ func NewTenantGetQueueMetricsRequest(server string, tenant openapi_types.UUID, p
 					}
 				}
 			}
+
 		}
 
 		queryURL.RawQuery = queryValues.Encode()
@@ -8226,6 +8342,7 @@ func NewRateLimitListRequest(server string, tenant openapi_types.UUID, params *R
 		queryValues := queryURL.Query()
 
 		if params.Offset != nil {
+
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "offset", runtime.ParamLocationQuery, *params.Offset); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
@@ -8237,9 +8354,11 @@ func NewRateLimitListRequest(server string, tenant openapi_types.UUID, params *R
 					}
 				}
 			}
+
 		}
 
 		if params.Limit != nil {
+
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
@@ -8251,9 +8370,11 @@ func NewRateLimitListRequest(server string, tenant openapi_types.UUID, params *R
 					}
 				}
 			}
+
 		}
 
 		if params.Search != nil {
+
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "search", runtime.ParamLocationQuery, *params.Search); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
@@ -8265,9 +8386,11 @@ func NewRateLimitListRequest(server string, tenant openapi_types.UUID, params *R
 					}
 				}
 			}
+
 		}
 
 		if params.OrderByField != nil {
+
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "orderByField", runtime.ParamLocationQuery, *params.OrderByField); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
@@ -8279,9 +8402,11 @@ func NewRateLimitListRequest(server string, tenant openapi_types.UUID, params *R
 					}
 				}
 			}
+
 		}
 
 		if params.OrderByDirection != nil {
+
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "orderByDirection", runtime.ParamLocationQuery, *params.OrderByDirection); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
@@ -8293,6 +8418,7 @@ func NewRateLimitListRequest(server string, tenant openapi_types.UUID, params *R
 					}
 				}
 			}
+
 		}
 
 		queryURL.RawQuery = queryValues.Encode()
@@ -9022,6 +9148,7 @@ func NewWorkflowRunListStepRunEventsRequest(server string, tenant openapi_types.
 		queryValues := queryURL.Query()
 
 		if params.LastId != nil {
+
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "lastId", runtime.ParamLocationQuery, *params.LastId); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
@@ -9033,6 +9160,7 @@ func NewWorkflowRunListStepRunEventsRequest(server string, tenant openapi_types.
 					}
 				}
 			}
+
 		}
 
 		queryURL.RawQuery = queryValues.Encode()
@@ -9076,6 +9204,7 @@ func NewWorkflowListRequest(server string, tenant openapi_types.UUID, params *Wo
 		queryValues := queryURL.Query()
 
 		if params.Offset != nil {
+
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "offset", runtime.ParamLocationQuery, *params.Offset); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
@@ -9087,9 +9216,11 @@ func NewWorkflowListRequest(server string, tenant openapi_types.UUID, params *Wo
 					}
 				}
 			}
+
 		}
 
 		if params.Limit != nil {
+
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
@@ -9101,9 +9232,11 @@ func NewWorkflowListRequest(server string, tenant openapi_types.UUID, params *Wo
 					}
 				}
 			}
+
 		}
 
 		if params.Name != nil {
+
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "name", runtime.ParamLocationQuery, *params.Name); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
@@ -9115,6 +9248,7 @@ func NewWorkflowListRequest(server string, tenant openapi_types.UUID, params *Wo
 					}
 				}
 			}
+
 		}
 
 		queryURL.RawQuery = queryValues.Encode()
@@ -9205,6 +9339,7 @@ func NewCronWorkflowListRequest(server string, tenant openapi_types.UUID, params
 		queryValues := queryURL.Query()
 
 		if params.Offset != nil {
+
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "offset", runtime.ParamLocationQuery, *params.Offset); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
@@ -9216,9 +9351,11 @@ func NewCronWorkflowListRequest(server string, tenant openapi_types.UUID, params
 					}
 				}
 			}
+
 		}
 
 		if params.Limit != nil {
+
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
@@ -9230,9 +9367,11 @@ func NewCronWorkflowListRequest(server string, tenant openapi_types.UUID, params
 					}
 				}
 			}
+
 		}
 
 		if params.WorkflowId != nil {
+
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "workflowId", runtime.ParamLocationQuery, *params.WorkflowId); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
@@ -9244,9 +9383,11 @@ func NewCronWorkflowListRequest(server string, tenant openapi_types.UUID, params
 					}
 				}
 			}
+
 		}
 
 		if params.WorkflowName != nil {
+
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "workflowName", runtime.ParamLocationQuery, *params.WorkflowName); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
@@ -9258,9 +9399,11 @@ func NewCronWorkflowListRequest(server string, tenant openapi_types.UUID, params
 					}
 				}
 			}
+
 		}
 
 		if params.CronName != nil {
+
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "cronName", runtime.ParamLocationQuery, *params.CronName); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
@@ -9272,9 +9415,11 @@ func NewCronWorkflowListRequest(server string, tenant openapi_types.UUID, params
 					}
 				}
 			}
+
 		}
 
 		if params.AdditionalMetadata != nil {
+
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "additionalMetadata", runtime.ParamLocationQuery, *params.AdditionalMetadata); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
@@ -9286,9 +9431,11 @@ func NewCronWorkflowListRequest(server string, tenant openapi_types.UUID, params
 					}
 				}
 			}
+
 		}
 
 		if params.OrderByField != nil {
+
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "orderByField", runtime.ParamLocationQuery, *params.OrderByField); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
@@ -9300,9 +9447,11 @@ func NewCronWorkflowListRequest(server string, tenant openapi_types.UUID, params
 					}
 				}
 			}
+
 		}
 
 		if params.OrderByDirection != nil {
+
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "orderByDirection", runtime.ParamLocationQuery, *params.OrderByDirection); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
@@ -9314,6 +9463,7 @@ func NewCronWorkflowListRequest(server string, tenant openapi_types.UUID, params
 					}
 				}
 			}
+
 		}
 
 		queryURL.RawQuery = queryValues.Encode()
@@ -9439,6 +9589,7 @@ func NewWorkflowRunListRequest(server string, tenant openapi_types.UUID, params 
 		queryValues := queryURL.Query()
 
 		if params.Offset != nil {
+
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "offset", runtime.ParamLocationQuery, *params.Offset); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
@@ -9450,9 +9601,11 @@ func NewWorkflowRunListRequest(server string, tenant openapi_types.UUID, params 
 					}
 				}
 			}
+
 		}
 
 		if params.Limit != nil {
+
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
@@ -9464,9 +9617,11 @@ func NewWorkflowRunListRequest(server string, tenant openapi_types.UUID, params 
 					}
 				}
 			}
+
 		}
 
 		if params.EventId != nil {
+
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "eventId", runtime.ParamLocationQuery, *params.EventId); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
@@ -9478,9 +9633,11 @@ func NewWorkflowRunListRequest(server string, tenant openapi_types.UUID, params 
 					}
 				}
 			}
+
 		}
 
 		if params.WorkflowId != nil {
+
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "workflowId", runtime.ParamLocationQuery, *params.WorkflowId); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
@@ -9492,9 +9649,11 @@ func NewWorkflowRunListRequest(server string, tenant openapi_types.UUID, params 
 					}
 				}
 			}
+
 		}
 
 		if params.ParentWorkflowRunId != nil {
+
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "parentWorkflowRunId", runtime.ParamLocationQuery, *params.ParentWorkflowRunId); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
@@ -9506,9 +9665,11 @@ func NewWorkflowRunListRequest(server string, tenant openapi_types.UUID, params 
 					}
 				}
 			}
+
 		}
 
 		if params.ParentStepRunId != nil {
+
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "parentStepRunId", runtime.ParamLocationQuery, *params.ParentStepRunId); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
@@ -9520,9 +9681,11 @@ func NewWorkflowRunListRequest(server string, tenant openapi_types.UUID, params 
 					}
 				}
 			}
+
 		}
 
 		if params.Statuses != nil {
+
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "statuses", runtime.ParamLocationQuery, *params.Statuses); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
@@ -9534,9 +9697,11 @@ func NewWorkflowRunListRequest(server string, tenant openapi_types.UUID, params 
 					}
 				}
 			}
+
 		}
 
 		if params.Kinds != nil {
+
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "kinds", runtime.ParamLocationQuery, *params.Kinds); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
@@ -9548,9 +9713,11 @@ func NewWorkflowRunListRequest(server string, tenant openapi_types.UUID, params 
 					}
 				}
 			}
+
 		}
 
 		if params.AdditionalMetadata != nil {
+
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "additionalMetadata", runtime.ParamLocationQuery, *params.AdditionalMetadata); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
@@ -9562,9 +9729,11 @@ func NewWorkflowRunListRequest(server string, tenant openapi_types.UUID, params 
 					}
 				}
 			}
+
 		}
 
 		if params.CreatedAfter != nil {
+
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "createdAfter", runtime.ParamLocationQuery, *params.CreatedAfter); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
@@ -9576,9 +9745,11 @@ func NewWorkflowRunListRequest(server string, tenant openapi_types.UUID, params 
 					}
 				}
 			}
+
 		}
 
 		if params.CreatedBefore != nil {
+
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "createdBefore", runtime.ParamLocationQuery, *params.CreatedBefore); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
@@ -9590,9 +9761,11 @@ func NewWorkflowRunListRequest(server string, tenant openapi_types.UUID, params 
 					}
 				}
 			}
+
 		}
 
 		if params.FinishedAfter != nil {
+
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "finishedAfter", runtime.ParamLocationQuery, *params.FinishedAfter); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
@@ -9604,9 +9777,11 @@ func NewWorkflowRunListRequest(server string, tenant openapi_types.UUID, params 
 					}
 				}
 			}
+
 		}
 
 		if params.FinishedBefore != nil {
+
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "finishedBefore", runtime.ParamLocationQuery, *params.FinishedBefore); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
@@ -9618,9 +9793,11 @@ func NewWorkflowRunListRequest(server string, tenant openapi_types.UUID, params 
 					}
 				}
 			}
+
 		}
 
 		if params.OrderByField != nil {
+
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "orderByField", runtime.ParamLocationQuery, *params.OrderByField); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
@@ -9632,9 +9809,11 @@ func NewWorkflowRunListRequest(server string, tenant openapi_types.UUID, params 
 					}
 				}
 			}
+
 		}
 
 		if params.OrderByDirection != nil {
+
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "orderByDirection", runtime.ParamLocationQuery, *params.OrderByDirection); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
@@ -9646,6 +9825,7 @@ func NewWorkflowRunListRequest(server string, tenant openapi_types.UUID, params 
 					}
 				}
 			}
+
 		}
 
 		queryURL.RawQuery = queryValues.Encode()
@@ -9689,6 +9869,7 @@ func NewWorkflowRunGetMetricsRequest(server string, tenant openapi_types.UUID, p
 		queryValues := queryURL.Query()
 
 		if params.EventId != nil {
+
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "eventId", runtime.ParamLocationQuery, *params.EventId); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
@@ -9700,9 +9881,11 @@ func NewWorkflowRunGetMetricsRequest(server string, tenant openapi_types.UUID, p
 					}
 				}
 			}
+
 		}
 
 		if params.WorkflowId != nil {
+
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "workflowId", runtime.ParamLocationQuery, *params.WorkflowId); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
@@ -9714,9 +9897,11 @@ func NewWorkflowRunGetMetricsRequest(server string, tenant openapi_types.UUID, p
 					}
 				}
 			}
+
 		}
 
 		if params.ParentWorkflowRunId != nil {
+
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "parentWorkflowRunId", runtime.ParamLocationQuery, *params.ParentWorkflowRunId); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
@@ -9728,9 +9913,11 @@ func NewWorkflowRunGetMetricsRequest(server string, tenant openapi_types.UUID, p
 					}
 				}
 			}
+
 		}
 
 		if params.ParentStepRunId != nil {
+
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "parentStepRunId", runtime.ParamLocationQuery, *params.ParentStepRunId); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
@@ -9742,9 +9929,11 @@ func NewWorkflowRunGetMetricsRequest(server string, tenant openapi_types.UUID, p
 					}
 				}
 			}
+
 		}
 
 		if params.AdditionalMetadata != nil {
+
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "additionalMetadata", runtime.ParamLocationQuery, *params.AdditionalMetadata); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
@@ -9756,9 +9945,11 @@ func NewWorkflowRunGetMetricsRequest(server string, tenant openapi_types.UUID, p
 					}
 				}
 			}
+
 		}
 
 		if params.CreatedAfter != nil {
+
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "createdAfter", runtime.ParamLocationQuery, *params.CreatedAfter); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
@@ -9770,9 +9961,11 @@ func NewWorkflowRunGetMetricsRequest(server string, tenant openapi_types.UUID, p
 					}
 				}
 			}
+
 		}
 
 		if params.CreatedBefore != nil {
+
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "createdBefore", runtime.ParamLocationQuery, *params.CreatedBefore); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
@@ -9784,6 +9977,7 @@ func NewWorkflowRunGetMetricsRequest(server string, tenant openapi_types.UUID, p
 					}
 				}
 			}
+
 		}
 
 		queryURL.RawQuery = queryValues.Encode()
@@ -9827,6 +10021,7 @@ func NewWorkflowScheduledListRequest(server string, tenant openapi_types.UUID, p
 		queryValues := queryURL.Query()
 
 		if params.Offset != nil {
+
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "offset", runtime.ParamLocationQuery, *params.Offset); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
@@ -9838,9 +10033,11 @@ func NewWorkflowScheduledListRequest(server string, tenant openapi_types.UUID, p
 					}
 				}
 			}
+
 		}
 
 		if params.Limit != nil {
+
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
@@ -9852,9 +10049,11 @@ func NewWorkflowScheduledListRequest(server string, tenant openapi_types.UUID, p
 					}
 				}
 			}
+
 		}
 
 		if params.OrderByField != nil {
+
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "orderByField", runtime.ParamLocationQuery, *params.OrderByField); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
@@ -9866,9 +10065,11 @@ func NewWorkflowScheduledListRequest(server string, tenant openapi_types.UUID, p
 					}
 				}
 			}
+
 		}
 
 		if params.OrderByDirection != nil {
+
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "orderByDirection", runtime.ParamLocationQuery, *params.OrderByDirection); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
@@ -9880,9 +10081,11 @@ func NewWorkflowScheduledListRequest(server string, tenant openapi_types.UUID, p
 					}
 				}
 			}
+
 		}
 
 		if params.WorkflowId != nil {
+
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "workflowId", runtime.ParamLocationQuery, *params.WorkflowId); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
@@ -9894,9 +10097,11 @@ func NewWorkflowScheduledListRequest(server string, tenant openapi_types.UUID, p
 					}
 				}
 			}
+
 		}
 
 		if params.ParentWorkflowRunId != nil {
+
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "parentWorkflowRunId", runtime.ParamLocationQuery, *params.ParentWorkflowRunId); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
@@ -9908,9 +10113,11 @@ func NewWorkflowScheduledListRequest(server string, tenant openapi_types.UUID, p
 					}
 				}
 			}
+
 		}
 
 		if params.ParentStepRunId != nil {
+
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "parentStepRunId", runtime.ParamLocationQuery, *params.ParentStepRunId); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
@@ -9922,9 +10129,11 @@ func NewWorkflowScheduledListRequest(server string, tenant openapi_types.UUID, p
 					}
 				}
 			}
+
 		}
 
 		if params.AdditionalMetadata != nil {
+
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "additionalMetadata", runtime.ParamLocationQuery, *params.AdditionalMetadata); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
@@ -9936,9 +10145,11 @@ func NewWorkflowScheduledListRequest(server string, tenant openapi_types.UUID, p
 					}
 				}
 			}
+
 		}
 
 		if params.Statuses != nil {
+
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "statuses", runtime.ParamLocationQuery, *params.Statuses); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
@@ -9950,6 +10161,7 @@ func NewWorkflowScheduledListRequest(server string, tenant openapi_types.UUID, p
 					}
 				}
 			}
+
 		}
 
 		queryURL.RawQuery = queryValues.Encode()
@@ -10958,6 +11170,7 @@ func NewWorkflowGetMetricsRequest(server string, workflow openapi_types.UUID, pa
 		queryValues := queryURL.Query()
 
 		if params.Status != nil {
+
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "status", runtime.ParamLocationQuery, *params.Status); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
@@ -10969,9 +11182,11 @@ func NewWorkflowGetMetricsRequest(server string, workflow openapi_types.UUID, pa
 					}
 				}
 			}
+
 		}
 
 		if params.GroupKey != nil {
+
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "groupKey", runtime.ParamLocationQuery, *params.GroupKey); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
@@ -10983,6 +11198,7 @@ func NewWorkflowGetMetricsRequest(server string, workflow openapi_types.UUID, pa
 					}
 				}
 			}
+
 		}
 
 		queryURL.RawQuery = queryValues.Encode()
@@ -11037,6 +11253,7 @@ func NewWorkflowRunCreateRequestWithBody(server string, workflow openapi_types.U
 		queryValues := queryURL.Query()
 
 		if params.Version != nil {
+
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "version", runtime.ParamLocationQuery, *params.Version); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
@@ -11048,6 +11265,7 @@ func NewWorkflowRunCreateRequestWithBody(server string, workflow openapi_types.U
 					}
 				}
 			}
+
 		}
 
 		queryURL.RawQuery = queryValues.Encode()
@@ -11093,6 +11311,7 @@ func NewWorkflowVersionGetRequest(server string, workflow openapi_types.UUID, pa
 		queryValues := queryURL.Query()
 
 		if params.Version != nil {
+
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "version", runtime.ParamLocationQuery, *params.Version); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
@@ -11104,6 +11323,7 @@ func NewWorkflowVersionGetRequest(server string, workflow openapi_types.UUID, pa
 					}
 				}
 			}
+
 		}
 
 		queryURL.RawQuery = queryValues.Encode()
@@ -16127,6 +16347,7 @@ func ParseMonitoringPostRunProbeResponse(rsp *http.Response) (*MonitoringPostRun
 			return nil, err
 		}
 		response.JSON403 = &dest
+
 	}
 
 	return response, nil
@@ -20216,6 +20437,7 @@ func ParseInfoGetVersionResponse(rsp *http.Response) (*InfoGetVersionResponse, e
 			return nil, err
 		}
 		response.JSON200 = &dest
+
 	}
 
 	return response, nil

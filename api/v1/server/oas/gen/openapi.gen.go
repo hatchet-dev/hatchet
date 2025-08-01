@@ -6176,6 +6176,7 @@ func RegisterHandlers(router EchoRouter, si ServerInterface) {
 // Registers handlers, and prepends BaseURL to the paths, so that the paths
 // can be served under a prefix.
 func RegisterHandlersWithBaseURL(router EchoRouter, si ServerInterface, baseURL string) {
+
 	wrapper := ServerInterfaceWrapper{
 		Handler: si,
 	}
@@ -6299,42 +6300,49 @@ func RegisterHandlersWithBaseURL(router EchoRouter, si ServerInterface, baseURL 
 	router.GET(baseURL+"/api/v1/workflows/:workflow/metrics", wrapper.WorkflowGetMetrics)
 	router.POST(baseURL+"/api/v1/workflows/:workflow/trigger", wrapper.WorkflowRunCreate)
 	router.GET(baseURL+"/api/v1/workflows/:workflow/versions", wrapper.WorkflowVersionGet)
+
 }
 
-type LivenessGetRequestObject struct{}
+type LivenessGetRequestObject struct {
+}
 
 type LivenessGetResponseObject interface {
 	VisitLivenessGetResponse(w http.ResponseWriter) error
 }
 
-type LivenessGet200Response struct{}
+type LivenessGet200Response struct {
+}
 
 func (response LivenessGet200Response) VisitLivenessGetResponse(w http.ResponseWriter) error {
 	w.WriteHeader(200)
 	return nil
 }
 
-type LivenessGet500Response struct{}
+type LivenessGet500Response struct {
+}
 
 func (response LivenessGet500Response) VisitLivenessGetResponse(w http.ResponseWriter) error {
 	w.WriteHeader(500)
 	return nil
 }
 
-type ReadinessGetRequestObject struct{}
+type ReadinessGetRequestObject struct {
+}
 
 type ReadinessGetResponseObject interface {
 	VisitReadinessGetResponse(w http.ResponseWriter) error
 }
 
-type ReadinessGet200Response struct{}
+type ReadinessGet200Response struct {
+}
 
 func (response ReadinessGet200Response) VisitReadinessGetResponse(w http.ResponseWriter) error {
 	w.WriteHeader(200)
 	return nil
 }
 
-type ReadinessGet500Response struct{}
+type ReadinessGet500Response struct {
+}
 
 func (response ReadinessGet500Response) VisitReadinessGetResponse(w http.ResponseWriter) error {
 	w.WriteHeader(500)
@@ -6349,7 +6357,8 @@ type AlertEmailGroupDeleteResponseObject interface {
 	VisitAlertEmailGroupDeleteResponse(w http.ResponseWriter) error
 }
 
-type AlertEmailGroupDelete204Response struct{}
+type AlertEmailGroupDelete204Response struct {
+}
 
 func (response AlertEmailGroupDelete204Response) VisitAlertEmailGroupDeleteResponse(w http.ResponseWriter) error {
 	w.WriteHeader(204)
@@ -6418,7 +6427,8 @@ type ApiTokenUpdateRevokeResponseObject interface {
 	VisitApiTokenUpdateRevokeResponse(w http.ResponseWriter) error
 }
 
-type ApiTokenUpdateRevoke204Response struct{}
+type ApiTokenUpdateRevoke204Response struct {
+}
 
 func (response ApiTokenUpdateRevoke204Response) VisitApiTokenUpdateRevokeResponse(w http.ResponseWriter) error {
 	w.WriteHeader(204)
@@ -6443,7 +6453,8 @@ func (response ApiTokenUpdateRevoke403JSONResponse) VisitApiTokenUpdateRevokeRes
 	return json.NewEncoder(w).Encode(response)
 }
 
-type CloudMetadataGetRequestObject struct{}
+type CloudMetadataGetRequestObject struct {
+}
 
 type CloudMetadataGetResponseObject interface {
 	VisitCloudMetadataGetResponse(w http.ResponseWriter) error
@@ -6537,7 +6548,8 @@ func (response EventDataGet403JSONResponse) VisitEventDataGetResponse(w http.Res
 	return json.NewEncoder(w).Encode(response)
 }
 
-type MetadataGetRequestObject struct{}
+type MetadataGetRequestObject struct {
+}
 
 type MetadataGetResponseObject interface {
 	VisitMetadataGetResponse(w http.ResponseWriter) error
@@ -6561,7 +6573,8 @@ func (response MetadataGet400JSONResponse) VisitMetadataGetResponse(w http.Respo
 	return json.NewEncoder(w).Encode(response)
 }
 
-type MetadataListIntegrationsRequestObject struct{}
+type MetadataListIntegrationsRequestObject struct {
+}
 
 type MetadataListIntegrationsResponseObject interface {
 	VisitMetadataListIntegrationsResponse(w http.ResponseWriter) error
@@ -6593,7 +6606,8 @@ type MonitoringPostRunProbeResponseObject interface {
 	VisitMonitoringPostRunProbeResponse(w http.ResponseWriter) error
 }
 
-type MonitoringPostRunProbe200Response struct{}
+type MonitoringPostRunProbe200Response struct {
+}
 
 func (response MonitoringPostRunProbe200Response) VisitMonitoringPostRunProbeResponse(w http.ResponseWriter) error {
 	w.WriteHeader(200)
@@ -6617,7 +6631,8 @@ type SlackWebhookDeleteResponseObject interface {
 	VisitSlackWebhookDeleteResponse(w http.ResponseWriter) error
 }
 
-type SlackWebhookDelete204Response struct{}
+type SlackWebhookDelete204Response struct {
+}
 
 func (response SlackWebhookDelete204Response) VisitSlackWebhookDeleteResponse(w http.ResponseWriter) error {
 	w.WriteHeader(204)
@@ -6659,7 +6674,8 @@ type SnsDeleteResponseObject interface {
 	VisitSnsDeleteResponse(w http.ResponseWriter) error
 }
 
-type SnsDelete204Response struct{}
+type SnsDelete204Response struct {
+}
 
 func (response SnsDelete204Response) VisitSnsDeleteResponse(w http.ResponseWriter) error {
 	w.WriteHeader(204)
@@ -6702,7 +6718,8 @@ type SnsUpdateResponseObject interface {
 	VisitSnsUpdateResponse(w http.ResponseWriter) error
 }
 
-type SnsUpdate200Response struct{}
+type SnsUpdate200Response struct {
+}
 
 func (response SnsUpdate200Response) VisitSnsUpdateResponse(w http.ResponseWriter) error {
 	w.WriteHeader(200)
@@ -9600,7 +9617,8 @@ type WorkflowCronDeleteResponseObject interface {
 	VisitWorkflowCronDeleteResponse(w http.ResponseWriter) error
 }
 
-type WorkflowCronDelete204Response struct{}
+type WorkflowCronDelete204Response struct {
+}
 
 func (response WorkflowCronDelete204Response) VisitWorkflowCronDeleteResponse(w http.ResponseWriter) error {
 	w.WriteHeader(204)
@@ -9787,7 +9805,8 @@ type WorkflowScheduledDeleteResponseObject interface {
 	VisitWorkflowScheduledDeleteResponse(w http.ResponseWriter) error
 }
 
-type WorkflowScheduledDelete204Response struct{}
+type WorkflowScheduledDelete204Response struct {
+}
 
 func (response WorkflowScheduledDelete204Response) VisitWorkflowScheduledDeleteResponse(w http.ResponseWriter) error {
 	w.WriteHeader(204)
@@ -10003,7 +10022,8 @@ func (response WorkflowGetWorkersCount403JSONResponse) VisitWorkflowGetWorkersCo
 	return json.NewEncoder(w).Encode(response)
 }
 
-type UserGetCurrentRequestObject struct{}
+type UserGetCurrentRequestObject struct {
+}
 
 type UserGetCurrentResponseObject interface {
 	VisitUserGetCurrentResponse(w http.ResponseWriter) error
@@ -10045,7 +10065,8 @@ func (response UserGetCurrent405JSONResponse) VisitUserGetCurrentResponse(w http
 	return json.NewEncoder(w).Encode(response)
 }
 
-type UserUpdateGithubOauthCallbackRequestObject struct{}
+type UserUpdateGithubOauthCallbackRequestObject struct {
+}
 
 type UserUpdateGithubOauthCallbackResponseObject interface {
 	VisitUserUpdateGithubOauthCallbackResponse(w http.ResponseWriter) error
@@ -10065,7 +10086,8 @@ func (response UserUpdateGithubOauthCallback302Response) VisitUserUpdateGithubOa
 	return nil
 }
 
-type UserUpdateGithubOauthStartRequestObject struct{}
+type UserUpdateGithubOauthStartRequestObject struct {
+}
 
 type UserUpdateGithubOauthStartResponseObject interface {
 	VisitUserUpdateGithubOauthStartResponse(w http.ResponseWriter) error
@@ -10085,7 +10107,8 @@ func (response UserUpdateGithubOauthStart302Response) VisitUserUpdateGithubOauth
 	return nil
 }
 
-type UserUpdateGoogleOauthCallbackRequestObject struct{}
+type UserUpdateGoogleOauthCallbackRequestObject struct {
+}
 
 type UserUpdateGoogleOauthCallbackResponseObject interface {
 	VisitUserUpdateGoogleOauthCallbackResponse(w http.ResponseWriter) error
@@ -10105,7 +10128,8 @@ func (response UserUpdateGoogleOauthCallback302Response) VisitUserUpdateGoogleOa
 	return nil
 }
 
-type UserUpdateGoogleOauthStartRequestObject struct{}
+type UserUpdateGoogleOauthStartRequestObject struct {
+}
 
 type UserUpdateGoogleOauthStartResponseObject interface {
 	VisitUserUpdateGoogleOauthStartResponse(w http.ResponseWriter) error
@@ -10125,7 +10149,8 @@ func (response UserUpdateGoogleOauthStart302Response) VisitUserUpdateGoogleOauth
 	return nil
 }
 
-type UserListTenantInvitesRequestObject struct{}
+type UserListTenantInvitesRequestObject struct {
+}
 
 type UserListTenantInvitesResponseObject interface {
 	VisitUserListTenantInvitesResponse(w http.ResponseWriter) error
@@ -10166,7 +10191,8 @@ type TenantInviteAcceptResponseObject interface {
 	VisitTenantInviteAcceptResponse(w http.ResponseWriter) error
 }
 
-type TenantInviteAccept200Response struct{}
+type TenantInviteAccept200Response struct {
+}
 
 func (response TenantInviteAccept200Response) VisitTenantInviteAcceptResponse(w http.ResponseWriter) error {
 	w.WriteHeader(200)
@@ -10199,7 +10225,8 @@ type TenantInviteRejectResponseObject interface {
 	VisitTenantInviteRejectResponse(w http.ResponseWriter) error
 }
 
-type TenantInviteReject200Response struct{}
+type TenantInviteReject200Response struct {
+}
 
 func (response TenantInviteReject200Response) VisitTenantInviteRejectResponse(w http.ResponseWriter) error {
 	w.WriteHeader(200)
@@ -10268,7 +10295,8 @@ func (response UserUpdateLogin405JSONResponse) VisitUserUpdateLoginResponse(w ht
 	return json.NewEncoder(w).Encode(response)
 }
 
-type UserUpdateLogoutRequestObject struct{}
+type UserUpdateLogoutRequestObject struct {
+}
 
 type UserUpdateLogoutResponseObject interface {
 	VisitUserUpdateLogoutResponse(w http.ResponseWriter) error
@@ -10310,7 +10338,8 @@ func (response UserUpdateLogout405JSONResponse) VisitUserUpdateLogoutResponse(w 
 	return json.NewEncoder(w).Encode(response)
 }
 
-type TenantMembershipsListRequestObject struct{}
+type TenantMembershipsListRequestObject struct {
+}
 
 type TenantMembershipsListResponseObject interface {
 	VisitTenantMembershipsListResponse(w http.ResponseWriter) error
@@ -10431,7 +10460,8 @@ func (response UserCreate405JSONResponse) VisitUserCreateResponse(w http.Respons
 	return json.NewEncoder(w).Encode(response)
 }
 
-type UserUpdateSlackOauthCallbackRequestObject struct{}
+type UserUpdateSlackOauthCallbackRequestObject struct {
+}
 
 type UserUpdateSlackOauthCallbackResponseObject interface {
 	VisitUserUpdateSlackOauthCallbackResponse(w http.ResponseWriter) error
@@ -10451,7 +10481,8 @@ func (response UserUpdateSlackOauthCallback302Response) VisitUserUpdateSlackOaut
 	return nil
 }
 
-type InfoGetVersionRequestObject struct{}
+type InfoGetVersionRequestObject struct {
+}
 
 type InfoGetVersionResponseObject interface {
 	VisitInfoGetVersionResponse(w http.ResponseWriter) error
@@ -10476,7 +10507,8 @@ type WebhookDeleteResponseObject interface {
 	VisitWebhookDeleteResponse(w http.ResponseWriter) error
 }
 
-type WebhookDelete200Response struct{}
+type WebhookDelete200Response struct {
+}
 
 func (response WebhookDelete200Response) VisitWebhookDeleteResponse(w http.ResponseWriter) error {
 	w.WriteHeader(200)
@@ -10633,7 +10665,8 @@ type WorkflowDeleteResponseObject interface {
 	VisitWorkflowDeleteResponse(w http.ResponseWriter) error
 }
 
-type WorkflowDelete204Response struct{}
+type WorkflowDelete204Response struct {
+}
 
 func (response WorkflowDelete204Response) VisitWorkflowDeleteResponse(w http.ResponseWriter) error {
 	w.WriteHeader(204)
@@ -13958,6 +13991,7 @@ func (sh *strictHandler) WorkflowVersionGet(ctx echo.Context, workflow openapi_t
 
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
+
 	"H4sIAAAAAAAC/+y9e2/bONYw/lUI/37AuwvYuXU6zzwB3j/SxO14myZZO2mxzzxFlpYYmxNZ8ohUUm/R",
 	"7/6CN4mSSInyLXYjYLGTWrwcHp4bDw/P+d7xotk8ClFISef0e4d4UzSD/M+zm0E/jqOY/T2PozmKKUb8",
 	"ixf5iP3XR8SL8ZziKOycdiDwEkKjGfgdUm+KKECsN+CNux30Dc7mAeqcHv9ydNTtPETxDNLOaSfBIf31",

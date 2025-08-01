@@ -8,7 +8,6 @@ package contracts
 
 import (
 	context "context"
-
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
@@ -96,24 +95,21 @@ type EventsServiceServer interface {
 }
 
 // UnimplementedEventsServiceServer must be embedded to have forward compatible implementations.
-type UnimplementedEventsServiceServer struct{}
+type UnimplementedEventsServiceServer struct {
+}
 
 func (UnimplementedEventsServiceServer) Push(context.Context, *PushEventRequest) (*Event, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Push not implemented")
 }
-
 func (UnimplementedEventsServiceServer) BulkPush(context.Context, *BulkPushEventRequest) (*Events, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method BulkPush not implemented")
 }
-
 func (UnimplementedEventsServiceServer) ReplaySingleEvent(context.Context, *ReplayEventRequest) (*Event, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ReplaySingleEvent not implemented")
 }
-
 func (UnimplementedEventsServiceServer) PutLog(context.Context, *PutLogRequest) (*PutLogResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method PutLog not implemented")
 }
-
 func (UnimplementedEventsServiceServer) PutStreamEvent(context.Context, *PutStreamEventRequest) (*PutStreamEventResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method PutStreamEvent not implemented")
 }

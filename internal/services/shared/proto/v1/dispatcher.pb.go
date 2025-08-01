@@ -7,11 +7,10 @@
 package v1
 
 import (
-	reflect "reflect"
-	sync "sync"
-
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
+	reflect "reflect"
+	sync "sync"
 )
 
 const (
@@ -301,17 +300,14 @@ func file_v1_dispatcher_proto_rawDescGZIP() []byte {
 	return file_v1_dispatcher_proto_rawDescData
 }
 
-var (
-	file_v1_dispatcher_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
-	file_v1_dispatcher_proto_goTypes  = []interface{}{
-		(*RegisterDurableEventRequest)(nil),    // 0: v1.RegisterDurableEventRequest
-		(*RegisterDurableEventResponse)(nil),   // 1: v1.RegisterDurableEventResponse
-		(*ListenForDurableEventRequest)(nil),   // 2: v1.ListenForDurableEventRequest
-		(*DurableEvent)(nil),                   // 3: v1.DurableEvent
-		(*DurableEventListenerConditions)(nil), // 4: v1.DurableEventListenerConditions
-	}
-)
-
+var file_v1_dispatcher_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
+var file_v1_dispatcher_proto_goTypes = []interface{}{
+	(*RegisterDurableEventRequest)(nil),    // 0: v1.RegisterDurableEventRequest
+	(*RegisterDurableEventResponse)(nil),   // 1: v1.RegisterDurableEventResponse
+	(*ListenForDurableEventRequest)(nil),   // 2: v1.ListenForDurableEventRequest
+	(*DurableEvent)(nil),                   // 3: v1.DurableEvent
+	(*DurableEventListenerConditions)(nil), // 4: v1.DurableEventListenerConditions
+}
 var file_v1_dispatcher_proto_depIdxs = []int32{
 	4, // 0: v1.RegisterDurableEventRequest.conditions:type_name -> v1.DurableEventListenerConditions
 	0, // 1: v1.V1Dispatcher.RegisterDurableEvent:input_type -> v1.RegisterDurableEventRequest

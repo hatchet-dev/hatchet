@@ -23,4 +23,5 @@ func New() *Queries {
 	return &Queries{}
 }
 
-type Queries struct{}
+type Queries struct {
+}

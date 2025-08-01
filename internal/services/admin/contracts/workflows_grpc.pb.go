@@ -8,7 +8,6 @@ package contracts
 
 import (
 	context "context"
-
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
@@ -96,24 +95,21 @@ type WorkflowServiceServer interface {
 }
 
 // UnimplementedWorkflowServiceServer must be embedded to have forward compatible implementations.
-type UnimplementedWorkflowServiceServer struct{}
+type UnimplementedWorkflowServiceServer struct {
+}
 
 func (UnimplementedWorkflowServiceServer) PutWorkflow(context.Context, *PutWorkflowRequest) (*WorkflowVersion, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method PutWorkflow not implemented")
 }
-
 func (UnimplementedWorkflowServiceServer) ScheduleWorkflow(context.Context, *ScheduleWorkflowRequest) (*WorkflowVersion, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ScheduleWorkflow not implemented")
 }
-
 func (UnimplementedWorkflowServiceServer) TriggerWorkflow(context.Context, *TriggerWorkflowRequest) (*TriggerWorkflowResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method TriggerWorkflow not implemented")
 }
-
 func (UnimplementedWorkflowServiceServer) BulkTriggerWorkflow(context.Context, *BulkTriggerWorkflowRequest) (*BulkTriggerWorkflowResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method BulkTriggerWorkflow not implemented")
 }
-
 func (UnimplementedWorkflowServiceServer) PutRateLimit(context.Context, *PutRateLimitRequest) (*PutRateLimitResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method PutRateLimit not implemented")
 }

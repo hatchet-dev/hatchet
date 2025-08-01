@@ -200,6 +200,8 @@ tasks:
     deps:
       - install-go-tools
     cmds:
+      - go mod tidy
+      - gofumpt -w .
       - pre-commit run --all-files || pre-commit run --all-files
   docs:
     cmds:

@@ -7,12 +7,11 @@
 package contracts
 
 import (
-	reflect "reflect"
-	sync "sync"
-
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
+	reflect "reflect"
+	sync "sync"
 )
 
 const (
@@ -2695,49 +2694,46 @@ func file_dispatcher_proto_rawDescGZIP() []byte {
 	return file_dispatcher_proto_rawDescData
 }
 
-var (
-	file_dispatcher_proto_enumTypes = make([]protoimpl.EnumInfo, 7)
-	file_dispatcher_proto_msgTypes  = make([]protoimpl.MessageInfo, 28)
-	file_dispatcher_proto_goTypes   = []interface{}{
-		(SDKS)(0),                                // 0: SDKS
-		(ActionType)(0),                          // 1: ActionType
-		(GroupKeyActionEventType)(0),             // 2: GroupKeyActionEventType
-		(StepActionEventType)(0),                 // 3: StepActionEventType
-		(ResourceType)(0),                        // 4: ResourceType
-		(ResourceEventType)(0),                   // 5: ResourceEventType
-		(WorkflowRunEventType)(0),                // 6: WorkflowRunEventType
-		(*WorkerLabels)(nil),                     // 7: WorkerLabels
-		(*RuntimeInfo)(nil),                      // 8: RuntimeInfo
-		(*WorkerRegisterRequest)(nil),            // 9: WorkerRegisterRequest
-		(*WorkerRegisterResponse)(nil),           // 10: WorkerRegisterResponse
-		(*UpsertWorkerLabelsRequest)(nil),        // 11: UpsertWorkerLabelsRequest
-		(*UpsertWorkerLabelsResponse)(nil),       // 12: UpsertWorkerLabelsResponse
-		(*AssignedAction)(nil),                   // 13: AssignedAction
-		(*WorkerListenRequest)(nil),              // 14: WorkerListenRequest
-		(*WorkerUnsubscribeRequest)(nil),         // 15: WorkerUnsubscribeRequest
-		(*WorkerUnsubscribeResponse)(nil),        // 16: WorkerUnsubscribeResponse
-		(*GroupKeyActionEvent)(nil),              // 17: GroupKeyActionEvent
-		(*StepActionEvent)(nil),                  // 18: StepActionEvent
-		(*ActionEventResponse)(nil),              // 19: ActionEventResponse
-		(*SubscribeToWorkflowEventsRequest)(nil), // 20: SubscribeToWorkflowEventsRequest
-		(*SubscribeToWorkflowRunsRequest)(nil),   // 21: SubscribeToWorkflowRunsRequest
-		(*WorkflowEvent)(nil),                    // 22: WorkflowEvent
-		(*WorkflowRunEvent)(nil),                 // 23: WorkflowRunEvent
-		(*StepRunResult)(nil),                    // 24: StepRunResult
-		(*OverridesData)(nil),                    // 25: OverridesData
-		(*OverridesDataResponse)(nil),            // 26: OverridesDataResponse
-		(*HeartbeatRequest)(nil),                 // 27: HeartbeatRequest
-		(*HeartbeatResponse)(nil),                // 28: HeartbeatResponse
-		(*RefreshTimeoutRequest)(nil),            // 29: RefreshTimeoutRequest
-		(*RefreshTimeoutResponse)(nil),           // 30: RefreshTimeoutResponse
-		(*ReleaseSlotRequest)(nil),               // 31: ReleaseSlotRequest
-		(*ReleaseSlotResponse)(nil),              // 32: ReleaseSlotResponse
-		nil,                                      // 33: WorkerRegisterRequest.LabelsEntry
-		nil,                                      // 34: UpsertWorkerLabelsRequest.LabelsEntry
-		(*timestamppb.Timestamp)(nil),            // 35: google.protobuf.Timestamp
-	}
-)
-
+var file_dispatcher_proto_enumTypes = make([]protoimpl.EnumInfo, 7)
+var file_dispatcher_proto_msgTypes = make([]protoimpl.MessageInfo, 28)
+var file_dispatcher_proto_goTypes = []interface{}{
+	(SDKS)(0),                                // 0: SDKS
+	(ActionType)(0),                          // 1: ActionType
+	(GroupKeyActionEventType)(0),             // 2: GroupKeyActionEventType
+	(StepActionEventType)(0),                 // 3: StepActionEventType
+	(ResourceType)(0),                        // 4: ResourceType
+	(ResourceEventType)(0),                   // 5: ResourceEventType
+	(WorkflowRunEventType)(0),                // 6: WorkflowRunEventType
+	(*WorkerLabels)(nil),                     // 7: WorkerLabels
+	(*RuntimeInfo)(nil),                      // 8: RuntimeInfo
+	(*WorkerRegisterRequest)(nil),            // 9: WorkerRegisterRequest
+	(*WorkerRegisterResponse)(nil),           // 10: WorkerRegisterResponse
+	(*UpsertWorkerLabelsRequest)(nil),        // 11: UpsertWorkerLabelsRequest
+	(*UpsertWorkerLabelsResponse)(nil),       // 12: UpsertWorkerLabelsResponse
+	(*AssignedAction)(nil),                   // 13: AssignedAction
+	(*WorkerListenRequest)(nil),              // 14: WorkerListenRequest
+	(*WorkerUnsubscribeRequest)(nil),         // 15: WorkerUnsubscribeRequest
+	(*WorkerUnsubscribeResponse)(nil),        // 16: WorkerUnsubscribeResponse
+	(*GroupKeyActionEvent)(nil),              // 17: GroupKeyActionEvent
+	(*StepActionEvent)(nil),                  // 18: StepActionEvent
+	(*ActionEventResponse)(nil),              // 19: ActionEventResponse
+	(*SubscribeToWorkflowEventsRequest)(nil), // 20: SubscribeToWorkflowEventsRequest
+	(*SubscribeToWorkflowRunsRequest)(nil),   // 21: SubscribeToWorkflowRunsRequest
+	(*WorkflowEvent)(nil),                    // 22: WorkflowEvent
+	(*WorkflowRunEvent)(nil),                 // 23: WorkflowRunEvent
+	(*StepRunResult)(nil),                    // 24: StepRunResult
+	(*OverridesData)(nil),                    // 25: OverridesData
+	(*OverridesDataResponse)(nil),            // 26: OverridesDataResponse
+	(*HeartbeatRequest)(nil),                 // 27: HeartbeatRequest
+	(*HeartbeatResponse)(nil),                // 28: HeartbeatResponse
+	(*RefreshTimeoutRequest)(nil),            // 29: RefreshTimeoutRequest
+	(*RefreshTimeoutResponse)(nil),           // 30: RefreshTimeoutResponse
+	(*ReleaseSlotRequest)(nil),               // 31: ReleaseSlotRequest
+	(*ReleaseSlotResponse)(nil),              // 32: ReleaseSlotResponse
+	nil,                                      // 33: WorkerRegisterRequest.LabelsEntry
+	nil,                                      // 34: UpsertWorkerLabelsRequest.LabelsEntry
+	(*timestamppb.Timestamp)(nil),            // 35: google.protobuf.Timestamp
+}
 var file_dispatcher_proto_depIdxs = []int32{
 	0,  // 0: RuntimeInfo.language:type_name -> SDKS
 	33, // 1: WorkerRegisterRequest.labels:type_name -> WorkerRegisterRequest.LabelsEntry
