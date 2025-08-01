@@ -1,4 +1,4 @@
--- name: CreateIdempotencyKey :one
+-- name: CreateIdempotencyKey :exec
 INSERT INTO v1_idempotency_key (
     tenant_id,
     key,
@@ -18,21 +18,27 @@ WHERE
     AND expires_at < (NOW() - INTERVAL '1 minute')
 ;
 
--- name: ClaimIdempotencyKey :one
-WITH claim AS (
-    UPDATE v1_idempotency_key
+-- name: ClaimIdempotencyKeys :many
+WITH inputs AS (
+    SELECT
+        UNNEST(@keys::TEXT[]) AS key,
+        UNNEST(@claimedByExternalIds::UUID[]) AS claimed_by_external_id
+), claims AS (
+    UPDATE v1_idempotency_key k
     SET
-        claimed_by_external_id = @claimedByExternalId::UUID,
+        claimed_by_external_id = i.claimed_by_external_id,
         updated_at = NOW()
+    FROM inputs i
     WHERE
-        tenant_id = @tenantId::UUID
-        AND key = @key::TEXT
-        AND claimed_by_external_id IS NULL
-    RETURNING 1
+        k.tenant_id = @tenantId::UUID
+        AND k.key = i.key
+        AND k.claimed_by_external_id IS NULL
+    RETURNING k.key, k.claimed_by_external_id
 )
 
-SELECT NOT EXISTS (
-    SELECT 1
-    FROM claim
-) AS already_claimed
+SELECT key::TEXT AS key, key NOT IN (
+    SELECT key
+    FROM claims
+) AS was_already_claimed
+FROM inputs
 ;

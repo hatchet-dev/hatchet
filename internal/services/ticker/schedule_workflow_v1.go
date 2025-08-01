@@ -16,16 +16,13 @@ import (
 
 func (t *TickerImpl) runScheduledWorkflowV1(ctx context.Context, tenantId string, workflowVersion *dbsqlc.GetWorkflowVersionForEngineRow, scheduledWorkflowId string, scheduled *dbsqlc.PollScheduledWorkflowsRow) error {
 	expiresAt := scheduled.TriggerAt.Time.Add(time.Second * 30)
-	alreadyExisted, err := t.repov1.Idempotency().CreateIdempotencyKey(ctx, tenantId, scheduledWorkflowId, sqlchelpers.TimestamptzFromTime(expiresAt))
+	err := t.repov1.Idempotency().CreateIdempotencyKey(ctx, tenantId, scheduledWorkflowId, sqlchelpers.TimestamptzFromTime(expiresAt))
 
 	if err != nil {
 		return fmt.Errorf("could not check if idempotency key is filled: %w", err)
 	}
 
-	if alreadyExisted {
-		t.l.Debug().Msgf("idempotency key %s already existed, skipping workflow run", scheduledWorkflowId)
-		return nil
-	}
+	key := v1.IdempotencyKey(scheduledWorkflowId)
 
 	// send workflow run to task controller
 	opt := &v1.WorkflowNameTriggerOpts{
@@ -35,8 +32,9 @@ func (t *TickerImpl) runScheduledWorkflowV1(ctx context.Context, tenantId string
 			AdditionalMetadata: scheduled.AdditionalMetadata,
 			Priority:           &scheduled.Priority,
 		},
-		ExternalId: uuid.NewString(),
-		ShouldSkip: false,
+		IdempotencyKey: &key,
+		ExternalId:     uuid.NewString(),
+		ShouldSkip:     false,
 	}
 
 	msg, err := tasktypes.TriggerTaskMessage(

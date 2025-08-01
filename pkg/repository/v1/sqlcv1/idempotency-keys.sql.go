@@ -11,36 +11,60 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const claimIdempotencyKey = `-- name: ClaimIdempotencyKey :one
-WITH claim AS (
-    UPDATE v1_idempotency_key
+const claimIdempotencyKeys = `-- name: ClaimIdempotencyKeys :many
+WITH inputs AS (
+    SELECT
+        UNNEST($1::TEXT[]) AS key,
+        UNNEST($2::UUID[]) AS claimed_by_external_id
+), claims AS (
+    UPDATE v1_idempotency_key k
     SET
-        claimed_by_external_id = $1::UUID,
+        claimed_by_external_id = i.claimed_by_external_id,
         updated_at = NOW()
+    FROM inputs i
     WHERE
-        tenant_id = $2::UUID
-        AND key = $3::TEXT
-        AND claimed_by_external_id IS NULL
-    RETURNING 1
+        k.tenant_id = $3::UUID
+        AND k.key = i.key
+        AND k.claimed_by_external_id IS NULL
+    RETURNING k.key, k.claimed_by_external_id
 )
 
-SELECT NOT EXISTS (
-    SELECT 1
-    FROM claim
-) AS already_claimed
+SELECT key::TEXT AS key, key NOT IN (
+    SELECT key
+    FROM claims
+) AS was_already_claimed
+FROM inputs
 `
 
-type ClaimIdempotencyKeyParams struct {
-	Claimedbyexternalid pgtype.UUID `json:"claimedbyexternalid"`
-	Tenantid            pgtype.UUID `json:"tenantid"`
-	Key                 string      `json:"key"`
+type ClaimIdempotencyKeysParams struct {
+	Keys                 []string      `json:"keys"`
+	Claimedbyexternalids []pgtype.UUID `json:"claimedbyexternalids"`
+	Tenantid             pgtype.UUID   `json:"tenantid"`
 }
 
-func (q *Queries) ClaimIdempotencyKey(ctx context.Context, db DBTX, arg ClaimIdempotencyKeyParams) (bool, error) {
-	row := db.QueryRow(ctx, claimIdempotencyKey, arg.Claimedbyexternalid, arg.Tenantid, arg.Key)
-	var already_claimed bool
-	err := row.Scan(&already_claimed)
-	return already_claimed, err
+type ClaimIdempotencyKeysRow struct {
+	Key               string      `json:"key"`
+	WasAlreadyClaimed pgtype.Bool `json:"was_already_claimed"`
+}
+
+func (q *Queries) ClaimIdempotencyKeys(ctx context.Context, db DBTX, arg ClaimIdempotencyKeysParams) ([]*ClaimIdempotencyKeysRow, error) {
+	rows, err := db.Query(ctx, claimIdempotencyKeys, arg.Keys, arg.Claimedbyexternalids, arg.Tenantid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ClaimIdempotencyKeysRow
+	for rows.Next() {
+		var i ClaimIdempotencyKeysRow
+		if err := rows.Scan(&i.Key, &i.WasAlreadyClaimed); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const cleanUpExpiredIdempotencyKeys = `-- name: CleanUpExpiredIdempotencyKeys :exec
@@ -55,7 +79,7 @@ func (q *Queries) CleanUpExpiredIdempotencyKeys(ctx context.Context, db DBTX, te
 	return err
 }
 
-const createIdempotencyKey = `-- name: CreateIdempotencyKey :one
+const createIdempotencyKey = `-- name: CreateIdempotencyKey :exec
 INSERT INTO v1_idempotency_key (
     tenant_id,
     key,
@@ -75,16 +99,7 @@ type CreateIdempotencyKeyParams struct {
 	Expiresat pgtype.Timestamptz `json:"expiresat"`
 }
 
-func (q *Queries) CreateIdempotencyKey(ctx context.Context, db DBTX, arg CreateIdempotencyKeyParams) (*V1IdempotencyKey, error) {
-	row := db.QueryRow(ctx, createIdempotencyKey, arg.Tenantid, arg.Key, arg.Expiresat)
-	var i V1IdempotencyKey
-	err := row.Scan(
-		&i.TenantID,
-		&i.Key,
-		&i.ExpiresAt,
-		&i.ClaimedByExternalID,
-		&i.InsertedAt,
-		&i.UpdatedAt,
-	)
-	return &i, err
+func (q *Queries) CreateIdempotencyKey(ctx context.Context, db DBTX, arg CreateIdempotencyKeyParams) error {
+	_, err := db.Exec(ctx, createIdempotencyKey, arg.Tenantid, arg.Key, arg.Expiresat)
+	return err
 }
