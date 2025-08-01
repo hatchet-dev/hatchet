@@ -128,13 +128,13 @@ func (t *WorkflowService) WorkflowRunCreate(ctx echo.Context, request gen.Workfl
 		if ok {
 			correlationId, ok := correlationIdInterface.(string)
 			if ok {
-				ctx.Set(string(constants.CorrelationIdKey), correlationId)
+				ctx.Set(constants.CorrelationIdKey.String(), correlationId)
 			}
 		}
 	}
 
-	ctx.Set(string(constants.ResourceIdKey), createdWorkflowRun.ID.String())
-	ctx.Set(string(constants.ResourceTypeKey), string(constants.ResourceTypeWorkflowRun))
+	ctx.Set(constants.ResourceIdKey.String(), createdWorkflowRun.ID.String())
+	ctx.Set(constants.ResourceTypeKey.String(), constants.ResourceTypeWorkflowRun.String())
 
 	return gen.WorkflowRunCreate200JSONResponse(
 		*res,

@@ -94,8 +94,8 @@ func (u *UserService) TenantInviteAccept(ctx echo.Context, request gen.TenantInv
 		nil,
 	)
 
-	ctx.Set(string(constants.ResourceIdKey), inviteId)
-	ctx.Set(string(constants.ResourceTypeKey), string(constants.ResourceTypeTenantInvite))
+	ctx.Set(constants.ResourceIdKey.String(), inviteId)
+	ctx.Set(constants.ResourceTypeKey.String(), constants.ResourceTypeTenantInvite.String())
 
 	return nil, nil
 }

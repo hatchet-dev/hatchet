@@ -43,8 +43,8 @@ func (a *APITokenService) ApiTokenCreate(ctx echo.Context, request gen.ApiTokenC
 		return nil, err
 	}
 
-	ctx.Set(string(constants.ResourceIdKey), token.TokenId)
-	ctx.Set(string(constants.ResourceTypeKey), string(constants.ResourceTypeApiToken))
+	ctx.Set(constants.ResourceIdKey.String(), token.TokenId)
+	ctx.Set(constants.ResourceTypeKey.String(), constants.ResourceTypeApiToken.String())
 
 	// This is the only time the token is sent over the API
 	return gen.ApiTokenCreate200JSONResponse{

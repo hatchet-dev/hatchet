@@ -46,12 +46,12 @@ func (t *WorkflowService) ScheduledWorkflowRunCreate(ctx echo.Context, request g
 	if ok {
 		correlationId, ok := correlationIdInterface.(string)
 		if ok {
-			ctx.Set(string(constants.CorrelationIdKey), correlationId)
+			ctx.Set(constants.CorrelationIdKey.String(), correlationId)
 		}
 	}
 
-	ctx.Set(string(constants.ResourceIdKey), scheduled.ID.String())
-	ctx.Set(string(constants.ResourceTypeKey), "scheduled-workflow")
+	ctx.Set(constants.ResourceIdKey.String(), scheduled.ID.String())
+	ctx.Set(constants.ResourceTypeKey.String(), constants.ResourceTypeScheduledWorkflow.String())
 
 	return gen.ScheduledWorkflowRunCreate200JSONResponse(
 		*transformers.ToScheduledWorkflowsFromSQLC(scheduled),
