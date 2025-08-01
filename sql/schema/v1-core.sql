@@ -462,6 +462,7 @@ CREATE TABLE v1_match (
     -- references the existing task id, which may be set when we're replaying a task
     trigger_existing_task_id bigint,
     trigger_existing_task_inserted_at timestamptz,
+    trigger_priority integer,
     CONSTRAINT v1_match_pkey PRIMARY KEY (id)
 );
 
