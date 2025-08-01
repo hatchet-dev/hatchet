@@ -1,28 +1,20 @@
 -- name: CreateIdempotencyKey :one
-INSERT INTO v1_idempotency_key (
-    tenant_id,
-    key,
-    expires_at
-)
-VALUES (
-    @tenantId::UUID,
-    @key::TEXT,
-    @expiresAt::TIMESTAMPTZ
-)
-RETURNING *;
-
--- name: FillIdempotencyKey :one
-WITH updated AS (
-    UPDATE v1_idempotency_key
-    SET
-        is_filled = TRUE,
-        updated_at = NOW()
-    WHERE
-        tenant_id = @tenantId::UUID
-        AND key = @key::TEXT
-        AND is_filled = FALSE
-    RETURNING *
+WITH upserted AS (
+    INSERT INTO v1_idempotency_key (
+        tenant_id,
+        key,
+        expires_at
+    )
+    VALUES (
+        @tenantId::UUID,
+        @key::TEXT,
+        @expiresAt::TIMESTAMPTZ
+    )
+    ON CONFLICT (tenant_id, key, expires_at) DO NOTHING
+    RETURNING 1
 )
 
-SELECT COUNT(*) > 0 AS successfully_filled
-FROM updated;
+SELECT NOT EXISTS (
+    SELECT 1
+    FROM upserted
+) AS already_existed;

@@ -12,17 +12,25 @@ import (
 )
 
 const createIdempotencyKey = `-- name: CreateIdempotencyKey :one
-INSERT INTO v1_idempotency_key (
-    tenant_id,
-    key,
-    expires_at
+WITH upserted AS (
+    INSERT INTO v1_idempotency_key (
+        tenant_id,
+        key,
+        expires_at
+    )
+    VALUES (
+        $1::UUID,
+        $2::TEXT,
+        $3::TIMESTAMPTZ
+    )
+    ON CONFLICT (tenant_id, key, expires_at) DO NOTHING
+    RETURNING 1
 )
-VALUES (
-    $1::UUID,
-    $2::TEXT,
-    $3::TIMESTAMPTZ
-)
-RETURNING tenant_id, key, is_filled, expires_at, inserted_at, updated_at
+
+SELECT NOT EXISTS (
+    SELECT 1
+    FROM upserted
+) AS already_existed
 `
 
 type CreateIdempotencyKeyParams struct {
@@ -31,45 +39,9 @@ type CreateIdempotencyKeyParams struct {
 	Expiresat pgtype.Timestamptz `json:"expiresat"`
 }
 
-func (q *Queries) CreateIdempotencyKey(ctx context.Context, db DBTX, arg CreateIdempotencyKeyParams) (*V1IdempotencyKey, error) {
+func (q *Queries) CreateIdempotencyKey(ctx context.Context, db DBTX, arg CreateIdempotencyKeyParams) (bool, error) {
 	row := db.QueryRow(ctx, createIdempotencyKey, arg.Tenantid, arg.Key, arg.Expiresat)
-	var i V1IdempotencyKey
-	err := row.Scan(
-		&i.TenantID,
-		&i.Key,
-		&i.IsFilled,
-		&i.ExpiresAt,
-		&i.InsertedAt,
-		&i.UpdatedAt,
-	)
-	return &i, err
-}
-
-const fillIdempotencyKey = `-- name: FillIdempotencyKey :one
-WITH updated AS (
-    UPDATE v1_idempotency_key
-    SET
-        is_filled = TRUE,
-        updated_at = NOW()
-    WHERE
-        tenant_id = $1::UUID
-        AND key = $2::TEXT
-        AND is_filled = FALSE
-    RETURNING tenant_id, key, is_filled, expires_at, inserted_at, updated_at
-)
-
-SELECT COUNT(*) > 0 AS successfully_filled
-FROM updated
-`
-
-type FillIdempotencyKeyParams struct {
-	Tenantid pgtype.UUID `json:"tenantid"`
-	Key      string      `json:"key"`
-}
-
-func (q *Queries) FillIdempotencyKey(ctx context.Context, db DBTX, arg FillIdempotencyKeyParams) (bool, error) {
-	row := db.QueryRow(ctx, fillIdempotencyKey, arg.Tenantid, arg.Key)
-	var successfully_filled bool
-	err := row.Scan(&successfully_filled)
-	return successfully_filled, err
+	var already_existed bool
+	err := row.Scan(&already_existed)
+	return already_existed, err
 }

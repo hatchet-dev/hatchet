@@ -9,8 +9,7 @@ import (
 )
 
 type IdempotencyRepository interface {
-	CreateIdempotencyKey(context context.Context, tenantId, key string, expiresAt pgtype.Timestamptz) (*sqlcv1.V1IdempotencyKey, error)
-	FillIdempotencyKey(context context.Context, tenantId, key string) (bool, error)
+	CreateIdempotencyKey(context context.Context, tenantId, key string, expiresAt pgtype.Timestamptz) (bool, error)
 }
 
 type idempotencyRepository struct {
@@ -23,17 +22,10 @@ func newIdempotencyRepository(shared *sharedRepository) IdempotencyRepository {
 	}
 }
 
-func (r *idempotencyRepository) CreateIdempotencyKey(context context.Context, tenantId, key string, expiresAt pgtype.Timestamptz) (*sqlcv1.V1IdempotencyKey, error) {
+func (r *idempotencyRepository) CreateIdempotencyKey(context context.Context, tenantId, key string, expiresAt pgtype.Timestamptz) (bool, error) {
 	return r.queries.CreateIdempotencyKey(context, r.pool, sqlcv1.CreateIdempotencyKeyParams{
 		Tenantid:  sqlchelpers.UUIDFromStr(tenantId),
 		Key:       key,
 		Expiresat: expiresAt,
-	})
-}
-
-func (r *idempotencyRepository) FillIdempotencyKey(context context.Context, tenantId, key string) (bool, error) {
-	return r.queries.FillIdempotencyKey(context, r.pool, sqlcv1.FillIdempotencyKeyParams{
-		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
-		Key:      key,
 	})
 }

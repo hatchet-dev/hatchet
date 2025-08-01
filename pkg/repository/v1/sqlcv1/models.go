@@ -2790,7 +2790,6 @@ type V1Filter struct {
 type V1IdempotencyKey struct {
 	TenantID   pgtype.UUID        `json:"tenant_id"`
 	Key        string             `json:"key"`
-	IsFilled   bool               `json:"is_filled"`
 	ExpiresAt  pgtype.Timestamptz `json:"expires_at"`
 	InsertedAt pgtype.Timestamptz `json:"inserted_at"`
 	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`

@@ -1603,12 +1603,11 @@ CREATE TABLE v1_durable_sleep (
 CREATE TABLE v1_idempotency_key (
     tenant_id UUID NOT NULL,
     key TEXT NOT NULL,
-    is_filled BOOLEAN NOT NULL DEFAULT FALSE,
     expires_at TIMESTAMPTZ NOT NULL,
     inserted_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    PRIMARY KEY (tenant_id, key, inserted_at)
-) PARTITION BY RANGE(inserted_at);
+    PRIMARY KEY (tenant_id, key, expires_at)
+) PARTITION BY RANGE(expires_at);
 
 CREATE INDEX v1_idempotency_key_expires_at_idx ON v1_idempotency_key (tenant_id, expires_at DESC);
