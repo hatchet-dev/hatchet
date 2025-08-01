@@ -11,6 +11,28 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const checkIfIdempotencyKeyFilled = `-- name: CheckIfIdempotencyKeyFilled :one
+SELECT EXISTS (
+    SELECT 1
+    FROM v1_idempotency_key
+    WHERE tenant_id = $1::UUID
+      AND key = $2::TEXT
+      AND is_filled = TRUE
+)::BOOLEAN AS is_filled
+`
+
+type CheckIfIdempotencyKeyFilledParams struct {
+	Tenantid pgtype.UUID `json:"tenantid"`
+	Key      string      `json:"key"`
+}
+
+func (q *Queries) CheckIfIdempotencyKeyFilled(ctx context.Context, db DBTX, arg CheckIfIdempotencyKeyFilledParams) (bool, error) {
+	row := db.QueryRow(ctx, checkIfIdempotencyKeyFilled, arg.Tenantid, arg.Key)
+	var is_filled bool
+	err := row.Scan(&is_filled)
+	return is_filled, err
+}
+
 const createIdempotencyKey = `-- name: CreateIdempotencyKey :one
 INSERT INTO v1_idempotency_key (
     tenant_id,

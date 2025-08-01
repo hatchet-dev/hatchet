@@ -18,3 +18,12 @@ SET is_filled = TRUE,
 WHERE tenant_id = @tenantId::UUID
   AND key = @key::TEXT
 ;
+
+-- name: CheckIfIdempotencyKeyFilled :one
+SELECT EXISTS (
+    SELECT 1
+    FROM v1_idempotency_key
+    WHERE tenant_id = @tenantId::UUID
+      AND key = @key::TEXT
+      AND is_filled = TRUE
+)::BOOLEAN AS is_filled;
