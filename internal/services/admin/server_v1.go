@@ -2,6 +2,7 @@ package admin
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -17,6 +18,26 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
+
+// extractCorrelationId extracts correlationId from additionalMetadata if it exists
+func extractCorrelationId(additionalMetadata string) *string {
+	if additionalMetadata == "" {
+		return nil
+	}
+
+	var metadata map[string]any
+	if err := json.Unmarshal([]byte(additionalMetadata), &metadata); err != nil {
+		return nil
+	}
+
+	if corrId, exists := metadata["correlationId"]; exists {
+		if corrIdStr, ok := corrId.(string); ok {
+			return &corrIdStr
+		}
+	}
+
+	return nil
+}
 
 func (a *AdminServiceImpl) triggerWorkflowV1(ctx context.Context, req *contracts.TriggerWorkflowRequest) (*contracts.TriggerWorkflowResponse, error) {
 	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
@@ -90,7 +111,12 @@ func (a *AdminServiceImpl) triggerWorkflowV1(ctx context.Context, req *contracts
 		return nil, fmt.Errorf("could not trigger workflow: %w", err)
 	}
 
-	grpcmiddleware.TriggerCallback(ctx, opt.ExternalId)
+	additionalMeta := ""
+	if req.AdditionalMetadata != nil {
+		additionalMeta = *req.AdditionalMetadata
+	}
+	corrId := extractCorrelationId(additionalMeta)
+	grpcmiddleware.TriggerCallback(ctx, opt.ExternalId, "workflow-run", corrId)
 
 	return &contracts.TriggerWorkflowResponse{
 		WorkflowRunId: opt.ExternalId,
@@ -143,8 +169,13 @@ func (a *AdminServiceImpl) bulkTriggerWorkflowV1(ctx context.Context, req *contr
 		runIds[i] = opt.ExternalId
 	}
 
-	for _, runId := range runIds {
-		grpcmiddleware.TriggerCallback(ctx, runId)
+	for i, runId := range runIds {
+		additionalMeta := ""
+		if req.Workflows[i].AdditionalMetadata != nil {
+			additionalMeta = *req.Workflows[i].AdditionalMetadata
+		}
+		corrId := extractCorrelationId(additionalMeta)
+		grpcmiddleware.TriggerCallback(ctx, runId, "workflow-run", corrId)
 	}
 
 	return &contracts.BulkTriggerWorkflowResponse{

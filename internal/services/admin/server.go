@@ -96,7 +96,12 @@ func (a *AdminServiceImpl) triggerWorkflowV0(ctx context.Context, req *contracts
 		return nil, fmt.Errorf("could not queue workflow run: %w", err)
 	}
 
-	grpcmiddleware.TriggerCallback(ctx, workflowRunId)
+	additionalMeta := ""
+	if req.AdditionalMetadata != nil {
+		additionalMeta = *req.AdditionalMetadata
+	}
+	corrId := extractCorrelationId(additionalMeta)
+	grpcmiddleware.TriggerCallback(ctx, workflowRunId, "workflow-run", corrId)
 
 	return &contracts.TriggerWorkflowResponse{
 		WorkflowRunId: workflowRunId,
@@ -180,8 +185,12 @@ func (a *AdminServiceImpl) bulkTriggerWorkflowV0(ctx context.Context, req *contr
 		return nil, status.Error(codes.InvalidArgument, "no workflows created")
 	}
 
-	for _, workflowRunId := range workflowRunIds {
-		grpcmiddleware.TriggerCallback(ctx, workflowRunId)
+	for i, workflowRunId := range workflowRunIds {
+		var corrId *string
+		if req.Workflows[i].AdditionalMetadata != nil {
+			corrId = extractCorrelationId(*req.Workflows[i].AdditionalMetadata)
+		}
+		grpcmiddleware.TriggerCallback(ctx, workflowRunId, "workflow-run", corrId)
 	}
 
 	return &contracts.BulkTriggerWorkflowResponse{WorkflowRunIds: workflowRunIds}, nil
