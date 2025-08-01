@@ -3,7 +3,7 @@ package constants
 type MetadataKey string
 
 const (
-	CorrelationIDKey  MetadataKey = "correlationId"
+	CorrelationIdKey  MetadataKey = "correlationId"
 	ResourceIdKey     MetadataKey = "resourceId"
 	ResourceTypeKey   MetadataKey = "resourceType"
 	GRPCMethodKey     MetadataKey = "grpc_method"

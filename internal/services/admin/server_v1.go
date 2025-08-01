@@ -31,7 +31,7 @@ func extractCorrelationId(additionalMetadata string) *string {
 		return nil
 	}
 
-	if corrId, exists := metadata["correlationId"]; exists {
+	if corrId, exists := metadata[string(constants.CorrelationIdKey)]; exists {
 		if corrIdStr, ok := corrId.(string); ok {
 			return &corrIdStr
 		}
@@ -118,7 +118,7 @@ func (a *AdminServiceImpl) triggerWorkflowV1(ctx context.Context, req *contracts
 	}
 	corrId := extractCorrelationId(additionalMeta)
 
-	ctx = context.WithValue(ctx, constants.CorrelationIDKey, corrId)
+	ctx = context.WithValue(ctx, constants.CorrelationIdKey, corrId)
 	ctx = context.WithValue(ctx, constants.ResourceIdKey, opt.ExternalId)
 	ctx = context.WithValue(ctx, constants.ResourceTypeKey, constants.ResourceTypeWorkflowRun)
 
@@ -182,7 +182,7 @@ func (a *AdminServiceImpl) bulkTriggerWorkflowV1(ctx context.Context, req *contr
 		}
 		corrId := extractCorrelationId(additionalMeta)
 
-		ctx = context.WithValue(ctx, constants.CorrelationIDKey, corrId)
+		ctx = context.WithValue(ctx, constants.CorrelationIdKey, corrId)
 		ctx = context.WithValue(ctx, constants.ResourceIdKey, runId)
 		ctx = context.WithValue(ctx, constants.ResourceTypeKey, constants.ResourceTypeWorkflowRun)
 

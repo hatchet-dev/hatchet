@@ -42,11 +42,11 @@ func (t *WorkflowService) ScheduledWorkflowRunCreate(ctx echo.Context, request g
 		), nil
 	}
 
-	correlationIdInterface, ok := (request.Body.AdditionalMetadata)["correlationId"]
+	correlationIdInterface, ok := (request.Body.AdditionalMetadata)[string(constants.CorrelationIdKey)]
 	if ok {
 		correlationId, ok := correlationIdInterface.(string)
 		if ok {
-			ctx.Set("correlationId", correlationId)
+			ctx.Set(string(constants.CorrelationIdKey), correlationId)
 		}
 	}
 

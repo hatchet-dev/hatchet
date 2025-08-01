@@ -103,7 +103,7 @@ func (a *AdminServiceImpl) triggerWorkflowV0(ctx context.Context, req *contracts
 	}
 	corrId := extractCorrelationId(additionalMeta)
 
-	ctx = context.WithValue(ctx, constants.CorrelationIDKey, corrId)
+	ctx = context.WithValue(ctx, constants.CorrelationIdKey, corrId)
 	ctx = context.WithValue(ctx, constants.ResourceIdKey, workflowRunId)
 	ctx = context.WithValue(ctx, constants.ResourceTypeKey, constants.ResourceTypeWorkflowRun)
 
@@ -187,7 +187,7 @@ func (a *AdminServiceImpl) bulkTriggerWorkflowV0(ctx context.Context, req *contr
 			corrId = extractCorrelationId(*req.Workflows[i].AdditionalMetadata)
 		}
 
-		ctx = context.WithValue(ctx, constants.CorrelationIDKey, corrId)
+		ctx = context.WithValue(ctx, constants.CorrelationIdKey, corrId)
 		ctx = context.WithValue(ctx, constants.ResourceIdKey, workflowRunId)
 		ctx = context.WithValue(ctx, constants.ResourceTypeKey, constants.ResourceTypeWorkflowRun)
 
