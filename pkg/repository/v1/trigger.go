@@ -860,6 +860,7 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 					parentTaskInsertedAt pgtype.Timestamptz
 					childIndex           pgtype.Int8
 					childKey             pgtype.Text
+					priority             pgtype.Int4
 				)
 
 				if tuple.parentExternalId != nil {
@@ -891,6 +892,13 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 					}
 				}
 
+				if tuple.priority != nil {
+					priority = pgtype.Int4{
+						Int32: *tuple.priority,
+						Valid: true,
+					}
+				}
+
 				eventMatches[tuple.externalId] = append(eventMatches[tuple.externalId], CreateMatchOpts{
 					Kind:                 sqlcv1.V1MatchKindTRIGGER,
 					Conditions:           conditions,
@@ -906,6 +914,7 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 					TriggerParentTaskInsertedAt: parentTaskInsertedAt,
 					TriggerChildIndex:           childIndex,
 					TriggerChildKey:             childKey,
+					TriggerPriority:             priority,
 				})
 			case len(step.Parents) == 0:
 				// if we have additional match conditions, create a match instead of triggering a workflow for this step
@@ -953,6 +962,7 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 						parentTaskInsertedAt pgtype.Timestamptz
 						childIndex           pgtype.Int8
 						childKey             pgtype.Text
+						priority             pgtype.Int4
 					)
 
 					if tuple.parentExternalId != nil {
@@ -984,6 +994,13 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 						}
 					}
 
+					if tuple.priority != nil {
+						priority = pgtype.Int4{
+							Int32: *tuple.priority,
+							Valid: true,
+						}
+					}
+
 					eventMatches[tuple.externalId] = append(eventMatches[tuple.externalId], CreateMatchOpts{
 						Kind:                 sqlcv1.V1MatchKindTRIGGER,
 						Conditions:           groupConditions,
@@ -999,6 +1016,7 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 						TriggerParentTaskInsertedAt: parentTaskInsertedAt,
 						TriggerChildIndex:           childIndex,
 						TriggerChildKey:             childKey,
+						TriggerPriority:             priority,
 					})
 				} else {
 					opt := CreateTaskOpts{
@@ -1067,6 +1085,7 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 					parentTaskInsertedAt pgtype.Timestamptz
 					childIndex           pgtype.Int8
 					childKey             pgtype.Text
+					priority             pgtype.Int4
 				)
 
 				if tuple.parentExternalId != nil {
@@ -1098,6 +1117,13 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 					}
 				}
 
+				if tuple.priority != nil {
+					priority = pgtype.Int4{
+						Int32: *tuple.priority,
+						Valid: true,
+					}
+				}
+
 				// create an event match
 				eventMatches[tuple.externalId] = append(eventMatches[tuple.externalId], CreateMatchOpts{
 					Kind:                 sqlcv1.V1MatchKindTRIGGER,
@@ -1114,6 +1140,7 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 					TriggerParentTaskInsertedAt: parentTaskInsertedAt,
 					TriggerChildIndex:           childIndex,
 					TriggerChildKey:             childKey,
+					TriggerPriority:             priority,
 				})
 			}
 		}
