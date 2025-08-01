@@ -10,8 +10,7 @@ import (
 
 type IdempotencyRepository interface {
 	CreateIdempotencyKey(context context.Context, tenantId, key string, expiresAt pgtype.Timestamptz) (*sqlcv1.V1IdempotencyKey, error)
-	MarkIdempotencyKeyFilled(context context.Context, tenantId, key string) error
-	CheckIfIdempotencyKeyFilled(context context.Context, tenantId, key string) (bool, error)
+	FillIdempotencyKey(context context.Context, tenantId, key string) (bool, error)
 }
 
 type idempotencyRepository struct {
@@ -32,15 +31,8 @@ func (r *idempotencyRepository) CreateIdempotencyKey(context context.Context, te
 	})
 }
 
-func (r *idempotencyRepository) MarkIdempotencyKeyFilled(context context.Context, tenantId, key string) error {
-	return r.queries.MarkIdempotencyKeyFilled(context, r.pool, sqlcv1.MarkIdempotencyKeyFilledParams{
-		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
-		Key:      key,
-	})
-}
-
-func (r *idempotencyRepository) CheckIfIdempotencyKeyFilled(context context.Context, tenantId, key string) (bool, error) {
-	return r.queries.CheckIfIdempotencyKeyFilled(context, r.pool, sqlcv1.CheckIfIdempotencyKeyFilledParams{
+func (r *idempotencyRepository) FillIdempotencyKey(context context.Context, tenantId, key string) (bool, error) {
+	return r.queries.FillIdempotencyKey(context, r.pool, sqlcv1.FillIdempotencyKeyParams{
 		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
 		Key:      key,
 	})

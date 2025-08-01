@@ -11,19 +11,18 @@ VALUES (
 )
 RETURNING *;
 
--- name: MarkIdempotencyKeyFilled :exec
-UPDATE v1_idempotency_key
-SET is_filled = TRUE,
-    updated_at = CURRENT_TIMESTAMP
-WHERE tenant_id = @tenantId::UUID
-  AND key = @key::TEXT
-;
+-- name: FillIdempotencyKey :one
+WITH updated AS (
+    UPDATE v1_idempotency_key
+    SET
+        is_filled = TRUE,
+        updated_at = NOW()
+    WHERE
+        tenant_id = @tenantId::UUID
+        AND key = @key::TEXT
+        AND is_filled = FALSE
+    RETURNING *
+)
 
--- name: CheckIfIdempotencyKeyFilled :one
-SELECT EXISTS (
-    SELECT 1
-    FROM v1_idempotency_key
-    WHERE tenant_id = @tenantId::UUID
-      AND key = @key::TEXT
-      AND is_filled = TRUE
-)::BOOLEAN AS is_filled;
+SELECT COUNT(*) > 0 AS successfully_filled
+FROM updated;

@@ -11,28 +11,6 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const checkIfIdempotencyKeyFilled = `-- name: CheckIfIdempotencyKeyFilled :one
-SELECT EXISTS (
-    SELECT 1
-    FROM v1_idempotency_key
-    WHERE tenant_id = $1::UUID
-      AND key = $2::TEXT
-      AND is_filled = TRUE
-)::BOOLEAN AS is_filled
-`
-
-type CheckIfIdempotencyKeyFilledParams struct {
-	Tenantid pgtype.UUID `json:"tenantid"`
-	Key      string      `json:"key"`
-}
-
-func (q *Queries) CheckIfIdempotencyKeyFilled(ctx context.Context, db DBTX, arg CheckIfIdempotencyKeyFilledParams) (bool, error) {
-	row := db.QueryRow(ctx, checkIfIdempotencyKeyFilled, arg.Tenantid, arg.Key)
-	var is_filled bool
-	err := row.Scan(&is_filled)
-	return is_filled, err
-}
-
 const createIdempotencyKey = `-- name: CreateIdempotencyKey :one
 INSERT INTO v1_idempotency_key (
     tenant_id,
@@ -67,20 +45,31 @@ func (q *Queries) CreateIdempotencyKey(ctx context.Context, db DBTX, arg CreateI
 	return &i, err
 }
 
-const markIdempotencyKeyFilled = `-- name: MarkIdempotencyKeyFilled :exec
-UPDATE v1_idempotency_key
-SET is_filled = TRUE,
-    updated_at = CURRENT_TIMESTAMP
-WHERE tenant_id = $1::UUID
-  AND key = $2::TEXT
+const fillIdempotencyKey = `-- name: FillIdempotencyKey :one
+WITH updated AS (
+    UPDATE v1_idempotency_key
+    SET
+        is_filled = TRUE,
+        updated_at = NOW()
+    WHERE
+        tenant_id = $1::UUID
+        AND key = $2::TEXT
+        AND is_filled = FALSE
+    RETURNING tenant_id, key, is_filled, expires_at, inserted_at, updated_at
+)
+
+SELECT COUNT(*) > 0 AS successfully_filled
+FROM updated
 `
 
-type MarkIdempotencyKeyFilledParams struct {
+type FillIdempotencyKeyParams struct {
 	Tenantid pgtype.UUID `json:"tenantid"`
 	Key      string      `json:"key"`
 }
 
-func (q *Queries) MarkIdempotencyKeyFilled(ctx context.Context, db DBTX, arg MarkIdempotencyKeyFilledParams) error {
-	_, err := db.Exec(ctx, markIdempotencyKeyFilled, arg.Tenantid, arg.Key)
-	return err
+func (q *Queries) FillIdempotencyKey(ctx context.Context, db DBTX, arg FillIdempotencyKeyParams) (bool, error) {
+	row := db.QueryRow(ctx, fillIdempotencyKey, arg.Tenantid, arg.Key)
+	var successfully_filled bool
+	err := row.Scan(&successfully_filled)
+	return successfully_filled, err
 }
