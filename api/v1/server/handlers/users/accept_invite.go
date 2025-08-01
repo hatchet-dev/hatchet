@@ -9,6 +9,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
+	"github.com/hatchet-dev/hatchet/pkg/constants"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
@@ -92,6 +93,9 @@ func (u *UserService) TenantInviteAccept(ctx echo.Context, request gen.TenantInv
 		&tenantId,
 		nil,
 	)
+
+	ctx.Set(constants.ResourceIdKey.String(), inviteId)
+	ctx.Set(constants.ResourceTypeKey.String(), constants.ResourceTypeTenantInvite.String())
 
 	return nil, nil
 }

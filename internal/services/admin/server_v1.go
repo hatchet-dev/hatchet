@@ -2,12 +2,15 @@ package admin
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 
 	msgqueue "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
 	"github.com/hatchet-dev/hatchet/internal/services/admin/contracts"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
+	"github.com/hatchet-dev/hatchet/pkg/constants"
+	grpcmiddleware "github.com/hatchet-dev/hatchet/pkg/grpc/middleware"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
@@ -16,6 +19,26 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
+
+// extractCorrelationId extracts correlationId from additionalMetadata if it exists
+func extractCorrelationId(additionalMetadata string) *string {
+	if additionalMetadata == "" {
+		return nil
+	}
+
+	var metadata map[string]any
+	if err := json.Unmarshal([]byte(additionalMetadata), &metadata); err != nil {
+		return nil
+	}
+
+	if corrId, exists := metadata[string(constants.CorrelationIdKey)]; exists {
+		if corrIdStr, ok := corrId.(string); ok {
+			return &corrIdStr
+		}
+	}
+
+	return nil
+}
 
 func (a *AdminServiceImpl) triggerWorkflowV1(ctx context.Context, req *contracts.TriggerWorkflowRequest) (*contracts.TriggerWorkflowResponse, error) {
 	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
@@ -89,6 +112,18 @@ func (a *AdminServiceImpl) triggerWorkflowV1(ctx context.Context, req *contracts
 		return nil, fmt.Errorf("could not trigger workflow: %w", err)
 	}
 
+	additionalMeta := ""
+	if req.AdditionalMetadata != nil {
+		additionalMeta = *req.AdditionalMetadata
+	}
+	corrId := extractCorrelationId(additionalMeta)
+
+	ctx = context.WithValue(ctx, constants.CorrelationIdKey, corrId)
+	ctx = context.WithValue(ctx, constants.ResourceIdKey, opt.ExternalId)
+	ctx = context.WithValue(ctx, constants.ResourceTypeKey, constants.ResourceTypeWorkflowRun)
+
+	grpcmiddleware.TriggerCallback(ctx)
+
 	return &contracts.TriggerWorkflowResponse{
 		WorkflowRunId: opt.ExternalId,
 	}, nil
@@ -138,6 +173,20 @@ func (a *AdminServiceImpl) bulkTriggerWorkflowV1(ctx context.Context, req *contr
 
 	for i, opt := range opts {
 		runIds[i] = opt.ExternalId
+	}
+
+	for i, runId := range runIds {
+		additionalMeta := ""
+		if req.Workflows[i].AdditionalMetadata != nil {
+			additionalMeta = *req.Workflows[i].AdditionalMetadata
+		}
+		corrId := extractCorrelationId(additionalMeta)
+
+		ctx = context.WithValue(ctx, constants.CorrelationIdKey, corrId)
+		ctx = context.WithValue(ctx, constants.ResourceIdKey, runId)
+		ctx = context.WithValue(ctx, constants.ResourceTypeKey, constants.ResourceTypeWorkflowRun)
+
+		grpcmiddleware.TriggerCallback(ctx)
 	}
 
 	return &contracts.BulkTriggerWorkflowResponse{

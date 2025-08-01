@@ -10,6 +10,7 @@ import (
 	"github.com/rs/zerolog"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/hatchet-dev/hatchet/pkg/constants"
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
@@ -196,9 +197,9 @@ func cleanAdditionalMetadata(additionalMetadata map[string]interface{}) map[stri
 func (ec *EventsControllerImpl) processEvent(ctx context.Context, tenantId, eventId, eventKey string, data []byte, additionalMetadata map[string]interface{}) error {
 	additionalMetadata = cleanAdditionalMetadata(additionalMetadata)
 
-	additionalMetadata["hatchet__event_id"] = eventId
+	additionalMetadata[constants.EventIDKey.String()] = eventId
 
-	additionalMetadata["hatchet__event_key"] = eventKey
+	additionalMetadata[constants.EventKeyKey.String()] = eventKey
 
 	// query for matching workflows in the system
 	workflowVersions, err := ec.repo.Workflow().ListWorkflowsForEvent(ctx, tenantId, eventKey)

@@ -14,6 +14,7 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
+	"github.com/hatchet-dev/hatchet/pkg/constants"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
@@ -121,6 +122,19 @@ func (t *V1WorkflowRunsService) V1WorkflowRunCreate(ctx echo.Context, request ge
 	if err != nil {
 		return nil, err
 	}
+
+	if request.Body.AdditionalMetadata != nil {
+		correlationIdInterface, ok := (*request.Body.AdditionalMetadata)[string(constants.CorrelationIdKey)]
+		if ok {
+			correlationId, ok := correlationIdInterface.(string)
+			if ok {
+				ctx.Set(constants.CorrelationIdKey.String(), correlationId)
+			}
+		}
+	}
+
+	ctx.Set(constants.ResourceIdKey.String(), rawWorkflowRun.WorkflowRun.ExternalID.String())
+	ctx.Set(constants.ResourceTypeKey.String(), constants.ResourceTypeWorkflowRun.String())
 
 	// Search for api errors to see how we handle errors in other cases
 	return gen.V1WorkflowRunCreate200JSONResponse(
