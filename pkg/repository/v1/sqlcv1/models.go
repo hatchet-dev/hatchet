@@ -2787,6 +2787,15 @@ type V1Filter struct {
 	UpdatedAt     pgtype.Timestamptz `json:"updated_at"`
 }
 
+type V1IdempotencyKey struct {
+	TenantID   pgtype.UUID        `json:"tenant_id"`
+	Key        string             `json:"key"`
+	IsFilled   bool               `json:"is_filled"`
+	ExpiresAt  pgtype.Timestamptz `json:"expires_at"`
+	InsertedAt pgtype.Timestamptz `json:"inserted_at"`
+	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
+}
+
 type V1IncomingWebhook struct {
 	TenantID                     pgtype.UUID                        `json:"tenant_id"`
 	Name                         string                             `json:"name"`
@@ -2914,14 +2923,6 @@ type V1RetryQueueItem struct {
 	TaskRetryCount int32              `json:"task_retry_count"`
 	RetryAfter     pgtype.Timestamptz `json:"retry_after"`
 	TenantID       pgtype.UUID        `json:"tenant_id"`
-}
-
-type V1RunIdempotencyKey struct {
-	TenantID   pgtype.UUID        `json:"tenant_id"`
-	Key        string             `json:"key"`
-	ExpiresAt  pgtype.Timestamptz `json:"expires_at"`
-	InsertedAt pgtype.Timestamptz `json:"inserted_at"`
-	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
 }
 
 type V1RunsOlap struct {
