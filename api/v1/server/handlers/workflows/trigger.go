@@ -122,7 +122,15 @@ func (t *WorkflowService) WorkflowRunCreate(ctx echo.Context, request gen.Workfl
 		return nil, err
 	}
 
-	ctx.Set("correlationId", sqlchelpers.UUIDToStr(createdWorkflowRun.ID))
+	if request.Body.AdditionalMetadata != nil {
+		correlationId, ok := (*request.Body.AdditionalMetadata)["correlationId"].(string)
+		if ok {
+			ctx.Set("correlationId", correlationId)
+		}
+	}
+
+	ctx.Set("resourceId", createdWorkflowRun.ID.String())
+	ctx.Set("resourceType", "workflow-run")
 
 	return gen.WorkflowRunCreate200JSONResponse(
 		*res,

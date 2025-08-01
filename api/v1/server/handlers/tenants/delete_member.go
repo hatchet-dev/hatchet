@@ -44,7 +44,8 @@ func (t *TenantService) TenantMemberDelete(ctx echo.Context, request gen.TenantM
 		return nil, err
 	}
 
-	ctx.Set("correlationId", memberToDelete.ID.String())
+	ctx.Set("resourceId", memberToDelete.ID.String())
+	ctx.Set("resourceType", "tenant-member")
 
 	return gen.TenantMemberDelete204JSONResponse{}, nil
 }

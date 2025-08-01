@@ -41,7 +41,13 @@ func (t *WorkflowService) ScheduledWorkflowRunCreate(ctx echo.Context, request g
 		), nil
 	}
 
-	ctx.Set("correlationId", sqlchelpers.UUIDToStr(scheduled.ID))
+	correlationId, ok := request.Body.AdditionalMetadata["correlationId"].(string)
+	if ok {
+		ctx.Set("correlationId", correlationId)
+	}
+
+	ctx.Set("resourceId", scheduled.ID.String())
+	ctx.Set("resourceType", "scheduled-workflow")
 
 	return gen.ScheduledWorkflowRunCreate200JSONResponse(
 		*transformers.ToScheduledWorkflowsFromSQLC(scheduled),
