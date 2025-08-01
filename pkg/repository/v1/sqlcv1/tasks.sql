@@ -3,6 +3,7 @@ SELECT
     create_v1_range_partition('v1_task', @date::date),
     create_v1_range_partition('v1_dag', @date::date),
     create_v1_range_partition('v1_task_event', @date::date),
+    create_v1_range_partition('v1_idempotency_key', @date::date),
     create_v1_range_partition('v1_log_line', @date::date);
 
 -- name: EnsureTablePartitionsExist :one
@@ -17,6 +18,8 @@ WITH tomorrow_date AS (
     SELECT 'v1_task_event_' || to_char((SELECT date FROM tomorrow_date), 'YYYYMMDD')
     UNION ALL
     SELECT 'v1_log_line_' || to_char((SELECT date FROM tomorrow_date), 'YYYYMMDD')
+    UNION ALL
+    SELECT 'v1_idempotency_key_' || to_char((SELECT date FROM tomorrow_date), 'YYYYMMDD')
 ), partition_check AS (
     SELECT
         COUNT(*) AS total_tables,
@@ -40,6 +43,8 @@ WITH task_partitions AS (
     SELECT 'v1_task_event' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_task_event', @date::date) AS p
 ), log_line_partitions AS (
     SELECT 'v1_log_line' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_log_line', @date::date) AS p
+), idempotency_key_partitions AS (
+    SELECT 'v1_idempotency_key' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_idempotency_key', @date::date) AS p
 )
 SELECT
     *
@@ -65,7 +70,15 @@ UNION ALL
 SELECT
     *
 FROM
-    log_line_partitions;
+    log_line_partitions
+
+UNION ALL
+
+SELECT
+    *
+FROM
+    idempotency_key_partitions
+;
 
 -- name: FlattenExternalIds :many
 WITH lookup_rows AS (
