@@ -242,7 +242,7 @@ type CreateMatchesForDAGTriggersParams struct {
 	TriggerParentTaskInsertedAt   []pgtype.Timestamptz `json:"triggerparentTaskInsertedAt"`
 	TriggerChildIndex             []pgtype.Int8        `json:"triggerchildIndex"`
 	TriggerChildKey               []pgtype.Text        `json:"triggerchildKey"`
-	TriggerPriorities             []*int32             `json:"triggerPriorities"`
+	TriggerPriorities             []pgtype.Int4        `json:"triggerPriorities"`
 }
 
 func (q *Queries) CreateMatchesForDAGTriggers(ctx context.Context, db DBTX, arg CreateMatchesForDAGTriggersParams) ([]*V1Match, error) {
