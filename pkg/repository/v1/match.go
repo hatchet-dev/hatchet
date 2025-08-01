@@ -541,6 +541,10 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 						opt.ChildKey = &match.TriggerChildKey.String
 					}
 
+					if match.TriggerPriority.Valid {
+						opt.Priority = &match.TriggerPriority.Int32
+					}
+
 					createTaskOpts = append(createTaskOpts, opt)
 				}
 			}
