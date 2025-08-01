@@ -120,7 +120,7 @@ func (a *AdminServiceImpl) triggerWorkflowV1(ctx context.Context, req *contracts
 
 	ctx = context.WithValue(ctx, constants.CorrelationIDKey, corrId)
 	ctx = context.WithValue(ctx, constants.ResourceIdKey, opt.ExternalId)
-	ctx = context.WithValue(ctx, constants.ResourceTypeKey, "workflow-run")
+	ctx = context.WithValue(ctx, constants.ResourceTypeKey, constants.ResourceTypeWorkflowRun)
 
 	grpcmiddleware.TriggerCallback(ctx)
 
@@ -184,7 +184,7 @@ func (a *AdminServiceImpl) bulkTriggerWorkflowV1(ctx context.Context, req *contr
 
 		ctx = context.WithValue(ctx, constants.CorrelationIDKey, corrId)
 		ctx = context.WithValue(ctx, constants.ResourceIdKey, runId)
-		ctx = context.WithValue(ctx, constants.ResourceTypeKey, "workflow-run")
+		ctx = context.WithValue(ctx, constants.ResourceTypeKey, constants.ResourceTypeWorkflowRun)
 
 		grpcmiddleware.TriggerCallback(ctx)
 	}

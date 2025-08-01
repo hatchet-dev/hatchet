@@ -134,7 +134,7 @@ func (t *WorkflowService) WorkflowRunCreate(ctx echo.Context, request gen.Workfl
 	}
 
 	ctx.Set(string(constants.ResourceIdKey), createdWorkflowRun.ID.String())
-	ctx.Set(string(constants.ResourceTypeKey), "workflow-run")
+	ctx.Set(string(constants.ResourceTypeKey), string(constants.ResourceTypeWorkflowRun))
 
 	return gen.WorkflowRunCreate200JSONResponse(
 		*res,

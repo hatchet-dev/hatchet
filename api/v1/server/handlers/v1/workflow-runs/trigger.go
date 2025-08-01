@@ -134,7 +134,7 @@ func (t *V1WorkflowRunsService) V1WorkflowRunCreate(ctx echo.Context, request ge
 	}
 
 	ctx.Set(string(constants.ResourceIdKey), rawWorkflowRun.WorkflowRun.ExternalID.String())
-	ctx.Set(string(constants.ResourceTypeKey), "workflow-run")
+	ctx.Set(string(constants.ResourceTypeKey), string(constants.ResourceTypeWorkflowRun))
 
 	// Search for api errors to see how we handle errors in other cases
 	return gen.V1WorkflowRunCreate200JSONResponse(
