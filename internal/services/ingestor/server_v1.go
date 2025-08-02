@@ -70,12 +70,12 @@ func (i *IngestorImpl) putLogV1(ctx context.Context, tenant *dbsqlc.Tenant, req 
 	}
 
 	task, err := i.getSingleTask(ctx, tenantId, req.StepRunId, false)
-	i.l.Debug().Str("taskExternalId", sqlchelpers.UUIDToStr(task.ExternalID)).Msg("loki-debug: retrieved task for log ingestion")
 
 	if err != nil {
 		return nil, err
 	}
 
+	i.l.Debug().Str("taskExternalId", sqlchelpers.UUIDToStr(task.ExternalID)).Msg("loki-debug: retrieved task for log ingestion")
 	var createdAt *time.Time
 
 	if t := req.CreatedAt.AsTime(); !t.IsZero() {
