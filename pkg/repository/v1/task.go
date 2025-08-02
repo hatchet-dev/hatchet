@@ -387,7 +387,7 @@ func (r *TaskRepositoryImpl) GetTaskByExternalId(ctx context.Context, tenantId, 
 		Externalids: []pgtype.UUID{sqlchelpers.UUIDFromStr(taskExternalId)},
 	})
 
-	r.l.Debug().Bool("FlattenExternalIdsSucceeded", err != nil).Int("lenTasks", len(dbTasks)).Msg("loki-debug: executed FlattenExternalIds query")
+	r.l.Debug().Bool("FlattenExternalIdsSucceeded", err == nil).Int("lenTasks", len(dbTasks)).Msg("loki-debug: executed FlattenExternalIds query")
 
 	if err != nil {
 		return nil, err
