@@ -68,6 +68,12 @@ func (c *Client) Run(ctx context.Context, workflowName string, input any) error 
 	return err
 }
 
+// RunWithPriority executes a workflow with the provided input and priority, waits for completion.
+func (c *Client) RunWithPriority(ctx context.Context, workflowName string, input any, priority int32) error {
+	_, err := c.v1Client.V0().Admin().RunWorkflow(workflowName, input, v0Client.WithPriority(priority))
+	return err
+}
+
 // RunNoWait executes a workflow with the provided input without waiting for completion.
 // Returns a workflow run reference that can be used to track the run status.
 func (c *Client) RunNoWait(ctx context.Context, workflowName string, input any) (*v0Client.Workflow, error) {
