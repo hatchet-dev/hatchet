@@ -156,7 +156,7 @@ func main() {
 	log.Println("  - Different processing behavior based on priority")
 	log.Println("  - Premium vs standard user handling")
 
-	if err := worker.StartBlocking(context.Background()); err != nil {
+	if err := worker.Run(context.Background()); err != nil {
 		log.Fatalf("failed to start worker: %v", err)
 	}
 }

@@ -67,7 +67,7 @@ func main() {
 	}()
 
 	log.Println("Starting event worker...")
-	if err := worker.StartBlocking(context.Background()); err != nil {
+	if err := worker.Run(context.Background()); err != nil {
 		log.Fatalf("failed to start worker: %v", err)
 	}
 }

@@ -169,7 +169,7 @@ func main() {
 	log.Println("  - Context cancellation handling")
 	log.Println("  - Graceful timeout handling")
 
-	if err := worker.StartBlocking(context.Background()); err != nil {
+	if err := worker.Run(context.Background()); err != nil {
 		log.Fatalf("failed to start worker: %v", err)
 	}
 }

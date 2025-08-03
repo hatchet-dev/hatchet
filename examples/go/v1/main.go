@@ -84,7 +84,7 @@ func main() {
 	log.Println("  - Functional options pattern")
 	log.Println("  - Built-in retry and timeout configuration")
 
-	if err := worker.StartBlocking(context.Background()); err != nil {
+	if err := worker.Run(context.Background()); err != nil {
 		log.Fatalf("failed to start hatchet worker: %v", err)
 	}
 }

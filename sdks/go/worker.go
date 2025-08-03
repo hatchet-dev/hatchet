@@ -1,8 +1,7 @@
 package hatchet
 
 import (
-	"github.com/hatchet-dev/hatchet/pkg/v1/worker"
-	"github.com/hatchet-dev/hatchet/pkg/v1/workflow"
+	"github.com/hatchet-dev/hatchet/sdks/go/internal"
 	"github.com/rs/zerolog"
 )
 
@@ -10,16 +9,16 @@ import (
 type WorkerOption func(*workerConfig)
 
 type workerConfig struct {
-	workflows    []workflow.WorkflowBase
+	workflows    []internal.WorkflowBase
 	slots        int
-	labels       worker.WorkerLabels
+	durableSlots int
+	labels       map[string]interface{}
 	logger       *zerolog.Logger
 	logLevel     string
-	durableSlots int
 }
 
 // WithWorkflows registers workflows with the worker.
-func WithWorkflows(workflows ...workflow.WorkflowBase) WorkerOption {
+func WithWorkflows(workflows ...internal.WorkflowBase) WorkerOption {
 	return func(config *workerConfig) {
 		config.workflows = workflows
 	}
@@ -33,7 +32,7 @@ func WithSlots(slots int) WorkerOption {
 }
 
 // WithLabels assigns labels to the worker for task routing.
-func WithLabels(labels worker.WorkerLabels) WorkerOption {
+func WithLabels(labels map[string]interface{}) WorkerOption {
 	return func(config *workerConfig) {
 		config.labels = labels
 	}
@@ -59,3 +58,4 @@ func WithDurableSlots(durableSlots int) WorkerOption {
 		config.durableSlots = durableSlots
 	}
 }
+

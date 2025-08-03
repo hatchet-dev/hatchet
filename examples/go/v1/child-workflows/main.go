@@ -133,7 +133,7 @@ func main() {
 	log.Println("  - Parallel child workflow processing")
 	log.Println("  - Parent-child workflow communication")
 
-	if err := worker.StartBlocking(context.Background()); err != nil {
+	if err := worker.Run(context.Background()); err != nil {
 		log.Fatalf("failed to start worker: %v", err)
 	}
 }

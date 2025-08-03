@@ -89,7 +89,7 @@ func main() {
 		log.Fatalf("failed to run workflow: %v", err)
 	}
 
-	if err := worker.StartBlocking(context.Background()); err != nil {
+	if err := worker.Run(context.Background()); err != nil {
 		log.Fatalf("failed to start worker: %v", err)
 	}
 }

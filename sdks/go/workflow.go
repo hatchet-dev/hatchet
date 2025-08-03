@@ -9,8 +9,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/client/rest"
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
 	v0Client "github.com/hatchet-dev/hatchet/pkg/client"
-	v1 "github.com/hatchet-dev/hatchet/pkg/v1"
-	"github.com/hatchet-dev/hatchet/pkg/v1/workflow"
+	"github.com/hatchet-dev/hatchet/sdks/go/internal"
 	"github.com/hatchet-dev/hatchet/pkg/worker"
 	"github.com/hatchet-dev/hatchet/pkg/worker/condition"
 	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
@@ -18,8 +17,8 @@ import (
 
 // Workflow represents a workflow definition that can contain multiple tasks.
 type Workflow struct {
-	declaration workflow.WorkflowDeclaration[any, any]
-	v1Client    v1.HatchetClient
+	declaration internal.WorkflowDeclaration[any, any]
+	v0Client    v0Client.Client
 }
 
 // WorkflowOption configures a workflow instance.
@@ -64,14 +63,14 @@ func WithWorkflowDescription(description string) WorkflowOption {
 }
 
 // NewWorkflow creates a new workflow definition.
-func NewWorkflow(name string, v1Client v1.HatchetClient, options ...WorkflowOption) *Workflow {
+func NewWorkflow(name string, v0Client v0Client.Client, options ...WorkflowOption) *Workflow {
 	config := &workflowConfig{}
 
 	for _, opt := range options {
 		opt(config)
 	}
 
-	declaration := workflow.NewWorkflowDeclaration[any, any](
+	declaration := internal.NewWorkflowDeclaration[any, any](
 		create.WorkflowCreateOpts[any]{
 			Name:        name,
 			Version:     config.version,
@@ -79,12 +78,12 @@ func NewWorkflow(name string, v1Client v1.HatchetClient, options ...WorkflowOpti
 			OnEvents:    config.onEvents,
 			OnCron:      config.onCron,
 		},
-		v1Client.V0(),
+		v0Client,
 	)
 
 	return &Workflow{
 		declaration: declaration,
-		v1Client:    v1Client,
+		v0Client:    v0Client,
 	}
 }
 
@@ -372,7 +371,7 @@ func (w *Workflow) NewDurableTask(name string, fn any, options ...TaskOption) *W
 
 // NewStandaloneTask creates a workflow containing a single task.
 // Workflow-level options (cron, events) are extracted from task options.
-func NewStandaloneTask(name string, fn any, v1Client v1.HatchetClient, options ...TaskOption) *Workflow {
+func NewStandaloneTask(name string, fn any, v0Client v0Client.Client, options ...TaskOption) *Workflow {
 	config := &taskConfig{}
 
 	for _, opt := range options {
@@ -387,7 +386,7 @@ func NewStandaloneTask(name string, fn any, v1Client v1.HatchetClient, options .
 		workflowOptions = append(workflowOptions, WithWorkflowEvents(config.onEvents...))
 	}
 
-	workflow := NewWorkflow(name, v1Client, workflowOptions...)
+	workflow := NewWorkflow(name, v0Client, workflowOptions...)
 
 	taskOptions := make([]TaskOption, 0)
 	for _, opt := range options {
@@ -460,7 +459,7 @@ func (w *Workflow) OnFailure(fn any) *Workflow {
 }
 
 // Dump implements the WorkflowBase interface for internal use.
-func (w *Workflow) Dump() (*contracts.CreateWorkflowVersionRequest, []workflow.NamedFunction, []workflow.NamedFunction, workflow.WrappedTaskFn) {
+func (w *Workflow) Dump() (*contracts.CreateWorkflowVersionRequest, []internal.NamedFunction, []internal.NamedFunction, internal.WrappedTaskFn) {
 	return w.declaration.Dump()
 }
 

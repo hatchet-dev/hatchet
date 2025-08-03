@@ -207,14 +207,14 @@ func main() {
 	// Start both workers
 	go func() {
 		log.Println("Starting worker 1...")
-		if err := worker1.StartBlocking(context.Background()); err != nil {
+		if err := worker1.Run(context.Background()); err != nil {
 			log.Printf("Worker 1 failed: %v", err)
 		}
 	}()
 
 	go func() {
 		log.Println("Starting worker 2...")
-		if err := worker2.StartBlocking(context.Background()); err != nil {
+		if err := worker2.Run(context.Background()); err != nil {
 			log.Printf("Worker 2 failed: %v", err)
 		}
 	}()

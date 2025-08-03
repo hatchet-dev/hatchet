@@ -90,7 +90,7 @@ func main() {
 	log.Println("  - Graceful shutdown on cancellation")
 	log.Println("  - Task timeout configuration")
 
-	if err := worker.StartBlocking(context.Background()); err != nil {
+	if err := worker.Run(context.Background()); err != nil {
 		log.Fatalf("failed to start worker: %v", err)
 	}
 }

@@ -114,7 +114,7 @@ func main() {
 	log.Println("  - weekly-report: 0 9 * * 1 (9 AM every Monday)")
 	log.Println("  - business-hours-monitor: 0 9-17 * * 1-5, 0 12 * * 6 (business hours)")
 
-	if err := worker.StartBlocking(context.Background()); err != nil {
+	if err := worker.Run(context.Background()); err != nil {
 		log.Fatalf("failed to start worker: %v", err)
 	}
 }

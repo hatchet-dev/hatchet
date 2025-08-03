@@ -221,7 +221,7 @@ func main() {
 	log.Println("  - Successful step output access during failure")
 	log.Println("  - Different failure types (error, timeout, panic)")
 
-	if err := worker.StartBlocking(context.Background()); err != nil {
+	if err := worker.Run(context.Background()); err != nil {
 		log.Fatalf("failed to start worker: %v", err)
 	}
 }
