@@ -18,6 +18,8 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/admin/contracts"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
+	"github.com/hatchet-dev/hatchet/pkg/constants"
+	grpcmiddleware "github.com/hatchet-dev/hatchet/pkg/grpc/middleware"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/metered"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
@@ -95,6 +97,18 @@ func (a *AdminServiceImpl) triggerWorkflowV0(ctx context.Context, req *contracts
 		return nil, fmt.Errorf("could not queue workflow run: %w", err)
 	}
 
+	additionalMeta := ""
+	if req.AdditionalMetadata != nil {
+		additionalMeta = *req.AdditionalMetadata
+	}
+	corrId := extractCorrelationId(additionalMeta)
+
+	ctx = context.WithValue(ctx, constants.CorrelationIdKey, corrId)
+	ctx = context.WithValue(ctx, constants.ResourceIdKey, workflowRunId)
+	ctx = context.WithValue(ctx, constants.ResourceTypeKey, constants.ResourceTypeWorkflowRun)
+
+	grpcmiddleware.TriggerCallback(ctx)
+
 	return &contracts.TriggerWorkflowResponse{
 		WorkflowRunId: workflowRunId,
 	}, nil
@@ -157,7 +171,7 @@ func (a *AdminServiceImpl) bulkTriggerWorkflowV0(ctx context.Context, req *contr
 		workflowRunIds = append(workflowRunIds, sqlchelpers.UUIDToStr(workflowRun.ID))
 	}
 
-	for _, workflowRunId := range workflowRunIds {
+	for i, workflowRunId := range workflowRunIds {
 		err = a.mq.AddMessage(
 			context.Background(),
 			msgqueue.WORKFLOW_PROCESSING_QUEUE,
@@ -167,6 +181,17 @@ func (a *AdminServiceImpl) bulkTriggerWorkflowV0(ctx context.Context, req *contr
 		if err != nil {
 			return nil, fmt.Errorf("could not queue workflow run: %w", err)
 		}
+
+		var corrId *string
+		if req.Workflows[i].AdditionalMetadata != nil {
+			corrId = extractCorrelationId(*req.Workflows[i].AdditionalMetadata)
+		}
+
+		ctx = context.WithValue(ctx, constants.CorrelationIdKey, corrId)
+		ctx = context.WithValue(ctx, constants.ResourceIdKey, workflowRunId)
+		ctx = context.WithValue(ctx, constants.ResourceTypeKey, constants.ResourceTypeWorkflowRun)
+
+		grpcmiddleware.TriggerCallback(ctx)
 	}
 
 	// adding in the pre-existing workflows to the response.

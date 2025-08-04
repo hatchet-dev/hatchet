@@ -13,6 +13,7 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/internal/cel"
+	"github.com/hatchet-dev/hatchet/pkg/constants"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
@@ -597,8 +598,8 @@ func cleanAdditionalMetadata(additionalMetadata []byte) map[string]interface{} {
 func (t *TriggeredByEvent) ToMetadata(additionalMetadata []byte) []byte {
 	res := cleanAdditionalMetadata(additionalMetadata)
 
-	res["hatchet__event_id"] = t.eventID
-	res["hatchet__event_key"] = t.eventKey
+	res[constants.EventIDKey.String()] = t.eventID
+	res[constants.EventKeyKey.String()] = t.eventKey
 
 	resBytes, err := json.Marshal(res)
 
