@@ -184,11 +184,25 @@ const buildWebhookPayload = (data: WebhookFormData): V1CreateWebhookRequest => {
   }
 };
 
-const createSourceCaption = (sourceName: V1WebhookSourceName) => {
+const createSourceInlineDescription = (sourceName: V1WebhookSourceName) => {
   switch (sourceName) {
     case V1WebhookSourceName.GENERIC:
       return '(receive incoming webhook requests from any service)';
     case V1WebhookSourceName.GITHUB:
+    case V1WebhookSourceName.STRIPE:
+      return '';
+    default:
+      // eslint-disable-next-line no-case-declarations
+      const exhaustiveCheck: never = sourceName;
+      throw new Error(`Unhandled source name: ${exhaustiveCheck}`);
+  }
+};
+
+const createSourceCaption = (sourceName: V1WebhookSourceName) => {
+  switch (sourceName) {
+    case V1WebhookSourceName.GITHUB:
+      return 'Select `application/json` as the content type in your GitHub webhook settings.';
+    case V1WebhookSourceName.GENERIC:
     case V1WebhookSourceName.STRIPE:
       return '';
     default:
@@ -338,13 +352,19 @@ const CreateWebhookModal = () => {
                     <div className="h-10 flex flex-row items-center gap-x-2">
                       <SourceName sourceName={source} />
                       <span className="text-sm truncate max-w-full">
-                        {createSourceCaption(source)}
+                        {createSourceInlineDescription(source)}
                       </span>
                     </div>
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
+            <div className="flex flex-row items-center gap-x-1">
+              <span>‼️</span>
+              <p className="text-xs text-muted-foreground">
+                {createSourceCaption(sourceName)}
+              </p>
+            </div>
           </div>
 
           <div className="space-y-2">
