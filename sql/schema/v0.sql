@@ -44,7 +44,8 @@ CREATE TYPE "LimitResource" AS ENUM (
     'WORKER',
     'WORKER_SLOT',
     'CRON',
-    'SCHEDULE'
+    'SCHEDULE',
+    'INCOMING_WEBHOOK'
 );
 
 -- CreateEnum

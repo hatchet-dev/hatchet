@@ -7,6 +7,8 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import api, {
   CreateTenantInviteRequest,
   TenantInvite,
+  TenantMember,
+  TenantMemberRole,
   UpdateTenantInviteRequest,
   UserChangePasswordRequest,
   queries,
@@ -16,6 +18,7 @@ import { DataTable } from '@/components/v1/molecules/data-table/data-table';
 import { columns } from './components/invites-columns';
 import { columns as membersColumns } from './components/members-columns';
 import { UpdateInviteForm } from './components/update-invite-form';
+import { UpdateMemberForm } from './components/update-member-form';
 import { DeleteInviteForm } from './components/delete-invite-form';
 import { ChangePasswordDialog } from './components/change-password-dialog';
 import { AxiosError } from 'axios';
@@ -48,6 +51,7 @@ function MembersList() {
   const { tenantId } = useCurrentTenantId();
   const [showChangePasswordDialog, setShowChangePasswordDialog] =
     useState(false);
+  const [memberToEdit, setMemberToEdit] = useState<TenantMember | null>(null);
 
   const listMembersQuery = useQuery({
     ...queries.members.list(tenantId),
@@ -64,6 +68,9 @@ function MembersList() {
           onChangePasswordClick: () => {
             setShowChangePasswordDialog(true);
           },
+          onEditRoleClick: (member) => {
+            setMemberToEdit(member);
+          },
         })}
         data={listMembersQuery.data?.rows || []}
         filters={[]}
@@ -77,7 +84,53 @@ function MembersList() {
           onSuccess={() => {}}
         />
       )}
+      {memberToEdit && (
+        <UpdateMember
+          member={memberToEdit}
+          onClose={() => setMemberToEdit(null)}
+          onSuccess={() => {
+            setMemberToEdit(null);
+            listMembersQuery.refetch();
+          }}
+        />
+      )}
     </div>
+  );
+}
+
+function UpdateMember({
+  member,
+  onClose,
+  onSuccess,
+}: {
+  member: TenantMember;
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
+  const { tenantId } = useCurrentTenantId();
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const { handleApiError } = useApiError({
+    setFieldErrors: setFieldErrors,
+  });
+
+  const updateMutation = useMutation({
+    mutationKey: ['tenant-member:update', tenantId, member.metadata.id],
+    mutationFn: async (data: { role: TenantMemberRole }) => {
+      await api.tenantMemberUpdate(tenantId, member.metadata.id, data);
+    },
+    onSuccess: onSuccess,
+    onError: handleApiError,
+  });
+
+  return (
+    <Dialog open={true} onOpenChange={onClose}>
+      <UpdateMemberForm
+        isLoading={updateMutation.isPending}
+        onSubmit={updateMutation.mutate}
+        fieldErrors={fieldErrors}
+        member={member}
+      />
+    </Dialog>
   );
 }
 

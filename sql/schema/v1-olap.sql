@@ -336,6 +336,25 @@ CREATE TABLE v1_task_events_olap (
 
 CREATE INDEX v1_task_events_olap_task_id_idx ON v1_task_events_olap (task_id);
 
+CREATE TABLE v1_incoming_webhook_validation_failures_olap (
+    id BIGINT NOT NULL GENERATED ALWAYS AS IDENTITY,
+
+    tenant_id UUID NOT NULL,
+
+    -- webhook names are tenant-unique
+    incoming_webhook_name TEXT NOT NULL,
+
+    error TEXT NOT NULL,
+
+    inserted_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (inserted_at, id)
+) PARTITION BY RANGE(inserted_at);
+
+CREATE INDEX v1_incoming_webhook_validation_failures_olap_tenant_id_incoming_webhook_name_idx ON v1_incoming_webhook_validation_failures_olap (tenant_id, incoming_webhook_name);
+
+
 -- this is a hash-partitioned table on the dag_id, so that we can process batches of events in parallel
 -- without needing to place conflicting locks on dags.
 CREATE TABLE v1_task_status_updates_tmp (
@@ -437,6 +456,7 @@ CREATE TABLE v1_events_olap (
     payload JSONB NOT NULL,
     additional_metadata JSONB,
     scope TEXT,
+    triggering_webhook_name TEXT,
 
     PRIMARY KEY (tenant_id, seen_at, id)
 ) PARTITION BY RANGE(seen_at);
@@ -463,6 +483,22 @@ CREATE TABLE v1_event_to_run_olap (
     PRIMARY KEY (event_id, event_seen_at, run_id, run_inserted_at)
 ) PARTITION BY RANGE(event_seen_at);
 
+CREATE TYPE v1_cel_evaluation_failure_source AS ENUM ('FILTER', 'WEBHOOK');
+
+CREATE TABLE v1_cel_evaluation_failures_olap (
+    id BIGINT NOT NULL GENERATED ALWAYS AS IDENTITY,
+
+    tenant_id UUID NOT NULL,
+
+    source v1_cel_evaluation_failure_source NOT NULL,
+
+    error TEXT NOT NULL,
+
+    inserted_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (inserted_at, id)
+) PARTITION BY RANGE(inserted_at);
 
 -- TRIGGERS TO LINK TASKS, DAGS AND EVENTS --
 CREATE OR REPLACE FUNCTION v1_tasks_olap_insert_function()

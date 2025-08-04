@@ -39,8 +39,7 @@ WITH existing AS (
   SELECT *
   FROM "TenantResourceLimit"
   WHERE "tenantId" = @tenantId::uuid AND "resource" = sqlc.narg('resource')::"LimitResource"
-)
-, insert_row AS (
+), insert_row AS (
   INSERT INTO "TenantResourceLimit" ("id", "tenantId", "resource", "value", "limitValue", "alarmValue", "window", "lastRefill", "customValueMeter")
   SELECT gen_random_uuid(), @tenantId::uuid, sqlc.narg('resource')::"LimitResource", 0, sqlc.narg('limitValue')::int, sqlc.narg('alarmValue')::int, sqlc.narg('window')::text, CURRENT_TIMESTAMP, COALESCE(sqlc.narg('customValueMeter')::boolean, false)
   WHERE NOT EXISTS (SELECT 1 FROM existing)
