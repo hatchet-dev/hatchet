@@ -106,7 +106,7 @@ const cleanUpExpiredIdempotencyKeys = `-- name: CleanUpExpiredIdempotencyKeys :e
 DELETE FROM v1_idempotency_key
 WHERE
     tenant_id = ANY($1::UUID[])
-    AND expires_at < (NOW() - INTERVAL '1 minute')
+    AND expires_at < NOW()
 `
 
 func (q *Queries) CleanUpExpiredIdempotencyKeys(ctx context.Context, db DBTX, tenantids []pgtype.UUID) error {

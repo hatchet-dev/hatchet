@@ -15,7 +15,7 @@ RETURNING *;
 DELETE FROM v1_idempotency_key
 WHERE
     tenant_id = ANY(@tenantIds::UUID[])
-    AND expires_at < (NOW() - INTERVAL '1 minute')
+    AND expires_at < NOW()
 ;
 
 -- name: ClaimIdempotencyKeys :many
