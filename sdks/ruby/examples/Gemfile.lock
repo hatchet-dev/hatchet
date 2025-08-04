@@ -1,0 +1,18 @@
+PATH
+  remote: ../src
+  specs:
+    hatchet (0.0.0)
+
+GEM
+  remote: https://rubygems.org/
+  specs:
+
+PLATFORMS
+  arm64-darwin-24
+  ruby
+
+DEPENDENCIES
+  hatchet!
+
+BUNDLED WITH
+   2.6.9
