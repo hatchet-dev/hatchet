@@ -4,7 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is the Ruby SDK for Hatchet (gem name: hatchet-sdk), currently in early development (version 0.0.0). The project follows standard Ruby gem conventions with a simple structure containing a main `Hatchet` module with a `Client` class for API key authentication.
+This is the Ruby SDK for Hatchet (gem name: hatchet-sdk), currently in early development (version 0.0.0). The project follows standard Ruby gem conventions with a simple structure containing a main `Hatchet` module with a `Client` class for JWT token authentication.
+
+The SDK includes comprehensive documentation and type signatures for excellent IDE support, including parameter hints, auto-completion, and type checking.
 
 ## Common Commands
 
@@ -25,18 +27,53 @@ This is the Ruby SDK for Hatchet (gem name: hatchet-sdk), currently in early dev
 **Gem Management:**
 - `bundle exec rake release` - Release new version (updates version, creates git tag, pushes to rubygems)
 
+**Documentation:**
+- `yard doc` - Generate YARD documentation (if yard gem is installed)
+- `rbs validate` - Validate RBS type signatures for syntax errors
+
 ## Architecture
 
 **Core Structure:**
 - `lib/hatchet-sdk.rb` - Main entry point, defines `Hatchet` module with `Error` and `Client` classes
 - `lib/hatchet/version.rb` - Version constant
-- `spec/` - RSpec tests with monkey patching disabled
-- `sig/hatchet-sdk.rbs` - Ruby type signatures
+- `lib/hatchet/config.rb` - Configuration classes with comprehensive JWT token support
+- `spec/` - RSpec tests with monkey patching disabled (36+ test cases)
+- `sig/hatchet-sdk.rbs` - Ruby type signatures for IDE integration
 
 **Key Classes:**
-- `Hatchet::Client` - Main client class that accepts an API key for authentication
+- `Hatchet::Client` - Main client class that accepts JWT token for authentication
+- `Hatchet::Config` - Configuration class supporting multiple sources (params, env vars, JWT payload)
+- `Hatchet::TLSConfig` - TLS configuration for secure connections
+- `Hatchet::HealthcheckConfig` - Worker health monitoring configuration  
+- `Hatchet::OpenTelemetryConfig` - Observability configuration
 - `Hatchet::Error` - Base error class for gem-specific exceptions
 
+**Configuration Sources (priority order):**
+1. Explicit constructor parameters (highest priority)
+2. Environment variables (`HATCHET_CLIENT_*`)
+3. JWT token payload (tenant_id extracted from 'sub' field)
+4. Default values (lowest priority)
+
+**Documentation & IDE Support:**
+- **YARD documentation** - Comprehensive JSDoc-style comments with examples
+- **RBS type signatures** - Complete type definitions for IDE parameter hints
+- **Sorbet compatibility** - Tagged with `# typed: strict` for type checking
+- IDEs with Ruby LSP/RubyMine will show parameter hints, auto-completion, and types
+
 The codebase uses frozen string literals and follows Ruby 3.1+ requirements.
+
+## Development Notes
+
+**When adding new configuration options:**
+1. Add the parameter to `Config#initialize` method
+2. Update the `@option` YARD documentation in both `Client` and `Config` classes  
+3. Add the parameter to RBS type signatures in `sig/hatchet-sdk.rbs`
+4. Add comprehensive test coverage in `spec/hatchet/config_spec.rb`
+5. Update this CLAUDE.md file with any architectural changes
+
+**Testing JWT token functionality:**
+- Use `Base64.encode64('{"sub":"tenant-id"}').gsub(/\n/, "").gsub(/=+$/, "")` to create test JWT payloads
+- The config extracts tenant_id from the 'sub' field in JWT tokens
+- Test both explicit tenant_id override and JWT extraction scenarios
 
 Keep the CLAUDE.md instructions up to date as the project continues to develop.

@@ -2,8 +2,15 @@
 
 require 'hatchet-sdk'
 
-client = Hatchet::Client.new("test")
+hatchet = Hatchet::Client.new()
 
 puts "Hello, World from Hatchet!"
 
-puts client.api_key
+puts hatchet.config.token
+puts hatchet.config.tls_config.strategy
+puts hatchet.config.tls_config.cert_file
+puts hatchet.config.tls_config.key_file
+puts hatchet.config.tls_config.root_ca_file
+puts hatchet.config.tls_config.server_name
+puts hatchet.config.namespace
+puts hatchet.config.tenant_id
