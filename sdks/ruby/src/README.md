@@ -54,6 +54,16 @@ After checking out the repo, run `bin/setup` to install dependencies. Then, run 
 
 To install this gem onto your local machine, run `bundle exec rake install`. To release a new version, update the version number in `version.rb`, and then run `bundle exec rake release`, which will create a git tag for the version, push git commits and the created tag, and push the `.gem` file to [rubygems.org](https://rubygems.org).
 
+
+This project uses `gem-release` to help with versioning.
+
+```
+$ gem bum # bumps to the next patch version
+$ gem bump --version minor # bumps to the next minor version
+$ gem bump --version major # bumps to the next major version
+$ gem bump --version 1.1.1 # bumps to the specified version
+```
+
 ## Contributing
 
 We welcome contributions! Please check out our [contributing guidelines](https://docs.hatchet.run/contributing) and join our [Discord community](https://hatchet.run/discord) for discussions and support.
