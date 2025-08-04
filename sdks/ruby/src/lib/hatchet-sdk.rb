@@ -6,9 +6,7 @@ require_relative "hatchet/config"
 
 # Ruby SDK for Hatchet workflow engine
 #
-# @see https://docs.hatchet-tools.com Hatchet Documentation
-# @author Hatchet Team
-# @version 0.0.0
+# @see https://docs.hatchet.run for Hatchet documentation
 module Hatchet
   # Base error class for all Hatchet-related errors
   class Error < StandardError; end
@@ -21,7 +19,6 @@ module Hatchet
   # @example With custom configuration
   #   hatchet = Hatchet::Client.new(
   #     token: "your-jwt-token",
-  #     host_port: "localhost:7070",
   #     namespace: "production"
   #   )
   class Client
@@ -50,15 +47,14 @@ module Hatchet
     # @option options [HealthcheckConfig] :healthcheck Custom healthcheck configuration
     # @option options [OpenTelemetryConfig] :otel Custom OpenTelemetry configuration
     #
-    # @raise [Error] if token is missing or invalid
+    # @raise [Error] if token or configuration is missing or invalid
     #
     # @example Initialize with minimal configuration
-    #   client = Hatchet::Client.new(token: "eyJhbGciOiJIUzI1NiJ9...")
+    #   client = Hatchet::Client.new()
     #
     # @example Initialize with custom options
     #   client = Hatchet::Client.new(
     #     token: "eyJhbGciOiJIUzI1NiJ9...",
-    #     host_port: "production.hatchet.com:443",
     #     namespace: "my_app",
     #     worker_preset_labels: { "env" => "production", "version" => "1.0.0" }
     #   )

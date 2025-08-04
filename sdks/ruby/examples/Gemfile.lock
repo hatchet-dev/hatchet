@@ -1,7 +1,7 @@
 PATH
   remote: ../src
   specs:
-    hatchet-sdk (0.0.0)
+    hatchet-sdk (0.0.1)
 
 GEM
   remote: https://rubygems.org/
