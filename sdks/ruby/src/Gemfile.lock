@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    hatchet (0.1.0)
+    hatchet (0.0.0)
 
 GEM
   remote: https://rubygems.org/
@@ -10,6 +10,7 @@ GEM
     date (3.4.1)
     diff-lcs (1.6.2)
     erb (5.0.2)
+    gem-release (2.2.4)
     io-console (0.8.1)
     irb (1.15.2)
       pp (>= 0.6.0)
@@ -76,6 +77,7 @@ PLATFORMS
   ruby
 
 DEPENDENCIES
+  gem-release (~> 2.2)
   hatchet!
   irb
   rake (~> 13.0)
