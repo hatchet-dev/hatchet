@@ -64,7 +64,7 @@ WITH inputs AS (
 SELECT
     i.key::TEXT AS key,
     c.expires_at::TIMESTAMPTZ AS expires_at,
-    c.claimed_by_external_id IS NOT NULL AS was_successfully_claimed
+    c.claimed_by_external_id IS NOT NULL::BOOLEAN AS was_successfully_claimed
 FROM inputs i
 LEFT JOIN claims c ON (i.key = c.key AND i.claimed_by_external_id = c.claimed_by_external_id)
 `
@@ -78,7 +78,7 @@ type ClaimIdempotencyKeysParams struct {
 type ClaimIdempotencyKeysRow struct {
 	Key                    string             `json:"key"`
 	ExpiresAt              pgtype.Timestamptz `json:"expires_at"`
-	WasSuccessfullyClaimed interface{}        `json:"was_successfully_claimed"`
+	WasSuccessfullyClaimed bool               `json:"was_successfully_claimed"`
 }
 
 func (q *Queries) ClaimIdempotencyKeys(ctx context.Context, db DBTX, arg ClaimIdempotencyKeysParams) ([]*ClaimIdempotencyKeysRow, error) {

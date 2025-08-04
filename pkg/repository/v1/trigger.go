@@ -494,9 +494,10 @@ func (r *TriggerRepositoryImpl) TriggerFromWorkflowNames(ctx context.Context, te
 
 		for _, opt := range opts {
 			if opt.IdempotencyKey != nil {
-				wasClaimed, exists := keyToWasClaimed[IdempotencyKey(*opt.IdempotencyKey)]
+				wasSuccessfullyClaimed := keyToWasClaimed[IdempotencyKey(*opt.IdempotencyKey)]
 
-				if exists && bool(wasClaimed) {
+				// if we did not successfully claim the idempotency key, we should not trigger the workflow
+				if !wasSuccessfullyClaimed {
 					continue
 				}
 			}

@@ -9,7 +9,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-type WasAlreadyClaimed bool
+type WasSuccessfullyClaimed bool
 type IdempotencyKey string
 
 type IdempotencyRepository interface {
@@ -44,7 +44,7 @@ type KeyClaimantPair struct {
 	ClaimedByExternalId pgtype.UUID
 }
 
-func claimIdempotencyKeys(context context.Context, queries *sqlcv1.Queries, pool *pgxpool.Pool, tenantId string, claims []KeyClaimantPair) (map[IdempotencyKey]WasAlreadyClaimed, error) {
+func claimIdempotencyKeys(context context.Context, queries *sqlcv1.Queries, pool *pgxpool.Pool, tenantId string, claims []KeyClaimantPair) (map[IdempotencyKey]WasSuccessfullyClaimed, error) {
 	keys := make([]string, len(claims))
 	claimedByExternalIds := make([]pgtype.UUID, len(claims))
 
@@ -63,10 +63,10 @@ func claimIdempotencyKeys(context context.Context, queries *sqlcv1.Queries, pool
 		return nil, err
 	}
 
-	keyToClaimStatus := make(map[IdempotencyKey]WasAlreadyClaimed)
+	keyToClaimStatus := make(map[IdempotencyKey]WasSuccessfullyClaimed)
 
 	for _, claimResult := range claimResults {
-		keyToClaimStatus[IdempotencyKey(claimResult.Key)] = WasAlreadyClaimed(claimResult.WasAlreadyClaimed.Bool)
+		keyToClaimStatus[IdempotencyKey(claimResult.Key)] = WasSuccessfullyClaimed(claimResult.WasSuccessfullyClaimed)
 	}
 
 	return keyToClaimStatus, nil
