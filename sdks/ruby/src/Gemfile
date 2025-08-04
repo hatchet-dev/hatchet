@@ -11,3 +11,8 @@ gem "rake", "~> 13.0"
 gem "rspec", "~> 3.0"
 
 gem "rubocop", "~> 1.21"
+
+# REST API client dependencies
+gem "faraday", "~> 2.0"
+gem "faraday-multipart"
+gem "json", "~> 2.0"

@@ -3,6 +3,7 @@
 
 require_relative "hatchet/version"
 require_relative "hatchet/config"
+require_relative "hatchet/clients"
 
 # Ruby SDK for Hatchet workflow engine
 #

@@ -31,18 +31,31 @@ The SDK includes comprehensive documentation and type signatures for excellent I
 - `yard doc` - Generate YARD documentation (if yard gem is installed)
 - `rbs validate` - Validate RBS type signatures for syntax errors
 
+**REST API Generation:**
+- `rake api:generate` - Generate REST API client from OpenAPI specification
+- `rake api:clean` - Remove generated REST API client files  
+- `rake api:regenerate` - Clean and regenerate REST API client
+- `rake api:validate` - Validate OpenAPI specification
+- `rake api:info` - Show OpenAPI specification information
+- `./scripts/generate.sh` - Alternative shell script for generation
+
 ## Architecture
 
 **Core Structure:**
 - `lib/hatchet-sdk.rb` - Main entry point, defines `Hatchet` module with `Error` and `Client` classes
 - `lib/hatchet/version.rb` - Version constant
 - `lib/hatchet/config.rb` - Configuration classes with comprehensive JWT token support
+- `lib/hatchet/clients.rb` - Client factory and REST client integration
+- `lib/hatchet/clients/rest/` - Generated REST API client (created via `rake api:generate`)
 - `spec/` - RSpec tests with monkey patching disabled (36+ test cases)
 - `sig/hatchet-sdk.rbs` - Ruby type signatures for IDE integration
+- `scripts/` - Code generation and maintenance scripts
 
 **Key Classes:**
 - `Hatchet::Client` - Main client class that accepts JWT token for authentication
 - `Hatchet::Config` - Configuration class supporting multiple sources (params, env vars, JWT payload)
+- `Hatchet::Clients` - Factory for creating REST and other protocol clients
+- `Hatchet::Clients::Rest::*` - Generated REST API clients (WorkflowApi, EventApi, etc.)
 - `Hatchet::TLSConfig` - TLS configuration for secure connections
 - `Hatchet::HealthcheckConfig` - Worker health monitoring configuration  
 - `Hatchet::OpenTelemetryConfig` - Observability configuration
@@ -70,6 +83,13 @@ The codebase uses frozen string literals and follows Ruby 3.1+ requirements.
 3. Add the parameter to RBS type signatures in `sig/hatchet-sdk.rbs`
 4. Add comprehensive test coverage in `spec/hatchet/config_spec.rb`
 5. Update this CLAUDE.md file with any architectural changes
+
+**REST API Client Generation:**
+- The SDK can generate a complete REST API client from the OpenAPI spec at `../../../../bin/oas/openapi.yaml`
+- Use `rake api:generate` to create Ruby bindings for all Hatchet REST endpoints
+- Generated client integrates with `Hatchet::Config` for authentication and configuration
+- Supports both sync and async operations with comprehensive error handling
+- See `REST_API_GENERATION.md` for detailed instructions
 
 **Testing JWT token functionality:**
 - Use `Base64.encode64('{"sub":"tenant-id"}').gsub(/\n/, "").gsub(/=+$/, "")` to create test JWT payloads

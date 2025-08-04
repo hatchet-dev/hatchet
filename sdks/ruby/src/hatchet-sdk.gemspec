@@ -29,12 +29,24 @@ Gem::Specification.new do |spec|
         f.start_with?(*%w[bin/ test/ spec/ features/ .git .github appveyor Gemfile])
     end
   end
+  
+  # Add generated REST API client files to the gem
+  rest_client_dir = "lib/hatchet/clients/rest"
+  if Dir.exist?(rest_client_dir)
+    rest_files = Dir.glob("#{rest_client_dir}/**/*.rb").select { |f| File.file?(f) }
+    spec.files.concat(rest_files)
+  end
   spec.bindir = "exe"
   spec.executables = spec.files.grep(%r{\Aexe/}) { |f| File.basename(f) }
   spec.require_paths = ["lib"]
 
-  # Uncomment to register a new dependency of your gem
-  # spec.add_dependency "example-gem", "~> 1.0"
+  # Runtime dependencies for REST API client
+  spec.add_dependency "faraday", "~> 2.0"
+  spec.add_dependency "faraday-multipart"
+  spec.add_dependency "marcel"
+  spec.add_dependency "json", "~> 2.0"
+  
+  # Development dependencies
   spec.add_development_dependency "gem-release", "~> 2.2"
   spec.add_development_dependency "rspec", "~> 3.0"
 

@@ -2,10 +2,29 @@ PATH
   remote: ../src
   specs:
     hatchet-sdk (0.0.1)
+      faraday (~> 2.0)
+      faraday-multipart
+      json (~> 2.0)
+      marcel
 
 GEM
   remote: https://rubygems.org/
   specs:
+    faraday (2.13.4)
+      faraday-net_http (>= 2.0, < 3.5)
+      json
+      logger
+    faraday-multipart (1.1.1)
+      multipart-post (~> 2.0)
+    faraday-net_http (3.4.1)
+      net-http (>= 0.5.0)
+    json (2.13.2)
+    logger (1.7.0)
+    marcel (1.0.4)
+    multipart-post (2.4.1)
+    net-http (0.6.0)
+      uri
+    uri (1.0.3)
 
 PLATFORMS
   arm64-darwin-24

@@ -1,7 +1,11 @@
 PATH
   remote: .
   specs:
-    hatchet-sdk (0.0.0)
+    hatchet-sdk (0.0.1)
+      faraday (~> 2.0)
+      faraday-multipart
+      json (~> 2.0)
+      marcel
 
 GEM
   remote: https://rubygems.org/
@@ -10,6 +14,14 @@ GEM
     date (3.4.1)
     diff-lcs (1.6.2)
     erb (5.0.2)
+    faraday (2.13.4)
+      faraday-net_http (>= 2.0, < 3.5)
+      json
+      logger
+    faraday-multipart (1.1.1)
+      multipart-post (~> 2.0)
+    faraday-net_http (3.4.1)
+      net-http (>= 0.5.0)
     gem-release (2.2.4)
     io-console (0.8.1)
     irb (1.15.2)
@@ -19,6 +31,11 @@ GEM
     json (2.13.2)
     language_server-protocol (3.17.0.5)
     lint_roller (1.1.0)
+    logger (1.7.0)
+    marcel (1.0.4)
+    multipart-post (2.4.1)
+    net-http (0.6.0)
+      uri
     parallel (1.27.0)
     parser (3.3.9.0)
       ast (~> 2.4.1)
@@ -71,15 +88,19 @@ GEM
     unicode-display_width (3.1.4)
       unicode-emoji (~> 4.0, >= 4.0.4)
     unicode-emoji (4.0.4)
+    uri (1.0.3)
 
 PLATFORMS
   arm64-darwin-24
   ruby
 
 DEPENDENCIES
+  faraday (~> 2.0)
+  faraday-multipart
   gem-release (~> 2.2)
   hatchet-sdk!
   irb
+  json (~> 2.0)
   rake (~> 13.0)
   rspec (~> 3.0)
   rubocop (~> 1.21)
