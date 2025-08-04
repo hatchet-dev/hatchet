@@ -39,6 +39,15 @@ import { SourceName } from './components/source-name';
 import { AuthMethod } from './components/auth-method';
 import { AuthSetup } from './components/auth-setup';
 
+const WebhookEmptyState = () => {
+  return (
+    <div className="size-full flex flex-col items-center justify-center gap-y-4 p-6">
+      <span>No webhooks found. Create a webhook to get started.</span>
+      <CreateWebhookModal />
+    </div>
+  );
+};
+
 export default function Webhooks() {
   const { data, isLoading, error } = useWebhooks();
 
@@ -53,6 +62,7 @@ export default function Webhooks() {
         columns={columns()}
         data={data}
         filters={[]}
+        emptyState={<WebhookEmptyState />}
       />
     </div>
   );
@@ -248,7 +258,7 @@ const CreateWebhookModal = () => {
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <div className="flex items-center justify-center w-8 h-8 bg-blue-100 rounded-full">
-              <Webhook className="h-4 w-4 text-blue-600" />
+              <Webhook className="h-4 w-4 text-background" />
             </div>
             Create a webhook
           </DialogTitle>
