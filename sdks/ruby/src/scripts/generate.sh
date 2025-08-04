@@ -80,9 +80,6 @@ generate_client() {
 apply_patches() {
     echo -e "${BLUE}🔧 Applying custom patches...${NC}"
     
-    # Run the Ruby patch script
-    ruby "$SCRIPT_DIR/patch_generated_code.rb" "$OUTPUT_DIR"
-    
     echo -e "${GREEN}✅ Custom patches applied${NC}"
 }
 

@@ -11,11 +11,15 @@ require "open3"
 class ApiGenerator
   OPENAPI_SPEC_PATH = "../../../../bin/oas/openapi.yaml"
   GENERATOR_CONFIG_PATH = "../config/openapi_generator_config.json"
-  OUTPUT_DIR = "../lib/hatchet/clients/rest"
+  # Use absolute path for reliability
+  def output_dir
+    File.join(File.dirname(@root_dir), "lib", "hatchet", "clients", "rest")
+  end
   TEMP_DIR = "../tmp/openapi_generation"
 
   def initialize
     @root_dir = __dir__
+    @patches_applied = 0
   end
 
   def generate
@@ -34,7 +38,7 @@ class ApiGenerator
 
   def setup_directories
     puts "📁 Setting up directories..."
-    FileUtils.mkdir_p(OUTPUT_DIR)
+    FileUtils.mkdir_p(output_dir)
     FileUtils.mkdir_p(TEMP_DIR)
   end
 
@@ -58,7 +62,7 @@ class ApiGenerator
     
     openapi_spec = File.expand_path(OPENAPI_SPEC_PATH, @root_dir)
     config_file = File.expand_path(GENERATOR_CONFIG_PATH, @root_dir)
-    output_path = File.expand_path(OUTPUT_DIR, @root_dir)
+    output_path = output_dir
     
     unless File.exist?(openapi_spec)
       raise "OpenAPI spec not found at #{openapi_spec}"
@@ -109,15 +113,14 @@ class ApiGenerator
     
     # Apply Ruby-specific patches here
     patch_require_statements
-    patch_module_structure
-    add_documentation_improvements
+    patch_cookie_auth
   end
 
   def patch_require_statements
     puts "  📝 Patching require statements..."
     
     # Find all generated Ruby files and fix require statements
-    Dir.glob("#{OUTPUT_DIR}/**/*.rb").each do |file|
+    Dir.glob("#{output_dir}/**/*.rb").each do |file|
       content = File.read(file)
       
       # Update require paths to be relative to the gem structure
@@ -131,18 +134,22 @@ class ApiGenerator
     end
   end
 
-  def patch_module_structure
-    puts "  🏗️  Patching module structure..."
-    
-    # Ensure proper nested module structure for Ruby conventions
-    # This will be implemented based on the generated code structure
-  end
+  def patch_cookie_auth
+    puts "  🍪 Enhancing cookie auth..."
+    # find the auth_settings hash in the configuration.rb file
+    config_file = File.join(output_dir, "lib/hatchet-sdk-rest/configuration.rb")
+    return unless File.exist?(config_file)
 
-  def add_documentation_improvements
-    puts "  📚 Adding documentation improvements..."
+    content = File.read(config_file)
     
-    # Add YARD documentation to generated classes
-    # This will be implemented to enhance the generated documentation
+    # Apply the fix - replace 'in: ,' with 'in: 'header','
+    if content.gsub!(/in:\s*,/, "in: 'header',")
+      puts "    ✅ Successfully applied cookie auth patch"
+      File.write(config_file, content)
+      @patches_applied += 1
+    else
+      puts "    ❌ Failed to apply cookie auth patch - no matches found"
+    end
   end
 
   def cleanup_temp_files
