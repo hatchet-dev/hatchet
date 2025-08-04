@@ -49,7 +49,8 @@ WITH inputs AS (
         ck.key,
         ic.claimed_by_external_id
     FROM candidate_keys ck
-    JOIN incoming_claims ic ON (ck.tenant_id, ck.key, ck.claim_index) = (ic.tenant_id, ic.key, ic.claim_index)
+    JOIN incoming_claims ic ON (ck.key, ck.key_index) = (ic.key, ic.claim_index)
+    WHERE ck.tenant_id = $3::UUID
     FOR UPDATE SKIP LOCKED
 ), claims AS (
     UPDATE v1_idempotency_key k
