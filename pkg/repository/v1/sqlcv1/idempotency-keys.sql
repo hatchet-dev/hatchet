@@ -36,9 +36,11 @@ WITH inputs AS (
     RETURNING k.key, k.claimed_by_external_id
 )
 
-SELECT key::TEXT AS key, key NOT IN (
-    SELECT key
-    FROM claims
-) AS was_already_claimed
+SELECT
+    key::TEXT AS key,
+    key NOT IN (
+        SELECT key
+        FROM claims
+    ) AS was_already_claimed
 FROM inputs
 ;
