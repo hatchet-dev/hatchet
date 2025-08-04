@@ -2865,6 +2865,7 @@ type V1Match struct {
 	TriggerChildKey               pgtype.Text        `json:"trigger_child_key"`
 	TriggerExistingTaskID         pgtype.Int8        `json:"trigger_existing_task_id"`
 	TriggerExistingTaskInsertedAt pgtype.Timestamptz `json:"trigger_existing_task_inserted_at"`
+	TriggerPriority               pgtype.Int4        `json:"trigger_priority"`
 }
 
 type V1MatchCondition struct {
