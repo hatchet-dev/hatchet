@@ -1,28 +1,52 @@
-# Hatchet
+# Hatchet Ruby SDK
 
-TODO: Delete this and the text below, and describe your gem
+<div align="center">
 
-Welcome to your new gem! In this directory, you'll find the files you need to be able to package up your Ruby library into a gem. Put your Ruby code in the file `lib/hatchet`. To experiment with that code, run `bin/console` for an interactive prompt.
+[![Gem Version](https://badge.fury.io/rb/hatchet.svg)](https://badge.fury.io/rb/hatchet)
+[![Documentation](https://img.shields.io/badge/docs-hatchet.run-blue)](https://docs.hatchet.run)
+[![License: MIT](https://img.shields.io/badge/License-MIT-purple.svg)](https://opensource.org/licenses/MIT)
+
+</div>
+
+This is the official Ruby SDK for [Hatchet](https://hatchet.run), a distributed, fault-tolerant task queue. The SDK allows you to easily integrate Hatchet's task scheduling and workflow orchestration capabilities into your Ruby applications.
 
 ## Installation
 
-TODO: Replace `UPDATE_WITH_YOUR_GEM_NAME_IMMEDIATELY_AFTER_RELEASE_TO_RUBYGEMS_ORG` with your gem name right after releasing it to RubyGems.org. Please do not do it earlier due to security reasons. Alternatively, replace this section with instructions to install your gem from git if you don't plan to release to RubyGems.org.
+Add this line to your application's Gemfile:
 
-Install the gem and add to the application's Gemfile by executing:
-
-```bash
-bundle add UPDATE_WITH_YOUR_GEM_NAME_IMMEDIATELY_AFTER_RELEASE_TO_RUBYGEMS_ORG
+```ruby
+gem 'hatchet'
 ```
 
-If bundler is not being used to manage dependencies, install the gem by executing:
+And then execute:
 
 ```bash
-gem install UPDATE_WITH_YOUR_GEM_NAME_IMMEDIATELY_AFTER_RELEASE_TO_RUBYGEMS_ORG
+bundle install
 ```
 
-## Usage
+Or install it yourself as:
 
-TODO: Write usage instructions here
+```bash
+gem install hatchet
+```
+
+## Quick Start
+
+For examples of how to use the Hatchet Ruby SDK, including worker setup and task execution, please see our [official documentation](https://docs.hatchet.run/home/setup).
+
+## Features
+
+- 🔄 **Workflow Orchestration**: Define complex workflows with dependencies and parallel execution
+- 🔁 **Automatic Retries**: Configure retry policies for handling transient failures
+- 📊 **Observability**: Track workflow progress and monitor execution metrics
+- ⏰ **Scheduling**: Schedule workflows to run at specific times or on a recurring basis
+- 🔄 **Event-Driven**: Trigger workflows based on events in your system
+
+## Documentation
+
+For detailed documentation, examples, and best practices, visit:
+- [Hatchet Documentation](https://docs.hatchet.run)
+- [Examples](https://github.com/hatchet-dev/hatchet/tree/main/sdks/ruby/examples)
 
 ## Development
 
@@ -32,8 +56,8 @@ To install this gem onto your local machine, run `bundle exec rake install`. To 
 
 ## Contributing
 
-Bug reports and pull requests are welcome on GitHub at https://github.com/[USERNAME]/hatchet.
+We welcome contributions! Please check out our [contributing guidelines](https://docs.hatchet.run/contributing) and join our [Discord community](https://hatchet.run/discord) for discussions and support.
 
 ## License
 
-The gem is available as open source under the terms of the [MIT License](https://opensource.org/licenses/MIT).
+This SDK is released under the MIT License. See [LICENSE](https://github.com/hatchet-dev/hatchet/blob/main/LICENSE) for details.
