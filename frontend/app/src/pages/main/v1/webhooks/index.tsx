@@ -33,11 +33,20 @@ import {
   V1WebhookHMACAlgorithm,
   V1WebhookHMACEncoding,
 } from '@/lib/api';
-import { Webhook, Copy, Check } from 'lucide-react';
+import { Webhook, Copy, Check, AlertTriangle } from 'lucide-react';
 import { Spinner } from '@/components/v1/ui/loading';
 import { SourceName } from './components/source-name';
 import { AuthMethod } from './components/auth-method';
 import { AuthSetup } from './components/auth-setup';
+
+const WebhookEmptyState = () => {
+  return (
+    <div className="size-full flex flex-col items-center justify-center gap-y-4 p-6">
+      <span>No webhooks found. Create a webhook to get started.</span>
+      <CreateWebhookModal />
+    </div>
+  );
+};
 
 export default function Webhooks() {
   const { data, isLoading, error } = useWebhooks();
@@ -53,6 +62,7 @@ export default function Webhooks() {
         columns={columns()}
         data={data}
         filters={[]}
+        emptyState={<WebhookEmptyState />}
       />
     </div>
   );
@@ -174,6 +184,42 @@ const buildWebhookPayload = (data: WebhookFormData): V1CreateWebhookRequest => {
   }
 };
 
+const createSourceInlineDescription = (sourceName: V1WebhookSourceName) => {
+  switch (sourceName) {
+    case V1WebhookSourceName.GENERIC:
+      return '(receive incoming webhook requests from any service)';
+    case V1WebhookSourceName.GITHUB:
+    case V1WebhookSourceName.STRIPE:
+      return '';
+    default:
+      // eslint-disable-next-line no-case-declarations
+      const exhaustiveCheck: never = sourceName;
+      throw new Error(`Unhandled source name: ${exhaustiveCheck}`);
+  }
+};
+
+const SourceCaption = ({ sourceName }: { sourceName: V1WebhookSourceName }) => {
+  switch (sourceName) {
+    case V1WebhookSourceName.GITHUB:
+      return (
+        <div className="flex flex-row items-center gap-x-2 ml-1">
+          <AlertTriangle className="size-4 text-yellow-500" />
+          <p className="text-xs text-muted-foreground">
+            Select <span className="font-semibold">application/json</span> as
+            the content type in your GitHub webhook settings.
+          </p>
+        </div>
+      );
+    case V1WebhookSourceName.GENERIC:
+    case V1WebhookSourceName.STRIPE:
+      return '';
+    default:
+      // eslint-disable-next-line no-case-declarations
+      const exhaustiveCheck: never = sourceName;
+      throw new Error(`Unhandled source name: ${exhaustiveCheck}`);
+  }
+};
+
 const CreateWebhookModal = () => {
   const { mutations, createWebhookURL } = useWebhooks();
   const { createWebhook, isCreatePending } = mutations;
@@ -248,7 +294,7 @@ const CreateWebhookModal = () => {
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <div className="flex items-center justify-center w-8 h-8 bg-blue-100 rounded-full">
-              <Webhook className="h-4 w-4 text-blue-600" />
+              <Webhook className="h-4 w-4 text-indigo-700" />
             </div>
             Create a webhook
           </DialogTitle>
@@ -303,22 +349,25 @@ const CreateWebhookModal = () => {
                 setValue('sourceName', value)
               }
             >
-              <SelectTrigger className="h-10">
+              <SelectTrigger>
                 <SelectValue>
                   <SourceName sourceName={sourceName} />
                 </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {Object.values(V1WebhookSourceName).map((source) => (
-                  <SelectItem key={source} value={source}>
-                    <SourceName sourceName={source} />
+                  <SelectItem key={source} value={source} className="h-10">
+                    <div className="h-10 flex flex-row items-center gap-x-2">
+                      <SourceName sourceName={source} />
+                      <span className="text-sm truncate max-w-full">
+                        {createSourceInlineDescription(source)}
+                      </span>
+                    </div>
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
-            <p className="text-xs text-muted-foreground">
-              Represents the producer of your HTTP requests.
-            </p>
+            <SourceCaption sourceName={sourceName} />
           </div>
 
           <div className="space-y-2">
