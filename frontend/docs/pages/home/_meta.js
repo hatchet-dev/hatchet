@@ -25,6 +25,7 @@ export default {
   "cron-runs": "Cron Trigger",
   "run-on-event": "Event Trigger",
   "bulk-run": "Bulk Run Many",
+  "webhooks": "Webhooks",
   "--flow-control": {
     title: "Flow Control",
     type: "separator",
