@@ -947,6 +947,7 @@ func (tc *TasksControllerImpl) handleProcessUserEventTrigger(ctx context.Context
 				EventPayload:            opts.Data,
 				EventAdditionalMetadata: opts.AdditionalMetadata,
 				TriggeringWebhookName:   opts.TriggeringWebhookName,
+				EventScope:              opts.Scope,
 			})
 		} else {
 			for _, run := range runs {
