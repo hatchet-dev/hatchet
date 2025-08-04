@@ -13,29 +13,60 @@ import (
 
 const claimIdempotencyKeys = `-- name: ClaimIdempotencyKeys :many
 WITH inputs AS (
-    SELECT
+    SELECT DISTINCT
         UNNEST($1::TEXT[]) AS key,
         UNNEST($2::UUID[]) AS claimed_by_external_id
+), incoming_claims AS (
+    SELECT
+        key, claimed_by_external_id,
+        ROW_NUMBER() OVER(PARTITION BY key ORDER BY claimed_by_external_id) AS claim_index
+    FROM inputs
+), candidate_keys AS (
+    -- Grab all of the keys that are attempting to be claimed
+    SELECT
+        tenant_id,
+        expires_at,
+        key,
+        ROW_NUMBER() OVER(PARTITION BY tenant_id, key ORDER BY expires_at) AS key_index
+    FROM v1_idempotency_key
+    WHERE
+        tenant_id = $3::UUID
+        AND key IN (
+            SELECT key
+            FROM incoming_claims
+        )
+        AND claimed_by_external_id IS NULL
+        AND expires_at > NOW()
+), to_update AS (
+    -- Cases to handle:
+    -- 1. What happens if we get two incoming records for the same key but different claimed_by_external_id? (basically two runs trying to claim the same key)
+    --   1a. What about if we have two different idempotency keys for the same key value with different expirations?
+    --       e.g. key = 'abc', expires_at = 'x' and key = 'abc', expires_at = 'y'?
+    -- ✅ 2. What happens if we get two incoming records for the same key and same claimed_by_external_id?
+    SELECT
+        ck.tenant_id,
+        ck.expires_at,
+        ck.key,
+        ic.claimed_by_external_id
+    FROM candidate_keys ck
+    JOIN incoming_claims ic ON (ck.tenant_id, ck.key, ck.claim_index) = (ic.tenant_id, ic.key, ic.claim_index)
+    FOR UPDATE SKIP LOCKED
 ), claims AS (
     UPDATE v1_idempotency_key k
     SET
-        claimed_by_external_id = i.claimed_by_external_id,
+        claimed_by_external_id = u.claimed_by_external_id,
         updated_at = NOW()
-    FROM inputs i
-    WHERE
-        k.tenant_id = $3::UUID
-        AND k.key = i.key
-        AND k.claimed_by_external_id IS NULL
-    RETURNING k.key, k.claimed_by_external_id
+    FROM to_update u
+    WHERE (u.tenant_id, u.expires_at, u.key) = (k.tenant_id, k.expires_at, k.key)
+    RETURNING k.tenant_id, k.key, k.expires_at, k.claimed_by_external_id, k.inserted_at, k.updated_at
 )
 
 SELECT
-    key::TEXT AS key,
-    key NOT IN (
-        SELECT key
-        FROM claims
-    ) AS was_already_claimed
-FROM inputs
+    i.key::TEXT AS key,
+    c.expires_at::TIMESTAMPTZ AS expires_at,
+    c.claimed_by_external_id IS NOT NULL AS was_successfully_claimed
+FROM inputs i
+LEFT JOIN claims c ON (i.key = c.key AND i.claimed_by_external_id = c.claimed_by_external_id)
 `
 
 type ClaimIdempotencyKeysParams struct {
@@ -45,8 +76,9 @@ type ClaimIdempotencyKeysParams struct {
 }
 
 type ClaimIdempotencyKeysRow struct {
-	Key               string      `json:"key"`
-	WasAlreadyClaimed pgtype.Bool `json:"was_already_claimed"`
+	Key                    string             `json:"key"`
+	ExpiresAt              pgtype.Timestamptz `json:"expires_at"`
+	WasSuccessfullyClaimed interface{}        `json:"was_successfully_claimed"`
 }
 
 func (q *Queries) ClaimIdempotencyKeys(ctx context.Context, db DBTX, arg ClaimIdempotencyKeysParams) ([]*ClaimIdempotencyKeysRow, error) {
@@ -58,7 +90,7 @@ func (q *Queries) ClaimIdempotencyKeys(ctx context.Context, db DBTX, arg ClaimId
 	var items []*ClaimIdempotencyKeysRow
 	for rows.Next() {
 		var i ClaimIdempotencyKeysRow
-		if err := rows.Scan(&i.Key, &i.WasAlreadyClaimed); err != nil {
+		if err := rows.Scan(&i.Key, &i.ExpiresAt, &i.WasSuccessfullyClaimed); err != nil {
 			return nil, err
 		}
 		items = append(items, &i)
