@@ -33,7 +33,7 @@ import {
   V1WebhookHMACAlgorithm,
   V1WebhookHMACEncoding,
 } from '@/lib/api';
-import { Webhook, Copy, Check } from 'lucide-react';
+import { Webhook, Copy, Check, AlertTriangle } from 'lucide-react';
 import { Spinner } from '@/components/v1/ui/loading';
 import { SourceName } from './components/source-name';
 import { AuthMethod } from './components/auth-method';
@@ -198,10 +198,18 @@ const createSourceInlineDescription = (sourceName: V1WebhookSourceName) => {
   }
 };
 
-const createSourceCaption = (sourceName: V1WebhookSourceName) => {
+const SourceCaption = ({ sourceName }: { sourceName: V1WebhookSourceName }) => {
   switch (sourceName) {
     case V1WebhookSourceName.GITHUB:
-      return 'Select `application/json` as the content type in your GitHub webhook settings.';
+      return (
+        <div className="flex flex-row items-center gap-x-2 ml-1">
+          <AlertTriangle className="size-4 text-yellow-500" />
+          <p className="text-xs text-muted-foreground">
+            Select <span className="font-semibold">application/json</span> as
+            the content type in your GitHub webhook settings.
+          </p>
+        </div>
+      );
     case V1WebhookSourceName.GENERIC:
     case V1WebhookSourceName.STRIPE:
       return '';
@@ -286,7 +294,7 @@ const CreateWebhookModal = () => {
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <div className="flex items-center justify-center w-8 h-8 bg-blue-100 rounded-full">
-              <Webhook className="h-4 w-4 text-background" />
+              <Webhook className="h-4 w-4 text-indigo-700" />
             </div>
             Create a webhook
           </DialogTitle>
@@ -359,12 +367,7 @@ const CreateWebhookModal = () => {
                 ))}
               </SelectContent>
             </Select>
-            <div className="flex flex-row items-center gap-x-1">
-              <span>‼️</span>
-              <p className="text-xs text-muted-foreground">
-                {createSourceCaption(sourceName)}
-              </p>
-            </div>
+            <SourceCaption sourceName={sourceName} />
           </div>
 
           <div className="space-y-2">
