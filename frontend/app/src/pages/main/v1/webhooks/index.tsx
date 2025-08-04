@@ -184,6 +184,20 @@ const buildWebhookPayload = (data: WebhookFormData): V1CreateWebhookRequest => {
   }
 };
 
+const createSourceCaption = (sourceName: V1WebhookSourceName) => {
+  switch (sourceName) {
+    case V1WebhookSourceName.GENERIC:
+      return '(receive incoming webhook requests from any service)';
+    case V1WebhookSourceName.GITHUB:
+    case V1WebhookSourceName.STRIPE:
+      return '';
+    default:
+      // eslint-disable-next-line no-case-declarations
+      const exhaustiveCheck: never = sourceName;
+      throw new Error(`Unhandled source name: ${exhaustiveCheck}`);
+  }
+};
+
 const CreateWebhookModal = () => {
   const { mutations, createWebhookURL } = useWebhooks();
   const { createWebhook, isCreatePending } = mutations;
@@ -313,22 +327,24 @@ const CreateWebhookModal = () => {
                 setValue('sourceName', value)
               }
             >
-              <SelectTrigger className="h-10">
+              <SelectTrigger>
                 <SelectValue>
                   <SourceName sourceName={sourceName} />
                 </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {Object.values(V1WebhookSourceName).map((source) => (
-                  <SelectItem key={source} value={source}>
-                    <SourceName sourceName={source} />
+                  <SelectItem key={source} value={source} className="h-10">
+                    <div className="h-10 flex flex-row items-center gap-x-2">
+                      <SourceName sourceName={source} />
+                      <span className="text-sm truncate max-w-full">
+                        {createSourceCaption(source)}
+                      </span>
+                    </div>
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
-            <p className="text-xs text-muted-foreground">
-              Represents the producer of your HTTP requests.
-            </p>
           </div>
 
           <div className="space-y-2">
