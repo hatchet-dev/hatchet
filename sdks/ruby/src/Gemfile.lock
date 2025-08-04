@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    hatchet (0.0.0)
+    hatchet-sdk (0.0.0)
 
 GEM
   remote: https://rubygems.org/
@@ -78,7 +78,7 @@ PLATFORMS
 
 DEPENDENCIES
   gem-release (~> 2.2)
-  hatchet!
+  hatchet-sdk!
   irb
   rake (~> 13.0)
   rspec (~> 3.0)

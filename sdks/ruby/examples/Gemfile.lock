@@ -1,7 +1,7 @@
 PATH
   remote: ../src
   specs:
-    hatchet (0.0.0)
+    hatchet-sdk (0.0.0)
 
 GEM
   remote: https://rubygems.org/
@@ -12,7 +12,7 @@ PLATFORMS
   ruby
 
 DEPENDENCIES
-  hatchet!
+  hatchet-sdk!
 
 BUNDLED WITH
    2.6.9

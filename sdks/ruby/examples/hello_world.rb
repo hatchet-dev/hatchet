@@ -1,6 +1,6 @@
 #!/usr/bin/env ruby
 
-require 'hatchet'
+require 'hatchet-sdk'
 
 client = Hatchet::Client.new("test")
 

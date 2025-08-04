@@ -3,7 +3,7 @@
 require_relative "lib/hatchet/version"
 
 Gem::Specification.new do |spec|
-  spec.name = "hatchet"
+  spec.name = "hatchet-sdk"
   spec.version = Hatchet::VERSION
   spec.authors = ["gabriel ruttner"]
   spec.email = ["gabe@hatchet.run"]
@@ -35,8 +35,8 @@ Gem::Specification.new do |spec|
 
   # Uncomment to register a new dependency of your gem
   # spec.add_dependency "example-gem", "~> 1.0"
-  spec.add_development_dependency "rspec", "~> 3.0"
   spec.add_development_dependency "gem-release", "~> 2.2"
+  spec.add_development_dependency "rspec", "~> 3.0"
 
   # For more information and examples about making a new gem, check out our
   # guide at: https://bundler.io/guides/creating_gem.html

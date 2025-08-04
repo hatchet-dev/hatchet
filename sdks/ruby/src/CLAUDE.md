@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is the Ruby SDK for Hatchet, currently in early development (version 0.0.0). The project follows standard Ruby gem conventions with a simple structure containing a main `Hatchet` module with a `Client` class for API key authentication.
+This is the Ruby SDK for Hatchet (gem name: hatchet-sdk), currently in early development (version 0.0.0). The project follows standard Ruby gem conventions with a simple structure containing a main `Hatchet` module with a `Client` class for API key authentication.
 
 ## Common Commands
 
@@ -28,10 +28,10 @@ This is the Ruby SDK for Hatchet, currently in early development (version 0.0.0)
 ## Architecture
 
 **Core Structure:**
-- `lib/hatchet.rb` - Main entry point, defines `Hatchet` module with `Error` and `Client` classes
+- `lib/hatchet-sdk.rb` - Main entry point, defines `Hatchet` module with `Error` and `Client` classes
 - `lib/hatchet/version.rb` - Version constant
 - `spec/` - RSpec tests with monkey patching disabled
-- `sig/hatchet.rbs` - Ruby type signatures
+- `sig/hatchet-sdk.rbs` - Ruby type signatures
 
 **Key Classes:**
 - `Hatchet::Client` - Main client class that accepts an API key for authentication
