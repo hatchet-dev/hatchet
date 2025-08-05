@@ -14,7 +14,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Uses `logger.exception` in place of `logger.error` in the action runner to improve (e.g.) Sentry error reporting
-- Improves shutdown handlers to avoid deadlocks under load
 
 ## [1.16.4] - 2025-07-28
 

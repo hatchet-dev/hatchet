@@ -620,20 +620,3 @@ class Runner:
             logger.info(f"waiting for {running} tasks to finish...")
             await asyncio.sleep(1)
             running = len(self.tasks.keys())
-
-        running = len(self.running_tasks)
-        while running > 0:
-            logger.info(f"waiting for {running} running tasks to finish...")
-            await asyncio.sleep(1)
-            running = len(self.running_tasks)
-
-        running = len(self.threads)
-        while running > 0:
-            logger.info(f"waiting for {running} threads to finish...")
-            for key, thread in self.threads.items():
-                if thread.is_alive():
-                    logger.warning(
-                        f"thread {thread.ident} with key {key} is still running after cancellation. This could cause the thread pool to get blocked and prevent new tasks from running."
-                    )
-            await asyncio.sleep(1)
-            running = len(self.threads)
