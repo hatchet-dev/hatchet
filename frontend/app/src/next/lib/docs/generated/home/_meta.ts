@@ -248,6 +248,10 @@ const meta = {
     title: 'Lifespans',
     href: '/home/lifespans',
   },
+  dependency_injection: {
+    title: 'Dependency Injection',
+    href: '/home/dependency-injection',
+  },
   blog: {
     title: 'Blog',
     type: 'page',
