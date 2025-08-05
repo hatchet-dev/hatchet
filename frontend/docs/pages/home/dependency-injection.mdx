@@ -38,7 +38,7 @@ Once you've defined your dependency functions, inject them into your tasks as fo
 />
 
 <Callout type="warning" emoji="⚠️">
-  Important note: Your dependency functions must not take any arguments.
+  Important note: Your dependency functions must take two positional arguments: the workflow input and the `Context` (the same as any other task).
 </Callout>
 
 That's it! Now, whenever your task is triggered, its dependencies will be evaluated, and the results will be injected into the task at runtime for you to use as needed.
