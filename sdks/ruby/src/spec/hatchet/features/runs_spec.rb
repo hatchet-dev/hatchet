@@ -3,8 +3,8 @@
 require "time"
 
 RSpec.describe Hatchet::Features::Runs do
-  let(:valid_token) { "eyJhbGciOiJIUzI1NiJ9.test_token" }
-  let(:config) { Hatchet::Config.new(token: valid_token, tenant_id: "test-tenant") }
+  let(:valid_token) { "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ0ZXN0LXRlbmFudCJ9.signature" }
+  let(:config) { Hatchet::Config.new(token: valid_token) }
   let(:rest_client) { instance_double("ApiClient") }
   let(:workflow_runs_api) { instance_double("HatchetSdkRest::WorkflowRunsApi") }
   let(:task_api) { instance_double("HatchetSdkRest::TaskApi") }
@@ -251,7 +251,7 @@ RSpec.describe Hatchet::Features::Runs do
     end
 
     it "applies namespace to workflow name" do
-      config_with_namespace = Hatchet::Config.new(token: valid_token, tenant_id: "test-tenant", namespace: "prod")
+      config_with_namespace = Hatchet::Config.new(token: valid_token, namespace: "prod")
       runs_client_with_ns = described_class.new(rest_client, config_with_namespace)
 
       allow(HatchetSdkRest::WorkflowRunsApi).to receive(:new).with(rest_client).and_return(workflow_runs_api)

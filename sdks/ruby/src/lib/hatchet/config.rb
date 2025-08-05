@@ -149,7 +149,6 @@ module Hatchet
   #     host_port: "localhost:7070",
   #     server_url: "https://api.hatchet.com",
   #     namespace: "production",
-  #     tenant_id: "custom-tenant",
   #     worker_preset_labels: { "env" => "prod", "region" => "us-east-1" }
   #   )
   #
@@ -200,12 +199,14 @@ module Hatchet
     #   @return [HealthcheckConfig] Healthcheck configuration
     # @!attribute otel
     #   @return [OpenTelemetryConfig] OpenTelemetry configuration
-    attr_accessor :token, :tenant_id, :host_port, :server_url, :namespace,
+    attr_accessor :token, :host_port, :server_url, :namespace,
                   :logger, :listener_v2_timeout, :grpc_max_recv_message_length,
                   :grpc_max_send_message_length, :worker_preset_labels,
                   :enable_force_kill_sync_threads, :enable_thread_pool_monitoring,
                   :terminate_worker_after_num_tasks, :disable_log_capture,
                   :grpc_enable_fork_support, :tls_config, :healthcheck, :otel
+    
+    attr_reader :tenant_id
 
     # Initialize a new configuration instance
     #
@@ -283,6 +284,9 @@ module Hatchet
       @healthcheck = options[:healthcheck] || HealthcheckConfig.new
       @otel = options[:otel] || OpenTelemetryConfig.new
 
+      # Initialize tenant_id from JWT token
+      @tenant_id = ""
+
       validate!
       apply_token_defaults if valid_jwt_token?
       apply_address_defaults if valid_jwt_token?
@@ -333,7 +337,6 @@ module Hatchet
     def to_h
       {
         token: token,
-        tenant_id: tenant_id,
         host_port: host_port,
         server_url: server_url,
         namespace: namespace,
@@ -356,8 +359,7 @@ module Hatchet
     end
 
     def apply_token_defaults
-      return unless tenant_id.empty?
-
+      # tenant_id is only set from JWT token, not from environment variables or parameters
       extracted_tenant_id = extract_tenant_id_from_jwt
       @tenant_id = extracted_tenant_id || ""
     end

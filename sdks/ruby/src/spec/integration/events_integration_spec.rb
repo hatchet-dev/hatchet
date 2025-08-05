@@ -58,13 +58,13 @@ RSpec.describe "Hatchet::Features::Events Integration", :integration do
     let(:test_metadata) { { "source" => "integration-test", "test_run" => "true" } }
 
     it "can create an event using the create method" do
-      event_request = HatchetSdkRest::CreateEventRequest.new(
-        key: test_event_key,
-        data: test_payload,
-        additional_metadata: test_metadata
-      )
-
-      expect { events_client.create(event_request) }.not_to raise_error
+      expect do
+        events_client.create(
+          key: test_event_key,
+          data: test_payload,
+          additional_metadata: test_metadata
+        )
+      end.not_to raise_error
     end
 
     it "can push a single event" do
@@ -103,7 +103,6 @@ RSpec.describe "Hatchet::Features::Events Integration", :integration do
       # Test with a client that has a namespace
       config_with_namespace = Hatchet::Config.new(
         token: ENV["HATCHET_CLIENT_TOKEN"], 
-        tenant_id: client.config.tenant_id,
         namespace: "test_"
       )
       client_with_ns = Hatchet::Client.new(**config_with_namespace.to_h)

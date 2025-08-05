@@ -57,7 +57,6 @@ RSpec.describe Hatchet::Config do
           host_port: "custom.example.com:8080",
           server_url: "https://custom.example.com",
           namespace: "test_namespace",
-          tenant_id: "custom_tenant",
           grpc_max_recv_message_length: 8 * 1024 * 1024,
           worker_preset_labels: { "env" => "test" },
           enable_force_kill_sync_threads: true,
@@ -68,7 +67,6 @@ RSpec.describe Hatchet::Config do
         expect(config.host_port).to eq("custom.example.com:8080")
         expect(config.server_url).to eq("https://custom.example.com")
         expect(config.namespace).to eq("test_namespace_")
-        expect(config.tenant_id).to eq("custom_tenant")
         expect(config.grpc_max_recv_message_length).to eq(8 * 1024 * 1024)
         expect(config.worker_preset_labels).to eq({ "env" => "test" })
         expect(config.enable_force_kill_sync_threads).to be true
@@ -79,11 +77,6 @@ RSpec.describe Hatchet::Config do
       it "extracts tenant_id from JWT token payload when not explicitly set" do
         config = described_class.new(token: token_with_tenant_id)
         expect(config.tenant_id).to eq("jwt-tenant-123")
-      end
-
-      it "prefers explicit tenant_id over JWT token payload" do
-        config = described_class.new(token: token_with_tenant_id, tenant_id: "explicit-tenant")
-        expect(config.tenant_id).to eq("explicit-tenant")
       end
     end
 
@@ -192,7 +185,7 @@ RSpec.describe Hatchet::Config do
       expect(config.host_port).to eq("env.example.com:9090")
       expect(config.server_url).to eq("https://env.example.com")
       expect(config.namespace).to eq("env_namespace_")
-      expect(config.tenant_id).to eq("env_tenant")
+      expect(config.tenant_id).to eq("") # tenant_id only comes from JWT token
     end
 
     it "prefers explicit options over environment variables" do
@@ -204,11 +197,12 @@ RSpec.describe Hatchet::Config do
       expect(config.host_port).to eq("explicit.example.com:8080")
     end
 
-    it "prefers environment variable tenant_id over JWT token payload" do
+    it "ignores environment variable tenant_id and uses JWT token payload" do
       ENV["HATCHET_CLIENT_TOKEN"] = token_with_tenant_id
+      ENV["HATCHET_CLIENT_TENANT_ID"] = "env-tenant"
 
       config = described_class.new
-      expect(config.tenant_id).to eq("env-tenant")
+      expect(config.tenant_id).to eq("jwt-tenant-123") # tenant_id only comes from JWT token
     end
 
     it "uses JWT token tenant_id when environment variable is not set" do

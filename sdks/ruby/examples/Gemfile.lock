@@ -1,7 +1,7 @@
 PATH
   remote: ../src
   specs:
-    hatchet-sdk (0.0.1)
+    hatchet-sdk (0.1.0)
       faraday (~> 2.0)
       faraday-multipart
       json (~> 2.0)

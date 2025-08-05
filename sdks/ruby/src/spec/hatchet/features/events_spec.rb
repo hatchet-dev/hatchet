@@ -3,8 +3,8 @@
 require "time"
 
 RSpec.describe Hatchet::Features::Events do
-  let(:valid_token) { "eyJhbGciOiJIUzI1NiJ9.test_token" }
-  let(:config) { Hatchet::Config.new(token: valid_token, tenant_id: "test-tenant") }
+  let(:valid_token) { "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ0ZXN0LXRlbmFudCJ9.signature" }
+  let(:config) { Hatchet::Config.new(token: valid_token) }
   let(:rest_client) { instance_double("ApiClient") }
   let(:event_api) { instance_double("HatchetSdkRest::EventApi") }
   let(:events_client) { described_class.new(rest_client, config) }
@@ -127,7 +127,7 @@ RSpec.describe Hatchet::Features::Events do
     end
 
     it "applies namespace to event key" do
-      config_with_namespace = Hatchet::Config.new(token: valid_token, tenant_id: "test-tenant", namespace: "test_")
+      config_with_namespace = Hatchet::Config.new(token: valid_token, namespace: "test_")
       events_client_with_ns = described_class.new(rest_client, config_with_namespace)
 
       allow(HatchetSdkRest::EventApi).to receive(:new).with(rest_client).and_return(event_api)
@@ -426,7 +426,7 @@ RSpec.describe Hatchet::Features::Events do
   describe "private methods" do
     describe "#apply_namespace" do
       it "applies default namespace from config" do
-        config_with_namespace = Hatchet::Config.new(token: valid_token, tenant_id: "test-tenant", namespace: "test_")
+        config_with_namespace = Hatchet::Config.new(token: valid_token, namespace: "test_")
         events_client_with_ns = described_class.new(rest_client, config_with_namespace)
 
         result = events_client_with_ns.send(:apply_namespace, "event-key")
