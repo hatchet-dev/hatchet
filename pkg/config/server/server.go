@@ -111,7 +111,7 @@ type TaskOperationLimitsConfigFile struct {
 	ReassignLimit int `mapstructure:"reassignLimit" json:"reassignLimit,omitempty" default:"1000"`
 
 	// RetryQueueLimit is the limit for how many retry queue items to process in a single operation
-	RetryQueueLimit int `mapstructure:"retryQueueLimit" json:"retryQueueLimit,omitempty" default:"10000"`
+	RetryQueueLimit int `mapstructure:"retryQueueLimit" json:"retryQueueLimit,omitempty" default:"1000"`
 
 	// DurableSleepLimit is the limit for how many durable sleep items to process in a single operation
 	DurableSleepLimit int `mapstructure:"durableSleepLimit" json:"durableSleepLimit,omitempty" default:"1000"`
