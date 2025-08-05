@@ -34,6 +34,7 @@ from hatchet_sdk.contracts.v1.workflows_pb2 import (
     CreateTaskRateLimit,
     DesiredWorkerLabels,
 )
+from hatchet_sdk.exceptions import InvalidDependencyError
 from hatchet_sdk.runnables.types import (
     ConcurrencyExpression,
     EmptyModel,
@@ -60,8 +61,18 @@ T = TypeVar("T")
 P = ParamSpec("P")
 
 
-class Depends(Generic[T]):
-    def __init__(self, fn: Callable[..., T | CoroutineLike[T]]) -> None:
+class Depends(Generic[T, TWorkflowInput]):
+    def __init__(
+        self, fn: Callable[[TWorkflowInput, Context], T | CoroutineLike[T]]
+    ) -> None:
+        sig = signature(fn)
+        params = list(sig.parameters.values())
+
+        if len(params) != 2:
+            raise InvalidDependencyError(
+                f"Dependency function {fn.__name__} must have exactly two parameters: input and ctx."
+            )
+
         self.fn = fn
 
 
@@ -135,7 +146,11 @@ class Task(Generic[TWorkflowInput, R]):
         )
 
     async def _parse_parameter(
-        self, name: str, param: Parameter
+        self,
+        name: str,
+        param: Parameter,
+        input: TWorkflowInput,
+        ctx: Context | DurableContext,
     ) -> DependencyToInject | None:
         annotation = param.annotation
 
@@ -150,20 +165,25 @@ class Task(Generic[TWorkflowInput, R]):
             for item in metadata:
                 if isinstance(item, Depends):
                     if iscoroutinefunction(item.fn):
-                        return DependencyToInject(name=name, value=await item.fn())
+                        return DependencyToInject(
+                            name=name, value=await item.fn(input, ctx)
+                        )
 
                     return DependencyToInject(
-                        name=name, value=await asyncio.to_thread(item.fn)
+                        name=name, value=await asyncio.to_thread(item.fn, input, ctx)
                     )
 
         return None
 
-    async def _unpack_dependencies(self) -> dict[str, Any]:
+    async def _unpack_dependencies(
+        self, ctx: Context | DurableContext
+    ) -> dict[str, Any]:
         sig = signature(self.fn)
+        input = self.workflow._get_workflow_input(ctx)
         return {
             parsed.name: parsed.value
             for n, p in sig.parameters.items()
-            if (parsed := await self._parse_parameter(n, p)) is not None
+            if (parsed := await self._parse_parameter(n, p, input, ctx)) is not None
         }
 
     def call(
