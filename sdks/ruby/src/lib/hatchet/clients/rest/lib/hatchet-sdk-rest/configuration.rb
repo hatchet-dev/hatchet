@@ -255,6 +255,13 @@ module HatchetSdkRest
             key: 'Authorization',
             value: "Bearer #{access_token_with_refresh}"
           },
+        'cookieAuth' =>
+          {
+            type: 'api_key',
+            in: 'header',
+            key: 'hatchet',
+            value: api_key_with_prefix('hatchet')
+          },
       }
     end
 

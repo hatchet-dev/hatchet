@@ -11,10 +11,7 @@ require "open3"
 class ApiGenerator
   OPENAPI_SPEC_PATH = "../../../../bin/oas/openapi.yaml"
   GENERATOR_CONFIG_PATH = "../config/openapi_generator_config.json"
-  # Use absolute path for reliability
-  def output_dir
-    File.join(File.dirname(@root_dir), "lib", "hatchet", "clients", "rest")
-  end
+  OUTPUT_DIR = "../lib/hatchet/clients/rest"
   TEMP_DIR = "../tmp/openapi_generation"
 
   def initialize
@@ -38,7 +35,7 @@ class ApiGenerator
 
   def setup_directories
     puts "📁 Setting up directories..."
-    FileUtils.mkdir_p(output_dir)
+    FileUtils.mkdir_p(OUTPUT_DIR)
     FileUtils.mkdir_p(TEMP_DIR)
   end
 
@@ -62,7 +59,7 @@ class ApiGenerator
     
     openapi_spec = File.expand_path(OPENAPI_SPEC_PATH, @root_dir)
     config_file = File.expand_path(GENERATOR_CONFIG_PATH, @root_dir)
-    output_path = output_dir
+    output_path = File.expand_path(OUTPUT_DIR, @root_dir)
     
     unless File.exist?(openapi_spec)
       raise "OpenAPI spec not found at #{openapi_spec}"
@@ -120,7 +117,7 @@ class ApiGenerator
     puts "  📝 Patching require statements..."
     
     # Find all generated Ruby files and fix require statements
-    Dir.glob("#{output_dir}/**/*.rb").each do |file|
+    Dir.glob("#{OUTPUT_DIR}/**/*.rb").each do |file|
       content = File.read(file)
       
       # Update require paths to be relative to the gem structure
@@ -137,9 +134,12 @@ class ApiGenerator
   def patch_cookie_auth
     puts "  🍪 Enhancing cookie auth..."
     # find the auth_settings hash in the configuration.rb file
-    config_file = File.join(output_dir, "lib/hatchet-sdk-rest/configuration.rb")
-    return unless File.exist?(config_file)
-
+    output_path = File.expand_path(OUTPUT_DIR, @root_dir)
+    config_file = File.join(output_path, "lib/hatchet-sdk-rest/configuration.rb")
+    if not File.exist?(config_file)
+      puts "config_file does not exist"
+      return false
+    end
     content = File.read(config_file)
     
     # Apply the fix - replace 'in: ,' with 'in: 'header','
