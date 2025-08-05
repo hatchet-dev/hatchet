@@ -1,6 +1,8 @@
 import pytest
 
 from examples.dependency_injection.worker import (
+    ASYNC_DEPENDENCY_VALUE,
+    SYNC_DEPENDENCY_VALUE,
     Output,
     async_dep,
     async_task_with_dependencies,
@@ -30,8 +32,8 @@ async def test_di_standalones(
     result = await task.aio_run()
 
     assert isinstance(result, Output)
-    assert result.sync_dep == sync_dep()
-    assert result.async_dep == await async_dep()
+    assert result.sync_dep == SYNC_DEPENDENCY_VALUE
+    assert result.async_dep == ASYNC_DEPENDENCY_VALUE
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -43,5 +45,5 @@ async def test_di_workflows() -> None:
     for output in result.values():
         parsed = Output.model_validate(output)
 
-        assert parsed.sync_dep == sync_dep()
-        assert parsed.async_dep == await async_dep()
+        assert parsed.sync_dep == SYNC_DEPENDENCY_VALUE
+        assert parsed.async_dep == ASYNC_DEPENDENCY_VALUE

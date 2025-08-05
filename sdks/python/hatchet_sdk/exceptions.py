@@ -1,6 +1,10 @@
 import traceback
 
 
+class InvalidDependencyError(Exception):
+    pass
+
+
 class NonRetryableException(Exception):  # noqa: N818
     pass
 
