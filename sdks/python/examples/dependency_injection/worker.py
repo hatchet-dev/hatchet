@@ -149,7 +149,7 @@ def main() -> None:
             async_task_with_dependencies,
             sync_task_with_dependencies,
             durable_async_task_with_dependencies,
-            durable_async_task_with_dependencies,
+            durable_sync_task_with_dependencies,
             di_workflow,
         ],
     )
