@@ -211,15 +211,17 @@ RSpec.describe Hatchet::Features::Runs do
     let(:workflow_name) { "test-workflow" }
     let(:input) { { "key" => "value" } }
     let(:workflow_run_details) { instance_double("HatchetSdkRest::V1WorkflowRunDetails") }
+    let(:workflow_run) { instance_double("HatchetSdkRest::V1WorkflowRun") }
 
     it "creates a workflow run with basic parameters" do
       trigger_request = instance_double("HatchetSdkRest::V1TriggerWorkflowRunRequest")
       allow(HatchetSdkRest::V1TriggerWorkflowRunRequest).to receive(:new).and_return(trigger_request)
+      allow(workflow_run_details).to receive(:run).and_return(workflow_run)
       allow(workflow_runs_api).to receive(:v1_workflow_run_create).and_return(workflow_run_details)
 
-      result = runs_client.create(workflow_name, input)
+      result = runs_client.create(name: workflow_name, input: input)
 
-      expect(result).to eq(workflow_run_details)
+      expect(result).to eq(workflow_run)
       expect(HatchetSdkRest::V1TriggerWorkflowRunRequest).to have_received(:new).with(
         workflow_name: workflow_name,
         input: input,
@@ -232,12 +234,13 @@ RSpec.describe Hatchet::Features::Runs do
     it "creates a workflow run with all parameters" do
       trigger_request = instance_double("HatchetSdkRest::V1TriggerWorkflowRunRequest")
       allow(HatchetSdkRest::V1TriggerWorkflowRunRequest).to receive(:new).and_return(trigger_request)
+      allow(workflow_run_details).to receive(:run).and_return(workflow_run)
       allow(workflow_runs_api).to receive(:v1_workflow_run_create).and_return(workflow_run_details)
 
       additional_metadata = { "source" => "api" }
       priority = 5
 
-      runs_client.create(workflow_name, input, additional_metadata: additional_metadata, priority: priority)
+      runs_client.create(name: workflow_name, input: input, additional_metadata: additional_metadata, priority: priority)
 
       expect(HatchetSdkRest::V1TriggerWorkflowRunRequest).to have_received(:new).with(
         workflow_name: workflow_name,
@@ -256,9 +259,10 @@ RSpec.describe Hatchet::Features::Runs do
 
       trigger_request = instance_double("HatchetSdkRest::V1TriggerWorkflowRunRequest")
       allow(HatchetSdkRest::V1TriggerWorkflowRunRequest).to receive(:new).and_return(trigger_request)
+      allow(workflow_run_details).to receive(:run).and_return(workflow_run)
       allow(workflow_runs_api).to receive(:v1_workflow_run_create).and_return(workflow_run_details)
 
-      runs_client_with_ns.create(workflow_name, input)
+      runs_client_with_ns.create(name: workflow_name, input: input)
 
       expect(HatchetSdkRest::V1TriggerWorkflowRunRequest).to have_received(:new).with(
         workflow_name: "prod_test-workflow",
@@ -341,6 +345,7 @@ RSpec.describe Hatchet::Features::Runs do
       expect(result).to eq({ "result" => "success" })
     end
   end
+
 
   describe "private methods" do
     describe "#partition_date_range" do

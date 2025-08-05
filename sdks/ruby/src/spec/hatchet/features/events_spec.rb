@@ -41,15 +41,50 @@ RSpec.describe Hatchet::Features::Events do
   end
 
   describe "#create" do
+    let(:event_key) { "test-event" }
+    let(:event_data) { { "message" => "test" } }
+    let(:additional_metadata) { { "source" => "test" } }
+    let(:priority) { 1 }
+    let(:scope) { "test-scope" }
     let(:event_request) { instance_double("HatchetSdkRest::CreateEventRequest") }
     let(:api_response) { instance_double("Object") }
 
-    it "creates an event using the event API" do
-      allow(event_api).to receive(:event_create).with("test-tenant", event_request).and_return(api_response)
+    before do
+      allow(HatchetSdkRest::CreateEventRequest).to receive(:new).and_return(event_request)
+      allow(event_api).to receive(:event_create).and_return(api_response)
+    end
 
-      result = events_client.create(event_request)
+    it "creates an event with required parameters" do
+      result = events_client.create(key: event_key, data: event_data)
 
       expect(result).to eq(api_response)
+      expect(HatchetSdkRest::CreateEventRequest).to have_received(:new).with(
+        key: "test-event", # namespaced key
+        data: event_data,
+        additional_metadata: nil,
+        priority: nil,
+        scope: nil
+      )
+      expect(event_api).to have_received(:event_create).with("test-tenant", event_request)
+    end
+
+    it "creates an event with all optional parameters" do
+      result = events_client.create(
+        key: event_key,
+        data: event_data,
+        additional_metadata: additional_metadata,
+        priority: priority,
+        scope: scope
+      )
+
+      expect(result).to eq(api_response)
+      expect(HatchetSdkRest::CreateEventRequest).to have_received(:new).with(
+        key: "test-event", # namespaced key
+        data: event_data,
+        additional_metadata: additional_metadata,
+        priority: priority,
+        scope: scope
+      )
       expect(event_api).to have_received(:event_create).with("test-tenant", event_request)
     end
   end
@@ -73,7 +108,8 @@ RSpec.describe Hatchet::Features::Events do
         key: event_key,
         data: payload,
         additional_metadata: nil,
-        priority: nil
+        priority: nil,
+        scope: nil
       )
       expect(event_api).to have_received(:event_create).with("test-tenant", event_request)
     end
@@ -85,7 +121,8 @@ RSpec.describe Hatchet::Features::Events do
         key: event_key,
         data: payload,
         additional_metadata: additional_metadata,
-        priority: 1
+        priority: 1,
+        scope: nil
       )
     end
 
@@ -101,7 +138,8 @@ RSpec.describe Hatchet::Features::Events do
         key: "test_test-event",
         data: payload,
         additional_metadata: nil,
-        priority: nil
+        priority: nil,
+        scope: nil
       )
     end
 
@@ -112,7 +150,8 @@ RSpec.describe Hatchet::Features::Events do
         key: "override_test-event",
         data: payload,
         additional_metadata: nil,
-        priority: nil
+        priority: nil,
+        scope: nil
       )
     end
 

@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'time'
+require 'timeout'
 
 module Hatchet
   module Features
@@ -255,7 +256,7 @@ module Hatchet
       # IMPORTANT: It's preferable to use `Workflow.run` (and similar) to trigger workflows if possible. 
       # This method is intended to be an escape hatch.
       #
-      # @param workflow_name [String] The name of the workflow to trigger
+      # @param name [String] The name of the workflow to trigger
       # @param input [Hash] The input data for the workflow run
       # @param additional_metadata [Hash, nil] Additional metadata associated with the workflow run
       # @param priority [Integer, nil] The priority of the workflow run
@@ -268,15 +269,16 @@ module Hatchet
       #     { user_id: 123, action: "process_data" },
       #     additional_metadata: { source: "api", priority: "high" }
       #   )
-      def create(workflow_name, input, additional_metadata: nil, priority: nil)
+      def create(name:, input:, additional_metadata: nil, priority: nil)
         trigger_request = HatchetSdkRest::V1TriggerWorkflowRunRequest.new(
-          workflow_name: @config.apply_namespace(workflow_name),
+          workflow_name: @config.apply_namespace(name),
           input: input,
           additional_metadata: additional_metadata,
           priority: priority
         )
 
-        @workflow_runs_api.v1_workflow_run_create(@config.tenant_id, trigger_request)
+        run = @workflow_runs_api.v1_workflow_run_create(@config.tenant_id, trigger_request)
+        run.run
       end
 
       # Replay a task or workflow run
@@ -331,7 +333,64 @@ module Hatchet
         details.run.output
       end
 
+      # Poll for workflow run completion with configurable interval and timeout
+      #
+      # This method repeatedly calls `get` until the workflow run reaches a terminal state
+      # (succeeded, failed, or cancelled) or the timeout is reached.
+      #
+      # @param workflow_run_id [String] The ID of the workflow run to poll
+      # @param interval [Numeric] The polling interval in seconds (default: 1.0)
+      # @param timeout [Numeric, nil] The maximum time to poll in seconds (default: no timeout)
+      # @return [HatchetSdkRest::V1WorkflowRunDetails] The final workflow run details
+      # @raise [Timeout::Error] If the timeout is reached before completion
+      # @raise [Hatchet::Error] If the API request fails or returns an error
+      # @example Poll with default settings (1s interval, no timeout)
+      #   result = runs.poll("workflow-run-123")
+      # @example Poll with custom interval and timeout
+      #   result = runs.poll("workflow-run-123", interval: 2.0, timeout: 30.0)
+      # @since 0.0.0
+      def poll(workflow_run_id, interval: 1.0, timeout: nil)
+        start_time = Time.now
+        
+        loop do
+          puts "Polling for completion of run #{workflow_run_id}"
+          details = get(workflow_run_id)
+          status = details.run.status
+          
+          # Check if workflow run has reached a terminal state
+          puts "Run status: #{status}"
+          if terminal_status?(status)
+            return details
+          end
+          
+          # Check timeout
+          if timeout && (Time.now - start_time) >= timeout
+            raise Timeout::Error, "Polling timed out after #{timeout} seconds"
+          end
+          
+          sleep(interval)
+        end
+      end
+
       private
+
+      # Check if a workflow run status is terminal (completed)
+      #
+      # @param status [String] The workflow run status
+      # @return [Boolean] True if the status is terminal (succeeded, failed, or cancelled)
+      def terminal_status?(status)
+        case status
+        when HatchetSdkRest::WorkflowRunStatus::SUCCEEDED,
+             HatchetSdkRest::WorkflowRunStatus::FAILED,
+             HatchetSdkRest::WorkflowRunStatus::CANCELLED,
+             HatchetSdkRest::V1TaskStatus::COMPLETED,
+             HatchetSdkRest::V1TaskStatus::CANCELLED,
+             HatchetSdkRest::V1TaskStatus::FAILED
+          true
+        else
+          false
+        end
+      end
 
       # Partition a date range into daily chunks to avoid API limits
       #

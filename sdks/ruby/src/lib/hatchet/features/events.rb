@@ -43,21 +43,34 @@ module Hatchet
       # configured tenant ID. The event will be processed and made available for
       # workflow triggers and event-driven automation.
       #
-      # @param event [HatchetSdkRest::CreateEventRequest] The event request object containing
-      #   event data, metadata, and other properties
+      # @param key [String] The event key/name
+      # @param data [Hash] The event payload data
+      # @param additional_metadata [Hash, nil] Additional metadata for the event
+      # @param priority [Integer, nil] Event priority
+      # @param scope [String, nil] The scope for event filtering
+      # @param namespace [String, nil] Override namespace for this event
       # @return [Object] The API response containing the created event details
-      # @raise [ArgumentError] If the event parameter is nil or invalid
+      # @raise [ArgumentError] If required parameters are missing
       # @raise [Hatchet::Error] If the API request fails or returns an error
       # @example Creating a simple event
-      #   event_request = HatchetSdkRest::CreateEventRequest.new(
+      #   response = events.create(
       #     key: "user-login",
       #     data: { user_id: 123, action: "login" },
       #     additional_metadata: { ip_address: "192.168.1.1" }
       #   )
-      #   response = events.create(event_request)
       # @since 0.0.2
-      def create(event)
-        @event_api.event_create(@config.tenant_id, event)
+      def create(key:, data:, additional_metadata: nil, priority: nil, scope: nil, namespace: nil)
+        event_key = apply_namespace(key, namespace)
+        
+        event_request = HatchetSdkRest::CreateEventRequest.new(
+          key: event_key,
+          data: data,
+          additional_metadata: additional_metadata,
+          priority: priority,
+          scope: scope
+        )
+        
+        @event_api.event_create(@config.tenant_id, event_request)
       end
 
       # Push a single event to Hatchet
@@ -76,16 +89,13 @@ module Hatchet
       #     additional_metadata: { source: "web" }
       #   )
       def push(event_key, payload, additional_metadata: nil, namespace: nil, priority: nil)
-        event_key = apply_namespace(event_key, namespace)
-        
-        event_request = HatchetSdkRest::CreateEventRequest.new(
+        create(
           key: event_key,
           data: payload,
           additional_metadata: additional_metadata,
-          priority: priority
+          priority: priority,
+          namespace: namespace
         )
-        
-        create(event_request)
       end
 
       # Create events in bulk
