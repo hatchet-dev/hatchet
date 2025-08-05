@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Adds support for dependency injection in tasks via the `Depends` class.
 
+### Changed
+
+- Uses `logger.exception` in place of `logger.error` in the action runner to improve (e.g.) Sentry error reporting
+
 ## [1.16.4] - 2025-07-28
 
 ### Added
