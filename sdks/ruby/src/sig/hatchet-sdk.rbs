@@ -7,6 +7,27 @@ module Hatchet
   class Client
     attr_reader config: Config
 
+    def self.new: (
+      ?token: String,
+      ?tenant_id: String,
+      ?host_port: String,
+      ?server_url: String,
+      ?namespace: String,
+      ?logger: Logger,
+      ?listener_v2_timeout: Integer,
+      ?grpc_max_recv_message_length: Integer,
+      ?grpc_max_send_message_length: Integer,
+      ?worker_preset_labels: Hash[String, String],
+      ?enable_force_kill_sync_threads: bool,
+      ?enable_thread_pool_monitoring: bool,
+      ?terminate_worker_after_num_tasks: Integer,
+      ?disable_log_capture: bool,
+      ?grpc_enable_fork_support: bool,
+      ?tls_config: TLSConfig,
+      ?healthcheck: HealthcheckConfig,
+      ?otel: OpenTelemetryConfig
+    ) -> instance
+
     def initialize: (
       ?token: String,
       ?tenant_id: String,
@@ -27,6 +48,9 @@ module Hatchet
       ?healthcheck: HealthcheckConfig,
       ?otel: OpenTelemetryConfig
     ) -> void
+
+    def rest_client: () -> untyped
+    def events: () -> Hatchet::Features::Events
   end
 
   class Config
@@ -48,6 +72,27 @@ module Hatchet
     attr_accessor tls_config: TLSConfig
     attr_accessor healthcheck: HealthcheckConfig
     attr_accessor otel: OpenTelemetryConfig
+
+    def self.new: (
+      ?token: String,
+      ?tenant_id: String,
+      ?host_port: String,
+      ?server_url: String,
+      ?namespace: String,
+      ?logger: Logger,
+      ?listener_v2_timeout: Integer,
+      ?grpc_max_recv_message_length: Integer,
+      ?grpc_max_send_message_length: Integer,
+      ?worker_preset_labels: Hash[String, String],
+      ?enable_force_kill_sync_threads: bool,
+      ?enable_thread_pool_monitoring: bool,
+      ?terminate_worker_after_num_tasks: Integer,
+      ?disable_log_capture: bool,
+      ?grpc_enable_fork_support: bool,
+      ?tls_config: TLSConfig,
+      ?healthcheck: HealthcheckConfig,
+      ?otel: OpenTelemetryConfig
+    ) -> instance
 
     def initialize: (
       ?token: String,
@@ -82,6 +127,14 @@ module Hatchet
     attr_accessor root_ca_file: String?
     attr_accessor server_name: String
 
+    def self.new: (
+      ?strategy: String,
+      ?cert_file: String,
+      ?key_file: String,
+      ?root_ca_file: String,
+      ?server_name: String
+    ) -> instance
+
     def initialize: (
       ?strategy: String,
       ?cert_file: String,
@@ -95,12 +148,54 @@ module Hatchet
     attr_accessor port: Integer
     attr_accessor enabled: bool
 
+    def self.new: (?port: Integer, ?enabled: bool) -> instance
     def initialize: (?port: Integer, ?enabled: bool) -> void
   end
 
   class OpenTelemetryConfig
     attr_accessor excluded_attributes: Array[String]
 
+    def self.new: (?excluded_attributes: Array[String]) -> instance
     def initialize: (?excluded_attributes: Array[String]) -> void
+  end
+end
+
+module Hatchet
+  module Features
+    class Events
+      # Re-exported class from HatchetSdkRest for convenience
+      CreateEventRequest: Class
+
+      def self.new: (untyped rest_client, Hatchet::Config config) -> instance
+      def initialize: (untyped rest_client, Hatchet::Config config) -> void
+      def create: (HatchetSdkRest::CreateEventRequest event) -> untyped
+    end
+  end
+end
+
+# External module from the generated REST client
+module HatchetSdkRest
+  class CreateEventRequest
+    attr_accessor key: String?
+    attr_accessor data: Hash[String, untyped]?
+    attr_accessor additional_metadata: Hash[String, untyped]?
+    attr_accessor priority: Integer?
+    attr_accessor scope: String?
+
+    def self.new: (
+      ?key: String,
+      ?data: Hash[String, untyped],
+      ?additional_metadata: Hash[String, untyped],
+      ?priority: Integer,
+      ?scope: String
+    ) -> instance
+
+    def initialize: (
+      ?key: String,
+      ?data: Hash[String, untyped],
+      ?additional_metadata: Hash[String, untyped],
+      ?priority: Integer,
+      ?scope: String
+    ) -> void
   end
 end
