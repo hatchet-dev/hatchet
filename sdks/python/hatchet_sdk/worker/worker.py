@@ -5,6 +5,8 @@ import os
 import re
 import signal
 import sys
+import threading
+import time
 from collections.abc import AsyncGenerator, Callable
 from contextlib import AsyncExitStack, asynccontextmanager, suppress
 from dataclasses import dataclass, field
@@ -137,6 +139,7 @@ class Worker:
 
         self.lifespan = lifespan
         self.lifespan_stack: AsyncExitStack | None = None
+        self.healthcheck_app_runner: web.AppRunner | None = None
 
         self.register_workflows(workflows or [])
 
@@ -208,7 +211,7 @@ class Worker:
 
         return web.Response(body=generate_latest(), content_type="text/plain")
 
-    async def _start_health_server(self) -> None:
+    async def _start_health_server(self) -> web.AppRunner:
         port = self.config.healthcheck.port
 
         app = web.Application()
@@ -226,9 +229,11 @@ class Worker:
             await web.TCPSite(runner, "0.0.0.0", port).start()
         except Exception:
             logger.exception("failed to start healthcheck server")
-            return
+            return runner
 
         logger.info(f"healthcheck server running on port {port}")
+
+        return runner
 
     def start(self, options: WorkerStartOptions = WorkerStartOptions()) -> None:
         if not (self.action_registry or self.durable_action_registry):
@@ -274,7 +279,7 @@ class Worker:
             )
 
         if self.config.healthcheck.enabled:
-            await self._start_health_server()
+            self.healthcheck_app_runner = await self._start_health_server()
 
         lifespan_context = None
         if self.lifespan:
@@ -401,6 +406,7 @@ class Worker:
 
                 self._status = WorkerStatus.HEALTHY
                 await asyncio.sleep(1)
+
         except Exception:
             logger.exception("error checking listener health")
 
@@ -412,8 +418,31 @@ class Worker:
     def _handle_exit_signal(self, signum: int, frame: FrameType | None) -> None:
         sig_name = "SIGTERM" if signum == signal.SIGTERM else "SIGINT"
         logger.info(f"received signal {sig_name}...")
-        if self.loop:
-            self.loop.create_task(self.exit_gracefully())
+
+        if self.loop and not self.loop.is_closed():
+            shutdown_task = self.loop.create_task(self.exit_gracefully())
+
+            def exit_thread() -> None:
+                # Wait indefinitely for graceful shutdown to complete
+                # The orchestration layer (K8s, Docker, etc.) will handle SIGKILL timeout
+                while not shutdown_task.done():
+                    time.sleep(0.1)
+
+                try:
+                    shutdown_task.result()
+                    logger.info("graceful shutdown completed, exiting process")
+                    exit_code = 0
+                except Exception as e:
+                    logger.error(f"error during graceful shutdown: {e}")
+                    exit_code = 1
+
+                os._exit(exit_code)
+
+            exit_thread_obj = threading.Thread(target=exit_thread, daemon=True)
+            exit_thread_obj.start()
+        else:
+            logger.error("no event loop available, exiting immediately")
+            os._exit(1)
 
     def _handle_force_quit_signal(self, signum: int, frame: FrameType | None) -> None:
         logger.info("received SIGQUIT...")
@@ -457,9 +486,13 @@ class Worker:
         ):
             self.durable_action_listener_process.kill()
 
+        if self.healthcheck_app_runner:
+            await self.healthcheck_app_runner.shutdown()
+
         await self._cleanup_lifespan()
 
         await self._close()
+
         if self.loop and self.owned_loop:
             self.loop.stop()
 
