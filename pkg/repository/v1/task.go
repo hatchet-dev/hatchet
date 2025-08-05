@@ -255,13 +255,21 @@ type TaskRepositoryImpl struct {
 
 	taskRetentionPeriod   time.Duration
 	maxInternalRetryCount int32
+	timeoutLimit          int
+	reassignLimit         int
+	retryQueueLimit       int
+	durableSleepLimit     int
 }
 
-func newTaskRepository(s *sharedRepository, taskRetentionPeriod time.Duration, maxInternalRetryCount int32) TaskRepository {
+func newTaskRepository(s *sharedRepository, taskRetentionPeriod time.Duration, maxInternalRetryCount int32, timeoutLimit, reassignLimit, retryQueueLimit, durableSleepLimit int) TaskRepository {
 	return &TaskRepositoryImpl{
 		sharedRepository:      s,
 		taskRetentionPeriod:   taskRetentionPeriod,
 		maxInternalRetryCount: maxInternalRetryCount,
+		timeoutLimit:          timeoutLimit,
+		reassignLimit:         reassignLimit,
+		retryQueueLimit:       retryQueueLimit,
+		durableSleepLimit:     durableSleepLimit,
 	}
 }
 
@@ -1042,7 +1050,7 @@ func (r *TaskRepositoryImpl) ListTaskMetas(ctx context.Context, tenantId string,
 }
 
 func (r *TaskRepositoryImpl) ProcessTaskTimeouts(ctx context.Context, tenantId string) (*TimeoutTasksResponse, bool, error) {
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 5000)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 25000)
 
 	if err != nil {
 		return nil, false, err
@@ -1050,8 +1058,7 @@ func (r *TaskRepositoryImpl) ProcessTaskTimeouts(ctx context.Context, tenantId s
 
 	defer rollback()
 
-	// TODO: make limit configurable
-	limit := 1000
+	limit := r.timeoutLimit
 
 	// get task timeouts
 	toTimeout, err := r.queries.ListTasksToTimeout(ctx, tx, sqlcv1.ListTasksToTimeoutParams{
@@ -1114,7 +1121,7 @@ func (r *TaskRepositoryImpl) ProcessTaskTimeouts(ctx context.Context, tenantId s
 }
 
 func (r *TaskRepositoryImpl) ProcessTaskReassignments(ctx context.Context, tenantId string) (*FailTasksResponse, bool, error) {
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 5000)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 25000)
 
 	if err != nil {
 		return nil, false, err
@@ -1122,8 +1129,7 @@ func (r *TaskRepositoryImpl) ProcessTaskReassignments(ctx context.Context, tenan
 
 	defer rollback()
 
-	// TODO: make limit configurable
-	limit := 1000
+	limit := r.reassignLimit
 
 	toReassign, err := r.queries.ListTasksToReassign(ctx, tx, sqlcv1.ListTasksToReassignParams{
 		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
@@ -1178,7 +1184,7 @@ func (r *TaskRepositoryImpl) ProcessTaskReassignments(ctx context.Context, tenan
 }
 
 func (r *TaskRepositoryImpl) ProcessTaskRetryQueueItems(ctx context.Context, tenantId string) ([]*sqlcv1.V1RetryQueueItem, bool, error) {
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 5000)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 25000)
 
 	if err != nil {
 		return nil, false, err
@@ -1186,8 +1192,7 @@ func (r *TaskRepositoryImpl) ProcessTaskRetryQueueItems(ctx context.Context, ten
 
 	defer rollback()
 
-	// TODO: make limit configurable
-	limit := 10000
+	limit := r.retryQueueLimit
 
 	// get task reassignments
 	res, err := r.queries.ProcessRetryQueueItems(ctx, tx, sqlcv1.ProcessRetryQueueItemsParams{
@@ -1215,7 +1220,7 @@ type durableSleepEventData struct {
 }
 
 func (r *TaskRepositoryImpl) ProcessDurableSleeps(ctx context.Context, tenantId string) (*EventMatchResults, bool, error) {
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 5000)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 25000)
 
 	if err != nil {
 		return nil, false, err
@@ -1223,7 +1228,7 @@ func (r *TaskRepositoryImpl) ProcessDurableSleeps(ctx context.Context, tenantId 
 
 	defer rollback()
 
-	limit := 1000
+	limit := r.durableSleepLimit
 
 	emitted, err := r.queries.PopDurableSleep(ctx, tx, sqlcv1.PopDurableSleepParams{
 		TenantID: sqlchelpers.UUIDFromStr(tenantId),

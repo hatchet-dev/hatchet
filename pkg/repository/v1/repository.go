@@ -10,6 +10,13 @@ import (
 	"github.com/rs/zerolog"
 )
 
+type TaskOperationLimits struct {
+	TimeoutLimit      int
+	ReassignLimit     int
+	RetryQueueLimit   int
+	DurableSleepLimit int
+}
+
 type Repository interface {
 	Triggers() TriggerRepository
 	Tasks() TaskRepository
@@ -40,7 +47,7 @@ type repositoryImpl struct {
 	webhooks  WebhookRepository
 }
 
-func NewRepository(pool *pgxpool.Pool, l *zerolog.Logger, taskRetentionPeriod, olapRetentionPeriod time.Duration, maxInternalRetryCount int32, entitlements repository.EntitlementsRepository) (Repository, func() error) {
+func NewRepository(pool *pgxpool.Pool, l *zerolog.Logger, taskRetentionPeriod, olapRetentionPeriod time.Duration, maxInternalRetryCount int32, entitlements repository.EntitlementsRepository, taskLimits TaskOperationLimits) (Repository, func() error) {
 	v := validator.NewDefaultValidator()
 
 	shared, cleanupShared := newSharedRepository(pool, v, l, entitlements)
@@ -53,7 +60,7 @@ func NewRepository(pool *pgxpool.Pool, l *zerolog.Logger, taskRetentionPeriod, o
 
 	impl := &repositoryImpl{
 		triggers:  newTriggerRepository(shared),
-		tasks:     newTaskRepository(shared, taskRetentionPeriod, maxInternalRetryCount),
+		tasks:     newTaskRepository(shared, taskRetentionPeriod, maxInternalRetryCount, taskLimits.TimeoutLimit, taskLimits.ReassignLimit, taskLimits.RetryQueueLimit, taskLimits.DurableSleepLimit),
 		scheduler: newSchedulerRepository(shared),
 		matches:   matchRepo,
 		olap:      newOLAPRepository(shared, olapRetentionPeriod, true),
