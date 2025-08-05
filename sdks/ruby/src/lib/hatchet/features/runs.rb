@@ -78,7 +78,7 @@ module Hatchet
     #     additional_metadata: { source: "api" }
     #   )
     #
-    # @since 0.0.0
+    # @since 0.1.0
     class Runs
       # Re-export commonly used workflow run classes for convenience
       TriggerWorkflowRunRequest = ::HatchetSdkRest::V1TriggerWorkflowRunRequest
@@ -95,7 +95,7 @@ module Hatchet
       # @param rest_client [Object] The configured REST client for API communication
       # @param config [Hatchet::Config] The Hatchet configuration containing tenant_id and other settings
       # @return [void]
-      # @since 0.0.0
+      # @since 0.1.0
       def initialize(rest_client, config)
         @rest_client = rest_client
         @config = config
@@ -348,7 +348,7 @@ module Hatchet
       #   result = runs.poll("workflow-run-123")
       # @example Poll with custom interval and timeout
       #   result = runs.poll("workflow-run-123", interval: 2.0, timeout: 30.0)
-      # @since 0.0.0
+      # @since 0.1.0
       def poll(workflow_run_id, interval: 1.0, timeout: nil)
         start_time = Time.now
         

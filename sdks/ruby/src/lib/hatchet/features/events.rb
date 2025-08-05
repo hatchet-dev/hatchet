@@ -18,7 +18,7 @@ module Hatchet
     #     additional_metadata: { ip_address: "192.168.1.1" }
     #   )
     #
-    # @since 0.0.0
+    # @since 0.1.0
     class Events
       # Re-export commonly used event classes for convenience
       CreateEventRequest = ::HatchetSdkRest::CreateEventRequest
@@ -30,7 +30,7 @@ module Hatchet
       # @param rest_client [Object] The configured REST client for API communication
       # @param config [Hatchet::Config] The Hatchet configuration containing tenant_id and other settings
       # @return [void]
-      # @since 0.0.0
+      # @since 0.1.0
       def initialize(rest_client, config)
         @rest_client = rest_client
         @config = config
@@ -58,7 +58,7 @@ module Hatchet
       #     data: { user_id: 123, action: "login" },
       #     additional_metadata: { ip_address: "192.168.1.1" }
       #   )
-      # @since 0.0.2
+      # @since 0.1.0
       def create(key:, data:, additional_metadata: nil, priority: nil, scope: nil, namespace: nil)
         event_key = apply_namespace(key, namespace)
         
