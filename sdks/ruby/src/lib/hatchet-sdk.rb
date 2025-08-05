@@ -5,6 +5,7 @@ require_relative "hatchet/version"
 require_relative "hatchet/config"
 require_relative "hatchet/clients"
 require_relative "hatchet/features/events"
+require_relative "hatchet/features/runs"
 
 # Ruby SDK for Hatchet workflow engine
 #
@@ -73,6 +74,13 @@ module Hatchet
     def events
       # @type [Hatchet::Features::Events]
       @events ||= Hatchet::Features::Events.new(rest_client, @config)
+    end
+
+    # Feature Client for interacting with Hatchet workflow runs
+    # @return [Hatchet::Features::Runs] The runs client for interacting with Hatchet workflow runs
+    def runs
+      # @type [Hatchet::Features::Runs]
+      @runs ||= Hatchet::Features::Runs.new(rest_client, @config)
     end
   end
 end
