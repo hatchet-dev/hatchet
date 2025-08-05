@@ -73,8 +73,8 @@ module Hatchet
     # @example Creating a workflow run
     #   runs = Features::Runs.new(rest_client, config)
     #   response = runs.create(
-    #     "my-workflow",
-    #     { key: "value" },
+    #     name: "my-workflow",
+    #     input: { key: "value" },
     #     additional_metadata: { source: "api" }
     #   )
     #
@@ -265,8 +265,8 @@ module Hatchet
       # @raise [Hatchet::Error] If the API request fails or returns an error
       # @example Creating a workflow run
       #   response = runs.create(
-      #     "simple-workflow",
-      #     { user_id: 123, action: "process_data" },
+      #     name: "simple-workflow",
+      #     input: { user_id: 123, action: "process_data" },
       #     additional_metadata: { source: "api", priority: "high" }
       #   )
       def create(name:, input:, additional_metadata: nil, priority: nil)

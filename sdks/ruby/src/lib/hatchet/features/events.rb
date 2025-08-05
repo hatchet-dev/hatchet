@@ -11,10 +11,9 @@ module Hatchet
     # convenient Ruby interface.
     #
     # @example Creating an event
-    #   events = Features::Events.new(rest_client, config)
     #   response = events.push(
-    #     "user-login",
-    #     { user_id: 123, action: "login" },
+    #     key: "user-login",
+    #     data: { user_id: 123, action: "login" },
     #     additional_metadata: { ip_address: "192.168.1.1" }
     #   )
     #
