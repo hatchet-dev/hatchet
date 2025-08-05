@@ -6,16 +6,19 @@ from pydantic import BaseModel
 
 from hatchet_sdk import Context, Depends, DurableContext, EmptyModel, Hatchet
 
-hatchet = Hatchet(debug=True)
+hatchet = Hatchet(debug=False)
+
+SYNC_DEPENDENCY_VALUE = "sync_dependency_value"
+ASYNC_DEPENDENCY_VALUE = "async_dependency_value"
 
 
 # > Declare dependencies
-async def async_dep() -> str:
-    return "async_dependency_value"
+async def async_dep(input: EmptyModel, ctx: Context) -> str:
+    return ASYNC_DEPENDENCY_VALUE
 
 
-def sync_dep() -> str:
-    return "sync_dependency_value"
+def sync_dep(input: EmptyModel, ctx: Context) -> str:
+    return SYNC_DEPENDENCY_VALUE
 
 
 # !!
@@ -29,7 +32,7 @@ class Output(BaseModel):
 # > Inject dependencies
 @hatchet.task()
 async def async_task_with_dependencies(
-    input: EmptyModel,
+    _i: EmptyModel,
     ctx: Context,
     async_dep: Annotated[str, Depends(async_dep)],
     sync_dep: Annotated[str, Depends(sync_dep)],
@@ -45,7 +48,7 @@ async def async_task_with_dependencies(
 
 @hatchet.task()
 def sync_task_with_dependencies(
-    input: EmptyModel,
+    _i: EmptyModel,
     ctx: Context,
     async_dep: Annotated[str, Depends(async_dep)],
     sync_dep: Annotated[str, Depends(sync_dep)],
@@ -58,7 +61,7 @@ def sync_task_with_dependencies(
 
 @hatchet.durable_task()
 async def durable_async_task_with_dependencies(
-    input: EmptyModel,
+    _i: EmptyModel,
     ctx: DurableContext,
     async_dep: Annotated[str, Depends(async_dep)],
     sync_dep: Annotated[str, Depends(sync_dep)],
@@ -71,7 +74,7 @@ async def durable_async_task_with_dependencies(
 
 @hatchet.durable_task()
 def durable_sync_task_with_dependencies(
-    input: EmptyModel,
+    _i: EmptyModel,
     ctx: DurableContext,
     async_dep: Annotated[str, Depends(async_dep)],
     sync_dep: Annotated[str, Depends(sync_dep)],
@@ -89,7 +92,7 @@ di_workflow = hatchet.workflow(
 
 @di_workflow.task()
 async def wf_async_task_with_dependencies(
-    input: EmptyModel,
+    _i: EmptyModel,
     ctx: Context,
     async_dep: Annotated[str, Depends(async_dep)],
     sync_dep: Annotated[str, Depends(sync_dep)],
@@ -102,7 +105,7 @@ async def wf_async_task_with_dependencies(
 
 @di_workflow.task()
 def wf_sync_task_with_dependencies(
-    input: EmptyModel,
+    _i: EmptyModel,
     ctx: Context,
     async_dep: Annotated[str, Depends(async_dep)],
     sync_dep: Annotated[str, Depends(sync_dep)],
@@ -115,7 +118,7 @@ def wf_sync_task_with_dependencies(
 
 @di_workflow.durable_task()
 async def wf_durable_async_task_with_dependencies(
-    input: EmptyModel,
+    _i: EmptyModel,
     ctx: DurableContext,
     async_dep: Annotated[str, Depends(async_dep)],
     sync_dep: Annotated[str, Depends(sync_dep)],
@@ -128,7 +131,7 @@ async def wf_durable_async_task_with_dependencies(
 
 @di_workflow.durable_task()
 def wf_durable_sync_task_with_dependencies(
-    input: EmptyModel,
+    _i: EmptyModel,
     ctx: DurableContext,
     async_dep: Annotated[str, Depends(async_dep)],
     sync_dep: Annotated[str, Depends(sync_dep)],

@@ -304,7 +304,7 @@ class Runner:
         ctx_action_key.set(action.key)
         ctx_additional_metadata.set(action.additional_metadata)
 
-        dependencies = await task._unpack_dependencies()
+        dependencies = await task._unpack_dependencies(ctx)
 
         try:
             if task.is_async_function:
