@@ -34,12 +34,6 @@ Set your API credentials as environment variables:
 export HATCHET_CLIENT_TOKEN="your-jwt-token-here"
 ```
 
-Optional additional configuration:
-
-```bash
-export HATCHET_CLIENT_TENANT_ID="your-tenant-id"  # Will be extracted from JWT if not provided
-```
-
 ### Running Integration Tests
 
 #### Run only integration tests:

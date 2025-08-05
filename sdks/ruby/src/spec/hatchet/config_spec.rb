@@ -162,7 +162,6 @@ RSpec.describe Hatchet::Config do
         HATCHET_CLIENT_HOST_PORT
         HATCHET_CLIENT_SERVER_URL
         HATCHET_CLIENT_NAMESPACE
-        HATCHET_CLIENT_TENANT_ID
       ].each { |var| ENV.delete(var) }
     end
 
@@ -173,7 +172,6 @@ RSpec.describe Hatchet::Config do
         HATCHET_CLIENT_HOST_PORT
         HATCHET_CLIENT_SERVER_URL
         HATCHET_CLIENT_NAMESPACE
-        HATCHET_CLIENT_TENANT_ID
       ].each { |var| ENV.delete(var) }
     end
 
@@ -188,7 +186,6 @@ RSpec.describe Hatchet::Config do
       ENV["HATCHET_CLIENT_HOST_PORT"] = "env.example.com:9090"
       ENV["HATCHET_CLIENT_SERVER_URL"] = "https://env.example.com"
       ENV["HATCHET_CLIENT_NAMESPACE"] = "env_namespace"
-      ENV["HATCHET_CLIENT_TENANT_ID"] = "env_tenant"
 
       config = described_class.new
       expect(config.token).to eq(valid_token)
@@ -209,7 +206,6 @@ RSpec.describe Hatchet::Config do
 
     it "prefers environment variable tenant_id over JWT token payload" do
       ENV["HATCHET_CLIENT_TOKEN"] = token_with_tenant_id
-      ENV["HATCHET_CLIENT_TENANT_ID"] = "env-tenant"
 
       config = described_class.new
       expect(config.tenant_id).to eq("env-tenant")

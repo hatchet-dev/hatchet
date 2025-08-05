@@ -17,5 +17,5 @@ A simple example that demonstrates basic usage of the Hatchet gem.
 
 Run with:
 ```bash
-bundle exec ruby hello_world.rb
+bundle exec ruby hatchet_client.rb
 ```

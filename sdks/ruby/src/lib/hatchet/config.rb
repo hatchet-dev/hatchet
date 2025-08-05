@@ -217,7 +217,6 @@ module Hatchet
     #
     # @param options [Hash] Configuration options
     # @option options [String] :token JWT token for authentication (required)
-    # @option options [String] :tenant_id Override tenant ID (extracted from JWT 'sub' field if not provided)
     # @option options [String] :host_port gRPC server host and port (default: "localhost:7070")
     # @option options [String] :server_url Server URL for HTTP requests (default: "https://app.dev.hatchet-tools.com")
     # @option options [String] :namespace Namespace prefix for resource names (default: "")
@@ -241,7 +240,6 @@ module Hatchet
       @explicitly_set = options.keys.to_set
 
       @token = options[:token] || env_var("HATCHET_CLIENT_TOKEN") || ""
-      @tenant_id = options[:tenant_id] || env_var("HATCHET_CLIENT_TENANT_ID") || ""
       @host_port = options[:host_port] || env_var("HATCHET_CLIENT_HOST_PORT") || DEFAULT_HOST_PORT
       @server_url = options[:server_url] || env_var("HATCHET_CLIENT_SERVER_URL") || DEFAULT_SERVER_URL
       @namespace = options[:namespace] || env_var("HATCHET_CLIENT_NAMESPACE") || ""

@@ -22,7 +22,6 @@ RSpec.configure do |config|
   config.before(:suite) do
     if ENV["HATCHET_CLIENT_TOKEN"] && RSpec.configuration.inclusion_filter[:integration]
       puts "\n🔗 Running integration tests with real API credentials"
-      puts "   Tenant ID: #{ENV['HATCHET_CLIENT_TENANT_ID'] || 'from JWT token'}"
       puts ""
     elsif RSpec.configuration.exclusion_filter[:integration]
       puts "\n⚠️  Integration tests skipped (no HATCHET_CLIENT_TOKEN found)"
