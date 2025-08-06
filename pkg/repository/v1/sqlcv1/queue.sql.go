@@ -475,8 +475,9 @@ WITH input AS (
     FROM
         (
             SELECT
-                unnest($1::bigint[]) AS id,
-                unnest($2::uuid[]) AS worker_id
+                UNNEST($1::bigint[]) AS id,
+                UNNEST($2::timestamptz[]) AS inserted_at,
+                UNNEST($3::uuid[]) AS worker_id
         ) AS subquery
     ORDER BY id
 ), updated_tasks AS (
@@ -484,13 +485,15 @@ WITH input AS (
         t.id,
         t.inserted_at,
         t.retry_count,
-        input.worker_id,
+        i.worker_id,
         t.tenant_id,
         CURRENT_TIMESTAMP + convert_duration_to_interval(t.step_timeout) AS timeout_at
     FROM
-        input
+        v1_task t
     JOIN
-        v1_task t ON t.id = input.id
+        input i ON (t.id, t.inserted_at) = (i.id, i.inserted_at)
+    WHERE
+        t.inserted_at >= $4::timestamptz
     ORDER BY t.id
 ), assigned_tasks AS (
     INSERT INTO v1_task_runtime (
@@ -506,7 +509,7 @@ WITH input AS (
         t.inserted_at,
         t.retry_count,
         t.worker_id,
-        $3::uuid,
+        $5::uuid,
         t.timeout_at
     FROM
         updated_tasks t
@@ -522,9 +525,11 @@ FROM
 `
 
 type UpdateTasksToAssignedParams struct {
-	Taskids   []int64       `json:"taskids"`
-	Workerids []pgtype.UUID `json:"workerids"`
-	Tenantid  pgtype.UUID   `json:"tenantid"`
+	Taskids           []int64              `json:"taskids"`
+	Taskinsertedats   []pgtype.Timestamptz `json:"taskinsertedats"`
+	Workerids         []pgtype.UUID        `json:"workerids"`
+	Mintaskinsertedat pgtype.Timestamptz   `json:"mintaskinsertedat"`
+	Tenantid          pgtype.UUID          `json:"tenantid"`
 }
 
 type UpdateTasksToAssignedRow struct {
@@ -533,7 +538,13 @@ type UpdateTasksToAssignedRow struct {
 }
 
 func (q *Queries) UpdateTasksToAssigned(ctx context.Context, db DBTX, arg UpdateTasksToAssignedParams) ([]*UpdateTasksToAssignedRow, error) {
-	rows, err := db.Query(ctx, updateTasksToAssigned, arg.Taskids, arg.Workerids, arg.Tenantid)
+	rows, err := db.Query(ctx, updateTasksToAssigned,
+		arg.Taskids,
+		arg.Taskinsertedats,
+		arg.Workerids,
+		arg.Mintaskinsertedat,
+		arg.Tenantid,
+	)
 	if err != nil {
 		return nil, err
 	}

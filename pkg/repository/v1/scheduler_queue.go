@@ -231,14 +231,22 @@ func (d *queueRepository) MarkQueueItemsProcessed(ctx context.Context, r *Assign
 	}
 
 	taskIds := make([]int64, 0, len(r.Assigned))
+	taskInsertedAts := make([]pgtype.Timestamptz, 0, len(r.Assigned))
 	workerIds := make([]pgtype.UUID, 0, len(r.Assigned))
+
+	var minTaskInsertedAt pgtype.Timestamptz
 
 	// if there are any idsToUnqueue that are not in the queuedItems, this means they were
 	// deleted from the v1_queue_items table, so we should not assign them
 	for id, assignedItem := range queueItemIdsToAssignedItem {
 		if _, ok := queuedItemsMap[id]; ok {
 			taskIds = append(taskIds, assignedItem.QueueItem.TaskID)
+			taskInsertedAts = append(taskInsertedAts, assignedItem.QueueItem.TaskInsertedAt)
 			workerIds = append(workerIds, assignedItem.WorkerId)
+
+			if !minTaskInsertedAt.Valid || assignedItem.QueueItem.TaskInsertedAt.Time.Before(minTaskInsertedAt.Time) {
+				minTaskInsertedAt = assignedItem.QueueItem.TaskInsertedAt
+			}
 		}
 	}
 
@@ -246,9 +254,11 @@ func (d *queueRepository) MarkQueueItemsProcessed(ctx context.Context, r *Assign
 	checkpoint = time.Now()
 
 	updatedTasks, err := d.queries.UpdateTasksToAssigned(ctx, tx, sqlcv1.UpdateTasksToAssignedParams{
-		Taskids:   taskIds,
-		Workerids: workerIds,
-		Tenantid:  d.tenantId,
+		Taskids:           taskIds,
+		Taskinsertedats:   taskInsertedAts,
+		Mintaskinsertedat: minTaskInsertedAt,
+		Workerids:         workerIds,
+		Tenantid:          d.tenantId,
 	})
 
 	if err != nil {
