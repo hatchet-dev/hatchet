@@ -61,9 +61,13 @@ func (i *IngestorImpl) Push(ctx context.Context, req *contracts.PushEventRequest
 	if req.AdditionalMetadata != nil {
 		additionalMetaStr = *req.AdditionalMetadata
 	}
+
 	corrId := datautils.ExtractCorrelationId(additionalMetaStr)
 
-	ctx = context.WithValue(ctx, constants.CorrelationIdKey, corrId)
+	if corrId != nil {
+		ctx = context.WithValue(ctx, constants.CorrelationIdKey, *corrId)
+	}
+
 	ctx = context.WithValue(ctx, constants.ResourceIdKey, event.ID)
 	ctx = context.WithValue(ctx, constants.ResourceTypeKey, constants.ResourceTypeEvent)
 
@@ -158,7 +162,10 @@ func (i *IngestorImpl) BulkPush(ctx context.Context, req *contracts.BulkPushEven
 
 		corrId := datautils.ExtractCorrelationId(additionalMetaStr)
 
-		ctx = context.WithValue(ctx, constants.CorrelationIdKey, corrId)
+		if corrId != nil {
+			ctx = context.WithValue(ctx, constants.CorrelationIdKey, *corrId)
+		}
+
 		ctx = context.WithValue(ctx, constants.ResourceIdKey, e.ID)
 		ctx = context.WithValue(ctx, constants.ResourceTypeKey, constants.ResourceTypeEvent)
 

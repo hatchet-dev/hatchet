@@ -96,9 +96,13 @@ func (a *AdminServiceImpl) triggerWorkflowV1(ctx context.Context, req *contracts
 	if req.AdditionalMetadata != nil {
 		additionalMeta = *req.AdditionalMetadata
 	}
+
 	corrId := datautils.ExtractCorrelationId(additionalMeta)
 
-	ctx = context.WithValue(ctx, constants.CorrelationIdKey, corrId)
+	if corrId != nil {
+		ctx = context.WithValue(ctx, constants.CorrelationIdKey, *corrId)
+	}
+
 	ctx = context.WithValue(ctx, constants.ResourceIdKey, opt.ExternalId)
 	ctx = context.WithValue(ctx, constants.ResourceTypeKey, constants.ResourceTypeWorkflowRun)
 
