@@ -471,6 +471,7 @@ const updateTasksToAssigned = `-- name: UpdateTasksToAssigned :many
 WITH input AS (
     SELECT
         id,
+        inserted_at,
         worker_id
     FROM
         (
