@@ -13,6 +13,8 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor/contracts"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
+	"github.com/hatchet-dev/hatchet/pkg/constants"
+	grpcmiddleware "github.com/hatchet-dev/hatchet/pkg/grpc/middleware"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/metered"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
@@ -53,6 +55,19 @@ func (i *IngestorImpl) Push(ctx context.Context, req *contracts.PushEventRequest
 	if err != nil {
 		return nil, err
 	}
+
+	var additionalMetaStr string
+
+	if req.AdditionalMetadata != nil {
+		additionalMetaStr = *req.AdditionalMetadata
+	}
+	corrId := datautils.ExtractCorrelationId(additionalMetaStr)
+
+	ctx = context.WithValue(ctx, constants.CorrelationIdKey, corrId)
+	ctx = context.WithValue(ctx, constants.ResourceIdKey, event.ID)
+	ctx = context.WithValue(ctx, constants.ResourceTypeKey, constants.ResourceTypeEvent)
+
+	grpcmiddleware.TriggerCallback(ctx)
 
 	return e, nil
 }
@@ -134,6 +149,20 @@ func (i *IngestorImpl) BulkPush(ctx context.Context, req *contracts.BulkPushEven
 		}
 
 		contractEvents = append(contractEvents, contractEvent)
+
+		var additionalMetaStr string
+
+		if e.AdditionalMetadata != nil {
+			additionalMetaStr = string(e.AdditionalMetadata)
+		}
+
+		corrId := datautils.ExtractCorrelationId(additionalMetaStr)
+
+		ctx = context.WithValue(ctx, constants.CorrelationIdKey, corrId)
+		ctx = context.WithValue(ctx, constants.ResourceIdKey, e.ID)
+		ctx = context.WithValue(ctx, constants.ResourceTypeKey, constants.ResourceTypeEvent)
+
+		grpcmiddleware.TriggerCallback(ctx)
 
 	}
 

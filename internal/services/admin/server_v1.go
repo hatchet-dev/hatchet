@@ -2,10 +2,10 @@ package admin
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 
+	"github.com/hatchet-dev/hatchet/internal/datautils"
 	msgqueue "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
 	"github.com/hatchet-dev/hatchet/internal/services/admin/contracts"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
@@ -19,26 +19,6 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
-
-// extractCorrelationId extracts correlationId from additionalMetadata if it exists
-func extractCorrelationId(additionalMetadata string) *string {
-	if additionalMetadata == "" {
-		return nil
-	}
-
-	var metadata map[string]any
-	if err := json.Unmarshal([]byte(additionalMetadata), &metadata); err != nil {
-		return nil
-	}
-
-	if corrId, exists := metadata[string(constants.CorrelationIdKey)]; exists {
-		if corrIdStr, ok := corrId.(string); ok {
-			return &corrIdStr
-		}
-	}
-
-	return nil
-}
 
 func (a *AdminServiceImpl) triggerWorkflowV1(ctx context.Context, req *contracts.TriggerWorkflowRequest) (*contracts.TriggerWorkflowResponse, error) {
 	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
@@ -116,7 +96,7 @@ func (a *AdminServiceImpl) triggerWorkflowV1(ctx context.Context, req *contracts
 	if req.AdditionalMetadata != nil {
 		additionalMeta = *req.AdditionalMetadata
 	}
-	corrId := extractCorrelationId(additionalMeta)
+	corrId := datautils.ExtractCorrelationId(additionalMeta)
 
 	ctx = context.WithValue(ctx, constants.CorrelationIdKey, corrId)
 	ctx = context.WithValue(ctx, constants.ResourceIdKey, opt.ExternalId)
@@ -180,7 +160,7 @@ func (a *AdminServiceImpl) bulkTriggerWorkflowV1(ctx context.Context, req *contr
 		if req.Workflows[i].AdditionalMetadata != nil {
 			additionalMeta = *req.Workflows[i].AdditionalMetadata
 		}
-		corrId := extractCorrelationId(additionalMeta)
+		corrId := datautils.ExtractCorrelationId(additionalMeta)
 
 		ctx = context.WithValue(ctx, constants.CorrelationIdKey, corrId)
 		ctx = context.WithValue(ctx, constants.ResourceIdKey, runId)

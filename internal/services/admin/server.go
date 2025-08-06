@@ -14,6 +14,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/hatchet-dev/hatchet/internal/dagutils"
+	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/admin/contracts"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
@@ -101,7 +102,7 @@ func (a *AdminServiceImpl) triggerWorkflowV0(ctx context.Context, req *contracts
 	if req.AdditionalMetadata != nil {
 		additionalMeta = *req.AdditionalMetadata
 	}
-	corrId := extractCorrelationId(additionalMeta)
+	corrId := datautils.ExtractCorrelationId(additionalMeta)
 
 	ctx = context.WithValue(ctx, constants.CorrelationIdKey, corrId)
 	ctx = context.WithValue(ctx, constants.ResourceIdKey, workflowRunId)
@@ -184,7 +185,7 @@ func (a *AdminServiceImpl) bulkTriggerWorkflowV0(ctx context.Context, req *contr
 
 		var corrId *string
 		if req.Workflows[i].AdditionalMetadata != nil {
-			corrId = extractCorrelationId(*req.Workflows[i].AdditionalMetadata)
+			corrId = datautils.ExtractCorrelationId(*req.Workflows[i].AdditionalMetadata)
 		}
 
 		ctx = context.WithValue(ctx, constants.CorrelationIdKey, corrId)
