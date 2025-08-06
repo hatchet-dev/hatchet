@@ -324,8 +324,19 @@ func (w *Workflow) NewTask(name string, fn any, options ...TaskOption) *Workflow
 		expectedInputType := fnType.In(1)
 		convertedInput := convertInputToType(input, expectedInputType)
 
+		// For durable tasks, we need to pass the context as the expected type
+		var contextArg reflect.Value
+		durableContextType := reflect.TypeOf((*worker.DurableHatchetContext)(nil)).Elem()
+		if fnType.In(0).Implements(durableContextType) || fnType.In(0) == durableContextType {
+			// For durable tasks, convert the context to DurableHatchetContext
+			durableCtx := worker.NewDurableHatchetContext(ctx)
+			contextArg = reflect.ValueOf(durableCtx)
+		} else {
+			contextArg = reflect.ValueOf(ctx)
+		}
+
 		args := []reflect.Value{
-			reflect.ValueOf(ctx),
+			contextArg,
 			convertedInput,
 		}
 
@@ -412,8 +423,19 @@ func (w *Workflow) AddTask(name string, fn any, options ...TaskOption) *Task {
 		expectedInputType := fnType.In(1)
 		convertedInput := convertInputToType(input, expectedInputType)
 
+		// For durable tasks, we need to pass the context as the expected type
+		var contextArg reflect.Value
+		durableContextType := reflect.TypeOf((*worker.DurableHatchetContext)(nil)).Elem()
+		if fnType.In(0).Implements(durableContextType) || fnType.In(0) == durableContextType {
+			// For durable tasks, convert the context to DurableHatchetContext
+			durableCtx := worker.NewDurableHatchetContext(ctx)
+			contextArg = reflect.ValueOf(durableCtx)
+		} else {
+			contextArg = reflect.ValueOf(ctx)
+		}
+
 		args := []reflect.Value{
-			reflect.ValueOf(ctx),
+			contextArg,
 			convertedInput,
 		}
 
@@ -522,8 +544,19 @@ func (w *Workflow) OnFailure(fn any) *Workflow {
 		expectedInputType := fnType.In(1)
 		convertedInput := convertInputToType(input, expectedInputType)
 
+		// For durable tasks, we need to pass the context as the expected type
+		var contextArg reflect.Value
+		durableContextType := reflect.TypeOf((*worker.DurableHatchetContext)(nil)).Elem()
+		if fnType.In(0).Implements(durableContextType) || fnType.In(0) == durableContextType {
+			// For durable tasks, convert the context to DurableHatchetContext
+			durableCtx := worker.NewDurableHatchetContext(ctx)
+			contextArg = reflect.ValueOf(durableCtx)
+		} else {
+			contextArg = reflect.ValueOf(ctx)
+		}
+
 		args := []reflect.Value{
-			reflect.ValueOf(ctx),
+			contextArg,
 			convertedInput,
 		}
 
