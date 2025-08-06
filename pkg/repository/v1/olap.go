@@ -1776,7 +1776,7 @@ type TaskIdInsertedAt struct {
 }
 
 func (r *OLAPRepositoryImpl) populateTaskRunData(ctx context.Context, tx pgx.Tx, tenantId string, opts []TaskIdInsertedAt, includePayloads bool) ([]*sqlcv1.PopulateTaskRunDataRow, error) {
-	ctx, span := telemetry.NewSpan(ctx, "populate-task-run-data")
+	ctx, span := telemetry.NewSpan(ctx, "populate-task-run-data-olap")
 	defer span.End()
 
 	uniqueTaskIdInsertedAts := make(map[TaskIdInsertedAt]struct{})
