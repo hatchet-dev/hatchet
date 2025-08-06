@@ -12,8 +12,10 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+	"go.opentelemetry.io/otel/codes"
 
 	"github.com/hatchet-dev/hatchet/internal/cel"
+	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 )
@@ -569,6 +571,9 @@ func (r *TaskRepositoryImpl) verifyAllTasksFinalized(ctx context.Context, tx sql
 }
 
 func (r *TaskRepositoryImpl) CompleteTasks(ctx context.Context, tenantId string, tasks []CompleteTaskOpts) (*FinalizedTaskResponse, error) {
+	ctx, span := telemetry.NewSpan(ctx, "TaskRepositoryImpl.CompleteTasks")
+	defer span.End()
+
 	// TODO: ADD BACK VALIDATION
 	// if err := r.v.Validate(tasks); err != nil {
 	// 	fmt.Println("FAILED VALIDATION HERE!!!")
@@ -585,6 +590,9 @@ func (r *TaskRepositoryImpl) CompleteTasks(ctx context.Context, tenantId string,
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 5000)
 
 	if err != nil {
+		err = fmt.Errorf("failed to prepare tx: %w", err)
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to prepare tx")
 		return nil, err
 	}
 
@@ -596,6 +604,9 @@ func (r *TaskRepositoryImpl) CompleteTasks(ctx context.Context, tenantId string,
 	releasedTasks, err := r.releaseTasks(ctx, tx, tenantId, taskIdRetryCounts)
 
 	if err != nil {
+		err = fmt.Errorf("failed to release tasks: %w", err)
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to release tasks")
 		return nil, err
 	}
 
@@ -622,11 +633,17 @@ func (r *TaskRepositoryImpl) CompleteTasks(ctx context.Context, tenantId string,
 	)
 
 	if err != nil {
+		err = fmt.Errorf("failed to create task events after release: %w", err)
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to create task events after release")
 		return nil, err
 	}
 
 	// commit the transaction
 	if err := commit(ctx); err != nil {
+		err = fmt.Errorf("failed to commit transaction: %w", err)
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to commit transaction")
 		return nil, err
 	}
 
@@ -637,9 +654,15 @@ func (r *TaskRepositoryImpl) CompleteTasks(ctx context.Context, tenantId string,
 }
 
 func (r *TaskRepositoryImpl) FailTasks(ctx context.Context, tenantId string, failureOpts []FailTaskOpts) (*FailTasksResponse, error) {
+	ctx, span := telemetry.NewSpan(ctx, "TaskRepositoryImpl.FailTasks")
+	defer span.End()
+
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 5000)
 
 	if err != nil {
+		err = fmt.Errorf("failed to prepare tx: %w", err)
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to prepare tx")
 		return nil, err
 	}
 
@@ -648,11 +671,17 @@ func (r *TaskRepositoryImpl) FailTasks(ctx context.Context, tenantId string, fai
 	res, err := r.failTasksTx(ctx, tx, tenantId, failureOpts)
 
 	if err != nil {
+		err = fmt.Errorf("failed to fail tasks: %w", err)
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to fail tasks")
 		return nil, err
 	}
 
 	// commit the transaction
 	if err := commit(ctx); err != nil {
+		err = fmt.Errorf("failed to commit transaction: %w", err)
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to commit transaction")
 		return nil, err
 	}
 
@@ -924,6 +953,9 @@ func (r *TaskRepositoryImpl) ListFinalizedWorkflowRuns(ctx context.Context, tena
 }
 
 func (r *TaskRepositoryImpl) CancelTasks(ctx context.Context, tenantId string, tasks []TaskIdInsertedAtRetryCount) (*FinalizedTaskResponse, error) {
+	ctx, span := telemetry.NewSpan(ctx, "TaskRepositoryImpl.CancelTasks")
+	defer span.End()
+
 	// TODO: ADD BACK VALIDATION
 	// if err := r.v.Validate(tasks); err != nil {
 	// 	fmt.Println("FAILED VALIDATION HERE!!!")
@@ -934,6 +966,9 @@ func (r *TaskRepositoryImpl) CancelTasks(ctx context.Context, tenantId string, t
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 5000)
 
 	if err != nil {
+		err = fmt.Errorf("failed to prepare tx: %w", err)
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to prepare tx")
 		return nil, err
 	}
 
@@ -943,11 +978,17 @@ func (r *TaskRepositoryImpl) CancelTasks(ctx context.Context, tenantId string, t
 	res, err := r.cancelTasks(ctx, tx, tenantId, tasks)
 
 	if err != nil {
+		err = fmt.Errorf("failed to cancel tasks: %w", err)
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to cancel tasks")
 		return nil, err
 	}
 
 	// commit the transaction
 	if err := commit(ctx); err != nil {
+		err = fmt.Errorf("failed to commit transaction: %w", err)
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to commit transaction")
 		return nil, err
 	}
 
