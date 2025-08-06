@@ -173,7 +173,7 @@ func (t *MessageQueueImpl) SetQOS(prefetchCount int) {
 }
 
 func (t *MessageQueueImpl) SendMessage(ctx context.Context, q msgqueue.Queue, msg *msgqueue.Message) error {
-	ctx, span := telemetry.NewSpan(ctx, "RabbitMQMessageQueue.SendMessage")
+	ctx, span := telemetry.NewSpan(ctx, "MessageQueueImpl.SendMessage")
 	defer span.End()
 
 	err := t.pubMessage(ctx, q, msg)

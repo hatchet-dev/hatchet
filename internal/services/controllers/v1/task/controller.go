@@ -487,6 +487,7 @@ func (tc *TasksControllerImpl) handleTaskFailed(ctx context.Context, tenantId st
 		)
 
 		if err != nil {
+			tc.l.Error().Err(err).Msg("could not create monitoring event message")
 			err = fmt.Errorf("could not create monitoring event message: %w", err)
 			span.RecordError(err)
 			span.SetStatus(codes.Error, "could not create monitoring event message")
@@ -659,6 +660,7 @@ func (tc *TasksControllerImpl) handleTaskCancelled(ctx context.Context, tenantId
 		)
 
 		if err != nil {
+			tc.l.Error().Err(err).Msg("could not create monitoring event message")
 			err = fmt.Errorf("could not create monitoring event message: %w", err)
 			span.RecordError(err)
 			span.SetStatus(codes.Error, "could not create monitoring event message")
