@@ -12,6 +12,7 @@ import (
 	lru "github.com/hashicorp/golang-lru/v2"
 	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/rs/zerolog"
+	"go.opentelemetry.io/otel/codes"
 
 	msgqueue "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
 	"github.com/hatchet-dev/hatchet/internal/queueutils"
@@ -172,7 +173,18 @@ func (t *MessageQueueImpl) SetQOS(prefetchCount int) {
 }
 
 func (t *MessageQueueImpl) SendMessage(ctx context.Context, q msgqueue.Queue, msg *msgqueue.Message) error {
-	return t.pubMessage(ctx, q, msg)
+	ctx, span := telemetry.NewSpan(ctx, "RabbitMQMessageQueue.SendMessage")
+	defer span.End()
+
+	err := t.pubMessage(ctx, q, msg)
+
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "error publishing message")
+		return err
+	}
+
+	return nil
 }
 
 func (t *MessageQueueImpl) pubMessage(ctx context.Context, q msgqueue.Queue, msg *msgqueue.Message) error {
