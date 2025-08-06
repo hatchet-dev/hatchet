@@ -620,7 +620,7 @@ func (r *OLAPRepositoryImpl) ListTasks(ctx context.Context, tenantId string, opt
 		}
 
 		if errors.Is(err, pgx.ErrNoRows) {
-			r.l.Warn().Msgf("task %d not found with inserted at %s", row.ID, row.InsertedAt)
+			r.l.Warn().Msgf("task %d not found with inserted at %s", row.ID, row.InsertedAt.Time)
 			continue
 		}
 
