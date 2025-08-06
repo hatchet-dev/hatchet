@@ -83,6 +83,9 @@ func InitTracer(opts *TracerOpts) (func(context.Context) error, error) {
 	otel.SetTracerProvider(
 		sdktrace.NewTracerProvider(
 			sdktrace.WithSampler(sdktrace.TraceIDRatioBased(traceIdRatio)),
+			sdktrace.WithBatcher(
+				exporter,
+			),
 			sdktrace.WithResource(resources),
 		),
 	)
