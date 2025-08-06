@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -49,6 +50,8 @@ func init() {
 	insecure := os.Getenv("SERVER_OTEL_INSECURE")
 	traceIdRatio := os.Getenv("SERVER_OTEL_TRACE_ID_RATIO")
 	collectorAuth := os.Getenv("SERVER_OTEL_COLLECTOR_AUTH")
+	unparsedMaxQueueSize := os.Getenv("SERVER_OTEL_EXPORTER_MAX_QUEUE_SIZE")
+	unparsedMaxExportBatchSize := os.Getenv("SERVER_OTEL_EXPORTER_MAX_EXPORT_BATCH_SIZE")
 
 	var insecureBool bool
 
@@ -56,14 +59,33 @@ func init() {
 		insecureBool = true
 	}
 
+	var maxQueueSize, maxExportBatchSize *int
+	if unparsedMaxQueueSize != "" {
+		maxQueueSizeInt, err := strconv.Atoi(unparsedMaxQueueSize)
+		if err != nil {
+			panic(fmt.Errorf("could not parse SERVER_OTEL_EXPORTER_MAX_QUEUE_SIZE: %w", err))
+		}
+		maxQueueSize = &maxQueueSizeInt
+	}
+
+	if unparsedMaxExportBatchSize != "" {
+		maxExportBatchSizeInt, err := strconv.Atoi(unparsedMaxExportBatchSize)
+		if err != nil {
+			panic(fmt.Errorf("could not parse SERVER_OTEL_EXPORTER_MAX_EXPORT_BATCH_SIZE: %w", err))
+		}
+		maxExportBatchSize = &maxExportBatchSizeInt
+	}
+
 	// we do this to we get the tracer set globally, which is needed by some of the otel
 	// integrations for the database before start
 	_, err := telemetry.InitTracer(&telemetry.TracerOpts{
-		ServiceName:   svcName,
-		CollectorURL:  collectorURL,
-		TraceIdRatio:  traceIdRatio,
-		Insecure:      insecureBool,
-		CollectorAuth: collectorAuth,
+		ServiceName:        svcName,
+		CollectorURL:       collectorURL,
+		TraceIdRatio:       traceIdRatio,
+		Insecure:           insecureBool,
+		CollectorAuth:      collectorAuth,
+		MaxQueueSize:       maxQueueSize,
+		MaxExportBatchSize: maxExportBatchSize,
 	})
 
 	if err != nil {
@@ -134,11 +156,13 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 	var l = sc.Logger
 
 	shutdown, err := telemetry.InitTracer(&telemetry.TracerOpts{
-		ServiceName:   sc.OpenTelemetry.ServiceName,
-		CollectorURL:  sc.OpenTelemetry.CollectorURL,
-		TraceIdRatio:  sc.OpenTelemetry.TraceIdRatio,
-		Insecure:      sc.OpenTelemetry.Insecure,
-		CollectorAuth: sc.OpenTelemetry.CollectorAuth,
+		ServiceName:        sc.OpenTelemetry.ServiceName,
+		CollectorURL:       sc.OpenTelemetry.CollectorURL,
+		TraceIdRatio:       sc.OpenTelemetry.TraceIdRatio,
+		Insecure:           sc.OpenTelemetry.Insecure,
+		CollectorAuth:      sc.OpenTelemetry.CollectorAuth,
+		MaxQueueSize:       sc.OpenTelemetry.ExporterMaxQueueSize,
+		MaxExportBatchSize: sc.OpenTelemetry.ExporterMaxExportBatchSize,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("could not initialize tracer: %w", err)
@@ -617,11 +641,13 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 	var l = sc.Logger
 
 	shutdown, err := telemetry.InitTracer(&telemetry.TracerOpts{
-		ServiceName:   sc.OpenTelemetry.ServiceName,
-		CollectorURL:  sc.OpenTelemetry.CollectorURL,
-		TraceIdRatio:  sc.OpenTelemetry.TraceIdRatio,
-		Insecure:      sc.OpenTelemetry.Insecure,
-		CollectorAuth: sc.OpenTelemetry.CollectorAuth,
+		ServiceName:        sc.OpenTelemetry.ServiceName,
+		CollectorURL:       sc.OpenTelemetry.CollectorURL,
+		TraceIdRatio:       sc.OpenTelemetry.TraceIdRatio,
+		Insecure:           sc.OpenTelemetry.Insecure,
+		CollectorAuth:      sc.OpenTelemetry.CollectorAuth,
+		MaxQueueSize:       sc.OpenTelemetry.ExporterMaxQueueSize,
+		MaxExportBatchSize: sc.OpenTelemetry.ExporterMaxExportBatchSize,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("could not initialize tracer: %w", err)
