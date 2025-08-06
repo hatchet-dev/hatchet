@@ -103,6 +103,20 @@ type ConfigFileOperations struct {
 	PollInterval int `mapstructure:"pollInterval" json:"pollInterval,omitempty" default:"2"`
 }
 
+type TaskOperationLimitsConfigFile struct {
+	// TimeoutLimit is the limit for how many tasks to process in a single timeout operation
+	TimeoutLimit int `mapstructure:"timeoutLimit" json:"timeoutLimit,omitempty" default:"1000"`
+
+	// ReassignLimit is the limit for how many tasks to process in a single reassignment operation
+	ReassignLimit int `mapstructure:"reassignLimit" json:"reassignLimit,omitempty" default:"1000"`
+
+	// RetryQueueLimit is the limit for how many retry queue items to process in a single operation
+	RetryQueueLimit int `mapstructure:"retryQueueLimit" json:"retryQueueLimit,omitempty" default:"1000"`
+
+	// DurableSleepLimit is the limit for how many durable sleep items to process in a single operation
+	DurableSleepLimit int `mapstructure:"durableSleepLimit" json:"durableSleepLimit,omitempty" default:"1000"`
+}
+
 // General server runtime options
 type ConfigFileRuntime struct {
 	// Port is the port that the core server listens on
@@ -230,6 +244,9 @@ type ConfigFileRuntime struct {
 
 	// LogIngestionEnabled controls whether the server enables log ingestion for tasks
 	LogIngestionEnabled bool `mapstructure:"logIngestionEnabled" json:"logIngestionEnabled,omitempty" default:"true"`
+
+	// TaskOperationLimits controls the limits for various task operations
+	TaskOperationLimits TaskOperationLimitsConfigFile `mapstructure:"taskOperationLimits" json:"taskOperationLimits,omitempty"`
 }
 
 type InternalClientTLSConfigFile struct {
@@ -811,4 +828,10 @@ func BindAllEnv(v *viper.Viper) {
 	// operations options
 	_ = v.BindEnv("olap.jitter", "SERVER_OPERATIONS_JITTER")
 	_ = v.BindEnv("olap.pollInterval", "SERVER_OPERATIONS_POLL_INTERVAL")
+
+	// task operation limits options
+	_ = v.BindEnv("taskOperationLimits.timeoutLimit", "SERVER_TASK_OPERATION_LIMITS_TIMEOUT_LIMIT")
+	_ = v.BindEnv("taskOperationLimits.reassignLimit", "SERVER_TASK_OPERATION_LIMITS_REASSIGN_LIMIT")
+	_ = v.BindEnv("taskOperationLimits.retryQueueLimit", "SERVER_TASK_OPERATION_LIMITS_RETRY_QUEUE_LIMIT")
+	_ = v.BindEnv("taskOperationLimits.durableSleepLimit", "SERVER_TASK_OPERATION_LIMITS_DURABLE_SLEEP_LIMIT")
 }
