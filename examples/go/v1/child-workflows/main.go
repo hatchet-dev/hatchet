@@ -7,7 +7,6 @@ import (
 	"time"
 
 	hatchet "github.com/hatchet-dev/hatchet/sdks/go"
-	"github.com/hatchet-dev/hatchet/pkg/worker"
 )
 
 type ParentInput struct {
@@ -40,10 +39,10 @@ func main() {
 
 	childWorkflow.NewTask("process-value", func(ctx hatchet.Context, input ChildInput) (ChildOutput, error) {
 		log.Printf("Child workflow processing value: %d", input.Value)
-		
+
 		// Simulate some processing
 		result := input.Value * 2
-		
+
 		return ChildOutput{
 			Result: result,
 		}, nil
@@ -64,10 +63,8 @@ func main() {
 			log.Printf("Spawning child workflow %d/%d", i+1, input.Count)
 
 			// Spawn child workflow and wait for result
-			childResult, err := ctx.SpawnWorkflow("child-workflow", ChildInput{
+			childResult, err := childWorkflow.RunNoWait(ctx.GetContext(), ChildInput{
 				Value: i + 1,
-			}, &worker.SpawnWorkflowOpts{
-				Key: stringPtr(fmt.Sprintf("child-%d", i)),
 			})
 			if err != nil {
 				return ParentOutput{}, fmt.Errorf("failed to spawn child workflow %d: %w", i, err)

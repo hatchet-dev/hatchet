@@ -3,16 +3,17 @@ package hatchet
 import (
 	"context"
 	"reflect"
+	"strings"
 	"time"
 
+	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
+	v0Client "github.com/hatchet-dev/hatchet/pkg/client"
 	"github.com/hatchet-dev/hatchet/pkg/client/create"
 	"github.com/hatchet-dev/hatchet/pkg/client/rest"
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
-	v0Client "github.com/hatchet-dev/hatchet/pkg/client"
-	"github.com/hatchet-dev/hatchet/sdks/go/internal"
 	"github.com/hatchet-dev/hatchet/pkg/worker"
 	"github.com/hatchet-dev/hatchet/pkg/worker/condition"
-	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
+	"github.com/hatchet-dev/hatchet/sdks/go/internal"
 )
 
 // convertInputToType converts input (typically map[string]interface{}) to the expected struct type
@@ -34,6 +35,11 @@ func convertInputToType(input any, expectedType reflect.Type) reflect.Value {
 			jsonTag := field.Tag.Get("json")
 			if jsonTag == "" {
 				jsonTag = field.Name
+			} else {
+				// Handle JSON tag options like "count,omitempty" -> "count"
+				if commaIndex := strings.Index(jsonTag, ","); commaIndex != -1 {
+					jsonTag = jsonTag[:commaIndex]
+				}
 			}
 			if val, exists := inputMap[jsonTag]; exists {
 				fieldValue := convertedInput.Field(i)
@@ -41,6 +47,12 @@ func convertInputToType(input any, expectedType reflect.Type) reflect.Value {
 					valReflect := reflect.ValueOf(val)
 					if valReflect.Type().AssignableTo(field.Type) {
 						fieldValue.Set(valReflect)
+					} else {
+						// Try to convert common type mismatches
+						converted, ok := convertValue(val, field.Type)
+						if ok {
+							fieldValue.Set(converted)
+						}
 					}
 				}
 			}
@@ -49,6 +61,30 @@ func convertInputToType(input any, expectedType reflect.Type) reflect.Value {
 	}
 
 	return reflect.ValueOf(input)
+}
+
+// convertValue attempts to convert a value to the target type for common type mismatches
+func convertValue(val any, targetType reflect.Type) (reflect.Value, bool) {
+	valReflect := reflect.ValueOf(val)
+
+	// Handle numeric conversions (e.g., float64 -> int, int -> float64)
+	if valReflect.Kind() == reflect.Float64 && targetType.Kind() == reflect.Int {
+		if f64, ok := val.(float64); ok {
+			return reflect.ValueOf(int(f64)), true
+		}
+	}
+	if valReflect.Kind() == reflect.Float64 && targetType.Kind() == reflect.Int32 {
+		if f64, ok := val.(float64); ok {
+			return reflect.ValueOf(int32(f64)), true
+		}
+	}
+	if valReflect.Kind() == reflect.Float64 && targetType.Kind() == reflect.Int64 {
+		if f64, ok := val.(float64); ok {
+			return reflect.ValueOf(int64(f64)), true
+		}
+	}
+
+	return reflect.Value{}, false
 }
 
 // Workflow represents a workflow definition that can contain multiple tasks.
@@ -127,19 +163,19 @@ func NewWorkflow(name string, v0Client v0Client.Client, options ...WorkflowOptio
 type TaskOption func(*taskConfig)
 
 type taskConfig struct {
-	retries               int32
-	retryBackoffFactor    float32
+	retries                int32
+	retryBackoffFactor     float32
 	retryMaxBackoffSeconds int32
-	executionTimeout      time.Duration
-	onCron               []string
-	onEvents             []string
-	defaultFilters       []types.DefaultFilter
-	concurrency          []*types.Concurrency
-	rateLimits           []*types.RateLimit
-	isDurable            bool
-	parents              []create.NamedTask
-	waitFor              condition.Condition
-	skipIf               condition.Condition
+	executionTimeout       time.Duration
+	onCron                 []string
+	onEvents               []string
+	defaultFilters         []types.DefaultFilter
+	concurrency            []*types.Concurrency
+	rateLimits             []*types.RateLimit
+	isDurable              bool
+	parents                []create.NamedTask
+	waitFor                condition.Condition
+	skipIf                 condition.Condition
 }
 
 // WithRetries sets the number of retry attempts for failed tasks.
@@ -237,10 +273,12 @@ type Task struct {
 // NewTask adds a task to the workflow.
 //
 // The function parameter must have the signature:
-//   func(ctx Context, input T) (T, error)
+//
+//	func(ctx Context, input T) (T, error)
 //
 // For durable tasks, use:
-//   func(ctx DurableContext, input T) (T, error)
+//
+//	func(ctx DurableContext, input T) (T, error)
 //
 // Function signatures are validated at runtime using reflection.
 func (w *Workflow) NewTask(name string, fn any, options ...TaskOption) *Workflow {
@@ -308,11 +346,11 @@ func (w *Workflow) NewTask(name string, fn any, options ...TaskOption) *Workflow
 		RetryBackoffFactor:     config.retryBackoffFactor,
 		RetryMaxBackoffSeconds: config.retryMaxBackoffSeconds,
 		ExecutionTimeout:       config.executionTimeout,
-		Concurrency:           config.concurrency,
-		RateLimits:            config.rateLimits,
-		Parents:               config.parents,
-		WaitFor:               config.waitFor,
-		SkipIf:                config.skipIf,
+		Concurrency:            config.concurrency,
+		RateLimits:             config.rateLimits,
+		Parents:                config.parents,
+		WaitFor:                config.waitFor,
+		SkipIf:                 config.skipIf,
 	}
 
 	w.declaration.Task(taskOpts, wrapper)
@@ -323,10 +361,12 @@ func (w *Workflow) NewTask(name string, fn any, options ...TaskOption) *Workflow
 // AddTask adds a task to the workflow and returns a Task reference for DAG building.
 //
 // The function parameter must have the signature:
-//   func(ctx Context, input T) (T, error)
+//
+//	func(ctx Context, input T) (T, error)
 //
 // For durable tasks, use:
-//   func(ctx DurableContext, input T) (T, error)
+//
+//	func(ctx DurableContext, input T) (T, error)
 //
 // Function signatures are validated at runtime using reflection.
 func (w *Workflow) AddTask(name string, fn any, options ...TaskOption) *Task {
@@ -394,11 +434,11 @@ func (w *Workflow) AddTask(name string, fn any, options ...TaskOption) *Task {
 		RetryBackoffFactor:     config.retryBackoffFactor,
 		RetryMaxBackoffSeconds: config.retryMaxBackoffSeconds,
 		ExecutionTimeout:       config.executionTimeout,
-		Concurrency:           config.concurrency,
-		RateLimits:            config.rateLimits,
-		Parents:               config.parents,
-		WaitFor:               config.waitFor,
-		SkipIf:                config.skipIf,
+		Concurrency:            config.concurrency,
+		RateLimits:             config.rateLimits,
+		Parents:                config.parents,
+		WaitFor:                config.waitFor,
+		SkipIf:                 config.skipIf,
 	}
 
 	namedTask := w.declaration.Task(taskOpts, wrapper)
