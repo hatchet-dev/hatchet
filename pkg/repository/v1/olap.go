@@ -609,7 +609,7 @@ func (r *OLAPRepositoryImpl) ListTasks(ctx context.Context, tenantId string, opt
 	tasksWithData := make([]*sqlcv1.PopulateTaskRunDataRow, 0)
 	span.SetAttributes(attribute.KeyValue{
 		Key:   "PopulateTaskRunData.num_tasks_to_populate",
-		Value: attribute.Int64Value(int64(len(rows))),
+		Value: attribute.IntValue(len(rows)),
 	})
 
 	for _, row := range rows {
@@ -674,7 +674,7 @@ func (r *OLAPRepositoryImpl) ListTasksByDAGId(ctx context.Context, tenantId stri
 	tasksWithData := make([]*sqlcv1.PopulateTaskRunDataRow, 0)
 	span.SetAttributes(attribute.KeyValue{
 		Key:   "PopulateTaskRunData.num_tasks_to_populate",
-		Value: attribute.Int64Value(int64(len(tasks))),
+		Value: attribute.IntValue(len(tasks)),
 	})
 
 	for _, row := range tasks {
@@ -719,7 +719,7 @@ func (r *OLAPRepositoryImpl) ListTasksByIdAndInsertedAt(ctx context.Context, ten
 	tasksWithData := make([]*sqlcv1.PopulateTaskRunDataRow, 0)
 	span.SetAttributes(attribute.KeyValue{
 		Key:   "PopulateTaskRunData.num_tasks_to_populate",
-		Value: attribute.Int64Value(int64(len(taskMetadata))),
+		Value: attribute.IntValue(len(taskMetadata)),
 	})
 
 	for _, metadata := range taskMetadata {
@@ -840,7 +840,7 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId stri
 
 	span.SetAttributes(attribute.KeyValue{
 		Key:   "PopulateTaskRunData.num_tasks_to_populate",
-		Value: attribute.Int64Value(int64(len(workflowRunIds))),
+		Value: attribute.IntValue(len(workflowRunIds)),
 	})
 	for _, row := range workflowRunIds {
 		if row.Kind == sqlcv1.V1RunKindDAG {
@@ -1525,7 +1525,7 @@ func (r *OLAPRepositoryImpl) GetTaskTimings(ctx context.Context, tenantId string
 	tasksWithData := make([]*sqlcv1.PopulateTaskRunDataRow, 0)
 	span.SetAttributes(attribute.KeyValue{
 		Key:   "PopulateTaskRunData.num_tasks_to_populate",
-		Value: attribute.Int64Value(int64(len(runsList))),
+		Value: attribute.IntValue(len(runsList)),
 	})
 
 	for _, row := range runsList {
