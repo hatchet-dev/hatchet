@@ -15,6 +15,42 @@ import (
 	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 )
 
+// convertInputToType converts input (typically map[string]interface{}) to the expected struct type
+func convertInputToType(input any, expectedType reflect.Type) reflect.Value {
+	if input == nil {
+		return reflect.Zero(expectedType)
+	}
+
+	inputValue := reflect.ValueOf(input)
+	if inputValue.Type().AssignableTo(expectedType) {
+		return inputValue
+	}
+
+	// Try to convert map[string]any to the expected struct type
+	if inputMap, ok := input.(map[string]any); ok && expectedType.Kind() == reflect.Struct {
+		convertedInput := reflect.New(expectedType).Elem()
+		for i := 0; i < expectedType.NumField(); i++ {
+			field := expectedType.Field(i)
+			jsonTag := field.Tag.Get("json")
+			if jsonTag == "" {
+				jsonTag = field.Name
+			}
+			if val, exists := inputMap[jsonTag]; exists {
+				fieldValue := convertedInput.Field(i)
+				if fieldValue.CanSet() {
+					valReflect := reflect.ValueOf(val)
+					if valReflect.Type().AssignableTo(field.Type) {
+						fieldValue.Set(valReflect)
+					}
+				}
+			}
+		}
+		return convertedInput
+	}
+
+	return reflect.ValueOf(input)
+}
+
 // Workflow represents a workflow definition that can contain multiple tasks.
 type Workflow struct {
 	declaration internal.WorkflowDeclaration[any, any]
@@ -246,9 +282,13 @@ func (w *Workflow) NewTask(name string, fn any, options ...TaskOption) *Workflow
 	}
 
 	wrapper := func(ctx Context, input any) (any, error) {
+		// Convert the input to the expected type
+		expectedInputType := fnType.In(1)
+		convertedInput := convertInputToType(input, expectedInputType)
+
 		args := []reflect.Value{
 			reflect.ValueOf(ctx),
-			reflect.ValueOf(input),
+			convertedInput,
 		}
 
 		results := fnValue.Call(args)
@@ -328,9 +368,13 @@ func (w *Workflow) AddTask(name string, fn any, options ...TaskOption) *Task {
 	}
 
 	wrapper := func(ctx Context, input any) (any, error) {
+		// Convert the input to the expected type
+		expectedInputType := fnType.In(1)
+		convertedInput := convertInputToType(input, expectedInputType)
+
 		args := []reflect.Value{
 			reflect.ValueOf(ctx),
-			reflect.ValueOf(input),
+			convertedInput,
 		}
 
 		results := fnValue.Call(args)
@@ -434,9 +478,13 @@ func (w *Workflow) OnFailure(fn any) *Workflow {
 	}
 
 	wrapper := func(ctx Context, input any) (any, error) {
+		// Convert the input to the expected type
+		expectedInputType := fnType.In(1)
+		convertedInput := convertInputToType(input, expectedInputType)
+
 		args := []reflect.Value{
 			reflect.ValueOf(ctx),
-			reflect.ValueOf(input),
+			convertedInput,
 		}
 
 		results := fnValue.Call(args)

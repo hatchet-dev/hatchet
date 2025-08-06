@@ -30,33 +30,30 @@ func main() {
 	)
 
 	// Add a long-running task that can be cancelled
-	workflow.NewTask("long-running-task",
-		func(ctx hatchet.Context, input CancellationInput) (CancellationOutput, error) {
-			log.Printf("Starting long-running task with message: %s", input.Message)
+	workflow.NewTask("long-running-task", func(ctx hatchet.Context, input CancellationInput) (CancellationOutput, error) {
+		log.Printf("Starting long-running task with message: %s", input.Message)
 
-			// Simulate long-running work with cancellation checking
-			for i := 0; i < 10; i++ {
-				select {
-				case <-ctx.Done():
-					log.Printf("Task cancelled after %d seconds", i)
-					return CancellationOutput{
-						Status:    "cancelled",
-						Completed: false,
-					}, nil
-				default:
-					log.Printf("Working... step %d/10", i+1)
-					time.Sleep(1 * time.Second)
-				}
+		// Simulate long-running work with cancellation checking
+		for i := 0; i < 10; i++ {
+			select {
+			case <-ctx.Done():
+				log.Printf("Task cancelled after %d seconds", i)
+				return CancellationOutput{
+					Status:    "cancelled",
+					Completed: false,
+				}, nil
+			default:
+				log.Printf("Working... step %d/10", i+1)
+				time.Sleep(1 * time.Second)
 			}
+		}
 
-			log.Println("Task completed successfully")
-			return CancellationOutput{
-				Status:    "completed",
-				Completed: true,
-			}, nil
-		},
-		hatchet.WithTimeout(30*time.Second),
-	)
+		log.Println("Task completed successfully")
+		return CancellationOutput{
+			Status:    "completed",
+			Completed: true,
+		}, nil
+	}, hatchet.WithTimeout(30*time.Second))
 
 	// Create a worker
 	worker, err := client.NewWorker("cancellation-worker",
