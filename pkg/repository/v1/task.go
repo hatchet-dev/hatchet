@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 
 	"github.com/hatchet-dev/hatchet/internal/cel"
@@ -696,6 +697,9 @@ func (r *TaskRepositoryImpl) failTasksTx(ctx context.Context, tx sqlcv1.DBTX, te
 	// 	return err
 	// }
 
+	ctx, span := telemetry.NewSpan(ctx, "fail-tasks-tx")
+	defer span.End()
+
 	tasks := make([]TaskIdInsertedAtRetryCount, len(failureOpts))
 	appFailureTaskIds := make([]int64, 0)
 	appFailureTaskInsertedAts := make([]pgtype.Timestamptz, 0)
@@ -727,6 +731,12 @@ func (r *TaskRepositoryImpl) failTasksTx(ctx context.Context, tx sqlcv1.DBTX, te
 
 	// write app failures
 	if len(appFailureTaskIds) > 0 {
+		span.SetAttributes(
+			attribute.KeyValue{
+				Key:   "failTasksTx.FailTaskAppFailure.batchSize",
+				Value: attribute.IntValue(len(appFailureTaskIds)),
+			},
+		)
 		appFailureRetries, err := r.queries.FailTaskAppFailure(ctx, tx, sqlcv1.FailTaskAppFailureParams{
 			Tenantid:        sqlchelpers.UUIDFromStr(tenantId),
 			Taskids:         appFailureTaskIds,
@@ -757,6 +767,12 @@ func (r *TaskRepositoryImpl) failTasksTx(ctx context.Context, tx sqlcv1.DBTX, te
 
 	// write internal failures
 	if len(internalFailureTaskIds) > 0 {
+		span.SetAttributes(
+			attribute.KeyValue{
+				Key:   "failTasksTx.FailTaskInternalFailure.batchSize",
+				Value: attribute.IntValue(len(appFailureTaskIds)),
+			},
+		)
 		internalFailureRetries, err := r.queries.FailTaskInternalFailure(ctx, tx, sqlcv1.FailTaskInternalFailureParams{
 			Tenantid:           sqlchelpers.UUIDFromStr(tenantId),
 			Taskids:            internalFailureTaskIds,
