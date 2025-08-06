@@ -83,11 +83,6 @@ func InitTracer(opts *TracerOpts) (func(context.Context) error, error) {
 	otel.SetTracerProvider(
 		sdktrace.NewTracerProvider(
 			sdktrace.WithSampler(sdktrace.TraceIDRatioBased(traceIdRatio)),
-			sdktrace.WithBatcher(
-				exporter,
-				sdktrace.WithMaxQueueSize(sdktrace.DefaultMaxQueueSize*10),
-				sdktrace.WithMaxExportBatchSize(sdktrace.DefaultMaxExportBatchSize*10),
-			),
 			sdktrace.WithResource(resources),
 		),
 	)
