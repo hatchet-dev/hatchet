@@ -733,7 +733,7 @@ func (r *TaskRepositoryImpl) failTasksTx(ctx context.Context, tx sqlcv1.DBTX, te
 	if len(appFailureTaskIds) > 0 {
 		span.SetAttributes(
 			attribute.KeyValue{
-				Key:   "failTasksTx.FailTaskAppFailure.batchSize",
+				Key:   "fail-tasks-tx.fail-task-app-failure.batch_size",
 				Value: attribute.IntValue(len(appFailureTaskIds)),
 			},
 		)
@@ -769,7 +769,7 @@ func (r *TaskRepositoryImpl) failTasksTx(ctx context.Context, tx sqlcv1.DBTX, te
 	if len(internalFailureTaskIds) > 0 {
 		span.SetAttributes(
 			attribute.KeyValue{
-				Key:   "failTasksTx.FailTaskInternalFailure.batchSize",
+				Key:   "fail-tasks-tx.fail-task-internal-failure.batch_size",
 				Value: attribute.IntValue(len(appFailureTaskIds)),
 			},
 		)
