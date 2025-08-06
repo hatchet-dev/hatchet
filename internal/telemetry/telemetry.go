@@ -20,13 +20,11 @@ import (
 )
 
 type TracerOpts struct {
-	ServiceName        string
-	CollectorURL       string
-	Insecure           bool
-	TraceIdRatio       string
-	CollectorAuth      string
-	MaxQueueSize       *int
-	MaxExportBatchSize *int
+	ServiceName   string
+	CollectorURL  string
+	Insecure      bool
+	TraceIdRatio  string
+	CollectorAuth string
 }
 
 func InitTracer(opts *TracerOpts) (func(context.Context) error, error) {
@@ -82,26 +80,13 @@ func InitTracer(opts *TracerOpts) (func(context.Context) error, error) {
 		}
 	}
 
-	maxQueueSize := sdktrace.DefaultMaxQueueSize
-
-	if opts.MaxQueueSize != nil {
-		maxQueueSize = *opts.MaxQueueSize
-	}
-
-	maxExportBatchSize := sdktrace.DefaultMaxExportBatchSize
-
-	if opts.MaxExportBatchSize != nil {
-		maxExportBatchSize = *opts.MaxExportBatchSize
-	}
-
 	otel.SetTracerProvider(
 		sdktrace.NewTracerProvider(
 			sdktrace.WithSampler(sdktrace.TraceIDRatioBased(traceIdRatio)),
 			sdktrace.WithBatcher(
 				exporter,
-				// Increasing queue size might help prevent spans from being dropped with smaller export batch sizes
-				sdktrace.WithMaxQueueSize(maxQueueSize),
-				sdktrace.WithMaxExportBatchSize(maxExportBatchSize),
+				sdktrace.WithMaxQueueSize(sdktrace.DefaultMaxQueueSize*10),
+				sdktrace.WithMaxExportBatchSize(sdktrace.DefaultMaxExportBatchSize*10),
 			),
 			sdktrace.WithResource(resources),
 		),
