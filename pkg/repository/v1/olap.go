@@ -1789,7 +1789,7 @@ func (r *OLAPRepositoryImpl) populateTaskRunData(ctx context.Context, tx pgx.Tx,
 	}
 
 	span.SetAttributes(attribute.KeyValue{
-		Key:   "populateTaskRunData.batchSize",
+		Key:   "populate-task-run-data-olap.batch_size",
 		Value: attribute.IntValue(len(uniqueTaskIdInsertedAts)),
 	})
 
