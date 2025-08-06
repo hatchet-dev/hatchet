@@ -497,6 +497,7 @@ func (tc *TasksControllerImpl) handleTaskFailed(ctx context.Context, tenantId st
 		err = tc.pubBuffer.Pub(ctx, msgqueue.OLAP_QUEUE, olapMsg, false)
 
 		if err != nil {
+			tc.l.Error().Err(err).Msg("could not publish monitoring event message")
 			err = fmt.Errorf("could not publish monitoring event message: %w", err)
 			span.RecordError(err)
 			span.SetStatus(codes.Error, "could not publish monitoring event message")
@@ -676,6 +677,7 @@ func (tc *TasksControllerImpl) handleTaskCancelled(ctx context.Context, tenantId
 		)
 
 		if err != nil {
+			tc.l.Error().Err(err).Msg("could not publish monitoring event message")
 			err = fmt.Errorf("could not publish monitoring event message: %w", err)
 			span.RecordError(err)
 			span.SetStatus(codes.Error, "could not publish monitoring event message")
