@@ -705,8 +705,10 @@ func (r *OLAPRepositoryImpl) ListTasksByDAGId(ctx context.Context, tenantId stri
 }
 
 func (r *OLAPRepositoryImpl) ListTasksByIdAndInsertedAt(ctx context.Context, tenantId string, taskMetadata []TaskMetadata) ([]*sqlcv1.PopulateTaskRunDataRow, error) {
+	ctx, span := telemetry.NewSpan(ctx, "list-tasks-by-id-and-inserted-at-olap")
+	defer span.End()
+
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.readPool, r.l, 15000)
-	spanCtx, span := telemetry.NewSpan(ctx, "list-tasks-by-id-and-inserted-at-olap")
 
 	if err != nil {
 		return nil, err
@@ -721,7 +723,7 @@ func (r *OLAPRepositoryImpl) ListTasksByIdAndInsertedAt(ctx context.Context, ten
 	})
 
 	for _, metadata := range taskMetadata {
-		taskData, err := r.queries.PopulateTaskRunData(spanCtx, tx, sqlcv1.PopulateTaskRunDataParams{
+		taskData, err := r.queries.PopulateTaskRunData(ctx, tx, sqlcv1.PopulateTaskRunDataParams{
 			Taskid:          metadata.TaskID,
 			Taskinsertedat:  sqlchelpers.TimestamptzFromTime(metadata.TaskInsertedAt),
 			Tenantid:        sqlchelpers.UUIDFromStr(tenantId),
@@ -740,7 +742,7 @@ func (r *OLAPRepositoryImpl) ListTasksByIdAndInsertedAt(ctx context.Context, ten
 		tasksWithData = append(tasksWithData, taskData)
 	}
 
-	if err := commit(spanCtx); err != nil {
+	if err := commit(ctx); err != nil {
 		return nil, err
 	}
 
@@ -1471,7 +1473,9 @@ func (r *OLAPRepositoryImpl) ListWorkflowRunDisplayNames(ctx context.Context, te
 }
 
 func (r *OLAPRepositoryImpl) GetTaskTimings(ctx context.Context, tenantId string, workflowRunId pgtype.UUID, depth int32) ([]*sqlcv1.PopulateTaskRunDataRow, map[string]int32, error) {
-	spanCtx, span := telemetry.NewSpan(ctx, "get-task-timings-olap")
+	ctx, span := telemetry.NewSpan(ctx, "get-task-timings-olap")
+	defer span.End()
+
 	if depth > 10 {
 		return nil, nil, fmt.Errorf("depth too large")
 	}
@@ -1481,7 +1485,7 @@ func (r *OLAPRepositoryImpl) GetTaskTimings(ctx context.Context, tenantId string
 	sevenDaysAgo := time.Now().Add(-time.Hour * 24 * 7)
 	minInsertedAt := time.Now()
 
-	rootTasks, err := r.queries.FlattenTasksByExternalIds(spanCtx, r.readPool, sqlcv1.FlattenTasksByExternalIdsParams{
+	rootTasks, err := r.queries.FlattenTasksByExternalIds(ctx, r.readPool, sqlcv1.FlattenTasksByExternalIdsParams{
 		Externalids: []pgtype.UUID{workflowRunId},
 		Tenantid:    sqlchelpers.UUIDFromStr(tenantId),
 	})
@@ -1505,7 +1509,7 @@ func (r *OLAPRepositoryImpl) GetTaskTimings(ctx context.Context, tenantId string
 		minInsertedAt = sevenDaysAgo
 	}
 
-	runsList, err := r.queries.GetRunsListRecursive(spanCtx, r.readPool, sqlcv1.GetRunsListRecursiveParams{
+	runsList, err := r.queries.GetRunsListRecursive(ctx, r.readPool, sqlcv1.GetRunsListRecursiveParams{
 		Taskexternalids: rootTaskExternalIds,
 		Tenantid:        sqlchelpers.UUIDFromStr(tenantId),
 		Depth:           depth,
@@ -1527,7 +1531,7 @@ func (r *OLAPRepositoryImpl) GetTaskTimings(ctx context.Context, tenantId string
 	for _, row := range runsList {
 		idsToDepth[sqlchelpers.UUIDToStr(row.ExternalID)] = row.Depth
 
-		taskData, err := r.queries.PopulateTaskRunData(spanCtx, r.readPool, sqlcv1.PopulateTaskRunDataParams{
+		taskData, err := r.queries.PopulateTaskRunData(ctx, r.readPool, sqlcv1.PopulateTaskRunDataParams{
 			Taskid:         row.ID,
 			Taskinsertedat: row.InsertedAt,
 			Tenantid:       sqlchelpers.UUIDFromStr(tenantId),
