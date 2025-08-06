@@ -606,30 +606,19 @@ func (r *OLAPRepositoryImpl) ListTasks(ctx context.Context, tenantId string, opt
 		return nil, 0, err
 	}
 
-	tasksWithData := make([]*sqlcv1.PopulateTaskRunDataRow, 0)
-	span.SetAttributes(attribute.KeyValue{
-		Key:   "PopulateTaskRunData.num_tasks_to_populate",
-		Value: attribute.IntValue(len(rows)),
-	})
+	idsInsertedAts := make([]TaskIdInsertedAt, 0, len(rows))
 
 	for _, row := range rows {
-		taskData, err := r.queries.PopulateTaskRunData(ctx, tx, sqlcv1.PopulateTaskRunDataParams{
-			Includepayloads: opts.IncludePayloads,
-			Taskid:          row.ID,
-			Taskinsertedat:  row.InsertedAt,
-			Tenantid:        sqlchelpers.UUIDFromStr(tenantId),
+		idsInsertedAts = append(idsInsertedAts, TaskIdInsertedAt{
+			ID:         row.ID,
+			InsertedAt: row.InsertedAt,
 		})
+	}
 
-		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-			return nil, 0, err
-		}
+	tasksWithData, err := r.populateTaskRunData(ctx, tx, tenantId, idsInsertedAts, opts.IncludePayloads)
 
-		if errors.Is(err, pgx.ErrNoRows) {
-			r.l.Warn().Msgf("task %d not found with inserted at %s", row.ID, row.InsertedAt.Time)
-			continue
-		}
-
-		tasksWithData = append(tasksWithData, taskData)
+	if err != nil {
+		return nil, 0, err
 	}
 
 	count, err := r.queries.CountTasks(ctx, tx, countParams)
@@ -667,34 +656,20 @@ func (r *OLAPRepositoryImpl) ListTasksByDAGId(ctx context.Context, tenantId stri
 		return nil, taskIdToDagExternalId, err
 	}
 
+	idsInsertedAts := make([]TaskIdInsertedAt, 0, len(tasks))
+
 	for _, row := range tasks {
 		taskIdToDagExternalId[row.TaskID] = uuid.MustParse(sqlchelpers.UUIDToStr(row.DagExternalID))
+		idsInsertedAts = append(idsInsertedAts, TaskIdInsertedAt{
+			ID:         row.TaskID,
+			InsertedAt: row.TaskInsertedAt,
+		})
 	}
 
-	tasksWithData := make([]*sqlcv1.PopulateTaskRunDataRow, 0)
-	span.SetAttributes(attribute.KeyValue{
-		Key:   "PopulateTaskRunData.num_tasks_to_populate",
-		Value: attribute.IntValue(len(tasks)),
-	})
+	tasksWithData, err := r.populateTaskRunData(ctx, tx, tenantId, idsInsertedAts, includePayloads)
 
-	for _, row := range tasks {
-		taskData, err := r.queries.PopulateTaskRunData(ctx, tx, sqlcv1.PopulateTaskRunDataParams{
-			Taskid:          row.TaskID,
-			Taskinsertedat:  row.TaskInsertedAt,
-			Tenantid:        sqlchelpers.UUIDFromStr(tenantId),
-			Includepayloads: includePayloads,
-		})
-
-		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-			return nil, taskIdToDagExternalId, err
-		}
-
-		if errors.Is(err, pgx.ErrNoRows) {
-			r.l.Warn().Msgf("task %d not found in dag %s", row.TaskID, row.DagExternalID)
-			continue
-		}
-
-		tasksWithData = append(tasksWithData, taskData)
+	if err != nil {
+		return nil, taskIdToDagExternalId, err
 	}
 
 	if err := commit(ctx); err != nil {
@@ -716,30 +691,19 @@ func (r *OLAPRepositoryImpl) ListTasksByIdAndInsertedAt(ctx context.Context, ten
 
 	defer rollback()
 
-	tasksWithData := make([]*sqlcv1.PopulateTaskRunDataRow, 0)
-	span.SetAttributes(attribute.KeyValue{
-		Key:   "PopulateTaskRunData.num_tasks_to_populate",
-		Value: attribute.IntValue(len(taskMetadata)),
-	})
+	idsInsertedAts := make([]TaskIdInsertedAt, 0, len(taskMetadata))
 
 	for _, metadata := range taskMetadata {
-		taskData, err := r.queries.PopulateTaskRunData(ctx, tx, sqlcv1.PopulateTaskRunDataParams{
-			Taskid:          metadata.TaskID,
-			Taskinsertedat:  sqlchelpers.TimestamptzFromTime(metadata.TaskInsertedAt),
-			Tenantid:        sqlchelpers.UUIDFromStr(tenantId),
-			Includepayloads: true,
+		idsInsertedAts = append(idsInsertedAts, TaskIdInsertedAt{
+			ID:         metadata.TaskID,
+			InsertedAt: pgtype.Timestamptz{Time: metadata.TaskInsertedAt, Valid: true},
 		})
+	}
 
-		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-			return nil, err
-		}
+	tasksWithData, err := r.populateTaskRunData(ctx, tx, tenantId, idsInsertedAts, true)
 
-		if errors.Is(err, pgx.ErrNoRows) {
-			r.l.Warn().Msgf("task %d not found with inserted at %s", metadata.TaskID, metadata.TaskInsertedAt)
-			continue
-		}
-
-		tasksWithData = append(tasksWithData, taskData)
+	if err != nil {
+		return nil, err
 	}
 
 	if err := commit(ctx); err != nil {
@@ -836,36 +800,17 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId stri
 
 	runIdsWithDAGs := make([]int64, 0)
 	runInsertedAtsWithDAGs := make([]pgtype.Timestamptz, 0)
-	tasksToPopulated := make(map[string]*sqlcv1.PopulateTaskRunDataRow)
+	idsInsertedAts := make([]TaskIdInsertedAt, 0, len(workflowRunIds))
 
-	span.SetAttributes(attribute.KeyValue{
-		Key:   "PopulateTaskRunData.num_tasks_to_populate",
-		Value: attribute.IntValue(len(workflowRunIds)),
-	})
 	for _, row := range workflowRunIds {
 		if row.Kind == sqlcv1.V1RunKindDAG {
 			runIdsWithDAGs = append(runIdsWithDAGs, row.ID)
 			runInsertedAtsWithDAGs = append(runInsertedAtsWithDAGs, row.InsertedAt)
 		} else {
-			task, err := r.queries.PopulateTaskRunData(ctx, tx, sqlcv1.PopulateTaskRunDataParams{
-				Taskid:          row.ID,
-				Taskinsertedat:  row.InsertedAt,
-				Tenantid:        sqlchelpers.UUIDFromStr(tenantId),
-				Includepayloads: opts.IncludePayloads,
+			idsInsertedAts = append(idsInsertedAts, TaskIdInsertedAt{
+				ID:         row.ID,
+				InsertedAt: row.InsertedAt,
 			})
-
-			if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-				r.l.Error().Msgf("error populating task run data: %v", err)
-				return nil, 0, err
-			}
-
-			if errors.Is(err, pgx.ErrNoRows) {
-				r.l.Warn().Msgf("task run data not found for task %s with inserted at %s", row.ExternalID, row.InsertedAt.Time)
-				continue
-			}
-
-			externalId := sqlchelpers.UUIDToStr(task.ExternalID)
-			tasksToPopulated[externalId] = task
 		}
 	}
 
@@ -893,6 +838,19 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId stri
 	if err != nil {
 		r.l.Error().Msgf("error counting workflow runs: %v", err)
 		count = int64(len(workflowRunIds))
+	}
+
+	tasksToPopulated := make(map[string]*sqlcv1.PopulateTaskRunDataRow)
+
+	populatedTasks, err := r.populateTaskRunData(ctx, tx, tenantId, idsInsertedAts, opts.IncludePayloads)
+
+	if err != nil {
+		return nil, 0, err
+	}
+
+	for _, task := range populatedTasks {
+		externalId := sqlchelpers.UUIDToStr(task.ExternalID)
+		tasksToPopulated[externalId] = task
 	}
 
 	if err := commit(ctx); err != nil {
@@ -1522,31 +1480,20 @@ func (r *OLAPRepositoryImpl) GetTaskTimings(ctx context.Context, tenantId string
 
 	// associate each run external id with a depth
 	idsToDepth := make(map[string]int32)
-	tasksWithData := make([]*sqlcv1.PopulateTaskRunDataRow, 0)
-	span.SetAttributes(attribute.KeyValue{
-		Key:   "PopulateTaskRunData.num_tasks_to_populate",
-		Value: attribute.IntValue(len(runsList)),
-	})
+	idsInsertedAts := make([]TaskIdInsertedAt, 0, len(runsList))
 
 	for _, row := range runsList {
 		idsToDepth[sqlchelpers.UUIDToStr(row.ExternalID)] = row.Depth
-
-		taskData, err := r.queries.PopulateTaskRunData(ctx, r.readPool, sqlcv1.PopulateTaskRunDataParams{
-			Taskid:         row.ID,
-			Taskinsertedat: row.InsertedAt,
-			Tenantid:       sqlchelpers.UUIDFromStr(tenantId),
+		idsInsertedAts = append(idsInsertedAts, TaskIdInsertedAt{
+			ID:         row.ID,
+			InsertedAt: row.InsertedAt,
 		})
+	}
 
-		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-			return nil, nil, fmt.Errorf("error populating task run data for task %s: %v", sqlchelpers.UUIDToStr(row.ExternalID), err)
-		}
+	tasksWithData, err := r.populateTaskRunData(ctx, nil, tenantId, idsInsertedAts, false)
 
-		if errors.Is(err, pgx.ErrNoRows) {
-			r.l.Warn().Msgf("task run data not found for task %s with inserted at %s", sqlchelpers.UUIDToStr(row.ExternalID), row.InsertedAt.Time)
-			continue
-		}
-
-		tasksWithData = append(tasksWithData, taskData)
+	if err != nil {
+		return nil, nil, err
 	}
 
 	return tasksWithData, idsToDepth, nil
@@ -1821,4 +1768,63 @@ func (r *OLAPRepositoryImpl) StoreCELEvaluationFailures(ctx context.Context, ten
 		Sources:  sources,
 		Errors:   errorMessages,
 	})
+}
+
+type TaskIdInsertedAt struct {
+	ID         int64              `json:"id"`
+	InsertedAt pgtype.Timestamptz `json:"inserted_at"`
+}
+
+func (r *OLAPRepositoryImpl) populateTaskRunData(ctx context.Context, tx pgx.Tx, tenantId string, opts []TaskIdInsertedAt, includePayloads bool) ([]*sqlcv1.PopulateTaskRunDataRow, error) {
+	ctx, span := telemetry.NewSpan(ctx, "populate-task-run-data-olap")
+	defer span.End()
+
+	uniqueTaskIdInsertedAts := make(map[TaskIdInsertedAt]struct{})
+
+	for _, opt := range opts {
+		uniqueTaskIdInsertedAts[TaskIdInsertedAt{
+			ID:         opt.ID,
+			InsertedAt: opt.InsertedAt,
+		}] = struct{}{}
+	}
+
+	span.SetAttributes(attribute.KeyValue{
+		Key:   "populateTaskRunData.batchSize",
+		Value: attribute.IntValue(len(uniqueTaskIdInsertedAts)),
+	})
+
+	if len(uniqueTaskIdInsertedAts) == 0 {
+		r.l.Warn().Msg("populateTaskRunData called with empty opts, returning empty result")
+		return []*sqlcv1.PopulateTaskRunDataRow{}, nil
+	}
+
+	idInsertedAtToData := make(map[TaskIdInsertedAt]*sqlcv1.PopulateTaskRunDataRow)
+
+	for idInsertedAt := range uniqueTaskIdInsertedAts {
+		taskData, err := r.queries.PopulateTaskRunData(ctx, tx, sqlcv1.PopulateTaskRunDataParams{
+			Includepayloads: includePayloads,
+			Taskid:          idInsertedAt.ID,
+			Taskinsertedat:  idInsertedAt.InsertedAt,
+			Tenantid:        sqlchelpers.UUIDFromStr(tenantId),
+		})
+
+		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			return nil, err
+		}
+
+		if errors.Is(err, pgx.ErrNoRows) {
+			r.l.Warn().Msgf("task %d not found with inserted at %s", idInsertedAt.ID, idInsertedAt.InsertedAt.Time)
+			continue
+		}
+
+		idInsertedAtToData[idInsertedAt] = taskData
+	}
+
+	result := make([]*sqlcv1.PopulateTaskRunDataRow, 0)
+	for _, taskData := range idInsertedAtToData {
+		result = append(result, taskData)
+	}
+
+	return result, nil
+
 }
