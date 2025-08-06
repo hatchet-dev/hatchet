@@ -58,7 +58,7 @@ func OrCondition(conditions ...condition.Condition) condition.Condition {
 	return condition.Or(conditions...)
 }
 
-// AndCondition creates a condition that is satisfied when all of the provided conditions are met.  
+// AndCondition creates a condition that is satisfied when all of the provided conditions are met.
 func AndCondition(conditions ...condition.Condition) condition.Condition {
 	return condition.Conditions(conditions...)
 }

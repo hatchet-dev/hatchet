@@ -58,4 +58,3 @@ func WithDurableSlots(durableSlots int) WorkerOption {
 		config.durableSlots = durableSlots
 	}
 }
-
