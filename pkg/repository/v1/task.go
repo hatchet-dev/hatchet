@@ -697,7 +697,7 @@ func (r *TaskRepositoryImpl) failTasksTx(ctx context.Context, tx sqlcv1.DBTX, te
 	// 	return err
 	// }
 
-	ctx, span := telemetry.NewSpan(ctx, "fail-tasks-tx")
+	ctx, span := telemetry.NewSpan(ctx, "tasks_repository_impl.fail_tasks_tx")
 	defer span.End()
 
 	tasks := make([]TaskIdInsertedAtRetryCount, len(failureOpts))
@@ -733,7 +733,7 @@ func (r *TaskRepositoryImpl) failTasksTx(ctx context.Context, tx sqlcv1.DBTX, te
 	if len(appFailureTaskIds) > 0 {
 		span.SetAttributes(
 			attribute.KeyValue{
-				Key:   "fail-tasks-tx.fail-task-app-failure.batch_size",
+				Key:   "tasks_repository_impl.fail_tasks_tx.fail_task_app_failure.batch_size",
 				Value: attribute.IntValue(len(appFailureTaskIds)),
 			},
 		)
@@ -769,7 +769,7 @@ func (r *TaskRepositoryImpl) failTasksTx(ctx context.Context, tx sqlcv1.DBTX, te
 	if len(internalFailureTaskIds) > 0 {
 		span.SetAttributes(
 			attribute.KeyValue{
-				Key:   "fail-tasks-tx.fail-task-internal-failure.batch_size",
+				Key:   "tasks_repository_impl.fail_tasks_tx.fail_task_internal_failure.batch_size",
 				Value: attribute.IntValue(len(appFailureTaskIds)),
 			},
 		)
