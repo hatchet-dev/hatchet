@@ -55,30 +55,30 @@ func Execute() {
 }
 
 func detectRuntimes() []runtime {
-	pwd, err := os.Getwd()
+	cwd, err := os.Getwd()
 	if err != nil {
 		log.Fatalf("Error getting current directory: %v", err)
 	}
 
 	var runtimes []runtime
 
-	if couldBeGoRuntime(pwd) {
+	if couldBeGoRuntime(cwd) {
 		runtimes = append(runtimes, runtimeGo)
 	}
 
-	if couldBePythonRuntime(pwd) {
+	if couldBePythonRuntime(cwd) {
 		runtimes = append(runtimes, runtimePython)
 	}
 
-	if couldBeTypeScriptRuntime(pwd) {
+	if couldBeTypeScriptRuntime(cwd) {
 		runtimes = append(runtimes, runtimeTypeScript)
 	}
 
 	return runtimes
 }
 
-func couldBeGoRuntime(pwd string) bool {
-	if goModFile, err := pathExists(filepath.Join(pwd, "go.mod")); err != nil {
+func couldBeGoRuntime(cwd string) bool {
+	if goModFile, err := pathExists(filepath.Join(cwd, "go.mod")); err != nil {
 		log.Printf("Error checking for go.mod file: %v", err)
 	} else if goModFile {
 		return true
@@ -86,7 +86,7 @@ func couldBeGoRuntime(pwd string) bool {
 
 	var containsGoFiles bool
 
-	_ = filepath.Walk(pwd, func(path string, info fs.FileInfo, err error) error {
+	_ = filepath.Walk(cwd, func(path string, info fs.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
@@ -102,26 +102,26 @@ func couldBeGoRuntime(pwd string) bool {
 	return containsGoFiles
 }
 
-func couldBePythonRuntime(pwd string) bool {
-	if envFile, err := pathExists(filepath.Join(pwd, "environment.yml")); err != nil {
+func couldBePythonRuntime(cwd string) bool {
+	if envFile, err := pathExists(filepath.Join(cwd, "environment.yml")); err != nil {
 		log.Printf("Error checking for environment.yml file: %v", err)
 	} else if envFile {
 		return true
 	}
 
-	if requirementsFile, err := pathExists(filepath.Join(pwd, "requirements.txt")); err != nil {
+	if requirementsFile, err := pathExists(filepath.Join(cwd, "requirements.txt")); err != nil {
 		log.Printf("Error checking for requirements.txt file: %v", err)
 	} else if requirementsFile {
 		return true
 	}
 
-	if lockFile, err := pathExists(filepath.Join(pwd, "package-list.txt")); err != nil {
+	if lockFile, err := pathExists(filepath.Join(cwd, "package-list.txt")); err != nil {
 		log.Printf("Error checking for package-list.txt file: %v", err)
 	} else if lockFile {
 		return true
 	}
 
-	if pyprojectTOMLFile, err := pathExists(filepath.Join(pwd, "pyproject.toml")); err != nil {
+	if pyprojectTOMLFile, err := pathExists(filepath.Join(cwd, "pyproject.toml")); err != nil {
 		log.Printf("Error checking for pyproject.toml file: %v", err)
 	} else if pyprojectTOMLFile {
 		return true
@@ -129,7 +129,7 @@ func couldBePythonRuntime(pwd string) bool {
 
 	var containsPythonFiles bool
 
-	_ = filepath.Walk(pwd, func(path string, info fs.FileInfo, err error) error {
+	_ = filepath.Walk(cwd, func(path string, info fs.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
@@ -145,44 +145,44 @@ func couldBePythonRuntime(pwd string) bool {
 	return containsPythonFiles
 }
 
-func couldBeTypeScriptRuntime(pwd string) bool {
-	if packageJSONFile, err := pathExists(filepath.Join(pwd, "package.json")); err != nil {
+func couldBeTypeScriptRuntime(cwd string) bool {
+	if packageJSONFile, err := pathExists(filepath.Join(cwd, "package.json")); err != nil {
 		log.Printf("Error checking for package.json file: %v", err)
 	} else if packageJSONFile {
 		return true
 	}
 
-	if yarnLockFile, err := pathExists(filepath.Join(pwd, "yarn.lock")); err != nil {
+	if yarnLockFile, err := pathExists(filepath.Join(cwd, "yarn.lock")); err != nil {
 		log.Printf("Error checking for yarn.lock file: %v", err)
 	} else if yarnLockFile {
 		return true
 	}
 
-	if pnpmLockFile, err := pathExists(filepath.Join(pwd, "pnpm-lock.yaml")); err != nil {
+	if pnpmLockFile, err := pathExists(filepath.Join(cwd, "pnpm-lock.yaml")); err != nil {
 		log.Printf("Error checking for pnpm-lock.yaml file: %v", err)
 	} else if pnpmLockFile {
 		return true
 	}
 
-	if bunbLockFile, err := pathExists(filepath.Join(pwd, "bun.lockb")); err != nil {
+	if bunbLockFile, err := pathExists(filepath.Join(cwd, "bun.lockb")); err != nil {
 		log.Printf("Error checking for bun.lockb file: %v", err)
 	} else if bunbLockFile {
 		return true
 	}
 
-	if bunLockFile, err := pathExists(filepath.Join(pwd, "bun.lock")); err != nil {
+	if bunLockFile, err := pathExists(filepath.Join(cwd, "bun.lock")); err != nil {
 		log.Printf("Error checking for bun.lockb file: %v", err)
 	} else if bunLockFile {
 		return true
 	}
 
-	if denoJSONFile, err := pathExists(filepath.Join(pwd, "deno.json")); err != nil {
+	if denoJSONFile, err := pathExists(filepath.Join(cwd, "deno.json")); err != nil {
 		log.Printf("Error checking for deno.json file: %v", err)
 	} else if denoJSONFile {
 		return true
 	}
 
-	if denoJSONCFile, err := pathExists(filepath.Join(pwd, "deno.jsonc")); err != nil {
+	if denoJSONCFile, err := pathExists(filepath.Join(cwd, "deno.jsonc")); err != nil {
 		log.Printf("Error checking for deno.jsonc file: %v", err)
 	} else if denoJSONCFile {
 		return true
@@ -190,7 +190,7 @@ func couldBeTypeScriptRuntime(pwd string) bool {
 
 	var containsTypeScriptFiles bool
 
-	_ = filepath.Walk(pwd, func(path string, info fs.FileInfo, err error) error {
+	_ = filepath.Walk(cwd, func(path string, info fs.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
