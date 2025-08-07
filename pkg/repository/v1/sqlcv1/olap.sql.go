@@ -385,7 +385,7 @@ func (q *Queries) FlattenTasksByExternalIds(ctx context.Context, db DBTX, arg Fl
 	return items, nil
 }
 
-const getDagDurationsByDagIds = `-- name: GetDagDurationsByDagIds :many
+const getDagDurations = `-- name: GetDagDurations :many
 SELECT
     lt.external_id,
     MIN(e.inserted_at) FILTER (WHERE e.readable_status = 'RUNNING') started_at,
@@ -404,27 +404,27 @@ WHERE lt.external_id = ANY($1::UUID[])
 GROUP BY lt.external_id
 `
 
-type GetDagDurationsByDagIdsParams struct {
+type GetDagDurationsParams struct {
 	Externalids   []pgtype.UUID      `json:"externalids"`
 	Tenantid      pgtype.UUID        `json:"tenantid"`
 	Mininsertedat pgtype.Timestamptz `json:"mininsertedat"`
 }
 
-type GetDagDurationsByDagIdsRow struct {
+type GetDagDurationsRow struct {
 	ExternalID pgtype.UUID `json:"external_id"`
 	StartedAt  interface{} `json:"started_at"`
 	FinishedAt interface{} `json:"finished_at"`
 }
 
-func (q *Queries) GetDagDurationsByDagIds(ctx context.Context, db DBTX, arg GetDagDurationsByDagIdsParams) ([]*GetDagDurationsByDagIdsRow, error) {
-	rows, err := db.Query(ctx, getDagDurationsByDagIds, arg.Externalids, arg.Tenantid, arg.Mininsertedat)
+func (q *Queries) GetDagDurations(ctx context.Context, db DBTX, arg GetDagDurationsParams) ([]*GetDagDurationsRow, error) {
+	rows, err := db.Query(ctx, getDagDurations, arg.Externalids, arg.Tenantid, arg.Mininsertedat)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []*GetDagDurationsByDagIdsRow
+	var items []*GetDagDurationsRow
 	for rows.Next() {
-		var i GetDagDurationsByDagIdsRow
+		var i GetDagDurationsRow
 		if err := rows.Scan(&i.ExternalID, &i.StartedAt, &i.FinishedAt); err != nil {
 			return nil, err
 		}

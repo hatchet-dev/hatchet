@@ -1560,7 +1560,7 @@ SELECT COUNT(*)
 FROM included_events e
 ;
 
--- name: GetDagDurationsByDagIds :many
+-- name: GetDagDurations :many
 SELECT
     lt.external_id,
     MIN(e.inserted_at) FILTER (WHERE e.readable_status = 'RUNNING') started_at,
