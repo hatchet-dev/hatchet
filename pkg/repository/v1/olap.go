@@ -1686,6 +1686,14 @@ func (r *OLAPRepositoryImpl) ListEventKeys(ctx context.Context, tenantId string)
 }
 
 func (r *OLAPRepositoryImpl) GetDAGDurations(ctx context.Context, tenantId string, externalIds []pgtype.UUID, minInsertedAt pgtype.Timestamptz) (map[string]*sqlcv1.GetDagDurationsRow, error) {
+	ctx, span := telemetry.NewSpan(ctx, "olap_repository.get_dag_durations")
+	defer span.End()
+
+	span.SetAttributes(attribute.KeyValue{
+		Key:   "olap_repository.get_dag_durations.batch_size",
+		Value: attribute.IntValue(len(externalIds)),
+	})
+
 	rows, err := r.queries.GetDagDurations(ctx, r.readPool, sqlcv1.GetDagDurationsParams{
 		Externalids:   externalIds,
 		Tenantid:      sqlchelpers.UUIDFromStr(tenantId),
