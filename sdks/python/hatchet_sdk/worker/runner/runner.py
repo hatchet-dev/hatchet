@@ -166,22 +166,22 @@ class Runner:
             except Exception as e:
                 should_not_retry = isinstance(e, NonRetryableException)
 
-                exc = TaskRunError.from_exception(e)
+                exc = TaskRunError.from_exception(e, action.step_run_id)
 
                 # This except is coming from the application itself, so we want to send that to the Hatchet instance
                 self.event_queue.put(
                     ActionEvent(
                         action=action,
                         type=STEP_EVENT_TYPE_FAILED,
-                        payload=exc.serialize(),
+                        payload=exc.serialize(include_metadata=True),
                         should_not_retry=should_not_retry,
                     )
                 )
 
-                log_with_level = logger.info if should_not_retry else logger.error
+                log_with_level = logger.info if should_not_retry else logger.exception
 
                 log_with_level(
-                    f"failed step run: {action.action_id}/{action.step_run_id}\n{exc.serialize()}"
+                    f"failed step run: {action.action_id}/{action.step_run_id}\n{exc.serialize(include_metadata=False)}"
                 )
 
                 return
@@ -198,18 +198,18 @@ class Runner:
                     )
                 )
             except IllegalTaskOutputError as e:
-                exc = TaskRunError.from_exception(e)
+                exc = TaskRunError.from_exception(e, action.step_run_id)
                 self.event_queue.put(
                     ActionEvent(
                         action=action,
                         type=STEP_EVENT_TYPE_FAILED,
-                        payload=exc.serialize(),
+                        payload=exc.serialize(include_metadata=True),
                         should_not_retry=False,
                     )
                 )
 
-                logger.error(
-                    f"failed step run: {action.action_id}/{action.step_run_id}\n{exc.serialize()}"
+                logger.exception(
+                    f"failed step run: {action.action_id}/{action.step_run_id}\n{exc.serialize(include_metadata=False)}"
                 )
 
                 return
@@ -230,19 +230,19 @@ class Runner:
             try:
                 output = task.result()
             except Exception as e:
-                exc = TaskRunError.from_exception(e)
+                exc = TaskRunError.from_exception(e, action.step_run_id)
 
                 self.event_queue.put(
                     ActionEvent(
                         action=action,
                         type=GROUP_KEY_EVENT_TYPE_FAILED,
-                        payload=exc.serialize(),
+                        payload=exc.serialize(include_metadata=True),
                         should_not_retry=False,
                     )
                 )
 
-                logger.error(
-                    f"failed step run: {action.action_id}/{action.step_run_id}\n{exc.serialize()}"
+                logger.exception(
+                    f"failed step run: {action.action_id}/{action.step_run_id}\n{exc.serialize(include_metadata=False)}"
                 )
 
                 return
@@ -259,18 +259,18 @@ class Runner:
                     )
                 )
             except IllegalTaskOutputError as e:
-                exc = TaskRunError.from_exception(e)
+                exc = TaskRunError.from_exception(e, action.step_run_id)
                 self.event_queue.put(
                     ActionEvent(
                         action=action,
                         type=STEP_EVENT_TYPE_FAILED,
-                        payload=exc.serialize(),
+                        payload=exc.serialize(include_metadata=True),
                         should_not_retry=False,
                     )
                 )
 
-                logger.error(
-                    f"failed step run: {action.action_id}/{action.step_run_id}\n{exc.serialize()}"
+                logger.exception(
+                    f"failed step run: {action.action_id}/{action.step_run_id}\n{exc.serialize(include_metadata=False)}"
                 )
 
                 return
@@ -280,12 +280,16 @@ class Runner:
         return inner_callback
 
     def thread_action_func(
-        self, ctx: Context, task: Task[TWorkflowInput, R], action: Action
+        self,
+        ctx: Context,
+        task: Task[TWorkflowInput, R],
+        action: Action,
+        dependencies: dict[str, Any],
     ) -> R:
         if action.step_run_id or action.get_group_key_run_id:
             self.threads[action.key] = current_thread()
 
-        return task.call(ctx)
+        return task.call(ctx, dependencies)
 
     # We wrap all actions in an async func
     async def async_wrapped_action_func(
@@ -300,9 +304,12 @@ class Runner:
         ctx_action_key.set(action.key)
         ctx_additional_metadata.set(action.additional_metadata)
 
+        dependencies = await task._unpack_dependencies(ctx)
+
         try:
             if task.is_async_function:
-                return await task.aio_call(ctx)
+                return await task.aio_call(ctx, dependencies)
+
             pfunc = functools.partial(
                 # we must copy the context vars to the new thread, as only asyncio natively supports
                 # contextvars
@@ -343,6 +350,7 @@ class Runner:
                 ctx,
                 task,
                 action,
+                dependencies,
             )
 
             loop = asyncio.get_event_loop()
