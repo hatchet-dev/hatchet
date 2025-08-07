@@ -1572,7 +1572,7 @@ JOIN
 JOIN
     v1_dag_to_task_olap dt ON (d.id, d.inserted_at) = (dt.dag_id, dt.dag_inserted_at)
 JOIN
-    v1_task_events_olap e ON (dt.task_id, dt.task_inserted_at) = (e.task_id, e.inserted_at)
+    v1_task_events_olap e ON (dt.task_id, dt.task_inserted_at) = (e.task_id, e.task_inserted_at)
 WHERE lt.external_id = ANY(@externalIds::UUID[])
     AND lt.tenant_id = @tenantId::UUID
     AND d.inserted_at >= @minInsertedAt::TIMESTAMPTZ
