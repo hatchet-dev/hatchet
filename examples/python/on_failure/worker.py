@@ -2,8 +2,9 @@ import json
 from datetime import timedelta
 
 from hatchet_sdk import Context, EmptyModel, Hatchet
+from hatchet_sdk.exceptions import TaskRunError
 
-hatchet = Hatchet(debug=True)
+hatchet = Hatchet(debug=False)
 
 ERROR_TEXT = "step1 failed"
 
@@ -49,14 +50,20 @@ def details_step1(input: EmptyModel, ctx: Context) -> None:
 
 # 👀 After the workflow fails, this special step will run
 @on_failure_wf_with_details.on_failure_task()
-def details_on_failure(input: EmptyModel, ctx: Context) -> dict[str, str]:
-    error = ctx.fetch_task_run_error(details_step1)
+def details_on_failure(input: EmptyModel, ctx: Context) -> dict[str, str | None]:
+    error = ctx.get_task_run_error(details_step1)
+
+    if not error:
+        return {"status": "unexpected success"}
 
     # 👀 we can access the failure details here
-    print(json.dumps(error, indent=2))
+    assert isinstance(error, TaskRunError)
 
-    if error and error.startswith(ERROR_TEXT):
-        return {"status": "success"}
+    if "step1 failed" in error.exc:
+        return {
+            "status": "success",
+            "failed_run_external_id": error.task_run_external_id,
+        }
 
     raise Exception("unexpected failure")
 
