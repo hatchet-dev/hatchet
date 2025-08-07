@@ -67,7 +67,7 @@
     "grpc-tools": "^1.13.0",
     "jest": "^29.7.0",
     "jest-tsd": "^0.2.2",
-    "pino": "^9.6.0",
+    "pino": "^9.8.0",
     "prettier": "^3.5.3",
     "resolve-tspaths": "^0.8.23",
     "ts-jest": "^29.3.1",
