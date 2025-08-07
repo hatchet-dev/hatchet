@@ -10,10 +10,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Adds support for dependency injection in tasks via the `Depends` class.
+- Deprecated `fetch_task_run_error` in favor of `get_task_run_error`, which returns a `TaskRunError` object instead of a string. This allows for better error handling and debugging.
 
 ### Changed
 
 - Uses `logger.exception` in place of `logger.error` in the action runner to improve (e.g.) Sentry error reporting
+- Extends the `TaskRunError` to include the `task_run_external_id`, which is useful for debugging and tracing errors in task runs.
 
 ## [1.16.4] - 2025-07-28
 
