@@ -492,58 +492,53 @@ LEFT JOIN
 WHERE
     (t.tenant_id, t.id, t.inserted_at) = (@tenantId::uuid, @taskId::bigint, @taskInsertedAt::timestamptz);
 
--- name: PopulateTaskRunData :many
-WITH input AS (
+-- name: PopulateTaskRunData :one
+WITH task AS (
     SELECT
-        UNNEST(@taskIds::bigint[]) AS id,
-        UNNEST(@taskInsertedAts::timestamptz[]) AS inserted_at
-), tasks AS (
-    SELECT
-        DISTINCT ON(t.tenant_id, t.id, t.inserted_at)
-        t.tenant_id,
-        t.id,
-        t.inserted_at,
-        t.queue,
-        t.action_id,
-        t.step_id,
-        t.workflow_id,
-        t.workflow_version_id,
-        t.schedule_timeout,
-        t.step_timeout,
-        t.priority,
-        t.sticky,
-        t.desired_worker_id,
-        t.external_id,
-        t.display_name,
-        t.input,
-        t.additional_metadata,
-        t.readable_status,
-        t.parent_task_external_id,
-        t.workflow_run_id,
-        t.latest_retry_count
+        tenant_id,
+        id,
+        inserted_at,
+        queue,
+        action_id,
+        step_id,
+        workflow_id,
+        workflow_version_id,
+        schedule_timeout,
+        step_timeout,
+        priority,
+        sticky,
+        desired_worker_id,
+        external_id,
+        display_name,
+        input,
+        additional_metadata,
+        readable_status,
+        parent_task_external_id,
+        workflow_run_id,
+        latest_retry_count
     FROM
-        v1_tasks_olap t
-    JOIN
-        input i ON i.id = t.id AND i.inserted_at = t.inserted_at
+        v1_tasks_olap
     WHERE
-        t.tenant_id = @tenantId::uuid
+        tenant_id = @tenantId::uuid
+        AND id = @taskId::bigint
+        AND inserted_at = @taskInsertedAt::timestamptz
 ), relevant_events AS (
     SELECT
         e.*
     FROM
         v1_task_events_olap e
     JOIN
-        tasks t ON t.id = e.task_id AND t.tenant_id = e.tenant_id AND t.inserted_at = e.task_inserted_at
+        task t ON (t.id, t.inserted_at, t.tenant_id) = (e.task_id, e.task_inserted_at, e.tenant_id)
 ), max_retry_counts AS (
     SELECT
-        e.tenant_id,
-        e.task_id,
-        e.task_inserted_at,
-        MAX(e.retry_count) AS max_retry_count
+        tenant_id,
+        task_id,
+        task_inserted_at,
+        MAX(retry_count) AS max_retry_count
     FROM
-        relevant_events e
+        relevant_events
     GROUP BY
-        e.tenant_id, e.task_id, e.task_inserted_at
+        tenant_id, task_id, task_inserted_at
 ), queued_ats AS (
     SELECT
         e.task_id::bigint,
@@ -649,7 +644,7 @@ SELECT
         ELSE '{}'::JSONB
     END::JSONB as output
 FROM
-    tasks t
+    task t
 LEFT JOIN
     finished_ats f ON f.task_id = t.id
 LEFT JOIN

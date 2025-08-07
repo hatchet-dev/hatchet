@@ -184,12 +184,14 @@ RETURNING
 WITH input AS (
     SELECT
         id,
+        inserted_at,
         worker_id
     FROM
         (
             SELECT
-                unnest(@taskIds::bigint[]) AS id,
-                unnest(@workerIds::uuid[]) AS worker_id
+                UNNEST(@taskIds::bigint[]) AS id,
+                UNNEST(@taskInsertedAts::timestamptz[]) AS inserted_at,
+                UNNEST(@workerIds::uuid[]) AS worker_id
         ) AS subquery
     ORDER BY id
 ), updated_tasks AS (
@@ -197,13 +199,15 @@ WITH input AS (
         t.id,
         t.inserted_at,
         t.retry_count,
-        input.worker_id,
+        i.worker_id,
         t.tenant_id,
         CURRENT_TIMESTAMP + convert_duration_to_interval(t.step_timeout) AS timeout_at
     FROM
-        input
+        v1_task t
     JOIN
-        v1_task t ON t.id = input.id
+        input i ON (t.id, t.inserted_at) = (i.id, i.inserted_at)
+    WHERE
+        t.inserted_at >= @minTaskInsertedAt::timestamptz
     ORDER BY t.id
 ), assigned_tasks AS (
     INSERT INTO v1_task_runtime (

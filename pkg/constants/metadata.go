@@ -26,6 +26,7 @@ const (
 	ResourceTypeWorkflow          ResourceTypeValue = "workflow"
 	ResourceTypeWorkflowRun       ResourceTypeValue = "workflow-run"
 	ResourceTypeScheduledWorkflow ResourceTypeValue = "scheduled-workflow"
+	ResourceTypeEvent             ResourceTypeValue = "event"
 )
 
 func (k ResourceTypeValue) String() string {

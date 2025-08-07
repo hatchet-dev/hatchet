@@ -1919,58 +1919,53 @@ func (q *Queries) PopulateSingleTaskRunData(ctx context.Context, db DBTX, arg Po
 	return &i, err
 }
 
-const populateTaskRunData = `-- name: PopulateTaskRunData :many
-WITH input AS (
+const populateTaskRunData = `-- name: PopulateTaskRunData :one
+WITH task AS (
     SELECT
-        UNNEST($2::bigint[]) AS id,
-        UNNEST($3::timestamptz[]) AS inserted_at
-), tasks AS (
-    SELECT
-        DISTINCT ON(t.tenant_id, t.id, t.inserted_at)
-        t.tenant_id,
-        t.id,
-        t.inserted_at,
-        t.queue,
-        t.action_id,
-        t.step_id,
-        t.workflow_id,
-        t.workflow_version_id,
-        t.schedule_timeout,
-        t.step_timeout,
-        t.priority,
-        t.sticky,
-        t.desired_worker_id,
-        t.external_id,
-        t.display_name,
-        t.input,
-        t.additional_metadata,
-        t.readable_status,
-        t.parent_task_external_id,
-        t.workflow_run_id,
-        t.latest_retry_count
+        tenant_id,
+        id,
+        inserted_at,
+        queue,
+        action_id,
+        step_id,
+        workflow_id,
+        workflow_version_id,
+        schedule_timeout,
+        step_timeout,
+        priority,
+        sticky,
+        desired_worker_id,
+        external_id,
+        display_name,
+        input,
+        additional_metadata,
+        readable_status,
+        parent_task_external_id,
+        workflow_run_id,
+        latest_retry_count
     FROM
-        v1_tasks_olap t
-    JOIN
-        input i ON i.id = t.id AND i.inserted_at = t.inserted_at
+        v1_tasks_olap
     WHERE
-        t.tenant_id = $4::uuid
+        tenant_id = $2::uuid
+        AND id = $3::bigint
+        AND inserted_at = $4::timestamptz
 ), relevant_events AS (
     SELECT
         e.tenant_id, e.id, e.inserted_at, e.task_id, e.task_inserted_at, e.event_type, e.workflow_id, e.event_timestamp, e.readable_status, e.retry_count, e.error_message, e.output, e.worker_id, e.additional__event_data, e.additional__event_message
     FROM
         v1_task_events_olap e
     JOIN
-        tasks t ON t.id = e.task_id AND t.tenant_id = e.tenant_id AND t.inserted_at = e.task_inserted_at
+        task t ON (t.id, t.inserted_at, t.tenant_id) = (e.task_id, e.task_inserted_at, e.tenant_id)
 ), max_retry_counts AS (
     SELECT
-        e.tenant_id,
-        e.task_id,
-        e.task_inserted_at,
-        MAX(e.retry_count) AS max_retry_count
+        tenant_id,
+        task_id,
+        task_inserted_at,
+        MAX(retry_count) AS max_retry_count
     FROM
-        relevant_events e
+        relevant_events
     GROUP BY
-        e.tenant_id, e.task_id, e.task_inserted_at
+        tenant_id, task_id, task_inserted_at
 ), queued_ats AS (
     SELECT
         e.task_id::bigint,
@@ -2076,7 +2071,7 @@ SELECT
         ELSE '{}'::JSONB
     END::JSONB as output
 FROM
-    tasks t
+    task t
 LEFT JOIN
     finished_ats f ON f.task_id = t.id
 LEFT JOIN
@@ -2091,10 +2086,10 @@ ORDER BY t.inserted_at DESC, t.id DESC
 `
 
 type PopulateTaskRunDataParams struct {
-	Includepayloads bool                 `json:"includepayloads"`
-	Taskids         []int64              `json:"taskids"`
-	Taskinsertedats []pgtype.Timestamptz `json:"taskinsertedats"`
-	Tenantid        pgtype.UUID          `json:"tenantid"`
+	Includepayloads bool               `json:"includepayloads"`
+	Tenantid        pgtype.UUID        `json:"tenantid"`
+	Taskid          int64              `json:"taskid"`
+	Taskinsertedat  pgtype.Timestamptz `json:"taskinsertedat"`
 }
 
 type PopulateTaskRunDataRow struct {
@@ -2125,55 +2120,42 @@ type PopulateTaskRunDataRow struct {
 	Output               []byte               `json:"output"`
 }
 
-func (q *Queries) PopulateTaskRunData(ctx context.Context, db DBTX, arg PopulateTaskRunDataParams) ([]*PopulateTaskRunDataRow, error) {
-	rows, err := db.Query(ctx, populateTaskRunData,
+func (q *Queries) PopulateTaskRunData(ctx context.Context, db DBTX, arg PopulateTaskRunDataParams) (*PopulateTaskRunDataRow, error) {
+	row := db.QueryRow(ctx, populateTaskRunData,
 		arg.Includepayloads,
-		arg.Taskids,
-		arg.Taskinsertedats,
 		arg.Tenantid,
+		arg.Taskid,
+		arg.Taskinsertedat,
 	)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []*PopulateTaskRunDataRow
-	for rows.Next() {
-		var i PopulateTaskRunDataRow
-		if err := rows.Scan(
-			&i.TenantID,
-			&i.ID,
-			&i.InsertedAt,
-			&i.ExternalID,
-			&i.Queue,
-			&i.ActionID,
-			&i.StepID,
-			&i.WorkflowID,
-			&i.WorkflowVersionID,
-			&i.ScheduleTimeout,
-			&i.StepTimeout,
-			&i.Priority,
-			&i.Sticky,
-			&i.DisplayName,
-			&i.AdditionalMetadata,
-			&i.ParentTaskExternalID,
-			&i.Input,
-			&i.Status,
-			&i.WorkflowRunID,
-			&i.FinishedAt,
-			&i.StartedAt,
-			&i.QueuedAt,
-			&i.ErrorMessage,
-			&i.RetryCount,
-			&i.Output,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, &i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
+	var i PopulateTaskRunDataRow
+	err := row.Scan(
+		&i.TenantID,
+		&i.ID,
+		&i.InsertedAt,
+		&i.ExternalID,
+		&i.Queue,
+		&i.ActionID,
+		&i.StepID,
+		&i.WorkflowID,
+		&i.WorkflowVersionID,
+		&i.ScheduleTimeout,
+		&i.StepTimeout,
+		&i.Priority,
+		&i.Sticky,
+		&i.DisplayName,
+		&i.AdditionalMetadata,
+		&i.ParentTaskExternalID,
+		&i.Input,
+		&i.Status,
+		&i.WorkflowRunID,
+		&i.FinishedAt,
+		&i.StartedAt,
+		&i.QueuedAt,
+		&i.ErrorMessage,
+		&i.RetryCount,
+		&i.Output,
+	)
+	return &i, err
 }
 
 const readDAGByExternalID = `-- name: ReadDAGByExternalID :one
