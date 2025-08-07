@@ -166,14 +166,14 @@ class Runner:
             except Exception as e:
                 should_not_retry = isinstance(e, NonRetryableException)
 
-                exc = TaskRunError.from_exception(e)
+                exc = TaskRunError.from_exception(e, action.step_run_id)
 
                 # This except is coming from the application itself, so we want to send that to the Hatchet instance
                 self.event_queue.put(
                     ActionEvent(
                         action=action,
                         type=STEP_EVENT_TYPE_FAILED,
-                        payload=exc.serialize(),
+                        payload=exc.serialize(include_metadata=True),
                         should_not_retry=should_not_retry,
                     )
                 )
@@ -181,7 +181,7 @@ class Runner:
                 log_with_level = logger.info if should_not_retry else logger.exception
 
                 log_with_level(
-                    f"failed step run: {action.action_id}/{action.step_run_id}\n{exc.serialize()}"
+                    f"failed step run: {action.action_id}/{action.step_run_id}\n{exc.serialize(include_metadata=False)}"
                 )
 
                 return
@@ -198,18 +198,18 @@ class Runner:
                     )
                 )
             except IllegalTaskOutputError as e:
-                exc = TaskRunError.from_exception(e)
+                exc = TaskRunError.from_exception(e, action.step_run_id)
                 self.event_queue.put(
                     ActionEvent(
                         action=action,
                         type=STEP_EVENT_TYPE_FAILED,
-                        payload=exc.serialize(),
+                        payload=exc.serialize(include_metadata=True),
                         should_not_retry=False,
                     )
                 )
 
                 logger.exception(
-                    f"failed step run: {action.action_id}/{action.step_run_id}\n{exc.serialize()}"
+                    f"failed step run: {action.action_id}/{action.step_run_id}\n{exc.serialize(include_metadata=False)}"
                 )
 
                 return
@@ -230,19 +230,19 @@ class Runner:
             try:
                 output = task.result()
             except Exception as e:
-                exc = TaskRunError.from_exception(e)
+                exc = TaskRunError.from_exception(e, action.step_run_id)
 
                 self.event_queue.put(
                     ActionEvent(
                         action=action,
                         type=GROUP_KEY_EVENT_TYPE_FAILED,
-                        payload=exc.serialize(),
+                        payload=exc.serialize(include_metadata=True),
                         should_not_retry=False,
                     )
                 )
 
                 logger.exception(
-                    f"failed step run: {action.action_id}/{action.step_run_id}\n{exc.serialize()}"
+                    f"failed step run: {action.action_id}/{action.step_run_id}\n{exc.serialize(include_metadata=False)}"
                 )
 
                 return
@@ -259,18 +259,18 @@ class Runner:
                     )
                 )
             except IllegalTaskOutputError as e:
-                exc = TaskRunError.from_exception(e)
+                exc = TaskRunError.from_exception(e, action.step_run_id)
                 self.event_queue.put(
                     ActionEvent(
                         action=action,
                         type=STEP_EVENT_TYPE_FAILED,
-                        payload=exc.serialize(),
+                        payload=exc.serialize(include_metadata=True),
                         should_not_retry=False,
                     )
                 )
 
                 logger.exception(
-                    f"failed step run: {action.action_id}/{action.step_run_id}\n{exc.serialize()}"
+                    f"failed step run: {action.action_id}/{action.step_run_id}\n{exc.serialize(include_metadata=False)}"
                 )
 
                 return
