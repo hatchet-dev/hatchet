@@ -3,7 +3,6 @@ import json
 from datetime import timedelta
 from typing import TYPE_CHECKING, Any, cast
 from warnings import warn
-from deprecated import deprecated
 
 from hatchet_sdk.clients.admin import AdminClient
 from hatchet_sdk.clients.dispatcher.dispatcher import (  # type: ignore[attr-defined]
@@ -15,7 +14,6 @@ from hatchet_sdk.clients.listeners.durable_event_listener import (
     DurableEventListener,
     RegisterDurableEventRequest,
 )
-from hatchet_sdk.exceptions import TaskRunError
 from hatchet_sdk.conditions import (
     OrGroup,
     SleepCondition,
@@ -23,6 +21,7 @@ from hatchet_sdk.conditions import (
     flatten_conditions,
 )
 from hatchet_sdk.context.worker_context import WorkerContext
+from hatchet_sdk.exceptions import TaskRunError
 from hatchet_sdk.features.runs import RunsClient
 from hatchet_sdk.logger import logger
 from hatchet_sdk.utils.timedelta_to_expression import Duration, timedelta_to_expr
@@ -357,12 +356,13 @@ class Context:
 
         return errors
 
-    @deprecated(version="1.17.0", reason="Use `get_task_run_error` instead")
     def fetch_task_run_error(
         self,
         task: "Task[TWorkflowInput, R]",
     ) -> str | None:
         """
+        **DEPRECATED**: Use `get_task_run_error` instead.
+
         A helper intended to be used in an on-failure step to retrieve the error that occurred in a specific upstream task run.
 
         :param task: The task whose error you want to retrieve.
