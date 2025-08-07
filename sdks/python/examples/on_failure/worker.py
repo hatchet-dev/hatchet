@@ -2,6 +2,7 @@ import json
 from datetime import timedelta
 
 from hatchet_sdk import Context, EmptyModel, Hatchet
+from hatchet_sdk.exceptions import TaskRunError
 
 hatchet = Hatchet(debug=True)
 
@@ -54,9 +55,9 @@ def details_on_failure(input: EmptyModel, ctx: Context) -> dict[str, str]:
     error = ctx.fetch_task_run_error(details_step1)
 
     # 👀 we can access the failure details here
-    print(json.dumps(error, indent=2))
+    print(error)
 
-    if error and error.startswith(ERROR_TEXT):
+    if error and isinstance(error, TaskRunError) and "step1 failed" in error.exc:
         return {"status": "success"}
 
     raise Exception("unexpected failure")

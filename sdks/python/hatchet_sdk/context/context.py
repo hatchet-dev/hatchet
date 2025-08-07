@@ -3,6 +3,7 @@ import json
 from datetime import timedelta
 from typing import TYPE_CHECKING, Any, cast
 from warnings import warn
+from deprecated import deprecated
 
 from hatchet_sdk.clients.admin import AdminClient
 from hatchet_sdk.clients.dispatcher.dispatcher import (  # type: ignore[attr-defined]
@@ -14,6 +15,7 @@ from hatchet_sdk.clients.listeners.durable_event_listener import (
     DurableEventListener,
     RegisterDurableEventRequest,
 )
+from hatchet_sdk.exceptions import TaskRunError
 from hatchet_sdk.conditions import (
     OrGroup,
     SleepCondition,
@@ -355,6 +357,7 @@ class Context:
 
         return errors
 
+    @deprecated(version="1.17.0", reason="Use `get_task_run_error` instead")
     def fetch_task_run_error(
         self,
         task: "Task[TWorkflowInput, R]",
@@ -365,9 +368,33 @@ class Context:
         :param task: The task whose error you want to retrieve.
         :return: The error message of the task run, or None if no error occurred.
         """
+        warn(
+            "`fetch_task_run_error` is deprecated. Use `get_task_run_error` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         errors = self.data.step_run_errors
 
         return errors.get(task.name)
+
+    def get_task_run_error(
+        self,
+        task: "Task[TWorkflowInput, R]",
+    ) -> TaskRunError | None:
+        """
+        A helper intended to be used in an on-failure step to retrieve the error that occurred in a specific upstream task run.
+
+        :param task: The task whose error you want to retrieve.
+        :return: The error message of the task run, or None if no error occurred.
+        """
+        errors = self.data.step_run_errors
+
+        error = errors.get(task.name)
+
+        if not error:
+            return None
+
+        return TaskRunError.deserialize(error)
 
 
 class DurableContext(Context):
