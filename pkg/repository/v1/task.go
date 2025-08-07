@@ -770,7 +770,7 @@ func (r *TaskRepositoryImpl) failTasksTx(ctx context.Context, tx sqlcv1.DBTX, te
 		span.SetAttributes(
 			attribute.KeyValue{
 				Key:   "tasks_repository_impl.fail_tasks_tx.fail_task_internal_failure.batch_size",
-				Value: attribute.IntValue(len(appFailureTaskIds)),
+				Value: attribute.IntValue(len(internalFailureTaskIds)),
 			},
 		)
 		internalFailureRetries, err := r.queries.FailTaskInternalFailure(ctx, tx, sqlcv1.FailTaskInternalFailureParams{
