@@ -315,7 +315,7 @@ WITH slots AS (
                 eligible_running_slots ers
         )
     ORDER BY
-        cs.task_id ASC, cs.task_inserted_at ASC
+        cs.task_id ASC, cs.task_inserted_at ASC, cs.task_retry_count ASC
     FOR UPDATE
 ), slots_to_run AS (
     SELECT
@@ -336,7 +336,7 @@ WITH slots AS (
                 rn, seqnum
         )
     ORDER BY
-        task_id ASC, task_inserted_at ASC
+        task_id ASC, task_inserted_at ASC, task_retry_count ASC
     FOR UPDATE
 ), updated_slots AS (
     UPDATE
