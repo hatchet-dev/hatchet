@@ -388,8 +388,8 @@ func (q *Queries) FlattenTasksByExternalIds(ctx context.Context, db DBTX, arg Fl
 const getDagDurations = `-- name: GetDagDurations :many
 SELECT
     lt.external_id,
-    MIN(e.inserted_at) FILTER (WHERE e.readable_status = 'RUNNING')::TIMESTAMPTZ AS started_at,
-    MAX(e.inserted_at) FILTER (WHERE e.readable_status IN ('COMPLETED', 'FAILED', 'CANCELLED'))::TIMESTAMPTZ AS finished_at
+    MIN(e.event_timestamp) FILTER (WHERE e.readable_status = 'RUNNING')::TIMESTAMPTZ AS started_at,
+    MAX(e.event_timestamp) FILTER (WHERE e.readable_status IN ('COMPLETED', 'FAILED', 'CANCELLED'))::TIMESTAMPTZ AS finished_at
 FROM
     v1_lookup_table_olap lt
 JOIN
