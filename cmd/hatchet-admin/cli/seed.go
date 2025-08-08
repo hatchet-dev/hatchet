@@ -6,7 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/hatchet-dev/hatchet/cmd/hatchet-admin/cli/seed"
+	"github.com/hatchet-dev/hatchet/cmd/internal"
 	"github.com/hatchet-dev/hatchet/pkg/config/loader"
 )
 
@@ -18,7 +18,7 @@ var seedCmd = &cobra.Command{
 		var err error
 
 		configLoader := loader.NewConfigLoader(configDirectory)
-		err = runSeed(configLoader)
+		err = internal.RunSeed(configLoader)
 
 		if err != nil {
 			log.Printf("Fatal: could not run seed command: %v", err)
@@ -29,17 +29,4 @@ var seedCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(seedCmd)
-}
-
-func runSeed(cf *loader.ConfigLoader) error {
-	// load the config
-	dc, err := cf.InitDataLayer()
-
-	if err != nil {
-		panic(err)
-	}
-
-	defer dc.Disconnect() // nolint: errcheck
-
-	return seed.SeedDatabase(dc)
 }
