@@ -28,14 +28,14 @@ func main() {
 
 	// Create a workflow for bulk processing
 	workflow := client.NewWorkflow("bulk-processing-workflow")
-	
+
 	// Define the processing task
 	workflow.NewTask("process-item", func(ctx hatchet.Context, input ProcessInput) (ProcessOutput, error) {
 		// Simulate some processing work
 		time.Sleep(time.Duration(100+input.ID*50) * time.Millisecond)
-		
+
 		log.Printf("Processing item %d: %s", input.ID, input.Message)
-		
+
 		return ProcessOutput{
 			ID:     input.ID,
 			Result: fmt.Sprintf("Processed item %d: %s", input.ID, input.Message),
@@ -78,7 +78,7 @@ func main() {
 
 	// Run workflows in bulk
 	ctx := context.Background()
-	runIDs, err := client.RunBulk(ctx, "bulk-processing-workflow", inputs)
+	runIDs, err := client.RunMany(ctx, "bulk-processing-workflow", inputs)
 	if err != nil {
 		log.Fatalf("failed to run bulk workflows: %v", err)
 	}
@@ -93,7 +93,7 @@ func main() {
 	}
 
 	log.Println("All bulk operations started. Press Ctrl+C to stop the worker.")
-	
+
 	// Keep the main function running
 	select {}
 }

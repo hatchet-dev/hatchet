@@ -144,9 +144,9 @@ func (c *Client) RunNoWait(ctx context.Context, workflowName string, input any) 
 	return c.v0Client.Admin().RunWorkflow(workflowName, input)
 }
 
-// RunBulk executes multiple workflow instances with different inputs.
+// RunMany executes multiple workflow instances with different inputs.
 // Returns workflow run IDs that can be used to track the run statuses.
-func (c *Client) RunBulk(ctx context.Context, workflowName string, inputs []any) ([]string, error) {
+func (c *Client) RunMany(ctx context.Context, workflowName string, inputs []any) ([]string, error) {
 	workflows := make([]*v0Client.WorkflowRun, len(inputs))
 	for i, input := range inputs {
 		workflows[i] = &v0Client.WorkflowRun{
