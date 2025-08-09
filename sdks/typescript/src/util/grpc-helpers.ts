@@ -17,6 +17,9 @@ export const channelFactory = (config: ClientConfig, credentials: ChannelCredent
     'grpc.keepalive_time_ms': 10 * 1000,
     // Allow keepalive pings when there are no gRPC calls.
     'grpc.keepalive_permit_without_calls': 1,
+    // Configurable gRPC message size limits
+    'grpc.max_send_message_length': config.grpc_max_send_message_length ?? 4 * 1024 * 1024,
+    'grpc.max_receive_message_length': config.grpc_max_recv_message_length ?? 4 * 1024 * 1024,
   });
 
 export const addTokenMiddleware = (token: string) =>
