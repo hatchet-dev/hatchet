@@ -115,7 +115,6 @@ func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *ms
 	// we set a timeout of 25 seconds because we don't want to hold the semaphore for longer than the visibility timeout (30 seconds)
 	// on the worker
 	ctx, cancel := context.WithTimeout(ctx, 25*time.Second)
-	defer cancel()
 
 	msgs := msgqueuev1.JSONConvert[tasktypesv1.TaskAssignedBulkTaskPayload](msg.Payloads)
 	outerEg := errgroup.Group{}
@@ -263,6 +262,8 @@ func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *ms
 	// we spawn a goroutine to wait for the outer error group to finish and handle retries, because sending over the gRPC stream
 	// can occasionally take a long time and we don't want to block the RabbitMQ queue processing
 	go func() {
+		defer cancel()
+
 		outerErr := outerEg.Wait()
 
 		if len(toRetry) > 0 {
