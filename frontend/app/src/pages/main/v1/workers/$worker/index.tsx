@@ -223,9 +223,17 @@ export default function ExpandedWorkflowRun() {
         </div>
         <RunsProvider
           tableKey={`worker-${worker.metadata.id}`}
-          workerId={worker.metadata.id}
+          display={{
+            showMetrics: false,
+            showCounts: false,
+            showDateFilter: true,
+            showTriggerRunButton: true,
+          }}
+          runFilters={{
+            workerId: worker.metadata.id,
+          }}
         >
-          <RunsTable showMetrics={false} showCounts={false} />
+          <RunsTable />
         </RunsProvider>
         <Separator className="my-4" />
         <h3 className="text-xl font-bold leading-tight text-foreground mb-4">

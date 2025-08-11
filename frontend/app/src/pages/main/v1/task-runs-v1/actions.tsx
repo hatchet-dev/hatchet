@@ -18,21 +18,9 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { useCallback, useState } from 'react';
 import { Combobox } from '@/components/v1/molecules/combobox/combobox';
 import { TaskRunColumn } from '../workflow-runs-v1/components/v1/task-runs-columns';
-import {
-  SelectTrigger,
-  SelectValue,
-  SelectContent,
-  SelectItem,
-  Select,
-} from '@/components/v1/ui/select';
 import { DateTimePicker } from '@/components/v1/molecules/time-picker/date-time-picker';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
-import {
-  APIFilters,
-  FilterActions,
-} from '../workflow-runs-v1/hooks/use-runs-table-filters';
-import { useToolbarFilters } from '../workflow-runs-v1/hooks/use-toolbar-filters';
-import { TimeWindow } from '../workflow-runs-v1/hooks/use-runs-table-state';
+import { useRunsContext } from '../workflow-runs-v1/hooks/runs-provider';
 
 export const TASK_RUN_TERMINAL_STATUSES = [
   V1TaskStatus.CANCELLED,
@@ -131,7 +119,6 @@ type ConfirmActionModalProps = {
   setIsOpen: (isOpen: boolean) => void;
   onConfirm: () => void;
   params: TaskRunActionsParams;
-  filters: FilterActions & { apiFilters: APIFilters };
 };
 
 const actionTypeToLabel = (actionType: ActionType) => {
@@ -150,7 +137,6 @@ const actionTypeToLabel = (actionType: ActionType) => {
 type ModalContentProps = {
   label: string;
   params: TaskRunActionsParams;
-  filters: FilterActions & { apiFilters: APIFilters };
 };
 
 const CancelByExternalIdsContent = ({ label, params }: ModalContentProps) => {
@@ -189,19 +175,11 @@ const CancelByExternalIdsContent = ({ label, params }: ModalContentProps) => {
   );
 };
 
-const ModalContent = ({ label, params, filters }: ModalContentProps) => {
-  const tf = useToolbarFilters({
-    filterVisibility: {},
-  });
+const ModalContent = ({ label, params }: ModalContentProps) => {
+  const { filters, toolbarFilters: tf } = useRunsContext();
 
   if (params.externalIds?.length) {
-    return (
-      <CancelByExternalIdsContent
-        label={label}
-        params={params}
-        filters={filters}
-      />
-    );
+    return <CancelByExternalIdsContent label={label} params={params} />;
   } else if (params.filter) {
     const statusToolbarFilter = tf.find(
       (f) => f.columnId === TaskRunColumn.status,
@@ -302,7 +280,6 @@ const ConfirmActionModal = ({
   setIsOpen,
   onConfirm,
   params,
-  filters,
 }: ConfirmActionModalProps) => {
   const label = actionTypeToLabel(actionType);
 
@@ -317,7 +294,7 @@ const ConfirmActionModal = ({
 
         <div className="flex flex-col mt-4">
           <DialogDescription>
-            <ModalContent label={label} params={params} filters={filters} />
+            <ModalContent label={label} params={params} />
           </DialogDescription>
 
           <div className="flex flex-row items-center flex-1 gap-x-2 justify-end">
@@ -354,7 +331,6 @@ const BaseActionButton = ({
   showModal,
   onActionProcessed,
   onActionSubmit,
-  filters,
 }: {
   disabled: boolean;
   params: TaskRunActionsParams;
@@ -363,7 +339,6 @@ const BaseActionButton = ({
   showModal: boolean;
   onActionProcessed: (ids: string[]) => void;
   onActionSubmit: () => void;
-  filters: FilterActions & { apiFilters: APIFilters };
 }) => {
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
   const { handleTaskRunAction } = useTaskRunActions({
@@ -396,7 +371,6 @@ const BaseActionButton = ({
         setIsOpen={setIsConfirmModalOpen}
         onConfirm={handleAction}
         params={params}
-        filters={filters}
       />
       <Button
         size={'sm'}
@@ -426,7 +400,6 @@ export const TaskRunActionButton = ({
   showModal,
   onActionProcessed,
   onActionSubmit,
-  filters,
 }: {
   actionType: ActionType;
   disabled: boolean;
@@ -434,7 +407,6 @@ export const TaskRunActionButton = ({
   showModal: boolean;
   onActionProcessed: (ids: string[]) => void;
   onActionSubmit: () => void;
-  filters: FilterActions & { apiFilters: APIFilters };
 }) => {
   switch (actionType) {
     case 'cancel':
@@ -447,7 +419,6 @@ export const TaskRunActionButton = ({
           showModal={showModal}
           onActionProcessed={onActionProcessed}
           onActionSubmit={onActionSubmit}
-          filters={filters}
         />
       );
     case 'replay':
@@ -460,7 +431,6 @@ export const TaskRunActionButton = ({
           showModal={showModal}
           onActionProcessed={onActionProcessed}
           onActionSubmit={onActionSubmit}
-          filters={filters}
         />
       );
     default:

@@ -243,10 +243,18 @@ export const TaskRunDetail = ({
             <TabsContent value={TabOption.ChildWorkflowRuns} className="mt-4">
               <RunsProvider
                 tableKey={`child-runs-${taskRunId}`}
-                parentTaskExternalId={taskRunId}
                 disableTaskRunPagination={true}
+                display={{
+                  showCounts: false,
+                  showMetrics: false,
+                  showDateFilter: true,
+                  showTriggerRunButton: true,
+                }}
+                runFilters={{
+                  parentTaskExternalId: taskRunId,
+                }}
               >
-                <RunsTable showCounts={false} showMetrics={false} />
+                <RunsTable />
               </RunsProvider>
             </TabsContent>
             <TabsContent value={TabOption.Input}>

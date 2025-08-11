@@ -39,10 +39,6 @@ import { TableActions } from './task-runs-table/table-actions';
 import { TimeFilter } from './task-runs-table/time-filter';
 
 export interface RunsTableProps {
-  showMetrics?: boolean;
-  showCounts?: boolean;
-  showDateFilter?: boolean;
-  showTriggerRunButton?: boolean;
   headerClassName?: string;
 }
 
@@ -95,13 +91,7 @@ const GetWorkflowChart = ({
   );
 };
 
-export function RunsTable({
-  showMetrics = false,
-  showCounts = true,
-  showDateFilter = true,
-  showTriggerRunButton = true,
-  headerClassName,
-}: RunsTableProps) {
+export function RunsTable({ headerClassName }: RunsTableProps) {
   const { tenantId } = useCurrentTenantId();
   const { toast } = useToast();
 
@@ -110,7 +100,6 @@ export function RunsTable({
     filters,
     toolbarFilters,
     tableRows,
-    selectedRuns,
     numPages,
     isRunsLoading,
     isRunsFetching,
@@ -118,6 +107,7 @@ export function RunsTable({
     isMetricsFetching,
     metrics,
     tenantMetrics,
+    display: { showMetrics, showCounts, showDateFilter, refetchInterval },
     actions: {
       updatePagination,
       updateFilters,
@@ -137,12 +127,11 @@ export function RunsTable({
   const [rotate, setRotate] = useState(false);
 
   const derivedParentTaskExternalId = state.parentTaskExternalId;
-  const refetchInterval = 5000;
 
   const handleTaskRunIdClick = useCallback(
     (taskRunId: string) => {
       updateUIState({
-        stepDetailSheet: {
+        taskRunDetailSheet: {
           taskRunId,
           isOpen: true,
         },
@@ -320,18 +309,23 @@ export function RunsTable({
         </div>
       )}
 
-      {state.stepDetailSheet.taskRunId && (
+      {state.taskRunDetailSheet.isOpen && (
         <Sheet
-          open={state.stepDetailSheet.isOpen}
+          open={state.taskRunDetailSheet.isOpen}
           onOpenChange={(isOpen) =>
             updateUIState({
-              stepDetailSheet: { ...state.stepDetailSheet, isOpen },
+              taskRunDetailSheet: isOpen
+                ? {
+                    isOpen: true,
+                    taskRunId: state.taskRunDetailSheet.taskRunId!,
+                  }
+                : { isOpen: false },
             })
           }
         >
           <SheetContent className="w-fit min-w-[56rem] max-w-4xl sm:max-w-2xl z-[60] h-full overflow-auto">
             <TaskRunDetail
-              taskRunId={state.stepDetailSheet.taskRunId}
+              taskRunId={state.taskRunDetailSheet.taskRunId!}
               defaultOpenTab={TabOption.Output}
               showViewTaskRunButton
             />
@@ -366,18 +360,12 @@ export function RunsTable({
           actions={[
             <TableActions
               key="table-actions"
-              hasRowsSelected={state.hasRowsSelected}
-              hasFiltersApplied={state.hasFiltersApplied}
-              selectedRuns={selectedRuns}
-              apiFilters={filters.apiFilters}
               taskIdsPendingAction={taskIdsPendingAction}
               onRefresh={handleRefresh}
               onActionProcessed={handleActionProcessed}
               onTriggerWorkflow={() => updateUIState({ triggerWorkflow: true })}
-              showTriggerRunButton={showTriggerRunButton}
               rotate={rotate}
               toast={toast}
-              filters={filters}
             />,
           ]}
           columnFilters={state.columnFilters}

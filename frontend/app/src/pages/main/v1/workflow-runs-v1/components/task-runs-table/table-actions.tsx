@@ -2,44 +2,31 @@ import { useMemo } from 'react';
 import { Button } from '@/components/v1/ui/button';
 import { ArrowPathIcon } from '@heroicons/react/24/outline';
 import { TaskRunActionButton } from '../../../task-runs-v1/actions';
-import { V1TaskStatus } from '@/lib/api';
-import { FilterActions, APIFilters } from '../../hooks/use-runs-table-filters';
+import { useRunsContext } from '../../hooks/runs-provider';
 
 interface TableActionsProps {
-  hasRowsSelected: boolean;
-  hasFiltersApplied: boolean;
-  selectedRuns: any[];
-  apiFilters: {
-    since?: string;
-    until?: string;
-    statuses?: V1TaskStatus[];
-    workflowIds?: string[];
-    additionalMetadata?: string[];
-  };
   taskIdsPendingAction: string[];
   onRefresh: () => void;
   onActionProcessed: (action: 'cancel' | 'replay', ids: string[]) => void;
   onTriggerWorkflow: () => void;
-  showTriggerRunButton: boolean;
   rotate: boolean;
   toast: any;
-  filters: FilterActions & { apiFilters: APIFilters };
 }
 
 export const TableActions = ({
-  hasRowsSelected,
-  hasFiltersApplied,
-  selectedRuns,
-  apiFilters,
   taskIdsPendingAction,
   onRefresh,
   onActionProcessed,
   onTriggerWorkflow,
-  showTriggerRunButton,
   rotate,
   toast,
-  filters,
 }: TableActionsProps) => {
+  const {
+    state: { hasRowsSelected, hasFiltersApplied },
+    selectedRuns,
+    filters,
+    display: { showTriggerRunButton },
+  } = useRunsContext();
   const actions = useMemo(() => {
     const baseActions = [
       <TaskRunActionButton
@@ -52,7 +39,12 @@ export const TableActions = ({
         params={
           selectedRuns.length > 0
             ? { externalIds: selectedRuns.map((run) => run?.metadata.id) }
-            : { filter: { ...apiFilters, since: apiFilters.since || '' } }
+            : {
+                filter: {
+                  ...filters.apiFilters,
+                  since: filters.apiFilters.since || '',
+                },
+              }
         }
         showModal
         onActionProcessed={(ids) => onActionProcessed('cancel', ids)}
@@ -62,7 +54,6 @@ export const TableActions = ({
             description: "No need to hit 'Cancel' again.",
           });
         }}
-        filters={filters}
       />,
       <TaskRunActionButton
         key="replay"
@@ -74,7 +65,12 @@ export const TableActions = ({
         params={
           selectedRuns.length > 0
             ? { externalIds: selectedRuns.map((run) => run?.metadata.id) }
-            : { filter: { ...apiFilters, since: apiFilters.since || '' } }
+            : {
+                filter: {
+                  ...filters.apiFilters,
+                  since: filters.apiFilters.since || '',
+                },
+              }
         }
         showModal
         onActionProcessed={(ids) => onActionProcessed('replay', ids)}
@@ -84,7 +80,6 @@ export const TableActions = ({
             description: "No need to hit 'Replay' again.",
           });
         }}
-        filters={filters}
       />,
       <Button
         key="refresh"
@@ -118,7 +113,7 @@ export const TableActions = ({
     hasRowsSelected,
     hasFiltersApplied,
     selectedRuns,
-    apiFilters,
+    filters.apiFilters,
     taskIdsPendingAction.length,
     onRefresh,
     onActionProcessed,
@@ -126,6 +121,7 @@ export const TableActions = ({
     showTriggerRunButton,
     rotate,
     toast,
+    filters,
   ]);
 
   return <>{actions}</>;

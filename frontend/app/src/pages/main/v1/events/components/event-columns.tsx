@@ -206,15 +206,17 @@ function WorkflowRunSummary({ event }: { event: V1Event }) {
     <div className="min-w-fit z-40 p-4 bg-white/10 rounded">
       <RunsProvider
         tableKey={`event-runs-${event.metadata.id}`}
-        triggeringEventExternalId={event.metadata.id}
+        display={{
+          showCounts: false,
+          showMetrics: false,
+          showDateFilter: false,
+          showTriggerRunButton: false,
+        }}
+        runFilters={{
+          triggeringEventExternalId: event.metadata.id,
+        }}
       >
-        <RunsTable
-          showCounts={false}
-          showMetrics={false}
-          showDateFilter={false}
-          showTriggerRunButton={false}
-          headerClassName="bg-slate-700"
-        />
+        <RunsTable headerClassName="bg-slate-700" />
       </RunsProvider>
     </div>
   );

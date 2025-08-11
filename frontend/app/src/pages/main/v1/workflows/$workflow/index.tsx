@@ -269,9 +269,17 @@ function RecentRunsList() {
   return (
     <RunsProvider
       tableKey={`workflow-${params.workflow}`}
-      workflowId={params.workflow}
       initColumnVisibility={{ Workflow: false }}
       filterVisibility={{ Workflow: false }}
+      display={{
+        showMetrics: false,
+        showCounts: true,
+        showDateFilter: true,
+        showTriggerRunButton: true,
+      }}
+      runFilters={{
+        workflowId: params.workflow,
+      }}
     >
       <RunsTable />
     </RunsProvider>

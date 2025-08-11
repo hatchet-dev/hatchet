@@ -12,27 +12,33 @@ import { TaskRunColumn } from '../components/v1/task-runs-columns';
 import { V1TaskSummary } from '@/lib/api';
 import { PaginationState } from '@tanstack/react-table';
 
-type ExtendedRunsTableState = RunsTableState & {
-  hasRowsSelected: boolean;
-  hasFiltersApplied: boolean;
-  hasOpenUI: boolean;
+type DisplayProps = {
+  showMetrics: boolean;
+  showCounts: boolean;
+  showDateFilter: boolean;
+  showTriggerRunButton: boolean;
+};
+
+type RunFilteringProps = {
+  workflowId?: string;
+  parentTaskExternalId?: string;
+  workerId?: string;
+  triggeringEventExternalId?: string;
 };
 
 type RunsProviderProps = {
   tableKey: string;
   children: React.ReactNode;
-  workflowId?: string;
-  parentTaskExternalId?: string;
   disableTaskRunPagination?: boolean;
   initColumnVisibility?: Record<string, boolean>;
   filterVisibility?: Record<string, boolean>;
   refetchInterval?: number;
-  workerId?: string;
-  triggeringEventExternalId?: string;
+  display: DisplayProps;
+  runFilters: RunFilteringProps;
 };
 
 type RunsContextType = {
-  state: ExtendedRunsTableState;
+  state: RunsTableState;
   actions: {
     updatePagination: (pagination: PaginationState) => void;
     updateFilters: (filters: any) => void;
@@ -43,7 +49,7 @@ type RunsContextType = {
           | 'selectedAdditionalMetaRunId'
           | 'viewQueueMetrics'
           | 'triggerWorkflow'
-          | 'stepDetailSheet'
+          | 'taskRunDetailSheet'
         >
       >,
     ) => void;
@@ -70,22 +76,40 @@ type RunsContextType = {
   metrics: any;
   tenantMetrics: any;
   isFrozen: boolean;
+  display: {
+    showMetrics: boolean;
+    showCounts: boolean;
+    showDateFilter: boolean;
+    showTriggerRunButton: boolean;
+    refetchInterval: number;
+  };
 };
 
 const RunsContext = createContext<RunsContextType | null>(null);
 
 export const RunsProvider = ({
   tableKey,
-  workflowId,
-  parentTaskExternalId,
+  children,
   disableTaskRunPagination = false,
   initColumnVisibility = {},
   filterVisibility = {},
   refetchInterval = 5000,
-  workerId,
-  triggeringEventExternalId,
-  children,
+  display,
+  runFilters,
 }: RunsProviderProps) => {
+  const {
+    workflowId,
+    parentTaskExternalId,
+    workerId,
+    triggeringEventExternalId,
+  } = runFilters;
+
+  const {
+    showMetrics = false,
+    showCounts = true,
+    showDateFilter = true,
+    showTriggerRunButton = true,
+  } = display;
   const [isFrozen, setIsFrozen] = useState(false);
 
   const initialState = useMemo(() => {
@@ -178,6 +202,13 @@ export const RunsProvider = ({
       metrics,
       tenantMetrics,
       isFrozen,
+      display: {
+        showMetrics,
+        showCounts,
+        showDateFilter,
+        showTriggerRunButton,
+        refetchInterval,
+      },
       actions: {
         updatePagination,
         updateFilters,
@@ -204,6 +235,11 @@ export const RunsProvider = ({
       metrics,
       tenantMetrics,
       isFrozen,
+      showMetrics,
+      showCounts,
+      showDateFilter,
+      showTriggerRunButton,
+      refetchInterval,
       updatePagination,
       updateFilters,
       updateUIState,

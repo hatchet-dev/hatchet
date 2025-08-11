@@ -10,7 +10,17 @@ import {
 
 export type TimeWindow = '1h' | '6h' | '1d' | '7d';
 
-export interface RunsTableState {
+type TaskRunDetailSheetState =
+  | {
+      isOpen: true;
+      taskRunId: string;
+    }
+  | {
+      isOpen: false;
+      taskRunId?: never;
+    };
+
+export interface BaseRunsTableState {
   // Pagination
   pagination: PaginationState;
 
@@ -21,7 +31,7 @@ export interface RunsTableState {
   finishedBefore?: string;
   parentTaskExternalId?: string;
 
-  // Table state (single source of truth for filters)
+  // Table state / visibility
   columnFilters: ColumnFiltersState;
   rowSelection: RowSelectionState;
   columnVisibility: VisibilityState;
@@ -30,10 +40,13 @@ export interface RunsTableState {
   selectedAdditionalMetaRunId?: string;
   viewQueueMetrics: boolean;
   triggerWorkflow: boolean;
-  stepDetailSheet: {
-    isOpen: boolean;
-    taskRunId?: string;
-  };
+  taskRunDetailSheet: TaskRunDetailSheetState;
+}
+
+export interface RunsTableState extends BaseRunsTableState {
+  hasFiltersApplied: boolean;
+  hasRowsSelected: boolean;
+  hasOpenUI: boolean;
 }
 
 const DEFAULT_STATE: RunsTableState = {
@@ -45,7 +58,10 @@ const DEFAULT_STATE: RunsTableState = {
   columnVisibility: {},
   viewQueueMetrics: false,
   triggerWorkflow: false,
-  stepDetailSheet: { isOpen: false },
+  taskRunDetailSheet: { isOpen: false },
+  hasFiltersApplied: false,
+  hasRowsSelected: false,
+  hasOpenUI: false,
 };
 
 // Mapping keys to abbreviations for URL storage
@@ -286,7 +302,7 @@ export const useRunsTableState = (
           newState.pagination = { ...newState.pagination, pageIndex: 0 };
         }
 
-        const stateToSerialize: RunsTableState = {
+        const stateToSerialize: BaseRunsTableState = {
           pagination: newState.pagination,
           timeWindow: newState.timeWindow,
           isCustomTimeRange: newState.isCustomTimeRange,
@@ -299,7 +315,7 @@ export const useRunsTableState = (
           selectedAdditionalMetaRunId: newState.selectedAdditionalMetaRunId,
           viewQueueMetrics: newState.viewQueueMetrics,
           triggerWorkflow: newState.triggerWorkflow,
-          stepDetailSheet: newState.stepDetailSheet,
+          taskRunDetailSheet: newState.taskRunDetailSheet,
         };
 
         const compressedState = compressKeys(stateToSerialize);
@@ -346,7 +362,7 @@ export const useRunsTableState = (
           | 'selectedAdditionalMetaRunId'
           | 'viewQueueMetrics'
           | 'triggerWorkflow'
-          | 'stepDetailSheet'
+          | 'taskRunDetailSheet'
         >
       >,
     ) => {
@@ -394,7 +410,7 @@ export const useRunsTableState = (
       ),
       hasOpenUI: !!(
         currentState.selectedAdditionalMetaRunId ||
-        currentState.stepDetailSheet.isOpen ||
+        currentState.taskRunDetailSheet.isOpen ||
         currentState.viewQueueMetrics ||
         currentState.triggerWorkflow
       ),

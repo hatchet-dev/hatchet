@@ -526,9 +526,17 @@ function EventWorkflowRunsList({ event }: { event: V1Event }) {
     <div className="w-full overflow-x-auto max-w-full">
       <RunsProvider
         tableKey={`event-workflow-runs-${event.metadata.id}`}
-        triggeringEventExternalId={event.metadata.id}
+        display={{
+          showMetrics: false,
+          showCounts: false,
+          showDateFilter: true,
+          showTriggerRunButton: true,
+        }}
+        runFilters={{
+          triggeringEventExternalId: event.metadata.id,
+        }}
       >
-        <RunsTable showMetrics={false} showCounts={false} />
+        <RunsTable />
       </RunsProvider>
     </div>
   );
