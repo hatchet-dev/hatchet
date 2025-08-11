@@ -17,6 +17,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Uses `logger.exception` in place of `logger.error` in the action runner to improve (e.g.) Sentry error reporting
 - Extends the `TaskRunError` to include the `task_run_external_id`, which is useful for debugging and tracing errors in task runs.
 
+### Removed
+
+- Removes the `cel-python` dependency
+
 ## [1.16.5] - 2025-08-07
 
 ### Changed
