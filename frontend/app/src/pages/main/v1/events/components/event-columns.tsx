@@ -211,6 +211,8 @@ function WorkflowRunSummary({ event }: { event: V1Event }) {
           showMetrics: false,
           showDateFilter: false,
           showTriggerRunButton: false,
+          showColumnToggle: true,
+          showCancelAndReplayButtons: false,
         }}
         runFilters={{
           triggeringEventExternalId: event.metadata.id,

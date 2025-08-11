@@ -531,6 +531,8 @@ function EventWorkflowRunsList({ event }: { event: V1Event }) {
           showCounts: false,
           showDateFilter: true,
           showTriggerRunButton: true,
+          showCancelAndReplayButtons: true,
+          showColumnToggle: true,
         }}
         runFilters={{
           triggeringEventExternalId: event.metadata.id,

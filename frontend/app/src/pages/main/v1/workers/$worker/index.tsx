@@ -228,6 +228,8 @@ export default function ExpandedWorkflowRun() {
             showCounts: false,
             showDateFilter: true,
             showTriggerRunButton: true,
+            showColumnToggle: true,
+            showCancelAndReplayButtons: true,
           }}
           runFilters={{
             workerId: worker.metadata.id,

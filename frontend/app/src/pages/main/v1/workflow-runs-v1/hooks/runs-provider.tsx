@@ -17,6 +17,8 @@ type DisplayProps = {
   showCounts: boolean;
   showDateFilter: boolean;
   showTriggerRunButton: boolean;
+  showCancelAndReplayButtons: boolean;
+  showColumnToggle: boolean;
 };
 
 type RunFilteringProps = {
@@ -81,6 +83,8 @@ type RunsContextType = {
     showCounts: boolean;
     showDateFilter: boolean;
     showTriggerRunButton: boolean;
+    showCancelAndReplayButtons: boolean;
+    showColumnToggle: boolean;
     refetchInterval: number;
   };
 };
@@ -109,6 +113,8 @@ export const RunsProvider = ({
     showCounts = true,
     showDateFilter = true,
     showTriggerRunButton = true,
+    showCancelAndReplayButtons = true,
+    showColumnToggle = true,
   } = display;
   const [isFrozen, setIsFrozen] = useState(false);
 
@@ -207,6 +213,8 @@ export const RunsProvider = ({
         showCounts,
         showDateFilter,
         showTriggerRunButton,
+        showCancelAndReplayButtons,
+        showColumnToggle,
         refetchInterval,
       },
       actions: {

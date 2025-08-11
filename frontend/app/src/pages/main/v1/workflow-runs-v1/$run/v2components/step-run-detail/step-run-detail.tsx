@@ -247,12 +247,16 @@ export const TaskRunDetail = ({
                 display={{
                   showCounts: false,
                   showMetrics: false,
-                  showDateFilter: true,
-                  showTriggerRunButton: true,
+                  showDateFilter: false,
+                  showTriggerRunButton: false,
+                  showCancelAndReplayButtons: false,
+                  showColumnToggle: true,
                 }}
                 runFilters={{
                   parentTaskExternalId: taskRunId,
                 }}
+                initColumnVisibility={{}}
+                filterVisibility={{}}
               >
                 <RunsTable />
               </RunsProvider>

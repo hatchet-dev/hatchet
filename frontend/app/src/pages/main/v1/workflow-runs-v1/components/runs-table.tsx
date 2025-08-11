@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { DataTable } from '@/components/v1/molecules/data-table/data-table.tsx';
 import { columns } from './v1/task-runs-columns';
 import { V1WorkflowRunsMetricsView } from './task-runs-metrics';
@@ -94,6 +95,7 @@ const GetWorkflowChart = ({
 export function RunsTable({ headerClassName }: RunsTableProps) {
   const { tenantId } = useCurrentTenantId();
   const { toast } = useToast();
+  const [, setSearchParams] = useSearchParams();
 
   const {
     state,
@@ -107,7 +109,13 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
     isMetricsFetching,
     metrics,
     tenantMetrics,
-    display: { showMetrics, showCounts, showDateFilter, refetchInterval },
+    display: {
+      showMetrics,
+      showCounts,
+      showDateFilter,
+      showColumnToggle,
+      refetchInterval,
+    },
     actions: {
       updatePagination,
       updateFilters,
@@ -312,7 +320,16 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
       {state.taskRunDetailSheet.isOpen && (
         <Sheet
           open={state.taskRunDetailSheet.isOpen}
-          onOpenChange={(isOpen) =>
+          onOpenChange={(isOpen) => {
+            if (!isOpen && state.taskRunDetailSheet.taskRunId) {
+              // Clear the child runs table state when sheet closes
+              const childTableKey = `table_child-runs-${state.taskRunDetailSheet.taskRunId}`;
+              setSearchParams((prev) => {
+                const newParams = new URLSearchParams(prev);
+                newParams.delete(childTableKey);
+                return newParams;
+              }, { replace: true });
+            }
             updateUIState({
               taskRunDetailSheet: isOpen
                 ? {
@@ -320,8 +337,8 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
                     taskRunId: state.taskRunDetailSheet.taskRunId!,
                   }
                 : { isOpen: false },
-            })
-          }
+            });
+          }}
         >
           <SheetContent className="w-fit min-w-[56rem] max-w-4xl sm:max-w-2xl z-[60] h-full overflow-auto">
             <TaskRunDetail
@@ -398,7 +415,7 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
             }
           }}
           pageCount={numPages}
-          showColumnToggle={true}
+          showColumnToggle={showColumnToggle}
           getSubRows={(row) => row.children || []}
           getRowId={getRowId}
           onToolbarReset={resetState}

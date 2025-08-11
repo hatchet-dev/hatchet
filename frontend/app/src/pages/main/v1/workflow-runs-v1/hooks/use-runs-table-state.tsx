@@ -241,37 +241,13 @@ export const useRunsTableState = (
 
   const updateState = useCallback(
     (updates: Partial<RunsTableState>) => {
-      setSearchParams((prev) => {
-        const newParams = new URLSearchParams(prev);
-        const stateParam = newParams.get(paramKey);
+      setSearchParams(
+        (prev) => {
+          const newParams = new URLSearchParams(prev);
+          const stateParam = newParams.get(paramKey);
 
-        let currentStateFromURL: RunsTableState;
-        if (!stateParam) {
-          const merged = { ...DEFAULT_STATE, ...initialStateRef.current };
-          if (!merged.isCustomTimeRange) {
-            merged.createdAfter = getCreatedAfterFromTimeRange(
-              merged.timeWindow,
-            );
-          }
-          currentStateFromURL = merged;
-        } else {
-          try {
-            const compressedState = JSON.parse(stateParam);
-            const parsedState = decompressKeys(
-              compressedState,
-            ) as RunsTableState;
-            const merged = {
-              ...DEFAULT_STATE,
-              ...parsedState,
-              ...initialStateRef.current,
-            };
-            if (!merged.isCustomTimeRange) {
-              merged.createdAfter = getCreatedAfterFromTimeRange(
-                merged.timeWindow,
-              );
-            }
-            currentStateFromURL = merged;
-          } catch (error) {
+          let currentStateFromURL: RunsTableState;
+          if (!stateParam) {
             const merged = { ...DEFAULT_STATE, ...initialStateRef.current };
             if (!merged.isCustomTimeRange) {
               merged.createdAfter = getCreatedAfterFromTimeRange(
@@ -279,51 +255,78 @@ export const useRunsTableState = (
               );
             }
             currentStateFromURL = merged;
+          } else {
+            try {
+              const compressedState = JSON.parse(stateParam);
+              const parsedState = decompressKeys(
+                compressedState,
+              ) as RunsTableState;
+              const merged = {
+                ...DEFAULT_STATE,
+                ...parsedState,
+                ...initialStateRef.current,
+              };
+              if (!merged.isCustomTimeRange) {
+                merged.createdAfter = getCreatedAfterFromTimeRange(
+                  merged.timeWindow,
+                );
+              }
+              currentStateFromURL = merged;
+            } catch (error) {
+              const merged = { ...DEFAULT_STATE, ...initialStateRef.current };
+              if (!merged.isCustomTimeRange) {
+                merged.createdAfter = getCreatedAfterFromTimeRange(
+                  merged.timeWindow,
+                );
+              }
+              currentStateFromURL = merged;
+            }
           }
-        }
 
-        const newState = { ...currentStateFromURL, ...updates };
+          const newState = { ...currentStateFromURL, ...updates };
 
-        if (updates.timeWindow && !newState.isCustomTimeRange) {
-          newState.createdAfter = getCreatedAfterFromTimeRange(
-            newState.timeWindow,
-          );
-          newState.finishedBefore = undefined;
-        }
+          if (updates.timeWindow && !newState.isCustomTimeRange) {
+            newState.createdAfter = getCreatedAfterFromTimeRange(
+              newState.timeWindow,
+            );
+            newState.finishedBefore = undefined;
+          }
 
-        if (
-          Object.keys(updates).some(
-            (key) =>
-              key !== 'pagination' &&
-              key !== 'rowSelection' &&
-              key !== 'columnVisibility',
-          )
-        ) {
-          newState.pagination = { ...newState.pagination, pageIndex: 0 };
-        }
+          if (
+            Object.keys(updates).some(
+              (key) =>
+                key !== 'pagination' &&
+                key !== 'rowSelection' &&
+                key !== 'columnVisibility',
+            )
+          ) {
+            newState.pagination = { ...newState.pagination, pageIndex: 0 };
+          }
 
-        const stateToSerialize: BaseRunsTableState = {
-          pagination: newState.pagination,
-          timeWindow: newState.timeWindow,
-          isCustomTimeRange: newState.isCustomTimeRange,
-          createdAfter: newState.createdAfter,
-          finishedBefore: newState.finishedBefore,
-          parentTaskExternalId: newState.parentTaskExternalId,
-          columnFilters: newState.columnFilters,
-          rowSelection: newState.rowSelection,
-          columnVisibility: newState.columnVisibility,
-          selectedAdditionalMetaRunId: newState.selectedAdditionalMetaRunId,
-          viewQueueMetrics: newState.viewQueueMetrics,
-          triggerWorkflow: newState.triggerWorkflow,
-          taskRunDetailSheet: newState.taskRunDetailSheet,
-        };
+          const stateToSerialize: BaseRunsTableState = {
+            pagination: newState.pagination,
+            timeWindow: newState.timeWindow,
+            isCustomTimeRange: newState.isCustomTimeRange,
+            createdAfter: newState.createdAfter,
+            finishedBefore: newState.finishedBefore,
+            parentTaskExternalId: newState.parentTaskExternalId,
+            columnFilters: newState.columnFilters,
+            rowSelection: newState.rowSelection,
+            columnVisibility: newState.columnVisibility,
+            selectedAdditionalMetaRunId: newState.selectedAdditionalMetaRunId,
+            viewQueueMetrics: newState.viewQueueMetrics,
+            triggerWorkflow: newState.triggerWorkflow,
+            taskRunDetailSheet: newState.taskRunDetailSheet,
+          };
 
-        const compressedState = compressKeys(stateToSerialize);
-        const minifiedState = JSON.stringify(compressedState);
+          const compressedState = compressKeys(stateToSerialize);
+          const minifiedState = JSON.stringify(compressedState);
 
-        newParams.set(paramKey, minifiedState);
-        return newParams;
-      }, { replace: true });
+          newParams.set(paramKey, minifiedState);
+          return newParams;
+        },
+        { replace: true },
+      );
     },
     [paramKey, setSearchParams],
   );
@@ -383,11 +386,14 @@ export const useRunsTableState = (
   );
 
   const resetState = useCallback(() => {
-    setSearchParams((prev) => {
-      const newParams = new URLSearchParams(prev);
-      newParams.delete(paramKey);
-      return newParams;
-    }, { replace: true });
+    setSearchParams(
+      (prev) => {
+        const newParams = new URLSearchParams(prev);
+        newParams.delete(paramKey);
+        return newParams;
+      },
+      { replace: true },
+    );
   }, [paramKey, setSearchParams]);
 
   const derivedState = useMemo(() => {

@@ -25,62 +25,11 @@ export const TableActions = ({
     state: { hasRowsSelected, hasFiltersApplied },
     selectedRuns,
     filters,
-    display: { showTriggerRunButton },
+    display: { showTriggerRunButton, showCancelAndReplayButtons },
   } = useRunsContext();
+
   const actions = useMemo(() => {
-    const baseActions = [
-      <TaskRunActionButton
-        key="cancel"
-        actionType="cancel"
-        disabled={
-          !(hasRowsSelected || hasFiltersApplied) ||
-          taskIdsPendingAction.length > 0
-        }
-        params={
-          selectedRuns.length > 0
-            ? { externalIds: selectedRuns.map((run) => run?.metadata.id) }
-            : {
-                filter: {
-                  ...filters.apiFilters,
-                  since: filters.apiFilters.since || '',
-                },
-              }
-        }
-        showModal
-        onActionProcessed={(ids) => onActionProcessed('cancel', ids)}
-        onActionSubmit={() => {
-          toast({
-            title: 'Cancel request submitted',
-            description: "No need to hit 'Cancel' again.",
-          });
-        }}
-      />,
-      <TaskRunActionButton
-        key="replay"
-        actionType="replay"
-        disabled={
-          !(hasRowsSelected || hasFiltersApplied) ||
-          taskIdsPendingAction.length > 0
-        }
-        params={
-          selectedRuns.length > 0
-            ? { externalIds: selectedRuns.map((run) => run?.metadata.id) }
-            : {
-                filter: {
-                  ...filters.apiFilters,
-                  since: filters.apiFilters.since || '',
-                },
-              }
-        }
-        showModal
-        onActionProcessed={(ids) => onActionProcessed('replay', ids)}
-        onActionSubmit={() => {
-          toast({
-            title: 'Replay request submitted',
-            description: "No need to hit 'Replay' again.",
-          });
-        }}
-      />,
+    let baseActions = [
       <Button
         key="refresh"
         className="h-8 px-2 lg:px-3"
@@ -95,8 +44,66 @@ export const TableActions = ({
       </Button>,
     ];
 
+    if (showCancelAndReplayButtons) {
+      baseActions = [
+        <TaskRunActionButton
+          key="cancel"
+          actionType="cancel"
+          disabled={
+            !(hasRowsSelected || hasFiltersApplied) ||
+            taskIdsPendingAction.length > 0
+          }
+          params={
+            selectedRuns.length > 0
+              ? { externalIds: selectedRuns.map((run) => run?.metadata.id) }
+              : {
+                  filter: {
+                    ...filters.apiFilters,
+                    since: filters.apiFilters.since || '',
+                  },
+                }
+          }
+          showModal
+          onActionProcessed={(ids) => onActionProcessed('cancel', ids)}
+          onActionSubmit={() => {
+            toast({
+              title: 'Cancel request submitted',
+              description: "No need to hit 'Cancel' again.",
+            });
+          }}
+        />,
+        <TaskRunActionButton
+          key="replay"
+          actionType="replay"
+          disabled={
+            !(hasRowsSelected || hasFiltersApplied) ||
+            taskIdsPendingAction.length > 0
+          }
+          params={
+            selectedRuns.length > 0
+              ? { externalIds: selectedRuns.map((run) => run?.metadata.id) }
+              : {
+                  filter: {
+                    ...filters.apiFilters,
+                    since: filters.apiFilters.since || '',
+                  },
+                }
+          }
+          showModal
+          onActionProcessed={(ids) => onActionProcessed('replay', ids)}
+          onActionSubmit={() => {
+            toast({
+              title: 'Replay request submitted',
+              description: "No need to hit 'Replay' again.",
+            });
+          }}
+        />,
+        ...baseActions,
+      ];
+    }
+
     if (showTriggerRunButton) {
-      return [
+      baseActions = [
         <Button
           key="trigger"
           className="h-8 border"

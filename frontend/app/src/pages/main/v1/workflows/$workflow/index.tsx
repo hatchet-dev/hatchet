@@ -276,6 +276,8 @@ function RecentRunsList() {
         showCounts: true,
         showDateFilter: true,
         showTriggerRunButton: true,
+        showColumnToggle: true,
+        showCancelAndReplayButtons: true,
       }}
       runFilters={{
         workflowId: params.workflow,

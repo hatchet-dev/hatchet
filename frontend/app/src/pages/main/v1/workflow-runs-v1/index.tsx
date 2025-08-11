@@ -11,8 +11,12 @@ export default function Tasks() {
           showCounts: true,
           showDateFilter: true,
           showTriggerRunButton: true,
+          showColumnToggle: true,
+          showCancelAndReplayButtons: true,
         }}
         runFilters={{}}
+        initColumnVisibility={{}}
+        filterVisibility={{}}
       >
         <RunsTable />
       </RunsProvider>
