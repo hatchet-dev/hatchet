@@ -312,7 +312,24 @@ WITH slots AS (
                 ORDER BY
                     rn, seqnum
             ) THEN 'run'
-            ELSE 'cancel'
+            WHEN (
+                cs.tenant_id = $1::uuid AND
+                cs.strategy_id = $2::bigint AND
+                (cs.task_inserted_at, cs.task_id, cs.task_retry_count) NOT IN (
+                    SELECT
+                        ers.task_inserted_at,
+                        ers.task_id,
+                        ers.task_retry_count
+                    FROM
+                        eligible_running_slots ers
+                ) AND
+                (cs.parent_strategy_id, cs.workflow_version_id, cs.workflow_run_id) IN (
+                    SELECT wcs.strategy_id, wcs.workflow_version_id, wcs.workflow_run_id
+                    FROM
+                        tmp_workflow_concurrency_slot wcs
+                )
+            ) THEN 'cancel'
+            ELSE NULL
         END AS operation
     FROM
         v1_concurrency_slot cs
