@@ -1,27 +1,27 @@
 import { queries } from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
-import { useColumnFilters } from './column-filters';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 
 export const useMetrics = ({
   workflow,
   parentTaskExternalId,
+  createdAfter,
   refetchInterval,
   pauseRefetch = false,
 }: {
   workflow: string | undefined;
   parentTaskExternalId: string | undefined;
+  createdAfter?: string;
   refetchInterval: number;
   pauseRefetch?: boolean;
 }) => {
   const { tenantId } = useCurrentTenantId();
-  const cf = useColumnFilters();
 
   const effectiveRefetchInterval = pauseRefetch ? false : refetchInterval;
 
   const metricsQuery = useQuery({
     ...queries.v1TaskRuns.metrics(tenantId, {
-      since: cf.filters.createdAfter,
+      since: createdAfter || new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
       parent_task_external_id: parentTaskExternalId,
       workflow_ids: workflow ? [workflow] : [],
     }),
