@@ -13,7 +13,7 @@ import {
 import { Sheet, SheetContent } from '@/components/v1/ui/sheet';
 import { StepRunEvents } from '../step-run-events-for-workflow-run';
 import { Link } from 'react-router-dom';
-import { TaskRunsTable } from '../../../components/task-runs-table';
+import { RunsTable } from '../../../components/runs-table';
 import { V1RunIndicator } from '../../../components/run-statuses';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { emptyGolangUUID, formatDuration } from '@/lib/utils';
@@ -240,7 +240,8 @@ export const TaskRunDetail = ({
               <V1StepRunOutput taskRunId={taskRunId} />
             </TabsContent>
             <TabsContent value={TabOption.ChildWorkflowRuns} className="mt-4">
-              <TaskRunsTable
+              <RunsTable
+                tableKey={`child-runs-${taskRunId}`}
                 parentTaskExternalId={taskRunId}
                 showCounts={false}
                 showMetrics={false}

@@ -12,7 +12,7 @@ import { useState } from 'react';
 import { AdditionalMetadata } from './additional-metadata';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
-import { TaskRunsTable } from '../../workflow-runs-v1/components/task-runs-table';
+import { RunsTable } from '../../workflow-runs-v1/components/runs-table';
 
 export const columns = ({
   onRowClick,
@@ -203,7 +203,8 @@ function WorkflowRunSummary({ event }: { event: V1Event }) {
 
   const hoverCardContent = (
     <div className="min-w-fit z-40 p-4 bg-white/10 rounded">
-      <TaskRunsTable
+      <RunsTable
+        tableKey={`event-runs-${event.metadata.id}`}
         triggeringEventExternalId={event.metadata.id}
         showCounts={false}
         showMetrics={false}

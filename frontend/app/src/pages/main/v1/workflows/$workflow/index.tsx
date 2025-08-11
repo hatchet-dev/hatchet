@@ -25,7 +25,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/v1/ui/dropdown-menu';
-import { TaskRunsTable } from '../../workflow-runs-v1/components/task-runs-table';
+import { RunsTable } from '../../workflow-runs-v1/components/runs-table';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 
 export default function ExpandedWorkflow() {
@@ -266,7 +266,8 @@ function RecentRunsList() {
   invariant(params.workflow);
 
   return (
-    <TaskRunsTable
+    <RunsTable
+      tableKey={`workflow-${params.workflow}`}
       workflowId={params.workflow}
       initColumnVisibility={{ Workflow: false }}
       filterVisibility={{ Workflow: false }}

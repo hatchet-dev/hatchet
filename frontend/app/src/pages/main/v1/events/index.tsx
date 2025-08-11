@@ -35,7 +35,7 @@ import { ArrowPathIcon } from '@heroicons/react/24/outline';
 import { Loading } from '@/components/v1/ui/loading.tsx';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { DataTable } from '@/components/v1/molecules/data-table/data-table';
-import { TaskRunsTable } from '../workflow-runs-v1/components/task-runs-table';
+import { RunsTable } from '../workflow-runs-v1/components/runs-table';
 import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
@@ -523,7 +523,8 @@ function FiltersSection({ filters }: { filters: V1Filter[] }) {
 function EventWorkflowRunsList({ event }: { event: V1Event }) {
   return (
     <div className="w-full overflow-x-auto max-w-full">
-      <TaskRunsTable
+      <RunsTable
+        tableKey={`event-workflow-runs-${event.metadata.id}`}
         triggeringEventExternalId={event.metadata.id}
         showMetrics={false}
         showCounts={false}
