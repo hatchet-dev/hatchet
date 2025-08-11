@@ -58,7 +58,7 @@ BEGIN
     END IF;
 
     EXECUTE
-        format('CREATE TABLE %s (LIKE %s INCLUDING INDEXES)', newTableName, targetTableName);
+        format('CREATE TABLE %s (LIKE %s INCLUDING INDEXES INCLUDING CONSTRAINTS)', newTableName, targetTableName);
     EXECUTE
         format('ALTER TABLE %s SET (
             autovacuum_vacuum_scale_factor = ''0.1'',
@@ -94,7 +94,7 @@ BEGIN
     END IF;
 
     EXECUTE
-        format('CREATE TABLE %s (LIKE %s INCLUDING INDEXES)', newTableName, targetTableName);
+        format('CREATE TABLE %s (LIKE %s INCLUDING INDEXES INCLUDING CONSTRAINTS)', newTableName, targetTableName);
     EXECUTE
         format('ALTER TABLE %s SET (
             autovacuum_vacuum_scale_factor = ''0.1'',
