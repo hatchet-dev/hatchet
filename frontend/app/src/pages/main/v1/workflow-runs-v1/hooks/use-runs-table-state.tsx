@@ -323,7 +323,7 @@ export const useRunsTableState = (
 
         newParams.set(paramKey, minifiedState);
         return newParams;
-      });
+      }, { replace: true });
     },
     [paramKey, setSearchParams],
   );
@@ -387,7 +387,7 @@ export const useRunsTableState = (
       const newParams = new URLSearchParams(prev);
       newParams.delete(paramKey);
       return newParams;
-    });
+    }, { replace: true });
   }, [paramKey, setSearchParams]);
 
   const derivedState = useMemo(() => {
