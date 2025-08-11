@@ -26,6 +26,7 @@ import {
 import { useState } from 'react';
 import { RecentWebhookRequests } from '../webhooks/components/recent-webhook-requests';
 import { RunsTable } from '../../workflow-runs-v1/components/runs-table';
+import { RunsProvider } from '../../workflow-runs-v1/hooks/runs-provider';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 export const isHealthy = (worker?: Worker) => {
   const reasons = [];
@@ -220,13 +221,12 @@ export default function ExpandedWorkflowRun() {
             Recent Tasks
           </h3>
         </div>
-        <RunsTable
+        <RunsProvider
           tableKey={`worker-${worker.metadata.id}`}
           workerId={worker.metadata.id}
-          createdAfter={worker.metadata.createdAt}
-          showMetrics={false}
-          showCounts={false}
-        />
+        >
+          <RunsTable showMetrics={false} showCounts={false} />
+        </RunsProvider>
         <Separator className="my-4" />
         <h3 className="text-xl font-bold leading-tight text-foreground mb-4">
           Registered Tasks

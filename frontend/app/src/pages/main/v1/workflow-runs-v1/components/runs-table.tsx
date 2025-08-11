@@ -1,7 +1,6 @@
-import { useCallback, useEffect, useState, useMemo, useRef } from 'react';
-import { VisibilityState } from '@tanstack/react-table';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { DataTable } from '@/components/v1/molecules/data-table/data-table.tsx';
-import { columns, TaskRunColumn } from './v1/task-runs-columns';
+import { columns } from './v1/task-runs-columns';
 import { V1WorkflowRunsMetricsView } from './task-runs-metrics';
 import { Skeleton } from '@/components/v1/ui/skeleton';
 import {
@@ -30,49 +29,21 @@ import { useQuery } from '@tanstack/react-query';
 import { queries } from '@/lib/api';
 
 import {
-  useRunsTableState,
   TimeWindow,
-  RunsTableState,
-  getWorkflowIdFromFilters,
   getCreatedAfterFromTimeRange,
 } from '../hooks/use-runs-table-state';
-import {
-  AdditionalMetadataProp,
-  useRunsTableFilters,
-} from '../hooks/use-runs-table-filters';
-import { useRuns } from '../hooks/use-runs';
-import { useMetrics } from '../hooks/use-metrics';
+import { AdditionalMetadataProp } from '../hooks/use-runs-table-filters';
+import { useRunsContext } from '../hooks/runs-provider';
 
 import { TableActions } from './task-runs-table/table-actions';
-import { useToolbarFilters } from '../hooks/use-toolbar-filters';
 import { TimeFilter } from './task-runs-table/time-filter';
 
 export interface RunsTableProps {
-  // Important: the key is used to identify a single instance of
-  // the table's state, so that we can have multiple independent
-  // tables stored in state (in the URL) at the same time. E.g.
-  // this is helpful for showing child runs in the side sheet while
-  // still showing the main runs view in the background.
-  tableKey: string;
-
-  createdAfter?: string;
-  createdBefore?: string;
-  workflowId?: string;
-  workerId?: string;
-  parentTaskExternalId?: string;
-  triggeringEventExternalId?: string;
-  initColumnVisibility?: VisibilityState;
-
-  filterVisibility?: { [key: string]: boolean };
   showMetrics?: boolean;
   showCounts?: boolean;
   showDateFilter?: boolean;
   showTriggerRunButton?: boolean;
-  disableTaskRunPagination?: boolean;
-
   headerClassName?: string;
-
-  refetchInterval?: number;
 }
 
 const GetWorkflowChart = ({
@@ -125,104 +96,48 @@ const GetWorkflowChart = ({
 };
 
 export function RunsTable({
-  tableKey,
-  workflowId,
-  workerId,
-  parentTaskExternalId,
-  triggeringEventExternalId,
-  createdAfter: createdAfterProp,
-  initColumnVisibility = {},
-  filterVisibility = {},
-  refetchInterval = 5000,
   showMetrics = false,
   showCounts = true,
   showDateFilter = true,
-  disableTaskRunPagination = false,
   showTriggerRunButton = true,
   headerClassName,
 }: RunsTableProps) {
   const { tenantId } = useCurrentTenantId();
   const { toast } = useToast();
 
-  const initialState = useMemo(() => {
-    const baseState: Partial<RunsTableState> = {
-      columnVisibility: {
-        ...initColumnVisibility,
-        parentTaskExternalId: false, // Always hidden, used for filtering only
-      },
-    };
-
-    if (workflowId) {
-      baseState.columnFilters = [
-        { id: TaskRunColumn.workflow, value: workflowId },
-      ];
-    }
-
-    if (parentTaskExternalId) {
-      baseState.parentTaskExternalId = parentTaskExternalId;
-    }
-
-    return baseState;
-  }, [workflowId, parentTaskExternalId, initColumnVisibility]);
-
   const {
     state,
-    updatePagination,
-    updateFilters,
-    updateUIState,
-    updateTableState,
-    resetState,
-  } = useRunsTableState(tableKey, initialState);
+    filters,
+    toolbarFilters,
+    tableRows,
+    selectedRuns,
+    numPages,
+    isRunsLoading,
+    isRunsFetching,
+    isMetricsLoading,
+    isMetricsFetching,
+    metrics,
+    tenantMetrics,
+    actions: {
+      updatePagination,
+      updateFilters,
+      updateUIState,
+      updateTableState,
+      resetState,
+      setIsFrozen,
+      refetchRuns,
+      refetchMetrics,
+      getRowId,
+    },
+  } = useRunsContext();
 
-  const filters = useRunsTableFilters(state, updateFilters);
   const [taskIdsPendingAction, setTaskIdsPendingAction] = useState<string[]>(
     [],
   );
   const [rotate, setRotate] = useState(false);
 
-  const toolbarFilters = useToolbarFilters({ filterVisibility });
-
-  const workflow = workflowId || getWorkflowIdFromFilters(state.columnFilters);
-  const derivedParentTaskExternalId =
-    parentTaskExternalId || state.parentTaskExternalId;
-  const [isFrozen, setIsFrozen] = useState(false);
-
-  const {
-    tableRows,
-    selectedRuns,
-    numPages,
-    isLoading: isRunsLoading,
-    isFetching: isRunsFetching,
-    refetch: refetchRuns,
-    getRowId,
-  } = useRuns({
-    rowSelection: state.rowSelection,
-    pagination: state.pagination,
-    createdAfter: state.createdAfter,
-    finishedBefore: state.finishedBefore,
-    status: filters.apiFilters.statuses?.[0],
-    additionalMetadata: filters.apiFilters.additionalMetadata,
-    workerId,
-    workflow,
-    parentTaskExternalId: derivedParentTaskExternalId,
-    triggeringEventExternalId,
-    disablePagination: disableTaskRunPagination,
-    pauseRefetch: state.hasOpenUI || isFrozen,
-  });
-
-  const {
-    metrics,
-    tenantMetrics,
-    isLoading: isMetricsLoading,
-    isFetching: isMetricsFetching,
-    refetch: refetchMetrics,
-  } = useMetrics({
-    workflow,
-    parentTaskExternalId: derivedParentTaskExternalId,
-    createdAfter: state.createdAfter,
-    refetchInterval,
-    pauseRefetch: state.hasOpenUI || isFrozen,
-  });
+  const derivedParentTaskExternalId = state.parentTaskExternalId;
+  const refetchInterval = 5000;
 
   const handleTaskRunIdClick = useCallback(
     (taskRunId: string) => {
@@ -369,7 +284,7 @@ export function RunsTable({
           updateFilters({ finishedBefore: date })
         }
         onClearTimeRange={() => filters.setCustomTimeRange(null)}
-        showDateFilter={showDateFilter && !createdAfterProp}
+        showDateFilter={showDateFilter}
         hasParentFilter={!!derivedParentTaskExternalId}
       />
 

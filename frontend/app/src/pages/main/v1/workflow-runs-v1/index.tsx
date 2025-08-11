@@ -1,9 +1,12 @@
 import { RunsTable } from './components/runs-table';
+import { RunsProvider } from './hooks/runs-provider';
 
 export default function Tasks() {
   return (
     <div className="flex-grow size-full">
-      <RunsTable tableKey="workflow-runs-main" showMetrics={true} />
+      <RunsProvider tableKey="workflow-runs-main">
+        <RunsTable showMetrics={true} />
+      </RunsProvider>
     </div>
   );
 }

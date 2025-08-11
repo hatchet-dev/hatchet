@@ -26,6 +26,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/v1/ui/dropdown-menu';
 import { RunsTable } from '../../workflow-runs-v1/components/runs-table';
+import { RunsProvider } from '../../workflow-runs-v1/hooks/runs-provider';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 
 export default function ExpandedWorkflow() {
@@ -266,11 +267,13 @@ function RecentRunsList() {
   invariant(params.workflow);
 
   return (
-    <RunsTable
+    <RunsProvider
       tableKey={`workflow-${params.workflow}`}
       workflowId={params.workflow}
       initColumnVisibility={{ Workflow: false }}
       filterVisibility={{ Workflow: false }}
-    />
+    >
+      <RunsTable />
+    </RunsProvider>
   );
 }

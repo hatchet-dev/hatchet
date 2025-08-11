@@ -36,6 +36,7 @@ import { Loading } from '@/components/v1/ui/loading.tsx';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { DataTable } from '@/components/v1/molecules/data-table/data-table';
 import { RunsTable } from '../workflow-runs-v1/components/runs-table';
+import { RunsProvider } from '../workflow-runs-v1/hooks/runs-provider';
 import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
@@ -523,12 +524,12 @@ function FiltersSection({ filters }: { filters: V1Filter[] }) {
 function EventWorkflowRunsList({ event }: { event: V1Event }) {
   return (
     <div className="w-full overflow-x-auto max-w-full">
-      <RunsTable
+      <RunsProvider
         tableKey={`event-workflow-runs-${event.metadata.id}`}
         triggeringEventExternalId={event.metadata.id}
-        showMetrics={false}
-        showCounts={false}
-      />
+      >
+        <RunsTable showMetrics={false} showCounts={false} />
+      </RunsProvider>
     </div>
   );
 }
