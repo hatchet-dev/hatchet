@@ -43,9 +43,9 @@ import {
 import { useRuns } from '../hooks/use-runs';
 import { useMetrics } from '../hooks/use-metrics';
 
-import { TableHeader } from './task-runs-table/table-header';
 import { TableActions } from './task-runs-table/table-actions';
 import { useToolbarFilters } from '../hooks/use-toolbar-filters';
+import { TimeFilter } from './task-runs-table/time-filter';
 
 export interface RunsTableProps {
   // Important: the key is used to identify a single instance of
@@ -175,8 +175,6 @@ export function RunsTable({
   } = useRunsTableState(tableKey, initialState);
 
   const filters = useRunsTableFilters(state, updateFilters);
-  const filtersRef = useRef(filters);
-  filtersRef.current = filters;
   const [taskIdsPendingAction, setTaskIdsPendingAction] = useState<string[]>(
     [],
   );
@@ -248,7 +246,7 @@ export function RunsTable({
   const handleAdditionalMetadataClick = useCallback(
     (m: AdditionalMetadataProp) => {
       setIsFrozen(true);
-      filtersRef.current.setAdditionalMetadata(m);
+      filters.setAdditionalMetadata(m);
     },
     [setIsFrozen],
   );
@@ -360,7 +358,7 @@ export function RunsTable({
         </Dialog>
       )}
 
-      <TableHeader
+      <TimeFilter
         timeWindow={state.timeWindow}
         isCustomTimeRange={state.isCustomTimeRange}
         createdAfter={state.createdAfter}

@@ -10,7 +10,7 @@ import {
 import { DateTimePicker } from '@/components/v1/molecules/time-picker/date-time-picker';
 import { TimeWindow } from '../../hooks/use-runs-table-state';
 
-interface TableHeaderProps {
+interface TimeFilterProps {
   timeWindow: TimeWindow;
   isCustomTimeRange: boolean;
   createdAfter?: string;
@@ -23,7 +23,7 @@ interface TableHeaderProps {
   hasParentFilter: boolean;
 }
 
-export const TableHeader = ({
+export const TimeFilter = ({
   timeWindow,
   isCustomTimeRange,
   createdAfter,
@@ -34,7 +34,7 @@ export const TableHeader = ({
   onClearTimeRange,
   showDateFilter,
   hasParentFilter,
-}: TableHeaderProps) => {
+}: TimeFilterProps) => {
   if (!showDateFilter || hasParentFilter) {
     return null;
   }
