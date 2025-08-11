@@ -334,7 +334,8 @@ func (d *DispatcherImpl) Start() (func() error, error) {
 
 	// subscribe to a task queue with the dispatcher id
 	dispatcherId := sqlchelpers.UUIDToStr(dispatcher.ID)
-	cleanupQueue, err := d.mq.Subscribe(msgqueue.QueueTypeFromDispatcherID(dispatcherId), f, msgqueue.NoOpHook)
+	// HOTFIX: acknowledge messages immediately without waiting for worker.stream.send to complete
+	cleanupQueue, err := d.mq.Subscribe(msgqueue.QueueTypeFromDispatcherID(dispatcherId), msgqueue.NoOpHook, f)
 
 	if err != nil {
 		cancel()
@@ -355,7 +356,8 @@ func (d *DispatcherImpl) Start() (func() error, error) {
 	}
 
 	// subscribe to a task queue with the dispatcher id
-	cleanupQueueV1, err := d.mqv1.Subscribe(msgqueuev1.QueueTypeFromDispatcherID(dispatcherId), fv1, msgqueuev1.NoOpHook)
+	// HOTFIX: acknowledge messages immediately without waiting for worker.stream.send to complete
+	cleanupQueueV1, err := d.mqv1.Subscribe(msgqueuev1.QueueTypeFromDispatcherID(dispatcherId), msgqueuev1.NoOpHook, fv1)
 
 	if err != nil {
 		cancel()
