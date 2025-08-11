@@ -21,7 +21,9 @@ export const useMetrics = ({
 
   const metricsQuery = useQuery({
     ...queries.v1TaskRuns.metrics(tenantId, {
-      since: createdAfter || new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+      since:
+        createdAfter ||
+        new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
       parent_task_external_id: parentTaskExternalId,
       workflow_ids: workflow ? [workflow] : [],
     }),

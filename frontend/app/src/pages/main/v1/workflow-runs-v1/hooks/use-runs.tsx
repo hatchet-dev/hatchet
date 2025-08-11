@@ -4,7 +4,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { RowSelectionState, PaginationState } from '@tanstack/react-table';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 
-type UseTaskRunProps = {
+type UseRunsProps = {
   rowSelection: RowSelectionState;
   pagination: PaginationState;
   createdAfter?: string;
@@ -19,7 +19,7 @@ type UseTaskRunProps = {
   pauseRefetch?: boolean;
 };
 
-export const useTaskRuns = ({
+export const useRuns = ({
   rowSelection,
   pagination,
   createdAfter,
@@ -32,7 +32,7 @@ export const useTaskRuns = ({
   triggeringEventExternalId,
   disablePagination = false,
   pauseRefetch = false,
-}: UseTaskRunProps) => {
+}: UseRunsProps) => {
   const { tenantId } = useCurrentTenantId();
   const offset = pagination.pageIndex * pagination.pageSize;
 

@@ -87,9 +87,15 @@ const REVERSE_KEY_MAP = Object.fromEntries(
 ) as Record<string, string>;
 
 function compressKeys(obj: any): any {
-  if (obj === null || obj === undefined) return obj;
-  if (typeof obj !== 'object') return obj;
-  if (Array.isArray(obj)) return obj.map(compressKeys);
+  if (obj === null || obj === undefined) {
+    return obj;
+  }
+  if (typeof obj !== 'object') {
+    return obj;
+  }
+  if (Array.isArray(obj)) {
+    return obj.map(compressKeys);
+  }
 
   const compressed: any = {};
   for (const [key, value] of Object.entries(obj)) {
@@ -100,9 +106,15 @@ function compressKeys(obj: any): any {
 }
 
 function decompressKeys(obj: any): any {
-  if (obj === null || obj === undefined) return obj;
-  if (typeof obj !== 'object') return obj;
-  if (Array.isArray(obj)) return obj.map(decompressKeys);
+  if (obj === null || obj === undefined) {
+    return obj;
+  }
+  if (typeof obj !== 'object') {
+    return obj;
+  }
+  if (Array.isArray(obj)) {
+    return obj.map(decompressKeys);
+  }
 
   const decompressed: any = {};
   for (const [key, value] of Object.entries(obj)) {
