@@ -1,13 +1,16 @@
-import { queries, V1TaskSummary } from '@/lib/api';
+import { queries, V1TaskSummary, V1TaskStatus } from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
-import { useColumnFilters } from './column-filters';
-import { usePagination } from './pagination';
 import { useCallback, useMemo, useState } from 'react';
-import { RowSelectionState } from '@tanstack/react-table';
+import { RowSelectionState, PaginationState } from '@tanstack/react-table';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 
 type UseTaskRunProps = {
   rowSelection: RowSelectionState;
+  pagination: PaginationState;
+  createdAfter?: string;
+  finishedBefore?: string;
+  status?: V1TaskStatus;
+  additionalMetadata?: string[];
   workerId: string | undefined;
   workflow: string | undefined;
   parentTaskExternalId: string | undefined;
@@ -18,6 +21,11 @@ type UseTaskRunProps = {
 
 export const useTaskRuns = ({
   rowSelection,
+  pagination,
+  createdAfter,
+  finishedBefore,
+  status,
+  additionalMetadata,
   workerId,
   workflow,
   parentTaskExternalId,
@@ -25,9 +33,8 @@ export const useTaskRuns = ({
   disablePagination = false,
   pauseRefetch = false,
 }: UseTaskRunProps) => {
-  const cf = useColumnFilters();
-  const { pagination, offset } = usePagination();
   const { tenantId } = useCurrentTenantId();
+  const offset = pagination.pageIndex * pagination.pageSize;
 
   const [initialRenderTime] = useState(
     new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
@@ -37,12 +44,12 @@ export const useTaskRuns = ({
     ...queries.v1WorkflowRuns.list(tenantId, {
       offset: disablePagination ? 0 : offset,
       limit: disablePagination ? 500 : pagination.pageSize,
-      statuses: cf.filters.status ? [cf.filters.status] : undefined,
+      statuses: status ? [status] : undefined,
       workflow_ids: workflow ? [workflow] : [],
       parent_task_external_id: parentTaskExternalId,
-      since: cf.filters.createdAfter || initialRenderTime,
-      until: cf.filters.finishedBefore,
-      additional_metadata: cf.filters.additionalMetadata,
+      since: createdAfter || initialRenderTime,
+      until: finishedBefore,
+      additional_metadata: additionalMetadata,
       worker_id: workerId,
       only_tasks: !!workerId,
       triggering_event_external_id: triggeringEventExternalId,
