@@ -45,7 +45,6 @@ import { useMetrics } from '../hooks/metrics';
 import { useToolbarFilters } from '../hooks/toolbar-filters';
 
 import { TableHeader } from './task-runs-table/table-header';
-import { ParentTaskBanner } from './task-runs-table/parent-task-banner';
 import { TableActions } from './task-runs-table/table-actions';
 
 export interface RunsTableProps {
@@ -333,11 +332,6 @@ export function RunsTable({
         defaultWorkflow={undefined}
         show={state.triggerWorkflow}
         onClose={() => updateUIState({ triggerWorkflow: false })}
-      />
-
-      <ParentTaskBanner
-        parentTaskExternalId={state.parentTaskExternalId || undefined}
-        onClear={filters.clearParentFilter}
       />
 
       {showMetrics && !derivedParentTaskExternalId && (
