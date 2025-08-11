@@ -413,6 +413,10 @@ func (a *AdminServiceImpl) ScheduleWorkflow(ctx context.Context, req *contracts.
 		return nil, status.Errorf(codes.InvalidArgument, "Invalid request: %s", err)
 	}
 
+	if req.Priority != nil && (*req.Priority < 1 || *req.Priority > 3) {
+		return nil, status.Errorf(codes.InvalidArgument, "priority must be between 1 and 3, got %d", *req.Priority)
+	}
+
 	scheduledRef, err := a.repo.Workflow().CreateSchedules(
 		ctx,
 		tenantId,
