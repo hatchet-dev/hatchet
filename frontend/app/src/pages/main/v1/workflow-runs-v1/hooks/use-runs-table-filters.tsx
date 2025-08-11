@@ -11,13 +11,18 @@ import {
 } from './use-runs-table-state';
 import { TaskRunColumn } from '../components/v1/task-runs-columns';
 
+export type AdditionalMetadataProp = {
+  key: string;
+  value: string;
+};
+
 type FilterActions = {
   setTimeWindow: (timeWindow: TimeWindow) => void;
   setCustomTimeRange: (range: { start: string; end: string } | null) => void;
   setStatus: (status: V1TaskStatus | undefined) => void;
   setWorkflowId: (workflowId: string | undefined) => void;
-  setAdditionalMetadata: (metadata: { key: string; value: string }) => void;
-  setAllAdditionalMetadata: (kvPairs: { key: string; value: string }[]) => void;
+  setAdditionalMetadata: (metadata: AdditionalMetadataProp) => void;
+  setAllAdditionalMetadata: (kvPairs: AdditionalMetadataProp[]) => void;
   setParentTaskExternalId: (id: string | undefined) => void;
   setColumnFilters: (filters: ColumnFiltersState) => void;
   clearAllFilters: () => void;

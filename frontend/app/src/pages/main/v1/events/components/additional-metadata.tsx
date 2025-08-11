@@ -110,8 +110,6 @@ export const AdditionalMetadata = memo(
   (prevProps, nextProps) => {
     return (
       prevProps.isOpen === nextProps.isOpen &&
-      prevProps.onClick === nextProps.onClick &&
-      prevProps.onOpenChange === nextProps.onOpenChange &&
       JSON.stringify(prevProps.metadata) === JSON.stringify(nextProps.metadata)
     );
   },

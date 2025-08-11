@@ -55,13 +55,8 @@ export const useRuns = ({
       triggering_event_external_id: triggeringEventExternalId,
     }),
     placeholderData: (prev) => prev,
-    refetchInterval: () => {
-      if (Object.keys(rowSelection).length > 0 || pauseRefetch) {
-        return false;
-      }
-
-      return 5000;
-    },
+    refetchInterval:
+      Object.keys(rowSelection).length > 0 || pauseRefetch ? false : 5000,
   });
 
   const tasks = listTasksQuery.data;

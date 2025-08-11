@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useState, useMemo } from 'react';
+import { useCallback, useEffect, useState, useMemo, useRef } from 'react';
 import { VisibilityState } from '@tanstack/react-table';
 import { DataTable } from '@/components/v1/molecules/data-table/data-table.tsx';
-import { columns } from './v1/task-runs-columns';
+import { columns, TaskRunColumn } from './v1/task-runs-columns';
 import { V1WorkflowRunsMetricsView } from './task-runs-metrics';
 import { Skeleton } from '@/components/v1/ui/skeleton';
 import {
@@ -36,11 +36,13 @@ import {
   getWorkflowIdFromFilters,
   getCreatedAfterFromTimeRange,
 } from '../hooks/use-runs-table-state';
-import { useRunsTableFilters } from '../hooks/use-runs-table-filters';
+import {
+  AdditionalMetadataProp,
+  useRunsTableFilters,
+} from '../hooks/use-runs-table-filters';
 import { useRuns } from '../hooks/use-runs';
 import { useMetrics } from '../hooks/metrics';
 import { useToolbarFilters } from '../hooks/toolbar-filters';
-import { TaskRunColumn } from './v1/task-runs-columns';
 
 import { TableHeader } from './task-runs-table/table-header';
 import { ParentTaskBanner } from './task-runs-table/parent-task-banner';
@@ -174,6 +176,8 @@ export function RunsTable({
   } = useRunsTableState(tableKey, initialState);
 
   const filters = useRunsTableFilters(state, updateFilters);
+  const filtersRef = useRef(filters);
+  filtersRef.current = filters;
   const [taskIdsPendingAction, setTaskIdsPendingAction] = useState<string[]>(
     [],
   );
@@ -184,6 +188,7 @@ export function RunsTable({
   const workflow = workflowId || getWorkflowIdFromFilters(state.columnFilters);
   const derivedParentTaskExternalId =
     parentTaskExternalId || state.parentTaskExternalId;
+  const [isFrozen, setIsFrozen] = useState(false);
 
   const {
     tableRows,
@@ -205,7 +210,7 @@ export function RunsTable({
     parentTaskExternalId: derivedParentTaskExternalId,
     triggeringEventExternalId,
     disablePagination: disableTaskRunPagination,
-    pauseRefetch: state.hasOpenUI,
+    pauseRefetch: state.hasOpenUI || isFrozen,
   });
 
   const {
@@ -219,7 +224,7 @@ export function RunsTable({
     parentTaskExternalId: derivedParentTaskExternalId,
     createdAfter: state.createdAfter,
     refetchInterval,
-    pauseRefetch: state.hasOpenUI,
+    pauseRefetch: state.hasOpenUI || isFrozen,
   });
 
   const handleTaskRunIdClick = useCallback(
@@ -239,6 +244,32 @@ export function RunsTable({
       updateUIState({ selectedAdditionalMetaRunId: runId || undefined });
     },
     [updateUIState],
+  );
+
+  const handleAdditionalMetadataClick = useCallback(
+    (m: AdditionalMetadataProp) => {
+      setIsFrozen(true);
+      filtersRef.current.setAdditionalMetadata(m);
+    },
+    [setIsFrozen],
+  );
+
+  const tableColumns = useMemo(
+    () =>
+      columns(
+        tenantId,
+        state.selectedAdditionalMetaRunId || null,
+        handleSetSelectedAdditionalMetaRunId,
+        handleAdditionalMetadataClick,
+        handleTaskRunIdClick,
+      ),
+    [
+      tenantId,
+      state.selectedAdditionalMetaRunId,
+      handleSetSelectedAdditionalMetaRunId,
+      handleAdditionalMetadataClick,
+      handleTaskRunIdClick,
+    ],
   );
 
   const handleRefresh = useCallback(() => {
@@ -412,13 +443,7 @@ export function RunsTable({
             />
           }
           isLoading={isFetching}
-          columns={columns(
-            tenantId,
-            state.selectedAdditionalMetaRunId || null,
-            handleSetSelectedAdditionalMetaRunId,
-            filters.setAdditionalMetadata,
-            handleTaskRunIdClick,
-          )}
+          columns={tableColumns}
           columnVisibility={state.columnVisibility}
           setColumnVisibility={(visibility) => {
             if (typeof visibility === 'function') {
