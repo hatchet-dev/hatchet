@@ -7,7 +7,6 @@ import { RunStatus, V1RunIndicator } from '../../components/run-statuses';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { TabOption } from './step-run-detail/step-run-detail';
 import { Link } from 'react-router-dom';
-import { useColumnFilters } from '../../hooks/column-filters';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 
 export type NodeData = {
@@ -29,8 +28,6 @@ export default memo(({ data }: { data: NodeData }) => {
   const finishedAtEpoch = data.taskRun?.finishedAt
     ? new Date(data.taskRun.finishedAt).getTime()
     : 0;
-
-  const { queryParamNames } = useColumnFilters();
 
   return (
     <div className="flex flex-col justify-start min-w-fit grow">
@@ -87,7 +84,8 @@ export default memo(({ data }: { data: NodeData }) => {
             pathname: `/tenants/${tenantId}/runs`,
             search: new URLSearchParams({
               ...Object.fromEntries(new URLSearchParams(location.search)),
-              [queryParamNames.parentTaskExternalId]: data.taskRun.metadata.id,
+              // TODO: This is wrong, figure out how to fix it
+              parentTaskExternalId: data.taskRun.metadata.id,
             }).toString(),
           }}
         >

@@ -16,11 +16,6 @@ import { useApiError } from '@/lib/hooks';
 import { ArrowPathIcon, XCircleIcon } from '@heroicons/react/24/outline';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useCallback, useState } from 'react';
-import {
-  TimeWindow,
-  useColumnFilters,
-} from '../workflow-runs-v1/hooks/column-filters';
-import { useToolbarFilters } from '../workflow-runs-v1/hooks/toolbar-filters';
 import { Combobox } from '@/components/v1/molecules/combobox/combobox';
 import { TaskRunColumn } from '../workflow-runs-v1/components/v1/task-runs-columns';
 import {
@@ -36,6 +31,8 @@ import {
   APIFilters,
   FilterActions,
 } from '../workflow-runs-v1/hooks/use-runs-table-filters';
+import { useToolbarFilters } from '../workflow-runs-v1/hooks/use-toolbar-filters';
+import { TimeWindow } from '../workflow-runs-v1/hooks/use-runs-table-state';
 
 export const TASK_RUN_TERMINAL_STATUSES = [
   V1TaskStatus.CANCELLED,
@@ -259,73 +256,39 @@ const ModalContent = ({ label, params, filters }: ModalContentProps) => {
               setValues={(values) => filters.setWorkflowId(values[0] as string)}
             />
           )}
-          <Select
-            value={
-              cf.filters.isCustomTimeRange ? 'custom' : cf.filters.timeWindow
+        </div>
+        <div className="flex flex-row w-full gap-x-2 items-start justify-start">
+          <DateTimePicker
+            key="since"
+            label="Since"
+            date={
+              params.filter.since ? new Date(params.filter.since) : undefined
             }
-            onValueChange={(value: TimeWindow | 'custom') => {
-              if (value !== 'custom') {
-                cf.setFilterValues([
-                  { key: 'isCustomTimeRange', value: false },
-                  { key: 'timeWindow', value: value },
-                ]);
-              } else {
-                filters.setFilterValues([{ key: 'isCustomTimeRange', value: true }]);
+            setDate={(date) => {
+              if (date && params.filter.until) {
+                filters.setCustomTimeRange({
+                  start: date.toISOString(),
+                  end: params.filter.until,
+                });
               }
             }}
-          >
-            <SelectTrigger className="flex flex-1 h-8">
-              <SelectValue id="timerange" placeholder="Choose time range" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="1h">1 hour</SelectItem>
-              <SelectItem value="6h">6 hours</SelectItem>
-              <SelectItem value="1d">1 day</SelectItem>
-              <SelectItem value="7d">7 days</SelectItem>
-              <SelectItem value="custom">Custom</SelectItem>
-            </SelectContent>
-          </Select>
+          />
+          {params.filter.until && (
+            <DateTimePicker
+              key="until"
+              label="Until"
+              date={new Date(params.filter.until)}
+              setDate={(date) => {
+                if (date) {
+                  filters.setCustomTimeRange({
+                    start: params.filter.since,
+                    end: date.toISOString(),
+                  });
+                }
+              }}
+            />
+          )}
         </div>
-        {cf.filters.isCustomTimeRange && (
-          <div className="flex flex-row w-full flex-1 gap-x-2 items-start justify-start gap-y-4">
-            <DateTimePicker
-              key="after"
-              label="After"
-              date={
-                cf.filters.createdAfter
-                  ? new Date(cf.filters.createdAfter)
-                  : undefined
-              }
-              setDate={(date) => {
-                cf.setCreatedAfter(date?.toISOString());
-              }}
-            />
-            <DateTimePicker
-              key="before"
-              label="Before"
-              date={
-                cf.filters.finishedBefore
-                  ? new Date(cf.filters.finishedBefore)
-                  : undefined
-              }
-              setDate={(date) => {
-                cf.setFinishedBefore(date?.toISOString());
-              }}
-            />
-            <Button
-              key="clear"
-              onClick={() => {
-                cf.setCustomTimeRange(undefined);
-              }}
-              variant="outline"
-              size="sm"
-              className="text-xs h-9 py-2 flex-1"
-            >
-              <XCircleIcon className="h-[18px] w-[18px] mr-2" />
-              Clear
-            </Button>{' '}
-          </div>
-        )}
       </div>
     );
   } else {

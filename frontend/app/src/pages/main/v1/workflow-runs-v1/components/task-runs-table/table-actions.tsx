@@ -3,6 +3,7 @@ import { Button } from '@/components/v1/ui/button';
 import { ArrowPathIcon } from '@heroicons/react/24/outline';
 import { TaskRunActionButton } from '../../../task-runs-v1/actions';
 import { V1TaskStatus } from '@/lib/api';
+import { FilterActions, APIFilters } from '../../hooks/use-runs-table-filters';
 
 interface TableActionsProps {
   hasRowsSelected: boolean;
@@ -22,6 +23,7 @@ interface TableActionsProps {
   showTriggerRunButton: boolean;
   rotate: boolean;
   toast: any;
+  filters: FilterActions & { apiFilters: APIFilters };
 }
 
 export const TableActions = ({
@@ -36,6 +38,7 @@ export const TableActions = ({
   showTriggerRunButton,
   rotate,
   toast,
+  filters,
 }: TableActionsProps) => {
   const actions = useMemo(() => {
     const baseActions = [
@@ -59,6 +62,7 @@ export const TableActions = ({
             description: "No need to hit 'Cancel' again.",
           });
         }}
+        filters={filters}
       />,
       <TaskRunActionButton
         key="replay"
@@ -80,6 +84,7 @@ export const TableActions = ({
             description: "No need to hit 'Replay' again.",
           });
         }}
+        filters={filters}
       />,
       <Button
         key="refresh"

@@ -42,10 +42,10 @@ import {
 } from '../hooks/use-runs-table-filters';
 import { useRuns } from '../hooks/use-runs';
 import { useMetrics } from '../hooks/use-metrics';
-import { useToolbarFilters } from '../hooks/toolbar-filters';
 
 import { TableHeader } from './task-runs-table/table-header';
 import { TableActions } from './task-runs-table/table-actions';
+import { useToolbarFilters } from '../hooks/use-toolbar-filters';
 
 export interface RunsTableProps {
   // Important: the key is used to identify a single instance of
@@ -464,6 +464,7 @@ export function RunsTable({
               showTriggerRunButton={showTriggerRunButton}
               rotate={rotate}
               toast={toast}
+              filters={filters}
             />,
           ]}
           columnFilters={state.columnFilters}
