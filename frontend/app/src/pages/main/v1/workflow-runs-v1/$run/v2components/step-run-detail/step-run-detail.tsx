@@ -23,7 +23,7 @@ import { TaskRunActionButton } from '@/pages/main/v1/task-runs-v1/actions';
 import { TaskRunMiniMap } from '../mini-map';
 import { WorkflowDefinitionLink } from '@/pages/main/workflow-runs/$run/v2components/workflow-definition';
 import { StepRunLogs } from './step-run-logs';
-import { isTerminalState } from '../../../hooks/workflow-details';
+import { isTerminalState } from '../../../hooks/use-workflow-details';
 import { CopyWorkflowConfigButton } from '@/components/v1/shared/copy-workflow-config';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { Waterfall } from '../waterfall';

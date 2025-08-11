@@ -41,7 +41,7 @@ import {
   useRunsTableFilters,
 } from '../hooks/use-runs-table-filters';
 import { useRuns } from '../hooks/use-runs';
-import { useMetrics } from '../hooks/metrics';
+import { useMetrics } from '../hooks/use-metrics';
 import { useToolbarFilters } from '../hooks/toolbar-filters';
 
 import { TableHeader } from './task-runs-table/table-header';

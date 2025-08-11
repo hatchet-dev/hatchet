@@ -32,6 +32,10 @@ import {
 } from '@/components/v1/ui/select';
 import { DateTimePicker } from '@/components/v1/molecules/time-picker/date-time-picker';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
+import {
+  APIFilters,
+  FilterActions,
+} from '../workflow-runs-v1/hooks/use-runs-table-filters';
 
 export const TASK_RUN_TERMINAL_STATUSES = [
   V1TaskStatus.CANCELLED,
@@ -130,6 +134,7 @@ type ConfirmActionModalProps = {
   setIsOpen: (isOpen: boolean) => void;
   onConfirm: () => void;
   params: TaskRunActionsParams;
+  filters: FilterActions & { apiFilters: APIFilters };
 };
 
 const actionTypeToLabel = (actionType: ActionType) => {
@@ -148,6 +153,7 @@ const actionTypeToLabel = (actionType: ActionType) => {
 type ModalContentProps = {
   label: string;
   params: TaskRunActionsParams;
+  filters: FilterActions & { apiFilters: APIFilters };
 };
 
 const CancelByExternalIdsContent = ({ label, params }: ModalContentProps) => {
@@ -186,14 +192,19 @@ const CancelByExternalIdsContent = ({ label, params }: ModalContentProps) => {
   );
 };
 
-const ModalContent = ({ label, params }: ModalContentProps) => {
+const ModalContent = ({ label, params, filters }: ModalContentProps) => {
   const tf = useToolbarFilters({
     filterVisibility: {},
   });
-  const cf = useColumnFilters();
 
   if (params.externalIds?.length) {
-    return <CancelByExternalIdsContent label={label} params={params} />;
+    return (
+      <CancelByExternalIdsContent
+        label={label}
+        params={params}
+        filters={filters}
+      />
+    );
   } else if (params.filter) {
     const statusToolbarFilter = tf.find(
       (f) => f.columnId === TaskRunColumn.status,
@@ -218,7 +229,9 @@ const ModalContent = ({ label, params }: ModalContentProps) => {
               title={statusToolbarFilter.title}
               type={statusToolbarFilter.type}
               options={statusToolbarFilter.options}
-              setValues={(values) => cf.setStatus(values[0] as V1TaskStatus)}
+              setValues={(values) =>
+                filters.setStatus(values[0] as V1TaskStatus)
+              }
             />
           )}
           {additionalMetaToolbarFilter && (
@@ -233,7 +246,7 @@ const ModalContent = ({ label, params }: ModalContentProps) => {
                   return { key, value };
                 });
 
-                cf.setAllAdditionalMetadata({ kvPairs });
+                filters.setAllAdditionalMetadata(kvPairs);
               }}
             />
           )}
@@ -243,7 +256,7 @@ const ModalContent = ({ label, params }: ModalContentProps) => {
               title={workflowToolbarFilter.title}
               type={workflowToolbarFilter.type}
               options={workflowToolbarFilter.options}
-              setValues={(values) => cf.setWorkflowId(values[0] as string)}
+              setValues={(values) => filters.setWorkflowId(values[0] as string)}
             />
           )}
           <Select
@@ -257,7 +270,7 @@ const ModalContent = ({ label, params }: ModalContentProps) => {
                   { key: 'timeWindow', value: value },
                 ]);
               } else {
-                cf.setFilterValues([{ key: 'isCustomTimeRange', value: true }]);
+                filters.setFilterValues([{ key: 'isCustomTimeRange', value: true }]);
               }
             }}
           >
@@ -326,6 +339,7 @@ const ConfirmActionModal = ({
   setIsOpen,
   onConfirm,
   params,
+  filters,
 }: ConfirmActionModalProps) => {
   const label = actionTypeToLabel(actionType);
 
@@ -340,7 +354,7 @@ const ConfirmActionModal = ({
 
         <div className="flex flex-col mt-4">
           <DialogDescription>
-            <ModalContent label={label} params={params} />
+            <ModalContent label={label} params={params} filters={filters} />
           </DialogDescription>
 
           <div className="flex flex-row items-center flex-1 gap-x-2 justify-end">
@@ -377,6 +391,7 @@ const BaseActionButton = ({
   showModal,
   onActionProcessed,
   onActionSubmit,
+  filters,
 }: {
   disabled: boolean;
   params: TaskRunActionsParams;
@@ -385,6 +400,7 @@ const BaseActionButton = ({
   showModal: boolean;
   onActionProcessed: (ids: string[]) => void;
   onActionSubmit: () => void;
+  filters: FilterActions & { apiFilters: APIFilters };
 }) => {
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
   const { handleTaskRunAction } = useTaskRunActions({
@@ -417,6 +433,7 @@ const BaseActionButton = ({
         setIsOpen={setIsConfirmModalOpen}
         onConfirm={handleAction}
         params={params}
+        filters={filters}
       />
       <Button
         size={'sm'}
@@ -446,6 +463,7 @@ export const TaskRunActionButton = ({
   showModal,
   onActionProcessed,
   onActionSubmit,
+  filters,
 }: {
   actionType: ActionType;
   disabled: boolean;
@@ -453,6 +471,7 @@ export const TaskRunActionButton = ({
   showModal: boolean;
   onActionProcessed: (ids: string[]) => void;
   onActionSubmit: () => void;
+  filters: FilterActions & { apiFilters: APIFilters };
 }) => {
   switch (actionType) {
     case 'cancel':
@@ -465,6 +484,7 @@ export const TaskRunActionButton = ({
           showModal={showModal}
           onActionProcessed={onActionProcessed}
           onActionSubmit={onActionSubmit}
+          filters={filters}
         />
       );
     case 'replay':
@@ -477,6 +497,7 @@ export const TaskRunActionButton = ({
           showModal={showModal}
           onActionProcessed={onActionProcessed}
           onActionSubmit={onActionSubmit}
+          filters={filters}
         />
       );
     default:

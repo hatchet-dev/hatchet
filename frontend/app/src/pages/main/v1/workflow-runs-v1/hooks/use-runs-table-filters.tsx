@@ -16,7 +16,7 @@ export type AdditionalMetadataProp = {
   value: string;
 };
 
-type FilterActions = {
+export type FilterActions = {
   setTimeWindow: (timeWindow: TimeWindow) => void;
   setCustomTimeRange: (range: { start: string; end: string } | null) => void;
   setStatus: (status: V1TaskStatus | undefined) => void;
@@ -29,7 +29,7 @@ type FilterActions = {
   clearParentFilter: () => void;
 };
 
-type APIFilters = {
+export type APIFilters = {
   since?: string;
   until?: string;
   statuses?: V1TaskStatus[];
