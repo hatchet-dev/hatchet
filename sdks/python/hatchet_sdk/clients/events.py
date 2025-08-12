@@ -28,7 +28,7 @@ from hatchet_sdk.contracts.events_pb2 import (
 )
 from hatchet_sdk.contracts.events_pb2_grpc import EventsServiceStub
 from hatchet_sdk.metadata import get_metadata
-from hatchet_sdk.utils.typing import JSONSerializableMapping
+from hatchet_sdk.utils.typing import JSONSerializableMapping, LogLevel
 
 
 def proto_timestamp_now() -> timestamp_pb2.Timestamp:
@@ -180,11 +180,14 @@ class EventClient(BaseRestClient):
         )
 
     @tenacity_retry
-    def log(self, message: str, step_run_id: str) -> None:
+    def log(
+        self, message: str, step_run_id: str, level: LogLevel | None = None
+    ) -> None:
         request = PutLogRequest(
             stepRunId=step_run_id,
             createdAt=proto_timestamp_now(),
             message=message,
+            level=level.value if level else None,
         )
 
         self.events_service_client.PutLog(request, metadata=get_metadata(self.token))

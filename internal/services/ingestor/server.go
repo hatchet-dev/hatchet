@@ -40,6 +40,10 @@ func (i *IngestorImpl) Push(ctx context.Context, req *contracts.PushEventRequest
 		return nil, status.Errorf(codes.InvalidArgument, "Invalid request: %s", err)
 	}
 
+	if req.Priority != nil && (*req.Priority < 1 || *req.Priority > 3) {
+		return nil, status.Errorf(codes.InvalidArgument, "priority must be between 1 and 3, got %d", *req.Priority)
+	}
+
 	event, err := i.IngestEvent(ctx, tenant, req.Key, []byte(req.Payload), additionalMeta, req.Priority, req.Scope, nil)
 
 	if err == metered.ErrResourceExhausted {
@@ -106,6 +110,10 @@ func (i *IngestorImpl) BulkPush(ctx context.Context, req *contracts.BulkPushEven
 
 		if err := repository.ValidateJSONB(payloadBytes, "payload"); err != nil {
 			return nil, status.Errorf(codes.InvalidArgument, "Invalid request: %s", err)
+		}
+
+		if e.Priority != nil && (*e.Priority < 1 || *e.Priority > 3) {
+			return nil, status.Errorf(codes.InvalidArgument, "priority must be between 1 and 3, got %d", *e.Priority)
 		}
 
 		events = append(events, &repository.CreateEventOpts{
