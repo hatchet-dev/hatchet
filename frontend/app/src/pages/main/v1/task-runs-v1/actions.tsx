@@ -20,11 +20,7 @@ import { Combobox } from '@/components/v1/molecules/combobox/combobox';
 import { TaskRunColumn } from '../workflow-runs-v1/components/v1/task-runs-columns';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { useRunsContext } from '../workflow-runs-v1/hooks/runs-provider';
-import {
-  TimeFilter,
-  TimeFilterGroup,
-} from '@/next/components/ui/filters/time-filter';
-import { TimeFilterProvider } from '@/next/hooks/utils/use-time-filters';
+import { TimeFilter } from '../workflow-runs-v1/components/task-runs-table/time-filter';
 
 export const TASK_RUN_TERMINAL_STATUSES = [
   V1TaskStatus.CANCELLED,
@@ -241,16 +237,7 @@ const ModalContent = ({ label, params }: ModalContentProps) => {
         </div>
         <div className="border rounded-lg p-4 bg-muted/50">
           <h4 className="text-sm font-medium mb-3">Time Range</h4>
-          <TimeFilterProvider
-            initialTimeRange={{
-              startTime: params.filter.since,
-              endTime: params.filter.until,
-            }}
-          >
-            <TimeFilterGroup className="justify-start">
-              <TimeFilter />
-            </TimeFilterGroup>
-          </TimeFilterProvider>
+          <TimeFilter />
         </div>
       </div>
     );

@@ -30,7 +30,6 @@ import { useQuery } from '@tanstack/react-query';
 import { queries } from '@/lib/api';
 
 import {
-  TimeWindow,
   getCreatedAfterFromTimeRange,
 } from '../hooks/use-runs-table-state';
 import { AdditionalMetadataProp } from '../hooks/use-runs-table-filters';
@@ -112,7 +111,6 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
     display: {
       showMetrics,
       showCounts,
-      showDateFilter,
       showColumnToggle,
       refetchInterval,
     },
@@ -206,16 +204,6 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
     [toast],
   );
 
-  const handleTimeWindowChange = useCallback(
-    (value: TimeWindow | 'custom') => {
-      if (value !== 'custom') {
-        filters.setTimeWindow(value);
-      } else {
-        updateFilters({ isCustomTimeRange: true });
-      }
-    },
-    [filters, updateFilters],
-  );
 
   useEffect(() => {
     if (state.isCustomTimeRange) {
@@ -270,20 +258,7 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
         </Dialog>
       )}
 
-      <TimeFilter
-        timeWindow={state.timeWindow}
-        isCustomTimeRange={state.isCustomTimeRange}
-        createdAfter={state.createdAfter}
-        finishedBefore={state.finishedBefore}
-        onTimeWindowChange={handleTimeWindowChange}
-        onCreatedAfterChange={(date) => updateFilters({ createdAfter: date })}
-        onFinishedBeforeChange={(date) =>
-          updateFilters({ finishedBefore: date })
-        }
-        onClearTimeRange={() => filters.setCustomTimeRange(null)}
-        showDateFilter={showDateFilter}
-        hasParentFilter={!!derivedParentTaskExternalId}
-      />
+      <TimeFilter />
 
       {showMetrics && !derivedParentTaskExternalId && (
         <GetWorkflowChart

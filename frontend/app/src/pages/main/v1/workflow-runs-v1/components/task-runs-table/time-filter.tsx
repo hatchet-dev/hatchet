@@ -9,42 +9,54 @@ import {
 } from '@/components/v1/ui/select';
 import { DateTimePicker } from '@/components/v1/molecules/time-picker/date-time-picker';
 import { TimeWindow } from '../../hooks/use-runs-table-state';
+import { useRunsContext } from '../../hooks/runs-provider';
+import { useCallback } from 'react';
 
-interface TimeFilterProps {
-  timeWindow: TimeWindow;
-  isCustomTimeRange: boolean;
-  createdAfter?: string;
-  finishedBefore?: string;
-  onTimeWindowChange: (timeWindow: TimeWindow | 'custom') => void;
-  onCreatedAfterChange: (date?: string) => void;
-  onFinishedBeforeChange: (date?: string) => void;
-  onClearTimeRange: () => void;
-  showDateFilter: boolean;
-  hasParentFilter: boolean;
-}
+export const TimeFilter = () => {
+  const {
+    state,
+    filters,
+    actions: { updateFilters },
+    display: { showDateFilter },
+  } = useRunsContext();
 
-export const TimeFilter = ({
-  timeWindow,
-  isCustomTimeRange,
-  createdAfter,
-  finishedBefore,
-  onTimeWindowChange,
-  onCreatedAfterChange,
-  onFinishedBeforeChange,
-  onClearTimeRange,
-  showDateFilter,
-  hasParentFilter,
-}: TimeFilterProps) => {
+  const hasParentFilter = !!state.parentTaskExternalId;
+
+  const handleTimeWindowChange = useCallback(
+    (value: TimeWindow | 'custom') => {
+      if (value !== 'custom') {
+        filters.setTimeWindow(value);
+      } else {
+        updateFilters({ isCustomTimeRange: true });
+      }
+    },
+    [filters, updateFilters],
+  );
+
+  const handleCreatedAfterChange = useCallback(
+    (date?: string) => updateFilters({ createdAfter: date }),
+    [updateFilters],
+  );
+
+  const handleFinishedBeforeChange = useCallback(
+    (date?: string) => updateFilters({ finishedBefore: date }),
+    [updateFilters],
+  );
+
+  const handleClearTimeRange = useCallback(
+    () => filters.setCustomTimeRange(null),
+    [filters],
+  );
   if (!showDateFilter || hasParentFilter) {
     return null;
   }
 
   return (
     <div className="flex flex-row justify-end items-center mb-4 gap-2">
-      {isCustomTimeRange && [
+      {state.isCustomTimeRange && [
         <Button
           key="clear"
-          onClick={onClearTimeRange}
+          onClick={handleClearTimeRange}
           variant="outline"
           size="sm"
           className="text-xs h-9 py-2"
@@ -55,19 +67,19 @@ export const TimeFilter = ({
         <DateTimePicker
           key="after"
           label="After"
-          date={createdAfter ? new Date(createdAfter) : undefined}
-          setDate={(date) => onCreatedAfterChange(date?.toISOString())}
+          date={state.createdAfter ? new Date(state.createdAfter) : undefined}
+          setDate={(date) => handleCreatedAfterChange(date?.toISOString())}
         />,
         <DateTimePicker
           key="before"
           label="Before"
-          date={finishedBefore ? new Date(finishedBefore) : undefined}
-          setDate={(date) => onFinishedBeforeChange(date?.toISOString())}
+          date={state.finishedBefore ? new Date(state.finishedBefore) : undefined}
+          setDate={(date) => handleFinishedBeforeChange(date?.toISOString())}
         />,
       ]}
       <Select
-        value={isCustomTimeRange ? 'custom' : timeWindow}
-        onValueChange={onTimeWindowChange}
+        value={state.isCustomTimeRange ? 'custom' : state.timeWindow}
+        onValueChange={handleTimeWindowChange}
       >
         <SelectTrigger className="w-fit">
           <SelectValue id="timerange" placeholder="Choose time range" />
