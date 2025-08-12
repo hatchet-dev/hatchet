@@ -43,6 +43,12 @@ func (t *TenantService) TenantGetPrometheusMetrics(ctx echo.Context, request gen
 		}
 
 		response = string(body)
+
+		if len(body) == 0 {
+			response = "There are no available metrics for this tenant."
+		}
+	} else {
+		response = "Prometheus metrics are not enabled for this tenant."
 	}
 
 	// Return the metrics as text response
