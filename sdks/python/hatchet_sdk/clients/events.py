@@ -28,8 +28,7 @@ from hatchet_sdk.contracts.events_pb2 import (
 )
 from hatchet_sdk.contracts.events_pb2_grpc import EventsServiceStub
 from hatchet_sdk.metadata import get_metadata
-from hatchet_sdk.utils.typing import JSONSerializableMapping
-from hatchet_sdk.worker.runner.utils.capture_logs import LogLevel
+from hatchet_sdk.utils.typing import JSONSerializableMapping, LogLevel
 
 
 def proto_timestamp_now() -> timestamp_pb2.Timestamp:

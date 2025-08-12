@@ -2,7 +2,6 @@ import asyncio
 import functools
 import logging
 from collections.abc import Awaitable, Callable
-from enum import Enum
 from io import StringIO
 from typing import Literal, ParamSpec, TypeVar
 
@@ -17,7 +16,12 @@ from hatchet_sdk.runnables.contextvars import (
     ctx_worker_id,
     ctx_workflow_run_id,
 )
-from hatchet_sdk.utils.typing import STOP_LOOP, STOP_LOOP_TYPE, JSONSerializableMapping
+from hatchet_sdk.utils.typing import (
+    STOP_LOOP,
+    STOP_LOOP_TYPE,
+    JSONSerializableMapping,
+    LogLevel,
+)
 
 T = TypeVar("T")
 P = ParamSpec("P")
@@ -63,32 +67,6 @@ def copy_context_vars(
             raise ValueError(f"Unknown context variable name: {var.var.name}")
 
     return func(*args, **kwargs)
-
-
-class LogLevel(str, Enum):
-    DEBUG = "DEBUG"
-    INFO = "INFO"
-    WARN = "WARN"
-    ERROR = "ERROR"
-
-    @classmethod
-    def from_levelname(cls, levelname: str) -> "LogLevel":
-        levelname = levelname.upper()
-
-        if levelname == "DEBUG":
-            return cls.DEBUG
-
-        if levelname == "INFO":
-            return cls.INFO
-
-        if levelname in ["WARNING", "WARN"]:
-            return cls.WARN
-
-        if levelname == "ERROR":
-            return cls.ERROR
-
-        # fall back to INFO
-        return cls.INFO
 
 
 class LogRecord(BaseModel):
