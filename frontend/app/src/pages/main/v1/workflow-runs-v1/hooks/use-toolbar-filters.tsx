@@ -52,13 +52,13 @@ export const useToolbarFilters = ({
       columnId: TaskRunColumn.workflow,
       title: 'Workflow',
       options: workflowKeyFilters,
-      type: ToolbarType.Radio,
+      type: ToolbarType.Checkbox,
     },
     {
       columnId: TaskRunColumn.status,
       title: 'Status',
       options: workflowRunStatusFilters,
-      type: ToolbarType.Radio,
+      type: ToolbarType.Checkbox,
     },
     {
       columnId: TaskRunColumn.additionalMetadata,
