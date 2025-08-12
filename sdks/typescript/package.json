@@ -81,7 +81,7 @@
     "@bufbuild/protobuf": "^2.2.5",
     "@types/qs": "^6.9.18",
     "abort-controller-x": "^0.4.3",
-    "axios": "^1.8.4",
+    "axios": "^1.11.0",
     "long": "^5.3.1",
     "nice-grpc": "^2.1.12",
     "nice-grpc-common": "^2.0.2",
