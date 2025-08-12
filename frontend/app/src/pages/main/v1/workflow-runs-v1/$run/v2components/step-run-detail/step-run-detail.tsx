@@ -213,7 +213,7 @@ export const TaskRunDetail = ({
           )}
         </TabsList>
         <TabsContent value="overview" className="flex-1 min-h-0">
-          <div className="w-full h-36 flex relative bg-slate-100 dark:bg-slate-900">
+          <div className="w-full flex relative bg-slate-100 dark:bg-slate-900">
             <TaskRunMiniMap onClick={() => {}} taskRunId={taskRunId} />
           </div>
           <div className="h-4" />
