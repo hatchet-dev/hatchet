@@ -220,6 +220,10 @@ export const useRunsTableState = (
         ...DEFAULT_STATE,
         ...parsedState,
         ...initialStateRef.current,
+        columnVisibility: {
+          ...parsedState.columnVisibility,
+          ...initialStateRef.current?.columnVisibility,
+        },
       };
 
       if (!merged.isCustomTimeRange) {
@@ -246,7 +250,14 @@ export const useRunsTableState = (
 
           let currentStateFromURL: RunsTableState;
           if (!stateParam) {
-            const merged = { ...DEFAULT_STATE, ...initialStateRef.current };
+            const merged = { 
+              ...DEFAULT_STATE, 
+              ...initialStateRef.current,
+              columnVisibility: {
+                ...DEFAULT_STATE.columnVisibility,
+                ...initialStateRef.current?.columnVisibility,
+              },
+            };
             if (!merged.isCustomTimeRange) {
               merged.createdAfter = getCreatedAfterFromTimeRange(
                 merged.timeWindow,
@@ -263,6 +274,10 @@ export const useRunsTableState = (
                 ...DEFAULT_STATE,
                 ...parsedState,
                 ...initialStateRef.current,
+                columnVisibility: {
+                  ...parsedState.columnVisibility,
+                  ...initialStateRef.current?.columnVisibility,
+                },
               };
               if (!merged.isCustomTimeRange) {
                 merged.createdAfter = getCreatedAfterFromTimeRange(
@@ -271,7 +286,15 @@ export const useRunsTableState = (
               }
               currentStateFromURL = merged;
             } catch (error) {
-              const merged = { ...DEFAULT_STATE, ...initialStateRef.current };
+              const merged = { 
+                ...DEFAULT_STATE, 
+                ...initialStateRef.current,
+                // Ensure columnVisibility is merged properly
+                columnVisibility: {
+                  ...DEFAULT_STATE.columnVisibility,
+                  ...initialStateRef.current?.columnVisibility,
+                },
+              };
               if (!merged.isCustomTimeRange) {
                 merged.createdAfter = getCreatedAfterFromTimeRange(
                   merged.timeWindow,
@@ -400,6 +423,7 @@ export const useRunsTableState = (
       currentState.columnFilters,
     );
     const workflowIds = getWorkflowIdsFromFilters(currentState.columnFilters);
+
 
     return {
       ...currentState,
