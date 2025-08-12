@@ -917,7 +917,7 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId stri
 				CreatedAt:          task.InsertedAt,
 				StartedAt:          task.StartedAt,
 				FinishedAt:         task.FinishedAt,
-				ErrorMessage:       task.ErrorMessage.String,
+				ErrorMessage:       task.ErrorMessage,
 				Kind:               sqlcv1.V1RunKindTASK,
 				TaskExternalId:     &task.ExternalID,
 				TaskId:             &task.ID,
