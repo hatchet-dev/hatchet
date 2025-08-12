@@ -9,10 +9,10 @@ type UseRunsProps = {
   pagination: PaginationState;
   createdAfter?: string;
   finishedBefore?: string;
-  status?: V1TaskStatus;
+  statuses?: V1TaskStatus[];
   additionalMetadata?: string[];
   workerId: string | undefined;
-  workflow: string | undefined;
+  workflowIds?: string[];
   parentTaskExternalId: string | undefined;
   triggeringEventExternalId?: string | undefined;
   disablePagination?: boolean;
@@ -24,10 +24,10 @@ export const useRuns = ({
   pagination,
   createdAfter,
   finishedBefore,
-  status,
+  statuses,
   additionalMetadata,
   workerId,
-  workflow,
+  workflowIds,
   parentTaskExternalId,
   triggeringEventExternalId,
   disablePagination = false,
@@ -44,8 +44,8 @@ export const useRuns = ({
     ...queries.v1WorkflowRuns.list(tenantId, {
       offset: disablePagination ? 0 : offset,
       limit: disablePagination ? 500 : pagination.pageSize,
-      statuses: status ? [status] : undefined,
-      workflow_ids: workflow ? [workflow] : [],
+      statuses: statuses && statuses.length > 0 ? statuses : undefined,
+      workflow_ids: workflowIds && workflowIds.length > 0 ? workflowIds : [],
       parent_task_external_id: parentTaskExternalId,
       since: createdAfter || initialRenderTime,
       until: finishedBefore,

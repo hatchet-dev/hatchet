@@ -256,9 +256,6 @@ export function Combobox({
                         if (isSelected) {
                           values.splice(values.indexOf(option.value), 1);
                         } else {
-                          if (type == 'radio') {
-                            values = [];
-                          }
                           values.push(option.value);
                         }
                         setValues(values);

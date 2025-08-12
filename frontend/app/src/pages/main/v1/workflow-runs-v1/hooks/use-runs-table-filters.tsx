@@ -6,7 +6,9 @@ import {
   TimeWindow,
   getCreatedAfterFromTimeRange,
   getWorkflowIdFromFilters,
+  getWorkflowIdsFromFilters,
   getStatusFromFilters,
+  getStatusesFromFilters,
   getAdditionalMetadataFromFilters,
 } from './use-runs-table-state';
 import { TaskRunColumn } from '../components/v1/task-runs-columns';
@@ -42,8 +44,8 @@ export const useRunsTableFilters = (
   updateFilters: (filters: Partial<RunsTableState>) => void,
 ): FilterActions & { apiFilters: APIFilters } => {
   const apiFilters = useMemo((): APIFilters => {
-    const status = getStatusFromFilters(state.columnFilters);
-    const workflowId = getWorkflowIdFromFilters(state.columnFilters);
+    const statuses = getStatusesFromFilters(state.columnFilters);
+    const workflowIds = getWorkflowIdsFromFilters(state.columnFilters);
     const additionalMetadata = getAdditionalMetadataFromFilters(
       state.columnFilters,
     );
@@ -51,8 +53,8 @@ export const useRunsTableFilters = (
     return {
       since: state.createdAfter,
       until: state.finishedBefore,
-      statuses: status ? [status] : undefined,
-      workflowIds: workflowId ? [workflowId] : undefined,
+      statuses: statuses.length > 0 ? statuses : undefined,
+      workflowIds: workflowIds.length > 0 ? workflowIds : undefined,
       additionalMetadata,
     };
   }, [state.createdAfter, state.finishedBefore, state.columnFilters]);

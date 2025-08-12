@@ -170,6 +170,17 @@ export const getWorkflowIdFromFilters = (
   return Array.isArray(value) ? (value[0] as string) : (value as string);
 };
 
+export const getWorkflowIdsFromFilters = (
+  columnFilters: ColumnFiltersState,
+): string[] => {
+  const filter = columnFilters.find((f) => f.id === 'Workflow');
+  if (!filter) {
+    return [];
+  }
+  const value = filter.value;
+  return Array.isArray(value) ? (value as string[]) : [value as string];
+};
+
 export const getStatusFromFilters = (
   columnFilters: ColumnFiltersState,
 ): V1TaskStatus | undefined => {
@@ -181,6 +192,17 @@ export const getStatusFromFilters = (
   return Array.isArray(value)
     ? (value[0] as V1TaskStatus)
     : (value as V1TaskStatus);
+};
+
+export const getStatusesFromFilters = (
+  columnFilters: ColumnFiltersState,
+): V1TaskStatus[] => {
+  const filter = columnFilters.find((f) => f.id === 'status');
+  if (!filter) {
+    return [];
+  }
+  const value = filter.value;
+  return Array.isArray(value) ? (value as V1TaskStatus[]) : [value as V1TaskStatus];
 };
 
 export const getAdditionalMetadataFromFilters = (
