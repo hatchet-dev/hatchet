@@ -12,7 +12,7 @@ import { TimeWindow } from '../../hooks/use-runs-table-state';
 import { useRunsContext } from '../../hooks/runs-provider';
 import { useCallback } from 'react';
 
-export const TimeFilter = () => {
+export const TimeFilter = ({ className }: { className?: string } = {}) => {
   const {
     state,
     filters,
@@ -52,7 +52,11 @@ export const TimeFilter = () => {
   }
 
   return (
-    <div className="flex flex-row justify-end items-center mb-4 gap-2">
+    <div
+      className={
+        className || 'flex flex-row justify-end items-center mb-4 gap-2'
+      }
+    >
       {state.isCustomTimeRange && [
         <Button
           key="clear"

@@ -191,54 +191,86 @@ const ModalContent = ({ label, params }: ModalContentProps) => {
       (f) => f.columnId === TaskRunColumn.workflow,
     );
 
+    const hasFilters =
+      statusToolbarFilter ||
+      additionalMetaToolbarFilter ||
+      workflowToolbarFilter;
+
     return (
-      <div className="gap-y-6 flex flex-col">
+      <div className="space-y-6">
         <p className="text-sm text-muted-foreground">
           Confirm to {label.toLowerCase()} all runs matching the following
           filters:
         </p>
-        <div className="grid grid-cols-2 gap-4 items-start">
-          {statusToolbarFilter && (
-            <Combobox
-              values={params.filter.statuses}
-              title={statusToolbarFilter.title}
-              type={statusToolbarFilter.type}
-              options={statusToolbarFilter.options}
-              setValues={(values) =>
-                filters.setStatuses(values as V1TaskStatus[])
-              }
-            />
-          )}
-          {additionalMetaToolbarFilter && (
-            <Combobox
-              values={params.filter.additionalMetadata}
-              title={additionalMetaToolbarFilter.title}
-              type={additionalMetaToolbarFilter.type}
-              options={additionalMetaToolbarFilter.options}
-              setValues={(values) => {
-                const kvPairs = values.map((v) => {
-                  const [key, value] = v.split(':');
-                  return { key, value };
-                });
 
-                filters.setAllAdditionalMetadata(kvPairs);
-              }}
-            />
-          )}
-          {workflowToolbarFilter && (
-            <Combobox
-              values={params.filter.workflowIds}
-              title={workflowToolbarFilter.title}
-              type={workflowToolbarFilter.type}
-              options={workflowToolbarFilter.options}
-              setValues={(values) => filters.setWorkflowIds(values as string[])}
-            />
-          )}
-        </div>
-        <div className="border rounded-lg p-4 bg-muted/50">
-          <h4 className="text-sm font-medium mb-3">Time Range</h4>
-          <TimeFilter />
-        </div>
+        {hasFilters && (
+          <div className="space-y-4">
+            <h4 className="text-sm font-medium text-foreground">
+              Applied Filters
+            </h4>
+            <div className="space-y-3">
+              {statusToolbarFilter && (
+                <div className="flex flex-row items-center gap-x-2">
+                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                    {statusToolbarFilter.title}
+                  </label>
+                  <Combobox
+                    values={params.filter.statuses}
+                    title={statusToolbarFilter.title}
+                    type={statusToolbarFilter.type}
+                    options={statusToolbarFilter.options}
+                    setValues={(values) =>
+                      filters.setStatuses(values as V1TaskStatus[])
+                    }
+                  />
+                </div>
+              )}
+              {additionalMetaToolbarFilter && (
+                <div className="gap-x-2 flex flex-row items-center">
+                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                    {additionalMetaToolbarFilter.title}
+                  </label>
+                  <Combobox
+                    values={params.filter.additionalMetadata}
+                    title={additionalMetaToolbarFilter.title}
+                    type={additionalMetaToolbarFilter.type}
+                    options={additionalMetaToolbarFilter.options}
+                    setValues={(values) => {
+                      const kvPairs = values.map((v) => {
+                        const [key, value] = v.split(':');
+                        return { key, value };
+                      });
+
+                      filters.setAllAdditionalMetadata(kvPairs);
+                    }}
+                  />
+                </div>
+              )}
+              {workflowToolbarFilter && (
+                <div className="flex flex-row items-center gap-x-2">
+                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                    {workflowToolbarFilter.title}
+                  </label>
+                  <Combobox
+                    values={params.filter.workflowIds}
+                    title={workflowToolbarFilter.title}
+                    type={workflowToolbarFilter.type}
+                    options={workflowToolbarFilter.options}
+                    setValues={(values) =>
+                      filters.setWorkflowIds(values as string[])
+                    }
+                  />
+                </div>
+              )}
+              <div className="flex flex-row items-center gap-x-2">
+                <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                  Time Range
+                </label>
+                <TimeFilter className="flex flex-row items-start gap-3 mb-0" />
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   } else {
