@@ -495,11 +495,11 @@ WHERE
 -- name: PopulateTaskRunData :one
 WITH metadata AS (
     SELECT
-        MIN(event_timestamp) FILTER (WHERE readable_status = 'QUEUED')::TIMESTAMPTZ AS queued_at,
-        MIN(event_timestamp) FILTER (WHERE readable_status = 'STARTED')::TIMESTAMPTZ AS started_at,
+        MAX(event_timestamp) FILTER (WHERE event_type = 'QUEUED')::TIMESTAMPTZ AS queued_at,
+        MAX(event_timestamp) FILTER (WHERE event_type = 'STARTED')::TIMESTAMPTZ AS started_at,
         MAX(event_timestamp) FILTER (WHERE readable_status = ANY(ARRAY['COMPLETED', 'FAILED', 'CANCELLED']::v1_readable_status_olap[]))::TIMESTAMPTZ AS finished_at,
         MAX(output::TEXT) FILTER (WHERE readable_status = 'COMPLETED')::JSONB AS output,
-        MAX(error_message::TEXT) FILTER (WHERE readable_status = 'FAILED')::TEXT AS error_message
+        MAX(error_message) FILTER (WHERE readable_status = 'FAILED')::TEXT AS error_message
     FROM
         v1_task_events_olap
     WHERE
@@ -543,7 +543,9 @@ SELECT
     m.finished_at AS finished_at,
     m.started_at AS started_at,
     m.queued_at AS queued_at,
-    m.error_message AS error_message,
+    -- Casting to an empty string since sqlc can't figure out that
+    -- this should be pgtype.Text
+    COALESCE(m.error_message, '')::TEXT AS error_message,
     COALESCE(t.latest_retry_count, 0) AS retry_count,
     CASE
         WHEN @includePayloads::BOOLEAN THEN m.output::JSONB
