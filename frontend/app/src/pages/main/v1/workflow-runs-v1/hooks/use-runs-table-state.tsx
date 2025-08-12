@@ -178,7 +178,9 @@ export const getStatusesFromFilters = (
     return [];
   }
   const value = filter.value;
-  return Array.isArray(value) ? (value as V1TaskStatus[]) : [value as V1TaskStatus];
+  return Array.isArray(value)
+    ? (value as V1TaskStatus[])
+    : [value as V1TaskStatus];
 };
 
 export const getAdditionalMetadataFromFilters = (
@@ -250,8 +252,8 @@ export const useRunsTableState = (
 
           let currentStateFromURL: RunsTableState;
           if (!stateParam) {
-            const merged = { 
-              ...DEFAULT_STATE, 
+            const merged = {
+              ...DEFAULT_STATE,
               ...initialStateRef.current,
               columnVisibility: {
                 ...DEFAULT_STATE.columnVisibility,
@@ -286,8 +288,8 @@ export const useRunsTableState = (
               }
               currentStateFromURL = merged;
             } catch (error) {
-              const merged = { 
-                ...DEFAULT_STATE, 
+              const merged = {
+                ...DEFAULT_STATE,
                 ...initialStateRef.current,
                 // Ensure columnVisibility is merged properly
                 columnVisibility: {
@@ -423,7 +425,6 @@ export const useRunsTableState = (
       currentState.columnFilters,
     );
     const workflowIds = getWorkflowIdsFromFilters(currentState.columnFilters);
-
 
     return {
       ...currentState,

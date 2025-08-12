@@ -152,7 +152,8 @@ export const RunsProvider = ({
 
   const toolbarFilters = useToolbarFilters({ filterVisibility });
 
-  const workflow = workflowId || getWorkflowIdsFromFilters(state.columnFilters)[0];
+  const workflow =
+    workflowId || getWorkflowIdsFromFilters(state.columnFilters)[0];
   const derivedParentTaskExternalId =
     parentTaskExternalId || state.parentTaskExternalId;
 
@@ -172,7 +173,8 @@ export const RunsProvider = ({
     statuses: filters.apiFilters.statuses,
     additionalMetadata: filters.apiFilters.additionalMetadata,
     workerId,
-    workflowIds: filters.apiFilters.workflowIds || (workflow ? [workflow] : undefined),
+    workflowIds:
+      filters.apiFilters.workflowIds || (workflow ? [workflow] : undefined),
     parentTaskExternalId: derivedParentTaskExternalId,
     triggeringEventExternalId,
     disablePagination: disableTaskRunPagination,

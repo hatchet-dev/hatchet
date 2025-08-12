@@ -88,14 +88,14 @@ export const useRunsTableFilters = (
     [updateFilters, state.timeWindow],
   );
 
-
   const setStatuses = useCallback(
     (statuses: V1TaskStatus[]) => {
-      const newColumnFilters = statuses.length > 0
-        ? state.columnFilters
-            .filter((f) => f.id !== TaskRunColumn.status)
-            .concat([{ id: TaskRunColumn.status, value: statuses }])
-        : state.columnFilters.filter((f) => f.id !== TaskRunColumn.status);
+      const newColumnFilters =
+        statuses.length > 0
+          ? state.columnFilters
+              .filter((f) => f.id !== TaskRunColumn.status)
+              .concat([{ id: TaskRunColumn.status, value: statuses }])
+          : state.columnFilters.filter((f) => f.id !== TaskRunColumn.status);
 
       updateFilters({
         columnFilters: newColumnFilters,
@@ -106,11 +106,12 @@ export const useRunsTableFilters = (
 
   const setWorkflowIds = useCallback(
     (workflowIds: string[]) => {
-      const newColumnFilters = workflowIds.length > 0
-        ? state.columnFilters
-            .filter((f) => f.id !== TaskRunColumn.workflow)
-            .concat([{ id: TaskRunColumn.workflow, value: workflowIds }])
-        : state.columnFilters.filter((f) => f.id !== TaskRunColumn.workflow);
+      const newColumnFilters =
+        workflowIds.length > 0
+          ? state.columnFilters
+              .filter((f) => f.id !== TaskRunColumn.workflow)
+              .concat([{ id: TaskRunColumn.workflow, value: workflowIds }])
+          : state.columnFilters.filter((f) => f.id !== TaskRunColumn.workflow);
 
       updateFilters({
         columnFilters: newColumnFilters,
