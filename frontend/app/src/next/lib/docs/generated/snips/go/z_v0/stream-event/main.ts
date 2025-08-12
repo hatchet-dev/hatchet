@@ -1,0 +1,12 @@
+import { Snippet } from '@/next/lib/docs/generated/snips/types';
+
+const snippet: Snippet = {
+  language: 'go',
+  content:
+    'package main\n\nimport (\n\t"fmt"\n\t"time"\n\n\t"github.com/joho/godotenv"\n\n\t"github.com/hatchet-dev/hatchet/pkg/client"\n\t"github.com/hatchet-dev/hatchet/pkg/cmdutils"\n\t"github.com/hatchet-dev/hatchet/pkg/worker"\n)\n\ntype streamEventInput struct {\n\tIndex int `json:"index"`\n}\n\ntype stepOneOutput struct {\n\tMessage string `json:"message"`\n}\n\nfunc StepOne(ctx worker.HatchetContext) (result *stepOneOutput, err error) {\n\tinput := &streamEventInput{}\n\n\terr = ctx.WorkflowInput(input)\n\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\n\tctx.StreamEvent([]byte(fmt.Sprintf("This is a stream event %d", input.Index)))\n\n\treturn &stepOneOutput{\n\t\tMessage: fmt.Sprintf("This ran at %s", time.Now().String()),\n\t}, nil\n}\n\nfunc main() {\n\terr := godotenv.Load()\n\n\tif err != nil {\n\t\tpanic(err)\n\t}\n\n\tc, err := client.New()\n\n\tif err != nil {\n\t\tpanic(err)\n\t}\n\n\tw, err := worker.NewWorker(\n\t\tworker.WithClient(\n\t\t\tc,\n\t\t),\n\t)\n\n\tif err != nil {\n\t\tpanic(err)\n\t}\n\n\terr = w.On(\n\t\tworker.NoTrigger(),\n\t\t&worker.WorkflowJob{\n\t\t\tName:        "stream-event-workflow",\n\t\t\tDescription: "This sends a stream event.",\n\t\t\tSteps: []*worker.WorkflowStep{\n\t\t\t\tworker.Fn(StepOne).SetName("step-one"),\n\t\t\t},\n\t\t},\n\t)\n\n\tif err != nil {\n\t\tpanic(err)\n\t}\n\n\tinterruptCtx, cancel := cmdutils.InterruptContextFromChan(cmdutils.InterruptChan())\n\tdefer cancel()\n\n\t_, err = w.Start()\n\n\tif err != nil {\n\t\tpanic(fmt.Errorf("error cleaning up: %w", err))\n\t}\n\n\tworkflow, err := c.Admin().RunWorkflow("stream-event-workflow", &streamEventInput{\n\t\tIndex: 0,\n\t})\n\n\tif err != nil {\n\t\tpanic(err)\n\t}\n\n\terr = c.Subscribe().Stream(interruptCtx, workflow.WorkflowRunId(), func(event client.StreamEvent) error {\n\t\tfmt.Println(string(event.Message))\n\n\t\treturn nil\n\t})\n\n\tif err != nil {\n\t\tpanic(err)\n\t}\n}\n',
+  source: 'out/go/z_v0/stream-event/main.go',
+  blocks: {},
+  highlights: {},
+};
+
+export default snippet;
