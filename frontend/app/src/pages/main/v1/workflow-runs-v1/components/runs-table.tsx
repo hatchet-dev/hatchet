@@ -29,9 +29,7 @@ import { Toaster } from '@/components/v1/ui/toaster';
 import { useQuery } from '@tanstack/react-query';
 import { queries } from '@/lib/api';
 
-import {
-  getCreatedAfterFromTimeRange,
-} from '../hooks/use-runs-table-state';
+import { getCreatedAfterFromTimeRange } from '../hooks/use-runs-table-state';
 import { AdditionalMetadataProp } from '../hooks/use-runs-table-filters';
 import { useRunsContext } from '../hooks/runs-provider';
 
@@ -42,27 +40,32 @@ export interface RunsTableProps {
   headerClassName?: string;
 }
 
-const GetWorkflowChart = ({
-  createdAfter,
-  finishedBefore,
-  refetchInterval,
-  zoom,
-  pauseRefetch = false,
-}: {
-  createdAfter?: string;
-  finishedBefore?: string;
-  refetchInterval?: number;
-  zoom: (startTime: string, endTime: string) => void;
-  pauseRefetch?: boolean;
-}) => {
+const GetWorkflowChart = () => {
   const { tenantId } = useCurrentTenantId();
+
+  const {
+    state: { createdAfter, finishedBefore, hasOpenUI },
+    filters: { setCustomTimeRange },
+    display: { refetchInterval },
+  } = useRunsContext();
+
+  const zoom = useCallback(
+    (createdAfter: string, createdBefore: string) => {
+      setCustomTimeRange({
+        start: createdAfter,
+        end: createdBefore,
+      });
+    },
+    [setCustomTimeRange],
+  );
+
   const workflowRunEventsMetricsQuery = useQuery({
     ...queries.v1TaskRuns.pointMetrics(tenantId, {
       createdAfter,
       finishedBefore,
     }),
     placeholderData: (prev) => prev,
-    refetchInterval: pauseRefetch ? false : refetchInterval,
+    refetchInterval: hasOpenUI ? false : refetchInterval,
   });
 
   if (workflowRunEventsMetricsQuery.isLoading) {
@@ -108,12 +111,7 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
     isMetricsFetching,
     metrics,
     tenantMetrics,
-    display: {
-      showMetrics,
-      showCounts,
-      showColumnToggle,
-      refetchInterval,
-    },
+    display: { showMetrics, showCounts, showColumnToggle, refetchInterval },
     actions: {
       updatePagination,
       updateFilters,
@@ -204,7 +202,6 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
     [toast],
   );
 
-
   useEffect(() => {
     if (state.isCustomTimeRange) {
       return;
@@ -260,32 +257,12 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
 
       <TimeFilter />
 
-      {showMetrics && !derivedParentTaskExternalId && (
-        <GetWorkflowChart
-          createdAfter={state.createdAfter}
-          zoom={(createdAfter, createdBefore) => {
-            filters.setCustomTimeRange({
-              start: createdAfter,
-              end: createdBefore,
-            });
-          }}
-          finishedBefore={state.finishedBefore}
-          refetchInterval={refetchInterval}
-          pauseRefetch={state.hasOpenUI}
-        />
-      )}
+      {showMetrics && !derivedParentTaskExternalId && <GetWorkflowChart />}
 
       {showCounts && (
         <div className="flex flex-row justify-between items-center my-4">
           {metrics.length > 0 ? (
-            <V1WorkflowRunsMetricsView
-              metrics={metrics}
-              onViewQueueMetricsClick={() => {
-                updateUIState({ viewQueueMetrics: true });
-              }}
-              showQueueMetrics={showMetrics}
-              onClick={filters.setStatus}
-            />
+            <V1WorkflowRunsMetricsView />
           ) : (
             <Skeleton className="max-w-[800px] w-[40vw] h-8" />
           )}

@@ -9,7 +9,7 @@ import { useToolbarFilters } from './use-toolbar-filters';
 import { useRuns } from './use-runs';
 import { useMetrics } from './use-metrics';
 import { TaskRunColumn } from '../components/v1/task-runs-columns';
-import { V1TaskSummary } from '@/lib/api';
+import { V1TaskRunMetrics, V1TaskSummary } from '@/lib/api';
 import { PaginationState } from '@tanstack/react-table';
 
 type DisplayProps = {
@@ -75,8 +75,8 @@ type RunsContextType = {
   isRunsFetching: boolean;
   isMetricsLoading: boolean;
   isMetricsFetching: boolean;
-  metrics: any;
-  tenantMetrics: any;
+  metrics: V1TaskRunMetrics;
+  tenantMetrics: object;
   isFrozen: boolean;
   display: {
     showMetrics: boolean;

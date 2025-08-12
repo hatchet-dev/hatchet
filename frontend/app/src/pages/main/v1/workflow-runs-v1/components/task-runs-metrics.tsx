@@ -1,7 +1,6 @@
 import React from 'react';
 
 import {
-  V1TaskRunMetric,
   V1TaskRunMetrics,
   V1TaskStatus,
   WorkflowRunStatus,
@@ -9,17 +8,11 @@ import {
 } from '@/lib/api';
 import { Badge, badgeVariants } from '@/components/v1/ui/badge';
 import { VariantProps } from 'class-variance-authority';
+import { useRunsContext } from '../hooks/runs-provider';
 
 interface WorkflowRunsMetricsProps {
   metrics: WorkflowRunsMetrics;
   onClick?: (status?: WorkflowRunStatus) => void;
-  onViewQueueMetricsClick?: () => void;
-  showQueueMetrics?: boolean;
-}
-
-interface V1TaskRunMetricsProps {
-  metrics: V1TaskRunMetric[];
-  onClick?: (status?: V1TaskStatus) => void;
   onViewQueueMetricsClick?: () => void;
   showQueueMetrics?: boolean;
 }
@@ -163,12 +156,18 @@ function MetricBadge({
   );
 }
 
-export const V1WorkflowRunsMetricsView = ({
-  metrics,
-  showQueueMetrics = false,
-  onClick = () => {},
-  onViewQueueMetricsClick = () => {},
-}: V1TaskRunMetricsProps) => {
+export const V1WorkflowRunsMetricsView = () => {
+  const {
+    metrics,
+    display: { showMetrics },
+    filters: { setStatus },
+    actions: { updateUIState },
+  } = useRunsContext();
+
+  const onViewQueueMetricsClick = () => {
+    updateUIState({ viewQueueMetrics: true });
+  };
+
   const total = metrics
     .map((m) => m.count)
     .reduce((acc, curr) => acc + curr, 0);
@@ -179,7 +178,7 @@ export const V1WorkflowRunsMetricsView = ({
         metrics={metrics}
         status={V1TaskStatus.COMPLETED}
         total={total}
-        onClick={onClick}
+        onClick={setStatus}
         variant="successful"
         className="cursor-pointer text-sm px-2 py-1 w-fit"
       />
@@ -188,7 +187,7 @@ export const V1WorkflowRunsMetricsView = ({
         metrics={metrics}
         status={V1TaskStatus.RUNNING}
         total={total}
-        onClick={onClick}
+        onClick={setStatus}
         variant="inProgress"
         className="cursor-pointer text-sm px-2 py-1 w-fit"
       />
@@ -197,7 +196,7 @@ export const V1WorkflowRunsMetricsView = ({
         metrics={metrics}
         status={V1TaskStatus.FAILED}
         total={total}
-        onClick={onClick}
+        onClick={setStatus}
         variant="failed"
         className="cursor-pointer text-sm px-2 py-1 w-fit"
       />
@@ -206,7 +205,7 @@ export const V1WorkflowRunsMetricsView = ({
         metrics={metrics}
         status={V1TaskStatus.CANCELLED}
         total={total}
-        onClick={onClick}
+        onClick={setStatus}
         variant="outlineDestructive"
         className="cursor-pointer text-sm px-2 py-1 w-fit"
       />
@@ -215,12 +214,12 @@ export const V1WorkflowRunsMetricsView = ({
         metrics={metrics}
         status={V1TaskStatus.QUEUED}
         total={total}
-        onClick={onClick}
+        onClick={setStatus}
         variant="outline"
         className="cursor-pointer rounded-sm font-normal text-sm px-2 py-1 w-fit"
       />
 
-      {showQueueMetrics && (
+      {showMetrics && (
         <Badge
           variant="outline"
           className="cursor-pointer rounded-sm font-normal text-sm px-2 py-1 w-fit"
