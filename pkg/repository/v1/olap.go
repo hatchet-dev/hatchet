@@ -917,7 +917,7 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId stri
 				CreatedAt:          task.InsertedAt,
 				StartedAt:          task.StartedAt,
 				FinishedAt:         task.FinishedAt,
-				ErrorMessage:       task.ErrorMessage.String,
+				ErrorMessage:       task.ErrorMessage,
 				Kind:               sqlcv1.V1RunKindTASK,
 				TaskExternalId:     &task.ExternalID,
 				TaskId:             &task.ID,
@@ -1490,10 +1490,21 @@ func (r *OLAPRepositoryImpl) GetTaskTimings(ctx context.Context, tenantId string
 		})
 	}
 
-	tasksWithData, err := r.populateTaskRunData(ctx, nil, tenantId, idsInsertedAts, false)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.readPool, r.l, 30000)
+	defer rollback()
+
+	if err != nil {
+		return nil, nil, fmt.Errorf("error beginning transaction: %v", err)
+	}
+
+	tasksWithData, err := r.populateTaskRunData(ctx, tx, tenantId, idsInsertedAts, false)
 
 	if err != nil {
 		return nil, nil, err
+	}
+
+	if err := commit(ctx); err != nil {
+		return nil, nil, fmt.Errorf("error committing transaction: %v", err)
 	}
 
 	return tasksWithData, idsToDepth, nil
