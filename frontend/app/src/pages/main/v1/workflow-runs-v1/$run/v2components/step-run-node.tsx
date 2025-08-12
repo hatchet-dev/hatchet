@@ -84,7 +84,7 @@ export default memo(({ data }: { data: NodeData }) => {
             pathname: `/tenants/${tenantId}/runs`,
             search: new URLSearchParams({
               ...Object.fromEntries(new URLSearchParams(location.search)),
-              // TODO: This is wrong, figure out how to fix it
+              // fixme: implement a first-class way to handle redirecting to child workflows
               parentTaskExternalId: data.taskRun.metadata.id,
             }).toString(),
           }}
