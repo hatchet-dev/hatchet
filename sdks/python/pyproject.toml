@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "hatchet-sdk"
-version = "1.16.5"
+version = "1.17.0"
 description = ""
 authors = ["Alexander Belanger <alexander@hatchet.run>"]
 readme = "README.md"
@@ -25,7 +25,6 @@ aiostream = "^0.5.2"
 aiohttp = "^3.10.5"
 aiohttp-retry = "^2.8.3"
 tenacity = ">=8.4.1"
-cel-python = "^0.2.0"
 opentelemetry-api = { version = "^1.28.0", optional = true }
 opentelemetry-sdk = { version = "^1.28.0", optional = true }
 opentelemetry-instrumentation = { version = ">=0.49b0", optional = true }
