@@ -205,7 +205,7 @@ const ModalContent = ({ label, params }: ModalContentProps) => {
               type={statusToolbarFilter.type}
               options={statusToolbarFilter.options}
               setValues={(values) =>
-                filters.setStatus(values[0] as V1TaskStatus)
+                filters.setStatuses(values as V1TaskStatus[])
               }
             />
           )}
@@ -231,7 +231,7 @@ const ModalContent = ({ label, params }: ModalContentProps) => {
               title={workflowToolbarFilter.title}
               type={workflowToolbarFilter.type}
               options={workflowToolbarFilter.options}
-              setValues={(values) => filters.setWorkflowId(values[0] as string)}
+              setValues={(values) => filters.setWorkflowIds(values as string[])}
             />
           )}
         </div>

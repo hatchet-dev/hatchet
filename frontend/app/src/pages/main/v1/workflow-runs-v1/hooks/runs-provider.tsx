@@ -1,6 +1,6 @@
 import { createContext, useContext, useMemo, useState } from 'react';
 import {
-  getWorkflowIdFromFilters,
+  getWorkflowIdsFromFilters,
   RunsTableState,
   useRunsTableState,
 } from './use-runs-table-state';
@@ -152,7 +152,7 @@ export const RunsProvider = ({
 
   const toolbarFilters = useToolbarFilters({ filterVisibility });
 
-  const workflow = workflowId || getWorkflowIdFromFilters(state.columnFilters);
+  const workflow = workflowId || getWorkflowIdsFromFilters(state.columnFilters)[0];
   const derivedParentTaskExternalId =
     parentTaskExternalId || state.parentTaskExternalId;
 

@@ -159,17 +159,6 @@ export const getCreatedAfterFromTimeRange = (
   }
 };
 
-export const getWorkflowIdFromFilters = (
-  columnFilters: ColumnFiltersState,
-): string | undefined => {
-  const filter = columnFilters.find((f) => f.id === 'Workflow');
-  if (!filter) {
-    return undefined;
-  }
-  const value = filter.value;
-  return Array.isArray(value) ? (value[0] as string) : (value as string);
-};
-
 export const getWorkflowIdsFromFilters = (
   columnFilters: ColumnFiltersState,
 ): string[] => {
@@ -179,19 +168,6 @@ export const getWorkflowIdsFromFilters = (
   }
   const value = filter.value;
   return Array.isArray(value) ? (value as string[]) : [value as string];
-};
-
-export const getStatusFromFilters = (
-  columnFilters: ColumnFiltersState,
-): V1TaskStatus | undefined => {
-  const filter = columnFilters.find((f) => f.id === 'status');
-  if (!filter) {
-    return undefined;
-  }
-  const value = filter.value;
-  return Array.isArray(value)
-    ? (value[0] as V1TaskStatus)
-    : (value as V1TaskStatus);
 };
 
 export const getStatusesFromFilters = (
@@ -419,11 +395,11 @@ export const useRunsTableState = (
   }, [paramKey, setSearchParams]);
 
   const derivedState = useMemo(() => {
-    const status = getStatusFromFilters(currentState.columnFilters);
+    const statuses = getStatusesFromFilters(currentState.columnFilters);
     const additionalMetadata = getAdditionalMetadataFromFilters(
       currentState.columnFilters,
     );
-    const workflowId = getWorkflowIdFromFilters(currentState.columnFilters);
+    const workflowIds = getWorkflowIdsFromFilters(currentState.columnFilters);
 
     return {
       ...currentState,
@@ -431,9 +407,9 @@ export const useRunsTableState = (
         (selected) => !!selected,
       ),
       hasFiltersApplied: !!(
-        status ||
+        statuses.length ||
         additionalMetadata?.length ||
-        workflowId ||
+        workflowIds.length ||
         currentState.parentTaskExternalId
       ),
       hasOpenUI: !!(

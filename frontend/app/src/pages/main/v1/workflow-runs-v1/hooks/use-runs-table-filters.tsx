@@ -5,9 +5,7 @@ import {
   RunsTableState,
   TimeWindow,
   getCreatedAfterFromTimeRange,
-  getWorkflowIdFromFilters,
   getWorkflowIdsFromFilters,
-  getStatusFromFilters,
   getStatusesFromFilters,
   getAdditionalMetadataFromFilters,
 } from './use-runs-table-state';
@@ -21,8 +19,8 @@ export type AdditionalMetadataProp = {
 export type FilterActions = {
   setTimeWindow: (timeWindow: TimeWindow) => void;
   setCustomTimeRange: (range: { start: string; end: string } | null) => void;
-  setStatus: (status: V1TaskStatus | undefined) => void;
-  setWorkflowId: (workflowId: string | undefined) => void;
+  setStatuses: (statuses: V1TaskStatus[]) => void;
+  setWorkflowIds: (workflowIds: string[]) => void;
   setAdditionalMetadata: (metadata: AdditionalMetadataProp) => void;
   setAllAdditionalMetadata: (kvPairs: AdditionalMetadataProp[]) => void;
   setParentTaskExternalId: (id: string | undefined) => void;
@@ -90,12 +88,13 @@ export const useRunsTableFilters = (
     [updateFilters, state.timeWindow],
   );
 
-  const setStatus = useCallback(
-    (status: V1TaskStatus | undefined) => {
-      const newColumnFilters = status
+
+  const setStatuses = useCallback(
+    (statuses: V1TaskStatus[]) => {
+      const newColumnFilters = statuses.length > 0
         ? state.columnFilters
             .filter((f) => f.id !== TaskRunColumn.status)
-            .concat([{ id: TaskRunColumn.status, value: status }])
+            .concat([{ id: TaskRunColumn.status, value: statuses }])
         : state.columnFilters.filter((f) => f.id !== TaskRunColumn.status);
 
       updateFilters({
@@ -105,12 +104,12 @@ export const useRunsTableFilters = (
     [updateFilters, state.columnFilters],
   );
 
-  const setWorkflowId = useCallback(
-    (workflowId: string | undefined) => {
-      const newColumnFilters = workflowId
+  const setWorkflowIds = useCallback(
+    (workflowIds: string[]) => {
+      const newColumnFilters = workflowIds.length > 0
         ? state.columnFilters
             .filter((f) => f.id !== TaskRunColumn.workflow)
-            .concat([{ id: TaskRunColumn.workflow, value: workflowId }])
+            .concat([{ id: TaskRunColumn.workflow, value: workflowIds }])
         : state.columnFilters.filter((f) => f.id !== TaskRunColumn.workflow);
 
       updateFilters({
@@ -191,8 +190,8 @@ export const useRunsTableFilters = (
     apiFilters,
     setTimeWindow,
     setCustomTimeRange,
-    setStatus,
-    setWorkflowId,
+    setStatuses,
+    setWorkflowIds,
     setAdditionalMetadata,
     setAllAdditionalMetadata,
     setParentTaskExternalId,

@@ -9,6 +9,7 @@ import {
 import { Badge, badgeVariants } from '@/components/v1/ui/badge';
 import { VariantProps } from 'class-variance-authority';
 import { useRunsContext } from '../hooks/runs-provider';
+import { getStatusesFromFilters } from '../hooks/use-runs-table-state';
 
 interface WorkflowRunsMetricsProps {
   metrics: WorkflowRunsMetrics;
@@ -132,7 +133,7 @@ function MetricBadge({
   metrics: V1TaskRunMetrics;
   status: V1TaskStatus;
   total: number;
-  onClick: (status: V1TaskStatus) => void;
+  onClick?: (status: V1TaskStatus) => void;
   variant: VariantProps<typeof badgeVariants>['variant'];
   className: string;
 }) {
@@ -148,7 +149,7 @@ function MetricBadge({
     <Badge
       variant={variant}
       className={className}
-      onClick={() => onClick(status)}
+      onClick={() => onClick?.(status)}
     >
       {metric.count.toLocaleString('en-US')} {statusToFriendlyName(status)} (
       {percentage}%)
@@ -159,13 +160,25 @@ function MetricBadge({
 export const V1WorkflowRunsMetricsView = () => {
   const {
     metrics,
+    state,
     display: { showMetrics },
-    filters: { setStatus },
+    filters: { setStatuses },
     actions: { updateUIState },
   } = useRunsContext();
 
   const onViewQueueMetricsClick = () => {
     updateUIState({ viewQueueMetrics: true });
+  };
+
+  const handleStatusClick = (status: V1TaskStatus) => {
+    const currentStatuses = getStatusesFromFilters(state.columnFilters);
+    const isSelected = currentStatuses.includes(status);
+
+    if (isSelected) {
+      setStatuses(currentStatuses.filter((s) => s !== status));
+    } else {
+      setStatuses([...currentStatuses, status]);
+    }
   };
 
   const total = metrics
@@ -178,7 +191,7 @@ export const V1WorkflowRunsMetricsView = () => {
         metrics={metrics}
         status={V1TaskStatus.COMPLETED}
         total={total}
-        onClick={setStatus}
+        onClick={handleStatusClick}
         variant="successful"
         className="cursor-pointer text-sm px-2 py-1 w-fit"
       />
@@ -187,7 +200,7 @@ export const V1WorkflowRunsMetricsView = () => {
         metrics={metrics}
         status={V1TaskStatus.RUNNING}
         total={total}
-        onClick={setStatus}
+        onClick={handleStatusClick}
         variant="inProgress"
         className="cursor-pointer text-sm px-2 py-1 w-fit"
       />
@@ -196,7 +209,7 @@ export const V1WorkflowRunsMetricsView = () => {
         metrics={metrics}
         status={V1TaskStatus.FAILED}
         total={total}
-        onClick={setStatus}
+        onClick={handleStatusClick}
         variant="failed"
         className="cursor-pointer text-sm px-2 py-1 w-fit"
       />
@@ -205,7 +218,7 @@ export const V1WorkflowRunsMetricsView = () => {
         metrics={metrics}
         status={V1TaskStatus.CANCELLED}
         total={total}
-        onClick={setStatus}
+        onClick={handleStatusClick}
         variant="outlineDestructive"
         className="cursor-pointer text-sm px-2 py-1 w-fit"
       />
@@ -214,7 +227,7 @@ export const V1WorkflowRunsMetricsView = () => {
         metrics={metrics}
         status={V1TaskStatus.QUEUED}
         total={total}
-        onClick={setStatus}
+        onClick={handleStatusClick}
         variant="outline"
         className="cursor-pointer rounded-sm font-normal text-sm px-2 py-1 w-fit"
       />
