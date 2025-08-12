@@ -111,7 +111,7 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
     isMetricsFetching,
     metrics,
     tenantMetrics,
-    display: { showMetrics, showCounts, showColumnToggle, refetchInterval },
+    display: { showMetrics, showCounts, showColumnToggle },
     actions: {
       updatePagination,
       updateFilters,

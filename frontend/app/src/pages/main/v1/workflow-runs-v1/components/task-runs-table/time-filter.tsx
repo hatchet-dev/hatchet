@@ -73,7 +73,9 @@ export const TimeFilter = () => {
         <DateTimePicker
           key="before"
           label="Before"
-          date={state.finishedBefore ? new Date(state.finishedBefore) : undefined}
+          date={
+            state.finishedBefore ? new Date(state.finishedBefore) : undefined
+          }
           setDate={(date) => handleFinishedBeforeChange(date?.toISOString())}
         />,
       ]}
