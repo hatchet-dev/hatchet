@@ -257,6 +257,8 @@ export const RunsProvider = ({
       refetchRuns,
       refetchMetrics,
       getRowId,
+      showCancelAndReplayButtons,
+      showColumnToggle,
     ],
   );
 

@@ -18,9 +18,13 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { useCallback, useState } from 'react';
 import { Combobox } from '@/components/v1/molecules/combobox/combobox';
 import { TaskRunColumn } from '../workflow-runs-v1/components/v1/task-runs-columns';
-import { DateTimePicker } from '@/components/v1/molecules/time-picker/date-time-picker';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { useRunsContext } from '../workflow-runs-v1/hooks/runs-provider';
+import {
+  TimeFilter,
+  TimeFilterGroup,
+} from '@/next/components/ui/filters/time-filter';
+import { TimeFilterProvider } from '@/next/hooks/utils/use-time-filters';
 
 export const TASK_RUN_TERMINAL_STATUSES = [
   V1TaskStatus.CANCELLED,
@@ -192,12 +196,12 @@ const ModalContent = ({ label, params }: ModalContentProps) => {
     );
 
     return (
-      <div className="gap-y-4 flex flex-col">
-        <p className="text-md">
+      <div className="gap-y-6 flex flex-col">
+        <p className="text-sm text-muted-foreground">
           Confirm to {label.toLowerCase()} all runs matching the following
           filters:
         </p>
-        <div className="grid grid-cols-2 gap-x-2 items-start justify-start gap-y-4">
+        <div className="grid grid-cols-2 gap-4 items-start">
           {statusToolbarFilter && (
             <Combobox
               values={params.filter.statuses}
@@ -235,37 +239,18 @@ const ModalContent = ({ label, params }: ModalContentProps) => {
             />
           )}
         </div>
-        <div className="flex flex-row w-full gap-x-2 items-start justify-start">
-          <DateTimePicker
-            key="since"
-            label="Since"
-            date={
-              params.filter.since ? new Date(params.filter.since) : undefined
-            }
-            setDate={(date) => {
-              if (date && params.filter.until) {
-                filters.setCustomTimeRange({
-                  start: date.toISOString(),
-                  end: params.filter.until,
-                });
-              }
+        <div className="border rounded-lg p-4 bg-muted/50">
+          <h4 className="text-sm font-medium mb-3">Time Range</h4>
+          <TimeFilterProvider
+            initialTimeRange={{
+              startTime: params.filter.since,
+              endTime: params.filter.until,
             }}
-          />
-          {params.filter.until && (
-            <DateTimePicker
-              key="until"
-              label="Until"
-              date={new Date(params.filter.until)}
-              setDate={(date) => {
-                if (date) {
-                  filters.setCustomTimeRange({
-                    start: params.filter.since,
-                    end: date.toISOString(),
-                  });
-                }
-              }}
-            />
-          )}
+          >
+            <TimeFilterGroup className="justify-start">
+              <TimeFilter />
+            </TimeFilterGroup>
+          </TimeFilterProvider>
         </div>
       </div>
     );
@@ -285,30 +270,28 @@ const ConfirmActionModal = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
-      <DialogContent className="sm:max-w-[800px] py-12 max-h-screen overflow-auto">
+      <DialogContent className="sm:max-w-[700px] py-8 max-h-screen overflow-auto">
         <DialogHeader className="gap-2">
           <div className="flex flex-row justify-between items-center w-full">
             <DialogTitle>{label} runs</DialogTitle>
           </div>
         </DialogHeader>
 
-        <div className="flex flex-col mt-4">
+        <div className="flex flex-col space-y-4">
           <DialogDescription>
             <ModalContent label={label} params={params} />
           </DialogDescription>
 
-          <div className="flex flex-row items-center flex-1 gap-x-2 justify-end">
+          <div className="flex flex-row items-center gap-3 justify-end pt-4 border-t">
             <Button
-              className="mt-6 w-full sm:w-auto sm:self-end"
               onClick={() => {
                 setIsOpen(false);
               }}
               variant="outline"
             >
               Cancel
-            </Button>{' '}
+            </Button>
             <Button
-              className="mt-6 w-full sm:w-auto sm:self-end"
               onClick={() => {
                 onConfirm();
                 setIsOpen(false);

@@ -160,7 +160,7 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
       setIsFrozen(true);
       filters.setAdditionalMetadata(m);
     },
-    [setIsFrozen],
+    [setIsFrozen, filters],
   );
 
   const tableColumns = useMemo(
@@ -324,11 +324,14 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
             if (!isOpen && state.taskRunDetailSheet.taskRunId) {
               // Clear the child runs table state when sheet closes
               const childTableKey = `table_child-runs-${state.taskRunDetailSheet.taskRunId}`;
-              setSearchParams((prev) => {
-                const newParams = new URLSearchParams(prev);
-                newParams.delete(childTableKey);
-                return newParams;
-              }, { replace: true });
+              setSearchParams(
+                (prev) => {
+                  const newParams = new URLSearchParams(prev);
+                  newParams.delete(childTableKey);
+                  return newParams;
+                },
+                { replace: true },
+              );
             }
             updateUIState({
               taskRunDetailSheet: isOpen

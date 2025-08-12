@@ -120,7 +120,6 @@ export const TableActions = ({
     hasRowsSelected,
     hasFiltersApplied,
     selectedRuns,
-    filters.apiFilters,
     taskIdsPendingAction.length,
     onRefresh,
     onActionProcessed,
@@ -129,6 +128,7 @@ export const TableActions = ({
     rotate,
     toast,
     filters,
+    showCancelAndReplayButtons,
   ]);
 
   return <>{actions}</>;
