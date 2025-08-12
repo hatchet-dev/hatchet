@@ -17,30 +17,30 @@ class PinoLogger implements Logger {
   }
 
   debug(message: string, extra?: JsonObject): void {
-    logger.debug(message, extra);
+    logger.debug(extra, message);
   }
 
   info(message: string, extra?: JsonObject): void {
-    logger.info(message, extra);
+    logger.info(extra, message);
   }
 
   green(message: string, extra?: JsonObject): void {
-    logger.info(`%c${message}`, extra);
+    logger.info(extra, `%c${message}`);
   }
 
   warn(message: string, error?: Error, extra?: JsonObject): void {
-    logger.warn(`${message} ${error}`, extra);
+    logger.warn(extra, `${message} ${error}`);
   }
 
   error(message: string, error?: Error, extra?: JsonObject): void {
-    logger.error(`${message} ${error}`, extra);
+    logger.error(extra, `${message} ${error}`);
   }
 
   // optional util method
   util(key: string, message: string, extra?: JsonObject): void {
     // for example you may want to expose a trace method
     if (key === 'trace') {
-      logger.info('trace', extra);
+      logger.info(extra, 'trace');
     }
   }
 }
