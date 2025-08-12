@@ -179,16 +179,10 @@ const (
 	WORKFLOWRUN TenantResource = "WORKFLOW_RUN"
 )
 
-// Defines values for TenantUIVersion.
-const (
-	TenantUIVersionV0 TenantUIVersion = "V0"
-	TenantUIVersionV1 TenantUIVersion = "V1"
-)
-
 // Defines values for TenantVersion.
 const (
-	TenantVersionV0 TenantVersion = "V0"
-	TenantVersionV1 TenantVersion = "V1"
+	V0 TenantVersion = "V0"
+	V1 TenantVersion = "V1"
 )
 
 // Defines values for V1CELDebugResponseStatus.
@@ -514,8 +508,7 @@ type CreateTenantRequest struct {
 	Name string `json:"name" validate:"required"`
 
 	// Slug The slug of the tenant.
-	Slug      string           `json:"slug" validate:"required,hatchetName"`
-	UiVersion *TenantUIVersion `json:"uiVersion,omitempty"`
+	Slug string `json:"slug" validate:"required,hatchetName"`
 }
 
 // CronWorkflows defines model for CronWorkflows.
@@ -1011,9 +1004,8 @@ type Tenant struct {
 	Name string `json:"name"`
 
 	// Slug The slug of the tenant.
-	Slug      string           `json:"slug"`
-	UiVersion *TenantUIVersion `json:"uiVersion,omitempty"`
-	Version   TenantVersion    `json:"version"`
+	Slug    string        `json:"slug"`
+	Version TenantVersion `json:"version"`
 }
 
 // TenantAlertEmailGroup defines model for TenantAlertEmailGroup.
@@ -1132,9 +1124,6 @@ type TenantStepRunQueueMetrics struct {
 	Queues *map[string]interface{} `json:"queues,omitempty"`
 }
 
-// TenantUIVersion defines model for TenantUIVersion.
-type TenantUIVersion string
-
 // TenantVersion defines model for TenantVersion.
 type TenantVersion string
 
@@ -1181,9 +1170,8 @@ type UpdateTenantRequest struct {
 	MaxAlertingFrequency *string `json:"maxAlertingFrequency,omitempty" validate:"omitnil,duration"`
 
 	// Name The name of the tenant.
-	Name      *string          `json:"name,omitempty"`
-	UiVersion *TenantUIVersion `json:"uiVersion,omitempty"`
-	Version   *TenantVersion   `json:"version,omitempty"`
+	Name    *string        `json:"name,omitempty"`
+	Version *TenantVersion `json:"version,omitempty"`
 }
 
 // UpdateWorkerRequest defines model for UpdateWorkerRequest.

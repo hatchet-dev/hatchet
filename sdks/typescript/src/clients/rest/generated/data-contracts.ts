@@ -218,8 +218,6 @@ export interface Tenant {
   alertMemberEmails?: boolean;
   /** The version of the tenant. */
   version: 'V0' | 'V1';
-  /** The UI of the tenant. */
-  uiVersion?: 'V0' | 'V1';
 }
 
 export interface TenantMember {
@@ -285,6 +283,11 @@ export interface CreateTenantInviteRequest {
 }
 
 export interface UpdateTenantInviteRequest {
+  /** The role of the user in the tenant. */
+  role: TenantMemberRole;
+}
+
+export interface UpdateTenantMemberRequest {
   /** The role of the user in the tenant. */
   role: TenantMemberRole;
 }
@@ -399,8 +402,6 @@ export interface CreateTenantRequest {
   name: string;
   /** The slug of the tenant. */
   slug: string;
-  /** The UI version of the tenant. Defaults to V0. */
-  uiVersion?: any;
   /** The engine version of the tenant. Defaults to V0. */
   engineVersion?: any;
 }
@@ -422,8 +423,6 @@ export interface UpdateTenantRequest {
   maxAlertingFrequency?: string;
   /** The version of the tenant. */
   version?: any;
-  /** The UI of the tenant. */
-  uiVersion?: any;
 }
 
 export interface Event {

@@ -236,11 +236,6 @@ export enum V1WebhookSourceName {
   STRIPE = "STRIPE",
 }
 
-export enum TenantUIVersion {
-  V0 = "V0",
-  V1 = "V1",
-}
-
 export enum TenantVersion {
   V0 = "V0",
   V1 = "V1",
@@ -747,8 +742,6 @@ export interface Tenant {
   alertMemberEmails?: boolean;
   /** The version of the tenant. */
   version: TenantVersion;
-  /** The UI of the tenant. */
-  uiVersion?: TenantUIVersion;
 }
 
 export interface V1EventWorkflowRunSummary {
@@ -1245,8 +1238,6 @@ export interface CreateTenantRequest {
   name: string;
   /** The slug of the tenant. */
   slug: string;
-  /** The UI version of the tenant. Defaults to V0. */
-  uiVersion?: TenantUIVersion;
   /** The engine version of the tenant. Defaults to V0. */
   engineVersion?: TenantVersion;
 }
@@ -1268,8 +1259,6 @@ export interface UpdateTenantRequest {
   maxAlertingFrequency?: string;
   /** The version of the tenant. */
   version?: TenantVersion;
-  /** The UI of the tenant. */
-  uiVersion?: TenantUIVersion;
 }
 
 export interface TenantAlertingSettings {

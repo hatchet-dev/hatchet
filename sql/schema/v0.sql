@@ -592,11 +592,6 @@ CREATE TYPE "TenantMajorEngineVersion" AS ENUM (
     'V1'
 );
 
-CREATE TYPE "TenantMajorUIVersion" AS ENUM (
-    'V0',
-    'V1'
-);
-
 -- CreateTable
 CREATE TABLE "Tenant" (
     "id" UUID NOT NULL,
@@ -604,7 +599,6 @@ CREATE TABLE "Tenant" (
     "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "deletedAt" TIMESTAMP(3),
     "version" "TenantMajorEngineVersion" NOT NULL DEFAULT 'V0',
-    "uiVersion" "TenantMajorUIVersion" NOT NULL DEFAULT 'V0',
     "name" TEXT NOT NULL,
     "slug" TEXT NOT NULL,
     "analyticsOptOut" BOOLEAN NOT NULL DEFAULT false,

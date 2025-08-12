@@ -59,13 +59,6 @@ func (t *TenantService) TenantUpdate(ctx echo.Context, request gen.TenantUpdateR
 		}
 	}
 
-	if request.Body.UiVersion != nil {
-		updateOpts.UIVersion = &dbsqlc.NullTenantMajorUIVersion{
-			Valid:                true,
-			TenantMajorUIVersion: dbsqlc.TenantMajorUIVersion(*request.Body.UiVersion),
-		}
-	}
-
 	// update the tenant
 	tenant, err := t.config.APIRepository.Tenant().UpdateTenant(ctx.Request().Context(), tenantId, updateOpts)
 

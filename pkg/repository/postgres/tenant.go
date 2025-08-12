@@ -52,12 +52,6 @@ func (r *tenantAPIRepository) CreateTenant(ctx context.Context, opts *repository
 		dataRetentionPeriod = sqlchelpers.TextFromStr(*opts.DataRetentionPeriod)
 	}
 
-	uiVersion := dbsqlc.TenantMajorUIVersionV0
-	if opts.UIVersion != nil {
-		ver := *opts.UIVersion
-		uiVersion = dbsqlc.TenantMajorUIVersion(ver)
-	}
-
 	engineVersion := r.defaultTenantVersion
 	if opts.EngineVersion != nil {
 		engineVersion = *opts.EngineVersion
@@ -79,10 +73,6 @@ func (r *tenantAPIRepository) CreateTenant(ctx context.Context, opts *repository
 		Version: dbsqlc.NullTenantMajorEngineVersion{
 			TenantMajorEngineVersion: engineVersion,
 			Valid:                    true,
-		},
-		UiVersion: dbsqlc.NullTenantMajorUIVersion{
-			TenantMajorUIVersion: uiVersion,
-			Valid:                true,
 		},
 	})
 
@@ -126,10 +116,6 @@ func (r *tenantAPIRepository) UpdateTenant(ctx context.Context, id string, opts 
 
 	if opts.Version != nil && opts.Version.Valid {
 		params.Version = *opts.Version
-	}
-
-	if opts.UIVersion != nil && opts.UIVersion.Valid {
-		params.UiVersion = *opts.UIVersion
 	}
 
 	return r.queries.UpdateTenant(
