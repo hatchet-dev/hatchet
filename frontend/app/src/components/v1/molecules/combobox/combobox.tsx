@@ -256,7 +256,12 @@ export function Combobox({
                         if (isSelected) {
                           values.splice(values.indexOf(option.value), 1);
                         } else {
-                          values.push(option.value);
+                          if (type === ToolbarType.Radio) {
+                            setValues([option.value]);
+                            return;
+                          } else {
+                            values.push(option.value);
+                          }
                         }
                         setValues(values);
                       }}

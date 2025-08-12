@@ -293,16 +293,16 @@ export function TriggerWorkflowForm({
         <DialogHeader className="gap-2">
           <DialogTitle>Trigger Run</DialogTitle>
           <DialogDescription className="text-muted-foreground">
-            Trigger a task or workflow to run now, at a scheduled time, or on a
-            cron schedule.
+            Trigger a workflow to run now, at a scheduled time, or on a cron
+            schedule.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="font-bold">Task or Workflow</div>
+        <div className="font-bold">Workflow</div>
         <Combobox
           values={selectedWorkflowId ? [selectedWorkflowId] : []}
           setValues={(values) => setSelectedWorkflowId(values[0])}
-          title="Select Task or Workflow"
+          title="Select Workflow"
           options={workflowKeys?.rows?.map((w) => ({
             value: w.metadata.id,
             label: w.name,
@@ -460,7 +460,7 @@ export function TriggerWorkflowForm({
             }
             onClick={handleSubmit}
           >
-            Run Task
+            Submit
           </Button>
         </div>
         {(errors.length > 0 ||
