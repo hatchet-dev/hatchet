@@ -233,7 +233,7 @@ type OLAPRepository interface {
 	ListEvents(ctx context.Context, opts sqlcv1.ListEventsParams) ([]*ListEventsRow, *int64, error)
 	ListEventKeys(ctx context.Context, tenantId string) ([]string, error)
 
-	GetDagDurationsByDagIds(ctx context.Context, tenantId string, dagIds []int64, dagInsertedAts []pgtype.Timestamptz, readableStatuses []sqlcv1.V1ReadableStatusOlap) (map[string]*sqlcv1.GetDagDurationsByDagIdsRow, error)
+	GetDAGDurations(ctx context.Context, tenantId string, externalIds []pgtype.UUID, minInsertedAt pgtype.Timestamptz) (map[string]*sqlcv1.GetDagDurationsRow, error)
 	GetTaskDurationsByTaskIds(ctx context.Context, tenantId string, taskIds []int64, taskInsertedAts []pgtype.Timestamptz, readableStatuses []sqlcv1.V1ReadableStatusOlap) (map[int64]*sqlcv1.GetTaskDurationsByTaskIdsRow, error)
 
 	CreateIncomingWebhookValidationFailureLogs(ctx context.Context, tenantId string, opts []CreateIncomingWebhookFailureLogOpts) error
@@ -1696,19 +1696,26 @@ func (r *OLAPRepositoryImpl) ListEventKeys(ctx context.Context, tenantId string)
 	return keys, nil
 }
 
-func (r *OLAPRepositoryImpl) GetDagDurationsByDagIds(ctx context.Context, tenantId string, dagIds []int64, dagInsertedAts []pgtype.Timestamptz, readableStatuses []sqlcv1.V1ReadableStatusOlap) (map[string]*sqlcv1.GetDagDurationsByDagIdsRow, error) {
-	rows, err := r.queries.GetDagDurationsByDagIds(ctx, r.readPool, sqlcv1.GetDagDurationsByDagIdsParams{
-		Dagids:           dagIds,
-		Daginsertedats:   dagInsertedAts,
-		Tenantid:         sqlchelpers.UUIDFromStr(tenantId),
-		Readablestatuses: readableStatuses,
+func (r *OLAPRepositoryImpl) GetDAGDurations(ctx context.Context, tenantId string, externalIds []pgtype.UUID, minInsertedAt pgtype.Timestamptz) (map[string]*sqlcv1.GetDagDurationsRow, error) {
+	ctx, span := telemetry.NewSpan(ctx, "olap_repository.get_dag_durations")
+	defer span.End()
+
+	span.SetAttributes(attribute.KeyValue{
+		Key:   "olap_repository.get_dag_durations.batch_size",
+		Value: attribute.IntValue(len(externalIds)),
+	})
+
+	rows, err := r.queries.GetDagDurations(ctx, r.readPool, sqlcv1.GetDagDurationsParams{
+		Externalids:   externalIds,
+		Tenantid:      sqlchelpers.UUIDFromStr(tenantId),
+		Mininsertedat: minInsertedAt,
 	})
 
 	if err != nil {
 		return nil, err
 	}
 
-	dagDurations := make(map[string]*sqlcv1.GetDagDurationsByDagIdsRow)
+	dagDurations := make(map[string]*sqlcv1.GetDagDurationsRow)
 
 	for _, row := range rows {
 		dagDurations[sqlchelpers.UUIDToStr(row.ExternalID)] = row
