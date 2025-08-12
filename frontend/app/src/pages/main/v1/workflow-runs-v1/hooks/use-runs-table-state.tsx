@@ -206,6 +206,11 @@ export const useRunsTableState = (
 
   const currentState = useMemo((): RunsTableState => {
     const stateParam = searchParams.get(paramKey);
+    const parentTaskExternalIdParam = searchParams.get('parentTaskExternalId');
+
+    if (initialStateRef.current) {
+      initialStateRef.current.parentTaskExternalId = parentTaskExternalIdParam || undefined;
+    }
 
     if (!stateParam) {
       const merged = { ...DEFAULT_STATE, ...initialStateRef.current };
