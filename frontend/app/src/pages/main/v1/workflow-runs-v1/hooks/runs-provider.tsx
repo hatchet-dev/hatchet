@@ -48,9 +48,7 @@ type RunsContextType = {
       uiState: Partial<
         Pick<
           RunsTableState,
-          | 'viewQueueMetrics'
-          | 'triggerWorkflow'
-          | 'taskRunDetailSheet'
+          'viewQueueMetrics' | 'triggerWorkflow' | 'taskRunDetailSheet'
         >
       >,
     ) => void;

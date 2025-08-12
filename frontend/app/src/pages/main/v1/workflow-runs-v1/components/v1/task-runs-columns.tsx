@@ -302,7 +302,10 @@ export const columns: (
           onOpenChange={
             onAdditionalMetadataOpenChange
               ? (open) => {
-                  onAdditionalMetadataOpenChange(row.original.metadata.id, open);
+                  onAdditionalMetadataOpenChange(
+                    row.original.metadata.id,
+                    open,
+                  );
                 }
               : (open) => {
                   if (open) {

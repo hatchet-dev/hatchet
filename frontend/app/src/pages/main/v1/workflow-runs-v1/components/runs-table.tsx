@@ -129,7 +129,8 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
     [],
   );
   const [rotate, setRotate] = useState(false);
-  const [selectedAdditionalMetaRunId, setSelectedAdditionalMetaRunId] = useState<string | null>(null);
+  const [selectedAdditionalMetaRunId, setSelectedAdditionalMetaRunId] =
+    useState<string | null>(null);
 
   const handleTaskRunIdClick = useCallback(
     (taskRunId: string) => {

@@ -382,9 +382,7 @@ export const useRunsTableState = (
       uiState: Partial<
         Pick<
           RunsTableState,
-          | 'viewQueueMetrics'
-          | 'triggerWorkflow'
-          | 'taskRunDetailSheet'
+          'viewQueueMetrics' | 'triggerWorkflow' | 'taskRunDetailSheet'
         >
       >,
     ) => {
