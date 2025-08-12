@@ -180,7 +180,7 @@ export const columns: (
     ),
     cell: () => null,
     enableSorting: false,
-    enableHiding: true,
+    enableHiding: false,
   },
   // {
   //   accessorKey: 'Triggered by',
