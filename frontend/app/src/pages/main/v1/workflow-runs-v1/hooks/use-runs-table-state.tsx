@@ -291,7 +291,6 @@ export const useRunsTableState = (
               const merged = {
                 ...DEFAULT_STATE,
                 ...initialStateRef.current,
-                // Ensure columnVisibility is merged properly
                 columnVisibility: {
                   ...DEFAULT_STATE.columnVisibility,
                   ...initialStateRef.current?.columnVisibility,
