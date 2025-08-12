@@ -11,7 +11,7 @@ import api, {
   V1WorkflowRunDetails,
   Workflow,
 } from '@/lib/api';
-import React, { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { Button } from '@/components/v1/ui/button';
 import { useApiError } from '@/lib/hooks';
 import { useMutation, useInfiniteQuery } from '@tanstack/react-query';
@@ -130,13 +130,13 @@ export function TriggerWorkflowForm({
     refetchInterval: 15000,
   });
 
-  const handleLoadMore = React.useCallback(() => {
+  const handleLoadMore = useCallback(() => {
     if (hasNextPage && !isFetchingNextPage) {
       fetchNextPage();
     }
   }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
-  const workflowKeys = React.useMemo(() => {
+  const workflowKeys = useMemo(() => {
     if (!workflowData?.pages) {
       return undefined;
     }
