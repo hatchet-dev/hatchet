@@ -32,7 +32,7 @@ message Event {
     // when the event was generated
     google.protobuf.Timestamp eventTimestamp = 5;
 
-    // the payload for the event
+    // the additional metadata for the event
     optional string additionalMetadata = 6;
 
     // the scope associated with this filter. Used for subsetting candidate filters at evaluation time

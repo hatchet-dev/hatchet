@@ -14,6 +14,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/hatchet-dev/hatchet/internal/dagutils"
+	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/admin/contracts"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
@@ -101,9 +102,13 @@ func (a *AdminServiceImpl) triggerWorkflowV0(ctx context.Context, req *contracts
 	if req.AdditionalMetadata != nil {
 		additionalMeta = *req.AdditionalMetadata
 	}
-	corrId := extractCorrelationId(additionalMeta)
 
-	ctx = context.WithValue(ctx, constants.CorrelationIdKey, corrId)
+	corrId := datautils.ExtractCorrelationId(additionalMeta)
+
+	if corrId != nil {
+		ctx = context.WithValue(ctx, constants.CorrelationIdKey, *corrId)
+	}
+
 	ctx = context.WithValue(ctx, constants.ResourceIdKey, workflowRunId)
 	ctx = context.WithValue(ctx, constants.ResourceTypeKey, constants.ResourceTypeWorkflowRun)
 
@@ -183,11 +188,15 @@ func (a *AdminServiceImpl) bulkTriggerWorkflowV0(ctx context.Context, req *contr
 		}
 
 		var corrId *string
+
 		if req.Workflows[i].AdditionalMetadata != nil {
-			corrId = extractCorrelationId(*req.Workflows[i].AdditionalMetadata)
+			corrId = datautils.ExtractCorrelationId(*req.Workflows[i].AdditionalMetadata)
 		}
 
-		ctx = context.WithValue(ctx, constants.CorrelationIdKey, corrId)
+		if corrId != nil {
+			ctx = context.WithValue(ctx, constants.CorrelationIdKey, *corrId)
+		}
+
 		ctx = context.WithValue(ctx, constants.ResourceIdKey, workflowRunId)
 		ctx = context.WithValue(ctx, constants.ResourceTypeKey, constants.ResourceTypeWorkflowRun)
 
@@ -402,6 +411,10 @@ func (a *AdminServiceImpl) ScheduleWorkflow(ctx context.Context, req *contracts.
 
 	if err := repository.ValidateJSONB(payloadBytes, "payload"); err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "Invalid request: %s", err)
+	}
+
+	if req.Priority != nil && (*req.Priority < 1 || *req.Priority > 3) {
+		return nil, status.Errorf(codes.InvalidArgument, "priority must be between 1 and 3, got %d", *req.Priority)
 	}
 
 	scheduledRef, err := a.repo.Workflow().CreateSchedules(

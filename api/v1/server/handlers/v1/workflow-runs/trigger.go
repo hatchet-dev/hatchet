@@ -48,6 +48,12 @@ func (t *V1WorkflowRunsService) V1WorkflowRunCreate(ctx echo.Context, request ge
 
 	var priority *int32
 	if request.Body.Priority != nil {
+		if *request.Body.Priority < 1 || *request.Body.Priority > 3 {
+			return gen.V1WorkflowRunCreate400JSONResponse(
+				apierrors.NewAPIErrors(fmt.Sprintf("priority must be between 1 and 3, got %d", *request.Body.Priority)),
+			), nil
+		}
+
 		newPrio := int32(*request.Body.Priority)
 		priority = &newPrio
 	}

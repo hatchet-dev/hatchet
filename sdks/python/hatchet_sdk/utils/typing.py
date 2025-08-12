@@ -1,5 +1,6 @@
 import sys
 from collections.abc import Awaitable, Coroutine, Generator
+from enum import Enum
 from typing import Any, Literal, TypeAlias, TypeGuard, TypeVar
 
 from pydantic import BaseModel
@@ -31,3 +32,29 @@ else:
 
 STOP_LOOP_TYPE = Literal["STOP_LOOP"]
 STOP_LOOP: STOP_LOOP_TYPE = "STOP_LOOP"  # Sentinel object to stop the loop
+
+
+class LogLevel(str, Enum):
+    DEBUG = "DEBUG"
+    INFO = "INFO"
+    WARN = "WARN"
+    ERROR = "ERROR"
+
+    @classmethod
+    def from_levelname(cls, levelname: str) -> "LogLevel":
+        levelname = levelname.upper()
+
+        if levelname == "DEBUG":
+            return cls.DEBUG
+
+        if levelname == "INFO":
+            return cls.INFO
+
+        if levelname in ["WARNING", "WARN"]:
+            return cls.WARN
+
+        if levelname == "ERROR":
+            return cls.ERROR
+
+        # fall back to INFO
+        return cls.INFO
