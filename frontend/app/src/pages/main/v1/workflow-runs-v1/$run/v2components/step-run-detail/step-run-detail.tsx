@@ -241,25 +241,26 @@ export const TaskRunDetail = ({
               <V1StepRunOutput taskRunId={taskRunId} />
             </TabsContent>
             <TabsContent value={TabOption.ChildWorkflowRuns} className="mt-4">
-              <RunsProvider
-                tableKey={`child-runs-${taskRunId}`}
-                disableTaskRunPagination={true}
-                display={{
-                  showCounts: false,
-                  showMetrics: false,
-                  showDateFilter: false,
-                  showTriggerRunButton: false,
-                  showCancelAndReplayButtons: false,
-                  showColumnToggle: true,
-                }}
-                runFilters={{
-                  parentTaskExternalId: taskRunId,
-                }}
-                initColumnVisibility={{}}
-                filterVisibility={{}}
-              >
-                <RunsTable />
-              </RunsProvider>
+              <div className="h-[600px] flex flex-col">
+                <RunsProvider
+                  tableKey={`child-runs-${taskRunId}`}
+                  display={{
+                    showCounts: false,
+                    showMetrics: false,
+                    showDateFilter: false,
+                    showTriggerRunButton: false,
+                    showCancelAndReplayButtons: false,
+                    showColumnToggle: true,
+                  }}
+                  runFilters={{
+                    parentTaskExternalId: taskRunId,
+                  }}
+                  initColumnVisibility={{}}
+                  filterVisibility={{}}
+                >
+                  <RunsTable headerClassName="flex-shrink-0" />
+                </RunsProvider>
+              </div>
             </TabsContent>
             <TabsContent value={TabOption.Input}>
               {taskRun.input && (

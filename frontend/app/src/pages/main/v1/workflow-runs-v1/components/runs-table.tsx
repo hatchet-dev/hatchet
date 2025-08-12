@@ -111,7 +111,7 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
     isMetricsFetching,
     metrics,
     tenantMetrics,
-    display: { showMetrics, showCounts, showColumnToggle },
+    display: { showMetrics, showCounts, showColumnToggle, showPagination },
     actions: {
       updatePagination,
       updateFilters,
@@ -346,16 +346,23 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
               filters.setColumnFilters(updaterOrValue);
             }
           }}
-          pagination={state.pagination}
-          setPagination={(updaterOrValue) => {
-            if (typeof updaterOrValue === 'function') {
-              updatePagination(updaterOrValue(state.pagination));
-            } else {
-              updatePagination(updaterOrValue);
-            }
-          }}
-          onSetPageSize={(size) =>
-            updatePagination({ ...state.pagination, pageSize: size })
+          pagination={showPagination ? state.pagination : undefined}
+          setPagination={
+            showPagination
+              ? (updaterOrValue) => {
+                  if (typeof updaterOrValue === 'function') {
+                    updatePagination(updaterOrValue(state.pagination));
+                  } else {
+                    updatePagination(updaterOrValue);
+                  }
+                }
+              : undefined
+          }
+          onSetPageSize={
+            showPagination
+              ? (size) =>
+                  updatePagination({ ...state.pagination, pageSize: size })
+              : undefined
           }
           rowSelection={state.rowSelection}
           setRowSelection={(updaterOrValue) => {
@@ -367,7 +374,7 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
               updateTableState({ rowSelection: updaterOrValue });
             }
           }}
-          pageCount={numPages}
+          pageCount={showPagination ? numPages : undefined}
           showColumnToggle={showColumnToggle}
           getSubRows={(row) => row.children || []}
           getRowId={getRowId}

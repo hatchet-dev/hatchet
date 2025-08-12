@@ -85,6 +85,7 @@ type RunsContextType = {
     showTriggerRunButton: boolean;
     showCancelAndReplayButtons: boolean;
     showColumnToggle: boolean;
+    showPagination: boolean;
     refetchInterval: number;
   };
 };
@@ -217,6 +218,7 @@ export const RunsProvider = ({
         showTriggerRunButton,
         showCancelAndReplayButtons,
         showColumnToggle,
+        showPagination: !disableTaskRunPagination,
         refetchInterval,
       },
       actions: {
@@ -261,6 +263,7 @@ export const RunsProvider = ({
       getRowId,
       showCancelAndReplayButtons,
       showColumnToggle,
+      disableTaskRunPagination,
     ],
   );
 
