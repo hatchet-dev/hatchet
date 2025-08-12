@@ -19,7 +19,7 @@ export function WorkflowTable() {
 
   const [sorting, setSorting] = useState<SortingState>([
     {
-      id: 'lastRun',
+      id: 'createdAt',
       desc: true,
     },
   ]);

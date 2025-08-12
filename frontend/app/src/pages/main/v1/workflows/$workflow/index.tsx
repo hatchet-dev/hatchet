@@ -81,7 +81,7 @@ export default function ExpandedWorkflow() {
       return res.data;
     },
     onSuccess: () => {
-      navigate(`/tenants/${tenantId}/tasks`);
+      navigate(`/tenants/${tenantId}/workflows`);
     },
   });
 

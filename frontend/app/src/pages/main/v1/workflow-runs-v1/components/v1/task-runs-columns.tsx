@@ -161,7 +161,7 @@ export const columns: (
       return (
         <div className="min-w-fit whitespace-nowrap">
           {(workflowId && workflowName && (
-            <a href={`/tenants/${tenantId}/tasks/${workflowId}`}>
+            <a href={`/tenants/${tenantId}/workflows/${workflowId}`}>
               {workflowName}
             </a>
           )) ||
