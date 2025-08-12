@@ -126,7 +126,7 @@ class AsyncLogSender:
             logger.warning("log queue is full, dropping log message")
 
 
-class CustomLogHandler(logging.StreamHandler):  # type: ignore[type-arg]
+class LogForwardingHandler(logging.StreamHandler):  # type: ignore[type-arg]
     def __init__(self, log_sender: AsyncLogSender, stream: StringIO):
         super().__init__(stream)
 
@@ -156,27 +156,27 @@ def capture_logs(
     @functools.wraps(func)
     async def wrapper(*args: P.args, **kwargs: P.kwargs) -> T:
         log_stream = StringIO()
-        custom_handler = CustomLogHandler(log_sender, log_stream)
-        custom_handler.setLevel(logger.level)
+        log_forwarder = LogForwardingHandler(log_sender, log_stream)
+        log_forwarder.setLevel(logger.level)
 
         if logger.handlers:
             for handler in logger.handlers:
                 if handler.formatter:
-                    custom_handler.setFormatter(handler.formatter)
+                    log_forwarder.setFormatter(handler.formatter)
                     break
 
             for handler in logger.handlers:
                 for filter_obj in handler.filters:
-                    custom_handler.addFilter(filter_obj)
+                    log_forwarder.addFilter(filter_obj)
 
-        if not any(h for h in logger.handlers if isinstance(h, CustomLogHandler)):
-            logger.addHandler(custom_handler)
+        if not any(h for h in logger.handlers if isinstance(h, LogForwardingHandler)):
+            logger.addHandler(log_forwarder)
 
         try:
             result = await func(*args, **kwargs)
         finally:
-            custom_handler.flush()
-            logger.removeHandler(custom_handler)
+            log_forwarder.flush()
+            logger.removeHandler(log_forwarder)
             log_stream.close()
 
         return result
