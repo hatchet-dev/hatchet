@@ -48,7 +48,6 @@ type RunsContextType = {
       uiState: Partial<
         Pick<
           RunsTableState,
-          | 'selectedAdditionalMetaRunId'
           | 'viewQueueMetrics'
           | 'triggerWorkflow'
           | 'taskRunDetailSheet'

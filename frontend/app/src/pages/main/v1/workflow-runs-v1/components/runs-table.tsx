@@ -129,6 +129,7 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
     [],
   );
   const [rotate, setRotate] = useState(false);
+  const [selectedAdditionalMetaRunId, setSelectedAdditionalMetaRunId] = useState<string | null>(null);
 
   const handleTaskRunIdClick = useCallback(
     (taskRunId: string) => {
@@ -144,9 +145,20 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
 
   const handleSetSelectedAdditionalMetaRunId = useCallback(
     (runId: string | null) => {
-      updateUIState({ selectedAdditionalMetaRunId: runId || undefined });
+      setSelectedAdditionalMetaRunId(runId);
     },
-    [updateUIState],
+    [],
+  );
+
+  const handleAdditionalMetadataOpenChange = useCallback(
+    (rowId: string, open: boolean) => {
+      if (open) {
+        setSelectedAdditionalMetaRunId(rowId);
+      } else {
+        setSelectedAdditionalMetaRunId(null);
+      }
+    },
+    [],
   );
 
   const handleAdditionalMetadataClick = useCallback(
@@ -161,17 +173,19 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
     () =>
       columns(
         tenantId,
-        state.selectedAdditionalMetaRunId || null,
+        selectedAdditionalMetaRunId,
         handleSetSelectedAdditionalMetaRunId,
         handleAdditionalMetadataClick,
         handleTaskRunIdClick,
+        handleAdditionalMetadataOpenChange,
       ),
     [
       tenantId,
-      state.selectedAdditionalMetaRunId,
+      selectedAdditionalMetaRunId,
       handleSetSelectedAdditionalMetaRunId,
       handleAdditionalMetadataClick,
       handleTaskRunIdClick,
+      handleAdditionalMetadataOpenChange,
     ],
   );
 

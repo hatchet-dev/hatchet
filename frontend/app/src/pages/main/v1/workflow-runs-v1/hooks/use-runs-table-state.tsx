@@ -37,7 +37,6 @@ export interface BaseRunsTableState {
   columnVisibility: VisibilityState;
 
   // UI state
-  selectedAdditionalMetaRunId?: string;
   viewQueueMetrics: boolean;
   triggerWorkflow: boolean;
   taskRunDetailSheet: TaskRunDetailSheetState;
@@ -47,6 +46,7 @@ export interface RunsTableState extends BaseRunsTableState {
   hasFiltersApplied: boolean;
   hasRowsSelected: boolean;
   hasOpenUI: boolean;
+  selectedAdditionalMetaRunId?: string;
 }
 
 const DEFAULT_STATE: RunsTableState = {
@@ -86,7 +86,6 @@ const KEY_MAP = {
   columnVisibility: 'cv',
 
   // UI state
-  selectedAdditionalMetaRunId: 'sm',
   viewQueueMetrics: 'vq',
   triggerWorkflow: 'tw',
   stepDetailSheet: 'sd',
@@ -335,7 +334,6 @@ export const useRunsTableState = (
             columnFilters: newState.columnFilters,
             rowSelection: newState.rowSelection,
             columnVisibility: newState.columnVisibility,
-            selectedAdditionalMetaRunId: newState.selectedAdditionalMetaRunId,
             viewQueueMetrics: newState.viewQueueMetrics,
             triggerWorkflow: newState.triggerWorkflow,
             taskRunDetailSheet: newState.taskRunDetailSheet,
@@ -384,7 +382,6 @@ export const useRunsTableState = (
       uiState: Partial<
         Pick<
           RunsTableState,
-          | 'selectedAdditionalMetaRunId'
           | 'viewQueueMetrics'
           | 'triggerWorkflow'
           | 'taskRunDetailSheet'
@@ -437,7 +434,6 @@ export const useRunsTableState = (
         currentState.parentTaskExternalId
       ),
       hasOpenUI: !!(
-        currentState.selectedAdditionalMetaRunId ||
         currentState.taskRunDetailSheet.isOpen ||
         currentState.viewQueueMetrics ||
         currentState.triggerWorkflow
