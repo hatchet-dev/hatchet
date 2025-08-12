@@ -387,10 +387,11 @@ export function TriggerWorkflowForm({
                   )}
                   {!hasNextPage &&
                     workflowKeys?.rows &&
-                    workflowKeys.rows.length > 200 && (
+                    workflowKeys.rows.length > 0 && (
                       <CommandItem disabled>
                         <div className="flex items-center justify-center w-full py-1 text-xs text-gray-500">
-                          All workflows loaded
+                          All workflows loaded ({workflowKeys.rows.length}{' '}
+                          total)
                         </div>
                       </CommandItem>
                     )}
