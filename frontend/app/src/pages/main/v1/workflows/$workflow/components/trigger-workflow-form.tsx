@@ -64,9 +64,8 @@ export function TriggerWorkflowForm({
     defaultWorkflow?.metadata.id,
   );
 
-  const [workflowSearch, setWorkflowSearch] = useState<string>('');
-  const [debouncedWorkflowSearch, setDebouncedWorkflowSearch] =
-    useState<string>('');
+  const [workflowSearch, setWorkflowSearch] = useState('');
+  const [debouncedWorkflowSearch, setDebouncedWorkflowSearch] = useState('');
 
   const debouncedSetSearch = useMemo(
     () => debounce((value: string) => setDebouncedWorkflowSearch(value), 300),
