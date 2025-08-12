@@ -209,7 +209,8 @@ export const useRunsTableState = (
     const parentTaskExternalIdParam = searchParams.get('parentTaskExternalId');
 
     if (initialStateRef.current) {
-      initialStateRef.current.parentTaskExternalId = parentTaskExternalIdParam || undefined;
+      initialStateRef.current.parentTaskExternalId =
+        parentTaskExternalIdParam || undefined;
     }
 
     if (!stateParam) {
