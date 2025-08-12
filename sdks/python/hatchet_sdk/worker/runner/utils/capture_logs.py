@@ -2,6 +2,7 @@ import asyncio
 import functools
 import logging
 from collections.abc import Awaitable, Callable
+from enum import Enum
 from io import StringIO
 from typing import Literal, ParamSpec, TypeVar
 
@@ -64,9 +65,36 @@ def copy_context_vars(
     return func(*args, **kwargs)
 
 
+class LogLevel(str, Enum):
+    DEBUG = "DEBUG"
+    INFO = "INFO"
+    WARN = "WARN"
+    ERROR = "ERROR"
+
+    @classmethod
+    def from_levelname(cls, levelname: str) -> "LogLevel":
+        levelname = levelname.upper()
+
+        if levelname == "DEBUG":
+            return cls.DEBUG
+
+        if levelname == "INFO":
+            return cls.INFO
+
+        if levelname in ["WARNING", "WARN"]:
+            return cls.WARN
+
+        if levelname == "ERROR":
+            return cls.ERROR
+
+        # fall back to INFO
+        return cls.INFO
+
+
 class LogRecord(BaseModel):
     message: str
     step_run_id: str
+    level: LogLevel
 
 
 class AsyncLogSender:
@@ -86,6 +114,7 @@ class AsyncLogSender:
                     self.event_client.log,
                     message=record.message,
                     step_run_id=record.step_run_id,
+                    level=record.level,
                 )
             except Exception:
                 logger.exception("failed to send log to Hatchet")
@@ -112,7 +141,13 @@ class CustomLogHandler(logging.StreamHandler):  # type: ignore[type-arg]
         if not step_run_id:
             return
 
-        self.log_sender.publish(LogRecord(message=log_entry, step_run_id=step_run_id))
+        self.log_sender.publish(
+            LogRecord(
+                message=log_entry,
+                step_run_id=step_run_id,
+                level=LogLevel.from_levelname(record.levelname),
+            )
+        )
 
 
 def capture_logs(
