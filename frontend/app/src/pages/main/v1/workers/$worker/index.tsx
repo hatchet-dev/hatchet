@@ -28,6 +28,7 @@ import { RecentWebhookRequests } from '../webhooks/components/recent-webhook-req
 import { RunsTable } from '../../workflow-runs-v1/components/runs-table';
 import { RunsProvider } from '../../workflow-runs-v1/hooks/runs-provider';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
+import { capitalize } from '@/lib/utils';
 export const isHealthy = (worker?: Worker) => {
   const reasons = [];
 
@@ -218,7 +219,7 @@ export default function ExpandedWorkflowRun() {
         <Separator className="my-4" />
         <div className="flex flex-row justify-between items-center mb-4">
           <h3 className="text-xl font-bold leading-tight text-foreground">
-            Recent Tasks
+            Recent Task Runs
           </h3>
         </div>
         <RunsProvider
@@ -308,7 +309,8 @@ export default function ExpandedWorkflowRun() {
               )}
               {worker.runtimeInfo?.languageVersion && (
                 <div>
-                  <b>Runtime</b>: {worker.runtimeInfo?.language}{' '}
+                  <b>Runtime</b>:{' '}
+                  {capitalize(worker.runtimeInfo?.language ?? '')}{' '}
                   {worker.runtimeInfo?.languageVersion}
                 </div>
               )}

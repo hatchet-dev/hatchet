@@ -153,7 +153,7 @@ function Sidebar({ className, memberships }: SidebarProps) {
                 key="tasks"
                 onNavLinkClick={onNavLinkClick}
                 to={`/tenants/${tenantId}/tasks`}
-                name="Tasks & Workflows"
+                name="Workflows"
                 icon={<Squares2X2Icon className="mr-2 h-4 w-4" />}
               />
               <SidebarButtonPrimary
