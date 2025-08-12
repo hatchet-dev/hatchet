@@ -28,8 +28,6 @@ import { useToast } from '@/components/v1/hooks/use-toast';
 import { Toaster } from '@/components/v1/ui/toaster';
 import { useQuery } from '@tanstack/react-query';
 import { queries } from '@/lib/api';
-import { Button } from '@/components/v1/ui/button';
-import { XMarkIcon } from '@heroicons/react/24/outline';
 
 import { getCreatedAfterFromTimeRange } from '../hooks/use-runs-table-state';
 import { AdditionalMetadataProp } from '../hooks/use-runs-table-filters';
@@ -131,19 +129,6 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
     [],
   );
   const [rotate, setRotate] = useState(false);
-
-  const derivedParentTaskExternalId = state.parentTaskExternalId;
-
-  const handleClearParentFilter = useCallback(() => {
-    setSearchParams(
-      (prev) => {
-        const newParams = new URLSearchParams(prev);
-        newParams.delete('parentTaskExternalId');
-        return newParams;
-      },
-      { replace: true },
-    );
-  }, [setSearchParams]);
 
   const handleTaskRunIdClick = useCallback(
     (taskRunId: string) => {
@@ -269,25 +254,6 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
       )}
 
       <TimeFilter />
-
-      {derivedParentTaskExternalId && (
-        <div className="flex items-center justify-between px-3 py-2 bg-muted/50 border rounded-md">
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <span>Showing child runs for task run id</span>
-            <code className="px-1.5 py-0.5 bg-background border rounded text-xs font-mono">
-              {derivedParentTaskExternalId}
-            </code>
-          </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleClearParentFilter}
-            className="h-8 w-8 p-0 hover:bg-muted"
-          >
-            <XMarkIcon className="h-4 w-4" />
-          </Button>
-        </div>
-      )}
 
       {showMetrics && <GetWorkflowChart />}
 
