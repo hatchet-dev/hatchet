@@ -494,28 +494,7 @@ WHERE
 
 -- name: PopulateTaskRunData :one
 WITH task AS (
-    SELECT
-        tenant_id,
-        id,
-        inserted_at,
-        queue,
-        action_id,
-        step_id,
-        workflow_id,
-        workflow_version_id,
-        schedule_timeout,
-        step_timeout,
-        priority,
-        sticky,
-        desired_worker_id,
-        external_id,
-        display_name,
-        input,
-        additional_metadata,
-        readable_status,
-        parent_task_external_id,
-        workflow_run_id,
-        latest_retry_count
+    SELECT *
     FROM
         v1_tasks_olap
     WHERE
