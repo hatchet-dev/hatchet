@@ -86,7 +86,7 @@ WHERE
     workflows."deletedAt" IS NULL AND
     (
         sqlc.narg('search')::text IS NULL OR
-        workflows.name like concat('%', sqlc.narg('search')::text, '%')
+        workflows.name iLIKE concat('%', sqlc.narg('search')::text, '%')
     )
 ORDER BY
     case when @orderBy = 'createdAt ASC' THEN workflows."createdAt" END ASC ,

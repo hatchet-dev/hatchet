@@ -11,10 +11,11 @@ import api, {
   V1WorkflowRunDetails,
   Workflow,
 } from '@/lib/api';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState, useEffect } from 'react';
 import { Button } from '@/components/v1/ui/button';
+import { debounce } from 'lodash';
 import { useApiError } from '@/lib/hooks';
-import { useMutation, useInfiniteQuery } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { CodeEditor } from '@/components/v1/ui/code-editor';
 import { Input } from '@/components/v1/ui/input';
@@ -25,20 +26,9 @@ import {
   TabsTrigger,
 } from '@/components/v1/ui/tabs';
 import { DateTimePicker } from '@/components/v1/molecules/time-picker/date-time-picker';
+import { ToolbarType } from '@/components/v1/molecules/data-table/data-table-toolbar';
 import { BiDownArrowCircle } from 'react-icons/bi';
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from '@/components/v1/ui/command';
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/v1/ui/popover';
+import { Combobox } from '@/components/v1/molecules/combobox/combobox';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { formatCron } from '@/lib/utils';
 
@@ -74,6 +64,29 @@ export function TriggerWorkflowForm({
     defaultWorkflow?.metadata.id,
   );
 
+  const [workflowSearch, setWorkflowSearch] = useState<string>('');
+  const [debouncedWorkflowSearch, setDebouncedWorkflowSearch] =
+    useState<string>('');
+
+  const debouncedSetSearch = useMemo(
+    () => debounce((value: string) => setDebouncedWorkflowSearch(value), 300),
+    [],
+  );
+
+  const handleSearchChange = useCallback(
+    (value: string) => {
+      setWorkflowSearch(value);
+      debouncedSetSearch(value);
+    },
+    [debouncedSetSearch],
+  );
+
+  useEffect(() => {
+    return () => {
+      debouncedSetSearch.cancel();
+    };
+  }, [debouncedSetSearch]);
+
   const handleClose = useCallback(() => {
     onClose();
     setInput('{}');
@@ -84,7 +97,10 @@ export function TriggerWorkflowForm({
     setScheduleTime(new Date());
     setCronExpression('* * * * *');
     setCronName('');
-  }, [onClose, defaultWorkflow, defaultTimingOption]);
+    setWorkflowSearch('');
+    setDebouncedWorkflowSearch('');
+    debouncedSetSearch.cancel();
+  }, [onClose, defaultWorkflow, defaultTimingOption, debouncedSetSearch]);
 
   const cronPretty = useMemo(() => {
     try {
@@ -101,52 +117,24 @@ export function TriggerWorkflowForm({
     setErrors,
   });
 
-  // Custom hook to fetch workflows with scroll-based pagination
-  const {
-    data: workflowData,
-    isFetched,
-    fetchNextPage,
-    hasNextPage,
-    isFetchingNextPage,
-  } = useInfiniteQuery({
-    queryKey: ['workflows', 'paginated', tenantId],
-    queryFn: async ({ pageParam = 0 }) => {
+  const { data: workflowKeys } = useQuery({
+    queryKey: [
+      'workflow:list',
+      tenantId,
+      {
+        limit: 200,
+        name: debouncedWorkflowSearch || undefined,
+      },
+    ],
+    queryFn: async () => {
       const response = await api.workflowList(tenantId, {
         limit: 200,
-        offset: pageParam,
+        name: debouncedWorkflowSearch || undefined,
       });
       return response.data;
     },
-    getNextPageParam: (lastPage) => {
-      if (
-        lastPage.pagination?.next_page !== lastPage.pagination?.current_page &&
-        lastPage.pagination?.next_page !== undefined
-      ) {
-        return (lastPage.pagination.current_page || 0) * 200;
-      }
-      return undefined;
-    },
-    initialPageParam: 0,
     refetchInterval: 15000,
   });
-
-  const handleLoadMore = useCallback(() => {
-    if (hasNextPage && !isFetchingNextPage) {
-      fetchNextPage();
-    }
-  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
-
-  const workflowKeys = useMemo(() => {
-    if (!workflowData?.pages) {
-      return undefined;
-    }
-
-    const allRows = workflowData.pages.flatMap((page) => page.rows || []);
-    return {
-      rows: allRows,
-      pagination: workflowData.pages[workflowData.pages.length - 1]?.pagination,
-    };
-  }, [workflowData]);
 
   const selectedWorkflow = useMemo(
     () => workflowKeys?.rows?.find((w) => w.metadata.id === selectedWorkflowId),
@@ -293,28 +281,6 @@ export function TriggerWorkflowForm({
     }
   };
 
-  if ((!workflowKeys || workflowKeys.rows?.length === 0) && isFetched) {
-    return (
-      <Dialog
-        open={show}
-        onOpenChange={(open) => {
-          if (!open) {
-            handleClose();
-          }
-        }}
-      >
-        <DialogContent className="sm:max-w-[625px] py-12 max-h-screen overflow-auto">
-          <DialogHeader className="gap-2">
-            <DialogTitle>Trigger Workflow</DialogTitle>
-            <DialogDescription className="text-muted-foreground">
-              No workflows found. Create a workflow first.
-            </DialogDescription>
-          </DialogHeader>
-        </DialogContent>
-      </Dialog>
-    );
-  }
-
   return (
     <Dialog
       open={show}
@@ -334,72 +300,26 @@ export function TriggerWorkflowForm({
         </DialogHeader>
 
         <div className="font-bold">Task or Workflow</div>
-        <Popover>
-          <PopoverTrigger asChild>
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-8 border-dashed w-full justify-start"
-            >
-              <BiDownArrowCircle className="h-5 w-5 text-gray-700 dark:text-gray-300 mr-2" />
-              {selectedWorkflow?.name || 'Select Task or Workflow'}
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-[300px] p-2" align="start">
-            <Command>
-              <CommandInput placeholder="Search workflows..." />
-              <CommandList
-                className="max-h-60 overflow-y-auto"
-                onScroll={(e) => {
-                  const { scrollTop, scrollHeight, clientHeight } =
-                    e.currentTarget;
-                  if (scrollHeight - scrollTop - clientHeight < 50) {
-                    handleLoadMore();
-                  }
-                }}
-                onWheel={(e) => {
-                  e.currentTarget.scrollTop += e.deltaY;
-                }}
-              >
-                <CommandEmpty>No workflows found.</CommandEmpty>
-                <CommandGroup>
-                  {workflowKeys?.rows?.map((workflow) => (
-                    <CommandItem
-                      key={workflow.metadata.id}
-                      onSelect={() => {
-                        setSelectedWorkflowId(workflow.metadata.id);
-                      }}
-                      className={
-                        selectedWorkflowId === workflow.metadata.id
-                          ? 'bg-accent'
-                          : ''
-                      }
-                    >
-                      {workflow.name}
-                    </CommandItem>
-                  ))}
-                  {isFetchingNextPage && (
-                    <CommandItem disabled>
-                      <div className="flex items-center justify-center w-full py-2">
-                        Loading more workflows...
-                      </div>
-                    </CommandItem>
-                  )}
-                  {!hasNextPage &&
-                    workflowKeys?.rows &&
-                    workflowKeys.rows.length > 0 && (
-                      <CommandItem disabled>
-                        <div className="flex items-center justify-center w-full py-1 text-xs text-gray-500">
-                          All workflows loaded ({workflowKeys.rows.length}{' '}
-                          total)
-                        </div>
-                      </CommandItem>
-                    )}
-                </CommandGroup>
-              </CommandList>
-            </Command>
-          </PopoverContent>
-        </Popover>
+        <Combobox
+          values={selectedWorkflowId ? [selectedWorkflowId] : []}
+          setValues={(values) => setSelectedWorkflowId(values[0])}
+          title="Select Task or Workflow"
+          options={workflowKeys?.rows?.map((w) => ({
+            value: w.metadata.id,
+            label: w.name,
+          }))}
+          type={ToolbarType.Radio}
+          icon={
+            <BiDownArrowCircle className="h-5 w-5 text-gray-700 dark:text-gray-300 mr-2" />
+          }
+          searchValue={workflowSearch}
+          onSearchChange={handleSearchChange}
+          emptyMessage={
+            debouncedWorkflowSearch
+              ? `No workflows matching "${debouncedWorkflowSearch}"`
+              : 'No workflows found'
+          }
+        />
         <div className="font-bold">Input</div>
         <CodeEditor
           code={input || '{}'}

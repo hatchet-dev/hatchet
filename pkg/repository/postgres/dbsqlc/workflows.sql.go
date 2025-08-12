@@ -1802,7 +1802,7 @@ WHERE
     workflows."deletedAt" IS NULL AND
     (
         $2::text IS NULL OR
-        workflows.name like concat('%', $2::text, '%')
+        workflows.name iLIKE concat('%', $2::text, '%')
     )
 ORDER BY
     case when $3 = 'createdAt ASC' THEN workflows."createdAt" END ASC ,
