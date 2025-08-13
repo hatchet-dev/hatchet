@@ -178,20 +178,22 @@ const buildWebhookPayload = (data: WebhookFormData): V1CreateWebhookRequest => {
         },
       };
     case V1WebhookSourceName.SLACK:
-      if (!data.apiKey) {
-        throw new Error('API key is required for Slack webhooks');
+      if (!data.signingSecret) {
+        throw new Error('signing secret is required for Slack webhooks');
       }
 
       return {
         sourceName: data.sourceName,
         name: data.name,
         eventKeyExpression: data.eventKeyExpression,
-        authType: V1WebhookAuthType.API_KEY,
+        authType: V1WebhookAuthType.HMAC,
         auth: {
           // Slack sends the token in the request body. See the docs:
           // https://api.slack.com/apis/events-api#receiving-events
-          apiKey: data.apiKey,
-          headerName: 'placeholder',
+          algorithm: V1WebhookHMACAlgorithm.SHA256,
+          encoding: V1WebhookHMACEncoding.HEX,
+          signatureHeaderName: 'x-slack-signature',
+          signingSecret: data.signingSecret,
         },
       };
     case V1WebhookSourceName.DISCORD:

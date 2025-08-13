@@ -276,72 +276,81 @@ func (w *V1WebhooksService) validateWebhook(webhookPayload []byte, webhook sqlcv
 		if err != nil {
 			return false, emptyChallenge, &ValidationError{
 				Code:      Http400,
-				ErrorText: fmt.Sprintf("failed to unmarshal webhook payload: %s", err),
+				ErrorText: fmt.Sprintf("failed to parse form data: %s", err),
 			}
 		}
 
-		if payload["challenge"] != nil {
-			challenge, ok := payload["challenge"].(string)
-
-			if !ok {
-				return false, emptyChallenge, &ValidationError{
-					Code:      Http400,
-					ErrorText: "challenge is not a string",
-				}
-			}
-
+		if challenge, ok := payload["challenge"].(string); ok && challenge != "" {
 			return true, Challenge{
 				IsChallenge: true,
 				Text:        &challenge,
 			}, nil
 		}
 
-		decryptedApiKey, err := w.config.Encryption.Decrypt(webhook.AuthApiKeyKey, "v1_webhook_api_key")
+		timestampHeader := request.Header.Get("X-Slack-Request-Timestamp")
+
+		if timestampHeader == "" {
+			return false, emptyChallenge, &ValidationError{
+				Code:      Http400,
+				ErrorText: "missing or invalid timestamp header: X-Slack-Request-Timestamp",
+			}
+		}
+
+		timestamp, err := strconv.ParseInt(strings.TrimSpace(timestampHeader), 10, 64)
+
+		if err != nil {
+			return false, emptyChallenge, &ValidationError{
+				Code:      Http400,
+				ErrorText: fmt.Sprintf("invalid timestamp in header: %s", err),
+			}
+		}
+
+		// qq: should this be utc?
+		if time.Unix(timestamp, 0).UTC().Before(time.Now().Add(-5 * time.Minute)) {
+			return false, emptyChallenge, &ValidationError{
+				Code:      Http400,
+				ErrorText: "timestamp in header is out of range",
+			}
+		}
+
+		algorithm := webhook.AuthHmacAlgorithm.V1IncomingWebhookHmacAlgorithm
+		encoding := webhook.AuthHmacEncoding.V1IncomingWebhookHmacEncoding
+		decryptedSigningSecret, err := w.config.Encryption.Decrypt(webhook.AuthHmacWebhookSigningSecret, "v1_webhook_hmac_signing_secret")
 
 		if err != nil {
 			return false, emptyChallenge, &ValidationError{
 				Code:      Http500,
-				ErrorText: fmt.Sprintf("failed to decrypt api key: %s", err),
+				ErrorText: fmt.Sprintf("failed to decrypt HMAC signing secret: %s", err),
 			}
 		}
 
-		if payload["token"] == nil {
+		sigBaseString := fmt.Sprintf("v0:%d:%s", timestamp, webhookPayload)
+
+		hash, err := computeHMACSignature([]byte(sigBaseString), decryptedSigningSecret, algorithm, encoding)
+
+		if err != nil {
 			return false, emptyChallenge, &ValidationError{
-				Code:      Http400,
-				ErrorText: fmt.Sprintf("missing or invalid api key: %s", err),
+				Code:      Http500,
+				ErrorText: fmt.Sprintf("failed to compute HMAC signature: %s", err),
 			}
 		}
 
-		token, ok := payload["token"].(string)
+		expectedSignature := fmt.Sprintf("v0=%s", hash)
 
-		if !ok {
-			return false, emptyChallenge, &ValidationError{
-				Code:      Http400,
-				ErrorText: "token is not a string",
-			}
-		}
+		signatureHeader := request.Header.Get(webhook.AuthHmacSignatureHeaderName.String)
 
-		if token != string(decryptedApiKey) {
+		if signatureHeader == "" {
 			return false, emptyChallenge, &ValidationError{
 				Code:      Http403,
-				ErrorText: fmt.Sprintf("invalid api key: %s", webhook.AuthApiKeyHeaderName.String),
+				ErrorText: fmt.Sprintf("missing or invalid signature header: %s", webhook.AuthHmacSignatureHeaderName.String),
 			}
 		}
 
-		if payload["challenge"] != nil {
-			challenge, ok := payload["challenge"].(string)
-
-			if !ok {
-				return false, emptyChallenge, &ValidationError{
-					Code:      Http400,
-					ErrorText: "challenge is not a string",
-				}
+		if !signaturesMatch(signatureHeader, expectedSignature) {
+			return false, emptyChallenge, &ValidationError{
+				Code:      Http403,
+				ErrorText: "invalid HMAC signature",
 			}
-
-			return true, Challenge{
-				IsChallenge: true,
-				Text:        &challenge,
-			}, nil
 		}
 
 		return true, emptyChallenge, nil

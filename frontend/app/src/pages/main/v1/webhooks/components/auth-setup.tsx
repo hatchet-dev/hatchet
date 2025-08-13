@@ -225,8 +225,8 @@ const SlackAuth = ({ register }: BaseAuthMethodProps) => (
           data-1p-ignore
           id="signingSecret"
           type={'text'}
-          placeholder="whsec_..."
-          {...register('apiKey')}
+          placeholder="super-secret"
+          {...register('signingSecret')}
           className="h-10 pr-10"
         />
       </div>
