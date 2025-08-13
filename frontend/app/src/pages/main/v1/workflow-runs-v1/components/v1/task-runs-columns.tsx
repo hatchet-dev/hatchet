@@ -24,7 +24,7 @@ export const TaskRunColumn = {
   startedAt: 'Started at',
   finishedAt: 'Finished at',
   duration: 'Duration',
-  additionalMetadata: 'additionalMetadata',
+  additionalMetadata: 'Additional Metadata',
 } as const;
 
 export const columns: (
