@@ -6,18 +6,10 @@ import {
   ColumnFiltersState,
   PaginationState,
   RowSelectionState,
-  SortingState,
   VisibilityState,
 } from '@tanstack/react-table';
 import { useQuery } from '@tanstack/react-query';
-import api, {
-  V1Event,
-  EventOrderByDirection,
-  EventOrderByField,
-  V1TaskStatus,
-  queries,
-  V1Filter,
-} from '@/lib/api';
+import api, { V1Event, V1TaskStatus, queries, V1Filter } from '@/lib/api';
 import {
   FilterOption,
   ToolbarType,
@@ -56,6 +48,7 @@ import {
 
 export default function Events() {
   const [selectedEvent, setSelectedEvent] = useState<V1Event | null>(null);
+  console.log('selectedEvent', selectedEvent);
   const { tenantId } = useCurrentTenantId();
 
   const [searchParams, setSearchParams] = useSearchParams();
@@ -82,14 +75,6 @@ export default function Events() {
     }
   }, [selectedEvent, searchParams, setSearchParams]);
 
-  const [sorting, setSorting] = useState<SortingState>(() => {
-    const sortParam = searchParams.get('sort');
-    if (sortParam) {
-      const [id, desc] = sortParam.split(':');
-      return [{ id, desc: desc === 'desc' }];
-    }
-    return [];
-  });
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>(() => {
     const filtersParam = searchParams.get('filters');
     if (filtersParam) {
@@ -117,37 +102,11 @@ export default function Events() {
   useEffect(() => {
     const newSearchParams = new URLSearchParams(searchParams);
 
-    newSearchParams.set(
-      'sort',
-      sorting.map((s) => `${s.id}:${s.desc ? 'desc' : 'asc'}`).join(','),
-    );
     newSearchParams.set('filters', JSON.stringify(columnFilters));
     newSearchParams.set('pageIndex', pagination.pageIndex.toString());
     newSearchParams.set('pageSize', pagination.pageSize.toString());
     setSearchParams(newSearchParams, { replace: true });
-  }, [sorting, columnFilters, pagination, setSearchParams, searchParams]);
-
-  const orderByDirection = useMemo((): EventOrderByDirection | undefined => {
-    if (!sorting.length) {
-      return;
-    }
-
-    return sorting[0]?.desc
-      ? EventOrderByDirection.Desc
-      : EventOrderByDirection.Asc;
-  }, [sorting]);
-
-  const orderByField = useMemo((): EventOrderByField | undefined => {
-    if (!sorting.length) {
-      return;
-    }
-
-    switch (sorting[0]?.id) {
-      case 'Seen at':
-      default:
-        return EventOrderByField.CreatedAt;
-    }
-  }, [sorting]);
+  }, [columnFilters, pagination, setSearchParams, searchParams]);
 
   const keys = useMemo(() => {
     const filter = columnFilters.find((filter) => filter.id === 'key');
@@ -229,8 +188,6 @@ export default function Events() {
       {
         keys,
         workflows,
-        orderByField,
-        orderByDirection,
         offset,
         limit: pageSize,
         statuses,
@@ -402,8 +359,6 @@ export default function Events() {
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}
         actions={actions}
-        sorting={sorting}
-        setSorting={setSorting}
         columnFilters={columnFilters}
         setColumnFilters={setColumnFilters}
         pagination={pagination}

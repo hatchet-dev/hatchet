@@ -93,6 +93,7 @@ export const columns = ({
           </div>
         );
       },
+      enableSorting: false,
     },
     // empty columns to get column filtering to work properly
     {
@@ -121,6 +122,7 @@ export const columns = ({
 
         return <WorkflowRunSummary event={row.original} />;
       },
+      enableSorting: false,
     },
     {
       accessorKey: 'Metadata',
