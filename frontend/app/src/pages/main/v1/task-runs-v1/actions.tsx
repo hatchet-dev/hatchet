@@ -13,7 +13,7 @@ import api, {
   V1TaskStatus,
 } from '@/lib/api';
 import { useApiError } from '@/lib/hooks';
-import { ArrowPathIcon, XCircleIcon } from '@heroicons/react/24/outline';
+import { XCircleIcon } from '@heroicons/react/24/outline';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useCallback, useState } from 'react';
 import { Combobox } from '@/components/v1/molecules/combobox/combobox';
@@ -22,6 +22,7 @@ import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { useRunsContext } from '../workflow-runs-v1/hooks/runs-provider';
 import { TimeFilter } from '../workflow-runs-v1/components/task-runs-table/time-filter';
 import { cn } from '@/lib/utils';
+import { Repeat1 } from 'lucide-react';
 
 export const TASK_RUN_TERMINAL_STATUSES = [
   V1TaskStatus.CANCELLED,
@@ -434,7 +435,7 @@ export const TaskRunActionButton = ({
         <BaseActionButton
           disabled={disabled}
           params={{ ...params, actionType: 'replay' }}
-          icon={<ArrowPathIcon className="w-4 h-4" />}
+          icon={<Repeat1 className="w-4 h-4" />}
           label={'Replay'}
           showModal={showModal}
           onActionProcessed={onActionProcessed}
