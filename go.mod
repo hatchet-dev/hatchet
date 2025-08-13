@@ -8,6 +8,7 @@ require (
 	github.com/Masterminds/semver/v3 v3.4.0
 	github.com/creasty/defaults v1.8.0
 	github.com/fatih/color v1.18.0
+	github.com/fergusstrange/embedded-postgres v1.32.0
 	github.com/getkin/kin-openapi v0.132.0
 	github.com/go-co-op/gocron/v2 v2.16.3
 	github.com/google/go-github/v57 v57.0.0
@@ -108,6 +109,7 @@ require (
 	github.com/klauspost/compress v1.18.0 // indirect
 	github.com/labstack/gommon v0.4.2 // indirect
 	github.com/leodido/go-urn v1.4.0 // indirect
+	github.com/lib/pq v1.10.9 // indirect
 	github.com/lufia/plan9stats v0.0.0-20211012122336-39d0f177ccd0 // indirect
 	github.com/magiconair/properties v1.8.10 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
@@ -145,6 +147,7 @@ require (
 	github.com/valyala/fasttemplate v1.2.2 // indirect
 	github.com/wk8/go-ordered-map/v2 v2.1.8 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
+	github.com/xi2/xz v0.0.0-20171230120015-48954b6210f8 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	go.opentelemetry.io/auto/sdk v1.1.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.61.0 // indirect
@@ -167,7 +170,7 @@ require (
 require (
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/exaring/otelpgx v0.9.3
-	github.com/fsnotify/fsnotify v1.8.0 // indirect
+	github.com/fsnotify/fsnotify v1.8.0
 	github.com/getsentry/sentry-go v0.35.0
 	github.com/go-chi/chi v1.5.5
 	github.com/go-playground/validator/v10 v10.27.0

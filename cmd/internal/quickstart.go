@@ -1,4 +1,4 @@
-package cli
+package internal
 
 import (
 	_ "embed"
@@ -9,10 +9,8 @@ import (
 	"strings"
 
 	"github.com/fatih/color"
-	"github.com/spf13/cobra"
 	"sigs.k8s.io/yaml"
 
-	"github.com/hatchet-dev/hatchet/cmd/internal"
 	"github.com/hatchet-dev/hatchet/pkg/config/database"
 	"github.com/hatchet-dev/hatchet/pkg/config/loader"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
@@ -24,6 +22,7 @@ var certDir string
 var generatedConfigDir string
 var skip []string
 var overwrite bool
+var configDirectory string
 
 const (
 	StageCerts string = "certs"
@@ -31,56 +30,78 @@ const (
 	StageSeed  string = "seed"
 )
 
-var quickstartCmd = &cobra.Command{
-	Use:   "quickstart",
-	Short: "Command used to setup a Hatchet instance",
-	Run: func(cmd *cobra.Command, args []string) {
-		err := internal.RunQuickstart(&internal.QuickstartOpts{
-			CertDir:            certDir,
-			GeneratedConfigDir: generatedConfigDir,
-			Skip:               skip,
-			Overwrite:          overwrite,
-			ConfigDirectory:    configDirectory,
-		})
-
-		if err != nil {
-			red := color.New(color.FgRed)
-			red.Printf("Error running [%s]:%s\n", cmd.Use, err.Error())
-			os.Exit(1)
-		}
-	},
+type QuickstartOpts struct {
+	CertDir            string
+	GeneratedConfigDir string
+	Skip               []string
+	Overwrite          bool
+	ConfigDirectory    string
 }
 
-func init() {
-	rootCmd.AddCommand(quickstartCmd)
+func RunQuickstart(opts *QuickstartOpts) error {
+	if opts.CertDir == "" {
+		opts.CertDir = "./certs"
+	}
 
-	quickstartCmd.PersistentFlags().StringVar(
-		&certDir,
-		"cert-dir",
-		"./certs",
-		"path to the directory where certificates should be stored",
-	)
+	if opts.GeneratedConfigDir == "" {
+		opts.GeneratedConfigDir = "./generated"
+	}
 
-	quickstartCmd.PersistentFlags().StringVar(
-		&generatedConfigDir,
-		"generated-config-dir",
-		"./generated",
-		"path to the directory where the generated config should be written",
-	)
+	certDir = opts.CertDir
+	generatedConfigDir = opts.GeneratedConfigDir
+	skip = opts.Skip
+	overwrite = opts.Overwrite
+	configDirectory = opts.ConfigDirectory
 
-	quickstartCmd.PersistentFlags().StringArrayVar(
-		&skip,
-		"skip",
-		[]string{},
-		"a list of steps to skip. possible values are \"certs\", \"keys\", or \"seed\"",
-	)
+	generated, err := loadBaseConfigFiles()
 
-	quickstartCmd.PersistentFlags().BoolVar(
-		&overwrite,
-		"overwrite",
-		true,
-		"whether generated files should be overwritten, if they exist",
-	)
+	if err != nil {
+		return fmt.Errorf("could not get base config files: %w", err)
+	}
+
+	if !shouldSkip(StageCerts) {
+		err := setupCerts(generated)
+
+		if err != nil {
+			return fmt.Errorf("could not setup certs: %w", err)
+		}
+	}
+
+	if !shouldSkip(StageKeys) {
+		err := generateKeys(generated)
+
+		if err != nil {
+			return fmt.Errorf("could not generate keys: %w", err)
+		}
+	}
+
+	err = writeGeneratedConfig(generated)
+
+	if err != nil {
+		return fmt.Errorf("could not write generated config files: %w", err)
+	}
+
+	if !shouldSkip(StageSeed) {
+		// reload config at this point
+		configLoader := loader.NewConfigLoader(configDirectory)
+		err = RunSeed(configLoader)
+
+		if err != nil {
+			return fmt.Errorf("could not run seed: %w", err)
+		}
+	}
+
+	return nil
+}
+
+func shouldSkip(stage string) bool {
+	for _, skipStage := range skip {
+		if stage == skipStage {
+			return true
+		}
+	}
+
+	return false
 }
 
 //go:embed certs/cluster-cert.conf
@@ -92,7 +113,7 @@ var InternalAdminClientCertConf []byte
 //go:embed certs/worker-client-cert.conf
 var WorkerClientCertConf []byte
 
-//go:embed certs/generate-certs.sh
+//go:embed certs/generate-x509-certs.sh
 var GenerateCertsScript string
 
 type generatedConfigFiles struct {
