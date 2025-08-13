@@ -68,14 +68,14 @@ func (w *V1WebhooksService) V1WebhookReceive(ctx echo.Context, request gen.V1Web
 		return nil, fmt.Errorf("failed to read request body: %w", err)
 	}
 
-	isChallenge, result, err := w.performChallenge(rawBody, *webhook, *ctx.Request())
+	isChallenge, challengeResponse, err := w.performChallenge(rawBody, *webhook, *ctx.Request())
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to perform challenge: %w", err)
 	}
 
 	if isChallenge {
-		return gen.V1WebhookReceive200JSONResponse(result), nil
+		return gen.V1WebhookReceive200JSONResponse(challengeResponse), nil
 	}
 
 	ok, validationError := w.validateWebhook(rawBody, *webhook, *ctx.Request())
