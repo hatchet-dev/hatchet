@@ -188,18 +188,14 @@ const buildWebhookPayload = (data: WebhookFormData): V1CreateWebhookRequest => {
         eventKeyExpression: data.eventKeyExpression,
         authType: V1WebhookAuthType.HMAC,
         auth: {
-          // Slack sends the token in the request body. See the docs:
+          // Slack sends the expected signature and timestamp as headers
           // https://api.slack.com/apis/events-api#receiving-events
           algorithm: V1WebhookHMACAlgorithm.SHA256,
           encoding: V1WebhookHMACEncoding.HEX,
-          signatureHeaderName: 'x-slack-signature',
+          signatureHeaderName: 'X-Slack-Signature',
           signingSecret: data.signingSecret,
         },
       };
-    case V1WebhookSourceName.DISCORD:
-      throw new Error(
-        'Discord webhooks are not supported yet. Please use a generic webhook for now.',
-      );
     default:
       // eslint-disable-next-line no-case-declarations
       const exhaustiveCheck: never = data.sourceName;
@@ -214,7 +210,6 @@ const createSourceInlineDescription = (sourceName: V1WebhookSourceName) => {
     case V1WebhookSourceName.GITHUB:
     case V1WebhookSourceName.STRIPE:
     case V1WebhookSourceName.SLACK:
-    case V1WebhookSourceName.DISCORD:
       return '';
     default:
       // eslint-disable-next-line no-case-declarations

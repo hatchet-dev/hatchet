@@ -52,7 +52,6 @@ V1WebhookSourceName:
     - GITHUB
     - STRIPE
     - SLACK
-    - DISCORD
 
 V1WebhookHMACAlgorithm:
   type: string

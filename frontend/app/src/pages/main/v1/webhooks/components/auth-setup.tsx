@@ -169,85 +169,26 @@ const HMACAuth = ({ register, watch, setValue }: HMACAuthProps) => (
   </div>
 );
 
-const StripeAuth = ({ register }: BaseAuthMethodProps) => (
-  // Stripe only requires a secret, as we know the header key and the encoding info (user doesn't need to provide them)
-  // See docs: https://docs.stripe.com/webhooks?verify=verify-manually#verify-manually
+export const PreconfiguredHMACAuth = ({
+  register,
+  secretLabel = 'Signing Secret',
+  secretPlaceholder = 'super-secret',
+}: BaseAuthMethodProps & {
+  secretLabel?: string;
+  secretPlaceholder?: string;
+}) => (
+  // Intended to be used for Stripe, Slack, Github, etc.
   <div className="space-y-4">
     <div className="space-y-2">
       <Label htmlFor="signingSecret" className="text-sm font-medium">
-        Webhook Signing Secret <span className="text-red-500">*</span>
+        {secretLabel} <span className="text-red-500">*</span>
       </Label>
       <div className="relative">
         <Input
           data-1p-ignore
           id="signingSecret"
           type={'text'}
-          placeholder="whsec_..."
-          {...register('signingSecret')}
-          className="h-10 pr-10"
-        />
-      </div>
-    </div>
-  </div>
-);
-
-const DiscordAuth = ({ register }: BaseAuthMethodProps) => (
-  // TODO: Implement Discord webhook auth
-  <div className="space-y-4">
-    <div className="space-y-2">
-      <Label htmlFor="signingSecret" className="text-sm font-medium">
-        Webhook Signing Secret <span className="text-red-500">*</span>
-      </Label>
-      <div className="relative">
-        <Input
-          data-1p-ignore
-          id="signingSecret"
-          type={'text'}
-          placeholder="whsec_..."
-          {...register('signingSecret')}
-          className="h-10 pr-10"
-        />
-      </div>
-    </div>
-  </div>
-);
-
-const SlackAuth = ({ register }: BaseAuthMethodProps) => (
-  // Slack only requires a secret, which is provided in the request body.
-  // See docs: https://api.slack.com/apis/events-api#receiving-events
-  <div className="space-y-4">
-    <div className="space-y-2">
-      <Label htmlFor="signingSecret" className="text-sm font-medium">
-        Webhook Signing Secret <span className="text-red-500">*</span>
-      </Label>
-      <div className="relative">
-        <Input
-          data-1p-ignore
-          id="signingSecret"
-          type={'text'}
-          placeholder="super-secret"
-          {...register('signingSecret')}
-          className="h-10 pr-10"
-        />
-      </div>
-    </div>
-  </div>
-);
-
-const GithubAuth = ({ register }: BaseAuthMethodProps) => (
-  // Github only requires a secret, as we know the header key and the encoding info (user doesn't need to provide them)
-  // See docs: https://docs.github.com/en/webhooks/using-webhooks/validating-webhook-deliveries#validating-webhook-deliveries
-  <div className="space-y-4">
-    <div className="space-y-2">
-      <Label htmlFor="signingSecret" className="text-sm font-medium">
-        Secret <span className="text-red-500">*</span>
-      </Label>
-      <div className="relative">
-        <Input
-          data-1p-ignore
-          id="signingSecret"
-          type={'text'}
-          placeholder="super-secret"
+          placeholder={secretPlaceholder}
           {...register('signingSecret')}
           className="h-10 pr-10"
         />
@@ -283,13 +224,16 @@ export const AuthSetup = ({
           throw new Error(`Unhandled auth method: ${exhaustiveCheck}`);
       }
     case V1WebhookSourceName.GITHUB:
-      return <GithubAuth register={register} />;
+      return <PreconfiguredHMACAuth register={register} />;
     case V1WebhookSourceName.STRIPE:
-      return <StripeAuth register={register} />;
+      return (
+        <PreconfiguredHMACAuth
+          register={register}
+          secretPlaceholder="whsec_..."
+        />
+      );
     case V1WebhookSourceName.SLACK:
-      return <SlackAuth register={register} />;
-    case V1WebhookSourceName.DISCORD:
-      return <DiscordAuth register={register} />;
+      return <PreconfiguredHMACAuth register={register} />;
     default:
       // eslint-disable-next-line no-case-declarations
       const exhaustiveCheck: never = sourceName;

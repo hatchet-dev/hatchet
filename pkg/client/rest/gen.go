@@ -277,7 +277,6 @@ const (
 
 // Defines values for V1WebhookSourceName.
 const (
-	DISCORD V1WebhookSourceName = "DISCORD"
 	GENERIC V1WebhookSourceName = "GENERIC"
 	GITHUB  V1WebhookSourceName = "GITHUB"
 	SLACK   V1WebhookSourceName = "SLACK"
