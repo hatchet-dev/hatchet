@@ -33,7 +33,7 @@ import {
   V1WebhookHMACAlgorithm,
   V1WebhookHMACEncoding,
 } from '@/lib/api';
-import { Webhook, Copy, Check, AlertTriangle } from 'lucide-react';
+import { Webhook, Copy, Check, AlertTriangle, Lightbulb } from 'lucide-react';
 import { Spinner } from '@/components/v1/ui/loading';
 import { SourceName } from './components/source-name';
 import { AuthMethod } from './components/auth-method';
@@ -387,6 +387,17 @@ const CreateWebhookModal = () => {
                     </div>
                   </SelectItem>
                 ))}
+                <SelectItem
+                  disabled
+                  key="empty"
+                  value="reach-out"
+                  className="text-sm data-[disabled]:text-white data-[disabled]:opacity-100"
+                >
+                  <div className="flex flex-row items-center gap-x-2">
+                    <Lightbulb className="size-4 text-yellow-500" />
+                    <span>Want a new source added? Reach out to support</span>
+                  </div>
+                </SelectItem>
               </SelectContent>
             </Select>
             <SourceCaption sourceName={sourceName} />
