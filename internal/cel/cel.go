@@ -87,6 +87,7 @@ func NewCELParser() *CELParser {
 	incomingWebhookEnv, _ := cel.NewEnv(
 		cel.Declarations(
 			decls.NewVar("input", decls.NewMapType(decls.String, decls.Dyn)),
+			decls.NewVar("headers", decls.NewMapType(decls.String, decls.String)),
 			checksumDecl,
 		),
 	)
@@ -106,6 +107,12 @@ type InputOpts func(Input)
 func WithInput(input map[string]interface{}) InputOpts {
 	return func(w Input) {
 		w["input"] = input
+	}
+}
+
+func WithHeaders(headers map[string]string) InputOpts {
+	return func(w Input) {
+		w["headers"] = headers
 	}
 }
 
@@ -366,13 +373,13 @@ func (p *CELParser) EvaluateEventExpression(expr string, input Input) (bool, err
 }
 
 func (p *CELParser) EvaluateIncomingWebhookExpression(expr string, input Input) (string, error) {
-	ast, issues := p.eventEnv.Compile(expr)
+	ast, issues := p.incomingWebhookEnv.Compile(expr)
 
 	if issues != nil && issues.Err() != nil {
 		return "", fmt.Errorf("failed to compile expression: %w", issues.Err())
 	}
 
-	program, err := p.eventEnv.Program(ast)
+	program, err := p.incomingWebhookEnv.Program(ast)
 	if err != nil {
 		return "", fmt.Errorf("failed to create program: %w", err)
 	}
