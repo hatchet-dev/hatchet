@@ -38,6 +38,7 @@ import { Spinner } from '@/components/v1/ui/loading';
 import { SourceName } from './components/source-name';
 import { AuthMethod } from './components/auth-method';
 import { AuthSetup } from './components/auth-setup';
+import { Link } from 'react-router-dom';
 
 const WebhookEmptyState = () => {
   return (
@@ -406,10 +407,25 @@ const CreateWebhookModal = () => {
                 {errors.eventKeyExpression.message}
               </p>
             )}
-            <p className="text-xs text-muted-foreground">
-              CEL expression to extract the event key from the webhook payload.
-              Use `input` to refer to the payload.
-            </p>
+            <div className="text-xs text-muted-foreground pl-1">
+              <p>
+                CEL expression to extract the event key from the webhook
+                payload. See{' '}
+                <Link
+                  to="https://cel.dev/"
+                  className="text-blue-600"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  the docs
+                </Link>{' '}
+                for details.
+              </p>
+              <ul className="list-disc pl-4">
+                <li>`input` refers to the payload</li>
+                <li>`headers` refers to the headers</li>
+              </ul>
+            </div>
           </div>
 
           <div className="space-y-4">
