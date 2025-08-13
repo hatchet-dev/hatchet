@@ -2,7 +2,7 @@ import { ColumnDef, Row } from '@tanstack/react-table';
 import { V1Webhook } from '@/lib/api';
 import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
 import { DotsVerticalIcon } from '@radix-ui/react-icons';
-import { Check, Copy, Loader, Trash2 } from 'lucide-react';
+import { Check, Copy, Loader, Save, Trash2, X } from 'lucide-react';
 import { Button } from '@/components/v1/ui/button';
 import { Input } from '@/components/v1/ui/input';
 import {
@@ -150,42 +150,41 @@ const EditableExpressionCell = ({ row }: { row: Row<V1Webhook> }) => {
     setIsEditing(false);
   }, [value, row.original.eventKeyExpression, row.original.name, mutations]);
 
-  const handleBlur = useCallback(() => {
-    if (isEditing) {
-      handleSave();
-    }
-  }, [isEditing, handleSave]);
-
   const handleCancel = useCallback(() => {
     setValue(row.original.eventKeyExpression || '');
     setIsEditing(false);
   }, [row.original.eventKeyExpression, setIsEditing, setValue]);
 
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent) => {
-      if (e.key === 'Enter') {
-        handleSave();
-      } else if (e.key === 'Escape') {
-        handleCancel();
-      }
-    },
-    [handleSave, handleCancel],
-  );
-
   return (
-    <Input
-      value={isEditing ? value : row.original.eventKeyExpression || ''}
-      onChange={isEditing ? (e) => setValue(e.target.value) : undefined}
-      onBlur={handleBlur}
-      onKeyDown={isEditing ? handleKeyDown : undefined}
-      onClick={!isEditing ? () => setIsEditing(true) : undefined}
-      className={`bg-muted rounded px-2 py-1 font-mono text-xs w-full h-6 ${
-        isEditing
-          ? 'border-input focus:border-ring focus:ring-1 focus:ring-ring cursor-text'
-          : 'border-transparent cursor-text hover:bg-muted/80'
-      }`}
-      readOnly={!isEditing}
-      autoFocus={isEditing}
-    />
+    <div className="flex flex-row items-center gap-x-2">
+      <Input
+        value={isEditing ? value : row.original.eventKeyExpression || ''}
+        onChange={isEditing ? (e) => setValue(e.target.value) : undefined}
+        onClick={!isEditing ? () => setIsEditing(true) : undefined}
+        className={`bg-muted rounded px-2 py-3 font-mono text-xs w-full h-6 ${
+          isEditing
+            ? 'border-input focus:border-ring focus:ring-1 focus:ring-ring cursor-text'
+            : 'border-transparent cursor-text hover:bg-muted/80'
+        }`}
+        readOnly={!isEditing}
+        autoFocus={isEditing}
+      />
+      <Button
+        variant="ghost"
+        size="icon"
+        onClick={handleSave}
+        disabled={!isEditing}
+      >
+        <Save className="size-4" />
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon"
+        onClick={handleCancel}
+        disabled={value === row.original.eventKeyExpression || !isEditing}
+      >
+        <X className="size-4" />
+      </Button>
+    </div>
   );
 };
