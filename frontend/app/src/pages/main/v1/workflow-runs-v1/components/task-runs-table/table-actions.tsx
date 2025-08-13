@@ -3,12 +3,15 @@ import { ArrowPathIcon } from '@heroicons/react/24/outline';
 import { TaskRunActionButton } from '../../../task-runs-v1/actions';
 import { useRunsContext } from '../../hooks/runs-provider';
 import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/v1/ui/popover';
-import { useMemo } from 'react';
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/v1/ui/dropdown-menu';
+import { useMemo, useState } from 'react';
 import { Snowflake } from 'lucide-react';
+import { ChevronDownIcon } from '@radix-ui/react-icons';
 
 interface TableActionsProps {
   taskIdsPendingAction: string[];
@@ -27,6 +30,8 @@ export const TableActions = ({
   rotate,
   toast,
 }: TableActionsProps) => {
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [shouldDelayClose, setShouldDelayClose] = useState(false);
   const {
     state: { hasRowsSelected, hasFiltersApplied },
     selectedRuns,
@@ -38,43 +43,70 @@ export const TableActions = ({
 
   const actions = useMemo(() => {
     let baseActions = [
-      <Button
-        key="refresh"
-        className="h-8 px-2 lg:px-3"
-        size="sm"
-        onClick={onRefresh}
-        variant="outline"
-        aria-label="Refresh events list"
+      <DropdownMenu
+        key="actions"
+        open={dropdownOpen}
+        onOpenChange={(open) => {
+          if (open) {
+            setDropdownOpen(true);
+            setShouldDelayClose(false);
+          } else if (shouldDelayClose) {
+            setTimeout(() => setDropdownOpen(false), 150);
+            setShouldDelayClose(false);
+          } else {
+            setDropdownOpen(false);
+          }
+        }}
       >
-        <ArrowPathIcon
-          className={`h-4 w-4 transition-transform ${rotate ? 'rotate-180' : ''}`}
-        />
-      </Button>,
-      <Button
-        key="freeze"
-        className="h-8 px-2 lg:px-3"
-        size="sm"
-        onClick={() => setIsFrozen(!isFrozen)}
-        variant={isFrozen ? 'default' : 'outline'}
-        aria-label="Refresh events list"
-      >
-        <Snowflake
-          className={`h-4 w-4 transition-transform ${rotate ? 'rotate-180' : ''}`}
-        />
-      </Button>,
+        <DropdownMenuTrigger asChild>
+          <Button variant="outline" size="sm" className="h-8">
+            Actions
+            <ChevronDownIcon className="ml-2 h-4 w-4" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          {showCancelAndReplayButtons && (
+            <>
+              <CancelMenuItem
+                taskIdsPendingAction={taskIdsPendingAction}
+                onActionProcessed={onActionProcessed}
+                toast={toast}
+                onDelayedClose={() => setShouldDelayClose(true)}
+              />
+              <ReplayMenuItem
+                taskIdsPendingAction={taskIdsPendingAction}
+                onActionProcessed={onActionProcessed}
+                toast={toast}
+                onDelayedClose={() => setShouldDelayClose(true)}
+              />
+              <DropdownMenuSeparator />
+            </>
+          )}
+          <DropdownMenuItem
+            onClick={() => {
+              setShouldDelayClose(true);
+              onRefresh();
+            }}
+          >
+            <ArrowPathIcon
+              className={`mr-2 h-4 w-4 transition-transform ${rotate ? 'rotate-180' : ''}`}
+            />
+            Refresh
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onClick={() => {
+              setShouldDelayClose(true);
+              setIsFrozen(!isFrozen);
+            }}
+          >
+            <Snowflake
+              className={`mr-2 h-4 w-4 transition-transform ${rotate ? 'rotate-180' : ''}`}
+            />
+            {isFrozen ? 'Unfreeze' : 'Freeze'}
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>,
     ];
-
-    if (showCancelAndReplayButtons) {
-      baseActions = [
-        <CancelReplayActions
-          key="cancel-replay"
-          taskIdsPendingAction={taskIdsPendingAction}
-          onActionProcessed={onActionProcessed}
-          toast={toast}
-        />,
-        ...baseActions,
-      ];
-    }
 
     if (showTriggerRunButton) {
       baseActions = [
@@ -103,93 +135,113 @@ export const TableActions = ({
     toast,
     filters,
     showCancelAndReplayButtons,
+    isFrozen,
+    setIsFrozen,
+    dropdownOpen,
+    shouldDelayClose,
   ]);
 
   return <>{actions}</>;
 };
 
-export const CancelReplayActions = ({
+const CancelMenuItem = ({
   taskIdsPendingAction,
   onActionProcessed,
   toast,
+  onDelayedClose,
 }: Pick<
   TableActionsProps,
   'taskIdsPendingAction' | 'toast' | 'onActionProcessed'
->) => {
+> & {
+  onDelayedClose: () => void;
+}) => {
   const {
     state: { hasRowsSelected, hasFiltersApplied },
     selectedRuns,
     filters,
-    display: { showCancelAndReplayButtons },
   } = useRunsContext();
 
+  const disabled =
+    !(hasRowsSelected || hasFiltersApplied) || taskIdsPendingAction.length > 0;
+
+  const params =
+    selectedRuns.length > 0
+      ? { externalIds: selectedRuns.map((run) => run?.metadata.id) }
+      : {
+          filter: {
+            ...filters.apiFilters,
+            since: filters.apiFilters.since || '',
+          },
+        };
+
   return (
-    <Popover>
-      <PopoverTrigger>
-        <Button size="sm">Actions</Button>
-      </PopoverTrigger>
-      <PopoverContent>
-        <div className="flex flex-col items-center gap-y-2 w-full">
-          {showCancelAndReplayButtons && (
-            <TaskRunActionButton
-              key="cancel"
-              actionType="cancel"
-              disabled={
-                !(hasRowsSelected || hasFiltersApplied) ||
-                taskIdsPendingAction.length > 0
-              }
-              params={
-                selectedRuns.length > 0
-                  ? { externalIds: selectedRuns.map((run) => run?.metadata.id) }
-                  : {
-                      filter: {
-                        ...filters.apiFilters,
-                        since: filters.apiFilters.since || '',
-                      },
-                    }
-              }
-              showModal
-              onActionProcessed={(ids) => onActionProcessed('cancel', ids)}
-              onActionSubmit={() => {
-                toast({
-                  title: 'Cancel request submitted',
-                  description: "No need to hit 'Cancel' again.",
-                });
-              }}
-              className="w-full"
-            />
-          )}
-          {showCancelAndReplayButtons && (
-            <TaskRunActionButton
-              key="replay"
-              actionType="replay"
-              disabled={
-                !(hasRowsSelected || hasFiltersApplied) ||
-                taskIdsPendingAction.length > 0
-              }
-              params={
-                selectedRuns.length > 0
-                  ? { externalIds: selectedRuns.map((run) => run?.metadata.id) }
-                  : {
-                      filter: {
-                        ...filters.apiFilters,
-                        since: filters.apiFilters.since || '',
-                      },
-                    }
-              }
-              showModal
-              onActionProcessed={(ids) => onActionProcessed('replay', ids)}
-              onActionSubmit={() => {
-                toast({
-                  title: 'Replay request submitted',
-                  description: "No need to hit 'Replay' again.",
-                });
-              }}
-              className="w-full"
-            />
-          )}
-        </div>
-      </PopoverContent>
-    </Popover>
+    <div className="w-full">
+      <TaskRunActionButton
+        actionType="cancel"
+        disabled={disabled}
+        params={params}
+        showModal
+        onActionProcessed={(ids) => onActionProcessed('cancel', ids)}
+        onActionSubmit={() => {
+          onDelayedClose();
+          toast({
+            title: 'Cancel request submitted',
+            description: "No need to hit 'Cancel' again.",
+          });
+        }}
+        className="w-full justify-start h-8 px-2 py-1.5 font-normal border-0 bg-transparent hover:bg-accent hover:text-accent-foreground rounded-sm"
+      />
+    </div>
+  );
+};
+
+const ReplayMenuItem = ({
+  taskIdsPendingAction,
+  onActionProcessed,
+  toast,
+  onDelayedClose,
+}: Pick<
+  TableActionsProps,
+  'taskIdsPendingAction' | 'toast' | 'onActionProcessed'
+> & {
+  onDelayedClose: () => void;
+}) => {
+  const {
+    state: { hasRowsSelected, hasFiltersApplied },
+    selectedRuns,
+    filters,
+  } = useRunsContext();
+
+  const disabled =
+    !(hasRowsSelected || hasFiltersApplied) || taskIdsPendingAction.length > 0;
+
+  const params =
+    selectedRuns.length > 0
+      ? { externalIds: selectedRuns.map((run) => run?.metadata.id) }
+      : {
+          filter: {
+            ...filters.apiFilters,
+            since: filters.apiFilters.since || '',
+          },
+        };
+
+  return (
+    <div className="w-full">
+      <TaskRunActionButton
+        actionType="replay"
+        disabled={disabled}
+        params={params}
+        showModal
+        onActionProcessed={(ids) => onActionProcessed('replay', ids)}
+        onActionSubmit={() => {
+          onDelayedClose();
+          toast({
+            title: 'Replay request submitted',
+            description: "No need to hit 'Replay' again.",
+          });
+        }}
+        className="w-full justify-start h-8 px-2 py-1.5 font-normal border-0 bg-transparent hover:bg-accent hover:text-accent-foreground rounded-sm"
+      />
+    </div>
   );
 };
