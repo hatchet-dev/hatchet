@@ -146,7 +146,6 @@ V1WebhookGetDeleteReceiveUpdate:
     x-resources: ["tenant", "v1-webhook"]
     description: Update a webhook
     operationId: v1-webhook:update
-    security: []
     parameters:
       - description: The tenant id
         in: path

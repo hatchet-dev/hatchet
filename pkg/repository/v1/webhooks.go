@@ -209,10 +209,10 @@ func (r *webhookRepository) CanCreate(ctx context.Context, tenantId string, webh
 	})
 }
 
-func (r *webhookRepository) UpdateWebhook(ctx context.Context, tenantId string, webhookId, newExpression string) (*sqlcv1.V1IncomingWebhook, error) {
+func (r *webhookRepository) UpdateWebhook(ctx context.Context, tenantId string, webhookName, newExpression string) (*sqlcv1.V1IncomingWebhook, error) {
 	return r.queries.UpdateWebhookExpression(ctx, r.pool, sqlcv1.UpdateWebhookExpressionParams{
 		Tenantid:           sqlchelpers.UUIDFromStr(tenantId),
-		Webhookid:          sqlchelpers.UUIDFromStr(webhookId),
+		Webhookname:        webhookName,
 		Eventkeyexpression: newExpression,
 	})
 }

@@ -76,5 +76,5 @@ SET
     event_key_expression = @eventKeyExpression::TEXT
 WHERE
     tenant_id = @tenantId::UUID
-    AND id = @webhookId::UUID
+    AND name = @webhookName::TEXT
 RETURNING *;

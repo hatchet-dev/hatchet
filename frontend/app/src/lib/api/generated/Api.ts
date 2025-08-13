@@ -929,6 +929,7 @@ export class Api<
    * @name V1WebhookUpdate
    * @summary Update a webhook
    * @request PATCH:/api/v1/stable/tenants/{tenant}/webhooks/{v1-webhook}
+   * @secure
    */
   v1WebhookUpdate = (
     tenant: string,
@@ -940,6 +941,7 @@ export class Api<
       path: `/api/v1/stable/tenants/${tenant}/webhooks/${v1Webhook}`,
       method: "PATCH",
       body: data,
+      secure: true,
       type: ContentType.Json,
       format: "json",
       ...params,
