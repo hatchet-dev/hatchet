@@ -393,7 +393,7 @@ SELECT
 FROM
     v1_lookup_table_olap lt
 JOIN
-    v1_dags_olap d ON (lt.dag_id, lt.inserted_at) = (d.id, d.inserted_at)
+    v1_dags_olap d ON (lt.inserted_at, lt.dag_id) = (d.inserted_at, d.id)
 JOIN
     v1_dag_to_task_olap dt ON (d.id, d.inserted_at) = (dt.dag_id, dt.dag_inserted_at)
 JOIN
@@ -1381,7 +1381,7 @@ SELECT
     COALESCE(t.display_name, d.display_name) AS display_name,
     COALESCE(t.inserted_at, d.inserted_at) AS inserted_at
 FROM v1_lookup_table_olap lt
-LEFT JOIN v1_dags_olap d ON (lt.dag_id, lt.inserted_at) = (d.id, d.inserted_at)
+LEFT JOIN v1_dags_olap d ON (lt.inserted_at, lt.dag_id) = (d.inserted_at, d.id)
 LEFT JOIN v1_tasks_olap t ON (lt.task_id, lt.inserted_at) = (t.id, t.inserted_at)
 WHERE
     lt.external_id = ANY($1::uuid[])
@@ -1445,7 +1445,7 @@ WITH input AS (
         d.parent_task_external_id
 
     FROM v1_runs_olap r
-    JOIN v1_dags_olap d ON (r.id, r.inserted_at) = (d.id, d.inserted_at)
+    JOIN v1_dags_olap d ON (r.inserted_at, r.id) = (d.inserted_at, d.id)
     JOIN input i ON (i.id, i.inserted_at) = (r.id, r.inserted_at)
     WHERE r.tenant_id = $4::uuid AND r.kind = 'DAG'
 ), relevant_events AS (
@@ -2121,7 +2121,7 @@ WITH runs AS (
     JOIN
         v1_runs_olap r ON r.inserted_at = lt.inserted_at AND r.id = lt.dag_id
     JOIN
-        v1_dags_olap d ON (lt.tenant_id, lt.dag_id, lt.inserted_at) = (d.tenant_id, d.id, d.inserted_at)
+        v1_dags_olap d ON (lt.tenant_id, lt.inserted_at, lt.dag_id) = (d.tenant_id, d.inserted_at, d.id)
     WHERE
         lt.external_id = $1::uuid
         AND lt.dag_id IS NOT NULL
