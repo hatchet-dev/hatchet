@@ -55,10 +55,6 @@ import {
 } from '@/components/v1/ui/dropdown-menu';
 
 export default function Events() {
-  return <EventsTable />;
-}
-
-function EventsTable() {
   const [selectedEvent, setSelectedEvent] = useState<V1Event | null>(null);
   const { tenantId } = useCurrentTenantId();
 
@@ -74,7 +70,7 @@ function EventsTable() {
     ) {
       const newSearchParams = new URLSearchParams(searchParams);
       newSearchParams.set('event', selectedEvent.metadata.id);
-      setSearchParams(newSearchParams);
+      setSearchParams(newSearchParams, { replace: true });
     } else if (
       !selectedEvent &&
       searchParams.get('event') &&
@@ -82,7 +78,7 @@ function EventsTable() {
     ) {
       const newSearchParams = new URLSearchParams(searchParams);
       newSearchParams.delete('event');
-      setSearchParams(newSearchParams);
+      setSearchParams(newSearchParams, { replace: true });
     }
   }, [selectedEvent, searchParams, setSearchParams]);
 
@@ -128,7 +124,7 @@ function EventsTable() {
     newSearchParams.set('filters', JSON.stringify(columnFilters));
     newSearchParams.set('pageIndex', pagination.pageIndex.toString());
     newSearchParams.set('pageSize', pagination.pageSize.toString());
-    setSearchParams(newSearchParams);
+    setSearchParams(newSearchParams, { replace: true });
   }, [sorting, columnFilters, pagination, setSearchParams, searchParams]);
 
   const orderByDirection = useMemo((): EventOrderByDirection | undefined => {

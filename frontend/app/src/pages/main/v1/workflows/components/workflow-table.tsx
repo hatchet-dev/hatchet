@@ -51,7 +51,7 @@ export function WorkflowTable() {
     const newSearchParams = new URLSearchParams(searchParams);
     newSearchParams.set('pageIndex', pagination.pageIndex.toString());
     newSearchParams.set('pageSize', pagination.pageSize.toString());
-    setSearchParams(newSearchParams);
+    setSearchParams(newSearchParams, { replace: true });
   }, [pagination, setSearchParams, searchParams]);
 
   const data = useMemo(() => {

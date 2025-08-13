@@ -33,9 +33,6 @@ export const TableActions = ({
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [shouldDelayClose, setShouldDelayClose] = useState(false);
   const {
-    state: { hasRowsSelected, hasFiltersApplied },
-    selectedRuns,
-    filters,
     isFrozen,
     actions: { setIsFrozen },
     display: { showTriggerRunButton, showCancelAndReplayButtons },
@@ -123,22 +120,18 @@ export const TableActions = ({
 
     return baseActions;
   }, [
-    hasRowsSelected,
-    hasFiltersApplied,
-    selectedRuns,
-    taskIdsPendingAction.length,
     onRefresh,
     onActionProcessed,
     onTriggerWorkflow,
     showTriggerRunButton,
     rotate,
     toast,
-    filters,
     showCancelAndReplayButtons,
     isFrozen,
     setIsFrozen,
     dropdownOpen,
     shouldDelayClose,
+    taskIdsPendingAction,
   ]);
 
   return <>{actions}</>;

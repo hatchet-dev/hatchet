@@ -71,7 +71,7 @@ function RateLimitsTable() {
     newSearchParams.set('filters', JSON.stringify(columnFilters));
     newSearchParams.set('pageIndex', pagination.pageIndex.toString());
     newSearchParams.set('pageSize', pagination.pageSize.toString());
-    setSearchParams(newSearchParams);
+    setSearchParams(newSearchParams, { replace: true });
   }, [
     search,
     sorting,
