@@ -233,7 +233,6 @@ const SourceCaption = ({ sourceName }: { sourceName: V1WebhookSourceName }) => {
     case V1WebhookSourceName.GENERIC:
     case V1WebhookSourceName.STRIPE:
     case V1WebhookSourceName.SLACK:
-    case V1WebhookSourceName.DISCORD:
       return '';
     default:
       // eslint-disable-next-line no-case-declarations
