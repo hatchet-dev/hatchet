@@ -427,6 +427,7 @@ export const useRunsTableState = (
       currentState.columnFilters,
     );
     const workflowIds = getWorkflowIdsFromFilters(currentState.columnFilters);
+    const flattenDAGs = getFlattenDAGsFromFilters(currentState.columnFilters);
 
     return {
       ...currentState,
@@ -437,7 +438,8 @@ export const useRunsTableState = (
         statuses.length ||
         additionalMetadata?.length ||
         workflowIds.length ||
-        currentState.parentTaskExternalId
+        currentState.parentTaskExternalId ||
+        flattenDAGs
       ),
       hasOpenUI: !!(
         currentState.taskRunDetailSheet.isOpen ||

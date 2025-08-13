@@ -1,5 +1,6 @@
 import { createContext, useContext, useMemo, useState } from 'react';
 import {
+  getFlattenDAGsFromFilters,
   getWorkflowIdsFromFilters,
   RunsTableState,
   useRunsTableState,
@@ -154,6 +155,8 @@ export const RunsProvider = ({
 
   const workflow =
     workflowId || getWorkflowIdsFromFilters(state.columnFilters)[0];
+  const flattenDAGs = getFlattenDAGsFromFilters(state.columnFilters);
+
   const derivedParentTaskExternalId =
     parentTaskExternalId || state.parentTaskExternalId;
 
@@ -179,6 +182,7 @@ export const RunsProvider = ({
     triggeringEventExternalId,
     disablePagination: disableTaskRunPagination,
     pauseRefetch: isFrozen,
+    onlyTasks: !!workerId || flattenDAGs,
   });
 
   const {

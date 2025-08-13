@@ -15,6 +15,7 @@ type UseRunsProps = {
   workflowIds?: string[];
   parentTaskExternalId: string | undefined;
   triggeringEventExternalId?: string | undefined;
+  onlyTasks: boolean;
   disablePagination?: boolean;
   pauseRefetch?: boolean;
 };
@@ -30,6 +31,7 @@ export const useRuns = ({
   workflowIds,
   parentTaskExternalId,
   triggeringEventExternalId,
+  onlyTasks,
   disablePagination = false,
   pauseRefetch = false,
 }: UseRunsProps) => {
@@ -51,7 +53,7 @@ export const useRuns = ({
       until: finishedBefore,
       additional_metadata: additionalMetadata,
       worker_id: workerId,
-      only_tasks: !!workerId,
+      only_tasks: onlyTasks,
       triggering_event_external_id: triggeringEventExternalId,
     }),
     placeholderData: (prev) => prev,

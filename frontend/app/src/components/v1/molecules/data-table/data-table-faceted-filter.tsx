@@ -32,7 +32,9 @@ export function DataTableFacetedFilter<TData, TValue>({
           id="toolbar-switch"
           onCheckedChange={(e) => column?.setFilterValue(e.valueOf() === true)}
         />
-        <Label htmlFor="toolbar-switch">Flatten</Label>
+        <Label htmlFor="toolbar-switch" className="text-sm">
+          Flatten
+        </Label>
       </div>
     );
   }
