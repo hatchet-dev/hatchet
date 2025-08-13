@@ -5,7 +5,12 @@ import {
   ToolbarFilters,
   ToolbarType,
 } from '@/components/v1/molecules/data-table/data-table-toolbar';
-import { TaskRunColumn } from '../components/v1/task-runs-columns';
+import {
+  additionalMetadataKey,
+  flattenDAGsKey,
+  statusKey,
+  workflowKey,
+} from '../components/v1/task-runs-columns';
 import { useWorkflows } from './use-workflows';
 
 const workflowRunStatusFilters = [
@@ -49,24 +54,24 @@ export const useToolbarFilters = ({
 
   return [
     {
-      columnId: TaskRunColumn.workflow,
+      columnId: workflowKey,
       title: 'Workflow',
       options: workflowKeyFilters,
       type: ToolbarType.Checkbox,
     },
     {
-      columnId: TaskRunColumn.status,
+      columnId: statusKey,
       title: 'Status',
       options: workflowRunStatusFilters,
       type: ToolbarType.Checkbox,
     },
     {
-      columnId: TaskRunColumn.additionalMetadata,
+      columnId: additionalMetadataKey,
       title: 'Metadata',
       type: ToolbarType.KeyValue,
     },
     {
-      columnId: TaskRunColumn.flattenDAGs,
+      columnId: flattenDAGsKey,
       title: 'Flatten DAGs',
       type: ToolbarType.Switch,
       options: [

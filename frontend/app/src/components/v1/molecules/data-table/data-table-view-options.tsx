@@ -10,6 +10,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
 } from '@/components/v1/ui/dropdown-menu';
+import { TaskRunColumn } from '@/pages/main/v1/workflow-runs-v1/components/v1/task-runs-columns';
 
 interface DataTableViewOptionsProps<TData> {
   table: Table<TData>;
@@ -40,6 +41,9 @@ export function DataTableViewOptions<TData>({
               typeof column.accessorFn !== 'undefined' && column.getCanHide(),
           )
           .map((column) => {
+            const columnName =
+              TaskRunColumn[column.id as keyof typeof TaskRunColumn] ||
+              column.id;
             return (
               <DropdownMenuCheckboxItem
                 key={column.id}
@@ -47,7 +51,7 @@ export function DataTableViewOptions<TData>({
                 checked={column.getIsVisible()}
                 onCheckedChange={(value) => column.toggleVisibility(!!value)}
               >
-                {column.id}
+                {columnName}
               </DropdownMenuCheckboxItem>
             );
           })}

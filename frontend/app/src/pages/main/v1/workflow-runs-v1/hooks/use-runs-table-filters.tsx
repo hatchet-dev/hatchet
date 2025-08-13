@@ -10,7 +10,12 @@ import {
   getAdditionalMetadataFromFilters,
   getFlattenDAGsFromFilters,
 } from './use-runs-table-state';
-import { TaskRunColumn } from '../components/v1/task-runs-columns';
+import {
+  statusKey,
+  workflowKey,
+  additionalMetadataKey,
+  flattenDAGsKey,
+} from '../components/v1/task-runs-columns';
 
 export type AdditionalMetadataProp = {
   key: string;
@@ -98,9 +103,9 @@ export const useRunsTableFilters = (
       const newColumnFilters =
         statuses.length > 0
           ? state.columnFilters
-              .filter((f) => f.id !== TaskRunColumn.status)
-              .concat([{ id: TaskRunColumn.status, value: statuses }])
-          : state.columnFilters.filter((f) => f.id !== TaskRunColumn.status);
+              .filter((f) => f.id !== statusKey)
+              .concat([{ id: statusKey, value: statuses }])
+          : state.columnFilters.filter((f) => f.id !== statusKey);
 
       updateFilters({
         columnFilters: newColumnFilters,
@@ -114,9 +119,9 @@ export const useRunsTableFilters = (
       const newColumnFilters =
         workflowIds.length > 0
           ? state.columnFilters
-              .filter((f) => f.id !== TaskRunColumn.workflow)
-              .concat([{ id: TaskRunColumn.workflow, value: workflowIds }])
-          : state.columnFilters.filter((f) => f.id !== TaskRunColumn.workflow);
+              .filter((f) => f.id !== workflowKey)
+              .concat([{ id: workflowKey, value: workflowIds }])
+          : state.columnFilters.filter((f) => f.id !== workflowKey);
 
       updateFilters({
         columnFilters: newColumnFilters,
@@ -133,8 +138,8 @@ export const useRunsTableFilters = (
       const newMetadata = [...filtered, `${key}:${value}`];
 
       const newColumnFilters = state.columnFilters
-        .filter((f) => f.id !== TaskRunColumn.additionalMetadata)
-        .concat([{ id: TaskRunColumn.additionalMetadata, value: newMetadata }]);
+        .filter((f) => f.id !== additionalMetadataKey)
+        .concat([{ id: additionalMetadataKey, value: newMetadata }]);
 
       updateFilters({
         columnFilters: newColumnFilters,
@@ -150,13 +155,9 @@ export const useRunsTableFilters = (
       const newColumnFilters =
         newMetadata.length > 0
           ? state.columnFilters
-              .filter((f) => f.id !== TaskRunColumn.additionalMetadata)
-              .concat([
-                { id: TaskRunColumn.additionalMetadata, value: newMetadata },
-              ])
-          : state.columnFilters.filter(
-              (f) => f.id !== TaskRunColumn.additionalMetadata,
-            );
+              .filter((f) => f.id !== additionalMetadataKey)
+              .concat([{ id: additionalMetadataKey, value: newMetadata }])
+          : state.columnFilters.filter((f) => f.id !== additionalMetadataKey);
 
       updateFilters({
         columnFilters: newColumnFilters,
@@ -169,9 +170,9 @@ export const useRunsTableFilters = (
     (flatten: boolean) => {
       const newColumnFilters = flatten
         ? state.columnFilters
-            .filter((f) => f.id !== TaskRunColumn.flattenDAGs)
-            .concat([{ id: TaskRunColumn.flattenDAGs, value: flatten }])
-        : state.columnFilters.filter((f) => f.id !== TaskRunColumn.flattenDAGs);
+            .filter((f) => f.id !== flattenDAGsKey)
+            .concat([{ id: flattenDAGsKey, value: flatten }])
+        : state.columnFilters.filter((f) => f.id !== flattenDAGsKey);
 
       updateFilters({
         columnFilters: newColumnFilters,

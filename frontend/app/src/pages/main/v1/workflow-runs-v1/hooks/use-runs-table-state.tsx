@@ -7,6 +7,12 @@ import {
   RowSelectionState,
   VisibilityState,
 } from '@tanstack/react-table';
+import {
+  workflowKey,
+  statusKey,
+  additionalMetadataKey,
+  flattenDAGsKey,
+} from '../components/v1/task-runs-columns';
 
 export type TimeWindow = '1h' | '6h' | '1d' | '7d';
 
@@ -76,7 +82,13 @@ const KEY_MAP = {
   isCustomTimeRange: 'c',
   createdAfter: 'ca',
   finishedBefore: 'fb',
+
+  // Column filters
   parentTaskExternalId: 'pt',
+  flattenDAGs: 'fd',
+  workflow: 'w',
+  status: 'st',
+  additionalMetadata: 'am',
 
   // Table state
   columnFilters: 'cf',
@@ -86,7 +98,7 @@ const KEY_MAP = {
   // UI state
   viewQueueMetrics: 'vq',
   triggerWorkflow: 'tw',
-  stepDetailSheet: 'sd',
+  taskRunDetailSheet: 'td',
 
   // Nested properties
   isOpen: 'o',
@@ -99,7 +111,21 @@ const REVERSE_KEY_MAP = Object.fromEntries(
   Object.entries(KEY_MAP).map(([key, value]) => [value, key]),
 ) as Record<string, string>;
 
-function compressKeys(obj: any): any {
+const parseColumnFilters = (obj: any[]) => {
+  return obj.map((filter) => {
+    if (filter && typeof filter === 'object' && 'id' in filter) {
+      const compressedFilter = { ...filter };
+      const compressedId =
+        KEY_MAP[filter.id as keyof typeof KEY_MAP] || filter.id;
+      compressedFilter.id = compressedId;
+
+      return compressKeys(compressedFilter, 'columnFilter');
+    }
+    return compressKeys(filter);
+  });
+};
+
+function compressKeys(obj: any, parentKey?: string): any {
   if (obj === null || obj === undefined) {
     return obj;
   }
@@ -107,18 +133,34 @@ function compressKeys(obj: any): any {
     return obj;
   }
   if (Array.isArray(obj)) {
-    return obj.map(compressKeys);
+    if (parentKey === 'columnFilters') {
+      return parseColumnFilters(obj);
+    }
+
+    return obj.map((item) => compressKeys(item));
   }
 
   const compressed: any = {};
   for (const [key, value] of Object.entries(obj)) {
     const compressedKey = KEY_MAP[key as keyof typeof KEY_MAP] || key;
-    compressed[compressedKey] = compressKeys(value);
+    compressed[compressedKey] = compressKeys(value, key);
   }
   return compressed;
 }
 
-function decompressKeys(obj: any): any {
+const decompressColumnFilters = (obj: any[]) => {
+  return obj.map((filter) => {
+    if (filter && typeof filter === 'object' && 'id' in filter) {
+      const decompressedFilter = { ...filter };
+      const decompressedId = REVERSE_KEY_MAP[filter.id] || filter.id;
+      decompressedFilter.id = decompressedId;
+      return decompressKeys(decompressedFilter, 'columnFilter');
+    }
+    return decompressKeys(filter);
+  });
+};
+
+function decompressKeys(obj: any, parentKey?: string): any {
   if (obj === null || obj === undefined) {
     return obj;
   }
@@ -126,13 +168,16 @@ function decompressKeys(obj: any): any {
     return obj;
   }
   if (Array.isArray(obj)) {
-    return obj.map(decompressKeys);
+    if (parentKey === 'cf') {
+      return decompressColumnFilters(obj);
+    }
+    return obj.map((item) => decompressKeys(item));
   }
 
   const decompressed: any = {};
   for (const [key, value] of Object.entries(obj)) {
     const decompressedKey = REVERSE_KEY_MAP[key] || key;
-    decompressed[decompressedKey] = decompressKeys(value);
+    decompressed[decompressedKey] = decompressKeys(value, key);
   }
   return decompressed;
 }
@@ -159,7 +204,7 @@ export const getCreatedAfterFromTimeRange = (
 export const getWorkflowIdsFromFilters = (
   columnFilters: ColumnFiltersState,
 ): string[] => {
-  const filter = columnFilters.find((f) => f.id === 'Workflow');
+  const filter = columnFilters.find((f) => f.id === workflowKey);
   if (!filter) {
     return [];
   }
@@ -170,7 +215,7 @@ export const getWorkflowIdsFromFilters = (
 export const getStatusesFromFilters = (
   columnFilters: ColumnFiltersState,
 ): V1TaskStatus[] => {
-  const filter = columnFilters.find((f) => f.id === 'status');
+  const filter = columnFilters.find((f) => f.id === statusKey);
   if (!filter) {
     return [];
   }
@@ -183,7 +228,7 @@ export const getStatusesFromFilters = (
 export const getAdditionalMetadataFromFilters = (
   columnFilters: ColumnFiltersState,
 ): string[] | undefined => {
-  const filter = columnFilters.find((f) => f.id === 'additionalMetadata');
+  const filter = columnFilters.find((f) => f.id === additionalMetadataKey);
   if (!filter) {
     return undefined;
   }
@@ -194,7 +239,7 @@ export const getAdditionalMetadataFromFilters = (
 export const getFlattenDAGsFromFilters = (
   columnFilters: ColumnFiltersState,
 ): boolean => {
-  const filter = columnFilters.find((f) => f.id === 'flattenDAGs');
+  const filter = columnFilters.find((f) => f.id === flattenDAGsKey);
   if (!filter) {
     return false;
   }
@@ -229,6 +274,7 @@ export const useRunsTableState = (
         ...DEFAULT_STATE,
         ...parsedState,
         ...initialStateRef.current,
+        columnFilters: parsedState.columnFilters || [],
         columnVisibility: {
           ...parsedState.columnVisibility,
           ...initialStateRef.current?.columnVisibility,
@@ -283,6 +329,7 @@ export const useRunsTableState = (
                 ...DEFAULT_STATE,
                 ...parsedState,
                 ...initialStateRef.current,
+                columnFilters: parsedState.columnFilters || [],
                 columnVisibility: {
                   ...parsedState.columnVisibility,
                   ...initialStateRef.current?.columnVisibility,

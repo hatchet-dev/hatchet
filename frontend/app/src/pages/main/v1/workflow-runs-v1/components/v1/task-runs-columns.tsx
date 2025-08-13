@@ -16,17 +16,31 @@ import { V1TaskStatus, V1TaskSummary } from '@/lib/api';
 import { Duration } from '@/components/v1/shared/duration';
 
 export const TaskRunColumn = {
-  taskName: 'task_name',
-  status: 'status',
+  taskName: 'Task Name',
+  status: 'Status',
   workflow: 'Workflow',
-  parentTaskExternalId: 'parentTaskExternalId',
-  flattenDAGs: 'flattenDAGs',
-  createdAt: 'Created at',
-  startedAt: 'Started at',
-  finishedAt: 'Finished at',
+  parentTaskExternalId: 'Parent Task External ID',
+  flattenDAGs: 'Flatten DAGs',
+  createdAt: 'Created At',
+  startedAt: 'Started At',
+  finishedAt: 'Finished At',
   duration: 'Duration',
-  additionalMetadata: 'Additional Metadata',
+  additionalMetadata: 'Metadata',
 } as const;
+
+export type TaskRunColumnKeys = keyof typeof TaskRunColumn;
+
+export const workflowKey: TaskRunColumnKeys = 'workflow';
+export const parentTaskExternalIdKey: TaskRunColumnKeys =
+  'parentTaskExternalId';
+export const flattenDAGsKey: TaskRunColumnKeys = 'flattenDAGs';
+export const createdAtKey: TaskRunColumnKeys = 'createdAt';
+export const startedAtKey: TaskRunColumnKeys = 'startedAt';
+export const finishedAtKey: TaskRunColumnKeys = 'finishedAt';
+export const durationKey: TaskRunColumnKeys = 'duration';
+export const additionalMetadataKey: TaskRunColumnKeys = 'additionalMetadata';
+export const taskNameKey: TaskRunColumnKeys = 'taskName';
+export const statusKey: TaskRunColumnKeys = 'status';
 
 export const columns: (
   tenantId: string,
@@ -105,7 +119,7 @@ export const columns: (
   //   enableHiding: true,
   // },
   {
-    accessorKey: TaskRunColumn.taskName,
+    accessorKey: taskNameKey,
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Task" />
     ),
@@ -133,9 +147,9 @@ export const columns: (
     enableHiding: false,
   },
   {
-    accessorKey: TaskRunColumn.status,
+    accessorKey: statusKey,
     header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Status" />
+      <DataTableColumnHeader column={column} title={TaskRunColumn.status} />
     ),
     cell: ({ row }) => (
       <V1RunStatus
@@ -147,9 +161,9 @@ export const columns: (
     enableHiding: false,
   },
   {
-    accessorKey: TaskRunColumn.workflow,
+    accessorKey: workflowKey,
     header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Workflow" />
+      <DataTableColumnHeader column={column} title={TaskRunColumn.workflow} />
     ),
     cell: ({ row }) => {
       const workflowId = row.original.workflowId;
@@ -171,18 +185,24 @@ export const columns: (
     enableHiding: true,
   },
   {
-    accessorKey: TaskRunColumn.parentTaskExternalId,
+    accessorKey: parentTaskExternalIdKey,
     header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Parent Task External ID" />
+      <DataTableColumnHeader
+        column={column}
+        title={TaskRunColumn.parentTaskExternalId}
+      />
     ),
     cell: () => null,
     enableSorting: false,
     enableHiding: false,
   },
   {
-    accessorKey: TaskRunColumn.flattenDAGs,
+    accessorKey: flattenDAGsKey,
     header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Flatten DAGs" />
+      <DataTableColumnHeader
+        column={column}
+        title={TaskRunColumn.flattenDAGs}
+      />
     ),
     cell: () => null,
     enableSorting: false,
@@ -200,11 +220,11 @@ export const columns: (
   //   enableHiding: true,
   // },
   {
-    accessorKey: TaskRunColumn.createdAt,
+    accessorKey: createdAtKey,
     header: ({ column }) => (
       <DataTableColumnHeader
         column={column}
-        title="Created at"
+        title={TaskRunColumn.createdAt}
         className="whitespace-nowrap"
       />
     ),
@@ -223,11 +243,11 @@ export const columns: (
     enableHiding: true,
   },
   {
-    accessorKey: TaskRunColumn.startedAt,
+    accessorKey: startedAtKey,
     header: ({ column }) => (
       <DataTableColumnHeader
         column={column}
-        title="Started at"
+        title={TaskRunColumn.startedAt}
         className="whitespace-nowrap"
       />
     ),
@@ -246,11 +266,11 @@ export const columns: (
     enableHiding: true,
   },
   {
-    accessorKey: TaskRunColumn.finishedAt,
+    accessorKey: finishedAtKey,
     header: ({ column }) => (
       <DataTableColumnHeader
         column={column}
-        title="Finished at"
+        title={TaskRunColumn.finishedAt}
         className="whitespace-nowrap"
       />
     ),
@@ -267,14 +287,14 @@ export const columns: (
     enableHiding: true,
   },
   {
-    accessorKey: TaskRunColumn.duration,
+    accessorKey: durationKey,
     header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Duration" />
+      <DataTableColumnHeader column={column} title={TaskRunColumn.duration} />
     ),
     cell: ({ row }) => {
       const startedAt = row.original.startedAt;
       const finishedAt = row.original.finishedAt;
-      const status = row.getValue('status') as V1TaskStatus;
+      const status = row.getValue(statusKey) as V1TaskStatus;
 
       return (
         <Duration
@@ -289,9 +309,12 @@ export const columns: (
     enableHiding: true,
   },
   {
-    accessorKey: TaskRunColumn.additionalMetadata,
+    accessorKey: additionalMetadataKey,
     header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Metadata" />
+      <DataTableColumnHeader
+        column={column}
+        title={TaskRunColumn.additionalMetadata}
+      />
     ),
     cell: ({ row }) => {
       if (!row.original.additionalMetadata) {

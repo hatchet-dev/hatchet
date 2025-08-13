@@ -16,7 +16,11 @@ import { XCircleIcon } from '@heroicons/react/24/outline';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useCallback, useState } from 'react';
 import { Combobox } from '@/components/v1/molecules/combobox/combobox';
-import { TaskRunColumn } from '../workflow-runs-v1/components/v1/task-runs-columns';
+import {
+  additionalMetadataKey,
+  statusKey,
+  workflowKey,
+} from '../workflow-runs-v1/components/v1/task-runs-columns';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { useRunsContext } from '../workflow-runs-v1/hooks/runs-provider';
 import { TimeFilter } from '../workflow-runs-v1/components/task-runs-table/time-filter';
@@ -182,15 +186,11 @@ const ModalContent = ({ label, params }: ModalContentProps) => {
   if (params.externalIds?.length) {
     return <CancelByExternalIdsContent label={label} params={params} />;
   } else if (params.filter) {
-    const statusToolbarFilter = tf.find(
-      (f) => f.columnId === TaskRunColumn.status,
-    );
+    const statusToolbarFilter = tf.find((f) => f.columnId === statusKey);
     const additionalMetaToolbarFilter = tf.find(
-      (f) => f.columnId === TaskRunColumn.additionalMetadata,
+      (f) => f.columnId === additionalMetadataKey,
     );
-    const workflowToolbarFilter = tf.find(
-      (f) => f.columnId === TaskRunColumn.workflow,
-    );
+    const workflowToolbarFilter = tf.find((f) => f.columnId === workflowKey);
 
     const hasFilters =
       statusToolbarFilter ||
