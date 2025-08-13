@@ -95,6 +95,7 @@ export const TableActions = ({
               setShouldDelayClose(true);
               setIsFrozen(!isFrozen);
             }}
+            className="text-sm"
           >
             <Snowflake
               className={`mr-2 h-4 w-4 transition-transform ${rotate ? 'rotate-180' : ''}`}

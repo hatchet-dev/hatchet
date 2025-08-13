@@ -380,7 +380,7 @@ const BaseActionButton = ({
       />
       <Button
         size={'sm'}
-        className={cn('px-2 py-2 gap-2', className)}
+        className={cn('text-sm px-2 py-2 gap-2', className)}
         variant={'outline'}
         disabled={disabled}
         onClick={() => {
