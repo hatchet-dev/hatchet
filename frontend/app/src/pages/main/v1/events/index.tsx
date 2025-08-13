@@ -525,9 +525,9 @@ function EventWorkflowRunsList({ event }: { event: V1Event }) {
         display={{
           showMetrics: false,
           showCounts: false,
-          showDateFilter: true,
-          showTriggerRunButton: true,
-          showCancelAndReplayButtons: true,
+          showDateFilter: false,
+          showTriggerRunButton: false,
+          showCancelAndReplayButtons: false,
           showColumnToggle: true,
         }}
         runFilters={{

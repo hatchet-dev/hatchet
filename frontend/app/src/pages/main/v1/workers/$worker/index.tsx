@@ -228,7 +228,7 @@ export default function ExpandedWorkflowRun() {
             showMetrics: false,
             showCounts: false,
             showDateFilter: true,
-            showTriggerRunButton: true,
+            showTriggerRunButton: false,
             showColumnToggle: true,
             showCancelAndReplayButtons: true,
           }}
