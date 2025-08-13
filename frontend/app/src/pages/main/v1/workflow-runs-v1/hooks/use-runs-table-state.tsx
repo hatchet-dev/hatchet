@@ -45,7 +45,6 @@ export interface BaseRunsTableState {
 export interface RunsTableState extends BaseRunsTableState {
   hasFiltersApplied: boolean;
   hasRowsSelected: boolean;
-  hasOpenUI: boolean;
   selectedAdditionalMetaRunId?: string;
 }
 
@@ -61,7 +60,6 @@ const DEFAULT_STATE: RunsTableState = {
   taskRunDetailSheet: { isOpen: false },
   hasFiltersApplied: false,
   hasRowsSelected: false,
-  hasOpenUI: false,
 };
 
 // Mapping keys to abbreviations for URL storage
@@ -434,7 +432,8 @@ export const useRunsTableState = (
       hasOpenUI: !!(
         currentState.taskRunDetailSheet.isOpen ||
         currentState.viewQueueMetrics ||
-        currentState.triggerWorkflow
+        currentState.triggerWorkflow ||
+        currentState.selectedAdditionalMetaRunId
       ),
     };
   }, [currentState]);

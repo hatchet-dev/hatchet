@@ -30,14 +30,12 @@ export const TaskRunColumn = {
 export const columns: (
   tenantId: string,
   selectedAdditionalMetaRunId: string | null,
-  setSelectedAdditionalMetaRunId: (runId: string | null) => void,
-  onAdditionalMetadataClick?: (click: AdditionalMetadataClick) => void,
-  onTaskRunIdClick?: (taskRunId: string) => void,
-  onAdditionalMetadataOpenChange?: (rowId: string, open: boolean) => void,
+  onAdditionalMetadataClick: (click: AdditionalMetadataClick) => void,
+  onTaskRunIdClick: (taskRunId: string) => void,
+  onAdditionalMetadataOpenChange: (rowId: string, open: boolean) => void,
 ) => ColumnDef<V1TaskSummary>[] = (
   tenantId,
   selectedAdditionalMetaRunId,
-  setSelectedAdditionalMetaRunId,
   onAdditionalMetadataClick,
   onTaskRunIdClick,
   onAdditionalMetadataOpenChange,
@@ -123,11 +121,7 @@ export const columns: (
         return (
           <div
             className="cursor-pointer hover:underline min-w-fit whitespace-nowrap"
-            onClick={() =>
-              row.original.metadata.id &&
-              onTaskRunIdClick &&
-              onTaskRunIdClick(row.original.metadata.id)
-            }
+            onClick={() => onTaskRunIdClick(row.original.metadata.id)}
           >
             {row.original.displayName}
           </div>
@@ -299,22 +293,9 @@ export const columns: (
           metadata={row.original.additionalMetadata}
           onClick={onAdditionalMetadataClick}
           isOpen={selectedAdditionalMetaRunId === row.original.metadata.id}
-          onOpenChange={
-            onAdditionalMetadataOpenChange
-              ? (open) => {
-                  onAdditionalMetadataOpenChange(
-                    row.original.metadata.id,
-                    open,
-                  );
-                }
-              : (open) => {
-                  if (open) {
-                    setSelectedAdditionalMetaRunId(row.original.metadata.id);
-                  } else {
-                    setSelectedAdditionalMetaRunId(null);
-                  }
-                }
-          }
+          onOpenChange={(open) => {
+            onAdditionalMetadataOpenChange(row.original.metadata.id, open);
+          }}
         />
       );
     },

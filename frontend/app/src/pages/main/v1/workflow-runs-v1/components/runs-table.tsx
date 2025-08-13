@@ -44,9 +44,10 @@ const GetWorkflowChart = () => {
   const { tenantId } = useCurrentTenantId();
 
   const {
-    state: { createdAfter, finishedBefore, hasOpenUI },
+    state: { createdAfter, finishedBefore },
     filters: { setCustomTimeRange },
     display: { refetchInterval },
+    isFrozen,
   } = useRunsContext();
 
   const zoom = useCallback(
@@ -65,7 +66,7 @@ const GetWorkflowChart = () => {
       finishedBefore,
     }),
     placeholderData: (prev) => prev,
-    refetchInterval: hasOpenUI ? false : refetchInterval,
+    refetchInterval: isFrozen ? false : refetchInterval,
   });
 
   if (workflowRunEventsMetricsQuery.isLoading) {
@@ -144,13 +145,6 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
     [updateUIState],
   );
 
-  const handleSetSelectedAdditionalMetaRunId = useCallback(
-    (runId: string | null) => {
-      setSelectedAdditionalMetaRunId(runId);
-    },
-    [],
-  );
-
   const handleAdditionalMetadataOpenChange = useCallback(
     (rowId: string, open: boolean) => {
       if (open) {
@@ -158,8 +152,10 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
       } else {
         setSelectedAdditionalMetaRunId(null);
       }
+
+      setIsFrozen(open);
     },
-    [],
+    [setIsFrozen],
   );
 
   const handleAdditionalMetadataClick = useCallback(
@@ -175,7 +171,6 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
       columns(
         tenantId,
         selectedAdditionalMetaRunId,
-        handleSetSelectedAdditionalMetaRunId,
         handleAdditionalMetadataClick,
         handleTaskRunIdClick,
         handleAdditionalMetadataOpenChange,
@@ -183,7 +178,6 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
     [
       tenantId,
       selectedAdditionalMetaRunId,
-      handleSetSelectedAdditionalMetaRunId,
       handleAdditionalMetadataClick,
       handleTaskRunIdClick,
       handleAdditionalMetadataOpenChange,

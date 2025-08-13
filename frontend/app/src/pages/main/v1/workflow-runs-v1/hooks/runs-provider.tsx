@@ -99,6 +99,8 @@ export const RunsProvider = ({
   display,
   runFilters,
 }: RunsProviderProps) => {
+  const [isFrozen, setIsFrozen] = useState(false);
+
   const {
     workflowId,
     parentTaskExternalId,
@@ -114,7 +116,6 @@ export const RunsProvider = ({
     showCancelAndReplayButtons = true,
     showColumnToggle = true,
   } = display;
-  const [isFrozen, setIsFrozen] = useState(false);
 
   const initialState = useMemo(() => {
     const baseState: Partial<RunsTableState> = {
@@ -176,7 +177,7 @@ export const RunsProvider = ({
     parentTaskExternalId: derivedParentTaskExternalId,
     triggeringEventExternalId,
     disablePagination: disableTaskRunPagination,
-    pauseRefetch: state.hasOpenUI || isFrozen,
+    pauseRefetch: isFrozen,
   });
 
   const {
