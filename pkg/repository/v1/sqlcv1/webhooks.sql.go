@@ -257,31 +257,24 @@ func (q *Queries) ListWebhooks(ctx context.Context, db DBTX, arg ListWebhooksPar
 	return items, nil
 }
 
-const updateWebhook = `-- name: UpdateWebhook :one
+const updateWebhookExpression = `-- name: UpdateWebhookExpression :one
 UPDATE v1_incoming_webhook
 SET
-    name = COALESCE($1::TEXT, name),
-    event_key_expression = COALESCE($2::TEXT, event_key_expression)
+    event_key_expression = $1::TEXT
 WHERE
-    tenant_id = $3::UUID
-    AND id = $4::UUID
+    tenant_id = $2::UUID
+    AND id = $3::UUID
 RETURNING tenant_id, name, source_name, event_key_expression, auth_method, auth__basic__username, auth__basic__password, auth__api_key__header_name, auth__api_key__key, auth__hmac__algorithm, auth__hmac__encoding, auth__hmac__signature_header_name, auth__hmac__webhook_signing_secret, inserted_at, updated_at
 `
 
-type UpdateWebhookParams struct {
-	Name               pgtype.Text `json:"name"`
-	EventKeyExpression pgtype.Text `json:"eventKeyExpression"`
+type UpdateWebhookExpressionParams struct {
+	Eventkeyexpression string      `json:"eventkeyexpression"`
 	Tenantid           pgtype.UUID `json:"tenantid"`
 	Webhookid          pgtype.UUID `json:"webhookid"`
 }
 
-func (q *Queries) UpdateWebhook(ctx context.Context, db DBTX, arg UpdateWebhookParams) (*V1IncomingWebhook, error) {
-	row := db.QueryRow(ctx, updateWebhook,
-		arg.Name,
-		arg.EventKeyExpression,
-		arg.Tenantid,
-		arg.Webhookid,
-	)
+func (q *Queries) UpdateWebhookExpression(ctx context.Context, db DBTX, arg UpdateWebhookExpressionParams) (*V1IncomingWebhook, error) {
+	row := db.QueryRow(ctx, updateWebhookExpression, arg.Eventkeyexpression, arg.Tenantid, arg.Webhookid)
 	var i V1IncomingWebhook
 	err := row.Scan(
 		&i.TenantID,
