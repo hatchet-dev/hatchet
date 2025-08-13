@@ -289,7 +289,7 @@ func (w *V1WebhooksService) validateWebhook(webhookPayload []byte, webhook sqlcv
 
 		if timestampHeader == "" {
 			return false, &ValidationError{
-				Code:      Http400,
+				Code:      Http403,
 				ErrorText: "missing or invalid timestamp header: X-Slack-Request-Timestamp",
 			}
 		}
@@ -298,7 +298,7 @@ func (w *V1WebhooksService) validateWebhook(webhookPayload []byte, webhook sqlcv
 
 		if err != nil {
 			return false, &ValidationError{
-				Code:      Http400,
+				Code:      Http403,
 				ErrorText: fmt.Sprintf("invalid timestamp in header: %s", err),
 			}
 		}
@@ -306,7 +306,7 @@ func (w *V1WebhooksService) validateWebhook(webhookPayload []byte, webhook sqlcv
 		// qq: should this be utc?
 		if time.Unix(timestamp, 0).UTC().Before(time.Now().Add(-5 * time.Minute)) {
 			return false, &ValidationError{
-				Code:      Http400,
+				Code:      Http403,
 				ErrorText: "timestamp in header is out of range",
 			}
 		}
