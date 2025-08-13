@@ -69,3 +69,13 @@ FROM v1_incoming_webhook
 WHERE
     tenant_id = @tenantId::UUID
 ;
+
+-- name: UpdateWebhook :one
+UPDATE v1_incoming_webhook
+SET
+    name = COALESCE(sqlc.narg('name')::TEXT, name),
+    event_key_expression = COALESCE(sqlc.narg('eventKeyExpression')::TEXT, event_key_expression)
+WHERE
+    tenant_id = @tenantId::UUID
+    AND id = @webhookId::UUID
+RETURNING *;

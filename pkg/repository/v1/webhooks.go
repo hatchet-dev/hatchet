@@ -15,6 +15,7 @@ type WebhookRepository interface {
 	DeleteWebhook(ctx context.Context, tenantId, webhookId string) (*sqlcv1.V1IncomingWebhook, error)
 	GetWebhook(ctx context.Context, tenantId, webhookId string) (*sqlcv1.V1IncomingWebhook, error)
 	CanCreate(ctx context.Context, tenantId string, webhookLimit int32) (bool, error)
+	UpdateWebhook(ctx context.Context, tenantId string, webhookId string, params UpdateWebhookOpts) (*sqlcv1.V1IncomingWebhook, error)
 }
 
 type webhookRepository struct {
@@ -94,6 +95,11 @@ type CreateWebhookOpts struct {
 	Name               string                             `json:"name" validate:"required"`
 	Eventkeyexpression string                             `json:"eventkeyexpression"`
 	AuthConfig         AuthConfig                         `json:"auth_config,omitempty"`
+}
+
+type UpdateWebhookOpts struct {
+	Name               *string `json:"name" `
+	Eventkeyexpression *string `json:"eventkeyexpression"`
 }
 
 func (r *webhookRepository) CreateWebhook(ctx context.Context, tenantId string, opts CreateWebhookOpts) (*sqlcv1.V1IncomingWebhook, error) {
@@ -205,5 +211,33 @@ func (r *webhookRepository) CanCreate(ctx context.Context, tenantId string, webh
 	return r.queries.CanCreateWebhook(ctx, r.pool, sqlcv1.CanCreateWebhookParams{
 		Tenantid:     sqlchelpers.UUIDFromStr(tenantId),
 		Webhooklimit: webhookLimit,
+	})
+}
+
+func (r *webhookRepository) UpdateWebhook(ctx context.Context, tenantId string, webhookId string, params UpdateWebhookOpts) (*sqlcv1.V1IncomingWebhook, error) {
+	if err := r.v.Validate(params); err != nil {
+		return nil, err
+	}
+
+	var name, eventKeyExpression pgtype.Text
+	if params.Name != nil {
+		name = pgtype.Text{
+			String: *params.Name,
+			Valid:  true,
+		}
+	}
+
+	if params.Eventkeyexpression != nil {
+		eventKeyExpression = pgtype.Text{
+			String: *params.Eventkeyexpression,
+			Valid:  true,
+		}
+	}
+
+	return r.queries.UpdateWebhook(ctx, r.pool, sqlcv1.UpdateWebhookParams{
+		Tenantid:           sqlchelpers.UUIDFromStr(tenantId),
+		Webhookid:          sqlchelpers.UUIDFromStr(webhookId),
+		Name:               name,
+		EventKeyExpression: eventKeyExpression,
 	})
 }

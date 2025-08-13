@@ -256,3 +256,49 @@ func (q *Queries) ListWebhooks(ctx context.Context, db DBTX, arg ListWebhooksPar
 	}
 	return items, nil
 }
+
+const updateWebhook = `-- name: UpdateWebhook :one
+UPDATE v1_incoming_webhook
+SET
+    name = COALESCE($1::TEXT, name),
+    event_key_expression = COALESCE($2::TEXT, event_key_expression)
+WHERE
+    tenant_id = $3::UUID
+    AND id = $4::UUID
+RETURNING tenant_id, name, source_name, event_key_expression, auth_method, auth__basic__username, auth__basic__password, auth__api_key__header_name, auth__api_key__key, auth__hmac__algorithm, auth__hmac__encoding, auth__hmac__signature_header_name, auth__hmac__webhook_signing_secret, inserted_at, updated_at
+`
+
+type UpdateWebhookParams struct {
+	Name               pgtype.Text `json:"name"`
+	EventKeyExpression pgtype.Text `json:"eventKeyExpression"`
+	Tenantid           pgtype.UUID `json:"tenantid"`
+	Webhookid          pgtype.UUID `json:"webhookid"`
+}
+
+func (q *Queries) UpdateWebhook(ctx context.Context, db DBTX, arg UpdateWebhookParams) (*V1IncomingWebhook, error) {
+	row := db.QueryRow(ctx, updateWebhook,
+		arg.Name,
+		arg.EventKeyExpression,
+		arg.Tenantid,
+		arg.Webhookid,
+	)
+	var i V1IncomingWebhook
+	err := row.Scan(
+		&i.TenantID,
+		&i.Name,
+		&i.SourceName,
+		&i.EventKeyExpression,
+		&i.AuthMethod,
+		&i.AuthBasicUsername,
+		&i.AuthBasicPassword,
+		&i.AuthApiKeyHeaderName,
+		&i.AuthApiKeyKey,
+		&i.AuthHmacAlgorithm,
+		&i.AuthHmacEncoding,
+		&i.AuthHmacSignatureHeaderName,
+		&i.AuthHmacWebhookSigningSecret,
+		&i.InsertedAt,
+		&i.UpdatedAt,
+	)
+	return &i, err
+}

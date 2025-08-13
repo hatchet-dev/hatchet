@@ -358,6 +358,8 @@ V1CreateFilterRequest:
   $ref: "./v1/filter.yaml#/V1CreateFilterRequest"
 V1CreateWebhookRequest:
   $ref: "./v1/webhook.yaml#/V1CreateWebhookRequest"
+V1UpdateWebhookRequest:
+  $ref: "./v1/webhook.yaml#/V1UpdateWebhookRequest"
 V1UpdateFilterRequest:
   $ref: "./v1/filter.yaml#/V1UpdateFilterRequest"
 V1CELDebugRequest:

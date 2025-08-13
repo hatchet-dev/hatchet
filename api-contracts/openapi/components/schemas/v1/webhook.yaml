@@ -184,3 +184,13 @@ V1CreateWebhookRequest:
     - $ref: "#/V1CreateWebhookRequestBasicAuth"
     - $ref: "#/V1CreateWebhookRequestAPIKey"
     - $ref: "#/V1CreateWebhookRequestHMAC"
+
+V1UpdateWebhookRequest:
+  type: object
+  properties:
+    name:
+      type: string
+      description: The name of the webhook
+    eventKeyExpression:
+      type: string
+      description: The CEL expression to use for the event key. This is used to create the event key from the webhook payload.

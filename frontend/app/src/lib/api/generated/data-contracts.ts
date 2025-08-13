@@ -956,6 +956,13 @@ export type V1CreateWebhookRequest =
   | V1CreateWebhookRequestAPIKey
   | V1CreateWebhookRequestHMAC;
 
+export interface V1UpdateWebhookRequest {
+  /** The name of the webhook */
+  name?: string;
+  /** The CEL expression to use for the event key. This is used to create the event key from the webhook payload. */
+  eventKeyExpression?: string;
+}
+
 export interface V1CELDebugRequest {
   /** The CEL expression to evaluate */
   expression: string;

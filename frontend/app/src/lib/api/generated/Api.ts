@@ -107,6 +107,7 @@ import {
   V1TaskTimingList,
   V1TriggerWorkflowRunRequest,
   V1UpdateFilterRequest,
+  V1UpdateWebhookRequest,
   V1Webhook,
   V1WebhookList,
   V1WebhookSourceName,
@@ -918,6 +919,28 @@ export class Api<
       path: `/api/v1/stable/tenants/${tenant}/webhooks/${v1Webhook}`,
       method: "POST",
       body: data,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Update a webhook
+   *
+   * @tags Webhook
+   * @name V1WebhookUpdate
+   * @summary Update a webhook
+   * @request PATCH:/api/v1/stable/tenants/{tenant}/webhooks/{v1-webhook}
+   */
+  v1WebhookUpdate = (
+    tenant: string,
+    v1Webhook: string,
+    data: V1UpdateWebhookRequest,
+    params: RequestParams = {},
+  ) =>
+    this.request<V1Webhook, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/webhooks/${v1Webhook}`,
+      method: "PATCH",
+      body: data,
+      type: ContentType.Json,
       format: "json",
       ...params,
     });
