@@ -19,6 +19,7 @@ export enum ToolbarType {
   Radio = 'radio',
   KeyValue = 'key-value',
   Array = 'array',
+  Switch = 'switch',
 }
 
 export type ToolbarFilters = {

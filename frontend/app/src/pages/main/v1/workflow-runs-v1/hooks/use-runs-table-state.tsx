@@ -191,6 +191,16 @@ export const getAdditionalMetadataFromFilters = (
   return Array.isArray(value) ? (value as string[]) : [value as string];
 };
 
+export const getFlattenDAGsFromFilters = (
+  columnFilters: ColumnFiltersState,
+): boolean => {
+  const filter = columnFilters.find((f) => f.id === 'flattenDAGs');
+  if (!filter) {
+    return false;
+  }
+  return filter.value as boolean;
+};
+
 export const useRunsTableState = (
   tableKey: string,
   initialState?: Partial<RunsTableState>,

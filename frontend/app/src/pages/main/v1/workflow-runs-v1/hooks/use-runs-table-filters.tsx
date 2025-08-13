@@ -8,6 +8,7 @@ import {
   getWorkflowIdsFromFilters,
   getStatusesFromFilters,
   getAdditionalMetadataFromFilters,
+  getFlattenDAGsFromFilters,
 } from './use-runs-table-state';
 import { TaskRunColumn } from '../components/v1/task-runs-columns';
 
@@ -21,6 +22,7 @@ export type FilterActions = {
   setCustomTimeRange: (range: { start: string; end: string } | null) => void;
   setStatuses: (statuses: V1TaskStatus[]) => void;
   setWorkflowIds: (workflowIds: string[]) => void;
+  setFlattenDAGs: (flatten: boolean) => void;
   setAdditionalMetadata: (metadata: AdditionalMetadataProp) => void;
   setAllAdditionalMetadata: (kvPairs: AdditionalMetadataProp[]) => void;
   setParentTaskExternalId: (id: string | undefined) => void;
@@ -35,6 +37,7 @@ export type APIFilters = {
   statuses?: V1TaskStatus[];
   workflowIds?: string[];
   additionalMetadata?: string[];
+  flattenDAGs: boolean;
 };
 
 export const useRunsTableFilters = (
@@ -47,6 +50,7 @@ export const useRunsTableFilters = (
     const additionalMetadata = getAdditionalMetadataFromFilters(
       state.columnFilters,
     );
+    const flattenDAGs = getFlattenDAGsFromFilters(state.columnFilters);
 
     return {
       since: state.createdAfter,
@@ -54,6 +58,7 @@ export const useRunsTableFilters = (
       statuses: statuses.length > 0 ? statuses : undefined,
       workflowIds: workflowIds.length > 0 ? workflowIds : undefined,
       additionalMetadata,
+      flattenDAGs,
     };
   }, [state.createdAfter, state.finishedBefore, state.columnFilters]);
 
@@ -160,11 +165,19 @@ export const useRunsTableFilters = (
     [updateFilters, state.columnFilters],
   );
 
-  const setParentTaskExternalId = useCallback(
-    (parentTaskExternalId: string | undefined) => {
-      updateFilters({ parentTaskExternalId });
+  const setFlattenDAGs = useCallback(
+    (flatten: boolean) => {
+      const newColumnFilters = flatten
+        ? state.columnFilters
+            .filter((f) => f.id !== TaskRunColumn.flattenDAGs)
+            .concat([{ id: TaskRunColumn.flattenDAGs, value: flatten }])
+        : state.columnFilters.filter((f) => f.id !== TaskRunColumn.flattenDAGs);
+
+      updateFilters({
+        columnFilters: newColumnFilters,
+      });
     },
-    [updateFilters],
+    [updateFilters, state.columnFilters],
   );
 
   const setColumnFilters = useCallback(
@@ -187,6 +200,13 @@ export const useRunsTableFilters = (
     updateFilters({ parentTaskExternalId: undefined });
   }, [updateFilters]);
 
+  const setParentTaskExternalId = useCallback(
+    (parentTaskExternalId: string | undefined) => {
+      updateFilters({ parentTaskExternalId });
+    },
+    [updateFilters],
+  );
+
   return {
     apiFilters,
     setTimeWindow,
@@ -196,6 +216,7 @@ export const useRunsTableFilters = (
     setAdditionalMetadata,
     setAllAdditionalMetadata,
     setParentTaskExternalId,
+    setFlattenDAGs,
     setColumnFilters,
     clearAllFilters,
     clearParentFilter,

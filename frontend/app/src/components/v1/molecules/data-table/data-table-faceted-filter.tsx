@@ -3,6 +3,8 @@ import { Column } from '@tanstack/react-table';
 
 import { ToolbarType } from './data-table-toolbar';
 import { Combobox } from '../combobox/combobox';
+import { Label } from '../../ui/label';
+import { Checkbox } from '../../ui/checkbox';
 
 interface DataTableFacetedFilterProps<TData, TValue> {
   column?: Column<TData, TValue>;
@@ -22,6 +24,19 @@ export function DataTableFacetedFilter<TData, TValue>({
   options,
 }: DataTableFacetedFilterProps<TData, TValue>) {
   const value = column?.getFilterValue();
+
+  if (type === ToolbarType.Switch) {
+    return (
+      <div className="flex items-center space-x-2">
+        <Checkbox
+          id="toolbar-switch"
+          onCheckedChange={(e) => column?.setFilterValue(e.valueOf() === true)}
+        />
+        <Label htmlFor="toolbar-switch">Flatten</Label>
+      </div>
+    );
+  }
+
   return (
     <Combobox
       values={typeof value === 'string' ? [value] : (value as string[])}

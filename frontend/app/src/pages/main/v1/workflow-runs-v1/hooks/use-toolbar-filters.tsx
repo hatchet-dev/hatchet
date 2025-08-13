@@ -35,7 +35,7 @@ export const useToolbarFilters = ({
   filterVisibility,
 }: {
   filterVisibility: { [key: string]: boolean };
-}) => {
+}): ToolbarFilters => {
   const workflows = useWorkflows();
 
   const workflowKeyFilters = useMemo((): FilterOption[] => {
@@ -47,7 +47,7 @@ export const useToolbarFilters = ({
     );
   }, [workflows]);
 
-  const filters: ToolbarFilters = [
+  return [
     {
       columnId: TaskRunColumn.workflow,
       title: 'Workflow',
@@ -65,7 +65,14 @@ export const useToolbarFilters = ({
       title: 'Metadata',
       type: ToolbarType.KeyValue,
     },
+    {
+      columnId: TaskRunColumn.flattenDAGs,
+      title: 'Flatten DAGs',
+      type: ToolbarType.Switch,
+      options: [
+        { value: 'true', label: 'Flatten' },
+        { value: 'false', label: 'All' },
+      ],
+    },
   ].filter((filter) => filterVisibility[filter.columnId] != false);
-
-  return filters;
 };

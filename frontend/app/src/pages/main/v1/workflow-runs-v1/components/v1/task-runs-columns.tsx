@@ -20,6 +20,7 @@ export const TaskRunColumn = {
   status: 'status',
   workflow: 'Workflow',
   parentTaskExternalId: 'parentTaskExternalId',
+  flattenDAGs: 'flattenDAGs',
   createdAt: 'Created at',
   startedAt: 'Started at',
   finishedAt: 'Finished at',
@@ -173,6 +174,15 @@ export const columns: (
     accessorKey: TaskRunColumn.parentTaskExternalId,
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Parent Task External ID" />
+    ),
+    cell: () => null,
+    enableSorting: false,
+    enableHiding: false,
+  },
+  {
+    accessorKey: TaskRunColumn.flattenDAGs,
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Flatten DAGs" />
     ),
     cell: () => null,
     enableSorting: false,

@@ -122,6 +122,7 @@ export const RunsProvider = ({
       columnVisibility: {
         ...initColumnVisibility,
         parentTaskExternalId: false, // Always hidden, used for filtering only
+        flattenDAGs: false, // Always hidden, used for filtering only
       },
     };
 
