@@ -141,6 +141,7 @@ const EditableExpressionCell = ({ row }: { row: Row<V1Webhook> }) => {
   const [value, setValue] = useState(row.original.eventKeyExpression || '');
 
   const handleSave = () => {
+    console.log('Saving expression:', value);
     if (value !== row.original.eventKeyExpression && value.trim()) {
       mutations.updateWebhook({
         webhookName: row.original.name,
@@ -148,6 +149,13 @@ const EditableExpressionCell = ({ row }: { row: Row<V1Webhook> }) => {
       });
     }
     setIsEditing(false);
+  };
+
+  const handleBlur = (e: React.FocusEvent) => {
+    console.log('Input blurred');
+    if (isEditing) {
+      handleSave();
+    }
   };
 
   const handleCancel = () => {
@@ -163,42 +171,20 @@ const EditableExpressionCell = ({ row }: { row: Row<V1Webhook> }) => {
     }
   };
 
-  if (isEditing) {
-    return (
-      <div className="flex items-center gap-2 w-full">
-        <Input
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          onBlur={handleSave}
-          onKeyDown={handleKeyDown}
-          className="h-6 font-mono text-xs flex-1 min-w-0"
-          autoFocus
-        />
-        <Button
-          size="sm"
-          variant="ghost"
-          className="h-6 w-6 p-0 flex-shrink-0"
-          onClick={handleCancel}
-        >
-          <X className="h-3 w-3" />
-        </Button>
-      </div>
-    );
-  }
-
   return (
-    <div className="flex items-center gap-2 w-full group">
-      <code className="bg-muted relative rounded px-2 py-1 font-mono text-xs flex-1">
-        {row.original.eventKeyExpression}
-      </code>
-      <Button
-        size="sm"
-        variant="ghost"
-        className="h-6 w-6 p-0 flex-shrink-0 opacity-0 group-hover:opacity-100"
-        onClick={() => setIsEditing(true)}
-      >
-        <Edit3 className="h-3 w-3 text-muted-foreground" />
-      </Button>
-    </div>
+    <Input
+      value={isEditing ? value : row.original.eventKeyExpression || ''}
+      onChange={isEditing ? (e) => setValue(e.target.value) : undefined}
+      onBlur={isEditing ? handleSave : undefined}
+      onKeyDown={isEditing ? handleKeyDown : undefined}
+      onClick={!isEditing ? () => setIsEditing(true) : undefined}
+      className={`bg-muted rounded px-2 py-1 font-mono text-xs w-full h-6 ${
+        isEditing
+          ? 'border-input focus:border-ring focus:ring-1 focus:ring-ring cursor-text'
+          : 'border-transparent cursor-text hover:bg-muted/80'
+      }`}
+      readOnly={!isEditing}
+      autoFocus={isEditing}
+    />
   );
 };
