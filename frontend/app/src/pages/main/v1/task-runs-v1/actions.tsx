@@ -291,7 +291,7 @@ const ConfirmActionModal = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
-      <DialogContent className="sm:max-w-[700px] py-8 max-h-screen overflow-auto">
+      <DialogContent className="sm:max-w-[700px] py-8 max-h-screen overflow-auto z-[70]">
         <DialogHeader className="gap-2">
           <div className="flex flex-row justify-between items-center w-full">
             <DialogTitle>{label} runs</DialogTitle>

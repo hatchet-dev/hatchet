@@ -249,7 +249,7 @@ export const TaskRunDetail = ({
                     showMetrics: false,
                     showDateFilter: false,
                     showTriggerRunButton: false,
-                    showCancelAndReplayButtons: false,
+                    showCancelAndReplayButtons: true,
                     showColumnToggle: true,
                   }}
                   runFilters={{
