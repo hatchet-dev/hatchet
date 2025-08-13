@@ -2,7 +2,7 @@ import { ColumnDef, Row } from '@tanstack/react-table';
 import { V1Webhook } from '@/lib/api';
 import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
 import { DotsVerticalIcon } from '@radix-ui/react-icons';
-import { Check, Copy, Loader, Trash2, Edit3, X } from 'lucide-react';
+import { Check, Copy, Loader, Trash2 } from 'lucide-react';
 import { Button } from '@/components/v1/ui/button';
 import { Input } from '@/components/v1/ui/input';
 import {
@@ -11,7 +11,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/v1/ui/dropdown-menu';
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { useWebhooks } from '../hooks/use-webhooks';
 import { SourceName } from './source-name';
 import { AuthMethod } from './auth-method';
@@ -140,8 +140,7 @@ const EditableExpressionCell = ({ row }: { row: Row<V1Webhook> }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [value, setValue] = useState(row.original.eventKeyExpression || '');
 
-  const handleSave = () => {
-    console.log('Saving expression:', value);
+  const handleSave = useCallback(() => {
     if (value !== row.original.eventKeyExpression && value.trim()) {
       mutations.updateWebhook({
         webhookName: row.original.name,
@@ -149,33 +148,35 @@ const EditableExpressionCell = ({ row }: { row: Row<V1Webhook> }) => {
       });
     }
     setIsEditing(false);
-  };
+  }, [value, row.original.eventKeyExpression, row.original.name, mutations]);
 
-  const handleBlur = (e: React.FocusEvent) => {
-    console.log('Input blurred');
+  const handleBlur = useCallback(() => {
     if (isEditing) {
       handleSave();
     }
-  };
+  }, [isEditing, handleSave]);
 
-  const handleCancel = () => {
+  const handleCancel = useCallback(() => {
     setValue(row.original.eventKeyExpression || '');
     setIsEditing(false);
-  };
+  }, [row.original.eventKeyExpression, setIsEditing, setValue]);
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      handleSave();
-    } else if (e.key === 'Escape') {
-      handleCancel();
-    }
-  };
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key === 'Enter') {
+        handleSave();
+      } else if (e.key === 'Escape') {
+        handleCancel();
+      }
+    },
+    [handleSave, handleCancel],
+  );
 
   return (
     <Input
       value={isEditing ? value : row.original.eventKeyExpression || ''}
       onChange={isEditing ? (e) => setValue(e.target.value) : undefined}
-      onBlur={isEditing ? handleSave : undefined}
+      onBlur={handleBlur}
       onKeyDown={isEditing ? handleKeyDown : undefined}
       onClick={!isEditing ? () => setIsEditing(true) : undefined}
       className={`bg-muted rounded px-2 py-1 font-mono text-xs w-full h-6 ${
