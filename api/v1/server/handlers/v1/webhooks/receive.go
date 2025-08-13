@@ -109,7 +109,7 @@ func (w *V1WebhooksService) V1WebhookReceive(ctx echo.Context, request gen.V1Web
 
 	for k, v := range ctx.Request().Header {
 		if len(v) > 0 {
-			headerMap[k] = v[0]
+			headerMap[strings.ToLower(k)] = v[0]
 		}
 	}
 
