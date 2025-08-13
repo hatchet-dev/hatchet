@@ -273,7 +273,7 @@ func (w *V1WebhooksService) performChallenge(webhookPayload []byte, webhook sqlc
 			}, nil
 		}
 
-		fallthrough
+		return false, nil, nil
 	default:
 		return false, nil, nil
 	}
