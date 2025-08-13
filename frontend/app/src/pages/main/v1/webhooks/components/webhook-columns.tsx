@@ -2,8 +2,9 @@ import { ColumnDef, Row } from '@tanstack/react-table';
 import { V1Webhook } from '@/lib/api';
 import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
 import { DotsVerticalIcon } from '@radix-ui/react-icons';
-import { Check, Copy, Loader, Trash2 } from 'lucide-react';
+import { Check, Copy, Loader, Trash2, Edit3, X } from 'lucide-react';
 import { Button } from '@/components/v1/ui/button';
+import { Input } from '@/components/v1/ui/input';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -22,7 +23,7 @@ export const columns = (): ColumnDef<V1Webhook>[] => {
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title="Name" />
       ),
-      cell: ({ row }) => <div className="w-full">{row.original.name}</div>,
+      cell: ({ row }) => <EditableNameCell row={row} />,
       enableSorting: false,
       enableHiding: true,
     },
@@ -44,11 +45,7 @@ export const columns = (): ColumnDef<V1Webhook>[] => {
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title="Expression" />
       ),
-      cell: ({ row }) => (
-        <code className="bg-muted relative rounded px-2 py-1 font-mono text-xs h-full">
-          {row.original.eventKeyExpression}
-        </code>
-      ),
+      cell: ({ row }) => <EditableExpressionCell row={row} />,
       enableSorting: false,
       enableHiding: true,
     },
@@ -135,5 +132,139 @@ const WebhookActionsCell = ({ row }: { row: Row<V1Webhook> }) => {
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
+  );
+};
+
+const EditableNameCell = ({ row }: { row: Row<V1Webhook> }) => {
+  const { mutations } = useWebhooks();
+  const [isEditing, setIsEditing] = useState(false);
+  const [value, setValue] = useState(row.original.name);
+
+  const handleSave = () => {
+    if (value !== row.original.name && value.trim()) {
+      mutations.updateWebhook({
+        webhookName: row.original.name,
+        webhookData: { name: value.trim() },
+      });
+    }
+    setIsEditing(false);
+  };
+
+  const handleCancel = () => {
+    setValue(row.original.name);
+    setIsEditing(false);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleSave();
+    } else if (e.key === 'Escape') {
+      handleCancel();
+    }
+  };
+
+  if (isEditing) {
+    return (
+      <div className="flex items-center gap-2 w-full">
+        <Input
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onBlur={handleSave}
+          onKeyDown={handleKeyDown}
+          className="h-6 text-sm flex-1 min-w-0"
+          autoFocus
+        />
+        <Button
+          size="sm"
+          variant="ghost"
+          className="h-6 w-6 p-0 flex-shrink-0"
+          onClick={handleCancel}
+        >
+          <X className="h-3 w-3" />
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-2 w-full group">
+      <span className="flex-1">{row.original.name}</span>
+      <Button
+        size="sm"
+        variant="ghost"
+        className="h-6 w-6 p-0 flex-shrink-0 opacity-0 group-hover:opacity-100"
+        onClick={() => setIsEditing(true)}
+      >
+        <Edit3 className="h-3 w-3 text-muted-foreground" />
+      </Button>
+    </div>
+  );
+};
+
+const EditableExpressionCell = ({ row }: { row: Row<V1Webhook> }) => {
+  const { mutations } = useWebhooks();
+  const [isEditing, setIsEditing] = useState(false);
+  const [value, setValue] = useState(row.original.eventKeyExpression || '');
+
+  const handleSave = () => {
+    if (value !== row.original.eventKeyExpression && value.trim()) {
+      mutations.updateWebhook({
+        webhookName: row.original.name,
+        webhookData: { eventKeyExpression: value.trim() },
+      });
+    }
+    setIsEditing(false);
+  };
+
+  const handleCancel = () => {
+    setValue(row.original.eventKeyExpression || '');
+    setIsEditing(false);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleSave();
+    } else if (e.key === 'Escape') {
+      handleCancel();
+    }
+  };
+
+  if (isEditing) {
+    return (
+      <div className="flex items-center gap-2 w-full">
+        <Input
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onBlur={handleSave}
+          onKeyDown={handleKeyDown}
+          className="h-6 font-mono text-xs flex-1 min-w-0"
+          autoFocus
+        />
+        <Button
+          size="sm"
+          variant="ghost"
+          className="h-6 w-6 p-0 flex-shrink-0"
+          onClick={handleCancel}
+        >
+          <X className="h-3 w-3" />
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-2 w-full group">
+      <code className="bg-muted relative rounded px-2 py-1 font-mono text-xs flex-1">
+        {row.original.eventKeyExpression}
+      </code>
+      <Button
+        size="sm"
+        variant="ghost"
+        className="h-6 w-6 p-0 flex-shrink-0 opacity-0 group-hover:opacity-100"
+        onClick={() => setIsEditing(true)}
+      >
+        <Edit3 className="h-3 w-3 text-muted-foreground" />
+      </Button>
+    </div>
   );
 };
