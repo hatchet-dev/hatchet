@@ -3,7 +3,6 @@ import {
   DialogTitle,
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogHeader,
 } from '@/components/v1/ui/dialog';
 import api, {
@@ -299,9 +298,9 @@ const ConfirmActionModal = ({
         </DialogHeader>
 
         <div className="flex flex-col space-y-4">
-          <DialogDescription>
+          <div className="text-sm text-muted-foreground">
             <ModalContent label={label} params={params} />
-          </DialogDescription>
+          </div>
 
           <div className="flex flex-row items-center gap-3 justify-end pt-4 border-t">
             <Button
