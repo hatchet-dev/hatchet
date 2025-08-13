@@ -111,21 +111,48 @@ const REVERSE_KEY_MAP = Object.fromEntries(
   Object.entries(KEY_MAP).map(([key, value]) => [value, key]),
 ) as Record<string, string>;
 
-const parseColumnFilters = (obj: any[]) => {
+interface ColumnFilterWithId {
+  id: string;
+  value: unknown;
+  [key: string]: unknown;
+}
+
+type CompressibleValue =
+  | string
+  | number
+  | boolean
+  | null
+  | undefined
+  | Array<CompressibleValue>
+  | { [key: string]: CompressibleValue };
+
+const parseColumnFilters = (obj: CompressibleValue[]) => {
   return obj.map((filter) => {
-    if (filter && typeof filter === 'object' && 'id' in filter) {
-      const compressedFilter = { ...filter };
+    if (
+      filter &&
+      typeof filter === 'object' &&
+      !Array.isArray(filter) &&
+      'id' in filter
+    ) {
+      const columnFilter = filter as ColumnFilterWithId;
+      const compressedFilter = { ...columnFilter };
       const compressedId =
-        KEY_MAP[filter.id as keyof typeof KEY_MAP] || filter.id;
+        KEY_MAP[columnFilter.id as keyof typeof KEY_MAP] || columnFilter.id;
       compressedFilter.id = compressedId;
 
-      return compressKeys(compressedFilter, 'columnFilter');
+      return compressKeys(
+        compressedFilter as CompressibleValue,
+        'columnFilter',
+      );
     }
     return compressKeys(filter);
   });
 };
 
-function compressKeys(obj: any, parentKey?: string): any {
+function compressKeys(
+  obj: CompressibleValue,
+  parentKey?: string,
+): CompressibleValue {
   if (obj === null || obj === undefined) {
     return obj;
   }
@@ -140,7 +167,7 @@ function compressKeys(obj: any, parentKey?: string): any {
     return obj.map((item) => compressKeys(item));
   }
 
-  const compressed: any = {};
+  const compressed: Record<string, CompressibleValue> = {};
   for (const [key, value] of Object.entries(obj)) {
     const compressedKey = KEY_MAP[key as keyof typeof KEY_MAP] || key;
     compressed[compressedKey] = compressKeys(value, key);
@@ -148,19 +175,32 @@ function compressKeys(obj: any, parentKey?: string): any {
   return compressed;
 }
 
-const decompressColumnFilters = (obj: any[]) => {
+const decompressColumnFilters = (obj: CompressibleValue[]) => {
   return obj.map((filter) => {
-    if (filter && typeof filter === 'object' && 'id' in filter) {
-      const decompressedFilter = { ...filter };
-      const decompressedId = REVERSE_KEY_MAP[filter.id] || filter.id;
+    if (
+      filter &&
+      typeof filter === 'object' &&
+      !Array.isArray(filter) &&
+      'id' in filter
+    ) {
+      const columnFilter = filter as ColumnFilterWithId;
+      const decompressedFilter = { ...columnFilter };
+      const decompressedId =
+        REVERSE_KEY_MAP[columnFilter.id] || columnFilter.id;
       decompressedFilter.id = decompressedId;
-      return decompressKeys(decompressedFilter, 'columnFilter');
+      return decompressKeys(
+        decompressedFilter as CompressibleValue,
+        'columnFilter',
+      );
     }
     return decompressKeys(filter);
   });
 };
 
-function decompressKeys(obj: any, parentKey?: string): any {
+function decompressKeys(
+  obj: CompressibleValue,
+  parentKey?: string,
+): CompressibleValue {
   if (obj === null || obj === undefined) {
     return obj;
   }
@@ -174,7 +214,7 @@ function decompressKeys(obj: any, parentKey?: string): any {
     return obj.map((item) => decompressKeys(item));
   }
 
-  const decompressed: any = {};
+  const decompressed: Record<string, CompressibleValue> = {};
   for (const [key, value] of Object.entries(obj)) {
     const decompressedKey = REVERSE_KEY_MAP[key] || key;
     decompressed[decompressedKey] = decompressKeys(value, key);
@@ -269,7 +309,9 @@ export const useRunsTableState = (
 
     try {
       const compressedState = JSON.parse(stateParam);
-      const parsedState = decompressKeys(compressedState) as RunsTableState;
+      const parsedState = decompressKeys(
+        compressedState,
+      ) as unknown as RunsTableState;
       const merged = {
         ...DEFAULT_STATE,
         ...parsedState,
@@ -324,7 +366,7 @@ export const useRunsTableState = (
               const compressedState = JSON.parse(stateParam);
               const parsedState = decompressKeys(
                 compressedState,
-              ) as RunsTableState;
+              ) as unknown as RunsTableState;
               const merged = {
                 ...DEFAULT_STATE,
                 ...parsedState,
@@ -394,7 +436,9 @@ export const useRunsTableState = (
             taskRunDetailSheet: newState.taskRunDetailSheet,
           };
 
-          const compressedState = compressKeys(stateToSerialize);
+          const compressedState = compressKeys(
+            stateToSerialize as unknown as CompressibleValue,
+          );
           const minifiedState = JSON.stringify(compressedState);
 
           newParams.set(paramKey, minifiedState);
