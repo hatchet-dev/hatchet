@@ -191,6 +191,49 @@ const StripeAuth = ({ register }: BaseAuthMethodProps) => (
   </div>
 );
 
+const DiscordAuth = ({ register }: BaseAuthMethodProps) => (
+  // TODO: Implement Discord webhook auth
+  <div className="space-y-4">
+    <div className="space-y-2">
+      <Label htmlFor="signingSecret" className="text-sm font-medium">
+        Webhook Signing Secret <span className="text-red-500">*</span>
+      </Label>
+      <div className="relative">
+        <Input
+          data-1p-ignore
+          id="signingSecret"
+          type={'text'}
+          placeholder="whsec_..."
+          {...register('signingSecret')}
+          className="h-10 pr-10"
+        />
+      </div>
+    </div>
+  </div>
+);
+
+const SlackAuth = ({ register }: BaseAuthMethodProps) => (
+  // Slack only requires a secret, which is provided in the request body.
+  // See docs: https://api.slack.com/apis/events-api#receiving-events
+  <div className="space-y-4">
+    <div className="space-y-2">
+      <Label htmlFor="signingSecret" className="text-sm font-medium">
+        Webhook Signing Secret <span className="text-red-500">*</span>
+      </Label>
+      <div className="relative">
+        <Input
+          data-1p-ignore
+          id="signingSecret"
+          type={'text'}
+          placeholder="whsec_..."
+          {...register('apiKey')}
+          className="h-10 pr-10"
+        />
+      </div>
+    </div>
+  </div>
+);
+
 const GithubAuth = ({ register }: BaseAuthMethodProps) => (
   // Github only requires a secret, as we know the header key and the encoding info (user doesn't need to provide them)
   // See docs: https://docs.github.com/en/webhooks/using-webhooks/validating-webhook-deliveries#validating-webhook-deliveries
@@ -243,6 +286,10 @@ export const AuthSetup = ({
       return <GithubAuth register={register} />;
     case V1WebhookSourceName.STRIPE:
       return <StripeAuth register={register} />;
+    case V1WebhookSourceName.SLACK:
+      return <SlackAuth register={register} />;
+    case V1WebhookSourceName.DISCORD:
+      return <DiscordAuth register={register} />;
     default:
       // eslint-disable-next-line no-case-declarations
       const exhaustiveCheck: never = sourceName;

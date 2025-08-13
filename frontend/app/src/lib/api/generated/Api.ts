@@ -909,13 +909,7 @@ export class Api<
     data?: any,
     params: RequestParams = {},
   ) =>
-    this.request<
-      {
-        /** @example "OK" */
-        message?: string;
-      },
-      APIErrors
-    >({
+    this.request<Record<string, any>, APIErrors>({
       path: `/api/v1/stable/tenants/${tenant}/webhooks/${v1Webhook}`,
       method: "POST",
       body: data,

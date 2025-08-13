@@ -277,8 +277,10 @@ const (
 
 // Defines values for V1WebhookSourceName.
 const (
+	DISCORD V1WebhookSourceName = "DISCORD"
 	GENERIC V1WebhookSourceName = "GENERIC"
 	GITHUB  V1WebhookSourceName = "GITHUB"
+	SLACK   V1WebhookSourceName = "SLACK"
 	STRIPE  V1WebhookSourceName = "STRIPE"
 )
 
@@ -13510,11 +13512,9 @@ func (r V1WebhookUpdateResponse) StatusCode() int {
 type V1WebhookReceiveResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *struct {
-		Message *string `json:"message,omitempty"`
-	}
-	JSON400 *APIErrors
-	JSON403 *APIErrors
+	JSON200      *map[string]interface{}
+	JSON400      *APIErrors
+	JSON403      *APIErrors
 }
 
 // Status returns HTTPResponse.Status
@@ -18569,9 +18569,7 @@ func ParseV1WebhookReceiveResponse(rsp *http.Response) (*V1WebhookReceiveRespons
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest struct {
-			Message *string `json:"message,omitempty"`
-		}
+		var dest map[string]interface{}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

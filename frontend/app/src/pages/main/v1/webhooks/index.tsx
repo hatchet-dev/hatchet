@@ -158,7 +158,7 @@ const buildWebhookPayload = (data: WebhookFormData): V1CreateWebhookRequest => {
       };
     case V1WebhookSourceName.STRIPE:
       if (!data.signingSecret) {
-        throw new Error('Signing secret is required for GitHub webhooks');
+        throw new Error('Signing secret is required for Stripe webhooks');
       }
 
       return {
@@ -177,6 +177,27 @@ const buildWebhookPayload = (data: WebhookFormData): V1CreateWebhookRequest => {
           signingSecret: data.signingSecret,
         },
       };
+    case V1WebhookSourceName.SLACK:
+      if (!data.apiKey) {
+        throw new Error('API key is required for Slack webhooks');
+      }
+
+      return {
+        sourceName: data.sourceName,
+        name: data.name,
+        eventKeyExpression: data.eventKeyExpression,
+        authType: V1WebhookAuthType.API_KEY,
+        auth: {
+          // Slack sends the token in the request body. See the docs:
+          // https://api.slack.com/apis/events-api#receiving-events
+          apiKey: data.apiKey,
+          headerName: 'placeholder',
+        },
+      };
+    case V1WebhookSourceName.DISCORD:
+      throw new Error(
+        'Discord webhooks are not supported yet. Please use a generic webhook for now.',
+      );
     default:
       // eslint-disable-next-line no-case-declarations
       const exhaustiveCheck: never = data.sourceName;
@@ -190,6 +211,8 @@ const createSourceInlineDescription = (sourceName: V1WebhookSourceName) => {
       return '(receive incoming webhook requests from any service)';
     case V1WebhookSourceName.GITHUB:
     case V1WebhookSourceName.STRIPE:
+    case V1WebhookSourceName.SLACK:
+    case V1WebhookSourceName.DISCORD:
       return '';
     default:
       // eslint-disable-next-line no-case-declarations
@@ -212,6 +235,8 @@ const SourceCaption = ({ sourceName }: { sourceName: V1WebhookSourceName }) => {
       );
     case V1WebhookSourceName.GENERIC:
     case V1WebhookSourceName.STRIPE:
+    case V1WebhookSourceName.SLACK:
+    case V1WebhookSourceName.DISCORD:
       return '';
     default:
       // eslint-disable-next-line no-case-declarations

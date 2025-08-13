@@ -123,10 +123,7 @@ V1WebhookGetDeleteReceiveUpdate:
           application/json:
             schema:
               type: object
-              properties:
-                message:
-                  type: string
-                  example: 'OK'
+              additionalProperties: true
       "400":
         content:
           application/json:
