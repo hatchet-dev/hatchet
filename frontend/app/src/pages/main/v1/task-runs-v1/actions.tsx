@@ -21,6 +21,7 @@ import { TaskRunColumn } from '../workflow-runs-v1/components/v1/task-runs-colum
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { useRunsContext } from '../workflow-runs-v1/hooks/runs-provider';
 import { TimeFilter } from '../workflow-runs-v1/components/task-runs-table/time-filter';
+import { cn } from '@/lib/utils';
 
 export const TASK_RUN_TERMINAL_STATUSES = [
   V1TaskStatus.CANCELLED,
@@ -333,6 +334,7 @@ const BaseActionButton = ({
   showModal,
   onActionProcessed,
   onActionSubmit,
+  className,
 }: {
   disabled: boolean;
   params: TaskRunActionsParams;
@@ -341,6 +343,7 @@ const BaseActionButton = ({
   showModal: boolean;
   onActionProcessed: (ids: string[]) => void;
   onActionSubmit: () => void;
+  className?: string;
 }) => {
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
   const { handleTaskRunAction } = useTaskRunActions({
@@ -376,7 +379,7 @@ const BaseActionButton = ({
       />
       <Button
         size={'sm'}
-        className="px-2 py-2 gap-2"
+        className={cn('px-2 py-2 gap-2', className)}
         variant={'outline'}
         disabled={disabled}
         onClick={() => {
@@ -402,6 +405,7 @@ export const TaskRunActionButton = ({
   showModal,
   onActionProcessed,
   onActionSubmit,
+  className,
 }: {
   actionType: ActionType;
   disabled: boolean;
@@ -409,6 +413,7 @@ export const TaskRunActionButton = ({
   showModal: boolean;
   onActionProcessed: (ids: string[]) => void;
   onActionSubmit: () => void;
+  className?: string;
 }) => {
   switch (actionType) {
     case 'cancel':
@@ -421,6 +426,7 @@ export const TaskRunActionButton = ({
           showModal={showModal}
           onActionProcessed={onActionProcessed}
           onActionSubmit={onActionSubmit}
+          className={className}
         />
       );
     case 'replay':
@@ -433,6 +439,7 @@ export const TaskRunActionButton = ({
           showModal={showModal}
           onActionProcessed={onActionProcessed}
           onActionSubmit={onActionSubmit}
+          className={className}
         />
       );
     default:
