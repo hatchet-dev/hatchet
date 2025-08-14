@@ -13,15 +13,6 @@ jobs:
     steps:
       - name: Clone repository
         uses: actions/checkout@v5
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-      - name: Generate snippets
-        run: |
-          cd frontend/snips
-          corepack pnpm@9.15.4 install
-          corepack pnpm@9.15.4 run generate:copy
       - name: Build frontend
         run: docker build -f ./build/package/frontend.dockerfile .
 
