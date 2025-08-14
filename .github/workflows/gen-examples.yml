@@ -25,11 +25,22 @@ jobs:
       working-directory: frontend/snips
       run: pnpm i && pnpm generate && pnpm run copy:examples
 
-    - name: Check for changes
+    - name: Check for changes in examples directory
       id: verify-changed-files
       run: |
+        # Check if there are any changes
         if [ -n "$(git status --porcelain)" ]; then
-          echo "changed=true" >> $GITHUB_OUTPUT
+          CHANGED_FILES=$(git status --porcelain | awk '{print $2}')
+          NON_EXAMPLES_CHANGES=$(echo "$CHANGED_FILES" | grep -v "^examples/" || true)
+          
+          if [ -n "$NON_EXAMPLES_CHANGES" ]; then
+            echo "Error: Changes detected outside of examples directory:"
+            echo "$NON_EXAMPLES_CHANGES"
+            echo "changed=false" >> $GITHUB_OUTPUT
+            exit 1
+          else
+            echo "changed=true" >> $GITHUB_OUTPUT
+          fi
         else
           echo "changed=false" >> $GITHUB_OUTPUT
         fi
@@ -41,7 +52,7 @@ jobs:
         git config --local user.name "GitHub Action"
         BRANCH_NAME="regenerate-examples-${{ github.sha }}"
         git checkout -b "$BRANCH_NAME"
-        git add .
+        git add examples/
         git commit -m "chore: regenerate examples"
         git push origin "$BRANCH_NAME"
         echo "branch_name=$BRANCH_NAME" >> $GITHUB_OUTPUT
@@ -60,9 +71,10 @@ jobs:
         echo "pr_number=$(gh pr list --head ${{ steps.create-branch.outputs.branch_name }} --json number --jq '.[0].number')" >> $GITHUB_OUTPUT
       id: create-pr
 
-    - name: Auto-merge Pull Request
+    - name: Auto-approve and merge Pull Request
       if: steps.verify-changed-files.outputs.changed == 'true'
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        gh pr merge "${{ steps.create-branch.outputs.branch_name }}" --auto --squash
+        gh pr review "${{ steps.create-branch.outputs.branch_name }}" --approve
+        gh pr merge "${{ steps.create-branch.outputs.branch_name }}" --squash
