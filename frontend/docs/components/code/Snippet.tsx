@@ -45,10 +45,6 @@ export const Snippet = ({ src, block }: SnippetProps) => {
 
   const fixedSource = src.source.replace("out/", "examples/");
 
-  console.log(
-    `Rendering snippet from ${fixedSource} with language ${language} and block ${block}`
-  );
-
   return (
     <>
       <CodeBlock
