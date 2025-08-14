@@ -33,7 +33,7 @@ export const columns = ({
       enableSorting: false,
     },
     {
-      accessorKey: 'readable',
+      accessorKey: 'description',
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title="Description" />
       ),
@@ -45,7 +45,7 @@ export const columns = ({
       enableSorting: false,
     },
     {
-      accessorKey: 'readable',
+      accessorKey: 'timezone',
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title="Timezone" />
       ),
