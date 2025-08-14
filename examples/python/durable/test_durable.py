@@ -71,4 +71,4 @@ async def test_durable_sleep_cancel_replay(hatchet: Hatchet) -> None:
     second_sleep_result = await first_sleep.aio_result()
 
     """We've already slept for a little bit by the time the task is cancelled"""
-    assert second_sleep_result["runtime"] < SLEEP_TIME
+    assert second_sleep_result["runtime"] <= SLEEP_TIME

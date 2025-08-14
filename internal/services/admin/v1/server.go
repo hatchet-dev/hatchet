@@ -418,6 +418,13 @@ func (i *AdminServiceImpl) newTriggerOpt(
 		AdditionalMetadata: req.AdditionalMetadata,
 	}
 
+	if req.Priority != nil {
+		if *req.Priority < 1 || *req.Priority > 3 {
+			return nil, status.Errorf(codes.InvalidArgument, "priority must be between 1 and 3, got %d", *req.Priority)
+		}
+		t.Priority = req.Priority
+	}
+
 	return &v1.WorkflowNameTriggerOpts{
 		TriggerTaskData: t,
 	}, nil

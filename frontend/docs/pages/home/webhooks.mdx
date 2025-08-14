@@ -5,7 +5,12 @@ import UniversalTabs from "@/components/UniversalTabs";
 
 # Webhooks
 
-Webhooks allow external systems to trigger Hatchet workflows by sending HTTP requests to dedicated endpoints. This enables real-time integration with third-party services like GitHub, Stripe, or any system that can send webhook events.
+<Callout type="info" emoji="🪓">
+  This feature is currently in development and might change. Reach out for
+  feedback or if you encounter any problems registering any external webhooks.
+</Callout>
+
+Webhooks allow external systems to trigger Hatchet workflows by sending HTTP requests to dedicated endpoints. This enables real-time integration with third-party services like GitHub, Stripe, Slack, or any system that can send webhook events.
 
 ## Creating a webhook
 
@@ -21,7 +26,10 @@ The **Source** indicates the source of the webhook, which can be a pre-provided 
 
 #### Event Key Expression
 
-The **Event Key Expression** is a [CEL](https://cel.dev/) expression that you can use to create a dynamic event key from the payload of the incoming webhook. You can either set this to a constant value, like `webhook`, or you could set it to something like `'stripe:' + input.type`, where `'stripe:'` is a prefix for all keys indicating the webhook came from Stripe, and `input.type` selects the `type` field off of the webhook payload and uses it to create the final event key, which would look something like `stripe:payment_intent.created`.
+The **Event Key Expression** is a [CEL](https://cel.dev/) expression that you can use to create a dynamic event key from the payload and headers of the incoming webhook. You can either set this to a constant value, like `webhook`, or you could set it to something dynamic using those two options. Some examples:
+
+1. `'stripe:' + input.type` would create event keys where `'stripe:'` is a prefix for all keys indicating the webhook came from Stripe, and `input.type` selects the `type` field off of the webhook payload and uses it to create the final event key. The result might look something like `stripe:payment_intent.created`.
+2. `github: + headers['x-github-event'] + ':' + input.action` could create a key like `github:star:created`
 
 <Callout type="info">
   The result of the event key expression is what Hatchet will use as the event
@@ -43,7 +51,7 @@ If you're using a generic source, then you'll need to specify an authentication 
 
 The different authentication methods require different fields to be provided:
 
-- **Pre-configured sources** (Stripe, GitHub): Only require a webhook secret
+- **Pre-configured sources** (Stripe, GitHub, Slack): Only require a webhook secret
 - **Generic sources** require different fields depending on the selected authentication method:
   - **Basic Auth**: Requires a username and password
   - **API Key**: Requires header name containing the key on incoming requests, and secret key itself

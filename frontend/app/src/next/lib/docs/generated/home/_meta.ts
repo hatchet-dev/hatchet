@@ -68,6 +68,10 @@ const meta = {
     title: 'Bulk Run Many',
     href: '/home/bulk-run',
   },
+  webhooks: {
+    title: 'Webhooks',
+    href: '/home/webhooks',
+  },
   '--flow-control': {
     title: 'Flow Control',
     type: 'separator',
@@ -247,6 +251,10 @@ const meta = {
   lifespans: {
     title: 'Lifespans',
     href: '/home/lifespans',
+  },
+  dependency_injection: {
+    title: 'Dependency Injection',
+    href: '/home/dependency-injection',
   },
   blog: {
     title: 'Blog',

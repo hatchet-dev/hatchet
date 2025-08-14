@@ -51,6 +51,7 @@ V1WebhookSourceName:
     - GENERIC
     - GITHUB
     - STRIPE
+    - SLACK
 
 V1WebhookHMACAlgorithm:
   type: string
@@ -184,3 +185,12 @@ V1CreateWebhookRequest:
     - $ref: "#/V1CreateWebhookRequestBasicAuth"
     - $ref: "#/V1CreateWebhookRequestAPIKey"
     - $ref: "#/V1CreateWebhookRequestHMAC"
+
+V1UpdateWebhookRequest:
+  type: object
+  properties:
+    eventKeyExpression:
+      type: string
+      description: The CEL expression to use for the event key. This is used to create the event key from the webhook payload.
+  required:
+    - eventKeyExpression

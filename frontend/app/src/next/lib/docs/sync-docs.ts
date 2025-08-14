@@ -322,7 +322,6 @@ processDirectory(docsDir);
 // Generate the index.ts file
 const indexContent = `// Generated index file for meta-data
 ${metaFiles.map((file) => `import ${file.importName} from '${file.importPath}';`).join('\n')}
-
 export { ${metaFiles.map((file) => file.importName).join(', ')} };
 `;
 

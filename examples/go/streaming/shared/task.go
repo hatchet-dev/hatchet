@@ -50,6 +50,7 @@ func StreamTask(ctx worker.HatchetContext, input StreamTaskInput) (*StreamTaskOu
 	}, nil
 }
 
+
 func StreamingWorkflow(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[StreamTaskInput, StreamTaskOutput] {
 	return factory.NewTask(
 		create.StandaloneTask{

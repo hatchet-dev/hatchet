@@ -69,3 +69,12 @@ FROM v1_incoming_webhook
 WHERE
     tenant_id = @tenantId::UUID
 ;
+
+-- name: UpdateWebhookExpression :one
+UPDATE v1_incoming_webhook
+SET
+    event_key_expression = @eventKeyExpression::TEXT
+WHERE
+    tenant_id = @tenantId::UUID
+    AND name = @webhookName::TEXT
+RETURNING *;
