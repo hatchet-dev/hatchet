@@ -57,8 +57,6 @@ tasks:
     cmds:
       - cd frontend/app/ && pnpm run prettier:fix
       - pre-commit run --all-files
-      - pre-commit run --all-files
-      - pre-commit run --all-files
   start-db:
     cmds:
       - docker compose up -d
