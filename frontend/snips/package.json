@@ -28,9 +28,8 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "copy:docs": "rm -rf ../docs/lib/generated/snips && mkdir -p ../docs/lib/generated && cp -r ./out/snips ../docs/lib/generated/snips",
-    "copy:app": "rm -rf ../app/src/next/lib/docs/generated/snips && mkdir -p ../app/src/next/lib/docs/generated && cp -r ./out/snips ../app/src/next/lib/docs/generated/snips && find ../app/src/next/lib/docs/generated/snips -type f -name '*.ts' -o -name '*.js' -o -name '*.tsx' | while read file; do sed -i 's|@/lib/generated/snips/|@/next/lib/docs/generated/snips/|g' \"$file\"; done",
     "copy:examples": "rm -rf ../../examples && cp -r ./out/examples ../../",
-    "copy:all": "npm run copy:docs && npm run copy:app && npm run copy:examples",
+    "copy:all": "npm run copy:docs && npm run copy:app",
     "generate:copy": "npm run generate && npm run copy:all"
   },
   "dependencies": {
