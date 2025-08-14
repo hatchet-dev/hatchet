@@ -4,6 +4,7 @@
     "module": "CommonJS",
     "moduleResolution": "node",
     "lib": ["ES2021", "DOM"],
+    "types": ["node", "jest"],
     "outDir": "dist",
     "declaration": true,
     "declarationMap": true,

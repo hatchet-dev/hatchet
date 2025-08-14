@@ -1,7 +1,7 @@
 import { getConfig } from '../utils/config';
-import fs from 'fs/promises';
+import { promises as fs } from 'fs';
 import { Dirent } from 'fs';
-import path from 'path';
+import * as path from 'path';
 import { clean, restore } from './clean-build';
 import { colors } from '../utils/colors';
 import { Processor } from '@/processors/processor.interface';
@@ -180,7 +180,7 @@ export const processDirectory = async (
     console.log(`${colors.cyan}Found ${entries.length} entries in ${sourceDir}${colors.reset}`);
 
     await Promise.all(
-      entries.map(async (entry) => {
+      entries.map(async (entry: Dirent) => {
         const sourcePath = path.join(sourceDir, entry.name);
         await processEntry(entry, sourcePath, outputDir, ignoreList, PROCESSORS);
       }),
