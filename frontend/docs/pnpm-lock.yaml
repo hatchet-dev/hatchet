@@ -38,7 +38,7 @@ dependencies:
     version: 14.2.31(react-dom@18.3.1)(react@18.3.1)
   nextra:
     specifier: ^3.3.1
-    version: 3.3.1(@types/react@18.3.23)(acorn@8.15.0)(next@14.2.31)(react-dom@18.3.1)(react@18.3.1)(typescript@4.9.5)
+    version: 3.3.1(@types/react@18.3.23)(acorn@8.15.0)(next@14.2.31)(react-dom@18.3.1)(react@18.3.1)(typescript@5.9.2)
   nextra-theme-docs:
     specifier: ^3.3.1
     version: 3.3.1(next@14.2.31)(nextra@3.3.1)(react-dom@18.3.1)(react@18.3.1)
@@ -90,8 +90,8 @@ devDependencies:
     specifier: ^3.5.3
     version: 3.6.2
   typescript:
-    specifier: ^4.9.5
-    version: 4.9.5
+    specifier: ^5.8.2
+    version: 5.9.2
 
 packages:
 
@@ -734,12 +734,12 @@ packages:
       '@shikijs/types': 1.29.2
     dev: false
 
-  /@shikijs/twoslash@1.29.2(typescript@4.9.5):
+  /@shikijs/twoslash@1.29.2(typescript@5.9.2):
     resolution: {integrity: sha512-2S04ppAEa477tiaLfGEn1QJWbZUmbk8UoPbAEw4PifsrxkBXtAtOflIZJNtuCwz8ptc/TPxy7CO7gW4Uoi6o/g==}
     dependencies:
       '@shikijs/core': 1.29.2
       '@shikijs/types': 1.29.2
-      twoslash: 0.2.12(typescript@4.9.5)
+      twoslash: 0.2.12(typescript@5.9.2)
     transitivePeerDependencies:
       - supports-color
       - typescript
@@ -1071,13 +1071,13 @@ packages:
     resolution: {integrity: sha512-ko/gIFJRv177XgZsZcBwnqJN5x/Gien8qNOn0D5bQU/zAzVf9Zt3BlcUiLqhV9y4ARk0GbT3tnUiPNgnTXzc/Q==}
     dev: false
 
-  /@typescript/vfs@1.6.1(typescript@4.9.5):
+  /@typescript/vfs@1.6.1(typescript@5.9.2):
     resolution: {integrity: sha512-JwoxboBh7Oz1v38tPbkrZ62ZXNHAk9bJ7c9x0eI5zBfBnBYGhURdbnh7Z4smN/MV48Y5OCcZb58n972UtbazsA==}
     peerDependencies:
       typescript: '*'
     dependencies:
       debug: 4.4.1
-      typescript: 4.9.5
+      typescript: 5.9.2
     transitivePeerDependencies:
       - supports-color
     dev: false
@@ -1215,7 +1215,7 @@ packages:
     hasBin: true
     dependencies:
       caniuse-lite: 1.0.30001735
-      electron-to-chromium: 1.5.200
+      electron-to-chromium: 1.5.201
       node-releases: 2.0.19
       update-browserslist-db: 1.1.3(browserslist@4.25.2)
     dev: false
@@ -1775,8 +1775,8 @@ packages:
     resolution: {integrity: sha512-I88TYZWc9XiYHRQ4/3c5rjjfgkjhLyW2luGIheGERbNQ6OY7yTybanSpDXZa8y7VUP9YmDcYa+eyq4ca7iLqWA==}
     dev: false
 
-  /electron-to-chromium@1.5.200:
-    resolution: {integrity: sha512-rFCxROw7aOe4uPTfIAx+rXv9cEcGx+buAF4npnhtTqCJk5KDFRnh3+KYj7rdVh6lsFt5/aPs+Irj9rZ33WMA7w==}
+  /electron-to-chromium@1.5.201:
+    resolution: {integrity: sha512-ZG65vsrLClodGqywuigc+7m0gr4ISoTQttfVh7nfpLv0M7SIwF4WbFNEOywcqTiujs12AUeeXbFyQieDICAIxg==}
     dev: false
 
   /emoji-regex-xs@1.0.0:
@@ -3263,14 +3263,14 @@ packages:
       flexsearch: 0.7.43
       next: 14.2.31(react-dom@18.3.1)(react@18.3.1)
       next-themes: 0.4.6(react-dom@18.3.1)(react@18.3.1)
-      nextra: 3.3.1(@types/react@18.3.23)(acorn@8.15.0)(next@14.2.31)(react-dom@18.3.1)(react@18.3.1)(typescript@4.9.5)
+      nextra: 3.3.1(@types/react@18.3.23)(acorn@8.15.0)(next@14.2.31)(react-dom@18.3.1)(react@18.3.1)(typescript@5.9.2)
       react: 18.3.1
       react-dom: 18.3.1(react@18.3.1)
       scroll-into-view-if-needed: 3.1.0
       zod: 3.25.76
     dev: false
 
-  /nextra@3.3.1(@types/react@18.3.23)(acorn@8.15.0)(next@14.2.31)(react-dom@18.3.1)(react@18.3.1)(typescript@4.9.5):
+  /nextra@3.3.1(@types/react@18.3.23)(acorn@8.15.0)(next@14.2.31)(react-dom@18.3.1)(react@18.3.1)(typescript@5.9.2):
     resolution: {integrity: sha512-jiwj+LfUPHHeAxJAEqFuglxnbjFgzAOnDWFsjv7iv3BWiX8OksDwd3I2Sv3j2zba00iIBDEPdNeylfzTtTLZVg==}
     engines: {node: '>=18'}
     peerDependencies:
@@ -3283,7 +3283,7 @@ packages:
       '@mdx-js/mdx': 3.1.0(acorn@8.15.0)
       '@mdx-js/react': 3.1.0(@types/react@18.3.23)(react@18.3.1)
       '@napi-rs/simple-git': 0.1.21
-      '@shikijs/twoslash': 1.29.2(typescript@4.9.5)
+      '@shikijs/twoslash': 1.29.2(typescript@5.9.2)
       '@theguild/remark-mermaid': 0.1.3(react@18.3.1)
       '@theguild/remark-npm2yarn': 0.3.3
       better-react-mathjax: 2.3.0(react@18.3.1)
@@ -4359,21 +4359,21 @@ packages:
     resolution: {integrity: sha512-5qZLXVYfZ9ABdjqbvPc4RWMr7PrpPaaDSeaYY55vl/w1j6H6kzsWK/urAEIXlzYlyrFmyz1UbwIt+AA0ck+wbg==}
     dev: false
 
-  /twoslash@0.2.12(typescript@4.9.5):
+  /twoslash@0.2.12(typescript@5.9.2):
     resolution: {integrity: sha512-tEHPASMqi7kqwfJbkk7hc/4EhlrKCSLcur+TcvYki3vhIfaRMXnXjaYFgXpoZRbT6GdprD4tGuVBEmTpUgLBsw==}
     peerDependencies:
       typescript: '*'
     dependencies:
-      '@typescript/vfs': 1.6.1(typescript@4.9.5)
+      '@typescript/vfs': 1.6.1(typescript@5.9.2)
       twoslash-protocol: 0.2.12
-      typescript: 4.9.5
+      typescript: 5.9.2
     transitivePeerDependencies:
       - supports-color
     dev: false
 
-  /typescript@4.9.5:
-    resolution: {integrity: sha512-1FXk9E2Hm+QzZQ7z+McJiHL4NW1F2EzMu9Nq9i3zAaGqibafqYwCVU6WyWAuyQRRzOlxou8xZSyXLEN8oKj24g==}
-    engines: {node: '>=4.2.0'}
+  /typescript@5.9.2:
+    resolution: {integrity: sha512-CWBzXQrc/qOkhidw1OzBTQuYRbfyxDXJMVJ1XNwUHGROVmuaeiEm3OslpZ1RV96d7SKKjZKrSJu3+t/xlw3R9A==}
+    engines: {node: '>=14.17'}
     hasBin: true
 
   /ufo@1.6.1:
