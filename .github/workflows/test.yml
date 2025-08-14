@@ -37,10 +37,6 @@ jobs:
           version: 9.15.4
           run_install: false
 
-      - name: Install Atlas
-        run: |
-          curl -sSf https://atlasgo.sh | sh
-
       - name: Compose
         run: docker compose up -d
 
