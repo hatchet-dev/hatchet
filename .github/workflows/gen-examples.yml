@@ -2,7 +2,7 @@ name: generate examples
 
 on:
   push:
-    branches: [ main, mk/generated-code-cleanup ]
+    branches: [ main ]
 
 jobs:
   generate:
