@@ -1,5 +1,5 @@
 import { processFiles } from './build-tree';
-import * as fs from 'fs/promises';
+import { promises as fs } from 'fs';
 import * as path from 'path';
 
 async function compareDirectories(actualDir: string, expectedDir: string) {

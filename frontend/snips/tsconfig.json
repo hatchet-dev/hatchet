@@ -4,6 +4,7 @@
     "module": "CommonJS",
     "moduleResolution": "node",
     "lib": ["ES2021", "DOM"],
+    "types": ["node"],
     "outDir": "dist",
     "declaration": true,
     "declarationMap": true,
@@ -19,5 +20,5 @@
     }
   },
   "include": ["src/**/*.ts", "scripts/generate-snips.ts", "scripts/copy-examples.ts"],
-  "exclude": ["node_modules", "dist"]
+  "exclude": ["node_modules", "dist", "**/*.test.ts"]
 }

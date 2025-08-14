@@ -23,6 +23,9 @@ jobs:
       - name: Install dependencies
         working-directory: frontend/docs
         run: pnpm install --frozen-lockfile
+      - name: Generate snippets
+        working-directory: frontend/snips
+        run: pnpm install --frozen-lockfile && pnpm generate && pnpm run copy:docs
       - name: Lint
         working-directory: frontend/docs
         run: npm run lint:check
@@ -45,6 +48,9 @@ jobs:
       - name: Install dependencies
         working-directory: frontend/docs
         run: pnpm install --frozen-lockfile
+      - name: Generate snippets
+        working-directory: frontend/snips
+        run: pnpm install --frozen-lockfile && pnpm generate && pnpm run copy:docs
       - name: Build
         working-directory: frontend/docs
         run: npm run build

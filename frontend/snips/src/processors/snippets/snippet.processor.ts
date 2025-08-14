@@ -1,8 +1,9 @@
-import fs from 'fs/promises';
+import { promises as fs } from 'fs';
 import { getConfig } from '../../utils/config';
 import { Snippet, LANGUAGE_MAP, Block, Highlight } from '../../types';
 import { ContentProcessor, DirectoryProcessor, Processor } from '../processor.interface';
-import path from 'path';
+import * as path from 'path';
+import { Dirent } from 'fs';
 
 const TOKENS = {
   BLOCK: {
@@ -201,33 +202,33 @@ const processDirectory: DirectoryProcessor = async ({ dir }) => {
 
   const entries = await fs.readdir(dir, { withFileTypes: true });
   const snippets = entries.filter(
-    (entry) => entry.isFile() && entry.name.endsWith('.ts') && entry.name !== 'index.ts',
+    (entry: Dirent) => entry.isFile() && entry.name.endsWith('.ts') && entry.name !== 'index.ts',
   );
-  const directories = entries.filter((entry) => entry.isDirectory());
+  const directories = entries.filter((entry: Dirent) => entry.isDirectory());
 
   if (snippets.length === 0 && directories.length === 0) {
     return;
   }
 
   // Generate import and export statements for files
-  const fileImports = snippets.map((file) => {
+  const fileImports = snippets.map((file: Dirent) => {
     console.log(file.name);
     const baseName = sanitizeFileName(file.name);
     return `import ${baseName} from './${file.name.replaceAll('.ts', '')}';`;
   });
 
-  const fileExports = snippets.map((file) => {
+  const fileExports = snippets.map((file: Dirent) => {
     const baseName = sanitizeFileName(file.name);
     return `export { ${baseName} }`;
   });
 
   // Generate import and export statements for directories
-  const dirImports = directories.map((dir) => {
+  const dirImports = directories.map((dir: Dirent) => {
     const importName = sanitizeFileName(dir.name);
     return `import * as ${importName} from './${dir.name}';`;
   });
 
-  const dirExports = directories.map((dir) => {
+  const dirExports = directories.map((dir: Dirent) => {
     const importName = sanitizeFileName(dir.name);
     return `export { ${importName} };`;
   });

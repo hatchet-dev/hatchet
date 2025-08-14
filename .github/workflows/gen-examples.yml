@@ -1,0 +1,80 @@
+name: generate examples
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Node
+      uses: actions/setup-node@v4
+      with:
+        node-version: '22'
+
+    - uses: pnpm/action-setup@v4
+      with:
+        version: 10
+
+    - name: Generate
+      working-directory: frontend/snips
+      run: pnpm i && pnpm generate && pnpm run copy:examples
+
+    - name: Check for changes in examples directory
+      id: verify-changed-files
+      run: |
+        # Check if there are any changes
+        if [ -n "$(git status --porcelain)" ]; then
+          CHANGED_FILES=$(git status --porcelain | awk '{print $2}')
+          NON_EXAMPLES_CHANGES=$(echo "$CHANGED_FILES" | grep -v "^examples/" || true)
+
+          if [ -n "$NON_EXAMPLES_CHANGES" ]; then
+            echo "Error: Changes detected outside of examples directory:"
+            echo "$NON_EXAMPLES_CHANGES"
+            echo "changed=false" >> $GITHUB_OUTPUT
+            exit 1
+          else
+            echo "changed=true" >> $GITHUB_OUTPUT
+          fi
+        else
+          echo "changed=false" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Create branch and commit changes
+      if: steps.verify-changed-files.outputs.changed == 'true'
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        BRANCH_NAME="regenerate-examples-${{ github.sha }}"
+        git checkout -b "$BRANCH_NAME"
+        git add examples/
+        git commit -m "chore: regenerate examples"
+        git push origin "$BRANCH_NAME"
+        echo "branch_name=$BRANCH_NAME" >> $GITHUB_OUTPUT
+      id: create-branch
+
+    - name: Create Pull Request
+      if: steps.verify-changed-files.outputs.changed == 'true'
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        gh pr create \
+          --title "chore: regenerate examples" \
+          --body "Automated regeneration of examples from the main branch." \
+          --head "${{ steps.create-branch.outputs.branch_name }}" \
+          --base main
+        echo "pr_number=$(gh pr list --head ${{ steps.create-branch.outputs.branch_name }} --json number --jq '.[0].number')" >> $GITHUB_OUTPUT
+      id: create-pr
+
+    - name: Auto-approve and merge Pull Request
+      if: steps.verify-changed-files.outputs.changed == 'true'
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        gh pr review "${{ steps.create-branch.outputs.branch_name }}" --approve
+        gh pr merge "${{ steps.create-branch.outputs.branch_name }}" --squash

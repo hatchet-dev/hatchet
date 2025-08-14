@@ -24,13 +24,11 @@ GitOps in Hatchet Compute means that:
 ### Repository Setup
 
 1. **Github Account**
-
    - Select your GitHub account from the dropdown
    - If your account isn't listed, click "Link a new repository" to connect your GitHub account
    - Hatchet requires GitHub repository access to enable GitOps workflows
 
 2. **Github Repository**
-
    - Choose the repository containing your service code
    - The repository should contain your application code and Dockerfile(s)
    - Ensure Hatchet has the necessary permissions to access your repository
@@ -44,7 +42,6 @@ GitOps in Hatchet Compute means that:
 ### Build Settings
 
 1. **Build Directory**
-
    - Specify the directory containing your service code
    - This is the root directory where your build will run
    - Example: `.` for repository root, or `services/myservice` for a monorepo
@@ -96,7 +93,6 @@ Your Dockerfile needs to be properly configured to run Hatchet workers. See our 
    ```
 
 2. **Dockerfile Guidelines**
-
    - Use multi-stage builds to optimize image size
    - Specify exact versions for base images
    - Include only necessary files using `.dockerignore`
@@ -104,7 +100,6 @@ Your Dockerfile needs to be properly configured to run Hatchet workers. See our 
    - Cache dependencies effectively
 
 3. **Branch Management**
-
    - Use feature branches for development
    - Set up branch protection rules
    - Consider using environment-specific branches (e.g., `main` for production, `staging` for staging)
@@ -139,14 +134,12 @@ You can monitor your deployments in the Hatchet UI:
 Common issues and solutions:
 
 1. **Build Failures**
-
    - Check your Dockerfile syntax
    - Verify build context is correct
    - Ensure all required files are included
    - Review build logs in the Hatchet UI
 
 2. **Permission Issues**
-
    - Verify GitHub repository access for Hatchet users who need to manage configuration
    - Ensure correct branch configuration for your service
 
