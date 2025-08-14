@@ -1,4 +1,4 @@
-name: Post-merge file generation
+name: Generate Examples
 
 on:
   push:
@@ -22,9 +22,8 @@ jobs:
         version: 10
 
     - name: Run your generation script
-      run: |
-        (cd frontend/snips/ && pnpm i && pnpm generate && pnpm run copy:all)
-        (cd frontend/app/ && pnpm run lint:fix)
+      working-directory: frontend/snips
+      run: pnpm i && pnpm generate && pnpm run copy:all
 
     - name: Check for changes
       id: verify-changed-files
