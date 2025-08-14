@@ -23,8 +23,8 @@ jobs:
 
     - name: Run your generation script
       run: |
-        cd frontend/snips/ && pnpm i && pnpm generate && pnpm run copy:all
-        cd frontend/app/ && pnpm run lint:fix
+        (cd frontend/snips/ && pnpm i && pnpm generate && pnpm run copy:all)
+        (cd frontend/app/ && pnpm run lint:fix)
 
     - name: Check for changes
       id: verify-changed-files
