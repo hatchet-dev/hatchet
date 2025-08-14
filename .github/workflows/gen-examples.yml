@@ -1,0 +1,44 @@
+name: Post-merge file generation
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  generate-files:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Node
+      uses: actions/setup-node@v4
+      with:
+        node-version: '22'
+
+    - name: Install dependencies (if needed)
+      run: npm install
+
+    - name: Run your generation script
+      run: |
+        cd frontend/snips/ && pnpm i && pnpm generate && pnpm run copy:all
+        cd frontend/app/ && pnpm run lint:fix
+
+    - name: Check for changes
+      id: verify-changed-files
+      run: |
+        if [ -n "$(git status --porcelain)" ]; then
+          echo "changed=true" >> $GITHUB_OUTPUT
+        else
+          echo "changed=false" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Commit and push changes
+      if: steps.verify-changed-files.outputs.changed == 'true'
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        git add .
+        git commit -m "Auto-generate files after merge [skip ci]"
+        git push
