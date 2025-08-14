@@ -21,7 +21,7 @@ jobs:
       with:
         version: 10
 
-    - name: Run your generation script
+    - name: Generate
       working-directory: frontend/snips
       run: pnpm i && pnpm generate && pnpm run copy:examples
 
