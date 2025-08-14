@@ -23,7 +23,7 @@ jobs:
 
     - name: Run your generation script
       working-directory: frontend/snips
-      run: pnpm i && pnpm generate && pnpm run copy:all
+      run: pnpm i && pnpm generate && pnpm run copy:examples
 
     - name: Check for changes
       id: verify-changed-files
