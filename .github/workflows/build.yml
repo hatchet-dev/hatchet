@@ -17,15 +17,11 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: 'pnpm'
-          cache-dependency-path: 'frontend/snips/pnpm-lock.yaml'
-      - name: Enable corepack
-        run: corepack enable
       - name: Generate snippets
         run: |
           cd frontend/snips
-          pnpm install
-          pnpm run generate:copy
+          corepack pnpm@9.15.4 install
+          corepack pnpm@9.15.4 run generate:copy
       - name: Build frontend
         run: docker build -f ./build/package/frontend.dockerfile .
 
