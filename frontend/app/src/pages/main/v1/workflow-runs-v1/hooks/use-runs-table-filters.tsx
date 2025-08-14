@@ -14,7 +14,6 @@ import {
   statusKey,
   workflowKey,
   additionalMetadataKey,
-  flattenDAGsKey,
 } from '../components/v1/task-runs-columns';
 
 export type AdditionalMetadataProp = {
@@ -27,7 +26,6 @@ export type FilterActions = {
   setCustomTimeRange: (range: { start: string; end: string } | null) => void;
   setStatuses: (statuses: V1TaskStatus[]) => void;
   setWorkflowIds: (workflowIds: string[]) => void;
-  setFlattenDAGs: (flatten: boolean) => void;
   setAdditionalMetadata: (metadata: AdditionalMetadataProp) => void;
   setAllAdditionalMetadata: (kvPairs: AdditionalMetadataProp[]) => void;
   setParentTaskExternalId: (id: string | undefined) => void;
@@ -166,21 +164,6 @@ export const useRunsTableFilters = (
     [updateFilters, state.columnFilters],
   );
 
-  const setFlattenDAGs = useCallback(
-    (flatten: boolean) => {
-      const newColumnFilters = flatten
-        ? state.columnFilters
-            .filter((f) => f.id !== flattenDAGsKey)
-            .concat([{ id: flattenDAGsKey, value: flatten }])
-        : state.columnFilters.filter((f) => f.id !== flattenDAGsKey);
-
-      updateFilters({
-        columnFilters: newColumnFilters,
-      });
-    },
-    [updateFilters, state.columnFilters],
-  );
-
   const setColumnFilters = useCallback(
     (columnFilters: ColumnFiltersState) => {
       updateFilters({
@@ -217,7 +200,6 @@ export const useRunsTableFilters = (
     setAdditionalMetadata,
     setAllAdditionalMetadata,
     setParentTaskExternalId,
-    setFlattenDAGs,
     setColumnFilters,
     clearAllFilters,
     clearParentFilter,

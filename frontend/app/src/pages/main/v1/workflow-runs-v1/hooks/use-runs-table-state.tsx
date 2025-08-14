@@ -280,7 +280,7 @@ export const getFlattenDAGsFromFilters = (
   columnFilters: ColumnFiltersState,
 ): boolean => {
   const filter = columnFilters.find((f) => f.id === flattenDAGsKey);
-  if (!filter) {
+  if (!filter || filter.value === undefined) {
     return false;
   }
   return filter.value as boolean;

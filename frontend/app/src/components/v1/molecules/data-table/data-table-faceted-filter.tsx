@@ -30,7 +30,10 @@ export function DataTableFacetedFilter<TData, TValue>({
       <div className="flex items-center space-x-2 border p-2 rounded-md border-dashed h-[32px]">
         <Checkbox
           id="toolbar-switch"
-          onCheckedChange={(e) => column?.setFilterValue(e.valueOf() === true)}
+          checked={!!value}
+          onCheckedChange={(e) =>
+            column?.setFilterValue(e.valueOf() === true ? true : undefined)
+          }
         />
         <Label htmlFor="toolbar-switch" className="text-xs">
           Flatten
