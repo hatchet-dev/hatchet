@@ -1,11 +1,11 @@
-name: Generate Examples
+name: generate examples
 
 on:
   push:
     branches: [ main, mk/generated-code-cleanup ]
 
 jobs:
-  generate-files:
+  generate:
     runs-on: ubuntu-latest
 
     steps:
