@@ -37,7 +37,6 @@ import { useQuery } from '@tanstack/react-query';
 import invariant from 'tiny-invariant';
 import { Spinner } from '@/components/v1/ui/loading';
 import { Waterfall } from './v2components/waterfall';
-import { RunsProvider } from '../hooks/runs-provider';
 
 export const WORKFLOW_RUN_TERMINAL_STATUSES = [
   WorkflowRunStatus.CANCELLED,
@@ -166,43 +165,11 @@ export default function Run() {
   }
 
   if (runData.type === 'task') {
-    return (
-      // need this here so we can use action buttons for replay / cancel
-      <RunsProvider
-        tableKey={`task-runs-${run}`}
-        runFilters={{}}
-        display={{
-          showMetrics: false,
-          showCounts: false,
-          showDateFilter: false,
-          showTriggerRunButton: false,
-          showCancelAndReplayButtons: true,
-          showColumnToggle: false,
-        }}
-      >
-        <ExpandedTaskRun id={run} />
-      </RunsProvider>
-    );
+    return <ExpandedTaskRun id={run} />;
   }
 
   if (runData.type === 'dag') {
-    return (
-      // need this here so we can use action buttons for replay / cancel
-      <RunsProvider
-        tableKey={`task-runs-${run}`}
-        runFilters={{}}
-        display={{
-          showMetrics: false,
-          showCounts: false,
-          showDateFilter: false,
-          showTriggerRunButton: false,
-          showCancelAndReplayButtons: true,
-          showColumnToggle: false,
-        }}
-      >
-        <ExpandedWorkflowRun id={run} />
-      </RunsProvider>
-    );
+    return <ExpandedWorkflowRun id={run} />;
   }
 }
 

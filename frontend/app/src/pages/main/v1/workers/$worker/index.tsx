@@ -225,12 +225,10 @@ export default function ExpandedWorkflowRun() {
         <RunsProvider
           tableKey={`worker-${worker.metadata.id}`}
           display={{
-            showMetrics: false,
-            showCounts: false,
-            showDateFilter: true,
-            showTriggerRunButton: false,
-            showColumnToggle: true,
-            showCancelAndReplayButtons: true,
+            hideMetrics: true,
+            hideCounts: true,
+            hideTriggerRunButton: true,
+            hideFlatten: true,
           }}
           runFilters={{
             workerId: worker.metadata.id,

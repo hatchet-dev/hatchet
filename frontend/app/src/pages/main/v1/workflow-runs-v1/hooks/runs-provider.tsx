@@ -14,12 +14,15 @@ import { V1TaskRunMetrics, V1TaskSummary } from '@/lib/api';
 import { PaginationState } from '@tanstack/react-table';
 
 type DisplayProps = {
-  showMetrics: boolean;
-  showCounts: boolean;
-  showDateFilter: boolean;
-  showTriggerRunButton: boolean;
-  showCancelAndReplayButtons: boolean;
-  showColumnToggle: boolean;
+  hideMetrics?: boolean;
+  hideCounts?: boolean;
+  hideDateFilter?: boolean;
+  hideTriggerRunButton?: boolean;
+  hideCancelAndReplayButtons?: boolean;
+  hideColumnToggle?: boolean;
+  hideFlatten?: boolean;
+  hidePagination?: boolean;
+  refetchInterval?: number;
 };
 
 type RunFilteringProps = {
@@ -36,8 +39,8 @@ type RunsProviderProps = {
   initColumnVisibility?: Record<string, boolean>;
   filterVisibility?: Record<string, boolean>;
   refetchInterval?: number;
-  display: DisplayProps;
-  runFilters: RunFilteringProps;
+  display?: DisplayProps;
+  runFilters?: RunFilteringProps;
 };
 
 type RunsContextType = {
@@ -78,16 +81,7 @@ type RunsContextType = {
   tenantMetrics: object;
   isFrozen: boolean;
   isActionModalOpen: boolean;
-  display: {
-    showMetrics: boolean;
-    showCounts: boolean;
-    showDateFilter: boolean;
-    showTriggerRunButton: boolean;
-    showCancelAndReplayButtons: boolean;
-    showColumnToggle: boolean;
-    showPagination: boolean;
-    refetchInterval: number;
-  };
+  display: DisplayProps;
 };
 
 const RunsContext = createContext<RunsContextType | null>(null);
@@ -110,16 +104,17 @@ export const RunsProvider = ({
     parentTaskExternalId,
     workerId,
     triggeringEventExternalId,
-  } = runFilters;
+  } = runFilters ?? {};
 
   const {
-    showMetrics = false,
-    showCounts = true,
-    showDateFilter = true,
-    showTriggerRunButton = true,
-    showCancelAndReplayButtons = true,
-    showColumnToggle = true,
-  } = display;
+    hideMetrics = false,
+    hideCounts = false,
+    hideDateFilter = false,
+    hideTriggerRunButton = false,
+    hideCancelAndReplayButtons = false,
+    hideColumnToggle = false,
+    hideFlatten = false,
+  } = display ?? {};
 
   const initialState = useMemo(() => {
     const baseState: Partial<RunsTableState> = {
@@ -217,13 +212,14 @@ export const RunsProvider = ({
       isFrozen,
       isActionModalOpen,
       display: {
-        showMetrics,
-        showCounts,
-        showDateFilter,
-        showTriggerRunButton,
-        showCancelAndReplayButtons,
-        showColumnToggle,
-        showPagination: !disableTaskRunPagination,
+        hideMetrics,
+        hideCounts,
+        hideDateFilter,
+        hideTriggerRunButton,
+        hideCancelAndReplayButtons,
+        hideColumnToggle,
+        hidePagination: disableTaskRunPagination,
+        hideFlatten,
         refetchInterval,
       },
       actions: {
@@ -254,10 +250,11 @@ export const RunsProvider = ({
       tenantMetrics,
       isFrozen,
       isActionModalOpen,
-      showMetrics,
-      showCounts,
-      showDateFilter,
-      showTriggerRunButton,
+      hideMetrics,
+      hideCounts,
+      hideDateFilter,
+      hideTriggerRunButton,
+      hideFlatten,
       refetchInterval,
       updatePagination,
       updateFilters,
@@ -269,8 +266,8 @@ export const RunsProvider = ({
       refetchRuns,
       refetchMetrics,
       getRowId,
-      showCancelAndReplayButtons,
-      showColumnToggle,
+      hideCancelAndReplayButtons,
+      hideColumnToggle,
       disableTaskRunPagination,
     ],
   );

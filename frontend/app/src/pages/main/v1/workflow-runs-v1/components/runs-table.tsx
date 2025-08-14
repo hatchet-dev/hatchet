@@ -112,7 +112,13 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
     isMetricsFetching,
     metrics,
     tenantMetrics,
-    display: { showMetrics, showCounts, showColumnToggle, showPagination },
+    display: {
+      hideMetrics,
+      hideCounts,
+      hideColumnToggle,
+      hidePagination,
+      hideFlatten,
+    },
     actions: {
       updatePagination,
       updateFilters,
@@ -231,7 +237,7 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
         onClose={() => updateUIState({ triggerWorkflow: false })}
       />
 
-      {showMetrics && (
+      {!hideMetrics && (
         <Dialog
           open={state.viewQueueMetrics}
           onOpenChange={(open) => {
@@ -259,9 +265,9 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
 
       <TimeFilter />
 
-      {showMetrics && <GetWorkflowChart />}
+      {!hideMetrics && <GetWorkflowChart />}
 
-      {showCounts && (
+      {!hideCounts && (
         <div className="flex flex-row justify-between items-center my-4">
           {metrics.length > 0 ? (
             <V1WorkflowRunsMetricsView />
@@ -349,23 +355,23 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
               filters.setColumnFilters(updaterOrValue);
             }
           }}
-          pagination={showPagination ? state.pagination : undefined}
+          pagination={hidePagination ? undefined : state.pagination}
           setPagination={
-            showPagination
-              ? (updaterOrValue) => {
+            hidePagination
+              ? undefined
+              : (updaterOrValue) => {
                   if (typeof updaterOrValue === 'function') {
                     updatePagination(updaterOrValue(state.pagination));
                   } else {
                     updatePagination(updaterOrValue);
                   }
                 }
-              : undefined
           }
           onSetPageSize={
-            showPagination
-              ? (size) =>
+            hidePagination
+              ? undefined
+              : (size) =>
                   updatePagination({ ...state.pagination, pageSize: size })
-              : undefined
           }
           rowSelection={state.rowSelection}
           setRowSelection={(updaterOrValue) => {
@@ -377,12 +383,13 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
               updateTableState({ rowSelection: updaterOrValue });
             }
           }}
-          pageCount={showPagination ? numPages : undefined}
-          showColumnToggle={showColumnToggle}
+          pageCount={hidePagination ? undefined : numPages}
+          showColumnToggle={!hideColumnToggle}
           getSubRows={(row) => row.children || []}
           getRowId={getRowId}
           onToolbarReset={resetState}
           headerClassName={headerClassName}
+          hideFlatten={hideFlatten}
         />
       </div>
     </div>

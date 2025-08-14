@@ -161,7 +161,7 @@ export const V1WorkflowRunsMetricsView = () => {
   const {
     metrics,
     state,
-    display: { showMetrics },
+    display: { hideMetrics },
     filters: { setStatuses },
     actions: { updateUIState },
   } = useRunsContext();
@@ -232,7 +232,7 @@ export const V1WorkflowRunsMetricsView = () => {
         className="cursor-pointer rounded-sm font-normal text-sm px-2 py-1 w-fit"
       />
 
-      {showMetrics && (
+      {!hideMetrics && (
         <Badge
           variant="outline"
           className="cursor-pointer rounded-sm font-normal text-sm px-2 py-1 w-fit"

@@ -151,23 +151,23 @@ const createTenantedRoute = (path: TenantedPath): RouteObject => {
     case '/tenants/:tenant/workers':
       return {
         path,
-        lazy: async () => {
-          return {
-            loader: function ({ params }) {
-              return redirect(`/tenants/${params.tenant}/workers/all`);
-            },
-          };
-        },
-      };
-    case '/tenants/:tenant/workers/all':
-      return {
-        path,
         lazy: async () =>
           import('./pages/main/v1/workers').then((res) => {
             return {
               Component: res.default,
             };
           }),
+      };
+    case '/tenants/:tenant/workers/all':
+      return {
+        path,
+        lazy: async () => {
+          return {
+            loader: function ({ params }) {
+              return redirect(`/tenants/${params.tenant}/workers`);
+            },
+          };
+        },
       };
     case '/tenants/:tenant/workers/webhook':
       return {

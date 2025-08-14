@@ -245,18 +245,14 @@ export const TaskRunDetail = ({
                 <RunsProvider
                   tableKey={`child-runs-${taskRunId}`}
                   display={{
-                    showCounts: false,
-                    showMetrics: false,
-                    showDateFilter: false,
-                    showTriggerRunButton: false,
-                    showCancelAndReplayButtons: true,
-                    showColumnToggle: true,
+                    hideCounts: true,
+                    hideMetrics: true,
+                    hideDateFilter: true,
+                    hideTriggerRunButton: true,
                   }}
                   runFilters={{
                     parentTaskExternalId: taskRunId,
                   }}
-                  initColumnVisibility={{}}
-                  filterVisibility={{}}
                 >
                   <RunsTable headerClassName="flex-shrink-0" />
                 </RunsProvider>

@@ -17,7 +17,7 @@ export const TimeFilter = ({ className }: { className?: string } = {}) => {
     state,
     filters,
     actions: { updateFilters },
-    display: { showDateFilter },
+    display: { hideDateFilter },
   } = useRunsContext();
 
   const hasParentFilter = !!state.parentTaskExternalId;
@@ -47,7 +47,7 @@ export const TimeFilter = ({ className }: { className?: string } = {}) => {
     () => filters.setCustomTimeRange(null),
     [filters],
   );
-  if (!showDateFilter || hasParentFilter) {
+  if (hideDateFilter || hasParentFilter) {
     return null;
   }
 

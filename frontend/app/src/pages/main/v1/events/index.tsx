@@ -477,12 +477,11 @@ function EventWorkflowRunsList({ event }: { event: V1Event }) {
       <RunsProvider
         tableKey={`event-workflow-runs-${event.metadata.id}`}
         display={{
-          showMetrics: false,
-          showCounts: false,
-          showDateFilter: false,
-          showTriggerRunButton: false,
-          showCancelAndReplayButtons: false,
-          showColumnToggle: true,
+          hideMetrics: true,
+          hideCounts: true,
+          hideDateFilter: true,
+          hideTriggerRunButton: true,
+          hideCancelAndReplayButtons: true,
         }}
         runFilters={{
           triggeringEventExternalId: event.metadata.id,

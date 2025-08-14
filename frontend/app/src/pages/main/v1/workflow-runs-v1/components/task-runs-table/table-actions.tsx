@@ -33,7 +33,7 @@ export const TableActions = ({
   const {
     isFrozen,
     actions: { setIsFrozen },
-    display: { showTriggerRunButton, showCancelAndReplayButtons },
+    display: { hideTriggerRunButton, hideCancelAndReplayButtons },
     isActionModalOpen,
   } = useRunsContext();
 
@@ -65,7 +65,7 @@ export const TableActions = ({
           className="z-[70] data-[is-modal-open=true]:hidden"
           data-is-modal-open={isActionModalOpen}
         >
-          {showCancelAndReplayButtons && (
+          {!hideCancelAndReplayButtons && (
             <>
               <CancelMenuItem
                 onActionProcessed={(action, ids) => {
@@ -111,7 +111,7 @@ export const TableActions = ({
       </DropdownMenu>,
     ];
 
-    if (showTriggerRunButton) {
+    if (!hideTriggerRunButton) {
       baseActions = [
         <Button
           key="trigger"
@@ -129,10 +129,10 @@ export const TableActions = ({
     onRefresh,
     onActionProcessed,
     onTriggerWorkflow,
-    showTriggerRunButton,
+    hideTriggerRunButton,
     rotate,
     toast,
-    showCancelAndReplayButtons,
+    hideCancelAndReplayButtons,
     isFrozen,
     setIsFrozen,
     dropdownOpen,

@@ -272,12 +272,7 @@ function RecentRunsList() {
       initColumnVisibility={{ Workflow: false }}
       filterVisibility={{ Workflow: false }}
       display={{
-        showMetrics: false,
-        showCounts: true,
-        showDateFilter: true,
-        showTriggerRunButton: true,
-        showColumnToggle: true,
-        showCancelAndReplayButtons: true,
+        hideMetrics: true,
       }}
       runFilters={{
         workflowId: params.workflow,

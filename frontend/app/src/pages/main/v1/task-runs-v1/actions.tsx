@@ -14,7 +14,7 @@ import api, {
 import { useApiError } from '@/lib/hooks';
 import { XCircleIcon } from '@heroicons/react/24/outline';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
 import { Combobox } from '@/components/v1/molecules/combobox/combobox';
 import {
   additionalMetadataKey,
@@ -122,6 +122,8 @@ type ConfirmActionModalProps = {
   actionType: ActionType;
   onConfirm: () => void;
   params: TaskRunActionsParams;
+  isOpen: boolean;
+  setIsOpen: (isOpen: boolean) => void;
 };
 
 const actionTypeToLabel = (actionType: ActionType) => {
@@ -281,12 +283,10 @@ const ConfirmActionModal = ({
   actionType,
   onConfirm,
   params,
+  isOpen: isActionModalOpen,
+  setIsOpen: setIsActionModalOpen,
 }: ConfirmActionModalProps) => {
   const label = actionTypeToLabel(actionType);
-  const {
-    isActionModalOpen,
-    actions: { setIsActionModalOpen },
-  } = useRunsContext();
 
   return (
     <Dialog open={isActionModalOpen} onOpenChange={setIsActionModalOpen}>
@@ -345,9 +345,7 @@ const BaseActionButton = ({
   onActionSubmit: () => void;
   className?: string;
 }) => {
-  const {
-    actions: { setIsActionModalOpen },
-  } = useRunsContext();
+  const [isActionModalOpen, setIsActionModalOpen] = useState(false);
   const { handleTaskRunAction } = useTaskRunActions({
     onActionProcessed,
     onActionSubmit,
@@ -376,6 +374,8 @@ const BaseActionButton = ({
         actionType={params.actionType}
         onConfirm={handleAction}
         params={params}
+        isOpen={isActionModalOpen}
+        setIsOpen={setIsActionModalOpen}
       />
       <Button
         size={'sm'}
