@@ -1,33 +1,42 @@
-import { queries, V1TaskSummary } from '@/lib/api';
+import { queries, V1TaskSummary, V1TaskStatus } from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
-import { useColumnFilters } from './column-filters';
-import { usePagination } from './pagination';
 import { useCallback, useMemo, useState } from 'react';
-import { RowSelectionState } from '@tanstack/react-table';
+import { RowSelectionState, PaginationState } from '@tanstack/react-table';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 
-type UseTaskRunProps = {
+type UseRunsProps = {
   rowSelection: RowSelectionState;
+  pagination: PaginationState;
+  createdAfter?: string;
+  finishedBefore?: string;
+  statuses?: V1TaskStatus[];
+  additionalMetadata?: string[];
   workerId: string | undefined;
-  workflow: string | undefined;
+  workflowIds?: string[];
   parentTaskExternalId: string | undefined;
   triggeringEventExternalId?: string | undefined;
+  onlyTasks: boolean;
   disablePagination?: boolean;
   pauseRefetch?: boolean;
 };
 
-export const useTaskRuns = ({
+export const useRuns = ({
   rowSelection,
+  pagination,
+  createdAfter,
+  finishedBefore,
+  statuses,
+  additionalMetadata,
   workerId,
-  workflow,
+  workflowIds,
   parentTaskExternalId,
   triggeringEventExternalId,
+  onlyTasks,
   disablePagination = false,
   pauseRefetch = false,
-}: UseTaskRunProps) => {
-  const cf = useColumnFilters();
-  const { pagination, offset } = usePagination();
+}: UseRunsProps) => {
   const { tenantId } = useCurrentTenantId();
+  const offset = pagination.pageIndex * pagination.pageSize;
 
   const [initialRenderTime] = useState(
     new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
@@ -37,24 +46,19 @@ export const useTaskRuns = ({
     ...queries.v1WorkflowRuns.list(tenantId, {
       offset: disablePagination ? 0 : offset,
       limit: disablePagination ? 500 : pagination.pageSize,
-      statuses: cf.filters.status ? [cf.filters.status] : undefined,
-      workflow_ids: workflow ? [workflow] : [],
+      statuses: statuses && statuses.length > 0 ? statuses : undefined,
+      workflow_ids: workflowIds && workflowIds.length > 0 ? workflowIds : [],
       parent_task_external_id: parentTaskExternalId,
-      since: cf.filters.createdAfter || initialRenderTime,
-      until: cf.filters.finishedBefore,
-      additional_metadata: cf.filters.additionalMetadata,
+      since: createdAfter || initialRenderTime,
+      until: finishedBefore,
+      additional_metadata: additionalMetadata,
       worker_id: workerId,
-      only_tasks: !!workerId,
+      only_tasks: onlyTasks,
       triggering_event_external_id: triggeringEventExternalId,
     }),
     placeholderData: (prev) => prev,
-    refetchInterval: () => {
-      if (Object.keys(rowSelection).length > 0 || pauseRefetch) {
-        return false;
-      }
-
-      return 5000;
-    },
+    refetchInterval:
+      Object.keys(rowSelection).length > 0 || pauseRefetch ? false : 5000,
   });
 
   const tasks = listTasksQuery.data;

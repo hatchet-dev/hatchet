@@ -2,20 +2,12 @@ import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { queries } from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
 
-export const useWorkflow = () => {
+export const useWorkflows = () => {
   const { tenantId } = useCurrentTenantId();
 
-  const {
-    data: workflowKeys,
-    isLoading: workflowKeysIsLoading,
-    error: workflowKeysError,
-  } = useQuery({
+  const { data } = useQuery({
     ...queries.workflows.list(tenantId, { limit: 200 }),
   });
 
-  return {
-    workflowKeys,
-    workflowKeysIsLoading,
-    workflowKeysError,
-  };
+  return data?.rows ?? [];
 };

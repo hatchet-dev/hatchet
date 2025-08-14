@@ -1,12 +1,17 @@
 import { V1TaskStatus } from '@/lib/api';
-import { useWorkflow } from './workflow';
 import { useMemo } from 'react';
 import {
   FilterOption,
   ToolbarFilters,
   ToolbarType,
 } from '@/components/v1/molecules/data-table/data-table-toolbar';
-import { TaskRunColumn } from '../components/v1/task-runs-columns';
+import {
+  additionalMetadataKey,
+  flattenDAGsKey,
+  statusKey,
+  workflowKey,
+} from '../components/v1/task-runs-columns';
+import { useWorkflows } from './use-workflows';
 
 const workflowRunStatusFilters = [
   {
@@ -35,37 +40,44 @@ export const useToolbarFilters = ({
   filterVisibility,
 }: {
   filterVisibility: { [key: string]: boolean };
-}) => {
-  const { workflowKeys } = useWorkflow();
+}): ToolbarFilters => {
+  const workflows = useWorkflows();
 
   const workflowKeyFilters = useMemo((): FilterOption[] => {
     return (
-      workflowKeys?.rows?.map((key) => ({
+      workflows.map((key) => ({
         value: key.metadata.id,
         label: key.name,
       })) || []
     );
-  }, [workflowKeys]);
+  }, [workflows]);
 
-  const filters: ToolbarFilters = [
+  return [
     {
-      columnId: TaskRunColumn.workflow,
+      columnId: workflowKey,
       title: 'Workflow',
       options: workflowKeyFilters,
-      type: ToolbarType.Radio,
+      type: ToolbarType.Checkbox,
     },
     {
-      columnId: TaskRunColumn.status,
+      columnId: statusKey,
       title: 'Status',
       options: workflowRunStatusFilters,
-      type: ToolbarType.Radio,
+      type: ToolbarType.Checkbox,
     },
     {
-      columnId: TaskRunColumn.additionalMetadata,
+      columnId: additionalMetadataKey,
       title: 'Metadata',
       type: ToolbarType.KeyValue,
     },
+    {
+      columnId: flattenDAGsKey,
+      title: 'Flatten DAGs',
+      type: ToolbarType.Switch,
+      options: [
+        { value: 'true', label: 'Flatten' },
+        { value: 'false', label: 'All' },
+      ],
+    },
   ].filter((filter) => filterVisibility[filter.columnId] != false);
-
-  return filters;
 };

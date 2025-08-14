@@ -9,7 +9,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/v1/ui/tooltip';
-import { TagIcon, EyeIcon } from '@heroicons/react/24/outline';
+import { TagIcon } from '@heroicons/react/24/outline';
 import { memo } from 'react';
 
 export interface AdditionalMetadataClick {
@@ -38,24 +38,20 @@ export const AdditionalMetadata = memo(
     }
 
     const metadataCount = metadataEntries.length;
-    const hasMultipleItems = metadataCount > 1;
 
     return (
       <div className="flex items-center justify-start max-w-32">
         <Popover open={isOpen} onOpenChange={onOpenChange}>
           <PopoverTrigger asChild>
-            <div className="flex items-center gap-1 cursor-pointer hover:bg-muted/50 rounded px-2 py-1 transition-colors">
+            <div className="flex items-center gap-1 cursor-pointer hover:bg-muted/50 rounded px-2 py-1 transition-colors z-[70]">
               <TagIcon className="h-3 w-3 text-muted-foreground flex-shrink-0" />
               <span className="text-xs text-muted-foreground font-medium">
                 {metadataCount}
               </span>
-              {hasMultipleItems && (
-                <EyeIcon className="h-3 w-3 text-muted-foreground flex-shrink-0" />
-              )}
             </div>
           </PopoverTrigger>
           <PopoverContent
-            className="w-80 p-0 shadow-md shadow-slate-800/30"
+            className="w-80 p-0 shadow-md shadow-slate-800/30 z-[70]"
             align="end"
           >
             <div className="p-3">
