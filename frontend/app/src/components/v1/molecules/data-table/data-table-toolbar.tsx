@@ -76,7 +76,7 @@ export function DataTableToolbar<TData>({
         })}
         {isFiltered && (
           <Button
-            variant="ghost"
+            variant="outline"
             onClick={() => {
               if (onReset) {
                 onReset();
