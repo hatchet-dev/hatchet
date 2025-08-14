@@ -7,7 +7,7 @@
     "taskfile-dev": "pnpm run generate-examples && next dev",
     "dev": "task docs",
     "only:dev": "next dev",
-    "build": "next build",
+    "build": "pnpm run generate-examples && next build",
     "start": "next start",
     "lint:check": "npm run prettier:check",
     "lint:fix": "npm run prettier:fix",
