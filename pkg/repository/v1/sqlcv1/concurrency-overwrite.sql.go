@@ -224,30 +224,41 @@ WITH slots AS (
         slots
     WHERE
         rn <= $3::int
-), slots_to_cancel AS (
+), all_slots AS (
     SELECT
-        cs.sort_id, cs.task_id, cs.task_inserted_at, cs.task_retry_count, cs.external_id, cs.tenant_id, cs.workflow_id, cs.workflow_version_id, cs.workflow_run_id, cs.strategy_id, cs.parent_strategy_id, cs.priority, cs.key, cs.is_filled, cs.next_parent_strategy_ids, cs.next_strategy_ids, cs.next_keys, cs.queue_to_notify, cs.schedule_timeout_at
-    FROM
-        v1_concurrency_slot cs
-    JOIN
-        tmp_workflow_concurrency_slot wcs ON (wcs.strategy_id, wcs.workflow_version_id, wcs.workflow_run_id) = (cs.parent_strategy_id, cs.workflow_version_id, cs.workflow_run_id)
-    WHERE
-        cs.tenant_id = $1::uuid AND
-        cs.strategy_id = $2::bigint AND
-        (cs.task_inserted_at, cs.task_id, cs.task_retry_count) NOT IN (
-            SELECT
-                ers.task_inserted_at,
-                ers.task_id,
-                ers.task_retry_count
-            FROM
-                eligible_running_slots ers
-        )
-    ORDER BY
-        cs.task_id, cs.task_inserted_at
-    FOR UPDATE
-), slots_to_run AS (
-    SELECT
-        sort_id, task_id, task_inserted_at, task_retry_count, external_id, tenant_id, workflow_id, workflow_version_id, workflow_run_id, strategy_id, parent_strategy_id, priority, key, is_filled, next_parent_strategy_ids, next_strategy_ids, next_keys, queue_to_notify, schedule_timeout_at
+        sort_id, task_id, task_inserted_at, task_retry_count, external_id, tenant_id, workflow_id, workflow_version_id, workflow_run_id, strategy_id, parent_strategy_id, priority, key, is_filled, next_parent_strategy_ids, next_strategy_ids, next_keys, queue_to_notify, schedule_timeout_at,
+        CASE
+            WHEN (task_inserted_at, task_id, task_retry_count, tenant_id, strategy_id) IN (
+                SELECT
+                    ers.task_inserted_at,
+                    ers.task_id,
+                    ers.task_retry_count,
+                    ers.tenant_id,
+                    ers.strategy_id
+                FROM
+                    eligible_running_slots ers
+                ORDER BY
+                    rn, seqnum
+            ) THEN 'run'
+            WHEN (
+                tenant_id = $1::uuid AND
+                strategy_id = $2::bigint AND
+                (task_inserted_at, task_id, task_retry_count) NOT IN (
+                    SELECT
+                        ers.task_inserted_at,
+                        ers.task_id,
+                        ers.task_retry_count
+                    FROM
+                        eligible_running_slots ers
+                ) AND
+                (parent_strategy_id, workflow_version_id, workflow_run_id) IN (
+                    SELECT wcs.strategy_id, wcs.workflow_version_id, wcs.workflow_run_id
+                    FROM
+                        tmp_workflow_concurrency_slot wcs
+                )
+            ) THEN 'cancel'
+            ELSE NULL
+        END AS operation
     FROM
         v1_concurrency_slot
     WHERE
@@ -262,9 +273,23 @@ WITH slots AS (
                 eligible_running_slots ers
             ORDER BY
                 rn, seqnum
+        ) OR (
+            tenant_id = $1::uuid AND
+            strategy_id = $2::bigint AND
+            (task_inserted_at, task_id, task_retry_count) NOT IN (
+                SELECT
+                    ers.task_inserted_at,
+                    ers.task_id,
+                    ers.task_retry_count
+                FROM
+                    eligible_running_slots ers
+            ) AND
+            (parent_strategy_id, workflow_version_id, workflow_run_id) IN (
+                SELECT wcs.strategy_id, wcs.workflow_version_id, wcs.workflow_run_id
+                FROM tmp_workflow_concurrency_slot wcs
+            )
         )
-    ORDER BY
-        task_id, task_inserted_at
+    ORDER BY task_id ASC, task_inserted_at ASC, task_retry_count ASC
     FOR UPDATE
 ), updated_slots AS (
     UPDATE
@@ -272,13 +297,14 @@ WITH slots AS (
     SET
         is_filled = TRUE
     FROM
-        slots_to_run
+        s
     WHERE
         v1_concurrency_slot.task_id = slots_to_run.task_id AND
         v1_concurrency_slot.task_inserted_at = slots_to_run.task_inserted_at AND
         v1_concurrency_slot.task_retry_count = slots_to_run.task_retry_count AND
         v1_concurrency_slot.key = slots_to_run.key AND
-        v1_concurrency_slot.is_filled = FALSE
+        v1_concurrency_slot.is_filled = FALSE AND
+        s.operation = 'run'
     RETURNING
         v1_concurrency_slot.sort_id, v1_concurrency_slot.task_id, v1_concurrency_slot.task_inserted_at, v1_concurrency_slot.task_retry_count, v1_concurrency_slot.external_id, v1_concurrency_slot.tenant_id, v1_concurrency_slot.workflow_id, v1_concurrency_slot.workflow_version_id, v1_concurrency_slot.workflow_run_id, v1_concurrency_slot.strategy_id, v1_concurrency_slot.parent_strategy_id, v1_concurrency_slot.priority, v1_concurrency_slot.key, v1_concurrency_slot.is_filled, v1_concurrency_slot.next_parent_strategy_ids, v1_concurrency_slot.next_strategy_ids, v1_concurrency_slot.next_keys, v1_concurrency_slot.queue_to_notify, v1_concurrency_slot.schedule_timeout_at
 ), deleted_slots AS (
@@ -291,7 +317,9 @@ WITH slots AS (
                 c.task_id,
                 c.task_retry_count
             FROM
-                slots_to_cancel c
+                all_slots s
+            WHERE
+                s.operation = 'cancel'
         )
 )
 SELECT
@@ -304,7 +332,7 @@ SELECT
     sort_id, task_id, task_inserted_at, task_retry_count, external_id, tenant_id, workflow_id, workflow_version_id, workflow_run_id, strategy_id, parent_strategy_id, priority, key, is_filled, next_parent_strategy_ids, next_strategy_ids, next_keys, queue_to_notify, schedule_timeout_at,
     'CANCELLED' AS "operation"
 FROM
-    slots_to_cancel
+    all_slots
 WHERE
     -- not in the schedule_timeout_slots
     (task_inserted_at, task_id, task_retry_count) NOT IN (
@@ -315,6 +343,7 @@ WHERE
         FROM
             schedule_timeout_slots c
     )
+    AND operation = 'cancel'
 UNION ALL
 SELECT
     sort_id, task_id, task_inserted_at, task_retry_count, external_id, tenant_id, workflow_id, workflow_version_id, workflow_run_id, strategy_id, parent_strategy_id, priority, key, is_filled, next_parent_strategy_ids, next_strategy_ids, next_keys, queue_to_notify, schedule_timeout_at,
@@ -509,8 +538,7 @@ WITH slots AS (
             ) AND
             (cs.parent_strategy_id, cs.workflow_version_id, cs.workflow_run_id) IN (
                 SELECT wcs.strategy_id, wcs.workflow_version_id, wcs.workflow_run_id
-                FROM
-                    tmp_workflow_concurrency_slot wcs
+                FROM tmp_workflow_concurrency_slot wcs
             )
         )
     ORDER BY
