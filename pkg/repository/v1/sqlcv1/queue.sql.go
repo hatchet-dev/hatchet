@@ -369,9 +369,11 @@ func (q *Queries) ListAvailableSlotsForWorkers(ctx context.Context, db DBTX, arg
 
 const listQueueItemsForQueue = `-- name: ListQueueItemsForQueue :many
 SELECT
-    id, tenant_id, queue, task_id, task_inserted_at, external_id, action_id, step_id, workflow_id, workflow_run_id, schedule_timeout_at, step_timeout, priority, sticky, desired_worker_id, retry_count
+    qi.id, tenant_id, queue, task_id, task_inserted_at, external_id, action_id, step_id, workflow_id, workflow_run_id, schedule_timeout_at, step_timeout, priority, sticky, desired_worker_id, retry_count, t.id, "createdAt", "updatedAt", "deletedAt", version, "uiVersion", name, slug, "analyticsOptOut", "alertMemberEmails", "controllerPartitionId", "workerPartitionId", "dataRetentionPeriod", "schedulerPartitionId", "canUpgradeV1"
 FROM
     v1_queue_item qi
+JOIN
+    "Tenant" t ON qi.tenant_id = t.id
 WHERE
     qi.tenant_id = $1::uuid
     AND qi.queue = $2::text
@@ -381,6 +383,8 @@ WHERE
     )
     -- Added to ensure that the index is used
     AND qi.priority >= 1 AND qi.priority <= 4
+    -- Filter out those that are older than tenant's retention period
+    AND qi.task_inserted_at >= NOW() - t."dataRetentionPeriod"::interval
 ORDER BY
     qi.priority DESC,
     qi.id ASC
@@ -395,7 +399,41 @@ type ListQueueItemsForQueueParams struct {
 	Limit    pgtype.Int4 `json:"limit"`
 }
 
-func (q *Queries) ListQueueItemsForQueue(ctx context.Context, db DBTX, arg ListQueueItemsForQueueParams) ([]*V1QueueItem, error) {
+type ListQueueItemsForQueueRow struct {
+	ID                    int64                    `json:"id"`
+	TenantID              pgtype.UUID              `json:"tenant_id"`
+	Queue                 string                   `json:"queue"`
+	TaskID                int64                    `json:"task_id"`
+	TaskInsertedAt        pgtype.Timestamptz       `json:"task_inserted_at"`
+	ExternalID            pgtype.UUID              `json:"external_id"`
+	ActionID              string                   `json:"action_id"`
+	StepID                pgtype.UUID              `json:"step_id"`
+	WorkflowID            pgtype.UUID              `json:"workflow_id"`
+	WorkflowRunID         pgtype.UUID              `json:"workflow_run_id"`
+	ScheduleTimeoutAt     pgtype.Timestamp         `json:"schedule_timeout_at"`
+	StepTimeout           pgtype.Text              `json:"step_timeout"`
+	Priority              int32                    `json:"priority"`
+	Sticky                V1StickyStrategy         `json:"sticky"`
+	DesiredWorkerID       pgtype.UUID              `json:"desired_worker_id"`
+	RetryCount            int32                    `json:"retry_count"`
+	ID_2                  pgtype.UUID              `json:"id_2"`
+	CreatedAt             pgtype.Timestamp         `json:"createdAt"`
+	UpdatedAt             pgtype.Timestamp         `json:"updatedAt"`
+	DeletedAt             pgtype.Timestamp         `json:"deletedAt"`
+	Version               TenantMajorEngineVersion `json:"version"`
+	UiVersion             TenantMajorUIVersion     `json:"uiVersion"`
+	Name                  string                   `json:"name"`
+	Slug                  string                   `json:"slug"`
+	AnalyticsOptOut       bool                     `json:"analyticsOptOut"`
+	AlertMemberEmails     bool                     `json:"alertMemberEmails"`
+	ControllerPartitionId pgtype.Text              `json:"controllerPartitionId"`
+	WorkerPartitionId     pgtype.Text              `json:"workerPartitionId"`
+	DataRetentionPeriod   string                   `json:"dataRetentionPeriod"`
+	SchedulerPartitionId  pgtype.Text              `json:"schedulerPartitionId"`
+	CanUpgradeV1          bool                     `json:"canUpgradeV1"`
+}
+
+func (q *Queries) ListQueueItemsForQueue(ctx context.Context, db DBTX, arg ListQueueItemsForQueueParams) ([]*ListQueueItemsForQueueRow, error) {
 	rows, err := db.Query(ctx, listQueueItemsForQueue,
 		arg.Tenantid,
 		arg.Queue,
@@ -406,9 +444,9 @@ func (q *Queries) ListQueueItemsForQueue(ctx context.Context, db DBTX, arg ListQ
 		return nil, err
 	}
 	defer rows.Close()
-	var items []*V1QueueItem
+	var items []*ListQueueItemsForQueueRow
 	for rows.Next() {
-		var i V1QueueItem
+		var i ListQueueItemsForQueueRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.TenantID,
@@ -426,6 +464,21 @@ func (q *Queries) ListQueueItemsForQueue(ctx context.Context, db DBTX, arg ListQ
 			&i.Sticky,
 			&i.DesiredWorkerID,
 			&i.RetryCount,
+			&i.ID_2,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+			&i.Version,
+			&i.UiVersion,
+			&i.Name,
+			&i.Slug,
+			&i.AnalyticsOptOut,
+			&i.AlertMemberEmails,
+			&i.ControllerPartitionId,
+			&i.WorkerPartitionId,
+			&i.DataRetentionPeriod,
+			&i.SchedulerPartitionId,
+			&i.CanUpgradeV1,
 		); err != nil {
 			return nil, err
 		}
