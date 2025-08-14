@@ -313,9 +313,9 @@ WITH slots AS (
     WHERE
         (task_inserted_at, task_id, task_retry_count) IN (
             SELECT
-                c.task_inserted_at,
-                c.task_id,
-                c.task_retry_count
+                s.task_inserted_at,
+                s.task_id,
+                s.task_retry_count
             FROM
                 all_slots s
             WHERE
