@@ -229,6 +229,7 @@ export default function ExpandedWorkflowRun() {
             hideCounts: true,
             hideTriggerRunButton: true,
             hideFlatten: true,
+            hideCancelAndReplayButtons: true,
           }}
           runFilters={{
             workerId: worker.metadata.id,
