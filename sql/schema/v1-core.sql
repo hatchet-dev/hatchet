@@ -313,8 +313,8 @@ CREATE TABLE v1_lookup_table (
     dag_id BIGINT,
     inserted_at TIMESTAMPTZ NOT NULL,
 
-    PRIMARY KEY (external_id)
-);
+    PRIMARY KEY (external_id, inserted_at)
+) PARTITION BY RANGE(inserted_at);
 
 CREATE TYPE v1_task_event_type AS ENUM (
     'COMPLETED',
@@ -1045,7 +1045,7 @@ BEGIN
         id,
         inserted_at
     FROM new_table
-    ON CONFLICT (external_id) DO NOTHING;
+    ON CONFLICT (external_id, inserted_at) DO NOTHING;
 
     -- NOTE: this comes after the insert into v1_dag_to_task and v1_lookup_table, because we case on these tables for cleanup
     FOR rec IN SELECT UNNEST(concurrency_parent_strategy_ids) AS parent_strategy_id, workflow_version_id, workflow_run_id FROM new_table WHERE initial_state != 'QUEUED' ORDER BY parent_strategy_id, workflow_version_id, workflow_run_id LOOP
@@ -1544,7 +1544,7 @@ BEGIN
         id,
         inserted_at
     FROM new_table
-    ON CONFLICT (external_id) DO NOTHING;
+    ON CONFLICT (external_id, inserted_at) DO NOTHING;
 
     RETURN NULL;
 END;
