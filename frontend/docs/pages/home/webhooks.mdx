@@ -29,7 +29,7 @@ The **Source** indicates the source of the webhook, which can be a pre-provided 
 The **Event Key Expression** is a [CEL](https://cel.dev/) expression that you can use to create a dynamic event key from the payload and headers of the incoming webhook. You can either set this to a constant value, like `webhook`, or you could set it to something dynamic using those two options. Some examples:
 
 1. `'stripe:' + input.type` would create event keys where `'stripe:'` is a prefix for all keys indicating the webhook came from Stripe, and `input.type` selects the `type` field off of the webhook payload and uses it to create the final event key. The result might look something like `stripe:payment_intent.created`.
-2. `github: + headers['x-github-event'] + ':' + input.action` could create a key like `github:star:created`
+2. `'github:' + headers['x-github-event'] + ':' + input.action` could create a key like `github:star:created`
 
 <Callout type="info">
   The result of the event key expression is what Hatchet will use as the event
