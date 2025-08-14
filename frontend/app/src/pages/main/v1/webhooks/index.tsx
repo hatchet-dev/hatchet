@@ -314,18 +314,23 @@ const CreateWebhookModal = () => {
       </DialogTrigger>
       <DialogContent className="max-w-[90%] md:max-w-[80%] lg:max-w-[60%] xl:max-w-[50%] max-h-[90dvh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <div className="flex items-center justify-center w-8 h-8 bg-blue-100 rounded-full">
-              <Webhook className="h-4 w-4 text-indigo-700" />
+          <DialogTitle className="flex flex-col items-start gap-y-4">
+            <div className="flex flex-row items-center gap-x-3">
+              <div className="flex items-center justify-center w-8 h-8 bg-blue-100 rounded-full">
+                <Webhook className="h-4 w-4 text-indigo-700" />
+              </div>
+              Create a webhook
             </div>
-            Create a webhook
+            <span className="text-sm text-muted-foreground">
+              Webhooks are a beta feature
+            </span>
           </DialogTitle>
         </DialogHeader>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
           <div className="space-y-2">
             <Label htmlFor="name" className="text-sm font-medium">
-              Webhook ID <span className="text-red-500">*</span>
+              Webhook Name <span className="text-red-500">*</span>
             </Label>
             <Input
               data-1p-ignore
