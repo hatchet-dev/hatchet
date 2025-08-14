@@ -63,27 +63,14 @@ func main() {
 			log.Printf("Spawning child workflow %d/%d", i+1, input.Count)
 
 			// Spawn child workflow and wait for result
-			childResult, err := childWorkflow.RunNoWait(ctx.GetContext(), ChildInput{
+			childResult, err := childWorkflow.Run(ctx.GetContext(), ChildInput{
 				Value: i + 1,
 			})
 			if err != nil {
 				return ParentOutput{}, fmt.Errorf("failed to spawn child workflow %d: %w", i, err)
 			}
 
-			// Wait for child workflow to complete and get result
-			result, err := childResult.Result()
-			if err != nil {
-				return ParentOutput{}, fmt.Errorf("child workflow %d failed: %w", i, err)
-			}
-
-			// Parse the result
-			var childOutput ChildOutput
-			if err := result.StepOutput("process-value", &childOutput); err != nil {
-				return ParentOutput{}, fmt.Errorf("failed to parse child %d output: %w", i, err)
-			}
-
-			sum += childOutput.Result
-			log.Printf("Child workflow %d completed with result: %d", i+1, childOutput.Result)
+			log.Printf("Child workflow %d completed with result: %d", i+1, childResult)
 		}
 
 		log.Printf("All child workflows completed. Total sum: %d", sum)

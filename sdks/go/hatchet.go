@@ -1,9 +1,7 @@
-// Package hatchet provides a Go client for the Hatchet workflow orchestration platform.
-//
 // Define workflows that can declare tasks and be run, scheduled, and so on.
 // Transform functions into Hatchet tasks using a clean, reflection-based API.
 //
-// Basic usage:
+// # Basic Usage
 //
 //	client, err := hatchet.NewClient()
 //	if err != nil {
@@ -27,6 +25,29 @@
 //	}
 //
 //	err = worker.StartBlocking(ctx)
+//
+// # Examples
+//
+// For comprehensive examples demonstrating various Hatchet features, see:
+//
+//   - Basic workflow with a single task: https://github.com/hatchet-dev/hatchet/tree/main/examples/go/v1/simple
+//   - Complex workflows with task dependencies: https://github.com/hatchet-dev/hatchet/tree/main/examples/go/v1/dag
+//   - Conditional task execution and branching: https://github.com/hatchet-dev/hatchet/tree/main/examples/go/v1/conditions
+//   - Triggered by external events: https://github.com/hatchet-dev/hatchet/tree/main/examples/go/v1/events
+//   - Time-based workflow scheduling: https://github.com/hatchet-dev/hatchet/tree/main/examples/go/v1/cron
+//   - Error handling and parallel execution: https://github.com/hatchet-dev/hatchet/tree/main/examples/go/v1/retries-concurrency
+//   - Control execution rate per resource: https://github.com/hatchet-dev/hatchet/tree/main/examples/go/v1/rate-limiting
+//   - Process multiple items efficiently: https://github.com/hatchet-dev/hatchet/tree/main/examples/go/v1/bulk-operations
+//   - Nested workflow execution: https://github.com/hatchet-dev/hatchet/tree/main/examples/go/v1/child-workflows
+//   - Worker affinity and state management: https://github.com/hatchet-dev/hatchet/tree/main/examples/go/v1/sticky-workers
+//   - Long-running tasks with state persistence: https://github.com/hatchet-dev/hatchet/tree/main/examples/go/v1/durable
+//   - Real-time data processing: https://github.com/hatchet-dev/hatchet/tree/main/examples/go/v1/streaming
+//   - Task execution prioritization: https://github.com/hatchet-dev/hatchet/tree/main/examples/go/v1/priority
+//   - Task timeout handling: https://github.com/hatchet-dev/hatchet/tree/main/examples/go/v1/timeouts
+//   - Workflow and task cancellation: https://github.com/hatchet-dev/hatchet/tree/main/examples/go/v1/cancellations
+//   - Error recovery and cleanup: https://github.com/hatchet-dev/hatchet/tree/main/examples/go/v1/on-failure
+//
+// View all examples: https://github.com/hatchet-dev/hatchet/tree/main/examples/go/v1
 package hatchet
 
 import (

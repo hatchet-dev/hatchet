@@ -496,8 +496,13 @@ func (w *Workflow) Run(ctx context.Context, input any) (any, error) {
 
 // RunNoWait executes the workflow with the provided input without waiting for completion.
 // Returns a workflow run reference that can be used to track the run status.
-func (w *Workflow) RunNoWait(ctx context.Context, input any) (*v0Client.Workflow, error) {
-	return w.declaration.RunNoWait(ctx, input)
+func (w *Workflow) RunNoWait(ctx context.Context, input any) (*WorkflowRef, error) {
+	wf, err := w.declaration.RunNoWait(ctx, input)
+	if err != nil {
+		return nil, err
+	}
+
+	return &WorkflowRef{RunId: wf.RunId()}, nil
 }
 
 // Cron schedules the workflow to run on a regular basis using a cron expression.

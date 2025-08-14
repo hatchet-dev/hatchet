@@ -16,6 +16,10 @@ type Client struct {
 
 // NewClient creates a new Hatchet client.
 // Configuration options can be provided to customize the client behavior.
+//
+// For examples of client usage, see:
+//   - [Simple workflow](https://github.com/hatchet-dev/hatchet/tree/main/examples/go/v1/simple)
+//   - [All examples](https://github.com/hatchet-dev/hatchet/tree/main/examples/go/v1)
 func NewClient(opts ...v0Client.ClientOpt) (*Client, error) {
 	legacyClient, err := v0Client.New(opts...)
 	if err != nil {
@@ -198,6 +202,12 @@ func (w *Worker) StartBlocking() error {
 
 // NewWorkflow creates a new workflow definition.
 // Workflows can be configured with triggers, events, and other options.
+//
+// For workflow examples, see:
+//   - [DAG workflows](https://github.com/hatchet-dev/hatchet/tree/main/examples/go/v1/dag) - Complex workflows with dependencies
+//   - [Event-driven workflows](https://github.com/hatchet-dev/hatchet/tree/main/examples/go/v1/events) - Event-triggered workflows
+//   - [Cron scheduling](https://github.com/hatchet-dev/hatchet/tree/main/examples/go/v1/cron) - Scheduled workflows
+//   - [All examples](https://github.com/hatchet-dev/hatchet/tree/main/examples/go/v1)
 func (c *Client) NewWorkflow(name string, options ...WorkflowOption) *Workflow {
 	return newWorkflow(name, c.legacyClient, options...)
 }
