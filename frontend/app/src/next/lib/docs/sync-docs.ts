@@ -5,7 +5,8 @@ import { fileURLToPath } from 'url';
 
 // Get the directory paths
 const dirname = path.dirname(fileURLToPath(import.meta.url));
-const docsDir = path.resolve(dirname, '../../../../../docs/pages');
+console.log(fs.readdirSync('../../../../docs/pages'))
+const docsDir = path.resolve(dirname, '../../../../docs/pages');
 const generatedDir = path.resolve(dirname, 'generated');
 
 // Make sure the generated directory exists
