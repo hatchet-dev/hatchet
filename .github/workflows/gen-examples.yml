@@ -40,5 +40,5 @@ jobs:
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
         git add .
-        git commit -m "Auto-generate files after merge [skip ci]"
+        git commit -m "chore: regenerate examples"
         git push
