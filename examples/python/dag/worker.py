@@ -35,7 +35,7 @@ async def step3(input: EmptyModel, ctx: Context) -> RandomSum:
     one = ctx.task_output(step1).random_number
     two = ctx.task_output(step2).random_number
 
-    return RandomSum(sum=one + two)
+    return RandomSum(sum=one + two + 3)
 
 
 @dag_workflow.task(parents=[step1, step3])
