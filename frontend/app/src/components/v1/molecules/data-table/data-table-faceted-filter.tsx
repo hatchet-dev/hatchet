@@ -27,12 +27,12 @@ export function DataTableFacetedFilter<TData, TValue>({
 
   if (type === ToolbarType.Switch) {
     return (
-      <div className="flex items-center space-x-2">
+      <div className="flex items-center space-x-2 border p-2 rounded-md border-dashed h-[32px]">
         <Checkbox
           id="toolbar-switch"
           onCheckedChange={(e) => column?.setFilterValue(e.valueOf() === true)}
         />
-        <Label htmlFor="toolbar-switch" className="text-sm">
+        <Label htmlFor="toolbar-switch" className="text-xs">
           Flatten
         </Label>
       </div>
