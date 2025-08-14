@@ -317,11 +317,7 @@ function processMetaObject(
 }
 
 // Start processing from the root docs directory
-if (fs.existsSync(docsDir)) {
-  processDirectory(docsDir);
-} else {
-  console.log(`Docs directory not found at ${docsDir}, skipping sync-docs`);
-}
+processDirectory(docsDir);
 
 // Generate the index.ts file
 const indexContent = `// Generated index file for meta-data
