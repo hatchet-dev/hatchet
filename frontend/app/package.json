@@ -5,8 +5,8 @@
   "type": "module",
   "packageManager": "pnpm@9.15.4",
   "scripts": {
-    "dev": "npm run sync-examples && npm run prettier:fix && vite",
-    "build": "npm run sync-examples && tsc && vite build",
+    "dev": "npm run prettier:fix && vite",
+    "build": "tsc && vite build",
     "lint:check": "npm run eslint:check && npm run prettier:check",
     "lint:fix": "npm run eslint:fix && npm run prettier:fix",
     "eslint:check": "eslint \"{src,apps,libs,test}/**/*.{ts,tsx,js}\"",
