@@ -2,7 +2,7 @@ name: Post-merge file generation
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, mk/generated-code-cleanup ]
 
 jobs:
   generate-files:
