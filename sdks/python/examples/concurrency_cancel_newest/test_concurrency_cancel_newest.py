@@ -1,14 +1,14 @@
-import time
 import asyncio
+import time
+from uuid import uuid4
 
 import pytest
-from hatchet_sdk import Hatchet, V1TaskStatus, TriggerWorkflowOptions
 
 from examples.concurrency_cancel_newest.worker import (
-    concurrency_cancel_newest_workflow,
     WorkflowInput,
+    concurrency_cancel_newest_workflow,
 )
-from uuid import uuid4
+from hatchet_sdk import Hatchet, TriggerWorkflowOptions, V1TaskStatus
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -45,6 +45,9 @@ async def test_run(hatchet: Hatchet) -> None:
             await ref.aio_result()
         except Exception:
             pass
+
+    ## wait for the olap repo to catch up
+    await asyncio.sleep(5)
 
     successful_run = hatchet.runs.get(to_run.workflow_run_id)
 

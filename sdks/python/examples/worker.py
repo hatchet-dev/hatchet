@@ -6,13 +6,16 @@ from examples.bulk_operations.worker import (
     bulk_replay_test_3,
 )
 from examples.cancellation.worker import cancellation_workflow
+from examples.concurrency_cancel_in_progress.worker import (
+    concurrency_cancel_in_progress_workflow,
+)
+from examples.concurrency_cancel_newest.worker import concurrency_cancel_newest_workflow
 from examples.concurrency_limit.worker import concurrency_limit_workflow
 from examples.concurrency_limit_rr.worker import concurrency_limit_rr_workflow
 from examples.concurrency_multiple_keys.worker import concurrency_multiple_keys_workflow
 from examples.concurrency_workflow_level.worker import (
     concurrency_workflow_level_workflow,
 )
-from examples.concurrency_cancel_newest.worker import concurrency_cancel_newest_workflow
 from examples.conditions.worker import task_condition_workflow
 from examples.dag.worker import dag_workflow
 from examples.dedupe.worker import dedupe_child_wf, dedupe_parent_wf
@@ -70,6 +73,7 @@ def main() -> None:
             non_retryable_workflow,
             concurrency_workflow_level_workflow,
             concurrency_cancel_newest_workflow,
+            concurrency_cancel_in_progress_workflow,
             di_workflow,
             lifespan_task,
             simple,
