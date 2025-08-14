@@ -13,6 +13,19 @@ jobs:
     steps:
       - name: Clone repository
         uses: actions/checkout@v5
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+          cache-dependency-path: 'frontend/snips/pnpm-lock.yaml'
+      - name: Enable corepack
+        run: corepack enable
+      - name: Generate snippets
+        run: |
+          cd frontend/snips
+          pnpm install
+          pnpm run generate:copy
       - name: Build frontend
         run: docker build -f ./build/package/frontend.dockerfile .
 
