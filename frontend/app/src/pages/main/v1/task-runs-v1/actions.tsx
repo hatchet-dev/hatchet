@@ -14,7 +14,7 @@ import api, {
 import { useApiError } from '@/lib/hooks';
 import { XCircleIcon } from '@heroicons/react/24/outline';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { useCallback, useState } from 'react';
+import { useCallback } from 'react';
 import { Combobox } from '@/components/v1/molecules/combobox/combobox';
 import {
   additionalMetadataKey,
@@ -120,8 +120,6 @@ export const useTaskRunActions = ({
 
 type ConfirmActionModalProps = {
   actionType: ActionType;
-  isOpen: boolean;
-  setIsOpen: (isOpen: boolean) => void;
   onConfirm: () => void;
   params: TaskRunActionsParams;
 };
@@ -281,15 +279,17 @@ const ModalContent = ({ label, params }: ModalContentProps) => {
 
 const ConfirmActionModal = ({
   actionType,
-  isOpen,
-  setIsOpen,
   onConfirm,
   params,
 }: ConfirmActionModalProps) => {
   const label = actionTypeToLabel(actionType);
+  const {
+    isActionModalOpen,
+    actions: { setIsActionModalOpen },
+  } = useRunsContext();
 
   return (
-    <Dialog open={isOpen} onOpenChange={setIsOpen}>
+    <Dialog open={isActionModalOpen} onOpenChange={setIsActionModalOpen}>
       <DialogContent className="sm:max-w-[700px] py-8 max-h-screen overflow-auto z-[70]">
         <DialogHeader className="gap-2">
           <div className="flex flex-row justify-between items-center w-full">
@@ -305,7 +305,7 @@ const ConfirmActionModal = ({
           <div className="flex flex-row items-center gap-3 justify-end pt-4 border-t">
             <Button
               onClick={() => {
-                setIsOpen(false);
+                setIsActionModalOpen(false);
               }}
               variant="outline"
             >
@@ -314,7 +314,7 @@ const ConfirmActionModal = ({
             <Button
               onClick={() => {
                 onConfirm();
-                setIsOpen(false);
+                setIsActionModalOpen(false);
               }}
             >
               Confirm
@@ -345,7 +345,9 @@ const BaseActionButton = ({
   onActionSubmit: () => void;
   className?: string;
 }) => {
-  const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
+  const {
+    actions: { setIsActionModalOpen },
+  } = useRunsContext();
   const { handleTaskRunAction } = useTaskRunActions({
     onActionProcessed,
     onActionSubmit,
@@ -372,8 +374,6 @@ const BaseActionButton = ({
     <>
       <ConfirmActionModal
         actionType={params.actionType}
-        isOpen={isConfirmModalOpen}
-        setIsOpen={setIsConfirmModalOpen}
         onConfirm={handleAction}
         params={params}
       />
@@ -388,7 +388,7 @@ const BaseActionButton = ({
             return;
           }
 
-          setIsConfirmModalOpen(true);
+          setIsActionModalOpen(true);
         }}
       >
         {icon}

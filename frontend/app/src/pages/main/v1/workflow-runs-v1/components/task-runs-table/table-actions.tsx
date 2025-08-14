@@ -14,7 +14,6 @@ import { Snowflake } from 'lucide-react';
 import { ChevronDownIcon } from '@radix-ui/react-icons';
 
 interface TableActionsProps {
-  taskIdsPendingAction: string[];
   onRefresh: () => void;
   onActionProcessed: (action: 'cancel' | 'replay', ids: string[]) => void;
   onTriggerWorkflow: () => void;
@@ -23,7 +22,6 @@ interface TableActionsProps {
 }
 
 export const TableActions = ({
-  taskIdsPendingAction,
   onRefresh,
   onActionProcessed,
   onTriggerWorkflow,
@@ -36,6 +34,7 @@ export const TableActions = ({
     isFrozen,
     actions: { setIsFrozen },
     display: { showTriggerRunButton, showCancelAndReplayButtons },
+    isActionModalOpen,
   } = useRunsContext();
 
   const actions = useMemo(() => {
@@ -61,18 +60,26 @@ export const TableActions = ({
             <ChevronDownIcon className="ml-2 h-4 w-4" />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="z-[70]">
+        <DropdownMenuContent
+          align="end"
+          className="z-[70] data-[is-modal-open=true]:hidden"
+          data-is-modal-open={isActionModalOpen}
+        >
           {showCancelAndReplayButtons && (
             <>
               <CancelMenuItem
-                taskIdsPendingAction={taskIdsPendingAction}
-                onActionProcessed={onActionProcessed}
+                onActionProcessed={(action, ids) => {
+                  onActionProcessed(action, ids);
+                  setDropdownOpen(false);
+                }}
                 toast={toast}
                 onDelayedClose={() => setShouldDelayClose(true)}
               />
               <ReplayMenuItem
-                taskIdsPendingAction={taskIdsPendingAction}
-                onActionProcessed={onActionProcessed}
+                onActionProcessed={(action, ids) => {
+                  onActionProcessed(action, ids);
+                  setDropdownOpen(false);
+                }}
                 toast={toast}
                 onDelayedClose={() => setShouldDelayClose(true)}
               />
@@ -130,31 +137,20 @@ export const TableActions = ({
     setIsFrozen,
     dropdownOpen,
     shouldDelayClose,
-    taskIdsPendingAction,
+    isActionModalOpen,
   ]);
 
   return <>{actions}</>;
 };
 
 const CancelMenuItem = ({
-  taskIdsPendingAction,
   onActionProcessed,
   toast,
   onDelayedClose,
-}: Pick<
-  TableActionsProps,
-  'taskIdsPendingAction' | 'toast' | 'onActionProcessed'
-> & {
+}: Pick<TableActionsProps, 'toast' | 'onActionProcessed'> & {
   onDelayedClose: () => void;
 }) => {
-  const {
-    state: { hasRowsSelected, hasFiltersApplied },
-    selectedRuns,
-    filters,
-  } = useRunsContext();
-
-  const disabled =
-    !(hasRowsSelected || hasFiltersApplied) || taskIdsPendingAction.length > 0;
+  const { selectedRuns, filters } = useRunsContext();
 
   const params =
     selectedRuns.length > 0
@@ -170,7 +166,7 @@ const CancelMenuItem = ({
     <div className="w-full">
       <TaskRunActionButton
         actionType="cancel"
-        disabled={disabled}
+        disabled={false}
         params={params}
         showModal
         onActionProcessed={(ids) => onActionProcessed('cancel', ids)}
@@ -188,24 +184,13 @@ const CancelMenuItem = ({
 };
 
 const ReplayMenuItem = ({
-  taskIdsPendingAction,
   onActionProcessed,
   toast,
   onDelayedClose,
-}: Pick<
-  TableActionsProps,
-  'taskIdsPendingAction' | 'toast' | 'onActionProcessed'
-> & {
+}: Pick<TableActionsProps, 'toast' | 'onActionProcessed'> & {
   onDelayedClose: () => void;
 }) => {
-  const {
-    state: { hasRowsSelected, hasFiltersApplied },
-    selectedRuns,
-    filters,
-  } = useRunsContext();
-
-  const disabled =
-    !(hasRowsSelected || hasFiltersApplied) || taskIdsPendingAction.length > 0;
+  const { selectedRuns, filters } = useRunsContext();
 
   const params =
     selectedRuns.length > 0
@@ -221,7 +206,7 @@ const ReplayMenuItem = ({
     <div className="w-full">
       <TaskRunActionButton
         actionType="replay"
-        disabled={disabled}
+        disabled={false}
         params={params}
         showModal
         onActionProcessed={(ids) => onActionProcessed('replay', ids)}

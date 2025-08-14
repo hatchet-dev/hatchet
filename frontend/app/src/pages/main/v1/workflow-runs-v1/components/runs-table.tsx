@@ -126,9 +126,6 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
     },
   } = useRunsContext();
 
-  const [taskIdsPendingAction, setTaskIdsPendingAction] = useState<string[]>(
-    [],
-  );
   const [rotate, setRotate] = useState(false);
   const [selectedAdditionalMetaRunId, setSelectedAdditionalMetaRunId] =
     useState<string | null>(null);
@@ -195,14 +192,12 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
       const prefix = action === 'cancel' ? 'Canceling' : 'Replaying';
       const count = ids.length;
 
-      setTaskIdsPendingAction(ids);
       const t = toast({
         title: `${prefix} ${count} task run${count > 1 ? 's' : ''}`,
         description: `This may take a few seconds. You don't need to hit ${action} again.`,
       });
 
       setTimeout(() => {
-        setTaskIdsPendingAction([]);
         t.dismiss();
       }, 5000);
     },
@@ -339,7 +334,6 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
           actions={[
             <TableActions
               key="table-actions"
-              taskIdsPendingAction={taskIdsPendingAction}
               onRefresh={handleRefresh}
               onActionProcessed={handleActionProcessed}
               onTriggerWorkflow={() => updateUIState({ triggerWorkflow: true })}
