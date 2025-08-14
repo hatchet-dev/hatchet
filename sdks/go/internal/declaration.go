@@ -59,6 +59,9 @@ type RunAsChildOpts struct {
 type WorkflowDeclaration[I, O any] interface {
 	WorkflowBase
 
+	// Name returns the resolved workflow name (including namespace if applicable).
+	Name() string
+
 	// Task registers a task that will be executed as part of the workflow
 	Task(opts create.WorkflowTask[I, O], fn func(ctx worker.HatchetContext, input I) (interface{}, error)) *task.TaskDeclaration[I]
 
@@ -125,7 +128,7 @@ type workflowDeclarationImpl[I any, O any] struct {
 
 	outputKey *string
 
-	Name           string
+	name           string
 	Version        *string
 	Description    *string
 	OnEvents       []string
@@ -188,7 +191,7 @@ func NewWorkflowDeclaration[I any, O any](opts create.WorkflowCreateOpts[I], v0 
 		schedules:   schedules,
 		metrics:     metrics,
 		workflows:   workflows,
-		Name:        workflowName,
+		name:        workflowName,
 		OnEvents:    onEvents,
 		OnCron:      opts.OnCron,
 		Concurrency: opts.Concurrency,
@@ -214,6 +217,11 @@ func NewWorkflowDeclaration[I any, O any](opts create.WorkflowCreateOpts[I], v0 
 	}
 
 	return wf
+}
+
+// Name returns the resolved workflow name (including namespace if applicable).
+func (w *workflowDeclarationImpl[I, O]) Name() string {
+	return w.name
 }
 
 // Task registers a standard (non-durable) task with the workflow
@@ -500,7 +508,7 @@ func (w *workflowDeclarationImpl[I, O]) RunBulkNoWait(ctx context.Context, input
 
 	for i, inp := range input {
 		toRun[i] = &v0Client.WorkflowRun{
-			Name:    w.Name,
+			Name:    w.name,
 			Input:   inp,
 			Options: opts,
 		}
@@ -517,7 +525,7 @@ func (w *workflowDeclarationImpl[I, O]) RunBulkNoWait(ctx context.Context, input
 // RunNoWait executes the workflow with the provided input without waiting for it to complete.
 // Instead it returns a run ID that can be used to check the status of the workflow.
 func (w *workflowDeclarationImpl[I, O]) RunNoWait(ctx context.Context, input I, opts ...v0Client.RunOptFunc) (*v0Client.Workflow, error) {
-	run, err := w.v0.Admin().RunWorkflow(w.Name, input, opts...)
+	run, err := w.v0.Admin().RunWorkflow(w.name, input, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -539,7 +547,7 @@ func (w *workflowDeclarationImpl[I, O]) RunAsChild(ctx worker.HatchetContext, in
 		additionalMetaOpt = &additionalMeta
 	}
 
-	run, err := ctx.SpawnWorkflow(w.Name, input, &worker.SpawnWorkflowOpts{
+	run, err := ctx.SpawnWorkflow(w.name, input, &worker.SpawnWorkflowOpts{
 		Key:                opts.Key,
 		Sticky:             opts.Sticky,
 		Priority:           opts.Priority,
@@ -679,7 +687,7 @@ func (w *workflowDeclarationImpl[I, O]) Cron(ctx context.Context, name string, c
 		cronTriggerOpts.AdditionalMetadata = additionalMeta
 	}
 
-	cronWorkflow, err := w.crons.Create(ctx, w.Name, cronTriggerOpts)
+	cronWorkflow, err := w.crons.Create(ctx, w.name, cronTriggerOpts)
 
 	if err != nil {
 		return nil, err
@@ -719,7 +727,7 @@ func (w *workflowDeclarationImpl[I, O]) Schedule(ctx context.Context, triggerAt 
 
 	triggerOpts.Priority = runOpts.Priority
 
-	scheduledWorkflow, err := w.schedules.Create(ctx, w.Name, triggerOpts)
+	scheduledWorkflow, err := w.schedules.Create(ctx, w.name, triggerOpts)
 
 	if err != nil {
 		return nil, err
@@ -734,19 +742,19 @@ func (w *workflowDeclarationImpl[I, O]) Schedule(ctx context.Context, triggerAt 
 func (w *workflowDeclarationImpl[I, O]) Dump() (*contracts.CreateWorkflowVersionRequest, []NamedFunction, []NamedFunction, WrappedTaskFn) {
 	taskOpts := make([]*contracts.CreateTaskOpts, len(w.tasks))
 	for i, task := range w.tasks {
-		taskOpts[i] = task.Dump(w.Name, w.TaskDefaults)
+		taskOpts[i] = task.Dump(w.name, w.TaskDefaults)
 	}
 
 	durableOpts := make([]*contracts.CreateTaskOpts, len(w.durableTasks))
 	for i, task := range w.durableTasks {
-		durableOpts[i] = task.Dump(w.Name, w.TaskDefaults)
+		durableOpts[i] = task.Dump(w.name, w.TaskDefaults)
 	}
 
 	tasksToRegister := append(taskOpts, durableOpts...)
 
 	req := &contracts.CreateWorkflowVersionRequest{
 		Tasks:           tasksToRegister,
-		Name:            w.Name,
+		Name:            w.name,
 		EventTriggers:   w.OnEvents,
 		CronTriggers:    w.OnCron,
 		DefaultPriority: w.DefaultPriority,
@@ -777,7 +785,7 @@ func (w *workflowDeclarationImpl[I, O]) Dump() (*contracts.CreateWorkflowVersion
 	}
 
 	if w.OnFailureTask != nil {
-		req.OnFailureTask = w.OnFailureTask.Dump(w.Name, w.TaskDefaults)
+		req.OnFailureTask = w.OnFailureTask.Dump(w.name, w.TaskDefaults)
 	}
 
 	if w.StickyStrategy != nil {
@@ -881,7 +889,7 @@ func (w *workflowDeclarationImpl[I, O]) Dump() (*contracts.CreateWorkflowVersion
 
 // Get retrieves the current state of the workflow.
 func (w *workflowDeclarationImpl[I, O]) Get(ctx context.Context) (*rest.Workflow, error) {
-	workflow, err := w.workflows.Get(ctx, w.Name)
+	workflow, err := w.workflows.Get(ctx, w.name)
 	if err != nil {
 		return nil, err
 	}
@@ -891,7 +899,7 @@ func (w *workflowDeclarationImpl[I, O]) Get(ctx context.Context) (*rest.Workflow
 
 // // IsPaused checks if the workflow is currently paused.
 // func (w *workflowDeclarationImpl[I, O]) IsPaused(ctx context.Context) (bool, error) {
-// 	paused, err := w.workflows.IsPaused(ctx, w.Name)
+// 	paused, err := w.workflows.IsPaused(ctx, w.name)
 // 	if err != nil {
 // 		return false, err
 // 	}
@@ -901,7 +909,7 @@ func (w *workflowDeclarationImpl[I, O]) Get(ctx context.Context) (*rest.Workflow
 
 // // Pause pauses the assignment of new workflow runs.
 // func (w *workflowDeclarationImpl[I, O]) Pause(ctx context.Context) error {
-// 	_, err := w.workflows.Pause(ctx, w.Name)
+// 	_, err := w.workflows.Pause(ctx, w.name)
 // 	if err != nil {
 // 		return err
 // 	}
@@ -911,7 +919,7 @@ func (w *workflowDeclarationImpl[I, O]) Get(ctx context.Context) (*rest.Workflow
 
 // // Unpause resumes the assignment of workflow runs.
 // func (w *workflowDeclarationImpl[I, O]) Unpause(ctx context.Context) error {
-// 	_, err := w.workflows.Unpause(ctx, w.Name)
+// 	_, err := w.workflows.Unpause(ctx, w.name)
 // 	if err != nil {
 // 		return err
 // 	}
@@ -926,7 +934,7 @@ func (w *workflowDeclarationImpl[I, O]) Metrics(ctx context.Context, opts ...res
 		options = opts[0]
 	}
 
-	metrics, err := w.metrics.GetWorkflowMetrics(ctx, w.Name, &options)
+	metrics, err := w.metrics.GetWorkflowMetrics(ctx, w.name, &options)
 	if err != nil {
 		return nil, err
 	}
@@ -943,18 +951,18 @@ func (w *workflowDeclarationImpl[I, O]) QueueMetrics(ctx context.Context, opts .
 
 	// Ensure the workflow name is set
 	if options.Workflows == nil {
-		options.Workflows = &[]string{w.Name}
+		options.Workflows = &[]string{w.name}
 	} else {
 		// Add this workflow to the list if not already present
 		found := false
 		for _, wf := range *options.Workflows {
-			if wf == w.Name {
+			if wf == w.name {
 				found = true
 				break
 			}
 		}
 		if !found {
-			*options.Workflows = append(*options.Workflows, w.Name)
+			*options.Workflows = append(*options.Workflows, w.name)
 		}
 	}
 
@@ -1013,7 +1021,7 @@ func RunChildWorkflow[I any, O any](
 		spawnOpts.AdditionalMetadata = &metadataStr
 	}
 
-	childWorkflow, err := ctx.SpawnWorkflow(wfImpl.Name, input, spawnOpts)
+	childWorkflow, err := ctx.SpawnWorkflow(wfImpl.name, input, spawnOpts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to spawn child workflow: %w", err)
 	}

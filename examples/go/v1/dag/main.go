@@ -26,7 +26,7 @@ func main() {
 	workflow := client.NewWorkflow("dag-workflow")
 
 	// Step 1: Initial processing
-	step1 := workflow.AddTask("step-1", func(ctx hatchet.Context, input Input) (StepOutput, error) {
+	step1 := workflow.NewTask("step-1", func(ctx hatchet.Context, input Input) (StepOutput, error) {
 		return StepOutput{
 			Step:   1,
 			Result: input.Value * 2,
@@ -34,10 +34,10 @@ func main() {
 	})
 
 	// Step 2: Depends on step 1
-	step2 := workflow.AddTask("step-2", func(ctx hatchet.Context, input Input) (StepOutput, error) {
+	step2 := workflow.NewTask("step-2", func(ctx hatchet.Context, input Input) (StepOutput, error) {
 		// Get output from step 1
 		var step1Output StepOutput
-		if err := ctx.ParentOutput(step1.NamedTask, &step1Output); err != nil {
+		if err := ctx.ParentOutput(step1, &step1Output); err != nil {
 			return StepOutput{}, err
 		}
 
@@ -45,13 +45,13 @@ func main() {
 			Step:   2,
 			Result: step1Output.Result + 10,
 		}, nil
-	}, hatchet.WithParents(step1.NamedTask))
+	}, hatchet.WithParents(step1))
 
 	// Step 3: Also depends on step 1, parallel to step 2
-	step3 := workflow.AddTask("step-3", func(ctx hatchet.Context, input Input) (StepOutput, error) {
+	step3 := workflow.NewTask("step-3", func(ctx hatchet.Context, input Input) (StepOutput, error) {
 		// Get output from step 1
 		var step1Output StepOutput
-		if err := ctx.ParentOutput(step1.NamedTask, &step1Output); err != nil {
+		if err := ctx.ParentOutput(step1, &step1Output); err != nil {
 			return StepOutput{}, err
 		}
 
@@ -59,16 +59,16 @@ func main() {
 			Step:   3,
 			Result: step1Output.Result * 3,
 		}, nil
-	}, hatchet.WithParents(step1.NamedTask))
+	}, hatchet.WithParents(step1))
 
 	// Final step: Combines outputs from step 2 and step 3
-	workflow.AddTask("final-step", func(ctx hatchet.Context, input Input) (StepOutput, error) {
+	finalStep := workflow.NewTask("final-step", func(ctx hatchet.Context, input Input) (StepOutput, error) {
 		var step2Output, step3Output StepOutput
 
-		if err := ctx.ParentOutput(step2.NamedTask, &step2Output); err != nil {
+		if err := ctx.ParentOutput(step2, &step2Output); err != nil {
 			return StepOutput{}, err
 		}
-		if err := ctx.ParentOutput(step3.NamedTask, &step3Output); err != nil {
+		if err := ctx.ParentOutput(step3, &step3Output); err != nil {
 			return StepOutput{}, err
 		}
 
@@ -76,7 +76,8 @@ func main() {
 			Step:   4,
 			Result: step2Output.Result + step3Output.Result,
 		}, nil
-	}, hatchet.WithParents(step2.NamedTask, step3.NamedTask))
+	}, hatchet.WithParents(step2, step3))
+	_ = finalStep // Task reference available
 
 	worker, err := client.NewWorker("dag-worker", hatchet.WithWorkflows(workflow))
 	if err != nil {
@@ -84,12 +85,12 @@ func main() {
 	}
 
 	// Run the workflow
-	err = client.Run(context.Background(), "dag-workflow", Input{Value: 5})
+	_, err = client.Run(context.Background(), "dag-workflow", Input{Value: 5})
 	if err != nil {
 		log.Fatalf("failed to run workflow: %v", err)
 	}
 
-	if err := worker.Run(context.Background()); err != nil {
+	if err := worker.StartBlocking(); err != nil {
 		log.Fatalf("failed to start worker: %v", err)
 	}
 }

@@ -6,8 +6,8 @@ import (
 	"log"
 	"time"
 
-	hatchet "github.com/hatchet-dev/hatchet/sdks/go"
 	"github.com/hatchet-dev/hatchet/pkg/worker"
+	hatchet "github.com/hatchet-dev/hatchet/sdks/go"
 )
 
 type StickyInput struct {
@@ -17,11 +17,11 @@ type StickyInput struct {
 }
 
 type StickyOutput struct {
-	SessionID    string `json:"session_id"`
-	WorkerID     string `json:"worker_id"`
-	ProcessedAt  string `json:"processed_at"`
-	Message      string `json:"message"`
-	Step         int    `json:"step"`
+	SessionID   string `json:"session_id"`
+	WorkerID    string `json:"worker_id"`
+	ProcessedAt string `json:"processed_at"`
+	Message     string `json:"message"`
+	Step        int    `json:"step"`
 }
 
 type SessionState struct {
@@ -44,7 +44,7 @@ func main() {
 	)
 
 	// Step 1: Initialize session
-	step1 := sessionWorkflow.AddTask("initialize-session", func(ctx hatchet.Context, input StickyInput) (SessionState, error) {
+	step1 := sessionWorkflow.NewTask("initialize-session", func(ctx hatchet.Context, input StickyInput) (SessionState, error) {
 		workerID := ctx.Worker().ID()
 		log.Printf("[Worker %s] Initializing session %s", workerID, input.SessionID)
 
@@ -57,16 +57,16 @@ func main() {
 	})
 
 	// Step 2: Process session (runs on same worker)
-	sessionWorkflow.AddTask("process-session", func(ctx hatchet.Context, input StickyInput) (SessionState, error) {
+	sessionWorkflow.NewTask("process-session", func(ctx hatchet.Context, input StickyInput) (SessionState, error) {
 		workerID := ctx.Worker().ID()
-		
+
 		// Get previous step's output
 		var sessionState SessionState
 		if err := ctx.StepOutput("initialize-session", &sessionState); err != nil {
 			return SessionState{}, fmt.Errorf("failed to get session state: %w", err)
 		}
 
-		log.Printf("[Worker %s] Processing session %s (was initialized on worker %s)", 
+		log.Printf("[Worker %s] Processing session %s (was initialized on worker %s)",
 			workerID, input.SessionID, sessionState.WorkerID)
 
 		// Update session state
@@ -74,7 +74,7 @@ func main() {
 		sessionState.LastMessage = input.Message
 
 		return sessionState, nil
-	}, hatchet.WithParents(step1.NamedTask))
+	}, hatchet.WithParents(step1))
 
 	// Child workflow for sticky child execution
 	childWorkflow := client.NewWorkflow("sticky-child-demo",
@@ -110,7 +110,7 @@ func main() {
 		// Spawn multiple child workflows that should all run on the same worker
 		for i := 1; i <= 3; i++ {
 			log.Printf("[Worker %s] Spawning sticky child %d", workerID, i)
-			
+
 			sticky := true
 			childResult, err := ctx.SpawnWorkflow("sticky-child-demo", StickyInput{
 				SessionID: input.SessionID,
@@ -157,7 +157,7 @@ func main() {
 		// Spawn child workflows without sticky flag (may run on different workers)
 		for i := 1; i <= 3; i++ {
 			log.Printf("[Worker %s] Spawning regular child %d", workerID, i)
-			
+
 			childResult, err := ctx.SpawnWorkflow("sticky-child-demo", StickyInput{
 				SessionID: input.SessionID,
 				Message:   fmt.Sprintf("Non-sticky child %d message", i),
@@ -207,14 +207,14 @@ func main() {
 	// Start both workers
 	go func() {
 		log.Println("Starting worker 1...")
-		if err := worker1.Run(context.Background()); err != nil {
+		if err := worker1.StartBlocking(); err != nil {
 			log.Printf("Worker 1 failed: %v", err)
 		}
 	}()
 
 	go func() {
 		log.Println("Starting worker 2...")
-		if err := worker2.Run(context.Background()); err != nil {
+		if err := worker2.StartBlocking(); err != nil {
 			log.Printf("Worker 2 failed: %v", err)
 		}
 	}()
@@ -225,7 +225,7 @@ func main() {
 
 		log.Println("\n=== Session Workflow Demo ===")
 		log.Println("Running multi-step workflow that should stay on same worker...")
-		err := client.Run(context.Background(), "session-demo", StickyInput{
+		_, err := client.Run(context.Background(), "session-demo", StickyInput{
 			SessionID: "session-001",
 			Message:   "Initialize my session",
 			Step:      1,
@@ -238,7 +238,7 @@ func main() {
 
 		log.Println("\n=== Sticky Parent-Child Demo ===")
 		log.Println("Parent spawning sticky children - all should run on same worker...")
-		err = client.Run(context.Background(), "sticky-parent-demo", StickyInput{
+		_, err = client.Run(context.Background(), "sticky-parent-demo", StickyInput{
 			SessionID: "sticky-session-001",
 			Message:   "Sticky parent message",
 			Step:      1,
@@ -251,7 +251,7 @@ func main() {
 
 		log.Println("\n=== Non-Sticky Comparison Demo ===")
 		log.Println("Parent spawning regular children - may distribute across workers...")
-		err = client.Run(context.Background(), "non-sticky-demo", StickyInput{
+		_, err = client.Run(context.Background(), "non-sticky-demo", StickyInput{
 			SessionID: "regular-session-001",
 			Message:   "Regular parent message",
 			Step:      1,

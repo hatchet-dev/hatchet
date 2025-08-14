@@ -27,7 +27,7 @@ func main() {
 	// Create a workflow with a durable task that can sleep
 	workflow := client.NewWorkflow("durable-workflow")
 	
-	workflow.NewDurableTask("long-running-task", func(ctx hatchet.DurableContext, input DurableInput) (DurableOutput, error) {
+	durableTask := workflow.NewDurableTask("long-running-task", func(ctx hatchet.DurableContext, input DurableInput) (DurableOutput, error) {
 		log.Printf("Starting task, will sleep for %d seconds", input.Delay)
 		
 		// Durable sleep - this can be resumed if the worker restarts
@@ -42,6 +42,7 @@ func main() {
 			Message:     "Processed: " + input.Message,
 		}, nil
 	})
+	_ = durableTask // Durable task reference available
 
 	worker, err := client.NewWorker("durable-worker", 
 		hatchet.WithWorkflows(workflow),
@@ -52,7 +53,7 @@ func main() {
 	}
 
 	// Run the workflow with a 30-second delay
-	err = client.Run(context.Background(), "durable-workflow", DurableInput{
+	_, err = client.Run(context.Background(), "durable-workflow", DurableInput{
 		Message: "Hello from durable task!",
 		Delay:   30,
 	})
@@ -61,7 +62,7 @@ func main() {
 	}
 
 	log.Println("Workflow started. Worker will process it...")
-	if err := worker.Run(context.Background()); err != nil {
+	if err := worker.StartBlocking(); err != nil {
 		log.Fatalf("failed to start worker: %v", err)
 	}
 }

@@ -45,13 +45,6 @@ func WithLogger(logger *zerolog.Logger) WorkerOption {
 	}
 }
 
-// WithLogLevel sets the logging level for the worker.
-func WithLogLevel(logLevel string) WorkerOption {
-	return func(config *workerConfig) {
-		config.logLevel = logLevel
-	}
-}
-
 // WithDurableSlots sets the maximum number of concurrent durable task runs.
 func WithDurableSlots(durableSlots int) WorkerOption {
 	return func(config *workerConfig) {

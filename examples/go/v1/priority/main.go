@@ -38,8 +38,8 @@ func main() {
 	priorityWorkflow.NewTask("process-request", func(ctx hatchet.Context, input PriorityInput) (PriorityOutput, error) {
 		// Access the current priority from context
 		currentPriority := ctx.Priority()
-		
-		log.Printf("Processing %s request for user %s with priority %d", 
+
+		log.Printf("Processing %s request for user %s with priority %d",
 			input.TaskType, input.UserID, currentPriority)
 
 		// Simulate different processing times based on priority
@@ -89,11 +89,11 @@ func main() {
 	// Function to run workflow with specific priority
 	runWithPriority := func(priority int32, input PriorityInput, delay time.Duration) {
 		time.Sleep(delay)
-		log.Printf("Submitting %s task with priority %d for user %s", 
+		log.Printf("Submitting %s task with priority %d for user %s",
 			input.TaskType, priority, input.UserID)
-		
+
 		// Run workflow with specific priority
-		err := clientInstance.RunWithPriority(context.Background(), "priority-demo", input, priority)
+		_, err := clientInstance.Run(context.Background(), "priority-demo", input, hatchet.WithPriority(priority))
 		if err != nil {
 			log.Printf("Failed to run workflow with priority %d: %v", priority, err)
 		}
@@ -156,7 +156,7 @@ func main() {
 	log.Println("  - Different processing behavior based on priority")
 	log.Println("  - Premium vs standard user handling")
 
-	if err := worker.Run(context.Background()); err != nil {
+	if err := worker.StartBlocking(); err != nil {
 		log.Fatalf("failed to start worker: %v", err)
 	}
 }

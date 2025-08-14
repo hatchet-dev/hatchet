@@ -82,7 +82,7 @@ func main() {
 	// Start the worker in a goroutine
 	go func() {
 		log.Println("Starting streaming worker...")
-		if err := worker.Run(context.Background()); err != nil {
+		if err := worker.StartBlocking(); err != nil {
 			log.Printf("worker failed: %v", err)
 		}
 	}()
@@ -111,7 +111,7 @@ func main() {
 		}
 
 		// Subscribe to the stream
-		stream, err := client.Runs().SubscribeToStream(ctx, workflowRun.RunId())
+		stream, err := client.Runs().SubscribeToStream(ctx, workflowRun.RunId)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("failed to subscribe to stream: %v", err), http.StatusInternalServerError)
 			return

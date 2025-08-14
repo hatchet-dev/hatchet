@@ -132,7 +132,7 @@ func main() {
 
 		// Demo 1: Task that will timeout
 		log.Println("\n=== Demo 1: Task Timeout ===")
-		err := client.Run(context.Background(), "timeout-demo", TimeoutInput{
+		_, err := client.Run(context.Background(), "timeout-demo", TimeoutInput{
 			Message: "This task will timeout after 3 seconds",
 		})
 		if err != nil {
@@ -143,7 +143,7 @@ func main() {
 
 		// Demo 2: Task that refreshes timeout
 		log.Println("\n=== Demo 2: Timeout Refresh ===")
-		err = client.Run(context.Background(), "refresh-timeout-demo", TimeoutInput{
+		_, err = client.Run(context.Background(), "refresh-timeout-demo", TimeoutInput{
 			Message: "This task will refresh its timeout and complete",
 		})
 		if err != nil {
@@ -154,7 +154,7 @@ func main() {
 
 		// Demo 3: Cancellation-aware task
 		log.Println("\n=== Demo 3: Cancellation-Aware Task ===")
-		err = client.Run(context.Background(), "cancellation-timeout-demo", TimeoutInput{
+		_, err = client.Run(context.Background(), "cancellation-timeout-demo", TimeoutInput{
 			Message: "This task will handle cancellation gracefully",
 		})
 		if err != nil {
@@ -169,7 +169,7 @@ func main() {
 	log.Println("  - Context cancellation handling")
 	log.Println("  - Graceful timeout handling")
 
-	if err := worker.Run(context.Background()); err != nil {
+	if err := worker.StartBlocking(); err != nil {
 		log.Fatalf("failed to start worker: %v", err)
 	}
 }

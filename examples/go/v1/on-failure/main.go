@@ -98,7 +98,7 @@ func main() {
 	)
 
 	// First task (succeeds)
-	step1 := multiStepWorkflow.AddTask("first-step", func(ctx hatchet.Context, input FailureInput) (TaskOutput, error) {
+	step1 := multiStepWorkflow.NewTask("first-step", func(ctx hatchet.Context, input FailureInput) (TaskOutput, error) {
 		log.Printf("First step processing: %s", input.Message)
 		return TaskOutput{
 			Status:  "success",
@@ -107,7 +107,7 @@ func main() {
 	})
 
 	// Second task (may fail, depends on first)
-	multiStepWorkflow.AddTask("second-step", func(ctx hatchet.Context, input FailureInput) (TaskOutput, error) {
+	multiStepWorkflow.NewTask("second-step", func(ctx hatchet.Context, input FailureInput) (TaskOutput, error) {
 		// Get output from previous step
 		var step1Output TaskOutput
 		if err := ctx.StepOutput("first-step", &step1Output); err != nil {
@@ -126,7 +126,7 @@ func main() {
 			Status:  "success",
 			Message: "Second step completed after: " + step1Output.Message,
 		}, nil
-	}, hatchet.WithParents(step1.NamedTask))
+	}, hatchet.WithParents(step1))
 
 	// Add failure handler for multi-step workflow
 	multiStepWorkflow.OnFailure(func(ctx hatchet.Context, input FailureInput) (FailureHandlerOutput, error) {
@@ -167,7 +167,7 @@ func main() {
 
 		// Demo 1: Successful workflow
 		log.Println("\n=== Demo 1: Successful Workflow ===")
-		err := client.Run(context.Background(), "failure-handling-demo", FailureInput{
+		_, err := client.Run(context.Background(), "failure-handling-demo", FailureInput{
 			Message:    "This workflow will succeed",
 			ShouldFail: false,
 		})
@@ -179,7 +179,7 @@ func main() {
 
 		// Demo 2: Workflow with error
 		log.Println("\n=== Demo 2: Workflow with Error ===")
-		err = client.Run(context.Background(), "failure-handling-demo", FailureInput{
+		_, err = client.Run(context.Background(), "failure-handling-demo", FailureInput{
 			Message:     "This workflow will fail with error",
 			ShouldFail:  true,
 			FailureType: "error",
@@ -192,7 +192,7 @@ func main() {
 
 		// Demo 3: Multi-step workflow failure
 		log.Println("\n=== Demo 3: Multi-step Workflow Failure ===")
-		err = client.Run(context.Background(), "multi-step-failure-demo", FailureInput{
+		_, err = client.Run(context.Background(), "multi-step-failure-demo", FailureInput{
 			Message:    "This multi-step workflow will fail in second step",
 			ShouldFail: true,
 		})
@@ -204,7 +204,7 @@ func main() {
 
 		// Demo 4: Multi-step workflow success
 		log.Println("\n=== Demo 4: Multi-step Workflow Success ===")
-		err = client.Run(context.Background(), "multi-step-failure-demo", FailureInput{
+		_, err = client.Run(context.Background(), "multi-step-failure-demo", FailureInput{
 			Message:    "This multi-step workflow will succeed",
 			ShouldFail: false,
 		})
@@ -221,7 +221,7 @@ func main() {
 	log.Println("  - Successful step output access during failure")
 	log.Println("  - Different failure types (error, timeout, panic)")
 
-	if err := worker.Run(context.Background()); err != nil {
+	if err := worker.StartBlocking(); err != nil {
 		log.Fatalf("failed to start worker: %v", err)
 	}
 }

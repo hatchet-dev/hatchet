@@ -1,7 +1,7 @@
-// Package hatchet provides a simplified, Go-idiomatic client for the Hatchet workflow orchestration platform.
+// Package hatchet provides a Go client for the Hatchet workflow orchestration platform.
 //
-// This package offers a clean, reflection-based API that eliminates the need for generics
-// while maintaining type safety through runtime validation.
+// Define workflows that can declare tasks and be run, scheduled, and so on.
+// Transform functions into Hatchet tasks using a clean, reflection-based API.
 //
 // Basic usage:
 //
@@ -10,8 +10,16 @@
 //		log.Fatal(err)
 //	}
 //
-//	workflow := client.NewWorkflow("my-workflow")
-//	workflow.NewTask("task-name", MyTaskFunction)
+//	workflow := client.NewWorkflow("my-workflow",
+//		hatchet.WithWorkflowConcurrency(types.Concurrency{
+//			Expression: "input.userId",
+//			MaxRuns:    5,
+//		}))
+//	fmt.Printf("Workflow name: %s\n", workflow.Name()) // Includes namespace if set
+//
+//	task1 := workflow.NewTask("task-1", MyTaskFunction)
+//	task2 := workflow.NewTask("task-2", MyOtherTaskFunction,
+//		hatchet.WithParents(task1))
 //
 //	worker, err := client.NewWorker("worker-name", hatchet.WithWorkflows(workflow))
 //	if err != nil {
@@ -50,7 +58,7 @@ func UserEventCondition(eventKey, expression string) condition.Condition {
 
 // ParentCondition creates a condition based on a parent task's output.
 func ParentCondition(task *Task, expression string) condition.Condition {
-	return condition.ParentCondition(task.NamedTask, expression)
+	return condition.ParentCondition(task, expression)
 }
 
 // OrCondition creates a condition that is satisfied when any of the provided conditions are met.

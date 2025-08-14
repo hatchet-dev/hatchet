@@ -115,7 +115,7 @@ func main() {
 		}
 
 		log.Println("Triggering parent workflow...")
-		err := client.Run(context.Background(), "parent-workflow", ParentInput{
+		_, err := client.Run(context.Background(), "parent-workflow", ParentInput{
 			Count: 5, // Spawn 5 child workflows
 		})
 		if err != nil {
@@ -130,7 +130,7 @@ func main() {
 	log.Println("  - Parallel child workflow processing")
 	log.Println("  - Parent-child workflow communication")
 
-	if err := worker.Run(context.Background()); err != nil {
+	if err := worker.StartBlocking(); err != nil {
 		log.Fatalf("failed to start worker: %v", err)
 	}
 }

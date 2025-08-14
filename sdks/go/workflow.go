@@ -16,6 +16,24 @@ import (
 	"github.com/hatchet-dev/hatchet/sdks/go/internal"
 )
 
+// RunOpts is a type that represents the options for running a workflow.
+type RunOpts struct {
+	AdditionalMetadata *map[string]interface{}
+	Priority           *int32
+	// Sticky             *bool
+	// Key                *string
+}
+
+type RunOptFunc = v0Client.RunOptFunc
+
+func WithRunMetadata(metadata interface{}) RunOptFunc {
+	return v0Client.WithRunMetadata(metadata)
+}
+
+func WithPriority(priority int32) RunOptFunc {
+	return v0Client.WithPriority(priority)
+}
+
 // convertInputToType converts input (typically map[string]interface{}) to the expected struct type
 func convertInputToType(input any, expectedType reflect.Type) reflect.Value {
 	if input == nil {
@@ -87,22 +105,26 @@ func convertValue(val any, targetType reflect.Type) (reflect.Value, bool) {
 	return reflect.Value{}, false
 }
 
-// Workflow represents a workflow definition that can contain multiple tasks.
+// Workflow defines a Hatchet workflow, which can then declare tasks and be run, scheduled, and so on.
 type Workflow struct {
 	declaration internal.WorkflowDeclaration[any, any]
 	v0Client    v0Client.Client
+}
+
+// GetName returns the resolved workflow name (including namespace if applicable).
+func (w *Workflow) GetName() string {
+	return w.declaration.Name()
 }
 
 // WorkflowOption configures a workflow instance.
 type WorkflowOption func(*workflowConfig)
 
 type workflowConfig struct {
-	onCron         []string
-	onEvents       []string
-	defaultFilters []types.DefaultFilter
-	concurrency    []types.Concurrency
-	version        string
-	description    string
+	onCron      []string
+	onEvents    []string
+	concurrency []types.Concurrency
+	version     string
+	description string
 }
 
 // WithWorkflowCron configures the workflow to run on a cron schedule.
@@ -134,8 +156,15 @@ func WithWorkflowDescription(description string) WorkflowOption {
 	}
 }
 
-// NewWorkflow creates a new workflow definition.
-func NewWorkflow(name string, v0Client v0Client.Client, options ...WorkflowOption) *Workflow {
+// WithWorkflowConcurrency sets concurrency controls for the workflow.
+func WithWorkflowConcurrency(concurrency ...types.Concurrency) WorkflowOption {
+	return func(config *workflowConfig) {
+		config.concurrency = concurrency
+	}
+}
+
+// newWorkflow creates a new workflow definition.
+func newWorkflow(name string, v0Client v0Client.Client, options ...WorkflowOption) *Workflow {
 	config := &workflowConfig{}
 
 	for _, opt := range options {
@@ -149,6 +178,7 @@ func NewWorkflow(name string, v0Client v0Client.Client, options ...WorkflowOptio
 			Description: config.description,
 			OnEvents:    config.onEvents,
 			OnCron:      config.onCron,
+			Concurrency: config.concurrency,
 		},
 		v0Client,
 	)
@@ -230,8 +260,8 @@ func WithConcurrency(concurrency ...*types.Concurrency) TaskOption {
 	}
 }
 
-// WithDurable marks a task as durable, enabling persistent state and long-running operations.
-func WithDurable() TaskOption {
+// withDurable marks a task as durable, enabling persistent state and long-running operations.
+func withDurable() TaskOption {
 	return func(config *taskConfig) {
 		config.isDurable = true
 	}
@@ -245,9 +275,14 @@ func WithRateLimits(rateLimits ...*types.RateLimit) TaskOption {
 }
 
 // WithParents sets parent task dependencies.
-func WithParents(parents ...create.NamedTask) TaskOption {
+func WithParents(parents ...*Task) TaskOption {
 	return func(config *taskConfig) {
-		config.parents = parents
+		// Convert *Task to create.NamedTask
+		namedTasks := make([]create.NamedTask, len(parents))
+		for i, parent := range parents {
+			namedTasks[i] = parent
+		}
+		config.parents = namedTasks
 	}
 }
 
@@ -265,12 +300,17 @@ func WithSkipIf(condition condition.Condition) TaskOption {
 	}
 }
 
-// Task represents a task reference for building DAGs.
+// Task represents a task reference for building DAGs and conditions.
 type Task struct {
-	NamedTask create.NamedTask
+	name string
 }
 
-// NewTask adds a task to the workflow.
+// Name returns the name of the task.
+func (t *Task) GetName() string {
+	return t.name
+}
+
+// NewTask transforms a function into a Hatchet task that runs as part of a workflow.
 //
 // The function parameter must have the signature:
 //
@@ -281,7 +321,7 @@ type Task struct {
 //	func(ctx DurableContext, input T) (T, error)
 //
 // Function signatures are validated at runtime using reflection.
-func (w *Workflow) NewTask(name string, fn any, options ...TaskOption) *Workflow {
+func (w *Workflow) NewTask(name string, fn any, options ...TaskOption) *Task {
 	config := &taskConfig{}
 
 	for _, opt := range options {
@@ -366,151 +406,14 @@ func (w *Workflow) NewTask(name string, fn any, options ...TaskOption) *Workflow
 
 	w.declaration.Task(taskOpts, wrapper)
 
-	return w
+	return &Task{name: name}
 }
 
-// AddTask adds a task to the workflow and returns a Task reference for DAG building.
-//
-// The function parameter must have the signature:
-//
-//	func(ctx Context, input T) (T, error)
-//
-// For durable tasks, use:
-//
-//	func(ctx DurableContext, input T) (T, error)
-//
-// Function signatures are validated at runtime using reflection.
-func (w *Workflow) AddTask(name string, fn any, options ...TaskOption) *Task {
-	config := &taskConfig{}
-
-	for _, opt := range options {
-		opt(config)
-	}
-
-	fnValue := reflect.ValueOf(fn)
-	fnType := fnValue.Type()
-
-	if fnType.Kind() != reflect.Func {
-		panic("task function must be a function")
-	}
-	if fnType.NumIn() != 2 {
-		panic("task function must have exactly 2 parameters: (ctx Context, input T)")
-	}
-	if fnType.NumOut() != 2 {
-		panic("task function must return exactly 2 values: (output T, error)")
-	}
-
-	contextType := reflect.TypeOf((*Context)(nil)).Elem()
-	durableContextType := reflect.TypeOf((*worker.DurableHatchetContext)(nil)).Elem()
-
-	if config.isDurable {
-		if !fnType.In(0).Implements(durableContextType) && fnType.In(0) != durableContextType {
-			panic("first parameter for durable task must be DurableHatchetContext")
-		}
-	} else {
-		if !fnType.In(0).Implements(contextType) && fnType.In(0) != contextType {
-			panic("first parameter must be Context")
-		}
-	}
-
-	errorType := reflect.TypeOf((*error)(nil)).Elem()
-	if !fnType.Out(1).Implements(errorType) {
-		panic("second return value must be error")
-	}
-
-	wrapper := func(ctx Context, input any) (any, error) {
-		// Convert the input to the expected type
-		expectedInputType := fnType.In(1)
-		convertedInput := convertInputToType(input, expectedInputType)
-
-		// For durable tasks, we need to pass the context as the expected type
-		var contextArg reflect.Value
-		durableContextType := reflect.TypeOf((*worker.DurableHatchetContext)(nil)).Elem()
-		if fnType.In(0).Implements(durableContextType) || fnType.In(0) == durableContextType {
-			// For durable tasks, convert the context to DurableHatchetContext
-			durableCtx := worker.NewDurableHatchetContext(ctx)
-			contextArg = reflect.ValueOf(durableCtx)
-		} else {
-			contextArg = reflect.ValueOf(ctx)
-		}
-
-		args := []reflect.Value{
-			contextArg,
-			convertedInput,
-		}
-
-		results := fnValue.Call(args)
-
-		output := results[0].Interface()
-		var err error
-		if !results[1].IsNil() {
-			err = results[1].Interface().(error)
-		}
-
-		return output, err
-	}
-
-	taskOpts := create.WorkflowTask[any, any]{
-		Name:                   name,
-		Retries:                config.retries,
-		RetryBackoffFactor:     config.retryBackoffFactor,
-		RetryMaxBackoffSeconds: config.retryMaxBackoffSeconds,
-		ExecutionTimeout:       config.executionTimeout,
-		Concurrency:            config.concurrency,
-		RateLimits:             config.rateLimits,
-		Parents:                config.parents,
-		WaitFor:                config.waitFor,
-		SkipIf:                 config.skipIf,
-	}
-
-	namedTask := w.declaration.Task(taskOpts, wrapper)
-
-	return &Task{NamedTask: namedTask}
-}
-
-// NewDurableTask adds a durable task to the workflow.
+// NewDurableTask transforms a function into a durable Hatchet task that runs as part of a workflow.
 // This is a convenience method that automatically sets the WithDurable option.
-func (w *Workflow) NewDurableTask(name string, fn any, options ...TaskOption) *Workflow {
-	durableOptions := append(options, WithDurable())
+func (w *Workflow) NewDurableTask(name string, fn any, options ...TaskOption) *Task {
+	durableOptions := append(options, withDurable())
 	return w.NewTask(name, fn, durableOptions...)
-}
-
-// NewStandaloneTask creates a workflow containing a single task.
-// Workflow-level options (cron, events) are extracted from task options.
-func NewStandaloneTask(name string, fn any, v0Client v0Client.Client, options ...TaskOption) *Workflow {
-	config := &taskConfig{}
-
-	for _, opt := range options {
-		opt(config)
-	}
-
-	var workflowOptions []WorkflowOption
-	if len(config.onCron) > 0 {
-		workflowOptions = append(workflowOptions, WithWorkflowCron(config.onCron...))
-	}
-	if len(config.onEvents) > 0 {
-		workflowOptions = append(workflowOptions, WithWorkflowEvents(config.onEvents...))
-	}
-
-	workflow := NewWorkflow(name, v0Client, workflowOptions...)
-
-	taskOptions := make([]TaskOption, 0)
-	for _, opt := range options {
-		if isTaskLevelOption(opt) {
-			taskOptions = append(taskOptions, opt)
-		}
-	}
-	workflow.NewTask(name, fn, taskOptions...)
-
-	return workflow
-}
-
-func isTaskLevelOption(opt TaskOption) bool {
-	config := &taskConfig{}
-	opt(config)
-
-	return config.retries != 0 || config.retryBackoffFactor != 0 || config.retryMaxBackoffSeconds != 0 ||
-		config.executionTimeout != 0 || len(config.concurrency) > 0 || config.isDurable
 }
 
 // OnFailure sets a failure handler for the workflow.

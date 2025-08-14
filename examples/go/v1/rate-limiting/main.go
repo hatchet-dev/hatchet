@@ -143,7 +143,7 @@ func main() {
 				
 				userID := fmt.Sprintf("%s-user-%d", userPrefix, (index%3)+1) // Cycle through 3 users
 				
-				err := client.Run(context.Background(), workflowName, APIRequest{
+				_, err := client.Run(context.Background(), workflowName, APIRequest{
 					UserID:    userID,
 					Action:    fmt.Sprintf("action-%d", index+1),
 					Timestamp: time.Now().Format(time.RFC3339),
@@ -187,7 +187,7 @@ func main() {
 	log.Println("  - Multiple rate limits on a single task")
 	log.Println("  - Rate limit units and duration configuration")
 
-	if err := worker.Run(context.Background()); err != nil {
+	if err := worker.StartBlocking(); err != nil {
 		log.Fatalf("failed to start worker: %v", err)
 	}
 }

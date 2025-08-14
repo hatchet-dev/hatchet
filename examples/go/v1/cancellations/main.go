@@ -69,7 +69,7 @@ func main() {
 		time.Sleep(2 * time.Second)
 
 		log.Println("Starting workflow instance...")
-		err := client.Run(context.Background(), "cancellation-demo", CancellationInput{
+		_, err := client.Run(context.Background(), "cancellation-demo", CancellationInput{
 			Message: "This task will run for 10 seconds and can be cancelled",
 		})
 		if err != nil {
@@ -87,7 +87,7 @@ func main() {
 	log.Println("  - Graceful shutdown on cancellation")
 	log.Println("  - Task timeout configuration")
 
-	if err := worker.Run(context.Background()); err != nil {
+	if err := worker.StartBlocking(); err != nil {
 		log.Fatalf("failed to start worker: %v", err)
 	}
 }

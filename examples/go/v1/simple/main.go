@@ -23,11 +23,12 @@ func main() {
 
 	// Create a simple workflow with one task
 	workflow := client.NewWorkflow("simple-workflow")
-	workflow.NewTask("process-message", func(ctx hatchet.Context, input SimpleInput) (SimpleOutput, error) {
+	task := workflow.NewTask("process-message", func(ctx hatchet.Context, input SimpleInput) (SimpleOutput, error) {
 		return SimpleOutput{
 			Result: "Processed: " + input.Message,
 		}, nil
 	})
+	_ = task // Task reference available for building DAGs
 
 	// Create a worker to run the workflow
 	worker, err := client.NewWorker("simple-worker", hatchet.WithWorkflows(workflow))
@@ -36,7 +37,7 @@ func main() {
 	}
 
 	// Run a workflow instance
-	err = client.Run(context.Background(), "simple-workflow", SimpleInput{
+	_, err = client.Run(context.Background(), "simple-workflow", SimpleInput{
 		Message: "Hello, World!",
 	})
 	if err != nil {
@@ -44,7 +45,7 @@ func main() {
 	}
 
 	// Start the worker (blocks)
-	if err := worker.Run(context.Background()); err != nil {
+	if err := worker.StartBlocking(); err != nil {
 		log.Fatalf("failed to start worker: %v", err)
 	}
 }

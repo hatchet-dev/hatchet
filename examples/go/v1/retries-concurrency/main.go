@@ -83,7 +83,7 @@ func main() {
 		for i := 0; i < 10; i++ {
 			category := categories[rand.Intn(len(categories))]
 
-			err = client.Run(context.Background(), "retry-concurrency-workflow", TaskInput{
+			_, err = client.Run(context.Background(), "retry-concurrency-workflow", TaskInput{
 				ID:       fmt.Sprintf("task-%d", i),
 				Category: category,
 				Payload:  fmt.Sprintf("data for task %d", i),
@@ -97,7 +97,7 @@ func main() {
 	}()
 
 	log.Println("Starting worker with retry and concurrency controls...")
-	if err := worker.Run(context.Background()); err != nil {
+	if err := worker.StartBlocking(); err != nil {
 		log.Fatalf("failed to start worker: %v", err)
 	}
 }

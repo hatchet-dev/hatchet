@@ -51,7 +51,7 @@ func main() {
 	// Start the worker in a goroutine
 	go func() {
 		log.Println("Starting bulk operations worker...")
-		if err := worker.Run(context.Background()); err != nil {
+		if err := worker.StartBlocking(); err != nil {
 			log.Printf("worker failed: %v", err)
 		}
 	}()
@@ -70,10 +70,12 @@ func main() {
 
 	log.Printf("Running bulk operations with %d items...", len(bulkInputs))
 
-	// Prepare inputs as []any for bulk run
-	inputs := make([]any, len(bulkInputs))
+	// Prepare inputs as []RunManyOpt for bulk run
+	inputs := make([]hatchet.RunManyOpt, len(bulkInputs))
 	for i, input := range bulkInputs {
-		inputs[i] = input
+		inputs[i] = hatchet.RunManyOpt{
+			Input: input,
+		}
 	}
 
 	// Run workflows in bulk
