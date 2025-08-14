@@ -48,7 +48,6 @@ import {
 
 export default function Events() {
   const [selectedEvent, setSelectedEvent] = useState<V1Event | null>(null);
-  console.log('selectedEvent', selectedEvent);
   const { tenantId } = useCurrentTenantId();
 
   const [searchParams, setSearchParams] = useSearchParams();
