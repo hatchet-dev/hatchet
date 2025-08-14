@@ -17,8 +17,9 @@ jobs:
       with:
         node-version: '22'
 
-    - name: Install dependencies (if needed)
-      run: npm install
+    - uses: pnpm/action-setup@v4
+      with:
+        version: 10
 
     - name: Run your generation script
       run: |
