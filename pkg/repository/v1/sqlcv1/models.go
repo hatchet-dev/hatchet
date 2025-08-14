@@ -1182,7 +1182,6 @@ const (
 	V1IncomingWebhookSourceNameGITHUB  V1IncomingWebhookSourceName = "GITHUB"
 	V1IncomingWebhookSourceNameSTRIPE  V1IncomingWebhookSourceName = "STRIPE"
 	V1IncomingWebhookSourceNameSLACK   V1IncomingWebhookSourceName = "SLACK"
-	V1IncomingWebhookSourceNameDISCORD V1IncomingWebhookSourceName = "DISCORD"
 )
 
 func (e *V1IncomingWebhookSourceName) Scan(src interface{}) error {
