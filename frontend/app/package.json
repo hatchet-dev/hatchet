@@ -14,7 +14,7 @@
     "prettier:check": "prettier \"src/**/*.{ts,tsx}\" --list-different",
     "prettier:fix": "prettier \"src/**/*.{ts,tsx}\" --write",
     "preview": "vite preview",
-    "sync-examples": "cd ../snips/ && pnpm i && pnpm generate && pnpm run copy:app"
+    "sync-examples": "cd ../snips/ && pnpm i && pnpm generate"
   },
   "dependencies": {
     "@heroicons/react": "^2.2.0",

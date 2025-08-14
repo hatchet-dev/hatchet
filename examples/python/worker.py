@@ -6,6 +6,10 @@ from examples.bulk_operations.worker import (
     bulk_replay_test_3,
 )
 from examples.cancellation.worker import cancellation_workflow
+from examples.concurrency_cancel_in_progress.worker import (
+    concurrency_cancel_in_progress_workflow,
+)
+from examples.concurrency_cancel_newest.worker import concurrency_cancel_newest_workflow
 from examples.concurrency_limit.worker import concurrency_limit_workflow
 from examples.concurrency_limit_rr.worker import concurrency_limit_rr_workflow
 from examples.concurrency_multiple_keys.worker import concurrency_multiple_keys_workflow
@@ -68,6 +72,8 @@ def main() -> None:
             sync_fanout_child,
             non_retryable_workflow,
             concurrency_workflow_level_workflow,
+            concurrency_cancel_newest_workflow,
+            concurrency_cancel_in_progress_workflow,
             di_workflow,
             lifespan_task,
             simple,

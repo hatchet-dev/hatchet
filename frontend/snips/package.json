@@ -29,7 +29,7 @@
     "test:watch": "jest --watch",
     "copy:docs": "rm -rf ../docs/lib/generated/snips && mkdir -p ../docs/lib/generated && cp -r ./out/snips ../docs/lib/generated/snips",
     "copy:examples": "rm -rf ../../examples && cp -r ./out/examples ../../",
-    "copy:all": "npm run copy:docs && npm run copy:app",
+    "copy:all": "npm run copy:docs && npm run copy:examples",
     "generate:copy": "npm run generate && npm run copy:all"
   },
   "dependencies": {
