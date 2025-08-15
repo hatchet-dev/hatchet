@@ -48,11 +48,11 @@ Importantly, using e.g. `requests.get` to make an API call also (confusingly) fa
 
 Let's give a simple example, which we'll come back to later as a helpful debugging strategy. We'll first write two functions:
 
-<Snippet src={snippets.python.blocked_async.debugging} />
+<Snippet src={snippets.python.blocked_async.debugging.functions} />
 
 And let's run these concurrently with `asyncio.gather` and `asyncio.create_task`:
 
-<Snippet src={snippets.python.blocked_async.debugging} />
+<Snippet src={snippets.python.blocked_async.debugging.blocked} />
 
 If you run this code, you'll see logs like this:
 
@@ -67,7 +67,7 @@ Non-blocking 2
 
 On the other hand, you can run two tasks running the non-blocking function concurrently as you'd expect:
 
-<Snippet src={snippets.python.blocked_async.debugging} />
+<Snippet src={snippets.python.blocked_async.debugging.unblocked} />
 
 Which results in the logs below. Note that the output from the two tasks, `A` and `B`, are interleaved, indicating that they're correctly running concurrently.
 
@@ -95,7 +95,7 @@ Some common (and some less common) examples of blocking operations might include
 In each of these cases, while this work is happening, no other async work on your Hatchet workers will be able to progress. We see some interesting and scary behavior if we run some blocking code in Hatchet. We'll share some ideas for how to work around each of these blocking operations below.
 
 <Snippet
-  src={snippets.python.blocked_async.blocking_example_worker}
+  src={snippets.python.blocked_async.blocking_example_worker.worker}
  
 />
 
@@ -104,7 +104,7 @@ Here we define a few tasks, one which is async and does blocking work (`time.sle
 As an experiment, we can run them as follows to simulate what might happen in a production environment:
 
 <Snippet
-  src={snippets.python.blocked_async.blocking_example_trigger}
+  src={snippets.python.blocked_async.blocking_example_trigger.trigger}
  
 />
 

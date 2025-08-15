@@ -59,15 +59,15 @@ The first way to bulk cancel or replay runs is by providing a list of run ids. T
 
     First, we'll start by fetching a task via the REST API.
 
-    <Snippet src={snippets.go.bulk_operations.main.setup} />
+    <Snippet src={snippets.python.bulk_operations.cancel.setup} />
 
     Now that we have a task, we'll get runs for it, so that we can use them to bulk cancel by run id.
 
-    <Snippet src={snippets.go.bulk_operations.main.list_runs} />
+    <Snippet src={snippets.python.bulk_operations.cancel.list_runs} />
 
     And finally, we can cancel the runs in bulk.
 
-    <Snippet src={snippets.go.bulk_operations.main.cancel_by_run_ids} />
+    <Snippet src={snippets.python.bulk_operations.cancel.cancel_by_run_ids} />
 
   </Tabs.Tab>
 </UniversalTabs>
@@ -94,7 +94,7 @@ The second way to bulk cancel or replay runs is by providing a list of filters. 
 
 The example below provides some filters you might use to cancel or replay runs in bulk. Importantly, these filters are very similar to the filters you can use in the Hatchet Dashboard to filter which task runs are displaying.
 
-    <Snippet src={snippets.go.bulk_operations.main.cancel_by_filters} />
+    <Snippet src={snippets.python.bulk_operations.cancel.cancel_by_filters} />
 
     Running this request will cancel all task runs matching the filters provided.
 
