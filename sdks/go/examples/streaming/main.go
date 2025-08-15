@@ -139,22 +139,22 @@ func main() {
     <style>
         body { font-family: Arial, sans-serif; margin: 40px; }
         .container { max-width: 800px; margin: 0 auto; }
-        .output { 
-            border: 1px solid #ccc; 
-            padding: 20px; 
-            height: 400px; 
-            overflow-y: auto; 
+        .output {
+            border: 1px solid #ccc;
+            padding: 20px;
+            height: 400px;
+            overflow-y: auto;
             background-color: #f5f5f5;
             white-space: pre-wrap;
         }
-        button { 
-            padding: 10px 20px; 
-            font-size: 16px; 
-            margin: 10px 0; 
-            background-color: #007cba; 
-            color: white; 
-            border: none; 
-            cursor: pointer; 
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            margin: 10px 0;
+            background-color: #007cba;
+            color: white;
+            border: none;
+            cursor: pointer;
         }
         button:hover { background-color: #005a87; }
     </style>
@@ -172,40 +172,40 @@ func main() {
         function startStream() {
             const output = document.getElementById('output');
             output.innerHTML = 'Starting stream...\n';
-            
+
             fetch('/stream')
                 .then(response => {
                     const reader = response.body.getReader();
                     const decoder = new TextDecoder();
-                    
+
                     function readStream() {
                         reader.read().then(({ done, value }) => {
                             if (done) {
                                 output.innerHTML += '\nStream completed.\n';
                                 return;
                             }
-                            
+
                             const chunk = decoder.decode(value);
                             const lines = chunk.split('\n');
-                            
+
                             lines.forEach(line => {
                                 if (line.startsWith('data: ')) {
                                     output.innerHTML += line.substring(6) + '\n';
                                     output.scrollTop = output.scrollHeight;
                                 }
                             });
-                            
+
                             readStream();
                         });
                     }
-                    
+
                     readStream();
                 })
                 .catch(err => {
                     output.innerHTML += 'Error: ' + err.message + '\n';
                 });
         }
-        
+
         function clearOutput() {
             document.getElementById('output').innerHTML = '';
         }
