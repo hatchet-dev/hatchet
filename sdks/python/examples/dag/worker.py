@@ -38,6 +38,7 @@ async def step3(input: EmptyModel, ctx: Context) -> RandomSum:
     return RandomSum(sum=one + two)
 
 
+# 👀 cool thing!
 @dag_workflow.task(parents=[step1, step3])
 async def step4(input: EmptyModel, ctx: Context) -> dict[str, str]:
     print(

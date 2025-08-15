@@ -1,5 +1,6 @@
-import * as snippets from './generated/snips';
-import { Snippet as SnippetType } from './generated/snips/types';
-
-export type Snippet = SnippetType;
-export default snippets;
+export type Snippet = {
+  title: string;
+  content: string;
+  github_url: string;
+  language: 'python' | 'typescript' | 'go';
+}
