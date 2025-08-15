@@ -30,24 +30,24 @@
 //
 // For comprehensive examples demonstrating various Hatchet features, see:
 //
-//   - Basic workflow with a single task: https://github.com/hatchet-dev/hatchet/tree/main/examples/go/v1/simple
-//   - Complex workflows with task dependencies: https://github.com/hatchet-dev/hatchet/tree/main/examples/go/v1/dag
-//   - Conditional task execution and branching: https://github.com/hatchet-dev/hatchet/tree/main/examples/go/v1/conditions
-//   - Triggered by external events: https://github.com/hatchet-dev/hatchet/tree/main/examples/go/v1/events
-//   - Time-based workflow scheduling: https://github.com/hatchet-dev/hatchet/tree/main/examples/go/v1/cron
-//   - Error handling and parallel execution: https://github.com/hatchet-dev/hatchet/tree/main/examples/go/v1/retries-concurrency
-//   - Control execution rate per resource: https://github.com/hatchet-dev/hatchet/tree/main/examples/go/v1/rate-limiting
-//   - Process multiple items efficiently: https://github.com/hatchet-dev/hatchet/tree/main/examples/go/v1/bulk-operations
-//   - Nested workflow execution: https://github.com/hatchet-dev/hatchet/tree/main/examples/go/v1/child-workflows
-//   - Worker affinity and state management: https://github.com/hatchet-dev/hatchet/tree/main/examples/go/v1/sticky-workers
-//   - Long-running tasks with state persistence: https://github.com/hatchet-dev/hatchet/tree/main/examples/go/v1/durable
-//   - Real-time data processing: https://github.com/hatchet-dev/hatchet/tree/main/examples/go/v1/streaming
-//   - Task execution prioritization: https://github.com/hatchet-dev/hatchet/tree/main/examples/go/v1/priority
-//   - Task timeout handling: https://github.com/hatchet-dev/hatchet/tree/main/examples/go/v1/timeouts
-//   - Workflow and task cancellation: https://github.com/hatchet-dev/hatchet/tree/main/examples/go/v1/cancellations
-//   - Error recovery and cleanup: https://github.com/hatchet-dev/hatchet/tree/main/examples/go/v1/on-failure
+//   - Basic workflow with a single task: https://github.com/hatchet-dev/hatchet/tree/main/sdks/go/examples/simple
+//   - Complex workflows with task dependencies: https://github.com/hatchet-dev/hatchet/tree/main/sdks/go/examples/dag
+//   - Conditional task execution and branching: https://github.com/hatchet-dev/hatchet/tree/main/sdks/go/examples/conditions
+//   - Triggered by external events: https://github.com/hatchet-dev/hatchet/tree/main/sdks/go/examples/events
+//   - Time-based workflow scheduling: https://github.com/hatchet-dev/hatchet/tree/main/sdks/go/examples/cron
+//   - Error handling and parallel execution: https://github.com/hatchet-dev/hatchet/tree/main/sdks/go/examples/retries-concurrency
+//   - Control execution rate per resource: https://github.com/hatchet-dev/hatchet/tree/main/sdks/go/examples/rate-limiting
+//   - Process multiple items efficiently: https://github.com/hatchet-dev/hatchet/tree/main/sdks/go/examples/bulk-operations
+//   - Nested workflow execution: https://github.com/hatchet-dev/hatchet/tree/main/sdks/go/examples/child-workflows
+//   - Worker affinity and state management: https://github.com/hatchet-dev/hatchet/tree/main/sdks/go/examples/sticky-workers
+//   - Long-running tasks with state persistence: https://github.com/hatchet-dev/hatchet/tree/main/sdks/go/examples/durable
+//   - Real-time data processing: https://github.com/hatchet-dev/hatchet/tree/main/sdks/go/examples/streaming
+//   - Task execution prioritization: https://github.com/hatchet-dev/hatchet/tree/main/sdks/go/examples/priority
+//   - Task timeout handling: https://github.com/hatchet-dev/hatchet/tree/main/sdks/go/examples/timeouts
+//   - Workflow and task cancellation: https://github.com/hatchet-dev/hatchet/tree/main/sdks/go/examples/cancellations
+//   - Error recovery and cleanup: https://github.com/hatchet-dev/hatchet/tree/main/sdks/go/examples/on-failure
 //
-// View all examples: https://github.com/hatchet-dev/hatchet/tree/main/examples/go/v1
+// View all examples: https://github.com/hatchet-dev/hatchet/tree/main/sdks/go/examples
 package hatchet
 
 import (
