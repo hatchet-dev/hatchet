@@ -83,6 +83,18 @@ def parse_snippets(ctx: SDKParsingContext, filename: str) -> list[Snippet]:
 
     github_url = f"https://github.com/hatchet-dev/hatchet/tree/main/examples/{ctx.name.lower()}{filename.replace(base_path, '')}"
 
+    matches = list(re.finditer(pattern, content, re.DOTALL))
+
+    if not matches:
+        return [
+            Snippet(
+                title="all",
+                content=content,
+                githubUrl=github_url,
+                language=ctx.name.lower(),
+            )
+        ]
+
     return [
         Snippet(
             title=x[0],
@@ -90,7 +102,7 @@ def parse_snippets(ctx: SDKParsingContext, filename: str) -> list[Snippet]:
             githubUrl=github_url,
             language=ctx.name.lower(),
         )
-        for match in re.finditer(pattern, content, re.DOTALL)
+        for match in matches
         if (x := parse_snippet_from_block(match))
     ]
 
