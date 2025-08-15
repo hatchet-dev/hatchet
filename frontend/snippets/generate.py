@@ -1,9 +1,10 @@
-from enum import Enum
-import re
-import os
-from dataclasses import dataclass, asdict
 import glob
 import json
+import os
+import re
+from dataclasses import asdict, dataclass
+from enum import Enum
+from typing import Any
 
 
 @dataclass
@@ -18,7 +19,7 @@ class SDKParsingContext(Enum):
         example_path="sdks/python/examples", extension=".py", comment_prefix="#"
     )
     TYPESCRIPT = ParsingContext(
-        example_path="sdks/typescript/src/examples/v1",
+        example_path="sdks/typescript/src/v1/examples",
         extension=".ts",
         comment_prefix="//",
     )
@@ -71,7 +72,9 @@ def parse_snippet_from_block(match: re.Match[str]) -> tuple[Title, Content]:
 
 
 def parse_snippets(ctx: SDKParsingContext, filename: str) -> list[Snippet]:
-    pattern = r"# >\s+(.+?)\n(.*?)\n# !!"
+    comment_prefix = re.escape(ctx.value.comment_prefix)  # Escape for regex safety
+    pattern = rf"{comment_prefix} >\s+(.+?)\n(.*?)\n{comment_prefix} !!"
+
     subdir = ctx.value.example_path.rstrip("/").lstrip("/")
     base_path = ROOT + subdir
 
@@ -104,28 +107,29 @@ def process_example(ctx: SDKParsingContext, filename: str) -> ProcessedExample:
         )
 
 
-def process_examples(ctx: SDKParsingContext) -> list[ProcessedExample]:
-    subdir = ctx.value.example_path.rstrip("/").lstrip("/")
-    base_path = ROOT + subdir
-    path = base_path + "/**/*" + ctx.value.extension
+def process_examples() -> list[ProcessedExample]:
+    examples: list[ProcessedExample] = []
 
-    return [
-        process_example(ctx, filename)
-        for filename in glob.iglob(path, recursive=True)
-        if not any(re.search(pattern, filename) for pattern in IGNORED_FILE_PATTERNS)
-    ]
+    for ctx in SDKParsingContext:
+        subdir = ctx.value.example_path.rstrip("/").lstrip("/")
+        base_path = ROOT + subdir
+        path = base_path + "/**/*" + ctx.value.extension
 
-
-def write_snippets_to_files(examples: list[ProcessedExample]) -> None:
-    with open(os.path.join(BASE_SNIPPETS_DIR, "snips.ts"), "w") as f:
-        f.write(
-            "export type Snippet = {\n"
-            "  title: string;\n"
-            "  content: string;\n"
-            "  github_url: string;\n"
-            f"  language: {' | '.join([f"'{e.name.lower()}'" for e in SDKParsingContext])};\n"
-            "}\n"
+        examples.extend(
+            [
+                process_example(ctx, filename)
+                for filename in glob.iglob(path, recursive=True)
+                if not any(
+                    re.search(pattern, filename) for pattern in IGNORED_FILE_PATTERNS
+                )
+            ]
         )
+
+    return examples
+
+
+def create_snippet_tree(examples: list[ProcessedExample]) -> dict[str, dict[str, Any]]:
+    tree: dict[str, Any] = {}
 
     for example in examples:
         keys = (
@@ -135,23 +139,27 @@ def write_snippets_to_files(examples: list[ProcessedExample]) -> None:
         )
 
         for snippet in example.snippets:
-            file_path_parts = keys + [f"{snippet.title}.ts"]
-            file_path = os.path.join(OUTPUT_DIR, *file_path_parts)
+            full_keys = keys + [snippet.title]
 
-            os.makedirs(os.path.dirname(file_path), exist_ok=True)
-            ts = (
-                'import { Snippet } from "@/lib/snips";\n\n'
-                + "export const snippet: Snippet = "
-                + json.dumps(asdict(snippet), indent=2)
-            )
+            current = tree
+            for key in full_keys[:-1]:
+                if key not in current:
+                    current[key] = {}
+                current = current[key]
 
-            with open(file_path, "w") as f:
-                f.write(ts)
+            current[full_keys[-1]] = asdict(snippet)
 
-            print(f"Wrote: {file_path}")
+    return tree
 
 
 if __name__ == "__main__":
-    processed_examples = process_examples(SDKParsingContext.PYTHON)
+    processed_examples = process_examples()
 
-    write_snippets_to_files(processed_examples)
+    tree = create_snippet_tree(processed_examples)
+
+    print(f"Writing snippets to {OUTPUT_DIR}/index.ts")
+
+    with open(os.path.join(OUTPUT_DIR, "index.ts"), "w") as f:
+        f.write("export const snippets = ")
+        json.dump(tree, f, indent=2)
+        f.write(" as const;\n")
