@@ -163,3 +163,16 @@ if __name__ == "__main__":
         f.write("export const snippets = ")
         json.dump(tree, f, indent=2)
         f.write(" as const;\n")
+
+    snippet_type = (
+        "export type Snippet = {\n"
+        "    title: string;\n"
+        "    content: string;\n"
+        "    githubUrl: string;\n"
+        f"    language: {' | '.join([f"'{v.name.lower()}'" for v in SDKParsingContext])}\n"
+        "};\n"
+    )
+
+    print(f"Writing snippet type to {BASE_SNIPPETS_DIR}/snippet.ts")
+    with open(os.path.join(BASE_SNIPPETS_DIR, "snippet.ts"), "w") as f:
+        f.write(snippet_type)
