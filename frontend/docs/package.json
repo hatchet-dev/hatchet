@@ -4,7 +4,7 @@
   "description": "Nextra docs template",
   "packageManager": "pnpm@9.15.4",
   "scripts": {
-    "taskfile-dev": "pnpm run generate-examples && next dev",
+    "taskfile-dev": "next dev",
     "dev": "task docs",
     "only:dev": "next dev",
     "build": "pnpm run generate-examples && next build",
@@ -13,7 +13,7 @@
     "lint:fix": "npm run prettier:fix",
     "prettier:check": "prettier \"pages/**/*.{tsx,mdx}\" --list-different",
     "prettier:fix": "prettier \"pages/**/*.{tsx,mdx,js}\" --write",
-    "generate-examples": "cd ../snips/ && pnpm i && pnpm generate && pnpm run copy:docs"
+    "generate-examples": "cd ../snippets/ && python3 generate.py"
   },
   "repository": {
     "type": "git",

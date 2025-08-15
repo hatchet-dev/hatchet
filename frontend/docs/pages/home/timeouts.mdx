@@ -40,15 +40,16 @@ You can specify execution and scheduling timeouts for a task using the `executio
 
 <UniversalTabs items={['Python', 'Typescript']}>
   <Tabs.Tab>
-  <Snippet src={snips.python.timeout.worker} block="executiontimeout" />
+  <Snippet src={snippets.python.timeout.worker.execution_timeout} />
 
   </Tabs.Tab>
   <Tabs.Tab>
-  <Snippet src={snips.typescript.with_timeouts.workflow} block="execution_timeout" />
+  <Snippet src={snippets.typescript.with_timeouts.workflow.declaring_a_task} />
 
   </Tabs.Tab>
   <Tabs.Tab>
-    <Snippet src={snips.go.workflows.timeouts} block="execution_timeout" />
+    {/* TODO: Go execution_timeout pattern needs to be found in new structure */}
+    <Snippet src={snippets.go.workflows.ratelimit.upsert_rate_limit} />
 
   </Tabs.Tab>
 </UniversalTabs>
@@ -72,14 +73,15 @@ For example:
 
 <UniversalTabs items={['Python', 'Typescript']}>
   <Tabs.Tab>
-  <Snippet src={snips.python.timeout.worker} block="refreshtimeout" />
+  <Snippet src={snippets.python.timeout.worker.refresh_timeout} />
 
   </Tabs.Tab>
   <Tabs.Tab>
-  <Snippet src={snips.typescript.with_timeouts.workflow} block="refresh_timeout" />
+  <Snippet src={snippets.typescript.with_timeouts.workflow.refresh_timeout} />
   </Tabs.Tab>
   <Tabs.Tab>
-  <Snippet src={snips.go.workflows.timeouts} block="refresh_timeout" />
+  {/* TODO: Go refresh_timeout pattern needs to be found in new structure */}
+  <Snippet src={snippets.go.workflows.ratelimit.dynamic_rate_limit} />
   </Tabs.Tab>
 </UniversalTabs>
 

@@ -32,7 +32,7 @@ class SDKParsingContext(Enum):
 class Snippet:
     title: str
     content: str
-    github_url: str
+    githubUrl: str
     language: str
 
 
@@ -52,7 +52,7 @@ IGNORED_FILE_PATTERNS = [r"__init__\.py$", r"test_.*\.py$"]
 
 
 def to_snake_case(text):
-    text = re.sub(r"[^a-zA-Z\s\-_]", "", text)
+    text = re.sub(r"[^a-zA-Z0-9\s\-_]", "", text)
     text = re.sub(r"[-\s]+", "_", text)
     text = re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", text)
     text = re.sub(r"([A-Z])([A-Z][a-z])", r"\1_\2", text)
@@ -87,7 +87,7 @@ def parse_snippets(ctx: SDKParsingContext, filename: str) -> list[Snippet]:
         Snippet(
             title=x[0],
             content=x[1],
-            github_url=github_url,
+            githubUrl=github_url,
             language=ctx.name.lower(),
         )
         for match in re.finditer(pattern, content, re.DOTALL)
@@ -143,6 +143,7 @@ def create_snippet_tree(examples: list[ProcessedExample]) -> dict[str, dict[str,
 
             current = tree
             for key in full_keys[:-1]:
+                key = to_snake_case(key)
                 if key not in current:
                     current[key] = {}
                 current = current[key]

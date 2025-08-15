@@ -40,20 +40,18 @@ In addition to setting concurrency limits at the task level, you can also contro
 <UniversalTabs items={["Python", "Typescript", "Go"]}>
   <Tabs.Tab>
     <Snippet
-      src={snips.python.concurrency_limit_rr.worker}
-      block="concurrency_strategy_with_key"
+      src={snippets.python.concurrency_limit_rr.worker.concurrency_strategy_with_key}
     />
   </Tabs.Tab>
   <Tabs.Tab>
     <Snippet
-      src={snips.typescript.concurrency_rr.workflow}
-      block="concurrency_strategy_with_key"
+      src={snippets.typescript["concurrency-rr"].workflow.concurrency_strategy_with_key}
     />
   </Tabs.Tab>
   <Tabs.Tab>
+    {/* TODO: Go concurrency_strategy_with_key pattern needs to be found in new structure */}
     <Snippet
-      src={snips.go.workflows.concurrency_rr}
-      block="concurrency_strategy_with_key"
+      src={snippets.go.workflows.ratelimit.upsert_rate_limit}
     />
   </Tabs.Tab>
 </UniversalTabs>
@@ -125,20 +123,18 @@ You can also combine multiple concurrency strategies to create a more complex co
 <UniversalTabs items={["Python", "Typescript", "Go"]}>
   <Tabs.Tab>
     <Snippet
-      src={snips.python.concurrency_workflow_level.worker}
-      block="multiple_concurrency_keys"
+      src={snippets.python.concurrency_workflow_level.worker.multiple_concurrency_keys}
     />
   </Tabs.Tab>
   <Tabs.Tab>
     <Snippet
-      src={snips.typescript.concurrency_rr.workflow}
-      block="multiple_concurrency_keys"
+      src={snippets.typescript["concurrency-rr"].workflow.multiple_concurrency_keys}
     />
   </Tabs.Tab>
   <Tabs.Tab>
+    {/* TODO: Go multiple_concurrency_keys pattern needs to be found in new structure */}
     <Snippet
-      src={snips.go.workflows.concurrency_rr}
-      block="multiple_concurrency_keys"
+      src={snippets.go.workflows.ratelimit.dynamic_rate_limit}
     />
   </Tabs.Tab>
 </UniversalTabs>
