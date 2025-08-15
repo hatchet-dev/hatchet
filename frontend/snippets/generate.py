@@ -159,6 +159,7 @@ if __name__ == "__main__":
     tree = create_snippet_tree(processed_examples)
 
     print(f"Writing snippets to {OUTPUT_DIR}/index.ts")
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
 
     with open(os.path.join(OUTPUT_DIR, "index.ts"), "w") as f:
         f.write("export const snippets = ")

@@ -45,7 +45,8 @@ You can also spawn tasks from within a task. This is useful for composing tasks 
 
 You can run a task from within a task by calling the `aio_run` method on the task object from within a task function. This will associate the runs in the dashboard for easier debugging.
 
-<Snippet src={snippets.python.child.simple_fanout.running_a_task_from_within_a_task}
+<Snippet
+  src={snippets.python.child.simple_fanout.running_a_task_from_within_a_task}
 />
 
 And that's it! The parent task will run and spawn the child task, and then will collect the results from its tasks.

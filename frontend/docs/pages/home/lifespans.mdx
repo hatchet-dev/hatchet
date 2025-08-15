@@ -34,9 +34,7 @@ When the worker starts, it will run the lifespan up to the `yield`. Then, on wor
 
 Then, to use your lifespan in a task, you can extract it from the context with `Context.lifespan`.
 
-<Snippet
-  src={snippets.python.lifespans.worker.use_the_lifespan_in_a_task}
-/>
+<Snippet src={snippets.python.lifespans.worker.use_the_lifespan_in_a_task} />
 
 <Callout type="info" emoji="💡">
   For type checking, cast the `Context.lifespan` to whatever type your lifespan

@@ -35,16 +35,10 @@ The new SDK also provides improved type support for spawning child tasks from ar
 
 First, we declare a child task:
 
-<Snippet
-  src={snippets.typescript.child_workflows.workflow}
- 
-/>
+<Snippet src={snippets.typescript.child_workflows.workflow} />
 
 Next, we spawn that child from a parent task:
 
-<Snippet
-  src={snippets.typescript.child_workflows.workflow}
- 
-/>
+<Snippet src={snippets.typescript.child_workflows.workflow} />
 
 In this example, the compiler knows what to expect for the types of `input` and `ctx` for each of the tasks, as well as the type of the input of the `child` task when spawning it from the `parent` task.

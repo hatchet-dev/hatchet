@@ -23,19 +23,13 @@ Since dependencies are run before tasks are executed, having many dependencies (
 
 To add dependencies to your tasks, import `Depends` from the `hatchet_sdk`. Then:
 
-<Snippet
-  src={snippets.python.dependency_injection.worker}
- 
-/>
+<Snippet src={snippets.python.dependency_injection.worker} />
 
 In this example, we've declared two dependencies: one synchronous and one asynchronous. You can do anything you like in your dependencies, such as creating database sessions, managing configuration, sharing instances of service-layer logic, and more.
 
 Once you've defined your dependency functions, inject them into your tasks as follows:
 
-<Snippet
-  src={snippets.python.dependency_injection.worker}
- 
-/>
+<Snippet src={snippets.python.dependency_injection.worker} />
 
 <Callout type="warning" emoji="⚠️">
   Important note: Your dependency functions must take two positional arguments:
