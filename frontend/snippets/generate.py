@@ -72,8 +72,8 @@ def parse_snippet_from_block(match: re.Match[str]) -> tuple[Title, Content]:
 
 
 def parse_snippets(ctx: SDKParsingContext, filename: str) -> list[Snippet]:
-    comment_prefix = re.escape(ctx.value.comment_prefix)  # Escape for regex safety
-    pattern = rf"{comment_prefix} >\s+(.+?)\n(.*?)\n{comment_prefix} !!"
+    comment_prefix = re.escape(ctx.value.comment_prefix)
+    pattern = rf"{comment_prefix} >\s+(.+?)\n(.*?){comment_prefix} !!"
 
     subdir = ctx.value.example_path.rstrip("/").lstrip("/")
     base_path = ROOT + subdir
