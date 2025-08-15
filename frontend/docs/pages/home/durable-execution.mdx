@@ -25,11 +25,11 @@ Tasks that are declared as being durable (using `durable_task` instead of `task`
 
 Now that we know a bit about how Hatchet handles durable execution, let's build a task. We'll start by declaring a task that will run durably, on the "durable worker".
 
-<Snippet src={snippets.python.durable.worker} />
+<Snippet src={snippets.python.durable.worker.create_a_durable_workflow} />
 
 Here, we've declared a Hatchet task just like any other. Now, we can add some tasks to it:
 
-<Snippet src={snippets.python.durable.worker} />
+<Snippet src={snippets.python.durable.worker.add_durable_task} />
 
 We've added two tasks to our workflow. The first is a normal, "ephemeral" task, which does not leverage any of Hatchet's durable features.
 
@@ -50,4 +50,4 @@ If this task is interrupted at any time, it will continue from where it left off
 
 Similarly to in [conditional workflows](./conditional-workflows.mdx#or-groups), durable tasks can also use or groups in the wait conditions they use. For example, you could wait for either an event or a sleep (whichever comes first) like this:
 
-<Snippet src={snippets.python.durable.worker} />
+<Snippet src={snippets.python.durable.worker.add_durable_tasks_that_wait_for_or_groups} />
