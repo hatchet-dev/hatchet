@@ -3,7 +3,7 @@ import { LogViewer } from "../../components/LogViewer";
 import * as prefetch from "./_celery_prefetch.json";
 import { Callout, Card, Cards, Steps, Tabs } from "nextra/components";
 import { Snippet } from "@/components/code";
-import snips from "@/lib/snips";
+import { snippets } from "@/lib/generated/snippets";
 
 # **Warning! The Event Loop May Be Blocked**
 
@@ -48,11 +48,11 @@ Importantly, using e.g. `requests.get` to make an API call also (confusingly) fa
 
 Let's give a simple example, which we'll come back to later as a helpful debugging strategy. We'll first write two functions:
 
-<Snippet src={snips.python.blocked_async.debugging} block="functions" />
+<Snippet src={snippets.python.blocked_async.debugging.functions} />
 
 And let's run these concurrently with `asyncio.gather` and `asyncio.create_task`:
 
-<Snippet src={snips.python.blocked_async.debugging} block="blocked" />
+<Snippet src={snippets.python.blocked_async.debugging.blocked} />
 
 If you run this code, you'll see logs like this:
 
@@ -67,7 +67,7 @@ Non-blocking 2
 
 On the other hand, you can run two tasks running the non-blocking function concurrently as you'd expect:
 
-<Snippet src={snips.python.blocked_async.debugging} block="unblocked" />
+<Snippet src={snippets.python.blocked_async.debugging.unblocked} />
 
 Which results in the logs below. Note that the output from the two tasks, `A` and `B`, are interleaved, indicating that they're correctly running concurrently.
 
@@ -94,19 +94,13 @@ Some common (and some less common) examples of blocking operations might include
 
 In each of these cases, while this work is happening, no other async work on your Hatchet workers will be able to progress. We see some interesting and scary behavior if we run some blocking code in Hatchet. We'll share some ideas for how to work around each of these blocking operations below.
 
-<Snippet
-  src={snips.python.blocked_async.blocking_example_worker}
-  block="worker"
-/>
+<Snippet src={snippets.python.blocked_async.blocking_example_worker.worker} />
 
 Here we define a few tasks, one which is async and does blocking work (`time.sleep`), one which is sync and does blocking work (`time.sleep`), and one that is async and does non-blocking work (`asyncio.sleep`).
 
 As an experiment, we can run them as follows to simulate what might happen in a production environment:
 
-<Snippet
-  src={snips.python.blocked_async.blocking_example_trigger}
-  block="trigger"
-/>
+<Snippet src={snippets.python.blocked_async.blocking_example_trigger.trigger} />
 
 The intention of this example is to first kick off the non-blocking sync and async tasks, let them start to process, then kick off the blocking task, let it start to process, and finally kick off the non-blocking sync task again, and then let all of them complete. The worker logs are illustrative:
 
