@@ -48,7 +48,15 @@ class ProcessedExample:
 ROOT = "../../"
 BASE_SNIPPETS_DIR = os.path.join(ROOT, "frontend", "docs", "lib")
 OUTPUT_DIR = os.path.join(BASE_SNIPPETS_DIR, "generated", "snippets")
-IGNORED_FILE_PATTERNS = [r"__init__\.py$", r"test_.*\.py$"]
+IGNORED_FILE_PATTERNS = [
+    r"__init__\.py$",
+    r"test_.*\.py$",
+    r"\.test\.ts$",
+    r"\.test-d\.ts$",
+    r"test_.*\.go$",
+    r"_test\.go$",
+    r"\.e2e\.ts$",
+]
 
 
 def to_snake_case(text):
@@ -165,6 +173,41 @@ def create_snippet_tree(examples: list[ProcessedExample]) -> dict[str, dict[str,
     return tree
 
 
+def is_excluded_line(line: str, comment_prefix: str) -> bool:
+    end_pattern = f"{comment_prefix} !!"
+    return line.strip() == end_pattern or "eslint-disable" in line or "HH-" in line
+
+
+def process_line_content(line: str) -> str:
+    return line.replace("@hatchet/", "@hatchet-dev/typescript-sdk/")
+
+
+def clean_example_content(content: str, comment_prefix: str) -> str:
+    lines = content.split("\n")
+
+    return "\n".join(
+        [
+            process_line_content(line)
+            for line in lines
+            if not is_excluded_line(line, comment_prefix)
+        ]
+    )
+
+
+def write_examples(examples: list[ProcessedExample]) -> None:
+    for example in examples:
+        out_path = os.path.join(ROOT, example.output_path)
+        out_dir = os.path.dirname(out_path)
+        os.makedirs(out_dir, exist_ok=True)
+
+        with open(out_path, "w") as f:
+            f.write(
+                clean_example_content(
+                    example.raw_content, example.context.value.comment_prefix
+                )
+            )
+
+
 if __name__ == "__main__":
     processed_examples = process_examples()
 
@@ -190,3 +233,5 @@ if __name__ == "__main__":
     print(f"Writing snippet type to {BASE_SNIPPETS_DIR}/snippet.ts")
     with open(os.path.join(BASE_SNIPPETS_DIR, "snippet.ts"), "w") as f:
         f.write(snippet_type)
+
+    write_examples(processed_examples)
