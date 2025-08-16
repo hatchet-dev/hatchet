@@ -7,6 +7,7 @@ import (
 	"math/rand"
 	"time"
 
+	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
 	hatchet "github.com/hatchet-dev/hatchet/sdks/go"
 )
 
@@ -175,8 +176,11 @@ func main() {
 		log.Fatalf("failed to run workflow: %v", err)
 	}
 
+	interruptCtx, cancel := cmdutils.NewInterruptContext()
+	defer cancel()
+
 	log.Println("Starting conditional workflow worker...")
-	if err := worker.StartBlocking(); err != nil {
+	if err := worker.StartBlocking(interruptCtx); err != nil {
 		log.Fatalf("failed to start worker: %v", err)
 	}
 }

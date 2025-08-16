@@ -5,6 +5,7 @@ import (
 	"log"
 	"time"
 
+	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
 	hatchet "github.com/hatchet-dev/hatchet/sdks/go"
 )
 
@@ -88,7 +89,11 @@ func main() {
 	log.Println("  - Event-triggered standalone tasks")
 	log.Println("  - Processing event payloads")
 	log.Println("  - Real event sending and handling")
-	if err := worker.StartBlocking(); err != nil {
+
+	interruptCtx, cancel := cmdutils.NewInterruptContext()
+	defer cancel()
+
+	if err := worker.StartBlocking(interruptCtx); err != nil {
 		log.Fatalf("failed to start worker: %v", err)
 	}
 }

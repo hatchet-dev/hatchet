@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
+	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
 	hatchet "github.com/hatchet-dev/hatchet/sdks/go"
 )
 
@@ -187,7 +188,10 @@ func main() {
 	log.Println("  - Multiple rate limits on a single task")
 	log.Println("  - Rate limit units and duration configuration")
 
-	if err := worker.StartBlocking(); err != nil {
+	interruptCtx, cancel := cmdutils.NewInterruptContext()
+	defer cancel()
+
+	if err := worker.StartBlocking(interruptCtx); err != nil {
 		log.Fatalf("failed to start worker: %v", err)
 	}
 }

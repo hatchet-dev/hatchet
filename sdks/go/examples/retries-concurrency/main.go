@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
+	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
 	hatchet "github.com/hatchet-dev/hatchet/sdks/go"
 )
 
@@ -96,8 +97,11 @@ func main() {
 		}
 	}()
 
+	interruptCtx, cancel := cmdutils.NewInterruptContext()
+	defer cancel()
+
 	log.Println("Starting worker with retry and concurrency controls...")
-	if err := worker.StartBlocking(); err != nil {
+	if err := worker.StartBlocking(interruptCtx); err != nil {
 		log.Fatalf("failed to start worker: %v", err)
 	}
 }

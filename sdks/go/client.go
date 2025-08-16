@@ -2,11 +2,14 @@ package hatchet
 
 import (
 	"context"
+	"fmt"
+	"sync"
 
 	v0Client "github.com/hatchet-dev/hatchet/pkg/client"
 	"github.com/hatchet-dev/hatchet/pkg/worker"
 	"github.com/hatchet-dev/hatchet/sdks/go/features"
 	"github.com/hatchet-dev/hatchet/sdks/go/internal"
+	"golang.org/x/sync/errgroup"
 )
 
 // Client provides the main interface for interacting with Hatchet.
@@ -16,10 +19,6 @@ type Client struct {
 
 // NewClient creates a new Hatchet client.
 // Configuration options can be provided to customize the client behavior.
-//
-// For examples of client usage, see:
-//   - [Simple workflow](https://github.com/hatchet-dev/hatchet/tree/main/examples/go/v1/simple)
-//   - [All examples](https://github.com/hatchet-dev/hatchet/tree/main/examples/go/v1)
 func NewClient(opts ...v0Client.ClientOpt) (*Client, error) {
 	legacyClient, err := v0Client.New(opts...)
 	if err != nil {
@@ -59,10 +58,6 @@ func (c *Client) NewWorker(name string, options ...WorkerOption) (*Worker, error
 		workerOpts = append(workerOpts, worker.WithLogger(config.logger))
 	}
 
-	if config.logLevel != "" {
-		workerOpts = append(workerOpts, worker.WithLogLevel(config.logLevel))
-	}
-
 	if config.labels != nil {
 		workerOpts = append(workerOpts, worker.WithLabels(config.labels))
 	}
@@ -93,10 +88,18 @@ func (c *Client) NewWorker(name string, options ...WorkerOption) (*Worker, error
 
 	// Register regular workflows with non-durable worker
 	for _, workflow := range regularWorkflows {
-		req, _, _, onFailureFn := workflow.Dump()
+		req, regularActions, _, onFailureFn := workflow.Dump()
 		err := nonDurableWorker.RegisterWorkflowV1(req)
 		if err != nil {
 			return nil, err
+		}
+
+		// Register all regular task actions
+		for _, namedFn := range regularActions {
+			err = nonDurableWorker.RegisterAction(namedFn.ActionID, namedFn.Fn)
+			if err != nil {
+				return nil, err
+			}
 		}
 
 		// Register on failure function if exists
@@ -123,10 +126,6 @@ func (c *Client) NewWorker(name string, options ...WorkerOption) (*Worker, error
 			durableWorkerOpts = append(durableWorkerOpts, worker.WithLogger(config.logger))
 		}
 
-		if config.logLevel != "" {
-			durableWorkerOpts = append(durableWorkerOpts, worker.WithLogLevel(config.logLevel))
-		}
-
 		if config.labels != nil {
 			durableWorkerOpts = append(durableWorkerOpts, worker.WithLabels(config.labels))
 		}
@@ -138,12 +137,19 @@ func (c *Client) NewWorker(name string, options ...WorkerOption) (*Worker, error
 
 		// Register durable workflows with durable worker
 		for _, workflow := range durableWorkflows {
-			req, _, _, _ := workflow.Dump()
+			req, _, durableActions, _ := workflow.Dump()
 			err := durableWorker.RegisterWorkflowV1(req)
 			if err != nil {
 				return nil, err
 			}
 
+			// Register all durable task actions
+			for _, namedFn := range durableActions {
+				err = durableWorker.RegisterAction(namedFn.ActionID, namedFn.Fn)
+				if err != nil {
+					return nil, err
+				}
+			}
 		}
 	}
 
@@ -156,58 +162,88 @@ func (c *Client) NewWorker(name string, options ...WorkerOption) (*Worker, error
 
 // Starts the worker instance and returns a cleanup function.
 func (w *Worker) Start() (func() error, error) {
-	// Start non-durable worker
-	nonDurableCleanup, err := w.nonDurable.Start()
-	if err != nil {
+	var workers []*worker.Worker
+
+	if w.nonDurable != nil {
+		workers = append(workers, w.nonDurable)
+	}
+
+	if w.durable != nil {
+		workers = append(workers, w.durable)
+	}
+
+	// Track cleanup functions with a mutex to safely access from multiple goroutines
+	var cleanupFuncs []func() error
+	var cleanupMu sync.Mutex
+
+	// Use errgroup to start workers concurrently
+	g := new(errgroup.Group)
+
+	// Start all workers concurrently
+	for i := range workers {
+		worker := workers[i] // Capture the worker for the goroutine
+		g.Go(func() error {
+			cleanup, err := worker.Start()
+			if err != nil {
+				return fmt.Errorf("failed to start worker %s: %w", *worker.ID(), err)
+			}
+
+			cleanupMu.Lock()
+			cleanupFuncs = append(cleanupFuncs, cleanup)
+			cleanupMu.Unlock()
+			return nil
+		})
+	}
+
+	// Wait for all workers to start
+	if err := g.Wait(); err != nil {
+		// Clean up any workers that did start
+		for _, cleanupFn := range cleanupFuncs {
+			_ = cleanupFn()
+		}
 		return nil, err
 	}
 
-	var durableCleanup func() error
-	// Start durable worker if it exists
-	if w.durable != nil {
-		durableCleanup, err = w.durable.Start()
-		if err != nil {
-			// Stop the non-durable worker if durable worker fails to start
-			if nonDurableCleanup != nil {
-				nonDurableCleanup()
-			}
-			return nil, err
-		}
-	}
+	// Return a combined cleanup function that also uses errgroup for concurrent cleanup
+	return func() error {
+		g := new(errgroup.Group)
 
-	cleanup := func() error {
-		if nonDurableCleanup != nil {
-			nonDurableCleanup()
+		for _, cleanup := range cleanupFuncs {
+			cleanupFn := cleanup // Capture the cleanup function for the goroutine
+			g.Go(func() error {
+				return cleanupFn()
+			})
 		}
-		if durableCleanup != nil {
-			durableCleanup()
+
+		// Wait for all cleanup operations to complete and return any error
+		if err := g.Wait(); err != nil {
+			return fmt.Errorf("worker cleanup error: %w", err)
 		}
+
 		return nil
-	}
-
-	return cleanup, nil
+	}, nil
 }
 
-// StartBlocking starts both worker instances and blocks until they complete.
+// StartBlocking starts the worker and blocks until it completes.
 // This is a convenience method for common usage patterns.
-func (w *Worker) StartBlocking() error {
+func (w *Worker) StartBlocking(ctx context.Context) error {
 	cleanup, err := w.Start()
 	if err != nil {
 		return err
 	}
 
-	// Wait for the cleanup function to complete
-	return cleanup()
+	<-ctx.Done()
+
+	err = cleanup()
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // NewWorkflow creates a new workflow definition.
 // Workflows can be configured with triggers, events, and other options.
-//
-// For workflow examples, see:
-//   - [DAG workflows](https://github.com/hatchet-dev/hatchet/tree/main/examples/go/v1/dag) - Complex workflows with dependencies
-//   - [Event-driven workflows](https://github.com/hatchet-dev/hatchet/tree/main/examples/go/v1/events) - Event-triggered workflows
-//   - [Cron scheduling](https://github.com/hatchet-dev/hatchet/tree/main/examples/go/v1/cron) - Scheduled workflows
-//   - [All examples](https://github.com/hatchet-dev/hatchet/tree/main/examples/go/v1)
 func (c *Client) NewWorkflow(name string, options ...WorkflowOption) *Workflow {
 	return newWorkflow(name, c.legacyClient, options...)
 }

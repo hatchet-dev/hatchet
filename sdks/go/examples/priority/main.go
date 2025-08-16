@@ -5,6 +5,7 @@ import (
 	"log"
 	"time"
 
+	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
 	hatchet "github.com/hatchet-dev/hatchet/sdks/go"
 )
 
@@ -116,7 +117,7 @@ func main() {
 		}, 0)
 
 		// Submit high priority task second (but should be processed first)
-		go runWithPriority(4, PriorityInput{
+		go runWithPriority(3, PriorityInput{
 			UserID:    "user-002",
 			TaskType:  "alert",
 			Message:   "Critical system alert",
@@ -132,7 +133,7 @@ func main() {
 		}, 200*time.Millisecond)
 
 		// Submit another high priority task
-		go runWithPriority(5, PriorityInput{
+		go runWithPriority(3, PriorityInput{
 			UserID:    "user-004",
 			TaskType:  "emergency",
 			Message:   "Emergency response needed",
@@ -156,7 +157,10 @@ func main() {
 	log.Println("  - Different processing behavior based on priority")
 	log.Println("  - Premium vs standard user handling")
 
-	if err := worker.StartBlocking(); err != nil {
+	interruptCtx, cancel := cmdutils.NewInterruptContext()
+	defer cancel()
+
+	if err := worker.StartBlocking(interruptCtx); err != nil {
 		log.Fatalf("failed to start worker: %v", err)
 	}
 }
