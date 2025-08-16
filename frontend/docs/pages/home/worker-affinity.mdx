@@ -2,13 +2,6 @@ import { snippets } from "@/lib/generated/snippets";
 import { Snippet } from "@/components/code";
 import { Tabs, Callout } from "nextra/components";
 import UniversalTabs from "../../components/UniversalTabs";
-import { GithubSnippet, getSnippets } from "@/components/code";
-
-export const WorkerAffinityTS = {
-  path: "src/examples/affinity-workers.ts",
-};
-
-export const getStaticProps = ({}) => getSnippets([WorkerAffinityTS]);
 
 # Worker Affinity Assignment (Beta)
 
