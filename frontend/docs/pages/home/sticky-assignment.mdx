@@ -2,13 +2,6 @@ import { snippets } from "@/lib/generated/snippets";
 import { Snippet } from "@/components/code";
 import { Tabs, Callout } from "nextra/components";
 import UniversalTabs from "../../components/UniversalTabs";
-import { GithubSnippet, getSnippets } from "@/components/code";
-
-export const StickyWorkerGo = {
-  path: "examples/go/z_v0/assignment-sticky/main.go",
-};
-
-export const getStaticProps = ({}) => getSnippets([StickyWorkerGo]);
 
 # Sticky Worker Assignment (Beta)
 
@@ -53,8 +46,7 @@ There are two strategies for setting sticky assignment for [DAG](./dags.mdx) wor
   </Tabs.Tab>
   <Tabs.Tab>
 
-<GithubSnippet src={StickyWorkerGo} target="StickyWorker" />
-
+<Snippet src={snippets.go.z_v0.assignment_sticky.main.all} />
   </Tabs.Tab>
 </UniversalTabs>
 
@@ -74,7 +66,7 @@ If either condition is not met, an error will be thrown when the child task is s
 <UniversalTabs items={['Python', 'Typescript']}>
   <Tabs.Tab>
 
-<Snippet src={snippets.python.sticky_workers.worker.sticky_worker} />
+<Snippet src={snippets.python.sticky_workers.worker.sticky_child} />
 
   </Tabs.Tab>
   <Tabs.Tab>
@@ -84,7 +76,7 @@ If either condition is not met, an error will be thrown when the child task is s
   </Tabs.Tab>
   <Tabs.Tab>
 
-<GithubSnippet src={StickyWorkerGo} target="StickyChild" />
+<Snippet src={snippets.go.z_v0.assignment_sticky.main.all} />
 
   </Tabs.Tab>
 </UniversalTabs>
