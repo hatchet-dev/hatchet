@@ -44,12 +44,11 @@ You can specify execution and scheduling timeouts for a task using the `executio
 
   </Tabs.Tab>
   <Tabs.Tab>
-  <Snippet src={snippets.typescript.with_timeouts.workflow.declaring_a_task} />
+  <Snippet src={snippets.typescript.with_timeouts.workflow.execution_timeout} />
 
   </Tabs.Tab>
   <Tabs.Tab>
-    {/* TODO: Go execution_timeout pattern needs to be found in new structure */}
-    <Snippet src={snippets.go.workflows.ratelimit.upsert_rate_limit} />
+    <Snippet src={snippets.go.workflows.timeouts.execution_timeout} />
 
   </Tabs.Tab>
 </UniversalTabs>
@@ -80,8 +79,7 @@ For example:
   <Snippet src={snippets.typescript.with_timeouts.workflow.refresh_timeout} />
   </Tabs.Tab>
   <Tabs.Tab>
-  {/* TODO: Go refresh_timeout pattern needs to be found in new structure */}
-  <Snippet src={snippets.go.workflows.ratelimit.dynamic_rate_limit} />
+  <Snippet src={snippets.go.workflows.timeouts.refresh_timeout} />
   </Tabs.Tab>
 </UniversalTabs>
 
