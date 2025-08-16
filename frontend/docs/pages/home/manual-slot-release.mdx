@@ -28,17 +28,12 @@ In some cases, you may have a task in your workflow that is resource-intensive a
 
 You can manually release a slot in from within a running task in your workflow using the Hatchet context method `release_slot`:
 
-<UniversalTabs items={['Python', 'Typescript']}>
+<UniversalTabs items={['Python']}>
 <Tabs.Tab>
 <Snippet src={snippets.python.manual_slot_release.worker.slot_release} />
 
 </Tabs.Tab>
 
-<Tabs.Tab>
-
-<GithubSnippet src={SlotReleaseTS} target="SlotRelease" />
-
-</Tabs.Tab>
 <Tabs.Tab>
 
 ```go
