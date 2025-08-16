@@ -26,7 +26,7 @@ export const Snippet = ({ src }: { src: SnippetType }) => {
       source={{
         githubUrl: src.githubUrl,
         raw: src.content,
-        language: languageToHighlightAbbreviation'(src.language),
+        language: languageToHighlightAbbreviation(src.language),
       }}
     />
   );
