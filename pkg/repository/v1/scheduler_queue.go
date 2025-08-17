@@ -217,7 +217,7 @@ func (d *queueRepository) MarkQueueItemsProcessed(ctx context.Context, r *Assign
 		})
 	}
 
-	// remove rate limited queue items from the queue and place them in the v1_rate_limited_qis table
+	// remove rate limited queue items from the queue and place them in the v1_rate_limited_queue_items table
 	// we only do this if the requeue_after time is at least 2 seconds in the future, to avoid thrashing
 	qisToMoveToRateLimited := make([]int64, 0, len(r.RateLimited))
 	qisToMoveToRateLimitedRQAfter := make([]pgtype.Timestamptz, 0, len(r.RateLimited))

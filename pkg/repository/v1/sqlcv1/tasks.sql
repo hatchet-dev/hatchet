@@ -244,7 +244,7 @@ WITH input AS (
     SELECT
         task_id, task_inserted_at, retry_count
     FROM
-        v1_rate_limited_qis
+        v1_rate_limited_queue_items
     WHERE
         (task_id, task_inserted_at, retry_count) IN (SELECT task_id, task_inserted_at, retry_count FROM input)
     ORDER BY
@@ -252,7 +252,7 @@ WITH input AS (
     FOR UPDATE
 ), deleted_rate_limited AS (
     DELETE FROM
-        v1_rate_limited_qis
+        v1_rate_limited_queue_items
     WHERE
         (task_id, task_inserted_at, retry_count) IN (SELECT task_id, task_inserted_at, retry_count FROM rate_limited_items_to_delete)
 )

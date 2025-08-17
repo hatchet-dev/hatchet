@@ -2910,7 +2910,7 @@ type V1QueueItem struct {
 	RetryCount        int32              `json:"retry_count"`
 }
 
-type V1RateLimitedQis struct {
+type V1RateLimitedQueueItems struct {
 	RequeueAfter      pgtype.Timestamptz `json:"requeue_after"`
 	TenantID          pgtype.UUID        `json:"tenant_id"`
 	Queue             string             `json:"queue"`

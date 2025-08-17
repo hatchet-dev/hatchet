@@ -362,7 +362,7 @@ CREATE TABLE v1_task_expression_eval (
 );
 
 -- CreateTable
--- NOTE: changes to v1_queue_item should be reflected in v1_rate_limited_qis
+-- NOTE: changes to v1_queue_item should be reflected in v1_rate_limited_queue_items
 CREATE TABLE v1_queue_item (
     id bigint GENERATED ALWAYS AS IDENTITY,
     tenant_id UUID NOT NULL,
@@ -430,8 +430,8 @@ alter table v1_task_runtime set (
     autovacuum_vacuum_cost_limit='1000'
 );
 
--- v1_rate_limited_qis represents a queue item that has been rate limited and removed from the v1_queue_item table.
-CREATE TABLE v1_rate_limited_qis (
+-- v1_rate_limited_queue_items represents a queue item that has been rate limited and removed from the v1_queue_item table.
+CREATE TABLE v1_rate_limited_queue_items (
     requeue_after TIMESTAMPTZ NOT NULL,
     -- everything below this is the same as v1_queue_item
     tenant_id UUID NOT NULL,
@@ -450,16 +450,16 @@ CREATE TABLE v1_rate_limited_qis (
     desired_worker_id UUID,
     retry_count INTEGER NOT NULL DEFAULT 0,
 
-    CONSTRAINT v1_rate_limited_qis_pkey PRIMARY KEY (task_id, task_inserted_at, retry_count)
+    CONSTRAINT v1_rate_limited_queue_items_pkey PRIMARY KEY (task_id, task_inserted_at, retry_count)
 );
 
-CREATE INDEX v1_rate_limited_qis_tenant_requeue_after_idx ON v1_rate_limited_qis (
+CREATE INDEX v1_rate_limited_queue_items_tenant_requeue_after_idx ON v1_rate_limited_queue_items (
     tenant_id ASC,
     queue ASC,
     requeue_after ASC
 );
 
-alter table v1_rate_limited_qis set (
+alter table v1_rate_limited_queue_items set (
     autovacuum_vacuum_scale_factor = '0.1',
     autovacuum_analyze_scale_factor='0.05',
     autovacuum_vacuum_threshold='25',

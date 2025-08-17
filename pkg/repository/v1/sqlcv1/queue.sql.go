@@ -493,7 +493,7 @@ WITH input AS (
         desired_worker_id,
         retry_count
 )
-INSERT INTO v1_rate_limited_qis (
+INSERT INTO v1_rate_limited_queue_items (
     requeue_after,
     tenant_id,
     queue,
@@ -590,7 +590,7 @@ WITH ready_items AS (
         desired_worker_id,
         retry_count
     FROM
-        v1_rate_limited_qis
+        v1_rate_limited_queue_items
     WHERE
         tenant_id = $1::uuid
         AND queue = $2::text
@@ -599,7 +599,7 @@ WITH ready_items AS (
         task_id, task_inserted_at, retry_count
     FOR UPDATE SKIP LOCKED -- locked are about to be deleted
 ), deleted_items AS (
-    DELETE FROM v1_rate_limited_qis
+    DELETE FROM v1_rate_limited_queue_items
     WHERE
         (task_id, task_inserted_at, retry_count) IN (SELECT task_id, task_inserted_at, retry_count FROM ready_items)
     RETURNING
