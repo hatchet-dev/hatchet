@@ -1,4 +1,4 @@
-import { hatchet } from "../hatchet-client";
+import { hatchet } from '../hatchet-client';
 
 const sleep = (ms: number) =>
   new Promise((resolve) => {
@@ -18,15 +18,15 @@ const workflow = hatchet.workflow({
 workflow.task({
   name: 'logger-step1',
   fn: async (_, ctx) => {
-        // log in a for loop
-        for (let i = 0; i < 10; i++) {
-          ctx.logger.info(`log message ${i}`);
-          await sleep(200);
-        }
+    // log in a for loop
+    for (let i = 0; i < 10; i++) {
+      ctx.logger.info(`log message ${i}`);
+      await sleep(200);
+    }
 
-        return { step1: 'completed step run' };
-      },
-})
+    return { step1: 'completed step run' };
+  },
+});
 
 
 async function main() {
