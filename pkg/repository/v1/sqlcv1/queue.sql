@@ -357,7 +357,21 @@ RETURNING tenant_id, task_id, task_inserted_at, retry_count;
 -- name: RequeueRateLimitedQueueItems :many
 WITH ready_items AS (
     SELECT
-        *
+        tenant_id,
+        queue,
+        task_id,
+        task_inserted_at,
+        external_id,
+        action_id,
+        step_id,
+        workflow_id,
+        workflow_run_id,
+        schedule_timeout_at,
+        step_timeout,
+        priority,
+        sticky,
+        desired_worker_id,
+        retry_count
     FROM
         v1_rate_limited_qis
     WHERE

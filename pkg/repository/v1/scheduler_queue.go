@@ -27,6 +27,8 @@ type RateLimitResult struct {
 	RetryCount     int32
 }
 
+const rateLimitedRequeueAfterThreshold = 2 * time.Second
+
 type AssignedItem struct {
 	WorkerId pgtype.UUID
 
@@ -221,7 +223,7 @@ func (d *queueRepository) MarkQueueItemsProcessed(ctx context.Context, r *Assign
 	qisToMoveToRateLimitedRQAfter := make([]pgtype.Timestamptz, 0, len(r.RateLimited))
 
 	for _, row := range r.RateLimited {
-		if row.NextRefillAt != nil && row.NextRefillAt.UTC().After(time.Now().UTC().Add(2*time.Second)) {
+		if row.NextRefillAt != nil && row.NextRefillAt.UTC().After(time.Now().UTC().Add(rateLimitedRequeueAfterThreshold)) {
 			qisToMoveToRateLimited = append(qisToMoveToRateLimited, row.ID)
 			qisToMoveToRateLimitedRQAfter = append(qisToMoveToRateLimitedRQAfter, sqlchelpers.TimestamptzFromTime(*row.NextRefillAt))
 		}
