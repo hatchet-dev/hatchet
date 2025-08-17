@@ -48,6 +48,8 @@ class ProcessedExample:
 ROOT = "../../"
 BASE_SNIPPETS_DIR = os.path.join(ROOT, "frontend", "docs", "lib")
 OUTPUT_DIR = os.path.join(BASE_SNIPPETS_DIR, "generated", "snippets")
+OUTPUT_GITHUB_ORG = "hatchet-dev"
+OUTPUT_GITHUB_REPO = "hatchet"
 IGNORED_FILE_PATTERNS = [
     r"__init__\.py$",
     r"test_.*\.py$",
@@ -89,7 +91,7 @@ def parse_snippets(ctx: SDKParsingContext, filename: str) -> list[Snippet]:
     with open(filename) as f:
         content = f.read()
 
-    github_url = f"https://github.com/hatchet-dev/hatchet/tree/main/examples/{ctx.name.lower()}{filename.replace(base_path, '')}"
+    github_url = f"https://github.com/{OUTPUT_GITHUB_ORG}/{OUTPUT_GITHUB_REPO}/tree/main/examples/{ctx.name.lower()}{filename.replace(base_path, '')}"
 
     matches = list(re.finditer(pattern, content, re.DOTALL))
 
