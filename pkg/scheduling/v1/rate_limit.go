@@ -316,13 +316,5 @@ func (r *rateLimiter) flushToDatabase(ctx context.Context) error {
 	// clear the unflushed rate limits
 	r.unflushed = make(rateLimitSet)
 
-	go func() {
-		_, err := r.rateLimitRepo.RequeueRateLimitedItems(ctx, r.tenantId)
-
-		if err != nil {
-			r.l.Error().Err(err).Msg("error requeuing rate limited items")
-		}
-	}()
-
 	return nil
 }

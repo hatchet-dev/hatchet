@@ -27,11 +27,6 @@ func (m *mockRateLimitRepo) UpdateRateLimits(ctx context.Context, tenantId pgtyp
 	return args.Get(0).([]*sqlcv1.ListRateLimitsForTenantWithMutateRow), &arg1, args.Error(2)
 }
 
-func (m *mockRateLimitRepo) RequeueRateLimitedItems(ctx context.Context, tenantId pgtype.UUID) ([]*sqlcv1.RequeueRateLimitedQueueItemsRow, error) {
-	args := m.Called(ctx, tenantId)
-	return args.Get(0).([]*sqlcv1.RequeueRateLimitedQueueItemsRow), args.Error(1)
-}
-
 func TestRateLimiter_Use(t *testing.T) {
 	l := zerolog.Nop()
 

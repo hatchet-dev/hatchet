@@ -593,6 +593,41 @@ func (d *queueRepository) GetDesiredLabels(ctx context.Context, stepIds []pgtype
 	return stepIdToLabels, nil
 }
 
+func (d *queueRepository) RequeueRateLimitedItems(ctx context.Context, tenantId pgtype.UUID, queueName string) ([]*sqlcv1.RequeueRateLimitedQueueItemsRow, error) {
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, d.pool, d.l, 5000)
+
+	if err != nil {
+		return nil, err
+	}
+
+	defer rollback()
+
+	rows, err := d.queries.RequeueRateLimitedQueueItems(ctx, tx, sqlcv1.RequeueRateLimitedQueueItemsParams{
+		Tenantid: tenantId,
+		Queue:    queueName,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	// if we moved items in v1_queue_item, we need to update the active status of the queue, in case we've
+	// been rate limited for longer than a day and the queue has gone inactive
+	saveQueues, err := d.upsertQueues(ctx, tx, sqlchelpers.UUIDToStr(tenantId), []string{queueName})
+
+	if err != nil {
+		return nil, err
+	}
+
+	if err := commit(ctx); err != nil {
+		return nil, err
+	}
+
+	saveQueues()
+
+	return rows, nil
+}
+
 func getLargerDuration(s1, s2 string) (string, error) {
 	i1, err := getDurationIndex(s1)
 	if err != nil {

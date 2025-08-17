@@ -25,6 +25,7 @@ CREATE TABLE v1_rate_limited_qis (
 
 CREATE INDEX v1_rate_limited_qis_tenant_requeue_after_idx ON v1_rate_limited_qis (
     tenant_id ASC,
+    queue ASC,
     requeue_after ASC
 );
 

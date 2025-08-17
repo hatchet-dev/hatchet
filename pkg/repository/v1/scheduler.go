@@ -34,13 +34,13 @@ type QueueRepository interface {
 	MarkQueueItemsProcessed(ctx context.Context, r *AssignResults) (succeeded []*AssignedItem, failed []*AssignedItem, err error)
 
 	GetTaskRateLimits(ctx context.Context, queueItems []*sqlcv1.V1QueueItem) (map[int64]map[string]int32, error)
+	RequeueRateLimitedItems(ctx context.Context, tenantId pgtype.UUID, queueName string) ([]*sqlcv1.RequeueRateLimitedQueueItemsRow, error)
 	GetDesiredLabels(ctx context.Context, stepIds []pgtype.UUID) (map[string][]*sqlcv1.GetDesiredLabelsRow, error)
 	Cleanup()
 }
 
 type RateLimitRepository interface {
 	UpdateRateLimits(ctx context.Context, tenantId pgtype.UUID, updates map[string]int) ([]*sqlcv1.ListRateLimitsForTenantWithMutateRow, *time.Time, error)
-	RequeueRateLimitedItems(ctx context.Context, tenantId pgtype.UUID) ([]*sqlcv1.RequeueRateLimitedQueueItemsRow, error)
 }
 
 type AssignmentRepository interface {

@@ -579,6 +579,7 @@ WITH ready_items AS (
         v1_rate_limited_qis
     WHERE
         tenant_id = $1::uuid
+        AND queue = $2::text
         AND requeue_after <= NOW()
     ORDER BY
         task_id, task_inserted_at, retry_count
@@ -641,6 +642,11 @@ FROM ready_items
 RETURNING id, tenant_id, task_id, task_inserted_at, retry_count
 `
 
+type RequeueRateLimitedQueueItemsParams struct {
+	Tenantid pgtype.UUID `json:"tenantid"`
+	Queue    string      `json:"queue"`
+}
+
 type RequeueRateLimitedQueueItemsRow struct {
 	ID             int64              `json:"id"`
 	TenantID       pgtype.UUID        `json:"tenant_id"`
@@ -649,8 +655,8 @@ type RequeueRateLimitedQueueItemsRow struct {
 	RetryCount     int32              `json:"retry_count"`
 }
 
-func (q *Queries) RequeueRateLimitedQueueItems(ctx context.Context, db DBTX, tenantid pgtype.UUID) ([]*RequeueRateLimitedQueueItemsRow, error) {
-	rows, err := db.Query(ctx, requeueRateLimitedQueueItems, tenantid)
+func (q *Queries) RequeueRateLimitedQueueItems(ctx context.Context, db DBTX, arg RequeueRateLimitedQueueItemsParams) ([]*RequeueRateLimitedQueueItemsRow, error) {
+	rows, err := db.Query(ctx, requeueRateLimitedQueueItems, arg.Tenantid, arg.Queue)
 	if err != nil {
 		return nil, err
 	}

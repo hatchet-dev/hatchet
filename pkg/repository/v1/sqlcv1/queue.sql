@@ -362,6 +362,7 @@ WITH ready_items AS (
         v1_rate_limited_qis
     WHERE
         tenant_id = @tenantId::uuid
+        AND queue = @queue::text
         AND requeue_after <= NOW()
     ORDER BY
         task_id, task_inserted_at, retry_count

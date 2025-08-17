@@ -86,28 +86,6 @@ func (d *rateLimitRepository) UpdateRateLimits(ctx context.Context, tenantId pgt
 	return newRls, &nextRefillAt, err
 }
 
-func (d *rateLimitRepository) RequeueRateLimitedItems(ctx context.Context, tenantId pgtype.UUID) ([]*sqlcv1.RequeueRateLimitedQueueItemsRow, error) {
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, d.pool, d.l, 5000)
-
-	if err != nil {
-		return nil, err
-	}
-
-	defer rollback()
-
-	rows, err := d.queries.RequeueRateLimitedQueueItems(ctx, tx, tenantId)
-
-	if err != nil {
-		return nil, err
-	}
-
-	if err := commit(ctx); err != nil {
-		return nil, err
-	}
-
-	return rows, nil
-}
-
 func tenantAdvisoryInt(tenantID string) int64 {
 	hasher := fnv.New64a()
 	idBytes := []byte(tenantID)
