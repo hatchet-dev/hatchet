@@ -314,11 +314,7 @@ func (t *Task) GetName() string {
 //
 // The function parameter must have the signature:
 //
-//	func(ctx Context, input T) (T, error)
-//
-// For durable tasks, use:
-//
-//	func(ctx DurableContext, input T) (T, error)
+//	func(ctx hatchet.Context, input any) (any, error)
 //
 // Function signatures are validated at runtime using reflection.
 func (w *Workflow) NewTask(name string, fn any, options ...TaskOption) *Task {
@@ -410,7 +406,12 @@ func (w *Workflow) NewTask(name string, fn any, options ...TaskOption) *Task {
 }
 
 // NewDurableTask transforms a function into a durable Hatchet task that runs as part of a workflow.
-// This is a convenience method that automatically sets the WithDurable option.
+//
+// The function parameter must have the signature:
+//
+//	func(ctx hatchet.DurableContext, input any) (any, error)
+//
+// Function signatures are validated at runtime using reflection.
 func (w *Workflow) NewDurableTask(name string, fn any, options ...TaskOption) *Task {
 	durableOptions := append(options, withDurable())
 	return w.NewTask(name, fn, durableOptions...)
