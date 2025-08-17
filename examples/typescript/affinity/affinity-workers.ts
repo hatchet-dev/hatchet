@@ -11,17 +11,17 @@ const workflow = hatchet.workflow({
 workflow.task({
   name: 'step1',
   fn: async (_, ctx) => {
-        const results: Promise<any>[] = [];
-        for (let i = 0; i < 50; i++) {
-          const result = await ctx.spawnWorkflow(childWorkflow.id, {});
-          results.push(result.output);
-        }
-        console.log('Spawned 50 child workflows');
-        console.log('Results:', await Promise.all(results));
+    const results: Promise<any>[] = [];
+    for (let i = 0; i < 50; i++) {
+      const result = await ctx.spawnWorkflow(childWorkflow.id, {});
+      results.push(result.output);
+    }
+    console.log('Spawned 50 child workflows');
+    console.log('Results:', await Promise.all(results));
 
-        return { step1: 'step1 results!' };
-      }
-})
+    return { step1: 'step1 results!' };
+  },
+});
 
 
 const childWorkflow = hatchet.workflow({
@@ -38,9 +38,9 @@ childWorkflow.task({
     },
   },
   fn: async (ctx) => {
-        return { childStep1: 'childStep1 results!' };
-      }
-})
+    return { childStep1: 'childStep1 results!' };
+  },
+});
 
 childWorkflow.task({
   name: 'child-step2',
@@ -52,11 +52,9 @@ childWorkflow.task({
     },
   },
   fn: async (ctx) => {
-        return { childStep2: 'childStep2 results!' };
-      }
-})
-
-
+    return { childStep2: 'childStep2 results!' };
+  },
+});
 
 async function main() {
   // > AffinityWorker
