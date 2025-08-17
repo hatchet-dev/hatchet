@@ -7,6 +7,22 @@ from enum import Enum
 from typing import Any, cast
 
 
+ROOT = "../../"
+BASE_SNIPPETS_DIR = os.path.join(ROOT, "frontend", "docs", "lib")
+OUTPUT_DIR = os.path.join(BASE_SNIPPETS_DIR, "generated", "snippets")
+OUTPUT_GITHUB_ORG = "hatchet-dev"
+OUTPUT_GITHUB_REPO = "hatchet"
+IGNORED_FILE_PATTERNS = [
+    r"__init__\.py$",
+    r"test_.*\.py$",
+    r"\.test\.ts$",
+    r"\.test-d\.ts$",
+    r"test_.*\.go$",
+    r"_test\.go$",
+    r"\.e2e\.ts$",
+]
+
+
 @dataclass
 class ParsingContext:
     example_path: str
@@ -46,20 +62,14 @@ class ProcessedExample:
     output_path: str
 
 
-ROOT = "../../"
-BASE_SNIPPETS_DIR = os.path.join(ROOT, "frontend", "docs", "lib")
-OUTPUT_DIR = os.path.join(BASE_SNIPPETS_DIR, "generated", "snippets")
-OUTPUT_GITHUB_ORG = "hatchet-dev"
-OUTPUT_GITHUB_REPO = "hatchet"
-IGNORED_FILE_PATTERNS = [
-    r"__init__\.py$",
-    r"test_.*\.py$",
-    r"\.test\.ts$",
-    r"\.test-d\.ts$",
-    r"test_.*\.go$",
-    r"_test\.go$",
-    r"\.e2e\.ts$",
-]
+@dataclass
+class DocumentationPage:
+    title: str
+    href: str
+
+
+Title = str
+Content = str
 
 
 def to_snake_case(text):
@@ -262,12 +272,6 @@ def extract_doc_name(value: str | dict[str, Any]) -> str:
         return value["title"]
 
     raise ValueError(f"Invalid doc value: {value}")
-
-
-@dataclass
-class DocumentationPage:
-    title: str
-    href: str
 
 
 def write_doc_index_to_app() -> None:
