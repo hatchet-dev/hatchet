@@ -2,7 +2,7 @@ name: generate examples
 
 on:
   push:
-    branches: [ main, mk/examples-fixes ]
+    branches: [ main ]
 
 jobs:
   generate:
