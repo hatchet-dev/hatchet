@@ -12,9 +12,9 @@ import {
 
 type Src = {
   raw: string;
-  codePath: string;
-  githubUrl: string;
-  language: string;
+  codePath?: string;
+  githubUrl?: string;
+  language?: string;
 };
 
 interface CodeRendererProps {
