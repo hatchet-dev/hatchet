@@ -22,9 +22,12 @@ jobs:
         version: 9.15.4
         run_install: false
 
-    - name: Generate
-      working-directory: frontend/snips
-      run: pnpm i && pnpm generate && pnpm run copy:examples
+    - uses: actions/setup-python@v5
+      with:
+        python-version: '3.13'
+    - name: Generate snippets
+      working-directory: frontend/snippets
+      run: python3 generate.py
 
     - name: Check for changes in examples directory
       id: verify-changed-files
