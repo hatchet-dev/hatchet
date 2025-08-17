@@ -13,8 +13,7 @@
     "eslint:fix": "eslint \"{src,apps,libs,test}/**/*.{ts,tsx,js}\" --fix",
     "prettier:check": "prettier \"src/**/*.{ts,tsx}\" --list-different",
     "prettier:fix": "prettier \"src/**/*.{ts,tsx}\" --write",
-    "preview": "vite preview",
-    "sync-examples": "cd ../snips/ && pnpm i && pnpm generate"
+    "preview": "vite preview"
   },
   "dependencies": {
     "@heroicons/react": "^2.2.0",
