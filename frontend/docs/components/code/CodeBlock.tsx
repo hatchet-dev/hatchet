@@ -10,19 +10,11 @@ import {
   UnfoldVertical,
 } from "lucide-react";
 
-type RepoProps = {
-  user?: string;
-  repo?: string;
-  branch?: string;
-  path?: string;
-};
-
 type Src = {
   raw: string;
-  props?: RepoProps;
-  rawUrl?: string;
-  githubUrl?: string;
-  language?: string;
+  codePath: string;
+  githubUrl: string;
+  language: string;
 };
 
 interface CodeRendererProps {
@@ -51,7 +43,7 @@ export const CodeBlock = ({ source, target }: CodeRendererProps) => {
               rel="noopener noreferrer"
               className="text-xs text-gray-500 font-mono hover:underline"
             >
-              {source.props?.path}
+              {source.codePath}
             </a>
           )}
         </div>

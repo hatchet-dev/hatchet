@@ -32,6 +32,7 @@ export const Snippet = ({ src }: { src: SnippetType }) => {
         githubUrl: src.githubUrl,
         raw: src.content,
         language: languageToHighlightAbbreviation(src.language),
+        codePath: src.codePath,
       }}
     />
   );

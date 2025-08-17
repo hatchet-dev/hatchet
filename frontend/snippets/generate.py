@@ -34,6 +34,7 @@ class Snippet:
     content: str
     githubUrl: str
     language: str
+    codePath: str
 
 
 @dataclass
@@ -91,7 +92,9 @@ def parse_snippets(ctx: SDKParsingContext, filename: str) -> list[Snippet]:
     with open(filename) as f:
         content = f.read()
 
-    github_url = f"https://github.com/{OUTPUT_GITHUB_ORG}/{OUTPUT_GITHUB_REPO}/tree/main/examples/{ctx.name.lower()}{filename.replace(base_path, '')}"
+    code_path = f"examples/{ctx.name.lower()}{filename.replace(base_path, '')}"
+
+    github_url = f"https://github.com/{OUTPUT_GITHUB_ORG}/{OUTPUT_GITHUB_REPO}/tree/main/{code_path}"
 
     matches = list(re.finditer(pattern, content, re.DOTALL))
 
@@ -102,6 +105,7 @@ def parse_snippets(ctx: SDKParsingContext, filename: str) -> list[Snippet]:
                 content=content,
                 githubUrl=github_url,
                 language=ctx.name.lower(),
+                codePath=code_path,
             )
         ]
 
@@ -111,6 +115,7 @@ def parse_snippets(ctx: SDKParsingContext, filename: str) -> list[Snippet]:
             content=x[1],
             githubUrl=github_url,
             language=ctx.name.lower(),
+            codePath=code_path,
         )
         for match in matches
         if (x := parse_snippet_from_block(match))
@@ -228,6 +233,7 @@ if __name__ == "__main__":
         "    title: string;\n"
         "    content: string;\n"
         "    githubUrl: string;\n"
+        "    codePath: string;\n"
         f"    language: {' | '.join([f"'{v.name.lower()}'" for v in SDKParsingContext])}\n"
         "};\n"
     )
