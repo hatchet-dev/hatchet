@@ -39,7 +39,8 @@ type QueueRepository interface {
 }
 
 type RateLimitRepository interface {
-	UpdateRateLimits(ctx context.Context, tenantId pgtype.UUID, updates map[string]int) (map[string]int, *time.Time, error)
+	UpdateRateLimits(ctx context.Context, tenantId pgtype.UUID, updates map[string]int) ([]*sqlcv1.ListRateLimitsForTenantWithMutateRow, *time.Time, error)
+	RequeueRateLimitedItems(ctx context.Context, tenantId pgtype.UUID) ([]*sqlcv1.RequeueRateLimitedQueueItemsRow, error)
 }
 
 type AssignmentRepository interface {

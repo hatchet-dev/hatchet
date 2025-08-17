@@ -1,4 +1,4 @@
-package v2
+package v1
 
 import (
 	"context"
@@ -141,6 +141,7 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 		qis, err := q.refillQueue(ctx)
 
 		if err != nil {
+			span.RecordError(err)
 			span.End()
 			q.l.Error().Err(err).Msg("error refilling queue")
 			continue
@@ -155,6 +156,9 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 		rls, err := q.repo.GetTaskRateLimits(ctx, qis)
 
 		if err != nil {
+			span.RecordError(err)
+			span.End()
+
 			q.l.Error().Err(err).Msg("error getting rate limits")
 
 			q.unackedToUnassigned(qis)
@@ -173,6 +177,8 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 		labels, err := q.repo.GetDesiredLabels(ctx, stepIds)
 
 		if err != nil {
+			span.RecordError(err)
+			span.End()
 			q.l.Error().Err(err).Msg("error getting desired labels")
 
 			q.unackedToUnassigned(qis)
@@ -440,9 +446,11 @@ func (q *Queuer) flushToDatabase(ctx context.Context, r *assignResults) int {
 
 	for _, rateLimitedItem := range r.rateLimited {
 		opts.RateLimited = append(opts.RateLimited, &v1.RateLimitResult{
+			V1QueueItem:    rateLimitedItem.qi,
 			ExceededKey:    rateLimitedItem.exceededKey,
 			ExceededUnits:  rateLimitedItem.exceededUnits,
 			ExceededVal:    rateLimitedItem.exceededVal,
+			NextRefillAt:   rateLimitedItem.nextRefillAt,
 			TaskId:         rateLimitedItem.qi.TaskID,
 			TaskInsertedAt: rateLimitedItem.qi.TaskInsertedAt,
 			RetryCount:     rateLimitedItem.qi.RetryCount,

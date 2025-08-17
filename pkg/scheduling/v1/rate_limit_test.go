@@ -1,6 +1,6 @@
 //go:build !e2e && !load && !rampup && !integration
 
-package v2
+package v1
 
 import (
 	"context"
@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
@@ -20,15 +21,15 @@ type mockRateLimitRepo struct {
 	mock.Mock
 }
 
-func (m *mockRateLimitRepo) ListCandidateRateLimits(ctx context.Context, tenantId pgtype.UUID) ([]string, error) {
-	args := m.Called(ctx, tenantId)
-	return args.Get(0).([]string), args.Error(1)
-}
-
-func (m *mockRateLimitRepo) UpdateRateLimits(ctx context.Context, tenantId pgtype.UUID, updates map[string]int) (map[string]int, *time.Time, error) {
+func (m *mockRateLimitRepo) UpdateRateLimits(ctx context.Context, tenantId pgtype.UUID, updates map[string]int) ([]*sqlcv1.ListRateLimitsForTenantWithMutateRow, *time.Time, error) {
 	args := m.Called(ctx, tenantId, updates)
 	arg1 := args.Get(1).(time.Time)
-	return args.Get(0).(map[string]int), &arg1, args.Error(2)
+	return args.Get(0).([]*sqlcv1.ListRateLimitsForTenantWithMutateRow), &arg1, args.Error(2)
+}
+
+func (m *mockRateLimitRepo) RequeueRateLimitedItems(ctx context.Context, tenantId pgtype.UUID) ([]*sqlcv1.RequeueRateLimitedQueueItemsRow, error) {
+	args := m.Called(ctx, tenantId)
+	return args.Get(0).([]*sqlcv1.RequeueRateLimitedQueueItemsRow), args.Error(1)
 }
 
 func TestRateLimiter_Use(t *testing.T) {
