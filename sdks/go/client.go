@@ -8,7 +8,6 @@ import (
 	v0Client "github.com/hatchet-dev/hatchet/pkg/client"
 	"github.com/hatchet-dev/hatchet/pkg/worker"
 	"github.com/hatchet-dev/hatchet/sdks/go/features"
-	"github.com/hatchet-dev/hatchet/sdks/go/internal"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -62,39 +61,47 @@ func (c *Client) NewWorker(name string, options ...WorkerOption) (*Worker, error
 		workerOpts = append(workerOpts, worker.WithLabels(config.labels))
 	}
 
-	w, err := worker.NewWorker(workerOpts...)
+	nonDurableWorker, err := worker.NewWorker(workerOpts...)
 	if err != nil {
 		return nil, err
 	}
 
-	// Create the main non-durable worker
-	nonDurableWorker := w
 	var durableWorker *worker.Worker
 
-	// Separate workflows into durable and non-durable
-	var regularWorkflows []internal.WorkflowBase
-	var durableWorkflows []internal.WorkflowBase
-
 	for _, workflow := range config.workflows {
-		_, _, durableActions, _ := workflow.Dump()
+		req, regularActions, durableActions, onFailureFn := workflow.Dump()
 		hasDurableTasks := len(durableActions) > 0
 
 		if hasDurableTasks {
-			durableWorkflows = append(durableWorkflows, workflow)
+			if durableWorker == nil {
+				durableWorkerOpts := workerOpts
+				durableWorkerOpts = append(durableWorkerOpts, worker.WithName(name+"-durable"))
+				durableWorkerOpts = append(durableWorkerOpts, worker.WithMaxRuns(config.durableSlots))
+
+				durableWorker, err = worker.NewWorker(durableWorkerOpts...)
+				if err != nil {
+					return nil, err
+				}
+			}
+
+			err := durableWorker.RegisterWorkflowV1(req)
+			if err != nil {
+				return nil, err
+			}
 		} else {
-			regularWorkflows = append(regularWorkflows, workflow)
-		}
-	}
-
-	// Register regular workflows with non-durable worker
-	for _, workflow := range regularWorkflows {
-		req, regularActions, _, onFailureFn := workflow.Dump()
-		err := nonDurableWorker.RegisterWorkflowV1(req)
-		if err != nil {
-			return nil, err
+			err := nonDurableWorker.RegisterWorkflowV1(req)
+			if err != nil {
+				return nil, err
+			}
 		}
 
-		// Register all regular task actions
+		for _, namedFn := range durableActions {
+			err = durableWorker.RegisterAction(namedFn.ActionID, namedFn.Fn)
+			if err != nil {
+				return nil, err
+			}
+		}
+
 		for _, namedFn := range regularActions {
 			err = nonDurableWorker.RegisterAction(namedFn.ActionID, namedFn.Fn)
 			if err != nil {
@@ -110,45 +117,6 @@ func (c *Client) NewWorker(name string, options ...WorkerOption) (*Worker, error
 			})
 			if err != nil {
 				return nil, err
-			}
-		}
-	}
-
-	// Create durable worker if needed
-	if len(durableWorkflows) > 0 {
-		durableWorkerOpts := []worker.WorkerOpt{
-			worker.WithClient(c.legacyClient),
-			worker.WithName(name + "-durable"),
-			worker.WithMaxRuns(config.durableSlots),
-		}
-
-		if config.logger != nil {
-			durableWorkerOpts = append(durableWorkerOpts, worker.WithLogger(config.logger))
-		}
-
-		if config.labels != nil {
-			durableWorkerOpts = append(durableWorkerOpts, worker.WithLabels(config.labels))
-		}
-
-		durableWorker, err = worker.NewWorker(durableWorkerOpts...)
-		if err != nil {
-			return nil, err
-		}
-
-		// Register durable workflows with durable worker
-		for _, workflow := range durableWorkflows {
-			req, _, durableActions, _ := workflow.Dump()
-			err := durableWorker.RegisterWorkflowV1(req)
-			if err != nil {
-				return nil, err
-			}
-
-			// Register all durable task actions
-			for _, namedFn := range durableActions {
-				err = durableWorker.RegisterAction(namedFn.ActionID, namedFn.Fn)
-				if err != nil {
-					return nil, err
-				}
 			}
 		}
 	}
