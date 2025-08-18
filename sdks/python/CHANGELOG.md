@@ -5,6 +5,12 @@ All notable changes to Hatchet's Python SDK will be documented in this changelog
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.17.1] - 2025-08-18
+
+### Added
+
+- Adds a `HATCHET_CLIENT_LOG_QUEUE_SIZE` environment variable to configure the size of the log queue used for capturing logs and forwarding them to Hatchet
+
 ## [1.17.0] - 2025-08-12
 
 ### Added
