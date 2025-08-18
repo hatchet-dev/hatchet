@@ -1420,7 +1420,7 @@ func (q *Queries) ListWorkflowRunDisplayNames(ctx context.Context, db DBTX, arg 
 	return items, nil
 }
 
-const populateDAGMetadata = `-- name: PopulateDAGMetadata :many
+const populateDAGMetadata = `-- name: PopulateDAGMetadata :one
 WITH run AS (
     SELECT
         d.id AS dag_id,
@@ -1468,11 +1468,11 @@ WITH run AS (
 
 SELECT
     r.dag_id, r.run_id, r.tenant_id, r.inserted_at, r.external_id, r.readable_status, r.kind, r.workflow_id, r.display_name, r.input, r.additional_metadata, r.workflow_version_id, r.parent_task_external_id,
-    m.created_at,
-    m.started_at,
-    m.finished_at,
-    m.error_message,
-    m.output,
+    m.created_at::TIMESTAMPTZ AS created_at,
+    m.started_at::TIMESTAMPTZ AS started_at,
+    m.finished_at::TIMESTAMPTZ AS finished_at,
+    m.error_message::TEXT AS error_message,
+    m.output::JSONB AS output,
     COALESCE(m.max_retry_count, 0)::int as retry_count
 FROM run r, metadata m
 `
@@ -1501,54 +1501,41 @@ type PopulateDAGMetadataRow struct {
 	CreatedAt            pgtype.Timestamptz   `json:"created_at"`
 	StartedAt            pgtype.Timestamptz   `json:"started_at"`
 	FinishedAt           pgtype.Timestamptz   `json:"finished_at"`
-	ErrorMessage         interface{}          `json:"error_message"`
+	ErrorMessage         string               `json:"error_message"`
 	Output               []byte               `json:"output"`
 	RetryCount           int32                `json:"retry_count"`
 }
 
-func (q *Queries) PopulateDAGMetadata(ctx context.Context, db DBTX, arg PopulateDAGMetadataParams) ([]*PopulateDAGMetadataRow, error) {
-	rows, err := db.Query(ctx, populateDAGMetadata,
+func (q *Queries) PopulateDAGMetadata(ctx context.Context, db DBTX, arg PopulateDAGMetadataParams) (*PopulateDAGMetadataRow, error) {
+	row := db.QueryRow(ctx, populateDAGMetadata,
 		arg.Includepayloads,
 		arg.ID,
 		arg.Insertedat,
 		arg.Tenantid,
 	)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []*PopulateDAGMetadataRow
-	for rows.Next() {
-		var i PopulateDAGMetadataRow
-		if err := rows.Scan(
-			&i.DagID,
-			&i.RunID,
-			&i.TenantID,
-			&i.InsertedAt,
-			&i.ExternalID,
-			&i.ReadableStatus,
-			&i.Kind,
-			&i.WorkflowID,
-			&i.DisplayName,
-			&i.Input,
-			&i.AdditionalMetadata,
-			&i.WorkflowVersionID,
-			&i.ParentTaskExternalID,
-			&i.CreatedAt,
-			&i.StartedAt,
-			&i.FinishedAt,
-			&i.ErrorMessage,
-			&i.Output,
-			&i.RetryCount,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, &i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
+	var i PopulateDAGMetadataRow
+	err := row.Scan(
+		&i.DagID,
+		&i.RunID,
+		&i.TenantID,
+		&i.InsertedAt,
+		&i.ExternalID,
+		&i.ReadableStatus,
+		&i.Kind,
+		&i.WorkflowID,
+		&i.DisplayName,
+		&i.Input,
+		&i.AdditionalMetadata,
+		&i.WorkflowVersionID,
+		&i.ParentTaskExternalID,
+		&i.CreatedAt,
+		&i.StartedAt,
+		&i.FinishedAt,
+		&i.ErrorMessage,
+		&i.Output,
+		&i.RetryCount,
+	)
+	return &i, err
 }
 
 const populateEventData = `-- name: PopulateEventData :many

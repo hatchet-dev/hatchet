@@ -912,7 +912,7 @@ SELECT
 FROM
     updated_dags d;
 
--- name: PopulateDAGMetadata :many
+-- name: PopulateDAGMetadata :one
 WITH run AS (
     SELECT
         d.id AS dag_id,
@@ -960,11 +960,11 @@ WITH run AS (
 
 SELECT
     r.*,
-    m.created_at,
-    m.started_at,
-    m.finished_at,
-    m.error_message,
-    m.output,
+    m.created_at::TIMESTAMPTZ AS created_at,
+    m.started_at::TIMESTAMPTZ AS started_at,
+    m.finished_at::TIMESTAMPTZ AS finished_at,
+    m.error_message::TEXT AS error_message,
+    m.output::JSONB AS output,
     COALESCE(m.max_retry_count, 0)::int as retry_count
 FROM run r, metadata m
 ;
