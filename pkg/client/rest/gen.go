@@ -279,6 +279,7 @@ const (
 const (
 	GENERIC V1WebhookSourceName = "GENERIC"
 	GITHUB  V1WebhookSourceName = "GITHUB"
+	LINEAR  V1WebhookSourceName = "LINEAR"
 	SLACK   V1WebhookSourceName = "SLACK"
 	STRIPE  V1WebhookSourceName = "STRIPE"
 )

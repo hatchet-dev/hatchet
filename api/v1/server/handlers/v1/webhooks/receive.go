@@ -442,6 +442,8 @@ func (w *V1WebhooksService) validateWebhook(webhookPayload []byte, webhook sqlcv
 		}
 	case sqlcv1.V1IncomingWebhookSourceNameGITHUB:
 		fallthrough
+	case sqlcv1.V1IncomingWebhookSourceNameLINEAR:
+		fallthrough
 	case sqlcv1.V1IncomingWebhookSourceNameGENERIC:
 		switch webhook.AuthMethod {
 		case sqlcv1.V1IncomingWebhookAuthTypeBASIC:
