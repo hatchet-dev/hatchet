@@ -444,7 +444,7 @@ type ConfigFileAuthCookie struct {
 type MessageQueueConfigFile struct {
 	Enabled bool `mapstructure:"enabled" json:"enabled,omitempty" default:"true"`
 
-	Kind string `mapstructure:"kind" json:"kind,omitempty" validate:"required" default:"rabbitmq"`
+	Kind string `mapstructure:"kind" json:"kind,omitempty" validate:"required,oneof=rabbitmq postgres" default:"rabbitmq"`
 
 	Postgres PostgresMQConfigFile `mapstructure:"postgres" json:"postgres,omitempty"`
 
