@@ -826,8 +826,7 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId stri
 		})
 
 		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-			r.l.Error().Msgf("error populating dag metadata for id %d: %v", idInsertedAt.ID, err)
-			continue
+			return nil, 0, fmt.Errorf("error populating dag metadata for id %d: %v", idInsertedAt.ID, err)
 		}
 
 		dagsToPopulated[sqlchelpers.UUIDToStr(dag.ExternalID)] = dag
