@@ -340,6 +340,16 @@ class Configuration:
         """date format
         """
 
+        # Set default user-agent with SDK version
+        try:
+            from importlib.metadata import version
+            sdk_version = version("hatchet-sdk")
+            self.user_agent = f"hatchet-python-sdk/{sdk_version}"
+        except Exception:
+            self.user_agent = None
+        """user agent sent to the API server
+        """
+
     def __deepcopy__(self, memo: Dict[int, Any]) -> Self:
         cls = self.__class__
         result = cls.__new__(cls)
