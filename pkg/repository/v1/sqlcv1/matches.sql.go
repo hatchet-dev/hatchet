@@ -132,6 +132,16 @@ WITH input AS (
                 unnest($2::bigint[]) AS condition_id,
                 unnest($3::jsonb[]) AS data
         ) AS subquery
+), locked_matches AS (
+    SELECT
+        m.id
+    FROM
+        v1_match m
+    WHERE
+        m.id = ANY($1::bigint[])
+    ORDER BY
+        m.id
+    FOR UPDATE
 ), locked_conditions AS (
     SELECT
         m.v1_match_id,
@@ -141,6 +151,8 @@ WITH input AS (
         v1_match_condition m
     JOIN
         input i ON i.match_id = m.v1_match_id AND i.condition_id = m.id
+    JOIN
+        locked_matches lm ON lm.id = m.v1_match_id
     ORDER BY
         m.id
     FOR UPDATE
@@ -165,12 +177,7 @@ WITH input AS (
 SELECT
     m.id
 FROM
-    v1_match m
-JOIN
-    distinct_match_ids dm ON dm.v1_match_id = m.id
-ORDER BY
-    m.id
-FOR UPDATE
+    locked_matches m
 `
 
 type GetSatisfiedMatchConditionsParams struct {
