@@ -938,7 +938,7 @@ WITH run AS (
         AND r.inserted_at = @insertedAt::TIMESTAMPTZ
         -- hack to make sure PG correctly prunes partitions
         AND d.id = @id::BIGINT
-        AND d.inserted_at = @id::TIMESTAMPTZ
+        AND d.inserted_at = @insertedAt::TIMESTAMPTZ
         AND r.tenant_id = @tenantId::UUID
         AND r.kind = 'DAG'
 ), relevant_events AS (
