@@ -78,7 +78,9 @@ class LogRecord(BaseModel):
 class AsyncLogSender:
     def __init__(self, event_client: EventClient):
         self.event_client = event_client
-        self.q = asyncio.Queue[LogRecord | STOP_LOOP_TYPE](maxsize=1000)
+        self.q = asyncio.Queue[LogRecord | STOP_LOOP_TYPE](
+            maxsize=event_client.client_config.log_queue_size
+        )
 
     async def consume(self) -> None:
         while True:
