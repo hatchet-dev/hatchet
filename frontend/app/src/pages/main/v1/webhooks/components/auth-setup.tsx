@@ -177,7 +177,7 @@ export const PreconfiguredHMACAuth = ({
   secretLabel?: string;
   secretPlaceholder?: string;
 }) => (
-  // Intended to be used for Stripe, Slack, Github, etc.
+  // Intended to be used for Stripe, Slack, Github, Linear, etc.
   <div className="space-y-4">
     <div className="space-y-2">
       <Label htmlFor="signingSecret" className="text-sm font-medium">
@@ -224,6 +224,8 @@ export const AuthSetup = ({
           throw new Error(`Unhandled auth method: ${exhaustiveCheck}`);
       }
     case V1WebhookSourceName.GITHUB:
+      return <PreconfiguredHMACAuth register={register} />;
+    case V1WebhookSourceName.LINEAR:
       return <PreconfiguredHMACAuth register={register} />;
     case V1WebhookSourceName.STRIPE:
       return (
