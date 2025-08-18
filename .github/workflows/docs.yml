@@ -23,6 +23,12 @@ jobs:
       - name: Install dependencies
         working-directory: frontend/docs
         run: pnpm install --frozen-lockfile
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Generate snippets
+        working-directory: frontend/snippets
+        run: python3 generate.py
       - name: Lint
         working-directory: frontend/docs
         run: npm run lint:check
@@ -45,6 +51,12 @@ jobs:
       - name: Install dependencies
         working-directory: frontend/docs
         run: pnpm install --frozen-lockfile
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Generate snippets
+        working-directory: frontend/snippets
+        run: python3 generate.py
       - name: Build
         working-directory: frontend/docs
         run: npm run build

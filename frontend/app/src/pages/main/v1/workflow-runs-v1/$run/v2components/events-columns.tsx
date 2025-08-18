@@ -119,12 +119,15 @@ export const columns = ({
         const event = row.original;
 
         if (event.eventType === V1TaskEventType.FAILED) {
-          items.push(<ErrorWithHoverCard event={row.original} />);
+          items.push(<ErrorWithHoverCard key="error" event={row.original} />);
         }
 
         if (event.workerId) {
           items.push(
-            <Link to={`/tenants/${tenantId}/workers/${event.workerId}`}>
+            <Link
+              to={`/tenants/${tenantId}/workers/${event.workerId}`}
+              key="worker"
+            >
               <Button
                 variant="link"
                 size="xs"
@@ -139,11 +142,16 @@ export const columns = ({
 
         return (
           <div>
-            <div className="text-xs text-muted-foreground font-mono tracking-tight">
+            <div
+              key="message"
+              className="text-xs text-muted-foreground font-mono tracking-tight"
+            >
               {event.message}
             </div>
             {items.length > 0 && (
-              <div className="flex flex-col gap-2 mt-2">{items}</div>
+              <div key="items" className="flex flex-col gap-2 mt-2">
+                {items}
+              </div>
             )}
           </div>
         );

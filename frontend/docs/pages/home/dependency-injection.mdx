@@ -1,4 +1,4 @@
-import snips from "@/lib/snips";
+import { snippets } from "@/lib/generated/snippets";
 import { Snippet } from "@/components/code";
 import { Callout, Card, Cards, Steps, Tabs } from "nextra/components";
 import UniversalTabs from "@/components/UniversalTabs";
@@ -24,8 +24,7 @@ Since dependencies are run before tasks are executed, having many dependencies (
 To add dependencies to your tasks, import `Depends` from the `hatchet_sdk`. Then:
 
 <Snippet
-  src={snips.python.dependency_injection.worker}
-  block="declare_dependencies"
+  src={snippets.python.dependency_injection.worker.declare_dependencies}
 />
 
 In this example, we've declared two dependencies: one synchronous and one asynchronous. You can do anything you like in your dependencies, such as creating database sessions, managing configuration, sharing instances of service-layer logic, and more.
@@ -33,8 +32,7 @@ In this example, we've declared two dependencies: one synchronous and one asynch
 Once you've defined your dependency functions, inject them into your tasks as follows:
 
 <Snippet
-  src={snips.python.dependency_injection.worker}
-  block="inject_dependencies"
+  src={snippets.python.dependency_injection.worker.inject_dependencies}
 />
 
 <Callout type="warning" emoji="⚠️">

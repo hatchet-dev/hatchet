@@ -12,7 +12,8 @@ import { useState } from 'react';
 import { AdditionalMetadata } from './additional-metadata';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
-import { TaskRunsTable } from '../../workflow-runs-v1/components/task-runs-table';
+import { RunsTable } from '../../workflow-runs-v1/components/runs-table';
+import { RunsProvider } from '../../workflow-runs-v1/hooks/runs-provider';
 
 export const columns = ({
   onRowClick,
@@ -92,6 +93,7 @@ export const columns = ({
           </div>
         );
       },
+      enableSorting: false,
     },
     // empty columns to get column filtering to work properly
     {
@@ -120,6 +122,7 @@ export const columns = ({
 
         return <WorkflowRunSummary event={row.original} />;
       },
+      enableSorting: false,
     },
     {
       accessorKey: 'Metadata',
@@ -203,14 +206,21 @@ function WorkflowRunSummary({ event }: { event: V1Event }) {
 
   const hoverCardContent = (
     <div className="min-w-fit z-40 p-4 bg-white/10 rounded">
-      <TaskRunsTable
-        triggeringEventExternalId={event.metadata.id}
-        showCounts={false}
-        showMetrics={false}
-        showDateFilter={false}
-        showTriggerRunButton={false}
-        headerClassName="bg-slate-700"
-      />
+      <RunsProvider
+        tableKey={`event-runs-${event.metadata.id}`}
+        display={{
+          hideCounts: true,
+          hideMetrics: true,
+          hideDateFilter: true,
+          hideTriggerRunButton: true,
+          hideCancelAndReplayButtons: true,
+        }}
+        runFilters={{
+          triggeringEventExternalId: event.metadata.id,
+        }}
+      >
+        <RunsTable headerClassName="bg-slate-700" />
+      </RunsProvider>
     </div>
   );
 

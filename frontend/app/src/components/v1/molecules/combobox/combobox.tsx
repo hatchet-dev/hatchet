@@ -170,7 +170,7 @@ export function Combobox({
           )}
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[300px] p-2" align="start">
+      <PopoverContent className="w-[300px] p-2 z-[70]" align="start">
         {[ToolbarType.Array, ToolbarType.KeyValue].includes(type) && (
           <div>
             <div className="">
@@ -256,10 +256,12 @@ export function Combobox({
                         if (isSelected) {
                           values.splice(values.indexOf(option.value), 1);
                         } else {
-                          if (type == 'radio') {
-                            values = [];
+                          if (type === ToolbarType.Radio) {
+                            setValues([option.value]);
+                            return;
+                          } else {
+                            values.push(option.value);
                           }
-                          values.push(option.value);
                         }
                         setValues(values);
                       }}

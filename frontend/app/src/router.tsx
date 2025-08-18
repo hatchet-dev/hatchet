@@ -97,7 +97,7 @@ const createTenantedRoute = (path: TenantedPath): RouteObject => {
             };
           }),
       };
-    case '/tenants/:tenant/tasks':
+    case '/tenants/:tenant/workflows':
       return {
         path,
         lazy: async () =>
@@ -107,7 +107,7 @@ const createTenantedRoute = (path: TenantedPath): RouteObject => {
             };
           }),
       };
-    case '/tenants/:tenant/tasks/:workflow':
+    case '/tenants/:tenant/workflows/:workflow':
       return {
         path,
         lazy: async () =>
@@ -151,23 +151,23 @@ const createTenantedRoute = (path: TenantedPath): RouteObject => {
     case '/tenants/:tenant/workers':
       return {
         path,
-        lazy: async () => {
-          return {
-            loader: function ({ params }) {
-              return redirect(`/tenants/${params.tenant}/workers/all`);
-            },
-          };
-        },
-      };
-    case '/tenants/:tenant/workers/all':
-      return {
-        path,
         lazy: async () =>
           import('./pages/main/v1/workers').then((res) => {
             return {
               Component: res.default,
             };
           }),
+      };
+    case '/tenants/:tenant/workers/all':
+      return {
+        path,
+        lazy: async () => {
+          return {
+            loader: function ({ params }) {
+              return redirect(`/tenants/${params.tenant}/workers`);
+            },
+          };
+        },
       };
     case '/tenants/:tenant/workers/webhook':
       return {
@@ -346,25 +346,25 @@ const createTenantedRoute = (path: TenantedPath): RouteObject => {
           };
         },
       };
-    case '/tenants/:tenant/workflows':
+    case '/tenants/:tenant/tasks':
       return {
         path,
         lazy: async () => {
           return {
             loader: function ({ params }) {
-              return redirect(`/tenants/${params.tenant}/tasks`);
+              return redirect(`/tenants/${params.tenant}/workflows`);
             },
           };
         },
       };
-    case '/tenants/:tenant/workflows/:workflow':
+    case '/tenants/:tenant/tasks/:workflow':
       return {
         path,
         lazy: async () => {
           return {
             loader: function ({ params }) {
               return redirect(
-                `/tenants/${params.tenant}/tasks/${params.workflow}`,
+                `/tenants/${params.tenant}/workflows/${params.workflow}`,
               );
             },
           };

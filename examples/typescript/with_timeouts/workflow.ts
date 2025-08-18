@@ -1,4 +1,3 @@
-// > Declaring a Task
 import sleep from '@hatchet-dev/typescript-sdk/util/sleep';
 import { hatchet } from '../hatchet-client';
 

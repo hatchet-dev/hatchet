@@ -1,20 +1,8 @@
-import snips from "@/lib/snips";
+import { snippets } from "@/lib/generated/snippets";
 import { Snippet } from "@/components/code";
 import { FileTree } from "nextra/components";
 import { Tabs, Callout } from "nextra/components";
 import UniversalTabs from "../../components/UniversalTabs";
-import { GithubSnippet, getSnippets } from "@/components/code";
-
-export const LoggerWorkflowTs = {
-  path: "src/examples/logger.ts",
-};
-
-export const ByoLoggerTs = {
-  path: "src/examples/byo-logger.ts",
-};
-
-export const getStaticProps = ({}) =>
-  getSnippets([LoggerWorkflowTs, ByoLoggerTs]);
 
 # Logging
 
@@ -29,7 +17,7 @@ You can use either Python's built-in `logging` package, or the `context.log` met
 
 You can pass a custom logger to the `Hatchet` class when initializing it. For example:
 
-<Snippet src={snips.python.logger.client} block="rootlogger" />
+<Snippet src={snippets.python.logger.client.root_logger} />
 
 It's recommended that you pass the root logger to the `Hatchet` class, as this will ensure that all logs are captured by the Hatchet logger. If you have workflows defined in multiple files, they should be children of the root logger. For example, with the following file structure:
 
@@ -43,17 +31,17 @@ It's recommended that you pass the root logger to the `Hatchet` class, as this w
 
 You should pass the root logger to the `Hatchet` class in `client.py`:
 
-<Snippet src={snips.python.logger.client} block="rootlogger" />
+<Snippet src={snippets.python.logger.client.root_logger} />
 
 And then in `workflows/workflow.py`, you should create a child logger:
 
-<Snippet src={snips.python.logger.workflow} block="loggingworkflow" />
+<Snippet src={snippets.python.logger.workflow.logging_workflow} />
 
 ## Using the `context.log` method
 
 You can also use the `context.log` method to log messages from your workflows. This method is available on the `Context` object that is passed to each task in your workflow. For example:
 
-<Snippet src={snips.python.logger.workflow} block="contextlogger" />
+<Snippet src={snippets.python.logger.workflow.context_logger} />
 
 Each task is currently limited to 1000 log lines.
 
@@ -63,17 +51,17 @@ Each task is currently limited to 1000 log lines.
 
 In TypeScript, there are two options for logging from your tasks. The first is to use the `ctx.log()` method (from the `Context`) to send logs:
 
-<GithubSnippet src={LoggerWorkflowTs} target="Logger" />
+<Snippet src={snippets.typescript.logging.logger.logger} />
 
 This has the benefit of being easy to use out of the box (no setup required!), but it's limited in its flexibiliy and how pluggable it is with your existing logging setup.
 
 Hatchet also allows you to "bring your own" logger when you define a workflow:
 
-<GithubSnippet src={ByoLoggerTs} target="Create Pino logger" />
+<Snippet src={snippets.typescript.logging.byo_logger.create_pino_logger} />
 
 In this example, we create Pino logger that implement's Hatchet's `Logger` interface and pass it to the Hatchet client constructor. We can then use that logger in our steps:
 
-<GithubSnippet src={ByoLoggerTs} target="Use the logger" />
+<Snippet src={snippets.typescript.logging.logger.logger} />
 
 </Tabs.Tab>
 {/* <Tabs.Tab>

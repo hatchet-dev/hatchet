@@ -25,8 +25,10 @@ import {
 } from '@/components/v1/ui/dropdown-menu';
 import { useState } from 'react';
 import { RecentWebhookRequests } from '../webhooks/components/recent-webhook-requests';
-import { TaskRunsTable } from '../../workflow-runs-v1/components/task-runs-table';
+import { RunsTable } from '../../workflow-runs-v1/components/runs-table';
+import { RunsProvider } from '../../workflow-runs-v1/hooks/runs-provider';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
+import { capitalize } from '@/lib/utils';
 export const isHealthy = (worker?: Worker) => {
   const reasons = [];
 
@@ -217,15 +219,24 @@ export default function ExpandedWorkflowRun() {
         <Separator className="my-4" />
         <div className="flex flex-row justify-between items-center mb-4">
           <h3 className="text-xl font-bold leading-tight text-foreground">
-            Recent Tasks
+            Recent Task Runs
           </h3>
         </div>
-        <TaskRunsTable
-          workerId={worker.metadata.id}
-          createdAfter={worker.metadata.createdAt}
-          showMetrics={false}
-          showCounts={false}
-        />
+        <RunsProvider
+          tableKey={`worker-${worker.metadata.id}`}
+          display={{
+            hideMetrics: true,
+            hideCounts: true,
+            hideTriggerRunButton: true,
+            hideFlatten: true,
+            hideCancelAndReplayButtons: true,
+          }}
+          runFilters={{
+            workerId: worker.metadata.id,
+          }}
+        >
+          <RunsTable />
+        </RunsProvider>
         <Separator className="my-4" />
         <h3 className="text-xl font-bold leading-tight text-foreground mb-4">
           Registered Tasks
@@ -297,7 +308,8 @@ export default function ExpandedWorkflowRun() {
               )}
               {worker.runtimeInfo?.languageVersion && (
                 <div>
-                  <b>Runtime</b>: {worker.runtimeInfo?.language}{' '}
+                  <b>Runtime</b>:{' '}
+                  {capitalize(worker.runtimeInfo?.language ?? '')}{' '}
                   {worker.runtimeInfo?.languageVersion}
                 </div>
               )}

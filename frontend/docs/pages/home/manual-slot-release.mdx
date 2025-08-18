@@ -1,14 +1,7 @@
-import snips from "@/lib/snips";
+import { snippets } from "@/lib/generated/snippets";
 import { Snippet } from "@/components/code";
 import { Callout, Card, Cards, Steps, Tabs } from "nextra/components";
 import UniversalTabs from "../../components/UniversalTabs";
-import { GithubSnippet, getSnippets } from "@/components/code";
-
-export const SlotReleaseTS = {
-  path: "src/examples/manual_slot_release.ts",
-};
-
-export const getStaticProps = ({}) => getSnippets([SlotReleaseTS]);
 
 # Manual Slot Release
 
@@ -28,17 +21,12 @@ In some cases, you may have a task in your workflow that is resource-intensive a
 
 You can manually release a slot in from within a running task in your workflow using the Hatchet context method `release_slot`:
 
-<UniversalTabs items={['Python', 'Typescript']}>
+<UniversalTabs items={['Python']}>
 <Tabs.Tab>
-<Snippet src={snips.python.manual_slot_release.worker} block="slotrelease" />
+<Snippet src={snippets.python.manual_slot_release.worker.slot_release} />
 
 </Tabs.Tab>
 
-<Tabs.Tab>
-
-<GithubSnippet src={SlotReleaseTS} target="SlotRelease" />
-
-</Tabs.Tab>
 <Tabs.Tab>
 
 ```go

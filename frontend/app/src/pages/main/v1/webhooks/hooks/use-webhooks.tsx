@@ -3,6 +3,7 @@ import { useCurrentTenantId } from '@/hooks/use-tenant';
 import api, {
   queries,
   V1CreateWebhookRequest,
+  V1UpdateWebhookRequest,
   V1WebhookAuthType,
   V1WebhookHMACAlgorithm,
   V1WebhookHMACEncoding,
@@ -44,6 +45,22 @@ export const useWebhooks = (onDeleteSuccess?: () => void) => {
     },
   });
 
+  const { mutate: updateWebhook, isPending: isUpdatePending } = useMutation({
+    mutationFn: async ({
+      webhookName,
+      webhookData,
+    }: {
+      webhookName: string;
+      webhookData: V1UpdateWebhookRequest;
+    }) => api.v1WebhookUpdate(tenantId, webhookName, webhookData),
+    onSuccess: async () => {
+      const queryKey = queries.v1Webhooks.list(tenantId).queryKey;
+      await queryClient.invalidateQueries({
+        queryKey,
+      });
+    },
+  });
+
   const createWebhookURL = (name: string) => {
     return `${window.location.protocol}//${window.location.hostname}/api/v1/stable/tenants/${tenantId}/webhooks/${name}`;
   };
@@ -58,6 +75,8 @@ export const useWebhooks = (onDeleteSuccess?: () => void) => {
       isDeletePending,
       createWebhook,
       isCreatePending,
+      updateWebhook,
+      isUpdatePending,
     },
   };
 };

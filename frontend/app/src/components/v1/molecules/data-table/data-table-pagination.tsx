@@ -59,13 +59,13 @@ export function DataTablePagination<TData>({
             }}
           >
             <SelectTrigger
-              className="h-8 w-[70px]"
+              className="h-8 w-[70px] z-[70]"
               id="rows-per-page"
               aria-labelledby="rows-per-page-label"
             >
               <SelectValue placeholder={pagination.pageSize} />
             </SelectTrigger>
-            <SelectContent side="top">
+            <SelectContent side="top" className="z-[70]">
               {[25, 50, 100].map((pageSize) => (
                 <SelectItem key={pageSize} value={`${pageSize}`}>
                   {pageSize}

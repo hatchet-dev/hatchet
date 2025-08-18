@@ -150,10 +150,10 @@ function Sidebar({ className, memberships }: SidebarProps) {
             </h2>
             <div className="space-y-1">
               <SidebarButtonPrimary
-                key="tasks"
+                key="workflows"
                 onNavLinkClick={onNavLinkClick}
-                to={`/tenants/${tenantId}/tasks`}
-                name="Tasks & Workflows"
+                to={`/tenants/${tenantId}/workflows`}
+                name="Workflows"
                 icon={<Squares2X2Icon className="mr-2 h-4 w-4" />}
               />
               <SidebarButtonPrimary

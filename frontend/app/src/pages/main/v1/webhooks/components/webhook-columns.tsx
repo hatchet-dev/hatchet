@@ -2,15 +2,16 @@ import { ColumnDef, Row } from '@tanstack/react-table';
 import { V1Webhook } from '@/lib/api';
 import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
 import { DotsVerticalIcon } from '@radix-ui/react-icons';
-import { Check, Copy, Loader, Trash2 } from 'lucide-react';
+import { Check, Copy, Loader, Save, Trash2, X } from 'lucide-react';
 import { Button } from '@/components/v1/ui/button';
+import { Input } from '@/components/v1/ui/input';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/v1/ui/dropdown-menu';
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { useWebhooks } from '../hooks/use-webhooks';
 import { SourceName } from './source-name';
 import { AuthMethod } from './auth-method';
@@ -44,11 +45,7 @@ export const columns = (): ColumnDef<V1Webhook>[] => {
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title="Expression" />
       ),
-      cell: ({ row }) => (
-        <code className="bg-muted relative rounded px-2 py-1 font-mono text-xs h-full">
-          {row.original.eventKeyExpression}
-        </code>
-      ),
+      cell: ({ row }) => <EditableExpressionCell row={row} />,
       enableSorting: false,
       enableHiding: true,
     },
@@ -135,5 +132,59 @@ const WebhookActionsCell = ({ row }: { row: Row<V1Webhook> }) => {
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
+  );
+};
+
+const EditableExpressionCell = ({ row }: { row: Row<V1Webhook> }) => {
+  const { mutations } = useWebhooks();
+  const [isEditing, setIsEditing] = useState(false);
+  const [value, setValue] = useState(row.original.eventKeyExpression || '');
+
+  const handleSave = useCallback(() => {
+    if (value !== row.original.eventKeyExpression && value.trim()) {
+      mutations.updateWebhook({
+        webhookName: row.original.name,
+        webhookData: { eventKeyExpression: value.trim() },
+      });
+    }
+    setIsEditing(false);
+  }, [value, row.original.eventKeyExpression, row.original.name, mutations]);
+
+  const handleCancel = useCallback(() => {
+    setValue(row.original.eventKeyExpression || '');
+    setIsEditing(false);
+  }, [row.original.eventKeyExpression, setIsEditing, setValue]);
+
+  return (
+    <div className="flex flex-row items-center gap-x-2">
+      <Input
+        value={isEditing ? value : row.original.eventKeyExpression || ''}
+        onChange={isEditing ? (e) => setValue(e.target.value) : undefined}
+        onClick={!isEditing ? () => setIsEditing(true) : undefined}
+        className={`bg-muted rounded px-2 py-3 font-mono text-xs w-full h-6 ${
+          isEditing
+            ? 'border-input focus:border-ring focus:ring-1 focus:ring-ring cursor-text'
+            : 'border-transparent cursor-text hover:bg-muted/80'
+        }`}
+        readOnly={!isEditing}
+        autoFocus={isEditing}
+      />
+      <Button
+        variant="ghost"
+        size="icon"
+        onClick={handleSave}
+        disabled={!isEditing}
+      >
+        <Save className="size-4" />
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon"
+        onClick={handleCancel}
+        disabled={value === row.original.eventKeyExpression || !isEditing}
+      >
+        <X className="size-4" />
+      </Button>
+    </div>
   );
 };

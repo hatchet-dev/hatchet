@@ -137,19 +137,16 @@ compute = Compute(
 ## Best Practices
 
 1. **GPU Selection**
-
    - Choose GPU type based on workload requirements
    - Consider memory requirements for your models
    - Factor in regional availability
 
 2. **Docker Optimization**
-
    - Use specific library versions instead of meta-packages
    - Implement multi-stage builds to reduce image size
    - Only install required CUDA libraries
 
 3. **Region Strategy**
-
    - Select regions based on data locality
    - Consider backup regions for redundancy
    - Remember that replicas are randomly distributed across specified regions

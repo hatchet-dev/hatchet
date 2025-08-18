@@ -33,11 +33,12 @@ import {
   V1WebhookHMACAlgorithm,
   V1WebhookHMACEncoding,
 } from '@/lib/api';
-import { Webhook, Copy, Check, AlertTriangle } from 'lucide-react';
+import { Webhook, Copy, Check, AlertTriangle, Lightbulb } from 'lucide-react';
 import { Spinner } from '@/components/v1/ui/loading';
 import { SourceName } from './components/source-name';
 import { AuthMethod } from './components/auth-method';
 import { AuthSetup } from './components/auth-setup';
+import { Link } from 'react-router-dom';
 
 const WebhookEmptyState = () => {
   return (
@@ -158,7 +159,7 @@ const buildWebhookPayload = (data: WebhookFormData): V1CreateWebhookRequest => {
       };
     case V1WebhookSourceName.STRIPE:
       if (!data.signingSecret) {
-        throw new Error('Signing secret is required for GitHub webhooks');
+        throw new Error('Signing secret is required for Stripe webhooks');
       }
 
       return {
@@ -177,6 +178,25 @@ const buildWebhookPayload = (data: WebhookFormData): V1CreateWebhookRequest => {
           signingSecret: data.signingSecret,
         },
       };
+    case V1WebhookSourceName.SLACK:
+      if (!data.signingSecret) {
+        throw new Error('signing secret is required for Slack webhooks');
+      }
+
+      return {
+        sourceName: data.sourceName,
+        name: data.name,
+        eventKeyExpression: data.eventKeyExpression,
+        authType: V1WebhookAuthType.HMAC,
+        auth: {
+          // Slack sends the expected signature and timestamp as headers
+          // https://api.slack.com/apis/events-api#receiving-events
+          algorithm: V1WebhookHMACAlgorithm.SHA256,
+          encoding: V1WebhookHMACEncoding.HEX,
+          signatureHeaderName: 'X-Slack-Signature',
+          signingSecret: data.signingSecret,
+        },
+      };
     default:
       // eslint-disable-next-line no-case-declarations
       const exhaustiveCheck: never = data.sourceName;
@@ -190,6 +210,7 @@ const createSourceInlineDescription = (sourceName: V1WebhookSourceName) => {
       return '(receive incoming webhook requests from any service)';
     case V1WebhookSourceName.GITHUB:
     case V1WebhookSourceName.STRIPE:
+    case V1WebhookSourceName.SLACK:
       return '';
     default:
       // eslint-disable-next-line no-case-declarations
@@ -212,6 +233,7 @@ const SourceCaption = ({ sourceName }: { sourceName: V1WebhookSourceName }) => {
       );
     case V1WebhookSourceName.GENERIC:
     case V1WebhookSourceName.STRIPE:
+    case V1WebhookSourceName.SLACK:
       return '';
     default:
       // eslint-disable-next-line no-case-declarations
@@ -292,18 +314,23 @@ const CreateWebhookModal = () => {
       </DialogTrigger>
       <DialogContent className="max-w-[90%] md:max-w-[80%] lg:max-w-[60%] xl:max-w-[50%] max-h-[90dvh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <div className="flex items-center justify-center w-8 h-8 bg-blue-100 rounded-full">
-              <Webhook className="h-4 w-4 text-indigo-700" />
+          <DialogTitle className="flex flex-col items-start gap-y-4">
+            <div className="flex flex-row items-center gap-x-3">
+              <div className="flex items-center justify-center w-8 h-8 bg-blue-100 rounded-full">
+                <Webhook className="h-4 w-4 text-indigo-700" />
+              </div>
+              Create a webhook
             </div>
-            Create a webhook
+            <span className="text-sm text-muted-foreground">
+              Webhooks are a beta feature
+            </span>
           </DialogTitle>
         </DialogHeader>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
           <div className="space-y-2">
             <Label htmlFor="name" className="text-sm font-medium">
-              Webhook ID <span className="text-red-500">*</span>
+              Webhook Name <span className="text-red-500">*</span>
             </Label>
             <Input
               data-1p-ignore
@@ -365,6 +392,17 @@ const CreateWebhookModal = () => {
                     </div>
                   </SelectItem>
                 ))}
+                <SelectItem
+                  disabled
+                  key="empty"
+                  value="reach-out"
+                  className="text-sm data-[disabled]:text-white data-[disabled]:opacity-100"
+                >
+                  <div className="flex flex-row items-center gap-x-2">
+                    <Lightbulb className="size-4 text-yellow-500" />
+                    <span>Want a new source added? Reach out to support</span>
+                  </div>
+                </SelectItem>
               </SelectContent>
             </Select>
             <SourceCaption sourceName={sourceName} />
@@ -385,10 +423,25 @@ const CreateWebhookModal = () => {
                 {errors.eventKeyExpression.message}
               </p>
             )}
-            <p className="text-xs text-muted-foreground">
-              CEL expression to extract the event key from the webhook payload.
-              Use `input` to refer to the payload.
-            </p>
+            <div className="text-xs text-muted-foreground pl-1">
+              <p>
+                CEL expression to extract the event key from the webhook
+                payload. See{' '}
+                <Link
+                  to="https://cel.dev/"
+                  className="text-blue-600"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  the docs
+                </Link>{' '}
+                for details.
+              </p>
+              <ul className="list-disc pl-4">
+                <li>`input` refers to the payload</li>
+                <li>`headers` refers to the headers</li>
+              </ul>
+            </div>
           </div>
 
           <div className="space-y-4">
