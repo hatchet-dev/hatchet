@@ -1420,12 +1420,8 @@ func (q *Queries) ListWorkflowRunDisplayNames(ctx context.Context, db DBTX, arg 
 	return items, nil
 }
 
-const populateDAGMetadata = `-- name: PopulateDAGMetadata :many
-WITH input AS (
-    SELECT
-        UNNEST($2::bigint[]) AS id,
-        UNNEST($3::timestamptz[]) AS inserted_at
-), runs AS (
+const populateDAGMetadata = `-- name: PopulateDAGMetadata :one
+WITH run AS (
     SELECT
         d.id AS dag_id,
         r.id AS run_id,
@@ -1443,77 +1439,53 @@ WITH input AS (
         d.additional_metadata,
         d.workflow_version_id,
         d.parent_task_external_id
-
     FROM v1_runs_olap r
     JOIN v1_dags_olap d ON (r.id, r.inserted_at) = (d.id, d.inserted_at)
-    JOIN input i ON (i.id, i.inserted_at) = (r.id, r.inserted_at)
-    WHERE r.tenant_id = $4::uuid AND r.kind = 'DAG'
+    WHERE
+        r.id = $2::BIGINT
+        AND r.inserted_at = $3::TIMESTAMPTZ
+        -- hack to make sure PG correctly prunes partitions
+        AND d.id = $2::BIGINT
+        AND d.inserted_at = $3::TIMESTAMPTZ
+        AND r.tenant_id = $4::UUID
+        AND r.kind = 'DAG'
 ), relevant_events AS (
-    SELECT
-        r.run_id,
-        e.tenant_id, e.id, e.inserted_at, e.task_id, e.task_inserted_at, e.event_type, e.workflow_id, e.event_timestamp, e.readable_status, e.retry_count, e.error_message, e.output, e.worker_id, e.additional__event_data, e.additional__event_message
-    FROM runs r
+    SELECT e.tenant_id, e.id, e.inserted_at, e.task_id, e.task_inserted_at, e.event_type, e.workflow_id, e.event_timestamp, e.readable_status, e.retry_count, e.error_message, e.output, e.worker_id, e.additional__event_data, e.additional__event_message
+    FROM run r
     JOIN v1_dag_to_task_olap dt ON (r.dag_id, r.inserted_at) = (dt.dag_id, dt.dag_inserted_at)
     JOIN v1_task_events_olap e ON (e.task_id, e.task_inserted_at) = (dt.task_id, dt.task_inserted_at)
-    WHERE e.tenant_id = $4::uuid
-), max_retry_count AS (
-    SELECT run_id, MAX(retry_count) AS max_retry_count
-    FROM relevant_events
-    GROUP BY run_id
 ), metadata AS (
     SELECT
-        e.run_id,
-        MIN(e.inserted_at)::timestamptz AS created_at,
-        MIN(e.inserted_at) FILTER (WHERE e.readable_status = 'RUNNING')::timestamptz AS started_at,
-        MAX(e.inserted_at) FILTER (WHERE e.readable_status IN ('COMPLETED', 'CANCELLED', 'FAILED'))::timestamptz AS finished_at
-    FROM
-        relevant_events e
-    JOIN max_retry_count mrc ON (e.run_id, e.retry_count) = (mrc.run_id, mrc.max_retry_count)
-    GROUP BY e.run_id
-), error_message AS (
-    SELECT
-        DISTINCT ON (e.run_id) e.run_id::bigint,
-        e.error_message
-    FROM
-        relevant_events e
-    WHERE
-        e.readable_status = 'FAILED'
-    ORDER BY
-        e.run_id, e.retry_count DESC
-), task_output AS (
-    SELECT
-        run_id,
-        output
-    FROM
-        relevant_events
-    WHERE
-        event_type = 'FINISHED'
+        MIN(e.event_timestamp)::timestamptz AS created_at,
+        MIN(e.event_timestamp) FILTER (WHERE e.readable_status = 'RUNNING')::timestamptz AS started_at,
+        MAX(e.event_timestamp) FILTER (WHERE e.readable_status IN ('COMPLETED', 'CANCELLED', 'FAILED'))::timestamptz AS finished_at,
+        MAX(e.error_message) FILTER (WHERE e.readable_status = 'FAILED') AS error_message,
+        MAX(e.output::TEXT) FILTER (WHERE e.event_type = 'FINISHED')::JSONB AS output,
+        MAX(e.retry_count) AS max_retry_count
+    FROM relevant_events e
+    WHERE e.retry_count = (
+        SELECT MAX(retry_count)
+        FROM relevant_events
+    )
 )
 
 SELECT
     r.dag_id, r.run_id, r.tenant_id, r.inserted_at, r.external_id, r.readable_status, r.kind, r.workflow_id, r.display_name, r.input, r.additional_metadata, r.workflow_version_id, r.parent_task_external_id,
-    m.created_at,
-    m.started_at,
-    m.finished_at,
-    e.error_message,
-    CASE
-        WHEN $1::BOOLEAN THEN o.output::JSONB
-        ELSE '{}'::JSONB
-    END::JSONB AS output,
-    COALESCE(mrc.max_retry_count, 0)::int as retry_count
-FROM runs r
-LEFT JOIN metadata m ON r.run_id = m.run_id
-LEFT JOIN error_message e ON r.run_id = e.run_id
-LEFT JOIN task_output o ON r.run_id = o.run_id
-LEFT JOIN max_retry_count mrc ON r.run_id = mrc.run_id
-ORDER BY r.inserted_at DESC, r.run_id DESC
+    m.created_at::TIMESTAMPTZ AS created_at,
+    m.started_at::TIMESTAMPTZ AS started_at,
+    m.finished_at::TIMESTAMPTZ AS finished_at,
+    -- hack to force this to string since sqlc can't figure out that this should be pgtype.Text
+    COALESCE(m.error_message, '')::TEXT AS error_message,
+    m.output::JSONB AS output,
+    COALESCE(m.max_retry_count, 0)::int as retry_count
+FROM run r, metadata m
 `
 
 type PopulateDAGMetadataParams struct {
-	Includepayloads bool                 `json:"includepayloads"`
-	Ids             []int64              `json:"ids"`
-	Insertedats     []pgtype.Timestamptz `json:"insertedats"`
-	Tenantid        pgtype.UUID          `json:"tenantid"`
+	Includepayloads bool               `json:"includepayloads"`
+	ID              int64              `json:"id"`
+	Insertedat      pgtype.Timestamptz `json:"insertedat"`
+	Tenantid        pgtype.UUID        `json:"tenantid"`
 }
 
 type PopulateDAGMetadataRow struct {
@@ -1533,54 +1505,41 @@ type PopulateDAGMetadataRow struct {
 	CreatedAt            pgtype.Timestamptz   `json:"created_at"`
 	StartedAt            pgtype.Timestamptz   `json:"started_at"`
 	FinishedAt           pgtype.Timestamptz   `json:"finished_at"`
-	ErrorMessage         pgtype.Text          `json:"error_message"`
+	ErrorMessage         string               `json:"error_message"`
 	Output               []byte               `json:"output"`
 	RetryCount           int32                `json:"retry_count"`
 }
 
-func (q *Queries) PopulateDAGMetadata(ctx context.Context, db DBTX, arg PopulateDAGMetadataParams) ([]*PopulateDAGMetadataRow, error) {
-	rows, err := db.Query(ctx, populateDAGMetadata,
+func (q *Queries) PopulateDAGMetadata(ctx context.Context, db DBTX, arg PopulateDAGMetadataParams) (*PopulateDAGMetadataRow, error) {
+	row := db.QueryRow(ctx, populateDAGMetadata,
 		arg.Includepayloads,
-		arg.Ids,
-		arg.Insertedats,
+		arg.ID,
+		arg.Insertedat,
 		arg.Tenantid,
 	)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []*PopulateDAGMetadataRow
-	for rows.Next() {
-		var i PopulateDAGMetadataRow
-		if err := rows.Scan(
-			&i.DagID,
-			&i.RunID,
-			&i.TenantID,
-			&i.InsertedAt,
-			&i.ExternalID,
-			&i.ReadableStatus,
-			&i.Kind,
-			&i.WorkflowID,
-			&i.DisplayName,
-			&i.Input,
-			&i.AdditionalMetadata,
-			&i.WorkflowVersionID,
-			&i.ParentTaskExternalID,
-			&i.CreatedAt,
-			&i.StartedAt,
-			&i.FinishedAt,
-			&i.ErrorMessage,
-			&i.Output,
-			&i.RetryCount,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, &i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
+	var i PopulateDAGMetadataRow
+	err := row.Scan(
+		&i.DagID,
+		&i.RunID,
+		&i.TenantID,
+		&i.InsertedAt,
+		&i.ExternalID,
+		&i.ReadableStatus,
+		&i.Kind,
+		&i.WorkflowID,
+		&i.DisplayName,
+		&i.Input,
+		&i.AdditionalMetadata,
+		&i.WorkflowVersionID,
+		&i.ParentTaskExternalID,
+		&i.CreatedAt,
+		&i.StartedAt,
+		&i.FinishedAt,
+		&i.ErrorMessage,
+		&i.Output,
+		&i.RetryCount,
+	)
+	return &i, err
 }
 
 const populateEventData = `-- name: PopulateEventData :many

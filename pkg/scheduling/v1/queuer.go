@@ -1,4 +1,4 @@
-package v2
+package v1
 
 import (
 	"context"
@@ -43,6 +43,8 @@ type Queuer struct {
 
 	unassigned   map[int64]*sqlcv1.V1QueueItem
 	unassignedMu mutex
+
+	hasRateLimits bool
 }
 
 func newQueuer(conf *sharedConfig, tenantId pgtype.UUID, queueName string, s *Scheduler, resultsCh chan<- *QueueResults) *Queuer {
@@ -138,9 +140,19 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 		start := time.Now()
 		checkpoint := start
 		var err error
+
+		if q.hasRateLimits {
+			_, err := q.repo.RequeueRateLimitedItems(ctx, q.tenantId, q.queueName)
+
+			if err != nil {
+				q.l.Error().Err(err).Msg("error requeuing rate limited items")
+			}
+		}
+
 		qis, err := q.refillQueue(ctx)
 
 		if err != nil {
+			span.RecordError(err)
 			span.End()
 			q.l.Error().Err(err).Msg("error refilling queue")
 			continue
@@ -155,10 +167,17 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 		rls, err := q.repo.GetTaskRateLimits(ctx, qis)
 
 		if err != nil {
+			span.RecordError(err)
+			span.End()
+
 			q.l.Error().Err(err).Msg("error getting rate limits")
 
 			q.unackedToUnassigned(qis)
 			continue
+		}
+
+		if len(rls) > 0 {
+			q.hasRateLimits = true
 		}
 
 		rateLimitTime := time.Since(checkpoint)
@@ -173,6 +192,8 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 		labels, err := q.repo.GetDesiredLabels(ctx, stepIds)
 
 		if err != nil {
+			span.RecordError(err)
+			span.End()
 			q.l.Error().Err(err).Msg("error getting desired labels")
 
 			q.unackedToUnassigned(qis)
@@ -440,9 +461,11 @@ func (q *Queuer) flushToDatabase(ctx context.Context, r *assignResults) int {
 
 	for _, rateLimitedItem := range r.rateLimited {
 		opts.RateLimited = append(opts.RateLimited, &v1.RateLimitResult{
+			V1QueueItem:    rateLimitedItem.qi,
 			ExceededKey:    rateLimitedItem.exceededKey,
 			ExceededUnits:  rateLimitedItem.exceededUnits,
 			ExceededVal:    rateLimitedItem.exceededVal,
+			NextRefillAt:   rateLimitedItem.nextRefillAt,
 			TaskId:         rateLimitedItem.qi.TaskID,
 			TaskInsertedAt: rateLimitedItem.qi.TaskInsertedAt,
 			RetryCount:     rateLimitedItem.qi.RetryCount,
