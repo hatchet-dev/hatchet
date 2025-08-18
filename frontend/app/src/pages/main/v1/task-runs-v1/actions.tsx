@@ -3,7 +3,6 @@ import {
   DialogTitle,
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogHeader,
 } from '@/components/v1/ui/dialog';
 import api, {
@@ -13,25 +12,20 @@ import api, {
   V1TaskStatus,
 } from '@/lib/api';
 import { useApiError } from '@/lib/hooks';
-import { ArrowPathIcon, XCircleIcon } from '@heroicons/react/24/outline';
+import { XCircleIcon } from '@heroicons/react/24/outline';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useCallback, useState } from 'react';
-import {
-  TimeWindow,
-  useColumnFilters,
-} from '../workflow-runs-v1/hooks/column-filters';
-import { useToolbarFilters } from '../workflow-runs-v1/hooks/toolbar-filters';
 import { Combobox } from '@/components/v1/molecules/combobox/combobox';
-import { TaskRunColumn } from '../workflow-runs-v1/components/v1/task-runs-columns';
 import {
-  SelectTrigger,
-  SelectValue,
-  SelectContent,
-  SelectItem,
-  Select,
-} from '@/components/v1/ui/select';
-import { DateTimePicker } from '@/components/v1/molecules/time-picker/date-time-picker';
+  additionalMetadataKey,
+  statusKey,
+  workflowKey,
+} from '../workflow-runs-v1/components/v1/task-runs-columns';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
+import { useRunsContext } from '../workflow-runs-v1/hooks/runs-provider';
+import { TimeFilter } from '../workflow-runs-v1/components/task-runs-table/time-filter';
+import { cn } from '@/lib/utils';
+import { Repeat1 } from 'lucide-react';
 
 export const TASK_RUN_TERMINAL_STATUSES = [
   V1TaskStatus.CANCELLED,
@@ -126,10 +120,10 @@ export const useTaskRunActions = ({
 
 type ConfirmActionModalProps = {
   actionType: ActionType;
-  isOpen: boolean;
-  setIsOpen: (isOpen: boolean) => void;
   onConfirm: () => void;
   params: TaskRunActionsParams;
+  isOpen: boolean;
+  setIsOpen: (isOpen: boolean) => void;
 };
 
 const actionTypeToLabel = (actionType: ActionType) => {
@@ -187,130 +181,95 @@ const CancelByExternalIdsContent = ({ label, params }: ModalContentProps) => {
 };
 
 const ModalContent = ({ label, params }: ModalContentProps) => {
-  const tf = useToolbarFilters({
-    filterVisibility: {},
-  });
-  const cf = useColumnFilters();
+  const { filters, toolbarFilters: tf } = useRunsContext();
 
   if (params.externalIds?.length) {
     return <CancelByExternalIdsContent label={label} params={params} />;
   } else if (params.filter) {
-    const statusToolbarFilter = tf.find(
-      (f) => f.columnId === TaskRunColumn.status,
-    );
+    const statusToolbarFilter = tf.find((f) => f.columnId === statusKey);
     const additionalMetaToolbarFilter = tf.find(
-      (f) => f.columnId === TaskRunColumn.additionalMetadata,
+      (f) => f.columnId === additionalMetadataKey,
     );
-    const workflowToolbarFilter = tf.find(
-      (f) => f.columnId === TaskRunColumn.workflow,
-    );
+    const workflowToolbarFilter = tf.find((f) => f.columnId === workflowKey);
+
+    const hasFilters =
+      statusToolbarFilter ||
+      additionalMetaToolbarFilter ||
+      workflowToolbarFilter;
 
     return (
-      <div className="gap-y-4 flex flex-col">
-        <p className="text-md">
+      <div className="space-y-6">
+        <p className="text-sm text-muted-foreground">
           Confirm to {label.toLowerCase()} all runs matching the following
           filters:
         </p>
-        <div className="grid grid-cols-2 gap-x-2 items-start justify-start gap-y-4">
-          {statusToolbarFilter && (
-            <Combobox
-              values={params.filter.statuses}
-              title={statusToolbarFilter.title}
-              type={statusToolbarFilter.type}
-              options={statusToolbarFilter.options}
-              setValues={(values) => cf.setStatus(values[0] as V1TaskStatus)}
-            />
-          )}
-          {additionalMetaToolbarFilter && (
-            <Combobox
-              values={params.filter.additionalMetadata}
-              title={additionalMetaToolbarFilter.title}
-              type={additionalMetaToolbarFilter.type}
-              options={additionalMetaToolbarFilter.options}
-              setValues={(values) => {
-                const kvPairs = values.map((v) => {
-                  const [key, value] = v.split(':');
-                  return { key, value };
-                });
 
-                cf.setAllAdditionalMetadata({ kvPairs });
-              }}
-            />
-          )}
-          {workflowToolbarFilter && (
-            <Combobox
-              values={params.filter.workflowIds}
-              title={workflowToolbarFilter.title}
-              type={workflowToolbarFilter.type}
-              options={workflowToolbarFilter.options}
-              setValues={(values) => cf.setWorkflowId(values[0] as string)}
-            />
-          )}
-          <Select
-            value={
-              cf.filters.isCustomTimeRange ? 'custom' : cf.filters.timeWindow
-            }
-            onValueChange={(value: TimeWindow | 'custom') => {
-              if (value !== 'custom') {
-                cf.setFilterValues([
-                  { key: 'isCustomTimeRange', value: false },
-                  { key: 'timeWindow', value: value },
-                ]);
-              } else {
-                cf.setFilterValues([{ key: 'isCustomTimeRange', value: true }]);
-              }
-            }}
-          >
-            <SelectTrigger className="flex flex-1 h-8">
-              <SelectValue id="timerange" placeholder="Choose time range" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="1h">1 hour</SelectItem>
-              <SelectItem value="6h">6 hours</SelectItem>
-              <SelectItem value="1d">1 day</SelectItem>
-              <SelectItem value="7d">7 days</SelectItem>
-              <SelectItem value="custom">Custom</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        {cf.filters.isCustomTimeRange && (
-          <div className="flex flex-row w-full flex-1 gap-x-2 items-start justify-start gap-y-4">
-            <DateTimePicker
-              key="after"
-              label="After"
-              date={
-                cf.filters.createdAfter
-                  ? new Date(cf.filters.createdAfter)
-                  : undefined
-              }
-              setDate={(date) => {
-                cf.setCreatedAfter(date?.toISOString());
-              }}
-            />
-            <DateTimePicker
-              key="before"
-              label="Before"
-              date={
-                cf.filters.finishedBefore
-                  ? new Date(cf.filters.finishedBefore)
-                  : undefined
-              }
-              setDate={(date) => {
-                cf.setFinishedBefore(date?.toISOString());
-              }}
-            />
-            <Button
-              key="clear"
-              onClick={() => {
-                cf.setCustomTimeRange(undefined);
-              }}
-              variant="outline"
-              size="sm"
-              className="text-xs h-9 py-2 flex-1"
-            >
-              <XCircleIcon className="h-[18px] w-[18px] mr-2" />
-              Clear
-            </Button>{' '}
+        {hasFilters && (
+          <div className="space-y-4">
+            <h4 className="text-sm font-medium text-foreground">
+              Applied Filters
+            </h4>
+            <div className="space-y-3">
+              {statusToolbarFilter && (
+                <div className="flex flex-row items-center gap-x-2">
+                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                    {statusToolbarFilter.title}
+                  </label>
+                  <Combobox
+                    values={params.filter.statuses}
+                    title={statusToolbarFilter.title}
+                    type={statusToolbarFilter.type}
+                    options={statusToolbarFilter.options}
+                    setValues={(values) =>
+                      filters.setStatuses(values as V1TaskStatus[])
+                    }
+                  />
+                </div>
+              )}
+              {additionalMetaToolbarFilter && (
+                <div className="gap-x-2 flex flex-row items-center">
+                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                    {additionalMetaToolbarFilter.title}
+                  </label>
+                  <Combobox
+                    values={params.filter.additionalMetadata}
+                    title={additionalMetaToolbarFilter.title}
+                    type={additionalMetaToolbarFilter.type}
+                    options={additionalMetaToolbarFilter.options}
+                    setValues={(values) => {
+                      const kvPairs = values.map((v) => {
+                        const [key, value] = v.split(':');
+                        return { key, value };
+                      });
+
+                      filters.setAllAdditionalMetadata(kvPairs);
+                    }}
+                  />
+                </div>
+              )}
+              {workflowToolbarFilter && (
+                <div className="flex flex-row items-center gap-x-2">
+                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                    {workflowToolbarFilter.title}
+                  </label>
+                  <Combobox
+                    values={params.filter.workflowIds}
+                    title={workflowToolbarFilter.title}
+                    type={workflowToolbarFilter.type}
+                    options={workflowToolbarFilter.options}
+                    setValues={(values) =>
+                      filters.setWorkflowIds(values as string[])
+                    }
+                  />
+                </div>
+              )}
+              <div className="flex flex-row items-center gap-x-2">
+                <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                  Time Range
+                </label>
+                <TimeFilter className="flex flex-row items-start gap-3 mb-0" />
+              </div>
+            </div>
           </div>
         )}
       </div>
@@ -322,42 +281,40 @@ const ModalContent = ({ label, params }: ModalContentProps) => {
 
 const ConfirmActionModal = ({
   actionType,
-  isOpen,
-  setIsOpen,
   onConfirm,
   params,
+  isOpen: isActionModalOpen,
+  setIsOpen: setIsActionModalOpen,
 }: ConfirmActionModalProps) => {
   const label = actionTypeToLabel(actionType);
 
   return (
-    <Dialog open={isOpen} onOpenChange={setIsOpen}>
-      <DialogContent className="sm:max-w-[800px] py-12 max-h-screen overflow-auto">
+    <Dialog open={isActionModalOpen} onOpenChange={setIsActionModalOpen}>
+      <DialogContent className="sm:max-w-[700px] py-8 max-h-screen overflow-auto z-[70]">
         <DialogHeader className="gap-2">
           <div className="flex flex-row justify-between items-center w-full">
             <DialogTitle>{label} runs</DialogTitle>
           </div>
         </DialogHeader>
 
-        <div className="flex flex-col mt-4">
-          <DialogDescription>
+        <div className="flex flex-col space-y-4">
+          <div className="text-sm text-muted-foreground">
             <ModalContent label={label} params={params} />
-          </DialogDescription>
+          </div>
 
-          <div className="flex flex-row items-center flex-1 gap-x-2 justify-end">
+          <div className="flex flex-row items-center gap-3 justify-end pt-4 border-t">
             <Button
-              className="mt-6 w-full sm:w-auto sm:self-end"
               onClick={() => {
-                setIsOpen(false);
+                setIsActionModalOpen(false);
               }}
               variant="outline"
             >
               Cancel
-            </Button>{' '}
+            </Button>
             <Button
-              className="mt-6 w-full sm:w-auto sm:self-end"
               onClick={() => {
                 onConfirm();
-                setIsOpen(false);
+                setIsActionModalOpen(false);
               }}
             >
               Confirm
@@ -377,6 +334,7 @@ const BaseActionButton = ({
   showModal,
   onActionProcessed,
   onActionSubmit,
+  className,
 }: {
   disabled: boolean;
   params: TaskRunActionsParams;
@@ -385,8 +343,9 @@ const BaseActionButton = ({
   showModal: boolean;
   onActionProcessed: (ids: string[]) => void;
   onActionSubmit: () => void;
+  className?: string;
 }) => {
-  const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
+  const [isActionModalOpen, setIsActionModalOpen] = useState(false);
   const { handleTaskRunAction } = useTaskRunActions({
     onActionProcessed,
     onActionSubmit,
@@ -413,14 +372,14 @@ const BaseActionButton = ({
     <>
       <ConfirmActionModal
         actionType={params.actionType}
-        isOpen={isConfirmModalOpen}
-        setIsOpen={setIsConfirmModalOpen}
         onConfirm={handleAction}
         params={params}
+        isOpen={isActionModalOpen}
+        setIsOpen={setIsActionModalOpen}
       />
       <Button
         size={'sm'}
-        className="px-2 py-2 gap-2"
+        className={cn('text-sm px-2 py-2 gap-2', className)}
         variant={'outline'}
         disabled={disabled}
         onClick={() => {
@@ -429,7 +388,7 @@ const BaseActionButton = ({
             return;
           }
 
-          setIsConfirmModalOpen(true);
+          setIsActionModalOpen(true);
         }}
       >
         {icon}
@@ -446,6 +405,7 @@ export const TaskRunActionButton = ({
   showModal,
   onActionProcessed,
   onActionSubmit,
+  className,
 }: {
   actionType: ActionType;
   disabled: boolean;
@@ -453,6 +413,7 @@ export const TaskRunActionButton = ({
   showModal: boolean;
   onActionProcessed: (ids: string[]) => void;
   onActionSubmit: () => void;
+  className?: string;
 }) => {
   switch (actionType) {
     case 'cancel':
@@ -465,6 +426,7 @@ export const TaskRunActionButton = ({
           showModal={showModal}
           onActionProcessed={onActionProcessed}
           onActionSubmit={onActionSubmit}
+          className={className}
         />
       );
     case 'replay':
@@ -472,11 +434,12 @@ export const TaskRunActionButton = ({
         <BaseActionButton
           disabled={disabled}
           params={{ ...params, actionType: 'replay' }}
-          icon={<ArrowPathIcon className="w-4 h-4" />}
+          icon={<Repeat1 className="w-4 h-4" />}
           label={'Replay'}
           showModal={showModal}
           onActionProcessed={onActionProcessed}
           onActionSubmit={onActionSubmit}
+          className={className}
         />
       );
     default:

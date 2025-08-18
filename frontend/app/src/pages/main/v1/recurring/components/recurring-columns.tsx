@@ -33,7 +33,7 @@ export const columns = ({
       enableSorting: false,
     },
     {
-      accessorKey: 'readable',
+      accessorKey: 'description',
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title="Description" />
       ),
@@ -45,7 +45,7 @@ export const columns = ({
       enableSorting: false,
     },
     {
-      accessorKey: 'readable',
+      accessorKey: 'timezone',
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title="Timezone" />
       ),
@@ -79,7 +79,9 @@ export const columns = ({
       cell: ({ row }) => (
         <div className="flex flex-row items-center gap-4">
           <div className="cursor-pointer hover:underline min-w-fit whitespace-nowrap">
-            <Link to={`/tenants/${tenantId}/tasks/${row.original.workflowId}`}>
+            <Link
+              to={`/tenants/${tenantId}/workflows/${row.original.workflowId}`}
+            >
               {row.original.workflowName}
             </Link>
           </div>

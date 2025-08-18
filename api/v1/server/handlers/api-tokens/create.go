@@ -7,6 +7,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
+	"github.com/hatchet-dev/hatchet/pkg/constants"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
@@ -41,6 +42,9 @@ func (a *APITokenService) ApiTokenCreate(ctx echo.Context, request gen.ApiTokenC
 	if err != nil {
 		return nil, err
 	}
+
+	ctx.Set(constants.ResourceIdKey.String(), token.TokenId)
+	ctx.Set(constants.ResourceTypeKey.String(), constants.ResourceTypeApiToken.String())
 
 	// This is the only time the token is sent over the API
 	return gen.ApiTokenCreate200JSONResponse{

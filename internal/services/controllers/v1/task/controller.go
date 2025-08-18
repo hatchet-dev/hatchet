@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/hashicorp/go-multierror"
 	"github.com/rs/zerolog"
+	"go.opentelemetry.io/otel/codes"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/hatchet-dev/hatchet/internal/cel"
@@ -20,6 +21,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/partition"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/recoveryutils"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
+	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
 	"github.com/hatchet-dev/hatchet/pkg/config/shared"
 	hatcheterrors "github.com/hatchet-dev/hatchet/pkg/errors"
@@ -222,7 +224,7 @@ func New(fs ...TasksControllerOpt) (*TasksControllerImpl, error) {
 	}
 
 	jitter := t.opsPoolJitter
-	timeout := time.Second * 5
+	timeout := time.Second * 30
 
 	t.timeoutTaskOperations = queueutils.NewOperationPool(opts.l, timeout, "timeout step runs", t.processTaskTimeouts).WithJitter(jitter)
 	t.emitSleepOperations = queueutils.NewOperationPool(opts.l, timeout, "emit sleep step runs", t.processSleeps).WithJitter(jitter)
@@ -254,65 +256,97 @@ func (tc *TasksControllerImpl) Start() (func() error, error) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 
+	spanContext, span := telemetry.NewSpan(ctx, "TasksControllerImpl.Start")
+
 	_, err = tc.s.NewJob(
 		gocron.DurationJob(tc.opsPoolPollInterval),
 		gocron.NewTask(
-			tc.runTenantTimeoutTasks(ctx),
+			tc.runTenantTimeoutTasks(spanContext),
 		),
 	)
 
 	if err != nil {
+		wrappedErr := fmt.Errorf("could not schedule step run timeout: %w", err)
+
 		cancel()
-		return nil, fmt.Errorf("could not schedule step run timeout: %w", err)
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "could not schedule step run timeout")
+		span.End()
+
+		return nil, wrappedErr
 	}
 
 	_, err = tc.s.NewJob(
 		gocron.DurationJob(tc.opsPoolPollInterval),
 		gocron.NewTask(
-			tc.runTenantSleepEmitter(ctx),
+			tc.runTenantSleepEmitter(spanContext),
 		),
 	)
 
 	if err != nil {
+		wrappedErr := fmt.Errorf("could not schedule step run emit sleep: %w", err)
+
 		cancel()
-		return nil, fmt.Errorf("could not schedule step run emit sleep: %w", err)
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "could not schedule step run emit sleep")
+		span.End()
+
+		return nil, wrappedErr
 	}
 
 	_, err = tc.s.NewJob(
 		gocron.DurationJob(tc.opsPoolPollInterval),
 		gocron.NewTask(
-			tc.runTenantReassignTasks(ctx),
+			tc.runTenantReassignTasks(spanContext),
 		),
 	)
 
 	if err != nil {
+		wrappedErr := fmt.Errorf("could not schedule step run reassignment: %w", err)
+
 		cancel()
-		return nil, fmt.Errorf("could not schedule step run reassignment: %w", err)
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "could not schedule step run reassignment")
+		span.End()
+
+		return nil, wrappedErr
 	}
 
 	_, err = tc.s.NewJob(
 		gocron.DurationJob(tc.opsPoolPollInterval),
 		gocron.NewTask(
-			tc.runTenantRetryQueueItems(ctx),
+			tc.runTenantRetryQueueItems(spanContext),
 		),
 	)
 
 	if err != nil {
+		wrappedErr := fmt.Errorf("could not schedule step run retry queue items: %w", err)
+
 		cancel()
-		return nil, fmt.Errorf("could not schedule step run reassignment: %w", err)
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "could not schedule step run retry queue items")
+		span.End()
+
+		return nil, wrappedErr
 	}
 
 	_, err = tc.s.NewJob(
 		gocron.DurationJob(time.Minute*15),
 		gocron.NewTask(
-			tc.runTaskTablePartition(ctx),
+			tc.runTaskTablePartition(spanContext),
 		),
 		gocron.WithSingletonMode(gocron.LimitModeReschedule),
 	)
 
 	if err != nil {
+		wrappedErr := fmt.Errorf("could not schedule task partition method: %w", err)
+
 		cancel()
-		return nil, fmt.Errorf("could not schedule task partition method: %w", err)
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "could not schedule task partition method")
+		span.End()
+
+		return nil, wrappedErr
 	}
 
 	_, err = tc.s.NewJob(
@@ -332,14 +366,22 @@ func (tc *TasksControllerImpl) Start() (func() error, error) {
 		cancel()
 
 		if err := cleanupBuffer(); err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, "could not cleanup buffer")
 			return err
 		}
 
 		tc.pubBuffer.Stop()
 
 		if err := tc.s.Shutdown(); err != nil {
-			return fmt.Errorf("could not shutdown scheduler: %w", err)
+			err := fmt.Errorf("could not shutdown scheduler: %w", err)
+
+			span.RecordError(err)
+			span.SetStatus(codes.Error, "could not shutdown scheduler")
+			return err
 		}
+
+		span.End()
 
 		return nil
 	}
@@ -381,6 +423,9 @@ func (tc *TasksControllerImpl) handleBufferedMsgs(tenantId, msgId string, payloa
 }
 
 func (tc *TasksControllerImpl) handleTaskCompleted(ctx context.Context, tenantId string, payloads [][]byte) error {
+	ctx, span := telemetry.NewSpan(ctx, "TasksControllerImpl.handleTaskCompleted")
+	defer span.End()
+
 	opts := make([]v1.CompleteTaskOpts, 0)
 	idsToData := make(map[int64][]byte)
 
@@ -402,6 +447,9 @@ func (tc *TasksControllerImpl) handleTaskCompleted(ctx context.Context, tenantId
 	res, err := tc.repov1.Tasks().CompleteTasks(ctx, tenantId, opts)
 
 	if err != nil {
+		err = fmt.Errorf("could not complete tasks: %w", err)
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "could not complete tasks")
 		return err
 	}
 
@@ -417,6 +465,9 @@ func (tc *TasksControllerImpl) handleTaskCompleted(ctx context.Context, tenantId
 }
 
 func (tc *TasksControllerImpl) handleTaskFailed(ctx context.Context, tenantId string, payloads [][]byte) error {
+	ctx, span := telemetry.NewSpan(ctx, "TasksControllerImpl.handleTaskFailed")
+	defer span.End()
+
 	opts := make([]v1.FailTaskOpts, 0)
 
 	msgs := msgqueue.JSONConvert[tasktypes.FailedTaskPayload](payloads)
@@ -452,13 +503,19 @@ func (tc *TasksControllerImpl) handleTaskFailed(ctx context.Context, tenantId st
 
 		if err != nil {
 			tc.l.Error().Err(err).Msg("could not create monitoring event message")
+			err = fmt.Errorf("could not create monitoring event message: %w", err)
+			span.RecordError(err)
+			span.SetStatus(codes.Error, "could not create monitoring event message")
 			continue
 		}
 
 		err = tc.pubBuffer.Pub(ctx, msgqueue.OLAP_QUEUE, olapMsg, false)
 
 		if err != nil {
-			tc.l.Error().Err(err).Msg("could not create monitoring event message")
+			tc.l.Error().Err(err).Msg("could not publish monitoring event message")
+			err = fmt.Errorf("could not publish monitoring event message: %w", err)
+			span.RecordError(err)
+			span.SetStatus(codes.Error, "could not publish monitoring event message")
 			continue
 		}
 	}
@@ -466,13 +523,28 @@ func (tc *TasksControllerImpl) handleTaskFailed(ctx context.Context, tenantId st
 	res, err := tc.repov1.Tasks().FailTasks(ctx, tenantId, opts)
 
 	if err != nil {
+		err = fmt.Errorf("could not fail tasks: %w", err)
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "could not fail tasks")
 		return err
 	}
 
-	return tc.processFailTasksResponse(ctx, tenantId, res)
+	err = tc.processFailTasksResponse(ctx, tenantId, res)
+
+	if err != nil {
+		err = fmt.Errorf("could not process fail tasks response: %w", err)
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "could not process fail tasks response")
+		return err
+	}
+
+	return nil
 }
 
 func (tc *TasksControllerImpl) processFailTasksResponse(ctx context.Context, tenantId string, res *v1.FailTasksResponse) error {
+	ctx, span := telemetry.NewSpan(ctx, "TasksControllerImpl.processFailTasksResponse")
+	defer span.End()
+
 	retriedTaskIds := make(map[int64]struct{})
 
 	for _, task := range res.RetriedTasks {
@@ -500,6 +572,9 @@ func (tc *TasksControllerImpl) processFailTasksResponse(ctx context.Context, ten
 	err := tc.sendInternalEvents(ctx, tenantId, internalEventsWithoutRetries)
 
 	if err != nil {
+		err = fmt.Errorf("could not send internal events: %w", err)
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "could not send internal events")
 		return err
 	}
 
@@ -511,7 +586,10 @@ func (tc *TasksControllerImpl) processFailTasksResponse(ctx context.Context, ten
 			err = tc.pubRetryEvent(ctx, tenantId, task)
 
 			if err != nil {
-				outerErr = multierror.Append(outerErr, fmt.Errorf("could not publish retry event: %w", err))
+				err = fmt.Errorf("could not publish retry event: %w", err)
+				span.RecordError(err)
+				span.SetStatus(codes.Error, "could not publish retry event")
+				outerErr = multierror.Append(outerErr, err)
 			}
 		}
 	}
@@ -520,6 +598,9 @@ func (tc *TasksControllerImpl) processFailTasksResponse(ctx context.Context, ten
 }
 
 func (tc *TasksControllerImpl) handleTaskCancelled(ctx context.Context, tenantId string, payloads [][]byte) error {
+	ctx, span := telemetry.NewSpan(ctx, "TasksControllerImpl.handleTaskCancelled")
+	defer span.End()
+
 	opts := make([]v1.TaskIdInsertedAtRetryCount, 0)
 
 	msgs := msgqueue.JSONConvert[tasktypes.CancelledTaskPayload](payloads)
@@ -538,6 +619,9 @@ func (tc *TasksControllerImpl) handleTaskCancelled(ctx context.Context, tenantId
 	res, err := tc.repov1.Tasks().CancelTasks(ctx, tenantId, opts)
 
 	if err != nil {
+		err = fmt.Errorf("could not cancel tasks: %w", err)
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "could not cancel tasks")
 		return err
 	}
 
@@ -557,7 +641,10 @@ func (tc *TasksControllerImpl) handleTaskCancelled(ctx context.Context, tenantId
 	err = tc.sendTaskCancellationsToDispatcher(ctx, tenantId, tasksToSendToDispatcher)
 
 	if err != nil {
-		return fmt.Errorf("could not send task cancellations to dispatcher: %w", err)
+		err = fmt.Errorf("could not send task cancellations to dispatcher: %w", err)
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "could not send task cancellations to dispatcher")
+		return err
 	}
 
 	tc.notifyQueuesOnCompletion(ctx, tenantId, res.ReleasedTasks)
@@ -566,6 +653,9 @@ func (tc *TasksControllerImpl) handleTaskCancelled(ctx context.Context, tenantId
 	err = tc.sendInternalEvents(ctx, tenantId, res.InternalEvents)
 
 	if err != nil {
+		err = fmt.Errorf("could not send internal events: %w", err)
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "could not send internal events")
 		return err
 	}
 
@@ -586,7 +676,11 @@ func (tc *TasksControllerImpl) handleTaskCancelled(ctx context.Context, tenantId
 		)
 
 		if err != nil {
-			outerErr = multierror.Append(outerErr, fmt.Errorf("could not create monitoring event message: %w", err))
+			tc.l.Error().Err(err).Msg("could not create monitoring event message")
+			err = fmt.Errorf("could not create monitoring event message: %w", err)
+			span.RecordError(err)
+			span.SetStatus(codes.Error, "could not create monitoring event message")
+			outerErr = multierror.Append(outerErr, err)
 			continue
 		}
 
@@ -598,7 +692,11 @@ func (tc *TasksControllerImpl) handleTaskCancelled(ctx context.Context, tenantId
 		)
 
 		if err != nil {
-			outerErr = multierror.Append(outerErr, fmt.Errorf("could not publish monitoring event message: %w", err))
+			tc.l.Error().Err(err).Msg("could not publish monitoring event message")
+			err = fmt.Errorf("could not publish monitoring event message: %w", err)
+			span.RecordError(err)
+			span.SetStatus(codes.Error, "could not publish monitoring event message")
+			outerErr = multierror.Append(outerErr, err)
 		}
 	}
 
@@ -884,12 +982,13 @@ func (tc *TasksControllerImpl) handleProcessUserEventTrigger(ctx context.Context
 
 	for _, msg := range msgs {
 		opt := v1.EventTriggerOpts{
-			ExternalId:         msg.EventExternalId,
-			Key:                msg.EventKey,
-			Data:               msg.EventData,
-			AdditionalMetadata: msg.EventAdditionalMetadata,
-			Priority:           msg.EventPriority,
-			Scope:              msg.EventScope,
+			ExternalId:            msg.EventExternalId,
+			Key:                   msg.EventKey,
+			Data:                  msg.EventData,
+			AdditionalMetadata:    msg.EventAdditionalMetadata,
+			Priority:              msg.EventPriority,
+			Scope:                 msg.EventScope,
+			TriggeringWebhookName: msg.TriggeringWebhookName,
 		}
 
 		opts = append(opts, opt)
@@ -918,6 +1017,8 @@ func (tc *TasksControllerImpl) handleProcessUserEventTrigger(ctx context.Context
 				EventExternalId:         opts.ExternalId,
 				EventPayload:            opts.Data,
 				EventAdditionalMetadata: opts.AdditionalMetadata,
+				TriggeringWebhookName:   opts.TriggeringWebhookName,
+				EventScope:              opts.Scope,
 			})
 		} else {
 			for _, run := range runs {
@@ -931,6 +1032,7 @@ func (tc *TasksControllerImpl) handleProcessUserEventTrigger(ctx context.Context
 					EventAdditionalMetadata: opts.AdditionalMetadata,
 					EventScope:              opts.Scope,
 					FilterId:                run.FilterId,
+					TriggeringWebhookName:   opts.TriggeringWebhookName,
 				})
 			}
 		}
@@ -951,6 +1053,21 @@ func (tc *TasksControllerImpl) handleProcessUserEventTrigger(ctx context.Context
 
 	if err != nil {
 		return fmt.Errorf("could not trigger tasks from events: %w", err)
+	}
+
+	evalFailuresMsg, err := tasktypes.CELEvaluationFailureMessage(
+		tenantId,
+		result.CELEvaluationFailures,
+	)
+
+	if err != nil {
+		return fmt.Errorf("could not create CEL evaluation failure message: %w", err)
+	}
+
+	err = tc.pubBuffer.Pub(ctx, msgqueue.OLAP_QUEUE, evalFailuresMsg, false)
+
+	if err != nil {
+		return fmt.Errorf("could not deliver CEL evaluation failure message: %w", err)
 	}
 
 	eg := &errgroup.Group{}
@@ -1007,6 +1124,9 @@ func (tc *TasksControllerImpl) handleProcessTaskTrigger(ctx context.Context, ten
 }
 
 func (tc *TasksControllerImpl) sendInternalEvents(ctx context.Context, tenantId string, events []v1.InternalTaskEvent) error {
+	ctx, span := telemetry.NewSpan(ctx, "TasksControllerImpl.sendInternalEvents")
+	defer span.End()
+
 	if len(events) == 0 {
 		return nil
 	}
@@ -1014,7 +1134,10 @@ func (tc *TasksControllerImpl) sendInternalEvents(ctx context.Context, tenantId 
 	msg, err := tasktypes.NewInternalEventMessage(tenantId, time.Now(), events...)
 
 	if err != nil {
-		return fmt.Errorf("could not create internal event message: %w", err)
+		err = fmt.Errorf("could not create internal event message: %w", err)
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "could not create internal event message")
+		return err
 	}
 
 	return tc.mq.SendMessage(

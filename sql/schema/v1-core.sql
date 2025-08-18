@@ -17,6 +17,27 @@ BEGIN
 END;
 $$;
 
+CREATE OR REPLACE FUNCTION get_v1_weekly_partitions_before_date(
+    targetTableName text,
+    targetDate date
+) RETURNS TABLE(partition_name text)
+    LANGUAGE plpgsql AS
+$$
+BEGIN
+    RETURN QUERY
+    SELECT
+        inhrelid::regclass::text AS partition_name
+    FROM
+        pg_inherits
+    WHERE
+        inhparent = targetTableName::regclass
+        AND substring(inhrelid::regclass::text, format('%s_(\d{8})', targetTableName)) ~ '^\d{8}'
+        AND (substring(inhrelid::regclass::text, format('%s_(\d{8})', targetTableName))::date) < targetDate
+        AND (substring(inhrelid::regclass::text, format('%s_(\d{8})', targetTableName))::date) < NOW() - INTERVAL '1 week'
+    ;
+END;
+$$;
+
 CREATE OR REPLACE FUNCTION create_v1_range_partition(
     targetTableName text,
     targetDate date
@@ -441,6 +462,7 @@ CREATE TABLE v1_match (
     -- references the existing task id, which may be set when we're replaying a task
     trigger_existing_task_id bigint,
     trigger_existing_task_inserted_at timestamptz,
+    trigger_priority integer,
     CONSTRAINT v1_match_pkey PRIMARY KEY (id)
 );
 
@@ -494,6 +516,74 @@ CREATE UNIQUE INDEX v1_filter_unique_tenant_workflow_id_scope_expression_payload
     expression ASC,
     payload_hash
 );
+
+CREATE TYPE v1_incoming_webhook_auth_type AS ENUM ('BASIC', 'API_KEY', 'HMAC');
+CREATE TYPE v1_incoming_webhook_hmac_algorithm AS ENUM ('SHA1', 'SHA256', 'SHA512', 'MD5');
+CREATE TYPE v1_incoming_webhook_hmac_encoding AS ENUM ('HEX', 'BASE64', 'BASE64URL');
+
+-- Can add more sources in the future
+CREATE TYPE v1_incoming_webhook_source_name AS ENUM ('GENERIC', 'GITHUB', 'STRIPE', 'SLACK');
+
+CREATE TABLE v1_incoming_webhook (
+    tenant_id UUID NOT NULL,
+
+    -- names are tenant-unique
+    name TEXT NOT NULL,
+
+    source_name v1_incoming_webhook_source_name NOT NULL,
+
+    -- CEL expression that creates an event key
+    -- from the payload of the webhook
+    event_key_expression TEXT NOT NULL,
+
+    auth_method v1_incoming_webhook_auth_type NOT NULL,
+
+    auth__basic__username TEXT,
+    auth__basic__password BYTEA,
+
+    auth__api_key__header_name TEXT,
+    auth__api_key__key BYTEA,
+
+    auth__hmac__algorithm v1_incoming_webhook_hmac_algorithm,
+    auth__hmac__encoding v1_incoming_webhook_hmac_encoding,
+    auth__hmac__signature_header_name TEXT,
+    auth__hmac__webhook_signing_secret BYTEA,
+
+    inserted_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (tenant_id, name),
+    CHECK (
+        (
+            auth_method = 'BASIC'
+            AND (
+                auth__basic__username IS NOT NULL
+                AND auth__basic__password IS NOT NULL
+            )
+        )
+        OR
+        (
+            auth_method = 'API_KEY'
+            AND (
+                auth__api_key__header_name IS NOT NULL
+                AND auth__api_key__key IS NOT NULL
+            )
+        )
+        OR
+        (
+            auth_method = 'HMAC'
+            AND (
+                auth__hmac__algorithm IS NOT NULL
+                AND auth__hmac__encoding IS NOT NULL
+                AND auth__hmac__signature_header_name IS NOT NULL
+                AND auth__hmac__webhook_signing_secret IS NOT NULL
+            )
+        )
+    ),
+    CHECK (LENGTH(event_key_expression) > 0),
+    CHECK (LENGTH(name) > 0)
+);
+
 
 CREATE INDEX v1_match_condition_filter_idx ON v1_match_condition (
     tenant_id ASC,

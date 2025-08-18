@@ -6,18 +6,10 @@ import {
   ColumnFiltersState,
   PaginationState,
   RowSelectionState,
-  SortingState,
   VisibilityState,
 } from '@tanstack/react-table';
 import { useQuery } from '@tanstack/react-query';
-import api, {
-  V1Event,
-  EventOrderByDirection,
-  EventOrderByField,
-  V1TaskStatus,
-  queries,
-  V1Filter,
-} from '@/lib/api';
+import api, { V1Event, V1TaskStatus, queries, V1Filter } from '@/lib/api';
 import {
   FilterOption,
   ToolbarType,
@@ -35,7 +27,8 @@ import { ArrowPathIcon } from '@heroicons/react/24/outline';
 import { Loading } from '@/components/v1/ui/loading.tsx';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { DataTable } from '@/components/v1/molecules/data-table/data-table';
-import { TaskRunsTable } from '../workflow-runs-v1/components/task-runs-table';
+import { RunsTable } from '../workflow-runs-v1/components/runs-table';
+import { RunsProvider } from '../workflow-runs-v1/hooks/runs-provider';
 import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
@@ -54,10 +47,6 @@ import {
 } from '@/components/v1/ui/dropdown-menu';
 
 export default function Events() {
-  return <EventsTable />;
-}
-
-function EventsTable() {
   const [selectedEvent, setSelectedEvent] = useState<V1Event | null>(null);
   const { tenantId } = useCurrentTenantId();
 
@@ -73,7 +62,7 @@ function EventsTable() {
     ) {
       const newSearchParams = new URLSearchParams(searchParams);
       newSearchParams.set('event', selectedEvent.metadata.id);
-      setSearchParams(newSearchParams);
+      setSearchParams(newSearchParams, { replace: true });
     } else if (
       !selectedEvent &&
       searchParams.get('event') &&
@@ -81,18 +70,10 @@ function EventsTable() {
     ) {
       const newSearchParams = new URLSearchParams(searchParams);
       newSearchParams.delete('event');
-      setSearchParams(newSearchParams);
+      setSearchParams(newSearchParams, { replace: true });
     }
   }, [selectedEvent, searchParams, setSearchParams]);
 
-  const [sorting, setSorting] = useState<SortingState>(() => {
-    const sortParam = searchParams.get('sort');
-    if (sortParam) {
-      const [id, desc] = sortParam.split(':');
-      return [{ id, desc: desc === 'desc' }];
-    }
-    return [];
-  });
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>(() => {
     const filtersParam = searchParams.get('filters');
     if (filtersParam) {
@@ -120,37 +101,11 @@ function EventsTable() {
   useEffect(() => {
     const newSearchParams = new URLSearchParams(searchParams);
 
-    newSearchParams.set(
-      'sort',
-      sorting.map((s) => `${s.id}:${s.desc ? 'desc' : 'asc'}`).join(','),
-    );
     newSearchParams.set('filters', JSON.stringify(columnFilters));
     newSearchParams.set('pageIndex', pagination.pageIndex.toString());
     newSearchParams.set('pageSize', pagination.pageSize.toString());
-    setSearchParams(newSearchParams);
-  }, [sorting, columnFilters, pagination, setSearchParams, searchParams]);
-
-  const orderByDirection = useMemo((): EventOrderByDirection | undefined => {
-    if (!sorting.length) {
-      return;
-    }
-
-    return sorting[0]?.desc
-      ? EventOrderByDirection.Desc
-      : EventOrderByDirection.Asc;
-  }, [sorting]);
-
-  const orderByField = useMemo((): EventOrderByField | undefined => {
-    if (!sorting.length) {
-      return;
-    }
-
-    switch (sorting[0]?.id) {
-      case 'Seen at':
-      default:
-        return EventOrderByField.CreatedAt;
-    }
-  }, [sorting]);
+    setSearchParams(newSearchParams, { replace: true });
+  }, [columnFilters, pagination, setSearchParams, searchParams]);
 
   const keys = useMemo(() => {
     const filter = columnFilters.find((filter) => filter.id === 'key');
@@ -232,8 +187,6 @@ function EventsTable() {
       {
         keys,
         workflows,
-        orderByField,
-        orderByDirection,
         offset,
         limit: pageSize,
         statuses,
@@ -405,8 +358,6 @@ function EventsTable() {
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}
         actions={actions}
-        sorting={sorting}
-        setSorting={setSorting}
         columnFilters={columnFilters}
         setColumnFilters={setColumnFilters}
         pagination={pagination}
@@ -523,11 +474,21 @@ function FiltersSection({ filters }: { filters: V1Filter[] }) {
 function EventWorkflowRunsList({ event }: { event: V1Event }) {
   return (
     <div className="w-full overflow-x-auto max-w-full">
-      <TaskRunsTable
-        triggeringEventExternalId={event.metadata.id}
-        showMetrics={false}
-        showCounts={false}
-      />
+      <RunsProvider
+        tableKey={`event-workflow-runs-${event.metadata.id}`}
+        display={{
+          hideMetrics: true,
+          hideCounts: true,
+          hideDateFilter: true,
+          hideTriggerRunButton: true,
+          hideCancelAndReplayButtons: true,
+        }}
+        runFilters={{
+          triggeringEventExternalId: event.metadata.id,
+        }}
+      >
+        <RunsTable />
+      </RunsProvider>
     </div>
   );
 }

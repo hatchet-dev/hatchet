@@ -34,19 +34,16 @@ You can configure environment variables through:
 ## Best Practices
 
 1. **Security**
-
    - Never commit sensitive values to version control
    - Use Hatchet's secrets management for sensitive data
    - Rotate sensitive values regularly
 
 2. **Naming Conventions**
-
    - Use descriptive, meaningful names
    - Follow a consistent naming pattern
    - Document non-obvious variables
 
 3. **Value Management**
-
    - Use appropriate data types
    - Validate values before deployment
    - Keep values consistent across related services
@@ -99,13 +96,11 @@ Environment variables are mounted into your worker containers at runtime. You ca
 ## Troubleshooting
 
 1. **Variables Not Available**
-
    - Verify the variable is correctly set in your configuration
    - Check for typos in variable names
    - Ensure the service has been redeployed after changes
 
 2. **Incorrect Values**
-
    - Check for proper escaping of special characters
    - Verify the value format is correct
    - Look for conflicting definitions

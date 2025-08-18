@@ -98,6 +98,8 @@ type CreateMatchOpts struct {
 
 	TriggerChildKey pgtype.Text
 
+	TriggerPriority pgtype.Int4
+
 	SignalTaskId *int64
 
 	SignalTaskInsertedAt pgtype.Timestamptz
@@ -579,6 +581,10 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 						opt.ChildKey = &match.TriggerChildKey.String
 					}
 
+					if match.TriggerPriority.Valid {
+						opt.Priority = &match.TriggerPriority.Int32
+					}
+
 					createTaskOpts = append(createTaskOpts, opt)
 				}
 			}
@@ -813,6 +819,7 @@ func (m *sharedRepository) createEventMatches(ctx context.Context, tx sqlcv1.DBT
 		triggerParentTaskInsertedAts := make([]pgtype.Timestamptz, len(dagMatches))
 		triggerChildIndices := make([]pgtype.Int8, len(dagMatches))
 		triggerChildKeys := make([]pgtype.Text, len(dagMatches))
+		triggerPriorities := make([]pgtype.Int4, len(dagMatches))
 
 		for i, match := range dagMatches {
 			dagTenantIds[i] = sqlchelpers.UUIDFromStr(tenantId)
@@ -828,6 +835,7 @@ func (m *sharedRepository) createEventMatches(ctx context.Context, tx sqlcv1.DBT
 			triggerParentTaskInsertedAts[i] = match.TriggerParentTaskInsertedAt
 			triggerChildIndices[i] = match.TriggerChildIndex
 			triggerChildKeys[i] = match.TriggerChildKey
+			triggerPriorities[i] = match.TriggerPriority
 
 			if match.TriggerExistingTaskId != nil {
 				triggerExistingTaskIds[i] = pgtype.Int8{Int64: *match.TriggerExistingTaskId, Valid: true}
@@ -865,6 +873,7 @@ func (m *sharedRepository) createEventMatches(ctx context.Context, tx sqlcv1.DBT
 				TriggerParentTaskInsertedAt:   triggerParentTaskInsertedAts,
 				TriggerChildIndex:             triggerChildIndices,
 				TriggerChildKey:               triggerChildKeys,
+				TriggerPriorities:             triggerPriorities,
 			},
 		)
 
@@ -1109,6 +1118,7 @@ func (m *sharedRepository) createAdditionalMatches(ctx context.Context, tx sqlcv
 				TriggerParentTaskInsertedAt:   match.TriggerParentTaskInsertedAt,
 				TriggerChildIndex:             match.TriggerChildIndex,
 				TriggerChildKey:               match.TriggerChildKey,
+				TriggerPriority:               match.TriggerPriority,
 			}
 
 			for _, condition := range conditions {

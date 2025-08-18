@@ -169,6 +169,9 @@ func (p *Partition) StartControllerPartition(ctx context.Context) (func() error,
 }
 
 func (p *Partition) GetInternalTenantForController(ctx context.Context) (*dbsqlc.Tenant, error) {
+	ctx, span := telemetry.NewSpan(ctx, "Partition.GetInternalTenantForController")
+	defer span.End()
+
 	return p.repo.GetInternalTenantForController(ctx, p.GetControllerPartitionId())
 }
 

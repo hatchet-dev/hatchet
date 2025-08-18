@@ -5,6 +5,39 @@ All notable changes to Hatchet's Python SDK will be documented in this changelog
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.17.0] - 2025-08-12
+
+### Added
+
+- Adds support for dependency injection in tasks via the `Depends` class.
+- Deprecated `fetch_task_run_error` in favor of `get_task_run_error`, which returns a `TaskRunError` object instead of a string. This allows for better error handling and debugging.
+
+### Changed
+
+- Uses `logger.exception` in place of `logger.error` in the action runner to improve (e.g.) Sentry error reporting
+- Extends the `TaskRunError` to include the `task_run_external_id`, which is useful for debugging and tracing errors in task runs.
+- Fixes an issue with logging which allows log levels to be respected over the API.
+
+### Removed
+
+- Removes the `cel-python` dependency
+
+## [1.16.5] - 2025-08-07
+
+### Changed
+
+- Relaxes constraint on Prometheus dependency
+
+## [1.16.4] - 2025-07-28
+
+### Added
+
+- Adds a new config option `grpc_enable_fork_support` to allow users to enable or disable gRPC fork support. This is useful for environments where gRPC fork support is not needed or causes issues. Previously was set to `False` by default, which would cause issues with e.g. Gunicorn setups. Can also be set with the `HATCHET_CLIENT_GRPC_ENABLE_FORK_SUPPORT` environment variable.
+
+### Changed
+
+- Changes `ValidTaskReturnType` to allow `Mapping[str, Any]` instead of `dict[str, Any]` to allow for more flexible return types in tasks, including using `TypedDict`.
+
 ## [1.16.3] - 2025-07-23
 
 ### Added

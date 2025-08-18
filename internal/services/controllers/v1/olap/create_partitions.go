@@ -32,7 +32,7 @@ func (oc *OLAPControllerImpl) runOLAPTablePartition(ctx context.Context) func() 
 }
 
 func (oc *OLAPControllerImpl) createTablePartition(ctx context.Context) error {
-	ctx, span := telemetry.NewSpan(ctx, "create-table-partition")
+	ctx, span := telemetry.NewSpan(ctx, "OLAPControllerImpl.createTablePartition")
 	defer span.End()
 
 	err := oc.repo.OLAP().UpdateTablePartitions(ctx)

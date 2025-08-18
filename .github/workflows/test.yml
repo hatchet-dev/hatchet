@@ -13,7 +13,7 @@ jobs:
       DATABASE_URL: postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet?sslmode=disable
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install Protoc
         uses: arduino/setup-protoc@v3
@@ -37,10 +37,6 @@ jobs:
           version: 9.15.4
           run_install: false
 
-      - name: Install Atlas
-        run: |
-          curl -sSf https://atlasgo.sh | sh
-
       - name: Compose
         run: docker compose up -d
 
@@ -59,7 +55,7 @@ jobs:
   unit:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
@@ -80,7 +76,7 @@ jobs:
       DATABASE_URL: postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet?sslmode=disable
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Install Task
         uses: arduino/setup-task@v2
         with:
@@ -127,7 +123,7 @@ jobs:
       DATABASE_URL: postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet?sslmode=disable
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install Task
         uses: arduino/setup-task@v2
@@ -217,7 +213,7 @@ jobs:
       DATABASE_URL: postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet?sslmode=disable
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install Task
         uses: arduino/setup-task@v2
@@ -312,7 +308,7 @@ jobs:
         pg-version: ["15-alpine"]
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install Task
         uses: arduino/setup-task@v2
@@ -351,7 +347,7 @@ jobs:
         pg-version: ["15-alpine"]
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install Task
         uses: arduino/setup-task@v2

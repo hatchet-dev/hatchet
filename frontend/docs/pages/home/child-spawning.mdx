@@ -1,7 +1,7 @@
 import { Callout, Card, Cards, Steps, Tabs } from "nextra/components";
 import UniversalTabs from "@/components/UniversalTabs";
 import { Snippet } from "@/components/code";
-import snips from "@/lib/snips";
+import { snippets } from "@/lib/generated/snippets";
 
 # Procedural Child Task Spawning
 
@@ -21,11 +21,11 @@ To implement child task spawning, you first need to create both parent and child
 
 First, we'll declare a couple of tasks for the parent and child:
 
-<Snippet src={snips.python.fanout.worker} block="fanoutparent" />
+<Snippet src={snippets.python.fanout.worker.fanout_parent} />
 
 We also created a step on the parent task that spawns the child tasks. Now, we'll add a couple of steps to the child task:
 
-<Snippet src={snips.python.fanout.worker} block="fanoutchild" />
+<Snippet src={snippets.python.fanout.worker.fanout_child} />
 
 And that's it! The fanout parent will run and spawn the child, and then will collect the results from its steps.
 

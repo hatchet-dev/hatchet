@@ -3,6 +3,7 @@ package telemetry
 import (
 	"context"
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -20,10 +21,11 @@ import (
 )
 
 type TracerOpts struct {
-	ServiceName  string
-	CollectorURL string
-	Insecure     bool
-	TraceIdRatio string
+	ServiceName   string
+	CollectorURL  string
+	Insecure      bool
+	TraceIdRatio  string
+	CollectorAuth string
 }
 
 func InitTracer(opts *TracerOpts) (func(context.Context) error, error) {
@@ -47,6 +49,9 @@ func InitTracer(opts *TracerOpts) (func(context.Context) error, error) {
 		otlptracegrpc.NewClient(
 			secureOption,
 			otlptracegrpc.WithEndpoint(opts.CollectorURL),
+			otlptracegrpc.WithHeaders(map[string]string{
+				"Authorization": opts.CollectorAuth,
+			}),
 		),
 	)
 
@@ -54,12 +59,22 @@ func InitTracer(opts *TracerOpts) (func(context.Context) error, error) {
 		return nil, fmt.Errorf("failed to create exporter: %w", err)
 	}
 
+	resourceAttrs := []attribute.KeyValue{
+		attribute.String("service.name", opts.ServiceName),
+		attribute.String("library.language", "go"),
+	}
+
+	// Add Kubernetes pod information if available
+	if podName := os.Getenv("K8S_POD_NAME"); podName != "" {
+		resourceAttrs = append(resourceAttrs, attribute.String("k8s.pod.name", podName))
+	}
+	if podNamespace := os.Getenv("K8S_POD_NAMESPACE"); podNamespace != "" {
+		resourceAttrs = append(resourceAttrs, attribute.String("k8s.namespace.name", podNamespace))
+	}
+
 	resources, err := resource.New(
 		context.Background(),
-		resource.WithAttributes(
-			attribute.String("service.name", opts.ServiceName),
-			attribute.String("library.language", "go"),
-		),
+		resource.WithAttributes(resourceAttrs...),
 	)
 
 	if err != nil {

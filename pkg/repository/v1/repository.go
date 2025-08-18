@@ -10,6 +10,13 @@ import (
 	"github.com/rs/zerolog"
 )
 
+type TaskOperationLimits struct {
+	TimeoutLimit      int
+	ReassignLimit     int
+	RetryQueueLimit   int
+	DurableSleepLimit int
+}
+
 type Repository interface {
 	Triggers() TriggerRepository
 	Tasks() TaskRepository
@@ -25,6 +32,7 @@ type Repository interface {
 	Workflows() WorkflowRepository
 	Ticker() TickerRepository
 	Filters() FilterRepository
+	Webhooks() WebhookRepository
 }
 
 type repositoryImpl struct {
@@ -38,17 +46,18 @@ type repositoryImpl struct {
 	workflows    WorkflowRepository
 	ticker       TickerRepository
 	filters      FilterRepository
+	webhooks     WebhookRepository
 	payloadStore PayloadStoreRepository
 }
 
-func NewRepository(pool *pgxpool.Pool, l *zerolog.Logger, taskRetentionPeriod, olapRetentionPeriod time.Duration, maxInternalRetryCount int32, entitlements repository.EntitlementsRepository) (Repository, func() error) {
+func NewRepository(pool *pgxpool.Pool, l *zerolog.Logger, taskRetentionPeriod, olapRetentionPeriod time.Duration, maxInternalRetryCount int32, entitlements repository.EntitlementsRepository, taskLimits TaskOperationLimits) (Repository, func() error) {
 	v := validator.NewDefaultValidator()
 
 	shared, cleanupShared := newSharedRepository(pool, v, l, entitlements)
 
 	impl := &repositoryImpl{
 		triggers:     newTriggerRepository(shared),
-		tasks:        newTaskRepository(shared, taskRetentionPeriod, maxInternalRetryCount),
+		tasks:        newTaskRepository(shared, taskRetentionPeriod, maxInternalRetryCount, taskLimits.TimeoutLimit, taskLimits.ReassignLimit, taskLimits.RetryQueueLimit, taskLimits.DurableSleepLimit),
 		scheduler:    newSchedulerRepository(shared),
 		matches:      newMatchRepository(shared),
 		olap:         newOLAPRepository(shared, olapRetentionPeriod, true),
@@ -57,6 +66,7 @@ func NewRepository(pool *pgxpool.Pool, l *zerolog.Logger, taskRetentionPeriod, o
 		workflows:    newWorkflowRepository(shared),
 		ticker:       newTickerRepository(shared),
 		filters:      newFilterRepository(shared),
+		webhooks:     newWebhookRepository(shared),
 		payloadStore: shared.payloadStore,
 	}
 
@@ -119,4 +129,8 @@ func (r *repositoryImpl) Ticker() TickerRepository {
 
 func (r *repositoryImpl) Filters() FilterRepository {
 	return r.filters
+}
+
+func (r *repositoryImpl) Webhooks() WebhookRepository {
+	return r.webhooks
 }

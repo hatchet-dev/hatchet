@@ -30,6 +30,7 @@ import (
 	eventsv1 "github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/events"
 	filtersv1 "github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/filters"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/tasks"
+	webhooksv1 "github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/webhooks"
 	workflowrunsv1 "github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/workflow-runs"
 	webhookworker "github.com/hatchet-dev/hatchet/api/v1/server/handlers/webhook-worker"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/workers"
@@ -41,6 +42,7 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	"golang.org/x/time/rate"
 )
 
 type apiService struct {
@@ -64,6 +66,7 @@ type apiService struct {
 	*workflowrunsv1.V1WorkflowRunsService
 	*eventsv1.V1EventsService
 	*filtersv1.V1FiltersService
+	*webhooksv1.V1WebhooksService
 	*celv1.V1CELService
 }
 
@@ -89,13 +92,14 @@ func newAPIService(config *server.ServerConfig) *apiService {
 		V1WorkflowRunsService: workflowrunsv1.NewV1WorkflowRunsService(config),
 		V1EventsService:       eventsv1.NewV1EventsService(config),
 		V1FiltersService:      filtersv1.NewV1FiltersService(config),
+		V1WebhooksService:     webhooksv1.NewV1WebhooksService(config),
 		V1CELService:          celv1.NewV1CELService(config),
 	}
 }
 
 type APIServer struct {
 	config                *server.ServerConfig
-	additionalMiddlewares []gen.StrictMiddlewareFunc
+	additionalMiddlewares []hatchetmiddleware.MiddlewareFunc
 }
 
 func NewAPIServer(config *server.ServerConfig) *APIServer {
@@ -139,7 +143,7 @@ func (t *APIServer) Run(opts ...APIServerExtensionOpt) (func() error, error) {
 	return t.RunWithServer(e)
 }
 
-func (t *APIServer) RunWithMiddlewares(middlewares []gen.StrictMiddlewareFunc, opts ...APIServerExtensionOpt) (func() error, error) {
+func (t *APIServer) RunWithMiddlewares(middlewares []hatchetmiddleware.MiddlewareFunc, opts ...APIServerExtensionOpt) (func() error, error) {
 	t.additionalMiddlewares = middlewares
 
 	return t.Run(opts...)
@@ -184,7 +188,7 @@ func (t *APIServer) getCoreEchoService() (*echo.Echo, error) {
 
 	service := newAPIService(t.config)
 
-	myStrictApiHandler := gen.NewStrictHandler(service, t.additionalMiddlewares)
+	myStrictApiHandler := gen.NewStrictHandler(service)
 
 	gen.RegisterHandlers(g, myStrictApiHandler)
 
@@ -417,6 +421,20 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 		return filter, sqlchelpers.UUIDToStr(filter.TenantID), nil
 	})
 
+	populatorMW.RegisterGetter("v1-webhook", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
+		webhook, err := t.config.V1.Webhooks().GetWebhook(
+			context.Background(),
+			parentId,
+			id,
+		)
+
+		if err != nil {
+			return nil, "", err
+		}
+
+		return webhook, sqlchelpers.UUIDToStr(webhook.TenantID), nil
+	})
+
 	authnMW := authn.NewAuthN(t.config)
 	authzMW := authz.NewAuthZ(t.config)
 
@@ -429,6 +447,9 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 	mw.Use(populatorMW.Middleware)
 	mw.Use(authnMW.Middleware)
 	mw.Use(authzMW.Middleware)
+	for _, m := range t.additionalMiddlewares {
+		mw.Use(m)
+	}
 
 	allHatchetMiddleware, err := mw.Middleware()
 
@@ -485,6 +506,11 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 		loggerMiddleware,
 		middleware.Recover(),
 		allHatchetMiddleware,
+		hatchetmiddleware.WebhookRateLimitMiddleware(
+			rate.Limit(t.config.Runtime.WebhookRateLimit),
+			t.config.Runtime.WebhookRateLimitBurst,
+			t.config.Logger,
+		),
 	)
 
 	return populatorMW, nil

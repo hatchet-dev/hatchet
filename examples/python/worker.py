@@ -6,6 +6,10 @@ from examples.bulk_operations.worker import (
     bulk_replay_test_3,
 )
 from examples.cancellation.worker import cancellation_workflow
+from examples.concurrency_cancel_in_progress.worker import (
+    concurrency_cancel_in_progress_workflow,
+)
+from examples.concurrency_cancel_newest.worker import concurrency_cancel_newest_workflow
 from examples.concurrency_limit.worker import concurrency_limit_workflow
 from examples.concurrency_limit_rr.worker import concurrency_limit_rr_workflow
 from examples.concurrency_multiple_keys.worker import concurrency_multiple_keys_workflow
@@ -15,6 +19,13 @@ from examples.concurrency_workflow_level.worker import (
 from examples.conditions.worker import task_condition_workflow
 from examples.dag.worker import dag_workflow
 from examples.dedupe.worker import dedupe_child_wf, dedupe_parent_wf
+from examples.dependency_injection.worker import (
+    async_task_with_dependencies,
+    di_workflow,
+    durable_async_task_with_dependencies,
+    durable_sync_task_with_dependencies,
+    sync_task_with_dependencies,
+)
 from examples.durable.worker import durable_workflow, wait_for_sleep_twice
 from examples.events.worker import event_workflow
 from examples.fanout.worker import child_wf, parent_wf
@@ -26,6 +37,7 @@ from examples.on_failure.worker import on_failure_wf, on_failure_wf_with_details
 from examples.return_exceptions.worker import return_exceptions_task
 from examples.simple.worker import simple, simple_durable
 from examples.timeout.worker import refresh_timeout_wf, timeout_wf
+from examples.webhooks.worker import webhook
 from hatchet_sdk import Hatchet
 
 hatchet = Hatchet(debug=True)
@@ -60,14 +72,22 @@ def main() -> None:
             sync_fanout_child,
             non_retryable_workflow,
             concurrency_workflow_level_workflow,
+            concurrency_cancel_newest_workflow,
+            concurrency_cancel_in_progress_workflow,
+            di_workflow,
             lifespan_task,
             simple,
             simple_durable,
             bulk_replay_test_1,
             bulk_replay_test_2,
             bulk_replay_test_3,
+            webhook,
             return_exceptions_task,
             wait_for_sleep_twice,
+            async_task_with_dependencies,
+            sync_task_with_dependencies,
+            durable_async_task_with_dependencies,
+            durable_sync_task_with_dependencies,
         ],
         lifespan=lifespan,
     )

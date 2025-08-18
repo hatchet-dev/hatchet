@@ -20,6 +20,7 @@ sql:
       - ticker.sql
       - filters.sql
       - payload-store.sql
+      - webhooks.sql
     schema:
       - ../../../../sql/schema/v0.sql
       - ../../../../sql/schema/v1-core.sql

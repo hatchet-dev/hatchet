@@ -27,7 +27,7 @@ import {
 import useCloudApiMeta from '@/pages/auth/hooks/use-cloud-api-meta';
 import useCloudFeatureFlags from '@/pages/auth/hooks/use-cloud-feature-flags';
 import { useSidebar } from '@/components/sidebar-provider';
-import { SquareActivityIcon } from 'lucide-react';
+import { SquareActivityIcon, WebhookIcon } from 'lucide-react';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 
 function Main() {
@@ -150,10 +150,10 @@ function Sidebar({ className, memberships }: SidebarProps) {
             </h2>
             <div className="space-y-1">
               <SidebarButtonPrimary
-                key="tasks"
+                key="workflows"
                 onNavLinkClick={onNavLinkClick}
-                to={`/tenants/${tenantId}/tasks`}
-                name="Tasks & Workflows"
+                to={`/tenants/${tenantId}/workflows`}
+                name="Workflows"
                 icon={<Squares2X2Icon className="mr-2 h-4 w-4" />}
               />
               <SidebarButtonPrimary
@@ -164,6 +164,13 @@ function Sidebar({ className, memberships }: SidebarProps) {
                 icon={<ServerStackIcon className="mr-2 h-4 w-4" />}
                 prefix={`/tenants/${tenantId}/workers`}
                 collapsibleChildren={workers}
+              />
+              <SidebarButtonPrimary
+                key="webhooks"
+                onNavLinkClick={onNavLinkClick}
+                to={`/tenants/${tenantId}/webhooks`}
+                name="Webhooks"
+                icon={<WebhookIcon className="mr-2 h-4 w-4" />}
               />
               {featureFlags?.data['managed-worker'] && (
                 <SidebarButtonPrimary

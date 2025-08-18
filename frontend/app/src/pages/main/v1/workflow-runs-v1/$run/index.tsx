@@ -29,7 +29,10 @@ import WorkflowRunVisualizer from './v2components/workflow-run-visualizer-v2';
 import { useAtom } from 'jotai';
 import { preferredWorkflowRunViewAtom } from '@/lib/atoms';
 import { JobMiniMap } from './v2components/mini-map';
-import { isTerminalState, useWorkflowDetails } from '../hooks/workflow-details';
+import {
+  isTerminalState,
+  useWorkflowDetails,
+} from '../hooks/use-workflow-details';
 import { useQuery } from '@tanstack/react-query';
 import invariant from 'tiny-invariant';
 import { Spinner } from '@/components/v1/ui/loading';

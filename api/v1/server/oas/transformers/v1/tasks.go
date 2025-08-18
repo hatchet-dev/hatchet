@@ -64,7 +64,7 @@ func ToTaskSummary(task *sqlcv1.PopulateTaskRunDataRow) gen.V1TaskSummary {
 		StartedAt:             startedAt,
 		FinishedAt:            finishedAt,
 		AdditionalMetadata:    &additionalMetadata,
-		ErrorMessage:          &task.ErrorMessage.String,
+		ErrorMessage:          &task.ErrorMessage,
 		Status:                gen.V1TaskStatus(task.Status),
 		TenantId:              uuid.MustParse(sqlchelpers.UUIDToStr(task.TenantID)),
 		WorkflowId:            uuid.MustParse(sqlchelpers.UUIDToStr(task.WorkflowID)),
