@@ -4,6 +4,7 @@ import (
 	"log"
 	"time"
 
+	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
 	hatchet "github.com/hatchet-dev/hatchet/sdks/go"
 )
 
@@ -89,7 +90,7 @@ func main() {
 		hatchet.WithWorkflowDescription("Monitor systems during business hours"),
 	)
 
-	businessHoursMonitor.NewTask("monitor-business-systems", func(ctx hatchet.Context, input CronInput) (CronOutput, error) {
+	_ = businessHoursMonitor.NewTask("monitor-business-systems", func(ctx hatchet.Context, input CronInput) (CronOutput, error) {
 		log.Printf("Monitoring business systems at %s", input.Timestamp)
 
 		return CronOutput{
@@ -113,7 +114,10 @@ func main() {
 	log.Println("  - weekly-report: 0 9 * * 1 (9 AM every Monday)")
 	log.Println("  - business-hours-monitor: 0 9-17 * * 1-5, 0 12 * * 6 (business hours)")
 
-	if err := worker.StartBlocking(); err != nil {
+	interruptCtx, cancel := cmdutils.NewInterruptContext()
+	defer cancel()
+
+	if err := worker.StartBlocking(interruptCtx); err != nil {
 		log.Fatalf("failed to start worker: %v", err)
 	}
 }

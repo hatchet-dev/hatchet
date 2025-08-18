@@ -5,6 +5,11 @@ import (
 	"log"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/oapi-codegen/runtime/types"
+
+	"github.com/hatchet-dev/hatchet/pkg/client/rest"
+	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
 	hatchet "github.com/hatchet-dev/hatchet/sdks/go"
 )
 
@@ -30,14 +35,14 @@ func main() {
 	)
 
 	// Add a long-running task that can be cancelled
-	workflow.NewTask("long-running-task", func(ctx hatchet.Context, input CancellationInput) (CancellationOutput, error) {
+	_ = workflow.NewTask("long-running-task", func(ctx hatchet.Context, input CancellationInput) (CancellationOutput, error) {
 		log.Printf("Starting long-running task with message: %s", input.Message)
 
 		// Simulate long-running work with cancellation checking
 		for i := 0; i < 10; i++ {
 			select {
 			case <-ctx.Done():
-				log.Printf("Task cancelled after %d seconds", i)
+				log.Printf("Task cancelled after %d steps", i)
 				return CancellationOutput{
 					Status:    "cancelled",
 					Completed: false,
@@ -69,15 +74,22 @@ func main() {
 		time.Sleep(2 * time.Second)
 
 		log.Println("Starting workflow instance...")
-		_, err := client.Run(context.Background(), "cancellation-demo", CancellationInput{
+		ref, err := client.RunNoWait(context.Background(), "cancellation-demo", CancellationInput{
 			Message: "This task will run for 10 seconds and can be cancelled",
 		})
 		if err != nil {
 			log.Printf("failed to run workflow: %v", err)
 		}
 
-		// You can demonstrate cancellation by manually cancelling the workflow
-		// through the Hatchet UI or API after starting it
+		// Send cancellation after 2 seconds
+		time.Sleep(2 * time.Second)
+
+		_, err = client.Runs().Cancel(context.Background(), rest.V1CancelTaskRequest{
+			ExternalIds: &[]types.UUID{uuid.MustParse(ref.RunId)},
+		})
+		if err != nil {
+			log.Printf("failed to cancel workflow: %v", err)
+		}
 	}()
 
 	log.Println("Starting worker for cancellation demo...")
@@ -87,7 +99,10 @@ func main() {
 	log.Println("  - Graceful shutdown on cancellation")
 	log.Println("  - Task timeout configuration")
 
-	if err := worker.StartBlocking(); err != nil {
+	interruptCtx, cancel := cmdutils.NewInterruptContext()
+	defer cancel()
+
+	if err := worker.StartBlocking(interruptCtx); err != nil {
 		log.Fatalf("failed to start worker: %v", err)
 	}
 }

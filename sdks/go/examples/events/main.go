@@ -5,6 +5,7 @@ import (
 	"log"
 	"time"
 
+	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
 	hatchet "github.com/hatchet-dev/hatchet/sdks/go"
 )
 
@@ -32,7 +33,7 @@ func main() {
 		hatchet.WithWorkflowEvents("user:created", "user:updated"),
 	)
 
-	workflow.NewTask("process-user-event", func(ctx hatchet.Context, input EventInput) (ProcessOutput, error) {
+	_ = workflow.NewTask("process-user-event", func(ctx hatchet.Context, input EventInput) (ProcessOutput, error) {
 		log.Printf("Processing %s event for user %s", input.Action, input.UserID)
 		log.Printf("Event payload contains: %+v", input.Payload)
 
@@ -88,7 +89,11 @@ func main() {
 	log.Println("  - Event-triggered standalone tasks")
 	log.Println("  - Processing event payloads")
 	log.Println("  - Real event sending and handling")
-	if err := worker.StartBlocking(); err != nil {
+
+	interruptCtx, cancel := cmdutils.NewInterruptContext()
+	defer cancel()
+
+	if err := worker.StartBlocking(interruptCtx); err != nil {
 		log.Fatalf("failed to start worker: %v", err)
 	}
 }

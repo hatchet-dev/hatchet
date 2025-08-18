@@ -5,6 +5,7 @@ import (
 	"log"
 	"time"
 
+	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
 	hatchet "github.com/hatchet-dev/hatchet/sdks/go"
 )
 
@@ -30,7 +31,7 @@ func main() {
 	)
 
 	// Task that will timeout - sleeps for 10 seconds but has 3 second timeout
-	timeoutWorkflow.NewTask("timeout-task",
+	_ = timeoutWorkflow.NewTask("timeout-task",
 		func(ctx hatchet.Context, input TimeoutInput) (TimeoutOutput, error) {
 			log.Printf("Starting task that will timeout. Message: %s", input.Message)
 
@@ -54,7 +55,7 @@ func main() {
 	)
 
 	// Task that refreshes its timeout to avoid timing out
-	refreshTimeoutWorkflow.NewTask("refresh-timeout-task",
+	_ = refreshTimeoutWorkflow.NewTask("refresh-timeout-task",
 		func(ctx hatchet.Context, input TimeoutInput) (TimeoutOutput, error) {
 			log.Printf("Starting task with timeout refresh. Message: %s", input.Message)
 
@@ -89,7 +90,7 @@ func main() {
 	)
 
 	// Task that properly handles context cancellation
-	cancellationWorkflow.NewTask("cancellation-aware-task",
+	_ = cancellationWorkflow.NewTask("cancellation-aware-task",
 		func(ctx hatchet.Context, input TimeoutInput) (TimeoutOutput, error) {
 			log.Printf("Starting cancellation-aware task. Message: %s", input.Message)
 
@@ -169,7 +170,10 @@ func main() {
 	log.Println("  - Context cancellation handling")
 	log.Println("  - Graceful timeout handling")
 
-	if err := worker.StartBlocking(); err != nil {
+	interruptCtx, cancel := cmdutils.NewInterruptContext()
+	defer cancel()
+
+	if err := worker.StartBlocking(interruptCtx); err != nil {
 		log.Fatalf("failed to start worker: %v", err)
 	}
 }
