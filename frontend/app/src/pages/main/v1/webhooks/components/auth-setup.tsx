@@ -226,7 +226,12 @@ export const AuthSetup = ({
     case V1WebhookSourceName.GITHUB:
       return <PreconfiguredHMACAuth register={register} />;
     case V1WebhookSourceName.LINEAR:
-      return <PreconfiguredHMACAuth register={register} />;
+      return (
+        <PreconfiguredHMACAuth
+          register={register}
+          secretPlaceholder="lin_wh_..."
+        />
+      );
     case V1WebhookSourceName.STRIPE:
       return (
         <PreconfiguredHMACAuth
