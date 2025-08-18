@@ -1,0 +1,114 @@
+package main
+
+import (
+	"context"
+	"fmt"
+	"log"
+	"time"
+
+	"github.com/hatchet-dev/hatchet/pkg/client/types"
+	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
+	hatchet "github.com/hatchet-dev/hatchet/sdks/go"
+	"github.com/hatchet-dev/hatchet/sdks/go/features"
+)
+
+type APIRequest struct {
+	UserID string `json:"userId"`
+	Action string `json:"action"`
+}
+
+func main() {
+	client, err := hatchet.NewClient()
+	if err != nil {
+		log.Fatalf("failed to create hatchet client: %v", err)
+	}
+
+	// Upsert Rate Limit
+	err = client.RateLimits().Upsert(features.CreateRatelimitOpts{
+		Key:      "api-service-rate-limit",
+		Limit:    10,
+		Duration: types.Second,
+	})
+	if err != nil {
+		log.Fatalf("failed to create rate limit: %v", err)
+	}
+
+	// Static Rate Limit
+	const RATE_LIMIT_KEY = "api-service-rate-limit"
+
+	staticWorkflow := client.NewWorkflow("static-rate-limit-demo")
+	units := 1
+	_ = staticWorkflow.NewTask("task1",
+		func(ctx hatchet.Context, input APIRequest) (string, error) {
+			log.Println("executed task1")
+
+			return "completed", nil
+		},
+		hatchet.WithRateLimits(&types.RateLimit{
+			Key:   RATE_LIMIT_KEY,
+			Units: &units,
+		}),
+	)
+
+	// Dynamic Rate Limit
+	dynamicWorkflow := client.NewWorkflow("dynamic-rate-limit-demo")
+	userUnits := 1
+	userLimit := "10"
+	duration := types.Minute
+	_ = dynamicWorkflow.NewTask("task2",
+		func(ctx hatchet.Context, input APIRequest) (string, error) {
+			log.Printf("executed task2 for user: %s", input.UserID)
+
+			return "completed", nil
+		},
+		hatchet.WithRateLimits(&types.RateLimit{
+			Key:            "input.userId",
+			Units:          &userUnits,
+			LimitValueExpr: &userLimit,
+			Duration:       &duration,
+		}),
+	)
+
+	worker, err := client.NewWorker("rate-limit-worker",
+		hatchet.WithWorkflows(staticWorkflow, dynamicWorkflow),
+	)
+	if err != nil {
+		log.Fatalf("failed to create worker: %v", err)
+	}
+
+	// Submit some test requests
+	go func() {
+		time.Sleep(2 * time.Second)
+
+		// Test static rate limit
+		for i := 0; i < 5; i++ {
+			_, err := client.RunNoWait(context.Background(), "static-rate-limit-demo", APIRequest{
+				UserID: fmt.Sprintf("user-%d", i),
+				Action: "test",
+			})
+			if err != nil {
+				log.Printf("Failed to submit static request: %v", err)
+			}
+		}
+
+		// Test dynamic rate limit
+		for i := 0; i < 5; i++ {
+			_, err := client.RunNoWait(context.Background(), "dynamic-rate-limit-demo", APIRequest{
+				UserID: fmt.Sprintf("user-%d", i%2), // Cycle between 2 users
+				Action: "test",
+			})
+			if err != nil {
+				log.Printf("Failed to submit dynamic request: %v", err)
+			}
+		}
+	}()
+
+	log.Println("Starting worker for rate limiting demo...")
+
+	interruptCtx, cancel := cmdutils.NewInterruptContext()
+	defer cancel()
+
+	if err := worker.StartBlocking(interruptCtx); err != nil {
+		log.Fatalf("failed to start worker: %v", err)
+	}
+}

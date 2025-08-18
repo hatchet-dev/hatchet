@@ -2,7 +2,7 @@ import { Button } from '@/components/v1/ui/button';
 import { Separator } from '@/components/v1/ui/separator';
 import { useState } from 'react';
 import { useApiError } from '@/lib/hooks';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import api, { queries, TenantVersion, UpdateTenantRequest } from '@/lib/api';
 import { Switch } from '@/components/v1/ui/switch';
 import { Label } from '@radix-ui/react-label';
@@ -18,6 +18,7 @@ import {
 } from '@/components/v1/ui/dialog';
 import { Alert, AlertDescription, AlertTitle } from '@/components/v1/ui/alert';
 import { useCurrentTenantId, useTenantDetails } from '@/hooks/use-tenant';
+import { cloudApi } from '@/lib/api/api';
 
 export default function TenantSettings() {
   const { tenant } = useTenantDetails();
@@ -32,6 +33,8 @@ export default function TenantSettings() {
         <UpdateTenant />
         <Separator className="my-4" />
         <AnalyticsOptOut />
+        <Separator className="my-4" />
+        <InactivityTimeout />
         <Separator className="my-4" />
         <TenantVersionSwitcher />
       </div>
@@ -236,6 +239,77 @@ const AnalyticsOptOut: React.FC = () => {
             Save and Reload
           </Button>
         ))}
+    </>
+  );
+};
+
+const InactivityTimeout: React.FC = () => {
+  const { data: cloudMetadata } = useQuery({
+    queryKey: ['metadata'],
+    queryFn: async () => {
+      const res = await cloudApi.metadataGet();
+      return res.data;
+    },
+  });
+
+  const formatTimeoutMs = (timeoutMs: number | undefined) => {
+    if (!timeoutMs || timeoutMs <= 0) {
+      return 'Disabled';
+    }
+
+    const minutes = Math.floor(timeoutMs / 60000);
+    if (minutes < 60) {
+      return `${minutes} minute${minutes !== 1 ? 's' : ''}`;
+    }
+
+    const hours = Math.floor(minutes / 60);
+    const remainingMinutes = minutes % 60;
+
+    if (remainingMinutes === 0) {
+      return `${hours} hour${hours !== 1 ? 's' : ''}`;
+    }
+
+    return `${hours} hour${hours !== 1 ? 's' : ''} ${remainingMinutes} minute${remainingMinutes !== 1 ? 's' : ''}`;
+  };
+
+  const isDisabled =
+    !cloudMetadata?.inactivityLogoutMs || cloudMetadata.inactivityLogoutMs <= 0;
+
+  return (
+    <>
+      <h2 className="text-xl font-semibold leading-tight text-foreground">
+        Inactivity Timeout
+      </h2>
+      <Separator className="my-4" />
+      {isDisabled ? (
+        <>
+          <p className="text-gray-700 dark:text-gray-300 my-4">
+            Inactivity timeout is currently <strong>disabled</strong>. This
+            feature automatically logs out users after a period of inactivity to
+            enhance security.
+          </p>
+          <Alert>
+            <AlertDescription>
+              To enable inactivity timeout for your tenant, please contact
+              support.
+            </AlertDescription>
+          </Alert>
+        </>
+      ) : (
+        <>
+          <p className="text-gray-700 dark:text-gray-300 my-4">
+            Current inactivity logout timeout:{' '}
+            <strong>
+              {formatTimeoutMs(cloudMetadata?.inactivityLogoutMs)}
+            </strong>
+          </p>
+          <Alert>
+            <AlertDescription>
+              Please contact support to change this configuration.
+            </AlertDescription>
+          </Alert>
+        </>
+      )}
     </>
   );
 };

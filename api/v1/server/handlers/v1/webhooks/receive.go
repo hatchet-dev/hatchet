@@ -68,6 +68,16 @@ func (w *V1WebhooksService) V1WebhookReceive(ctx echo.Context, request gen.V1Web
 		return nil, fmt.Errorf("failed to read request body: %w", err)
 	}
 
+	isChallenge, challengeResponse, err := w.performChallenge(rawBody, *webhook, *ctx.Request())
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to perform challenge: %w", err)
+	}
+
+	if isChallenge {
+		return gen.V1WebhookReceive200JSONResponse(challengeResponse), nil
+	}
+
 	ok, validationError := w.validateWebhook(rawBody, *webhook, *ctx.Request())
 
 	if !ok {
@@ -105,8 +115,17 @@ func (w *V1WebhooksService) V1WebhookReceive(ctx echo.Context, request gen.V1Web
 		delete(payloadMap, "v1-webhook")
 	}
 
+	headerMap := make(map[string]string)
+
+	for k, v := range ctx.Request().Header {
+		if len(v) > 0 {
+			headerMap[strings.ToLower(k)] = v[0]
+		}
+	}
+
 	eventKey, err := w.celParser.EvaluateIncomingWebhookExpression(webhook.EventKeyExpression, cel.NewInput(
 		cel.WithInput(payloadMap),
+		cel.WithHeaders(headerMap),
 	),
 	)
 
@@ -161,13 +180,9 @@ func (w *V1WebhooksService) V1WebhookReceive(ctx echo.Context, request gen.V1Web
 		return nil, fmt.Errorf("failed to ingest event")
 	}
 
-	msg := "ok"
-
-	return gen.V1WebhookReceive200JSONResponse(
-		gen.V1WebhookReceive200JSONResponse{
-			Message: &msg,
-		},
-	), nil
+	return gen.V1WebhookReceive200JSONResponse(map[string]interface{}{
+		"message": "ok",
+	}), nil
 }
 
 func computeHMACSignature(payload []byte, secret []byte, algorithm sqlcv1.V1IncomingWebhookHmacAlgorithm, encoding sqlcv1.V1IncomingWebhookHmacEncoding) (string, error) {
@@ -239,11 +254,104 @@ func (vr ValidationError) ToResponse() (gen.V1WebhookReceiveResponseObject, erro
 	}
 }
 
+type IsValid bool
+type IsChallenge bool
+
+func (w *V1WebhooksService) performChallenge(webhookPayload []byte, webhook sqlcv1.V1IncomingWebhook, request http.Request) (IsChallenge, map[string]interface{}, error) {
+	switch webhook.SourceName {
+	case sqlcv1.V1IncomingWebhookSourceNameSLACK:
+		payload := make(map[string]interface{})
+		err := json.Unmarshal(webhookPayload, &payload)
+
+		if err != nil {
+			return false, nil, fmt.Errorf("failed to parse form data: %s", err)
+		}
+
+		if challenge, ok := payload["challenge"].(string); ok && challenge != "" {
+			return true, map[string]interface{}{
+				"challenge": challenge,
+			}, nil
+		}
+
+		return false, nil, nil
+	default:
+		return false, nil, nil
+	}
+}
+
 func (w *V1WebhooksService) validateWebhook(webhookPayload []byte, webhook sqlcv1.V1IncomingWebhook, request http.Request) (
-	bool,
+	IsValid,
 	*ValidationError,
 ) {
 	switch webhook.SourceName {
+	case sqlcv1.V1IncomingWebhookSourceNameSLACK:
+		timestampHeader := request.Header.Get("X-Slack-Request-Timestamp")
+
+		if timestampHeader == "" {
+			return false, &ValidationError{
+				Code:      Http403,
+				ErrorText: "missing or invalid timestamp header: X-Slack-Request-Timestamp",
+			}
+		}
+
+		timestamp, err := strconv.ParseInt(strings.TrimSpace(timestampHeader), 10, 64)
+
+		if err != nil {
+			return false, &ValidationError{
+				Code:      Http403,
+				ErrorText: fmt.Sprintf("invalid timestamp in header: %s", err),
+			}
+		}
+
+		// qq: should this be utc?
+		if time.Unix(timestamp, 0).UTC().Before(time.Now().Add(-5 * time.Minute)) {
+			return false, &ValidationError{
+				Code:      Http403,
+				ErrorText: "timestamp in header is out of range",
+			}
+		}
+
+		algorithm := webhook.AuthHmacAlgorithm.V1IncomingWebhookHmacAlgorithm
+		encoding := webhook.AuthHmacEncoding.V1IncomingWebhookHmacEncoding
+		decryptedSigningSecret, err := w.config.Encryption.Decrypt(webhook.AuthHmacWebhookSigningSecret, "v1_webhook_hmac_signing_secret")
+
+		if err != nil {
+			return false, &ValidationError{
+				Code:      Http500,
+				ErrorText: fmt.Sprintf("failed to decrypt HMAC signing secret: %s", err),
+			}
+		}
+
+		sigBaseString := fmt.Sprintf("v0:%d:%s", timestamp, webhookPayload)
+
+		hash, err := computeHMACSignature([]byte(sigBaseString), decryptedSigningSecret, algorithm, encoding)
+
+		if err != nil {
+			return false, &ValidationError{
+				Code:      Http500,
+				ErrorText: fmt.Sprintf("failed to compute HMAC signature: %s", err),
+			}
+		}
+
+		expectedSignature := fmt.Sprintf("v0=%s", hash)
+
+		signatureHeader := request.Header.Get(webhook.AuthHmacSignatureHeaderName.String)
+
+		if signatureHeader == "" {
+			return false, &ValidationError{
+				Code:      Http403,
+				ErrorText: fmt.Sprintf("missing or invalid signature header: %s", webhook.AuthHmacSignatureHeaderName.String),
+			}
+		}
+
+		if !signaturesMatch(signatureHeader, expectedSignature) {
+			return false, &ValidationError{
+				Code:      Http403,
+				ErrorText: "invalid HMAC signature",
+			}
+		}
+
+		return true, nil
 	case sqlcv1.V1IncomingWebhookSourceNameSTRIPE:
 		signatureHeader := request.Header.Get(webhook.AuthHmacSignatureHeaderName.String)
 
@@ -333,6 +441,8 @@ func (w *V1WebhooksService) validateWebhook(webhookPayload []byte, webhook sqlcv
 			}
 		}
 	case sqlcv1.V1IncomingWebhookSourceNameGITHUB:
+		fallthrough
+	case sqlcv1.V1IncomingWebhookSourceNameLINEAR:
 		fallthrough
 	case sqlcv1.V1IncomingWebhookSourceNameGENERIC:
 		switch webhook.AuthMethod {

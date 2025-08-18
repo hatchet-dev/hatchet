@@ -1,7 +1,8 @@
 import { V1WebhookSourceName } from '@/lib/api';
 import { GitHubLogoIcon } from '@radix-ui/react-icons';
 import { Webhook } from 'lucide-react';
-import { FaStripeS } from 'react-icons/fa';
+import { FaSlack, FaStripeS } from 'react-icons/fa';
+import { CgLinear } from 'react-icons/cg';
 
 export const SourceName = ({
   sourceName,
@@ -28,6 +29,20 @@ export const SourceName = ({
         <span className="flex flex-row gap-x-2 items-center">
           <FaStripeS className="size-4" />
           Stripe
+        </span>
+      );
+    case V1WebhookSourceName.SLACK:
+      return (
+        <span className="flex flex-row gap-x-2 items-center">
+          <FaSlack className="size-4" />
+          Slack
+        </span>
+      );
+    case V1WebhookSourceName.LINEAR:
+      return (
+        <span className="flex flex-row gap-x-2 items-center">
+          <CgLinear className="size-4" />
+          Linear
         </span>
       );
 

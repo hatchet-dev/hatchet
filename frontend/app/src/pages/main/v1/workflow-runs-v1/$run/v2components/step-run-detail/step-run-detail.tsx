@@ -13,7 +13,8 @@ import {
 import { Sheet, SheetContent } from '@/components/v1/ui/sheet';
 import { StepRunEvents } from '../step-run-events-for-workflow-run';
 import { Link } from 'react-router-dom';
-import { TaskRunsTable } from '../../../components/task-runs-table';
+import { RunsTable } from '../../../components/runs-table';
+import { RunsProvider } from '../../../hooks/runs-provider';
 import { V1RunIndicator } from '../../../components/run-statuses';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { emptyGolangUUID, formatDuration } from '@/lib/utils';
@@ -23,7 +24,7 @@ import { TaskRunActionButton } from '@/pages/main/v1/task-runs-v1/actions';
 import { TaskRunMiniMap } from '../mini-map';
 import { WorkflowDefinitionLink } from '@/pages/main/workflow-runs/$run/v2components/workflow-definition';
 import { StepRunLogs } from './step-run-logs';
-import { isTerminalState } from '../../../hooks/workflow-details';
+import { isTerminalState } from '../../../hooks/use-workflow-details';
 import { CopyWorkflowConfigButton } from '@/components/v1/shared/copy-workflow-config';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { Waterfall } from '../waterfall';
@@ -212,7 +213,7 @@ export const TaskRunDetail = ({
           )}
         </TabsList>
         <TabsContent value="overview" className="flex-1 min-h-0">
-          <div className="w-full h-36 flex relative bg-slate-100 dark:bg-slate-900">
+          <div className="w-full flex relative bg-slate-100 dark:bg-slate-900">
             <TaskRunMiniMap onClick={() => {}} taskRunId={taskRunId} />
           </div>
           <div className="h-4" />
@@ -240,12 +241,22 @@ export const TaskRunDetail = ({
               <V1StepRunOutput taskRunId={taskRunId} />
             </TabsContent>
             <TabsContent value={TabOption.ChildWorkflowRuns} className="mt-4">
-              <TaskRunsTable
-                parentTaskExternalId={taskRunId}
-                showCounts={false}
-                showMetrics={false}
-                disableTaskRunPagination={true}
-              />
+              <div className="h-[600px] flex flex-col">
+                <RunsProvider
+                  tableKey={`child-runs-${taskRunId}`}
+                  display={{
+                    hideCounts: true,
+                    hideMetrics: true,
+                    hideDateFilter: true,
+                    hideTriggerRunButton: true,
+                  }}
+                  runFilters={{
+                    parentTaskExternalId: taskRunId,
+                  }}
+                >
+                  <RunsTable headerClassName="flex-shrink-0" />
+                </RunsProvider>
+              </div>
             </TabsContent>
             <TabsContent value={TabOption.Input}>
               {taskRun.input && (

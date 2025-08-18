@@ -15,6 +15,7 @@ type WebhookRepository interface {
 	DeleteWebhook(ctx context.Context, tenantId, webhookId string) (*sqlcv1.V1IncomingWebhook, error)
 	GetWebhook(ctx context.Context, tenantId, webhookId string) (*sqlcv1.V1IncomingWebhook, error)
 	CanCreate(ctx context.Context, tenantId string, webhookLimit int32) (bool, error)
+	UpdateWebhook(ctx context.Context, tenantId string, webhookId, newExpression string) (*sqlcv1.V1IncomingWebhook, error)
 }
 
 type webhookRepository struct {
@@ -205,5 +206,13 @@ func (r *webhookRepository) CanCreate(ctx context.Context, tenantId string, webh
 	return r.queries.CanCreateWebhook(ctx, r.pool, sqlcv1.CanCreateWebhookParams{
 		Tenantid:     sqlchelpers.UUIDFromStr(tenantId),
 		Webhooklimit: webhookLimit,
+	})
+}
+
+func (r *webhookRepository) UpdateWebhook(ctx context.Context, tenantId string, webhookName, newExpression string) (*sqlcv1.V1IncomingWebhook, error) {
+	return r.queries.UpdateWebhookExpression(ctx, r.pool, sqlcv1.UpdateWebhookExpressionParams{
+		Tenantid:           sqlchelpers.UUIDFromStr(tenantId),
+		Webhookname:        webhookName,
+		Eventkeyexpression: newExpression,
 	})
 }

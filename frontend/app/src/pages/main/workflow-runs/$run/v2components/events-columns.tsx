@@ -143,11 +143,16 @@ export const columns = ({
 
         return (
           <div>
-            <div className="text-xs text-muted-foreground font-mono tracking-tight">
+            <div
+              key="message"
+              className="text-xs text-muted-foreground font-mono tracking-tight"
+            >
               {row.original.event.message}
             </div>
             {items.length > 0 && (
-              <div className="flex flex-col gap-2 mt-2">{items}</div>
+              <div key="items" className="flex flex-col gap-2 mt-2">
+                {items}
+              </div>
             )}
           </div>
         );

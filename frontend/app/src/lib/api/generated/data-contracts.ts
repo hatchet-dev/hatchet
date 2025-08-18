@@ -234,6 +234,8 @@ export enum V1WebhookSourceName {
   GENERIC = "GENERIC",
   GITHUB = "GITHUB",
   STRIPE = "STRIPE",
+  SLACK = "SLACK",
+  LINEAR = "LINEAR",
 }
 
 export enum TenantUIVersion {
@@ -955,6 +957,11 @@ export type V1CreateWebhookRequest =
   | V1CreateWebhookRequestBasicAuth
   | V1CreateWebhookRequestAPIKey
   | V1CreateWebhookRequestHMAC;
+
+export interface V1UpdateWebhookRequest {
+  /** The CEL expression to use for the event key. This is used to create the event key from the webhook payload. */
+  eventKeyExpression: string;
+}
 
 export interface V1CELDebugRequest {
   /** The CEL expression to evaluate */

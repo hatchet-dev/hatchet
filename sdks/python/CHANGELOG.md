@@ -5,6 +5,35 @@ All notable changes to Hatchet's Python SDK will be documented in this changelog
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.17.1] - 2025-08-18
+
+### Added
+
+- Adds a `HATCHET_CLIENT_LOG_QUEUE_SIZE` environment variable to configure the size of the log queue used for capturing logs and forwarding them to Hatchet
+
+## [1.17.0] - 2025-08-12
+
+### Added
+
+- Adds support for dependency injection in tasks via the `Depends` class.
+- Deprecated `fetch_task_run_error` in favor of `get_task_run_error`, which returns a `TaskRunError` object instead of a string. This allows for better error handling and debugging.
+
+### Changed
+
+- Uses `logger.exception` in place of `logger.error` in the action runner to improve (e.g.) Sentry error reporting
+- Extends the `TaskRunError` to include the `task_run_external_id`, which is useful for debugging and tracing errors in task runs.
+- Fixes an issue with logging which allows log levels to be respected over the API.
+
+### Removed
+
+- Removes the `cel-python` dependency
+
+## [1.16.5] - 2025-08-07
+
+### Changed
+
+- Relaxes constraint on Prometheus dependency
+
 ## [1.16.4] - 2025-07-28
 
 ### Added

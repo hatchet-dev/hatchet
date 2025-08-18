@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { cva, type VariantProps } from 'class-variance-authority';
-import { cn } from '@/next/lib/utils';
+import { cn } from '@/lib/utils';
 import { intervalToDuration } from 'date-fns';
 import { Clock } from 'lucide-react';
 import {
@@ -8,7 +8,7 @@ import {
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from '@/next/components/ui/tooltip';
+} from '@/components/ui/tooltip';
 import { V1TaskStatus } from '@/lib/api';
 import { Duration as DateFnsDuration } from 'date-fns';
 

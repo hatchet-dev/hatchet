@@ -7,6 +7,7 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/spf13/viper"
 	"golang.org/x/oauth2"
+	"google.golang.org/grpc"
 
 	"github.com/hatchet-dev/hatchet/internal/integrations/alerting"
 	"github.com/hatchet-dev/hatchet/internal/integrations/email"
@@ -100,6 +101,20 @@ type ConfigFileOperations struct {
 
 	// PollInterval is the polling interval for operations in seconds
 	PollInterval int `mapstructure:"pollInterval" json:"pollInterval,omitempty" default:"2"`
+}
+
+type TaskOperationLimitsConfigFile struct {
+	// TimeoutLimit is the limit for how many tasks to process in a single timeout operation
+	TimeoutLimit int `mapstructure:"timeoutLimit" json:"timeoutLimit,omitempty" default:"1000"`
+
+	// ReassignLimit is the limit for how many tasks to process in a single reassignment operation
+	ReassignLimit int `mapstructure:"reassignLimit" json:"reassignLimit,omitempty" default:"1000"`
+
+	// RetryQueueLimit is the limit for how many retry queue items to process in a single operation
+	RetryQueueLimit int `mapstructure:"retryQueueLimit" json:"retryQueueLimit,omitempty" default:"1000"`
+
+	// DurableSleepLimit is the limit for how many durable sleep items to process in a single operation
+	DurableSleepLimit int `mapstructure:"durableSleepLimit" json:"durableSleepLimit,omitempty" default:"1000"`
 }
 
 // General server runtime options
@@ -229,6 +244,9 @@ type ConfigFileRuntime struct {
 
 	// LogIngestionEnabled controls whether the server enables log ingestion for tasks
 	LogIngestionEnabled bool `mapstructure:"logIngestionEnabled" json:"logIngestionEnabled,omitempty" default:"true"`
+
+	// TaskOperationLimits controls the limits for various task operations
+	TaskOperationLimits TaskOperationLimitsConfigFile `mapstructure:"taskOperationLimits" json:"taskOperationLimits,omitempty"`
 }
 
 type InternalClientTLSConfigFile struct {
@@ -555,6 +573,8 @@ type ServerConfig struct {
 
 	Operations ConfigFileOperations
 
+	GRPCInterceptors []grpc.UnaryServerInterceptor
+
 	Version string
 }
 
@@ -566,6 +586,10 @@ func (c *ServerConfig) HasService(name string) bool {
 	}
 
 	return false
+}
+
+func (c *ServerConfig) AddGRPCUnaryInterceptor(interceptor grpc.UnaryServerInterceptor) {
+	c.GRPCInterceptors = append(c.GRPCInterceptors, interceptor)
 }
 
 func BindAllEnv(v *viper.Viper) {
@@ -804,4 +828,10 @@ func BindAllEnv(v *viper.Viper) {
 	// operations options
 	_ = v.BindEnv("olap.jitter", "SERVER_OPERATIONS_JITTER")
 	_ = v.BindEnv("olap.pollInterval", "SERVER_OPERATIONS_POLL_INTERVAL")
+
+	// task operation limits options
+	_ = v.BindEnv("taskOperationLimits.timeoutLimit", "SERVER_TASK_OPERATION_LIMITS_TIMEOUT_LIMIT")
+	_ = v.BindEnv("taskOperationLimits.reassignLimit", "SERVER_TASK_OPERATION_LIMITS_REASSIGN_LIMIT")
+	_ = v.BindEnv("taskOperationLimits.retryQueueLimit", "SERVER_TASK_OPERATION_LIMITS_RETRY_QUEUE_LIMIT")
+	_ = v.BindEnv("taskOperationLimits.durableSleepLimit", "SERVER_TASK_OPERATION_LIMITS_DURABLE_SLEEP_LIMIT")
 }

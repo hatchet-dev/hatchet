@@ -256,7 +256,14 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		return nil, fmt.Errorf("could not parse retention period %s: %w", scf.Runtime.Limits.DefaultTenantRetentionPeriod, err)
 	}
 
-	v1, cleanupV1 := repov1.NewRepository(pool, &l, retentionPeriod, retentionPeriod, scf.Runtime.MaxInternalRetryCount, entitlementRepo)
+	taskLimits := repov1.TaskOperationLimits{
+		TimeoutLimit:      scf.Runtime.TaskOperationLimits.TimeoutLimit,
+		ReassignLimit:     scf.Runtime.TaskOperationLimits.ReassignLimit,
+		RetryQueueLimit:   scf.Runtime.TaskOperationLimits.RetryQueueLimit,
+		DurableSleepLimit: scf.Runtime.TaskOperationLimits.DurableSleepLimit,
+	}
+
+	v1, cleanupV1 := repov1.NewRepository(pool, &l, retentionPeriod, retentionPeriod, scf.Runtime.MaxInternalRetryCount, entitlementRepo, taskLimits)
 
 	apiRepo, cleanupApiRepo, err := postgresdb.NewAPIRepository(pool, &scf.Runtime, opts...)
 

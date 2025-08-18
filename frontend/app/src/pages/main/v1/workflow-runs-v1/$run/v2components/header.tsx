@@ -10,7 +10,7 @@ import {
 } from '@/components/v1/ui/breadcrumb';
 import { formatDuration } from '@/lib/utils';
 import RelativeDate from '@/components/v1/molecules/relative-date';
-import { useWorkflowDetails } from '../../hooks/workflow-details';
+import { useWorkflowDetails } from '../../hooks/use-workflow-details';
 import { TaskRunActionButton } from '../../../task-runs-v1/actions';
 import { TASK_RUN_TERMINAL_STATUSES } from './step-run-detail/step-run-detail';
 import { WorkflowDefinitionLink } from '@/pages/main/workflow-runs/$run/v2components/workflow-definition';

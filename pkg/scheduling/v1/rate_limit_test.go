@@ -1,6 +1,6 @@
 //go:build !e2e && !load && !rampup && !integration
 
-package v2
+package v1
 
 import (
 	"context"
@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
@@ -20,22 +21,22 @@ type mockRateLimitRepo struct {
 	mock.Mock
 }
 
-func (m *mockRateLimitRepo) ListCandidateRateLimits(ctx context.Context, tenantId pgtype.UUID) ([]string, error) {
-	args := m.Called(ctx, tenantId)
-	return args.Get(0).([]string), args.Error(1)
-}
-
-func (m *mockRateLimitRepo) UpdateRateLimits(ctx context.Context, tenantId pgtype.UUID, updates map[string]int) (map[string]int, *time.Time, error) {
+func (m *mockRateLimitRepo) UpdateRateLimits(ctx context.Context, tenantId pgtype.UUID, updates map[string]int) ([]*sqlcv1.ListRateLimitsForTenantWithMutateRow, *time.Time, error) {
 	args := m.Called(ctx, tenantId, updates)
-	arg1 := args.Get(1).(time.Time)
-	return args.Get(0).(map[string]int), &arg1, args.Error(2)
+	return args.Get(0).([]*sqlcv1.ListRateLimitsForTenantWithMutateRow), args.Get(1).(*time.Time), args.Error(2)
 }
 
 func TestRateLimiter_Use(t *testing.T) {
 	l := zerolog.Nop()
 
 	mockRateLimitRepo := &mockRateLimitRepo{}
-	mockRateLimitRepo.On("UpdateRateLimits", context.Background(), mock.Anything, mock.Anything).Return(map[string]int{"key1": 10, "key2": 5, "key3": 7}, time.Now().Add(2*time.Second), nil)
+	mockRows := []*sqlcv1.ListRateLimitsForTenantWithMutateRow{
+		{Key: "key1", Value: 10},
+		{Key: "key2", Value: 5},
+		{Key: "key3", Value: 7},
+	}
+	nextRefill := time.Now().Add(2 * time.Second)
+	mockRateLimitRepo.On("UpdateRateLimits", context.Background(), mock.Anything, mock.Anything).Return(mockRows, &nextRefill, nil)
 
 	rateLimiter := &rateLimiter{
 		dbRateLimits: rateLimitSet{
@@ -66,7 +67,12 @@ func TestRateLimiter_Ack(t *testing.T) {
 	l := zerolog.Nop()
 
 	mockRateLimitRepo := &mockRateLimitRepo{}
-	mockRateLimitRepo.On("UpdateRateLimits", context.Background(), mock.Anything, mock.Anything).Return(map[string]int{"key1": 10, "key2": 5}, time.Now().Add(2*time.Second), nil)
+	mockRows := []*sqlcv1.ListRateLimitsForTenantWithMutateRow{
+		{Key: "key1", Value: 10},
+		{Key: "key2", Value: 5},
+	}
+	nextRefill := time.Now().Add(2 * time.Second)
+	mockRateLimitRepo.On("UpdateRateLimits", context.Background(), mock.Anything, mock.Anything).Return(mockRows, &nextRefill, nil)
 
 	rateLimiter := &rateLimiter{
 		dbRateLimits: rateLimitSet{
@@ -91,7 +97,12 @@ func TestRateLimiter_Nack(t *testing.T) {
 	l := zerolog.Nop()
 
 	mockRateLimitRepo := &mockRateLimitRepo{}
-	mockRateLimitRepo.On("UpdateRateLimits", context.Background(), mock.Anything, mock.Anything).Return(map[string]int{"key1": 10, "key2": 5}, time.Now().Add(2*time.Second), nil)
+	mockRows := []*sqlcv1.ListRateLimitsForTenantWithMutateRow{
+		{Key: "key1", Value: 10},
+		{Key: "key2", Value: 5},
+	}
+	nextRefill := time.Now().Add(2 * time.Second)
+	mockRateLimitRepo.On("UpdateRateLimits", context.Background(), mock.Anything, mock.Anything).Return(mockRows, &nextRefill, nil)
 
 	rateLimiter := &rateLimiter{
 		dbRateLimits: rateLimitSet{
@@ -116,7 +127,12 @@ func TestRateLimiter_Concurrency(t *testing.T) {
 	l := zerolog.Nop()
 
 	mockRateLimitRepo := &mockRateLimitRepo{}
-	mockRateLimitRepo.On("UpdateRateLimits", context.Background(), mock.Anything, mock.Anything).Return(map[string]int{"key1": 100, "key2": 100}, time.Now().Add(2*time.Second), nil)
+	mockRows := []*sqlcv1.ListRateLimitsForTenantWithMutateRow{
+		{Key: "key1", Value: 100},
+		{Key: "key2", Value: 100},
+	}
+	nextRefill := time.Now().Add(2 * time.Second)
+	mockRateLimitRepo.On("UpdateRateLimits", context.Background(), mock.Anything, mock.Anything).Return(mockRows, &nextRefill, nil)
 
 	rateLimiter := &rateLimiter{
 		dbRateLimits: rateLimitSet{
@@ -155,7 +171,12 @@ func TestRateLimiter_FlushToDatabase(t *testing.T) {
 	l := zerolog.Nop()
 
 	mockRateLimitRepo := &mockRateLimitRepo{} // Mock implementation of rateLimitRepo
-	mockRateLimitRepo.On("UpdateRateLimits", context.Background(), mock.Anything, mock.Anything).Return(map[string]int{"key1": 10, "key2": 5}, time.Now().Add(2*time.Second), nil)
+	mockRows := []*sqlcv1.ListRateLimitsForTenantWithMutateRow{
+		{Key: "key1", Value: 10},
+		{Key: "key2", Value: 5},
+	}
+	nextRefill := time.Now().Add(2 * time.Second)
+	mockRateLimitRepo.On("UpdateRateLimits", context.Background(), mock.Anything, mock.Anything).Return(mockRows, &nextRefill, nil)
 
 	rateLimiter := &rateLimiter{
 		dbRateLimits: rateLimitSet{
@@ -188,7 +209,12 @@ func BenchmarkRateLimiter(b *testing.B) {
 	l := zerolog.Nop()
 
 	mockRateLimitRepo := &mockRateLimitRepo{}
-	mockRateLimitRepo.On("UpdateRateLimits", context.Background(), mock.Anything, mock.Anything).Return(map[string]int{"key1": 1000, "key2": 1000}, time.Now().Add(2*time.Second), nil)
+	mockRows := []*sqlcv1.ListRateLimitsForTenantWithMutateRow{
+		{Key: "key1", Value: 1000},
+		{Key: "key2", Value: 1000},
+	}
+	nextRefill := time.Now().Add(2 * time.Second)
+	mockRateLimitRepo.On("UpdateRateLimits", context.Background(), mock.Anything, mock.Anything).Return(mockRows, &nextRefill, nil)
 
 	r := rateLimiter{
 		unacked:       make(map[int64]rateLimitSet),

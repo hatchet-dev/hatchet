@@ -184,12 +184,14 @@ RETURNING
 WITH input AS (
     SELECT
         id,
+        inserted_at,
         worker_id
     FROM
         (
             SELECT
-                unnest(@taskIds::bigint[]) AS id,
-                unnest(@workerIds::uuid[]) AS worker_id
+                UNNEST(@taskIds::bigint[]) AS id,
+                UNNEST(@taskInsertedAts::timestamptz[]) AS inserted_at,
+                UNNEST(@workerIds::uuid[]) AS worker_id
         ) AS subquery
     ORDER BY id
 ), updated_tasks AS (
@@ -197,13 +199,15 @@ WITH input AS (
         t.id,
         t.inserted_at,
         t.retry_count,
-        input.worker_id,
+        i.worker_id,
         t.tenant_id,
         CURRENT_TIMESTAMP + convert_duration_to_interval(t.step_timeout) AS timeout_at
     FROM
-        input
+        v1_task t
     JOIN
-        v1_task t ON t.id = input.id
+        input i ON (t.id, t.inserted_at) = (i.id, i.inserted_at)
+    WHERE
+        t.inserted_at >= @minTaskInsertedAt::timestamptz
     ORDER BY t.id
 ), assigned_tasks AS (
     INSERT INTO v1_task_runtime (
@@ -283,3 +287,153 @@ DELETE FROM
     v1_queue_item
 WHERE
     id = ANY(SELECT id FROM locked_qis);
+
+-- name: MoveRateLimitedQueueItems :many
+WITH input AS (
+    SELECT
+        UNNEST(@ids::bigint[]) AS id,
+        UNNEST(@requeueAfter::timestamptz[]) AS requeue_after
+), moved_items AS (
+    DELETE FROM v1_queue_item
+    WHERE id = ANY(SELECT id FROM input)
+    RETURNING
+        id,
+        tenant_id,
+        queue,
+        task_id,
+        task_inserted_at,
+        external_id,
+        action_id,
+        step_id,
+        workflow_id,
+        workflow_run_id,
+        schedule_timeout_at,
+        step_timeout,
+        priority,
+        sticky,
+        desired_worker_id,
+        retry_count
+)
+INSERT INTO v1_rate_limited_queue_items (
+    requeue_after,
+    tenant_id,
+    queue,
+    task_id,
+    task_inserted_at,
+    external_id,
+    action_id,
+    step_id,
+    workflow_id,
+    workflow_run_id,
+    schedule_timeout_at,
+    step_timeout,
+    priority,
+    sticky,
+    desired_worker_id,
+    retry_count
+)
+SELECT
+    i.requeue_after,
+    tenant_id,
+    queue,
+    task_id,
+    task_inserted_at,
+    external_id,
+    action_id,
+    step_id,
+    workflow_id,
+    workflow_run_id,
+    schedule_timeout_at,
+    step_timeout,
+    priority,
+    sticky,
+    desired_worker_id,
+    retry_count
+FROM moved_items
+JOIN input i ON moved_items.id = i.id
+ON CONFLICT (task_id, task_inserted_at, retry_count) DO NOTHING
+RETURNING tenant_id, task_id, task_inserted_at, retry_count;
+
+-- name: RequeueRateLimitedQueueItems :many
+WITH ready_items AS (
+    SELECT
+        tenant_id,
+        queue,
+        task_id,
+        task_inserted_at,
+        external_id,
+        action_id,
+        step_id,
+        workflow_id,
+        workflow_run_id,
+        schedule_timeout_at,
+        step_timeout,
+        priority,
+        sticky,
+        desired_worker_id,
+        retry_count
+    FROM
+        v1_rate_limited_queue_items
+    WHERE
+        tenant_id = @tenantId::uuid
+        AND queue = @queue::text
+        AND requeue_after <= NOW()
+    ORDER BY
+        task_id, task_inserted_at, retry_count
+    FOR UPDATE SKIP LOCKED -- locked are about to be deleted
+), deleted_items AS (
+    DELETE FROM v1_rate_limited_queue_items
+    WHERE
+        (task_id, task_inserted_at, retry_count) IN (SELECT task_id, task_inserted_at, retry_count FROM ready_items)
+    RETURNING
+        tenant_id,
+        queue,
+        task_id,
+        task_inserted_at,
+        external_id,
+        action_id,
+        step_id,
+        workflow_id,
+        workflow_run_id,
+        schedule_timeout_at,
+        step_timeout,
+        priority,
+        sticky,
+        desired_worker_id,
+        retry_count
+)
+INSERT INTO v1_queue_item (
+    tenant_id,
+    queue,
+    task_id,
+    task_inserted_at,
+    external_id,
+    action_id,
+    step_id,
+    workflow_id,
+    workflow_run_id,
+    schedule_timeout_at,
+    step_timeout,
+    priority,
+    sticky,
+    desired_worker_id,
+    retry_count
+)
+SELECT
+    tenant_id,
+    queue,
+    task_id,
+    task_inserted_at,
+    external_id,
+    action_id,
+    step_id,
+    workflow_id,
+    workflow_run_id,
+    schedule_timeout_at,
+    step_timeout,
+    priority,
+    sticky,
+    desired_worker_id,
+    retry_count
+FROM ready_items
+RETURNING id, tenant_id, task_id, task_inserted_at, retry_count;

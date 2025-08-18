@@ -13,6 +13,7 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
+	"github.com/hatchet-dev/hatchet/pkg/constants"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/metered"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
@@ -121,6 +122,19 @@ func (t *WorkflowService) WorkflowRunCreate(ctx echo.Context, request gen.Workfl
 	if err != nil {
 		return nil, err
 	}
+
+	if request.Body.AdditionalMetadata != nil {
+		correlationIdInterface, ok := (*request.Body.AdditionalMetadata)[string(constants.CorrelationIdKey)]
+		if ok {
+			correlationId, ok := correlationIdInterface.(string)
+			if ok {
+				ctx.Set(constants.CorrelationIdKey.String(), correlationId)
+			}
+		}
+	}
+
+	ctx.Set(constants.ResourceIdKey.String(), createdWorkflowRun.ID.String())
+	ctx.Set(constants.ResourceTypeKey.String(), constants.ResourceTypeWorkflowRun.String())
 
 	return gen.WorkflowRunCreate200JSONResponse(
 		*res,

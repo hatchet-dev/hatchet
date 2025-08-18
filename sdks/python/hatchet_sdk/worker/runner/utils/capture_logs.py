@@ -16,7 +16,12 @@ from hatchet_sdk.runnables.contextvars import (
     ctx_worker_id,
     ctx_workflow_run_id,
 )
-from hatchet_sdk.utils.typing import STOP_LOOP, STOP_LOOP_TYPE, JSONSerializableMapping
+from hatchet_sdk.utils.typing import (
+    STOP_LOOP,
+    STOP_LOOP_TYPE,
+    JSONSerializableMapping,
+    LogLevel,
+)
 
 T = TypeVar("T")
 P = ParamSpec("P")
@@ -67,12 +72,15 @@ def copy_context_vars(
 class LogRecord(BaseModel):
     message: str
     step_run_id: str
+    level: LogLevel
 
 
 class AsyncLogSender:
     def __init__(self, event_client: EventClient):
         self.event_client = event_client
-        self.q = asyncio.Queue[LogRecord | STOP_LOOP_TYPE](maxsize=1000)
+        self.q = asyncio.Queue[LogRecord | STOP_LOOP_TYPE](
+            maxsize=event_client.client_config.log_queue_size
+        )
 
     async def consume(self) -> None:
         while True:
@@ -86,6 +94,7 @@ class AsyncLogSender:
                     self.event_client.log,
                     message=record.message,
                     step_run_id=record.step_run_id,
+                    level=record.level,
                 )
             except Exception:
                 logger.exception("failed to send log to Hatchet")
@@ -97,7 +106,7 @@ class AsyncLogSender:
             logger.warning("log queue is full, dropping log message")
 
 
-class CustomLogHandler(logging.StreamHandler):  # type: ignore[type-arg]
+class LogForwardingHandler(logging.StreamHandler):  # type: ignore[type-arg]
     def __init__(self, log_sender: AsyncLogSender, stream: StringIO):
         super().__init__(stream)
 
@@ -112,7 +121,13 @@ class CustomLogHandler(logging.StreamHandler):  # type: ignore[type-arg]
         if not step_run_id:
             return
 
-        self.log_sender.publish(LogRecord(message=log_entry, step_run_id=step_run_id))
+        self.log_sender.publish(
+            LogRecord(
+                message=log_entry,
+                step_run_id=step_run_id,
+                level=LogLevel.from_levelname(record.levelname),
+            )
+        )
 
 
 def capture_logs(
@@ -121,27 +136,27 @@ def capture_logs(
     @functools.wraps(func)
     async def wrapper(*args: P.args, **kwargs: P.kwargs) -> T:
         log_stream = StringIO()
-        custom_handler = CustomLogHandler(log_sender, log_stream)
-        custom_handler.setLevel(logger.level)
+        log_forwarder = LogForwardingHandler(log_sender, log_stream)
+        log_forwarder.setLevel(logger.level)
 
         if logger.handlers:
             for handler in logger.handlers:
                 if handler.formatter:
-                    custom_handler.setFormatter(handler.formatter)
+                    log_forwarder.setFormatter(handler.formatter)
                     break
 
             for handler in logger.handlers:
                 for filter_obj in handler.filters:
-                    custom_handler.addFilter(filter_obj)
+                    log_forwarder.addFilter(filter_obj)
 
-        if not any(h for h in logger.handlers if isinstance(h, CustomLogHandler)):
-            logger.addHandler(custom_handler)
+        if not any(h for h in logger.handlers if isinstance(h, LogForwardingHandler)):
+            logger.addHandler(log_forwarder)
 
         try:
             result = await func(*args, **kwargs)
         finally:
-            custom_handler.flush()
-            logger.removeHandler(custom_handler)
+            log_forwarder.flush()
+            logger.removeHandler(log_forwarder)
             log_stream.close()
 
         return result
