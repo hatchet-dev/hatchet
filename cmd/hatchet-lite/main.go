@@ -17,6 +17,7 @@ import (
 	"github.com/hatchet-dev/hatchet/cmd/hatchet-lite/staticfileserver"
 	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
 	"github.com/hatchet-dev/hatchet/pkg/config/loader"
+	"github.com/hatchet-dev/hatchet/pkg/config/server"
 )
 
 var printVersion bool
@@ -85,22 +86,19 @@ func start(cf *loader.ConfigLoader, interruptCh <-chan interface{}, version stri
 		runtimePort = "8082"
 	}
 
-	if _, exists := os.LookupEnv("SERVER_MSGQUEUE_KIND"); !exists {
-		// we hard code the msg queue kind to postgres
-		err := os.Setenv("SERVER_MSGQUEUE_KIND", "postgres")
-
-		if err != nil {
-			return fmt.Errorf("error setting SERVER_MSGQUEUE_KIND to postgres: %w", err)
-		}
-	}
-
 	feURL, err := url.Parse(fmt.Sprintf("http://localhost:%s", frontendPort))
 
 	if err != nil {
 		return fmt.Errorf("error parsing frontend URL: %w", err)
 	}
 
-	_, sc, err := cf.CreateServerFromConfig(version)
+	_, sc, err := cf.CreateServerFromConfig(version, func(sc *server.ServerConfigFile) {
+		// for Hatchet Lite we always want to use the postgres message queue by default
+		// but only if the SERVER_MSGQUEUE_KIND is not set
+		if _, exists := os.LookupEnv("SERVER_MSGQUEUE_KIND"); !exists && sc.MessageQueue.Kind != "postgres" {
+			sc.MessageQueue.Kind = "postgres"
+		}
+	})
 
 	if err != nil {
 		return fmt.Errorf("error loading server config: %w", err)

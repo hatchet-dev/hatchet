@@ -13,9 +13,13 @@ This deployment requires [Docker](https://docs.docker.com/engine/install/) insta
 
 ### Getting Hatchet Lite Running
 
-<Tabs items={['With Postgres', 'With Postgres + RabbitMQ']}>
+<Tabs items={['With Postgres (Default)', 'With Postgres + RabbitMQ']}>
   <Tabs.Tab>
 To use Postgres as both your DB and message queue, copy the following `docker-compose.hatchet.yml` file to the root of your repository:
+
+<Callout type="info">
+  If you have an existing Postgres instance already running, you can simply point `DATABASE_URL` to that instance and ignore the `postgres` service deployment in the following docker-compose file.
+</Callout>
 
 ```yaml filename="docker-compose.hatchet.yml" copy
 version: "3.8"
@@ -46,6 +50,8 @@ services:
       postgres:
         condition: service_healthy
     environment:
+      # Refer to https://docs.hatchet.run/self-hosting/configuration-options
+      # for a list of all supported environment variables
       DATABASE_URL: "postgresql://hatchet:hatchet@postgres:5432/hatchet?sslmode=disable"
       SERVER_AUTH_COOKIE_DOMAIN: localhost
       SERVER_AUTH_COOKIE_INSECURE: "t"
@@ -72,6 +78,10 @@ Then run `docker-compose -f docker-compose.hatchet.yml up` to get the Hatchet Li
 
 To use Postgres as your DB and RabbitMQ as the message queue, copy the following `docker-compose.hatchet.yml` file to the root of your repository:
 
+<Callout type="info">
+  If you have an existing Postgres instance already running, you can simply point `DATABASE_URL` to that instance and ignore the `postgres` service deployment in the following docker-compose file.
+</Callout>
+
 ```yaml filename="docker-compose.hatchet.yml" copy
 version: "3.8"
 name: hatchet-lite
@@ -96,14 +106,14 @@ services:
     image: "rabbitmq:3-management"
     hostname: "rabbitmq"
     ports:
-      - "5672:5672" # RabbitMQ
-      - "15672:15672" # Management UI
+      - "5672:5672"
+      - "15672:15672"
     environment:
       RABBITMQ_DEFAULT_USER: "user"
       RABBITMQ_DEFAULT_PASS: "password"
     volumes:
       - "hatchet_rabbitmq_data:/var/lib/rabbitmq"
-      - "hatchet_rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf" # Configuration file mount
+      - "hatchet_rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf"
     healthcheck:
       test: ["CMD", "rabbitmqctl", "status"]
       interval: 30s
@@ -118,6 +128,8 @@ services:
       postgres:
         condition: service_healthy
     environment:
+      # Refer to https://docs.hatchet.run/self-hosting/configuration-options
+      # for a list of all supported environment variables
       DATABASE_URL: "postgresql://hatchet:hatchet@postgres:5432/hatchet?sslmode=disable"
       SERVER_AUTH_COOKIE_DOMAIN: localhost
       SERVER_AUTH_COOKIE_INSECURE: "t"
