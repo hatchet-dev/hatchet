@@ -65,21 +65,16 @@ INSERT INTO v1_match_condition (
 -- on the same target table without using RETURNING.
 WITH input AS (
     SELECT
-        *
-    FROM
-        (
-            SELECT
-                unnest(@matchIds::bigint[]) AS match_id,
-                unnest(@conditionIds::bigint[]) AS condition_id,
-                unnest(@datas::jsonb[]) AS data
-        ) AS subquery
+        UNNEST(@matchIds::BIGINT[]) AS match_id,
+        UNNEST(@conditionIds::BIGINT[]) AS condition_id,
+        UNNEST(@datas::JSONB[]) AS data
 ), locked_matches AS (
     SELECT
         m.id
     FROM
         v1_match m
     WHERE
-        m.id = ANY(@matchIds::bigint[])
+        m.id = ANY(@matchIds::BIGINT[])
     ORDER BY
         m.id
     FOR UPDATE
@@ -109,12 +104,8 @@ WITH input AS (
         (v1_match_condition.v1_match_id, v1_match_condition.id) = (c.v1_match_id, c.id)
     RETURNING
         v1_match_condition.v1_match_id, v1_match_condition.id
-), distinct_match_ids AS (
-    SELECT
-        DISTINCT v1_match_id
-    FROM
-        updated_conditions
 )
+
 SELECT
     m.id
 FROM

@@ -124,21 +124,16 @@ func (q *Queries) CreateMatchesForSignalTriggers(ctx context.Context, db DBTX, a
 const getSatisfiedMatchConditions = `-- name: GetSatisfiedMatchConditions :many
 WITH input AS (
     SELECT
-        match_id, condition_id, data
-    FROM
-        (
-            SELECT
-                unnest($1::bigint[]) AS match_id,
-                unnest($2::bigint[]) AS condition_id,
-                unnest($3::jsonb[]) AS data
-        ) AS subquery
+        UNNEST($1::BIGINT[]) AS match_id,
+        UNNEST($2::BIGINT[]) AS condition_id,
+        UNNEST($3::JSONB[]) AS data
 ), locked_matches AS (
     SELECT
         m.id
     FROM
         v1_match m
     WHERE
-        m.id = ANY($1::bigint[])
+        m.id = ANY($1::BIGINT[])
     ORDER BY
         m.id
     FOR UPDATE
@@ -168,12 +163,8 @@ WITH input AS (
         (v1_match_condition.v1_match_id, v1_match_condition.id) = (c.v1_match_id, c.id)
     RETURNING
         v1_match_condition.v1_match_id, v1_match_condition.id
-), distinct_match_ids AS (
-    SELECT
-        DISTINCT v1_match_id
-    FROM
-        updated_conditions
 )
+
 SELECT
     m.id
 FROM
