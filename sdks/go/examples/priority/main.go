@@ -36,7 +36,7 @@ func main() {
 	)
 
 	// Task that processes requests based on priority
-	priorityWorkflow.NewTask("process-request", func(ctx hatchet.Context, input PriorityInput) (PriorityOutput, error) {
+	_ = priorityWorkflow.NewTask("process-request", func(ctx hatchet.Context, input PriorityInput) (PriorityOutput, error) {
 		// Access the current priority from context
 		currentPriority := ctx.Priority()
 
@@ -88,7 +88,7 @@ func main() {
 	}
 
 	// Function to run workflow with specific priority
-	runWithPriority := func(priority int32, input PriorityInput, delay time.Duration) {
+	runWithPriority := func(priority hatchet.RunPriority, input PriorityInput, delay time.Duration) {
 		time.Sleep(delay)
 		log.Printf("Submitting %s task with priority %d for user %s",
 			input.TaskType, priority, input.UserID)
@@ -109,7 +109,7 @@ func main() {
 		log.Println("Watch the processing order - high priority should be processed first!")
 
 		// Submit low priority task first
-		go runWithPriority(1, PriorityInput{
+		go runWithPriority(hatchet.RunPriorityLow, PriorityInput{
 			UserID:    "user-001",
 			TaskType:  "report",
 			Message:   "Generate monthly report",
@@ -117,7 +117,7 @@ func main() {
 		}, 0)
 
 		// Submit high priority task second (but should be processed first)
-		go runWithPriority(3, PriorityInput{
+		go runWithPriority(hatchet.RunPriorityHigh, PriorityInput{
 			UserID:    "user-002",
 			TaskType:  "alert",
 			Message:   "Critical system alert",
@@ -125,7 +125,7 @@ func main() {
 		}, 100*time.Millisecond)
 
 		// Submit medium priority task third
-		go runWithPriority(2, PriorityInput{
+		go runWithPriority(hatchet.RunPriorityMedium, PriorityInput{
 			UserID:    "user-003",
 			TaskType:  "notification",
 			Message:   "User notification",
@@ -133,7 +133,7 @@ func main() {
 		}, 200*time.Millisecond)
 
 		// Submit another high priority task
-		go runWithPriority(3, PriorityInput{
+		go runWithPriority(hatchet.RunPriorityHigh, PriorityInput{
 			UserID:    "user-004",
 			TaskType:  "emergency",
 			Message:   "Emergency response needed",
@@ -141,7 +141,7 @@ func main() {
 		}, 300*time.Millisecond)
 
 		// Submit more tasks to show queuing behavior
-		go runWithPriority(1, PriorityInput{
+		go runWithPriority(hatchet.RunPriorityLow, PriorityInput{
 			UserID:    "user-005",
 			TaskType:  "backup",
 			Message:   "System backup",

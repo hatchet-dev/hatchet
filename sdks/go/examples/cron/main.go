@@ -90,7 +90,7 @@ func main() {
 		hatchet.WithWorkflowDescription("Monitor systems during business hours"),
 	)
 
-	businessHoursMonitor.NewTask("monitor-business-systems", func(ctx hatchet.Context, input CronInput) (CronOutput, error) {
+	_ = businessHoursMonitor.NewTask("monitor-business-systems", func(ctx hatchet.Context, input CronInput) (CronOutput, error) {
 		log.Printf("Monitoring business systems at %s", input.Timestamp)
 
 		return CronOutput{

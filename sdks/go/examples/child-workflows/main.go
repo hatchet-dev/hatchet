@@ -38,7 +38,7 @@ func main() {
 		hatchet.WithWorkflowVersion("1.0.0"),
 	)
 
-	childWorkflow.NewTask("process-value", func(ctx hatchet.Context, input ChildInput) (ChildOutput, error) {
+	_ = childWorkflow.NewTask("process-value", func(ctx hatchet.Context, input ChildInput) (ChildOutput, error) {
 		log.Printf("Child workflow processing value: %d", input.Value)
 
 		// Simulate some processing
@@ -55,7 +55,7 @@ func main() {
 		hatchet.WithWorkflowVersion("1.0.0"),
 	)
 
-	parentWorkflow.NewTask("spawn-children", func(ctx hatchet.Context, input ParentInput) (ParentOutput, error) {
+	_ = parentWorkflow.NewTask("spawn-children", func(ctx hatchet.Context, input ParentInput) (ParentOutput, error) {
 		log.Printf("Parent workflow spawning %d child workflows", input.Count)
 
 		// Spawn multiple child workflows and collect results
@@ -64,9 +64,9 @@ func main() {
 			log.Printf("Spawning child workflow %d/%d", i+1, input.Count)
 
 			// Spawn child workflow and wait for result
-			childResult, err := childWorkflow.Run(ctx.GetContext(), ChildInput{
+			childResult, err := childWorkflow.RunAsChild(ctx, ChildInput{
 				Value: i + 1,
-			})
+			}, hatchet.RunAsChildOpts{})
 			if err != nil {
 				return ParentOutput{}, fmt.Errorf("failed to spawn child workflow %d: %w", i, err)
 			}

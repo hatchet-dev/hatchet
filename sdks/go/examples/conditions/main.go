@@ -103,7 +103,7 @@ func main() {
 	)
 
 	// Final aggregation task
-	workflow.NewTask("summarize", func(ctx hatchet.Context, input WorkflowInput) (SumOutput, error) {
+	_ = workflow.NewTask("summarize", func(ctx hatchet.Context, input WorkflowInput) (SumOutput, error) {
 		var total int
 		var summary string
 
@@ -168,6 +168,17 @@ func main() {
 		log.Fatalf("failed to create worker: %v", err)
 	}
 
+	interruptCtx, cancel := cmdutils.NewInterruptContext()
+	defer cancel()
+
+	go func() {
+
+		log.Println("Starting conditional workflow worker...")
+		if err := worker.StartBlocking(interruptCtx); err != nil {
+			log.Fatalf("failed to start worker: %v", err)
+		}
+	}()
+
 	// Run the workflow
 	_, err = client.Run(context.Background(), "conditional-workflow", WorkflowInput{
 		ProcessID: "demo-process-1",
@@ -176,11 +187,5 @@ func main() {
 		log.Fatalf("failed to run workflow: %v", err)
 	}
 
-	interruptCtx, cancel := cmdutils.NewInterruptContext()
-	defer cancel()
-
-	log.Println("Starting conditional workflow worker...")
-	if err := worker.StartBlocking(interruptCtx); err != nil {
-		log.Fatalf("failed to start worker: %v", err)
-	}
+	<-interruptCtx.Done()
 }

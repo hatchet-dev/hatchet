@@ -40,7 +40,7 @@ func main() {
 	)
 
 	// Task that may fail based on input
-	failureWorkflow.NewTask("potentially-failing-task", func(ctx hatchet.Context, input FailureInput) (TaskOutput, error) {
+	_ = failureWorkflow.NewTask("potentially-failing-task", func(ctx hatchet.Context, input FailureInput) (TaskOutput, error) {
 		log.Printf("Processing task with message: %s", input.Message)
 
 		if input.ShouldFail {
@@ -108,7 +108,7 @@ func main() {
 	})
 
 	// Second task (may fail, depends on first)
-	multiStepWorkflow.NewTask("second-step", func(ctx hatchet.Context, input FailureInput) (TaskOutput, error) {
+	_ = multiStepWorkflow.NewTask("second-step", func(ctx hatchet.Context, input FailureInput) (TaskOutput, error) {
 		// Get output from previous step
 		var step1Output TaskOutput
 		if err := ctx.StepOutput("first-step", &step1Output); err != nil {

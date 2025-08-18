@@ -33,7 +33,7 @@ func main() {
 		hatchet.WithWorkflowEvents("user:created", "user:updated"),
 	)
 
-	workflow.NewTask("process-user-event", func(ctx hatchet.Context, input EventInput) (ProcessOutput, error) {
+	_ = workflow.NewTask("process-user-event", func(ctx hatchet.Context, input EventInput) (ProcessOutput, error) {
 		log.Printf("Processing %s event for user %s", input.Action, input.UserID)
 		log.Printf("Event payload contains: %+v", input.Payload)
 

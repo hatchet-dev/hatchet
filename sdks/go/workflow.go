@@ -9,7 +9,6 @@ import (
 	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	v0Client "github.com/hatchet-dev/hatchet/pkg/client"
 	"github.com/hatchet-dev/hatchet/pkg/client/create"
-	"github.com/hatchet-dev/hatchet/pkg/client/rest"
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
 	"github.com/hatchet-dev/hatchet/pkg/worker"
 	"github.com/hatchet-dev/hatchet/pkg/worker/condition"
@@ -30,8 +29,20 @@ func WithRunMetadata(metadata interface{}) RunOptFunc {
 	return v0Client.WithRunMetadata(metadata)
 }
 
-func WithPriority(priority int32) RunOptFunc {
-	return v0Client.WithPriority(priority)
+// RunPriority is the priority for a workflow run.
+type RunPriority int32
+
+const (
+	// RunPriorityLow is the lowest priority for a workflow run.
+	RunPriorityLow RunPriority = 1
+	// RunPriorityMedium is the medium priority for a workflow run.
+	RunPriorityMedium RunPriority = 2
+	// RunPriorityHigh is the highest priority for a workflow run.
+	RunPriorityHigh RunPriority = 3
+)
+
+func WithPriority(priority RunPriority) RunOptFunc {
+	return v0Client.WithPriority(int32(priority))
 }
 
 // convertInputToType converts input (typically map[string]interface{}) to the expected struct type
@@ -506,12 +517,10 @@ func (w *Workflow) RunNoWait(ctx context.Context, input any) (*WorkflowRef, erro
 	return &WorkflowRef{RunId: wf.RunId()}, nil
 }
 
-// Cron schedules the workflow to run on a regular basis using a cron expression.
-func (w *Workflow) Cron(ctx context.Context, name string, cronExpr string, input any) (*rest.CronWorkflows, error) {
-	return w.declaration.Cron(ctx, name, cronExpr, input)
-}
+// RunAsChildOpts is the options for running a workflow as a child workflow.
+type RunAsChildOpts = internal.RunAsChildOpts
 
-// Schedule schedules the workflow to run at a specific time.
-func (w *Workflow) Schedule(ctx context.Context, triggerAt time.Time, input any) (*rest.ScheduledWorkflows, error) {
-	return w.declaration.Schedule(ctx, triggerAt, input)
+// RunAsChild executes the workflow as a child workflow with the provided input.
+func (w *Workflow) RunAsChild(ctx worker.HatchetContext, input any, opts RunAsChildOpts) (any, error) {
+	return w.declaration.RunAsChild(ctx, input, opts)
 }
