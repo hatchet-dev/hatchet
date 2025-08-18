@@ -273,8 +273,9 @@ func main() {
 	log.Println("  - Session state maintenance across steps")
 	log.Println("  - Comparison with non-sticky execution")
 
-	// Keep the main thread alive
-	select {}
+	<-interruptCtx.Done()
+
+	time.Sleep(2 * time.Second)
 }
 
 func stringPtr(s string) *string {

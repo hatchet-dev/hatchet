@@ -58,6 +58,13 @@ func main() {
 
 		log.Printf("Starting to stream %d chunks...", len(chunks))
 
+		// Add a small delay at the start to ensure subscription is ready
+		time.Sleep(200 * time.Millisecond)
+
+		// Send an initial message to establish the stream
+		ctx.PutStream("Stream initialized, starting chunks...")
+		time.Sleep(100 * time.Millisecond)
+
 		for i, chunk := range chunks {
 			// Stream each chunk
 			ctx.PutStream(fmt.Sprintf("Chunk %d: %s", i+1, strings.TrimSpace(chunk)))
@@ -65,8 +72,6 @@ func main() {
 			// Small delay between chunks to simulate processing
 			time.Sleep(300 * time.Millisecond)
 		}
-
-		ctx.PutStream("Streaming completed!")
 
 		return StreamingOutput{
 			Message:     "Content streaming finished",
@@ -113,6 +118,9 @@ func main() {
 			http.Error(w, fmt.Sprintf("failed to run workflow: %v", err), http.StatusInternalServerError)
 			return
 		}
+
+		// Wait a moment for the workflow to start before subscribing
+		time.Sleep(100 * time.Millisecond)
 
 		// Subscribe to the stream
 		stream, err := client.Runs().SubscribeToStream(ctx, workflowRun.RunId)
@@ -220,9 +228,32 @@ func main() {
 		fmt.Fprint(w, html)
 	})
 
-	log.Println("Starting HTTP server on :8080...")
-	log.Println("Visit http://localhost:8080 to see the streaming example")
-	log.Fatal(http.ListenAndServe(":8080", nil)) //nolint:gosec // This is a demo
+	server := &http.Server{ //nolint:gosec // This is a demo
+		Addr: ":8888",
+	}
+
+	// Start server in goroutine
+	go func() {
+		log.Println("Starting HTTP server on :8888...")
+		log.Println("Visit http://localhost:8888 to see the streaming example")
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Printf("HTTP server error: %v", err)
+		}
+	}()
+
+	// Wait for interrupt signal
+	<-interruptCtx.Done()
+	log.Println("Shutting down HTTP server...")
+
+	// Gracefully shutdown the server
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer shutdownCancel()
+
+	if err := server.Shutdown(shutdownCtx); err != nil {
+		log.Printf("HTTP server shutdown error: %v", err)
+	} else {
+		log.Println("HTTP server stopped gracefully")
+	}
 }
 
 func createChunks(content string, chunkSize int) []string {
