@@ -31,20 +31,22 @@ type Repository interface {
 	Ticker() TickerRepository
 	Filters() FilterRepository
 	Webhooks() WebhookRepository
+	Idempotency() IdempotencyRepository
 }
 
 type repositoryImpl struct {
-	triggers  TriggerRepository
-	tasks     TaskRepository
-	scheduler SchedulerRepository
-	matches   MatchRepository
-	olap      OLAPRepository
-	logs      LogLineRepository
-	workers   WorkerRepository
-	workflows WorkflowRepository
-	ticker    TickerRepository
-	filters   FilterRepository
-	webhooks  WebhookRepository
+	triggers    TriggerRepository
+	tasks       TaskRepository
+	scheduler   SchedulerRepository
+	matches     MatchRepository
+	olap        OLAPRepository
+	logs        LogLineRepository
+	workers     WorkerRepository
+	workflows   WorkflowRepository
+	ticker      TickerRepository
+	filters     FilterRepository
+	webhooks    WebhookRepository
+	idempotency IdempotencyRepository
 }
 
 func NewRepository(pool *pgxpool.Pool, l *zerolog.Logger, taskRetentionPeriod, olapRetentionPeriod time.Duration, maxInternalRetryCount int32, entitlements repository.EntitlementsRepository, taskLimits TaskOperationLimits) (Repository, func() error) {
@@ -59,17 +61,18 @@ func NewRepository(pool *pgxpool.Pool, l *zerolog.Logger, taskRetentionPeriod, o
 	}
 
 	impl := &repositoryImpl{
-		triggers:  newTriggerRepository(shared),
-		tasks:     newTaskRepository(shared, taskRetentionPeriod, maxInternalRetryCount, taskLimits.TimeoutLimit, taskLimits.ReassignLimit, taskLimits.RetryQueueLimit, taskLimits.DurableSleepLimit),
-		scheduler: newSchedulerRepository(shared),
-		matches:   matchRepo,
-		olap:      newOLAPRepository(shared, olapRetentionPeriod, true),
-		logs:      newLogLineRepository(shared),
-		workers:   newWorkerRepository(shared),
-		workflows: newWorkflowRepository(shared),
-		ticker:    newTickerRepository(shared),
-		filters:   newFilterRepository(shared),
-		webhooks:  newWebhookRepository(shared),
+		triggers:    newTriggerRepository(shared),
+		tasks:       newTaskRepository(shared, taskRetentionPeriod, maxInternalRetryCount, taskLimits.TimeoutLimit, taskLimits.ReassignLimit, taskLimits.RetryQueueLimit, taskLimits.DurableSleepLimit),
+		scheduler:   newSchedulerRepository(shared),
+		matches:     matchRepo,
+		olap:        newOLAPRepository(shared, olapRetentionPeriod, true),
+		logs:        newLogLineRepository(shared),
+		workers:     newWorkerRepository(shared),
+		workflows:   newWorkflowRepository(shared),
+		ticker:      newTickerRepository(shared),
+		filters:     newFilterRepository(shared),
+		webhooks:    newWebhookRepository(shared),
+		idempotency: newIdempotencyRepository(shared),
 	}
 
 	return impl, func() error {
@@ -127,4 +130,8 @@ func (r *repositoryImpl) Filters() FilterRepository {
 
 func (r *repositoryImpl) Webhooks() WebhookRepository {
 	return r.webhooks
+}
+
+func (r *repositoryImpl) Idempotency() IdempotencyRepository {
+	return r.idempotency
 }

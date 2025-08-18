@@ -41,6 +41,7 @@ WITH task_partitions AS (
 ), log_line_partitions AS (
     SELECT 'v1_log_line' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_log_line', @date::date) AS p
 )
+
 SELECT
     *
 FROM
@@ -65,7 +66,8 @@ UNION ALL
 SELECT
     *
 FROM
-    log_line_partitions;
+    log_line_partitions
+;
 
 -- name: FlattenExternalIds :many
 WITH lookup_rows AS (
