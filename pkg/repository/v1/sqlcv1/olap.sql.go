@@ -1444,6 +1444,9 @@ WITH run AS (
     WHERE
         r.id = $2::BIGINT
         AND r.inserted_at = $3::TIMESTAMPTZ
+        -- hack to make sure PG correctly prunes partitions
+        AND d.id = $2::BIGINT
+        AND d.inserted_at = $2::TIMESTAMPTZ
         AND r.tenant_id = $4::UUID
         AND r.kind = 'DAG'
 ), relevant_events AS (
