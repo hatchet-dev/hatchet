@@ -287,6 +287,22 @@ func (o *OLAPControllerImpl) Start() (func() error, error) {
 		return nil, fmt.Errorf("could not schedule process tenant alerts: %w", err)
 	}
 
+	_, err = o.s.NewJob(
+		gocron.DailyJob(1, gocron.NewAtTimes(
+			gocron.NewAtTime(10, 30, 0),
+			gocron.NewAtTime(14, 0, 0),
+		)),
+		gocron.NewTask(
+			o.runAnalyze(ctx),
+		),
+		gocron.WithSingletonMode(gocron.LimitModeReschedule),
+	)
+
+	if err != nil {
+		cancel()
+		return nil, fmt.Errorf("could not run analyze: %w", err)
+	}
+
 	cleanupBuffer, err := mqBuffer.Start()
 
 	if err != nil {

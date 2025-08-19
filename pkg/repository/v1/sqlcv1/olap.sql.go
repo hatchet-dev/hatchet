@@ -11,6 +11,33 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const analyzeV1DAGsOLAP = `-- name: AnalyzeV1DAGsOLAP :exec
+ANALYZE v1_dags_olap
+`
+
+func (q *Queries) AnalyzeV1DAGsOLAP(ctx context.Context, db DBTX) error {
+	_, err := db.Exec(ctx, analyzeV1DAGsOLAP)
+	return err
+}
+
+const analyzeV1RunsOLAP = `-- name: AnalyzeV1RunsOLAP :exec
+ANALYZE v1_runs_olap
+`
+
+func (q *Queries) AnalyzeV1RunsOLAP(ctx context.Context, db DBTX) error {
+	_, err := db.Exec(ctx, analyzeV1RunsOLAP)
+	return err
+}
+
+const analyzeV1TasksOLAP = `-- name: AnalyzeV1TasksOLAP :exec
+ANALYZE v1_tasks_olap
+`
+
+func (q *Queries) AnalyzeV1TasksOLAP(ctx context.Context, db DBTX) error {
+	_, err := db.Exec(ctx, analyzeV1TasksOLAP)
+	return err
+}
+
 type BulkCreateEventTriggersParams struct {
 	RunID         int64              `json:"run_id"`
 	RunInsertedAt pgtype.Timestamptz `json:"run_inserted_at"`
