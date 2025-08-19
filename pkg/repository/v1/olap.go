@@ -1795,22 +1795,46 @@ func (r *OLAPRepositoryImpl) StoreCELEvaluationFailures(ctx context.Context, ten
 }
 
 func (r *OLAPRepositoryImpl) AnalyzeOLAPTables(ctx context.Context) error {
-	err := r.queries.AnalyzeV1RunsOLAP(ctx, r.pool)
+	const timeout = 1000 * 60 * 5 // 5 minute timeout
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, timeout)
+
+	if err != nil {
+		return fmt.Errorf("error beginning transaction: %v", err)
+	}
+
+	defer rollback()
+
+	acquired, err := r.queries.TryAdvisoryLock(ctx, tx, hash("analyze-olap-tables"))
+
+	if err != nil {
+		return fmt.Errorf("error acquiring advisory lock: %v", err)
+	}
+
+	if !acquired {
+		r.l.Info().Msg("advisory lock already held, skipping OLAP table analysis")
+		return nil
+	}
+
+	err = r.queries.AnalyzeV1RunsOLAP(ctx, tx)
 
 	if err != nil {
 		return fmt.Errorf("error analyzing v1_runs_olap: %v", err)
 	}
 
-	err = r.queries.AnalyzeV1TasksOLAP(ctx, r.pool)
+	err = r.queries.AnalyzeV1TasksOLAP(ctx, tx)
 
 	if err != nil {
 		return fmt.Errorf("error analyzing v1_tasks_olap: %v", err)
 	}
 
-	err = r.queries.AnalyzeV1DAGsOLAP(ctx, r.pool)
+	err = r.queries.AnalyzeV1DAGsOLAP(ctx, tx)
 
 	if err != nil {
 		return fmt.Errorf("error analyzing v1_dags_olap: %v", err)
+	}
+
+	if err := commit(ctx); err != nil {
+		return fmt.Errorf("error committing transaction: %v", err)
 	}
 
 	return nil
