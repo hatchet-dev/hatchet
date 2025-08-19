@@ -289,8 +289,8 @@ func (o *OLAPControllerImpl) Start() (func() error, error) {
 
 	_, err = o.s.NewJob(
 		gocron.DailyJob(1, gocron.NewAtTimes(
-			gocron.NewAtTime(10, 30, 0),
-			gocron.NewAtTime(14, 0, 0),
+			// 5AM UTC
+			gocron.NewAtTime(5, 0, 0),
 		)),
 		gocron.NewTask(
 			o.runAnalyze(ctx),
