@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 
+	"github.com/cockroachdb/errors"
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 
@@ -13,32 +14,7 @@ import (
 )
 
 // RunsClient provides methods for interacting with workflow runs
-// in the Hatchet platform.
-type RunsClient interface {
-	// Get retrieves a workflow run by its ID.
-	Get(ctx context.Context, runId string) (*rest.V1WorkflowRunGetResponse, error)
-
-	// Get the status of a workflow run by its ID.
-	GetStatus(ctx context.Context, runId string) (*rest.V1WorkflowRunGetStatusResponse, error)
-
-	// GetDetails retrieves detailed information about a workflow run by its ID.
-	GetDetails(ctx context.Context, runId string) (*rest.WorkflowRunGetShapeResponse, error)
-
-	// List retrieves a collection of workflow runs based on the provided parameters.
-	List(ctx context.Context, opts rest.V1WorkflowRunListParams) (*rest.V1WorkflowRunListResponse, error)
-
-	// Replay requests a task to be replayed within a workflow run.
-	Replay(ctx context.Context, opts rest.V1ReplayTaskRequest) (*rest.V1TaskReplayResponse, error)
-
-	// Cancel requests cancellation of a specific task within a workflow run.
-	Cancel(ctx context.Context, opts rest.V1CancelTaskRequest) (*rest.V1TaskCancelResponse, error)
-
-	// SubscribeToStream subscribes to streaming events for a specific workflow run.
-	SubscribeToStream(ctx context.Context, workflowRunId string) (<-chan string, error)
-}
-
-// runsClientImpl implements the RunsClient interface.
-type runsClientImpl struct {
+type RunsClient struct {
 	api      *rest.ClientWithResponses
 	tenantId uuid.UUID
 	v0Client client.Client
@@ -48,13 +24,13 @@ type runsClientImpl struct {
 // NewRunsClient creates a new client for interacting with workflow runs.
 func NewRunsClient(
 	api *rest.ClientWithResponses,
-	tenantId *string,
+	tenantId string,
 	v0Client client.Client,
-) RunsClient {
-	tenantIdUUID := uuid.MustParse(*tenantId)
+) *RunsClient {
+	tenantIdUUID := uuid.MustParse(tenantId)
 	logger := v0Client.Logger()
 
-	return &runsClientImpl{
+	return &RunsClient{
 		api:      api,
 		tenantId: tenantIdUUID,
 		v0Client: v0Client,
@@ -63,80 +39,134 @@ func NewRunsClient(
 }
 
 // Get retrieves a workflow run by its ID.
-func (r *runsClientImpl) Get(ctx context.Context, runId string) (*rest.V1WorkflowRunGetResponse, error) {
-	return r.api.V1WorkflowRunGetWithResponse(
+func (r *RunsClient) Get(ctx context.Context, runId string) (*rest.V1WorkflowRunDetails, error) {
+	resp, err := r.api.V1WorkflowRunGetWithResponse(
 		ctx,
 		uuid.MustParse(runId),
 	)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get workflow run")
+	}
+
+	if resp.JSON200 == nil {
+		return nil, errors.Newf("received non-200 response from server. got status %d with body '%s'", resp.StatusCode(), string(resp.Body))
+	}
+
+	return resp.JSON200, nil
 }
 
 // GetStatus retrieves the status of a workflow run by its ID.
-func (r *runsClientImpl) GetStatus(ctx context.Context, runId string) (*rest.V1WorkflowRunGetStatusResponse, error) {
-	return r.api.V1WorkflowRunGetStatusWithResponse(
+func (r *RunsClient) GetStatus(ctx context.Context, runId string) (*rest.V1TaskStatus, error) {
+	resp, err := r.api.V1WorkflowRunGetStatusWithResponse(
 		ctx,
 		uuid.MustParse(runId),
 	)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get workflow run status")
+	}
+
+	if resp.JSON200 == nil {
+		return nil, errors.Newf("received non-200 response from server. got status %d with body '%s'", resp.StatusCode(), string(resp.Body))
+	}
+
+	return resp.JSON200, nil
 }
 
 // GetDetails retrieves detailed information about a workflow run by its ID.
-func (r *runsClientImpl) GetDetails(ctx context.Context, runId string) (*rest.WorkflowRunGetShapeResponse, error) {
-	return r.api.WorkflowRunGetShapeWithResponse(
+func (r *RunsClient) GetDetails(ctx context.Context, runId string) (*rest.WorkflowRunShape, error) {
+	resp, err := r.api.WorkflowRunGetShapeWithResponse(
 		ctx,
 		r.tenantId,
 		uuid.MustParse(runId),
 	)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get workflow run details")
+	}
+
+	if resp.JSON200 == nil {
+		return nil, errors.Newf("received non-200 response from server. got status %d with body '%s'", resp.StatusCode(), string(resp.Body))
+	}
+
+	return resp.JSON200, nil
 }
 
 // List retrieves a collection of workflow runs based on the provided parameters.
-func (r *runsClientImpl) List(ctx context.Context, opts rest.V1WorkflowRunListParams) (*rest.V1WorkflowRunListResponse, error) {
-	return r.api.V1WorkflowRunListWithResponse(
+func (r *RunsClient) List(ctx context.Context, opts rest.V1WorkflowRunListParams) (*rest.V1TaskSummaryList, error) {
+	resp, err := r.api.V1WorkflowRunListWithResponse(
 		ctx,
 		r.tenantId,
 		&opts,
 	)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to list workflow runs")
+	}
+
+	if resp.JSON200 == nil {
+		return nil, errors.Newf("received non-200 response from server. got status %d with body '%s'", resp.StatusCode(), string(resp.Body))
+	}
+
+	return resp.JSON200, nil
 }
 
 // Replay requests a task to be replayed within a workflow run.
-func (r *runsClientImpl) Replay(ctx context.Context, opts rest.V1ReplayTaskRequest) (*rest.V1TaskReplayResponse, error) {
+func (r *RunsClient) Replay(ctx context.Context, opts rest.V1ReplayTaskRequest) (*rest.V1ReplayedTasks, error) {
 	json, err := json.Marshal(opts)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "failed to marshal rest.V1ReplayTaskRequest")
 	}
 
-	return r.api.V1TaskReplayWithBodyWithResponse(
+	resp, err := r.api.V1TaskReplayWithBodyWithResponse(
 		ctx,
 		r.tenantId,
-		"application/json",
+		"application/json; charset=utf-8",
 		bytes.NewReader(json),
 	)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to replay task")
+	}
+
+	if resp.JSON200 == nil {
+		return nil, errors.Newf("received non-200 response from server. got status %d with body '%s'", resp.StatusCode(), string(resp.Body))
+	}
+
+	return resp.JSON200, nil
 }
 
 // Cancel requests cancellation of a specific task within a workflow run.
-func (r *runsClientImpl) Cancel(ctx context.Context, opts rest.V1CancelTaskRequest) (*rest.V1TaskCancelResponse, error) {
+func (r *RunsClient) Cancel(ctx context.Context, opts rest.V1CancelTaskRequest) (*rest.V1CancelledTasks, error) {
 	json, err := json.Marshal(opts)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "failed marshal rest.V1CancelTaskRequest")
 	}
 
-	return r.api.V1TaskCancelWithBodyWithResponse(
+	resp, err := r.api.V1TaskCancelWithBodyWithResponse(
 		ctx,
 		r.tenantId,
-		"application/json",
+		"application/json; charset=utf-8",
 		bytes.NewReader(json),
 	)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to cancel task")
+	}
+
+	if resp.JSON200 == nil {
+		return nil, errors.Newf("received non-200 response from server. got status %d with body '%s'", resp.StatusCode(), string(resp.Body))
+	}
+
+	return resp.JSON200, nil
 }
 
 // SubscribeToStream subscribes to streaming events for a specific workflow run.
-func (r *runsClientImpl) SubscribeToStream(ctx context.Context, workflowRunId string) (<-chan string, error) {
+func (r *RunsClient) SubscribeToStream(ctx context.Context, workflowRunId string) <-chan string {
 	ch := make(chan string)
 
 	go func() {
 		defer func() {
 			close(ch)
-			r.l.Debug().Str("workflowRunId", workflowRunId).Msg("stream subscription ended")
+			r.l.Info().Str("workflowRunId", workflowRunId).Msg("stream subscription ended")
 		}()
 
-		r.l.Debug().Str("workflowRunId", workflowRunId).Msg("starting stream subscription")
+		r.l.Info().Str("workflowRunId", workflowRunId).Msg("starting stream subscription")
 
 		err := r.v0Client.Subscribe().Stream(ctx, workflowRunId, func(event client.StreamEvent) error {
 			select {
@@ -148,9 +178,8 @@ func (r *runsClientImpl) SubscribeToStream(ctx context.Context, workflowRunId st
 		})
 		if err != nil {
 			r.l.Error().Err(err).Str("workflowRunId", workflowRunId).Msg("failed to subscribe to stream")
-			return
 		}
 	}()
 
-	return ch, nil
+	return ch
 }
