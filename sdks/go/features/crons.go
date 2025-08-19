@@ -59,8 +59,8 @@ func NewCronsClient(
 	}
 }
 
-// IsValidateCronExpression validates that a string is a valid cron expression.
-func IsValidateCronExpression(expression string) bool {
+// IsValidCronExpression validates that a string is a valid cron expression.
+func IsValidCronExpression(expression string) bool {
 	parser := cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow)
 	_, err := parser.Parse(expression)
 
@@ -70,7 +70,7 @@ func IsValidateCronExpression(expression string) bool {
 // Create creates a new cron workflow trigger.
 func (c *CronsClient) Create(ctx context.Context, workflowName string, cron CreateCronTrigger) (*rest.CronWorkflows, error) {
 	// Validate cron expression
-	if !IsValidateCronExpression(cron.Expression) {
+	if !IsValidCronExpression(cron.Expression) {
 		return nil, &InvalidCronExpressionError{Expression: cron.Expression}
 	}
 
