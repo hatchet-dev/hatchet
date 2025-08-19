@@ -1,5 +1,7 @@
-import {
+import api, {
   V1TaskStatus,
+  V1TaskSummary,
+  V1WorkflowRunDetails,
   WorkflowRunShapeForWorkflowRunDetails,
   WorkflowRunStatus,
 } from '@/lib/api';
@@ -27,7 +29,14 @@ import WorkflowRunVisualizer from './v2components/workflow-run-visualizer-v2';
 import { useAtom } from 'jotai';
 import { preferredWorkflowRunViewAtom } from '@/lib/atoms';
 import { JobMiniMap } from './v2components/mini-map';
-import { useWorkflowDetails } from '../hooks/workflow-details';
+import {
+  isTerminalState,
+  useWorkflowDetails,
+} from '../hooks/use-workflow-details';
+import { useQuery } from '@tanstack/react-query';
+import invariant from 'tiny-invariant';
+import { Spinner } from '@/components/v1/ui/loading';
+import { Waterfall } from './v2components/waterfall';
 
 export const WORKFLOW_RUN_TERMINAL_STATUSES = [
   WorkflowRunStatus.CANCELLED,
@@ -72,9 +81,103 @@ const GraphView = ({
   );
 };
 
-export default function ExpandedWorkflowRun() {
-  const params = useParams();
+type TaskRunDispatchQueryReturnType = {
+  status: V1TaskStatus;
+  type: 'task' | 'dag';
+  task?: V1TaskSummary;
+  dag?: V1WorkflowRunDetails;
+};
 
+async function fetchTaskRun(id: string) {
+  try {
+    return await api.v1TaskGet(id);
+  } catch (error) {
+    return undefined;
+  }
+}
+
+async function fetchDAGRun(id: string) {
+  try {
+    return await api.v1WorkflowRunGet(id);
+  } catch (error) {
+    return undefined;
+  }
+}
+
+export default function Run() {
+  const { run } = useParams();
+
+  invariant(run, 'Run ID is required');
+
+  const taskRunQuery = useQuery({
+    queryKey: ['workflow-run', run],
+    queryFn: async (): Promise<TaskRunDispatchQueryReturnType> => {
+      const [task, dag] = await Promise.all([
+        fetchTaskRun(run),
+        fetchDAGRun(run),
+      ]);
+
+      if (!task && !dag) {
+        throw new Error(`Task or Workflow Run with ID ${run} not found`);
+      }
+
+      if (task?.data) {
+        const taskData = task.data;
+
+        return {
+          status: taskData.status,
+          type: 'task',
+          task: taskData,
+        };
+      }
+
+      if (dag?.data?.run) {
+        const dagData = dag.data;
+
+        return {
+          status: dagData.run.status,
+          type: 'dag',
+          dag: dagData,
+        };
+      }
+
+      throw new Error(`Task or Workflow Run with ID ${run} not found`);
+    },
+    refetchInterval: (query) => {
+      const status = query.state.data?.status;
+
+      if (isTerminalState(status)) {
+        return 5000;
+      }
+
+      return 1000;
+    },
+  });
+
+  if (taskRunQuery.isLoading) {
+    return <Spinner />;
+  }
+
+  const runData = taskRunQuery.data;
+
+  if (!runData) {
+    return null;
+  }
+
+  if (runData.type === 'task') {
+    return <ExpandedTaskRun id={run} />;
+  }
+
+  if (runData.type === 'dag') {
+    return <ExpandedWorkflowRun id={run} />;
+  }
+}
+
+function ExpandedTaskRun({ id }: { id: string }) {
+  return <TaskRunDetail taskRunId={id} defaultOpenTab={TabOption.Output} />;
+}
+
+function ExpandedWorkflowRun({ id }: { id: string }) {
   const [selectedTaskRunId, setSelectedTaskRunId] = useState<string>();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
@@ -83,19 +186,7 @@ export default function ExpandedWorkflowRun() {
     setIsSidebarOpen(true);
   }, []);
 
-  const { workflowRun, shape, isLoading, isError, errStatusCode } =
-    useWorkflowDetails();
-
-  if (isError && errStatusCode == 404 && params.run) {
-    // see if this is actually a task run and redirect
-    return (
-      <div className="flex-grow h-full w-full">
-        <div className="mx-auto pt-2 px-4 sm:px-6 lg:px-8">
-          <TaskRunDetail taskRunId={params.run} />
-        </div>
-      </div>
-    );
-  }
+  const { workflowRun, shape, isLoading, isError } = useWorkflowDetails();
 
   if (isLoading || isError || !workflowRun) {
     return null;
@@ -115,40 +206,63 @@ export default function ExpandedWorkflowRun() {
             {workflowRun.status}
           </Badge>
         </div>
-        <div className="w-full h-fit flex overflow-auto relative bg-slate-100 dark:bg-slate-900">
-          <GraphView shape={shape} handleTaskRunExpand={handleTaskRunExpand} />
-          <ViewToggle />
-        </div>
         <div className="h-4" />
-        <Tabs defaultValue="activity">
-          <TabsList layout="underlined">
-            <TabsTrigger variant="underlined" value="activity">
-              Activity
+        <Tabs defaultValue="overview" className="flex flex-col h-full">
+          <TabsList layout="underlined" className="mb-4">
+            <TabsTrigger variant="underlined" value="overview">
+              Overview
             </TabsTrigger>
-            <TabsTrigger variant="underlined" value="input">
-              Input
+            <TabsTrigger variant="underlined" value="waterfall">
+              Waterfall
             </TabsTrigger>
-            <TabsTrigger variant="underlined" value="additional-metadata">
-              Additional Metadata
-            </TabsTrigger>
-            {/* <TabsTrigger value="logs">App Logs</TabsTrigger> */}
           </TabsList>
-          <TabsContent value="activity">
+          <TabsContent value="overview" className="flex-1 min-h-0">
+            <div className="w-full h-fit flex overflow-auto relative bg-slate-100 dark:bg-slate-900">
+              <GraphView
+                shape={shape}
+                handleTaskRunExpand={handleTaskRunExpand}
+              />
+              <ViewToggle />
+            </div>
             <div className="h-4" />
-            <StepRunEvents
-              workflowRunId={params.run}
-              fallbackTaskDisplayName={workflowRun.displayName}
-              onClick={handleTaskRunExpand}
-            />
+            <Tabs defaultValue="activity">
+              <TabsList layout="underlined">
+                <TabsTrigger variant="underlined" value="activity">
+                  Activity
+                </TabsTrigger>
+                <TabsTrigger variant="underlined" value="input">
+                  Input
+                </TabsTrigger>
+                <TabsTrigger variant="underlined" value="additional-metadata">
+                  Additional Metadata
+                </TabsTrigger>
+                {/* <TabsTrigger value="logs">App Logs</TabsTrigger> */}
+              </TabsList>
+              <TabsContent value="activity">
+                <div className="h-4" />
+                <StepRunEvents
+                  workflowRunId={id}
+                  fallbackTaskDisplayName={workflowRun.displayName}
+                  onClick={handleTaskRunExpand}
+                />
+              </TabsContent>
+              <TabsContent value="input">
+                <WorkflowRunInputDialog input={JSON.parse(inputData)} />
+              </TabsContent>
+              <TabsContent value="additional-metadata">
+                <CodeHighlighter
+                  className="my-4"
+                  language="json"
+                  code={JSON.stringify(additionalMetadata, null, 2)}
+                />
+              </TabsContent>
+            </Tabs>
           </TabsContent>
-          <TabsContent value="input">
-            <WorkflowRunInputDialog input={JSON.parse(inputData)} />
-          </TabsContent>
-          <TabsContent value="additional-metadata">
-            <CodeHighlighter
-              className="my-4"
-              language="json"
-              code={JSON.stringify(additionalMetadata, null, 2)}
+          <TabsContent value="waterfall" className="flex-1 min-h-0">
+            <Waterfall
+              workflowRunId={id}
+              selectedTaskId={selectedTaskRunId}
+              handleTaskSelect={handleTaskRunExpand}
             />
           </TabsContent>
         </Tabs>
@@ -157,7 +271,7 @@ export default function ExpandedWorkflowRun() {
         open={isSidebarOpen}
         onOpenChange={(open) => setIsSidebarOpen(open)}
       >
-        <SheetContent className="w-fit min-w-[56rem] max-w-4xl sm:max-w-2xl z-[60]">
+        <SheetContent className="w-fit min-w-[56rem] max-w-4xl sm:max-w-2xl z-[60] h-full overflow-auto">
           {selectedTaskRunId && (
             <TaskRunDetail
               taskRunId={selectedTaskRunId}

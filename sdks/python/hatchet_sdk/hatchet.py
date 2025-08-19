@@ -3,7 +3,7 @@ import logging
 from collections.abc import Callable
 from datetime import timedelta
 from functools import cached_property
-from typing import Any, cast, overload
+from typing import Any, Concatenate, ParamSpec, cast, overload
 
 from hatchet_sdk import Context, DurableContext
 from hatchet_sdk.client import Client
@@ -12,6 +12,7 @@ from hatchet_sdk.clients.events import EventClient
 from hatchet_sdk.clients.listeners.run_event_listener import RunEventListenerClient
 from hatchet_sdk.clients.rest.models.tenant_version import TenantVersion
 from hatchet_sdk.config import ClientConfig
+from hatchet_sdk.features.cel import CELClient
 from hatchet_sdk.features.cron import CronClient
 from hatchet_sdk.features.filters import FiltersClient
 from hatchet_sdk.features.logs import LogsClient
@@ -39,6 +40,8 @@ from hatchet_sdk.utils.timedelta_to_expression import Duration
 from hatchet_sdk.utils.typing import CoroutineLike
 from hatchet_sdk.worker.worker import LifespanFn, Worker
 
+P = ParamSpec("P")
+
 
 class Hatchet:
     """
@@ -65,6 +68,13 @@ class Hatchet:
             logger.warning(
                 "🚨⚠️‼️ YOU ARE USING A V0 ENGINE WITH A V1 SDK, WHICH IS NOT SUPPORTED. PLEASE UPGRADE YOUR ENGINE TO V1.🚨⚠️‼️"
             )
+
+    @property
+    def cel(self) -> CELClient:
+        """
+        The CEL client is a client for interacting with Hatchet's CEL API.
+        """
+        return self._client.cel
 
     @property
     def cron(self) -> CronClient:
@@ -338,7 +348,7 @@ class Hatchet:
         backoff_max_seconds: int | None = None,
         default_filters: list[DefaultFilter] | None = None,
     ) -> Callable[
-        [Callable[[EmptyModel, Context], R | CoroutineLike[R]]],
+        [Callable[Concatenate[EmptyModel, Context, P], R | CoroutineLike[R]]],
         Standalone[EmptyModel, R],
     ]: ...
 
@@ -364,7 +374,7 @@ class Hatchet:
         backoff_max_seconds: int | None = None,
         default_filters: list[DefaultFilter] | None = None,
     ) -> Callable[
-        [Callable[[TWorkflowInput, Context], R | CoroutineLike[R]]],
+        [Callable[Concatenate[TWorkflowInput, Context, P], R | CoroutineLike[R]]],
         Standalone[TWorkflowInput, R],
     ]: ...
 
@@ -390,11 +400,11 @@ class Hatchet:
         default_filters: list[DefaultFilter] | None = None,
     ) -> (
         Callable[
-            [Callable[[EmptyModel, Context], R | CoroutineLike[R]]],
+            [Callable[Concatenate[EmptyModel, Context, P], R | CoroutineLike[R]]],
             Standalone[EmptyModel, R],
         ]
         | Callable[
-            [Callable[[TWorkflowInput, Context], R | CoroutineLike[R]]],
+            [Callable[Concatenate[TWorkflowInput, Context, P], R | CoroutineLike[R]]],
             Standalone[TWorkflowInput, R],
         ]
     ):
@@ -439,7 +449,9 @@ class Hatchet:
         """
 
         def inner(
-            func: Callable[[TWorkflowInput, Context], R | CoroutineLike[R]],
+            func: Callable[
+                Concatenate[TWorkflowInput, Context, P], R | CoroutineLike[R]
+            ],
         ) -> Standalone[TWorkflowInput, R]:
             inferred_name = name or func.__name__
 
@@ -510,7 +522,7 @@ class Hatchet:
         backoff_max_seconds: int | None = None,
         default_filters: list[DefaultFilter] | None = None,
     ) -> Callable[
-        [Callable[[EmptyModel, DurableContext], R | CoroutineLike[R]]],
+        [Callable[Concatenate[EmptyModel, DurableContext, P], R | CoroutineLike[R]]],
         Standalone[EmptyModel, R],
     ]: ...
 
@@ -536,7 +548,11 @@ class Hatchet:
         backoff_max_seconds: int | None = None,
         default_filters: list[DefaultFilter] | None = None,
     ) -> Callable[
-        [Callable[[TWorkflowInput, DurableContext], R | CoroutineLike[R]]],
+        [
+            Callable[
+                Concatenate[TWorkflowInput, DurableContext, P], R | CoroutineLike[R]
+            ]
+        ],
         Standalone[TWorkflowInput, R],
     ]: ...
 
@@ -562,11 +578,19 @@ class Hatchet:
         default_filters: list[DefaultFilter] | None = None,
     ) -> (
         Callable[
-            [Callable[[EmptyModel, DurableContext], R | CoroutineLike[R]]],
+            [
+                Callable[
+                    Concatenate[EmptyModel, DurableContext, P], R | CoroutineLike[R]
+                ]
+            ],
             Standalone[EmptyModel, R],
         ]
         | Callable[
-            [Callable[[TWorkflowInput, DurableContext], R | CoroutineLike[R]]],
+            [
+                Callable[
+                    Concatenate[TWorkflowInput, DurableContext, P], R | CoroutineLike[R]
+                ]
+            ],
             Standalone[TWorkflowInput, R],
         ]
     ):
@@ -611,7 +635,9 @@ class Hatchet:
         """
 
         def inner(
-            func: Callable[[TWorkflowInput, DurableContext], R | CoroutineLike[R]],
+            func: Callable[
+                Concatenate[TWorkflowInput, DurableContext, P], R | CoroutineLike[R]
+            ],
         ) -> Standalone[TWorkflowInput, R]:
             inferred_name = name or func.__name__
             workflow = Workflow[TWorkflowInput](

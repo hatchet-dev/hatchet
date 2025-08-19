@@ -26,18 +26,6 @@ const getInitialValue = <T>(key: string, defaultValue?: T): T | undefined => {
   return;
 };
 
-const lastTenantKey = 'lastTenant';
-
-const lastTenantAtomInit = atom(getInitialValue<Tenant>(lastTenantKey));
-
-const lastTenantAtom = atom(
-  (get) => get(lastTenantAtomInit),
-  (_get, set, newVal: Tenant) => {
-    set(lastTenantAtomInit, newVal);
-    localStorage.setItem(lastTenantKey, JSON.stringify(newVal));
-  },
-);
-
 type Plan = 'free' | 'starter' | 'growth';
 
 export type BillingContext = {
@@ -67,22 +55,36 @@ type TenantContextMissing = {
 
 type TenantContext = TenantContextPresent | TenantContextMissing;
 
+const lastTenantKey = 'lastTenant';
+
+const lastTenantAtomInit = atom(getInitialValue<Tenant>(lastTenantKey));
+
+export const lastTenantAtom = atom(
+  (get) => get(lastTenantAtomInit),
+  (_get, set, newVal: Tenant) => {
+    set(lastTenantAtomInit, newVal);
+    localStorage.setItem(lastTenantKey, JSON.stringify(newVal));
+  },
+);
+
 // search param sets the tenant, the last tenant set is used if the search param is empty,
 // otherwise the first membership is used
 export function useTenant(): TenantContext {
-  const [lastTenant, setLastTenant] = useAtom(lastTenantAtom);
   const [searchParams, setSearchParams] = useSearchParams();
   const pathParams = useParams();
+  const [lastTenant, setLastTenant] = useAtom(lastTenantAtom);
 
   const setTenant = useCallback(
     (tenant: Tenant) => {
+      setLastTenant(tenant);
+
       if (tenant.version === TenantVersion.V1) {
         return;
       }
+
       const newSearchParams = new URLSearchParams(searchParams);
       newSearchParams.set('tenant', tenant.metadata.id);
       setSearchParams(newSearchParams, { replace: true });
-      setLastTenant(tenant);
     },
     [searchParams, setSearchParams, setLastTenant],
   );
@@ -140,7 +142,7 @@ export function useTenant(): TenantContext {
     const firstMembershipTenant = memberships.at(0)?.tenant;
 
     return firstMembershipTenant;
-  }, [memberships, searchParams, findTenant, lastTenant]);
+  }, [memberships, searchParams, findTenant, pathParams.tenant, lastTenant]);
 
   const currTenantId = searchParams.get('tenant');
   const currTenant = currTenantId ? findTenant(currTenantId) : undefined;

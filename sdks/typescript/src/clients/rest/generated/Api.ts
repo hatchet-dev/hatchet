@@ -84,13 +84,18 @@ import {
   UserLoginRequest,
   UserRegisterRequest,
   UserTenantMembershipsList,
+  V1CancelledTasks,
   V1CancelTaskRequest,
+  V1CELDebugRequest,
+  V1CELDebugResponse,
   V1CreateFilterRequest,
+  V1CreateWebhookRequest,
   V1DagChildren,
   V1EventList,
   V1Filter,
   V1FilterList,
   V1LogLineList,
+  V1ReplayedTasks,
   V1ReplayTaskRequest,
   V1TaskEventList,
   V1TaskPointMetrics,
@@ -101,6 +106,9 @@ import {
   V1TaskTimingList,
   V1TriggerWorkflowRunRequest,
   V1UpdateFilterRequest,
+  V1Webhook,
+  V1WebhookList,
+  V1WebhookSourceName,
   V1WorkflowRunDetails,
   V1WorkflowRunDisplayNameList,
   WebhookWorkerCreated,
@@ -215,12 +223,13 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @secure
    */
   v1TaskCancel = (tenant: string, data: V1CancelTaskRequest, params: RequestParams = {}) =>
-    this.request<void, APIErrors>({
+    this.request<V1CancelledTasks, APIErrors>({
       path: `/api/v1/stable/tenants/${tenant}/tasks/cancel`,
       method: 'POST',
       body: data,
       secure: true,
       type: ContentType.Json,
+      format: 'json',
       ...params,
     });
   /**
@@ -233,12 +242,13 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @secure
    */
   v1TaskReplay = (tenant: string, data: V1ReplayTaskRequest, params: RequestParams = {}) =>
-    this.request<void, APIErrors>({
+    this.request<V1ReplayedTasks, APIErrors>({
       path: `/api/v1/stable/tenants/${tenant}/tasks/replay`,
       method: 'POST',
       body: data,
       secure: true,
       type: ContentType.Json,
+      format: 'json',
       ...params,
     });
   /**
@@ -751,6 +761,136 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
     this.request<V1Filter, APIErrors>({
       path: `/api/v1/stable/tenants/${tenant}/filters/${v1Filter}`,
       method: 'PATCH',
+      body: data,
+      secure: true,
+      type: ContentType.Json,
+      format: 'json',
+      ...params,
+    });
+  /**
+   * @description Lists all webhook for a tenant.
+   *
+   * @tags Webhook
+   * @name V1WebhookList
+   * @summary List webhooks
+   * @request GET:/api/v1/stable/tenants/{tenant}/webhooks
+   * @secure
+   */
+  v1WebhookList = (
+    tenant: string,
+    query?: {
+      /**
+       * The number to skip
+       * @format int64
+       */
+      offset?: number;
+      /**
+       * The number to limit by
+       * @format int64
+       */
+      limit?: number;
+      /** The source names to filter by */
+      sourceNames?: V1WebhookSourceName[];
+      /** The webhook names to filter by */
+      webhookNames?: string[];
+    },
+    params: RequestParams = {}
+  ) =>
+    this.request<V1WebhookList, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/webhooks`,
+      method: 'GET',
+      query: query,
+      secure: true,
+      format: 'json',
+      ...params,
+    });
+  /**
+   * @description Create a new webhook
+   *
+   * @tags Webhook
+   * @name V1WebhookCreate
+   * @summary Create a webhook
+   * @request POST:/api/v1/stable/tenants/{tenant}/webhooks
+   * @secure
+   */
+  v1WebhookCreate = (tenant: string, data: V1CreateWebhookRequest, params: RequestParams = {}) =>
+    this.request<V1Webhook, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/webhooks`,
+      method: 'POST',
+      body: data,
+      secure: true,
+      type: ContentType.Json,
+      format: 'json',
+      ...params,
+    });
+  /**
+   * @description Get a webhook by its name
+   *
+   * @tags Webhook
+   * @name V1WebhookGet
+   * @summary Get a webhook
+   * @request GET:/api/v1/stable/tenants/{tenant}/webhooks/{v1-webhook}
+   * @secure
+   */
+  v1WebhookGet = (tenant: string, v1Webhook: string, params: RequestParams = {}) =>
+    this.request<V1Webhook, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/webhooks/${v1Webhook}`,
+      method: 'GET',
+      secure: true,
+      format: 'json',
+      ...params,
+    });
+  /**
+   * @description Delete a webhook
+   *
+   * @tags Webhook
+   * @name V1WebhookDelete
+   * @request DELETE:/api/v1/stable/tenants/{tenant}/webhooks/{v1-webhook}
+   * @secure
+   */
+  v1WebhookDelete = (tenant: string, v1Webhook: string, params: RequestParams = {}) =>
+    this.request<V1Webhook, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/webhooks/${v1Webhook}`,
+      method: 'DELETE',
+      secure: true,
+      format: 'json',
+      ...params,
+    });
+  /**
+   * @description Post an incoming webhook message
+   *
+   * @tags Webhook
+   * @name V1WebhookReceive
+   * @summary Post a webhook message
+   * @request POST:/api/v1/stable/tenants/{tenant}/webhooks/{v1-webhook}
+   */
+  v1WebhookReceive = (tenant: string, v1Webhook: string, data?: any, params: RequestParams = {}) =>
+    this.request<
+      {
+        /** @example "OK" */
+        message?: string;
+      },
+      APIErrors
+    >({
+      path: `/api/v1/stable/tenants/${tenant}/webhooks/${v1Webhook}`,
+      method: 'POST',
+      body: data,
+      format: 'json',
+      ...params,
+    });
+  /**
+   * @description Evaluate a CEL expression against provided input data.
+   *
+   * @tags CEL
+   * @name V1CelDebug
+   * @summary Debug a CEL expression
+   * @request POST:/api/v1/stable/tenants/{tenant}/cel/debug
+   * @secure
+   */
+  v1CelDebug = (tenant: string, data: V1CELDebugRequest, params: RequestParams = {}) =>
+    this.request<V1CELDebugResponse, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/cel/debug`,
+      method: 'POST',
       body: data,
       secure: true,
       type: ContentType.Json,
@@ -2845,6 +2985,22 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       path: `/api/v1/version`,
       method: 'GET',
       format: 'json',
+      ...params,
+    });
+  /**
+   * @description Get the prometheus metrics for the tenant
+   *
+   * @tags Tenant
+   * @name TenantGetPrometheusMetrics
+   * @summary Get prometheus metrics
+   * @request GET:/api/v1/tenants/{tenant}/prometheus-metrics
+   * @secure
+   */
+  tenantGetPrometheusMetrics = (tenant: string, params: RequestParams = {}) =>
+    this.request<EventSearch, APIErrors>({
+      path: `/api/v1/tenants/${tenant}/prometheus-metrics`,
+      method: 'GET',
+      secure: true,
       ...params,
     });
 }

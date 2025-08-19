@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { queries, WorkflowRunShapeItemForWorkflowRunDetails } from '@/lib/api';
 import { TabOption } from './step-run-detail/step-run-detail';
 import StepRunNode from './step-run-node';
-import { useWorkflowDetails } from '../../hooks/workflow-details';
+import { useWorkflowDetails } from '../../hooks/use-workflow-details';
 import { useQuery } from '@tanstack/react-query';
 
 interface JobMiniMapProps {

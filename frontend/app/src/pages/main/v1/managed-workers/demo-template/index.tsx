@@ -156,7 +156,7 @@ export default function DemoTemplate() {
       console.error('Failed to trigger run:', error);
       setTriggering(false);
     }
-  }, [tenantId, workflowId, isSimulation, runsTriggered]);
+  }, [workflowId, isSimulation, runsTriggered]);
 
   // Automatically trigger task runs when success step is opened
   useEffect(() => {
@@ -897,7 +897,7 @@ func main() {
                         View Runs
                       </Button>
                     </Link>
-                    <Link to={`/tenants/${tenantId}/tasks`}>
+                    <Link to={`/tenants/${tenantId}/workflows`}>
                       <Button variant="outline" className="w-full">
                         View RegisteredTasks
                       </Button>

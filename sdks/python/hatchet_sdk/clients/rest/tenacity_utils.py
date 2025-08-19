@@ -23,7 +23,7 @@ def tenacity_retry(func: Callable[P, R]) -> Callable[P, R]:
 def tenacity_alert_retry(retry_state: tenacity.RetryCallState) -> None:
     """Called between tenacity retries."""
     logger.debug(
-        f"Retrying {retry_state.fn}: attempt "
+        f"retrying {retry_state.fn}: attempt "
         f"{retry_state.attempt_number} ended with: {retry_state.outcome}",
     )
 
@@ -33,5 +33,9 @@ def tenacity_should_retry(ex: BaseException) -> bool:
         return ex.code() not in [
             grpc.StatusCode.UNIMPLEMENTED,
             grpc.StatusCode.NOT_FOUND,
+            grpc.StatusCode.INVALID_ARGUMENT,
+            grpc.StatusCode.ALREADY_EXISTS,
+            grpc.StatusCode.UNAUTHENTICATED,
+            grpc.StatusCode.PERMISSION_DENIED,
         ]
     return False

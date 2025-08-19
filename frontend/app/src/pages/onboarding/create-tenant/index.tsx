@@ -1,4 +1,4 @@
-import api, { CreateTenantRequest, queries } from '@/lib/api';
+import api, { CreateTenantRequest, queries, TenantVersion } from '@/lib/api';
 import { useApiError } from '@/lib/hooks';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
@@ -25,7 +25,15 @@ export default function CreateTenant() {
     onSuccess: async (tenant) => {
       setTenant(tenant);
       await listMembershipsQuery.refetch();
-      window.location.href = `/onboarding/get-started?tenant=${tenant.metadata.id}`;
+
+      // Hack to wait for next event loop tick so local storage is updated
+      setTimeout(() => {
+        if (tenant.version === TenantVersion.V1) {
+          window.location.href = `/tenants/${tenant.metadata.id}/onboarding/get-started`;
+        } else {
+          window.location.href = `/onboarding/get-started?tenant=${tenant.metadata.id}`;
+        }
+      }, 0);
     },
     onError: handleApiError,
   });

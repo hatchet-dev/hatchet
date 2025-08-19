@@ -64,7 +64,7 @@ OTEL_TRACEPARENT_KEY = "traceparent"
 
 def create_traceparent() -> str | None:
     logger.warning(
-        "As of SDK version 1.11.0, you no longer need to call `create_traceparent` manually. The traceparent will be automatically created by the instrumentor and injected into the metadata of actions and events when appropriate. This method will be removed in a future version.",
+        "as of SDK version 1.11.0, you no longer need to call `create_traceparent` manually. The traceparent will be automatically created by the instrumentor and injected into the metadata of actions and events when appropriate. This method will be removed in a future version.",
     )
     return _create_traceparent()
 
@@ -91,7 +91,7 @@ def parse_carrier_from_metadata(
     metadata: JSONSerializableMapping | None,
 ) -> Context | None:
     logger.warning(
-        "As of SDK version 1.11.0, you no longer need to call `parse_carrier_from_metadata` manually. This method will be removed in a future version.",
+        "as of SDK version 1.11.0, you no longer need to call `parse_carrier_from_metadata` manually. This method will be removed in a future version.",
     )
 
     return _parse_carrier_from_metadata(metadata)
@@ -133,7 +133,7 @@ def inject_traceparent_into_metadata(
     metadata: dict[str, str], traceparent: str | None = None
 ) -> dict[str, str]:
     logger.warning(
-        "As of SDK version 1.11.0, you no longer need to call `inject_traceparent_into_metadata` manually. The traceparent will automatically be injected by the instrumentor. This method will be removed in a future version.",
+        "as of SDK version 1.11.0, you no longer need to call `inject_traceparent_into_metadata` manually. The traceparent will automatically be injected by the instrumentor. This method will be removed in a future version.",
     )
 
     return _inject_traceparent_into_metadata(metadata, traceparent)

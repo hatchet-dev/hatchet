@@ -6,9 +6,6 @@ import { Handle, Position } from 'reactflow';
 import { RunStatus, V1RunIndicator } from '../../components/run-statuses';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { TabOption } from './step-run-detail/step-run-detail';
-import { Link } from 'react-router-dom';
-import { useColumnFilters } from '../../hooks/column-filters';
-import { useCurrentTenantId } from '@/hooks/use-tenant';
 
 export type NodeData = {
   taskRun: V1TaskSummary | undefined;
@@ -20,7 +17,6 @@ export type NodeData = {
 
 // eslint-disable-next-line react/display-name
 export default memo(({ data }: { data: NodeData }) => {
-  const { tenantId } = useCurrentTenantId();
   const variant = data.graphVariant;
 
   const startedAtEpoch = data.taskRun?.startedAt
@@ -29,8 +25,6 @@ export default memo(({ data }: { data: NodeData }) => {
   const finishedAtEpoch = data.taskRun?.finishedAt
     ? new Date(data.taskRun.finishedAt).getTime()
     : 0;
-
-  const { queryParamNames } = useColumnFilters();
 
   return (
     <div className="flex flex-col justify-start min-w-fit grow">
@@ -81,33 +75,6 @@ export default memo(({ data }: { data: NodeData }) => {
           />
         )}
       </div>
-      {data.childWorkflowsCount && data.taskRun ? (
-        <Link
-          to={{
-            pathname: `/tenants/${tenantId}/runs`,
-            search: new URLSearchParams({
-              ...Object.fromEntries(new URLSearchParams(location.search)),
-              [queryParamNames.parentTaskExternalId]: data.taskRun.metadata.id,
-            }).toString(),
-          }}
-        >
-          <div
-            key={`${data.taskRun.metadata.id}-child-workflows`}
-            className={cn(
-              `w-[calc(100%-1rem)] box-border shadow-md ml-4 rounded-sm py-3 px-2 mb-1 text-xs text-[#050c1c] dark:text-[#ffffff] font-semibold font-mono`,
-              `transition-all duration-300 ease-in-out`,
-              `cursor-pointer`,
-              `flex flex-row items-center justify-start border-2 dark:border-[1px]`,
-              `bg-[#ffffff] dark:bg-[#050c1c]`,
-              'h-[30px]',
-            )}
-          >
-            <div className="truncate flex-grow">
-              {data.taskName}: {data.childWorkflowsCount} children
-            </div>
-          </div>{' '}
-        </Link>
-      ) : null}
     </div>
   );
 });

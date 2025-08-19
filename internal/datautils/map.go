@@ -7,6 +7,7 @@ import (
 	"github.com/mitchellh/mapstructure"
 	"github.com/rs/zerolog"
 
+	"github.com/hatchet-dev/hatchet/pkg/constants"
 	"github.com/hatchet-dev/hatchet/pkg/errors"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
@@ -135,6 +136,26 @@ func (j *DefaultDataDecoderValidator) DecodeAndValidate(input, target interface{
 	// validate the request object
 	if requestErr = j.validator.Validate(target); requestErr != nil {
 		return requestErr
+	}
+
+	return nil
+}
+
+// ExtractCorrelationId extracts correlationId from additionalMetadata if it exists
+func ExtractCorrelationId(additionalMetadata string) *string {
+	if additionalMetadata == "" {
+		return nil
+	}
+
+	var metadata map[string]any
+	if err := json.Unmarshal([]byte(additionalMetadata), &metadata); err != nil {
+		return nil
+	}
+
+	if corrId, exists := metadata[string(constants.CorrelationIdKey)]; exists {
+		if corrIdStr, ok := corrId.(string); ok {
+			return &corrIdStr
+		}
 	}
 
 	return nil

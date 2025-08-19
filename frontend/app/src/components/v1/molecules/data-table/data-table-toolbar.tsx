@@ -7,6 +7,7 @@ import { DataTableViewOptions } from './data-table-view-options';
 import { DataTableFacetedFilter } from './data-table-faceted-filter';
 import { Input } from '@/components/v1/ui/input.tsx';
 import { Spinner } from '@/components/v1/ui/loading';
+import { flattenDAGsKey } from '@/pages/main/v1/workflow-runs-v1/components/v1/task-runs-columns';
 
 export interface FilterOption {
   label: string;
@@ -19,6 +20,7 @@ export enum ToolbarType {
   Radio = 'radio',
   KeyValue = 'key-value',
   Array = 'array',
+  Switch = 'switch',
 }
 
 export type ToolbarFilters = {
@@ -37,6 +39,7 @@ interface DataTableToolbarProps<TData> {
   showColumnToggle?: boolean;
   isLoading?: boolean;
   onReset?: () => void;
+  hideFlatten?: boolean;
 }
 
 export function DataTableToolbar<TData>({
@@ -48,6 +51,7 @@ export function DataTableToolbar<TData>({
   showColumnToggle,
   isLoading = false,
   onReset,
+  hideFlatten,
 }: DataTableToolbarProps<TData>) {
   const isFiltered = table.getState().columnFilters?.length > 0;
 
@@ -62,20 +66,28 @@ export function DataTableToolbar<TData>({
             className="h-8 w-[150px] lg:w-[250px]"
           />
         )}
-        {filters.map((filter) => {
-          return (
-            <DataTableFacetedFilter
-              key={filter.columnId}
-              column={table.getColumn(filter.columnId)}
-              title={filter.title}
-              type={filter.type}
-              options={filter.options}
-            />
-          );
-        })}
+        {filters
+          .filter((filter) => {
+            if (hideFlatten && filter.columnId === flattenDAGsKey) {
+              return false;
+            }
+
+            return true;
+          })
+          .map((filter) => {
+            return (
+              <DataTableFacetedFilter
+                key={filter.columnId}
+                column={table.getColumn(filter.columnId)}
+                title={filter.title}
+                type={filter.type}
+                options={filter.options}
+              />
+            );
+          })}
         {isFiltered && (
           <Button
-            variant="ghost"
+            variant="outline"
             onClick={() => {
               if (onReset) {
                 onReset();

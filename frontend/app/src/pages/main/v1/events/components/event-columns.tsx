@@ -1,26 +1,28 @@
 import { ColumnDef } from '@tanstack/react-table';
 import { Badge } from '@/components/v1/ui/badge';
 import { Checkbox } from '@/components/v1/ui/checkbox';
-import { columns as workflowRunsColumns } from '../../workflow-runs/components/workflow-runs-columns';
-import { queries, V1Event } from '@/lib/api';
+import { V1Event } from '@/lib/api';
 import { Button } from '@/components/v1/ui/button';
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from '@/components/v1/ui/popover';
-import { useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { DataTable } from '@/components/v1/molecules/data-table/data-table';
+import { useState } from 'react';
 import { AdditionalMetadata } from './additional-metadata';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
-import { useCurrentTenantId } from '@/hooks/use-tenant';
+import { RunsTable } from '../../workflow-runs-v1/components/runs-table';
+import { RunsProvider } from '../../workflow-runs-v1/hooks/runs-provider';
 
 export const columns = ({
   onRowClick,
+  hoveredEventId,
+  setHoveredEventId,
 }: {
   onRowClick?: (row: V1Event) => void;
+  hoveredEventId: string | null;
+  setHoveredEventId: (id: string | null) => void;
 }): ColumnDef<V1Event>[] => {
   return [
     {
@@ -91,6 +93,7 @@ export const columns = ({
           </div>
         );
       },
+      enableSorting: false,
     },
     // empty columns to get column filtering to work properly
     {
@@ -119,6 +122,7 @@ export const columns = ({
 
         return <WorkflowRunSummary event={row.original} />;
       },
+      enableSorting: false,
     },
     {
       accessorKey: 'Metadata',
@@ -131,7 +135,17 @@ export const columns = ({
         }
 
         return (
-          <AdditionalMetadata metadata={row.original.additionalMetadata} />
+          <AdditionalMetadata
+            metadata={row.original.additionalMetadata}
+            isOpen={hoveredEventId === row.original.metadata.id}
+            onOpenChange={(open) => {
+              if (open) {
+                setHoveredEventId(row.original.metadata.id);
+              } else {
+                setHoveredEventId(null);
+              }
+            }}
+          />
         );
       },
       enableSorting: false,
@@ -146,7 +160,19 @@ export const columns = ({
           return <div></div>;
         }
 
-        return <AdditionalMetadata metadata={row.original.payload} />;
+        return (
+          <AdditionalMetadata
+            metadata={row.original.payload}
+            isOpen={hoveredEventId === row.original.metadata.id}
+            onOpenChange={(open) => {
+              if (open) {
+                setHoveredEventId(row.original.metadata.id);
+              } else {
+                setHoveredEventId(null);
+              }
+            }}
+          />
+        );
       },
       enableSorting: false,
       enableHiding: true,
@@ -168,7 +194,6 @@ export const columns = ({
 
 // eslint-disable-next-line react-refresh/only-export-components
 function WorkflowRunSummary({ event }: { event: V1Event }) {
-  const { tenantId } = useCurrentTenantId();
   const [hoverCardOpen, setPopoverOpen] = useState<
     'failed' | 'succeeded' | 'running' | 'queued' | 'cancelled'
   >();
@@ -179,61 +204,23 @@ function WorkflowRunSummary({ event }: { event: V1Event }) {
   const numCancelled = event.workflowRunSummary?.cancelled || 0;
   const numQueued = event.workflowRunSummary?.queued || 0;
 
-  const listWorkflowRunsQuery = useQuery({
-    ...queries.v1WorkflowRuns.list(tenantId, {
-      offset: 0,
-      limit: 10,
-      triggering_event_external_id: event.metadata.id,
-      since: new Date(
-        new Date(event.metadata.createdAt).getTime() - 1000 * 60 * 60 * 24,
-      ).toISOString(),
-      only_tasks: false,
-    }),
-    enabled: !!hoverCardOpen,
-  });
-
-  const workflowRuns = useMemo(() => {
-    return (
-      listWorkflowRunsQuery.data?.rows?.filter((run) => {
-        if (hoverCardOpen) {
-          if (hoverCardOpen == 'failed') {
-            return run.status == 'FAILED';
-          }
-          if (hoverCardOpen == 'succeeded') {
-            return run.status == 'COMPLETED';
-          }
-          if (hoverCardOpen == 'running') {
-            return run.status == 'RUNNING';
-          }
-          if (hoverCardOpen == 'cancelled') {
-            return run.status == 'CANCELLED';
-          }
-          if (hoverCardOpen == 'queued') {
-            return run.status == 'QUEUED';
-          }
-        }
-
-        return false;
-      }) || []
-    );
-  }, [listWorkflowRunsQuery, hoverCardOpen]);
-
   const hoverCardContent = (
-    <div className="min-w-fit z-40 bg-white/10 rounded">
-      <DataTable
-        columns={workflowRunsColumns(tenantId)}
-        data={workflowRuns}
-        filters={[]}
-        pageCount={0}
-        columnVisibility={{
-          select: false,
-          'Triggered by': false,
-          actions: false,
-          Metadata: false,
+    <div className="min-w-fit z-40 p-4 bg-white/10 rounded">
+      <RunsProvider
+        tableKey={`event-runs-${event.metadata.id}`}
+        display={{
+          hideCounts: true,
+          hideMetrics: true,
+          hideDateFilter: true,
+          hideTriggerRunButton: true,
+          hideCancelAndReplayButtons: true,
         }}
-        showColumnToggle={false}
-        isLoading={listWorkflowRunsQuery.isLoading}
-      />
+        runFilters={{
+          triggeringEventExternalId: event.metadata.id,
+        }}
+      >
+        <RunsTable headerClassName="bg-slate-700" />
+      </RunsProvider>
     </div>
   );
 

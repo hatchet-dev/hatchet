@@ -1,18 +1,8 @@
 from enum import Enum
 
-from celpy import CELEvalError, Environment  # type: ignore
 from pydantic import BaseModel, model_validator
 
 from hatchet_sdk.contracts.v1.workflows_pb2 import CreateTaskRateLimit
-
-
-def validate_cel_expression(expr: str) -> bool:
-    env = Environment()
-    try:
-        env.compile(expr)
-        return True
-    except CELEvalError:
-        return False
 
 
 class RateLimitDuration(str, Enum):
@@ -72,17 +62,7 @@ class RateLimit(BaseModel):
         if self.dynamic_key and self.static_key:
             raise ValueError("Cannot have both static key and dynamic key set")
 
-        if self.dynamic_key and not validate_cel_expression(self.dynamic_key):
-            raise ValueError(f"Invalid CEL expression: {self.dynamic_key}")
-
-        if not isinstance(self.units, int) and not validate_cel_expression(self.units):
-            raise ValueError(f"Invalid CEL expression: {self.units}")
-
-        if (
-            self.limit
-            and not isinstance(self.limit, int)
-            and not validate_cel_expression(self.limit)
-        ):
+        if self.limit and not isinstance(self.limit, int):
             raise ValueError(f"Invalid CEL expression: {self.limit}")
 
         if self.dynamic_key and not self.limit:

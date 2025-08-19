@@ -1656,23 +1656,21 @@ func (q *Queries) PreflightCheckDAGsForReplay(ctx context.Context, db DBTX, arg 
 const preflightCheckTasksForReplay = `-- name: PreflightCheckTasksForReplay :many
 WITH input AS (
     SELECT
-        task_id, task_inserted_at
+        UNNEST($3::bigint[]) AS task_id,
+        UNNEST($4::timestamptz[]) AS task_inserted_at
+), relevant_tasks AS (
+    SELECT id, inserted_at, tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, workflow_version_id, workflow_run_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, retry_count, internal_retry_count, app_retry_count, step_index, additional_metadata, dag_id, dag_inserted_at, parent_task_external_id, parent_task_id, parent_task_inserted_at, child_index, child_key, initial_state, initial_state_reason, concurrency_parent_strategy_ids, concurrency_strategy_ids, concurrency_keys, retry_backoff_factor, retry_max_backoff, task_id, task_inserted_at
     FROM
-        (
-            SELECT
-                unnest($2::bigint[]) AS task_id,
-                unnest($3::timestamptz[]) AS task_inserted_at
-        ) AS subquery
+        v1_task t
+    JOIN
+        input i ON i.task_id = t.id AND i.task_inserted_at = t.inserted_at
+    WHERE
+        -- prune partitions with minInsertedAt
+        t.inserted_at >= $2::TIMESTAMPTZ
 )
-SELECT
-    t.id,
-    t.dag_id
-FROM
-    v1_task t
-JOIN
-    input i ON i.task_id = t.id AND i.task_inserted_at = t.inserted_at
-LEFT JOIN
-    v1_task_event e ON e.task_id = t.id AND e.task_inserted_at = t.inserted_at AND e.retry_count = t.retry_count AND e.event_type = ANY('{COMPLETED, FAILED, CANCELLED}'::v1_task_event_type[])
+
+SELECT t.id, t.dag_id
+FROM relevant_tasks t
 LEFT JOIN
     v1_task_runtime tr ON tr.task_id = t.id AND tr.task_inserted_at = t.inserted_at AND tr.retry_count = t.retry_count
 LEFT JOIN
@@ -1681,12 +1679,21 @@ LEFT JOIN
     v1_retry_queue_item rqi ON rqi.task_id = t.id AND rqi.task_inserted_at = t.inserted_at AND rqi.task_retry_count = t.retry_count
 WHERE
     t.tenant_id = $1::uuid
-    AND e.id IS NULL
+    AND NOT EXISTS (
+        SELECT 1
+        FROM v1_task_event e
+        WHERE
+            -- prune partitions with minInsertedAt
+            e.task_inserted_at >= $2::TIMESTAMPTZ
+            AND (e.task_id, e.task_inserted_at, e.retry_count) = (t.id, t.inserted_at, t.retry_count)
+            AND e.event_type = ANY('{COMPLETED, FAILED, CANCELLED}'::v1_task_event_type[])
+    )
     AND (tr.task_id IS NOT NULL OR cs.task_id IS NOT NULL OR rqi.task_id IS NOT NULL)
 `
 
 type PreflightCheckTasksForReplayParams struct {
 	Tenantid        pgtype.UUID          `json:"tenantid"`
+	Mininsertedat   pgtype.Timestamptz   `json:"mininsertedat"`
 	Taskids         []int64              `json:"taskids"`
 	Taskinsertedats []pgtype.Timestamptz `json:"taskinsertedats"`
 }
@@ -1699,7 +1706,12 @@ type PreflightCheckTasksForReplayRow struct {
 // Checks whether tasks can be replayed by ensuring that they don't have any active runtimes,
 // concurrency slots, or retry queue items. Returns the tasks which cannot be replayed.
 func (q *Queries) PreflightCheckTasksForReplay(ctx context.Context, db DBTX, arg PreflightCheckTasksForReplayParams) ([]*PreflightCheckTasksForReplayRow, error) {
-	rows, err := db.Query(ctx, preflightCheckTasksForReplay, arg.Tenantid, arg.Taskids, arg.Taskinsertedats)
+	rows, err := db.Query(ctx, preflightCheckTasksForReplay,
+		arg.Tenantid,
+		arg.Mininsertedat,
+		arg.Taskids,
+		arg.Taskinsertedats,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -1910,6 +1922,21 @@ WITH input AS (
         v1_concurrency_slot
     WHERE
         (task_id, task_inserted_at, task_retry_count) IN (SELECT task_id, task_inserted_at, task_retry_count FROM concurrency_slots_to_delete)
+), rate_limited_items_to_delete AS (
+    SELECT
+        task_id, task_inserted_at, retry_count
+    FROM
+        v1_rate_limited_queue_items
+    WHERE
+        (task_id, task_inserted_at, retry_count) IN (SELECT task_id, task_inserted_at, retry_count FROM input)
+    ORDER BY
+        task_id, task_inserted_at, retry_count
+    FOR UPDATE
+), deleted_rate_limited AS (
+    DELETE FROM
+        v1_rate_limited_queue_items
+    WHERE
+        (task_id, task_inserted_at, retry_count) IN (SELECT task_id, task_inserted_at, retry_count FROM rate_limited_items_to_delete)
 )
 SELECT
     t.queue,

@@ -5,6 +5,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
+	transformers "github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers/v1"
 	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 )
@@ -60,7 +61,7 @@ func (t *TasksService) V1TaskCancel(ctx echo.Context, request gen.V1TaskCancelRe
 		grpcReq.Filter = filter
 	}
 
-	_, err = t.proxyCancel.Do(
+	resp, err := t.proxyCancel.Do(
 		ctx.Request().Context(),
 		tenant,
 		grpcReq,
@@ -70,5 +71,9 @@ func (t *TasksService) V1TaskCancel(ctx echo.Context, request gen.V1TaskCancelRe
 		return nil, err
 	}
 
-	return gen.V1TaskCancel200Response{}, nil
+	ids := transformers.ToCancelledOrReplayedTaskResponse(resp.CancelledTasks)
+
+	return gen.V1TaskCancel200JSONResponse(
+		ids,
+	), nil
 }

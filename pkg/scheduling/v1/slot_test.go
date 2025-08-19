@@ -1,6 +1,6 @@
 //go:build !e2e && !load && !rampup && !integration
 
-package v2
+package v1
 
 import (
 	"testing"
@@ -95,6 +95,46 @@ func TestGetRankedSlots(t *testing.T) {
 				}}}}, []string{}),
 			},
 			expectedWorker: []string{stableWorkerId2, stableWorkerId1},
+		},
+		{
+			name: "Affinity labels with strict requirements",
+			qi:   &sqlcv1.V1QueueItem{},
+			labels: []*sqlcv1.GetDesiredLabelsRow{
+				{
+					Key:        "key1",
+					Weight:     1,
+					Required:   true,
+					Comparator: sqlcv1.WorkerLabelComparatorEQUAL,
+					IntValue:   pgtype.Int4{Int32: 1, Valid: true},
+				},
+			},
+			slots: []*slot{
+				newSlot(&worker{ListActiveWorkersResult: &v1.ListActiveWorkersResult{ID: (stableWorkerId1), Labels: []*sqlcv1.ListManyWorkerLabelsRow{{
+					Key:      "key1",
+					IntValue: pgtype.Int4{Int32: 1, Valid: true},
+				}}}}, []string{}),
+			},
+			expectedWorker: []string{stableWorkerId1},
+		},
+		{
+			name: "Affinity labels with strict requirements and unsatisfiable conditions",
+			qi:   &sqlcv1.V1QueueItem{},
+			labels: []*sqlcv1.GetDesiredLabelsRow{
+				{
+					Key:        "key1",
+					Weight:     1,
+					Required:   true,
+					Comparator: sqlcv1.WorkerLabelComparatorEQUAL,
+					IntValue:   pgtype.Int4{Int32: 1, Valid: true},
+				},
+			},
+			slots: []*slot{
+				newSlot(&worker{ListActiveWorkersResult: &v1.ListActiveWorkersResult{ID: (stableWorkerId2), Labels: []*sqlcv1.ListManyWorkerLabelsRow{{
+					Key:      "key1",
+					IntValue: pgtype.Int4{Int32: 2, Valid: true},
+				}}}}, []string{}),
+			},
+			expectedWorker: []string{},
 		},
 	}
 

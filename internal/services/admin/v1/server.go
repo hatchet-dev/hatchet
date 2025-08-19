@@ -151,11 +151,6 @@ func (a *AdminServiceImpl) CancelTasks(ctx context.Context, req *contracts.Cance
 	}, nil
 }
 
-type TaskIdInsertedAtRetryCountWithWorkflowRunId struct {
-	v1.TaskIdInsertedAtRetryCount
-	WorkflowRunId pgtype.UUID `json:"workflow_run_id" validate:"required"`
-}
-
 func (a *AdminServiceImpl) ReplayTasks(ctx context.Context, req *contracts.ReplayTasksRequest) (*contracts.ReplayTasksResponse, error) {
 	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
 
@@ -240,7 +235,7 @@ func (a *AdminServiceImpl) ReplayTasks(ctx context.Context, req *contracts.Repla
 		externalIds = append(externalIds, runExternalIds...)
 	}
 
-	tasksToReplay := []TaskIdInsertedAtRetryCountWithWorkflowRunId{}
+	tasksToReplay := []tasktypes.TaskIdInsertedAtRetryCountWithExternalId{}
 
 	tasks, err := a.repo.Tasks().FlattenExternalIds(ctx, sqlchelpers.UUIDToStr(tenant.ID), externalIds)
 
@@ -248,32 +243,38 @@ func (a *AdminServiceImpl) ReplayTasks(ctx context.Context, req *contracts.Repla
 		return nil, err
 	}
 
-	taskIdInsertedAtRetryCountToExternalId := make(map[v1.TaskIdInsertedAtRetryCount]pgtype.UUID)
+	// Deduplicate based on TaskIdInsertedAtRetryCountWithExternalId
+	existingReplays := make(map[tasktypes.TaskIdInsertedAtRetryCountWithExternalId]bool)
 
 	for _, task := range tasks {
-		record := v1.TaskIdInsertedAtRetryCount{
-			Id:         task.ID,
-			InsertedAt: task.InsertedAt,
-			RetryCount: task.RetryCount,
+		record := tasktypes.TaskIdInsertedAtRetryCountWithExternalId{
+			TaskIdInsertedAtRetryCount: v1.TaskIdInsertedAtRetryCount{
+				Id:         task.ID,
+				InsertedAt: task.InsertedAt,
+				RetryCount: task.RetryCount,
+			},
+			WorkflowRunExternalId: task.WorkflowRunID,
+			TaskExternalId:        task.ExternalID,
 		}
-		tasksToReplay = append(tasksToReplay, TaskIdInsertedAtRetryCountWithWorkflowRunId{
-			TaskIdInsertedAtRetryCount: record,
-			WorkflowRunId:              task.WorkflowRunExternalID,
-		})
 
-		taskIdInsertedAtRetryCountToExternalId[record] = task.WorkflowRunExternalID
+		if _, exists := existingReplays[record]; exists {
+			continue
+		}
+
+		existingReplays[record] = true
+		tasksToReplay = append(tasksToReplay, record)
 	}
 
-	workflowRunIdToTasksToReplay := make(map[pgtype.UUID][]v1.TaskIdInsertedAtRetryCount)
+	workflowRunIdToTasksToReplay := make(map[pgtype.UUID][]tasktypes.TaskIdInsertedAtRetryCountWithExternalId)
 	for _, item := range tasksToReplay {
-		workflowRunIdToTasksToReplay[item.WorkflowRunId] = append(
-			workflowRunIdToTasksToReplay[item.WorkflowRunId],
-			item.TaskIdInsertedAtRetryCount,
+		workflowRunIdToTasksToReplay[item.WorkflowRunExternalId] = append(
+			workflowRunIdToTasksToReplay[item.WorkflowRunExternalId],
+			item,
 		)
 	}
 
-	var batches [][]v1.TaskIdInsertedAtRetryCount
-	var currentBatch []v1.TaskIdInsertedAtRetryCount
+	var batches [][]tasktypes.TaskIdInsertedAtRetryCountWithExternalId
+	var currentBatch []tasktypes.TaskIdInsertedAtRetryCountWithExternalId
 	batchSize := 100
 
 	for _, tasksForWorkflowRun := range workflowRunIdToTasksToReplay {
@@ -326,7 +327,7 @@ func (a *AdminServiceImpl) ReplayTasks(ctx context.Context, req *contracts.Repla
 		}
 
 		for _, task := range batch {
-			replayedIds = append(replayedIds, taskIdInsertedAtRetryCountToExternalId[task].String())
+			replayedIds = append(replayedIds, task.TaskExternalId.String())
 		}
 
 		time.Sleep(200 * time.Millisecond)
@@ -415,6 +416,13 @@ func (i *AdminServiceImpl) newTriggerOpt(
 		WorkflowName:       req.WorkflowName,
 		Data:               req.Input,
 		AdditionalMetadata: req.AdditionalMetadata,
+	}
+
+	if req.Priority != nil {
+		if *req.Priority < 1 || *req.Priority > 3 {
+			return nil, status.Errorf(codes.InvalidArgument, "priority must be between 1 and 3, got %d", *req.Priority)
+		}
+		t.Priority = req.Priority
 	}
 
 	return &v1.WorkflowNameTriggerOpts{

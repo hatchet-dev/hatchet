@@ -278,13 +278,14 @@ func (ns NullLeaseKind) Value() (driver.Value, error) {
 type LimitResource string
 
 const (
-	LimitResourceWORKFLOWRUN LimitResource = "WORKFLOW_RUN"
-	LimitResourceTASKRUN     LimitResource = "TASK_RUN"
-	LimitResourceEVENT       LimitResource = "EVENT"
-	LimitResourceWORKER      LimitResource = "WORKER"
-	LimitResourceWORKERSLOT  LimitResource = "WORKER_SLOT"
-	LimitResourceCRON        LimitResource = "CRON"
-	LimitResourceSCHEDULE    LimitResource = "SCHEDULE"
+	LimitResourceWORKFLOWRUN     LimitResource = "WORKFLOW_RUN"
+	LimitResourceTASKRUN         LimitResource = "TASK_RUN"
+	LimitResourceEVENT           LimitResource = "EVENT"
+	LimitResourceWORKER          LimitResource = "WORKER"
+	LimitResourceWORKERSLOT      LimitResource = "WORKER_SLOT"
+	LimitResourceCRON            LimitResource = "CRON"
+	LimitResourceSCHEDULE        LimitResource = "SCHEDULE"
+	LimitResourceINCOMINGWEBHOOK LimitResource = "INCOMING_WEBHOOK"
 )
 
 func (e *LimitResource) Scan(src interface{}) error {

@@ -5,14 +5,18 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"hash/fnv"
 	"sort"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 
 	"github.com/hatchet-dev/hatchet/internal/cel"
+	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 )
@@ -254,13 +258,21 @@ type TaskRepositoryImpl struct {
 
 	taskRetentionPeriod   time.Duration
 	maxInternalRetryCount int32
+	timeoutLimit          int
+	reassignLimit         int
+	retryQueueLimit       int
+	durableSleepLimit     int
 }
 
-func newTaskRepository(s *sharedRepository, taskRetentionPeriod time.Duration, maxInternalRetryCount int32) TaskRepository {
+func newTaskRepository(s *sharedRepository, taskRetentionPeriod time.Duration, maxInternalRetryCount int32, timeoutLimit, reassignLimit, retryQueueLimit, durableSleepLimit int) TaskRepository {
 	return &TaskRepositoryImpl{
 		sharedRepository:      s,
 		taskRetentionPeriod:   taskRetentionPeriod,
 		maxInternalRetryCount: maxInternalRetryCount,
+		timeoutLimit:          timeoutLimit,
+		reassignLimit:         reassignLimit,
+		retryQueueLimit:       retryQueueLimit,
+		durableSleepLimit:     durableSleepLimit,
 	}
 }
 
@@ -269,11 +281,42 @@ func (r *TaskRepositoryImpl) EnsureTablePartitionsExist(ctx context.Context) (bo
 }
 
 func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
+	exists, err := r.EnsureTablePartitionsExist(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to check if table partitions exist: %w", err)
+	}
+
+	if exists {
+		r.l.Debug().Msg("table partitions already exist, skipping")
+		return nil
+	}
+
+	const PARTITION_LOCK_OFFSET = 9000000000000000000
+	const partitionLockKey = PARTITION_LOCK_OFFSET + 1
+
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 600000) // 10 minutes
+	if err != nil {
+		return fmt.Errorf("failed to prepare transaction: %w", err)
+	}
+	defer rollback()
+
+	acquired, err := r.queries.TryAdvisoryLock(ctx, tx, partitionLockKey)
+	if err != nil {
+		return fmt.Errorf("failed to try advisory lock for partition operations: %w", err)
+	}
+
+	if !acquired {
+		r.l.Debug().Msg("partition operations already running on another controller instance, skipping")
+		return nil
+	}
+
+	r.l.Debug().Msg("acquired advisory lock for partition operations")
+
 	today := time.Now().UTC()
 	tomorrow := today.AddDate(0, 0, 1)
 	removeBefore := today.Add(-1 * r.taskRetentionPeriod)
 
-	err := r.queries.CreatePartitions(ctx, r.pool, pgtype.Date{
+	err = r.queries.CreatePartitions(ctx, r.pool, pgtype.Date{
 		Time:  today,
 		Valid: true,
 	})
@@ -326,10 +369,17 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 		}
 	}
 
+	err = commit(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
 	return nil
 }
 
 func (r *TaskRepositoryImpl) GetTaskByExternalId(ctx context.Context, tenantId, taskExternalId string, skipCache bool) (*sqlcv1.FlattenExternalIdsRow, error) {
+	r.l.Debug().Str("method", "GetTaskByExternalId").Str("taskExternalId", taskExternalId).Bool("skipCache", skipCache).Msg("loki-debug: retrieving task by external id")
+
 	if !skipCache {
 		// check the cache first
 		key := taskExternalIdTenantIdTuple{
@@ -347,6 +397,8 @@ func (r *TaskRepositoryImpl) GetTaskByExternalId(ctx context.Context, tenantId, 
 		Tenantid:    sqlchelpers.UUIDFromStr(tenantId),
 		Externalids: []pgtype.UUID{sqlchelpers.UUIDFromStr(taskExternalId)},
 	})
+
+	r.l.Debug().Bool("FlattenExternalIdsSucceeded", err == nil).Int("lenTasks", len(dbTasks)).Msg("loki-debug: executed FlattenExternalIds query")
 
 	if err != nil {
 		return nil, err
@@ -417,18 +469,27 @@ func (r *sharedRepository) lookupExternalIds(ctx context.Context, tx sqlcv1.DBTX
 }
 
 func (r *TaskRepositoryImpl) verifyAllTasksFinalized(ctx context.Context, tx sqlcv1.DBTX, tenantId string, flattenedTasks []*sqlcv1.FlattenExternalIdsRow) ([]string, map[string]int64, error) {
-	taskIdsToCheck := make([]int64, 0, len(flattenedTasks))
+	taskIdsToCheck := make([]int64, len(flattenedTasks))
+	taskInsertedAtsToCheck := make([]pgtype.Timestamptz, len(flattenedTasks))
 	taskIdsToTasks := make(map[int64]*sqlcv1.FlattenExternalIdsRow)
+	minInsertedAt := sqlchelpers.TimestamptzFromTime(time.Now()) // current time as a placeholder - will be overwritten
 
-	for _, task := range flattenedTasks {
-		taskIdsToCheck = append(taskIdsToCheck, task.ID)
+	for i, task := range flattenedTasks {
+		taskIdsToCheck[i] = task.ID
+		taskInsertedAtsToCheck[i] = task.InsertedAt
 		taskIdsToTasks[task.ID] = task
+
+		if task.InsertedAt.Time.Before(minInsertedAt.Time) {
+			minInsertedAt = task.InsertedAt
+		}
 	}
 
 	// run preflight check on tasks
 	notFinalized, err := r.queries.PreflightCheckTasksForReplay(ctx, tx, sqlcv1.PreflightCheckTasksForReplayParams{
-		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
-		Taskids:  taskIdsToCheck,
+		Tenantid:        sqlchelpers.UUIDFromStr(tenantId),
+		Taskids:         taskIdsToCheck,
+		Taskinsertedats: taskInsertedAtsToCheck,
+		Mininsertedat:   minInsertedAt,
 	})
 
 	if err != nil {
@@ -511,6 +572,9 @@ func (r *TaskRepositoryImpl) verifyAllTasksFinalized(ctx context.Context, tx sql
 }
 
 func (r *TaskRepositoryImpl) CompleteTasks(ctx context.Context, tenantId string, tasks []CompleteTaskOpts) (*FinalizedTaskResponse, error) {
+	ctx, span := telemetry.NewSpan(ctx, "TaskRepositoryImpl.CompleteTasks")
+	defer span.End()
+
 	// TODO: ADD BACK VALIDATION
 	// if err := r.v.Validate(tasks); err != nil {
 	// 	fmt.Println("FAILED VALIDATION HERE!!!")
@@ -527,6 +591,9 @@ func (r *TaskRepositoryImpl) CompleteTasks(ctx context.Context, tenantId string,
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 5000)
 
 	if err != nil {
+		err = fmt.Errorf("failed to prepare tx: %w", err)
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to prepare tx")
 		return nil, err
 	}
 
@@ -538,6 +605,9 @@ func (r *TaskRepositoryImpl) CompleteTasks(ctx context.Context, tenantId string,
 	releasedTasks, err := r.releaseTasks(ctx, tx, tenantId, taskIdRetryCounts)
 
 	if err != nil {
+		err = fmt.Errorf("failed to release tasks: %w", err)
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to release tasks")
 		return nil, err
 	}
 
@@ -564,11 +634,17 @@ func (r *TaskRepositoryImpl) CompleteTasks(ctx context.Context, tenantId string,
 	)
 
 	if err != nil {
+		err = fmt.Errorf("failed to create task events after release: %w", err)
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to create task events after release")
 		return nil, err
 	}
 
 	// commit the transaction
 	if err := commit(ctx); err != nil {
+		err = fmt.Errorf("failed to commit transaction: %w", err)
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to commit transaction")
 		return nil, err
 	}
 
@@ -579,9 +655,15 @@ func (r *TaskRepositoryImpl) CompleteTasks(ctx context.Context, tenantId string,
 }
 
 func (r *TaskRepositoryImpl) FailTasks(ctx context.Context, tenantId string, failureOpts []FailTaskOpts) (*FailTasksResponse, error) {
+	ctx, span := telemetry.NewSpan(ctx, "TaskRepositoryImpl.FailTasks")
+	defer span.End()
+
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 5000)
 
 	if err != nil {
+		err = fmt.Errorf("failed to prepare tx: %w", err)
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to prepare tx")
 		return nil, err
 	}
 
@@ -590,11 +672,17 @@ func (r *TaskRepositoryImpl) FailTasks(ctx context.Context, tenantId string, fai
 	res, err := r.failTasksTx(ctx, tx, tenantId, failureOpts)
 
 	if err != nil {
+		err = fmt.Errorf("failed to fail tasks: %w", err)
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to fail tasks")
 		return nil, err
 	}
 
 	// commit the transaction
 	if err := commit(ctx); err != nil {
+		err = fmt.Errorf("failed to commit transaction: %w", err)
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to commit transaction")
 		return nil, err
 	}
 
@@ -608,6 +696,9 @@ func (r *TaskRepositoryImpl) failTasksTx(ctx context.Context, tx sqlcv1.DBTX, te
 
 	// 	return err
 	// }
+
+	ctx, span := telemetry.NewSpan(ctx, "tasks_repository_impl.fail_tasks_tx")
+	defer span.End()
 
 	tasks := make([]TaskIdInsertedAtRetryCount, len(failureOpts))
 	appFailureTaskIds := make([]int64, 0)
@@ -640,6 +731,12 @@ func (r *TaskRepositoryImpl) failTasksTx(ctx context.Context, tx sqlcv1.DBTX, te
 
 	// write app failures
 	if len(appFailureTaskIds) > 0 {
+		span.SetAttributes(
+			attribute.KeyValue{
+				Key:   "tasks_repository_impl.fail_tasks_tx.fail_task_app_failure.batch_size",
+				Value: attribute.IntValue(len(appFailureTaskIds)),
+			},
+		)
 		appFailureRetries, err := r.queries.FailTaskAppFailure(ctx, tx, sqlcv1.FailTaskAppFailureParams{
 			Tenantid:        sqlchelpers.UUIDFromStr(tenantId),
 			Taskids:         appFailureTaskIds,
@@ -670,6 +767,12 @@ func (r *TaskRepositoryImpl) failTasksTx(ctx context.Context, tx sqlcv1.DBTX, te
 
 	// write internal failures
 	if len(internalFailureTaskIds) > 0 {
+		span.SetAttributes(
+			attribute.KeyValue{
+				Key:   "tasks_repository_impl.fail_tasks_tx.fail_task_internal_failure.batch_size",
+				Value: attribute.IntValue(len(internalFailureTaskIds)),
+			},
+		)
 		internalFailureRetries, err := r.queries.FailTaskInternalFailure(ctx, tx, sqlcv1.FailTaskInternalFailureParams{
 			Tenantid:           sqlchelpers.UUIDFromStr(tenantId),
 			Taskids:            internalFailureTaskIds,
@@ -866,6 +969,9 @@ func (r *TaskRepositoryImpl) ListFinalizedWorkflowRuns(ctx context.Context, tena
 }
 
 func (r *TaskRepositoryImpl) CancelTasks(ctx context.Context, tenantId string, tasks []TaskIdInsertedAtRetryCount) (*FinalizedTaskResponse, error) {
+	ctx, span := telemetry.NewSpan(ctx, "TaskRepositoryImpl.CancelTasks")
+	defer span.End()
+
 	// TODO: ADD BACK VALIDATION
 	// if err := r.v.Validate(tasks); err != nil {
 	// 	fmt.Println("FAILED VALIDATION HERE!!!")
@@ -876,6 +982,9 @@ func (r *TaskRepositoryImpl) CancelTasks(ctx context.Context, tenantId string, t
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 5000)
 
 	if err != nil {
+		err = fmt.Errorf("failed to prepare tx: %w", err)
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to prepare tx")
 		return nil, err
 	}
 
@@ -885,11 +994,17 @@ func (r *TaskRepositoryImpl) CancelTasks(ctx context.Context, tenantId string, t
 	res, err := r.cancelTasks(ctx, tx, tenantId, tasks)
 
 	if err != nil {
+		err = fmt.Errorf("failed to cancel tasks: %w", err)
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to cancel tasks")
 		return nil, err
 	}
 
 	// commit the transaction
 	if err := commit(ctx); err != nil {
+		err = fmt.Errorf("failed to commit transaction: %w", err)
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to commit transaction")
 		return nil, err
 	}
 
@@ -992,7 +1107,7 @@ func (r *TaskRepositoryImpl) ListTaskMetas(ctx context.Context, tenantId string,
 }
 
 func (r *TaskRepositoryImpl) ProcessTaskTimeouts(ctx context.Context, tenantId string) (*TimeoutTasksResponse, bool, error) {
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 5000)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 25000)
 
 	if err != nil {
 		return nil, false, err
@@ -1000,8 +1115,7 @@ func (r *TaskRepositoryImpl) ProcessTaskTimeouts(ctx context.Context, tenantId s
 
 	defer rollback()
 
-	// TODO: make limit configurable
-	limit := 1000
+	limit := r.timeoutLimit
 
 	// get task timeouts
 	toTimeout, err := r.queries.ListTasksToTimeout(ctx, tx, sqlcv1.ListTasksToTimeoutParams{
@@ -1064,7 +1178,7 @@ func (r *TaskRepositoryImpl) ProcessTaskTimeouts(ctx context.Context, tenantId s
 }
 
 func (r *TaskRepositoryImpl) ProcessTaskReassignments(ctx context.Context, tenantId string) (*FailTasksResponse, bool, error) {
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 5000)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 25000)
 
 	if err != nil {
 		return nil, false, err
@@ -1072,8 +1186,7 @@ func (r *TaskRepositoryImpl) ProcessTaskReassignments(ctx context.Context, tenan
 
 	defer rollback()
 
-	// TODO: make limit configurable
-	limit := 1000
+	limit := r.reassignLimit
 
 	toReassign, err := r.queries.ListTasksToReassign(ctx, tx, sqlcv1.ListTasksToReassignParams{
 		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
@@ -1128,7 +1241,7 @@ func (r *TaskRepositoryImpl) ProcessTaskReassignments(ctx context.Context, tenan
 }
 
 func (r *TaskRepositoryImpl) ProcessTaskRetryQueueItems(ctx context.Context, tenantId string) ([]*sqlcv1.V1RetryQueueItem, bool, error) {
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 5000)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 25000)
 
 	if err != nil {
 		return nil, false, err
@@ -1136,8 +1249,7 @@ func (r *TaskRepositoryImpl) ProcessTaskRetryQueueItems(ctx context.Context, ten
 
 	defer rollback()
 
-	// TODO: make limit configurable
-	limit := 10000
+	limit := r.retryQueueLimit
 
 	// get task reassignments
 	res, err := r.queries.ProcessRetryQueueItems(ctx, tx, sqlcv1.ProcessRetryQueueItemsParams{
@@ -1165,7 +1277,7 @@ type durableSleepEventData struct {
 }
 
 func (r *TaskRepositoryImpl) ProcessDurableSleeps(ctx context.Context, tenantId string) (*EventMatchResults, bool, error) {
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 5000)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 25000)
 
 	if err != nil {
 		return nil, false, err
@@ -1173,7 +1285,7 @@ func (r *TaskRepositoryImpl) ProcessDurableSleeps(ctx context.Context, tenantId 
 
 	defer rollback()
 
-	limit := 1000
+	limit := r.durableSleepLimit
 
 	emitted, err := r.queries.PopDurableSleep(ctx, tx, sqlcv1.PopDurableSleepParams{
 		TenantID: sqlchelpers.UUIDFromStr(tenantId),
@@ -1586,6 +1698,9 @@ func (r *sharedRepository) insertTasks(
 		}
 
 		initialStates[i] = string(task.InitialState)
+		if initialStates[i] == "" {
+			initialStates[i] = string(sqlcv1.V1TaskInitialStateQUEUED)
+		}
 
 		if len(task.AdditionalMetadata) > 0 {
 			additionalMetadatas[i] = task.AdditionalMetadata
@@ -1667,6 +1782,11 @@ func (r *sharedRepository) insertTasks(
 						}
 					}
 
+					if task.Input == nil {
+						failTaskError = fmt.Errorf("failed to parse step expression (%s): input is nil", strat.Expression)
+						break
+					}
+
 					// Make sure to fail the task with a user-friendly error if we can't parse the CEL for priority
 					// Can set fail task error which will insert with an initial state of failed
 					res, err := r.celParser.ParseAndEvalStepRun(strat.Expression, cel.NewInput(
@@ -1727,6 +1847,11 @@ func (r *sharedRepository) insertTasks(
 							failTaskError = fmt.Errorf("failed to process additional metadata: not a json object")
 							break
 						}
+					}
+
+					if task.Input == nil {
+						failTaskError = fmt.Errorf("failed to parse step expression (%s): input is nil", expr.Expression)
+						break
 					}
 
 					res, err := r.celParser.ParseAndEvalStepRun(expr.Expression, cel.NewInput(
@@ -1996,6 +2121,9 @@ func (r *sharedRepository) replayTasks(
 			inputs[i] = r.ToV1StepRunData(task.Input).Bytes()
 		}
 		initialStates[i] = string(task.InitialState)
+		if initialStates[i] == "" {
+			initialStates[i] = string(sqlcv1.V1TaskInitialStateQUEUED)
+		}
 
 		if len(task.AdditionalMetadata) > 0 {
 			additionalMetadatas[i] = task.AdditionalMetadata
@@ -2406,11 +2534,23 @@ func makeEventTypeArr(status sqlcv1.V1TaskEventType, n int) []sqlcv1.V1TaskEvent
 	return a
 }
 
+func hash(s string) int64 {
+	h := fnv.New64a()
+	h.Write([]byte(s))
+	return int64(h.Sum64())
+}
+
 func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId string, tasks []TaskIdInsertedAtRetryCount) (*ReplayTasksResult, error) {
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 30000)
 
 	if err != nil {
 		return nil, err
+	}
+
+	err = r.queries.AdvisoryLock(ctx, tx, hash("replay_"+tenantId))
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to acquire advisory lock: %w", err)
 	}
 
 	defer rollback()
@@ -2435,12 +2575,15 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId string, t
 	}
 
 	lockedTaskIds := make([]int64, len(lockedTasks))
+	lockedTaskInsertedAts := make([]pgtype.Timestamptz, len(lockedTasks))
 	subtreeStepIds := make(map[int64]map[string]bool) // dag id -> step id -> true
 	subtreeExternalIds := make(map[string]struct{})
 	dagIdsToLockMap := make(map[int64]struct{})
+	minInsertedAt := sqlchelpers.TimestamptzFromTime(time.Now()) // current time as a placeholder - will be overwritten
 
 	for i, task := range lockedTasks {
 		lockedTaskIds[i] = task.ID
+		lockedTaskInsertedAts[i] = task.InsertedAt
 
 		if task.DagID.Valid {
 			if _, ok := subtreeStepIds[task.DagID.Int64]; !ok {
@@ -2450,6 +2593,10 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId string, t
 			dagIdsToLockMap[task.DagID.Int64] = struct{}{}
 			subtreeStepIds[task.DagID.Int64][sqlchelpers.UUIDToStr(task.StepID)] = true
 			subtreeExternalIds[sqlchelpers.UUIDToStr(task.ExternalID)] = struct{}{}
+		}
+
+		if task.InsertedAt.Time.Before(minInsertedAt.Time) {
+			minInsertedAt = task.InsertedAt
 		}
 	}
 
@@ -2499,8 +2646,10 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId string, t
 	tasksFailedPreflight := make(map[int64]bool)
 
 	failedPreflightChecks, err := r.queries.PreflightCheckTasksForReplay(ctx, tx, sqlcv1.PreflightCheckTasksForReplayParams{
-		Taskids:  lockedTaskIds,
-		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+		Taskids:         lockedTaskIds,
+		Taskinsertedats: lockedTaskInsertedAts,
+		Tenantid:        sqlchelpers.UUIDFromStr(tenantId),
+		Mininsertedat:   minInsertedAt,
 	})
 
 	if err != nil {
@@ -2784,6 +2933,7 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId string, t
 							readableId := otherTask.StepReadableID
 
 							hasUserEventOrSleepMatches := false
+							hasAnySkippingParentOverrides := false
 
 							parentOverrideMatches := make([]*sqlcv1.V1StepMatchCondition, 0)
 
@@ -2792,12 +2942,16 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId string, t
 									if match.ParentReadableID.String == readableId {
 										parentOverrideMatches = append(parentOverrideMatches, match)
 									}
+
+									if match.Action == sqlcv1.V1MatchConditionActionSKIP {
+										hasAnySkippingParentOverrides = true
+									}
 								} else {
 									hasUserEventOrSleepMatches = true
 								}
 							}
 
-							conditions = append(conditions, getParentInDAGGroupMatch(cancelGroupId, parentExternalId, readableId, parentOverrideMatches, hasUserEventOrSleepMatches)...)
+							conditions = append(conditions, getParentInDAGGroupMatch(cancelGroupId, parentExternalId, readableId, parentOverrideMatches, hasUserEventOrSleepMatches, hasAnySkippingParentOverrides)...)
 						}
 					}
 				}

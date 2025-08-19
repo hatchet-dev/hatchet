@@ -25,10 +25,13 @@ import {
   ToolbarType,
 } from '@/components/v1/molecules/data-table/data-table-toolbar';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
+import { TriggerWorkflowForm } from '../../workflows/$workflow/components/trigger-workflow-form';
 
 export function CronsTable() {
   const { tenantId } = useCurrentTenantId();
   const [searchParams, setSearchParams] = useSearchParams();
+  const [triggerWorkflow, setTriggerWorkflow] = useState(false);
+  const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
 
   const [sorting, setSorting] = useState<SortingState>(() => {
     const sortParam = searchParams.get('sort');
@@ -70,7 +73,7 @@ export function CronsTable() {
     newSearchParams.set('filters', JSON.stringify(columnFilters));
     newSearchParams.set('pageIndex', pagination.pageIndex.toString());
     newSearchParams.set('pageSize', pagination.pageSize.toString());
-    setSearchParams(newSearchParams);
+    setSearchParams(newSearchParams, { replace: true });
   }, [sorting, columnFilters, pagination, setSearchParams, searchParams]);
 
   const workflow = useMemo<string | undefined>(() => {
@@ -135,7 +138,7 @@ export function CronsTable() {
         (filter) => filter.id === 'Metadata',
       )?.value as string[] | undefined,
     }),
-    refetchInterval: 2000,
+    refetchInterval: selectedJobId ? false : 2000,
   });
 
   const [showDeleteCron, setShowDeleteCron] = useState<
@@ -155,6 +158,7 @@ export function CronsTable() {
 
   const { data: workflowKeys } = useQuery({
     ...queries.workflows.list(tenantId, { limit: 200 }),
+    refetchInterval: selectedJobId ? false : 2000,
   });
 
   const workflowKeyFilters = useMemo((): FilterOption[] => {
@@ -182,6 +186,13 @@ export function CronsTable() {
 
   const actions = [
     <Button
+      key="create-cron"
+      onClick={() => setTriggerWorkflow(true)}
+      className="h-8 border"
+    >
+      Create Cron Job
+    </Button>,
+    <Button
       key="refresh"
       className="h-8 px-2 lg:px-3"
       size="sm"
@@ -204,12 +215,21 @@ export function CronsTable() {
           onSuccess={handleConfirmDelete}
         />
       )}
+      <TriggerWorkflowForm
+        defaultTimingOption="cron"
+        defaultWorkflow={undefined}
+        show={triggerWorkflow}
+        onClose={() => setTriggerWorkflow(false)}
+      />
+
       <DataTable
         error={queryError}
         isLoading={queryIsLoading}
         columns={columns({
           tenantId,
           onDeleteClick: handleDeleteClick,
+          selectedJobId,
+          setSelectedJobId,
         })}
         data={data?.rows || []}
         filters={filters}

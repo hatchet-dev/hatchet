@@ -1,24 +1,55 @@
 import MainNav from '@/components/molecules/nav-bar/nav-bar';
-import { Outlet } from 'react-router-dom';
-import api, { queries, TenantVersion } from '@/lib/api';
+import { Outlet, useNavigate } from 'react-router-dom';
+import api, { queries, TenantVersion, User } from '@/lib/api';
 import { Loading } from '@/components/ui/loading.tsx';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import SupportChat from '@/components/molecules/support-chat';
 import AnalyticsProvider from '@/components/molecules/analytics-provider';
 import { useState, useEffect } from 'react';
 import { useContextFromParent } from '@/lib/outlet';
 import { useTenant } from '@/lib/atoms';
+import { AxiosError } from 'axios';
+import { useInactivityDetection } from '@/pages/auth/hooks/use-inactivity-detection';
+import { cloudApi } from '@/lib/api/api';
 
 export default function Authenticated() {
   const [hasHasBanner, setHasBanner] = useState(false);
 
   const { tenant } = useTenant();
 
+  const { data: cloudMetadata } = useQuery({
+    queryKey: ['metadata'],
+    queryFn: async () => {
+      const res = await cloudApi.metadataGet();
+      return res.data;
+    },
+  });
+
+  const navigate = useNavigate();
+
+  const logoutMutation = useMutation({
+    mutationKey: ['user:update:logout'],
+    mutationFn: async () => {
+      await api.userUpdateLogout();
+    },
+    onSuccess: () => {
+      navigate('/auth/login');
+    },
+  });
+
+  useInactivityDetection({
+    timeoutMs: cloudMetadata?.inactivityLogoutMs || -1,
+    onInactive: () => {
+      logoutMutation.mutate();
+    },
+  });
+
   const userQuery = useQuery({
     queryKey: ['user:get:current'],
     retry: false,
     queryFn: async () => {
       const res = await api.userGetCurrent();
+
       return res.data;
     },
   });
@@ -44,6 +75,12 @@ export default function Authenticated() {
 
   useEffect(() => {
     const currentUrl = window.location.pathname;
+    const userQueryError = userQuery.error as AxiosError<User> | null;
+
+    if (userQueryError?.status === 401 || userQueryError?.status === 403) {
+      window.location.href = '/auth/login';
+      return;
+    }
 
     if (
       userQuery.data &&
@@ -79,10 +116,12 @@ export default function Authenticated() {
       return;
     }
   }, [
+    tenant?.metadata.id,
     userQuery.data,
     invitesQuery.data,
     listMembershipsQuery.data,
     tenant?.version,
+    userQuery.error,
   ]);
 
   if (

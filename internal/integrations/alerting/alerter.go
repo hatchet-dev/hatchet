@@ -14,7 +14,6 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
-	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 
 	"github.com/hatchet-dev/timediff"
 )
@@ -239,24 +238,13 @@ func (t *TenantAlertManager) getFailedItemsV1(failedRuns []*v1.WorkflowRunData) 
 
 		readableId := workflowRun.DisplayName
 
-		switch workflowRun.Kind {
-		case sqlcv1.V1RunKindDAG:
-			res = append(res, alerttypes.WorkflowRunFailedItem{
-				Link:                  fmt.Sprintf("%s/v1/workflow-runs/%s?tenant=%s", t.serverURL, workflowRunId, tenantId),
-				WorkflowName:          readableId,
-				WorkflowRunReadableId: readableId,
-				RelativeDate:          timediff.TimeDiff(workflowRun.FinishedAt.Time),
-				AbsoluteDate:          workflowRun.FinishedAt.Time.Format("2006-01-02 15:04:05"),
-			})
-		case sqlcv1.V1RunKindTASK:
-			res = append(res, alerttypes.WorkflowRunFailedItem{
-				Link:                  fmt.Sprintf("%s/v1/task-runs/%s?tenant=%s", t.serverURL, workflowRunId, tenantId),
-				WorkflowName:          readableId,
-				WorkflowRunReadableId: readableId,
-				RelativeDate:          timediff.TimeDiff(workflowRun.FinishedAt.Time),
-				AbsoluteDate:          workflowRun.FinishedAt.Time.Format("2006-01-02 15:04:05"),
-			})
-		}
+		res = append(res, alerttypes.WorkflowRunFailedItem{
+			Link:                  fmt.Sprintf("%s/tenants/%s/runs/%s", t.serverURL, tenantId, workflowRunId),
+			WorkflowName:          readableId,
+			WorkflowRunReadableId: readableId,
+			RelativeDate:          timediff.TimeDiff(workflowRun.FinishedAt.Time),
+			AbsoluteDate:          workflowRun.FinishedAt.Time.Format("2006-01-02 15:04:05"),
+		})
 	}
 
 	return res

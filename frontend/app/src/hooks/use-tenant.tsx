@@ -8,9 +8,10 @@ import api, {
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import invariant from 'tiny-invariant';
-import { BillingContext } from '@/lib/atoms';
+import { BillingContext, lastTenantAtom } from '@/lib/atoms';
 import useCloudApiMeta from '@/pages/auth/hooks/use-cloud-api-meta';
 import { Evaluate } from '@/lib/can/shared/permission.base';
+import { useAtom } from 'jotai';
 
 export type Plan = 'free' | 'starter' | 'growth';
 
@@ -40,7 +41,8 @@ export function useCurrentTenantId() {
 
 export function useTenantDetails() {
   const params = useParams();
-  const tenantId = params.tenant;
+  const [lastTenant, setLastTenant] = useAtom(lastTenantAtom);
+  const tenantId = params.tenant || lastTenant?.metadata.id;
 
   const membershipsQuery = useQuery({
     ...queries.user.listTenantMemberships,
@@ -56,17 +58,19 @@ export function useTenantDetails() {
   const navigate = useNavigate();
 
   const setTenant = useCallback(
-    (tenantId?: string) => {
+    (tenant: Tenant) => {
       const currentPath = location.pathname;
 
       const newPath = currentPath.replace(
         /\/tenants\/([^/]+)/,
-        `/tenants/${tenantId}`,
+        `/tenants/${tenant.metadata.id}`,
       );
 
+      setLastTenant(tenant);
+      queryClient.clear();
       navigate(newPath);
     },
-    [navigate, location.pathname],
+    [navigate, location.pathname, setLastTenant, queryClient],
   );
 
   const membership = useMemo(() => {
@@ -80,7 +84,6 @@ export function useTenantDetails() {
   }, [tenantId, memberships]);
 
   const tenant = membership?.tenant;
-  const defaultTenant = memberships?.[0]?.tenant;
 
   const createTenantMutation = useMutation({
     mutationKey: ['tenant:create'],
@@ -96,7 +99,7 @@ export function useTenantDetails() {
     onSuccess: async (data) => {
       await queryClient.invalidateQueries({ queryKey: ['user:*'] });
       if (data.metadata.id) {
-        setTenant(data.metadata.id);
+        setTenant(data);
       }
       return data;
     },
@@ -180,7 +183,6 @@ export function useTenantDetails() {
   return {
     tenantId,
     tenant,
-    defaultTenant,
     isLoading: membershipsQuery.isLoading,
     membership: membership?.role,
     setTenant,

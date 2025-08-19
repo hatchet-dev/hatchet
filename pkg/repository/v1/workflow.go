@@ -587,10 +587,24 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 			filterExpressions[ix] = filter.Expression
 			filterPayloads[ix] = payload
 		}
-		_, err := r.queries.BulkUpsertDeclarativeFilters(
+
+		err := r.queries.DeleteExistingDeclarativeFiltersForOverwrite(
 			ctx,
 			tx,
-			sqlcv1.BulkUpsertDeclarativeFiltersParams{
+			sqlcv1.DeleteExistingDeclarativeFiltersForOverwriteParams{
+				Tenantid:   tenantId,
+				Workflowid: workflowId,
+			},
+		)
+
+		if err != nil {
+			return "", fmt.Errorf("could not delete existing declarative filters: %w", err)
+		}
+
+		err = r.queries.BulkInsertDeclarativeFilters(
+			ctx,
+			tx,
+			sqlcv1.BulkInsertDeclarativeFiltersParams{
 				Tenantid:    tenantId,
 				Workflowid:  workflowId,
 				Scopes:      filterScopes,
@@ -797,7 +811,7 @@ func (r *workflowRepository) createJobTx(ctx context.Context, tx sqlcv1.DBTX, te
 
 					if rateLimit.UnitsExpr != nil {
 						unitsExpr = *rateLimit.UnitsExpr
-					} else {
+					} else if rateLimit.Units != nil {
 						unitsExpr = cel.Int(*rateLimit.Units)
 					}
 
