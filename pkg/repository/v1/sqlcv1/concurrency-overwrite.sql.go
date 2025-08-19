@@ -542,7 +542,7 @@ WITH slots AS (
             )
         )
     ORDER BY
-        cs.task_id ASC, cs.task_inserted_at ASC, cs.task_retry_count ASC
+        cs.task_id ASC, cs.task_inserted_at ASC, cs.task_retry_count ASC, cs.strategy_id ASC
     FOR UPDATE
 ), updated_slots AS (
     UPDATE
