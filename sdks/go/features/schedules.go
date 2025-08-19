@@ -2,7 +2,6 @@ package features
 
 import (
 	"context"
-	"net/http"
 	"time"
 
 	"github.com/cockroachdb/errors"
@@ -68,8 +67,8 @@ func (s *SchedulesClient) Create(ctx context.Context, workflowName string, trigg
 		return nil, errors.Wrap(err, "failed to create scheduled workflow run")
 	}
 
-	if resp.JSON200 == nil {
-		return nil, errors.Newf("received non-200 response from server. got status %d with body '%s'", resp.StatusCode(), string(resp.Body))
+	if err := validateJSON200Response(resp.StatusCode(), resp.Body, resp.JSON200); err != nil {
+		return nil, err
 	}
 
 	return resp.JSON200, nil
@@ -91,8 +90,8 @@ func (s *SchedulesClient) Delete(ctx context.Context, scheduledRunId string) err
 		return errors.Wrap(err, "failed to delete scheduled workflow run")
 	}
 
-	if resp.StatusCode() != http.StatusOK {
-		return errors.Newf("received non-200 response from server. got status %d with body '%s'", resp.StatusCode(), string(resp.Body))
+	if err := validateStatusCodeResponse(resp.StatusCode(), resp.Body); err != nil {
+		return err
 	}
 
 	return nil
@@ -109,8 +108,8 @@ func (s *SchedulesClient) List(ctx context.Context, opts rest.WorkflowScheduledL
 		return nil, errors.Wrap(err, "failed to list scheduled workflow runs")
 	}
 
-	if resp.JSON200 == nil {
-		return nil, errors.Newf("received non-200 response from server. got status %d with body '%s'", resp.StatusCode(), string(resp.Body))
+	if err := validateJSON200Response(resp.StatusCode(), resp.Body, resp.JSON200); err != nil {
+		return nil, err
 	}
 
 	return resp.JSON200, nil
@@ -132,8 +131,8 @@ func (s *SchedulesClient) Get(ctx context.Context, scheduledRunId string) (*rest
 		return nil, errors.Wrap(err, "failed to get scheduled workflow run")
 	}
 
-	if resp.JSON200 == nil {
-		return nil, errors.Newf("received non-200 response from server. got status %d with body '%s'", resp.StatusCode(), string(resp.Body))
+	if err := validateJSON200Response(resp.StatusCode(), resp.Body, resp.JSON200); err != nil {
+		return nil, err
 	}
 
 	return resp.JSON200, nil

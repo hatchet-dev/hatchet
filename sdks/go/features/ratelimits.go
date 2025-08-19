@@ -66,8 +66,8 @@ func (c *RateLimitsClient) List(ctx context.Context, opts *rest.RateLimitListPar
 		return nil, errors.Wrap(err, "failed to list rate limits")
 	}
 
-	if resp.JSON200 == nil {
-		return nil, errors.Newf("received non-200 response from server. got status %d with body '%s'", resp.StatusCode(), string(resp.Body))
+	if err := validateJSON200Response(resp.StatusCode(), resp.Body, resp.JSON200); err != nil {
+		return nil, err
 	}
 
 	return resp.JSON200, nil

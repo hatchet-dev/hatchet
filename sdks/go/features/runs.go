@@ -48,8 +48,8 @@ func (r *RunsClient) Get(ctx context.Context, runId string) (*rest.V1WorkflowRun
 		return nil, errors.Wrap(err, "failed to get workflow run")
 	}
 
-	if resp.JSON200 == nil {
-		return nil, errors.Newf("received non-200 response from server. got status %d with body '%s'", resp.StatusCode(), string(resp.Body))
+	if err := validateJSON200Response(resp.StatusCode(), resp.Body, resp.JSON200); err != nil {
+		return nil, err
 	}
 
 	return resp.JSON200, nil
@@ -65,8 +65,8 @@ func (r *RunsClient) GetStatus(ctx context.Context, runId string) (*rest.V1TaskS
 		return nil, errors.Wrap(err, "failed to get workflow run status")
 	}
 
-	if resp.JSON200 == nil {
-		return nil, errors.Newf("received non-200 response from server. got status %d with body '%s'", resp.StatusCode(), string(resp.Body))
+	if err := validateJSON200Response(resp.StatusCode(), resp.Body, resp.JSON200); err != nil {
+		return nil, err
 	}
 
 	return resp.JSON200, nil
@@ -83,8 +83,8 @@ func (r *RunsClient) GetDetails(ctx context.Context, runId string) (*rest.Workfl
 		return nil, errors.Wrap(err, "failed to get workflow run details")
 	}
 
-	if resp.JSON200 == nil {
-		return nil, errors.Newf("received non-200 response from server. got status %d with body '%s'", resp.StatusCode(), string(resp.Body))
+	if err := validateJSON200Response(resp.StatusCode(), resp.Body, resp.JSON200); err != nil {
+		return nil, err
 	}
 
 	return resp.JSON200, nil
@@ -101,8 +101,8 @@ func (r *RunsClient) List(ctx context.Context, opts rest.V1WorkflowRunListParams
 		return nil, errors.Wrap(err, "failed to list workflow runs")
 	}
 
-	if resp.JSON200 == nil {
-		return nil, errors.Newf("received non-200 response from server. got status %d with body '%s'", resp.StatusCode(), string(resp.Body))
+	if err := validateJSON200Response(resp.StatusCode(), resp.Body, resp.JSON200); err != nil {
+		return nil, err
 	}
 
 	return resp.JSON200, nil
@@ -125,8 +125,8 @@ func (r *RunsClient) Replay(ctx context.Context, opts rest.V1ReplayTaskRequest) 
 		return nil, errors.Wrap(err, "failed to replay task")
 	}
 
-	if resp.JSON200 == nil {
-		return nil, errors.Newf("received non-200 response from server. got status %d with body '%s'", resp.StatusCode(), string(resp.Body))
+	if err := validateJSON200Response(resp.StatusCode(), resp.Body, resp.JSON200); err != nil {
+		return nil, err
 	}
 
 	return resp.JSON200, nil
@@ -149,8 +149,8 @@ func (r *RunsClient) Cancel(ctx context.Context, opts rest.V1CancelTaskRequest) 
 		return nil, errors.Wrap(err, "failed to cancel task")
 	}
 
-	if resp.JSON200 == nil {
-		return nil, errors.Newf("received non-200 response from server. got status %d with body '%s'", resp.StatusCode(), string(resp.Body))
+	if err := validateJSON200Response(resp.StatusCode(), resp.Body, resp.JSON200); err != nil {
+		return nil, err
 	}
 
 	return resp.JSON200, nil

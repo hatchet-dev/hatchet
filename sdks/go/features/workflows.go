@@ -3,7 +3,6 @@ package features
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"time"
 
 	"github.com/cockroachdb/errors"
@@ -90,8 +89,8 @@ func (w *WorkflowsClient) List(ctx context.Context, opts *rest.WorkflowListParam
 		return nil, errors.Wrap(err, "failed to list workflows")
 	}
 
-	if resp.JSON200 == nil {
-		return nil, errors.Newf("received non-200 response from server. got status %d with body '%s'", resp.StatusCode(), string(resp.Body))
+	if err := validateJSON200Response(resp.StatusCode(), resp.Body, resp.JSON200); err != nil {
+		return nil, err
 	}
 
 	return resp.JSON200, nil
@@ -113,8 +112,8 @@ func (w *WorkflowsClient) Delete(ctx context.Context, workflowName string) (*res
 		return nil, errors.Wrap(err, "failed to delete workflow")
 	}
 
-	if resp.StatusCode() != http.StatusOK {
-		return nil, errors.Newf("received non-200 response from server. got status %d with body '%s'", resp.StatusCode(), string(resp.Body))
+	if err := validateStatusCodeResponse(resp.StatusCode(), resp.Body); err != nil {
+		return nil, err
 	}
 
 	// Remove from cache after deletion

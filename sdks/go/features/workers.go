@@ -42,8 +42,8 @@ func (w *WorkersClient) Get(ctx context.Context, workerId string) (*rest.Worker,
 		return nil, errors.Wrap(err, "failed to get worker")
 	}
 
-	if resp.JSON200 == nil {
-		return nil, errors.Newf("received non-200 response from server. got status %d with body '%s'", resp.StatusCode(), string(resp.Body))
+	if err := validateJSON200Response(resp.StatusCode(), resp.Body, resp.JSON200); err != nil {
+		return nil, err
 	}
 
 	return resp.JSON200, nil
@@ -59,8 +59,8 @@ func (w *WorkersClient) List(ctx context.Context) (*rest.WorkerList, error) {
 		return nil, errors.Wrap(err, "failed to list workers")
 	}
 
-	if resp.JSON200 == nil {
-		return nil, errors.Newf("received non-200 response from server. got status %d with body '%s'", resp.StatusCode(), string(resp.Body))
+	if err := validateJSON200Response(resp.StatusCode(), resp.Body, resp.JSON200); err != nil {
+		return nil, err
 	}
 
 	return resp.JSON200, nil
@@ -88,8 +88,8 @@ func (w *WorkersClient) Pause(ctx context.Context, workerId string) (*rest.Worke
 		return nil, errors.Wrap(err, "failed to pause worker")
 	}
 
-	if resp.JSON200 == nil {
-		return nil, errors.Newf("received non-200 response from server. got status %d with body '%s'", resp.StatusCode(), string(resp.Body))
+	if err := validateJSON200Response(resp.StatusCode(), resp.Body, resp.JSON200); err != nil {
+		return nil, err
 	}
 
 	return resp.JSON200, nil
@@ -117,8 +117,8 @@ func (w *WorkersClient) Unpause(ctx context.Context, workerId string) (*rest.Wor
 		return nil, errors.Wrap(err, "failed to unpause worker")
 	}
 
-	if resp.JSON200 == nil {
-		return nil, errors.Newf("received non-200 response from server. got status %d with body '%s'", resp.StatusCode(), string(resp.Body))
+	if err := validateJSON200Response(resp.StatusCode(), resp.Body, resp.JSON200); err != nil {
+		return nil, err
 	}
 
 	return resp.JSON200, nil

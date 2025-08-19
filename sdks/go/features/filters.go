@@ -37,8 +37,8 @@ func (c *FiltersClient) List(ctx context.Context, opts *rest.V1FilterListParams)
 		return nil, errors.Wrap(err, "failed to list filters")
 	}
 
-	if resp.JSON200 == nil {
-		return nil, errors.Newf("received non-200 response from server. got status %d with body '%s'", resp.StatusCode(), string(resp.Body))
+	if err := validateJSON200Response(resp.StatusCode(), resp.Body, resp.JSON200); err != nil {
+		return nil, err
 	}
 
 	return resp.JSON200, nil
@@ -55,8 +55,8 @@ func (c *FiltersClient) Get(ctx context.Context, filterID string) (*rest.V1Filte
 		return nil, errors.Wrap(err, "failed to get filter")
 	}
 
-	if resp.JSON200 == nil {
-		return nil, errors.Newf("received non-200 response from server. got status %d with body '%s'", resp.StatusCode(), string(resp.Body))
+	if err := validateJSON200Response(resp.StatusCode(), resp.Body, resp.JSON200); err != nil {
+		return nil, err
 	}
 
 	return resp.JSON200, nil
@@ -73,8 +73,8 @@ func (c *FiltersClient) Create(ctx context.Context, opts rest.V1CreateFilterRequ
 		return nil, errors.Wrap(err, "failed to create filter")
 	}
 
-	if resp.JSON200 == nil {
-		return nil, errors.Newf("received non-200 response from server. got status %d with body '%s'", resp.StatusCode(), string(resp.Body))
+	if err := validateJSON200Response(resp.StatusCode(), resp.Body, resp.JSON200); err != nil {
+		return nil, err
 	}
 
 	return resp.JSON200, nil
@@ -91,8 +91,8 @@ func (c *FiltersClient) Delete(ctx context.Context, filterID string) (*rest.V1Fi
 		return nil, errors.Wrap(err, "failed to delete filter")
 	}
 
-	if resp.JSON200 == nil {
-		return nil, errors.Newf("received non-200 response from server. got status %d with body '%s'", resp.StatusCode(), string(resp.Body))
+	if err := validateJSON200Response(resp.StatusCode(), resp.Body, resp.JSON200); err != nil {
+		return nil, err
 	}
 
 	return resp.JSON200, nil
@@ -110,8 +110,8 @@ func (c *FiltersClient) Update(ctx context.Context, filterID string, opts rest.V
 		return nil, errors.Wrap(err, "failed to update filter")
 	}
 
-	if resp.JSON200 == nil {
-		return nil, errors.Newf("received non-200 response from server. got status %d with body '%s'", resp.StatusCode(), string(resp.Body))
+	if err := validateJSON200Response(resp.StatusCode(), resp.Body, resp.JSON200); err != nil {
+		return nil, err
 	}
 
 	return resp.JSON200, nil

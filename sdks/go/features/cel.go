@@ -6,7 +6,6 @@ import (
 	"github.com/cockroachdb/errors"
 	"github.com/google/uuid"
 
-	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/client/rest"
 )
 
@@ -29,21 +28,9 @@ func NewCELClient(
 	}
 }
 
-// CELEvaluationResult represents the result of a CEL expression evaluation.
-type CELEvaluationResult struct {
-	// Status is the status of the CEL expression evaluation. Can be one of:
-	// - SUCCESS
-	// - ERROR
-	Status gen.V1CELDebugResponseStatus `json:"status"`
-	// Output is the boolean evaluation result of the CEL expression when the Status was SUCCESS.
-	Output *bool `json:"output"`
-	// Error is the error message if the Status was ERROR.
-	Error *string `json:"error"`
-}
-
 // Debug evaluates a CEL expression with the provided input, filter payload, and optional metadata.
 // Useful for testing and validating CEL expressions and debugging issues in production.
-func (c *CELClient) Debug(ctx context.Context, expression string, input map[string]any, additionalMetadata, filterPayload *map[string]any) (*CELEvaluationResult, error) {
+func (c *CELClient) Debug(ctx context.Context, expression string, input map[string]any, additionalMetadata, filterPayload *map[string]any) (*rest.V1CELDebugResponse, error) {
 	resp, err := c.api.V1CelDebugWithResponse(
 		ctx,
 		c.tenantId,
@@ -58,19 +45,9 @@ func (c *CELClient) Debug(ctx context.Context, expression string, input map[stri
 		return nil, errors.Wrap(err, "failed to evaluate CEL expression")
 	}
 
-	if resp.JSON200 == nil {
-		return nil, errors.Newf("received non-200 response from server. got status %d with body '%s'", resp.StatusCode(), string(resp.Body))
+	if err := validateJSON200Response(resp.StatusCode(), resp.Body, resp.JSON200); err != nil {
+		return nil, err
 	}
 
-	if resp.JSON200.Status == rest.V1CELDebugResponseStatus(gen.V1CELDebugResponseStatusERROR) {
-		return &CELEvaluationResult{
-			Status: gen.V1CELDebugResponseStatusERROR,
-			Error:  resp.JSON200.Error,
-		}, nil
-	}
-
-	return &CELEvaluationResult{
-		Status: gen.V1CELDebugResponseStatusSUCCESS,
-		Output: resp.JSON200.Output,
-	}, nil
+	return resp.JSON200, nil
 }
