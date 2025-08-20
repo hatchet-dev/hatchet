@@ -50,9 +50,25 @@ func (worker *subscribedWorker) sendToWorker(
 	ctx, span := telemetry.NewSpan(ctx, "send-to-worker") // nolint:ineffassign
 	defer span.End()
 
+	telemetry.WithAttributes(
+		span,
+		telemetry.AttributeKV{
+			Key:   "worker_id",
+			Value: worker.workerId,
+		},
+	)
+
+	telemetry.WithAttributes(
+		span,
+		telemetry.AttributeKV{
+			Key:   "payload_size",
+			Value: len(action.ActionPayload),
+		},
+	)
+
 	lockBegin := time.Now()
 
-	_, lockSpan := telemetry.NewSpan(ctx, "acquire-lock")
+	_, lockSpan := telemetry.NewSpan(ctx, "acquire-worker-stream-lock")
 
 	worker.sendMu.Lock()
 	defer worker.sendMu.Unlock()
@@ -64,7 +80,13 @@ func (worker *subscribedWorker) sendToWorker(
 		Value: time.Since(lockBegin).Milliseconds(),
 	})
 
-	return worker.stream.Send(action)
+	err := worker.stream.Send(action)
+
+	if err != nil {
+		span.RecordError(err)
+	}
+
+	return err
 }
 
 func (worker *subscribedWorker) CancelTask(
