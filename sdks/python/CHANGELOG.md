@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Adds back an optional `cel-python` dependency for v0 compatibility, allowing users to use the v0 client with the v0-compatible features in the SDK.
 - Adds `dependencies` to the `mock_run` methods on the `Standalone`.
 - Removes `aiostream` dependency that was unused.
+- Removes `aiohttp-retry` dependency that was unused.
 
 ## [1.17.1] - 2025-08-18
 
