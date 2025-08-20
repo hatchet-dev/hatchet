@@ -4,6 +4,7 @@ import (
 	"crypto/tls"
 	"time"
 
+	"github.com/labstack/echo/v4"
 	"github.com/rs/zerolog"
 	"github.com/spf13/viper"
 	"golang.org/x/oauth2"
@@ -497,6 +498,8 @@ type AuthConfig struct {
 	GithubOAuthConfig *oauth2.Config
 
 	JWTManager token.JWTManager
+
+	CustomAuthHandler func(c echo.Context) error
 }
 
 type PylonConfig struct {
