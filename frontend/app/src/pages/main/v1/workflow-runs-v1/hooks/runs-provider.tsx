@@ -192,7 +192,7 @@ export const RunsProvider = ({
     parentTaskExternalId: derivedParentTaskExternalId,
     createdAfter: state.createdAfter,
     refetchInterval,
-    pauseRefetch: state.hasOpenUI || isFrozen,
+    pauseRefetch: isFrozen,
   });
 
   const value = useMemo<RunsContextType>(
