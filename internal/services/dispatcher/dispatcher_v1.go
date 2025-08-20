@@ -40,8 +40,29 @@ func (worker *subscribedWorker) StartTaskFromBulk(
 	action.ActionType = contracts.ActionType_START_STEP_RUN
 	action.ActionPayload = string(inputBytes)
 
+	return worker.sendToWorker(ctx, action)
+}
+
+func (worker *subscribedWorker) sendToWorker(
+	ctx context.Context,
+	action *contracts.AssignedAction,
+) error {
+	ctx, span := telemetry.NewSpan(ctx, "send-to-worker") // nolint:ineffassign
+	defer span.End()
+
+	lockBegin := time.Now()
+
+	_, lockSpan := telemetry.NewSpan(ctx, "acquire-lock")
+
 	worker.sendMu.Lock()
 	defer worker.sendMu.Unlock()
+
+	lockSpan.End()
+
+	telemetry.WithAttributes(span, telemetry.AttributeKV{
+		Key:   "lock_duration_ms",
+		Value: time.Since(lockBegin).Milliseconds(),
+	})
 
 	return worker.stream.Send(action)
 }
