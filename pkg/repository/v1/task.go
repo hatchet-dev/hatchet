@@ -1902,50 +1902,43 @@ func (r *sharedRepository) insertTasks(
 		return nil, fmt.Errorf("failed to upsert queues: %w", err)
 	}
 
-	// group by step_id
-	stepIdsToParams := make(map[string]sqlcv1.CreateTasksParams, 0)
+	params := sqlcv1.CreateTasksParams{
+		Tenantids:                    make([]pgtype.UUID, 0),
+		Queues:                       make([]string, 0),
+		Actionids:                    make([]string, 0),
+		Stepids:                      make([]pgtype.UUID, 0),
+		Stepreadableids:              make([]string, 0),
+		Workflowids:                  make([]pgtype.UUID, 0),
+		Scheduletimeouts:             make([]string, 0),
+		Steptimeouts:                 make([]string, 0),
+		Priorities:                   make([]int32, 0),
+		Stickies:                     make([]string, 0),
+		Desiredworkerids:             make([]pgtype.UUID, 0),
+		Externalids:                  make([]pgtype.UUID, 0),
+		Displaynames:                 make([]string, 0),
+		Inputs:                       make([][]byte, 0),
+		Retrycounts:                  make([]int32, 0),
+		Additionalmetadatas:          make([][]byte, 0),
+		InitialStates:                make([]string, 0),
+		InitialStateReasons:          make([]pgtype.Text, 0),
+		Dagids:                       make([]pgtype.Int8, 0),
+		Daginsertedats:               make([]pgtype.Timestamptz, 0),
+		Concurrencyparentstrategyids: make([][]pgtype.Int8, 0),
+		ConcurrencyStrategyIds:       make([][]int64, 0),
+		ConcurrencyKeys:              make([][]string, 0),
+		ParentTaskExternalIds:        make([]pgtype.UUID, 0),
+		ParentTaskIds:                make([]pgtype.Int8, 0),
+		ParentTaskInsertedAts:        make([]pgtype.Timestamptz, 0),
+		ChildIndex:                   make([]pgtype.Int8, 0),
+		ChildKey:                     make([]pgtype.Text, 0),
+		StepIndex:                    make([]int64, 0),
+		RetryBackoffFactor:           make([]pgtype.Float8, 0),
+		RetryMaxBackoff:              make([]pgtype.Int4, 0),
+		WorkflowVersionIds:           make([]pgtype.UUID, 0),
+		WorkflowRunIds:               make([]pgtype.UUID, 0),
+	}
 
-	for i, task := range tasks {
-		params, ok := stepIdsToParams[task.StepId]
-
-		if !ok {
-			params = sqlcv1.CreateTasksParams{
-				Tenantids:                    make([]pgtype.UUID, 0),
-				Queues:                       make([]string, 0),
-				Actionids:                    make([]string, 0),
-				Stepids:                      make([]pgtype.UUID, 0),
-				Stepreadableids:              make([]string, 0),
-				Workflowids:                  make([]pgtype.UUID, 0),
-				Scheduletimeouts:             make([]string, 0),
-				Steptimeouts:                 make([]string, 0),
-				Priorities:                   make([]int32, 0),
-				Stickies:                     make([]string, 0),
-				Desiredworkerids:             make([]pgtype.UUID, 0),
-				Externalids:                  make([]pgtype.UUID, 0),
-				Displaynames:                 make([]string, 0),
-				Inputs:                       make([][]byte, 0),
-				Retrycounts:                  make([]int32, 0),
-				Additionalmetadatas:          make([][]byte, 0),
-				InitialStates:                make([]string, 0),
-				InitialStateReasons:          make([]pgtype.Text, 0),
-				Dagids:                       make([]pgtype.Int8, 0),
-				Daginsertedats:               make([]pgtype.Timestamptz, 0),
-				Concurrencyparentstrategyids: make([][]pgtype.Int8, 0),
-				ConcurrencyStrategyIds:       make([][]int64, 0),
-				ConcurrencyKeys:              make([][]string, 0),
-				ParentTaskExternalIds:        make([]pgtype.UUID, 0),
-				ParentTaskIds:                make([]pgtype.Int8, 0),
-				ParentTaskInsertedAts:        make([]pgtype.Timestamptz, 0),
-				ChildIndex:                   make([]pgtype.Int8, 0),
-				ChildKey:                     make([]pgtype.Text, 0),
-				StepIndex:                    make([]int64, 0),
-				RetryBackoffFactor:           make([]pgtype.Float8, 0),
-				RetryMaxBackoff:              make([]pgtype.Int4, 0),
-				WorkflowVersionIds:           make([]pgtype.UUID, 0),
-				WorkflowRunIds:               make([]pgtype.UUID, 0),
-			}
-		}
-
+	for i := range tasks {
 		params.Tenantids = append(params.Tenantids, tenantIds[i])
 		params.Queues = append(params.Queues, queues[i])
 		params.Actionids = append(params.Actionids, actionIds[i])
@@ -1979,11 +1972,7 @@ func (r *sharedRepository) insertTasks(
 		params.RetryMaxBackoff = append(params.RetryMaxBackoff, retryMaxBackoffs[i])
 		params.WorkflowVersionIds = append(params.WorkflowVersionIds, workflowVersionIds[i])
 		params.WorkflowRunIds = append(params.WorkflowRunIds, workflowRunIds[i])
-
-		stepIdsToParams[task.StepId] = params
 	}
-
-	res := make([]*sqlcv1.V1Task, 0)
 
 	// for any initial states which are not queued, create a finalizing task event
 	eventTaskIdRetryCounts := make([]TaskIdInsertedAtRetryCount, 0)
@@ -1991,39 +1980,35 @@ func (r *sharedRepository) insertTasks(
 	eventDatas := make([][]byte, 0)
 	eventTypes := make([]sqlcv1.V1TaskEventType, 0)
 
-	for stepId, params := range stepIdsToParams {
-		createdTasks, err := r.queries.CreateTasks(ctx, tx, params)
+	createdTasks, err := r.queries.CreateTasks(ctx, tx, params)
 
-		if err != nil {
-			return nil, fmt.Errorf("failed to create tasks for step id %s: %w", stepId, err)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create tasks: %w", err)
+	}
+
+	for _, createdTask := range createdTasks {
+		idRetryCount := TaskIdInsertedAtRetryCount{
+			Id:         createdTask.ID,
+			InsertedAt: createdTask.InsertedAt,
+			RetryCount: createdTask.RetryCount,
 		}
 
-		res = append(res, createdTasks...)
-
-		for _, createdTask := range createdTasks {
-			idRetryCount := TaskIdInsertedAtRetryCount{
-				Id:         createdTask.ID,
-				InsertedAt: createdTask.InsertedAt,
-				RetryCount: createdTask.RetryCount,
-			}
-
-			switch createdTask.InitialState {
-			case sqlcv1.V1TaskInitialStateFAILED:
-				eventTaskIdRetryCounts = append(eventTaskIdRetryCounts, idRetryCount)
-				eventTaskExternalIds = append(eventTaskExternalIds, sqlchelpers.UUIDToStr(createdTask.ExternalID))
-				eventDatas = append(eventDatas, NewFailedTaskOutputEventFromTask(createdTask).Bytes())
-				eventTypes = append(eventTypes, sqlcv1.V1TaskEventTypeFAILED)
-			case sqlcv1.V1TaskInitialStateCANCELLED:
-				eventTaskIdRetryCounts = append(eventTaskIdRetryCounts, idRetryCount)
-				eventTaskExternalIds = append(eventTaskExternalIds, sqlchelpers.UUIDToStr(createdTask.ExternalID))
-				eventDatas = append(eventDatas, NewCancelledTaskOutputEventFromTask(createdTask).Bytes())
-				eventTypes = append(eventTypes, sqlcv1.V1TaskEventTypeCANCELLED)
-			case sqlcv1.V1TaskInitialStateSKIPPED:
-				eventTaskIdRetryCounts = append(eventTaskIdRetryCounts, idRetryCount)
-				eventTaskExternalIds = append(eventTaskExternalIds, sqlchelpers.UUIDToStr(createdTask.ExternalID))
-				eventDatas = append(eventDatas, NewSkippedTaskOutputEventFromTask(createdTask).Bytes())
-				eventTypes = append(eventTypes, sqlcv1.V1TaskEventTypeCOMPLETED)
-			}
+		switch createdTask.InitialState {
+		case sqlcv1.V1TaskInitialStateFAILED:
+			eventTaskIdRetryCounts = append(eventTaskIdRetryCounts, idRetryCount)
+			eventTaskExternalIds = append(eventTaskExternalIds, sqlchelpers.UUIDToStr(createdTask.ExternalID))
+			eventDatas = append(eventDatas, NewFailedTaskOutputEventFromTask(createdTask).Bytes())
+			eventTypes = append(eventTypes, sqlcv1.V1TaskEventTypeFAILED)
+		case sqlcv1.V1TaskInitialStateCANCELLED:
+			eventTaskIdRetryCounts = append(eventTaskIdRetryCounts, idRetryCount)
+			eventTaskExternalIds = append(eventTaskExternalIds, sqlchelpers.UUIDToStr(createdTask.ExternalID))
+			eventDatas = append(eventDatas, NewCancelledTaskOutputEventFromTask(createdTask).Bytes())
+			eventTypes = append(eventTypes, sqlcv1.V1TaskEventTypeCANCELLED)
+		case sqlcv1.V1TaskInitialStateSKIPPED:
+			eventTaskIdRetryCounts = append(eventTaskIdRetryCounts, idRetryCount)
+			eventTaskExternalIds = append(eventTaskExternalIds, sqlchelpers.UUIDToStr(createdTask.ExternalID))
+			eventDatas = append(eventDatas, NewSkippedTaskOutputEventFromTask(createdTask).Bytes())
+			eventTypes = append(eventTypes, sqlcv1.V1TaskEventTypeCOMPLETED)
 		}
 	}
 
@@ -2043,7 +2028,7 @@ func (r *sharedRepository) insertTasks(
 	}
 
 	if len(createExpressionOpts) > 0 {
-		err = r.createExpressionEvals(ctx, tx, res, createExpressionOpts)
+		err = r.createExpressionEvals(ctx, tx, createdTasks, createExpressionOpts)
 
 		if err != nil {
 			return nil, fmt.Errorf("failed to create expression evals: %w", err)
@@ -2053,7 +2038,7 @@ func (r *sharedRepository) insertTasks(
 	// TODO: this should be moved to after the transaction commits
 	saveQueueCache()
 
-	return res, nil
+	return createdTasks, nil
 }
 
 // replayTasks updates tasks into the database. note that we're using Postgres rules to automatically insert the created

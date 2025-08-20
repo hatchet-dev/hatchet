@@ -2,6 +2,7 @@ package sqlcv1
 
 import (
 	"context"
+	"encoding/json"
 
 	"github.com/jackc/pgx/v5/pgtype"
 )
@@ -33,9 +34,9 @@ WITH input AS (
                 -- NOTE: these are nullable, so sqlc doesn't support casting to a type
                 unnest($18::bigint[]) AS dag_id,
                 unnest($19::timestamptz[]) AS dag_inserted_at,
-				unnest_nd_1d($20::bigint[][]) AS concurrency_parent_strategy_ids,
-				unnest_nd_1d($21::bigint[][]) AS concurrency_strategy_ids,
-				unnest_nd_1d($22::text[][]) AS concurrency_keys,
+				translate(jsonb_array_elements($20::jsonb)::text, '[]', '{}')::bigint[] AS concurrency_parent_strategy_ids,
+				translate(jsonb_array_elements($21::jsonb)::text, '[]', '{}')::bigint[] AS concurrency_strategy_ids,
+				translate(jsonb_array_elements($22::jsonb)::text, '[]', '{}')::text[] AS concurrency_keys,
 				unnest($23::text[]) AS initial_state_reason,
 				unnest($24::uuid[]) AS parent_task_external_id,
 				unnest($25::bigint[]) AS parent_task_id,
@@ -177,6 +178,21 @@ func (q *Queries) CreateTasks(ctx context.Context, db DBTX, arg CreateTasksParam
 	// 	}
 	// }()
 
+	parentStrategyIds, err := json.Marshal(arg.Concurrencyparentstrategyids)
+	if err != nil {
+		return nil, err
+	}
+
+	keys, err := json.Marshal(arg.ConcurrencyKeys)
+	if err != nil {
+		return nil, err
+	}
+
+	strategyIds, err := json.Marshal(arg.ConcurrencyStrategyIds)
+	if err != nil {
+		return nil, err
+	}
+
 	rows, err := db.Query(ctx, createTasks,
 		arg.Tenantids,
 		arg.Queues,
@@ -197,9 +213,9 @@ func (q *Queries) CreateTasks(ctx context.Context, db DBTX, arg CreateTasksParam
 		arg.InitialStates,
 		arg.Dagids,
 		arg.Daginsertedats,
-		arg.Concurrencyparentstrategyids,
-		arg.ConcurrencyStrategyIds,
-		arg.ConcurrencyKeys,
+		parentStrategyIds,
+		strategyIds,
+		keys,
 		arg.InitialStateReasons,
 		arg.ParentTaskExternalIds,
 		arg.ParentTaskIds,

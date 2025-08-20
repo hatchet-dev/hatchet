@@ -283,18 +283,31 @@ FROM
 
 
 -- name: RunParentCancelInProgress :exec
-WITH eligible_running_slots AS (
+WITH locked_workflow_concurrency_slots AS (
+    SELECT *
+    FROM v1_workflow_concurrency_slot
+    WHERE (strategy_id, workflow_version_id, workflow_run_id) IN (
+        SELECT
+            strategy_id,
+            workflow_version_id,
+            workflow_run_id
+        FROM
+            tmp_workflow_concurrency_slot
+    )
+    ORDER BY strategy_id, workflow_version_id, workflow_run_id
+    FOR UPDATE
+), eligible_running_slots AS (
     SELECT wsc.*
     FROM (
         SELECT DISTINCT key
-        FROM tmp_workflow_concurrency_slot
+        FROM locked_workflow_concurrency_slots
         WHERE
             tenant_id = @tenantId::uuid
             AND strategy_id = @strategyId::bigint
     ) distinct_keys
     JOIN LATERAL (
         SELECT *
-        FROM tmp_workflow_concurrency_slot wcs_all
+        FROM locked_workflow_concurrency_slots wcs_all
         WHERE
             wcs_all.key = distinct_keys.key
             AND wcs_all.tenant_id = @tenantId::uuid
@@ -318,7 +331,7 @@ WITH eligible_running_slots AS (
         )
     ORDER BY
         strategy_id, workflow_version_id, workflow_run_id
-    FOR UPDATE
+    FOR UPDATE SKIP LOCKED
 ), update_tmp_table AS (
     UPDATE
         tmp_workflow_concurrency_slot wsc
