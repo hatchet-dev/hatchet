@@ -10,6 +10,7 @@ import (
 	"golang.org/x/oauth2"
 	"google.golang.org/grpc"
 
+	"github.com/hatchet-dev/hatchet/api/v1/server/middleware"
 	"github.com/hatchet-dev/hatchet/internal/integrations/alerting"
 	"github.com/hatchet-dev/hatchet/internal/integrations/email"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
@@ -499,7 +500,9 @@ type AuthConfig struct {
 
 	JWTManager token.JWTManager
 
-	CustomAuthHandler func(c echo.Context) error
+	CustomAuthenticationHandler func(c echo.Context) error
+
+	CustomAuthorizationHandler func(c echo.Context, r *middleware.RouteInfo) error
 }
 
 type PylonConfig struct {

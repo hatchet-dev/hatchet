@@ -49,6 +49,8 @@ func (a *AuthZ) authorize(c echo.Context, r *middleware.RouteInfo) error {
 		err = a.handleCookieAuth(c, r)
 	case "bearer":
 		err = a.handleBearerAuth(c, r)
+	case "custom":
+		err = a.handleCustomAuth(c, r)
 	default:
 		return echo.NewHTTPError(http.StatusInternalServerError, "No authorization strategy was checked")
 	}
@@ -115,6 +117,14 @@ var restrictedWithBearerToken = []string{
 func (a *AuthZ) handleBearerAuth(c echo.Context, r *middleware.RouteInfo) error {
 	if operationIn(r.OperationID, restrictedWithBearerToken) {
 		return echo.NewHTTPError(http.StatusUnauthorized, "Not authorized to perform this operation")
+	}
+
+	return nil
+}
+
+func (a *AuthZ) handleCustomAuth(c echo.Context, r *middleware.RouteInfo) error {
+	if a.config.Auth.CustomAuthorizationHandler != nil {
+		return a.config.Auth.CustomAuthorizationHandler(c, r)
 	}
 
 	return nil

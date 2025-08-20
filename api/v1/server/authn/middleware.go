@@ -225,11 +225,11 @@ func (a *AuthN) handleBearerAuth(c echo.Context) error {
 }
 
 func (a *AuthN) handleCustomAuth(c echo.Context) error {
-	if a.config.Auth.CustomAuthHandler == nil {
+	if a.config.Auth.CustomAuthenticationHandler == nil {
 		return fmt.Errorf("custom auth handler is not set")
 	}
 
-	return a.config.Auth.CustomAuthHandler(c)
+	return a.config.Auth.CustomAuthenticationHandler(c)
 }
 
 var errInvalidAuthHeader = fmt.Errorf("invalid authorization header in request")
