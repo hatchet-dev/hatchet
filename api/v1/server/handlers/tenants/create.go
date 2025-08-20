@@ -106,7 +106,13 @@ func (t *TenantService) TenantCreate(ctx echo.Context, request gen.TenantCreateR
 		"tenant:create",
 		sqlchelpers.UUIDToStr(user.ID),
 		&tenantId,
-		nil,
+		map[string]interface{}{
+			"tenant_created": true,
+		},
+		map[string]interface{}{
+			"name": tenant.Name,
+			"slug": tenant.Slug,
+		},
 	)
 
 	return gen.TenantCreate200JSONResponse(
