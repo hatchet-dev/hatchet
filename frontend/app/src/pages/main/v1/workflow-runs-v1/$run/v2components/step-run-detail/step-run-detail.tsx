@@ -149,13 +149,13 @@ export const TaskRunDetail = ({
       <div className="flex flex-row gap-2 items-center">
         <TaskRunActionButton
           actionType="replay"
-          params={{ externalIds: [taskRunId] }}
+          paramOverrides={{ externalIds: [taskRunId] }}
           disabled={!TASK_RUN_TERMINAL_STATUSES.includes(taskRun.status)}
           showModal={false}
         />
         <TaskRunActionButton
           actionType="cancel"
-          params={{ externalIds: [taskRunId] }}
+          paramOverrides={{ externalIds: [taskRunId] }}
           disabled={TASK_RUN_TERMINAL_STATUSES.includes(taskRun.status)}
           showModal={false}
         />

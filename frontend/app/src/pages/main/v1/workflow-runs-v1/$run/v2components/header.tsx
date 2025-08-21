@@ -73,7 +73,7 @@ export const V1RunDetailHeader = () => {
             <WorkflowDefinitionLink workflowId={workflowRun.workflowId} />
             <TaskRunActionButton
               actionType="replay"
-              params={{ externalIds: [workflowRun.metadata.id] }}
+              paramOverrides={{ externalIds: [workflowRun.metadata.id] }}
               disabled={
                 !TASK_RUN_TERMINAL_STATUSES.includes(workflowRun.status)
               }
@@ -81,7 +81,7 @@ export const V1RunDetailHeader = () => {
             />
             <TaskRunActionButton
               actionType="cancel"
-              params={{ externalIds: [workflowRun.metadata.id] }}
+              paramOverrides={{ externalIds: [workflowRun.metadata.id] }}
               disabled={TASK_RUN_TERMINAL_STATUSES.includes(workflowRun.status)}
               showModal={false}
             />

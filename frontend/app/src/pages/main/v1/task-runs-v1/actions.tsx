@@ -426,22 +426,25 @@ const BaseActionButton = ({
 export const TaskRunActionButton = ({
   actionType,
   disabled,
+  paramOverrides,
   showModal,
   className,
 }: {
   actionType: ActionType;
   disabled: boolean;
+  paramOverrides?: BaseTaskRunActionParams;
   showModal: boolean;
   className?: string;
 }) => {
   const { actionModalParams } = useRunsContext();
+  const params = paramOverrides || actionModalParams;
 
   switch (actionType) {
     case 'cancel':
       return (
         <BaseActionButton
           disabled={disabled}
-          params={{ ...actionModalParams, actionType: 'cancel' }}
+          params={{ ...params, actionType: 'cancel' }}
           icon={<XCircleIcon className="w-4 h-4" />}
           label={'Cancel'}
           showModal={showModal}
@@ -452,7 +455,7 @@ export const TaskRunActionButton = ({
       return (
         <BaseActionButton
           disabled={disabled}
-          params={{ ...actionModalParams, actionType: 'replay' }}
+          params={{ ...params, actionType: 'replay' }}
           icon={<Repeat1 className="w-4 h-4" />}
           label={'Replay'}
           showModal={showModal}
