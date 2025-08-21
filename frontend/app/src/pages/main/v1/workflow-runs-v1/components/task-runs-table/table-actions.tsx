@@ -28,11 +28,11 @@ export const TableActions = ({
   rotate,
   toast,
 }: TableActionsProps) => {
-  const [dropdownOpen, setDropdownOpen] = useState(false);
   const [shouldDelayClose, setShouldDelayClose] = useState(false);
   const {
     isFrozen,
-    actions: { setIsFrozen },
+    isActionDropdownOpen,
+    actions: { setIsFrozen, setIsActionDropdownOpen },
     display: { hideTriggerRunButton, hideCancelAndReplayButtons },
     isActionModalOpen,
   } = useRunsContext();
@@ -41,16 +41,16 @@ export const TableActions = ({
     let baseActions = [
       <DropdownMenu
         key="actions"
-        open={dropdownOpen}
+        open={isActionDropdownOpen}
         onOpenChange={(open) => {
           if (open) {
-            setDropdownOpen(true);
+            setIsActionDropdownOpen(true);
             setShouldDelayClose(false);
           } else if (shouldDelayClose) {
-            setTimeout(() => setDropdownOpen(false), 150);
+            setTimeout(() => setIsActionDropdownOpen(false), 150);
             setShouldDelayClose(false);
           } else {
-            setDropdownOpen(false);
+            setIsActionDropdownOpen(false);
           }
         }}
       >
@@ -63,7 +63,6 @@ export const TableActions = ({
         <DropdownMenuContent
           align="end"
           className="z-[70] data-[is-modal-open=true]:hidden"
-          data-is-modal-open={isActionModalOpen}
         >
           {!hideCancelAndReplayButtons && (
             <>
@@ -121,7 +120,7 @@ export const TableActions = ({
     hideCancelAndReplayButtons,
     isFrozen,
     setIsFrozen,
-    dropdownOpen,
+    setIsActionDropdownOpen,
     shouldDelayClose,
     isActionModalOpen,
   ]);
@@ -130,24 +129,11 @@ export const TableActions = ({
 };
 
 const CancelMenuItem = () => {
-  const { selectedRuns, filters } = useRunsContext();
-
-  const params =
-    selectedRuns.length > 0
-      ? { externalIds: selectedRuns.map((run) => run?.metadata.id) }
-      : {
-          filter: {
-            ...filters.apiFilters,
-            since: filters.apiFilters.since || '',
-          },
-        };
-
   return (
     <div className="w-full">
       <TaskRunActionButton
         actionType="cancel"
         disabled={false}
-        params={params}
         showModal
         className="w-full justify-start h-8 px-2 py-1.5 font-normal border-0 bg-transparent hover:bg-accent hover:text-accent-foreground rounded-sm"
       />
@@ -156,24 +142,11 @@ const CancelMenuItem = () => {
 };
 
 const ReplayMenuItem = () => {
-  const { selectedRuns, filters } = useRunsContext();
-
-  const params =
-    selectedRuns.length > 0
-      ? { externalIds: selectedRuns.map((run) => run?.metadata.id) }
-      : {
-          filter: {
-            ...filters.apiFilters,
-            since: filters.apiFilters.since || '',
-          },
-        };
-
   return (
     <div className="w-full">
       <TaskRunActionButton
         actionType="replay"
         disabled={false}
-        params={params}
         showModal
         className="w-full justify-start h-8 px-2 py-1.5 font-normal border-0 bg-transparent hover:bg-accent hover:text-accent-foreground rounded-sm"
       />

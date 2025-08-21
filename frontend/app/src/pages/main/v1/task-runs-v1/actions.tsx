@@ -392,7 +392,11 @@ const BaseActionButton = ({
 }) => {
   const { handleTaskRunAction } = useTaskRunActions();
   const {
-    actions: { setIsActionModalOpen, setSelectedActionType },
+    actions: {
+      setIsActionModalOpen,
+      setSelectedActionType,
+      setIsActionDropdownOpen,
+    },
   } = useRunsContext();
 
   return (
@@ -402,8 +406,10 @@ const BaseActionButton = ({
       variant={'outline'}
       disabled={disabled}
       onClick={() => {
+        setSelectedActionType(params.actionType);
+        setIsActionDropdownOpen(false);
+
         if (!showModal) {
-          setSelectedActionType(params.actionType);
           handleTaskRunAction(params);
           return;
         }
@@ -420,22 +426,22 @@ const BaseActionButton = ({
 export const TaskRunActionButton = ({
   actionType,
   disabled,
-  params,
   showModal,
   className,
 }: {
   actionType: ActionType;
   disabled: boolean;
-  params: BaseTaskRunActionParams;
   showModal: boolean;
   className?: string;
 }) => {
+  const { actionModalParams } = useRunsContext();
+
   switch (actionType) {
     case 'cancel':
       return (
         <BaseActionButton
           disabled={disabled}
-          params={{ ...params, actionType: 'cancel' }}
+          params={{ ...actionModalParams, actionType: 'cancel' }}
           icon={<XCircleIcon className="w-4 h-4" />}
           label={'Cancel'}
           showModal={showModal}
@@ -446,7 +452,7 @@ export const TaskRunActionButton = ({
       return (
         <BaseActionButton
           disabled={disabled}
-          params={{ ...params, actionType: 'replay' }}
+          params={{ ...actionModalParams, actionType: 'replay' }}
           icon={<Repeat1 className="w-4 h-4" />}
           label={'Replay'}
           showModal={showModal}
