@@ -11,6 +11,7 @@ const (
 	TenantWorkflowDurationMilliseconds TenantHatchetMetric = "hatchet_tenant_workflow_duration_milliseconds"
 	TenantAssignedTasksTotal           TenantHatchetMetric = "hatchet_tenant_assigned_tasks"
 	TenantSchedulingTimedOutTotal      TenantHatchetMetric = "hatchet_tenant_scheduling_timed_out"
+	TenantTaskSchedulingTimedOutTotal  TenantHatchetMetric = "hatchet_tenant_task_scheduling_timed_out"
 	TenantRateLimitedTotal             TenantHatchetMetric = "hatchet_tenant_rate_limited"
 	TenantQueuedToAssignedTotal        TenantHatchetMetric = "hatchet_tenant_queued_to_assigned"
 	TenantQueuedToAssignedTimeSeconds  TenantHatchetMetric = "hatchet_tenant_queued_to_assigned_time_seconds"
@@ -105,6 +106,11 @@ var (
 		Name: string(TenantSchedulingTimedOutTotal),
 		Help: "The total number of tasks that timed out while waiting to be scheduled",
 	}, []string{"tenant_id"})
+
+	TenantTaskSchedulingTimedOut = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: string(TenantTaskSchedulingTimedOutTotal),
+		Help: "The total number of tasks that timed out containing a reason",
+	}, []string{"tenant_id", "workflow_name", "task_name", "reason"})
 
 	TenantRateLimited = promauto.NewCounterVec(prometheus.CounterOpts{
 		Name: string(TenantRateLimitedTotal),

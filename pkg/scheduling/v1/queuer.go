@@ -16,7 +16,10 @@ import (
 )
 
 type Queuer struct {
-	repo      v1.QueueRepository
+	repo         v1.QueueRepository
+	workflowRepo v1.WorkflowRepository
+	taskRepo     v1.TaskRepository
+
 	tenantId  pgtype.UUID
 	queueName string
 
@@ -60,6 +63,8 @@ func newQueuer(conf *sharedConfig, tenantId pgtype.UUID, queueName string, s *Sc
 
 	q := &Queuer{
 		repo:          queueRepo,
+		workflowRepo:  conf.workflowRepo,
+		taskRepo:      conf.taskRepo,
 		tenantId:      tenantId,
 		queueName:     queueName,
 		l:             conf.l,
@@ -260,14 +265,42 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 					}
 				}
 
-				for range ar.schedulingTimedOut {
+				for _, qi := range ar.schedulingTimedOut {
 					prometheus.SchedulingTimedOut.Inc()
 					prometheus.TenantSchedulingTimedOut.WithLabelValues(q.tenantId.String()).Inc()
+
+					go func() {
+						workflow, err := q.workflowRepo.ListWorkflowNamesByIds(ctx, q.tenantId.String(), []pgtype.UUID{qi.WorkflowID})
+						if err != nil {
+							q.l.Error().Err(err).Msg("error getting workflow name")
+						}
+
+						task, err := q.taskRepo.ListTasks(ctx, q.tenantId.String(), []int64{qi.ID})
+						if err != nil {
+							q.l.Error().Err(err).Msg("error getting task")
+						}
+
+						prometheus.TenantTaskSchedulingTimedOut.WithLabelValues(q.tenantId.String(), workflow[qi.WorkflowID], task[0].DisplayName, "no_workers_available").Inc()
+					}()
 				}
 
-				for range ar.rateLimited {
+				for _, qi := range ar.rateLimited {
 					prometheus.RateLimited.Inc()
 					prometheus.TenantRateLimited.WithLabelValues(q.tenantId.String()).Inc()
+
+					go func() {
+						workflow, err := q.workflowRepo.ListWorkflowNamesByIds(ctx, q.tenantId.String(), []pgtype.UUID{qi.qi.WorkflowID})
+						if err != nil {
+							q.l.Error().Err(err).Msg("error getting workflow name")
+						}
+
+						task, err := q.taskRepo.ListTasks(ctx, q.tenantId.String(), []int64{qi.taskId})
+						if err != nil {
+							q.l.Error().Err(err).Msg("error getting task")
+						}
+
+						prometheus.TenantTaskSchedulingTimedOut.WithLabelValues(q.tenantId.String(), workflow[qi.qi.WorkflowID], task[0].DisplayName, "rate_limited").Inc()
+					}()
 				}
 			}(r)
 		}

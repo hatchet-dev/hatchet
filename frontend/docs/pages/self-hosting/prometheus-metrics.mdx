@@ -172,6 +172,7 @@ rate(hatchet_reassigned_tasks_total[5m])
 | `hatchet_tenant_cancelled_tasks_total`           | Counter   | The total number of tasks cancelled                                                  |
 | `hatchet_tenant_assigned_tasks`                  | Counter   | The total number of tasks assigned to a worker                                       |
 | `hatchet_tenant_scheduling_timed_out`            | Counter   | The total number of tasks that timed out while waiting to be scheduled               |
+| `hatchet_tenant_task_scheduling_timed_out`       | Counter   | The total number of tasks that timed out containing a reason                         |
 | `hatchet_tenant_rate_limited`                    | Counter   | The total number of tasks that were rate limited                                     |
 | `hatchet_tenant_queued_to_assigned`              | Counter   | The total number of unique tasks that were queued and later got assigned to a worker |
 | `hatchet_tenant_queued_to_assigned_time_seconds` | Histogram | Buckets of time in seconds spent in the queue before being assigned to a worker      |
