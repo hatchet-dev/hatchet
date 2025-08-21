@@ -10,6 +10,7 @@ import (
 
 	"github.com/hashicorp/go-multierror"
 	"golang.org/x/sync/errgroup"
+	"google.golang.org/grpc"
 
 	msgqueuev1 "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
 	"github.com/hatchet-dev/hatchet/internal/queueutils"
@@ -66,6 +67,19 @@ func (worker *subscribedWorker) sendToWorker(
 		},
 	)
 
+	_, encodeSpan := telemetry.NewSpan(ctx, "encode-action")
+
+	msg := &grpc.PreparedMsg{}
+	err := msg.Encode(worker.stream, action)
+
+	if err != nil {
+		encodeSpan.RecordError(err)
+		encodeSpan.End()
+		return fmt.Errorf("could not encode action: %w", err)
+	}
+
+	encodeSpan.End()
+
 	lockBegin := time.Now()
 
 	_, lockSpan := telemetry.NewSpan(ctx, "acquire-worker-stream-lock")
@@ -83,7 +97,7 @@ func (worker *subscribedWorker) sendToWorker(
 	_, streamSpan := telemetry.NewSpan(ctx, "send-worker-stream")
 	defer streamSpan.End()
 
-	err := worker.stream.Send(action)
+	err = worker.stream.SendMsg(msg)
 
 	if err != nil {
 		span.RecordError(err)
