@@ -77,7 +77,8 @@ export default function CreateTenant() {
     },
     {
       title: 'Create a new tenant',
-      subtitle: 'A tenant is an isolated environment for your data and workflows.',
+      subtitle:
+        'A tenant is an isolated environment for your data and workflows.',
       component: TenantCreateForm,
       canSkip: false,
       key: 'tenantData',
@@ -95,24 +96,30 @@ export default function CreateTenant() {
     // For the tenant create form (step 2), we need to validate the form
     if (currentStep === 2) {
       const { name, slug } = formData.tenantData;
-      
+
       // Clear previous errors
       setFieldErrors({});
-      
+
       // Basic validation
       if (!name || name.length < 4 || name.length > 32) {
-        setFieldErrors(prev => ({ ...prev, name: 'Name must be between 4 and 32 characters' }));
+        setFieldErrors((prev) => ({
+          ...prev,
+          name: 'Name must be between 4 and 32 characters',
+        }));
         return false;
       }
-      
+
       if (!slug || slug.length < 4 || slug.length > 32) {
-        setFieldErrors(prev => ({ ...prev, slug: 'Slug must be between 4 and 32 characters' }));
+        setFieldErrors((prev) => ({
+          ...prev,
+          slug: 'Slug must be between 4 and 32 characters',
+        }));
         return false;
       }
-      
+
       return true;
     }
-    
+
     return true;
   };
 
@@ -123,7 +130,16 @@ export default function CreateTenant() {
   };
 
   const handleTenantCreate = (tenantData: { name: string; slug: string }) => {
-    createMutation.mutate(tenantData);
+    // Prepare the onboarding data to send with the tenant creation request
+    const onboardingData = {
+      hearAboutUs: formData.hearAboutUs,
+      whatBuilding: formData.whatBuilding,
+    };
+
+    createMutation.mutate({
+      ...tenantData,
+      onboardingData,
+    });
   };
 
   const updateFormData = (key: keyof OnboardingFormData, value: any) => {
@@ -173,41 +189,43 @@ export default function CreateTenant() {
           className=""
         />
 
-          <div className="flex justify-between">
-            <StepProgress steps={steps} currentStep={currentStep} />
+        <div className="flex justify-between">
+          <StepProgress steps={steps} currentStep={currentStep} />
 
-        {currentStepConfig.canSkip ? (
+          {currentStepConfig.canSkip ? (
             <Button
               variant="outline"
               size="sm"
               onClick={() => setCurrentStep(2)}
             >
               Skip
-            </Button>) : 
-            ( <Button
-            variant="default"
-            onClick={() => {
-              if (currentStep === 2) {
-                // For tenant create form, validate and submit
-                if (validateCurrentStep()) {
-                  handleTenantCreate(formData.tenantData);
+            </Button>
+          ) : (
+            <Button
+              variant="default"
+              onClick={() => {
+                if (currentStep === 2) {
+                  // For tenant create form, validate and submit
+                  if (validateCurrentStep()) {
+                    handleTenantCreate(formData.tenantData);
+                  }
+                } else {
+                  handleNext();
                 }
-              } else {
-                handleNext();
-              }
-            }}
-            disabled={createMutation.isPending}
+              }}
+              disabled={createMutation.isPending}
             >
-            {createMutation.isPending ? (
-              <div className="flex items-center gap-2">
-                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                Creating...
-              </div>
-            ) : (
-              currentStepConfig.buttonLabel || 'Next'
-            )}
-            </Button>)  } 
-          </div>
+              {createMutation.isPending ? (
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  Creating...
+                </div>
+              ) : (
+                currentStepConfig.buttonLabel || 'Next'
+              )}
+            </Button>
+          )}
+        </div>
       </>
     );
   };

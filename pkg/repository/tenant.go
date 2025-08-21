@@ -22,6 +22,9 @@ type CreateTenantOpts struct {
 	UIVersion *dbsqlc.TenantMajorUIVersion `validate:"omitempty"`
 
 	EngineVersion *dbsqlc.TenantMajorEngineVersion `validate:"omitempty"`
+
+	// (optional) additional onboarding data
+	OnboardingData map[string]interface{} `validate:"omitempty"`
 }
 
 type UpdateTenantOpts struct {

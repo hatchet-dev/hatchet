@@ -1256,6 +1256,8 @@ export interface CreateTenantRequest {
   uiVersion?: TenantUIVersion;
   /** The engine version of the tenant. Defaults to V0. */
   engineVersion?: TenantVersion;
+  /** Additional onboarding data to store with the tenant. */
+  onboardingData?: Record<string, any>;
 }
 
 export interface UpdateTenantRequest {

@@ -71,6 +71,14 @@ func (r *tenantAPIRepository) CreateTenant(ctx context.Context, opts *repository
 
 	defer sqlchelpers.DeferRollback(context.Background(), r.l, tx.Rollback)
 
+	var onboardingDataBytes []byte
+	if opts.OnboardingData != nil {
+		onboardingDataBytes, err = json.Marshal(opts.OnboardingData)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal onboarding data: %w", err)
+		}
+	}
+
 	createTenant, err := r.queries.CreateTenant(context.Background(), tx, dbsqlc.CreateTenantParams{
 		ID:                  sqlchelpers.UUIDFromStr(tenantId),
 		Slug:                opts.Slug,
@@ -84,6 +92,7 @@ func (r *tenantAPIRepository) CreateTenant(ctx context.Context, opts *repository
 			TenantMajorUIVersion: uiVersion,
 			Valid:                true,
 		},
+		OnboardingData: onboardingDataBytes,
 	})
 
 	if err != nil {

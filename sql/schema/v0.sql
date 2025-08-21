@@ -614,6 +614,7 @@ CREATE TABLE "Tenant" (
     "dataRetentionPeriod" TEXT NOT NULL DEFAULT '720h',
     "schedulerPartitionId" TEXT,
     "canUpgradeV1" BOOLEAN NOT NULL DEFAULT true,
+    "onboardingData" JSONB,
 
     CONSTRAINT "Tenant_pkey" PRIMARY KEY ("id")
 );

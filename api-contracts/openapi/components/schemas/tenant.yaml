@@ -85,6 +85,10 @@ CreateTenantRequest:
     engineVersion:
       $ref: "#/TenantVersion"
       description: The engine version of the tenant. Defaults to V0.
+    onboardingData:
+      type: object
+      description: Additional onboarding data to store with the tenant.
+      additionalProperties: true
   required:
     - name
     - slug
