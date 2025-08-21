@@ -76,7 +76,7 @@ export function SidePanel() {
   return (
     <div
       ref={panelRef}
-      className="flex flex-col h-screen border-l border-border bg-background relative"
+      className="flex flex-col h-screen border-l border-border bg-background relative flex-shrink-0"
       style={{ width: panelWidth }}
     >
       <div
