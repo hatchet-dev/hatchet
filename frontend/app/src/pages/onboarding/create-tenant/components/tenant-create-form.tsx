@@ -1,46 +1,47 @@
 import { cn } from '@/lib/utils';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Spinner } from '@/components/ui/loading.tsx';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useEffect } from 'react';
+import { OnboardingStepProps } from '../types';
 
 const schema = z.object({
   name: z.string().min(4).max(32),
   slug: z.string().min(4).max(32),
 });
 
-interface TenantCreateFormProps {
-  className?: string;
-  onSubmit: (opts: z.infer<typeof schema>) => void;
-  isLoading: boolean;
-  fieldErrors?: Record<string, string>;
-}
+interface TenantCreateFormProps
+  extends OnboardingStepProps<{ name: string; slug: string }> {}
 
 export function TenantCreateForm({
+  value,
+  onChange,
+  isLoading,
+  fieldErrors,
   className,
-  ...props
 }: TenantCreateFormProps) {
   const {
     register,
-    handleSubmit,
     setValue,
     watch,
     formState: { errors },
   } = useForm<z.infer<typeof schema>>({
     resolver: zodResolver(schema),
+    defaultValues: {
+      name: value?.name || '',
+      slug: value?.slug || '',
+    },
   });
 
   useEffect(() => {
-    const subscription = watch((value, { name }) => {
+    const subscription = watch((watchValue, { name }) => {
       switch (name) {
         case 'name':
-          if (value.name) {
+          if (watchValue.name) {
             const slug =
-              value.name
+              watchValue.name
                 ?.toLowerCase()
                 .replace(/[^a-z0-9-]/g, '-')
                 .replace(/-+/g, '-')
@@ -50,30 +51,35 @@ export function TenantCreateForm({
 
             if (slug) {
               setValue('slug', slug);
+              onChange({ name: watchValue.name, slug });
             }
           }
-
           break;
         case 'slug':
+          if (watchValue.slug) {
+            onChange({ name: watchValue.name || '', slug: watchValue.slug });
+          }
           break;
       }
     });
 
     return () => subscription.unsubscribe();
-  }, [setValue, watch]);
+  }, [setValue, watch, onChange]);
 
-  const nameError =
-    errors.name?.message?.toString() || props.fieldErrors?.email;
+  // Update form values when parent value changes
+  useEffect(() => {
+    if (value) {
+      setValue('name', value.name || '');
+      setValue('slug', value.slug || '');
+    }
+  }, [value, setValue]);
 
-  const slugError = errors.slug?.message?.toString() || props.fieldErrors?.slug;
+  const nameError = errors.name?.message?.toString() || fieldErrors?.name;
+
+  const slugError = errors.slug?.message?.toString() || fieldErrors?.slug;
 
   return (
     <div className={cn('grid gap-6', className)}>
-      <form
-        onSubmit={handleSubmit((d) => {
-          props.onSubmit(d);
-        })}
-      >
         <div className="grid gap-4">
           <div className="grid gap-2">
             <Label htmlFor="name">Name</Label>
@@ -87,10 +93,14 @@ export function TenantCreateForm({
               type="name"
               autoCapitalize="none"
               autoCorrect="off"
-              disabled={props.isLoading}
+              disabled={isLoading}
               spellCheck={false}
               onChange={(e) => {
                 setValue('name', e.target.value);
+                onChange({
+                  name: e.target.value,
+                  slug: e.target.value ? value?.slug || '' : '',
+                });
 
                 // if value is unset, reset the slug
                 if (!e.target.value) {
@@ -114,19 +124,21 @@ export function TenantCreateForm({
               type="name"
               autoCapitalize="none"
               autoCorrect="off"
-              disabled={props.isLoading}
+              disabled={isLoading}
               spellCheck={false}
+              onChange={(e) => {
+                setValue('slug', e.target.value);
+                onChange({
+                  name: value?.name || '',
+                  slug: e.target.value,
+                });
+              }}
             />
             {slugError && (
               <div className="text-sm text-red-500">{slugError}</div>
             )}
           </div>
-          <Button disabled={props.isLoading}>
-            {props.isLoading && <Spinner />}
-            Create
-          </Button>
         </div>
-      </form>
     </div>
   );
 }
