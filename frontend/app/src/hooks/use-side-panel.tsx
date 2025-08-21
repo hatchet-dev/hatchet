@@ -7,9 +7,9 @@ import {
   useState,
 } from 'react';
 import { useLocation } from 'react-router-dom';
-import { 
+import {
   TaskRunDetail,
-  TabOption 
+  TabOption,
 } from '@/pages/main/v1/workflow-runs-v1/$run/v2components/step-run-detail/step-run-detail';
 
 export type DocRef = {

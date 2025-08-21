@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 
 export function useLocalStorageState<T>(
   key: string,
-  defaultValue: T
+  defaultValue: T,
 ): [T, (value: T) => void] {
   const [state, setState] = useState<T>(() => {
     try {
@@ -28,7 +28,10 @@ export function useLocalStorageState<T>(
         try {
           setState(JSON.parse(e.newValue));
         } catch (error) {
-          console.warn(`Error parsing localStorage change for key "${key}":`, error);
+          console.warn(
+            `Error parsing localStorage change for key "${key}":`,
+            error,
+          );
         }
       }
     };

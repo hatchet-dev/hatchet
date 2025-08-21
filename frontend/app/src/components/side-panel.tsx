@@ -32,7 +32,9 @@ export function SidePanel() {
 
   const handleMouseMove = useCallback(
     (e: MouseEvent) => {
-      if (!isResizing) return;
+      if (!isResizing) {
+        return;
+      }
 
       const deltaX = startX - e.clientX;
       const newWidth = Math.max(MIN_PANEL_WIDTH, startWidth + deltaX);
@@ -76,7 +78,7 @@ export function SidePanel() {
   return (
     <div
       ref={panelRef}
-      className="flex flex-col h-screen border-l border-border bg-background relative flex-shrink-0"
+      className="flex flex-col border-l border-border bg-background relative flex-shrink-0"
       style={{ width: panelWidth }}
     >
       <div
@@ -104,7 +106,7 @@ export function SidePanel() {
         </div>
       </div>
 
-      <div className="flex-1 overflow-hidden p-4">{maybeContent.component}</div>
+      <div className="flex-1  p-4 overflow-auto">{maybeContent.component}</div>
     </div>
   );
 }
