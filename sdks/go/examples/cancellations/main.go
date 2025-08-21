@@ -58,7 +58,7 @@ func main() {
 			Status:    "completed",
 			Completed: true,
 		}, nil
-	}, hatchet.WithTimeout(30*time.Second))
+	}, hatchet.WithExecutionTimeout(30*time.Second))
 
 	// Create a worker
 	worker, err := client.NewWorker("cancellation-worker",
