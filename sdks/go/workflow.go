@@ -73,6 +73,14 @@ func convertInputToType(input any, expectedType reflect.Type) reflect.Value {
 			if val, exists := inputMap[jsonTag]; exists {
 				fieldValue := convertedInput.Field(i)
 				if fieldValue.CanSet() {
+					// Handle nil values for pointer types
+					if val == nil {
+						if field.Type.Kind() == reflect.Ptr {
+							fieldValue.Set(reflect.Zero(field.Type))
+						}
+						continue
+					}
+
 					valReflect := reflect.ValueOf(val)
 					if valReflect.Type().AssignableTo(field.Type) {
 						fieldValue.Set(valReflect)
