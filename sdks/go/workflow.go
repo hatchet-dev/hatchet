@@ -131,11 +131,12 @@ func (w *Workflow) GetName() string {
 type WorkflowOption func(*workflowConfig)
 
 type workflowConfig struct {
-	onCron      []string
-	onEvents    []string
-	concurrency []types.Concurrency
-	version     string
-	description string
+	onCron       []string
+	onEvents     []string
+	concurrency  []types.Concurrency
+	version      string
+	description  string
+	taskDefaults *create.TaskDefaults
 }
 
 // WithWorkflowCron configures the workflow to run on a cron schedule.
@@ -174,6 +175,13 @@ func WithWorkflowConcurrency(concurrency ...types.Concurrency) WorkflowOption {
 	}
 }
 
+// WithWorkflowTaskDefaults sets the default configuration for all tasks in the workflow.
+func WithWorkflowTaskDefaults(defaults *create.TaskDefaults) WorkflowOption {
+	return func(config *workflowConfig) {
+		config.taskDefaults = defaults
+	}
+}
+
 // newWorkflow creates a new workflow definition.
 func newWorkflow(name string, v0Client v0Client.Client, options ...WorkflowOption) *Workflow {
 	config := &workflowConfig{}
@@ -184,12 +192,13 @@ func newWorkflow(name string, v0Client v0Client.Client, options ...WorkflowOptio
 
 	declaration := internal.NewWorkflowDeclaration[any, any](
 		create.WorkflowCreateOpts[any]{
-			Name:        name,
-			Version:     config.version,
-			Description: config.description,
-			OnEvents:    config.onEvents,
-			OnCron:      config.onCron,
-			Concurrency: config.concurrency,
+			Name:         name,
+			Version:      config.version,
+			Description:  config.description,
+			OnEvents:     config.onEvents,
+			OnCron:       config.onCron,
+			Concurrency:  config.concurrency,
+			TaskDefaults: config.taskDefaults,
 		},
 		v0Client,
 	)
@@ -208,6 +217,7 @@ type taskConfig struct {
 	retryBackoffFactor     float32
 	retryMaxBackoffSeconds int32
 	executionTimeout       time.Duration
+	scheduleTimeout        time.Duration
 	onCron                 []string
 	onEvents               []string
 	defaultFilters         []types.DefaultFilter
@@ -234,8 +244,15 @@ func WithRetryBackoff(factor float32, maxBackoffSeconds int) TaskOption {
 	}
 }
 
-// WithTimeout sets the maximum execution duration for a task.
-func WithTimeout(timeout time.Duration) TaskOption {
+// WithScheduleTimeout sets the maximum time a task can wait to be scheduled.
+func WithScheduleTimeout(timeout time.Duration) TaskOption {
+	return func(config *taskConfig) {
+		config.scheduleTimeout = timeout
+	}
+}
+
+// WithExecutionTimeout sets the maximum execution duration for a task.
+func WithExecutionTimeout(timeout time.Duration) TaskOption {
 	return func(config *taskConfig) {
 		config.executionTimeout = timeout
 	}
@@ -412,6 +429,7 @@ func (w *Workflow) NewTask(name string, fn any, options ...TaskOption) *Task {
 		RetryBackoffFactor:     config.retryBackoffFactor,
 		RetryMaxBackoffSeconds: config.retryMaxBackoffSeconds,
 		ExecutionTimeout:       config.executionTimeout,
+		ScheduleTimeout:        config.scheduleTimeout,
 		Concurrency:            config.concurrency,
 		RateLimits:             config.rateLimits,
 		Parents:                config.parents,
