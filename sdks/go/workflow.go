@@ -329,6 +329,14 @@ func (t *Task) GetName() string {
 //
 // Function signatures are validated at runtime using reflection.
 func (w *Workflow) NewTask(name string, fn any, options ...TaskOption) *Task {
+	if name == "" {
+		panic("task name cannot be empty")
+	}
+
+	if fn == nil {
+		panic("task '" + name + "' has a nil input function")
+	}
+
 	config := &taskConfig{}
 
 	for _, opt := range options {
@@ -339,10 +347,10 @@ func (w *Workflow) NewTask(name string, fn any, options ...TaskOption) *Task {
 	fnType := fnValue.Type()
 
 	if fnType.Kind() != reflect.Func {
-		panic("task function must be a function")
+		panic("task input must be a function")
 	}
 	if fnType.NumIn() != 2 {
-		panic("task function must have exactly 2 parameters: (ctx Context, input T)")
+		panic("task input must have exactly 2 parameters: (ctx hatchet.Context, input T)")
 	}
 	if fnType.NumOut() != 2 {
 		panic("task function must return exactly 2 values: (output T, error)")
@@ -353,11 +361,11 @@ func (w *Workflow) NewTask(name string, fn any, options ...TaskOption) *Task {
 
 	if config.isDurable {
 		if !fnType.In(0).Implements(durableContextType) && fnType.In(0) != durableContextType {
-			panic("first parameter for durable task must be DurableHatchetContext")
+			panic("first parameter for durable task must be hatchet.DurableContext")
 		}
 	} else {
 		if !fnType.In(0).Implements(contextType) && fnType.In(0) != contextType {
-			panic("first parameter must be Context")
+			panic("first parameter must be hatchet.Context")
 		}
 	}
 
