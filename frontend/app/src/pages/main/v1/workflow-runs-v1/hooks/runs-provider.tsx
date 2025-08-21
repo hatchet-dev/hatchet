@@ -64,6 +64,7 @@ type RunsContextType = {
     resetState: () => void;
     setIsFrozen: (isFrozen: boolean) => void;
     setIsActionModalOpen: (isOpen: boolean) => void;
+    setIsActionDropdownOpen: (isOpen: boolean) => void;
     refetchRuns: () => void;
     refetchMetrics: () => void;
     getRowId: (row: V1TaskSummary) => string;
@@ -81,6 +82,7 @@ type RunsContextType = {
   tenantMetrics: object;
   isFrozen: boolean;
   isActionModalOpen: boolean;
+  isActionDropdownOpen: boolean;
   display: DisplayProps;
 };
 
@@ -98,6 +100,7 @@ export const RunsProvider = ({
 }: RunsProviderProps) => {
   const [isFrozen, setIsFrozen] = useState(false);
   const [isActionModalOpen, setIsActionModalOpen] = useState(false);
+  const [isActionDropdownOpen, setIsActionDropdownOpen] = useState(false);
 
   const {
     workflowId,
@@ -211,6 +214,7 @@ export const RunsProvider = ({
       tenantMetrics,
       isFrozen,
       isActionModalOpen,
+      isActionDropdownOpen,
       display: {
         hideMetrics,
         hideCounts,
@@ -230,6 +234,7 @@ export const RunsProvider = ({
         resetState,
         setIsFrozen,
         setIsActionModalOpen,
+        setIsActionDropdownOpen,
         refetchRuns,
         refetchMetrics,
         getRowId,
@@ -250,6 +255,7 @@ export const RunsProvider = ({
       tenantMetrics,
       isFrozen,
       isActionModalOpen,
+      isActionDropdownOpen,
       hideMetrics,
       hideCounts,
       hideDateFilter,
@@ -263,6 +269,7 @@ export const RunsProvider = ({
       resetState,
       setIsFrozen,
       setIsActionModalOpen,
+      setIsActionDropdownOpen,
       refetchRuns,
       refetchMetrics,
       getRowId,

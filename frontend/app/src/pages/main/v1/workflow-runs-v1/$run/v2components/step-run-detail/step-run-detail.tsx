@@ -171,12 +171,6 @@ export const TaskRunDetail = ({
           disabled={!TASK_RUN_TERMINAL_STATUSES.includes(taskRun.status)}
           showModal={false}
           onActionProcessed={() => onActionProcessed('replay')}
-          onActionSubmit={() => {
-            toast({
-              title: 'Replay request submitted',
-              description: "No need to hit 'Replay' again.",
-            });
-          }}
         />
         <TaskRunActionButton
           actionType="cancel"
@@ -184,12 +178,6 @@ export const TaskRunDetail = ({
           disabled={TASK_RUN_TERMINAL_STATUSES.includes(taskRun.status)}
           showModal={false}
           onActionProcessed={() => onActionProcessed('cancel')}
-          onActionSubmit={() => {
-            toast({
-              title: 'Cancel request submitted',
-              description: "No need to hit 'Cancel' again.",
-            });
-          }}
         />
         <TaskRunPermalinkOrBacklink
           taskRun={taskRun}

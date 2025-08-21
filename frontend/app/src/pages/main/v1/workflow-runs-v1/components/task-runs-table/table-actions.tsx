@@ -170,13 +170,6 @@ const CancelMenuItem = ({
         params={params}
         showModal
         onActionProcessed={(ids) => onActionProcessed('cancel', ids)}
-        onActionSubmit={() => {
-          onDelayedClose();
-          toast({
-            title: 'Cancel request submitted',
-            description: "No need to hit 'Cancel' again.",
-          });
-        }}
         className="w-full justify-start h-8 px-2 py-1.5 font-normal border-0 bg-transparent hover:bg-accent hover:text-accent-foreground rounded-sm"
       />
     </div>
@@ -210,13 +203,6 @@ const ReplayMenuItem = ({
         params={params}
         showModal
         onActionProcessed={(ids) => onActionProcessed('replay', ids)}
-        onActionSubmit={() => {
-          onDelayedClose();
-          toast({
-            title: 'Replay request submitted',
-            description: "No need to hit 'Replay' again.",
-          });
-        }}
         className="w-full justify-start h-8 px-2 py-1.5 font-normal border-0 bg-transparent hover:bg-accent hover:text-accent-foreground rounded-sm"
       />
     </div>

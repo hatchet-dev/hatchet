@@ -26,6 +26,8 @@ import { useRunsContext } from '../workflow-runs-v1/hooks/runs-provider';
 import { TimeFilter } from '../workflow-runs-v1/components/task-runs-table/time-filter';
 import { cn } from '@/lib/utils';
 import { Repeat1 } from 'lucide-react';
+import { useToast } from '@/components/v1/hooks/use-toast';
+import { capitalize } from 'lodash';
 
 export const TASK_RUN_TERMINAL_STATUSES = [
   V1TaskStatus.CANCELLED,
@@ -73,14 +75,23 @@ type TaskRunActionsParams =
 
 export const useTaskRunActions = ({
   onActionProcessed,
-  onActionSubmit,
 }: {
   onActionProcessed: (ids: string[]) => void;
-  onActionSubmit: () => void;
 }) => {
   const { tenantId } = useCurrentTenantId();
+  const { toast } = useToast();
 
   const { handleApiError } = useApiError({});
+
+  const onActionSubmit = useCallback(
+    (actionType: ActionType) => {
+      toast({
+        title: `${capitalize(actionType)} request submitted`,
+        description: `No need to hit '${capitalize(actionType)}' again.`,
+      });
+    },
+    [toast],
+  );
 
   const { mutateAsync: handleAction } = useMutation({
     mutationKey: ['task-run:action'],
@@ -99,12 +110,12 @@ export const useTaskRunActions = ({
       }
     },
     onError: handleApiError,
-    onMutate: () => {
-      onActionSubmit();
+    onMutate: (params) => {
+      onActionSubmit(params.actionType);
     },
   });
 
-  const handleTaskRunAction = useCallback(
+  const handleTaskRunActionInner = useCallback(
     async (params: TaskRunActionsParams) => {
       const resp = await handleAction(params);
 
@@ -113,6 +124,26 @@ export const useTaskRunActions = ({
       }
     },
     [handleAction, onActionProcessed],
+  );
+
+  const handleTaskRunAction = useCallback(
+    (params: TaskRunActionsParams) => {
+      if (params.externalIds?.length) {
+        handleTaskRunActionInner({
+          actionType: params.actionType,
+          externalIds: params.externalIds,
+        });
+      } else if (
+        params.filter &&
+        Object.values(params.filter).some((filter) => !!filter)
+      ) {
+        handleTaskRunActionInner({
+          actionType: params.actionType,
+          filter: params.filter,
+        });
+      }
+    },
+    [handleTaskRunActionInner],
   );
 
   return { handleTaskRunAction };
@@ -279,6 +310,16 @@ const ModalContent = ({ label, params }: ModalContentProps) => {
   }
 };
 
+{
+  /* <ConfirmActionModal
+        actionType={params.actionType}
+        onConfirm={handleAction}
+        params={params}
+        isOpen={isActionModalOpen}
+        setIsOpen={setIsActionModalOpen}
+      /> */
+}
+
 const ConfirmActionModal = ({
   actionType,
   onConfirm,
@@ -333,7 +374,6 @@ const BaseActionButton = ({
   label,
   showModal,
   onActionProcessed,
-  onActionSubmit,
   className,
 }: {
   disabled: boolean;
@@ -342,59 +382,33 @@ const BaseActionButton = ({
   label: string;
   showModal: boolean;
   onActionProcessed: (ids: string[]) => void;
-  onActionSubmit: () => void;
   className?: string;
 }) => {
-  const [isActionModalOpen, setIsActionModalOpen] = useState(false);
   const { handleTaskRunAction } = useTaskRunActions({
     onActionProcessed,
-    onActionSubmit,
   });
-
-  const handleAction = useCallback(() => {
-    if (params.externalIds?.length) {
-      handleTaskRunAction({
-        actionType: params.actionType,
-        externalIds: params.externalIds,
-      });
-    } else if (
-      params.filter &&
-      Object.values(params.filter).some((filter) => !!filter)
-    ) {
-      handleTaskRunAction({
-        actionType: params.actionType,
-        filter: params.filter,
-      });
-    }
-  }, [handleTaskRunAction, params]);
+  const {
+    actions: { setIsActionModalOpen },
+  } = useRunsContext();
 
   return (
-    <>
-      <ConfirmActionModal
-        actionType={params.actionType}
-        onConfirm={handleAction}
-        params={params}
-        isOpen={isActionModalOpen}
-        setIsOpen={setIsActionModalOpen}
-      />
-      <Button
-        size={'sm'}
-        className={cn('text-sm px-2 py-2 gap-2', className)}
-        variant={'outline'}
-        disabled={disabled}
-        onClick={() => {
-          if (!showModal) {
-            handleAction();
-            return;
-          }
+    <Button
+      size={'sm'}
+      className={cn('text-sm px-2 py-2 gap-2', className)}
+      variant={'outline'}
+      disabled={disabled}
+      onClick={() => {
+        if (!showModal) {
+          handleTaskRunAction(params);
+          return;
+        }
 
-          setIsActionModalOpen(true);
-        }}
-      >
-        {icon}
-        {label}
-      </Button>
-    </>
+        setIsActionModalOpen(true);
+      }}
+    >
+      {icon}
+      {label}
+    </Button>
   );
 };
 
@@ -404,7 +418,6 @@ export const TaskRunActionButton = ({
   params,
   showModal,
   onActionProcessed,
-  onActionSubmit,
   className,
 }: {
   actionType: ActionType;
@@ -412,7 +425,6 @@ export const TaskRunActionButton = ({
   params: BaseTaskRunActionParams;
   showModal: boolean;
   onActionProcessed: (ids: string[]) => void;
-  onActionSubmit: () => void;
   className?: string;
 }) => {
   switch (actionType) {
@@ -425,7 +437,6 @@ export const TaskRunActionButton = ({
           label={'Cancel'}
           showModal={showModal}
           onActionProcessed={onActionProcessed}
-          onActionSubmit={onActionSubmit}
           className={className}
         />
       );
@@ -438,7 +449,6 @@ export const TaskRunActionButton = ({
           label={'Replay'}
           showModal={showModal}
           onActionProcessed={onActionProcessed}
-          onActionSubmit={onActionSubmit}
           className={className}
         />
       );
