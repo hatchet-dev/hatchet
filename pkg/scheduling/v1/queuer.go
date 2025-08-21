@@ -342,10 +342,10 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 					}
 
 					reason := "no workers available"
-					if _, ok := q.unassignedRateLimited.Load(qi.ID); ok {
+					if _, ok := q.unassignedRateLimited.Load(qi.TaskID); ok {
 						reason = "rate limited"
 					}
-					q.unassignedRateLimited.Delete(qi.ID)
+					q.unassignedRateLimited.Delete(qi.TaskID)
 
 					prometheus.TenantTaskSchedulingTimedOut.WithLabelValues(q.tenantId.String(), workflowName, stepReadableId, reason).Inc()
 				}
@@ -480,13 +480,13 @@ func (q *Queuer) ack(r *assignResults) {
 	for _, assignedItem := range r.assigned {
 		delete(q.unacked, assignedItem.QueueItem.ID)
 		delete(q.unassigned, assignedItem.QueueItem.ID)
-		q.unassignedRateLimited.Delete(assignedItem.QueueItem.ID)
+		q.unassignedRateLimited.Delete(assignedItem.QueueItem.TaskID)
 	}
 
 	for _, unassignedItem := range r.unassigned {
 		delete(q.unacked, unassignedItem.ID)
 		q.unassigned[unassignedItem.ID] = unassignedItem
-		q.unassignedRateLimited.Delete(unassignedItem.ID)
+		q.unassignedRateLimited.Delete(unassignedItem.TaskID)
 	}
 
 	for _, schedulingTimedOutItem := range r.schedulingTimedOut {
@@ -497,7 +497,7 @@ func (q *Queuer) ack(r *assignResults) {
 	for _, rateLimitedItem := range r.rateLimited {
 		delete(q.unacked, rateLimitedItem.qi.ID)
 		q.unassigned[rateLimitedItem.qi.ID] = rateLimitedItem.qi
-		q.unassignedRateLimited.Store(rateLimitedItem.qi.ID, struct{}{})
+		q.unassignedRateLimited.Store(rateLimitedItem.qi.TaskID, struct{}{})
 	}
 }
 
