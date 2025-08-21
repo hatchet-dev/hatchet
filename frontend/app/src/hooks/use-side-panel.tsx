@@ -2,11 +2,15 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useState,
 } from 'react';
-
-export const pages = docMetadata;
+import { useLocation } from 'react-router-dom';
+import { 
+  TaskRunDetail,
+  TabOption 
+} from '@/pages/main/v1/workflow-runs-v1/$run/v2components/step-run-detail/step-run-detail';
 
 export type DocRef = {
   title: string;
@@ -40,12 +44,22 @@ type UseSidePanelProps =
     }
   | {
       type: 'task-run-details';
-      content: RunDetailSheetSerializableProps;
+      content: {
+        taskRunId: string;
+        defaultOpenTab?: TabOption;
+        showViewTaskRunButton?: boolean;
+      };
     };
 
 export function useSidePanelData(): SidePanelData {
   const [isOpen, setIsOpen] = useState(false);
   const [props, setProps] = useState<UseSidePanelProps | null>(null);
+  const location = useLocation();
+
+  useEffect(() => {
+    setIsOpen(false);
+    setProps(null);
+  }, [location.pathname]);
 
   const content = useMemo((): SidePanelContent | null => {
     if (!props) {
@@ -55,10 +69,10 @@ export function useSidePanelData(): SidePanelData {
     const panelType = props.type;
 
     switch (panelType) {
-      case 'run-details':
+      case 'task-run-details':
         return {
           isDocs: false,
-          component: <RunDetailSheet {...props.content} />,
+          component: <TaskRunDetail {...props.content} />,
           title: 'Run Detail',
         };
       case 'docs':
