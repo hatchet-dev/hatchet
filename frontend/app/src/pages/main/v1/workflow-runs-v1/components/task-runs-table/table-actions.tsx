@@ -67,22 +67,8 @@ export const TableActions = ({
         >
           {!hideCancelAndReplayButtons && (
             <>
-              <CancelMenuItem
-                onActionProcessed={(action, ids) => {
-                  onActionProcessed(action, ids);
-                  setDropdownOpen(false);
-                }}
-                toast={toast}
-                onDelayedClose={() => setShouldDelayClose(true)}
-              />
-              <ReplayMenuItem
-                onActionProcessed={(action, ids) => {
-                  onActionProcessed(action, ids);
-                  setDropdownOpen(false);
-                }}
-                toast={toast}
-                onDelayedClose={() => setShouldDelayClose(true)}
-              />
+              <CancelMenuItem />
+              <ReplayMenuItem />
               <DropdownMenuSeparator />
             </>
           )}
@@ -143,13 +129,7 @@ export const TableActions = ({
   return <>{actions}</>;
 };
 
-const CancelMenuItem = ({
-  onActionProcessed,
-  toast,
-  onDelayedClose,
-}: Pick<TableActionsProps, 'toast' | 'onActionProcessed'> & {
-  onDelayedClose: () => void;
-}) => {
+const CancelMenuItem = () => {
   const { selectedRuns, filters } = useRunsContext();
 
   const params =
@@ -169,20 +149,13 @@ const CancelMenuItem = ({
         disabled={false}
         params={params}
         showModal
-        onActionProcessed={(ids) => onActionProcessed('cancel', ids)}
         className="w-full justify-start h-8 px-2 py-1.5 font-normal border-0 bg-transparent hover:bg-accent hover:text-accent-foreground rounded-sm"
       />
     </div>
   );
 };
 
-const ReplayMenuItem = ({
-  onActionProcessed,
-  toast,
-  onDelayedClose,
-}: Pick<TableActionsProps, 'toast' | 'onActionProcessed'> & {
-  onDelayedClose: () => void;
-}) => {
+const ReplayMenuItem = () => {
   const { selectedRuns, filters } = useRunsContext();
 
   const params =
@@ -202,7 +175,6 @@ const ReplayMenuItem = ({
         disabled={false}
         params={params}
         showModal
-        onActionProcessed={(ids) => onActionProcessed('replay', ids)}
         className="w-full justify-start h-8 px-2 py-1.5 font-normal border-0 bg-transparent hover:bg-accent hover:text-accent-foreground rounded-sm"
       />
     </div>

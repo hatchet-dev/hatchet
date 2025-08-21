@@ -37,22 +37,6 @@ export const V1RunDetailHeader = () => {
     isLoading: loading,
   } = useWorkflowDetails();
 
-  const onActionProcessed = useCallback(
-    (action: 'cancel' | 'replay') => {
-      const prefix = action === 'cancel' ? 'Canceling' : 'Replaying';
-
-      const t = toast({
-        title: `${prefix} task run`,
-        description: `This may take a few seconds. You don't need to hit ${action} again.`,
-      });
-
-      setTimeout(() => {
-        t.dismiss();
-      }, 5000);
-    },
-    [toast],
-  );
-
   if (loading || !workflowRun) {
     return <div>Loading...</div>;
   }
@@ -97,14 +81,12 @@ export const V1RunDetailHeader = () => {
                 !TASK_RUN_TERMINAL_STATUSES.includes(workflowRun.status)
               }
               showModal={false}
-              onActionProcessed={() => onActionProcessed('replay')}
             />
             <TaskRunActionButton
               actionType="cancel"
               params={{ externalIds: [workflowRun.metadata.id] }}
               disabled={TASK_RUN_TERMINAL_STATUSES.includes(workflowRun.status)}
               showModal={false}
-              onActionProcessed={() => onActionProcessed('cancel')}
             />
           </div>
         </div>

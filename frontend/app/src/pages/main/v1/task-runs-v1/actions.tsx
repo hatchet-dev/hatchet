@@ -14,7 +14,7 @@ import api, {
 import { useApiError } from '@/lib/hooks';
 import { XCircleIcon } from '@heroicons/react/24/outline';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { useCallback, useState } from 'react';
+import { useCallback } from 'react';
 import { Combobox } from '@/components/v1/molecules/combobox/combobox';
 import {
   additionalMetadataKey,
@@ -73,15 +73,14 @@ type TaskRunActionsParams =
       externalIds?: never;
     };
 
-export const useTaskRunActions = ({
-  onActionProcessed,
-}: {
-  onActionProcessed: (ids: string[]) => void;
-}) => {
+export const useTaskRunActions = () => {
   const { tenantId } = useCurrentTenantId();
   const { toast } = useToast();
 
   const { handleApiError } = useApiError({});
+  const {
+    actions: { setIsActionDropdownOpen },
+  } = useRunsContext();
 
   const onActionSubmit = useCallback(
     (actionType: ActionType) => {
@@ -89,6 +88,23 @@ export const useTaskRunActions = ({
         title: `${capitalize(actionType)} request submitted`,
         description: `No need to hit '${capitalize(actionType)}' again.`,
       });
+    },
+    [toast],
+  );
+
+  const handleActionProcessed = useCallback(
+    (action: 'cancel' | 'replay', ids: string[]) => {
+      const prefix = action === 'cancel' ? 'Canceling' : 'Replaying';
+      const count = ids.length;
+
+      const t = toast({
+        title: `${prefix} ${count} task run${count > 1 ? 's' : ''}`,
+        description: `This may take a few seconds. You don't need to hit ${action} again.`,
+      });
+
+      setTimeout(() => {
+        t.dismiss();
+      }, 5000);
     },
     [toast],
   );
@@ -120,10 +136,10 @@ export const useTaskRunActions = ({
       const resp = await handleAction(params);
 
       if (resp.data?.ids) {
-        onActionProcessed(resp.data.ids);
+        handleActionProcessed(params.actionType, resp.data.ids);
       }
     },
-    [handleAction, onActionProcessed],
+    [handleAction, handleActionProcessed],
   );
 
   const handleTaskRunAction = useCallback(
@@ -310,24 +326,13 @@ const ModalContent = ({ label, params }: ModalContentProps) => {
   }
 };
 
-{
-  /* <ConfirmActionModal
-        actionType={params.actionType}
-        onConfirm={handleAction}
-        params={params}
-        isOpen={isActionModalOpen}
-        setIsOpen={setIsActionModalOpen}
-      /> */
-}
-
-const ConfirmActionModal = ({
-  actionType,
-  onConfirm,
-  params,
-  isOpen: isActionModalOpen,
-  setIsOpen: setIsActionModalOpen,
-}: ConfirmActionModalProps) => {
-  const label = actionTypeToLabel(actionType);
+export const ConfirmActionModal = ({ params }: ConfirmActionModalProps) => {
+  const label = actionTypeToLabel(params.actionType);
+  const { handleTaskRunAction } = useTaskRunActions();
+  const {
+    isActionModalOpen,
+    actions: { setIsActionModalOpen },
+  } = useRunsContext();
 
   return (
     <Dialog open={isActionModalOpen} onOpenChange={setIsActionModalOpen}>
@@ -354,7 +359,7 @@ const ConfirmActionModal = ({
             </Button>
             <Button
               onClick={() => {
-                onConfirm();
+                handleTaskRunAction(params);
                 setIsActionModalOpen(false);
               }}
             >
@@ -373,7 +378,6 @@ const BaseActionButton = ({
   icon,
   label,
   showModal,
-  onActionProcessed,
   className,
 }: {
   disabled: boolean;
@@ -381,12 +385,9 @@ const BaseActionButton = ({
   icon: JSX.Element;
   label: string;
   showModal: boolean;
-  onActionProcessed: (ids: string[]) => void;
   className?: string;
 }) => {
-  const { handleTaskRunAction } = useTaskRunActions({
-    onActionProcessed,
-  });
+  const { handleTaskRunAction } = useTaskRunActions();
   const {
     actions: { setIsActionModalOpen },
   } = useRunsContext();
@@ -417,14 +418,12 @@ export const TaskRunActionButton = ({
   disabled,
   params,
   showModal,
-  onActionProcessed,
   className,
 }: {
   actionType: ActionType;
   disabled: boolean;
   params: BaseTaskRunActionParams;
   showModal: boolean;
-  onActionProcessed: (ids: string[]) => void;
   className?: string;
 }) => {
   switch (actionType) {
@@ -436,7 +435,6 @@ export const TaskRunActionButton = ({
           icon={<XCircleIcon className="w-4 h-4" />}
           label={'Cancel'}
           showModal={showModal}
-          onActionProcessed={onActionProcessed}
           className={className}
         />
       );
@@ -448,7 +446,6 @@ export const TaskRunActionButton = ({
           icon={<Repeat1 className="w-4 h-4" />}
           label={'Replay'}
           showModal={showModal}
-          onActionProcessed={onActionProcessed}
           className={className}
         />
       );
