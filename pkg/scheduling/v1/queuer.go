@@ -272,12 +272,14 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 					go func() {
 						workflow, err := q.workflowRepo.ListWorkflowNamesByIds(ctx, q.tenantId.String(), []pgtype.UUID{qi.WorkflowID})
 						if err != nil {
-							q.l.Error().Err(err).Msg("error getting workflow name")
+							q.l.Error().Err(err).Msg("error getting workflow name for prometheus metric: TenantTaskSchedulingTimedOut")
+							return
 						}
 
 						task, err := q.taskRepo.ListTasks(ctx, q.tenantId.String(), []int64{qi.ID})
 						if err != nil {
-							q.l.Error().Err(err).Msg("error getting task")
+							q.l.Error().Err(err).Msg("error getting task for prometheus metric: TenantTaskSchedulingTimedOut")
+							return
 						}
 
 						prometheus.TenantTaskSchedulingTimedOut.WithLabelValues(q.tenantId.String(), workflow[qi.WorkflowID], task[0].DisplayName, "no_workers_available").Inc()
@@ -291,12 +293,14 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 					go func() {
 						workflow, err := q.workflowRepo.ListWorkflowNamesByIds(ctx, q.tenantId.String(), []pgtype.UUID{qi.qi.WorkflowID})
 						if err != nil {
-							q.l.Error().Err(err).Msg("error getting workflow name")
+							q.l.Error().Err(err).Msg("error getting workflow name for prometheus metric: TenantTaskSchedulingTimedOut")
+							return
 						}
 
 						task, err := q.taskRepo.ListTasks(ctx, q.tenantId.String(), []int64{qi.taskId})
 						if err != nil {
-							q.l.Error().Err(err).Msg("error getting task")
+							q.l.Error().Err(err).Msg("error getting task for prometheus metric: TenantTaskSchedulingTimedOut")
+							return
 						}
 
 						prometheus.TenantTaskSchedulingTimedOut.WithLabelValues(q.tenantId.String(), workflow[qi.qi.WorkflowID], task[0].DisplayName, "rate_limited").Inc()
