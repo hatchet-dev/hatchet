@@ -29,7 +29,6 @@ import { CopyWorkflowConfigButton } from '@/components/v1/shared/copy-workflow-c
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { Waterfall } from '../waterfall';
 import { useState, useCallback } from 'react';
-import { useToast } from '@/components/v1/hooks/use-toast';
 import { Toaster } from '@/components/v1/ui/toaster';
 
 export enum TabOption {
@@ -95,7 +94,6 @@ export const TaskRunDetail = ({
 }: TaskRunDetailProps) => {
   const [selectedTaskRunId, setSelectedTaskRunId] = useState<string>();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const { toast } = useToast();
 
   const handleTaskRunExpand = useCallback((taskRunId: string) => {
     setSelectedTaskRunId(taskRunId);

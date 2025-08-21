@@ -35,6 +35,7 @@ import { useRunsContext } from '../hooks/runs-provider';
 
 import { TableActions } from './task-runs-table/table-actions';
 import { TimeFilter } from './task-runs-table/time-filter';
+import { ConfirmActionModal } from '../../task-runs-v1/actions';
 
 export interface RunsTableProps {
   headerClassName?: string;
@@ -112,6 +113,8 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
     isMetricsFetching,
     metrics,
     tenantMetrics,
+    actionModalParams,
+    selectedActionType,
     display: {
       hideMetrics,
       hideCounts,
@@ -230,6 +233,12 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
   return (
     <div className="flex flex-col h-full overflow-hidden">
       <Toaster />
+      {selectedActionType && (
+        <ConfirmActionModal
+          actionType={selectedActionType}
+          params={actionModalParams}
+        />
+      )}
 
       <TriggerWorkflowForm
         defaultWorkflow={undefined}

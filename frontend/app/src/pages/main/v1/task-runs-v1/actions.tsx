@@ -35,9 +35,9 @@ export const TASK_RUN_TERMINAL_STATUSES = [
   V1TaskStatus.COMPLETED,
 ];
 
-type ActionType = 'cancel' | 'replay';
+export type ActionType = 'cancel' | 'replay';
 
-type BaseTaskRunActionParams =
+export type BaseTaskRunActionParams =
   | {
       filter?: never;
       externalIds:
@@ -51,7 +51,7 @@ type BaseTaskRunActionParams =
       externalIds?: never;
     };
 
-type TaskRunActionsParams =
+export type TaskRunActionsParams =
   | {
       actionType: 'cancel';
       filter?: never;
@@ -167,10 +167,7 @@ export const useTaskRunActions = () => {
 
 type ConfirmActionModalProps = {
   actionType: ActionType;
-  onConfirm: () => void;
-  params: TaskRunActionsParams;
-  isOpen: boolean;
-  setIsOpen: (isOpen: boolean) => void;
+  params: BaseTaskRunActionParams;
 };
 
 const actionTypeToLabel = (actionType: ActionType) => {
@@ -188,7 +185,7 @@ const actionTypeToLabel = (actionType: ActionType) => {
 
 type ModalContentProps = {
   label: string;
-  params: TaskRunActionsParams;
+  params: BaseTaskRunActionParams;
 };
 
 const CancelByExternalIdsContent = ({ label, params }: ModalContentProps) => {
@@ -326,8 +323,11 @@ const ModalContent = ({ label, params }: ModalContentProps) => {
   }
 };
 
-export const ConfirmActionModal = ({ params }: ConfirmActionModalProps) => {
-  const label = actionTypeToLabel(params.actionType);
+export const ConfirmActionModal = ({
+  actionType,
+  params,
+}: ConfirmActionModalProps) => {
+  const label = actionTypeToLabel(actionType);
   const { handleTaskRunAction } = useTaskRunActions();
   const {
     isActionModalOpen,
@@ -359,7 +359,10 @@ export const ConfirmActionModal = ({ params }: ConfirmActionModalProps) => {
             </Button>
             <Button
               onClick={() => {
-                handleTaskRunAction(params);
+                handleTaskRunAction({
+                  ...params,
+                  actionType,
+                });
                 setIsActionModalOpen(false);
               }}
             >
@@ -389,7 +392,7 @@ const BaseActionButton = ({
 }) => {
   const { handleTaskRunAction } = useTaskRunActions();
   const {
-    actions: { setIsActionModalOpen },
+    actions: { setIsActionModalOpen, setSelectedActionType },
   } = useRunsContext();
 
   return (
@@ -400,6 +403,7 @@ const BaseActionButton = ({
       disabled={disabled}
       onClick={() => {
         if (!showModal) {
+          setSelectedActionType(params.actionType);
           handleTaskRunAction(params);
           return;
         }

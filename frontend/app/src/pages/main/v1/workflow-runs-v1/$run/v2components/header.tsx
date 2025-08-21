@@ -18,8 +18,6 @@ import { CopyWorkflowConfigButton } from '@/components/v1/shared/copy-workflow-c
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { useToast } from '@/components/v1/hooks/use-toast';
-import { useCallback } from 'react';
 import { Toaster } from '@/components/v1/ui/toaster';
 
 export const WORKFLOW_RUN_TERMINAL_STATUSES = [
@@ -30,7 +28,6 @@ export const WORKFLOW_RUN_TERMINAL_STATUSES = [
 
 export const V1RunDetailHeader = () => {
   const { tenantId } = useCurrentTenantId();
-  const { toast } = useToast();
   const {
     workflowRun,
     workflowConfig,
