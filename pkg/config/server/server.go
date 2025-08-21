@@ -4,11 +4,13 @@ import (
 	"crypto/tls"
 	"time"
 
+	"github.com/labstack/echo/v4"
 	"github.com/rs/zerolog"
 	"github.com/spf13/viper"
 	"golang.org/x/oauth2"
 	"google.golang.org/grpc"
 
+	"github.com/hatchet-dev/hatchet/api/v1/server/middleware"
 	"github.com/hatchet-dev/hatchet/internal/integrations/alerting"
 	"github.com/hatchet-dev/hatchet/internal/integrations/email"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
@@ -497,6 +499,10 @@ type AuthConfig struct {
 	GithubOAuthConfig *oauth2.Config
 
 	JWTManager token.JWTManager
+
+	CustomAuthenticationHandler func(c echo.Context) error
+
+	CustomAuthorizationHandler func(c echo.Context, r *middleware.RouteInfo) error
 }
 
 type PylonConfig struct {

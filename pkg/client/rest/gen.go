@@ -22,6 +22,7 @@ import (
 const (
 	BearerAuthScopes = "bearerAuth.Scopes"
 	CookieAuthScopes = "cookieAuth.Scopes"
+	CustomAuthScopes = "customAuth.Scopes"
 )
 
 // Defines values for ConcurrencyLimitStrategy.
