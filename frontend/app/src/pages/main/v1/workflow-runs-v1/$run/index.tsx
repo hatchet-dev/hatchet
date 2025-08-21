@@ -14,14 +14,14 @@ import {
   TabsTrigger,
 } from '@/components/v1/ui/tabs';
 import { StepRunEvents } from './v2components/step-run-events-for-workflow-run';
-import { useCallback, useState } from 'react';
+import { useCallback } from 'react';
 import {
   TabOption,
   TaskRunDetail,
 } from './v2components/step-run-detail/step-run-detail';
 import { Separator } from '@/components/v1/ui/separator';
 import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
-import { Sheet, SheetContent } from '@/components/v1/ui/sheet';
+import { useSidePanel } from '@/hooks/use-side-panel';
 import { V1RunDetailHeader } from './v2components/header';
 import { Badge } from '@/components/v1/ui/badge';
 import { ViewToggle } from './v2components/view-toggle';
@@ -187,13 +187,18 @@ function ExpandedTaskRun({ id }: { id: string }) {
 }
 
 function ExpandedWorkflowRun({ id }: { id: string }) {
-  const [selectedTaskRunId, setSelectedTaskRunId] = useState<string>();
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const { open } = useSidePanel();
 
   const handleTaskRunExpand = useCallback((taskRunId: string) => {
-    setSelectedTaskRunId(taskRunId);
-    setIsSidebarOpen(true);
-  }, []);
+    open({
+      type: 'task-run-details',
+      content: {
+        taskRunId,
+        defaultOpenTab: TabOption.Output,
+        showViewTaskRunButton: true,
+      },
+    });
+  }, [open]);
 
   const { workflowRun, shape, isLoading, isError } = useWorkflowDetails();
 
@@ -270,26 +275,12 @@ function ExpandedWorkflowRun({ id }: { id: string }) {
           <TabsContent value="waterfall" className="flex-1 min-h-0">
             <Waterfall
               workflowRunId={id}
-              selectedTaskId={selectedTaskRunId}
+              selectedTaskId={undefined}
               handleTaskSelect={handleTaskRunExpand}
             />
           </TabsContent>
         </Tabs>
       </div>
-      <Sheet
-        open={isSidebarOpen}
-        onOpenChange={(open) => setIsSidebarOpen(open)}
-      >
-        <SheetContent className="w-fit min-w-[56rem] max-w-4xl sm:max-w-2xl z-[60] h-full overflow-auto">
-          {selectedTaskRunId && (
-            <TaskRunDetail
-              taskRunId={selectedTaskRunId}
-              defaultOpenTab={TabOption.Output}
-              showViewTaskRunButton
-            />
-          )}
-        </SheetContent>
-      </Sheet>
     </div>
   );
 }
