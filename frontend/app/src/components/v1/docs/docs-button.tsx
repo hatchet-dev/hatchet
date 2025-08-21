@@ -1,12 +1,19 @@
 import { Button } from '../ui/button';
 import { useSidePanel } from '@/hooks/use-side-panel';
+import { BookOpen } from 'lucide-react';
 
 export type DocPage = {
   title: string;
   href: string;
 };
 
-export const DocsButton = ({ doc }: { doc: DocPage }) => {
+type DocsButtonProps = {
+  doc: DocPage;
+  variant: 'mini' | 'full';
+  label: string;
+};
+
+export const DocsButton = ({ doc, variant, label }: DocsButtonProps) => {
   const { open } = useSidePanel();
 
   const handleClick = () => {
@@ -16,9 +23,26 @@ export const DocsButton = ({ doc }: { doc: DocPage }) => {
     });
   };
 
-  return (
-    <Button onClick={handleClick}>
-      Learn more about {doc.title.toLocaleLowerCase()}
-    </Button>
-  );
+  switch (variant) {
+    case 'full':
+      return (
+        <Button onClick={handleClick}>
+          {label} {doc.title.toLocaleLowerCase()}
+        </Button>
+      );
+    case 'mini':
+      return (
+        <div className="flex flex-row items-center gap-x-4 w-full justify-center">
+          <span className="text-mono font-semibold">{label}</span>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={handleClick}
+            className="border"
+          >
+            <BookOpen className="size-4" />
+          </Button>
+        </div>
+      );
+  }
 };

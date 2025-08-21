@@ -31,6 +31,8 @@ import { useRunsContext } from '../hooks/runs-provider';
 import { TableActions } from './task-runs-table/table-actions';
 import { TimeFilter } from './task-runs-table/time-filter';
 import { ConfirmActionModal } from '../../task-runs-v1/actions';
+import { DocsButton } from '@/components/v1/docs/docs-button';
+import { docsPages } from '@/lib/generated/docs';
 
 export interface RunsTableProps {
   headerClassName?: string;
@@ -268,11 +270,10 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
       <div className="flex-1 min-h-0">
         <DataTable
           emptyState={
-            <IntroDocsEmptyState
-              link="/home/your-first-task"
-              title="No Runs Found"
-              linkPreambleText="To learn more about how workflows function in Hatchet,"
-              linkText="check out our documentation."
+            <DocsButton
+              doc={docsPages.home['your-first-task']}
+              label={'Learn more about workflows'}
+              variant="mini"
             />
           }
           isLoading={isFetching}
