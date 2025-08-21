@@ -274,6 +274,18 @@ def extract_doc_name(value: str | dict[str, Any]) -> str:
     raise ValueError(f"Invalid doc value: {value}")
 
 
+def keys_to_path(keys: list[str]) -> str:
+    keys = [k for k in keys if k]
+
+    if len(keys) == 0:
+        return ""
+
+    if len(keys) == 1:
+        return "/" + keys[0]
+
+    return "/" + "/".join(keys).replace("//", "/").rstrip("/")
+
+
 def write_doc_index_to_app() -> None:
     docs_root = os.path.join(ROOT, "frontend", "docs")
     pages_dir = os.path.join(docs_root, "pages/")
@@ -318,9 +330,7 @@ def write_doc_index_to_app() -> None:
                     current[full_keys[-1]] = asdict(
                         DocumentationPage(
                             title=title,
-                            href=f"https://docs.hatchet.run/{
-                                '/'.join(full_keys[:-1]).replace('//', '/')
-                            }/{key}",
+                            href=f"https://docs.hatchet.run{keys_to_path(full_keys[:-1])}/{key}",
                         )
                     )
 
