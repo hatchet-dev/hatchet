@@ -59,7 +59,7 @@ func main() {
 	},
 		hatchet.WithRetries(3),
 		hatchet.WithRetryBackoff(2.0, 60), // Exponential backoff: 2s, 4s, 8s, then cap at 60s
-		hatchet.WithTimeout(30*time.Second),
+		hatchet.WithExecutionTimeout(30*time.Second),
 		hatchet.WithConcurrency(&types.Concurrency{
 			Expression:    "input.category", // Limit concurrency per category
 			MaxRuns:       &maxRuns,         // Max 2 concurrent tasks per category
