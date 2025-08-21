@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-multierror"
+	"go.opentelemetry.io/otel/codes"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 
@@ -97,10 +98,17 @@ func (worker *subscribedWorker) sendToWorker(
 	_, streamSpan := telemetry.NewSpan(ctx, "send-worker-stream")
 	defer streamSpan.End()
 
+	sendMsgBegin := time.Now()
+
 	err = worker.stream.SendMsg(msg)
 
 	if err != nil {
 		span.RecordError(err)
+	}
+
+	if time.Since(sendMsgBegin) > 50*time.Millisecond {
+		span.SetStatus(codes.Error, "flow control detected")
+		span.RecordError(fmt.Errorf("send took too long, we may be in flow control: %s", time.Since(sendMsgBegin)))
 	}
 
 	return err
