@@ -350,7 +350,7 @@ func (w *Workflow) NewTask(name string, fn any, options ...TaskOption) *Task {
 		panic("task input must be a function")
 	}
 	if fnType.NumIn() != 2 {
-		panic("task input must have exactly 2 parameters: (ctx hatchet.Context, input T)")
+		panic("task function must have exactly 2 parameters: (ctx hatchet.Context, input T)")
 	}
 	if fnType.NumOut() != 2 {
 		panic("task function must return exactly 2 values: (output T, error)")
