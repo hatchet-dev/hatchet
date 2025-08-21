@@ -11,11 +11,7 @@ import {
   TaskRunDetail,
   TabOption,
 } from '@/pages/main/v1/workflow-runs-v1/$run/v2components/step-run-detail/step-run-detail';
-
-export type DocRef = {
-  title: string;
-  href: string;
-};
+import { DocPage } from '@/components/v1/docs/docs-button';
 
 type SidePanelContent =
   | {
@@ -44,7 +40,7 @@ type SidePanelData = {
 type UseSidePanelProps =
   | {
       type: 'docs';
-      content: DocRef;
+      content: DocPage;
     }
   | {
       type: 'task-run-details';

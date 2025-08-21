@@ -89,8 +89,8 @@ export function SidePanel() {
     <div
       ref={panelRef}
       className={cn(
-        "flex flex-col border-l border-border bg-background relative flex-shrink-0 overflow-hidden",
-        !isResizing && "transition-all duration-300 ease-in-out"
+        'flex flex-col border-l border-border bg-background relative flex-shrink-0 overflow-hidden',
+        !isResizing && 'transition-all duration-300 ease-in-out',
       )}
       style={{
         width: panelWidth,
@@ -106,31 +106,30 @@ export function SidePanel() {
             onMouseDown={handleMouseDown}
           />
 
-          <div className="flex flex-row w-full justify-between items-center border-b bg-background h-16 px-4 md:px-6">
-            <h2 className="text-lg font-semibold truncate pr-2">
-              {maybeContent.title}
-            </h2>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={goBack}
-                disabled={!canGoBack}
-                className="rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 flex-shrink-0"
-              >
-                <ChevronLeftIcon className="h-4 w-4" />
-                <span className="sr-only">Go Back</span>
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={goForward}
-                disabled={!canGoForward}
-                className="rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 flex-shrink-0"
-              >
-                <ChevronRightIcon className="h-4 w-4" />
-                <span className="sr-only">Go Forward</span>
-              </Button>
+          <div className="flex-1 p-4 overflow-auto">
+            <div className="flex flex-row w-full justify-between items-center bg-background h-4 px-2">
+              <div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={goBack}
+                  disabled={!canGoBack}
+                  className="rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 flex-shrink-0"
+                >
+                  <ChevronLeftIcon className="h-4 w-4" />
+                  <span className="sr-only">Go Back</span>
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={goForward}
+                  disabled={!canGoForward}
+                  className="rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 flex-shrink-0"
+                >
+                  <ChevronRightIcon className="h-4 w-4" />
+                  <span className="sr-only">Go Forward</span>
+                </Button>
+              </div>
               {!maybeContent.isDocs && maybeContent.actions}
               <Button
                 variant="ghost"
@@ -141,9 +140,6 @@ export function SidePanel() {
                 <span className="sr-only">Close</span>
               </Button>
             </div>
-          </div>
-
-          <div className="flex-1 p-4 overflow-auto">
             {maybeContent.component}
           </div>
         </>

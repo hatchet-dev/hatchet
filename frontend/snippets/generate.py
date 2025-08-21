@@ -318,9 +318,9 @@ def write_doc_index_to_app() -> None:
                     current[full_keys[-1]] = asdict(
                         DocumentationPage(
                             title=title,
-                            href=f"https://docs.hatchet.run/{'/'.join(full_keys[:-1])}/{key}".replace(
-                                "//", "/"
-                            ),
+                            href=f"https://docs.hatchet.run/{
+                                '/'.join(full_keys[:-1]).replace('//', '/')
+                            }/{key}",
                         )
                     )
 
