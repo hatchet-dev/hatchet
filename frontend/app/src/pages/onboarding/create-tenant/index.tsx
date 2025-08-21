@@ -17,7 +17,8 @@ export default function CreateTenant() {
     slug: '',
     hearAboutUs: '',
     whatBuilding: '',
-    tenantData: { name: '' },
+    environment: '',
+    tenantData: { name: '', environment: 'development' },
   });
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const { handleApiError } = useApiError({
