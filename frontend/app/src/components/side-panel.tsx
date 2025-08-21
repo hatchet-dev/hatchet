@@ -88,7 +88,10 @@ export function SidePanel() {
   return (
     <div
       ref={panelRef}
-      className="flex flex-col border-l border-border bg-background relative flex-shrink-0 transition-all duration-300 ease-in-out overflow-hidden"
+      className={cn(
+        "flex flex-col border-l border-border bg-background relative flex-shrink-0 overflow-hidden",
+        !isResizing && "transition-all duration-300 ease-in-out"
+      )}
       style={{
         width: panelWidth,
       }}
