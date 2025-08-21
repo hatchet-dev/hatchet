@@ -108,6 +108,9 @@ CREATE TYPE "StickyStrategy" AS ENUM ('SOFT', 'HARD');
 CREATE TYPE "TenantMemberRole" AS ENUM ('OWNER', 'ADMIN', 'MEMBER');
 
 -- CreateEnum
+CREATE TYPE "TenantEnvironment" AS ENUM ('local', 'development', 'production');
+
+-- CreateEnum
 CREATE TYPE "TenantResourceLimitAlertType" AS ENUM ('Alarm', 'Exhausted');
 
 -- CreateEnum
@@ -615,6 +618,7 @@ CREATE TABLE "Tenant" (
     "schedulerPartitionId" TEXT,
     "canUpgradeV1" BOOLEAN NOT NULL DEFAULT true,
     "onboardingData" JSONB,
+    "environment" "TenantEnvironment",
 
     CONSTRAINT "Tenant_pkey" PRIMARY KEY ("id")
 );

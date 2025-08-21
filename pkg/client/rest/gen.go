@@ -162,6 +162,13 @@ const (
 	StepRunStatusSUCCEEDED         StepRunStatus = "SUCCEEDED"
 )
 
+// Defines values for TenantEnvironment.
+const (
+	Development TenantEnvironment = "development"
+	Local       TenantEnvironment = "local"
+	Production  TenantEnvironment = "production"
+)
+
 // Defines values for TenantMemberRole.
 const (
 	ADMIN  TenantMemberRole = "ADMIN"
@@ -511,7 +518,8 @@ type CreateTenantInviteRequest struct {
 
 // CreateTenantRequest defines model for CreateTenantRequest.
 type CreateTenantRequest struct {
-	EngineVersion *TenantVersion `json:"engineVersion,omitempty"`
+	EngineVersion *TenantVersion     `json:"engineVersion,omitempty"`
+	Environment   *TenantEnvironment `json:"environment,omitempty"`
 
 	// Name The name of the tenant.
 	Name string `json:"name" validate:"required"`
@@ -1056,6 +1064,9 @@ type TenantAlertingSettings struct {
 	MaxAlertingFrequency string          `json:"maxAlertingFrequency"`
 	Metadata             APIResourceMeta `json:"metadata"`
 }
+
+// TenantEnvironment defines model for TenantEnvironment.
+type TenantEnvironment string
 
 // TenantInvite defines model for TenantInvite.
 type TenantInvite struct {

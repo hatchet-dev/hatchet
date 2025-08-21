@@ -1,3 +1,5 @@
+import { TenantEnvironment } from '@/lib/api';
+
 // Base interface that all onboarding step components must implement
 export interface OnboardingStepProps<T = any> {
   value: T;
@@ -17,8 +19,8 @@ export interface OnboardingFormData {
   slug: string;
   hearAboutUs: string;
   whatBuilding: string;
-  environment: string;
-  tenantData: { name: string; environment: string };
+  environment: TenantEnvironment;
+  tenantData: { name: string; environment: TenantEnvironment };
 }
 
 // Step configuration interface

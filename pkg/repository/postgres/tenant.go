@@ -79,6 +79,14 @@ func (r *tenantAPIRepository) CreateTenant(ctx context.Context, opts *repository
 		}
 	}
 
+	var environment dbsqlc.NullTenantEnvironment
+	if opts.Environment != nil {
+		environment = dbsqlc.NullTenantEnvironment{
+			TenantEnvironment: dbsqlc.TenantEnvironment(*opts.Environment),
+			Valid:             true,
+		}
+	}
+
 	createTenant, err := r.queries.CreateTenant(context.Background(), tx, dbsqlc.CreateTenantParams{
 		ID:                  sqlchelpers.UUIDFromStr(tenantId),
 		Slug:                opts.Slug,
@@ -93,6 +101,7 @@ func (r *tenantAPIRepository) CreateTenant(ctx context.Context, opts *repository
 			Valid:                true,
 		},
 		OnboardingData: onboardingDataBytes,
+		Environment:    environment,
 	})
 
 	if err != nil {

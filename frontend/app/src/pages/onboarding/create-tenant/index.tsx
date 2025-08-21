@@ -1,4 +1,9 @@
-import api, { CreateTenantRequest, queries, TenantVersion } from '@/lib/api';
+import api, {
+  CreateTenantRequest,
+  queries,
+  TenantEnvironment,
+  TenantVersion,
+} from '@/lib/api';
 import { useApiError } from '@/lib/hooks';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
@@ -17,8 +22,8 @@ export default function CreateTenant() {
     slug: '',
     hearAboutUs: '',
     whatBuilding: '',
-    environment: '',
-    tenantData: { name: '', environment: 'development' },
+    environment: TenantEnvironment.Development,
+    tenantData: { name: '', environment: TenantEnvironment.Development },
   });
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const { handleApiError } = useApiError({
@@ -134,7 +139,10 @@ export default function CreateTenant() {
     );
   };
 
-  const handleTenantCreate = (tenantData: { name: string }) => {
+  const handleTenantCreate = (tenantData: {
+    name: string;
+    environment: TenantEnvironment;
+  }) => {
     // Generate slug from name
     const slug = generateSlug(tenantData.name);
 
@@ -148,6 +156,7 @@ export default function CreateTenant() {
       name: tenantData.name,
       slug,
       onboardingData,
+      environment: tenantData.environment,
     });
   };
 

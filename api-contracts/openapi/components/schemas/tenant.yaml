@@ -67,6 +67,13 @@ TenantAlertingSettings:
     - maxAlertingFrequency
   type: object
 
+TenantEnvironment:
+  enum:
+    - "local"
+    - "development"
+    - "production"
+  type: string
+
 CreateTenantRequest:
   properties:
     name:
@@ -85,6 +92,9 @@ CreateTenantRequest:
     engineVersion:
       $ref: "#/TenantVersion"
       description: The engine version of the tenant. Defaults to V0.
+    environment:
+      $ref: "#/TenantEnvironment"
+      description: The environment type of the tenant.
     onboardingData:
       type: object
       description: Additional onboarding data to store with the tenant.

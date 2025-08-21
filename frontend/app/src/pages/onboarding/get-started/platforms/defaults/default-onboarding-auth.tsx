@@ -1,18 +1,15 @@
 import { Button } from '@/components/ui/button';
 import { CodeHighlighter } from '@/components/ui/code-highlighter';
-import { Card, CardContent } from '@/components/ui/card';
 import api, { CreateAPITokenRequest } from '@/lib/api';
 import { useApiError } from '@/lib/hooks';
 import { useMutation } from '@tanstack/react-query';
 import { useState } from 'react';
-import { Monitor, Cloud, Laptop } from 'lucide-react';
 
 export const DefaultOnboardingAuth: React.FC<{
   tenantId: string;
   tokenGenerated: () => void;
 }> = ({ tenantId, tokenGenerated }) => {
   const [generatedToken, setGeneratedToken] = useState<string | undefined>();
-  const [environment, setEnvironment] = useState<'local' | 'development' | 'production'>('local');
 
   const { handleApiError } = useApiError({});
 

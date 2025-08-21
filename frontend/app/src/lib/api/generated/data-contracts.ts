@@ -189,6 +189,12 @@ export enum WorkflowRunStatus {
   BACKOFF = "BACKOFF",
 }
 
+export enum TenantEnvironment {
+  Local = "local",
+  Development = "development",
+  Production = "production",
+}
+
 export enum TenantMemberRole {
   OWNER = "OWNER",
   ADMIN = "ADMIN",
@@ -1256,6 +1262,8 @@ export interface CreateTenantRequest {
   uiVersion?: TenantUIVersion;
   /** The engine version of the tenant. Defaults to V0. */
   engineVersion?: TenantVersion;
+  /** The environment type of the tenant. */
+  environment?: TenantEnvironment;
   /** Additional onboarding data to store with the tenant. */
   onboardingData?: Record<string, any>;
 }

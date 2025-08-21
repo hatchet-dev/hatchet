@@ -23,6 +23,9 @@ type CreateTenantOpts struct {
 
 	EngineVersion *dbsqlc.TenantMajorEngineVersion `validate:"omitempty"`
 
+	// (optional) the tenant environment type
+	Environment *string `validate:"omitempty,oneof=local development production"`
+
 	// (optional) additional onboarding data
 	OnboardingData map[string]interface{} `validate:"omitempty"`
 }
