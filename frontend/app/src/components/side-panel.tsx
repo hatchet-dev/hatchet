@@ -1,6 +1,10 @@
 import { useSidePanel } from '@/hooks/use-side-panel';
 import { useLocalStorageState } from '@/hooks/use-local-storage-state';
-import { Cross2Icon } from '@radix-ui/react-icons';
+import {
+  Cross2Icon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
+} from '@radix-ui/react-icons';
 import { Button } from './v1/ui/button';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
@@ -9,8 +13,16 @@ const DEFAULT_PANEL_WIDTH = 650;
 const MIN_PANEL_WIDTH = 200;
 
 export function SidePanel() {
-  const { content: maybeContent, isOpen, close } = useSidePanel();
-  const [panelWidth, setPanelWidth] = useLocalStorageState(
+  const {
+    content: maybeContent,
+    isOpen,
+    close,
+    canGoBack,
+    canGoForward,
+    goBack,
+    goForward,
+  } = useSidePanel();
+  const [storedPanelWidth, setStoredPanelWidth] = useLocalStorageState(
     'sidePanelWidth',
     DEFAULT_PANEL_WIDTH,
   );
@@ -20,14 +32,16 @@ export function SidePanel() {
   const [startWidth, setStartWidth] = useState(0);
   const panelRef = useRef<HTMLDivElement>(null);
 
+  const panelWidth = isOpen ? storedPanelWidth : 0;
+
   const handleMouseDown = useCallback(
     (e: React.MouseEvent) => {
       e.preventDefault();
       setIsResizing(true);
       setStartX(e.clientX);
-      setStartWidth(panelWidth);
+      setStartWidth(storedPanelWidth);
     },
-    [panelWidth],
+    [storedPanelWidth],
   );
 
   const handleMouseMove = useCallback(
@@ -48,9 +62,9 @@ export function SidePanel() {
         actualChange: newWidth - startWidth,
       });
 
-      setPanelWidth(newWidth);
+      setStoredPanelWidth(newWidth);
     },
-    [isResizing, startX, startWidth, setPanelWidth],
+    [isResizing, startX, startWidth, setStoredPanelWidth],
   );
 
   const handleMouseUp = useCallback(() => {
@@ -71,42 +85,66 @@ export function SidePanel() {
     }
   }, [isResizing, handleMouseMove, handleMouseUp]);
 
-  if (!maybeContent || !isOpen) {
-    return null;
-  }
-
   return (
     <div
       ref={panelRef}
-      className="flex flex-col border-l border-border bg-background relative flex-shrink-0"
-      style={{ width: panelWidth }}
+      className="flex flex-col border-l border-border bg-background relative flex-shrink-0 transition-all duration-300 ease-in-out overflow-hidden"
+      style={{
+        width: panelWidth,
+      }}
     >
-      <div
-        className={cn(
-          'absolute left-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-blue-500/20 transition-colors z-10',
-          isResizing && 'bg-blue-500/30',
-        )}
-        onMouseDown={handleMouseDown}
-      />
+      {maybeContent && isOpen && (
+        <>
+          <div
+            className={cn(
+              'absolute left-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-blue-500/20 transition-colors z-10',
+              isResizing && 'bg-blue-500/30',
+            )}
+            onMouseDown={handleMouseDown}
+          />
 
-      <div className="flex flex-row w-full justify-between items-center border-b bg-background h-16 px-4 md:px-6">
-        <h2 className="text-lg font-semibold truncate pr-2">
-          {maybeContent.title}
-        </h2>
-        <div className="flex items-center gap-2">
-          {!maybeContent.isDocs && maybeContent.actions}
-          <Button
-            variant="ghost"
-            onClick={close}
-            className="rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 flex-shrink-0"
-          >
-            <Cross2Icon className="h-4 w-4" />
-            <span className="sr-only">Close</span>
-          </Button>
-        </div>
-      </div>
+          <div className="flex flex-row w-full justify-between items-center border-b bg-background h-16 px-4 md:px-6">
+            <h2 className="text-lg font-semibold truncate pr-2">
+              {maybeContent.title}
+            </h2>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={goBack}
+                disabled={!canGoBack}
+                className="rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 flex-shrink-0"
+              >
+                <ChevronLeftIcon className="h-4 w-4" />
+                <span className="sr-only">Go Back</span>
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={goForward}
+                disabled={!canGoForward}
+                className="rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 flex-shrink-0"
+              >
+                <ChevronRightIcon className="h-4 w-4" />
+                <span className="sr-only">Go Forward</span>
+              </Button>
+              {!maybeContent.isDocs && maybeContent.actions}
+              <Button
+                variant="ghost"
+                onClick={close}
+                className="rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 flex-shrink-0"
+              >
+                <Cross2Icon className="h-4 w-4" />
+                <span className="sr-only">Close</span>
+              </Button>
+            </div>
+          </div>
 
-      <div className="flex-1  p-4 overflow-auto">{maybeContent.component}</div>
+          <div className="flex-1 p-4 overflow-auto">
+            {maybeContent.component}
+          </div>
+        </>
+      )}
     </div>
   );
 }
