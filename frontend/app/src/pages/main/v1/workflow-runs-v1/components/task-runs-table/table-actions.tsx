@@ -15,18 +15,14 @@ import { ChevronDownIcon } from '@radix-ui/react-icons';
 
 interface TableActionsProps {
   onRefresh: () => void;
-  onActionProcessed: (action: 'cancel' | 'replay', ids: string[]) => void;
   onTriggerWorkflow: () => void;
   rotate: boolean;
-  toast: any;
 }
 
 export const TableActions = ({
   onRefresh,
-  onActionProcessed,
   onTriggerWorkflow,
   rotate,
-  toast,
 }: TableActionsProps) => {
   const [shouldDelayClose, setShouldDelayClose] = useState(false);
   const {
@@ -34,7 +30,6 @@ export const TableActions = ({
     isActionDropdownOpen,
     actions: { setIsFrozen, setIsActionDropdownOpen },
     display: { hideTriggerRunButton, hideCancelAndReplayButtons },
-    isActionModalOpen,
   } = useRunsContext();
 
   const actions = useMemo(() => {
@@ -112,17 +107,15 @@ export const TableActions = ({
     return baseActions;
   }, [
     onRefresh,
-    onActionProcessed,
     onTriggerWorkflow,
     hideTriggerRunButton,
     rotate,
-    toast,
     hideCancelAndReplayButtons,
     isFrozen,
     setIsFrozen,
     setIsActionDropdownOpen,
+    isActionDropdownOpen,
     shouldDelayClose,
-    isActionModalOpen,
   ]);
 
   return <>{actions}</>;

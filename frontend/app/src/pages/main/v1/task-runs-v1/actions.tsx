@@ -78,9 +78,6 @@ export const useTaskRunActions = () => {
   const { toast } = useToast();
 
   const { handleApiError } = useApiError({});
-  const {
-    actions: { setIsActionDropdownOpen },
-  } = useRunsContext();
 
   const onActionSubmit = useCallback(
     (actionType: ActionType) => {
