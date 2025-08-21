@@ -47,6 +47,9 @@ type Queuer struct {
 	unassigned   map[int64]*sqlcv1.V1QueueItem
 	unassignedMu mutex
 
+	unassignedRateLimitedMu mutex
+	unassignedRateLimited   map[int64]struct{}
+
 	hasRateLimits bool
 }
 
@@ -62,21 +65,23 @@ func newQueuer(conf *sharedConfig, tenantId pgtype.UUID, queueName string, s *Sc
 	notifyQueueCh := make(chan map[string]string, 1)
 
 	q := &Queuer{
-		repo:          queueRepo,
-		workflowRepo:  conf.workflowRepo,
-		taskRepo:      conf.taskRepo,
-		tenantId:      tenantId,
-		queueName:     queueName,
-		l:             conf.l,
-		s:             s,
-		limit:         defaultLimit,
-		resultsCh:     resultsCh,
-		notifyQueueCh: notifyQueueCh,
-		queueMu:       newMu(conf.l),
-		unackedMu:     newRWMu(conf.l),
-		unacked:       make(map[int64]struct{}),
-		unassigned:    make(map[int64]*sqlcv1.V1QueueItem),
-		unassignedMu:  newMu(conf.l),
+		repo:                    queueRepo,
+		workflowRepo:            conf.workflowRepo,
+		taskRepo:                conf.taskRepo,
+		tenantId:                tenantId,
+		queueName:               queueName,
+		l:                       conf.l,
+		s:                       s,
+		limit:                   defaultLimit,
+		resultsCh:               resultsCh,
+		notifyQueueCh:           notifyQueueCh,
+		queueMu:                 newMu(conf.l),
+		unackedMu:               newRWMu(conf.l),
+		unacked:                 make(map[int64]struct{}),
+		unassigned:              make(map[int64]*sqlcv1.V1QueueItem),
+		unassignedMu:            newMu(conf.l),
+		unassignedRateLimitedMu: newMu(conf.l),
+		unassignedRateLimited:   make(map[int64]struct{}),
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -276,35 +281,32 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 							return
 						}
 
-						task, err := q.taskRepo.ListTasks(ctx, q.tenantId.String(), []int64{qi.ID})
+						task, err := q.taskRepo.ListTasks(ctx, q.tenantId.String(), []int64{qi.TaskID})
 						if err != nil {
 							q.l.Error().Err(err).Msg("error getting task for prometheus metric: TenantTaskSchedulingTimedOut")
 							return
 						}
 
-						prometheus.TenantTaskSchedulingTimedOut.WithLabelValues(q.tenantId.String(), workflow[qi.WorkflowID], task[0].DisplayName, "no_workers_available").Inc()
+						if len(workflow) == 0 || len(task) == 0 {
+							return
+						}
+
+						reason := "no workers available"
+
+						q.unassignedRateLimitedMu.Lock()
+						if _, ok := q.unassignedRateLimited[qi.ID]; ok {
+							reason = "rate limited"
+						}
+						delete(q.unassignedRateLimited, qi.ID)
+						q.unassignedRateLimitedMu.Unlock()
+
+						prometheus.TenantTaskSchedulingTimedOut.WithLabelValues(q.tenantId.String(), workflow[qi.WorkflowID], task[0].DisplayName, reason).Inc()
 					}()
 				}
 
-				for _, qi := range ar.rateLimited {
+				for range ar.rateLimited {
 					prometheus.RateLimited.Inc()
 					prometheus.TenantRateLimited.WithLabelValues(q.tenantId.String()).Inc()
-
-					go func() {
-						workflow, err := q.workflowRepo.ListWorkflowNamesByIds(ctx, q.tenantId.String(), []pgtype.UUID{qi.qi.WorkflowID})
-						if err != nil {
-							q.l.Error().Err(err).Msg("error getting workflow name for prometheus metric: TenantTaskSchedulingTimedOut")
-							return
-						}
-
-						task, err := q.taskRepo.ListTasks(ctx, q.tenantId.String(), []int64{qi.taskId})
-						if err != nil {
-							q.l.Error().Err(err).Msg("error getting task for prometheus metric: TenantTaskSchedulingTimedOut")
-							return
-						}
-
-						prometheus.TenantTaskSchedulingTimedOut.WithLabelValues(q.tenantId.String(), workflow[qi.qi.WorkflowID], task[0].DisplayName, "rate_limited").Inc()
-					}()
 				}
 			}(r)
 		}
@@ -429,14 +431,19 @@ func (q *Queuer) ack(r *assignResults) {
 	q.unassignedMu.Lock()
 	defer q.unassignedMu.Unlock()
 
+	q.unassignedRateLimitedMu.Lock()
+	defer q.unassignedRateLimitedMu.Unlock()
+
 	for _, assignedItem := range r.assigned {
 		delete(q.unacked, assignedItem.QueueItem.ID)
 		delete(q.unassigned, assignedItem.QueueItem.ID)
+		delete(q.unassignedRateLimited, assignedItem.QueueItem.ID)
 	}
 
 	for _, unassignedItem := range r.unassigned {
 		delete(q.unacked, unassignedItem.ID)
 		q.unassigned[unassignedItem.ID] = unassignedItem
+		delete(q.unassignedRateLimited, unassignedItem.ID)
 	}
 
 	for _, schedulingTimedOutItem := range r.schedulingTimedOut {
@@ -447,6 +454,7 @@ func (q *Queuer) ack(r *assignResults) {
 	for _, rateLimitedItem := range r.rateLimited {
 		delete(q.unacked, rateLimitedItem.qi.ID)
 		q.unassigned[rateLimitedItem.qi.ID] = rateLimitedItem.qi
+		q.unassignedRateLimited[rateLimitedItem.qi.ID] = struct{}{}
 	}
 }
 
