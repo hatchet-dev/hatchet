@@ -17,7 +17,7 @@ export interface OnboardingFormData {
   slug: string;
   hearAboutUs: string;
   whatBuilding: string;
-  tenantData: { name: string; slug: string };
+  tenantData: { name: string };
 }
 
 // Step configuration interface

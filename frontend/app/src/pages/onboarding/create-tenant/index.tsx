@@ -17,7 +17,7 @@ export default function CreateTenant() {
     slug: '',
     hearAboutUs: '',
     whatBuilding: '',
-    tenantData: { name: '', slug: '' },
+    tenantData: { name: '' },
   });
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const { handleApiError } = useApiError({
@@ -95,7 +95,7 @@ export default function CreateTenant() {
   const validateCurrentStep = (): boolean => {
     // For the tenant create form (step 2), we need to validate the form
     if (currentStep === 2) {
-      const { name, slug } = formData.tenantData;
+      const { name } = formData.tenantData;
 
       // Clear previous errors
       setFieldErrors({});
@@ -105,14 +105,6 @@ export default function CreateTenant() {
         setFieldErrors((prev) => ({
           ...prev,
           name: 'Name must be between 4 and 32 characters',
-        }));
-        return false;
-      }
-
-      if (!slug || slug.length < 4 || slug.length > 32) {
-        setFieldErrors((prev) => ({
-          ...prev,
-          slug: 'Slug must be between 4 and 32 characters',
         }));
         return false;
       }
@@ -129,7 +121,22 @@ export default function CreateTenant() {
     }
   };
 
-  const handleTenantCreate = (tenantData: { name: string; slug: string }) => {
+  const generateSlug = (name: string): string => {
+    return (
+      name
+        .toLowerCase()
+        .replace(/[^a-z0-9-]/g, '-')
+        .replace(/-+/g, '-')
+        .replace(/^-|-$/g, '') +
+      '-' +
+      Math.random().toString(36).substr(2, 5)
+    );
+  };
+
+  const handleTenantCreate = (tenantData: { name: string }) => {
+    // Generate slug from name
+    const slug = generateSlug(tenantData.name);
+
     // Prepare the onboarding data to send with the tenant creation request
     const onboardingData = {
       hearAboutUs: formData.hearAboutUs,
@@ -137,7 +144,8 @@ export default function CreateTenant() {
     };
 
     createMutation.mutate({
-      ...tenantData,
+      name: tenantData.name,
+      slug,
       onboardingData,
     });
   };
@@ -145,13 +153,12 @@ export default function CreateTenant() {
   const updateFormData = (key: keyof OnboardingFormData, value: any) => {
     setFormData({ ...formData, [key]: value });
 
-    // Sync tenantData with name/slug for backward compatibility
+    // Sync tenantData with name for backward compatibility
     if (key === 'tenantData') {
       setFormData({
         ...formData,
         [key]: value,
         name: value.name,
-        slug: value.slug,
       });
     }
   };
