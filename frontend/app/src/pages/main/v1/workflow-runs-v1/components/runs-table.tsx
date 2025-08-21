@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
 import { DataTable } from '@/components/v1/molecules/data-table/data-table.tsx';
 import { columns } from './v1/task-runs-columns';
 import { V1WorkflowRunsMetricsView } from './task-runs-metrics';
@@ -16,11 +15,8 @@ import {
   DataPoint,
   ZoomableChart,
 } from '@/components/v1/molecules/charts/zoomable';
-import { Sheet, SheetContent } from '@/components/v1/ui/sheet';
-import {
-  TabOption,
-  TaskRunDetail,
-} from '../$run/v2components/step-run-detail/step-run-detail';
+import { TabOption } from '../$run/v2components/step-run-detail/step-run-detail';
+import { useSidePanel } from '@/hooks/use-side-panel';
 import { IntroDocsEmptyState } from '@/pages/onboarding/intro-docs-empty-state';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { TriggerWorkflowForm } from '../../workflows/$workflow/components/trigger-workflow-form';
@@ -98,7 +94,7 @@ const GetWorkflowChart = () => {
 export function RunsTable({ headerClassName }: RunsTableProps) {
   const { tenantId } = useCurrentTenantId();
   const { toast } = useToast();
-  const [, setSearchParams] = useSearchParams();
+  const sidePanel = useSidePanel();
 
   const {
     state,
@@ -138,14 +134,16 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
 
   const handleTaskRunIdClick = useCallback(
     (taskRunId: string) => {
-      updateUIState({
-        taskRunDetailSheet: {
+      sidePanel.open({
+        type: 'task-run-details',
+        content: {
           taskRunId,
-          isOpen: true,
+          defaultOpenTab: TabOption.Output,
+          showViewTaskRunButton: true,
         },
       });
     },
-    [updateUIState],
+    [sidePanel],
   );
 
   const handleAdditionalMetadataOpenChange = useCallback(
@@ -224,6 +222,7 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
     return () => clearInterval(interval);
   }, [state.isCustomTimeRange, state.timeWindow, updateFilters]);
 
+
   const hasLoaded = !isRunsLoading && !isMetricsLoading;
   const isFetching = !hasLoaded && (isRunsFetching || isMetricsFetching);
 
@@ -277,41 +276,6 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
         </div>
       )}
 
-      {state.taskRunDetailSheet.isOpen && (
-        <Sheet
-          open={state.taskRunDetailSheet.isOpen}
-          onOpenChange={(isOpen) => {
-            if (!isOpen && state.taskRunDetailSheet.taskRunId) {
-              // Clear the child runs table state when sheet closes
-              const childTableKey = `table_child-runs-${state.taskRunDetailSheet.taskRunId}`;
-              setSearchParams(
-                (prev) => {
-                  const newParams = new URLSearchParams(prev);
-                  newParams.delete(childTableKey);
-                  return newParams;
-                },
-                { replace: true },
-              );
-            }
-            updateUIState({
-              taskRunDetailSheet: isOpen
-                ? {
-                    isOpen: true,
-                    taskRunId: state.taskRunDetailSheet.taskRunId!,
-                  }
-                : { isOpen: false },
-            });
-          }}
-        >
-          <SheetContent className="w-fit min-w-[56rem] max-w-4xl sm:max-w-2xl z-[60] h-full overflow-auto">
-            <TaskRunDetail
-              taskRunId={state.taskRunDetailSheet.taskRunId!}
-              defaultOpenTab={TabOption.Output}
-              showViewTaskRunButton
-            />
-          </SheetContent>
-        </Sheet>
-      )}
 
       <div className="flex-1 min-h-0">
         <DataTable
