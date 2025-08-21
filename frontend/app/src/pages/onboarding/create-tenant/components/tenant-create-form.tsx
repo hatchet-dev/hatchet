@@ -80,65 +80,61 @@ export function TenantCreateForm({
 
   return (
     <div className={cn('grid gap-6', className)}>
-        <div className="grid gap-4">
-          <div className="grid gap-2">
-            <Label htmlFor="name">Name</Label>
-            <div className="text-sm text-gray-700 dark:text-gray-300">
-              A display name for your tenant.
-            </div>
-            <Input
-              {...register('name')}
-              id="name"
-              placeholder="My Awesome Tenant"
-              type="name"
-              autoCapitalize="none"
-              autoCorrect="off"
-              disabled={isLoading}
-              spellCheck={false}
-              onChange={(e) => {
-                setValue('name', e.target.value);
-                onChange({
-                  name: e.target.value,
-                  slug: e.target.value ? value?.slug || '' : '',
-                });
+      <div className="grid gap-4">
+        <div className="grid gap-2">
+          <Label htmlFor="name">Name</Label>
+          <div className="text-sm text-gray-700 dark:text-gray-300">
+            A display name for your tenant.
+          </div>
+          <Input
+            {...register('name')}
+            id="name"
+            placeholder="My Awesome Tenant"
+            type="name"
+            autoCapitalize="none"
+            autoCorrect="off"
+            disabled={isLoading}
+            spellCheck={false}
+            onChange={(e) => {
+              setValue('name', e.target.value);
+              onChange({
+                name: e.target.value,
+                slug: e.target.value ? value?.slug || '' : '',
+              });
 
-                // if value is unset, reset the slug
-                if (!e.target.value) {
-                  setValue('slug', '');
-                }
-              }}
-            />
-            {nameError && (
-              <div className="text-sm text-red-500">{nameError}</div>
-            )}
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="name">Slug</Label>
-            <div className="text-sm text-gray-700 dark:text-gray-300">
-              A URI-friendly identifier for your tenant.
-            </div>
-            <Input
-              {...register('slug')}
-              id="slug"
-              placeholder="my-awesome-tenant-123456"
-              type="name"
-              autoCapitalize="none"
-              autoCorrect="off"
-              disabled={isLoading}
-              spellCheck={false}
-              onChange={(e) => {
-                setValue('slug', e.target.value);
-                onChange({
-                  name: value?.name || '',
-                  slug: e.target.value,
-                });
-              }}
-            />
-            {slugError && (
-              <div className="text-sm text-red-500">{slugError}</div>
-            )}
-          </div>
+              // if value is unset, reset the slug
+              if (!e.target.value) {
+                setValue('slug', '');
+              }
+            }}
+          />
+          {nameError && <div className="text-sm text-red-500">{nameError}</div>}
         </div>
+        <div className="grid gap-2">
+          <Label htmlFor="name">Slug</Label>
+          <div className="text-sm text-gray-700 dark:text-gray-300">
+            A URI-friendly identifier for your tenant.
+          </div>
+          <Input
+            {...register('slug')}
+            id="slug"
+            placeholder="my-awesome-tenant-123456"
+            type="name"
+            autoCapitalize="none"
+            autoCorrect="off"
+            disabled={isLoading}
+            spellCheck={false}
+            onChange={(e) => {
+              setValue('slug', e.target.value);
+              onChange({
+                name: value?.name || '',
+                slug: e.target.value,
+              });
+            }}
+          />
+          {slugError && <div className="text-sm text-red-500">{slugError}</div>}
+        </div>
+      </div>
     </div>
   );
 }

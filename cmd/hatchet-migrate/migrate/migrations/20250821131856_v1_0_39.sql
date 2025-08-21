@@ -7,4 +7,3 @@ ALTER TABLE "Tenant" ADD COLUMN "onboardingData" JSONB;
 -- +goose StatementBegin
 ALTER TABLE "Tenant" DROP COLUMN "onboardingData";
 -- +goose StatementEnd
-

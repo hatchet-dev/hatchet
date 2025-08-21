@@ -64,7 +64,7 @@ export default function CreateTenant() {
   const steps: OnboardingStepConfig[] = [
     {
       title: 'What are you building?',
-      subtitle: 'Help us personalize your experience',
+      subtitle: 'Help us personalize your onboarding experience',
       component: WhatBuildingForm,
       canSkip: true,
       key: 'whatBuilding',
