@@ -222,7 +222,6 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
     return () => clearInterval(interval);
   }, [state.isCustomTimeRange, state.timeWindow, updateFilters]);
 
-
   const hasLoaded = !isRunsLoading && !isMetricsLoading;
   const isFetching = !hasLoaded && (isRunsFetching || isMetricsFetching);
 
@@ -275,7 +274,6 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
           )}
         </div>
       )}
-
 
       <div className="flex-1 min-h-0">
         <DataTable
