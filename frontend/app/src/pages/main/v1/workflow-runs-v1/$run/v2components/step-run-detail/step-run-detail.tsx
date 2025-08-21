@@ -96,16 +96,19 @@ export const TaskRunDetail = ({
   const { toast } = useToast();
   const { open } = useSidePanel();
 
-  const handleTaskRunExpand = useCallback((taskRunId: string) => {
-    open({
-      type: 'task-run-details',
-      content: {
-        taskRunId,
-        defaultOpenTab: TabOption.Output,
-        showViewTaskRunButton: true,
-      },
-    });
-  }, [open]);
+  const handleTaskRunExpand = useCallback(
+    (taskRunId: string) => {
+      open({
+        type: 'task-run-details',
+        content: {
+          taskRunId,
+          defaultOpenTab: TabOption.Output,
+          showViewTaskRunButton: true,
+        },
+      });
+    },
+    [open],
+  );
   const taskRunQuery = useQuery({
     ...queries.v1Tasks.get(taskRunId),
     refetchInterval: (query) => {

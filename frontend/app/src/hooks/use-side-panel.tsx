@@ -35,6 +35,10 @@ type SidePanelData = {
   isOpen: boolean;
   open: (props: UseSidePanelProps) => void;
   close: () => void;
+  canGoBack: boolean;
+  canGoForward: boolean;
+  goBack: () => void;
+  goForward: () => void;
 };
 
 type UseSidePanelProps =
@@ -53,12 +57,19 @@ type UseSidePanelProps =
 
 export function useSidePanelData(): SidePanelData {
   const [isOpen, setIsOpen] = useState(false);
-  const [props, setProps] = useState<UseSidePanelProps | null>(null);
+  const [history, setHistory] = useState<UseSidePanelProps[]>([]);
+  const [currentIndex, setCurrentIndex] = useState(-1);
   const location = useLocation();
+
+  const props =
+    currentIndex >= 0 && currentIndex < history.length
+      ? history[currentIndex]
+      : null;
 
   useEffect(() => {
     setIsOpen(false);
-    setProps(null);
+    setHistory([]);
+    setCurrentIndex(-1);
   }, [location.pathname]);
 
   const content = useMemo((): SidePanelContent | null => {
@@ -98,22 +109,46 @@ export function useSidePanelData(): SidePanelData {
   }, [props]);
 
   const open = useCallback(
-    (props: UseSidePanelProps) => {
-      setProps(props);
+    (newProps: UseSidePanelProps) => {
+      setHistory((prev) => {
+        const newHistory = prev.slice(0, currentIndex + 1);
+        newHistory.push(newProps);
+        return newHistory;
+      });
+      setCurrentIndex((prev) => prev + 1);
       setIsOpen(true);
     },
-    [setIsOpen],
+    [currentIndex],
   );
 
   const close = useCallback(() => {
     setIsOpen(false);
-  }, [setIsOpen]);
+  }, []);
+
+  const goBack = useCallback(() => {
+    if (currentIndex > 0) {
+      setCurrentIndex((prev) => prev - 1);
+    }
+  }, [currentIndex]);
+
+  const goForward = useCallback(() => {
+    if (currentIndex < history.length - 1) {
+      setCurrentIndex((prev) => prev + 1);
+    }
+  }, [currentIndex, history.length]);
+
+  const canGoBack = currentIndex > 0;
+  const canGoForward = currentIndex < history.length - 1;
 
   return {
     isOpen,
     content,
     open,
     close,
+    canGoBack,
+    canGoForward,
+    goBack,
+    goForward,
   };
 }
 

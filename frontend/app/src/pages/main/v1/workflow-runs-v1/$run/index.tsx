@@ -180,16 +180,19 @@ function ExpandedTaskRun({ id }: { id: string }) {
 function ExpandedWorkflowRun({ id }: { id: string }) {
   const { open } = useSidePanel();
 
-  const handleTaskRunExpand = useCallback((taskRunId: string) => {
-    open({
-      type: 'task-run-details',
-      content: {
-        taskRunId,
-        defaultOpenTab: TabOption.Output,
-        showViewTaskRunButton: true,
-      },
-    });
-  }, [open]);
+  const handleTaskRunExpand = useCallback(
+    (taskRunId: string) => {
+      open({
+        type: 'task-run-details',
+        content: {
+          taskRunId,
+          defaultOpenTab: TabOption.Output,
+          showViewTaskRunButton: true,
+        },
+      });
+    },
+    [open],
+  );
 
   const { workflowRun, shape, isLoading, isError } = useWorkflowDetails();
 
