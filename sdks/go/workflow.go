@@ -364,13 +364,15 @@ func (w *Workflow) NewTask(name string, fn any, options ...TaskOption) *Task {
 	fnType := fnValue.Type()
 
 	if fnType.Kind() != reflect.Func {
-		panic("task input must be a function")
+		panic("fn must be a function")
 	}
+
 	if fnType.NumIn() != 2 {
-		panic("task function must have exactly 2 parameters: (ctx hatchet.Context, input T)")
+		panic("fn must have exactly 2 parameters: (ctx hatchet.Context, input T)")
 	}
+
 	if fnType.NumOut() != 2 {
-		panic("task function must return exactly 2 values: (output T, error)")
+		panic("fn must return exactly 2 values: (output T, err error)")
 	}
 
 	contextType := reflect.TypeOf((*Context)(nil)).Elem()
