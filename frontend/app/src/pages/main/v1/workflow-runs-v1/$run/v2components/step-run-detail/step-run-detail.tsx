@@ -10,7 +10,7 @@ import {
   TabsList,
   TabsTrigger,
 } from '@/components/v1/ui/tabs';
-import { Sheet, SheetContent } from '@/components/v1/ui/sheet';
+import { useSidePanel } from '@/hooks/use-side-panel';
 import { StepRunEvents } from '../step-run-events-for-workflow-run';
 import { Link } from 'react-router-dom';
 import { RunsTable } from '../../../components/runs-table';
@@ -29,6 +29,7 @@ import { CopyWorkflowConfigButton } from '@/components/v1/shared/copy-workflow-c
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { Waterfall } from '../waterfall';
 import { useState, useCallback } from 'react';
+import { useToast } from '@/components/v1/hooks/use-toast';
 import { Toaster } from '@/components/v1/ui/toaster';
 
 export enum TabOption {
@@ -94,11 +95,22 @@ export const TaskRunDetail = ({
 }: TaskRunDetailProps) => {
   const [selectedTaskRunId, setSelectedTaskRunId] = useState<string>();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const { toast } = useToast();
+  const { open } = useSidePanel();
 
-  const handleTaskRunExpand = useCallback((taskRunId: string) => {
-    setSelectedTaskRunId(taskRunId);
-    setIsSidebarOpen(true);
-  }, []);
+  const handleTaskRunExpand = useCallback(
+    (taskRunId: string) => {
+      open({
+        type: 'task-run-details',
+        content: {
+          taskRunId,
+          defaultOpenTab: TabOption.Output,
+          showViewTaskRunButton: true,
+        },
+      });
+    },
+    [open],
+  );
   const taskRunQuery = useQuery({
     ...queries.v1Tasks.get(taskRunId),
     refetchInterval: (query) => {
@@ -246,7 +258,7 @@ export const TaskRunDetail = ({
           <TabsContent value="waterfall" className="flex-1 min-h-0">
             <Waterfall
               workflowRunId={taskRunId}
-              selectedTaskId={selectedTaskRunId}
+              selectedTaskId={undefined}
               handleTaskSelect={handleTaskRunExpand}
             />
           </TabsContent>
@@ -264,20 +276,6 @@ export const TaskRunDetail = ({
           fallbackTaskDisplayName={taskRun.displayName}
         />
       </div>
-      <Sheet
-        open={isSidebarOpen}
-        onOpenChange={(open) => setIsSidebarOpen(open)}
-      >
-        <SheetContent className="w-fit min-w-[56rem] max-w-4xl sm:max-w-2xl z-[60] h-full overflow-auto">
-          {selectedTaskRunId && (
-            <TaskRunDetail
-              taskRunId={selectedTaskRunId}
-              defaultOpenTab={TabOption.Output}
-              showViewTaskRunButton
-            />
-          )}
-        </SheetContent>
-      </Sheet>
     </div>
   );
 };
