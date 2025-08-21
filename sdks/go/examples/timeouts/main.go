@@ -45,7 +45,7 @@ func main() {
 				Completed: true,
 			}, nil
 		},
-		hatchet.WithTimeout(3*time.Second), // 3 second timeout
+		hatchet.WithExecutionTimeout(3*time.Second), // 3 second timeout
 	)
 
 	// Create workflow with timeout refresh example
@@ -80,7 +80,7 @@ func main() {
 				Completed: true,
 			}, nil
 		},
-		hatchet.WithTimeout(3*time.Second), // Initial 3 second timeout
+		hatchet.WithExecutionTimeout(3*time.Second), // Initial 3 second timeout
 	)
 
 	// Create workflow with context cancellation handling
@@ -115,7 +115,7 @@ func main() {
 				Completed: true,
 			}, nil
 		},
-		hatchet.WithTimeout(5*time.Second), // 5 second timeout
+		hatchet.WithExecutionTimeout(5*time.Second), // 5 second timeout
 	)
 
 	// Create a worker with all workflows
