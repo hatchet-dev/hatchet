@@ -934,6 +934,40 @@ func (q *Queries) GetStepExpressions(ctx context.Context, db DBTX, stepid pgtype
 	return items, nil
 }
 
+const getStepReadableIdsByIds = `-- name: GetStepReadableIdsByIds :many
+SELECT
+    id, "readableId"
+FROM
+    "Step"
+WHERE
+    "id" = ANY($1::uuid[])
+`
+
+type GetStepReadableIdsByIdsRow struct {
+	ID         pgtype.UUID `json:"id"`
+	ReadableId pgtype.Text `json:"readableId"`
+}
+
+func (q *Queries) GetStepReadableIdsByIds(ctx context.Context, db DBTX, ids []pgtype.UUID) ([]*GetStepReadableIdsByIdsRow, error) {
+	rows, err := db.Query(ctx, getStepReadableIdsByIds, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*GetStepReadableIdsByIdsRow
+	for rows.Next() {
+		var i GetStepReadableIdsByIdsRow
+		if err := rows.Scan(&i.ID, &i.ReadableId); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getStepRun = `-- name: GetStepRun :one
 SELECT
     "StepRun".id, "StepRun"."createdAt", "StepRun"."updatedAt", "StepRun"."deletedAt", "StepRun"."tenantId", "StepRun"."jobRunId", "StepRun"."stepId", "StepRun"."order", "StepRun"."workerId", "StepRun"."tickerId", "StepRun".status, "StepRun".input, "StepRun".output, "StepRun"."requeueAfter", "StepRun"."scheduleTimeoutAt", "StepRun".error, "StepRun"."startedAt", "StepRun"."finishedAt", "StepRun"."timeoutAt", "StepRun"."cancelledAt", "StepRun"."cancelledReason", "StepRun"."cancelledError", "StepRun"."inputSchema", "StepRun"."callerFiles", "StepRun"."gitRepoBranch", "StepRun"."retryCount", "StepRun"."semaphoreReleased", "StepRun".queue, "StepRun".priority, "StepRun"."internalRetryCount"

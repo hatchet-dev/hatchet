@@ -6,6 +6,7 @@ import (
 
 	"github.com/rs/zerolog"
 
+	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
@@ -14,7 +15,7 @@ import (
 type sharedConfig struct {
 	repo         v1.SchedulerRepository
 	workflowRepo v1.WorkflowRepository
-	taskRepo     v1.TaskRepository
+	stepRepo     repository.StepRepository
 
 	l *zerolog.Logger
 
@@ -37,7 +38,7 @@ type SchedulingPool struct {
 	concurrencyResultsCh chan *ConcurrencyResults
 }
 
-func NewSchedulingPool(repo v1.SchedulerRepository, workflowRepo v1.WorkflowRepository, taskRepo v1.TaskRepository, l *zerolog.Logger, singleQueueLimit int, schedulerConcurrencyRateLimit int) (*SchedulingPool, func() error, error) {
+func NewSchedulingPool(repo v1.SchedulerRepository, workflowRepo v1.WorkflowRepository, stepRepo repository.StepRepository, l *zerolog.Logger, singleQueueLimit int, schedulerConcurrencyRateLimit int) (*SchedulingPool, func() error, error) {
 	resultsCh := make(chan *QueueResults, 1000)
 	concurrencyResultsCh := make(chan *ConcurrencyResults, 1000)
 
@@ -46,7 +47,7 @@ func NewSchedulingPool(repo v1.SchedulerRepository, workflowRepo v1.WorkflowRepo
 		cf: &sharedConfig{
 			repo:                          repo,
 			workflowRepo:                  workflowRepo,
-			taskRepo:                      taskRepo,
+			stepRepo:                      stepRepo,
 			l:                             l,
 			singleQueueLimit:              singleQueueLimit,
 			schedulerConcurrencyRateLimit: schedulerConcurrencyRateLimit,

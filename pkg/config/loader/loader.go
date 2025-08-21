@@ -586,7 +586,7 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 	schedulingPoolV1, cleanupSchedulingPoolV1, err := v1.NewSchedulingPool(
 		dc.V1.Scheduler(),
 		dc.V1.Workflows(),
-		dc.V1.Tasks(),
+		dc.EngineRepository.Step(),
 		&queueLogger,
 		cf.Runtime.SingleQueueLimit,
 		cf.Runtime.SchedulerConcurrencyRateLimit,

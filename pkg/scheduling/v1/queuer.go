@@ -6,11 +6,13 @@ import (
 	"sync"
 	"time"
 
+	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
+	"github.com/hatchet-dev/hatchet/pkg/repository"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 )
@@ -18,7 +20,7 @@ import (
 type Queuer struct {
 	repo         v1.QueueRepository
 	workflowRepo v1.WorkflowRepository
-	taskRepo     v1.TaskRepository
+	stepRepo     repository.StepRepository
 
 	tenantId  pgtype.UUID
 	queueName string
@@ -47,8 +49,14 @@ type Queuer struct {
 	unassigned   map[int64]*sqlcv1.V1QueueItem
 	unassignedMu mutex
 
-	unassignedRateLimitedMu mutex
-	unassignedRateLimited   map[int64]struct{}
+	// used to keep a track of tasks that were rate limited and eventually scheduled timed out
+	unassignedRateLimited sync.Map
+
+	// used to cache the workflow names by ID for prometheus metrics
+	workflowNameCache *lru.Cache[pgtype.UUID, string]
+
+	// used to cache the step readable IDs by ID for prometheus metrics
+	stepReadableIdCache *lru.Cache[pgtype.UUID, string]
 
 	hasRateLimits bool
 }
@@ -60,28 +68,43 @@ func newQueuer(conf *sharedConfig, tenantId pgtype.UUID, queueName string, s *Sc
 		defaultLimit = conf.singleQueueLimit
 	}
 
+	cacheSize := 1000
+	if conf.singleQueueLimit > 1000 {
+		cacheSize = conf.singleQueueLimit
+	}
+
 	queueRepo := conf.repo.QueueFactory().NewQueue(tenantId, queueName)
 
 	notifyQueueCh := make(chan map[string]string, 1)
 
+	workflowNameCache, err := lru.New[pgtype.UUID, string](cacheSize)
+	if err != nil {
+		conf.l.Fatal().Err(err).Msg("failed to create workflow name cache")
+	}
+
+	stepReadableIdCache, err := lru.New[pgtype.UUID, string](cacheSize)
+	if err != nil {
+		conf.l.Fatal().Err(err).Msg("failed to create step readable ID cache")
+	}
+
 	q := &Queuer{
-		repo:                    queueRepo,
-		workflowRepo:            conf.workflowRepo,
-		taskRepo:                conf.taskRepo,
-		tenantId:                tenantId,
-		queueName:               queueName,
-		l:                       conf.l,
-		s:                       s,
-		limit:                   defaultLimit,
-		resultsCh:               resultsCh,
-		notifyQueueCh:           notifyQueueCh,
-		queueMu:                 newMu(conf.l),
-		unackedMu:               newRWMu(conf.l),
-		unacked:                 make(map[int64]struct{}),
-		unassigned:              make(map[int64]*sqlcv1.V1QueueItem),
-		unassignedMu:            newMu(conf.l),
-		unassignedRateLimitedMu: newMu(conf.l),
-		unassignedRateLimited:   make(map[int64]struct{}),
+		repo:                queueRepo,
+		workflowRepo:        conf.workflowRepo,
+		stepRepo:            conf.stepRepo,
+		tenantId:            tenantId,
+		queueName:           queueName,
+		l:                   conf.l,
+		s:                   s,
+		limit:               defaultLimit,
+		resultsCh:           resultsCh,
+		notifyQueueCh:       notifyQueueCh,
+		queueMu:             newMu(conf.l),
+		unackedMu:           newRWMu(conf.l),
+		unacked:             make(map[int64]struct{}),
+		unassigned:          make(map[int64]*sqlcv1.V1QueueItem),
+		unassignedMu:        newMu(conf.l),
+		workflowNameCache:   workflowNameCache,
+		stepReadableIdCache: stepReadableIdCache,
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -270,38 +293,61 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 					}
 				}
 
+				var workflowIdsMissingFromCache []pgtype.UUID
+				var stepIdsMissingFromCache []pgtype.UUID
+
+				for _, qi := range ar.schedulingTimedOut {
+					if _, ok := q.workflowNameCache.Get(qi.WorkflowID); !ok {
+						workflowIdsMissingFromCache = append(workflowIdsMissingFromCache, qi.WorkflowID)
+					}
+
+					if _, ok := q.stepReadableIdCache.Get(qi.StepID); !ok {
+						stepIdsMissingFromCache = append(stepIdsMissingFromCache, qi.StepID)
+					}
+				}
+
+				if len(workflowIdsMissingFromCache) > 0 {
+					workflowNames, err := q.workflowRepo.ListWorkflowNamesByIds(ctx, q.tenantId.String(), workflowIdsMissingFromCache)
+					if err != nil {
+						q.l.Error().Err(err).Msg("error getting workflow names for prometheus metric: TenantTaskSchedulingTimedOut")
+						return
+					}
+
+					for id, name := range workflowNames {
+						q.workflowNameCache.Add(id, name)
+					}
+				}
+
+				if len(stepIdsMissingFromCache) > 0 {
+					stepReadableIds, err := q.stepRepo.ListReadableIds(ctx, stepIdsMissingFromCache)
+					if err != nil {
+						q.l.Error().Err(err).Msg("error getting step readable ids for prometheus metric: TenantTaskSchedulingTimedOut")
+						return
+					}
+
+					for id, readableId := range stepReadableIds {
+						q.stepReadableIdCache.Add(id, readableId)
+					}
+				}
+
 				for _, qi := range ar.schedulingTimedOut {
 					prometheus.SchedulingTimedOut.Inc()
 					prometheus.TenantSchedulingTimedOut.WithLabelValues(q.tenantId.String()).Inc()
 
-					go func() {
-						workflow, err := q.workflowRepo.ListWorkflowNamesByIds(ctx, q.tenantId.String(), []pgtype.UUID{qi.WorkflowID})
-						if err != nil {
-							q.l.Error().Err(err).Msg("error getting workflow name for prometheus metric: TenantTaskSchedulingTimedOut")
-							return
-						}
+					workflowName, wOk := q.workflowNameCache.Get(qi.WorkflowID)
+					stepReadableId, sOk := q.stepReadableIdCache.Get(qi.StepID)
 
-						task, err := q.taskRepo.ListTasks(ctx, q.tenantId.String(), []int64{qi.TaskID})
-						if err != nil {
-							q.l.Error().Err(err).Msg("error getting task for prometheus metric: TenantTaskSchedulingTimedOut")
-							return
-						}
+					if !wOk || !sOk {
+						continue
+					}
 
-						if len(workflow) == 0 || len(task) == 0 {
-							return
-						}
+					reason := "no workers available"
+					if _, ok := q.unassignedRateLimited.Load(qi.ID); ok {
+						reason = "rate limited"
+					}
+					q.unassignedRateLimited.Delete(qi.ID)
 
-						reason := "no workers available"
-
-						q.unassignedRateLimitedMu.Lock()
-						if _, ok := q.unassignedRateLimited[qi.ID]; ok {
-							reason = "rate limited"
-						}
-						delete(q.unassignedRateLimited, qi.ID)
-						q.unassignedRateLimitedMu.Unlock()
-
-						prometheus.TenantTaskSchedulingTimedOut.WithLabelValues(q.tenantId.String(), workflow[qi.WorkflowID], task[0].DisplayName, reason).Inc()
-					}()
+					prometheus.TenantTaskSchedulingTimedOut.WithLabelValues(q.tenantId.String(), workflowName, stepReadableId, reason).Inc()
 				}
 
 				for range ar.rateLimited {
@@ -431,19 +477,16 @@ func (q *Queuer) ack(r *assignResults) {
 	q.unassignedMu.Lock()
 	defer q.unassignedMu.Unlock()
 
-	q.unassignedRateLimitedMu.Lock()
-	defer q.unassignedRateLimitedMu.Unlock()
-
 	for _, assignedItem := range r.assigned {
 		delete(q.unacked, assignedItem.QueueItem.ID)
 		delete(q.unassigned, assignedItem.QueueItem.ID)
-		delete(q.unassignedRateLimited, assignedItem.QueueItem.ID)
+		q.unassignedRateLimited.Delete(assignedItem.QueueItem.ID)
 	}
 
 	for _, unassignedItem := range r.unassigned {
 		delete(q.unacked, unassignedItem.ID)
 		q.unassigned[unassignedItem.ID] = unassignedItem
-		delete(q.unassignedRateLimited, unassignedItem.ID)
+		q.unassignedRateLimited.Delete(unassignedItem.ID)
 	}
 
 	for _, schedulingTimedOutItem := range r.schedulingTimedOut {
@@ -454,7 +497,7 @@ func (q *Queuer) ack(r *assignResults) {
 	for _, rateLimitedItem := range r.rateLimited {
 		delete(q.unacked, rateLimitedItem.qi.ID)
 		q.unassigned[rateLimitedItem.qi.ID] = rateLimitedItem.qi
-		q.unassignedRateLimited[rateLimitedItem.qi.ID] = struct{}{}
+		q.unassignedRateLimited.Store(rateLimitedItem.qi.ID, struct{}{})
 	}
 }
 
