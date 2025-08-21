@@ -80,6 +80,9 @@ func (worker *subscribedWorker) sendToWorker(
 		Value: time.Since(lockBegin).Milliseconds(),
 	})
 
+	_, streamSpan := telemetry.NewSpan(ctx, "send-worker-stream")
+	defer streamSpan.End()
+
 	err := worker.stream.Send(action)
 
 	if err != nil {
