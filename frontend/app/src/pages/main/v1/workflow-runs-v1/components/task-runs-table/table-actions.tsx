@@ -57,7 +57,7 @@ export const TableActions = ({
         </DropdownMenuTrigger>
         <DropdownMenuContent
           align="end"
-          className="z-[70] data-[is-modal-open=true]:hidden"
+          className="z-[70]"
         >
           {!hideCancelAndReplayButtons && (
             <>
