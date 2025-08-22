@@ -106,7 +106,12 @@ export function SidePanel() {
             onMouseDown={handleMouseDown}
           />
 
-          <div className={cn("flex-1 p-4 overflow-auto", isResizing && "pointer-events-none")}>
+          <div
+            className={cn(
+              'flex-1 p-4 overflow-auto',
+              isResizing && 'pointer-events-none',
+            )}
+          >
             <div className="flex flex-row w-full justify-between items-center bg-background h-4 px-2">
               <div>
                 <Button
