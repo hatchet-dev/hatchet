@@ -18,6 +18,9 @@ export const ClientConfigSchema = z.object({
   log_level: z.enum(['OFF', 'DEBUG', 'INFO', 'WARN', 'ERROR']).optional(),
   tenant_id: z.string(),
   namespace: z.string().optional(),
+  // Optional gRPC message size limits (bytes)
+  grpc_max_recv_message_length: z.number().optional(),
+  grpc_max_send_message_length: z.number().optional(),
 });
 
 export type LogConstructor = (context: string, logLevel?: LogLevel) => Logger;
