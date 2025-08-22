@@ -18,12 +18,6 @@ export enum V1TaskRunStatus {
   CANCELLED = "CANCELLED",
 }
 
-export enum TenantEnvironment {
-  Local = "local",
-  Development = "development",
-  Production = "production",
-}
-
 export enum PullRequestState {
   Open = "open",
   Closed = "closed",
@@ -1108,24 +1102,6 @@ export interface ListSNSIntegrations {
 export interface CreateSNSIntegrationRequest {
   /** The Amazon Resource Name (ARN) of the SNS topic. */
   topicArn: string;
-}
-
-export interface Tenant {
-  metadata: APIResourceMeta;
-  /** The name of the tenant. */
-  name: string;
-  /** The slug of the tenant. */
-  slug: string;
-  /** Whether the tenant has opted out of analytics. */
-  analyticsOptOut?: boolean;
-  /** Whether to alert tenant members. */
-  alertMemberEmails?: boolean;
-  /** The version of the tenant. */
-  version: TenantVersion;
-  /** The UI of the tenant. */
-  uiVersion?: TenantUIVersion;
-  /** The environment type of the tenant. */
-  environment?: TenantEnvironment;
 }
 
 export interface TenantAlertEmailGroup {
