@@ -65,7 +65,7 @@ func main() {
 			Status:  "success",
 			Message: "Task completed: " + input.Message,
 		}, nil
-	}, hatchet.WithTimeout(5*time.Second))
+	}, hatchet.WithExecutionTimeout(5*time.Second))
 
 	// Add failure handler to the workflow
 	failureWorkflow.OnFailure(func(ctx hatchet.Context, input FailureInput) (FailureHandlerOutput, error) {

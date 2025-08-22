@@ -11,6 +11,8 @@ import (
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 )
 
+const MAX_RATE_LIMIT_UPDATE_FREQUENCY = 990 * time.Millisecond // avoid boundary conditions on 1 second polls
+
 type rateLimit struct {
 	key          string
 	val          int
@@ -294,10 +296,18 @@ func (r *rateLimiter) flushToDatabase(ctx context.Context) error {
 		return err
 	}
 
-	// update the next refill time
-	r.nextRefillAtMu.Lock()
-	r.nextRefillAt = nextRefillAt
-	r.nextRefillAtMu.Unlock()
+	// don't update more than one time per second
+	if nextRefillAt != nil {
+		if time.Until(*nextRefillAt) < MAX_RATE_LIMIT_UPDATE_FREQUENCY {
+			minRefillAt := time.Now().Add(MAX_RATE_LIMIT_UPDATE_FREQUENCY)
+			nextRefillAt = &minRefillAt
+		}
+
+		// update the next refill time
+		r.nextRefillAtMu.Lock()
+		r.nextRefillAt = nextRefillAt
+		r.nextRefillAtMu.Unlock()
+	}
 
 	r.dbRateLimits = make(rateLimitSet)
 

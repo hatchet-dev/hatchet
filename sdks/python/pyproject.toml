@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "hatchet-sdk"
-version = "1.17.1"
+version = "1.17.2"
 description = ""
 authors = ["Alexander Belanger <alexander@hatchet.run>"]
 readme = "README.md"
@@ -21,18 +21,21 @@ protobuf = "^5.29.5"
 pydantic = "^2.6.3"
 python-dateutil = "^2.9.0.post0"
 urllib3 = ">=1.26.20"
-aiostream = "^0.5.2"
 aiohttp = "^3.10.5"
-aiohttp-retry = "^2.8.3"
 tenacity = ">=8.4.1"
+prometheus-client = ">=0.21.1"
+pydantic-settings = "^2.7.1"
+
+## OTel Extra
 opentelemetry-api = { version = "^1.28.0", optional = true }
 opentelemetry-sdk = { version = "^1.28.0", optional = true }
 opentelemetry-instrumentation = { version = ">=0.49b0", optional = true }
 opentelemetry-distro = { version = ">=0.49b0", optional = true }
 opentelemetry-exporter-otlp = { version = "^1.28.0", optional = true }
 opentelemetry-exporter-otlp-proto-http = { version = "^1.28.0", optional = true }
-prometheus-client = ">=0.21.1"
-pydantic-settings = "^2.7.1"
+
+## CEL Extra (for v0 compatibility)
+cel-python = { version = "^0.4.0", optional = true }
 
 [tool.poetry.group.lint.dependencies]
 mypy = "^1.14.0"
@@ -74,6 +77,7 @@ otel = [
     "opentelemetry-exporter-otlp",
     "opentelemetry-exporter-otlp-proto-http",
 ]
+v0 = ["cel-python"]
 
 [build-system]
 requires = ["poetry-core"]
