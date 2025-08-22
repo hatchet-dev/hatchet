@@ -36,7 +36,10 @@ export default function GetStarted() {
       <div className="container mx-auto px-4 lg:px-8 max-w-4xl">
         <div className="flex flex-col justify-center space-y-4">
           <div className="flex flex-row justify-between mt-10">
-            <h1 className="text-3xl font-bold">Setup your local environment</h1>
+            <h1 className="text-3xl font-bold">
+              {/* TODO: we should give the production environment a different treatment */}
+              Setup your {currTenant.environment} environment
+            </h1>
             <a href="/">
               <Button variant="outline">Skip Quickstart</Button>
             </a>

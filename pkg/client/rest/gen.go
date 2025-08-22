@@ -1018,8 +1018,9 @@ type Tenant struct {
 	AlertMemberEmails *bool `json:"alertMemberEmails,omitempty"`
 
 	// AnalyticsOptOut Whether the tenant has opted out of analytics.
-	AnalyticsOptOut *bool           `json:"analyticsOptOut,omitempty"`
-	Metadata        APIResourceMeta `json:"metadata"`
+	AnalyticsOptOut *bool              `json:"analyticsOptOut,omitempty"`
+	Environment     *TenantEnvironment `json:"environment,omitempty"`
+	Metadata        APIResourceMeta    `json:"metadata"`
 
 	// Name The name of the tenant.
 	Name string `json:"name"`

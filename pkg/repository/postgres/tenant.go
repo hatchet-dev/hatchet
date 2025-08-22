@@ -85,6 +85,12 @@ func (r *tenantAPIRepository) CreateTenant(ctx context.Context, opts *repository
 			TenantEnvironment: dbsqlc.TenantEnvironment(*opts.Environment),
 			Valid:             true,
 		}
+	} else {
+		// Default to development environment if none is specified
+		environment = dbsqlc.NullTenantEnvironment{
+			TenantEnvironment: dbsqlc.TenantEnvironmentDevelopment,
+			Valid:             true,
+		}
 	}
 
 	createTenant, err := r.queries.CreateTenant(context.Background(), tx, dbsqlc.CreateTenantParams{

@@ -20,6 +20,9 @@ Tenant:
     uiVersion:
       $ref: "#/TenantUIVersion"
       description: The UI of the tenant.
+    environment:
+      $ref: "#/TenantEnvironment"
+      description: The environment type of the tenant.
   required:
     - metadata
     - name
