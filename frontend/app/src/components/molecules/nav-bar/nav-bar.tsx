@@ -248,10 +248,10 @@ export default function MainNav({ user, setHasBanner }: MainNavProps) {
   }, [setHasBanner, banner]);
 
   return (
-    <div className="fixed top-0 w-screen">
+    <div className="fixed top-0 w-screen z-50">
       {banner && <Banner {...banner} />}
 
-      <div className="h-16 border-b">
+      <div className="h-16 border-b bg-background">
         <div className="flex h-16 items-center pr-4 pl-4">
           <div className="flex flex-row items-center gap-x-8">
             <button
