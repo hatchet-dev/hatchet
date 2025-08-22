@@ -48,3 +48,11 @@ crazyWorkflow.task({
   parents: [step1],
   ...inferredType.taskDef,
 });
+
+const noType = hatchet.task({
+  name: 'no-type',
+});
+
+const noTypeRun = hatchet.task<{ in: string }, { out: string }>({
+  name: 'hello',
+});
