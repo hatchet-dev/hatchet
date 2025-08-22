@@ -17,7 +17,6 @@ import {
 } from '@/components/v1/molecules/charts/zoomable';
 import { TabOption } from '../$run/v2components/step-run-detail/step-run-detail';
 import { useSidePanel } from '@/hooks/use-side-panel';
-import { IntroDocsEmptyState } from '@/pages/onboarding/intro-docs-empty-state';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { TriggerWorkflowForm } from '../../workflows/$workflow/components/trigger-workflow-form';
 import { Toaster } from '@/components/v1/ui/toaster';
