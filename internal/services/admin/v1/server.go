@@ -510,6 +510,16 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.Creat
 		return nil, err
 	}
 
+	a.analytics.Enqueue(
+		"workflow:create",
+		"grpc",
+		&tenantId,
+		nil,
+		map[string]interface{}{
+			"workflow_id": sqlchelpers.UUIDToStr(currWorkflow.WorkflowVersion.WorkflowId),
+		},
+	)
+
 	return &contracts.CreateWorkflowVersionResponse{
 		Id:         sqlchelpers.UUIDToStr(currWorkflow.WorkflowVersion.ID),
 		WorkflowId: sqlchelpers.UUIDToStr(currWorkflow.WorkflowVersion.WorkflowId),
