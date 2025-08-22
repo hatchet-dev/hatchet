@@ -6,7 +6,8 @@ import api, {
 } from '@/lib/api';
 import { useApiError } from '@/lib/hooks';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { TenantCreateForm } from './components/tenant-create-form';
 import { useTenant } from '@/lib/atoms';
 import { Button } from '@/components/ui/button';
@@ -16,7 +17,15 @@ import { StepProgress } from './components/step-progress';
 import { OnboardingStepConfig, OnboardingFormData } from './types';
 
 export default function CreateTenant() {
-  const [currentStep, setCurrentStep] = useState(0);
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+
+  // Get step from URL parameter, default to 0
+  const stepFromUrl = parseInt(searchParams.get('step') || '0', 10);
+  const [currentStep, setCurrentStep] = useState(
+    Math.max(0, Math.min(stepFromUrl, 2)),
+  );
+
   const [formData, setFormData] = useState<OnboardingFormData>({
     name: '',
     slug: '',
@@ -30,6 +39,13 @@ export default function CreateTenant() {
     setFieldErrors: setFieldErrors,
   });
   const { setTenant } = useTenant();
+
+  // Sync currentStep with URL parameter
+  useEffect(() => {
+    const stepFromUrl = parseInt(searchParams.get('step') || '0', 10);
+    const validStep = Math.max(0, Math.min(stepFromUrl, 2));
+    setCurrentStep(validStep);
+  }, [searchParams]);
 
   const listMembershipsQuery = useQuery({
     ...queries.user.listTenantMemberships,
@@ -98,7 +114,8 @@ export default function CreateTenant() {
 
   const handleNext = () => {
     if (currentStep < steps.length - 1) {
-      setCurrentStep(currentStep + 1);
+      const nextStep = currentStep + 1;
+      navigate(`?step=${nextStep}`, { replace: false });
     }
   };
 
@@ -127,7 +144,15 @@ export default function CreateTenant() {
 
   const handlePrevious = () => {
     if (currentStep > 0) {
-      setCurrentStep(currentStep - 1);
+      const previousStep = currentStep - 1;
+      navigate(`?step=${previousStep}`, { replace: false });
+    }
+  };
+
+  const handleStepClick = (stepIndex: number) => {
+    // Allow navigation to any step within valid range
+    if (stepIndex >= 0 && stepIndex < steps.length) {
+      navigate(`?step=${stepIndex}`, { replace: false });
     }
   };
 
@@ -215,13 +240,19 @@ export default function CreateTenant() {
         />
 
         <div className="flex justify-between">
-          <StepProgress steps={steps} currentStep={currentStep} />
+          <StepProgress
+            steps={steps}
+            currentStep={currentStep}
+            onStepClick={handleStepClick}
+          />
 
           {currentStepConfig.canSkip ? (
             <Button
               variant="outline"
               size="sm"
-              onClick={() => setCurrentStep(2)}
+              onClick={() =>
+                navigate(`?step=${currentStep + 1}`, { replace: false })
+              }
             >
               Skip
             </Button>

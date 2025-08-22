@@ -3,9 +3,11 @@ import { Badge } from '@/components/ui/badge';
 export function StepProgress({
   steps,
   currentStep,
+  onStepClick,
 }: {
   steps: any[];
   currentStep: number;
+  onStepClick?: (stepIndex: number) => void;
 }) {
   return (
     <div className="flex flex-col space-y-2 text-center">
@@ -18,7 +20,12 @@ export function StepProgress({
                 index <= currentStep
                   ? 'bg-primary text-primary-foreground'
                   : 'bg-muted text-muted-foreground'
+              } ${
+                onStepClick
+                  ? 'cursor-pointer hover:opacity-80 hover:scale-105 active:scale-95'
+                  : ''
               }`}
+              onClick={() => onStepClick?.(index)}
             >
               {index + 1}
             </Badge>
