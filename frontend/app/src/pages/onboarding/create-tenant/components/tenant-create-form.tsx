@@ -7,10 +7,10 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useEffect, useMemo } from 'react';
-import freeEmailDomains from 'free-email-domains';
 import { OnboardingStepProps } from '../types';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
+import freeEmailDomains from '@/lib/free-email-domains.json';
 
 const schema = z.object({
   name: z.string().min(4).max(32),
