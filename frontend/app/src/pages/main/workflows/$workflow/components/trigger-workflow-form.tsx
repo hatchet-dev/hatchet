@@ -57,7 +57,7 @@ export function TriggerWorkflowForm({
   const [scheduleTime, setScheduleTime] = useState<Date | undefined>(
     new Date(),
   );
-  const [cronExpression, setCronExpression] = useState<string>('* * * * *');
+  const [cronExpression, setCronExpression] = useState<string>('0 * * * *');
   const [cronName, setCronName] = useState<string>('');
 
   const [selectedWorkflowId, setSelectedWorkflowId] = useState<
@@ -66,8 +66,30 @@ export function TriggerWorkflowForm({
 
   const cronPretty = useMemo(() => {
     try {
+      const expr = cronExpression || '';
+
+      // Remove timezone prefix if present (CRON_TZ= or TZ=)
+      let cleanCron = expr;
+      if (expr.startsWith('CRON_TZ=')) {
+        const parts = expr.split(' ', 2);
+        if (parts.length === 2) {
+          cleanCron = parts[1];
+        }
+      } else if (expr.startsWith('TZ=')) {
+        const parts = expr.split(' ', 2);
+        if (parts.length === 2) {
+          cleanCron = parts[1];
+        }
+      }
+
+      // Validate field count first (only 5 or 6 fields supported)
+      const fields = cleanCron.trim().split(/\s+/);
+      if (fields.length !== 5 && fields.length !== 6) {
+        return { error: `Invalid: must have 5 or 6 fields, got ${fields.length}` };
+      }
+
       return {
-        pretty: CronPrettifier.toString(cronExpression || '').toLowerCase(),
+        pretty: CronPrettifier.toString(expr).toLowerCase(),
       };
     } catch (e) {
       console.error(e);
@@ -411,11 +433,14 @@ export function TriggerWorkflowForm({
                   type="text"
                   value={cronExpression}
                   onChange={(e) => setCronExpression(e.target.value)}
-                  placeholder="e.g., 0 0 * * *"
+                  placeholder="e.g., 0 0 * * *, 0 0 0 * * *, or CRON_TZ=America/New_York 0 0 * * *"
                   className="w-full"
                 />
                 <div className="text-sm text-gray-500">
                   {cronPretty?.error || `(runs ${cronPretty?.pretty} UTC)`}
+                </div>
+                <div className="text-xs text-gray-400 mt-1">
+                  Supports 5-field (minute hour day month weekday) or 6-field (second minute hour day month weekday) format. Timezone prefix (CRON_TZ= or TZ=) optional.
                 </div>
               </div>
             </TabsContent>

@@ -3,6 +3,7 @@ package validator
 import (
 	"encoding/json"
 	"regexp"
+	"strings"
 	"time"
 	"unicode"
 
@@ -36,7 +37,37 @@ func newValidator() *validator.Validate {
 	})
 
 	_ = validate.RegisterValidation("cron", func(fl validator.FieldLevel) bool {
-		_, err := cronParser.Parse(fl.Field().String())
+		var err error
+		cronExpr := fl.Field().String()
+
+		// Extract just the cron part for field count validation
+		cronPart := cronExpr
+		if strings.HasPrefix(cronExpr, "CRON_TZ=") {
+			parts := strings.SplitN(cronExpr, " ", 2)
+			if len(parts) == 2 {
+				cronPart = parts[1]
+			}
+		} else if strings.HasPrefix(cronExpr, "TZ=") {
+			parts := strings.SplitN(cronExpr, " ", 2)
+			if len(parts) == 2 {
+				cronPart = parts[1]
+			}
+		}
+
+		// Validate field count first - only allow 5 or 6 fields
+		fields := strings.Fields(cronPart)
+		if len(fields) != 5 && len(fields) != 6 {
+			return false
+		}
+
+		// Parse the cron part only - robfig/cron doesn't support timezone prefixes
+		if len(fields) == 6 {
+			// uses same logic as gocron internally does
+			p := cron.NewParser(cron.SecondOptional | cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow)
+			_, err = p.Parse(cronPart)
+		} else {
+			_, err = cronParser.Parse(cronPart)
+		}
 
 		return err == nil
 	})
@@ -115,4 +146,26 @@ func IsValidUUID(u string) bool {
 func isValidJSON(s string) bool {
 	var js map[string]interface{}
 	return json.Unmarshal([]byte(s), &js) == nil
+}
+
+// CronHasSeconds checks if a cron expression includes seconds (6 fields) or not (5 fields)
+// Also validates that the expression has exactly 5 or 6 fields (rejects 7+ field expressions)
+// Supports timezone prefixes like CRON_TZ= and TZ=
+func CronHasSeconds(cronExpr string) bool {
+	// Extract just the cron part for field count analysis
+	cronPart := cronExpr
+	if strings.HasPrefix(cronExpr, "CRON_TZ=") {
+		parts := strings.SplitN(cronExpr, " ", 2)
+		if len(parts) == 2 {
+			cronPart = parts[1]
+		}
+	} else if strings.HasPrefix(cronExpr, "TZ=") {
+		parts := strings.SplitN(cronExpr, " ", 2)
+		if len(parts) == 2 {
+			cronPart = parts[1]
+		}
+	}
+
+	fields := strings.Fields(cronPart)
+	return len(fields) == 6
 }

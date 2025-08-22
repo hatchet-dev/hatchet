@@ -157,5 +157,16 @@ export const extractCronTz = (cron: string): string => {
 export const formatCron = (cron: string) => {
   const cronExpression = cron.replace(/^CRON_TZ=([^\s]+)\s+/, '');
 
-  return CronPrettifier.toString(cronExpression || '');
+  // Validate field count before formatting (only 5 or 6 fields supported)
+  const fields = cronExpression.trim().split(/\s+/);
+  if (fields.length !== 5 && fields.length !== 6) {
+    return `Invalid cron expression: must have 5 or 6 fields, got ${fields.length}`;
+  }
+
+  try {
+    // cronstrue automatically handles both 5 and 6-field cron expressions
+    return CronPrettifier.toString(cronExpression || '');
+  } catch (error) {
+    return `Invalid cron expression: ${error}`;
+  }
 };

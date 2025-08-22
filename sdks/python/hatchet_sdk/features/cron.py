@@ -38,6 +38,8 @@ class CreateCronTriggerConfig(BaseModel):
     def validate_cron_expression(cls, v: str) -> str:
         """
         Validates the cron expression to ensure it adheres to the expected format.
+        Supports both 5-field (minute hour day month weekday) and 6-field (second minute hour day month weekday) formats.
+        Also supports timezone prefixes like CRON_TZ= and TZ=.
 
         :param v: The cron expression to validate.
 
@@ -48,10 +50,21 @@ class CreateCronTriggerConfig(BaseModel):
         if not v:
             raise ValueError("Cron expression is required")
 
-        parts = v.split()
-        if len(parts) != 5:
+        # Extract cron part for field count validation (timezone is supported but we validate the cron part)
+        cron_part = v
+        if v.startswith("CRON_TZ="):
+            parts = v.split(" ", 1)
+            if len(parts) == 2:
+                cron_part = parts[1]
+        elif v.startswith("TZ="):
+            parts = v.split(" ", 1)
+            if len(parts) == 2:
+                cron_part = parts[1]
+
+        parts = cron_part.split()
+        if len(parts) not in [5, 6]:
             raise ValueError(
-                "Cron expression must have 5 parts: minute hour day month weekday"
+                "Cron expression must have 5 parts (minute hour day month weekday) or 6 parts (second minute hour day month weekday)"
             )
 
         for part in parts:

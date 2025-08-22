@@ -15,6 +15,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
 
 // runPollCronSchedules acquires a list of cron schedules from the database and schedules any which are not
@@ -87,8 +88,9 @@ func (t *TickerImpl) handleScheduleCron(ctx context.Context, cron *dbsqlc.PollCr
 	cronUUID := uuid.New()
 
 	// schedule the cron
+	withSeconds := validator.CronHasSeconds(cron.Cron)
 	_, err := t.userCronScheduler.NewJob(
-		gocron.CronJob(cron.Cron, false),
+		gocron.CronJob(cron.Cron, withSeconds),
 		gocron.NewTask(
 			t.runCronWorkflow(tenantId, workflowVersionId, cron.Cron, cronParentId, &cron.Name.String, cron.Input, additionalMetadata, &cron.Priority),
 		),

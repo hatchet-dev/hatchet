@@ -9,11 +9,44 @@ import { HatchetClient } from '../client';
 import { workflowNameString, WorkflowsClient } from './workflows';
 
 /**
+ * Validates a cron expression to support both 5-field and 6-field formats.
+ * Also supports timezone prefixes like CRON_TZ= and TZ=.
+ * @param expression - The cron expression to validate.
+ * @returns True if valid, false otherwise.
+ */
+function validateCronExpression(expression: string): boolean {
+  if (!expression || typeof expression !== 'string') {
+    return false;
+  }
+
+  // Extract cron part for field count validation (timezone is supported but we validate the cron part)
+  let cronPart = expression;
+  if (expression.startsWith('CRON_TZ=')) {
+    const parts = expression.split(' ', 2);
+    if (parts.length === 2) {
+      cronPart = parts[1];
+    }
+  } else if (expression.startsWith('TZ=')) {
+    const parts = expression.split(' ', 2);
+    if (parts.length === 2) {
+      cronPart = parts[1];
+    }
+  }
+
+  const fields = cronPart.trim().split(/\s+/);
+
+  // Only allow 5 or 6 fields (not 7 with year field)
+  return fields.length === 5 || fields.length === 6;
+}
+
+/**
  * Schema for creating a Cron Trigger.
  */
 export const CreateCronTriggerSchema = z.object({
   name: z.string(),
-  expression: z.string(),
+  expression: z.string().refine(validateCronExpression, {
+    message: 'Cron expression must have 5 fields (minute hour day month weekday) or 6 fields (second minute hour day month weekday)',
+  }),
   input: z.record(z.any()).optional(),
   additionalMetadata: z.record(z.string()).optional(),
   priority: z.number().optional(),

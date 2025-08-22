@@ -2,6 +2,7 @@ package features
 
 import (
 	"context"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/robfig/cron/v3"
@@ -62,9 +63,26 @@ func NewCronsClient(
 }
 
 // ValidateCronExpression validates that a string is a valid cron expression.
+// Supports both 5-field (standard) and 6-field (with seconds) cron expressions.
+// Also supports timezone prefixes like CRON_TZ= and TZ=.
 func ValidateCronExpression(expression string) bool {
-	parser := cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow)
-	_, err := parser.Parse(expression)
+	// Extract cron part for validation (strip timezone if present)
+	cronPart := expression
+	if strings.HasPrefix(expression, "CRON_TZ=") {
+		parts := strings.SplitN(expression, " ", 2)
+		if len(parts) == 2 {
+			cronPart = parts[1]
+		}
+	} else if strings.HasPrefix(expression, "TZ=") {
+		parts := strings.SplitN(expression, " ", 2)
+		if len(parts) == 2 {
+			cronPart = parts[1]
+		}
+	}
+
+	// Validate using robfig/cron parser (which doesn't support timezone prefixes)
+	parser := cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow | cron.SecondOptional)
+	_, err := parser.Parse(cronPart)
 
 	return err == nil
 }
