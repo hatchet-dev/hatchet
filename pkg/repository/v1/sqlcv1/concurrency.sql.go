@@ -830,18 +830,31 @@ func (q *Queries) RunGroupRoundRobin(ctx context.Context, db DBTX, arg RunGroupR
 }
 
 const runParentCancelInProgress = `-- name: RunParentCancelInProgress :exec
-WITH eligible_running_slots AS (
+WITH locked_workflow_concurrency_slots AS (
+    SELECT sort_id, tenant_id, workflow_id, workflow_version_id, workflow_run_id, strategy_id, completed_child_strategy_ids, child_strategy_ids, priority, key, is_filled
+    FROM v1_workflow_concurrency_slot
+    WHERE (strategy_id, workflow_version_id, workflow_run_id) IN (
+        SELECT
+            strategy_id,
+            workflow_version_id,
+            workflow_run_id
+        FROM
+            tmp_workflow_concurrency_slot
+    )
+    ORDER BY strategy_id, workflow_version_id, workflow_run_id
+    FOR UPDATE
+), eligible_running_slots AS (
     SELECT wsc.sort_id, wsc.tenant_id, wsc.workflow_id, wsc.workflow_version_id, wsc.workflow_run_id, wsc.strategy_id, wsc.completed_child_strategy_ids, wsc.child_strategy_ids, wsc.priority, wsc.key, wsc.is_filled
     FROM (
         SELECT DISTINCT key
-        FROM tmp_workflow_concurrency_slot
+        FROM locked_workflow_concurrency_slots
         WHERE
             tenant_id = $1::uuid
             AND strategy_id = $2::bigint
     ) distinct_keys
     JOIN LATERAL (
         SELECT sort_id, tenant_id, workflow_id, workflow_version_id, workflow_run_id, strategy_id, completed_child_strategy_ids, child_strategy_ids, priority, key, is_filled
-        FROM tmp_workflow_concurrency_slot wcs_all
+        FROM locked_workflow_concurrency_slots wcs_all
         WHERE
             wcs_all.key = distinct_keys.key
             AND wcs_all.tenant_id = $1::uuid
@@ -865,7 +878,7 @@ WITH eligible_running_slots AS (
         )
     ORDER BY
         strategy_id, workflow_version_id, workflow_run_id
-    FOR UPDATE
+    FOR UPDATE SKIP LOCKED
 ), update_tmp_table AS (
     UPDATE
         tmp_workflow_concurrency_slot wsc

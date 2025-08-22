@@ -737,6 +737,7 @@ BEGIN
             ps.workflow_id,
             ps.workflow_version_id,
             ps.workflow_run_id
+        ORDER BY wc.id, ps.workflow_version_id, ps.workflow_run_id
     )
     INSERT INTO v1_workflow_concurrency_slot (
         sort_id,
@@ -810,11 +811,9 @@ BEGIN
     FROM v1_workflow_concurrency_slot
     WHERE strategy_id = p_strategy_id
       AND workflow_version_id = p_workflow_version_id
-      AND workflow_run_id = p_workflow_run_id;
-
-    -- Acquire an advisory lock for the strategy ID
-    -- There is a small chance of collisions but it's extremely unlikely
-    PERFORM pg_advisory_xact_lock(1000000 * p_strategy_id + v_sort_id);
+      AND workflow_run_id = p_workflow_run_id
+    ORDER BY strategy_id, workflow_version_id, workflow_run_id
+    FOR UPDATE;
 
     WITH final_concurrency_slots_for_dags AS (
         -- If the workflow run id corresponds to a DAG, we get workflow concurrency slots

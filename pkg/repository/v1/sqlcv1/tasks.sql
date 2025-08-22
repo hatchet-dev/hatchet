@@ -164,14 +164,24 @@ WHERE
 -- name: ReleaseTasks :many
 WITH input AS (
     SELECT
-        *
+        UNNEST(@taskIds::BIGINT[]) AS task_id,
+        UNNEST(@taskInsertedAts::TIMESTAMPTZ[]) AS task_inserted_at,
+        UNNEST(@retryCounts::INTEGER[]) AS retry_count
+), concurrency_slots_to_delete AS (
+    SELECT
+        task_id, task_inserted_at, task_retry_count
     FROM
-        (
-            SELECT
-                unnest(@taskIds::bigint[]) AS task_id,
-                unnest(@taskInsertedAts::timestamptz[]) AS task_inserted_at,
-                unnest(@retryCounts::integer[]) AS retry_count
-        ) AS subquery
+        v1_concurrency_slot
+    WHERE
+        (task_id, task_inserted_at, task_retry_count) IN (SELECT task_id, task_inserted_at, retry_count FROM input)
+    ORDER BY
+        task_id, task_inserted_at, task_retry_count, strategy_id
+    FOR UPDATE
+), deleted_slots AS (
+    DELETE FROM
+        v1_concurrency_slot
+    WHERE
+        (task_id, task_inserted_at, task_retry_count) IN (SELECT task_id, task_inserted_at, task_retry_count FROM concurrency_slots_to_delete)
 ), runtimes_to_delete AS (
     SELECT
         task_id,
@@ -225,21 +235,6 @@ WITH input AS (
         v1_queue_item
     WHERE
         (task_id, task_inserted_at, retry_count) IN (SELECT task_id, task_inserted_at, retry_count FROM queue_items_to_delete)
-), concurrency_slots_to_delete AS (
-    SELECT
-        task_id, task_inserted_at, task_retry_count
-    FROM
-        v1_concurrency_slot
-    WHERE
-        (task_id, task_inserted_at, task_retry_count) IN (SELECT task_id, task_inserted_at, retry_count FROM input)
-    ORDER BY
-        task_id, task_inserted_at, task_retry_count
-    FOR UPDATE
-), deleted_slots AS (
-    DELETE FROM
-        v1_concurrency_slot
-    WHERE
-        (task_id, task_inserted_at, task_retry_count) IN (SELECT task_id, task_inserted_at, task_retry_count FROM concurrency_slots_to_delete)
 ), rate_limited_items_to_delete AS (
     SELECT
         task_id, task_inserted_at, retry_count

@@ -289,7 +289,7 @@ WITH slots AS (
                 FROM tmp_workflow_concurrency_slot wcs
             )
         )
-    ORDER BY task_id ASC, task_inserted_at ASC, task_retry_count ASC
+    ORDER BY task_id ASC, task_inserted_at ASC, task_retry_count ASC, strategy_id ASC
     FOR UPDATE
 ), updated_slots AS (
     UPDATE
@@ -542,7 +542,7 @@ WITH slots AS (
             )
         )
     ORDER BY
-        cs.task_id ASC, cs.task_inserted_at ASC, cs.task_retry_count ASC
+        cs.task_id ASC, cs.task_inserted_at ASC, cs.task_retry_count ASC, cs.strategy_id ASC
     FOR UPDATE
 ), updated_slots AS (
     UPDATE
