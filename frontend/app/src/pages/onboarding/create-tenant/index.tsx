@@ -20,8 +20,8 @@ export default function CreateTenant() {
   const [formData, setFormData] = useState<OnboardingFormData>({
     name: '',
     slug: '',
-    hearAboutUs: '',
-    whatBuilding: '',
+    hearAboutUs: [],
+    whatBuilding: [],
     environment: TenantEnvironment.Development,
     tenantData: { name: '', environment: TenantEnvironment.Development },
   });
@@ -43,8 +43,12 @@ export default function CreateTenant() {
       // Track onboarding analytics
       if (typeof window !== 'undefined' && (window as any).posthog) {
         (window as any).posthog.capture('onboarding_completed', {
-          hear_about_us: formData.hearAboutUs,
-          what_building: formData.whatBuilding,
+          hear_about_us: Array.isArray(formData.hearAboutUs)
+            ? formData.hearAboutUs.join(', ')
+            : formData.hearAboutUs,
+          what_building: Array.isArray(formData.whatBuilding)
+            ? formData.whatBuilding.join(', ')
+            : formData.whatBuilding,
           tenant_id: tenant.data.metadata.id,
         });
       }
@@ -148,8 +152,12 @@ export default function CreateTenant() {
 
     // Prepare the onboarding data to send with the tenant creation request
     const onboardingData = {
-      hearAboutUs: formData.hearAboutUs,
-      whatBuilding: formData.whatBuilding,
+      hearAboutUs: Array.isArray(formData.hearAboutUs)
+        ? formData.hearAboutUs.join(', ')
+        : formData.hearAboutUs,
+      whatBuilding: Array.isArray(formData.whatBuilding)
+        ? formData.whatBuilding.join(', ')
+        : formData.whatBuilding,
     };
 
     createMutation.mutate({

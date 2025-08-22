@@ -12,7 +12,8 @@ import {
 } from 'lucide-react';
 import { OnboardingStepProps } from '../types';
 
-interface WhatBuildingFormProps extends OnboardingStepProps<string> {}
+interface WhatBuildingFormProps
+  extends OnboardingStepProps<string | string[]> {}
 
 export function WhatBuildingForm({
   value,
@@ -36,65 +37,103 @@ export function WhatBuildingForm({
     { value: 'other', label: 'Other', icon: HelpCircle },
   ];
 
-  const isOther = value.startsWith('other');
-  const otherValue = isOther ? value.replace('other: ', '') : '';
+  // Convert value to array if it's a string for backward compatibility
+  const selectedValues = Array.isArray(value) ? value : value ? [value] : [];
 
-  const handleCardClick = (selectedValue: string) => {
-    if (selectedValue === 'other') {
-      onChange('other: ');
+  // Check if "other" is selected and extract the custom value
+  const otherSelection = selectedValues.find((v) => v.startsWith('other'));
+  const isOtherSelected = !!otherSelection;
+  const otherValue = otherSelection
+    ? otherSelection.replace('other: ', '')
+    : '';
+
+  const handleOptionToggle = (optionValue: string) => {
+    if (optionValue === 'other') {
+      if (isOtherSelected) {
+        // Remove other option
+        const newValues = selectedValues.filter((v) => !v.startsWith('other'));
+        onChange(newValues);
+      } else {
+        // Add other option with empty value
+        onChange([
+          ...selectedValues.filter((v) => !v.startsWith('other')),
+          'other: ',
+        ]);
+      }
     } else {
-      onChange(selectedValue);
-      onNext?.();
+      // Toggle regular option
+      if (selectedValues.includes(optionValue)) {
+        onChange(selectedValues.filter((v) => v !== optionValue));
+      } else {
+        onChange([
+          ...selectedValues.filter((v) => !v.startsWith('other')),
+          optionValue,
+          ...(isOtherSelected ? [otherSelection] : []),
+        ]);
+      }
     }
   };
 
+  const handleOtherTextChange = (text: string) => {
+    const newValues = selectedValues.filter((v) => !v.startsWith('other'));
+    onChange([...newValues, `other: ${text}`]);
+  };
+
   return (
-    <>
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-4">
+    <div className="space-y-4">
+      <div className="space-y-3">
         {options.map((option) => {
           const Icon = option.icon;
           const isSelected =
-            (isOther && option.value === 'other') ||
-            (!isOther && value === option.value);
+            option.value === 'other'
+              ? isOtherSelected
+              : selectedValues.includes(option.value);
 
           return (
             <Card
               key={option.value}
-              onClick={() => handleCardClick(option.value)}
-              className={`relative w-full before:content-[''] before:block before:pb-[100%] cursor-pointer transition-all hover:shadow-lg ${
+              onClick={() => handleOptionToggle(option.value)}
+              className={`cursor-pointer transition-all hover:shadow-md ${
                 isSelected
                   ? 'border-blue-500 bg-blue-50 dark:bg-blue-950'
                   : 'hover:border-gray-300 dark:hover:border-gray-600'
               }`}
             >
-              <CardContent className="absolute inset-0 p-4 flex flex-col items-center justify-center text-center space-y-2">
-                <Icon
-                  className={`w-8 h-8 ${isSelected ? 'text-blue-600 dark:text-blue-400' : 'text-gray-600 dark:text-gray-400'}`}
-                />
-                <div className="font-medium text-sm">{option.label}</div>
+              <CardContent className="p-4">
+                <div className="flex items-center space-x-3">
+                  <Icon className="w-5 h-5 text-gray-600 dark:text-gray-400 flex-shrink-0" />
+                  <span className="font-medium text-sm">{option.label}</span>
+                </div>
               </CardContent>
             </Card>
           );
         })}
-
-        {isOther && (
-          <div className="col-span-full mt-6 space-y-3">
-            <Label htmlFor="other-description">
-              Please describe what you're building:
-            </Label>
-            <Textarea
-              id="other-description"
-              placeholder="Tell us about your project..."
-              className="mt-2"
-              value={otherValue}
-              onChange={(e) => onChange(`other: ${e.target.value}`)}
-            />
-            <Button onClick={onNext} className="w-full">
-              Continue
-            </Button>
-          </div>
-        )}
       </div>
-    </>
+
+      {isOtherSelected && (
+        <div className="mt-6 space-y-3">
+          <Label htmlFor="other-description">
+            Please describe what you're building:
+          </Label>
+          <Textarea
+            id="other-description"
+            placeholder="Tell us about your project..."
+            className="mt-2"
+            value={otherValue}
+            onChange={(e) => handleOtherTextChange(e.target.value)}
+          />
+        </div>
+      )}
+
+      <div className="mt-6">
+        <Button
+          onClick={onNext}
+          className="w-full"
+          disabled={selectedValues.length === 0}
+        >
+          Continue
+        </Button>
+      </div>
+    </div>
   );
 }
