@@ -22,8 +22,7 @@ func (c *V1CELService) V1CelDebug(ctx echo.Context, request gen.V1CelDebugReques
 		cel.WithInput(request.Body.Input),
 		cel.WithAdditionalMetadata(additionalMetadata),
 		cel.WithPayload(filterPayload),
-	),
-	)
+	))
 
 	var output *bool
 	var errorMessage *string
