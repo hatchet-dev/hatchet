@@ -18,12 +18,6 @@ export function WhatBuildingForm({
   value,
   onChange,
   onNext,
-  onPrevious: _onPrevious,
-  isLoading,
-  fieldErrors: _fieldErrors,
-  formData: _formData,
-  setFormData: _setFormData,
-  className: _className,
 }: WhatBuildingFormProps) {
   const options = [
     { value: 'ai-agents', label: 'AI Agents', icon: Brain },

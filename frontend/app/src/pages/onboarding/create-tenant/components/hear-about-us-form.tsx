@@ -19,12 +19,6 @@ export function HearAboutUsForm({
   value,
   onChange,
   onNext,
-  onPrevious: _onPrevious,
-  isLoading,
-  fieldErrors: _fieldErrors,
-  formData: _formData,
-  setFormData: _setFormData,
-  className: _className,
 }: HearAboutUsFormProps) {
   const options = [
     { value: 'search', label: 'Search Engine', icon: Search },
