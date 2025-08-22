@@ -135,7 +135,7 @@ export default function CreateTenant() {
         .replace(/-+/g, '-')
         .replace(/^-|-$/g, '') +
       '-' +
-      Math.random().toString(36).substr(2, 5)
+      Math.random().toString(36).substring(0, 5)
     );
   };
 
