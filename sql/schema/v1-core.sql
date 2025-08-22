@@ -1086,17 +1086,6 @@ BEGIN
     FROM new_table
     ON CONFLICT (external_id) DO NOTHING;
 
-    -- NOTE: this comes after the insert into v1_dag_to_task and v1_lookup_table, because we case on these tables for cleanup
-    FOR rec IN SELECT UNNEST(concurrency_parent_strategy_ids) AS parent_strategy_id, workflow_version_id, workflow_run_id FROM new_table WHERE initial_state != 'QUEUED' ORDER BY parent_strategy_id, workflow_version_id, workflow_run_id LOOP
-        IF rec.parent_strategy_id IS NOT NULL THEN
-            PERFORM cleanup_workflow_concurrency_slots(
-                rec.parent_strategy_id,
-                rec.workflow_version_id,
-                rec.workflow_run_id
-            );
-        END IF;
-    END LOOP;
-
     RETURN NULL;
 END;
 $$
