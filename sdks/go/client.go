@@ -2,13 +2,16 @@ package hatchet
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"sync"
+
+	"github.com/go-viper/mapstructure/v2"
+	"golang.org/x/sync/errgroup"
 
 	v0Client "github.com/hatchet-dev/hatchet/pkg/client"
 	"github.com/hatchet-dev/hatchet/pkg/worker"
 	"github.com/hatchet-dev/hatchet/sdks/go/features"
-	"golang.org/x/sync/errgroup"
 )
 
 // Client provides the main interface for interacting with Hatchet.
@@ -112,7 +115,7 @@ func (c *Client) NewWorker(name string, options ...WorkerOption) (*Worker, error
 		// Register on failure function if exists
 		if req.OnFailureTask != nil && onFailureFn != nil {
 			actionId := req.OnFailureTask.Action
-			err = nonDurableWorker.RegisterAction(actionId, func(ctx worker.HatchetContext) (interface{}, error) {
+			err = nonDurableWorker.RegisterAction(actionId, func(ctx worker.HatchetContext) (any, error) {
 				return onFailureFn(ctx)
 			})
 			if err != nil {
@@ -221,8 +224,87 @@ type WorkflowRef struct {
 	RunId string
 }
 
+// WorkflowResult wraps workflow execution results and provides type-safe conversion methods.
+type WorkflowResult struct {
+	result any
+}
+
+// Into converts the workflow result into the provided destination using mapstructure.
+// The destination should be a pointer to the desired type.
+//
+// Example usage:
+//
+//	var output MyOutputType
+//	err := result.Into(&output)
+func (wr *WorkflowResult) Into(dest any) error {
+	// Handle different result structures that might come from workflow execution
+	resultData := wr.result
+
+	// Check if this is a raw v0Client.WorkflowResult that we need to extract from
+	if workflowResult, ok := resultData.(*v0Client.WorkflowResult); ok {
+		// For workflows with a single task, extract the first (and likely only) task result
+		// Try to get the workflow results as a map
+		results, err := workflowResult.Results()
+		if err != nil {
+			return fmt.Errorf("failed to get workflow results: %w", err)
+		}
+		resultData = results
+	}
+
+	// If the result is a pointer to interface{}, dereference it
+	if ptr, ok := resultData.(*any); ok && ptr != nil {
+		resultData = *ptr
+	}
+
+	// If the result is a map, it might contain step results - try to extract the main result
+	if resultMap, ok := resultData.(map[string]any); ok {
+		// For workflows with a single task output, try to find the task result
+		// First, check if there's a direct value that matches our destination type
+		if len(resultMap) == 1 {
+			for _, value := range resultMap {
+				resultData = value
+				// If the value is a pointer to interface{}, dereference it
+				if ptr, ok := resultData.(*any); ok && ptr != nil {
+					resultData = *ptr
+				}
+				// If the value is a pointer to string (JSON), unmarshal it
+				if strPtr, ok := resultData.(*string); ok && strPtr != nil {
+					var unmarshaled any
+					if err := json.Unmarshal([]byte(*strPtr), &unmarshaled); err != nil {
+						return fmt.Errorf("failed to unmarshal JSON result: %w", err)
+					}
+					resultData = unmarshaled
+				}
+				break
+			}
+		}
+	}
+
+	config := &mapstructure.DecoderConfig{
+		TagName:          "json",
+		Result:           dest,
+		WeaklyTypedInput: true,
+	}
+
+	decoder, err := mapstructure.NewDecoder(config)
+	if err != nil {
+		return fmt.Errorf("failed to create decoder: %w", err)
+	}
+
+	if err := decoder.Decode(resultData); err != nil {
+		return fmt.Errorf("failed to decode result: %w", err)
+	}
+
+	return nil
+}
+
+// Raw returns the raw workflow result as interface{}.
+func (wr *WorkflowResult) Raw() any {
+	return wr.result
+}
+
 // Run executes a workflow with the provided input and waits for completion.
-func (c *Client) Run(ctx context.Context, workflowName string, input any, opts ...RunOptFunc) (any, error) {
+func (c *Client) Run(ctx context.Context, workflowName string, input any, opts ...RunOptFunc) (*WorkflowResult, error) {
 	v0Workflow, err := c.legacyClient.Admin().RunWorkflow(workflowName, input, opts...)
 	if err != nil {
 		return nil, err
@@ -233,7 +315,12 @@ func (c *Client) Run(ctx context.Context, workflowName string, input any, opts .
 		return nil, err
 	}
 
-	return result.Results()
+	workflowResult, err := result.Results()
+	if err != nil {
+		return nil, err
+	}
+
+	return &WorkflowResult{result: workflowResult}, nil
 }
 
 // RunNoWait executes a workflow with the provided input without waiting for completion.
