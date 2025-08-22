@@ -2,9 +2,11 @@ package hatchet
 
 import (
 	"context"
+	"fmt"
 	"reflect"
-	"strings"
 	"time"
+
+	"github.com/go-viper/mapstructure/v2"
 
 	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	v0Client "github.com/hatchet-dev/hatchet/pkg/client"
@@ -17,7 +19,7 @@ import (
 
 // RunOpts is a type that represents the options for running a workflow.
 type RunOpts struct {
-	AdditionalMetadata *map[string]interface{}
+	AdditionalMetadata *map[string]any
 	Priority           *int32
 	// Sticky             *bool
 	// Key                *string
@@ -25,7 +27,7 @@ type RunOpts struct {
 
 type RunOptFunc = v0Client.RunOptFunc
 
-func WithRunMetadata(metadata interface{}) RunOptFunc {
+func WithRunMetadata(metadata any) RunOptFunc {
 	return v0Client.WithRunMetadata(metadata)
 }
 
@@ -56,72 +58,24 @@ func convertInputToType(input any, expectedType reflect.Type) reflect.Value {
 		return inputValue
 	}
 
-	// Try to convert map[string]any to the expected struct type
-	if inputMap, ok := input.(map[string]any); ok && expectedType.Kind() == reflect.Struct {
-		convertedInput := reflect.New(expectedType).Elem()
-		for i := 0; i < expectedType.NumField(); i++ {
-			field := expectedType.Field(i)
-			jsonTag := field.Tag.Get("json")
-			if jsonTag == "" {
-				jsonTag = field.Name
-			} else {
-				// Handle JSON tag options like "count,omitempty" -> "count"
-				if commaIndex := strings.Index(jsonTag, ","); commaIndex != -1 {
-					jsonTag = jsonTag[:commaIndex]
-				}
-			}
-			if val, exists := inputMap[jsonTag]; exists {
-				fieldValue := convertedInput.Field(i)
-				if fieldValue.CanSet() {
-					// Handle nil values for pointer types
-					if val == nil {
-						if field.Type.Kind() == reflect.Ptr {
-							fieldValue.Set(reflect.Zero(field.Type))
-						}
-						continue
-					}
-
-					valReflect := reflect.ValueOf(val)
-					if valReflect.Type().AssignableTo(field.Type) {
-						fieldValue.Set(valReflect)
-					} else {
-						// Try to convert common type mismatches
-						converted, ok := convertValue(val, field.Type)
-						if ok {
-							fieldValue.Set(converted)
-						}
-					}
-				}
-			}
-		}
-		return convertedInput
+	// Use mapstructure for robust type conversion
+	result := reflect.New(expectedType).Interface()
+	config := &mapstructure.DecoderConfig{
+		TagName:          "json",
+		Result:           result,
+		WeaklyTypedInput: true,
 	}
 
-	return reflect.ValueOf(input)
-}
-
-// convertValue attempts to convert a value to the target type for common type mismatches
-func convertValue(val any, targetType reflect.Type) (reflect.Value, bool) {
-	valReflect := reflect.ValueOf(val)
-
-	// Handle numeric conversions (e.g., float64 -> int, int -> float64)
-	if valReflect.Kind() == reflect.Float64 && targetType.Kind() == reflect.Int {
-		if f64, ok := val.(float64); ok {
-			return reflect.ValueOf(int(f64)), true
-		}
-	}
-	if valReflect.Kind() == reflect.Float64 && targetType.Kind() == reflect.Int32 {
-		if f64, ok := val.(float64); ok {
-			return reflect.ValueOf(int32(f64)), true
-		}
-	}
-	if valReflect.Kind() == reflect.Float64 && targetType.Kind() == reflect.Int64 {
-		if f64, ok := val.(float64); ok {
-			return reflect.ValueOf(int64(f64)), true
-		}
+	decoder, err := mapstructure.NewDecoder(config)
+	if err != nil {
+		return reflect.ValueOf(input)
 	}
 
-	return reflect.Value{}, false
+	if err := decoder.Decode(input); err != nil {
+		return reflect.ValueOf(input)
+	}
+
+	return reflect.ValueOf(result).Elem()
 }
 
 // Workflow defines a Hatchet workflow, which can then declare tasks and be run, scheduled, and so on.
@@ -538,8 +492,13 @@ func (w *Workflow) Dump() (*contracts.CreateWorkflowVersionRequest, []internal.N
 // Workflow execution methods
 
 // Run executes the workflow with the provided input and waits for completion.
-func (w *Workflow) Run(ctx context.Context, input any) (any, error) {
-	return w.declaration.Run(ctx, input)
+func (w *Workflow) Run(ctx context.Context, input any) (*WorkflowResult, error) {
+	result, err := w.declaration.Run(ctx, input)
+	if err != nil {
+		return nil, err
+	}
+
+	return &WorkflowResult{result: result}, nil
 }
 
 // RunNoWait executes the workflow with the provided input without waiting for completion.
@@ -557,6 +516,39 @@ func (w *Workflow) RunNoWait(ctx context.Context, input any) (*WorkflowRef, erro
 type RunAsChildOpts = internal.RunAsChildOpts
 
 // RunAsChild executes the workflow as a child workflow with the provided input.
-func (w *Workflow) RunAsChild(ctx worker.HatchetContext, input any, opts RunAsChildOpts) (any, error) {
-	return w.declaration.RunAsChild(ctx, input, opts)
+func (w *Workflow) RunAsChild(ctx worker.HatchetContext, input any, opts RunAsChildOpts) (*WorkflowResult, error) {
+	// Convert opts to internal format
+	var additionalMetaOpt *map[string]string
+
+	if opts.AdditionalMetadata != nil {
+		additionalMeta := make(map[string]string)
+
+		for key, value := range *opts.AdditionalMetadata {
+			additionalMeta[key] = fmt.Sprintf("%v", value)
+		}
+
+		additionalMetaOpt = &additionalMeta
+	}
+
+	// Spawn the child workflow directly
+	run, err := ctx.SpawnWorkflow(w.declaration.Name(), input, &worker.SpawnWorkflowOpts{
+		Key:                opts.Key,
+		Sticky:             opts.Sticky,
+		Priority:           opts.Priority,
+		AdditionalMetadata: additionalMetaOpt,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	// Get the raw workflow result
+	workflowResult, err := run.Result()
+	if err != nil {
+		return nil, err
+	}
+
+	// Return the raw workflow result wrapped in WorkflowResult
+	// This allows users to extract specific task outputs using .Into()
+	return &WorkflowResult{result: workflowResult}, nil
 }

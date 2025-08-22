@@ -71,7 +71,15 @@ func main() {
 				return ParentOutput{}, fmt.Errorf("failed to spawn child workflow %d: %w", i, err)
 			}
 
-			log.Printf("Child workflow %d completed with result: %d", i+1, childResult)
+			var childOutput ChildOutput
+			err = childResult.Into(&childOutput)
+			if err != nil {
+				return ParentOutput{}, fmt.Errorf("failed to get child workflow result: %w", err)
+			}
+
+			sum += childOutput.Result
+
+			log.Printf("Child workflow %d completed with result: %d", i+1, childOutput.Result)
 		}
 
 		log.Printf("All child workflows completed. Total sum: %d", sum)
