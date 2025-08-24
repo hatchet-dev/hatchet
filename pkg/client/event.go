@@ -162,7 +162,8 @@ func (a *eventClientImpl) BulkPush(ctx context.Context, payload []EventWithAddit
 		if err != nil {
 			return err
 		}
-		eMetadata, err := json.Marshal(p.AdditionalMetadata)
+		md := p.AdditionalMetadata
+		eMetadata, err := a.getAdditionalMetaBytes(&md)
 		if err != nil {
 			return err
 		}
