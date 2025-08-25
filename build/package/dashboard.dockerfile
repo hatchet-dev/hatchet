@@ -17,7 +17,7 @@ RUN corepack pnpm@9.15.4 install --frozen-lockfile && corepack pnpm@9.15.4 store
 COPY ./frontend/app ./
 COPY ./frontend/snippets ./../snippets
 
-RUN apt-get update && apt-get install -y python3 && python3 ./../snippets/generate.py
+RUN apk add --no-cache python3 && python3 ./../snippets/generate.py
 
 RUN npm run build
 
