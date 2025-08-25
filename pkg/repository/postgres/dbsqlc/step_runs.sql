@@ -145,6 +145,14 @@ FROM
 WHERE
     "stepId" = @stepId::uuid;
 
+-- name: GetStepReadableIdsByIds :many
+SELECT
+    id, "readableId"
+FROM
+    "Step"
+WHERE
+    "id" = ANY(@ids::uuid[]);
+
 -- name: GetStepRunMeta :one
 SELECT
     jr."workflowRunId" AS "workflowRunId",
