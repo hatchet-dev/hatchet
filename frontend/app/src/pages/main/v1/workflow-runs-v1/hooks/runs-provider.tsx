@@ -218,6 +218,7 @@ export const RunsProvider = ({
     createdAfter: state.createdAfter,
     refetchInterval,
     pauseRefetch: isFrozen,
+    additionalMetadata: filters.apiFilters.additionalMetadata,
   });
 
   const value = useMemo<RunsContextType>(
