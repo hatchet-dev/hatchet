@@ -46,11 +46,7 @@ export function HearAboutUsForm({
 
   const handleOptionToggle = (optionValue: string) => {
     if (optionValue === 'other') {
-      const newValues = toggleOtherOption(
-        selectedValues,
-        isOtherSelected,
-        otherSelection,
-      );
+      const newValues = toggleOtherOption(selectedValues, isOtherSelected);
       onChange(newValues);
     } else {
       const newValues = toggleRegularOption(
