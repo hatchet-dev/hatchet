@@ -407,15 +407,19 @@ class Worker:
     def _setup_signal_handlers(self) -> None:
         signal.signal(
             signal.SIGTERM,
-            self._handle_force_quit_signal
-            if self.config.force_shutdown_on_shutdown_signal
-            else self._handle_exit_signal,
+            (
+                self._handle_force_quit_signal
+                if self.config.force_shutdown_on_shutdown_signal
+                else self._handle_exit_signal
+            ),
         )
         signal.signal(
             signal.SIGINT,
-            self._handle_force_quit_signal
-            if self.config.force_shutdown_on_shutdown_signal
-            else self._handle_exit_signal,
+            (
+                self._handle_force_quit_signal
+                if self.config.force_shutdown_on_shutdown_signal
+                else self._handle_exit_signal
+            ),
         )
         signal.signal(signal.SIGQUIT, self._handle_force_quit_signal)
 
