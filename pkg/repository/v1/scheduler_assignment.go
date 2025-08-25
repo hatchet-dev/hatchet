@@ -29,12 +29,6 @@ func (d *assignmentRepository) ListActionsForWorkers(ctx context.Context, tenant
 	})
 }
 
-type WorkerSlots struct {
-	Used      int32
-	Total     int32
-	Available int32
-}
-
 func (d *assignmentRepository) ListAvailableSlotsForWorkers(ctx context.Context, tenantId pgtype.UUID, params sqlcv1.ListAvailableSlotsForWorkersParams) ([]*sqlcv1.ListAvailableSlotsForWorkersRow, error) {
 	ctx, span := telemetry.NewSpan(ctx, "list-available-slots-for-workers")
 	defer span.End()
