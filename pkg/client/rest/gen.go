@@ -162,6 +162,13 @@ const (
 	StepRunStatusSUCCEEDED         StepRunStatus = "SUCCEEDED"
 )
 
+// Defines values for TenantEnvironment.
+const (
+	Development TenantEnvironment = "development"
+	Local       TenantEnvironment = "local"
+	Production  TenantEnvironment = "production"
+)
+
 // Defines values for TenantMemberRole.
 const (
 	ADMIN  TenantMemberRole = "ADMIN"
@@ -511,10 +518,14 @@ type CreateTenantInviteRequest struct {
 
 // CreateTenantRequest defines model for CreateTenantRequest.
 type CreateTenantRequest struct {
-	EngineVersion *TenantVersion `json:"engineVersion,omitempty"`
+	EngineVersion *TenantVersion     `json:"engineVersion,omitempty"`
+	Environment   *TenantEnvironment `json:"environment,omitempty"`
 
 	// Name The name of the tenant.
 	Name string `json:"name" validate:"required"`
+
+	// OnboardingData Additional onboarding data to store with the tenant.
+	OnboardingData *map[string]interface{} `json:"onboardingData,omitempty"`
 
 	// Slug The slug of the tenant.
 	Slug      string           `json:"slug" validate:"required,hatchetName"`
@@ -1007,8 +1018,9 @@ type Tenant struct {
 	AlertMemberEmails *bool `json:"alertMemberEmails,omitempty"`
 
 	// AnalyticsOptOut Whether the tenant has opted out of analytics.
-	AnalyticsOptOut *bool           `json:"analyticsOptOut,omitempty"`
-	Metadata        APIResourceMeta `json:"metadata"`
+	AnalyticsOptOut *bool              `json:"analyticsOptOut,omitempty"`
+	Environment     *TenantEnvironment `json:"environment,omitempty"`
+	Metadata        APIResourceMeta    `json:"metadata"`
 
 	// Name The name of the tenant.
 	Name string `json:"name"`
@@ -1053,6 +1065,9 @@ type TenantAlertingSettings struct {
 	MaxAlertingFrequency string          `json:"maxAlertingFrequency"`
 	Metadata             APIResourceMeta `json:"metadata"`
 }
+
+// TenantEnvironment defines model for TenantEnvironment.
+type TenantEnvironment string
 
 // TenantInvite defines model for TenantInvite.
 type TenantInvite struct {

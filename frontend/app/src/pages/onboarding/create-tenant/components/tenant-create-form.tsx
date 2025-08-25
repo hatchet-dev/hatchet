@@ -1,132 +1,243 @@
 import { cn } from '@/lib/utils';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Spinner } from '@/components/ui/loading.tsx';
+import { Card, CardContent } from '@/components/ui/card';
+import { Monitor, Settings, Rocket } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
+import { OnboardingStepProps } from '../types';
+import { useQuery } from '@tanstack/react-query';
+import api, { TenantEnvironment } from '@/lib/api';
+import freeEmailDomains from '@/lib/free-email-domains.json';
 
 const schema = z.object({
   name: z.string().min(4).max(32),
-  slug: z.string().min(4).max(32),
+  environment: z.string().min(1),
 });
 
-interface TenantCreateFormProps {
-  className?: string;
-  onSubmit: (opts: z.infer<typeof schema>) => void;
-  isLoading: boolean;
-  fieldErrors?: Record<string, string>;
-}
+interface TenantCreateFormProps
+  extends OnboardingStepProps<{ name: string; environment: string }> {}
 
 export function TenantCreateForm({
+  value,
+  onChange,
+  isLoading,
+  fieldErrors,
   className,
-  ...props
 }: TenantCreateFormProps) {
+  const user = useQuery({
+    queryKey: ['user:get:current'],
+    retry: false,
+    queryFn: async () => {
+      const res = await api.userGetCurrent();
+      return res.data;
+    },
+  });
+
   const {
     register,
-    handleSubmit,
     setValue,
-    watch,
     formState: { errors },
   } = useForm<z.infer<typeof schema>>({
     resolver: zodResolver(schema),
+    defaultValues: {
+      name: '',
+      environment: 'development',
+    },
   });
 
-  useEffect(() => {
-    const subscription = watch((value, { name }) => {
-      switch (name) {
-        case 'name':
-          if (value.name) {
-            const slug =
-              value.name
-                ?.toLowerCase()
-                .replace(/[^a-z0-9-]/g, '-')
-                .replace(/-+/g, '-')
-                .replace(/^-|-$/g, '') +
-              '-' +
-              Math.random().toString(36).substr(2, 5);
-
-            if (slug) {
-              setValue('slug', slug);
-            }
-          }
-
-          break;
-        case 'slug':
-          break;
+  const getEnvironmentPostfix = (environment: string | undefined): string => {
+    switch (environment) {
+      case TenantEnvironment.Local:
+        return '-local';
+      case TenantEnvironment.Development:
+        return '-dev';
+      case TenantEnvironment.Production:
+        return '-prod';
+      default: {
+        // Exhaustiveness check: this should never be reached if all cases are handled
+        const exhaustiveCheck: never = environment as never;
+        void exhaustiveCheck;
+        return '-dev'; // Default to dev if no environment selected
       }
+    }
+  };
+
+  const hasEnvironmentPostfix = (name: string): boolean => {
+    return (
+      name.endsWith('-local') || name.endsWith('-dev') || name.endsWith('-prod')
+    );
+  };
+
+  const removeEnvironmentPostfix = (name: string): string => {
+    if (name.endsWith('-local')) {
+      return name.slice(0, -6);
+    }
+    if (name.endsWith('-dev')) {
+      return name.slice(0, -4);
+    }
+    if (name.endsWith('-prod')) {
+      return name.slice(0, -5);
+    }
+    return name;
+  };
+
+  const updateNameWithEnvironment = (
+    currentName: string,
+    environment: string,
+  ): string => {
+    const baseName = hasEnvironmentPostfix(currentName)
+      ? removeEnvironmentPostfix(currentName)
+      : currentName;
+
+    return baseName + getEnvironmentPostfix(environment);
+  };
+
+  const emptyState = useMemo(() => {
+    if (!user.data?.email) {
+      return '';
+    }
+
+    const email = user.data.email;
+    const [localPart, domain] = email.split('@');
+
+    let baseName = '';
+    if (freeEmailDomains.includes(domain?.toLowerCase())) {
+      baseName = localPart;
+    } else {
+      // For business emails, use the domain without the TLD
+      const domainParts = domain?.split('.');
+      baseName = domainParts?.[0] || localPart;
+    }
+
+    // Add environment-specific postfix using current environment
+    const currentEnvironment = value?.environment || 'development';
+    return `${baseName}${getEnvironmentPostfix(currentEnvironment)}`;
+  }, [user.data?.email, value?.environment]);
+
+  // Update form values when parent value changes
+  useEffect(() => {
+    const nameValue = value?.name || emptyState;
+    const environmentValue = value?.environment || 'development';
+
+    setValue('name', nameValue);
+    setValue('environment', environmentValue);
+
+    // Also update the parent if we're using the generated name
+    if (!value?.name && emptyState && nameValue) {
+      onChange({
+        name: nameValue,
+        environment: environmentValue,
+      });
+    }
+  }, [value, setValue, emptyState, onChange]);
+
+  const nameError = errors.name?.message?.toString() || fieldErrors?.name;
+
+  const environmentOptions = [
+    {
+      value: 'local',
+      label: 'Local Dev',
+      icon: Monitor,
+      description: 'Testing and development on your local machine',
+    },
+    {
+      value: 'development',
+      label: 'Development',
+      icon: Settings,
+      description: 'Shared development environment or staging',
+    },
+    {
+      value: 'production',
+      label: 'Production',
+      icon: Rocket,
+      description: 'Live production environment serving real users',
+    },
+  ];
+
+  const handleEnvironmentChange = (selectedEnvironment: string) => {
+    const currentName = value?.name || '';
+    const updatedName = currentName
+      ? updateNameWithEnvironment(currentName, selectedEnvironment)
+      : '';
+
+    setValue('environment', selectedEnvironment);
+    setValue('name', updatedName);
+
+    onChange({
+      name: updatedName,
+      environment: selectedEnvironment,
     });
-
-    return () => subscription.unsubscribe();
-  }, [setValue, watch]);
-
-  const nameError =
-    errors.name?.message?.toString() || props.fieldErrors?.email;
-
-  const slugError = errors.slug?.message?.toString() || props.fieldErrors?.slug;
+  };
 
   return (
     <div className={cn('grid gap-6', className)}>
-      <form
-        onSubmit={handleSubmit((d) => {
-          props.onSubmit(d);
-        })}
-      >
-        <div className="grid gap-4">
-          <div className="grid gap-2">
-            <Label htmlFor="name">Name</Label>
-            <div className="text-sm text-gray-700 dark:text-gray-300">
-              A display name for your tenant.
-            </div>
-            <Input
-              {...register('name')}
-              id="name"
-              placeholder="My Awesome Tenant"
-              type="name"
-              autoCapitalize="none"
-              autoCorrect="off"
-              disabled={props.isLoading}
-              spellCheck={false}
-              onChange={(e) => {
-                setValue('name', e.target.value);
+      <div className="grid gap-4">
+        <div className="grid gap-2">
+          <Label>Environment Type</Label>
+          <div className="text-sm text-gray-700 dark:text-gray-300">
+            You can add new tenants for different environments later.
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            {environmentOptions.map((option) => {
+              const Icon = option.icon;
+              const isSelected =
+                (value?.environment || 'development') === option.value;
 
-                // if value is unset, reset the slug
-                if (!e.target.value) {
-                  setValue('slug', '');
-                }
-              }}
-            />
-            {nameError && (
-              <div className="text-sm text-red-500">{nameError}</div>
-            )}
+              return (
+                <Card
+                  key={option.value}
+                  onClick={() => handleEnvironmentChange(option.value)}
+                  className={`cursor-pointer transition-all hover:shadow-md ${
+                    isSelected
+                      ? 'border-blue-500 bg-blue-50 dark:bg-blue-950'
+                      : 'hover:border-gray-300 dark:hover:border-gray-600'
+                  }`}
+                >
+                  <CardContent className="p-4 flex flex-col items-center text-center space-y-2">
+                    <Icon
+                      className={`w-6 h-6 ${isSelected ? 'text-blue-600 dark:text-blue-400' : 'text-gray-600 dark:text-gray-400'}`}
+                    />
+                    <div className="space-y-1">
+                      <div className="font-medium text-sm">{option.label}</div>
+                      <div className="text-xs text-gray-600 dark:text-gray-400">
+                        {option.description}
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
           </div>
-          <div className="grid gap-2">
-            <Label htmlFor="name">Slug</Label>
-            <div className="text-sm text-gray-700 dark:text-gray-300">
-              A URI-friendly identifier for your tenant.
-            </div>
-            <Input
-              {...register('slug')}
-              id="slug"
-              placeholder="my-awesome-tenant-123456"
-              type="name"
-              autoCapitalize="none"
-              autoCorrect="off"
-              disabled={props.isLoading}
-              spellCheck={false}
-            />
-            {slugError && (
-              <div className="text-sm text-red-500">{slugError}</div>
-            )}
-          </div>
-          <Button disabled={props.isLoading}>
-            {props.isLoading && <Spinner />}
-            Create
-          </Button>
         </div>
-      </form>
+
+        <div className="grid gap-2">
+          <Label htmlFor="name">Name</Label>
+          <div className="text-sm text-gray-700 dark:text-gray-300">
+            A display name for your tenant.
+          </div>
+          <Input
+            {...register('name')}
+            id="name"
+            placeholder="My Awesome Tenant"
+            type="name"
+            autoCapitalize="none"
+            autoCorrect="off"
+            disabled={isLoading}
+            spellCheck={false}
+            onChange={(e) => {
+              setValue('name', e.target.value);
+              onChange({
+                name: e.target.value,
+                environment: value?.environment || 'development',
+              });
+            }}
+          />
+          {nameError && <div className="text-sm text-red-500">{nameError}</div>}
+        </div>
+      </div>
     </div>
   );
 }
