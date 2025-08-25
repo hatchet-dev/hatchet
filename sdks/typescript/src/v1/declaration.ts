@@ -597,7 +597,7 @@ export class WorkflowDeclaration<
     options:
       | (Omit<CreateWorkflowTaskOpts<I, TO>, 'fn'> & {
           name: Name;
-          fn: Fn;
+          fn?: Fn;
         })
       | TaskWorkflowDeclaration<I, TO>
   ): CreateWorkflowTaskOpts<I, TO> {

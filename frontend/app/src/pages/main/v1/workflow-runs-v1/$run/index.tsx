@@ -37,6 +37,7 @@ import { useQuery } from '@tanstack/react-query';
 import invariant from 'tiny-invariant';
 import { Spinner } from '@/components/v1/ui/loading';
 import { Waterfall } from './v2components/waterfall';
+import { RunsProvider } from '../hooks/runs-provider';
 
 export const WORKFLOW_RUN_TERMINAL_STATUSES = [
   WorkflowRunStatus.CANCELLED,
@@ -165,11 +166,19 @@ export default function Run() {
   }
 
   if (runData.type === 'task') {
-    return <ExpandedTaskRun id={run} />;
+    return (
+      <RunsProvider tableKey={`task-runs-${run}`}>
+        <ExpandedTaskRun id={run} />
+      </RunsProvider>
+    );
   }
 
   if (runData.type === 'dag') {
-    return <ExpandedWorkflowRun id={run} />;
+    return (
+      <RunsProvider tableKey={`workflow-runs-${run}`}>
+        <ExpandedWorkflowRun id={run} />
+      </RunsProvider>
+    );
   }
 }
 

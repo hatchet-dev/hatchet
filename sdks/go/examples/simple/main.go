@@ -1,9 +1,9 @@
 package main
 
 import (
-	"context"
 	"log"
 
+	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
 	hatchet "github.com/hatchet-dev/hatchet/sdks/go"
 )
 
@@ -23,12 +23,11 @@ func main() {
 
 	// Create a simple workflow with one task
 	workflow := client.NewWorkflow("simple-workflow")
-	task := workflow.NewTask("process-message", func(ctx hatchet.Context, input SimpleInput) (SimpleOutput, error) {
+	_ = workflow.NewTask("process-message", func(ctx hatchet.Context, input SimpleInput) (SimpleOutput, error) {
 		return SimpleOutput{
 			Result: "Processed: " + input.Message,
 		}, nil
 	})
-	_ = task // Task reference available for building DAGs
 
 	// Create a worker to run the workflow
 	worker, err := client.NewWorker("simple-worker", hatchet.WithWorkflows(workflow))
@@ -36,16 +35,12 @@ func main() {
 		log.Fatalf("failed to create worker: %v", err)
 	}
 
-	// Run a workflow instance
-	_, err = client.Run(context.Background(), "simple-workflow", SimpleInput{
-		Message: "Hello, World!",
-	})
-	if err != nil {
-		log.Fatalf("failed to run workflow: %v", err)
-	}
+	interruptCtx, cancel := cmdutils.NewInterruptContext()
+	defer cancel()
 
 	// Start the worker (blocks)
-	if err := worker.StartBlocking(); err != nil {
+	err = worker.StartBlocking(interruptCtx)
+	if err != nil {
 		log.Fatalf("failed to start worker: %v", err)
 	}
 }

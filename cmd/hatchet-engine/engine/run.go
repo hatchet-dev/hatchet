@@ -495,6 +495,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			adminv1.WithRepository(sc.V1),
 			adminv1.WithMessageQueue(sc.MessageQueueV1),
 			adminv1.WithEntitlementsRepository(sc.EntitlementRepository),
+			adminv1.WithAnalytics(sc.Analytics),
 		)
 
 		if err != nil {
@@ -952,6 +953,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			adminv1.WithRepository(sc.V1),
 			adminv1.WithMessageQueue(sc.MessageQueueV1),
 			adminv1.WithEntitlementsRepository(sc.EntitlementRepository),
+			adminv1.WithAnalytics(sc.Analytics),
 		)
 
 		if err != nil {

@@ -235,6 +235,7 @@ export enum V1WebhookSourceName {
   GITHUB = "GITHUB",
   STRIPE = "STRIPE",
   SLACK = "SLACK",
+  LINEAR = "LINEAR",
 }
 
 export enum TenantUIVersion {

@@ -7,10 +7,12 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
+	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/google/cel-go/cel"
 	"github.com/google/uuid"
 
+	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 )
@@ -628,6 +630,19 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 }
 
 func (m *sharedRepository) processCELExpressions(ctx context.Context, events []CandidateEventMatch, conditions []*sqlcv1.ListMatchConditionsForEventRow, eventType sqlcv1.V1EventType) (map[string][]*sqlcv1.ListMatchConditionsForEventRow, error) {
+	ctx, span := telemetry.NewSpan(ctx, "MatchRepositoryImpl.processCELExpressions")
+	defer span.End()
+
+	span.SetAttributes(attribute.KeyValue{
+		Key:   "match_repository.process_cel_expressions.events_count",
+		Value: attribute.IntValue(len(events)),
+	})
+
+	span.SetAttributes(attribute.KeyValue{
+		Key:   "match_repository.process_cel_expressions.conditions_count",
+		Value: attribute.IntValue(len(conditions)),
+	})
+
 	// parse CEL expressions
 	programs := make(map[int64]cel.Program)
 	conditionIdsToConditions := make(map[int64]*sqlcv1.ListMatchConditionsForEventRow)
@@ -735,6 +750,11 @@ func (m *sharedRepository) processCELExpressions(ctx context.Context, events []C
 			}
 		}
 	}
+
+	span.SetAttributes(attribute.KeyValue{
+		Key:   "match_repository.process_cel_expressions.match_conditions_count",
+		Value: attribute.IntValue(len(matches)),
+	})
 
 	return matches, nil
 }

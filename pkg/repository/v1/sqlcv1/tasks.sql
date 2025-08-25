@@ -240,6 +240,21 @@ WITH input AS (
         v1_concurrency_slot
     WHERE
         (task_id, task_inserted_at, task_retry_count) IN (SELECT task_id, task_inserted_at, task_retry_count FROM concurrency_slots_to_delete)
+), rate_limited_items_to_delete AS (
+    SELECT
+        task_id, task_inserted_at, retry_count
+    FROM
+        v1_rate_limited_queue_items
+    WHERE
+        (task_id, task_inserted_at, retry_count) IN (SELECT task_id, task_inserted_at, retry_count FROM input)
+    ORDER BY
+        task_id, task_inserted_at, retry_count
+    FOR UPDATE
+), deleted_rate_limited AS (
+    DELETE FROM
+        v1_rate_limited_queue_items
+    WHERE
+        (task_id, task_inserted_at, retry_count) IN (SELECT task_id, task_inserted_at, retry_count FROM rate_limited_items_to_delete)
 )
 SELECT
     t.queue,

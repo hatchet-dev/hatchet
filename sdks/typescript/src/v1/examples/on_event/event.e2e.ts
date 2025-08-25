@@ -1,6 +1,6 @@
-import sleep from '@hatchet-dev/typescript-sdk/util/sleep';
+import sleep from '@hatchet/util/sleep';
 import { randomUUID } from 'crypto';
-import { Event } from '@hatchet-dev/typescript-sdk/protoc/events';
+import { Event } from '@hatchet/protoc/events';
 import { SIMPLE_EVENT, lower, Input } from './workflow';
 import { hatchet } from '../hatchet-client';
 import { Worker } from '../../client/worker/worker';

@@ -1406,6 +1406,7 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         parent_outputs: dict[str, JSONSerializableMapping] | None = None,
         retry_count: int = 0,
         lifespan: Any = None,
+        dependencies: dict[str, Any] | None = None,
     ) -> R:
         """
         Mimic the execution of a task. This method is intended to be used to unit test
@@ -1417,6 +1418,7 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         :param parent_outputs: Outputs from parent tasks, if any. This is useful for mimicking DAG functionality. For instance, if you have a task `step_2` that has a `parent` which is `step_1`, you can pass `parent_outputs={"step_1": {"result": "Hello, world!"}}` to `step_2.mock_run()` to be able to access `ctx.task_output(step_1)` in `step_2`.
         :param retry_count: The number of times the task has been retried.
         :param lifespan: The lifespan to be used in the task, which is useful if one was set on the worker. This will allow you to access `ctx.lifespan` inside of your task.
+        :param dependencies: Dependencies to be injected into the task. This is useful for tasks that have dependencies defined using `Depends`. **IMPORTANT**: You must pass the dependencies _directly_, **not** the `Depends` objects themselves. For example, if you have a task that has a dependency `config: Annotated[str, Depends(get_config)]`, you should pass `dependencies={"config": "config_value"}` to `aio_mock_run`.
 
         :return: The output of the task.
         """
@@ -1427,6 +1429,7 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
             parent_outputs=parent_outputs,
             retry_count=retry_count,
             lifespan=lifespan,
+            dependencies=dependencies,
         )
 
     async def aio_mock_run(
@@ -1436,6 +1439,7 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         parent_outputs: dict[str, JSONSerializableMapping] | None = None,
         retry_count: int = 0,
         lifespan: Any = None,
+        dependencies: dict[str, Any] | None = None,
     ) -> R:
         """
         Mimic the execution of a task. This method is intended to be used to unit test
@@ -1447,6 +1451,7 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         :param parent_outputs: Outputs from parent tasks, if any. This is useful for mimicking DAG functionality. For instance, if you have a task `step_2` that has a `parent` which is `step_1`, you can pass `parent_outputs={"step_1": {"result": "Hello, world!"}}` to `step_2.mock_run()` to be able to access `ctx.task_output(step_1)` in `step_2`.
         :param retry_count: The number of times the task has been retried.
         :param lifespan: The lifespan to be used in the task, which is useful if one was set on the worker. This will allow you to access `ctx.lifespan` inside of your task.
+        :param dependencies: Dependencies to be injected into the task. This is useful for tasks that have dependencies defined using `Depends`. **IMPORTANT**: You must pass the dependencies _directly_, **not** the `Depends` objects themselves. For example, if you have a task that has a dependency `config: Annotated[str, Depends(get_config)]`, you should pass `dependencies={"config": "config_value"}` to `aio_mock_run`.
 
         :return: The output of the task.
         """
@@ -1457,6 +1462,7 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
             parent_outputs=parent_outputs,
             retry_count=retry_count,
             lifespan=lifespan,
+            dependencies=dependencies,
         )
 
     @property

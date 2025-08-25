@@ -238,6 +238,8 @@ type OLAPRepository interface {
 
 	CreateIncomingWebhookValidationFailureLogs(ctx context.Context, tenantId string, opts []CreateIncomingWebhookFailureLogOpts) error
 	StoreCELEvaluationFailures(ctx context.Context, tenantId string, failures []CELEvaluationFailure) error
+
+	AnalyzeOLAPTables(ctx context.Context) error
 }
 
 type OLAPRepositoryImpl struct {
@@ -606,10 +608,10 @@ func (r *OLAPRepositoryImpl) ListTasks(ctx context.Context, tenantId string, opt
 		return nil, 0, err
 	}
 
-	idsInsertedAts := make([]TaskIdInsertedAt, 0, len(rows))
+	idsInsertedAts := make([]IdInsertedAt, 0, len(rows))
 
 	for _, row := range rows {
-		idsInsertedAts = append(idsInsertedAts, TaskIdInsertedAt{
+		idsInsertedAts = append(idsInsertedAts, IdInsertedAt{
 			ID:         row.ID,
 			InsertedAt: row.InsertedAt,
 		})
@@ -656,11 +658,11 @@ func (r *OLAPRepositoryImpl) ListTasksByDAGId(ctx context.Context, tenantId stri
 		return nil, taskIdToDagExternalId, err
 	}
 
-	idsInsertedAts := make([]TaskIdInsertedAt, 0, len(tasks))
+	idsInsertedAts := make([]IdInsertedAt, 0, len(tasks))
 
 	for _, row := range tasks {
 		taskIdToDagExternalId[row.TaskID] = uuid.MustParse(sqlchelpers.UUIDToStr(row.DagExternalID))
-		idsInsertedAts = append(idsInsertedAts, TaskIdInsertedAt{
+		idsInsertedAts = append(idsInsertedAts, IdInsertedAt{
 			ID:         row.TaskID,
 			InsertedAt: row.TaskInsertedAt,
 		})
@@ -691,10 +693,10 @@ func (r *OLAPRepositoryImpl) ListTasksByIdAndInsertedAt(ctx context.Context, ten
 
 	defer rollback()
 
-	idsInsertedAts := make([]TaskIdInsertedAt, 0, len(taskMetadata))
+	idsInsertedAts := make([]IdInsertedAt, 0, len(taskMetadata))
 
 	for _, metadata := range taskMetadata {
-		idsInsertedAts = append(idsInsertedAts, TaskIdInsertedAt{
+		idsInsertedAts = append(idsInsertedAts, IdInsertedAt{
 			ID:         metadata.TaskID,
 			InsertedAt: pgtype.Timestamptz{Time: metadata.TaskInsertedAt, Valid: true},
 		})
@@ -798,39 +800,43 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId stri
 		return nil, 0, err
 	}
 
-	runIdsWithDAGs := make([]int64, 0)
-	runInsertedAtsWithDAGs := make([]pgtype.Timestamptz, 0)
-	idsInsertedAts := make([]TaskIdInsertedAt, 0, len(workflowRunIds))
+	dagIdsInsertedAts := make([]IdInsertedAt, 0, len(workflowRunIds))
+	idsInsertedAts := make([]IdInsertedAt, 0, len(workflowRunIds))
 
 	for _, row := range workflowRunIds {
 		if row.Kind == sqlcv1.V1RunKindDAG {
-			runIdsWithDAGs = append(runIdsWithDAGs, row.ID)
-			runInsertedAtsWithDAGs = append(runInsertedAtsWithDAGs, row.InsertedAt)
+			dagIdsInsertedAts = append(dagIdsInsertedAts, IdInsertedAt{
+				ID:         row.ID,
+				InsertedAt: row.InsertedAt,
+			})
 		} else {
-			idsInsertedAts = append(idsInsertedAts, TaskIdInsertedAt{
+			idsInsertedAts = append(idsInsertedAts, IdInsertedAt{
 				ID:         row.ID,
 				InsertedAt: row.InsertedAt,
 			})
 		}
 	}
 
-	populatedDAGs, err := r.queries.PopulateDAGMetadata(ctx, tx, sqlcv1.PopulateDAGMetadataParams{
-		Ids:             runIdsWithDAGs,
-		Insertedats:     runInsertedAtsWithDAGs,
-		Tenantid:        sqlchelpers.UUIDFromStr(tenantId),
-		Includepayloads: opts.IncludePayloads,
-	})
-
-	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-		return nil, 0, err
-	}
-
 	dagsToPopulated := make(map[string]*sqlcv1.PopulateDAGMetadataRow)
 
-	for _, dag := range populatedDAGs {
-		externalId := sqlchelpers.UUIDToStr(dag.ExternalID)
+	for _, idInsertedAt := range dagIdsInsertedAts {
+		dag, err := r.queries.PopulateDAGMetadata(ctx, tx, sqlcv1.PopulateDAGMetadataParams{
+			ID:              idInsertedAt.ID,
+			Insertedat:      idInsertedAt.InsertedAt,
+			Tenantid:        sqlchelpers.UUIDFromStr(tenantId),
+			Includepayloads: opts.IncludePayloads,
+		})
 
-		dagsToPopulated[externalId] = dag
+		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			return nil, 0, fmt.Errorf("error populating dag metadata for id %d: %v", idInsertedAt.ID, err)
+		}
+
+		if errors.Is(err, pgx.ErrNoRows) {
+			r.l.Error().Msgf("could not find dag with id %d and inserted at %s", idInsertedAt.ID, idInsertedAt.InsertedAt.Time.Format(time.RFC3339))
+			continue
+		}
+
+		dagsToPopulated[sqlchelpers.UUIDToStr(dag.ExternalID)] = dag
 	}
 
 	count, err := r.queries.CountWorkflowRuns(ctx, tx, countParams)
@@ -884,7 +890,7 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId stri
 				CreatedAt:            dag.CreatedAt,
 				StartedAt:            dag.StartedAt,
 				FinishedAt:           dag.FinishedAt,
-				ErrorMessage:         dag.ErrorMessage.String,
+				ErrorMessage:         dag.ErrorMessage,
 				Kind:                 sqlcv1.V1RunKindDAG,
 				WorkflowVersionId:    dag.WorkflowVersionID,
 				TaskExternalId:       nil,
@@ -1480,11 +1486,11 @@ func (r *OLAPRepositoryImpl) GetTaskTimings(ctx context.Context, tenantId string
 
 	// associate each run external id with a depth
 	idsToDepth := make(map[string]int32)
-	idsInsertedAts := make([]TaskIdInsertedAt, 0, len(runsList))
+	idsInsertedAts := make([]IdInsertedAt, 0, len(runsList))
 
 	for _, row := range runsList {
 		idsToDepth[sqlchelpers.UUIDToStr(row.ExternalID)] = row.Depth
-		idsInsertedAts = append(idsInsertedAts, TaskIdInsertedAt{
+		idsInsertedAts = append(idsInsertedAts, IdInsertedAt{
 			ID:         row.ID,
 			InsertedAt: row.InsertedAt,
 		})
@@ -1788,19 +1794,65 @@ func (r *OLAPRepositoryImpl) StoreCELEvaluationFailures(ctx context.Context, ten
 	})
 }
 
-type TaskIdInsertedAt struct {
+func (r *OLAPRepositoryImpl) AnalyzeOLAPTables(ctx context.Context) error {
+	const timeout = 1000 * 60 * 30 // 30 minute timeout
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, timeout)
+
+	if err != nil {
+		return fmt.Errorf("error beginning transaction: %v", err)
+	}
+
+	defer rollback()
+
+	acquired, err := r.queries.TryAdvisoryLock(ctx, tx, hash("analyze-olap-tables"))
+
+	if err != nil {
+		return fmt.Errorf("error acquiring advisory lock: %v", err)
+	}
+
+	if !acquired {
+		r.l.Info().Msg("advisory lock already held, skipping OLAP table analysis")
+		return nil
+	}
+
+	err = r.queries.AnalyzeV1RunsOLAP(ctx, tx)
+
+	if err != nil {
+		return fmt.Errorf("error analyzing v1_runs_olap: %v", err)
+	}
+
+	err = r.queries.AnalyzeV1TasksOLAP(ctx, tx)
+
+	if err != nil {
+		return fmt.Errorf("error analyzing v1_tasks_olap: %v", err)
+	}
+
+	err = r.queries.AnalyzeV1DAGsOLAP(ctx, tx)
+
+	if err != nil {
+		return fmt.Errorf("error analyzing v1_dags_olap: %v", err)
+	}
+
+	if err := commit(ctx); err != nil {
+		return fmt.Errorf("error committing transaction: %v", err)
+	}
+
+	return nil
+}
+
+type IdInsertedAt struct {
 	ID         int64              `json:"id"`
 	InsertedAt pgtype.Timestamptz `json:"inserted_at"`
 }
 
-func (r *OLAPRepositoryImpl) populateTaskRunData(ctx context.Context, tx pgx.Tx, tenantId string, opts []TaskIdInsertedAt, includePayloads bool) ([]*sqlcv1.PopulateTaskRunDataRow, error) {
+func (r *OLAPRepositoryImpl) populateTaskRunData(ctx context.Context, tx pgx.Tx, tenantId string, opts []IdInsertedAt, includePayloads bool) ([]*sqlcv1.PopulateTaskRunDataRow, error) {
 	ctx, span := telemetry.NewSpan(ctx, "populate-task-run-data-olap")
 	defer span.End()
 
-	uniqueTaskIdInsertedAts := make(map[TaskIdInsertedAt]struct{})
+	uniqueTaskIdInsertedAts := make(map[IdInsertedAt]struct{})
 
 	for _, opt := range opts {
-		uniqueTaskIdInsertedAts[TaskIdInsertedAt{
+		uniqueTaskIdInsertedAts[IdInsertedAt{
 			ID:         opt.ID,
 			InsertedAt: opt.InsertedAt,
 		}] = struct{}{}
@@ -1816,7 +1868,7 @@ func (r *OLAPRepositoryImpl) populateTaskRunData(ctx context.Context, tx pgx.Tx,
 		return []*sqlcv1.PopulateTaskRunDataRow{}, nil
 	}
 
-	idInsertedAtToData := make(map[TaskIdInsertedAt]*sqlcv1.PopulateTaskRunDataRow)
+	idInsertedAtToData := make(map[IdInsertedAt]*sqlcv1.PopulateTaskRunDataRow)
 
 	for idInsertedAt := range uniqueTaskIdInsertedAts {
 		taskData, err := r.queries.PopulateTaskRunData(ctx, tx, sqlcv1.PopulateTaskRunDataParams{

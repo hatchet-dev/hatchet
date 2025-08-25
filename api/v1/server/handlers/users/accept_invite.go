@@ -92,6 +92,11 @@ func (u *UserService) TenantInviteAccept(ctx echo.Context, request gen.TenantInv
 		userId,
 		&tenantId,
 		nil,
+		map[string]interface{}{
+			"user_id":   userId,
+			"invite_id": inviteId,
+			"role":      invite.Role,
+		},
 	)
 
 	ctx.Set(constants.ResourceIdKey.String(), inviteId)

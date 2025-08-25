@@ -14,9 +14,9 @@ import api, { Api } from '@hatchet/clients/rest';
 import { ConfigLoader } from '@hatchet/util/config-loader';
 import { DEFAULT_LOGGER } from '@hatchet/clients/hatchet-client/hatchet-logger';
 import { z } from 'zod';
-import { LogLevel } from '@hatchet-dev/typescript-sdk/clients/event/event-client';
-import { RunListenerClient } from '@hatchet-dev/typescript-sdk/clients/listeners/run-listener/child-listener-client';
-import { addTokenMiddleware, channelFactory } from '@hatchet-dev/typescript-sdk/util/grpc-helpers';
+import { LogLevel } from '@hatchet/clients/event/event-client';
+import { RunListenerClient } from '@hatchet/clients/listeners/run-listener/child-listener-client';
+import { addTokenMiddleware, channelFactory } from '@hatchet/util/grpc-helpers';
 import { createClientFactory } from 'nice-grpc';
 import {
   CreateTaskWorkflowOpts,

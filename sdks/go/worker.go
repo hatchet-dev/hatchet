@@ -14,7 +14,6 @@ type workerConfig struct {
 	durableSlots int
 	labels       map[string]interface{}
 	logger       *zerolog.Logger
-	logLevel     string
 }
 
 // WithWorkflows registers workflows with the worker.

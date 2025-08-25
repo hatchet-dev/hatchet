@@ -6,6 +6,7 @@ import (
 	"log"
 	"time"
 
+	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
 	hatchet "github.com/hatchet-dev/hatchet/sdks/go"
 )
 
@@ -48,10 +49,13 @@ func main() {
 		log.Fatalf("failed to create worker: %v", err)
 	}
 
+	interruptCtx, cancel := cmdutils.NewInterruptContext()
+	defer cancel()
+
 	// Start the worker in a goroutine
 	go func() {
 		log.Println("Starting bulk operations worker...")
-		if err := worker.StartBlocking(); err != nil {
+		if err := worker.StartBlocking(interruptCtx); err != nil {
 			log.Printf("worker failed: %v", err)
 		}
 	}()
@@ -96,6 +100,5 @@ func main() {
 
 	log.Println("All bulk operations started. Press Ctrl+C to stop the worker.")
 
-	// Keep the main function running
-	select {}
+	<-interruptCtx.Done()
 }

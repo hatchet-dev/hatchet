@@ -1,4 +1,4 @@
-package v2
+package v1
 
 import (
 	"context"
@@ -11,9 +11,12 @@ import (
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 )
 
+const MAX_RATE_LIMIT_UPDATE_FREQUENCY = 990 * time.Millisecond // avoid boundary conditions on 1 second polls
+
 type rateLimit struct {
-	key string
-	val int
+	key          string
+	val          int
+	nextRefillAt *time.Time
 }
 
 type rateLimitSet map[string]*rateLimit
@@ -90,6 +93,7 @@ type rateLimitResult struct {
 	exceededKey   string
 	exceededUnits int32
 	exceededVal   int32
+	nextRefillAt  *time.Time
 }
 
 // use returns true if the rate limits are not exceeded, false otherwise
@@ -131,6 +135,7 @@ func (r *rateLimiter) use(ctx context.Context, taskId int64, rls map[string]int3
 				res.exceededKey = k
 				res.exceededUnits = v
 				res.exceededVal = int32(currRl.val) // nolint: gosec
+				res.nextRefillAt = currRl.nextRefillAt
 
 				return res
 			}
@@ -183,8 +188,9 @@ func (r *rateLimiter) copyDbRateLimits() rateLimitSet {
 
 	for k, v := range r.dbRateLimits {
 		rls[k] = &rateLimit{
-			key: k,
-			val: v.val,
+			key:          k,
+			val:          v.val,
+			nextRefillAt: v.nextRefillAt,
 		}
 	}
 
@@ -290,18 +296,30 @@ func (r *rateLimiter) flushToDatabase(ctx context.Context) error {
 		return err
 	}
 
-	// update the next refill time
-	r.nextRefillAtMu.Lock()
-	r.nextRefillAt = nextRefillAt
-	r.nextRefillAtMu.Unlock()
+	// don't update more than one time per second
+	if nextRefillAt != nil {
+		if time.Until(*nextRefillAt) < MAX_RATE_LIMIT_UPDATE_FREQUENCY {
+			minRefillAt := time.Now().Add(MAX_RATE_LIMIT_UPDATE_FREQUENCY)
+			nextRefillAt = &minRefillAt
+		}
+
+		// update the next refill time
+		r.nextRefillAtMu.Lock()
+		r.nextRefillAt = nextRefillAt
+		r.nextRefillAtMu.Unlock()
+	}
 
 	r.dbRateLimits = make(rateLimitSet)
 
 	// update the db rate limits
-	for key, newVal := range newRateLimits {
+	for _, newVal := range newRateLimits {
+		key := newVal.Key
+		next := newVal.NextRefillAt.Time
+
 		r.dbRateLimits[key] = &rateLimit{
-			key: key,
-			val: newVal,
+			key:          key,
+			val:          int(newVal.Value),
+			nextRefillAt: &next,
 		}
 	}
 

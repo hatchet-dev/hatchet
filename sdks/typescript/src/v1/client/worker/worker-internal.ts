@@ -148,15 +148,17 @@ export class V1Worker {
   }
 
   registerDurableActionsV1(workflow: WorkflowDefinition) {
-    const newActions = workflow._durableTasks.reduce<ActionRegistry>((acc, task) => {
-      acc[
-        `${applyNamespace(
-          workflow.name,
-          this.client.config.namespace
-        ).toLowerCase()}:${task.name.toLowerCase()}`
-      ] = (ctx: Context<any, any>) => task.fn(ctx.input, ctx as DurableContext<any, any>);
-      return acc;
-    }, {});
+    const newActions = workflow._durableTasks
+      .filter((task) => !!task.fn)
+      .reduce<ActionRegistry>((acc, task) => {
+        acc[
+          `${applyNamespace(
+            workflow.name,
+            this.client.config.namespace
+          ).toLowerCase()}:${task.name.toLowerCase()}`
+        ] = (ctx: Context<any, any>) => task.fn!(ctx.input, ctx as DurableContext<any, any>);
+        return acc;
+      }, {});
 
     this.action_registry = {
       ...this.action_registry,
@@ -165,11 +167,13 @@ export class V1Worker {
   }
 
   private registerActionsV1(workflow: WorkflowDefinition) {
-    const newActions = workflow._tasks.reduce<ActionRegistry>((acc, task) => {
-      acc[`${workflow.name}:${task.name.toLowerCase()}`] = (ctx: Context<any, any>) =>
-        task.fn(ctx.input, ctx);
-      return acc;
-    }, {});
+    const newActions = workflow._tasks
+      .filter((task) => !!task.fn)
+      .reduce<ActionRegistry>((acc, task) => {
+        acc[`${workflow.name}:${task.name.toLowerCase()}`] = (ctx: Context<any, any>) =>
+          task.fn!(ctx.input, ctx);
+        return acc;
+      }, {});
 
     const onFailureFn = workflow.onFailure
       ? typeof workflow.onFailure === 'function'

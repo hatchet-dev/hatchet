@@ -19,7 +19,6 @@ import { TabOption } from '../$run/v2components/step-run-detail/step-run-detail'
 import { useSidePanel } from '@/hooks/use-side-panel';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { TriggerWorkflowForm } from '../../workflows/$workflow/components/trigger-workflow-form';
-import { useToast } from '@/components/v1/hooks/use-toast';
 import { Toaster } from '@/components/v1/ui/toaster';
 import { useQuery } from '@tanstack/react-query';
 import { queries } from '@/lib/api';
@@ -32,6 +31,9 @@ import { TableActions } from './task-runs-table/table-actions';
 import { TimeFilter } from './task-runs-table/time-filter';
 import { DocsButton } from '@/components/v1/docs/docs-button';
 import { docsPages } from '@/lib/generated/docs';
+import { ConfirmActionModal } from '../../task-runs-v1/actions';
+import { useSearchParams } from 'react-router-dom';
+import { useToast } from '@/components/v1/hooks/use-toast';
 
 export interface RunsTableProps {
   headerClassName?: string;
@@ -96,6 +98,7 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
   const { tenantId } = useCurrentTenantId();
   const { toast } = useToast();
   const sidePanel = useSidePanel();
+  const [, setSearchParams] = useSearchParams();
 
   const {
     state,
@@ -109,6 +112,8 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
     isMetricsFetching,
     metrics,
     tenantMetrics,
+    actionModalParams,
+    selectedActionType,
     display: {
       hideMetrics,
       hideCounts,
@@ -192,23 +197,6 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
     setRotate(!rotate);
   }, [refetchRuns, refetchMetrics, rotate]);
 
-  const handleActionProcessed = useCallback(
-    (action: 'cancel' | 'replay', ids: string[]) => {
-      const prefix = action === 'cancel' ? 'Canceling' : 'Replaying';
-      const count = ids.length;
-
-      const t = toast({
-        title: `${prefix} ${count} task run${count > 1 ? 's' : ''}`,
-        description: `This may take a few seconds. You don't need to hit ${action} again.`,
-      });
-
-      setTimeout(() => {
-        t.dismiss();
-      }, 5000);
-    },
-    [toast],
-  );
-
   useEffect(() => {
     if (state.isCustomTimeRange) {
       return;
@@ -229,6 +217,12 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
   return (
     <div className="flex flex-col h-full overflow-hidden">
       <Toaster />
+      {selectedActionType && (
+        <ConfirmActionModal
+          actionType={selectedActionType}
+          params={actionModalParams}
+        />
+      )}
 
       <TriggerWorkflowForm
         defaultWorkflow={undefined}
@@ -303,10 +297,8 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
             <TableActions
               key="table-actions"
               onRefresh={handleRefresh}
-              onActionProcessed={handleActionProcessed}
               onTriggerWorkflow={() => updateUIState({ triggerWorkflow: true })}
               rotate={rotate}
-              toast={toast}
             />,
           ]}
           columnFilters={state.columnFilters}

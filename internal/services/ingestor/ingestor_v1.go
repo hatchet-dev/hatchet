@@ -51,10 +51,10 @@ func (i *IngestorImpl) ingestEventV1(ctx context.Context, tenant *dbsqlc.Tenant,
 		)
 	}
 
-	return i.ingestSingleton(tenantId, key, data, metadata, priority, scope, triggeringWebhookName)
+	return i.ingestSingleton(ctx, tenantId, key, data, metadata, priority, scope, triggeringWebhookName)
 }
 
-func (i *IngestorImpl) ingestSingleton(tenantId, key string, data []byte, metadata []byte, priority *int32, scope, triggeringWebhookName *string) (*dbsqlc.Event, error) {
+func (i *IngestorImpl) ingestSingleton(ctx context.Context, tenantId, key string, data []byte, metadata []byte, priority *int32, scope, triggeringWebhookName *string) (*dbsqlc.Event, error) {
 	eventId := uuid.New().String()
 
 	msg, err := eventToTaskV1(
@@ -72,7 +72,7 @@ func (i *IngestorImpl) ingestSingleton(tenantId, key string, data []byte, metada
 		return nil, fmt.Errorf("could not create event task: %w", err)
 	}
 
-	err = i.mqv1.SendMessage(context.Background(), msgqueue.TASK_PROCESSING_QUEUE, msg)
+	err = i.mqv1.SendMessage(ctx, msgqueue.TASK_PROCESSING_QUEUE, msg)
 
 	if err != nil {
 		return nil, fmt.Errorf("could not add event to task queue: %w", err)
@@ -120,7 +120,7 @@ func (i *IngestorImpl) bulkIngestEventV1(ctx context.Context, tenant *dbsqlc.Ten
 	results := make([]*dbsqlc.Event, 0, len(eventOpts))
 
 	for _, event := range eventOpts {
-		res, err := i.ingestSingleton(tenantId, event.Key, event.Data, event.AdditionalMetadata, event.Priority, event.Scope, event.TriggeringWebhookName)
+		res, err := i.ingestSingleton(ctx, tenantId, event.Key, event.Data, event.AdditionalMetadata, event.Priority, event.Scope, event.TriggeringWebhookName)
 
 		if err != nil {
 			return nil, fmt.Errorf("could not ingest event: %w", err)
@@ -138,7 +138,7 @@ func (i *IngestorImpl) ingestReplayedEventV1(ctx context.Context, tenant *dbsqlc
 
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
-	return i.ingestSingleton(tenantId, replayedEvent.Key, replayedEvent.Data, replayedEvent.AdditionalMetadata, nil, nil, nil)
+	return i.ingestSingleton(ctx, tenantId, replayedEvent.Key, replayedEvent.Data, replayedEvent.AdditionalMetadata, nil, nil, nil)
 }
 
 func eventToTaskV1(tenantId, eventExternalId, key string, data, additionalMeta []byte, priority *int32, scope *string, triggeringWebhookName *string) (*msgqueue.Message, error) {

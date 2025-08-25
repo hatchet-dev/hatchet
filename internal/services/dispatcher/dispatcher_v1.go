@@ -9,7 +9,9 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-multierror"
+	"go.opentelemetry.io/otel/codes"
 	"golang.org/x/sync/errgroup"
+	"google.golang.org/grpc"
 
 	msgqueuev1 "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
 	"github.com/hatchet-dev/hatchet/internal/queueutils"
@@ -40,10 +42,76 @@ func (worker *subscribedWorker) StartTaskFromBulk(
 	action.ActionType = contracts.ActionType_START_STEP_RUN
 	action.ActionPayload = string(inputBytes)
 
+	return worker.sendToWorker(ctx, action)
+}
+
+func (worker *subscribedWorker) sendToWorker(
+	ctx context.Context,
+	action *contracts.AssignedAction,
+) error {
+	ctx, span := telemetry.NewSpan(ctx, "send-to-worker") // nolint:ineffassign
+	defer span.End()
+
+	telemetry.WithAttributes(
+		span,
+		telemetry.AttributeKV{
+			Key:   "worker_id",
+			Value: worker.workerId,
+		},
+	)
+
+	telemetry.WithAttributes(
+		span,
+		telemetry.AttributeKV{
+			Key:   "payload_size",
+			Value: len(action.ActionPayload),
+		},
+	)
+
+	_, encodeSpan := telemetry.NewSpan(ctx, "encode-action")
+
+	msg := &grpc.PreparedMsg{}
+	err := msg.Encode(worker.stream, action)
+
+	if err != nil {
+		encodeSpan.RecordError(err)
+		encodeSpan.End()
+		return fmt.Errorf("could not encode action: %w", err)
+	}
+
+	encodeSpan.End()
+
+	lockBegin := time.Now()
+
+	_, lockSpan := telemetry.NewSpan(ctx, "acquire-worker-stream-lock")
+
 	worker.sendMu.Lock()
 	defer worker.sendMu.Unlock()
 
-	return worker.stream.Send(action)
+	lockSpan.End()
+
+	telemetry.WithAttributes(span, telemetry.AttributeKV{
+		Key:   "lock_duration_ms",
+		Value: time.Since(lockBegin).Milliseconds(),
+	})
+
+	_, streamSpan := telemetry.NewSpan(ctx, "send-worker-stream")
+	defer streamSpan.End()
+
+	sendMsgBegin := time.Now()
+
+	err = worker.stream.SendMsg(msg)
+
+	if err != nil {
+		span.RecordError(err)
+	}
+
+	if time.Since(sendMsgBegin) > 50*time.Millisecond {
+		span.SetStatus(codes.Error, "flow control detected")
+		span.RecordError(fmt.Errorf("send took too long, we may be in flow control: %s", time.Since(sendMsgBegin)))
+	}
+
+	return err
 }
 
 func (worker *subscribedWorker) CancelTask(

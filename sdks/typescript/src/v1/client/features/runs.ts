@@ -3,7 +3,7 @@ import { V1TaskStatus, V1TaskFilter } from '@hatchet/clients/rest/generated/data
 import {
   RunEventType,
   RunListenerClient,
-} from '@hatchet-dev/typescript-sdk/clients/listeners/run-listener/child-listener-client';
+} from '@hatchet/clients/listeners/run-listener/child-listener-client';
 import { WorkflowsClient } from './workflows';
 import { HatchetClient } from '../client';
 

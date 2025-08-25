@@ -95,6 +95,10 @@ func (t *TenantService) TenantInviteCreate(ctx echo.Context, request gen.TenantI
 		sqlchelpers.UUIDToStr(user.ID),
 		&tenantId,
 		nil,
+		map[string]interface{}{
+			"invite_id": invite.ID,
+			"role":      request.Body.Role,
+		},
 	)
 
 	return gen.TenantInviteCreate201JSONResponse(

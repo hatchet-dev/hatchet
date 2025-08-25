@@ -28,7 +28,7 @@ import { isTerminalState } from '../../../hooks/use-workflow-details';
 import { CopyWorkflowConfigButton } from '@/components/v1/shared/copy-workflow-config';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { Waterfall } from '../waterfall';
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
 import { useToast } from '@/components/v1/hooks/use-toast';
 import { Toaster } from '@/components/v1/ui/toaster';
 
@@ -95,6 +95,8 @@ export const TaskRunDetail = ({
 }: TaskRunDetailProps) => {
   const { toast } = useToast();
   const { open } = useSidePanel();
+  const [selectedTaskRunId, setSelectedTaskRunId] = useState<string>();
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   const handleTaskRunExpand = useCallback(
     (taskRunId: string) => {
@@ -121,22 +123,6 @@ export const TaskRunDetail = ({
       return 1000;
     },
   });
-
-  const onActionProcessed = useCallback(
-    (action: 'cancel' | 'replay') => {
-      const prefix = action === 'cancel' ? 'Canceling' : 'Replaying';
-
-      const t = toast({
-        title: `${prefix} task run`,
-        description: `This may take a few seconds. You don't need to hit ${action} again.`,
-      });
-
-      setTimeout(() => {
-        t.dismiss();
-      }, 5000);
-    },
-    [toast],
-  );
 
   const taskRun = taskRunQuery.data;
 
@@ -175,29 +161,15 @@ export const TaskRunDetail = ({
       <div className="flex flex-row gap-2 items-center">
         <TaskRunActionButton
           actionType="replay"
-          params={{ externalIds: [taskRunId] }}
+          paramOverrides={{ externalIds: [taskRunId] }}
           disabled={!TASK_RUN_TERMINAL_STATUSES.includes(taskRun.status)}
           showModal={false}
-          onActionProcessed={() => onActionProcessed('replay')}
-          onActionSubmit={() => {
-            toast({
-              title: 'Replay request submitted',
-              description: "No need to hit 'Replay' again.",
-            });
-          }}
         />
         <TaskRunActionButton
           actionType="cancel"
-          params={{ externalIds: [taskRunId] }}
+          paramOverrides={{ externalIds: [taskRunId] }}
           disabled={TASK_RUN_TERMINAL_STATUSES.includes(taskRun.status)}
           showModal={false}
-          onActionProcessed={() => onActionProcessed('cancel')}
-          onActionSubmit={() => {
-            toast({
-              title: 'Cancel request submitted',
-              description: "No need to hit 'Cancel' again.",
-            });
-          }}
         />
         <TaskRunPermalinkOrBacklink
           taskRun={taskRun}
