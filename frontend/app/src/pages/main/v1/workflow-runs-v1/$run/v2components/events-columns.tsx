@@ -8,7 +8,7 @@ import {
   XCircleIcon,
 } from '@heroicons/react/24/outline';
 import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
-import { cn } from '@/lib/utils';
+import { cn, emptyGolangUUID } from '@/lib/utils';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/v1/ui/button';
 import { useRef, useState } from 'react';
@@ -122,7 +122,7 @@ export const columns = ({
           items.push(<ErrorWithHoverCard key="error" event={row.original} />);
         }
 
-        if (event.workerId) {
+        if (event.workerId && event.workerId !== emptyGolangUUID) {
           items.push(
             <Link
               to={`/tenants/${tenantId}/workers/${event.workerId}`}
