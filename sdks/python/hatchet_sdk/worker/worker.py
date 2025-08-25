@@ -408,6 +408,7 @@ class Worker:
         signal.signal(signal.SIGTERM, self._handle_exit_signal)
         signal.signal(signal.SIGINT, self._handle_exit_signal)
         signal.signal(signal.SIGQUIT, self._handle_force_quit_signal)
+        signal.signal(signal.SIGKILL, self._handle_force_quit_signal)
 
     def _handle_exit_signal(self, signum: int, frame: FrameType | None) -> None:
         sig_name = "SIGTERM" if signum == signal.SIGTERM else "SIGINT"

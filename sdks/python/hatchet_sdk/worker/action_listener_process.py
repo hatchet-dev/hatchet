@@ -101,6 +101,9 @@ class WorkerActionListenerProcess:
         loop.add_signal_handler(
             signal.SIGQUIT, lambda: asyncio.create_task(self.exit_gracefully())
         )
+        loop.add_signal_handler(
+            signal.SIGKILL, lambda: asyncio.create_task(self.exit_forcefully())
+        )
 
     async def pause_task_assignment(self) -> None:
         if self.listener is None:
