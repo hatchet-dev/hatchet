@@ -11,6 +11,37 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const cleanupWorkflowConcurrencySlotsAfterInsert = `-- name: CleanupWorkflowConcurrencySlotsAfterInsert :exec
+WITH input AS (
+    SELECT
+        UNNEST($1::bigint[]) AS parent_strategy_id,
+        UNNEST($2::uuid[]) AS workflow_version_id,
+        UNNEST($3::uuid[]) AS workflow_run_id
+    ORDER BY parent_strategy_id, workflow_version_id, workflow_run_id
+)
+SELECT
+    cleanup_workflow_concurrency_slots(
+            rec.parent_strategy_id,
+            rec.workflow_version_id,
+            rec.workflow_run_id
+        )
+FROM
+    input rec
+`
+
+type CleanupWorkflowConcurrencySlotsAfterInsertParams struct {
+	Concurrencyparentstrategyids []int64       `json:"concurrencyparentstrategyids"`
+	Workflowversionids           []pgtype.UUID `json:"workflowversionids"`
+	Workflowrunids               []pgtype.UUID `json:"workflowrunids"`
+}
+
+// Cleans up workflow concurrency slots when tasks have been inserted in a non-QUEUED state.
+// NOTE: this comes after the insert into v1_dag_to_task and v1_lookup_table, because we case on these tables for cleanup
+func (q *Queries) CleanupWorkflowConcurrencySlotsAfterInsert(ctx context.Context, db DBTX, arg CleanupWorkflowConcurrencySlotsAfterInsertParams) error {
+	_, err := db.Exec(ctx, cleanupWorkflowConcurrencySlotsAfterInsert, arg.Concurrencyparentstrategyids, arg.Workflowversionids, arg.Workflowrunids)
+	return err
+}
+
 const createPartitions = `-- name: CreatePartitions :exec
 SELECT
     create_v1_range_partition('v1_task', $1::date),

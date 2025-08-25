@@ -1,5 +1,5 @@
 import { AxiosError } from 'axios';
-import { V1CELDebugResponseStatus } from '@hatchet-dev/typescript-sdk/clients/rest/generated/data-contracts';
+import { V1CELDebugResponseStatus } from '@hatchet/clients/rest/generated/data-contracts';
 import { HatchetClient } from '../client';
 
 export type DebugCELInput = {
