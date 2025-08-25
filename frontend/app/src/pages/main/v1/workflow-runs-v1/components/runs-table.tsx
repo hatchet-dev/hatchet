@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
 import { DataTable } from '@/components/v1/molecules/data-table/data-table.tsx';
 import { columns } from './v1/task-runs-columns';
 import { V1WorkflowRunsMetricsView } from './task-runs-metrics';
@@ -16,12 +15,8 @@ import {
   DataPoint,
   ZoomableChart,
 } from '@/components/v1/molecules/charts/zoomable';
-import { Sheet, SheetContent } from '@/components/v1/ui/sheet';
-import {
-  TabOption,
-  TaskRunDetail,
-} from '../$run/v2components/step-run-detail/step-run-detail';
-import { IntroDocsEmptyState } from '@/pages/onboarding/intro-docs-empty-state';
+import { TabOption } from '../$run/v2components/step-run-detail/step-run-detail';
+import { useSidePanel } from '@/hooks/use-side-panel';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { TriggerWorkflowForm } from '../../workflows/$workflow/components/trigger-workflow-form';
 import { Toaster } from '@/components/v1/ui/toaster';
@@ -34,6 +29,8 @@ import { useRunsContext } from '../hooks/runs-provider';
 
 import { TableActions } from './task-runs-table/table-actions';
 import { TimeFilter } from './task-runs-table/time-filter';
+import { DocsButton } from '@/components/v1/docs/docs-button';
+import { docsPages } from '@/lib/generated/docs';
 import { ConfirmActionModal } from '../../task-runs-v1/actions';
 
 export interface RunsTableProps {
@@ -97,7 +94,7 @@ const GetWorkflowChart = () => {
 
 export function RunsTable({ headerClassName }: RunsTableProps) {
   const { tenantId } = useCurrentTenantId();
-  const [, setSearchParams] = useSearchParams();
+  const sidePanel = useSidePanel();
 
   const {
     state,
@@ -139,14 +136,16 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
 
   const handleTaskRunIdClick = useCallback(
     (taskRunId: string) => {
-      updateUIState({
-        taskRunDetailSheet: {
+      sidePanel.open({
+        type: 'task-run-details',
+        content: {
           taskRunId,
-          isOpen: true,
+          defaultOpenTab: TabOption.Output,
+          showViewTaskRunButton: true,
         },
       });
     },
-    [updateUIState],
+    [sidePanel],
   );
 
   const handleAdditionalMetadataOpenChange = useCallback(
@@ -267,50 +266,13 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
         </div>
       )}
 
-      {state.taskRunDetailSheet.isOpen && (
-        <Sheet
-          open={state.taskRunDetailSheet.isOpen}
-          onOpenChange={(isOpen) => {
-            if (!isOpen && state.taskRunDetailSheet.taskRunId) {
-              // Clear the child runs table state when sheet closes
-              const childTableKey = `table_child-runs-${state.taskRunDetailSheet.taskRunId}`;
-              setSearchParams(
-                (prev) => {
-                  const newParams = new URLSearchParams(prev);
-                  newParams.delete(childTableKey);
-                  return newParams;
-                },
-                { replace: true },
-              );
-            }
-            updateUIState({
-              taskRunDetailSheet: isOpen
-                ? {
-                    isOpen: true,
-                    taskRunId: state.taskRunDetailSheet.taskRunId!,
-                  }
-                : { isOpen: false },
-            });
-          }}
-        >
-          <SheetContent className="w-fit min-w-[56rem] max-w-4xl sm:max-w-2xl z-[60] h-full overflow-auto">
-            <TaskRunDetail
-              taskRunId={state.taskRunDetailSheet.taskRunId!}
-              defaultOpenTab={TabOption.Output}
-              showViewTaskRunButton
-            />
-          </SheetContent>
-        </Sheet>
-      )}
-
       <div className="flex-1 min-h-0">
         <DataTable
           emptyState={
-            <IntroDocsEmptyState
-              link="/home/your-first-task"
-              title="No Runs Found"
-              linkPreambleText="To learn more about how workflows function in Hatchet,"
-              linkText="check out our documentation."
+            <DocsButton
+              doc={docsPages.home['your-first-task']}
+              label={'Learn more about workflows'}
+              variant="mini"
             />
           }
           isLoading={isFetching}

@@ -25,3 +25,4 @@ dist-ssr
 
 # Sentry Config File
 .env.sentry-build-plugin
+src/lib/generated
