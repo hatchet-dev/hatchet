@@ -987,3 +987,22 @@ WHERE
     (v1_task_runtime.task_id, v1_task_runtime.task_inserted_at, v1_task_runtime.retry_count) IN (SELECT id, inserted_at, retry_count FROM task)
 RETURNING
     v1_task_runtime.*;
+
+-- name: CleanupWorkflowConcurrencySlotsAfterInsert :exec
+-- Cleans up workflow concurrency slots when tasks have been inserted in a non-QUEUED state.
+-- NOTE: this comes after the insert into v1_dag_to_task and v1_lookup_table, because we case on these tables for cleanup
+WITH input AS (
+    SELECT
+        UNNEST(@concurrencyParentStrategyIds::bigint[]) AS parent_strategy_id,
+        UNNEST(@workflowVersionIds::uuid[]) AS workflow_version_id,
+        UNNEST(@workflowRunIds::uuid[]) AS workflow_run_id
+    ORDER BY parent_strategy_id, workflow_version_id, workflow_run_id
+)
+SELECT
+    cleanup_workflow_concurrency_slots(
+            rec.parent_strategy_id,
+            rec.workflow_version_id,
+            rec.workflow_run_id
+        )
+FROM
+    input rec;
