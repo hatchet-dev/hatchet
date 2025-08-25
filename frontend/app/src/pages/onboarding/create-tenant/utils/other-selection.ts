@@ -39,7 +39,6 @@ export function extractOtherSelection(
 export function toggleOtherOption(
   selectedValues: string[],
   isOtherSelected: boolean,
-  otherSelection?: string,
 ): string[] {
   if (isOtherSelected) {
     // Remove other option
