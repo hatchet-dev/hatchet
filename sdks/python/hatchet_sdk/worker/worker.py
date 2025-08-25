@@ -426,7 +426,8 @@ class Worker:
             self.loop.create_task(self.exit_gracefully())
 
     def _handle_force_quit_signal(self, signum: int, frame: FrameType | None) -> None:
-        logger.info("received SIGQUIT...")
+        signal_received = signal.Signals(signum).name
+        logger.info(f"received {signal_received}...")
         if self.loop:
             self.loop.create_task(self._exit_forcefully())
 
