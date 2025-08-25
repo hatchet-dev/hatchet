@@ -4,13 +4,14 @@ package features
 import (
 	"context"
 
+	"github.com/cockroachdb/errors"
 	"github.com/google/uuid"
 	v0Client "github.com/hatchet-dev/hatchet/pkg/client"
 	"github.com/hatchet-dev/hatchet/pkg/client/rest"
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
 )
 
-// createRatelimitOpts contains options for creating or updating a rate limit.
+// CreateRatelimitOpts contains options for creating or updating a rate limit.
 type CreateRatelimitOpts struct {
 	// key is the unique identifier for the rate limit
 	Key string
@@ -20,50 +21,54 @@ type CreateRatelimitOpts struct {
 	Duration types.RateLimitDuration
 }
 
-// rateLimitsClient provides an interface for managing rate limits.
-type RateLimitsClient interface {
-	// upsert creates or updates a rate limit with the provided options.
-	Upsert(opts CreateRatelimitOpts) error
-
-	// list retrieves rate limits based on the provided parameters (optional).
-	List(ctx context.Context, opts *rest.RateLimitListParams) (*rest.RateLimitListResponse, error)
-}
-
-// rlClientImpl implements the rateLimitsClient interface.
-type rlClientImpl struct {
+// RateLimitsClient provides methods for interacting with rate limits
+type RateLimitsClient struct {
 	api      *rest.ClientWithResponses
-	admin    *v0Client.AdminClient
+	admin    v0Client.AdminClient
 	tenantId uuid.UUID
 }
 
-// newRateLimitsClient creates a new rateLimitsClient with the provided api client, tenant id, and admin client.
+// NewRateLimitsClient creates a new RateLimitsClient with the provided api client, tenant id, and admin client.
 func NewRateLimitsClient(
 	api *rest.ClientWithResponses,
-	tenantId *string,
-	admin *v0Client.AdminClient,
-) RateLimitsClient {
-	tenantIdUUid := uuid.MustParse(*tenantId)
+	tenantId string,
+	admin v0Client.AdminClient,
+) *RateLimitsClient {
+	tenantIdUUid := uuid.MustParse(tenantId)
 
-	return &rlClientImpl{
+	return &RateLimitsClient{
 		api:      api,
 		tenantId: tenantIdUUid,
 		admin:    admin,
 	}
 }
 
-// upsert creates or updates a rate limit with the provided options.
-func (c *rlClientImpl) Upsert(opts CreateRatelimitOpts) error {
-	return (*c.admin).PutRateLimit(opts.Key, &types.RateLimitOpts{
+// Upsert creates or updates a rate limit with the provided options.
+func (c *RateLimitsClient) Upsert(opts CreateRatelimitOpts) error {
+	if err := c.admin.PutRateLimit(opts.Key, &types.RateLimitOpts{
 		Max:      opts.Limit,
 		Duration: opts.Duration,
-	})
+	}); err != nil {
+		return errors.Wrap(err, "failed to upsert rate limit")
+	}
+
+	return nil
 }
 
-// list retrieves rate limits based on the provided parameters (optional).
-func (c *rlClientImpl) List(ctx context.Context, opts *rest.RateLimitListParams) (*rest.RateLimitListResponse, error) {
-	return c.api.RateLimitListWithResponse(
+// List retrieves rate limits based on the provided parameters (optional).
+func (c *RateLimitsClient) List(ctx context.Context, opts *rest.RateLimitListParams) (*rest.RateLimitList, error) {
+	resp, err := c.api.RateLimitListWithResponse(
 		ctx,
 		c.tenantId,
 		opts,
 	)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to list rate limits")
+	}
+
+	if err := validateJSON200Response(resp.StatusCode(), resp.Body, resp.JSON200); err != nil {
+		return nil, err
+	}
+
+	return resp.JSON200, nil
 }

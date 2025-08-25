@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"strings"
 	"time"
 
@@ -13,11 +14,9 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/client/create"
 	"github.com/hatchet-dev/hatchet/pkg/client/rest"
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
+	"github.com/hatchet-dev/hatchet/pkg/worker"
 	"github.com/hatchet-dev/hatchet/sdks/go/features"
 	"github.com/hatchet-dev/hatchet/sdks/go/internal/task"
-	"github.com/hatchet-dev/hatchet/pkg/worker"
-
-	"reflect"
 
 	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 )
@@ -108,7 +107,7 @@ type WorkflowDeclaration[I, O any] interface {
 	Metrics(ctx context.Context, opts ...rest.WorkflowGetMetricsParams) (*rest.WorkflowMetrics, error)
 
 	// QueueMetrics retrieves queue metrics for this workflow.
-	QueueMetrics(ctx context.Context, opts ...rest.TenantGetQueueMetricsParams) (*rest.TenantGetQueueMetricsResponse, error)
+	QueueMetrics(ctx context.Context, opts ...rest.TenantGetQueueMetricsParams) (*rest.TenantQueueMetrics, error)
 }
 
 // Define a TaskDeclaration with specific output type
@@ -121,10 +120,10 @@ type TaskWithSpecificOutput[I any, T any] struct {
 // It contains all the data and logic needed to define and execute a workflow.
 type workflowDeclarationImpl[I any, O any] struct {
 	v0        v0Client.Client
-	crons     features.CronsClient
-	schedules features.SchedulesClient
-	metrics   features.MetricsClient
-	workflows features.WorkflowsClient
+	crons     *features.CronsClient
+	schedules *features.SchedulesClient
+	metrics   *features.MetricsClient
+	workflows *features.WorkflowsClient
 
 	outputKey *string
 
@@ -156,15 +155,14 @@ type workflowDeclarationImpl[I any, O any] struct {
 // NewWorkflowDeclaration creates a new workflow declaration with the specified options and client.
 // The workflow will have input type I and output type O.
 func NewWorkflowDeclaration[I any, O any](opts create.WorkflowCreateOpts[I], v0 v0Client.Client) WorkflowDeclaration[I, O] {
-
 	api := v0.API()
 	tenantId := v0.TenantId()
 	namespace := v0.Namespace()
 
-	crons := features.NewCronsClient(api, &tenantId)
-	schedules := features.NewSchedulesClient(api, &tenantId, &namespace)
-	metrics := features.NewMetricsClient(api, &tenantId)
-	workflows := features.NewWorkflowsClient(api, &tenantId)
+	crons := features.NewCronsClient(api, tenantId)
+	schedules := features.NewSchedulesClient(api, tenantId, &namespace)
+	metrics := features.NewMetricsClient(api, tenantId)
+	workflows := features.NewWorkflowsClient(api, tenantId)
 
 	workflowName := opts.Name
 
@@ -431,7 +429,6 @@ func (w *workflowDeclarationImpl[I, O]) DurableTask(opts create.WorkflowTask[I, 
 
 // OnFailureTask registers a task that will be executed if the workflow fails.
 func (w *workflowDeclarationImpl[I, O]) OnFailure(opts create.WorkflowOnFailureTask[I, O], fn func(ctx worker.HatchetContext, input I) (interface{}, error)) *task.OnFailureTaskDeclaration[I] {
-
 	// Use reflection to validate the function type
 	fnType := reflect.TypeOf(fn)
 	if fnType.Kind() != reflect.Func ||
@@ -503,7 +500,6 @@ func (w *workflowDeclarationImpl[I, O]) OnFailure(opts create.WorkflowOnFailureT
 // RunBulkNoWait executes the workflow with the provided inputs without waiting for them to complete.
 // Instead it returns a list of run IDs that can be used to check the status of the workflows.
 func (w *workflowDeclarationImpl[I, O]) RunBulkNoWait(ctx context.Context, input []I, opts ...v0Client.RunOptFunc) ([]string, error) {
-
 	toRun := make([]*v0Client.WorkflowRun, len(input))
 
 	for i, inp := range input {
@@ -553,13 +549,11 @@ func (w *workflowDeclarationImpl[I, O]) RunAsChild(ctx worker.HatchetContext, in
 		Priority:           opts.Priority,
 		AdditionalMetadata: additionalMetaOpt,
 	})
-
 	if err != nil {
 		return nil, err
 	}
 
 	workflowResult, err := run.Result()
-
 	if err != nil {
 		return nil, err
 	}
@@ -618,13 +612,11 @@ func (w *workflowDeclarationImpl[I, O]) getOutputFromWorkflowResult(workflowResu
 // Returns the workflow output and any error encountered during execution.
 func (w *workflowDeclarationImpl[I, O]) Run(ctx context.Context, input I, opts ...v0Client.RunOptFunc) (*O, error) {
 	run, err := w.RunNoWait(ctx, input, opts...)
-
 	if err != nil {
 		return nil, err
 	}
 
 	workflowResult, err := run.Result()
-
 	if err != nil {
 		return nil, err
 	}
@@ -657,7 +649,6 @@ func getStructFields(t reflect.Type) map[string]reflect.Type {
 
 // Cron schedules the workflow to run on a regular basis using a cron expression.
 func (w *workflowDeclarationImpl[I, O]) Cron(ctx context.Context, name string, cronExpr string, input I, opts ...v0Client.RunOptFunc) (*rest.CronWorkflows, error) {
-
 	var inputMap map[string]interface{}
 	inputBytes, err := json.Marshal(input)
 	if err != nil {
@@ -679,7 +670,9 @@ func (w *workflowDeclarationImpl[I, O]) Cron(ctx context.Context, name string, c
 		opt(runOpts)
 	}
 
-	cronTriggerOpts.Priority = runOpts.Priority
+	if runOpts.Priority != nil {
+		cronTriggerOpts.Priority = &[]features.RunPriority{features.RunPriority(*runOpts.Priority)}[0]
+	}
 
 	if runOpts.AdditionalMetadata != nil {
 		additionalMeta := make(map[string]interface{})
@@ -688,7 +681,6 @@ func (w *workflowDeclarationImpl[I, O]) Cron(ctx context.Context, name string, c
 	}
 
 	cronWorkflow, err := w.crons.Create(ctx, w.name, cronTriggerOpts)
-
 	if err != nil {
 		return nil, err
 	}
@@ -728,7 +720,6 @@ func (w *workflowDeclarationImpl[I, O]) Schedule(ctx context.Context, triggerAt 
 	triggerOpts.Priority = runOpts.Priority
 
 	scheduledWorkflow, err := w.schedules.Create(ctx, w.name, triggerOpts)
-
 	if err != nil {
 		return nil, err
 	}
@@ -943,7 +934,7 @@ func (w *workflowDeclarationImpl[I, O]) Metrics(ctx context.Context, opts ...res
 }
 
 // QueueMetrics retrieves queue metrics for this workflow.
-func (w *workflowDeclarationImpl[I, O]) QueueMetrics(ctx context.Context, opts ...rest.TenantGetQueueMetricsParams) (*rest.TenantGetQueueMetricsResponse, error) {
+func (w *workflowDeclarationImpl[I, O]) QueueMetrics(ctx context.Context, opts ...rest.TenantGetQueueMetricsParams) (*rest.TenantQueueMetrics, error) {
 	var options rest.TenantGetQueueMetricsParams
 	if len(opts) > 0 {
 		options = opts[0]
