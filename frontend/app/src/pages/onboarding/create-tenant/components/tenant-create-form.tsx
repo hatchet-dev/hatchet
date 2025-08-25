@@ -9,7 +9,7 @@ import { z } from 'zod';
 import { useEffect, useMemo } from 'react';
 import { OnboardingStepProps } from '../types';
 import { useQuery } from '@tanstack/react-query';
-import api from '@/lib/api';
+import api, { TenantEnvironment } from '@/lib/api';
 import freeEmailDomains from '@/lib/free-email-domains.json';
 
 const schema = z.object({
@@ -50,14 +50,18 @@ export function TenantCreateForm({
 
   const getEnvironmentPostfix = (environment: string | undefined): string => {
     switch (environment) {
-      case 'local':
+      case TenantEnvironment.Local:
         return '-local';
-      case 'development':
+      case TenantEnvironment.Development:
         return '-dev';
-      case 'production':
+      case TenantEnvironment.Production:
         return '-prod';
-      default:
+      default: {
+        // Exhaustiveness check: this should never be reached if all cases are handled
+        const exhaustiveCheck: never = environment as never;
+        void exhaustiveCheck;
         return '-dev'; // Default to dev if no environment selected
+      }
     }
   };
 

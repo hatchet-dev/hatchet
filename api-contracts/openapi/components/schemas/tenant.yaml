@@ -70,6 +70,7 @@ TenantAlertingSettings:
     - maxAlertingFrequency
   type: object
 
+# IMPORTANT: keep values in sync with sql/schema/v0.sql#TenantEnvironment
 TenantEnvironment:
   enum:
     - "local"

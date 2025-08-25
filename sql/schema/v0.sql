@@ -108,6 +108,7 @@ CREATE TYPE "StickyStrategy" AS ENUM ('SOFT', 'HARD');
 CREATE TYPE "TenantMemberRole" AS ENUM ('OWNER', 'ADMIN', 'MEMBER');
 
 -- CreateEnum
+-- IMPORTANT: keep values in sync with api-contracts/openapi/components/schemas/tenant.yaml#TenantEnvironment
 CREATE TYPE "TenantEnvironment" AS ENUM ('local', 'development', 'production');
 
 -- CreateEnum

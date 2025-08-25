@@ -1,11 +1,11 @@
 import { Badge } from '@/components/ui/badge';
 
-export function StepProgress({
+export function StepProgress<T = unknown>({
   steps,
   currentStep,
   onStepClick,
 }: {
-  steps: any[];
+  steps: Array<T>;
   currentStep: number;
   onStepClick?: (stepIndex: number) => void;
 }) {

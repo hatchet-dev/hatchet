@@ -12,6 +12,12 @@ import {
 } from 'lucide-react';
 import { OnboardingStepProps } from '../types';
 import { FaHackerNews, FaLinkedin, FaTwitter } from 'react-icons/fa';
+import {
+  extractOtherSelection,
+  toggleOtherOption,
+  toggleRegularOption,
+  updateOtherText,
+} from '../utils/other-selection';
 
 interface HearAboutUsFormProps extends OnboardingStepProps<string | string[]> {}
 
@@ -32,46 +38,34 @@ export function HearAboutUsForm({
     { value: 'other', label: 'Other', icon: HelpCircle },
   ];
 
-  // Convert value to array if it's a string for backward compatibility
   const selectedValues = Array.isArray(value) ? value : value ? [value] : [];
 
-  // Check if "other" is selected and extract the custom value
-  const otherSelection = selectedValues.find((v) => v.startsWith('other'));
-  const isOtherSelected = !!otherSelection;
-  const otherValue = otherSelection
-    ? otherSelection.replace('other: ', '')
-    : '';
+  // Extract "other" selection information using helper
+  const { isOtherSelected, otherValue, otherSelection } =
+    extractOtherSelection(selectedValues);
 
   const handleOptionToggle = (optionValue: string) => {
     if (optionValue === 'other') {
-      if (isOtherSelected) {
-        // Remove other option
-        const newValues = selectedValues.filter((v) => !v.startsWith('other'));
-        onChange(newValues);
-      } else {
-        // Add other option with empty value
-        onChange([
-          ...selectedValues.filter((v) => !v.startsWith('other')),
-          'other: ',
-        ]);
-      }
+      const newValues = toggleOtherOption(
+        selectedValues,
+        isOtherSelected,
+        otherSelection,
+      );
+      onChange(newValues);
     } else {
-      // Toggle regular option
-      if (selectedValues.includes(optionValue)) {
-        onChange(selectedValues.filter((v) => v !== optionValue));
-      } else {
-        onChange([
-          ...selectedValues.filter((v) => !v.startsWith('other')),
-          optionValue,
-          ...(isOtherSelected ? [otherSelection] : []),
-        ]);
-      }
+      const newValues = toggleRegularOption(
+        selectedValues,
+        optionValue,
+        isOtherSelected,
+        otherSelection,
+      );
+      onChange(newValues);
     }
   };
 
   const handleOtherTextChange = (text: string) => {
-    const newValues = selectedValues.filter((v) => !v.startsWith('other'));
-    onChange([...newValues, `other: ${text}`]);
+    const newValues = updateOtherText(selectedValues, text);
+    onChange(newValues);
   };
 
   return (

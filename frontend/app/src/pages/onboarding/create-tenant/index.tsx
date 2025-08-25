@@ -15,12 +15,12 @@ import { HearAboutUsForm } from './components/hear-about-us-form';
 import { WhatBuildingForm } from './components/what-building-form';
 import { StepProgress } from './components/step-progress';
 import { OnboardingStepConfig, OnboardingFormData } from './types';
+import { useAnalytics } from '@/hooks/use-analytics';
 
 export default function CreateTenant() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
 
-  // Get step from URL parameter, default to 0
   const stepFromUrl = parseInt(searchParams.get('step') || '0', 10);
   const [currentStep, setCurrentStep] = useState(
     Math.max(0, Math.min(stepFromUrl, 2)),
@@ -39,6 +39,7 @@ export default function CreateTenant() {
     setFieldErrors: setFieldErrors,
   });
   const { setTenant } = useTenant();
+  const { capture } = useAnalytics();
 
   // Sync currentStep with URL parameter
   useEffect(() => {
@@ -57,17 +58,15 @@ export default function CreateTenant() {
       const tenant = await api.tenantCreate(data);
 
       // Track onboarding analytics
-      if (typeof window !== 'undefined' && (window as any).posthog) {
-        (window as any).posthog.capture('onboarding_completed', {
-          hear_about_us: Array.isArray(formData.hearAboutUs)
-            ? formData.hearAboutUs.join(', ')
-            : formData.hearAboutUs,
-          what_building: Array.isArray(formData.whatBuilding)
-            ? formData.whatBuilding.join(', ')
-            : formData.whatBuilding,
-          tenant_id: tenant.data.metadata.id,
-        });
-      }
+      capture('onboarding_completed', {
+        hear_about_us: Array.isArray(formData.hearAboutUs)
+          ? formData.hearAboutUs.join(', ')
+          : formData.hearAboutUs,
+        what_building: Array.isArray(formData.whatBuilding)
+          ? formData.whatBuilding.join(', ')
+          : formData.whatBuilding,
+        tenant_id: tenant.data.metadata.id,
+      });
 
       return tenant.data;
     },
