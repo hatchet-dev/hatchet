@@ -28,8 +28,7 @@ import { isTerminalState } from '../../../hooks/use-workflow-details';
 import { CopyWorkflowConfigButton } from '@/components/v1/shared/copy-workflow-config';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { Waterfall } from '../waterfall';
-import { useCallback, useState } from 'react';
-import { useToast } from '@/components/v1/hooks/use-toast';
+import { useCallback } from 'react';
 import { Toaster } from '@/components/v1/ui/toaster';
 
 export enum TabOption {
@@ -93,10 +92,7 @@ export const TaskRunDetail = ({
   defaultOpenTab = TabOption.Output,
   showViewTaskRunButton,
 }: TaskRunDetailProps) => {
-  const { toast } = useToast();
   const { open } = useSidePanel();
-  const [selectedTaskRunId, setSelectedTaskRunId] = useState<string>();
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   const handleTaskRunExpand = useCallback(
     (taskRunId: string) => {

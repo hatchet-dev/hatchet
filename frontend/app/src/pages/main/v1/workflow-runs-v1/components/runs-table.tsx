@@ -32,8 +32,6 @@ import { TimeFilter } from './task-runs-table/time-filter';
 import { DocsButton } from '@/components/v1/docs/docs-button';
 import { docsPages } from '@/lib/generated/docs';
 import { ConfirmActionModal } from '../../task-runs-v1/actions';
-import { useSearchParams } from 'react-router-dom';
-import { useToast } from '@/components/v1/hooks/use-toast';
 
 export interface RunsTableProps {
   headerClassName?: string;
@@ -96,9 +94,7 @@ const GetWorkflowChart = () => {
 
 export function RunsTable({ headerClassName }: RunsTableProps) {
   const { tenantId } = useCurrentTenantId();
-  const { toast } = useToast();
   const sidePanel = useSidePanel();
-  const [, setSearchParams] = useSearchParams();
 
   const {
     state,
