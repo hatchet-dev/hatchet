@@ -51,7 +51,6 @@ export const useRuns = ({
     [createdAfter, initialRenderTime, parentTaskExternalId],
   );
 
-
   const listTasksQuery = useQuery({
     ...queries.v1WorkflowRuns.list(tenantId, {
       offset: disablePagination ? 0 : offset,
