@@ -309,8 +309,7 @@ const listAvailableSlotsForWorkers = `-- name: ListAvailableSlotsForWorkers :man
 WITH worker_max_runs AS (
     SELECT
         "id",
-        "maxRuns",
-        "name"
+        "maxRuns"
     FROM
         "Worker"
     WHERE
@@ -330,10 +329,7 @@ WITH worker_max_runs AS (
 )
 SELECT
     wmr."id",
-    wmr."name",
-    wmr."maxRuns" - COALESCE(wfs."filledSlots", 0) AS "availableSlots",
-    COALESCE(wfs."filledSlots", 0) AS "usedSlots",
-    wmr."maxRuns" AS "totalSlots"
+    wmr."maxRuns" - COALESCE(wfs."filledSlots", 0) AS "availableSlots"
 FROM
     worker_max_runs wmr
 LEFT JOIN
@@ -347,10 +343,7 @@ type ListAvailableSlotsForWorkersParams struct {
 
 type ListAvailableSlotsForWorkersRow struct {
 	ID             pgtype.UUID `json:"id"`
-	Name           string      `json:"name"`
 	AvailableSlots int32       `json:"availableSlots"`
-	UsedSlots      int64       `json:"usedSlots"`
-	TotalSlots     int32       `json:"totalSlots"`
 }
 
 // subtract the filled slots from the max runs to get the available slots
@@ -363,13 +356,7 @@ func (q *Queries) ListAvailableSlotsForWorkers(ctx context.Context, db DBTX, arg
 	var items []*ListAvailableSlotsForWorkersRow
 	for rows.Next() {
 		var i ListAvailableSlotsForWorkersRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.Name,
-			&i.AvailableSlots,
-			&i.UsedSlots,
-			&i.TotalSlots,
-		); err != nil {
+		if err := rows.Scan(&i.ID, &i.AvailableSlots); err != nil {
 			return nil, err
 		}
 		items = append(items, &i)

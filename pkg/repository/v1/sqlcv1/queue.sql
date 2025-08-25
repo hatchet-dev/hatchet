@@ -40,8 +40,7 @@ WHERE
 WITH worker_max_runs AS (
     SELECT
         "id",
-        "maxRuns",
-        "name"
+        "maxRuns"
     FROM
         "Worker"
     WHERE
@@ -62,10 +61,7 @@ WITH worker_max_runs AS (
 -- subtract the filled slots from the max runs to get the available slots
 SELECT
     wmr."id",
-    wmr."name",
-    wmr."maxRuns" - COALESCE(wfs."filledSlots", 0) AS "availableSlots",
-    COALESCE(wfs."filledSlots", 0) AS "usedSlots",
-    wmr."maxRuns" AS "totalSlots"
+    wmr."maxRuns" - COALESCE(wfs."filledSlots", 0) AS "availableSlots"
 FROM
     worker_max_runs wmr
 LEFT JOIN
