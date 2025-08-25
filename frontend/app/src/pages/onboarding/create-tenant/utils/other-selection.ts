@@ -13,7 +13,9 @@ export interface OtherSelectionResult {
  * @param selectedValues Array of selected values that may contain "other: ..." entries
  * @returns Object containing other selection state and value
  */
-export function extractOtherSelection(selectedValues: string[]): OtherSelectionResult {
+export function extractOtherSelection(
+  selectedValues: string[],
+): OtherSelectionResult {
   const otherSelection = selectedValues.find((v) => v.startsWith('other'));
   const isOtherSelected = !!otherSelection;
   const otherValue = otherSelection
@@ -37,17 +39,14 @@ export function extractOtherSelection(selectedValues: string[]): OtherSelectionR
 export function toggleOtherOption(
   selectedValues: string[],
   isOtherSelected: boolean,
-  otherSelection?: string
+  otherSelection?: string,
 ): string[] {
   if (isOtherSelected) {
     // Remove other option
     return selectedValues.filter((v) => !v.startsWith('other'));
   } else {
     // Add other option with empty value
-    return [
-      ...selectedValues.filter((v) => !v.startsWith('other')),
-      'other: ',
-    ];
+    return [...selectedValues.filter((v) => !v.startsWith('other')), 'other: '];
   }
 }
 
@@ -63,7 +62,7 @@ export function toggleRegularOption(
   selectedValues: string[],
   optionValue: string,
   isOtherSelected: boolean,
-  otherSelection?: string
+  otherSelection?: string,
 ): string[] {
   if (selectedValues.includes(optionValue)) {
     // Remove the option
@@ -84,7 +83,10 @@ export function toggleRegularOption(
  * @param text The new text value for the "other" option
  * @returns Updated array of selected values
  */
-export function updateOtherText(selectedValues: string[], text: string): string[] {
+export function updateOtherText(
+  selectedValues: string[],
+  text: string,
+): string[] {
   const newValues = selectedValues.filter((v) => !v.startsWith('other'));
   return [...newValues, `other: ${text}`];
 }
