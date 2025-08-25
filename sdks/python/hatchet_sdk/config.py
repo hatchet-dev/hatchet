@@ -86,6 +86,7 @@ class ClientConfig(BaseSettings):
     disable_log_capture: bool = False
     log_queue_size: int = 1000
     grpc_enable_fork_support: bool = False
+    force_shutdown_on_shutdown_signal: bool = False
 
     @model_validator(mode="after")
     def validate_token_and_tenant(self) -> "ClientConfig":
