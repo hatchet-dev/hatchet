@@ -65,6 +65,7 @@ func (d *assignmentRepository) ListAvailableSlotsForWorkers(ctx context.Context,
 	for workerName, slotData := range workerNameToSlots {
 		prometheus.TenantUsedWorkerSlots.WithLabelValues(workerName).Set(float64(slotData.Total))
 		prometheus.TenantUsedWorkerSlots.WithLabelValues(workerName).Set(float64(slotData.Used))
+		prometheus.TenantAvailableWorkerSlots.WithLabelValues(workerName).Set(float64(slotData.Available))
 	}
 
 	return slots, nil
