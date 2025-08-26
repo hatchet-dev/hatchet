@@ -53,15 +53,6 @@ export function SidePanel() {
       const deltaX = startX - e.clientX;
       const newWidth = Math.max(MIN_PANEL_WIDTH, startWidth + deltaX);
 
-      console.log({
-        startX,
-        currentX: e.clientX,
-        deltaX,
-        startWidth,
-        newWidth,
-        actualChange: newWidth - startWidth,
-      });
-
       setStoredPanelWidth(newWidth);
     },
     [isResizing, startX, startWidth, setStoredPanelWidth],
@@ -112,38 +103,40 @@ export function SidePanel() {
               isResizing && 'pointer-events-none',
             )}
           >
-            <div className="flex flex-row w-full justify-between items-center bg-background h-4 px-2">
-              <div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={goBack}
-                  disabled={!canGoBack}
-                  className="rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 flex-shrink-0"
-                >
-                  <ChevronLeftIcon className="h-4 w-4" />
-                  <span className="sr-only">Go Back</span>
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={goForward}
-                  disabled={!canGoForward}
-                  className="rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 flex-shrink-0"
-                >
-                  <ChevronRightIcon className="h-4 w-4" />
-                  <span className="sr-only">Go Forward</span>
-                </Button>
+            <div className="flex flex-row w-full justify-between items-center bg-background h-4 pt-2 pb-4">
+              <div className="flex flex-row gap-x-2 w-full justify-between items-center">
+                <p className="text-lg font-semibold">{maybeContent.title}</p>
+                <div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={goBack}
+                    disabled={!canGoBack}
+                    className="rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 flex-shrink-0 border"
+                  >
+                    <ChevronLeftIcon className="h-4 w-4" />
+                    <span className="sr-only">Go Back</span>
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={goForward}
+                    disabled={!canGoForward}
+                    className="rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 flex-shrink-0 border"
+                  >
+                    <ChevronRightIcon className="h-4 w-4" />
+                    <span className="sr-only">Go Forward</span>
+                  </Button>{' '}
+                  <Button
+                    variant="ghost"
+                    onClick={close}
+                    className="rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 flex-shrink-0"
+                  >
+                    <Cross2Icon className="h-4 w-4" />
+                    <span className="sr-only">Close</span>
+                  </Button>
+                </div>
               </div>
-              {!maybeContent.isDocs && maybeContent.actions}
-              <Button
-                variant="ghost"
-                onClick={close}
-                className="rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 flex-shrink-0"
-              >
-                <Cross2Icon className="h-4 w-4" />
-                <span className="sr-only">Close</span>
-              </Button>
             </div>
             {maybeContent.component}
           </div>

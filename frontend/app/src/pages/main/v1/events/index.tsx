@@ -387,7 +387,6 @@ export function ExpandedEventContent({ event }: { event: V1Event }) {
     <div className="w-full h-full overflow-auto">
       <div className="space-y-6">
         <div className="space-y-2">
-          <p className="text-lg font-semibold">Event {event.key}</p>
           <p className="text-sm text-muted-foreground">
             Seen <RelativeDate date={event.metadata.createdAt} />
           </p>
@@ -413,9 +412,7 @@ export function ExpandedEventContent({ event }: { event: V1Event }) {
           )}
 
           <div>
-            <h3 className="text-sm font-semibold text-foreground mb-2">
-              Runs
-            </h3>
+            <h3 className="text-sm font-semibold text-foreground mb-2">Runs</h3>
             <Separator className="mb-3" />
             <EventWorkflowRunsList event={event} />
           </div>
