@@ -30,7 +30,6 @@ This allows you to have polyglot, fully typed interface with full sdk support.
 <Tabs.Tab title="Typescript">
 
 ```typescript
-// > Declaring an External Workflow Reference
 import { hatchet } from '../hatchet-client';
 
 // (optional) Define the input type for the task
@@ -61,7 +60,23 @@ await simple.cron('my-cron', '0 0 * * *', { Message: 'Hello, World!' });
 <Tabs.Tab title="Python">
 
 ```python
-Example Coming Soon
+from pydantic import BaseModel
+from hatchet_sdk import Hatchet
+
+hatchet = Hatchet(debug=True)
+
+# (optional) Define the input type for the task
+class SimpleInput(BaseModel):
+    message: str
+
+# declare the task with the same name as the task on the worker
+simple = hatchet.workflow(
+    name="simple",
+    input_validator=SimpleInput,
+)
+
+# you can use all the same run methods on the stub
+result = await simple.run(SimpleInput(message="Hello, World!"))
 ```
 
 
