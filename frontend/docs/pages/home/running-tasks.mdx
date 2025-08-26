@@ -1,3 +1,7 @@
+import { Callout, Tabs } from "nextra/components";
+import UniversalTabs from "@/components/UniversalTabs";
+import { Snippet } from "@/components/code";
+
 # Running Tasks
 
 Once you have a running worker, you'll want to run your tasks. Hatchet provides a number of ways of triggering task runs, from which you should select the one(s) that best suit(s) your use case.
@@ -9,3 +13,66 @@ Once you have a running worker, you'll want to run your tasks. Hatchet provides 
 5. Tasks can be [scheduled for a later time](./scheduled-runs.mdx).
 
 Each of these methods for triggering tasks have their own uses in different scenarios, and the next few sections will give some examples of each.
+
+These methods can be invoked directly from the workflow definition, or from other services.
+
+## Invoking Tasks from your Application
+
+Often it is useful to trigger tasks from your application (i.e. an API service). Hatchet consistently serializes inputs so the invocation of a task is the same regardless of the language or framework you are using.
+
+### Creating a "Stub" Task on your External Service (Recommended)
+
+The recommended way to trigger a task from an external service is to create a "stub" task on your external service. This is a hatchet task or workflow that has the same name and input/output types as the task you want to trigger on your hatchet worker, but without the function or other configuration.
+
+This allows you to have polyglot, fully typed interface with full sdk support.
+
+<UniversalTabs items={["Typescript", "Python", "Go"]}>
+<Tabs.Tab title="Typescript">
+
+```typescript
+// > Declaring an External Workflow Reference
+import { hatchet } from '../hatchet-client';
+
+// (optional) Define the input type for the task
+export type SimpleInput = {
+  Message: string;
+};
+
+// (optional) Define the output type for the task
+export type SimpleOutput = {
+  'transformed':  string;
+};
+
+// declare the task with the same name as the
+// task name on the worker
+export const simple = hatchet.task<SimpleInput, SimpleOutput>({
+  name: 'simple',
+});
+
+// you can use all the same run methods on the stub
+// with full type-safety
+await simple.run({ Message: 'Hello, World!' });
+await simple.runNoWait({ Message: 'Hello, World!' });
+await simple.schedule(new Date(), { Message: 'Hello, World!' });
+await simple.cron('my-cron', '0 0 * * *', { Message: 'Hello, World!' });
+```
+
+</Tabs.Tab>
+<Tabs.Tab title="Python">
+
+```python
+Example Coming Soon
+```
+
+
+
+</Tabs.Tab>
+<Tabs.Tab title="Go">
+
+```go
+Example Coming Soon
+```
+
+</Tabs.Tab>
+</UniversalTabs>
+
