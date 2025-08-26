@@ -91,6 +91,12 @@ jobs:
     steps:
       - name: Clone repository
         uses: actions/checkout@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Generate docs snippets and examples
+        working-directory: frontend/snippets
+        run: python3 generate.py
       - name: Build lite
         run: |
           DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
@@ -125,6 +131,12 @@ jobs:
     steps:
       - name: Clone repository
         uses: actions/checkout@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Generate docs snippets and examples
+        working-directory: frontend/snippets
+        run: python3 generate.py
       - name: Build lite
         run: |
           DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
@@ -159,6 +171,12 @@ jobs:
     steps:
       - name: Clone repository
         uses: actions/checkout@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Generate docs snippets and examples
+        working-directory: frontend/snippets
+        run: python3 generate.py
       - name: Build dashboard
         run: |
           DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
@@ -177,6 +195,12 @@ jobs:
     steps:
       - name: Clone repository
         uses: actions/checkout@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Generate docs snippets and examples
+        working-directory: frontend/snippets
+        run: python3 generate.py
       - name: Build dashboard
         run: |
           DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
