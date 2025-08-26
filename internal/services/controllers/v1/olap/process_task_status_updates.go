@@ -45,7 +45,7 @@ func (o *OLAPControllerImpl) runTaskStatusUpdates(ctx context.Context) func() {
 			shouldContinue, rows, err = o.repo.OLAP().UpdateTaskStatuses(ctx, tenantIds)
 
 			if err != nil {
-				o.l.Error().Err(err).Msg("could not update DAG statuses")
+				o.l.Error().Err(err).Msg("could not update task statuses")
 				return
 			}
 
