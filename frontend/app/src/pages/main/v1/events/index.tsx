@@ -384,7 +384,7 @@ export function ExpandedEventContent({ event }: { event: V1Event }) {
   });
 
   return (
-    <div className="w-full h-full overflow-auto">
+    <div className="w-full">
       <div className="space-y-6">
         <div className="space-y-2">
           <p className="text-sm text-muted-foreground">
