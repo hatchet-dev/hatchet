@@ -4,7 +4,7 @@ import { Tabs, Callout } from "nextra/components";
 
 Hatchet is a modern orchestration platform that helps engineering teams build low-latency and high-throughput data ingestion and agentic AI pipelines.
 
-You write simple functions, called [tasks](./home/your-first-task), in Python, Typescript, and Go and run them on [workers](./home/workers) in your own infrastructure. You can compose these tasks into [parent/child relationships](./home/child-spawning) or predefined as [directed acyclic graphs (DAGs)](./home/dags) to build more complex pipelines, which we call [workflows](./home/orchestration). All tasks and workflows are **defined as code**, making them easy to version, test, and deploy.
+You write simple functions, called [tasks](./home/your-first-task), in Python, Typescript, and Go and run them on [workers](./home/workers) in your own infrastructure. You can compose these tasks into [parent/child relationships](./home/child-spawning) or predefined as [Directed Acyclic Graphs (DAGs)](./home/dags) to build more complex pipelines, which we call [workflows](./home/orchestration). All tasks and workflows are **defined as code**, making them easy to version, test, and deploy.
 
 Hatchet handles scheduling, complex assignment, fault tolerance, and observability so you can focus on building your application as you scale.
 
@@ -22,7 +22,7 @@ While Hatchet is a general-purpose orchestration platform, it's particularly wel
 
 🪨 **Durability for Long Running Jobs** - Every task invocation is durably logged to PostgreSQL. With [durable execution](./home/durable-execution), when jobs fail your workflow will resume exactly where you left off — no lost work, no duplicate LLM calls, no engineer headaches.
 
-🧘‍♂️ **Zen Developer Experience** - Hatchet SDKs (Python, Typescript, and Go) are hand-built with modern tooling and are designed to be easy to use. Hatchet has built-in observability and debugging tools for things like replays, logs, and alerts.
+🧘‍♂️ **Zen Developer Experience** - Hatchet SDKs (Python, Typescript, and Go) are built with modern tooling and are designed to be easy to use. Hatchet has built-in observability and debugging tools for things like replays, logs, and alerts.
 
 If you plan on self-hosting or have requirements for an on-premise deployment, there are some additional considerations:
 
@@ -40,7 +40,7 @@ Today, developers who need background task processing and workflow orchestration
 | Feature                                     | Hatchet   | Celery   | Airflow | Temporal     |
 | ------------------------------------------- | --------- | -------- | ------- | ------------ |
 | **Task Start Latency**                      | 25ms      | 5-100ms+ | 5-30s   | 25ms         |
-| **Concurrent Tasks**                        | Thousands | Limited  | Limited | Thousands    |
+| **Concurrent Tasks**                        | 1000s | Variable*   | Variable*  | 10000    |
 | **Code-First Workflows**                    | ✅        | ✅       | ✅      | ✅           |
 | **Cron Jobs and Scheduling**                | ✅        | ✅       | ✅      | ✅           |
 | **Priority Queues**                         | ✅        | ✅       | ✅      | ✅ (beta)    |
@@ -50,6 +50,8 @@ Today, developers who need background task processing and workflow orchestration
 | **Real-time Streaming**                     | ✅        | ❌       | ❌      | ❌           |
 | **Global Rate Limits**                      | ✅        | ❌       | ❌      | ❌           |
 | **Event Streaming**                         | ✅        | ❌       | ❌      | ❌           |
+
+*Requires careful configuration and infrastructure scaling
 
 ## Production Readiness
 

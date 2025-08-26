@@ -51,7 +51,7 @@ Hatchet is designed as a modern task orchestration platform that bridges the gap
     <tr>
       <td>✅</td>
       <td>
-        <strong>Cloud or Air-gapped Environments</strong> for flexible
+        <strong>Cloud or Air-Gapped Environments</strong> for flexible
         deployment options (
         <a href="https://cloud.onhatchet.run">Hatchet Cloud</a> and{" "}
         <a href="../self-hosting">self-hosting</a>)
@@ -100,7 +100,7 @@ Hatchet is designed with the following core reliability guarantees:
 
 **Every task will execute at least once.** Hatchet ensures that no task gets lost, even during system failures, network outages, or deployments. Failed tasks automatically retry according to your configuration, and all tasks persist through restarts and network issues.
 
-**Consistent state management.** All workflow state changes happen within PostgreSQL transactions, ensuring that your workflow dependencies resolve consistently and no tasks are lost during failures or deployments. This ACID consistency means your workflows maintain integrity even under adverse conditions.
+**Consistent state management.** All workflow state changes happen within PostgreSQL transactions, ensuring that your workflow dependencies resolve consistently and no tasks are lost during failures or deployments.
 
 **Predictable execution order.** The default task assignment strategy is First In First Out (FIFO) which can be modified with [concurrency policies](./concurrency.mdx), [rate limits](./rate-limits.mdx), and [priorities](./priority.mdx).
 
@@ -112,9 +112,9 @@ Understanding Hatchet's performance characteristics helps you plan your implemen
 
 **Typical time-to-start latency** for task dispatch is sub 50ms with PostgreSQL storage, though this can be optimized to ~25ms P95 for hot workers in optimized setups. Network latency between your workers and the Hatchet engine will directly impact dispatch times, so consider deployment topology when latency matters.
 
-**Throughput capacity** varies significantly based on your setup. A single engine instance with PostgreSQL-only storage typically handles hundreds of tasks per second. When you need higher throughput, adding RabbitMQ as a message queue can substantially increase capacity, though your database will eventually become the bottleneck at very high scales. Through tuning and sharding, we can support throughputs of 10,000s of tasks per second.
+**Throughput capacity** varies significantly based on your setup. A single engine instance with PostgreSQL-only storage typically handles hundreds of tasks per second. When you need higher throughput, adding RabbitMQ as a message queue can substantially increase capacity, though your database will eventually become the bottleneck at very high scales. Through tuning and sharding, we can support throughputs of tens of thousands of tasks per second.
 
-**Concurrent processing** scales well—Hatchet supports thousands of concurrent workers, with worker-level concurrency controlled through slot configuration. The depth of your queues is limited by your database storage capacity rather than memory constraints.
+**Concurrent processing** scales well — Hatchet supports thousands of concurrent workers, with worker-level concurrency controlled through slot configuration. The depth of your queues is limited by your database storage capacity rather than memory constraints.
 
 **Performance optimization** comes through several strategies: RabbitMQ for high-throughput workloads, read replicas for analytics queries, connection pooling with tools like PgBouncer, and shorter retention periods for execution history. Conversely, performance can be limited by database connection limits, large task payloads (over 1MB), complex dependency graphs, and cross-region network latency.
 
