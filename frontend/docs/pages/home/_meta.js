@@ -1,9 +1,11 @@
 export default {
   "--intro": {
-    title: "Introduction",
+    title: "Why Hatchet?",
     type: "separator",
   },
-  index: "Introduction",
+  index: "🪓 Welcome",
+  "architecture": "Architecture", 
+  "guarantees-and-tradeoffs": "Guarantees & Tradeoffs",
   "hatchet-cloud-quickstart": "Hatchet Cloud Quickstart",
   "--quickstart": {
     title: "Quickstart",
