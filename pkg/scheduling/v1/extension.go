@@ -21,6 +21,7 @@ type SnapshotInput struct {
 type SlotUtilization struct {
 	UtilizedSlots    int
 	NonUtilizedSlots int
+	TotalSlots       int
 }
 
 type WorkerCp struct {

@@ -55,15 +55,12 @@ func (p *PrometheusExtension) ReportSnapshot(tenantId string, input *SnapshotInp
 			data.NonUtilizedSlots += utilization.NonUtilizedSlots
 			workerPromLabelsToSlotData[promLabels] = data
 		} else {
-			workerPromLabelsToSlotData[promLabels] = &SlotUtilization{
-				UtilizedSlots:    utilization.UtilizedSlots,
-				NonUtilizedSlots: utilization.NonUtilizedSlots,
-			}
+			workerPromLabelsToSlotData[promLabels] = utilization
 		}
 	}
 
 	for promLabels, utilization := range workerPromLabelsToSlotData {
-		totalSlots := float64(utilization.UtilizedSlots + utilization.NonUtilizedSlots)
+		totalSlots := float64(utilization.TotalSlots)
 		usedSlots := float64(utilization.UtilizedSlots)
 		availableSlots := float64(utilization.NonUtilizedSlots)
 
