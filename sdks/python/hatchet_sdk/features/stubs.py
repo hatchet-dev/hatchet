@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, overload
+from typing import TYPE_CHECKING, Any, overload
 
 from hatchet_sdk.context.context import Context
 from hatchet_sdk.runnables.types import EmptyModel, R, TWorkflowInput
@@ -42,6 +42,16 @@ class StubsClient:
         *,
         name: str,
         input_validator: None = None,
+        output_validator: None = None,
+    ) -> Standalone[EmptyModel, EmptyModel]: ...
+
+    @overload
+    def task(
+        self,
+        *,
+        name: str,
+        input_validator: None = None,
+        output_validator: type[R],
     ) -> Standalone[EmptyModel, R]: ...
 
     @overload
@@ -50,6 +60,16 @@ class StubsClient:
         *,
         name: str,
         input_validator: type[TWorkflowInput],
+        output_validator: None = None,
+    ) -> Standalone[TWorkflowInput, EmptyModel]: ...
+
+    @overload
+    def task(
+        self,
+        *,
+        name: str,
+        input_validator: type[TWorkflowInput],
+        output_validator: type[R],
     ) -> Standalone[TWorkflowInput, R]: ...
 
     def task(
@@ -57,10 +77,23 @@ class StubsClient:
         *,
         name: str,
         input_validator: type[TWorkflowInput] | None = None,
-    ) -> Standalone[EmptyModel, R] | Standalone[TWorkflowInput, R]:
-        def mock_func(input: TWorkflowInput, ctx: Context) -> R:
+        output_validator: type[R] | None = None,
+    ) -> (
+        Standalone[EmptyModel, R]
+        | Standalone[TWorkflowInput, R]
+        | Standalone[EmptyModel, EmptyModel]
+        | Standalone[TWorkflowInput, EmptyModel]
+    ):
+        def mock_func(input: Any, ctx: Context) -> Any:
             raise NotImplementedError(
                 "This is a stub function and should not be called directly."
             )
+
+        return_type = output_validator if output_validator is not None else EmptyModel
+        mock_func.__annotations__ = {
+            "input": Any,
+            "ctx": Context,
+            "return": return_type,
+        }
 
         return self.client.task(name=name, input_validator=input_validator)(mock_func)
