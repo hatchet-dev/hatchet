@@ -88,13 +88,13 @@ export function useSidePanelData(): SidePanelData {
         return {
           isDocs: false,
           component: <TaskRunDetail {...props.content} />,
-          title: 'Run Detail',
+          title: 'Run details',
         };
       case 'event-details':
         return {
           isDocs: false,
           component: <ExpandedEventContent event={props.content.event} />,
-          title: `Event ${props.content.event.metadata.id}`,
+          title: `Event ${props.content.event.key} details`,
         };
       case 'docs':
         return {
