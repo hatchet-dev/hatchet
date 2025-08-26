@@ -27,11 +27,16 @@ func (p *PrometheusExtension) SetTenants(tenants []*dbsqlc.Tenant) {
 	}
 }
 
+type WorkerPromLabels struct {
+	ID   string
+	Name string
+}
+
 func (p *PrometheusExtension) ReportSnapshot(tenantId string, input *SnapshotInput) {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
-	workerNameToSlotData := make(map[string]*SlotUtilization)
+	workerPromLabelsToSlotData := make(map[*WorkerPromLabels]*SlotUtilization)
 
 	for workerId, utilization := range input.WorkerSlotUtilization {
 		worker, ok := input.Workers[workerId]
@@ -39,27 +44,32 @@ func (p *PrometheusExtension) ReportSnapshot(tenantId string, input *SnapshotInp
 			continue
 		}
 
-		data, ok := workerNameToSlotData[worker.Name]
+		promLabels := &WorkerPromLabels{
+			ID:   worker.WorkerId,
+			Name: worker.Name,
+		}
+
+		data, ok := workerPromLabelsToSlotData[promLabels]
 		if ok {
 			data.UtilizedSlots += utilization.UtilizedSlots
 			data.NonUtilizedSlots += utilization.NonUtilizedSlots
-			workerNameToSlotData[worker.Name] = data
+			workerPromLabelsToSlotData[promLabels] = data
 		} else {
-			workerNameToSlotData[worker.Name] = &SlotUtilization{
+			workerPromLabelsToSlotData[promLabels] = &SlotUtilization{
 				UtilizedSlots:    utilization.UtilizedSlots,
 				NonUtilizedSlots: utilization.NonUtilizedSlots,
 			}
 		}
 	}
 
-	for workerName, utilization := range workerNameToSlotData {
+	for promLabels, utilization := range workerPromLabelsToSlotData {
 		totalSlots := float64(utilization.UtilizedSlots + utilization.NonUtilizedSlots)
 		usedSlots := float64(utilization.UtilizedSlots)
 		availableSlots := float64(utilization.NonUtilizedSlots)
 
-		prometheus.TenantWorkerSlots.WithLabelValues(workerName).Set(totalSlots)
-		prometheus.TenantUsedWorkerSlots.WithLabelValues(workerName).Set(usedSlots)
-		prometheus.TenantAvailableWorkerSlots.WithLabelValues(workerName).Set(availableSlots)
+		prometheus.TenantWorkerSlots.WithLabelValues(promLabels.ID, promLabels.Name).Set(totalSlots)
+		prometheus.TenantUsedWorkerSlots.WithLabelValues(promLabels.ID, promLabels.Name).Set(usedSlots)
+		prometheus.TenantAvailableWorkerSlots.WithLabelValues(promLabels.ID, promLabels.Name).Set(availableSlots)
 	}
 }
 

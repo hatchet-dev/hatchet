@@ -135,7 +135,7 @@ var (
 			Name: string(TenantWorkerSlotsTotal),
 			Help: "Total number of slots per worker pool",
 		},
-		[]string{"worker"},
+		[]string{"worker_id", "worker_name"},
 	)
 
 	TenantUsedWorkerSlots = promauto.NewGaugeVec(
@@ -143,7 +143,7 @@ var (
 			Name: string(TenantUsedWorkerSlotsTotal),
 			Help: "Number of used slots per worker pool",
 		},
-		[]string{"worker"},
+		[]string{"worker_id", "worker_name"},
 	)
 
 	TenantAvailableWorkerSlots = promauto.NewGaugeVec(
@@ -151,6 +151,6 @@ var (
 			Name: string(TenantAvailableWorkerSlotsTotal),
 			Help: "Number of available slots per worker pool",
 		},
-		[]string{"worker"},
+		[]string{"worker_id", "worker_name"},
 	)
 )
