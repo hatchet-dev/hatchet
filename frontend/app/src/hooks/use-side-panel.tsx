@@ -12,6 +12,8 @@ import {
   TabOption,
 } from '@/pages/main/v1/workflow-runs-v1/$run/v2components/step-run-detail/step-run-detail';
 import { DocPage } from '@/components/v1/docs/docs-button';
+import { V1Event } from '@/lib/api';
+import { ExpandedEventContent } from '@/pages/main/v1/events';
 
 type SidePanelContent =
   | {
@@ -49,6 +51,12 @@ type UseSidePanelProps =
         defaultOpenTab?: TabOption;
         showViewTaskRunButton?: boolean;
       };
+    }
+  | {
+      type: 'event-details';
+      content: {
+        event: V1Event;
+      };
     };
 
 export function useSidePanelData(): SidePanelData {
@@ -81,6 +89,12 @@ export function useSidePanelData(): SidePanelData {
           isDocs: false,
           component: <TaskRunDetail {...props.content} />,
           title: 'Run Detail',
+        };
+      case 'event-details':
+        return {
+          isDocs: false,
+          component: <ExpandedEventContent event={props.content.event} />,
+          title: `Event ${props.content.event.metadata.id}`,
         };
       case 'docs':
         return {

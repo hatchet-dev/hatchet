@@ -14,13 +14,7 @@ import {
   FilterOption,
   ToolbarType,
 } from '@/components/v1/molecules/data-table/data-table-toolbar';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/v1/ui/dialog';
+import { Dialog } from '@/components/v1/ui/dialog';
 import { useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/v1/ui/button';
 import { ArrowPathIcon } from '@heroicons/react/24/outline';
@@ -45,6 +39,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/v1/ui/dropdown-menu';
+import { useSidePanel } from '@/hooks/use-side-panel';
 
 export default function Events() {
   const [selectedEvent, setSelectedEvent] = useState<V1Event | null>(null);
@@ -53,6 +48,7 @@ export default function Events() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [rotate, setRotate] = useState(false);
   const [hoveredEventId, setHoveredEventId] = useState<string | null>(null);
+  const { open } = useSidePanel();
 
   useEffect(() => {
     if (
@@ -279,6 +275,13 @@ export default function Events() {
 
   const tableColumns = columns({
     onRowClick: (row: V1Event) => {
+      open({
+        type: 'event-details',
+        content: {
+          event: row,
+        },
+      });
+
       setSelectedEvent(row);
     },
     hoveredEventId,
@@ -305,16 +308,6 @@ export default function Events() {
 
   return (
     <>
-      <Dialog
-        open={!!selectedEvent}
-        onOpenChange={(open) => {
-          if (!open) {
-            setSelectedEvent(null);
-          }
-        }}
-      >
-        {selectedEvent && <ExpandedEventContent event={selectedEvent} />}
-      </Dialog>
       <DataTable
         error={eventsError || eventKeysError || workflowKeysError}
         isLoading={
@@ -372,7 +365,7 @@ export default function Events() {
   );
 }
 
-function ExpandedEventContent({ event }: { event: V1Event }) {
+export function ExpandedEventContent({ event }: { event: V1Event }) {
   const { tenantId } = useCurrentTenantId();
 
   const { data: filters } = useQuery({
@@ -391,32 +384,44 @@ function ExpandedEventContent({ event }: { event: V1Event }) {
   });
 
   return (
-    <DialogContent className="md:max-w-[700px] lg:max-w-[900px] xl:max-w-[1100px] max-h-[85%] overflow-auto">
-      <DialogHeader>
-        <DialogTitle>Event {event.key}</DialogTitle>
-        <DialogDescription>
-          Seen <RelativeDate date={event.metadata.createdAt} />
-        </DialogDescription>
-      </DialogHeader>
+    <div className="w-full h-full overflow-auto">
+      <div className="space-y-6">
+        <div className="space-y-2">
+          <p className="text-lg font-semibold">Event {event.key}</p>
+          <p className="text-sm text-muted-foreground">
+            Seen <RelativeDate date={event.metadata.createdAt} />
+          </p>
+        </div>
 
-      <h3 className="text-lg font-bold leading-tight text-foreground">
-        Event Data
-      </h3>
-      <Separator />
-      <EventDataSection event={event} />
-      {filters && filters.length > 0 && (
-        <>
-          <h3 className="text-lg font-bold leading-tight text-foreground">
-            Filters
-          </h3>
-          <Separator />
-          <FiltersSection filters={filters} />
-        </>
-      )}
-      <h3 className="text-lg font-bold leading-tight text-foreground">Runs</h3>
-      <Separator />
-      <EventWorkflowRunsList event={event} />
-    </DialogContent>
+        <div className="space-y-4">
+          <div>
+            <h3 className="text-sm font-semibold text-foreground mb-2">
+              Event Data
+            </h3>
+            <Separator className="mb-3" />
+            <EventDataSection event={event} />
+          </div>
+
+          {filters && filters.length > 0 && (
+            <div>
+              <h3 className="text-sm font-semibold text-foreground mb-2">
+                Filters
+              </h3>
+              <Separator className="mb-3" />
+              <FiltersSection filters={filters} />
+            </div>
+          )}
+
+          <div>
+            <h3 className="text-sm font-semibold text-foreground mb-2">
+              Runs
+            </h3>
+            <Separator className="mb-3" />
+            <EventWorkflowRunsList event={event} />
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -457,7 +462,7 @@ function EventDataSection({ event }: { event: V1Event }) {
   return (
     <CodeHighlighter
       language="json"
-      className="my-4"
+      className="text-xs"
       code={JSON.stringify(dataToDisplay, null, 2)}
     />
   );
@@ -465,30 +470,34 @@ function EventDataSection({ event }: { event: V1Event }) {
 
 function FiltersSection({ filters }: { filters: V1Filter[] }) {
   return (
-    <div className="[&_th:last-child]:w-[60px] [&_th:last-child]:min-w-[60px] [&_th:last-child]:max-w-[60px] [&_td:last-child]:w-[60px] [&_td:last-child]:min-w-[60px] [&_td:last-child]:max-w-[60px]">
-      <DataTable columns={filterColumns} data={filters} filters={[]} />
+    <div className="w-full overflow-x-auto">
+      <div className="min-w-[500px] [&_th:last-child]:w-[60px] [&_th:last-child]:min-w-[60px] [&_th:last-child]:max-w-[60px] [&_td:last-child]:w-[60px] [&_td:last-child]:min-w-[60px] [&_td:last-child]:max-w-[60px]">
+        <DataTable columns={filterColumns} data={filters} filters={[]} />
+      </div>
     </div>
   );
 }
 
 function EventWorkflowRunsList({ event }: { event: V1Event }) {
   return (
-    <div className="w-full overflow-x-auto max-w-full">
-      <RunsProvider
-        tableKey={`event-workflow-runs-${event.metadata.id}`}
-        display={{
-          hideMetrics: true,
-          hideCounts: true,
-          hideDateFilter: true,
-          hideTriggerRunButton: true,
-          hideCancelAndReplayButtons: true,
-        }}
-        runFilters={{
-          triggeringEventExternalId: event.metadata.id,
-        }}
-      >
-        <RunsTable />
-      </RunsProvider>
+    <div className="w-full overflow-x-auto">
+      <div className="min-w-[600px]">
+        <RunsProvider
+          tableKey={`event-workflow-runs-${event.metadata.id}`}
+          display={{
+            hideMetrics: true,
+            hideCounts: true,
+            hideDateFilter: true,
+            hideTriggerRunButton: true,
+            hideCancelAndReplayButtons: true,
+          }}
+          runFilters={{
+            triggeringEventExternalId: event.metadata.id,
+          }}
+        >
+          <RunsTable />
+        </RunsProvider>
+      </div>
     </div>
   );
 }
