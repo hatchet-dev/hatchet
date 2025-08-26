@@ -163,6 +163,26 @@ func (r *tenantAPIRepository) UpdateTenant(ctx context.Context, id string, opts 
 	)
 }
 
+func (r *tenantAPIRepository) SoftDeleteTenant(ctx context.Context, id string) error {
+	params := dbsqlc.UpdateTenantParams{
+		ID: sqlchelpers.UUIDFromStr(id),
+	}
+
+	params.DeletedAt = sqlchelpers.BoolFromBoolean(true)
+
+	_, err := r.queries.UpdateTenant(
+		ctx,
+		r.pool,
+		params,
+	)
+
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (r *tenantAPIRepository) GetTenantByID(ctx context.Context, id string) (*dbsqlc.Tenant, error) {
 	return cache.MakeCacheable(r.cache, "api"+id, func() (*dbsqlc.Tenant, error) {
 		return r.queries.GetTenantByID(ctx, r.pool, sqlchelpers.UUIDFromStr(id))

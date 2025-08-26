@@ -1539,6 +1539,22 @@ export class Api<
       ...params,
     });
   /**
+   * @description Soft delete a tenant
+   *
+   * @tags Tenant
+   * @name TenantDelete
+   * @summary Delete tenant
+   * @request DELETE:/api/v1/tenants/{tenant}
+   * @secure
+   */
+  tenantDelete = (tenant: string, params: RequestParams = {}) =>
+    this.request<void, APIError | APIErrors>({
+      path: `/api/v1/tenants/${tenant}`,
+      method: "DELETE",
+      secure: true,
+      ...params,
+    });
+  /**
    * @description Get the details of a tenant
    *
    * @tags Tenant

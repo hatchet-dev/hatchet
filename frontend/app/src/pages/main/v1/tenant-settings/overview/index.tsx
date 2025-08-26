@@ -3,7 +3,12 @@ import { Separator } from '@/components/v1/ui/separator';
 import { useState } from 'react';
 import { useApiError } from '@/lib/hooks';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import api, { queries, TenantVersion, UpdateTenantRequest } from '@/lib/api';
+import api, {
+  queries,
+  TenantVersion,
+  UpdateTenantRequest,
+  TenantMemberRole,
+} from '@/lib/api';
 import { Switch } from '@/components/v1/ui/switch';
 import { Label } from '@radix-ui/react-label';
 import { Spinner } from '@/components/v1/ui/loading';
@@ -17,6 +22,12 @@ import {
   DialogTitle,
 } from '@/components/v1/ui/dialog';
 import { Alert, AlertDescription, AlertTitle } from '@/components/v1/ui/alert';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/v1/ui/tooltip';
 import { useCurrentTenantId, useTenantDetails } from '@/hooks/use-tenant';
 import { cloudApi } from '@/lib/api/api';
 
@@ -37,6 +48,8 @@ export default function TenantSettings() {
         <InactivityTimeout />
         <Separator className="my-4" />
         <TenantVersionSwitcher />
+        <Separator className="my-4" />
+        <DeleteTenant />
       </div>
     </div>
   );
@@ -310,6 +323,116 @@ const InactivityTimeout: React.FC = () => {
           </Alert>
         </>
       )}
+    </>
+  );
+};
+
+const DeleteTenant: React.FC = () => {
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const { tenant, membership } = useTenantDetails();
+  const { handleApiError } = useApiError({});
+
+  const isOwner = membership === TenantMemberRole.OWNER;
+
+  const deleteTenantMutation = useMutation({
+    mutationKey: ['tenant:delete'],
+    mutationFn: async () => {
+      if (!tenant?.metadata.id) {
+        throw new Error('No tenant ID');
+      }
+      await api.tenantDelete(tenant.metadata.id);
+    },
+    onSuccess: () => {
+      window.location.href = '/';
+    },
+    onError: handleApiError,
+  });
+
+  const handleDelete = () => {
+    deleteTenantMutation.mutate();
+  };
+
+  if (!tenant) {
+    return null;
+  }
+
+  return (
+    <>
+      <div className="flex flex-col gap-y-4">
+        <h2 className="text-xl font-semibold leading-tight text-foreground">
+          Delete Tenant
+        </h2>
+        <p className="text-sm text-muted-foreground">
+          Permanently delete this tenant and all associated data. This action
+          cannot be undone.
+        </p>
+
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div>
+                <Button
+                  variant="destructive"
+                  onClick={() => setShowDeleteModal(true)}
+                  disabled={!isOwner}
+                  className="w-fit"
+                >
+                  Delete Tenant
+                </Button>
+              </div>
+            </TooltipTrigger>
+            {!isOwner && (
+              <TooltipContent>
+                Only tenant owners can delete the tenant
+              </TooltipContent>
+            )}
+          </Tooltip>
+        </TooltipProvider>
+      </div>
+
+      <Dialog open={showDeleteModal} onOpenChange={setShowDeleteModal}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Delete Tenant</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <Alert variant="destructive">
+              <AlertTitle>Warning</AlertTitle>
+              <AlertDescription>
+                This action will permanently delete the tenant "{tenant.name}"
+                and all associated data including:
+              </AlertDescription>
+            </Alert>
+            <ul className="list-disc list-inside text-sm space-y-1 text-muted-foreground">
+              <li>All workflows and workflow runs</li>
+              <li>All step runs and logs</li>
+              <li>All events and triggers</li>
+              <li>All worker data</li>
+              <li>All team members and invitations</li>
+            </ul>
+            <p className="text-sm text-muted-foreground">
+              This action cannot be undone.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowDeleteModal(false)}
+              disabled={deleteTenantMutation.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDelete}
+              disabled={deleteTenantMutation.isPending}
+            >
+              {deleteTenantMutation.isPending ? <Spinner /> : null}
+              Delete Tenant
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 };

@@ -37,7 +37,8 @@ SET
     "analyticsOptOut" = COALESCE(sqlc.narg('analyticsOptOut')::boolean, "analyticsOptOut"),
     "alertMemberEmails" = COALESCE(sqlc.narg('alertMemberEmails')::boolean, "alertMemberEmails"),
     "version" = COALESCE(sqlc.narg('version')::"TenantMajorEngineVersion", "version"),
-    "uiVersion" = COALESCE(sqlc.narg('uiVersion')::"TenantMajorUIVersion", "uiVersion")
+    "uiVersion" = COALESCE(sqlc.narg('uiVersion')::"TenantMajorUIVersion", "uiVersion"),
+    "deletedAt" = CASE WHEN sqlc.narg('deletedAt')::boolean IS TRUE THEN CURRENT_TIMESTAMP ELSE "deletedAt" END
 WHERE
     "id" = sqlc.arg('id')::uuid
 RETURNING *;
@@ -51,7 +52,9 @@ RETURNING *;
 SELECT
     *
 FROM
-    "Tenant" as tenants;
+    "Tenant" as tenants
+WHERE
+    "deletedAt" IS NULL;
 
 -- name: ControllerPartitionHeartbeat :one
 UPDATE
@@ -78,7 +81,8 @@ FROM
     "Tenant" as tenants
 WHERE
     "controllerPartitionId" = sqlc.arg('controllerPartitionId')::text
-    AND "slug" = 'internal';
+    AND "slug" = 'internal'
+    AND "deletedAt" IS NULL;
 
 -- name: ListTenantsByControllerPartitionId :many
 SELECT
@@ -87,7 +91,8 @@ FROM
     "Tenant" as tenants
 WHERE
     "controllerPartitionId" = sqlc.arg('controllerPartitionId')::text
-    AND "version" = @majorVersion::"TenantMajorEngineVersion";
+    AND "version" = @majorVersion::"TenantMajorEngineVersion"
+    AND "deletedAt" IS NULL;
 
 -- name: ListTenantsByTenantWorkerPartitionId :many
 SELECT
@@ -96,7 +101,8 @@ FROM
     "Tenant" as tenants
 WHERE
     "workerPartitionId" = sqlc.arg('workerPartitionId')::text
-    AND "version" = @majorVersion::"TenantMajorEngineVersion";
+    AND "version" = @majorVersion::"TenantMajorEngineVersion"
+    AND "deletedAt" IS NULL;
 
 -- name: GetTenantByID :one
 SELECT
@@ -104,7 +110,8 @@ SELECT
 FROM
     "Tenant" as tenants
 WHERE
-    "id" = sqlc.arg('id')::uuid;
+    "id" = sqlc.arg('id')::uuid
+    AND "deletedAt" IS NULL;
 
 -- name: GetTenantBySlug :one
 SELECT
@@ -112,7 +119,8 @@ SELECT
 FROM
     "Tenant" as tenants
 WHERE
-    "slug" = sqlc.arg('slug')::text;
+    "slug" = sqlc.arg('slug')::text
+    AND "deletedAt" IS NULL;
 
 -- name: GetTenantAlertingSettings :one
 SELECT
@@ -489,7 +497,8 @@ FROM
     "Tenant" as tenants
 WHERE
     "schedulerPartitionId" = sqlc.arg('schedulerPartitionId')::text
-    AND "version" = @majorVersion::"TenantMajorEngineVersion";
+    AND "version" = @majorVersion::"TenantMajorEngineVersion"
+    AND "deletedAt" IS NULL;
 
 -- name: UpsertTenantAlertingSettings :one
 INSERT INTO "TenantAlertingSettings" (
@@ -615,7 +624,8 @@ JOIN
 JOIN
     "Tenant" t ON tm."tenantId" = t."id"
 WHERE
-    tm."id" = ANY(@ids::uuid[]);
+    tm."id" = ANY(@ids::uuid[])
+    AND t."deletedAt" IS NULL;
 
 -- name: GetTenantMemberByEmail :one
 SELECT

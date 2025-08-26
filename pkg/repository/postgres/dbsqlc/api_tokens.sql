@@ -1,10 +1,13 @@
 -- name: GetAPITokenById :one
 SELECT
-    *
+    api.*
 FROM
-    "APIToken"
+    "APIToken" api
+JOIN
+    "Tenant" t ON api."tenantId" = t."id"
 WHERE
-    "id" = @id::uuid;
+    api."id" = @id::uuid
+    AND t."deletedAt" IS NULL;
 
 -- name: CreateAPIToken :one
 INSERT INTO "APIToken" (

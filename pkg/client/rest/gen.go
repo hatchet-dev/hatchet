@@ -3138,6 +3138,9 @@ type ClientInterface interface {
 
 	TenantCreate(ctx context.Context, body TenantCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// TenantDelete request
+	TenantDelete(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// TenantGet request
 	TenantGet(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -4100,6 +4103,18 @@ func (c *Client) TenantCreateWithBody(ctx context.Context, contentType string, b
 
 func (c *Client) TenantCreate(ctx context.Context, body TenantCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewTenantCreateRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) TenantDelete(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewTenantDeleteRequest(c.Server, tenant)
 	if err != nil {
 		return nil, err
 	}
@@ -8069,6 +8084,40 @@ func NewTenantCreateRequestWithBody(server string, contentType string, body io.R
 	}
 
 	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewTenantDeleteRequest generates requests for TenantDelete
+func NewTenantDeleteRequest(server string, tenant openapi_types.UUID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/tenants/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
 
 	return req, nil
 }
@@ -12412,6 +12461,9 @@ type ClientWithResponsesInterface interface {
 
 	TenantCreateWithResponse(ctx context.Context, body TenantCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*TenantCreateResponse, error)
 
+	// TenantDeleteWithResponse request
+	TenantDeleteWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*TenantDeleteResponse, error)
+
 	// TenantGetWithResponse request
 	TenantGetWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*TenantGetResponse, error)
 
@@ -13835,6 +13887,29 @@ func (r TenantCreateResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r TenantCreateResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type TenantDeleteResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON403      *APIError
+	JSON404      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r TenantDeleteResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r TenantDeleteResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -16254,6 +16329,15 @@ func (c *ClientWithResponses) TenantCreateWithResponse(ctx context.Context, body
 		return nil, err
 	}
 	return ParseTenantCreateResponse(rsp)
+}
+
+// TenantDeleteWithResponse request returning *TenantDeleteResponse
+func (c *ClientWithResponses) TenantDeleteWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*TenantDeleteResponse, error) {
+	rsp, err := c.TenantDelete(ctx, tenant, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseTenantDeleteResponse(rsp)
 }
 
 // TenantGetWithResponse request returning *TenantGetResponse
@@ -19126,6 +19210,39 @@ func ParseTenantCreateResponse(rsp *http.Response) (*TenantCreateResponse, error
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseTenantDeleteResponse parses an HTTP response from a TenantDeleteWithResponse call
+func ParseTenantDeleteResponse(rsp *http.Response) (*TenantDeleteResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &TenantDeleteResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
 
 	}
 

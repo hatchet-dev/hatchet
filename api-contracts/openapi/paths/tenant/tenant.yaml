@@ -76,6 +76,38 @@ updateTenants:
     summary: Update tenant
     tags:
       - Tenant
+  delete:
+    x-resources: ["tenant"]
+    description: Soft delete a tenant
+    operationId: tenant:delete
+    parameters:
+      - description: The tenant id
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    responses:
+      "204":
+        description: Successfully deleted the tenant
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIError"
+        description: Forbidden
+      "404":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Not found
+    summary: Delete tenant
+    tags:
+      - Tenant
   get:
     x-resources: ["tenant"]
     description: Get the details of a tenant
