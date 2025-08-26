@@ -22,6 +22,7 @@ async def main() -> None:
 
     # > Create a stub task
     stub = hatchet.stubs.task(
+        # make sure the name and schemas exactly match the implementation
         name="externally-triggered-task",
         input_validator=TaskInput,
         output_validator=TaskOutput,
