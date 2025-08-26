@@ -11,7 +11,7 @@ Hatchet is designed as a modern task orchestration platform that bridges the gap
     <tr>
       <td>✅</td>
       <td>
-        <strong>Real-time Requests</strong> - Sub-50ms task dispatch for hot
+        <strong>Real-time Requests</strong> - Sub-25ms task dispatch for hot
         workers with thousands of concurrent tasks
       </td>
     </tr>
@@ -80,12 +80,6 @@ Hatchet is designed as a modern task orchestration platform that bridges the gap
     <tr>
       <td>❌</td>
       <td>
-        <strong>Simple Queuing</strong> without workflow features
-      </td>
-    </tr>
-    <tr>
-      <td>❌</td>
-      <td>
         <strong>Memory-Only Queuing</strong> where persistence or durability
         isn't needed
       </td>
@@ -116,7 +110,7 @@ Hatchet is designed with the following core reliability guarantees:
 
 Understanding Hatchet's performance characteristics helps you plan your implementation and set realistic expectations.
 
-**Typical time-to-start latency** for task dispatch is sub 100ms with PostgreSQL storage, though this can be optimized to ~35ms P95 for hot workers in optimized setups. Network latency between your workers and the Hatchet engine will directly impact dispatch times, so consider deployment topology when latency matters.
+**Typical time-to-start latency** for task dispatch is sub 50ms with PostgreSQL storage, though this can be optimized to ~25ms P95 for hot workers in optimized setups. Network latency between your workers and the Hatchet engine will directly impact dispatch times, so consider deployment topology when latency matters.
 
 **Throughput capacity** varies significantly based on your setup. A single engine instance with PostgreSQL-only storage typically handles hundreds of tasks per second. When you need higher throughput, adding RabbitMQ as a message queue can substantially increase capacity, though your database will eventually become the bottleneck at very high scales. Through tuning and sharding, we can support throughputs of 10,000s of tasks per second.
 
@@ -125,9 +119,10 @@ Understanding Hatchet's performance characteristics helps you plan your implemen
 **Performance optimization** comes through several strategies: RabbitMQ for high-throughput workloads, read replicas for analytics queries, connection pooling with tools like PgBouncer, and shorter retention periods for execution history. Conversely, performance can be limited by database connection limits, large task payloads (over 1MB), complex dependency graphs, and cross-region network latency.
 
 <Callout type="warning">
+
 **Not seeing expected performance?**
 
-If you're not seeing the performance you expect, please [reach out to us](https://hatchet.run/office-hours) or [join our community](https://discord.gg/hatchet) to explore tuning options.
+If you're not seeing the performance you expect, please [reach out to us](https://hatchet.run/office-hours) or [join our community](https://hatchet.run/discord) to explore tuning options.
 
 </Callout>
 
