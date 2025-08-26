@@ -26,8 +26,8 @@ export const DocsButton = ({ doc, variant, label }: DocsButtonProps) => {
   switch (variant) {
     case 'full':
       return (
-        <Button onClick={handleClick}>
-          {label} {doc.title.toLocaleLowerCase()}
+        <Button onClick={handleClick} className="w-auto px-4 py-2">
+          {label}
         </Button>
       );
     case 'mini':

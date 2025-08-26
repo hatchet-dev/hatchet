@@ -269,11 +269,16 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
       <div className="flex-1 min-h-0">
         <DataTable
           emptyState={
-            <DocsButton
-              doc={docsPages.home['your-first-task']}
-              label={'Learn more about workflows'}
-              variant="mini"
-            />
+            <div className="w-full h-full flex flex-col gap-y-4 text-foreground py-8 justify-center items-center">
+              <p className="text-lg font-bold">No runs found</p>
+              <div className="w-fit">
+                <DocsButton
+                  doc={docsPages.home['your-first-task']}
+                  label={'Learn how to run your first task'}
+                  variant="full"
+                />
+              </div>
+            </div>
           }
           isLoading={isFetching}
           columns={tableColumns}
