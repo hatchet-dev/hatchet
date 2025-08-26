@@ -37,21 +37,21 @@ Today, developers who need background task processing and workflow orchestration
 1. Adopt external services like Temporal or Airflow, which are powerful but complex to run or introduce latency, or
 2. Use simple task queue libraries like Celery or BullMQ, which lack critical workflow features and become difficult to debug at scale.
 
-| Feature                                     | Hatchet   | Celery   | Airflow | Temporal     |
-| ------------------------------------------- | --------- | -------- | ------- | ------------ |
-| **Task Start Latency**                      | 25ms      | 5-100ms+ | 5-30s   | 25ms         |
-| **Concurrent Tasks**                        | 1000s | Variable*   | Variable*  | 10000    |
-| **Code-First Workflows**                    | ✅        | ✅       | ✅      | ✅           |
-| **Cron Jobs and Scheduling**                | ✅        | ✅       | ✅      | ✅           |
-| **Priority Queues**                         | ✅        | ✅       | ✅      | ✅ (beta)    |
-| **Durable Sleep/Checkpoints**               | ✅        | ❌       | ❌      | ✅           |
-| **Sticky Assignment/Complex Routing Logic** | ✅        | ❌       | ❌      | ✅ (limited) |
-| **Event-Based Triggering**                  | ✅        | ❌       | ✅      | ❌           |
-| **Real-time Streaming**                     | ✅        | ❌       | ❌      | ❌           |
-| **Global Rate Limits**                      | ✅        | ❌       | ❌      | ❌           |
-| **Event Streaming**                         | ✅        | ❌       | ❌      | ❌           |
+| Feature                                     | Hatchet | Celery     | Airflow    | Temporal     |
+| ------------------------------------------- | ------- | ---------- | ---------- | ------------ |
+| **Task Start Latency**                      | 25ms    | 5-100ms+   | 5-30s      | 25ms         |
+| **Concurrent Tasks**                        | 1000s   | Variable\* | Variable\* | 10000        |
+| **Code-First Workflows**                    | ✅      | ✅         | ✅         | ✅           |
+| **Cron Jobs and Scheduling**                | ✅      | ✅         | ✅         | ✅           |
+| **Priority Queues**                         | ✅      | ✅         | ✅         | ✅ (beta)    |
+| **Durable Sleep/Checkpoints**               | ✅      | ❌         | ❌         | ✅           |
+| **Sticky Assignment/Complex Routing Logic** | ✅      | ❌         | ❌         | ✅ (limited) |
+| **Event-Based Triggering**                  | ✅      | ❌         | ✅         | ❌           |
+| **Real-time Streaming**                     | ✅      | ❌         | ❌         | ❌           |
+| **Global Rate Limits**                      | ✅      | ❌         | ❌         | ❌           |
+| **Event Streaming**                         | ✅      | ❌         | ❌         | ❌           |
 
-*Requires careful configuration and infrastructure scaling
+\*Requires careful configuration and infrastructure scaling
 
 ## Production Readiness
 
