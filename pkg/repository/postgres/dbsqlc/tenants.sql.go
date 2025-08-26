@@ -392,6 +392,7 @@ FROM
 WHERE
     "controllerPartitionId" = $1::text
     AND "slug" = 'internal'
+    AND "deletedAt" IS NULL
 `
 
 func (q *Queries) GetInternalTenantForController(ctx context.Context, db DBTX, controllerpartitionid string) (*Tenant, error) {
@@ -545,6 +546,7 @@ FROM
     "Tenant" as tenants
 WHERE
     "id" = $1::uuid
+    AND "deletedAt" IS NULL
 `
 
 func (q *Queries) GetTenantByID(ctx context.Context, db DBTX, id pgtype.UUID) (*Tenant, error) {
@@ -579,6 +581,7 @@ FROM
     "Tenant" as tenants
 WHERE
     "slug" = $1::text
+    AND "deletedAt" IS NULL
 `
 
 func (q *Queries) GetTenantBySlug(ctx context.Context, db DBTX, slug string) (*Tenant, error) {
@@ -902,6 +905,8 @@ SELECT
     id, "createdAt", "updatedAt", "deletedAt", version, "uiVersion", name, slug, "analyticsOptOut", "alertMemberEmails", "controllerPartitionId", "workerPartitionId", "dataRetentionPeriod", "schedulerPartitionId", "canUpgradeV1", "onboardingData", environment
 FROM
     "Tenant" as tenants
+WHERE
+    "deletedAt" IS NULL
 `
 
 func (q *Queries) ListTenants(ctx context.Context, db DBTX) ([]*Tenant, error) {
@@ -950,6 +955,7 @@ FROM
 WHERE
     "controllerPartitionId" = $1::text
     AND "version" = $2::"TenantMajorEngineVersion"
+    AND "deletedAt" IS NULL
 `
 
 type ListTenantsByControllerPartitionIdParams struct {
@@ -1003,6 +1009,7 @@ FROM
 WHERE
     "schedulerPartitionId" = $1::text
     AND "version" = $2::"TenantMajorEngineVersion"
+    AND "deletedAt" IS NULL
 `
 
 type ListTenantsBySchedulerPartitionIdParams struct {
@@ -1056,6 +1063,7 @@ FROM
 WHERE
     "workerPartitionId" = $1::text
     AND "version" = $2::"TenantMajorEngineVersion"
+    AND "deletedAt" IS NULL
 `
 
 type ListTenantsByTenantWorkerPartitionIdParams struct {
@@ -1124,6 +1132,7 @@ JOIN
     "Tenant" t ON tm."tenantId" = t."id"
 WHERE
     tm."id" = ANY($1::uuid[])
+    AND t."deletedAt" IS NULL
 `
 
 type PopulateTenantMembersRow struct {
@@ -1462,9 +1471,10 @@ SET
     "analyticsOptOut" = COALESCE($2::boolean, "analyticsOptOut"),
     "alertMemberEmails" = COALESCE($3::boolean, "alertMemberEmails"),
     "version" = COALESCE($4::"TenantMajorEngineVersion", "version"),
-    "uiVersion" = COALESCE($5::"TenantMajorUIVersion", "uiVersion")
+    "uiVersion" = COALESCE($5::"TenantMajorUIVersion", "uiVersion"),
+    "deletedAt" = CASE WHEN $6::boolean IS TRUE THEN CURRENT_TIMESTAMP ELSE "deletedAt" END
 WHERE
-    "id" = $6::uuid
+    "id" = $7::uuid
 RETURNING id, "createdAt", "updatedAt", "deletedAt", version, "uiVersion", name, slug, "analyticsOptOut", "alertMemberEmails", "controllerPartitionId", "workerPartitionId", "dataRetentionPeriod", "schedulerPartitionId", "canUpgradeV1", "onboardingData", environment
 `
 
@@ -1474,6 +1484,7 @@ type UpdateTenantParams struct {
 	AlertMemberEmails pgtype.Bool                  `json:"alertMemberEmails"`
 	Version           NullTenantMajorEngineVersion `json:"version"`
 	UiVersion         NullTenantMajorUIVersion     `json:"uiVersion"`
+	DeletedAt         pgtype.Bool                  `json:"deletedAt"`
 	ID                pgtype.UUID                  `json:"id"`
 }
 
@@ -1484,6 +1495,7 @@ func (q *Queries) UpdateTenant(ctx context.Context, db DBTX, arg UpdateTenantPar
 		arg.AlertMemberEmails,
 		arg.Version,
 		arg.UiVersion,
+		arg.DeletedAt,
 		arg.ID,
 	)
 	var i Tenant

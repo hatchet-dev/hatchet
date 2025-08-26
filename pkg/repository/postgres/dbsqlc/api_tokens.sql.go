@@ -82,11 +82,14 @@ func (q *Queries) DeleteAPIToken(ctx context.Context, db DBTX, arg DeleteAPIToke
 
 const getAPITokenById = `-- name: GetAPITokenById :one
 SELECT
-    id, "createdAt", "updatedAt", "expiresAt", revoked, name, "tenantId", "nextAlertAt", internal
+    api.id, api."createdAt", api."updatedAt", api."expiresAt", api.revoked, api.name, api."tenantId", api."nextAlertAt", api.internal
 FROM
-    "APIToken"
+    "APIToken" api
+JOIN
+    "Tenant" t ON api."tenantId" = t."id"
 WHERE
-    "id" = $1::uuid
+    api."id" = $1::uuid
+    AND t."deletedAt" IS NULL
 `
 
 func (q *Queries) GetAPITokenById(ctx context.Context, db DBTX, id pgtype.UUID) (*APIToken, error) {

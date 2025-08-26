@@ -83,6 +83,9 @@ type TenantAPIRepository interface {
 	// UpdateTenant updates an existing tenant in the db.
 	UpdateTenant(ctx context.Context, tenantId string, opts *UpdateTenantOpts) (*dbsqlc.Tenant, error)
 
+	// SoftDeleteTenant soft deletes the tenant with the given id
+	SoftDeleteTenant(ctx context.Context, tenantId string) error
+
 	// GetTenantByID returns the tenant with the given id
 	GetTenantByID(ctx context.Context, tenantId string) (*dbsqlc.Tenant, error)
 
