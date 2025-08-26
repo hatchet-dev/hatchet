@@ -42,33 +42,12 @@ import {
 import { useSidePanel } from '@/hooks/use-side-panel';
 
 export default function Events() {
-  const [selectedEvent, setSelectedEvent] = useState<V1Event | null>(null);
   const { tenantId } = useCurrentTenantId();
 
   const [searchParams, setSearchParams] = useSearchParams();
   const [rotate, setRotate] = useState(false);
   const [hoveredEventId, setHoveredEventId] = useState<string | null>(null);
   const { open } = useSidePanel();
-
-  useEffect(() => {
-    if (
-      selectedEvent &&
-      (!searchParams.get('event') ||
-        searchParams.get('event') !== selectedEvent.metadata.id)
-    ) {
-      const newSearchParams = new URLSearchParams(searchParams);
-      newSearchParams.set('event', selectedEvent.metadata.id);
-      setSearchParams(newSearchParams, { replace: true });
-    } else if (
-      !selectedEvent &&
-      searchParams.get('event') &&
-      searchParams.get('event') !== ''
-    ) {
-      const newSearchParams = new URLSearchParams(searchParams);
-      newSearchParams.delete('event');
-      setSearchParams(newSearchParams, { replace: true });
-    }
-  }, [selectedEvent, searchParams, setSearchParams]);
 
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>(() => {
     const filtersParam = searchParams.get('filters');
@@ -206,7 +185,7 @@ export default function Events() {
 
       return response.data;
     },
-    refetchInterval: hoveredEventId ? false : 2000,
+    refetchInterval: hoveredEventId || eventIds?.length ? false : 5000,
   });
 
   const {
@@ -281,8 +260,6 @@ export default function Events() {
           event: row,
         },
       });
-
-      setSelectedEvent(row);
     },
     hoveredEventId,
     setHoveredEventId,
@@ -423,37 +400,13 @@ export function ExpandedEventContent({ event }: { event: V1Event }) {
 }
 
 function EventDataSection({ event }: { event: V1Event }) {
-  const { tenantId } = useCurrentTenantId();
-
-  const { data, isLoading } = useQuery({
-    queryKey: ['v1:events:list', tenantId, event.metadata.id],
-    queryFn: async () => {
-      const response = await api.v1EventList(tenantId, {
-        eventIds: [event.metadata.id],
-      });
-
-      return response.data;
-    },
-    refetchInterval: 2000,
-  });
-
-  if (isLoading || !data) {
-    return <Loading />;
-  }
-
-  const eventData = data.rows?.at(0);
-
-  if (!eventData) {
-    return <div className="text-red-500">Event data not found</div>;
-  }
-
   const dataToDisplay = {
-    id: eventData.metadata.id,
-    seenAt: eventData.seenAt,
-    key: eventData.key,
-    additionalMetadata: eventData.additionalMetadata,
-    scope: eventData.scope,
-    payload: eventData.payload,
+    id: event.metadata.id,
+    seenAt: event.seenAt,
+    key: event.key,
+    additionalMetadata: event.additionalMetadata,
+    scope: event.scope,
+    payload: event.payload,
   };
 
   return (
