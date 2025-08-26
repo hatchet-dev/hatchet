@@ -119,6 +119,8 @@ export function useSidePanelData(): SidePanelData {
 
   const close = useCallback(() => {
     setIsOpen(false);
+    setHistory([]);
+    setCurrentIndex(-1);
   }, []);
 
   const goBack = useCallback(() => {
