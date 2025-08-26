@@ -4,7 +4,7 @@ export default {
     type: "separator",
   },
   index: "🪓 Welcome",
-  "architecture": "Architecture",
+  architecture: "Architecture",
   "guarantees-and-tradeoffs": "Guarantees & Tradeoffs",
   "hatchet-cloud-quickstart": "Hatchet Cloud Quickstart",
   "--quickstart": {

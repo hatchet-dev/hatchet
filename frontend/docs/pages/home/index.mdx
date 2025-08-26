@@ -24,7 +24,6 @@ If you plan on self-hosting or have requirements for on-premise deployment, ther
 
 ⬆️ **Fully Featured Open Source** - Hatchet is fully open source, so you can run the same application code against [Hatchet Cloud](https://cloud.onhatchet.run) to get started quickly or [self-host](./self-hosting.mdx) when you need more control.
 
-
 ## Hatchet vs. Alternatives
 
 Today, developers who need background task processing and workflow orchestration face two main options:
@@ -32,14 +31,13 @@ Today, developers who need background task processing and workflow orchestration
 1. Adopt external services like Temporal or Airflow, which are powerful but complex to run or introduce latency, or
 2. Use simple task queue libraries like Celery or BullMQ, which lack critical workflow features and become difficult to debug at scale.
 
-| Metric | Hatchet | Celery | Airflow | Temporal |
-|--------|---------|--------|---------|----------|
-| **Task Start Latency** | ~100ms | ~100ms+ | 5-30s | ~100ms+ |
-| **Concurrent Tasks** | Thousands | Limited | Limited | Expensive |
-| **Durability** | PostgreSQL | Redis/DB | DB | Cassandra/PostgreSQL/MySQL |
-| **Checkpoint Recovery** | ✅ Built-in | ❌ | ❌ | ✅ Complex |
-| **Real-time Streaming** | ✅ Native | ❌ | ❌ | Limited |
-
+| Metric                  | Hatchet     | Celery   | Airflow | Temporal                   |
+| ----------------------- | ----------- | -------- | ------- | -------------------------- |
+| **Task Start Latency**  | ~100ms      | ~100ms+  | 5-30s   | ~100ms+                    |
+| **Concurrent Tasks**    | Thousands   | Limited  | Limited | Expensive                  |
+| **Durability**          | PostgreSQL  | Redis/DB | DB      | Cassandra/PostgreSQL/MySQL |
+| **Checkpoint Recovery** | ✅ Built-in | ❌       | ❌      | ✅ Complex                 |
+| **Real-time Streaming** | ✅ Native   | ❌       | ❌      | Limited                    |
 
 ## Core Concepts
 
@@ -69,7 +67,6 @@ Hatchet has been battle-tested in production environments since 2023, processing
 
 > "With Hatchet, we've scaled our indexing workflows effortlessly, reducing failed runs by 50% and doubling our user base in just two weeks!"
 > — Soohoon, Co-Founder @ Greptile
-
 
 > "Hatchet enables Aevy to process up to 50,000 documents in under an hour through optimized parallel execution, compared to nearly a week with our previous setup."
 > — Ymir, CTO @ Aevy

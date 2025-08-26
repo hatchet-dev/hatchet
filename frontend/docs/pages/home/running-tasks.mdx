@@ -30,7 +30,7 @@ This allows you to have polyglot, fully typed interface with full sdk support.
 <Tabs.Tab title="Typescript">
 
 ```typescript
-import { hatchet } from '../hatchet-client';
+import { hatchet } from "../hatchet-client";
 
 // (optional) Define the input type for the task
 export type SimpleInput = {
@@ -39,21 +39,21 @@ export type SimpleInput = {
 
 // (optional) Define the output type for the task
 export type SimpleOutput = {
-  'transformed':  string;
+  transformed: string;
 };
 
 // declare the task with the same name as the
 // task name on the worker
 export const simple = hatchet.task<SimpleInput, SimpleOutput>({
-  name: 'simple',
+  name: "simple",
 });
 
 // you can use all the same run methods on the stub
 // with full type-safety
-await simple.run({ Message: 'Hello, World!' });
-await simple.runNoWait({ Message: 'Hello, World!' });
-await simple.schedule(new Date(), { Message: 'Hello, World!' });
-await simple.cron('my-cron', '0 0 * * *', { Message: 'Hello, World!' });
+await simple.run({ Message: "Hello, World!" });
+await simple.runNoWait({ Message: "Hello, World!" });
+await simple.schedule(new Date(), { Message: "Hello, World!" });
+await simple.cron("my-cron", "0 0 * * *", { Message: "Hello, World!" });
 ```
 
 </Tabs.Tab>
@@ -78,8 +78,6 @@ simple = hatchet.workflow(
 # you can use all the same run methods on the stub
 result = await simple.run(SimpleInput(message="Hello, World!"))
 ```
-
-
 
 </Tabs.Tab>
 <Tabs.Tab title="Go">
