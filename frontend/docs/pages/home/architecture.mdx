@@ -11,29 +11,29 @@ graph LR
     subgraph "External (Optional)"
         EXT[Webhooks<br/>Events]
     end
-    
+
     subgraph "Your Infrastructure"
         APP[Your API, App, Service, etc.]
         W[Workers]
     end
-    
+
     subgraph "Hatchet"
         API[API Server]
         ENG[Engine]
         DB[(Database)]
     end
-    
+
     EXT --> API
     APP <--> API
     API --> ENG
     ENG <--> DB
     API <--> DB
     ENG <-.->|gRPC| W
-    
+
     classDef userInfra fill:#e3f2fd,stroke:#1976d2,stroke-width:2px,color:#0d47a1
     classDef hatchet fill:#f1f8e9,stroke:#388e3c,stroke-width:2px,color:#1b5e20
     classDef external fill:#fff8e1,stroke:#f57c00,stroke-width:2px,color:#e65100
-    
+
     class APP,W userInfra
     class API,ENG,DB hatchet
     class EXT external
@@ -72,7 +72,7 @@ The Engine is designed to be horizontally scalable—multiple engine instances c
 
 When tasks need to be cancelled, workers handle this gracefully with proper cleanup procedures. One of Hatchet's key design goals is deployment flexibility—workers can run anywhere, from containers and serverless platforms to VMs or even your local development machine. This flexibility means you can start development locally, deploy to staging in containers, and run production workloads on dedicated infrastructure without changing your worker code.
 
-You can run either homogeneous or heterogeneous workers. Homogeneous workers are a single type of worker that is used for all tasks. Heterogeneous workers are a mix of different types of workers that are used for different tasks. 
+You can run either homogeneous or heterogeneous workers. Homogeneous workers are a single type of worker that is used for all tasks. Heterogeneous workers are a mix of different types of workers that are used for different tasks.
 
 Heterogeneous workers can also be polyglot, meaning they can run multiple languages. For example, you can run a Python worker, a Go worker, and a TypeScript worker which can all be invoked from the same service application.
 

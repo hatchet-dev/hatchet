@@ -2,7 +2,7 @@ import { Tabs, Callout } from "nextra/components";
 
 # What is Hatchet?
 
-Hatchet is a modern orchestration platform for background tasks that helps engineering teams build ultra low-latency and high throughput data ingestion and agentic ai pipelines.  
+Hatchet is a modern orchestration platform for background tasks that helps engineering teams build ultra low-latency and high throughput data ingestion and agentic ai pipelines.
 
 You write simple functions in Python, Typescript, and Go and run them on [workers](./workers.mdx) in your own infrastructure. You can compose these functions into [workflows as code](./child-spawning.mdx) or as [Directed Acyclic Graphs (DAGs)](./dags.mdx) to build complex data pipelines.
 
@@ -14,7 +14,7 @@ Hatchet may be a good fit if you're experiencing or expecting complex data or co
 
 ⚡️ **Low-Latency For Real-Time Workloads** - Sub-35ms task dispatch for hot workers with thousands of concurrent tasks. Smart assignment rules handle [rate-limits](./rate-limits.mdx), [fairness](./concurrency.mdx), and [priorities](./priority.mdx) without complex configuration.
 
-🪨 **Durability for Long Running Jobs** - Every task invocation is durably logged to PostgreSQL. With [durable execution](./durable-execution.mdx), when jobs fail your workflow will resume exactly where you left off — no lost work, no duplicate LLM calls, no engineer headaches. 
+🪨 **Durability for Long Running Jobs** - Every task invocation is durably logged to PostgreSQL. With [durable execution](./durable-execution.mdx), when jobs fail your workflow will resume exactly where you left off — no lost work, no duplicate LLM calls, no engineer headaches.
 
 🧘‍♂️ **Zen Developer Experience** - Hatchet SDKs (Python, Typescript, and Go) are hand-built with modern tooling and are designed to be easy to use. Hatchet has built-in observability and debugging tools for things like replays, logs, and alerts.
 
@@ -27,9 +27,9 @@ If you plan on self-hosting or have requirements for on-premise deployment, ther
 
 ## Hatchet vs. Alternatives
 
-Today, developers who need background task processing and workflow orchestration face two main options: 
+Today, developers who need background task processing and workflow orchestration face two main options:
 
-1. Adopt external services like Temporal or Airflow, which are powerful but complex to run or introduce latency, or 
+1. Adopt external services like Temporal or Airflow, which are powerful but complex to run or introduce latency, or
 2. Use simple task queue libraries like Celery or BullMQ, which lack critical workflow features and become difficult to debug at scale.
 
 | Metric | Hatchet | Celery | Airflow | Temporal |
