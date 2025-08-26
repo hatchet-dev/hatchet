@@ -38,7 +38,7 @@ SET
     "alertMemberEmails" = COALESCE(sqlc.narg('alertMemberEmails')::boolean, "alertMemberEmails"),
     "version" = COALESCE(sqlc.narg('version')::"TenantMajorEngineVersion", "version"),
     "uiVersion" = COALESCE(sqlc.narg('uiVersion')::"TenantMajorUIVersion", "uiVersion"),
-    "deletedAt" = CASE WHEN sqlc.narg('deletedAt')::boolean IS TRUE THEN CURRENT_TIMESTAMP ELSE "deletedAt" END
+    "deletedAt" = COALESCE(sqlc.narg('deletedAt')::timestamptz, "deletedAt")
 WHERE
     "id" = sqlc.arg('id')::uuid
 RETURNING *;
