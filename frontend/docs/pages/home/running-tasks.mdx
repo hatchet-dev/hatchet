@@ -1,6 +1,7 @@
 import { Callout, Tabs } from "nextra/components";
 import UniversalTabs from "@/components/UniversalTabs";
 import { Snippet } from "@/components/code";
+import { snippets } from "@/lib/generated/snippets";
 
 # Running Tasks
 
@@ -29,32 +30,7 @@ This allows you to have polyglot, fully typed interface with full sdk support.
 <UniversalTabs items={["Typescript", "Python", "Go"]}>
 <Tabs.Tab title="Typescript">
 
-```typescript
-import { hatchet } from "../hatchet-client";
-
-// (optional) Define the input type for the task
-export type SimpleInput = {
-  Message: string;
-};
-
-// (optional) Define the output type for the task
-export type SimpleOutput = {
-  transformed: string;
-};
-
-// declare the task with the same name as the
-// task name on the worker
-export const simple = hatchet.task<SimpleInput, SimpleOutput>({
-  name: "simple",
-});
-
-// you can use all the same run methods on the stub
-// with full type-safety
-await simple.run({ Message: "Hello, World!" });
-await simple.runNoWait({ Message: "Hello, World!" });
-await simple.schedule(new Date(), { Message: "Hello, World!" });
-await simple.cron("my-cron", "0 0 * * *", { Message: "Hello, World!" });
-```
+<Snippet src={snippets.typescript.simple.stub_workflow.declaring_an_external_workflow_reference} />
 
 </Tabs.Tab>
 <Tabs.Tab title="Python">
