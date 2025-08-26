@@ -28,6 +28,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/v1/ui/tooltip';
+import { Input } from '@/components/v1/ui/input';
 import { useCurrentTenantId, useTenantDetails } from '@/hooks/use-tenant';
 import { cloudApi } from '@/lib/api/api';
 
@@ -329,10 +330,12 @@ const InactivityTimeout: React.FC = () => {
 
 const DeleteTenant: React.FC = () => {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [confirmationInput, setConfirmationInput] = useState('');
   const { tenant, membership } = useTenantDetails();
   const { handleApiError } = useApiError({});
 
   const isOwner = membership === TenantMemberRole.OWNER;
+  const isConfirmationValid = confirmationInput === tenant?.name;
 
   const deleteTenantMutation = useMutation({
     mutationKey: ['tenant:delete'],
@@ -373,7 +376,10 @@ const DeleteTenant: React.FC = () => {
               <div>
                 <Button
                   variant="destructive"
-                  onClick={() => setShowDeleteModal(true)}
+                  onClick={() => {
+                    setShowDeleteModal(true);
+                    setConfirmationInput('');
+                  }}
                   disabled={!isOwner}
                   className="w-fit"
                 >
@@ -405,14 +411,36 @@ const DeleteTenant: React.FC = () => {
             </Alert>
             <ul className="list-disc list-inside text-sm space-y-1 text-muted-foreground">
               <li>All workflows and workflow runs</li>
-              <li>All step runs and logs</li>
+              <li>All task runs and logs</li>
               <li>All events and triggers</li>
               <li>All worker data</li>
               <li>All team members and invitations</li>
+              <li>All API tokens</li>
             </ul>
             <p className="text-sm text-muted-foreground">
               This action cannot be undone.
             </p>
+
+            <div className="space-y-2">
+              <Label
+                htmlFor="tenant-confirmation"
+                className="text-sm font-medium"
+              >
+                Type{' '}
+                <span className="font-mono bg-muted px-1 rounded">
+                  {tenant.name}
+                </span>{' '}
+                to confirm deletion:
+              </Label>
+              <Input
+                id="tenant-confirmation"
+                value={confirmationInput}
+                onChange={(e) => setConfirmationInput(e.target.value)}
+                placeholder={`Enter "${tenant.name}" to confirm`}
+                disabled={deleteTenantMutation.isPending}
+                className="w-full"
+              />
+            </div>
           </div>
           <DialogFooter>
             <Button
@@ -425,7 +453,7 @@ const DeleteTenant: React.FC = () => {
             <Button
               variant="destructive"
               onClick={handleDelete}
-              disabled={deleteTenantMutation.isPending}
+              disabled={deleteTenantMutation.isPending || !isConfirmationValid}
             >
               {deleteTenantMutation.isPending ? <Spinner /> : null}
               Delete Tenant
