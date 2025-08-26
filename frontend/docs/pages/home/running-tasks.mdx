@@ -40,25 +40,21 @@ This allows you to have polyglot, fully typed interface with full sdk support.
 </Tabs.Tab>
 <Tabs.Tab title="Python">
 
-```python
-from pydantic import BaseModel
-from hatchet_sdk import Hatchet
+Consider a task with an implementation like this:
 
-hatchet = Hatchet(debug=True)
+<Snippet src={snippets.python.stubs.implementation.all} />
 
-# (optional) Define the input type for the task
-class SimpleInput(BaseModel):
-    message: str
+To trigger this task from a separate service, for instance, in a microservices architecture, where the code is not shared, start by defining models that match the input and output types of the task defined above.
 
-# declare the task with the same name as the task on the worker
-simple = hatchet.workflow(
-    name="simple",
-    input_validator=SimpleInput,
-)
+<Snippet src={snippets.python.stubs.stub_trigger.define_models} />
 
-# you can use all the same run methods on the stub
-result = await simple.run(SimpleInput(message="Hello, World!"))
-```
+Next, create the stub task.
+
+<Snippet src={snippets.python.stubs.stub_trigger.create_a_stub_task} />
+
+Finally, use the stub to trigger the underlying task, and (optionally) retrieve the result.
+
+<Snippet src={snippets.python.stubs.stub_trigger.trigger_the_task} />
 
 </Tabs.Tab>
 <Tabs.Tab title="Go">
