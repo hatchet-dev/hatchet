@@ -532,7 +532,7 @@ SELECT
 FROM
     v1_workflow_concurrency_slot wcs
 WHERE
-    (wcs.strategy_id, wcs.workflow_version_id, wcs.workflow_run_id) = (
+    (wcs.strategy_id, wcs.workflow_version_id, wcs.workflow_run_id) IN (
         SELECT parent_strategy_id, workflow_version_id, workflow_run_id FROM concurrency_slots_to_delete
     )
 ORDER BY
