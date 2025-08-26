@@ -55,6 +55,9 @@ jobs:
       - name: Run Pydoclint
         run: poetry run pydoclint .
 
+      - name: Test install
+        run: pip install -e .
+
   test:
     runs-on: ubuntu-latest
     strategy:
