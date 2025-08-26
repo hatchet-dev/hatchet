@@ -161,119 +161,6 @@ WHERE
     tenant_id = $1
     AND id = ANY(@ids::bigint[]);
 
--- name: ReleaseTasks :many
-WITH input AS (
-    SELECT
-        *
-    FROM
-        (
-            SELECT
-                unnest(@taskIds::bigint[]) AS task_id,
-                unnest(@taskInsertedAts::timestamptz[]) AS task_inserted_at,
-                unnest(@retryCounts::integer[]) AS retry_count
-        ) AS subquery
-), runtimes_to_delete AS (
-    SELECT
-        task_id,
-        task_inserted_at,
-        retry_count,
-        worker_id
-    FROM
-        v1_task_runtime
-    WHERE
-        (task_id, task_inserted_at, retry_count) IN (SELECT task_id, task_inserted_at, retry_count FROM input)
-    ORDER BY
-        task_id, task_inserted_at, retry_count
-    FOR UPDATE
-), deleted_runtimes AS (
-    DELETE FROM
-        v1_task_runtime
-    WHERE
-        (task_id, task_inserted_at, retry_count) IN (SELECT task_id, task_inserted_at, retry_count FROM runtimes_to_delete)
-), retry_queue_items_to_delete AS (
-    SELECT
-        task_id, task_inserted_at, task_retry_count
-    FROM
-        v1_retry_queue_item
-    WHERE
-        (task_id, task_inserted_at, task_retry_count) IN (SELECT task_id, task_inserted_at, retry_count FROM input)
-    ORDER BY
-        task_id, task_inserted_at, task_retry_count
-    FOR UPDATE
-), deleted_rqis AS (
-    DELETE FROM
-        v1_retry_queue_item r
-    WHERE
-        (task_id, task_inserted_at, task_retry_count) IN (
-            SELECT
-                task_id, task_inserted_at, task_retry_count
-            FROM
-                retry_queue_items_to_delete
-        )
-), queue_items_to_delete AS (
-    SELECT
-        task_id, task_inserted_at, retry_count
-    FROM
-        v1_queue_item
-    WHERE
-        (task_id, task_inserted_at, retry_count) IN (SELECT task_id, task_inserted_at, retry_count FROM input)
-    ORDER BY
-        task_id, task_inserted_at, retry_count
-    FOR UPDATE
-), deleted_qis AS (
-    DELETE FROM
-        v1_queue_item
-    WHERE
-        (task_id, task_inserted_at, retry_count) IN (SELECT task_id, task_inserted_at, retry_count FROM queue_items_to_delete)
-), concurrency_slots_to_delete AS (
-    SELECT
-        task_id, task_inserted_at, task_retry_count
-    FROM
-        v1_concurrency_slot
-    WHERE
-        (task_id, task_inserted_at, task_retry_count) IN (SELECT task_id, task_inserted_at, retry_count FROM input)
-    ORDER BY
-        task_id, task_inserted_at, task_retry_count
-    FOR UPDATE
-), deleted_slots AS (
-    DELETE FROM
-        v1_concurrency_slot
-    WHERE
-        (task_id, task_inserted_at, task_retry_count) IN (SELECT task_id, task_inserted_at, task_retry_count FROM concurrency_slots_to_delete)
-), rate_limited_items_to_delete AS (
-    SELECT
-        task_id, task_inserted_at, retry_count
-    FROM
-        v1_rate_limited_queue_items
-    WHERE
-        (task_id, task_inserted_at, retry_count) IN (SELECT task_id, task_inserted_at, retry_count FROM input)
-    ORDER BY
-        task_id, task_inserted_at, retry_count
-    FOR UPDATE
-), deleted_rate_limited AS (
-    DELETE FROM
-        v1_rate_limited_queue_items
-    WHERE
-        (task_id, task_inserted_at, retry_count) IN (SELECT task_id, task_inserted_at, retry_count FROM rate_limited_items_to_delete)
-)
-SELECT
-    t.queue,
-    t.id,
-    t.inserted_at,
-    t.external_id,
-    t.step_readable_id,
-    t.workflow_run_id,
-    r.worker_id,
-    i.retry_count::int AS retry_count,
-    t.retry_count = i.retry_count AS is_current_retry,
-    t.concurrency_strategy_ids
-FROM
-    v1_task t
-JOIN
-    input i ON i.task_id = t.id AND i.task_inserted_at = t.inserted_at
-LEFT JOIN
-    runtimes_to_delete r ON r.task_id = t.id AND r.retry_count = t.retry_count;
-
 -- name: FailTaskAppFailure :many
 -- Fails a task due to an application-level error
 WITH input AS (
@@ -1006,3 +893,7 @@ SELECT
         )
 FROM
     input rec;
+
+-- name: RegisterBatch :batchexec
+-- DO NOT USE: dummy query to satisfy sqlc and register Batch calls on DBTX
+SELECT * FROM v1_task WHERE id = $1;
