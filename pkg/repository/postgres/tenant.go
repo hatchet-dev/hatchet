@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -168,7 +169,8 @@ func (r *tenantAPIRepository) SoftDeleteTenant(ctx context.Context, id string) e
 		ID: sqlchelpers.UUIDFromStr(id),
 	}
 
-	params.DeletedAt = sqlchelpers.BoolFromBoolean(true)
+	now := time.Now().UTC()
+	params.DeletedAt = sqlchelpers.TimestamptzFromTime(now)
 
 	_, err := r.queries.UpdateTenant(
 		ctx,

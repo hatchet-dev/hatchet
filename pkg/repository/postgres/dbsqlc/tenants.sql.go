@@ -1472,7 +1472,7 @@ SET
     "alertMemberEmails" = COALESCE($3::boolean, "alertMemberEmails"),
     "version" = COALESCE($4::"TenantMajorEngineVersion", "version"),
     "uiVersion" = COALESCE($5::"TenantMajorUIVersion", "uiVersion"),
-    "deletedAt" = CASE WHEN $6::boolean IS TRUE THEN CURRENT_TIMESTAMP ELSE "deletedAt" END
+    "deletedAt" = COALESCE($6::timestamptz, "deletedAt")
 WHERE
     "id" = $7::uuid
 RETURNING id, "createdAt", "updatedAt", "deletedAt", version, "uiVersion", name, slug, "analyticsOptOut", "alertMemberEmails", "controllerPartitionId", "workerPartitionId", "dataRetentionPeriod", "schedulerPartitionId", "canUpgradeV1", "onboardingData", environment
@@ -1484,7 +1484,7 @@ type UpdateTenantParams struct {
 	AlertMemberEmails pgtype.Bool                  `json:"alertMemberEmails"`
 	Version           NullTenantMajorEngineVersion `json:"version"`
 	UiVersion         NullTenantMajorUIVersion     `json:"uiVersion"`
-	DeletedAt         pgtype.Bool                  `json:"deletedAt"`
+	DeletedAt         pgtype.Timestamptz           `json:"deletedAt"`
 	ID                pgtype.UUID                  `json:"id"`
 }
 
