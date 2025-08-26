@@ -25,7 +25,6 @@ import (
 const (
 	BearerAuthScopes = "bearerAuth.Scopes"
 	CookieAuthScopes = "cookieAuth.Scopes"
-	CustomAuthScopes = "customAuth.Scopes"
 )
 
 // Defines values for ConcurrencyLimitStrategy.
@@ -3327,8 +3326,6 @@ func (w *ServerInterfaceWrapper) AlertEmailGroupDelete(ctx echo.Context) error {
 
 	ctx.Set(CookieAuthScopes, []string{})
 
-	ctx.Set(CustomAuthScopes, []string{})
-
 	// Invoke the callback with all the unmarshaled arguments
 	err = w.Handler.AlertEmailGroupDelete(ctx, alertEmailGroup)
 	return err
@@ -3349,8 +3346,6 @@ func (w *ServerInterfaceWrapper) AlertEmailGroupUpdate(ctx echo.Context) error {
 
 	ctx.Set(CookieAuthScopes, []string{})
 
-	ctx.Set(CustomAuthScopes, []string{})
-
 	// Invoke the callback with all the unmarshaled arguments
 	err = w.Handler.AlertEmailGroupUpdate(ctx, alertEmailGroup)
 	return err
@@ -3370,8 +3365,6 @@ func (w *ServerInterfaceWrapper) ApiTokenUpdateRevoke(ctx echo.Context) error {
 	ctx.Set(BearerAuthScopes, []string{})
 
 	ctx.Set(CookieAuthScopes, []string{})
-
-	ctx.Set(CustomAuthScopes, []string{})
 
 	// Invoke the callback with all the unmarshaled arguments
 	err = w.Handler.ApiTokenUpdateRevoke(ctx, apiToken)
@@ -3402,8 +3395,6 @@ func (w *ServerInterfaceWrapper) EventGet(ctx echo.Context) error {
 
 	ctx.Set(CookieAuthScopes, []string{})
 
-	ctx.Set(CustomAuthScopes, []string{})
-
 	// Invoke the callback with all the unmarshaled arguments
 	err = w.Handler.EventGet(ctx, event)
 	return err
@@ -3423,8 +3414,6 @@ func (w *ServerInterfaceWrapper) EventDataGet(ctx echo.Context) error {
 	ctx.Set(BearerAuthScopes, []string{})
 
 	ctx.Set(CookieAuthScopes, []string{})
-
-	ctx.Set(CustomAuthScopes, []string{})
 
 	// Invoke the callback with all the unmarshaled arguments
 	err = w.Handler.EventDataGet(ctx, event)
@@ -3448,8 +3437,6 @@ func (w *ServerInterfaceWrapper) MetadataListIntegrations(ctx echo.Context) erro
 
 	ctx.Set(CookieAuthScopes, []string{})
 
-	ctx.Set(CustomAuthScopes, []string{})
-
 	// Invoke the callback with all the unmarshaled arguments
 	err = w.Handler.MetadataListIntegrations(ctx)
 	return err
@@ -3469,8 +3456,6 @@ func (w *ServerInterfaceWrapper) MonitoringPostRunProbe(ctx echo.Context) error 
 	ctx.Set(BearerAuthScopes, []string{})
 
 	ctx.Set(CookieAuthScopes, []string{})
-
-	ctx.Set(CustomAuthScopes, []string{})
 
 	// Invoke the callback with all the unmarshaled arguments
 	err = w.Handler.MonitoringPostRunProbe(ctx, tenant)
@@ -3492,8 +3477,6 @@ func (w *ServerInterfaceWrapper) SlackWebhookDelete(ctx echo.Context) error {
 
 	ctx.Set(CookieAuthScopes, []string{})
 
-	ctx.Set(CustomAuthScopes, []string{})
-
 	// Invoke the callback with all the unmarshaled arguments
 	err = w.Handler.SlackWebhookDelete(ctx, slack)
 	return err
@@ -3513,8 +3496,6 @@ func (w *ServerInterfaceWrapper) SnsDelete(ctx echo.Context) error {
 	ctx.Set(BearerAuthScopes, []string{})
 
 	ctx.Set(CookieAuthScopes, []string{})
-
-	ctx.Set(CustomAuthScopes, []string{})
 
 	// Invoke the callback with all the unmarshaled arguments
 	err = w.Handler.SnsDelete(ctx, sns)
@@ -3553,8 +3534,6 @@ func (w *ServerInterfaceWrapper) V1DagListTasks(ctx echo.Context) error {
 
 	ctx.Set(CookieAuthScopes, []string{})
 
-	ctx.Set(CustomAuthScopes, []string{})
-
 	// Parameter object where we will unmarshal all parameters from the context
 	var params V1DagListTasksParams
 	// ------------- Required query parameter "dag_ids" -------------
@@ -3591,8 +3570,6 @@ func (w *ServerInterfaceWrapper) V1TaskGet(ctx echo.Context) error {
 
 	ctx.Set(CookieAuthScopes, []string{})
 
-	ctx.Set(CustomAuthScopes, []string{})
-
 	// Parameter object where we will unmarshal all parameters from the context
 	var params V1TaskGetParams
 	// ------------- Optional query parameter "attempt" -------------
@@ -3622,8 +3599,6 @@ func (w *ServerInterfaceWrapper) V1LogLineList(ctx echo.Context) error {
 
 	ctx.Set(CookieAuthScopes, []string{})
 
-	ctx.Set(CustomAuthScopes, []string{})
-
 	// Invoke the callback with all the unmarshaled arguments
 	err = w.Handler.V1LogLineList(ctx, task)
 	return err
@@ -3643,8 +3618,6 @@ func (w *ServerInterfaceWrapper) V1TaskEventList(ctx echo.Context) error {
 	ctx.Set(BearerAuthScopes, []string{})
 
 	ctx.Set(CookieAuthScopes, []string{})
-
-	ctx.Set(CustomAuthScopes, []string{})
 
 	// Parameter object where we will unmarshal all parameters from the context
 	var params V1TaskEventListParams
@@ -3682,8 +3655,6 @@ func (w *ServerInterfaceWrapper) V1CelDebug(ctx echo.Context) error {
 
 	ctx.Set(CookieAuthScopes, []string{})
 
-	ctx.Set(CustomAuthScopes, []string{})
-
 	// Invoke the callback with all the unmarshaled arguments
 	err = w.Handler.V1CelDebug(ctx, tenant)
 	return err
@@ -3703,8 +3674,6 @@ func (w *ServerInterfaceWrapper) V1EventList(ctx echo.Context) error {
 	ctx.Set(BearerAuthScopes, []string{})
 
 	ctx.Set(CookieAuthScopes, []string{})
-
-	ctx.Set(CustomAuthScopes, []string{})
 
 	// Parameter object where we will unmarshal all parameters from the context
 	var params V1EventListParams
@@ -3798,8 +3767,6 @@ func (w *ServerInterfaceWrapper) V1EventKeyList(ctx echo.Context) error {
 
 	ctx.Set(CookieAuthScopes, []string{})
 
-	ctx.Set(CustomAuthScopes, []string{})
-
 	// Invoke the callback with all the unmarshaled arguments
 	err = w.Handler.V1EventKeyList(ctx, tenant)
 	return err
@@ -3819,8 +3786,6 @@ func (w *ServerInterfaceWrapper) V1FilterList(ctx echo.Context) error {
 	ctx.Set(BearerAuthScopes, []string{})
 
 	ctx.Set(CookieAuthScopes, []string{})
-
-	ctx.Set(CustomAuthScopes, []string{})
 
 	// Parameter object where we will unmarshal all parameters from the context
 	var params V1FilterListParams
@@ -3872,8 +3837,6 @@ func (w *ServerInterfaceWrapper) V1FilterCreate(ctx echo.Context) error {
 
 	ctx.Set(CookieAuthScopes, []string{})
 
-	ctx.Set(CustomAuthScopes, []string{})
-
 	// Invoke the callback with all the unmarshaled arguments
 	err = w.Handler.V1FilterCreate(ctx, tenant)
 	return err
@@ -3901,8 +3864,6 @@ func (w *ServerInterfaceWrapper) V1FilterDelete(ctx echo.Context) error {
 	ctx.Set(BearerAuthScopes, []string{})
 
 	ctx.Set(CookieAuthScopes, []string{})
-
-	ctx.Set(CustomAuthScopes, []string{})
 
 	// Invoke the callback with all the unmarshaled arguments
 	err = w.Handler.V1FilterDelete(ctx, tenant, v1Filter)
@@ -3932,8 +3893,6 @@ func (w *ServerInterfaceWrapper) V1FilterGet(ctx echo.Context) error {
 
 	ctx.Set(CookieAuthScopes, []string{})
 
-	ctx.Set(CustomAuthScopes, []string{})
-
 	// Invoke the callback with all the unmarshaled arguments
 	err = w.Handler.V1FilterGet(ctx, tenant, v1Filter)
 	return err
@@ -3962,8 +3921,6 @@ func (w *ServerInterfaceWrapper) V1FilterUpdate(ctx echo.Context) error {
 
 	ctx.Set(CookieAuthScopes, []string{})
 
-	ctx.Set(CustomAuthScopes, []string{})
-
 	// Invoke the callback with all the unmarshaled arguments
 	err = w.Handler.V1FilterUpdate(ctx, tenant, v1Filter)
 	return err
@@ -3983,8 +3940,6 @@ func (w *ServerInterfaceWrapper) V1TaskListStatusMetrics(ctx echo.Context) error
 	ctx.Set(BearerAuthScopes, []string{})
 
 	ctx.Set(CookieAuthScopes, []string{})
-
-	ctx.Set(CustomAuthScopes, []string{})
 
 	// Parameter object where we will unmarshal all parameters from the context
 	var params V1TaskListStatusMetricsParams
@@ -4050,8 +4005,6 @@ func (w *ServerInterfaceWrapper) V1TaskGetPointMetrics(ctx echo.Context) error {
 
 	ctx.Set(CookieAuthScopes, []string{})
 
-	ctx.Set(CustomAuthScopes, []string{})
-
 	// Parameter object where we will unmarshal all parameters from the context
 	var params V1TaskGetPointMetricsParams
 	// ------------- Optional query parameter "createdAfter" -------------
@@ -4088,8 +4041,6 @@ func (w *ServerInterfaceWrapper) V1TaskCancel(ctx echo.Context) error {
 
 	ctx.Set(CookieAuthScopes, []string{})
 
-	ctx.Set(CustomAuthScopes, []string{})
-
 	// Invoke the callback with all the unmarshaled arguments
 	err = w.Handler.V1TaskCancel(ctx, tenant)
 	return err
@@ -4110,8 +4061,6 @@ func (w *ServerInterfaceWrapper) V1TaskReplay(ctx echo.Context) error {
 
 	ctx.Set(CookieAuthScopes, []string{})
 
-	ctx.Set(CustomAuthScopes, []string{})
-
 	// Invoke the callback with all the unmarshaled arguments
 	err = w.Handler.V1TaskReplay(ctx, tenant)
 	return err
@@ -4131,8 +4080,6 @@ func (w *ServerInterfaceWrapper) V1WebhookList(ctx echo.Context) error {
 	ctx.Set(BearerAuthScopes, []string{})
 
 	ctx.Set(CookieAuthScopes, []string{})
-
-	ctx.Set(CustomAuthScopes, []string{})
 
 	// Parameter object where we will unmarshal all parameters from the context
 	var params V1WebhookListParams
@@ -4184,8 +4131,6 @@ func (w *ServerInterfaceWrapper) V1WebhookCreate(ctx echo.Context) error {
 
 	ctx.Set(CookieAuthScopes, []string{})
 
-	ctx.Set(CustomAuthScopes, []string{})
-
 	// Invoke the callback with all the unmarshaled arguments
 	err = w.Handler.V1WebhookCreate(ctx, tenant)
 	return err
@@ -4213,8 +4158,6 @@ func (w *ServerInterfaceWrapper) V1WebhookDelete(ctx echo.Context) error {
 	ctx.Set(BearerAuthScopes, []string{})
 
 	ctx.Set(CookieAuthScopes, []string{})
-
-	ctx.Set(CustomAuthScopes, []string{})
 
 	// Invoke the callback with all the unmarshaled arguments
 	err = w.Handler.V1WebhookDelete(ctx, tenant, v1Webhook)
@@ -4244,8 +4187,6 @@ func (w *ServerInterfaceWrapper) V1WebhookGet(ctx echo.Context) error {
 
 	ctx.Set(CookieAuthScopes, []string{})
 
-	ctx.Set(CustomAuthScopes, []string{})
-
 	// Invoke the callback with all the unmarshaled arguments
 	err = w.Handler.V1WebhookGet(ctx, tenant, v1Webhook)
 	return err
@@ -4273,8 +4214,6 @@ func (w *ServerInterfaceWrapper) V1WebhookUpdate(ctx echo.Context) error {
 	ctx.Set(BearerAuthScopes, []string{})
 
 	ctx.Set(CookieAuthScopes, []string{})
-
-	ctx.Set(CustomAuthScopes, []string{})
 
 	// Invoke the callback with all the unmarshaled arguments
 	err = w.Handler.V1WebhookUpdate(ctx, tenant, v1Webhook)
@@ -4319,8 +4258,6 @@ func (w *ServerInterfaceWrapper) V1WorkflowRunList(ctx echo.Context) error {
 	ctx.Set(BearerAuthScopes, []string{})
 
 	ctx.Set(CookieAuthScopes, []string{})
-
-	ctx.Set(CustomAuthScopes, []string{})
 
 	// Parameter object where we will unmarshal all parameters from the context
 	var params V1WorkflowRunListParams
@@ -4428,8 +4365,6 @@ func (w *ServerInterfaceWrapper) V1WorkflowRunDisplayNamesList(ctx echo.Context)
 
 	ctx.Set(CookieAuthScopes, []string{})
 
-	ctx.Set(CustomAuthScopes, []string{})
-
 	// Parameter object where we will unmarshal all parameters from the context
 	var params V1WorkflowRunDisplayNamesListParams
 	// ------------- Required query parameter "external_ids" -------------
@@ -4459,8 +4394,6 @@ func (w *ServerInterfaceWrapper) V1WorkflowRunCreate(ctx echo.Context) error {
 
 	ctx.Set(CookieAuthScopes, []string{})
 
-	ctx.Set(CustomAuthScopes, []string{})
-
 	// Invoke the callback with all the unmarshaled arguments
 	err = w.Handler.V1WorkflowRunCreate(ctx, tenant)
 	return err
@@ -4480,8 +4413,6 @@ func (w *ServerInterfaceWrapper) V1WorkflowRunGet(ctx echo.Context) error {
 	ctx.Set(BearerAuthScopes, []string{})
 
 	ctx.Set(CookieAuthScopes, []string{})
-
-	ctx.Set(CustomAuthScopes, []string{})
 
 	// Invoke the callback with all the unmarshaled arguments
 	err = w.Handler.V1WorkflowRunGet(ctx, v1WorkflowRun)
@@ -4503,8 +4434,6 @@ func (w *ServerInterfaceWrapper) V1WorkflowRunGetStatus(ctx echo.Context) error 
 
 	ctx.Set(CookieAuthScopes, []string{})
 
-	ctx.Set(CustomAuthScopes, []string{})
-
 	// Invoke the callback with all the unmarshaled arguments
 	err = w.Handler.V1WorkflowRunGetStatus(ctx, v1WorkflowRun)
 	return err
@@ -4524,8 +4453,6 @@ func (w *ServerInterfaceWrapper) V1WorkflowRunTaskEventsList(ctx echo.Context) e
 	ctx.Set(BearerAuthScopes, []string{})
 
 	ctx.Set(CookieAuthScopes, []string{})
-
-	ctx.Set(CustomAuthScopes, []string{})
 
 	// Parameter object where we will unmarshal all parameters from the context
 	var params V1WorkflowRunTaskEventsListParams
@@ -4563,8 +4490,6 @@ func (w *ServerInterfaceWrapper) V1WorkflowRunGetTimings(ctx echo.Context) error
 
 	ctx.Set(CookieAuthScopes, []string{})
 
-	ctx.Set(CustomAuthScopes, []string{})
-
 	// Parameter object where we will unmarshal all parameters from the context
 	var params V1WorkflowRunGetTimingsParams
 	// ------------- Optional query parameter "depth" -------------
@@ -4593,8 +4518,6 @@ func (w *ServerInterfaceWrapper) StepRunListArchives(ctx echo.Context) error {
 	ctx.Set(BearerAuthScopes, []string{})
 
 	ctx.Set(CookieAuthScopes, []string{})
-
-	ctx.Set(CustomAuthScopes, []string{})
 
 	// Parameter object where we will unmarshal all parameters from the context
 	var params StepRunListArchivesParams
@@ -4632,8 +4555,6 @@ func (w *ServerInterfaceWrapper) StepRunListEvents(ctx echo.Context) error {
 
 	ctx.Set(CookieAuthScopes, []string{})
 
-	ctx.Set(CustomAuthScopes, []string{})
-
 	// Parameter object where we will unmarshal all parameters from the context
 	var params StepRunListEventsParams
 	// ------------- Optional query parameter "offset" -------------
@@ -4669,8 +4590,6 @@ func (w *ServerInterfaceWrapper) LogLineList(ctx echo.Context) error {
 	ctx.Set(BearerAuthScopes, []string{})
 
 	ctx.Set(CookieAuthScopes, []string{})
-
-	ctx.Set(CustomAuthScopes, []string{})
 
 	// Parameter object where we will unmarshal all parameters from the context
 	var params LogLineListParams
@@ -4729,8 +4648,6 @@ func (w *ServerInterfaceWrapper) TenantCreate(ctx echo.Context) error {
 
 	ctx.Set(CookieAuthScopes, []string{})
 
-	ctx.Set(CustomAuthScopes, []string{})
-
 	// Invoke the callback with all the unmarshaled arguments
 	err = w.Handler.TenantCreate(ctx)
 	return err
@@ -4750,8 +4667,6 @@ func (w *ServerInterfaceWrapper) TenantGet(ctx echo.Context) error {
 	ctx.Set(BearerAuthScopes, []string{})
 
 	ctx.Set(CookieAuthScopes, []string{})
-
-	ctx.Set(CustomAuthScopes, []string{})
 
 	// Invoke the callback with all the unmarshaled arguments
 	err = w.Handler.TenantGet(ctx, tenant)
@@ -4773,8 +4688,6 @@ func (w *ServerInterfaceWrapper) TenantUpdate(ctx echo.Context) error {
 
 	ctx.Set(CookieAuthScopes, []string{})
 
-	ctx.Set(CustomAuthScopes, []string{})
-
 	// Invoke the callback with all the unmarshaled arguments
 	err = w.Handler.TenantUpdate(ctx, tenant)
 	return err
@@ -4794,8 +4707,6 @@ func (w *ServerInterfaceWrapper) AlertEmailGroupList(ctx echo.Context) error {
 	ctx.Set(BearerAuthScopes, []string{})
 
 	ctx.Set(CookieAuthScopes, []string{})
-
-	ctx.Set(CustomAuthScopes, []string{})
 
 	// Invoke the callback with all the unmarshaled arguments
 	err = w.Handler.AlertEmailGroupList(ctx, tenant)
@@ -4817,8 +4728,6 @@ func (w *ServerInterfaceWrapper) AlertEmailGroupCreate(ctx echo.Context) error {
 
 	ctx.Set(CookieAuthScopes, []string{})
 
-	ctx.Set(CustomAuthScopes, []string{})
-
 	// Invoke the callback with all the unmarshaled arguments
 	err = w.Handler.AlertEmailGroupCreate(ctx, tenant)
 	return err
@@ -4838,8 +4747,6 @@ func (w *ServerInterfaceWrapper) TenantAlertingSettingsGet(ctx echo.Context) err
 	ctx.Set(BearerAuthScopes, []string{})
 
 	ctx.Set(CookieAuthScopes, []string{})
-
-	ctx.Set(CustomAuthScopes, []string{})
 
 	// Invoke the callback with all the unmarshaled arguments
 	err = w.Handler.TenantAlertingSettingsGet(ctx, tenant)
@@ -4861,8 +4768,6 @@ func (w *ServerInterfaceWrapper) ApiTokenList(ctx echo.Context) error {
 
 	ctx.Set(CookieAuthScopes, []string{})
 
-	ctx.Set(CustomAuthScopes, []string{})
-
 	// Invoke the callback with all the unmarshaled arguments
 	err = w.Handler.ApiTokenList(ctx, tenant)
 	return err
@@ -4883,8 +4788,6 @@ func (w *ServerInterfaceWrapper) ApiTokenCreate(ctx echo.Context) error {
 
 	ctx.Set(CookieAuthScopes, []string{})
 
-	ctx.Set(CustomAuthScopes, []string{})
-
 	// Invoke the callback with all the unmarshaled arguments
 	err = w.Handler.ApiTokenCreate(ctx, tenant)
 	return err
@@ -4904,8 +4807,6 @@ func (w *ServerInterfaceWrapper) EventList(ctx echo.Context) error {
 	ctx.Set(BearerAuthScopes, []string{})
 
 	ctx.Set(CookieAuthScopes, []string{})
-
-	ctx.Set(CustomAuthScopes, []string{})
 
 	// Parameter object where we will unmarshal all parameters from the context
 	var params EventListParams
@@ -4999,8 +4900,6 @@ func (w *ServerInterfaceWrapper) EventCreate(ctx echo.Context) error {
 
 	ctx.Set(CookieAuthScopes, []string{})
 
-	ctx.Set(CustomAuthScopes, []string{})
-
 	// Invoke the callback with all the unmarshaled arguments
 	err = w.Handler.EventCreate(ctx, tenant)
 	return err
@@ -5020,8 +4919,6 @@ func (w *ServerInterfaceWrapper) EventCreateBulk(ctx echo.Context) error {
 	ctx.Set(BearerAuthScopes, []string{})
 
 	ctx.Set(CookieAuthScopes, []string{})
-
-	ctx.Set(CustomAuthScopes, []string{})
 
 	// Invoke the callback with all the unmarshaled arguments
 	err = w.Handler.EventCreateBulk(ctx, tenant)
@@ -5043,8 +4940,6 @@ func (w *ServerInterfaceWrapper) EventUpdateCancel(ctx echo.Context) error {
 
 	ctx.Set(CookieAuthScopes, []string{})
 
-	ctx.Set(CustomAuthScopes, []string{})
-
 	// Invoke the callback with all the unmarshaled arguments
 	err = w.Handler.EventUpdateCancel(ctx, tenant)
 	return err
@@ -5064,8 +4959,6 @@ func (w *ServerInterfaceWrapper) EventKeyList(ctx echo.Context) error {
 	ctx.Set(BearerAuthScopes, []string{})
 
 	ctx.Set(CookieAuthScopes, []string{})
-
-	ctx.Set(CustomAuthScopes, []string{})
 
 	// Invoke the callback with all the unmarshaled arguments
 	err = w.Handler.EventKeyList(ctx, tenant)
@@ -5087,8 +4980,6 @@ func (w *ServerInterfaceWrapper) EventUpdateReplay(ctx echo.Context) error {
 
 	ctx.Set(CookieAuthScopes, []string{})
 
-	ctx.Set(CustomAuthScopes, []string{})
-
 	// Invoke the callback with all the unmarshaled arguments
 	err = w.Handler.EventUpdateReplay(ctx, tenant)
 	return err
@@ -5109,8 +5000,6 @@ func (w *ServerInterfaceWrapper) TenantInviteList(ctx echo.Context) error {
 
 	ctx.Set(CookieAuthScopes, []string{})
 
-	ctx.Set(CustomAuthScopes, []string{})
-
 	// Invoke the callback with all the unmarshaled arguments
 	err = w.Handler.TenantInviteList(ctx, tenant)
 	return err
@@ -5130,8 +5019,6 @@ func (w *ServerInterfaceWrapper) TenantInviteCreate(ctx echo.Context) error {
 	ctx.Set(BearerAuthScopes, []string{})
 
 	ctx.Set(CookieAuthScopes, []string{})
-
-	ctx.Set(CustomAuthScopes, []string{})
 
 	// Invoke the callback with all the unmarshaled arguments
 	err = w.Handler.TenantInviteCreate(ctx, tenant)
@@ -5161,8 +5048,6 @@ func (w *ServerInterfaceWrapper) TenantInviteDelete(ctx echo.Context) error {
 
 	ctx.Set(CookieAuthScopes, []string{})
 
-	ctx.Set(CustomAuthScopes, []string{})
-
 	// Invoke the callback with all the unmarshaled arguments
 	err = w.Handler.TenantInviteDelete(ctx, tenant, tenantInvite)
 	return err
@@ -5191,8 +5076,6 @@ func (w *ServerInterfaceWrapper) TenantInviteUpdate(ctx echo.Context) error {
 
 	ctx.Set(CookieAuthScopes, []string{})
 
-	ctx.Set(CustomAuthScopes, []string{})
-
 	// Invoke the callback with all the unmarshaled arguments
 	err = w.Handler.TenantInviteUpdate(ctx, tenant, tenantInvite)
 	return err
@@ -5212,8 +5095,6 @@ func (w *ServerInterfaceWrapper) TenantMemberList(ctx echo.Context) error {
 	ctx.Set(BearerAuthScopes, []string{})
 
 	ctx.Set(CookieAuthScopes, []string{})
-
-	ctx.Set(CustomAuthScopes, []string{})
 
 	// Invoke the callback with all the unmarshaled arguments
 	err = w.Handler.TenantMemberList(ctx, tenant)
@@ -5243,8 +5124,6 @@ func (w *ServerInterfaceWrapper) TenantMemberDelete(ctx echo.Context) error {
 
 	ctx.Set(CookieAuthScopes, []string{})
 
-	ctx.Set(CustomAuthScopes, []string{})
-
 	// Invoke the callback with all the unmarshaled arguments
 	err = w.Handler.TenantMemberDelete(ctx, tenant, member)
 	return err
@@ -5273,8 +5152,6 @@ func (w *ServerInterfaceWrapper) TenantMemberUpdate(ctx echo.Context) error {
 
 	ctx.Set(CookieAuthScopes, []string{})
 
-	ctx.Set(CustomAuthScopes, []string{})
-
 	// Invoke the callback with all the unmarshaled arguments
 	err = w.Handler.TenantMemberUpdate(ctx, tenant, member)
 	return err
@@ -5295,8 +5172,6 @@ func (w *ServerInterfaceWrapper) TenantGetPrometheusMetrics(ctx echo.Context) er
 
 	ctx.Set(CookieAuthScopes, []string{})
 
-	ctx.Set(CustomAuthScopes, []string{})
-
 	// Invoke the callback with all the unmarshaled arguments
 	err = w.Handler.TenantGetPrometheusMetrics(ctx, tenant)
 	return err
@@ -5316,8 +5191,6 @@ func (w *ServerInterfaceWrapper) TenantGetQueueMetrics(ctx echo.Context) error {
 	ctx.Set(BearerAuthScopes, []string{})
 
 	ctx.Set(CookieAuthScopes, []string{})
-
-	ctx.Set(CustomAuthScopes, []string{})
 
 	// Parameter object where we will unmarshal all parameters from the context
 	var params TenantGetQueueMetricsParams
@@ -5354,8 +5227,6 @@ func (w *ServerInterfaceWrapper) RateLimitList(ctx echo.Context) error {
 	ctx.Set(BearerAuthScopes, []string{})
 
 	ctx.Set(CookieAuthScopes, []string{})
-
-	ctx.Set(CustomAuthScopes, []string{})
 
 	// Parameter object where we will unmarshal all parameters from the context
 	var params RateLimitListParams
@@ -5414,8 +5285,6 @@ func (w *ServerInterfaceWrapper) TenantResourcePolicyGet(ctx echo.Context) error
 
 	ctx.Set(CookieAuthScopes, []string{})
 
-	ctx.Set(CustomAuthScopes, []string{})
-
 	// Invoke the callback with all the unmarshaled arguments
 	err = w.Handler.TenantResourcePolicyGet(ctx, tenant)
 	return err
@@ -5435,8 +5304,6 @@ func (w *ServerInterfaceWrapper) SlackWebhookList(ctx echo.Context) error {
 	ctx.Set(BearerAuthScopes, []string{})
 
 	ctx.Set(CookieAuthScopes, []string{})
-
-	ctx.Set(CustomAuthScopes, []string{})
 
 	// Invoke the callback with all the unmarshaled arguments
 	err = w.Handler.SlackWebhookList(ctx, tenant)
@@ -5476,8 +5343,6 @@ func (w *ServerInterfaceWrapper) SnsList(ctx echo.Context) error {
 
 	ctx.Set(CookieAuthScopes, []string{})
 
-	ctx.Set(CustomAuthScopes, []string{})
-
 	// Invoke the callback with all the unmarshaled arguments
 	err = w.Handler.SnsList(ctx, tenant)
 	return err
@@ -5498,8 +5363,6 @@ func (w *ServerInterfaceWrapper) SnsCreate(ctx echo.Context) error {
 
 	ctx.Set(CookieAuthScopes, []string{})
 
-	ctx.Set(CustomAuthScopes, []string{})
-
 	// Invoke the callback with all the unmarshaled arguments
 	err = w.Handler.SnsCreate(ctx, tenant)
 	return err
@@ -5519,8 +5382,6 @@ func (w *ServerInterfaceWrapper) TenantGetStepRunQueueMetrics(ctx echo.Context) 
 	ctx.Set(BearerAuthScopes, []string{})
 
 	ctx.Set(CookieAuthScopes, []string{})
-
-	ctx.Set(CustomAuthScopes, []string{})
 
 	// Invoke the callback with all the unmarshaled arguments
 	err = w.Handler.TenantGetStepRunQueueMetrics(ctx, tenant)
@@ -5550,8 +5411,6 @@ func (w *ServerInterfaceWrapper) StepRunGet(ctx echo.Context) error {
 
 	ctx.Set(CookieAuthScopes, []string{})
 
-	ctx.Set(CustomAuthScopes, []string{})
-
 	// Invoke the callback with all the unmarshaled arguments
 	err = w.Handler.StepRunGet(ctx, tenant, stepRun)
 	return err
@@ -5579,8 +5438,6 @@ func (w *ServerInterfaceWrapper) StepRunUpdateCancel(ctx echo.Context) error {
 	ctx.Set(BearerAuthScopes, []string{})
 
 	ctx.Set(CookieAuthScopes, []string{})
-
-	ctx.Set(CustomAuthScopes, []string{})
 
 	// Invoke the callback with all the unmarshaled arguments
 	err = w.Handler.StepRunUpdateCancel(ctx, tenant, stepRun)
@@ -5610,8 +5467,6 @@ func (w *ServerInterfaceWrapper) StepRunUpdateRerun(ctx echo.Context) error {
 
 	ctx.Set(CookieAuthScopes, []string{})
 
-	ctx.Set(CustomAuthScopes, []string{})
-
 	// Invoke the callback with all the unmarshaled arguments
 	err = w.Handler.StepRunUpdateRerun(ctx, tenant, stepRun)
 	return err
@@ -5640,8 +5495,6 @@ func (w *ServerInterfaceWrapper) StepRunGetSchema(ctx echo.Context) error {
 
 	ctx.Set(CookieAuthScopes, []string{})
 
-	ctx.Set(CustomAuthScopes, []string{})
-
 	// Invoke the callback with all the unmarshaled arguments
 	err = w.Handler.StepRunGetSchema(ctx, tenant, stepRun)
 	return err
@@ -5661,8 +5514,6 @@ func (w *ServerInterfaceWrapper) WebhookList(ctx echo.Context) error {
 	ctx.Set(BearerAuthScopes, []string{})
 
 	ctx.Set(CookieAuthScopes, []string{})
-
-	ctx.Set(CustomAuthScopes, []string{})
 
 	// Invoke the callback with all the unmarshaled arguments
 	err = w.Handler.WebhookList(ctx, tenant)
@@ -5684,8 +5535,6 @@ func (w *ServerInterfaceWrapper) WebhookCreate(ctx echo.Context) error {
 
 	ctx.Set(CookieAuthScopes, []string{})
 
-	ctx.Set(CustomAuthScopes, []string{})
-
 	// Invoke the callback with all the unmarshaled arguments
 	err = w.Handler.WebhookCreate(ctx, tenant)
 	return err
@@ -5706,8 +5555,6 @@ func (w *ServerInterfaceWrapper) WorkerList(ctx echo.Context) error {
 
 	ctx.Set(CookieAuthScopes, []string{})
 
-	ctx.Set(CustomAuthScopes, []string{})
-
 	// Invoke the callback with all the unmarshaled arguments
 	err = w.Handler.WorkerList(ctx, tenant)
 	return err
@@ -5727,8 +5574,6 @@ func (w *ServerInterfaceWrapper) WorkflowRunUpdateReplay(ctx echo.Context) error
 	ctx.Set(BearerAuthScopes, []string{})
 
 	ctx.Set(CookieAuthScopes, []string{})
-
-	ctx.Set(CustomAuthScopes, []string{})
 
 	// Invoke the callback with all the unmarshaled arguments
 	err = w.Handler.WorkflowRunUpdateReplay(ctx, tenant)
@@ -5758,8 +5603,6 @@ func (w *ServerInterfaceWrapper) WorkflowRunGet(ctx echo.Context) error {
 
 	ctx.Set(CookieAuthScopes, []string{})
 
-	ctx.Set(CustomAuthScopes, []string{})
-
 	// Invoke the callback with all the unmarshaled arguments
 	err = w.Handler.WorkflowRunGet(ctx, tenant, workflowRun)
 	return err
@@ -5787,8 +5630,6 @@ func (w *ServerInterfaceWrapper) WorkflowRunGetInput(ctx echo.Context) error {
 	ctx.Set(BearerAuthScopes, []string{})
 
 	ctx.Set(CookieAuthScopes, []string{})
-
-	ctx.Set(CustomAuthScopes, []string{})
 
 	// Invoke the callback with all the unmarshaled arguments
 	err = w.Handler.WorkflowRunGetInput(ctx, tenant, workflowRun)
@@ -5818,8 +5659,6 @@ func (w *ServerInterfaceWrapper) WorkflowRunGetShape(ctx echo.Context) error {
 
 	ctx.Set(CookieAuthScopes, []string{})
 
-	ctx.Set(CustomAuthScopes, []string{})
-
 	// Invoke the callback with all the unmarshaled arguments
 	err = w.Handler.WorkflowRunGetShape(ctx, tenant, workflowRun)
 	return err
@@ -5847,8 +5686,6 @@ func (w *ServerInterfaceWrapper) WorkflowRunListStepRunEvents(ctx echo.Context) 
 	ctx.Set(BearerAuthScopes, []string{})
 
 	ctx.Set(CookieAuthScopes, []string{})
-
-	ctx.Set(CustomAuthScopes, []string{})
 
 	// Parameter object where we will unmarshal all parameters from the context
 	var params WorkflowRunListStepRunEventsParams
@@ -5878,8 +5715,6 @@ func (w *ServerInterfaceWrapper) WorkflowList(ctx echo.Context) error {
 	ctx.Set(BearerAuthScopes, []string{})
 
 	ctx.Set(CookieAuthScopes, []string{})
-
-	ctx.Set(CustomAuthScopes, []string{})
 
 	// Parameter object where we will unmarshal all parameters from the context
 	var params WorkflowListParams
@@ -5924,8 +5759,6 @@ func (w *ServerInterfaceWrapper) WorkflowRunCancel(ctx echo.Context) error {
 
 	ctx.Set(CookieAuthScopes, []string{})
 
-	ctx.Set(CustomAuthScopes, []string{})
-
 	// Invoke the callback with all the unmarshaled arguments
 	err = w.Handler.WorkflowRunCancel(ctx, tenant)
 	return err
@@ -5945,8 +5778,6 @@ func (w *ServerInterfaceWrapper) CronWorkflowList(ctx echo.Context) error {
 	ctx.Set(BearerAuthScopes, []string{})
 
 	ctx.Set(CookieAuthScopes, []string{})
-
-	ctx.Set(CustomAuthScopes, []string{})
 
 	// Parameter object where we will unmarshal all parameters from the context
 	var params CronWorkflowListParams
@@ -6034,8 +5865,6 @@ func (w *ServerInterfaceWrapper) WorkflowCronDelete(ctx echo.Context) error {
 
 	ctx.Set(CookieAuthScopes, []string{})
 
-	ctx.Set(CustomAuthScopes, []string{})
-
 	// Invoke the callback with all the unmarshaled arguments
 	err = w.Handler.WorkflowCronDelete(ctx, tenant, cronWorkflow)
 	return err
@@ -6064,8 +5893,6 @@ func (w *ServerInterfaceWrapper) WorkflowCronGet(ctx echo.Context) error {
 
 	ctx.Set(CookieAuthScopes, []string{})
 
-	ctx.Set(CustomAuthScopes, []string{})
-
 	// Invoke the callback with all the unmarshaled arguments
 	err = w.Handler.WorkflowCronGet(ctx, tenant, cronWorkflow)
 	return err
@@ -6085,8 +5912,6 @@ func (w *ServerInterfaceWrapper) WorkflowRunList(ctx echo.Context) error {
 	ctx.Set(BearerAuthScopes, []string{})
 
 	ctx.Set(CookieAuthScopes, []string{})
-
-	ctx.Set(CustomAuthScopes, []string{})
 
 	// Parameter object where we will unmarshal all parameters from the context
 	var params WorkflowRunListParams
@@ -6215,8 +6040,6 @@ func (w *ServerInterfaceWrapper) WorkflowRunGetMetrics(ctx echo.Context) error {
 
 	ctx.Set(CookieAuthScopes, []string{})
 
-	ctx.Set(CustomAuthScopes, []string{})
-
 	// Parameter object where we will unmarshal all parameters from the context
 	var params WorkflowRunGetMetricsParams
 	// ------------- Optional query parameter "eventId" -------------
@@ -6287,8 +6110,6 @@ func (w *ServerInterfaceWrapper) WorkflowScheduledList(ctx echo.Context) error {
 	ctx.Set(BearerAuthScopes, []string{})
 
 	ctx.Set(CookieAuthScopes, []string{})
-
-	ctx.Set(CustomAuthScopes, []string{})
 
 	// Parameter object where we will unmarshal all parameters from the context
 	var params WorkflowScheduledListParams
@@ -6383,8 +6204,6 @@ func (w *ServerInterfaceWrapper) WorkflowScheduledDelete(ctx echo.Context) error
 
 	ctx.Set(CookieAuthScopes, []string{})
 
-	ctx.Set(CustomAuthScopes, []string{})
-
 	// Invoke the callback with all the unmarshaled arguments
 	err = w.Handler.WorkflowScheduledDelete(ctx, tenant, scheduledWorkflowRun)
 	return err
@@ -6412,8 +6231,6 @@ func (w *ServerInterfaceWrapper) WorkflowScheduledGet(ctx echo.Context) error {
 	ctx.Set(BearerAuthScopes, []string{})
 
 	ctx.Set(CookieAuthScopes, []string{})
-
-	ctx.Set(CustomAuthScopes, []string{})
 
 	// Invoke the callback with all the unmarshaled arguments
 	err = w.Handler.WorkflowScheduledGet(ctx, tenant, scheduledWorkflowRun)
@@ -6443,8 +6260,6 @@ func (w *ServerInterfaceWrapper) CronWorkflowTriggerCreate(ctx echo.Context) err
 
 	ctx.Set(CookieAuthScopes, []string{})
 
-	ctx.Set(CustomAuthScopes, []string{})
-
 	// Invoke the callback with all the unmarshaled arguments
 	err = w.Handler.CronWorkflowTriggerCreate(ctx, tenant, workflow)
 	return err
@@ -6473,8 +6288,6 @@ func (w *ServerInterfaceWrapper) ScheduledWorkflowRunCreate(ctx echo.Context) er
 
 	ctx.Set(CookieAuthScopes, []string{})
 
-	ctx.Set(CustomAuthScopes, []string{})
-
 	// Invoke the callback with all the unmarshaled arguments
 	err = w.Handler.ScheduledWorkflowRunCreate(ctx, tenant, workflow)
 	return err
@@ -6502,8 +6315,6 @@ func (w *ServerInterfaceWrapper) WorkflowGetWorkersCount(ctx echo.Context) error
 	ctx.Set(BearerAuthScopes, []string{})
 
 	ctx.Set(CookieAuthScopes, []string{})
-
-	ctx.Set(CustomAuthScopes, []string{})
 
 	// Invoke the callback with all the unmarshaled arguments
 	err = w.Handler.WorkflowGetWorkersCount(ctx, tenant, workflow)
@@ -6576,8 +6387,6 @@ func (w *ServerInterfaceWrapper) TenantInviteAccept(ctx echo.Context) error {
 
 	ctx.Set(CookieAuthScopes, []string{})
 
-	ctx.Set(CustomAuthScopes, []string{})
-
 	// Invoke the callback with all the unmarshaled arguments
 	err = w.Handler.TenantInviteAccept(ctx)
 	return err
@@ -6590,8 +6399,6 @@ func (w *ServerInterfaceWrapper) TenantInviteReject(ctx echo.Context) error {
 	ctx.Set(BearerAuthScopes, []string{})
 
 	ctx.Set(CookieAuthScopes, []string{})
-
-	ctx.Set(CustomAuthScopes, []string{})
 
 	// Invoke the callback with all the unmarshaled arguments
 	err = w.Handler.TenantInviteReject(ctx)
@@ -6684,8 +6491,6 @@ func (w *ServerInterfaceWrapper) WebhookDelete(ctx echo.Context) error {
 
 	ctx.Set(CookieAuthScopes, []string{})
 
-	ctx.Set(CustomAuthScopes, []string{})
-
 	// Invoke the callback with all the unmarshaled arguments
 	err = w.Handler.WebhookDelete(ctx, webhook)
 	return err
@@ -6705,8 +6510,6 @@ func (w *ServerInterfaceWrapper) WebhookRequestsList(ctx echo.Context) error {
 	ctx.Set(BearerAuthScopes, []string{})
 
 	ctx.Set(CookieAuthScopes, []string{})
-
-	ctx.Set(CustomAuthScopes, []string{})
 
 	// Invoke the callback with all the unmarshaled arguments
 	err = w.Handler.WebhookRequestsList(ctx, webhook)
@@ -6728,8 +6531,6 @@ func (w *ServerInterfaceWrapper) WorkerGet(ctx echo.Context) error {
 
 	ctx.Set(CookieAuthScopes, []string{})
 
-	ctx.Set(CustomAuthScopes, []string{})
-
 	// Invoke the callback with all the unmarshaled arguments
 	err = w.Handler.WorkerGet(ctx, worker)
 	return err
@@ -6749,8 +6550,6 @@ func (w *ServerInterfaceWrapper) WorkerUpdate(ctx echo.Context) error {
 	ctx.Set(BearerAuthScopes, []string{})
 
 	ctx.Set(CookieAuthScopes, []string{})
-
-	ctx.Set(CustomAuthScopes, []string{})
 
 	// Invoke the callback with all the unmarshaled arguments
 	err = w.Handler.WorkerUpdate(ctx, worker)
@@ -6772,8 +6571,6 @@ func (w *ServerInterfaceWrapper) WorkflowDelete(ctx echo.Context) error {
 
 	ctx.Set(CookieAuthScopes, []string{})
 
-	ctx.Set(CustomAuthScopes, []string{})
-
 	// Invoke the callback with all the unmarshaled arguments
 	err = w.Handler.WorkflowDelete(ctx, workflow)
 	return err
@@ -6793,8 +6590,6 @@ func (w *ServerInterfaceWrapper) WorkflowGet(ctx echo.Context) error {
 	ctx.Set(BearerAuthScopes, []string{})
 
 	ctx.Set(CookieAuthScopes, []string{})
-
-	ctx.Set(CustomAuthScopes, []string{})
 
 	// Invoke the callback with all the unmarshaled arguments
 	err = w.Handler.WorkflowGet(ctx, workflow)
@@ -6816,8 +6611,6 @@ func (w *ServerInterfaceWrapper) WorkflowUpdate(ctx echo.Context) error {
 
 	ctx.Set(CookieAuthScopes, []string{})
 
-	ctx.Set(CustomAuthScopes, []string{})
-
 	// Invoke the callback with all the unmarshaled arguments
 	err = w.Handler.WorkflowUpdate(ctx, workflow)
 	return err
@@ -6837,8 +6630,6 @@ func (w *ServerInterfaceWrapper) WorkflowGetMetrics(ctx echo.Context) error {
 	ctx.Set(BearerAuthScopes, []string{})
 
 	ctx.Set(CookieAuthScopes, []string{})
-
-	ctx.Set(CustomAuthScopes, []string{})
 
 	// Parameter object where we will unmarshal all parameters from the context
 	var params WorkflowGetMetricsParams
@@ -6876,8 +6667,6 @@ func (w *ServerInterfaceWrapper) WorkflowRunCreate(ctx echo.Context) error {
 
 	ctx.Set(CookieAuthScopes, []string{})
 
-	ctx.Set(CustomAuthScopes, []string{})
-
 	// Parameter object where we will unmarshal all parameters from the context
 	var params WorkflowRunCreateParams
 	// ------------- Optional query parameter "version" -------------
@@ -6906,8 +6695,6 @@ func (w *ServerInterfaceWrapper) WorkflowVersionGet(ctx echo.Context) error {
 	ctx.Set(BearerAuthScopes, []string{})
 
 	ctx.Set(CookieAuthScopes, []string{})
-
-	ctx.Set(CustomAuthScopes, []string{})
 
 	// Parameter object where we will unmarshal all parameters from the context
 	var params WorkflowVersionGetParams
@@ -15542,8 +15329,8 @@ var swaggerSpec = []string{
 	"G4dOEqFoHrbywGogrsacNWaiU3p9ukn5PPqK8R7VTYdVUzZIp78L/GxIackTUq6h3tDy1YbMgE2SOJ2z",
 	"PKEZCHKjrKCwTp/holObw2HDQmLF3N3yUqlN372D1sRS+cIbCS6ZV8YaGyJTIjTN9LJUgpedlFw3BnY5",
 	"9Ab3zLuNU0odMOgyrgoBgZgonkLYu4fEn8LAlk06E/w7bkgJMlgya8yL5YrR4G2UJKZNDdOmhtlAaphG",
-	"olnIBuxwq5XT5E5iWcTW7JEL5meQyxuWcjJgajVTsJV3O2UCZqS4rAlYDPwbQ5DARAX+dUuhgPSXFJN4",
-	"lgsOZLFlXEKkSdh51+k8f3v+/wEAAP//5nyI8er1AgA=",
+	"olnIBuxwq5XT5E5iWcTW7JEL5meQyxuWcjJgajVTsJV3O2UCZqS4rAlYDPwbQ5DARAX+dY2hgCySjMuD",
+	"NAk77zqd52/P/z8AAP//6dXW1tj1AgA=",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

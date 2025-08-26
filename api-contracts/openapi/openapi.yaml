@@ -8,7 +8,6 @@ info:
 security:
   - bearerAuth: []
   - cookieAuth: []
-  - customAuth: []
 components:
   securitySchemes:
     bearerAuth:
