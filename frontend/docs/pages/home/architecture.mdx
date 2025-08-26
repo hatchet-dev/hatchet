@@ -41,17 +41,6 @@ graph LR
 
 ## Core Components
 
-### API Server
-
-The **API & gRPC Server** serves as the primary interface for triggering workflows and managing Hatchet resources. It exposes REST endpoints and gRPC connections that your applications use to:
-
-- **Trigger Workflows**: Start new workflow executions with input data
-- **Query or Subscribe to Status**: Check workflow and task execution status
-- **Manage Resources**: Configure workflows, schedules, and settings
-- **Webhook Ingestion**: Receive and process external events
-
-Security is handled through multi-tenant authentication with API keys and JWT tokens, or webhook signature verification where applicable, to ensure only authentic requests are processed. The API Server also powers Hatchet's web dashboard through REST endpoints, giving you real-time visibility into your workflows.
-
 ### Engine
 
 The **Hatchet Engine** orchestrates the entire workflow execution process. It determines when and where tasks should run based on complex dependencies, concurrency limits, and worker availability. Key responsibilities include:
@@ -62,15 +51,26 @@ The **Hatchet Engine** orchestrates the entire workflow execution process. It de
 - **Retry Logic**: Automatic handling of failures, timeouts, and backpressure
 - **Cron Processing**: Manages scheduled workflow executions
 
-Communication with workers are handled through bidirectional gRPC connections that enable real-time task dispatch and status updates with minimal latency and network overhead. The Engine continuously tracks task execution state and automatically handles retries, timeouts, and failure scenarios without manual intervention.
+Communication with workers are handled through bidirectional gRPC connections that enable real-time task dispatch and status updates with minimal latency and network overhead. The Hatchet engine continuously tracks task execution state and automatically handles retries, timeouts, and failure scenarios without manual intervention.
 
 The Engine is designed to be horizontally scalable—multiple engine instances can run simultaneously, coordinating through the persistent storage layer to handle increasing workloads seamlessly.
+
+### API Server
+
+The **API Server** serves as the primary interface for viewing Hatchet resources. It exposes REST endpoints that the Hatchet UI and your applications use to:
+
+- **Trigger Workflows**: Start new workflow executions with input data
+- **Query or Subscribe to Status**: Check workflow and task execution status
+- **Manage Resources**: Configure workflows, schedules, and settings
+- **Webhook Ingestion**: Receive and process external events
+
+Security is handled through multi-tenant authentication with API keys and JWT tokens, or webhook signature verification where applicable, to ensure only authentic requests are processed. The API Server also powers Hatchet's web dashboard through REST endpoints, giving you real-time visibility into your workflows.
 
 ### Workers
 
 **Workers** are your application processes that execute the actual business logic. They establish secure, bidirectional gRPC connections to the Engine and run your functions when tasks are dispatched. Workers continuously report status updates, including task progress, logs, and results, giving you real-time visibility into execution.
 
-When tasks need to be cancelled, workers handle this gracefully with proper cleanup procedures. One of Hatchet's key design goals is deployment flexibility—workers can run anywhere, from containers and serverless platforms to VMs or even your local development machine. This flexibility means you can start development locally, deploy to staging in containers, and run production workloads on dedicated infrastructure without changing your worker code.
+When tasks need to be cancelled, workers handle this gracefully with proper cleanup procedures. One of Hatchet's key design goals is deployment flexibility: workers can run anywhere, from containers to VMs or even your local development machine. This flexibility means you can start development locally, deploy to staging in containers, and run production workloads on dedicated infrastructure without changing your worker code.
 
 You can run either homogeneous or heterogeneous workers. Homogeneous workers are a single type of worker that is used for all tasks. Heterogeneous workers are a mix of different types of workers that are used for different tasks.
 

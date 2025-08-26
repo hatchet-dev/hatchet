@@ -2,27 +2,33 @@ import { Tabs, Callout } from "nextra/components";
 
 # What is Hatchet?
 
-Hatchet is a modern orchestration platform for background tasks that helps engineering teams build ultra low-latency and high throughput data ingestion and agentic ai pipelines.
+Hatchet is a modern orchestration platform that helps engineering teams build low-latency and high-throughput data ingestion and agentic AI pipelines.
 
-You write simple functions in Python, Typescript, and Go and run them on [workers](./workers.mdx) in your own infrastructure. You can compose these functions into [workflows as code](./child-spawning.mdx) or as [Directed Acyclic Graphs (DAGs)](./dags.mdx) to build complex data pipelines.
+You write simple functions, called [tasks](./home/your-first-task), in Python, Typescript, and Go and run them on [workers](./home/workers) in your own infrastructure. You can compose these tasks into [parent/child relationships](./home/child-spawning) or predefined as [directed acyclic graphs (DAGs)](./home/dags) to build more complex pipelines, which we call [workflows](./home/orchestration). All tasks and workflows are **defined as code**, making them easy to version, test, and deploy.
 
-Hatchet handles scheduling, complex assignment, fault tolerance, and observability so your workload scales and you can focus on building your application.
+Hatchet handles scheduling, complex assignment, fault tolerance, and observability so you can focus on building your application as you scale.
+
+## Use-Cases
+
+While Hatchet is a general-purpose orchestration platform, it's particularly well-suited for:
+
+- **Real-time data processing pipelines**: for example, data ingestion which is crucial for keeping LLM contexts up-to-date, or ETL pipelines that require fast execution and high throughput.
+- **AI agents**: a core number of Hatchet's features, like [webhooks](./home/webhooks), [child spawning](./home/child-spawning), and [dynamic workflows](./home/child-spawning) are designed to support AI agents.
+- **Event-driven systems**: Hatchet's [eventing features](./home/run-on-event) allow you to build event-driven architectures without requiring additional infrastructure.
 
 ## Why Hatchet?
 
-Hatchet may be a good fit if you're experiencing or expecting complex data or compute workflows in your application where speed and parallelism are critical. Hatchet's performance characteristics are fast enough for real-time workloads without sacrificing reliability or cost.
+⚡️ **Low-Latency For Real-Time Workloads** - Sub-25ms task dispatch for hot workers with thousands of concurrent tasks. Smart assignment rules handle [rate-limits](./home/rate-limits), [fairness](./home/concurrency), and [priorities](./home/priority) without complex configuration.
 
-⚡️ **Low-Latency For Real-Time Workloads** - Sub-35ms task dispatch for hot workers with thousands of concurrent tasks. Smart assignment rules handle [rate-limits](./rate-limits.mdx), [fairness](./concurrency.mdx), and [priorities](./priority.mdx) without complex configuration.
-
-🪨 **Durability for Long Running Jobs** - Every task invocation is durably logged to PostgreSQL. With [durable execution](./durable-execution.mdx), when jobs fail your workflow will resume exactly where you left off — no lost work, no duplicate LLM calls, no engineer headaches.
+🪨 **Durability for Long Running Jobs** - Every task invocation is durably logged to PostgreSQL. With [durable execution](./home/durable-execution), when jobs fail your workflow will resume exactly where you left off — no lost work, no duplicate LLM calls, no engineer headaches.
 
 🧘‍♂️ **Zen Developer Experience** - Hatchet SDKs (Python, Typescript, and Go) are hand-built with modern tooling and are designed to be easy to use. Hatchet has built-in observability and debugging tools for things like replays, logs, and alerts.
 
-If you plan on self-hosting or have requirements for on-premise deployment, there are some additional considerations:
+If you plan on self-hosting or have requirements for an on-premise deployment, there are some additional considerations:
 
 🐘 **Minimal Infra Dependencies** - Hatchet is built on top of PostgreSQL and for simple workloads, [its all you need](./self-hosting/hatchet-lite.mdx).
 
-⬆️ **Fully Featured Open Source** - Hatchet is fully open source, so you can run the same application code against [Hatchet Cloud](https://cloud.onhatchet.run) to get started quickly or [self-host](./self-hosting.mdx) when you need more control.
+⬆️ **Fully Featured Open Source** - Hatchet is 100% MIT licensed, so you can run the same application code against [Hatchet Cloud](https://cloud.onhatchet.run) to get started quickly or [self-host](./self-hosting.mdx) when you need more control.
 
 ## Hatchet vs. Alternatives
 
@@ -31,47 +37,29 @@ Today, developers who need background task processing and workflow orchestration
 1. Adopt external services like Temporal or Airflow, which are powerful but complex to run or introduce latency, or
 2. Use simple task queue libraries like Celery or BullMQ, which lack critical workflow features and become difficult to debug at scale.
 
-| Metric                  | Hatchet     | Celery   | Airflow | Temporal                   |
-| ----------------------- | ----------- | -------- | ------- | -------------------------- |
-| **Task Start Latency**  | ~100ms      | ~100ms+  | 5-30s   | ~100ms+                    |
-| **Concurrent Tasks**    | Thousands   | Limited  | Limited | Expensive                  |
-| **Durability**          | PostgreSQL  | Redis/DB | DB      | Cassandra/PostgreSQL/MySQL |
-| **Checkpoint Recovery** | ✅ Built-in | ❌       | ❌      | ✅ Complex                 |
-| **Real-time Streaming** | ✅ Native   | ❌       | ❌      | Limited                    |
-
-## Core Concepts
-
-**Background tasks**
-
-Background tasks are functions which are executed outside of the main request/response cycle of your application. Traditionally, they are invoked from your application code, from an external event (like a webhook), or on a schedule (like a cron job). Background tasks are useful for offloading work from your application, and for running complex, long-running or resource-intensive tasks.
-
-Recently, background tasks have become more important as AI agents and LLMs have become more prevalent -- moving expensive, long running, or error-prone workload off of your main API and onto dedicated infrastructure.
-
-**Workers**
-
-Hatchet is responsible for invoking tasks which run on **workers**. Workers are long-running processes which are connected to Hatchet, and execute the functions defined in your tasks. They can be run on your own infrastructure on services like Kubernetes, AWS ECS, or managed PaaS like [Porter](https://porter.run), [Ryvn](https://ryvn.ai), [Fly.io](https://fly.io), [Railway](https://railway.com), or [Render](https://render.com).
-
-One of the design goals of Hatchet is to ensure that workers can be run anywhere, from a PaaS like Heroku to a Kubernetes cluster running in your own data center. We refer to workers which are connected with an available slot as **hot workers**.
-
-**What is a task?**
-
-A task is a unit of work that can be executed by Hatchet. Tasks can be run directly, or can be executed in response to an external trigger (an event, schedule, or API call). For example, if you'd like to send notifications to a user after they've signed up, you could create a task for that. Tasks can be [spawned from within another task](./child-spawning.mdx) or can be built into a [directed acyclic graph based workflow](./dags.mdx).
-
-**Durable queue**
-
-Hatchet is built on top of a durable, low-latency queue, which means it can handle real-time interactions and business-critical tasks. This is particularly useful if you're building a real-time application, or if you're running tasks which need to be completed quickly. It can scale to millions of queued tasks and can handle thousands of tasks per second. We are continuously working to improve our throughput and latency.
+| Feature                                     | Hatchet   | Celery   | Airflow | Temporal     |
+| ------------------------------------------- | --------- | -------- | ------- | ------------ |
+| **Task Start Latency**                      | 25ms      | 5-100ms+ | 5-30s   | 25ms         |
+| **Concurrent Tasks**                        | Thousands | Limited  | Limited | Thousands    |
+| **Code-First Workflows**                    | ✅        | ✅       | ✅      | ✅           |
+| **Cron Jobs and Scheduling**                | ✅        | ✅       | ✅      | ✅           |
+| **Priority Queues**                         | ✅        | ✅       | ✅      | ✅ (beta)    |
+| **Durable Sleep/Checkpoints**               | ✅        | ❌       | ❌      | ✅           |
+| **Sticky Assignment/Complex Routing Logic** | ✅        | ❌       | ❌      | ✅ (limited) |
+| **Event-Based Triggering**                  | ✅        | ❌       | ✅      | ❌           |
+| **Real-time Streaming**                     | ✅        | ❌       | ❌      | ❌           |
+| **Global Rate Limits**                      | ✅        | ❌       | ❌      | ❌           |
+| **Event Streaming**                         | ✅        | ❌       | ❌      | ❌           |
 
 ## Production Readiness
 
-Hatchet has been battle-tested in production environments since 2023, processing billions of tasks per month for scale-ups and enterprises across various industries. Financial services companies rely on Hatchet for payment processing workflows where reliability is non-negotiable. Health insurance companies use it for critical claims processing workflows. SaaS applications leverage Hatchet to manage everything from user onboarding sequences to billing workflows and notification campaigns.
+Hatchet has been battle-tested in production environments, processing billions of tasks per month for scale-ups and enterprises across various industries. Our open source offering is deployed over 10k times per month, while our open source offering supports hundreds of companies running at scale.
 
 > "With Hatchet, we've scaled our indexing workflows effortlessly, reducing failed runs by 50% and doubling our user base in just two weeks!"
 > — Soohoon, Co-Founder @ Greptile
 
 > "Hatchet enables Aevy to process up to 50,000 documents in under an hour through optimized parallel execution, compared to nearly a week with our previous setup."
 > — Ymir, CTO @ Aevy
-
-AI companies have found Hatchet particularly valuable for orchestrating real-time AI agents, model training pipelines, and massive document processing workflows. Data teams use it for ETL workflows that need sophisticated error handling and dependency management.
 
 ## Quick Starts
 
@@ -80,7 +68,7 @@ We have a number of quick start tutorials for getting up and running quickly wit
 - [Hatchet Cloud Quickstart](./hatchet-cloud-quickstart.mdx)
 - [Hatchet Self-Hosted Quickstarts](./self-hosting.mdx)
 
-We also have a number of guides for getting started with the Hatchet SDKs:
+We also have guides for getting started with the Hatchet SDKs:
 
 - [Python SDK Quickstart](https://github.com/hatchet-dev/hatchet-python-quickstart)
 - [Typescript SDK Quickstart](https://github.com/hatchet-dev/hatchet-typescript-quickstart)
