@@ -411,7 +411,7 @@ const DeleteTenant: React.FC = () => {
             </Alert>
             <ul className="list-disc list-inside text-sm space-y-1 text-muted-foreground">
               <li>All workflows and workflow runs</li>
-              <li>All task runs and logs</li>
+              <li>All step runs and logs</li>
               <li>All events and triggers</li>
               <li>All worker data</li>
               <li>All team members and invitations</li>
