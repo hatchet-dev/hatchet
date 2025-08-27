@@ -832,6 +832,7 @@ func (s *Scheduler) getSnapshotInput(mustSnapshot bool) (*SnapshotInput, bool) {
 			WorkerId: workerId,
 			MaxRuns:  worker.MaxRuns,
 			Labels:   worker.Labels,
+			Name:     worker.Name,
 		}
 	}
 
@@ -851,6 +852,7 @@ func (s *Scheduler) getSnapshotInput(mustSnapshot bool) (*SnapshotInput, bool) {
 		workerSlotUtilization[workerId] = &SlotUtilization{
 			UtilizedSlots:    0,
 			NonUtilizedSlots: 0,
+			TotalSlots:       0,
 		}
 	}
 
@@ -874,10 +876,12 @@ func (s *Scheduler) getSnapshotInput(mustSnapshot bool) (*SnapshotInput, bool) {
 				workerSlotUtilization[workerId] = &SlotUtilization{
 					UtilizedSlots:    0,
 					NonUtilizedSlots: 0,
+					TotalSlots:       0,
 				}
 			}
 
 			uniqueSlots[slot] = true
+			workerSlotUtilization[workerId].TotalSlots++
 
 			if slot.isUsed() {
 				workerSlotUtilization[workerId].UtilizedSlots++

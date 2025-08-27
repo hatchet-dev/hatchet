@@ -21,12 +21,14 @@ type SnapshotInput struct {
 type SlotUtilization struct {
 	UtilizedSlots    int
 	NonUtilizedSlots int
+	TotalSlots       int
 }
 
 type WorkerCp struct {
 	WorkerId string
 	MaxRuns  int
 	Labels   []*sqlcv1.ListManyWorkerLabelsRow
+	Name     string
 }
 
 type SlotCp struct {
