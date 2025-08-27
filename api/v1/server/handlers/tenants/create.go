@@ -124,6 +124,8 @@ func (t *TenantService) TenantCreate(ctx echo.Context, request gen.TenantCreateR
 		},
 	)
 
+	ctx.Set("tenant", tenant)
+
 	return gen.TenantCreate200JSONResponse(
 		*transformers.ToTenant(tenant),
 	), nil
