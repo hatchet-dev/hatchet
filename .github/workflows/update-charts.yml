@@ -1,0 +1,47 @@
+name: "Update Hatchet Charts"
+on:
+  release:
+    types: [published]
+
+jobs:
+  update-charts:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout hatchet-charts repository
+        uses: actions/checkout@v5
+        with:
+          repository: hatchet-dev/hatchet-charts
+          token: ${{ secrets.GITHUB_TOKEN }}
+          path: hatchet-charts
+      
+      - name: Update chart values with new release tag
+        run: |
+          cd hatchet-charts
+          
+          # Get the release tag name (e.g., v0.1.0)
+          RELEASE_TAG="${{ github.event.release.tag_name }}"
+          echo "Updating charts to use release tag: $RELEASE_TAG"
+          
+          # Find all values.yaml files and update tags that start with 'v'
+          find . -name "values.yaml" -type f | while read -r file; do
+            echo "Processing file: $file"
+            
+            # Update any tag field that starts with 'v' to use the new release tag
+            sed -i "s/tag: \"v[^\"]*\"/tag: \"$RELEASE_TAG\"/" "$file"
+            sed -i "s/tag: v[^[:space:]]*/tag: $RELEASE_TAG/" "$file"
+          done
+      
+      - name: Commit and push changes
+        run: |
+          git config user.name "$GITHUB_ACTOR"
+          git config user.email "$GITHUB_ACTOR@users.noreply.github.com"
+
+          cd hatchet-charts
+          
+          if git diff --quiet; then
+            echo "No changes to commit"
+          else
+            git add .
+            git commit -m "Update image tags to ${{ github.event.release.tag_name }}"
+            git push
+          fi
