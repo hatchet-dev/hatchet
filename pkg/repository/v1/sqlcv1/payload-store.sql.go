@@ -62,15 +62,22 @@ func (q *Queries) FinalizePayloadOffloads(ctx context.Context, db DBTX, arg Fina
 }
 
 const pollPayloadWALForRecordsToOffload = `-- name: PollPayloadWALForRecordsToOffload :many
-WITH to_update AS (
+WITH tenants AS (
+    SELECT UNNEST(
+        find_matching_tenants_in_payload_wal_partition(
+            $2::INT
+        )
+    ) AS tenant_id
+), to_update AS (
     SELECT tenant_id, offload_at, payload_id, payload_inserted_at, payload_type, operation, offload_process_lease_id, offload_process_lease_expires_at
     FROM v1_payload_wal
     WHERE
         offload_at < NOW()
         AND offload_process_lease_id IS NULL OR offload_process_lease_expires_at < NOW()
+        AND tenant_id = ANY(SELECT tenant_id FROM tenants)
     ORDER BY offload_at, payload_id, payload_inserted_at, payload_type, tenant_id
     FOR UPDATE
-    LIMIT $2::INT
+    LIMIT $3::INT
 )
 
 UPDATE v1_payload_wal
@@ -88,8 +95,9 @@ RETURNING to_update.tenant_id, to_update.offload_at, to_update.payload_id, to_up
 `
 
 type PollPayloadWALForRecordsToOffloadParams struct {
-	Leaseid   pgtype.UUID `json:"leaseid"`
-	Polllimit int32       `json:"polllimit"`
+	Leaseid         pgtype.UUID `json:"leaseid"`
+	Partitionnumber int32       `json:"partitionnumber"`
+	Polllimit       int32       `json:"polllimit"`
 }
 
 type PollPayloadWALForRecordsToOffloadRow struct {
@@ -104,7 +112,7 @@ type PollPayloadWALForRecordsToOffloadRow struct {
 }
 
 func (q *Queries) PollPayloadWALForRecordsToOffload(ctx context.Context, db DBTX, arg PollPayloadWALForRecordsToOffloadParams) ([]*PollPayloadWALForRecordsToOffloadRow, error) {
-	rows, err := db.Query(ctx, pollPayloadWALForRecordsToOffload, arg.Leaseid, arg.Polllimit)
+	rows, err := db.Query(ctx, pollPayloadWALForRecordsToOffload, arg.Leaseid, arg.Partitionnumber, arg.Polllimit)
 	if err != nil {
 		return nil, err
 	}

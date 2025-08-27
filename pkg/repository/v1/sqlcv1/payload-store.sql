@@ -82,12 +82,19 @@ FROM
 ;
 
 -- name: PollPayloadWALForRecordsToOffload :many
-WITH to_update AS (
+WITH tenants AS (
+    SELECT UNNEST(
+        find_matching_tenants_in_payload_wal_partition(
+            @partitionNumber::INT
+        )
+    ) AS tenant_id
+), to_update AS (
     SELECT *
     FROM v1_payload_wal
     WHERE
         offload_at < NOW()
         AND offload_process_lease_id IS NULL OR offload_process_lease_expires_at < NOW()
+        AND tenant_id = ANY(SELECT tenant_id FROM tenants)
     ORDER BY offload_at, payload_id, payload_inserted_at, payload_type, tenant_id
     FOR UPDATE
     LIMIT @pollLimit::INT
