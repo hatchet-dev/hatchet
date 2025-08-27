@@ -2804,6 +2804,8 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId string, t
 		}
 
 		if input == nil {
+			// If the input wasn't found in the payload store,
+			// fall back to the input stored on the task itself.
 			input = task.Input
 		}
 

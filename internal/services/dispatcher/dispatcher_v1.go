@@ -243,11 +243,17 @@ func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *ms
 		}
 
 		for _, task := range bulkDatas {
-			input := inputs[v1.RetrievePayloadOpts{
+			input, ok := inputs[v1.RetrievePayloadOpts{
 				Id:         task.ID,
 				InsertedAt: task.InsertedAt,
 				Type:       sqlcv1.V1PayloadTypeTASKINPUT,
 			}]
+
+			if !ok {
+				// If the input wasn't found in the payload store,
+				// fall back to the input stored on the task itself.
+				input = task.Input
+			}
 
 			if parentData, ok := parentDataMap[task.ID]; ok {
 				currInput := &v1.V1StepRunData{}
