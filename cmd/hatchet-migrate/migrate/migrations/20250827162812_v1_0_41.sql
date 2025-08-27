@@ -31,7 +31,9 @@ CREATE TABLE v1_payload_wal (
 
     PRIMARY KEY (offload_at, payload_id, payload_inserted_at, payload_type, tenant_id),
     CONSTRAINT "v1_payload_wal_payload" FOREIGN KEY (payload_id, payload_inserted_at, payload_type, tenant_id) REFERENCES v1_payload (id, inserted_at, type, tenant_id) ON DELETE CASCADE
-);
+) PARTITION BY HASH (tenant_id);
+
+SELECT create_v1_hash_partitions('v1_payload_wal'::TEXT, 4);
 
 CREATE INDEX idx_payload_wal_lease_expiry ON v1_payload_wal (tenant_id, offload_process_lease_id) WHERE offload_process_lease_id IS NOT NULL;
 CREATE INDEX idx_payload_wal_lease_acquisition ON v1_payload_wal (tenant_id, offload_process_lease_id) WHERE offload_process_lease_id IS NULL;
