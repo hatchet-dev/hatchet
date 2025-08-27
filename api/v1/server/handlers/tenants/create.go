@@ -119,8 +119,9 @@ func (t *TenantService) TenantCreate(ctx echo.Context, request gen.TenantCreateR
 			"tenant_created": true,
 		},
 		map[string]interface{}{
-			"name": tenant.Name,
-			"slug": tenant.Slug,
+			"name":            tenant.Name,
+			"slug":            tenant.Slug,
+			"onboarding_data": createOpts.OnboardingData,
 		},
 	)
 
