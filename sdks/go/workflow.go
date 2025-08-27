@@ -2,8 +2,8 @@ package hatchet
 
 import (
 	"context"
+	"encoding/json"
 	"reflect"
-	"strings"
 	"time"
 
 	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
@@ -56,72 +56,30 @@ func convertInputToType(input any, expectedType reflect.Type) reflect.Value {
 		return inputValue
 	}
 
-	// Try to convert map[string]any to the expected struct type
-	if inputMap, ok := input.(map[string]any); ok && expectedType.Kind() == reflect.Struct {
-		convertedInput := reflect.New(expectedType).Elem()
-		for i := 0; i < expectedType.NumField(); i++ {
-			field := expectedType.Field(i)
-			jsonTag := field.Tag.Get("json")
-			if jsonTag == "" {
-				jsonTag = field.Name
-			} else {
-				// Handle JSON tag options like "count,omitempty" -> "count"
-				if commaIndex := strings.Index(jsonTag, ","); commaIndex != -1 {
-					jsonTag = jsonTag[:commaIndex]
-				}
-			}
-			if val, exists := inputMap[jsonTag]; exists {
-				fieldValue := convertedInput.Field(i)
-				if fieldValue.CanSet() {
-					// Handle nil values for pointer types
-					if val == nil {
-						if field.Type.Kind() == reflect.Ptr {
-							fieldValue.Set(reflect.Zero(field.Type))
-						}
-						continue
-					}
-
-					valReflect := reflect.ValueOf(val)
-					if valReflect.Type().AssignableTo(field.Type) {
-						fieldValue.Set(valReflect)
-					} else {
-						// Try to convert common type mismatches
-						converted, ok := convertValue(val, field.Type)
-						if ok {
-							fieldValue.Set(converted)
-						}
-					}
-				}
-			}
+	// Try to convert using JSON marshal/unmarshal
+	if expectedType.Kind() == reflect.Struct {
+		// Marshal the input to JSON
+		jsonData, err := json.Marshal(input)
+		if err != nil {
+			// If marshaling fails, return the original input value
+			return reflect.ValueOf(input)
 		}
-		return convertedInput
+
+		// Create a new instance of the expected type
+		result := reflect.New(expectedType)
+
+		// Unmarshal JSON into the new instance
+		err = json.Unmarshal(jsonData, result.Interface())
+		if err != nil {
+			// If unmarshaling fails, return the original input value
+			return reflect.ValueOf(input)
+		}
+
+		// Return the dereferenced value (not the pointer)
+		return result.Elem()
 	}
 
 	return reflect.ValueOf(input)
-}
-
-// convertValue attempts to convert a value to the target type for common type mismatches
-func convertValue(val any, targetType reflect.Type) (reflect.Value, bool) {
-	valReflect := reflect.ValueOf(val)
-
-	// Handle numeric conversions (e.g., float64 -> int, int -> float64)
-	if valReflect.Kind() == reflect.Float64 && targetType.Kind() == reflect.Int {
-		if f64, ok := val.(float64); ok {
-			return reflect.ValueOf(int(f64)), true
-		}
-	}
-	if valReflect.Kind() == reflect.Float64 && targetType.Kind() == reflect.Int32 {
-		if f64, ok := val.(float64); ok {
-			return reflect.ValueOf(int32(f64)), true
-		}
-	}
-	if valReflect.Kind() == reflect.Float64 && targetType.Kind() == reflect.Int64 {
-		if f64, ok := val.(float64); ok {
-			return reflect.ValueOf(int64(f64)), true
-		}
-	}
-
-	return reflect.Value{}, false
 }
 
 // Workflow defines a Hatchet workflow, which can then declare tasks and be run, scheduled, and so on.
