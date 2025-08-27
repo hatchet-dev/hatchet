@@ -81,6 +81,8 @@ SELECT
     *
 FROM
     v1_queue_item qi
+JOIN
+    "Tenant" t ON qi.tenant_id = t.id
 WHERE
     qi.tenant_id = @tenantId::uuid
     AND qi.queue = @queue::text
@@ -90,6 +92,8 @@ WHERE
     )
     -- Added to ensure that the index is used
     AND qi.priority >= 1 AND qi.priority <= 4
+    -- Filter out those that are older than tenant's retention period
+    AND qi.task_inserted_at >= NOW() - t."dataRetentionPeriod"::interval
 ORDER BY
     qi.priority DESC,
     qi.id ASC
