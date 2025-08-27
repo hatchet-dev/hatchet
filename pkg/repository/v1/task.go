@@ -2803,6 +2803,10 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId string, t
 			return nil, fmt.Errorf("failed to retrieve task input: %w", err)
 		}
 
+		if input == nil {
+			input = task.Input
+		}
+
 		replayOpts = append(replayOpts, ReplayTaskOpts{
 			TaskId:             task.ID,
 			InsertedAt:         task.InsertedAt,

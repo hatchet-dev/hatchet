@@ -205,7 +205,7 @@ func (p *payloadStoreRepositoryImpl) Retrieve(ctx context.Context, tenantId stri
 	payload, ok := payloadMap[opts]
 
 	if !ok {
-		return nil, fmt.Errorf("no payload found for opts: %+v", opts)
+		return nil, nil
 	}
 
 	return payload, nil

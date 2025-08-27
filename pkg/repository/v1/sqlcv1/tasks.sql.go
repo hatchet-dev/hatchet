@@ -1099,6 +1099,7 @@ WITH RECURSIVE augmented_tasks AS (
         t.step_id,
         t.workflow_id,
         t.external_id,
+        t.input,
         t.additional_metadata,
         t.parent_task_external_id,
         t.parent_task_id,
@@ -1143,6 +1144,7 @@ SELECT
     t.step_id,
     t.workflow_id,
     t.external_id,
+    t.input,
     t.additional_metadata,
     t.parent_task_external_id,
     t.parent_task_id,
@@ -1178,6 +1180,7 @@ type ListTasksForReplayRow struct {
 	StepID               pgtype.UUID        `json:"step_id"`
 	WorkflowID           pgtype.UUID        `json:"workflow_id"`
 	ExternalID           pgtype.UUID        `json:"external_id"`
+	Input                []byte             `json:"input"`
 	AdditionalMetadata   []byte             `json:"additional_metadata"`
 	ParentTaskExternalID pgtype.UUID        `json:"parent_task_external_id"`
 	ParentTaskID         pgtype.Int8        `json:"parent_task_id"`
@@ -1210,6 +1213,7 @@ func (q *Queries) ListTasksForReplay(ctx context.Context, db DBTX, arg ListTasks
 			&i.StepID,
 			&i.WorkflowID,
 			&i.ExternalID,
+			&i.Input,
 			&i.AdditionalMetadata,
 			&i.ParentTaskExternalID,
 			&i.ParentTaskID,
