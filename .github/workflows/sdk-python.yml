@@ -55,12 +55,15 @@ jobs:
       - name: Run Pydoclint
         run: poetry run pydoclint .
 
+      - name: Test install
+        run: pip install -e .
+
   test:
     runs-on: ubuntu-latest
     strategy:
       matrix:
         python-version: ["3.10", "3.11", "3.12", "3.13"]
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v5
 

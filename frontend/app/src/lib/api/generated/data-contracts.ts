@@ -235,6 +235,13 @@ export enum V1WebhookSourceName {
   GITHUB = "GITHUB",
   STRIPE = "STRIPE",
   SLACK = "SLACK",
+  LINEAR = "LINEAR",
+}
+
+export enum TenantEnvironment {
+  Local = "local",
+  Development = "development",
+  Production = "production",
 }
 
 export enum TenantUIVersion {
@@ -750,6 +757,8 @@ export interface Tenant {
   version: TenantVersion;
   /** The UI of the tenant. */
   uiVersion?: TenantUIVersion;
+  /** The environment type of the tenant. */
+  environment?: TenantEnvironment;
 }
 
 export interface V1EventWorkflowRunSummary {
@@ -1255,6 +1264,10 @@ export interface CreateTenantRequest {
   uiVersion?: TenantUIVersion;
   /** The engine version of the tenant. Defaults to V0. */
   engineVersion?: TenantVersion;
+  /** The environment type of the tenant. */
+  environment?: TenantEnvironment;
+  /** Additional onboarding data to store with the tenant. */
+  onboardingData?: Record<string, any>;
 }
 
 export interface UpdateTenantRequest {

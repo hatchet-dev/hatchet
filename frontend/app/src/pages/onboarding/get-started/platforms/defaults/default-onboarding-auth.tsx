@@ -26,6 +26,8 @@ export const DefaultOnboardingAuth: React.FC<{
   });
 
   if (generatedToken) {
+    const token = 'export HATCHET_CLIENT_TOKEN="' + generatedToken + '"';
+
     return (
       <div>
         <p className="mb-4 text-muted-foreground">
@@ -41,17 +43,20 @@ export const DefaultOnboardingAuth: React.FC<{
             language="plaintext"
             className="text-sm"
             wrapLines={false}
-            code={'export HATCHET_CLIENT_TOKEN="' + generatedToken + '"'}
+            code={token}
             copy
           />
         </div>
 
         <Button
-          onClick={() => tokenGenerated()}
-          variant="outline"
+          onClick={() => {
+            navigator.clipboard.writeText(token);
+            tokenGenerated();
+          }}
+          variant="default"
           className="mt-2"
         >
-          Continue
+          Copy and Continue
         </Button>
       </div>
     );

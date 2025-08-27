@@ -157,6 +157,27 @@ const buildWebhookPayload = (data: WebhookFormData): V1CreateWebhookRequest => {
           signingSecret: data.signingSecret,
         },
       };
+    case V1WebhookSourceName.LINEAR:
+      if (!data.signingSecret) {
+        throw new Error('Signing secret is required for Linear webhooks');
+      }
+
+      return {
+        sourceName: data.sourceName,
+        name: data.name,
+        eventKeyExpression: data.eventKeyExpression,
+        authType: V1WebhookAuthType.HMAC,
+        auth: {
+          // Header name is 'linear-signature'
+          // Encoding algorithm is SHA256
+          // Encoding type is HEX
+          // See Linear docs: https://linear.app/developers/webhooks#creating-a-simple-webhook-consumer
+          algorithm: V1WebhookHMACAlgorithm.SHA256,
+          encoding: V1WebhookHMACEncoding.HEX,
+          signatureHeaderName: 'linear-signature',
+          signingSecret: data.signingSecret,
+        },
+      };
     case V1WebhookSourceName.STRIPE:
       if (!data.signingSecret) {
         throw new Error('Signing secret is required for Stripe webhooks');
@@ -209,6 +230,7 @@ const createSourceInlineDescription = (sourceName: V1WebhookSourceName) => {
     case V1WebhookSourceName.GENERIC:
       return '(receive incoming webhook requests from any service)';
     case V1WebhookSourceName.GITHUB:
+    case V1WebhookSourceName.LINEAR:
     case V1WebhookSourceName.STRIPE:
     case V1WebhookSourceName.SLACK:
       return '';
@@ -232,6 +254,7 @@ const SourceCaption = ({ sourceName }: { sourceName: V1WebhookSourceName }) => {
         </div>
       );
     case V1WebhookSourceName.GENERIC:
+    case V1WebhookSourceName.LINEAR:
     case V1WebhookSourceName.STRIPE:
     case V1WebhookSourceName.SLACK:
       return '';

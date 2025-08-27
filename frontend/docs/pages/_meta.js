@@ -9,15 +9,6 @@ export default {
   _setup: {
     display: "hidden",
   },
-  compute: {
-    title: "Managed Compute",
-    type: "page",
-    href: "/home/compute",
-    index: "Overview",
-    "getting-started": "Getting Started",
-    cpu: "CPU Machine Types",
-    gpu: "GPU Machine Types",
-  },
   "self-hosting": {
     title: "Self Hosting",
     type: "page",
@@ -47,10 +38,5 @@ export default {
         type: "page",
       },
     },
-  },
-  v0: {
-    title: "V0 (Old docs)",
-    type: "page",
-    href: "https://v0-docs.hatchet.run",
   },
 };

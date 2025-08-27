@@ -17,6 +17,9 @@ components:
       type: apiKey
       in: cookie
       name: hatchet
+    customAuth:
+      type: http
+      scheme: bearer
   schemas:
     $ref: "./components/schemas/_index.yaml"
 paths:

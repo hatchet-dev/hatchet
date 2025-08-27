@@ -50,6 +50,15 @@ func (t *TenantService) TenantCreate(ctx echo.Context, request gen.TenantCreateR
 		Name: request.Body.Name,
 	}
 
+	if request.Body.OnboardingData != nil {
+		createOpts.OnboardingData = *request.Body.OnboardingData
+	}
+
+	if request.Body.Environment != nil {
+		environment := string(*request.Body.Environment)
+		createOpts.Environment = &environment
+	}
+
 	if t.config.Runtime.Limits.DefaultTenantRetentionPeriod != "" {
 		createOpts.DataRetentionPeriod = &t.config.Runtime.Limits.DefaultTenantRetentionPeriod
 	}
@@ -106,7 +115,13 @@ func (t *TenantService) TenantCreate(ctx echo.Context, request gen.TenantCreateR
 		"tenant:create",
 		sqlchelpers.UUIDToStr(user.ID),
 		&tenantId,
-		nil,
+		map[string]interface{}{
+			"tenant_created": true,
+		},
+		map[string]interface{}{
+			"name": tenant.Name,
+			"slug": tenant.Slug,
+		},
 	)
 
 	return gen.TenantCreate200JSONResponse(

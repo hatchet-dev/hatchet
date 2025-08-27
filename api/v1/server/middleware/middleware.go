@@ -19,6 +19,7 @@ type SecurityRequirement interface {
 	NoAuth() bool
 	CookieAuth() bool
 	BearerAuth() bool
+	CustomAuth() bool
 }
 
 type RouteInfo struct {
@@ -62,6 +63,20 @@ func (s *securityRequirement) BearerAuth() bool {
 
 	for _, requirement := range s.requirements {
 		if _, ok := requirement["bearerAuth"]; ok {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (s *securityRequirement) CustomAuth() bool {
+	if s.NoAuth() {
+		return false
+	}
+
+	for _, requirement := range s.requirements {
+		if _, ok := requirement["customAuth"]; ok {
 			return true
 		}
 	}

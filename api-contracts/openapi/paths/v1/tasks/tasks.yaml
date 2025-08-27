@@ -232,6 +232,14 @@ getTaskStatusMetrics:
           format: uuid
           minLength: 36
           maxLength: 36
+      - description: Additional metadata k-v pairs to filter by
+        in: query
+        name: additional_metadata
+        required: false
+        schema:
+          type: array
+          items:
+            type: string
     responses:
       "200":
         content:

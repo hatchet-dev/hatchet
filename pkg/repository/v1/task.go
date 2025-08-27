@@ -1654,6 +1654,10 @@ func (r *sharedRepository) insertTasks(
 
 	unix := time.Now().UnixMilli()
 
+	cleanupParentStrategyIds := make([]int64, 0)
+	cleanupWorkflowVersionIds := make([]pgtype.UUID, 0)
+	cleanupWorkflowRunIds := make([]pgtype.UUID, 0)
+
 	for i, task := range tasks {
 		stepConfig := stepIdsToConfig[task.StepId]
 		tenantIds[i] = sqlchelpers.UUIDFromStr(tenantId)
@@ -1761,6 +1765,14 @@ func (r *sharedRepository) insertTasks(
 				taskStrategyIds = append(taskStrategyIds, strat.ID)
 				taskParentStrategyIds = append(taskParentStrategyIds, strat.ParentStrategyID)
 				emptyConcurrencyKeys = append(emptyConcurrencyKeys, "")
+
+				// we only need to cleanup parent strategy ids if the task is not in a QUEUED state, because
+				// this skips the creation of a concurrency slot and means we might want to cleanup the workflow slot
+				if strat.ParentStrategyID.Valid && task.InitialState != sqlcv1.V1TaskInitialStateQUEUED {
+					cleanupParentStrategyIds = append(cleanupParentStrategyIds, strat.ParentStrategyID.Int64)
+					cleanupWorkflowRunIds = append(cleanupWorkflowRunIds, sqlchelpers.UUIDFromStr(task.WorkflowRunId))
+					cleanupWorkflowVersionIds = append(cleanupWorkflowVersionIds, stepConfig.WorkflowVersionId)
+				}
 			}
 		}
 
@@ -2060,6 +2072,22 @@ func (r *sharedRepository) insertTasks(
 
 		if err != nil {
 			return nil, fmt.Errorf("failed to create expression evals: %w", err)
+		}
+	}
+
+	if len(cleanupParentStrategyIds) > 0 {
+		err = r.queries.CleanupWorkflowConcurrencySlotsAfterInsert(
+			ctx,
+			tx,
+			sqlcv1.CleanupWorkflowConcurrencySlotsAfterInsertParams{
+				Concurrencyparentstrategyids: cleanupParentStrategyIds,
+				Workflowrunids:               cleanupWorkflowRunIds,
+				Workflowversionids:           cleanupWorkflowVersionIds,
+			},
+		)
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to cleanup workflow concurrency slots after insert: %w", err)
 		}
 	}
 
