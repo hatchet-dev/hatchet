@@ -14,11 +14,12 @@ import (
 const finalizePayloadOffloads = `-- name: FinalizePayloadOffloads :exec
 WITH inputs AS (
     SELECT
-        UNNEST($2::BIGINT[]) AS id,
-        UNNEST($3::TIMESTAMPTZ[]) AS inserted_at,
-        UNNEST(CAST($4::TEXT[] AS v1_payload_type[])) AS type,
-        UNNEST($5::TIMESTAMPTZ[]) AS offload_at,
-        UNNEST($6::JSONB[]) AS value
+        UNNEST($1::BIGINT[]) AS id,
+        UNNEST($2::TIMESTAMPTZ[]) AS inserted_at,
+        UNNEST(CAST($3::TEXT[] AS v1_payload_type[])) AS type,
+        UNNEST($4::TIMESTAMPTZ[]) AS offload_at,
+        UNNEST($5::JSONB[]) AS value,
+        UNNEST($6::UUID[]) AS tenant_id
 ), payload_updates AS (
     UPDATE v1_payload
     SET
@@ -26,37 +27,36 @@ WITH inputs AS (
         updated_at = NOW()
     FROM inputs i
     WHERE
-        v1_payload.tenant_id = $1::UUID
-        AND v1_payload.id = i.id
+        v1_payload.id = i.id
         AND v1_payload.inserted_at = i.inserted_at
+        AND v1_payload.tenant_id = i.tenant_id
 )
 
 DELETE FROM v1_payload_wal
 WHERE
-    tenant_id = $1::UUID
-    AND (offload_at, payload_id, payload_inserted_at, payload_type) IN (
-        SELECT offload_at, id, inserted_at, type
+    (offload_at, payload_id, payload_inserted_at, payload_type, tenant_id) IN (
+        SELECT offload_at, id, inserted_at, type, tenant_id
         FROM inputs
     )
 `
 
 type FinalizePayloadOffloadsParams struct {
-	Tenantid     pgtype.UUID          `json:"tenantid"`
 	Ids          []int64              `json:"ids"`
 	Insertedats  []pgtype.Timestamptz `json:"insertedats"`
 	Payloadtypes []string             `json:"payloadtypes"`
 	Offloadats   []pgtype.Timestamptz `json:"offloadats"`
 	Values       [][]byte             `json:"values"`
+	Tenantids    []pgtype.UUID        `json:"tenantids"`
 }
 
 func (q *Queries) FinalizePayloadOffloads(ctx context.Context, db DBTX, arg FinalizePayloadOffloadsParams) error {
 	_, err := db.Exec(ctx, finalizePayloadOffloads,
-		arg.Tenantid,
 		arg.Ids,
 		arg.Insertedats,
 		arg.Payloadtypes,
 		arg.Offloadats,
 		arg.Values,
+		arg.Tenantids,
 	)
 	return err
 }
@@ -66,12 +66,11 @@ WITH to_update AS (
     SELECT tenant_id, offload_at, payload_id, payload_inserted_at, payload_type, operation, offload_process_lease_id, offload_process_lease_expires_at
     FROM v1_payload_wal
     WHERE
-        tenant_id = $2::UUID
-        AND offload_at < NOW()
+        offload_at < NOW()
         AND offload_process_lease_id IS NULL OR offload_process_lease_expires_at < NOW()
-    ORDER BY offload_at, payload_id, payload_inserted_at, payload_type
+    ORDER BY offload_at, payload_id, payload_inserted_at, payload_type, tenant_id
     FOR UPDATE
-    LIMIT $3::INT
+    LIMIT $2::INT
 )
 
 UPDATE v1_payload_wal
@@ -90,7 +89,6 @@ RETURNING to_update.tenant_id, to_update.offload_at, to_update.payload_id, to_up
 
 type PollPayloadWALForRecordsToOffloadParams struct {
 	Leaseid   pgtype.UUID `json:"leaseid"`
-	Tenantid  pgtype.UUID `json:"tenantid"`
 	Polllimit int32       `json:"polllimit"`
 }
 
@@ -106,7 +104,7 @@ type PollPayloadWALForRecordsToOffloadRow struct {
 }
 
 func (q *Queries) PollPayloadWALForRecordsToOffload(ctx context.Context, db DBTX, arg PollPayloadWALForRecordsToOffloadParams) ([]*PollPayloadWALForRecordsToOffloadRow, error) {
-	rows, err := db.Query(ctx, pollPayloadWALForRecordsToOffload, arg.Leaseid, arg.Tenantid, arg.Polllimit)
+	rows, err := db.Query(ctx, pollPayloadWALForRecordsToOffload, arg.Leaseid, arg.Polllimit)
 	if err != nil {
 		return nil, err
 	}

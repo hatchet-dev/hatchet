@@ -86,10 +86,9 @@ WITH to_update AS (
     SELECT *
     FROM v1_payload_wal
     WHERE
-        tenant_id = @tenantId::UUID
-        AND offload_at < NOW()
+        offload_at < NOW()
         AND offload_process_lease_id IS NULL OR offload_process_lease_expires_at < NOW()
-    ORDER BY offload_at, payload_id, payload_inserted_at, payload_type
+    ORDER BY offload_at, payload_id, payload_inserted_at, payload_type, tenant_id
     FOR UPDATE
     LIMIT @pollLimit::INT
 )
@@ -115,7 +114,8 @@ WITH inputs AS (
         UNNEST(@insertedAts::TIMESTAMPTZ[]) AS inserted_at,
         UNNEST(CAST(@payloadTypes::TEXT[] AS v1_payload_type[])) AS type,
         UNNEST(@offloadAts::TIMESTAMPTZ[]) AS offload_at,
-        UNNEST(@values::JSONB[]) AS value
+        UNNEST(@values::JSONB[]) AS value,
+        UNNEST(@tenantIds::UUID[]) AS tenant_id
 ), payload_updates AS (
     UPDATE v1_payload
     SET
@@ -123,16 +123,15 @@ WITH inputs AS (
         updated_at = NOW()
     FROM inputs i
     WHERE
-        v1_payload.tenant_id = @tenantId::UUID
-        AND v1_payload.id = i.id
+        v1_payload.id = i.id
         AND v1_payload.inserted_at = i.inserted_at
+        AND v1_payload.tenant_id = i.tenant_id
 )
 
 DELETE FROM v1_payload_wal
 WHERE
-    tenant_id = @tenantId::UUID
-    AND (offload_at, payload_id, payload_inserted_at, payload_type) IN (
-        SELECT offload_at, id, inserted_at, type
+    (offload_at, payload_id, payload_inserted_at, payload_type, tenant_id) IN (
+        SELECT offload_at, id, inserted_at, type, tenant_id
         FROM inputs
     )
 ;

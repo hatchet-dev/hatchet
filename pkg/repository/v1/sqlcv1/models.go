@@ -1440,7 +1440,7 @@ func (ns NullV1PayloadType) Value() (driver.Value, error) {
 type V1PayloadWalOperation string
 
 const (
-	V1PayloadWalOperationINSERT V1PayloadWalOperation = "INSERT"
+	V1PayloadWalOperationCREATE V1PayloadWalOperation = "CREATE"
 	V1PayloadWalOperationUPDATE V1PayloadWalOperation = "UPDATE"
 	V1PayloadWalOperationDELETE V1PayloadWalOperation = "DELETE"
 )

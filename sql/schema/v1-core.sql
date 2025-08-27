@@ -1642,7 +1642,7 @@ CREATE TABLE v1_payload (
     PRIMARY KEY (tenant_id, inserted_at, id, type)
 ) PARTITION BY RANGE(inserted_at);
 
-CREATE TYPE v1_payload_wal_operation AS ENUM ('INSERT', 'UPDATE', 'DELETE');
+CREATE TYPE v1_payload_wal_operation AS ENUM ('CREATE', 'UPDATE', 'DELETE');
 
 CREATE TABLE v1_payload_wal (
     tenant_id UUID NOT NULL,

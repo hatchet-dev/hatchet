@@ -16,7 +16,7 @@ CREATE TABLE v1_payload (
 SELECT create_v1_range_partition('v1_payload'::TEXT, NOW()::DATE);
 SELECT create_v1_range_partition('v1_payload'::TEXT, (NOW() + INTERVAL '1 day')::DATE);
 
-CREATE TYPE v1_payload_wal_operation AS ENUM ('INSERT', 'UPDATE', 'DELETE');
+CREATE TYPE v1_payload_wal_operation AS ENUM ('CREATE', 'UPDATE', 'DELETE');
 
 CREATE TABLE v1_payload_wal (
     tenant_id UUID NOT NULL,
