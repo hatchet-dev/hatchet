@@ -975,44 +975,7 @@ func (q *Queries) ListTaskParentOutputs(ctx context.Context, db DBTX, arg ListTa
 }
 
 const listTasks = `-- name: ListTasks :many
-SELECT
-    -- listing columns explicitly so that input is not included
-    id,
-    inserted_at,
-    tenant_id,
-    queue,
-    action_id,
-    step_id,
-    step_readable_id,
-    workflow_id,
-    workflow_version_id,
-    workflow_run_id,
-    schedule_timeout,
-    step_timeout,
-    priority,
-    sticky,
-    desired_worker_id,
-    external_id,
-    display_name,
-    retry_count,
-    internal_retry_count,
-    app_retry_count,
-    step_index,
-    additional_metadata,
-    dag_id,
-    dag_inserted_at,
-    parent_task_external_id,
-    parent_task_id,
-    parent_task_inserted_at,
-    child_index,
-    child_key,
-    initial_state,
-    initial_state_reason,
-    concurrency_parent_strategy_ids,
-    concurrency_strategy_ids,
-    concurrency_keys,
-    retry_backoff_factor,
-    retry_max_backoff
+SELECT id, inserted_at, tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, workflow_version_id, workflow_run_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, retry_count, internal_retry_count, app_retry_count, step_index, additional_metadata, dag_id, dag_inserted_at, parent_task_external_id, parent_task_id, parent_task_inserted_at, child_index, child_key, initial_state, initial_state_reason, concurrency_parent_strategy_ids, concurrency_strategy_ids, concurrency_keys, retry_backoff_factor, retry_max_backoff
 FROM
     v1_task
 WHERE
@@ -1025,54 +988,15 @@ type ListTasksParams struct {
 	Ids      []int64     `json:"ids"`
 }
 
-type ListTasksRow struct {
-	ID                           int64              `json:"id"`
-	InsertedAt                   pgtype.Timestamptz `json:"inserted_at"`
-	TenantID                     pgtype.UUID        `json:"tenant_id"`
-	Queue                        string             `json:"queue"`
-	ActionID                     string             `json:"action_id"`
-	StepID                       pgtype.UUID        `json:"step_id"`
-	StepReadableID               string             `json:"step_readable_id"`
-	WorkflowID                   pgtype.UUID        `json:"workflow_id"`
-	WorkflowVersionID            pgtype.UUID        `json:"workflow_version_id"`
-	WorkflowRunID                pgtype.UUID        `json:"workflow_run_id"`
-	ScheduleTimeout              string             `json:"schedule_timeout"`
-	StepTimeout                  pgtype.Text        `json:"step_timeout"`
-	Priority                     pgtype.Int4        `json:"priority"`
-	Sticky                       V1StickyStrategy   `json:"sticky"`
-	DesiredWorkerID              pgtype.UUID        `json:"desired_worker_id"`
-	ExternalID                   pgtype.UUID        `json:"external_id"`
-	DisplayName                  string             `json:"display_name"`
-	RetryCount                   int32              `json:"retry_count"`
-	InternalRetryCount           int32              `json:"internal_retry_count"`
-	AppRetryCount                int32              `json:"app_retry_count"`
-	StepIndex                    int64              `json:"step_index"`
-	AdditionalMetadata           []byte             `json:"additional_metadata"`
-	DagID                        pgtype.Int8        `json:"dag_id"`
-	DagInsertedAt                pgtype.Timestamptz `json:"dag_inserted_at"`
-	ParentTaskExternalID         pgtype.UUID        `json:"parent_task_external_id"`
-	ParentTaskID                 pgtype.Int8        `json:"parent_task_id"`
-	ParentTaskInsertedAt         pgtype.Timestamptz `json:"parent_task_inserted_at"`
-	ChildIndex                   pgtype.Int8        `json:"child_index"`
-	ChildKey                     pgtype.Text        `json:"child_key"`
-	InitialState                 V1TaskInitialState `json:"initial_state"`
-	InitialStateReason           pgtype.Text        `json:"initial_state_reason"`
-	ConcurrencyParentStrategyIds []pgtype.Int8      `json:"concurrency_parent_strategy_ids"`
-	ConcurrencyStrategyIds       []int64            `json:"concurrency_strategy_ids"`
-	ConcurrencyKeys              []string           `json:"concurrency_keys"`
-	RetryBackoffFactor           pgtype.Float8      `json:"retry_backoff_factor"`
-	RetryMaxBackoff              pgtype.Int4        `json:"retry_max_backoff"`
-}
-
-func (q *Queries) ListTasks(ctx context.Context, db DBTX, arg ListTasksParams) ([]*ListTasksRow, error) {
+func (q *Queries) ListTasks(ctx context.Context, db DBTX, arg ListTasksParams) ([]*V1Task, error) {
 	rows, err := db.Query(ctx, listTasks, arg.TenantID, arg.Ids)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []*ListTasksRow
+	var items []*V1Task
 	for rows.Next() {
-		var i ListTasksRow
+		var i V1Task
 		if err := rows.Scan(
 			&i.ID,
 			&i.InsertedAt,
@@ -1091,6 +1015,7 @@ func (q *Queries) ListTasks(ctx context.Context, db DBTX, arg ListTasksParams) (
 			&i.DesiredWorkerID,
 			&i.ExternalID,
 			&i.DisplayName,
+			&i.Input,
 			&i.RetryCount,
 			&i.InternalRetryCount,
 			&i.AppRetryCount,

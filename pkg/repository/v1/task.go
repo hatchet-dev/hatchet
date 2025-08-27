@@ -224,7 +224,7 @@ type TaskRepository interface {
 
 	CancelTasks(ctx context.Context, tenantId string, tasks []TaskIdInsertedAtRetryCount) (*FinalizedTaskResponse, error)
 
-	ListTasks(ctx context.Context, tenantId string, tasks []int64) ([]*sqlcv1.ListTasksRow, error)
+	ListTasks(ctx context.Context, tenantId string, tasks []int64) ([]*sqlcv1.V1Task, error)
 
 	ListTaskMetas(ctx context.Context, tenantId string, tasks []int64) ([]*sqlcv1.ListTaskMetasRow, error)
 
@@ -232,7 +232,7 @@ type TaskRepository interface {
 
 	// ListTaskParentOutputs is a method to return the output of a task's parent and grandparent tasks. This is for v0 compatibility
 	// with the v1 engine, and shouldn't be called from new v1 endpoints.
-	ListTaskParentOutputs(ctx context.Context, tenantId string, tasks []*sqlcv1.ListTasksRow) (map[int64][]*TaskOutputEvent, error)
+	ListTaskParentOutputs(ctx context.Context, tenantId string, tasks []*sqlcv1.V1Task) (map[int64][]*TaskOutputEvent, error)
 
 	ProcessTaskTimeouts(ctx context.Context, tenantId string) (*TimeoutTasksResponse, bool, error)
 
@@ -1050,11 +1050,11 @@ func (r *sharedRepository) cancelTasks(ctx context.Context, dbtx sqlcv1.DBTX, te
 	}, nil
 }
 
-func (r *TaskRepositoryImpl) ListTasks(ctx context.Context, tenantId string, tasks []int64) ([]*sqlcv1.ListTasksRow, error) {
+func (r *TaskRepositoryImpl) ListTasks(ctx context.Context, tenantId string, tasks []int64) ([]*sqlcv1.V1Task, error) {
 	return r.listTasks(ctx, r.pool, tenantId, tasks)
 }
 
-func (r *sharedRepository) listTasks(ctx context.Context, dbtx sqlcv1.DBTX, tenantId string, tasks []int64) ([]*sqlcv1.ListTasksRow, error) {
+func (r *sharedRepository) listTasks(ctx context.Context, dbtx sqlcv1.DBTX, tenantId string, tasks []int64) ([]*sqlcv1.V1Task, error) {
 	return r.queries.ListTasks(ctx, dbtx, sqlcv1.ListTasksParams{
 		TenantID: sqlchelpers.UUIDFromStr(tenantId),
 		Ids:      tasks,
@@ -2017,8 +2017,8 @@ func (r *sharedRepository) insertTasks(
 		for i, task := range createdTasks {
 			input := externalIdToInput[sqlchelpers.UUIDToStr(task.ExternalID)]
 			withPayload := V1TaskWithPayload{
-				ListTasksRow: task,
-				Payload:      input,
+				V1Task:  task,
+				Payload: input,
 			}
 
 			res = append(res, &withPayload)
@@ -2292,8 +2292,8 @@ func (r *sharedRepository) replayTasks(
 		for i, task := range replayRes {
 			input := externalIdToInput[sqlchelpers.UUIDToStr(task.ExternalID)]
 			withPayload := V1TaskWithPayload{
-				ListTasksRow: task,
-				Payload:      input,
+				V1Task:  task,
+				Payload: input,
 			}
 			replayResWithPayloads[i] = &withPayload
 			res = append(res, &withPayload)
@@ -3269,7 +3269,7 @@ func uniqueSet(taskIdRetryCounts []TaskIdInsertedAtRetryCount) []TaskIdInsertedA
 	return res
 }
 
-func (r *TaskRepositoryImpl) ListTaskParentOutputs(ctx context.Context, tenantId string, tasks []*sqlcv1.ListTasksRow) (map[int64][]*TaskOutputEvent, error) {
+func (r *TaskRepositoryImpl) ListTaskParentOutputs(ctx context.Context, tenantId string, tasks []*sqlcv1.V1Task) (map[int64][]*TaskOutputEvent, error) {
 	taskIds := make([]int64, 0)
 	taskInsertedAts := make([]pgtype.Timestamptz, 0)
 

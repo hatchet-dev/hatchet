@@ -121,7 +121,7 @@ func (p PayloadContent) Marshal() ([]byte, error) {
 	return j, nil
 }
 
-func UnmarshalPayloadContent(data []byte) (*PayloadContent, error) {
+func (p *payloadStoreRepositoryImpl) unmarshalPayloadContent(data []byte) (*PayloadContent, error) {
 	var content PayloadContent
 	if err := json.Unmarshal(data, &content); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal payload content: %w", err)
@@ -251,7 +251,7 @@ func (p *payloadStoreRepositoryImpl) bulkRetrieve(ctx context.Context, tx sqlcv1
 			continue
 		}
 
-		content, err := UnmarshalPayloadContent(payload.Value)
+		content, err := p.unmarshalPayloadContent(payload.Value)
 		if err != nil {
 			return nil, fmt.Errorf("failed to unmarshal payload content: %w", err)
 		}
@@ -281,6 +281,18 @@ func (p *payloadStoreRepositoryImpl) bulkRetrieve(ctx context.Context, tx sqlcv1
 				optsToPayload[opt] = data
 			}
 		}
+	}
+
+	missingTaskIdInsertedAts := make(map[IdInsertedAt]struct{})
+	for _, opt := range opts {
+		if _, exists := optsToPayload[opt]; exists {
+			continue
+		}
+
+		missingTaskIdInsertedAts[IdInsertedAt{
+			ID:         opt.Id,
+			InsertedAt: opt.InsertedAt,
+		}] = struct{}{}
 	}
 
 	return optsToPayload, nil

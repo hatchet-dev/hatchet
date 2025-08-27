@@ -1259,7 +1259,7 @@ type DAGWithData struct {
 }
 
 type V1TaskWithPayload struct {
-	*sqlcv1.ListTasksRow
+	*sqlcv1.V1Task
 	Payload []byte `json:"payload"`
 }
 

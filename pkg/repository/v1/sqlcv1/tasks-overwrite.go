@@ -162,7 +162,7 @@ type CreateTasksParams struct {
 	WorkflowRunIds               []pgtype.UUID        `json:"workflowRunIds"`
 }
 
-func (q *Queries) CreateTasks(ctx context.Context, db DBTX, arg CreateTasksParams) ([]*ListTasksRow, error) {
+func (q *Queries) CreateTasks(ctx context.Context, db DBTX, arg CreateTasksParams) ([]*V1Task, error) {
 	// panic-recover
 	// defer func() {
 	// 	if r := recover(); r != nil {
@@ -214,9 +214,9 @@ func (q *Queries) CreateTasks(ctx context.Context, db DBTX, arg CreateTasksParam
 		return nil, err
 	}
 	defer rows.Close()
-	var items []*ListTasksRow
+	var items []*V1Task
 	for rows.Next() {
-		var i ListTasksRow
+		var i V1Task
 		if err := rows.Scan(
 			&i.ID,
 			&i.InsertedAt,
@@ -384,7 +384,7 @@ type ReplayTasksParams struct {
 }
 
 // NOTE: at this point, we assume we have a lock on tasks and therefor we can update the tasks
-func (q *Queries) ReplayTasks(ctx context.Context, db DBTX, arg ReplayTasksParams) ([]*ListTasksRow, error) {
+func (q *Queries) ReplayTasks(ctx context.Context, db DBTX, arg ReplayTasksParams) ([]*V1Task, error) {
 	rows, err := db.Query(ctx, replayTasks,
 		arg.Taskids,
 		arg.Taskinsertedats,
@@ -397,9 +397,9 @@ func (q *Queries) ReplayTasks(ctx context.Context, db DBTX, arg ReplayTasksParam
 		return nil, err
 	}
 	defer rows.Close()
-	var items []*ListTasksRow
+	var items []*V1Task
 	for rows.Next() {
-		var i ListTasksRow
+		var i V1Task
 		if err := rows.Scan(
 			&i.ID,
 			&i.InsertedAt,
