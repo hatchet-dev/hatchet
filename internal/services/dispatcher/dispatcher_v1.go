@@ -291,25 +291,32 @@ func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *ms
 					currInput.Triggers = make(map[string]map[string]interface{})
 				}
 
-				input = currInput.Bytes()
 				inputs[v1.RetrievePayloadOpts{
 					Id:         task.ID,
 					InsertedAt: task.InsertedAt,
 					Type:       sqlcv1.V1PayloadTypeTASKINPUT,
-				}] = input
+				}] = currInput.Bytes()
 			}
 		}
 
 		taskIdToData := make(map[int64]*v1.V1TaskWithPayload)
 
 		for _, task := range bulkDatas {
+			input := inputs[v1.RetrievePayloadOpts{
+				Id:         task.ID,
+				InsertedAt: task.InsertedAt,
+				Type:       sqlcv1.V1PayloadTypeTASKINPUT,
+			}]
+
+			if input == nil {
+				// If the input wasn't found in the payload store,
+				// fall back to the input stored on the task itself.
+				input = task.Input
+			}
+
 			taskIdToData[task.ID] = &v1.V1TaskWithPayload{
-				V1Task: task,
-				Payload: inputs[v1.RetrievePayloadOpts{
-					Id:         task.ID,
-					InsertedAt: task.InsertedAt,
-					Type:       sqlcv1.V1PayloadTypeTASKINPUT,
-				}],
+				V1Task:  task,
+				Payload: input,
 			}
 		}
 
