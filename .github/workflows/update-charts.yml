@@ -14,22 +14,45 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           path: hatchet-charts
       
+      - name: Setup Helm
+        uses: azure/setup-helm@v4
+      
       - name: Update chart values with new release tag
         run: |
           cd hatchet-charts
           
-          # Get the release tag name (e.g., v0.1.0)
           RELEASE_TAG="${{ github.event.release.tag_name }}"
-          echo "Updating charts to use release tag: $RELEASE_TAG"
+          VERSION_NUMBER="${RELEASE_TAG#v}"
           
-          # Find all values.yaml files and update tags that start with 'v'
+          echo "Updating charts to use release tag: $RELEASE_TAG (version: $VERSION_NUMBER)"
+          
           find . -name "values.yaml" -type f | while read -r file; do
-            echo "Processing file: $file"
-            
-            # Update any tag field that starts with 'v' to use the new release tag
+            echo "Processing values file: $file"
             sed -i "s/tag: \"v[^\"]*\"/tag: \"$RELEASE_TAG\"/" "$file"
             sed -i "s/tag: v[^[:space:]]*/tag: $RELEASE_TAG/" "$file"
           done
+          
+          find . -name "Chart.yaml" -type f | while read -r file; do
+            echo "Processing Chart file: $file"
+            sed -i "s/^version: .*/version: $VERSION_NUMBER/" "$file"
+            sed -i '/name: "hatchet-api"/,/version:/ s/version: "[^"]*"/version: "'"$VERSION_NUMBER"'"/' "$file"
+            sed -i '/name: "hatchet-frontend"/,/version:/ s/version: "[^"]*"/version: "'"$VERSION_NUMBER"'"/' "$file"
+          done
+          
+          find . -name "Chart.lock" -type f | while read -r file; do
+            echo "Removing Chart.lock file: $file"
+            rm "$file"
+          done
+          
+          find . -name "Chart.yaml" -type f | while read -r file; do
+            chart_dir=$(dirname "$file")
+            if grep -q "dependencies:" "$file"; then
+              echo "Running helm dependency update in: $chart_dir"
+              (cd "$chart_dir" && helm dependency update)
+            fi
+          done
+          
+          echo "Chart version updates and dependency updates complete."
       
       - name: Commit and push changes
         run: |
@@ -42,6 +65,6 @@ jobs:
             echo "No changes to commit"
           else
             git add .
-            git commit -m "Update image tags to ${{ github.event.release.tag_name }}"
+            git commit -m "Update charts to ${{ github.event.release.tag_name }}"
             git push
           fi
