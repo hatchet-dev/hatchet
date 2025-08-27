@@ -13,37 +13,37 @@ jobs:
           repository: hatchet-dev/hatchet-charts
           token: ${{ secrets.GITHUB_TOKEN }}
           path: hatchet-charts
-      
+
       - name: Setup Helm
         uses: azure/setup-helm@v4
-      
+
       - name: Update chart values with new release tag
         run: |
           cd hatchet-charts
-          
+
           RELEASE_TAG="${{ github.event.release.tag_name }}"
           VERSION_NUMBER="${RELEASE_TAG#v}"
-          
+
           echo "Updating charts to use release tag: $RELEASE_TAG (version: $VERSION_NUMBER)"
-          
+
           find . -name "values.yaml" -type f | while read -r file; do
             echo "Processing values file: $file"
             sed -i "s/tag: \"v[^\"]*\"/tag: \"$RELEASE_TAG\"/" "$file"
             sed -i "s/tag: v[^[:space:]]*/tag: $RELEASE_TAG/" "$file"
           done
-          
+
           find . -name "Chart.yaml" -type f | while read -r file; do
             echo "Processing Chart file: $file"
             sed -i "s/^version: .*/version: $VERSION_NUMBER/" "$file"
             sed -i '/name: "hatchet-api"/,/version:/ s/version: "[^"]*"/version: "'"$VERSION_NUMBER"'"/' "$file"
             sed -i '/name: "hatchet-frontend"/,/version:/ s/version: "[^"]*"/version: "'"$VERSION_NUMBER"'"/' "$file"
           done
-          
+
           find . -name "Chart.lock" -type f | while read -r file; do
             echo "Removing Chart.lock file: $file"
             rm "$file"
           done
-          
+
           find . -name "Chart.yaml" -type f | while read -r file; do
             chart_dir=$(dirname "$file")
             if grep -q "dependencies:" "$file"; then
@@ -51,16 +51,16 @@ jobs:
               (cd "$chart_dir" && helm dependency update)
             fi
           done
-          
+
           echo "Chart version updates and dependency updates complete."
-      
+
       - name: Commit and push changes
         run: |
           git config user.name "$GITHUB_ACTOR"
           git config user.email "$GITHUB_ACTOR@users.noreply.github.com"
 
           cd hatchet-charts
-          
+
           if git diff --quiet; then
             echo "No changes to commit"
           else
