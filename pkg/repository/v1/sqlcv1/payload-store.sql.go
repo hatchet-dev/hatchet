@@ -70,8 +70,8 @@ WITH to_update AS (
         AND offload_at < NOW()
         AND offload_process_lease_id IS NULL OR offload_process_lease_expires_at < NOW()
     ORDER BY offload_at, payload_id, payload_inserted_at, payload_type
+    FOR UPDATE
     LIMIT $3::INT
-    FOR UPDATE SKIP LOCKED
 )
 
 UPDATE v1_payload_wal

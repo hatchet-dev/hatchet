@@ -397,7 +397,7 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadWAL(ctx context.Context, tena
 	types := make([]string, len(retrieveOptsToStoredKey))
 	values := make([][]byte, len(retrieveOptsToStoredKey))
 
-	for opt, _ := range retrieveOptsToStoredKey {
+	for opt := range retrieveOptsToStoredKey {
 		offloadAt, exists := retrieveOptsToOffloadAt[opt]
 
 		if !exists {
