@@ -8,6 +8,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
 )
@@ -32,4 +33,19 @@ func NewStepRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Log
 
 func (j *stepRepository) ListStepExpressions(ctx context.Context, stepId string) ([]*dbsqlc.StepExpression, error) {
 	return j.queries.GetStepExpressions(ctx, j.pool, sqlchelpers.UUIDFromStr(stepId))
+}
+
+func (j *stepRepository) ListReadableIds(ctx context.Context, stepIds []pgtype.UUID) (map[pgtype.UUID]string, error) {
+	rows, err := j.queries.GetStepReadableIdsByIds(ctx, j.pool, stepIds)
+	if err != nil {
+		return nil, err
+	}
+
+	readableIds := make(map[pgtype.UUID]string)
+
+	for _, row := range rows {
+		readableIds[row.ID] = row.ReadableId.String
+	}
+
+	return readableIds, nil
 }
