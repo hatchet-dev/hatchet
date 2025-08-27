@@ -312,10 +312,21 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadWAL(ctx context.Context, tena
 
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, p.pool, p.l, 5000)
 
-	defer rollback()
-
 	if err != nil {
 		return false, fmt.Errorf("failed to prepare transaction: %w", err)
+	}
+
+	defer rollback()
+
+	advisoryLockAcquired, err := p.queries.TryAdvisoryLock(ctx, tx, hash("process-payload-wal"+tenantId))
+
+	if err != nil {
+		return false, fmt.Errorf("failed to acquire advisory lock: %w", err)
+	}
+
+	if !advisoryLockAcquired {
+		p.l.Debug().Msgf("could not acquire advisory lock for process payload wal, skipping")
+		return false, nil
 	}
 
 	pollLimit := 1000
