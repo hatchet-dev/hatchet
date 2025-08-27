@@ -11,7 +11,7 @@ import (
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 )
 
-const MAX_RATE_LIMIT_UPDATE_FREQUENCY = 990 * time.Millisecond // avoid boundary conditions on 1 second polls
+const MAX_RATE_LIMIT_UPDATE_FREQUENCY = 500 * time.Millisecond // avoid boundary conditions on 1 second polls
 
 type rateLimit struct {
 	key          string
