@@ -49,6 +49,7 @@ type LogLineRepository interface {
 	ListLogLines(ctx context.Context, tenantId string, taskId int64, taskInsertedAt pgtype.Timestamptz, opts *ListLogsOpts) ([]*sqlcv1.V1LogLine, error)
 
 	PutLog(ctx context.Context, tenantId string, opts *CreateLogLineOpts) error
+	PutLogs(ctx context.Context, tenantId string, opts []*CreateLogLineOpts) error
 }
 
 type logLineRepositoryImpl struct {
@@ -108,6 +109,39 @@ func (r *logLineRepositoryImpl) PutLog(ctx context.Context, tenantId string, opt
 				Metadata:       opts.Metadata,
 			},
 		},
+	)
+
+	return err
+}
+
+func (r *logLineRepositoryImpl) PutLogs(ctx context.Context, tenantId string, opts []*CreateLogLineOpts) error {
+	params := make([]sqlcv1.InsertLogLineParams, len(opts))
+
+	for i, opt := range opts {
+
+		var level sqlcv1.V1LogLineLevel
+
+		if opt.Level == nil {
+			level = sqlcv1.V1LogLineLevel("INFO")
+		} else {
+			level = sqlcv1.V1LogLineLevel(*opt.Level)
+		}
+
+		params[i] = sqlcv1.InsertLogLineParams{
+			TenantID:       sqlchelpers.UUIDFromStr(tenantId),
+			TaskID:         opt.TaskId,
+			TaskInsertedAt: opt.TaskInsertedAt,
+			Message:        opt.Message,
+			RetryCount:     int32(opt.RetryCount),
+			Level:          level,
+			Metadata:       opt.Metadata,
+		}
+	}
+
+	_, err := r.queries.InsertLogLine(
+		ctx,
+		r.pool,
+		params,
 	)
 
 	return err
