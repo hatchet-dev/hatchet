@@ -2,12 +2,14 @@ import asyncio
 import functools
 import logging
 from collections.abc import Awaitable, Callable
+from datetime import UTC, datetime, timedelta
 from io import StringIO
 from typing import Literal, ParamSpec, TypeVar
 
 from pydantic import BaseModel, Field
 
 from hatchet_sdk.clients.events import EventClient
+from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.logger import logger
 from hatchet_sdk.runnables.contextvars import (
     ctx_action_key,
@@ -73,6 +75,22 @@ class LogRecord(BaseModel):
     message: str
     step_run_id: str
     level: LogLevel
+    timestamp: datetime
+
+
+class LogBuffer(BaseModel):
+    records: list[LogRecord] = Field(default_factory=list)
+
+    def should_clear(self, config: ClientConfig) -> bool:
+        if not self.records:
+            return False
+
+        if len(self.records) >= config.log_buffer_size:
+            return True
+
+        oldest_ts = min(r.timestamp for r in self.records)
+
+        return datetime.now(UTC) - oldest_ts > timedelta(seconds=10)
 
 
 class AsyncLogSender:
@@ -81,6 +99,7 @@ class AsyncLogSender:
         self.q = asyncio.Queue[LogRecord | STOP_LOOP_TYPE](
             maxsize=event_client.client_config.log_queue_size
         )
+        self.buffer = LogBuffer()
 
     async def consume(self) -> None:
         while True:
@@ -89,15 +108,16 @@ class AsyncLogSender:
             if record == STOP_LOOP:
                 break
 
-            try:
-                await asyncio.to_thread(
-                    self.event_client.log,
-                    message=record.message,
-                    step_run_id=record.step_run_id,
-                    level=record.level,
-                )
-            except Exception:
-                logger.exception("failed to send log to Hatchet")
+            self.buffer.records.append(record)
+
+            if self.buffer.should_clear(self.event_client.client_config):
+                requests = [
+                    (r.message, r.step_run_id, r.level) for r in self.buffer.records
+                ]
+                try:
+                    await asyncio.to_thread(self.event_client.bulk_log, requests)
+                except Exception:
+                    logger.exception("failed to send log to Hatchet")
 
     def publish(self, record: LogRecord | STOP_LOOP_TYPE) -> None:
         try:
@@ -126,6 +146,7 @@ class LogForwardingHandler(logging.StreamHandler):  # type: ignore[type-arg]
                 message=log_entry,
                 step_run_id=step_run_id,
                 level=LogLevel.from_levelname(record.levelname),
+                timestamp=datetime.now(UTC),
             )
         )
 

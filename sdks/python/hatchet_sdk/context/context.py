@@ -1,6 +1,6 @@
 import asyncio
 import json
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Any, cast
 from warnings import warn
 
@@ -213,7 +213,12 @@ class Context:
 
         logger.info(line)
         self.log_sender.publish(
-            LogRecord(message=line, step_run_id=self.step_run_id, level=LogLevel.INFO)
+            LogRecord(
+                message=line,
+                step_run_id=self.step_run_id,
+                level=LogLevel.INFO,
+                timestamp=datetime.now(UTC),
+            )
         )
 
     def release_slot(self) -> None:
