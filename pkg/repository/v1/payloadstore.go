@@ -433,7 +433,6 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadWAL(ctx context.Context, part
 		}
 
 		values = append(values, marshalledContent)
-
 		tenantIds = append(tenantIds, opt.TenantId)
 	}
 
