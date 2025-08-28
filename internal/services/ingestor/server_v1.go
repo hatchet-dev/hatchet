@@ -170,7 +170,13 @@ func (i *IngestorImpl) putLogsV1(ctx context.Context, tenant *dbsqlc.Tenant, req
 	opts := make([]*v1.CreateLogLineOpts, len(req.Logs))
 
 	for ix, logReq := range req.Logs {
-		opt, err := i.toLogOpt(ctx, logReq, externalIdToTask[logReq.StepRunId])
+		task, ok := externalIdToTask[logReq.StepRunId]
+
+		if !ok {
+			return nil, status.Errorf(codes.InvalidArgument, "No task found with external ID %s", logReq.StepRunId)
+		}
+
+		opt, err := i.toLogOpt(ctx, logReq, task)
 
 		if err != nil {
 			return nil, err
