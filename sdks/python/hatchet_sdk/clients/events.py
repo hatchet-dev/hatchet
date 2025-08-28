@@ -59,6 +59,12 @@ class BulkPushEventWithMetadata(BaseModel):
     scope: str | None = None
 
 
+class BulkLogPushRequest(BaseModel):
+    message: str
+    task_run_external_id: str
+    level: LogLevel | None
+
+
 class EventClient(BaseRestClient):
     def __init__(self, config: ClientConfig):
         super().__init__(config)
@@ -194,16 +200,16 @@ class EventClient(BaseRestClient):
         self.events_service_client.PutLog(request, metadata=get_metadata(self.token))
 
     @tenacity_retry
-    def bulk_log(self, lines: list[tuple[str, str, LogLevel]]) -> None:
+    def bulk_log(self, lines: list[BulkLogPushRequest]) -> None:
         request = PutLogsRequest(
             logs=[
                 PutLogRequest(
-                    stepRunId=step_run_id,
+                    stepRunId=line.task_run_external_id,
                     createdAt=proto_timestamp_now(),
-                    message=message,
-                    level=level.value if level else None,
+                    message=line.message,
+                    level=line.level,
                 )
-                for message, step_run_id, level in lines
+                for line in lines
             ]
         )
 

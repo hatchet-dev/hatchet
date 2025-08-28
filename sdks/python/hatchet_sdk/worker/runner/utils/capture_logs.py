@@ -8,7 +8,7 @@ from typing import Literal, ParamSpec, TypeVar
 
 from pydantic import BaseModel, Field
 
-from hatchet_sdk.clients.events import EventClient
+from hatchet_sdk.clients.events import BulkLogPushRequest, EventClient
 from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.logger import logger
 from hatchet_sdk.runnables.contextvars import (
@@ -73,7 +73,7 @@ def copy_context_vars(
 
 class LogRecord(BaseModel):
     message: str
-    step_run_id: str
+    task_run_external_id: str
     level: LogLevel
     timestamp: datetime
 
@@ -90,7 +90,7 @@ class LogBuffer(BaseModel):
 
         oldest_ts = min(r.timestamp for r in self.records)
 
-        return datetime.now(UTC) - oldest_ts > timedelta(seconds=10)
+        return datetime.now(UTC) - oldest_ts > timedelta(minutes=1)
 
 
 class AsyncLogSender:
@@ -102,7 +102,14 @@ class AsyncLogSender:
         self.buffer = LogBuffer()
 
     async def flush(self) -> None:
-        requests = [(r.message, r.step_run_id, r.level) for r in self.buffer.records]
+        requests = [
+            BulkLogPushRequest(
+                message=r.message,
+                task_run_external_id=r.task_run_external_id,
+                level=r.level,
+            )
+            for r in self.buffer.records
+        ]
         try:
             await asyncio.to_thread(self.event_client.bulk_log, requests)
         except Exception:
@@ -146,7 +153,7 @@ class LogForwardingHandler(logging.StreamHandler):  # type: ignore[type-arg]
         self.log_sender.publish(
             LogRecord(
                 message=log_entry,
-                step_run_id=step_run_id,
+                task_run_external_id=step_run_id,
                 level=LogLevel.from_levelname(record.levelname),
                 timestamp=datetime.now(UTC),
             )

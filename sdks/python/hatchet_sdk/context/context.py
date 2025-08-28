@@ -125,6 +125,15 @@ class Context:
         )
 
     @property
+    def task_run_external_id(self) -> str:
+        """
+        The external id of the current task run.
+
+        :return: The external id of the current task run.
+        """
+        return self.action.step_run_id
+
+    @property
     def was_triggered_by_event(self) -> bool:
         """
         A property that indicates whether the workflow was triggered by an event.
@@ -215,7 +224,7 @@ class Context:
         self.log_sender.publish(
             LogRecord(
                 message=line,
-                step_run_id=self.step_run_id,
+                task_run_external_id=self.step_run_id,
                 level=LogLevel.INFO,
                 timestamp=datetime.now(UTC),
             )
