@@ -106,7 +106,7 @@ export function SidePanel() {
             <div className="flex flex-row w-full justify-between items-center bg-background h-4 pt-2 pb-4">
               <div className="flex flex-row gap-x-2 w-full justify-between items-center">
                 <p className="text-lg font-semibold">{maybeContent.title}</p>
-                <div>
+                <div className="flex flex-row gap-x-2 items-center">
                   <Button
                     variant="ghost"
                     size="sm"
