@@ -172,9 +172,11 @@ func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx sqlcv1.DBTX, 
 			InlineContent: payload.Payload,
 		}
 		marshaledContent, err := content.Marshal()
+
 		if err != nil {
 			return fmt.Errorf("failed to marshal inline payload: %w", err)
 		}
+
 		payloadData[i] = marshaledContent
 	}
 
@@ -190,17 +192,20 @@ func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx sqlcv1.DBTX, 
 		return fmt.Errorf("failed to write payloads: %w", err)
 	}
 
-	err = p.queries.WritePayloadWAL(ctx, tx, sqlcv1.WritePayloadWALParams{
-		Tenantids:          tenantIds,
-		Payloadids:         taskIds,
-		Payloadinsertedats: taskInsertedAts,
-		Payloadtypes:       payloadTypes,
-		Offloadats:         offloadAts,
-		Operations:         operations,
-	})
+	// only need to write to the WAL if we have an external store configured
+	if p.externalStoreEnabled {
+		err = p.queries.WritePayloadWAL(ctx, tx, sqlcv1.WritePayloadWALParams{
+			Tenantids:          tenantIds,
+			Payloadids:         taskIds,
+			Payloadinsertedats: taskInsertedAts,
+			Payloadtypes:       payloadTypes,
+			Offloadats:         offloadAts,
+			Operations:         operations,
+		})
 
-	if err != nil {
-		return fmt.Errorf("failed to write payload WAL: %w", err)
+		if err != nil {
+			return fmt.Errorf("failed to write payload WAL: %w", err)
+		}
 	}
 
 	return err
@@ -300,41 +305,24 @@ func (p *payloadStoreRepositoryImpl) bulkRetrieve(ctx context.Context, tx sqlcv1
 		}
 	}
 
-	missingTaskIdInsertedAts := make(map[IdInsertedAt]struct{})
-	for _, opt := range opts {
-		if _, exists := optsToPayload[opt]; exists {
-			continue
-		}
-
-		missingTaskIdInsertedAts[IdInsertedAt{
-			ID:         opt.Id,
-			InsertedAt: opt.InsertedAt,
-		}] = struct{}{}
-	}
-
 	return optsToPayload, nil
 }
 
 func (p *payloadStoreRepositoryImpl) offloadToExternal(ctx context.Context, payloads ...StorePayloadOpts) (map[RetrievePayloadOpts]ExternalPayloadLocationKey, error) {
+	// this is only intended to be called from ProcessPayloadWAL, which short-circuits if external store is not enabled
 	if !p.externalStoreEnabled {
-		retrieveOpts := make(map[RetrievePayloadOpts]ExternalPayloadLocationKey)
-
-		for _, opt := range payloads {
-			retrieveOpts[RetrievePayloadOpts{
-				Id:         opt.Id,
-				InsertedAt: opt.InsertedAt,
-				TenantId:   sqlchelpers.UUIDFromStr(opt.TenantId),
-				Type:       opt.Type,
-			}] = "placeholder"
-		}
-
-		return retrieveOpts, nil
+		return nil, fmt.Errorf("external store not enabled")
 	}
 
 	return p.externalStore.Store(ctx, payloads...)
 }
 
 func (p *payloadStoreRepositoryImpl) ProcessPayloadWAL(ctx context.Context, partitionNumber int32) (bool, error) {
+	// no need to process the WAL if external store is not enabled
+	if !p.externalStoreEnabled {
+		return false, nil
+	}
+
 	ctx, span := telemetry.NewSpan(ctx, "process-payload-wal")
 	defer span.End()
 
@@ -424,17 +412,28 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadWAL(ctx context.Context, part
 			return false, fmt.Errorf("offload at not found for opts: %+v", opt)
 		}
 
-		payload, exists := retrieveOptsToPayload[opt]
-
-		if !exists {
-			return false, fmt.Errorf("payload not found for opts: %+v", opt)
-		}
-
 		offloadAts = append(offloadAts, offloadAt)
 		ids = append(ids, opt.Id)
 		insertedAts = append(insertedAts, opt.InsertedAt)
 		types = append(types, string(opt.Type))
-		values = append(values, payload)
+
+		key, ok := retrieveOptsToStoredKey[opt]
+		if !ok {
+			return false, fmt.Errorf("external location key not found for opts: %+v", opt)
+		}
+
+		payloadContent := PayloadContent{
+			Location:            PayloadLocationExternal,
+			ExternalLocationKey: &key,
+		}
+
+		marshalledContent, err := payloadContent.Marshal()
+		if err != nil {
+			return false, fmt.Errorf("failed to marshal payload content: %w", err)
+		}
+
+		values = append(values, marshalledContent)
+
 		tenantIds = append(tenantIds, opt.TenantId)
 	}
 
