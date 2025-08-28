@@ -175,7 +175,7 @@ require (
 	github.com/go-chi/chi v1.5.5
 	github.com/go-playground/validator/v10 v10.27.0
 	github.com/goccy/go-json v0.10.5
-	github.com/google/cel-go v0.26.0
+	github.com/google/cel-go v0.26.1
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/schema v1.4.1
 	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.3.2
