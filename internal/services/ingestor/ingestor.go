@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	lru "github.com/hashicorp/golang-lru/v2"
-	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
@@ -13,7 +12,6 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor/contracts"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
-	"github.com/hatchet-dev/hatchet/pkg/logger"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/metered"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
@@ -119,7 +117,6 @@ type IngestorImpl struct {
 	mq     msgqueue.MessageQueue
 	mqv1   msgqueuev1.MessageQueue
 	v      validator.Validator
-	l      *zerolog.Logger
 	repov1 v1.Repository
 
 	isLogIngestionEnabled bool
@@ -167,8 +164,6 @@ func NewIngestor(fs ...IngestorOptFunc) (Ingestor, error) {
 		return nil, fmt.Errorf("could not create step run cache: %w", err)
 	}
 
-	logger := logger.NewDefaultLogger("ingestor-service")
-
 	return &IngestorImpl{
 		eventRepository:          opts.eventRepository,
 		streamEventRepository:    opts.streamEventRepository,
@@ -181,7 +176,6 @@ func NewIngestor(fs ...IngestorOptFunc) (Ingestor, error) {
 		v:                        validator.NewDefaultValidator(),
 		repov1:                   opts.repov1,
 		isLogIngestionEnabled:    opts.isLogIngestionEnabled,
-		l:                        &logger,
 	}, nil
 }
 
