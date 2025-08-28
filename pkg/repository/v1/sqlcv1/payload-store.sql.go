@@ -18,12 +18,13 @@ WITH inputs AS (
         UNNEST($2::TIMESTAMPTZ[]) AS inserted_at,
         UNNEST(CAST($3::TEXT[] AS v1_payload_type[])) AS type,
         UNNEST($4::TIMESTAMPTZ[]) AS offload_at,
-        UNNEST($5::JSONB[]) AS value,
+        UNNEST($5::TEXT[]) AS external_location_key,
         UNNEST($6::UUID[]) AS tenant_id
 ), payload_updates AS (
     UPDATE v1_payload
     SET
-        value = i.value,
+        location = 'EXTERNAL',
+        external_location_key = i.external_location_key,
         updated_at = NOW()
     FROM inputs i
     WHERE
@@ -41,12 +42,12 @@ WHERE
 `
 
 type FinalizePayloadOffloadsParams struct {
-	Ids          []int64              `json:"ids"`
-	Insertedats  []pgtype.Timestamptz `json:"insertedats"`
-	Payloadtypes []string             `json:"payloadtypes"`
-	Offloadats   []pgtype.Timestamptz `json:"offloadats"`
-	Values       [][]byte             `json:"values"`
-	Tenantids    []pgtype.UUID        `json:"tenantids"`
+	Ids                  []int64              `json:"ids"`
+	Insertedats          []pgtype.Timestamptz `json:"insertedats"`
+	Payloadtypes         []string             `json:"payloadtypes"`
+	Offloadats           []pgtype.Timestamptz `json:"offloadats"`
+	Externallocationkeys []string             `json:"externallocationkeys"`
+	Tenantids            []pgtype.UUID        `json:"tenantids"`
 }
 
 func (q *Queries) FinalizePayloadOffloads(ctx context.Context, db DBTX, arg FinalizePayloadOffloadsParams) error {
@@ -55,7 +56,7 @@ func (q *Queries) FinalizePayloadOffloads(ctx context.Context, db DBTX, arg Fina
 		arg.Insertedats,
 		arg.Payloadtypes,
 		arg.Offloadats,
-		arg.Values,
+		arg.Externallocationkeys,
 		arg.Tenantids,
 	)
 	return err
@@ -141,7 +142,7 @@ func (q *Queries) PollPayloadWALForRecordsToOffload(ctx context.Context, db DBTX
 }
 
 const readPayload = `-- name: ReadPayload :one
-SELECT tenant_id, id, inserted_at, type, value, updated_at
+SELECT tenant_id, id, inserted_at, type, location, external_location_key, inline_content, updated_at
 FROM v1_payload
 WHERE
     tenant_id = $1::UUID
@@ -170,7 +171,9 @@ func (q *Queries) ReadPayload(ctx context.Context, db DBTX, arg ReadPayloadParam
 		&i.ID,
 		&i.InsertedAt,
 		&i.Type,
-		&i.Value,
+		&i.Location,
+		&i.ExternalLocationKey,
+		&i.InlineContent,
 		&i.UpdatedAt,
 	)
 	return &i, err
@@ -185,7 +188,7 @@ WITH inputs AS (
         UNNEST(CAST($4::TEXT[] AS v1_payload_type[])) AS type
 )
 
-SELECT tenant_id, id, inserted_at, type, value, updated_at
+SELECT tenant_id, id, inserted_at, type, location, external_location_key, inline_content, updated_at
 FROM v1_payload
 WHERE (tenant_id, id, inserted_at, type) IN (
         SELECT tenant_id, id, inserted_at, type
@@ -219,7 +222,9 @@ func (q *Queries) ReadPayloads(ctx context.Context, db DBTX, arg ReadPayloadsPar
 			&i.ID,
 			&i.InsertedAt,
 			&i.Type,
-			&i.Value,
+			&i.Location,
+			&i.ExternalLocationKey,
+			&i.InlineContent,
 			&i.UpdatedAt,
 		); err != nil {
 			return nil, err
@@ -289,32 +294,41 @@ WITH inputs AS (
         UNNEST($1::BIGINT[]) AS id,
         UNNEST($2::TIMESTAMPTZ[]) AS inserted_at,
         UNNEST(CAST($3::TEXT[] AS v1_payload_type[])) AS type,
-        UNNEST($4::JSONB[]) AS payload,
-        UNNEST($5::UUID[]) AS tenant_id
+        UNNEST(CAST($4::TEXT[] AS v1_payload_location[])) AS location,
+        UNNEST($5::TEXT[]) AS external_location_key,
+        UNNEST($6::JSONB[]) AS inline_content,
+        UNNEST($7::UUID[]) AS tenant_id
 )
 INSERT INTO v1_payload (
     tenant_id,
     id,
     inserted_at,
     type,
-    value
+    location,
+    external_location_key,
+    inline_content
 )
+
 SELECT
     i.tenant_id,
     i.id,
     i.inserted_at,
     i.type,
-    i.payload
+    i.location,
+    CASE WHEN i.external_location_key = '' OR i.location = 'EXTERNAL' THEN NULL ELSE i.external_location_key END,
+    i.inline_content
 FROM
     inputs i
 `
 
 type WritePayloadsParams struct {
-	Ids         []int64              `json:"ids"`
-	Insertedats []pgtype.Timestamptz `json:"insertedats"`
-	Types       []string             `json:"types"`
-	Payloads    [][]byte             `json:"payloads"`
-	Tenantids   []pgtype.UUID        `json:"tenantids"`
+	Ids                  []int64              `json:"ids"`
+	Insertedats          []pgtype.Timestamptz `json:"insertedats"`
+	Types                []string             `json:"types"`
+	Locations            []string             `json:"locations"`
+	Externallocationkeys []string             `json:"externallocationkeys"`
+	Inlinecontents       [][]byte             `json:"inlinecontents"`
+	Tenantids            []pgtype.UUID        `json:"tenantids"`
 }
 
 func (q *Queries) WritePayloads(ctx context.Context, db DBTX, arg WritePayloadsParams) error {
@@ -322,7 +336,9 @@ func (q *Queries) WritePayloads(ctx context.Context, db DBTX, arg WritePayloadsP
 		arg.Ids,
 		arg.Insertedats,
 		arg.Types,
-		arg.Payloads,
+		arg.Locations,
+		arg.Externallocationkeys,
+		arg.Inlinecontents,
 		arg.Tenantids,
 	)
 	return err

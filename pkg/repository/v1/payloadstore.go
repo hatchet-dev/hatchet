@@ -2,7 +2,6 @@ package v1
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"time"
 
@@ -32,17 +31,6 @@ type RetrievePayloadOpts struct {
 
 type PayloadLocation string
 type ExternalPayloadLocationKey string
-
-const (
-	PayloadLocationInline   PayloadLocation = "inline"
-	PayloadLocationExternal PayloadLocation = "external"
-)
-
-type PayloadContent struct {
-	Location            PayloadLocation             `json:"location"`
-	ExternalLocationKey *ExternalPayloadLocationKey `json:"external_location_key,omitempty"`
-	InlineContent       []byte                      `json:"inline_content,omitempty"`
-}
 
 type BulkRetrievePayloadOpts struct {
 	Keys     []ExternalPayloadLocationKey
@@ -90,73 +78,22 @@ func NewPayloadStoreRepository(
 	}
 }
 
-func (p PayloadContent) Validate() error {
-	switch p.Location {
-	case PayloadLocationInline:
-		if len(p.InlineContent) == 0 {
-			return fmt.Errorf("inline content cannot be empty when location is %s", PayloadLocationInline)
-		}
-
-		if p.ExternalLocationKey != nil {
-			return fmt.Errorf("external location key must be nil when location is %s", PayloadLocationInline)
-		}
-
-		return nil
-	case PayloadLocationExternal:
-		if p.ExternalLocationKey == nil || len(*p.ExternalLocationKey) == 0 {
-			return fmt.Errorf("external location key cannot be empty when location is %s", PayloadLocationExternal)
-		}
-
-		if len(p.InlineContent) > 0 {
-			return fmt.Errorf("inline content must be empty when location is %s", PayloadLocationExternal)
-		}
-
-		return nil
-	default:
-		return fmt.Errorf("invalid payload location: %s", p.Location)
-	}
-}
-
-func (p PayloadContent) Marshal() ([]byte, error) {
-	if err := p.Validate(); err != nil {
-		return nil, fmt.Errorf("invalid payload: %w", err)
-	}
-
-	j, err := json.Marshal(p)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal payload: %w", err)
-	}
-
-	return j, nil
-}
-
-func (p *payloadStoreRepositoryImpl) unmarshalPayloadContent(data []byte) (*PayloadContent, error) {
-	var content PayloadContent
-	if err := json.Unmarshal(data, &content); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal payload content: %w", err)
-	}
-
-	if err := content.Validate(); err != nil {
-		return nil, fmt.Errorf("invalid payload content: %w", err)
-	}
-
-	return &content, nil
-}
-
 func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx sqlcv1.DBTX, payloads ...StorePayloadOpts) error {
 	taskIds := make([]int64, len(payloads))
 	taskInsertedAts := make([]pgtype.Timestamptz, len(payloads))
 	payloadTypes := make([]string, len(payloads))
-	payloadData := make([][]byte, len(payloads))
+	inlineContents := make([][]byte, len(payloads))
 	offloadAts := make([]pgtype.Timestamptz, len(payloads))
 	operations := make([]string, len(payloads))
 	tenantIds := make([]pgtype.UUID, len(payloads))
+	locations := make([]string, len(payloads))
 
 	for i, payload := range payloads {
 		taskIds[i] = payload.Id
 		taskInsertedAts[i] = payload.InsertedAt
 		payloadTypes[i] = string(payload.Type)
 		tenantIds[i] = sqlchelpers.UUIDFromStr(payload.TenantId)
+		locations[i] = string(sqlcv1.V1PayloadLocationINLINE)
 
 		if p.externalStoreEnabled {
 			offloadAts[i] = pgtype.Timestamptz{Time: payload.InsertedAt.Time.Add(*p.nativeStoreTTL), Valid: true}
@@ -165,27 +102,16 @@ func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx sqlcv1.DBTX, 
 		}
 
 		operations[i] = string(sqlcv1.V1PayloadWalOperationCREATE)
-
-		// Always store inline initially - offloading happens via cron job
-		content := PayloadContent{
-			Location:      PayloadLocationInline,
-			InlineContent: payload.Payload,
-		}
-		marshaledContent, err := content.Marshal()
-
-		if err != nil {
-			return fmt.Errorf("failed to marshal inline payload: %w", err)
-		}
-
-		payloadData[i] = marshaledContent
+		inlineContents[i] = payload.Payload
 	}
 
 	err := p.queries.WritePayloads(ctx, p.pool, sqlcv1.WritePayloadsParams{
-		Tenantids:   tenantIds,
-		Ids:         taskIds,
-		Insertedats: taskInsertedAts,
-		Types:       payloadTypes,
-		Payloads:    payloadData,
+		Ids:            taskIds,
+		Insertedats:    taskInsertedAts,
+		Types:          payloadTypes,
+		Locations:      locations,
+		Tenantids:      tenantIds,
+		Inlinecontents: inlineContents,
 	})
 
 	if err != nil {
@@ -269,11 +195,6 @@ func (p *payloadStoreRepositoryImpl) bulkRetrieve(ctx context.Context, tx sqlcv1
 			continue
 		}
 
-		content, err := p.unmarshalPayloadContent(payload.Value)
-		if err != nil {
-			return nil, fmt.Errorf("failed to unmarshal payload content: %w", err)
-		}
-
 		opts := RetrievePayloadOpts{
 			Id:         payload.ID,
 			InsertedAt: payload.InsertedAt,
@@ -281,14 +202,15 @@ func (p *payloadStoreRepositoryImpl) bulkRetrieve(ctx context.Context, tx sqlcv1
 			TenantId:   payload.TenantID,
 		}
 
-		if content.Location == PayloadLocationExternal && content.ExternalLocationKey != nil {
-			externalKeysToOpts[*content.ExternalLocationKey] = opts
+		if payload.Location == sqlcv1.V1PayloadLocationEXTERNAL {
+			key := ExternalPayloadLocationKey(payload.ExternalLocationKey.String)
+			externalKeysToOpts[key] = opts
 			retrievePayloadOpts = append(retrievePayloadOpts, BulkRetrievePayloadOpts{
-				Keys:     []ExternalPayloadLocationKey{*content.ExternalLocationKey},
+				Keys:     []ExternalPayloadLocationKey{key},
 				TenantId: opts.TenantId.String(),
 			})
 		} else {
-			optsToPayload[opts] = content.InlineContent
+			optsToPayload[opts] = payload.InlineContent
 		}
 	}
 
@@ -402,8 +324,8 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadWAL(ctx context.Context, part
 	ids := make([]int64, 0, len(retrieveOptsToStoredKey))
 	insertedAts := make([]pgtype.Timestamptz, 0, len(retrieveOptsToStoredKey))
 	types := make([]string, 0, len(retrieveOptsToStoredKey))
-	values := make([][]byte, 0, len(retrieveOptsToStoredKey))
 	tenantIds := make([]pgtype.UUID, 0, len(retrieveOptsToStoredKey))
+	externalLocationKeys := make([]string, 0, len(retrieveOptsToStoredKey))
 
 	for opt := range retrieveOptsToStoredKey {
 		offloadAt, exists := retrieveOptsToOffloadAt[opt]
@@ -422,17 +344,7 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadWAL(ctx context.Context, part
 			return false, fmt.Errorf("external location key not found for opts: %+v", opt)
 		}
 
-		payloadContent := PayloadContent{
-			Location:            PayloadLocationExternal,
-			ExternalLocationKey: &key,
-		}
-
-		marshalledContent, err := payloadContent.Marshal()
-		if err != nil {
-			return false, fmt.Errorf("failed to marshal payload content: %w", err)
-		}
-
-		values = append(values, marshalledContent)
+		externalLocationKeys = append(externalLocationKeys, string(key))
 		tenantIds = append(tenantIds, opt.TenantId)
 	}
 
@@ -445,12 +357,12 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadWAL(ctx context.Context, part
 	}
 
 	err = p.queries.FinalizePayloadOffloads(ctx, tx, sqlcv1.FinalizePayloadOffloadsParams{
-		Tenantids:    tenantIds,
-		Ids:          ids,
-		Insertedats:  insertedAts,
-		Offloadats:   offloadAts,
-		Payloadtypes: types,
-		Values:       values,
+		Ids:                  ids,
+		Insertedats:          insertedAts,
+		Payloadtypes:         types,
+		Offloadats:           offloadAts,
+		Tenantids:            tenantIds,
+		Externallocationkeys: externalLocationKeys,
 	})
 
 	if err != nil {

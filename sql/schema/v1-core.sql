@@ -58,7 +58,7 @@ BEGIN
     END IF;
 
     EXECUTE
-        format('CREATE TABLE %s (LIKE %s INCLUDING INDEXES)', newTableName, targetTableName);
+        format('CREATE TABLE %s (LIKE %s INCLUDING INDEXES INCLUDING CONSTRAINTS)', newTableName, targetTableName);
     EXECUTE
         format('ALTER TABLE %s SET (
             autovacuum_vacuum_scale_factor = ''0.1'',
@@ -1630,16 +1630,24 @@ CREATE TABLE v1_durable_sleep (
 );
 
 CREATE TYPE v1_payload_type AS ENUM ('TASK_INPUT', 'DAG_INPUT', 'TASK_OUTPUT');
+CREATE TYPE v1_payload_location AS ENUM ('INLINE', 'EXTERNAL');
 
 CREATE TABLE v1_payload (
     tenant_id UUID NOT NULL,
     id BIGINT NOT NULL,
     inserted_at TIMESTAMPTZ NOT NULL,
     type v1_payload_type NOT NULL,
-    value JSONB NOT NULL,
+    location v1_payload_location NOT NULL,
+    external_location_key TEXT,
+    inline_content JSONB,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    PRIMARY KEY (tenant_id, inserted_at, id, type)
+    PRIMARY KEY (tenant_id, inserted_at, id, type),
+    CHECK (
+        (location = 'INLINE' AND inline_content IS NOT NULL AND external_location_key IS NULL)
+        OR
+        (location = 'EXTERNAL' AND inline_content IS NULL AND external_location_key IS NOT NULL)
+    )
 ) PARTITION BY RANGE(inserted_at);
 
 CREATE TYPE v1_payload_wal_operation AS ENUM ('CREATE', 'UPDATE', 'DELETE');

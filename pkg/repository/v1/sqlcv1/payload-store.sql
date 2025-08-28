@@ -31,7 +31,9 @@ WITH inputs AS (
         UNNEST(@ids::BIGINT[]) AS id,
         UNNEST(@insertedAts::TIMESTAMPTZ[]) AS inserted_at,
         UNNEST(CAST(@types::TEXT[] AS v1_payload_type[])) AS type,
-        UNNEST(@payloads::JSONB[]) AS payload,
+        UNNEST(CAST(@locations::TEXT[] AS v1_payload_location[])) AS location,
+        UNNEST(@externalLocationKeys::TEXT[]) AS external_location_key,
+        UNNEST(@inlineContents::JSONB[]) AS inline_content,
         UNNEST(@tenantIds::UUID[]) AS tenant_id
 )
 INSERT INTO v1_payload (
@@ -39,14 +41,19 @@ INSERT INTO v1_payload (
     id,
     inserted_at,
     type,
-    value
+    location,
+    external_location_key,
+    inline_content
 )
+
 SELECT
     i.tenant_id,
     i.id,
     i.inserted_at,
     i.type,
-    i.payload
+    i.location,
+    CASE WHEN i.external_location_key = '' OR i.location = 'EXTERNAL' THEN NULL ELSE i.external_location_key END,
+    i.inline_content
 FROM
     inputs i
 ;
@@ -122,12 +129,13 @@ WITH inputs AS (
         UNNEST(@insertedAts::TIMESTAMPTZ[]) AS inserted_at,
         UNNEST(CAST(@payloadTypes::TEXT[] AS v1_payload_type[])) AS type,
         UNNEST(@offloadAts::TIMESTAMPTZ[]) AS offload_at,
-        UNNEST(@values::JSONB[]) AS value,
+        UNNEST(@externalLocationKeys::TEXT[]) AS external_location_key,
         UNNEST(@tenantIds::UUID[]) AS tenant_id
 ), payload_updates AS (
     UPDATE v1_payload
     SET
-        value = i.value,
+        location = 'EXTERNAL',
+        external_location_key = i.external_location_key,
         updated_at = NOW()
     FROM inputs i
     WHERE

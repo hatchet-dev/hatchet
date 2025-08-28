@@ -1394,6 +1394,48 @@ func (ns NullV1MatchKind) Value() (driver.Value, error) {
 	return string(ns.V1MatchKind), nil
 }
 
+type V1PayloadLocation string
+
+const (
+	V1PayloadLocationINLINE   V1PayloadLocation = "INLINE"
+	V1PayloadLocationEXTERNAL V1PayloadLocation = "EXTERNAL"
+)
+
+func (e *V1PayloadLocation) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = V1PayloadLocation(s)
+	case string:
+		*e = V1PayloadLocation(s)
+	default:
+		return fmt.Errorf("unsupported scan type for V1PayloadLocation: %T", src)
+	}
+	return nil
+}
+
+type NullV1PayloadLocation struct {
+	V1PayloadLocation V1PayloadLocation `json:"v1_payload_location"`
+	Valid             bool              `json:"valid"` // Valid is true if V1PayloadLocation is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullV1PayloadLocation) Scan(value interface{}) error {
+	if value == nil {
+		ns.V1PayloadLocation, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.V1PayloadLocation.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullV1PayloadLocation) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.V1PayloadLocation), nil
+}
+
 type V1PayloadType string
 
 const (
@@ -3018,12 +3060,14 @@ type V1MatchCondition struct {
 }
 
 type V1Payload struct {
-	TenantID   pgtype.UUID        `json:"tenant_id"`
-	ID         int64              `json:"id"`
-	InsertedAt pgtype.Timestamptz `json:"inserted_at"`
-	Type       V1PayloadType      `json:"type"`
-	Value      []byte             `json:"value"`
-	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
+	TenantID            pgtype.UUID        `json:"tenant_id"`
+	ID                  int64              `json:"id"`
+	InsertedAt          pgtype.Timestamptz `json:"inserted_at"`
+	Type                V1PayloadType      `json:"type"`
+	Location            V1PayloadLocation  `json:"location"`
+	ExternalLocationKey pgtype.Text        `json:"external_location_key"`
+	InlineContent       []byte             `json:"inline_content"`
+	UpdatedAt           pgtype.Timestamptz `json:"updated_at"`
 }
 
 type V1PayloadWal struct {
