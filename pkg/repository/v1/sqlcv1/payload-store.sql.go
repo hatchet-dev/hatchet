@@ -25,6 +25,7 @@ WITH inputs AS (
     SET
         location = 'EXTERNAL',
         external_location_key = i.external_location_key,
+        inline_content = NULL,
         updated_at = NOW()
     FROM inputs i
     WHERE
