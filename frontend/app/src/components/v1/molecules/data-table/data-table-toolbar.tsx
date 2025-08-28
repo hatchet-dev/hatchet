@@ -57,7 +57,14 @@ export function DataTableToolbar<TData>({
 
   return (
     <div className="flex items-center justify-between">
-      <div className="flex flex-1 items-center space-x-2 overflow-x-auto scrollbar-none pr-4 min-w-0" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+      <div 
+        className="flex flex-1 items-center space-x-2 overflow-x-auto pr-4 min-w-0 [&::-webkit-scrollbar]:h-1 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-gray-400/50 [&::-webkit-scrollbar-thumb]:rounded-full" 
+        style={{
+          scrollbarWidth: 'thin',
+          scrollbarColor: 'rgba(156, 163, 175, 0.5) transparent',
+          scrollbarGutter: 'stable both-edges'
+        }}
+      >
         {setSearch && (
           <Input
             placeholder="Search..."
