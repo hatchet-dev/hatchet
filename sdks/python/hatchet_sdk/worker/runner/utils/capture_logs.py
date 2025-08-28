@@ -101,23 +101,25 @@ class AsyncLogSender:
         )
         self.buffer = LogBuffer()
 
+    async def flush(self) -> None:
+        requests = [(r.message, r.step_run_id, r.level) for r in self.buffer.records]
+        try:
+            await asyncio.to_thread(self.event_client.bulk_log, requests)
+        except Exception:
+            logger.exception("failed to send log to Hatchet")
+
     async def consume(self) -> None:
         while True:
             record = await self.q.get()
 
             if record == STOP_LOOP:
+                await self.flush()
                 break
 
             self.buffer.records.append(record)
 
             if self.buffer.should_clear(self.event_client.client_config):
-                requests = [
-                    (r.message, r.step_run_id, r.level) for r in self.buffer.records
-                ]
-                try:
-                    await asyncio.to_thread(self.event_client.bulk_log, requests)
-                except Exception:
-                    logger.exception("failed to send log to Hatchet")
+                await self.flush()
 
     def publish(self, record: LogRecord | STOP_LOOP_TYPE) -> None:
         try:
