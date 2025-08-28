@@ -275,9 +275,7 @@ func (i *IngestorImpl) putStreamEventV0(ctx context.Context, tenant *dbsqlc.Tena
 }
 
 func (i *IngestorImpl) PutLog(ctx context.Context, req *contracts.PutLogRequest) (*contracts.PutLogResponse, error) {
-	i.l.Debug().Str("method", "PutLog").Str("stepRunId", req.StepRunId).Msg("loki-debug: handling PutLog request")
 	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
-	i.l.Debug().Str("tenantId", sqlchelpers.UUIDToStr(tenant.ID)).Msg("loki-debug: tenant context for PutLog")
 
 	switch tenant.Version {
 	case dbsqlc.TenantMajorEngineVersionV0:
@@ -287,6 +285,12 @@ func (i *IngestorImpl) PutLog(ctx context.Context, req *contracts.PutLogRequest)
 	default:
 		return nil, status.Errorf(codes.Unimplemented, "PutLog is not implemented in engine version %s", string(tenant.Version))
 	}
+}
+
+func (i *IngestorImpl) PutLogs(ctx context.Context, req *contracts.PutLogsRequest) (*contracts.PutLogsResponse, error) {
+	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
+
+	return i.putLogsV1(ctx, tenant, req)
 }
 
 func (i *IngestorImpl) putLogV0(ctx context.Context, tenant *dbsqlc.Tenant, req *contracts.PutLogRequest) (*contracts.PutLogResponse, error) {

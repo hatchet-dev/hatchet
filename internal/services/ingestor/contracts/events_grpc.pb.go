@@ -26,6 +26,7 @@ type EventsServiceClient interface {
 	BulkPush(ctx context.Context, in *BulkPushEventRequest, opts ...grpc.CallOption) (*Events, error)
 	ReplaySingleEvent(ctx context.Context, in *ReplayEventRequest, opts ...grpc.CallOption) (*Event, error)
 	PutLog(ctx context.Context, in *PutLogRequest, opts ...grpc.CallOption) (*PutLogResponse, error)
+	PutLogs(ctx context.Context, in *PutLogsRequest, opts ...grpc.CallOption) (*PutLogsResponse, error)
 	PutStreamEvent(ctx context.Context, in *PutStreamEventRequest, opts ...grpc.CallOption) (*PutStreamEventResponse, error)
 }
 
@@ -73,6 +74,15 @@ func (c *eventsServiceClient) PutLog(ctx context.Context, in *PutLogRequest, opt
 	return out, nil
 }
 
+func (c *eventsServiceClient) PutLogs(ctx context.Context, in *PutLogsRequest, opts ...grpc.CallOption) (*PutLogsResponse, error) {
+	out := new(PutLogsResponse)
+	err := c.cc.Invoke(ctx, "/EventsService/PutLogs", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *eventsServiceClient) PutStreamEvent(ctx context.Context, in *PutStreamEventRequest, opts ...grpc.CallOption) (*PutStreamEventResponse, error) {
 	out := new(PutStreamEventResponse)
 	err := c.cc.Invoke(ctx, "/EventsService/PutStreamEvent", in, out, opts...)
@@ -90,6 +100,7 @@ type EventsServiceServer interface {
 	BulkPush(context.Context, *BulkPushEventRequest) (*Events, error)
 	ReplaySingleEvent(context.Context, *ReplayEventRequest) (*Event, error)
 	PutLog(context.Context, *PutLogRequest) (*PutLogResponse, error)
+	PutLogs(context.Context, *PutLogsRequest) (*PutLogsResponse, error)
 	PutStreamEvent(context.Context, *PutStreamEventRequest) (*PutStreamEventResponse, error)
 	mustEmbedUnimplementedEventsServiceServer()
 }
@@ -109,6 +120,9 @@ func (UnimplementedEventsServiceServer) ReplaySingleEvent(context.Context, *Repl
 }
 func (UnimplementedEventsServiceServer) PutLog(context.Context, *PutLogRequest) (*PutLogResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method PutLog not implemented")
+}
+func (UnimplementedEventsServiceServer) PutLogs(context.Context, *PutLogsRequest) (*PutLogsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method PutLogs not implemented")
 }
 func (UnimplementedEventsServiceServer) PutStreamEvent(context.Context, *PutStreamEventRequest) (*PutStreamEventResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method PutStreamEvent not implemented")
@@ -198,6 +212,24 @@ func _EventsService_PutLog_Handler(srv interface{}, ctx context.Context, dec fun
 	return interceptor(ctx, in, info, handler)
 }
 
+func _EventsService_PutLogs_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PutLogsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(EventsServiceServer).PutLogs(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/EventsService/PutLogs",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(EventsServiceServer).PutLogs(ctx, req.(*PutLogsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _EventsService_PutStreamEvent_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(PutStreamEventRequest)
 	if err := dec(in); err != nil {
@@ -238,6 +270,10 @@ var EventsService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "PutLog",
 			Handler:    _EventsService_PutLog_Handler,
+		},
+		{
+			MethodName: "PutLogs",
+			Handler:    _EventsService_PutLogs_Handler,
 		},
 		{
 			MethodName: "PutStreamEvent",

@@ -61,21 +61,7 @@ func (i *IngestorImpl) getSingleTask(ctx context.Context, tenantId, taskExternal
 	return i.repov1.Tasks().GetTaskByExternalId(ctx, tenantId, taskExternalId, skipCache)
 }
 
-func (i *IngestorImpl) putLogV1(ctx context.Context, tenant *dbsqlc.Tenant, req *contracts.PutLogRequest) (*contracts.PutLogResponse, error) {
-	i.l.Debug().Str("method", "putLogV1").Str("stepRunId", req.StepRunId).Bool("isLogIngestionEnabled", i.isLogIngestionEnabled).Msg("loki-debug: handling putLogV1 call")
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
-
-	if !i.isLogIngestionEnabled {
-		return &contracts.PutLogResponse{}, nil
-	}
-
-	task, err := i.getSingleTask(ctx, tenantId, req.StepRunId, false)
-
-	if err != nil {
-		return nil, err
-	}
-
-	i.l.Debug().Str("taskExternalId", sqlchelpers.UUIDToStr(task.ExternalID)).Msg("loki-debug: retrieved task for log ingestion")
+func (i *IngestorImpl) toLogOpt(ctx context.Context, req *contracts.PutLogRequest, task *sqlcv1.FlattenExternalIdsRow) (*v1.CreateLogLineOpts, error) {
 	var createdAt *time.Time
 
 	if t := req.CreatedAt.AsTime(); !t.IsZero() {
@@ -83,6 +69,7 @@ func (i *IngestorImpl) putLogV1(ctx context.Context, tenant *dbsqlc.Tenant, req 
 	}
 
 	var metadata []byte
+	var err error
 
 	if req.Metadata != "" {
 		// Validate that metadata is valid JSON
@@ -126,6 +113,28 @@ func (i *IngestorImpl) putLogV1(ctx context.Context, tenant *dbsqlc.Tenant, req 
 		return nil, status.Errorf(codes.InvalidArgument, "Invalid request: %s", err)
 	}
 
+	return opts, nil
+}
+
+func (i *IngestorImpl) putLogV1(ctx context.Context, tenant *dbsqlc.Tenant, req *contracts.PutLogRequest) (*contracts.PutLogResponse, error) {
+	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+
+	if !i.isLogIngestionEnabled {
+		return &contracts.PutLogResponse{}, nil
+	}
+
+	task, err := i.getSingleTask(ctx, tenantId, req.StepRunId, false)
+
+	if err != nil {
+		return nil, err
+	}
+
+	opts, err := i.toLogOpt(ctx, req, task)
+
+	if err != nil {
+		return nil, err
+	}
+
 	err = i.repov1.Logs().PutLog(ctx, tenantId, opts)
 
 	if err != nil {
@@ -133,4 +142,54 @@ func (i *IngestorImpl) putLogV1(ctx context.Context, tenant *dbsqlc.Tenant, req 
 	}
 
 	return &contracts.PutLogResponse{}, nil
+}
+
+func (i *IngestorImpl) putLogsV1(ctx context.Context, tenant *dbsqlc.Tenant, req *contracts.PutLogsRequest) (*contracts.PutLogsResponse, error) {
+	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+
+	if !i.isLogIngestionEnabled {
+		return &contracts.PutLogsResponse{}, nil
+	}
+
+	externalIds := make([]string, len(req.Logs))
+	for i, logReq := range req.Logs {
+		externalIds[i] = logReq.StepRunId
+	}
+
+	tasks, err := i.repov1.Tasks().FlattenExternalIds(ctx, tenantId, externalIds)
+
+	if err != nil {
+		return nil, err
+	}
+
+	externalIdToTask := make(map[string]*sqlcv1.FlattenExternalIdsRow)
+	for _, task := range tasks {
+		externalIdToTask[sqlchelpers.UUIDToStr(task.ExternalID)] = task
+	}
+
+	opts := make([]*v1.CreateLogLineOpts, len(req.Logs))
+
+	for ix, logReq := range req.Logs {
+		task, ok := externalIdToTask[logReq.StepRunId]
+
+		if !ok {
+			return nil, status.Errorf(codes.InvalidArgument, "No task found with external ID %s", logReq.StepRunId)
+		}
+
+		opt, err := i.toLogOpt(ctx, logReq, task)
+
+		if err != nil {
+			return nil, err
+		}
+
+		opts[ix] = opt
+	}
+
+	err = i.repov1.Logs().PutLogs(ctx, tenantId, opts)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &contracts.PutLogsResponse{}, nil
 }

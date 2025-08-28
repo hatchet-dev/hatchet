@@ -378,8 +378,6 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 }
 
 func (r *TaskRepositoryImpl) GetTaskByExternalId(ctx context.Context, tenantId, taskExternalId string, skipCache bool) (*sqlcv1.FlattenExternalIdsRow, error) {
-	r.l.Debug().Str("method", "GetTaskByExternalId").Str("taskExternalId", taskExternalId).Bool("skipCache", skipCache).Msg("loki-debug: retrieving task by external id")
-
 	if !skipCache {
 		// check the cache first
 		key := taskExternalIdTenantIdTuple{
@@ -397,8 +395,6 @@ func (r *TaskRepositoryImpl) GetTaskByExternalId(ctx context.Context, tenantId, 
 		Tenantid:    sqlchelpers.UUIDFromStr(tenantId),
 		Externalids: []pgtype.UUID{sqlchelpers.UUIDFromStr(taskExternalId)},
 	})
-
-	r.l.Debug().Bool("FlattenExternalIdsSucceeded", err == nil).Int("lenTasks", len(dbTasks)).Msg("loki-debug: executed FlattenExternalIds query")
 
 	if err != nil {
 		return nil, err

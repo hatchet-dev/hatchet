@@ -13,6 +13,8 @@ service EventsService {
 
     rpc PutLog(PutLogRequest) returns (PutLogResponse) {}
 
+    rpc PutLogs(PutLogsRequest) returns (PutLogsResponse) {}
+
     rpc PutStreamEvent(PutStreamEventRequest) returns (PutStreamEventResponse) {}
 }
 
@@ -65,6 +67,12 @@ message PutLogRequest {
 }
 
 message PutLogResponse {}
+
+message PutLogsRequest {
+    repeated PutLogRequest logs = 1;
+}
+
+message PutLogsResponse {}
 
 message PutStreamEventRequest {
     // the step run id for the request
