@@ -8,7 +8,6 @@ info:
 security:
   - bearerAuth: []
   - cookieAuth: []
-  - customAuth: []
 components:
   securitySchemes:
     bearerAuth:
@@ -19,9 +18,8 @@ components:
       in: cookie
       name: hatchet
     customAuth:
-      type: apiKey
-      in: header
-      name: Authorization
+      type: http
+      scheme: bearer
   schemas:
     $ref: "./components/schemas/_index.yaml"
 paths:

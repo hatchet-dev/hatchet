@@ -405,8 +405,22 @@ class Worker:
             logger.exception("error checking listener health")
 
     def _setup_signal_handlers(self) -> None:
-        signal.signal(signal.SIGTERM, self._handle_exit_signal)
-        signal.signal(signal.SIGINT, self._handle_exit_signal)
+        signal.signal(
+            signal.SIGTERM,
+            (
+                self._handle_force_quit_signal
+                if self.config.force_shutdown_on_shutdown_signal
+                else self._handle_exit_signal
+            ),
+        )
+        signal.signal(
+            signal.SIGINT,
+            (
+                self._handle_force_quit_signal
+                if self.config.force_shutdown_on_shutdown_signal
+                else self._handle_exit_signal
+            ),
+        )
         signal.signal(signal.SIGQUIT, self._handle_force_quit_signal)
 
     def _handle_exit_signal(self, signum: int, frame: FrameType | None) -> None:
@@ -416,7 +430,8 @@ class Worker:
             self.loop.create_task(self.exit_gracefully())
 
     def _handle_force_quit_signal(self, signum: int, frame: FrameType | None) -> None:
-        logger.info("received SIGQUIT...")
+        signal_received = signal.Signals(signum).name
+        logger.info(f"received {signal_received}...")
         if self.loop:
             self.loop.create_task(self._exit_forcefully())
 

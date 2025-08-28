@@ -11,7 +11,7 @@ import (
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 )
 
-const MAX_RATE_LIMIT_UPDATE_FREQUENCY = 990 * time.Millisecond // avoid boundary conditions on 1 second polls
+const MAX_RATE_LIMIT_UPDATE_FREQUENCY = 500 * time.Millisecond // avoid boundary conditions on 1 second polls
 
 type rateLimit struct {
 	key          string
@@ -283,6 +283,16 @@ func (r *rateLimiter) flushToDatabase(ctx context.Context) error {
 	r.dbRateLimitsMu.Lock()
 	defer r.dbRateLimitsMu.Unlock()
 
+	r.nextRefillAtMu.Lock()
+	defer r.nextRefillAtMu.Unlock()
+
+	// check the refill time to avoid unnecessary database calls
+	if r.nextRefillAt != nil {
+		if r.nextRefillAt.After(time.Now().UTC()) {
+			return nil
+		}
+	}
+
 	// copy the unflushed rate limits to a new map
 	updates := make(map[string]int)
 
@@ -303,10 +313,8 @@ func (r *rateLimiter) flushToDatabase(ctx context.Context) error {
 			nextRefillAt = &minRefillAt
 		}
 
-		// update the next refill time
-		r.nextRefillAtMu.Lock()
+		// update the next refill time; we already have the lock
 		r.nextRefillAt = nextRefillAt
-		r.nextRefillAtMu.Unlock()
 	}
 
 	r.dbRateLimits = make(rateLimitSet)

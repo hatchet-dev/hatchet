@@ -50,6 +50,15 @@ func (t *TenantService) TenantCreate(ctx echo.Context, request gen.TenantCreateR
 		Name: request.Body.Name,
 	}
 
+	if request.Body.OnboardingData != nil {
+		createOpts.OnboardingData = *request.Body.OnboardingData
+	}
+
+	if request.Body.Environment != nil {
+		environment := string(*request.Body.Environment)
+		createOpts.Environment = &environment
+	}
+
 	if t.config.Runtime.Limits.DefaultTenantRetentionPeriod != "" {
 		createOpts.DataRetentionPeriod = &t.config.Runtime.Limits.DefaultTenantRetentionPeriod
 	}
@@ -110,8 +119,9 @@ func (t *TenantService) TenantCreate(ctx echo.Context, request gen.TenantCreateR
 			"tenant_created": true,
 		},
 		map[string]interface{}{
-			"name": tenant.Name,
-			"slug": tenant.Slug,
+			"name":            tenant.Name,
+			"slug":            tenant.Slug,
+			"onboarding_data": createOpts.OnboardingData,
 		},
 	)
 

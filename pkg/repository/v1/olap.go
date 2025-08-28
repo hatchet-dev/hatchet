@@ -86,6 +86,8 @@ type ReadTaskRunMetricsOpts struct {
 	ParentTaskExternalID *pgtype.UUID
 
 	TriggeringEventExternalId *pgtype.UUID
+
+	AdditionalMetadata map[string]interface{}
 }
 
 type WorkflowRunData struct {
@@ -987,12 +989,22 @@ func (r *OLAPRepositoryImpl) ReadTaskRunMetrics(ctx context.Context, tenantId st
 		triggeringEventExternalId = *opts.TriggeringEventExternalId
 	}
 
+	var additionalMetaKeys []string
+	var additionalMetaValues []string
+
+	for key, value := range opts.AdditionalMetadata {
+		additionalMetaKeys = append(additionalMetaKeys, key)
+		additionalMetaValues = append(additionalMetaValues, value.(string))
+	}
+
 	params := sqlcv1.GetTenantStatusMetricsParams{
 		Tenantid:                  sqlchelpers.UUIDFromStr(tenantId),
 		Createdafter:              sqlchelpers.TimestamptzFromTime(opts.CreatedAfter),
 		WorkflowIds:               workflowIds,
 		ParentTaskExternalId:      parentTaskExternalId,
 		TriggeringEventExternalId: triggeringEventExternalId,
+		AdditionalMetaKeys:        additionalMetaKeys,
+		AdditionalMetaValues:      additionalMetaValues,
 	}
 
 	if opts.CreatedBefore != nil {

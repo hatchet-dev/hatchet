@@ -75,11 +75,25 @@ Title = str
 Content = str
 
 
+def dedent_code(code: str) -> str:
+    lines = code.split("\n")
+    if not lines:
+        return code
+
+    min_indent = min((len(line) - len(line.lstrip())) for line in lines if line.strip())
+
+    dedented_lines = [
+        line[min_indent:] if len(line) >= min_indent else line for line in lines
+    ]
+
+    return "\n".join(dedented_lines).strip() + "\n"
+
+
 def parse_snippet_from_block(match: re.Match[str]) -> tuple[Title, Content]:
     title = to_snake_case(match.group(1).strip())
-    code = match.group(2).strip()
+    code = match.group(2)
 
-    return title, code
+    return title, dedent_code(code)
 
 
 def parse_snippets(ctx: SDKParsingContext, filename: str) -> list[Snippet]:

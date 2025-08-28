@@ -2,11 +2,10 @@ package hatchet
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"reflect"
 	"time"
-
-	"github.com/go-viper/mapstructure/v2"
 
 	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	v0Client "github.com/hatchet-dev/hatchet/pkg/client"
@@ -58,24 +57,30 @@ func convertInputToType(input any, expectedType reflect.Type) reflect.Value {
 		return inputValue
 	}
 
-	// Use mapstructure for robust type conversion
-	result := reflect.New(expectedType).Interface()
-	config := &mapstructure.DecoderConfig{
-		TagName:          "json",
-		Result:           result,
-		WeaklyTypedInput: true,
+	// Try to convert using JSON marshal/unmarshal
+	if expectedType.Kind() == reflect.Struct {
+		// Marshal the input to JSON
+		jsonData, err := json.Marshal(input)
+		if err != nil {
+			// If marshaling fails, return the original input value
+			return reflect.ValueOf(input)
+		}
+
+		// Create a new instance of the expected type
+		result := reflect.New(expectedType)
+
+		// Unmarshal JSON into the new instance
+		err = json.Unmarshal(jsonData, result.Interface())
+		if err != nil {
+			// If unmarshaling fails, return the original input value
+			return reflect.ValueOf(input)
+		}
+
+		// Return the dereferenced value (not the pointer)
+		return result.Elem()
 	}
 
-	decoder, err := mapstructure.NewDecoder(config)
-	if err != nil {
-		return reflect.ValueOf(input)
-	}
-
-	if err := decoder.Decode(input); err != nil {
-		return reflect.ValueOf(input)
-	}
-
-	return reflect.ValueOf(result).Elem()
+	return reflect.ValueOf(input)
 }
 
 // Workflow defines a Hatchet workflow, which can then declare tasks and be run, scheduled, and so on.
