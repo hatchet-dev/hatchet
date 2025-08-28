@@ -36,9 +36,8 @@ func main() {
 	// Static Rate Limit
 	const RATE_LIMIT_KEY = "api-service-rate-limit"
 
-	staticWorkflow := client.NewWorkflow("static-rate-limit-demo")
 	units := 1
-	_ = staticWorkflow.NewTask("task1",
+	staticTask := client.NewStandaloneTask("task1",
 		func(ctx hatchet.Context, input APIRequest) (string, error) {
 			log.Println("executed task1")
 
@@ -51,11 +50,10 @@ func main() {
 	)
 
 	// Dynamic Rate Limit
-	dynamicWorkflow := client.NewWorkflow("dynamic-rate-limit-demo")
 	userUnits := 1
 	userLimit := "10"
 	duration := types.Minute
-	_ = dynamicWorkflow.NewTask("task2",
+	dynamicTask := client.NewStandaloneTask("task2",
 		func(ctx hatchet.Context, input APIRequest) (string, error) {
 			log.Printf("executed task2 for user: %s", input.UserID)
 
@@ -70,7 +68,7 @@ func main() {
 	)
 
 	worker, err := client.NewWorker("rate-limit-worker",
-		hatchet.WithWorkflows(staticWorkflow, dynamicWorkflow),
+		hatchet.WithWorkflows(staticTask, dynamicTask),
 	)
 	if err != nil {
 		log.Fatalf("failed to create worker: %v", err)

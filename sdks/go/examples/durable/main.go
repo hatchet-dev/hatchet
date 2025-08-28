@@ -25,10 +25,8 @@ func main() {
 		log.Fatalf("failed to create hatchet client: %v", err)
 	}
 
-	// Create a workflow with a durable task that can sleep
-	workflow := client.NewWorkflow("durable-workflow")
-
-	_ = workflow.NewDurableTask("long-running-task", func(ctx hatchet.DurableContext, input DurableInput) (DurableOutput, error) {
+	// Create a standalone durable task that can sleep
+	task := client.NewStandaloneDurableTask("long-running-task", func(ctx hatchet.DurableContext, input DurableInput) (DurableOutput, error) {
 		log.Printf("Starting task, will sleep for %d seconds", input.Delay)
 
 		// Durable sleep - this can be resumed if the worker restarts
@@ -45,7 +43,7 @@ func main() {
 	})
 
 	worker, err := client.NewWorker("durable-worker",
-		hatchet.WithWorkflows(workflow),
+		hatchet.WithWorkflows(task),
 		hatchet.WithDurableSlots(10), // Allow up to 10 concurrent durable tasks
 	)
 	if err != nil {

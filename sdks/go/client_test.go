@@ -23,7 +23,7 @@ type TestOutputStruct struct {
 func TestTaskOutput_WithMapResult(t *testing.T) {
 	// Test the core functionality with a map result (most common case)
 	expectedOutput := TestOutputStruct{
-		Value:  "test-value", 
+		Value:  "test-value",
 		Number: 42,
 	}
 
@@ -208,7 +208,7 @@ func TestTaskResult_Into_WithPointerToInterface(t *testing.T) {
 func TestTaskCompliesToNamedTaskInterface(t *testing.T) {
 	// Test that our Task struct correctly implements NamedTask interface
 	var _ NamedTask = &Task{name: "test"}
-	
+
 	task := &Task{name: "interface-test"}
 	if task.GetName() != "interface-test" {
 		t.Errorf("Expected name 'interface-test', got %s", task.GetName())

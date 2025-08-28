@@ -8,9 +8,11 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
+	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	v0Client "github.com/hatchet-dev/hatchet/pkg/client"
 	"github.com/hatchet-dev/hatchet/pkg/worker"
 	"github.com/hatchet-dev/hatchet/sdks/go/features"
+	"github.com/hatchet-dev/hatchet/sdks/go/internal"
 )
 
 // Client provides the main interface for interacting with Hatchet.
@@ -216,6 +218,162 @@ func (w *Worker) StartBlocking(ctx context.Context) error {
 // Workflows can be configured with triggers, events, and other options.
 func (c *Client) NewWorkflow(name string, options ...WorkflowOption) *Workflow {
 	return newWorkflow(name, c.legacyClient, options...)
+}
+
+// StandaloneTask represents a single task that runs independently without a workflow wrapper.
+// It's essentially a specialized workflow containing only one task.
+type StandaloneTask struct {
+	name     string
+	workflow *Workflow
+	task     *Task
+}
+
+// GetName returns the name of the standalone task.
+func (st *StandaloneTask) GetName() string {
+	return st.name
+}
+
+// NewStandaloneTask creates a standalone task that can be triggered independently.
+// This is a specialized workflow containing only one task, making it easier to create
+// simple single-task workflows without the workflow boilerplate.
+//
+// The function parameter must have the signature:
+//
+//	func(ctx hatchet.Context, input any) (any, error)
+//
+// Function signatures are validated at runtime using reflection.
+func (c *Client) NewStandaloneTask(name string, fn any, options ...TaskOption) *StandaloneTask {
+	if name == "" {
+		panic("standalone task name cannot be empty")
+	}
+
+	// Extract workflow-level options from task options
+	var workflowOptions []WorkflowOption
+	var taskOptions []TaskOption
+
+	for _, opt := range options {
+		config := &taskConfig{}
+		opt(config)
+
+		// Convert cron and events to workflow-level options
+		if len(config.onCron) > 0 {
+			workflowOptions = append(workflowOptions, WithWorkflowCron(config.onCron...))
+		}
+		if len(config.onEvents) > 0 {
+			workflowOptions = append(workflowOptions, WithWorkflowEvents(config.onEvents...))
+		}
+
+		// Keep other options as task options, but exclude cron/events since they're now workflow-level
+		taskOptions = append(taskOptions, func(tc *taskConfig) {
+			tc.retries = config.retries
+			tc.retryBackoffFactor = config.retryBackoffFactor
+			tc.retryMaxBackoffSeconds = config.retryMaxBackoffSeconds
+			tc.executionTimeout = config.executionTimeout
+			tc.scheduleTimeout = config.scheduleTimeout
+			tc.defaultFilters = config.defaultFilters
+			tc.concurrency = config.concurrency
+			tc.rateLimits = config.rateLimits
+			tc.isDurable = config.isDurable
+			tc.parents = config.parents
+			tc.waitFor = config.waitFor
+			tc.skipIf = config.skipIf
+		})
+	}
+
+	// Create a workflow with the same name as the task
+	workflow := c.NewWorkflow(name, workflowOptions...)
+
+	// Create the single task within the workflow
+	task := workflow.NewTask(name, fn, taskOptions...)
+
+	return &StandaloneTask{
+		name:     name,
+		workflow: workflow,
+		task:     task,
+	}
+}
+
+// NewStandaloneDurableTask creates a standalone durable task that can be triggered independently.
+// This is a specialized workflow containing only one durable task, making it easier to create
+// simple single-task workflows with durable functionality.
+//
+// The function parameter must have the signature:
+//
+//	func(ctx hatchet.DurableContext, input any) (any, error)
+//
+// Function signatures are validated at runtime using reflection.
+func (c *Client) NewStandaloneDurableTask(name string, fn any, options ...TaskOption) *StandaloneTask {
+	if name == "" {
+		panic("standalone durable task name cannot be empty")
+	}
+
+	// Extract workflow-level options from task options
+	var workflowOptions []WorkflowOption
+	var taskOptions []TaskOption
+
+	for _, opt := range options {
+		config := &taskConfig{}
+		opt(config)
+
+		// Convert cron and events to workflow-level options
+		if len(config.onCron) > 0 {
+			workflowOptions = append(workflowOptions, WithWorkflowCron(config.onCron...))
+		}
+		if len(config.onEvents) > 0 {
+			workflowOptions = append(workflowOptions, WithWorkflowEvents(config.onEvents...))
+		}
+
+		// Keep other options as task options, but exclude cron/events since they're now workflow-level
+		taskOptions = append(taskOptions, func(tc *taskConfig) {
+			tc.retries = config.retries
+			tc.retryBackoffFactor = config.retryBackoffFactor
+			tc.retryMaxBackoffSeconds = config.retryMaxBackoffSeconds
+			tc.executionTimeout = config.executionTimeout
+			tc.scheduleTimeout = config.scheduleTimeout
+			tc.defaultFilters = config.defaultFilters
+			tc.concurrency = config.concurrency
+			tc.rateLimits = config.rateLimits
+			tc.isDurable = config.isDurable
+			tc.parents = config.parents
+			tc.waitFor = config.waitFor
+			tc.skipIf = config.skipIf
+		})
+	}
+
+	// Create a workflow with the same name as the task
+	workflow := c.NewWorkflow(name, workflowOptions...)
+
+	// Create the single durable task within the workflow
+	task := workflow.NewDurableTask(name, fn, taskOptions...)
+
+	return &StandaloneTask{
+		name:     name,
+		workflow: workflow,
+		task:     task,
+	}
+}
+
+// Run executes the standalone task with the provided input and waits for completion.
+func (st *StandaloneTask) Run(ctx context.Context, input any) (*TaskResult, error) {
+	result, err := st.workflow.Run(ctx, input)
+	if err != nil {
+		return nil, err
+	}
+
+	// Extract the task result from the workflow result
+	taskResult := result.TaskOutput(st.task)
+	return taskResult, nil
+}
+
+// RunNoWait executes the standalone task with the provided input without waiting for completion.
+// Returns a workflow run reference that can be used to track the run status.
+func (st *StandaloneTask) RunNoWait(ctx context.Context, input any) (*WorkflowRef, error) {
+	return st.workflow.RunNoWait(ctx, input)
+}
+
+// Dump implements the WorkflowBase interface for internal use, delegating to the underlying workflow.
+func (st *StandaloneTask) Dump() (*contracts.CreateWorkflowVersionRequest, []internal.NamedFunction, []internal.NamedFunction, internal.WrappedTaskFn) {
+	return st.workflow.Dump()
 }
 
 // NamedTask represents any task that has a name.

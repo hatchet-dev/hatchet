@@ -21,16 +21,15 @@ func main() {
 		log.Fatalf("failed to create hatchet client: %v", err)
 	}
 
-	// Create a simple workflow with one task
-	workflow := client.NewWorkflow("simple-workflow")
-	_ = workflow.NewTask("process-message", func(ctx hatchet.Context, input SimpleInput) (SimpleOutput, error) {
+	// Create a simple standalone task (no workflow wrapper needed)
+	task := client.NewStandaloneTask("process-message", func(ctx hatchet.Context, input SimpleInput) (SimpleOutput, error) {
 		return SimpleOutput{
 			Result: "Processed: " + input.Message,
 		}, nil
 	})
 
-	// Create a worker to run the workflow
-	worker, err := client.NewWorker("simple-worker", hatchet.WithWorkflows(workflow))
+	// Create a worker to run the standalone task
+	worker, err := client.NewWorker("simple-worker", hatchet.WithWorkflows(task))
 	if err != nil {
 		log.Fatalf("failed to create worker: %v", err)
 	}
