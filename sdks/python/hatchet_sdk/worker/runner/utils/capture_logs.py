@@ -90,7 +90,9 @@ class LogBuffer(BaseModel):
 
         oldest_ts = min(r.timestamp for r in self.records)
 
-        return datetime.now(UTC) - oldest_ts > timedelta(minutes=1)
+        return datetime.now(UTC) - oldest_ts > timedelta(
+            seconds=config.log_flush_interval_seconds
+        )
 
 
 class AsyncLogSender:

@@ -5,7 +5,14 @@ All notable changes to Hatchet's Python SDK will be documented in this changelog
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.18.0] - 2025-08-26
+## [1.18.2] - 2025-08-30
+
+### Added
+
+- Internally buffers log messages to reduce the number of requests made to the engine for log capture
+- Adds `HATCHET_CLIENT_LOG_BUFFER_SIZE` and `HATCHET_CLIENT_LOG_FLUSH_INTERVAL_SECONDS` environment variables to configure the log buffer size and flush interval, respectively.
+
+## [1.18.1] - 2025-08-26
 
 ### Added
 

@@ -83,9 +83,12 @@ class ClientConfig(BaseSettings):
     enable_thread_pool_monitoring: bool = False
 
     terminate_worker_after_num_tasks: int | None = None
+
     disable_log_capture: bool = False
     log_queue_size: int = 1000
     log_buffer_size: int = 100
+    log_flush_interval_seconds: int = 5
+
     grpc_enable_fork_support: bool = False
     force_shutdown_on_shutdown_signal: bool = False
 
