@@ -47,17 +47,16 @@ type PayloadStoreRepository interface {
 	Retrieve(ctx context.Context, opts RetrievePayloadOpts) ([]byte, error)
 	BulkRetrieve(ctx context.Context, opts ...RetrievePayloadOpts) (map[RetrievePayloadOpts][]byte, error)
 	ProcessPayloadWAL(ctx context.Context, partitionNumber int32) (bool, error)
-	OverwriteExternalStore(store ExternalStore, externalStoreLocationName string, nativeStoreTTL time.Duration)
+	OverwriteExternalStore(store ExternalStore, nativeStoreTTL time.Duration)
 }
 
 type payloadStoreRepositoryImpl struct {
-	pool                      *pgxpool.Pool
-	l                         *zerolog.Logger
-	queries                   *sqlcv1.Queries
-	externalStoreEnabled      bool
-	externalStoreLocationName *string
-	nativeStoreTTL            *time.Duration
-	externalStore             ExternalStore
+	pool                 *pgxpool.Pool
+	l                    *zerolog.Logger
+	queries              *sqlcv1.Queries
+	externalStoreEnabled bool
+	nativeStoreTTL       *time.Duration
+	externalStore        ExternalStore
 }
 
 func NewPayloadStoreRepository(
@@ -71,10 +70,9 @@ func NewPayloadStoreRepository(
 		queries: queries,
 
 		// TODO: implement these + maybe make configurable
-		externalStoreEnabled:      false,
-		externalStoreLocationName: nil,
-		nativeStoreTTL:            nil,
-		externalStore:             &NoOpExternalStore{},
+		externalStoreEnabled: false,
+		nativeStoreTTL:       nil,
+		externalStore:        &NoOpExternalStore{},
 	}
 }
 
@@ -376,9 +374,8 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadWAL(ctx context.Context, part
 	return hasMoreWALRecords, nil
 }
 
-func (p *payloadStoreRepositoryImpl) OverwriteExternalStore(store ExternalStore, externalStoreLocationName string, nativeStoreTTL time.Duration) {
+func (p *payloadStoreRepositoryImpl) OverwriteExternalStore(store ExternalStore, nativeStoreTTL time.Duration) {
 	p.externalStoreEnabled = true
-	p.externalStoreLocationName = &externalStoreLocationName
 	p.nativeStoreTTL = &nativeStoreTTL
 	p.externalStore = store
 }
