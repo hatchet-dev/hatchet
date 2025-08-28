@@ -47,7 +47,7 @@ type PayloadStoreRepository interface {
 	Retrieve(ctx context.Context, opts RetrievePayloadOpts) ([]byte, error)
 	BulkRetrieve(ctx context.Context, opts ...RetrievePayloadOpts) (map[RetrievePayloadOpts][]byte, error)
 	ProcessPayloadWAL(ctx context.Context, partitionNumber int32) (bool, error)
-	OverwriteExternalStore(store ExternalStore, nativeStoreTTL time.Duration)
+	OverwriteExternalStore(store ExternalStore, inlineStoreTTL time.Duration)
 }
 
 type payloadStoreRepositoryImpl struct {
@@ -55,7 +55,7 @@ type payloadStoreRepositoryImpl struct {
 	l                    *zerolog.Logger
 	queries              *sqlcv1.Queries
 	externalStoreEnabled bool
-	nativeStoreTTL       *time.Duration
+	inlineStoreTTL       *time.Duration
 	externalStore        ExternalStore
 }
 
@@ -69,9 +69,8 @@ func NewPayloadStoreRepository(
 		l:       l,
 		queries: queries,
 
-		// TODO: implement these + maybe make configurable
 		externalStoreEnabled: false,
-		nativeStoreTTL:       nil,
+		inlineStoreTTL:       nil,
 		externalStore:        &NoOpExternalStore{},
 	}
 }
@@ -94,7 +93,7 @@ func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx sqlcv1.DBTX, 
 		locations[i] = string(sqlcv1.V1PayloadLocationINLINE)
 
 		if p.externalStoreEnabled {
-			offloadAts[i] = pgtype.Timestamptz{Time: payload.InsertedAt.Time.Add(*p.nativeStoreTTL), Valid: true}
+			offloadAts[i] = pgtype.Timestamptz{Time: payload.InsertedAt.Time.Add(*p.inlineStoreTTL), Valid: true}
 		} else {
 			offloadAts[i] = pgtype.Timestamptz{Time: time.Now(), Valid: true}
 		}
@@ -374,9 +373,9 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadWAL(ctx context.Context, part
 	return hasMoreWALRecords, nil
 }
 
-func (p *payloadStoreRepositoryImpl) OverwriteExternalStore(store ExternalStore, nativeStoreTTL time.Duration) {
+func (p *payloadStoreRepositoryImpl) OverwriteExternalStore(store ExternalStore, inlineStoreTTL time.Duration) {
 	p.externalStoreEnabled = true
-	p.nativeStoreTTL = &nativeStoreTTL
+	p.inlineStoreTTL = &inlineStoreTTL
 	p.externalStore = store
 }
 
