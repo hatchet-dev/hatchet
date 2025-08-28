@@ -38,7 +38,7 @@ func main() {
 		hatchet.WithWorkflowVersion("1.0.0"),
 	)
 
-	_ = childWorkflow.NewTask("process-value", func(ctx hatchet.Context, input ChildInput) (ChildOutput, error) {
+	processValueTask := childWorkflow.NewTask("process-value", func(ctx hatchet.Context, input ChildInput) (ChildOutput, error) {
 		log.Printf("Child workflow processing value: %d", input.Value)
 
 		// Simulate some processing
@@ -72,7 +72,8 @@ func main() {
 			}
 
 			var childOutput ChildOutput
-			err = childResult.Into(&childOutput)
+			taskResult := childResult.TaskOutput(processValueTask)
+			err = taskResult.Into(&childOutput)
 			if err != nil {
 				return ParentOutput{}, fmt.Errorf("failed to get child workflow result: %w", err)
 			}

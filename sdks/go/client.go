@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/go-viper/mapstructure/v2"
 	"golang.org/x/sync/errgroup"
 
 	v0Client "github.com/hatchet-dev/hatchet/pkg/client"
@@ -219,6 +218,11 @@ func (c *Client) NewWorkflow(name string, options ...WorkflowOption) *Workflow {
 	return newWorkflow(name, c.legacyClient, options...)
 }
 
+// NamedTask represents any task that has a name.
+type NamedTask interface {
+	GetName() string
+}
+
 // WorkflowRef is a type that represents a reference to a workflow run.
 type WorkflowRef struct {
 	RunId string
@@ -229,70 +233,75 @@ type WorkflowResult struct {
 	result any
 }
 
-// Into converts the workflow result into the provided destination using mapstructure.
-// The destination should be a pointer to the desired type.
+// TaskResult wraps a single task's output and provides type-safe conversion methods.
+type TaskResult struct {
+	result any
+}
+
+// TaskOutput extracts the output of a specific task from the workflow result.
+// Returns a TaskResult that can be used to convert the task output into the desired type.
 //
 // Example usage:
 //
+//	taskResult := workflowResult.TaskOutput(myTask)
 //	var output MyOutputType
-//	err := result.Into(&output)
-func (wr *WorkflowResult) Into(dest any) error {
+//	err := taskResult.Into(&output)
+func (wr *WorkflowResult) TaskOutput(task NamedTask) *TaskResult {
 	// Handle different result structures that might come from workflow execution
 	resultData := wr.result
 
 	// Check if this is a raw v0Client.WorkflowResult that we need to extract from
 	if workflowResult, ok := resultData.(*v0Client.WorkflowResult); ok {
-		// For workflows with a single task, extract the first (and likely only) task result
 		// Try to get the workflow results as a map
 		results, err := workflowResult.Results()
 		if err != nil {
-			return fmt.Errorf("failed to get workflow results: %w", err)
+			// Return empty TaskResult if we can't extract results
+			return &TaskResult{result: nil}
 		}
 		resultData = results
 	}
+
+	// If the result is a map, look for the specific task
+	if resultMap, ok := resultData.(map[string]any); ok {
+		if taskOutput, exists := resultMap[task.GetName()]; exists {
+			return &TaskResult{result: taskOutput}
+		}
+	}
+
+	// If we can't find the specific task, return the entire result
+	// This handles cases where there's only one task
+	return &TaskResult{result: resultData}
+}
+
+// Into converts the task result into the provided destination using JSON marshal/unmarshal.
+// The destination should be a pointer to the desired type.
+//
+// Example usage:
+//
+//	var output MyOutputType
+//	err := taskResult.Into(&output)
+func (tr *TaskResult) Into(dest any) error {
+	// Handle different result structures that might come from task execution
+	resultData := tr.result
 
 	// If the result is a pointer to interface{}, dereference it
 	if ptr, ok := resultData.(*any); ok && ptr != nil {
 		resultData = *ptr
 	}
 
-	// If the result is a map, it might contain step results - try to extract the main result
-	if resultMap, ok := resultData.(map[string]any); ok {
-		// For workflows with a single task output, try to find the task result
-		// First, check if there's a direct value that matches our destination type
-		if len(resultMap) == 1 {
-			for _, value := range resultMap {
-				resultData = value
-				// If the value is a pointer to interface{}, dereference it
-				if ptr, ok := resultData.(*any); ok && ptr != nil {
-					resultData = *ptr
-				}
-				// If the value is a pointer to string (JSON), unmarshal it
-				if strPtr, ok := resultData.(*string); ok && strPtr != nil {
-					var unmarshaled any
-					if err := json.Unmarshal([]byte(*strPtr), &unmarshaled); err != nil {
-						return fmt.Errorf("failed to unmarshal JSON result: %w", err)
-					}
-					resultData = unmarshaled
-				}
-				break
-			}
-		}
+	// If the result is a pointer to string (JSON), unmarshal it directly
+	if strPtr, ok := resultData.(*string); ok && strPtr != nil {
+		return json.Unmarshal([]byte(*strPtr), dest)
 	}
 
-	config := &mapstructure.DecoderConfig{
-		TagName:          "json",
-		Result:           dest,
-		WeaklyTypedInput: true,
-	}
-
-	decoder, err := mapstructure.NewDecoder(config)
+	// Convert the result to JSON and then unmarshal to destination
+	jsonData, err := json.Marshal(resultData)
 	if err != nil {
-		return fmt.Errorf("failed to create decoder: %w", err)
+		return fmt.Errorf("failed to marshal result to JSON: %w", err)
 	}
 
-	if err := decoder.Decode(resultData); err != nil {
-		return fmt.Errorf("failed to decode result: %w", err)
+	if err := json.Unmarshal(jsonData, dest); err != nil {
+		return fmt.Errorf("failed to unmarshal JSON to destination: %w", err)
 	}
 
 	return nil
