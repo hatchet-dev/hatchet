@@ -12,6 +12,7 @@ import queryClient from '@/query-client';
 import { ConfirmDialog } from '@/components/v1/molecules/confirm-dialog';
 import { useState } from 'react';
 import useApiMeta from '@/pages/auth/hooks/use-api-meta';
+import useCloudApiMeta from '@/pages/auth/hooks/use-cloud-api-meta';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 
 // Component for handling member actions
@@ -29,6 +30,7 @@ function MemberActions({
   const { handleApiError } = useApiError({});
   const { tenantId } = useCurrentTenantId();
   const meta = useApiMeta();
+  const cloudMeta = useCloudApiMeta();
 
   const deleteMemberMutation = useMutation({
     mutationKey: ['tenant-member:delete', tenantId],
@@ -43,8 +45,13 @@ function MemberActions({
     onError: handleApiError,
   });
 
+  const isCloudEnabled = !!cloudMeta?.data;
+  const isOwnerRole = member.role === 'OWNER';
+
   const canDeleteMember =
-    member.user.email !== user?.email && meta.data?.allowInvites;
+    member.user.email !== user?.email &&
+    meta.data?.allowInvites &&
+    !(isCloudEnabled && isOwnerRole); // Hide delete option for OWNER in cloud mode
 
   const canChangePassword =
     member.user.email === user?.email && meta.data?.allowChangePassword;

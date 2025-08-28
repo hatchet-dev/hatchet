@@ -1,6 +1,6 @@
 import { Button } from '@/components/v1/ui/button';
 import { Separator } from '@/components/v1/ui/separator';
-import { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { CreateInviteForm } from './components/create-invite-form';
 import { useApiError } from '@/lib/hooks';
 import { useMutation, useQuery } from '@tanstack/react-query';
@@ -23,7 +23,9 @@ import { DeleteInviteForm } from './components/delete-invite-form';
 import { ChangePasswordDialog } from './components/change-password-dialog';
 import { AxiosError } from 'axios';
 import useApiMeta from '@/pages/auth/hooks/use-api-meta';
+import useCloudApiMeta from '@/pages/auth/hooks/use-cloud-api-meta';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
+import { cloudApi } from '@/lib/api/api';
 
 export default function Members() {
   const meta = useApiMeta();
@@ -108,27 +110,81 @@ function UpdateMember({
   onSuccess: () => void;
 }) {
   const { tenantId } = useCurrentTenantId();
+  const cloudMeta = useCloudApiMeta();
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const { handleApiError } = useApiError({
     setFieldErrors: setFieldErrors,
   });
 
+  // Get organization list to find which org this tenant belongs to
+  const organizationListQuery = useQuery({
+    queryKey: ['organization:list'],
+    queryFn: async () => {
+      const result = await cloudApi.organizationList();
+      return result.data;
+    },
+    enabled: !!cloudMeta?.data,
+  });
+
+  // Check if this is a cloud tenant and if we're trying to modify an OWNER
+  const isCloudEnabled = !!cloudMeta?.data;
+  const isOwnerRole = member.role === 'OWNER';
+
+  // Find the organization ID for this tenant
+  const organizationId = useMemo(() => {
+    if (!organizationListQuery.data?.rows) {
+      return null;
+    }
+
+    const org = organizationListQuery.data.rows.find((org) =>
+      org.tenants?.some((tenant) => tenant.id === tenantId),
+    );
+
+    return org?.metadata.id || null;
+  }, [organizationListQuery.data, tenantId]);
+
+  // If it's cloud-enabled and the member is an OWNER, redirect to org settings
+  useEffect(() => {
+    if (isCloudEnabled && isOwnerRole && organizationId) {
+      window.location.href = `/organization/${organizationId}/settings`;
+      onClose();
+    }
+  }, [isCloudEnabled, isOwnerRole, organizationId, onClose]);
+
   const updateMutation = useMutation({
     mutationKey: ['tenant-member:update', tenantId, member.metadata.id],
     mutationFn: async (data: { role: TenantMemberRole }) => {
+      // Don't allow OWNER role changes in cloud mode
+      if (isCloudEnabled && data.role === 'OWNER') {
+        throw new Error(
+          'OWNER role management must be done through Organization Settings',
+        );
+      }
       await api.tenantMemberUpdate(tenantId, member.metadata.id, data);
     },
     onSuccess: onSuccess,
     onError: handleApiError,
   });
 
+  // Don't render the dialog if we're redirecting
+  if (isCloudEnabled && isOwnerRole) {
+    return null;
+  }
+
   return (
     <Dialog open={true} onOpenChange={onClose}>
       <UpdateMemberForm
         isLoading={updateMutation.isPending}
-        onSubmit={updateMutation.mutate}
+        onSubmit={(data) => {
+          // Prevent OWNER role assignment in cloud mode
+          if (isCloudEnabled && data.role === 'OWNER') {
+            return;
+          }
+          updateMutation.mutate(data);
+        }}
         fieldErrors={fieldErrors}
         member={member}
+        isCloudEnabled={isCloudEnabled}
       />
     </Dialog>
   );

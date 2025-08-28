@@ -10,6 +10,15 @@
  * ---------------------------------------------------------------
  */
 
+export enum TenantStatus {
+  Active = "active",
+  Archived = "archived",
+}
+
+export enum OrganizationMemberType {
+  OWNER = "OWNER",
+}
+
 export enum TemplateOptions {
   QUICKSTART_PYTHON = "QUICKSTART_PYTHON",
   QUICKSTART_TYPESCRIPT = "QUICKSTART_TYPESCRIPT",
@@ -107,78 +116,13 @@ export interface APICloudMetadata {
   inactivityLogoutMs?: number;
 }
 
-export interface APIErrors {
-  errors: APIError[];
-}
+export type APIErrors = any;
 
-export interface APIError {
-  /**
-   * a custom Hatchet error code
-   * @format uint64
-   * @example 1400
-   */
-  code?: number;
-  /**
-   * the field that this error is associated with, if applicable
-   * @example "name"
-   */
-  field?: string;
-  /**
-   * a description for this error
-   * @example "A descriptive error message"
-   */
-  description: string;
-  /**
-   * a link to the documentation for this error, if it exists
-   * @example "github.com/hatchet-dev/hatchet"
-   */
-  docs_link?: string;
-}
+export type APIError = any;
 
-/** @example {"next_page":3,"num_pages":10,"current_page":2} */
-export interface PaginationResponse {
-  /**
-   * the current page
-   * @format int64
-   * @example 2
-   */
-  current_page?: number;
-  /**
-   * the next page
-   * @format int64
-   * @example 3
-   */
-  next_page?: number;
-  /**
-   * the total number of pages for listing
-   * @format int64
-   * @example 10
-   */
-  num_pages?: number;
-}
+export type PaginationResponse = any;
 
-export interface APIResourceMeta {
-  /**
-   * the id of this resource, in UUID format
-   * @format uuid
-   * @minLength 36
-   * @maxLength 36
-   * @example "bb214807-246e-43a5-a25d-41761d1cff9e"
-   */
-  id: string;
-  /**
-   * the time that this resource was created
-   * @format date-time
-   * @example "2022-12-13T20:06:48.888Z"
-   */
-  createdAt: string;
-  /**
-   * the time that this resource was last updated
-   * @format date-time
-   * @example "2022-12-13T20:06:48.888Z"
-   */
-  updatedAt: string;
-}
+export type APIResourceMeta = any;
 
 export interface GithubBranch {
   branch_name: string;
@@ -654,4 +598,116 @@ export interface MonthlyComputeCost {
   cost: number;
   hasCreditsRemaining: boolean;
   creditsRemaining?: number;
+}
+
+export interface Organization {
+  metadata: APIResourceMeta;
+  /** Name of the organization */
+  name: string;
+  /** Unique slug of the organization */
+  slug: string;
+  tenants?: OrganizationTenant[];
+  members?: OrganizationMember[];
+}
+
+export interface OrganizationList {
+  rows: Organization[];
+  pagination: PaginationResponse;
+}
+
+export interface CreateOrganizationRequest {
+  /**
+   * Name of the organization
+   * @minLength 1
+   * @maxLength 256
+   */
+  name: string;
+}
+
+export interface UpdateOrganizationRequest {
+  /**
+   * Name of the organization
+   * @minLength 1
+   * @maxLength 256
+   */
+  name: string;
+}
+
+export interface OrganizationMember {
+  metadata: APIResourceMeta;
+  /**
+   * ID of the user
+   * @format uuid
+   */
+  userId: string;
+  /** Type/role of the member in the organization */
+  memberType: OrganizationMemberType;
+}
+
+export interface OrganizationMemberList {
+  rows: OrganizationMember[];
+  pagination: PaginationResponse;
+}
+
+export interface AddOrganizationMembersRequest {
+  /**
+   * Array of user IDs to add to the organization
+   * @minItems 1
+   */
+  userIds: string[];
+}
+
+export interface RemoveOrganizationMembersRequest {
+  /**
+   * Array of user IDs to remove from the organization
+   * @minItems 1
+   */
+  userIds: string[];
+}
+
+export interface OrganizationTenant {
+  /**
+   * ID of the tenant
+   * @format uuid
+   */
+  id: string;
+  /** Status of the tenant */
+  status: TenantStatus;
+  /**
+   * The timestamp at which the tenant was archived
+   * @format date-time
+   */
+  archivedAt?: string;
+}
+
+export interface OrganizationTenantList {
+  rows: OrganizationTenant[];
+}
+
+export interface CreateNewTenantForOrganizationRequest {
+  /** The name of the tenant. */
+  name: string;
+  /** The slug of the tenant. */
+  slug: string;
+}
+
+export type APIToken = any;
+
+export type APITokenList = any;
+
+export type CreateTenantAPITokenRequest = any;
+
+export type CreateTenantAPITokenResponse = any;
+
+export interface User {
+  /**
+   * ID of the user
+   * @format uuid
+   */
+  id: string;
+  /**
+   * Email of the user
+   * @format email
+   */
+  email: string;
 }

@@ -14,10 +14,14 @@ import {
   APICloudMetadata,
   APIError,
   APIErrors,
+  APITokenList,
   Build,
   CreateManagedWorkerFromTemplateRequest,
   CreateManagedWorkerRequest,
+  CreateNewTenantForOrganizationRequest,
   CreateOrUpdateAutoscalingRequest,
+  CreateTenantAPITokenRequest,
+  CreateTenantAPITokenResponse,
   FeatureFlags,
   InfraAsCodeRequest,
   InstanceList,
@@ -30,6 +34,9 @@ import {
   ManagedWorkerList,
   Matrix,
   MonthlyComputeCost,
+  Organization,
+  OrganizationList,
+  OrganizationTenant,
   RuntimeConfigActionsResponse,
   TenantBillingState,
   TenantSubscription,
@@ -427,6 +434,63 @@ export class Api<
       ...params,
     });
   /**
+   * @description Get all instances for a managed worker
+   *
+   * @tags Managed Worker
+   * @name ManagedWorkerInstancesList
+   * @summary List Instances
+   * @request GET:/api/v1/cloud/managed-worker/{managed-worker}/instances
+   * @secure
+   */
+  managedWorkerInstancesList = (
+    managedWorker: string,
+    params: RequestParams = {},
+  ) =>
+    this.request<InstanceList, APIErrors>({
+      path: `/api/v1/cloud/managed-worker/${managedWorker}/instances`,
+      method: "GET",
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Get a build
+   *
+   * @tags Build
+   * @name BuildGet
+   * @summary Get Build
+   * @request GET:/api/v1/cloud/build/{build}
+   * @secure
+   */
+  buildGet = (build: string, params: RequestParams = {}) =>
+    this.request<Build, APIErrors>({
+      path: `/api/v1/cloud/build/${build}`,
+      method: "GET",
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Get events for a managed worker
+   *
+   * @tags Managed Worker
+   * @name ManagedWorkerEventsList
+   * @summary Get Managed Worker Events
+   * @request GET:/api/v1/cloud/managed-worker/{managed-worker}/events
+   * @secure
+   */
+  managedWorkerEventsList = (
+    managedWorker: string,
+    params: RequestParams = {},
+  ) =>
+    this.request<ManagedWorkerEventList, APIErrors>({
+      path: `/api/v1/cloud/managed-worker/${managedWorker}/events`,
+      method: "GET",
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
    * @description Get CPU metrics for a managed worker
    *
    * @tags Metrics
@@ -526,6 +590,41 @@ export class Api<
       ...params,
     });
   /**
+   * @description Get a minute by minute breakdown of workflow run metrics for a tenant
+   *
+   * @tags Workflow
+   * @name WorkflowRunEventsGetMetrics
+   * @summary Get workflow runs
+   * @request GET:/api/v1/cloud/tenants/{tenant}/runs-metrics
+   * @secure
+   */
+  workflowRunEventsGetMetrics = (
+    tenant: string,
+    query?: {
+      /**
+       * The time after the workflow run was created
+       * @format date-time
+       * @example "2021-01-01T00:00:00Z"
+       */
+      createdAfter?: string;
+      /**
+       * The time before the workflow run was completed
+       * @format date-time
+       * @example "2021-01-01T00:00:00Z"
+       */
+      finishedBefore?: string;
+    },
+    params: RequestParams = {},
+  ) =>
+    this.request<WorkflowRunEventsMetricsCounts, APIErrors>({
+      path: `/api/v1/cloud/tenants/${tenant}/runs-metrics`,
+      method: "GET",
+      query: query,
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
    * @description Lists logs for a managed worker
    *
    * @tags Log
@@ -588,43 +687,6 @@ export class Api<
       ...params,
     });
   /**
-   * @description Get all instances for a managed worker
-   *
-   * @tags Managed Worker
-   * @name ManagedWorkerInstancesList
-   * @summary List Instances
-   * @request GET:/api/v1/cloud/managed-worker/{managed-worker}/instances
-   * @secure
-   */
-  managedWorkerInstancesList = (
-    managedWorker: string,
-    params: RequestParams = {},
-  ) =>
-    this.request<InstanceList, APIErrors>({
-      path: `/api/v1/cloud/managed-worker/${managedWorker}/instances`,
-      method: "GET",
-      secure: true,
-      format: "json",
-      ...params,
-    });
-  /**
-   * @description Get a build
-   *
-   * @tags Build
-   * @name BuildGet
-   * @summary Get Build
-   * @request GET:/api/v1/cloud/build/{build}
-   * @secure
-   */
-  buildGet = (build: string, params: RequestParams = {}) =>
-    this.request<Build, APIErrors>({
-      path: `/api/v1/cloud/build/${build}`,
-      method: "GET",
-      secure: true,
-      format: "json",
-      ...params,
-    });
-  /**
    * @description Get the build logs for a specific build of a managed worker
    *
    * @tags Log
@@ -642,23 +704,25 @@ export class Api<
       ...params,
     });
   /**
-   * @description Get events for a managed worker
+   * @description Push a log entry for the tenant
    *
-   * @tags Managed Worker
-   * @name ManagedWorkerEventsList
-   * @summary Get Managed Worker Events
-   * @request GET:/api/v1/cloud/managed-worker/{managed-worker}/events
+   * @tags Log
+   * @name LogCreate
+   * @summary Push Log Entry
+   * @request POST:/api/v1/cloud/tenants/{tenant}/logs
    * @secure
    */
-  managedWorkerEventsList = (
-    managedWorker: string,
+  logCreate = (
+    tenant: string,
+    data: VectorPushRequest,
     params: RequestParams = {},
   ) =>
-    this.request<ManagedWorkerEventList, APIErrors>({
-      path: `/api/v1/cloud/managed-worker/${managedWorker}/events`,
-      method: "GET",
+    this.request<void, APIErrors>({
+      path: `/api/v1/cloud/tenants/${tenant}/logs`,
+      method: "POST",
+      body: data,
       secure: true,
-      format: "json",
+      type: ContentType.Json,
       ...params,
     });
   /**
@@ -739,28 +803,6 @@ export class Api<
       ...params,
     });
   /**
-   * @description Push a log entry for the tenant
-   *
-   * @tags Log
-   * @name LogCreate
-   * @summary Push Log Entry
-   * @request POST:/api/v1/cloud/tenants/{tenant}/logs
-   * @secure
-   */
-  logCreate = (
-    tenant: string,
-    data: VectorPushRequest,
-    params: RequestParams = {},
-  ) =>
-    this.request<void, APIErrors>({
-      path: `/api/v1/cloud/tenants/${tenant}/logs`,
-      method: "POST",
-      body: data,
-      secure: true,
-      type: ContentType.Json,
-      ...params,
-    });
-  /**
    * @description Get all feature flags for the tenant
    *
    * @tags Feature Flags
@@ -773,41 +815,6 @@ export class Api<
     this.request<FeatureFlags, APIErrors>({
       path: `/api/v1/cloud/tenants/${tenant}/feature-flags`,
       method: "GET",
-      secure: true,
-      format: "json",
-      ...params,
-    });
-  /**
-   * @description Get a minute by minute breakdown of workflow run metrics for a tenant
-   *
-   * @tags Workflow
-   * @name WorkflowRunEventsGetMetrics
-   * @summary Get workflow runs
-   * @request GET:/api/v1/cloud/tenants/{tenant}/runs-metrics
-   * @secure
-   */
-  workflowRunEventsGetMetrics = (
-    tenant: string,
-    query?: {
-      /**
-       * The time after the workflow run was created
-       * @format date-time
-       * @example "2021-01-01T00:00:00Z"
-       */
-      createdAfter?: string;
-      /**
-       * The time before the workflow run was completed
-       * @format date-time
-       * @example "2021-01-01T00:00:00Z"
-       */
-      finishedBefore?: string;
-    },
-    params: RequestParams = {},
-  ) =>
-    this.request<WorkflowRunEventsMetricsCounts, APIErrors>({
-      path: `/api/v1/cloud/tenants/${tenant}/runs-metrics`,
-      method: "GET",
-      query: query,
       secure: true,
       format: "json",
       ...params,
@@ -832,6 +839,145 @@ export class Api<
       body: data,
       secure: true,
       type: ContentType.Json,
+      ...params,
+    });
+  /**
+   * @description List all organizations the authenticated user is a member of
+   *
+   * @name OrganizationList
+   * @summary List Organizations
+   * @request GET:/api/v1/management/organizations
+   * @secure
+   */
+  organizationList = (params: RequestParams = {}) =>
+    this.request<OrganizationList, APIError>({
+      path: `/api/v1/management/organizations`,
+      method: "GET",
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Get organization details
+   *
+   * @tags Management
+   * @name OrganizationGet
+   * @summary Get Organization
+   * @request GET:/api/v1/management/organizations/{organization}
+   * @secure
+   */
+  organizationGet = (organization: string, params: RequestParams = {}) =>
+    this.request<Organization, APIError>({
+      path: `/api/v1/management/organizations/${organization}`,
+      method: "GET",
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Create a new tenant in the organization
+   *
+   * @tags Management
+   * @name OrganizationCreateTenant
+   * @summary Create Tenant in Organization
+   * @request POST:/api/v1/management/organizations/{organization}/tenants
+   * @secure
+   */
+  organizationCreateTenant = (
+    organization: string,
+    data: CreateNewTenantForOrganizationRequest,
+    params: RequestParams = {},
+  ) =>
+    this.request<OrganizationTenant, APIError>({
+      path: `/api/v1/management/organizations/${organization}/tenants`,
+      method: "POST",
+      body: data,
+      secure: true,
+      type: ContentType.Json,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Delete (archive) a tenant in the organization
+   *
+   * @tags Management
+   * @name OrganizationTenantDelete
+   * @summary Delete Tenant in Organization
+   * @request DELETE:/api/v1/management/organization-tenants/{organization-tenant}
+   * @secure
+   */
+  organizationTenantDelete = (
+    organizationTenant: string,
+    params: RequestParams = {},
+  ) =>
+    this.request<OrganizationTenant, APIError>({
+      path: `/api/v1/management/organization-tenants/${organizationTenant}`,
+      method: "DELETE",
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description List all API tokens for a tenant
+   *
+   * @tags Management
+   * @name OrganizationTenantListApiTokens
+   * @summary List API Tokens for Tenant
+   * @request GET:/api/v1/management/organization-tenants/{organization-tenant}/api-tokens
+   * @secure
+   */
+  organizationTenantListApiTokens = (
+    organizationTenant: string,
+    params: RequestParams = {},
+  ) =>
+    this.request<APITokenList, APIError>({
+      path: `/api/v1/management/organization-tenants/${organizationTenant}/api-tokens`,
+      method: "GET",
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Create a new API token for a tenant
+   *
+   * @tags Management
+   * @name OrganizationTenantCreateApiToken
+   * @summary Create API Token for Tenant
+   * @request POST:/api/v1/management/organization-tenants/{organization-tenant}/api-tokens
+   * @secure
+   */
+  organizationTenantCreateApiToken = (
+    organizationTenant: string,
+    data: CreateTenantAPITokenRequest,
+    params: RequestParams = {},
+  ) =>
+    this.request<CreateTenantAPITokenResponse, APIError>({
+      path: `/api/v1/management/organization-tenants/${organizationTenant}/api-tokens`,
+      method: "POST",
+      body: data,
+      secure: true,
+      type: ContentType.Json,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Delete an API token for a tenant
+   *
+   * @tags Management
+   * @name OrganizationTenantDeleteApiToken
+   * @summary Delete API Token for Tenant
+   * @request DELETE:/api/v1/management/organization-tenants/{organization-tenant}/api-tokens/{api-token}
+   * @secure
+   */
+  organizationTenantDeleteApiToken = (
+    organizationTenant: string,
+    apiToken: string,
+    params: RequestParams = {},
+  ) =>
+    this.request<void, APIError>({
+      path: `/api/v1/management/organization-tenants/${organizationTenant}/api-tokens/${apiToken}`,
+      method: "DELETE",
+      secure: true,
       ...params,
     });
 }
