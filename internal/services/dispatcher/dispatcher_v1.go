@@ -233,10 +233,11 @@ func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *ms
 				Id:         task.ID,
 				InsertedAt: task.InsertedAt,
 				Type:       sqlcv1.V1PayloadTypeTASKINPUT,
+				TenantId:   task.TenantID,
 			}
 		}
 
-		inputs, err := d.repov1.Payloads().BulkRetrieve(ctx, msg.TenantID, retrivePayloadOpts...)
+		inputs, err := d.repov1.Payloads().BulkRetrieve(ctx, retrivePayloadOpts...)
 
 		if err != nil {
 			d.l.Error().Err(err).Msgf("could not bulk retrieve inputs for %d tasks", len(bulkDatas))
@@ -247,6 +248,7 @@ func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *ms
 				Id:         task.ID,
 				InsertedAt: task.InsertedAt,
 				Type:       sqlcv1.V1PayloadTypeTASKINPUT,
+				TenantId:   task.TenantID,
 			}]
 
 			if input == nil || !ok {
@@ -295,6 +297,7 @@ func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *ms
 					Id:         task.ID,
 					InsertedAt: task.InsertedAt,
 					Type:       sqlcv1.V1PayloadTypeTASKINPUT,
+					TenantId:   task.TenantID,
 				}] = currInput.Bytes()
 			}
 		}
@@ -306,6 +309,7 @@ func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *ms
 				Id:         task.ID,
 				InsertedAt: task.InsertedAt,
 				Type:       sqlcv1.V1PayloadTypeTASKINPUT,
+				TenantId:   task.TenantID,
 			}]
 
 			if input == nil || !ok {

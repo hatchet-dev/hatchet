@@ -1217,6 +1217,7 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 			InsertedAt: task.InsertedAt,
 			Type:       sqlcv1.V1PayloadTypeTASKINPUT,
 			Payload:    task.Payload,
+			TenantId:   tenantId,
 		})
 	}
 
@@ -1226,10 +1227,11 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 			InsertedAt: dag.InsertedAt,
 			Type:       sqlcv1.V1PayloadTypeDAGINPUT,
 			Payload:    dag.Input,
+			TenantId:   tenantId,
 		})
 	}
 
-	err = r.payloadStore.Store(ctx, tx, tenantId, storePayloadOpts...)
+	err = r.payloadStore.Store(ctx, tx, storePayloadOpts...)
 
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to store payloads: %w", err)

@@ -264,11 +264,12 @@ func (m *MatchRepositoryImpl) ProcessInternalEventMatches(ctx context.Context, t
 			InsertedAt: task.InsertedAt,
 			Type:       sqlcv1.V1PayloadTypeTASKINPUT,
 			Payload:    task.Payload,
+			TenantId:   task.TenantID.String(),
 		}
 	}
 
 	if len(storePayloadOpts) > 0 {
-		err = m.payloadStore.Store(ctx, tx, tenantId, storePayloadOpts...)
+		err = m.payloadStore.Store(ctx, tx, storePayloadOpts...)
 
 		if err != nil {
 			return nil, fmt.Errorf("failed to store payloads for created tasks for internal event matches: %w", err)
@@ -305,11 +306,12 @@ func (m *MatchRepositoryImpl) ProcessUserEventMatches(ctx context.Context, tenan
 			InsertedAt: task.InsertedAt,
 			Type:       sqlcv1.V1PayloadTypeTASKINPUT,
 			Payload:    task.Payload,
+			TenantId:   task.TenantID.String(),
 		}
 	}
 
 	if len(storePayloadOpts) > 0 {
-		err = m.payloadStore.Store(ctx, tx, tenantId, storePayloadOpts...)
+		err = m.payloadStore.Store(ctx, tx, storePayloadOpts...)
 
 		if err != nil {
 			return nil, fmt.Errorf("failed to store payloads for created tasks for user event matches: %w", err)

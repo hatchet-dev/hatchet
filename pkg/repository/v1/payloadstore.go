@@ -20,12 +20,14 @@ type StorePayloadOpts struct {
 	InsertedAt pgtype.Timestamptz
 	Type       sqlcv1.V1PayloadType
 	Payload    []byte
+	TenantId   string
 }
 
 type RetrievePayloadOpts struct {
 	Id         int64
 	InsertedAt pgtype.Timestamptz
 	Type       sqlcv1.V1PayloadType
+	TenantId   pgtype.UUID
 }
 
 type PayloadLocation string
@@ -42,16 +44,21 @@ type PayloadContent struct {
 	InlineContent       []byte                      `json:"inline_content,omitempty"`
 }
 
+type BulkRetrievePayloadOpts struct {
+	Keys     []ExternalPayloadLocationKey
+	TenantId string
+}
+
 type ExternalStore interface {
-	Store(ctx context.Context, tenantId string, payloads ...StorePayloadOpts) (map[RetrievePayloadOpts]ExternalPayloadLocationKey, error)
-	BulkRetrieve(ctx context.Context, tenantId string, keys ...ExternalPayloadLocationKey) (map[ExternalPayloadLocationKey][]byte, error)
+	Store(ctx context.Context, payloads ...StorePayloadOpts) (map[RetrievePayloadOpts]ExternalPayloadLocationKey, error)
+	BulkRetrieve(ctx context.Context, opts ...BulkRetrievePayloadOpts) (map[ExternalPayloadLocationKey][]byte, error)
 }
 
 type PayloadStoreRepository interface {
-	Store(ctx context.Context, tx sqlcv1.DBTX, tenantId string, payloads ...StorePayloadOpts) error
-	Retrieve(ctx context.Context, tenantId string, opts RetrievePayloadOpts) ([]byte, error)
-	BulkRetrieve(ctx context.Context, tenantId string, opts ...RetrievePayloadOpts) (map[RetrievePayloadOpts][]byte, error)
-	ProcessPayloadWAL(ctx context.Context, tenantId string) (bool, error)
+	Store(ctx context.Context, tx sqlcv1.DBTX, payloads ...StorePayloadOpts) error
+	Retrieve(ctx context.Context, opts RetrievePayloadOpts) ([]byte, error)
+	BulkRetrieve(ctx context.Context, opts ...RetrievePayloadOpts) (map[RetrievePayloadOpts][]byte, error)
+	ProcessPayloadWAL(ctx context.Context, partitionNumber int32) (bool, error)
 	OverwriteExternalStore(store ExternalStore, externalStoreLocationName string, nativeStoreTTL time.Duration)
 }
 
@@ -71,9 +78,11 @@ func NewPayloadStoreRepository(
 	queries *sqlcv1.Queries,
 ) PayloadStoreRepository {
 	return &payloadStoreRepositoryImpl{
-		pool:                      pool,
-		l:                         l,
-		queries:                   queries,
+		pool:    pool,
+		l:       l,
+		queries: queries,
+
+		// TODO: implement these + maybe make configurable
 		externalStoreEnabled:      false,
 		externalStoreLocationName: nil,
 		nativeStoreTTL:            nil,
@@ -134,18 +143,20 @@ func (p *payloadStoreRepositoryImpl) unmarshalPayloadContent(data []byte) (*Payl
 	return &content, nil
 }
 
-func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx sqlcv1.DBTX, tenantId string, payloads ...StorePayloadOpts) error {
+func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx sqlcv1.DBTX, payloads ...StorePayloadOpts) error {
 	taskIds := make([]int64, len(payloads))
 	taskInsertedAts := make([]pgtype.Timestamptz, len(payloads))
 	payloadTypes := make([]string, len(payloads))
 	payloadData := make([][]byte, len(payloads))
 	offloadAts := make([]pgtype.Timestamptz, len(payloads))
 	operations := make([]string, len(payloads))
+	tenantIds := make([]pgtype.UUID, len(payloads))
 
 	for i, payload := range payloads {
 		taskIds[i] = payload.Id
 		taskInsertedAts[i] = payload.InsertedAt
 		payloadTypes[i] = string(payload.Type)
+		tenantIds[i] = sqlchelpers.UUIDFromStr(payload.TenantId)
 
 		if p.externalStoreEnabled {
 			offloadAts[i] = pgtype.Timestamptz{Time: payload.InsertedAt.Time.Add(*p.nativeStoreTTL), Valid: true}
@@ -153,7 +164,7 @@ func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx sqlcv1.DBTX, 
 			offloadAts[i] = pgtype.Timestamptz{Time: time.Now(), Valid: true}
 		}
 
-		operations[i] = string(sqlcv1.V1PayloadWalOperationINSERT)
+		operations[i] = string(sqlcv1.V1PayloadWalOperationCREATE)
 
 		// Always store inline initially - offloading happens via cron job
 		content := PayloadContent{
@@ -168,7 +179,7 @@ func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx sqlcv1.DBTX, 
 	}
 
 	err := p.queries.WritePayloads(ctx, p.pool, sqlcv1.WritePayloadsParams{
-		Tenantid:    sqlchelpers.UUIDFromStr(tenantId),
+		Tenantids:   tenantIds,
 		Ids:         taskIds,
 		Insertedats: taskInsertedAts,
 		Types:       payloadTypes,
@@ -180,7 +191,7 @@ func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx sqlcv1.DBTX, 
 	}
 
 	err = p.queries.WritePayloadWAL(ctx, tx, sqlcv1.WritePayloadWALParams{
-		Tenantid:           sqlchelpers.UUIDFromStr(tenantId),
+		Tenantids:          tenantIds,
 		Payloadids:         taskIds,
 		Payloadinsertedats: taskInsertedAts,
 		Payloadtypes:       payloadTypes,
@@ -195,8 +206,8 @@ func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx sqlcv1.DBTX, 
 	return err
 }
 
-func (p *payloadStoreRepositoryImpl) Retrieve(ctx context.Context, tenantId string, opts RetrievePayloadOpts) ([]byte, error) {
-	payloadMap, err := p.BulkRetrieve(ctx, tenantId, opts)
+func (p *payloadStoreRepositoryImpl) Retrieve(ctx context.Context, opts RetrievePayloadOpts) ([]byte, error) {
+	payloadMap, err := p.BulkRetrieve(ctx, opts)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to read payload metadata: %w", err)
@@ -211,11 +222,11 @@ func (p *payloadStoreRepositoryImpl) Retrieve(ctx context.Context, tenantId stri
 	return payload, nil
 }
 
-func (p *payloadStoreRepositoryImpl) BulkRetrieve(ctx context.Context, tenantId string, opts ...RetrievePayloadOpts) (map[RetrievePayloadOpts][]byte, error) {
-	return p.bulkRetrieve(ctx, p.pool, tenantId, opts...)
+func (p *payloadStoreRepositoryImpl) BulkRetrieve(ctx context.Context, opts ...RetrievePayloadOpts) (map[RetrievePayloadOpts][]byte, error) {
+	return p.bulkRetrieve(ctx, p.pool, opts...)
 }
 
-func (p *payloadStoreRepositoryImpl) bulkRetrieve(ctx context.Context, tx sqlcv1.DBTX, tenantId string, opts ...RetrievePayloadOpts) (map[RetrievePayloadOpts][]byte, error) {
+func (p *payloadStoreRepositoryImpl) bulkRetrieve(ctx context.Context, tx sqlcv1.DBTX, opts ...RetrievePayloadOpts) (map[RetrievePayloadOpts][]byte, error) {
 	if len(opts) == 0 {
 		return make(map[RetrievePayloadOpts][]byte), nil
 	}
@@ -223,15 +234,17 @@ func (p *payloadStoreRepositoryImpl) bulkRetrieve(ctx context.Context, tx sqlcv1
 	taskIds := make([]int64, len(opts))
 	taskInsertedAts := make([]pgtype.Timestamptz, len(opts))
 	payloadTypes := make([]string, len(opts))
+	tenantIds := make([]pgtype.UUID, len(opts))
 
 	for i, opt := range opts {
 		taskIds[i] = opt.Id
 		taskInsertedAts[i] = opt.InsertedAt
 		payloadTypes[i] = string(opt.Type)
+		tenantIds[i] = opt.TenantId
 	}
 
 	payloads, err := p.queries.ReadPayloads(ctx, tx, sqlcv1.ReadPayloadsParams{
-		Tenantid:    sqlchelpers.UUIDFromStr(tenantId),
+		Tenantids:   tenantIds,
 		Ids:         taskIds,
 		Insertedats: taskInsertedAts,
 		Types:       payloadTypes,
@@ -244,7 +257,7 @@ func (p *payloadStoreRepositoryImpl) bulkRetrieve(ctx context.Context, tx sqlcv1
 	optsToPayload := make(map[RetrievePayloadOpts][]byte)
 
 	externalKeysToOpts := make(map[ExternalPayloadLocationKey]RetrievePayloadOpts)
-	externalKeys := make([]ExternalPayloadLocationKey, 0)
+	retrievePayloadOpts := make([]BulkRetrievePayloadOpts, 0)
 
 	for _, payload := range payloads {
 		if payload == nil {
@@ -260,18 +273,22 @@ func (p *payloadStoreRepositoryImpl) bulkRetrieve(ctx context.Context, tx sqlcv1
 			Id:         payload.ID,
 			InsertedAt: payload.InsertedAt,
 			Type:       payload.Type,
+			TenantId:   payload.TenantID,
 		}
 
 		if content.Location == PayloadLocationExternal && content.ExternalLocationKey != nil {
 			externalKeysToOpts[*content.ExternalLocationKey] = opts
-			externalKeys = append(externalKeys, *content.ExternalLocationKey)
+			retrievePayloadOpts = append(retrievePayloadOpts, BulkRetrievePayloadOpts{
+				Keys:     []ExternalPayloadLocationKey{*content.ExternalLocationKey},
+				TenantId: opts.TenantId.String(),
+			})
 		} else {
 			optsToPayload[opts] = content.InlineContent
 		}
 	}
 
-	if len(externalKeys) > 0 {
-		externalData, err := p.externalStore.BulkRetrieve(ctx, tenantId, externalKeys...)
+	if len(retrievePayloadOpts) > 0 {
+		externalData, err := p.externalStore.BulkRetrieve(ctx, retrievePayloadOpts...)
 		if err != nil {
 			return nil, fmt.Errorf("failed to retrieve external payloads: %w", err)
 		}
@@ -298,15 +315,26 @@ func (p *payloadStoreRepositoryImpl) bulkRetrieve(ctx context.Context, tx sqlcv1
 	return optsToPayload, nil
 }
 
-func (p *payloadStoreRepositoryImpl) offloadToExternal(ctx context.Context, tenantId string, payloads ...StorePayloadOpts) (map[RetrievePayloadOpts]ExternalPayloadLocationKey, error) {
+func (p *payloadStoreRepositoryImpl) offloadToExternal(ctx context.Context, payloads ...StorePayloadOpts) (map[RetrievePayloadOpts]ExternalPayloadLocationKey, error) {
 	if !p.externalStoreEnabled {
-		return nil, nil
+		retrieveOpts := make(map[RetrievePayloadOpts]ExternalPayloadLocationKey)
+
+		for _, opt := range payloads {
+			retrieveOpts[RetrievePayloadOpts{
+				Id:         opt.Id,
+				InsertedAt: opt.InsertedAt,
+				TenantId:   sqlchelpers.UUIDFromStr(opt.TenantId),
+				Type:       opt.Type,
+			}] = "placeholder"
+		}
+
+		return retrieveOpts, nil
 	}
 
-	return p.externalStore.Store(ctx, tenantId, payloads...)
+	return p.externalStore.Store(ctx, payloads...)
 }
 
-func (p *payloadStoreRepositoryImpl) ProcessPayloadWAL(ctx context.Context, tenantId string) (bool, error) {
+func (p *payloadStoreRepositoryImpl) ProcessPayloadWAL(ctx context.Context, partitionNumber int32) (bool, error) {
 	ctx, span := telemetry.NewSpan(ctx, "process-payload-wal")
 	defer span.End()
 
@@ -318,24 +346,13 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadWAL(ctx context.Context, tena
 
 	defer rollback()
 
-	advisoryLockAcquired, err := p.queries.TryAdvisoryLock(ctx, tx, hash("process-payload-wal"+tenantId))
-
-	if err != nil {
-		return false, fmt.Errorf("failed to acquire advisory lock: %w", err)
-	}
-
-	if !advisoryLockAcquired {
-		p.l.Debug().Msgf("could not acquire advisory lock for process payload wal, skipping")
-		return false, nil
-	}
-
 	pollLimit := 1000
 	leaseId := uuid.NewString()
 
 	walRecords, err := p.queries.PollPayloadWALForRecordsToOffload(ctx, tx, sqlcv1.PollPayloadWALForRecordsToOffloadParams{
-		Tenantid:  sqlchelpers.UUIDFromStr(tenantId),
-		Leaseid:   sqlchelpers.UUIDFromStr(leaseId),
-		Polllimit: int32(pollLimit),
+		Leaseid:         sqlchelpers.UUIDFromStr(leaseId),
+		Polllimit:       int32(pollLimit),
+		Partitionnumber: partitionNumber,
 	})
 
 	hasMoreWALRecords := len(walRecords) == pollLimit
@@ -356,13 +373,14 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadWAL(ctx context.Context, tena
 			Id:         record.PayloadID,
 			InsertedAt: record.PayloadInsertedAt,
 			Type:       record.PayloadType,
+			TenantId:   record.TenantID,
 		}
 
 		retrieveOpts[i] = opts
 		retrieveOptsToOffloadAt[opts] = record.OffloadAt
 	}
 
-	payloads, err := p.bulkRetrieve(ctx, tx, tenantId, retrieveOpts...)
+	payloads, err := p.bulkRetrieve(ctx, tx, retrieveOpts...)
 
 	if err != nil {
 		return false, err
@@ -377,6 +395,7 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadWAL(ctx context.Context, tena
 			InsertedAt: opts.InsertedAt,
 			Type:       opts.Type,
 			Payload:    payload,
+			TenantId:   opts.TenantId.String(),
 		})
 		retrieveOptsToPayload[opts] = payload
 	}
@@ -385,17 +404,18 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadWAL(ctx context.Context, tena
 		return false, err
 	}
 
-	retrieveOptsToStoredKey, err := p.offloadToExternal(ctx, tenantId, externalStoreOpts...)
+	retrieveOptsToStoredKey, err := p.offloadToExternal(ctx, externalStoreOpts...)
 
 	if err != nil {
 		return false, err
 	}
 
-	offloadAts := make([]pgtype.Timestamptz, len(retrieveOptsToStoredKey))
-	ids := make([]int64, len(retrieveOptsToStoredKey))
-	insertedAts := make([]pgtype.Timestamptz, len(retrieveOptsToStoredKey))
-	types := make([]string, len(retrieveOptsToStoredKey))
-	values := make([][]byte, len(retrieveOptsToStoredKey))
+	offloadAts := make([]pgtype.Timestamptz, 0, len(retrieveOptsToStoredKey))
+	ids := make([]int64, 0, len(retrieveOptsToStoredKey))
+	insertedAts := make([]pgtype.Timestamptz, 0, len(retrieveOptsToStoredKey))
+	types := make([]string, 0, len(retrieveOptsToStoredKey))
+	values := make([][]byte, 0, len(retrieveOptsToStoredKey))
+	tenantIds := make([]pgtype.UUID, 0, len(retrieveOptsToStoredKey))
 
 	for opt := range retrieveOptsToStoredKey {
 		offloadAt, exists := retrieveOptsToOffloadAt[opt]
@@ -415,6 +435,7 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadWAL(ctx context.Context, tena
 		insertedAts = append(insertedAts, opt.InsertedAt)
 		types = append(types, string(opt.Type))
 		values = append(values, payload)
+		tenantIds = append(tenantIds, opt.TenantId)
 	}
 
 	// Second transaction, persist the offload to the db once we've successfully offloaded to the external store
@@ -426,7 +447,7 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadWAL(ctx context.Context, tena
 	}
 
 	err = p.queries.FinalizePayloadOffloads(ctx, tx, sqlcv1.FinalizePayloadOffloadsParams{
-		Tenantid:     sqlchelpers.UUIDFromStr(tenantId),
+		Tenantids:    tenantIds,
 		Ids:          ids,
 		Insertedats:  insertedAts,
 		Offloadats:   offloadAts,
@@ -454,10 +475,10 @@ func (p *payloadStoreRepositoryImpl) OverwriteExternalStore(store ExternalStore,
 
 type NoOpExternalStore struct{}
 
-func (n *NoOpExternalStore) Store(ctx context.Context, tenantId string, payloads ...StorePayloadOpts) (map[RetrievePayloadOpts]ExternalPayloadLocationKey, error) {
+func (n *NoOpExternalStore) Store(ctx context.Context, payloads ...StorePayloadOpts) (map[RetrievePayloadOpts]ExternalPayloadLocationKey, error) {
 	return nil, fmt.Errorf("external store disabled")
 }
 
-func (n *NoOpExternalStore) BulkRetrieve(ctx context.Context, tenantId string, keys ...ExternalPayloadLocationKey) (map[ExternalPayloadLocationKey][]byte, error) {
+func (n *NoOpExternalStore) BulkRetrieve(ctx context.Context, opts ...BulkRetrievePayloadOpts) (map[ExternalPayloadLocationKey][]byte, error) {
 	return nil, fmt.Errorf("external store disabled")
 }

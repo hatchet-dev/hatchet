@@ -13,15 +13,14 @@ WITH inputs AS (
     SELECT
         UNNEST(@ids::BIGINT[]) AS id,
         UNNEST(@insertedAts::TIMESTAMPTZ[]) AS inserted_at,
+        UNNEST(@tenantIds::UUID[]) AS tenant_id,
         UNNEST(CAST(@types::TEXT[] AS v1_payload_type[])) AS type
 )
 
 SELECT *
 FROM v1_payload
-WHERE
-    tenant_id = @tenantId::UUID
-    AND (id, inserted_at, type) IN (
-        SELECT id, inserted_at, type
+WHERE (tenant_id, id, inserted_at, type) IN (
+        SELECT tenant_id, id, inserted_at, type
         FROM inputs
     )
 ;
@@ -32,7 +31,8 @@ WITH inputs AS (
         UNNEST(@ids::BIGINT[]) AS id,
         UNNEST(@insertedAts::TIMESTAMPTZ[]) AS inserted_at,
         UNNEST(CAST(@types::TEXT[] AS v1_payload_type[])) AS type,
-        UNNEST(@payloads::JSONB[]) AS payload
+        UNNEST(@payloads::JSONB[]) AS payload,
+        UNNEST(@tenantIds::UUID[]) AS tenant_id
 )
 INSERT INTO v1_payload (
     tenant_id,
@@ -42,7 +42,7 @@ INSERT INTO v1_payload (
     value
 )
 SELECT
-    @tenantId::UUID,
+    i.tenant_id,
     i.id,
     i.inserted_at,
     i.type,
@@ -59,7 +59,8 @@ WITH inputs AS (
         UNNEST(@payloadInsertedAts::TIMESTAMPTZ[]) AS payload_inserted_at,
         UNNEST(CAST(@payloadTypes::TEXT[] AS v1_payload_type[])) AS payload_type,
         UNNEST(@offloadAts::TIMESTAMPTZ[]) AS offload_at,
-        UNNEST(CAST(@operations::TEXT[] AS v1_payload_wal_operation[])) AS operation
+        UNNEST(CAST(@operations::TEXT[] AS v1_payload_wal_operation[])) AS operation,
+        UNNEST(@tenantIds::UUID[]) AS tenant_id
 )
 
 INSERT INTO v1_payload_wal (
@@ -71,7 +72,7 @@ INSERT INTO v1_payload_wal (
     operation
 )
 SELECT
-    @tenantId::UUID,
+    i.tenant_id,
     i.offload_at,
     i.payload_id,
     i.payload_inserted_at,
