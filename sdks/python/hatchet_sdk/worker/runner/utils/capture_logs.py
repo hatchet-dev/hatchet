@@ -1,12 +1,14 @@
 import asyncio
+import copy
 import functools
 import logging
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime, timedelta
 from io import StringIO
 from typing import Literal, ParamSpec, TypeVar
-import grpc
+from uuid import UUID, uuid4
 
+import grpc
 from pydantic import BaseModel, Field
 
 from hatchet_sdk.clients.events import BulkLogPushRequest, EventClient
@@ -73,14 +75,18 @@ def copy_context_vars(
 
 
 class LogRecord(BaseModel):
+    id: UUID = Field(default_factory=uuid4)
     message: str
     task_run_external_id: str
     level: LogLevel
     timestamp: datetime
 
+    def __hash__(self) -> int:
+        return hash(self.id)
+
 
 class LogBuffer(BaseModel):
-    records: list[LogRecord] = Field(default_factory=list)
+    records: set[LogRecord] = Field(default_factory=set)
 
     def should_clear(self, config: ClientConfig) -> bool:
         if not self.records:
@@ -103,24 +109,37 @@ class AsyncLogSender:
             maxsize=event_client.client_config.log_queue_size
         )
         self.buffer = LogBuffer()
+
+        ## flag to see if the engine supports bulk log push
+        ## defaults to true, but reset to false if we get an
+        ## `UNIMPLEMENTED` or `NOT_FOUND` error back
         self.bulk_log_push_enabled = True
 
     async def flush(self) -> None:
+        ## IMPORTANT: Need a deepcopy here to act as a snapshot of the
+        ## current buffer, since new logs might be added while we're processing
+        ## the current buffer
+        records = copy.deepcopy(self.buffer.records)
+
         requests = [
             BulkLogPushRequest(
                 message=r.message,
                 task_run_external_id=r.task_run_external_id,
                 level=r.level,
             )
-            for r in self.buffer.records
+            for r in records
         ]
+
         try:
             await asyncio.to_thread(self.event_client.bulk_log, requests)
+            self.buffer.records -= records
         except grpc.RpcError as e:
             if e.code() in [grpc.StatusCode.UNIMPLEMENTED, grpc.StatusCode.NOT_FOUND]:
                 self.bulk_log_push_enabled = False
-                for record in self.buffer.records:
+                for record in records:
                     await self.push_single(record)
+                    self.buffer.records.remove(record)
+
         except Exception:
             logger.exception("failed to send log to Hatchet")
 
@@ -135,21 +154,32 @@ class AsyncLogSender:
         except Exception:
             logger.exception("failed to send log to Hatchet")
 
+    async def get_log(self) -> LogRecord | STOP_LOOP_TYPE | None:
+        try:
+            async with asyncio.timeout(
+                self.event_client.client_config.log_flush_interval_seconds
+            ):
+                return await self.q.get()
+        except TimeoutError:
+            return None
+
     async def consume(self) -> None:
         while True:
-            record = await self.q.get()
+            record = await self.get_log()
 
             if record == STOP_LOOP:
                 await self.flush()
                 break
 
             if self.bulk_log_push_enabled:
-                self.buffer.records.append(record)
+                if record:
+                    self.buffer.records.add(record)
 
                 if self.buffer.should_clear(self.event_client.client_config):
                     await self.flush()
             else:
-                await self.push_single(record)
+                if record:
+                    await self.push_single(record)
 
     def publish(self, record: LogRecord | STOP_LOOP_TYPE) -> None:
         try:
