@@ -23,7 +23,6 @@ func main() {
 		log.Fatalf("failed to create hatchet client: %v", err)
 	}
 
-	// Upsert Rate Limit
 	err = client.RateLimits().Upsert(features.CreateRatelimitOpts{
 		Key:      "api-service-rate-limit",
 		Limit:    10,
@@ -33,7 +32,6 @@ func main() {
 		log.Fatalf("failed to create rate limit: %v", err)
 	}
 
-	// Static Rate Limit
 	const RATE_LIMIT_KEY = "api-service-rate-limit"
 
 	units := 1
@@ -49,7 +47,6 @@ func main() {
 		}),
 	)
 
-	// Dynamic Rate Limit
 	userUnits := 1
 	userLimit := "10"
 	duration := types.Minute
@@ -74,13 +71,11 @@ func main() {
 		log.Fatalf("failed to create worker: %v", err)
 	}
 
-	// Submit some test requests
 	go func() {
 		time.Sleep(2 * time.Second)
 
-		// Test static rate limit
 		for i := 0; i < 5; i++ {
-			_, err := client.RunNoWait(context.Background(), "static-rate-limit-demo", APIRequest{
+			_, err := client.RunNoWait(context.Background(), "task1", APIRequest{
 				UserID: fmt.Sprintf("user-%d", i),
 				Action: "test",
 			})
@@ -89,10 +84,9 @@ func main() {
 			}
 		}
 
-		// Test dynamic rate limit
 		for i := 0; i < 5; i++ {
-			_, err := client.RunNoWait(context.Background(), "dynamic-rate-limit-demo", APIRequest{
-				UserID: fmt.Sprintf("user-%d", i%2), // Cycle between 2 users
+			_, err := client.RunNoWait(context.Background(), "task2", APIRequest{
+				UserID: fmt.Sprintf("user-%d", i%2),
 				Action: "test",
 			})
 			if err != nil {

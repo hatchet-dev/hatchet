@@ -194,6 +194,7 @@ type taskConfig struct {
 	parents                []create.NamedTask
 	waitFor                condition.Condition
 	skipIf                 condition.Condition
+	description            string
 }
 
 // WithRetries sets the number of retry attempts for failed tasks.
@@ -292,6 +293,13 @@ func WithWaitFor(condition condition.Condition) TaskOption {
 func WithSkipIf(condition condition.Condition) TaskOption {
 	return func(config *taskConfig) {
 		config.skipIf = condition
+	}
+}
+
+// WithDescription sets a human-readable description for the task.
+func WithDescription(description string) TaskOption {
+	return func(config *taskConfig) {
+		config.description = description
 	}
 }
 
