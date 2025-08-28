@@ -62,7 +62,6 @@ func (i *IngestorImpl) getSingleTask(ctx context.Context, tenantId, taskExternal
 }
 
 func (i *IngestorImpl) putLogV1(ctx context.Context, tenant *dbsqlc.Tenant, req *contracts.PutLogRequest) (*contracts.PutLogResponse, error) {
-	i.l.Debug().Str("method", "putLogV1").Str("stepRunId", req.StepRunId).Bool("isLogIngestionEnabled", i.isLogIngestionEnabled).Msg("loki-debug: handling putLogV1 call")
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
 	if !i.isLogIngestionEnabled {
@@ -75,7 +74,78 @@ func (i *IngestorImpl) putLogV1(ctx context.Context, tenant *dbsqlc.Tenant, req 
 		return nil, err
 	}
 
-	i.l.Debug().Str("taskExternalId", sqlchelpers.UUIDToStr(task.ExternalID)).Msg("loki-debug: retrieved task for log ingestion")
+	var createdAt *time.Time
+
+	if t := req.CreatedAt.AsTime(); !t.IsZero() {
+		createdAt = &t
+	}
+
+	var metadata []byte
+
+	if req.Metadata != "" {
+		// Validate that metadata is valid JSON
+		var metadataMap map[string]interface{}
+		if err := json.Unmarshal([]byte(req.Metadata), &metadataMap); err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "Invalid metadata JSON: %v", err)
+		}
+
+		// Re-marshal to ensure consistent formatting
+		metadata, err = json.Marshal(metadataMap)
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "Failed to marshal metadata: %v", err)
+		}
+	}
+
+	var retryCount int
+
+	if req.TaskRetryCount != nil {
+		retryCount = int(*req.TaskRetryCount)
+	} else {
+		retryCount = int(task.RetryCount)
+	}
+
+	opts := &v1.CreateLogLineOpts{
+		TaskId:         task.ID,
+		TaskInsertedAt: task.InsertedAt,
+		CreatedAt:      createdAt,
+		Message:        req.Message,
+		Level:          req.Level,
+		Metadata:       metadata,
+		RetryCount:     retryCount,
+	}
+
+	if apiErrors, err := i.v.ValidateAPI(opts); err != nil {
+		return nil, err
+	} else if apiErrors != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "Invalid request: %s", apiErrors.String())
+	}
+
+	if err := repository.ValidateJSONB(opts.Metadata, "additionalMetadata"); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "Invalid request: %s", err)
+	}
+
+	err = i.repov1.Logs().PutLog(ctx, tenantId, opts)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &contracts.PutLogResponse{}, nil
+}
+
+func (i *IngestorImpl) putLogsV1(ctx context.Context, tenant *dbsqlc.Tenant, req *contracts.PutLogsRequest) (*contracts.PutLogsResponse, error) {
+	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+
+	if !i.isLogIngestionEnabled {
+		return &contracts.PutLogResponse{}, nil
+	}
+
+	task, err := i.getSingleTask(ctx, tenantId, req.StepRunId, false)
+
+	if err != nil {
+		return nil, err
+	}
+
 	var createdAt *time.Time
 
 	if t := req.CreatedAt.AsTime(); !t.IsZero() {
