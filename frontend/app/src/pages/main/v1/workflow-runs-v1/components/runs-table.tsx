@@ -257,7 +257,7 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
       {!hideMetrics && <GetWorkflowChart />}
 
       {!hideCounts && (
-        <div className="flex flex-row justify-between items-center my-4">
+        <div className="flex flex-row justify-between items-center my-4 overflow-auto">
           {metrics.length > 0 ? (
             <V1WorkflowRunsMetricsView />
           ) : (
