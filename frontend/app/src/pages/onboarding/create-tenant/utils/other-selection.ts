@@ -2,7 +2,7 @@
  * Utility functions for handling "other" selections in form options
  */
 
-export interface OtherSelectionResult {
+interface OtherSelectionResult {
   isOtherSelected: boolean;
   otherValue: string;
   otherSelection: string | undefined;

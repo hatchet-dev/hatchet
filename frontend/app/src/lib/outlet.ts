@@ -1,7 +1,7 @@
 import { useOutletContext } from 'react-router-dom';
 import { Tenant, TenantMember, User } from './api';
 
-export type TenantContextType = { tenant: Tenant };
+type TenantContextType = { tenant: Tenant };
 
 export type UserContextType = { user: User };
 

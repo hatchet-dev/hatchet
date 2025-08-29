@@ -29,12 +29,6 @@ import { Repeat1 } from 'lucide-react';
 import { useToast } from '@/components/v1/hooks/use-toast';
 import { capitalize } from 'lodash';
 
-export const TASK_RUN_TERMINAL_STATUSES = [
-  V1TaskStatus.CANCELLED,
-  V1TaskStatus.FAILED,
-  V1TaskStatus.COMPLETED,
-];
-
 export type ActionType = 'cancel' | 'replay';
 
 export type BaseTaskRunActionParams =
@@ -51,7 +45,7 @@ export type BaseTaskRunActionParams =
       externalIds?: never;
     };
 
-export type TaskRunActionsParams =
+type TaskRunActionsParams =
   | {
       actionType: 'cancel';
       filter?: never;
@@ -73,7 +67,7 @@ export type TaskRunActionsParams =
       externalIds?: never;
     };
 
-export const useTaskRunActions = () => {
+const useTaskRunActions = () => {
   const { tenantId } = useCurrentTenantId();
   const { toast } = useToast();
 

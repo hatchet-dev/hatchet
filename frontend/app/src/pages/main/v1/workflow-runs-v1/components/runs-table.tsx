@@ -36,7 +36,7 @@ import { TableActions } from './task-runs-table/table-actions';
 import { TimeFilter } from './task-runs-table/time-filter';
 import { ConfirmActionModal } from '../../task-runs-v1/actions';
 
-export interface RunsTableProps {
+interface RunsTableProps {
   headerClassName?: string;
 }
 

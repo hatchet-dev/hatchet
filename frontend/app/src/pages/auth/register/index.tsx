@@ -5,7 +5,7 @@ import api, { UserRegisterRequest } from '@/lib/api';
 import { useState } from 'react';
 import { useApiError } from '@/lib/hooks';
 import useApiMeta from '../hooks/use-api-meta';
-import { Loading } from '@/components/ui/loading';
+import { Loading } from '@/components/v1/ui/loading';
 import { GithubLogin, GoogleLogin, OrContinueWith } from '../login';
 import useErrorParam from '../hooks/use-error-param';
 import React from 'react';

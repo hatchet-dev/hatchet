@@ -26,7 +26,7 @@ type TaskRunDetailSheetState =
       taskRunId?: never;
     };
 
-export interface BaseRunsTableState {
+interface BaseRunsTableState {
   // Pagination
   pagination: PaginationState;
 

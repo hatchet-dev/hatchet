@@ -5,7 +5,7 @@ import { Link } from 'react-router-dom';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { SdkInfo } from './sdk-info';
 
-import { Badge, BadgeProps } from '@/components/ui/badge';
+import { Badge, BadgeProps } from '@/components/v1/ui/badge';
 import { cn } from '@/lib/utils';
 
 interface WorkerStatusBadgeProps extends BadgeProps {
@@ -22,7 +22,7 @@ type StatusConfig = {
   label: string;
 };
 
-export const WorkerStatusConfigs: Record<string, StatusConfig> = {
+const WorkerStatusConfigs: Record<string, StatusConfig> = {
   ACTIVE: {
     colors:
       'text-green-800 dark:text-green-300 bg-green-500/20 ring-green-500/30',
@@ -45,7 +45,7 @@ export const WorkerStatusConfigs: Record<string, StatusConfig> = {
   },
 };
 
-export function WorkerStatusBadge({
+function WorkerStatusBadge({
   status,
   count,
   variant,

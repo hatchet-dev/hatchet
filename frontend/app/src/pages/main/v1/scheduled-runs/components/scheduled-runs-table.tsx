@@ -28,7 +28,7 @@ import { DeleteScheduledRun } from './delete-scheduled-runs';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { TriggerWorkflowForm } from '../../workflows/$workflow/components/trigger-workflow-form';
 
-export interface ScheduledWorkflowRunsTableProps {
+interface ScheduledWorkflowRunsTableProps {
   createdAfter?: string;
   createdBefore?: string;
   workflowId?: string;

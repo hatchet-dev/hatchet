@@ -10,7 +10,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { TenantCreateForm } from './components/tenant-create-form';
 import { useTenant } from '@/lib/atoms';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/components/v1/ui/button';
 import { HearAboutUsForm } from './components/hear-about-us-form';
 import { WhatBuildingForm } from './components/what-building-form';
 import { StepProgress } from './components/step-progress';

@@ -64,7 +64,7 @@ export function DeleteScheduledRun({
   );
 }
 
-export function DeleteScheduledRunForm({
+function DeleteScheduledRunForm({
   className,
   isFutureRun,
   ...props

@@ -7,7 +7,7 @@ import {
   useLoaderData,
   useNavigate,
 } from 'react-router-dom';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/components/v1/ui/button';
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 export async function loader(_args: LoaderFunctionArgs) {

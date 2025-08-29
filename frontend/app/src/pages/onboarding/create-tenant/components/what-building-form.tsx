@@ -1,7 +1,7 @@
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
+import { Label } from '@/components/v1/ui/label';
+import { Textarea } from '@/components/v1/ui/textarea';
+import { Button } from '@/components/v1/ui/button';
+import { Card, CardContent } from '@/components/v1/ui/card';
 import {
   Database,
   Workflow,

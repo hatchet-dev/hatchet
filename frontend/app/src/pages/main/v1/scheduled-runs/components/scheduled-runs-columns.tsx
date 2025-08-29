@@ -1,16 +1,11 @@
 import { ColumnDef } from '@tanstack/react-table';
 import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
-import { RateLimit, ScheduledWorkflows } from '@/lib/api';
+import { ScheduledWorkflows } from '@/lib/api';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { AdditionalMetadata } from '../../events/components/additional-metadata';
 import { RunStatus } from '../../workflow-runs/components/run-statuses';
 import { Link } from 'react-router-dom';
 import { DataTableRowActions } from '@/components/v1/molecules/data-table/data-table-row-actions';
-export type RateLimitRow = RateLimit & {
-  metadata: {
-    id: string;
-  };
-};
 
 export const columns = ({
   tenantId,

@@ -20,7 +20,7 @@ import {
 } from '@/components/v1/ui/select';
 import { SecretCopier } from '@/components/v1/ui/secret-copier';
 
-export const EXPIRES_IN_OPTS = {
+const EXPIRES_IN_OPTS = {
   '3 months': `${3 * 30 * 24 * 60 * 60}s`,
   '1 year': `${365 * 24 * 60 * 60}s`,
   '100 years': `${100 * 365 * 24 * 60 * 60}s`,

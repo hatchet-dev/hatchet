@@ -289,7 +289,7 @@ const lastTimeRangeAtomInit = atom(
   getInitialValue<string>(lastTimeRange, '1h'),
 );
 
-export const lastTimeRangeAtom = atom(
+const lastTimeRangeAtom = atom(
   (get) => get(lastTimeRangeAtomInit),
   (_get, set, newVal: string) => {
     set(lastTimeRangeAtomInit, newVal);

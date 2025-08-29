@@ -21,9 +21,7 @@ type RunStatusVariant = {
   variant: 'inProgress' | 'successful' | 'failed' | 'outline';
 };
 
-export function createRunStatusVariant(
-  status: RunStatusType,
-): RunStatusVariant {
+function createRunStatusVariant(status: RunStatusType): RunStatusVariant {
   switch (status) {
     case 'SUCCEEDED':
       return { text: 'Succeeded', variant: 'successful' };
@@ -45,25 +43,6 @@ export function createRunStatusVariant(
       return { text: 'Assigned', variant: 'inProgress' };
     case 'SCHEDULED':
       return { text: 'Scheduled', variant: 'outline' };
-    default:
-      return { text: 'Unknown', variant: 'outline' };
-  }
-}
-
-export function createV1RunStatusVariant(
-  status: V1TaskStatus,
-): RunStatusVariant {
-  switch (status) {
-    case V1TaskStatus.COMPLETED:
-      return { text: 'Succeeded', variant: 'successful' };
-    case V1TaskStatus.FAILED:
-      return { text: 'Failed', variant: 'failed' };
-    case V1TaskStatus.CANCELLED:
-      return { text: 'Cancelled', variant: 'failed' };
-    case V1TaskStatus.RUNNING:
-      return { text: 'Running', variant: 'inProgress' };
-    case V1TaskStatus.QUEUED:
-      return { text: 'Queued', variant: 'outline' };
     default:
       return { text: 'Unknown', variant: 'outline' };
   }
@@ -91,7 +70,7 @@ const RUN_STATUS_VARIANTS_REASON_OVERRIDES: Record<
 // TIMED_OUT
 // SCHEDULING_TIMED_OUT
 
-export function RunStatus({
+function RunStatus({
   status,
   reason,
   className,
@@ -126,14 +105,7 @@ export function RunStatus({
   );
 }
 
-const indicatorVariants = {
-  successful: 'border-transparent rounded-full bg-green-500',
-  failed: 'border-transparent rounded-full bg-red-500',
-  inProgress: 'border-transparent rounded-full bg-yellow-500',
-  outline: 'border-transparent rounded-full bg-muted',
-};
-
-export function createV2IndicatorVariant(eventType: V1TaskStatus | undefined) {
+function createV2IndicatorVariant(eventType: V1TaskStatus | undefined) {
   switch (eventType) {
     case V1TaskStatus.CANCELLED:
     case V1TaskStatus.FAILED:
@@ -146,21 +118,6 @@ export function createV2IndicatorVariant(eventType: V1TaskStatus | undefined) {
     default:
       return 'border-transparent rounded-full bg-muted';
   }
-}
-
-export function RunIndicator({
-  status,
-}: {
-  status: RunStatusType;
-  reason?: string;
-}) {
-  const variant = createRunStatusVariant(status).variant;
-
-  return (
-    <div
-      className={cn(indicatorVariants[variant], 'rounded-full h-[6px] w-[6px]')}
-    />
-  );
 }
 
 export function V1RunIndicator({

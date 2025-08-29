@@ -29,7 +29,7 @@ import { RunsTable } from '../../workflow-runs-v1/components/runs-table';
 import { RunsProvider } from '../../workflow-runs-v1/hooks/runs-provider';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { capitalize } from '@/lib/utils';
-export const isHealthy = (worker?: Worker) => {
+const isHealthy = (worker?: Worker) => {
   const reasons = [];
 
   if (!worker) {
@@ -52,7 +52,7 @@ export const isHealthy = (worker?: Worker) => {
   return reasons;
 };
 
-export const WorkerStatus = ({
+const WorkerStatus = ({
   status = 'INACTIVE',
   health,
 }: {
