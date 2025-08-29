@@ -23,7 +23,6 @@ func main() {
 		log.Fatalf("failed to create hatchet client: %v", err)
 	}
 
-	// Upsert Rate Limit
 	err = client.RateLimits().Upsert(features.CreateRatelimitOpts{
 		Key:      "api-service-rate-limit",
 		Limit:    10,
@@ -33,12 +32,10 @@ func main() {
 		log.Fatalf("failed to create rate limit: %v", err)
 	}
 
-	// Static Rate Limit
 	const RATE_LIMIT_KEY = "api-service-rate-limit"
 
-	staticWorkflow := client.NewWorkflow("static-rate-limit-demo")
 	units := 1
-	_ = staticWorkflow.NewTask("task1",
+	staticTask := client.NewStandaloneTask("task1",
 		func(ctx hatchet.Context, input APIRequest) (string, error) {
 			log.Println("executed task1")
 
@@ -50,12 +47,10 @@ func main() {
 		}),
 	)
 
-	// Dynamic Rate Limit
-	dynamicWorkflow := client.NewWorkflow("dynamic-rate-limit-demo")
 	userUnits := 1
 	userLimit := "10"
 	duration := types.Minute
-	_ = dynamicWorkflow.NewTask("task2",
+	dynamicTask := client.NewStandaloneTask("task2",
 		func(ctx hatchet.Context, input APIRequest) (string, error) {
 			log.Printf("executed task2 for user: %s", input.UserID)
 
@@ -70,19 +65,17 @@ func main() {
 	)
 
 	worker, err := client.NewWorker("rate-limit-worker",
-		hatchet.WithWorkflows(staticWorkflow, dynamicWorkflow),
+		hatchet.WithWorkflows(staticTask, dynamicTask),
 	)
 	if err != nil {
 		log.Fatalf("failed to create worker: %v", err)
 	}
 
-	// Submit some test requests
 	go func() {
 		time.Sleep(2 * time.Second)
 
-		// Test static rate limit
 		for i := 0; i < 5; i++ {
-			_, err := client.RunNoWait(context.Background(), "static-rate-limit-demo", APIRequest{
+			_, err := client.RunNoWait(context.Background(), "task1", APIRequest{
 				UserID: fmt.Sprintf("user-%d", i),
 				Action: "test",
 			})
@@ -91,10 +84,9 @@ func main() {
 			}
 		}
 
-		// Test dynamic rate limit
 		for i := 0; i < 5; i++ {
-			_, err := client.RunNoWait(context.Background(), "dynamic-rate-limit-demo", APIRequest{
-				UserID: fmt.Sprintf("user-%d", i%2), // Cycle between 2 users
+			_, err := client.RunNoWait(context.Background(), "task2", APIRequest{
+				UserID: fmt.Sprintf("user-%d", i%2),
 				Action: "test",
 			})
 			if err != nil {
