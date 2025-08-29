@@ -158,6 +158,7 @@ from hatchet_sdk.clients.rest.models.tenant_alert_email_group_list import (
 from hatchet_sdk.clients.rest.models.tenant_alerting_settings import (
     TenantAlertingSettings,
 )
+from hatchet_sdk.clients.rest.models.tenant_environment import TenantEnvironment
 from hatchet_sdk.clients.rest.models.tenant_invite import TenantInvite
 from hatchet_sdk.clients.rest.models.tenant_invite_list import TenantInviteList
 from hatchet_sdk.clients.rest.models.tenant_list import TenantList
@@ -181,6 +182,9 @@ from hatchet_sdk.clients.rest.models.update_tenant_alert_email_group_request imp
 )
 from hatchet_sdk.clients.rest.models.update_tenant_invite_request import (
     UpdateTenantInviteRequest,
+)
+from hatchet_sdk.clients.rest.models.update_tenant_member_request import (
+    UpdateTenantMemberRequest,
 )
 from hatchet_sdk.clients.rest.models.update_tenant_request import UpdateTenantRequest
 from hatchet_sdk.clients.rest.models.update_worker_request import UpdateWorkerRequest
@@ -252,6 +256,9 @@ from hatchet_sdk.clients.rest.models.v1_trigger_workflow_run_request import (
 from hatchet_sdk.clients.rest.models.v1_update_filter_request import (
     V1UpdateFilterRequest,
 )
+from hatchet_sdk.clients.rest.models.v1_update_webhook_request import (
+    V1UpdateWebhookRequest,
+)
 from hatchet_sdk.clients.rest.models.v1_webhook import V1Webhook
 from hatchet_sdk.clients.rest.models.v1_webhook_api_key_auth import V1WebhookAPIKeyAuth
 from hatchet_sdk.clients.rest.models.v1_webhook_auth_type import V1WebhookAuthType
@@ -264,9 +271,6 @@ from hatchet_sdk.clients.rest.models.v1_webhook_hmac_encoding import (
     V1WebhookHMACEncoding,
 )
 from hatchet_sdk.clients.rest.models.v1_webhook_list import V1WebhookList
-from hatchet_sdk.clients.rest.models.v1_webhook_receive200_response import (
-    V1WebhookReceive200Response,
-)
 from hatchet_sdk.clients.rest.models.v1_webhook_source_name import V1WebhookSourceName
 from hatchet_sdk.clients.rest.models.v1_workflow_run import V1WorkflowRun
 from hatchet_sdk.clients.rest.models.v1_workflow_run_details import V1WorkflowRunDetails

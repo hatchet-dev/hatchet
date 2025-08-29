@@ -1,6 +1,6 @@
 import asyncio
 import json
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING, Any, cast
 from warnings import warn
 
@@ -125,6 +125,15 @@ class Context:
         )
 
     @property
+    def task_run_external_id(self) -> str:
+        """
+        The external id of the current task run.
+
+        :return: The external id of the current task run.
+        """
+        return self.action.step_run_id
+
+    @property
     def was_triggered_by_event(self) -> bool:
         """
         A property that indicates whether the workflow was triggered by an event.
@@ -213,7 +222,12 @@ class Context:
 
         logger.info(line)
         self.log_sender.publish(
-            LogRecord(message=line, step_run_id=self.step_run_id, level=LogLevel.INFO)
+            LogRecord(
+                message=line,
+                task_run_external_id=self.step_run_id,
+                level=LogLevel.INFO,
+                timestamp=datetime.now(timezone.utc),
+            )
         )
 
     def release_slot(self) -> None:

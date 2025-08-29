@@ -121,6 +121,7 @@ AuthSettings = TypedDict(
     {
         "bearerAuth": BearerAuthSetting,
         "cookieAuth": APIKeyAuthSetting,
+        "customAuth": BearerAuthSetting,
     },
     total=False,
 )
@@ -536,6 +537,13 @@ class Configuration:
                 "value": self.get_api_key_with_prefix(
                     "cookieAuth",
                 ),
+            }
+        if self.access_token is not None:
+            auth["customAuth"] = {
+                "type": "bearer",
+                "in": "header",
+                "key": "Authorization",
+                "value": "Bearer " + self.access_token,
             }
         return auth
 

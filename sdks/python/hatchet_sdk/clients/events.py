@@ -24,6 +24,7 @@ from hatchet_sdk.contracts.events_pb2 import (
     Events,
     PushEventRequest,
     PutLogRequest,
+    PutLogsRequest,
     PutStreamEventRequest,
 )
 from hatchet_sdk.contracts.events_pb2_grpc import EventsServiceStub
@@ -56,6 +57,12 @@ class BulkPushEventWithMetadata(BaseModel):
     additional_metadata: JSONSerializableMapping = Field(default_factory=dict)
     priority: int | None = None
     scope: str | None = None
+
+
+class BulkLogPushRequest(BaseModel):
+    message: str
+    task_run_external_id: str
+    level: LogLevel | None
 
 
 class EventClient(BaseRestClient):
@@ -191,6 +198,22 @@ class EventClient(BaseRestClient):
         )
 
         self.events_service_client.PutLog(request, metadata=get_metadata(self.token))
+
+    @tenacity_retry
+    def bulk_log(self, lines: list[BulkLogPushRequest]) -> None:
+        request = PutLogsRequest(
+            logs=[
+                PutLogRequest(
+                    stepRunId=line.task_run_external_id,
+                    createdAt=proto_timestamp_now(),
+                    message=line.message,
+                    level=line.level,
+                )
+                for line in lines
+            ]
+        )
+
+        self.events_service_client.PutLogs(request, metadata=get_metadata(self.token))
 
     @tenacity_retry
     def stream(self, data: str | bytes, step_run_id: str, index: int) -> None:

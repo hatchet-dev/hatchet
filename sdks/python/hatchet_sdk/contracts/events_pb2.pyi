@@ -50,6 +50,16 @@ class PutLogResponse(_message.Message):
     __slots__ = ()
     def __init__(self) -> None: ...
 
+class PutLogsRequest(_message.Message):
+    __slots__ = ("logs",)
+    LOGS_FIELD_NUMBER: _ClassVar[int]
+    logs: _containers.RepeatedCompositeFieldContainer[PutLogRequest]
+    def __init__(self, logs: _Optional[_Iterable[_Union[PutLogRequest, _Mapping]]] = ...) -> None: ...
+
+class PutLogsResponse(_message.Message):
+    __slots__ = ()
+    def __init__(self) -> None: ...
+
 class PutStreamEventRequest(_message.Message):
     __slots__ = ("stepRunId", "createdAt", "message", "metadata", "eventIndex")
     STEPRUNID_FIELD_NUMBER: _ClassVar[int]
