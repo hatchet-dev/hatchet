@@ -14,7 +14,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/cmd/hatchet-api/api"
 	"github.com/hatchet-dev/hatchet/cmd/hatchet-engine/engine"
-	"github.com/hatchet-dev/hatchet/cmd/hatchet-lite/staticfileserver"
+	"github.com/hatchet-dev/hatchet/cmd/hatchet-staticfileserver/staticfileserver"
 	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
 	"github.com/hatchet-dev/hatchet/pkg/config/loader"
 )
