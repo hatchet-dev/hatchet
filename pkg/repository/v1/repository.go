@@ -27,7 +27,7 @@ type Repository interface {
 	Logs() LogLineRepository
 	OverwriteLogsRepository(l LogLineRepository)
 	Payloads() PayloadStoreRepository
-	OverwritePayloadsRepository(p PayloadStoreRepository)
+	OverwriteExternalPayloadStore(o ExternalStore, nativeStoreTTL time.Duration)
 	Workers() WorkerRepository
 	Workflows() WorkflowRepository
 	Ticker() TickerRepository
@@ -111,8 +111,8 @@ func (r *repositoryImpl) Payloads() PayloadStoreRepository {
 	return r.payloadStore
 }
 
-func (r *repositoryImpl) OverwritePayloadsRepository(p PayloadStoreRepository) {
-	r.payloadStore = p
+func (r *repositoryImpl) OverwriteExternalPayloadStore(o ExternalStore, nativeStoreTTL time.Duration) {
+	r.payloadStore.OverwriteExternalStore(o, nativeStoreTTL)
 }
 
 func (r *repositoryImpl) Workers() WorkerRepository {
