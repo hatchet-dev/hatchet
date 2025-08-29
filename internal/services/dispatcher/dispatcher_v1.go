@@ -226,10 +226,10 @@ func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *ms
 			continue
 		}
 
-		retrivePayloadOpts := make([]v1.RetrievePayloadOpts, len(bulkDatas))
+		retrievePayloadOpts := make([]v1.RetrievePayloadOpts, len(bulkDatas))
 
 		for i, task := range bulkDatas {
-			retrivePayloadOpts[i] = v1.RetrievePayloadOpts{
+			retrievePayloadOpts[i] = v1.RetrievePayloadOpts{
 				Id:         task.ID,
 				InsertedAt: task.InsertedAt,
 				Type:       sqlcv1.V1PayloadTypeTASKINPUT,
@@ -237,7 +237,7 @@ func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *ms
 			}
 		}
 
-		inputs, err := d.repov1.Payloads().BulkRetrieve(ctx, retrivePayloadOpts...)
+		inputs, err := d.repov1.Payloads().BulkRetrieve(ctx, retrievePayloadOpts...)
 
 		if err != nil {
 			d.l.Error().Err(err).Msgf("could not bulk retrieve inputs for %d tasks", len(bulkDatas))
