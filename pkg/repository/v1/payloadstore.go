@@ -22,6 +22,11 @@ type StorePayloadOpts struct {
 	TenantId   string
 }
 
+type OffloadToExternalStoreOpts struct {
+	*StorePayloadOpts
+	OffloadAt pgtype.Timestamptz
+}
+
 type RetrievePayloadOpts struct {
 	Id         int64
 	InsertedAt pgtype.Timestamptz
@@ -38,7 +43,7 @@ type BulkRetrievePayloadOpts struct {
 }
 
 type ExternalStore interface {
-	Store(ctx context.Context, payloads ...StorePayloadOpts) (map[RetrievePayloadOpts]ExternalPayloadLocationKey, error)
+	Store(ctx context.Context, payloads ...OffloadToExternalStoreOpts) (map[RetrievePayloadOpts]ExternalPayloadLocationKey, error)
 	BulkRetrieve(ctx context.Context, opts ...BulkRetrievePayloadOpts) (map[ExternalPayloadLocationKey][]byte, error)
 }
 
@@ -227,7 +232,7 @@ func (p *payloadStoreRepositoryImpl) bulkRetrieve(ctx context.Context, tx sqlcv1
 	return optsToPayload, nil
 }
 
-func (p *payloadStoreRepositoryImpl) offloadToExternal(ctx context.Context, payloads ...StorePayloadOpts) (map[RetrievePayloadOpts]ExternalPayloadLocationKey, error) {
+func (p *payloadStoreRepositoryImpl) offloadToExternal(ctx context.Context, payloads ...OffloadToExternalStoreOpts) (map[RetrievePayloadOpts]ExternalPayloadLocationKey, error) {
 	// this is only intended to be called from ProcessPayloadWAL, which short-circuits if external store is not enabled
 	if !p.externalStoreEnabled {
 		return nil, fmt.Errorf("external store not enabled")
@@ -293,18 +298,19 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadWAL(ctx context.Context, part
 		return false, err
 	}
 
-	externalStoreOpts := make([]StorePayloadOpts, 0)
-	retrieveOptsToPayload := make(map[RetrievePayloadOpts][]byte)
+	externalStoreOpts := make([]OffloadToExternalStoreOpts, 0)
 
 	for opts, payload := range payloads {
-		externalStoreOpts = append(externalStoreOpts, StorePayloadOpts{
-			Id:         opts.Id,
-			InsertedAt: opts.InsertedAt,
-			Type:       opts.Type,
-			Payload:    payload,
-			TenantId:   opts.TenantId.String(),
+		externalStoreOpts = append(externalStoreOpts, OffloadToExternalStoreOpts{
+			StorePayloadOpts: &StorePayloadOpts{
+				Id:         opts.Id,
+				InsertedAt: opts.InsertedAt,
+				Type:       opts.Type,
+				Payload:    payload,
+				TenantId:   opts.TenantId.String(),
+			},
+			OffloadAt: retrieveOptsToOffloadAt[opts],
 		})
-		retrieveOptsToPayload[opts] = payload
 	}
 
 	if err := commit(ctx); err != nil {
@@ -381,7 +387,7 @@ func (p *payloadStoreRepositoryImpl) OverwriteExternalStore(store ExternalStore,
 
 type NoOpExternalStore struct{}
 
-func (n *NoOpExternalStore) Store(ctx context.Context, payloads ...StorePayloadOpts) (map[RetrievePayloadOpts]ExternalPayloadLocationKey, error) {
+func (n *NoOpExternalStore) Store(ctx context.Context, payloads ...OffloadToExternalStoreOpts) (map[RetrievePayloadOpts]ExternalPayloadLocationKey, error) {
 	return nil, fmt.Errorf("external store disabled")
 }
 
