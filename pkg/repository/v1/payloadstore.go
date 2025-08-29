@@ -23,7 +23,7 @@ type StorePayloadOpts struct {
 
 type OffloadToExternalStoreOpts struct {
 	*StorePayloadOpts
-	OffloadAt pgtype.Timestamptz
+	OffloadAt time.Time
 }
 
 type RetrievePayloadOpts struct {
@@ -308,6 +308,12 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadWAL(ctx context.Context, part
 	externalStoreOpts := make([]OffloadToExternalStoreOpts, 0)
 
 	for opts, payload := range payloads {
+		offloadAt, ok := retrieveOptsToOffloadAt[opts]
+
+		if !ok {
+			return false, fmt.Errorf("offload at not found for opts: %+v", opts)
+		}
+
 		externalStoreOpts = append(externalStoreOpts, OffloadToExternalStoreOpts{
 			StorePayloadOpts: &StorePayloadOpts{
 				Id:         opts.Id,
@@ -316,7 +322,7 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadWAL(ctx context.Context, part
 				Payload:    payload,
 				TenantId:   opts.TenantId.String(),
 			},
-			OffloadAt: retrieveOptsToOffloadAt[opts],
+			OffloadAt: offloadAt.Time,
 		})
 	}
 
