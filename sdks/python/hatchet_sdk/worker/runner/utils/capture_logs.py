@@ -3,7 +3,7 @@ import copy
 import functools
 import logging
 from collections.abc import Awaitable, Callable
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from io import StringIO
 from typing import Literal, ParamSpec, TypeVar
 from uuid import UUID, uuid4
@@ -97,7 +97,7 @@ class LogBuffer(BaseModel):
 
         oldest_ts = min(r.timestamp for r in self.records)
 
-        return datetime.now(UTC) - oldest_ts > timedelta(
+        return datetime.now(timezone.utc) - oldest_ts > timedelta(
             seconds=config.log_flush_interval_seconds
         )
 
@@ -208,7 +208,7 @@ class LogForwardingHandler(logging.StreamHandler):  # type: ignore[type-arg]
                 message=log_entry,
                 task_run_external_id=step_run_id,
                 level=LogLevel.from_levelname(record.levelname),
-                timestamp=datetime.now(UTC),
+                timestamp=datetime.now(timezone.utc),
             )
         )
 

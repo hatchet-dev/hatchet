@@ -1,6 +1,6 @@
 import asyncio
 import json
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING, Any, cast
 from warnings import warn
 
@@ -226,7 +226,7 @@ class Context:
                 message=line,
                 task_run_external_id=self.step_run_id,
                 level=LogLevel.INFO,
-                timestamp=datetime.now(UTC),
+                timestamp=datetime.now(timezone.utc),
             )
         )
 
