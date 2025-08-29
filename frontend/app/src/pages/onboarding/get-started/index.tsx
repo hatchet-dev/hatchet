@@ -1,5 +1,4 @@
 import { Loading } from '@/components/v1/ui/loading';
-import { useTenant } from '@/lib/atoms';
 import { UserContextType, MembershipsContextType } from '@/lib/outlet';
 import { useOutletContext } from 'react-router-dom';
 import { Button } from '@/components/v1/ui/button';
@@ -15,11 +14,12 @@ import {
   TabsTrigger,
 } from '@/components/v1/ui/tabs';
 import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
+import { useTenantDetails } from '@/hooks/use-tenant';
 
 export default function GetStarted() {
   const ctx = useOutletContext<UserContextType & MembershipsContextType>();
   const { user, memberships } = ctx;
-  const { tenant: currTenant } = useTenant();
+  const { tenant: currTenant } = useTenantDetails();
 
   const [quickstartClonedOpen, setQuickstartClonedOpen] = useState(true);
   const [quickstartCloned, setQuickstartCloned] = useState(false);

@@ -7,15 +7,15 @@ import SupportChat from '@/components/molecules/support-chat';
 import AnalyticsProvider from '@/components/molecules/analytics-provider';
 import { useState, useEffect } from 'react';
 import { useContextFromParent } from '@/lib/outlet';
-import { useTenant } from '@/lib/atoms';
 import { AxiosError } from 'axios';
 import { useInactivityDetection } from '@/pages/auth/hooks/use-inactivity-detection';
 import { cloudApi } from '@/lib/api/api';
+import { useTenantDetails } from '@/hooks/use-tenant';
 
 export default function Authenticated() {
   const [hasHasBanner, setHasBanner] = useState(false);
 
-  const { tenant } = useTenant();
+  const { tenant } = useTenantDetails();
 
   const { data: cloudMetadata } = useQuery({
     queryKey: ['metadata'],

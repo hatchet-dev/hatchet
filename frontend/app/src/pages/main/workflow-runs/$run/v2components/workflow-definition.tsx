@@ -1,5 +1,5 @@
 import { Button } from '@/components/v1/ui/button';
-import { useTenant } from '@/lib/atoms';
+import { useTenantDetails } from '@/hooks/use-tenant';
 import { ArrowTopRightIcon } from '@radix-ui/react-icons';
 import { Link } from 'react-router-dom';
 
@@ -8,7 +8,7 @@ export const WorkflowDefinitionLink = ({
 }: {
   workflowId: string;
 }) => {
-  const { tenant } = useTenant();
+  const { tenant } = useTenantDetails();
 
   return (
     <Link

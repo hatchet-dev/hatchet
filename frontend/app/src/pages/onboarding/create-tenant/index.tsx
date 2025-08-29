@@ -9,13 +9,13 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { TenantCreateForm } from './components/tenant-create-form';
-import { useTenant } from '@/lib/atoms';
 import { Button } from '@/components/v1/ui/button';
 import { HearAboutUsForm } from './components/hear-about-us-form';
 import { WhatBuildingForm } from './components/what-building-form';
 import { StepProgress } from './components/step-progress';
 import { OnboardingStepConfig, OnboardingFormData } from './types';
 import { useAnalytics } from '@/hooks/use-analytics';
+import { useTenantDetails } from '@/hooks/use-tenant';
 
 export default function CreateTenant() {
   const [searchParams] = useSearchParams();
@@ -38,7 +38,7 @@ export default function CreateTenant() {
   const { handleApiError } = useApiError({
     setFieldErrors: setFieldErrors,
   });
-  const { setTenant } = useTenant();
+  const { setTenant } = useTenantDetails();
   const { capture } = useAnalytics();
 
   // Sync currentStep with URL parameter

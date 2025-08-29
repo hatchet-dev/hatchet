@@ -468,15 +468,6 @@ export const routes: RouteObject[] = [
               }),
           },
           {
-            path: '/onboarding/get-started',
-            lazy: async () =>
-              import('./pages/onboarding/get-started').then((res) => {
-                return {
-                  Component: res.default,
-                };
-              }),
-          },
-          {
             path: '/onboarding/invites',
             lazy: async () =>
               import('./pages/onboarding/invites').then((res) => {
@@ -485,16 +476,6 @@ export const routes: RouteObject[] = [
                   loader: res.loader,
                 };
               }),
-          },
-          {
-            path: '/',
-            lazy: async () =>
-              import('./pages/main').then((res) => {
-                return {
-                  Component: res.default,
-                };
-              }),
-            children: [],
           },
         ],
       },
