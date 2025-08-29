@@ -96,30 +96,17 @@ WITH tenants AS (
             @partitionNumber::INT
         )
     ) AS tenant_id
-), to_update AS (
-    SELECT *
-    FROM v1_payload_wal
-    WHERE
-        offload_at < NOW()
-        AND offload_process_lease_id IS NULL OR offload_process_lease_expires_at < NOW()
-        AND tenant_id = ANY(SELECT tenant_id FROM tenants)
-    ORDER BY offload_at, payload_id, payload_inserted_at, payload_type, tenant_id
-    FOR UPDATE
-    LIMIT @pollLimit::INT
 )
 
-UPDATE v1_payload_wal
-SET
-    offload_process_lease_id = @leaseId::UUID,
-    offload_process_lease_expires_at = NOW() + INTERVAL '5 minutes'
-FROM to_update
+SELECT *
+FROM v1_payload_wal
 WHERE
-    v1_payload_wal.tenant_id = to_update.tenant_id
-    AND v1_payload_wal.offload_at = to_update.offload_at
-    AND v1_payload_wal.payload_id = to_update.payload_id
-    AND v1_payload_wal.payload_inserted_at = to_update.payload_inserted_at
-    AND v1_payload_wal.payload_type = to_update.payload_type
-RETURNING to_update.*
+    offload_at < NOW()
+    AND tenant_id = ANY(SELECT tenant_id FROM tenants)
+ORDER BY offload_at, payload_id, payload_inserted_at, payload_type, tenant_id
+FOR UPDATE
+LIMIT @pollLimit::INT
+
 ;
 
 -- name: FinalizePayloadOffloads :exec
