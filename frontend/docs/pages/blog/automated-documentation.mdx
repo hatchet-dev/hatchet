@@ -283,29 +283,46 @@ To make this concrete, let's trace how a single workflow example file would writ
 
 **Source (Python):**
 ```python
-from hatchet_sdk import Context, Hatchet
-from pydantic import BaseModel
 import random
+import time
+from datetime import timedelta
 
-hatchet = Hatchet(debug=True)
+from pydantic import BaseModel
+
+from hatchet_sdk import Context, EmptyModel, Hatchet
+
 
 class StepOutput(BaseModel):
     random_number: int
 
+
+class RandomSum(BaseModel):
+    sum: int
+
+
+hatchet = Hatchet(debug=True)
+
 # > Create a workflow
-@hatchet.workflow(name="TaskConditionWorkflow")
-class TaskConditionWorkflow:
+dag_workflow = hatchet.workflow(name="DAGWorkflow")
+# !!
 
-    # > Add base task
-    @hatchet.task(name="start")
-    def start(self, context: Context) -> StepOutput:
-        return StepOutput(random_number=random.randint(1, 100))
+# > Add first tasks
+@dag_workflow.task(execution_timeout=timedelta(seconds=5))
+def step1(input: EmptyModel, ctx: Context) -> StepOutput:
+    return StepOutput(random_number=random.randint(1, 100))
 
-    # > Add multiply task
-    @hatchet.task(name="multiply", parents=["start"], timeout="10s")
-    def multiply(self, context: Context) -> StepOutput:
-        time.sleep(10)
-        return StepOutput(random_number=random.randint(1, 100) * 10)
+@dag_workflow.task(execution_timeout=timedelta(seconds=5))
+async def step2(input: EmptyModel, ctx: Context) -> StepOutput:
+    return StepOutput(random_number=random.randint(1, 100))
+# !!
+
+# > Add child task
+@dag_workflow.task(parents=[step1, step2])
+async def step3(input: EmptyModel, ctx: Context) -> RandomSum:
+    one = ctx.task_output(step1).random_number
+    two = ctx.task_output(step2).random_number
+
+    return RandomSum(sum=one + two)
 # !!
 ```
 
@@ -314,18 +331,19 @@ class TaskConditionWorkflow:
 {
   "create_a_workflow": {
     "title": "create_a_workflow",
-    "content": "@hatchet.workflow(name=\"TaskConditionWorkflow\")\nclass TaskConditionWorkflow:...",
+    "content": "dag_workflow = hatchet.workflow(name=\"DAGWorkflow\")",
     "githubUrl": "https://github.com/hatchet-dev/hatchet/tree/main/examples/python/workflows/complex-conditions.py",
     "language": "python",
     "codePath": "examples/python/workflows/complex-conditions.py"
   },
-  "add_base_task": {
-    "title": "add_base_task",
-    "content": "@hatchet.task(name=\"start\")\ndef start(self, context: Context) -> StepOutput:\n    return StepOutput(random_number=random.randint(1, 100))...",
+  "add_first_tasks": {
+    "title": "add_first_tasks",
+    "content": "@dag_workflow.task(execution_timeout=timedelta(seconds=5))\ndef step1(input: ...",
     "githubUrl": "https://github.com/hatchet-dev/hatchet/tree/main/examples/python/workflows/complex-conditions.py",
     "language": "python",
     "codePath": "examples/python/workflows/complex-conditions.py"
-  }
+  },
+  ...
 }
 ```
 > *Note: the code in this example is truncated for brevity.
@@ -339,11 +357,15 @@ import { Snippet } from '@/components/code';
 
 To create a workflow with conditional logic, start by defining the workflow class:
 
-<Snippet src={snippets.python.workflows.complex_conditions.create_a_workflow} />
+<Snippet src={snippets.python.workflows.dag.create_a_workflow} />
 
-Then add your base task that generates a random number:
+Then add your first tasks that will execute in parallel:
 
-<Snippet src={snippets.python.workflows.complex_conditions.add_base_task} />
+<Snippet src={snippets.python.workflows.dag.add_first_tasks} />
+
+Finally, add a child task that will execute after the first tasks have completed:
+
+<Snippet src={snippets.python.workflows.dag.add_child_task} />
 ```
 
 > *Note: This demonstrates real MDX usage where snippets are embedded directly into documentation content with explanatory text, exactly as they appear in our live documentation.*
