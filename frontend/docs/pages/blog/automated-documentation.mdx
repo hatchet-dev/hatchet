@@ -5,13 +5,13 @@ import { Snippet } from "@/components/code";
 import { MailingListSubscription } from "@/components/mailing-list-subscription";
 
 # How We Solved Multi-Language SDK Documentation Chaos without LLMs
+
 <div className="w-full pb-4 mx-auto flex flex-row justify-between items-center mt-10">
   <h5 className="text-xl font-bold tracking-tight text-foreground">
     [Gabe Ruttner](https://www.linkedin.com/in/gruttner/)
   </h5>
   <p className="font-light text-foreground">Published on August 29th, 2025</p>
 </div>
-
 
 Towards the beginning of this year, our documentation was 💩.
 
@@ -27,7 +27,7 @@ Here's how we solved it with a system that keeps our documentation examples as l
 
 Most API companies can get away with simple code snippets in their documentation, or generating from docstrings or openapi specs.
 
-*Note: We still generate traditional API reference documentation from docstrings for comprehensive method and class documentation—this system is supplemental to that, focusing specifically on user guide examples and tutorials where context and real-world usage patterns matter most.*
+_Note: We still generate traditional API reference documentation from docstrings for comprehensive method and class documentation—this system is supplemental to that, focusing specifically on user guide examples and tutorials where context and real-world usage patterns matter most._
 
 ```python
 response = user.create("Jean-Luc", "Picard")
@@ -42,7 +42,6 @@ But our SDKs aren't thin HTTP clients with simple CRUD operations, instead they'
 - **Worker management** with concurrency controls and resource allocation
 
 A simple example from our Go SDK demonstrates the complexity:
-
 
 <UniversalTabs items={["Python", "Typescript", "Go"]}>
   <Tabs.Tab title="Python">
@@ -72,7 +71,7 @@ def simple(input: SimpleInput, ctx: Context) -> dict[str, str]:
 </Tabs.Tab>
 </UniversalTabs>
 
-The developer needs to understand how we recommend using the SDK to avoid common pitfalls. ...And this is one of our *simple* examples... its possible to mix-and-match features to build complex orchestration.
+The developer needs to understand how we recommend using the SDK to avoid common pitfalls. ...And this is one of our _simple_ examples... its possible to mix-and-match features to build complex orchestration.
 
 Multiply this complexity across Python's multiple concurrency patterns, TypeScript's structural types, and Go's idiomatic nuances, and you start to see the problem. Each language has its own quirks and features for the same underlying concepts. A retry policy in Python uses decorators, in TypeScript it's a configuration object, and in Go it's a functional option. Every time we add a feature or fix a bug, we need to update examples in three different languages while ensuring they all demonstrate the same concepts correctly.
 
@@ -84,7 +83,7 @@ This worked... for about two weeks.
 
 The first problem emerged when we refactored our client initialization. Suddenly, every single example in our docs was broken because they all used the old constructor. So we spent an hour of searching and updating each example by hand.
 
-The second problem was more subtle but equally destructive: drift. When we added new features, we'd update the examples for one language but forget the others. Or we'd fix a bug in the TypeScript example but not notice that the Python version had the same issue. Worse yet, we'd sometimes update examples with code that *looked* right but had never actually been run.
+The second problem was more subtle but equally destructive: drift. When we added new features, we'd update the examples for one language but forget the others. Or we'd fix a bug in the TypeScript example but not notice that the Python version had the same issue. Worse yet, we'd sometimes update examples with code that _looked_ right but had never actually been run.
 
 We needed a fundamentally different approach. The examples had to be real, runnable code that evolved with our SDKs automatically. They needed to be linted, type-checked, and tested as part of our development workflow. And they had to work seamlessly across three different programming languages without requiring our team to become experts in documentation tooling.
 
@@ -131,8 +130,8 @@ def main() -> None:
   <Tabs.Tab title="TypeScript">
 
 ```typescript
-import { hatchet } from '../hatchet-client';
-other_not_important_code = "..."
+import { hatchet } from "../hatchet-client";
+other_not_important_code = "...";
 
 // > Simple Task Definition
 // (optional) Define the input type for the workflow
@@ -141,7 +140,7 @@ export type SimpleInput = {
 };
 
 export const simple = hatchet.task({
-  name: 'simple',
+  name: "simple",
   retries: 3,
   fn: async (input: SimpleInput) => {
     return {
@@ -192,11 +191,11 @@ The magic happens during our documentation build process. A Python script scans 
 
 ```typescript
 export type Snippet = {
-    title: string;
-    content: string;
-    githubUrl: string;
-    codePath: string;
-    language: 'python' | 'typescript' | 'go'
+  title: string;
+  content: string;
+  githubUrl: string;
+  codePath: string;
+  language: "python" | "typescript" | "go";
 };
 ```
 
@@ -254,7 +253,7 @@ def parse_snippets(ctx: SDKParsingContext, filename: str) -> list[Snippet]:
     ]
 ```
 
-> *Note: This is simplified pseudo-code for clarity. The actual implementation includes additional logic for file reading, path handling, and fallback cases when no annotated blocks are found.*
+> _Note: This is simplified pseudo-code for clarity. The actual implementation includes additional logic for file reading, path handling, and fallback cases when no annotated blocks are found._
 
 The trickiest part is handling indentation correctly. When you extract a code block from the middle of a function, it might be indented 8 spaces, but you want it to display starting at the left margin in documentation. Our `dedent_code` function automatically finds the minimum indentation level and normalizes everything:
 
@@ -282,6 +281,7 @@ The whole system integrates seamlessly into our development workflow. When a dev
 To make this concrete, let's trace how a single workflow example file would written and then used in our documentation. For context, this is a simple two step dag that generates a random number and then multiplies it by 10.
 
 **Source (Python):**
+
 ```python
 import random
 import time
@@ -327,6 +327,7 @@ async def step3(input: EmptyModel, ctx: Context) -> RandomSum:
 ```
 
 **Generated Snippet Object:**
+
 ```typescript
 {
   "create_a_workflow": {
@@ -346,12 +347,14 @@ async def step3(input: EmptyModel, ctx: Context) -> RandomSum:
   ...
 }
 ```
-> *Note: the code in this example is truncated for brevity.*
+
+> _Note: the code in this example is truncated for brevity._
 
 **Usage in Documentation:**
+
 ```mdx
-import { snippets } from '@/lib/generated/snippets';
-import { Snippet } from '@/components/code';
+import { snippets } from "@/lib/generated/snippets";
+import { Snippet } from "@/components/code";
 
 # Creating Complex Workflows
 
@@ -368,7 +371,7 @@ Finally, add a child task that will execute after the first tasks have completed
 <Snippet src={snippets.python.workflows.dag.add_child_task} />
 ```
 
-> *Note: This demonstrates real MDX usage where snippets are embedded directly into documentation content with explanatory text, exactly as they appear in our live documentation.*
+> _Note: This demonstrates real MDX usage where snippets are embedded directly into documentation content with explanatory text, exactly as they appear in our live documentation._
 
 ## The Results: Documentation That Actually Works
 
@@ -404,7 +407,7 @@ Goal: zero-drift guarantee for explanatory content, just like our code examples.
 
 ---
 
-*Want to see this system in action? Check out [Hatchet's documentation](https://docs.hatchet.run) to see how these living examples integrate into our developer experience, or explore the [open-source implementation](https://github.com/hatchet-dev/hatchet/blob/main/frontend/snippets/generate.py) to adapt this approach for your own projects.*
+_Want to see this system in action? Check out [Hatchet's documentation](https://docs.hatchet.run) to see how these living examples integrate into our developer experience, or explore the [open-source implementation](https://github.com/hatchet-dev/hatchet/blob/main/frontend/snippets/generate.py) to adapt this approach for your own projects._
 
 ---
 
