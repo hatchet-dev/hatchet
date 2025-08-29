@@ -233,6 +233,7 @@ func (p *payloadStoreRepositoryImpl) offloadToExternal(ctx context.Context, payl
 		return nil, fmt.Errorf("external store not enabled")
 	}
 
+	fmt.Println("offloading", len(payloads), "payloads to external store...")
 	return p.externalStore.Store(ctx, payloads...)
 }
 
@@ -241,6 +242,8 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadWAL(ctx context.Context, part
 	if !p.externalStoreEnabled {
 		return false, nil
 	}
+
+	fmt.Println("processing payload WAL...")
 
 	ctx, span := telemetry.NewSpan(ctx, "process-payload-wal")
 	defer span.End()
@@ -261,6 +264,8 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadWAL(ctx context.Context, part
 		Polllimit:       int32(pollLimit),
 		Partitionnumber: partitionNumber,
 	})
+
+	fmt.Println("found", len(walRecords), "WAL records to process...")
 
 	hasMoreWALRecords := len(walRecords) == pollLimit
 
@@ -313,6 +318,8 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadWAL(ctx context.Context, part
 
 	retrieveOptsToStoredKey, err := p.offloadToExternal(ctx, externalStoreOpts...)
 
+	fmt.Println("offloaded", len(retrieveOptsToStoredKey), "payloads to external store...")
+
 	if err != nil {
 		return false, err
 	}
@@ -352,6 +359,8 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadWAL(ctx context.Context, part
 	if err != nil {
 		return false, fmt.Errorf("failed to prepare transaction for offloading: %w", err)
 	}
+
+	fmt.Println("finalizing", len(ids), "offloaded payloads...")
 
 	err = p.queries.FinalizePayloadOffloads(ctx, tx, sqlcv1.FinalizePayloadOffloadsParams{
 		Ids:                  ids,
