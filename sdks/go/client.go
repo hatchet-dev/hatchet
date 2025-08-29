@@ -2,13 +2,17 @@ package hatchet
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"sync"
 
+	"golang.org/x/sync/errgroup"
+
+	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	v0Client "github.com/hatchet-dev/hatchet/pkg/client"
 	"github.com/hatchet-dev/hatchet/pkg/worker"
 	"github.com/hatchet-dev/hatchet/sdks/go/features"
-	"golang.org/x/sync/errgroup"
+	"github.com/hatchet-dev/hatchet/sdks/go/internal"
 )
 
 // Client provides the main interface for interacting with Hatchet.
@@ -112,7 +116,7 @@ func (c *Client) NewWorker(name string, options ...WorkerOption) (*Worker, error
 		// Register on failure function if exists
 		if req.OnFailureTask != nil && onFailureFn != nil {
 			actionId := req.OnFailureTask.Action
-			err = nonDurableWorker.RegisterAction(actionId, func(ctx worker.HatchetContext) (interface{}, error) {
+			err = nonDurableWorker.RegisterAction(actionId, func(ctx worker.HatchetContext) (any, error) {
 				return onFailureFn(ctx)
 			})
 			if err != nil {
@@ -216,13 +220,230 @@ func (c *Client) NewWorkflow(name string, options ...WorkflowOption) *Workflow {
 	return newWorkflow(name, c.legacyClient, options...)
 }
 
+// StandaloneTask represents a single task that runs independently without a workflow wrapper.
+// It's essentially a specialized workflow containing only one task.
+type StandaloneTask struct {
+	name     string
+	workflow *Workflow
+	task     *Task
+}
+
+// GetName returns the name of the standalone task.
+func (st *StandaloneTask) GetName() string {
+	return st.name
+}
+
+// StandaloneTaskOption represents options that can be applied to standalone tasks.
+// This interface allows both WorkflowOption and TaskOption to be used interchangeably.
+type StandaloneTaskOption any
+
+// NewStandaloneTask creates a standalone task that can be triggered independently.
+// This is a specialized workflow containing only one task, making it easier to create
+// simple single-task workflows without the workflow boilerplate.
+//
+// The function parameter must have the signature:
+//
+//	func(ctx hatchet.Context, input any) (any, error)
+//
+// Function signatures are validated at runtime using reflection.
+//
+// Options can be any combination of WorkflowOption and TaskOption.
+func (c *Client) NewStandaloneTask(name string, fn any, options ...StandaloneTaskOption) *StandaloneTask {
+	if name == "" {
+		panic("standalone task name cannot be empty")
+	}
+
+	// Separate workflow and task options
+	var workflowOptions []WorkflowOption
+	var taskOptions []TaskOption
+
+	for _, opt := range options {
+		switch o := opt.(type) {
+		case WorkflowOption:
+			workflowOptions = append(workflowOptions, o)
+		case TaskOption:
+			taskOptions = append(taskOptions, o)
+		default:
+			panic("invalid option type for standalone task - must be WorkflowOption or TaskOption")
+		}
+	}
+
+	// Create a workflow with the same name as the task
+	workflow := c.NewWorkflow(name, workflowOptions...)
+
+	// Create the single task within the workflow
+	task := workflow.NewTask(name, fn, taskOptions...)
+
+	return &StandaloneTask{
+		name:     name,
+		workflow: workflow,
+		task:     task,
+	}
+}
+
+// NewStandaloneDurableTask creates a standalone durable task that can be triggered independently.
+// This is a specialized workflow containing only one durable task, making it easier to create
+// simple single-task workflows with durable functionality.
+//
+// The function parameter must have the signature:
+//
+//	func(ctx hatchet.DurableContext, input any) (any, error)
+//
+// Function signatures are validated at runtime using reflection.
+//
+// Options can be any combination of WorkflowOption and TaskOption.
+func (c *Client) NewStandaloneDurableTask(name string, fn any, options ...StandaloneTaskOption) *StandaloneTask {
+	if name == "" {
+		panic("standalone durable task name cannot be empty")
+	}
+
+	// Separate workflow and task options
+	var workflowOptions []WorkflowOption
+	var taskOptions []TaskOption
+
+	for _, opt := range options {
+		switch o := opt.(type) {
+		case WorkflowOption:
+			workflowOptions = append(workflowOptions, o)
+		case TaskOption:
+			taskOptions = append(taskOptions, o)
+		default:
+			panic("invalid option type for standalone durable task - must be WorkflowOption or TaskOption")
+		}
+	}
+
+	// Create a workflow with the same name as the task
+	workflow := c.NewWorkflow(name, workflowOptions...)
+
+	// Create the single durable task within the workflow
+	task := workflow.NewDurableTask(name, fn, taskOptions...)
+
+	return &StandaloneTask{
+		name:     name,
+		workflow: workflow,
+		task:     task,
+	}
+}
+
+// Run executes the standalone task with the provided input and waits for completion.
+func (st *StandaloneTask) Run(ctx context.Context, input any) (*TaskResult, error) {
+	result, err := st.workflow.Run(ctx, input)
+	if err != nil {
+		return nil, err
+	}
+
+	// Extract the task result from the workflow result
+	taskResult := result.TaskOutput(st.task)
+	return taskResult, nil
+}
+
+// RunNoWait executes the standalone task with the provided input without waiting for completion.
+// Returns a workflow run reference that can be used to track the run status.
+func (st *StandaloneTask) RunNoWait(ctx context.Context, input any) (*WorkflowRef, error) {
+	return st.workflow.RunNoWait(ctx, input)
+}
+
+// Dump implements the WorkflowBase interface for internal use, delegating to the underlying workflow.
+func (st *StandaloneTask) Dump() (*contracts.CreateWorkflowVersionRequest, []internal.NamedFunction, []internal.NamedFunction, internal.WrappedTaskFn) {
+	return st.workflow.Dump()
+}
+
+// NamedTask represents any task that has a name.
+type NamedTask interface {
+	GetName() string
+}
+
 // WorkflowRef is a type that represents a reference to a workflow run.
 type WorkflowRef struct {
 	RunId string
 }
 
+// WorkflowResult wraps workflow execution results and provides type-safe conversion methods.
+type WorkflowResult struct {
+	result any
+}
+
+// TaskResult wraps a single task's output and provides type-safe conversion methods.
+type TaskResult struct {
+	result any
+}
+
+// TaskOutput extracts the output of a specific task from the workflow result.
+// Returns a TaskResult that can be used to convert the task output into the desired type.
+//
+// Example usage:
+//
+//	taskResult := workflowResult.TaskOutput(myTask)
+//	var output MyOutputType
+//	err := taskResult.Into(&output)
+func (wr *WorkflowResult) TaskOutput(task NamedTask) *TaskResult {
+	// Handle different result structures that might come from workflow execution
+	resultData := wr.result
+
+	// Check if this is a raw v0Client.WorkflowResult that we need to extract from
+	if workflowResult, ok := resultData.(*v0Client.WorkflowResult); ok {
+		// Try to get the workflow results as a map
+		results, err := workflowResult.Results()
+		if err != nil {
+			// Return empty TaskResult if we can't extract results
+			return &TaskResult{result: nil}
+		}
+		resultData = results
+	}
+
+	// If the result is a map, look for the specific task
+	if resultMap, ok := resultData.(map[string]any); ok {
+		if taskOutput, exists := resultMap[task.GetName()]; exists {
+			return &TaskResult{result: taskOutput}
+		}
+	}
+
+	// If we can't find the specific task, return the entire result
+	// This handles cases where there's only one task
+	return &TaskResult{result: resultData}
+}
+
+// Into converts the task result into the provided destination using JSON marshal/unmarshal.
+// The destination should be a pointer to the desired type.
+//
+// Example usage:
+//
+//	var output MyOutputType
+//	err := taskResult.Into(&output)
+func (tr *TaskResult) Into(dest any) error {
+	// Handle different result structures that might come from task execution
+	resultData := tr.result
+
+	// If the result is a pointer to interface{}, dereference it
+	if ptr, ok := resultData.(*any); ok && ptr != nil {
+		resultData = *ptr
+	}
+
+	// If the result is a pointer to string (JSON), unmarshal it directly
+	if strPtr, ok := resultData.(*string); ok && strPtr != nil {
+		return json.Unmarshal([]byte(*strPtr), dest)
+	}
+
+	// Convert the result to JSON and then unmarshal to destination
+	jsonData, err := json.Marshal(resultData)
+	if err != nil {
+		return fmt.Errorf("failed to marshal result to JSON: %w", err)
+	}
+
+	if err := json.Unmarshal(jsonData, dest); err != nil {
+		return fmt.Errorf("failed to unmarshal JSON to destination: %w", err)
+	}
+
+	return nil
+}
+
+// Raw returns the raw workflow result as interface{}.
+func (wr *WorkflowResult) Raw() any {
+	return wr.result
+}
+
 // Run executes a workflow with the provided input and waits for completion.
-func (c *Client) Run(ctx context.Context, workflowName string, input any, opts ...RunOptFunc) (any, error) {
+func (c *Client) Run(ctx context.Context, workflowName string, input any, opts ...RunOptFunc) (*WorkflowResult, error) {
 	v0Workflow, err := c.legacyClient.Admin().RunWorkflow(workflowName, input, opts...)
 	if err != nil {
 		return nil, err
@@ -233,7 +454,12 @@ func (c *Client) Run(ctx context.Context, workflowName string, input any, opts .
 		return nil, err
 	}
 
-	return result.Results()
+	workflowResult, err := result.Results()
+	if err != nil {
+		return nil, err
+	}
+
+	return &WorkflowResult{result: workflowResult}, nil
 }
 
 // RunNoWait executes a workflow with the provided input without waiting for completion.
