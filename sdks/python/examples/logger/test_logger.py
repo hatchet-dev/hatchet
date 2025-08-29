@@ -18,7 +18,7 @@ async def test_log_capture(hatchet: Hatchet) -> None:
 
     subtask_ids = [t.metadata.id for t in run.tasks]
 
-    await asyncio.sleep(hatchet.config.log_flush_interval_seconds * 5)
+    await asyncio.sleep(hatchet.config.log_flush_interval_seconds * 7)
 
     for subtask_id in subtask_ids:
         logs = await hatchet.logs.aio_list(task_run_id=subtask_id)
