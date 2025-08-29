@@ -9,7 +9,7 @@ require (
 	github.com/creasty/defaults v1.8.0
 	github.com/fatih/color v1.18.0
 	github.com/getkin/kin-openapi v0.133.0
-	github.com/go-co-op/gocron/v2 v2.16.3
+	github.com/go-co-op/gocron/v2 v2.16.4
 	github.com/google/go-github/v57 v57.0.0
 	github.com/gorilla/securecookie v1.1.2
 	github.com/gorilla/sessions v1.3.0
