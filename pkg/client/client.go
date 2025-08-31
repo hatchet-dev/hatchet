@@ -92,7 +92,7 @@ type ClientOpts struct {
 	presetWorkerLabels map[string]string
 }
 
-func defaultClientOpts(token *string, cf *client.ClientConfigFile) *ClientOpts {
+func defaultClientOpts(token *string, cf *client.ClientConfigFile) (*ClientOpts, error) {
 	var clientConfig *client.ClientConfig
 	var err error
 
@@ -102,19 +102,16 @@ func defaultClientOpts(token *string, cf *client.ClientConfigFile) *ClientOpts {
 		// read from environment variables and hostname by default
 
 		clientConfig, err = configLoader.LoadClientConfig(token)
-
 		if err != nil {
-			panic(err)
+			return nil, fmt.Errorf("could not load client config from environment: %w", err)
 		}
-
 	} else {
 		if token != nil {
 			cf.Token = *token
 		}
 		clientConfig, err = loader.GetClientConfigFromConfigFile(cf)
-
 		if err != nil {
-			panic(err)
+			return nil, fmt.Errorf("could not load client config from file: %w", err)
 		}
 	}
 
@@ -135,7 +132,7 @@ func defaultClientOpts(token *string, cf *client.ClientConfigFile) *ClientOpts {
 		noGrpcRetry:        clientConfig.NoGrpcRetry,
 		sharedMeta:         make(map[string]string),
 		presetWorkerLabels: clientConfig.PresetWorkerLabels,
-	}
+	}, nil
 }
 
 // Deprecated: use WithLogger instead
@@ -220,7 +217,10 @@ func New(fs ...ClientOpt) (Client, error) {
 		token = &initOpts.token
 	}
 
-	opts := defaultClientOpts(token, nil)
+	opts, err := defaultClientOpts(token, nil)
+	if err != nil {
+		return nil, err
+	}
 
 	for _, f := range fs {
 		f(opts)
@@ -229,8 +229,12 @@ func New(fs ...ClientOpt) (Client, error) {
 	return newFromOpts(opts)
 }
 
+// NewFromConfigFile creates a client from a config file.
 func NewFromConfigFile(cf *client.ClientConfigFile, fs ...ClientOpt) (Client, error) {
-	opts := defaultClientOpts(nil, cf)
+	opts, err := defaultClientOpts(nil, cf)
+	if err != nil {
+		return nil, err
+	}
 
 	for _, f := range fs {
 		f(opts)
