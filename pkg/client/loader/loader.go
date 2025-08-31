@@ -85,7 +85,7 @@ func GetClientConfigFromConfigFile(cf *client.ClientConfigFile) (res *client.Cli
 		return nil, fmt.Errorf("server URL is required. Set it via the HATCHET_CLIENT_SERVER_URL environment variable")
 	}
 
-	if cf.TenantId == "" {
+	if cf.TenantId == "" && tokenConf != nil {
 		cf.TenantId = tokenConf.tenantId
 	}
 
