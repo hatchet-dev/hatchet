@@ -98,20 +98,19 @@ func defaultClientOpts(token *string, cf *client.ClientConfigFile) (*ClientOpts,
 
 	configLoader := &loader.ConfigLoader{}
 
-	if cf == nil {
-		// read from environment variables and hostname by default
-
-		clientConfig, err = configLoader.LoadClientConfig(token)
-		if err != nil {
-			return nil, fmt.Errorf("could not load client config from environment: %w", err)
-		}
-	} else {
+	if cf != nil {
 		if token != nil {
 			cf.Token = *token
 		}
 		clientConfig, err = loader.GetClientConfigFromConfigFile(cf)
 		if err != nil {
 			return nil, fmt.Errorf("could not load client config from file: %w", err)
+		}
+	} else {
+		// Try to load from environment variables
+		clientConfig, err = configLoader.LoadClientConfig(token)
+		if err != nil {
+			return nil, fmt.Errorf("could not load client config from environment: %w", err)
 		}
 	}
 
@@ -244,19 +243,25 @@ func NewFromConfigFile(cf *client.ClientConfigFile, fs ...ClientOpt) (Client, er
 }
 
 func newFromOpts(opts *ClientOpts) (Client, error) {
+	// Validate required fields first
 	if opts.token == "" {
-		return nil, fmt.Errorf("token is required")
+		return nil, fmt.Errorf("token is required, set via ClientOpt or HATCHET_CLIENT_TOKEN")
+	}
+
+	if opts.hostPort == "" {
+		return nil, fmt.Errorf("gRPC broadcast address is required, set via ClientOpt or HATCHET_CLIENT_HOST_PORT")
+	}
+
+	if opts.serverURL == "" {
+		return nil, fmt.Errorf("server URL is required, set via ClientOpt or HATCHET_CLIENT_SERVER_URL")
 	}
 
 	var transportCreds credentials.TransportCredentials
-
 	if opts.tls == nil {
 		opts.l.Debug().Msgf("connecting to %s without TLS", opts.hostPort)
-
 		transportCreds = insecure.NewCredentials()
 	} else {
 		opts.l.Debug().Msgf("connecting to %s with TLS server name %s", opts.hostPort, opts.tls.ServerName)
-
 		transportCreds = credentials.NewTLS(opts.tls)
 	}
 
