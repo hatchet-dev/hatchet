@@ -92,48 +92,6 @@ type ClientOpts struct {
 	presetWorkerLabels map[string]string
 }
 
-func defaultClientOpts(token *string, cf *client.ClientConfigFile) (*ClientOpts, error) {
-	var clientConfig *client.ClientConfig
-	var err error
-
-	configLoader := &loader.ConfigLoader{}
-
-	if cf != nil {
-		if token != nil {
-			cf.Token = *token
-		}
-		clientConfig, err = loader.GetClientConfigFromConfigFile(cf)
-		if err != nil {
-			return nil, fmt.Errorf("could not load client config from file: %w", err)
-		}
-	} else {
-		// Try to load from environment variables
-		clientConfig, err = configLoader.LoadClientConfig(token)
-		if err != nil {
-			return nil, fmt.Errorf("could not load client config from environment: %w", err)
-		}
-	}
-
-	logger := logger.NewDefaultLogger("client")
-
-	return &ClientOpts{
-		tenantId:           clientConfig.TenantId,
-		token:              clientConfig.Token,
-		l:                  &logger,
-		v:                  validator.NewDefaultValidator(),
-		tls:                clientConfig.TLSConfig,
-		hostPort:           clientConfig.GRPCBroadcastAddress,
-		serverURL:          clientConfig.ServerURL,
-		filesLoader:        types.DefaultLoader,
-		namespace:          clientConfig.Namespace,
-		cloudRegisterID:    clientConfig.CloudRegisterID,
-		runnableActions:    clientConfig.RunnableActions,
-		noGrpcRetry:        clientConfig.NoGrpcRetry,
-		sharedMeta:         make(map[string]string),
-		presetWorkerLabels: clientConfig.PresetWorkerLabels,
-	}, nil
-}
-
 // Deprecated: use WithLogger instead
 func WithLogLevel(lvl string) ClientOpt {
 	return func(opts *ClientOpts) {
@@ -207,22 +165,14 @@ type sharedClientOpts struct {
 
 // New creates a new client instance.
 func New(fs ...ClientOpt) (Client, error) {
-	var token *string
-	initOpts := &ClientOpts{}
+	opts := &ClientOpts{}
 	for _, f := range fs {
-		f(initOpts)
-	}
-	if initOpts.token != "" {
-		token = &initOpts.token
+		f(opts) // Apply explicit ClientOpts
 	}
 
-	opts, err := defaultClientOpts(token, nil)
-	if err != nil {
+	// populateOpts handles: env → defaults → validation
+	if err := populateOpts(opts, nil); err != nil {
 		return nil, err
-	}
-
-	for _, f := range fs {
-		f(opts)
 	}
 
 	return newFromOpts(opts)
@@ -230,16 +180,107 @@ func New(fs ...ClientOpt) (Client, error) {
 
 // NewFromConfigFile creates a client from a config file.
 func NewFromConfigFile(cf *client.ClientConfigFile, fs ...ClientOpt) (Client, error) {
-	opts, err := defaultClientOpts(nil, cf)
+	fileCfg, err := loader.GetClientConfigFromConfigFile(cf)
 	if err != nil {
+		return nil, fmt.Errorf("could not load client config from file: %w", err)
+	}
+
+	opts := &ClientOpts{}
+	for _, f := range fs {
+		f(opts) // Apply explicit ClientOpts
+	}
+
+	// populateOpts now merges env → config file → defaults → validation
+	if err := populateOpts(opts, fileCfg); err != nil {
 		return nil, err
 	}
 
-	for _, f := range fs {
-		f(opts)
+	return newFromOpts(opts)
+}
+
+// populateOpts fills opts in order:
+// 1) Explicit ClientOpts (already applied)
+// 2) Environment variables
+// 3) Config file (cfg)
+// 4) Defaults
+// 5) Validate required fields
+func populateOpts(opts *ClientOpts, cfg *client.ClientConfig) error {
+	// Merge environment variables
+	cl := &loader.ConfigLoader{}
+	if envCfg, err := cl.LoadClientConfig(nil); err == nil {
+		mergeConfig(opts, envCfg)
 	}
 
-	return newFromOpts(opts)
+	// Merge config file if present
+	if cfg != nil {
+		mergeConfig(opts, cfg)
+	}
+
+	// Set defaults for optional fields
+	ensureDefaults(opts)
+
+	// Validate required fields
+	if opts.token == "" {
+		return fmt.Errorf("token is required")
+	}
+	if opts.hostPort == "" {
+		return fmt.Errorf("GRPC hostPort is required")
+	}
+	if opts.serverURL == "" {
+		return fmt.Errorf("serverURL is required")
+	}
+
+	return nil
+}
+
+// mergeConfig fills only missing fields on opts from cfg.
+func mergeConfig(opts *ClientOpts, cfg *client.ClientConfig) {
+	if cfg == nil {
+		return
+	}
+	if opts.tenantId == "" {
+		opts.tenantId = cfg.TenantId
+	}
+	if opts.token == "" {
+		opts.token = cfg.Token
+	}
+	if opts.tls == nil {
+		opts.tls = cfg.TLSConfig
+	}
+	if opts.hostPort == "" {
+		opts.hostPort = cfg.GRPCBroadcastAddress
+	}
+	if opts.serverURL == "" {
+		opts.serverURL = cfg.ServerURL
+	}
+	if opts.namespace == "" {
+		opts.namespace = cfg.Namespace
+	}
+	if opts.cloudRegisterID == nil {
+		opts.cloudRegisterID = cfg.CloudRegisterID
+	}
+	if len(opts.runnableActions) == 0 {
+		opts.runnableActions = cfg.RunnableActions
+	}
+	if opts.presetWorkerLabels == nil {
+		opts.presetWorkerLabels = cfg.PresetWorkerLabels
+	}
+}
+
+func ensureDefaults(opts *ClientOpts) {
+	if opts.l == nil {
+		lg := logger.NewDefaultLogger("client")
+		opts.l = &lg
+	}
+	if opts.v == nil {
+		opts.v = validator.NewDefaultValidator()
+	}
+	if opts.sharedMeta == nil {
+		opts.sharedMeta = make(map[string]string)
+	}
+	if opts.filesLoader == nil {
+		opts.filesLoader = types.DefaultLoader
+	}
 }
 
 func newFromOpts(opts *ClientOpts) (Client, error) {
