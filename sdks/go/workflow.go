@@ -529,7 +529,7 @@ func (w *Workflow) RunNoWait(ctx context.Context, input any) (*WorkflowRef, erro
 type RunAsChildOpts = internal.RunAsChildOpts
 
 // RunAsChild executes the workflow as a child workflow with the provided input.
-func (w *Workflow) RunAsChild(ctx worker.HatchetContext, input any, opts RunAsChildOpts) (*WorkflowResult, error) {
+func (w *Workflow) RunAsChild(ctx Context, input any, opts RunAsChildOpts) (*WorkflowResult, error) {
 	// Convert opts to internal format
 	var additionalMetaOpt *map[string]string
 
@@ -564,4 +564,35 @@ func (w *Workflow) RunAsChild(ctx worker.HatchetContext, input any, opts RunAsCh
 	// Return the raw workflow result wrapped in WorkflowResult
 	// This allows users to extract specific task outputs using .Into()
 	return &WorkflowResult{result: workflowResult}, nil
+}
+
+// RunAsChildNoWait executes the workflow as a child workflow with the provided input without waiting for completion.
+// Returns a workflow run reference that can be used to track the run status.
+func (w *Workflow) RunAsChildNoWait(ctx Context, input any, opts RunAsChildOpts) (*WorkflowRef, error) {
+	// Convert opts to internal format
+	var additionalMetaOpt *map[string]string
+
+	if opts.AdditionalMetadata != nil {
+		additionalMeta := make(map[string]string)
+
+		for key, value := range *opts.AdditionalMetadata {
+			additionalMeta[key] = fmt.Sprintf("%v", value)
+		}
+
+		additionalMetaOpt = &additionalMeta
+	}
+
+	// Spawn the child workflow directly
+	run, err := ctx.SpawnWorkflow(w.declaration.Name(), input, &worker.SpawnWorkflowOpts{
+		Key:                opts.Key,
+		Sticky:             opts.Sticky,
+		Priority:           opts.Priority,
+		AdditionalMetadata: additionalMetaOpt,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &WorkflowRef{RunId: run.RunId()}, nil
 }
