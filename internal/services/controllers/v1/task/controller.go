@@ -55,11 +55,11 @@ type TasksControllerImpl struct {
 	celParser                   *cel.CELParser
 	opsPoolPollInterval         time.Duration
 	opsPoolJitter               time.Duration
-	timeoutTaskOperations       *queueutils.OperationPool
-	reassignTaskOperations      *queueutils.OperationPool
-	retryTaskOperations         *queueutils.OperationPool
-	emitSleepOperations         *queueutils.OperationPool
-	processPayloadWALOperations *queueutils.OperationPool
+	timeoutTaskOperations       *queueutils.OperationPool[string]
+	reassignTaskOperations      *queueutils.OperationPool[string]
+	retryTaskOperations         *queueutils.OperationPool[string]
+	emitSleepOperations         *queueutils.OperationPool[string]
+	processPayloadWALOperations *queueutils.OperationPool[int64]
 	replayEnabled               bool
 }
 
@@ -230,7 +230,7 @@ func New(fs ...TasksControllerOpt) (*TasksControllerImpl, error) {
 	t.emitSleepOperations = queueutils.NewOperationPool(opts.l, timeout, "emit sleep step runs", t.processSleeps).WithJitter(jitter)
 	t.reassignTaskOperations = queueutils.NewOperationPool(opts.l, timeout, "reassign step runs", t.processTaskReassignments).WithJitter(jitter)
 	t.retryTaskOperations = queueutils.NewOperationPool(opts.l, timeout, "retry step runs", t.processTaskRetryQueueItems).WithJitter(jitter)
-	t.processPayloadWALOperations = queueutils.NewOperationPool(opts.l, timeout, "process payload WAL", t.processPayloadWAL).WithJitter(jitter)
+	t.processPayloadWALOperations = queueutils.NewOperationPool[int64](opts.l, timeout, "process payload WAL", t.processPayloadWAL).WithJitter(jitter)
 
 	return t, nil
 }

@@ -50,7 +50,7 @@ type PayloadStoreRepository interface {
 	Store(ctx context.Context, tx sqlcv1.DBTX, payloads ...StorePayloadOpts) error
 	Retrieve(ctx context.Context, opts RetrievePayloadOpts) ([]byte, error)
 	BulkRetrieve(ctx context.Context, opts ...RetrievePayloadOpts) (map[RetrievePayloadOpts][]byte, error)
-	ProcessPayloadWAL(ctx context.Context, partitionNumber int32) (bool, error)
+	ProcessPayloadWAL(ctx context.Context, partitionNumber int64) (bool, error)
 	OverwriteExternalStore(store ExternalStore, inlineStoreTTL time.Duration)
 	DualWritesEnabled() bool
 }
@@ -244,7 +244,7 @@ func (p *payloadStoreRepositoryImpl) offloadToExternal(ctx context.Context, payl
 	return p.externalStore.Store(ctx, payloads...)
 }
 
-func (p *payloadStoreRepositoryImpl) ProcessPayloadWAL(ctx context.Context, partitionNumber int32) (bool, error) {
+func (p *payloadStoreRepositoryImpl) ProcessPayloadWAL(ctx context.Context, partitionNumber int64) (bool, error) {
 	// no need to process the WAL if external store is not enabled
 	if !p.externalStoreEnabled {
 		return false, nil
