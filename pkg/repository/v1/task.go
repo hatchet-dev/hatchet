@@ -3326,7 +3326,7 @@ func (r *TaskRepositoryImpl) AnalyzeTaskTables(ctx context.Context) error {
 	}
 
 	if !acquired {
-		r.l.Info().Msg("advisory lock already held, skipping OLAP table analysis")
+		r.l.Info().Msg("advisory lock already held, skipping task table analysis")
 		return nil
 	}
 
