@@ -12,22 +12,60 @@ CREATE TABLE IF NOT EXISTS v1_lookup_table_partitioned (
     PRIMARY KEY (external_id, inserted_at)
 ) PARTITION BY RANGE (inserted_at);
 
-SELECT create_v1_weekly_range_partition('v1_lookup_table_partitioned', NOW()::DATE);
-SELECT create_v1_weekly_range_partition('v1_lookup_table_partitioned', (NOW() - INTERVAL '1 week')::DATE);
+-- check if partitions already exist, and create them if not
+DO $$
+DECLARE
+    partition_count INTEGER;
+BEGIN
+    SELECT COUNT(*)
+    INTO partition_count
+    FROM pg_class c
+    JOIN pg_inherits i ON c.oid = i.inhrelid
+    JOIN pg_class parent ON i.inhparent = parent.oid
+    WHERE
+        parent.relname = 'v1_lookup_table_partitioned'
+        AND c.relkind = 'r';
+
+    IF partition_count > 0 THEN
+        RAISE NOTICE 'Table has % partitions. Exiting.', partition_count;
+        RETURN;
+    END IF;
+
+    RAISE NOTICE 'No partitions found. Creating partitions...';
+
+    PERFORM create_v1_weekly_range_partition('v1_lookup_table_partitioned', NOW()::DATE);
+    PERFORM create_v1_weekly_range_partition('v1_lookup_table_partitioned', (NOW() - INTERVAL '1 week')::DATE);
+END $$;
+
 
 DO $$
 DECLARE
-    startDateStr varchar;
-    endDateStr varchar;
-    targetTableName CONSTANT varchar := 'v1_lookup_table_partitioned';
-    newTableName varchar;
+    partition_count INTEGER;
+    start_date_str varchar;
+    end_date_str varchar;
+    target_table_name CONSTANT varchar := 'v1_lookup_table_partitioned';
+    new_table_name varchar;
 BEGIN
-    SELECT '19700101' INTO startDateStr;
-    SELECT TO_CHAR(date_trunc('week', (NOW() - INTERVAL '8 days')::DATE), 'YYYYMMDD') INTO endDateStr;
-    SELECT LOWER(FORMAT('%s_%s', targetTableName, startDateStr)) INTO newTableName;
+    -- if the partition containing the old data already exists, exit
+    SELECT COUNT(*)
+    INTO partition_count
+    FROM pg_class c
+    JOIN pg_inherits i ON c.oid = i.inhrelid
+    JOIN pg_class parent ON i.inhparent = parent.oid
+    WHERE
+        c.relname = 'v1_lookup_table_partitioned_19700101';
+
+    IF partition_count > 0 THEN
+        RAISE NOTICE 'Table has % partitions. Exiting.', partition_count;
+        RETURN;
+    END IF;
+
+    SELECT '19700101' INTO start_date_str;
+    SELECT TO_CHAR(date_trunc('week', (NOW() - INTERVAL '8 days')::DATE), 'YYYYMMDD') INTO end_date_str;
+    SELECT LOWER(FORMAT('%s_%s', target_table_name, start_date_str)) INTO new_table_name;
 
     EXECUTE
-        format('CREATE TABLE IF NOT EXISTS %s (LIKE %s INCLUDING INDEXES)', newTableName, targetTableName);
+        format('CREATE TABLE IF NOT EXISTS %s (LIKE %s INCLUDING INDEXES)', new_table_name, target_table_name);
 
     EXECUTE
         format('ALTER TABLE %s SET (
@@ -37,11 +75,10 @@ BEGIN
             autovacuum_analyze_threshold=''25'',
             autovacuum_vacuum_cost_delay=''10'',
             autovacuum_vacuum_cost_limit=''1000''
-        )', newTableName);
+        )', new_table_name);
     EXECUTE
-        format('ALTER TABLE %s ATTACH PARTITION %s FOR VALUES FROM (''%s'') TO (''%s'')', targetTableName, newTableName, startDateStr, endDateStr);
+        format('ALTER TABLE %s ATTACH PARTITION %s FOR VALUES FROM (''%s'') TO (''%s'')', target_table_name, new_table_name, start_date_str, end_date_str);
 END$$;
-
 
 
 CREATE OR REPLACE FUNCTION v1_lookup_table_partitioned_insert_function()
