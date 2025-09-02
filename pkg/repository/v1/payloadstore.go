@@ -55,27 +55,30 @@ type PayloadStoreRepository interface {
 }
 
 type payloadStoreRepositoryImpl struct {
-	pool                 *pgxpool.Pool
-	l                    *zerolog.Logger
-	queries              *sqlcv1.Queries
-	externalStoreEnabled bool
-	inlineStoreTTL       *time.Duration
-	externalStore        ExternalStore
+	pool                    *pgxpool.Pool
+	l                       *zerolog.Logger
+	queries                 *sqlcv1.Queries
+	externalStoreEnabled    bool
+	inlineStoreTTL          *time.Duration
+	externalStore           ExternalStore
+	enablePayloadDualWrites bool
 }
 
 func NewPayloadStoreRepository(
 	pool *pgxpool.Pool,
 	l *zerolog.Logger,
 	queries *sqlcv1.Queries,
+	enablePayloadDualWrites bool,
 ) PayloadStoreRepository {
 	return &payloadStoreRepositoryImpl{
 		pool:    pool,
 		l:       l,
 		queries: queries,
 
-		externalStoreEnabled: false,
-		inlineStoreTTL:       nil,
-		externalStore:        &NoOpExternalStore{},
+		externalStoreEnabled:    false,
+		inlineStoreTTL:          nil,
+		externalStore:           &NoOpExternalStore{},
+		enablePayloadDualWrites: enablePayloadDualWrites,
 	}
 }
 

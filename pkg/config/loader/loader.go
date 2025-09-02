@@ -263,7 +263,7 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		DurableSleepLimit: scf.Runtime.TaskOperationLimits.DurableSleepLimit,
 	}
 
-	v1, cleanupV1 := repov1.NewRepository(pool, &l, retentionPeriod, retentionPeriod, scf.Runtime.MaxInternalRetryCount, entitlementRepo, taskLimits)
+	v1, cleanupV1 := repov1.NewRepository(pool, &l, retentionPeriod, retentionPeriod, scf.Runtime.MaxInternalRetryCount, entitlementRepo, taskLimits, scf.PayloadStore.EnablePayloadDualWrites)
 
 	apiRepo, cleanupApiRepo, err := postgresdb.NewAPIRepository(pool, &scf.Runtime, opts...)
 

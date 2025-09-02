@@ -256,10 +256,10 @@ type OLAPRepositoryImpl struct {
 	shouldPartitionEventsTables bool
 }
 
-func NewOLAPRepositoryFromPool(pool *pgxpool.Pool, l *zerolog.Logger, olapRetentionPeriod time.Duration, entitlements repository.EntitlementsRepository, shouldPartitionEventsTables bool) (OLAPRepository, func() error) {
+func NewOLAPRepositoryFromPool(pool *pgxpool.Pool, l *zerolog.Logger, olapRetentionPeriod time.Duration, entitlements repository.EntitlementsRepository, shouldPartitionEventsTables, enablePayloadDualWrites bool) (OLAPRepository, func() error) {
 	v := validator.NewDefaultValidator()
 
-	shared, cleanupShared := newSharedRepository(pool, v, l, entitlements)
+	shared, cleanupShared := newSharedRepository(pool, v, l, entitlements, enablePayloadDualWrites)
 
 	return newOLAPRepository(shared, olapRetentionPeriod, shouldPartitionEventsTables), cleanupShared
 }

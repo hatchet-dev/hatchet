@@ -50,10 +50,10 @@ type repositoryImpl struct {
 	payloadStore PayloadStoreRepository
 }
 
-func NewRepository(pool *pgxpool.Pool, l *zerolog.Logger, taskRetentionPeriod, olapRetentionPeriod time.Duration, maxInternalRetryCount int32, entitlements repository.EntitlementsRepository, taskLimits TaskOperationLimits) (Repository, func() error) {
+func NewRepository(pool *pgxpool.Pool, l *zerolog.Logger, taskRetentionPeriod, olapRetentionPeriod time.Duration, maxInternalRetryCount int32, entitlements repository.EntitlementsRepository, taskLimits TaskOperationLimits, enablePayloadDualWrites bool) (Repository, func() error) {
 	v := validator.NewDefaultValidator()
 
-	shared, cleanupShared := newSharedRepository(pool, v, l, entitlements)
+	shared, cleanupShared := newSharedRepository(pool, v, l, entitlements, enablePayloadDualWrites)
 
 	impl := &repositoryImpl{
 		triggers:     newTriggerRepository(shared),
