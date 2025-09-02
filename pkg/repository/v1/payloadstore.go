@@ -52,6 +52,7 @@ type PayloadStoreRepository interface {
 	BulkRetrieve(ctx context.Context, opts ...RetrievePayloadOpts) (map[RetrievePayloadOpts][]byte, error)
 	ProcessPayloadWAL(ctx context.Context, partitionNumber int32) (bool, error)
 	OverwriteExternalStore(store ExternalStore, inlineStoreTTL time.Duration)
+	DualWritesEnabled() bool
 }
 
 type payloadStoreRepositoryImpl struct {
@@ -399,6 +400,10 @@ func (p *payloadStoreRepositoryImpl) OverwriteExternalStore(store ExternalStore,
 	p.externalStoreEnabled = true
 	p.inlineStoreTTL = &inlineStoreTTL
 	p.externalStore = store
+}
+
+func (p *payloadStoreRepositoryImpl) DualWritesEnabled() bool {
+	return p.enablePayloadDualWrites
 }
 
 type NoOpExternalStore struct{}

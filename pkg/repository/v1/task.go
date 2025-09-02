@@ -1995,7 +1995,10 @@ func (r *sharedRepository) insertTasks(
 		params.WorkflowVersionIds = append(params.WorkflowVersionIds, workflowVersionIds[i])
 		params.WorkflowRunIds = append(params.WorkflowRunIds, workflowRunIds[i])
 
-		params.Inputs = append(params.Inputs, externalIdToInput[task.ExternalId])
+		// if dual writes are enabled, write the inputs to the tasks table
+		if r.payloadStore.DualWritesEnabled() {
+			params.Inputs = append(params.Inputs, externalIdToInput[task.ExternalId])
+		}
 
 		stepIdsToParams[task.StepId] = params
 	}
