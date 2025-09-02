@@ -34,10 +34,8 @@ func (p *Populator) RegisterGetter(resourceKey string, getter ResourceGetterFunc
 
 func (p *Populator) Middleware(r *middleware.RouteInfo) echo.HandlerFunc {
 	return func(c echo.Context) error {
-		fmt.Println("route info", r)
 		err := p.populate(c, r)
 		if err != nil {
-			fmt.Println("populate error", err)
 			return err
 		}
 
