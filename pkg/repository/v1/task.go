@@ -1958,6 +1958,7 @@ func (r *sharedRepository) insertTasks(
 				RetryMaxBackoff:              make([]pgtype.Int4, 0),
 				WorkflowVersionIds:           make([]pgtype.UUID, 0),
 				WorkflowRunIds:               make([]pgtype.UUID, 0),
+				Inputs:                       make([][]byte, 0),
 			}
 		}
 
@@ -1993,6 +1994,8 @@ func (r *sharedRepository) insertTasks(
 		params.RetryMaxBackoff = append(params.RetryMaxBackoff, retryMaxBackoffs[i])
 		params.WorkflowVersionIds = append(params.WorkflowVersionIds, workflowVersionIds[i])
 		params.WorkflowRunIds = append(params.WorkflowRunIds, workflowRunIds[i])
+
+		params.Inputs = append(params.Inputs, externalIdToInput[task.ExternalId])
 
 		stepIdsToParams[task.StepId] = params
 	}
