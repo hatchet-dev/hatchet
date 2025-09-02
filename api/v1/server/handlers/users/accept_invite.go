@@ -76,7 +76,7 @@ func (u *UserService) TenantInviteAccept(ctx echo.Context, request gen.TenantInv
 	}
 
 	// add the user to the tenant
-	_, err = u.config.APIRepository.Tenant().CreateTenantMember(ctx.Request().Context(), sqlchelpers.UUIDToStr(invite.TenantId), &repository.CreateTenantMemberOpts{
+	member, err := u.config.APIRepository.Tenant().CreateTenantMember(ctx.Request().Context(), sqlchelpers.UUIDToStr(invite.TenantId), &repository.CreateTenantMemberOpts{
 		UserId: userId,
 		Role:   string(invite.Role),
 	})
@@ -98,6 +98,15 @@ func (u *UserService) TenantInviteAccept(ctx echo.Context, request gen.TenantInv
 			"role":      invite.Role,
 		},
 	)
+
+	ctx.Set("tenant-member", member)
+
+	tenant, err := u.config.APIRepository.Tenant().GetTenantByID(ctx.Request().Context(), tenantId)
+	if err != nil {
+		return nil, err
+	}
+
+	ctx.Set("tenant", tenant)
 
 	ctx.Set(constants.ResourceIdKey.String(), inviteId)
 	ctx.Set(constants.ResourceTypeKey.String(), constants.ResourceTypeTenantInvite.String())
