@@ -1,7 +1,6 @@
 package queueutils
 
 import (
-	"strconv"
 	"sync"
 	"time"
 
@@ -53,14 +52,14 @@ func (p *OperationPool[T]) SetTenants(tenants []*dbsqlc.Tenant) {
 }
 
 func (p *OperationPool[T]) SetPartitions(partitions []int64) {
-	partitionMap := make(map[string]bool)
+	partitionMap := make(map[T]bool)
 
 	for _, partitionId := range partitions {
-		partitionMap[strconv.Itoa(int(partitionId))] = true
+		partitionMap[T(partitionId)] = true
 	}
 
 	p.ops.Range(func(key, value interface{}) bool {
-		if _, ok := partitionMap[key.(string)]; !ok {
+		if _, ok := partitionMap[key.(T)]; !ok {
 			p.ops.Delete(key)
 		}
 
