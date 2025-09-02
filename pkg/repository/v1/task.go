@@ -1995,9 +1995,12 @@ func (r *sharedRepository) insertTasks(
 		params.WorkflowVersionIds = append(params.WorkflowVersionIds, workflowVersionIds[i])
 		params.WorkflowRunIds = append(params.WorkflowRunIds, workflowRunIds[i])
 
-		// if dual writes are enabled, write the inputs to the tasks table
 		if r.payloadStore.DualWritesEnabled() {
+			// if dual writes are enabled, write the inputs to the tasks table
 			params.Inputs = append(params.Inputs, externalIdToInput[task.ExternalId])
+		} else {
+			// otherwise, write an empty json object to the inputs column
+			params.Inputs = append(params.Inputs, []byte("{}"))
 		}
 
 		stepIdsToParams[task.StepId] = params
