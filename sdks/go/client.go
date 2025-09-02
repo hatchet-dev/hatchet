@@ -333,7 +333,7 @@ func (st *StandaloneTask) Run(ctx context.Context, input any) (*TaskResult, erro
 	}
 
 	// Extract the task result from the workflow result
-	taskResult := result.TaskOutput(st.task)
+	taskResult := result.TaskOutput(st.task.name)
 	return taskResult, nil
 }
 
@@ -346,11 +346,6 @@ func (st *StandaloneTask) RunNoWait(ctx context.Context, input any) (*WorkflowRe
 // Dump implements the WorkflowBase interface for internal use, delegating to the underlying workflow.
 func (st *StandaloneTask) Dump() (*contracts.CreateWorkflowVersionRequest, []internal.NamedFunction, []internal.NamedFunction, internal.WrappedTaskFn) {
 	return st.workflow.Dump()
-}
-
-// NamedTask represents any task that has a name.
-type NamedTask interface {
-	GetName() string
 }
 
 // WorkflowRef is a type that represents a reference to a workflow run.
@@ -373,10 +368,10 @@ type TaskResult struct {
 //
 // Example usage:
 //
-//	taskResult := workflowResult.TaskOutput(myTask)
+//	taskResult := workflowResult.TaskOutput("myTask")
 //	var output MyOutputType
 //	err := taskResult.Into(&output)
-func (wr *WorkflowResult) TaskOutput(task NamedTask) *TaskResult {
+func (wr *WorkflowResult) TaskOutput(taskName string) *TaskResult {
 	// Handle different result structures that might come from workflow execution
 	resultData := wr.result
 
@@ -393,7 +388,7 @@ func (wr *WorkflowResult) TaskOutput(task NamedTask) *TaskResult {
 
 	// If the result is a map, look for the specific task
 	if resultMap, ok := resultData.(map[string]any); ok {
-		if taskOutput, exists := resultMap[task.GetName()]; exists {
+		if taskOutput, exists := resultMap[taskName]; exists {
 			return &TaskResult{result: taskOutput}
 		}
 	}

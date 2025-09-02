@@ -41,7 +41,7 @@ func TestTaskOutput_WithMapResult(t *testing.T) {
 	task1 := &mockTask{name: "task1"}
 
 	// Test TaskOutput method
-	taskResult := workflowResult.TaskOutput(task1)
+	taskResult := workflowResult.TaskOutput(task1.GetName())
 	if taskResult == nil {
 		t.Fatal("TaskOutput returned nil")
 	}
@@ -86,7 +86,7 @@ func TestTaskOutput_WithJSONStringResult(t *testing.T) {
 	task := &mockTask{name: "json-task"}
 
 	// Test TaskOutput and Into
-	taskResult := workflowResult.TaskOutput(task)
+	taskResult := workflowResult.TaskOutput(task.GetName())
 	var actualOutput TestOutputStruct
 	err = taskResult.Into(&actualOutput)
 	if err != nil {
@@ -113,7 +113,7 @@ func TestTaskOutput_TaskNotFound(t *testing.T) {
 
 	// Request a task that doesn't exist
 	nonExistentTask := &mockTask{name: "non-existent-task"}
-	taskResult := workflowResult.TaskOutput(nonExistentTask)
+	taskResult := workflowResult.TaskOutput(nonExistentTask.GetName())
 
 	// Should return the entire result when task not found
 	var actualOutput map[string]any
@@ -147,7 +147,7 @@ func TestTaskOutput_SingleTaskWorkflow(t *testing.T) {
 	task := &mockTask{name: "only-task"}
 
 	// Test TaskOutput and Into
-	taskResult := workflowResult.TaskOutput(task)
+	taskResult := workflowResult.TaskOutput(task.GetName())
 	var actualOutput TestOutputStruct
 	err := taskResult.Into(&actualOutput)
 	if err != nil {
@@ -202,15 +202,5 @@ func TestTaskResult_Into_WithPointerToInterface(t *testing.T) {
 	}
 	if actualOutput.Number != expectedOutput.Number {
 		t.Errorf("Expected Number %d, got %d", expectedOutput.Number, actualOutput.Number)
-	}
-}
-
-func TestTaskCompliesToNamedTaskInterface(t *testing.T) {
-	// Test that our Task struct correctly implements NamedTask interface
-	var _ NamedTask = &Task{name: "test"}
-
-	task := &Task{name: "interface-test"}
-	if task.GetName() != "interface-test" {
-		t.Errorf("Expected name 'interface-test', got %s", task.GetName())
 	}
 }
