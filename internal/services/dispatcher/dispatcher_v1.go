@@ -291,11 +291,6 @@ func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *ms
 
 				currInput.Parents = readableIdToData
 
-				// Didn't need this before, which I think is an indication of a bug somewhere
-				if currInput.Triggers == nil {
-					currInput.Triggers = make(map[string]map[string]interface{})
-				}
-
 				inputs[v1.RetrievePayloadOpts{
 					Id:         task.ID,
 					InsertedAt: task.InsertedAt,
