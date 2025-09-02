@@ -3,6 +3,7 @@ package populator
 import (
 	"errors"
 	"fmt"
+	"net/http"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/labstack/echo/v4"
@@ -33,8 +34,10 @@ func (p *Populator) RegisterGetter(resourceKey string, getter ResourceGetterFunc
 
 func (p *Populator) Middleware(r *middleware.RouteInfo) echo.HandlerFunc {
 	return func(c echo.Context) error {
+		fmt.Println("route info", r)
 		err := p.populate(c, r)
 		if err != nil {
+			fmt.Println("populate error", err)
 			return err
 		}
 
@@ -80,7 +83,7 @@ func (p *Populator) populate(c echo.Context, r *middleware.RouteInfo) error {
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return c.NoContent(404)
+			return echo.NewHTTPError(http.StatusNotFound, "not found")
 		}
 
 		return err
