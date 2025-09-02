@@ -1,6 +1,7 @@
 package queueutils
 
 import (
+	"strconv"
 	"sync"
 	"time"
 
@@ -44,6 +45,22 @@ func (p *OperationPool) SetTenants(tenants []*dbsqlc.Tenant) {
 	// delete tenants that are not in the list
 	p.ops.Range(func(key, value interface{}) bool {
 		if _, ok := tenantMap[key.(string)]; !ok {
+			p.ops.Delete(key)
+		}
+
+		return true
+	})
+}
+
+func (p *OperationPool) SetPartitions(partitions []int32) {
+	partitionMap := make(map[string]bool)
+
+	for _, partitionId := range partitions {
+		partitionMap[strconv.Itoa(int(partitionId))] = true
+	}
+
+	p.ops.Range(func(key, value interface{}) bool {
+		if _, ok := partitionMap[key.(string)]; !ok {
 			p.ops.Delete(key)
 		}
 
