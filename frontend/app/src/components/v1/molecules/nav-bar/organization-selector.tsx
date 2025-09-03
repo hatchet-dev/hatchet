@@ -66,12 +66,24 @@ export function OrganizationSelector({ className }: OrganizationSelectorProps) {
     [organizations],
   );
 
-  const currentOrganization = useMemo(() => {
+  const { currentOrganization, otherOrganizations } = useMemo(() => {
     if (!currTenant) {
-      return null;
+      return { currentOrganization: null, otherOrganizations: organizations };
     }
-    return getOrganizationForTenant(currTenant.metadata.id);
-  }, [currTenant, getOrganizationForTenant]);
+
+    const current = getOrganizationForTenant(currTenant.metadata.id);
+
+    if (current) {
+      // Current tenant belongs to an organization - separate current from others
+      const others = organizations.filter(
+        (org) => org.metadata.id !== current.metadata.id,
+      );
+      return { currentOrganization: current, otherOrganizations: others };
+    } else {
+      // Current tenant doesn't belong to any organization - show all as "Organizations"
+      return { currentOrganization: null, otherOrganizations: organizations };
+    }
+  }, [currTenant, getOrganizationForTenant, organizations]);
 
   if (!currTenant || !isCloudEnabled || organizations.length === 0) {
     return null;
@@ -105,14 +117,16 @@ export function OrganizationSelector({ className }: OrganizationSelectorProps) {
             <CommandList>
               <CommandEmpty>No organizations found.</CommandEmpty>
 
-              <CommandGroup heading="Organizations">
-                {organizations.map((org) => (
+              {currentOrganization && (
+                <CommandGroup heading="Current Organization">
                   <CommandItem
-                    key={org.metadata.id}
+                    key={currentOrganization.metadata.id}
                     className="text-sm hover:bg-transparent focus:bg-transparent data-[selected]:bg-transparent aria-selected:bg-transparent [&[aria-selected=true]]:bg-transparent"
                   >
                     <div className="flex items-center justify-between w-full">
-                      <span className="flex-1">{org.name}</span>
+                      <span className="flex-1 font-medium">
+                        {currentOrganization.name}
+                      </span>
                       <div className="flex items-center gap-1 ml-2">
                         <Tooltip>
                           <TooltipTrigger asChild>
@@ -125,9 +139,12 @@ export function OrganizationSelector({ className }: OrganizationSelectorProps) {
                                 e.preventDefault();
                                 e.stopPropagation();
                                 setOpen(false);
-                                navigate(`/organizations/${org.metadata.id}`, {
-                                  replace: true,
-                                });
+                                navigate(
+                                  `/organizations/${currentOrganization.metadata.id}`,
+                                  {
+                                    replace: true,
+                                  },
+                                );
                               }}
                             >
                               <Cog6ToothIcon className="h-3 w-3" />
@@ -147,7 +164,7 @@ export function OrganizationSelector({ className }: OrganizationSelectorProps) {
                                 e.stopPropagation();
                                 setOpen(false);
                                 navigate(
-                                  `/organizations/${org.metadata.id}/add-tenant`,
+                                  `/organizations/${currentOrganization.metadata.id}/add-tenant`,
                                   { replace: true },
                                 );
                               }}
@@ -160,8 +177,77 @@ export function OrganizationSelector({ className }: OrganizationSelectorProps) {
                       </div>
                     </div>
                   </CommandItem>
-                ))}
-              </CommandGroup>
+                </CommandGroup>
+              )}
+
+              {otherOrganizations.length > 0 && (
+                <CommandGroup
+                  heading={
+                    currentOrganization
+                      ? 'Other Organizations'
+                      : 'Organizations'
+                  }
+                >
+                  {otherOrganizations.map((org) => (
+                    <CommandItem
+                      key={org.metadata.id}
+                      className="text-sm hover:bg-transparent focus:bg-transparent data-[selected]:bg-transparent aria-selected:bg-transparent [&[aria-selected=true]]:bg-transparent"
+                    >
+                      <div className="flex items-center justify-between w-full">
+                        <span className="flex-1">{org.name}</span>
+                        <div className="flex items-center gap-1 ml-2">
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 w-6 p-0 hover:bg-accent"
+                                title="Settings"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  setOpen(false);
+                                  navigate(
+                                    `/organizations/${org.metadata.id}`,
+                                    {
+                                      replace: true,
+                                    },
+                                  );
+                                }}
+                              >
+                                <Cog6ToothIcon className="h-3 w-3" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Settings</TooltipContent>
+                          </Tooltip>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 w-6 p-0 hover:bg-accent"
+                                title="New tenant"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  setOpen(false);
+                                  navigate(
+                                    `/organizations/${org.metadata.id}/add-tenant`,
+                                    { replace: true },
+                                  );
+                                }}
+                              >
+                                <PlusIcon className="h-3 w-3" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>New tenant</TooltipContent>
+                          </Tooltip>
+                        </div>
+                      </div>
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              )}
             </CommandList>
           </Command>
         </PopoverContent>
