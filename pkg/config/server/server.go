@@ -493,6 +493,12 @@ type PostmarkConfigFile struct {
 	SupportEmail string `mapstructure:"supportEmail" json:"supportEmail,omitempty"`
 }
 
+type CustomAuthenticator interface {
+	Authenticate(c echo.Context) error
+	Authorize(c echo.Context, r *middleware.RouteInfo) error
+	CookieAuthorizerHook(c echo.Context, r *middleware.RouteInfo) error
+}
+
 type AuthConfig struct {
 	RestrictedEmailDomains []string
 
@@ -504,9 +510,7 @@ type AuthConfig struct {
 
 	JWTManager token.JWTManager
 
-	CustomAuthenticationHandler func(c echo.Context) error
-
-	CustomAuthorizationHandler func(c echo.Context, r *middleware.RouteInfo) error
+	CustomAuthenticator CustomAuthenticator
 }
 
 type PylonConfig struct {
