@@ -8,6 +8,7 @@ CREATE TABLE v1_dag_to_task_partitioned (
     PRIMARY KEY (dag_id, dag_inserted_at, task_id, task_inserted_at)
 ) PARTITION BY RANGE(dag_inserted_at);
 
+SELECT create_v1_range_partition('v1_dag_to_task_partitioned', NOW()::DATE);
 SELECT create_v1_range_partition('v1_dag_to_task_partitioned', (NOW() + INTERVAL '1 day')::DATE);
 
 DO $$
