@@ -274,6 +274,7 @@ function CreateInvite({
   onSuccess: () => void;
 }) {
   const { tenantId } = useCurrentTenantId();
+  const cloudMeta = useCloudApiMeta();
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const { handleApiError } = useApiError({
     setFieldErrors: setFieldErrors,
@@ -297,6 +298,7 @@ function CreateInvite({
         isLoading={createMutation.isPending}
         onSubmit={createMutation.mutate}
         fieldErrors={fieldErrors}
+        isCloudEnabled={!!cloudMeta?.data}
       />
     </Dialog>
   );

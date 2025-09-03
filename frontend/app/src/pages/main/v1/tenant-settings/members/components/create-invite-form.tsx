@@ -20,26 +20,27 @@ import {
 } from '@/components/v1/ui/dialog';
 import { TenantMemberRole } from '@/lib/api';
 
-const schema = z.object({
-  email: z.string().email('Invalid email address'),
-  role: z.enum([
-    TenantMemberRole.OWNER,
-    TenantMemberRole.ADMIN,
-    TenantMemberRole.MEMBER,
-  ]),
-});
-
 interface CreateInviteFormProps {
   className?: string;
-  onSubmit: (opts: z.infer<typeof schema>) => void;
+  onSubmit: (opts: { email: string; role: TenantMemberRole }) => void;
   isLoading: boolean;
   fieldErrors?: Record<string, string>;
+  isCloudEnabled?: boolean;
 }
 
 export function CreateInviteForm({
   className,
   ...props
 }: CreateInviteFormProps) {
+  const availableRoles = props.isCloudEnabled
+    ? [TenantMemberRole.ADMIN, TenantMemberRole.MEMBER]
+    : [TenantMemberRole.OWNER, TenantMemberRole.ADMIN, TenantMemberRole.MEMBER];
+
+  const schema = z.object({
+    email: z.string().email('Invalid email address'),
+    role: z.enum(availableRoles as [TenantMemberRole, ...TenantMemberRole[]]),
+  });
+
   const {
     register,
     handleSubmit,
@@ -95,7 +96,9 @@ export function CreateInviteForm({
                         <SelectValue id="role" placeholder="Role..." />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="OWNER">Owner</SelectItem>
+                        {!props.isCloudEnabled && (
+                          <SelectItem value="OWNER">Owner</SelectItem>
+                        )}
                         <SelectItem value="ADMIN">Admin</SelectItem>
                         <SelectItem value="MEMBER">Member</SelectItem>
                       </SelectContent>

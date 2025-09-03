@@ -29,6 +29,22 @@ import {
 } from '@/components/v1/ui/table';
 import { Badge } from '@/components/v1/ui/badge';
 import { useState } from 'react';
+import { AddTenantModal } from './components/add-tenant-modal';
+import { InviteMemberModal } from './components/invite-member-modal';
+import { DeleteMemberModal } from './components/delete-member-modal';
+import { CreateTokenModal } from './components/create-token-modal';
+import { DeleteTokenModal } from './components/delete-token-modal';
+import {
+  OrganizationMember,
+  ManagementToken,
+} from '@/lib/api/generated/cloud/data-contracts';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/v1/ui/dropdown-menu';
+import { EllipsisVerticalIcon, TrashIcon } from '@heroicons/react/24/outline';
 
 // Copy to clipboard component
 function CopyableId({
@@ -71,6 +87,14 @@ function CopyableId({
 
 export default function OrganizationPage() {
   const { organization: orgId } = useParams<{ organization: string }>();
+  const [showAddTenantModal, setShowAddTenantModal] = useState(false);
+  const [showInviteMemberModal, setShowInviteMemberModal] = useState(false);
+  const [memberToDelete, setMemberToDelete] =
+    useState<OrganizationMember | null>(null);
+  const [showCreateTokenModal, setShowCreateTokenModal] = useState(false);
+  const [tokenToDelete, setTokenToDelete] = useState<ManagementToken | null>(
+    null,
+  );
 
   const organizationQuery = useQuery({
     queryKey: ['organization:get', orgId],
@@ -203,9 +227,7 @@ export default function OrganizationPage() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => {
-                window.location.href = `/organizations/${orgId}/add-tenant`;
-              }}
+              onClick={() => setShowAddTenantModal(true)}
             >
               <PlusIcon className="h-4 w-4 mr-2" />
               Add Tenant
@@ -279,11 +301,7 @@ export default function OrganizationPage() {
               <p className="text-muted-foreground mb-4">
                 Add your first tenant to get started.
               </p>
-              <Button
-                onClick={() => {
-                  window.location.href = `/organizations/${orgId}/add-tenant`;
-                }}
-              >
+              <Button onClick={() => setShowAddTenantModal(true)}>
                 <PlusIcon className="h-4 w-4 mr-2" />
                 Add Tenant
               </Button>
@@ -295,7 +313,17 @@ export default function OrganizationPage() {
       {/* Members Section */}
       <Card>
         <CardHeader>
-          <CardTitle>Members</CardTitle>
+          <CardTitle className="flex items-center justify-between">
+            Members
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowInviteMemberModal(true)}
+            >
+              <PlusIcon className="h-4 w-4 mr-2" />
+              Invite Member
+            </Button>
+          </CardTitle>
           <CardDescription>
             Members with access to this organization
           </CardDescription>
@@ -309,6 +337,7 @@ export default function OrganizationPage() {
                   <TableHead>Email</TableHead>
                   <TableHead>Role</TableHead>
                   <TableHead>Member Since</TableHead>
+                  <TableHead>Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -325,6 +354,28 @@ export default function OrganizationPage() {
                     </TableCell>
                     <TableCell className="text-muted-foreground">
                       {new Date(member.metadata.createdAt).toLocaleDateString()}
+                    </TableCell>
+                    <TableCell>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0"
+                          >
+                            <EllipsisVerticalIcon className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            onClick={() => setMemberToDelete(member)}
+                            className="text-red-600 focus:text-red-600"
+                          >
+                            <TrashIcon className="h-4 w-4 mr-2" />
+                            Remove Member
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -350,10 +401,7 @@ export default function OrganizationPage() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => {
-                // TODO: Add create management token functionality
-                console.log('Create management token');
-              }}
+              onClick={() => setShowCreateTokenModal(true)}
             >
               <PlusIcon className="h-4 w-4 mr-2" />
               Create Token
@@ -392,12 +440,9 @@ export default function OrganizationPage() {
                     </TableCell>
                     <TableCell>
                       <Button
-                        variant="outline"
+                        variant="destructive"
                         size="sm"
-                        onClick={() => {
-                          // TODO: Add delete token functionality
-                          console.log('Delete token:', token.id);
-                        }}
+                        onClick={() => setTokenToDelete(token)}
                       >
                         Delete
                       </Button>
@@ -413,12 +458,7 @@ export default function OrganizationPage() {
               <p className="text-muted-foreground mb-4">
                 Create API tokens to manage this organization programmatically.
               </p>
-              <Button
-                onClick={() => {
-                  // TODO: Add create management token functionality
-                  console.log('Create management token');
-                }}
-              >
+              <Button onClick={() => setShowCreateTokenModal(true)}>
                 <PlusIcon className="h-4 w-4 mr-2" />
                 Create Token
               </Button>
@@ -426,6 +466,72 @@ export default function OrganizationPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Add Tenant Modal */}
+      {orgId && organization && (
+        <AddTenantModal
+          open={showAddTenantModal}
+          onOpenChange={setShowAddTenantModal}
+          organizationId={orgId}
+          organizationName={organization.name}
+          onSuccess={() => {
+            // Refetch organization data to show new tenant
+            organizationQuery.refetch();
+          }}
+        />
+      )}
+
+      {/* Invite Member Modal */}
+      {orgId && organization && (
+        <InviteMemberModal
+          open={showInviteMemberModal}
+          onOpenChange={setShowInviteMemberModal}
+          organizationId={orgId}
+          organizationName={organization.name}
+          onSuccess={() => {
+            organizationQuery.refetch();
+          }}
+        />
+      )}
+
+      {/* Delete Member Modal */}
+      {memberToDelete && organization && (
+        <DeleteMemberModal
+          open={!!memberToDelete}
+          onOpenChange={(open) => !open && setMemberToDelete(null)}
+          member={memberToDelete}
+          organizationName={organization.name}
+          onSuccess={() => {
+            organizationQuery.refetch();
+          }}
+        />
+      )}
+
+      {/* Create Token Modal */}
+      {orgId && organization && (
+        <CreateTokenModal
+          open={showCreateTokenModal}
+          onOpenChange={setShowCreateTokenModal}
+          organizationId={orgId}
+          organizationName={organization.name}
+          onSuccess={() => {
+            managementTokensQuery.refetch();
+          }}
+        />
+      )}
+
+      {/* Delete Token Modal */}
+      {tokenToDelete && organization && (
+        <DeleteTokenModal
+          open={!!tokenToDelete}
+          onOpenChange={(open) => !open && setTokenToDelete(null)}
+          token={tokenToDelete}
+          organizationName={organization.name}
+          onSuccess={() => {
+            managementTokensQuery.refetch();
+          }}
+        />
+      )}
     </div>
   );
 }
