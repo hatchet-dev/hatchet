@@ -39,5 +39,18 @@ ALTER INDEX v1_dag_to_task_partitioned_pkey RENAME TO v1_dag_to_task_pkey;
 
 -- +goose Down
 -- +goose StatementBegin
-SELECT 'down SQL query';
+CREATE TABLE v1_dag_to_task_original (
+    dag_id BIGINT NOT NULL,
+    dag_inserted_at TIMESTAMPTZ NOT NULL,
+    task_id BIGINT NOT NULL,
+    task_inserted_at TIMESTAMPTZ NOT NULL,
+    PRIMARY KEY (dag_id, dag_inserted_at, task_id, task_inserted_at)
+);
+
+INSERT INTO v1_dag_to_task_original
+SELECT * FROM v1_dag_to_task;
+
+DROP TABLE v1_dag_to_task;
+ALTER TABLE v1_dag_to_task_original RENAME TO v1_dag_to_task;
+ALTER INDEX v1_dag_to_task_original_pkey RENAME TO v1_dag_to_task_pkey;
 -- +goose StatementEnd
