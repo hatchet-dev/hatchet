@@ -642,6 +642,11 @@ export interface OrganizationMember {
   userId: string;
   /** Type/role of the member in the organization */
   memberType: OrganizationMemberType;
+  /**
+   * Email of the user
+   * @format email
+   */
+  email: string;
 }
 
 export interface OrganizationMemberList {

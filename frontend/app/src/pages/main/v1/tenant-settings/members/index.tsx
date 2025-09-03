@@ -146,7 +146,7 @@ function UpdateMember({
   // If it's cloud-enabled and the member is an OWNER, redirect to org settings
   useEffect(() => {
     if (isCloudEnabled && isOwnerRole && organizationId) {
-      window.location.href = `/organization/${organizationId}/settings`;
+      window.location.href = `/organizations/${organizationId}`;
       onClose();
     }
   }, [isCloudEnabled, isOwnerRole, organizationId, onClose]);
