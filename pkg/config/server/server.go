@@ -494,8 +494,11 @@ type PostmarkConfigFile struct {
 }
 
 type CustomAuthenticator interface {
+	// Authenticate is called to authenticate for endpoints that support the customAuth security scheme
 	Authenticate(c echo.Context) error
+	// Authorize is called to authorize for endpoints that support the customAuth security scheme
 	Authorize(c echo.Context, r *middleware.RouteInfo) error
+	// CookieAuthorizerHook is called as part of cookie authorization
 	CookieAuthorizerHook(c echo.Context, r *middleware.RouteInfo) error
 }
 
