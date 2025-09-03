@@ -89,8 +89,8 @@ github.com/getsentry/sentry-go v0.35.1 h1:iopow6UVLE2aXu46xKVIs8Z9D/YZkJrHkgozrx
 github.com/getsentry/sentry-go v0.35.1/go.mod h1:C55omcY9ChRQIUcVcGcs+Zdy4ZpQGvNJ7JYHIoSWOtE=
 github.com/go-chi/chi v1.5.5 h1:vOB/HbEMt9QqBqErz07QehcOKHaWFtuj87tTDVz2qXE=
 github.com/go-chi/chi v1.5.5/go.mod h1:C9JqLr3tIYjDOZpzn+BCuxY8z8vmca43EeMgyZt7irw=
-github.com/go-co-op/gocron/v2 v2.16.4 h1:+sPh1WL/iPZGOAzmZ5sH1WsAbLH0d8T0S/hZJfFaMSw=
-github.com/go-co-op/gocron/v2 v2.16.4/go.mod h1:zAfC/GFQ668qHxOVl/D68Jh5Ce7sDqX6TJnSQyRkRBc=
+github.com/go-co-op/gocron/v2 v2.16.5 h1:j228Jxk7bb9CF8LKR3gS+bK3rcjRUINjlVI+ZMp26Ss=
+github.com/go-co-op/gocron/v2 v2.16.5/go.mod h1:zAfC/GFQ668qHxOVl/D68Jh5Ce7sDqX6TJnSQyRkRBc=
 github.com/go-errors/errors v1.4.2 h1:J6MZopCL4uSllY1OfXM374weqZFFItUbrImctkmUxIA=
 github.com/go-errors/errors v1.4.2/go.mod h1:sIVyrIiJhuEF+Pj9Ebtd6P/rEYROXFi3BopGUQ5a5Og=
 github.com/go-logr/logr v1.2.2/go.mod h1:jdQByPbusPIv2/zmleS9BjJVeZ6kBagPoEUsqbVz/1A=
