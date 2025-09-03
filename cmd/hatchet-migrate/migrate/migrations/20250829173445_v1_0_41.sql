@@ -16,6 +16,11 @@ CREATE TABLE IF NOT EXISTS v1_lookup_table_partitioned (
 DO $$
 DECLARE
     partition_count INTEGER;
+    start_date_str varchar := '19700101';
+    placeholder_start_date_str varchar;
+    end_date_str varchar;
+    target_table_name CONSTANT varchar := 'v1_lookup_table_partitioned';
+    new_table_name varchar;
 BEGIN
     SELECT COUNT(*)
     INTO partition_count
@@ -33,36 +38,17 @@ BEGIN
 
     RAISE NOTICE 'No partitions found. Creating partitions...';
 
+    -- creates a partition for this week, truncated to the week start
     PERFORM create_v1_weekly_range_partition('v1_lookup_table_partitioned', NOW()::DATE);
-    PERFORM create_v1_weekly_range_partition('v1_lookup_table_partitioned', (NOW() - INTERVAL '1 week')::DATE);
-END $$;
 
+    -- create a partition for everything before this week, truncated to the start of last week
+    -- this is a hack where we name the partition for last week, but just include everything in it
+    SELECT TO_CHAR(date_trunc('week', (NOW() - INTERVAL '1 week')::DATE), 'YYYYMMDD') INTO placeholder_start_date_str;
+    SELECT TO_CHAR(date_trunc('week', NOW()::DATE), 'YYYYMMDD') INTO end_date_str;
 
-DO $$
-DECLARE
-    partition_count INTEGER;
-    start_date_str varchar;
-    end_date_str varchar;
-    target_table_name CONSTANT varchar := 'v1_lookup_table_partitioned';
-    new_table_name varchar;
-BEGIN
-    -- if the partition containing the old data already exists, exit
-    SELECT COUNT(*)
-    INTO partition_count
-    FROM pg_class c
-    JOIN pg_inherits i ON c.oid = i.inhrelid
-    JOIN pg_class parent ON i.inhparent = parent.oid
-    WHERE
-        c.relname = 'v1_lookup_table_partitioned_19700101';
+    RAISE NOTICE 'Creating partition for range % to %', start_date_str, end_date_str;
 
-    IF partition_count > 0 THEN
-        RAISE NOTICE 'Table has % partitions. Exiting.', partition_count;
-        RETURN;
-    END IF;
-
-    SELECT '19700101' INTO start_date_str;
-    SELECT TO_CHAR(date_trunc('week', (NOW() - INTERVAL '8 days')::DATE), 'YYYYMMDD') INTO end_date_str;
-    SELECT LOWER(FORMAT('%s_%s', target_table_name, start_date_str)) INTO new_table_name;
+    SELECT LOWER(FORMAT('%s_%s', target_table_name, placeholder_start_date_str)) INTO new_table_name;
 
     EXECUTE
         format('CREATE TABLE IF NOT EXISTS %s (LIKE %s INCLUDING INDEXES)', new_table_name, target_table_name);
@@ -78,7 +64,7 @@ BEGIN
         )', new_table_name);
     EXECUTE
         format('ALTER TABLE %s ATTACH PARTITION %s FOR VALUES FROM (''%s'') TO (''%s'')', target_table_name, new_table_name, start_date_str, end_date_str);
-END$$;
+END $$;
 
 
 CREATE OR REPLACE FUNCTION v1_lookup_table_partitioned_insert_function()
