@@ -610,8 +610,6 @@ export interface Organization {
   metadata: APIResourceMeta;
   /** Name of the organization */
   name: string;
-  /** Unique slug of the organization */
-  slug: string;
   tenants?: OrganizationTenant[];
   members?: OrganizationMember[];
 }

@@ -164,7 +164,7 @@ export function OrganizationSelector({ className }: OrganizationSelectorProps) {
                                 e.stopPropagation();
                                 setOpen(false);
                                 navigate(
-                                  `/organizations/${currentOrganization.metadata.id}/add-tenant`,
+                                  `/onboarding/create-tenant`,
                                   { replace: true },
                                 );
                               }}
@@ -232,7 +232,7 @@ export function OrganizationSelector({ className }: OrganizationSelectorProps) {
                                   e.stopPropagation();
                                   setOpen(false);
                                   navigate(
-                                    `/organizations/${org.metadata.id}/add-tenant`,
+                                    `/onboarding/create-tenant`,
                                     { replace: true },
                                   );
                                 }}

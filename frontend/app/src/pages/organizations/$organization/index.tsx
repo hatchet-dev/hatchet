@@ -29,7 +29,6 @@ import {
 } from '@/components/v1/ui/table';
 import { Badge } from '@/components/v1/ui/badge';
 import { useState } from 'react';
-import { AddTenantModal } from './components/add-tenant-modal';
 import { InviteMemberModal } from './components/invite-member-modal';
 import { DeleteMemberModal } from './components/delete-member-modal';
 import { CreateTokenModal } from './components/create-token-modal';
@@ -93,7 +92,6 @@ function CopyableId({
 
 export default function OrganizationPage() {
   const { organization: orgId } = useParams<{ organization: string }>();
-  const [showAddTenantModal, setShowAddTenantModal] = useState(false);
   const [showInviteMemberModal, setShowInviteMemberModal] = useState(false);
   const [memberToDelete, setMemberToDelete] =
     useState<OrganizationMember | null>(null);
@@ -218,12 +216,6 @@ export default function OrganizationPage() {
                   <TableCell>{organization.name}</TableCell>
                 </TableRow>
                 <TableRow>
-                  <TableCell className="font-medium w-48">Slug</TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {organization.slug}
-                  </TableCell>
-                </TableRow>
-                <TableRow>
                   <TableCell className="font-medium w-48">Created</TableCell>
                   <TableCell className="text-muted-foreground">
                     {new Date(
@@ -244,7 +236,9 @@ export default function OrganizationPage() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setShowAddTenantModal(true)}
+                onClick={() => {
+                  window.location.href = `/onboarding/create-tenant`;
+                }}
               >
                 <PlusIcon className="h-4 w-4 mr-2" />
                 Add Tenant
@@ -381,7 +375,9 @@ export default function OrganizationPage() {
                 <p className="text-muted-foreground mb-4">
                   Add your first tenant to get started.
                 </p>
-                <Button onClick={() => setShowAddTenantModal(true)}>
+                <Button onClick={() => {
+                  window.location.href = `/onboarding/create-tenant`;
+                }}>
                   <PlusIcon className="h-4 w-4 mr-2" />
                   Add Tenant
                 </Button>
@@ -672,19 +668,6 @@ export default function OrganizationPage() {
           </CardContent>
         </Card>
 
-        {/* Add Tenant Modal */}
-        {orgId && organization && (
-          <AddTenantModal
-            open={showAddTenantModal}
-            onOpenChange={setShowAddTenantModal}
-            organizationId={orgId}
-            organizationName={organization.name}
-            onSuccess={() => {
-              // Refetch organization data to show new tenant
-              organizationQuery.refetch();
-            }}
-          />
-        )}
 
         {/* Invite Member Modal */}
         {orgId && organization && (

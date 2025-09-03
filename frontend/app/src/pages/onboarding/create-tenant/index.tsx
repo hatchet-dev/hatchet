@@ -4,6 +4,8 @@ import api, {
   TenantEnvironment,
   TenantVersion,
 } from '@/lib/api';
+import { cloudApi } from '@/lib/api/api';
+import useCloudApiMeta from '@/pages/auth/hooks/use-cloud-api-meta';
 import { useApiError } from '@/lib/hooks';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useState, useEffect } from 'react';
@@ -20,11 +22,14 @@ import { useAnalytics } from '@/hooks/use-analytics';
 export default function CreateTenant() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const cloudMeta = useCloudApiMeta();
 
   const stepFromUrl = parseInt(searchParams.get('step') || '0', 10);
+
   const [currentStep, setCurrentStep] = useState(
     Math.max(0, Math.min(stepFromUrl, 2)),
   );
+  const [selectedOrganizationId, setSelectedOrganizationId] = useState<string>('');
 
   const [formData, setFormData] = useState<OnboardingFormData>({
     name: '',
@@ -41,6 +46,16 @@ export default function CreateTenant() {
   const { setTenant } = useTenant();
   const { capture } = useAnalytics();
 
+  // Get organization list when cloud is enabled
+  const organizationListQuery = useQuery({
+    queryKey: ['organization:list'],
+    queryFn: async () => {
+      const result = await cloudApi.organizationList();
+      return result.data;
+    },
+    enabled: !!cloudMeta?.data,
+  });
+
   // Sync currentStep with URL parameter
   useEffect(() => {
     const stepFromUrl = parseInt(searchParams.get('step') || '0', 10);
@@ -55,31 +70,60 @@ export default function CreateTenant() {
   const createMutation = useMutation({
     mutationKey: ['user:update:login'],
     mutationFn: async (data: CreateTenantRequest) => {
-      const tenant = await api.tenantCreate(data);
+      // Use cloud API if cloud is enabled and organization is selected
+      if (cloudMeta?.data && selectedOrganizationId) {
+        const result = await cloudApi.organizationCreateTenant(selectedOrganizationId, {
+          name: data.name,
+          slug: data.slug,
+        });
 
-      // Track onboarding analytics
-      capture('onboarding_completed', {
-        hear_about_us: Array.isArray(formData.hearAboutUs)
-          ? formData.hearAboutUs.join(', ')
-          : formData.hearAboutUs,
-        what_building: Array.isArray(formData.whatBuilding)
-          ? formData.whatBuilding.join(', ')
-          : formData.whatBuilding,
-        tenant_id: tenant.data.metadata.id,
-      });
+        // Track onboarding analytics for cloud tenant
+        capture('onboarding_completed', {
+          hear_about_us: Array.isArray(formData.hearAboutUs)
+            ? formData.hearAboutUs.join(', ')
+            : formData.hearAboutUs,
+          what_building: Array.isArray(formData.whatBuilding)
+            ? formData.whatBuilding.join(', ')
+            : formData.whatBuilding,
+          tenant_id: result.data.id,
+          organization_id: selectedOrganizationId,
+        });
 
-      return tenant.data;
+        return { type: 'cloud', data: result.data };
+      } else {
+        // Use regular API for self-hosted
+        const tenant = await api.tenantCreate(data);
+
+        // Track onboarding analytics for regular tenant
+        capture('onboarding_completed', {
+          hear_about_us: Array.isArray(formData.hearAboutUs)
+            ? formData.hearAboutUs.join(', ')
+            : formData.hearAboutUs,
+          what_building: Array.isArray(formData.whatBuilding)
+            ? formData.whatBuilding.join(', ')
+            : formData.whatBuilding,
+          tenant_id: tenant.data.metadata.id,
+          organization_id: null,
+        });
+
+        return { type: 'regular', data: tenant.data };
+      }
     },
-    onSuccess: async (tenant) => {
-      setTenant(tenant);
+    onSuccess: async (result) => {
       await listMembershipsQuery.refetch();
 
-      // Hack to wait for next event loop tick so local storage is updated
       setTimeout(() => {
-        if (tenant.version === TenantVersion.V1) {
-          window.location.href = `/tenants/${tenant.metadata.id}/onboarding/get-started`;
+        if (result.type === 'cloud') {
+          // For cloud tenants, redirect back to organization page
+          window.location.href = `/organizations/${selectedOrganizationId}`;
         } else {
-          window.location.href = `/onboarding/get-started?tenant=${tenant.metadata.id}`;
+          // For regular tenants, use the existing onboarding flow
+          const tenant = result.data as any;
+          if (tenant.version === TenantVersion.V1) {
+            window.location.href = `/tenants/${tenant.metadata.id}/onboarding/get-started`;
+          } else {
+            window.location.href = `/onboarding/get-started?tenant=${tenant.metadata.id}`;
+          }
         }
       }, 0);
     },
@@ -118,24 +162,46 @@ export default function CreateTenant() {
     }
   };
 
+  // Pure validation function for button state (no side effects)
+  const isCurrentStepValid = (): boolean => {
+    if (currentStep === 2) {
+      const { name } = formData.tenantData;
+
+      // Basic validation for name
+      if (!name || name.length < 4 || name.length > 32) {
+        return false;
+      }
+
+      // Validate organization selection for cloud mode
+      if (cloudMeta?.data && !selectedOrganizationId) {
+        return false;
+      }
+    }
+
+    return true;
+  };
+
   const validateCurrentStep = (): boolean => {
     // For the tenant create form (step 2), we need to validate the form
     if (currentStep === 2) {
       const { name } = formData.tenantData;
+      const errors: Record<string, string> = {};
 
-      // Clear previous errors
-      setFieldErrors({});
-
-      // Basic validation
+      // Basic validation for name
       if (!name || name.length < 4 || name.length > 32) {
-        setFieldErrors((prev) => ({
-          ...prev,
-          name: 'Name must be between 4 and 32 characters',
-        }));
-        return false;
+        errors.name = 'Name must be between 4 and 32 characters';
       }
 
-      return true;
+      // Validate organization selection for cloud mode
+      if (cloudMeta?.data && !selectedOrganizationId) {
+        errors.organizationId = 'Please select an organization';
+      }
+
+      // Set errors if any exist
+      setFieldErrors(errors);
+
+      // Return false if there are any errors
+      return Object.keys(errors).length === 0;
     }
 
     return true;
@@ -171,6 +237,17 @@ export default function CreateTenant() {
     name: string;
     environment: TenantEnvironment;
   }) => {
+    // Validate organization selection for cloud mode
+    if (cloudMeta?.data && !selectedOrganizationId) {
+      setFieldErrors({
+        organizationId: 'Please select an organization',
+      });
+      return;
+    }
+
+    // Clear any previous errors
+    setFieldErrors({});
+
     // Generate slug from name
     const slug = generateSlug(tenantData.name);
 
@@ -236,6 +313,13 @@ export default function CreateTenant() {
           formData={formData}
           setFormData={setFormData}
           className=""
+          // Organization-related props only for TenantCreateForm (step 2)
+          {...(currentStep === 2 && {
+            organizationList: organizationListQuery.data,
+            selectedOrganizationId: selectedOrganizationId,
+            onOrganizationChange: setSelectedOrganizationId,
+            isCloudEnabled: !!cloudMeta?.data,
+          })}
         />
 
         <div className="flex justify-between">
@@ -268,7 +352,7 @@ export default function CreateTenant() {
                   handleNext();
                 }
               }}
-              disabled={createMutation.isPending}
+              disabled={createMutation.isPending || (currentStep === 2 && !isCurrentStepValid())}
             >
               {createMutation.isPending ? (
                 <div className="flex items-center gap-2">

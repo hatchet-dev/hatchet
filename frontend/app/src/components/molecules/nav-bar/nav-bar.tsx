@@ -293,7 +293,7 @@ export default function MainNav({
           </div>
 
           <div className="ml-auto flex items-center gap-2">
-            {memberships && memberships.length > 0 && (
+            {memberships && memberships.length > 0 && !pathname.startsWith('/onboarding') && (
               <div className="max-w-xs">
                 <OrganizationSelector memberships={memberships} />
               </div>
