@@ -649,20 +649,20 @@ export interface OrganizationMemberList {
   pagination: PaginationResponse;
 }
 
-export interface AddOrganizationMembersRequest {
+export interface InviteOrganizationMembersRequest {
   /**
-   * Array of user IDs to add to the organization
+   * Array of user emails to invite to the organization
    * @minItems 1
    */
-  userIds: string[];
+  emails: string[];
 }
 
 export interface RemoveOrganizationMembersRequest {
   /**
-   * Array of user IDs to remove from the organization
+   * Array of user emails to remove from the organization
    * @minItems 1
    */
-  userIds: string[];
+  emails: string[];
 }
 
 export interface OrganizationTenant {

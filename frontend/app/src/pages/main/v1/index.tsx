@@ -19,7 +19,7 @@ import {
   useContextFromParent,
 } from '@/lib/outlet';
 import { Loading } from '@/components/v1/ui/loading.tsx';
-import { OrganizationSelector } from '@/components/v1/molecules/nav-bar/organization-selector';
+import { TenantSwitcher } from '@/components/v1/molecules/nav-bar/tenant-switcher';
 import {
   Collapsible,
   CollapsibleContent,
@@ -254,7 +254,7 @@ function Sidebar({ className, memberships }: SidebarProps) {
             </div>
           </div>
         </div>
-        <OrganizationSelector memberships={memberships} />
+        <TenantSwitcher memberships={memberships} />
       </div>
     </div>
   );

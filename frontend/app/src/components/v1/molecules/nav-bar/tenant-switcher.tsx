@@ -25,6 +25,9 @@ import React from 'react';
 import { Spinner } from '@/components/v1/ui/loading.tsx';
 import useApiMeta from '@/pages/auth/hooks/use-api-meta';
 import { useTenantDetails } from '@/hooks/use-tenant';
+import useCloudApiMeta from '@/pages/auth/hooks/use-cloud-api-meta';
+import { useQuery } from '@tanstack/react-query';
+import { cloudApi } from '@/lib/api/api';
 
 interface TenantSwitcherProps {
   className?: string;
@@ -35,8 +38,22 @@ export function TenantSwitcher({
   memberships,
 }: TenantSwitcherProps) {
   const meta = useApiMeta();
+  const cloudMeta = useCloudApiMeta();
   const { setTenant: setCurrTenant, tenant: currTenant } = useTenantDetails();
   const [open, setOpen] = React.useState(false);
+
+  const organizationListQuery = useQuery({
+    queryKey: ['organization:list'],
+    queryFn: async () => {
+      const result = await cloudApi.organizationList();
+      return result.data;
+    },
+    enabled: !!cloudMeta?.data,
+  });
+
+  const hasOrganizations = React.useMemo(() => {
+    return (organizationListQuery.data?.rows?.length || 0) > 0;
+  }, [organizationListQuery.data?.rows]);
 
   if (!currTenant) {
     return <Spinner />;
@@ -92,7 +109,7 @@ export function TenantSwitcher({
               </CommandItem>
             ))}
           </CommandList>
-          {meta.data?.allowCreateTenant && (
+          {meta.data?.allowCreateTenant && !hasOrganizations && (
             <>
               <CommandSeparator />
               <CommandList>

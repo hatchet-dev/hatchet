@@ -25,6 +25,7 @@ import {
   FeatureFlags,
   InfraAsCodeRequest,
   InstanceList,
+  InviteOrganizationMembersRequest,
   ListGithubAppInstallationsResponse,
   ListGithubBranchesResponse,
   ListGithubReposResponse,
@@ -37,6 +38,7 @@ import {
   Organization,
   OrganizationList,
   OrganizationTenant,
+  RemoveOrganizationMembersRequest,
   RuntimeConfigActionsResponse,
   TenantBillingState,
   TenantSubscription,
@@ -978,6 +980,50 @@ export class Api<
       path: `/api/v1/management/organization-tenants/${organizationTenant}/api-tokens/${apiToken}`,
       method: "DELETE",
       secure: true,
+      ...params,
+    });
+  /**
+   * @description Add members to an organization
+   *
+   * @tags Management
+   * @name OrganizationCreateInviteMembers
+   * @summary Invite Members to Organization
+   * @request POST:/api/v1/management/organizations/{organization}/members
+   * @secure
+   */
+  organizationCreateInviteMembers = (
+    organization: string,
+    data: InviteOrganizationMembersRequest,
+    params: RequestParams = {},
+  ) =>
+    this.request<void, APIError>({
+      path: `/api/v1/management/organizations/${organization}/members`,
+      method: "POST",
+      body: data,
+      secure: true,
+      type: ContentType.Json,
+      ...params,
+    });
+  /**
+   * @description Remove a member from an organization
+   *
+   * @tags Management
+   * @name OrganizationMemberDelete
+   * @summary Remove Member from Organization
+   * @request DELETE:/api/v1/management/organization-members/{organization-member}
+   * @secure
+   */
+  organizationMemberDelete = (
+    organizationMember: string,
+    data: RemoveOrganizationMembersRequest,
+    params: RequestParams = {},
+  ) =>
+    this.request<void, APIError>({
+      path: `/api/v1/management/organization-members/${organizationMember}`,
+      method: "DELETE",
+      body: data,
+      secure: true,
+      type: ContentType.Json,
       ...params,
     });
 }

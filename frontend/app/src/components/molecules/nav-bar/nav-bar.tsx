@@ -11,7 +11,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 
 import { useLocation, useNavigate } from 'react-router-dom';
-import api, { TenantVersion, User } from '@/lib/api';
+import api, { TenantMember, TenantVersion, User } from '@/lib/api';
 import { useApiError } from '@/lib/hooks';
 import { useMutation } from '@tanstack/react-query';
 import hatchet from '@/assets/hatchet_logo.png';
@@ -42,6 +42,7 @@ import {
   BreadcrumbSeparator,
 } from '@/components/v1/ui/breadcrumb';
 import { useBreadcrumbs } from '@/hooks/use-breadcrumbs';
+import { OrganizationSelector } from '@/components/v1/molecules/nav-bar/organization-selector';
 
 function HelpDropdown() {
   const meta = useApiMeta();
@@ -181,10 +182,15 @@ function AccountDropdown({ user }: MainNavProps) {
 
 interface MainNavProps {
   user: User;
+  memberships?: TenantMember[];
   setHasBanner?: (state: boolean) => void;
 }
 
-export default function MainNav({ user, setHasBanner }: MainNavProps) {
+export default function MainNav({
+  user,
+  memberships,
+  setHasBanner,
+}: MainNavProps) {
   const { toggleSidebarOpen } = useSidebar();
   const { theme } = useTheme();
   const { tenant } = useTenant();
@@ -286,7 +292,12 @@ export default function MainNav({ user, setHasBanner }: MainNavProps) {
             )}
           </div>
 
-          <div className="ml-auto flex items-center">
+          <div className="ml-auto flex items-center gap-2">
+            {memberships && memberships.length > 0 && (
+              <div className="max-w-xs">
+                <OrganizationSelector memberships={memberships} />
+              </div>
+            )}
             <HelpDropdown />
             <AccountDropdown user={user} />
           </div>

@@ -725,6 +725,26 @@ export const routes: RouteObject[] = [
               },
             ],
           },
+          {
+            path: '/organizations/:organization',
+            lazy: async () =>
+              import('./pages/organizations/$organization').then((res) => {
+                return {
+                  Component: res.default,
+                };
+              }),
+          },
+          {
+            path: '/organizations/:organization/add-tenant',
+            lazy: async () =>
+              import('./pages/organizations/$organization/add-tenant').then(
+                (res) => {
+                  return {
+                    Component: res.default,
+                  };
+                },
+              ),
+          },
         ],
       },
       {
