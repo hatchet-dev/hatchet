@@ -8,6 +8,9 @@ import {
   PlusIcon,
   BuildingOffice2Icon,
   UserIcon,
+  ClipboardIcon,
+  CheckIcon,
+  KeyIcon,
 } from '@heroicons/react/24/outline';
 import {
   Card,
@@ -25,6 +28,46 @@ import {
   TableRow,
 } from '@/components/v1/ui/table';
 import { Badge } from '@/components/v1/ui/badge';
+import { useState } from 'react';
+
+// Copy to clipboard component
+function CopyableId({
+  id,
+  className = '',
+}: {
+  id: string;
+  className?: string;
+}) {
+  const [copied, setCopied] = useState(false);
+
+  const copyToClipboard = async () => {
+    try {
+      await navigator.clipboard.writeText(id);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy: ', err);
+    }
+  };
+
+  return (
+    <div className={`flex items-center gap-2 ${className}`}>
+      <span className="font-mono text-sm">{id}</span>
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={copyToClipboard}
+        className="h-6 w-6 p-0 hover:bg-muted"
+      >
+        {copied ? (
+          <CheckIcon className="h-3 w-3 text-green-600" />
+        ) : (
+          <ClipboardIcon className="h-3 w-3" />
+        )}
+      </Button>
+    </div>
+  );
+}
 
 export default function OrganizationPage() {
   const { organization: orgId } = useParams<{ organization: string }>();
@@ -61,6 +104,19 @@ export default function OrganizationPage() {
     .filter((query) => query.data)
     .map((query) => query.data);
 
+  // Fetch management tokens for the organization
+  const managementTokensQuery = useQuery({
+    queryKey: ['management-tokens:list', orgId],
+    queryFn: async () => {
+      if (!orgId) {
+        throw new Error('Organization ID is required');
+      }
+      const result = await cloudApi.managementTokenList(orgId);
+      return result.data;
+    },
+    enabled: !!orgId,
+  });
+
   if (organizationQuery.isLoading) {
     return <Loading />;
   }
@@ -84,7 +140,7 @@ export default function OrganizationPage() {
   const organization = organizationQuery.data;
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 space-y-6 max-h-full overflow-y-auto">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
@@ -112,8 +168,8 @@ export default function OrganizationPage() {
                 <TableCell className="font-medium w-48">
                   Organization ID
                 </TableCell>
-                <TableCell className="font-mono text-sm">
-                  {organization.metadata.id}
+                <TableCell>
+                  <CopyableId id={organization.metadata.id} />
                 </TableCell>
               </TableRow>
               <TableRow>
@@ -183,8 +239,8 @@ export default function OrganizationPage() {
                       <TableCell className="font-medium">
                         {detailedTenant?.name || 'Loading...'}
                       </TableCell>
-                      <TableCell className="font-mono text-sm">
-                        {orgTenant.id}
+                      <TableCell>
+                        <CopyableId id={orgTenant.id} />
                       </TableCell>
                       <TableCell className="text-muted-foreground">
                         {detailedTenant?.slug || '-'}
@@ -258,8 +314,8 @@ export default function OrganizationPage() {
               <TableBody>
                 {organization.members.map((member) => (
                   <TableRow key={member.metadata.id}>
-                    <TableCell className="font-mono text-sm">
-                      {member.metadata.id}
+                    <TableCell>
+                      <CopyableId id={member.metadata.id} />
                     </TableCell>
                     <TableCell className="font-mono text-sm">
                       {member.email}
@@ -281,6 +337,91 @@ export default function OrganizationPage() {
               <p className="text-muted-foreground mb-4">
                 Members will appear here when they join this organization.
               </p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Management Tokens Section */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center justify-between">
+            Management Tokens
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                // TODO: Add create management token functionality
+                console.log('Create management token');
+              }}
+            >
+              <PlusIcon className="h-4 w-4 mr-2" />
+              Create Token
+            </Button>
+          </CardTitle>
+          <CardDescription>
+            API tokens for managing this organization
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {managementTokensQuery.isLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loading />
+            </div>
+          ) : managementTokensQuery.data &&
+            managementTokensQuery.data.rows &&
+            managementTokensQuery.data.rows.length > 0 ? (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Token ID</TableHead>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Duration</TableHead>
+                  <TableHead>Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {managementTokensQuery.data.rows.map((token) => (
+                  <TableRow key={token.id}>
+                    <TableCell>
+                      <CopyableId id={token.id} />
+                    </TableCell>
+                    <TableCell className="font-medium">{token.name}</TableCell>
+                    <TableCell>
+                      <Badge variant="outline">{token.duration}</Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          // TODO: Add delete token functionality
+                          console.log('Delete token:', token.id);
+                        }}
+                      >
+                        Delete
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          ) : (
+            <div className="text-center py-8">
+              <KeyIcon className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+              <h3 className="text-lg font-medium mb-2">No Management Tokens</h3>
+              <p className="text-muted-foreground mb-4">
+                Create API tokens to manage this organization programmatically.
+              </p>
+              <Button
+                onClick={() => {
+                  // TODO: Add create management token functionality
+                  console.log('Create management token');
+                }}
+              >
+                <PlusIcon className="h-4 w-4 mr-2" />
+                Create Token
+              </Button>
             </div>
           )}
         </CardContent>

@@ -18,6 +18,8 @@ import {
   Build,
   CreateManagedWorkerFromTemplateRequest,
   CreateManagedWorkerRequest,
+  CreateManagementTokenRequest,
+  CreateManagementTokenResponse,
   CreateNewTenantForOrganizationRequest,
   CreateOrUpdateAutoscalingRequest,
   CreateTenantAPITokenRequest,
@@ -33,6 +35,7 @@ import {
   ManagedWorker,
   ManagedWorkerEventList,
   ManagedWorkerList,
+  ManagementTokenList,
   Matrix,
   MonthlyComputeCost,
   Organization,
@@ -1024,6 +1027,65 @@ export class Api<
       body: data,
       secure: true,
       type: ContentType.Json,
+      ...params,
+    });
+  /**
+   * @description Create a new management token for an organization
+   *
+   * @tags Management
+   * @name ManagementTokenCreate
+   * @summary Create Management Token for Organization
+   * @request POST:/api/v1/management/organizations/{organization}/management-tokens
+   * @secure
+   */
+  managementTokenCreate = (
+    organization: string,
+    data: CreateManagementTokenRequest,
+    params: RequestParams = {},
+  ) =>
+    this.request<CreateManagementTokenResponse, APIError>({
+      path: `/api/v1/management/organizations/${organization}/management-tokens`,
+      method: "POST",
+      body: data,
+      secure: true,
+      type: ContentType.Json,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Get a management token for an organization
+   *
+   * @tags Management
+   * @name ManagementTokenList
+   * @summary Get Management Tokens for Organization
+   * @request GET:/api/v1/management/organizations/{organization}/management-tokens
+   * @secure
+   */
+  managementTokenList = (organization: string, params: RequestParams = {}) =>
+    this.request<ManagementTokenList, APIError>({
+      path: `/api/v1/management/organizations/${organization}/management-tokens`,
+      method: "GET",
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Delete a management token for an organization
+   *
+   * @tags Management
+   * @name ManagementTokenDelete
+   * @summary Delete Management Token for Organization
+   * @request DELETE:/api/v1/management/management-tokens/{management-token}
+   * @secure
+   */
+  managementTokenDelete = (
+    managementToken: string,
+    params: RequestParams = {},
+  ) =>
+    this.request<void, APIError>({
+      path: `/api/v1/management/management-tokens/${managementToken}`,
+      method: "DELETE",
+      secure: true,
       ...params,
     });
 }

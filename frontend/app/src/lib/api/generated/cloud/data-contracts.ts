@@ -10,6 +10,12 @@
  * ---------------------------------------------------------------
  */
 
+export enum ManagementTokenDuration {
+  Value30D = "30d",
+  Value60D = "60d",
+  Value90D = "90d",
+}
+
 export enum TenantStatus {
   Active = "active",
   Archived = "archived",
@@ -704,15 +710,30 @@ export type CreateTenantAPITokenRequest = any;
 
 export type CreateTenantAPITokenResponse = any;
 
-export interface User {
+export interface CreateManagementTokenRequest {
+  /** The name of the management token. */
+  name: string;
+  /** @default "30d" */
+  duration?: ManagementTokenDuration;
+}
+
+export interface CreateManagementTokenResponse {
+  /** The token of the management token. */
+  token: string;
+}
+
+export interface ManagementToken {
   /**
-   * ID of the user
+   * The ID of the management token.
    * @format uuid
    */
   id: string;
-  /**
-   * Email of the user
-   * @format email
-   */
-  email: string;
+  /** The name of the management token. */
+  name: string;
+  /** The duration of the management token. */
+  duration: ManagementTokenDuration;
+}
+
+export interface ManagementTokenList {
+  rows: ManagementToken[];
 }
