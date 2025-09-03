@@ -449,17 +449,6 @@ export const routes: RouteObject[] = [
           }),
       },
       {
-        path: '/organizations/:organization/add-tenant',
-        lazy: async () =>
-          import('./pages/organizations/$organization/add-tenant').then(
-            (res) => {
-              return {
-                Component: res.default,
-              };
-            },
-          ),
-      },
-      {
         path: '/',
         lazy: async () =>
           import('./pages/authenticated').then((res) => {
