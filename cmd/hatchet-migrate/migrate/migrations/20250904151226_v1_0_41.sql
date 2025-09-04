@@ -14,7 +14,7 @@ CREATE TABLE v1_idempotency_key (
     PRIMARY KEY (tenant_id, expires_at, key)
 );
 
-CREATE UNIQUE INDEX v1_idempotency_key_expires_at_idx ON v1_idempotency_key (tenant_id, key);
+CREATE UNIQUE INDEX v1_idempotency_key_unique_tenant_key ON v1_idempotency_key (tenant_id, key);
 -- +goose StatementEnd
 
 -- +goose Down
