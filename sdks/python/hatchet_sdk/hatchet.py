@@ -20,6 +20,7 @@ from hatchet_sdk.features.metrics import MetricsClient
 from hatchet_sdk.features.rate_limits import RateLimitsClient
 from hatchet_sdk.features.runs import RunsClient
 from hatchet_sdk.features.scheduled import ScheduledClient
+from hatchet_sdk.features.stubs import StubsClient
 from hatchet_sdk.features.workers import WorkersClient
 from hatchet_sdk.features.workflows import WorkflowsClient
 from hatchet_sdk.labels import DesiredWorkerLabel
@@ -155,6 +156,10 @@ class Hatchet:
     @property
     def listener(self) -> RunEventListenerClient:
         return self._client.listener
+
+    @property
+    def stubs(self) -> StubsClient:
+        return StubsClient(client=self)
 
     @property
     def config(self) -> ClientConfig:

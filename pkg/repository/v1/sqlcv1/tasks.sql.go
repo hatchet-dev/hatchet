@@ -11,6 +11,55 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const analyzeV1Task = `-- name: AnalyzeV1Task :exec
+ANALYZE v1_task
+`
+
+func (q *Queries) AnalyzeV1Task(ctx context.Context, db DBTX) error {
+	_, err := db.Exec(ctx, analyzeV1Task)
+	return err
+}
+
+const analyzeV1TaskEvent = `-- name: AnalyzeV1TaskEvent :exec
+ANALYZE v1_task_event
+`
+
+func (q *Queries) AnalyzeV1TaskEvent(ctx context.Context, db DBTX) error {
+	_, err := db.Exec(ctx, analyzeV1TaskEvent)
+	return err
+}
+
+const cleanupWorkflowConcurrencySlotsAfterInsert = `-- name: CleanupWorkflowConcurrencySlotsAfterInsert :exec
+WITH input AS (
+    SELECT
+        UNNEST($1::bigint[]) AS parent_strategy_id,
+        UNNEST($2::uuid[]) AS workflow_version_id,
+        UNNEST($3::uuid[]) AS workflow_run_id
+    ORDER BY parent_strategy_id, workflow_version_id, workflow_run_id
+)
+SELECT
+    cleanup_workflow_concurrency_slots(
+            rec.parent_strategy_id,
+            rec.workflow_version_id,
+            rec.workflow_run_id
+        )
+FROM
+    input rec
+`
+
+type CleanupWorkflowConcurrencySlotsAfterInsertParams struct {
+	Concurrencyparentstrategyids []int64       `json:"concurrencyparentstrategyids"`
+	Workflowversionids           []pgtype.UUID `json:"workflowversionids"`
+	Workflowrunids               []pgtype.UUID `json:"workflowrunids"`
+}
+
+// Cleans up workflow concurrency slots when tasks have been inserted in a non-QUEUED state.
+// NOTE: this comes after the insert into v1_dag_to_task and v1_lookup_table, because we case on these tables for cleanup
+func (q *Queries) CleanupWorkflowConcurrencySlotsAfterInsert(ctx context.Context, db DBTX, arg CleanupWorkflowConcurrencySlotsAfterInsertParams) error {
+	_, err := db.Exec(ctx, cleanupWorkflowConcurrencySlotsAfterInsert, arg.Concurrencyparentstrategyids, arg.Workflowversionids, arg.Workflowrunids)
+	return err
+}
+
 const createPartitions = `-- name: CreatePartitions :exec
 SELECT
     create_v1_range_partition('v1_task', $1::date),
@@ -1829,168 +1878,4 @@ func (q *Queries) RefreshTimeoutBy(ctx context.Context, db DBTX, arg RefreshTime
 		&i.TimeoutAt,
 	)
 	return &i, err
-}
-
-const releaseTasks = `-- name: ReleaseTasks :many
-WITH input AS (
-    SELECT
-        task_id, task_inserted_at, retry_count
-    FROM
-        (
-            SELECT
-                unnest($1::bigint[]) AS task_id,
-                unnest($2::timestamptz[]) AS task_inserted_at,
-                unnest($3::integer[]) AS retry_count
-        ) AS subquery
-), runtimes_to_delete AS (
-    SELECT
-        task_id,
-        task_inserted_at,
-        retry_count,
-        worker_id
-    FROM
-        v1_task_runtime
-    WHERE
-        (task_id, task_inserted_at, retry_count) IN (SELECT task_id, task_inserted_at, retry_count FROM input)
-    ORDER BY
-        task_id, task_inserted_at, retry_count
-    FOR UPDATE
-), deleted_runtimes AS (
-    DELETE FROM
-        v1_task_runtime
-    WHERE
-        (task_id, task_inserted_at, retry_count) IN (SELECT task_id, task_inserted_at, retry_count FROM runtimes_to_delete)
-), retry_queue_items_to_delete AS (
-    SELECT
-        task_id, task_inserted_at, task_retry_count
-    FROM
-        v1_retry_queue_item
-    WHERE
-        (task_id, task_inserted_at, task_retry_count) IN (SELECT task_id, task_inserted_at, retry_count FROM input)
-    ORDER BY
-        task_id, task_inserted_at, task_retry_count
-    FOR UPDATE
-), deleted_rqis AS (
-    DELETE FROM
-        v1_retry_queue_item r
-    WHERE
-        (task_id, task_inserted_at, task_retry_count) IN (
-            SELECT
-                task_id, task_inserted_at, task_retry_count
-            FROM
-                retry_queue_items_to_delete
-        )
-), queue_items_to_delete AS (
-    SELECT
-        task_id, task_inserted_at, retry_count
-    FROM
-        v1_queue_item
-    WHERE
-        (task_id, task_inserted_at, retry_count) IN (SELECT task_id, task_inserted_at, retry_count FROM input)
-    ORDER BY
-        task_id, task_inserted_at, retry_count
-    FOR UPDATE
-), deleted_qis AS (
-    DELETE FROM
-        v1_queue_item
-    WHERE
-        (task_id, task_inserted_at, retry_count) IN (SELECT task_id, task_inserted_at, retry_count FROM queue_items_to_delete)
-), concurrency_slots_to_delete AS (
-    SELECT
-        task_id, task_inserted_at, task_retry_count
-    FROM
-        v1_concurrency_slot
-    WHERE
-        (task_id, task_inserted_at, task_retry_count) IN (SELECT task_id, task_inserted_at, retry_count FROM input)
-    ORDER BY
-        task_id, task_inserted_at, task_retry_count
-    FOR UPDATE
-), deleted_slots AS (
-    DELETE FROM
-        v1_concurrency_slot
-    WHERE
-        (task_id, task_inserted_at, task_retry_count) IN (SELECT task_id, task_inserted_at, task_retry_count FROM concurrency_slots_to_delete)
-), rate_limited_items_to_delete AS (
-    SELECT
-        task_id, task_inserted_at, retry_count
-    FROM
-        v1_rate_limited_queue_items
-    WHERE
-        (task_id, task_inserted_at, retry_count) IN (SELECT task_id, task_inserted_at, retry_count FROM input)
-    ORDER BY
-        task_id, task_inserted_at, retry_count
-    FOR UPDATE
-), deleted_rate_limited AS (
-    DELETE FROM
-        v1_rate_limited_queue_items
-    WHERE
-        (task_id, task_inserted_at, retry_count) IN (SELECT task_id, task_inserted_at, retry_count FROM rate_limited_items_to_delete)
-)
-SELECT
-    t.queue,
-    t.id,
-    t.inserted_at,
-    t.external_id,
-    t.step_readable_id,
-    t.workflow_run_id,
-    r.worker_id,
-    i.retry_count::int AS retry_count,
-    t.retry_count = i.retry_count AS is_current_retry,
-    t.concurrency_strategy_ids
-FROM
-    v1_task t
-JOIN
-    input i ON i.task_id = t.id AND i.task_inserted_at = t.inserted_at
-LEFT JOIN
-    runtimes_to_delete r ON r.task_id = t.id AND r.retry_count = t.retry_count
-`
-
-type ReleaseTasksParams struct {
-	Taskids         []int64              `json:"taskids"`
-	Taskinsertedats []pgtype.Timestamptz `json:"taskinsertedats"`
-	Retrycounts     []int32              `json:"retrycounts"`
-}
-
-type ReleaseTasksRow struct {
-	Queue                  string             `json:"queue"`
-	ID                     int64              `json:"id"`
-	InsertedAt             pgtype.Timestamptz `json:"inserted_at"`
-	ExternalID             pgtype.UUID        `json:"external_id"`
-	StepReadableID         string             `json:"step_readable_id"`
-	WorkflowRunID          pgtype.UUID        `json:"workflow_run_id"`
-	WorkerID               pgtype.UUID        `json:"worker_id"`
-	RetryCount             int32              `json:"retry_count"`
-	IsCurrentRetry         bool               `json:"is_current_retry"`
-	ConcurrencyStrategyIds []int64            `json:"concurrency_strategy_ids"`
-}
-
-func (q *Queries) ReleaseTasks(ctx context.Context, db DBTX, arg ReleaseTasksParams) ([]*ReleaseTasksRow, error) {
-	rows, err := db.Query(ctx, releaseTasks, arg.Taskids, arg.Taskinsertedats, arg.Retrycounts)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []*ReleaseTasksRow
-	for rows.Next() {
-		var i ReleaseTasksRow
-		if err := rows.Scan(
-			&i.Queue,
-			&i.ID,
-			&i.InsertedAt,
-			&i.ExternalID,
-			&i.StepReadableID,
-			&i.WorkflowRunID,
-			&i.WorkerID,
-			&i.RetryCount,
-			&i.IsCurrentRetry,
-			&i.ConcurrencyStrategyIds,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, &i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
 }

@@ -5,6 +5,22 @@ All notable changes to Hatchet's Python SDK will be documented in this changelog
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.18.0] - 2025-08-26
+
+### Added
+
+- Adds a `stubs` client on the main `Hatchet` client, which allows for creating typed stub tasks and workflows. These are intended to be used for triggering workflows that are registered on other workers in either other services or other languages.
+- Adds a config option `force_shutdown_on_shutdown_signal` which allows users to forcefully terminate all processes when a shutdown signal is received instead of waiting for them to exit gracefully.
+
+## [1.17.2] - 2025-08-20
+
+### Added
+
+- Adds back an optional `cel-python` dependency for v0 compatibility, allowing users to use the v0 client with the v0-compatible features in the SDK.
+- Adds `dependencies` to the `mock_run` methods on the `Standalone`.
+- Removes `aiostream` dependency that was unused.
+- Removes `aiohttp-retry` dependency that was unused.
+
 ## [1.17.1] - 2025-08-18
 
 ### Added

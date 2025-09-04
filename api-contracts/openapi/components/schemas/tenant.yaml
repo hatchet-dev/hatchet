@@ -20,6 +20,9 @@ Tenant:
     uiVersion:
       $ref: "#/TenantUIVersion"
       description: The UI of the tenant.
+    environment:
+      $ref: "#/TenantEnvironment"
+      description: The environment type of the tenant.
   required:
     - metadata
     - name
@@ -67,6 +70,14 @@ TenantAlertingSettings:
     - maxAlertingFrequency
   type: object
 
+# IMPORTANT: keep values in sync with sql/schema/v0.sql#TenantEnvironment
+TenantEnvironment:
+  enum:
+    - "local"
+    - "development"
+    - "production"
+  type: string
+
 CreateTenantRequest:
   properties:
     name:
@@ -85,6 +96,13 @@ CreateTenantRequest:
     engineVersion:
       $ref: "#/TenantVersion"
       description: The engine version of the tenant. Defaults to V0.
+    environment:
+      $ref: "#/TenantEnvironment"
+      description: The environment type of the tenant.
+    onboardingData:
+      type: object
+      description: Additional onboarding data to store with the tenant.
+      additionalProperties: true
   required:
     - name
     - slug

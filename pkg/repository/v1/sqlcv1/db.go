@@ -16,6 +16,7 @@ type DBTX interface {
 	Query(context.Context, string, ...interface{}) (pgx.Rows, error)
 	QueryRow(context.Context, string, ...interface{}) pgx.Row
 	CopyFrom(ctx context.Context, tableName pgx.Identifier, columnNames []string, rowSrc pgx.CopyFromSource) (int64, error)
+	SendBatch(context.Context, *pgx.Batch) pgx.BatchResults
 }
 
 func New() *Queries {

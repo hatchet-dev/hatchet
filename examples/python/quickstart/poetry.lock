@@ -117,21 +117,6 @@ yarl = ">=1.17.0,<2.0"
 speedups = ["Brotli ; platform_python_implementation == \"CPython\"", "aiodns (>=3.2.0) ; sys_platform == \"linux\" or sys_platform == \"darwin\"", "brotlicffi ; platform_python_implementation != \"CPython\""]
 
 [[package]]
-name = "aiohttp-retry"
-version = "2.9.1"
-description = "Simple retry client for aiohttp"
-optional = false
-python-versions = ">=3.7"
-groups = ["main"]
-files = [
-    {file = "aiohttp_retry-2.9.1-py3-none-any.whl", hash = "sha256:66d2759d1921838256a05a3f80ad7e724936f083e35be5abb5e16eed6be6dc54"},
-    {file = "aiohttp_retry-2.9.1.tar.gz", hash = "sha256:8eb75e904ed4ee5c2ec242fefe85bf04240f685391c4879d8f541d6028ff01f1"},
-]
-
-[package.dependencies]
-aiohttp = "*"
-
-[[package]]
 name = "aiosignal"
 version = "1.3.2"
 description = "aiosignal: a list of registered asynchronous callbacks"
@@ -145,21 +130,6 @@ files = [
 
 [package.dependencies]
 frozenlist = ">=1.1.0"
-
-[[package]]
-name = "aiostream"
-version = "0.5.2"
-description = "Generator-based operators for asynchronous iteration"
-optional = false
-python-versions = ">=3.8"
-groups = ["main"]
-files = [
-    {file = "aiostream-0.5.2-py3-none-any.whl", hash = "sha256:054660370be9d37f6fe3ece3851009240416bd082e469fd90cc8673d3818cf71"},
-    {file = "aiostream-0.5.2.tar.gz", hash = "sha256:b71b519a2d66c38f0872403ab86417955b77352f08d9ad02ad46fc3926b389f4"},
-]
-
-[package.dependencies]
-typing-extensions = "*"
 
 [[package]]
 name = "annotated-types"
@@ -440,20 +410,18 @@ setuptools = "*"
 
 [[package]]
 name = "hatchet-sdk"
-version = "1.17.0"
+version = "1.18.1"
 description = ""
 optional = false
 python-versions = "<4.0,>=3.10"
 groups = ["main"]
 files = [
-    {file = "hatchet_sdk-1.17.0-py3-none-any.whl", hash = "sha256:ff9c744abafaa0e218e618dfb1c80c88f355146cbb85fc4a08d8b109c601c8bb"},
-    {file = "hatchet_sdk-1.17.0.tar.gz", hash = "sha256:2f47791ec23ffd5637422c5879daba85fa834fd8d4effd0a4e4bf7c0bb9c4f12"},
+    {file = "hatchet_sdk-1.18.1-py3-none-any.whl", hash = "sha256:13716ba69725ad180cd456c51ac9bf7836a0c57e1c7f785e8a09cdffa1ccff1a"},
+    {file = "hatchet_sdk-1.18.1.tar.gz", hash = "sha256:2d73a26330eaa6aba41095ebfd0d9259f01f1eb611c128ca96e54efa1122c19f"},
 ]
 
 [package.dependencies]
 aiohttp = ">=3.10.5,<4.0.0"
-aiohttp-retry = ">=2.8.3,<3.0.0"
-aiostream = ">=0.5.2,<0.6.0"
 grpcio = [
     {version = ">=1.64.1,<1.68.dev0 || >=1.69.dev0", markers = "python_version < \"3.13\""},
     {version = ">=1.69.0", markers = "python_version >= \"3.13\""},
@@ -472,6 +440,7 @@ urllib3 = ">=1.26.20"
 
 [package.extras]
 otel = ["opentelemetry-api (>=1.28.0,<2.0.0)", "opentelemetry-distro (>=0.49b0)", "opentelemetry-exporter-otlp (>=1.28.0,<2.0.0)", "opentelemetry-exporter-otlp-proto-http (>=1.28.0,<2.0.0)", "opentelemetry-instrumentation (>=0.49b0)", "opentelemetry-sdk (>=1.28.0,<2.0.0)"]
+v0-sdk = ["cel-python (>=0.4.0,<0.5.0)"]
 
 [[package]]
 name = "idna"
@@ -1101,4 +1070,4 @@ propcache = ">=0.2.0"
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.10"
-content-hash = "3cd0ce503113baf99097492923271a82ac4986176ce73805643b0dee91ce0113"
+content-hash = "e6b188458d7e0575835defccf84daee94cd329ae7c8fa0f9cad5f17393e5bbc2"

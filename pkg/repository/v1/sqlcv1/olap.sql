@@ -16,6 +16,15 @@ SELECT
     create_v1_range_partition('v1_cel_evaluation_failures_olap'::text, @date::date)
 ;
 
+-- name: AnalyzeV1RunsOLAP :exec
+ANALYZE v1_runs_olap;
+
+-- name: AnalyzeV1TasksOLAP :exec
+ANALYZE v1_tasks_olap;
+
+-- name: AnalyzeV1DAGsOLAP :exec
+ANALYZE v1_dags_olap;
+
 -- name: ListOLAPPartitionsBeforeDate :many
 WITH task_partitions AS (
     SELECT 'v1_tasks_olap' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_tasks_olap'::text, @date::date) AS p
@@ -1008,6 +1017,17 @@ WITH task_external_ids AS (
             WHERE
                 lt.tenant_id = @tenantId::uuid
                 AND lt.external_id = sqlc.narg('triggeringEventExternalId')::UUID
+        )
+    )
+    AND (
+        sqlc.narg('additionalMetaKeys')::text[] IS NULL
+        OR sqlc.narg('additionalMetaValues')::text[] IS NULL
+        OR EXISTS (
+            SELECT 1 FROM jsonb_each_text(additional_metadata) kv
+            JOIN LATERAL (
+                SELECT unnest(sqlc.narg('additionalMetaKeys')::text[]) AS k,
+                    unnest(sqlc.narg('additionalMetaValues')::text[]) AS v
+            ) AS u ON kv.key = u.k AND kv.value = u.v
         )
     )
 )

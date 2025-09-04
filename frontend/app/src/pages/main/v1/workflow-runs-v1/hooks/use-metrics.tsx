@@ -5,12 +5,14 @@ import { useCurrentTenantId } from '@/hooks/use-tenant';
 export const useMetrics = ({
   workflow,
   parentTaskExternalId,
+  additionalMetadata,
   createdAfter,
   refetchInterval,
   pauseRefetch = false,
 }: {
   workflow: string | undefined;
   parentTaskExternalId: string | undefined;
+  additionalMetadata?: string[] | undefined;
   createdAfter?: string;
   refetchInterval: number;
   pauseRefetch?: boolean;
@@ -26,6 +28,7 @@ export const useMetrics = ({
         new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
       parent_task_external_id: parentTaskExternalId,
       workflow_ids: workflow ? [workflow] : [],
+      additional_metadata: additionalMetadata,
     }),
     placeholderData: (prev) => prev,
     refetchInterval: effectiveRefetchInterval,

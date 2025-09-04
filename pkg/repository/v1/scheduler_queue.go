@@ -40,6 +40,7 @@ type AssignResults struct {
 	Unassigned         []*sqlcv1.V1QueueItem
 	SchedulingTimedOut []*sqlcv1.V1QueueItem
 	RateLimited        []*RateLimitResult
+	RateLimitedToMove  []*RateLimitResult
 }
 
 type queueFactoryRepository struct {
@@ -218,15 +219,12 @@ func (d *queueRepository) MarkQueueItemsProcessed(ctx context.Context, r *Assign
 	}
 
 	// remove rate limited queue items from the queue and place them in the v1_rate_limited_queue_items table
-	// we only do this if the requeue_after time is at least 2 seconds in the future, to avoid thrashing
 	qisToMoveToRateLimited := make([]int64, 0, len(r.RateLimited))
 	qisToMoveToRateLimitedRQAfter := make([]pgtype.Timestamptz, 0, len(r.RateLimited))
 
-	for _, row := range r.RateLimited {
-		if row.NextRefillAt != nil && row.NextRefillAt.UTC().After(time.Now().UTC().Add(rateLimitedRequeueAfterThreshold)) {
-			qisToMoveToRateLimited = append(qisToMoveToRateLimited, row.ID)
-			qisToMoveToRateLimitedRQAfter = append(qisToMoveToRateLimitedRQAfter, sqlchelpers.TimestamptzFromTime(*row.NextRefillAt))
-		}
+	for _, row := range r.RateLimitedToMove {
+		qisToMoveToRateLimited = append(qisToMoveToRateLimited, row.ID)
+		qisToMoveToRateLimitedRQAfter = append(qisToMoveToRateLimitedRQAfter, sqlchelpers.TimestamptzFromTime(*row.NextRefillAt))
 	}
 
 	if len(qisToMoveToRateLimited) > 0 {
