@@ -11,6 +11,7 @@ import {
   ClipboardIcon,
   CheckIcon,
   KeyIcon,
+  EnvelopeIcon,
 } from '@heroicons/react/24/outline';
 import {
   Card,
@@ -33,9 +34,12 @@ import { InviteMemberModal } from './components/invite-member-modal';
 import { DeleteMemberModal } from './components/delete-member-modal';
 import { CreateTokenModal } from './components/create-token-modal';
 import { DeleteTokenModal } from './components/delete-token-modal';
+import { CancelInviteModal } from './components/cancel-invite-modal';
 import {
   OrganizationMember,
   ManagementToken,
+  OrganizationInvite,
+  OrganizationInviteStatus,
 } from '@/lib/api/generated/cloud/data-contracts';
 import {
   DropdownMenu,
@@ -99,6 +103,8 @@ export default function OrganizationPage() {
   const [tokenToDelete, setTokenToDelete] = useState<ManagementToken | null>(
     null,
   );
+  const [inviteToCancel, setInviteToCancel] =
+    useState<OrganizationInvite | null>(null);
 
   const organizationQuery = useQuery({
     queryKey: ['organization:get', orgId],
@@ -140,6 +146,19 @@ export default function OrganizationPage() {
         throw new Error('Organization ID is required');
       }
       const result = await cloudApi.managementTokenList(orgId);
+      return result.data;
+    },
+    enabled: !!orgId,
+  });
+
+  // Fetch organization invites
+  const organizationInvitesQuery = useQuery({
+    queryKey: ['organization-invites:list', orgId],
+    queryFn: async () => {
+      if (!orgId) {
+        throw new Error('Organization ID is required');
+      }
+      const result = await cloudApi.organizationInviteList(orgId);
       return result.data;
     },
     enabled: !!orgId,
@@ -393,14 +412,6 @@ export default function OrganizationPage() {
           <CardHeader>
             <CardTitle className="flex items-center justify-between">
               Members
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowInviteMemberModal(true)}
-              >
-                <PlusIcon className="h-4 w-4 mr-2" />
-                Invite Member
-              </Button>
             </CardTitle>
             <CardDescription>
               Members with access to this organization
@@ -553,6 +564,203 @@ export default function OrganizationPage() {
           </CardContent>
         </Card>
 
+        {/* Organization Invites Section */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center justify-between">
+              Invites
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowInviteMemberModal(true)}
+              >
+                <PlusIcon className="h-4 w-4 mr-2" />
+                Invite Member
+              </Button>
+            </CardTitle>
+            <CardDescription>
+              Pending invitations to join this organization
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {organizationInvitesQuery.isLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loading />
+              </div>
+            ) : organizationInvitesQuery.data &&
+              organizationInvitesQuery.data.rows &&
+              organizationInvitesQuery.data.rows.length > 0 ? (
+              <div className="space-y-4">
+                {/* Desktop Table View */}
+                <div className="hidden md:block">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Email</TableHead>
+                        <TableHead>Role</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Invited By</TableHead>
+                        <TableHead>Expires</TableHead>
+                        <TableHead>Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {organizationInvitesQuery.data.rows.map((invite) => (
+                        <TableRow key={invite.metadata.id}>
+                          <TableCell className="font-mono text-sm">
+                            {invite.inviteeEmail}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline">{invite.role}</Badge>
+                          </TableCell>
+                          <TableCell>
+                            <Badge
+                              variant={
+                                invite.status ===
+                                OrganizationInviteStatus.PENDING
+                                  ? 'secondary'
+                                  : invite.status ===
+                                      OrganizationInviteStatus.ACCEPTED
+                                    ? 'default'
+                                    : 'destructive'
+                              }
+                            >
+                              {invite.status}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-muted-foreground">
+                            {invite.inviterEmail}
+                          </TableCell>
+                          <TableCell className="text-muted-foreground">
+                            {new Date(invite.expires).toLocaleDateString()}
+                          </TableCell>
+                          <TableCell>
+                            {invite.status ===
+                              OrganizationInviteStatus.PENDING && (
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-8 w-8 p-0"
+                                  >
+                                    <EllipsisVerticalIcon className="h-4 w-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuItem
+                                    onClick={() => setInviteToCancel(invite)}
+                                    className="text-red-600 focus:text-red-600"
+                                  >
+                                    <TrashIcon className="h-4 w-4 mr-2" />
+                                    Cancel Invitation
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+
+                {/* Mobile Card View */}
+                <div className="md:hidden space-y-4">
+                  {organizationInvitesQuery.data.rows.map((invite) => (
+                    <div
+                      key={invite.metadata.id}
+                      className="border rounded-lg p-4 space-y-3"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-sm">
+                            {invite.inviteeEmail}
+                          </span>
+                          <Badge variant="outline">{invite.role}</Badge>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Badge
+                            variant={
+                              invite.status === OrganizationInviteStatus.PENDING
+                                ? 'secondary'
+                                : invite.status ===
+                                    OrganizationInviteStatus.ACCEPTED
+                                  ? 'default'
+                                  : 'destructive'
+                            }
+                          >
+                            {invite.status}
+                          </Badge>
+                          {invite.status ===
+                            OrganizationInviteStatus.PENDING && (
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-8 w-8 p-0"
+                                >
+                                  <EllipsisVerticalIcon className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem
+                                  onClick={() => setInviteToCancel(invite)}
+                                  className="text-red-600 focus:text-red-600"
+                                >
+                                  <TrashIcon className="h-4 w-4 mr-2" />
+                                  Cancel Invitation
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          )}
+                        </div>
+                      </div>
+                      <div className="space-y-2 text-sm">
+                        <div>
+                          <span className="font-medium text-muted-foreground">
+                            Invite ID:
+                          </span>
+                          <div className="mt-1">
+                            <CopyableId id={invite.metadata.id} />
+                          </div>
+                        </div>
+                        <div>
+                          <span className="font-medium text-muted-foreground">
+                            Invited By:
+                          </span>
+                          <span className="ml-2">{invite.inviterEmail}</span>
+                        </div>
+                        <div>
+                          <span className="font-medium text-muted-foreground">
+                            Expires:
+                          </span>
+                          <span className="ml-2">
+                            {new Date(invite.expires).toLocaleDateString()}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <EnvelopeIcon className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                <h3 className="text-lg font-medium mb-2">No Pending Invites</h3>
+                <p className="text-muted-foreground mb-4">
+                  Invite members to join this organization.
+                </p>
+                <Button onClick={() => setShowInviteMemberModal(true)}>
+                  <PlusIcon className="h-4 w-4 mr-2" />
+                  Invite Member
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
         {/* Management Tokens Section */}
         <Card>
           <CardHeader>
@@ -679,6 +887,7 @@ export default function OrganizationPage() {
             organizationName={organization.name}
             onSuccess={() => {
               organizationQuery.refetch();
+              organizationInvitesQuery.refetch();
             }}
           />
         )}
@@ -718,6 +927,19 @@ export default function OrganizationPage() {
             organizationName={organization.name}
             onSuccess={() => {
               managementTokensQuery.refetch();
+            }}
+          />
+        )}
+
+        {/* Cancel Invite Modal */}
+        {inviteToCancel && organization && (
+          <CancelInviteModal
+            open={!!inviteToCancel}
+            onOpenChange={(open) => !open && setInviteToCancel(null)}
+            invite={inviteToCancel}
+            organizationName={organization.name}
+            onSuccess={() => {
+              organizationInvitesQuery.refetch();
             }}
           />
         )}

@@ -28,7 +28,6 @@ import {
   FeatureFlags,
   InfraAsCodeRequest,
   InstanceList,
-  InviteOrganizationMembersRequest,
   ListGithubAppInstallationsResponse,
   ListGithubBranchesResponse,
   ListGithubReposResponse,
@@ -989,28 +988,6 @@ export class Api<
       ...params,
     });
   /**
-   * @description Add members to an organization
-   *
-   * @tags Management
-   * @name OrganizationCreateInviteMembers
-   * @summary Invite Members to Organization
-   * @request POST:/api/v1/management/organizations/{organization}/members
-   * @secure
-   */
-  organizationCreateInviteMembers = (
-    organization: string,
-    data: InviteOrganizationMembersRequest,
-    params: RequestParams = {},
-  ) =>
-    this.request<void, APIError>({
-      path: `/api/v1/management/organizations/${organization}/members`,
-      method: "POST",
-      body: data,
-      secure: true,
-      type: ContentType.Json,
-      ...params,
-    });
-  /**
    * @description Remove a member from an organization
    *
    * @tags Management
@@ -1161,6 +1138,24 @@ export class Api<
       body: data,
       secure: true,
       type: ContentType.Json,
+      ...params,
+    });
+  /**
+   * @description Delete an organization invite
+   *
+   * @name OrganizationInviteDelete
+   * @summary Delete Organization Invite for Organization
+   * @request DELETE:/api/v1/management/organization-invites/{organization-invite}
+   * @secure
+   */
+  organizationInviteDelete = (
+    organizationInvite: string,
+    params: RequestParams = {},
+  ) =>
+    this.request<void, APIError>({
+      path: `/api/v1/management/organization-invites/${organizationInvite}`,
+      method: "DELETE",
+      secure: true,
       ...params,
     });
 }

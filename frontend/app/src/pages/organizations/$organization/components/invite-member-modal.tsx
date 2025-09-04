@@ -12,6 +12,7 @@ import { useState, useEffect } from 'react';
 import { useApiError } from '@/lib/hooks';
 import { useMutation } from '@tanstack/react-query';
 import { cloudApi } from '@/lib/api/api';
+import { OrganizationMemberType } from '@/lib/api/generated/cloud/data-contracts';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -56,12 +57,10 @@ export function InviteMemberModal({
 
   const inviteMemberMutation = useMutation({
     mutationFn: async (data: { email: string }) => {
-      const result = await cloudApi.organizationCreateInviteMembers(
-        organizationId,
-        {
-          emails: [data.email],
-        },
-      );
+      const result = await cloudApi.organizationInviteCreate(organizationId, {
+        inviteeEmail: data.email,
+        role: OrganizationMemberType.OWNER,
+      });
       return result.data;
     },
     onSuccess: () => {
