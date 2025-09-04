@@ -11,6 +11,7 @@
  */
 
 import {
+  AcceptOrganizationInviteRequest,
   APICloudMetadata,
   APIError,
   APIErrors,
@@ -42,12 +43,12 @@ import {
   OrganizationInviteList,
   OrganizationList,
   OrganizationTenant,
+  RejectOrganizationInviteRequest,
   RemoveOrganizationMembersRequest,
   RuntimeConfigActionsResponse,
   TenantBillingState,
   TenantSubscription,
   UpdateManagedWorkerRequest,
-  UpdateOrganizationInviteRequest,
   UpdateTenantSubscription,
   VectorPushRequest,
   WorkflowRunEventsMetricsCounts,
@@ -1083,6 +1084,46 @@ export class Api<
       ...params,
     });
   /**
+   * @description Accept an organization invite
+   *
+   * @name OrganizationInviteAccept
+   * @summary Accept Organization Invite for User
+   * @request POST:/api/v1/management/invites/accept
+   * @secure
+   */
+  organizationInviteAccept = (
+    data: AcceptOrganizationInviteRequest,
+    params: RequestParams = {},
+  ) =>
+    this.request<void, APIError>({
+      path: `/api/v1/management/invites/accept`,
+      method: "POST",
+      body: data,
+      secure: true,
+      type: ContentType.Json,
+      ...params,
+    });
+  /**
+   * @description Reject an organization invite
+   *
+   * @name OrganizationInviteReject
+   * @summary Reject Organization Invite for User
+   * @request POST:/api/v1/management/invites/reject
+   * @secure
+   */
+  organizationInviteReject = (
+    data: RejectOrganizationInviteRequest,
+    params: RequestParams = {},
+  ) =>
+    this.request<void, APIError>({
+      path: `/api/v1/management/invites/reject`,
+      method: "POST",
+      body: data,
+      secure: true,
+      type: ContentType.Json,
+      ...params,
+    });
+  /**
    * @description List all organization invites for an organization
    *
    * @name OrganizationInviteList
@@ -1114,27 +1155,6 @@ export class Api<
     this.request<void, APIError>({
       path: `/api/v1/management/organizations/${organization}/invites`,
       method: "POST",
-      body: data,
-      secure: true,
-      type: ContentType.Json,
-      ...params,
-    });
-  /**
-   * @description Update an organization invite
-   *
-   * @name OrganizationInviteUpdate
-   * @summary Update Organization Invite for Organization
-   * @request PATCH:/api/v1/management/organization-invites/{organization-invite}
-   * @secure
-   */
-  organizationInviteUpdate = (
-    organizationInvite: string,
-    data: UpdateOrganizationInviteRequest,
-    params: RequestParams = {},
-  ) =>
-    this.request<void, APIError>({
-      path: `/api/v1/management/organization-invites/${organizationInvite}`,
-      method: "PATCH",
       body: data,
       secure: true,
       type: ContentType.Json,

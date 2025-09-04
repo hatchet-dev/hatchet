@@ -25,11 +25,15 @@ import {
   BiLogoDiscordAlt,
   BiSolidGraduation,
   BiUserCircle,
+  BiEnvelope,
 } from 'react-icons/bi';
 import { useTheme } from '@/components/theme-provider';
 import { useEffect, useMemo } from 'react';
 import useApiMeta from '@/pages/auth/hooks/use-api-meta';
 import { VersionInfo } from '@/pages/main/info/components/version-info';
+import { useQuery } from '@tanstack/react-query';
+import { cloudApi } from '@/lib/api/api';
+import useCloudApiMeta from '@/pages/auth/hooks/use-cloud-api-meta';
 import { useTenant } from '@/lib/atoms';
 import { routes } from '@/router';
 import { Banner, BannerProps } from './banner';
@@ -117,10 +121,37 @@ function HelpDropdown() {
 function AccountDropdown({ user }: MainNavProps) {
   const navigate = useNavigate();
   const { tenant } = useTenant();
+  const cloudMeta = useCloudApiMeta();
 
   const { handleApiError } = useApiError({});
 
   const { toggleTheme } = useTheme();
+
+  // Check for pending invites to show the Invites menu item
+  const pendingInvitesQuery = useQuery({
+    queryKey: ['pending-invites'],
+    queryFn: async () => {
+      const [tenantInvites, orgInvites] = await Promise.allSettled([
+        api.userListTenantInvites(),
+        cloudMeta?.data
+          ? cloudApi.userListOrganizationInvites()
+          : Promise.resolve({ data: { rows: [] } }),
+      ]);
+
+      const tenantCount =
+        tenantInvites.status === 'fulfilled'
+          ? tenantInvites.value.data.rows?.length || 0
+          : 0;
+      const orgCount =
+        orgInvites.status === 'fulfilled'
+          ? orgInvites.value.data.rows?.length || 0
+          : 0;
+
+      return tenantCount + orgCount;
+    },
+    refetchInterval: 30000, // Refetch every 30 seconds
+    enabled: true,
+  });
 
   const logoutMutation = useMutation({
     mutationKey: ['user:update:logout'],
@@ -142,6 +173,9 @@ function AccountDropdown({ user }: MainNavProps) {
           aria-label="User Menu"
         >
           <BiUserCircle className="h-6 w-6 text-foreground cursor-pointer" />
+          {pendingInvitesQuery.data > 0 && (
+            <div className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 bg-blue-500 rounded-full border-2 border-background animate-pulse"></div>
+          )}
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-56" align="end" forceMount>
@@ -156,6 +190,15 @@ function AccountDropdown({ user }: MainNavProps) {
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
+        {pendingInvitesQuery.data > 0 && (
+          <>
+            <DropdownMenuItem onClick={() => navigate('/onboarding/invites')}>
+              <BiEnvelope className="mr-2" />
+              Invites ({pendingInvitesQuery.data})
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+          </>
+        )}
         <DropdownMenuItem>
           <VersionInfo />
         </DropdownMenuItem>

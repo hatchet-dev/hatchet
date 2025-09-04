@@ -1,4 +1,5 @@
 import api, { TenantVersion } from '@/lib/api';
+import { cloudApi } from '@/lib/api/api';
 import { useApiError } from '@/lib/hooks';
 import { useMutation } from '@tanstack/react-query';
 import {
@@ -11,24 +12,39 @@ import { Button } from '@/components/ui/button';
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 export async function loader(_args: LoaderFunctionArgs) {
-  const res = await api.userListTenantInvites();
+  const [tenantInvitesRes, orgInvitesRes] = await Promise.allSettled([
+    api.userListTenantInvites(),
+    cloudApi
+      .userListOrganizationInvites()
+      .catch(() => ({ data: { rows: [] } })),
+  ]);
 
-  const invites = res.data.rows || [];
+  const tenantInvites =
+    tenantInvitesRes.status === 'fulfilled'
+      ? tenantInvitesRes.value.data.rows || []
+      : [];
+  const orgInvites =
+    orgInvitesRes.status === 'fulfilled'
+      ? orgInvitesRes.value.data.rows || []
+      : [];
 
-  if (invites.length == 0) {
+  if (tenantInvites.length === 0 && orgInvites.length === 0) {
     throw redirect('/');
   }
 
   return {
-    invites,
+    tenantInvites,
+    orgInvites,
   };
 }
 
-export default function TenantInvites() {
+export default function Invites() {
   const navigate = useNavigate();
   const { handleApiError } = useApiError({});
 
-  const { invites } = useLoaderData() as Awaited<ReturnType<typeof loader>>;
+  const { tenantInvites, orgInvites } = useLoaderData() as Awaited<
+    ReturnType<typeof loader>
+  >;
 
   const acceptMutation = useMutation({
     mutationKey: ['tenant-invite:accept'],
@@ -76,8 +92,39 @@ export default function TenantInvites() {
     onError: handleApiError,
   });
 
+  const acceptOrgMutation = useMutation({
+    mutationKey: ['organization-invite:accept'],
+    mutationFn: async (data: { inviteId: string }) => {
+      await cloudApi.organizationInviteAccept({
+        id: data.inviteId,
+      });
+    },
+    onSuccess: async () => {
+      navigate('/');
+    },
+    onError: handleApiError,
+  });
+
+  const rejectOrgMutation = useMutation({
+    mutationKey: ['organization-invite:reject'],
+    mutationFn: async (data: { inviteId: string }) => {
+      await cloudApi.organizationInviteReject({
+        id: data.inviteId,
+      });
+    },
+    onSuccess: async () => {
+      navigate('/');
+    },
+    onError: handleApiError,
+  });
+
+  const totalInvites = tenantInvites.length + orgInvites.length;
   const header =
-    invites.length > 1 ? 'Join your team' : 'Join ' + invites[0].tenantName;
+    totalInvites > 1
+      ? 'Join your teams'
+      : tenantInvites.length > 0
+        ? 'Join ' + tenantInvites[0].tenantName
+        : 'Join ' + orgInvites[0].inviterEmail + "'s organization";
 
   return (
     <div className="flex flex-row flex-1 w-full h-full">
@@ -89,7 +136,7 @@ export default function TenantInvites() {
                 {header}
               </h1>
             </div>
-            {invites.map((invite) => {
+            {tenantInvites.map((invite) => {
               return (
                 <div
                   key={invite.metadata.id}
@@ -119,6 +166,42 @@ export default function TenantInvites() {
                           inner: {
                             invite: invite.metadata.id,
                           },
+                        });
+                      }}
+                    >
+                      Accept
+                    </Button>
+                  </div>
+                </div>
+              );
+            })}
+            {orgInvites.map((invite) => {
+              return (
+                <div
+                  key={invite.metadata.id}
+                  className="flex flex-col space-y-2 text-center"
+                >
+                  <p className="text-sm text-gray-700 dark:text-gray-300 mb-4">
+                    You got an invitation to join an organization from{' '}
+                    {invite.inviterEmail} on Hatchet.
+                  </p>
+                  <div className="flex flex-row gap-2 justify-center">
+                    <Button
+                      variant="outline"
+                      className="w-full"
+                      onClick={() => {
+                        rejectOrgMutation.mutate({
+                          inviteId: invite.metadata.id,
+                        });
+                      }}
+                    >
+                      Decline
+                    </Button>
+                    <Button
+                      className="w-full"
+                      onClick={() => {
+                        acceptOrgMutation.mutate({
+                          inviteId: invite.metadata.id,
                         });
                       }}
                     >

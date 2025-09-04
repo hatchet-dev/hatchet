@@ -784,7 +784,18 @@ export interface CreateOrganizationInviteRequest {
   role: OrganizationMemberType;
 }
 
-export interface UpdateOrganizationInviteRequest {
-  /** The status of the invite */
-  status: OrganizationInviteStatus;
+export interface AcceptOrganizationInviteRequest {
+  /**
+   * The ID of the organization invite
+   * @format uuid
+   */
+  id: string;
+}
+
+export interface RejectOrganizationInviteRequest {
+  /**
+   * The ID of the organization invite
+   * @format uuid
+   */
+  id: string;
 }
