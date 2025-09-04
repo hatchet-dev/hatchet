@@ -8,8 +8,7 @@ VALUES (
     @tenantId::UUID,
     @key::TEXT,
     @expiresAt::TIMESTAMPTZ
-)
-RETURNING *;
+);
 
 -- name: CleanUpExpiredIdempotencyKeys :exec
 DELETE FROM v1_idempotency_key

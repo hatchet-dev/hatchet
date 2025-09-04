@@ -19,7 +19,7 @@ func (t *TickerImpl) runScheduledWorkflowV1(ctx context.Context, tenantId string
 	err := t.repov1.Idempotency().CreateIdempotencyKey(ctx, tenantId, scheduledWorkflowId, sqlchelpers.TimestamptzFromTime(expiresAt))
 
 	if err != nil {
-		return fmt.Errorf("could not check if idempotency key is filled: %w", err)
+		return fmt.Errorf("could not create idempotency key: %w", err)
 	}
 
 	key := v1.IdempotencyKey(scheduledWorkflowId)

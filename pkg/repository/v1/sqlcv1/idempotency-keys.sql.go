@@ -132,7 +132,6 @@ VALUES (
     $2::TEXT,
     $3::TIMESTAMPTZ
 )
-RETURNING tenant_id, key, expires_at, claimed_by_external_id, inserted_at, updated_at
 `
 
 type CreateIdempotencyKeyParams struct {
