@@ -467,7 +467,7 @@ func (r *TriggerRepositoryImpl) TriggerFromWorkflowNames(ctx context.Context, te
 		})
 	}
 
-	keyToWasClaimed, err := claimIdempotencyKeys(ctx, r.queries, r.pool, tenantId, keyClaimantPairs)
+	keyClaimantPairToWasClaimed, err := claimIdempotencyKeys(ctx, r.queries, r.pool, tenantId, keyClaimantPairs)
 
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to claim idempotency keys: %w", err)
@@ -495,7 +495,12 @@ func (r *TriggerRepositoryImpl) TriggerFromWorkflowNames(ctx context.Context, te
 
 		for _, opt := range opts {
 			if opt.IdempotencyKey != nil {
-				wasSuccessfullyClaimed := keyToWasClaimed[IdempotencyKey(*opt.IdempotencyKey)]
+				keyClaimantPair := KeyClaimantPair{
+					IdempotencyKey:      *opt.IdempotencyKey,
+					ClaimedByExternalId: sqlchelpers.UUIDFromStr(opt.ExternalId),
+				}
+
+				wasSuccessfullyClaimed := keyClaimantPairToWasClaimed[keyClaimantPair]
 
 				// if we did not successfully claim the idempotency key, we should not trigger the workflow
 				if !wasSuccessfullyClaimed {

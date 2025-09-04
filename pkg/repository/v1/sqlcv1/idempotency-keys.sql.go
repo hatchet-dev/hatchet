@@ -65,7 +65,8 @@ WITH inputs AS (
 SELECT
     i.key::TEXT AS key,
     c.expires_at::TIMESTAMPTZ AS expires_at,
-    c.claimed_by_external_id IS NOT NULL::BOOLEAN AS was_successfully_claimed
+    c.claimed_by_external_id IS NOT NULL::BOOLEAN AS was_successfully_claimed,
+    c.claimed_by_external_id
 FROM inputs i
 LEFT JOIN claims c ON (i.key = c.key AND i.claimed_by_external_id = c.claimed_by_external_id)
 `
@@ -80,6 +81,7 @@ type ClaimIdempotencyKeysRow struct {
 	Key                    string             `json:"key"`
 	ExpiresAt              pgtype.Timestamptz `json:"expires_at"`
 	WasSuccessfullyClaimed bool               `json:"was_successfully_claimed"`
+	ClaimedByExternalID    pgtype.UUID        `json:"claimed_by_external_id"`
 }
 
 func (q *Queries) ClaimIdempotencyKeys(ctx context.Context, db DBTX, arg ClaimIdempotencyKeysParams) ([]*ClaimIdempotencyKeysRow, error) {
@@ -91,7 +93,12 @@ func (q *Queries) ClaimIdempotencyKeys(ctx context.Context, db DBTX, arg ClaimId
 	var items []*ClaimIdempotencyKeysRow
 	for rows.Next() {
 		var i ClaimIdempotencyKeysRow
-		if err := rows.Scan(&i.Key, &i.ExpiresAt, &i.WasSuccessfullyClaimed); err != nil {
+		if err := rows.Scan(
+			&i.Key,
+			&i.ExpiresAt,
+			&i.WasSuccessfullyClaimed,
+			&i.ClaimedByExternalID,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, &i)

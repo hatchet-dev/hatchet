@@ -44,7 +44,7 @@ type KeyClaimantPair struct {
 	ClaimedByExternalId pgtype.UUID
 }
 
-func claimIdempotencyKeys(context context.Context, queries *sqlcv1.Queries, pool *pgxpool.Pool, tenantId string, claims []KeyClaimantPair) (map[IdempotencyKey]WasSuccessfullyClaimed, error) {
+func claimIdempotencyKeys(context context.Context, queries *sqlcv1.Queries, pool *pgxpool.Pool, tenantId string, claims []KeyClaimantPair) (map[KeyClaimantPair]WasSuccessfullyClaimed, error) {
 	keys := make([]string, len(claims))
 	claimedByExternalIds := make([]pgtype.UUID, len(claims))
 
@@ -63,10 +63,14 @@ func claimIdempotencyKeys(context context.Context, queries *sqlcv1.Queries, pool
 		return nil, err
 	}
 
-	keyToClaimStatus := make(map[IdempotencyKey]WasSuccessfullyClaimed)
+	keyToClaimStatus := make(map[KeyClaimantPair]WasSuccessfullyClaimed)
 
 	for _, claimResult := range claimResults {
-		keyToClaimStatus[IdempotencyKey(claimResult.Key)] = WasSuccessfullyClaimed(claimResult.WasSuccessfullyClaimed)
+		keyClaimantPair := KeyClaimantPair{
+			IdempotencyKey:      IdempotencyKey(claimResult.Key),
+			ClaimedByExternalId: claimResult.ClaimedByExternalID,
+		}
+		keyToClaimStatus[keyClaimantPair] = WasSuccessfullyClaimed(claimResult.WasSuccessfullyClaimed)
 	}
 
 	return keyToClaimStatus, nil
