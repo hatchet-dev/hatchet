@@ -65,7 +65,9 @@ func GetClientConfigFromConfigFile(cf *client.ClientConfigFile) (res *client.Cli
 
 	tokenConf, err := getConfFromJWT(cf.Token)
 
-	if err == nil {
+	if err != nil {
+		return nil, err
+	} else {
 		if grpcBroadcastAddress == "" && tokenConf.grpcBroadcastAddress != "" {
 			grpcBroadcastAddress = tokenConf.grpcBroadcastAddress
 		}
