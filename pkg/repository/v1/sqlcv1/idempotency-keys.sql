@@ -14,7 +14,7 @@ RETURNING *;
 -- name: CleanUpExpiredIdempotencyKeys :exec
 DELETE FROM v1_idempotency_key
 WHERE
-    tenant_id = ANY(@tenantIds::UUID[])
+    tenant_id = @tenantId::UUID
     AND expires_at < NOW()
 ;
 

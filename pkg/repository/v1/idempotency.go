@@ -14,7 +14,7 @@ type IdempotencyKey string
 
 type IdempotencyRepository interface {
 	CreateIdempotencyKey(context context.Context, tenantId, key string, expiresAt pgtype.Timestamptz) error
-	EvictExpiredIdempotencyKeys(context context.Context, tenantIds []pgtype.UUID) error
+	EvictExpiredIdempotencyKeys(context context.Context, tenantId pgtype.UUID) error
 }
 
 type idempotencyRepository struct {
@@ -35,8 +35,8 @@ func (r *idempotencyRepository) CreateIdempotencyKey(context context.Context, te
 	})
 }
 
-func (r *idempotencyRepository) EvictExpiredIdempotencyKeys(context context.Context, tenantIds []pgtype.UUID) error {
-	return r.queries.CleanUpExpiredIdempotencyKeys(context, r.pool, tenantIds)
+func (r *idempotencyRepository) EvictExpiredIdempotencyKeys(context context.Context, tenantId pgtype.UUID) error {
+	return r.queries.CleanUpExpiredIdempotencyKeys(context, r.pool, tenantId)
 }
 
 type KeyClaimantPair struct {

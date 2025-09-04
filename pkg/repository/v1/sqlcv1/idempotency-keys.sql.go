@@ -112,12 +112,12 @@ func (q *Queries) ClaimIdempotencyKeys(ctx context.Context, db DBTX, arg ClaimId
 const cleanUpExpiredIdempotencyKeys = `-- name: CleanUpExpiredIdempotencyKeys :exec
 DELETE FROM v1_idempotency_key
 WHERE
-    tenant_id = ANY($1::UUID[])
+    tenant_id = $1::UUID
     AND expires_at < NOW()
 `
 
-func (q *Queries) CleanUpExpiredIdempotencyKeys(ctx context.Context, db DBTX, tenantids []pgtype.UUID) error {
-	_, err := db.Exec(ctx, cleanUpExpiredIdempotencyKeys, tenantids)
+func (q *Queries) CleanUpExpiredIdempotencyKeys(ctx context.Context, db DBTX, tenantid pgtype.UUID) error {
+	_, err := db.Exec(ctx, cleanUpExpiredIdempotencyKeys, tenantid)
 	return err
 }
 
