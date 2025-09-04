@@ -375,9 +375,11 @@ export default function OrganizationPage() {
                 <p className="text-muted-foreground mb-4">
                   Add your first tenant to get started.
                 </p>
-                <Button onClick={() => {
-                  window.location.href = `/onboarding/create-tenant`;
-                }}>
+                <Button
+                  onClick={() => {
+                    window.location.href = `/onboarding/create-tenant`;
+                  }}
+                >
                   <PlusIcon className="h-4 w-4 mr-2" />
                   Add Tenant
                 </Button>
@@ -667,7 +669,6 @@ export default function OrganizationPage() {
             )}
           </CardContent>
         </Card>
-
 
         {/* Invite Member Modal */}
         {orgId && organization && (

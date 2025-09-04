@@ -163,10 +163,9 @@ export function OrganizationSelector({ className }: OrganizationSelectorProps) {
                                 e.preventDefault();
                                 e.stopPropagation();
                                 setOpen(false);
-                                navigate(
-                                  `/onboarding/create-tenant`,
-                                  { replace: true },
-                                );
+                                navigate(`/onboarding/create-tenant`, {
+                                  replace: true,
+                                });
                               }}
                             >
                               <PlusIcon className="h-3 w-3" />
@@ -231,10 +230,9 @@ export function OrganizationSelector({ className }: OrganizationSelectorProps) {
                                   e.preventDefault();
                                   e.stopPropagation();
                                   setOpen(false);
-                                  navigate(
-                                    `/onboarding/create-tenant`,
-                                    { replace: true },
-                                  );
+                                  navigate(`/onboarding/create-tenant`, {
+                                    replace: true,
+                                  });
                                 }}
                               >
                                 <PlusIcon className="h-3 w-3" />

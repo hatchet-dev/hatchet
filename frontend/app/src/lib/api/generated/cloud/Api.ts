@@ -21,6 +21,7 @@ import {
   CreateManagementTokenRequest,
   CreateManagementTokenResponse,
   CreateNewTenantForOrganizationRequest,
+  CreateOrganizationInviteRequest,
   CreateOrUpdateAutoscalingRequest,
   CreateTenantAPITokenRequest,
   CreateTenantAPITokenResponse,
@@ -39,6 +40,7 @@ import {
   Matrix,
   MonthlyComputeCost,
   Organization,
+  OrganizationInviteList,
   OrganizationList,
   OrganizationTenant,
   RemoveOrganizationMembersRequest,
@@ -46,6 +48,7 @@ import {
   TenantBillingState,
   TenantSubscription,
   UpdateManagedWorkerRequest,
+  UpdateOrganizationInviteRequest,
   UpdateTenantSubscription,
   VectorPushRequest,
   WorkflowRunEventsMetricsCounts,
@@ -1055,7 +1058,6 @@ export class Api<
   /**
    * @description Get a management token for an organization
    *
-   * @tags Management
    * @name ManagementTokenList
    * @summary Get Management Tokens for Organization
    * @request GET:/api/v1/management/organizations/{organization}/management-tokens
@@ -1072,7 +1074,6 @@ export class Api<
   /**
    * @description Delete a management token for an organization
    *
-   * @tags Management
    * @name ManagementTokenDelete
    * @summary Delete Management Token for Organization
    * @request DELETE:/api/v1/management/management-tokens/{management-token}
@@ -1086,6 +1087,80 @@ export class Api<
       path: `/api/v1/management/management-tokens/${managementToken}`,
       method: "DELETE",
       secure: true,
+      ...params,
+    });
+  /**
+   * @description List all organization invites for the authenticated user
+   *
+   * @name UserListOrganizationInvites
+   * @summary List Organization Invites for User
+   * @request GET:/api/v1/management/invites
+   * @secure
+   */
+  userListOrganizationInvites = (params: RequestParams = {}) =>
+    this.request<OrganizationInviteList, APIError>({
+      path: `/api/v1/management/invites`,
+      method: "GET",
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description List all organization invites for an organization
+   *
+   * @name OrganizationInviteList
+   * @summary List Organization Invites for Organization
+   * @request GET:/api/v1/management/organizations/{organization}/invites
+   * @secure
+   */
+  organizationInviteList = (organization: string, params: RequestParams = {}) =>
+    this.request<OrganizationInviteList, APIError>({
+      path: `/api/v1/management/organizations/${organization}/invites`,
+      method: "GET",
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Create a new organization invite
+   *
+   * @name OrganizationInviteCreate
+   * @summary Create Organization Invite for Organization
+   * @request POST:/api/v1/management/organizations/{organization}/invites
+   * @secure
+   */
+  organizationInviteCreate = (
+    organization: string,
+    data: CreateOrganizationInviteRequest,
+    params: RequestParams = {},
+  ) =>
+    this.request<void, APIError>({
+      path: `/api/v1/management/organizations/${organization}/invites`,
+      method: "POST",
+      body: data,
+      secure: true,
+      type: ContentType.Json,
+      ...params,
+    });
+  /**
+   * @description Update an organization invite
+   *
+   * @name OrganizationInviteUpdate
+   * @summary Update Organization Invite for Organization
+   * @request PATCH:/api/v1/management/organization-invites/{organization-invite}
+   * @secure
+   */
+  organizationInviteUpdate = (
+    organizationInvite: string,
+    data: UpdateOrganizationInviteRequest,
+    params: RequestParams = {},
+  ) =>
+    this.request<void, APIError>({
+      path: `/api/v1/management/organization-invites/${organizationInvite}`,
+      method: "PATCH",
+      body: data,
+      secure: true,
+      type: ContentType.Json,
       ...params,
     });
 }

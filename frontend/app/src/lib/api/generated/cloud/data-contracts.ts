@@ -10,6 +10,12 @@
  * ---------------------------------------------------------------
  */
 
+export enum OrganizationInviteStatus {
+  PENDING = "PENDING",
+  ACCEPTED = "ACCEPTED",
+  REJECTED = "REJECTED",
+}
+
 export enum ManagementTokenDuration {
   Value30D = "30d",
   Value60D = "60d",
@@ -734,4 +740,51 @@ export interface ManagementToken {
 
 export interface ManagementTokenList {
   rows: ManagementToken[];
+}
+
+export interface OrganizationInvite {
+  metadata: APIResourceMeta;
+  /**
+   * The ID of the organization
+   * @format uuid
+   */
+  organizationId: string;
+  /**
+   * The email of the inviter
+   * @format email
+   */
+  inviterEmail: string;
+  /**
+   * The email of the invitee
+   * @format email
+   */
+  inviteeEmail: string;
+  /**
+   * The timestamp at which the invite expires
+   * @format date-time
+   */
+  expires: string;
+  /** The status of the invite */
+  status: OrganizationInviteStatus;
+  /** The role of the invitee */
+  role: OrganizationMemberType;
+}
+
+export interface OrganizationInviteList {
+  rows: OrganizationInvite[];
+}
+
+export interface CreateOrganizationInviteRequest {
+  /**
+   * The email of the invitee
+   * @format email
+   */
+  inviteeEmail: string;
+  /** The role of the invitee */
+  role: OrganizationMemberType;
+}
+
+export interface UpdateOrganizationInviteRequest {
+  /** The status of the invite */
+  status: OrganizationInviteStatus;
 }

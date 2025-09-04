@@ -11,7 +11,6 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { TenantCreateForm } from './components/tenant-create-form';
-import { useTenant } from '@/lib/atoms';
 import { Button } from '@/components/ui/button';
 import { HearAboutUsForm } from './components/hear-about-us-form';
 import { WhatBuildingForm } from './components/what-building-form';
@@ -29,7 +28,8 @@ export default function CreateTenant() {
   const [currentStep, setCurrentStep] = useState(
     Math.max(0, Math.min(stepFromUrl, 2)),
   );
-  const [selectedOrganizationId, setSelectedOrganizationId] = useState<string>('');
+  const [selectedOrganizationId, setSelectedOrganizationId] =
+    useState<string>('');
 
   const [formData, setFormData] = useState<OnboardingFormData>({
     name: '',
@@ -43,7 +43,6 @@ export default function CreateTenant() {
   const { handleApiError } = useApiError({
     setFieldErrors: setFieldErrors,
   });
-  const { setTenant } = useTenant();
   const { capture } = useAnalytics();
 
   // Get organization list when cloud is enabled
@@ -72,10 +71,13 @@ export default function CreateTenant() {
     mutationFn: async (data: CreateTenantRequest) => {
       // Use cloud API if cloud is enabled and organization is selected
       if (cloudMeta?.data && selectedOrganizationId) {
-        const result = await cloudApi.organizationCreateTenant(selectedOrganizationId, {
-          name: data.name,
-          slug: data.slug,
-        });
+        const result = await cloudApi.organizationCreateTenant(
+          selectedOrganizationId,
+          {
+            name: data.name,
+            slug: data.slug,
+          },
+        );
 
         // Track onboarding analytics for cloud tenant
         capture('onboarding_completed', {
@@ -352,7 +354,10 @@ export default function CreateTenant() {
                   handleNext();
                 }
               }}
-              disabled={createMutation.isPending || (currentStep === 2 && !isCurrentStepValid())}
+              disabled={
+                createMutation.isPending ||
+                (currentStep === 2 && !isCurrentStepValid())
+              }
             >
               {createMutation.isPending ? (
                 <div className="flex items-center gap-2">
