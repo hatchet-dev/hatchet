@@ -173,7 +173,7 @@ function AccountDropdown({ user }: MainNavProps) {
           aria-label="User Menu"
         >
           <BiUserCircle className="h-6 w-6 text-foreground cursor-pointer" />
-          {pendingInvitesQuery.data > 0 && (
+          {(pendingInvitesQuery.data ?? 0) > 0 && (
             <div className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 bg-blue-500 rounded-full border-2 border-background animate-pulse"></div>
           )}
         </Button>
@@ -190,7 +190,7 @@ function AccountDropdown({ user }: MainNavProps) {
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        {pendingInvitesQuery.data > 0 && (
+        {(pendingInvitesQuery.data ?? 0) > 0 && (
           <>
             <DropdownMenuItem onClick={() => navigate('/onboarding/invites')}>
               <BiEnvelope className="mr-2" />
