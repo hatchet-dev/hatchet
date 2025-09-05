@@ -2,6 +2,7 @@ import { cloudApi } from '@/lib/api/api';
 import { useApiError } from '@/lib/hooks';
 import { useQuery } from '@tanstack/react-query';
 import { AxiosError } from 'axios';
+import { useMemo } from 'react';
 
 export default function useCloudApiMeta() {
   const { handleApiError } = useApiError({});
@@ -25,5 +26,12 @@ export default function useCloudApiMeta() {
     handleApiError(cloudMetaQuery.error as AxiosError);
   }
 
-  return cloudMetaQuery.data;
+  const isCloudEnabled = useMemo(() => {
+    return !!cloudMetaQuery.data?.data;
+  }, [cloudMetaQuery.data?.data]);
+
+  return {
+    data: cloudMetaQuery.data,
+    isCloudEnabled,
+  };
 }

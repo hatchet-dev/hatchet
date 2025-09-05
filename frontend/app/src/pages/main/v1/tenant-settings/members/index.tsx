@@ -1,6 +1,6 @@
 import { Button } from '@/components/v1/ui/button';
 import { Separator } from '@/components/v1/ui/separator';
-import { useState } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { CreateInviteForm } from './components/create-invite-form';
 import { useApiError } from '@/lib/hooks';
 import { useMutation, useQuery } from '@tanstack/react-query';
@@ -17,6 +17,9 @@ import { Dialog } from '@/components/v1/ui/dialog';
 import { DataTable } from '@/components/v1/molecules/data-table/data-table';
 import { columns } from './components/invites-columns';
 import { columns as membersColumns } from './components/members-columns';
+import { ColumnDef } from '@tanstack/react-table';
+import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
+import RelativeDate from '@/components/v1/molecules/relative-date';
 import { UpdateInviteForm } from './components/update-invite-form';
 import { UpdateMemberForm } from './components/update-member-form';
 import { DeleteInviteForm } from './components/delete-invite-form';
@@ -24,6 +27,36 @@ import { ChangePasswordDialog } from './components/change-password-dialog';
 import { AxiosError } from 'axios';
 import useApiMeta from '@/pages/auth/hooks/use-api-meta';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
+import { useOrganizations } from '@/hooks/use-organizations';
+
+// Simplified columns for owners (no role column, no actions)
+const ownersColumns: ColumnDef<TenantMember>[] = [
+  {
+    accessorKey: 'name',
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Name" />
+    ),
+    cell: ({ row }) => <div>{row.original.user.name}</div>,
+    enableSorting: false,
+    enableHiding: false,
+  },
+  {
+    accessorKey: 'email',
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Email" />
+    ),
+    cell: ({ row }) => <div>{row.original.user.email}</div>,
+    enableSorting: false,
+    enableHiding: false,
+  },
+  {
+    accessorKey: 'joined',
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Joined" />
+    ),
+    cell: ({ row }) => <RelativeDate date={row.original.metadata.createdAt} />,
+  },
+];
 
 export default function Members() {
   const meta = useApiMeta();
@@ -49,6 +82,7 @@ export default function Members() {
 
 function MembersList() {
   const { tenantId } = useCurrentTenantId();
+  const { getOrganizationIdForTenant, isCloudEnabled } = useOrganizations();
   const [showChangePasswordDialog, setShowChangePasswordDialog] =
     useState(false);
   const [memberToEdit, setMemberToEdit] = useState<TenantMember | null>(null);
@@ -57,8 +91,67 @@ function MembersList() {
     ...queries.members.list(tenantId),
   });
 
+  const organizationId = getOrganizationIdForTenant(tenantId);
+
+  // Get current user query
+  const currentUserQuery = useQuery({
+    ...queries.user.current,
+  });
+
+  // Check if current user is admin
+  const currentUserMember = useMemo(() => {
+    return listMembersQuery.data?.rows?.find(
+      (member) => member.user.email === currentUserQuery.data?.email,
+    );
+  }, [listMembersQuery.data?.rows, currentUserQuery.data?.email]);
+
+  const isCurrentUserOwner = currentUserMember?.role === 'OWNER';
+
+  // Separate owners and non-owners
+  const owners = useMemo(() => {
+    return (
+      listMembersQuery.data?.rows?.filter(
+        (member) => member.role === 'OWNER',
+      ) || []
+    );
+  }, [listMembersQuery.data?.rows]);
+
+  const nonOwners = useMemo(() => {
+    return (
+      listMembersQuery.data?.rows?.filter(
+        (member) => member.role !== 'OWNER',
+      ) || []
+    );
+  }, [listMembersQuery.data?.rows]);
+
   return (
     <div>
+      {/* Owners Section */}
+      <div className="flex flex-row justify-between items-center">
+        <h3 className="text-xl font-semibold leading-tight text-foreground">
+          Owners
+        </h3>
+        {isCloudEnabled && organizationId && isCurrentUserOwner && (
+          <a
+            href={`/organizations/${organizationId}`}
+            className="text-primary hover:underline text-sm"
+          >
+            Manage in Organization →
+          </a>
+        )}
+      </div>
+      <Separator className="my-4" />
+      <DataTable
+        columns={ownersColumns}
+        data={owners}
+        filters={[]}
+        getRowId={(row) => row.metadata.id}
+        isLoading={listMembersQuery.isLoading}
+      />
+
+      <Separator className="my-8" />
+
+      {/* Members Section */}
       <h3 className="text-xl font-semibold leading-tight text-foreground">
         Members
       </h3>
@@ -72,7 +165,7 @@ function MembersList() {
             setMemberToEdit(member);
           },
         })}
-        data={listMembersQuery.data?.rows || []}
+        data={nonOwners}
         filters={[]}
         getRowId={(row) => row.metadata.id}
         isLoading={listMembersQuery.isLoading}
@@ -108,27 +201,59 @@ function UpdateMember({
   onSuccess: () => void;
 }) {
   const { tenantId } = useCurrentTenantId();
+  const { getOrganizationIdForTenant, isCloudEnabled } = useOrganizations();
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const { handleApiError } = useApiError({
     setFieldErrors: setFieldErrors,
   });
 
+  // Check if this is a cloud tenant and if we're trying to modify an OWNER
+  const isOwnerRole = member.role === 'OWNER';
+
+  const organizationId = getOrganizationIdForTenant(tenantId);
+
+  // If it's cloud-enabled and the member is an OWNER, redirect to org settings
+  useEffect(() => {
+    if (isCloudEnabled && isOwnerRole && organizationId) {
+      window.location.href = `/organizations/${organizationId}`;
+      onClose();
+    }
+  }, [isCloudEnabled, isOwnerRole, organizationId, onClose]);
+
   const updateMutation = useMutation({
     mutationKey: ['tenant-member:update', tenantId, member.metadata.id],
     mutationFn: async (data: { role: TenantMemberRole }) => {
+      // Don't allow OWNER role changes in cloud mode
+      if (isCloudEnabled && data.role === 'OWNER') {
+        throw new Error(
+          'OWNER role management must be done through Organization Settings',
+        );
+      }
       await api.tenantMemberUpdate(tenantId, member.metadata.id, data);
     },
     onSuccess: onSuccess,
     onError: handleApiError,
   });
 
+  // Don't render the dialog if we're redirecting
+  if (isCloudEnabled && isOwnerRole) {
+    return null;
+  }
+
   return (
     <Dialog open={true} onOpenChange={onClose}>
       <UpdateMemberForm
         isLoading={updateMutation.isPending}
-        onSubmit={updateMutation.mutate}
+        onSubmit={(data) => {
+          // Prevent OWNER role assignment in cloud mode
+          if (isCloudEnabled && data.role === 'OWNER') {
+            return;
+          }
+          updateMutation.mutate(data);
+        }}
         fieldErrors={fieldErrors}
         member={member}
+        isCloudEnabled={isCloudEnabled}
       />
     </Dialog>
   );
@@ -218,10 +343,13 @@ function CreateInvite({
   onSuccess: () => void;
 }) {
   const { tenantId } = useCurrentTenantId();
+  const { getOrganizationIdForTenant, isCloudEnabled } = useOrganizations();
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const { handleApiError } = useApiError({
     setFieldErrors: setFieldErrors,
   });
+
+  const organizationId = getOrganizationIdForTenant(tenantId);
 
   const createMutation = useMutation({
     mutationKey: ['tenant-invite:create', tenantId],
@@ -241,6 +369,8 @@ function CreateInvite({
         isLoading={createMutation.isPending}
         onSubmit={createMutation.mutate}
         fieldErrors={fieldErrors}
+        isCloudEnabled={isCloudEnabled}
+        organizationId={organizationId}
       />
     </Dialog>
   );
