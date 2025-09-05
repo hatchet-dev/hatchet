@@ -44,7 +44,6 @@ import {
 } from '@/components/v1/ui/breadcrumb';
 import { useBreadcrumbs } from '@/hooks/use-breadcrumbs';
 import { usePendingInvites } from '@/hooks/use-pending-invites';
-import { OrganizationSelector } from '@/components/v1/molecules/nav-bar/organization-selector';
 
 function HelpDropdown() {
   const meta = useApiMeta();
@@ -203,11 +202,7 @@ interface MainNavProps {
   setHasBanner?: (state: boolean) => void;
 }
 
-export default function MainNav({
-  user,
-  tenantMemberships,
-  setHasBanner,
-}: MainNavProps) {
+export default function MainNav({ user, setHasBanner }: MainNavProps) {
   const { toggleSidebarOpen } = useSidebar();
   const { theme } = useTheme();
   const { tenant } = useTenant();
@@ -310,12 +305,6 @@ export default function MainNav({
           </div>
 
           <div className="ml-auto flex items-center gap-2">
-            {tenantMemberships.length > 0 &&
-              !pathname.startsWith('/onboarding') && (
-                <div className="max-w-xs">
-                  <OrganizationSelector memberships={tenantMemberships} />
-                </div>
-              )}
             <HelpDropdown />
             <AccountDropdown user={user} />
           </div>

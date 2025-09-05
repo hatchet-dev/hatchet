@@ -1,6 +1,13 @@
 import { Button } from '@/components/v1/ui/button';
 import { cn } from '@/lib/utils';
-import { Cog6ToothIcon, PlusIcon } from '@heroicons/react/24/outline';
+import {
+  BuildingOffice2Icon,
+  Cog6ToothIcon,
+  PlusIcon,
+  CheckIcon,
+  ChevronDownIcon,
+  ChevronRightIcon,
+} from '@heroicons/react/24/outline';
 import {
   Command,
   CommandEmpty,
@@ -8,7 +15,7 @@ import {
   CommandItem,
   CommandList,
 } from '@/components/v1/ui/command';
-import { TenantMember } from '@/lib/api';
+import { Tenant, TenantMember, TenantVersion } from '@/lib/api';
 import { OrganizationForUser } from '@/lib/api/generated/cloud/data-contracts';
 import { CaretSortIcon } from '@radix-ui/react-icons';
 import {
@@ -26,20 +33,29 @@ import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTenantDetails } from '@/hooks/use-tenant';
 import { useOrganizations } from '@/hooks/use-organizations';
+import invariant from 'tiny-invariant';
 
-interface OrganizationItemProps {
+interface OrganizationGroupProps {
   organization: OrganizationForUser;
+  tenants: TenantMember[];
+  currentTenant: Tenant;
+  isExpanded: boolean;
+  onToggleExpand: () => void;
+  onTenantSelect: (tenant: Tenant) => void;
   onClose: () => void;
   onNavigate: (path: string) => void;
-  isCurrentOrganization?: boolean;
 }
 
-function OrganizationItem({
+function OrganizationGroup({
   organization,
+  tenants,
+  currentTenant,
+  isExpanded,
+  onToggleExpand,
+  onTenantSelect,
   onClose,
   onNavigate,
-  isCurrentOrganization = false,
-}: OrganizationItemProps) {
+}: OrganizationGroupProps) {
   const handleSettingsClick = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -51,54 +67,93 @@ function OrganizationItem({
     e.preventDefault();
     e.stopPropagation();
     onClose();
-    onNavigate('/onboarding/create-tenant');
+    onNavigate(
+      '/onboarding/create-tenant?organizationId=' + organization.metadata.id,
+    );
   };
 
   return (
-    <CommandItem
-      key={organization.metadata.id}
-      className="text-sm hover:bg-transparent focus:bg-transparent data-[selected]:bg-transparent aria-selected:bg-transparent [&[aria-selected=true]]:bg-transparent"
-    >
-      <div className="flex items-center justify-between w-full">
-        <span
-          className={`flex-1 ${isCurrentOrganization ? 'font-medium' : ''}`}
-        >
-          {organization.name}
-        </span>
-        {organization.isOwner && (
-          <div className="flex items-center gap-1 ml-2">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-6 w-6 p-0 hover:bg-accent"
-                  title="Settings"
-                  onClick={handleSettingsClick}
-                >
-                  <Cog6ToothIcon className="h-3 w-3" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Settings</TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-6 w-6 p-0 hover:bg-accent"
-                  title="New tenant"
-                  onClick={handleNewTenantClick}
-                >
-                  <PlusIcon className="h-3 w-3" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>New tenant</TooltipContent>
-            </Tooltip>
+    <>
+      <CommandItem
+        onSelect={onToggleExpand}
+        className="text-sm cursor-pointer hover:bg-accent focus:bg-accent"
+      >
+        <div className="flex items-center justify-between w-full">
+          <div className="flex items-center gap-2">
+            {isExpanded ? (
+              <ChevronDownIcon className="h-3 w-3" />
+            ) : (
+              <ChevronRightIcon className="h-3 w-3" />
+            )}
+            <BuildingOffice2Icon className="h-4 w-4" />
+            <span className="font-medium">{organization.name}</span>
           </div>
-        )}
-      </div>
-    </CommandItem>
+          {organization.isOwner && (
+            <div className="flex items-center gap-1">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-5 w-5 p-0 hover:bg-accent-foreground/10"
+                    title="New Tenant"
+                    onClick={handleNewTenantClick}
+                  >
+                    <PlusIcon className="h-3 w-3" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>New Tenant</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-5 w-5 p-0 hover:bg-accent-foreground/10"
+                    title="Settings"
+                    onClick={handleSettingsClick}
+                  >
+                    <Cog6ToothIcon className="h-3 w-3" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Settings</TooltipContent>
+              </Tooltip>
+            </div>
+          )}
+        </div>
+      </CommandItem>
+
+      {isExpanded &&
+        tenants.map((membership) => (
+          <CommandItem
+            key={membership.metadata.id}
+            onSelect={() => {
+              invariant(membership.tenant);
+              onTenantSelect(membership.tenant);
+              onClose();
+            }}
+            className="text-sm cursor-pointer pl-6 hover:bg-accent focus:bg-accent"
+          >
+            <div className="flex items-center justify-between w-full">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-green-500" />
+                <span>{membership.tenant?.name}</span>
+                <span className="text-xs text-muted-foreground">
+                  {membership.tenant?.slug}
+                </span>
+              </div>
+              <CheckIcon
+                className={cn(
+                  'h-4 w-4',
+                  currentTenant?.slug === membership.tenant?.slug
+                    ? 'opacity-100'
+                    : 'opacity-0',
+                )}
+              />
+            </div>
+          </CommandItem>
+        ))}
+    </>
   );
 }
 
@@ -107,37 +162,90 @@ interface OrganizationSelectorProps {
   memberships: TenantMember[];
 }
 
-export function OrganizationSelector({ className }: OrganizationSelectorProps) {
+export function OrganizationSelector({
+  className,
+  memberships,
+}: OrganizationSelectorProps) {
   const navigate = useNavigate();
-  const { tenant: currTenant } = useTenantDetails();
+  const { tenant: currTenant, setTenant: setCurrTenant } = useTenantDetails();
   const [open, setOpen] = useState(false);
-  const { organizations, isCloudEnabled, getOrganizationForTenant } =
-    useOrganizations();
+  const [expandedOrgs, setExpandedOrgs] = useState<string[]>([]);
+  const { organizations, getOrganizationForTenant } = useOrganizations();
 
   const handleClose = () => setOpen(false);
   const handleNavigate = (path: string) => navigate(path, { replace: true });
 
-  const { currentOrganization, otherOrganizations } = useMemo(() => {
-    if (!currTenant) {
-      return { currentOrganization: null, otherOrganizations: organizations };
+  const handleTenantSelect = (tenant: Tenant) => {
+    setCurrTenant(tenant);
+
+    if (tenant.version === TenantVersion.V0) {
+      // Hack to wait for next event loop tick so local storage is updated
+      setTimeout(() => {
+        window.location.href = `/workflow-runs?tenant=${tenant.metadata.id}`;
+      }, 0);
     }
+  };
 
-    const current = getOrganizationForTenant(currTenant.metadata.id);
+  const toggleOrgExpansion = (orgId: string) => {
+    setExpandedOrgs((prev) =>
+      prev.includes(orgId)
+        ? prev.filter((id) => id !== orgId)
+        : [...prev, orgId],
+    );
+  };
 
-    if (current) {
-      // Current tenant belongs to an organization - separate current from others
-      const others = organizations.filter(
-        (org) => org.metadata.id !== current.metadata.id,
+  // Group memberships by organization
+  const { currentOrgData, otherOrgsData, standaloneTenants } = useMemo(() => {
+    const orgMap = new Map<string, TenantMember[]>();
+    const standalone: TenantMember[] = [];
+
+    memberships.forEach((membership) => {
+      const org = getOrganizationForTenant(
+        membership.tenant?.metadata.id || '',
       );
-      return { currentOrganization: current, otherOrganizations: others };
-    } else {
-      // Current tenant doesn't belong to any organization - show all as "Organizations"
-      return { currentOrganization: null, otherOrganizations: organizations };
-    }
-  }, [currTenant, getOrganizationForTenant, organizations]);
+      if (org) {
+        const orgId = org.metadata.id;
+        if (!orgMap.has(orgId)) {
+          orgMap.set(orgId, []);
+        }
+        orgMap.get(orgId)!.push(membership);
+      } else {
+        standalone.push(membership);
+      }
+    });
 
-  if (!currTenant || !isCloudEnabled || organizations.length === 0) {
+    const currentOrg = currTenant
+      ? getOrganizationForTenant(currTenant.metadata.id)
+      : null;
+    const currentOrgTenants = currentOrg
+      ? orgMap.get(currentOrg.metadata.id) || []
+      : [];
+
+    const otherOrgs = organizations
+      .filter((org) => org.metadata.id !== currentOrg?.metadata.id)
+      .map((org) => ({
+        organization: org,
+        tenants: orgMap.get(org.metadata.id) || [],
+      }))
+      .filter((item) => item.tenants.length > 0);
+
+    return {
+      currentOrgData: currentOrg
+        ? { organization: currentOrg, tenants: currentOrgTenants }
+        : null,
+      otherOrgsData: otherOrgs,
+      standaloneTenants: standalone,
+    };
+  }, [memberships, organizations, getOrganizationForTenant, currTenant]);
+
+  if (!currTenant) {
     return null;
+  }
+
+  // Auto-expand current organization
+  const currentOrgId = currentOrgData?.organization.metadata.id;
+  if (currentOrgId && !expandedOrgs.includes(currentOrgId)) {
+    setExpandedOrgs((prev) => [...prev, currentOrgId]);
   }
 
   return (
@@ -148,52 +256,90 @@ export function OrganizationSelector({ className }: OrganizationSelectorProps) {
             variant="outline"
             role="combobox"
             aria-expanded={open}
-            aria-label="Select an organization"
-            className={cn('justify-between', className)}
+            aria-label="Select a tenant"
+            className={cn('w-full justify-between', className)}
           >
             <div className="flex items-center gap-2">
-              <span className="truncate">
-                {currentOrganization?.name || 'No Organization'}
-              </span>
+              <BuildingOffice2Icon className="h-4 w-4" />
+              <span className="truncate">{currTenant.name}</span>
             </div>
             <CaretSortIcon className="ml-2 h-4 w-4 shrink-0 opacity-50" />
           </Button>
         </PopoverTrigger>
         <PopoverContent
-          side="bottom"
-          align="end"
-          className="w-[280px] p-0 z-50 border border-border shadow-md rounded-md"
+          side="right"
+          className="w-[320px] p-0 mb-6 z-50 border border-border shadow-md rounded-md"
         >
           <Command className="border-0">
             <CommandList>
-              <CommandEmpty>No organizations found.</CommandEmpty>
+              <CommandEmpty>No tenants found.</CommandEmpty>
 
-              {currentOrganization && (
+              {currentOrgData && (
                 <CommandGroup heading="Current Organization">
-                  <OrganizationItem
-                    organization={currentOrganization}
+                  <OrganizationGroup
+                    organization={currentOrgData.organization}
+                    tenants={currentOrgData.tenants}
+                    currentTenant={currTenant}
+                    isExpanded={expandedOrgs.includes(
+                      currentOrgData.organization.metadata.id,
+                    )}
+                    onToggleExpand={() =>
+                      toggleOrgExpansion(
+                        currentOrgData.organization.metadata.id,
+                      )
+                    }
+                    onTenantSelect={handleTenantSelect}
                     onClose={handleClose}
                     onNavigate={handleNavigate}
-                    isCurrentOrganization={true}
                   />
                 </CommandGroup>
               )}
 
-              {otherOrganizations.length > 0 && (
-                <CommandGroup
-                  heading={
-                    currentOrganization
-                      ? 'Other Organizations'
-                      : 'Organizations'
-                  }
-                >
-                  {otherOrganizations.map((org) => (
-                    <OrganizationItem
-                      key={org.metadata.id}
-                      organization={org}
+              {otherOrgsData.length > 0 && (
+                <CommandGroup heading="Other Organizations">
+                  {otherOrgsData.map(({ organization, tenants }) => (
+                    <OrganizationGroup
+                      key={organization.metadata.id}
+                      organization={organization}
+                      tenants={tenants}
+                      currentTenant={currTenant}
+                      isExpanded={expandedOrgs.includes(
+                        organization.metadata.id,
+                      )}
+                      onToggleExpand={() =>
+                        toggleOrgExpansion(organization.metadata.id)
+                      }
+                      onTenantSelect={handleTenantSelect}
                       onClose={handleClose}
                       onNavigate={handleNavigate}
                     />
+                  ))}
+                </CommandGroup>
+              )}
+
+              {standaloneTenants.length > 0 && (
+                <CommandGroup heading="Tenants">
+                  {standaloneTenants.map((membership) => (
+                    <CommandItem
+                      key={membership.metadata.id}
+                      onSelect={() => {
+                        invariant(membership.tenant);
+                        handleTenantSelect(membership.tenant);
+                        handleClose();
+                      }}
+                      className="text-sm cursor-pointer"
+                    >
+                      <BuildingOffice2Icon className="mr-2 h-4 w-4" />
+                      {membership.tenant?.name}
+                      <CheckIcon
+                        className={cn(
+                          'ml-auto h-4 w-4',
+                          currTenant.slug === membership.tenant?.slug
+                            ? 'opacity-100'
+                            : 'opacity-0',
+                        )}
+                      />
+                    </CommandItem>
                   ))}
                 </CommandGroup>
               )}

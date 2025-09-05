@@ -107,49 +107,59 @@ function MembersList() {
 
   const isCurrentUserOwner = currentUserMember?.role === 'OWNER';
 
-  // Separate owners and non-owners
+  // Separate owners and non-owners (only in cloud mode)
   const owners = useMemo(() => {
+    if (!isCloudEnabled) {
+      return [];
+    }
     return (
       listMembersQuery.data?.rows?.filter(
         (member) => member.role === 'OWNER',
       ) || []
     );
-  }, [listMembersQuery.data?.rows]);
+  }, [listMembersQuery.data?.rows, isCloudEnabled]);
 
   const nonOwners = useMemo(() => {
+    if (!isCloudEnabled) {
+      // In OSS, show all members in the members table
+      return listMembersQuery.data?.rows || [];
+    }
     return (
       listMembersQuery.data?.rows?.filter(
         (member) => member.role !== 'OWNER',
       ) || []
     );
-  }, [listMembersQuery.data?.rows]);
+  }, [listMembersQuery.data?.rows, isCloudEnabled]);
 
   return (
     <div>
-      {/* Owners Section */}
-      <div className="flex flex-row justify-between items-center">
-        <h3 className="text-xl font-semibold leading-tight text-foreground">
-          Owners
-        </h3>
-        {isCloudEnabled && organizationId && isCurrentUserOwner && (
-          <a
-            href={`/organizations/${organizationId}`}
-            className="text-primary hover:underline text-sm"
-          >
-            Manage in Organization →
-          </a>
-        )}
-      </div>
-      <Separator className="my-4" />
-      <DataTable
-        columns={ownersColumns}
-        data={owners}
-        filters={[]}
-        getRowId={(row) => row.metadata.id}
-        isLoading={listMembersQuery.isLoading}
-      />
-
-      <Separator className="my-8" />
+      {/* Owners Section - Only show in cloud mode */}
+      {isCloudEnabled && (
+        <>
+          <div className="flex flex-row justify-between items-center">
+            <h3 className="text-xl font-semibold leading-tight text-foreground">
+              Owners
+            </h3>
+            {organizationId && isCurrentUserOwner && (
+              <a
+                href={`/organizations/${organizationId}`}
+                className="text-primary hover:underline text-sm"
+              >
+                Manage in Organization →
+              </a>
+            )}
+          </div>
+          <Separator className="my-4" />
+          <DataTable
+            columns={ownersColumns}
+            data={owners}
+            filters={[]}
+            getRowId={(row) => row.metadata.id}
+            isLoading={listMembersQuery.isLoading}
+          />
+          <Separator className="my-8" />
+        </>
+      )}
 
       {/* Members Section */}
       <h3 className="text-xl font-semibold leading-tight text-foreground">

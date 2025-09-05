@@ -1,4 +1,4 @@
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useQueries } from '@tanstack/react-query';
 import { cloudApi } from '@/lib/api/api';
 import api from '@/lib/api';
@@ -8,10 +8,9 @@ import {
   PlusIcon,
   BuildingOffice2Icon,
   UserIcon,
-  ClipboardIcon,
-  CheckIcon,
   KeyIcon,
   EnvelopeIcon,
+  ArrowLeftIcon,
 } from '@heroicons/react/24/outline';
 import {
   Card,
@@ -54,48 +53,11 @@ import {
   TooltipTrigger,
 } from '@/components/v1/ui/tooltip';
 import { EllipsisVerticalIcon, TrashIcon } from '@heroicons/react/24/outline';
-
-// Copy to clipboard component
-function CopyableId({
-  id,
-  className = '',
-}: {
-  id: string;
-  className?: string;
-}) {
-  const [copied, setCopied] = useState(false);
-
-  const copyToClipboard = async () => {
-    try {
-      await navigator.clipboard.writeText(id);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch (err) {
-      console.error('Failed to copy: ', err);
-    }
-  };
-
-  return (
-    <div className={`flex items-center gap-2 ${className}`}>
-      <span className="font-mono text-sm">{id}</span>
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={copyToClipboard}
-        className="h-6 w-6 p-0 hover:bg-muted"
-      >
-        {copied ? (
-          <CheckIcon className="h-3 w-3 text-green-600" />
-        ) : (
-          <ClipboardIcon className="h-3 w-3" />
-        )}
-      </Button>
-    </div>
-  );
-}
+import CopyToClipboard from '@/components/v1/ui/copy-to-clipboard';
 
 export default function OrganizationPage() {
   const { organization: orgId } = useParams<{ organization: string }>();
+  const navigate = useNavigate();
   const [showInviteMemberModal, setShowInviteMemberModal] = useState(false);
   const [memberToDelete, setMemberToDelete] =
     useState<OrganizationMember | null>(null);
@@ -202,6 +164,15 @@ export default function OrganizationPage() {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate(-1)}
+              className="flex items-center gap-2"
+            >
+              <ArrowLeftIcon className="h-4 w-4" />
+              Back
+            </Button>
             <div className="flex items-center gap-3">
               <BuildingOffice2Icon className="h-8 w-8 text-primary" />
               <div>
@@ -227,7 +198,12 @@ export default function OrganizationPage() {
                     Organization ID
                   </TableCell>
                   <TableCell>
-                    <CopyableId id={organization.metadata.id} />
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-sm">
+                        {organization.metadata.id}
+                      </span>
+                      <CopyToClipboard text={organization.metadata.id} />
+                    </div>
                   </TableCell>
                 </TableRow>
                 <TableRow>
@@ -256,7 +232,10 @@ export default function OrganizationPage() {
                 variant="outline"
                 size="sm"
                 onClick={() => {
-                  window.location.href = `/onboarding/create-tenant`;
+                  navigate(
+                    '/onboarding/create-tenant?organizationId=' +
+                      organization.metadata.id,
+                  );
                 }}
               >
                 <PlusIcon className="h-4 w-4 mr-2" />
@@ -295,7 +274,12 @@ export default function OrganizationPage() {
                               {detailedTenant?.name || 'Loading...'}
                             </TableCell>
                             <TableCell>
-                              <CopyableId id={orgTenant.id} />
+                              <div className="flex items-center gap-2">
+                                <span className="font-mono text-sm">
+                                  {orgTenant.id}
+                                </span>
+                                <CopyToClipboard text={orgTenant.id} />
+                              </div>
                             </TableCell>
                             <TableCell className="text-muted-foreground">
                               {detailedTenant?.slug || '-'}
@@ -316,7 +300,7 @@ export default function OrganizationPage() {
                                 variant="outline"
                                 size="sm"
                                 onClick={() => {
-                                  window.location.href = `/tenants/${orgTenant.id}`;
+                                  navigate(`/tenants/${orgTenant.id}`);
                                 }}
                               >
                                 View Tenant
@@ -359,8 +343,11 @@ export default function OrganizationPage() {
                             <span className="font-medium text-muted-foreground">
                               Tenant ID:
                             </span>
-                            <div className="mt-1">
-                              <CopyableId id={orgTenant.id} />
+                            <div className="mt-1 flex items-center gap-2">
+                              <span className="font-mono text-sm">
+                                {orgTenant.id}
+                              </span>
+                              <CopyToClipboard text={orgTenant.id} />
                             </div>
                           </div>
                           <div>
@@ -377,7 +364,7 @@ export default function OrganizationPage() {
                           size="sm"
                           className="w-full"
                           onClick={() => {
-                            window.location.href = `/tenants/${orgTenant.id}`;
+                            navigate(`/tenants/${orgTenant.id}`);
                           }}
                         >
                           View Tenant
@@ -396,7 +383,10 @@ export default function OrganizationPage() {
                 </p>
                 <Button
                   onClick={() => {
-                    window.location.href = `/onboarding/create-tenant`;
+                    navigate(
+                      '/onboarding/create-tenant?organizationId=' +
+                        organization.metadata.id,
+                    );
                   }}
                 >
                   <PlusIcon className="h-4 w-4 mr-2" />
@@ -435,7 +425,12 @@ export default function OrganizationPage() {
                       {organization.members.map((member) => (
                         <TableRow key={member.metadata.id}>
                           <TableCell>
-                            <CopyableId id={member.metadata.id} />
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono text-sm">
+                                {member.metadata.id}
+                              </span>
+                              <CopyToClipboard text={member.metadata.id} />
+                            </div>
                           </TableCell>
                           <TableCell className="font-mono text-sm">
                             {member.email}
@@ -533,8 +528,11 @@ export default function OrganizationPage() {
                           <span className="font-medium text-muted-foreground">
                             Member ID:
                           </span>
-                          <div className="mt-1">
-                            <CopyableId id={member.metadata.id} />
+                          <div className="mt-1 flex items-center gap-2">
+                            <span className="font-mono text-sm">
+                              {member.metadata.id}
+                            </span>
+                            <CopyToClipboard text={member.metadata.id} />
                           </div>
                         </div>
                         <div>
@@ -722,8 +720,11 @@ export default function OrganizationPage() {
                           <span className="font-medium text-muted-foreground">
                             Invite ID:
                           </span>
-                          <div className="mt-1">
-                            <CopyableId id={invite.metadata.id} />
+                          <div className="mt-1 flex items-center gap-2">
+                            <span className="font-mono text-sm">
+                              {invite.metadata.id}
+                            </span>
+                            <CopyToClipboard text={invite.metadata.id} />
                           </div>
                         </div>
                         <div>
@@ -803,7 +804,12 @@ export default function OrganizationPage() {
                       {managementTokensQuery.data.rows.map((token) => (
                         <TableRow key={token.id}>
                           <TableCell>
-                            <CopyableId id={token.id} />
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono text-sm">
+                                {token.id}
+                              </span>
+                              <CopyToClipboard text={token.id} />
+                            </div>
                           </TableCell>
                           <TableCell className="font-medium">
                             {token.name}
@@ -842,8 +848,11 @@ export default function OrganizationPage() {
                           <span className="font-medium text-muted-foreground">
                             Token ID:
                           </span>
-                          <div className="mt-1">
-                            <CopyableId id={token.id} />
+                          <div className="mt-1 flex items-center gap-2">
+                            <span className="font-mono text-sm">
+                              {token.id}
+                            </span>
+                            <CopyToClipboard text={token.id} />
                           </div>
                         </div>
                       </div>

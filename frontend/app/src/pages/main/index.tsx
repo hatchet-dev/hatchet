@@ -23,6 +23,7 @@ import { useTenant } from '@/lib/atoms';
 import { Loading } from '@/components/ui/loading.tsx';
 import { useSidebar } from '@/components/sidebar-provider';
 import { TenantSwitcher } from '@/components/molecules/nav-bar/tenant-switcher';
+import { OrganizationSelector } from '@/components/v1/molecules/nav-bar/organization-selector';
 import { Collapsible, CollapsibleContent } from '@/components/ui/collapsible';
 import useCloudApiMeta from '../auth/hooks/use-cloud-api-meta';
 import useCloudFeatureFlags from '../auth/hooks/use-cloud-feature-flags';
@@ -247,7 +248,11 @@ function Sidebar({ className, memberships, currTenant }: SidebarProps) {
             </div>
           </div>
         </div>
-        <TenantSwitcher memberships={memberships} currTenant={currTenant} />
+        {cloudMeta ? (
+          <OrganizationSelector memberships={memberships} />
+        ) : (
+          <TenantSwitcher memberships={memberships} currTenant={currTenant} />
+        )}
       </div>
     </div>
   );
