@@ -1,5 +1,6 @@
-from hatchet_sdk import Hatchet, Context
 from pydantic import BaseModel
+
+from hatchet_sdk import Context, Hatchet
 
 hatchet = Hatchet()
 
