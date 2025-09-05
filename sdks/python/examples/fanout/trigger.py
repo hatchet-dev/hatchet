@@ -1,9 +1,9 @@
 import asyncio
+from typing import Any
 
-from examples.fanout.worker import ParentInput, parent_wf, child_wf, ChildInput
+from examples.fanout.worker import ChildInput, ParentInput, child_wf, parent_wf
 from hatchet_sdk import Hatchet
 from hatchet_sdk.clients.admin import TriggerWorkflowOptions
-from typing import Any
 
 hatchet = Hatchet()
 

@@ -11,9 +11,7 @@ hatchet.event.push(
     "user:create",
     {"userId": "1234", "should_skip": False},
     options=PushEventOptions(
-        additional_metadata={
-            "source": "api"  # Arbitrary key-value pair
-        }
+        additional_metadata={"source": "api"}  # Arbitrary key-value pair
     ),
 )
 # !!
