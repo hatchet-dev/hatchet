@@ -51,7 +51,7 @@ export function DeleteTokenModal({
       submitLabel="Delete Token"
       submitVariant="destructive"
       cancelLabel="Cancel"
-      onSubmit={() => handleDeleteToken(token, onSuccess, onOpenChange)}
+      onSubmit={() => handleDeleteToken(token.id, onSuccess, onOpenChange)}
       onCancel={() => onOpenChange(false)}
       isLoading={deleteTokenLoading}
     />

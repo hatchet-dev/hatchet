@@ -3,7 +3,11 @@ import { useQuery, useMutation } from '@tanstack/react-query';
 import { cloudApi } from '@/lib/api/api';
 import useCloudApiMeta from '@/pages/auth/hooks/use-cloud-api-meta';
 import { useApiError } from '@/lib/hooks';
-import { ManagementTokenDuration } from '@/lib/api/generated/cloud/data-contracts';
+import {
+  CreateManagementTokenResponse,
+  ManagementTokenDuration,
+  OrganizationMember,
+} from '@/lib/api/generated/cloud/data-contracts';
 
 export function useOrganizations() {
   const { isCloudEnabled } = useCloudApiMeta();
@@ -91,24 +95,22 @@ export function useOrganizations() {
 
   const handleCancelInvite = useCallback(
     (
-      invite: any,
+      inviteId: string,
       onSuccess: () => void,
       onOpenChange: (open: boolean) => void,
     ) => {
-      if (invite) {
-        cancelInviteMutation.mutate(
-          { inviteId: invite.metadata.id },
-          {
-            onSuccess: () => {
-              onSuccess();
-              onOpenChange(false);
-            },
-            onError: () => {
-              onOpenChange(false);
-            },
+      cancelInviteMutation.mutate(
+        { inviteId: inviteId },
+        {
+          onSuccess: () => {
+            onSuccess();
+            onOpenChange(false);
           },
-        );
-      }
+          onError: () => {
+            onOpenChange(false);
+          },
+        },
+      );
     },
     [cancelInviteMutation],
   );
@@ -149,7 +151,7 @@ export function useOrganizations() {
       organizationId: string,
       name: string,
       duration: ManagementTokenDuration,
-      onSuccess: (data: any) => void,
+      onSuccess: (data: CreateManagementTokenResponse) => void,
     ) => {
       createTokenMutation.mutate(
         { organizationId, name, duration },
@@ -168,7 +170,7 @@ export function useOrganizations() {
 
   const handleDeleteMember = useCallback(
     (
-      member: any,
+      member: OrganizationMember,
       onSuccess: () => void,
       onOpenChange: (open: boolean) => void,
     ) => {
@@ -192,24 +194,22 @@ export function useOrganizations() {
 
   const handleDeleteToken = useCallback(
     (
-      token: any,
+      tokenId: string,
       onSuccess: () => void,
       onOpenChange: (open: boolean) => void,
     ) => {
-      if (token) {
-        deleteTokenMutation.mutate(
-          { tokenId: token.id },
-          {
-            onSuccess: () => {
-              onSuccess();
-              onOpenChange(false);
-            },
-            onError: () => {
-              onOpenChange(false);
-            },
+      deleteTokenMutation.mutate(
+        { tokenId: tokenId },
+        {
+          onSuccess: () => {
+            onSuccess();
+            onOpenChange(false);
           },
-        );
-      }
+          onError: () => {
+            onOpenChange(false);
+          },
+        },
+      );
     },
     [deleteTokenMutation],
   );

@@ -42,7 +42,9 @@ export function CancelInviteModal({
       submitLabel="Cancel Invitation"
       submitVariant="destructive"
       cancelLabel="Keep Invitation"
-      onSubmit={() => handleCancelInvite(invite, onSuccess, onOpenChange)}
+      onSubmit={() =>
+        handleCancelInvite(invite.metadata.id, onSuccess, onOpenChange)
+      }
       onCancel={() => onOpenChange(false)}
       isLoading={cancelInviteLoading}
     />
