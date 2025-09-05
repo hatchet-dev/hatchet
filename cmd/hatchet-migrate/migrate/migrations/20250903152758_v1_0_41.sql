@@ -14,7 +14,7 @@ DO $$
 DECLARE
     new_table_name TEXT;
 BEGIN
-    new_table_name := 'v1_dag_to_task_' || TO_CHAR((NOW() + INTERVAL '1 day')::DATE, 'YYYYMMDD');
+    new_table_name := 'v1_dag_to_task_' || TO_CHAR(NOW()::DATE, 'YYYYMMDD');
 
     EXECUTE format('ALTER TABLE v1_dag_to_task RENAME TO %I', new_table_name);
     EXECUTE format('ALTER INDEX v1_dag_to_task_pkey RENAME TO %I', new_table_name || '_pkey');
