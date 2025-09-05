@@ -8,14 +8,13 @@ CREATE TABLE v1_dag_to_task_partitioned (
     PRIMARY KEY (dag_id, dag_inserted_at, task_id, task_inserted_at)
 ) PARTITION BY RANGE(dag_inserted_at);
 
-SELECT create_v1_range_partition('v1_dag_to_task_partitioned', NOW()::DATE);
-SELECT create_v1_range_partition('v1_dag_to_task_partitioned', (NOW() + INTERVAL '1 day')::DATE);
+SELECT create_v1_weekly_range_partition('v1_dag_to_task_partitioned', NOW()::DATE);
 
 DO $$
 DECLARE
     new_table_name TEXT;
 BEGIN
-    new_table_name := 'v1_dag_to_task_' || TO_CHAR(NOW()::DATE, 'YYYYMMDD');
+    new_table_name := 'v1_dag_to_task_' || TO_CHAR(DATE_TRUNC('week', (NOW() - INTERVAL '1 week')), 'YYYYMMDD');
 
     EXECUTE format('ALTER TABLE v1_dag_to_task RENAME TO %I', new_table_name);
     EXECUTE format('ALTER INDEX v1_dag_to_task_pkey RENAME TO %I', new_table_name || '_pkey');
@@ -31,7 +30,7 @@ BEGIN
         )', new_table_name);
 
     EXECUTE
-        format('ALTER TABLE v1_dag_to_task_partitioned ATTACH PARTITION %s FOR VALUES FROM (''19700101'') TO (''%s'')', new_table_name, TO_CHAR(NOW()::DATE, 'YYYYMMDD'));
+        format('ALTER TABLE v1_dag_to_task_partitioned ATTACH PARTITION %s FOR VALUES FROM (''19700101'') TO (''%s'')', new_table_name, TO_CHAR(DATE_TRUNC('week', (NOW() - INTERVAL '1 week')), 'YYYYMMDD'));
 END $$;
 
 ALTER TABLE v1_dag_to_task_partitioned RENAME TO v1_dag_to_task;
