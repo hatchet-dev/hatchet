@@ -28,13 +28,34 @@ export default function CreateTenant() {
   const { data: cloudMeta } = useCloudApiMeta();
 
   const stepFromUrl = parseInt(searchParams.get('step') || '0', 10);
+  const organizationId = searchParams.get('organizationId');
 
   const [currentStep, setCurrentStep] = useState(
     Math.max(0, Math.min(stepFromUrl, FINAL_STEP)),
   );
   const [selectedOrganizationId, setSelectedOrganizationId] = useState<
     string | null
-  >('');
+  >(null);
+
+  // Auto-select organization logic
+  useEffect(() => {
+    if (organizationData?.rows) {
+      const availableOrgs = organizationData.rows.filter((org) => org.isOwner);
+
+      // If organizationId from URL is valid, use it
+      if (
+        organizationId &&
+        availableOrgs.find((org) => org.metadata.id === organizationId)
+      ) {
+        setSelectedOrganizationId(organizationId);
+      }
+      // If there's only one organization, auto-select it
+      else if (availableOrgs.length === 1) {
+        setSelectedOrganizationId(availableOrgs[0].metadata.id);
+      }
+      // Otherwise, leave it null to show placeholder (ignoring invalid org IDs)
+    }
+  }, [organizationData, organizationId]);
 
   const [formData, setFormData] = useState<OnboardingFormData>({
     name: '',

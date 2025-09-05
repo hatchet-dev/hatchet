@@ -29,7 +29,7 @@ const schema = z.object({
 interface TenantCreateFormProps
   extends OnboardingStepProps<{ name: string; environment: string }> {
   organizationList?: OrganizationForUserList;
-  selectedOrganizationId?: string;
+  selectedOrganizationId?: string | null;
   onOrganizationChange?: (organizationId: string) => void;
   isCloudEnabled?: boolean;
 }
@@ -200,7 +200,7 @@ export function TenantCreateForm({
               Select the organization to add this tenant to.
             </div>
             <Select
-              value={selectedOrganizationId}
+              value={selectedOrganizationId || undefined}
               onValueChange={onOrganizationChange}
               disabled={isLoading}
             >
@@ -208,11 +208,13 @@ export function TenantCreateForm({
                 <SelectValue placeholder="Select an organization..." />
               </SelectTrigger>
               <SelectContent>
-                {organizationList.rows?.map((org) => (
-                  <SelectItem key={org.metadata.id} value={org.metadata.id}>
-                    {org.name}
-                  </SelectItem>
-                ))}
+                {organizationList.rows
+                  ?.filter((org) => org.isOwner)
+                  .map((org) => (
+                    <SelectItem key={org.metadata.id} value={org.metadata.id}>
+                      {org.name}
+                    </SelectItem>
+                  ))}
               </SelectContent>
             </Select>
             {fieldErrors?.organizationId && (

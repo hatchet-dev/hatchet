@@ -7,6 +7,7 @@ import {
   CreateManagementTokenResponse,
   ManagementTokenDuration,
   OrganizationMember,
+  OrganizationForUser,
 } from '@/lib/api/generated/cloud/data-contracts';
 
 export function useOrganizations() {
@@ -29,7 +30,9 @@ export function useOrganizations() {
 
   const getOrganizationForTenant = useCallback(
     (tenantId: string) => {
-      return organizations.find((org) => org.tenants.includes(tenantId));
+      return organizations.find((org: OrganizationForUser) =>
+        org.tenants.includes(tenantId),
+      );
     },
     [organizations],
   );
