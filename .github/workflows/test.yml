@@ -2,7 +2,8 @@ name: test
 on:
   pull_request:
     paths-ignore:
-      - "sdks/**"
+      - "sdks/typescript/**"
+      - "sdks/python/**"
       - "frontend/**"
       - "examples/**"
 
