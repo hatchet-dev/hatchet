@@ -30,7 +30,7 @@ BEGIN
         )', new_table_name);
 
     EXECUTE
-        format('ALTER TABLE v1_dag_to_task_partitioned ATTACH PARTITION %s FOR VALUES FROM (''19700101'') TO (''%s'')', new_table_name, TO_CHAR((NOW() + INTERVAL '1 day')::DATE, 'YYYYMMDD'));
+        format('ALTER TABLE v1_dag_to_task_partitioned ATTACH PARTITION %s FOR VALUES FROM (''19700101'') TO (''%s'')', new_table_name, TO_CHAR(NOW()::DATE, 'YYYYMMDD'));
 END $$;
 
 ALTER TABLE v1_dag_to_task_partitioned RENAME TO v1_dag_to_task;
