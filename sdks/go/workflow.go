@@ -72,8 +72,7 @@ func convertInputToType(input any, expectedType reflect.Type) reflect.Value {
 		// Unmarshal JSON into the new instance
 		err = json.Unmarshal(jsonData, result.Interface())
 		if err != nil {
-			// If unmarshaling fails, return the original input value
-			return reflect.ValueOf(input)
+			panic(err)
 		}
 
 		// Return the dereferenced value (not the pointer)
