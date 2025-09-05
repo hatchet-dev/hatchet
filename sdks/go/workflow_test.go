@@ -174,7 +174,7 @@ func TestConvertInputToType_MalformedMapData(t *testing.T) {
 		}
 	}()
 
-	convertInputToType(input, expectedType)
+	_ = convertInputToType(input, expectedType)
 }
 
 func TestConvertInputToType_NonStructType(t *testing.T) {
@@ -282,5 +282,5 @@ func TestConvertInputToType_NumberTypesConversion(t *testing.T) {
 		}
 	}()
 
-	convertInputToType(input, expectedType)
+	_ = convertInputToType(input, expectedType)
 }
