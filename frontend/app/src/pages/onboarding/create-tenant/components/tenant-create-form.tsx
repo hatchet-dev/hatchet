@@ -19,7 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { OrganizationList } from '@/lib/api/generated/cloud/data-contracts';
+import { OrganizationForUserList } from '@/lib/api/generated/cloud/data-contracts';
 
 const schema = z.object({
   name: z.string().min(4).max(32),
@@ -28,7 +28,7 @@ const schema = z.object({
 
 interface TenantCreateFormProps
   extends OnboardingStepProps<{ name: string; environment: string }> {
-  organizationList?: OrganizationList;
+  organizationList?: OrganizationForUserList;
   selectedOrganizationId?: string;
   onOrganizationChange?: (organizationId: string) => void;
   isCloudEnabled?: boolean;

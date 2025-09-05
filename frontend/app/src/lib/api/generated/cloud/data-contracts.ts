@@ -620,8 +620,17 @@ export interface Organization {
   members?: OrganizationMember[];
 }
 
-export interface OrganizationList {
-  rows: Organization[];
+export interface OrganizationForUser {
+  metadata: APIResourceMeta;
+  /** Name of the organization */
+  name: string;
+  tenants: string[];
+  /** Whether the user is the owner of the organization */
+  isOwner: boolean;
+}
+
+export interface OrganizationForUserList {
+  rows: OrganizationForUser[];
   pagination: PaginationResponse;
 }
 

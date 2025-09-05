@@ -9,7 +9,7 @@ import {
   CommandList,
 } from '@/components/v1/ui/command';
 import { TenantMember } from '@/lib/api';
-import { Organization } from '@/lib/api/generated/cloud/data-contracts';
+import { OrganizationForUser } from '@/lib/api/generated/cloud/data-contracts';
 import { CaretSortIcon } from '@radix-ui/react-icons';
 import {
   PopoverTrigger,
@@ -28,7 +28,7 @@ import { useTenantDetails } from '@/hooks/use-tenant';
 import { useOrganizations } from '@/hooks/use-organizations';
 
 interface OrganizationItemProps {
-  organization: Organization;
+  organization: OrganizationForUser;
   onClose: () => void;
   onNavigate: (path: string) => void;
   isCurrentOrganization?: boolean;
@@ -65,36 +65,38 @@ function OrganizationItem({
         >
           {organization.name}
         </span>
-        <div className="flex items-center gap-1 ml-2">
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-6 w-6 p-0 hover:bg-accent"
-                title="Settings"
-                onClick={handleSettingsClick}
-              >
-                <Cog6ToothIcon className="h-3 w-3" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Settings</TooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-6 w-6 p-0 hover:bg-accent"
-                title="New tenant"
-                onClick={handleNewTenantClick}
-              >
-                <PlusIcon className="h-3 w-3" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>New tenant</TooltipContent>
-          </Tooltip>
-        </div>
+        {organization.isOwner && (
+          <div className="flex items-center gap-1 ml-2">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 w-6 p-0 hover:bg-accent"
+                  title="Settings"
+                  onClick={handleSettingsClick}
+                >
+                  <Cog6ToothIcon className="h-3 w-3" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Settings</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 w-6 p-0 hover:bg-accent"
+                  title="New tenant"
+                  onClick={handleNewTenantClick}
+                >
+                  <PlusIcon className="h-3 w-3" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>New tenant</TooltipContent>
+            </Tooltip>
+          </div>
+        )}
       </div>
     </CommandItem>
   );

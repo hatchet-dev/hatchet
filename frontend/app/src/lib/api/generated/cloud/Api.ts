@@ -40,8 +40,8 @@ import {
   Matrix,
   MonthlyComputeCost,
   Organization,
+  OrganizationForUserList,
   OrganizationInviteList,
-  OrganizationList,
   OrganizationTenant,
   RejectOrganizationInviteRequest,
   RemoveOrganizationMembersRequest,
@@ -858,7 +858,7 @@ export class Api<
    * @secure
    */
   organizationList = (params: RequestParams = {}) =>
-    this.request<OrganizationList, APIError>({
+    this.request<OrganizationForUserList, APIError>({
       path: `/api/v1/management/organizations`,
       method: "GET",
       secure: true,
