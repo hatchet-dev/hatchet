@@ -10,6 +10,7 @@ CREATE TABLE v1_dag_to_task_partitioned (
 
 -- First, create a partition for tomorrow
 SELECT create_v1_range_partition('v1_dag_to_task_partitioned', (NOW() + INTERVAL '1 day')::DATE);
+-- ('20250906', '20250907')
 
 DO $$
 DECLARE
@@ -18,7 +19,10 @@ BEGIN
     -- Next, we want to attach all of the existing data as today's partition, which
     -- includes everything up until the _end_ of today.
     -- The new partition will be named with today's date, but the end time will be tomorrow (midnight).
-    new_table_name := 'v1_dag_to_task_' || TO_CHAR(NOW()::DATE, 'YYYYMMDD');
+    new_table_name := 'v1_dag_to_task_partitioned_' || TO_CHAR(NOW()::DATE, 'YYYYMMDD');
+    -- 'v1_dag_to_task_20250905'
+
+    RAISE NOTICE 'Renaming existing table to %', new_table_name;
 
     EXECUTE format('ALTER TABLE v1_dag_to_task RENAME TO %I', new_table_name);
     EXECUTE format('ALTER INDEX v1_dag_to_task_pkey RENAME TO %I', new_table_name || '_pkey');
@@ -33,8 +37,13 @@ BEGIN
             autovacuum_vacuum_cost_limit=''1000''
         )', new_table_name);
 
+    -- ('19700101', '20250906')
     EXECUTE
-        format('ALTER TABLE v1_dag_to_task_partitioned ATTACH PARTITION %s FOR VALUES FROM (''19700101'') TO (''%s'')', new_table_name, TO_CHAR((NOW() + INTERVAL '1 day')::DATE, 'YYYYMMDD'));
+        format(
+            'ALTER TABLE v1_dag_to_task_partitioned ATTACH PARTITION %s FOR VALUES FROM (''19700101'') TO (''%s'')',
+            new_table_name,
+            TO_CHAR((NOW() + INTERVAL '1 day')::DATE, 'YYYYMMDD')
+        );
 END $$;
 
 ALTER TABLE v1_dag_to_task_partitioned RENAME TO v1_dag_to_task;
