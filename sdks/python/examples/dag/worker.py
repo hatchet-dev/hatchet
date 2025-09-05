@@ -63,11 +63,14 @@ async def step4(input: EmptyModel, ctx: Context) -> dict[str, str]:
     }
 
 
+# > Declare a worker
 def main() -> None:
     worker = hatchet.worker("dag-worker", workflows=[dag_workflow])
 
     worker.start()
 
+
+# !!
 
 if __name__ == "__main__":
     main()

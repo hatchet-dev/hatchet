@@ -81,7 +81,7 @@ With Hatchet, all of your tasks can be defined as either sync or async functions
 
 As a simple example, you can easily run a Hatchet task that makes 10 concurrent API calls using `async` / `await` with `asyncio.gather` and `aiohttp`, as opposed to needing to run each one in a blocking fashion as its own task. For example:
 
-<Snippet src={snippets.python.fastapi_blog.worker.worker}/>
+<Snippet src={snippets.python.fastapi_blog.worker.worker} />
 
 With Hatchet, you can perform all of these requests concurrently, in a single task, as opposed to needing to e.g. enqueue a single task per request. This is more performant on your side (as the client), and also puts less pressure on the backing queue, since it needs to handle an order of magnitude fewer requests in this case.
 

@@ -1,4 +1,5 @@
 from hatchet_sdk import Hatchet, PushEventOptions
+from hatchet_sdk.clients.events import BulkPushEventWithMetadata
 
 hatchet = Hatchet()
 
@@ -12,4 +13,15 @@ hatchet.event.push(
     options=PushEventOptions(
         additional_metadata={"source": "api"}  # Arbitrary key-value pair
     ),
+)
+
+# > Bulk event push
+hatchet.event.bulk_push(
+    events=[
+        BulkPushEventWithMetadata(
+            key="user:create",
+            payload={"userId": str(i), "should_skip": False},
+        )
+        for i in range(10)
+    ]
 )
