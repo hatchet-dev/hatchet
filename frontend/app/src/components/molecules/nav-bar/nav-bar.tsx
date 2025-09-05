@@ -31,9 +31,6 @@ import { useTheme } from '@/components/theme-provider';
 import { useEffect, useMemo } from 'react';
 import useApiMeta from '@/pages/auth/hooks/use-api-meta';
 import { VersionInfo } from '@/pages/main/info/components/version-info';
-import { useQuery } from '@tanstack/react-query';
-import { cloudApi } from '@/lib/api/api';
-import useCloudApiMeta from '@/pages/auth/hooks/use-cloud-api-meta';
 import { useTenant } from '@/lib/atoms';
 import { routes } from '@/router';
 import { Banner, BannerProps } from './banner';
@@ -46,6 +43,7 @@ import {
   BreadcrumbSeparator,
 } from '@/components/v1/ui/breadcrumb';
 import { useBreadcrumbs } from '@/hooks/use-breadcrumbs';
+import { usePendingInvites } from '@/hooks/use-pending-invites';
 import { OrganizationSelector } from '@/components/v1/molecules/nav-bar/organization-selector';
 
 function HelpDropdown() {
@@ -118,40 +116,16 @@ function HelpDropdown() {
   );
 }
 
-function AccountDropdown({ user }: MainNavProps) {
+function AccountDropdown({ user }: { user: User }) {
   const navigate = useNavigate();
   const { tenant } = useTenant();
-  const cloudMeta = useCloudApiMeta();
 
   const { handleApiError } = useApiError({});
 
   const { toggleTheme } = useTheme();
 
   // Check for pending invites to show the Invites menu item
-  const pendingInvitesQuery = useQuery({
-    queryKey: ['pending-invites'],
-    queryFn: async () => {
-      const [tenantInvites, orgInvites] = await Promise.allSettled([
-        api.userListTenantInvites(),
-        cloudMeta?.data
-          ? cloudApi.userListOrganizationInvites()
-          : Promise.resolve({ data: { rows: [] } }),
-      ]);
-
-      const tenantCount =
-        tenantInvites.status === 'fulfilled'
-          ? tenantInvites.value.data.rows?.length || 0
-          : 0;
-      const orgCount =
-        orgInvites.status === 'fulfilled'
-          ? orgInvites.value.data.rows?.length || 0
-          : 0;
-
-      return tenantCount + orgCount;
-    },
-    refetchInterval: 30000, // Refetch every 30 seconds
-    enabled: true,
-  });
+  const { pendingInvitesQuery } = usePendingInvites();
 
   const logoutMutation = useMutation({
     mutationKey: ['user:update:logout'],
@@ -225,13 +199,13 @@ function AccountDropdown({ user }: MainNavProps) {
 
 interface MainNavProps {
   user: User;
-  memberships?: TenantMember[];
+  tenantMemberships: TenantMember[];
   setHasBanner?: (state: boolean) => void;
 }
 
 export default function MainNav({
   user,
-  memberships,
+  tenantMemberships,
   setHasBanner,
 }: MainNavProps) {
   const { toggleSidebarOpen } = useSidebar();
@@ -336,11 +310,10 @@ export default function MainNav({
           </div>
 
           <div className="ml-auto flex items-center gap-2">
-            {memberships &&
-              memberships.length > 0 &&
+            {tenantMemberships.length > 0 &&
               !pathname.startsWith('/onboarding') && (
                 <div className="max-w-xs">
-                  <OrganizationSelector memberships={memberships} />
+                  <OrganizationSelector memberships={tenantMemberships} />
                 </div>
               )}
             <HelpDropdown />
