@@ -131,7 +131,7 @@ export function useTenantDetails() {
 
   const [pollBilling, setPollBilling] = useState(false);
 
-  const cloudMeta = useCloudApiMeta();
+  const { data: cloudMeta } = useCloudApiMeta();
 
   const billingState = useQuery({
     ...queries.cloud.billing(tenant?.metadata?.id || ''),

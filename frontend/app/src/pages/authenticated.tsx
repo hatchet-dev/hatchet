@@ -164,7 +164,7 @@ export default function Authenticated() {
         <div className="flex flex-row flex-1 w-full h-full">
           <MainNav
             user={userQuery.data}
-            memberships={listMembershipsQuery.data?.rows || []}
+            tenantMemberships={listMembershipsQuery.data?.rows || []}
             setHasBanner={setHasBanner}
           />
           <div

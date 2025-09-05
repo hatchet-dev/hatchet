@@ -1,8 +1,6 @@
-import { useApiError } from '@/lib/hooks';
-import { useMutation } from '@tanstack/react-query';
-import { cloudApi } from '@/lib/api/api';
 import { ManagementToken } from '@/lib/api/generated/cloud/data-contracts';
 import { ConfirmDialog } from '@/components/molecules/confirm-dialog';
+import { useOrganizations } from '@/hooks/use-organizations';
 
 interface DeleteTokenModalProps {
   open: boolean;
@@ -19,27 +17,7 @@ export function DeleteTokenModal({
   organizationName,
   onSuccess,
 }: DeleteTokenModalProps) {
-  const { handleApiError } = useApiError({});
-
-  const deleteTokenMutation = useMutation({
-    mutationFn: async () => {
-      if (!token) {
-        return;
-      }
-      await cloudApi.managementTokenDelete(token.id);
-    },
-    onSuccess: () => {
-      onSuccess();
-      onOpenChange(false);
-    },
-    onError: handleApiError,
-  });
-
-  const handleDelete = () => {
-    if (token) {
-      deleteTokenMutation.mutate();
-    }
-  };
+  const { handleDeleteToken, deleteTokenLoading } = useOrganizations();
 
   if (!token) {
     return null;
@@ -73,9 +51,9 @@ export function DeleteTokenModal({
       submitLabel="Delete Token"
       submitVariant="destructive"
       cancelLabel="Cancel"
-      onSubmit={handleDelete}
+      onSubmit={() => handleDeleteToken(token, onSuccess, onOpenChange)}
       onCancel={() => onOpenChange(false)}
-      isLoading={deleteTokenMutation.isPending}
+      isLoading={deleteTokenLoading}
     />
   );
 }

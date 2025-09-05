@@ -99,7 +99,7 @@ export function WorkflowRunsTable({
   const { tenant } = useOutletContext<TenantContextType>();
   invariant(tenant);
 
-  const cloudMeta = useCloudApiMeta();
+  const { data: cloudMeta } = useCloudApiMeta();
 
   const [viewQueueMetrics, setViewQueueMetrics] = useState(false);
 

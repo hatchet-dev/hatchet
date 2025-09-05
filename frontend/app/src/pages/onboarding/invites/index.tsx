@@ -9,6 +9,7 @@ import {
   useNavigate,
 } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
+import { useOrganizations } from '@/hooks/use-organizations';
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 export async function loader(_args: LoaderFunctionArgs) {
@@ -41,6 +42,8 @@ export async function loader(_args: LoaderFunctionArgs) {
 export default function Invites() {
   const navigate = useNavigate();
   const { handleApiError } = useApiError({});
+  const { acceptOrgInviteMutation, rejectOrgInviteMutation } =
+    useOrganizations();
 
   const { tenantInvites, orgInvites } = useLoaderData() as Awaited<
     ReturnType<typeof loader>
@@ -85,32 +88,6 @@ export default function Invites() {
     mutationKey: ['tenant-invite:reject'],
     mutationFn: async (data: { invite: string }) => {
       await api.tenantInviteReject(data);
-    },
-    onSuccess: async () => {
-      navigate('/');
-    },
-    onError: handleApiError,
-  });
-
-  const acceptOrgMutation = useMutation({
-    mutationKey: ['organization-invite:accept'],
-    mutationFn: async (data: { inviteId: string }) => {
-      await cloudApi.organizationInviteAccept({
-        id: data.inviteId,
-      });
-    },
-    onSuccess: async () => {
-      navigate('/');
-    },
-    onError: handleApiError,
-  });
-
-  const rejectOrgMutation = useMutation({
-    mutationKey: ['organization-invite:reject'],
-    mutationFn: async (data: { inviteId: string }) => {
-      await cloudApi.organizationInviteReject({
-        id: data.inviteId,
-      });
     },
     onSuccess: async () => {
       navigate('/');
@@ -190,9 +167,14 @@ export default function Invites() {
                       variant="outline"
                       className="w-full"
                       onClick={() => {
-                        rejectOrgMutation.mutate({
-                          inviteId: invite.metadata.id,
-                        });
+                        rejectOrgInviteMutation.mutate(
+                          {
+                            inviteId: invite.metadata.id,
+                          },
+                          {
+                            onSuccess: () => navigate('/'),
+                          },
+                        );
                       }}
                     >
                       Decline
@@ -200,9 +182,14 @@ export default function Invites() {
                     <Button
                       className="w-full"
                       onClick={() => {
-                        acceptOrgMutation.mutate({
-                          inviteId: invite.metadata.id,
-                        });
+                        acceptOrgInviteMutation.mutate(
+                          {
+                            inviteId: invite.metadata.id,
+                          },
+                          {
+                            onSuccess: () => navigate('/'),
+                          },
+                        );
                       }}
                     >
                       Accept

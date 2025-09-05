@@ -1,8 +1,6 @@
-import { useApiError } from '@/lib/hooks';
-import { useMutation } from '@tanstack/react-query';
-import { cloudApi } from '@/lib/api/api';
 import { OrganizationMember } from '@/lib/api/generated/cloud/data-contracts';
 import { ConfirmDialog } from '@/components/molecules/confirm-dialog';
+import { useOrganizations } from '@/hooks/use-organizations';
 
 interface DeleteMemberModalProps {
   open: boolean;
@@ -19,29 +17,7 @@ export function DeleteMemberModal({
   organizationName,
   onSuccess,
 }: DeleteMemberModalProps) {
-  const { handleApiError } = useApiError({});
-
-  const deleteMemberMutation = useMutation({
-    mutationFn: async () => {
-      if (!member) {
-        return;
-      }
-      await cloudApi.organizationMemberDelete(member.metadata.id, {
-        emails: [member.email],
-      });
-    },
-    onSuccess: () => {
-      onSuccess();
-      onOpenChange(false);
-    },
-    onError: handleApiError,
-  });
-
-  const handleDelete = () => {
-    if (member) {
-      deleteMemberMutation.mutate();
-    }
-  };
+  const { handleDeleteMember, deleteMemberLoading } = useOrganizations();
 
   if (!member) {
     return null;
@@ -66,9 +42,9 @@ export function DeleteMemberModal({
       submitLabel="Remove Member"
       submitVariant="destructive"
       cancelLabel="Cancel"
-      onSubmit={handleDelete}
+      onSubmit={() => handleDeleteMember(member, onSuccess, onOpenChange)}
       onCancel={() => onOpenChange(false)}
-      isLoading={deleteMemberMutation.isPending}
+      isLoading={deleteMemberLoading}
     />
   );
 }

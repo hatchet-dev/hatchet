@@ -9,6 +9,7 @@ import {
   CommandList,
 } from '@/components/v1/ui/command';
 import { TenantMember } from '@/lib/api';
+import { Organization } from '@/lib/api/generated/cloud/data-contracts';
 import { CaretSortIcon } from '@radix-ui/react-icons';
 import {
   PopoverTrigger,
@@ -21,12 +22,83 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/v1/ui/tooltip';
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import useCloudApiMeta from '@/pages/auth/hooks/use-cloud-api-meta';
 import { useTenantDetails } from '@/hooks/use-tenant';
-import { useQuery } from '@tanstack/react-query';
-import { cloudApi } from '@/lib/api/api';
+import { useOrganizations } from '@/hooks/use-organizations';
+
+interface OrganizationItemProps {
+  organization: Organization;
+  onClose: () => void;
+  onNavigate: (path: string) => void;
+  isCurrentOrganization?: boolean;
+}
+
+function OrganizationItem({
+  organization,
+  onClose,
+  onNavigate,
+  isCurrentOrganization = false,
+}: OrganizationItemProps) {
+  const handleSettingsClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    onClose();
+    onNavigate(`/organizations/${organization.metadata.id}`);
+  };
+
+  const handleNewTenantClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    onClose();
+    onNavigate('/onboarding/create-tenant');
+  };
+
+  return (
+    <CommandItem
+      key={organization.metadata.id}
+      className="text-sm hover:bg-transparent focus:bg-transparent data-[selected]:bg-transparent aria-selected:bg-transparent [&[aria-selected=true]]:bg-transparent"
+    >
+      <div className="flex items-center justify-between w-full">
+        <span
+          className={`flex-1 ${isCurrentOrganization ? 'font-medium' : ''}`}
+        >
+          {organization.name}
+        </span>
+        <div className="flex items-center gap-1 ml-2">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 w-6 p-0 hover:bg-accent"
+                title="Settings"
+                onClick={handleSettingsClick}
+              >
+                <Cog6ToothIcon className="h-3 w-3" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Settings</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 w-6 p-0 hover:bg-accent"
+                title="New tenant"
+                onClick={handleNewTenantClick}
+              >
+                <PlusIcon className="h-3 w-3" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>New tenant</TooltipContent>
+          </Tooltip>
+        </div>
+      </div>
+    </CommandItem>
+  );
+}
 
 interface OrganizationSelectorProps {
   className?: string;
@@ -35,36 +107,13 @@ interface OrganizationSelectorProps {
 
 export function OrganizationSelector({ className }: OrganizationSelectorProps) {
   const navigate = useNavigate();
-  const cloudMeta = useCloudApiMeta();
   const { tenant: currTenant } = useTenantDetails();
   const [open, setOpen] = useState(false);
+  const { organizations, isCloudEnabled, getOrganizationForTenant } =
+    useOrganizations();
 
-  const organizationListQuery = useQuery({
-    queryKey: ['organization:list'],
-    queryFn: async () => {
-      const result = await cloudApi.organizationList();
-      return result.data;
-    },
-    enabled: !!cloudMeta?.data,
-  });
-
-  const organizations = useMemo(
-    () => organizationListQuery.data?.rows || [],
-    [organizationListQuery.data?.rows],
-  );
-
-  const isCloudEnabled = useMemo(() => {
-    return cloudMeta?.data && organizationListQuery.isSuccess;
-  }, [cloudMeta, organizationListQuery.isSuccess]);
-
-  const getOrganizationForTenant = useCallback(
-    (tenantId: string) => {
-      return organizations.find((org) =>
-        org.tenants?.some((tenant) => tenant.id === tenantId),
-      );
-    },
-    [organizations],
-  );
+  const handleClose = () => setOpen(false);
+  const handleNavigate = (path: string) => navigate(path, { replace: true });
 
   const { currentOrganization, otherOrganizations } = useMemo(() => {
     if (!currTenant) {
@@ -119,63 +168,12 @@ export function OrganizationSelector({ className }: OrganizationSelectorProps) {
 
               {currentOrganization && (
                 <CommandGroup heading="Current Organization">
-                  <CommandItem
-                    key={currentOrganization.metadata.id}
-                    className="text-sm hover:bg-transparent focus:bg-transparent data-[selected]:bg-transparent aria-selected:bg-transparent [&[aria-selected=true]]:bg-transparent"
-                  >
-                    <div className="flex items-center justify-between w-full">
-                      <span className="flex-1 font-medium">
-                        {currentOrganization.name}
-                      </span>
-                      <div className="flex items-center gap-1 ml-2">
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-6 w-6 p-0 hover:bg-accent"
-                              title="Settings"
-                              onClick={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                setOpen(false);
-                                navigate(
-                                  `/organizations/${currentOrganization.metadata.id}`,
-                                  {
-                                    replace: true,
-                                  },
-                                );
-                              }}
-                            >
-                              <Cog6ToothIcon className="h-3 w-3" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>Settings</TooltipContent>
-                        </Tooltip>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-6 w-6 p-0 hover:bg-accent"
-                              title="New tenant"
-                              onClick={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                setOpen(false);
-                                navigate(`/onboarding/create-tenant`, {
-                                  replace: true,
-                                });
-                              }}
-                            >
-                              <PlusIcon className="h-3 w-3" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>New tenant</TooltipContent>
-                        </Tooltip>
-                      </div>
-                    </div>
-                  </CommandItem>
+                  <OrganizationItem
+                    organization={currentOrganization}
+                    onClose={handleClose}
+                    onNavigate={handleNavigate}
+                    isCurrentOrganization={true}
+                  />
                 </CommandGroup>
               )}
 
@@ -188,61 +186,12 @@ export function OrganizationSelector({ className }: OrganizationSelectorProps) {
                   }
                 >
                   {otherOrganizations.map((org) => (
-                    <CommandItem
+                    <OrganizationItem
                       key={org.metadata.id}
-                      className="text-sm hover:bg-transparent focus:bg-transparent data-[selected]:bg-transparent aria-selected:bg-transparent [&[aria-selected=true]]:bg-transparent"
-                    >
-                      <div className="flex items-center justify-between w-full">
-                        <span className="flex-1">{org.name}</span>
-                        <div className="flex items-center gap-1 ml-2">
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-6 w-6 p-0 hover:bg-accent"
-                                title="Settings"
-                                onClick={(e) => {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  setOpen(false);
-                                  navigate(
-                                    `/organizations/${org.metadata.id}`,
-                                    {
-                                      replace: true,
-                                    },
-                                  );
-                                }}
-                              >
-                                <Cog6ToothIcon className="h-3 w-3" />
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>Settings</TooltipContent>
-                          </Tooltip>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-6 w-6 p-0 hover:bg-accent"
-                                title="New tenant"
-                                onClick={(e) => {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  setOpen(false);
-                                  navigate(`/onboarding/create-tenant`, {
-                                    replace: true,
-                                  });
-                                }}
-                              >
-                                <PlusIcon className="h-3 w-3" />
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>New tenant</TooltipContent>
-                          </Tooltip>
-                        </div>
-                      </div>
-                    </CommandItem>
+                      organization={org}
+                      onClose={handleClose}
+                      onNavigate={handleNavigate}
+                    />
                   ))}
                 </CommandGroup>
               )}

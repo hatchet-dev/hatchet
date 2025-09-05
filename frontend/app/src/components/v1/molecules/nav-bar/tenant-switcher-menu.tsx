@@ -9,7 +9,7 @@ import { useTenantDetails } from '@/hooks/use-tenant';
 interface TenantSwitcherMenuProps {
   tenants: TenantMember[];
   organizationName: string;
-  onTenantSwitch?: () => void;
+  onTenantSwitch: () => void;
 }
 
 export function TenantSwitcherMenu({
@@ -23,7 +23,7 @@ export function TenantSwitcherMenu({
     (membership: TenantMember) => {
       invariant(membership.tenant);
       setCurrTenant(membership.tenant);
-      onTenantSwitch?.();
+      onTenantSwitch();
 
       if (membership.tenant.version === TenantVersion.V0) {
         setTimeout(() => {

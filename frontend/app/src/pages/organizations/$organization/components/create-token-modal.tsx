@@ -15,15 +15,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/v1/ui/select';
-import { useState, useEffect } from 'react';
-import { useApiError } from '@/lib/hooks';
-import { useMutation } from '@tanstack/react-query';
-import { cloudApi } from '@/lib/api/api';
+import { useState, useEffect, useCallback } from 'react';
 import { useForm, Controller } from 'react-hook-form';
+import { useOrganizations } from '@/hooks/use-organizations';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { KeyIcon, ClipboardIcon, CheckIcon } from '@heroicons/react/24/outline';
+import { KeyIcon } from '@heroicons/react/24/outline';
 import { ManagementTokenDuration } from '@/lib/api/generated/cloud/data-contracts';
+import CopyToClipboard from '@/components/ui/copy-to-clipboard';
 
 const schema = z.object({
   name: z.string().min(1, 'Token name is required'),
@@ -45,13 +44,8 @@ export function CreateTokenModal({
   organizationName,
   onSuccess,
 }: CreateTokenModalProps) {
-  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [createdToken, setCreatedToken] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
-
-  const { handleApiError } = useApiError({
-    setFieldErrors: setFieldErrors,
-  });
+  const { handleCreateToken, createTokenLoading } = useOrganizations();
 
   const {
     register,
@@ -67,57 +61,36 @@ export function CreateTokenModal({
     },
   });
 
-  const createTokenMutation = useMutation({
-    mutationFn: async (data: {
-      name: string;
-      duration: ManagementTokenDuration;
-    }) => {
-      const result = await cloudApi.managementTokenCreate(organizationId, {
-        name: data.name,
-        duration: data.duration,
-      });
-      return result.data;
-    },
-    onSuccess: (data) => {
-      setCreatedToken(data.token);
-      onSuccess();
-    },
-    onError: handleApiError,
-  });
-
-  const copyToClipboard = async () => {
-    if (createdToken) {
-      try {
-        await navigator.clipboard.writeText(createdToken);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
-      } catch (err) {
-        console.error('Failed to copy: ', err);
-      }
-    }
-  };
-
-  const handleClose = () => {
+  const handleClose = useCallback(() => {
     setCreatedToken(null);
-    setCopied(false);
     reset();
-    setFieldErrors({});
     onOpenChange(false);
-  };
+  }, [reset, onOpenChange]);
+
+  const handleTokenCreate = useCallback(
+    (data: { name: string; duration: ManagementTokenDuration }) => {
+      handleCreateToken(
+        organizationId,
+        data.name,
+        data.duration,
+        (tokenData) => {
+          setCreatedToken(tokenData.token);
+          onSuccess();
+        },
+      );
+    },
+    [organizationId, handleCreateToken, onSuccess],
+  );
 
   // Reset form when modal closes
   useEffect(() => {
     if (!open) {
-      setCreatedToken(null);
-      setCopied(false);
-      reset();
-      setFieldErrors({});
+      handleClose();
     }
-  }, [open, reset]);
+  }, [open, handleClose]);
 
-  const nameError = errors.name?.message?.toString() || fieldErrors?.name;
-  const durationError =
-    errors.duration?.message?.toString() || fieldErrors?.duration;
+  const nameError = errors.name?.message?.toString();
+  const durationError = errors.duration?.message?.toString();
 
   const durationOptions = [
     { value: ManagementTokenDuration.Value30D, label: '30 days' },
@@ -158,18 +131,7 @@ export function CreateTokenModal({
                   readOnly
                   className="font-mono text-sm"
                 />
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={copyToClipboard}
-                  className="px-3"
-                >
-                  {copied ? (
-                    <CheckIcon className="h-4 w-4 text-green-600" />
-                  ) : (
-                    <ClipboardIcon className="h-4 w-4" />
-                  )}
-                </Button>
+                <CopyToClipboard text={createdToken} className="px-3" />
               </div>
             </div>
 
@@ -179,7 +141,7 @@ export function CreateTokenModal({
           </div>
         ) : (
           <form
-            onSubmit={handleSubmit((data) => createTokenMutation.mutate(data))}
+            onSubmit={handleSubmit(handleTokenCreate)}
             className="space-y-4"
           >
             <div className="space-y-2">
@@ -188,7 +150,7 @@ export function CreateTokenModal({
                 {...register('name')}
                 id="name"
                 placeholder="e.g., CI/CD Pipeline Token"
-                disabled={createTokenMutation.isPending}
+                disabled={createTokenLoading}
               />
               {nameError && (
                 <div className="text-sm text-red-500">{nameError}</div>
@@ -230,8 +192,8 @@ export function CreateTokenModal({
               <Button type="button" variant="outline" onClick={handleClose}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={createTokenMutation.isPending}>
-                {createTokenMutation.isPending ? 'Creating...' : 'Create Token'}
+              <Button type="submit" disabled={createTokenLoading}>
+                {createTokenLoading ? 'Creating...' : 'Create Token'}
               </Button>
             </div>
           </form>

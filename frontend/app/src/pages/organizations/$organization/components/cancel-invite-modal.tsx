@@ -1,8 +1,6 @@
-import { useApiError } from '@/lib/hooks';
-import { useMutation } from '@tanstack/react-query';
-import { cloudApi } from '@/lib/api/api';
 import { OrganizationInvite } from '@/lib/api/generated/cloud/data-contracts';
 import { ConfirmDialog } from '@/components/molecules/confirm-dialog';
+import { useOrganizations } from '@/hooks/use-organizations';
 
 interface CancelInviteModalProps {
   open: boolean;
@@ -19,27 +17,7 @@ export function CancelInviteModal({
   organizationName,
   onSuccess,
 }: CancelInviteModalProps) {
-  const { handleApiError } = useApiError({});
-
-  const cancelInviteMutation = useMutation({
-    mutationFn: async () => {
-      if (!invite) {
-        return;
-      }
-      await cloudApi.organizationInviteDelete(invite.metadata.id);
-    },
-    onSuccess: () => {
-      onSuccess();
-      onOpenChange(false);
-    },
-    onError: handleApiError,
-  });
-
-  const handleCancel = () => {
-    if (invite) {
-      cancelInviteMutation.mutate();
-    }
-  };
+  const { handleCancelInvite, cancelInviteLoading } = useOrganizations();
 
   if (!invite) {
     return null;
@@ -64,9 +42,9 @@ export function CancelInviteModal({
       submitLabel="Cancel Invitation"
       submitVariant="destructive"
       cancelLabel="Keep Invitation"
-      onSubmit={handleCancel}
+      onSubmit={() => handleCancelInvite(invite, onSuccess, onOpenChange)}
       onCancel={() => onOpenChange(false)}
-      isLoading={cancelInviteMutation.isPending}
+      isLoading={cancelInviteLoading}
     />
   );
 }

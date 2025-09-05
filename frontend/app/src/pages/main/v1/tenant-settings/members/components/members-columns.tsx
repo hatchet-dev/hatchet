@@ -30,7 +30,7 @@ function MemberActions({
   const { handleApiError } = useApiError({});
   const { tenantId } = useCurrentTenantId();
   const meta = useApiMeta();
-  const cloudMeta = useCloudApiMeta();
+  const { isCloudEnabled } = useCloudApiMeta();
 
   const deleteMemberMutation = useMutation({
     mutationKey: ['tenant-member:delete', tenantId],
@@ -45,7 +45,6 @@ function MemberActions({
     onError: handleApiError,
   });
 
-  const isCloudEnabled = !!cloudMeta?.data;
   const isOwnerRole = member.role === 'OWNER';
 
   const canDeleteMember =

@@ -63,7 +63,7 @@ interface SidebarProps extends React.HTMLAttributes<HTMLDivElement> {
 function Sidebar({ className, memberships, currTenant }: SidebarProps) {
   const { sidebarOpen, setSidebarOpen } = useSidebar();
 
-  const meta = useCloudApiMeta();
+  const { data: cloudMeta } = useCloudApiMeta();
   const featureFlags = useCloudFeatureFlags(currTenant.metadata.id);
 
   const onNavLinkClick = useCallback(() => {
@@ -225,7 +225,7 @@ function Sidebar({ className, memberships, currTenant }: SidebarProps) {
                     onNavLinkClick={onNavLinkClick}
                     to="/tenant-settings/billing-and-limits"
                     name={
-                      meta?.data.canBill
+                      cloudMeta?.data.canBill
                         ? 'Billing & Limits'
                         : 'Resource Limits'
                     }

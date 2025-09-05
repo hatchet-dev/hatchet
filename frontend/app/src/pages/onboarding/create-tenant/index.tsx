@@ -4,9 +4,10 @@ import api, {
   TenantEnvironment,
   TenantVersion,
 } from '@/lib/api';
-import { cloudApi } from '@/lib/api/api';
-import useCloudApiMeta from '@/pages/auth/hooks/use-cloud-api-meta';
+import { useOrganizations } from '@/hooks/use-organizations';
 import { useApiError } from '@/lib/hooks';
+import { cloudApi } from '@/lib/api/api';
+import useCloudApiMeta from '../../auth/hooks/use-cloud-api-meta';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -18,18 +19,22 @@ import { StepProgress } from './components/step-progress';
 import { OnboardingStepConfig, OnboardingFormData } from './types';
 import { useAnalytics } from '@/hooks/use-analytics';
 
+const FINAL_STEP = 2;
+
 export default function CreateTenant() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const cloudMeta = useCloudApiMeta();
+  const { organizationData, isCloudEnabled } = useOrganizations();
+  const { data: cloudMeta } = useCloudApiMeta();
 
   const stepFromUrl = parseInt(searchParams.get('step') || '0', 10);
 
   const [currentStep, setCurrentStep] = useState(
-    Math.max(0, Math.min(stepFromUrl, 2)),
+    Math.max(0, Math.min(stepFromUrl, FINAL_STEP)),
   );
-  const [selectedOrganizationId, setSelectedOrganizationId] =
-    useState<string>('');
+  const [selectedOrganizationId, setSelectedOrganizationId] = useState<
+    string | null
+  >('');
 
   const [formData, setFormData] = useState<OnboardingFormData>({
     name: '',
@@ -45,20 +50,10 @@ export default function CreateTenant() {
   });
   const { capture } = useAnalytics();
 
-  // Get organization list when cloud is enabled
-  const organizationListQuery = useQuery({
-    queryKey: ['organization:list'],
-    queryFn: async () => {
-      const result = await cloudApi.organizationList();
-      return result.data;
-    },
-    enabled: !!cloudMeta?.data,
-  });
-
   // Sync currentStep with URL parameter
   useEffect(() => {
     const stepFromUrl = parseInt(searchParams.get('step') || '0', 10);
-    const validStep = Math.max(0, Math.min(stepFromUrl, 2));
+    const validStep = Math.max(0, Math.min(stepFromUrl, FINAL_STEP));
     setCurrentStep(validStep);
   }, [searchParams]);
 
@@ -166,7 +161,7 @@ export default function CreateTenant() {
 
   // Pure validation function for button state (no side effects)
   const isCurrentStepValid = (): boolean => {
-    if (currentStep === 2) {
+    if (currentStep === FINAL_STEP) {
       const { name } = formData.tenantData;
 
       // Basic validation for name
@@ -174,8 +169,7 @@ export default function CreateTenant() {
         return false;
       }
 
-      // Validate organization selection for cloud mode
-      if (cloudMeta?.data && !selectedOrganizationId) {
+      if (isCloudEnabled && !selectedOrganizationId) {
         return false;
       }
     }
@@ -185,7 +179,7 @@ export default function CreateTenant() {
 
   const validateCurrentStep = (): boolean => {
     // For the tenant create form (step 2), we need to validate the form
-    if (currentStep === 2) {
+    if (currentStep === FINAL_STEP) {
       const { name } = formData.tenantData;
       const errors: Record<string, string> = {};
 
@@ -194,8 +188,7 @@ export default function CreateTenant() {
         errors.name = 'Name must be between 4 and 32 characters';
       }
 
-      // Validate organization selection for cloud mode
-      if (cloudMeta?.data && !selectedOrganizationId) {
+      if (isCloudEnabled && !selectedOrganizationId) {
         errors.organizationId = 'Please select an organization';
       }
 
@@ -239,8 +232,7 @@ export default function CreateTenant() {
     name: string;
     environment: TenantEnvironment;
   }) => {
-    // Validate organization selection for cloud mode
-    if (cloudMeta?.data && !selectedOrganizationId) {
+    if (isCloudEnabled && !selectedOrganizationId) {
       setFieldErrors({
         organizationId: 'Please select an organization',
       });
@@ -305,7 +297,7 @@ export default function CreateTenant() {
           value={formData[currentStepConfig.key]}
           onChange={(value) => updateFormData(currentStepConfig.key, value)}
           onNext={
-            currentStep === 2
+            currentStep === FINAL_STEP
               ? () => handleTenantCreate(formData.tenantData)
               : handleNext
           }
@@ -316,11 +308,11 @@ export default function CreateTenant() {
           setFormData={setFormData}
           className=""
           // Organization-related props only for TenantCreateForm (step 2)
-          {...(currentStep === 2 && {
-            organizationList: organizationListQuery.data,
+          {...(currentStep === FINAL_STEP && {
+            organizationList: organizationData,
             selectedOrganizationId: selectedOrganizationId,
             onOrganizationChange: setSelectedOrganizationId,
-            isCloudEnabled: !!cloudMeta?.data,
+            isCloudEnabled,
           })}
         />
 
@@ -345,7 +337,7 @@ export default function CreateTenant() {
             <Button
               variant="default"
               onClick={() => {
-                if (currentStep === 2) {
+                if (currentStep === FINAL_STEP) {
                   // For tenant create form, validate and submit
                   if (validateCurrentStep()) {
                     handleTenantCreate(formData.tenantData);
@@ -356,7 +348,7 @@ export default function CreateTenant() {
               }}
               disabled={
                 createMutation.isPending ||
-                (currentStep === 2 && !isCurrentStepValid())
+                (currentStep === FINAL_STEP && !isCurrentStepValid())
               }
             >
               {createMutation.isPending ? (

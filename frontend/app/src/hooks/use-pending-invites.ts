@@ -4,7 +4,7 @@ import { cloudApi } from '@/lib/api/api';
 import useCloudApiMeta from '@/pages/auth/hooks/use-cloud-api-meta';
 
 export const usePendingInvites = () => {
-  const cloudMeta = useCloudApiMeta();
+  const { data: cloudMeta } = useCloudApiMeta();
 
   const query = useQuery({
     queryKey: ['pending-invites'],

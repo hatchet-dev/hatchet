@@ -26,9 +26,8 @@ import { DeleteInviteForm } from './components/delete-invite-form';
 import { ChangePasswordDialog } from './components/change-password-dialog';
 import { AxiosError } from 'axios';
 import useApiMeta from '@/pages/auth/hooks/use-api-meta';
-import useCloudApiMeta from '@/pages/auth/hooks/use-cloud-api-meta';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
-import { cloudApi } from '@/lib/api/api';
+import { useOrganizations } from '@/hooks/use-organizations';
 
 // Simplified columns for owners (no role column, no actions)
 const ownersColumns: ColumnDef<TenantMember>[] = [
@@ -83,7 +82,7 @@ export default function Members() {
 
 function MembersList() {
   const { tenantId } = useCurrentTenantId();
-  const cloudMeta = useCloudApiMeta();
+  const { getOrganizationIdForTenant, isCloudEnabled } = useOrganizations();
   const [showChangePasswordDialog, setShowChangePasswordDialog] =
     useState(false);
   const [memberToEdit, setMemberToEdit] = useState<TenantMember | null>(null);
@@ -92,28 +91,7 @@ function MembersList() {
     ...queries.members.list(tenantId),
   });
 
-  // Get organization list to find which org this tenant belongs to
-  const organizationListQuery = useQuery({
-    queryKey: ['organization:list'],
-    queryFn: async () => {
-      const result = await cloudApi.organizationList();
-      return result.data;
-    },
-    enabled: !!cloudMeta?.data,
-  });
-
-  // Find the organization ID for this tenant
-  const organizationId = useMemo(() => {
-    if (!organizationListQuery.data?.rows) {
-      return null;
-    }
-
-    const org = organizationListQuery.data.rows.find((org) =>
-      org.tenants?.some((tenant) => tenant.id === tenantId),
-    );
-
-    return org?.metadata.id || null;
-  }, [organizationListQuery.data, tenantId]);
+  const organizationId = getOrganizationIdForTenant(tenantId);
 
   // Get current user query
   const currentUserQuery = useQuery({
@@ -153,7 +131,7 @@ function MembersList() {
         <h3 className="text-xl font-semibold leading-tight text-foreground">
           Owners
         </h3>
-        {cloudMeta?.data && organizationId && isCurrentUserOwner && (
+        {isCloudEnabled && organizationId && isCurrentUserOwner && (
           <a
             href={`/organizations/${organizationId}`}
             className="text-primary hover:underline text-sm"
@@ -223,38 +201,16 @@ function UpdateMember({
   onSuccess: () => void;
 }) {
   const { tenantId } = useCurrentTenantId();
-  const cloudMeta = useCloudApiMeta();
+  const { getOrganizationIdForTenant, isCloudEnabled } = useOrganizations();
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const { handleApiError } = useApiError({
     setFieldErrors: setFieldErrors,
   });
 
-  // Get organization list to find which org this tenant belongs to
-  const organizationListQuery = useQuery({
-    queryKey: ['organization:list'],
-    queryFn: async () => {
-      const result = await cloudApi.organizationList();
-      return result.data;
-    },
-    enabled: !!cloudMeta?.data,
-  });
-
   // Check if this is a cloud tenant and if we're trying to modify an OWNER
-  const isCloudEnabled = !!cloudMeta?.data;
   const isOwnerRole = member.role === 'OWNER';
 
-  // Find the organization ID for this tenant
-  const organizationId = useMemo(() => {
-    if (!organizationListQuery.data?.rows) {
-      return null;
-    }
-
-    const org = organizationListQuery.data.rows.find((org) =>
-      org.tenants?.some((tenant) => tenant.id === tenantId),
-    );
-
-    return org?.metadata.id || null;
-  }, [organizationListQuery.data, tenantId]);
+  const organizationId = getOrganizationIdForTenant(tenantId);
 
   // If it's cloud-enabled and the member is an OWNER, redirect to org settings
   useEffect(() => {
@@ -387,34 +343,13 @@ function CreateInvite({
   onSuccess: () => void;
 }) {
   const { tenantId } = useCurrentTenantId();
-  const cloudMeta = useCloudApiMeta();
+  const { getOrganizationIdForTenant, isCloudEnabled } = useOrganizations();
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const { handleApiError } = useApiError({
     setFieldErrors: setFieldErrors,
   });
 
-  // Get organization list to find which org this tenant belongs to
-  const organizationListQuery = useQuery({
-    queryKey: ['organization:list'],
-    queryFn: async () => {
-      const result = await cloudApi.organizationList();
-      return result.data;
-    },
-    enabled: !!cloudMeta?.data,
-  });
-
-  // Find the organization ID for this tenant
-  const organizationId = useMemo(() => {
-    if (!organizationListQuery.data?.rows) {
-      return null;
-    }
-
-    const org = organizationListQuery.data.rows.find((org) =>
-      org.tenants?.some((tenant) => tenant.id === tenantId),
-    );
-
-    return org?.metadata.id || null;
-  }, [organizationListQuery.data, tenantId]);
+  const organizationId = getOrganizationIdForTenant(tenantId);
 
   const createMutation = useMutation({
     mutationKey: ['tenant-invite:create', tenantId],
@@ -434,7 +369,7 @@ function CreateInvite({
         isLoading={createMutation.isPending}
         onSubmit={createMutation.mutate}
         fieldErrors={fieldErrors}
-        isCloudEnabled={!!cloudMeta?.data}
+        isCloudEnabled={isCloudEnabled}
         organizationId={organizationId}
       />
     </Dialog>
