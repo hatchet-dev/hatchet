@@ -28,7 +28,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v6
         with:
-          go-version: "1.24"
+          go-version: '1.24'
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
