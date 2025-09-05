@@ -1,5 +1,7 @@
 import { Callout, Card, Cards, Steps, Tabs } from "nextra/components";
 import UniversalTabs from "../../components/UniversalTabs";
+import { Snippet } from "@/components/code";
+import { snippets } from "@/lib/generated/snippets";
 
 # Additional Metadata
 
@@ -17,17 +19,9 @@ You can attach additional metadata when pushing events or triggering task runs u
   <Tabs.Tab>
 <UniversalTabs items={['Python', 'Typescript', 'Go']}>
   <Tabs.Tab>
-```python
-hatchet.event.push(
-    "user:create",
-    {'userId': '1234'},
-    options=PushEventOptions(
-        additional_metadata={
-            "source": "api" # Arbitrary key-value pair
-        }
-    )
-)
-```
+
+<Snippet src={snippets.python.events.event.event_trigger_with_metadata}/>
+
   </Tabs.Tab>
   <Tabs.Tab>
 ```typescript
@@ -61,16 +55,9 @@ err := c.Event().Push(
   <Tabs.Tab>
 <UniversalTabs items={['Python', 'Typescript', 'Go']}>
   <Tabs.Tab>
-```python
-simple_task.run(
-    SimpleInput(user_id=1234),
-    options=TriggerTaskOptions(
-        additional_metadata={
-          "hello": "moon" # Arbitrary key-value pair
-        }
-    )
-)
-```
+
+<Snippet src={snippets.python.simple.trigger_with_metadata.trigger_with_metadata}/>
+
   </Tabs.Tab>
   <Tabs.Tab>
 ```typescript
