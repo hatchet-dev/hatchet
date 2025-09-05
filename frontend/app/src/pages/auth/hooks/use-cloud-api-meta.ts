@@ -28,7 +28,7 @@ export default function useCloudApiMeta() {
 
   const isCloudEnabled = useMemo(() => {
     // Check if we have data AND no errors (errors indicate OSS environment)
-    // @ts-expect-error
+    // @ts-expect-error errors is returned when this is oss
     return !!cloudMetaQuery.data?.data && !cloudMetaQuery.data?.data?.errors;
   }, [cloudMetaQuery.data?.data]);
 
