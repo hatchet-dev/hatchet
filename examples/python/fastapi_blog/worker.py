@@ -14,7 +14,7 @@ async def fetch(session: ClientSession, url: str) -> bool:
 
 
 @hatchet.task(name="Fetch")
-async def hello_from_hatchet(input: EmptyModel, ctx: Context) -> int:
+async def hello_from_hatchet(input: EmptyModel, ctx: Context) -> dict[str, int]:
     num_requests = 10
 
     async with ClientSession() as session:
@@ -24,6 +24,6 @@ async def hello_from_hatchet(input: EmptyModel, ctx: Context) -> int:
 
         results = await asyncio.gather(*tasks)
 
-        return results.count(True)
+        return {"count": results.count(True)}
 
 

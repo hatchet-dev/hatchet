@@ -87,11 +87,8 @@ Define the static rate limits that can be consumed by any step run across all wo
 <UniversalTabs items={['Python', 'Typescript', 'Go']}>
   <Tabs.Tab>
 
-```python
-RATE_LIMIT_KEY = "test-limit"
+<Snippet src={snippets.python.rate_limit.worker.create_a_rate_limit}/>
 
-hatchet.rate_limits.put(RATE_LIMIT_KEY, 10, RateLimitDuration.MINUTE)
-```
 
   </Tabs.Tab>
   <Tabs.Tab>
