@@ -697,6 +697,7 @@ WITH task_partitions AS (
 ), log_line_partitions AS (
     SELECT 'v1_log_line' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_log_line', $1::date) AS p
 )
+
 SELECT
     parent_table, partition_name
 FROM

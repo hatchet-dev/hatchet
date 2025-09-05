@@ -27,6 +27,9 @@ type WorkflowNameTriggerOpts struct {
 
 	ExternalId string
 
+	// (optional) The idempotency key to use for debouncing this task
+	IdempotencyKey *IdempotencyKey
+
 	// Whether to skip the creation of the child workflow
 	ShouldSkip bool
 }
