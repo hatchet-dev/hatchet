@@ -2,9 +2,11 @@ package v1
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
@@ -249,7 +251,11 @@ func (r *optimisticSchedulingRepositoryImpl) TriggerFromEvents(ctx context.Conte
 	})
 
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to list queue items for tasks: %w", err)
+		if errors.Is(err, pgx.ErrNoRows) {
+			qis = []*sqlcv1.V1QueueItem{}
+		} else {
+			return nil, nil, fmt.Errorf("failed to list queue items for tasks: %w", err)
+		}
 	}
 
 	tx.AddPostCommit(post)
@@ -338,7 +344,11 @@ func (r *optimisticSchedulingRepositoryImpl) TriggerFromNames(ctx context.Contex
 	})
 
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("failed to list queue items for tasks: %w", err)
+		if errors.Is(err, pgx.ErrNoRows) {
+			qis = []*sqlcv1.V1QueueItem{}
+		} else {
+			return nil, nil, nil, fmt.Errorf("failed to list queue items for tasks: %w", err)
+		}
 	}
 
 	return qis, tasks, dags, nil
