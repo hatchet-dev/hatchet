@@ -115,7 +115,7 @@ BEGIN
     WHERE initial_state = 'QUEUED' AND concurrency_strategy_ids[1] IS NULL;
 
     -- Only insert into v1_dag and v1_dag_to_task if dag_id and dag_inserted_at are not null
-    IF (SELECT COUNT(*) FROM new_table WHERE dag_id IS NOT NULL AND dag_inserted_at IS NOT NULL) = 0 THEN
+    IF (SELECT COUNT(*) FROM new_table WHERE dag_id IS NOT NULL AND dag_inserted_at IS NOT NULL) > 0 THEN
         INSERT INTO v1_dag_to_task (
             dag_id,
             dag_inserted_at,
