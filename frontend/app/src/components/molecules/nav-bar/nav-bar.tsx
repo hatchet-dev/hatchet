@@ -11,7 +11,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 
 import { useLocation, useNavigate } from 'react-router-dom';
-import api, { TenantVersion, User } from '@/lib/api';
+import api, { TenantMember, TenantVersion, User } from '@/lib/api';
 import { useApiError } from '@/lib/hooks';
 import { useMutation } from '@tanstack/react-query';
 import hatchet from '@/assets/hatchet_logo.png';
@@ -25,6 +25,7 @@ import {
   BiLogoDiscordAlt,
   BiSolidGraduation,
   BiUserCircle,
+  BiEnvelope,
 } from 'react-icons/bi';
 import { useTheme } from '@/components/theme-provider';
 import { useEffect, useMemo } from 'react';
@@ -42,6 +43,7 @@ import {
   BreadcrumbSeparator,
 } from '@/components/v1/ui/breadcrumb';
 import { useBreadcrumbs } from '@/hooks/use-breadcrumbs';
+import { usePendingInvites } from '@/hooks/use-pending-invites';
 
 function HelpDropdown() {
   const meta = useApiMeta();
@@ -113,13 +115,16 @@ function HelpDropdown() {
   );
 }
 
-function AccountDropdown({ user }: MainNavProps) {
+function AccountDropdown({ user }: { user: User }) {
   const navigate = useNavigate();
   const { tenant } = useTenant();
 
   const { handleApiError } = useApiError({});
 
   const { toggleTheme } = useTheme();
+
+  // Check for pending invites to show the Invites menu item
+  const { pendingInvitesQuery } = usePendingInvites();
 
   const logoutMutation = useMutation({
     mutationKey: ['user:update:logout'],
@@ -141,6 +146,9 @@ function AccountDropdown({ user }: MainNavProps) {
           aria-label="User Menu"
         >
           <BiUserCircle className="h-6 w-6 text-foreground cursor-pointer" />
+          {(pendingInvitesQuery.data ?? 0) > 0 && (
+            <div className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 bg-blue-500 rounded-full border-2 border-background animate-pulse"></div>
+          )}
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-56" align="end" forceMount>
@@ -155,6 +163,15 @@ function AccountDropdown({ user }: MainNavProps) {
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
+        {(pendingInvitesQuery.data ?? 0) > 0 && (
+          <>
+            <DropdownMenuItem onClick={() => navigate('/onboarding/invites')}>
+              <BiEnvelope className="mr-2" />
+              Invites ({pendingInvitesQuery.data})
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+          </>
+        )}
         <DropdownMenuItem>
           <VersionInfo />
         </DropdownMenuItem>
@@ -181,6 +198,7 @@ function AccountDropdown({ user }: MainNavProps) {
 
 interface MainNavProps {
   user: User;
+  tenantMemberships: TenantMember[];
   setHasBanner?: (state: boolean) => void;
 }
 
@@ -286,7 +304,7 @@ export default function MainNav({ user, setHasBanner }: MainNavProps) {
             )}
           </div>
 
-          <div className="ml-auto flex items-center">
+          <div className="ml-auto flex items-center gap-2">
             <HelpDropdown />
             <AccountDropdown user={user} />
           </div>

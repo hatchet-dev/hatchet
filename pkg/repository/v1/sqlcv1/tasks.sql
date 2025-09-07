@@ -899,3 +899,9 @@ FROM
 -- name: RegisterBatch :batchexec
 -- DO NOT USE: dummy query to satisfy sqlc and register Batch calls on DBTX
 SELECT * FROM v1_task WHERE id = $1;
+
+-- name: AnalyzeV1Task :exec
+ANALYZE v1_task;
+
+-- name: AnalyzeV1TaskEvent :exec
+ANALYZE v1_task_event;

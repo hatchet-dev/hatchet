@@ -352,6 +352,28 @@ func (tc *TasksControllerImpl) Start() (func() error, error) {
 		return nil, wrappedErr
 	}
 
+	_, err = tc.s.NewJob(
+		gocron.DailyJob(1, gocron.NewAtTimes(
+			// 5AM UTC
+			gocron.NewAtTime(5, 0, 0),
+		)),
+		gocron.NewTask(
+			tc.runAnalyze(ctx),
+		),
+		gocron.WithSingletonMode(gocron.LimitModeReschedule),
+	)
+
+	if err != nil {
+		wrappedErr := fmt.Errorf("could not run analyze: %w", err)
+
+		cancel()
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "could not run analyze")
+		span.End()
+
+		return nil, wrappedErr
+	}
+
 	cleanup := func() error {
 		cancel()
 

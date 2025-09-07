@@ -1,6 +1,7 @@
 package authz
 
 import (
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -102,6 +103,10 @@ func (a *AuthZ) handleCookieAuth(c echo.Context, r *middleware.RouteInfo) error 
 		}
 	}
 
+	if a.config.Auth.CustomAuthenticator != nil {
+		return a.config.Auth.CustomAuthenticator.CookieAuthorizerHook(c, r)
+	}
+
 	return nil
 }
 
@@ -123,11 +128,11 @@ func (a *AuthZ) handleBearerAuth(c echo.Context, r *middleware.RouteInfo) error 
 }
 
 func (a *AuthZ) handleCustomAuth(c echo.Context, r *middleware.RouteInfo) error {
-	if a.config.Auth.CustomAuthorizationHandler != nil {
-		return a.config.Auth.CustomAuthorizationHandler(c, r)
+	if a.config.Auth.CustomAuthenticator == nil {
+		return fmt.Errorf("custom auth handler is not set")
 	}
 
-	return nil
+	return a.config.Auth.CustomAuthenticator.Authorize(c, r)
 }
 
 var permittedWithUnverifiedEmail = []string{

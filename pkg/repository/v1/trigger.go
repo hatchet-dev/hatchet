@@ -561,7 +561,7 @@ func cleanAdditionalMetadata(additionalMetadata []byte) map[string]interface{} {
 	} else {
 		err := json.Unmarshal(additionalMetadata, &res)
 
-		if err != nil {
+		if err != nil || res == nil {
 			res = make(map[string]interface{})
 		}
 	}

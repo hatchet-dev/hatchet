@@ -5,6 +5,7 @@ from hatchet_sdk import Context
 from ..hatchet_client import hatchet
 
 
+# > Simple task
 class SimpleInput(BaseModel):
     message: str
 
@@ -19,3 +20,6 @@ def first_task(input: SimpleInput, ctx: Context) -> SimpleOutput:
     print("first-task task called")
 
     return SimpleOutput(transformed_message=input.message.lower())
+
+
+# !!

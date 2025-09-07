@@ -20,6 +20,7 @@ import {
 } from '@/lib/outlet';
 import { Loading } from '@/components/v1/ui/loading.tsx';
 import { TenantSwitcher } from '@/components/v1/molecules/nav-bar/tenant-switcher';
+import { OrganizationSelector } from '@/components/v1/molecules/nav-bar/organization-selector';
 import {
   Collapsible,
   CollapsibleContent,
@@ -63,7 +64,7 @@ function Sidebar({ className, memberships }: SidebarProps) {
   const { sidebarOpen, setSidebarOpen } = useSidebar();
   const { tenantId } = useCurrentTenantId();
 
-  const meta = useCloudApiMeta();
+  const { data: cloudMeta } = useCloudApiMeta();
   const featureFlags = useCloudFeatureFlags(tenantId);
 
   const onNavLinkClick = useCallback(() => {
@@ -232,7 +233,7 @@ function Sidebar({ className, memberships }: SidebarProps) {
                     onNavLinkClick={onNavLinkClick}
                     to={`/tenants/${tenantId}/tenant-settings/billing-and-limits`}
                     name={
-                      meta?.data.canBill
+                      cloudMeta?.data.canBill
                         ? 'Billing & Limits'
                         : 'Resource Limits'
                     }
@@ -254,7 +255,11 @@ function Sidebar({ className, memberships }: SidebarProps) {
             </div>
           </div>
         </div>
-        <TenantSwitcher memberships={memberships} />
+        {cloudMeta ? (
+          <OrganizationSelector memberships={memberships} />
+        ) : (
+          <TenantSwitcher memberships={memberships} />
+        )}
       </div>
     </div>
   );

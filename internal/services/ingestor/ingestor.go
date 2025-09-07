@@ -48,6 +48,7 @@ type IngestorOpts struct {
 	isLogIngestionEnabled  bool
 	localScheduler         *scheduler.Scheduler
 	localDispatcher        *dispatcher.DispatcherImpl
+	l                      *zerolog.Logger
 }
 
 func WithEventRepository(r repository.EventEngineRepository) IngestorOptFunc {
@@ -116,9 +117,18 @@ func WithLocalDispatcher(d *dispatcher.DispatcherImpl) IngestorOptFunc {
 	}
 }
 
+func WithLogger(l *zerolog.Logger) IngestorOptFunc {
+	return func(opts *IngestorOpts) {
+		opts.l = l
+	}
+}
+
 func defaultIngestorOpts() *IngestorOpts {
+	l := logger.NewDefaultLogger("ingestor")
+
 	return &IngestorOpts{
 		isLogIngestionEnabled: true,
+		l:                     &l,
 	}
 }
 
@@ -135,8 +145,9 @@ type IngestorImpl struct {
 	mq     msgqueue.MessageQueue
 	mqv1   msgqueuev1.MessageQueue
 	v      validator.Validator
-	l      *zerolog.Logger
 	repov1 v1.Repository
+
+	l *zerolog.Logger
 
 	localScheduler  *scheduler.Scheduler
 	localDispatcher *dispatcher.DispatcherImpl
@@ -186,8 +197,6 @@ func NewIngestor(fs ...IngestorOptFunc) (Ingestor, error) {
 		return nil, fmt.Errorf("could not create step run cache: %w", err)
 	}
 
-	logger := logger.NewDefaultLogger("ingestor-service")
-
 	return &IngestorImpl{
 		eventRepository:          opts.eventRepository,
 		streamEventRepository:    opts.streamEventRepository,
@@ -200,7 +209,7 @@ func NewIngestor(fs ...IngestorOptFunc) (Ingestor, error) {
 		v:                        validator.NewDefaultValidator(),
 		repov1:                   opts.repov1,
 		isLogIngestionEnabled:    opts.isLogIngestionEnabled,
-		l:                        &logger,
+		l:                        opts.l,
 		localScheduler:           opts.localScheduler,
 		localDispatcher:          opts.localDispatcher,
 	}, nil

@@ -12,7 +12,6 @@ import (
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/middleware"
 	"github.com/hatchet-dev/hatchet/internal/integrations/alerting"
-	"github.com/hatchet-dev/hatchet/internal/integrations/email"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	msgqueuev1 "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor"
@@ -24,6 +23,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/config/shared"
 	"github.com/hatchet-dev/hatchet/pkg/encryption"
 	"github.com/hatchet-dev/hatchet/pkg/errors"
+	"github.com/hatchet-dev/hatchet/pkg/integrations/email"
 	"github.com/hatchet-dev/hatchet/pkg/repository/buffer"
 	v0 "github.com/hatchet-dev/hatchet/pkg/scheduling/v0"
 	v1 "github.com/hatchet-dev/hatchet/pkg/scheduling/v1"
@@ -499,6 +499,15 @@ type PostmarkConfigFile struct {
 	SupportEmail string `mapstructure:"supportEmail" json:"supportEmail,omitempty"`
 }
 
+type CustomAuthenticator interface {
+	// Authenticate is called to authenticate for endpoints that support the customAuth security scheme
+	Authenticate(c echo.Context) error
+	// Authorize is called to authorize for endpoints that support the customAuth security scheme
+	Authorize(c echo.Context, r *middleware.RouteInfo) error
+	// CookieAuthorizerHook is called as part of cookie authorization
+	CookieAuthorizerHook(c echo.Context, r *middleware.RouteInfo) error
+}
+
 type AuthConfig struct {
 	RestrictedEmailDomains []string
 
@@ -510,9 +519,7 @@ type AuthConfig struct {
 
 	JWTManager token.JWTManager
 
-	CustomAuthenticationHandler func(c echo.Context) error
-
-	CustomAuthorizationHandler func(c echo.Context, r *middleware.RouteInfo) error
+	CustomAuthenticator CustomAuthenticator
 }
 
 type PylonConfig struct {
