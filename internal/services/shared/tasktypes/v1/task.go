@@ -36,6 +36,12 @@ type CompletedTaskPayload struct {
 
 	// (optional) the output data
 	Output []byte
+
+	// (required) whether this is a DAG or not
+	IsDAG bool
+
+	// (required) the step readable id
+	StepReadableId string
 }
 
 func CompletedTaskMessage(
@@ -46,6 +52,8 @@ func CompletedTaskMessage(
 	workflowRunId string,
 	retryCount int32,
 	output []byte,
+	isDAG bool,
+	stepReadableId string,
 ) (*msgqueue.Message, error) {
 	return msgqueue.NewTenantMessage(
 		tenantId,
@@ -53,12 +61,14 @@ func CompletedTaskMessage(
 		false,
 		true,
 		CompletedTaskPayload{
-			TaskId:        taskId,
-			InsertedAt:    taskInsertedAt,
-			ExternalId:    taskExternalId,
-			WorkflowRunId: workflowRunId,
-			RetryCount:    retryCount,
-			Output:        output,
+			TaskId:         taskId,
+			InsertedAt:     taskInsertedAt,
+			ExternalId:     taskExternalId,
+			WorkflowRunId:  workflowRunId,
+			RetryCount:     retryCount,
+			Output:         output,
+			IsDAG:          isDAG,
+			StepReadableId: stepReadableId,
 		},
 	)
 }

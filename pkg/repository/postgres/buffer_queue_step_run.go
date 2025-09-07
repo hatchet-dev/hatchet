@@ -59,7 +59,7 @@ func (w *sharedRepository) bulkQueueStepRuns(ctx context.Context, opts []bulkQue
 	orderedOpts := sortForQueueStepRuns(opts)
 
 	err := sqlchelpers.DeadlockRetry(w.l, func() (err error) {
-		tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, w.pool, w.l, 10000)
+		tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, w.pool, w.l)
 
 		if err != nil {
 			return err

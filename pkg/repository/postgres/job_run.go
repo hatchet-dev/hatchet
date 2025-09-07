@@ -74,7 +74,7 @@ func (j *jobRunEngineRepository) RegisterWorkflowRunRunningCallback(callback rep
 
 func (j *jobRunEngineRepository) SetJobRunStatusRunning(ctx context.Context, tenantId, jobRunId string) error {
 
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, j.pool, j.l, 5000)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, j.pool, j.l)
 
 	if err != nil {
 		return err

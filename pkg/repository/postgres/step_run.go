@@ -416,7 +416,7 @@ func (s *stepRunEngineRepository) ListStepRunsToCancel(ctx context.Context, tena
 func (s *stepRunEngineRepository) ListStepRunsToReassign(ctx context.Context, tenantId string) ([]string, []*dbsqlc.GetStepRunForEngineRow, error) {
 	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
 
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, s.pool, s.l, 5000)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, s.pool, s.l)
 
 	if err != nil {
 		return nil, nil, err
@@ -497,7 +497,7 @@ func (s *stepRunEngineRepository) InternalRetryStepRuns(ctx context.Context, ten
 		stepRuns = append(stepRuns, sqlchelpers.UUIDFromStr(id))
 	}
 
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, s.pool, s.l, 5000)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, s.pool, s.l)
 
 	if err != nil {
 		return nil, nil, err
@@ -609,7 +609,7 @@ func (s *stepRunEngineRepository) ReleaseStepRunSemaphore(ctx context.Context, t
 	}
 
 	if isUserTriggered {
-		tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, s.pool, s.l, 5000)
+		tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, s.pool, s.l)
 
 		if err != nil {
 			return err
@@ -739,7 +739,7 @@ func (s *stepRunEngineRepository) ProcessStepRunUpdatesV2(ctx context.Context, q
 		limit = s.cf.SingleQueueLimit * s.updateConcurrentFactor
 	}
 
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, s.pool, s.l, 25000)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, s.pool, s.l)
 
 	if err != nil {
 		return emptyRes, err
@@ -961,7 +961,7 @@ func (s *stepRunEngineRepository) bulkProcessStepRunUpdates(ctx context.Context,
 	pgTenantId pgtype.UUID,
 ) (completedWorkflowRuns []*dbsqlc.ResolveWorkflowRunStatusRow, err error) {
 
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, s.pool, s.l, 25000)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, s.pool, s.l)
 
 	if err != nil {
 		return nil, err
@@ -1516,7 +1516,7 @@ func (s *stepRunEngineRepository) ReplayStepRun(ctx context.Context, tenantId, s
 	ctx, span := telemetry.NewSpan(ctx, "replay-step-run")
 	defer span.End()
 
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, s.pool, s.l, 5000)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, s.pool, s.l)
 
 	if err != nil {
 		return nil, err
@@ -1762,7 +1762,7 @@ func (s *stepRunEngineRepository) doCachedUpsertOfQueue(ctx context.Context, ten
 	cacheKey := fmt.Sprintf("t-%s-q-%s", tenantId, innerStepRun.SRQueue)
 
 	_, err := cache.MakeCacheable(s.queueActionTenantCache, cacheKey, func() (*bool, error) {
-		tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, s.pool, s.l, 5000)
+		tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, s.pool, s.l)
 
 		if err != nil {
 			return nil, err
@@ -2101,7 +2101,7 @@ func (s *stepRunEngineRepository) RefreshTimeoutBy(ctx context.Context, tenantId
 		return pgtype.Timestamp{}, err
 	}
 
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, s.pool, s.l, 5000)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, s.pool, s.l)
 
 	if err != nil {
 		return pgtype.Timestamp{}, err

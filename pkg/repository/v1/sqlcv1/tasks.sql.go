@@ -360,7 +360,8 @@ WITH lookup_rows AS (
         t.parent_task_id,
         t.child_index,
         t.child_key,
-        d.external_id AS workflow_run_external_id
+        d.external_id AS workflow_run_external_id,
+        t.step_readable_id
     FROM
         lookup_rows l
     JOIN
@@ -384,7 +385,8 @@ SELECT
     t.parent_task_id,
     t.child_index,
     t.child_key,
-    t.external_id AS workflow_run_external_id
+    t.external_id AS workflow_run_external_id,
+    t.step_readable_id
 FROM
     lookup_rows l
 JOIN
@@ -395,7 +397,7 @@ WHERE
 UNION ALL
 
 SELECT
-    id, inserted_at, retry_count, external_id, workflow_run_id, additional_metadata, dag_id, dag_inserted_at, parent_task_id, child_index, child_key, workflow_run_external_id
+    id, inserted_at, retry_count, external_id, workflow_run_id, additional_metadata, dag_id, dag_inserted_at, parent_task_id, child_index, child_key, workflow_run_external_id, step_readable_id
 FROM
     tasks_from_dags
 `
@@ -418,6 +420,7 @@ type FlattenExternalIdsRow struct {
 	ChildIndex            pgtype.Int8        `json:"child_index"`
 	ChildKey              pgtype.Text        `json:"child_key"`
 	WorkflowRunExternalID pgtype.UUID        `json:"workflow_run_external_id"`
+	StepReadableID        string             `json:"step_readable_id"`
 }
 
 // Union the tasks from the lookup table with the tasks from the DAGs
@@ -443,6 +446,7 @@ func (q *Queries) FlattenExternalIds(ctx context.Context, db DBTX, arg FlattenEx
 			&i.ChildIndex,
 			&i.ChildKey,
 			&i.WorkflowRunExternalID,
+			&i.StepReadableID,
 		); err != nil {
 			return nil, err
 		}

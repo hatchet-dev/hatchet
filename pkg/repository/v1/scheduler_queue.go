@@ -27,12 +27,14 @@ type RateLimitResult struct {
 	RetryCount     int32
 }
 
-const rateLimitedRequeueAfterThreshold = 2 * time.Second
-
 type AssignedItem struct {
 	WorkerId pgtype.UUID
 
 	QueueItem *sqlcv1.V1QueueItem
+
+	// IsAssignedLocally refers to whether the item has been assigned to a worker registered in the same
+	// process as the scheduler process.
+	IsAssignedLocally bool
 }
 
 type AssignResults struct {
@@ -180,19 +182,38 @@ func (d *queueRepository) updateMinId() {
 }
 
 func (d *queueRepository) MarkQueueItemsProcessed(ctx context.Context, r *AssignResults) (succeeded []*AssignedItem, failed []*AssignedItem, err error) {
-	ctx, span := telemetry.NewSpan(ctx, "mark-queue-items-processed")
-	defer span.End()
-
-	start := time.Now()
-	checkpoint := start
-
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, d.pool, d.l, 5000)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, d.pool, d.l)
 
 	if err != nil {
 		return nil, nil, err
 	}
 
 	defer rollback()
+
+	succeeded, failed, err = d.markQueueItemsProcessed(ctx, d.tenantId, r, tx, false)
+
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if err := commit(ctx); err != nil {
+		return nil, nil, err
+	}
+
+	go func() {
+		// if we committed, we can update the min id
+		d.updateMinId()
+	}()
+
+	return succeeded, failed, nil
+}
+
+func (d *sharedRepository) markQueueItemsProcessed(ctx context.Context, tenantId pgtype.UUID, r *AssignResults, tx sqlcv1.DBTX, isOptimistic bool) (succeeded []*AssignedItem, failed []*AssignedItem, err error) {
+	ctx, span := telemetry.NewSpan(ctx, "mark-queue-items-processed")
+	defer span.End()
+
+	start := time.Now()
+	checkpoint := start
 
 	durPrepare := time.Since(checkpoint)
 	checkpoint = time.Now()
@@ -244,10 +265,12 @@ func (d *queueRepository) MarkQueueItemsProcessed(ctx context.Context, r *Assign
 		return nil, nil, err
 	}
 
-	_, err = d.releaseTasks(ctx, tx, sqlchelpers.UUIDToStr(d.tenantId), tasksToRelease)
+	if !isOptimistic {
+		_, err = d.releaseTasks(ctx, tx, sqlchelpers.UUIDToStr(tenantId), tasksToRelease)
 
-	if err != nil {
-		return nil, nil, err
+		if err != nil {
+			return nil, nil, err
+		}
 	}
 
 	queuedItemsMap := make(map[int64]struct{}, len(queuedItemIds))
@@ -284,7 +307,7 @@ func (d *queueRepository) MarkQueueItemsProcessed(ctx context.Context, r *Assign
 		Taskinsertedats:   taskInsertedAts,
 		Mintaskinsertedat: minTaskInsertedAt,
 		Workerids:         workerIds,
-		Tenantid:          d.tenantId,
+		Tenantid:          tenantId,
 	})
 
 	if err != nil {
@@ -292,15 +315,6 @@ func (d *queueRepository) MarkQueueItemsProcessed(ctx context.Context, r *Assign
 	}
 
 	timeAfterUpdateStepRuns := time.Since(checkpoint)
-
-	if err := commit(ctx); err != nil {
-		return nil, nil, err
-	}
-
-	go func() {
-		// if we committed, we can update the min id
-		d.updateMinId()
-	}()
 
 	succeeded = make([]*AssignedItem, 0, len(r.Assigned))
 	failed = make([]*AssignedItem, 0, len(r.Assigned))
@@ -570,15 +584,28 @@ func (d *queueRepository) GetDesiredLabels(ctx context.Context, stepIds []pgtype
 	ctx, span := telemetry.NewSpan(ctx, "get-desired-labels")
 	defer span.End()
 
+	stepIdsToLookup := make([]pgtype.UUID, 0, len(stepIds))
+	stepIdToLabels := make(map[string][]*sqlcv1.GetDesiredLabelsRow)
+
 	uniqueStepIds := sqlchelpers.UniqueSet(stepIds)
 
-	labels, err := d.queries.GetDesiredLabels(ctx, d.pool, uniqueStepIds)
+	for _, stepId := range uniqueStepIds {
+		if value, found := d.stepIdLabelsCache.Get(sqlchelpers.UUIDToStr(stepId)); found {
+			stepIdToLabels[sqlchelpers.UUIDToStr(stepId)] = value
+		} else {
+			stepIdsToLookup = append(stepIdsToLookup, stepId)
+		}
+	}
+
+	if len(stepIdsToLookup) == 0 {
+		return stepIdToLabels, nil
+	}
+
+	labels, err := d.queries.GetDesiredLabels(ctx, d.pool, stepIdsToLookup)
 
 	if err != nil {
 		return nil, err
 	}
-
-	stepIdToLabels := make(map[string][]*sqlcv1.GetDesiredLabelsRow)
 
 	for _, label := range labels {
 		stepId := sqlchelpers.UUIDToStr(label.StepId)
@@ -590,11 +617,15 @@ func (d *queueRepository) GetDesiredLabels(ctx context.Context, stepIds []pgtype
 		stepIdToLabels[stepId] = append(stepIdToLabels[stepId], label)
 	}
 
+	for stepId, labels := range stepIdToLabels {
+		d.stepIdLabelsCache.Add(stepId, labels)
+	}
+
 	return stepIdToLabels, nil
 }
 
 func (d *queueRepository) RequeueRateLimitedItems(ctx context.Context, tenantId pgtype.UUID, queueName string) ([]*sqlcv1.RequeueRateLimitedQueueItemsRow, error) {
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, d.pool, d.l, 5000)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, d.pool, d.l)
 
 	if err != nil {
 		return nil, err

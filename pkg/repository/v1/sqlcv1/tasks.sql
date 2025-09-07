@@ -89,7 +89,8 @@ WITH lookup_rows AS (
         t.parent_task_id,
         t.child_index,
         t.child_key,
-        d.external_id AS workflow_run_external_id
+        d.external_id AS workflow_run_external_id,
+        t.step_readable_id
     FROM
         lookup_rows l
     JOIN
@@ -114,7 +115,8 @@ SELECT
     t.parent_task_id,
     t.child_index,
     t.child_key,
-    t.external_id AS workflow_run_external_id
+    t.external_id AS workflow_run_external_id,
+    t.step_readable_id
 FROM
     lookup_rows l
 JOIN

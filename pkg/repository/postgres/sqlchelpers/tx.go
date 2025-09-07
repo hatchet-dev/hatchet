@@ -12,7 +12,35 @@ import (
 	"github.com/rs/zerolog"
 )
 
-func PrepareTx(ctx context.Context, pool *pgxpool.Pool, l *zerolog.Logger, timeoutMs int) (pgx.Tx, func(context.Context) error, func(), error) {
+func PrepareTx(ctx context.Context, pool *pgxpool.Pool, l *zerolog.Logger) (pgx.Tx, func(context.Context) error, func(), error) {
+	start := time.Now()
+
+	tx, err := pool.Begin(ctx)
+
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	if sinceStart := time.Since(start); sinceStart > 100*time.Millisecond {
+		l.Warn().Dur(
+			"duration", sinceStart,
+		).Int(
+			"acquired_connections", int(pool.Stat().AcquiredConns()),
+		).Caller(1).Msg("long transaction start")
+	}
+
+	commit := func(ctx context.Context) error {
+		return tx.Commit(ctx)
+	}
+
+	rollback := func() {
+		DeferRollback(ctx, l, tx.Rollback)
+	}
+
+	return tx, commit, rollback, nil
+}
+
+func PrepareTxWithStatementTimeout(ctx context.Context, pool *pgxpool.Pool, l *zerolog.Logger, timeoutMs int) (pgx.Tx, func(context.Context) error, func(), error) {
 	start := time.Now()
 
 	tx, err := pool.Begin(ctx)
@@ -44,7 +72,6 @@ func PrepareTx(ctx context.Context, pool *pgxpool.Pool, l *zerolog.Logger, timeo
 		DeferRollback(ctx, l, tx.Rollback)
 	}
 
-	// set tx timeout to 5 seconds to avoid deadlocks
 	_, err = tx.Exec(ctx, fmt.Sprintf("SET statement_timeout=%d", timeoutMs))
 
 	if err != nil {

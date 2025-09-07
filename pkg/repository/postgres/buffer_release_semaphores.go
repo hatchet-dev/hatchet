@@ -76,7 +76,7 @@ func (w *sharedRepository) bulkReleaseSemaphores(ctx context.Context, opts []sem
 	}
 
 	err = sqlchelpers.DeadlockRetry(w.l, func() (err error) {
-		tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, w.pool, w.l, 5000)
+		tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, w.pool, w.l)
 
 		if err != nil {
 			return err
@@ -98,7 +98,7 @@ func (w *sharedRepository) bulkReleaseSemaphores(ctx context.Context, opts []sem
 	}
 
 	err = sqlchelpers.DeadlockRetry(w.l, func() (err error) {
-		tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, w.pool, w.l, 5000)
+		tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, w.pool, w.l)
 
 		if err != nil {
 			return err

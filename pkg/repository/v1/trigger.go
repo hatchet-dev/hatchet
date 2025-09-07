@@ -130,7 +130,7 @@ type TriggerDecision struct {
 	FilterId      *string
 }
 
-func (r *TriggerRepositoryImpl) makeTriggerDecisions(ctx context.Context, filters []*sqlcv1.V1Filter, hasAnyFilters bool, opt EventTriggerOpts) ([]TriggerDecision, []CELEvaluationFailure) {
+func (r *sharedRepository) makeTriggerDecisions(ctx context.Context, filters []*sqlcv1.V1Filter, hasAnyFilters bool, opt EventTriggerOpts) ([]TriggerDecision, []CELEvaluationFailure) {
 	celEvaluationFailures := make([]CELEvaluationFailure, 0)
 
 	// Cases to handle:
@@ -388,7 +388,7 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 		}
 	}
 
-	tasks, dags, err := r.triggerWorkflows(ctx, tenantId, triggerOpts)
+	tasks, dags, err := r.triggerWorkflows(ctx, tenantId, triggerOpts, nil)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to trigger workflows: %w", err)
@@ -491,7 +491,7 @@ func (r *TriggerRepositoryImpl) TriggerFromWorkflowNames(ctx context.Context, te
 		}
 	}
 
-	return r.triggerWorkflows(ctx, tenantId, triggerOpts)
+	return r.triggerWorkflows(ctx, tenantId, triggerOpts, nil)
 }
 
 type ErrNamesNotFound struct {
@@ -504,54 +504,34 @@ func (e *ErrNamesNotFound) Error() string {
 
 func (r *TriggerRepositoryImpl) PreflightVerifyWorkflowNameOpts(ctx context.Context, tenantId string, opts []*WorkflowNameTriggerOpts) error {
 	// get a list of workflow names
-	workflowNames := make(map[string]bool)
+	workflowNamesFound := make(map[string]bool)
 
 	for _, opt := range opts {
-		workflowNames[opt.WorkflowName] = true
+		workflowNamesFound[opt.WorkflowName] = false
 	}
 
-	uniqueWorkflowNames := make([]string, 0, len(workflowNames))
+	uniqueWorkflowNames := make([]string, 0, len(workflowNamesFound))
 
-	for name := range workflowNames {
+	for name := range workflowNamesFound {
 		uniqueWorkflowNames = append(uniqueWorkflowNames, name)
 	}
 
-	// lookup names in the cache
-	workflowNamesToLookup := make([]string, 0)
-
-	for _, name := range uniqueWorkflowNames {
-		k := fmt.Sprintf("%s:%s", tenantId, name)
-		if _, ok := r.tenantIdWorkflowNameCache.Get(k); ok {
-			delete(workflowNames, name)
-			continue
-		}
-
-		workflowNamesToLookup = append(workflowNamesToLookup, name)
-	}
-
-	// look up the workflow versions for the workflow names
-	workflowVersions, err := r.queries.ListWorkflowsByNames(ctx, r.pool, sqlcv1.ListWorkflowsByNamesParams{
-		Tenantid:      sqlchelpers.UUIDFromStr(tenantId),
-		Workflownames: workflowNamesToLookup,
-	})
+	rows, err := r.listWorkflowsByNames(ctx, r.pool, tenantId, uniqueWorkflowNames)
 
 	if err != nil {
 		return fmt.Errorf("failed to list workflows by names: %w", err)
 	}
 
-	for _, workflowVersion := range workflowVersions {
-		// store in the cache
-		k := fmt.Sprintf("%s:%s", tenantId, workflowVersion.WorkflowName)
-
-		r.tenantIdWorkflowNameCache.Set(k, true)
-
-		delete(workflowNames, workflowVersion.WorkflowName)
+	for _, row := range rows {
+		workflowNamesFound[row.WorkflowName] = true
 	}
 
 	workflowNamesNotFound := make([]string, 0)
 
-	for name := range workflowNames {
-		workflowNamesNotFound = append(workflowNamesNotFound, name)
+	for name, found := range workflowNamesFound {
+		if !found {
+			workflowNamesNotFound = append(workflowNamesNotFound, name)
+		}
 	}
 
 	if len(workflowNamesNotFound) > 0 {
@@ -638,7 +618,12 @@ type triggerTuple struct {
 	childKey             *string
 }
 
-func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId string, tuples []triggerTuple) ([]*sqlcv1.V1Task, []*DAGWithData, error) {
+func (r *sharedRepository) triggerWorkflows(
+	ctx context.Context,
+	tenantId string,
+	tuples []triggerTuple,
+	existingTx *OptimisticTx,
+) ([]*sqlcv1.V1Task, []*DAGWithData, error) {
 	// get unique workflow version ids
 	uniqueWorkflowVersionIds := make(map[string]struct{})
 
@@ -654,25 +639,30 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 	}
 
 	// get steps for the workflow versions
-	steps, err := r.queries.ListStepsByWorkflowVersionIds(ctx, r.pool, sqlcv1.ListStepsByWorkflowVersionIdsParams{
-		Ids:      workflowVersionIds,
-		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
-	})
+	var listStepsTx sqlcv1.DBTX = r.pool
+
+	if existingTx != nil {
+		listStepsTx = existingTx.tx
+	}
+
+	workflowVersionToSteps, err := r.listStepsByWorkflowVersionIds(ctx, listStepsTx, tenantId, workflowVersionIds)
 
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to get workflow versions for engine: %w", err)
 	}
 
 	// group steps by workflow version ids
-	workflowVersionToSteps := make(map[string][]*sqlcv1.ListStepsByWorkflowVersionIdsRow)
 	stepIdsToReadableIds := make(map[string]string)
+	stepsWithAdditionalMatchConditions := make([]pgtype.UUID, 0)
 
-	for _, step := range steps {
-		workflowVersionId := sqlchelpers.UUIDToStr(step.WorkflowVersionId)
+	for _, steps := range workflowVersionToSteps {
+		for _, step := range steps {
+			stepIdsToReadableIds[sqlchelpers.UUIDToStr(step.ID)] = step.ReadableId.String
 
-		workflowVersionToSteps[workflowVersionId] = append(workflowVersionToSteps[workflowVersionId], step)
-
-		stepIdsToReadableIds[sqlchelpers.UUIDToStr(step.ID)] = step.ReadableId.String
+			if step.MatchConditionCount > 0 {
+				stepsWithAdditionalMatchConditions = append(stepsWithAdditionalMatchConditions, step.ID)
+			}
+		}
 	}
 
 	countWorkflowRuns := 0
@@ -700,15 +690,6 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 
 	if err := preTask(); err != nil {
 		return nil, nil, err
-	}
-
-	// if any steps have additional match conditions, query for the additional matches
-	stepsWithAdditionalMatchConditions := make([]pgtype.UUID, 0)
-
-	for _, step := range steps {
-		if step.MatchConditionCount > 0 {
-			stepsWithAdditionalMatchConditions = append(stepsWithAdditionalMatchConditions, step.ID)
-		}
 	}
 
 	stepsToAdditionalMatches := make(map[string][]*sqlcv1.V1StepMatchCondition)
@@ -791,13 +772,21 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 		}
 	}
 
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 5000)
+	var commit func(context.Context) error
+	var rollback func()
+	var tx sqlcv1.DBTX
 
-	if err != nil {
-		return nil, nil, err
+	if existingTx == nil {
+		tx, commit, rollback, err = sqlchelpers.PrepareTx(ctx, r.pool, r.l)
+
+		if err != nil {
+			return nil, nil, err
+		}
+
+		defer rollback()
+	} else {
+		tx = existingTx.tx
 	}
-
-	defer rollback()
 
 	// check if we should skip the creation of any workflows if they're child workflows which
 	// already have a signal registered
@@ -1209,13 +1198,18 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 		return nil, nil, fmt.Errorf("failed to create event matches: %w", err)
 	}
 
-	// commit
-	if err := commit(ctx); err != nil {
-		return nil, nil, err
-	}
+	// commit if we started the transaction
+	if existingTx == nil {
+		if err := commit(ctx); err != nil {
+			return nil, nil, err
+		}
 
-	postWR()
-	postTask()
+		postWR()
+		postTask()
+	} else {
+		existingTx.AddPostCommit(postWR)
+		existingTx.AddPostCommit(postTask)
+	}
 
 	return tasks, dags, nil
 }
@@ -1232,7 +1226,7 @@ type DAGWithData struct {
 	TotalTasks int
 }
 
-func (r *TriggerRepositoryImpl) createDAGs(ctx context.Context, tx sqlcv1.DBTX, tenantId string, opts []createDAGOpts) ([]*DAGWithData, error) {
+func (r *sharedRepository) createDAGs(ctx context.Context, tx sqlcv1.DBTX, tenantId string, opts []createDAGOpts) ([]*DAGWithData, error) {
 	if len(opts) == 0 {
 		return nil, nil
 	}
@@ -1331,7 +1325,7 @@ func (r *TriggerRepositoryImpl) createDAGs(ctx context.Context, tx sqlcv1.DBTX, 
 	return res, nil
 }
 
-func (r *TriggerRepositoryImpl) registerChildWorkflows(
+func (r *sharedRepository) registerChildWorkflows(
 	ctx context.Context,
 	tx sqlcv1.DBTX,
 	tenantId string,
@@ -1760,4 +1754,85 @@ func (r *sharedRepository) processWorkflowExpression(ctx context.Context, expres
 	}
 
 	return match, nil
+}
+
+func (r *sharedRepository) listWorkflowsByNames(ctx context.Context, tx sqlcv1.DBTX, tenantId string, names []string) ([]*sqlcv1.ListWorkflowsByNamesRow, error) {
+	// lookup names in the cache
+	workflowNamesToLookup := make([]string, 0)
+	res := make([]*sqlcv1.ListWorkflowsByNamesRow, 0, len(names))
+
+	for _, name := range names {
+		k := fmt.Sprintf("%s:%s", tenantId, name)
+		if value, ok := r.tenantIdWorkflowNameCache.Get(k); ok {
+			res = append(res, value)
+			continue
+		}
+
+		workflowNamesToLookup = append(workflowNamesToLookup, name)
+	}
+
+	// look up the workflow versions for the workflow names
+	workflowVersions, err := r.queries.ListWorkflowsByNames(ctx, tx, sqlcv1.ListWorkflowsByNamesParams{
+		Tenantid:      sqlchelpers.UUIDFromStr(tenantId),
+		Workflownames: workflowNamesToLookup,
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to list workflows by names: %w", err)
+	}
+
+	for _, workflowVersion := range workflowVersions {
+		// store in the cache
+		k := fmt.Sprintf("%s:%s", tenantId, workflowVersion.WorkflowName)
+
+		r.tenantIdWorkflowNameCache.Add(k, workflowVersion)
+
+		res = append(res, workflowVersion)
+	}
+
+	return res, nil
+}
+
+func (r *sharedRepository) listStepsByWorkflowVersionIds(ctx context.Context, tx sqlcv1.DBTX, tenantId string, workflowVersionIds []pgtype.UUID) (map[string][]*sqlcv1.ListStepsByWorkflowVersionIdsRow, error) {
+	if len(workflowVersionIds) == 0 {
+		return make(map[string][]*sqlcv1.ListStepsByWorkflowVersionIdsRow), nil
+	}
+
+	workflowVersionsToLookup := make([]pgtype.UUID, 0, len(workflowVersionIds))
+	res := make(map[string][]*sqlcv1.ListStepsByWorkflowVersionIdsRow)
+
+	for _, pgId := range workflowVersionIds {
+		id := sqlchelpers.UUIDToStr(pgId)
+		if steps, found := r.stepsInWorkflowVersionCache.Get(id); found {
+			res[id] = steps
+			continue
+		}
+
+		workflowVersionsToLookup = append(workflowVersionsToLookup, sqlchelpers.UUIDFromStr(id))
+	}
+
+	steps, err := r.queries.ListStepsByWorkflowVersionIds(ctx, tx, sqlcv1.ListStepsByWorkflowVersionIdsParams{
+		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+		Ids:      workflowVersionsToLookup,
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to list steps by workflow version ids: %w", err)
+	}
+
+	for _, step := range steps {
+		k := sqlchelpers.UUIDToStr(step.WorkflowVersionId)
+		res[k] = append(res[k], step)
+	}
+
+	// update the cache with all entries we looked up
+	for _, id := range workflowVersionsToLookup {
+		k := sqlchelpers.UUIDToStr(id)
+
+		if steps, ok := res[k]; ok {
+			r.stepsInWorkflowVersionCache.Add(k, steps)
+		}
+	}
+
+	return res, nil
 }

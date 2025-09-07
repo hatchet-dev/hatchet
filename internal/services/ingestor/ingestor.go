@@ -10,7 +10,9 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	msgqueuev1 "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
+	"github.com/hatchet-dev/hatchet/internal/services/dispatcher"
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor/contracts"
+	scheduler "github.com/hatchet-dev/hatchet/internal/services/scheduler/v1"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
@@ -44,6 +46,8 @@ type IngestorOpts struct {
 	mqv1                   msgqueuev1.MessageQueue
 	repov1                 v1.Repository
 	isLogIngestionEnabled  bool
+	localScheduler         *scheduler.Scheduler
+	localDispatcher        *dispatcher.DispatcherImpl
 }
 
 func WithEventRepository(r repository.EventEngineRepository) IngestorOptFunc {
@@ -100,6 +104,18 @@ func WithLogIngestionEnabled(isEnabled bool) IngestorOptFunc {
 	}
 }
 
+func WithLocalScheduler(s *scheduler.Scheduler) IngestorOptFunc {
+	return func(opts *IngestorOpts) {
+		opts.localScheduler = s
+	}
+}
+
+func WithLocalDispatcher(d *dispatcher.DispatcherImpl) IngestorOptFunc {
+	return func(opts *IngestorOpts) {
+		opts.localDispatcher = d
+	}
+}
+
 func defaultIngestorOpts() *IngestorOpts {
 	return &IngestorOpts{
 		isLogIngestionEnabled: true,
@@ -121,6 +137,9 @@ type IngestorImpl struct {
 	v      validator.Validator
 	l      *zerolog.Logger
 	repov1 v1.Repository
+
+	localScheduler  *scheduler.Scheduler
+	localDispatcher *dispatcher.DispatcherImpl
 
 	isLogIngestionEnabled bool
 }
@@ -182,6 +201,8 @@ func NewIngestor(fs ...IngestorOptFunc) (Ingestor, error) {
 		repov1:                   opts.repov1,
 		isLogIngestionEnabled:    opts.isLogIngestionEnabled,
 		l:                        &logger,
+		localScheduler:           opts.localScheduler,
+		localDispatcher:          opts.localDispatcher,
 	}, nil
 }
 

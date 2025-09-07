@@ -127,7 +127,7 @@ func (r *workflowAPIRepository) UpdateWorkflow(ctx context.Context, tenantId, wo
 		}
 	}
 
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 25000)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l)
 
 	if err != nil {
 		return nil, err
