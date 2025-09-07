@@ -77,7 +77,7 @@ func RunTestWithEngine(m *testing.M) {
 			goleak.IgnoreTopFunction("github.com/rabbitmq/amqp091-go.(*Connection).heartbeater"),
 			goleak.IgnoreTopFunction("github.com/rabbitmq/amqp091-go.(*consumers).buffer"),
 			goleak.IgnoreTopFunction("google.golang.org/grpc/internal/transport.(*http2Server).keepalive"),
-			goleak.IgnoreTopFunction("github.com/hashicorp/golang-lru/v2/expirable.NewLRU[...].func1()"),
+			goleak.IgnoreTopFunction("github.com/hashicorp/golang-lru/v2/expirable.NewLRU[...].func1"),
 		); err != nil {
 			fmt.Fprintf(os.Stderr, "goleak: Errors on successful test run: %v\n", err)
 			exitCode = 1
