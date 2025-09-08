@@ -996,6 +996,10 @@ func (tc *TasksControllerImpl) handleProcessUserEventTrigger(ctx context.Context
 	eventIdToOpts := make(map[string]v1.EventTriggerOpts)
 
 	for _, msg := range msgs {
+		if msg.WasProcessedLocally {
+			continue
+		}
+
 		opt := v1.EventTriggerOpts{
 			ExternalId:            msg.EventExternalId,
 			Key:                   msg.EventKey,

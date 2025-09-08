@@ -89,6 +89,8 @@ func (i *IngestorImpl) ingest(ctx context.Context, tenant *dbsqlc.Tenant, eventO
 		res = append(res, e)
 	}
 
+	wasProcessedLocally := false
+
 	if i.localScheduler != nil {
 		localWorkerIds := map[string]struct{}{}
 
@@ -138,15 +140,12 @@ func (i *IngestorImpl) ingest(ctx context.Context, tenant *dbsqlc.Tenant, eventO
 			if dispatcherErr != nil {
 				i.l.Error().Err(dispatcherErr).Msg("could not handle local assignments")
 			}
-
-			// we return nil because the failed assignments would have been requeued by the local dispatcher,
-			// and we have already written the tasks to the database
-			return res, nil
 		}
 
-		// if there's no scheduling error, we return here because the tasks have been scheduled optimistically
+		// if there's no scheduling error, the event was processed locally. Note that we don't return here because
+		// we still need to enqueue the event to ensure downstream processing (triggers, durable events)
 		if schedulingErr == nil {
-			return res, nil
+			wasProcessedLocally = true
 		}
 	}
 
@@ -156,6 +155,8 @@ func (i *IngestorImpl) ingest(ctx context.Context, tenant *dbsqlc.Tenant, eventO
 	var outerErr error
 
 	for _, event := range eventOpts {
+		event.WasProcessedLocally = wasProcessedLocally
+
 		msg, err := msgqueue.NewTenantMessage(
 			tenantId,
 			"user-event",
