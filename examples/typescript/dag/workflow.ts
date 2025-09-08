@@ -40,3 +40,16 @@ dag.task({
     };
   },
 });
+
+// > Accessing Parent Outputs
+dag.task({
+  name: 'task-with-parent-output',
+  parents: [toLower],
+  fn: async (input, ctx) => {
+    const lower = await ctx.parentOutput(toLower);
+    return {
+      Original: input.Message,
+      Transformed: lower.TransformedMessage.split('').reverse().join(''),
+    };
+  },
+});

@@ -14,3 +14,15 @@ async function main() {
   const cron = await simple.cron('simple-daily', '0 0 * * *', input);
   // !!
 }
+
+async function runFlavors() {
+  // > Run method flavors
+  const input = { Message: 'Hello, World!' };
+
+  // Run workflow and wait for the result
+  const result = await simple.run(input);
+
+  // Enqueue workflow to be executed asynchronously
+  const runReference = await simple.runNoWait(input);
+  // !!
+}
