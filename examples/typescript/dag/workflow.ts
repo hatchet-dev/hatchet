@@ -1,5 +1,6 @@
 import { hatchet } from '../hatchet-client';
 
+// > Declaring Types
 type DagInput = {
   Message: string;
 };

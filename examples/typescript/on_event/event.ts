@@ -8,6 +8,19 @@ async function main() {
     ShouldSkip: false,
   });
 
+  // > Push an Event with Metadata
+  const withMetadata = await hatchet.events.push(
+    'user:create',
+    {
+      test: 'test',
+    },
+    {
+      additionalMetadata: {
+        source: 'api', // Arbitrary key-value pair
+      },
+    }
+  );
+
   console.log(res.eventId);
 }
 

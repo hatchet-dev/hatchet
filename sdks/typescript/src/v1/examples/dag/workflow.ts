@@ -1,5 +1,6 @@
 import { hatchet } from '../hatchet-client';
 
+// > Declaring Types
 type DagInput = {
   Message: string;
 };
@@ -10,6 +11,7 @@ type DagOutput = {
     Transformed: string;
   };
 };
+// !!
 
 // > Declaring a DAG Workflow
 // First, we declare the workflow
