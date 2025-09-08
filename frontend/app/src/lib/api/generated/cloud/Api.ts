@@ -1126,6 +1126,7 @@ export class Api<
   /**
    * @description List all organization invites for an organization
    *
+   * @tags Management
    * @name OrganizationInviteList
    * @summary List Organization Invites for Organization
    * @request GET:/api/v1/management/organizations/{organization}/invites
@@ -1142,6 +1143,7 @@ export class Api<
   /**
    * @description Create a new organization invite
    *
+   * @tags Management
    * @name OrganizationInviteCreate
    * @summary Create Organization Invite for Organization
    * @request POST:/api/v1/management/organizations/{organization}/invites

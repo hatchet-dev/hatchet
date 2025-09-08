@@ -27,7 +27,7 @@ export enum TenantStatus {
   Archived = "archived",
 }
 
-export enum OrganizationMemberType {
+export enum OrganizationMemberRoleType {
   OWNER = "OWNER",
 }
 
@@ -654,13 +654,8 @@ export interface UpdateOrganizationRequest {
 
 export interface OrganizationMember {
   metadata: APIResourceMeta;
-  /**
-   * ID of the user
-   * @format uuid
-   */
-  userId: string;
   /** Type/role of the member in the organization */
-  memberType: OrganizationMemberType;
+  role: OrganizationMemberRoleType;
   /**
    * Email of the user
    * @format email
@@ -776,7 +771,7 @@ export interface OrganizationInvite {
   /** The status of the invite */
   status: OrganizationInviteStatus;
   /** The role of the invitee */
-  role: OrganizationMemberType;
+  role: OrganizationMemberRoleType;
 }
 
 export interface OrganizationInviteList {
@@ -790,7 +785,7 @@ export interface CreateOrganizationInviteRequest {
    */
   inviteeEmail: string;
   /** The role of the invitee */
-  role: OrganizationMemberType;
+  role: OrganizationMemberRoleType;
 }
 
 export interface AcceptOrganizationInviteRequest {

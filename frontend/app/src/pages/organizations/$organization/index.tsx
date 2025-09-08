@@ -436,7 +436,7 @@ export default function OrganizationPage() {
                             {member.email}
                           </TableCell>
                           <TableCell>
-                            <Badge variant="default">{member.memberType}</Badge>
+                            <Badge variant="default">{member.role}</Badge>
                           </TableCell>
                           <TableCell>
                             <DropdownMenu>
@@ -498,7 +498,7 @@ export default function OrganizationPage() {
                           <span className="font-mono text-sm">
                             {member.email}
                           </span>
-                          <Badge variant="default">{member.memberType}</Badge>
+                          <Badge variant="default">{member.role}</Badge>
                         </div>
                         {currentUserQuery.data?.email !== member.email && (
                           <DropdownMenu>
