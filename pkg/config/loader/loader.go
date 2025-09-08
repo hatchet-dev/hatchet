@@ -594,6 +594,8 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		return nil, nil, fmt.Errorf("could not create scheduling pool (v1): %w", err)
 	}
 
+	schedulingPoolV1.Extensions.Add(v1.NewPrometheusExtension())
+
 	cleanup = func() error {
 		log.Printf("cleaning up server config")
 
