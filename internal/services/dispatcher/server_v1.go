@@ -468,6 +468,7 @@ func (d *DispatcherImpl) subscribeToWorkflowRunsV1(server contracts.Dispatcher_S
 			}
 
 			acks.addWorkflowRun(req.WorkflowRunId)
+			go iter([]string{req.WorkflowRunId}) // nolint: errcheck
 		}
 	}()
 
@@ -1340,7 +1341,7 @@ func (d *DispatcherImpl) isMatchingWorkflowRunV1(msg *msgqueue.Message, acks *wo
 		payloads := msgqueue.JSONConvert[tasktypes.CompletedTaskPayload](msg.Payloads)
 
 		for _, payload := range payloads {
-			if payload.IsDAG && acks.hasWorkflowRun(payload.WorkflowRunId) {
+			if !payload.IsDAG && acks.hasWorkflowRun(payload.ExternalId) {
 				output := string(payload.Output)
 
 				res = append(res, &contracts.WorkflowRunEvent{
