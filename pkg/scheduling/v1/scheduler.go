@@ -852,7 +852,6 @@ func (s *Scheduler) getSnapshotInput(mustSnapshot bool) (*SnapshotInput, bool) {
 		workerSlotUtilization[workerId] = &SlotUtilization{
 			UtilizedSlots:    0,
 			NonUtilizedSlots: 0,
-			TotalSlots:       0,
 		}
 	}
 
@@ -876,12 +875,10 @@ func (s *Scheduler) getSnapshotInput(mustSnapshot bool) (*SnapshotInput, bool) {
 				workerSlotUtilization[workerId] = &SlotUtilization{
 					UtilizedSlots:    0,
 					NonUtilizedSlots: 0,
-					TotalSlots:       0,
 				}
 			}
 
 			uniqueSlots[slot] = true
-			workerSlotUtilization[workerId].TotalSlots++
 
 			if slot.isUsed() {
 				workerSlotUtilization[workerId].UtilizedSlots++

@@ -60,13 +60,11 @@ func (p *PrometheusExtension) ReportSnapshot(tenantId string, input *SnapshotInp
 	}
 
 	for promLabels, utilization := range workerPromLabelsToSlotData {
-		totalSlots := float64(utilization.TotalSlots)
 		usedSlots := float64(utilization.UtilizedSlots)
 		availableSlots := float64(utilization.NonUtilizedSlots)
 
-		prometheus.TenantWorkerSlots.WithLabelValues(promLabels.ID, promLabels.Name).Set(totalSlots)
-		prometheus.TenantUsedWorkerSlots.WithLabelValues(promLabels.ID, promLabels.Name).Set(usedSlots)
-		prometheus.TenantAvailableWorkerSlots.WithLabelValues(promLabels.ID, promLabels.Name).Set(availableSlots)
+		prometheus.TenantUsedWorkerSlots.WithLabelValues(tenantId, promLabels.ID, promLabels.Name).Set(usedSlots)
+		prometheus.TenantAvailableWorkerSlots.WithLabelValues(tenantId, promLabels.ID, promLabels.Name).Set(availableSlots)
 	}
 }
 
