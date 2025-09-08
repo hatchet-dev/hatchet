@@ -38,3 +38,34 @@ export const parent = hatchet.task({
     };
   },
 });
+
+// > Parent with Single Child
+export const parentSingleChild = hatchet.task({
+  name: 'parent-single-child',
+  fn: async () => {
+    const childRes = await child.run({ N: 1 });
+
+    return {
+      Result: childRes.Value,
+    };
+  },
+});
+
+// > Parent with Error Handling
+export const withErrorHandling = hatchet.task({
+  name: 'parent-error-handling',
+  fn: async () => {
+    try {
+      const childRes = await child.run({ N: 1 });
+
+      return {
+        Result: childRes.Value,
+      };
+    } catch (error) {
+      // decide how to proceed here
+      return {
+        Result: -1,
+      };
+    }
+  },
+});
