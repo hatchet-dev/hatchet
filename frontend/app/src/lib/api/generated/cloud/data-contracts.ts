@@ -10,6 +10,27 @@
  * ---------------------------------------------------------------
  */
 
+export enum OrganizationInviteStatus {
+  PENDING = "PENDING",
+  ACCEPTED = "ACCEPTED",
+  REJECTED = "REJECTED",
+}
+
+export enum ManagementTokenDuration {
+  Value30D = "30d",
+  Value60D = "60d",
+  Value90D = "90d",
+}
+
+export enum TenantStatus {
+  Active = "active",
+  Archived = "archived",
+}
+
+export enum OrganizationMemberRoleType {
+  OWNER = "OWNER",
+}
+
 export enum TemplateOptions {
   QUICKSTART_PYTHON = "QUICKSTART_PYTHON",
   QUICKSTART_TYPESCRIPT = "QUICKSTART_TYPESCRIPT",
@@ -107,78 +128,13 @@ export interface APICloudMetadata {
   inactivityLogoutMs?: number;
 }
 
-export interface APIErrors {
-  errors: APIError[];
-}
+export type APIErrors = any;
 
-export interface APIError {
-  /**
-   * a custom Hatchet error code
-   * @format uint64
-   * @example 1400
-   */
-  code?: number;
-  /**
-   * the field that this error is associated with, if applicable
-   * @example "name"
-   */
-  field?: string;
-  /**
-   * a description for this error
-   * @example "A descriptive error message"
-   */
-  description: string;
-  /**
-   * a link to the documentation for this error, if it exists
-   * @example "github.com/hatchet-dev/hatchet"
-   */
-  docs_link?: string;
-}
+export type APIError = any;
 
-/** @example {"next_page":3,"num_pages":10,"current_page":2} */
-export interface PaginationResponse {
-  /**
-   * the current page
-   * @format int64
-   * @example 2
-   */
-  current_page?: number;
-  /**
-   * the next page
-   * @format int64
-   * @example 3
-   */
-  next_page?: number;
-  /**
-   * the total number of pages for listing
-   * @format int64
-   * @example 10
-   */
-  num_pages?: number;
-}
+export type PaginationResponse = any;
 
-export interface APIResourceMeta {
-  /**
-   * the id of this resource, in UUID format
-   * @format uuid
-   * @minLength 36
-   * @maxLength 36
-   * @example "bb214807-246e-43a5-a25d-41761d1cff9e"
-   */
-  id: string;
-  /**
-   * the time that this resource was created
-   * @format date-time
-   * @example "2022-12-13T20:06:48.888Z"
-   */
-  createdAt: string;
-  /**
-   * the time that this resource was last updated
-   * @format date-time
-   * @example "2022-12-13T20:06:48.888Z"
-   */
-  updatedAt: string;
-}
+export type APIResourceMeta = any;
 
 export interface GithubBranch {
   branch_name: string;
@@ -654,4 +610,196 @@ export interface MonthlyComputeCost {
   cost: number;
   hasCreditsRemaining: boolean;
   creditsRemaining?: number;
+}
+
+export interface Organization {
+  metadata: APIResourceMeta;
+  /** Name of the organization */
+  name: string;
+  tenants?: OrganizationTenant[];
+  members?: OrganizationMember[];
+}
+
+export interface OrganizationForUser {
+  metadata: APIResourceMeta;
+  /** Name of the organization */
+  name: string;
+  tenants: string[];
+  /** Whether the user is the owner of the organization */
+  isOwner: boolean;
+}
+
+export interface OrganizationForUserList {
+  rows: OrganizationForUser[];
+  pagination: PaginationResponse;
+}
+
+export interface CreateOrganizationRequest {
+  /**
+   * Name of the organization
+   * @minLength 1
+   * @maxLength 256
+   */
+  name: string;
+}
+
+export interface UpdateOrganizationRequest {
+  /**
+   * Name of the organization
+   * @minLength 1
+   * @maxLength 256
+   */
+  name: string;
+}
+
+export interface OrganizationMember {
+  metadata: APIResourceMeta;
+  /** Type/role of the member in the organization */
+  role: OrganizationMemberRoleType;
+  /**
+   * Email of the user
+   * @format email
+   */
+  email: string;
+}
+
+export interface OrganizationMemberList {
+  rows: OrganizationMember[];
+  pagination: PaginationResponse;
+}
+
+export interface InviteOrganizationMembersRequest {
+  /**
+   * Array of user emails to invite to the organization
+   * @minItems 1
+   */
+  emails: string[];
+}
+
+export interface RemoveOrganizationMembersRequest {
+  /**
+   * Array of user emails to remove from the organization
+   * @minItems 1
+   */
+  emails: string[];
+}
+
+export interface OrganizationTenant {
+  /**
+   * ID of the tenant
+   * @format uuid
+   */
+  id: string;
+  /** Status of the tenant */
+  status: TenantStatus;
+  /**
+   * The timestamp at which the tenant was archived
+   * @format date-time
+   */
+  archivedAt?: string;
+}
+
+export interface OrganizationTenantList {
+  rows: OrganizationTenant[];
+}
+
+export interface CreateNewTenantForOrganizationRequest {
+  /** The name of the tenant. */
+  name: string;
+  /** The slug of the tenant. */
+  slug: string;
+}
+
+export type APIToken = any;
+
+export type APITokenList = any;
+
+export type CreateTenantAPITokenRequest = any;
+
+export type CreateTenantAPITokenResponse = any;
+
+export interface CreateManagementTokenRequest {
+  /** The name of the management token. */
+  name: string;
+  /** @default "30d" */
+  duration?: ManagementTokenDuration;
+}
+
+export interface CreateManagementTokenResponse {
+  /** The token of the management token. */
+  token: string;
+}
+
+export interface ManagementToken {
+  /**
+   * The ID of the management token.
+   * @format uuid
+   */
+  id: string;
+  /** The name of the management token. */
+  name: string;
+  /** The duration of the management token. */
+  duration: ManagementTokenDuration;
+}
+
+export interface ManagementTokenList {
+  rows: ManagementToken[];
+}
+
+export interface OrganizationInvite {
+  metadata: APIResourceMeta;
+  /**
+   * The ID of the organization
+   * @format uuid
+   */
+  organizationId: string;
+  /**
+   * The email of the inviter
+   * @format email
+   */
+  inviterEmail: string;
+  /**
+   * The email of the invitee
+   * @format email
+   */
+  inviteeEmail: string;
+  /**
+   * The timestamp at which the invite expires
+   * @format date-time
+   */
+  expires: string;
+  /** The status of the invite */
+  status: OrganizationInviteStatus;
+  /** The role of the invitee */
+  role: OrganizationMemberRoleType;
+}
+
+export interface OrganizationInviteList {
+  rows: OrganizationInvite[];
+}
+
+export interface CreateOrganizationInviteRequest {
+  /**
+   * The email of the invitee
+   * @format email
+   */
+  inviteeEmail: string;
+  /** The role of the invitee */
+  role: OrganizationMemberRoleType;
+}
+
+export interface AcceptOrganizationInviteRequest {
+  /**
+   * The ID of the organization invite
+   * @format uuid
+   */
+  id: string;
+}
+
+export interface RejectOrganizationInviteRequest {
+  /**
+   * The ID of the organization invite
+   * @format uuid
+   */
+  id: string;
 }

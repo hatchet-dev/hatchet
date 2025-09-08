@@ -26,31 +26,7 @@ There are two main ways to initiate workflows, by sending events to Hatchet and 
  <UniversalTabs items={['Python', 'Typescript', 'Go']}>
   <Tabs.Tab>
 
-```python
-from hatchet_sdk import Hatchet
-
-hatchet = Hatchet()
-
-events: List[BulkPushEventWithMetadata] = [
-    {
-        "key": "user:create",
-        "payload": {"message": "This is event 1"},
-        "additional_metadata": {"source": "test", "user_id": "user123"},
-    },
-    {
-        "key": "user:create",
-        "payload": {"message": "This is event 2"},
-        "additional_metadata": {"source": "test", "user_id": "user456"},
-    },
-    {
-        "key": "user:create",
-        "payload": {"message": "This is event 3"},
-        "additional_metadata": {"source": "test", "user_id": "user789"},
-    },
-]
-
-result = hatchet.client.event.bulk_push(events)
-```
+<Snippet src={snippets.python.events.event.bulk_event_push} />
 
   </Tabs.Tab>
   <Tabs.Tab>

@@ -552,6 +552,8 @@ export class Api<
        * @maxLength 36
        */
       triggering_event_external_id?: string;
+      /** Additional metadata k-v pairs to filter by */
+      additional_metadata?: string[];
     },
     params: RequestParams = {},
   ) =>

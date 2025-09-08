@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hatchet-dev/hatchet/internal/integrations/email"
+	"github.com/hatchet-dev/hatchet/pkg/integrations/email"
 )
 
 type PostmarkClient struct {
@@ -51,27 +51,27 @@ type VerifyEmailData struct {
 	ActionURL string `json:"link" mapstructure:"action_url"`
 }
 
-func (s *PostmarkClient) IsValid() bool {
+func (c *PostmarkClient) IsValid() bool {
 	return true
 }
 
 func (c *PostmarkClient) SendTenantInviteEmail(ctx context.Context, to string, data email.TenantInviteEmailData) error {
-	return c.sendTemplateEmail(ctx, to, userInviteTemplate, data, false)
+	return c.SendTemplateEmail(ctx, to, userInviteTemplate, data, false)
 }
 
 func (c *PostmarkClient) SendWorkflowRunFailedAlerts(ctx context.Context, emails []string, data email.WorkflowRunsFailedEmailData) error {
-	return c.sendTemplateEmailBCC(ctx, strings.Join(emails, ","), workflowRunsFailedTemplate, data, false)
+	return c.SendTemplateEmailBCC(ctx, strings.Join(emails, ","), workflowRunsFailedTemplate, data, false)
 }
 
 func (c *PostmarkClient) SendExpiringTokenEmail(ctx context.Context, emails []string, data email.ExpiringTokenEmailData) error {
-	return c.sendTemplateEmailBCC(ctx, strings.Join(emails, ","), tokenAlertExpiringTemplate, data, false)
+	return c.SendTemplateEmailBCC(ctx, strings.Join(emails, ","), tokenAlertExpiringTemplate, data, false)
 }
 
 func (c *PostmarkClient) SendTenantResourceLimitAlert(ctx context.Context, emails []string, data email.ResourceLimitAlertData) error {
-	return c.sendTemplateEmailBCC(ctx, strings.Join(emails, ","), resourceLimitAlertTemplate, data, true)
+	return c.SendTemplateEmailBCC(ctx, strings.Join(emails, ","), resourceLimitAlertTemplate, data, true)
 }
 
-func (c *PostmarkClient) sendTemplateEmail(ctx context.Context, to, templateAlias string, templateModelData interface{}, bccSupport bool) error {
+func (c *PostmarkClient) SendTemplateEmail(ctx context.Context, to, templateAlias string, templateModelData interface{}, bccSupport bool) error {
 	var bcc string
 
 	if bccSupport {
@@ -87,7 +87,7 @@ func (c *PostmarkClient) sendTemplateEmail(ctx context.Context, to, templateAlia
 	})
 }
 
-func (c *PostmarkClient) sendTemplateEmailBCC(ctx context.Context, bcc, templateAlias string, templateModelData interface{}, bccSupport bool) error {
+func (c *PostmarkClient) SendTemplateEmailBCC(ctx context.Context, bcc, templateAlias string, templateModelData interface{}, bccSupport bool) error {
 
 	if bccSupport {
 		bcc = fmt.Sprintf("%s,%s", bcc, c.supportEmail)
@@ -138,10 +138,10 @@ func (c *PostmarkClient) sendRequest(ctx context.Context, path, method string, d
 	if res.StatusCode < http.StatusOK || res.StatusCode >= http.StatusBadRequest {
 		resBytes, err := io.ReadAll(res.Body)
 		if err != nil {
-			return fmt.Errorf("request failed with status code %d, but could not read body (%s)\n", res.StatusCode, err.Error())
+			return fmt.Errorf("request failed with status code %d, but could not read body (%s)", res.StatusCode, err.Error())
 		}
 
-		return fmt.Errorf("request failed with status code %d: %s\n", res.StatusCode, string(resBytes))
+		return fmt.Errorf("request failed with status code %d: %s", res.StatusCode, string(resBytes))
 	}
 
 	return nil

@@ -75,9 +75,6 @@ type WorkflowDeclaration[I, O any] interface {
 	// Run executes the workflow with the provided input.
 	Run(ctx context.Context, input I, opts ...v0Client.RunOptFunc) (*O, error)
 
-	// RunChild executes a child workflow with the provided input.
-	RunAsChild(ctx worker.HatchetContext, input I, opts RunAsChildOpts) (*O, error)
-
 	// RunNoWait executes the workflow with the provided input without waiting for it to complete.
 	// Instead it returns a run ID that can be used to check the status of the workflow.
 	RunNoWait(ctx context.Context, input I, opts ...v0Client.RunOptFunc) (*v0Client.Workflow, error)
@@ -527,38 +524,6 @@ func (w *workflowDeclarationImpl[I, O]) RunNoWait(ctx context.Context, input I, 
 	}
 
 	return run, nil
-}
-
-// RunAsChild executes the workflow as a child workflow with the provided input.
-func (w *workflowDeclarationImpl[I, O]) RunAsChild(ctx worker.HatchetContext, input I, opts RunAsChildOpts) (*O, error) {
-	var additionalMetaOpt *map[string]string
-
-	if opts.AdditionalMetadata != nil {
-		additionalMeta := make(map[string]string)
-
-		for key, value := range *opts.AdditionalMetadata {
-			additionalMeta[key] = fmt.Sprintf("%v", value)
-		}
-
-		additionalMetaOpt = &additionalMeta
-	}
-
-	run, err := ctx.SpawnWorkflow(w.name, input, &worker.SpawnWorkflowOpts{
-		Key:                opts.Key,
-		Sticky:             opts.Sticky,
-		Priority:           opts.Priority,
-		AdditionalMetadata: additionalMetaOpt,
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	workflowResult, err := run.Result()
-	if err != nil {
-		return nil, err
-	}
-
-	return w.getOutputFromWorkflowResult(workflowResult)
 }
 
 func (w *workflowDeclarationImpl[I, O]) getOutputFromWorkflowResult(workflowResult *v0Client.WorkflowResult) (*O, error) {

@@ -688,6 +688,49 @@ func (ns NullStickyStrategy) Value() (driver.Value, error) {
 	return string(ns.StickyStrategy), nil
 }
 
+type TenantEnvironment string
+
+const (
+	TenantEnvironmentLocal       TenantEnvironment = "local"
+	TenantEnvironmentDevelopment TenantEnvironment = "development"
+	TenantEnvironmentProduction  TenantEnvironment = "production"
+)
+
+func (e *TenantEnvironment) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = TenantEnvironment(s)
+	case string:
+		*e = TenantEnvironment(s)
+	default:
+		return fmt.Errorf("unsupported scan type for TenantEnvironment: %T", src)
+	}
+	return nil
+}
+
+type NullTenantEnvironment struct {
+	TenantEnvironment TenantEnvironment `json:"TenantEnvironment"`
+	Valid             bool              `json:"valid"` // Valid is true if TenantEnvironment is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullTenantEnvironment) Scan(value interface{}) error {
+	if value == nil {
+		ns.TenantEnvironment, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.TenantEnvironment.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullTenantEnvironment) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.TenantEnvironment), nil
+}
+
 type TenantMajorEngineVersion string
 
 const (
@@ -1666,6 +1709,8 @@ type Tenant struct {
 	DataRetentionPeriod   string                   `json:"dataRetentionPeriod"`
 	SchedulerPartitionId  pgtype.Text              `json:"schedulerPartitionId"`
 	CanUpgradeV1          bool                     `json:"canUpgradeV1"`
+	OnboardingData        []byte                   `json:"onboardingData"`
+	Environment           NullTenantEnvironment    `json:"environment"`
 }
 
 type TenantAlertEmailGroup struct {

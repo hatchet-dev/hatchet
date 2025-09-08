@@ -83,7 +83,23 @@ func (a *AuthN) authenticate(c echo.Context, r *middleware.RouteInfo) error {
 		}
 	}
 
-	return bearerErr
+	if bearerErr != nil && !r.Security.CustomAuth() {
+		return bearerErr
+	}
+
+	var customErr error
+
+	if r.Security.CustomAuth() {
+		customErr = a.handleCustomAuth(c)
+
+		c.Set("auth_strategy", "custom")
+
+		if customErr == nil {
+			return nil
+		}
+	}
+
+	return customErr
 }
 
 func (a *AuthN) handleNoAuth(c echo.Context) error {
@@ -206,6 +222,14 @@ func (a *AuthN) handleBearerAuth(c echo.Context) error {
 	}
 
 	return nil
+}
+
+func (a *AuthN) handleCustomAuth(c echo.Context) error {
+	if a.config.Auth.CustomAuthenticator == nil {
+		return fmt.Errorf("custom auth handler is not set")
+	}
+
+	return a.config.Auth.CustomAuthenticator.Authenticate(c)
 }
 
 var errInvalidAuthHeader = fmt.Errorf("invalid authorization header in request")

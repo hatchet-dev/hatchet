@@ -307,6 +307,10 @@ func (s *Server) startGRPC() (func() error, error) {
 		s.config.Runtime.GRPCMaxMsgSize,
 	))
 
+	serverOpts = append(serverOpts, grpc.StaticStreamWindowSize(
+		s.config.Runtime.GRPCStaticStreamWindowSize,
+	))
+
 	grpcServer := grpc.NewServer(serverOpts...)
 
 	if s.ingestor != nil {

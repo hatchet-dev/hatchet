@@ -440,6 +440,15 @@ export const routes: RouteObject[] = [
           }),
       },
       {
+        path: '/organizations/:organization',
+        lazy: async () =>
+          import('./pages/organizations/$organization').then((res) => {
+            return {
+              Component: res.default,
+            };
+          }),
+      },
+      {
         path: '/',
         lazy: async () =>
           import('./pages/authenticated').then((res) => {

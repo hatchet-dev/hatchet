@@ -86,6 +86,8 @@ type ReadTaskRunMetricsOpts struct {
 	ParentTaskExternalID *pgtype.UUID
 
 	TriggeringEventExternalId *pgtype.UUID
+
+	AdditionalMetadata map[string]interface{}
 }
 
 type WorkflowRunData struct {
@@ -238,6 +240,8 @@ type OLAPRepository interface {
 
 	CreateIncomingWebhookValidationFailureLogs(ctx context.Context, tenantId string, opts []CreateIncomingWebhookFailureLogOpts) error
 	StoreCELEvaluationFailures(ctx context.Context, tenantId string, failures []CELEvaluationFailure) error
+
+	AnalyzeOLAPTables(ctx context.Context) error
 }
 
 type OLAPRepositoryImpl struct {
@@ -276,12 +280,12 @@ func newOLAPRepository(shared *sharedRepository, olapRetentionPeriod time.Durati
 	}
 }
 
-func (o *OLAPRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
+func (r *OLAPRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 	today := time.Now().UTC()
 	tomorrow := today.AddDate(0, 0, 1)
-	removeBefore := today.Add(-1 * o.olapRetentionPeriod)
+	removeBefore := today.Add(-1 * r.olapRetentionPeriod)
 
-	err := o.queries.CreateOLAPPartitions(ctx, o.pool, sqlcv1.CreateOLAPPartitionsParams{
+	err := r.queries.CreateOLAPPartitions(ctx, r.pool, sqlcv1.CreateOLAPPartitionsParams{
 		Date: pgtype.Date{
 			Time:  today,
 			Valid: true,
@@ -293,8 +297,8 @@ func (o *OLAPRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 		return err
 	}
 
-	if o.shouldPartitionEventsTables {
-		err = o.queries.CreateOLAPEventPartitions(ctx, o.pool, pgtype.Date{
+	if r.shouldPartitionEventsTables {
+		err = r.queries.CreateOLAPEventPartitions(ctx, r.pool, pgtype.Date{
 			Time:  today,
 			Valid: true,
 		})
@@ -304,7 +308,7 @@ func (o *OLAPRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 		}
 	}
 
-	err = o.queries.CreateOLAPPartitions(ctx, o.pool, sqlcv1.CreateOLAPPartitionsParams{
+	err = r.queries.CreateOLAPPartitions(ctx, r.pool, sqlcv1.CreateOLAPPartitionsParams{
 		Date: pgtype.Date{
 			Time:  tomorrow,
 			Valid: true,
@@ -316,8 +320,8 @@ func (o *OLAPRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 		return err
 	}
 
-	if o.shouldPartitionEventsTables {
-		err = o.queries.CreateOLAPEventPartitions(ctx, o.pool, pgtype.Date{
+	if r.shouldPartitionEventsTables {
+		err = r.queries.CreateOLAPEventPartitions(ctx, r.pool, pgtype.Date{
 			Time:  tomorrow,
 			Valid: true,
 		})
@@ -328,27 +332,27 @@ func (o *OLAPRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 	}
 
 	params := sqlcv1.ListOLAPPartitionsBeforeDateParams{
-		Shouldpartitioneventstables: o.shouldPartitionEventsTables,
+		Shouldpartitioneventstables: r.shouldPartitionEventsTables,
 		Date: pgtype.Date{
 			Time:  removeBefore,
 			Valid: true,
 		},
 	}
 
-	partitions, err := o.queries.ListOLAPPartitionsBeforeDate(ctx, o.pool, params)
+	partitions, err := r.queries.ListOLAPPartitionsBeforeDate(ctx, r.pool, params)
 
 	if err != nil {
 		return err
 	}
 
 	if len(partitions) > 0 {
-		o.l.Warn().Msgf("removing partitions before %s using retention period of %s", removeBefore.Format(time.RFC3339), o.olapRetentionPeriod)
+		r.l.Warn().Msgf("removing partitions before %s using retention period of %s", removeBefore.Format(time.RFC3339), r.olapRetentionPeriod)
 	}
 
 	for _, partition := range partitions {
-		o.l.Warn().Msgf("detaching partition %s", partition.PartitionName)
+		r.l.Warn().Msgf("detaching partition %s", partition.PartitionName)
 
-		_, err := o.pool.Exec(
+		_, err := r.pool.Exec(
 			ctx,
 			fmt.Sprintf("ALTER TABLE %s DETACH PARTITION %s CONCURRENTLY", partition.ParentTable, partition.PartitionName),
 		)
@@ -357,7 +361,7 @@ func (o *OLAPRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 			return err
 		}
 
-		_, err = o.pool.Exec(
+		_, err = r.pool.Exec(
 			ctx,
 			fmt.Sprintf("DROP TABLE %s", partition.PartitionName),
 		)
@@ -370,8 +374,8 @@ func (o *OLAPRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 	return nil
 }
 
-func (o *OLAPRepositoryImpl) SetReadReplicaPool(pool *pgxpool.Pool) {
-	o.readPool = pool
+func (r *OLAPRepositoryImpl) SetReadReplicaPool(pool *pgxpool.Pool) {
+	r.readPool = pool
 }
 
 func StringToReadableStatus(status string) ReadableTaskStatus {
@@ -985,12 +989,22 @@ func (r *OLAPRepositoryImpl) ReadTaskRunMetrics(ctx context.Context, tenantId st
 		triggeringEventExternalId = *opts.TriggeringEventExternalId
 	}
 
+	var additionalMetaKeys []string
+	var additionalMetaValues []string
+
+	for key, value := range opts.AdditionalMetadata {
+		additionalMetaKeys = append(additionalMetaKeys, key)
+		additionalMetaValues = append(additionalMetaValues, value.(string))
+	}
+
 	params := sqlcv1.GetTenantStatusMetricsParams{
 		Tenantid:                  sqlchelpers.UUIDFromStr(tenantId),
 		Createdafter:              sqlchelpers.TimestamptzFromTime(opts.CreatedAfter),
 		WorkflowIds:               workflowIds,
 		ParentTaskExternalId:      parentTaskExternalId,
 		TriggeringEventExternalId: triggeringEventExternalId,
+		AdditionalMetaKeys:        additionalMetaKeys,
+		AdditionalMetaValues:      additionalMetaValues,
 	}
 
 	if opts.CreatedBefore != nil {
@@ -1790,6 +1804,52 @@ func (r *OLAPRepositoryImpl) StoreCELEvaluationFailures(ctx context.Context, ten
 		Sources:  sources,
 		Errors:   errorMessages,
 	})
+}
+
+func (r *OLAPRepositoryImpl) AnalyzeOLAPTables(ctx context.Context) error {
+	const timeout = 1000 * 60 * 30 // 30 minute timeout
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, timeout)
+
+	if err != nil {
+		return fmt.Errorf("error beginning transaction: %v", err)
+	}
+
+	defer rollback()
+
+	acquired, err := r.queries.TryAdvisoryLock(ctx, tx, hash("analyze-olap-tables"))
+
+	if err != nil {
+		return fmt.Errorf("error acquiring advisory lock: %v", err)
+	}
+
+	if !acquired {
+		r.l.Info().Msg("advisory lock already held, skipping OLAP table analysis")
+		return nil
+	}
+
+	err = r.queries.AnalyzeV1RunsOLAP(ctx, tx)
+
+	if err != nil {
+		return fmt.Errorf("error analyzing v1_runs_olap: %v", err)
+	}
+
+	err = r.queries.AnalyzeV1TasksOLAP(ctx, tx)
+
+	if err != nil {
+		return fmt.Errorf("error analyzing v1_tasks_olap: %v", err)
+	}
+
+	err = r.queries.AnalyzeV1DAGsOLAP(ctx, tx)
+
+	if err != nil {
+		return fmt.Errorf("error analyzing v1_dags_olap: %v", err)
+	}
+
+	if err := commit(ctx); err != nil {
+		return fmt.Errorf("error committing transaction: %v", err)
+	}
+
+	return nil
 }
 
 type IdInsertedAt struct {

@@ -30,6 +30,7 @@ interface UpdateMemberFormProps {
   isLoading: boolean;
   fieldErrors?: Record<string, string>;
   member: TenantMember;
+  isCloudEnabled?: boolean;
 }
 
 export function UpdateMemberForm({
@@ -96,7 +97,9 @@ export function UpdateMemberForm({
                         <SelectValue id="role" placeholder="Role..." />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="OWNER">Owner</SelectItem>
+                        {!props.isCloudEnabled && (
+                          <SelectItem value="OWNER">Owner</SelectItem>
+                        )}
                         <SelectItem value="ADMIN">Admin</SelectItem>
                         <SelectItem value="MEMBER">Member</SelectItem>
                       </SelectContent>

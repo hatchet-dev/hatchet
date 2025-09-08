@@ -161,6 +161,13 @@ const (
 	StepRunStatusSUCCEEDED         StepRunStatus = "SUCCEEDED"
 )
 
+// Defines values for TenantEnvironment.
+const (
+	Development TenantEnvironment = "development"
+	Local       TenantEnvironment = "local"
+	Production  TenantEnvironment = "production"
+)
+
 // Defines values for TenantMemberRole.
 const (
 	ADMIN  TenantMemberRole = "ADMIN"
@@ -510,10 +517,14 @@ type CreateTenantInviteRequest struct {
 
 // CreateTenantRequest defines model for CreateTenantRequest.
 type CreateTenantRequest struct {
-	EngineVersion *TenantVersion `json:"engineVersion,omitempty"`
+	EngineVersion *TenantVersion     `json:"engineVersion,omitempty"`
+	Environment   *TenantEnvironment `json:"environment,omitempty"`
 
 	// Name The name of the tenant.
 	Name string `json:"name" validate:"required"`
+
+	// OnboardingData Additional onboarding data to store with the tenant.
+	OnboardingData *map[string]interface{} `json:"onboardingData,omitempty"`
 
 	// Slug The slug of the tenant.
 	Slug      string           `json:"slug" validate:"required,hatchetName"`
@@ -1006,8 +1017,9 @@ type Tenant struct {
 	AlertMemberEmails *bool `json:"alertMemberEmails,omitempty"`
 
 	// AnalyticsOptOut Whether the tenant has opted out of analytics.
-	AnalyticsOptOut *bool           `json:"analyticsOptOut,omitempty"`
-	Metadata        APIResourceMeta `json:"metadata"`
+	AnalyticsOptOut *bool              `json:"analyticsOptOut,omitempty"`
+	Environment     *TenantEnvironment `json:"environment,omitempty"`
+	Metadata        APIResourceMeta    `json:"metadata"`
 
 	// Name The name of the tenant.
 	Name string `json:"name"`
@@ -1052,6 +1064,9 @@ type TenantAlertingSettings struct {
 	MaxAlertingFrequency string          `json:"maxAlertingFrequency"`
 	Metadata             APIResourceMeta `json:"metadata"`
 }
+
+// TenantEnvironment defines model for TenantEnvironment.
+type TenantEnvironment string
 
 // TenantInvite defines model for TenantInvite.
 type TenantInvite struct {
@@ -2339,6 +2354,9 @@ type V1TaskListStatusMetricsParams struct {
 
 	// TriggeringEventExternalId The id of the event that triggered the task
 	TriggeringEventExternalId *openapi_types.UUID `form:"triggering_event_external_id,omitempty" json:"triggering_event_external_id,omitempty"`
+
+	// AdditionalMetadata Additional metadata k-v pairs to filter by
+	AdditionalMetadata *[]string `form:"additional_metadata,omitempty" json:"additional_metadata,omitempty"`
 }
 
 // V1TaskGetPointMetricsParams defines parameters for V1TaskGetPointMetrics.
@@ -6679,6 +6697,22 @@ func NewV1TaskListStatusMetricsRequest(server string, tenant openapi_types.UUID,
 		if params.TriggeringEventExternalId != nil {
 
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "triggering_event_external_id", runtime.ParamLocationQuery, *params.TriggeringEventExternalId); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.AdditionalMetadata != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "additional_metadata", runtime.ParamLocationQuery, *params.AdditionalMetadata); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
 				return nil, err

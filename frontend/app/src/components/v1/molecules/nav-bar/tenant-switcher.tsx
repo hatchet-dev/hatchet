@@ -25,6 +25,7 @@ import React from 'react';
 import { Spinner } from '@/components/v1/ui/loading.tsx';
 import useApiMeta from '@/pages/auth/hooks/use-api-meta';
 import { useTenantDetails } from '@/hooks/use-tenant';
+import { useOrganizations } from '@/hooks/use-organizations';
 
 interface TenantSwitcherProps {
   className?: string;
@@ -37,6 +38,7 @@ export function TenantSwitcher({
   const meta = useApiMeta();
   const { setTenant: setCurrTenant, tenant: currTenant } = useTenantDetails();
   const [open, setOpen] = React.useState(false);
+  const { hasOrganizations } = useOrganizations();
 
   if (!currTenant) {
     return <Spinner />;
@@ -92,7 +94,7 @@ export function TenantSwitcher({
               </CommandItem>
             ))}
           </CommandList>
-          {meta.data?.allowCreateTenant && (
+          {meta.data?.allowCreateTenant && !hasOrganizations && (
             <>
               <CommandSeparator />
               <CommandList>
