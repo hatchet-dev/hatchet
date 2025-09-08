@@ -3,27 +3,24 @@ package features
 import (
 	"context"
 
+	"github.com/cockroachdb/errors"
 	"github.com/google/uuid"
 	"github.com/robfig/cron/v3"
 
 	"github.com/hatchet-dev/hatchet/pkg/client/rest"
 )
 
-// CronsClient provides methods for interacting with cron workflow triggers
-// in the Hatchet platform.
-type CronsClient interface {
-	// Create creates a new cron workflow trigger.
-	Create(ctx context.Context, workflowName string, cron CreateCronTrigger) (*rest.CronWorkflows, error)
+// RunPriority is the priority for a workflow run.
+type RunPriority int32
 
-	// Delete removes a cron workflow trigger.
-	Delete(ctx context.Context, cronId string) error
-
-	// List retrieves a collection of cron workflow triggers based on the provided parameters.
-	List(ctx context.Context, opts rest.CronWorkflowListParams) (*rest.CronWorkflowsList, error)
-
-	// Get retrieves a specific cron workflow trigger by its ID.
-	Get(ctx context.Context, cronId string) (*rest.CronWorkflows, error)
-}
+const (
+	// RunPriorityLow is the lowest priority for a workflow run.
+	RunPriorityLow RunPriority = 1
+	// RunPriorityMedium is the medium priority for a workflow run.
+	RunPriorityMedium RunPriority = 2
+	// RunPriorityHigh is the highest priority for a workflow run.
+	RunPriorityHigh RunPriority = 3
+)
 
 // CreateCronTrigger contains the configuration for creating a cron trigger.
 type CreateCronTrigger struct {
@@ -33,36 +30,37 @@ type CreateCronTrigger struct {
 	// Expression is the cron expression that defines the schedule.
 	Expression string `json:"expression"`
 
-	// Input is the optional input data for the workflow.
+	// (optional) Input is the input data for the workflow.
 	Input map[string]interface{} `json:"input,omitempty"`
 
-	// AdditionalMetadata is optional metadata to associate with the cron trigger.
+	// (optional) AdditionalMetadata is metadata to associate with the cron trigger.
 	AdditionalMetadata map[string]interface{} `json:"additionalMetadata,omitempty"`
 
-	Priority *int32 `json:"priority,omitempty"`
+	// (optional) Priority is the priority of the run triggered by the cron.
+	Priority *RunPriority `json:"priority,omitempty"`
 }
 
-// cronsClientImpl implements the CronsClient interface.
-type cronsClientImpl struct {
+// CronsClient provides methods for interacting with cron workflow triggers
+type CronsClient struct {
 	api      *rest.ClientWithResponses
 	tenantId uuid.UUID
 }
 
-// NewCronsClient creates a new client for interacting with cron workflow triggers.
+// NewCronsClient creates a new CronsClient
 func NewCronsClient(
 	api *rest.ClientWithResponses,
-	tenantId *string,
-) CronsClient {
-	tenantIdUUID := uuid.MustParse(*tenantId)
+	tenantId string,
+) *CronsClient {
+	tenantIdUUID := uuid.MustParse(tenantId)
 
-	return &cronsClientImpl{
+	return &CronsClient{
 		api:      api,
 		tenantId: tenantIdUUID,
 	}
 }
 
-// ValidateCronExpression validates that a string is a valid cron expression.
-func ValidateCronExpression(expression string) bool {
+// IsValidCronExpression validates that a string is a valid cron expression.
+func IsValidCronExpression(expression string) bool {
 	parser := cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow)
 	_, err := parser.Parse(expression)
 
@@ -70,9 +68,9 @@ func ValidateCronExpression(expression string) bool {
 }
 
 // Create creates a new cron workflow trigger.
-func (c *cronsClientImpl) Create(ctx context.Context, workflowName string, cron CreateCronTrigger) (*rest.CronWorkflows, error) {
+func (c *CronsClient) Create(ctx context.Context, workflowName string, cron CreateCronTrigger) (*rest.CronWorkflows, error) {
 	// Validate cron expression
-	if !ValidateCronExpression(cron.Expression) {
+	if !IsValidCronExpression(cron.Expression) {
 		return nil, &InvalidCronExpressionError{Expression: cron.Expression}
 	}
 
@@ -101,6 +99,10 @@ func (c *cronsClientImpl) Create(ctx context.Context, workflowName string, cron 
 		request,
 	)
 	if err != nil {
+		return nil, errors.Wrap(err, "failed to create cron workflow trigger")
+	}
+
+	if err := validateJSON200Response(resp.StatusCode(), resp.Body, resp.JSON200); err != nil {
 		return nil, err
 	}
 
@@ -108,36 +110,44 @@ func (c *cronsClientImpl) Create(ctx context.Context, workflowName string, cron 
 }
 
 // Delete removes a cron workflow trigger.
-func (c *cronsClientImpl) Delete(ctx context.Context, cronId string) error {
+func (c *CronsClient) Delete(ctx context.Context, cronId string) error {
 	cronIdUUID, err := uuid.Parse(cronId)
 	if err != nil {
 		return err
 	}
 
-	_, err = c.api.WorkflowCronDeleteWithResponse(
+	resp, err := c.api.WorkflowCronDeleteWithResponse(
 		ctx,
 		c.tenantId,
 		cronIdUUID,
 	)
-	return err
+	if err != nil {
+		return errors.Wrap(err, "failed to delete cron workflow trigger")
+	}
+
+	if err := validateStatusCodeResponse(resp.StatusCode(), resp.Body); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // List retrieves a collection of cron workflow triggers based on the provided parameters.
-func (c *cronsClientImpl) List(ctx context.Context, opts rest.CronWorkflowListParams) (*rest.CronWorkflowsList, error) {
+func (c *CronsClient) List(ctx context.Context, opts rest.CronWorkflowListParams) (*rest.CronWorkflowsList, error) {
 	resp, err := c.api.CronWorkflowListWithResponse(
 		ctx,
 		c.tenantId,
 		&opts,
 	)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "failed to list cron workflow triggers")
 	}
 
 	return resp.JSON200, nil
 }
 
 // Get retrieves a specific cron workflow trigger by its ID.
-func (c *cronsClientImpl) Get(ctx context.Context, cronId string) (*rest.CronWorkflows, error) {
+func (c *CronsClient) Get(ctx context.Context, cronId string) (*rest.CronWorkflows, error) {
 	cronIdUUID, err := uuid.Parse(cronId)
 	if err != nil {
 		return nil, err
@@ -149,7 +159,7 @@ func (c *cronsClientImpl) Get(ctx context.Context, cronId string) (*rest.CronWor
 		cronIdUUID,
 	)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "failed to get cron workflow trigger")
 	}
 
 	return resp.JSON200, nil

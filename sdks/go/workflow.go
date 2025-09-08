@@ -13,15 +13,16 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
 	"github.com/hatchet-dev/hatchet/pkg/worker"
 	"github.com/hatchet-dev/hatchet/pkg/worker/condition"
+	"github.com/hatchet-dev/hatchet/sdks/go/features"
 	"github.com/hatchet-dev/hatchet/sdks/go/internal"
 )
 
+type RunPriority = features.RunPriority
+
 // RunOpts is a type that represents the options for running a workflow.
 type RunOpts struct {
-	AdditionalMetadata *map[string]any
-	Priority           *int32
-	// Sticky             *bool
-	// Key                *string
+	AdditionalMetadata *map[string]interface{}
+	Priority           *RunPriority
 }
 
 type RunOptFunc = v0Client.RunOptFunc
@@ -30,19 +31,8 @@ func WithRunMetadata(metadata any) RunOptFunc {
 	return v0Client.WithRunMetadata(metadata)
 }
 
-// RunPriority is the priority for a workflow run.
-type RunPriority int32
-
-const (
-	// RunPriorityLow is the lowest priority for a workflow run.
-	RunPriorityLow RunPriority = 1
-	// RunPriorityMedium is the medium priority for a workflow run.
-	RunPriorityMedium RunPriority = 2
-	// RunPriorityHigh is the highest priority for a workflow run.
-	RunPriorityHigh RunPriority = 3
-)
-
-func WithPriority(priority RunPriority) RunOptFunc {
+// WithRunPriority sets the priority for a workflow run.
+func WithRunPriority(priority RunPriority) RunOptFunc {
 	return v0Client.WithPriority(int32(priority))
 }
 

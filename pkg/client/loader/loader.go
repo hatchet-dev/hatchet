@@ -67,14 +67,14 @@ func GetClientConfigFromConfigFile(cf *client.ClientConfigFile) (res *client.Cli
 
 	if err != nil {
 		return nil, err
-	} else {
-		if grpcBroadcastAddress == "" && tokenConf.grpcBroadcastAddress != "" {
-			grpcBroadcastAddress = tokenConf.grpcBroadcastAddress
-		}
+	}
 
-		if serverURL == "" && tokenConf.serverURL != "" {
-			serverURL = tokenConf.serverURL
-		}
+	if grpcBroadcastAddress == "" && tokenConf.grpcBroadcastAddress != "" {
+		grpcBroadcastAddress = tokenConf.grpcBroadcastAddress
+	}
+
+	if serverURL == "" && tokenConf.serverURL != "" {
+		serverURL = tokenConf.serverURL
 	}
 
 	// if there's no broadcast address at this point, throw an error

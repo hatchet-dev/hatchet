@@ -172,7 +172,6 @@ func main() {
 	defer cancel()
 
 	go func() {
-
 		log.Println("Starting conditional workflow worker...")
 		if err := worker.StartBlocking(interruptCtx); err != nil {
 			log.Fatalf("failed to start worker: %v", err)
