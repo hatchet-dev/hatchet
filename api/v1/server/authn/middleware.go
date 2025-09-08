@@ -67,7 +67,7 @@ func (a *AuthN) authenticate(c echo.Context, r *middleware.RouteInfo) error {
 		}
 	}
 
-	if cookieErr != nil && !r.Security.BearerAuth() {
+	if cookieErr != nil && !r.Security.BearerAuth() && !r.Security.CustomAuth() {
 		return cookieErr
 	}
 
@@ -99,7 +99,11 @@ func (a *AuthN) authenticate(c echo.Context, r *middleware.RouteInfo) error {
 		}
 	}
 
-	return customErr
+	if customErr != nil {
+		return customErr
+	}
+
+	return fmt.Errorf("no auth strategy found")
 }
 
 func (a *AuthN) handleNoAuth(c echo.Context) error {
