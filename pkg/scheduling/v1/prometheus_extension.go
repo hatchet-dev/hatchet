@@ -63,6 +63,7 @@ func (p *PrometheusExtension) ReportSnapshot(tenantId string, input *SnapshotInp
 		usedSlots := float64(utilization.UtilizedSlots)
 		availableSlots := float64(utilization.NonUtilizedSlots)
 
+		prometheus.TenantWorkerSlots.WithLabelValues(tenantId, promLabels.ID, promLabels.Name).Set(usedSlots + availableSlots)
 		prometheus.TenantUsedWorkerSlots.WithLabelValues(tenantId, promLabels.ID, promLabels.Name).Set(usedSlots)
 		prometheus.TenantAvailableWorkerSlots.WithLabelValues(tenantId, promLabels.ID, promLabels.Name).Set(availableSlots)
 	}
