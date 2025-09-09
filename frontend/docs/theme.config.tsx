@@ -1,6 +1,7 @@
-import React from "react";
+import React, { useEffect } from "react";
 import Image from "next/image";
-import { useConfig } from "nextra-theme-docs";
+import { useConfig, useTheme } from "nextra-theme-docs";
+import { useRouter } from "next/router";
 
 const config = {
   logo: (
@@ -18,6 +19,20 @@ const config = {
         <link rel="icon" type="image/png" href="/favicon.ico" />
       </>
     );
+  },
+  main: ({ children }) => {
+    const router = useRouter();
+    const { setTheme } = useTheme();
+
+    useEffect(() => {
+      const themeParam = router.query.theme;
+
+      if (themeParam === "dark" || themeParam === "light") {
+        setTheme(themeParam);
+      }
+    }, [router.query.theme, setTheme]);
+
+    return <>{children}</>;
   },
   primaryHue: {
     dark: 210,
