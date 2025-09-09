@@ -165,7 +165,11 @@ export function OrganizationSelector({
   const { organizations, getOrganizationForTenant } = useOrganizations();
 
   const handleClose = () => setOpen(false);
-  const handleNavigate = (path: string) => navigate(path, { replace: true });
+  const handleNavigate = (path: string) => {
+    // Store the current path before navigating to org settings
+    sessionStorage.setItem('orgSettingsPreviousPath', window.location.pathname);
+    navigate(path, { replace: false });
+  };
 
   const handleTenantSelect = (tenant: Tenant) => {
     setCurrTenant(tenant);

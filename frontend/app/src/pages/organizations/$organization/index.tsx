@@ -225,50 +225,66 @@ export default function OrganizationPage() {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            {isEditingName ? (
-              <div className="flex items-center gap-2">
-                <Input
-                  value={editedName}
-                  onChange={(e) => setEditedName(e.target.value)}
-                  onKeyDown={handleKeyPress}
-                  className="text-2xl font-bold h-10 px-3"
-                  autoFocus
-                  disabled={updateOrganizationLoading}
-                />
-                <Button
-                  size="sm"
-                  onClick={handleSaveEdit}
-                  disabled={updateOrganizationLoading || !editedName.trim()}
-                >
-                  <CheckIcon className="h-4 w-4" />
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={handleCancelEdit}
-                  disabled={updateOrganizationLoading}
-                >
-                  <XMarkIcon className="h-4 w-4" />
-                </Button>
-              </div>
-            ) : (
-              <div className="flex items-center gap-2">
-                <h1 className="text-2xl font-bold">{organization.name}</h1>
+            <div className="flex items-center gap-2">
+              {isEditingName ? (
+                <>
+                  <Input
+                    value={editedName}
+                    onChange={(e) => setEditedName(e.target.value)}
+                    onKeyDown={handleKeyPress}
+                    className="text-2xl font-bold h-10 px-3"
+                    autoFocus
+                    disabled={updateOrganizationLoading}
+                  />
+                  <Button
+                    size="sm"
+                    onClick={handleSaveEdit}
+                    disabled={updateOrganizationLoading || !editedName.trim()}
+                  >
+                    <CheckIcon className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleCancelEdit}
+                    disabled={updateOrganizationLoading}
+                  >
+                    <XMarkIcon className="h-4 w-4" />
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <h1 className="text-2xl font-bold">{organization.name}</h1>
+                </>
+              )}
+              {!isEditingName && (
                 <Button
                   size="sm"
                   variant="ghost"
                   onClick={handleStartEdit}
                   className="h-6 w-6 p-0"
+                  disabled={updateOrganizationLoading}
+                  style={{ opacity: updateOrganizationLoading ? 0.3 : 1 }}
                 >
                   <PencilIcon className="h-3 w-3" />
                 </Button>
-              </div>
-            )}
+              )}
+            </div>
           </div>
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => navigate(-1)}
+            onClick={() => {
+              const previousPath = sessionStorage.getItem(
+                'orgSettingsPreviousPath',
+              );
+              if (previousPath) {
+                sessionStorage.removeItem('orgSettingsPreviousPath');
+                navigate(previousPath, { replace: false });
+              } else {
+                navigate(-1);
+              }
+            }}
             className="h-8 w-8 p-0"
           >
             <XMarkIcon className="h-4 w-4" />

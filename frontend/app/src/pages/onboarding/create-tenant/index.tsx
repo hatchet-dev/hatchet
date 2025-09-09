@@ -135,15 +135,15 @@ export default function CreateTenant() {
       setTimeout(() => {
         if (result.type === 'cloud') {
           const tenant = result.data as OrganizationTenant;
-          navigate(`/tenants/${tenant.id}/onboarding/get-started`);
+          window.location.href = `/tenants/${tenant.id}/onboarding/get-started`;
           return;
         }
 
         const tenant = result.data as Tenant;
         if (tenant.version === TenantVersion.V1) {
-          navigate(`/tenants/${tenant.metadata.id}/onboarding/get-started`);
+          window.location.href = `/tenants/${tenant.metadata.id}/onboarding/get-started`;
         } else {
-          navigate(`/onboarding/get-started?tenant=${tenant.metadata.id}`);
+          window.location.href = `/onboarding/get-started?tenant=${tenant.metadata.id}`;
         }
       }, 0);
     },
