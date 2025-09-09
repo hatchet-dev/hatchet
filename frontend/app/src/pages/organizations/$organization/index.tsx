@@ -603,62 +603,69 @@ export default function OrganizationPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {organizationInvitesQuery.data.rows.map((invite) => (
-                        <TableRow key={invite.metadata.id}>
-                          <TableCell className="font-mono text-sm">
-                            {invite.inviteeEmail}
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant="outline">{invite.role}</Badge>
-                          </TableCell>
-                          <TableCell>
-                            <Badge
-                              variant={
-                                invite.status ===
-                                OrganizationInviteStatus.PENDING
-                                  ? 'secondary'
-                                  : invite.status ===
-                                      OrganizationInviteStatus.ACCEPTED
-                                    ? 'default'
-                                    : 'destructive'
-                              }
-                            >
-                              {invite.status}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="text-muted-foreground">
-                            {invite.inviterEmail}
-                          </TableCell>
-                          <TableCell className="text-muted-foreground">
-                            {new Date(invite.expires).toLocaleDateString()}
-                          </TableCell>
-                          <TableCell>
-                            {invite.status ===
-                              OrganizationInviteStatus.PENDING && (
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-8 w-8 p-0"
-                                  >
-                                    <EllipsisVerticalIcon className="h-4 w-4" />
-                                  </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
-                                  <DropdownMenuItem
-                                    onClick={() => setInviteToCancel(invite)}
-                                    className="text-red-600 focus:text-red-600"
-                                  >
-                                    <TrashIcon className="h-4 w-4 mr-2" />
-                                    Cancel Invitation
-                                  </DropdownMenuItem>
-                                </DropdownMenuContent>
-                              </DropdownMenu>
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      ))}
+                      {organizationInvitesQuery.data.rows
+                        .filter(
+                          (invite) =>
+                            invite.status ===
+                              OrganizationInviteStatus.PENDING ||
+                            invite.status === OrganizationInviteStatus.EXPIRED,
+                        )
+                        .map((invite) => (
+                          <TableRow key={invite.metadata.id}>
+                            <TableCell className="font-mono text-sm">
+                              {invite.inviteeEmail}
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="outline">{invite.role}</Badge>
+                            </TableCell>
+                            <TableCell>
+                              <Badge
+                                variant={
+                                  invite.status ===
+                                  OrganizationInviteStatus.PENDING
+                                    ? 'secondary'
+                                    : invite.status ===
+                                        OrganizationInviteStatus.ACCEPTED
+                                      ? 'default'
+                                      : 'destructive'
+                                }
+                              >
+                                {invite.status}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-muted-foreground">
+                              {invite.inviterEmail}
+                            </TableCell>
+                            <TableCell className="text-muted-foreground">
+                              {new Date(invite.expires).toLocaleDateString()}
+                            </TableCell>
+                            <TableCell>
+                              {invite.status ===
+                                OrganizationInviteStatus.PENDING && (
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-8 w-8 p-0"
+                                    >
+                                      <EllipsisVerticalIcon className="h-4 w-4" />
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="end">
+                                    <DropdownMenuItem
+                                      onClick={() => setInviteToCancel(invite)}
+                                      className="text-red-600 focus:text-red-600"
+                                    >
+                                      <TrashIcon className="h-4 w-4 mr-2" />
+                                      Cancel Invitation
+                                    </DropdownMenuItem>
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        ))}
                     </TableBody>
                   </Table>
                 </div>

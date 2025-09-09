@@ -1165,6 +1165,7 @@ export class Api<
   /**
    * @description Delete an organization invite
    *
+   * @tags Management
    * @name OrganizationInviteDelete
    * @summary Delete Organization Invite for Organization
    * @request DELETE:/api/v1/management/organization-invites/{organization-invite}

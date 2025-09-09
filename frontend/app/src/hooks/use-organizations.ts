@@ -31,7 +31,7 @@ export function useOrganizations() {
   const getOrganizationForTenant = useCallback(
     (tenantId: string) => {
       return organizations.find((org: OrganizationForUser) =>
-        org.tenants.includes(tenantId),
+        (org.tenants || []).includes(tenantId),
       );
     },
     [organizations],

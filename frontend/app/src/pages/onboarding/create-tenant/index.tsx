@@ -1,6 +1,7 @@
 import api, {
   CreateTenantRequest,
   queries,
+  Tenant,
   TenantEnvironment,
   TenantVersion,
 } from '@/lib/api';
@@ -18,6 +19,7 @@ import { WhatBuildingForm } from './components/what-building-form';
 import { StepProgress } from './components/step-progress';
 import { OnboardingStepConfig, OnboardingFormData } from './types';
 import { useAnalytics } from '@/hooks/use-analytics';
+import { OrganizationTenant } from '@/lib/api/generated/cloud/data-contracts';
 
 const FINAL_STEP = 2;
 
@@ -132,16 +134,16 @@ export default function CreateTenant() {
 
       setTimeout(() => {
         if (result.type === 'cloud') {
-          // For cloud tenants, redirect back to organization page
-          window.location.href = `/organizations/${selectedOrganizationId}`;
+          const tenant = result.data as OrganizationTenant;
+          navigate(`/tenants/${tenant.id}/onboarding/get-started`);
+          return;
+        }
+
+        const tenant = result.data as Tenant;
+        if (tenant.version === TenantVersion.V1) {
+          navigate(`/tenants/${tenant.metadata.id}/onboarding/get-started`);
         } else {
-          // For regular tenants, use the existing onboarding flow
-          const tenant = result.data as any;
-          if (tenant.version === TenantVersion.V1) {
-            window.location.href = `/tenants/${tenant.metadata.id}/onboarding/get-started`;
-          } else {
-            window.location.href = `/onboarding/get-started?tenant=${tenant.metadata.id}`;
-          }
+          navigate(`/onboarding/get-started?tenant=${tenant.metadata.id}`);
         }
       }, 0);
     },
