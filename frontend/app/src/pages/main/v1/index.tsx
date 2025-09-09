@@ -122,13 +122,6 @@ function Sidebar({ className, memberships }: SidebarProps) {
                 name="Events"
                 icon={<SquareActivityIcon className="mr-2 h-4 w-4" />}
               />
-              <SidebarButtonPrimary
-                key="filters"
-                onNavLinkClick={onNavLinkClick}
-                to={`/tenants/${tenantId}/filters`}
-                name="Filters"
-                icon={<Filter className="mr-2 h-4 w-4" />}
-              />
             </div>
           </div>
           <div className="py-2">
@@ -195,6 +188,13 @@ function Sidebar({ className, memberships }: SidebarProps) {
                 to={`/tenants/${tenantId}/rate-limits`}
                 name="Rate Limits"
                 icon={<ScaleIcon className="mr-2 h-4 w-4" />}
+              />
+              <SidebarButtonPrimary
+                key="filters"
+                onNavLinkClick={onNavLinkClick}
+                to={`/tenants/${tenantId}/filters`}
+                name="Filters"
+                icon={<Filter className="mr-2 h-4 w-4" />}
               />
             </div>
           </div>
