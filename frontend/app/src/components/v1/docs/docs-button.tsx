@@ -1,4 +1,4 @@
-import { Button } from '../ui/button';
+import { Button, ButtonProps } from '../ui/button';
 import { useSidePanel } from '@/hooks/use-side-panel';
 import { BookOpenText } from 'lucide-react';
 
@@ -9,11 +9,12 @@ export type DocPage = {
 
 type DocsButtonProps = {
   doc: DocPage;
-  variant: 'mini' | 'full';
+  size: 'mini' | 'full';
+  variant: ButtonProps['variant'];
   label: string;
 };
 
-export const DocsButton = ({ doc, variant, label }: DocsButtonProps) => {
+export const DocsButton = ({ doc, size, variant, label }: DocsButtonProps) => {
   const { open } = useSidePanel();
 
   const handleClick = () => {
@@ -23,12 +24,13 @@ export const DocsButton = ({ doc, variant, label }: DocsButtonProps) => {
     });
   };
 
-  switch (variant) {
+  switch (size) {
     case 'full':
       return (
         <Button
           onClick={handleClick}
           className="w-auto px-4 py-2 flex flex-row items-center gap-x-2"
+          variant={variant}
         >
           <BookOpenText className="size-4" />
           <span>{label}</span>

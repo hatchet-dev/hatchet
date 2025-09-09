@@ -275,7 +275,8 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
                 <DocsButton
                   doc={docsPages.home['your-first-task']}
                   label={'Learn more about tasks'}
-                  variant="full"
+                  size="full"
+                  variant="outline"
                 />
               </div>
             </div>
