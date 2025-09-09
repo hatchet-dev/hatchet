@@ -28,7 +28,7 @@ import {
 import useCloudApiMeta from '@/pages/auth/hooks/use-cloud-api-meta';
 import useCloudFeatureFlags from '@/pages/auth/hooks/use-cloud-feature-flags';
 import { useSidebar } from '@/components/sidebar-provider';
-import { SquareActivityIcon, WebhookIcon } from 'lucide-react';
+import { Filter, SquareActivityIcon, WebhookIcon } from 'lucide-react';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 
 function Main() {
@@ -121,6 +121,13 @@ function Sidebar({ className, memberships }: SidebarProps) {
                 to={`/tenants/${tenantId}/events`}
                 name="Events"
                 icon={<SquareActivityIcon className="mr-2 h-4 w-4" />}
+              />
+              <SidebarButtonPrimary
+                key="filters"
+                onNavLinkClick={onNavLinkClick}
+                to={`/tenants/${tenantId}/filters`}
+                name="Filters"
+                icon={<Filter className="mr-2 h-4 w-4" />}
               />
             </div>
           </div>

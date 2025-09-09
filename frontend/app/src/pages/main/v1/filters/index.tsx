@@ -87,6 +87,23 @@ export default function Filters() {
       rowSelection={rowSelection}
       setRowSelection={setRowSelection}
       getRowId={(row) => row.metadata.id}
+      emptyState={
+        <div className="flex flex-col items-center justify-center p-8 gap-3 text-gray-400">
+          <p className="text-base font-medium">No filters found</p>
+          <p className="text-sm">
+            Learn more about filters in the{' '}
+            <a
+              href="https://docs.hatchet.run/home/run-on-event#event-filtering"
+              target="_blank"
+              rel="noreferrer"
+              className="underline text-blue-500 hover:text-blue-600 transition-colors"
+            >
+              documentation
+            </a>
+            .
+          </p>
+        </div>
+      }
     />
   );
 }
