@@ -4,19 +4,20 @@ import api from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
 
 type UseFiltersProps = {
+  key: string;
   workflowIds?: string[];
   scopes?: string[];
 };
 
-export const useFilters = ({ workflowIds, scopes }: UseFiltersProps) => {
+export const useFilters = ({ key, workflowIds, scopes }: UseFiltersProps) => {
   const { tenantId } = useCurrentTenantId();
   const { limit, offset, pagination, setPagination, setPageSize } =
     usePagination({
-      key: 'filters',
+      key,
     });
 
   const { data, isLoading, refetch, error } = useQuery({
-    queryKey: ['v1:filter:list', tenantId],
+    queryKey: ['v1:filter:list', tenantId, key],
     queryFn: async () => {
       const response = await api.v1FilterList(tenantId, {
         offset,

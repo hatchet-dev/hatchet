@@ -1,4 +1,4 @@
-import { columns } from './components/event-columns';
+import { columns } from './components/filter-columns';
 import { useEffect, useMemo, useState } from 'react';
 import {
   ColumnFiltersState,
@@ -61,6 +61,7 @@ export default function Filters() {
     error,
     isLoading,
   } = useFilters({
+    key: 'filters',
     workflowIds: selectedWorkflows,
     scopes: selectedScopes,
   });
@@ -74,6 +75,7 @@ export default function Filters() {
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 
   useEffect(() => {
+    console.log('updated', columnFilters);
     const newSearchParams = new URLSearchParams(searchParams);
 
     newSearchParams.set('filters', JSON.stringify(columnFilters));
@@ -97,7 +99,19 @@ export default function Filters() {
     );
   }, [workflowKeys]);
 
-  const tableColumns = columns();
+  const workflowIdToName = useMemo(
+    () =>
+      workflowKeyFilters.reduce(
+        (acc, curr) => {
+          acc[curr.value] = curr.label;
+          return acc;
+        },
+        {} as Record<string, string>,
+      ),
+    [workflowKeyFilters],
+  );
+
+  const tableColumns = columns(workflowIdToName);
 
   const actions = [
     <Button
@@ -118,38 +132,36 @@ export default function Filters() {
   ];
 
   return (
-    <>
-      <DataTable
-        error={error || workflowKeysError}
-        isLoading={isLoading || workflowKeysIsLoading}
-        columns={tableColumns}
-        data={filters}
-        filters={[
-          {
-            columnId: 'workflows',
-            title: 'Task',
-            options: workflowKeyFilters,
-          },
-          {
-            columnId: 'scope',
-            title: 'Scope',
-            type: ToolbarType.Array,
-          },
-        ]}
-        showColumnToggle={true}
-        columnVisibility={columnVisibility}
-        setColumnVisibility={setColumnVisibility}
-        actions={actions}
-        columnFilters={columnFilters}
-        setColumnFilters={setColumnFilters}
-        pagination={pagination}
-        setPagination={setPagination}
-        onSetPageSize={setPageSize}
-        pageCount={filters.length}
-        rowSelection={rowSelection}
-        setRowSelection={setRowSelection}
-        getRowId={(row) => row.metadata.id}
-      />
-    </>
+    <DataTable
+      error={error || workflowKeysError}
+      isLoading={isLoading || workflowKeysIsLoading}
+      columns={tableColumns}
+      data={filters}
+      filters={[
+        {
+          columnId: 'workflowId',
+          title: 'Task',
+          options: workflowKeyFilters,
+        },
+        {
+          columnId: 'scope',
+          title: 'Scope',
+          type: ToolbarType.Array,
+        },
+      ]}
+      showColumnToggle={true}
+      columnVisibility={columnVisibility}
+      setColumnVisibility={setColumnVisibility}
+      actions={actions}
+      columnFilters={columnFilters}
+      setColumnFilters={setColumnFilters}
+      pagination={pagination}
+      setPagination={setPagination}
+      onSetPageSize={setPageSize}
+      pageCount={filters.length}
+      rowSelection={rowSelection}
+      setRowSelection={setRowSelection}
+      getRowId={(row) => row.metadata.id}
+    />
   );
 }

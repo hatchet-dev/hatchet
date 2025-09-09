@@ -1,4 +1,4 @@
-import { PaginationState } from '@tanstack/react-table';
+import { PaginationState, Updater } from '@tanstack/react-table';
 import { useCallback, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 
@@ -127,13 +127,19 @@ export const usePagination = ({ key }: UsePaginationProps) => {
 
   return {
     pagination,
-    setPagination: (updater: PaginationState) => {
+    setPagination: (updater: Updater<PaginationState>) => {
       setSearchParams((prev) => {
+        const currentPagination = parsePaginationParam();
+        const newPagination = 
+          typeof updater === 'function' 
+            ? updater(currentPagination)
+            : updater;
+        
         return {
           ...Object.fromEntries(prev.entries()),
           [paramKey]: JSON.stringify({
-            i: updater.pageIndex,
-            s: updater.pageSize,
+            i: newPagination.pageIndex,
+            s: newPagination.pageSize,
           }),
         };
       });
