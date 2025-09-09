@@ -739,8 +739,11 @@ export interface ManagementToken {
   id: string;
   /** The name of the management token. */
   name: string;
-  /** The duration of the management token. */
-  duration: ManagementTokenDuration;
+  /**
+   * The timestamp at which the management token expires
+   * @format date-time
+   */
+  expiresAt: string;
 }
 
 export interface ManagementTokenList {

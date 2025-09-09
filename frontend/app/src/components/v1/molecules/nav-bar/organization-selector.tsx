@@ -23,12 +23,7 @@ import {
   Popover,
   PopoverContent,
 } from '@radix-ui/react-popover';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/v1/ui/tooltip';
+import { TooltipProvider } from '@/components/v1/ui/tooltip';
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTenantDetails } from '@/hooks/use-tenant';
@@ -76,48 +71,43 @@ function OrganizationGroup({
     <>
       <CommandItem
         onSelect={onToggleExpand}
+        value={`org-${organization.metadata.id}`}
         className="text-sm cursor-pointer hover:bg-accent focus:bg-accent"
       >
-        <div className="flex items-center justify-between w-full">
-          <div className="flex items-center gap-2">
-            {isExpanded ? (
-              <ChevronDownIcon className="h-3 w-3" />
-            ) : (
-              <ChevronRightIcon className="h-3 w-3" />
-            )}
-            <BuildingOffice2Icon className="h-4 w-4" />
-            <span className="font-medium">{organization.name}</span>
+        <div className="flex items-start justify-between w-full">
+          <div className="flex items-start gap-2 flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-shrink-0">
+              {isExpanded ? (
+                <ChevronDownIcon className="h-3 w-3" />
+              ) : (
+                <ChevronRightIcon className="h-3 w-3" />
+              )}
+              <BuildingOffice2Icon className="h-4 w-4" />
+            </div>
+            <span className="font-medium leading-tight break-words">
+              {organization.name}
+            </span>
           </div>
           {organization.isOwner && (
-            <div className="flex items-center gap-1">
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-5 w-5 p-0 hover:bg-accent-foreground/10"
-                    title="New Tenant"
-                    onClick={handleNewTenantClick}
-                  >
-                    <PlusIcon className="h-3 w-3" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>New Tenant</TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-5 w-5 p-0 hover:bg-accent-foreground/10"
-                    title="Settings"
-                    onClick={handleSettingsClick}
-                  >
-                    <Cog6ToothIcon className="h-3 w-3" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Settings</TooltipContent>
-              </Tooltip>
+            <div className="flex items-center gap-1 flex-shrink-0 ml-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-5 w-5 p-0 hover:bg-accent-foreground/10"
+                onClick={handleNewTenantClick}
+                title="New Tenant"
+              >
+                <PlusIcon className="h-3 w-3" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-5 w-5 p-0 hover:bg-accent-foreground/10"
+                onClick={handleSettingsClick}
+                title="Settings"
+              >
+                <Cog6ToothIcon className="h-3 w-3" />
+              </Button>
             </div>
           )}
         </div>
@@ -127,6 +117,7 @@ function OrganizationGroup({
         tenants.map((membership) => (
           <CommandItem
             key={membership.metadata.id}
+            value={`tenant-${membership.tenant?.metadata.id}`}
             onSelect={() => {
               invariant(membership.tenant);
               onTenantSelect(membership.tenant);
@@ -136,10 +127,11 @@ function OrganizationGroup({
           >
             <div className="flex items-center justify-between w-full">
               <div className="flex items-center gap-2">
-                <div className="w-2 h-2 rounded-full bg-green-500" />
-                <span>{membership.tenant?.name}</span>
-                <span className="text-xs text-muted-foreground">
-                  {membership.tenant?.slug}
+                <div className="w-5 h-5 flex items-center justify-center">
+                  <div className="w-2 h-2 rounded-full bg-green-500" />
+                </div>
+                <span className="text-muted-foreground">
+                  {membership.tenant?.name}
                 </span>
               </div>
               <CheckIcon
@@ -173,7 +165,11 @@ export function OrganizationSelector({
   const { organizations, getOrganizationForTenant } = useOrganizations();
 
   const handleClose = () => setOpen(false);
-  const handleNavigate = (path: string) => navigate(path, { replace: true });
+  const handleNavigate = (path: string) => {
+    // Store the current path before navigating to org settings
+    sessionStorage.setItem('orgSettingsPreviousPath', window.location.pathname);
+    navigate(path, { replace: false });
+  };
 
   const handleTenantSelect = (tenant: Tenant) => {
     setCurrTenant(tenant);
@@ -226,8 +222,7 @@ export function OrganizationSelector({
       .map((org) => ({
         organization: org,
         tenants: orgMap.get(org.metadata.id) || [],
-      }))
-      .filter((item) => item.tenants.length > 0);
+      }));
 
     return {
       currentOrgData: currentOrg
@@ -240,12 +235,6 @@ export function OrganizationSelector({
 
   if (!currTenant) {
     return null;
-  }
-
-  // Auto-expand current organization
-  const currentOrgId = currentOrgData?.organization.metadata.id;
-  if (currentOrgId && !expandedOrgs.includes(currentOrgId)) {
-    setExpandedOrgs((prev) => [...prev, currentOrgId]);
   }
 
   return (
@@ -267,8 +256,10 @@ export function OrganizationSelector({
           </Button>
         </PopoverTrigger>
         <PopoverContent
-          side="right"
-          className="w-[320px] p-0 mb-6 z-50 border border-border shadow-md rounded-md"
+          side="top"
+          align="start"
+          sideOffset={20}
+          className="w-[287px] p-0 z-50 border border-border shadow-md rounded-md"
         >
           <Command className="border-0">
             <CommandList>
@@ -322,6 +313,7 @@ export function OrganizationSelector({
                   {standaloneTenants.map((membership) => (
                     <CommandItem
                       key={membership.metadata.id}
+                      value={`standalone-tenant-${membership.tenant?.metadata.id}`}
                       onSelect={() => {
                         invariant(membership.tenant);
                         handleTenantSelect(membership.tenant);
