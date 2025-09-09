@@ -20,7 +20,7 @@ export const dag = hatchet.workflow<DagInput, DagOutput>({
 });
 // !!
 
-// > Declaring Tasks
+// > First task
 // Next, we declare the tasks bound to the workflow
 const toLower = dag.task({
   name: 'to-lower',
@@ -30,7 +30,9 @@ const toLower = dag.task({
     };
   },
 });
+// !!
 
+// > Second task with parent
 dag.task({
   name: 'reverse',
   parents: [toLower],
