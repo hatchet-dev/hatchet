@@ -14,6 +14,7 @@ import {
 import { DocPage } from '@/components/v1/docs/docs-button';
 import { V1Event } from '@/lib/api';
 import { ExpandedEventContent } from '@/pages/main/v1/events';
+import { useTheme } from '@/components/theme-provider';
 
 type SidePanelContent =
   | {
@@ -64,6 +65,8 @@ export function useSidePanelData(): SidePanelData {
   const [history, setHistory] = useState<UseSidePanelProps[]>([]);
   const [currentIndex, setCurrentIndex] = useState(-1);
   const location = useLocation();
+  const { theme: rawTheme } = useTheme();
+  const theme = ['dark', 'light'].includes(rawTheme) ? rawTheme : 'dark';
 
   const props =
     currentIndex >= 0 && currentIndex < history.length
@@ -102,7 +105,7 @@ export function useSidePanelData(): SidePanelData {
           component: (
             <div className="p-4 size-full">
               <iframe
-                src={props.content.href}
+                src={`${props.content.href}?theme=${theme}`}
                 className="inset-0 w-full rounded-md border border-slate-800 size-full"
                 title={`Documentation: ${props.content.title}`}
                 loading="lazy"
@@ -116,7 +119,7 @@ export function useSidePanelData(): SidePanelData {
         const exhaustiveCheck: never = panelType;
         throw new Error(`Unhandled action type: ${exhaustiveCheck}`);
     }
-  }, [props]);
+  }, [props, theme]);
 
   const open = useCallback(
     (newProps: UseSidePanelProps) => {
