@@ -13,7 +13,6 @@ import {
   UserIcon,
   KeyIcon,
   EnvelopeIcon,
-  ArrowLeftIcon,
   PencilIcon,
   CheckIcon,
   XMarkIcon,
@@ -225,70 +224,55 @@ export default function OrganizationPage() {
       <div className="p-6 space-y-6 max-w-6xl mx-auto">
         {/* Header */}
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => navigate(-1)}
-              className="flex items-center gap-2"
-            >
-              <ArrowLeftIcon className="h-4 w-4" />
-              Back
-            </Button>
-            <div className="flex items-center gap-3">
-              <BuildingOffice2Icon className="h-8 w-8 text-primary" />
-              <div className="flex-1">
-                <div className="flex items-center gap-2">
-                  {isEditingName ? (
-                    <div className="flex items-center gap-2">
-                      <Input
-                        value={editedName}
-                        onChange={(e) => setEditedName(e.target.value)}
-                        onKeyDown={handleKeyPress}
-                        className="text-3xl font-bold h-12 px-3"
-                        autoFocus
-                        disabled={updateOrganizationLoading}
-                      />
-                      <Button
-                        size="sm"
-                        onClick={handleSaveEdit}
-                        disabled={
-                          updateOrganizationLoading || !editedName.trim()
-                        }
-                      >
-                        <CheckIcon className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={handleCancelEdit}
-                        disabled={updateOrganizationLoading}
-                      >
-                        <XMarkIcon className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-2">
-                      <h1 className="text-3xl font-bold">
-                        {organization.name}
-                      </h1>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={handleStartEdit}
-                        className="h-8 w-8 p-0"
-                      >
-                        <PencilIcon className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  )}
-                </div>
-                <p className="text-muted-foreground">
-                  Manage organization settings
-                </p>
+          <div className="flex items-center gap-2">
+            {isEditingName ? (
+              <div className="flex items-center gap-2">
+                <Input
+                  value={editedName}
+                  onChange={(e) => setEditedName(e.target.value)}
+                  onKeyDown={handleKeyPress}
+                  className="text-2xl font-bold h-10 px-3"
+                  autoFocus
+                  disabled={updateOrganizationLoading}
+                />
+                <Button
+                  size="sm"
+                  onClick={handleSaveEdit}
+                  disabled={updateOrganizationLoading || !editedName.trim()}
+                >
+                  <CheckIcon className="h-4 w-4" />
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleCancelEdit}
+                  disabled={updateOrganizationLoading}
+                >
+                  <XMarkIcon className="h-4 w-4" />
+                </Button>
               </div>
-            </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <h1 className="text-2xl font-bold">{organization.name}</h1>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={handleStartEdit}
+                  className="h-6 w-6 p-0"
+                >
+                  <PencilIcon className="h-3 w-3" />
+                </Button>
+              </div>
+            )}
           </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => navigate(-1)}
+            className="h-8 w-8 p-0"
+          >
+            <XMarkIcon className="h-4 w-4" />
+          </Button>
         </div>
 
         {/* Tenants Section */}
