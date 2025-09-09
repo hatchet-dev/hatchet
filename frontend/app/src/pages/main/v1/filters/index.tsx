@@ -4,7 +4,7 @@ import {
   scopeKey,
   workflowIdKey,
 } from './components/filter-columns';
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   ColumnFiltersState,
   RowSelectionState,
@@ -16,7 +16,6 @@ import {
   FilterOption,
   ToolbarType,
 } from '@/components/v1/molecules/data-table/data-table-toolbar';
-import { useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/v1/ui/button';
 import { ArrowPathIcon } from '@heroicons/react/24/outline';
 import { DataTable } from '@/components/v1/molecules/data-table/data-table';
@@ -25,17 +24,7 @@ import { useFilters } from './hooks/use-filters';
 
 export default function Filters() {
   const { tenantId } = useCurrentTenantId();
-
-  const [searchParams, setSearchParams] = useSearchParams();
   const [rotate, setRotate] = useState(false);
-
-  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>(() => {
-    const filtersParam = searchParams.get('filters');
-    if (filtersParam) {
-      return JSON.parse(filtersParam);
-    }
-    return [];
-  });
 
   const {
     pagination,
@@ -45,6 +34,8 @@ export default function Filters() {
     filters,
     error,
     isLoading,
+    columnFilters,
+    setColumnFilters,
   } = useFilters({
     key: 'filters',
   });
@@ -57,12 +48,6 @@ export default function Filters() {
 
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 
-  useEffect(() => {
-    const newSearchParams = new URLSearchParams(searchParams);
-
-    newSearchParams.set('filters', JSON.stringify(columnFilters));
-    setSearchParams(newSearchParams, { replace: true });
-  }, [columnFilters, pagination, setSearchParams, searchParams]);
 
   const {
     data: workflowKeys,
