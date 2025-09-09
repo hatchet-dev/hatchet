@@ -19,25 +19,25 @@ for i in range(50):
 # !!
 
 # > Skip a run
-# hatchet.event.push(
-#     event_key=EVENT_KEY,
-#     payload={
-#         "should_skip": True,
-#     },
-#     options=PushEventOptions(
-#         scope="foobarbaz",
-#     ),
-# )
-# # !!
+hatchet.event.push(
+    event_key=EVENT_KEY,
+    payload={
+        "should_skip": True,
+    },
+    options=PushEventOptions(
+        scope="foobarbaz",
+    ),
+)
+# !!
 
-# # > Trigger a run
-# hatchet.event.push(
-#     event_key=EVENT_KEY,
-#     payload={
-#         "should_skip": False,
-#     },
-#     options=PushEventOptions(
-#         scope="foobarbaz",
-#     ),
-# )
-# # !!
+# > Trigger a run
+hatchet.event.push(
+    event_key=EVENT_KEY,
+    payload={
+        "should_skip": False,
+    },
+    options=PushEventOptions(
+        scope="foobarbaz",
+    ),
+)
+# !!
