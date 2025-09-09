@@ -30,14 +30,25 @@ func (t *V1FiltersService) V1FilterList(ctx echo.Context, request gen.V1FilterLi
 		scopeParams = append(scopeParams, *scopes...)
 	}
 
-	filters, err := t.config.V1.Filters().ListFilters(
+	filterLimit := int64(20000)
+	filterOffset := int64(0)
+
+	if request.Params.Limit != nil {
+		filterLimit = *request.Params.Limit
+	}
+
+	if request.Params.Offset != nil {
+		filterOffset = *request.Params.Offset
+	}
+
+	filters, count, err := t.config.V1.Filters().ListFilters(
 		ctx.Request().Context(),
 		tenant.ID.String(),
 		v1.ListFiltersOpts{
-			WorkflowIds:  workflowIdParams,
-			Scopes:       scopeParams,
-			FilterLimit:  request.Params.Limit,
-			FilterOffset: request.Params.Offset,
+			WorkflowIds: workflowIdParams,
+			Scopes:      scopeParams,
+			Limit:       filterLimit,
+			Offset:      filterOffset,
 		},
 	)
 
@@ -45,7 +56,7 @@ func (t *V1FiltersService) V1FilterList(ctx echo.Context, request gen.V1FilterLi
 		return gen.V1FilterList400JSONResponse(apierrors.NewAPIErrors("failed to list filters")), nil
 	}
 
-	transformed := transformers.ToV1FilterList(filters)
+	transformed := transformers.ToV1FilterList(filters, count, filterLimit, filterOffset)
 
 	return gen.V1FilterList200JSONResponse(
 		transformed,

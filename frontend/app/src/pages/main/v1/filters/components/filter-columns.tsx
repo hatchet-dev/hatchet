@@ -2,6 +2,7 @@ import { ColumnDef } from '@tanstack/react-table';
 import { Checkbox } from '@/components/v1/ui/checkbox';
 import { V1Filter } from '@/lib/api';
 import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
+import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
 
 export const FilterColumn = {
   id: 'Id',
@@ -90,7 +91,12 @@ export const columns = (
         />
       ),
       cell: ({ row }) => (
-        <div className="w-full">{row.original.expression}</div>
+        <CodeHighlighter
+          language="text"
+          className="whitespace-pre-wrap break-words text-sm leading-relaxed"
+          code={row.original.expression}
+          copy={false}
+        />
       ),
       enableSorting: false,
       enableHiding: true,

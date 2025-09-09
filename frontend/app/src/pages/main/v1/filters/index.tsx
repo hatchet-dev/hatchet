@@ -4,26 +4,15 @@ import {
   scopeKey,
   workflowIdKey,
 } from './components/filter-columns';
-import { useMemo, useState } from 'react';
-import {
-  ColumnFiltersState,
-  RowSelectionState,
-  VisibilityState,
-} from '@tanstack/react-table';
-import { useQuery } from '@tanstack/react-query';
-import { queries } from '@/lib/api';
-import {
-  FilterOption,
-  ToolbarType,
-} from '@/components/v1/molecules/data-table/data-table-toolbar';
+import { useState } from 'react';
+import { RowSelectionState, VisibilityState } from '@tanstack/react-table';
+import { ToolbarType } from '@/components/v1/molecules/data-table/data-table-toolbar';
 import { Button } from '@/components/v1/ui/button';
 import { ArrowPathIcon } from '@heroicons/react/24/outline';
 import { DataTable } from '@/components/v1/molecules/data-table/data-table';
-import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { useFilters } from './hooks/use-filters';
 
 export default function Filters() {
-  const { tenantId } = useCurrentTenantId();
   const [rotate, setRotate] = useState(false);
 
   const {
@@ -32,51 +21,20 @@ export default function Filters() {
     setPageSize,
     refetch,
     filters,
+    numFilters,
     error,
     isLoading,
     columnFilters,
     setColumnFilters,
+    workflowIdToName,
+    workflowNameFilters,
   } = useFilters({
-    key: 'filters',
+    key: 'table',
   });
 
-  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({
-    EventId: false,
-    Payload: false,
-    scope: false,
-  });
+  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
 
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
-
-
-  const {
-    data: workflowKeys,
-    isLoading: workflowKeysIsLoading,
-    error: workflowKeysError,
-  } = useQuery({
-    ...queries.workflows.list(tenantId, { limit: 200 }),
-  });
-
-  const workflowKeyFilters = useMemo((): FilterOption[] => {
-    return (
-      workflowKeys?.rows?.map((key) => ({
-        value: key.metadata.id,
-        label: key.name,
-      })) || []
-    );
-  }, [workflowKeys]);
-
-  const workflowIdToName = useMemo(
-    () =>
-      workflowKeyFilters.reduce(
-        (acc, curr) => {
-          acc[curr.value] = curr.label;
-          return acc;
-        },
-        {} as Record<string, string>,
-      ),
-    [workflowKeyFilters],
-  );
 
   const tableColumns = columns(workflowIdToName);
 
@@ -100,15 +58,15 @@ export default function Filters() {
 
   return (
     <DataTable
-      error={error || workflowKeysError}
-      isLoading={isLoading || workflowKeysIsLoading}
+      error={error}
+      isLoading={isLoading}
       columns={tableColumns}
       data={filters}
       filters={[
         {
           columnId: workflowIdKey,
           title: FilterColumn.workflowId,
-          options: workflowKeyFilters,
+          options: workflowNameFilters,
         },
         {
           columnId: scopeKey,
@@ -125,7 +83,7 @@ export default function Filters() {
       pagination={pagination}
       setPagination={setPagination}
       onSetPageSize={setPageSize}
-      pageCount={filters.length}
+      pageCount={numFilters}
       rowSelection={rowSelection}
       setRowSelection={setRowSelection}
       getRowId={(row) => row.metadata.id}

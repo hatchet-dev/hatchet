@@ -1,11 +1,12 @@
 import { usePagination } from '@/hooks/use-pagination';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
-import api from '@/lib/api';
+import api, { queries } from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
-import { ColumnFiltersState, OnChangeFn, Updater } from '@tanstack/react-table';
+import { ColumnFiltersState, Updater } from '@tanstack/react-table';
 import { useCallback, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { scopeKey, workflowIdKey } from '../components/filter-columns';
+import { FilterOption } from '@/components/v1/molecules/data-table/data-table-toolbar';
 
 type UseFiltersProps = {
   key: string;
@@ -62,13 +63,13 @@ export const useFilters = ({ key }: UseFiltersProps) => {
     const { w } = parseFilterParam(searchParams, paramKey);
 
     return w;
-  }, [searchParams]);
+  }, [searchParams, paramKey]);
 
   const selectedScopes = useMemo(() => {
     const { s } = parseFilterParam(searchParams, paramKey);
 
     return s;
-  }, [searchParams]);
+  }, [searchParams, paramKey]);
 
   const columnFilters = useMemo<ColumnFiltersState>(() => {
     const { w, s } = parseFilterParam(searchParams, paramKey);
@@ -140,12 +141,43 @@ export const useFilters = ({ key }: UseFiltersProps) => {
   });
 
   const filters = data?.rows ?? [];
+  const numFilters = data?.pagination?.num_pages ?? 1;
+
+  const {
+    data: workflowKeys,
+    isLoading: workflowKeysIsLoading,
+    error: workflowKeysError,
+  } = useQuery({
+    ...queries.workflows.list(tenantId, { limit: 200 }),
+  });
+
+  const workflowNameFilters = useMemo((): FilterOption[] => {
+    return (
+      workflowKeys?.rows?.map((key) => ({
+        value: key.metadata.id,
+        label: key.name,
+      })) || []
+    );
+  }, [workflowKeys]);
+
+  const workflowIdToName = useMemo(
+    () =>
+      workflowNameFilters.reduce(
+        (acc, curr) => {
+          acc[curr.value] = curr.label;
+          return acc;
+        },
+        {} as Record<string, string>,
+      ),
+    [workflowNameFilters],
+  );
 
   return {
     filters,
-    isLoading,
+    numFilters,
+    isLoading: isLoading || workflowKeysIsLoading,
     refetch,
-    error,
+    error: error || workflowKeysError,
     pagination,
     setPagination,
     setPageSize,
@@ -153,5 +185,7 @@ export const useFilters = ({ key }: UseFiltersProps) => {
     setColumnFilters,
     selectedWorkflowIds,
     selectedScopes,
+    workflowNameFilters,
+    workflowIdToName,
   };
 };

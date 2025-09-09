@@ -49,7 +49,7 @@ export const usePagination = ({ key }: UsePaginationProps) => {
 
   const pagination = useMemo<PaginationState>(
     () => parsePaginationParam(searchParams, paramKey),
-    [],
+    [searchParams, paramKey],
   );
 
   const offset = useMemo(() => {
