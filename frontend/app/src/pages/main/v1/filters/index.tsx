@@ -1,6 +1,6 @@
 import {
-  columns,
   FilterColumn,
+  filterColumns,
   scopeKey,
   workflowIdKey,
 } from './components/filter-columns';
@@ -36,7 +36,7 @@ export default function Filters() {
 
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 
-  const tableColumns = columns(workflowIdToName);
+  const tableColumns = filterColumns(workflowIdToName);
 
   const actions = [
     <Button
