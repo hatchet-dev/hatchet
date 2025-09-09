@@ -25,21 +25,6 @@ export const columns = ({
 }): ColumnDef<ScheduledWorkflows>[] => {
   return [
     {
-      accessorKey: 'runId',
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Run ID" />
-      ),
-      cell: ({ row }) => {
-        return row.original.workflowRunId ? (
-          <Link to={`/tenants/${tenantId}/runs/${row.original.workflowRunId}`}>
-            <div className="cursor-pointer hover:underline min-w-fit whitespace-nowrap">
-              {row.original.workflowRunName}
-            </div>
-          </Link>
-        ) : null;
-      },
-    },
-    {
       accessorKey: 'status',
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title="Status" />
