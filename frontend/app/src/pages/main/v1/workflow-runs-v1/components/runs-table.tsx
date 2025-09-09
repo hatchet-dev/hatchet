@@ -270,11 +270,11 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
         <DataTable
           emptyState={
             <div className="w-full h-full flex flex-col gap-y-4 text-foreground py-8 justify-center items-center">
-              <p className="text-lg font-bold">No runs found</p>
+              <p className="text-lg font-semibold">No runs found</p>
               <div className="w-fit">
                 <DocsButton
                   doc={docsPages.home['your-first-task']}
-                  label={'Learn how to run your first task'}
+                  label={'Learn more about tasks'}
                   variant="full"
                 />
               </div>

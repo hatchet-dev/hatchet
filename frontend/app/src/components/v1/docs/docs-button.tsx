@@ -1,6 +1,6 @@
 import { Button } from '../ui/button';
 import { useSidePanel } from '@/hooks/use-side-panel';
-import { BookOpen } from 'lucide-react';
+import { BookOpenText } from 'lucide-react';
 
 export type DocPage = {
   title: string;
@@ -26,8 +26,12 @@ export const DocsButton = ({ doc, variant, label }: DocsButtonProps) => {
   switch (variant) {
     case 'full':
       return (
-        <Button onClick={handleClick} className="w-auto px-4 py-2">
-          {label}
+        <Button
+          onClick={handleClick}
+          className="w-auto px-4 py-2 flex flex-row items-center gap-x-2"
+        >
+          <BookOpenText className="size-4" />
+          <span>{label}</span>
         </Button>
       );
     case 'mini':
@@ -40,7 +44,7 @@ export const DocsButton = ({ doc, variant, label }: DocsButtonProps) => {
             onClick={handleClick}
             className="border"
           >
-            <BookOpen className="size-4" />
+            <BookOpenText className="size-4" />
           </Button>
         </div>
       );
