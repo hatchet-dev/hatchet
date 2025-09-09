@@ -3,6 +3,20 @@ import { Checkbox } from '@/components/v1/ui/checkbox';
 import { V1Filter } from '@/lib/api';
 import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
 
+export const FilterColumn = {
+  id: 'Id',
+  workflowId: 'Workflow',
+  scope: 'Scope',
+  expression: 'Expression',
+} as const;
+
+export type FilterColumnKeys = keyof typeof FilterColumn;
+
+export const idKey = 'id';
+export const workflowIdKey: FilterColumnKeys = 'workflowId';
+export const scopeKey: FilterColumnKeys = 'scope';
+export const expressionKey: FilterColumnKeys = 'expression';
+
 export const columns = (
   workflowIdToName: Record<string, string>,
 ): ColumnDef<V1Filter>[] => {
@@ -32,9 +46,9 @@ export const columns = (
       enableHiding: false,
     },
     {
-      accessorKey: 'id',
+      accessorKey: idKey,
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Id" />
+        <DataTableColumnHeader column={column} title={FilterColumn.id} />
       ),
       cell: ({ row }) => (
         <div className="w-full">{row.original.metadata.id}</div>
@@ -43,9 +57,12 @@ export const columns = (
       enableHiding: true,
     },
     {
-      accessorKey: 'workflowId',
+      accessorKey: workflowIdKey,
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Workflow" />
+        <DataTableColumnHeader
+          column={column}
+          title={FilterColumn.workflowId}
+        />
       ),
       cell: ({ row }) => (
         <div className="w-full">
@@ -56,18 +73,21 @@ export const columns = (
       enableHiding: true,
     },
     {
-      accessorKey: 'scope',
+      accessorKey: scopeKey,
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Scope" />
+        <DataTableColumnHeader column={column} title={FilterColumn.scope} />
       ),
       cell: ({ row }) => <div className="w-full">{row.original.scope}</div>,
       enableSorting: false,
       enableHiding: true,
     },
     {
-      accessorKey: 'expression',
+      accessorKey: expressionKey,
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Expression" />
+        <DataTableColumnHeader
+          column={column}
+          title={FilterColumn.expression}
+        />
       ),
       cell: ({ row }) => (
         <div className="w-full">{row.original.expression}</div>

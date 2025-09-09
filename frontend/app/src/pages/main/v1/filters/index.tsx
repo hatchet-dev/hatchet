@@ -1,4 +1,9 @@
-import { columns } from './components/filter-columns';
+import {
+  columns,
+  FilterColumn,
+  scopeKey,
+  workflowIdKey,
+} from './components/filter-columns';
 import { useEffect, useMemo, useState } from 'react';
 import {
   ColumnFiltersState,
@@ -32,26 +37,6 @@ export default function Filters() {
     return [];
   });
 
-  const selectedWorkflows = useMemo(() => {
-    const filter = columnFilters.find((filter) => filter.id === 'workflows');
-
-    if (!filter) {
-      return;
-    }
-
-    return filter?.value as Array<string>;
-  }, [columnFilters]);
-
-  const selectedScopes = useMemo(() => {
-    const filter = columnFilters.find((filter) => filter.id === 'scope');
-
-    if (!filter) {
-      return [];
-    }
-
-    return filter?.value as Array<string>;
-  }, [columnFilters]);
-
   const {
     pagination,
     setPagination,
@@ -62,8 +47,6 @@ export default function Filters() {
     isLoading,
   } = useFilters({
     key: 'filters',
-    workflowIds: selectedWorkflows,
-    scopes: selectedScopes,
   });
 
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({
@@ -75,7 +58,6 @@ export default function Filters() {
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 
   useEffect(() => {
-    console.log('updated', columnFilters);
     const newSearchParams = new URLSearchParams(searchParams);
 
     newSearchParams.set('filters', JSON.stringify(columnFilters));
@@ -139,13 +121,13 @@ export default function Filters() {
       data={filters}
       filters={[
         {
-          columnId: 'workflowId',
-          title: 'Task',
+          columnId: workflowIdKey,
+          title: FilterColumn.workflowId,
           options: workflowKeyFilters,
         },
         {
-          columnId: 'scope',
-          title: 'Scope',
+          columnId: scopeKey,
+          title: FilterColumn.scope,
           type: ToolbarType.Array,
         },
       ]}

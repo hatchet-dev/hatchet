@@ -3,51 +3,54 @@ import { useCallback, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 
 type PaginationQueryShape = {
-  i: number;
-  s: number;
+  i: number; // index
+  s: number; // size
 };
 
 type UsePaginationProps = {
   key: string;
 };
 
+const parsePaginationParam = (searchParams: URLSearchParams, key: string) => {
+  const rawPaginationParamValue = searchParams.get(key);
+
+  if (!rawPaginationParamValue) {
+    return {
+      pageIndex: 0,
+      pageSize: 50,
+    };
+  }
+
+  const parsedPaginationState = JSON.parse(rawPaginationParamValue);
+
+  if (
+    !parsedPaginationState ||
+    typeof parsedPaginationState !== 'object' ||
+    !('i' in parsedPaginationState) ||
+    !('s' in parsedPaginationState)
+  ) {
+    return {
+      pageIndex: 0,
+      pageSize: 50,
+    };
+  }
+
+  const { i, s }: PaginationQueryShape = parsedPaginationState;
+
+  return {
+    pageIndex: i,
+    pageSize: s,
+  };
+};
+
 export const usePagination = ({ key }: UsePaginationProps) => {
   const [searchParams, setSearchParams] = useSearchParams();
   const paramKey = `pagination-${key}`;
 
-  const parsePaginationParam = useCallback(() => {
-    const rawPaginationParamValue = searchParams.get(paramKey);
-
-    if (!rawPaginationParamValue) {
-      return {
-        pageIndex: 0,
-        pageSize: 50,
-      };
-    }
-
-    const parsedPaginationState = JSON.parse(rawPaginationParamValue);
-
-    if (
-      !parsedPaginationState ||
-      typeof parsedPaginationState !== 'object' ||
-      !('i' in parsedPaginationState) ||
-      !('s' in parsedPaginationState)
-    ) {
-      return {
-        pageIndex: 0,
-        pageSize: 50,
-      };
-    }
-
-    const { i, s }: PaginationQueryShape = parsedPaginationState;
-
-    return {
-      pageIndex: i,
-      pageSize: s,
-    };
-  }, [searchParams, paramKey]);
-
-  const pagination = useMemo<PaginationState>(parsePaginationParam, []);
+  const pagination = useMemo<PaginationState>(
+    () => parsePaginationParam(searchParams, paramKey),
+    [],
+  );
 
   const offset = useMemo(() => {
     if (!pagination) {
@@ -67,7 +70,7 @@ export const usePagination = ({ key }: UsePaginationProps) => {
 
   const nextPage = useCallback(() => {
     setSearchParams((prev) => {
-      const currentPagination = parsePaginationParam();
+      const currentPagination = parsePaginationParam(prev, paramKey);
 
       const nextPagination = {
         ...currentPagination,
@@ -86,7 +89,7 @@ export const usePagination = ({ key }: UsePaginationProps) => {
 
   const prevPage = useCallback(() => {
     setSearchParams((prev) => {
-      const currentPagination = parsePaginationParam();
+      const currentPagination = parsePaginationParam(prev, paramKey);
 
       const prevPagination = {
         ...currentPagination,
@@ -106,7 +109,7 @@ export const usePagination = ({ key }: UsePaginationProps) => {
   const setPageSize = useCallback(
     (pageSize: number) => {
       setSearchParams((prev) => {
-        const currentPagination = parsePaginationParam();
+        const currentPagination = parsePaginationParam(prev, paramKey);
         const nextPagination = {
           ...currentPagination,
           pageIndex: 0, // Reset to first page when page size changes
@@ -129,12 +132,10 @@ export const usePagination = ({ key }: UsePaginationProps) => {
     pagination,
     setPagination: (updater: Updater<PaginationState>) => {
       setSearchParams((prev) => {
-        const currentPagination = parsePaginationParam();
-        const newPagination = 
-          typeof updater === 'function' 
-            ? updater(currentPagination)
-            : updater;
-        
+        const currentPagination = parsePaginationParam(prev, paramKey);
+        const newPagination =
+          typeof updater === 'function' ? updater(currentPagination) : updater;
+
         return {
           ...Object.fromEntries(prev.entries()),
           [paramKey]: JSON.stringify({
