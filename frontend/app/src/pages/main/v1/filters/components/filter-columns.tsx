@@ -16,7 +16,7 @@ import { FilterPayloadPopover } from '../../events/components/filter-payload-pop
 import { useState } from 'react';
 
 export const FilterColumn = {
-  id: 'Id',
+  id: 'ID',
   workflowId: 'Workflow',
   scope: 'Scope',
   expression: 'Expression',
