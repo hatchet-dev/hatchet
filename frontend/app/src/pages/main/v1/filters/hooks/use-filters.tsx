@@ -126,7 +126,15 @@ export const useFilters = ({ key }: UseFiltersProps) => {
   );
 
   const { data, isLoading, refetch, error } = useQuery({
-    queryKey: ['v1:filter:list', tenantId, key],
+    queryKey: [
+      'v1:filter:list',
+      tenantId,
+      key,
+      offset,
+      limit,
+      selectedWorkflowIds,
+      selectedScopes,
+    ],
     queryFn: async () => {
       const response = await api.v1FilterList(tenantId, {
         offset,
@@ -138,6 +146,7 @@ export const useFilters = ({ key }: UseFiltersProps) => {
       return response.data;
     },
     refetchInterval: 10000,
+    placeholderData: (prev) => prev,
   });
 
   const filters = data?.rows ?? [];
