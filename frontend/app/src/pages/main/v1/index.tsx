@@ -30,6 +30,8 @@ import useCloudFeatureFlags from '@/pages/auth/hooks/use-cloud-feature-flags';
 import { useSidebar } from '@/components/sidebar-provider';
 import { Filter, SquareActivityIcon, WebhookIcon } from 'lucide-react';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
+import { SidePanel } from '@/components/side-panel';
+import { SidePanelProvider } from '@/hooks/use-side-panel';
 
 function Main() {
   const ctx = useOutletContext<UserContextType & MembershipsContextType>();
@@ -45,12 +47,15 @@ function Main() {
   }
 
   return (
-    <div className="flex flex-row flex-1 w-full h-full">
-      <Sidebar memberships={memberships} />
-      <div className="p-8 flex-grow overflow-y-auto overflow-x-hidden">
-        <Outlet context={childCtx} />
+    <SidePanelProvider>
+      <div className="flex flex-row flex-1 w-full h-full">
+        <Sidebar memberships={memberships} />
+        <div className="p-8 flex-grow overflow-y-auto overflow-x-hidden">
+          <Outlet context={childCtx} />
+        </div>
+        <SidePanel />
       </div>
-    </div>
+    </SidePanelProvider>
   );
 }
 

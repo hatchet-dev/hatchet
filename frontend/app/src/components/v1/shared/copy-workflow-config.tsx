@@ -27,7 +27,7 @@ export function CopyWorkflowConfigButton({
       ) : (
         <>
           <CopyIcon className="w-3 h-3 mr-2" />
-          Copy Workflow Config
+          Copy Config
         </>
       )}
     </Button>

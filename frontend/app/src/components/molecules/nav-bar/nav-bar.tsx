@@ -27,6 +27,7 @@ import {
   BiUserCircle,
   BiEnvelope,
 } from 'react-icons/bi';
+import { Menu } from 'lucide-react';
 import { useTheme } from '@/components/theme-provider';
 import { useEffect, useMemo } from 'react';
 import useApiMeta from '@/pages/auth/hooks/use-api-meta';
@@ -272,16 +273,21 @@ export default function MainNav({ user, setHasBanner }: MainNavProps) {
       <div className="h-16 border-b bg-background">
         <div className="flex h-16 items-center pr-4 pl-4">
           <div className="flex flex-row items-center gap-x-8">
-            <button
-              onClick={() => toggleSidebarOpen()}
-              className="flex flex-row gap-4 items-center"
-            >
+            <div className="flex items-center gap-3">
+              <Button
+                variant="ghost"
+                onClick={() => toggleSidebarOpen()}
+                className="size-8 p-0 hover:bg-slate-100 dark:hover:bg-slate-800"
+                aria-label="Toggle sidebar"
+              >
+                <Menu className="size-4" />
+              </Button>
               <img
                 src={theme == 'dark' ? hatchet : hatchetDark}
                 alt="Hatchet"
                 className="h-9 rounded"
               />
-            </button>
+            </div>
             {breadcrumbs.length > 0 && (
               <Breadcrumb className="hidden md:block">
                 <BreadcrumbList>

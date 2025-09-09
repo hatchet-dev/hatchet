@@ -24,19 +24,9 @@ You can attach additional metadata when pushing events or triggering task runs u
 
   </Tabs.Tab>
   <Tabs.Tab>
-```typescript
-hatchet.event.push(
-  'user:create',
-  {
-    test: 'test',
-  },
-  {
-    additionalMetadata: {
-      source: 'api', // Arbitrary key-value pair
-    },
-  }
-);
-```
+
+<Snippet src={snippets.typescript.on_event.event.push_an_event_with_metadata} />
+
   </Tabs.Tab>
   <Tabs.Tab>
 ```go
@@ -62,18 +52,10 @@ err := c.Event().Push(
 
   </Tabs.Tab>
   <Tabs.Tab>
-```typescript
-const taskRunId = await simple.run(
-  {
-    userId: '1234',
-  },
-  {
-    additionalMetadata: {
-      source: 'api', // Arbitrary key-value pair
-    },
-  }
-);
-```
+<Snippet
+  src={snippets.typescript.simple.run.run_with_metadata}
+/>
+
   </Tabs.Tab>
   <Tabs.Tab>
 ```go

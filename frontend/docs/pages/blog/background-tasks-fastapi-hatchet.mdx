@@ -2,6 +2,8 @@ import DynamicLottie from "../../components/DynamicLottie";
 import { LogViewer } from "../../components/LogViewer";
 import * as prefetch from "./_celery_prefetch.json";
 import { Callout, Card, Cards, Steps, Tabs } from "nextra/components";
+import { snippets } from "@/lib/generated/snippets";
+import { Snippet } from "@/components/code";
 
 # **Background Tasks: From FastAPI to Hatchet**
 
@@ -44,47 +46,11 @@ Hatchet's functionality is built to solve exactly these problems, and many more 
 
 Porting your tasks from FastAPI background tasks to Hatchet is simple - all you need to do is create Hatchet tasks out of the functions you're passing to `add_task`. For instance:
 
-```python
-async def send_welcome_email_task(user_id: int) -> None:
-    async with Session() as db:
-        user = await get_user(db, user_id)
-
-        await send_welcome_email(user.email)
-
-@app.post("/user")
-async def create_user(background_tasks: BackgroundTasks) -> User:
-    async with Session() as db:
-        user = await create_user(db)
-
-        background_tasks.add_task(send_welcome_email_task, user.id)
-
-        return user
-```
+<Snippet src={snippets.python.fastapi_blog.trigger.fast_api_background_tasks} />
 
 Would become:
 
-```python
-class WelcomeEmailInput(BaseModel):
-    user_id: int
-
-@hatchet.task(input_validator=WelcomeEmailInput)
-async def send_welcome_email_task(input: WelcomeEmailInput, _ctx: Context) -> None:
-    async with Session() as db:
-        user = await get_user(db, input.user_id)
-
-        await send_welcome_email(user.email)
-
-@app.post("/user")
-async def create_user() -> User:
-    async with Session() as db:
-        user = await create_user(db)
-
-        await send_welcome_email_task.aio_run_no_wait(
-            WelcomeEmailInput(user_id=user.id)
-        )
-
-        return user
-```
+<Snippet src={snippets.python.fastapi_blog.trigger.hatchet_task} />
 
 And that's it! When you trigger the Hatchet task (in this case, in ["fire and forget"](../home/run-no-wait.mdx) style), your task will be sent through the Hatchet Engine to your worker, where it will execute, and report its result in the dashboard for you to see. Or if something goes wrong, you can be notified.
 
