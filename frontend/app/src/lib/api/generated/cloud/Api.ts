@@ -49,6 +49,7 @@ import {
   TenantBillingState,
   TenantSubscription,
   UpdateManagedWorkerRequest,
+  UpdateOrganizationRequest,
   UpdateTenantSubscription,
   VectorPushRequest,
   WorkflowRunEventsMetricsCounts,
@@ -883,6 +884,28 @@ export class Api<
       ...params,
     });
   /**
+   * @description Update an organization
+   *
+   * @name OrganizationUpdate
+   * @summary Update Organization
+   * @request PATCH:/api/v1/management/organizations/{organization}
+   * @secure
+   */
+  organizationUpdate = (
+    organization: string,
+    data: UpdateOrganizationRequest,
+    params: RequestParams = {},
+  ) =>
+    this.request<Organization, APIError>({
+      path: `/api/v1/management/organizations/${organization}`,
+      method: "PATCH",
+      body: data,
+      secure: true,
+      type: ContentType.Json,
+      format: "json",
+      ...params,
+    });
+  /**
    * @description Create a new tenant in the organization
    *
    * @tags Management
@@ -1165,6 +1188,7 @@ export class Api<
   /**
    * @description Delete an organization invite
    *
+   * @tags Management
    * @name OrganizationInviteDelete
    * @summary Delete Organization Invite for Organization
    * @request DELETE:/api/v1/management/organization-invites/{organization-invite}
