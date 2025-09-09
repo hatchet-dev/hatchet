@@ -74,18 +74,22 @@ function OrganizationGroup({
         value={`org-${organization.metadata.id}`}
         className="text-sm cursor-pointer hover:bg-accent focus:bg-accent"
       >
-        <div className="flex items-center justify-between w-full">
-          <div className="flex items-center gap-2">
-            {isExpanded ? (
-              <ChevronDownIcon className="h-3 w-3" />
-            ) : (
-              <ChevronRightIcon className="h-3 w-3" />
-            )}
-            <BuildingOffice2Icon className="h-4 w-4" />
-            <span className="font-medium">{organization.name}</span>
+        <div className="flex items-start justify-between w-full">
+          <div className="flex items-start gap-2 flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-shrink-0">
+              {isExpanded ? (
+                <ChevronDownIcon className="h-3 w-3" />
+              ) : (
+                <ChevronRightIcon className="h-3 w-3" />
+              )}
+              <BuildingOffice2Icon className="h-4 w-4" />
+            </div>
+            <span className="font-medium leading-tight break-words">
+              {organization.name}
+            </span>
           </div>
           {organization.isOwner && (
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1 flex-shrink-0 ml-2">
               <Button
                 variant="ghost"
                 size="sm"

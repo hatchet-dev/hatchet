@@ -1,9 +1,12 @@
 import { useParams, useNavigate } from 'react-router-dom';
-import { useQuery, useQueries } from '@tanstack/react-query';
+import { useQuery, useQueries, useQueryClient } from '@tanstack/react-query';
 import { cloudApi } from '@/lib/api/api';
 import api from '@/lib/api';
+import { useOrganizations } from '@/hooks/use-organizations';
 import { Loading } from '@/components/v1/ui/loading';
 import { Button } from '@/components/v1/ui/button';
+import { Input } from '@/components/v1/ui/input';
+import { formatDistanceToNow } from 'date-fns';
 import {
   PlusIcon,
   BuildingOffice2Icon,
@@ -11,6 +14,9 @@ import {
   KeyIcon,
   EnvelopeIcon,
   ArrowLeftIcon,
+  PencilIcon,
+  CheckIcon,
+  XMarkIcon,
 } from '@heroicons/react/24/outline';
 import {
   Card,
@@ -58,6 +64,9 @@ import CopyToClipboard from '@/components/v1/ui/copy-to-clipboard';
 export default function OrganizationPage() {
   const { organization: orgId } = useParams<{ organization: string }>();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const { handleUpdateOrganization, updateOrganizationLoading } =
+    useOrganizations();
   const [showInviteMemberModal, setShowInviteMemberModal] = useState(false);
   const [memberToDelete, setMemberToDelete] =
     useState<OrganizationMember | null>(null);
@@ -67,6 +76,59 @@ export default function OrganizationPage() {
   );
   const [inviteToCancel, setInviteToCancel] =
     useState<OrganizationInvite | null>(null);
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [editedName, setEditedName] = useState('');
+
+  const handleStartEdit = () => {
+    if (organizationQuery.data?.name) {
+      setEditedName(organizationQuery.data.name);
+      setIsEditingName(true);
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditingName(false);
+    setEditedName('');
+  };
+
+  const handleSaveEdit = () => {
+    if (!orgId || !editedName.trim()) {
+      return;
+    }
+
+    handleUpdateOrganization(orgId, editedName.trim(), () => {
+      setIsEditingName(false);
+      setEditedName('');
+      // Invalidate and refetch the organization query to get updated data
+      queryClient.invalidateQueries({ queryKey: ['organization:get', orgId] });
+    });
+  };
+
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleSaveEdit();
+    } else if (e.key === 'Escape') {
+      handleCancelEdit();
+    }
+  };
+
+  const formatExpirationDate = (expiresDate: string) => {
+    try {
+      const expires = new Date(expiresDate);
+      const now = new Date();
+
+      // If the date is in the past, show "expired"
+      if (expires < now) {
+        return 'expired';
+      }
+
+      // Otherwise, show "in X days" format
+      return `in ${formatDistanceToNow(expires)}`;
+    } catch (error) {
+      // Fallback to original date format if parsing fails
+      return new Date(expiresDate).toLocaleDateString();
+    }
+  };
 
   const organizationQuery = useQuery({
     queryKey: ['organization:get', orgId],
@@ -175,8 +237,52 @@ export default function OrganizationPage() {
             </Button>
             <div className="flex items-center gap-3">
               <BuildingOffice2Icon className="h-8 w-8 text-primary" />
-              <div>
-                <h1 className="text-3xl font-bold">{organization.name}</h1>
+              <div className="flex-1">
+                <div className="flex items-center gap-2">
+                  {isEditingName ? (
+                    <div className="flex items-center gap-2">
+                      <Input
+                        value={editedName}
+                        onChange={(e) => setEditedName(e.target.value)}
+                        onKeyDown={handleKeyPress}
+                        className="text-3xl font-bold h-12 px-3"
+                        autoFocus
+                        disabled={updateOrganizationLoading}
+                      />
+                      <Button
+                        size="sm"
+                        onClick={handleSaveEdit}
+                        disabled={
+                          updateOrganizationLoading || !editedName.trim()
+                        }
+                      >
+                        <CheckIcon className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={handleCancelEdit}
+                        disabled={updateOrganizationLoading}
+                      >
+                        <XMarkIcon className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <h1 className="text-3xl font-bold">
+                        {organization.name}
+                      </h1>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={handleStartEdit}
+                        className="h-8 w-8 p-0"
+                      >
+                        <PencilIcon className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  )}
+                </div>
                 <p className="text-muted-foreground">
                   Manage organization settings
                 </p>
@@ -184,44 +290,6 @@ export default function OrganizationPage() {
             </div>
           </div>
         </div>
-
-        {/* Organization Details */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Organization Details</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableBody>
-                <TableRow>
-                  <TableCell className="font-medium w-48">
-                    Organization ID
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono text-sm">
-                        {organization.metadata.id}
-                      </span>
-                      <CopyToClipboard text={organization.metadata.id} />
-                    </div>
-                  </TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableCell className="font-medium w-48">Name</TableCell>
-                  <TableCell>{organization.name}</TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableCell className="font-medium w-48">Created</TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {new Date(
-                      organization.metadata.createdAt,
-                    ).toLocaleDateString()}
-                  </TableCell>
-                </TableRow>
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
 
         {/* Tenants Section */}
         <Card>
@@ -257,7 +325,7 @@ export default function OrganizationPage() {
                     <TableHeader>
                       <TableRow>
                         <TableHead>Name</TableHead>
-                        <TableHead>Tenant ID</TableHead>
+                        <TableHead>ID</TableHead>
                         <TableHead>Slug</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead>Actions</TableHead>
@@ -436,7 +504,7 @@ export default function OrganizationPage() {
                             {member.email}
                           </TableCell>
                           <TableCell>
-                            <Badge variant="default">{member.role}</Badge>
+                            <Badge variant="outline">{member.role}</Badge>
                           </TableCell>
                           <TableCell>
                             <DropdownMenu>
@@ -471,7 +539,6 @@ export default function OrganizationPage() {
                                 ) : (
                                   <DropdownMenuItem
                                     onClick={() => setMemberToDelete(member)}
-                                    className="text-red-600 focus:text-red-600"
                                   >
                                     <TrashIcon className="h-4 w-4 mr-2" />
                                     Remove Member
@@ -514,7 +581,6 @@ export default function OrganizationPage() {
                             <DropdownMenuContent align="end">
                               <DropdownMenuItem
                                 onClick={() => setMemberToDelete(member)}
-                                className="text-red-600 focus:text-red-600"
                               >
                                 <TrashIcon className="h-4 w-4 mr-2" />
                                 Remove Member
@@ -597,8 +663,7 @@ export default function OrganizationPage() {
                         <TableHead>Email</TableHead>
                         <TableHead>Role</TableHead>
                         <TableHead>Status</TableHead>
-                        <TableHead>Invited By</TableHead>
-                        <TableHead>Expires</TableHead>
+                        <TableHead>Expiry</TableHead>
                         <TableHead>Actions</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -633,11 +698,8 @@ export default function OrganizationPage() {
                                 {invite.status}
                               </Badge>
                             </TableCell>
-                            <TableCell className="text-muted-foreground">
-                              {invite.inviterEmail}
-                            </TableCell>
-                            <TableCell className="text-muted-foreground">
-                              {new Date(invite.expires).toLocaleDateString()}
+                            <TableCell>
+                              {formatExpirationDate(invite.expires)}
                             </TableCell>
                             <TableCell>
                               {invite.status ===
@@ -655,7 +717,6 @@ export default function OrganizationPage() {
                                   <DropdownMenuContent align="end">
                                     <DropdownMenuItem
                                       onClick={() => setInviteToCancel(invite)}
-                                      className="text-red-600 focus:text-red-600"
                                     >
                                       <TrashIcon className="h-4 w-4 mr-2" />
                                       Cancel Invitation
@@ -712,7 +773,6 @@ export default function OrganizationPage() {
                               <DropdownMenuContent align="end">
                                 <DropdownMenuItem
                                   onClick={() => setInviteToCancel(invite)}
-                                  className="text-red-600 focus:text-red-600"
                                 >
                                   <TrashIcon className="h-4 w-4 mr-2" />
                                   Cancel Invitation
@@ -745,7 +805,7 @@ export default function OrganizationPage() {
                             Expires:
                           </span>
                           <span className="ml-2">
-                            {new Date(invite.expires).toLocaleDateString()}
+                            {formatExpirationDate(invite.expires)}
                           </span>
                         </div>
                       </div>
@@ -801,9 +861,9 @@ export default function OrganizationPage() {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Token ID</TableHead>
+                        <TableHead>ID</TableHead>
                         <TableHead>Name</TableHead>
-                        <TableHead>Duration</TableHead>
+                        <TableHead>Expiry</TableHead>
                         <TableHead>Actions</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -822,16 +882,28 @@ export default function OrganizationPage() {
                             {token.name}
                           </TableCell>
                           <TableCell>
-                            <Badge variant="outline">{token.duration}</Badge>
+                            {formatExpirationDate(token.expiresAt)}
                           </TableCell>
                           <TableCell>
-                            <Button
-                              variant="destructive"
-                              size="sm"
-                              onClick={() => setTokenToDelete(token)}
-                            >
-                              Delete
-                            </Button>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-8 w-8 p-0"
+                                >
+                                  <EllipsisVerticalIcon className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem
+                                  onClick={() => setTokenToDelete(token)}
+                                >
+                                  <TrashIcon className="mr-2 h-4 w-4" />
+                                  Delete
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
                           </TableCell>
                         </TableRow>
                       ))}
@@ -848,7 +920,30 @@ export default function OrganizationPage() {
                     >
                       <div className="flex items-center justify-between">
                         <h4 className="font-medium">{token.name}</h4>
-                        <Badge variant="outline">{token.duration}</Badge>
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline">
+                            {formatExpirationDate(token.expiresAt)}
+                          </Badge>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 w-8 p-0"
+                              >
+                                <EllipsisVerticalIcon className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem
+                                onClick={() => setTokenToDelete(token)}
+                              >
+                                <TrashIcon className="mr-2 h-4 w-4" />
+                                Delete
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
                       </div>
                       <div className="space-y-2 text-sm">
                         <div>
@@ -863,14 +958,6 @@ export default function OrganizationPage() {
                           </div>
                         </div>
                       </div>
-                      <Button
-                        variant="destructive"
-                        size="sm"
-                        className="w-full"
-                        onClick={() => setTokenToDelete(token)}
-                      >
-                        Delete Token
-                      </Button>
                     </div>
                   ))}
                 </div>

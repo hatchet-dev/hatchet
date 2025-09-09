@@ -49,6 +49,7 @@ import {
   TenantBillingState,
   TenantSubscription,
   UpdateManagedWorkerRequest,
+  UpdateOrganizationRequest,
   UpdateTenantSubscription,
   VectorPushRequest,
   WorkflowRunEventsMetricsCounts,
@@ -879,6 +880,28 @@ export class Api<
       path: `/api/v1/management/organizations/${organization}`,
       method: "GET",
       secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Update an organization
+   *
+   * @name OrganizationUpdate
+   * @summary Update Organization
+   * @request PATCH:/api/v1/management/organizations/{organization}
+   * @secure
+   */
+  organizationUpdate = (
+    organization: string,
+    data: UpdateOrganizationRequest,
+    params: RequestParams = {},
+  ) =>
+    this.request<Organization, APIError>({
+      path: `/api/v1/management/organizations/${organization}`,
+      method: "PATCH",
+      body: data,
+      secure: true,
+      type: ContentType.Json,
       format: "json",
       ...params,
     });

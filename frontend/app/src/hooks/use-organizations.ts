@@ -147,6 +147,16 @@ export function useOrganizations() {
     onError: handleApiError,
   });
 
+  const updateOrganizationMutation = useMutation({
+    mutationFn: async (data: { organizationId: string; name: string }) => {
+      const result = await cloudApi.organizationUpdate(data.organizationId, {
+        name: data.name,
+      });
+      return result.data;
+    },
+    onError: handleApiError,
+  });
+
   const handleCreateToken = useCallback(
     (
       organizationId: string,
@@ -215,6 +225,23 @@ export function useOrganizations() {
     [deleteTokenMutation],
   );
 
+  const handleUpdateOrganization = useCallback(
+    (organizationId: string, name: string, onSuccess: () => void) => {
+      updateOrganizationMutation.mutate(
+        { organizationId, name },
+        {
+          onSuccess: () => {
+            onSuccess();
+          },
+          onError: () => {
+            // Error handling is done by the mutation itself via handleApiError
+          },
+        },
+      );
+    },
+    [updateOrganizationMutation],
+  );
+
   return {
     organizations,
     organizationData: organizationListQuery.data,
@@ -229,11 +256,13 @@ export function useOrganizations() {
     handleCreateToken,
     handleDeleteMember,
     handleDeleteToken,
+    handleUpdateOrganization,
     // Loading states for mutations
     cancelInviteLoading: cancelInviteMutation.isPending,
     createTokenLoading: createTokenMutation.isPending,
     deleteMemberLoading: deleteMemberMutation.isPending,
     deleteTokenLoading: deleteTokenMutation.isPending,
+    updateOrganizationLoading: updateOrganizationMutation.isPending,
     isLoading: organizationListQuery.isLoading,
     error: organizationListQuery.error,
   };
