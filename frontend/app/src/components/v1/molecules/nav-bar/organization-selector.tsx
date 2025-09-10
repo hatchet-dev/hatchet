@@ -198,7 +198,6 @@ export function OrganizationSelector({
 
     memberships.forEach((membership) => {
       const tenantId = membership.tenant?.metadata.id || '';
-      // Skip archived tenants
       if (isTenantArchivedInOrg(tenantId)) {
         return;
       }
