@@ -104,6 +104,7 @@ export default function Filters() {
           </p>
         </div>
       }
+      columnKeyToName={FilterColumn}
     />
   );
 }

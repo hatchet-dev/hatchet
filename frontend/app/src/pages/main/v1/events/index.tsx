@@ -326,7 +326,6 @@ export default function Events() {
         rowSelection={rowSelection}
         setRowSelection={setRowSelection}
         getRowId={(row) => row.metadata.id}
-        columnKeyToName={FilterColumn}
       />
     </>
   );
