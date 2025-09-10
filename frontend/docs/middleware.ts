@@ -4,8 +4,6 @@ import type { NextRequest } from 'next/server'
 export function middleware(request: NextRequest) {
   // Get the host header (the domain being requested)
   const host = request.headers.get('host')
-  const origin = request.headers.get('origin')
-
 
   const allowedDomains = ['staging.hatchet-tools.com', '*.onhatchet.run', '*.hatchet.run']
 
