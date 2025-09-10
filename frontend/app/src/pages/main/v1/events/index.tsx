@@ -23,7 +23,10 @@ import { RunsProvider } from '../workflow-runs-v1/hooks/runs-provider';
 import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 
-import { filterColumns } from '../filters/components/filter-columns';
+import {
+  FilterColumn,
+  filterColumns,
+} from '../filters/components/filter-columns';
 import { useFilters } from '../filters/hooks/use-filters';
 import { useSidePanel } from '@/hooks/use-side-panel';
 
@@ -323,6 +326,7 @@ export default function Events() {
         rowSelection={rowSelection}
         setRowSelection={setRowSelection}
         getRowId={(row) => row.metadata.id}
+        columnKeyToName={FilterColumn}
       />
     </>
   );
@@ -407,7 +411,12 @@ function FiltersSection({
   return (
     <div className="w-full overflow-x-auto">
       <div className="min-w-[500px] [&_th:last-child]:w-[60px] [&_th:last-child]:min-w-[60px] [&_th:last-child]:max-w-[60px] [&_td:last-child]:w-[60px] [&_td:last-child]:min-w-[60px] [&_td:last-child]:max-w-[60px]">
-        <DataTable columns={columns} data={filters} filters={[]} />
+        <DataTable
+          columns={columns}
+          data={filters}
+          filters={[]}
+          columnKeyToName={FilterColumn}
+        />
       </div>
     </div>
   );

@@ -22,10 +22,11 @@ func ToV1Filter(filter *sqlcv1.V1Filter) gen.V1Filter {
 			UpdatedAt: filter.UpdatedAt.Time,
 			Id:        filter.ID.String(),
 		},
-		Payload:    payload,
-		Scope:      filter.Scope,
-		TenantId:   filter.TenantID.String(),
-		WorkflowId: uuid.MustParse(filter.WorkflowID.String()),
+		Payload:       payload,
+		Scope:         filter.Scope,
+		TenantId:      filter.TenantID.String(),
+		WorkflowId:    uuid.MustParse(filter.WorkflowID.String()),
+		IsDeclarative: &filter.IsDeclarative,
 	}
 }
 

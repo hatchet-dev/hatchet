@@ -1472,8 +1472,11 @@ type V1EventWorkflowRunSummary struct {
 // V1Filter defines model for V1Filter.
 type V1Filter struct {
 	// Expression The expression associated with this filter.
-	Expression string          `json:"expression"`
-	Metadata   APIResourceMeta `json:"metadata"`
+	Expression string `json:"expression"`
+
+	// IsDeclarative Whether the filter is declarative (true) or programmatic (false)
+	IsDeclarative *bool           `json:"isDeclarative,omitempty"`
+	Metadata      APIResourceMeta `json:"metadata"`
 
 	// Payload Additional payload data associated with the filter
 	Payload map[string]interface{} `json:"payload"`

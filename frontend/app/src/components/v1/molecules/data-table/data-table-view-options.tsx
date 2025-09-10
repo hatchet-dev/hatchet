@@ -10,15 +10,25 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
 } from '@/components/v1/ui/dropdown-menu';
-import { TaskRunColumn } from '@/pages/main/v1/workflow-runs-v1/components/v1/task-runs-columns';
 
 interface DataTableViewOptionsProps<TData> {
   table: Table<TData>;
+  // todo: make this required
+  columnKeyToName?: Record<string, string>;
 }
 
 export function DataTableViewOptions<TData>({
   table,
+  columnKeyToName,
 }: DataTableViewOptionsProps<TData>) {
+  console.log(
+    table
+      .getAllColumns()
+      .filter(
+        (column) =>
+          typeof column.accessorFn !== 'undefined' && column.getCanHide(),
+      ),
+  );
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -42,8 +52,9 @@ export function DataTableViewOptions<TData>({
           )
           .map((column) => {
             const columnName =
-              TaskRunColumn[column.id as keyof typeof TaskRunColumn] ||
-              column.id;
+              (columnKeyToName ?? {})[
+                column.id as keyof typeof columnKeyToName
+              ] || column.id;
             return (
               <DropdownMenuCheckboxItem
                 key={column.id}

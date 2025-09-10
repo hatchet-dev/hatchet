@@ -1,11 +1,22 @@
 # > Simple
 
-from hatchet_sdk import Context, EmptyModel, Hatchet
+from hatchet_sdk import Context, EmptyModel, Hatchet, DefaultFilter
 
 hatchet = Hatchet(debug=True)
 
 
-@hatchet.task()
+@hatchet.task(
+    default_filters=[
+        DefaultFilter(
+            expression="input.foo == 'bar'",
+            scope="some-test-scope",
+            payload={
+                "key": "value",
+                "number": 123,
+            },
+        )
+    ]
+)
 def simple(input: EmptyModel, ctx: Context) -> dict[str, str]:
     return {"result": "Hello, world!"}
 

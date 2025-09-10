@@ -20,6 +20,7 @@ export const FilterColumn = {
   workflowId: 'Workflow',
   scope: 'Scope',
   expression: 'Expression',
+  isDeclarative: 'Is Declarative',
 } as const;
 
 export type FilterColumnKeys = keyof typeof FilterColumn;
@@ -28,6 +29,7 @@ export const idKey = 'id';
 export const workflowIdKey: FilterColumnKeys = 'workflowId';
 export const scopeKey: FilterColumnKeys = 'scope';
 export const expressionKey: FilterColumnKeys = 'expression';
+export const isDeclarativeKey: FilterColumnKeys = 'isDeclarative';
 
 export const filterColumns = (
   workflowIdToName: Record<string, string>,
@@ -109,6 +111,21 @@ export const filterColumns = (
           copy={false}
         />
       ),
+      enableSorting: false,
+      enableHiding: true,
+    },
+    {
+      accessorKey: isDeclarativeKey,
+      header: ({ column }) => (
+        <DataTableColumnHeader
+          column={column}
+          title={FilterColumn.isDeclarative}
+        />
+      ),
+      cell: ({ row }) =>
+        row.original.isDeclarative ? (
+          <CheckIcon className="h-4 w-4 text-green-600" />
+        ) : null,
       enableSorting: false,
       enableHiding: true,
     },
