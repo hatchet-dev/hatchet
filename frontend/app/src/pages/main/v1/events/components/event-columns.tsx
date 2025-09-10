@@ -15,7 +15,7 @@ import { RunsTable } from '../../workflow-runs-v1/components/runs-table';
 import { RunsProvider } from '../../workflow-runs-v1/hooks/runs-provider';
 
 export const EventColumn = {
-  id: 'Event Id',
+  id: 'ID',
   key: 'Event',
   seenAt: 'Seen at',
   workflowId: 'Workflow',
@@ -28,7 +28,7 @@ export const EventColumn = {
 
 export type EventColumnKeys = keyof typeof EventColumn;
 
-export const idKey = 'EventId';
+export const idKey: EventColumnKeys = 'id';
 export const keyKey: EventColumnKeys = 'key';
 export const seenAtKey: EventColumnKeys = 'seenAt';
 export const workflowKey: EventColumnKeys = 'workflowId';
