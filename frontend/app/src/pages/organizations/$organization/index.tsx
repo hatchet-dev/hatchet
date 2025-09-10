@@ -44,6 +44,7 @@ import {
   ManagementToken,
   OrganizationInvite,
   OrganizationInviteStatus,
+  TenantStatusType,
 } from '@/lib/api/generated/cloud/data-contracts';
 import {
   DropdownMenu,
@@ -141,16 +142,18 @@ export default function OrganizationPage() {
     enabled: !!orgId,
   });
 
-  // Fetch detailed tenant information for each tenant - must be called unconditionally
+  // Fetch detailed tenant information for each tenant - only for non-archived tenants
   const tenantQueries = useQueries({
-    queries: (organizationQuery.data?.tenants || []).map((tenant) => ({
-      queryKey: ['tenant:get', tenant.id],
-      queryFn: async () => {
-        const result = await api.tenantGet(tenant.id);
-        return result.data;
-      },
-      enabled: !!tenant.id && !!organizationQuery.data,
-    })),
+    queries: (organizationQuery.data?.tenants || [])
+      .filter((tenant) => tenant.status !== TenantStatusType.ARCHIVED)
+      .map((tenant) => ({
+        queryKey: ['tenant:get', tenant.id],
+        queryFn: async () => {
+          const result = await api.tenantGet(tenant.id);
+          return result.data;
+        },
+        enabled: !!tenant.id && !!organizationQuery.data,
+      })),
   });
 
   // Check if all tenant queries are loading
@@ -327,119 +330,108 @@ export default function OrganizationPage() {
                         <TableHead>Name</TableHead>
                         <TableHead>ID</TableHead>
                         <TableHead>Slug</TableHead>
-                        <TableHead>Status</TableHead>
                         <TableHead>Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {organization.tenants.map((orgTenant) => {
-                        const detailedTenant = detailedTenants.find(
-                          (t) => t?.metadata.id === orgTenant.id,
-                        );
-                        return (
-                          <TableRow key={orgTenant.id}>
-                            <TableCell className="font-medium">
-                              {detailedTenant?.name || 'Loading...'}
-                            </TableCell>
-                            <TableCell>
-                              <div className="flex items-center gap-2">
-                                <span className="font-mono text-sm">
-                                  {orgTenant.id}
-                                </span>
-                                <CopyToClipboard text={orgTenant.id} />
-                              </div>
-                            </TableCell>
-                            <TableCell className="text-muted-foreground">
-                              {detailedTenant?.slug || '-'}
-                            </TableCell>
-                            <TableCell>
-                              <Badge
-                                variant={
-                                  orgTenant.status === 'active'
-                                    ? 'default'
-                                    : 'secondary'
-                                }
-                              >
-                                {orgTenant.status}
-                              </Badge>
-                            </TableCell>
-                            <TableCell>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => {
-                                  navigate(`/tenants/${orgTenant.id}`);
-                                }}
-                              >
-                                View Tenant
-                              </Button>
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })}
+                      {organization.tenants
+                        .filter(
+                          (tenant) =>
+                            tenant.status !== TenantStatusType.ARCHIVED,
+                        )
+                        .map((orgTenant) => {
+                          const detailedTenant = detailedTenants.find(
+                            (t) => t?.metadata.id === orgTenant.id,
+                          );
+                          return (
+                            <TableRow key={orgTenant.id}>
+                              <TableCell className="font-medium">
+                                {detailedTenant?.name || 'Loading...'}
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex items-center gap-2">
+                                  <span className="font-mono text-sm">
+                                    {orgTenant.id}
+                                  </span>
+                                  <CopyToClipboard text={orgTenant.id} />
+                                </div>
+                              </TableCell>
+                              <TableCell className="text-muted-foreground">
+                                {detailedTenant?.slug || '-'}
+                              </TableCell>
+                              <TableCell>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => {
+                                    navigate(`/tenants/${orgTenant.id}`);
+                                  }}
+                                >
+                                  View Tenant
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
                     </TableBody>
                   </Table>
                 </div>
 
                 {/* Mobile Card View */}
                 <div className="md:hidden space-y-4">
-                  {organization.tenants.map((orgTenant) => {
-                    const detailedTenant = detailedTenants.find(
-                      (t) => t?.metadata.id === orgTenant.id,
-                    );
-                    return (
-                      <div
-                        key={orgTenant.id}
-                        className="border rounded-lg p-4 space-y-3"
-                      >
-                        <div className="flex items-center justify-between">
-                          <h4 className="font-medium">
-                            {detailedTenant?.name || 'Loading...'}
-                          </h4>
-                          <Badge
-                            variant={
-                              orgTenant.status === 'active'
-                                ? 'default'
-                                : 'secondary'
-                            }
-                          >
-                            {orgTenant.status}
-                          </Badge>
-                        </div>
-                        <div className="space-y-2 text-sm">
-                          <div>
-                            <span className="font-medium text-muted-foreground">
-                              Tenant ID:
-                            </span>
-                            <div className="mt-1 flex items-center gap-2">
-                              <span className="font-mono text-sm">
-                                {orgTenant.id}
+                  {organization.tenants
+                    .filter(
+                      (tenant) => tenant.status !== TenantStatusType.ARCHIVED,
+                    )
+                    .map((orgTenant) => {
+                      const detailedTenant = detailedTenants.find(
+                        (t) => t?.metadata.id === orgTenant.id,
+                      );
+                      return (
+                        <div
+                          key={orgTenant.id}
+                          className="border rounded-lg p-4 space-y-3"
+                        >
+                          <div className="flex items-center justify-between">
+                            <h4 className="font-medium">
+                              {detailedTenant?.name || 'Loading...'}
+                            </h4>
+                            <Badge>{orgTenant.status}</Badge>
+                          </div>
+                          <div className="space-y-2 text-sm">
+                            <div>
+                              <span className="font-medium text-muted-foreground">
+                                Tenant ID:
                               </span>
-                              <CopyToClipboard text={orgTenant.id} />
+                              <div className="mt-1 flex items-center gap-2">
+                                <span className="font-mono text-sm">
+                                  {orgTenant.id}
+                                </span>
+                                <CopyToClipboard text={orgTenant.id} />
+                              </div>
+                            </div>
+                            <div>
+                              <span className="font-medium text-muted-foreground">
+                                Slug:
+                              </span>
+                              <span className="ml-2">
+                                {detailedTenant?.slug || '-'}
+                              </span>
                             </div>
                           </div>
-                          <div>
-                            <span className="font-medium text-muted-foreground">
-                              Slug:
-                            </span>
-                            <span className="ml-2">
-                              {detailedTenant?.slug || '-'}
-                            </span>
-                          </div>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="w-full"
+                            onClick={() => {
+                              navigate(`/tenants/${orgTenant.id}`);
+                            }}
+                          >
+                            View Tenant
+                          </Button>
                         </div>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="w-full"
-                          onClick={() => {
-                            navigate(`/tenants/${orgTenant.id}`);
-                          }}
-                        >
-                          View Tenant
-                        </Button>
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
                 </div>
               </div>
             ) : (
