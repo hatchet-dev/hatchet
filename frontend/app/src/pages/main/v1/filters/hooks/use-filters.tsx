@@ -1,6 +1,10 @@
 import { usePagination } from '@/hooks/use-pagination';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
-import api, { queries } from '@/lib/api';
+import api, {
+  queries,
+  V1CreateFilterRequest,
+  V1UpdateFilterRequest,
+} from '@/lib/api';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ColumnFiltersState, Updater } from '@tanstack/react-table';
 import { useCallback, useMemo } from 'react';
@@ -195,11 +199,57 @@ export const useFilters = ({ key }: UseFiltersProps) => {
     },
   });
 
+  const { mutate: updateFilterMutation, isPending: isUpdating } = useMutation({
+    mutationFn: async ({
+      filterId,
+      data,
+    }: {
+      filterId: string;
+      data: V1UpdateFilterRequest;
+    }) => {
+      const response = await api.v1FilterUpdate(tenantId, filterId, data);
+
+      return response.data;
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: ['v1:filter:list', tenantId],
+      });
+    },
+  });
+
+  const { mutate: createFilterMutation, isPending: isCreating } = useMutation({
+    mutationFn: async (data: V1CreateFilterRequest) => {
+      const response = await api.v1FilterCreate(tenantId, data);
+
+      return response.data;
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: ['v1:filter:list', tenantId],
+      });
+    },
+  });
+
   const deleteFilter = useCallback(
     async (filterId: string) => {
       return deleteFilterMutation(filterId);
     },
     [deleteFilterMutation],
+  );
+
+  const updateFilter = useCallback(
+    async (filterId: string, data: V1UpdateFilterRequest) => {
+      return updateFilterMutation({ filterId, data });
+    },
+    [updateFilterMutation],
+  );
+
+  const createFilter = useCallback(
+    async (data: V1CreateFilterRequest) => {
+      return createFilterMutation(data);
+    },
+    [createFilterMutation],
   );
 
   return {
@@ -221,7 +271,15 @@ export const useFilters = ({ key }: UseFiltersProps) => {
       delete: {
         perform: deleteFilter,
         isPending: isDeleting,
-      }
-    }
+      },
+      update: {
+        perform: updateFilter,
+        isPending: isUpdating,
+      },
+      create: {
+        perform: createFilter,
+        isPending: isCreating,
+      },
+    },
   };
 };
