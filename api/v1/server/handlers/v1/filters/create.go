@@ -16,7 +16,7 @@ import (
 func (t *V1FiltersService) V1FilterCreate(ctx echo.Context, request gen.V1FilterCreateRequestObject) (gen.V1FilterCreateResponseObject, error) {
 	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
 
-	var payload []byte
+	payload := []byte("{}")
 	if request.Body.Payload != nil {
 		marshalledPayload, err := json.Marshal(request.Body.Payload)
 
