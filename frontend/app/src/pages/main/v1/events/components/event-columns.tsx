@@ -58,7 +58,17 @@ export const columns = ({
         <DataTableColumnHeader column={column} title={EventColumn.id} />
       ),
       cell: ({ row }) => (
-        <div className="w-full">{row.original.metadata.id}</div>
+        <div className="w-full">
+          <Button
+            className="w-fit cursor-pointer pl-0"
+            variant="link"
+            onClick={() => {
+              onRowClick?.(row.original);
+            }}
+          >
+            {row.original.metadata.id}
+          </Button>
+        </div>
       ),
       enableSorting: false,
       enableHiding: true,
