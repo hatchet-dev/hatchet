@@ -23,7 +23,7 @@ export const isDeclarativeKey: FilterColumnKeys = 'isDeclarative';
 
 export const filterColumns = (
   workflowIdToName: Record<string, string>,
-  onRowClick: (filter: V1Filter) => void,
+  onRowClick?: (filter: V1Filter) => void,
 ): ColumnDef<V1Filter>[] => {
   return [
     {

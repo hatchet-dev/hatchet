@@ -1,5 +1,4 @@
 import { useCallback, useState } from 'react';
-import { V1Filter } from '@/lib/api';
 import { Button } from '@/components/v1/ui/button';
 import { Input } from '@/components/v1/ui/input';
 import { Label } from '@/components/v1/ui/label';
@@ -15,31 +14,33 @@ import {
 import { Trash2Icon, EditIcon, SaveIcon, XIcon } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useFilters } from '../hooks/use-filters';
+import { useFilterDetails, useFilters } from '../hooks/use-filters';
 import { updateFilterSchema, UpdateFilterFormData } from '../schemas';
 import { useSidePanel } from '@/hooks/use-side-panel';
 
 interface FilterDetailViewProps {
-  filter: V1Filter;
+  filterId: string;
 }
 
-export function FilterDetailView({ filter }: FilterDetailViewProps) {
+export function FilterDetailView({ filterId }: FilterDetailViewProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [payloadError, setPayloadError] = useState<string | null>(null);
 
   const { close } = useSidePanel();
 
+  const { filter, isLoading } = useFilterDetails(filterId);
+
   const { workflowIdToName, mutations } = useFilters({
-    key: `detail-${filter.metadata.id}`,
+    key: `detail-${filter?.metadata.id}`,
   });
 
   const form = useForm<UpdateFilterFormData>({
     resolver: zodResolver(updateFilterSchema),
     defaultValues: {
-      expression: filter.expression,
-      scope: filter.scope,
-      payload: JSON.stringify(filter.payload || {}, null, 2),
+      expression: filter?.expression,
+      scope: filter?.scope,
+      payload: JSON.stringify(filter?.payload || {}, null, 2),
     },
   });
 
@@ -52,9 +53,9 @@ export function FilterDetailView({ filter }: FilterDetailViewProps) {
 
   const handleEdit = () => {
     reset({
-      expression: filter.expression,
-      scope: filter.scope,
-      payload: JSON.stringify(filter.payload || {}, null, 2),
+      expression: filter?.expression,
+      scope: filter?.scope,
+      payload: JSON.stringify(filter?.payload || {}, null, 2),
     });
     setPayloadError(null);
     setIsEditing(true);
@@ -62,6 +63,10 @@ export function FilterDetailView({ filter }: FilterDetailViewProps) {
 
   const onSubmit = useCallback(
     async (data: UpdateFilterFormData) => {
+      if (!filter) {
+        return;
+      }
+
       try {
         let payloadObj;
         if (data.payload !== undefined) {
@@ -86,7 +91,7 @@ export function FilterDetailView({ filter }: FilterDetailViewProps) {
         console.error('Failed to update filter:', error);
       }
     },
-    [filter.metadata.id, mutations.update],
+    [mutations.update, filter],
   );
 
   const handleCancel = () => {
@@ -108,6 +113,10 @@ export function FilterDetailView({ filter }: FilterDetailViewProps) {
       console.error('Failed to delete filter:', error);
     }
   };
+
+  if (!filter || isLoading) {
+    return <div>Loading...</div>;
+  }
 
   return (
     <>

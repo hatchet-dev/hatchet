@@ -109,7 +109,9 @@ export function useSidePanelData(): SidePanelData {
       case 'filter-detail':
         return {
           isDocs: false,
-          component: <FilterDetailView filter={props.content.filter} />,
+          component: (
+            <FilterDetailView filterId={props.content.filter.metadata.id} />
+          ),
           title: 'Filter details',
         };
       case 'docs':

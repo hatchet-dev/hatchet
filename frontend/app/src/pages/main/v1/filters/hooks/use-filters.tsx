@@ -215,6 +215,9 @@ export const useFilters = ({ key }: UseFiltersProps) => {
       await queryClient.invalidateQueries({
         queryKey: ['v1:filter:list', tenantId],
       });
+      await queryClient.invalidateQueries({
+        queryKey: ['v1:filter:get', tenantId],
+      });
     },
   });
 
@@ -281,5 +284,25 @@ export const useFilters = ({ key }: UseFiltersProps) => {
         isPending: isCreating,
       },
     },
+  };
+};
+
+export const useFilterDetails = (filterId: string) => {
+  const { tenantId } = useCurrentTenantId();
+
+  const { data, isLoading, error, refetch } = useQuery({
+    queryKey: ['v1:filter:get', tenantId, filterId],
+    queryFn: async () => {
+      const response = await api.v1FilterGet(tenantId, filterId);
+
+      return response.data;
+    },
+  });
+
+  return {
+    filter: data,
+    isLoading,
+    error,
+    refetch,
   };
 };
