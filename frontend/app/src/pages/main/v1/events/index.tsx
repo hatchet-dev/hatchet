@@ -1,4 +1,13 @@
-import { columns } from './components/event-columns';
+import {
+  columns,
+  EventColumn,
+  idKey,
+  keyKey,
+  metadataKey,
+  scopeKey,
+  statusKey,
+  workflowKey,
+} from './components/event-columns';
 import { Separator } from '@/components/v1/ui/separator';
 import { useEffect, useMemo, useState } from 'react';
 import {
@@ -283,33 +292,33 @@ export default function Events() {
         data={data?.rows || []}
         filters={[
           {
-            columnId: 'key',
-            title: 'Key',
+            columnId: keyKey,
+            title: EventColumn.key,
             options: eventKeyFilters,
           },
           {
-            columnId: 'workflows',
-            title: 'Task',
+            columnId: workflowKey,
+            title: EventColumn.workflowId,
             options: workflowKeyFilters,
           },
           {
-            columnId: 'status',
-            title: 'Status',
+            columnId: statusKey,
+            title: EventColumn.status,
             options: workflowRunStatusFilters,
           },
           {
-            columnId: 'Metadata',
-            title: 'Metadata',
+            columnId: metadataKey,
+            title: EventColumn.metadata,
             type: ToolbarType.KeyValue,
           },
           {
-            columnId: 'EventId',
-            title: 'Event Id',
+            columnId: idKey,
+            title: EventColumn.id,
             type: ToolbarType.Array,
           },
           {
-            columnId: 'scope',
-            title: 'Scope',
+            columnId: scopeKey,
+            title: EventColumn.scope,
             type: ToolbarType.Array,
           },
         ]}
@@ -326,6 +335,7 @@ export default function Events() {
         rowSelection={rowSelection}
         setRowSelection={setRowSelection}
         getRowId={(row) => row.metadata.id}
+        columnKeyToName={EventColumn}
       />
     </>
   );

@@ -1,6 +1,5 @@
 import { ColumnDef } from '@tanstack/react-table';
 import { Badge } from '@/components/v1/ui/badge';
-import { Checkbox } from '@/components/v1/ui/checkbox';
 import { V1Event } from '@/lib/api';
 import { Button } from '@/components/v1/ui/button';
 import {
@@ -15,6 +14,30 @@ import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data
 import { RunsTable } from '../../workflow-runs-v1/components/runs-table';
 import { RunsProvider } from '../../workflow-runs-v1/hooks/runs-provider';
 
+export const EventColumn = {
+  id: 'Event Id',
+  key: 'Event',
+  seenAt: 'Seen at',
+  workflowId: 'Workflow',
+  status: 'Status',
+  runs: 'Runs',
+  metadata: 'Metadata',
+  payload: 'Payload',
+  scope: 'Scope',
+};
+
+export type EventColumnKeys = keyof typeof EventColumn;
+
+export const idKey = 'EventId';
+export const keyKey: EventColumnKeys = 'key';
+export const seenAtKey: EventColumnKeys = 'seenAt';
+export const workflowKey: EventColumnKeys = 'workflowId';
+export const statusKey: EventColumnKeys = 'status';
+export const runsKey: EventColumnKeys = 'runs';
+export const metadataKey: EventColumnKeys = 'metadata';
+export const payloadKey: EventColumnKeys = 'payload';
+export const scopeKey: EventColumnKeys = 'scope';
+
 export const columns = ({
   onRowClick,
   hoveredEventId,
@@ -26,9 +49,9 @@ export const columns = ({
 }): ColumnDef<V1Event>[] => {
   return [
     {
-      accessorKey: 'EventId',
+      accessorKey: idKey,
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Event Id" />
+        <DataTableColumnHeader column={column} title={EventColumn.id} />
       ),
       cell: ({ row }) => (
         <div className="w-full">{row.original.metadata.id}</div>
@@ -37,9 +60,9 @@ export const columns = ({
       enableHiding: true,
     },
     {
-      accessorKey: 'key',
+      accessorKey: keyKey,
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Event" />
+        <DataTableColumnHeader column={column} title={EventColumn.key} />
       ),
       cell: ({ row }) => (
         <div className="w-full">
@@ -50,7 +73,7 @@ export const columns = ({
               onRowClick?.(row.original);
             }}
           >
-            {row.getValue('key')}
+            {row.original.key}
           </Button>
         </div>
       ),
@@ -58,9 +81,9 @@ export const columns = ({
       enableHiding: false,
     },
     {
-      accessorKey: 'Seen at',
+      accessorKey: seenAtKey,
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Seen at" />
+        <DataTableColumnHeader column={column} title={EventColumn.seenAt} />
       ),
       cell: ({ row }) => {
         return (
@@ -73,23 +96,23 @@ export const columns = ({
     },
     // empty columns to get column filtering to work properly
     {
-      accessorKey: 'workflows',
+      accessorKey: workflowKey,
       header: () => <></>,
       cell: () => {
         return <div></div>;
       },
     },
     {
-      accessorKey: 'status',
+      accessorKey: statusKey,
       header: () => <></>,
       cell: () => {
         return <div></div>;
       },
     },
     {
-      accessorKey: 'Runs',
+      accessorKey: runsKey,
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Runs" />
+        <DataTableColumnHeader column={column} title={EventColumn.runs} />
       ),
       cell: ({ row }) => {
         if (!row.original.workflowRunSummary) {
@@ -101,9 +124,9 @@ export const columns = ({
       enableSorting: false,
     },
     {
-      accessorKey: 'Metadata',
+      accessorKey: metadataKey,
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Metadata" />
+        <DataTableColumnHeader column={column} title={EventColumn.metadata} />
       ),
       cell: ({ row }) => {
         if (!row.original.additionalMetadata) {
@@ -127,9 +150,9 @@ export const columns = ({
       enableSorting: false,
     },
     {
-      accessorKey: 'Payload',
+      accessorKey: payloadKey,
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Payload" />
+        <DataTableColumnHeader column={column} title={EventColumn.payload} />
       ),
       cell: ({ row }) => {
         if (!row.original.payload) {
@@ -154,17 +177,14 @@ export const columns = ({
       enableHiding: true,
     },
     {
-      accessorKey: 'scope',
+      accessorKey: scopeKey,
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Scope" />
+        <DataTableColumnHeader column={column} title={EventColumn.scope} />
       ),
-      cell: ({ row }) => <div className="w-full">{row.getValue('scope')}</div>,
+      cell: ({ row }) => <div className="w-full">{row.original.scope}</div>,
       enableSorting: false,
       enableHiding: true,
-    }, // {
-    //   id: "actions",
-    //   cell: ({ row }) => <DataTableRowActions row={row} labels={[]} />,
-    // },
+    },
   ];
 };
 
