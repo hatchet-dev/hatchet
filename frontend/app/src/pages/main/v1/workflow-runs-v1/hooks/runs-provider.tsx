@@ -160,7 +160,11 @@ export const RunsProvider = ({
 
   const filters = useRunsTableFilters(state, updateFilters);
 
-  const toolbarFilters = useToolbarFilters({ filterVisibility });
+  const toolbarFilters = useToolbarFilters({ 
+    filterVisibility, 
+    state, 
+    filterActions: filters 
+  });
 
   const workflow =
     workflowId || getWorkflowIdsFromFilters(state.columnFilters)[0];
