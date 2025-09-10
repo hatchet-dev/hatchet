@@ -252,8 +252,6 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
         </Dialog>
       )}
 
-      <TimeFilter />
-
       {!hideMetrics && <GetWorkflowChart />}
 
       {!hideCounts && (

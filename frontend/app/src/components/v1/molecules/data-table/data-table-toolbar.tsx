@@ -1,5 +1,6 @@
 import * as React from 'react';
 import { Cross2Icon, MixerHorizontalIcon } from '@radix-ui/react-icons';
+import { XCircleIcon } from '@heroicons/react/24/outline';
 import { Table } from '@tanstack/react-table';
 import { Button } from '@/components/v1/ui/button';
 import { DataTableViewOptions } from './data-table-view-options';
@@ -13,10 +14,18 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/v1/ui/dropdown-menu';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/v1/ui/select';
 import { ChevronDownIcon } from '@radix-ui/react-icons';
 import { Checkbox } from '@/components/v1/ui/checkbox';
 import { Label } from '@/components/v1/ui/label';
 import { Column } from '@tanstack/react-table';
+import { DateTimePicker } from '@/components/v1/molecules/time-picker/date-time-picker';
 
 export interface FilterOption {
   label: string;
@@ -30,6 +39,18 @@ export enum ToolbarType {
   KeyValue = 'key-value',
   Array = 'array',
   Switch = 'switch',
+  TimeRange = 'time-range',
+}
+
+export interface TimeRangeConfig {
+  onTimeWindowChange?: (value: string) => void;
+  onCreatedAfterChange?: (date?: string) => void;
+  onFinishedBeforeChange?: (date?: string) => void;
+  onClearTimeRange?: () => void;
+  currentTimeWindow?: string;
+  isCustomTimeRange?: boolean;
+  createdAfter?: string;
+  finishedBefore?: string;
 }
 
 export type ToolbarFilters = {
@@ -37,6 +58,7 @@ export type ToolbarFilters = {
   title: string;
   type?: ToolbarType;
   options?: FilterOption[];
+  timeRangeConfig?: TimeRangeConfig;
 }[];
 
 interface DataTableToolbarProps<TData> {
@@ -59,6 +81,7 @@ interface FilterControlProps<TData> {
     title: string;
     type?: ToolbarType;
     options?: FilterOption[];
+    timeRangeConfig?: TimeRangeConfig;
   };
 }
 
@@ -69,6 +92,86 @@ function FilterControl<TData>({ column, filter }: FilterControlProps<TData>) {
   const valueInputRef = React.useRef<HTMLInputElement>(null);
   const [newKey, setNewKey] = React.useState('');
   const [newValue, setNewValue] = React.useState('');
+
+  if (filter.type === ToolbarType.TimeRange) {
+    const config = filter.timeRangeConfig;
+    if (!config) return null;
+
+    return (
+      <div className="space-y-3">
+        {config.isCustomTimeRange && (
+          <div className="space-y-3">
+            <div className="flex justify-between items-center">
+              <span className="text-xs font-medium text-muted-foreground">
+                Custom Range
+              </span>
+              <Button
+                onClick={config.onClearTimeRange}
+                variant="ghost"
+                size="sm"
+                className="h-6 px-2 text-xs"
+              >
+                <XCircleIcon className="h-3 w-3 mr-1" />
+                Clear
+              </Button>
+            </div>
+            <div className="space-y-2">
+              <div className="space-y-1 w-full">
+                <DateTimePicker
+                  label="After"
+                  date={
+                    config.createdAfter
+                      ? new Date(config.createdAfter)
+                      : undefined
+                  }
+                  setDate={(date) =>
+                    config.onCreatedAfterChange?.(date?.toISOString())
+                  }
+                  triggerClassName="w-full"
+                />
+              </div>
+              <div className="space-y-1 w-full">
+                <DateTimePicker
+                  label="Before"
+                  date={
+                    config.finishedBefore
+                      ? new Date(config.finishedBefore)
+                      : undefined
+                  }
+                  setDate={(date) =>
+                    config.onFinishedBeforeChange?.(date?.toISOString())
+                  }
+                  triggerClassName="w-full"
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {!config.isCustomTimeRange && (
+          <div className="space-y-1">
+            <Select
+              value={
+                config.isCustomTimeRange ? 'custom' : config.currentTimeWindow
+              }
+              onValueChange={(value) => config.onTimeWindowChange?.(value)}
+            >
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue placeholder="Choose time range" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="1h">1 hour</SelectItem>
+                <SelectItem value="6h">6 hours</SelectItem>
+                <SelectItem value="1d">1 day</SelectItem>
+                <SelectItem value="7d">7 days</SelectItem>
+                <SelectItem value="custom">Custom</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   if (filter.type === ToolbarType.Switch) {
     return (
