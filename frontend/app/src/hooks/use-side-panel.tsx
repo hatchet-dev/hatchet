@@ -12,7 +12,8 @@ import {
   TabOption,
 } from '@/pages/main/v1/workflow-runs-v1/$run/v2components/step-run-detail/step-run-detail';
 import { DocPage } from '@/components/v1/docs/docs-button';
-import { V1Event } from '@/lib/api';
+import { V1Event, V1Filter } from '@/lib/api';
+import { FilterDetailView } from '@/pages/main/v1/filters/components/filter-detail-view';
 import { ExpandedEventContent } from '@/pages/main/v1/events';
 import { useTheme } from '@/components/theme-provider';
 
@@ -58,6 +59,12 @@ type UseSidePanelProps =
       content: {
         event: V1Event;
       };
+    }
+  | {
+      type: 'filter-detail';
+      content: {
+        filter: V1Filter;
+      };
     };
 
 export function useSidePanelData(): SidePanelData {
@@ -98,6 +105,12 @@ export function useSidePanelData(): SidePanelData {
           isDocs: false,
           component: <ExpandedEventContent event={props.content.event} />,
           title: `Event ${props.content.event.key} details`,
+        };
+      case 'filter-detail':
+        return {
+          isDocs: false,
+          component: <FilterDetailView filter={props.content.filter} />,
+          title: 'Filter details',
         };
       case 'docs':
         return {
