@@ -625,7 +625,7 @@ export interface OrganizationForUser {
   metadata: APIResourceMeta;
   /** Name of the organization */
   name: string;
-  tenants: string[];
+  tenants: OrganizationTenant[];
   /** Whether the user is the owner of the organization */
   isOwner: boolean;
 }

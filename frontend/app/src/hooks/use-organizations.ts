@@ -7,8 +7,6 @@ import {
   CreateManagementTokenResponse,
   ManagementTokenDuration,
   OrganizationMember,
-  OrganizationForUser,
-  Organization,
   TenantStatusType,
 } from '@/lib/api/generated/cloud/data-contracts';
 
@@ -30,40 +28,10 @@ export function useOrganizations() {
     [organizationListQuery.data?.rows],
   );
 
-  // Fetch detailed organization data for each organization to get tenant status info
-  const detailedOrgQueries = useQuery({
-    queryKey: [
-      'organizations:detailed',
-      organizations.map((org) => org.metadata.id).sort(),
-    ],
-    queryFn: async () => {
-      const orgPromises = organizations.map(async (org) => {
-        try {
-          const result = await cloudApi.organizationGet(org.metadata.id);
-          return result.data;
-        } catch (error) {
-          console.warn(
-            `Failed to fetch detailed org data for ${org.metadata.id}:`,
-            error,
-          );
-          return null;
-        }
-      });
-      const results = await Promise.all(orgPromises);
-      return results.filter((org): org is Organization => org !== null);
-    },
-    enabled: isCloudEnabled && organizations.length > 0,
-  });
-
-  const detailedOrganizations = useMemo(
-    () => detailedOrgQueries.data || [],
-    [detailedOrgQueries.data],
-  );
-
   const getOrganizationForTenant = useCallback(
     (tenantId: string) => {
-      return organizations.find((org: OrganizationForUser) =>
-        (org.tenants || []).includes(tenantId),
+      return organizations.find((org) =>
+        (org.tenants || []).some((tenant) => tenant.id === tenantId),
       );
     },
     [organizations],
@@ -84,20 +52,12 @@ export function useOrganizations() {
         return false; // Not part of any org, so not archived
       }
 
-      const detailedOrg = detailedOrganizations.find(
-        (org) => org.metadata.id === orgForTenant.metadata.id,
+      return (
+        orgForTenant.tenants?.find((tenant) => tenant.id === tenantId)
+          ?.status === TenantStatusType.ARCHIVED
       );
-
-      if (!detailedOrg?.tenants) {
-        return false; // No tenant data available, assume not archived
-      }
-
-      const orgTenant = detailedOrg.tenants.find(
-        (tenant) => tenant.id === tenantId,
-      );
-      return orgTenant?.status === TenantStatusType.ARCHIVED;
     },
-    [getOrganizationForTenant, detailedOrganizations],
+    [getOrganizationForTenant],
   );
 
   const hasOrganizations = useMemo(() => {
