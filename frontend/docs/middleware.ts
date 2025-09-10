@@ -9,14 +9,6 @@ export function middleware(request: NextRequest) {
 
   const allowedDomains = ['staging.hatchet-tools.com', '*.onhatchet.run', '*.hatchet.run']
 
-  const isOriginAllowed = origin && allowedDomains.some(domain => {
-    if (domain.startsWith('*.')) {
-      const suffix = domain.slice(2)
-      return origin.endsWith(suffix)
-    }
-    return origin.includes(domain)
-  })
-
   // Check if host is allowed for CORS
   const isHostAllowed = host && allowedDomains.some(domain => {
     if (domain.startsWith('*.')) {
@@ -42,11 +34,9 @@ export function middleware(request: NextRequest) {
 
   const response = NextResponse.next()
 
-  if (isOriginAllowed) {
-    response.headers.set('Access-Control-Allow-Origin', origin)
-    response.headers.set('Access-Control-Allow-Credentials', 'true')
-    response.headers.set('Cross-Origin-Resource-Policy', 'cross-origin')
-  }
+  response.headers.set('Access-Control-Allow-Origin', "*")
+  response.headers.set('Access-Control-Allow-Credentials', 'true')
+  response.headers.set('Cross-Origin-Resource-Policy', 'cross-origin')
 
   return response
 }
