@@ -23,9 +23,9 @@ export enum ManagementTokenDuration {
   Value90D = "90d",
 }
 
-export enum TenantStatus {
-  Active = "active",
-  Archived = "archived",
+export enum TenantStatusType {
+  ACTIVE = "ACTIVE",
+  ARCHIVED = "ARCHIVED",
 }
 
 export enum OrganizationMemberRoleType {
@@ -692,7 +692,7 @@ export interface OrganizationTenant {
    */
   id: string;
   /** Status of the tenant */
-  status: TenantStatus;
+  status: TenantStatusType;
   /**
    * The timestamp at which the tenant was archived
    * @format date-time
