@@ -63,7 +63,7 @@ const GetWorkflowChart = () => {
       finishedBefore,
     }),
     placeholderData: (prev) => prev,
-    refetchInterval: isFrozen ? false : refetchInterval,
+    refetchInterval: isFrozen ? false : refetchInterval.value,
   });
 
   if (workflowRunEventsMetricsQuery.isLoading) {

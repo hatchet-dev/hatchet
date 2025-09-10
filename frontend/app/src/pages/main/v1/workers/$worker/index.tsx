@@ -29,6 +29,7 @@ import { RunsTable } from '../../workflow-runs-v1/components/runs-table';
 import { RunsProvider } from '../../workflow-runs-v1/hooks/runs-provider';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { capitalize } from '@/lib/utils';
+import { RefetchInterval } from '@/lib/api/api';
 export const isHealthy = (worker?: Worker) => {
   const reasons = [];
 
@@ -230,6 +231,7 @@ export default function ExpandedWorkflowRun() {
             hideTriggerRunButton: true,
             hideFlatten: true,
             hideCancelAndReplayButtons: true,
+            refetchInterval: RefetchInterval.off,
           }}
           runFilters={{
             workerId: worker.metadata.id,

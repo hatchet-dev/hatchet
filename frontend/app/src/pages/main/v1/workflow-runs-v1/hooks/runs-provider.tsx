@@ -16,6 +16,7 @@ import {
   ActionType,
   BaseTaskRunActionParams,
 } from '../../task-runs-v1/actions';
+import { LabeledRefetchInterval, RefetchInterval } from '@/lib/api/api';
 
 type DisplayProps = {
   hideMetrics?: boolean;
@@ -26,7 +27,7 @@ type DisplayProps = {
   hideColumnToggle?: boolean;
   hideFlatten?: boolean;
   hidePagination?: boolean;
-  refetchInterval?: number;
+  refetchInterval: LabeledRefetchInterval;
 };
 
 type RunFilteringProps = {
@@ -42,7 +43,7 @@ type RunsProviderProps = {
   disableTaskRunPagination?: boolean;
   initColumnVisibility?: Record<string, boolean>;
   filterVisibility?: Record<string, boolean>;
-  refetchInterval?: number;
+  refetchInterval?: LabeledRefetchInterval;
   display?: DisplayProps;
   runFilters?: RunFilteringProps;
 };
@@ -101,7 +102,7 @@ export const RunsProvider = ({
   disableTaskRunPagination = false,
   initColumnVisibility = {},
   filterVisibility = {},
-  refetchInterval = 5000,
+  refetchInterval = RefetchInterval.off,
   display,
   runFilters,
 }: RunsProviderProps) => {
@@ -191,6 +192,7 @@ export const RunsProvider = ({
     disablePagination: disableTaskRunPagination,
     pauseRefetch: isFrozen,
     onlyTasks: !!workerId || flattenDAGs,
+    refetchInterval,
   });
 
   const actionModalParams = useMemo(
