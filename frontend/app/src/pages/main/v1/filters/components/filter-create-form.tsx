@@ -4,7 +4,6 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogDescription,
   DialogFooter,
 } from '@/components/v1/ui/dialog';
 import { Button } from '@/components/v1/ui/button';
@@ -24,8 +23,6 @@ import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { createFilterSchema, CreateFilterFormData } from '../schemas';
 import { V1CreateFilterRequest } from '@/lib/api';
-import { DocsButton } from '@/components/v1/docs/docs-button';
-import { docsPages } from '@/lib/generated/docs';
 
 interface FilterCreateFormProps {
   isOpen: boolean;
