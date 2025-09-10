@@ -8,16 +8,14 @@ export function middleware(request: NextRequest) {
 
 
   const allowedDomains = ['staging.hatchet-tools.com', '*.onhatchet.run', '*.hatchet.run']
-  const allowedPatterns = allowedDomains.map(domain => {
+
+  const isOriginAllowed = origin && allowedDomains.some(domain => {
     if (domain.startsWith('*.')) {
       const suffix = domain.slice(2)
-      return new RegExp(`^https://[^.]+\\.${suffix.replace('.', '\\.')}$`)
+      return origin.endsWith(suffix)
     }
-
-    return new RegExp(`^https://${domain.replace('.', '\\.')}$`)
+    return origin.includes(domain)
   })
-
-  const isOriginAllowed = origin && allowedPatterns.some(pattern => pattern.test(origin))
 
   // Check if host is allowed for CORS
   const isHostAllowed = host && allowedDomains.some(domain => {
