@@ -165,7 +165,7 @@ export function FilterDetailView({ filter }: FilterDetailViewProps) {
               id="filter-id"
               value={filter.metadata.id}
               disabled
-              className="bg-muted"
+              className="bg-muted disabled:cursor-text"
             />
           </div>
 
