@@ -10,7 +10,13 @@ import {
 } from '@/components/v1/ui/dropdown-menu';
 import { Button } from '@/components/v1/ui/button';
 import { DotsVerticalIcon } from '@radix-ui/react-icons';
-import { CheckIcon, CopyIcon, EyeIcon } from 'lucide-react';
+import {
+  CheckIcon,
+  CopyIcon,
+  EyeIcon,
+  Trash2Icon,
+  TrashIcon,
+} from 'lucide-react';
 import { FilterPayloadPopover } from '../../events/components/filter-payload-popover';
 import { useState } from 'react';
 
@@ -32,6 +38,7 @@ export const isDeclarativeKey: FilterColumnKeys = 'isDeclarative';
 
 export const filterColumns = (
   workflowIdToName: Record<string, string>,
+  handleDelete: (filterId: string) => Promise<void>,
 ): ColumnDef<V1Filter>[] => {
   return [
     {
@@ -172,6 +179,13 @@ export const filterColumns = (
                 >
                   <EyeIcon className="h-4 w-4" />
                   View Payload
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => handleDelete(filter.metadata.id)}
+                  className="flex items-center gap-2 cursor-pointer"
+                >
+                  <Trash2Icon className="size-4" />
+                  Delete Filter
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>

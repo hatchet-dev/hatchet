@@ -1,7 +1,7 @@
 import { usePagination } from '@/hooks/use-pagination';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import api, { queries } from '@/lib/api';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ColumnFiltersState, Updater } from '@tanstack/react-table';
 import { useCallback, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
@@ -50,6 +50,7 @@ const parseFilterParam = (searchParams: URLSearchParams, key: string) => {
 };
 
 export const useFilters = ({ key }: UseFiltersProps) => {
+  const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   const { tenantId } = useCurrentTenantId();
   const { limit, offset, pagination, setPagination, setPageSize } =
@@ -181,6 +182,26 @@ export const useFilters = ({ key }: UseFiltersProps) => {
     [workflowNameFilters],
   );
 
+  const { mutate: deleteFilterMutation, isPending: isDeleting } = useMutation({
+    mutationFn: async (filterId: string) => {
+      const response = await api.v1FilterDelete(tenantId, filterId);
+
+      return response.data;
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: ['v1:filter:list', tenantId],
+      });
+    },
+  });
+
+  const deleteFilter = useCallback(
+    async (filterId: string) => {
+      return deleteFilterMutation(filterId);
+    },
+    [deleteFilterMutation],
+  );
+
   return {
     filters,
     numFilters,
@@ -196,5 +217,11 @@ export const useFilters = ({ key }: UseFiltersProps) => {
     selectedScopes,
     workflowNameFilters,
     workflowIdToName,
+    mutations: {
+      delete: {
+        perform: deleteFilter,
+        isPending: isDeleting,
+      }
+    }
   };
 };
