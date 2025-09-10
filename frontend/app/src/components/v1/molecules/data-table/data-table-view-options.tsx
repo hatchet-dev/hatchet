@@ -21,14 +21,6 @@ export function DataTableViewOptions<TData>({
   table,
   columnKeyToName,
 }: DataTableViewOptionsProps<TData>) {
-  console.log(
-    table
-      .getAllColumns()
-      .filter(
-        (column) =>
-          typeof column.accessorFn !== 'undefined' && column.getCanHide(),
-      ),
-  );
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
