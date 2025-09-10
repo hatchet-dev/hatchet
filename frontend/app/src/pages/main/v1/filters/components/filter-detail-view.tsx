@@ -113,7 +113,7 @@ export function FilterDetailView({ filter }: FilterDetailViewProps) {
     <>
       <div className="space-y-6">
         <div className="flex items-center justify-between">
-          <div className="flex gap-2">
+          <div className="flex gap-2 pt-2">
             {!isEditing ? (
               <Button
                 variant="outline"
@@ -175,7 +175,7 @@ export function FilterDetailView({ filter }: FilterDetailViewProps) {
               id="workflow"
               value={workflowIdToName[filter.workflowId] || filter.workflowId}
               disabled
-              className="bg-muted"
+              className="bg-muted disabled:cursor-text"
             />
           </div>
 
@@ -197,7 +197,7 @@ export function FilterDetailView({ filter }: FilterDetailViewProps) {
                 id="scope"
                 value={filter.scope}
                 disabled
-                className="bg-muted"
+                className="bg-muted disabled:cursor-text"
               />
             )}
           </div>
@@ -223,19 +223,9 @@ export function FilterDetailView({ filter }: FilterDetailViewProps) {
                 id="expression"
                 value={filter.expression}
                 disabled
-                className="bg-muted min-h-[100px] font-mono"
+                className="bg-muted min-h-[100px] font-mono disabled:cursor-text"
               />
             )}
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="is-declarative">Type</Label>
-            <Input
-              id="is-declarative"
-              value={filter.isDeclarative ? 'Declarative' : 'Imperative'}
-              disabled
-              className="bg-muted"
-            />
           </div>
 
           <div className="space-y-2">
@@ -249,7 +239,7 @@ export function FilterDetailView({ filter }: FilterDetailViewProps) {
                   className="min-h-[120px] font-mono text-sm"
                   onChange={(e) => {
                     register('payload').onChange(e);
-                    setPayloadError(null); // Clear error when user types
+                    setPayloadError(null);
                   }}
                 />
                 {payloadError && (
@@ -261,7 +251,7 @@ export function FilterDetailView({ filter }: FilterDetailViewProps) {
                 id="payload"
                 value={JSON.stringify(filter.payload || {}, null, 2)}
                 disabled
-                className="bg-muted min-h-[120px] font-mono text-sm"
+                className="bg-muted min-h-[120px] font-mono text-sm disabled:cursor-text"
               />
             )}
           </div>

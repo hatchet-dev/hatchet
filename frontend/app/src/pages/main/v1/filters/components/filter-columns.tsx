@@ -3,6 +3,7 @@ import { V1Filter } from '@/lib/api';
 import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
 import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
 import { CheckIcon } from 'lucide-react';
+import { Button } from '@/components/v1/ui/button';
 
 export const FilterColumn = {
   id: 'ID',
@@ -31,11 +32,16 @@ export const filterColumns = (
         <DataTableColumnHeader column={column} title={FilterColumn.id} />
       ),
       cell: ({ row }) => (
-        <div
-          className="w-full cursor-pointer hover:text-blue-600 transition-colors"
-          onClick={() => onRowClick(row.original)}
-        >
-          {row.original.metadata.id}
+        <div className="w-full">
+          <Button
+            className="w-fit cursor-pointer pl-0"
+            variant="link"
+            onClick={() => {
+              onRowClick?.(row.original);
+            }}
+          >
+            {row.original.metadata.id}
+          </Button>
         </div>
       ),
       enableSorting: false,
