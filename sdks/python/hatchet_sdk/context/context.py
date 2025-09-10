@@ -21,10 +21,11 @@ from hatchet_sdk.conditions import (
     flatten_conditions,
 )
 from hatchet_sdk.context.worker_context import WorkerContext
+from hatchet_sdk.exceptions import TaskRunError
 from hatchet_sdk.features.runs import RunsClient
 from hatchet_sdk.logger import logger
 from hatchet_sdk.utils.timedelta_to_expression import Duration, timedelta_to_expr
-from hatchet_sdk.utils.typing import JSONSerializableMapping
+from hatchet_sdk.utils.typing import JSONSerializableMapping, LogLevel
 from hatchet_sdk.worker.runner.utils.capture_logs import AsyncLogSender, LogRecord
 
 if TYPE_CHECKING:
@@ -211,7 +212,9 @@ class Context:
                 line = str(line)
 
         logger.info(line)
-        self.log_sender.publish(LogRecord(message=line, step_run_id=self.step_run_id))
+        self.log_sender.publish(
+            LogRecord(message=line, step_run_id=self.step_run_id, level=LogLevel.INFO)
+        )
 
     def release_slot(self) -> None:
         """
@@ -236,8 +239,8 @@ class Context:
                 step_run_id=self.step_run_id,
                 index=ix,
             )
-        except Exception as e:
-            logger.error(f"Error putting stream event: {e}")
+        except Exception:
+            logger.exception("error putting stream event")
 
     async def aio_put_stream(self, data: str | bytes) -> None:
         """
@@ -262,8 +265,8 @@ class Context:
             return self.dispatcher_client.refresh_timeout(
                 step_run_id=self.step_run_id, increment_by=increment_by
             )
-        except Exception as e:
-            logger.error(f"Error refreshing timeout: {e}")
+        except Exception:
+            logger.exception("error refreshing timeout")
 
     @property
     def retry_count(self) -> int:
@@ -285,7 +288,7 @@ class Context:
         return self.retry_count + 1
 
     @property
-    def additional_metadata(self) -> JSONSerializableMapping | None:
+    def additional_metadata(self) -> JSONSerializableMapping:
         """
         The additional metadata sent with the current task run.
 
@@ -350,7 +353,7 @@ class Context:
 
         if not errors:
             logger.error(
-                "No step run errors found. `context.task_run_errors` is intended to be run in an on-failure step, and will only work on engine versions more recent than v0.53.10"
+                "no step run errors found. `context.task_run_errors` is intended to be run in an on-failure step, and will only work on engine versions more recent than v0.53.10"
             )
 
         return errors
@@ -360,6 +363,27 @@ class Context:
         task: "Task[TWorkflowInput, R]",
     ) -> str | None:
         """
+        **DEPRECATED**: Use `get_task_run_error` instead.
+
+        A helper intended to be used in an on-failure step to retrieve the error that occurred in a specific upstream task run.
+
+        :param task: The task whose error you want to retrieve.
+        :return: The error message of the task run, or None if no error occurred.
+        """
+        warn(
+            "`fetch_task_run_error` is deprecated. Use `get_task_run_error` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        errors = self.data.step_run_errors
+
+        return errors.get(task.name)
+
+    def get_task_run_error(
+        self,
+        task: "Task[TWorkflowInput, R]",
+    ) -> TaskRunError | None:
+        """
         A helper intended to be used in an on-failure step to retrieve the error that occurred in a specific upstream task run.
 
         :param task: The task whose error you want to retrieve.
@@ -367,10 +391,51 @@ class Context:
         """
         errors = self.data.step_run_errors
 
-        return errors.get(task.name)
+        error = errors.get(task.name)
+
+        if not error:
+            return None
+
+        return TaskRunError.deserialize(error)
 
 
 class DurableContext(Context):
+    def __init__(
+        self,
+        action: Action,
+        dispatcher_client: DispatcherClient,
+        admin_client: AdminClient,
+        event_client: EventClient,
+        durable_event_listener: DurableEventListener | None,
+        worker: WorkerContext,
+        runs_client: RunsClient,
+        lifespan_context: Any | None,
+        log_sender: AsyncLogSender,
+    ):
+        super().__init__(
+            action,
+            dispatcher_client,
+            admin_client,
+            event_client,
+            durable_event_listener,
+            worker,
+            runs_client,
+            lifespan_context,
+            log_sender,
+        )
+
+        self._wait_index = 0
+
+    @property
+    def wait_index(self) -> int:
+        return self._wait_index
+
+    def _increment_wait_index(self) -> int:
+        index = self._wait_index
+        self._wait_index += 1
+
+        return index
+
     async def aio_wait_for(
         self,
         signal_key: str,
@@ -411,6 +476,9 @@ class DurableContext(Context):
         For more complicated conditions, use `ctx.aio_wait_for` directly.
         """
 
+        wait_index = self._increment_wait_index()
+
         return await self.aio_wait_for(
-            f"sleep:{timedelta_to_expr(duration)}", SleepCondition(duration=duration)
+            f"sleep:{timedelta_to_expr(duration)}-{wait_index}",
+            SleepCondition(duration=duration),
         )

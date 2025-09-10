@@ -13,6 +13,7 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/internal/cel"
+	"github.com/hatchet-dev/hatchet/pkg/constants"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
@@ -30,6 +31,8 @@ type EventTriggerOpts struct {
 	Priority *int32
 
 	Scope *string
+
+	TriggeringWebhookName *string
 }
 
 type TriggerTaskData struct {
@@ -118,6 +121,7 @@ type TriggerFromEventsResult struct {
 	Tasks                 []*sqlcv1.V1Task
 	Dags                  []*DAGWithData
 	EventExternalIdToRuns map[string][]*Run
+	CELEvaluationFailures []CELEvaluationFailure
 }
 
 type TriggerDecision struct {
@@ -126,7 +130,9 @@ type TriggerDecision struct {
 	FilterId      *string
 }
 
-func (r *TriggerRepositoryImpl) makeTriggerDecisions(ctx context.Context, filters []*sqlcv1.V1Filter, hasAnyFilters bool, opt EventTriggerOpts) []TriggerDecision {
+func (r *TriggerRepositoryImpl) makeTriggerDecisions(ctx context.Context, filters []*sqlcv1.V1Filter, hasAnyFilters bool, opt EventTriggerOpts) ([]TriggerDecision, []CELEvaluationFailure) {
+	celEvaluationFailures := make([]CELEvaluationFailure, 0)
+
 	// Cases to handle:
 	// 1. If there are no filters that exist for the workflow, we should trigger it.
 	// 2. If there _are_ filters that exist, but the list is empty, then there were no scope matches so we should _not_ trigger.
@@ -140,7 +146,7 @@ func (r *TriggerRepositoryImpl) makeTriggerDecisions(ctx context.Context, filter
 				FilterPayload: nil,
 				FilterId:      nil,
 			},
-		}
+		}, celEvaluationFailures
 	}
 
 	// Case 2 - no filters were found matching the provided scope,
@@ -152,7 +158,7 @@ func (r *TriggerRepositoryImpl) makeTriggerDecisions(ctx context.Context, filter
 				FilterPayload: nil,
 				FilterId:      nil,
 			},
-		}
+		}, celEvaluationFailures
 	}
 
 	// Case 3 - we have filters, so we should evaluate each expression and return a list of decisions
@@ -187,6 +193,11 @@ func (r *TriggerRepositoryImpl) makeTriggerDecisions(ctx context.Context, filter
 					FilterPayload: filter.Payload,
 					FilterId:      &filterId,
 				})
+
+				celEvaluationFailures = append(celEvaluationFailures, CELEvaluationFailure{
+					Source:       sqlcv1.V1CelEvaluationFailureSourceFILTER,
+					ErrorMessage: err.Error(),
+				})
 			}
 
 			decisions = append(decisions, TriggerDecision{
@@ -197,12 +208,17 @@ func (r *TriggerRepositoryImpl) makeTriggerDecisions(ctx context.Context, filter
 		}
 	}
 
-	return decisions
+	return decisions, celEvaluationFailures
 }
 
 type EventExternalIdFilterId struct {
 	ExternalId string
 	FilterId   *string
+}
+
+type WorkflowAndScope struct {
+	WorkflowId pgtype.UUID
+	Scope      string
 }
 
 func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId string, opts []EventTriggerOpts) (*TriggerFromEventsResult, error) {
@@ -241,16 +257,11 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 		return nil, fmt.Errorf("failed to list workflows for events: %w", err)
 	}
 
-	workflowEventKeyToIncomingEventKey := make(map[string]string)
-
-	workflowIds := make([]pgtype.UUID, 0)
-	scopes := make([]string, 0)
-
 	externalIdToEventIdAndFilterId := make(map[string]EventExternalIdFilterId)
 
-	for _, workflow := range workflowVersionIdsAndEventKeys {
-		workflowEventKeyToIncomingEventKey[workflow.WorkflowTriggeringEventKeyPattern] = workflow.IncomingEventKey
+	workflowIdScopePairs := make(map[WorkflowAndScope]bool)
 
+	for _, workflow := range workflowVersionIdsAndEventKeys {
 		opts, ok := eventKeysToOpts[workflow.IncomingEventKey]
 
 		if !ok {
@@ -262,9 +273,19 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 				continue
 			}
 
-			workflowIds = append(workflowIds, workflow.WorkflowId)
-			scopes = append(scopes, *opt.Scope)
+			workflowIdScopePairs[WorkflowAndScope{
+				WorkflowId: workflow.WorkflowId,
+				Scope:      *opt.Scope,
+			}] = true
 		}
+	}
+
+	workflowIds := make([]pgtype.UUID, 0)
+	scopes := make([]string, 0)
+
+	for pair := range workflowIdScopePairs {
+		workflowIds = append(workflowIds, pair.WorkflowId)
+		scopes = append(scopes, pair.Scope)
 	}
 
 	filters, err := r.queries.ListFiltersForEventTriggers(ctx, r.pool, sqlcv1.ListFiltersForEventTriggersParams{
@@ -277,10 +298,15 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 		return nil, fmt.Errorf("failed to list filters: %w", err)
 	}
 
-	workflowIdToFilters := make(map[string][]*sqlcv1.V1Filter)
+	workflowIdAndScopeToFilters := make(map[WorkflowAndScope][]*sqlcv1.V1Filter)
 
 	for _, filter := range filters {
-		workflowIdToFilters[filter.WorkflowID.String()] = append(workflowIdToFilters[filter.WorkflowID.String()], filter)
+		key := WorkflowAndScope{
+			WorkflowId: filter.WorkflowID,
+			Scope:      filter.Scope,
+		}
+
+		workflowIdAndScopeToFilters[key] = append(workflowIdAndScopeToFilters[key], filter)
 	}
 
 	filterCounts, err := r.queries.ListFilterCountsForWorkflows(ctx, r.pool, sqlcv1.ListFilterCountsForWorkflowsParams{
@@ -300,27 +326,34 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 
 	// each (workflowVersionId, eventKey, opt) is a separate workflow that we need to create
 	triggerOpts := make([]triggerTuple, 0)
+	celEvaluationFailures := make([]CELEvaluationFailure, 0)
 
 	for _, workflow := range workflowVersionIdsAndEventKeys {
-		incomingEventKey, ok := workflowEventKeyToIncomingEventKey[workflow.WorkflowTriggeringEventKeyPattern]
+		opts, ok := eventKeysToOpts[workflow.IncomingEventKey]
 
 		if !ok {
 			continue
 		}
 
-		opts, ok := eventKeysToOpts[incomingEventKey]
-
-		if !ok {
-			continue
-		}
-
-		filters := workflowIdToFilters[sqlchelpers.UUIDToStr(workflow.WorkflowId)]
 		numFilters := workflowIdToCount[sqlchelpers.UUIDToStr(workflow.WorkflowId)]
 
 		hasAnyFilters := numFilters > 0
 
 		for _, opt := range opts {
-			triggerDecisions := r.makeTriggerDecisions(ctx, filters, hasAnyFilters, opt)
+			var filters = []*sqlcv1.V1Filter{}
+
+			if opt.Scope != nil {
+				key := WorkflowAndScope{
+					WorkflowId: workflow.WorkflowId,
+					Scope:      *opt.Scope,
+				}
+
+				filters = workflowIdAndScopeToFilters[key]
+			}
+
+			triggerDecisions, evalFailures := r.makeTriggerDecisions(ctx, filters, hasAnyFilters, opt)
+
+			celEvaluationFailures = append(celEvaluationFailures, evalFailures...)
 
 			for _, decision := range triggerDecisions {
 				if !decision.ShouldTrigger {
@@ -399,6 +432,7 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 		Tasks:                 tasks,
 		Dags:                  dags,
 		EventExternalIdToRuns: eventExternalIdToRuns,
+		CELEvaluationFailures: celEvaluationFailures,
 	}, nil
 }
 
@@ -547,7 +581,7 @@ func cleanAdditionalMetadata(additionalMetadata []byte) map[string]interface{} {
 	} else {
 		err := json.Unmarshal(additionalMetadata, &res)
 
-		if err != nil {
+		if err != nil || res == nil {
 			res = make(map[string]interface{})
 		}
 	}
@@ -564,8 +598,8 @@ func cleanAdditionalMetadata(additionalMetadata []byte) map[string]interface{} {
 func (t *TriggeredByEvent) ToMetadata(additionalMetadata []byte) []byte {
 	res := cleanAdditionalMetadata(additionalMetadata)
 
-	res["hatchet__event_id"] = t.eventID
-	res["hatchet__event_key"] = t.eventKey
+	res[constants.EventIDKey.String()] = t.eventID
+	res[constants.EventKeyKey.String()] = t.eventKey
 
 	resBytes, err := json.Marshal(res)
 
@@ -827,6 +861,7 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 					parentTaskInsertedAt pgtype.Timestamptz
 					childIndex           pgtype.Int8
 					childKey             pgtype.Text
+					priority             pgtype.Int4
 				)
 
 				if tuple.parentExternalId != nil {
@@ -858,6 +893,13 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 					}
 				}
 
+				if tuple.priority != nil {
+					priority = pgtype.Int4{
+						Int32: *tuple.priority,
+						Valid: true,
+					}
+				}
+
 				eventMatches[tuple.externalId] = append(eventMatches[tuple.externalId], CreateMatchOpts{
 					Kind:                 sqlcv1.V1MatchKindTRIGGER,
 					Conditions:           conditions,
@@ -873,6 +915,7 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 					TriggerParentTaskInsertedAt: parentTaskInsertedAt,
 					TriggerChildIndex:           childIndex,
 					TriggerChildKey:             childKey,
+					TriggerPriority:             priority,
 				})
 			case len(step.Parents) == 0:
 				// if we have additional match conditions, create a match instead of triggering a workflow for this step
@@ -920,6 +963,7 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 						parentTaskInsertedAt pgtype.Timestamptz
 						childIndex           pgtype.Int8
 						childKey             pgtype.Text
+						priority             pgtype.Int4
 					)
 
 					if tuple.parentExternalId != nil {
@@ -951,6 +995,13 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 						}
 					}
 
+					if tuple.priority != nil {
+						priority = pgtype.Int4{
+							Int32: *tuple.priority,
+							Valid: true,
+						}
+					}
+
 					eventMatches[tuple.externalId] = append(eventMatches[tuple.externalId], CreateMatchOpts{
 						Kind:                 sqlcv1.V1MatchKindTRIGGER,
 						Conditions:           groupConditions,
@@ -966,6 +1017,7 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 						TriggerParentTaskInsertedAt: parentTaskInsertedAt,
 						TriggerChildIndex:           childIndex,
 						TriggerChildKey:             childKey,
+						TriggerPriority:             priority,
 					})
 				} else {
 					opt := CreateTaskOpts{
@@ -1034,6 +1086,7 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 					parentTaskInsertedAt pgtype.Timestamptz
 					childIndex           pgtype.Int8
 					childKey             pgtype.Text
+					priority             pgtype.Int4
 				)
 
 				if tuple.parentExternalId != nil {
@@ -1065,6 +1118,13 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 					}
 				}
 
+				if tuple.priority != nil {
+					priority = pgtype.Int4{
+						Int32: *tuple.priority,
+						Valid: true,
+					}
+				}
+
 				// create an event match
 				eventMatches[tuple.externalId] = append(eventMatches[tuple.externalId], CreateMatchOpts{
 					Kind:                 sqlcv1.V1MatchKindTRIGGER,
@@ -1081,6 +1141,7 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 					TriggerParentTaskInsertedAt: parentTaskInsertedAt,
 					TriggerChildIndex:           childIndex,
 					TriggerChildKey:             childKey,
+					TriggerPriority:             priority,
 				})
 			}
 		}

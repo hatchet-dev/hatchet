@@ -10,7 +10,7 @@ import {
 } from '@/components/v1/ui/breadcrumb';
 import { formatDuration } from '@/lib/utils';
 import RelativeDate from '@/components/v1/molecules/relative-date';
-import { useWorkflowDetails } from '../../hooks/workflow-details';
+import { useWorkflowDetails } from '../../hooks/use-workflow-details';
 import { TaskRunActionButton } from '../../../task-runs-v1/actions';
 import { TASK_RUN_TERMINAL_STATUSES } from './step-run-detail/step-run-detail';
 import { WorkflowDefinitionLink } from '@/pages/main/workflow-runs/$run/v2components/workflow-definition';
@@ -18,6 +18,7 @@ import { CopyWorkflowConfigButton } from '@/components/v1/shared/copy-workflow-c
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
+import { Toaster } from '@/components/v1/ui/toaster';
 
 export const WORKFLOW_RUN_TERMINAL_STATUSES = [
   WorkflowRunStatus.CANCELLED,
@@ -39,6 +40,7 @@ export const V1RunDetailHeader = () => {
 
   return (
     <div className="flex flex-col gap-4">
+      <Toaster />
       <Breadcrumb>
         <BreadcrumbList>
           <BreadcrumbItem>
@@ -71,7 +73,7 @@ export const V1RunDetailHeader = () => {
             <WorkflowDefinitionLink workflowId={workflowRun.workflowId} />
             <TaskRunActionButton
               actionType="replay"
-              params={{ externalIds: [workflowRun.metadata.id] }}
+              paramOverrides={{ externalIds: [workflowRun.metadata.id] }}
               disabled={
                 !TASK_RUN_TERMINAL_STATUSES.includes(workflowRun.status)
               }
@@ -79,7 +81,7 @@ export const V1RunDetailHeader = () => {
             />
             <TaskRunActionButton
               actionType="cancel"
-              params={{ externalIds: [workflowRun.metadata.id] }}
+              paramOverrides={{ externalIds: [workflowRun.metadata.id] }}
               disabled={TASK_RUN_TERMINAL_STATUSES.includes(workflowRun.status)}
               showModal={false}
             />

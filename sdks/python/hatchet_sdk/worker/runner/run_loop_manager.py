@@ -60,11 +60,14 @@ class WorkerActionRunLoopManager:
         self.start_loop_manager_task = self.loop.create_task(self.aio_start())
 
     async def aio_start(self, retry_count: int = 1) -> None:
-        await capture_logs(
-            self.client.log_interceptor,
-            self.log_sender,
-            self._async_start,
-        )()
+        if self.client.config.disable_log_capture:
+            await self._async_start()
+        else:
+            await capture_logs(
+                self.client.log_interceptor,
+                self.log_sender,
+                self._async_start,
+            )()
 
     async def _async_start(self) -> None:
         logger.info("starting runner...")

@@ -1,6 +1,7 @@
 import { User } from '@/lib/api';
 import { useTenant } from '@/lib/atoms';
 import useApiMeta from '@/pages/auth/hooks/use-api-meta';
+import { useAnalytics } from '@/hooks/use-analytics';
 import React, { PropsWithChildren, useEffect, useMemo } from 'react';
 
 interface AnalyticsProviderProps {
@@ -15,6 +16,7 @@ const AnalyticsProvider: React.FC<
   const [loaded, setLoaded] = React.useState(false);
 
   const { tenant } = useTenant();
+  const { identify } = useAnalytics();
 
   const config = useMemo(() => {
     return meta.data?.posthog;
@@ -60,24 +62,16 @@ posthog.init('${config.apiKey}',{
     setTimeout(() => {
       const ref = localStorage.getItem('ref');
       if (ref) {
-        (window as any).posthog.identify(
-          ref, // Required. Replace 'distinct_id' with your user's unique identifier
-          {}, // $set, optional
-          {}, // $set_once, optional
-        );
+        identify(ref, {}, {});
       }
 
       if (!user) {
         return;
       }
 
-      (window as any).posthog.identify(
-        user.metadata.id, // Required. Replace 'distinct_id' with your user's unique identifier
-        { email: user.email, name: user.name }, // $set, optional
-        {}, // $set_once, optional
-      );
+      identify(user.metadata.id, { email: user.email, name: user.name }, {});
     });
-  }, [user, config, tenant]);
+  }, [user, config, tenant, identify]);
 
   return children;
 };

@@ -5,6 +5,143 @@ All notable changes to Hatchet's Python SDK will be documented in this changelog
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.18.0] - 2025-08-26
+
+### Added
+
+- Adds a `stubs` client on the main `Hatchet` client, which allows for creating typed stub tasks and workflows. These are intended to be used for triggering workflows that are registered on other workers in either other services or other languages.
+- Adds a config option `force_shutdown_on_shutdown_signal` which allows users to forcefully terminate all processes when a shutdown signal is received instead of waiting for them to exit gracefully.
+
+## [1.17.2] - 2025-08-20
+
+### Added
+
+- Adds back an optional `cel-python` dependency for v0 compatibility, allowing users to use the v0 client with the v0-compatible features in the SDK.
+- Adds `dependencies` to the `mock_run` methods on the `Standalone`.
+- Removes `aiostream` dependency that was unused.
+- Removes `aiohttp-retry` dependency that was unused.
+
+## [1.17.1] - 2025-08-18
+
+### Added
+
+- Adds a `HATCHET_CLIENT_LOG_QUEUE_SIZE` environment variable to configure the size of the log queue used for capturing logs and forwarding them to Hatchet
+
+## [1.17.0] - 2025-08-12
+
+### Added
+
+- Adds support for dependency injection in tasks via the `Depends` class.
+- Deprecated `fetch_task_run_error` in favor of `get_task_run_error`, which returns a `TaskRunError` object instead of a string. This allows for better error handling and debugging.
+
+### Changed
+
+- Uses `logger.exception` in place of `logger.error` in the action runner to improve (e.g.) Sentry error reporting
+- Extends the `TaskRunError` to include the `task_run_external_id`, which is useful for debugging and tracing errors in task runs.
+- Fixes an issue with logging which allows log levels to be respected over the API.
+
+### Removed
+
+- Removes the `cel-python` dependency
+
+## [1.16.5] - 2025-08-07
+
+### Changed
+
+- Relaxes constraint on Prometheus dependency
+
+## [1.16.4] - 2025-07-28
+
+### Added
+
+- Adds a new config option `grpc_enable_fork_support` to allow users to enable or disable gRPC fork support. This is useful for environments where gRPC fork support is not needed or causes issues. Previously was set to `False` by default, which would cause issues with e.g. Gunicorn setups. Can also be set with the `HATCHET_CLIENT_GRPC_ENABLE_FORK_SUPPORT` environment variable.
+
+### Changed
+
+- Changes `ValidTaskReturnType` to allow `Mapping[str, Any]` instead of `dict[str, Any]` to allow for more flexible return types in tasks, including using `TypedDict`.
+
+## [1.16.3] - 2025-07-23
+
+### Added
+
+- Adds support for filters and formatters in the logger that's passed to the Hatchet client.
+- Adds a flag to disable log capture.
+
+### Changed
+
+- Fixes a bug in `aio_sleep_for` and the `SleepCondition` that did not allow duplicate sleeps to be awaited correctly.
+- Stops retrying gRPC requests on 4XX failures, since retrying won't help
+
+## [1.16.2] - 2025-07-22
+
+### Added
+
+- Adds an `input_validator` property to `BaseWorkflow` which returns a typechecker-aware version of the validator class.
+
+## [1.16.1] - 2025-07-18
+
+### Added
+
+- Adds a `CEL` feature client for debugging CEL expressions
+
+## [1.16.0] - 2025-07-17
+
+### Added
+
+- Adds new methods for unit testing tasks and standalones, called `mock_run` and `aio_mock_run`, which allow you to run tasks and standalones in a mocked environment without needing to start a worker or connect to the engine.
+- Improves exception logs throughout the SDK to provide more context for what went wrong when an exception is thrown.
+- Adds `create_run_ref`, `get_result`, and `aio_get_result` methods to the `Standalone` class, to allow for getting typed results of a run more easily.
+- Adds `return_exceptions` option to the `run_many` and `aio_run_many` methods to be more similar to e.g. `asyncio.gather`. If `True`, exceptions will be returned as part of the results instead of raising them.
+
+### Changed
+
+- Correctly propagates additional metadata through the various `run` methods to spawned children.
+
+## [1.15.3] - 2025-07-14
+
+### Changed
+
+- `remove_null_unicode_character` now accepts any type of data, not just strings, dictionaries, lists, and tuples. If the data is not one of these types, it's returned as-is.
+
+## [1.15.2] - 2025-07-12
+
+### Changed
+
+- Fixes an issue in `capture_logs` where the `log` call was blocking the event loop.
+
+## [1.15.1] - 2025-07-11
+
+### Added
+
+- Correctly sends SDK info to the engine when a worker is created
+
+## [1.15.0] - 2025-07-10
+
+### Added
+
+- The `Metrics` client now includes a method to scrape Prometheus metrics from the tenant.
+
+### Changed
+
+- The `Metrics` client's `get_task_metrics` and `get_queue_metrics` now return better-shaped, correctly-fetched data from the API.
+
+## [1.14.4] - 2025-07-09
+
+### Added
+
+- Adds `delete` and `aio_delete` methods to the workflows feature client and the corresponding `Workflow` and `Standalone` classes, allowing for deleting workflows and standalone tasks.
+
+## [1.14.3] - 2025-07-07
+
+### Added
+
+- Adds `remove_null_unicode_character` utility function to remove null unicode characters from data structures.
+
+### Changed
+
+- Task outputs that contain a null unicode character (\u0000) will now throw an exception instead of being serialized.
+- OpenTelemetry instrumentor now correctly reports exceptions raised in tasks to the OTel collector.
+
 ## [1.14.2] - 2025-07-03
 
 ### Added

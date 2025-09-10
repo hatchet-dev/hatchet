@@ -1,4 +1,4 @@
-package v2
+package v1
 
 import (
 	"context"
@@ -16,6 +16,8 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/scheduling/v0/randomticker"
 )
+
+const rateLimitedRequeueAfterThreshold = 2 * time.Second
 
 // Scheduler is responsible for scheduling steps to workers as efficiently as possible.
 // This is tenant-scoped, so each tenant will have its own scheduler.
@@ -423,6 +425,19 @@ type scheduleRateLimitResult struct {
 	qi *sqlcv1.V1QueueItem
 }
 
+// shouldRemoveFromQueue returns true if the queue item is being rate limited and should be removed from the queue
+// until the rate limit is reset.
+// we only do this if the requeue_after time is at least 2 seconds in the future, to avoid thrashing
+func (s *scheduleRateLimitResult) shouldRemoveFromQueue() bool {
+	if s.rateLimitResult == nil {
+		return false
+	}
+
+	nextRefillAt := s.nextRefillAt
+
+	return nextRefillAt != nil && nextRefillAt.UTC().After(time.Now().UTC().Add(rateLimitedRequeueAfterThreshold))
+}
+
 type assignSingleResult struct {
 	qi *sqlcv1.V1QueueItem
 
@@ -661,6 +676,7 @@ type assignResults struct {
 	unassigned         []*sqlcv1.V1QueueItem
 	schedulingTimedOut []*sqlcv1.V1QueueItem
 	rateLimited        []*scheduleRateLimitResult
+	rateLimitedToMove  []*scheduleRateLimitResult
 }
 
 func (s *Scheduler) tryAssign(
@@ -725,6 +741,7 @@ func (s *Scheduler) tryAssign(
 				err := queueutils.BatchLinear(50, batched, func(batchQis []*sqlcv1.V1QueueItem) error {
 					batchAssigned := make([]*assignedQueueItem, 0, len(batchQis))
 					batchRateLimited := make([]*scheduleRateLimitResult, 0, len(batchQis))
+					batchRateLimitedToMove := make([]*scheduleRateLimitResult, 0, len(batchQis))
 					batchUnassigned := make([]*sqlcv1.V1QueueItem, 0, len(batchQis))
 
 					batchStart := time.Now()
@@ -740,7 +757,12 @@ func (s *Scheduler) tryAssign(
 					for _, singleRes := range results {
 						if !singleRes.succeeded {
 							if singleRes.rateLimitResult != nil {
-								batchRateLimited = append(batchRateLimited, singleRes.rateLimitResult)
+								if singleRes.rateLimitResult.shouldRemoveFromQueue() {
+
+									batchRateLimitedToMove = append(batchRateLimitedToMove, singleRes.rateLimitResult)
+								} else {
+									batchRateLimited = append(batchRateLimited, singleRes.rateLimitResult)
+								}
 							} else {
 								batchUnassigned = append(batchUnassigned, singleRes.qi)
 
@@ -764,9 +786,10 @@ func (s *Scheduler) tryAssign(
 					}
 
 					r := &assignResults{
-						assigned:    batchAssigned,
-						rateLimited: batchRateLimited,
-						unassigned:  batchUnassigned,
+						assigned:          batchAssigned,
+						rateLimited:       batchRateLimited,
+						rateLimitedToMove: batchRateLimitedToMove,
+						unassigned:        batchUnassigned,
 					}
 
 					extensionResultsMu.Lock()
@@ -832,6 +855,7 @@ func (s *Scheduler) getSnapshotInput(mustSnapshot bool) (*SnapshotInput, bool) {
 			WorkerId: workerId,
 			MaxRuns:  worker.MaxRuns,
 			Labels:   worker.Labels,
+			Name:     worker.Name,
 		}
 	}
 

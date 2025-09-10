@@ -25,6 +25,7 @@ import React from 'react';
 import { Spinner } from '@/components/v1/ui/loading.tsx';
 import useApiMeta from '@/pages/auth/hooks/use-api-meta';
 import { useTenantDetails } from '@/hooks/use-tenant';
+import { useOrganizations } from '@/hooks/use-organizations';
 
 interface TenantSwitcherProps {
   className?: string;
@@ -37,6 +38,7 @@ export function TenantSwitcher({
   const meta = useApiMeta();
   const { setTenant: setCurrTenant, tenant: currTenant } = useTenantDetails();
   const [open, setOpen] = React.useState(false);
+  const { hasOrganizations } = useOrganizations();
 
   if (!currTenant) {
     return <Spinner />;
@@ -66,11 +68,14 @@ export function TenantSwitcher({
                 key={membership.metadata.id}
                 onSelect={() => {
                   invariant(membership.tenant);
-                  setCurrTenant(membership.tenant.metadata.id);
+                  setCurrTenant(membership.tenant);
                   setOpen(false);
 
                   if (membership.tenant.version === TenantVersion.V0) {
-                    window.location.href = `/workflow-runs?tenant=${membership.tenant?.metadata.id}`;
+                    // Hack to wait for next event loop tick so local storage is updated
+                    setTimeout(() => {
+                      window.location.href = `/workflow-runs?tenant=${membership.tenant?.metadata.id}`;
+                    }, 0);
                   }
                 }}
                 value={membership.tenant?.slug}
@@ -89,7 +94,7 @@ export function TenantSwitcher({
               </CommandItem>
             ))}
           </CommandList>
-          {meta.data?.allowCreateTenant && (
+          {meta.data?.allowCreateTenant && !hasOrganizations && (
             <>
               <CommandSeparator />
               <CommandList>

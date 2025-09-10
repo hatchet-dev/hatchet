@@ -18,7 +18,7 @@ export const WorkflowDefinitionLink = ({
     >
       <Button size={'sm'} className="px-2 py-2 gap-2" variant="outline">
         <ArrowTopRightIcon className="w-4 h-4" />
-        Configuration
+        Workflow
       </Button>
     </Link>
   );

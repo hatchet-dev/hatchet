@@ -20,6 +20,7 @@ import {
 } from '@/lib/outlet';
 import { Loading } from '@/components/v1/ui/loading.tsx';
 import { TenantSwitcher } from '@/components/v1/molecules/nav-bar/tenant-switcher';
+import { OrganizationSelector } from '@/components/v1/molecules/nav-bar/organization-selector';
 import {
   Collapsible,
   CollapsibleContent,
@@ -27,8 +28,10 @@ import {
 import useCloudApiMeta from '@/pages/auth/hooks/use-cloud-api-meta';
 import useCloudFeatureFlags from '@/pages/auth/hooks/use-cloud-feature-flags';
 import { useSidebar } from '@/components/sidebar-provider';
-import { SquareActivityIcon } from 'lucide-react';
+import { SquareActivityIcon, WebhookIcon } from 'lucide-react';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
+import { SidePanel } from '@/components/side-panel';
+import { SidePanelProvider } from '@/hooks/use-side-panel';
 
 function Main() {
   const ctx = useOutletContext<UserContextType & MembershipsContextType>();
@@ -44,12 +47,15 @@ function Main() {
   }
 
   return (
-    <div className="flex flex-row flex-1 w-full h-full">
-      <Sidebar memberships={memberships} />
-      <div className="p-8 flex-grow overflow-y-auto overflow-x-hidden">
-        <Outlet context={childCtx} />
+    <SidePanelProvider>
+      <div className="flex flex-row flex-1 w-full h-full">
+        <Sidebar memberships={memberships} />
+        <div className="p-8 flex-grow overflow-y-auto overflow-x-hidden">
+          <Outlet context={childCtx} />
+        </div>
+        <SidePanel />
       </div>
-    </div>
+    </SidePanelProvider>
   );
 }
 
@@ -63,7 +69,7 @@ function Sidebar({ className, memberships }: SidebarProps) {
   const { sidebarOpen, setSidebarOpen } = useSidebar();
   const { tenantId } = useCurrentTenantId();
 
-  const meta = useCloudApiMeta();
+  const { data: cloudMeta } = useCloudApiMeta();
   const featureFlags = useCloudFeatureFlags(tenantId);
 
   const onNavLinkClick = useCallback(() => {
@@ -150,10 +156,10 @@ function Sidebar({ className, memberships }: SidebarProps) {
             </h2>
             <div className="space-y-1">
               <SidebarButtonPrimary
-                key="tasks"
+                key="workflows"
                 onNavLinkClick={onNavLinkClick}
-                to={`/tenants/${tenantId}/tasks`}
-                name="Tasks & Workflows"
+                to={`/tenants/${tenantId}/workflows`}
+                name="Workflows"
                 icon={<Squares2X2Icon className="mr-2 h-4 w-4" />}
               />
               <SidebarButtonPrimary
@@ -164,6 +170,13 @@ function Sidebar({ className, memberships }: SidebarProps) {
                 icon={<ServerStackIcon className="mr-2 h-4 w-4" />}
                 prefix={`/tenants/${tenantId}/workers`}
                 collapsibleChildren={workers}
+              />
+              <SidebarButtonPrimary
+                key="webhooks"
+                onNavLinkClick={onNavLinkClick}
+                to={`/tenants/${tenantId}/webhooks`}
+                name="Webhooks"
+                icon={<WebhookIcon className="mr-2 h-4 w-4" />}
               />
               {featureFlags?.data['managed-worker'] && (
                 <SidebarButtonPrimary
@@ -225,7 +238,7 @@ function Sidebar({ className, memberships }: SidebarProps) {
                     onNavLinkClick={onNavLinkClick}
                     to={`/tenants/${tenantId}/tenant-settings/billing-and-limits`}
                     name={
-                      meta?.data.canBill
+                      cloudMeta?.data.canBill
                         ? 'Billing & Limits'
                         : 'Resource Limits'
                     }
@@ -247,7 +260,11 @@ function Sidebar({ className, memberships }: SidebarProps) {
             </div>
           </div>
         </div>
-        <TenantSwitcher memberships={memberships} />
+        {cloudMeta ? (
+          <OrganizationSelector memberships={memberships} />
+        ) : (
+          <TenantSwitcher memberships={memberships} />
+        )}
       </div>
     </div>
   );

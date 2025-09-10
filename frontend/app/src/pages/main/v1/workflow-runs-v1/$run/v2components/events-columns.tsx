@@ -8,7 +8,7 @@ import {
   XCircleIcon,
 } from '@heroicons/react/24/outline';
 import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
-import { cn } from '@/lib/utils';
+import { cn, emptyGolangUUID } from '@/lib/utils';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/v1/ui/button';
 import { useRef, useState } from 'react';
@@ -17,7 +17,6 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/v1/ui/popover';
-import StepRunError from './step-run-detail/step-run-error';
 
 function eventTypeToSeverity(
   eventType: V1TaskEventType | undefined,
@@ -120,12 +119,15 @@ export const columns = ({
         const event = row.original;
 
         if (event.eventType === V1TaskEventType.FAILED) {
-          items.push(<ErrorWithHoverCard event={row.original} />);
+          items.push(<ErrorWithHoverCard key="error" event={row.original} />);
         }
 
-        if (event.workerId) {
+        if (event.workerId && event.workerId !== emptyGolangUUID) {
           items.push(
-            <Link to={`/tenants/${tenantId}/workers/${event.workerId}`}>
+            <Link
+              to={`/tenants/${tenantId}/workers/${event.workerId}`}
+              key="worker"
+            >
               <Button
                 variant="link"
                 size="xs"
@@ -140,11 +142,16 @@ export const columns = ({
 
         return (
           <div>
-            <div className="text-xs text-muted-foreground font-mono tracking-tight">
+            <div
+              key="message"
+              className="text-xs text-muted-foreground font-mono tracking-tight"
+            >
               {event.message}
             </div>
             {items.length > 0 && (
-              <div className="flex flex-col gap-2 mt-2">{items}</div>
+              <div key="items" className="flex flex-col gap-2 mt-2">
+                {items}
+              </div>
             )}
           </div>
         );
@@ -259,11 +266,13 @@ function ErrorWithHoverCard({ event }: { event: V1TaskEvent }) {
           </Button>
         </PopoverTrigger>
         <PopoverContent
-          className="min-w-fit p-0 bg-background border-none z-[80]"
+          className="p-0 bg-popover border-border shadow-lg z-[80] w-[300px] sm:w-[400px] md:w-[500px] lg:w-[600px] max-w-[90vw]"
           align="start"
           container={containerRef.current}
         >
-          <ErrorHoverContents event={event} />
+          <div className="p-4 w-[300px] sm:w-[400px] md:w-[500px] lg:w-[600px] max-w-[90vw]">
+            <ErrorHoverContents event={event} />
+          </div>
         </PopoverContent>
       </Popover>
     </div>
@@ -273,9 +282,19 @@ function ErrorWithHoverCard({ event }: { event: V1TaskEvent }) {
 function ErrorHoverContents({ event }: { event: V1TaskEvent }) {
   const errorText = event.errorMessage;
 
-  if (!errorText) {
-    return <StepRunError text="No error message found" />;
-  }
-
-  return <StepRunError text={errorText} />;
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-2 pb-2 border-b border-border">
+        <XCircleIcon className="w-5 h-5 text-destructive" />
+        <h3 className="font-medium text-foreground">Error Details</h3>
+      </div>
+      <div className="rounded-md h-[400px] bg-muted/50 border border-border overflow-hidden">
+        <div className="h-full overflow-y-scroll overflow-x-hidden p-4 text-sm font-mono text-foreground scrollbar-thin scrollbar-track-muted scrollbar-thumb-muted-foreground">
+          <pre className="whitespace-pre-wrap break-words min-h-[500px]">
+            {errorText || 'No error message found'}
+          </pre>
+        </div>
+      </div>
+    </div>
+  );
 }

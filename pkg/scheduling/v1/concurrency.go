@@ -1,4 +1,4 @@
-package v2
+package v1
 
 import (
 	"context"
@@ -7,6 +7,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/rs/zerolog"
+	"golang.org/x/time/rate"
 
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
@@ -37,6 +38,8 @@ type ConcurrencyManager struct {
 	cleanup func()
 
 	isCleanedUp bool
+
+	rateLimiter *rate.Limiter
 }
 
 func newConcurrencyManager(conf *sharedConfig, tenantId pgtype.UUID, strategy *sqlcv1.V1StepConcurrency, resultsCh chan<- *ConcurrencyResults) *ConcurrencyManager {
@@ -52,6 +55,7 @@ func newConcurrencyManager(conf *sharedConfig, tenantId pgtype.UUID, strategy *s
 		notifyConcurrencyCh: notifyConcurrencyCh,
 		resultsCh:           resultsCh,
 		notifyMu:            newMu(conf.l),
+		rateLimiter:         newConcurrencyRateLimiter(conf.schedulerConcurrencyRateLimit),
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -109,6 +113,12 @@ func (c *ConcurrencyManager) loopConcurrency(ctx context.Context) {
 			Key:   "strategy_id",
 			Value: c.strategy.ID,
 		})
+
+		if !c.rateLimiter.Allow() {
+			span.End()
+			c.l.Debug().Msgf("rate limit exceeded for strategy %d", c.strategy.ID)
+			continue
+		}
 
 		start := time.Now()
 
@@ -168,4 +178,12 @@ func (c *ConcurrencyManager) loopCheckActive(ctx context.Context) {
 
 		span.End()
 	}
+}
+
+func newConcurrencyRateLimiter(rateLimit int) *rate.Limiter {
+	if rateLimit <= 0 {
+		rateLimit = 20
+	}
+
+	return rate.NewLimiter(rate.Limit(rateLimit), rateLimit)
 }

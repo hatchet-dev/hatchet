@@ -48,6 +48,9 @@ V1Event:
       type: array
       items:
         $ref: "#/V1EventTriggeredRun"
+    triggeringWebhookName:
+      type: string
+      description: The name of the webhook that triggered this event, if applicable.
 
   required:
     - metadata

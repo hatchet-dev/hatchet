@@ -107,6 +107,7 @@ func (u *UserService) UserCreate(ctx echo.Context, request gen.UserCreateRequest
 			"email": request.Body.Email,
 			"name":  request.Body.Name,
 		},
+		nil,
 	)
 
 	return gen.UserCreate200JSONResponse(
