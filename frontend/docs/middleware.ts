@@ -35,6 +35,7 @@ export function middleware(request: NextRequest) {
   response.headers.set('Access-Control-Allow-Origin', "*")
   response.headers.set('Access-Control-Allow-Credentials', 'true')
   response.headers.set('Cross-Origin-Resource-Policy', 'cross-origin')
+  response.headers.set('Cross-Origin-Embedder-Policy', 'credentialless')
 
   return response
 }
