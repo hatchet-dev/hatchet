@@ -4,8 +4,13 @@ import type { NextRequest } from 'next/server'
 export function middleware(request: NextRequest) {
   // Get the host header (the domain being requested)
   const host = request.headers.get('host')
+  const origin = request.headers.get('origin')
+
 
   const allowedDomains = ['staging.hatchet-tools.com', '*.onhatchet.run', '*.hatchet.run']
+  const allowedOrigins = allowedDomains.map(domain => `https://${domain}`)
+  const isOriginAllowed = origin && allowedOrigins.includes(origin)
+
 
   // Check if host is allowed for CORS
   const isHostAllowed = host && allowedDomains.some(domain => {
@@ -32,17 +37,10 @@ export function middleware(request: NextRequest) {
 
   const response = NextResponse.next()
 
-  // Only set the Cross-Origin-Resource-Policy header for specific domains
-  if (isHostAllowed) {
-    response.headers.set('Access-Control-Allow-Origin', `https://${host}`)
+  if (isOriginAllowed) {
+    response.headers.set('Access-Control-Allow-Origin', origin)
     response.headers.set('Access-Control-Allow-Credentials', 'true')
-
-    // Set Cross-Origin-Resource-Policy based on the host
-    if (host.includes('staging.hatchet-tools.com')) {
-      response.headers.set('Cross-Origin-Resource-Policy', 'cross-origin')
-    } else {
-      response.headers.set('Cross-Origin-Resource-Policy', 'same-site')
-    }
+    response.headers.set('Cross-Origin-Resource-Policy', 'cross-origin')
   }
 
   return response
