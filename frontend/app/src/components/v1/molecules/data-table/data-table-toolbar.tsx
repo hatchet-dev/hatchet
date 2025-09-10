@@ -1,13 +1,22 @@
-import { Cross2Icon } from '@radix-ui/react-icons';
+import * as React from 'react';
+import { Cross2Icon, MixerHorizontalIcon } from '@radix-ui/react-icons';
 import { Table } from '@tanstack/react-table';
-
 import { Button } from '@/components/v1/ui/button';
 import { DataTableViewOptions } from './data-table-view-options';
-
-import { DataTableFacetedFilter } from './data-table-faceted-filter';
 import { Input } from '@/components/v1/ui/input.tsx';
 import { Spinner } from '@/components/v1/ui/loading';
 import { flattenDAGsKey } from '@/pages/main/v1/workflow-runs-v1/components/v1/task-runs-columns';
+import { Badge } from '@/components/v1/ui/badge';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/v1/ui/dropdown-menu';
+import { ChevronDownIcon } from '@radix-ui/react-icons';
+import { Checkbox } from '@/components/v1/ui/checkbox';
+import { Label } from '@/components/v1/ui/label';
+import { Column } from '@tanstack/react-table';
 
 export interface FilterOption {
   label: string;
@@ -43,6 +52,225 @@ interface DataTableToolbarProps<TData> {
   columnKeyToName?: Record<string, string>;
 }
 
+interface FilterControlProps<TData> {
+  column?: Column<TData, any>;
+  filter: {
+    columnId: string;
+    title: string;
+    type?: ToolbarType;
+    options?: FilterOption[];
+  };
+}
+
+function FilterControl<TData>({ column, filter }: FilterControlProps<TData>) {
+  const value = column?.getFilterValue();
+  const [searchTerm, setSearchTerm] = React.useState('');
+  const keyInputRef = React.useRef<HTMLInputElement>(null);
+  const valueInputRef = React.useRef<HTMLInputElement>(null);
+  const [newKey, setNewKey] = React.useState('');
+  const [newValue, setNewValue] = React.useState('');
+
+  if (filter.type === ToolbarType.Switch) {
+    return (
+      <div className="flex items-center justify-between p-2 bg-muted/30 rounded-md">
+        <Label
+          htmlFor={`filter-${filter.columnId}`}
+          className="text-sm font-medium"
+        >
+          {filter.title}
+        </Label>
+        <Checkbox
+          id={`filter-${filter.columnId}`}
+          checked={!!value}
+          onCheckedChange={(checked) =>
+            column?.setFilterValue(checked === true ? true : undefined)
+          }
+        />
+      </div>
+    );
+  }
+
+  if (filter.type === ToolbarType.KeyValue) {
+    const currentValues = Array.isArray(value) ? value : value ? [value] : [];
+
+    const addKeyValue = () => {
+      if (newKey.trim() && newValue.trim()) {
+        const keyValuePair = `${newKey.trim()}:${newValue.trim()}`;
+        column?.setFilterValue([...currentValues, keyValuePair]);
+        setNewKey('');
+        setNewValue('');
+      }
+    };
+
+    return (
+      <div className="space-y-3">
+        {currentValues.length > 0 && (
+          <div className="space-y-2">
+            {currentValues.map((val: string, index: number) => {
+              const separator = val.includes(':') ? ':' : '=';
+              const [key, value] = val.split(separator);
+              return (
+                <div
+                  key={index}
+                  className="flex items-center justify-between bg-muted/50 rounded-md px-2 py-1 text-xs"
+                >
+                  <div className="flex items-center gap-1 font-mono">
+                    <span className="text-blue-600 font-medium">{key}</span>
+                    <span className="text-muted-foreground">{separator}</span>
+                    <span className="text-green-600">{value}</span>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      const newValues = currentValues.filter(
+                        (_, i) => i !== index,
+                      );
+                      column?.setFilterValue(
+                        newValues.length > 0 ? newValues : undefined,
+                      );
+                    }}
+                    className="h-5 w-5 p-0 hover:bg-destructive/10 hover:text-destructive"
+                  >
+                    <Cross2Icon className="h-3 w-3" />
+                  </Button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-2">
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">Key</label>
+              <Input
+                ref={keyInputRef}
+                placeholder="ENV"
+                value={newKey}
+                onChange={(e) => setNewKey(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    addKeyValue();
+                  } else if (e.key === 'Tab' && !e.shiftKey) {
+                    e.preventDefault();
+                    valueInputRef.current?.focus();
+                  }
+                }}
+                className="h-8 text-xs placeholder:text-muted-foreground/50"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">Value</label>
+              <Input
+                ref={valueInputRef}
+                placeholder="PRODUCTION"
+                value={newValue}
+                onChange={(e) => setNewValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    addKeyValue();
+                  } else if (e.key === 'Tab' && e.shiftKey) {
+                    e.preventDefault();
+                    keyInputRef.current?.focus();
+                  }
+                }}
+                className="h-8 text-xs placeholder:text-muted-foreground/50"
+              />
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={!newKey.trim() || !newValue.trim()}
+              onClick={addKeyValue}
+              className="flex-1 h-8 text-xs"
+            >
+              Add Filter
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={!newKey.trim() && !newValue.trim()}
+              onClick={() => {
+                setNewKey('');
+                setNewValue('');
+                keyInputRef.current?.focus();
+              }}
+              className="h-8 px-3 text-xs"
+            >
+              Reset
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (filter.options && filter.options.length > 0) {
+    const selectedValues = Array.isArray(value) ? value : value ? [value] : [];
+    const filteredOptions = filter.options.filter((option) =>
+      option.label.toLowerCase().includes(searchTerm.toLowerCase()),
+    );
+
+    return (
+      <div className="space-y-3">
+        <div className="space-y-2">
+          {filter.options.length > 5 && (
+            <Input
+              placeholder={`Search ${filter.title.toLowerCase()}...`}
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="h-7 text-xs"
+            />
+          )}
+          <div className="max-h-48 overflow-y-auto space-y-1 border rounded-md p-2 bg-muted/20">
+            {filteredOptions.length > 0 ? (
+              filteredOptions.map((option) => (
+                <div
+                  key={option.value}
+                  className="flex items-center space-x-2 hover:bg-muted/50 rounded px-1 py-0.5"
+                >
+                  <Checkbox
+                    id={`${filter.columnId}-${option.value}`}
+                    checked={selectedValues.includes(option.value)}
+                    onCheckedChange={(checked) => {
+                      let newValue;
+                      if (checked) {
+                        newValue = [...selectedValues, option.value];
+                      } else {
+                        newValue = selectedValues.filter(
+                          (v) => v !== option.value,
+                        );
+                      }
+                      column?.setFilterValue(
+                        newValue.length > 0 ? newValue : undefined,
+                      );
+                    }}
+                  />
+                  <Label
+                    htmlFor={`${filter.columnId}-${option.value}`}
+                    className="text-sm cursor-pointer flex-1 truncate"
+                  >
+                    {option.label}
+                  </Label>
+                </div>
+              ))
+            ) : (
+              <div className="text-xs text-muted-foreground text-center py-2">
+                No workflows found
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return null;
+}
+
 export function DataTableToolbar<TData>({
   table,
   filters,
@@ -56,62 +284,91 @@ export function DataTableToolbar<TData>({
   columnKeyToName,
 }: DataTableToolbarProps<TData>) {
   const isFiltered = table.getState().columnFilters?.length > 0;
+  const activeFiltersCount = table.getState().columnFilters?.length || 0;
+
+  const visibleFilters = filters.filter((filter) => {
+    if (hideFlatten && filter.columnId === flattenDAGsKey) {
+      return false;
+    }
+    return true;
+  });
 
   return (
     <div className="flex items-center justify-between">
-      <div
-        className="flex flex-1 items-center space-x-2 overflow-x-auto pr-4 min-w-0 [&::-webkit-scrollbar]:h-1 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-gray-400/50 [&::-webkit-scrollbar-thumb]:rounded-full"
-        style={{
-          scrollbarWidth: 'thin',
-          scrollbarColor: 'rgba(156, 163, 175, 0.5) transparent',
-          scrollbarGutter: 'stable both-edges',
-        }}
-      >
+      <div className="flex flex-1 items-center space-x-2 overflow-x-auto pr-4 min-w-0">
         {setSearch && (
           <Input
             placeholder="Search..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="h-8 w-[150px] lg:w-[250px] flex-shrink-0"
+            className="h-8 w-[150px] lg:w-[200px] flex-shrink-0"
           />
         )}
-        {filters
-          .filter((filter) => {
-            if (hideFlatten && filter.columnId === flattenDAGsKey) {
-              return false;
-            }
 
-            return true;
-          })
-          .map((filter) => {
-            return (
-              <DataTableFacetedFilter
-                key={filter.columnId}
-                column={table.getColumn(filter.columnId)}
-                title={filter.title}
-                type={filter.type}
-                options={filter.options}
-              />
-            );
-          })}
-        {isFiltered && (
-          <Button
-            variant="outline"
-            onClick={() => {
-              if (onReset) {
-                onReset();
-              } else {
-                table.resetColumnFilters();
-              }
-            }}
-            className="h-8 px-2 lg:px-3 flex-shrink-0"
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="sm" className="h-8 flex-shrink-0">
+              <MixerHorizontalIcon className="mr-2 h-4 w-4" />
+              Filters
+              {activeFiltersCount > 0 && (
+                <Badge variant="secondary" className="ml-2 px-1 py-0 text-xs">
+                  {activeFiltersCount}
+                </Badge>
+              )}
+              <ChevronDownIcon className="ml-2 h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent
+            align="start"
+            className="w-96 max-h-96 overflow-y-auto"
           >
-            Reset
-            <Cross2Icon className="ml-2 h-4 w-4" />
-          </Button>
-        )}
+            <div className="p-4 space-y-6">
+              {visibleFilters.map((filter, index) => (
+                <div key={filter.columnId} className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-primary/60"></div>
+                    <label className="text-sm font-semibold text-foreground">
+                      {filter.title}
+                    </label>
+                  </div>
+                  <FilterControl
+                    column={table.getColumn(filter.columnId)}
+                    filter={filter}
+                  />
+                  {index < visibleFilters.length - 1 && (
+                    <div className="border-b border-border/50" />
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {isFiltered && (
+              <>
+                <DropdownMenuSeparator />
+                <div className="p-4">
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => {
+                      if (onReset) {
+                        onReset();
+                      } else {
+                        table.resetColumnFilters();
+                      }
+                    }}
+                    className="w-full justify-center font-medium"
+                  >
+                    <Cross2Icon className="mr-2 h-4 w-4" />
+                    Clear All Filters
+                  </Button>
+                </div>
+              </>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
-      <div className="flex flex-row gap-4 items-center flex-shrink-0">
+
+      <div className="flex flex-row gap-2 items-center flex-shrink-0">
         {isLoading && <Spinner />}
         {actions && actions.length > 0 && actions}
         {showColumnToggle && (

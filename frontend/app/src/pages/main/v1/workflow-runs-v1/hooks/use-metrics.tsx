@@ -1,6 +1,7 @@
 import { queries } from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
+import { LabeledRefetchInterval } from '@/lib/api/api';
 
 export const useMetrics = ({
   workflow,
@@ -14,12 +15,12 @@ export const useMetrics = ({
   parentTaskExternalId: string | undefined;
   additionalMetadata?: string[] | undefined;
   createdAfter?: string;
-  refetchInterval: number;
+  refetchInterval: LabeledRefetchInterval;
   pauseRefetch?: boolean;
 }) => {
   const { tenantId } = useCurrentTenantId();
 
-  const effectiveRefetchInterval = pauseRefetch ? false : refetchInterval;
+  const effectiveRefetchInterval = pauseRefetch ? false : refetchInterval.value;
 
   const metricsQuery = useQuery({
     ...queries.v1TaskRuns.metrics(tenantId, {
