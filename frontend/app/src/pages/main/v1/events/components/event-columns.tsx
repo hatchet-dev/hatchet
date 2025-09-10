@@ -16,7 +16,7 @@ import { RunsProvider } from '../../workflow-runs-v1/hooks/runs-provider';
 import { RefetchInterval } from '@/lib/api/api';
 
 export const EventColumn = {
-  id: 'ID',
+  id: 'Event ID',
   key: 'Event',
   seenAt: 'Seen at',
   workflowId: 'Workflow',

@@ -90,12 +90,16 @@ function FilterControl<TData>({ column, filter }: FilterControlProps<TData>) {
   const [searchTerm, setSearchTerm] = React.useState('');
   const keyInputRef = React.useRef<HTMLInputElement>(null);
   const valueInputRef = React.useRef<HTMLInputElement>(null);
+  const arrayValueInputRef = React.useRef<HTMLInputElement>(null);
   const [newKey, setNewKey] = React.useState('');
   const [newValue, setNewValue] = React.useState('');
+  const [newArrayValue, setNewArrayValue] = React.useState('');
 
   if (filter.type === ToolbarType.TimeRange) {
     const config = filter.timeRangeConfig;
-    if (!config) return null;
+    if (!config) {
+      return null;
+    }
 
     return (
       <div className="space-y-3">
@@ -311,6 +315,91 @@ function FilterControl<TData>({ column, filter }: FilterControlProps<TData>) {
     );
   }
 
+  if (filter.type === ToolbarType.Array) {
+    const currentValues = Array.isArray(value) ? value : value ? [value] : [];
+
+    const addArrayValue = () => {
+      if (newArrayValue.trim()) {
+        column?.setFilterValue([...currentValues, newArrayValue]);
+        setNewArrayValue('');
+      }
+    };
+
+    return (
+      <div className="space-y-3">
+        {currentValues.length > 0 && (
+          <div className="space-y-2">
+            {currentValues.map((val: string, index: number) => {
+              return (
+                <div
+                  key={index}
+                  className="flex items-center justify-between bg-muted/50 rounded-md px-2 py-1 text-xs"
+                >
+                  <div className="flex items-center gap-1 font-mono">
+                    <span className="text-muted-foreground">{val}</span>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      const newValues = currentValues.filter(
+                        (_, i) => i !== index,
+                      );
+                      column?.setFilterValue(
+                        newValues.length > 0 ? newValues : undefined,
+                      );
+                    }}
+                    className="h-5 w-5 p-0 hover:bg-destructive/10 hover:text-destructive"
+                  >
+                    <Cross2Icon className="h-3 w-3" />
+                  </Button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        <div className="space-y-3">
+          <Input
+            ref={arrayValueInputRef}
+            placeholder="foobar"
+            value={newArrayValue}
+            onChange={(e) => setNewArrayValue(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                addArrayValue();
+              }
+            }}
+            className="h-8 text-xs placeholder:text-muted-foreground/50 w-full"
+          />
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={!newArrayValue.trim() || !newArrayValue.trim()}
+              onClick={addArrayValue}
+              className="flex-1 h-8 text-xs"
+            >
+              Add Filter
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={!newArrayValue.trim()}
+              onClick={() => {
+                setNewArrayValue('');
+                arrayValueInputRef.current?.focus();
+              }}
+              className="h-8 px-3 text-xs"
+            >
+              Reset
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (filter.options && filter.options.length > 0) {
     const selectedValues = Array.isArray(value) ? value : value ? [value] : [];
     const filteredOptions = filter.options.filter((option) =>
@@ -396,6 +485,8 @@ export function DataTableToolbar<TData>({
     return true;
   });
 
+  const hasFilters = visibleFilters.length > 0;
+
   return (
     <div className="flex items-center justify-between">
       <div className="flex flex-1 items-center space-x-2 overflow-x-auto pr-4 min-w-0">
@@ -408,67 +499,69 @@ export function DataTableToolbar<TData>({
           />
         )}
 
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="h-8 flex-shrink-0">
-              <MixerHorizontalIcon className="mr-2 h-4 w-4" />
-              Filters
-              {activeFiltersCount > 0 && (
-                <Badge variant="secondary" className="ml-2 px-1 py-0 text-xs">
-                  {activeFiltersCount}
-                </Badge>
-              )}
-              <ChevronDownIcon className="ml-2 h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent
-            align="start"
-            className="w-96 max-h-96 overflow-y-auto"
-          >
-            <div className="p-4 space-y-6">
-              {visibleFilters.map((filter, index) => (
-                <div key={filter.columnId} className="space-y-3">
-                  <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 rounded-full bg-primary/60"></div>
-                    <label className="text-sm font-semibold text-foreground">
-                      {filter.title}
-                    </label>
+        {hasFilters && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="h-8 flex-shrink-0">
+                <MixerHorizontalIcon className="mr-2 h-4 w-4" />
+                Filters
+                {activeFiltersCount > 0 && (
+                  <Badge variant="secondary" className="ml-2 px-1 py-0 text-xs">
+                    {activeFiltersCount}
+                  </Badge>
+                )}
+                <ChevronDownIcon className="ml-2 h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              align="start"
+              className="w-96 max-h-96 overflow-y-auto"
+            >
+              <div className="p-4 space-y-6">
+                {visibleFilters.map((filter, index) => (
+                  <div key={filter.columnId} className="space-y-3">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 rounded-full bg-primary/60"></div>
+                      <label className="text-sm font-semibold text-foreground">
+                        {filter.title}
+                      </label>
+                    </div>
+                    <FilterControl
+                      column={table.getColumn(filter.columnId)}
+                      filter={filter}
+                    />
+                    {index < visibleFilters.length - 1 && (
+                      <div className="border-b border-border/50" />
+                    )}
                   </div>
-                  <FilterControl
-                    column={table.getColumn(filter.columnId)}
-                    filter={filter}
-                  />
-                  {index < visibleFilters.length - 1 && (
-                    <div className="border-b border-border/50" />
-                  )}
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
 
-            {isFiltered && (
-              <>
-                <DropdownMenuSeparator />
-                <div className="p-4">
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={() => {
-                      if (onReset) {
-                        onReset();
-                      } else {
-                        table.resetColumnFilters();
-                      }
-                    }}
-                    className="w-full justify-center font-medium"
-                  >
-                    <Cross2Icon className="mr-2 h-4 w-4" />
-                    Clear All Filters
-                  </Button>
-                </div>
-              </>
-            )}
-          </DropdownMenuContent>
-        </DropdownMenu>
+              {isFiltered && (
+                <>
+                  <DropdownMenuSeparator />
+                  <div className="p-4">
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => {
+                        if (onReset) {
+                          onReset();
+                        } else {
+                          table.resetColumnFilters();
+                        }
+                      }}
+                      className="w-full justify-center font-medium"
+                    >
+                      <Cross2Icon className="mr-2 h-4 w-4" />
+                      Clear All Filters
+                    </Button>
+                  </div>
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
       </div>
 
       <div className="flex flex-row gap-2 items-center flex-shrink-0">
