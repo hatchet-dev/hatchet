@@ -18,12 +18,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/v1/ui/select';
-import { PlusIcon } from 'lucide-react';
+import { Filter, PlusIcon } from 'lucide-react';
 import { FilterOption } from '@/components/v1/molecules/data-table/data-table-toolbar';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { createFilterSchema, CreateFilterFormData } from '../schemas';
 import { V1CreateFilterRequest } from '@/lib/api';
+import { DocsButton } from '@/components/v1/docs/docs-button';
+import { docsPages } from '@/lib/generated/docs';
 
 interface FilterCreateFormProps {
   isOpen: boolean;
@@ -92,12 +94,9 @@ export function FilterCreateForm({
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <PlusIcon className="h-5 w-5" />
+            <Filter className="size-5" />
             Create New Filter
           </DialogTitle>
-          <DialogDescription>
-            Create a new filter to process events in your workflow.
-          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-4">
