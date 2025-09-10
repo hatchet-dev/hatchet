@@ -9,20 +9,10 @@ import {
   workflowKey,
 } from './components/event-columns';
 import { Separator } from '@/components/v1/ui/separator';
-import { useEffect, useMemo, useState } from 'react';
-import {
-  ColumnFiltersState,
-  PaginationState,
-  RowSelectionState,
-  VisibilityState,
-} from '@tanstack/react-table';
-import { useQuery } from '@tanstack/react-query';
-import api, { V1Event, V1TaskStatus, queries, V1Filter } from '@/lib/api';
-import {
-  FilterOption,
-  ToolbarType,
-} from '@/components/v1/molecules/data-table/data-table-toolbar';
-import { useSearchParams } from 'react-router-dom';
+import { useMemo, useState } from 'react';
+import { RowSelectionState, VisibilityState } from '@tanstack/react-table';
+import { V1Event, V1Filter } from '@/lib/api';
+import { ToolbarType } from '@/components/v1/molecules/data-table/data-table-toolbar';
 import { Button } from '@/components/v1/ui/button';
 import { ArrowPathIcon } from '@heroicons/react/24/outline';
 import RelativeDate from '@/components/v1/molecules/relative-date';
@@ -30,7 +20,6 @@ import { DataTable } from '@/components/v1/molecules/data-table/data-table';
 import { RunsTable } from '../workflow-runs-v1/components/runs-table';
 import { RunsProvider } from '../workflow-runs-v1/hooks/runs-provider';
 import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
-import { useCurrentTenantId } from '@/hooks/use-tenant';
 
 import {
   FilterColumn,
@@ -38,217 +27,45 @@ import {
 } from '../filters/components/filter-columns';
 import { useFilters } from '../filters/hooks/use-filters';
 import { useSidePanel } from '@/hooks/use-side-panel';
+import { useEvents } from './hooks/use-events';
 
 export default function Events() {
-  const { tenantId } = useCurrentTenantId();
-
-  const [searchParams, setSearchParams] = useSearchParams();
   const [rotate, setRotate] = useState(false);
-  const [hoveredEventId, setHoveredEventId] = useState<string | null>(null);
+  const [hoveredEventId] = useState<string | null>(null);
+  const [openMetadataPopover, setOpenMetadataPopover] = useState<string | null>(
+    null,
+  );
+  const [openPayloadPopover, setOpenPayloadPopover] = useState<string | null>(
+    null,
+  );
   const { open } = useSidePanel();
 
-  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>(() => {
-    const filtersParam = searchParams.get('filters');
-    if (filtersParam) {
-      return JSON.parse(filtersParam);
-    }
-    return [];
+  const {
+    events,
+    numEvents,
+    isLoading,
+    refetch,
+    error,
+    pagination,
+    setPagination,
+    setPageSize,
+    columnFilters,
+    setColumnFilters,
+    eventKeyFilters,
+    workflowKeyFilters,
+    workflowRunStatusFilters,
+  } = useEvents({
+    key: 'table',
+    hoveredEventId,
   });
 
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({
-    EventId: false,
-    Payload: false,
-    scope: false,
+    [idKey]: false,
+    [EventColumn.payload]: false,
+    [scopeKey]: false,
   });
 
-  const [pagination, setPagination] = useState<PaginationState>(() => {
-    const pageIndex = Number(searchParams.get('pageIndex')) || 0;
-    const pageSize = Number(searchParams.get('pageSize')) || 50;
-    return { pageIndex, pageSize };
-  });
-  const [pageSize, setPageSize] = useState<number>(
-    Number(searchParams.get('pageSize')) || 50,
-  );
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
-
-  useEffect(() => {
-    const newSearchParams = new URLSearchParams(searchParams);
-
-    newSearchParams.set('filters', JSON.stringify(columnFilters));
-    newSearchParams.set('pageIndex', pagination.pageIndex.toString());
-    newSearchParams.set('pageSize', pagination.pageSize.toString());
-    setSearchParams(newSearchParams, { replace: true });
-  }, [columnFilters, pagination, setSearchParams, searchParams]);
-
-  const keys = useMemo(() => {
-    const filter = columnFilters.find((filter) => filter.id === 'key');
-
-    if (!filter) {
-      return;
-    }
-
-    return filter?.value as Array<string>;
-  }, [columnFilters]);
-
-  const workflows = useMemo(() => {
-    const filter = columnFilters.find((filter) => filter.id === 'workflows');
-
-    if (!filter) {
-      return;
-    }
-
-    return filter?.value as Array<string>;
-  }, [columnFilters]);
-
-  const scopes = useMemo(() => {
-    const filter = columnFilters.find((filter) => filter.id === 'scope');
-
-    if (!filter) {
-      return [];
-    }
-
-    return filter?.value as Array<string>;
-  }, [columnFilters]);
-
-  const statuses = useMemo(() => {
-    const filter = columnFilters.find((filter) => filter.id === 'status');
-
-    if (!filter) {
-      return;
-    }
-
-    return filter?.value as Array<V1TaskStatus>;
-  }, [columnFilters]);
-
-  const eventIds = useMemo(() => {
-    const filter = columnFilters.find((filter) => filter.id === 'EventId');
-
-    if (!filter) {
-      return;
-    }
-
-    return filter?.value as Array<string>;
-  }, [columnFilters]);
-
-  const AdditionalMetadataFilter = useMemo(() => {
-    const filter = columnFilters.find((filter) => filter.id === 'Metadata');
-
-    if (!filter) {
-      return;
-    }
-
-    return filter?.value as Array<string>;
-  }, [columnFilters]);
-
-  const offset = useMemo(() => {
-    if (!pagination) {
-      return;
-    }
-
-    return pagination.pageIndex * pagination.pageSize;
-  }, [pagination]);
-
-  const {
-    data,
-    isLoading: eventsIsLoading,
-    refetch,
-    error: eventsError,
-  } = useQuery({
-    queryKey: [
-      'v1:events:list',
-      tenantId,
-      {
-        keys,
-        workflows,
-        offset,
-        limit: pageSize,
-        statuses,
-        additionalMetadata: AdditionalMetadataFilter,
-        eventIds,
-      },
-    ],
-    queryFn: async () => {
-      const response = await api.v1EventList(tenantId, {
-        offset,
-        limit: pageSize,
-        keys,
-        since: undefined,
-        until: undefined,
-        eventIds,
-        workflowRunStatuses: statuses,
-        additionalMetadata: AdditionalMetadataFilter,
-        workflowIds: workflows,
-        scopes,
-      });
-
-      return response.data;
-    },
-    refetchInterval: hoveredEventId || eventIds?.length ? false : 5000,
-  });
-
-  const {
-    data: eventKeys,
-    isLoading: eventKeysIsLoading,
-    error: eventKeysError,
-  } = useQuery({
-    queryKey: ['v1:events:listKeys', tenantId],
-    queryFn: async () => {
-      const response = await api.v1EventKeyList(tenantId);
-
-      return response.data;
-    },
-  });
-
-  const eventKeyFilters = useMemo((): FilterOption[] => {
-    return (
-      eventKeys?.rows?.map((key) => ({
-        value: key,
-        label: key,
-      })) || []
-    );
-  }, [eventKeys]);
-
-  const {
-    data: workflowKeys,
-    isLoading: workflowKeysIsLoading,
-    error: workflowKeysError,
-  } = useQuery({
-    ...queries.workflows.list(tenantId, { limit: 200 }),
-  });
-
-  const workflowKeyFilters = useMemo((): FilterOption[] => {
-    return (
-      workflowKeys?.rows?.map((key) => ({
-        value: key.metadata.id,
-        label: key.name,
-      })) || []
-    );
-  }, [workflowKeys]);
-
-  const workflowRunStatusFilters = useMemo((): FilterOption[] => {
-    return [
-      {
-        value: V1TaskStatus.COMPLETED,
-        label: 'Succeeded',
-      },
-      {
-        value: V1TaskStatus.FAILED,
-        label: 'Failed',
-      },
-      {
-        value: V1TaskStatus.RUNNING,
-        label: 'Running',
-      },
-      {
-        value: V1TaskStatus.QUEUED,
-        label: 'Queued',
-      },
-      {
-        value: V1TaskStatus.CANCELLED,
-        label: 'Cancelled',
-      },
-    ];
-  }, []);
 
   const tableColumns = columns({
     onRowClick: (row: V1Event) => {
@@ -259,8 +76,10 @@ export default function Events() {
         },
       });
     },
-    hoveredEventId,
-    setHoveredEventId,
+    openMetadataPopover,
+    setOpenMetadataPopover,
+    openPayloadPopover,
+    setOpenPayloadPopover,
   });
 
   const actions = [
@@ -284,12 +103,10 @@ export default function Events() {
   return (
     <>
       <DataTable
-        error={eventsError || eventKeysError || workflowKeysError}
-        isLoading={
-          eventsIsLoading || eventKeysIsLoading || workflowKeysIsLoading
-        }
+        error={error}
+        isLoading={isLoading}
         columns={tableColumns}
-        data={data?.rows || []}
+        data={events}
         filters={[
           {
             columnId: keyKey,
@@ -331,7 +148,7 @@ export default function Events() {
         pagination={pagination}
         setPagination={setPagination}
         onSetPageSize={setPageSize}
-        pageCount={data?.pagination?.num_pages || 0}
+        pageCount={numEvents}
         rowSelection={rowSelection}
         setRowSelection={setRowSelection}
         getRowId={(row) => row.metadata.id}

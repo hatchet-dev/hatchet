@@ -22,6 +22,8 @@ interface AdditionalMetadataProps {
   onClick?: (click: AdditionalMetadataClick) => void;
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
+  title?: string;
+  align?: 'start' | 'center' | 'end';
 }
 
 export const AdditionalMetadata = memo(
@@ -30,6 +32,8 @@ export const AdditionalMetadata = memo(
     onClick,
     isOpen,
     onOpenChange,
+    title = 'Metadata',
+    align = 'end',
   }: AdditionalMetadataProps) {
     const metadataEntries = Object.entries(metadata || {});
 
@@ -52,13 +56,13 @@ export const AdditionalMetadata = memo(
           </PopoverTrigger>
           <PopoverContent
             className="w-80 p-0 shadow-md shadow-slate-800/30 z-[70]"
-            align="end"
+            align={align}
           >
             <div className="p-3">
               <div className="flex items-center gap-2 mb-3 pb-2 border-b">
                 <TagIcon className="h-4 w-4 text-muted-foreground" />
                 <span className="font-medium text-sm">
-                  Metadata ({metadataCount}{' '}
+                  {title} ({metadataCount}{' '}
                   {metadataCount === 1 ? 'item' : 'items'})
                 </span>
               </div>

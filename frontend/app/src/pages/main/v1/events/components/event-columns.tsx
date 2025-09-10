@@ -40,12 +40,16 @@ export const scopeKey: EventColumnKeys = 'scope';
 
 export const columns = ({
   onRowClick,
-  hoveredEventId,
-  setHoveredEventId,
+  openMetadataPopover,
+  setOpenMetadataPopover,
+  openPayloadPopover,
+  setOpenPayloadPopover,
 }: {
   onRowClick?: (row: V1Event) => void;
-  hoveredEventId: string | null;
-  setHoveredEventId: (id: string | null) => void;
+  openMetadataPopover: string | null;
+  setOpenMetadataPopover: (id: string | null) => void;
+  openPayloadPopover: string | null;
+  setOpenPayloadPopover: (id: string | null) => void;
 }): ColumnDef<V1Event>[] => {
   return [
     {
@@ -136,14 +140,16 @@ export const columns = ({
         return (
           <AdditionalMetadata
             metadata={row.original.additionalMetadata}
-            isOpen={hoveredEventId === row.original.metadata.id}
+            isOpen={openMetadataPopover === row.original.metadata.id}
             onOpenChange={(open) => {
               if (open) {
-                setHoveredEventId(row.original.metadata.id);
+                setOpenMetadataPopover(row.original.metadata.id);
               } else {
-                setHoveredEventId(null);
+                setOpenMetadataPopover(null);
               }
             }}
+            title="Metadata"
+            align="end"
           />
         );
       },
@@ -162,14 +168,16 @@ export const columns = ({
         return (
           <AdditionalMetadata
             metadata={row.original.payload}
-            isOpen={hoveredEventId === row.original.metadata.id}
+            isOpen={openPayloadPopover === row.original.metadata.id}
             onOpenChange={(open) => {
               if (open) {
-                setHoveredEventId(row.original.metadata.id);
+                setOpenPayloadPopover(row.original.metadata.id);
               } else {
-                setHoveredEventId(null);
+                setOpenPayloadPopover(null);
               }
             }}
+            title="Payload"
+            align="start"
           />
         );
       },
