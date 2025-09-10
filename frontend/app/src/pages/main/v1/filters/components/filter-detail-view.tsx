@@ -1,0 +1,299 @@
+import { useCallback, useState } from 'react';
+import { V1Filter } from '@/lib/api';
+import { Button } from '@/components/v1/ui/button';
+import { Input } from '@/components/v1/ui/input';
+import { Label } from '@/components/v1/ui/label';
+import { Textarea } from '@/components/v1/ui/textarea';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/v1/ui/dialog';
+import { Trash2Icon, EditIcon, SaveIcon, XIcon } from 'lucide-react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { useFilters } from '../hooks/use-filters';
+import { updateFilterSchema, UpdateFilterFormData } from '../schemas';
+import { useSidePanel } from '@/hooks/use-side-panel';
+
+interface FilterDetailViewProps {
+  filter: V1Filter;
+}
+
+export function FilterDetailView({ filter }: FilterDetailViewProps) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [payloadError, setPayloadError] = useState<string | null>(null);
+
+  const { close } = useSidePanel();
+
+  const { workflowIdToName, mutations } = useFilters({
+    key: `detail-${filter.metadata.id}`,
+  });
+
+  const form = useForm<UpdateFilterFormData>({
+    resolver: zodResolver(updateFilterSchema),
+    defaultValues: {
+      expression: filter.expression,
+      scope: filter.scope,
+      payload: JSON.stringify(filter.payload || {}, null, 2),
+    },
+  });
+
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors },
+  } = form;
+
+  const handleEdit = () => {
+    reset({
+      expression: filter.expression,
+      scope: filter.scope,
+      payload: JSON.stringify(filter.payload || {}, null, 2),
+    });
+    setPayloadError(null);
+    setIsEditing(true);
+  };
+
+  const onSubmit = useCallback(
+    async (data: UpdateFilterFormData) => {
+      try {
+        let payloadObj;
+        if (data.payload !== undefined) {
+          try {
+            const payloadText = data.payload.trim() || '{}';
+            payloadObj = JSON.parse(payloadText);
+            setPayloadError(null);
+          } catch (error) {
+            if (error instanceof SyntaxError) {
+              setPayloadError('The filter payload must be valid JSON');
+              return;
+            }
+          }
+        }
+
+        await mutations.update.perform(filter.metadata.id, {
+          ...data,
+          payload: payloadObj,
+        });
+        setIsEditing(false);
+      } catch (error) {
+        console.error('Failed to update filter:', error);
+      }
+    },
+    [filter.metadata.id, mutations.update],
+  );
+
+  const handleCancel = () => {
+    setIsEditing(false);
+    setPayloadError(null);
+    reset();
+  };
+
+  const handleDelete = async () => {
+    if (!filter) {
+      return;
+    }
+
+    try {
+      await mutations.delete.perform(filter.metadata.id);
+      setShowDeleteDialog(false);
+      close();
+    } catch (error) {
+      console.error('Failed to delete filter:', error);
+    }
+  };
+
+  return (
+    <>
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div className="flex gap-2">
+            {!isEditing ? (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleEdit}
+                className="flex items-center gap-2"
+              >
+                <EditIcon className="h-4 w-4" />
+                Edit
+              </Button>
+            ) : (
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleCancel}
+                  className="flex items-center gap-2"
+                >
+                  <XIcon className="h-4 w-4" />
+                  Cancel
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={handleSubmit(onSubmit)}
+                  disabled={mutations.update.isPending}
+                  className="flex items-center gap-2"
+                >
+                  <SaveIcon className="h-4 w-4" />
+                  {mutations.update.isPending ? 'Saving...' : 'Save'}
+                </Button>
+              </>
+            )}
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={() => setShowDeleteDialog(true)}
+              className="flex items-center gap-2"
+            >
+              <Trash2Icon className="h-4 w-4" />
+              Delete
+            </Button>
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="filter-id">Filter ID</Label>
+            <Input
+              id="filter-id"
+              value={filter.metadata.id}
+              disabled
+              className="bg-muted"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="workflow">Workflow</Label>
+            <Input
+              id="workflow"
+              value={workflowIdToName[filter.workflowId] || filter.workflowId}
+              disabled
+              className="bg-muted"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="scope">Scope</Label>
+            {isEditing ? (
+              <>
+                <Input
+                  id="scope"
+                  {...register('scope')}
+                  placeholder="Enter scope"
+                />
+                {errors.scope && (
+                  <p className="text-sm text-red-600">{errors.scope.message}</p>
+                )}
+              </>
+            ) : (
+              <Input
+                id="scope"
+                value={filter.scope}
+                disabled
+                className="bg-muted"
+              />
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="expression">Expression</Label>
+            {isEditing ? (
+              <>
+                <Textarea
+                  id="expression"
+                  {...register('expression')}
+                  placeholder="Enter filter expression"
+                  className="min-h-[100px] font-mono"
+                />
+                {errors.expression && (
+                  <p className="text-sm text-red-600">
+                    {errors.expression.message}
+                  </p>
+                )}
+              </>
+            ) : (
+              <Textarea
+                id="expression"
+                value={filter.expression}
+                disabled
+                className="bg-muted min-h-[100px] font-mono"
+              />
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="is-declarative">Type</Label>
+            <Input
+              id="is-declarative"
+              value={filter.isDeclarative ? 'Declarative' : 'Imperative'}
+              disabled
+              className="bg-muted"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="payload">Payload (JSON)</Label>
+            {isEditing ? (
+              <>
+                <Textarea
+                  id="payload"
+                  {...register('payload')}
+                  placeholder='{"key": "value"} or leave empty for {}'
+                  className="min-h-[120px] font-mono text-sm"
+                  onChange={(e) => {
+                    register('payload').onChange(e);
+                    setPayloadError(null); // Clear error when user types
+                  }}
+                />
+                {payloadError && (
+                  <p className="text-sm text-red-600">{payloadError}</p>
+                )}
+              </>
+            ) : (
+              <Textarea
+                id="payload"
+                value={JSON.stringify(filter.payload || {}, null, 2)}
+                disabled
+                className="bg-muted min-h-[120px] font-mono text-sm"
+              />
+            )}
+          </div>
+        </div>
+      </div>
+
+      <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Filter</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete this filter? This action cannot be
+              undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowDeleteDialog(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDelete}
+              disabled={mutations.delete.isPending}
+            >
+              {mutations.delete.isPending ? 'Deleting...' : 'Delete'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
