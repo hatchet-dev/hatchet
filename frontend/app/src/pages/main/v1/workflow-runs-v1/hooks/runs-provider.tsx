@@ -160,10 +160,10 @@ export const RunsProvider = ({
 
   const filters = useRunsTableFilters(state, updateFilters);
 
-  const toolbarFilters = useToolbarFilters({ 
-    filterVisibility, 
-    state, 
-    filterActions: filters 
+  const toolbarFilters = useToolbarFilters({
+    filterVisibility,
+    state,
+    filterActions: filters,
   });
 
   const workflow =

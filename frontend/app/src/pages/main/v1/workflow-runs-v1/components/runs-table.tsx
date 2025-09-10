@@ -28,7 +28,6 @@ import { AdditionalMetadataProp } from '../hooks/use-runs-table-filters';
 import { useRunsContext } from '../hooks/runs-provider';
 
 import { TableActions } from './task-runs-table/table-actions';
-import { TimeFilter } from './task-runs-table/time-filter';
 import { ConfirmActionModal } from '../../task-runs-v1/actions';
 import { DocsButton } from '@/components/v1/docs/docs-button';
 import { docsPages } from '@/lib/generated/docs';

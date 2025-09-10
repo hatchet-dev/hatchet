@@ -65,7 +65,9 @@ export const useToolbarFilters = ({
         filterActions.setTimeWindow(value as any);
       } else {
         filterActions.setCustomTimeRange({
-          start: state.createdAfter || new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+          start:
+            state.createdAfter ||
+            new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
           end: state.finishedBefore || new Date().toISOString(),
         });
       }
@@ -73,7 +75,8 @@ export const useToolbarFilters = ({
     onCreatedAfterChange: (date?: string) => {
       if (state.isCustomTimeRange && state.finishedBefore) {
         filterActions.setCustomTimeRange({
-          start: date || new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+          start:
+            date || new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
           end: state.finishedBefore,
         });
       }
