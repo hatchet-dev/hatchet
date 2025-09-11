@@ -39,7 +39,7 @@ func (d *leaseRepository) AcquireOrExtendLeases(ctx context.Context, tenantId pg
 		leaseIds[i] = lease.ID
 	}
 
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, d.pool, d.l, 5000)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, d.pool, d.l)
 
 	if err != nil {
 		return nil, err
@@ -85,7 +85,7 @@ func (d *leaseRepository) ReleaseLeases(ctx context.Context, tenantId pgtype.UUI
 		leaseIds[i] = lease.ID
 	}
 
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, d.pool, d.l, 5000)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, d.pool, d.l)
 
 	if err != nil {
 		return err

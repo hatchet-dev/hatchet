@@ -21,6 +21,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
+	schedulingv1 "github.com/hatchet-dev/hatchet/pkg/scheduling/v1"
 )
 
 func (worker *subscribedWorker) StartTaskFromBulk(
@@ -384,6 +385,187 @@ func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *ms
 	}()
 
 	return nil
+}
+
+func (d *DispatcherImpl) GetLocalWorkerIds() map[string]struct{} {
+	workerIds := make(map[string]struct{})
+
+	d.workers.Range(func(key, value interface{}) bool {
+		workerId := key.(string)
+		workerIds[workerId] = struct{}{}
+
+		return true
+	})
+
+	return workerIds
+}
+
+// Note: this is very similar to handleTaskBulkAssignedTask, with some differences in what's sync vs run in a goroutine
+// In this method, we wait until all tasks have been sent to the worker before returning
+func (d *DispatcherImpl) HandleLocalAssignments(ctx context.Context, tenantId, workerId string, tasks []*schedulingv1.AssignedItemWithTask) error {
+	// we set a timeout of 25 seconds because we don't want to hold the semaphore for longer than the visibility timeout (30 seconds)
+	// on the worker
+	ctx, cancel := context.WithTimeout(ctx, 25*time.Second)
+	defer cancel()
+
+	toRetry := []*sqlcv1.V1Task{}
+	toRetryMu := sync.Mutex{}
+
+	requeue := func(task *sqlcv1.V1Task) {
+		toRetryMu.Lock()
+		toRetry = append(toRetry, task)
+		toRetryMu.Unlock()
+	}
+
+	var bulkDatas []*sqlcv1.V1Task
+
+	for _, task := range tasks {
+		bulkDatas = append(bulkDatas, task.Task)
+	}
+
+	parentDataMap, err := d.repov1.Tasks().ListTaskParentOutputs(ctx, tenantId, bulkDatas)
+
+	if err != nil {
+		for _, task := range bulkDatas {
+			requeue(task)
+		}
+
+		d.l.Error().Err(err).Msgf("could not list parent data for %d tasks", len(bulkDatas))
+		return err
+	}
+
+	for _, task := range bulkDatas {
+		if parentData, ok := parentDataMap[task.ID]; ok {
+			currInput := &v1.V1StepRunData{}
+
+			if task.Input != nil {
+				err := json.Unmarshal(task.Input, currInput)
+
+				if err != nil {
+					d.l.Warn().Err(err).Msg("failed to unmarshal input")
+					continue
+				}
+			}
+
+			readableIdToData := make(map[string]map[string]interface{})
+
+			for _, outputEvent := range parentData {
+				outputMap := make(map[string]interface{})
+
+				if outputEvent.Output != nil {
+					err := json.Unmarshal(outputEvent.Output, &outputMap)
+
+					if err != nil {
+						d.l.Warn().Err(err).Msg("failed to unmarshal output")
+						continue
+					}
+				}
+
+				readableIdToData[outputEvent.StepReadableID] = outputMap
+			}
+
+			currInput.Parents = readableIdToData
+
+			task.Input = currInput.Bytes()
+		}
+	}
+
+	taskIdToData := make(map[int64]*sqlcv1.V1Task)
+
+	for _, task := range bulkDatas {
+		taskIdToData[task.ID] = task
+	}
+
+	// get the worker for this task
+	workers, err := d.workers.Get(workerId)
+
+	if err != nil && !errors.Is(err, ErrWorkerNotFound) {
+		return fmt.Errorf("could not get worker: %w", err)
+	}
+
+	innerEg := errgroup.Group{}
+
+	for _, task := range bulkDatas {
+		innerEg.Go(func() error {
+			// if we've reached the context deadline, this should be requeued
+			if ctx.Err() != nil {
+				requeue(task)
+				return nil
+			}
+
+			var multiErr error
+			var success bool
+
+			for i, w := range workers {
+				err := w.StartTaskFromBulk(ctx, tenantId, task)
+
+				if err != nil {
+					multiErr = multierror.Append(
+						multiErr,
+						fmt.Errorf("could not send action for task %s to worker %s (%d / %d): %w", sqlchelpers.UUIDToStr(task.ExternalID), workerId, i+1, len(workers), err),
+					)
+				} else {
+					success = true
+					break
+				}
+			}
+
+			if success {
+				return nil
+			}
+
+			requeue(task)
+
+			return multiErr
+		})
+	}
+
+	outerErr := innerEg.Wait()
+
+	if len(toRetry) > 0 {
+		retryCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+
+		retryGroup := errgroup.Group{}
+
+		for _, _task := range toRetry {
+			task := _task
+
+			retryGroup.Go(func() error {
+				msg, err := tasktypesv1.FailedTaskMessage(
+					tenantId,
+					task.ID,
+					task.InsertedAt,
+					sqlchelpers.UUIDToStr(task.ExternalID),
+					sqlchelpers.UUIDToStr(task.WorkflowRunID),
+					task.RetryCount,
+					false,
+					"Could not send task to worker",
+					false,
+				)
+
+				if err != nil {
+					return fmt.Errorf("could not create failed task message: %w", err)
+				}
+
+				queueutils.SleepWithExponentialBackoff(100*time.Millisecond, 5*time.Second, int(task.InternalRetryCount))
+
+				err = d.mqv1.SendMessage(retryCtx, msgqueuev1.TASK_PROCESSING_QUEUE, msg)
+
+				if err != nil {
+					return fmt.Errorf("could not send failed task message: %w", err)
+				}
+
+				return nil
+			})
+		}
+
+		if err := retryGroup.Wait(); err != nil {
+			outerErr = multierror.Append(outerErr, fmt.Errorf("could not retry failed tasks: %w", err))
+		}
+	}
+
+	return outerErr
 }
 
 func (d *DispatcherImpl) handleTaskCancelled(ctx context.Context, msg *msgqueuev1.Message) error {

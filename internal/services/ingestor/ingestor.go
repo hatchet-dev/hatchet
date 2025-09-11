@@ -5,13 +5,17 @@ import (
 	"fmt"
 
 	lru "github.com/hashicorp/golang-lru/v2"
+	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	msgqueuev1 "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
+	"github.com/hatchet-dev/hatchet/internal/services/dispatcher"
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor/contracts"
+	scheduler "github.com/hatchet-dev/hatchet/internal/services/scheduler/v1"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
+	"github.com/hatchet-dev/hatchet/pkg/logger"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/metered"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
@@ -42,6 +46,9 @@ type IngestorOpts struct {
 	mqv1                   msgqueuev1.MessageQueue
 	repov1                 v1.Repository
 	isLogIngestionEnabled  bool
+	localScheduler         *scheduler.Scheduler
+	localDispatcher        *dispatcher.DispatcherImpl
+	l                      *zerolog.Logger
 }
 
 func WithEventRepository(r repository.EventEngineRepository) IngestorOptFunc {
@@ -98,9 +105,30 @@ func WithLogIngestionEnabled(isEnabled bool) IngestorOptFunc {
 	}
 }
 
+func WithLocalScheduler(s *scheduler.Scheduler) IngestorOptFunc {
+	return func(opts *IngestorOpts) {
+		opts.localScheduler = s
+	}
+}
+
+func WithLocalDispatcher(d *dispatcher.DispatcherImpl) IngestorOptFunc {
+	return func(opts *IngestorOpts) {
+		opts.localDispatcher = d
+	}
+}
+
+func WithLogger(l *zerolog.Logger) IngestorOptFunc {
+	return func(opts *IngestorOpts) {
+		opts.l = l
+	}
+}
+
 func defaultIngestorOpts() *IngestorOpts {
+	l := logger.NewDefaultLogger("ingestor")
+
 	return &IngestorOpts{
 		isLogIngestionEnabled: true,
+		l:                     &l,
 	}
 }
 
@@ -118,6 +146,11 @@ type IngestorImpl struct {
 	mqv1   msgqueuev1.MessageQueue
 	v      validator.Validator
 	repov1 v1.Repository
+
+	l *zerolog.Logger
+
+	localScheduler  *scheduler.Scheduler
+	localDispatcher *dispatcher.DispatcherImpl
 
 	isLogIngestionEnabled bool
 }
@@ -176,6 +209,9 @@ func NewIngestor(fs ...IngestorOptFunc) (Ingestor, error) {
 		v:                        validator.NewDefaultValidator(),
 		repov1:                   opts.repov1,
 		isLogIngestionEnabled:    opts.isLogIngestionEnabled,
+		l:                        opts.l,
+		localScheduler:           opts.localScheduler,
+		localDispatcher:          opts.localDispatcher,
 	}, nil
 }
 

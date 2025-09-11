@@ -224,7 +224,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v6
         with:
-          go-version: '1.24'
+          go-version: "1.24"
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -307,6 +307,7 @@ jobs:
         migrate-strategy: ["latest"]
         rabbitmq-enabled: ["true"]
         pg-version: ["15-alpine"]
+        optimistic-scheduling: ["true", "false"]
 
     steps:
       - uses: actions/checkout@v5
@@ -337,6 +338,7 @@ jobs:
           TESTING_MATRIX_MIGRATE: ${{ matrix.migrate-strategy }}
           TESTING_MATRIX_RABBITMQ_ENABLED: ${{ matrix.rabbitmq-enabled }}
           TESTING_MATRIX_PG_VERSION: ${{ matrix.pg-version }}
+          TESTING_MATRIX_OPTIMISTIC_SCHEDULING: ${{ matrix.optimistic-scheduling }}
 
   rampup:
     runs-on: ubuntu-latest

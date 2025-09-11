@@ -197,6 +197,8 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 		})
 	}
 
+	var localScheduler *schedulerv1.Scheduler
+
 	// FIXME: jobscontroller and workflowscontroller are deprecated service names, but there's not a clear upgrade
 	// path for old config files.
 	if sc.HasService("queue") || sc.HasService("jobscontroller") || sc.HasService("workflowscontroller") || sc.HasService("retention") || sc.HasService("ticker") {
@@ -272,6 +274,8 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			Name: "schedulerv1",
 			Fn:   cleanup,
 		})
+
+		localScheduler = sv1
 	}
 
 	if sc.HasService("ticker") {
@@ -474,6 +478,8 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			ingestor.WithStepRunRepository(sc.EngineRepository.StepRun()),
 			ingestor.WithRepositoryV1(sc.V1),
 			ingestor.WithLogIngestionEnabled(sc.Runtime.LogIngestionEnabled),
+			ingestor.WithLocalScheduler(localScheduler),
+			ingestor.WithLocalDispatcher(d),
 		)
 
 		if err != nil {
@@ -486,6 +492,8 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			admin.WithMessageQueue(sc.MessageQueue),
 			admin.WithMessageQueueV1(sc.MessageQueueV1),
 			admin.WithEntitlementsRepository(sc.EntitlementRepository),
+			admin.WithLocalScheduler(localScheduler),
+			admin.WithLocalDispatcher(d),
 		)
 		if err != nil {
 			return nil, fmt.Errorf("could not create admin service: %w", err)
@@ -496,6 +504,8 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			adminv1.WithMessageQueue(sc.MessageQueueV1),
 			adminv1.WithEntitlementsRepository(sc.EntitlementRepository),
 			adminv1.WithAnalytics(sc.Analytics),
+			adminv1.WithLocalScheduler(localScheduler),
+			adminv1.WithLocalDispatcher(d),
 		)
 
 		if err != nil {
@@ -878,6 +888,75 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 		})
 	}
 
+	var localScheduler *schedulerv1.Scheduler
+
+	if sc.HasService("all") || sc.HasService("scheduler") {
+		partitionCleanup, err := p.StartSchedulerPartition(ctx)
+
+		if err != nil {
+			return nil, fmt.Errorf("could not create create scheduler partition: %w", err)
+		}
+
+		teardown = append(teardown, Teardown{
+			Name: "scheduler partition",
+			Fn:   partitionCleanup,
+		})
+
+		// create the dispatcher
+		s, err := scheduler.New(
+			scheduler.WithAlerter(sc.Alerter),
+			scheduler.WithMessageQueue(sc.MessageQueue),
+			scheduler.WithRepository(sc.EngineRepository),
+			scheduler.WithLogger(sc.Logger),
+			scheduler.WithPartition(p),
+			scheduler.WithQueueLoggerConfig(&sc.AdditionalLoggers.Queue),
+			scheduler.WithSchedulerPool(sc.SchedulingPool),
+		)
+
+		if err != nil {
+			return nil, fmt.Errorf("could not create dispatcher: %w", err)
+		}
+
+		cleanup, err := s.Start()
+
+		if err != nil {
+			return nil, fmt.Errorf("could not start dispatcher: %w", err)
+		}
+
+		teardown = append(teardown, Teardown{
+			Name: "scheduler",
+			Fn:   cleanup,
+		})
+
+		sv1, err := schedulerv1.New(
+			schedulerv1.WithAlerter(sc.Alerter),
+			schedulerv1.WithMessageQueue(sc.MessageQueueV1),
+			schedulerv1.WithRepository(sc.EngineRepository),
+			schedulerv1.WithV2Repository(sc.V1),
+			schedulerv1.WithLogger(sc.Logger),
+			schedulerv1.WithPartition(p),
+			schedulerv1.WithQueueLoggerConfig(&sc.AdditionalLoggers.Queue),
+			schedulerv1.WithSchedulerPool(sc.SchedulingPoolV1),
+		)
+
+		if err != nil {
+			return nil, fmt.Errorf("could not create scheduler (v1): %w", err)
+		}
+
+		cleanup, err = sv1.Start()
+
+		if err != nil {
+			return nil, fmt.Errorf("could not start scheduler (v1): %w", err)
+		}
+
+		teardown = append(teardown, Teardown{
+			Name: "schedulerv1",
+			Fn:   cleanup,
+		})
+
+		localScheduler = sv1
+	}
+
 	if sc.HasService("all") || sc.HasService("grpc-api") {
 		cacheInstance := cache.New(10 * time.Second)
 
@@ -931,6 +1010,8 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			ingestor.WithStepRunRepository(sc.EngineRepository.StepRun()),
 			ingestor.WithRepositoryV1(sc.V1),
 			ingestor.WithLogIngestionEnabled(sc.Runtime.LogIngestionEnabled),
+			ingestor.WithLocalScheduler(localScheduler),
+			ingestor.WithLocalDispatcher(d),
 		)
 
 		if err != nil {
@@ -943,6 +1024,8 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			admin.WithMessageQueue(sc.MessageQueue),
 			admin.WithMessageQueueV1(sc.MessageQueueV1),
 			admin.WithEntitlementsRepository(sc.EntitlementRepository),
+			admin.WithLocalScheduler(localScheduler),
+			admin.WithLocalDispatcher(d),
 		)
 
 		if err != nil {
@@ -954,6 +1037,8 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			adminv1.WithMessageQueue(sc.MessageQueueV1),
 			adminv1.WithEntitlementsRepository(sc.EntitlementRepository),
 			adminv1.WithAnalytics(sc.Analytics),
+			adminv1.WithLocalScheduler(localScheduler),
+			adminv1.WithLocalDispatcher(d),
 		)
 
 		if err != nil {
@@ -1021,71 +1106,6 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 
 		teardown = append(teardown, Teardown{
 			Name: "grpc",
-			Fn:   cleanup,
-		})
-	}
-
-	if sc.HasService("all") || sc.HasService("scheduler") {
-		partitionCleanup, err := p.StartSchedulerPartition(ctx)
-
-		if err != nil {
-			return nil, fmt.Errorf("could not create create scheduler partition: %w", err)
-		}
-
-		teardown = append(teardown, Teardown{
-			Name: "scheduler partition",
-			Fn:   partitionCleanup,
-		})
-
-		// create the dispatcher
-		s, err := scheduler.New(
-			scheduler.WithAlerter(sc.Alerter),
-			scheduler.WithMessageQueue(sc.MessageQueue),
-			scheduler.WithRepository(sc.EngineRepository),
-			scheduler.WithLogger(sc.Logger),
-			scheduler.WithPartition(p),
-			scheduler.WithQueueLoggerConfig(&sc.AdditionalLoggers.Queue),
-			scheduler.WithSchedulerPool(sc.SchedulingPool),
-		)
-
-		if err != nil {
-			return nil, fmt.Errorf("could not create dispatcher: %w", err)
-		}
-
-		cleanup, err := s.Start()
-
-		if err != nil {
-			return nil, fmt.Errorf("could not start dispatcher: %w", err)
-		}
-
-		teardown = append(teardown, Teardown{
-			Name: "scheduler",
-			Fn:   cleanup,
-		})
-
-		sv1, err := schedulerv1.New(
-			schedulerv1.WithAlerter(sc.Alerter),
-			schedulerv1.WithMessageQueue(sc.MessageQueueV1),
-			schedulerv1.WithRepository(sc.EngineRepository),
-			schedulerv1.WithV2Repository(sc.V1),
-			schedulerv1.WithLogger(sc.Logger),
-			schedulerv1.WithPartition(p),
-			schedulerv1.WithQueueLoggerConfig(&sc.AdditionalLoggers.Queue),
-			schedulerv1.WithSchedulerPool(sc.SchedulingPoolV1),
-		)
-
-		if err != nil {
-			return nil, fmt.Errorf("could not create scheduler (v1): %w", err)
-		}
-
-		cleanup, err = sv1.Start()
-
-		if err != nil {
-			return nil, fmt.Errorf("could not start scheduler (v1): %w", err)
-		}
-
-		teardown = append(teardown, Teardown{
-			Name: "schedulerv1",
 			Fn:   cleanup,
 		})
 	}

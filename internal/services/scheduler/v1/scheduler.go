@@ -12,6 +12,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	msgqueue "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
+	"github.com/hatchet-dev/hatchet/internal/services/controllers/v1/olap/signal"
 	"github.com/hatchet-dev/hatchet/internal/services/partition"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/recoveryutils"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
@@ -125,6 +126,8 @@ type Scheduler struct {
 	ql *zerolog.Logger
 
 	pool *v1.SchedulingPool
+
+	signaler *signal.OLAPSignaler
 }
 
 func New(
@@ -167,6 +170,8 @@ func New(
 
 	pubBuffer := msgqueue.NewMQPubBuffer(opts.mq)
 
+	signaler := signal.NewOLAPSignaler(opts.mq, opts.repo, opts.l, pubBuffer)
+
 	q := &Scheduler{
 		mq:        opts.mq,
 		pubBuffer: pubBuffer,
@@ -179,6 +184,7 @@ func New(
 		p:         opts.p,
 		ql:        opts.queueLogger,
 		pool:      opts.pool,
+		signaler:  signaler,
 	}
 
 	return q, nil
@@ -408,7 +414,9 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId string, res *
 				dispatcherIdToWorkerIdsToStepRuns[dispatcherId][workerId] = make([]int64, 0)
 			}
 
-			dispatcherIdToWorkerIdsToStepRuns[dispatcherId][workerId] = append(dispatcherIdToWorkerIdsToStepRuns[dispatcherId][workerId], bulkAssigned.QueueItem.TaskID)
+			if !bulkAssigned.IsAssignedLocally {
+				dispatcherIdToWorkerIdsToStepRuns[dispatcherId][workerId] = append(dispatcherIdToWorkerIdsToStepRuns[dispatcherId][workerId], bulkAssigned.QueueItem.TaskID)
+			}
 
 			taskId := bulkAssigned.QueueItem.TaskID
 

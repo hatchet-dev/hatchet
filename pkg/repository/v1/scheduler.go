@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 	"github.com/jackc/pgx/v5/pgtype"
 )
@@ -14,6 +15,7 @@ type SchedulerRepository interface {
 	QueueFactory() QueueFactoryRepository
 	RateLimit() RateLimitRepository
 	Assignment() AssignmentRepository
+	Optimistic() OptimisticSchedulingRepository
 }
 
 type LeaseRepository interface {
@@ -48,12 +50,67 @@ type AssignmentRepository interface {
 	ListAvailableSlotsForWorkers(ctx context.Context, tenantId pgtype.UUID, params sqlcv1.ListAvailableSlotsForWorkersParams) ([]*sqlcv1.ListAvailableSlotsForWorkersRow, error)
 }
 
+type OptimisticTx struct {
+	tx         sqlcv1.DBTX
+	commit     func(ctx context.Context) error
+	rollback   func()
+	postCommit []func()
+}
+
+func (s *sharedRepository) PrepareOptimisticTx(ctx context.Context) (*OptimisticTx, error) {
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, s.pool, s.l)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &OptimisticTx{
+		tx:         tx,
+		commit:     commit,
+		rollback:   rollback,
+		postCommit: make([]func(), 0),
+	}, nil
+}
+
+func (o *OptimisticTx) AddPostCommit(f func()) {
+	o.postCommit = append(o.postCommit, f)
+}
+
+func (o *OptimisticTx) Commit(ctx context.Context) error {
+	err := o.commit(ctx)
+
+	if err != nil {
+		return err
+	}
+
+	for _, f := range o.postCommit {
+		f()
+	}
+
+	return err
+}
+
+func (o *OptimisticTx) Rollback() {
+	o.rollback()
+}
+
+type OptimisticSchedulingRepository interface {
+	StartTx(ctx context.Context) (*OptimisticTx, error)
+
+	TriggerFromEvents(ctx context.Context, tx *OptimisticTx, tenantId string, opts []EventTriggerOpts) ([]*sqlcv1.V1QueueItem, *TriggerFromEventsResult, error)
+
+	TriggerFromNames(ctx context.Context, tx *OptimisticTx, tenantId pgtype.UUID, opts []*WorkflowNameTriggerOpts) ([]*sqlcv1.V1QueueItem, []*sqlcv1.V1Task, []*DAGWithData, error)
+
+	MarkQueueItemsProcessed(ctx context.Context, tx *OptimisticTx, tenantId pgtype.UUID, r *AssignResults) (succeeded []*AssignedItem, failed []*AssignedItem, err error)
+}
+
 type schedulerRepository struct {
 	concurrency  ConcurrencyRepository
 	lease        LeaseRepository
 	queueFactory QueueFactoryRepository
 	rateLimit    RateLimitRepository
 	assignment   AssignmentRepository
+	optimistic   OptimisticSchedulingRepository
 }
 
 func newSchedulerRepository(shared *sharedRepository) *schedulerRepository {
@@ -63,6 +120,7 @@ func newSchedulerRepository(shared *sharedRepository) *schedulerRepository {
 		queueFactory: newQueueFactoryRepository(shared),
 		rateLimit:    newRateLimitRepository(shared),
 		assignment:   newAssignmentRepository(shared),
+		optimistic:   newOptimisticSchedulingRepository(shared),
 	}
 }
 
@@ -84,4 +142,8 @@ func (d *schedulerRepository) RateLimit() RateLimitRepository {
 
 func (d *schedulerRepository) Assignment() AssignmentRepository {
 	return d.assignment
+}
+
+func (d *schedulerRepository) Optimistic() OptimisticSchedulingRepository {
+	return d.optimistic
 }

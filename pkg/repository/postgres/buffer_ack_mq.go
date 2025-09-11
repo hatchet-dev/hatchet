@@ -40,7 +40,7 @@ func (r *sharedRepository) bulkAckMessages(ctx context.Context, opts []int64) ([
 		res = append(res, &i)
 	}
 
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 10000)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l)
 
 	if err != nil {
 		return nil, fmt.Errorf("could not prepare transaction: %w", err)

@@ -15,6 +15,7 @@ type UserEventTaskPayload struct {
 	EventPriority           *int32  `json:"event_priority,omitempty"`
 	EventScope              *string `json:"event_scope,omitempty"`
 	TriggeringWebhookName   *string `json:"triggering_webhook_name,omitempty"`
+	WasProcessedLocally     bool    `json:"was_processed_locally"`
 }
 
 func NewInternalEventMessage(tenantId string, timestamp time.Time, events ...v1.InternalTaskEvent) (*msgqueue.Message, error) {

@@ -3,9 +3,14 @@ package admin
 import (
 	"fmt"
 
+	"github.com/rs/zerolog"
+
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	msgqueuev1 "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
 	"github.com/hatchet-dev/hatchet/internal/services/admin/contracts"
+	"github.com/hatchet-dev/hatchet/internal/services/dispatcher"
+	scheduler "github.com/hatchet-dev/hatchet/internal/services/scheduler/v1"
+	"github.com/hatchet-dev/hatchet/pkg/logger"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
@@ -18,30 +23,38 @@ type AdminService interface {
 type AdminServiceImpl struct {
 	contracts.UnimplementedWorkflowServiceServer
 
-	entitlements repository.EntitlementsRepository
-	repo         repository.EngineRepository
-	repov1       v1.Repository
-	mq           msgqueue.MessageQueue
-	mqv1         msgqueuev1.MessageQueue
-	v            validator.Validator
+	entitlements    repository.EntitlementsRepository
+	repo            repository.EngineRepository
+	repov1          v1.Repository
+	mq              msgqueue.MessageQueue
+	mqv1            msgqueuev1.MessageQueue
+	v               validator.Validator
+	localScheduler  *scheduler.Scheduler
+	localDispatcher *dispatcher.DispatcherImpl
+	l               *zerolog.Logger
 }
 
 type AdminServiceOpt func(*AdminServiceOpts)
 
 type AdminServiceOpts struct {
-	entitlements repository.EntitlementsRepository
-	repo         repository.EngineRepository
-	repov1       v1.Repository
-	mq           msgqueue.MessageQueue
-	mqv1         msgqueuev1.MessageQueue
-	v            validator.Validator
+	entitlements    repository.EntitlementsRepository
+	repo            repository.EngineRepository
+	repov1          v1.Repository
+	mq              msgqueue.MessageQueue
+	mqv1            msgqueuev1.MessageQueue
+	v               validator.Validator
+	localScheduler  *scheduler.Scheduler
+	localDispatcher *dispatcher.DispatcherImpl
+	l               *zerolog.Logger
 }
 
 func defaultAdminServiceOpts() *AdminServiceOpts {
 	v := validator.NewDefaultValidator()
+	logger := logger.NewDefaultLogger("admin_service")
 
 	return &AdminServiceOpts{
 		v: v,
+		l: &logger,
 	}
 }
 
@@ -81,6 +94,24 @@ func WithValidator(v validator.Validator) AdminServiceOpt {
 	}
 }
 
+func WithLocalScheduler(s *scheduler.Scheduler) AdminServiceOpt {
+	return func(opts *AdminServiceOpts) {
+		opts.localScheduler = s
+	}
+}
+
+func WithLocalDispatcher(d *dispatcher.DispatcherImpl) AdminServiceOpt {
+	return func(opts *AdminServiceOpts) {
+		opts.localDispatcher = d
+	}
+}
+
+func WithLogger(l *zerolog.Logger) AdminServiceOpt {
+	return func(opts *AdminServiceOpts) {
+		opts.l = l
+	}
+}
+
 func NewAdminService(fs ...AdminServiceOpt) (AdminService, error) {
 	opts := defaultAdminServiceOpts()
 
@@ -109,11 +140,14 @@ func NewAdminService(fs ...AdminServiceOpt) (AdminService, error) {
 	}
 
 	return &AdminServiceImpl{
-		repo:         opts.repo,
-		repov1:       opts.repov1,
-		entitlements: opts.entitlements,
-		mq:           opts.mq,
-		mqv1:         opts.mqv1,
-		v:            opts.v,
+		repo:            opts.repo,
+		repov1:          opts.repov1,
+		entitlements:    opts.entitlements,
+		mq:              opts.mq,
+		mqv1:            opts.mqv1,
+		v:               opts.v,
+		localScheduler:  opts.localScheduler,
+		localDispatcher: opts.localDispatcher,
+		l:               opts.l,
 	}, nil
 }

@@ -306,7 +306,7 @@ func (w *workflowRunEngineRepository) ProcessWorkflowRunUpdates(ctx context.Cont
 
 	limit := 100
 
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, w.pool, w.l, 25000)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, w.pool, w.l)
 
 	if err != nil {
 		return false, err
@@ -414,7 +414,7 @@ type unpauseWorkflowRunQueueData struct {
 
 func (w *workflowRunEngineRepository) ProcessUnpausedWorkflowRuns(ctx context.Context, tenantId string) ([]*dbsqlc.GetWorkflowRunRow, bool, error) {
 
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, w.pool, w.l, 25000)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, w.pool, w.l)
 
 	if err != nil {
 		return nil, false, err
@@ -844,7 +844,7 @@ func (w *workflowRunEngineRepository) PopWorkflowRunsCancelInProgress(ctx contex
 	ctx, span := telemetry.NewSpan(ctx, "queue-by-cancel-in-progress")
 	defer span.End()
 
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, w.pool, w.l, 15000)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, w.pool, w.l)
 
 	if err != nil {
 		return nil, nil, err
@@ -952,7 +952,7 @@ func (w *workflowRunEngineRepository) PopWorkflowRunsCancelNewest(ctx context.Co
 	ctx, span := telemetry.NewSpan(ctx, "queue-by-cancel-newest")
 	defer span.End()
 
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, w.pool, w.l, 15000)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, w.pool, w.l)
 
 	if err != nil {
 		return nil, nil, err
@@ -1056,7 +1056,7 @@ func (w *workflowRunEngineRepository) PopWorkflowRunsCancelNewest(ctx context.Co
 
 func (w *workflowRunEngineRepository) PopWorkflowRunsRoundRobin(ctx context.Context, tenantId string, workflowVersionId string, maxRuns int) ([]*dbsqlc.WorkflowRun, []*dbsqlc.GetStepRunForEngineRow, error) {
 
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, w.pool, w.l, 5000)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, w.pool, w.l)
 
 	if err != nil {
 		return nil, nil, err
@@ -1108,7 +1108,7 @@ func (w *workflowRunEngineRepository) PopWorkflowRunsRoundRobin(ctx context.Cont
 	return poppedWorkflowRuns, startableStepRuns, nil
 }
 func (w *workflowRunEngineRepository) QueueWorkflowRunJobs(ctx context.Context, tenantId, workflowRunId string) ([]*dbsqlc.GetStepRunForEngineRow, error) {
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, w.pool, w.l, 15000)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, w.pool, w.l)
 
 	if err != nil {
 		return nil, err
@@ -1194,7 +1194,7 @@ func (w workflowRunEngineRepository) startManyJobRuns(ctx context.Context, tx db
 }
 
 func (j *jobRunEngineRepository) StartJobRun(ctx context.Context, tenantId, jobRunId string) ([]*dbsqlc.GetStepRunForEngineRow, error) {
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, j.pool, j.l, 15000)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, j.pool, j.l)
 
 	if err != nil {
 		return nil, err
@@ -1797,7 +1797,7 @@ func createNewWorkflowRuns(ctx context.Context, pool *pgxpool.Pool, queries *dbs
 		defer tx1Span.End()
 
 		// begin a transaction
-		tx, commit, rollback, err := sqlchelpers.PrepareTx(tx1Ctx, pool, l, 15000)
+		tx, commit, rollback, err := sqlchelpers.PrepareTx(tx1Ctx, pool, l)
 
 		if err != nil {
 			return nil, err

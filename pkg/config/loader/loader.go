@@ -157,7 +157,9 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 
 		conn.TypeMap().RegisterType(t)
 
-		return nil
+		_, err = conn.Exec(ctx, "SET statement_timeout=30000")
+
+		return err
 	}
 
 	if cf.LogQueries {
@@ -588,6 +590,8 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		&queueLogger,
 		cf.Runtime.SingleQueueLimit,
 		cf.Runtime.SchedulerConcurrencyRateLimit,
+		cf.Runtime.OptimisticSchedulingEnabled,
+		cf.Runtime.OptimisticSchedulingSlots,
 	)
 
 	if err != nil {
