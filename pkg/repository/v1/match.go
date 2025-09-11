@@ -7,10 +7,12 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
+	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/google/cel-go/cel"
 	"github.com/google/uuid"
 
+	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 )
@@ -97,6 +99,8 @@ type CreateMatchOpts struct {
 	TriggerChildIndex pgtype.Int8
 
 	TriggerChildKey pgtype.Text
+
+	TriggerPriority pgtype.Int4
 
 	SignalTaskId *int64
 
@@ -541,6 +545,10 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 						opt.ChildKey = &match.TriggerChildKey.String
 					}
 
+					if match.TriggerPriority.Valid {
+						opt.Priority = &match.TriggerPriority.Int32
+					}
+
 					createTaskOpts = append(createTaskOpts, opt)
 				}
 			}
@@ -622,6 +630,19 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 }
 
 func (m *sharedRepository) processCELExpressions(ctx context.Context, events []CandidateEventMatch, conditions []*sqlcv1.ListMatchConditionsForEventRow, eventType sqlcv1.V1EventType) (map[string][]*sqlcv1.ListMatchConditionsForEventRow, error) {
+	ctx, span := telemetry.NewSpan(ctx, "MatchRepositoryImpl.processCELExpressions")
+	defer span.End()
+
+	span.SetAttributes(attribute.KeyValue{
+		Key:   "match_repository.process_cel_expressions.events_count",
+		Value: attribute.IntValue(len(events)),
+	})
+
+	span.SetAttributes(attribute.KeyValue{
+		Key:   "match_repository.process_cel_expressions.conditions_count",
+		Value: attribute.IntValue(len(conditions)),
+	})
+
 	// parse CEL expressions
 	programs := make(map[int64]cel.Program)
 	conditionIdsToConditions := make(map[int64]*sqlcv1.ListMatchConditionsForEventRow)
@@ -730,6 +751,11 @@ func (m *sharedRepository) processCELExpressions(ctx context.Context, events []C
 		}
 	}
 
+	span.SetAttributes(attribute.KeyValue{
+		Key:   "match_repository.process_cel_expressions.match_conditions_count",
+		Value: attribute.IntValue(len(matches)),
+	})
+
 	return matches, nil
 }
 
@@ -775,6 +801,7 @@ func (m *sharedRepository) createEventMatches(ctx context.Context, tx sqlcv1.DBT
 		triggerParentTaskInsertedAts := make([]pgtype.Timestamptz, len(dagMatches))
 		triggerChildIndices := make([]pgtype.Int8, len(dagMatches))
 		triggerChildKeys := make([]pgtype.Text, len(dagMatches))
+		triggerPriorities := make([]pgtype.Int4, len(dagMatches))
 
 		for i, match := range dagMatches {
 			dagTenantIds[i] = sqlchelpers.UUIDFromStr(tenantId)
@@ -790,6 +817,7 @@ func (m *sharedRepository) createEventMatches(ctx context.Context, tx sqlcv1.DBT
 			triggerParentTaskInsertedAts[i] = match.TriggerParentTaskInsertedAt
 			triggerChildIndices[i] = match.TriggerChildIndex
 			triggerChildKeys[i] = match.TriggerChildKey
+			triggerPriorities[i] = match.TriggerPriority
 
 			if match.TriggerExistingTaskId != nil {
 				triggerExistingTaskIds[i] = pgtype.Int8{Int64: *match.TriggerExistingTaskId, Valid: true}
@@ -827,6 +855,7 @@ func (m *sharedRepository) createEventMatches(ctx context.Context, tx sqlcv1.DBT
 				TriggerParentTaskInsertedAt:   triggerParentTaskInsertedAts,
 				TriggerChildIndex:             triggerChildIndices,
 				TriggerChildKey:               triggerChildKeys,
+				TriggerPriorities:             triggerPriorities,
 			},
 		)
 
@@ -1071,6 +1100,7 @@ func (m *sharedRepository) createAdditionalMatches(ctx context.Context, tx sqlcv
 				TriggerParentTaskInsertedAt:   match.TriggerParentTaskInsertedAt,
 				TriggerChildIndex:             match.TriggerChildIndex,
 				TriggerChildKey:               match.TriggerChildKey,
+				TriggerPriority:               match.TriggerPriority,
 			}
 
 			for _, condition := range conditions {

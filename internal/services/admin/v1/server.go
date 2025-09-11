@@ -418,6 +418,13 @@ func (i *AdminServiceImpl) newTriggerOpt(
 		AdditionalMetadata: req.AdditionalMetadata,
 	}
 
+	if req.Priority != nil {
+		if *req.Priority < 1 || *req.Priority > 3 {
+			return nil, status.Errorf(codes.InvalidArgument, "priority must be between 1 and 3, got %d", *req.Priority)
+		}
+		t.Priority = req.Priority
+	}
+
 	return &v1.WorkflowNameTriggerOpts{
 		TriggerTaskData: t,
 	}, nil
@@ -502,6 +509,16 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.Creat
 	if err != nil {
 		return nil, err
 	}
+
+	a.analytics.Enqueue(
+		"workflow:create",
+		"grpc",
+		&tenantId,
+		nil,
+		map[string]interface{}{
+			"workflow_id": sqlchelpers.UUIDToStr(currWorkflow.WorkflowVersion.WorkflowId),
+		},
+	)
 
 	return &contracts.CreateWorkflowVersionResponse{
 		Id:         sqlchelpers.UUIDToStr(currWorkflow.WorkflowVersion.ID),

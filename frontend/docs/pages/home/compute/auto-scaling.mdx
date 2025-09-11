@@ -79,12 +79,10 @@ The number of replicas to add or remove during each scaling event.
 1. **Start Conservative**: Begin with moderate thresholds (e.g., 0.75 for scale-up and 0.25 for scale-down) and adjust based on your workload patterns.
 
 2. **Tune Wait Duration**:
-
    - Shorter durations (e.g., 1m) work well for bursty workloads
    - Longer durations (e.g., 5m) are better for stable, predictable loads
 
 3. **Rolling Window**:
-
    - Shorter windows (2-5m) provide faster response to changes
    - Longer windows (10m+) provide more stable scaling behavior
 

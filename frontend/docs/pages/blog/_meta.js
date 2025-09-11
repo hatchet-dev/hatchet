@@ -1,4 +1,7 @@
 export default {
+  "automated-documentation": {
+    title: "Automated Documentation",
+  },
   "background-tasks-fastapi-hatchet": {
     title: "Background Tasks: From FastAPI to Hatchet",
   },

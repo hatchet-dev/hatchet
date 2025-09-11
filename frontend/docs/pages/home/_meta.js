@@ -1,9 +1,11 @@
 export default {
   "--intro": {
-    title: "Introduction",
+    title: "Why Hatchet?",
     type: "separator",
   },
-  index: "Introduction",
+  index: "🪓 Welcome",
+  architecture: "Architecture",
+  "guarantees-and-tradeoffs": "Guarantees & Tradeoffs",
   "hatchet-cloud-quickstart": "Hatchet Cloud Quickstart",
   "--quickstart": {
     title: "Quickstart",
@@ -18,13 +20,25 @@ export default {
     title: "Ways of Running Tasks",
     type: "separator",
   },
-  "running-tasks": "Introduction",
+  "running-tasks": "Inter-Service Triggering",
   "run-with-results": "Run and Wait Trigger",
   "run-no-wait": "Run Without Wait Trigger",
   "scheduled-runs": "Scheduled Trigger",
   "cron-runs": "Cron Trigger",
   "run-on-event": "Event Trigger",
   "bulk-run": "Bulk Run Many",
+  webhooks: "Webhooks",
+  "--deploying-workers": {
+    title: "Deploying Workers",
+    type: "separator",
+  },
+  docker: "Running with Docker",
+  compute: {
+    title: "Managed Compute",
+    type: "page",
+    display: "hidden",
+  },
+  "worker-healthchecks": "Worker Health Checks",
   "--flow-control": {
     title: "Flow Control",
     type: "separator",
@@ -86,13 +100,6 @@ export default {
   logging: "Logging",
   opentelemetry: "OpenTelemetry",
   "prometheus-metrics": "Prometheus Metrics",
-  "--deploying-workers": {
-    title: "Deploying Workers",
-    type: "separator",
-  },
-  docker: "Running with Docker",
-  compute: "Managed Compute",
-  "worker-healthchecks": "Worker Health Checks",
   "--advanced-tasks": {
     title: "Advanced Task Features",
     type: "separator",
@@ -121,6 +128,7 @@ export default {
   asyncio: "Asyncio",
   pydantic: "Pydantic",
   lifespans: "Lifespans",
+  "dependency-injection": "Dependency Injection",
   blog: {
     title: "Blog",
     type: "page",

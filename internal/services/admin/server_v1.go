@@ -5,9 +5,12 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/hatchet-dev/hatchet/internal/datautils"
 	msgqueue "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
 	"github.com/hatchet-dev/hatchet/internal/services/admin/contracts"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
+	"github.com/hatchet-dev/hatchet/pkg/constants"
+	grpcmiddleware "github.com/hatchet-dev/hatchet/pkg/grpc/middleware"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
@@ -89,6 +92,22 @@ func (a *AdminServiceImpl) triggerWorkflowV1(ctx context.Context, req *contracts
 		return nil, fmt.Errorf("could not trigger workflow: %w", err)
 	}
 
+	additionalMeta := ""
+	if req.AdditionalMetadata != nil {
+		additionalMeta = *req.AdditionalMetadata
+	}
+
+	corrId := datautils.ExtractCorrelationId(additionalMeta)
+
+	if corrId != nil {
+		ctx = context.WithValue(ctx, constants.CorrelationIdKey, *corrId)
+	}
+
+	ctx = context.WithValue(ctx, constants.ResourceIdKey, opt.ExternalId)
+	ctx = context.WithValue(ctx, constants.ResourceTypeKey, constants.ResourceTypeWorkflowRun)
+
+	grpcmiddleware.TriggerCallback(ctx)
+
 	return &contracts.TriggerWorkflowResponse{
 		WorkflowRunId: opt.ExternalId,
 	}, nil
@@ -140,6 +159,20 @@ func (a *AdminServiceImpl) bulkTriggerWorkflowV1(ctx context.Context, req *contr
 		runIds[i] = opt.ExternalId
 	}
 
+	for i, runId := range runIds {
+		additionalMeta := ""
+		if req.Workflows[i].AdditionalMetadata != nil {
+			additionalMeta = *req.Workflows[i].AdditionalMetadata
+		}
+		corrId := datautils.ExtractCorrelationId(additionalMeta)
+
+		ctx = context.WithValue(ctx, constants.CorrelationIdKey, corrId)
+		ctx = context.WithValue(ctx, constants.ResourceIdKey, runId)
+		ctx = context.WithValue(ctx, constants.ResourceTypeKey, constants.ResourceTypeWorkflowRun)
+
+		grpcmiddleware.TriggerCallback(ctx)
+	}
+
 	return &contracts.BulkTriggerWorkflowResponse{
 		WorkflowRunIds: runIds,
 	}, nil
@@ -165,6 +198,9 @@ func (i *AdminServiceImpl) newTriggerOpt(
 	}
 
 	if req.Priority != nil {
+		if *req.Priority < 1 || *req.Priority > 3 {
+			return nil, status.Errorf(codes.InvalidArgument, "priority must be between 1 and 3, got %d", *req.Priority)
+		}
 		t.Priority = req.Priority
 	}
 

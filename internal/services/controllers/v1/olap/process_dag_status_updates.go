@@ -2,6 +2,7 @@ package olap
 
 import (
 	"context"
+	"time"
 
 	msgqueue "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
@@ -16,6 +17,9 @@ import (
 
 func (o *OLAPControllerImpl) runDAGStatusUpdates(ctx context.Context) func() {
 	return func() {
+		ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		defer cancel()
+
 		shouldContinue := true
 
 		for shouldContinue {
@@ -81,17 +85,20 @@ func (o *OLAPControllerImpl) notifyDAGsUpdated(ctx context.Context, rows []v1.Up
 			tenantId := currentTenantId
 			workflowIds := workflowIds
 
-			var tenantDagIds []int64
-			var tenantDagInsertedAts []pgtype.Timestamptz
-			var tenantReadableStatuses []sqlcv1.V1ReadableStatusOlap
 			var tenantRows []v1.UpdateDAGStatusRow
+
+			dagExternalIds := make([]pgtype.UUID, 0, len(rows))
+			var minInsertedAt pgtype.Timestamptz
 
 			for _, row := range rows {
 				if sqlchelpers.UUIDToStr(row.TenantId) == tenantId {
-					tenantDagIds = append(tenantDagIds, row.DagId)
-					tenantDagInsertedAts = append(tenantDagInsertedAts, row.DagInsertedAt)
-					tenantReadableStatuses = append(tenantReadableStatuses, row.ReadableStatus)
 					tenantRows = append(tenantRows, row)
+
+					dagExternalIds = append(dagExternalIds, row.ExternalId)
+
+					if !minInsertedAt.Valid || row.DagInsertedAt.Time.Before(minInsertedAt.Time) {
+						minInsertedAt = row.DagInsertedAt
+					}
 				}
 			}
 
@@ -101,7 +108,7 @@ func (o *OLAPControllerImpl) notifyDAGsUpdated(ctx context.Context, rows []v1.Up
 					return err
 				}
 
-				dagDurations, err := o.repo.OLAP().GetDagDurationsByDagIds(ctx, tenantId, tenantDagIds, tenantDagInsertedAts, tenantReadableStatuses)
+				dagDurations, err := o.repo.OLAP().GetDAGDurations(ctx, tenantId, dagExternalIds, minInsertedAt)
 				if err != nil {
 					return err
 				}

@@ -17,14 +17,17 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
+	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
 
 type Ingestor interface {
 	contracts.EventsServiceServer
-	IngestEvent(ctx context.Context, tenant *dbsqlc.Tenant, eventName string, data []byte, metadata []byte, priority *int32, scope *string) (*dbsqlc.Event, error)
+	IngestEvent(ctx context.Context, tenant *dbsqlc.Tenant, eventName string, data []byte, metadata []byte, priority *int32, scope, triggeringWebhookName *string) (*dbsqlc.Event, error)
+	IngestWebhookValidationFailure(ctx context.Context, tenant *dbsqlc.Tenant, webhookName, errorText string) error
 	BulkIngestEvent(ctx context.Context, tenant *dbsqlc.Tenant, eventOpts []*repository.CreateEventOpts) ([]*dbsqlc.Event, error)
 	IngestReplayedEvent(ctx context.Context, tenant *dbsqlc.Tenant, replayedEvent *dbsqlc.Event) (*dbsqlc.Event, error)
+	IngestCELEvaluationFailure(ctx context.Context, tenantId, errorText string, source sqlcv1.V1CelEvaluationFailureSource) error
 }
 
 type IngestorOptFunc func(*IngestorOpts)
@@ -153,6 +156,7 @@ func NewIngestor(fs ...IngestorOptFunc) (Ingestor, error) {
 	if opts.stepRunRepository == nil {
 		return nil, fmt.Errorf("step run repository is required. use WithStepRunRepository")
 	}
+
 	// estimate of 1000 * 2 * UUID string size (roughly 104kb max)
 	stepRunCache, err := lru.New[string, string](1000)
 
@@ -175,15 +179,19 @@ func NewIngestor(fs ...IngestorOptFunc) (Ingestor, error) {
 	}, nil
 }
 
-func (i *IngestorImpl) IngestEvent(ctx context.Context, tenant *dbsqlc.Tenant, key string, data []byte, metadata []byte, priority *int32, scope *string) (*dbsqlc.Event, error) {
+func (i *IngestorImpl) IngestEvent(ctx context.Context, tenant *dbsqlc.Tenant, key string, data []byte, metadata []byte, priority *int32, scope, triggeringWebhookName *string) (*dbsqlc.Event, error) {
 	switch tenant.Version {
 	case dbsqlc.TenantMajorEngineVersionV0:
 		return i.ingestEventV0(ctx, tenant, key, data, metadata)
 	case dbsqlc.TenantMajorEngineVersionV1:
-		return i.ingestEventV1(ctx, tenant, key, data, metadata, priority, scope)
+		return i.ingestEventV1(ctx, tenant, key, data, metadata, priority, scope, triggeringWebhookName)
 	default:
 		return nil, fmt.Errorf("unsupported tenant version: %s", tenant.Version)
 	}
+}
+
+func (i *IngestorImpl) IngestWebhookValidationFailure(ctx context.Context, tenant *dbsqlc.Tenant, webhookName, errorText string) error {
+	return i.ingestWebhookValidationFailure(tenant.ID.String(), webhookName, errorText)
 }
 
 func (i *IngestorImpl) ingestEventV0(ctx context.Context, tenant *dbsqlc.Tenant, key string, data []byte, metadata []byte) (*dbsqlc.Event, error) {
@@ -338,4 +346,13 @@ func eventToTask(e *dbsqlc.Event) *msgqueue.Message {
 		Metadata: metadata,
 		Retries:  3,
 	}
+}
+
+func (i *IngestorImpl) IngestCELEvaluationFailure(ctx context.Context, tenantId, errorText string, source sqlcv1.V1CelEvaluationFailureSource) error {
+	return i.ingestCELEvaluationFailure(
+		ctx,
+		tenantId,
+		errorText,
+		source,
+	)
 }

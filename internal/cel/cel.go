@@ -17,9 +17,10 @@ import (
 )
 
 type CELParser struct {
-	workflowStrEnv *cel.Env
-	stepRunEnv     *cel.Env
-	eventEnv       *cel.Env
+	workflowStrEnv     *cel.Env
+	stepRunEnv         *cel.Env
+	eventEnv           *cel.Env
+	incomingWebhookEnv *cel.Env
 }
 
 var checksumDecl = decls.NewFunction("checksum",
@@ -83,10 +84,19 @@ func NewCELParser() *CELParser {
 		ext.Strings(),
 	)
 
+	incomingWebhookEnv, _ := cel.NewEnv(
+		cel.Declarations(
+			decls.NewVar("input", decls.NewMapType(decls.String, decls.Dyn)),
+			decls.NewVar("headers", decls.NewMapType(decls.String, decls.String)),
+			checksumDecl,
+		),
+	)
+
 	return &CELParser{
-		workflowStrEnv: workflowStrEnv,
-		stepRunEnv:     stepRunEnv,
-		eventEnv:       eventEnv,
+		workflowStrEnv:     workflowStrEnv,
+		stepRunEnv:         stepRunEnv,
+		eventEnv:           eventEnv,
+		incomingWebhookEnv: incomingWebhookEnv,
 	}
 }
 
@@ -97,6 +107,12 @@ type InputOpts func(Input)
 func WithInput(input map[string]interface{}) InputOpts {
 	return func(w Input) {
 		w["input"] = input
+	}
+}
+
+func WithHeaders(headers map[string]string) InputOpts {
+	return func(w Input) {
+		w["headers"] = headers
 	}
 }
 
@@ -354,4 +370,30 @@ func (p *CELParser) EvaluateEventExpression(expr string, input Input) (bool, err
 	}
 
 	return out.Value().(bool), nil
+}
+
+func (p *CELParser) EvaluateIncomingWebhookExpression(expr string, input Input) (string, error) {
+	ast, issues := p.incomingWebhookEnv.Compile(expr)
+
+	if issues != nil && issues.Err() != nil {
+		return "", fmt.Errorf("failed to compile expression: %w", issues.Err())
+	}
+
+	program, err := p.incomingWebhookEnv.Program(ast)
+	if err != nil {
+		return "", fmt.Errorf("failed to create program: %w", err)
+	}
+
+	var inMap map[string]interface{} = input
+
+	out, _, err := program.Eval(inMap)
+	if err != nil {
+		return "", fmt.Errorf("failed to evaluate expression: %w", err)
+	}
+
+	if out.Type() != types.StringType {
+		return "", fmt.Errorf("expression did not evaluate to a string: got %s", out.Type().TypeName())
+	}
+
+	return out.Value().(string), nil
 }

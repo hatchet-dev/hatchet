@@ -10,10 +10,11 @@ import {
   TabsList,
   TabsTrigger,
 } from '@/components/v1/ui/tabs';
-import { Sheet, SheetContent } from '@/components/v1/ui/sheet';
+import { useSidePanel } from '@/hooks/use-side-panel';
 import { StepRunEvents } from '../step-run-events-for-workflow-run';
 import { Link } from 'react-router-dom';
-import { TaskRunsTable } from '../../../components/task-runs-table';
+import { RunsTable } from '../../../components/runs-table';
+import { RunsProvider } from '../../../hooks/runs-provider';
 import { V1RunIndicator } from '../../../components/run-statuses';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { emptyGolangUUID, formatDuration } from '@/lib/utils';
@@ -23,12 +24,11 @@ import { TaskRunActionButton } from '@/pages/main/v1/task-runs-v1/actions';
 import { TaskRunMiniMap } from '../mini-map';
 import { WorkflowDefinitionLink } from '@/pages/main/workflow-runs/$run/v2components/workflow-definition';
 import { StepRunLogs } from './step-run-logs';
-import { isTerminalState } from '../../../hooks/workflow-details';
+import { isTerminalState } from '../../../hooks/use-workflow-details';
 import { CopyWorkflowConfigButton } from '@/components/v1/shared/copy-workflow-config';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { Waterfall } from '../waterfall';
-import { useState, useCallback } from 'react';
-import { useToast } from '@/components/v1/hooks/use-toast';
+import { useCallback } from 'react';
 import { Toaster } from '@/components/v1/ui/toaster';
 
 export enum TabOption {
@@ -92,14 +92,21 @@ export const TaskRunDetail = ({
   defaultOpenTab = TabOption.Output,
   showViewTaskRunButton,
 }: TaskRunDetailProps) => {
-  const [selectedTaskRunId, setSelectedTaskRunId] = useState<string>();
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const { toast } = useToast();
+  const { open } = useSidePanel();
 
-  const handleTaskRunExpand = useCallback((taskRunId: string) => {
-    setSelectedTaskRunId(taskRunId);
-    setIsSidebarOpen(true);
-  }, []);
+  const handleTaskRunExpand = useCallback(
+    (taskRunId: string) => {
+      open({
+        type: 'task-run-details',
+        content: {
+          taskRunId,
+          defaultOpenTab: TabOption.Output,
+          showViewTaskRunButton: true,
+        },
+      });
+    },
+    [open],
+  );
   const taskRunQuery = useQuery({
     ...queries.v1Tasks.get(taskRunId),
     refetchInterval: (query) => {
@@ -112,22 +119,6 @@ export const TaskRunDetail = ({
       return 1000;
     },
   });
-
-  const onActionProcessed = useCallback(
-    (action: 'cancel' | 'replay') => {
-      const prefix = action === 'cancel' ? 'Canceling' : 'Replaying';
-
-      const t = toast({
-        title: `${prefix} task run`,
-        description: `This may take a few seconds. You don't need to hit ${action} again.`,
-      });
-
-      setTimeout(() => {
-        t.dismiss();
-      }, 5000);
-    },
-    [toast],
-  );
 
   const taskRun = taskRunQuery.data;
 
@@ -164,32 +155,20 @@ export const TaskRunDetail = ({
         />
       )}
       <div className="flex flex-row gap-2 items-center">
-        <TaskRunActionButton
-          actionType="replay"
-          params={{ externalIds: [taskRunId] }}
-          disabled={!TASK_RUN_TERMINAL_STATUSES.includes(taskRun.status)}
-          showModal={false}
-          onActionProcessed={() => onActionProcessed('replay')}
-          onActionSubmit={() => {
-            toast({
-              title: 'Replay request submitted',
-              description: "No need to hit 'Replay' again.",
-            });
-          }}
-        />
-        <TaskRunActionButton
-          actionType="cancel"
-          params={{ externalIds: [taskRunId] }}
-          disabled={TASK_RUN_TERMINAL_STATUSES.includes(taskRun.status)}
-          showModal={false}
-          onActionProcessed={() => onActionProcessed('cancel')}
-          onActionSubmit={() => {
-            toast({
-              title: 'Cancel request submitted',
-              description: "No need to hit 'Cancel' again.",
-            });
-          }}
-        />
+        <RunsProvider tableKey="task-run-detail">
+          <TaskRunActionButton
+            actionType="replay"
+            paramOverrides={{ externalIds: [taskRunId] }}
+            disabled={!TASK_RUN_TERMINAL_STATUSES.includes(taskRun.status)}
+            showModal={false}
+          />
+          <TaskRunActionButton
+            actionType="cancel"
+            paramOverrides={{ externalIds: [taskRunId] }}
+            disabled={TASK_RUN_TERMINAL_STATUSES.includes(taskRun.status)}
+            showModal={false}
+          />
+        </RunsProvider>
         <TaskRunPermalinkOrBacklink
           taskRun={taskRun}
           showViewTaskRunButton={showViewTaskRunButton || false}
@@ -212,7 +191,7 @@ export const TaskRunDetail = ({
           )}
         </TabsList>
         <TabsContent value="overview" className="flex-1 min-h-0">
-          <div className="w-full h-36 flex relative bg-slate-100 dark:bg-slate-900">
+          <div className="w-full flex relative bg-slate-100 dark:bg-slate-900">
             <TaskRunMiniMap onClick={() => {}} taskRunId={taskRunId} />
           </div>
           <div className="h-4" />
@@ -240,12 +219,22 @@ export const TaskRunDetail = ({
               <V1StepRunOutput taskRunId={taskRunId} />
             </TabsContent>
             <TabsContent value={TabOption.ChildWorkflowRuns} className="mt-4">
-              <TaskRunsTable
-                parentTaskExternalId={taskRunId}
-                showCounts={false}
-                showMetrics={false}
-                disableTaskRunPagination={true}
-              />
+              <div className="h-[600px] flex flex-col">
+                <RunsProvider
+                  tableKey={`child-runs-${taskRunId}`}
+                  display={{
+                    hideCounts: true,
+                    hideMetrics: true,
+                    hideDateFilter: true,
+                    hideTriggerRunButton: true,
+                  }}
+                  runFilters={{
+                    parentTaskExternalId: taskRunId,
+                  }}
+                >
+                  <RunsTable headerClassName="flex-shrink-0" />
+                </RunsProvider>
+              </div>
             </TabsContent>
             <TabsContent value={TabOption.Input}>
               {taskRun.input && (
@@ -267,7 +256,7 @@ export const TaskRunDetail = ({
           <TabsContent value="waterfall" className="flex-1 min-h-0">
             <Waterfall
               workflowRunId={taskRunId}
-              selectedTaskId={selectedTaskRunId}
+              selectedTaskId={undefined}
               handleTaskSelect={handleTaskRunExpand}
             />
           </TabsContent>
@@ -285,20 +274,6 @@ export const TaskRunDetail = ({
           fallbackTaskDisplayName={taskRun.displayName}
         />
       </div>
-      <Sheet
-        open={isSidebarOpen}
-        onOpenChange={(open) => setIsSidebarOpen(open)}
-      >
-        <SheetContent className="w-fit min-w-[56rem] max-w-4xl sm:max-w-2xl z-[60] h-full overflow-auto">
-          {selectedTaskRunId && (
-            <TaskRunDetail
-              taskRunId={selectedTaskRunId}
-              defaultOpenTab={TabOption.Output}
-              showViewTaskRunButton
-            />
-          )}
-        </SheetContent>
-      </Sheet>
     </div>
   );
 };

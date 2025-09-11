@@ -34,6 +34,8 @@ TenantMember:
   $ref: "./tenant.yaml#/TenantMember"
 TenantMemberList:
   $ref: "./tenant.yaml#/TenantMemberList"
+TenantEnvironment:
+  $ref: "./tenant.yaml#/TenantEnvironment"
 TenantMemberRole:
   $ref: "./tenant.yaml#/TenantMemberRole"
 TenantResource:
@@ -46,6 +48,8 @@ CreateTenantInviteRequest:
   $ref: "./tenant.yaml#/CreateTenantInviteRequest"
 UpdateTenantInviteRequest:
   $ref: "./tenant.yaml#/UpdateTenantInviteRequest"
+UpdateTenantMemberRequest:
+  $ref: "./tenant.yaml#/UpdateTenantMemberRequest"
 TenantAlertingSettings:
   $ref: "./tenant.yaml#/TenantAlertingSettings"
 TenantAlertEmailGroup:
@@ -108,6 +112,14 @@ V1FilterList:
   $ref: "./v1/filter.yaml#/V1FilterList"
 V1Filter:
   $ref: "./v1/filter.yaml#/V1Filter"
+V1WebhookList:
+  $ref: "./v1/webhook.yaml#/V1WebhookList"
+V1Webhook:
+  $ref: "./v1/webhook.yaml#/V1Webhook"
+V1WebhookSourceName:
+  $ref: "./v1/webhook.yaml#/V1WebhookSourceName"
+V1WebhookAuthType:
+  $ref: "./v1/webhook.yaml#/V1WebhookAuthType"
 RateLimit:
   $ref: "./rate_limits.yaml#/RateLimit"
 RateLimitList:
@@ -346,6 +358,10 @@ V1TaskTimingList:
   $ref: "./v1/task.yaml#/V1TaskTimingList"
 V1CreateFilterRequest:
   $ref: "./v1/filter.yaml#/V1CreateFilterRequest"
+V1CreateWebhookRequest:
+  $ref: "./v1/webhook.yaml#/V1CreateWebhookRequest"
+V1UpdateWebhookRequest:
+  $ref: "./v1/webhook.yaml#/V1UpdateWebhookRequest"
 V1UpdateFilterRequest:
   $ref: "./v1/filter.yaml#/V1UpdateFilterRequest"
 V1CELDebugRequest:

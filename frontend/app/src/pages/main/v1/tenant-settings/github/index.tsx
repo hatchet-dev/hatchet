@@ -14,7 +14,7 @@ import { ConfirmDialog } from '@/components/v1/molecules/confirm-dialog';
 import { useCurrentTenantId, useTenantDetails } from '@/hooks/use-tenant';
 
 export default function Github() {
-  const cloudMeta = useCloudApiMeta();
+  const { data: cloudMeta } = useCloudApiMeta();
 
   const hasGithubIntegration = cloudMeta?.data.canLinkGithub;
 

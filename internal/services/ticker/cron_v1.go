@@ -10,6 +10,7 @@ import (
 
 	msgqueuev1 "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
+	"github.com/hatchet-dev/hatchet/pkg/constants"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 )
@@ -20,11 +21,11 @@ func (t *TickerImpl) runCronWorkflowV1(ctx context.Context, tenantId string, wor
 	}
 
 	metadata := map[string]any{
-		"hatchet__cron_expression": cron,
+		constants.CronExpressionKey.String(): cron,
 	}
 
 	if cronName != nil {
-		metadata["hatchet__cron_name"] = *cronName
+		metadata[constants.CronNameKey.String()] = *cronName
 	}
 
 	// copy metadata into additionalMetadata as to not override hatchet_* keys

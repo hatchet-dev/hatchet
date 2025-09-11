@@ -10,7 +10,7 @@ import {
 } from '@/components/v1/ui/breadcrumb';
 import { formatDuration } from '@/lib/utils';
 import RelativeDate from '@/components/v1/molecules/relative-date';
-import { useWorkflowDetails } from '../../hooks/workflow-details';
+import { useWorkflowDetails } from '../../hooks/use-workflow-details';
 import { TaskRunActionButton } from '../../../task-runs-v1/actions';
 import { TASK_RUN_TERMINAL_STATUSES } from './step-run-detail/step-run-detail';
 import { WorkflowDefinitionLink } from '@/pages/main/workflow-runs/$run/v2components/workflow-definition';
@@ -18,8 +18,6 @@ import { CopyWorkflowConfigButton } from '@/components/v1/shared/copy-workflow-c
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { useToast } from '@/components/v1/hooks/use-toast';
-import { useCallback } from 'react';
 import { Toaster } from '@/components/v1/ui/toaster';
 
 export const WORKFLOW_RUN_TERMINAL_STATUSES = [
@@ -30,28 +28,11 @@ export const WORKFLOW_RUN_TERMINAL_STATUSES = [
 
 export const V1RunDetailHeader = () => {
   const { tenantId } = useCurrentTenantId();
-  const { toast } = useToast();
   const {
     workflowRun,
     workflowConfig,
     isLoading: loading,
   } = useWorkflowDetails();
-
-  const onActionProcessed = useCallback(
-    (action: 'cancel' | 'replay') => {
-      const prefix = action === 'cancel' ? 'Canceling' : 'Replaying';
-
-      const t = toast({
-        title: `${prefix} task run`,
-        description: `This may take a few seconds. You don't need to hit ${action} again.`,
-      });
-
-      setTimeout(() => {
-        t.dismiss();
-      }, 5000);
-    },
-    [toast],
-  );
 
   if (loading || !workflowRun) {
     return <div>Loading...</div>;
@@ -92,31 +73,17 @@ export const V1RunDetailHeader = () => {
             <WorkflowDefinitionLink workflowId={workflowRun.workflowId} />
             <TaskRunActionButton
               actionType="replay"
-              params={{ externalIds: [workflowRun.metadata.id] }}
+              paramOverrides={{ externalIds: [workflowRun.metadata.id] }}
               disabled={
                 !TASK_RUN_TERMINAL_STATUSES.includes(workflowRun.status)
               }
               showModal={false}
-              onActionProcessed={() => onActionProcessed('replay')}
-              onActionSubmit={() => {
-                toast({
-                  title: 'Replay request submitted',
-                  description: "No need to hit 'Replay' again.",
-                });
-              }}
             />
             <TaskRunActionButton
               actionType="cancel"
-              params={{ externalIds: [workflowRun.metadata.id] }}
+              paramOverrides={{ externalIds: [workflowRun.metadata.id] }}
               disabled={TASK_RUN_TERMINAL_STATUSES.includes(workflowRun.status)}
               showModal={false}
-              onActionProcessed={() => onActionProcessed('cancel')}
-              onActionSubmit={() => {
-                toast({
-                  title: 'Cancel request submitted',
-                  description: "No need to hit 'Cancel' again.",
-                });
-              }}
             />
           </div>
         </div>

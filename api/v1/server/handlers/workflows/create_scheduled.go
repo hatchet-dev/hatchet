@@ -6,6 +6,7 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
+	"github.com/hatchet-dev/hatchet/pkg/constants"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
@@ -40,6 +41,17 @@ func (t *WorkflowService) ScheduledWorkflowRunCreate(ctx echo.Context, request g
 			apierrors.NewAPIErrors(err.Error()),
 		), nil
 	}
+
+	correlationIdInterface, ok := (request.Body.AdditionalMetadata)[string(constants.CorrelationIdKey)]
+	if ok {
+		correlationId, ok := correlationIdInterface.(string)
+		if ok {
+			ctx.Set(constants.CorrelationIdKey.String(), correlationId)
+		}
+	}
+
+	ctx.Set(constants.ResourceIdKey.String(), scheduled.ID.String())
+	ctx.Set(constants.ResourceTypeKey.String(), constants.ResourceTypeScheduledWorkflow.String())
 
 	return gen.ScheduledWorkflowRunCreate200JSONResponse(
 		*transformers.ToScheduledWorkflowsFromSQLC(scheduled),

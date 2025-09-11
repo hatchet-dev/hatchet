@@ -71,6 +71,11 @@ func (u *UserService) TenantInviteReject(ctx echo.Context, request gen.TenantInv
 		userId,
 		&tenantId,
 		nil,
+		map[string]interface{}{
+			"user_id":   userId,
+			"invite_id": inviteId,
+			"role":      invite.Role,
+		},
 	)
 
 	return nil, nil

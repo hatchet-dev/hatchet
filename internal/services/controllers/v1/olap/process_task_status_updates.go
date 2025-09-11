@@ -2,6 +2,7 @@ package olap
 
 import (
 	"context"
+	"time"
 
 	msgqueue "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
@@ -16,6 +17,9 @@ import (
 
 func (o *OLAPControllerImpl) runTaskStatusUpdates(ctx context.Context) func() {
 	return func() {
+		ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		defer cancel()
+
 		shouldContinue := true
 
 		for shouldContinue {
@@ -41,7 +45,7 @@ func (o *OLAPControllerImpl) runTaskStatusUpdates(ctx context.Context) func() {
 			shouldContinue, rows, err = o.repo.OLAP().UpdateTaskStatuses(ctx, tenantIds)
 
 			if err != nil {
-				o.l.Error().Err(err).Msg("could not update DAG statuses")
+				o.l.Error().Err(err).Msg("could not update task statuses")
 				return
 			}
 

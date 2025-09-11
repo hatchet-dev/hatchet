@@ -5,6 +5,51 @@ All notable changes to Hatchet's Python SDK will be documented in this changelog
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.18.0] - 2025-08-26
+
+### Added
+
+- Adds a `stubs` client on the main `Hatchet` client, which allows for creating typed stub tasks and workflows. These are intended to be used for triggering workflows that are registered on other workers in either other services or other languages.
+- Adds a config option `force_shutdown_on_shutdown_signal` which allows users to forcefully terminate all processes when a shutdown signal is received instead of waiting for them to exit gracefully.
+
+## [1.17.2] - 2025-08-20
+
+### Added
+
+- Adds back an optional `cel-python` dependency for v0 compatibility, allowing users to use the v0 client with the v0-compatible features in the SDK.
+- Adds `dependencies` to the `mock_run` methods on the `Standalone`.
+- Removes `aiostream` dependency that was unused.
+- Removes `aiohttp-retry` dependency that was unused.
+
+## [1.17.1] - 2025-08-18
+
+### Added
+
+- Adds a `HATCHET_CLIENT_LOG_QUEUE_SIZE` environment variable to configure the size of the log queue used for capturing logs and forwarding them to Hatchet
+
+## [1.17.0] - 2025-08-12
+
+### Added
+
+- Adds support for dependency injection in tasks via the `Depends` class.
+- Deprecated `fetch_task_run_error` in favor of `get_task_run_error`, which returns a `TaskRunError` object instead of a string. This allows for better error handling and debugging.
+
+### Changed
+
+- Uses `logger.exception` in place of `logger.error` in the action runner to improve (e.g.) Sentry error reporting
+- Extends the `TaskRunError` to include the `task_run_external_id`, which is useful for debugging and tracing errors in task runs.
+- Fixes an issue with logging which allows log levels to be respected over the API.
+
+### Removed
+
+- Removes the `cel-python` dependency
+
+## [1.16.5] - 2025-08-07
+
+### Changed
+
+- Relaxes constraint on Prometheus dependency
+
 ## [1.16.4] - 2025-07-28
 
 ### Added

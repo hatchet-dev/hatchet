@@ -1,5 +1,5 @@
 import { Callout } from "nextra/components";
-import snips from "@/lib/snips";
+import { snippets } from "@/lib/generated/snippets";
 import { Snippet } from "@/components/code";
 
 # OpenTelemetry
@@ -18,12 +18,12 @@ Hatchet's SDK provides an instrumentor that auto-instruments Hatchet code if you
 
 First, install the `otel` extra with (e.g.) `pip install hatchet-sdk[otel]`. Then, import the instrumentor:
 
-```python
-from path.to.your.trace.provider import trace_provider
-from hatchet_sdk.opentelemetry.instrumentor import HatchetInstrumentor
-
-HatchetInstrumentor(tracer_provider=trace_provider).instrument()
-```
+<Snippet
+  src={
+    snippets.python.opentelemetry_instrumentation.worker
+      .configure_the_instrumentor
+  }
+/>
 
 You bring your own trace provider and plug it into the `HatchetInstrumentor`, call `instrument`, and that's it!
 
@@ -64,8 +64,10 @@ For example, you might be interested in using [Langfuse](https://langfuse.com/) 
 First, configure the Langfuse client [as described by their documentation](https://langfuse.com/docs/opentelemetry/example-python-sdk):
 
 <Snippet
-  src={snips.python.opentelemetry_instrumentation.langfuse.client}
-  block="configure_langfuse"
+  src={
+    snippets.python.opentelemetry_instrumentation.langfuse.client
+      .configure_langfuse
+  }
 />
 
 Langfuse will set the global tracer provider, so you don't have to do it manually.
@@ -73,22 +75,24 @@ Langfuse will set the global tracer provider, so you don't have to do it manuall
 Next, create an OpenAI client [using Langfuse's OpenAI wrapper `langfuse.openai` as a drop-in replacement for the default OpenAI](https://langfuse.com/docs/integrations/openai/python/get-started) client:
 
 <Snippet
-  src={snips.python.opentelemetry_instrumentation.langfuse.client}
-  block="create_openai_client"
+  src={
+    snippets.python.opentelemetry_instrumentation.langfuse.client
+      .create_open_ai_client
+  }
 />
 
 And that's it! Now you're ready to instrument your Hatchet workers with Langfuse. For example, create a task like this:
 
 <Snippet
-  src={snips.python.opentelemetry_instrumentation.langfuse.worker}
-  block="task"
+  src={snippets.python.opentelemetry_instrumentation.langfuse.worker.task}
 />
 
 And finally, run the task to view the Langfuse traces (cost, usage, etc.) interspersed with Hatchet's traces, in addition to any other traces you may have:
 
 <Snippet
-  src={snips.python.opentelemetry_instrumentation.langfuse.trigger}
-  block="trigger_task"
+  src={
+    snippets.python.opentelemetry_instrumentation.langfuse.trigger.trigger_task
+  }
 />
 
 When you run this task, you'll see a trace like this in Langfuse!

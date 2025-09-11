@@ -74,6 +74,9 @@ export function Combobox({
   type = ToolbarType.Checkbox,
   options,
   setValues,
+  onSearchChange,
+  searchValue,
+  emptyMessage,
 }: {
   values?: string[];
   icon?: JSX.Element;
@@ -85,6 +88,9 @@ export function Combobox({
     icon?: React.ComponentType<{ className?: string }>;
   }[];
   setValues: (selectedValues: string[]) => void;
+  onSearchChange?: (value: string) => void;
+  searchValue?: string;
+  emptyMessage?: string;
 }) {
   const { register, handleSubmit, reset } = useForm<KeyValuePair | ArrayInput>({
     resolver: zodResolver(
@@ -164,7 +170,7 @@ export function Combobox({
           )}
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[300px] p-2" align="start">
+      <PopoverContent className="w-[300px] p-2 z-[70]" align="start">
         {[ToolbarType.Array, ToolbarType.KeyValue].includes(type) && (
           <div>
             <div className="">
@@ -230,10 +236,16 @@ export function Combobox({
         )}
 
         {[ToolbarType.Checkbox, ToolbarType.Radio].includes(type) && (
-          <Command>
-            <CommandInput placeholder={title} />
+          <Command shouldFilter={!onSearchChange}>
+            <CommandInput
+              placeholder={title}
+              value={searchValue}
+              onValueChange={onSearchChange}
+            />
             <CommandList>
-              <CommandEmpty>No results found.</CommandEmpty>
+              <CommandEmpty className="py-2 text-sm text-muted-foreground text-center">
+                {emptyMessage || 'No results found.'}
+              </CommandEmpty>
               <CommandGroup>
                 {options?.map((option) => {
                   const isSelected = values.indexOf(option.value) != -1;
@@ -244,10 +256,12 @@ export function Combobox({
                         if (isSelected) {
                           values.splice(values.indexOf(option.value), 1);
                         } else {
-                          if (type == 'radio') {
-                            values = [];
+                          if (type === ToolbarType.Radio) {
+                            setValues([option.value]);
+                            return;
+                          } else {
+                            values.push(option.value);
                           }
-                          values.push(option.value);
                         }
                         setValues(values);
                       }}
