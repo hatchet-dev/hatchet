@@ -41,14 +41,14 @@ module Hatchet
       # @return [Boolean] true if REST client has been generated and is available
       def rest_available?
         return false unless defined?(Hatchet::Clients::Rest)
-        
+
         # Check if this is the real implementation or just the placeholder
         # The placeholder Configuration.from_hatchet_config raises LoadError
         begin
           # Try to access a method that should exist in the real implementation
           # If it's the placeholder, this will raise LoadError
           Hatchet::Clients::Rest::Configuration.method(:from_hatchet_config)
-          
+
           # Try creating a dummy configuration to ensure the real client is loaded
           dummy_config = Struct.new(:token, :server_url, :listener_v2_timeout).new("test", "", nil)
           Hatchet::Clients::Rest::Configuration.from_hatchet_config(dummy_config)

@@ -25,7 +25,7 @@ module Hatchet
       def initialize(ids: nil, filters: nil)
         raise ArgumentError, "ids or filters must be set" if !ids && !filters
         raise ArgumentError, "ids and filters cannot both be set" if ids && filters
-        
+
         @ids = ids
         @filters = filters
       end
@@ -86,7 +86,7 @@ module Hatchet
       TaskSummary = ::HatchetSdkRest::V1TaskSummary
       TaskSummaryList = ::HatchetSdkRest::V1TaskSummaryList
       TaskStatus = ::HatchetSdkRest::V1TaskStatus
-      
+
       DEFAULT_SINCE_DAYS = 1
       LARGE_DATE_RANGE_WARNING_DAYS = 7
 
@@ -253,7 +253,7 @@ module Hatchet
       # provided input data. The workflow run will be queued according to the
       # workflow definition on an available worker.
       #
-      # IMPORTANT: It's preferable to use `Workflow.run` (and similar) to trigger workflows if possible. 
+      # IMPORTANT: It's preferable to use `Workflow.run` (and similar) to trigger workflows if possible.
       # This method is intended to be an escape hatch.
       #
       # @param name [String] The name of the workflow to trigger
@@ -351,23 +351,23 @@ module Hatchet
       # @since 0.1.0
       def poll(workflow_run_id, interval: 1.0, timeout: nil)
         start_time = Time.now
-        
+
         loop do
           puts "Polling for completion of run #{workflow_run_id}"
           details = get(workflow_run_id)
           status = details.run.status
-          
+
           # Check if workflow run has reached a terminal state
           puts "Run status: #{status}"
           if terminal_status?(status)
             return details
           end
-          
+
           # Check timeout
           if timeout && (Time.now - start_time) >= timeout
             raise Timeout::Error, "Polling timed out after #{timeout} seconds"
           end
-          
+
           sleep(interval)
         end
       end
@@ -400,13 +400,13 @@ module Hatchet
       def partition_date_range(since:, until_time:)
         ranges = []
         current = since
-        
+
         while current < until_time
           next_day = [current + 24 * 60 * 60, until_time].min
           ranges << [current, next_day]
           current = next_day
         end
-        
+
         ranges
       end
 

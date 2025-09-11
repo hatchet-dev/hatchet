@@ -213,7 +213,7 @@ module Hatchet
 
       def self.new: (untyped rest_client, Hatchet::Config config) -> instance
       def initialize: (untyped rest_client, Hatchet::Config config) -> void
-      
+
       def create: (
         key: String,
         data: Hash[String, untyped],
@@ -222,7 +222,7 @@ module Hatchet
         ?scope: String?,
         ?namespace: String?
       ) -> untyped
-      
+
       def push: (
         String event_key,
         Hash[String, untyped] payload,
@@ -230,12 +230,12 @@ module Hatchet
         ?namespace: String?,
         ?priority: Integer?
       ) -> untyped
-      
+
       def bulk_push: (
         Array[Hash[Symbol, untyped]] events,
         ?namespace: String?
       ) -> untyped
-      
+
       def list: (
         ?offset: Integer?,
         ?limit: Integer?,
@@ -248,18 +248,18 @@ module Hatchet
         ?additional_metadata: Hash[String, String]?,
         ?scopes: Array[String]?
       ) -> untyped
-      
+
       def get: (String event_id) -> untyped
       def get_data: (String event_id) -> untyped
       def list_keys: () -> untyped
-      
+
       def cancel: (
         ?event_ids: Array[String]?,
         ?keys: Array[String]?,
         ?since: Time?,
         ?until_time: Time?
       ) -> untyped
-      
+
       def replay: (
         ?event_ids: Array[String]?,
         ?keys: Array[String]?,
@@ -323,7 +323,7 @@ module Hatchet
       def cancel: (String run_id) -> void
       def bulk_cancel: (BulkCancelReplayOpts opts) -> void
       def get_result: (String run_id) -> Hash[String, untyped]
-      
+
       def poll: (
         String workflow_run_id,
         ?interval: Numeric,

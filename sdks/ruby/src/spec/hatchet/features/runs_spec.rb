@@ -39,7 +39,7 @@ RSpec.describe Hatchet::Features::Runs do
     it "initializes API clients" do
       # Create the client to trigger the API initialization
       described_class.new(rest_client, config)
-      
+
       expect(HatchetSdkRest::WorkflowRunsApi).to have_received(:new).with(rest_client)
       expect(HatchetSdkRest::TaskApi).to have_received(:new).with(rest_client)
     end

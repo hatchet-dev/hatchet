@@ -30,7 +30,7 @@ Gem::Specification.new do |spec|
         !File.exist?(File.join(__dir__, f))
     end
   end
-  
+
   # Add generated REST API client files to the gem
   rest_client_dir = "lib/hatchet/clients/rest"
   if Dir.exist?(rest_client_dir)
@@ -46,7 +46,7 @@ Gem::Specification.new do |spec|
   spec.add_dependency "faraday-multipart"
   spec.add_dependency "marcel"
   spec.add_dependency "json", "~> 2.0"
-  
+
   # Development dependencies
   spec.add_development_dependency "gem-release", "~> 2.2"
   spec.add_development_dependency "rspec", "~> 3.0"

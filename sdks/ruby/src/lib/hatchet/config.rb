@@ -205,7 +205,7 @@ module Hatchet
                   :enable_force_kill_sync_threads, :enable_thread_pool_monitoring,
                   :terminate_worker_after_num_tasks, :disable_log_capture,
                   :grpc_enable_fork_support, :tls_config, :healthcheck, :otel
-    
+
     attr_reader :tenant_id
 
     # Initialize a new configuration instance

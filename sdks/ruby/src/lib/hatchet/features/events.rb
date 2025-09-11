@@ -60,7 +60,7 @@ module Hatchet
       # @since 0.1.0
       def create(key:, data:, additional_metadata: nil, priority: nil, scope: nil, namespace: nil)
         event_key = apply_namespace(key, namespace)
-        
+
         event_request = HatchetSdkRest::CreateEventRequest.new(
           key: event_key,
           data: data,
@@ -68,7 +68,7 @@ module Hatchet
           priority: priority,
           scope: scope
         )
-        
+
         @event_api.event_create(@config.tenant_id, event_request)
       end
 
@@ -112,7 +112,7 @@ module Hatchet
       def bulk_push(events, namespace: nil)
         events_requests = events.map do |event|
           event_key = apply_namespace(event[:key], namespace)
-          
+
           HatchetSdkRest::CreateEventRequest.new(
             key: event_key,
             data: event[:data] || {},
@@ -120,11 +120,11 @@ module Hatchet
             priority: event[:priority]
           )
         end
-        
+
         bulk_request = HatchetSdkRest::BulkCreateEventRequest.new(
           events: events_requests
         )
-        
+
         @event_api.event_create_bulk(@config.tenant_id, bulk_request)
       end
 
@@ -218,7 +218,7 @@ module Hatchet
           since: since&.utc&.iso8601,
           until: until_time&.utc&.iso8601
         )
-        
+
         @event_api.event_update_cancel(@config.tenant_id, cancel_request)
       end
 
@@ -237,7 +237,7 @@ module Hatchet
           since: since&.utc&.iso8601,
           until: until_time&.utc&.iso8601
         )
-        
+
         @event_api.event_update_replay(@config.tenant_id, replay_request)
       end
 

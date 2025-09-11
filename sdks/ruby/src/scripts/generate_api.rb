@@ -21,13 +21,13 @@ class ApiGenerator
 
   def generate
     puts "🚀 Starting Ruby REST API client generation..."
-    
+
     setup_directories
     install_openapi_generator if needed
     generate_client_code
     apply_custom_patches
     cleanup_temp_files
-    
+
     puts "✅ Ruby REST API client generation completed successfully!"
   end
 
@@ -41,40 +41,40 @@ class ApiGenerator
 
   def install_openapi_generator
     puts "🔧 Checking OpenAPI Generator installation..."
-    
+
     # Check if openapi-generator-cli is available
     stdout, stderr, status = Open3.capture3("which openapi-generator-cli")
-    
+
     if status.success?
       puts "✅ OpenAPI Generator CLI found"
     else
       puts "📦 Installing OpenAPI Generator CLI via npm..."
-      system("npm install -g @openapitools/openapi-generator-cli@7.13.0") || 
+      system("npm install -g @openapitools/openapi-generator-cli@7.13.0") ||
         raise("Failed to install OpenAPI Generator CLI")
     end
   end
 
   def generate_client_code
     puts "🏗️  Generating Ruby client code from OpenAPI spec..."
-    
+
     openapi_spec = File.expand_path(OPENAPI_SPEC_PATH, @root_dir)
     config_file = File.expand_path(GENERATOR_CONFIG_PATH, @root_dir)
     output_path = File.expand_path(OUTPUT_DIR, @root_dir)
-    
+
     unless File.exist?(openapi_spec)
       raise "OpenAPI spec not found at #{openapi_spec}"
     end
-    
+
     unless File.exist?(config_file)
       puts "⚠️  Config file not found at #{config_file}, using default configuration"
       config_file = nil
     else
       puts "✅ Using config file: #{config_file}"
     end
-    
+
     # Generate Ruby client using OpenAPI Generator
     additional_props = build_additional_properties
-    
+
     cmd = [
       "openapi-generator-cli", "generate",
       "-i", openapi_spec,
@@ -84,9 +84,9 @@ class ApiGenerator
       "--global-property", "apiTests=false,modelTests=false,apiDocs=true,modelDocs=true",
       "--additional-properties", additional_props
     ]
-    
+
     cmd += ["-c", config_file] if config_file
-    
+
     puts "Running: #{cmd.join(' ')}"
     puts "Additional properties: #{additional_props}"
     system(*cmd) || raise("Failed to generate Ruby client code")
@@ -95,7 +95,7 @@ class ApiGenerator
   def build_additional_properties
     [
       "gemName=hatchet-sdk-rest",
-      "moduleName=HatchetSdkRest", 
+      "moduleName=HatchetSdkRest",
       "gemVersion=0.0.1",
       "gemDescription=HatchetRubySDKRestClient",
       "gemAuthor=HatchetTeam",
@@ -107,7 +107,7 @@ class ApiGenerator
 
   def apply_custom_patches
     puts "🔧 Applying custom patches..."
-    
+
     # Apply Ruby-specific patches here
     patch_require_statements
     patch_cookie_auth
@@ -115,18 +115,18 @@ class ApiGenerator
 
   def patch_require_statements
     puts "  📝 Patching require statements..."
-    
+
     # Find all generated Ruby files and fix require statements
     Dir.glob("#{OUTPUT_DIR}/**/*.rb").each do |file|
       content = File.read(file)
-      
+
       # Update require paths to be relative to the gem structure
       content.gsub!(/require ['"]hatchet-sdk-rest\//, "require 'hatchet/clients/rest/")
-      
+
       # Ensure consistent module naming
       content.gsub!(/module HatchetSdkRest/, "module Hatchet\n  module Clients\n    module Rest")
       content.gsub!(/^end$/, "    end\n  end\nend") if content.include?("module Hatchet")
-      
+
       File.write(file, content)
     end
   end
@@ -141,7 +141,7 @@ class ApiGenerator
       return false
     end
     content = File.read(config_file)
-    
+
     # Apply the fix - replace 'in: ,' with 'in: 'header','
     if content.gsub!(/in:\s*,/, "in: 'header',")
       puts "    ✅ Successfully applied cookie auth patch"

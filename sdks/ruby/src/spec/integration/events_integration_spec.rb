@@ -21,7 +21,7 @@ RSpec.describe "Hatchet::Features::Events Integration", :integration do
 
     it "can list events with various filters" do
       since_time = Time.now - 24 * 60 * 60  # 1 day ago
-      
+
       expect do
         events_client.list(
           since: since_time,
@@ -36,7 +36,7 @@ RSpec.describe "Hatchet::Features::Events Integration", :integration do
       # Use a very specific time range that likely has no results
       since_time = Time.new(2020, 1, 1)
       until_time = Time.new(2020, 1, 2)
-      
+
       result = events_client.list(since: since_time, until_time: until_time, limit: 1)
       expect(result).to be_a(HatchetSdkRest::V1EventList)
       expect(result.rows).to be_an(Array)
@@ -102,7 +102,7 @@ RSpec.describe "Hatchet::Features::Events Integration", :integration do
     it "applies namespace to event keys" do
       # Test with a client that has a namespace
       config_with_namespace = Hatchet::Config.new(
-        token: ENV["HATCHET_CLIENT_TOKEN"], 
+        token: ENV["HATCHET_CLIENT_TOKEN"],
         namespace: "test_"
       )
       client_with_ns = Hatchet::Client.new(**config_with_namespace.to_h)
@@ -158,7 +158,7 @@ RSpec.describe "Hatchet::Features::Events Integration", :integration do
         { "message" => "test event for retrieval" },
         additional_metadata: { "source" => "retrieval-test" }
       )
-      
+
       # Try to extract event ID from the response
       if result.respond_to?(:id)
         result.id
@@ -189,25 +189,25 @@ RSpec.describe "Hatchet::Features::Events Integration", :integration do
 
     it "handles invalid event IDs gracefully" do
       invalid_id = "non-existent-event-id-#{Time.now.to_i}"
-      
+
       expect { events_client.get(invalid_id) }.to raise_error(StandardError)
     end
   end
 
   describe "event management operations (use with caution)" do
     # These tests are cautious since they could affect real data
-    
+
     it "can create cancel request objects" do
       # Test the structure without actually canceling events
       expect do
-        events_client.cancel(event_ids: ["test-id"], keys: ["test-key"]) 
+        events_client.cancel(event_ids: ["test-id"], keys: ["test-key"])
       rescue StandardError => e
         # It's okay if this fails - we just want to test the API call structure
         expect(e).to be_a(StandardError)
       end.not_to raise_error(ArgumentError) # Should not fail due to argument issues
     end
 
-    it "can create replay request objects" do  
+    it "can create replay request objects" do
       # Test the structure without actually replaying events
       expect do
         events_client.replay(event_ids: ["test-id"], keys: ["test-key"])
@@ -234,7 +234,7 @@ RSpec.describe "Hatchet::Features::Events Integration", :integration do
       # Future date range should return empty results, not error
       future_since = Time.now + 24 * 60 * 60
       future_until = Time.now + 48 * 60 * 60
-      
+
       expect do
         result = events_client.list(since: future_since, until_time: future_until, limit: 1)
         expect(result.rows).to be_empty if result.respond_to?(:rows)
@@ -255,11 +255,11 @@ RSpec.describe "Hatchet::Features::Events Integration", :integration do
   describe "response data structure validation" do
     it "validates EventList structure" do
       result = events_client.list(limit: 1)
-      
+
       expect(result).to be_a(HatchetSdkRest::V1EventList)
       expect(result.rows).to be_an(Array)
       expect(result.pagination).not_to be_nil
-      
+
       if result.rows.any?
         event = result.rows.first
         expect(event.metadata).not_to be_nil
@@ -288,7 +288,7 @@ RSpec.describe "Hatchet::Features::Events Integration", :integration do
 
     it "validates event key list structure" do
       result = events_client.list_keys
-      
+
       # Exact structure may vary, but should have some consistent interface
       expect(result).not_to be_nil
     end
@@ -303,7 +303,7 @@ RSpec.describe "Hatchet::Features::Events Integration", :integration do
     it "can filter by date ranges" do
       since_time = Time.now - 7 * 24 * 60 * 60  # 7 days ago
       until_time = Time.now - 6 * 24 * 60 * 60  # 6 days ago
-      
+
       expect do
         result = events_client.list(since: since_time, until_time: until_time, limit: 5)
         expect(result).to be_a(HatchetSdkRest::V1EventList)
@@ -314,10 +314,10 @@ RSpec.describe "Hatchet::Features::Events Integration", :integration do
       # Create a unique event first
       unique_key = "filter-test-#{Time.now.to_i}"
       events_client.push(unique_key, { "test" => "filter by key" })
-      
+
       # Small delay to ensure event is processed
       sleep(0.1)
-      
+
       # Try to filter by that key
       result = events_client.list(keys: [unique_key], limit: 5)
       expect(result).to be_a(HatchetSdkRest::V1EventList)
@@ -326,7 +326,7 @@ RSpec.describe "Hatchet::Features::Events Integration", :integration do
     it "can use offset for pagination" do
       result_page_1 = events_client.list(limit: 2, offset: 0)
       result_page_2 = events_client.list(limit: 2, offset: 2)
-      
+
       expect(result_page_1).to be_a(HatchetSdkRest::V1EventList)
       expect(result_page_2).to be_a(HatchetSdkRest::V1EventList)
     end
@@ -372,7 +372,7 @@ RSpec.describe "Hatchet::Features::Events Integration", :integration do
     it "applies override namespace when specified" do
       expect do
         events_client.push(
-          "override-test", 
+          "override-test",
           { "test" => "namespace override" },
           namespace: "override_"
         )

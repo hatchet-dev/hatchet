@@ -33,7 +33,7 @@ The SDK includes comprehensive documentation and type signatures for excellent I
 
 **REST API Generation:**
 - `rake api:generate` - Generate REST API client from OpenAPI specification
-- `rake api:clean` - Remove generated REST API client files  
+- `rake api:clean` - Remove generated REST API client files
 - `rake api:regenerate` - Clean and regenerate REST API client
 - `rake api:validate` - Validate OpenAPI specification
 - `rake api:info` - Show OpenAPI specification information
@@ -57,7 +57,7 @@ The SDK includes comprehensive documentation and type signatures for excellent I
 - `Hatchet::Clients` - Factory for creating REST and other protocol clients
 - `Hatchet::Clients::Rest::*` - Generated REST API clients (WorkflowApi, EventApi, etc.)
 - `Hatchet::TLSConfig` - TLS configuration for secure connections
-- `Hatchet::HealthcheckConfig` - Worker health monitoring configuration  
+- `Hatchet::HealthcheckConfig` - Worker health monitoring configuration
 - `Hatchet::OpenTelemetryConfig` - Observability configuration
 - `Hatchet::Error` - Base error class for gem-specific exceptions
 
@@ -79,7 +79,7 @@ The codebase uses frozen string literals and follows Ruby 3.1+ requirements.
 
 **When adding new configuration options:**
 1. Add the parameter to `Config#initialize` method
-2. Update the `@option` YARD documentation in both `Client` and `Config` classes  
+2. Update the `@option` YARD documentation in both `Client` and `Config` classes
 3. Add the parameter to RBS type signatures in `sig/hatchet-sdk.rbs`
 4. Add comprehensive test coverage in `spec/hatchet/config_spec.rb`
 5. Update this CLAUDE.md file with any architectural changes

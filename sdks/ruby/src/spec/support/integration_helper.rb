@@ -29,7 +29,7 @@ module IntegrationHelper
     end
   end
 
-  # Get test task run ID from recent runs  
+  # Get test task run ID from recent runs
   def get_test_task_run_id(runs_client, limit: 1)
     recent_runs = runs_client.list(only_tasks: true, limit: limit)
     if recent_runs.rows && recent_runs.rows.any?

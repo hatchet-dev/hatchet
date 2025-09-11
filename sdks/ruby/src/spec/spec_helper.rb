@@ -17,7 +17,7 @@ RSpec.configure do |config|
   # Configure integration test filtering
   # Integration tests are tagged with :integration and require real API credentials
   config.filter_run_excluding :integration unless ENV["RUN_INTEGRATION_TESTS"] == "true" || ENV["HATCHET_CLIENT_TOKEN"]
-  
+
   # Add some helpful output for integration tests
   config.before(:suite) do
     if ENV["HATCHET_CLIENT_TOKEN"] && RSpec.configuration.inclusion_filter[:integration]

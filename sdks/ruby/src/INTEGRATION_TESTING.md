@@ -63,7 +63,7 @@ The integration tests for the Runs feature test:
 
 #### ✅ Workflow Run Operations
 - Get workflow run details
-- Get workflow run status  
+- Get workflow run status
 - Get workflow run results
 - Data structure validation
 

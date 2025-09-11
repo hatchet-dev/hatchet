@@ -36,7 +36,7 @@ RSpec.describe "Hatchet::Features::Runs Integration", :integration do
 
     it "can filter runs by various parameters" do
       since_time = Time.now - 24 * 60 * 60  # 1 day ago
-      
+
       expect do
         runs_client.list(
           since: since_time,
@@ -51,7 +51,7 @@ RSpec.describe "Hatchet::Features::Runs Integration", :integration do
       # Use a very specific time range that likely has no results
       since_time = Time.new(2020, 1, 1)
       until_time = Time.new(2020, 1, 2)
-      
+
       result = runs_client.list(since: since_time, until_time: until_time, limit: 1)
       expect(result).to be_a(HatchetSdkRest::V1TaskSummaryList)
       expect(result.rows).to be_an(Array)
@@ -106,12 +106,12 @@ RSpec.describe "Hatchet::Features::Runs Integration", :integration do
   describe "workflow creation (if allowed)" do
     # These tests will only work if the tenant allows API workflow creation
     # and you have a test workflow defined
-    
+
     it "can attempt to create a workflow run (may fail if no test workflow exists)" do
       # Use a generic workflow name that might exist for testing
       test_workflow_name = "simple"
       test_input = { "test" => true, "timestamp" => Time.now.to_i }
-      
+
       safely_attempt_operation("Create workflow run") do
         result = runs_client.create(test_workflow_name, test_input)
         expect(result).to be_a(HatchetSdkRest::V1WorkflowRunDetails)
@@ -122,7 +122,7 @@ RSpec.describe "Hatchet::Features::Runs Integration", :integration do
 
   describe "bulk operations (use with caution)" do
     # These tests are more cautious since they could affect real data
-    
+
     it "can create BulkCancelReplayOpts objects" do
       # Test the helper classes work correctly
       opts_with_ids = Hatchet::Features::BulkCancelReplayOpts.new(ids: ["test-id"])
@@ -143,13 +143,13 @@ RSpec.describe "Hatchet::Features::Runs Integration", :integration do
   describe "error handling" do
     it "raises appropriate errors for invalid workflow run IDs" do
       invalid_id = "non-existent-workflow-run-id"
-      
+
       expect { runs_client.get(invalid_id) }.to raise_error(StandardError)
     end
 
     it "raises appropriate errors for invalid task run IDs" do
       invalid_id = "non-existent-task-run-id"
-      
+
       expect { runs_client.get_task_run(invalid_id) }.to raise_error(StandardError)
     end
 
@@ -157,7 +157,7 @@ RSpec.describe "Hatchet::Features::Runs Integration", :integration do
       # Future date range should return empty results, not error
       future_since = Time.now + 24 * 60 * 60
       future_until = Time.now + 48 * 60 * 60
-      
+
       expect do
         result = runs_client.list(since: future_since, until_time: future_until, limit: 1)
         expect(result.rows).to be_empty
@@ -168,18 +168,18 @@ RSpec.describe "Hatchet::Features::Runs Integration", :integration do
   describe "response data structure validation" do
     it "validates TaskSummaryList structure" do
       result = runs_client.list(limit: 1)
-      
+
       expect(result).to be_a(HatchetSdkRest::V1TaskSummaryList)
       expect(result.rows).to be_an(Array)
       expect(result.pagination).not_to be_nil
-      
+
       if result.rows.any?
         task_summary = result.rows.first
         expect(task_summary).to be_a(HatchetSdkRest::V1TaskSummary)
         expect(task_summary.metadata).not_to be_nil
         expect(task_summary.status).not_to be_nil
         expect(task_summary.created_at).to be_a(Time)
-        
+
         expect(task_summary.metadata.id).to be_a(String)
       end
     end
@@ -187,14 +187,14 @@ RSpec.describe "Hatchet::Features::Runs Integration", :integration do
     it "validates WorkflowRunDetails structure when retrieving a run" do
       recent_runs = runs_client.list(limit: 1)
       skip "No runs available for structure validation" if recent_runs.rows.empty?
-      
+
       run_id = recent_runs.rows.first.metadata.id
       result = runs_client.get(run_id)
-      
+
       expect(result).to be_a(HatchetSdkRest::V1WorkflowRunDetails)
       expect(result.run).not_to be_nil
       expect(result.task_events).to be_an(Array)
-      
+
       expect(result.run.metadata).not_to be_nil
       expect(result.run.status).not_to be_nil
     end

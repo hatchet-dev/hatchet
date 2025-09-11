@@ -219,7 +219,7 @@ RSpec.describe Hatchet::Features::Events do
 
     it "handles events with missing data" do
       events_data = [{ key: "event-1" }]
-      
+
       events_client.bulk_push(events_data)
 
       expect(HatchetSdkRest::CreateEventRequest).to have_received(:new).with(
