@@ -95,8 +95,6 @@ function FilterControl<TData>({ column, filter }: FilterControlProps<TData>) {
   const [newValue, setNewValue] = React.useState('');
   const [newArrayValue, setNewArrayValue] = React.useState('');
 
-  console.log({ column, filter, value });
-
   if (!filter.type) {
     return null;
   }
