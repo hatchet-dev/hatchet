@@ -20,6 +20,33 @@ func (q *Queries) AnalyzeV1DAGsOLAP(ctx context.Context, db DBTX) error {
 	return err
 }
 
+const analyzeV1EventLookupTableOLAP = `-- name: AnalyzeV1EventLookupTableOLAP :exec
+ANALYZE v1_event_lookup_table_olap
+`
+
+func (q *Queries) AnalyzeV1EventLookupTableOLAP(ctx context.Context, db DBTX) error {
+	_, err := db.Exec(ctx, analyzeV1EventLookupTableOLAP)
+	return err
+}
+
+const analyzeV1EventToRunOLAP = `-- name: AnalyzeV1EventToRunOLAP :exec
+ANALYZE v1_event_to_run_olap
+`
+
+func (q *Queries) AnalyzeV1EventToRunOLAP(ctx context.Context, db DBTX) error {
+	_, err := db.Exec(ctx, analyzeV1EventToRunOLAP)
+	return err
+}
+
+const analyzeV1EventsOLAP = `-- name: AnalyzeV1EventsOLAP :exec
+ANALYZE v1_events_olap
+`
+
+func (q *Queries) AnalyzeV1EventsOLAP(ctx context.Context, db DBTX) error {
+	_, err := db.Exec(ctx, analyzeV1EventsOLAP)
+	return err
+}
+
 const analyzeV1RunsOLAP = `-- name: AnalyzeV1RunsOLAP :exec
 ANALYZE v1_runs_olap
 `

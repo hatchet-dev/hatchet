@@ -924,3 +924,6 @@ ANALYZE v1_task;
 
 -- name: AnalyzeV1TaskEvent :exec
 ANALYZE v1_task_event;
+
+-- name: AnalyzeV1DAGToTask :exec
+ANALYZE v1_dag_to_task;
