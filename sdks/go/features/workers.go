@@ -5,6 +5,7 @@ import (
 
 	"github.com/cockroachdb/errors"
 	"github.com/google/uuid"
+
 	"github.com/hatchet-dev/hatchet/pkg/client/rest"
 )
 

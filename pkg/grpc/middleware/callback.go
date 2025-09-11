@@ -3,9 +3,10 @@ package middleware
 import (
 	"context"
 
-	"github.com/hatchet-dev/hatchet/pkg/constants"
 	"github.com/rs/zerolog"
 	"google.golang.org/grpc"
+
+	"github.com/hatchet-dev/hatchet/pkg/constants"
 )
 
 type callbackKey struct{}
