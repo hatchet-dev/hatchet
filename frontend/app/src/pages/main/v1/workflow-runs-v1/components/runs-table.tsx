@@ -254,7 +254,7 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
 
       {!hideMetrics && <GetWorkflowChart />}
 
-      <div className="flex-1 min-h-0">
+      <div className="flex-1 min-h-0 mt-2">
         <DataTable
           emptyState={
             <div className="w-full h-full flex flex-col gap-y-4 text-foreground py-8 justify-center items-center">
