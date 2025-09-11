@@ -211,7 +211,7 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
   const isFetching = !hasLoaded && (isRunsFetching || isMetricsFetching);
 
   return (
-    <div className="flex flex-col h-full overflow-hidden">
+    <div className="flex flex-col h-full overflow-hidden gap-y-2">
       <Toaster />
       {selectedActionType && (
         <ConfirmActionModal
@@ -254,7 +254,7 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
 
       {!hideMetrics && <GetWorkflowChart />}
 
-      <div className="flex-1 min-h-0 mt-2">
+      <div className="flex-1 min-h-0">
         <DataTable
           emptyState={
             <div className="w-full h-full flex flex-col gap-y-4 text-foreground py-8 justify-center items-center">
