@@ -161,6 +161,13 @@ const (
 	StepRunStatusSUCCEEDED         StepRunStatus = "SUCCEEDED"
 )
 
+// Defines values for TenantEnvironment.
+const (
+	Development TenantEnvironment = "development"
+	Local       TenantEnvironment = "local"
+	Production  TenantEnvironment = "production"
+)
+
 // Defines values for TenantMemberRole.
 const (
 	ADMIN  TenantMemberRole = "ADMIN"
@@ -191,12 +198,33 @@ const (
 	TenantVersionV1 TenantVersion = "V1"
 )
 
+// Defines values for V1CELDebugResponseStatus.
+const (
+	V1CELDebugResponseStatusERROR   V1CELDebugResponseStatus = "ERROR"
+	V1CELDebugResponseStatusSUCCESS V1CELDebugResponseStatus = "SUCCESS"
+)
+
+// Defines values for V1CreateWebhookRequestAPIKeyAuthType.
+const (
+	V1CreateWebhookRequestAPIKeyAuthTypeAPIKEY V1CreateWebhookRequestAPIKeyAuthType = "API_KEY"
+)
+
+// Defines values for V1CreateWebhookRequestBasicAuthAuthType.
+const (
+	BASIC V1CreateWebhookRequestBasicAuthAuthType = "BASIC"
+)
+
+// Defines values for V1CreateWebhookRequestHMACAuthType.
+const (
+	HMAC V1CreateWebhookRequestHMACAuthType = "HMAC"
+)
+
 // Defines values for V1LogLineLevel.
 const (
-	DEBUG V1LogLineLevel = "DEBUG"
-	ERROR V1LogLineLevel = "ERROR"
-	INFO  V1LogLineLevel = "INFO"
-	WARN  V1LogLineLevel = "WARN"
+	V1LogLineLevelDEBUG V1LogLineLevel = "DEBUG"
+	V1LogLineLevelERROR V1LogLineLevel = "ERROR"
+	V1LogLineLevelINFO  V1LogLineLevel = "INFO"
+	V1LogLineLevelWARN  V1LogLineLevel = "WARN"
 )
 
 // Defines values for V1TaskEventType.
@@ -230,6 +258,37 @@ const (
 	V1TaskStatusFAILED    V1TaskStatus = "FAILED"
 	V1TaskStatusQUEUED    V1TaskStatus = "QUEUED"
 	V1TaskStatusRUNNING   V1TaskStatus = "RUNNING"
+)
+
+// Defines values for V1WebhookAuthType.
+const (
+	V1WebhookAuthTypeAPIKEY V1WebhookAuthType = "API_KEY"
+	V1WebhookAuthTypeBASIC  V1WebhookAuthType = "BASIC"
+	V1WebhookAuthTypeHMAC   V1WebhookAuthType = "HMAC"
+)
+
+// Defines values for V1WebhookHMACAlgorithm.
+const (
+	MD5    V1WebhookHMACAlgorithm = "MD5"
+	SHA1   V1WebhookHMACAlgorithm = "SHA1"
+	SHA256 V1WebhookHMACAlgorithm = "SHA256"
+	SHA512 V1WebhookHMACAlgorithm = "SHA512"
+)
+
+// Defines values for V1WebhookHMACEncoding.
+const (
+	BASE64    V1WebhookHMACEncoding = "BASE64"
+	BASE64URL V1WebhookHMACEncoding = "BASE64URL"
+	HEX       V1WebhookHMACEncoding = "HEX"
+)
+
+// Defines values for V1WebhookSourceName.
+const (
+	GENERIC V1WebhookSourceName = "GENERIC"
+	GITHUB  V1WebhookSourceName = "GITHUB"
+	LINEAR  V1WebhookSourceName = "LINEAR"
+	SLACK   V1WebhookSourceName = "SLACK"
+	STRIPE  V1WebhookSourceName = "STRIPE"
 )
 
 // Defines values for V1WorkflowType.
@@ -458,10 +517,14 @@ type CreateTenantInviteRequest struct {
 
 // CreateTenantRequest defines model for CreateTenantRequest.
 type CreateTenantRequest struct {
-	EngineVersion *TenantVersion `json:"engineVersion,omitempty"`
+	EngineVersion *TenantVersion     `json:"engineVersion,omitempty"`
+	Environment   *TenantEnvironment `json:"environment,omitempty"`
 
 	// Name The name of the tenant.
 	Name string `json:"name" validate:"required"`
+
+	// OnboardingData Additional onboarding data to store with the tenant.
+	OnboardingData *map[string]interface{} `json:"onboardingData,omitempty"`
 
 	// Slug The slug of the tenant.
 	Slug      string           `json:"slug" validate:"required,hatchetName"`
@@ -814,8 +877,8 @@ type SemaphoreSlots struct {
 	ActionId string `json:"actionId"`
 
 	// StartedAt The time this slot was started.
-	StartedAt *time.Time    `json:"startedAt,omitempty"`
-	Status    StepRunStatus `json:"status"`
+	StartedAt *time.Time     `json:"startedAt,omitempty"`
+	Status    *StepRunStatus `json:"status,omitempty"`
 
 	// StepRunId The step run id.
 	StepRunId openapi_types.UUID `json:"stepRunId"`
@@ -954,8 +1017,9 @@ type Tenant struct {
 	AlertMemberEmails *bool `json:"alertMemberEmails,omitempty"`
 
 	// AnalyticsOptOut Whether the tenant has opted out of analytics.
-	AnalyticsOptOut *bool           `json:"analyticsOptOut,omitempty"`
-	Metadata        APIResourceMeta `json:"metadata"`
+	AnalyticsOptOut *bool              `json:"analyticsOptOut,omitempty"`
+	Environment     *TenantEnvironment `json:"environment,omitempty"`
+	Metadata        APIResourceMeta    `json:"metadata"`
 
 	// Name The name of the tenant.
 	Name string `json:"name"`
@@ -1000,6 +1064,9 @@ type TenantAlertingSettings struct {
 	MaxAlertingFrequency string          `json:"maxAlertingFrequency"`
 	Metadata             APIResourceMeta `json:"metadata"`
 }
+
+// TenantEnvironment defines model for TenantEnvironment.
+type TenantEnvironment string
 
 // TenantInvite defines model for TenantInvite.
 type TenantInvite struct {
@@ -1105,6 +1172,11 @@ type UpdateTenantInviteRequest struct {
 	Role TenantMemberRole `json:"role"`
 }
 
+// UpdateTenantMemberRequest defines model for UpdateTenantMemberRequest.
+type UpdateTenantMemberRequest struct {
+	Role TenantMemberRole `json:"role"`
+}
+
 // UpdateTenantRequest defines model for UpdateTenantRequest.
 type UpdateTenantRequest struct {
 	// AlertMemberEmails Whether to alert tenant members.
@@ -1201,11 +1273,47 @@ type UserTenantPublic struct {
 	Name *string `json:"name,omitempty"`
 }
 
+// V1CELDebugRequest defines model for V1CELDebugRequest.
+type V1CELDebugRequest struct {
+	// AdditionalMetadata Additional metadata, which simulates metadata that could be sent with an event or a workflow run
+	AdditionalMetadata *map[string]interface{} `json:"additionalMetadata,omitempty"`
+
+	// Expression The CEL expression to evaluate
+	Expression string `json:"expression"`
+
+	// FilterPayload The filter payload, which simulates a payload set on a previous-created filter
+	FilterPayload *map[string]interface{} `json:"filterPayload,omitempty"`
+
+	// Input The input, which simulates the workflow run input
+	Input map[string]interface{} `json:"input"`
+}
+
+// V1CELDebugResponse defines model for V1CELDebugResponse.
+type V1CELDebugResponse struct {
+	// Error The error message if the evaluation failed
+	Error *string `json:"error,omitempty"`
+
+	// Output The result of the CEL expression evaluation, if successful
+	Output *bool `json:"output,omitempty"`
+
+	// Status The status of the CEL evaluation
+	Status V1CELDebugResponseStatus `json:"status"`
+}
+
+// V1CELDebugResponseStatus The status of the CEL evaluation
+type V1CELDebugResponseStatus string
+
 // V1CancelTaskRequest defines model for V1CancelTaskRequest.
 type V1CancelTaskRequest struct {
 	// ExternalIds A list of external IDs, which can refer to either task or workflow run external IDs
 	ExternalIds *[]openapi_types.UUID `json:"externalIds,omitempty"`
 	Filter      *V1TaskFilter         `json:"filter,omitempty"`
+}
+
+// V1CancelledTasks defines model for V1CancelledTasks.
+type V1CancelledTasks struct {
+	// Ids The list of task external ids that were cancelled
+	Ids *[]openapi_types.UUID `json:"ids,omitempty"`
 }
 
 // V1CreateFilterRequest defines model for V1CreateFilterRequest.
@@ -1223,6 +1331,75 @@ type V1CreateFilterRequest struct {
 	WorkflowId openapi_types.UUID `json:"workflowId"`
 }
 
+// V1CreateWebhookRequest defines model for V1CreateWebhookRequest.
+type V1CreateWebhookRequest struct {
+	union json.RawMessage
+}
+
+// V1CreateWebhookRequestAPIKey defines model for V1CreateWebhookRequestAPIKey.
+type V1CreateWebhookRequestAPIKey struct {
+	Auth V1WebhookAPIKeyAuth `json:"auth"`
+
+	// AuthType The type of authentication to use for the webhook
+	AuthType V1CreateWebhookRequestAPIKeyAuthType `json:"authType"`
+
+	// EventKeyExpression The CEL expression to use for the event key. This is used to create the event key from the webhook payload.
+	EventKeyExpression string `json:"eventKeyExpression"`
+
+	// Name The name of the webhook
+	Name       string              `json:"name"`
+	SourceName V1WebhookSourceName `json:"sourceName"`
+}
+
+// V1CreateWebhookRequestAPIKeyAuthType The type of authentication to use for the webhook
+type V1CreateWebhookRequestAPIKeyAuthType string
+
+// V1CreateWebhookRequestBase defines model for V1CreateWebhookRequestBase.
+type V1CreateWebhookRequestBase struct {
+	// EventKeyExpression The CEL expression to use for the event key. This is used to create the event key from the webhook payload.
+	EventKeyExpression string `json:"eventKeyExpression"`
+
+	// Name The name of the webhook
+	Name       string              `json:"name"`
+	SourceName V1WebhookSourceName `json:"sourceName"`
+}
+
+// V1CreateWebhookRequestBasicAuth defines model for V1CreateWebhookRequestBasicAuth.
+type V1CreateWebhookRequestBasicAuth struct {
+	Auth V1WebhookBasicAuth `json:"auth"`
+
+	// AuthType The type of authentication to use for the webhook
+	AuthType V1CreateWebhookRequestBasicAuthAuthType `json:"authType"`
+
+	// EventKeyExpression The CEL expression to use for the event key. This is used to create the event key from the webhook payload.
+	EventKeyExpression string `json:"eventKeyExpression"`
+
+	// Name The name of the webhook
+	Name       string              `json:"name"`
+	SourceName V1WebhookSourceName `json:"sourceName"`
+}
+
+// V1CreateWebhookRequestBasicAuthAuthType The type of authentication to use for the webhook
+type V1CreateWebhookRequestBasicAuthAuthType string
+
+// V1CreateWebhookRequestHMAC defines model for V1CreateWebhookRequestHMAC.
+type V1CreateWebhookRequestHMAC struct {
+	Auth V1WebhookHMACAuth `json:"auth"`
+
+	// AuthType The type of authentication to use for the webhook
+	AuthType V1CreateWebhookRequestHMACAuthType `json:"authType"`
+
+	// EventKeyExpression The CEL expression to use for the event key. This is used to create the event key from the webhook payload.
+	EventKeyExpression string `json:"eventKeyExpression"`
+
+	// Name The name of the webhook
+	Name       string              `json:"name"`
+	SourceName V1WebhookSourceName `json:"sourceName"`
+}
+
+// V1CreateWebhookRequestHMACAuthType The type of authentication to use for the webhook
+type V1CreateWebhookRequestHMACAuthType string
+
 // V1DagChildren defines model for V1DagChildren.
 type V1DagChildren struct {
 	Children *[]V1TaskSummary    `json:"children,omitempty"`
@@ -1237,17 +1414,41 @@ type V1Event struct {
 	// Key The key for the event.
 	Key      string          `json:"key"`
 	Metadata APIResourceMeta `json:"metadata"`
-	Tenant   *Tenant         `json:"tenant,omitempty"`
+
+	// Payload The payload of the event, which can be any JSON-serializable object.
+	Payload *map[string]interface{} `json:"payload,omitempty"`
+
+	// Scope The scope of the event, which can be used to filter or categorize events.
+	Scope *string `json:"scope,omitempty"`
+
+	// SeenAt The timestamp when the event was seen.
+	SeenAt *time.Time `json:"seenAt,omitempty"`
+	Tenant *Tenant    `json:"tenant,omitempty"`
 
 	// TenantId The ID of the tenant associated with this event.
-	TenantId           string                    `json:"tenantId"`
-	WorkflowRunSummary V1EventWorkflowRunSummary `json:"workflowRunSummary"`
+	TenantId string `json:"tenantId"`
+
+	// TriggeredRuns The external IDs of the runs that were triggered by this event.
+	TriggeredRuns *[]V1EventTriggeredRun `json:"triggeredRuns,omitempty"`
+
+	// TriggeringWebhookName The name of the webhook that triggered this event, if applicable.
+	TriggeringWebhookName *string                   `json:"triggeringWebhookName,omitempty"`
+	WorkflowRunSummary    V1EventWorkflowRunSummary `json:"workflowRunSummary"`
 }
 
 // V1EventList defines model for V1EventList.
 type V1EventList struct {
 	Pagination *PaginationResponse `json:"pagination,omitempty"`
 	Rows       *[]V1Event          `json:"rows,omitempty"`
+}
+
+// V1EventTriggeredRun defines model for V1EventTriggeredRun.
+type V1EventTriggeredRun struct {
+	// FilterId The ID of the filter that triggered the run, if applicable.
+	FilterId *openapi_types.UUID `json:"filterId,omitempty"`
+
+	// WorkflowRunId The external ID of the triggered run.
+	WorkflowRunId openapi_types.UUID `json:"workflowRunId"`
 }
 
 // V1EventWorkflowRunSummary defines model for V1EventWorkflowRunSummary.
@@ -1326,6 +1527,12 @@ type V1ReplayTaskRequest struct {
 	// ExternalIds A list of external IDs, which can refer to either task or workflow run external IDs
 	ExternalIds *[]openapi_types.UUID `json:"externalIds,omitempty"`
 	Filter      *V1TaskFilter         `json:"filter,omitempty"`
+}
+
+// V1ReplayedTasks defines model for V1ReplayedTasks.
+type V1ReplayedTasks struct {
+	// Ids The list of task external ids that were replayed
+	Ids *[]openapi_types.UUID `json:"ids,omitempty"`
 }
 
 // V1TaskEvent defines model for V1TaskEvent.
@@ -1427,6 +1634,9 @@ type V1TaskSummary struct {
 	// Output The output of the task run (for the latest run)
 	Output openapi.NonNullableJSON `json:"output"`
 
+	// ParentTaskExternalId The external ID of the parent task.
+	ParentTaskExternalId *openapi_types.UUID `json:"parentTaskExternalId,omitempty"`
+
 	// RetryCount The number of retries of the task.
 	RetryCount *int `json:"retryCount,omitempty"`
 
@@ -1447,10 +1657,11 @@ type V1TaskSummary struct {
 	TaskInsertedAt time.Time `json:"taskInsertedAt"`
 
 	// TenantId The ID of the tenant.
-	TenantId     openapi_types.UUID `json:"tenantId"`
-	Type         V1WorkflowType     `json:"type"`
-	WorkflowId   openapi_types.UUID `json:"workflowId"`
-	WorkflowName *string            `json:"workflowName,omitempty"`
+	TenantId       openapi_types.UUID      `json:"tenantId"`
+	Type           V1WorkflowType          `json:"type"`
+	WorkflowConfig *map[string]interface{} `json:"workflowConfig,omitempty"`
+	WorkflowId     openapi_types.UUID      `json:"workflowId"`
+	WorkflowName   *string                 `json:"workflowName,omitempty"`
 
 	// WorkflowRunExternalId The external ID of the workflow run
 	WorkflowRunExternalId openapi_types.UUID `json:"workflowRunExternalId"`
@@ -1543,6 +1754,76 @@ type V1UpdateFilterRequest struct {
 	Scope *string `json:"scope,omitempty"`
 }
 
+// V1UpdateWebhookRequest defines model for V1UpdateWebhookRequest.
+type V1UpdateWebhookRequest struct {
+	// EventKeyExpression The CEL expression to use for the event key. This is used to create the event key from the webhook payload.
+	EventKeyExpression string `json:"eventKeyExpression"`
+}
+
+// V1Webhook defines model for V1Webhook.
+type V1Webhook struct {
+	AuthType V1WebhookAuthType `json:"authType"`
+
+	// EventKeyExpression The CEL expression to use for the event key. This is used to create the event key from the webhook payload.
+	EventKeyExpression string          `json:"eventKeyExpression"`
+	Metadata           APIResourceMeta `json:"metadata"`
+
+	// Name The name of the webhook
+	Name       string              `json:"name"`
+	SourceName V1WebhookSourceName `json:"sourceName"`
+
+	// TenantId The ID of the tenant associated with this webhook.
+	TenantId string `json:"tenantId"`
+}
+
+// V1WebhookAPIKeyAuth defines model for V1WebhookAPIKeyAuth.
+type V1WebhookAPIKeyAuth struct {
+	// ApiKey The API key to use for authentication
+	ApiKey string `json:"apiKey"`
+
+	// HeaderName The name of the header to use for the API key
+	HeaderName string `json:"headerName"`
+}
+
+// V1WebhookAuthType defines model for V1WebhookAuthType.
+type V1WebhookAuthType string
+
+// V1WebhookBasicAuth defines model for V1WebhookBasicAuth.
+type V1WebhookBasicAuth struct {
+	// Password The password for basic auth
+	Password string `json:"password"`
+
+	// Username The username for basic auth
+	Username string `json:"username"`
+}
+
+// V1WebhookHMACAlgorithm defines model for V1WebhookHMACAlgorithm.
+type V1WebhookHMACAlgorithm string
+
+// V1WebhookHMACAuth defines model for V1WebhookHMACAuth.
+type V1WebhookHMACAuth struct {
+	Algorithm V1WebhookHMACAlgorithm `json:"algorithm"`
+	Encoding  V1WebhookHMACEncoding  `json:"encoding"`
+
+	// SignatureHeaderName The name of the header to use for the HMAC signature
+	SignatureHeaderName string `json:"signatureHeaderName"`
+
+	// SigningSecret The secret key used to sign the HMAC signature
+	SigningSecret string `json:"signingSecret"`
+}
+
+// V1WebhookHMACEncoding defines model for V1WebhookHMACEncoding.
+type V1WebhookHMACEncoding string
+
+// V1WebhookList defines model for V1WebhookList.
+type V1WebhookList struct {
+	Pagination *PaginationResponse `json:"pagination,omitempty"`
+	Rows       *[]V1Webhook        `json:"rows,omitempty"`
+}
+
+// V1WebhookSourceName defines model for V1WebhookSourceName.
+type V1WebhookSourceName string
+
 // V1WorkflowRun defines model for V1WorkflowRun.
 type V1WorkflowRun struct {
 	// AdditionalMetadata Additional metadata for the task run.
@@ -1589,8 +1870,9 @@ type V1WorkflowRunDetails struct {
 	Shape WorkflowRunShapeForWorkflowRunDetails `json:"shape"`
 
 	// TaskEvents The list of task events for the workflow run
-	TaskEvents []V1TaskEvent   `json:"taskEvents"`
-	Tasks      []V1TaskSummary `json:"tasks"`
+	TaskEvents     []V1TaskEvent           `json:"taskEvents"`
+	Tasks          []V1TaskSummary         `json:"tasks"`
+	WorkflowConfig *map[string]interface{} `json:"workflowConfig,omitempty"`
 }
 
 // V1WorkflowRunDisplayName defines model for V1WorkflowRunDisplayName.
@@ -1960,9 +2242,10 @@ type WorkflowVersion struct {
 	Triggers *WorkflowTriggers `json:"triggers,omitempty"`
 
 	// Version The version of the workflow.
-	Version    string    `json:"version"`
-	Workflow   *Workflow `json:"workflow,omitempty"`
-	WorkflowId string    `json:"workflowId"`
+	Version        string                  `json:"version"`
+	Workflow       *Workflow               `json:"workflow,omitempty"`
+	WorkflowConfig *map[string]interface{} `json:"workflowConfig,omitempty"`
+	WorkflowId     string                  `json:"workflowId"`
 }
 
 // WorkflowVersionMeta defines model for WorkflowVersionMeta.
@@ -2023,6 +2306,21 @@ type V1EventListParams struct {
 
 	// Until Consider events that occurred before this time
 	Until *time.Time `form:"until,omitempty" json:"until,omitempty"`
+
+	// WorkflowIds Filter to events that are associated with a specific workflow run
+	WorkflowIds *[]openapi_types.UUID `form:"workflowIds,omitempty" json:"workflowIds,omitempty"`
+
+	// WorkflowRunStatuses Filter to events that are associated with workflow runs matching a certain status
+	WorkflowRunStatuses *[]V1TaskStatus `form:"workflowRunStatuses,omitempty" json:"workflowRunStatuses,omitempty"`
+
+	// EventIds Filter to specific events by their ids
+	EventIds *[]openapi_types.UUID `form:"eventIds,omitempty" json:"eventIds,omitempty"`
+
+	// AdditionalMetadata Filter by additional metadata on the events
+	AdditionalMetadata *[]string `form:"additionalMetadata,omitempty" json:"additionalMetadata,omitempty"`
+
+	// Scopes The scopes to filter by
+	Scopes *[]string `form:"scopes,omitempty" json:"scopes,omitempty"`
 }
 
 // V1FilterListParams defines parameters for V1FilterList.
@@ -2056,6 +2354,9 @@ type V1TaskListStatusMetricsParams struct {
 
 	// TriggeringEventExternalId The id of the event that triggered the task
 	TriggeringEventExternalId *openapi_types.UUID `form:"triggering_event_external_id,omitempty" json:"triggering_event_external_id,omitempty"`
+
+	// AdditionalMetadata Additional metadata k-v pairs to filter by
+	AdditionalMetadata *[]string `form:"additional_metadata,omitempty" json:"additional_metadata,omitempty"`
 }
 
 // V1TaskGetPointMetricsParams defines parameters for V1TaskGetPointMetrics.
@@ -2065,6 +2366,21 @@ type V1TaskGetPointMetricsParams struct {
 
 	// FinishedBefore The time before the task was completed
 	FinishedBefore *time.Time `form:"finishedBefore,omitempty" json:"finishedBefore,omitempty"`
+}
+
+// V1WebhookListParams defines parameters for V1WebhookList.
+type V1WebhookListParams struct {
+	// Offset The number to skip
+	Offset *int64 `form:"offset,omitempty" json:"offset,omitempty"`
+
+	// Limit The number to limit by
+	Limit *int64 `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// SourceNames The source names to filter by
+	SourceNames *[]V1WebhookSourceName `form:"sourceNames,omitempty" json:"sourceNames,omitempty"`
+
+	// WebhookNames The webhook names to filter by
+	WebhookNames *[]string `form:"webhookNames,omitempty" json:"webhookNames,omitempty"`
 }
 
 // V1WorkflowRunListParams defines parameters for V1WorkflowRunList.
@@ -2397,6 +2713,9 @@ type WorkflowVersionGetParams struct {
 // AlertEmailGroupUpdateJSONRequestBody defines body for AlertEmailGroupUpdate for application/json ContentType.
 type AlertEmailGroupUpdateJSONRequestBody = UpdateTenantAlertEmailGroupRequest
 
+// V1CelDebugJSONRequestBody defines body for V1CelDebug for application/json ContentType.
+type V1CelDebugJSONRequestBody = V1CELDebugRequest
+
 // V1FilterCreateJSONRequestBody defines body for V1FilterCreate for application/json ContentType.
 type V1FilterCreateJSONRequestBody = V1CreateFilterRequest
 
@@ -2408,6 +2727,12 @@ type V1TaskCancelJSONRequestBody = V1CancelTaskRequest
 
 // V1TaskReplayJSONRequestBody defines body for V1TaskReplay for application/json ContentType.
 type V1TaskReplayJSONRequestBody = V1ReplayTaskRequest
+
+// V1WebhookCreateJSONRequestBody defines body for V1WebhookCreate for application/json ContentType.
+type V1WebhookCreateJSONRequestBody = V1CreateWebhookRequest
+
+// V1WebhookUpdateJSONRequestBody defines body for V1WebhookUpdate for application/json ContentType.
+type V1WebhookUpdateJSONRequestBody = V1UpdateWebhookRequest
 
 // V1WorkflowRunCreateJSONRequestBody defines body for V1WorkflowRunCreate for application/json ContentType.
 type V1WorkflowRunCreateJSONRequestBody = V1TriggerWorkflowRunRequest
@@ -2441,6 +2766,9 @@ type TenantInviteCreateJSONRequestBody = CreateTenantInviteRequest
 
 // TenantInviteUpdateJSONRequestBody defines body for TenantInviteUpdate for application/json ContentType.
 type TenantInviteUpdateJSONRequestBody = UpdateTenantInviteRequest
+
+// TenantMemberUpdateJSONRequestBody defines body for TenantMemberUpdate for application/json ContentType.
+type TenantMemberUpdateJSONRequestBody = UpdateTenantMemberRequest
 
 // SnsCreateJSONRequestBody defines body for SnsCreate for application/json ContentType.
 type SnsCreateJSONRequestBody = CreateSNSIntegrationRequest
@@ -2486,6 +2814,94 @@ type WorkflowUpdateJSONRequestBody = WorkflowUpdateRequest
 
 // WorkflowRunCreateJSONRequestBody defines body for WorkflowRunCreate for application/json ContentType.
 type WorkflowRunCreateJSONRequestBody = TriggerWorkflowRunRequest
+
+// AsV1CreateWebhookRequestBasicAuth returns the union data inside the V1CreateWebhookRequest as a V1CreateWebhookRequestBasicAuth
+func (t V1CreateWebhookRequest) AsV1CreateWebhookRequestBasicAuth() (V1CreateWebhookRequestBasicAuth, error) {
+	var body V1CreateWebhookRequestBasicAuth
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromV1CreateWebhookRequestBasicAuth overwrites any union data inside the V1CreateWebhookRequest as the provided V1CreateWebhookRequestBasicAuth
+func (t *V1CreateWebhookRequest) FromV1CreateWebhookRequestBasicAuth(v V1CreateWebhookRequestBasicAuth) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeV1CreateWebhookRequestBasicAuth performs a merge with any union data inside the V1CreateWebhookRequest, using the provided V1CreateWebhookRequestBasicAuth
+func (t *V1CreateWebhookRequest) MergeV1CreateWebhookRequestBasicAuth(v V1CreateWebhookRequestBasicAuth) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JsonMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsV1CreateWebhookRequestAPIKey returns the union data inside the V1CreateWebhookRequest as a V1CreateWebhookRequestAPIKey
+func (t V1CreateWebhookRequest) AsV1CreateWebhookRequestAPIKey() (V1CreateWebhookRequestAPIKey, error) {
+	var body V1CreateWebhookRequestAPIKey
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromV1CreateWebhookRequestAPIKey overwrites any union data inside the V1CreateWebhookRequest as the provided V1CreateWebhookRequestAPIKey
+func (t *V1CreateWebhookRequest) FromV1CreateWebhookRequestAPIKey(v V1CreateWebhookRequestAPIKey) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeV1CreateWebhookRequestAPIKey performs a merge with any union data inside the V1CreateWebhookRequest, using the provided V1CreateWebhookRequestAPIKey
+func (t *V1CreateWebhookRequest) MergeV1CreateWebhookRequestAPIKey(v V1CreateWebhookRequestAPIKey) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JsonMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsV1CreateWebhookRequestHMAC returns the union data inside the V1CreateWebhookRequest as a V1CreateWebhookRequestHMAC
+func (t V1CreateWebhookRequest) AsV1CreateWebhookRequestHMAC() (V1CreateWebhookRequestHMAC, error) {
+	var body V1CreateWebhookRequestHMAC
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromV1CreateWebhookRequestHMAC overwrites any union data inside the V1CreateWebhookRequest as the provided V1CreateWebhookRequestHMAC
+func (t *V1CreateWebhookRequest) FromV1CreateWebhookRequestHMAC(v V1CreateWebhookRequestHMAC) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeV1CreateWebhookRequestHMAC performs a merge with any union data inside the V1CreateWebhookRequest, using the provided V1CreateWebhookRequestHMAC
+func (t *V1CreateWebhookRequest) MergeV1CreateWebhookRequestHMAC(v V1CreateWebhookRequestHMAC) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JsonMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t V1CreateWebhookRequest) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *V1CreateWebhookRequest) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
 
 // RequestEditorFn  is the function signature for the RequestEditor callback function
 type RequestEditorFn func(ctx context.Context, req *http.Request) error
@@ -2616,8 +3032,16 @@ type ClientInterface interface {
 	// V1TaskEventList request
 	V1TaskEventList(ctx context.Context, task openapi_types.UUID, params *V1TaskEventListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// V1CelDebugWithBody request with any body
+	V1CelDebugWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	V1CelDebug(ctx context.Context, tenant openapi_types.UUID, body V1CelDebugJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// V1EventList request
 	V1EventList(ctx context.Context, tenant openapi_types.UUID, params *V1EventListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// V1EventKeyList request
+	V1EventKeyList(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// V1FilterList request
 	V1FilterList(ctx context.Context, tenant openapi_types.UUID, params *V1FilterListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -2653,6 +3077,28 @@ type ClientInterface interface {
 	V1TaskReplayWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	V1TaskReplay(ctx context.Context, tenant openapi_types.UUID, body V1TaskReplayJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// V1WebhookList request
+	V1WebhookList(ctx context.Context, tenant openapi_types.UUID, params *V1WebhookListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// V1WebhookCreateWithBody request with any body
+	V1WebhookCreateWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	V1WebhookCreate(ctx context.Context, tenant openapi_types.UUID, body V1WebhookCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// V1WebhookDelete request
+	V1WebhookDelete(ctx context.Context, tenant openapi_types.UUID, v1Webhook string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// V1WebhookGet request
+	V1WebhookGet(ctx context.Context, tenant openapi_types.UUID, v1Webhook string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// V1WebhookUpdateWithBody request with any body
+	V1WebhookUpdateWithBody(ctx context.Context, tenant openapi_types.UUID, v1Webhook string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	V1WebhookUpdate(ctx context.Context, tenant openapi_types.UUID, v1Webhook string, body V1WebhookUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// V1WebhookReceiveWithBody request with any body
+	V1WebhookReceiveWithBody(ctx context.Context, tenant openapi_types.UUID, v1Webhook string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// V1WorkflowRunList request
 	V1WorkflowRunList(ctx context.Context, tenant openapi_types.UUID, params *V1WorkflowRunListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -2765,6 +3211,14 @@ type ClientInterface interface {
 
 	// TenantMemberDelete request
 	TenantMemberDelete(ctx context.Context, tenant openapi_types.UUID, member openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// TenantMemberUpdateWithBody request with any body
+	TenantMemberUpdateWithBody(ctx context.Context, tenant openapi_types.UUID, member openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	TenantMemberUpdate(ctx context.Context, tenant openapi_types.UUID, member openapi_types.UUID, body TenantMemberUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// TenantGetPrometheusMetrics request
+	TenantGetPrometheusMetrics(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// TenantGetQueueMetrics request
 	TenantGetQueueMetrics(ctx context.Context, tenant openapi_types.UUID, params *TenantGetQueueMetricsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -3199,8 +3653,44 @@ func (c *Client) V1TaskEventList(ctx context.Context, task openapi_types.UUID, p
 	return c.Client.Do(req)
 }
 
+func (c *Client) V1CelDebugWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1CelDebugRequestWithBody(c.Server, tenant, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1CelDebug(ctx context.Context, tenant openapi_types.UUID, body V1CelDebugJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1CelDebugRequest(c.Server, tenant, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 func (c *Client) V1EventList(ctx context.Context, tenant openapi_types.UUID, params *V1EventListParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewV1EventListRequest(c.Server, tenant, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1EventKeyList(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1EventKeyListRequest(c.Server, tenant)
 	if err != nil {
 		return nil, err
 	}
@@ -3357,6 +3847,102 @@ func (c *Client) V1TaskReplayWithBody(ctx context.Context, tenant openapi_types.
 
 func (c *Client) V1TaskReplay(ctx context.Context, tenant openapi_types.UUID, body V1TaskReplayJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewV1TaskReplayRequest(c.Server, tenant, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1WebhookList(ctx context.Context, tenant openapi_types.UUID, params *V1WebhookListParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1WebhookListRequest(c.Server, tenant, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1WebhookCreateWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1WebhookCreateRequestWithBody(c.Server, tenant, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1WebhookCreate(ctx context.Context, tenant openapi_types.UUID, body V1WebhookCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1WebhookCreateRequest(c.Server, tenant, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1WebhookDelete(ctx context.Context, tenant openapi_types.UUID, v1Webhook string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1WebhookDeleteRequest(c.Server, tenant, v1Webhook)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1WebhookGet(ctx context.Context, tenant openapi_types.UUID, v1Webhook string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1WebhookGetRequest(c.Server, tenant, v1Webhook)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1WebhookUpdateWithBody(ctx context.Context, tenant openapi_types.UUID, v1Webhook string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1WebhookUpdateRequestWithBody(c.Server, tenant, v1Webhook, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1WebhookUpdate(ctx context.Context, tenant openapi_types.UUID, v1Webhook string, body V1WebhookUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1WebhookUpdateRequest(c.Server, tenant, v1Webhook, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1WebhookReceiveWithBody(ctx context.Context, tenant openapi_types.UUID, v1Webhook string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1WebhookReceiveRequestWithBody(c.Server, tenant, v1Webhook, contentType, body)
 	if err != nil {
 		return nil, err
 	}
@@ -3849,6 +4435,42 @@ func (c *Client) TenantMemberList(ctx context.Context, tenant openapi_types.UUID
 
 func (c *Client) TenantMemberDelete(ctx context.Context, tenant openapi_types.UUID, member openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewTenantMemberDeleteRequest(c.Server, tenant, member)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) TenantMemberUpdateWithBody(ctx context.Context, tenant openapi_types.UUID, member openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewTenantMemberUpdateRequestWithBody(c.Server, tenant, member, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) TenantMemberUpdate(ctx context.Context, tenant openapi_types.UUID, member openapi_types.UUID, body TenantMemberUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewTenantMemberUpdateRequest(c.Server, tenant, member, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) TenantGetPrometheusMetrics(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewTenantGetPrometheusMetricsRequest(c.Server, tenant)
 	if err != nil {
 		return nil, err
 	}
@@ -5415,6 +6037,53 @@ func NewV1TaskEventListRequest(server string, task openapi_types.UUID, params *V
 	return req, nil
 }
 
+// NewV1CelDebugRequest calls the generic V1CelDebug builder with application/json body
+func NewV1CelDebugRequest(server string, tenant openapi_types.UUID, body V1CelDebugJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewV1CelDebugRequestWithBody(server, tenant, "application/json", bodyReader)
+}
+
+// NewV1CelDebugRequestWithBody generates requests for V1CelDebug with any type of body
+func NewV1CelDebugRequestWithBody(server string, tenant openapi_types.UUID, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/stable/tenants/%s/cel/debug", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewV1EventListRequest generates requests for V1EventList
 func NewV1EventListRequest(server string, tenant openapi_types.UUID, params *V1EventListParams) (*http.Request, error) {
 	var err error
@@ -5524,7 +6193,121 @@ func NewV1EventListRequest(server string, tenant openapi_types.UUID, params *V1E
 
 		}
 
+		if params.WorkflowIds != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "workflowIds", runtime.ParamLocationQuery, *params.WorkflowIds); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.WorkflowRunStatuses != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "workflowRunStatuses", runtime.ParamLocationQuery, *params.WorkflowRunStatuses); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.EventIds != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "eventIds", runtime.ParamLocationQuery, *params.EventIds); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.AdditionalMetadata != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "additionalMetadata", runtime.ParamLocationQuery, *params.AdditionalMetadata); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Scopes != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "scopes", runtime.ParamLocationQuery, *params.Scopes); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
 		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewV1EventKeyListRequest generates requests for V1EventKeyList
+func NewV1EventKeyListRequest(server string, tenant openapi_types.UUID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/stable/tenants/%s/events/keys", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
 	}
 
 	req, err := http.NewRequest("GET", queryURL.String(), nil)
@@ -5927,6 +6710,22 @@ func NewV1TaskListStatusMetricsRequest(server string, tenant openapi_types.UUID,
 
 		}
 
+		if params.AdditionalMetadata != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "additional_metadata", runtime.ParamLocationQuery, *params.AdditionalMetadata); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
 		queryURL.RawQuery = queryValues.Encode()
 	}
 
@@ -6085,6 +6884,336 @@ func NewV1TaskReplayRequestWithBody(server string, tenant openapi_types.UUID, co
 	}
 
 	operationPath := fmt.Sprintf("/api/v1/stable/tenants/%s/tasks/replay", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewV1WebhookListRequest generates requests for V1WebhookList
+func NewV1WebhookListRequest(server string, tenant openapi_types.UUID, params *V1WebhookListParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/stable/tenants/%s/webhooks", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Offset != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "offset", runtime.ParamLocationQuery, *params.Offset); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.SourceNames != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "sourceNames", runtime.ParamLocationQuery, *params.SourceNames); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.WebhookNames != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "webhookNames", runtime.ParamLocationQuery, *params.WebhookNames); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewV1WebhookCreateRequest calls the generic V1WebhookCreate builder with application/json body
+func NewV1WebhookCreateRequest(server string, tenant openapi_types.UUID, body V1WebhookCreateJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewV1WebhookCreateRequestWithBody(server, tenant, "application/json", bodyReader)
+}
+
+// NewV1WebhookCreateRequestWithBody generates requests for V1WebhookCreate with any type of body
+func NewV1WebhookCreateRequestWithBody(server string, tenant openapi_types.UUID, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/stable/tenants/%s/webhooks", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewV1WebhookDeleteRequest generates requests for V1WebhookDelete
+func NewV1WebhookDeleteRequest(server string, tenant openapi_types.UUID, v1Webhook string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "v1-webhook", runtime.ParamLocationPath, v1Webhook)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/stable/tenants/%s/webhooks/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewV1WebhookGetRequest generates requests for V1WebhookGet
+func NewV1WebhookGetRequest(server string, tenant openapi_types.UUID, v1Webhook string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "v1-webhook", runtime.ParamLocationPath, v1Webhook)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/stable/tenants/%s/webhooks/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewV1WebhookUpdateRequest calls the generic V1WebhookUpdate builder with application/json body
+func NewV1WebhookUpdateRequest(server string, tenant openapi_types.UUID, v1Webhook string, body V1WebhookUpdateJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewV1WebhookUpdateRequestWithBody(server, tenant, v1Webhook, "application/json", bodyReader)
+}
+
+// NewV1WebhookUpdateRequestWithBody generates requests for V1WebhookUpdate with any type of body
+func NewV1WebhookUpdateRequestWithBody(server string, tenant openapi_types.UUID, v1Webhook string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "v1-webhook", runtime.ParamLocationPath, v1Webhook)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/stable/tenants/%s/webhooks/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PATCH", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewV1WebhookReceiveRequestWithBody generates requests for V1WebhookReceive with any type of body
+func NewV1WebhookReceiveRequestWithBody(server string, tenant openapi_types.UUID, v1Webhook string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "v1-webhook", runtime.ParamLocationPath, v1Webhook)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/stable/tenants/%s/webhooks/%s", pathParam0, pathParam1)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -7886,6 +9015,94 @@ func NewTenantMemberDeleteRequest(server string, tenant openapi_types.UUID, memb
 	}
 
 	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewTenantMemberUpdateRequest calls the generic TenantMemberUpdate builder with application/json body
+func NewTenantMemberUpdateRequest(server string, tenant openapi_types.UUID, member openapi_types.UUID, body TenantMemberUpdateJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewTenantMemberUpdateRequestWithBody(server, tenant, member, "application/json", bodyReader)
+}
+
+// NewTenantMemberUpdateRequestWithBody generates requests for TenantMemberUpdate with any type of body
+func NewTenantMemberUpdateRequestWithBody(server string, tenant openapi_types.UUID, member openapi_types.UUID, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "member", runtime.ParamLocationPath, member)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/tenants/%s/members/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PATCH", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewTenantGetPrometheusMetricsRequest generates requests for TenantGetPrometheusMetrics
+func NewTenantGetPrometheusMetricsRequest(server string, tenant openapi_types.UUID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/tenants/%s/prometheus-metrics", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -11089,8 +12306,16 @@ type ClientWithResponsesInterface interface {
 	// V1TaskEventListWithResponse request
 	V1TaskEventListWithResponse(ctx context.Context, task openapi_types.UUID, params *V1TaskEventListParams, reqEditors ...RequestEditorFn) (*V1TaskEventListResponse, error)
 
+	// V1CelDebugWithBodyWithResponse request with any body
+	V1CelDebugWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1CelDebugResponse, error)
+
+	V1CelDebugWithResponse(ctx context.Context, tenant openapi_types.UUID, body V1CelDebugJSONRequestBody, reqEditors ...RequestEditorFn) (*V1CelDebugResponse, error)
+
 	// V1EventListWithResponse request
 	V1EventListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V1EventListParams, reqEditors ...RequestEditorFn) (*V1EventListResponse, error)
+
+	// V1EventKeyListWithResponse request
+	V1EventKeyListWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*V1EventKeyListResponse, error)
 
 	// V1FilterListWithResponse request
 	V1FilterListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V1FilterListParams, reqEditors ...RequestEditorFn) (*V1FilterListResponse, error)
@@ -11126,6 +12351,28 @@ type ClientWithResponsesInterface interface {
 	V1TaskReplayWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1TaskReplayResponse, error)
 
 	V1TaskReplayWithResponse(ctx context.Context, tenant openapi_types.UUID, body V1TaskReplayJSONRequestBody, reqEditors ...RequestEditorFn) (*V1TaskReplayResponse, error)
+
+	// V1WebhookListWithResponse request
+	V1WebhookListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V1WebhookListParams, reqEditors ...RequestEditorFn) (*V1WebhookListResponse, error)
+
+	// V1WebhookCreateWithBodyWithResponse request with any body
+	V1WebhookCreateWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1WebhookCreateResponse, error)
+
+	V1WebhookCreateWithResponse(ctx context.Context, tenant openapi_types.UUID, body V1WebhookCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*V1WebhookCreateResponse, error)
+
+	// V1WebhookDeleteWithResponse request
+	V1WebhookDeleteWithResponse(ctx context.Context, tenant openapi_types.UUID, v1Webhook string, reqEditors ...RequestEditorFn) (*V1WebhookDeleteResponse, error)
+
+	// V1WebhookGetWithResponse request
+	V1WebhookGetWithResponse(ctx context.Context, tenant openapi_types.UUID, v1Webhook string, reqEditors ...RequestEditorFn) (*V1WebhookGetResponse, error)
+
+	// V1WebhookUpdateWithBodyWithResponse request with any body
+	V1WebhookUpdateWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, v1Webhook string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1WebhookUpdateResponse, error)
+
+	V1WebhookUpdateWithResponse(ctx context.Context, tenant openapi_types.UUID, v1Webhook string, body V1WebhookUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*V1WebhookUpdateResponse, error)
+
+	// V1WebhookReceiveWithBodyWithResponse request with any body
+	V1WebhookReceiveWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, v1Webhook string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1WebhookReceiveResponse, error)
 
 	// V1WorkflowRunListWithResponse request
 	V1WorkflowRunListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V1WorkflowRunListParams, reqEditors ...RequestEditorFn) (*V1WorkflowRunListResponse, error)
@@ -11238,6 +12485,14 @@ type ClientWithResponsesInterface interface {
 
 	// TenantMemberDeleteWithResponse request
 	TenantMemberDeleteWithResponse(ctx context.Context, tenant openapi_types.UUID, member openapi_types.UUID, reqEditors ...RequestEditorFn) (*TenantMemberDeleteResponse, error)
+
+	// TenantMemberUpdateWithBodyWithResponse request with any body
+	TenantMemberUpdateWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, member openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*TenantMemberUpdateResponse, error)
+
+	TenantMemberUpdateWithResponse(ctx context.Context, tenant openapi_types.UUID, member openapi_types.UUID, body TenantMemberUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*TenantMemberUpdateResponse, error)
+
+	// TenantGetPrometheusMetricsWithResponse request
+	TenantGetPrometheusMetricsWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*TenantGetPrometheusMetricsResponse, error)
 
 	// TenantGetQueueMetricsWithResponse request
 	TenantGetQueueMetricsWithResponse(ctx context.Context, tenant openapi_types.UUID, params *TenantGetQueueMetricsParams, reqEditors ...RequestEditorFn) (*TenantGetQueueMetricsResponse, error)
@@ -11868,6 +13123,30 @@ func (r V1TaskEventListResponse) StatusCode() int {
 	return 0
 }
 
+type V1CelDebugResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *V1CELDebugResponse
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r V1CelDebugResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r V1CelDebugResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type V1EventListResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -11886,6 +13165,30 @@ func (r V1EventListResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r V1EventListResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type V1EventKeyListResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *EventKeyList
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r V1EventKeyListResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r V1EventKeyListResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -12068,6 +13371,7 @@ func (r V1TaskGetPointMetricsResponse) StatusCode() int {
 type V1TaskCancelResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
+	JSON200      *V1CancelledTasks
 	JSON400      *APIErrors
 	JSON403      *APIErrors
 	JSON404      *APIErrors
@@ -12093,6 +13397,7 @@ func (r V1TaskCancelResponse) StatusCode() int {
 type V1TaskReplayResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
+	JSON200      *V1ReplayedTasks
 	JSON400      *APIErrors
 	JSON403      *APIErrors
 	JSON404      *APIErrors
@@ -12109,6 +13414,153 @@ func (r V1TaskReplayResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r V1TaskReplayResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type V1WebhookListResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *V1WebhookList
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r V1WebhookListResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r V1WebhookListResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type V1WebhookCreateResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *V1Webhook
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+	JSON404      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r V1WebhookCreateResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r V1WebhookCreateResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type V1WebhookDeleteResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *V1Webhook
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+	JSON404      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r V1WebhookDeleteResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r V1WebhookDeleteResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type V1WebhookGetResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *V1Webhook
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r V1WebhookGetResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r V1WebhookGetResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type V1WebhookUpdateResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *V1Webhook
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+	JSON404      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r V1WebhookUpdateResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r V1WebhookUpdateResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type V1WebhookReceiveResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *map[string]interface{}
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r V1WebhookReceiveResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r V1WebhookReceiveResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -12844,6 +14296,55 @@ func (r TenantMemberDeleteResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r TenantMemberDeleteResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type TenantMemberUpdateResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *TenantMember
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+	JSON404      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r TenantMemberUpdateResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r TenantMemberUpdateResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type TenantGetPrometheusMetricsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+	JSON404      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r TenantGetPrometheusMetricsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r TenantGetPrometheusMetricsResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -14421,6 +15922,23 @@ func (c *ClientWithResponses) V1TaskEventListWithResponse(ctx context.Context, t
 	return ParseV1TaskEventListResponse(rsp)
 }
 
+// V1CelDebugWithBodyWithResponse request with arbitrary body returning *V1CelDebugResponse
+func (c *ClientWithResponses) V1CelDebugWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1CelDebugResponse, error) {
+	rsp, err := c.V1CelDebugWithBody(ctx, tenant, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1CelDebugResponse(rsp)
+}
+
+func (c *ClientWithResponses) V1CelDebugWithResponse(ctx context.Context, tenant openapi_types.UUID, body V1CelDebugJSONRequestBody, reqEditors ...RequestEditorFn) (*V1CelDebugResponse, error) {
+	rsp, err := c.V1CelDebug(ctx, tenant, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1CelDebugResponse(rsp)
+}
+
 // V1EventListWithResponse request returning *V1EventListResponse
 func (c *ClientWithResponses) V1EventListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V1EventListParams, reqEditors ...RequestEditorFn) (*V1EventListResponse, error) {
 	rsp, err := c.V1EventList(ctx, tenant, params, reqEditors...)
@@ -14428,6 +15946,15 @@ func (c *ClientWithResponses) V1EventListWithResponse(ctx context.Context, tenan
 		return nil, err
 	}
 	return ParseV1EventListResponse(rsp)
+}
+
+// V1EventKeyListWithResponse request returning *V1EventKeyListResponse
+func (c *ClientWithResponses) V1EventKeyListWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*V1EventKeyListResponse, error) {
+	rsp, err := c.V1EventKeyList(ctx, tenant, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1EventKeyListResponse(rsp)
 }
 
 // V1FilterListWithResponse request returning *V1FilterListResponse
@@ -14541,6 +16068,76 @@ func (c *ClientWithResponses) V1TaskReplayWithResponse(ctx context.Context, tena
 		return nil, err
 	}
 	return ParseV1TaskReplayResponse(rsp)
+}
+
+// V1WebhookListWithResponse request returning *V1WebhookListResponse
+func (c *ClientWithResponses) V1WebhookListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V1WebhookListParams, reqEditors ...RequestEditorFn) (*V1WebhookListResponse, error) {
+	rsp, err := c.V1WebhookList(ctx, tenant, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1WebhookListResponse(rsp)
+}
+
+// V1WebhookCreateWithBodyWithResponse request with arbitrary body returning *V1WebhookCreateResponse
+func (c *ClientWithResponses) V1WebhookCreateWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1WebhookCreateResponse, error) {
+	rsp, err := c.V1WebhookCreateWithBody(ctx, tenant, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1WebhookCreateResponse(rsp)
+}
+
+func (c *ClientWithResponses) V1WebhookCreateWithResponse(ctx context.Context, tenant openapi_types.UUID, body V1WebhookCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*V1WebhookCreateResponse, error) {
+	rsp, err := c.V1WebhookCreate(ctx, tenant, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1WebhookCreateResponse(rsp)
+}
+
+// V1WebhookDeleteWithResponse request returning *V1WebhookDeleteResponse
+func (c *ClientWithResponses) V1WebhookDeleteWithResponse(ctx context.Context, tenant openapi_types.UUID, v1Webhook string, reqEditors ...RequestEditorFn) (*V1WebhookDeleteResponse, error) {
+	rsp, err := c.V1WebhookDelete(ctx, tenant, v1Webhook, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1WebhookDeleteResponse(rsp)
+}
+
+// V1WebhookGetWithResponse request returning *V1WebhookGetResponse
+func (c *ClientWithResponses) V1WebhookGetWithResponse(ctx context.Context, tenant openapi_types.UUID, v1Webhook string, reqEditors ...RequestEditorFn) (*V1WebhookGetResponse, error) {
+	rsp, err := c.V1WebhookGet(ctx, tenant, v1Webhook, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1WebhookGetResponse(rsp)
+}
+
+// V1WebhookUpdateWithBodyWithResponse request with arbitrary body returning *V1WebhookUpdateResponse
+func (c *ClientWithResponses) V1WebhookUpdateWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, v1Webhook string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1WebhookUpdateResponse, error) {
+	rsp, err := c.V1WebhookUpdateWithBody(ctx, tenant, v1Webhook, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1WebhookUpdateResponse(rsp)
+}
+
+func (c *ClientWithResponses) V1WebhookUpdateWithResponse(ctx context.Context, tenant openapi_types.UUID, v1Webhook string, body V1WebhookUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*V1WebhookUpdateResponse, error) {
+	rsp, err := c.V1WebhookUpdate(ctx, tenant, v1Webhook, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1WebhookUpdateResponse(rsp)
+}
+
+// V1WebhookReceiveWithBodyWithResponse request with arbitrary body returning *V1WebhookReceiveResponse
+func (c *ClientWithResponses) V1WebhookReceiveWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, v1Webhook string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1WebhookReceiveResponse, error) {
+	rsp, err := c.V1WebhookReceiveWithBody(ctx, tenant, v1Webhook, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1WebhookReceiveResponse(rsp)
 }
 
 // V1WorkflowRunListWithResponse request returning *V1WorkflowRunListResponse
@@ -14899,6 +16496,32 @@ func (c *ClientWithResponses) TenantMemberDeleteWithResponse(ctx context.Context
 		return nil, err
 	}
 	return ParseTenantMemberDeleteResponse(rsp)
+}
+
+// TenantMemberUpdateWithBodyWithResponse request with arbitrary body returning *TenantMemberUpdateResponse
+func (c *ClientWithResponses) TenantMemberUpdateWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, member openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*TenantMemberUpdateResponse, error) {
+	rsp, err := c.TenantMemberUpdateWithBody(ctx, tenant, member, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseTenantMemberUpdateResponse(rsp)
+}
+
+func (c *ClientWithResponses) TenantMemberUpdateWithResponse(ctx context.Context, tenant openapi_types.UUID, member openapi_types.UUID, body TenantMemberUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*TenantMemberUpdateResponse, error) {
+	rsp, err := c.TenantMemberUpdate(ctx, tenant, member, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseTenantMemberUpdateResponse(rsp)
+}
+
+// TenantGetPrometheusMetricsWithResponse request returning *TenantGetPrometheusMetricsResponse
+func (c *ClientWithResponses) TenantGetPrometheusMetricsWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*TenantGetPrometheusMetricsResponse, error) {
+	rsp, err := c.TenantGetPrometheusMetrics(ctx, tenant, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseTenantGetPrometheusMetricsResponse(rsp)
 }
 
 // TenantGetQueueMetricsWithResponse request returning *TenantGetQueueMetricsResponse
@@ -16201,6 +17824,46 @@ func ParseV1TaskEventListResponse(rsp *http.Response) (*V1TaskEventListResponse,
 	return response, nil
 }
 
+// ParseV1CelDebugResponse parses an HTTP response from a V1CelDebugWithResponse call
+func ParseV1CelDebugResponse(rsp *http.Response) (*V1CelDebugResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &V1CelDebugResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest V1CELDebugResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseV1EventListResponse parses an HTTP response from a V1EventListWithResponse call
 func ParseV1EventListResponse(rsp *http.Response) (*V1EventListResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -16217,6 +17880,46 @@ func ParseV1EventListResponse(rsp *http.Response) (*V1EventListResponse, error) 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest V1EventList
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseV1EventKeyListResponse parses an HTTP response from a V1EventKeyListWithResponse call
+func ParseV1EventKeyListResponse(rsp *http.Response) (*V1EventKeyListResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &V1EventKeyListResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest EventKeyList
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -16570,6 +18273,13 @@ func ParseV1TaskCancelResponse(rsp *http.Response) (*V1TaskCancelResponse, error
 	}
 
 	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest V1CancelledTasks
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
 		var dest APIErrors
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -16617,6 +18327,13 @@ func ParseV1TaskReplayResponse(rsp *http.Response) (*V1TaskReplayResponse, error
 	}
 
 	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest V1ReplayedTasks
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
 		var dest APIErrors
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -16644,6 +18361,267 @@ func ParseV1TaskReplayResponse(rsp *http.Response) (*V1TaskReplayResponse, error
 			return nil, err
 		}
 		response.JSON501 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseV1WebhookListResponse parses an HTTP response from a V1WebhookListWithResponse call
+func ParseV1WebhookListResponse(rsp *http.Response) (*V1WebhookListResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &V1WebhookListResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest V1WebhookList
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseV1WebhookCreateResponse parses an HTTP response from a V1WebhookCreateWithResponse call
+func ParseV1WebhookCreateResponse(rsp *http.Response) (*V1WebhookCreateResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &V1WebhookCreateResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest V1Webhook
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseV1WebhookDeleteResponse parses an HTTP response from a V1WebhookDeleteWithResponse call
+func ParseV1WebhookDeleteResponse(rsp *http.Response) (*V1WebhookDeleteResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &V1WebhookDeleteResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest V1Webhook
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseV1WebhookGetResponse parses an HTTP response from a V1WebhookGetWithResponse call
+func ParseV1WebhookGetResponse(rsp *http.Response) (*V1WebhookGetResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &V1WebhookGetResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest V1Webhook
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseV1WebhookUpdateResponse parses an HTTP response from a V1WebhookUpdateWithResponse call
+func ParseV1WebhookUpdateResponse(rsp *http.Response) (*V1WebhookUpdateResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &V1WebhookUpdateResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest V1Webhook
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseV1WebhookReceiveResponse parses an HTTP response from a V1WebhookReceiveWithResponse call
+func ParseV1WebhookReceiveResponse(rsp *http.Response) (*V1WebhookReceiveResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &V1WebhookReceiveResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest map[string]interface{}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
 
 	}
 
@@ -17917,6 +19895,93 @@ func ParseTenantMemberDeleteResponse(rsp *http.Response) (*TenantMemberDeleteRes
 		}
 		response.JSON204 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseTenantMemberUpdateResponse parses an HTTP response from a TenantMemberUpdateWithResponse call
+func ParseTenantMemberUpdateResponse(rsp *http.Response) (*TenantMemberUpdateResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &TenantMemberUpdateResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest TenantMember
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseTenantGetPrometheusMetricsResponse parses an HTTP response from a TenantGetPrometheusMetricsWithResponse call
+func ParseTenantGetPrometheusMetricsResponse(rsp *http.Response) (*TenantGetPrometheusMetricsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &TenantGetPrometheusMetricsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
 		var dest APIErrors
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {

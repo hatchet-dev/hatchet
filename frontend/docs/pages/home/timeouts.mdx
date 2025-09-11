@@ -1,8 +1,7 @@
-import snips from "@/lib/snips";
+import { snippets } from "@/lib/generated/snippets";
 import { Snippet } from "@/components/code";
 import { Callout, Card, Cards, Steps, Tabs } from "nextra/components";
 import UniversalTabs from "../../components/UniversalTabs";
-import { GithubSnippet, getSnippets } from "@/components/code";
 
 # Timeouts in Hatchet
 
@@ -40,15 +39,15 @@ You can specify execution and scheduling timeouts for a task using the `executio
 
 <UniversalTabs items={['Python', 'Typescript']}>
   <Tabs.Tab>
-  <Snippet src={snips.python.timeout.worker} block="executiontimeout" />
+  <Snippet src={snippets.python.timeout.worker.execution_timeout} />
 
   </Tabs.Tab>
   <Tabs.Tab>
-  <Snippet src={snips.typescript.with_timeouts.workflow} block="execution_timeout" />
+  <Snippet src={snippets.typescript.with_timeouts.workflow.execution_timeout} />
 
   </Tabs.Tab>
   <Tabs.Tab>
-    <Snippet src={snips.go.workflows.timeouts} block="execution_timeout" />
+    <Snippet src={snippets.go.workflows.timeouts.execution_timeout} />
 
   </Tabs.Tab>
 </UniversalTabs>
@@ -72,14 +71,14 @@ For example:
 
 <UniversalTabs items={['Python', 'Typescript']}>
   <Tabs.Tab>
-  <Snippet src={snips.python.timeout.worker} block="refreshtimeout" />
+  <Snippet src={snippets.python.timeout.worker.refresh_timeout} />
 
   </Tabs.Tab>
   <Tabs.Tab>
-  <Snippet src={snips.typescript.with_timeouts.workflow} block="refresh_timeout" />
+  <Snippet src={snippets.typescript.with_timeouts.workflow.refresh_timeout} />
   </Tabs.Tab>
   <Tabs.Tab>
-  <Snippet src={snips.go.workflows.timeouts} block="refresh_timeout" />
+  <Snippet src={snippets.go.workflows.timeouts.refresh_timeout} />
   </Tabs.Tab>
 </UniversalTabs>
 

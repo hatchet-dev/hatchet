@@ -3,6 +3,7 @@ package sqlcv1
 import (
 	"context"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -505,4 +506,289 @@ func (q *Queries) CreateTaskExpressionEvals(ctx context.Context, db DBTX, arg Cr
 		arg.Kinds,
 	)
 	return err
+}
+
+const lockParentConcurrencySlots = `-- name: LockParentConcurrencySlots :batchexec
+WITH input AS (
+    SELECT
+        task_id, task_inserted_at, retry_count
+    FROM
+        (
+            SELECT
+                unnest($1::bigint[]) AS task_id,
+                unnest($2::timestamptz[]) AS task_inserted_at,
+                unnest($3::integer[]) AS retry_count
+        ) AS subquery
+), concurrency_slots_to_delete AS (
+    SELECT
+        task_id, task_inserted_at, task_retry_count, parent_strategy_id, workflow_version_id, workflow_run_id
+    FROM
+        v1_concurrency_slot
+    WHERE
+        (task_id, task_inserted_at, task_retry_count) IN (SELECT task_id, task_inserted_at, retry_count FROM input)
+)
+SELECT
+    sort_id, tenant_id, workflow_id, workflow_version_id, workflow_run_id, strategy_id, completed_child_strategy_ids, child_strategy_ids, priority, key, is_filled
+FROM
+    v1_workflow_concurrency_slot wcs
+WHERE
+    (wcs.strategy_id, wcs.workflow_version_id, wcs.workflow_run_id) IN (
+        SELECT parent_strategy_id, workflow_version_id, workflow_run_id FROM concurrency_slots_to_delete
+    )
+ORDER BY
+    wcs.strategy_id, wcs.workflow_version_id, wcs.workflow_run_id
+FOR UPDATE
+`
+
+const releaseConcurrencySlots = `-- name: ReleaseConcurrencySlots :batchexec
+WITH input AS (
+    SELECT
+        task_id, task_inserted_at, retry_count
+    FROM
+        (
+            SELECT
+                unnest($1::bigint[]) AS task_id,
+                unnest($2::timestamptz[]) AS task_inserted_at,
+                unnest($3::integer[]) AS retry_count
+        ) AS subquery
+), concurrency_slots_to_delete AS (
+    SELECT
+        task_id, task_inserted_at, task_retry_count
+    FROM
+        v1_concurrency_slot
+    WHERE
+        (task_id, task_inserted_at, task_retry_count) IN (SELECT task_id, task_inserted_at, retry_count FROM input)
+    ORDER BY
+        task_id, task_inserted_at, task_retry_count
+    FOR UPDATE
+)
+DELETE FROM
+    v1_concurrency_slot
+WHERE
+    (task_id, task_inserted_at, task_retry_count) IN (SELECT task_id, task_inserted_at, task_retry_count FROM concurrency_slots_to_delete)
+`
+
+const releaseQueueItems = `-- name: ReleaseQueueItems :batchexec
+WITH input AS (
+    SELECT
+        task_id, task_inserted_at, retry_count
+    FROM
+        (
+            SELECT
+                unnest($1::bigint[]) AS task_id,
+                unnest($2::timestamptz[]) AS task_inserted_at,
+                unnest($3::integer[]) AS retry_count
+        ) AS subquery
+), queue_items_to_delete AS (
+    SELECT
+        task_id, task_inserted_at, retry_count
+    FROM
+        v1_queue_item
+    WHERE
+        (task_id, task_inserted_at, retry_count) IN (SELECT task_id, task_inserted_at, retry_count FROM input)
+    ORDER BY
+        task_id, task_inserted_at, retry_count
+    FOR UPDATE
+)
+DELETE FROM
+    v1_queue_item
+WHERE
+    (task_id, task_inserted_at, retry_count) IN (SELECT task_id, task_inserted_at, retry_count FROM queue_items_to_delete)
+`
+
+const releaseRateLimitedQueueItems = `-- name: ReleaseRateLimitedQueueItems :batchexec
+WITH input AS (
+    SELECT
+        task_id, task_inserted_at, retry_count
+    FROM
+        (
+            SELECT
+                unnest($1::bigint[]) AS task_id,
+                unnest($2::timestamptz[]) AS task_inserted_at,
+                unnest($3::integer[]) AS retry_count
+        ) AS subquery
+), rate_limited_items_to_delete AS (
+    SELECT
+        task_id, task_inserted_at, retry_count
+    FROM
+        v1_rate_limited_queue_items
+    WHERE
+        (task_id, task_inserted_at, retry_count) IN (SELECT task_id, task_inserted_at, retry_count FROM input)
+    ORDER BY
+        task_id, task_inserted_at, retry_count
+    FOR UPDATE
+)
+DELETE FROM
+    v1_rate_limited_queue_items
+WHERE
+    (task_id, task_inserted_at, retry_count) IN (SELECT task_id, task_inserted_at, retry_count FROM rate_limited_items_to_delete)
+`
+
+const releaseRetryQueueItems = `-- name: ReleaseRetryQueueItems :batchexec
+WITH input AS (
+    SELECT
+        task_id, task_inserted_at, retry_count
+    FROM
+        (
+            SELECT
+                unnest($1::bigint[]) AS task_id,
+                unnest($2::timestamptz[]) AS task_inserted_at,
+                unnest($3::integer[]) AS retry_count
+        ) AS subquery
+), retry_queue_items_to_delete AS (
+    SELECT
+        task_id, task_inserted_at, task_retry_count
+    FROM
+        v1_retry_queue_item
+    WHERE
+        (task_id, task_inserted_at, task_retry_count) IN (SELECT task_id, task_inserted_at, retry_count FROM input)
+    ORDER BY
+        task_id, task_inserted_at, task_retry_count
+    FOR UPDATE
+)
+DELETE FROM
+    v1_retry_queue_item r
+WHERE
+    (task_id, task_inserted_at, task_retry_count) IN (
+        SELECT
+            task_id, task_inserted_at, task_retry_count
+        FROM
+            retry_queue_items_to_delete
+    )
+`
+
+const releaseTasks = `-- name: ReleaseTasks :batchmany
+WITH input AS (
+    SELECT
+        task_id, task_inserted_at, retry_count
+    FROM
+        (
+            SELECT
+                unnest($1::bigint[]) AS task_id,
+                unnest($2::timestamptz[]) AS task_inserted_at,
+                unnest($3::integer[]) AS retry_count
+        ) AS subquery
+), runtimes_to_delete AS (
+    SELECT
+        task_id,
+        task_inserted_at,
+        retry_count,
+        worker_id
+    FROM
+        v1_task_runtime
+    WHERE
+        (task_id, task_inserted_at, retry_count) IN (SELECT task_id, task_inserted_at, retry_count FROM input)
+    ORDER BY
+        task_id, task_inserted_at, retry_count
+    FOR UPDATE
+), deleted_runtimes AS (
+    DELETE FROM
+        v1_task_runtime
+    WHERE
+        (task_id, task_inserted_at, retry_count) IN (SELECT task_id, task_inserted_at, retry_count FROM runtimes_to_delete)
+    -- return a constant for ordering
+    RETURNING 1 AS cte_order
+)
+SELECT
+    t.queue,
+    t.id,
+    t.inserted_at,
+    t.external_id,
+    t.step_readable_id,
+    t.workflow_run_id,
+    r.worker_id,
+    i.retry_count::int AS retry_count,
+    t.retry_count = i.retry_count AS is_current_retry,
+    t.concurrency_strategy_ids
+FROM
+    v1_task t
+JOIN
+    input i ON i.task_id = t.id AND i.task_inserted_at = t.inserted_at
+LEFT JOIN
+    runtimes_to_delete r ON r.task_id = t.id AND r.retry_count = t.retry_count
+`
+
+type ReleaseTasksParams struct {
+	Taskids         []int64              `json:"taskids"`
+	Taskinsertedats []pgtype.Timestamptz `json:"taskinsertedats"`
+	Retrycounts     []int32              `json:"retrycounts"`
+}
+
+type ReleaseTasksRow struct {
+	Queue                  string             `json:"queue"`
+	ID                     int64              `json:"id"`
+	InsertedAt             pgtype.Timestamptz `json:"inserted_at"`
+	ExternalID             pgtype.UUID        `json:"external_id"`
+	StepReadableID         string             `json:"step_readable_id"`
+	WorkflowRunID          pgtype.UUID        `json:"workflow_run_id"`
+	WorkerID               pgtype.UUID        `json:"worker_id"`
+	RetryCount             int32              `json:"retry_count"`
+	IsCurrentRetry         bool               `json:"is_current_retry"`
+	ConcurrencyStrategyIds []int64            `json:"concurrency_strategy_ids"`
+}
+
+func (q *Queries) ReleaseTasks(ctx context.Context, db DBTX, arg ReleaseTasksParams) ([]*ReleaseTasksRow, error) {
+	batch := &pgx.Batch{}
+	vals := []interface{}{
+		arg.Taskids,
+		arg.Taskinsertedats,
+		arg.Retrycounts,
+	}
+
+	rowsCh := make(chan *ReleaseTasksRow, len(arg.Taskids))
+	errCh := make(chan error, 1)
+
+	res := batch.Queue(releaseTasks, vals...)
+
+	res.Query(func(rows pgx.Rows) error {
+		for rows.Next() {
+			var i ReleaseTasksRow
+			if err := rows.Scan(
+				&i.Queue,
+				&i.ID,
+				&i.InsertedAt,
+				&i.ExternalID,
+				&i.StepReadableID,
+				&i.WorkflowRunID,
+				&i.WorkerID,
+				&i.RetryCount,
+				&i.IsCurrentRetry,
+				&i.ConcurrencyStrategyIds,
+			); err != nil {
+				errCh <- err
+				close(rowsCh)
+				close(errCh)
+				return err
+			}
+			rowsCh <- &i
+		}
+		errCh <- rows.Err()
+		close(rowsCh)
+		close(errCh)
+		return nil
+	})
+	batch.Queue(releaseRetryQueueItems, vals...)
+	batch.Queue(releaseQueueItems, vals...)
+	batch.Queue(lockParentConcurrencySlots, vals...)
+	batch.Queue(releaseConcurrencySlots, vals...)
+	batch.Queue(releaseRateLimitedQueueItems, vals...)
+
+	br := db.SendBatch(ctx, batch)
+	err := br.Close()
+
+	if err != nil {
+		return nil, err
+	}
+
+	var items []*ReleaseTasksRow
+
+	for r := range rowsCh {
+		items = append(items, r)
+	}
+
+	if err := <-errCh; err != nil {
+		return nil, err
+	}
+
+	return items, nil
 }

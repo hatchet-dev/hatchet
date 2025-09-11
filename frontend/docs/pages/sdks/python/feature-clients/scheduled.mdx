@@ -78,16 +78,16 @@ Retrieves a list of scheduled workflows based on provided filters.
 
 Parameters:
 
-| Name                     | Type                                       | Description                                          | Default |
-| ------------------------ | ------------------------------------------ | ---------------------------------------------------- | ------- |
-| `offset`                 | `int \| None`                              | The offset to use in pagination.                     | `None`  |
-| `limit`                  | `int \| None`                              | The maximum number of scheduled workflows to return. | `None`  |
-| `workflow_id`            | `str \| None`                              | The ID of the workflow to filter by.                 | `None`  |
-| `parent_workflow_run_id` | `str \| None`                              | The ID of the parent workflow run to filter by.      | `None`  |
-| `statuses`               | `list[ScheduledRunStatus] \| None`         | A list of statuses to filter by.                     | `None`  |
-| `additional_metadata`    | `Optional[JSONSerializableMapping]`        | Additional metadata to filter by.                    | `None`  |
-| `order_by_field`         | `Optional[ScheduledWorkflowsOrderByField]` | The field to order the results by.                   | `None`  |
-| `order_by_direction`     | `Optional[WorkflowRunOrderByDirection]`    | The direction to order the results by.               | `None`  |
+| Name                     | Type                                     | Description                                          | Default |
+| ------------------------ | ---------------------------------------- | ---------------------------------------------------- | ------- |
+| `offset`                 | `int \| None`                            | The offset to use in pagination.                     | `None`  |
+| `limit`                  | `int \| None`                            | The maximum number of scheduled workflows to return. | `None`  |
+| `workflow_id`            | `str \| None`                            | The ID of the workflow to filter by.                 | `None`  |
+| `parent_workflow_run_id` | `str \| None`                            | The ID of the parent workflow run to filter by.      | `None`  |
+| `statuses`               | `list[ScheduledRunStatus] \| None`       | A list of statuses to filter by.                     | `None`  |
+| `additional_metadata`    | `JSONSerializableMapping \| None`        | Additional metadata to filter by.                    | `None`  |
+| `order_by_field`         | `ScheduledWorkflowsOrderByField \| None` | The field to order the results by.                   | `None`  |
+| `order_by_direction`     | `WorkflowRunOrderByDirection \| None`    | The direction to order the results by.               | `None`  |
 
 Returns:
 
@@ -154,16 +154,16 @@ Retrieves a list of scheduled workflows based on provided filters.
 
 Parameters:
 
-| Name                     | Type                                       | Description                                          | Default |
-| ------------------------ | ------------------------------------------ | ---------------------------------------------------- | ------- |
-| `offset`                 | `int \| None`                              | The offset to use in pagination.                     | `None`  |
-| `limit`                  | `int \| None`                              | The maximum number of scheduled workflows to return. | `None`  |
-| `workflow_id`            | `str \| None`                              | The ID of the workflow to filter by.                 | `None`  |
-| `parent_workflow_run_id` | `str \| None`                              | The ID of the parent workflow run to filter by.      | `None`  |
-| `statuses`               | `list[ScheduledRunStatus] \| None`         | A list of statuses to filter by.                     | `None`  |
-| `additional_metadata`    | `Optional[JSONSerializableMapping]`        | Additional metadata to filter by.                    | `None`  |
-| `order_by_field`         | `Optional[ScheduledWorkflowsOrderByField]` | The field to order the results by.                   | `None`  |
-| `order_by_direction`     | `Optional[WorkflowRunOrderByDirection]`    | The direction to order the results by.               | `None`  |
+| Name                     | Type                                     | Description                                          | Default |
+| ------------------------ | ---------------------------------------- | ---------------------------------------------------- | ------- |
+| `offset`                 | `int \| None`                            | The offset to use in pagination.                     | `None`  |
+| `limit`                  | `int \| None`                            | The maximum number of scheduled workflows to return. | `None`  |
+| `workflow_id`            | `str \| None`                            | The ID of the workflow to filter by.                 | `None`  |
+| `parent_workflow_run_id` | `str \| None`                            | The ID of the parent workflow run to filter by.      | `None`  |
+| `statuses`               | `list[ScheduledRunStatus] \| None`       | A list of statuses to filter by.                     | `None`  |
+| `additional_metadata`    | `JSONSerializableMapping \| None`        | Additional metadata to filter by.                    | `None`  |
+| `order_by_field`         | `ScheduledWorkflowsOrderByField \| None` | The field to order the results by.                   | `None`  |
+| `order_by_direction`     | `WorkflowRunOrderByDirection \| None`    | The direction to order the results by.               | `None`  |
 
 Returns:
 

@@ -31,11 +31,11 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from '@/components/v1/ui/accordion';
-import { useTenant } from '@/lib/atoms';
 import {
   managedCompute,
   ComputeType,
 } from '@/lib/can/features/managed-compute';
+import { useCurrentTenantId, useTenantDetails } from '@/hooks/use-tenant';
 
 export const machineTypes = [
   {
@@ -298,18 +298,17 @@ const createManagedWorkerSchema = z.object({
 
 interface CreateWorkerFormProps {
   onSubmit: (opts: z.infer<typeof createManagedWorkerSchema>) => void;
-  tenantId: string;
   isLoading: boolean;
   fieldErrors?: Record<string, string>;
 }
 
 export default function CreateWorkerForm({
   onSubmit,
-  tenantId,
   isLoading,
   fieldErrors,
 }: CreateWorkerFormProps) {
-  const { can } = useTenant();
+  const { can } = useTenantDetails();
+  const { tenantId } = useCurrentTenantId();
 
   const {
     watch,

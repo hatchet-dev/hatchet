@@ -205,6 +205,45 @@ export enum TenantResource {
   SCHEDULE = "SCHEDULE",
 }
 
+/** The status of the CEL evaluation */
+export enum V1CELDebugResponseStatus {
+  SUCCESS = "SUCCESS",
+  ERROR = "ERROR",
+}
+
+export enum V1WebhookHMACEncoding {
+  HEX = "HEX",
+  BASE64 = "BASE64",
+  BASE64URL = "BASE64URL",
+}
+
+export enum V1WebhookHMACAlgorithm {
+  SHA1 = "SHA1",
+  SHA256 = "SHA256",
+  SHA512 = "SHA512",
+  MD5 = "MD5",
+}
+
+export enum V1WebhookAuthType {
+  BASIC = "BASIC",
+  API_KEY = "API_KEY",
+  HMAC = "HMAC",
+}
+
+export enum V1WebhookSourceName {
+  GENERIC = "GENERIC",
+  GITHUB = "GITHUB",
+  STRIPE = "STRIPE",
+  SLACK = "SLACK",
+  LINEAR = "LINEAR",
+}
+
+export enum TenantEnvironment {
+  Local = "local",
+  Development = "development",
+  Production = "production",
+}
+
 export enum TenantUIVersion {
   V0 = "V0",
   V1 = "V1",
@@ -364,6 +403,12 @@ export interface V1TaskSummary {
    * @format uuid
    */
   workflowVersionId?: string;
+  workflowConfig?: object;
+  /**
+   * The external ID of the parent task.
+   * @format uuid
+   */
+  parentTaskExternalId?: string;
 }
 
 export interface APIError {
@@ -479,10 +524,20 @@ export interface V1CancelTaskRequest {
   filter?: V1TaskFilter;
 }
 
+export interface V1CancelledTasks {
+  /** The list of task external ids that were cancelled */
+  ids?: string[];
+}
+
 export interface V1ReplayTaskRequest {
   /** A list of external IDs, which can refer to either task or workflow run external IDs */
   externalIds?: string[];
   filter?: V1TaskFilter;
+}
+
+export interface V1ReplayedTasks {
+  /** The list of task external ids that were replayed */
+  ids?: string[];
 }
 
 export interface V1DagChildren {
@@ -596,6 +651,7 @@ export interface V1WorkflowRunDetails {
   taskEvents: V1TaskEvent[];
   shape: WorkflowRunShapeForWorkflowRunDetails;
   tasks: V1TaskSummary[];
+  workflowConfig?: object;
 }
 
 export interface V1TaskTiming {
@@ -701,6 +757,8 @@ export interface Tenant {
   version: TenantVersion;
   /** The UI of the tenant. */
   uiVersion?: TenantUIVersion;
+  /** The environment type of the tenant. */
+  environment?: TenantEnvironment;
 }
 
 export interface V1EventWorkflowRunSummary {
@@ -731,6 +789,21 @@ export interface V1EventWorkflowRunSummary {
   cancelled: number;
 }
 
+export interface V1EventTriggeredRun {
+  /**
+   * The external ID of the triggered run.
+   * @format uuid
+   * @minLength 36
+   * @maxLength 36
+   */
+  workflowRunId: string;
+  /**
+   * The ID of the filter that triggered the run, if applicable.
+   * @format uuid
+   */
+  filterId?: string;
+}
+
 export interface V1Event {
   metadata: APIResourceMeta;
   /** The key for the event. */
@@ -743,11 +816,29 @@ export interface V1Event {
   workflowRunSummary: V1EventWorkflowRunSummary;
   /** Additional metadata for the event. */
   additionalMetadata?: object;
+  /** The payload of the event, which can be any JSON-serializable object. */
+  payload?: object;
+  /** The scope of the event, which can be used to filter or categorize events. */
+  scope?: string;
+  /**
+   * The timestamp when the event was seen.
+   * @format date-time
+   */
+  seenAt?: string;
+  /** The external IDs of the runs that were triggered by this event. */
+  triggeredRuns?: V1EventTriggeredRun[];
+  /** The name of the webhook that triggered this event, if applicable. */
+  triggeringWebhookName?: string;
 }
 
 export interface V1EventList {
   pagination?: PaginationResponse;
   rows?: V1Event[];
+}
+
+export interface EventKeyList {
+  pagination?: PaginationResponse;
+  rows?: EventKey[];
 }
 
 export interface V1Filter {
@@ -797,6 +888,107 @@ export interface V1UpdateFilterRequest {
   scope?: string;
   /** The payload for the filter */
   payload?: object;
+}
+
+export interface V1Webhook {
+  metadata: APIResourceMeta;
+  /** The ID of the tenant associated with this webhook. */
+  tenantId: string;
+  /** The name of the webhook */
+  name: string;
+  /** The name of the source for this webhook */
+  sourceName: V1WebhookSourceName;
+  /** The CEL expression to use for the event key. This is used to create the event key from the webhook payload. */
+  eventKeyExpression: string;
+  /** The type of authentication to use for the webhook */
+  authType: V1WebhookAuthType;
+}
+
+export interface V1WebhookList {
+  pagination?: PaginationResponse;
+  rows?: V1Webhook[];
+}
+
+export interface V1CreateWebhookRequestBase {
+  /** The name of the source for this webhook */
+  sourceName: V1WebhookSourceName;
+  /** The name of the webhook */
+  name: string;
+  /** The CEL expression to use for the event key. This is used to create the event key from the webhook payload. */
+  eventKeyExpression: string;
+}
+
+export interface V1WebhookBasicAuth {
+  /** The username for basic auth */
+  username: string;
+  /** The password for basic auth */
+  password: string;
+}
+
+export type V1CreateWebhookRequestBasicAuth = V1CreateWebhookRequestBase & {
+  /** The type of authentication to use for the webhook */
+  authType: "BASIC";
+  auth: V1WebhookBasicAuth;
+};
+
+export interface V1WebhookAPIKeyAuth {
+  /** The name of the header to use for the API key */
+  headerName: string;
+  /** The API key to use for authentication */
+  apiKey: string;
+}
+
+export type V1CreateWebhookRequestAPIKey = V1CreateWebhookRequestBase & {
+  /** The type of authentication to use for the webhook */
+  authType: "API_KEY";
+  auth: V1WebhookAPIKeyAuth;
+};
+
+export interface V1WebhookHMACAuth {
+  /** The HMAC algorithm to use for the webhook */
+  algorithm: V1WebhookHMACAlgorithm;
+  /** The encoding to use for the HMAC signature */
+  encoding: V1WebhookHMACEncoding;
+  /** The name of the header to use for the HMAC signature */
+  signatureHeaderName: string;
+  /** The secret key used to sign the HMAC signature */
+  signingSecret: string;
+}
+
+export type V1CreateWebhookRequestHMAC = V1CreateWebhookRequestBase & {
+  /** The type of authentication to use for the webhook */
+  authType: "HMAC";
+  auth: V1WebhookHMACAuth;
+};
+
+export type V1CreateWebhookRequest =
+  | V1CreateWebhookRequestBasicAuth
+  | V1CreateWebhookRequestAPIKey
+  | V1CreateWebhookRequestHMAC;
+
+export interface V1UpdateWebhookRequest {
+  /** The CEL expression to use for the event key. This is used to create the event key from the webhook payload. */
+  eventKeyExpression: string;
+}
+
+export interface V1CELDebugRequest {
+  /** The CEL expression to evaluate */
+  expression: string;
+  /** The input, which simulates the workflow run input */
+  input: object;
+  /** The filter payload, which simulates a payload set on a previous-created filter */
+  filterPayload?: object;
+  /** Additional metadata, which simulates metadata that could be sent with an event or a workflow run */
+  additionalMetadata?: object;
+}
+
+export interface V1CELDebugResponse {
+  /** The status of the CEL evaluation */
+  status: V1CELDebugResponseStatus;
+  /** The result of the CEL expression evaluation, if successful */
+  output?: boolean;
+  /** The error message if the evaluation failed */
+  error?: string;
 }
 
 export interface APIMetaAuth {
@@ -1072,6 +1264,10 @@ export interface CreateTenantRequest {
   uiVersion?: TenantUIVersion;
   /** The engine version of the tenant. Defaults to V0. */
   engineVersion?: TenantVersion;
+  /** The environment type of the tenant. */
+  environment?: TenantEnvironment;
+  /** Additional onboarding data to store with the tenant. */
+  onboardingData?: Record<string, any>;
 }
 
 export interface UpdateTenantRequest {
@@ -1302,14 +1498,14 @@ export interface TenantMemberList {
   rows?: TenantMember[];
 }
 
+export interface UpdateTenantMemberRequest {
+  /** The role of the user in the tenant. */
+  role: TenantMemberRole;
+}
+
 export interface EventData {
   /** The data for the event (JSON bytes). */
   data: string;
-}
-
-export interface EventKeyList {
-  pagination?: PaginationResponse;
-  rows?: EventKey[];
 }
 
 export interface Workflow {
@@ -1521,6 +1717,7 @@ export interface WorkflowVersion {
   triggers?: WorkflowTriggers;
   scheduleTimeout?: string;
   jobs?: Job[];
+  workflowConfig?: object;
 }
 
 export interface TriggerWorkflowRunRequest {
@@ -1802,7 +1999,7 @@ export interface SemaphoreSlots {
    * @format uuid
    */
   workflowRunId: string;
-  status: StepRunStatus;
+  status?: StepRunStatus;
 }
 
 export interface RecentStepRuns {

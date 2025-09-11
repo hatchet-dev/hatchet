@@ -9,7 +9,7 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
-	"github.com/hatchet-dev/hatchet/internal/integrations/email"
+	"github.com/hatchet-dev/hatchet/pkg/integrations/email"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
@@ -95,6 +95,10 @@ func (t *TenantService) TenantInviteCreate(ctx echo.Context, request gen.TenantI
 		sqlchelpers.UUIDToStr(user.ID),
 		&tenantId,
 		nil,
+		map[string]interface{}{
+			"invite_id": invite.ID,
+			"role":      request.Body.Role,
+		},
 	)
 
 	return gen.TenantInviteCreate201JSONResponse(

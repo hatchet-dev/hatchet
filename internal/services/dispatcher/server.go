@@ -41,6 +41,8 @@ type subscribedWorker struct {
 	finished chan<- bool
 
 	sendMu sync.Mutex
+
+	workerId string
 }
 
 func (worker *subscribedWorker) StartStepRun(
@@ -358,7 +360,7 @@ func (s *DispatcherImpl) Listen(request *contracts.WorkerListenRequest, stream c
 
 	fin := make(chan bool)
 
-	s.workers.Add(request.WorkerId, sessionId, &subscribedWorker{stream: stream, finished: fin})
+	s.workers.Add(request.WorkerId, sessionId, &subscribedWorker{stream: stream, finished: fin, workerId: request.WorkerId})
 
 	defer func() {
 		// non-blocking send
@@ -480,7 +482,7 @@ func (s *DispatcherImpl) ListenV2(request *contracts.WorkerListenRequest, stream
 
 	fin := make(chan bool)
 
-	s.workers.Add(request.WorkerId, sessionId, &subscribedWorker{stream: stream, finished: fin})
+	s.workers.Add(request.WorkerId, sessionId, &subscribedWorker{stream: stream, finished: fin, workerId: request.WorkerId})
 
 	defer func() {
 		// non-blocking send
@@ -597,8 +599,7 @@ func (s *DispatcherImpl) Heartbeat(ctx context.Context, req *contracts.Heartbeat
 		span.RecordError(err)
 		span.SetStatus(telemetry_codes.Error, "could not get worker")
 		if errors.Is(err, pgx.ErrNoRows) {
-			s.l.Error().Msgf("worker %s not found", req.WorkerId)
-			return nil, err
+			return nil, status.Errorf(codes.NotFound, "worker not found: %s", req.WorkerId)
 		}
 
 		return nil, err
@@ -879,7 +880,7 @@ func (w *workflowRunAcks) ackWorkflowRun(id string) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
-	w.acks[id] = true
+	delete(w.acks, id)
 }
 
 func (w *workflowRunAcks) hasWorkflowRun(id string) bool {

@@ -8,6 +8,7 @@ import (
 	msgqueue "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
+	"github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
@@ -50,6 +51,9 @@ func (tc *TasksControllerImpl) processTaskReassignments(ctx context.Context, ten
 	for _, task := range res.RetriedTasks {
 		retriedTasks[task.Id] = true
 	}
+
+	prometheus.ReassignedTasks.Add(float64(len(res.RetriedTasks)))
+	prometheus.TenantReassignedTasks.WithLabelValues(tenantId).Add(float64(len(res.RetriedTasks)))
 
 	for _, task := range res.ReleasedTasks {
 		var workerId *string

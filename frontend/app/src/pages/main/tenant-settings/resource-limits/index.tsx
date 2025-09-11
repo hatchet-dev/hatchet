@@ -11,7 +11,7 @@ import useCloudApiMeta from '@/pages/auth/hooks/use-cloud-api-meta';
 
 export default function ResourceLimits() {
   const { tenant } = useOutletContext<TenantContextType>();
-  const cloudMeta = useCloudApiMeta();
+  const { data: cloudMeta } = useCloudApiMeta();
 
   const resourcePolicyQuery = useQuery({
     ...queries.tenantResourcePolicy.get(tenant.metadata.id),

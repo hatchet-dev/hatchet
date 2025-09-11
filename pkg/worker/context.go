@@ -73,6 +73,8 @@ type HatchetContext interface {
 
 	StreamEvent(message []byte)
 
+	PutStream(message string)
+
 	SpawnWorkflow(workflowName string, input any, opts *SpawnWorkflowOpts) (*client.Workflow, error)
 
 	SpawnWorkflows(childWorkflows []*SpawnWorkflowsOpts) ([]*client.Workflow, error)
@@ -137,6 +139,9 @@ type hatchetContext struct {
 	indexMu    sync.Mutex
 	listener   *client.WorkflowRunsListener
 	listenerMu sync.Mutex
+
+	streamEventIndex   int64
+	streamEventIndexMu sync.Mutex
 }
 
 type hatchetWorkerContext struct {
@@ -322,11 +327,20 @@ func (h *hatchetContext) RefreshTimeout(incrementTimeoutBy string) error {
 }
 
 func (h *hatchetContext) StreamEvent(message []byte) {
-	err := h.c.Event().PutStreamEvent(h, h.a.StepRunId, message)
+	h.streamEventIndexMu.Lock()
+	currentIndex := h.streamEventIndex
+	h.streamEventIndex++
+	h.streamEventIndexMu.Unlock()
+
+	err := h.c.Event().PutStreamEvent(h, h.a.StepRunId, message, client.WithStreamEventIndex(currentIndex))
 
 	if err != nil {
 		h.l.Err(err).Msg("could not put stream event")
 	}
+}
+
+func (h *hatchetContext) PutStream(message string) {
+	h.StreamEvent([]byte(message))
 }
 
 func (h *hatchetContext) RetryCount() int {

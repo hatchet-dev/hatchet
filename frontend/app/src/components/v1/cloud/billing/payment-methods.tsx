@@ -12,13 +12,12 @@ import {
 import { LuBanknote } from 'react-icons/lu';
 
 import { IconType } from 'react-icons/lib';
-import { TenantContextType } from '@/lib/outlet';
-import { useOutletContext } from 'react-router-dom';
 import { useApiError } from '@/lib/hooks';
 import { useState } from 'react';
 import { Spinner } from '@/components/v1/ui/loading';
 import { TenantPaymentMethod } from '@/lib/api/generated/cloud/data-contracts';
 import { cloudApi } from '@/lib/api/api';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
 
 const ccIcons: Record<string, IconType> = {
   visa: FaCcVisa,
@@ -40,14 +39,14 @@ export function PaymentMethods({
   methods = [],
   hasMethods,
 }: PaymentMethodsProps) {
-  const { tenant } = useOutletContext<TenantContextType>();
+  const { tenantId } = useCurrentTenantId();
   const { handleApiError } = useApiError({});
   const [loading, setLoading] = useState(false);
 
   const manageClicked = async () => {
     try {
       setLoading(true);
-      const link = await cloudApi.billingPortalLinkGet(tenant.metadata.id);
+      const link = await cloudApi.billingPortalLinkGet(tenantId);
       if (link.data.url) {
         window.location.href = link.data.url;
       }
@@ -80,7 +79,7 @@ export function PaymentMethods({
                       <Icon size={24} />
                       {method.brand.toUpperCase()}
                       {method.last4 && ` *** *** ${method.last4} `}
-                      {method.expiration && `(Expires {method.expiration})`}
+                      {method.expiration && `(Expires ${method.expiration})`}
                     </div>
                   </div>
                 </div>

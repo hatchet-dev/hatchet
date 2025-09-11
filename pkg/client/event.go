@@ -24,6 +24,18 @@ type PushOpFunc func(*pushOpt) error
 
 type BulkPushOpFunc func(*eventcontracts.BulkPushEventRequest) error
 
+type streamEventOpts struct {
+	index *int64
+}
+
+type StreamEventOption func(*streamEventOpts)
+
+func WithStreamEventIndex(index int64) StreamEventOption {
+	return func(opts *streamEventOpts) {
+		opts.index = &index
+	}
+}
+
 type EventClient interface {
 	Push(ctx context.Context, eventKey string, payload interface{}, options ...PushOpFunc) error
 
@@ -31,7 +43,7 @@ type EventClient interface {
 
 	PutLog(ctx context.Context, stepRunId, msg string) error
 
-	PutStreamEvent(ctx context.Context, stepRunId string, message []byte) error
+	PutStreamEvent(ctx context.Context, stepRunId string, message []byte, options ...StreamEventOption) error
 }
 
 type EventWithAdditionalMetadata struct {
@@ -150,7 +162,8 @@ func (a *eventClientImpl) BulkPush(ctx context.Context, payload []EventWithAddit
 		if err != nil {
 			return err
 		}
-		eMetadata, err := json.Marshal(p.AdditionalMetadata)
+		md := p.AdditionalMetadata
+		eMetadata, err := a.getAdditionalMetaBytes(&md)
 		if err != nil {
 			return err
 		}
@@ -187,12 +200,24 @@ func (a *eventClientImpl) PutLog(ctx context.Context, stepRunId, msg string) err
 	return err
 }
 
-func (a *eventClientImpl) PutStreamEvent(ctx context.Context, stepRunId string, message []byte) error {
-	_, err := a.client.PutStreamEvent(a.ctx.newContext(ctx), &eventcontracts.PutStreamEventRequest{
+func (a *eventClientImpl) PutStreamEvent(ctx context.Context, stepRunId string, message []byte, options ...StreamEventOption) error {
+	opts := &streamEventOpts{}
+
+	for _, optionFunc := range options {
+		optionFunc(opts)
+	}
+
+	request := &eventcontracts.PutStreamEventRequest{
 		CreatedAt: timestamppb.Now(),
 		StepRunId: stepRunId,
 		Message:   message,
-	})
+	}
+
+	if opts.index != nil {
+		request.EventIndex = opts.index
+	}
+
+	_, err := a.client.PutStreamEvent(a.ctx.newContext(ctx), request)
 
 	return err
 }

@@ -1458,3 +1458,7 @@ func (r *workflowEngineRepository) createJobTx(ctx context.Context, tx pgx.Tx, t
 
 	return jobId, nil
 }
+
+func (w *workflowEngineRepository) DeleteInvalidCron(ctx context.Context, id pgtype.UUID) error {
+	return w.queries.DeleteWorkflowTriggerCronRef(ctx, w.pool, id)
+}

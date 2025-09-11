@@ -1,62 +1,39 @@
-import React, { useMemo } from "react";
+import React from "react";
 import { CodeBlock } from "./CodeBlock";
-import { Snippet as SnippetType } from "@/lib/snips";
+import { type Snippet as SnippetType } from "@/lib/snippet";
 
-interface SnippetProps {
-  src: SnippetType;
-  block?: keyof SnippetType['blocks'] | 'ALL';
-}
+type Language = SnippetType["language"];
 
-const languageMap = {
-  typescript: 'ts',
-  python: 'py',
-  go: 'go',
-  unknown: 'txt',
+// See the list of supported languages for how to define these:
+// https://highlightjs.readthedocs.io/en/latest/supported-languages.html
+const languageToHighlightAbbreviation = (language: Language) => {
+  switch (language) {
+    case "python":
+      return "py";
+    case "typescript":
+      return "ts";
+    case "go":
+      return "go";
+    default:
+      const exhaustiveCheck: never = language;
+      throw new Error(`Unsupported language: ${exhaustiveCheck}`);
+  }
 };
 
-// This is a server component that will be rendered at build time
-export const Snippet = ({ src, block }: SnippetProps) => {
-  if (!src.content) {
-    throw new Error(`src content is required: ${src.source}`);
+export const Snippet = ({ src }: { src: SnippetType }) => {
+  if (src === undefined) {
+    throw new Error(
+      "Snippet was undefined. You probably provided a path to a snippet that doesn't exist."
+    );
   }
-
-  const language = useMemo(() => {
-    const normalizedLanguage = src.language?.toLowerCase().trim();
-    if (normalizedLanguage && normalizedLanguage in languageMap) {
-      return languageMap[normalizedLanguage as keyof typeof languageMap];
-    }
-    return 'txt';
-  }, [src.language]);
-
-  let content = src.content;
-
-  if (block && block !== 'ALL' && src.blocks) {
-    if (!(block in src.blocks)) {
-      throw new Error(
-        `Block ${block} not found in ${src.source} ${JSON.stringify(src.blocks, null, 2)}`,
-      );
-    }
-
-    const lines = src.content.split('\n');
-    content = lines
-      .slice(src.blocks[block].start - 1, src.blocks[block].stop)
-      .join('\n');
-  }
-
-  const fixedSource = src.source.replace('out/', 'examples/');
-
   return (
-    <>
-      <CodeBlock
-        source={{
-          githubUrl: `https://github.com/hatchet-dev/hatchet/blob/main/${fixedSource}`,
-          raw: content || '',
-          language: language,
-          props: {
-            path: fixedSource,
-          },
-        }}
+    <CodeBlock
+      source={{
+        githubUrl: src.githubUrl,
+        raw: src.content,
+        language: languageToHighlightAbbreviation(src.language),
+        codePath: src.codePath,
+      }}
     />
-    </>
   );
 };

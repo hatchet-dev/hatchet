@@ -5,8 +5,8 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Spinner } from '@/components/v1/ui/loading.tsx';
-import { Tenant } from '@/lib/api';
 import { Input } from '@/components/v1/ui/input';
+import { useTenantDetails } from '@/hooks/use-tenant';
 
 const schema = z.object({
   name: z.string().max(255).min(1),
@@ -17,13 +17,14 @@ interface UpdateTenantSettingsProps {
   onSubmit: (opts: z.infer<typeof schema>) => void;
   isLoading: boolean;
   fieldErrors?: Record<string, string>;
-  tenant: Tenant;
 }
 
 export function UpdateTenantForm({
   className,
   ...props
 }: UpdateTenantSettingsProps) {
+  const { tenant } = useTenantDetails();
+
   const {
     handleSubmit,
     register,
@@ -31,7 +32,7 @@ export function UpdateTenantForm({
   } = useForm<z.infer<typeof schema>>({
     resolver: zodResolver(schema),
     defaultValues: {
-      name: props.tenant.name,
+      name: tenant?.name,
     },
   });
 

@@ -47,6 +47,51 @@ V1EventList:
         schema:
           type: string
           format: date-time
+      - description: Filter to events that are associated with a specific workflow run
+        in: query
+        name: workflowIds
+        schema:
+          type: array
+          items:
+            type: string
+            format: uuid
+            minLength: 36
+            maxLength: 36
+      - description: Filter to events that are associated with workflow runs matching a certain status
+        in: query
+        name: workflowRunStatuses
+        schema:
+          type: array
+          items:
+            $ref: "../../../components/schemas/_index.yaml#/V1TaskStatus"
+      - description: Filter to specific events by their ids
+        in: query
+        name: eventIds
+        schema:
+          type: array
+          items:
+            type: string
+            format: uuid
+            minLength: 36
+            maxLength: 36
+      - description: Filter by additional metadata on the events
+        in: query
+        name: additionalMetadata
+        schema:
+          type: array
+          items:
+            type: string
+            description: The metadata key-value pairs (delimited by a `:`) to filter by
+            minLength: 1
+      - description: The scopes to filter by
+        in: query
+        name: scopes
+        schema:
+          type: array
+          items:
+            type: string
+            description: The scope to filter by
+            minLength: 1
     responses:
       "200":
         content:
@@ -67,5 +112,43 @@ V1EventList:
               $ref: "../../../components/schemas/_index.yaml#/APIErrors"
         description: Forbidden
     summary: List events
+    tags:
+      - Event
+
+keys:
+  get:
+    x-resources: ["tenant"]
+    description: Lists all event keys for a tenant.
+    operationId: v1:event-key:list
+    parameters:
+      - description: The tenant id
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/EventKeyList"
+        description: Successfully listed the event keys
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+    summary: List event keys
     tags:
       - Event

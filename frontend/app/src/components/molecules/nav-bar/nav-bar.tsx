@@ -1,3 +1,4 @@
+import React from 'react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -10,7 +11,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 
 import { useLocation, useNavigate } from 'react-router-dom';
-import api, { TenantVersion, User } from '@/lib/api';
+import api, { TenantMember, TenantVersion, User } from '@/lib/api';
 import { useApiError } from '@/lib/hooks';
 import { useMutation } from '@tanstack/react-query';
 import hatchet from '@/assets/hatchet_logo.png';
@@ -24,7 +25,9 @@ import {
   BiLogoDiscordAlt,
   BiSolidGraduation,
   BiUserCircle,
+  BiEnvelope,
 } from 'react-icons/bi';
+import { Menu } from 'lucide-react';
 import { useTheme } from '@/components/theme-provider';
 import { useEffect, useMemo } from 'react';
 import useApiMeta from '@/pages/auth/hooks/use-api-meta';
@@ -32,9 +35,21 @@ import { VersionInfo } from '@/pages/main/info/components/version-info';
 import { useTenant } from '@/lib/atoms';
 import { routes } from '@/router';
 import { Banner, BannerProps } from './banner';
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from '@/components/v1/ui/breadcrumb';
+import { useBreadcrumbs } from '@/hooks/use-breadcrumbs';
+import { usePendingInvites } from '@/hooks/use-pending-invites';
 
 function HelpDropdown() {
   const meta = useApiMeta();
+  const navigate = useNavigate();
+  const { tenant } = useTenant();
 
   const hasPylon = useMemo(() => {
     if (!meta.data?.pylonAppId) {
@@ -85,7 +100,13 @@ function HelpDropdown() {
           Schedule Office Hours
         </DropdownMenuItem>
         <DropdownMenuItem
-          onClick={() => window.open('/onboarding/get-started', '_self')}
+          onClick={() => {
+            if (tenant?.version === TenantVersion.V1) {
+              navigate(`/tenants/${tenant.metadata.id}/onboarding/get-started`);
+            } else {
+              navigate('/onboarding/get-started');
+            }
+          }}
         >
           <BiSolidGraduation className="mr-2" />
           Restart Tutorial
@@ -95,13 +116,16 @@ function HelpDropdown() {
   );
 }
 
-function AccountDropdown({ user }: MainNavProps) {
+function AccountDropdown({ user }: { user: User }) {
   const navigate = useNavigate();
   const { tenant } = useTenant();
 
   const { handleApiError } = useApiError({});
 
   const { toggleTheme } = useTheme();
+
+  // Check for pending invites to show the Invites menu item
+  const { pendingInvitesQuery } = usePendingInvites();
 
   const logoutMutation = useMutation({
     mutationKey: ['user:update:logout'],
@@ -123,6 +147,9 @@ function AccountDropdown({ user }: MainNavProps) {
           aria-label="User Menu"
         >
           <BiUserCircle className="h-6 w-6 text-foreground cursor-pointer" />
+          {(pendingInvitesQuery.data ?? 0) > 0 && (
+            <div className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 bg-blue-500 rounded-full border-2 border-background animate-pulse"></div>
+          )}
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-56" align="end" forceMount>
@@ -137,6 +164,15 @@ function AccountDropdown({ user }: MainNavProps) {
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
+        {(pendingInvitesQuery.data ?? 0) > 0 && (
+          <>
+            <DropdownMenuItem onClick={() => navigate('/onboarding/invites')}>
+              <BiEnvelope className="mr-2" />
+              Invites ({pendingInvitesQuery.data})
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+          </>
+        )}
         <DropdownMenuItem>
           <VersionInfo />
         </DropdownMenuItem>
@@ -163,6 +199,7 @@ function AccountDropdown({ user }: MainNavProps) {
 
 interface MainNavProps {
   user: User;
+  tenantMemberships: TenantMember[];
   setHasBanner?: (state: boolean) => void;
 }
 
@@ -172,24 +209,32 @@ export default function MainNav({ user, setHasBanner }: MainNavProps) {
   const { tenant } = useTenant();
   const { pathname } = useLocation();
   const navigate = useNavigate();
+  const breadcrumbs = useBreadcrumbs();
 
-  const versionedRoutes = useMemo(
+  const tenantedRoutes = useMemo(
     () =>
       routes
         .at(0)
-        ?.children?.find((r) => r.path === '/v1/')
-        ?.children?.find((r) => r.path === '/v1/' && r.children?.length)
+        ?.children?.find((r) => r.path?.startsWith('/tenants/'))
+        ?.children?.find(
+          (r) => r.path?.startsWith('/tenants/') && r.children?.length,
+        )
         ?.children?.map((c) => c.path)
-        ?.map((p) => p?.replace('/v1', '')) || [],
+        ?.map((p) => p?.replace('/tenants/:tenant', '')) || [],
     [],
   );
 
   const tenantVersion = tenant?.version || TenantVersion.V0;
 
   const banner: BannerProps | undefined = useMemo(() => {
+    const pathnameWithoutTenant = pathname.replace(
+      `/tenants/${tenant?.metadata.id}`,
+      '',
+    );
+
     const shouldShowVersionUpgradeButton =
-      versionedRoutes.includes(pathname) && // It is a versioned route
-      !pathname.includes('/v1') && // The user is not already on the v1 version
+      tenantedRoutes.includes(pathnameWithoutTenant) && // It is a versioned route
+      !pathname.startsWith('/tenants') && // The user is not already on the v1 version
       tenantVersion === TenantVersion.V1; // The tenant is on the v1 version
 
     if (shouldShowVersionUpgradeButton) {
@@ -204,7 +249,7 @@ export default function MainNav({ user, setHasBanner }: MainNavProps) {
         actionText: 'View V1',
         onAction: () => {
           navigate({
-            pathname: '/v1' + pathname,
+            pathname: `/tenants/${tenant?.metadata.id}${pathname}`,
             search: '?previewV0=false',
           });
         },
@@ -212,7 +257,7 @@ export default function MainNav({ user, setHasBanner }: MainNavProps) {
     }
 
     return;
-  }, [navigate, pathname, tenantVersion, versionedRoutes]);
+  }, [navigate, pathname, tenantVersion, tenantedRoutes, tenant?.metadata.id]);
 
   useEffect(() => {
     if (!setHasBanner) {
@@ -222,23 +267,50 @@ export default function MainNav({ user, setHasBanner }: MainNavProps) {
   }, [setHasBanner, banner]);
 
   return (
-    <div className="fixed top-0 w-screen">
+    <div className="fixed top-0 w-screen z-50">
       {banner && <Banner {...banner} />}
 
-      {/* Main Navigation Bar */}
-      <div className="h-16 border-b">
+      <div className="h-16 border-b bg-background">
         <div className="flex h-16 items-center pr-4 pl-4">
-          <button
-            onClick={() => toggleSidebarOpen()}
-            className="flex flex-row gap-4 items-center"
-          >
-            <img
-              src={theme == 'dark' ? hatchet : hatchetDark}
-              alt="Hatchet"
-              className="h-9 rounded"
-            />
-          </button>
-          <div className="ml-auto flex items-center">
+          <div className="flex flex-row items-center gap-x-8">
+            <div className="flex items-center gap-3">
+              <Button
+                variant="ghost"
+                onClick={() => toggleSidebarOpen()}
+                className="size-8 p-0 hover:bg-slate-100 dark:hover:bg-slate-800"
+                aria-label="Toggle sidebar"
+              >
+                <Menu className="size-4" />
+              </Button>
+              <img
+                src={theme == 'dark' ? hatchet : hatchetDark}
+                alt="Hatchet"
+                className="h-9 rounded"
+              />
+            </div>
+            {breadcrumbs.length > 0 && (
+              <Breadcrumb className="hidden md:block">
+                <BreadcrumbList>
+                  {breadcrumbs.map((crumb, index) => (
+                    <React.Fragment key={index}>
+                      {index > 0 && <BreadcrumbSeparator />}
+                      <BreadcrumbItem>
+                        {crumb.isCurrentPage ? (
+                          <BreadcrumbPage>{crumb.label}</BreadcrumbPage>
+                        ) : (
+                          <BreadcrumbLink href={crumb.href}>
+                            {crumb.label}
+                          </BreadcrumbLink>
+                        )}
+                      </BreadcrumbItem>
+                    </React.Fragment>
+                  ))}
+                </BreadcrumbList>
+              </Breadcrumb>
+            )}
+          </div>
+
+          <div className="ml-auto flex items-center gap-2">
             <HelpDropdown />
             <AccountDropdown user={user} />
           </div>

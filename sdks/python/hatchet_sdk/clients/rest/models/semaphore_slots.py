@@ -42,7 +42,7 @@ class SemaphoreSlots(BaseModel):
     workflow_run_id: StrictStr = Field(
         description="The workflow run id.", alias="workflowRunId"
     )
-    status: StepRunStatus
+    status: Optional[StepRunStatus] = None
     __properties: ClassVar[List[str]] = [
         "stepRunId",
         "actionId",

@@ -7,10 +7,12 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
+	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/google/cel-go/cel"
 	"github.com/google/uuid"
 
+	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 )
@@ -97,6 +99,8 @@ type CreateMatchOpts struct {
 	TriggerChildIndex pgtype.Int8
 
 	TriggerChildKey pgtype.Text
+
+	TriggerPriority pgtype.Int4
 
 	SignalTaskId *int64
 
@@ -501,6 +505,7 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 						StepId:             sqlchelpers.UUIDToStr(match.TriggerStepID),
 						StepIndex:          int(match.TriggerStepIndex.Int64),
 						AdditionalMetadata: additionalMetadata,
+						InitialState:       sqlcv1.V1TaskInitialStateQUEUED,
 					}
 
 					switch matchData.Action() {
@@ -538,6 +543,10 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 
 					if match.TriggerChildKey.Valid {
 						opt.ChildKey = &match.TriggerChildKey.String
+					}
+
+					if match.TriggerPriority.Valid {
+						opt.Priority = &match.TriggerPriority.Int32
 					}
 
 					createTaskOpts = append(createTaskOpts, opt)
@@ -621,6 +630,19 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 }
 
 func (m *sharedRepository) processCELExpressions(ctx context.Context, events []CandidateEventMatch, conditions []*sqlcv1.ListMatchConditionsForEventRow, eventType sqlcv1.V1EventType) (map[string][]*sqlcv1.ListMatchConditionsForEventRow, error) {
+	ctx, span := telemetry.NewSpan(ctx, "MatchRepositoryImpl.processCELExpressions")
+	defer span.End()
+
+	span.SetAttributes(attribute.KeyValue{
+		Key:   "match_repository.process_cel_expressions.events_count",
+		Value: attribute.IntValue(len(events)),
+	})
+
+	span.SetAttributes(attribute.KeyValue{
+		Key:   "match_repository.process_cel_expressions.conditions_count",
+		Value: attribute.IntValue(len(conditions)),
+	})
+
 	// parse CEL expressions
 	programs := make(map[int64]cel.Program)
 	conditionIdsToConditions := make(map[int64]*sqlcv1.ListMatchConditionsForEventRow)
@@ -635,13 +657,15 @@ func (m *sharedRepository) processCELExpressions(ctx context.Context, events []C
 		ast, issues := m.env.Compile(expr)
 
 		if issues != nil {
-			return nil, issues.Err()
+			m.l.Error().Msgf("failed to compile CEL expression: %s", issues.String())
+			continue
 		}
 
 		program, err := m.env.Program(ast)
 
 		if err != nil {
-			return nil, err
+			m.l.Error().Err(err).Msgf("failed to create CEL program: %s", expr)
+			continue
 		}
 
 		programs[condition.ID] = program
@@ -664,7 +688,7 @@ func (m *sharedRepository) processCELExpressions(ctx context.Context, events []C
 				err := json.Unmarshal(event.Data, &outputEventData)
 
 				if err != nil {
-					m.l.Warn().Err(err).Msgf("[0] failed to unmarshal output event data %s", string(event.Data))
+					m.l.Warn().Err(err).Msgf("[0] failed to unmarshal output event data. id: %s, key: %s", event.ID, event.Key)
 					continue
 				}
 
@@ -672,14 +696,14 @@ func (m *sharedRepository) processCELExpressions(ctx context.Context, events []C
 					err = json.Unmarshal(outputEventData.Output, &outputData)
 
 					if err != nil {
-						m.l.Warn().Err(err).Msgf("failed to unmarshal output event data, output subfield %s", string(event.Data))
+						m.l.Warn().Err(err).Msgf("failed to unmarshal output event data, output subfield for task %d", outputEventData.TaskId)
 						continue
 					}
 				} else {
 					err = json.Unmarshal(event.Data, &inputData)
 
 					if err != nil {
-						m.l.Warn().Err(err).Msgf("[1] failed to unmarshal output event data %s", string(event.Data))
+						m.l.Warn().Err(err).Msgf("[1] failed to unmarshal output event data. id: %s, key: %s", event.ID, event.Key)
 						continue
 					}
 				}
@@ -727,6 +751,11 @@ func (m *sharedRepository) processCELExpressions(ctx context.Context, events []C
 		}
 	}
 
+	span.SetAttributes(attribute.KeyValue{
+		Key:   "match_repository.process_cel_expressions.match_conditions_count",
+		Value: attribute.IntValue(len(matches)),
+	})
+
 	return matches, nil
 }
 
@@ -772,6 +801,7 @@ func (m *sharedRepository) createEventMatches(ctx context.Context, tx sqlcv1.DBT
 		triggerParentTaskInsertedAts := make([]pgtype.Timestamptz, len(dagMatches))
 		triggerChildIndices := make([]pgtype.Int8, len(dagMatches))
 		triggerChildKeys := make([]pgtype.Text, len(dagMatches))
+		triggerPriorities := make([]pgtype.Int4, len(dagMatches))
 
 		for i, match := range dagMatches {
 			dagTenantIds[i] = sqlchelpers.UUIDFromStr(tenantId)
@@ -787,6 +817,7 @@ func (m *sharedRepository) createEventMatches(ctx context.Context, tx sqlcv1.DBT
 			triggerParentTaskInsertedAts[i] = match.TriggerParentTaskInsertedAt
 			triggerChildIndices[i] = match.TriggerChildIndex
 			triggerChildKeys[i] = match.TriggerChildKey
+			triggerPriorities[i] = match.TriggerPriority
 
 			if match.TriggerExistingTaskId != nil {
 				triggerExistingTaskIds[i] = pgtype.Int8{Int64: *match.TriggerExistingTaskId, Valid: true}
@@ -824,6 +855,7 @@ func (m *sharedRepository) createEventMatches(ctx context.Context, tx sqlcv1.DBT
 				TriggerParentTaskInsertedAt:   triggerParentTaskInsertedAts,
 				TriggerChildIndex:             triggerChildIndices,
 				TriggerChildKey:               triggerChildKeys,
+				TriggerPriorities:             triggerPriorities,
 			},
 		)
 
@@ -1068,6 +1100,7 @@ func (m *sharedRepository) createAdditionalMatches(ctx context.Context, tx sqlcv
 				TriggerParentTaskInsertedAt:   match.TriggerParentTaskInsertedAt,
 				TriggerChildIndex:             match.TriggerChildIndex,
 				TriggerChildKey:               match.TriggerChildKey,
+				TriggerPriority:               match.TriggerPriority,
 			}
 
 			for _, condition := range conditions {

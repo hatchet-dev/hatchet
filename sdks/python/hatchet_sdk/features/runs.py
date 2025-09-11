@@ -1,10 +1,15 @@
 import asyncio
+from collections.abc import AsyncIterator
 from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING, Literal, overload
+from warnings import warn
 
 from pydantic import BaseModel, model_validator
 
-from hatchet_sdk.clients.listeners.run_event_listener import RunEventListenerClient
+from hatchet_sdk.clients.listeners.run_event_listener import (
+    RunEventListenerClient,
+    StepRunEventType,
+)
 from hatchet_sdk.clients.listeners.workflow_listener import PooledWorkflowRunListener
 from hatchet_sdk.clients.rest.api.task_api import TaskApi
 from hatchet_sdk.clients.rest.api.workflow_runs_api import WorkflowRunsApi
@@ -13,6 +18,7 @@ from hatchet_sdk.clients.rest.models.v1_cancel_task_request import V1CancelTaskR
 from hatchet_sdk.clients.rest.models.v1_replay_task_request import V1ReplayTaskRequest
 from hatchet_sdk.clients.rest.models.v1_task_filter import V1TaskFilter
 from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
+from hatchet_sdk.clients.rest.models.v1_task_summary import V1TaskSummary
 from hatchet_sdk.clients.rest.models.v1_task_summary_list import V1TaskSummaryList
 from hatchet_sdk.clients.rest.models.v1_trigger_workflow_run_request import (
     V1TriggerWorkflowRunRequest,
@@ -21,8 +27,11 @@ from hatchet_sdk.clients.rest.models.v1_workflow_run_details import V1WorkflowRu
 from hatchet_sdk.clients.v1.api_client import (
     BaseRestClient,
     maybe_additional_metadata_to_kv,
+    retry,
 )
 from hatchet_sdk.config import ClientConfig
+from hatchet_sdk.utils.aio import gather_max_concurrency
+from hatchet_sdk.utils.datetimes import partition_date_range
 from hatchet_sdk.utils.typing import JSONSerializableMapping
 
 if TYPE_CHECKING:
@@ -110,6 +119,27 @@ class RunsClient(BaseRestClient):
     def _ta(self, client: ApiClient) -> TaskApi:
         return TaskApi(client)
 
+    @retry
+    def get_task_run(self, task_run_id: str) -> V1TaskSummary:
+        """
+        Get task run details for a given task run ID.
+
+        :param task_run_id: The ID of the task run to retrieve details for.
+        :return: Task run details for the specified task run ID.
+        """
+        with self.client() as client:
+            return self._ta(client).v1_task_get(task_run_id)
+
+    async def aio_get_task_run(self, task_run_id: str) -> V1TaskSummary:
+        """
+        Get task run details for a given task run ID.
+
+        :param task_run_id: The ID of the task run to retrieve details for.
+        :return: Task run details for the specified task run ID.
+        """
+        return await asyncio.to_thread(self.get_task_run, task_run_id)
+
+    @retry
     def get(self, workflow_run_id: str) -> V1WorkflowRunDetails:
         """
         Get workflow run details for a given workflow run ID.
@@ -129,6 +159,7 @@ class RunsClient(BaseRestClient):
         """
         return await asyncio.to_thread(self.get, workflow_run_id)
 
+    @retry
     def get_status(self, workflow_run_id: str) -> V1TaskStatus:
         """
         Get workflow run status for a given workflow run ID.
@@ -137,7 +168,7 @@ class RunsClient(BaseRestClient):
         :return: The task status
         """
         with self.client() as client:
-            return self._wra(client).v1_workflow_run_get_status(str(workflow_run_id))
+            return self._wra(client).v1_workflow_run_get_status(workflow_run_id)
 
     async def aio_get_status(self, workflow_run_id: str) -> V1TaskStatus:
         """
@@ -147,6 +178,152 @@ class RunsClient(BaseRestClient):
         :return: The task status
         """
         return await asyncio.to_thread(self.get_status, workflow_run_id)
+
+    @retry
+    def list_with_pagination(
+        self,
+        since: datetime | None = None,
+        only_tasks: bool = False,
+        offset: int | None = None,
+        limit: int | None = None,
+        statuses: list[V1TaskStatus] | None = None,
+        until: datetime | None = None,
+        additional_metadata: dict[str, str] | None = None,
+        workflow_ids: list[str] | None = None,
+        worker_id: str | None = None,
+        parent_task_external_id: str | None = None,
+        triggering_event_external_id: str | None = None,
+    ) -> list[V1TaskSummary]:
+        """
+        List task runs according to a set of filters, paginating through days
+
+        :param since: The start time for filtering task runs.
+        :param only_tasks: Whether to only list task runs.
+        :param offset: The offset for pagination.
+        :param limit: The maximum number of task runs to return.
+        :param statuses: The statuses to filter task runs by.
+        :param until: The end time for filtering task runs.
+        :param additional_metadata: Additional metadata to filter task runs by.
+        :param workflow_ids: The workflow IDs to filter task runs by.
+        :param worker_id: The worker ID to filter task runs by.
+        :param parent_task_external_id: The parent task external ID to filter task runs by.
+        :param triggering_event_external_id: The event id that triggered the task run.
+
+        :return: A list of task runs matching the specified filters.
+        """
+
+        date_ranges = partition_date_range(
+            since=since or datetime.now(tz=timezone.utc) - timedelta(days=1),
+            until=until or datetime.now(tz=timezone.utc),
+        )
+
+        with self.client() as client:
+            responses = [
+                self._wra(client).v1_workflow_run_list(
+                    tenant=self.client_config.tenant_id,
+                    since=s,
+                    until=u,
+                    only_tasks=only_tasks,
+                    offset=offset,
+                    limit=limit,
+                    statuses=statuses,
+                    additional_metadata=maybe_additional_metadata_to_kv(
+                        additional_metadata
+                    ),
+                    workflow_ids=workflow_ids,
+                    worker_id=worker_id,
+                    parent_task_external_id=parent_task_external_id,
+                    triggering_event_external_id=triggering_event_external_id,
+                )
+                for s, u in date_ranges
+            ]
+
+            ## Hack for uniqueness
+            run_id_to_run = {
+                run.metadata.id: run for record in responses for run in record.rows
+            }
+
+            return sorted(
+                run_id_to_run.values(),
+                key=lambda x: x.created_at,
+                reverse=True,
+            )
+
+    @retry
+    async def aio_list_with_pagination(
+        self,
+        since: datetime | None = None,
+        only_tasks: bool = False,
+        offset: int | None = None,
+        limit: int | None = None,
+        statuses: list[V1TaskStatus] | None = None,
+        until: datetime | None = None,
+        additional_metadata: dict[str, str] | None = None,
+        workflow_ids: list[str] | None = None,
+        worker_id: str | None = None,
+        parent_task_external_id: str | None = None,
+        triggering_event_external_id: str | None = None,
+    ) -> list[V1TaskSummary]:
+        """
+        List task runs according to a set of filters, paginating through days
+
+        :param since: The start time for filtering task runs.
+        :param only_tasks: Whether to only list task runs.
+        :param offset: The offset for pagination.
+        :param limit: The maximum number of task runs to return.
+        :param statuses: The statuses to filter task runs by.
+        :param until: The end time for filtering task runs.
+        :param additional_metadata: Additional metadata to filter task runs by.
+        :param workflow_ids: The workflow IDs to filter task runs by.
+        :param worker_id: The worker ID to filter task runs by.
+        :param parent_task_external_id: The parent task external ID to filter task runs by.
+        :param triggering_event_external_id: The event id that triggered the task run.
+
+        :return: A list of task runs matching the specified filters.
+        """
+
+        date_ranges = partition_date_range(
+            since=since or datetime.now(tz=timezone.utc) - timedelta(days=1),
+            until=until or datetime.now(tz=timezone.utc),
+        )
+
+        with self.client() as client:
+            coros = [
+                asyncio.to_thread(
+                    self._wra(client).v1_workflow_run_list,
+                    tenant=self.client_config.tenant_id,
+                    since=s,
+                    until=u,
+                    only_tasks=only_tasks,
+                    offset=offset,
+                    limit=limit,
+                    statuses=statuses,
+                    additional_metadata=maybe_additional_metadata_to_kv(
+                        additional_metadata
+                    ),
+                    workflow_ids=workflow_ids,
+                    worker_id=worker_id,
+                    parent_task_external_id=parent_task_external_id,
+                    triggering_event_external_id=triggering_event_external_id,
+                )
+                for s, u in date_ranges
+            ]
+
+            responses = await gather_max_concurrency(
+                *coros,
+                max_concurrency=3,
+            )
+
+            ## Hack for uniqueness
+            run_id_to_run = {
+                run.metadata.id: run for record in responses for run in record.rows
+            }
+
+            return sorted(
+                run_id_to_run.values(),
+                key=lambda x: x.created_at,
+                reverse=True,
+            )
 
     async def aio_list(
         self,
@@ -181,7 +358,7 @@ class RunsClient(BaseRestClient):
         """
         return await asyncio.to_thread(
             self.list,
-            since=since or datetime.now(tz=timezone.utc) - timedelta(days=1),
+            since=since,
             only_tasks=only_tasks,
             offset=offset,
             limit=limit,
@@ -194,6 +371,7 @@ class RunsClient(BaseRestClient):
             triggering_event_external_id=triggering_event_external_id,
         )
 
+    @retry
     def list(
         self,
         since: datetime | None = None,
@@ -225,10 +403,22 @@ class RunsClient(BaseRestClient):
 
         :return: A list of task runs matching the specified filters.
         """
+
+        since = since or datetime.now(tz=timezone.utc) - timedelta(days=1)
+        until = until or datetime.now(tz=timezone.utc)
+
+        if (until - since).days >= 7:
+            warn(
+                "Listing runs with a date range longer than 7 days may result in performance issues. "
+                "Consider using `list_with_pagination` or `aio_list_with_pagination` instead.",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+
         with self.client() as client:
             return self._wra(client).v1_workflow_run_list(
                 tenant=self.client_config.tenant_id,
-                since=since or datetime.now(tz=timezone.utc) - timedelta(days=1),
+                since=since,
                 only_tasks=only_tasks,
                 offset=offset,
                 limit=limit,
@@ -247,7 +437,7 @@ class RunsClient(BaseRestClient):
         self,
         workflow_name: str,
         input: JSONSerializableMapping,
-        additional_metadata: JSONSerializableMapping = {},
+        additional_metadata: JSONSerializableMapping | None = None,
         priority: int | None = None,
     ) -> V1WorkflowRunDetails:
         """
@@ -267,8 +457,8 @@ class RunsClient(BaseRestClient):
                 tenant=self.client_config.tenant_id,
                 v1_trigger_workflow_run_request=V1TriggerWorkflowRunRequest(
                     workflowName=self.client_config.apply_namespace(workflow_name),
-                    input=dict(input),
-                    additionalMetadata=dict(additional_metadata),
+                    input=input,
+                    additionalMetadata=additional_metadata,
                     priority=priority,
                 ),
             )
@@ -277,7 +467,7 @@ class RunsClient(BaseRestClient):
         self,
         workflow_name: str,
         input: JSONSerializableMapping,
-        additional_metadata: JSONSerializableMapping = {},
+        additional_metadata: JSONSerializableMapping | None = None,
         priority: int | None = None,
     ) -> V1WorkflowRunDetails:
         """
@@ -376,6 +566,7 @@ class RunsClient(BaseRestClient):
         """
         return await asyncio.to_thread(self.bulk_cancel, opts)
 
+    @retry
     def get_result(self, run_id: str) -> JSONSerializableMapping:
         """
         Get the result of a workflow run by its external ID.
@@ -413,3 +604,13 @@ class RunsClient(BaseRestClient):
             workflow_run_listener=self.workflow_run_listener,
             runs_client=self,
         )
+
+    async def subscribe_to_stream(
+        self,
+        workflow_run_id: str,
+    ) -> AsyncIterator[str]:
+        ref = self.get_run_ref(workflow_run_id=workflow_run_id)
+
+        async for chunk in ref.stream():
+            if chunk.type == StepRunEventType.STEP_RUN_EVENT_TYPE_STREAM:
+                yield chunk.payload

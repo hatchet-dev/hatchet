@@ -13,6 +13,8 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor/contracts"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
+	"github.com/hatchet-dev/hatchet/pkg/constants"
+	grpcmiddleware "github.com/hatchet-dev/hatchet/pkg/grpc/middleware"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/metered"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
@@ -28,7 +30,21 @@ func (i *IngestorImpl) Push(ctx context.Context, req *contracts.PushEventRequest
 		additionalMeta = []byte(*req.AdditionalMetadata)
 	}
 
-	event, err := i.IngestEvent(ctx, tenant, req.Key, []byte(req.Payload), additionalMeta, req.Priority, req.Scope)
+	if err := repository.ValidateJSONB(additionalMeta, "additionalMetadata"); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "Invalid request: %s", err)
+	}
+
+	payloadBytes := []byte(req.Payload)
+
+	if err := repository.ValidateJSONB(payloadBytes, "payload"); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "Invalid request: %s", err)
+	}
+
+	if req.Priority != nil && (*req.Priority < 1 || *req.Priority > 3) {
+		return nil, status.Errorf(codes.InvalidArgument, "priority must be between 1 and 3, got %d", *req.Priority)
+	}
+
+	event, err := i.IngestEvent(ctx, tenant, req.Key, []byte(req.Payload), additionalMeta, req.Priority, req.Scope, nil)
 
 	if err == metered.ErrResourceExhausted {
 		return nil, status.Errorf(codes.ResourceExhausted, "resource exhausted: event limit exceeded for tenant")
@@ -43,6 +59,23 @@ func (i *IngestorImpl) Push(ctx context.Context, req *contracts.PushEventRequest
 	if err != nil {
 		return nil, err
 	}
+
+	var additionalMetaStr string
+
+	if req.AdditionalMetadata != nil {
+		additionalMetaStr = *req.AdditionalMetadata
+	}
+
+	corrId := datautils.ExtractCorrelationId(additionalMetaStr)
+
+	if corrId != nil {
+		ctx = context.WithValue(ctx, constants.CorrelationIdKey, *corrId)
+	}
+
+	ctx = context.WithValue(ctx, constants.ResourceIdKey, event.ID.String())
+	ctx = context.WithValue(ctx, constants.ResourceTypeKey, constants.ResourceTypeEvent)
+
+	grpcmiddleware.TriggerCallback(ctx)
 
 	return e, nil
 }
@@ -68,10 +101,25 @@ func (i *IngestorImpl) BulkPush(ctx context.Context, req *contracts.BulkPushEven
 		if e.AdditionalMetadata != nil {
 			additionalMeta = []byte(*e.AdditionalMetadata)
 		}
+
+		if err := repository.ValidateJSONB(additionalMeta, "additionalMetadata"); err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "Invalid request: %s", err)
+		}
+
+		payloadBytes := []byte(e.Payload)
+
+		if err := repository.ValidateJSONB(payloadBytes, "payload"); err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "Invalid request: %s", err)
+		}
+
+		if e.Priority != nil && (*e.Priority < 1 || *e.Priority > 3) {
+			return nil, status.Errorf(codes.InvalidArgument, "priority must be between 1 and 3, got %d", *e.Priority)
+		}
+
 		events = append(events, &repository.CreateEventOpts{
 			TenantId:           tenantId,
 			Key:                e.Key,
-			Data:               []byte(e.Payload),
+			Data:               payloadBytes,
 			AdditionalMetadata: additionalMeta,
 			Priority:           e.Priority,
 			Scope:              e.Scope,
@@ -113,6 +161,23 @@ func (i *IngestorImpl) BulkPush(ctx context.Context, req *contracts.BulkPushEven
 		}
 
 		contractEvents = append(contractEvents, contractEvent)
+
+		var additionalMetaStr string
+
+		if e.AdditionalMetadata != nil {
+			additionalMetaStr = string(e.AdditionalMetadata)
+		}
+
+		corrId := datautils.ExtractCorrelationId(additionalMetaStr)
+
+		if corrId != nil {
+			ctx = context.WithValue(ctx, constants.CorrelationIdKey, *corrId)
+		}
+
+		ctx = context.WithValue(ctx, constants.ResourceIdKey, e.ID.String())
+		ctx = context.WithValue(ctx, constants.ResourceTypeKey, constants.ResourceTypeEvent)
+
+		grpcmiddleware.TriggerCallback(ctx)
 
 	}
 

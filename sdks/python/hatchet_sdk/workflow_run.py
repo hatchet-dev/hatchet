@@ -47,11 +47,13 @@ class WorkflowRunRef:
         while True:
             try:
                 details = self.runs_client.get(self.workflow_run_id)
-            except Exception:
+            except Exception as e:
                 retries += 1
 
                 if retries > 10:
-                    raise ValueError(f"Workflow run {self.workflow_run_id} not found")
+                    raise ValueError(
+                        f"Workflow run {self.workflow_run_id} not found"
+                    ) from e
 
                 time.sleep(1)
                 continue

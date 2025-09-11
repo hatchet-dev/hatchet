@@ -1,6 +1,5 @@
 import asyncio
 import datetime
-from typing import Optional
 
 from hatchet_sdk.clients.rest.api.workflow_api import WorkflowApi
 from hatchet_sdk.clients.rest.api.workflow_run_api import WorkflowRunApi
@@ -22,6 +21,7 @@ from hatchet_sdk.clients.rest.models.workflow_run_order_by_direction import (
 from hatchet_sdk.clients.v1.api_client import (
     BaseRestClient,
     maybe_additional_metadata_to_kv,
+    retry,
 )
 from hatchet_sdk.utils.typing import JSONSerializableMapping
 
@@ -62,8 +62,8 @@ class ScheduledClient(BaseRestClient):
                 workflow=self.client_config.apply_namespace(workflow_name),
                 schedule_workflow_run_request=ScheduleWorkflowRunRequest(
                     triggerAt=trigger_at,
-                    input=dict(input),
-                    additionalMetadata=dict(additional_metadata),
+                    input=input,
+                    additionalMetadata=additional_metadata,
                 ),
             )
 
@@ -124,9 +124,9 @@ class ScheduledClient(BaseRestClient):
         workflow_id: str | None = None,
         parent_workflow_run_id: str | None = None,
         statuses: list[ScheduledRunStatus] | None = None,
-        additional_metadata: Optional[JSONSerializableMapping] = None,
-        order_by_field: Optional[ScheduledWorkflowsOrderByField] = None,
-        order_by_direction: Optional[WorkflowRunOrderByDirection] = None,
+        additional_metadata: JSONSerializableMapping | None = None,
+        order_by_field: ScheduledWorkflowsOrderByField | None = None,
+        order_by_direction: WorkflowRunOrderByDirection | None = None,
     ) -> ScheduledWorkflowsList:
         """
         Retrieves a list of scheduled workflows based on provided filters.
@@ -154,6 +154,7 @@ class ScheduledClient(BaseRestClient):
             statuses=statuses,
         )
 
+    @retry
     def list(
         self,
         offset: int | None = None,
@@ -161,9 +162,9 @@ class ScheduledClient(BaseRestClient):
         workflow_id: str | None = None,
         parent_workflow_run_id: str | None = None,
         statuses: list[ScheduledRunStatus] | None = None,
-        additional_metadata: Optional[JSONSerializableMapping] = None,
-        order_by_field: Optional[ScheduledWorkflowsOrderByField] = None,
-        order_by_direction: Optional[WorkflowRunOrderByDirection] = None,
+        additional_metadata: JSONSerializableMapping | None = None,
+        order_by_field: ScheduledWorkflowsOrderByField | None = None,
+        order_by_direction: WorkflowRunOrderByDirection | None = None,
     ) -> ScheduledWorkflowsList:
         """
         Retrieves a list of scheduled workflows based on provided filters.
@@ -194,6 +195,7 @@ class ScheduledClient(BaseRestClient):
                 statuses=statuses,
             )
 
+    @retry
     def get(self, scheduled_id: str) -> ScheduledWorkflows:
         """
         Retrieves a specific scheduled workflow by scheduled run trigger ID.

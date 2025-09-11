@@ -27,15 +27,15 @@ export const lowerWithFilter = hatchet.workflow<Input, LowerOutput>({
   onEvents: ['simple-event:create'],
   defaultFilters: [
     {
-      expression: "true",
-      scope: "example-scope",
+      expression: 'true',
+      scope: 'example-scope',
       payload: {
-          mainCharacter: "Anna",
-          supportingCharacter: "Stiva",
-          location: "Moscow",
-      }
-    }
-  ]
+        mainCharacter: 'Anna',
+        supportingCharacter: 'Stiva',
+        location: 'Moscow',
+      },
+    },
+  ],
 });
 
 lower.task({
@@ -71,8 +71,8 @@ upper.task({
 
 // > Accessing the filter payload
 lowerWithFilter.task({
-  name: "lowerWithFilter",
+  name: 'lowerWithFilter',
   fn: (input, ctx) => {
-    console.log(ctx.filterPayload())
-  }
-})
+    console.log(ctx.filterPayload());
+  },
+});

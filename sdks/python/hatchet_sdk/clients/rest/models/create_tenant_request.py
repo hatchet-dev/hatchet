@@ -23,6 +23,7 @@ from pydantic import BaseModel, ConfigDict, Field, StrictStr
 from typing_extensions import Self
 
 from hatchet_sdk.clients.rest.models.tenant_ui_version import TenantUIVersion
+from hatchet_sdk.clients.rest.models.tenant_version import TenantVersion
 
 
 class CreateTenantRequest(BaseModel):
@@ -37,7 +38,12 @@ class CreateTenantRequest(BaseModel):
         description="The UI version of the tenant. Defaults to V0.",
         alias="uiVersion",
     )
-    __properties: ClassVar[List[str]] = ["name", "slug", "uiVersion"]
+    engine_version: Optional[TenantVersion] = Field(
+        default=None,
+        description="The engine version of the tenant. Defaults to V0.",
+        alias="engineVersion",
+    )
+    __properties: ClassVar[List[str]] = ["name", "slug", "uiVersion", "engineVersion"]
 
     model_config = ConfigDict(
         populate_by_name=True,
@@ -92,6 +98,7 @@ class CreateTenantRequest(BaseModel):
                 "name": obj.get("name"),
                 "slug": obj.get("slug"),
                 "uiVersion": obj.get("uiVersion"),
+                "engineVersion": obj.get("engineVersion"),
             }
         )
         return _obj

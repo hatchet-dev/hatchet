@@ -12,6 +12,22 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 )
 
+type CELEvaluationFailures struct {
+	Failures []v1.CELEvaluationFailure
+}
+
+func CELEvaluationFailureMessage(tenantId string, failures []v1.CELEvaluationFailure) (*msgqueue.Message, error) {
+	return msgqueue.NewTenantMessage(
+		tenantId,
+		"cel-evaluation-failure",
+		false,
+		true,
+		CELEvaluationFailures{
+			Failures: failures,
+		},
+	)
+}
+
 type CreatedTaskPayload struct {
 	*sqlcv1.V1Task
 }
@@ -53,6 +69,8 @@ type CreatedEventTriggerPayloadSingleton struct {
 	EventPayload            []byte     `json:"event_payload"`
 	EventAdditionalMetadata []byte     `json:"event_additional_metadata,omitempty"`
 	EventScope              *string    `json:"event_scope,omitempty"`
+	FilterId                *string    `json:"filter_id,omitempty"`
+	TriggeringWebhookName   *string    `json:"triggering_webhook_name,omitempty"`
 }
 
 type CreatedEventTriggerPayload struct {

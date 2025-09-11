@@ -15,6 +15,7 @@ func init() {
 	collectorURL := os.Getenv("SERVER_OTEL_COLLECTOR_URL")
 	insecure := os.Getenv("SERVER_OTEL_INSECURE")
 	traceIDRatio := os.Getenv("SERVER_OTEL_TRACE_ID_RATIO")
+	collectorAuth := os.Getenv("SERVER_OTEL_COLLECTOR_AUTH")
 
 	var insecureBool bool
 
@@ -25,10 +26,11 @@ func init() {
 	// we do this to we get the tracer set globally, which is needed by some of the otel
 	// integrations for the database before start
 	_, err := telemetry.InitTracer(&telemetry.TracerOpts{
-		ServiceName:  svcName,
-		CollectorURL: collectorURL,
-		TraceIdRatio: traceIDRatio,
-		Insecure:     insecureBool,
+		ServiceName:   svcName,
+		CollectorURL:  collectorURL,
+		TraceIdRatio:  traceIDRatio,
+		Insecure:      insecureBool,
+		CollectorAuth: collectorAuth,
 	})
 
 	if err != nil {
@@ -46,10 +48,6 @@ func Start(cf *loader.ConfigLoader, interruptCh <-chan interface{}, version stri
 	var teardown []func() error
 
 	runner := run.NewAPIServer(server)
-
-	if err != nil {
-		return err
-	}
 
 	apiCleanup, err := runner.Run()
 	if err != nil {

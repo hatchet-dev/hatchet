@@ -22,7 +22,7 @@ func newRateLimitRepository(shared *sharedRepository) *rateLimitRepository {
 	}
 }
 
-func (d *rateLimitRepository) UpdateRateLimits(ctx context.Context, tenantId pgtype.UUID, updates map[string]int) (map[string]int, *time.Time, error) {
+func (d *rateLimitRepository) UpdateRateLimits(ctx context.Context, tenantId pgtype.UUID, updates map[string]int) ([]*sqlcv1.ListRateLimitsForTenantWithMutateRow, *time.Time, error) {
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, d.pool, d.l, 5000)
 
 	if err != nil {
@@ -83,7 +83,7 @@ func (d *rateLimitRepository) UpdateRateLimits(ctx context.Context, tenantId pgt
 		}
 	}
 
-	return res, &nextRefillAt, err
+	return newRls, &nextRefillAt, err
 }
 
 func tenantAdvisoryInt(tenantID string) int64 {

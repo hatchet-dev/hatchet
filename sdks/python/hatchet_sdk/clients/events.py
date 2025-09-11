@@ -1,7 +1,7 @@
 import asyncio
 import datetime
 import json
-from typing import List, cast
+from typing import cast
 
 from google.protobuf import timestamp_pb2
 from pydantic import BaseModel, Field
@@ -10,8 +10,12 @@ from hatchet_sdk.clients.rest.api.event_api import EventApi
 from hatchet_sdk.clients.rest.api.workflow_runs_api import WorkflowRunsApi
 from hatchet_sdk.clients.rest.api_client import ApiClient
 from hatchet_sdk.clients.rest.models.v1_event_list import V1EventList
+from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
 from hatchet_sdk.clients.rest.tenacity_utils import tenacity_retry
-from hatchet_sdk.clients.v1.api_client import BaseRestClient
+from hatchet_sdk.clients.v1.api_client import (
+    BaseRestClient,
+    maybe_additional_metadata_to_kv,
+)
 from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.connection import new_conn
 from hatchet_sdk.contracts.events_pb2 import (
@@ -24,7 +28,7 @@ from hatchet_sdk.contracts.events_pb2 import (
 )
 from hatchet_sdk.contracts.events_pb2_grpc import EventsServiceStub
 from hatchet_sdk.metadata import get_metadata
-from hatchet_sdk.utils.typing import JSONSerializableMapping
+from hatchet_sdk.utils.typing import JSONSerializableMapping, LogLevel
 
 
 def proto_timestamp_now() -> timestamp_pb2.Timestamp:
@@ -84,7 +88,7 @@ class EventClient(BaseRestClient):
         self,
         events: list[BulkPushEventWithMetadata],
         options: BulkPushEventOptions = BulkPushEventOptions(),
-    ) -> List[Event]:
+    ) -> list[Event]:
         return await asyncio.to_thread(self.bulk_push, events=events, options=options)
 
     ## IMPORTANT: Keep this method's signature in sync with the wrapper in the OTel instrumentor
@@ -101,12 +105,12 @@ class EventClient(BaseRestClient):
         try:
             meta_bytes = json.dumps(options.additional_metadata)
         except Exception as e:
-            raise ValueError(f"Error encoding meta: {e}")
+            raise ValueError("Error encoding meta") from e
 
         try:
             payload_str = json.dumps(payload)
         except (TypeError, ValueError) as e:
-            raise ValueError(f"Error encoding payload: {e}")
+            raise ValueError("Error encoding payload") from e
 
         request = PushEventRequest(
             key=namespaced_event_key,
@@ -135,12 +139,12 @@ class EventClient(BaseRestClient):
         try:
             meta_str = json.dumps(meta)
         except Exception as e:
-            raise ValueError(f"Error encoding meta: {e}")
+            raise ValueError("Error encoding meta") from e
 
         try:
             serialized_payload = json.dumps(payload)
         except (TypeError, ValueError) as e:
-            raise ValueError(f"Error serializing payload: {e}")
+            raise ValueError("Error serializing payload") from e
 
         return PushEventRequest(
             key=event_key,
@@ -155,9 +159,9 @@ class EventClient(BaseRestClient):
     @tenacity_retry
     def bulk_push(
         self,
-        events: List[BulkPushEventWithMetadata],
+        events: list[BulkPushEventWithMetadata],
         options: BulkPushEventOptions = BulkPushEventOptions(),
-    ) -> List[Event]:
+    ) -> list[Event]:
         namespace = options.namespace or self.namespace
 
         bulk_request = BulkPushEventRequest(
@@ -176,17 +180,20 @@ class EventClient(BaseRestClient):
         )
 
     @tenacity_retry
-    def log(self, message: str, step_run_id: str) -> None:
+    def log(
+        self, message: str, step_run_id: str, level: LogLevel | None = None
+    ) -> None:
         request = PutLogRequest(
             stepRunId=step_run_id,
             createdAt=proto_timestamp_now(),
             message=message,
+            level=level.value if level else None,
         )
 
         self.events_service_client.PutLog(request, metadata=get_metadata(self.token))
 
     @tenacity_retry
-    def stream(self, data: str | bytes, step_run_id: str) -> None:
+    def stream(self, data: str | bytes, step_run_id: str, index: int) -> None:
         if isinstance(data, str):
             data_bytes = data.encode("utf-8")
         elif isinstance(data, bytes):
@@ -198,11 +205,15 @@ class EventClient(BaseRestClient):
             stepRunId=step_run_id,
             createdAt=proto_timestamp_now(),
             message=data_bytes,
+            eventIndex=index,
         )
 
-        self.events_service_client.PutStreamEvent(
-            request, metadata=get_metadata(self.token)
-        )
+        try:
+            self.events_service_client.PutStreamEvent(
+                request, metadata=get_metadata(self.token)
+            )
+        except Exception:
+            raise
 
     async def aio_list(
         self,
@@ -211,9 +222,24 @@ class EventClient(BaseRestClient):
         keys: list[str] | None = None,
         since: datetime.datetime | None = None,
         until: datetime.datetime | None = None,
+        workflow_ids: list[str] | None = None,
+        workflow_run_statuses: list[V1TaskStatus] | None = None,
+        event_ids: list[str] | None = None,
+        additional_metadata: JSONSerializableMapping | None = None,
+        scopes: list[str] | None = None,
     ) -> V1EventList:
         return await asyncio.to_thread(
-            self.list, offset=offset, limit=limit, keys=keys, since=since, until=until
+            self.list,
+            offset=offset,
+            limit=limit,
+            keys=keys,
+            since=since,
+            until=until,
+            workflow_ids=workflow_ids,
+            workflow_run_statuses=workflow_run_statuses,
+            event_ids=event_ids,
+            additional_metadata=additional_metadata,
+            scopes=scopes,
         )
 
     def list(
@@ -223,6 +249,11 @@ class EventClient(BaseRestClient):
         keys: list[str] | None = None,
         since: datetime.datetime | None = None,
         until: datetime.datetime | None = None,
+        workflow_ids: list[str] | None = None,
+        workflow_run_statuses: list[V1TaskStatus] | None = None,
+        event_ids: list[str] | None = None,
+        additional_metadata: JSONSerializableMapping | None = None,
+        scopes: list[str] | None = None,
     ) -> V1EventList:
         with self.client() as client:
             return self._ea(client).v1_event_list(
@@ -232,4 +263,11 @@ class EventClient(BaseRestClient):
                 keys=keys,
                 since=since,
                 until=until,
+                workflow_ids=workflow_ids,
+                workflow_run_statuses=workflow_run_statuses,
+                event_ids=event_ids,
+                additional_metadata=maybe_additional_metadata_to_kv(
+                    additional_metadata
+                ),
+                scopes=scopes,
             )

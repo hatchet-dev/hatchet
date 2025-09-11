@@ -1,29 +1,29 @@
 import { ColumnDef } from '@tanstack/react-table';
 import { Badge } from '@/components/v1/ui/badge';
 import { Checkbox } from '@/components/v1/ui/checkbox';
-import { columns as workflowRunsColumns } from '../../workflow-runs/components/workflow-runs-columns';
-import { Event, queries } from '@/lib/api';
+import { V1Event } from '@/lib/api';
 import { Button } from '@/components/v1/ui/button';
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from '@/components/v1/ui/popover';
-import { useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import invariant from 'tiny-invariant';
-import { DataTable } from '@/components/v1/molecules/data-table/data-table';
-import { TenantContextType } from '@/lib/outlet';
-import { useOutletContext } from 'react-router-dom';
+import { useState } from 'react';
 import { AdditionalMetadata } from './additional-metadata';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
+import { RunsTable } from '../../workflow-runs-v1/components/runs-table';
+import { RunsProvider } from '../../workflow-runs-v1/hooks/runs-provider';
 
 export const columns = ({
   onRowClick,
+  hoveredEventId,
+  setHoveredEventId,
 }: {
-  onRowClick?: (row: Event) => void;
-}): ColumnDef<Event>[] => {
+  onRowClick?: (row: V1Event) => void;
+  hoveredEventId: string | null;
+  setHoveredEventId: (id: string | null) => void;
+}): ColumnDef<V1Event>[] => {
   return [
     {
       id: 'select',
@@ -93,6 +93,7 @@ export const columns = ({
           </div>
         );
       },
+      enableSorting: false,
     },
     // empty columns to get column filtering to work properly
     {
@@ -121,6 +122,7 @@ export const columns = ({
 
         return <WorkflowRunSummary event={row.original} />;
       },
+      enableSorting: false,
     },
     {
       accessorKey: 'Metadata',
@@ -133,12 +135,57 @@ export const columns = ({
         }
 
         return (
-          <AdditionalMetadata metadata={row.original.additionalMetadata} />
+          <AdditionalMetadata
+            metadata={row.original.additionalMetadata}
+            isOpen={hoveredEventId === row.original.metadata.id}
+            onOpenChange={(open) => {
+              if (open) {
+                setHoveredEventId(row.original.metadata.id);
+              } else {
+                setHoveredEventId(null);
+              }
+            }}
+          />
         );
       },
       enableSorting: false,
     },
-    // {
+    {
+      accessorKey: 'Payload',
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title="Payload" />
+      ),
+      cell: ({ row }) => {
+        if (!row.original.payload) {
+          return <div></div>;
+        }
+
+        return (
+          <AdditionalMetadata
+            metadata={row.original.payload}
+            isOpen={hoveredEventId === row.original.metadata.id}
+            onOpenChange={(open) => {
+              if (open) {
+                setHoveredEventId(row.original.metadata.id);
+              } else {
+                setHoveredEventId(null);
+              }
+            }}
+          />
+        );
+      },
+      enableSorting: false,
+      enableHiding: true,
+    },
+    {
+      accessorKey: 'scope',
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title="Scope" />
+      ),
+      cell: ({ row }) => <div className="w-full">{row.getValue('scope')}</div>,
+      enableSorting: false,
+      enableHiding: true,
+    }, // {
     //   id: "actions",
     //   cell: ({ row }) => <DataTableRowActions row={row} labels={[]} />,
     // },
@@ -146,71 +193,34 @@ export const columns = ({
 };
 
 // eslint-disable-next-line react-refresh/only-export-components
-function WorkflowRunSummary({ event }: { event: Event }) {
-  const { tenant } = useOutletContext<TenantContextType>();
-  invariant(tenant);
-
+function WorkflowRunSummary({ event }: { event: V1Event }) {
   const [hoverCardOpen, setPopoverOpen] = useState<
-    'failed' | 'succeeded' | 'running' | 'queued' | 'pending'
+    'failed' | 'succeeded' | 'running' | 'queued' | 'cancelled'
   >();
 
   const numFailed = event.workflowRunSummary?.failed || 0;
   const numSucceeded = event.workflowRunSummary?.succeeded || 0;
   const numRunning = event.workflowRunSummary?.running || 0;
-  const numPending = event.workflowRunSummary?.pending || 0;
+  const numCancelled = event.workflowRunSummary?.cancelled || 0;
   const numQueued = event.workflowRunSummary?.queued || 0;
 
-  const listWorkflowRunsQuery = useQuery({
-    ...queries.workflowRuns.list(tenant.metadata.id, {
-      offset: 0,
-      limit: 10,
-      eventId: event.metadata.id,
-    }),
-    enabled: !!hoverCardOpen,
-  });
-
-  const workflowRuns = useMemo(() => {
-    return (
-      listWorkflowRunsQuery.data?.rows?.filter((run) => {
-        if (hoverCardOpen) {
-          if (hoverCardOpen == 'failed') {
-            return run.status == 'FAILED';
-          }
-          if (hoverCardOpen == 'succeeded') {
-            return run.status == 'SUCCEEDED';
-          }
-          if (hoverCardOpen == 'running') {
-            return run.status == 'RUNNING';
-          }
-          if (hoverCardOpen == 'pending') {
-            return run.status == 'PENDING';
-          }
-          if (hoverCardOpen == 'queued') {
-            return run.status == 'QUEUED';
-          }
-        }
-
-        return false;
-      }) || []
-    );
-  }, [listWorkflowRunsQuery, hoverCardOpen]);
-
   const hoverCardContent = (
-    <div className="min-w-fit z-40 bg-white/10 rounded">
-      <DataTable
-        columns={workflowRunsColumns()}
-        data={workflowRuns}
-        filters={[]}
-        pageCount={0}
-        columnVisibility={{
-          select: false,
-          'Triggered by': false,
-          actions: false,
-          Metadata: false,
+    <div className="min-w-fit z-40 p-4 bg-white/10 rounded">
+      <RunsProvider
+        tableKey={`event-runs-${event.metadata.id}`}
+        display={{
+          hideCounts: true,
+          hideMetrics: true,
+          hideDateFilter: true,
+          hideTriggerRunButton: true,
+          hideCancelAndReplayButtons: true,
         }}
-        showColumnToggle={false}
-        isLoading={listWorkflowRunsQuery.isLoading}
-      />
+        runFilters={{
+          triggeringEventExternalId: event.metadata.id,
+        }}
+      >
+        <RunsTable headerClassName="bg-slate-700" />
+      </RunsProvider>
     </div>
   );
 
@@ -295,9 +305,9 @@ function WorkflowRunSummary({ event }: { event: Event }) {
           </PopoverContent>
         </Popover>
       )}
-      {numPending > 0 && (
+      {numCancelled > 0 && (
         <Popover
-          open={hoverCardOpen == 'pending'}
+          open={hoverCardOpen == 'cancelled'}
           onOpenChange={(open) => {
             if (!open) {
               setPopoverOpen(undefined);
@@ -308,9 +318,9 @@ function WorkflowRunSummary({ event }: { event: Event }) {
             <Badge
               variant="inProgress"
               className="cursor-pointer"
-              onClick={() => setPopoverOpen('pending')}
+              onClick={() => setPopoverOpen('cancelled')}
             >
-              {numPending} Pending
+              {numCancelled} Cancelled
             </Badge>
           </PopoverTrigger>
           <PopoverContent

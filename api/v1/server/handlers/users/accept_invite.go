@@ -9,6 +9,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
+	"github.com/hatchet-dev/hatchet/pkg/constants"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
@@ -75,7 +76,7 @@ func (u *UserService) TenantInviteAccept(ctx echo.Context, request gen.TenantInv
 	}
 
 	// add the user to the tenant
-	_, err = u.config.APIRepository.Tenant().CreateTenantMember(ctx.Request().Context(), sqlchelpers.UUIDToStr(invite.TenantId), &repository.CreateTenantMemberOpts{
+	member, err := u.config.APIRepository.Tenant().CreateTenantMember(ctx.Request().Context(), sqlchelpers.UUIDToStr(invite.TenantId), &repository.CreateTenantMemberOpts{
 		UserId: userId,
 		Role:   string(invite.Role),
 	})
@@ -91,7 +92,24 @@ func (u *UserService) TenantInviteAccept(ctx echo.Context, request gen.TenantInv
 		userId,
 		&tenantId,
 		nil,
+		map[string]interface{}{
+			"user_id":   userId,
+			"invite_id": inviteId,
+			"role":      invite.Role,
+		},
 	)
+
+	ctx.Set("tenant-member", member)
+
+	tenant, err := u.config.APIRepository.Tenant().GetTenantByID(ctx.Request().Context(), tenantId)
+	if err != nil {
+		return nil, err
+	}
+
+	ctx.Set("tenant", tenant)
+
+	ctx.Set(constants.ResourceIdKey.String(), inviteId)
+	ctx.Set(constants.ResourceTypeKey.String(), constants.ResourceTypeTenantInvite.String())
 
 	return nil, nil
 }

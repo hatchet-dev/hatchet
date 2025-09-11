@@ -1,5 +1,6 @@
 import asyncio
-from typing import Callable, Generic, TypeVar, cast, overload
+from collections.abc import Callable
+from typing import Generic, TypeVar, cast, overload
 
 import grpc.aio
 from grpc._cython import cygrpc  # type: ignore[attr-defined]
@@ -65,7 +66,7 @@ async def read_with_interrupt(
         result = cast(TResponse, await listener.read())
 
         if result is cygrpc.EOF:
-            logger.warning("Received EOF from engine")
+            logger.warning("received EOF from engine")
             return UnexpectedEOF()
 
         key = key_generator(result) if key_generator else ""

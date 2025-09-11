@@ -9,7 +9,7 @@ import {
 } from './accordion';
 
 const stepsVariants = cva(
-  'ml-4 mb-12 border-l border-border pl-6 dark:border-border [counter-reset:step] flex flex-col gap-12',
+  'ml-4 mb-12 border-l border-border pl-6 dark:border-border [counter-reset:step] flex flex-col gap-4',
 );
 
 interface StepProps {

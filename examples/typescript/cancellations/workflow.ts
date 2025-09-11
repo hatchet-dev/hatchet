@@ -5,10 +5,10 @@ import { hatchet } from '../hatchet-client';
 // > Declaring a Task
 export const cancellation = hatchet.task({
   name: 'cancellation',
-  fn: async (_, { cancelled }) => {
+  fn: async (_, ctx) => {
     await sleep(10 * 1000);
 
-    if (cancelled) {
+    if (ctx.cancelled) {
       throw new Error('Task was cancelled');
     }
 

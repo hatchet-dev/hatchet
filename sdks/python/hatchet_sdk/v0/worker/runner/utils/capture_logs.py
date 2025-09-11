@@ -5,7 +5,7 @@ from concurrent.futures import ThreadPoolExecutor
 from io import StringIO
 from typing import Any, Coroutine
 
-from hatchet_sdk.v0 import logger
+from hatchet_sdk import logger
 from hatchet_sdk.v0.clients.events import EventClient
 
 wr: contextvars.ContextVar[str | None] = contextvars.ContextVar(

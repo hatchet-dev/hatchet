@@ -8,6 +8,7 @@ import (
 	msgqueue "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor/contracts"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
+	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
@@ -37,6 +38,7 @@ func (i *IngestorImpl) putStreamEventV1(ctx context.Context, tenant *dbsqlc.Tena
 			StepRunId:     req.StepRunId,
 			CreatedAt:     req.CreatedAt.AsTime(),
 			Payload:       req.Message,
+			EventIndex:    req.EventIndex,
 		},
 	)
 
@@ -61,6 +63,10 @@ func (i *IngestorImpl) getSingleTask(ctx context.Context, tenantId, taskExternal
 
 func (i *IngestorImpl) putLogV1(ctx context.Context, tenant *dbsqlc.Tenant, req *contracts.PutLogRequest) (*contracts.PutLogResponse, error) {
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+
+	if !i.isLogIngestionEnabled {
+		return &contracts.PutLogResponse{}, nil
+	}
 
 	task, err := i.getSingleTask(ctx, tenantId, req.StepRunId, false)
 
@@ -112,6 +118,10 @@ func (i *IngestorImpl) putLogV1(ctx context.Context, tenant *dbsqlc.Tenant, req 
 		return nil, err
 	} else if apiErrors != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "Invalid request: %s", apiErrors.String())
+	}
+
+	if err := repository.ValidateJSONB(opts.Metadata, "additionalMetadata"); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "Invalid request: %s", err)
 	}
 
 	err = i.repov1.Logs().PutLog(ctx, tenantId, opts)

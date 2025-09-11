@@ -140,7 +140,7 @@ const LoggingComponent: React.FC<LogProps> = ({
 
   return (
     <div
-      className="w-full mx-auto overflow-y-auto p-6 text-indigo-300 font-mono text-xs rounded-md max-h-[25rem] min-h-[25rem] bg-muted"
+      className="w-full mx-auto overflow-y-auto p-6 text-indigo-300 font-mono text-xs rounded-md max-h-[25rem] min-h-[25rem] bg-muted scrollbar-thin scrollbar-track-muted scrollbar-thumb-muted-foreground"
       ref={containerRef}
       onScroll={handleScroll}
     >

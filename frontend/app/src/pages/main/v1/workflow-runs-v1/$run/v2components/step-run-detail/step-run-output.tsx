@@ -7,10 +7,8 @@ import {
   WorkflowRunShape,
 } from '@/lib/api';
 import React from 'react';
-import StepRunCodeText from './step-run-error';
 import LoggingComponent from '@/components/v1/cloud/logging/logs';
 import { useQuery } from '@tanstack/react-query';
-import { useTenant } from '@/lib/atoms';
 
 const readableReason = (reason?: string): string => {
   return reason ? reason.toLowerCase().split('_').join(' ') : '';
@@ -88,7 +86,12 @@ const StepRunOutputFailed = ({ stepRun }: StepRunOutputProps) => {
 
   return (
     <div className="my-4">
-      <StepRunCodeText text={stepRun.error} />
+      <LoggingComponent
+        logs={[{ line: stepRun.error }]}
+        onTopReached={() => {}}
+        onBottomReached={() => {}}
+        autoScroll={false}
+      />
     </div>
   );
 };
@@ -115,14 +118,11 @@ const StepRunOutput: React.FC<StepRunOutputProps> = (props) => {
 };
 
 export const V1StepRunOutput = (props: { taskRunId: string }) => {
-  const { tenantId } = useTenant();
-
   const { isLoading, data } = useQuery({
     ...queries.v1Tasks.get(props.taskRunId),
-    enabled: !!tenantId,
   });
 
-  if (!tenantId || isLoading || !data) {
+  if (isLoading || !data) {
     return null;
   }
 

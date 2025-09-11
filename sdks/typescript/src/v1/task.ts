@@ -81,7 +81,7 @@ export type CreateBaseTaskOpts<
    * @param ctx The execution context for the task.
    * @returns The result of the task execution.
    */
-  fn: C;
+  fn?: C;
 
   /**
    * @deprecated use executionTimeout instead

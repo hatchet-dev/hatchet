@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -234,7 +235,7 @@ func (a *AdminServiceImpl) ReplayTasks(ctx context.Context, req *contracts.Repla
 		externalIds = append(externalIds, runExternalIds...)
 	}
 
-	tasksToReplay := []v1.TaskIdInsertedAtRetryCount{}
+	tasksToReplay := []tasktypes.TaskIdInsertedAtRetryCountWithExternalId{}
 
 	tasks, err := a.repo.Tasks().FlattenExternalIds(ctx, sqlchelpers.UUIDToStr(tenant.ID), externalIds)
 
@@ -242,41 +243,98 @@ func (a *AdminServiceImpl) ReplayTasks(ctx context.Context, req *contracts.Repla
 		return nil, err
 	}
 
+	// Deduplicate based on TaskIdInsertedAtRetryCountWithExternalId
+	existingReplays := make(map[tasktypes.TaskIdInsertedAtRetryCountWithExternalId]bool)
+
 	for _, task := range tasks {
-		tasksToReplay = append(tasksToReplay, v1.TaskIdInsertedAtRetryCount{
-			Id:         task.ID,
-			InsertedAt: task.InsertedAt,
-			RetryCount: task.RetryCount,
-		})
+		record := tasktypes.TaskIdInsertedAtRetryCountWithExternalId{
+			TaskIdInsertedAtRetryCount: v1.TaskIdInsertedAtRetryCount{
+				Id:         task.ID,
+				InsertedAt: task.InsertedAt,
+				RetryCount: task.RetryCount,
+			},
+			WorkflowRunExternalId: task.WorkflowRunID,
+			TaskExternalId:        task.ExternalID,
+		}
+
+		if _, exists := existingReplays[record]; exists {
+			continue
+		}
+
+		existingReplays[record] = true
+		tasksToReplay = append(tasksToReplay, record)
 	}
 
-	// FIXME: group tasks by their workflow run id, and send in batches of 50 workflow run ids...
-
-	// send the payload to the tasks controller, and send the list of tasks back to the client
-	toReplay := tasktypes.ReplayTasksPayload{
-		Tasks: tasksToReplay,
+	workflowRunIdToTasksToReplay := make(map[pgtype.UUID][]tasktypes.TaskIdInsertedAtRetryCountWithExternalId)
+	for _, item := range tasksToReplay {
+		workflowRunIdToTasksToReplay[item.WorkflowRunExternalId] = append(
+			workflowRunIdToTasksToReplay[item.WorkflowRunExternalId],
+			item,
+		)
 	}
 
-	msg, err := msgqueue.NewTenantMessage(
-		sqlchelpers.UUIDToStr(tenant.ID),
-		"replay-tasks",
-		false,
-		true,
-		toReplay,
-	)
+	var batches [][]tasktypes.TaskIdInsertedAtRetryCountWithExternalId
+	var currentBatch []tasktypes.TaskIdInsertedAtRetryCountWithExternalId
+	batchSize := 100
 
-	if err != nil {
-		return nil, err
+	for _, tasksForWorkflowRun := range workflowRunIdToTasksToReplay {
+		if len(currentBatch) > 0 && len(currentBatch)+len(tasksForWorkflowRun) > batchSize {
+			// If the current batch would exceed the batch size if we added the current workflow run's tasks,
+			// we "finalize" the batch and start a new one
+			batches = append(batches, currentBatch)
+			currentBatch = nil
+		}
+
+		if len(tasksForWorkflowRun) > batchSize {
+			// If the current workflow run's task count exceeds the batch size on its own,
+			// we let it be its own batch
+			batches = append(batches, tasksForWorkflowRun)
+		} else {
+			// Otherwise, add it to the current batch
+			currentBatch = append(currentBatch, tasksForWorkflowRun...)
+		}
 	}
 
-	err = a.mq.SendMessage(ctx, msgqueue.TASK_PROCESSING_QUEUE, msg)
+	if len(currentBatch) > 0 {
+		// Last case to handle - add the last batch if it has any tasks
+		batches = append(batches, currentBatch)
+	}
 
-	if err != nil {
-		return nil, err
+	replayedIds := make([]string, 0)
+
+	for _, batch := range batches {
+		// send the payload to the tasks controller, and send the list of tasks back to the client
+		toReplay := tasktypes.ReplayTasksPayload{
+			Tasks: batch,
+		}
+
+		msg, err := msgqueue.NewTenantMessage(
+			sqlchelpers.UUIDToStr(tenant.ID),
+			"replay-tasks",
+			false,
+			true,
+			toReplay,
+		)
+
+		if err != nil {
+			return nil, err
+		}
+
+		err = a.mq.SendMessage(ctx, msgqueue.TASK_PROCESSING_QUEUE, msg)
+
+		if err != nil {
+			return nil, err
+		}
+
+		for _, task := range batch {
+			replayedIds = append(replayedIds, task.TaskExternalId.String())
+		}
+
+		time.Sleep(200 * time.Millisecond)
 	}
 
 	return &contracts.ReplayTasksResponse{
-		ReplayedTasks: externalIds,
+		ReplayedTasks: replayedIds,
 	}, nil
 }
 
@@ -358,6 +416,13 @@ func (i *AdminServiceImpl) newTriggerOpt(
 		WorkflowName:       req.WorkflowName,
 		Data:               req.Input,
 		AdditionalMetadata: req.AdditionalMetadata,
+	}
+
+	if req.Priority != nil {
+		if *req.Priority < 1 || *req.Priority > 3 {
+			return nil, status.Errorf(codes.InvalidArgument, "priority must be between 1 and 3, got %d", *req.Priority)
+		}
+		t.Priority = req.Priority
 	}
 
 	return &v1.WorkflowNameTriggerOpts{
@@ -444,6 +509,16 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.Creat
 	if err != nil {
 		return nil, err
 	}
+
+	a.analytics.Enqueue(
+		"workflow:create",
+		"grpc",
+		&tenantId,
+		nil,
+		map[string]interface{}{
+			"workflow_id": sqlchelpers.UUIDToStr(currWorkflow.WorkflowVersion.WorkflowId),
+		},
+	)
 
 	return &contracts.CreateWorkflowVersionResponse{
 		Id:         sqlchelpers.UUIDToStr(currWorkflow.WorkflowVersion.ID),

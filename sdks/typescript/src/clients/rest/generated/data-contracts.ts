@@ -401,6 +401,8 @@ export interface CreateTenantRequest {
   slug: string;
   /** The UI version of the tenant. Defaults to V0. */
   uiVersion?: any;
+  /** The engine version of the tenant. Defaults to V0. */
+  engineVersion?: any;
 }
 
 export interface UpdateTenantRequest {
@@ -569,6 +571,32 @@ export interface V1EventList {
     };
     /** Additional metadata for the event. */
     additionalMetadata?: object;
+    /** The payload of the event, which can be any JSON-serializable object. */
+    payload?: object;
+    /** The scope of the event, which can be used to filter or categorize events. */
+    scope?: string;
+    /**
+     * The timestamp when the event was seen.
+     * @format date-time
+     */
+    seenAt?: string;
+    /** The external IDs of the runs that were triggered by this event. */
+    triggeredRuns?: {
+      /**
+       * The external ID of the triggered run.
+       * @format uuid
+       * @minLength 36
+       * @maxLength 36
+       */
+      workflowRunId: string;
+      /**
+       * The ID of the filter that triggered the run, if applicable.
+       * @format uuid
+       */
+      filterId?: string;
+    }[];
+    /** The name of the webhook that triggered this event, if applicable. */
+    triggeringWebhookName?: string;
   }[];
 }
 
@@ -594,6 +622,37 @@ export interface V1Filter {
   expression: string;
   /** Additional payload data associated with the filter */
   payload: object;
+}
+
+export interface V1WebhookList {
+  pagination?: PaginationResponse;
+  rows?: V1Webhook[];
+}
+
+export interface V1Webhook {
+  metadata: APIResourceMeta;
+  /** The ID of the tenant associated with this webhook. */
+  tenantId: string;
+  /** The name of the webhook */
+  name: string;
+  /** The name of the source for this webhook */
+  sourceName: V1WebhookSourceName;
+  /** The CEL expression to use for the event key. This is used to create the event key from the webhook payload. */
+  eventKeyExpression: string;
+  /** The type of authentication to use for the webhook */
+  authType: V1WebhookAuthType;
+}
+
+export enum V1WebhookSourceName {
+  GENERIC = 'GENERIC',
+  GITHUB = 'GITHUB',
+  STRIPE = 'STRIPE',
+}
+
+export enum V1WebhookAuthType {
+  BASIC = 'BASIC',
+  API_KEY = 'API_KEY',
+  HMAC = 'HMAC',
 }
 
 export interface RateLimit {
@@ -702,6 +761,7 @@ export interface WorkflowVersion {
   triggers?: WorkflowTriggers;
   scheduleTimeout?: string;
   jobs?: Job[];
+  workflowConfig?: object;
 }
 
 export interface WorkflowVersionDefinition {
@@ -1187,7 +1247,7 @@ export interface SemaphoreSlots {
    * @format uuid
    */
   workflowRunId: string;
-  status: StepRunStatus;
+  status?: StepRunStatus;
 }
 
 export interface RecentStepRuns {
@@ -1620,6 +1680,12 @@ export interface V1TaskSummary {
    * @format uuid
    */
   workflowVersionId?: string;
+  workflowConfig?: object;
+  /**
+   * The external ID of the parent task.
+   * @format uuid
+   */
+  parentTaskExternalId?: string;
 }
 
 export interface V1DagChildren {
@@ -1668,6 +1734,16 @@ export interface V1TaskEventList {
     /** The attempt number of the task. */
     attempt?: number;
   }[];
+}
+
+export interface V1ReplayedTasks {
+  /** The list of task external ids that were replayed */
+  ids?: string[];
+}
+
+export interface V1CancelledTasks {
+  /** The list of task external ids that were cancelled */
+  ids?: string[];
 }
 
 export enum V1TaskStatus {
@@ -1790,6 +1866,7 @@ export interface V1WorkflowRunDetails {
     taskName: string;
   }[];
   tasks: V1TaskSummary[];
+  workflowConfig?: object;
 }
 
 export enum V1TaskRunStatus {
@@ -1923,6 +2000,49 @@ export interface V1CreateFilterRequest {
   payload?: object;
 }
 
+export type V1CreateWebhookRequest =
+  | ({
+      /** The name of the source for this webhook */
+      sourceName: V1WebhookSourceName;
+      /** The name of the webhook */
+      name: string;
+      /** The CEL expression to use for the event key. This is used to create the event key from the webhook payload. */
+      eventKeyExpression: string;
+    } & {
+      /** The type of authentication to use for the webhook */
+      authType: 'BASIC';
+      auth: {
+        /** The username for basic auth */
+        username: string;
+        /** The password for basic auth */
+        password: string;
+      };
+    })
+  | {
+      /** The type of authentication to use for the webhook */
+      authType: 'API_KEY';
+      auth: {
+        /** The name of the header to use for the API key */
+        headerName: string;
+        /** The API key to use for authentication */
+        apiKey: string;
+      };
+    }
+  | {
+      /** The type of authentication to use for the webhook */
+      authType: 'HMAC';
+      auth: {
+        /** The HMAC algorithm to use for the webhook */
+        algorithm: 'SHA1' | 'SHA256' | 'SHA512' | 'MD5';
+        /** The encoding to use for the HMAC signature */
+        encoding: 'HEX' | 'BASE64' | 'BASE64URL';
+        /** The name of the header to use for the HMAC signature */
+        signatureHeaderName: string;
+        /** The secret key used to sign the HMAC signature */
+        signingSecret: string;
+      };
+    };
+
 export interface V1UpdateFilterRequest {
   /** The expression for the filter */
   expression?: string;
@@ -1930,4 +2050,30 @@ export interface V1UpdateFilterRequest {
   scope?: string;
   /** The payload for the filter */
   payload?: object;
+}
+
+export interface V1CELDebugRequest {
+  /** The CEL expression to evaluate */
+  expression: string;
+  /** The input, which simulates the workflow run input */
+  input: object;
+  /** The filter payload, which simulates a payload set on a previous-created filter */
+  filterPayload?: object;
+  /** Additional metadata, which simulates metadata that could be sent with an event or a workflow run */
+  additionalMetadata?: object;
+}
+
+export interface V1CELDebugResponse {
+  /** The status of the CEL evaluation */
+  status: V1CELDebugResponseStatus;
+  /** The result of the CEL expression evaluation, if successful */
+  output?: boolean;
+  /** The error message if the evaluation failed */
+  error?: string;
+}
+
+/** The status of the CEL evaluation */
+export enum V1CELDebugResponseStatus {
+  SUCCESS = 'SUCCESS',
+  ERROR = 'ERROR',
 }

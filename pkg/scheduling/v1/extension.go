@@ -1,4 +1,4 @@
-package v2
+package v1
 
 import (
 	"sync"
@@ -27,6 +27,7 @@ type WorkerCp struct {
 	WorkerId string
 	MaxRuns  int
 	Labels   []*sqlcv1.ListManyWorkerLabelsRow
+	Name     string
 }
 
 type SlotCp struct {

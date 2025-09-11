@@ -329,7 +329,7 @@ func (r *engineRepository) MessageQueue() repository.MessageQueueRepository {
 	return r.mq
 }
 
-func NewEngineRepository(pool *pgxpool.Pool, essentialPool *pgxpool.Pool, cf *server.ConfigFileRuntime, fs ...PostgresRepositoryOpt) (func() error, repository.EngineRepository, error) {
+func NewEngineRepository(pool *pgxpool.Pool, cf *server.ConfigFileRuntime, fs ...PostgresRepositoryOpt) (func() error, repository.EngineRepository, error) {
 	opts := defaultPostgresRepositoryOpts()
 
 	for _, f := range fs {
@@ -361,15 +361,22 @@ func NewEngineRepository(pool *pgxpool.Pool, essentialPool *pgxpool.Pool, cf *se
 		logRepo = opts.logsEngineRepository.WithAdditionalConfig(opts.v, opts.l)
 	}
 
+	mq, cleanupMQ := NewMessageQueueRepository(shared)
+
 	return func() error {
 			rlCache.Stop()
 			queueCache.Stop()
+			if cleanupMQ != nil {
+				if err := cleanupMQ(); err != nil {
+					opts.l.Error().Err(err).Msg("error cleaning up message queue repository")
+				}
+			}
 
 			return cleanup()
 		}, &engineRepository{
 			health:         NewHealthEngineRepository(pool),
 			apiToken:       NewAPITokenRepository(shared, opts.cache),
-			dispatcher:     NewDispatcherRepository(pool, essentialPool, opts.v, opts.l),
+			dispatcher:     NewDispatcherRepository(pool, opts.v, opts.l),
 			event:          NewEventEngineRepository(shared, opts.metered, cf.EventBuffer),
 			getGroupKeyRun: NewGetGroupKeyRunRepository(pool, opts.v, opts.l),
 			jobRun:         NewJobRunEngineRepository(shared),
@@ -378,7 +385,7 @@ func NewEngineRepository(pool *pgxpool.Pool, essentialPool *pgxpool.Pool, cf *se
 			tenant:         NewTenantEngineRepository(pool, opts.v, opts.l, opts.cache),
 			tenantAlerting: NewTenantAlertingRepository(shared, opts.cache),
 			ticker:         NewTickerRepository(pool, opts.v, opts.l),
-			worker:         NewWorkerEngineRepository(pool, essentialPool, opts.v, opts.l, opts.metered),
+			worker:         NewWorkerEngineRepository(pool, opts.v, opts.l, opts.metered),
 			workflow:       NewWorkflowEngineRepository(shared, opts.metered, opts.cache),
 			workflowRun:    NewWorkflowRunEngineRepository(shared, opts.metered, cf),
 			streamEvent:    NewStreamEventsEngineRepository(pool, opts.v, opts.l),
@@ -386,7 +393,7 @@ func NewEngineRepository(pool *pgxpool.Pool, essentialPool *pgxpool.Pool, cf *se
 			rateLimit:      NewRateLimitEngineRepository(pool, opts.v, opts.l),
 			webhookWorker:  NewWebhookWorkerEngineRepository(pool, opts.v, opts.l),
 			scheduler:      newSchedulerRepository(shared),
-			mq:             NewMessageQueueRepository(shared),
+			mq:             mq,
 		},
 		err
 }

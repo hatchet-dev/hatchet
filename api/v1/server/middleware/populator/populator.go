@@ -3,6 +3,7 @@ package populator
 import (
 	"errors"
 	"fmt"
+	"net/http"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/labstack/echo/v4"
@@ -80,7 +81,7 @@ func (p *Populator) populate(c echo.Context, r *middleware.RouteInfo) error {
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return c.NoContent(404)
+			return echo.NewHTTPError(http.StatusNotFound, "not found")
 		}
 
 		return err
@@ -120,6 +121,10 @@ func (p *Populator) traverseNode(c echo.Context, node *resource) error {
 		err := p.callGetter(node, node.ParentID, node.ResourceID)
 
 		if err != nil {
+			if httpErr, ok := err.(*echo.HTTPError); ok {
+				return httpErr
+			}
+
 			return fmt.Errorf("could not populate resource %s: %w", node.ResourceKey, err)
 		}
 

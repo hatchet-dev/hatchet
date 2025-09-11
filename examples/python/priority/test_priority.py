@@ -1,8 +1,9 @@
 import asyncio
+from collections.abc import AsyncGenerator
 from datetime import datetime, timedelta, timezone
 from random import choice
 from subprocess import Popen
-from typing import Any, AsyncGenerator, Literal
+from typing import Any, Literal
 from uuid import uuid4
 
 import pytest
@@ -58,7 +59,7 @@ async def dummy_runs() -> None:
 
     await asyncio.sleep(3)
 
-    return None
+    return
 
 
 @pytest.mark.parametrize(
