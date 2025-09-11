@@ -50,6 +50,7 @@ interface DataTableToolbarProps<TData> {
   onReset?: () => void;
   hideFlatten?: boolean;
   columnKeyToName?: Record<string, string>;
+  metrics?: JSX.Element;
 }
 
 export function DataTableToolbar<TData>({
@@ -63,6 +64,7 @@ export function DataTableToolbar<TData>({
   onReset,
   hideFlatten,
   columnKeyToName,
+  metrics,
 }: DataTableToolbarProps<TData>) {
   const visibleFilters = filters.filter((filter) => {
     if (hideFlatten && filter.columnId === flattenDAGsKey) {
@@ -84,7 +86,12 @@ export function DataTableToolbar<TData>({
             className="h-8 w-[150px] lg:w-[200px] flex-shrink-0"
           />
         )}
+        {metrics && <div className="flex-shrink-0">{metrics}</div>}
+      </div>
 
+      <div className="flex flex-row gap-2 items-center flex-shrink-0">
+        {isLoading && <Spinner />}
+        {actions && actions.length > 0 && actions}
         {(hasFilters || showColumnToggle) && (
           <DataTableOptions
             table={table}
@@ -93,12 +100,7 @@ export function DataTableToolbar<TData>({
             hideFlatten={hideFlatten}
             columnKeyToName={columnKeyToName}
           />
-        )}
-      </div>
-
-      <div className="flex flex-row gap-2 items-center flex-shrink-0">
-        {isLoading && <Spinner />}
-        {actions && actions.length > 0 && actions}
+        )}{' '}
       </div>
     </div>
   );

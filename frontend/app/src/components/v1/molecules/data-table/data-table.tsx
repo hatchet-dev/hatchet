@@ -79,6 +79,7 @@ interface DataTableProps<TData extends IDGetter<TData>, TValue> {
   getSubRows?: (row: TData) => TData[];
   headerClassName?: string;
   hideFlatten?: boolean;
+  metrics?: JSX.Element;
 }
 
 interface ExtraDataTableProps {
@@ -124,6 +125,7 @@ export function DataTable<TData extends IDGetter<TData>, TValue>({
   headerClassName,
   hideFlatten,
   columnKeyToName,
+  metrics,
 }: DataTableProps<TData, TValue> & ExtraDataTableProps) {
   const [expanded, setExpanded] = React.useState<ExpandedState>({});
 
@@ -274,7 +276,7 @@ export function DataTable<TData extends IDGetter<TData>, TValue>({
 
   return (
     <div className="flex flex-col max-h-full space-y-4">
-      {(setSearch || actions || (filters && filters.length > 0)) && (
+      {(setSearch || actions || (filters && filters.length > 0) || metrics) && (
         <DataTableToolbar
           table={table}
           filters={filters}
@@ -286,6 +288,7 @@ export function DataTable<TData extends IDGetter<TData>, TValue>({
           onReset={onToolbarReset}
           hideFlatten={hideFlatten}
           columnKeyToName={columnKeyToName}
+          metrics={metrics}
         />
       )}
       <div
