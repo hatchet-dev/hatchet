@@ -18,12 +18,12 @@ Hatchet's SDK provides an instrumentor that auto-instruments Hatchet code if you
 
 First, install the `otel` extra with (e.g.) `pip install hatchet-sdk[otel]`. Then, import the instrumentor:
 
-```python
-from path.to.your.trace.provider import trace_provider
-from hatchet_sdk.opentelemetry.instrumentor import HatchetInstrumentor
-
-HatchetInstrumentor(tracer_provider=trace_provider).instrument()
-```
+<Snippet
+  src={
+    snippets.python.opentelemetry_instrumentation.worker
+      .configure_the_instrumentor
+  }
+/>
 
 You bring your own trace provider and plug it into the `HatchetInstrumentor`, call `instrument`, and that's it!
 

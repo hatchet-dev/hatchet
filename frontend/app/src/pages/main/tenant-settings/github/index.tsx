@@ -14,7 +14,7 @@ import { useApiError } from '@/lib/hooks';
 import { ConfirmDialog } from '@/components/v1/molecules/confirm-dialog';
 
 export default function Github() {
-  const cloudMeta = useCloudApiMeta();
+  const { data: cloudMeta } = useCloudApiMeta();
 
   const hasGithubIntegration = cloudMeta?.data.canLinkGithub;
 

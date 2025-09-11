@@ -58,4 +58,3 @@ func main() {
 		log.Println("Failed to start server:", err)
 	}
 }
-

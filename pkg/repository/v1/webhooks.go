@@ -4,9 +4,10 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/jackc/pgx/v5/pgtype"
+
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
-	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type WebhookRepository interface {

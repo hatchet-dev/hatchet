@@ -123,11 +123,7 @@ func main() {
 		time.Sleep(100 * time.Millisecond)
 
 		// Subscribe to the stream
-		stream, err := client.Runs().SubscribeToStream(ctx, workflowRun.RunId)
-		if err != nil {
-			http.Error(w, fmt.Sprintf("failed to subscribe to stream: %v", err), http.StatusInternalServerError)
-			return
-		}
+		stream := client.Runs().SubscribeToStream(ctx, workflowRun.RunId)
 
 		// Stream the content to the HTTP response
 		flusher, ok := w.(http.Flusher)

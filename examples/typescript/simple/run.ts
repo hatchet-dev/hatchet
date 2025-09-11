@@ -48,6 +48,18 @@ export async function extra() {
       };
     },
   });
+
+  // > Run with metadata
+  const withMetadata = simple.run(
+    {
+      Message: 'HeLlO WoRlD',
+    },
+    {
+      additionalMetadata: {
+        source: 'api', // Arbitrary key-value pair
+      },
+    }
+  );
 }
 
 if (require.main === module) {

@@ -14,17 +14,9 @@ import {
   FilterOption,
   ToolbarType,
 } from '@/components/v1/molecules/data-table/data-table-toolbar';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/v1/ui/dialog';
 import { useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/v1/ui/button';
 import { ArrowPathIcon } from '@heroicons/react/24/outline';
-import { Loading } from '@/components/v1/ui/loading.tsx';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { DataTable } from '@/components/v1/molecules/data-table/data-table';
 import { RunsTable } from '../workflow-runs-v1/components/runs-table';
@@ -45,34 +37,15 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/v1/ui/dropdown-menu';
+import { useSidePanel } from '@/hooks/use-side-panel';
 
 export default function Events() {
-  const [selectedEvent, setSelectedEvent] = useState<V1Event | null>(null);
   const { tenantId } = useCurrentTenantId();
 
   const [searchParams, setSearchParams] = useSearchParams();
   const [rotate, setRotate] = useState(false);
   const [hoveredEventId, setHoveredEventId] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (
-      selectedEvent &&
-      (!searchParams.get('event') ||
-        searchParams.get('event') !== selectedEvent.metadata.id)
-    ) {
-      const newSearchParams = new URLSearchParams(searchParams);
-      newSearchParams.set('event', selectedEvent.metadata.id);
-      setSearchParams(newSearchParams, { replace: true });
-    } else if (
-      !selectedEvent &&
-      searchParams.get('event') &&
-      searchParams.get('event') !== ''
-    ) {
-      const newSearchParams = new URLSearchParams(searchParams);
-      newSearchParams.delete('event');
-      setSearchParams(newSearchParams, { replace: true });
-    }
-  }, [selectedEvent, searchParams, setSearchParams]);
+  const { open } = useSidePanel();
 
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>(() => {
     const filtersParam = searchParams.get('filters');
@@ -210,7 +183,7 @@ export default function Events() {
 
       return response.data;
     },
-    refetchInterval: hoveredEventId ? false : 2000,
+    refetchInterval: hoveredEventId || eventIds?.length ? false : 5000,
   });
 
   const {
@@ -279,7 +252,12 @@ export default function Events() {
 
   const tableColumns = columns({
     onRowClick: (row: V1Event) => {
-      setSelectedEvent(row);
+      open({
+        type: 'event-details',
+        content: {
+          event: row,
+        },
+      });
     },
     hoveredEventId,
     setHoveredEventId,
@@ -305,16 +283,6 @@ export default function Events() {
 
   return (
     <>
-      <Dialog
-        open={!!selectedEvent}
-        onOpenChange={(open) => {
-          if (!open) {
-            setSelectedEvent(null);
-          }
-        }}
-      >
-        {selectedEvent && <ExpandedEventContent event={selectedEvent} />}
-      </Dialog>
       <DataTable
         error={eventsError || eventKeysError || workflowKeysError}
         isLoading={
@@ -372,7 +340,7 @@ export default function Events() {
   );
 }
 
-function ExpandedEventContent({ event }: { event: V1Event }) {
+export function ExpandedEventContent({ event }: { event: V1Event }) {
   const { tenantId } = useCurrentTenantId();
 
   const { data: filters } = useQuery({
@@ -391,73 +359,58 @@ function ExpandedEventContent({ event }: { event: V1Event }) {
   });
 
   return (
-    <DialogContent className="md:max-w-[700px] lg:max-w-[900px] xl:max-w-[1100px] max-h-[85%] overflow-auto">
-      <DialogHeader>
-        <DialogTitle>Event {event.key}</DialogTitle>
-        <DialogDescription>
-          Seen <RelativeDate date={event.metadata.createdAt} />
-        </DialogDescription>
-      </DialogHeader>
+    <div className="w-full">
+      <div className="space-y-6">
+        <div className="space-y-2">
+          <p className="text-sm text-muted-foreground">
+            Seen <RelativeDate date={event.metadata.createdAt} />
+          </p>
+        </div>
 
-      <h3 className="text-lg font-bold leading-tight text-foreground">
-        Event Data
-      </h3>
-      <Separator />
-      <EventDataSection event={event} />
-      {filters && filters.length > 0 && (
-        <>
-          <h3 className="text-lg font-bold leading-tight text-foreground">
-            Filters
-          </h3>
-          <Separator />
-          <FiltersSection filters={filters} />
-        </>
-      )}
-      <h3 className="text-lg font-bold leading-tight text-foreground">Runs</h3>
-      <Separator />
-      <EventWorkflowRunsList event={event} />
-    </DialogContent>
+        <div className="space-y-4">
+          <div>
+            <h3 className="text-sm font-semibold text-foreground mb-2">
+              Event Data
+            </h3>
+            <Separator className="mb-3" />
+            <EventDataSection event={event} />
+          </div>
+
+          {filters && filters.length > 0 && (
+            <div>
+              <h3 className="text-sm font-semibold text-foreground mb-2">
+                Filters
+              </h3>
+              <Separator className="mb-3" />
+              <FiltersSection filters={filters} />
+            </div>
+          )}
+
+          <div>
+            <h3 className="text-sm font-semibold text-foreground mb-2">Runs</h3>
+            <Separator className="mb-3" />
+            <EventWorkflowRunsList event={event} />
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 
 function EventDataSection({ event }: { event: V1Event }) {
-  const { tenantId } = useCurrentTenantId();
-
-  const { data, isLoading } = useQuery({
-    queryKey: ['v1:events:list', tenantId, event.metadata.id],
-    queryFn: async () => {
-      const response = await api.v1EventList(tenantId, {
-        eventIds: [event.metadata.id],
-      });
-
-      return response.data;
-    },
-    refetchInterval: 2000,
-  });
-
-  if (isLoading || !data) {
-    return <Loading />;
-  }
-
-  const eventData = data.rows?.at(0);
-
-  if (!eventData) {
-    return <div className="text-red-500">Event data not found</div>;
-  }
-
   const dataToDisplay = {
-    id: eventData.metadata.id,
-    seenAt: eventData.seenAt,
-    key: eventData.key,
-    additionalMetadata: eventData.additionalMetadata,
-    scope: eventData.scope,
-    payload: eventData.payload,
+    id: event.metadata.id,
+    seenAt: event.seenAt,
+    key: event.key,
+    additionalMetadata: event.additionalMetadata,
+    scope: event.scope,
+    payload: event.payload,
   };
 
   return (
     <CodeHighlighter
       language="json"
-      className="my-4"
+      className="text-xs"
       code={JSON.stringify(dataToDisplay, null, 2)}
     />
   );
@@ -465,30 +418,34 @@ function EventDataSection({ event }: { event: V1Event }) {
 
 function FiltersSection({ filters }: { filters: V1Filter[] }) {
   return (
-    <div className="[&_th:last-child]:w-[60px] [&_th:last-child]:min-w-[60px] [&_th:last-child]:max-w-[60px] [&_td:last-child]:w-[60px] [&_td:last-child]:min-w-[60px] [&_td:last-child]:max-w-[60px]">
-      <DataTable columns={filterColumns} data={filters} filters={[]} />
+    <div className="w-full overflow-x-auto">
+      <div className="min-w-[500px] [&_th:last-child]:w-[60px] [&_th:last-child]:min-w-[60px] [&_th:last-child]:max-w-[60px] [&_td:last-child]:w-[60px] [&_td:last-child]:min-w-[60px] [&_td:last-child]:max-w-[60px]">
+        <DataTable columns={filterColumns} data={filters} filters={[]} />
+      </div>
     </div>
   );
 }
 
 function EventWorkflowRunsList({ event }: { event: V1Event }) {
   return (
-    <div className="w-full overflow-x-auto max-w-full">
-      <RunsProvider
-        tableKey={`event-workflow-runs-${event.metadata.id}`}
-        display={{
-          hideMetrics: true,
-          hideCounts: true,
-          hideDateFilter: true,
-          hideTriggerRunButton: true,
-          hideCancelAndReplayButtons: true,
-        }}
-        runFilters={{
-          triggeringEventExternalId: event.metadata.id,
-        }}
-      >
-        <RunsTable />
-      </RunsProvider>
+    <div className="w-full overflow-x-auto">
+      <div className="min-w-[600px]">
+        <RunsProvider
+          tableKey={`event-workflow-runs-${event.metadata.id}`}
+          display={{
+            hideMetrics: true,
+            hideCounts: true,
+            hideDateFilter: true,
+            hideTriggerRunButton: true,
+            hideCancelAndReplayButtons: true,
+          }}
+          runFilters={{
+            triggeringEventExternalId: event.metadata.id,
+          }}
+        >
+          <RunsTable />
+        </RunsProvider>
+      </div>
     </div>
   );
 }

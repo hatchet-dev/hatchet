@@ -1,5 +1,7 @@
 import { Callout, Card, Cards, Steps, Tabs } from "nextra/components";
 import UniversalTabs from "@/components/UniversalTabs";
+import { snippets } from "@/lib/generated/snippets";
+import { Snippet } from "@/components/code";
 
 ## SDK Improvements in V1
 
@@ -61,37 +63,17 @@ There are a handful of other new features that will make interfacing with the SD
 2. There is now an `on_success_task` on the `Workflow` object, which works just like an on-failure task, but it runs after all upstream tasks in the workflow have _succeeded_.
 3. We've exposed feature clients on the Hatchet client to make it easier to interact with and control your environment.
 
-For example, you can write scripts to find all runs that match certain criteria, and replay or cancel them.
+For example, you can write scripts to find all runs that match certain criteria, and replay or cancel them. First, fetch some run ids:
 
-```python
-hatchet = Hatchet()
+<Snippet src={snippets.python.bulk_operations.cancel.list_runs} />
 
-workflows = hatchet.workflows.list()
+Then, use those ids to bulk cancel:
 
-assert workflows.rows
+<Snippet src={snippets.python.bulk_operations.cancel.cancel_by_run_ids} />
 
-workflow = workflows.rows[0]
+Or cancel directly by using filters:
 
-workflow_runs = hatchet.runs.list(workflow_ids=[workflow.metadata.id])
-
-workflow_run_ids = [workflow_run.metadata.id for workflow_run in workflow_runs.rows]
-
-bulk_cancel_by_ids = BulkCancelReplayOpts(ids=workflow_run_ids)
-
-hatchet.runs.bulk_cancel(bulk_cancel_by_ids)
-
-bulk_cancel_by_filters = BulkCancelReplayOpts(
-    filters=RunFilter(
-        since=datetime.today() - timedelta(days=1),
-        until=datetime.now(),
-        statuses=[V1TaskStatus.RUNNING],
-        workflow_ids=[workflow.metadata.id],
-        additional_metadata={"key": "value"},
-    )
-)
-
-hatchet.runs.bulk_cancel(bulk_cancel_by_filters)
-```
+<Snippet src={snippets.python.bulk_operations.cancel.cancel_by_filters} />
 
 The `hatchet` client also has clients for `workflows` (declarations), `schedules`, `crons`, `metrics` (i.e. queue depth), `events`, and `workers`.
 
@@ -108,74 +90,27 @@ First and foremost: Many of the changes in the V1 Typescript SDK are motivated b
 
 The simplest way to declare a workflow is with `hatchet.task`.
 
-```ts
-export const simple = hatchet.task({
-  name: "simple",
-  fn: (input: SimpleInput) => {
-    return {
-      TransformedMessage: input.Message.toLowerCase(),
-    };
-  },
-});
-```
+<Snippet src={snippets.typescript.simple.workflow.declaring_a_task} />
 
 This returns an object that you can use to run the task with fully inferred types!
 
-```ts
-const input = { Message: "Hello, World!" };
-// run now
-const result = await simple.run(input);
-const runReference = await simple.runNoWait(input);
-
-// or in the future
-const runAt = new Date(new Date().setHours(12, 0, 0, 0) + 24 * 60 * 60 * 1000);
-const scheduled = await simple.schedule(runAt, input);
-const cron = await simple.cron("simple-daily", "0 0 * * *", input);
-```
+<Snippet src={snippets.typescript.simple.typed_run_methods.run_methods} />
 
 2. DAGs got a similar and can be run the same way. DAGs are now a collection of tasks that are composed by calling `.task` on the `Workflow` object.
 
 You can declare your types for DAGs. Output types are checked if there is a corresponding task name as a key in the output type.
 
-```ts
-type DagInput = {
-  Message: string;
-};
+First, declare the types:
 
-type DagOutput = {
-  reverse: {
-    Original: string;
-    Transformed: string;
-  };
-};
+<Snippet src={snippets.typescript.dag.workflow.declaring_types} />
 
-export const dag = hatchet.workflow<DagInput, DagOutput>({
-  name: "simple",
-});
+Then, create the workflow:
 
-// Next, we declare the tasks bound to the workflow
-const toLower = dag.task({
-  name: "to-lower",
-  fn: (input) => {
-    return {
-      TransformedMessage: input.Message.toLowerCase(),
-    };
-  },
-});
+<Snippet src={snippets.typescript.dag.workflow.declaring_a_dag_workflow} />
 
-// Next, we declare the tasks bound to the workflow
-dag.task({
-  name: "reverse",
-  parents: [toLower],
-  fn: async (input, ctx) => {
-    const lower = await ctx.parentOutput(toLower);
-    return {
-      Original: input.Message,
-      Transformed: lower.TransformedMessage.split("").reverse().join(""),
-    };
-  },
-});
-```
+And bind tasks to it:
+
+<Snippet src={snippets.typescript.dag.workflow.first_task} />
 
 3. Logical organization of SDK features to make it easier to understand and use.
 
@@ -183,25 +118,7 @@ We've exposed feature clients on the Hatchet client to make it easier to interac
 
 For example, you can write scripts to find all runs that match certain criteria, and replay or cancel them.
 
-```ts
-const hatchet = HatchetClient.init();
-const { runs } = hatchet;
-
-const allFailedRuns = await runs.list({
-  statuses: [WorkflowRunStatus.FAILED],
-});
-
-// replay by ids
-await runs.replay({ ids: allFailedRuns.rows?.map((r) => r.metadata.id) });
-
-// or you can run bulk operations with filters directly
-await runs.cancel({
-  filters: {
-    since: new Date("2025-03-27"),
-    additionalMetadata: { user: "123" },
-  },
-});
-```
+<Snippet src={snippets.typescript.simple.replay_cancel.api_operations} />
 
 The `hatchet` client also has clients for `workflows` (declarations), `schedules`, `crons`, `metrics` (i.e. queue depth), `events`, and `workers`.
 

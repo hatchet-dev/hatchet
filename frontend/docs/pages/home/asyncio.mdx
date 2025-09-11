@@ -1,4 +1,6 @@
 import { Callout } from "nextra/components";
+import { Snippet } from "@/components/code";
+import { snippets } from "@/lib/generated/snippets";
 
 # Working with `asyncio`
 
@@ -13,23 +15,11 @@ However, as is the case in FastAPI, when using `asyncio` in Hatchet, you need to
 
 For example, this is async-safe:
 
-```python
-import asyncio
-
-async def my_task() -> int:
-    await asyncio.sleep(5)
-
-    return 42
-```
+<Snippet src={snippets.python.blocked_loop_blog.snippets.async_safe} />
 
 But this is not:
 
-```python
-async def my_task() -> int:
-    time.sleep(5)
-
-    return 42
-```
+<Snippet src={snippets.python.blocked_loop_blog.snippets.blocking} />
 
 In the second case, your worker will not be able to process any other work that's defined as async until the five-second sleep has finished.
 
@@ -37,25 +27,11 @@ In the second case, your worker will not be able to process any other work that'
 
 To avoid problems caused by blocking code, you can run your blocking code in an executor with `asyncio.to_thread` or, more verbosely, `loop.run_in_executor`. The two examples below are async-safe and will no longer block the event loop.
 
-```python
-import asyncio
+<Snippet src={snippets.python.blocked_loop_blog.snippets.using_to_thread} />
 
-async def my_task() -> int:
-    await asyncio.to_thread(time.sleep, 5)
-
-    return 42
-```
-
-```python
-import asyncio
-
-async def my_task() -> int:
-    loop = asyncio.get_event_loop()
-
-    await loop.run_in_executor(None, time.sleep, 5)
-
-    return 42
-```
+<Snippet
+  src={snippets.python.blocked_loop_blog.snippets.using_run_in_executor}
+/>
 
 ### More Resources for working with `asyncio`
 

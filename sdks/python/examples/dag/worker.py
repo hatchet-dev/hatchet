@@ -17,12 +17,20 @@ class RandomSum(BaseModel):
 
 hatchet = Hatchet(debug=True)
 
+# > Define a DAG
 dag_workflow = hatchet.workflow(name="DAGWorkflow")
+# !!
 
 
+# > First task
 @dag_workflow.task(execution_timeout=timedelta(seconds=5))
 def step1(input: EmptyModel, ctx: Context) -> StepOutput:
     return StepOutput(random_number=random.randint(1, 100))
+
+
+# !!
+
+# > Task with parents
 
 
 @dag_workflow.task(execution_timeout=timedelta(seconds=5))
@@ -36,6 +44,9 @@ async def step3(input: EmptyModel, ctx: Context) -> RandomSum:
     two = ctx.task_output(step2).random_number
 
     return RandomSum(sum=one + two)
+
+
+# !!
 
 
 @dag_workflow.task(parents=[step1, step3])
@@ -52,11 +63,14 @@ async def step4(input: EmptyModel, ctx: Context) -> dict[str, str]:
     }
 
 
+# > Declare a worker
 def main() -> None:
     worker = hatchet.worker("dag-worker", workflows=[dag_workflow])
 
     worker.start()
 
+
+# !!
 
 if __name__ == "__main__":
     main()

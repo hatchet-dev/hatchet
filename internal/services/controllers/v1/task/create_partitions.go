@@ -4,8 +4,9 @@ import (
 	"context"
 	"time"
 
-	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"go.opentelemetry.io/otel/codes"
+
+	"github.com/hatchet-dev/hatchet/internal/telemetry"
 )
 
 func (tc *TasksControllerImpl) runTaskTablePartition(ctx context.Context) func() {

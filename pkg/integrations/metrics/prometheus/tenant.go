@@ -22,6 +22,9 @@ const (
 	TenantSkippedTasksTotal            TenantHatchetMetric = "hatchet_tenant_skipped_tasks"
 	TenantCancelledTasksTotal          TenantHatchetMetric = "hatchet_tenant_cancelled_tasks"
 	TenantReassignedTasksTotal         TenantHatchetMetric = "hatchet_tenant_reassigned_tasks"
+	TenantUsedWorkerSlotsTotal         TenantHatchetMetric = "hatchet_tenant_used_worker_slots"
+	TenantAvailableWorkerSlotsTotal    TenantHatchetMetric = "hatchet_tenant_available_worker_slots"
+	TenantWorkerSlotsTotal             TenantHatchetMetric = "hatchet_tenant_worker_slots"
 )
 
 var (
@@ -126,4 +129,28 @@ var (
 		Name: string(TenantReassignedTasksTotal),
 		Help: "The total number of tasks that were reassigned to a worker",
 	}, []string{"tenant_id"})
+
+	TenantWorkerSlots = promauto.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: string(TenantWorkerSlotsTotal),
+			Help: "Total number of slots per worker pool",
+		},
+		[]string{"tenant_id", "worker_id", "worker_name"},
+	)
+
+	TenantUsedWorkerSlots = promauto.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: string(TenantUsedWorkerSlotsTotal),
+			Help: "Number of used slots per worker pool",
+		},
+		[]string{"tenant_id", "worker_id", "worker_name"},
+	)
+
+	TenantAvailableWorkerSlots = promauto.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: string(TenantAvailableWorkerSlotsTotal),
+			Help: "Number of available slots per worker pool",
+		},
+		[]string{"tenant_id", "worker_id", "worker_name"},
+	)
 )
