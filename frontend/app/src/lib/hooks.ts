@@ -28,6 +28,7 @@ export function useApiError(props: {
       };
 
   const handleError = (error: AxiosError) => {
+    console.log(error);
     if (error.response?.status) {
       if (error.response?.status >= 500) {
         handler(['An internal error occurred.']);

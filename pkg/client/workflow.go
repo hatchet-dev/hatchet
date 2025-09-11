@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/google/uuid"
+
 	dispatchercontracts "github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 )
 
@@ -22,6 +24,11 @@ func NewWorkflow(
 	}
 }
 
+func (r *Workflow) RunId() string {
+	return r.workflowRunId
+}
+
+// Deprecated: Use RunId instead
 func (r *Workflow) WorkflowRunId() string {
 	return r.workflowRunId
 }
@@ -35,7 +42,7 @@ func (r *WorkflowResult) StepOutput(key string, v interface{}) error {
 	for _, stepRunResult := range r.workflowRun.Results {
 		if stepRunResult.StepReadableId == key {
 			if stepRunResult.Error != nil {
-				return fmt.Errorf("step run failed: %s", *stepRunResult.Error)
+				return fmt.Errorf("%s", *stepRunResult.Error)
 			}
 
 			if stepRunResult.Output != nil {
@@ -55,29 +62,53 @@ func (r *WorkflowResult) StepOutput(key string, v interface{}) error {
 	return nil
 }
 
+func (r *WorkflowResult) Results() (interface{}, error) {
+	results := make(map[string]interface{})
+
+	for _, stepRunResult := range r.workflowRun.Results {
+		if stepRunResult.Error != nil {
+			return nil, fmt.Errorf("run failed: %s", *stepRunResult.Error)
+		}
+
+		if stepRunResult.Output != nil {
+			results[stepRunResult.StepReadableId] = stepRunResult.Output
+		}
+	}
+
+	return results, nil
+}
+
 func (c *Workflow) Result() (*WorkflowResult, error) {
-	resChan := make(chan *WorkflowResult)
+	resChan := make(chan *WorkflowResult, 1)
+	sessionId := uuid.NewString()
 
 	err := c.listener.AddWorkflowRun(
 		c.workflowRunId,
+		sessionId,
 		func(event WorkflowRunEvent) error {
-			// non-blocking send
-			select {
-			case resChan <- &WorkflowResult{
+			resChan <- &WorkflowResult{
 				workflowRun: event,
-			}: // continue
-			default:
 			}
 
 			return nil
 		},
 	)
 
+	defer func() {
+		c.listener.RemoveWorkflowRun(c.workflowRunId, sessionId)
+	}()
+
 	if err != nil {
 		return nil, fmt.Errorf("failed to listen for workflow events: %w", err)
 	}
 
 	res := <-resChan
+
+	for _, stepRunResult := range res.workflowRun.Results {
+		if stepRunResult.Error != nil {
+			return nil, fmt.Errorf("%s", *stepRunResult.Error)
+		}
+	}
 
 	return res, nil
 }

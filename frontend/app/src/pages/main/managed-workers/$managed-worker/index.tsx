@@ -1,15 +1,20 @@
-import { Separator } from '@/components/ui/separator';
+import { Separator } from '@/components/v1/ui/separator';
 import { queries } from '@/lib/api';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
 import invariant from 'tiny-invariant';
 import { relativeDate } from '@/lib/utils';
 import { CpuChipIcon } from '@heroicons/react/24/outline';
-import { Loading } from '@/components/ui/loading.tsx';
+import { Loading } from '@/components/v1/ui/loading.tsx';
 import { useState } from 'react';
-import { Button } from '@/components/ui/button';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ConfirmDialog } from '@/components/molecules/confirm-dialog';
+import { Button } from '@/components/v1/ui/button';
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from '@/components/v1/ui/tabs';
+import { ConfirmDialog } from '@/components/v1/molecules/confirm-dialog';
 import { ManagedWorkerLogs } from './components/managed-worker-logs';
 import { ManagedWorkerMetrics } from './components/managed-worker-metrics';
 import { ManagedWorkerActivity } from './components/managed-worker-activity';
@@ -19,6 +24,7 @@ import UpdateWorkerForm from './components/update-form';
 import { cloudApi } from '@/lib/api/api';
 import { useApiError } from '@/lib/hooks';
 import GithubButton from './components/github-button';
+import { useTenant } from '@/lib/atoms';
 
 export default function ExpandedWorkflow() {
   const navigate = useNavigate();
@@ -26,6 +32,9 @@ export default function ExpandedWorkflow() {
 
   const params = useParams();
   invariant(params['managed-worker']);
+
+  const tenant = useTenant();
+  invariant(tenant.tenantId);
 
   const managedWorkerQuery = useQuery({
     ...queries.cloud.getManagedWorker(params['managed-worker']),
@@ -82,7 +91,7 @@ export default function ExpandedWorkflow() {
 
   return (
     <div className="flex-grow h-full w-full">
-      <div className="mx-auto max-w-7xl py-8 px-4 sm:px-6 lg:px-8">
+      <div className="mx-auto py-8 px-4 sm:px-6 lg:px-8">
         <div className="flex flex-row justify-between items-center">
           <div className="flex flex-row gap-4 items-center">
             <CpuChipIcon className="h-6 w-6 text-foreground mt-1" />
@@ -95,10 +104,12 @@ export default function ExpandedWorkflow() {
           <div className="text-sm text-gray-700 dark:text-gray-300">
             Created {relativeDate(managedWorker.metadata.createdAt)}
           </div>
-          <GithubButton
-            buildConfig={managedWorker.buildConfig}
-            prefix="Deploys from"
-          />
+          {managedWorker.buildConfig && (
+            <GithubButton
+              buildConfig={managedWorker.buildConfig}
+              prefix="Deploys from"
+            />
+          )}
         </div>
         <div className="flex flex-row justify-start items-center mt-4"></div>
         <Tabs defaultValue="activity">
@@ -148,6 +159,7 @@ export default function ExpandedWorkflow() {
             <Separator className="my-4" />
             <UpdateWorkerForm
               managedWorker={managedWorker}
+              tenantId={tenant.tenantId}
               onSubmit={updateManagedWorkerMutation.mutate}
               isLoading={updateManagedWorkerMutation.isPending}
               fieldErrors={fieldErrors}

@@ -1309,6 +1309,18 @@ cronsList:
           format: uuid
           minLength: 36
           maxLength: 36
+      - description: The workflow name to get runs for.
+        in: query
+        name: workflowName
+        required: false
+        schema:
+          type: string
+      - description: The cron name to get runs for.
+        in: query
+        name: cronName
+        required: false
+        schema:
+          type: string
       - description: A list of metadata key value pairs to filter by
         in: query
         name: additionalMetadata

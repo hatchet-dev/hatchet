@@ -6,18 +6,16 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/go-co-op/gocron/v2"
-
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 func (t *TickerImpl) runPollSchedules(ctx context.Context) func() {
 	return func() {
-		ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		ctx, cancel := context.WithTimeout(ctx, 1*time.Minute)
 		defer cancel()
 
 		t.l.Debug().Msgf("ticker: polling workflow schedules")
@@ -70,18 +68,17 @@ func (t *TickerImpl) runPollSchedules(ctx context.Context) func() {
 func (t *TickerImpl) handleScheduleWorkflow(ctx context.Context, scheduledWorkflow *dbsqlc.PollScheduledWorkflowsRow) error {
 	t.l.Debug().Msg("ticker: scheduling workflow")
 
-	// create a new scheduler
-	s, err := gocron.NewScheduler(gocron.WithLocation(time.UTC))
-
-	if err != nil {
-		return fmt.Errorf("could not create scheduler: %w", err)
-	}
-
 	// parse trigger time
 	tenantId := sqlchelpers.UUIDToStr(scheduledWorkflow.TenantId)
 	workflowVersionId := sqlchelpers.UUIDToStr(scheduledWorkflow.WorkflowVersionId)
 	scheduledWorkflowId := sqlchelpers.UUIDToStr(scheduledWorkflow.ID)
 	triggerAt := scheduledWorkflow.TriggerAt.Time
+
+	key := getScheduledWorkflowKey(workflowVersionId, scheduledWorkflowId)
+
+	if _, exists := t.scheduledWorkflows.Load(key); exists {
+		return fmt.Errorf("workflow %s already scheduled", key)
+	}
 
 	// if start is in the past, run now
 	if triggerAt.Before(time.Now()) {
@@ -91,24 +88,29 @@ func (t *TickerImpl) handleScheduleWorkflow(ctx context.Context, scheduledWorkfl
 		return nil
 	}
 
-	// schedule the workflow
-	_, err = s.NewJob(
-		gocron.OneTimeJob(
-			gocron.OneTimeJobStartDateTime(triggerAt),
-		),
-		gocron.NewTask(
-			t.runScheduledWorkflow(tenantId, workflowVersionId, scheduledWorkflowId, scheduledWorkflow),
-		),
-	)
+	duration := time.Until(triggerAt)
 
-	if err != nil {
-		return fmt.Errorf("could not schedule workflow: %w", err)
-	}
+	// create a cancellation context for this specific scheduled workflow
+	cancelCtx, cancel := context.WithTimeout(context.Background(), duration*2)
 
-	// store the schedule in the cron map
-	t.scheduledWorkflows.Store(getScheduledWorkflowKey(workflowVersionId, scheduledWorkflowId), s)
+	// store the cancel function so we can cancel this scheduled workflow later
+	t.scheduledWorkflows.Store(key, cancel)
 
-	s.Start()
+	// start a goroutine to wait for the trigger time
+	go func() {
+		defer cancel()
+		defer t.scheduledWorkflows.Delete(key)
+
+		timer := time.After(duration)
+
+		select {
+		case <-cancelCtx.Done():
+			t.l.Debug().Msgf("ticker: scheduled workflow %s was cancelled", key)
+			return
+		case <-timer:
+			t.runScheduledWorkflow(tenantId, workflowVersionId, scheduledWorkflowId, scheduledWorkflow)()
+		}
+	}()
 
 	return nil
 }
@@ -120,6 +122,13 @@ func (t *TickerImpl) runScheduledWorkflow(tenantId, workflowVersionId, scheduled
 
 		t.l.Debug().Msgf("ticker: running workflow %s", workflowVersionId)
 
+		tenant, err := t.repo.Tenant().GetTenantByID(ctx, tenantId)
+
+		if err != nil {
+			t.l.Error().Err(err).Msg("could not get tenant")
+			return
+		}
+
 		workflowVersion, err := t.repo.Workflow().GetWorkflowVersionById(ctx, tenantId, workflowVersionId)
 
 		if err != nil {
@@ -127,113 +136,106 @@ func (t *TickerImpl) runScheduledWorkflow(tenantId, workflowVersionId, scheduled
 			return
 		}
 
-		fs := make([]repository.CreateWorkflowRunOpt, 0)
-
-		var additionalMetadata map[string]interface{}
-
-		if scheduled.AdditionalMetadata != nil {
-			err := json.Unmarshal(scheduled.AdditionalMetadata, &additionalMetadata)
-			if err != nil {
-				t.l.Err(err).Msg("could not unmarshal additional metadata")
-				return
-			}
-		}
-
-		if scheduled.ParentWorkflowRunId.Valid {
-			var childKey *string
-
-			if scheduled.ChildKey.Valid {
-				childKey = &scheduled.ChildKey.String
-			}
-
-			parent, err := t.repo.WorkflowRun().GetWorkflowRunById(ctx, tenantId, sqlchelpers.UUIDToStr(scheduled.ParentWorkflowRunId))
-
-			if err != nil {
-				t.l.Err(err).Msg("could not get parent workflow run")
-				return
-			}
-
-			var parentAdditionalMeta map[string]interface{}
-
-			if parent.WorkflowRun.AdditionalMetadata != nil {
-				err := json.Unmarshal(parent.WorkflowRun.AdditionalMetadata, &parentAdditionalMeta)
-				if err != nil {
-					t.l.Err(err).Msg("could not unmarshal parent additional metadata")
-					return
-				}
-			}
-
-			fs = append(fs, repository.WithParent(
-				sqlchelpers.UUIDToStr(scheduled.ParentWorkflowRunId),
-				sqlchelpers.UUIDToStr(scheduled.ParentStepRunId),
-				int(scheduled.ChildIndex.Int32),
-				childKey,
-				additionalMetadata,
-				parentAdditionalMeta,
-			))
-		}
-
-		// create a new workflow run in the database
-		createOpts, err := repository.GetCreateWorkflowRunOptsFromSchedule(
-			scheduledWorkflowId,
-			workflowVersion,
-			scheduled.Input,
-			additionalMetadata,
-			fs...,
-		)
-
-		if err != nil {
-			t.l.Err(err).Msg("could not get create workflow run opts")
+		switch tenant.Version {
+		case dbsqlc.TenantMajorEngineVersionV0:
+			err = t.runScheduledWorkflowV0(ctx, tenantId, workflowVersion, scheduledWorkflowId, scheduled)
+		case dbsqlc.TenantMajorEngineVersionV1:
+			err = t.runScheduledWorkflowV1(ctx, tenantId, workflowVersion, scheduledWorkflowId, scheduled)
+		default:
+			t.l.Error().Msgf("unsupported tenant major engine version %s", tenant.Version)
 			return
 		}
 
-		workflowRun, err := t.repo.WorkflowRun().CreateNewWorkflowRun(ctx, tenantId, createOpts)
-
 		if err != nil {
-			t.l.Err(err).Msg("could not create workflow run")
-			return
-		}
-
-		workflowRunId := sqlchelpers.UUIDToStr(workflowRun.ID)
-
-		err = t.mq.AddMessage(
-			context.Background(),
-			msgqueue.WORKFLOW_PROCESSING_QUEUE,
-			tasktypes.WorkflowRunQueuedToTask(tenantId, workflowRunId),
-		)
-
-		if err != nil {
-			t.l.Err(err).Msg("could not add workflow run queued task")
-			return
-		}
-
-		// get the scheduler
-		schedulerVal, ok := t.scheduledWorkflows.Load(getScheduledWorkflowKey(workflowVersionId, scheduledWorkflowId))
-
-		if !ok {
-			t.l.Error().Msgf("could not find scheduled workflow %s", workflowVersionId)
-			return
-		}
-
-		defer t.scheduledWorkflows.Delete(workflowVersionId)
-
-		scheduler := schedulerVal.(gocron.Scheduler)
-
-		// cancel the schedule
-		err = scheduler.Shutdown()
-
-		if err != nil {
-			t.l.Err(err).Msg("could not cancel scheduler")
+			t.l.Error().Err(err).Msg("could not run scheduled workflow")
 			return
 		}
 	}
 }
 
+func (t *TickerImpl) runScheduledWorkflowV0(ctx context.Context, tenantId string, workflowVersion *dbsqlc.GetWorkflowVersionForEngineRow, scheduledWorkflowId string, scheduled *dbsqlc.PollScheduledWorkflowsRow) error {
+	fs := make([]repository.CreateWorkflowRunOpt, 0)
+
+	var additionalMetadata map[string]interface{}
+
+	if scheduled.AdditionalMetadata != nil {
+		err := json.Unmarshal(scheduled.AdditionalMetadata, &additionalMetadata)
+		if err != nil {
+			return fmt.Errorf("could not unmarshal additional metadata: %w", err)
+		}
+	}
+
+	if scheduled.ParentWorkflowRunId.Valid {
+		var childKey *string
+
+		if scheduled.ChildKey.Valid {
+			childKey = &scheduled.ChildKey.String
+		}
+
+		parent, err := t.repo.WorkflowRun().GetWorkflowRunById(ctx, tenantId, sqlchelpers.UUIDToStr(scheduled.ParentWorkflowRunId))
+
+		if err != nil {
+			return fmt.Errorf("could not get parent workflow run: %w", err)
+		}
+
+		var parentAdditionalMeta map[string]interface{}
+
+		if parent.WorkflowRun.AdditionalMetadata != nil {
+			err := json.Unmarshal(parent.WorkflowRun.AdditionalMetadata, &parentAdditionalMeta)
+			if err != nil {
+				return fmt.Errorf("could not unmarshal parent additional metadata: %w", err)
+			}
+		}
+
+		fs = append(fs, repository.WithParent(
+			sqlchelpers.UUIDToStr(scheduled.ParentWorkflowRunId),
+			sqlchelpers.UUIDToStr(scheduled.ParentStepRunId),
+			int(scheduled.ChildIndex.Int32),
+			childKey,
+			additionalMetadata,
+			parentAdditionalMeta,
+		))
+	}
+
+	// create a new workflow run in the database
+	createOpts, err := repository.GetCreateWorkflowRunOptsFromSchedule(
+		scheduledWorkflowId,
+		workflowVersion,
+		scheduled.Input,
+		additionalMetadata,
+		fs...,
+	)
+
+	if err != nil {
+		return fmt.Errorf("could not get create workflow run opts: %w", err)
+	}
+
+	workflowRun, err := t.repo.WorkflowRun().CreateNewWorkflowRun(ctx, tenantId, createOpts)
+
+	if err != nil {
+		return fmt.Errorf("could not create workflow run: %w", err)
+	}
+
+	workflowRunId := sqlchelpers.UUIDToStr(workflowRun.ID)
+
+	err = t.mq.AddMessage(
+		context.Background(),
+		msgqueue.WORKFLOW_PROCESSING_QUEUE,
+		tasktypes.WorkflowRunQueuedToTask(tenantId, workflowRunId),
+	)
+
+	if err != nil {
+		return fmt.Errorf("could not add workflow run queued task: %w", err)
+	}
+
+	return nil
+}
+
 func (t *TickerImpl) handleCancelWorkflow(ctx context.Context, key string) error {
 	t.l.Debug().Msg("ticker: canceling scheduled workflow")
 
-	// get the scheduler
-	schedulerVal, ok := t.scheduledWorkflows.Load(key)
+	// get the cancel function
+	cancelVal, ok := t.scheduledWorkflows.Load(key)
 
 	if !ok {
 		return fmt.Errorf("could not find scheduled workflow with key %s", key)
@@ -241,14 +243,16 @@ func (t *TickerImpl) handleCancelWorkflow(ctx context.Context, key string) error
 
 	defer t.scheduledWorkflows.Delete(key)
 
-	scheduler, ok := schedulerVal.(gocron.Scheduler)
+	cancel, ok := cancelVal.(context.CancelFunc)
 
 	if !ok {
-		return fmt.Errorf("could not cast scheduler")
+		return fmt.Errorf("could not cast cancel function")
 	}
 
-	// cancel the schedule
-	return scheduler.Shutdown()
+	// cancel the scheduled workflow
+	cancel()
+
+	return nil
 }
 
 func getScheduledWorkflowKey(workflowVersionId, scheduledWorkflowId string) string {

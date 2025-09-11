@@ -3,7 +3,7 @@ package repository
 import (
 	"context"
 
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 )
 
 type ListRateLimitOpts struct {

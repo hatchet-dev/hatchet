@@ -8,6 +8,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/pkg/config/shared"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 )
 
 type ConfigFile struct {
@@ -17,6 +18,11 @@ type ConfigFile struct {
 	PostgresPassword string `mapstructure:"password" json:"password,omitempty" default:"hatchet"`
 	PostgresDbName   string `mapstructure:"dbName" json:"dbName,omitempty" default:"hatchet"`
 	PostgresSSLMode  string `mapstructure:"sslMode" json:"sslMode,omitempty" default:"disable"`
+
+	ReadReplicaEnabled     bool   `mapstructure:"readReplicaEnabled" json:"readReplicaEnabled,omitempty" default:"false"`
+	ReadReplicaDatabaseURL string `mapstructure:"readReplicaDatabaseUrl" json:"readReplicaDatabaseUrl,omitempty" default:""`
+	ReadReplicaMaxConns    int    `mapstructure:"readReplicaMaxConns" json:"readReplicaMaxConns,omitempty" default:"50"`
+	ReadReplicaMinConns    int    `mapstructure:"readReplicaMinConns" json:"readReplicaMinConns,omitempty" default:"10"`
 
 	MaxConns int `mapstructure:"maxConns" json:"maxConns,omitempty" default:"50"`
 	MinConns int `mapstructure:"minConns" json:"minConns,omitempty" default:"10"`
@@ -30,7 +36,7 @@ type ConfigFile struct {
 
 	LogQueries bool `mapstructure:"logQueries" json:"logQueries,omitempty" default:"false"`
 
-	CacheDuration time.Duration `mapstructure:"cacheDuration" json:"cacheDuration,omitempty" default:"60s"`
+	CacheDuration time.Duration `mapstructure:"cacheDuration" json:"cacheDuration,omitempty" default:"5s"`
 }
 
 type SeedConfigFile struct {
@@ -50,7 +56,7 @@ type Layer struct {
 
 	Pool *pgxpool.Pool
 
-	EssentialPool *pgxpool.Pool
+	ReadReplicaPool *pgxpool.Pool
 
 	QueuePool *pgxpool.Pool
 
@@ -59,6 +65,8 @@ type Layer struct {
 	EngineRepository repository.EngineRepository
 
 	EntitlementRepository repository.EntitlementsRepository
+
+	V1 v1.Repository
 
 	Seed SeedConfigFile
 }
@@ -76,6 +84,11 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("maxQueueConns", "DATABASE_MAX_QUEUE_CONNS")
 	_ = v.BindEnv("minQueueConns", "DATABASE_MIN_QUEUE_CONNS")
 
+	_ = v.BindEnv("readReplicaEnabled", "READ_REPLICA_ENABLED")
+	_ = v.BindEnv("readReplicaDatabaseUrl", "READ_REPLICA_DATABASE_URL")
+	_ = v.BindEnv("readReplicaMaxConns", "READ_REPLICA_MAX_CONNS")
+	_ = v.BindEnv("readReplicaMinConns", "READ_REPLICA_MIN_CONNS")
+
 	_ = v.BindEnv("cacheDuration", "CACHE_DURATION")
 
 	_ = v.BindEnv("seed.adminEmail", "ADMIN_EMAIL")
@@ -83,6 +96,7 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("seed.adminName", "ADMIN_NAME")
 	_ = v.BindEnv("seed.defaultTenantName", "DEFAULT_TENANT_NAME")
 	_ = v.BindEnv("seed.defaultTenantSlug", "DEFAULT_TENANT_SLUG")
+	_ = v.BindEnv("seed.defaultTenantId", "DEFAULT_TENANT_ID")
 	_ = v.BindEnv("seed.isDevelopment", "SEED_DEVELOPMENT")
 
 	_ = v.BindEnv("logger.level", "DATABASE_LOGGER_LEVEL")

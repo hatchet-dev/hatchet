@@ -1,6 +1,8 @@
 package cookie
 
 import (
+	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -10,10 +12,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/gorilla/securecookie"
 	"github.com/gorilla/sessions"
+	"github.com/jackc/pgx/v5"
 
-	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
 )
 
 const UserSessionKey string = "user_id"
@@ -148,10 +149,10 @@ func (store *UserSessionStore) New(r *http.Request, name string) (*sessions.Sess
 	if c, errCookie := r.Cookie(name); errCookie == nil {
 		err = securecookie.DecodeMulti(name, c.Value, &session.ID, store.codecs...)
 		if err == nil {
-			err = store.load(session)
+			err = store.load(r.Context(), session)
 
 			if err != nil {
-				if errors.Is(err, db.ErrNotFound) {
+				if errors.Is(err, pgx.ErrNoRows) {
 					err = nil
 				} else if strings.Contains(err.Error(), "expired timestamp") {
 					err = nil
@@ -184,7 +185,7 @@ func (store *UserSessionStore) Save(r *http.Request, w http.ResponseWriter, sess
 
 	// Set delete if max-age is < 0
 	if session.Options.MaxAge < 0 {
-		if _, err := repo.Delete(session.ID); err != nil {
+		if _, err := repo.Delete(r.Context(), session.ID); err != nil {
 			return err
 		}
 
@@ -197,7 +198,7 @@ func (store *UserSessionStore) Save(r *http.Request, w http.ResponseWriter, sess
 		session.ID = uuid.New().String()
 	}
 
-	if err := store.save(session); err != nil {
+	if err := store.save(r.Context(), session); err != nil {
 		return err
 	}
 
@@ -213,7 +214,7 @@ func (store *UserSessionStore) Save(r *http.Request, w http.ResponseWriter, sess
 
 // save writes encoded session.Values to a database record.
 // writes to http_sessions table by default.
-func (store *UserSessionStore) save(session *sessions.Session) error {
+func (store *UserSessionStore) save(ctx context.Context, session *sessions.Session) error {
 	if session.ID == "" {
 		return fmt.Errorf("session ID required but not set")
 	}
@@ -247,7 +248,7 @@ func (store *UserSessionStore) save(session *sessions.Session) error {
 		Data: []byte(encoded),
 	}
 
-	jsonTypeData, err := datautils.ToJSONType(jsonData)
+	jsonBytes, err := json.Marshal(jsonData)
 
 	if err != nil {
 		return err
@@ -255,12 +256,12 @@ func (store *UserSessionStore) save(session *sessions.Session) error {
 
 	repo := store.repo
 
-	_, err = repo.GetById(session.ID)
+	_, err = repo.GetById(ctx, session.ID)
 
-	if err != nil && errors.Is(err, db.ErrNotFound) {
-		_, err := repo.Create(&repository.CreateSessionOpts{
+	if err != nil && errors.Is(err, pgx.ErrNoRows) {
+		_, err := repo.Create(ctx, &repository.CreateSessionOpts{
 			ID:        session.ID,
-			Data:      jsonTypeData,
+			Data:      jsonBytes,
 			ExpiresAt: expiresOn,
 			UserId:    userId,
 		})
@@ -268,8 +269,8 @@ func (store *UserSessionStore) save(session *sessions.Session) error {
 		return err
 	}
 
-	_, err = repo.Update(session.ID, &repository.UpdateSessionOpts{
-		Data:   jsonTypeData,
+	_, err = repo.Update(ctx, session.ID, &repository.UpdateSessionOpts{
+		Data:   jsonBytes,
 		UserId: userId,
 	})
 
@@ -278,16 +279,16 @@ func (store *UserSessionStore) save(session *sessions.Session) error {
 
 // load fetches a session by ID from the database and decodes its content
 // into session.Values.
-func (store *UserSessionStore) load(session *sessions.Session) error {
-	res, err := store.repo.GetById(session.ID)
+func (store *UserSessionStore) load(ctx context.Context, session *sessions.Session) error {
+	res, err := store.repo.GetById(ctx, session.ID)
 	if err != nil {
 		return err
 	}
 
-	data := &sessionDataJSON{}
+	data := sessionDataJSON{}
 
-	if sessionData, ok := res.Data(); ok {
-		err = datautils.FromJSONType(&sessionData, data)
+	if len(res.Data) > 0 {
+		err = json.Unmarshal(res.Data, &data)
 
 		if err != nil {
 			return err

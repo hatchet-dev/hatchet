@@ -4,8 +4,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 
 	"github.com/rs/zerolog"
 )
@@ -16,6 +16,7 @@ type OperationPool struct {
 	description string
 	method      OpMethod
 	ql          *zerolog.Logger
+	maxJitter   time.Duration
 }
 
 func NewOperationPool(ql *zerolog.Logger, timeout time.Duration, description string, method OpMethod) *OperationPool {
@@ -24,7 +25,13 @@ func NewOperationPool(ql *zerolog.Logger, timeout time.Duration, description str
 		description: description,
 		method:      method,
 		ql:          ql,
+		maxJitter:   0, // Default to no jitter
 	}
+}
+
+func (p *OperationPool) WithJitter(maxJitter time.Duration) *OperationPool {
+	p.maxJitter = maxJitter
+	return p
 }
 
 func (p *OperationPool) SetTenants(tenants []*dbsqlc.Tenant) {
@@ -58,6 +65,7 @@ func (p *OperationPool) GetOperation(id string) *SerialOperation {
 			description: p.description,
 			timeout:     p.timeout,
 			method:      p.method,
+			maxJitter:   p.maxJitter,
 		}
 
 		p.ops.Store(id, op)

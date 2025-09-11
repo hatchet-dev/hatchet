@@ -210,6 +210,11 @@ ScheduledWorkflows:
       format: uuid
     method:
       $ref: "#/ScheduledWorkflowsMethod"
+    priority:
+      type: integer
+      minimum: 1
+      maximum: 3
+      format: int32
   required:
     - metadata
     - tenantId
@@ -218,7 +223,6 @@ ScheduledWorkflows:
     - workflowId
     - triggerAt
     - method
-
 
 ScheduledWorkflowsMethod:
   type: string
@@ -269,6 +273,11 @@ CronWorkflows:
       type: boolean
     method:
       $ref: "#/CronWorkflowsMethod"
+    priority:
+      type: integer
+      minimum: 1
+      maximum: 3
+      format: int32
   required:
     - metadata
     - tenantId
@@ -305,6 +314,20 @@ WorkflowRunsMetricsCounts:
     CANCELLED:
       type: integer
 
+TaskRunMetricsCounts:
+  type: object
+  properties:
+    PENDING:
+      type: integer
+    RUNNING:
+      type: integer
+    SUCCEEDED:
+      type: integer
+    FAILED:
+      type: integer
+    QUEUED:
+      type: integer
+
 WorkflowRunsMetrics:
   type: object
   properties:
@@ -334,6 +357,15 @@ JobRunStatus:
     - FAILED
     - CANCELLED
     - BACKOFF
+
+V1TaskRunStatus:
+  type: string
+  enum:
+    - PENDING
+    - RUNNING
+    - COMPLETED
+    - FAILED
+    - CANCELLED
 
 WorkflowRunStatus:
   type: string
@@ -676,6 +708,11 @@ CreateCronWorkflowTriggerRequest:
       type: string
     cronExpression:
       type: string
+    priority:
+      type: integer
+      minimum: 1
+      maximum: 3
+      format: int32
   required:
     - input
     - additionalMetadata
@@ -691,6 +728,11 @@ ScheduleWorkflowRunRequest:
     triggerAt:
       type: string
       format: date-time
+    priority:
+      type: integer
+      minimum: 1
+      maximum: 3
+      format: int32
   required:
     - input
     - additionalMetadata

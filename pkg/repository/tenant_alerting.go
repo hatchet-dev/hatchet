@@ -4,8 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 
 	"github.com/jackc/pgx/v5/pgtype"
 )
@@ -29,22 +28,6 @@ type UpdateTenantAlertGroupOpts struct {
 	Emails []string `validate:"required,dive,email,max=255"`
 }
 
-type TenantAlertingAPIRepository interface {
-	UpsertTenantAlertingSettings(tenantId string, opts *UpsertTenantAlertingSettingsOpts) (*db.TenantAlertingSettingsModel, error)
-
-	GetTenantAlertingSettings(tenantId string) (*db.TenantAlertingSettingsModel, error)
-
-	CreateTenantAlertGroup(tenantId string, opts *CreateTenantAlertGroupOpts) (*db.TenantAlertEmailGroupModel, error)
-
-	UpdateTenantAlertGroup(id string, opts *UpdateTenantAlertGroupOpts) (*db.TenantAlertEmailGroupModel, error)
-
-	ListTenantAlertGroups(tenantId string) ([]db.TenantAlertEmailGroupModel, error)
-
-	GetTenantAlertGroupById(id string) (*db.TenantAlertEmailGroupModel, error)
-
-	DeleteTenantAlertGroup(tenantId string, id string) error
-}
-
 type TenantAlertEmailGroupForSend struct {
 	TenantId pgtype.UUID `json:"tenantId"`
 	Emails   []string    `validate:"required,dive,email,max=255"`
@@ -60,10 +43,22 @@ type GetTenantAlertingSettingsResponse struct {
 	Tenant *dbsqlc.Tenant
 }
 
-type TenantAlertingEngineRepository interface {
+type TenantAlertingRepository interface {
+	UpsertTenantAlertingSettings(ctx context.Context, tenantId string, opts *UpsertTenantAlertingSettingsOpts) (*dbsqlc.TenantAlertingSettings, error)
+
 	GetTenantAlertingSettings(ctx context.Context, tenantId string) (*GetTenantAlertingSettingsResponse, error)
+
+	GetTenantResourceLimitState(ctx context.Context, tenantId string, resource string) (*dbsqlc.GetTenantResourceLimitRow, error)
 
 	UpdateTenantAlertingSettings(ctx context.Context, tenantId string, opts *UpdateTenantAlertingSettingsOpts) error
 
-	GetTenantResourceLimitState(ctx context.Context, tenantId string, resource string) (*dbsqlc.GetTenantResourceLimitRow, error)
+	CreateTenantAlertGroup(ctx context.Context, tenantId string, opts *CreateTenantAlertGroupOpts) (*dbsqlc.TenantAlertEmailGroup, error)
+
+	UpdateTenantAlertGroup(ctx context.Context, id string, opts *UpdateTenantAlertGroupOpts) (*dbsqlc.TenantAlertEmailGroup, error)
+
+	ListTenantAlertGroups(ctx context.Context, tenantId string) ([]*dbsqlc.TenantAlertEmailGroup, error)
+
+	GetTenantAlertGroupById(ctx context.Context, id string) (*dbsqlc.TenantAlertEmailGroup, error)
+
+	DeleteTenantAlertGroup(ctx context.Context, tenantId string, id string) error
 }

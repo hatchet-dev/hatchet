@@ -24,9 +24,8 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 type WorkflowsController interface {
@@ -461,7 +460,7 @@ func (ec *WorkflowsControllerImpl) handleGroupKeyRunStarted(ctx context.Context,
 
 	_, err = ec.repo.GetGroupKeyRun().UpdateGetGroupKeyRun(ctx, metadata.TenantId, payload.GetGroupKeyRunId, &repository.UpdateGetGroupKeyRunOpts{
 		StartedAt: &startedAt,
-		Status:    repository.StepRunStatusPtr(db.StepRunStatusRunning),
+		Status:    repository.StepRunStatusPtr(dbsqlc.StepRunStatusRUNNING),
 	})
 
 	return err
@@ -495,7 +494,7 @@ func (wc *WorkflowsControllerImpl) handleGroupKeyRunFinished(ctx context.Context
 
 	_, err = wc.repo.GetGroupKeyRun().UpdateGetGroupKeyRun(ctx, metadata.TenantId, payload.GetGroupKeyRunId, &repository.UpdateGetGroupKeyRunOpts{
 		FinishedAt: &finishedAt,
-		Status:     repository.StepRunStatusPtr(db.StepRunStatusSucceeded),
+		Status:     repository.StepRunStatusPtr(dbsqlc.StepRunStatusSUCCEEDED),
 		Output:     &payload.GroupKey,
 	})
 
@@ -513,7 +512,7 @@ func (wc *WorkflowsControllerImpl) runPollActiveQueues(ctx context.Context) func
 		wc.l.Debug().Msg("polling active queues")
 
 		// list all tenants
-		tenants, err := wc.repo.Tenant().ListTenantsByControllerPartition(ctx, wc.p.GetControllerPartitionId())
+		tenants, err := wc.p.ListTenantsForController(ctx, dbsqlc.TenantMajorEngineVersionV0)
 
 		if err != nil {
 			wc.l.Err(err).Msg("could not list tenants")
@@ -621,7 +620,7 @@ func (wc *WorkflowsControllerImpl) handleGroupKeyRunFailed(ctx context.Context, 
 	_, err = wc.repo.GetGroupKeyRun().UpdateGetGroupKeyRun(ctx, metadata.TenantId, payload.GetGroupKeyRunId, &repository.UpdateGetGroupKeyRunOpts{
 		FinishedAt: &failedAt,
 		Error:      &payload.Error,
-		Status:     repository.StepRunStatusPtr(db.StepRunStatusFailed),
+		Status:     repository.StepRunStatusPtr(dbsqlc.StepRunStatusFAILED),
 	})
 
 	if err != nil {
@@ -663,7 +662,7 @@ func (wc *WorkflowsControllerImpl) cancelGetGroupKeyRun(ctx context.Context, ten
 	groupKeyRun, err := wc.repo.GetGroupKeyRun().UpdateGetGroupKeyRun(ctx, tenantId, getGroupKeyRunId, &repository.UpdateGetGroupKeyRunOpts{
 		CancelledAt:     &now,
 		CancelledReason: repository.StringPtr(reason),
-		Status:          repository.StepRunStatusPtr(db.StepRunStatusCancelled),
+		Status:          repository.StepRunStatusPtr(dbsqlc.StepRunStatusCANCELLED),
 	})
 
 	if err != nil {
@@ -714,7 +713,7 @@ func (wc *WorkflowsControllerImpl) runTenantProcessWorkflowRunEvents(ctx context
 		wc.l.Debug().Msgf("partition: processing workflow run events")
 
 		// list all tenants
-		tenants, err := wc.repo.Tenant().ListTenantsByControllerPartition(ctx, wc.p.GetControllerPartitionId())
+		tenants, err := wc.p.ListTenantsForController(ctx, dbsqlc.TenantMajorEngineVersionV0)
 
 		if err != nil {
 			wc.l.Err(err).Msg("could not list tenants")
@@ -734,7 +733,7 @@ func (wc *WorkflowsControllerImpl) runTenantUnpauseWorkflowRuns(ctx context.Cont
 		wc.l.Debug().Msgf("partition: processing unpaused workflow runs")
 
 		// list all tenants
-		tenants, err := wc.repo.Tenant().ListTenantsByControllerPartition(ctx, wc.p.GetControllerPartitionId())
+		tenants, err := wc.p.ListTenantsForController(ctx, dbsqlc.TenantMajorEngineVersionV0)
 
 		if err != nil {
 			wc.l.Err(err).Msg("could not list tenants")

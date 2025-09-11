@@ -1,0 +1,38 @@
+import { snippets } from "@/lib/generated/snippets";
+import { Snippet } from "@/components/code";
+import { Callout, Card, Cards, Steps, Tabs } from "nextra/components";
+import UniversalTabs from "@/components/UniversalTabs";
+import InstallCommand from "@/components/InstallCommand";
+
+#### Cd into your project directory
+
+```bash copy
+cd path-to-your-project
+```
+
+#### Install the Hatchet SDK and required dependencies
+
+<InstallCommand withDevDependencies />
+
+#### Create project directories
+
+By convention it is recommended to create your workflows in the `workflows` directory and your workers in the `workers` directory.
+
+```bash copy
+mkdir workflows &&
+mkdir workers
+```
+
+#### Instantiate your Hatchet Client
+
+It is recommended to instantiate a shared Hatchet Client in a separate file as a singleton.
+
+Create a new file called `hatchet-client.ts` in your project root.
+
+```bash copy
+touch hatchet-client.ts
+```
+
+Add the following code to the file:
+
+<Snippet src={snippets.typescript.hatchet_client.create_client} />

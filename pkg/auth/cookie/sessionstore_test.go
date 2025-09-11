@@ -68,13 +68,13 @@ func newSessionStore(t *testing.T, conf *database.Layer, cookieName string) *coo
 	hashKey, err := random.Generate(16)
 
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatalf("%s", err.Error())
 	}
 
 	blockKey, err := random.Generate(16)
 
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatalf("%s", err.Error())
 	}
 
 	ss, err := cookie.NewUserSessionStore(
@@ -86,7 +86,7 @@ func newSessionStore(t *testing.T, conf *database.Layer, cookieName string) *coo
 	)
 
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatalf("%s", err.Error())
 	}
 
 	return ss

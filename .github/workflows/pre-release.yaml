@@ -14,7 +14,7 @@ jobs:
         env:
           GITHUB_TAG: ${{ github.ref }}
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - name: Login to GHCR
         id: login-ghcr
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
@@ -39,7 +39,7 @@ jobs:
         env:
           GITHUB_TAG: ${{ github.ref }}
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - name: Login to GHCR
         id: login-ghcr
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
@@ -67,7 +67,7 @@ jobs:
         env:
           GITHUB_TAG: ${{ github.ref }}
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - name: Login to GHCR
         id: login-ghcr
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
@@ -91,7 +91,7 @@ jobs:
         env:
           GITHUB_TAG: ${{ github.ref }}
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - name: Login to GHCR
         id: login-ghcr
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
@@ -116,7 +116,7 @@ jobs:
         env:
           GITHUB_TAG: ${{ github.ref }}
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - name: Login to GHCR
         id: login-ghcr
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
@@ -144,7 +144,7 @@ jobs:
         env:
           GITHUB_TAG: ${{ github.ref }}
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - name: Login to GHCR
         id: login-ghcr
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
@@ -168,7 +168,7 @@ jobs:
         env:
           GITHUB_TAG: ${{ github.ref }}
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - name: Login to GHCR
         id: login-ghcr
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
@@ -193,7 +193,7 @@ jobs:
         env:
           GITHUB_TAG: ${{ github.ref }}
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - name: Login to GHCR
         id: login-ghcr
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
@@ -221,7 +221,7 @@ jobs:
         env:
           GITHUB_TAG: ${{ github.ref }}
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - name: Login to GHCR
         id: login-ghcr
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
@@ -245,13 +245,15 @@ jobs:
         env:
           GITHUB_TAG: ${{ github.ref }}
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - name: Login to GHCR
         id: login-ghcr
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
       - name: Build
         run: |
-          DOCKER_BUILDKIT=1 docker build -f ./build/package/migrate.dockerfile \
+          DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
+            --build-arg SERVER_TARGET=migrate \
+            --build-arg VERSION=${{steps.tag_name.outputs.tag}} \
             -t ghcr.io/hatchet-dev/hatchet/hatchet-migrate:${{steps.tag_name.outputs.tag}}-amd64 \
             --platform linux/amd64 \
             .
@@ -268,13 +270,15 @@ jobs:
         env:
           GITHUB_TAG: ${{ github.ref }}
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - name: Login to GHCR
         id: login-ghcr
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
       - name: Build
         run: |
-          DOCKER_BUILDKIT=1 docker build -f ./build/package/migrate.dockerfile \
+          DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
+            --build-arg SERVER_TARGET=migrate \
+            --build-arg VERSION=${{steps.tag_name.outputs.tag}} \
             -t ghcr.io/hatchet-dev/hatchet/hatchet-migrate:${{steps.tag_name.outputs.tag}}-arm64 \
             --platform linux/arm64 \
             .
@@ -294,7 +298,7 @@ jobs:
         env:
           GITHUB_TAG: ${{ github.ref }}
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - name: Login to GHCR
         id: login-ghcr
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
@@ -318,7 +322,13 @@ jobs:
         env:
           GITHUB_TAG: ${{ github.ref }}
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - name: Generate docs snippets and examples
+        working-directory: frontend/snippets
+        run: python3 generate.py
       - name: Login to GHCR
         id: login-ghcr
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
@@ -341,7 +351,13 @@ jobs:
         env:
           GITHUB_TAG: ${{ github.ref }}
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - name: Generate docs snippets and examples
+        working-directory: frontend/snippets
+        run: python3 generate.py
       - name: Login to GHCR
         id: login-ghcr
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
@@ -367,7 +383,7 @@ jobs:
         env:
           GITHUB_TAG: ${{ github.ref }}
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - name: Login to GHCR
         id: login-ghcr
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
@@ -391,7 +407,13 @@ jobs:
         env:
           GITHUB_TAG: ${{ github.ref }}
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - name: Generate docs snippets and examples
+        working-directory: frontend/snippets
+        run: python3 generate.py
       - name: Login to GHCR
         id: login-ghcr
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
@@ -403,14 +425,23 @@ jobs:
         run: |
           DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
             --build-arg SERVER_TARGET=lite \
+            --build-arg VERSION=${{steps.tag_name.outputs.tag}} \
             --platform linux/amd64 \
             -t hatchet-lite-tmp:amd64 \
             . &
 
           DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
             --build-arg SERVER_TARGET=admin \
+            --build-arg VERSION=${{steps.tag_name.outputs.tag}} \
             --platform linux/amd64 \
             -t hatchet-admin-tmp:amd64 \
+            . &
+
+          DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
+            --build-arg SERVER_TARGET=migrate \
+            --build-arg VERSION=${{steps.tag_name.outputs.tag}} \
+            --platform linux/amd64 \
+            -t hatchet-migrate-tmp:amd64 \
             . &
 
           wait
@@ -420,6 +451,7 @@ jobs:
             --platform linux/amd64 \
             --build-arg HATCHET_LITE_IMAGE=hatchet-lite-tmp:amd64 \
             --build-arg HATCHET_ADMIN_IMAGE=hatchet-admin-tmp:amd64 \
+            --build-arg HATCHET_MIGRATE_IMAGE=hatchet-migrate-tmp:amd64 \
             .
       - name: Push to GHCR
         run: |
@@ -434,7 +466,13 @@ jobs:
         env:
           GITHUB_TAG: ${{ github.ref }}
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - name: Generate docs snippets and examples
+        working-directory: frontend/snippets
+        run: python3 generate.py
       - name: Login to GHCR
         id: login-ghcr
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
@@ -446,14 +484,23 @@ jobs:
         run: |
           DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
             --build-arg SERVER_TARGET=lite \
+            --build-arg VERSION=${{steps.tag_name.outputs.tag}} \
             --platform linux/arm64 \
             -t hatchet-lite-tmp:arm64 \
             . &
 
           DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
             --build-arg SERVER_TARGET=admin \
+            --build-arg VERSION=${{steps.tag_name.outputs.tag}} \
             --platform linux/arm64 \
             -t hatchet-admin-tmp:arm64 \
+            . &
+
+          DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
+            --build-arg SERVER_TARGET=migrate \
+            --build-arg VERSION=${{steps.tag_name.outputs.tag}} \
+            --platform linux/arm64 \
+            -t hatchet-migrate-tmp:arm64 \
             . &
 
           wait
@@ -463,6 +510,7 @@ jobs:
             --platform linux/arm64 \
             --build-arg HATCHET_LITE_IMAGE=hatchet-lite-tmp:arm64 \
             --build-arg HATCHET_ADMIN_IMAGE=hatchet-admin-tmp:arm64 \
+            --build-arg HATCHET_MIGRATE_IMAGE=hatchet-migrate-tmp:arm64 \
             .
       - name: Push to GHCR
         run: |
@@ -480,7 +528,7 @@ jobs:
         env:
           GITHUB_TAG: ${{ github.ref }}
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - name: Login to GHCR
         id: login-ghcr
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
@@ -504,7 +552,13 @@ jobs:
         env:
           GITHUB_TAG: ${{ github.ref }}
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - name: Generate docs snippets and examples
+        working-directory: frontend/snippets
+        run: python3 generate.py
       - name: Login to GHCR
         id: login-ghcr
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
@@ -516,6 +570,7 @@ jobs:
         run: |
           DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
             --build-arg SERVER_TARGET=api \
+            --build-arg VERSION=${{steps.tag_name.outputs.tag}} \
             --platform linux/amd64 \
             -t hatchet-api-tmp:amd64 \
             .
@@ -538,7 +593,13 @@ jobs:
         env:
           GITHUB_TAG: ${{ github.ref }}
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - name: Generate docs snippets and examples
+        working-directory: frontend/snippets
+        run: python3 generate.py
       - name: Login to GHCR
         id: login-ghcr
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
@@ -550,6 +611,7 @@ jobs:
         run: |
           DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
             --build-arg SERVER_TARGET=api \
+            --build-arg VERSION=${{steps.tag_name.outputs.tag}} \
             --platform linux/arm64 \
             -t hatchet-api-tmp:arm64 \
             .
@@ -575,7 +637,7 @@ jobs:
         env:
           GITHUB_TAG: ${{ github.ref }}
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - name: Login to GHCR
         id: login-ghcr
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
@@ -589,3 +651,76 @@ jobs:
             ghcr.io/hatchet-dev/hatchet/hatchet-dashboard:${{steps.tag_name.outputs.tag}}-amd64 \
             ghcr.io/hatchet-dev/hatchet/hatchet-dashboard:${{steps.tag_name.outputs.tag}}-arm64
           docker manifest push ghcr.io/hatchet-dev/hatchet/hatchet-dashboard:${{steps.tag_name.outputs.tag}}
+  build-push-hatchet-loadtest-amd:
+    name: hatchet-loadtest
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get tag name
+        id: tag_name
+        run: echo "tag=${GITHUB_TAG/refs\/tags\//}" >> $GITHUB_OUTPUT
+        env:
+          GITHUB_TAG: ${{ github.ref }}
+      - name: Checkout
+        uses: actions/checkout@v5
+      - name: Login to GHCR
+        id: login-ghcr
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+      - name: Build
+        run: |
+          DOCKER_BUILDKIT=1 docker build -f ./build/package/loadtest.dockerfile \
+            -t ghcr.io/hatchet-dev/hatchet/hatchet-loadtest:${{steps.tag_name.outputs.tag}}-amd64 \
+            --platform linux/amd64 \
+            .
+      - name: Push to GHCR
+        run: |
+          docker push ghcr.io/hatchet-dev/hatchet/hatchet-loadtest:${{steps.tag_name.outputs.tag}}-amd64
+  build-push-hatchet-loadtest-arm:
+    name: hatchet-loadtest
+    runs-on: hatchet-arm64-2
+    steps:
+      - name: Get tag name
+        id: tag_name
+        run: echo "tag=${GITHUB_TAG/refs\/tags\//}" >> $GITHUB_OUTPUT
+        env:
+          GITHUB_TAG: ${{ github.ref }}
+      - name: Checkout
+        uses: actions/checkout@v5
+      - name: Login to GHCR
+        id: login-ghcr
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+      - name: Build
+        run: |
+          DOCKER_BUILDKIT=1 docker build -f ./build/package/loadtest.dockerfile \
+            -t ghcr.io/hatchet-dev/hatchet/hatchet-loadtest:${{steps.tag_name.outputs.tag}}-arm64 \
+            --platform linux/arm64 \
+            .
+      - name: Push to GHCR
+        run: |
+          docker push ghcr.io/hatchet-dev/hatchet/hatchet-loadtest:${{steps.tag_name.outputs.tag}}-arm64
+  build-push-hatchet-loadtest:
+    name: Combine hatchet-loadtest
+    runs-on: ubuntu-latest
+    needs:
+      - build-push-hatchet-loadtest-amd
+      - build-push-hatchet-loadtest-arm
+    steps:
+      - name: Get tag name
+        id: tag_name
+        run: echo "tag=${GITHUB_TAG/refs\/tags\//}" >> $GITHUB_OUTPUT
+        env:
+          GITHUB_TAG: ${{ github.ref }}
+      - name: Checkout
+        uses: actions/checkout@v5
+      - name: Login to GHCR
+        id: login-ghcr
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+      - name: Pull amd64
+        run: docker pull ghcr.io/hatchet-dev/hatchet/hatchet-loadtest:${{steps.tag_name.outputs.tag}}-amd64
+      - name: Pull arm64
+        run: docker pull ghcr.io/hatchet-dev/hatchet/hatchet-loadtest:${{steps.tag_name.outputs.tag}}-arm64
+      - name: Combine
+        run: |
+          docker manifest create ghcr.io/hatchet-dev/hatchet/hatchet-loadtest:${{steps.tag_name.outputs.tag}} \
+            ghcr.io/hatchet-dev/hatchet/hatchet-loadtest:${{steps.tag_name.outputs.tag}}-amd64 \
+            ghcr.io/hatchet-dev/hatchet/hatchet-loadtest:${{steps.tag_name.outputs.tag}}-arm64
+          docker manifest push ghcr.io/hatchet-dev/hatchet/hatchet-loadtest:${{steps.tag_name.outputs.tag}}

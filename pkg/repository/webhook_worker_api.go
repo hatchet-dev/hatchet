@@ -1,10 +1,12 @@
 package repository
 
 import (
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
+	"context"
+
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 )
 
 type WebhookWorkerRepository interface {
 	// GetWebhookWorkerByID returns the webhook worker with the given id
-	GetWebhookWorkerByID(id string) (*db.WebhookWorkerModel, error)
+	GetWebhookWorkerByID(ctx context.Context, id string) (*dbsqlc.WebhookWorker, error)
 }

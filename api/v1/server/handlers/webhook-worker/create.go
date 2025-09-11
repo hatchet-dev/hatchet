@@ -10,11 +10,13 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
 	"github.com/hatchet-dev/hatchet/pkg/random"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 func (i *WebhookWorkersService) WebhookCreate(ctx echo.Context, request gen.WebhookCreateRequestObject) (gen.WebhookCreateResponseObject, error) {
-	tenant := ctx.Get("tenant").(*db.TenantModel)
+	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
+	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
 	var secret string
 	if request.Body.Secret == nil {
@@ -27,13 +29,13 @@ func (i *WebhookWorkersService) WebhookCreate(ctx echo.Context, request gen.Webh
 		secret = *request.Body.Secret
 	}
 
-	encSecret, err := i.config.Encryption.EncryptString(secret, tenant.ID)
+	encSecret, err := i.config.Encryption.EncryptString(secret, tenantId)
 	if err != nil {
 		return nil, err
 	}
 
 	ww, err := i.config.EngineRepository.WebhookWorker().CreateWebhookWorker(ctx.Request().Context(), &repository.CreateWebhookWorkerOpts{
-		TenantId: tenant.ID,
+		TenantId: tenantId,
 		Name:     request.Body.Name,
 		URL:      request.Body.Url,
 		Secret:   encSecret,

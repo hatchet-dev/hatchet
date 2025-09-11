@@ -15,6 +15,7 @@ RUN corepack pnpm@9.15.4 --version
 RUN corepack pnpm@9.15.4 install --frozen-lockfile && corepack pnpm@9.15.4 store prune
 
 COPY ./frontend/app ./
+
 RUN npm run build
 
 # Stage 3: run in nginx alpine image

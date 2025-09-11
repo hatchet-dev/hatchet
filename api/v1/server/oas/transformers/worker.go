@@ -5,11 +5,10 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 func ToSlotState(slots []*dbsqlc.ListSemaphoreSlotsWithStateForWorkerRow, remainingSlots int) *[]gen.SemaphoreSlots {
@@ -30,9 +29,11 @@ func ToSlotState(slots []*dbsqlc.ListSemaphoreSlotsWithStateForWorkerRow, remain
 			workflowRunId = uuid.MustParse(sqlchelpers.UUIDToStr(slot.WorkflowRunId))
 		}
 
+		status := gen.StepRunStatus(slot.Status)
+
 		resp[i] = gen.SemaphoreSlots{
 			StepRunId:     stepRunId,
-			Status:        gen.StepRunStatus(slot.Status),
+			Status:        &status,
 			ActionId:      slot.ActionId,
 			WorkflowRunId: workflowRunId,
 			TimeoutAt:     &slot.TimeoutAt.Time,
@@ -94,7 +95,7 @@ func ToWorkerRuntimeInfo(worker *dbsqlc.Worker) *gen.WorkerRuntimeInfo {
 	return runtime
 }
 
-func ToWorkerSqlc(worker *dbsqlc.Worker, remainingSlots *int, webhookUrl *string, actions []pgtype.Text) *gen.Worker {
+func ToWorkerSqlc(worker *dbsqlc.Worker, remainingSlots *int, webhookUrl *string, actions []string) *gen.Worker {
 
 	dispatcherId := uuid.MustParse(pgUUIDToStr(worker.DispatcherId))
 
@@ -137,15 +138,7 @@ func ToWorkerSqlc(worker *dbsqlc.Worker, remainingSlots *int, webhookUrl *string
 		res.LastHeartbeatAt = &worker.LastHeartbeatAt.Time
 	}
 
-	if actions != nil {
-		apiActions := make([]string, len(actions))
-
-		for i := range actions {
-			apiActions[i] = actions[i].String
-		}
-
-		res.Actions = &apiActions
-	}
+	res.Actions = &actions
 
 	return res
 }

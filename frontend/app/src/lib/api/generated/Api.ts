@@ -1,5 +1,6 @@
 /* eslint-disable */
 /* tslint:disable */
+// @ts-nocheck
 /*
  * ---------------------------------------------------------------
  * ## THIS FILE WAS GENERATED VIA SWAGGER-TYPESCRIPT-API        ##
@@ -76,6 +77,7 @@ import {
   TriggerWorkflowRunRequest,
   UpdateTenantAlertEmailGroupRequest,
   UpdateTenantInviteRequest,
+  UpdateTenantMemberRequest,
   UpdateTenantRequest,
   UpdateWorkerRequest,
   User,
@@ -83,6 +85,34 @@ import {
   UserLoginRequest,
   UserRegisterRequest,
   UserTenantMembershipsList,
+  V1CELDebugRequest,
+  V1CELDebugResponse,
+  V1CancelTaskRequest,
+  V1CancelledTasks,
+  V1CreateFilterRequest,
+  V1CreateWebhookRequest,
+  V1DagChildren,
+  V1EventList,
+  V1Filter,
+  V1FilterList,
+  V1LogLineList,
+  V1ReplayTaskRequest,
+  V1ReplayedTasks,
+  V1TaskEventList,
+  V1TaskPointMetrics,
+  V1TaskRunMetrics,
+  V1TaskStatus,
+  V1TaskSummary,
+  V1TaskSummaryList,
+  V1TaskTimingList,
+  V1TriggerWorkflowRunRequest,
+  V1UpdateFilterRequest,
+  V1UpdateWebhookRequest,
+  V1Webhook,
+  V1WebhookList,
+  V1WebhookSourceName,
+  V1WorkflowRunDetails,
+  V1WorkflowRunDisplayNameList,
   WebhookWorkerCreateRequest,
   WebhookWorkerCreated,
   WebhookWorkerListResponse,
@@ -106,10 +136,835 @@ import {
   WorkflowUpdateRequest,
   WorkflowVersion,
   WorkflowWorkersCount,
-} from './data-contracts';
-import { ContentType, HttpClient, RequestParams } from './http-client';
+} from "./data-contracts";
+import { ContentType, HttpClient, RequestParams } from "./http-client";
 
-export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType> {
+export class Api<
+  SecurityDataType = unknown,
+> extends HttpClient<SecurityDataType> {
+  /**
+   * @description Get a task by id
+   *
+   * @tags Task
+   * @name V1TaskGet
+   * @summary Get a task
+   * @request GET:/api/v1/stable/tasks/{task}
+   * @secure
+   */
+  v1TaskGet = (
+    task: string,
+    query?: {
+      /** The attempt number */
+      attempt?: number;
+    },
+    params: RequestParams = {},
+  ) =>
+    this.request<V1TaskSummary, APIErrors>({
+      path: `/api/v1/stable/tasks/${task}`,
+      method: "GET",
+      query: query,
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description List events for a task
+   *
+   * @tags Task
+   * @name V1TaskEventList
+   * @summary List events for a task
+   * @request GET:/api/v1/stable/tasks/{task}/task-events
+   * @secure
+   */
+  v1TaskEventList = (
+    task: string,
+    query?: {
+      /**
+       * The number to skip
+       * @format int64
+       */
+      offset?: number;
+      /**
+       * The number to limit by
+       * @format int64
+       */
+      limit?: number;
+    },
+    params: RequestParams = {},
+  ) =>
+    this.request<V1TaskEventList, APIErrors>({
+      path: `/api/v1/stable/tasks/${task}/task-events`,
+      method: "GET",
+      query: query,
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Lists log lines for a task
+   *
+   * @tags Log
+   * @name V1LogLineList
+   * @summary List log lines
+   * @request GET:/api/v1/stable/tasks/{task}/logs
+   * @secure
+   */
+  v1LogLineList = (task: string, params: RequestParams = {}) =>
+    this.request<V1LogLineList, APIErrors>({
+      path: `/api/v1/stable/tasks/${task}/logs`,
+      method: "GET",
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Cancel tasks
+   *
+   * @tags Task
+   * @name V1TaskCancel
+   * @summary Cancel tasks
+   * @request POST:/api/v1/stable/tenants/{tenant}/tasks/cancel
+   * @secure
+   */
+  v1TaskCancel = (
+    tenant: string,
+    data: V1CancelTaskRequest,
+    params: RequestParams = {},
+  ) =>
+    this.request<V1CancelledTasks, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/tasks/cancel`,
+      method: "POST",
+      body: data,
+      secure: true,
+      type: ContentType.Json,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Replay tasks
+   *
+   * @tags Task
+   * @name V1TaskReplay
+   * @summary Replay tasks
+   * @request POST:/api/v1/stable/tenants/{tenant}/tasks/replay
+   * @secure
+   */
+  v1TaskReplay = (
+    tenant: string,
+    data: V1ReplayTaskRequest,
+    params: RequestParams = {},
+  ) =>
+    this.request<V1ReplayedTasks, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/tasks/replay`,
+      method: "POST",
+      body: data,
+      secure: true,
+      type: ContentType.Json,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Lists all tasks that belong a specific list of dags
+   *
+   * @tags Task
+   * @name V1DagListTasks
+   * @summary List tasks
+   * @request GET:/api/v1/stable/dags/tasks
+   * @secure
+   */
+  v1DagListTasks = (
+    query: {
+      /** The external id of the DAG */
+      dag_ids: string[];
+      /**
+       * The tenant id
+       * @format uuid
+       * @minLength 36
+       * @maxLength 36
+       */
+      tenant: string;
+    },
+    params: RequestParams = {},
+  ) =>
+    this.request<V1DagChildren[], APIErrors>({
+      path: `/api/v1/stable/dags/tasks`,
+      method: "GET",
+      query: query,
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Lists workflow runs for a tenant.
+   *
+   * @tags Workflow Runs
+   * @name V1WorkflowRunList
+   * @summary List workflow runs
+   * @request GET:/api/v1/stable/tenants/{tenant}/workflow-runs
+   * @secure
+   */
+  v1WorkflowRunList = (
+    tenant: string,
+    query: {
+      /**
+       * The number to skip
+       * @format int64
+       */
+      offset?: number;
+      /**
+       * The number to limit by
+       * @format int64
+       */
+      limit?: number;
+      /** A list of statuses to filter by */
+      statuses?: V1TaskStatus[];
+      /**
+       * The earliest date to filter by
+       * @format date-time
+       */
+      since: string;
+      /**
+       * The latest date to filter by
+       * @format date-time
+       */
+      until?: string;
+      /** Additional metadata k-v pairs to filter by */
+      additional_metadata?: string[];
+      /** The workflow ids to find runs for */
+      workflow_ids?: string[];
+      /**
+       * The worker id to filter by
+       * @format uuid
+       * @minLength 36
+       * @maxLength 36
+       */
+      worker_id?: string;
+      /** Whether to include DAGs or only to include tasks */
+      only_tasks: boolean;
+      /**
+       * The parent task external id to filter by
+       * @format uuid
+       * @minLength 36
+       * @maxLength 36
+       */
+      parent_task_external_id?: string;
+      /**
+       * The external id of the event that triggered the workflow run
+       * @format uuid
+       * @minLength 36
+       * @maxLength 36
+       */
+      triggering_event_external_id?: string;
+      /** A flag for whether or not to include the input and output payloads in the response. Defaults to `true` if unset. */
+      include_payloads?: boolean;
+    },
+    params: RequestParams = {},
+  ) =>
+    this.request<V1TaskSummaryList, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/workflow-runs`,
+      method: "GET",
+      query: query,
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Lists displayable names of workflow runs for a tenant
+   *
+   * @tags Workflow Runs
+   * @name V1WorkflowRunDisplayNamesList
+   * @summary List workflow runs
+   * @request GET:/api/v1/stable/tenants/{tenant}/workflow-runs/display-names
+   * @secure
+   */
+  v1WorkflowRunDisplayNamesList = (
+    tenant: string,
+    query: {
+      /** The external ids of the workflow runs to get display names for */
+      external_ids: string[];
+    },
+    params: RequestParams = {},
+  ) =>
+    this.request<V1WorkflowRunDisplayNameList, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/workflow-runs/display-names`,
+      method: "GET",
+      query: query,
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Trigger a new workflow run
+   *
+   * @tags Workflow Runs
+   * @name V1WorkflowRunCreate
+   * @summary Create workflow run
+   * @request POST:/api/v1/stable/tenants/{tenant}/workflow-runs/trigger
+   * @secure
+   */
+  v1WorkflowRunCreate = (
+    tenant: string,
+    data: V1TriggerWorkflowRunRequest,
+    params: RequestParams = {},
+  ) =>
+    this.request<V1WorkflowRunDetails, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/workflow-runs/trigger`,
+      method: "POST",
+      body: data,
+      secure: true,
+      type: ContentType.Json,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Get a workflow run and its metadata to display on the "detail" page
+   *
+   * @tags Workflow Runs
+   * @name V1WorkflowRunGet
+   * @summary List tasks
+   * @request GET:/api/v1/stable/workflow-runs/{v1-workflow-run}
+   * @secure
+   */
+  v1WorkflowRunGet = (v1WorkflowRun: string, params: RequestParams = {}) =>
+    this.request<V1WorkflowRunDetails, APIErrors>({
+      path: `/api/v1/stable/workflow-runs/${v1WorkflowRun}`,
+      method: "GET",
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Get the status of a workflow run.
+   *
+   * @tags Workflow Runs
+   * @name V1WorkflowRunGetStatus
+   * @summary Get workflow run status
+   * @request GET:/api/v1/stable/workflow-runs/{v1-workflow-run}/status
+   * @secure
+   */
+  v1WorkflowRunGetStatus = (
+    v1WorkflowRun: string,
+    params: RequestParams = {},
+  ) =>
+    this.request<V1TaskStatus, APIErrors>({
+      path: `/api/v1/stable/workflow-runs/${v1WorkflowRun}/status`,
+      method: "GET",
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description List all tasks for a workflow run
+   *
+   * @tags Workflow Runs
+   * @name V1WorkflowRunTaskEventsList
+   * @summary List tasks
+   * @request GET:/api/v1/stable/workflow-runs/{v1-workflow-run}/task-events
+   * @secure
+   */
+  v1WorkflowRunTaskEventsList = (
+    v1WorkflowRun: string,
+    query?: {
+      /**
+       * The number to skip
+       * @format int64
+       */
+      offset?: number;
+      /**
+       * The number to limit by
+       * @format int64
+       */
+      limit?: number;
+    },
+    params: RequestParams = {},
+  ) =>
+    this.request<V1TaskEventList, APIErrors>({
+      path: `/api/v1/stable/workflow-runs/${v1WorkflowRun}/task-events`,
+      method: "GET",
+      query: query,
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Get the timings for a workflow run
+   *
+   * @tags Workflow Runs
+   * @name V1WorkflowRunGetTimings
+   * @summary List timings for a workflow run
+   * @request GET:/api/v1/stable/workflow-runs/{v1-workflow-run}/task-timings
+   * @secure
+   */
+  v1WorkflowRunGetTimings = (
+    v1WorkflowRun: string,
+    query?: {
+      /**
+       * The depth to retrieve children
+       * @format int64
+       */
+      depth?: number;
+    },
+    params: RequestParams = {},
+  ) =>
+    this.request<V1TaskTimingList, APIErrors>({
+      path: `/api/v1/stable/workflow-runs/${v1WorkflowRun}/task-timings`,
+      method: "GET",
+      query: query,
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Get a summary of task run metrics for a tenant
+   *
+   * @tags Task
+   * @name V1TaskListStatusMetrics
+   * @summary Get task metrics
+   * @request GET:/api/v1/stable/tenants/{tenant}/task-metrics
+   * @secure
+   */
+  v1TaskListStatusMetrics = (
+    tenant: string,
+    query: {
+      /**
+       * The start time to get metrics for
+       * @format date-time
+       */
+      since: string;
+      /**
+       * The end time to get metrics for
+       * @format date-time
+       */
+      until?: string;
+      /** The workflow id to find runs for */
+      workflow_ids?: string[];
+      /**
+       * The parent task's external id
+       * @format uuid
+       * @minLength 36
+       * @maxLength 36
+       */
+      parent_task_external_id?: string;
+      /**
+       * The id of the event that triggered the task
+       * @format uuid
+       * @minLength 36
+       * @maxLength 36
+       */
+      triggering_event_external_id?: string;
+      /** Additional metadata k-v pairs to filter by */
+      additional_metadata?: string[];
+    },
+    params: RequestParams = {},
+  ) =>
+    this.request<V1TaskRunMetrics, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/task-metrics`,
+      method: "GET",
+      query: query,
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Get a minute by minute breakdown of task metrics for a tenant
+   *
+   * @tags Task
+   * @name V1TaskGetPointMetrics
+   * @summary Get task point metrics
+   * @request GET:/api/v1/stable/tenants/{tenant}/task-point-metrics
+   * @secure
+   */
+  v1TaskGetPointMetrics = (
+    tenant: string,
+    query?: {
+      /**
+       * The time after the task was created
+       * @format date-time
+       * @example "2021-01-01T00:00:00Z"
+       */
+      createdAfter?: string;
+      /**
+       * The time before the task was completed
+       * @format date-time
+       * @example "2021-01-01T00:00:00Z"
+       */
+      finishedBefore?: string;
+    },
+    params: RequestParams = {},
+  ) =>
+    this.request<V1TaskPointMetrics, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/task-point-metrics`,
+      method: "GET",
+      query: query,
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Lists all events for a tenant.
+   *
+   * @tags Event
+   * @name V1EventList
+   * @summary List events
+   * @request GET:/api/v1/stable/tenants/{tenant}/events
+   * @secure
+   */
+  v1EventList = (
+    tenant: string,
+    query?: {
+      /**
+       * The number to skip
+       * @format int64
+       */
+      offset?: number;
+      /**
+       * The number to limit by
+       * @format int64
+       */
+      limit?: number;
+      /** A list of keys to filter by */
+      keys?: EventKey[];
+      /**
+       * Consider events that occurred after this time
+       * @format date-time
+       */
+      since?: string;
+      /**
+       * Consider events that occurred before this time
+       * @format date-time
+       */
+      until?: string;
+      /** Filter to events that are associated with a specific workflow run */
+      workflowIds?: string[];
+      /** Filter to events that are associated with workflow runs matching a certain status */
+      workflowRunStatuses?: V1TaskStatus[];
+      /** Filter to specific events by their ids */
+      eventIds?: string[];
+      /** Filter by additional metadata on the events */
+      additionalMetadata?: string[];
+      /** The scopes to filter by */
+      scopes?: string[];
+    },
+    params: RequestParams = {},
+  ) =>
+    this.request<V1EventList, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/events`,
+      method: "GET",
+      query: query,
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Lists all event keys for a tenant.
+   *
+   * @tags Event
+   * @name V1EventKeyList
+   * @summary List event keys
+   * @request GET:/api/v1/stable/tenants/{tenant}/events/keys
+   * @secure
+   */
+  v1EventKeyList = (tenant: string, params: RequestParams = {}) =>
+    this.request<EventKeyList, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/events/keys`,
+      method: "GET",
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Lists all filters for a tenant.
+   *
+   * @tags Filter
+   * @name V1FilterList
+   * @summary List filters
+   * @request GET:/api/v1/stable/tenants/{tenant}/filters
+   * @secure
+   */
+  v1FilterList = (
+    tenant: string,
+    query?: {
+      /**
+       * The number to skip
+       * @format int64
+       */
+      offset?: number;
+      /**
+       * The number to limit by
+       * @format int64
+       */
+      limit?: number;
+      /** The workflow ids to filter by */
+      workflowIds?: string[];
+      /** The scopes to subset candidate filters by */
+      scopes?: string[];
+    },
+    params: RequestParams = {},
+  ) =>
+    this.request<V1FilterList, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/filters`,
+      method: "GET",
+      query: query,
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Create a new filter
+   *
+   * @tags Filter
+   * @name V1FilterCreate
+   * @summary Create a filter
+   * @request POST:/api/v1/stable/tenants/{tenant}/filters
+   * @secure
+   */
+  v1FilterCreate = (
+    tenant: string,
+    data: V1CreateFilterRequest,
+    params: RequestParams = {},
+  ) =>
+    this.request<V1Filter, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/filters`,
+      method: "POST",
+      body: data,
+      secure: true,
+      type: ContentType.Json,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Get a filter by its id
+   *
+   * @tags Filter
+   * @name V1FilterGet
+   * @summary Get a filter
+   * @request GET:/api/v1/stable/tenants/{tenant}/filters/{v1-filter}
+   * @secure
+   */
+  v1FilterGet = (
+    tenant: string,
+    v1Filter: string,
+    params: RequestParams = {},
+  ) =>
+    this.request<V1Filter, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/filters/${v1Filter}`,
+      method: "GET",
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Delete a filter
+   *
+   * @tags Filter
+   * @name V1FilterDelete
+   * @request DELETE:/api/v1/stable/tenants/{tenant}/filters/{v1-filter}
+   * @secure
+   */
+  v1FilterDelete = (
+    tenant: string,
+    v1Filter: string,
+    params: RequestParams = {},
+  ) =>
+    this.request<V1Filter, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/filters/${v1Filter}`,
+      method: "DELETE",
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Update a filter
+   *
+   * @tags Filter
+   * @name V1FilterUpdate
+   * @request PATCH:/api/v1/stable/tenants/{tenant}/filters/{v1-filter}
+   * @secure
+   */
+  v1FilterUpdate = (
+    tenant: string,
+    v1Filter: string,
+    data: V1UpdateFilterRequest,
+    params: RequestParams = {},
+  ) =>
+    this.request<V1Filter, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/filters/${v1Filter}`,
+      method: "PATCH",
+      body: data,
+      secure: true,
+      type: ContentType.Json,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Lists all webhook for a tenant.
+   *
+   * @tags Webhook
+   * @name V1WebhookList
+   * @summary List webhooks
+   * @request GET:/api/v1/stable/tenants/{tenant}/webhooks
+   * @secure
+   */
+  v1WebhookList = (
+    tenant: string,
+    query?: {
+      /**
+       * The number to skip
+       * @format int64
+       */
+      offset?: number;
+      /**
+       * The number to limit by
+       * @format int64
+       */
+      limit?: number;
+      /** The source names to filter by */
+      sourceNames?: V1WebhookSourceName[];
+      /** The webhook names to filter by */
+      webhookNames?: string[];
+    },
+    params: RequestParams = {},
+  ) =>
+    this.request<V1WebhookList, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/webhooks`,
+      method: "GET",
+      query: query,
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Create a new webhook
+   *
+   * @tags Webhook
+   * @name V1WebhookCreate
+   * @summary Create a webhook
+   * @request POST:/api/v1/stable/tenants/{tenant}/webhooks
+   * @secure
+   */
+  v1WebhookCreate = (
+    tenant: string,
+    data: V1CreateWebhookRequest,
+    params: RequestParams = {},
+  ) =>
+    this.request<V1Webhook, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/webhooks`,
+      method: "POST",
+      body: data,
+      secure: true,
+      type: ContentType.Json,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Get a webhook by its name
+   *
+   * @tags Webhook
+   * @name V1WebhookGet
+   * @summary Get a webhook
+   * @request GET:/api/v1/stable/tenants/{tenant}/webhooks/{v1-webhook}
+   * @secure
+   */
+  v1WebhookGet = (
+    tenant: string,
+    v1Webhook: string,
+    params: RequestParams = {},
+  ) =>
+    this.request<V1Webhook, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/webhooks/${v1Webhook}`,
+      method: "GET",
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Delete a webhook
+   *
+   * @tags Webhook
+   * @name V1WebhookDelete
+   * @request DELETE:/api/v1/stable/tenants/{tenant}/webhooks/{v1-webhook}
+   * @secure
+   */
+  v1WebhookDelete = (
+    tenant: string,
+    v1Webhook: string,
+    params: RequestParams = {},
+  ) =>
+    this.request<V1Webhook, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/webhooks/${v1Webhook}`,
+      method: "DELETE",
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Post an incoming webhook message
+   *
+   * @tags Webhook
+   * @name V1WebhookReceive
+   * @summary Post a webhook message
+   * @request POST:/api/v1/stable/tenants/{tenant}/webhooks/{v1-webhook}
+   */
+  v1WebhookReceive = (
+    tenant: string,
+    v1Webhook: string,
+    data?: any,
+    params: RequestParams = {},
+  ) =>
+    this.request<Record<string, any>, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/webhooks/${v1Webhook}`,
+      method: "POST",
+      body: data,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Update a webhook
+   *
+   * @tags Webhook
+   * @name V1WebhookUpdate
+   * @summary Update a webhook
+   * @request PATCH:/api/v1/stable/tenants/{tenant}/webhooks/{v1-webhook}
+   * @secure
+   */
+  v1WebhookUpdate = (
+    tenant: string,
+    v1Webhook: string,
+    data: V1UpdateWebhookRequest,
+    params: RequestParams = {},
+  ) =>
+    this.request<V1Webhook, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/webhooks/${v1Webhook}`,
+      method: "PATCH",
+      body: data,
+      secure: true,
+      type: ContentType.Json,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Evaluate a CEL expression against provided input data.
+   *
+   * @tags CEL
+   * @name V1CelDebug
+   * @summary Debug a CEL expression
+   * @request POST:/api/v1/stable/tenants/{tenant}/cel/debug
+   * @secure
+   */
+  v1CelDebug = (
+    tenant: string,
+    data: V1CELDebugRequest,
+    params: RequestParams = {},
+  ) =>
+    this.request<V1CELDebugResponse, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/cel/debug`,
+      method: "POST",
+      body: data,
+      secure: true,
+      type: ContentType.Json,
+      format: "json",
+      ...params,
+    });
   /**
    * @description Gets the readiness status
    *
@@ -121,7 +976,7 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   readinessGet = (params: RequestParams = {}) =>
     this.request<void, void>({
       path: `/api/ready`,
-      method: 'GET',
+      method: "GET",
       ...params,
     });
   /**
@@ -135,7 +990,7 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   livenessGet = (params: RequestParams = {}) =>
     this.request<void, void>({
       path: `/api/live`,
-      method: 'GET',
+      method: "GET",
       ...params,
     });
   /**
@@ -149,8 +1004,8 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   metadataGet = (params: RequestParams = {}) =>
     this.request<APIMeta, APIErrors>({
       path: `/api/v1/meta`,
-      method: 'GET',
-      format: 'json',
+      method: "GET",
+      format: "json",
       ...params,
     });
   /**
@@ -164,8 +1019,8 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   cloudMetadataGet = (params: RequestParams = {}) =>
     this.request<APIErrors, APIErrors>({
       path: `/api/v1/cloud/metadata`,
-      method: 'GET',
-      format: 'json',
+      method: "GET",
+      format: "json",
       ...params,
     });
   /**
@@ -180,9 +1035,9 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   metadataListIntegrations = (params: RequestParams = {}) =>
     this.request<ListAPIMetaIntegration, APIErrors>({
       path: `/api/v1/meta/integrations`,
-      method: 'GET',
+      method: "GET",
       secure: true,
-      format: 'json',
+      format: "json",
       ...params,
     });
   /**
@@ -196,10 +1051,10 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   userUpdateLogin = (data: UserLoginRequest, params: RequestParams = {}) =>
     this.request<User, APIErrors>({
       path: `/api/v1/users/login`,
-      method: 'POST',
+      method: "POST",
       body: data,
       type: ContentType.Json,
-      format: 'json',
+      format: "json",
       ...params,
     });
   /**
@@ -213,7 +1068,7 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   userUpdateGoogleOauthStart = (params: RequestParams = {}) =>
     this.request<any, void>({
       path: `/api/v1/users/google/start`,
-      method: 'GET',
+      method: "GET",
       ...params,
     });
   /**
@@ -227,7 +1082,7 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   userUpdateGoogleOauthCallback = (params: RequestParams = {}) =>
     this.request<any, void>({
       path: `/api/v1/users/google/callback`,
-      method: 'GET',
+      method: "GET",
       ...params,
     });
   /**
@@ -241,7 +1096,7 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   userUpdateGithubOauthStart = (params: RequestParams = {}) =>
     this.request<any, void>({
       path: `/api/v1/users/github/start`,
-      method: 'GET',
+      method: "GET",
       ...params,
     });
   /**
@@ -255,7 +1110,7 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   userUpdateGithubOauthCallback = (params: RequestParams = {}) =>
     this.request<any, void>({
       path: `/api/v1/users/github/callback`,
-      method: 'GET',
+      method: "GET",
       ...params,
     });
   /**
@@ -270,7 +1125,7 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   userUpdateSlackOauthStart = (tenant: string, params: RequestParams = {}) =>
     this.request<any, void>({
       path: `/api/v1/tenants/${tenant}/slack/start`,
-      method: 'GET',
+      method: "GET",
       secure: true,
       ...params,
     });
@@ -286,7 +1141,7 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   userUpdateSlackOauthCallback = (params: RequestParams = {}) =>
     this.request<any, void>({
       path: `/api/v1/users/slack/callback`,
-      method: 'GET',
+      method: "GET",
       secure: true,
       ...params,
     });
@@ -301,7 +1156,7 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   snsUpdate = (tenant: string, event: string, params: RequestParams = {}) =>
     this.request<void, APIErrors>({
       path: `/api/v1/sns/${tenant}/${event}`,
-      method: 'POST',
+      method: "POST",
       ...params,
     });
   /**
@@ -316,9 +1171,9 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   snsList = (tenant: string, params: RequestParams = {}) =>
     this.request<ListSNSIntegrations, APIErrors>({
       path: `/api/v1/tenants/${tenant}/sns`,
-      method: 'GET',
+      method: "GET",
       secure: true,
-      format: 'json',
+      format: "json",
       ...params,
     });
   /**
@@ -330,14 +1185,18 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @request POST:/api/v1/tenants/{tenant}/sns
    * @secure
    */
-  snsCreate = (tenant: string, data: CreateSNSIntegrationRequest, params: RequestParams = {}) =>
+  snsCreate = (
+    tenant: string,
+    data: CreateSNSIntegrationRequest,
+    params: RequestParams = {},
+  ) =>
     this.request<SNSIntegration, APIErrors>({
       path: `/api/v1/tenants/${tenant}/sns`,
-      method: 'POST',
+      method: "POST",
       body: data,
       secure: true,
       type: ContentType.Json,
-      format: 'json',
+      format: "json",
       ...params,
     });
   /**
@@ -349,14 +1208,18 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @request POST:/api/v1/tenants/{tenant}/alerting-email-groups
    * @secure
    */
-  alertEmailGroupCreate = (tenant: string, data: CreateTenantAlertEmailGroupRequest, params: RequestParams = {}) =>
+  alertEmailGroupCreate = (
+    tenant: string,
+    data: CreateTenantAlertEmailGroupRequest,
+    params: RequestParams = {},
+  ) =>
     this.request<TenantAlertEmailGroup, APIErrors | APIError>({
       path: `/api/v1/tenants/${tenant}/alerting-email-groups`,
-      method: 'POST',
+      method: "POST",
       body: data,
       secure: true,
       type: ContentType.Json,
-      format: 'json',
+      format: "json",
       ...params,
     });
   /**
@@ -371,9 +1234,9 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   alertEmailGroupList = (tenant: string, params: RequestParams = {}) =>
     this.request<TenantAlertEmailGroupList, APIErrors | APIError>({
       path: `/api/v1/tenants/${tenant}/alerting-email-groups`,
-      method: 'GET',
+      method: "GET",
       secure: true,
-      format: 'json',
+      format: "json",
       ...params,
     });
   /**
@@ -388,9 +1251,9 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   tenantResourcePolicyGet = (tenant: string, params: RequestParams = {}) =>
     this.request<TenantResourcePolicy, APIErrors | APIError>({
       path: `/api/v1/tenants/${tenant}/resource-policy`,
-      method: 'GET',
+      method: "GET",
       secure: true,
-      format: 'json',
+      format: "json",
       ...params,
     });
   /**
@@ -409,11 +1272,11 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   ) =>
     this.request<TenantAlertEmailGroup, APIErrors | APIError>({
       path: `/api/v1/alerting-email-groups/${alertEmailGroup}`,
-      method: 'PATCH',
+      method: "PATCH",
       body: data,
       secure: true,
       type: ContentType.Json,
-      format: 'json',
+      format: "json",
       ...params,
     });
   /**
@@ -425,10 +1288,13 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @request DELETE:/api/v1/alerting-email-groups/{alert-email-group}
    * @secure
    */
-  alertEmailGroupDelete = (alertEmailGroup: string, params: RequestParams = {}) =>
+  alertEmailGroupDelete = (
+    alertEmailGroup: string,
+    params: RequestParams = {},
+  ) =>
     this.request<void, APIErrors | APIError>({
       path: `/api/v1/alerting-email-groups/${alertEmailGroup}`,
-      method: 'DELETE',
+      method: "DELETE",
       secure: true,
       ...params,
     });
@@ -444,7 +1310,7 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   snsDelete = (sns: string, params: RequestParams = {}) =>
     this.request<void, APIErrors>({
       path: `/api/v1/sns/${sns}`,
-      method: 'DELETE',
+      method: "DELETE",
       secure: true,
       ...params,
     });
@@ -460,9 +1326,9 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   slackWebhookList = (tenant: string, params: RequestParams = {}) =>
     this.request<ListSlackWebhooks, APIErrors>({
       path: `/api/v1/tenants/${tenant}/slack`,
-      method: 'GET',
+      method: "GET",
       secure: true,
-      format: 'json',
+      format: "json",
       ...params,
     });
   /**
@@ -477,7 +1343,7 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   slackWebhookDelete = (slack: string, params: RequestParams = {}) =>
     this.request<void, APIErrors>({
       path: `/api/v1/slack/${slack}`,
-      method: 'DELETE',
+      method: "DELETE",
       secure: true,
       ...params,
     });
@@ -493,9 +1359,9 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   userGetCurrent = (params: RequestParams = {}) =>
     this.request<User, APIErrors>({
       path: `/api/v1/users/current`,
-      method: 'GET',
+      method: "GET",
       secure: true,
-      format: 'json',
+      format: "json",
       ...params,
     });
   /**
@@ -507,14 +1373,17 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @request POST:/api/v1/users/password
    * @secure
    */
-  userUpdatePassword = (data: UserChangePasswordRequest, params: RequestParams = {}) =>
+  userUpdatePassword = (
+    data: UserChangePasswordRequest,
+    params: RequestParams = {},
+  ) =>
     this.request<User, APIErrors>({
       path: `/api/v1/users/password`,
-      method: 'POST',
+      method: "POST",
       body: data,
       secure: true,
       type: ContentType.Json,
-      format: 'json',
+      format: "json",
       ...params,
     });
   /**
@@ -528,10 +1397,10 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   userCreate = (data: UserRegisterRequest, params: RequestParams = {}) =>
     this.request<User, APIErrors>({
       path: `/api/v1/users/register`,
-      method: 'POST',
+      method: "POST",
       body: data,
       type: ContentType.Json,
-      format: 'json',
+      format: "json",
       ...params,
     });
   /**
@@ -546,9 +1415,9 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   userUpdateLogout = (params: RequestParams = {}) =>
     this.request<User, APIErrors>({
       path: `/api/v1/users/logout`,
-      method: 'POST',
+      method: "POST",
       secure: true,
-      format: 'json',
+      format: "json",
       ...params,
     });
   /**
@@ -563,9 +1432,9 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   tenantMembershipsList = (params: RequestParams = {}) =>
     this.request<UserTenantMembershipsList, APIErrors>({
       path: `/api/v1/users/memberships`,
-      method: 'GET',
+      method: "GET",
       secure: true,
-      format: 'json',
+      format: "json",
       ...params,
     });
   /**
@@ -580,9 +1449,9 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   userListTenantInvites = (params: RequestParams = {}) =>
     this.request<TenantInviteList, APIErrors>({
       path: `/api/v1/users/invites`,
-      method: 'GET',
+      method: "GET",
       secure: true,
-      format: 'json',
+      format: "json",
       ...params,
     });
   /**
@@ -594,10 +1463,13 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @request POST:/api/v1/users/invites/accept
    * @secure
    */
-  tenantInviteAccept = (data: AcceptInviteRequest, params: RequestParams = {}) =>
+  tenantInviteAccept = (
+    data: AcceptInviteRequest,
+    params: RequestParams = {},
+  ) =>
     this.request<void, APIErrors | APIError>({
       path: `/api/v1/users/invites/accept`,
-      method: 'POST',
+      method: "POST",
       body: data,
       secure: true,
       type: ContentType.Json,
@@ -612,10 +1484,13 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @request POST:/api/v1/users/invites/reject
    * @secure
    */
-  tenantInviteReject = (data: RejectInviteRequest, params: RequestParams = {}) =>
+  tenantInviteReject = (
+    data: RejectInviteRequest,
+    params: RequestParams = {},
+  ) =>
     this.request<void, APIErrors | APIError>({
       path: `/api/v1/users/invites/reject`,
-      method: 'POST',
+      method: "POST",
       body: data,
       secure: true,
       type: ContentType.Json,
@@ -633,11 +1508,11 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   tenantCreate = (data: CreateTenantRequest, params: RequestParams = {}) =>
     this.request<Tenant, APIErrors | APIError>({
       path: `/api/v1/tenants`,
-      method: 'POST',
+      method: "POST",
       body: data,
       secure: true,
       type: ContentType.Json,
-      format: 'json',
+      format: "json",
       ...params,
     });
   /**
@@ -649,14 +1524,35 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @request PATCH:/api/v1/tenants/{tenant}
    * @secure
    */
-  tenantUpdate = (tenant: string, data: UpdateTenantRequest, params: RequestParams = {}) =>
+  tenantUpdate = (
+    tenant: string,
+    data: UpdateTenantRequest,
+    params: RequestParams = {},
+  ) =>
     this.request<Tenant, APIErrors | APIError>({
       path: `/api/v1/tenants/${tenant}`,
-      method: 'PATCH',
+      method: "PATCH",
       body: data,
       secure: true,
       type: ContentType.Json,
-      format: 'json',
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Get the details of a tenant
+   *
+   * @tags Tenant
+   * @name TenantGet
+   * @summary Get tenant
+   * @request GET:/api/v1/tenants/{tenant}
+   * @secure
+   */
+  tenantGet = (tenant: string, params: RequestParams = {}) =>
+    this.request<Tenant, APIErrors | APIError>({
+      path: `/api/v1/tenants/${tenant}`,
+      method: "GET",
+      secure: true,
+      format: "json",
       ...params,
     });
   /**
@@ -671,9 +1567,9 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   tenantAlertingSettingsGet = (tenant: string, params: RequestParams = {}) =>
     this.request<TenantAlertingSettings, APIErrors | APIError>({
       path: `/api/v1/tenants/${tenant}/alerting/settings`,
-      method: 'GET',
+      method: "GET",
       secure: true,
-      format: 'json',
+      format: "json",
       ...params,
     });
   /**
@@ -685,14 +1581,18 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @request POST:/api/v1/tenants/{tenant}/invites
    * @secure
    */
-  tenantInviteCreate = (tenant: string, data: CreateTenantInviteRequest, params: RequestParams = {}) =>
+  tenantInviteCreate = (
+    tenant: string,
+    data: CreateTenantInviteRequest,
+    params: RequestParams = {},
+  ) =>
     this.request<TenantInvite, APIErrors | APIError>({
       path: `/api/v1/tenants/${tenant}/invites`,
-      method: 'POST',
+      method: "POST",
       body: data,
       secure: true,
       type: ContentType.Json,
-      format: 'json',
+      format: "json",
       ...params,
     });
   /**
@@ -707,9 +1607,9 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   tenantInviteList = (tenant: string, params: RequestParams = {}) =>
     this.request<TenantInviteList, APIErrors | APIError>({
       path: `/api/v1/tenants/${tenant}/invites`,
-      method: 'GET',
+      method: "GET",
       secure: true,
-      format: 'json',
+      format: "json",
       ...params,
     });
   /**
@@ -728,11 +1628,11 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   ) =>
     this.request<TenantInvite, APIErrors>({
       path: `/api/v1/tenants/${tenant}/invites/${tenantInvite}`,
-      method: 'PATCH',
+      method: "PATCH",
       body: data,
       secure: true,
       type: ContentType.Json,
-      format: 'json',
+      format: "json",
       ...params,
     });
   /**
@@ -743,12 +1643,16 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @request DELETE:/api/v1/tenants/{tenant}/invites/{tenant-invite}
    * @secure
    */
-  tenantInviteDelete = (tenant: string, tenantInvite: string, params: RequestParams = {}) =>
+  tenantInviteDelete = (
+    tenant: string,
+    tenantInvite: string,
+    params: RequestParams = {},
+  ) =>
     this.request<TenantInvite, APIErrors>({
       path: `/api/v1/tenants/${tenant}/invites/${tenantInvite}`,
-      method: 'DELETE',
+      method: "DELETE",
       secure: true,
-      format: 'json',
+      format: "json",
       ...params,
     });
   /**
@@ -760,14 +1664,18 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @request POST:/api/v1/tenants/{tenant}/api-tokens
    * @secure
    */
-  apiTokenCreate = (tenant: string, data: CreateAPITokenRequest, params: RequestParams = {}) =>
+  apiTokenCreate = (
+    tenant: string,
+    data: CreateAPITokenRequest,
+    params: RequestParams = {},
+  ) =>
     this.request<CreateAPITokenResponse, APIErrors>({
       path: `/api/v1/tenants/${tenant}/api-tokens`,
-      method: 'POST',
+      method: "POST",
       body: data,
       secure: true,
       type: ContentType.Json,
-      format: 'json',
+      format: "json",
       ...params,
     });
   /**
@@ -782,9 +1690,9 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   apiTokenList = (tenant: string, params: RequestParams = {}) =>
     this.request<ListAPITokensResponse, APIErrors>({
       path: `/api/v1/tenants/${tenant}/api-tokens`,
-      method: 'GET',
+      method: "GET",
       secure: true,
-      format: 'json',
+      format: "json",
       ...params,
     });
   /**
@@ -799,7 +1707,7 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   apiTokenUpdateRevoke = (apiToken: string, params: RequestParams = {}) =>
     this.request<void, APIErrors>({
       path: `/api/v1/api-tokens/${apiToken}`,
-      method: 'POST',
+      method: "POST",
       secure: true,
       ...params,
     });
@@ -827,10 +1735,10 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   ) =>
     this.request<TenantQueueMetrics, APIErrors>({
       path: `/api/v1/tenants/${tenant}/queue-metrics`,
-      method: 'GET',
+      method: "GET",
       query: query,
       secure: true,
-      format: 'json',
+      format: "json",
       ...params,
     });
   /**
@@ -845,9 +1753,9 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   tenantGetStepRunQueueMetrics = (tenant: string, params: RequestParams = {}) =>
     this.request<TenantStepRunQueueMetrics, APIErrors>({
       path: `/api/v1/tenants/${tenant}/step-run-queue-metrics`,
-      method: 'GET',
+      method: "GET",
       secure: true,
-      format: 'json',
+      format: "json",
       ...params,
     });
   /**
@@ -896,10 +1804,10 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   ) =>
     this.request<EventList, APIErrors>({
       path: `/api/v1/tenants/${tenant}/events`,
-      method: 'GET',
+      method: "GET",
       query: query,
       secure: true,
-      format: 'json',
+      format: "json",
       ...params,
     });
   /**
@@ -911,14 +1819,18 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @request POST:/api/v1/tenants/{tenant}/events
    * @secure
    */
-  eventCreate = (tenant: string, data: CreateEventRequest, params: RequestParams = {}) =>
+  eventCreate = (
+    tenant: string,
+    data: CreateEventRequest,
+    params: RequestParams = {},
+  ) =>
     this.request<Event, APIErrors>({
       path: `/api/v1/tenants/${tenant}/events`,
-      method: 'POST',
+      method: "POST",
       body: data,
       secure: true,
       type: ContentType.Json,
-      format: 'json',
+      format: "json",
       ...params,
     });
   /**
@@ -930,14 +1842,18 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @request POST:/api/v1/tenants/{tenant}/events/bulk
    * @secure
    */
-  eventCreateBulk = (tenant: string, data: BulkCreateEventRequest, params: RequestParams = {}) =>
+  eventCreateBulk = (
+    tenant: string,
+    data: BulkCreateEventRequest,
+    params: RequestParams = {},
+  ) =>
     this.request<Events, APIErrors>({
       path: `/api/v1/tenants/${tenant}/events/bulk`,
-      method: 'POST',
+      method: "POST",
       body: data,
       secure: true,
       type: ContentType.Json,
-      format: 'json',
+      format: "json",
       ...params,
     });
   /**
@@ -949,14 +1865,18 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @request POST:/api/v1/tenants/{tenant}/events/replay
    * @secure
    */
-  eventUpdateReplay = (tenant: string, data: ReplayEventRequest, params: RequestParams = {}) =>
+  eventUpdateReplay = (
+    tenant: string,
+    data: ReplayEventRequest,
+    params: RequestParams = {},
+  ) =>
     this.request<EventList, APIErrors>({
       path: `/api/v1/tenants/${tenant}/events/replay`,
-      method: 'POST',
+      method: "POST",
       body: data,
       secure: true,
       type: ContentType.Json,
-      format: 'json',
+      format: "json",
       ...params,
     });
   /**
@@ -968,7 +1888,11 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @request POST:/api/v1/tenants/{tenant}/events/cancel
    * @secure
    */
-  eventUpdateCancel = (tenant: string, data: CancelEventRequest, params: RequestParams = {}) =>
+  eventUpdateCancel = (
+    tenant: string,
+    data: CancelEventRequest,
+    params: RequestParams = {},
+  ) =>
     this.request<
       {
         workflowRunIds?: string[];
@@ -976,11 +1900,11 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       APIErrors
     >({
       path: `/api/v1/tenants/${tenant}/events/cancel`,
-      method: 'POST',
+      method: "POST",
       body: data,
       secure: true,
       type: ContentType.Json,
-      format: 'json',
+      format: "json",
       ...params,
     });
   /**
@@ -1016,10 +1940,10 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   ) =>
     this.request<RateLimitList, APIErrors>({
       path: `/api/v1/tenants/${tenant}/rate-limits`,
-      method: 'GET',
+      method: "GET",
       query: query,
       secure: true,
-      format: 'json',
+      format: "json",
       ...params,
     });
   /**
@@ -1034,9 +1958,33 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   tenantMemberList = (tenant: string, params: RequestParams = {}) =>
     this.request<TenantMemberList, APIErrors | APIError>({
       path: `/api/v1/tenants/${tenant}/members`,
-      method: 'GET',
+      method: "GET",
       secure: true,
-      format: 'json',
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Update a tenant member
+   *
+   * @tags Tenant
+   * @name TenantMemberUpdate
+   * @summary Update a tenant member
+   * @request PATCH:/api/v1/tenants/{tenant}/members/{member}
+   * @secure
+   */
+  tenantMemberUpdate = (
+    tenant: string,
+    member: string,
+    data: UpdateTenantMemberRequest,
+    params: RequestParams = {},
+  ) =>
+    this.request<TenantMember, APIErrors>({
+      path: `/api/v1/tenants/${tenant}/members/${member}`,
+      method: "PATCH",
+      body: data,
+      secure: true,
+      type: ContentType.Json,
+      format: "json",
       ...params,
     });
   /**
@@ -1048,12 +1996,16 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @request DELETE:/api/v1/tenants/{tenant}/members/{member}
    * @secure
    */
-  tenantMemberDelete = (tenant: string, member: string, params: RequestParams = {}) =>
+  tenantMemberDelete = (
+    tenant: string,
+    member: string,
+    params: RequestParams = {},
+  ) =>
     this.request<TenantMember, APIErrors>({
       path: `/api/v1/tenants/${tenant}/members/${member}`,
-      method: 'DELETE',
+      method: "DELETE",
       secure: true,
-      format: 'json',
+      format: "json",
       ...params,
     });
   /**
@@ -1068,9 +2020,9 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   eventGet = (event: string, params: RequestParams = {}) =>
     this.request<Event, APIErrors>({
       path: `/api/v1/events/${event}`,
-      method: 'GET',
+      method: "GET",
       secure: true,
-      format: 'json',
+      format: "json",
       ...params,
     });
   /**
@@ -1085,9 +2037,9 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   eventDataGet = (event: string, params: RequestParams = {}) =>
     this.request<EventData, APIErrors>({
       path: `/api/v1/events/${event}/data`,
-      method: 'GET',
+      method: "GET",
       secure: true,
-      format: 'json',
+      format: "json",
       ...params,
     });
   /**
@@ -1102,9 +2054,9 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   eventKeyList = (tenant: string, params: RequestParams = {}) =>
     this.request<EventKeyList, APIErrors>({
       path: `/api/v1/tenants/${tenant}/events/keys`,
-      method: 'GET',
+      method: "GET",
       secure: true,
-      format: 'json',
+      format: "json",
       ...params,
     });
   /**
@@ -1138,10 +2090,10 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   ) =>
     this.request<WorkflowList, APIErrors>({
       path: `/api/v1/tenants/${tenant}/workflows`,
-      method: 'GET',
+      method: "GET",
       query: query,
       secure: true,
-      format: 'json',
+      format: "json",
       ...params,
     });
   /**
@@ -1161,11 +2113,11 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   ) =>
     this.request<ScheduledWorkflows, APIErrors>({
       path: `/api/v1/tenants/${tenant}/workflows/${workflow}/scheduled`,
-      method: 'POST',
+      method: "POST",
       body: data,
       secure: true,
       type: ContentType.Json,
-      format: 'json',
+      format: "json",
       ...params,
     });
   /**
@@ -1227,10 +2179,10 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   ) =>
     this.request<ScheduledWorkflowsList, APIErrors>({
       path: `/api/v1/tenants/${tenant}/workflows/scheduled`,
-      method: 'GET',
+      method: "GET",
       query: query,
       secure: true,
-      format: 'json',
+      format: "json",
       ...params,
     });
   /**
@@ -1242,12 +2194,16 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @request GET:/api/v1/tenants/{tenant}/workflows/scheduled/{scheduled-workflow-run}
    * @secure
    */
-  workflowScheduledGet = (tenant: string, scheduledWorkflowRun: string, params: RequestParams = {}) =>
+  workflowScheduledGet = (
+    tenant: string,
+    scheduledWorkflowRun: string,
+    params: RequestParams = {},
+  ) =>
     this.request<ScheduledWorkflows, APIErrors>({
       path: `/api/v1/tenants/${tenant}/workflows/scheduled/${scheduledWorkflowRun}`,
-      method: 'GET',
+      method: "GET",
       secure: true,
-      format: 'json',
+      format: "json",
       ...params,
     });
   /**
@@ -1259,10 +2215,14 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @request DELETE:/api/v1/tenants/{tenant}/workflows/scheduled/{scheduled-workflow-run}
    * @secure
    */
-  workflowScheduledDelete = (tenant: string, scheduledWorkflowRun: string, params: RequestParams = {}) =>
+  workflowScheduledDelete = (
+    tenant: string,
+    scheduledWorkflowRun: string,
+    params: RequestParams = {},
+  ) =>
     this.request<void, APIErrors | APIError>({
       path: `/api/v1/tenants/${tenant}/workflows/scheduled/${scheduledWorkflowRun}`,
-      method: 'DELETE',
+      method: "DELETE",
       secure: true,
       ...params,
     });
@@ -1283,11 +2243,11 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   ) =>
     this.request<CronWorkflows, APIErrors>({
       path: `/api/v1/tenants/${tenant}/workflows/${workflow}/crons`,
-      method: 'POST',
+      method: "POST",
       body: data,
       secure: true,
       type: ContentType.Json,
-      format: 'json',
+      format: "json",
       ...params,
     });
   /**
@@ -1319,6 +2279,10 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
        * @maxLength 36
        */
       workflowId?: string;
+      /** The workflow name to get runs for. */
+      workflowName?: string;
+      /** The cron name to get runs for. */
+      cronName?: string;
       /**
        * A list of metadata key value pairs to filter by
        * @example ["key1:value1","key2:value2"]
@@ -1333,10 +2297,10 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   ) =>
     this.request<CronWorkflowsList, APIErrors>({
       path: `/api/v1/tenants/${tenant}/workflows/crons`,
-      method: 'GET',
+      method: "GET",
       query: query,
       secure: true,
-      format: 'json',
+      format: "json",
       ...params,
     });
   /**
@@ -1348,12 +2312,16 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @request GET:/api/v1/tenants/{tenant}/workflows/crons/{cron-workflow}
    * @secure
    */
-  workflowCronGet = (tenant: string, cronWorkflow: string, params: RequestParams = {}) =>
+  workflowCronGet = (
+    tenant: string,
+    cronWorkflow: string,
+    params: RequestParams = {},
+  ) =>
     this.request<CronWorkflows, APIErrors>({
       path: `/api/v1/tenants/${tenant}/workflows/crons/${cronWorkflow}`,
-      method: 'GET',
+      method: "GET",
       secure: true,
-      format: 'json',
+      format: "json",
       ...params,
     });
   /**
@@ -1365,10 +2333,14 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @request DELETE:/api/v1/tenants/{tenant}/workflows/crons/{cron-workflow}
    * @secure
    */
-  workflowCronDelete = (tenant: string, cronWorkflow: string, params: RequestParams = {}) =>
+  workflowCronDelete = (
+    tenant: string,
+    cronWorkflow: string,
+    params: RequestParams = {},
+  ) =>
     this.request<void, APIErrors | APIError>({
       path: `/api/v1/tenants/${tenant}/workflows/crons/${cronWorkflow}`,
-      method: 'DELETE',
+      method: "DELETE",
       secure: true,
       ...params,
     });
@@ -1381,7 +2353,11 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @request POST:/api/v1/tenants/{tenant}/workflows/cancel
    * @secure
    */
-  workflowRunCancel = (tenant: string, data: WorkflowRunsCancelRequest, params: RequestParams = {}) =>
+  workflowRunCancel = (
+    tenant: string,
+    data: WorkflowRunsCancelRequest,
+    params: RequestParams = {},
+  ) =>
     this.request<
       {
         workflowRunIds?: string[];
@@ -1389,11 +2365,11 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       APIErrors
     >({
       path: `/api/v1/tenants/${tenant}/workflows/cancel`,
-      method: 'POST',
+      method: "POST",
       body: data,
       secure: true,
       type: ContentType.Json,
-      format: 'json',
+      format: "json",
       ...params,
     });
   /**
@@ -1408,9 +2384,9 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   workflowGet = (workflow: string, params: RequestParams = {}) =>
     this.request<Workflow, APIErrors>({
       path: `/api/v1/workflows/${workflow}`,
-      method: 'GET',
+      method: "GET",
       secure: true,
-      format: 'json',
+      format: "json",
       ...params,
     });
   /**
@@ -1425,7 +2401,7 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   workflowDelete = (workflow: string, params: RequestParams = {}) =>
     this.request<void, APIErrors>({
       path: `/api/v1/workflows/${workflow}`,
-      method: 'DELETE',
+      method: "DELETE",
       secure: true,
       ...params,
     });
@@ -1438,14 +2414,18 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @request PATCH:/api/v1/workflows/{workflow}
    * @secure
    */
-  workflowUpdate = (workflow: string, data: WorkflowUpdateRequest, params: RequestParams = {}) =>
+  workflowUpdate = (
+    workflow: string,
+    data: WorkflowUpdateRequest,
+    params: RequestParams = {},
+  ) =>
     this.request<Workflow, APIErrors>({
       path: `/api/v1/workflows/${workflow}`,
-      method: 'PATCH',
+      method: "PATCH",
       body: data,
       secure: true,
       type: ContentType.Json,
-      format: 'json',
+      format: "json",
       ...params,
     });
   /**
@@ -1472,10 +2452,10 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   ) =>
     this.request<WorkflowVersion, APIErrors>({
       path: `/api/v1/workflows/${workflow}/versions`,
-      method: 'GET',
+      method: "GET",
       query: query,
       secure: true,
-      format: 'json',
+      format: "json",
       ...params,
     });
   /**
@@ -1503,12 +2483,12 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   ) =>
     this.request<WorkflowRun, APIErrors>({
       path: `/api/v1/workflows/${workflow}/trigger`,
-      method: 'POST',
+      method: "POST",
       query: query,
       body: data,
       secure: true,
       type: ContentType.Json,
-      format: 'json',
+      format: "json",
       ...params,
     });
   /**
@@ -1532,10 +2512,10 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   ) =>
     this.request<WorkflowMetrics, APIErrors>({
       path: `/api/v1/workflows/${workflow}/metrics`,
-      method: 'GET',
+      method: "GET",
       query: query,
       secure: true,
-      format: 'json',
+      format: "json",
       ...params,
     });
   /**
@@ -1573,10 +2553,10 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   ) =>
     this.request<LogLineList, APIErrors>({
       path: `/api/v1/step-runs/${stepRun}/logs`,
-      method: 'GET',
+      method: "GET",
       query: query,
       secure: true,
-      format: 'json',
+      format: "json",
       ...params,
     });
   /**
@@ -1606,10 +2586,10 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   ) =>
     this.request<StepRunEventList, APIErrors>({
       path: `/api/v1/step-runs/${stepRun}/events`,
-      method: 'GET',
+      method: "GET",
       query: query,
       secure: true,
-      format: 'json',
+      format: "json",
       ...params,
     });
   /**
@@ -1635,10 +2615,10 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   ) =>
     this.request<StepRunEventList, APIErrors>({
       path: `/api/v1/tenants/${tenant}/workflow-runs/${workflowRun}/step-run-events`,
-      method: 'GET',
+      method: "GET",
       query: query,
       secure: true,
-      format: 'json',
+      format: "json",
       ...params,
     });
   /**
@@ -1668,10 +2648,10 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   ) =>
     this.request<StepRunArchiveList, APIErrors>({
       path: `/api/v1/step-runs/${stepRun}/archives`,
-      method: 'GET',
+      method: "GET",
       query: query,
       secure: true,
-      format: 'json',
+      format: "json",
       ...params,
     });
   /**
@@ -1683,12 +2663,16 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @request GET:/api/v1/tenants/{tenant}/workflows/{workflow}/worker-count
    * @secure
    */
-  workflowGetWorkersCount = (tenant: string, workflow: string, params: RequestParams = {}) =>
+  workflowGetWorkersCount = (
+    tenant: string,
+    workflow: string,
+    params: RequestParams = {},
+  ) =>
     this.request<WorkflowWorkersCount, APIErrors>({
       path: `/api/v1/tenants/${tenant}/workflows/${workflow}/worker-count`,
-      method: 'GET',
+      method: "GET",
       secure: true,
-      format: 'json',
+      format: "json",
       ...params,
     });
   /**
@@ -1783,10 +2767,10 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   ) =>
     this.request<WorkflowRunList, APIErrors>({
       path: `/api/v1/tenants/${tenant}/workflows/runs`,
-      method: 'GET',
+      method: "GET",
       query: query,
       secure: true,
-      format: 'json',
+      format: "json",
       ...params,
     });
   /**
@@ -1798,14 +2782,18 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @request POST:/api/v1/tenants/{tenant}/workflow-runs/replay
    * @secure
    */
-  workflowRunUpdateReplay = (tenant: string, data: ReplayWorkflowRunsRequest, params: RequestParams = {}) =>
+  workflowRunUpdateReplay = (
+    tenant: string,
+    data: ReplayWorkflowRunsRequest,
+    params: RequestParams = {},
+  ) =>
     this.request<ReplayWorkflowRunsResponse, APIErrors>({
       path: `/api/v1/tenants/${tenant}/workflow-runs/replay`,
-      method: 'POST',
+      method: "POST",
       body: data,
       secure: true,
       type: ContentType.Json,
-      format: 'json',
+      format: "json",
       ...params,
     });
   /**
@@ -1870,10 +2858,10 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   ) =>
     this.request<WorkflowRunsMetrics, APIErrors>({
       path: `/api/v1/tenants/${tenant}/workflows/runs/metrics`,
-      method: 'GET',
+      method: "GET",
       query: query,
       secure: true,
-      format: 'json',
+      format: "json",
       ...params,
     });
   /**
@@ -1885,12 +2873,16 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @request GET:/api/v1/tenants/{tenant}/workflow-runs/{workflow-run}
    * @secure
    */
-  workflowRunGet = (tenant: string, workflowRun: string, params: RequestParams = {}) =>
+  workflowRunGet = (
+    tenant: string,
+    workflowRun: string,
+    params: RequestParams = {},
+  ) =>
     this.request<WorkflowRun, APIErrors>({
       path: `/api/v1/tenants/${tenant}/workflow-runs/${workflowRun}`,
-      method: 'GET',
+      method: "GET",
       secure: true,
-      format: 'json',
+      format: "json",
       ...params,
     });
   /**
@@ -1902,12 +2894,16 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @request GET:/api/v1/tenants/{tenant}/workflow-runs/{workflow-run}/shape
    * @secure
    */
-  workflowRunGetShape = (tenant: string, workflowRun: string, params: RequestParams = {}) =>
+  workflowRunGetShape = (
+    tenant: string,
+    workflowRun: string,
+    params: RequestParams = {},
+  ) =>
     this.request<WorkflowRunShape, APIErrors>({
       path: `/api/v1/tenants/${tenant}/workflow-runs/${workflowRun}/shape`,
-      method: 'GET',
+      method: "GET",
       secure: true,
-      format: 'json',
+      format: "json",
       ...params,
     });
   /**
@@ -1922,9 +2918,9 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   stepRunGet = (tenant: string, stepRun: string, params: RequestParams = {}) =>
     this.request<StepRun, APIErrors>({
       path: `/api/v1/tenants/${tenant}/step-runs/${stepRun}`,
-      method: 'GET',
+      method: "GET",
       secure: true,
-      format: 'json',
+      format: "json",
       ...params,
     });
   /**
@@ -1936,14 +2932,19 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @request POST:/api/v1/tenants/{tenant}/step-runs/{step-run}/rerun
    * @secure
    */
-  stepRunUpdateRerun = (tenant: string, stepRun: string, data: RerunStepRunRequest, params: RequestParams = {}) =>
+  stepRunUpdateRerun = (
+    tenant: string,
+    stepRun: string,
+    data: RerunStepRunRequest,
+    params: RequestParams = {},
+  ) =>
     this.request<StepRun, APIErrors>({
       path: `/api/v1/tenants/${tenant}/step-runs/${stepRun}/rerun`,
-      method: 'POST',
+      method: "POST",
       body: data,
       secure: true,
       type: ContentType.Json,
-      format: 'json',
+      format: "json",
       ...params,
     });
   /**
@@ -1955,12 +2956,16 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @request POST:/api/v1/tenants/{tenant}/step-runs/{step-run}/cancel
    * @secure
    */
-  stepRunUpdateCancel = (tenant: string, stepRun: string, params: RequestParams = {}) =>
+  stepRunUpdateCancel = (
+    tenant: string,
+    stepRun: string,
+    params: RequestParams = {},
+  ) =>
     this.request<StepRun, APIErrors>({
       path: `/api/v1/tenants/${tenant}/step-runs/${stepRun}/cancel`,
-      method: 'POST',
+      method: "POST",
       secure: true,
-      format: 'json',
+      format: "json",
       ...params,
     });
   /**
@@ -1972,12 +2977,16 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @request GET:/api/v1/tenants/{tenant}/step-runs/{step-run}/schema
    * @secure
    */
-  stepRunGetSchema = (tenant: string, stepRun: string, params: RequestParams = {}) =>
+  stepRunGetSchema = (
+    tenant: string,
+    stepRun: string,
+    params: RequestParams = {},
+  ) =>
     this.request<object, APIErrors>({
       path: `/api/v1/tenants/${tenant}/step-runs/${stepRun}/schema`,
-      method: 'GET',
+      method: "GET",
       secure: true,
-      format: 'json',
+      format: "json",
       ...params,
     });
   /**
@@ -1992,9 +3001,9 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   workerList = (tenant: string, params: RequestParams = {}) =>
     this.request<WorkerList, APIErrors>({
       path: `/api/v1/tenants/${tenant}/worker`,
-      method: 'GET',
+      method: "GET",
       secure: true,
-      format: 'json',
+      format: "json",
       ...params,
     });
   /**
@@ -2006,14 +3015,18 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @request PATCH:/api/v1/workers/{worker}
    * @secure
    */
-  workerUpdate = (worker: string, data: UpdateWorkerRequest, params: RequestParams = {}) =>
+  workerUpdate = (
+    worker: string,
+    data: UpdateWorkerRequest,
+    params: RequestParams = {},
+  ) =>
     this.request<Worker, APIErrors>({
       path: `/api/v1/workers/${worker}`,
-      method: 'PATCH',
+      method: "PATCH",
       body: data,
       secure: true,
       type: ContentType.Json,
-      format: 'json',
+      format: "json",
       ...params,
     });
   /**
@@ -2028,9 +3041,9 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   workerGet = (worker: string, params: RequestParams = {}) =>
     this.request<Worker, APIErrors>({
       path: `/api/v1/workers/${worker}`,
-      method: 'GET',
+      method: "GET",
       secure: true,
-      format: 'json',
+      format: "json",
       ...params,
     });
   /**
@@ -2044,9 +3057,9 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   webhookList = (tenant: string, params: RequestParams = {}) =>
     this.request<WebhookWorkerListResponse, APIErrors>({
       path: `/api/v1/tenants/${tenant}/webhook-workers`,
-      method: 'GET',
+      method: "GET",
       secure: true,
-      format: 'json',
+      format: "json",
       ...params,
     });
   /**
@@ -2057,14 +3070,18 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @request POST:/api/v1/tenants/{tenant}/webhook-workers
    * @secure
    */
-  webhookCreate = (tenant: string, data: WebhookWorkerCreateRequest, params: RequestParams = {}) =>
+  webhookCreate = (
+    tenant: string,
+    data: WebhookWorkerCreateRequest,
+    params: RequestParams = {},
+  ) =>
     this.request<WebhookWorkerCreated, APIErrors>({
       path: `/api/v1/tenants/${tenant}/webhook-workers`,
-      method: 'POST',
+      method: "POST",
       body: data,
       secure: true,
       type: ContentType.Json,
-      format: 'json',
+      format: "json",
       ...params,
     });
   /**
@@ -2078,7 +3095,7 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   webhookDelete = (webhook: string, params: RequestParams = {}) =>
     this.request<void, APIErrors>({
       path: `/api/v1/webhook-workers/${webhook}`,
-      method: 'DELETE',
+      method: "DELETE",
       secure: true,
       ...params,
     });
@@ -2093,9 +3110,9 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   webhookRequestsList = (webhook: string, params: RequestParams = {}) =>
     this.request<WebhookWorkerRequestListResponse, APIErrors>({
       path: `/api/v1/webhook-workers/${webhook}/requests`,
-      method: 'GET',
+      method: "GET",
       secure: true,
-      format: 'json',
+      format: "json",
       ...params,
     });
   /**
@@ -2107,12 +3124,16 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @request GET:/api/v1/tenants/{tenant}/workflow-runs/{workflow-run}/input
    * @secure
    */
-  workflowRunGetInput = (tenant: string, workflowRun: string, params: RequestParams = {}) =>
+  workflowRunGetInput = (
+    tenant: string,
+    workflowRun: string,
+    params: RequestParams = {},
+  ) =>
     this.request<Record<string, any>, APIErrors>({
       path: `/api/v1/tenants/${tenant}/workflow-runs/${workflowRun}/input`,
-      method: 'GET',
+      method: "GET",
       secure: true,
-      format: 'json',
+      format: "json",
       ...params,
     });
   /**
@@ -2126,7 +3147,7 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   monitoringPostRunProbe = (tenant: string, params: RequestParams = {}) =>
     this.request<void, APIErrors>({
       path: `/api/v1/monitoring/${tenant}/probe`,
-      method: 'POST',
+      method: "POST",
       secure: true,
       ...params,
     });
@@ -2146,8 +3167,24 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       any
     >({
       path: `/api/v1/version`,
-      method: 'GET',
-      format: 'json',
+      method: "GET",
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Get the prometheus metrics for the tenant
+   *
+   * @tags Tenant
+   * @name TenantGetPrometheusMetrics
+   * @summary Get prometheus metrics
+   * @request GET:/api/v1/tenants/{tenant}/prometheus-metrics
+   * @secure
+   */
+  tenantGetPrometheusMetrics = (tenant: string, params: RequestParams = {}) =>
+    this.request<EventKey, APIErrors>({
+      path: `/api/v1/tenants/${tenant}/prometheus-metrics`,
+      method: "GET",
+      secure: true,
       ...params,
     });
 }

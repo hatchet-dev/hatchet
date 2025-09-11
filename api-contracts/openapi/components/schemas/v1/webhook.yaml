@@ -1,0 +1,197 @@
+V1Webhook:
+  properties:
+    metadata:
+      $ref: "../metadata.yaml#/APIResourceMeta"
+    tenantId:
+      type: string
+      description: The ID of the tenant associated with this webhook.
+    name:
+      type: string
+      description: The name of the webhook
+    sourceName:
+      $ref: "#/V1WebhookSourceName"
+      description: The name of the source for this webhook
+    eventKeyExpression:
+      type: string
+      description: The CEL expression to use for the event key. This is used to create the event key from the webhook payload.
+    authType:
+      $ref: "#/V1WebhookAuthType"
+      description: The type of authentication to use for the webhook
+  required:
+    - metadata
+    - tenantId
+    - name
+    - sourceName
+    - eventKeyExpression
+    - authType
+
+V1WebhookList:
+  type: object
+  properties:
+    pagination:
+      $ref: "../metadata.yaml#/PaginationResponse"
+    rows:
+      type: array
+      items:
+        $ref: "#/V1Webhook"
+
+
+V1WebhookAuthType:
+  type: string
+  enum:
+    - BASIC
+    - API_KEY
+    - HMAC
+
+# TODO: Add more sources here as we support them
+# IMPORTANT: Keep these in sync with the database enum v1_incoming_webhook_source_name
+V1WebhookSourceName:
+  type: string
+  enum:
+    - GENERIC
+    - GITHUB
+    - STRIPE
+    - SLACK
+    - LINEAR
+
+V1WebhookHMACAlgorithm:
+  type: string
+  enum:
+    - SHA1
+    - SHA256
+    - SHA512
+    - MD5
+
+V1WebhookHMACEncoding:
+  type: string
+  enum:
+    - HEX
+    - BASE64
+    - BASE64URL
+
+V1WebhookBasicAuth:
+  type: object
+  properties:
+    username:
+      type: string
+      description: The username for basic auth
+    password:
+      type: string
+      description: The password for basic auth
+  required:
+    - username
+    - password
+
+V1WebhookAPIKeyAuth:
+  type: object
+  properties:
+    headerName:
+      type: string
+      description: The name of the header to use for the API key
+    apiKey:
+      type: string
+      description: The API key to use for authentication
+  required:
+    - headerName
+    - apiKey
+
+V1WebhookHMACAuth:
+  type: object
+  properties:
+    algorithm:
+      $ref: "#/V1WebhookHMACAlgorithm"
+      description: The HMAC algorithm to use for the webhook
+    encoding:
+      $ref: "#/V1WebhookHMACEncoding"
+      description: The encoding to use for the HMAC signature
+    signatureHeaderName:
+      type: string
+      description: The name of the header to use for the HMAC signature
+    signingSecret:
+      type: string
+      description: The secret key used to sign the HMAC signature
+  required:
+    - algorithm
+    - encoding
+    - signatureHeaderName
+    - signingSecret
+
+V1CreateWebhookRequestBase:
+  type: object
+  properties:
+    sourceName:
+      $ref: "#/V1WebhookSourceName"
+      description: The name of the source for this webhook
+    name:
+      type: string
+      description: The name of the webhook
+    eventKeyExpression:
+      type: string
+      description: The CEL expression to use for the event key. This is used to create the event key from the webhook payload.
+  required:
+    - name
+    - sourceName
+    - eventKeyExpression
+
+V1CreateWebhookRequestBasicAuth:
+  allOf:
+    - $ref: "#/V1CreateWebhookRequestBase"
+    - type: object
+      properties:
+        authType:
+          type: string
+          enum:
+            - BASIC
+          description: The type of authentication to use for the webhook
+        auth:
+          $ref: "#/V1WebhookBasicAuth"
+      required:
+        - authType
+        - auth
+
+V1CreateWebhookRequestAPIKey:
+  allOf:
+    - $ref: "#/V1CreateWebhookRequestBase"
+    - type: object
+      properties:
+        authType:
+          type: string
+          enum:
+            - API_KEY
+          description: The type of authentication to use for the webhook
+        auth:
+          $ref: "#/V1WebhookAPIKeyAuth"
+      required:
+        - authType
+        - auth
+
+V1CreateWebhookRequestHMAC:
+  allOf:
+    - $ref: "#/V1CreateWebhookRequestBase"
+    - type: object
+      properties:
+        authType:
+          type: string
+          enum:
+            - HMAC
+          description: The type of authentication to use for the webhook
+        auth:
+          $ref: "#/V1WebhookHMACAuth"
+      required:
+        - authType
+        - auth
+
+V1CreateWebhookRequest:
+  oneOf:
+    - $ref: "#/V1CreateWebhookRequestBasicAuth"
+    - $ref: "#/V1CreateWebhookRequestAPIKey"
+    - $ref: "#/V1CreateWebhookRequestHMAC"
+
+V1UpdateWebhookRequest:
+  type: object
+  properties:
+    eventKeyExpression:
+      type: string
+      description: The CEL expression to use for the event key. This is used to create the event key from the webhook payload.
+  required:
+    - eventKeyExpression

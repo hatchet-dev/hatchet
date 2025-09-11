@@ -14,11 +14,33 @@ Tenant:
     alertMemberEmails:
       type: boolean
       description: Whether to alert tenant members.
+    version:
+      $ref: "#/TenantVersion"
+      description: The version of the tenant.
+    uiVersion:
+      $ref: "#/TenantUIVersion"
+      description: The UI of the tenant.
+    environment:
+      $ref: "#/TenantEnvironment"
+      description: The environment type of the tenant.
   required:
     - metadata
     - name
     - slug
+    - version
   type: object
+
+TenantVersion:
+  enum:
+    - "V0"
+    - "V1"
+  type: string
+
+TenantUIVersion:
+  enum:
+    - "V0"
+    - "V1"
+  type: string
 
 TenantAlertingSettings:
   properties:
@@ -48,6 +70,14 @@ TenantAlertingSettings:
     - maxAlertingFrequency
   type: object
 
+# IMPORTANT: keep values in sync with sql/schema/v0.sql#TenantEnvironment
+TenantEnvironment:
+  enum:
+    - "local"
+    - "development"
+    - "production"
+  type: string
+
 CreateTenantRequest:
   properties:
     name:
@@ -60,6 +90,19 @@ CreateTenantRequest:
       description: The slug of the tenant.
       x-oapi-codegen-extra-tags:
         validate: "required,hatchetName"
+    uiVersion:
+      $ref: "#/TenantUIVersion"
+      description: The UI version of the tenant. Defaults to V0.
+    engineVersion:
+      $ref: "#/TenantVersion"
+      description: The engine version of the tenant. Defaults to V0.
+    environment:
+      $ref: "#/TenantEnvironment"
+      description: The environment type of the tenant.
+    onboardingData:
+      type: object
+      description: Additional onboarding data to store with the tenant.
+      additionalProperties: true
   required:
     - name
     - slug
@@ -90,13 +133,21 @@ UpdateTenantRequest:
       description: The max frequency at which to alert.
       x-oapi-codegen-extra-tags:
         validate: "omitnil,duration"
+    version:
+      $ref: "#/TenantVersion"
+      description: The version of the tenant.
+    uiVersion:
+      $ref: "#/TenantUIVersion"
+      description: The UI of the tenant.
   type: object
 
 TenantResource:
   enum:
     - "WORKER"
+    - "WORKER_SLOT"
     - "EVENT"
     - "WORKFLOW_RUN"
+    - "TASK_RUN"
     - "CRON"
     - "SCHEDULE"
   type: string
@@ -267,6 +318,17 @@ UpdateTenantInviteRequest:
     - role
   type: object
 
+UpdateTenantMemberRequest:
+  properties:
+    role:
+      $ref: "#/TenantMemberRole"
+      description: The role of the user in the tenant.
+      x-oapi-codegen-extra-tags:
+        validate: "required"
+  required:
+    - role
+  type: object
+
 TenantInvite:
   properties:
     metadata:
@@ -340,5 +402,3 @@ TenantStepRunQueueMetrics:
   properties:
     queues:
       type: object
-      additionalProperties:
-        type: integer

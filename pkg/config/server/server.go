@@ -4,23 +4,29 @@ import (
 	"crypto/tls"
 	"time"
 
+	"github.com/labstack/echo/v4"
 	"github.com/rs/zerolog"
 	"github.com/spf13/viper"
 	"golang.org/x/oauth2"
+	"google.golang.org/grpc"
 
+	"github.com/hatchet-dev/hatchet/api/v1/server/middleware"
 	"github.com/hatchet-dev/hatchet/internal/integrations/alerting"
-	"github.com/hatchet-dev/hatchet/internal/integrations/email"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
+	msgqueuev1 "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor"
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	"github.com/hatchet-dev/hatchet/pkg/auth/cookie"
 	"github.com/hatchet-dev/hatchet/pkg/auth/token"
+	client "github.com/hatchet-dev/hatchet/pkg/client/v1"
 	"github.com/hatchet-dev/hatchet/pkg/config/database"
 	"github.com/hatchet-dev/hatchet/pkg/config/shared"
 	"github.com/hatchet-dev/hatchet/pkg/encryption"
 	"github.com/hatchet-dev/hatchet/pkg/errors"
+	"github.com/hatchet-dev/hatchet/pkg/integrations/email"
 	"github.com/hatchet-dev/hatchet/pkg/repository/buffer"
-	v2 "github.com/hatchet-dev/hatchet/pkg/scheduling/v2"
+	v0 "github.com/hatchet-dev/hatchet/pkg/scheduling/v0"
+	v1 "github.com/hatchet-dev/hatchet/pkg/scheduling/v1"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
 
@@ -44,17 +50,23 @@ type ServerConfigFile struct {
 	// Used to bind the environment variable, since the array is not well supported
 	ServicesString string `mapstructure:"servicesString" json:"servicesString,omitempty"`
 
+	PausedControllers string `mapstructure:"pausedControllers" json:"pausedControllers,omitempty"`
+
 	EnableDataRetention bool `mapstructure:"enableDataRetention" json:"enableDataRetention,omitempty" default:"true"`
 
 	EnableWorkerRetention bool `mapstructure:"enableWorkerRetention" json:"enableWorkerRetention,omitempty" default:"false"`
 
 	TLS shared.TLSConfigFile `mapstructure:"tls" json:"tls,omitempty"`
 
+	InternalClient InternalClientTLSConfigFile `mapstructure:"internalClient" json:"internalClient,omitempty"`
+
 	Logger shared.LoggerConfigFile `mapstructure:"logger" json:"logger,omitempty"`
 
 	AdditionalLoggers ConfigFileAdditionalLoggers `mapstructure:"additionalLoggers" json:"additionalLoggers,omitempty"`
 
 	OpenTelemetry shared.OpenTelemetryConfigFile `mapstructure:"otel" json:"otel,omitempty"`
+
+	Prometheus shared.PrometheusConfigFile `mapstructure:"prometheus" json:"prometheus,omitempty"`
 
 	SecurityCheck SecurityCheckConfigFile `mapstructure:"securityCheck" json:"securityCheck,omitempty"`
 
@@ -63,6 +75,10 @@ type ServerConfigFile struct {
 	Email ConfigFileEmail `mapstructure:"email" json:"email,omitempty"`
 
 	Monitoring ConfigFileMonitoring `mapstructure:"monitoring" json:"monitoring,omitempty"`
+
+	Sampling ConfigFileSampling `mapstructure:"sampling" json:"sampling,omitempty"`
+
+	OLAP ConfigFileOperations `mapstructure:"olap" json:"olap,omitempty"`
 }
 
 type ConfigFileAdditionalLoggers struct {
@@ -71,6 +87,36 @@ type ConfigFileAdditionalLoggers struct {
 
 	// PgxStats is a custom logger config for the pgx stats service
 	PgxStats shared.LoggerConfigFile `mapstructure:"pgxStats" json:"pgxStats,omitempty"`
+}
+
+type ConfigFileSampling struct {
+	// Enabled controls whether sampling is enabled for this Hatchet instance.
+	Enabled bool `mapstructure:"enabled" json:"enabled,omitempty" default:"false"`
+
+	// SamplingRate is the rate at which to sample events. Default is 1.0 to sample all events.
+	SamplingRate float64 `mapstructure:"samplingRate" json:"samplingRate,omitempty" default:"1.0"`
+}
+
+type ConfigFileOperations struct {
+	// Jitter is the jitter duration for operations pools in milliseconds
+	Jitter int `mapstructure:"jitter" json:"jitter,omitempty" default:"0"`
+
+	// PollInterval is the polling interval for operations in seconds
+	PollInterval int `mapstructure:"pollInterval" json:"pollInterval,omitempty" default:"2"`
+}
+
+type TaskOperationLimitsConfigFile struct {
+	// TimeoutLimit is the limit for how many tasks to process in a single timeout operation
+	TimeoutLimit int `mapstructure:"timeoutLimit" json:"timeoutLimit,omitempty" default:"1000"`
+
+	// ReassignLimit is the limit for how many tasks to process in a single reassignment operation
+	ReassignLimit int `mapstructure:"reassignLimit" json:"reassignLimit,omitempty" default:"1000"`
+
+	// RetryQueueLimit is the limit for how many retry queue items to process in a single operation
+	RetryQueueLimit int `mapstructure:"retryQueueLimit" json:"retryQueueLimit,omitempty" default:"1000"`
+
+	// DurableSleepLimit is the limit for how many durable sleep items to process in a single operation
+	DurableSleepLimit int `mapstructure:"durableSleepLimit" json:"durableSleepLimit,omitempty" default:"1000"`
 }
 
 // General server runtime options
@@ -83,6 +129,9 @@ type ConfigFileRuntime struct {
 
 	// Healthcheck controls whether the server has a healthcheck endpoint
 	Healthcheck bool `mapstructure:"healthcheck" json:"healthcheck,omitempty" default:"true"`
+
+	// HealthcheckPort is the port that the healthcheck server listens on
+	HealthcheckPort int `mapstructure:"healthcheckPort" json:"healthcheckPort,omitempty" default:"8733"`
 
 	// GRPCPort is the port that the grpc service listens on
 	GRPCPort int `mapstructure:"grpcPort" json:"grpcPort,omitempty" default:"7070"`
@@ -99,8 +148,18 @@ type ConfigFileRuntime struct {
 	// GRPCMaxMsgSize is the maximum message size that the grpc server will accept
 	GRPCMaxMsgSize int `mapstructure:"grpcMaxMsgSize" json:"grpcMaxMsgSize,omitempty" default:"4194304"`
 
+	// GRPCStaticStreamWindowSize sets the static stream window size for the grpc server. This can help with performance
+	// with overloaded workers and large messages. Default is 10MB.
+	GRPCStaticStreamWindowSize int32 `mapstructure:"grpcStaticStreamWindowSize" json:"grpcStaticStreamWindowSize,omitempty" default:"10485760"`
+
 	// GRPCRateLimit is the rate limit for the grpc server. We count limits separately for the Workflow, Dispatcher and Events services. Workflow and Events service are set to this rate, Dispatcher is 10X this rate. The rate limit is per second, per engine, per api token.
 	GRPCRateLimit float64 `mapstructure:"grpcRateLimit" json:"grpcRateLimit,omitempty" default:"1000"`
+
+	// WebhookRateLimit is the rate limit for webhook endpoints per second, per webhook
+	WebhookRateLimit float64 `mapstructure:"webhookRateLimit" json:"webhookRateLimit,omitempty" default:"50"`
+
+	// WebhookRateLimitBurst is the burst size for webhook rate limiting
+	WebhookRateLimitBurst int `mapstructure:"webhookRateLimitBurst" json:"webhookRateLimitBurst,omitempty" default:"100"`
 
 	// ShutdownWait is the time between the readiness probe being offline when a shutdown is triggered and the actual start of cleaning up resources.
 	ShutdownWait time.Duration `mapstructure:"shutdownWait" json:"shutdownWait,omitempty" default:"20s"`
@@ -145,8 +204,8 @@ type ConfigFileRuntime struct {
 	// DisableTenantPubs controls whether tenant pubsub is disabled
 	DisableTenantPubs bool `mapstructure:"disableTenantPubs" json:"disableTenantPubs,omitempty"`
 
-	// MaxInternalRetryCount is the maximum number of internal retries before a step run is considered failed (default: 3)
-	MaxInternalRetryCount int32 `mapstructure:"maxInternalRetryCount" json:"maxInternalRetryCount,omitempty" default:"3"`
+	// MaxInternalRetryCount is the maximum number of internal retries before a step run is considered failed (default: 10)
+	MaxInternalRetryCount int32 `mapstructure:"maxInternalRetryCount" json:"maxInternalRetryCount,omitempty" default:"10"`
 
 	// WaitForFlush is the time to wait for the buffer to flush used for exerting some back pressure on writers
 	WaitForFlush time.Duration `mapstructure:"waitForFlush" json:"waitForFlush,omitempty" default:"1"`
@@ -176,6 +235,42 @@ type ConfigFileRuntime struct {
 	QueueStepRunBuffer buffer.ConfigFileBuffer `mapstructure:"queueStepRunBuffer" json:"queueStepRunBuffer,omitempty"`
 
 	Monitoring ConfigFileMonitoring `mapstructure:"monitoring" json:"monitoring,omitempty"`
+
+	// PreventTenantVersionUpgrade controls whether the server prevents tenant version upgrades
+	PreventTenantVersionUpgrade bool `mapstructure:"preventTenantVersionUpgrade" json:"preventTenantVersionUpgrade,omitempty" default:"false"`
+
+	// DefaultEngineVersion is the default engine version to use for new tenants
+	DefaultEngineVersion string `mapstructure:"defaultEngineVersion" json:"defaultEngineVersion,omitempty" default:"V1"`
+
+	// ReplayEnabled controls whether the server enables replay for tasks
+	ReplayEnabled bool `mapstructure:"replayEnabled" json:"replayEnabled,omitempty" default:"true"`
+
+	// SchedulerConcurrencyRateLimit is the rate limit for scheduler concurrency strategy execution (per second)
+	SchedulerConcurrencyRateLimit int `mapstructure:"schedulerConcurrencyRateLimit" json:"schedulerConcurrencyRateLimit,omitempty" default:"20"`
+
+	// LogIngestionEnabled controls whether the server enables log ingestion for tasks
+	LogIngestionEnabled bool `mapstructure:"logIngestionEnabled" json:"logIngestionEnabled,omitempty" default:"true"`
+
+	// TaskOperationLimits controls the limits for various task operations
+	TaskOperationLimits TaskOperationLimitsConfigFile `mapstructure:"taskOperationLimits" json:"taskOperationLimits,omitempty"`
+}
+
+type InternalClientTLSConfigFile struct {
+	// InheritBase controls whether the internal client should inherit the base TLS config from the
+	// server config. This will work if there's no gRPC proxy in between the externally-facing grpc server
+	// and the API server. If there is a proxy, you should set this to false and configure the base TLS
+	// config for the internal client.
+	InheritBase bool `mapstructure:"inheritBase" json:"inheritBase,omitempty" default:"true"`
+
+	// InternalGRPCBroadcastAddress is the address that the API endpoints can use to proxy to the gRPC server. If this
+	// is not set, it defaults to the GRPC_BROADCAST_ADDRESS
+	InternalGRPCBroadcastAddress string `mapstructure:"internalGRPCBroadcastAddress" json:"internalGRPCBroadcastAddress,omitempty"`
+
+	// TLSServerName is the server name to use to verify the TLS connection. If this is not set, it defaults
+	// to the host of the GRPC_BROADCAST_ADDRESS
+	TLSServerName string `mapstructure:"tlsServerName" json:"tlsServerName,omitempty"`
+
+	Base shared.TLSConfigFile `mapstructure:"base" json:"base,omitempty"`
 }
 
 type SecurityCheckConfigFile struct {
@@ -190,8 +285,15 @@ type LimitConfigFile struct {
 	DefaultWorkflowRunAlarmLimit int           `mapstructure:"defaultWorkflowRunAlarmLimit" json:"defaultWorkflowRunAlarmLimit,omitempty" default:"750"`
 	DefaultWorkflowRunWindow     time.Duration `mapstructure:"defaultWorkflowRunWindow" json:"defaultWorkflowRunWindow,omitempty" default:"24h"`
 
+	DefaultTaskRunLimit      int           `mapstructure:"defaultTaskRunLimit" json:"defaultTaskRunLimit,omitempty" default:"2000"`
+	DefaultTaskRunAlarmLimit int           `mapstructure:"defaultTaskRunAlarmLimit" json:"defaultTaskRunAlarmLimit,omitempty" default:"1500"`
+	DefaultTaskRunWindow     time.Duration `mapstructure:"defaultTaskRunWindow" json:"defaultTaskRunWindow,omitempty" default:"24h"`
+
 	DefaultWorkerLimit      int `mapstructure:"defaultWorkerLimit" json:"defaultWorkerLimit,omitempty" default:"4"`
 	DefaultWorkerAlarmLimit int `mapstructure:"defaultWorkerAlarmLimit" json:"defaultWorkerAlarmLimit,omitempty" default:"2"`
+
+	DefaultWorkerSlotLimit      int `mapstructure:"defaultWorkerSlotLimit" json:"defaultWorkerSlotLimit,omitempty" default:"4000"`
+	DefaultWorkerSlotAlarmLimit int `mapstructure:"defaultWorkerSlotAlarmLimit" json:"defaultWorkerSlotAlarmLimit,omitempty" default:"3000"`
 
 	DefaultEventLimit      int           `mapstructure:"defaultEventLimit" json:"defaultEventLimit,omitempty" default:"1000"`
 	DefaultEventAlarmLimit int           `mapstructure:"defaultEventAlarmLimit" json:"defaultEventAlarmLimit,omitempty" default:"750"`
@@ -202,6 +304,9 @@ type LimitConfigFile struct {
 
 	DefaultScheduleLimit      int `mapstructure:"defaultScheduleLimit" json:"defaultScheduleLimit,omitempty" default:"1000"`
 	DefaultScheduleAlarmLimit int `mapstructure:"defaultScheduleAlarmLimit" json:"defaultScheduleAlarmLimit,omitempty" default:"750"`
+
+	DefaultIncomingWebhookLimit      int `mapstructure:"defaultIncomingWebhookLimit" json:"defaultIncomingWebhookLimit,omitempty" default:"5"`
+	DefaultIncomingWebhookAlarmLimit int `mapstructure:"defaultIncomingWebhookAlarmLimit" json:"defaultIncomingWebhookALarmLimit,omitempty" default:"4"`
 }
 
 // Alerting options
@@ -256,7 +361,7 @@ type EncryptionConfigFile struct {
 	JWT EncryptionConfigFileJWT `mapstructure:"jwt" json:"jwt,omitempty"`
 
 	// CloudKMS is the configuration for Google Cloud KMS. You must set either MasterKeyset or cloudKms.enabled.
-	CloudKMS EncryptionConfigFileCloudKMS `mapstructure:"cloudKms" json:"cloudKms,omitempty"`
+	CloudKMS EncryptionConfigFileCloudKMS `mapstructure:"cloudKms" json:"cloudKMS,omitempty"`
 }
 
 type EncryptionConfigFileJWT struct {
@@ -388,6 +493,15 @@ type PostmarkConfigFile struct {
 	SupportEmail string `mapstructure:"supportEmail" json:"supportEmail,omitempty"`
 }
 
+type CustomAuthenticator interface {
+	// Authenticate is called to authenticate for endpoints that support the customAuth security scheme
+	Authenticate(c echo.Context) error
+	// Authorize is called to authorize for endpoints that support the customAuth security scheme
+	Authorize(c echo.Context, r *middleware.RouteInfo) error
+	// CookieAuthorizerHook is called as part of cookie authorization
+	CookieAuthorizerHook(c echo.Context, r *middleware.RouteInfo) error
+}
+
 type AuthConfig struct {
 	RestrictedEmailDomains []string
 
@@ -398,6 +512,8 @@ type AuthConfig struct {
 	GithubOAuthConfig *oauth2.Config
 
 	JWTManager token.JWTManager
+
+	CustomAuthenticator CustomAuthenticator
 }
 
 type PylonConfig struct {
@@ -430,6 +546,8 @@ type ServerConfig struct {
 
 	Services []string
 
+	PausedControllers map[string]bool
+
 	EnableDataRetention bool
 
 	EnableWorkerRetention bool
@@ -438,11 +556,15 @@ type ServerConfig struct {
 
 	MessageQueue msgqueue.MessageQueue
 
+	MessageQueueV1 msgqueuev1.MessageQueue
+
 	Logger *zerolog.Logger
 
 	AdditionalLoggers ConfigFileAdditionalLoggers
 
 	TLSConfig *tls.Config
+
+	InternalClientFactory *client.GRPCClientFactory
 
 	SessionStore *cookie.UserSessionStore
 
@@ -452,13 +574,23 @@ type ServerConfig struct {
 
 	OpenTelemetry shared.OpenTelemetryConfigFile
 
+	Prometheus shared.PrometheusConfigFile
+
 	Email email.EmailService
 
 	TenantAlerter *alerting.TenantAlertManager
 
 	AdditionalOAuthConfigs map[string]*oauth2.Config
 
-	SchedulingPool *v2.SchedulingPool
+	SchedulingPool *v0.SchedulingPool
+
+	SchedulingPoolV1 *v1.SchedulingPool
+
+	Sampling ConfigFileSampling
+
+	Operations ConfigFileOperations
+
+	GRPCInterceptors []grpc.UnaryServerInterceptor
 
 	Version string
 }
@@ -473,19 +605,29 @@ func (c *ServerConfig) HasService(name string) bool {
 	return false
 }
 
+func (c *ServerConfig) AddGRPCUnaryInterceptor(interceptor grpc.UnaryServerInterceptor) {
+	c.GRPCInterceptors = append(c.GRPCInterceptors, interceptor)
+}
+
 func BindAllEnv(v *viper.Viper) {
 	// runtime options
 	_ = v.BindEnv("runtime.port", "SERVER_PORT")
 	_ = v.BindEnv("runtime.url", "SERVER_URL")
 	_ = v.BindEnv("runtime.healthcheck", "SERVER_HEALTHCHECK")
+	_ = v.BindEnv("runtime.healthcheckPort", "SERVER_HEALTHCHECK_PORT")
 	_ = v.BindEnv("runtime.grpcPort", "SERVER_GRPC_PORT")
 	_ = v.BindEnv("runtime.grpcBindAddress", "SERVER_GRPC_BIND_ADDRESS")
 	_ = v.BindEnv("runtime.grpcBroadcastAddress", "SERVER_GRPC_BROADCAST_ADDRESS")
 	_ = v.BindEnv("runtime.grpcInsecure", "SERVER_GRPC_INSECURE")
 	_ = v.BindEnv("runtime.grpcMaxMsgSize", "SERVER_GRPC_MAX_MSG_SIZE")
+	_ = v.BindEnv("runtime.grpcStaticStreamWindowSize", "SERVER_GRPC_STATIC_STREAM_WINDOW_SIZE")
 	_ = v.BindEnv("runtime.grpcRateLimit", "SERVER_GRPC_RATE_LIMIT")
+	_ = v.BindEnv("runtime.webhookRateLimit", "SERVER_INCOMING_WEBHOOK_RATE_LIMIT")
+	_ = v.BindEnv("runtime.webhookRateLimitBurst", "SERVER_INCOMING_WEBHOOK_RATE_LIMIT_BURST")
+	_ = v.BindEnv("runtime.schedulerConcurrencyRateLimit", "SCHEDULER_CONCURRENCY_RATE_LIMIT")
 	_ = v.BindEnv("runtime.shutdownWait", "SERVER_SHUTDOWN_WAIT")
 	_ = v.BindEnv("servicesString", "SERVER_SERVICES")
+	_ = v.BindEnv("pausedControllers", "SERVER_PAUSED_CONTROLLERS")
 	_ = v.BindEnv("enableDataRetention", "SERVER_ENABLE_DATA_RETENTION")
 	_ = v.BindEnv("enableWorkerRetention", "SERVER_ENABLE_WORKER_RETENTION")
 	_ = v.BindEnv("runtime.enforceLimits", "SERVER_ENFORCE_LIMITS")
@@ -497,6 +639,9 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.bufferCreateWorkflowRuns", "SERVER_BUFFER_CREATE_WORKFLOW_RUNS")
 	_ = v.BindEnv("runtime.disableTenantPubs", "SERVER_DISABLE_TENANT_PUBS")
 	_ = v.BindEnv("runtime.maxInternalRetryCount", "SERVER_MAX_INTERNAL_RETRY_COUNT")
+	_ = v.BindEnv("runtime.preventTenantVersionUpgrade", "SERVER_PREVENT_TENANT_VERSION_UPGRADE")
+	_ = v.BindEnv("runtime.defaultEngineVersion", "SERVER_DEFAULT_ENGINE_VERSION")
+	_ = v.BindEnv("runtime.replayEnabled", "SERVER_REPLAY_ENABLED")
 
 	// security check options
 	_ = v.BindEnv("securityCheck.enabled", "SERVER_SECURITY_CHECK_ENABLED")
@@ -509,8 +654,15 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.limits.defaultWorkflowRunAlarmLimit", "SERVER_LIMITS_DEFAULT_WORKFLOW_RUN_ALARM_LIMIT")
 	_ = v.BindEnv("runtime.limits.defaultWorkflowRunWindow", "SERVER_LIMITS_DEFAULT_WORKFLOW_RUN_WINDOW")
 
+	_ = v.BindEnv("runtime.limits.defaultTaskRunLimit", "SERVER_LIMITS_DEFAULT_TASK_RUN_LIMIT")
+	_ = v.BindEnv("runtime.limits.defaultTaskRunAlarmLimit", "SERVER_LIMITS_DEFAULT_TASK_RUN_ALARM_LIMIT")
+	_ = v.BindEnv("runtime.limits.defaultTaskRunWindow", "SERVER_LIMITS_DEFAULT_TASK_RUN_WINDOW")
+
 	_ = v.BindEnv("runtime.limits.defaultWorkerLimit", "SERVER_LIMITS_DEFAULT_WORKER_LIMIT")
 	_ = v.BindEnv("runtime.limits.defaultWorkerAlarmLimit", "SERVER_LIMITS_DEFAULT_WORKER_ALARM_LIMIT")
+
+	_ = v.BindEnv("runtime.limits.defaultWorkerSlotLimit", "SERVER_LIMITS_DEFAULT_WORKER_SLOT_LIMIT")
+	_ = v.BindEnv("runtime.limits.defaultWorkerSlotAlarmLimit", "SERVER_LIMITS_DEFAULT_WORKER_SLOT_ALARM_LIMIT")
 
 	_ = v.BindEnv("runtime.limits.defaultEventLimit", "SERVER_LIMITS_DEFAULT_EVENT_LIMIT")
 	_ = v.BindEnv("runtime.limits.defaultEventAlarmLimit", "SERVER_LIMITS_DEFAULT_EVENT_ALARM_LIMIT")
@@ -521,6 +673,8 @@ func BindAllEnv(v *viper.Viper) {
 
 	_ = v.BindEnv("runtime.limits.defaultScheduleLimit", "SERVER_LIMITS_DEFAULT_SCHEDULE_LIMIT")
 	_ = v.BindEnv("runtime.limits.defaultScheduleAlarmLimit", "SERVER_LIMITS_DEFAULT_SCHEDULE_ALARM_LIMIT")
+
+	_ = v.BindEnv("runtime.limits.defaultIncomingWebhookLimit", "SERVER_LIMITS_DEFAULT_INCOMING_WEBHOOK_LIMIT")
 
 	// buffer options
 	_ = v.BindEnv("runtime.workflowRunBuffer.waitForFlush", "SERVER_WORKFLOWRUNBUFFER_WAIT_FOR_FLUSH")
@@ -553,6 +707,9 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.flushPeriodMilliseconds", "SERVER_FLUSH_PERIOD_MILLISECONDS")
 	_ = v.BindEnv("runtime.flushItemsThreshold", "SERVER_FLUSH_ITEMS_THRESHOLD")
 	_ = v.BindEnv("runtime.flushStrategy", "SERVER_FLUSH_STRATEGY")
+
+	// log ingestion
+	_ = v.BindEnv("runtime.logIngestionEnabled", "SERVER_LOG_INGESTION_ENABLED")
 
 	// alerting options
 	_ = v.BindEnv("alerting.sentry.enabled", "SERVER_ALERTING_SENTRY_ENABLED")
@@ -615,6 +772,18 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.updateHashFactor", "SERVER_UPDATE_HASH_FACTOR")
 	_ = v.BindEnv("runtime.updateConcurrentFactor", "SERVER_UPDATE_CONCURRENT_FACTOR")
 
+	// internal client options
+	_ = v.BindEnv("internalClient.base.tlsStrategy", "SERVER_INTERNAL_CLIENT_BASE_STRATEGY")
+	_ = v.BindEnv("internalClient.inheritBase", "SERVER_INTERNAL_CLIENT_BASE_INHERIT_BASE")
+	_ = v.BindEnv("internalClient.base.tlsCert", "SERVER_INTERNAL_CLIENT_TLS_BASE_CERT")
+	_ = v.BindEnv("internalClient.base.tlsCertFile", "SERVER_INTERNAL_CLIENT_TLS_BASE_CERT_FILE")
+	_ = v.BindEnv("internalClient.base.tlsKey", "SERVER_INTERNAL_CLIENT_TLS_BASE_KEY")
+	_ = v.BindEnv("internalClient.base.tlsKeyFile", "SERVER_INTERNAL_CLIENT_TLS_BASE_KEY_FILE")
+	_ = v.BindEnv("internalClient.base.tlsRootCA", "SERVER_INTERNAL_CLIENT_TLS_BASE_ROOT_CA")
+	_ = v.BindEnv("internalClient.base.tlsRootCAFile", "SERVER_INTERNAL_CLIENT_TLS_BASE_ROOT_CA_FILE")
+	_ = v.BindEnv("internalClient.tlsServerName", "SERVER_INTERNAL_CLIENT_TLS_SERVER_NAME")
+	_ = v.BindEnv("internalClient.internalGRPCBroadcastAddress", "SERVER_INTERNAL_CLIENT_INTERNAL_GRPC_BROADCAST_ADDRESS")
+
 	// tls options
 	_ = v.BindEnv("tls.tlsStrategy", "SERVER_TLS_STRATEGY")
 	_ = v.BindEnv("tls.tlsCert", "SERVER_TLS_CERT")
@@ -640,6 +809,15 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("otel.collectorURL", "SERVER_OTEL_COLLECTOR_URL")
 	_ = v.BindEnv("otel.traceIdRatio", "SERVER_OTEL_TRACE_ID_RATIO")
 	_ = v.BindEnv("otel.insecure", "SERVER_OTEL_INSECURE")
+	_ = v.BindEnv("otel.collectorAuth", "SERVER_OTEL_COLLECTOR_AUTH")
+
+	// prometheus options
+	_ = v.BindEnv("prometheus.prometheusServerURL", "SERVER_PROMETHEUS_SERVER_URL")
+	_ = v.BindEnv("prometheus.prometheusServerUsername", "SERVER_PROMETHEUS_SERVER_USERNAME")
+	_ = v.BindEnv("prometheus.prometheusServerPassword", "SERVER_PROMETHEUS_SERVER_PASSWORD")
+	_ = v.BindEnv("prometheus.enabled", "SERVER_PROMETHEUS_ENABLED")
+	_ = v.BindEnv("prometheus.address", "SERVER_PROMETHEUS_ADDRESS")
+	_ = v.BindEnv("prometheus.path", "SERVER_PROMETHEUS_PATH")
 
 	// tenant alerting options
 	_ = v.BindEnv("tenantAlerting.slack.enabled", "SERVER_TENANT_ALERTING_SLACK_ENABLED")
@@ -661,4 +839,17 @@ func BindAllEnv(v *viper.Viper) {
 	// we will fill this in from the server config if it is not set
 	_ = v.BindEnv("runtime.monitoring.tlsRootCAFile", "SERVER_MONITORING_TLS_ROOT_CA_FILE")
 
+	// sampling options
+	_ = v.BindEnv("sampling.enabled", "SERVER_SAMPLING_ENABLED")
+	_ = v.BindEnv("sampling.samplingRate", "SERVER_SAMPLING_RATE")
+
+	// operations options
+	_ = v.BindEnv("olap.jitter", "SERVER_OPERATIONS_JITTER")
+	_ = v.BindEnv("olap.pollInterval", "SERVER_OPERATIONS_POLL_INTERVAL")
+
+	// task operation limits options
+	_ = v.BindEnv("taskOperationLimits.timeoutLimit", "SERVER_TASK_OPERATION_LIMITS_TIMEOUT_LIMIT")
+	_ = v.BindEnv("taskOperationLimits.reassignLimit", "SERVER_TASK_OPERATION_LIMITS_REASSIGN_LIMIT")
+	_ = v.BindEnv("taskOperationLimits.retryQueueLimit", "SERVER_TASK_OPERATION_LIMITS_RETRY_QUEUE_LIMIT")
+	_ = v.BindEnv("taskOperationLimits.durableSleepLimit", "SERVER_TASK_OPERATION_LIMITS_DURABLE_SLEEP_LIMIT")
 }

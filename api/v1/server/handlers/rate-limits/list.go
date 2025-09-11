@@ -11,11 +11,13 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 func (t *RateLimitService) RateLimitList(ctx echo.Context, request gen.RateLimitListRequestObject) (gen.RateLimitListResponseObject, error) {
-	tenant := ctx.Get("tenant").(*db.TenantModel)
+	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
+	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
 	limit := 50
 	offset := 0
@@ -50,7 +52,7 @@ func (t *RateLimitService) RateLimitList(ctx echo.Context, request gen.RateLimit
 	dbCtx, cancel := context.WithTimeout(ctx.Request().Context(), 30*time.Second)
 	defer cancel()
 
-	listRes, err := t.config.EngineRepository.RateLimit().ListRateLimits(dbCtx, tenant.ID, listOpts)
+	listRes, err := t.config.EngineRepository.RateLimit().ListRateLimits(dbCtx, tenantId, listOpts)
 
 	if err != nil {
 		return nil, err

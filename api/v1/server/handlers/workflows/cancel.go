@@ -12,12 +12,13 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 func (t *WorkflowService) WorkflowRunCancel(ctx echo.Context, request gen.WorkflowRunCancelRequestObject) (gen.WorkflowRunCancelResponseObject, error) {
-	tenant := ctx.Get("tenant").(*db.TenantModel)
+	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
+	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 	runIds := request.Body.WorkflowRunIds
 
 	var wg sync.WaitGroup
@@ -32,7 +33,7 @@ func (t *WorkflowService) WorkflowRunCancel(ctx echo.Context, request gen.Workfl
 
 			// Lookup step runs for the workflow run
 			runIdStr := runId.String()
-			jobRun, err := t.config.EngineRepository.JobRun().ListJobRunsForWorkflowRun(ctx.Request().Context(), tenant.ID, runIdStr)
+			jobRun, err := t.config.EngineRepository.JobRun().ListJobRunsForWorkflowRun(ctx.Request().Context(), tenantId, runIdStr)
 			if err != nil {
 				returnErr = multierror.Append(err, fmt.Errorf("failed to list job runs for workflow run %s", runIdStr))
 				return
@@ -46,7 +47,7 @@ func (t *WorkflowService) WorkflowRunCancel(ctx echo.Context, request gen.Workfl
 				err = t.config.MessageQueue.AddMessage(
 					ctx.Request().Context(),
 					msgqueue.JOB_PROCESSING_QUEUE,
-					tasktypes.JobRunCancelledToTask(tenant.ID, jobRunId, &reason),
+					tasktypes.JobRunCancelledToTask(tenantId, jobRunId, &reason),
 				)
 				if err != nil {
 					returnErr = multierror.Append(err, fmt.Errorf("failed to send cancel task for job run %s", jobRunId))

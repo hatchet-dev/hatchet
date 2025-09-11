@@ -1,6 +1,6 @@
 import { queries } from '@/lib/api';
-import { useEffect, useState } from 'react';
-import { Button } from '@/components/ui/button';
+import { useEffect, useMemo, useState } from 'react';
+import { Button } from '@/components/v1/ui/button';
 import { useQuery } from '@tanstack/react-query';
 import { ExclamationTriangleIcon, PlusIcon } from '@heroicons/react/24/outline';
 import {
@@ -9,14 +9,13 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
+} from '@/components/v1/ui/select';
 import { z } from 'zod';
 import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Label } from '@/components/ui/label';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Input } from '@/components/ui/input';
-import EnvGroupArray, { KeyValueType } from '@/components/ui/envvar';
+import { Label } from '@/components/v1/ui/label';
+import { Alert, AlertDescription, AlertTitle } from '@/components/v1/ui/alert';
+import { Input } from '@/components/v1/ui/input';
 import {
   getRepoName,
   getRepoOwner,
@@ -35,12 +34,25 @@ import {
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
-} from '@/components/ui/accordion';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Checkbox } from '@/components/ui/checkbox';
+} from '@/components/v1/ui/accordion';
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from '@/components/v1/ui/tabs';
+import { Checkbox } from '@/components/v1/ui/checkbox';
+import { UpgradeMessage } from '../../create/components/create-worker-form';
+import {
+  ComputeType,
+  managedCompute,
+} from '@/lib/can/features/managed-compute';
+import { useTenant } from '@/lib/atoms';
+import EnvGroupArray, { KeyValueType } from '@/components/v1/ui/envvar';
 
 interface UpdateWorkerFormProps {
   onSubmit: (opts: z.infer<typeof updateManagedWorkerSchema>) => void;
+  tenantId: string;
   isLoading: boolean;
   fieldErrors?: Record<string, string>;
   managedWorker: ManagedWorker;
@@ -63,7 +75,22 @@ const updateManagedWorkerSchema = z.object({
     })
     .optional(),
   isIac: z.boolean().default(false).optional(),
-  envVars: z.record(z.string()).optional(),
+  secrets: z.object({
+    add: z.array(
+      z.object({
+        key: z.string(),
+        value: z.string(),
+      }),
+    ),
+    update: z.array(
+      z.object({
+        id: z.string(),
+        key: z.string(),
+        value: z.string(),
+      }),
+    ),
+    delete: z.array(z.string()),
+  }),
   runtimeConfig: z
     .object({
       numReplicas: z.number().min(0).max(16).optional(),
@@ -93,6 +120,7 @@ const updateManagedWorkerSchema = z.object({
 
 export default function UpdateWorkerForm({
   onSubmit,
+  tenantId,
   isLoading,
   fieldErrors,
   managedWorker,
@@ -109,14 +137,14 @@ export default function UpdateWorkerForm({
     defaultValues: {
       name: managedWorker.name,
       buildConfig: {
-        githubInstallationId: managedWorker.buildConfig.githubInstallationId,
+        githubInstallationId: managedWorker.buildConfig?.githubInstallationId,
         githubRepositoryBranch:
-          managedWorker.buildConfig.githubRepositoryBranch,
+          managedWorker.buildConfig?.githubRepositoryBranch,
         githubRepositoryName:
-          managedWorker.buildConfig.githubRepository.repo_name,
+          managedWorker.buildConfig?.githubRepository?.repo_name,
         githubRepositoryOwner:
-          managedWorker.buildConfig.githubRepository.repo_owner,
-        steps: managedWorker.buildConfig.steps?.map((step) => ({
+          managedWorker.buildConfig?.githubRepository?.repo_owner,
+        steps: managedWorker.buildConfig?.steps?.map((step) => ({
           buildDir: step.buildDir,
           dockerfilePath: step.dockerfilePath,
         })) || [
@@ -126,7 +154,11 @@ export default function UpdateWorkerForm({
           },
         ],
       },
-      envVars: managedWorker.envVars,
+      secrets: {
+        add: [],
+        update: [],
+        delete: [],
+      },
       isIac: managedWorker.isIac,
       runtimeConfig:
         !managedWorker.isIac && managedWorker.runtimeConfigs?.length == 1
@@ -180,6 +212,25 @@ export default function UpdateWorkerForm({
     '1 CPU, 1 GB RAM (shared CPU)',
   );
 
+  // Set initial machine type based on current worker configuration
+  useEffect(() => {
+    if (
+      managedWorker?.runtimeConfigs &&
+      managedWorker.runtimeConfigs.length > 0
+    ) {
+      const config = managedWorker.runtimeConfigs[0];
+      const matchingType = machineTypes.find(
+        (m) =>
+          m.cpuKind === config.cpuKind &&
+          m.cpus === config.cpus &&
+          m.memoryMb === config.memoryMb,
+      );
+      if (matchingType) {
+        setMachineType(matchingType.title);
+      }
+    }
+  }, [managedWorker]);
+
   const region = watch('runtimeConfig.regions');
   const installation = watch('buildConfig.githubInstallationId');
   const repoOwner = watch('buildConfig.githubRepositoryOwner');
@@ -188,19 +239,27 @@ export default function UpdateWorkerForm({
   const branch = watch('buildConfig.githubRepositoryBranch');
 
   const listInstallationsQuery = useQuery({
-    ...queries.github.listInstallations,
+    ...queries.github.listInstallations(tenantId),
   });
 
   const listReposQuery = useQuery({
-    ...queries.github.listRepos(installation),
+    ...queries.github.listRepos(tenantId, installation),
   });
 
   const listBranchesQuery = useQuery({
-    ...queries.github.listBranches(installation, repoOwner, repoName),
+    ...queries.github.listBranches(tenantId, installation, repoOwner, repoName),
   });
 
-  const [envVars, setEnvVars] = useState<KeyValueType[]>(
-    envVarsRecordToKeyValueType(managedWorker.envVars),
+  const [secrets, setSecrets] = useState<KeyValueType[]>(
+    managedWorker.directSecrets?.map((secret) => ({
+      key: secret.key,
+      value: secret.hint || '',
+      hidden: false,
+      locked: false,
+      deleted: false,
+      id: secret.id,
+      hint: secret.hint,
+    })) || [],
   );
 
   const [isIac, setIsIac] = useState(managedWorker.isIac);
@@ -221,8 +280,8 @@ export default function UpdateWorkerForm({
   const numReplicasError =
     errors.runtimeConfig?.numReplicas?.message?.toString() ||
     fieldErrors?.numReplicas;
-  const envVarsError =
-    errors.envVars?.message?.toString() || fieldErrors?.envVars;
+  const secretsError =
+    errors.secrets?.add?.message?.toString() || fieldErrors?.secrets;
   const cpuKindError =
     errors.runtimeConfig?.cpuKind?.message?.toString() || fieldErrors?.cpuKind;
   const cpusError =
@@ -275,7 +334,7 @@ export default function UpdateWorkerForm({
     ) {
       setValue(
         'buildConfig.githubInstallationId',
-        managedWorker.buildConfig.githubInstallationId ||
+        managedWorker.buildConfig?.githubInstallationId ||
           listInstallationsQuery.data.rows[0].metadata.id,
       );
     }
@@ -294,6 +353,50 @@ export default function UpdateWorkerForm({
       setValue('runtimeConfig.regions', [ManagedWorkerRegion.Sea]);
     }
   }, [getValues, setValue, isIac]);
+
+  const { can } = useTenant();
+
+  const [isComputeAllowed] = useMemo(() => {
+    const selectedMachine = machineTypes.find((m) => m.title === machineType);
+    if (!selectedMachine || !can) {
+      return [true, undefined];
+    }
+
+    const computeType: ComputeType = {
+      cpuKind: selectedMachine.cpuKind,
+      cpus: selectedMachine.cpus,
+      memoryMb: selectedMachine.memoryMb,
+    };
+
+    return can(managedCompute.selectCompute(computeType));
+  }, [can, machineType]);
+
+  // Update form values when secrets change
+  useEffect(() => {
+    // Split secrets into add/update/delete
+    const toAdd = secrets.filter((s) => !s.id && !s.deleted);
+    const toUpdate = secrets.filter((s) => s.id && !s.deleted && s.isEditing);
+    const toDelete = secrets.filter((s) => s.id && s.deleted).map((s) => s.id!);
+
+    setValue(
+      'secrets.add',
+      toAdd.map((s) => ({
+        key: s.key,
+        value: s.value,
+      })),
+    );
+
+    setValue(
+      'secrets.update',
+      toUpdate.map((s) => ({
+        id: s.id!,
+        key: s.key,
+        value: s.value,
+      })),
+    );
+
+    setValue('secrets.delete', toDelete);
+  }, [secrets, setValue]);
 
   // if there are no github accounts linked, ask the user to link one
   if (
@@ -318,12 +421,46 @@ export default function UpdateWorkerForm({
     );
   }
 
+  const renderMachineTypeSelectItem = (machine: (typeof machineTypes)[0]) => {
+    const computeType: ComputeType = {
+      cpuKind: machine.cpuKind,
+      cpus: machine.cpus,
+      memoryMb: machine.memoryMb,
+    };
+
+    const [allowed] = can(managedCompute.selectCompute(computeType));
+
+    return (
+      <SelectItem key={machine.title} value={machine.title}>
+        {machine.title} {!allowed && '🔒'}
+      </SelectItem>
+    );
+  };
+
   return (
     <>
       <div className="text-sm text-muted-foreground">
-        Change the configuration of your worker. This will trigger a
-        redeployment.
+        Change the configuration of your service. This will trigger a
+        redeployment of all workers.
       </div>
+      {!managedWorker.canUpdate && (
+        <Alert className="mt-4" variant="warn">
+          <ExclamationTriangleIcon className="h-4 w-4" />
+          <AlertTitle className="font-semibold">
+            You do not have permission to update this service.
+          </AlertTitle>
+          <AlertDescription>
+            Please make sure your linked{' '}
+            <a
+              href={`/tenants/${tenantId}/tenant-settings/github`}
+              className="text-indigo-400"
+            >
+              Github account
+            </a>{' '}
+            has write access to the repository.
+          </AlertDescription>
+        </Alert>
+      )}
       <div className="mt-6 flex flex-col gap-4">
         <div>
           <div className="grid gap-4">
@@ -333,7 +470,11 @@ export default function UpdateWorkerForm({
               name="name"
               render={({ field }) => {
                 return (
-                  <Input {...field} id="name" placeholder="my-awesome-worker" />
+                  <Input
+                    {...field}
+                    id="name"
+                    placeholder="my-awesome-service"
+                  />
                 );
               }}
             />
@@ -511,24 +652,25 @@ export default function UpdateWorkerForm({
             </AccordionTrigger>
             <AccordionContent className="grid gap-4">
               <div className="text-sm text-muted-foreground">
-                Configure the runtime settings for this worker.
+                Configure the runtime settings for this service.
               </div>
               <Label>Environment Variables</Label>
               <EnvGroupArray
-                values={envVars}
-                setValues={(value) => {
-                  setEnvVars(value);
-                  setValue(
-                    'envVars',
-                    value.reduce<Record<string, string>>((acc, item) => {
-                      acc[item.key] = item.value;
-                      return acc;
-                    }, {}),
-                  );
+                values={secrets}
+                setValues={setSecrets}
+                onUpdate={(updatedSecrets) => {
+                  // Update the secrets state with the new values
+                  setSecrets((prev) => {
+                    const newSecrets = prev.map((s) => {
+                      const updated = updatedSecrets.find((u) => u.id === s.id);
+                      return updated ? { ...s, ...updated } : s;
+                    });
+                    return newSecrets;
+                  });
                 }}
               />
-              {envVarsError && (
-                <div className="text-sm text-red-500">{envVarsError}</div>
+              {secretsError && (
+                <div className="text-sm text-red-500">{secretsError}</div>
               )}
               <Label>Machine Configuration Method</Label>
               <Tabs
@@ -591,11 +733,9 @@ export default function UpdateWorkerForm({
                           {...field}
                           value={machineType}
                           onValueChange={(value) => {
-                            // get the correct machine type from the value
                             const machineType = machineTypes.find(
                               (i) => i.title === value,
                             );
-
                             setMachineType(value);
                             setValue(
                               'runtimeConfig.cpus',
@@ -618,16 +758,17 @@ export default function UpdateWorkerForm({
                             />
                           </SelectTrigger>
                           <SelectContent>
-                            {machineTypes.map((i) => (
-                              <SelectItem key={i.title} value={i.title}>
-                                {i.title}
-                              </SelectItem>
-                            ))}
+                            {machineTypes.map(renderMachineTypeSelectItem)}
                           </SelectContent>
                         </Select>
                       );
                     }}
                   />
+                  {!isComputeAllowed && (
+                    <UpgradeMessage
+                      feature={`The selected machine type (${machineType})`}
+                    />
+                  )}
                   {cpuKindError && (
                     <div className="text-sm text-red-500">{cpuKindError}</div>
                   )}
@@ -949,7 +1090,12 @@ export default function UpdateWorkerForm({
         </Accordion>
         <Button
           onClick={handleSubmit(onSubmit)}
-          disabled={!installation || !repoOwnerName || !branch}
+          disabled={
+            !managedWorker.canUpdate ||
+            !installation ||
+            !repoOwnerName ||
+            !branch
+          }
           className="w-fit px-8"
         >
           {isLoading && <PlusIcon className="h-4 w-4 animate-spin" />}
@@ -958,16 +1104,4 @@ export default function UpdateWorkerForm({
       </div>
     </>
   );
-}
-
-function envVarsRecordToKeyValueType(
-  envVars: Record<string, string>,
-): KeyValueType[] {
-  return Object.entries(envVars).map(([key, value]) => ({
-    key,
-    value,
-    hidden: false,
-    locked: false,
-    deleted: false,
-  }));
 }

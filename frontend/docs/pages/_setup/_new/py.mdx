@@ -1,0 +1,43 @@
+import { Callout, Card, Cards, Steps, Tabs } from "nextra/components";
+import UniversalTabs from "@/components/UniversalTabs";
+import InstallCommand from "@/components/InstallCommand";
+import { Snippet } from "@/components/code";
+import { snippets } from "@/lib/generated/snippets";
+
+#### Create a new project directory and cd into it
+
+```bash copy
+mkdir hatchet-tutorial && cd hatchet-tutorial
+```
+
+#### Initialize a new python project with required dependencies
+
+<InstallCommand withDevDependencies />
+
+#### Create project directories
+
+```bash copy
+mkdir src &&
+mkdir src/workflows &&
+mkdir src/workers
+```
+
+#### Instantiate your Hatchet Client
+
+It is recommended to instantiate a shared Hatchet Client in a separate file as a singleton.
+
+Create a new file called `hatchet_client.py`
+
+```bash copy
+touch src/hatchet_client.py
+```
+
+Add the following code to the file:
+
+<Snippet src={snippets.python.setup.client.create_a_hatchet_client} />
+
+You can now import the Hatchet Client in any file that needs it.
+
+```python copy
+from src.hatchet_client import hatchet
+```

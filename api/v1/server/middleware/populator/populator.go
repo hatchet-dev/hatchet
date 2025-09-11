@@ -1,8 +1,11 @@
 package populator
 
 import (
+	"errors"
 	"fmt"
+	"net/http"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/labstack/echo/v4"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/middleware"
@@ -77,6 +80,10 @@ func (p *Populator) populate(c echo.Context, r *middleware.RouteInfo) error {
 	err := p.traverseNode(c, rootResource)
 
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return echo.NewHTTPError(http.StatusNotFound, "not found")
+		}
+
 		return err
 	}
 
@@ -114,6 +121,10 @@ func (p *Populator) traverseNode(c echo.Context, node *resource) error {
 		err := p.callGetter(node, node.ParentID, node.ResourceID)
 
 		if err != nil {
+			if httpErr, ok := err.(*echo.HTTPError); ok {
+				return httpErr
+			}
+
 			return fmt.Errorf("could not populate resource %s: %w", node.ResourceKey, err)
 		}
 

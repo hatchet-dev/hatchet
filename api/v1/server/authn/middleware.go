@@ -6,13 +6,15 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/labstack/echo/v4"
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/middleware"
 	"github.com/hatchet-dev/hatchet/api/v1/server/middleware/redirect"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 type AuthN struct {
@@ -34,6 +36,7 @@ func NewAuthN(config *server.ServerConfig) *AuthN {
 func (a *AuthN) Middleware(r *middleware.RouteInfo) echo.HandlerFunc {
 	return func(c echo.Context) error {
 		err := a.authenticate(c, r)
+
 		if err != nil {
 			return err
 		}
@@ -56,6 +59,7 @@ func (a *AuthN) authenticate(c echo.Context, r *middleware.RouteInfo) error {
 
 	if r.Security.CookieAuth() {
 		cookieErr = a.handleCookieAuth(c)
+
 		c.Set("auth_strategy", "cookie")
 
 		if cookieErr == nil {
@@ -63,7 +67,7 @@ func (a *AuthN) authenticate(c echo.Context, r *middleware.RouteInfo) error {
 		}
 	}
 
-	if cookieErr != nil && !r.Security.BearerAuth() {
+	if cookieErr != nil && !r.Security.BearerAuth() && !r.Security.CustomAuth() {
 		return cookieErr
 	}
 
@@ -71,6 +75,7 @@ func (a *AuthN) authenticate(c echo.Context, r *middleware.RouteInfo) error {
 
 	if r.Security.BearerAuth() {
 		bearerErr = a.handleBearerAuth(c)
+
 		c.Set("auth_strategy", "bearer")
 
 		if bearerErr == nil {
@@ -78,7 +83,27 @@ func (a *AuthN) authenticate(c echo.Context, r *middleware.RouteInfo) error {
 		}
 	}
 
-	return bearerErr
+	if bearerErr != nil && !r.Security.CustomAuth() {
+		return bearerErr
+	}
+
+	var customErr error
+
+	if r.Security.CustomAuth() {
+		customErr = a.handleCustomAuth(c)
+
+		c.Set("auth_strategy", "custom")
+
+		if customErr == nil {
+			return nil
+		}
+	}
+
+	if customErr != nil {
+		return customErr
+	}
+
+	return fmt.Errorf("no auth strategy found")
 }
 
 func (a *AuthN) handleNoAuth(c echo.Context) error {
@@ -144,11 +169,11 @@ func (a *AuthN) handleCookieAuth(c echo.Context) error {
 		return forbidden
 	}
 
-	user, err := a.config.APIRepository.User().GetUserByID(userID)
+	user, err := a.config.APIRepository.User().GetUserByID(c.Request().Context(), userID)
 	if err != nil {
 		a.l.Debug().Err(err).Msg("error getting user by id")
 
-		if errors.Is(err, db.ErrNotFound) {
+		if errors.Is(err, pgx.ErrNoRows) {
 			return forbidden
 		}
 
@@ -167,7 +192,7 @@ func (a *AuthN) handleBearerAuth(c echo.Context) error {
 
 	// a tenant id must exist in the context in order for the bearer auth to succeed, since
 	// these tokens are tenant-scoped
-	queriedTenant, ok := c.Get("tenant").(*db.TenantModel)
+	queriedTenant, ok := c.Get("tenant").(*dbsqlc.Tenant)
 
 	if !ok {
 		a.l.Debug().Msgf("tenant not found in context")
@@ -194,13 +219,21 @@ func (a *AuthN) handleBearerAuth(c echo.Context) error {
 
 	// Verify that the tenant id which exists in the context is the same as the tenant id
 	// in the token.
-	if queriedTenant.ID != tenantId {
+	if sqlchelpers.UUIDToStr(queriedTenant.ID) != tenantId {
 		a.l.Debug().Msgf("tenant id in token does not match tenant id in context")
 
 		return forbidden
 	}
 
 	return nil
+}
+
+func (a *AuthN) handleCustomAuth(c echo.Context) error {
+	if a.config.Auth.CustomAuthenticator == nil {
+		return fmt.Errorf("custom auth handler is not set")
+	}
+
+	return a.config.Auth.CustomAuthenticator.Authenticate(c)
 }
 
 var errInvalidAuthHeader = fmt.Errorf("invalid authorization header in request")

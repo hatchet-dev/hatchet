@@ -3,18 +3,25 @@ package users
 import (
 	"errors"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/labstack/echo/v4"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/authn"
 )
 
 func (u *UserService) UserCreate(ctx echo.Context, request gen.UserCreateRequestObject) (gen.UserCreateResponseObject, error) {
+	// check that the server supports local registration
+	if !u.config.Auth.ConfigFile.BasicAuthEnabled {
+		return gen.UserCreate405JSONResponse(
+			apierrors.NewAPIErrors("local registration is not enabled"),
+		), nil
+	}
 
 	if !u.config.Runtime.AllowSignup {
 		return gen.UserCreate400JSONResponse(
@@ -35,13 +42,13 @@ func (u *UserService) UserCreate(ctx echo.Context, request gen.UserCreateRequest
 	}
 
 	// determine if the user exists before attempting to write the user
-	existingUser, err := u.config.APIRepository.User().GetUserByEmail(string(request.Body.Email))
+	_, err := u.config.APIRepository.User().GetUserByEmail(ctx.Request().Context(), string(request.Body.Email))
 
-	if err != nil && !errors.Is(err, db.ErrNotFound) {
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return nil, err
 	}
 
-	if existingUser != nil {
+	if err == nil {
 		// just return bad request
 		return gen.UserCreate400JSONResponse(
 			apierrors.NewAPIErrors("Email is already registered."),
@@ -66,7 +73,7 @@ func (u *UserService) UserCreate(ctx echo.Context, request gen.UserCreateRequest
 	}
 
 	// write the user to the db
-	user, err := u.config.APIRepository.User().CreateUser(createOpts)
+	user, err := u.config.APIRepository.User().CreateUser(ctx.Request().Context(), createOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -79,12 +86,13 @@ func (u *UserService) UserCreate(ctx echo.Context, request gen.UserCreateRequest
 
 	u.config.Analytics.Enqueue(
 		"user:create",
-		user.ID,
+		sqlchelpers.UUIDToStr(user.ID),
 		nil,
 		map[string]interface{}{
 			"email": request.Body.Email,
 			"name":  request.Body.Name,
 		},
+		nil,
 	)
 
 	return gen.UserCreate200JSONResponse(

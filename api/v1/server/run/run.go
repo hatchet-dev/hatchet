@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/labstack/echo/v4"
@@ -25,6 +26,12 @@ import (
 	stepruns "github.com/hatchet-dev/hatchet/api/v1/server/handlers/step-runs"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/tenants"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/users"
+	celv1 "github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/cel"
+	eventsv1 "github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/events"
+	filtersv1 "github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/filters"
+	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/tasks"
+	webhooksv1 "github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/webhooks"
+	workflowrunsv1 "github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/workflow-runs"
 	webhookworker "github.com/hatchet-dev/hatchet/api/v1/server/handlers/webhook-worker"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/workers"
 	workflowruns "github.com/hatchet-dev/hatchet/api/v1/server/handlers/workflow-runs"
@@ -34,7 +41,8 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/middleware/populator"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	"golang.org/x/time/rate"
 )
 
 type apiService struct {
@@ -54,6 +62,12 @@ type apiService struct {
 	*workflowruns.WorkflowRunsService
 	*monitoring.MonitoringService
 	*info.InfoService
+	*tasks.TasksService
+	*workflowrunsv1.V1WorkflowRunsService
+	*eventsv1.V1EventsService
+	*filtersv1.V1FiltersService
+	*webhooksv1.V1WebhooksService
+	*celv1.V1CELService
 }
 
 func newAPIService(config *server.ServerConfig) *apiService {
@@ -74,11 +88,18 @@ func newAPIService(config *server.ServerConfig) *apiService {
 		WebhookWorkersService: webhookworker.NewWebhookWorkersService(config),
 		MonitoringService:     monitoring.NewMonitoringService(config),
 		InfoService:           info.NewInfoService(config),
+		TasksService:          tasks.NewTasksService(config),
+		V1WorkflowRunsService: workflowrunsv1.NewV1WorkflowRunsService(config),
+		V1EventsService:       eventsv1.NewV1EventsService(config),
+		V1FiltersService:      filtersv1.NewV1FiltersService(config),
+		V1WebhooksService:     webhooksv1.NewV1WebhooksService(config),
+		V1CELService:          celv1.NewV1CELService(config),
 	}
 }
 
 type APIServer struct {
-	config *server.ServerConfig
+	config                *server.ServerConfig
+	additionalMiddlewares []hatchetmiddleware.MiddlewareFunc
 }
 
 func NewAPIServer(config *server.ServerConfig) *APIServer {
@@ -122,6 +143,12 @@ func (t *APIServer) Run(opts ...APIServerExtensionOpt) (func() error, error) {
 	return t.RunWithServer(e)
 }
 
+func (t *APIServer) RunWithMiddlewares(middlewares []hatchetmiddleware.MiddlewareFunc, opts ...APIServerExtensionOpt) (func() error, error) {
+	t.additionalMiddlewares = middlewares
+
+	return t.Run(opts...)
+}
+
 func (t *APIServer) RunWithServer(e *echo.Echo) (func() error, error) {
 	routes := e.Routes()
 
@@ -150,6 +177,8 @@ func (t *APIServer) getCoreEchoService() (*echo.Echo, error) {
 	}
 
 	e := echo.New()
+	e.HideBanner = true
+	e.HidePort = true
 
 	g := e.Group("")
 
@@ -159,7 +188,7 @@ func (t *APIServer) getCoreEchoService() (*echo.Echo, error) {
 
 	service := newAPIService(t.config)
 
-	myStrictApiHandler := gen.NewStrictHandler(service, []gen.StrictMiddlewareFunc{})
+	myStrictApiHandler := gen.NewStrictHandler(service)
 
 	gen.RegisterHandlers(g, myStrictApiHandler)
 
@@ -171,7 +200,10 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 	populatorMW := populator.NewPopulator(t.config)
 
 	populatorMW.RegisterGetter("tenant", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
-		tenant, err := config.APIRepository.Tenant().GetTenantByID(id)
+		ctxTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		tenant, err := config.APIRepository.Tenant().GetTenantByID(ctxTimeout, id)
 
 		if err != nil {
 			return nil, "", err
@@ -181,7 +213,10 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 	})
 
 	populatorMW.RegisterGetter("api-token", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
-		apiToken, err := config.APIRepository.APIToken().GetAPITokenById(id)
+		ctxTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		apiToken, err := config.APIRepository.APIToken().GetAPITokenById(ctxTimeout, id)
 
 		if err != nil {
 			return nil, "", err
@@ -190,53 +225,63 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 		// at the moment, API tokens should have a tenant id, because there are no other types of
 		// API tokens. If we add other types of API tokens, we'll need to pass in a parent id to query
 		// for.
-		tenantId, ok := apiToken.TenantID()
-
-		if !ok {
+		if !apiToken.TenantId.Valid {
 			return nil, "", fmt.Errorf("api token has no tenant id")
 		}
 
-		return apiToken, tenantId, nil
+		return apiToken, sqlchelpers.UUIDToStr(apiToken.TenantId), nil
 	})
 
 	populatorMW.RegisterGetter("tenant-invite", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
-		tenantInvite, err := config.APIRepository.TenantInvite().GetTenantInvite(id)
+		timeoutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		tenantInvite, err := config.APIRepository.TenantInvite().GetTenantInvite(timeoutCtx, id)
 
 		if err != nil {
 			return nil, "", err
 		}
 
-		return tenantInvite, tenantInvite.TenantID, nil
+		return tenantInvite, sqlchelpers.UUIDToStr(tenantInvite.TenantId), nil
 	})
 
 	populatorMW.RegisterGetter("slack", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
-		slackWebhook, err := config.APIRepository.Slack().GetSlackWebhookById(id)
+		timeoutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		slackWebhook, err := config.APIRepository.Slack().GetSlackWebhookById(timeoutCtx, id)
 
 		if err != nil {
 			return nil, "", err
 		}
 
-		return slackWebhook, slackWebhook.TenantID, nil
+		return slackWebhook, sqlchelpers.UUIDToStr(slackWebhook.TenantId), nil
 	})
 
 	populatorMW.RegisterGetter("alert-email-group", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
-		emailGroup, err := config.APIRepository.TenantAlertingSettings().GetTenantAlertGroupById(id)
+		timeoutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		emailGroup, err := config.APIRepository.TenantAlertingSettings().GetTenantAlertGroupById(timeoutCtx, id)
 
 		if err != nil {
 			return nil, "", err
 		}
 
-		return emailGroup, emailGroup.TenantID, nil
+		return emailGroup, sqlchelpers.UUIDToStr(emailGroup.TenantId), nil
 	})
 
 	populatorMW.RegisterGetter("sns", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
-		snsIntegration, err := config.APIRepository.SNS().GetSNSIntegrationById(id)
+		timeoutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		snsIntegration, err := config.APIRepository.SNS().GetSNSIntegrationById(timeoutCtx, id)
 
 		if err != nil {
 			return nil, "", err
 		}
 
-		return snsIntegration, snsIntegration.TenantID, nil
+		return snsIntegration, sqlchelpers.UUIDToStr(snsIntegration.TenantId), nil
 	})
 
 	populatorMW.RegisterGetter("workflow", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
@@ -266,6 +311,10 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 			return nil, "", err
 		}
 
+		if scheduled == nil {
+			return nil, "", echo.NewHTTPError(http.StatusNotFound, "scheduled workflow run not found")
+		}
+
 		return scheduled, sqlchelpers.UUIDToStr(scheduled.TenantId), nil
 	})
 
@@ -274,6 +323,10 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 
 		if err != nil {
 			return nil, "", err
+		}
+
+		if scheduled == nil {
+			return nil, "", echo.NewHTTPError(http.StatusNotFound, "cron workflow not found")
 		}
 
 		return scheduled, sqlchelpers.UUIDToStr(scheduled.TenantId), nil
@@ -294,13 +347,16 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 	})
 
 	populatorMW.RegisterGetter("event", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
-		event, err := config.APIRepository.Event().GetEventById(id)
+		timeoutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		event, err := config.APIRepository.Event().GetEventById(timeoutCtx, id)
 
 		if err != nil {
 			return nil, "", err
 		}
 
-		return event, event.TenantID, nil
+		return event, sqlchelpers.UUIDToStr(event.TenantId), nil
 	})
 
 	populatorMW.RegisterGetter("worker", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
@@ -314,21 +370,69 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 	})
 
 	populatorMW.RegisterGetter("webhook", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
-		webhookWorker, err := config.APIRepository.WebhookWorker().GetWebhookWorkerByID(id)
+		timeoutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		webhookWorker, err := config.APIRepository.WebhookWorker().GetWebhookWorkerByID(timeoutCtx, id)
 		if err != nil {
 			return nil, "", err
 		}
 
-		return webhookWorker, webhookWorker.TenantID, nil
+		return webhookWorker, sqlchelpers.UUIDToStr(webhookWorker.TenantId), nil
 	})
 
-	populatorMW.RegisterGetter("webhook", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
-		webhookWorker, err := config.APIRepository.WebhookWorker().GetWebhookWorkerByID(id)
+	populatorMW.RegisterGetter("task", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+
+		task, err := config.V1.OLAP().ReadTaskRun(ctx, id)
+
 		if err != nil {
 			return nil, "", err
 		}
 
-		return webhookWorker, webhookWorker.TenantID, nil
+		if task == nil {
+			return nil, "", echo.NewHTTPError(http.StatusNotFound, "task not found")
+		}
+
+		return task, sqlchelpers.UUIDToStr(task.TenantID), nil
+	})
+
+	populatorMW.RegisterGetter("v1-workflow-run", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
+		workflowRun, err := t.config.V1.OLAP().ReadWorkflowRun(context.Background(), sqlchelpers.UUIDFromStr(id))
+
+		if err != nil {
+			return nil, "", err
+		}
+
+		return workflowRun, sqlchelpers.UUIDToStr(workflowRun.WorkflowRun.TenantID), nil
+	})
+	populatorMW.RegisterGetter("v1-filter", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
+		filter, err := t.config.V1.Filters().GetFilter(
+			context.Background(),
+			parentId,
+			id,
+		)
+
+		if err != nil {
+			return nil, "", err
+		}
+
+		return filter, sqlchelpers.UUIDToStr(filter.TenantID), nil
+	})
+
+	populatorMW.RegisterGetter("v1-webhook", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
+		webhook, err := t.config.V1.Webhooks().GetWebhook(
+			context.Background(),
+			parentId,
+			id,
+		)
+
+		if err != nil {
+			return nil, "", err
+		}
+
+		return webhook, sqlchelpers.UUIDToStr(webhook.TenantID), nil
 	})
 
 	authnMW := authn.NewAuthN(t.config)
@@ -343,6 +447,9 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 	mw.Use(populatorMW.Middleware)
 	mw.Use(authnMW.Middleware)
 	mw.Use(authzMW.Middleware)
+	for _, m := range t.additionalMiddlewares {
+		mw.Use(m)
+	}
 
 	allHatchetMiddleware, err := mw.Middleware()
 
@@ -365,7 +472,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 
 			// note that the status code is not set yet as it gets picked up by the global err handler
 			// see here: https://github.com/labstack/echo/issues/2310#issuecomment-1288196898
-			if v.Error != nil {
+			if v.Error != nil && statusCode == 200 {
 				statusCode = 500
 			}
 
@@ -399,6 +506,11 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 		loggerMiddleware,
 		middleware.Recover(),
 		allHatchetMiddleware,
+		hatchetmiddleware.WebhookRateLimitMiddleware(
+			rate.Limit(t.config.Runtime.WebhookRateLimit),
+			t.config.Runtime.WebhookRateLimitBurst,
+			t.config.Logger,
+		),
 	)
 
 	return populatorMW, nil

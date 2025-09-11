@@ -1,0 +1,44 @@
+V1CELDebug:
+  post:
+    x-resources: ["tenant"]
+    description: Evaluate a CEL expression against provided input data.
+    operationId: v1-cel:debug
+    parameters:
+      - description: The tenant id
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    requestBody:
+      content:
+        application/json:
+          schema:
+            $ref: "../../../components/schemas/_index.yaml#/V1CELDebugRequest"
+      description: The inputs to test the CEL expression against
+      required: true
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/V1CELDebugResponse"
+        description: Successfully evaluated the CEL expression
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+    summary: Debug a CEL expression
+    tags:
+      - CEL

@@ -10,6 +10,7 @@ type ToasterToast = ToastProps & {
   title?: React.ReactNode;
   description?: React.ReactNode;
   action?: ToastActionElement;
+  error?: string | Error | (string | Error)[];
 };
 
 const actionTypes = {

@@ -9,7 +9,6 @@ import (
 
 	"github.com/hatchet-dev/hatchet/pkg/client"
 	"github.com/hatchet-dev/hatchet/pkg/client/cloud/rest"
-	"github.com/hatchet-dev/hatchet/pkg/logger"
 )
 
 type ManagedCompute struct {
@@ -29,15 +28,13 @@ func NewManagedCompute(actionRegistry *ActionRegistry, client client.Client, max
 	runtimeConfigs := getComputeConfigs(actionRegistry, maxRuns)
 	cloudRegisterID := client.CloudRegisterID()
 
-	logger := logger.NewDefaultLogger("managed-compute")
-
 	mc := &ManagedCompute{
 		ActionRegistry:  actionRegistry,
 		Client:          client,
 		MaxRuns:         maxRuns,
 		RuntimeConfigs:  runtimeConfigs,
 		CloudRegisterID: cloudRegisterID,
-		Logger:          &logger,
+		Logger:          client.Logger(),
 	}
 
 	if len(mc.RuntimeConfigs) == 0 {

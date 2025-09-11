@@ -5,9 +5,11 @@ import RelativeDate from '@/components/molecules/relative-date';
 import { cn } from '@/lib/utils';
 
 const resources: Record<TenantResource, string> = {
-  [TenantResource.WORKER]: 'Concurrent Workers',
+  [TenantResource.WORKER]: 'Total Workers',
+  [TenantResource.WORKER_SLOT]: 'Concurrency Limit',
   [TenantResource.EVENT]: 'Events',
   [TenantResource.WORKFLOW_RUN]: 'Workflow Runs',
+  [TenantResource.TASK_RUN]: 'Task Runs',
   [TenantResource.CRON]: 'Cron Triggers',
   [TenantResource.SCHEDULE]: 'Schedule Triggers',
 };

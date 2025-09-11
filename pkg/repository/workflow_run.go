@@ -5,13 +5,13 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/pkg/random"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 type CreateWorkflowRunOpts struct {
@@ -136,6 +136,7 @@ func GetCreateWorkflowRunOptsFromParent(
 	childKey *string,
 	additionalMetadata map[string]interface{},
 	parentAdditionalMetadata map[string]interface{},
+	priority *int32,
 ) (*CreateWorkflowRunOpts, error) {
 	if input == nil {
 		input = []byte("{}")
@@ -147,6 +148,7 @@ func GetCreateWorkflowRunOptsFromParent(
 		ManualTriggerInput: StringPtr(string(input)),
 		TriggeredBy:        string(datautils.TriggeredByParent),
 		InputData:          input,
+		Priority:           priority,
 	}
 
 	WithParent(parentId, parentStepRunId, childIndex, childKey, additionalMetadata, parentAdditionalMetadata)(opts)
@@ -282,7 +284,7 @@ type ListWorkflowRunsOpts struct {
 	GroupKey *string
 
 	// (optional) the status of the workflow run
-	Statuses *[]db.WorkflowRunStatus
+	Statuses *[]dbsqlc.WorkflowRunStatus
 
 	// (optional) a list of kinds to filter by
 	Kinds *[]dbsqlc.WorkflowKind
@@ -369,7 +371,7 @@ type ListWorkflowRunRoundRobinsOpts struct {
 	WorkflowVersionId *string `validate:"omitempty,uuid"`
 
 	// (optional) the status of the workflow run
-	Status *db.WorkflowRunStatus
+	Status *dbsqlc.WorkflowRunStatus
 
 	// (optional) number of events to skip
 	Offset *int
@@ -414,7 +416,7 @@ type ListScheduledWorkflowsOpts struct {
 	ParentStepRunId *string `validate:"omitempty,uuid"`
 
 	// (optional) statuses to filter by
-	Statuses *[]db.WorkflowRunStatus
+	Statuses *[]dbsqlc.WorkflowRunStatus
 
 	// (optional) include scheduled runs that are in the future
 	IncludeFuture *bool
@@ -442,6 +444,12 @@ type ListCronWorkflowsOpts struct {
 
 	// (optional) additional metadata for the workflow run
 	AdditionalMetadata map[string]interface{} `validate:"omitempty"`
+
+	// (optional) the name of the cron to filter by
+	CronName *string `validate:"omitempty"`
+
+	// (optional) the name of the workflow to filter by
+	WorkflowName *string `validate:"omitempty"`
 }
 
 type WorkflowRunAPIRepository interface {
@@ -477,6 +485,8 @@ type WorkflowRunAPIRepository interface {
 	GetStepsForJobs(ctx context.Context, tenantId string, jobIds []string) ([]*dbsqlc.GetStepsForJobsRow, error)
 
 	GetStepRunsForJobRuns(ctx context.Context, tenantId string, jobRunIds []string) ([]*StepRunForJobRun, error)
+
+	GetWorkflowRunShape(ctx context.Context, workflowVersionId uuid.UUID) ([]*dbsqlc.GetWorkflowRunShapeRow, error)
 }
 
 var (
@@ -538,6 +548,8 @@ type WorkflowRunEngineRepository interface {
 
 	// GetWorkflowRunById returns a workflow run by id.
 	GetWorkflowRunById(ctx context.Context, tenantId, runId string) (*dbsqlc.GetWorkflowRunRow, error)
+
+	DeleteScheduledWorkflow(ctx context.Context, tenantId, scheduledWorkflowId string) error
 
 	// TODO maybe we don't need this?
 	GetWorkflowRunByIds(ctx context.Context, tenantId string, runId []string) ([]*dbsqlc.GetWorkflowRunRow, error)

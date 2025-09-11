@@ -13,23 +13,38 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor/contracts"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
+	"github.com/hatchet-dev/hatchet/pkg/constants"
+	grpcmiddleware "github.com/hatchet-dev/hatchet/pkg/grpc/middleware"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/metered"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 func (i *IngestorImpl) Push(ctx context.Context, req *contracts.PushEventRequest) (*contracts.Event, error) {
 	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
-
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
 	var additionalMeta []byte
 
 	if req.AdditionalMetadata != nil {
 		additionalMeta = []byte(*req.AdditionalMetadata)
 	}
-	event, err := i.IngestEvent(ctx, tenantId, req.Key, []byte(req.Payload), additionalMeta)
+
+	if err := repository.ValidateJSONB(additionalMeta, "additionalMetadata"); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "Invalid request: %s", err)
+	}
+
+	payloadBytes := []byte(req.Payload)
+
+	if err := repository.ValidateJSONB(payloadBytes, "payload"); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "Invalid request: %s", err)
+	}
+
+	if req.Priority != nil && (*req.Priority < 1 || *req.Priority > 3) {
+		return nil, status.Errorf(codes.InvalidArgument, "priority must be between 1 and 3, got %d", *req.Priority)
+	}
+
+	event, err := i.IngestEvent(ctx, tenant, req.Key, []byte(req.Payload), additionalMeta, req.Priority, req.Scope, nil)
 
 	if err == metered.ErrResourceExhausted {
 		return nil, status.Errorf(codes.ResourceExhausted, "resource exhausted: event limit exceeded for tenant")
@@ -44,6 +59,23 @@ func (i *IngestorImpl) Push(ctx context.Context, req *contracts.PushEventRequest
 	if err != nil {
 		return nil, err
 	}
+
+	var additionalMetaStr string
+
+	if req.AdditionalMetadata != nil {
+		additionalMetaStr = *req.AdditionalMetadata
+	}
+
+	corrId := datautils.ExtractCorrelationId(additionalMetaStr)
+
+	if corrId != nil {
+		ctx = context.WithValue(ctx, constants.CorrelationIdKey, *corrId)
+	}
+
+	ctx = context.WithValue(ctx, constants.ResourceIdKey, event.ID.String())
+	ctx = context.WithValue(ctx, constants.ResourceTypeKey, constants.ResourceTypeEvent)
+
+	grpcmiddleware.TriggerCallback(ctx)
 
 	return e, nil
 }
@@ -69,11 +101,28 @@ func (i *IngestorImpl) BulkPush(ctx context.Context, req *contracts.BulkPushEven
 		if e.AdditionalMetadata != nil {
 			additionalMeta = []byte(*e.AdditionalMetadata)
 		}
+
+		if err := repository.ValidateJSONB(additionalMeta, "additionalMetadata"); err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "Invalid request: %s", err)
+		}
+
+		payloadBytes := []byte(e.Payload)
+
+		if err := repository.ValidateJSONB(payloadBytes, "payload"); err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "Invalid request: %s", err)
+		}
+
+		if e.Priority != nil && (*e.Priority < 1 || *e.Priority > 3) {
+			return nil, status.Errorf(codes.InvalidArgument, "priority must be between 1 and 3, got %d", *e.Priority)
+		}
+
 		events = append(events, &repository.CreateEventOpts{
 			TenantId:           tenantId,
 			Key:                e.Key,
-			Data:               []byte(e.Payload),
+			Data:               payloadBytes,
 			AdditionalMetadata: additionalMeta,
+			Priority:           e.Priority,
+			Scope:              e.Scope,
 		})
 	}
 
@@ -93,7 +142,7 @@ func (i *IngestorImpl) BulkPush(ctx context.Context, req *contracts.BulkPushEven
 		}
 	}
 
-	createdEvents, err := i.BulkIngestEvent(ctx, tenantId, events)
+	createdEvents, err := i.BulkIngestEvent(ctx, tenant, events)
 
 	if err == metered.ErrResourceExhausted {
 		return nil, status.Errorf(codes.ResourceExhausted, "resource exhausted: event limit exceeded for tenant")
@@ -113,6 +162,23 @@ func (i *IngestorImpl) BulkPush(ctx context.Context, req *contracts.BulkPushEven
 
 		contractEvents = append(contractEvents, contractEvent)
 
+		var additionalMetaStr string
+
+		if e.AdditionalMetadata != nil {
+			additionalMetaStr = string(e.AdditionalMetadata)
+		}
+
+		corrId := datautils.ExtractCorrelationId(additionalMetaStr)
+
+		if corrId != nil {
+			ctx = context.WithValue(ctx, constants.CorrelationIdKey, *corrId)
+		}
+
+		ctx = context.WithValue(ctx, constants.ResourceIdKey, e.ID.String())
+		ctx = context.WithValue(ctx, constants.ResourceTypeKey, constants.ResourceTypeEvent)
+
+		grpcmiddleware.TriggerCallback(ctx)
+
 	}
 
 	return &contracts.Events{Events: contractEvents}, nil
@@ -129,7 +195,7 @@ func (i *IngestorImpl) ReplaySingleEvent(ctx context.Context, req *contracts.Rep
 		return nil, err
 	}
 
-	newEvent, err := i.IngestReplayedEvent(ctx, tenantId, oldEvent)
+	newEvent, err := i.IngestReplayedEvent(ctx, tenant, oldEvent)
 
 	if err != nil {
 		return nil, err
@@ -147,6 +213,17 @@ func (i *IngestorImpl) ReplaySingleEvent(ctx context.Context, req *contracts.Rep
 func (i *IngestorImpl) PutStreamEvent(ctx context.Context, req *contracts.PutStreamEventRequest) (*contracts.PutStreamEventResponse, error) {
 	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
 
+	switch tenant.Version {
+	case dbsqlc.TenantMajorEngineVersionV0:
+		return i.putStreamEventV0(ctx, tenant, req)
+	case dbsqlc.TenantMajorEngineVersionV1:
+		return i.putStreamEventV1(ctx, tenant, req)
+	default:
+		return nil, status.Errorf(codes.Unimplemented, "RefreshTimeout is not implemented in engine version %s", string(tenant.Version))
+	}
+}
+
+func (i *IngestorImpl) putStreamEventV0(ctx context.Context, tenant *dbsqlc.Tenant, req *contracts.PutStreamEventRequest) (*contracts.PutStreamEventResponse, error) {
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
 	var createdAt *time.Time
@@ -200,6 +277,17 @@ func (i *IngestorImpl) PutStreamEvent(ctx context.Context, req *contracts.PutStr
 func (i *IngestorImpl) PutLog(ctx context.Context, req *contracts.PutLogRequest) (*contracts.PutLogResponse, error) {
 	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
 
+	switch tenant.Version {
+	case dbsqlc.TenantMajorEngineVersionV0:
+		return i.putLogV0(ctx, tenant, req)
+	case dbsqlc.TenantMajorEngineVersionV1:
+		return i.putLogV1(ctx, tenant, req)
+	default:
+		return nil, status.Errorf(codes.Unimplemented, "PutLog is not implemented in engine version %s", string(tenant.Version))
+	}
+}
+
+func (i *IngestorImpl) putLogV0(ctx context.Context, tenant *dbsqlc.Tenant, req *contracts.PutLogRequest) (*contracts.PutLogResponse, error) {
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
 	var createdAt *time.Time
@@ -255,12 +343,20 @@ func toEvent(e *dbsqlc.Event) (*contracts.Event, error) {
 	tenantId := sqlchelpers.UUIDToStr(e.TenantId)
 	eventId := sqlchelpers.UUIDToStr(e.ID)
 
+	var additionalMeta *string
+
+	if e.AdditionalMetadata != nil {
+		additionalMetaStr := string(e.AdditionalMetadata)
+		additionalMeta = &additionalMetaStr
+	}
+
 	return &contracts.Event{
-		TenantId:       tenantId,
-		EventId:        eventId,
-		Key:            e.Key,
-		Payload:        string(e.Data),
-		EventTimestamp: timestamppb.New(e.CreatedAt.Time),
+		TenantId:           tenantId,
+		EventId:            eventId,
+		Key:                e.Key,
+		Payload:            string(e.Data),
+		EventTimestamp:     timestamppb.New(e.CreatedAt.Time),
+		AdditionalMetadata: additionalMeta,
 	}, nil
 }
 

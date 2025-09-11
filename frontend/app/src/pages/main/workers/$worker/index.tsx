@@ -127,7 +127,7 @@ export default function ExpandedWorkflowRun() {
 
   return (
     <div className="flex-grow h-full w-full">
-      <div className="mx-auto max-w-7xl py-8 px-4 sm:px-6 lg:px-8">
+      <div className="mx-auto py-8 px-4 sm:px-6 lg:px-8">
         <div className="flex flex-row justify-between items-center">
           <div className="flex flex-row gap-4 items-center justify-between">
             <ServerStackIcon className="h-6 w-6 text-foreground mt-1" />
@@ -211,10 +211,7 @@ export default function ExpandedWorkflowRun() {
         </div>
         <div className="mb-4 text-sm text-gray-700 dark:text-gray-300">
           A slot represents one step run on a worker to limit load.{' '}
-          <a
-            href="https://docs.hatchet.run/sdks/python-sdk/worker"
-            className="underline"
-          >
+          <a href="https://docs.hatchet.run/home/workers" className="underline">
             Learn more.
           </a>
         </div>

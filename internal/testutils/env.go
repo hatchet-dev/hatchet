@@ -12,7 +12,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/config/loader"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
+	"github.com/jackc/pgx/v5"
 )
 
 func Prepare(t *testing.T) {
@@ -67,10 +67,10 @@ func Prepare(t *testing.T) {
 	}
 
 	// check if tenant exists
-	_, err = server.APIRepository.Tenant().GetTenantByID(tenantId)
+	_, err = server.APIRepository.Tenant().GetTenantByID(context.Background(), tenantId)
 	if err != nil {
-		if errors.Is(err, db.ErrNotFound) {
-			_, err = server.APIRepository.Tenant().CreateTenant(&repository.CreateTenantOpts{
+		if errors.Is(err, pgx.ErrNoRows) {
+			_, err = server.APIRepository.Tenant().CreateTenant(context.Background(), &repository.CreateTenantOpts{
 				ID:   &tenantId,
 				Name: "test-tenant",
 				Slug: "test-tenant",

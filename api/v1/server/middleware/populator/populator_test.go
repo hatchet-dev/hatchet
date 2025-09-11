@@ -1,3 +1,5 @@
+//go:build !e2e && !load && !rampup && !integration
+
 package populator
 
 import (
@@ -44,6 +46,15 @@ func topLevelResourceGetter(config *server.ServerConfig, parentId, id string) (i
 	}, "", nil
 }
 
+func invalidParentGetter(config *server.ServerConfig, parentId, id string) (interface{}, string, error) {
+	newUuid := uuid.NewString()
+
+	return &oneToManyResource{
+		ID:       id,
+		ParentID: newUuid,
+	}, newUuid, nil
+}
+
 func TestPopulatorMiddleware(t *testing.T) {
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
@@ -75,4 +86,36 @@ func TestPopulatorMiddleware(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, c.Get("resource1"))
 	assert.NotNil(t, c.Get("resource2"))
+}
+
+func TestPopulatorMiddlewareParentDisagreement(t *testing.T) {
+	e := echo.New()
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+
+	// Mock RouteInfo
+	routeInfo := &middleware.RouteInfo{
+		Resources: []string{"resource1", "resource2"},
+	}
+
+	resource1Id := uuid.New().String()
+	resource2Id := uuid.New().String()
+
+	// Setting params for the context - NOTE: we need to set both params at once
+	c.SetParamNames("resource1", "resource2")
+	c.SetParamValues(resource1Id, resource2Id)
+
+	// Creating Populator with mock getter function
+	populator := NewPopulator(&server.ServerConfig{})
+
+	populator.RegisterGetter("resource1", topLevelResourceGetter)
+	populator.RegisterGetter("resource2", invalidParentGetter)
+
+	// Using the Populator middleware
+	middlewareFunc := populator.Middleware(routeInfo)
+	err := middlewareFunc(c)
+
+	// Assertions
+	assert.ErrorContains(t, err, "could not be populated")
 }

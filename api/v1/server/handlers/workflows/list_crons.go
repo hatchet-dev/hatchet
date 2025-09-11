@@ -13,11 +13,13 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 func (t *WorkflowService) CronWorkflowList(ctx echo.Context, request gen.CronWorkflowListRequestObject) (gen.CronWorkflowListResponseObject, error) {
-	tenant := ctx.Get("tenant").(*db.TenantModel)
+	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
+	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
 	limit := 50
 	offset := 0
@@ -56,6 +58,14 @@ func (t *WorkflowService) CronWorkflowList(ctx echo.Context, request gen.CronWor
 		listOpts.WorkflowId = &workflowIdStr
 	}
 
+	if request.Params.CronName != nil {
+		listOpts.CronName = request.Params.CronName
+	}
+
+	if request.Params.WorkflowName != nil {
+		listOpts.WorkflowName = request.Params.WorkflowName
+	}
+
 	if request.Params.AdditionalMetadata != nil {
 		additionalMetadata := make(map[string]interface{}, len(*request.Params.AdditionalMetadata))
 
@@ -76,7 +86,7 @@ func (t *WorkflowService) CronWorkflowList(ctx echo.Context, request gen.CronWor
 	dbCtx, cancel := context.WithTimeout(ctx.Request().Context(), 30*time.Second)
 	defer cancel()
 
-	crons, count, err := t.config.APIRepository.Workflow().ListCronWorkflows(dbCtx, tenant.ID, listOpts)
+	crons, count, err := t.config.APIRepository.Workflow().ListCronWorkflows(dbCtx, tenantId, listOpts)
 
 	if err != nil {
 		return nil, err

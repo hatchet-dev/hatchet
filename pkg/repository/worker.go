@@ -5,8 +5,7 @@ import (
 	"time"
 
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 
 	"github.com/jackc/pgx/v5/pgtype"
 )
@@ -56,11 +55,6 @@ type UpdateWorkerOpts struct {
 	Actions []string `validate:"dive,actionId"`
 }
 
-type WorkerWithStepCount struct {
-	Worker       *db.WorkerModel
-	StepRunCount int
-}
-
 type ListWorkersOpts struct {
 	Action *string `validate:"omitempty,actionId"`
 
@@ -87,7 +81,7 @@ type WorkerAPIRepository interface {
 	ListWorkerState(tenantId, workerId string, maxRuns int) ([]*dbsqlc.ListSemaphoreSlotsWithStateForWorkerRow, []*dbsqlc.GetStepRunForEngineRow, error)
 
 	// GetWorkerActionsByWorkerId returns a list of actions for a worker
-	GetWorkerActionsByWorkerId(tenantid, workerId string) ([]pgtype.Text, error)
+	GetWorkerActionsByWorkerId(tenantid string, workerId []string) (map[string][]string, error)
 
 	// GetWorkerById returns a worker by its id.
 	GetWorkerById(workerId string) (*dbsqlc.GetWorkerByIdRow, error)

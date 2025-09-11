@@ -5,11 +5,14 @@ import (
 
 	"github.com/hatchet-dev/hatchet/pkg/client"
 	"github.com/hatchet-dev/hatchet/pkg/worker"
+
+	"github.com/rs/zerolog"
 )
 
 type WebhookWorker struct {
 	opts   WorkerOpts
 	client client.Client
+	l      *zerolog.Logger
 }
 
 type WorkerOpts struct {
@@ -21,12 +24,15 @@ type WorkerOpts struct {
 	TenantID  string
 	Actions   []string
 	WebhookId string
+	Logger    *zerolog.Logger
 }
 
 func New(opts WorkerOpts) (*WebhookWorker, error) {
 	cl, err := client.New(
 		client.WithToken(opts.Token),
+		client.WithLogger(opts.Logger),
 	)
+
 	if err != nil {
 		return nil, fmt.Errorf("could not create client: %w", err)
 	}
@@ -34,6 +40,7 @@ func New(opts WorkerOpts) (*WebhookWorker, error) {
 	return &WebhookWorker{
 		opts:   opts,
 		client: cl,
+		l:      opts.Logger,
 	}, nil
 }
 
@@ -42,6 +49,7 @@ func (w *WebhookWorker) Start() (func() error, error) {
 		worker.WithClient(w.client),
 		worker.WithInternalData(w.opts.Actions),
 		worker.WithName("Webhook_"+w.opts.ID),
+		worker.WithLogger(w.l),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("could not create webhook worker: %w", err)

@@ -52,7 +52,7 @@ type WebhookWorkerOpts struct {
 	WebhookId string
 }
 
-// TODO do not expose this to the end-user client somehow
+// FIXME do not expose this to the end-user client somehow
 func (w *Worker) StartWebhook(ww WebhookWorkerOpts) (func() error, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	listener, _, err := w.client.Dispatcher().GetActionListener(ctx, &client.GetActionListenerRequest{
@@ -79,7 +79,8 @@ func (w *Worker) StartWebhook(ww WebhookWorkerOpts) (func() error, error) {
 			select {
 			case err := <-errCh:
 				// NOTE: this matches the behavior of the old worker, until we change the signature of the webhook workers
-				panic(err)
+				w.l.Error().Err(err).Msgf("error from action channel for webhook worker %s", w.name)
+				return
 			case action := <-actionCh:
 				go func(action *client.Action) {
 					err := w.sendWebhook(context.Background(), action, ww)

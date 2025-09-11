@@ -15,6 +15,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	dispatchercontracts "github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
+	sharedcontracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
 
@@ -30,6 +31,8 @@ type DispatcherClient interface {
 	RefreshTimeout(ctx context.Context, stepRunId string, incrementTimeoutBy string) error
 
 	UpsertWorkerLabels(ctx context.Context, workerId string, labels map[string]interface{}) error
+
+	RegisterDurableEvent(ctx context.Context, req *sharedcontracts.RegisterDurableEventRequest) (*sharedcontracts.RegisterDurableEventResponse, error)
 }
 
 const (
@@ -37,7 +40,6 @@ const (
 	DefaultActionListenerRetryCount    = 5
 )
 
-// TODO: add validator to client side
 type GetActionListenerRequest struct {
 	WorkerName string
 	Services   []string
@@ -112,6 +114,12 @@ type Action struct {
 
 	// the parent workflow run id
 	ParentWorkflowRunId *string
+
+	Priority int32 `json:"priority,omitempty"`
+
+	WorkflowId *string `json:"workflowId,omitempty"`
+
+	WorkflowVersionId *string `json:"workflowVersionId,omitempty"`
 }
 
 type WorkerActionListener interface {
@@ -140,6 +148,9 @@ type ActionEvent struct {
 
 	// The event payload. This must be JSON-compatible as it gets marshalled to a JSON string.
 	EventPayload interface{}
+
+	// If this is an error, whether to retry on failure
+	ShouldNotRetry *bool
 }
 
 type ActionEventResponse struct {
@@ -151,7 +162,8 @@ type ActionEventResponse struct {
 }
 
 type dispatcherClientImpl struct {
-	client dispatchercontracts.DispatcherClient
+	client   dispatchercontracts.DispatcherClient
+	clientv1 sharedcontracts.V1DispatcherClient
 
 	tenantId string
 
@@ -167,6 +179,7 @@ type dispatcherClientImpl struct {
 func newDispatcher(conn *grpc.ClientConn, opts *sharedClientOpts, presetWorkerLabels map[string]string) DispatcherClient {
 	return &dispatcherClientImpl{
 		client:             dispatchercontracts.NewDispatcherClient(conn),
+		clientv1:           sharedcontracts.NewV1DispatcherClient(conn),
 		tenantId:           opts.tenantId,
 		l:                  opts.l,
 		v:                  opts.v,
@@ -433,6 +446,9 @@ func (a *actionListenerImpl) Actions(ctx context.Context) (<-chan *Action, <-cha
 				ChildIndex:          assignedAction.ChildWorkflowIndex,
 				ChildKey:            assignedAction.ChildWorkflowKey,
 				ParentWorkflowRunId: assignedAction.ParentWorkflowRunId,
+				Priority:            assignedAction.Priority,
+				WorkflowId:          assignedAction.WorkflowId,
+				WorkflowVersionId:   assignedAction.WorkflowVersionId,
 			}
 		}
 
@@ -539,6 +555,7 @@ func (d *dispatcherClientImpl) SendStepActionEvent(ctx context.Context, in *Acti
 		EventType:      actionEventType,
 		EventPayload:   string(payloadBytes),
 		RetryCount:     &in.RetryCount,
+		ShouldNotRetry: in.ShouldNotRetry,
 	})
 
 	if err != nil {
@@ -663,4 +680,8 @@ func mapLabels(req map[string]interface{}) map[string]*dispatchercontracts.Worke
 		labels[k] = &label
 	}
 	return labels
+}
+
+func (a *dispatcherClientImpl) RegisterDurableEvent(ctx context.Context, req *sharedcontracts.RegisterDurableEventRequest) (*sharedcontracts.RegisterDurableEventResponse, error) {
+	return a.clientv1.RegisterDurableEvent(a.ctx.newContext(ctx), req)
 }

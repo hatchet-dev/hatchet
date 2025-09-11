@@ -1,6 +1,10 @@
 package repository
 
-import "github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
+import (
+	"context"
+
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
+)
 
 type UpsertSlackWebhookOpts struct {
 	TeamId string `validate:"required,min=1,max=255"`
@@ -15,11 +19,11 @@ type UpsertSlackWebhookOpts struct {
 }
 
 type SlackRepository interface {
-	UpsertSlackWebhook(tenantId string, opts *UpsertSlackWebhookOpts) (*db.SlackAppWebhookModel, error)
+	UpsertSlackWebhook(ctx context.Context, tenantId string, opts *UpsertSlackWebhookOpts) (*dbsqlc.SlackAppWebhook, error)
 
-	ListSlackWebhooks(tenantId string) ([]db.SlackAppWebhookModel, error)
+	ListSlackWebhooks(ctx context.Context, tenantId string) ([]*dbsqlc.SlackAppWebhook, error)
 
-	GetSlackWebhookById(id string) (*db.SlackAppWebhookModel, error)
+	GetSlackWebhookById(ctx context.Context, id string) (*dbsqlc.SlackAppWebhook, error)
 
-	DeleteSlackWebhook(tenantId string, id string) error
+	DeleteSlackWebhook(ctx context.Context, tenantId string, id string) error
 }

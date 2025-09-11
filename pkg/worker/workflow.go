@@ -9,6 +9,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/pkg/client/compute"
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
+	"github.com/hatchet-dev/hatchet/pkg/config/client"
 )
 
 type triggerConverter interface {
@@ -101,7 +102,7 @@ func (e event) ToWorkflowTriggers(wt *types.WorkflowTriggers, namespace string) 
 
 	// Prepend the namespace to each event
 	for i, event := range wt.Events {
-		wt.Events[i] = namespace + event
+		wt.Events[i] = client.ApplyNamespace(event, &namespace)
 	}
 }
 
@@ -120,7 +121,7 @@ func (e eventsArr) ToWorkflowTriggers(wt *types.WorkflowTriggers, namespace stri
 
 	// Prepend the namespace to each event
 	for i, event := range wt.Events {
-		wt.Events[i] = namespace + event
+		wt.Events[i] = client.ApplyNamespace(event, &namespace)
 	}
 }
 
@@ -207,7 +208,7 @@ func (j *WorkflowJob) ToWorkflow(svcName string, namespace string) types.Workflo
 	}
 
 	w := types.Workflow{
-		Name:            namespace + j.Name,
+		Name:            client.ApplyNamespace(j.Name, &namespace),
 		Jobs:            jobs,
 		OnFailureJob:    onFailureJob,
 		ScheduleTimeout: j.ScheduleTimeout,
@@ -218,7 +219,7 @@ func (j *WorkflowJob) ToWorkflow(svcName string, namespace string) types.Workflo
 
 		if j.Concurrency.fn != nil {
 			actionId := "concurrency:" + getFnName(j.Concurrency.fn)
-			w.Concurrency.ActionID = &actionId // TODO this should also be namespaced
+			w.Concurrency.ActionID = &actionId
 		}
 
 		if j.Concurrency.expr != nil {
@@ -287,7 +288,7 @@ func (j *WorkflowJob) ToActionMap(svcName string) ActionMap {
 	if j.Concurrency != nil && j.Concurrency.fn != nil {
 		res["concurrency:"+getFnName(j.Concurrency.fn)] = ActionWithCompute{
 			fn:      j.Concurrency.fn,
-			compute: nil, // TODO add compute to concurrency
+			compute: nil, // FIXME add compute to concurrency
 		}
 	}
 
@@ -337,6 +338,9 @@ type RateLimit struct {
 	Units          *int    `yaml:"units,omitempty"`
 	UnitsExpr      *string `yaml:"unitsExpr,omitempty"`
 	LimitValueExpr *string `yaml:"limitValueExpr,omitempty"`
+
+	// Duration is the duration of the rate limit
+	Duration *types.RateLimitDuration `yaml:"duration,omitempty"`
 }
 
 func Fn(f any) *WorkflowStep {
@@ -461,6 +465,7 @@ func (w *WorkflowStep) ToWorkflowStep(svcName string, index int, namespace strin
 			Units:          rateLimit.Units,
 			UnitsExpr:      rateLimit.UnitsExpr,
 			LimitValueExpr: rateLimit.LimitValueExpr,
+			Duration:       rateLimit.Duration,
 		})
 	}
 
@@ -523,7 +528,7 @@ func (w *WorkflowStep) GetStepId(index int) string {
 func (w *WorkflowStep) GetActionId(svcName string, index int) string {
 	stepId := w.GetStepId(index)
 
-	return fmt.Sprintf("%s:%s", svcName, stepId)
+	return strings.ToLower(fmt.Sprintf("%s:%s", svcName, stepId))
 }
 
 func getFnName(fn any) string {

@@ -3,6 +3,7 @@ package monitoring
 import (
 	"context"
 	"fmt"
+	"math/rand/v2"
 	"net/http"
 	"slices"
 	"strings"
@@ -10,15 +11,13 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
-	"golang.org/x/exp/rand"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/client"
 	clientconfig "github.com/hatchet-dev/hatchet/pkg/config/client"
 	"github.com/hatchet-dev/hatchet/pkg/config/shared"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/worker"
 )
 
@@ -28,9 +27,10 @@ func (m *MonitoringService) MonitoringPostRunProbe(ctx echo.Context, request gen
 		return gen.MonitoringPostRunProbe403JSONResponse{}, nil
 	}
 
-	tenant := ctx.Get("tenant").(*db.TenantModel)
+	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
+	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
-	if !slices.Contains[[]string](m.permittedTenants, tenant.ID) {
+	if !slices.Contains[[]string](m.permittedTenants, tenantId) {
 
 		err := fmt.Errorf("tenant is not a monitoring tenant for this instance")
 
@@ -59,7 +59,7 @@ func (m *MonitoringService) MonitoringPostRunProbe(ctx echo.Context, request gen
 
 	cf := clientconfig.ClientConfigFile{
 		Token:     token,
-		TenantId:  tenant.ID,
+		TenantId:  tenantId,
 		Namespace: randomNamespace(),
 		TLS: clientconfig.ClientTLSConfigFile{
 			Base: shared.TLSConfigFile{
@@ -143,7 +143,7 @@ func (m *MonitoringService) run(ctx context.Context, cf clientconfig.ClientConfi
 		return nil, fmt.Errorf("error creating worker: %w", err)
 	}
 	streamKey := "streamKey"
-	streamValue := fmt.Sprintf("stream-event-%d", rand.Intn(100)+1)
+	streamValue := fmt.Sprintf("stream-event-%d", rand.IntN(100)+1)
 	var wfrId string
 
 	err = w.RegisterWorkflow(

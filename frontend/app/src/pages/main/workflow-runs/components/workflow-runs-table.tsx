@@ -99,7 +99,7 @@ export function WorkflowRunsTable({
   const { tenant } = useOutletContext<TenantContextType>();
   invariant(tenant);
 
-  const cloudMeta = useCloudApiMeta();
+  const { data: cloudMeta } = useCloudApiMeta();
 
   const [viewQueueMetrics, setViewQueueMetrics] = useState(false);
 
@@ -541,6 +541,7 @@ export function WorkflowRunsTable({
             {tenantMetricsQuery.data?.queues && (
               <CodeHighlighter
                 language="json"
+                className="max-h-[400px] overflow-y-auto"
                 code={JSON.stringify(
                   tenantMetricsQuery.data?.queues || '{}',
                   null,

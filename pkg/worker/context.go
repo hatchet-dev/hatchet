@@ -6,10 +6,14 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/rs/zerolog"
 
+	v1 "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	"github.com/hatchet-dev/hatchet/pkg/client"
+	"github.com/hatchet-dev/hatchet/pkg/client/create"
+	"github.com/hatchet-dev/hatchet/pkg/worker/condition"
 )
 
 type HatchetWorkerContext interface {
@@ -24,6 +28,8 @@ type HatchetWorkerContext interface {
 	GetLabels() map[string]interface{}
 
 	UpsertLabels(labels map[string]interface{}) error
+
+	HasWorkflow(workflowName string) bool
 }
 
 type HatchetContext interface {
@@ -36,6 +42,10 @@ type HatchetContext interface {
 	Worker() HatchetWorkerContext
 
 	StepOutput(step string, target interface{}) error
+
+	TriggerDataKeys() []string
+
+	TriggerData(key string, target interface{}) error
 
 	StepRunErrors() map[string]string
 
@@ -55,9 +65,15 @@ type HatchetContext interface {
 
 	WorkflowRunId() string
 
+	WorkflowId() *string
+
+	WorkflowVersionId() *string
+
 	Log(message string)
 
 	StreamEvent(message []byte)
+
+	PutStream(message string)
 
 	SpawnWorkflow(workflowName string, input any, opts *SpawnWorkflowOpts) (*client.Workflow, error)
 
@@ -69,15 +85,20 @@ type HatchetContext interface {
 
 	RetryCount() int
 
+	ParentOutput(parent create.NamedTask, output interface{}) error
+
 	client() client.Client
 
 	action() *client.Action
 
-	index() int
-	inc()
+	CurChildIndex() int
+	IncChildIndex()
+
+	Priority() int32
+
+	FilterPayload() map[string]interface{}
 }
 
-// TODO: move this into proto definitions
 type TriggeredBy string
 
 const (
@@ -93,12 +114,13 @@ type JobRunLookupData struct {
 }
 
 type StepRunData struct {
-	Input              map[string]interface{} `json:"input"`
-	TriggeredBy        TriggeredBy            `json:"triggered_by"`
-	Parents            map[string]StepData    `json:"parents"`
-	AdditionalMetadata map[string]string      `json:"additional_metadata"`
-	UserData           map[string]interface{} `json:"user_data"`
-	StepRunErrors      map[string]string      `json:"step_run_errors,omitempty"`
+	Input              map[string]interface{}            `json:"input"`
+	TriggeredBy        TriggeredBy                       `json:"triggered_by"`
+	Parents            map[string]StepData               `json:"parents"`
+	Triggers           map[string]map[string]interface{} `json:"triggers,omitempty"`
+	AdditionalMetadata map[string]string                 `json:"additional_metadata"`
+	UserData           map[string]interface{}            `json:"user_data"`
+	StepRunErrors      map[string]string                 `json:"step_run_errors,omitempty"`
 }
 
 type StepData map[string]interface{}
@@ -117,6 +139,9 @@ type hatchetContext struct {
 	indexMu    sync.Mutex
 	listener   *client.WorkflowRunsListener
 	listenerMu sync.Mutex
+
+	streamEventIndex   int64
+	streamEventIndexMu sync.Mutex
 }
 
 type hatchetWorkerContext struct {
@@ -189,6 +214,34 @@ func (h *hatchetContext) StepOutput(step string, target interface{}) error {
 	return fmt.Errorf("step %s not found in action payload", step)
 }
 
+func (h *hatchetContext) TriggerDataKeys() []string {
+	keys := make([]string, 0, len(h.stepData.Triggers))
+
+	for k := range h.stepData.Triggers {
+		keys = append(keys, k)
+	}
+
+	return keys
+}
+
+func (h *hatchetContext) TriggerData(key string, target interface{}) error {
+	if val, ok := h.stepData.Triggers[key]; ok {
+		return toTarget(val, target)
+	}
+
+	return fmt.Errorf("trigger %s not found in action payload", key)
+}
+
+func (h *hatchetContext) ParentOutput(parent create.NamedTask, output interface{}) error {
+	stepName := parent.GetName()
+
+	if val, ok := h.stepData.Parents[stepName]; ok {
+		return toTarget(val, output)
+	}
+
+	return fmt.Errorf("parent %s not found in action payload", stepName)
+}
+
 func (h *hatchetContext) TriggeredByEvent() bool {
 	return h.stepData.TriggeredBy == TriggeredByEvent
 }
@@ -211,6 +264,12 @@ func (h *hatchetContext) UserData(target interface{}) error {
 	return toTarget(h.stepData.UserData, target)
 }
 
+func (h *hatchetContext) FilterPayload() map[string]interface{} {
+	payload := h.stepData.Triggers["filter_payload"]
+
+	return payload
+}
+
 func (h *hatchetContext) AdditionalMetadata() map[string]string {
 	return h.stepData.AdditionalMetadata
 }
@@ -229,6 +288,14 @@ func (h *hatchetContext) StepId() string {
 
 func (h *hatchetContext) WorkflowRunId() string {
 	return h.a.WorkflowRunId
+}
+
+func (h *hatchetContext) WorkflowId() *string {
+	return h.a.WorkflowId
+}
+
+func (h *hatchetContext) WorkflowVersionId() *string {
+	return h.a.WorkflowVersionId
 }
 
 func (h *hatchetContext) Log(message string) {
@@ -260,22 +327,31 @@ func (h *hatchetContext) RefreshTimeout(incrementTimeoutBy string) error {
 }
 
 func (h *hatchetContext) StreamEvent(message []byte) {
-	err := h.c.Event().PutStreamEvent(h, h.a.StepRunId, message)
+	h.streamEventIndexMu.Lock()
+	currentIndex := h.streamEventIndex
+	h.streamEventIndex++
+	h.streamEventIndexMu.Unlock()
+
+	err := h.c.Event().PutStreamEvent(h, h.a.StepRunId, message, client.WithStreamEventIndex(currentIndex))
 
 	if err != nil {
 		h.l.Err(err).Msg("could not put stream event")
 	}
 }
 
+func (h *hatchetContext) PutStream(message string) {
+	h.StreamEvent([]byte(message))
+}
+
 func (h *hatchetContext) RetryCount() int {
 	return int(h.a.RetryCount)
 }
 
-func (h *hatchetContext) index() int {
+func (h *hatchetContext) CurChildIndex() int {
 	return h.i
 }
 
-func (h *hatchetContext) inc() {
+func (h *hatchetContext) IncChildIndex() {
 	h.indexMu.Lock()
 	h.i++
 	h.indexMu.Unlock()
@@ -285,25 +361,11 @@ type SpawnWorkflowOpts struct {
 	Key                *string
 	Sticky             *bool
 	AdditionalMetadata *map[string]string
+	Priority           *int32
 }
 
 func (h *hatchetContext) saveOrLoadListener() (*client.WorkflowRunsListener, error) {
-	h.listenerMu.Lock()
-	defer h.listenerMu.Unlock()
-
-	if h.listener != nil {
-		return h.listener, nil
-	}
-
-	listener, err := h.client().Subscribe().SubscribeToWorkflowRunEvents(h)
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to subscribe to workflow run events: %w", err)
-	}
-
-	h.listener = listener
-
-	return listener, nil
+	return h.client().Subscribe().SubscribeToWorkflowRunEvents(h)
 }
 
 func (h *hatchetContext) SpawnWorkflow(workflowName string, input any, opts *SpawnWorkflowOpts) (*client.Workflow, error) {
@@ -337,10 +399,11 @@ func (h *hatchetContext) SpawnWorkflow(workflowName string, input any, opts *Spa
 		&client.ChildWorkflowOpts{
 			ParentId:           h.WorkflowRunId(),
 			ParentStepRunId:    h.StepRunId(),
-			ChildIndex:         h.index(),
+			ChildIndex:         h.CurChildIndex(),
 			ChildKey:           opts.Key,
 			DesiredWorkerId:    desiredWorker,
 			AdditionalMetadata: opts.AdditionalMetadata,
+			Priority:           opts.Priority,
 		},
 	)
 
@@ -349,7 +412,7 @@ func (h *hatchetContext) SpawnWorkflow(workflowName string, input any, opts *Spa
 	}
 
 	// increment the index
-	h.inc()
+	h.IncChildIndex()
 
 	return client.NewWorkflow(workflowRunId, listener), nil
 }
@@ -389,7 +452,7 @@ func (h *hatchetContext) SpawnWorkflows(childWorkflows []*SpawnWorkflowsOpts) ([
 		}
 
 		// increment the index
-		h.inc()
+		h.IncChildIndex()
 
 		triggerWorkflows[i] = &client.RunChildWorkflowsOpts{
 			WorkflowName: workflowName,
@@ -397,7 +460,7 @@ func (h *hatchetContext) SpawnWorkflows(childWorkflows []*SpawnWorkflowsOpts) ([
 			Opts: &client.ChildWorkflowOpts{
 				ParentId:           h.WorkflowRunId(),
 				ParentStepRunId:    h.StepRunId(),
-				ChildIndex:         h.index(),
+				ChildIndex:         h.CurChildIndex(),
 				ChildKey:           c.Key,
 				DesiredWorkerId:    desiredWorker,
 				AdditionalMetadata: c.AdditionalMetadata,
@@ -432,6 +495,10 @@ func (h *hatchetContext) ChildKey() *string {
 
 func (h *hatchetContext) ParentWorkflowRunId() *string {
 	return h.a.ParentWorkflowRunId
+}
+
+func (h *hatchetContext) Priority() int32 {
+	return h.a.Priority
 }
 
 func (h *hatchetContext) populateStepDataForGroupKeyRun() error {
@@ -528,4 +595,248 @@ func (wc *hatchetWorkerContext) UpsertLabels(labels map[string]interface{}) erro
 
 	wc.worker.labels = labels
 	return nil
+}
+
+func (wc *hatchetWorkerContext) HasWorkflow(workflowName string) bool {
+	return wc.worker.registered_workflows[workflowName]
+}
+
+type SingleWaitResult struct {
+	*WaitResult
+
+	key string
+}
+
+func newSingleWaitResult(key string, wr *WaitResult) *SingleWaitResult {
+	return &SingleWaitResult{
+		WaitResult: wr,
+		key:        key,
+	}
+}
+
+func (w *SingleWaitResult) Unmarshal(in interface{}) error {
+	return w.WaitResult.Unmarshal(w.key, in)
+}
+
+type WaitResult struct {
+	allResults map[string]map[string][]map[string]interface{}
+}
+
+func newWaitResult(dataBytes []byte) (*WaitResult, error) {
+	var allResults map[string]map[string][]map[string]interface{}
+
+	err := json.Unmarshal(dataBytes, &allResults)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshal wait result: %w", err)
+	}
+
+	return &WaitResult{
+		allResults: allResults,
+	}, nil
+}
+
+type ErrMarshalKeyNotFound struct {
+	Key string
+}
+
+func (e ErrMarshalKeyNotFound) Error() string {
+	return fmt.Sprintf("key %s not found", e.Key)
+}
+
+func (w *WaitResult) Keys() []string {
+	keys := make([]string, 0, len(w.allResults))
+
+	for _, v := range w.allResults {
+		for k2 := range v {
+			keys = append(keys, k2)
+		}
+	}
+
+	return keys
+}
+
+func (w *WaitResult) Unmarshal(key string, in interface{}) error {
+	eNotFound := ErrMarshalKeyNotFound{
+		Key: key,
+	}
+
+	if w.allResults == nil {
+		return eNotFound
+	}
+
+	for _, v := range w.allResults {
+		if _, exists := v[key]; exists && len(v[key]) > 0 {
+			data, err := json.Marshal(v[key][0])
+
+			if err != nil {
+				return fmt.Errorf("failed to marshal data: %w", err)
+			}
+
+			err = json.Unmarshal(data, in)
+
+			if err != nil {
+				return fmt.Errorf("failed to unmarshal data: %w", err)
+			}
+
+			return nil
+		}
+	}
+
+	return nil
+}
+
+// DurableHatchetContext extends HatchetContext with methods for durable tasks.
+type DurableHatchetContext interface {
+	HatchetContext
+
+	// SleepFor pauses execution for the specified duration and returns after that time has elapsed.
+	// Duration is "global" meaning it will wait in real time regardless of transient failures
+	// like worker restarts.
+	// Example: "10s" for 10 seconds, "1m" for 1 minute, etc.
+	SleepFor(duration time.Duration) (*SingleWaitResult, error)
+
+	// TODO: docs
+	WaitForEvent(eventKey, expression string) (*SingleWaitResult, error)
+
+	// WaitFor pauses execution until the specified conditions are met.
+	// Conditions are "global" meaning they will wait in real time regardless of transient failures
+	// like worker restarts.
+	WaitFor(conditions condition.Condition) (*WaitResult, error)
+}
+
+// durableHatchetContext implements the DurableHatchetContext interface.
+type durableHatchetContext struct {
+	*hatchetContext
+
+	waitKeyCounterMu sync.Mutex
+	waitKeyCounter   int
+
+	durableEventListener *client.DurableEventsListener
+	durableListenerMu    sync.Mutex
+}
+
+// SleepFor implements the DurableHatchetContext.SleepFor method.
+func (d *durableHatchetContext) SleepFor(duration time.Duration) (*SingleWaitResult, error) {
+	// Implement SleepFor functionality
+	// Call appropriate client methods to register a durable event
+	c := condition.SleepCondition(duration)
+
+	wr, err := d.WaitFor(c)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return newSingleWaitResult(c.Key(), wr), nil
+}
+
+// WaitForEvent implements the DurableHatchetContext.WaitForEvent method.
+func (d *durableHatchetContext) WaitForEvent(eventKey, expression string) (*SingleWaitResult, error) {
+	// Implement WaitForEvent functionality
+	// Call appropriate client methods to register a durable event
+	wr, err := d.WaitFor(condition.UserEventCondition(eventKey, expression))
+
+	if err != nil {
+		return nil, err
+	}
+
+	return newSingleWaitResult(eventKey, wr), nil
+}
+
+// WaitFor implements the DurableHatchetContext.WaitFor method.
+func (d *durableHatchetContext) WaitFor(conditions condition.Condition) (*WaitResult, error) {
+	// Increment wait key to ensure unique keys for multiple wait operations
+	d.waitKeyCounterMu.Lock()
+	d.waitKeyCounter++
+	count := d.waitKeyCounter
+	d.waitKeyCounterMu.Unlock()
+
+	// TODO: MOVE SAVE OR LOAD DURABLE EVENT LISTENER TO THE CLIENT
+	durableListener, err := d.saveOrLoadDurableEventListener()
+
+	if err != nil {
+		return nil, err
+	}
+
+	// compose the durable event to listen for
+	c := conditions.ToPB(v1.Action_CREATE)
+	signalKey := fmt.Sprintf("signal-%d", count)
+
+	_, err = d.client().Dispatcher().RegisterDurableEvent(d, &v1.RegisterDurableEventRequest{
+		TaskId:    d.StepRunId(),
+		SignalKey: signalKey,
+		Conditions: &v1.DurableEventListenerConditions{
+			SleepConditions:     c.SleepConditions,
+			UserEventConditions: c.UserEventConditions,
+		},
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to register durable event: %w", err)
+	}
+
+	resCh := make(chan []byte)
+
+	err = durableListener.AddSignal(d.StepRunId(), signalKey, func(e client.DurableEvent) error {
+		resCh <- e.Data
+
+		return nil
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to add signal: %w", err)
+	}
+
+	data := <-resCh
+
+	return newWaitResult(data)
+}
+
+func (h *durableHatchetContext) saveOrLoadDurableEventListener() (*client.DurableEventsListener, error) {
+	return h.client().Subscribe().ListenForDurableEvents(context.Background())
+}
+
+// NewDurableHatchetContext creates a DurableHatchetContext from a HatchetContext.
+func NewDurableHatchetContext(ctx HatchetContext) DurableHatchetContext {
+	// Try to cast directly if it's already a DurableHatchetContext
+	if durableCtx, ok := ctx.(DurableHatchetContext); ok {
+		return durableCtx
+	}
+
+	// If it's a hatchetContext, wrap it in a durableHatchetContext
+	if hCtx, ok := ctx.(*hatchetContext); ok {
+		return &durableHatchetContext{
+			hatchetContext: hCtx,
+			waitKeyCounter: 0,
+		}
+	}
+
+	// Create a new wrapper if it's some other implementation
+	return &durableHatchetContext{
+		hatchetContext: &hatchetContext{
+			Context: ctx,
+			a:       ctx.action(),
+			c:       ctx.client(),
+			w:       ctx.Worker().(*hatchetWorkerContext),
+		},
+		waitKeyCounter: 0,
+	}
+}
+
+// Implementation of RunChild method for the hatchetContext
+func (h *hatchetContext) RunChild(workflowName string, input any, opts *SpawnWorkflowOpts) (*client.WorkflowResult, error) {
+	// Spawn the child workflow
+	workflow, err := h.SpawnWorkflow(workflowName, input, opts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to spawn child workflow: %w", err)
+	}
+
+	// Wait for the result
+	result, err := workflow.Result()
+	if err != nil {
+		return nil, fmt.Errorf("child workflow execution failed: %w", err)
+	}
+
+	return result, nil
 }

@@ -4,23 +4,23 @@ import { queries } from '@/lib/api';
 import invariant from 'tiny-invariant';
 import { TenantContextType } from '@/lib/outlet';
 import { useOutletContext } from 'react-router-dom';
-import { DataTable } from '@/components/molecules/data-table/data-table.tsx';
+import { DataTable } from '@/components/v1/molecules/data-table/data-table.tsx';
 import { columns } from './managed-worker-instances-columns';
-import { Loading } from '@/components/ui/loading.tsx';
-import { Button } from '@/components/ui/button';
+import { Loading } from '@/components/v1/ui/loading.tsx';
+import { Button } from '@/components/v1/ui/button';
 import {
   Card,
   CardHeader,
   CardTitle,
   CardDescription,
   CardFooter,
-} from '@/components/ui/card';
+} from '@/components/v1/ui/card';
 import { capitalize } from '@/lib/utils';
 import { ArrowPathIcon } from '@heroicons/react/24/outline';
 import { VisibilityState } from '@tanstack/react-table';
 import { BiCard, BiTable } from 'react-icons/bi';
 import { Instance } from '@/lib/api/generated/cloud/data-contracts';
-import { Badge } from '@/components/ui/badge';
+import { Badge } from '@/components/v1/ui/badge';
 
 export function ManagedWorkerInstancesTable({
   managedWorkerId,

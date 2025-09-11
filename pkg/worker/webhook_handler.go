@@ -121,7 +121,7 @@ func (w *Worker) WebhookHttpHandler(opts WebhookHandlerOptions, workflows ...wor
 		}
 		resp, err := w.webhookProcess(ctx)
 		if err != nil {
-			// TODO handle error gracefully and send a failed event
+			// FIXME handle error gracefully and send a failed event
 			w.l.Error().Err(err).Msg("error processing request")
 			writer.WriteHeader(http.StatusInternalServerError)
 			_, _ = writer.Write([]byte(err.Error()))

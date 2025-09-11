@@ -6,9 +6,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/hatchet-dev/hatchet/internal/datautils"
-	"github.com/hatchet-dev/hatchet/internal/digest"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 var ErrDagParentNotFound = errors.New("dag parent not found")
@@ -69,6 +68,8 @@ type CreateCronWorkflowTriggerOpts struct {
 
 	Input              map[string]interface{}
 	AdditionalMetadata map[string]interface{}
+
+	Priority *int32 `validate:"omitempty,min=1,max=3"`
 }
 
 type CreateWorkflowConcurrencyOpts struct {
@@ -85,28 +86,13 @@ type CreateWorkflowConcurrencyOpts struct {
 	Expression *string `validate:"omitempty,celworkflowrunstr"`
 }
 
-func (o *CreateWorkflowVersionOpts) Checksum() (string, error) {
-	// compute a checksum for the workflow
-	declaredValues, err := datautils.ToJSONMap(o)
-
-	if err != nil {
-		return "", err
-	}
-
-	workflowChecksum, err := digest.DigestValues(declaredValues)
-
-	if err != nil {
-		return "", err
-	}
-
-	return workflowChecksum.String(), nil
-}
-
 type CreateWorkflowSchedulesOpts struct {
 	ScheduledTriggers []time.Time
 
 	Input              []byte
 	AdditionalMetadata []byte
+
+	Priority *int32 `validate:"omitnil,min=1,max=3"`
 }
 
 type CreateScheduledWorkflowRunForWorkflowOpts struct {
@@ -116,6 +102,8 @@ type CreateScheduledWorkflowRunForWorkflowOpts struct {
 
 	Input              map[string]interface{}
 	AdditionalMetadata map[string]interface{}
+
+	Priority *int32 `validate:"omitempty,min=1,max=3"`
 }
 
 type CreateWorkflowTagOpts struct {
@@ -345,4 +333,7 @@ type WorkflowEngineRepository interface {
 	// GetWorkflowVersionById returns a workflow version by its id. It will return db.ErrNotFound if the workflow
 	// version does not exist.
 	GetWorkflowVersionById(ctx context.Context, tenantId, workflowVersionId string) (*dbsqlc.GetWorkflowVersionForEngineRow, error)
+
+	// Delete a cron workflow by its id. Intended to be used by the ticker to delete an invalid cron.
+	DeleteInvalidCron(ctx context.Context, id pgtype.UUID) error
 }

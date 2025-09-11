@@ -1,8 +1,16 @@
 import { atom, useAtom } from 'jotai';
-import { Tenant, queries } from './api';
-import { useSearchParams } from 'react-router-dom';
-import { useCallback, useEffect, useMemo } from 'react';
+import { Tenant, TenantVersion, queries } from './api';
+import {
+  useLocation,
+  useNavigate,
+  useParams,
+  useSearchParams,
+} from 'react-router-dom';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import useCloudApiMeta from '@/pages/auth/hooks/use-cloud-api-meta';
+import { TenantBillingState } from './api/generated/cloud/data-contracts';
+import { Evaluate } from './can/shared/permission.base';
 
 const getInitialValue = <T>(key: string, defaultValue?: T): T | undefined => {
   const item = localStorage.getItem(key);
@@ -18,6 +26,35 @@ const getInitialValue = <T>(key: string, defaultValue?: T): T | undefined => {
   return;
 };
 
+type Plan = 'free' | 'starter' | 'growth';
+
+export type BillingContext = {
+  state: TenantBillingState | undefined;
+  setPollBilling: (pollBilling: boolean) => void;
+  plan: Plan;
+  hasPaymentMethods: boolean;
+};
+
+type Can = (evalFn: Evaluate) => ReturnType<Evaluate>;
+
+type TenantContextPresent = {
+  tenant: Tenant;
+  tenantId: string;
+  setTenant: (tenant: Tenant) => void;
+  billing?: BillingContext;
+  can: Can;
+};
+
+type TenantContextMissing = {
+  tenant: undefined;
+  tenantId: undefined;
+  setTenant: (tenant: Tenant) => void;
+  billing: undefined;
+  can: Can;
+};
+
+type TenantContext = TenantContextPresent | TenantContextMissing;
+
 const lastTenantKey = 'lastTenant';
 
 const lastTenantAtomInit = atom(getInitialValue<Tenant>(lastTenantKey));
@@ -30,32 +67,24 @@ export const lastTenantAtom = atom(
   },
 );
 
-type TenantContextPresent = {
-  tenant: Tenant;
-  tenantId: string;
-  setTenant: (tenant: Tenant) => void;
-};
-
-type TenantContextMissing = {
-  tenant: undefined;
-  tenantId: undefined;
-  setTenant: (tenant: Tenant) => void;
-};
-
-type TenantContext = TenantContextPresent | TenantContextMissing;
-
 // search param sets the tenant, the last tenant set is used if the search param is empty,
 // otherwise the first membership is used
 export function useTenant(): TenantContext {
-  const [lastTenant, setLastTenant] = useAtom(lastTenantAtom);
   const [searchParams, setSearchParams] = useSearchParams();
+  const pathParams = useParams();
+  const [lastTenant, setLastTenant] = useAtom(lastTenantAtom);
 
   const setTenant = useCallback(
     (tenant: Tenant) => {
+      setLastTenant(tenant);
+
+      if (tenant.version === TenantVersion.V1) {
+        return;
+      }
+
       const newSearchParams = new URLSearchParams(searchParams);
       newSearchParams.set('tenant', tenant.metadata.id);
       setSearchParams(newSearchParams, { replace: true });
-      setLastTenant(tenant);
     },
     [searchParams, setSearchParams, setLastTenant],
   );
@@ -63,6 +92,7 @@ export function useTenant(): TenantContext {
   const membershipsQuery = useQuery({
     ...queries.user.listTenantMemberships,
   });
+
   const memberships = useMemo(
     () => membershipsQuery.data?.rows || [],
     [membershipsQuery.data],
@@ -77,8 +107,17 @@ export function useTenant(): TenantContext {
   );
 
   const computedCurrTenant = useMemo(() => {
+    const tenantFromPath = pathParams.tenant;
     const currTenantId = searchParams.get('tenant') || undefined;
     const lastTenantId = lastTenant?.metadata.id || undefined;
+
+    if (tenantFromPath) {
+      const tenant = findTenant(tenantFromPath);
+
+      if (tenant) {
+        return tenant;
+      }
+    }
 
     // If the current tenant is set as a query param, use it
     if (currTenantId) {
@@ -103,7 +142,7 @@ export function useTenant(): TenantContext {
     const firstMembershipTenant = memberships.at(0)?.tenant;
 
     return firstMembershipTenant;
-  }, [memberships, searchParams, findTenant, lastTenant]);
+  }, [memberships, searchParams, findTenant, pathParams.tenant, lastTenant]);
 
   const currTenantId = searchParams.get('tenant');
   const currTenant = currTenantId ? findTenant(currTenantId) : undefined;
@@ -121,11 +160,117 @@ export function useTenant(): TenantContext {
     }
   }, [searchParams, tenant, setTenant]);
 
+  // Set the correct path for tenant version
+  // NOTE: this is hacky and not ideal
+
+  const { pathname } = useLocation();
+  const navigate = useNavigate();
+  const [params] = useSearchParams();
+
+  const [lastRedirected, setLastRedirected] = useState<string | undefined>();
+  const [previewV0, setPreviewV0] = useState<boolean>(false);
+
+  useEffect(() => {
+    const previewV0Params = params.get('previewV0');
+
+    if (previewV0Params == 'false' && previewV0) {
+      setPreviewV0(false);
+    } else if (previewV0Params == 'true' && !previewV0) {
+      setPreviewV0(true);
+      return;
+    }
+
+    if (previewV0) {
+      return;
+    }
+
+    if (pathname.startsWith('/onboarding')) {
+      return;
+    }
+
+    if (
+      tenant?.version == TenantVersion.V0 &&
+      pathname.startsWith('/tenants')
+    ) {
+      setLastRedirected(tenant?.slug);
+      return navigate({
+        pathname: pathname.replace(`/tenants/${tenant.metadata.id}`, ''),
+        search: params.toString(),
+      });
+    }
+
+    if (
+      tenant?.version == TenantVersion.V1 &&
+      !pathname.startsWith('/tenants')
+    ) {
+      setLastRedirected(tenant?.slug);
+      return navigate({
+        pathname: `/tenants/${tenant.metadata.id}${pathname}`,
+        search: params.toString(),
+      });
+    }
+  }, [lastRedirected, navigate, params, pathname, previewV0, tenant]);
+
+  // Tenant Billing State
+
+  const [pollBilling, setPollBilling] = useState(false);
+
+  const { data: cloudMeta } = useCloudApiMeta();
+
+  const billingState = useQuery({
+    ...queries.cloud.billing(tenant?.metadata?.id || ''),
+    enabled: tenant && !!cloudMeta?.data.canBill,
+    refetchInterval: pollBilling ? 1000 : false,
+  });
+
+  const subscriptionPlan: Plan = useMemo(() => {
+    const plan = billingState.data?.subscription?.plan;
+    if (!plan) {
+      return 'free';
+    }
+    return plan as Plan;
+  }, [billingState.data?.subscription?.plan]);
+
+  const hasPaymentMethods = useMemo(() => {
+    return (billingState.data?.paymentMethods?.length || 0) > 0;
+  }, [billingState.data?.paymentMethods]);
+
+  const billingContext: BillingContext | undefined = useMemo(() => {
+    if (!cloudMeta?.data.canBill) {
+      return;
+    }
+
+    return {
+      state: billingState.data,
+      setPollBilling,
+      plan: subscriptionPlan,
+      hasPaymentMethods,
+    };
+  }, [
+    cloudMeta?.data.canBill,
+    billingState.data,
+    subscriptionPlan,
+    hasPaymentMethods,
+  ]);
+
+  const can = useCallback(
+    (evalFn: Evaluate) => {
+      return evalFn({
+        tenant,
+        billing: billingContext,
+        meta: cloudMeta?.data,
+      });
+    },
+    [billingContext, cloudMeta?.data, tenant],
+  );
+
   if (!tenant) {
     return {
       tenant: undefined,
       tenantId: undefined,
       setTenant,
+      billing: undefined,
+      can,
     };
   }
 
@@ -133,6 +278,8 @@ export function useTenant(): TenantContext {
     tenant,
     tenantId: tenant.metadata.id,
     setTenant,
+    billing: billingContext,
+    can,
   };
 }
 
@@ -164,7 +311,7 @@ export const lastWorkerMetricsTimeRangeAtom = atom(
   },
 );
 
-type ViewOptions = 'graph' | 'minimap';
+export type ViewOptions = 'graph' | 'minimap';
 
 const preferredWorkflowRunViewKey = 'wrView';
 

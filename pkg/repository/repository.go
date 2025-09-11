@@ -10,7 +10,7 @@ type APIRepository interface {
 	Event() EventAPIRepository
 	Log() LogsAPIRepository
 	Tenant() TenantAPIRepository
-	TenantAlertingSettings() TenantAlertingAPIRepository
+	TenantAlertingSettings() TenantAlertingRepository
 	TenantInvite() TenantInviteRepository
 	Workflow() WorkflowAPIRepository
 	WorkflowRun() WorkflowRunAPIRepository
@@ -28,7 +28,7 @@ type APIRepository interface {
 
 type EngineRepository interface {
 	Health() HealthRepository
-	APIToken() EngineTokenRepository
+	APIToken() APITokenRepository
 	Dispatcher() DispatcherEngineRepository
 	Event() EventEngineRepository
 	GetGroupKeyRun() GetGroupKeyRunEngineRepository
@@ -36,7 +36,7 @@ type EngineRepository interface {
 	StepRun() StepRunEngineRepository
 	Step() StepRepository
 	Tenant() TenantEngineRepository
-	TenantAlertingSettings() TenantAlertingEngineRepository
+	TenantAlertingSettings() TenantAlertingRepository
 	Ticker() TickerEngineRepository
 	Worker() WorkerEngineRepository
 	Workflow() WorkflowEngineRepository

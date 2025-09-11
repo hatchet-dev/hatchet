@@ -13,17 +13,34 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/hatchet-dev/hatchet/internal/dagutils"
+	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/admin/contracts"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
+	"github.com/hatchet-dev/hatchet/pkg/constants"
+	grpcmiddleware "github.com/hatchet-dev/hatchet/pkg/grpc/middleware"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/metered"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 func (a *AdminServiceImpl) TriggerWorkflow(ctx context.Context, req *contracts.TriggerWorkflowRequest) (*contracts.TriggerWorkflowResponse, error) {
+	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
+
+	switch tenant.Version {
+	case dbsqlc.TenantMajorEngineVersionV0:
+		return a.triggerWorkflowV0(ctx, req)
+	case dbsqlc.TenantMajorEngineVersionV1:
+		return a.triggerWorkflowV1(ctx, req)
+	default:
+		return nil, status.Errorf(codes.Unimplemented, "TriggerWorkflow is not supported on major engine version %s", tenant.Version)
+	}
+}
+
+func (a *AdminServiceImpl) triggerWorkflowV0(ctx context.Context, req *contracts.TriggerWorkflowRequest) (*contracts.TriggerWorkflowResponse, error) {
 	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
@@ -81,12 +98,41 @@ func (a *AdminServiceImpl) TriggerWorkflow(ctx context.Context, req *contracts.T
 		return nil, fmt.Errorf("could not queue workflow run: %w", err)
 	}
 
+	additionalMeta := ""
+	if req.AdditionalMetadata != nil {
+		additionalMeta = *req.AdditionalMetadata
+	}
+
+	corrId := datautils.ExtractCorrelationId(additionalMeta)
+
+	if corrId != nil {
+		ctx = context.WithValue(ctx, constants.CorrelationIdKey, *corrId)
+	}
+
+	ctx = context.WithValue(ctx, constants.ResourceIdKey, workflowRunId)
+	ctx = context.WithValue(ctx, constants.ResourceTypeKey, constants.ResourceTypeWorkflowRun)
+
+	grpcmiddleware.TriggerCallback(ctx)
+
 	return &contracts.TriggerWorkflowResponse{
 		WorkflowRunId: workflowRunId,
 	}, nil
 }
 
 func (a *AdminServiceImpl) BulkTriggerWorkflow(ctx context.Context, req *contracts.BulkTriggerWorkflowRequest) (*contracts.BulkTriggerWorkflowResponse, error) {
+	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
+
+	switch tenant.Version {
+	case dbsqlc.TenantMajorEngineVersionV0:
+		return a.bulkTriggerWorkflowV0(ctx, req)
+	case dbsqlc.TenantMajorEngineVersionV1:
+		return a.bulkTriggerWorkflowV1(ctx, req)
+	default:
+		return nil, status.Errorf(codes.Unimplemented, "TriggerWorkflow is not supported on major engine version %s", tenant.Version)
+	}
+}
+
+func (a *AdminServiceImpl) bulkTriggerWorkflowV0(ctx context.Context, req *contracts.BulkTriggerWorkflowRequest) (*contracts.BulkTriggerWorkflowResponse, error) {
 	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
@@ -130,7 +176,7 @@ func (a *AdminServiceImpl) BulkTriggerWorkflow(ctx context.Context, req *contrac
 		workflowRunIds = append(workflowRunIds, sqlchelpers.UUIDToStr(workflowRun.ID))
 	}
 
-	for _, workflowRunId := range workflowRunIds {
+	for i, workflowRunId := range workflowRunIds {
 		err = a.mq.AddMessage(
 			context.Background(),
 			msgqueue.WORKFLOW_PROCESSING_QUEUE,
@@ -140,6 +186,21 @@ func (a *AdminServiceImpl) BulkTriggerWorkflow(ctx context.Context, req *contrac
 		if err != nil {
 			return nil, fmt.Errorf("could not queue workflow run: %w", err)
 		}
+
+		var corrId *string
+
+		if req.Workflows[i].AdditionalMetadata != nil {
+			corrId = datautils.ExtractCorrelationId(*req.Workflows[i].AdditionalMetadata)
+		}
+
+		if corrId != nil {
+			ctx = context.WithValue(ctx, constants.CorrelationIdKey, *corrId)
+		}
+
+		ctx = context.WithValue(ctx, constants.ResourceIdKey, workflowRunId)
+		ctx = context.WithValue(ctx, constants.ResourceTypeKey, constants.ResourceTypeWorkflowRun)
+
+		grpcmiddleware.TriggerCallback(ctx)
 	}
 
 	// adding in the pre-existing workflows to the response.
@@ -208,6 +269,7 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.PutWo
 			return nil, err
 		}
 	} else {
+
 		oldWorkflowVersion, err = a.repo.Workflow().GetLatestWorkflowVersion(
 			ctx,
 			tenantId,
@@ -219,7 +281,7 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.PutWo
 		}
 
 		// workflow exists, look at checksum
-		newCS, err := createOpts.Checksum()
+		newCS, err := dagutils.Checksum(createOpts)
 
 		if err != nil {
 			return nil, err
@@ -341,14 +403,29 @@ func (a *AdminServiceImpl) ScheduleWorkflow(ctx context.Context, req *contracts.
 		additionalMetadata = []byte(*req.AdditionalMetadata)
 	}
 
+	if err := repository.ValidateJSONB(additionalMetadata, "additionalMetadata"); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "Invalid request: %s", err)
+	}
+
+	payloadBytes := []byte(req.Input)
+
+	if err := repository.ValidateJSONB(payloadBytes, "payload"); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "Invalid request: %s", err)
+	}
+
+	if req.Priority != nil && (*req.Priority < 1 || *req.Priority > 3) {
+		return nil, status.Errorf(codes.InvalidArgument, "priority must be between 1 and 3, got %d", *req.Priority)
+	}
+
 	scheduledRef, err := a.repo.Workflow().CreateSchedules(
 		ctx,
 		tenantId,
 		workflowVersionId,
 		&repository.CreateWorkflowSchedulesOpts{
 			ScheduledTriggers:  dbSchedules,
-			Input:              []byte(req.Input),
+			Input:              payloadBytes,
 			AdditionalMetadata: additionalMetadata,
+			Priority:           req.Priority,
 		},
 	)
 
@@ -803,6 +880,7 @@ func getOpts(ctx context.Context, requests []*contracts.TriggerWorkflowRequest, 
 				req.ChildKey,
 				additionalMetadata,
 				parentAdditionalMeta,
+				req.Priority,
 			)
 
 			if err != nil {

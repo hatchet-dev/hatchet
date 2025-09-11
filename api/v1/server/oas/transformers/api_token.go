@@ -2,20 +2,21 @@ package transformers
 
 import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
-func ToAPIToken(token *db.APITokenModel) *gen.APIToken {
+func ToAPIToken(token *dbsqlc.APIToken) *gen.APIToken {
 	res := &gen.APIToken{
-		Metadata: *toAPIMetadata(token.ID, token.CreatedAt, token.UpdatedAt),
+		Metadata: *toAPIMetadata(sqlchelpers.UUIDToStr(token.ID), token.CreatedAt.Time, token.UpdatedAt.Time),
 	}
 
-	if expiresAt, ok := token.ExpiresAt(); ok {
-		res.ExpiresAt = expiresAt
+	if token.ExpiresAt.Valid {
+		res.ExpiresAt = token.ExpiresAt.Time
 	}
 
-	if name, ok := token.Name(); ok {
-		res.Name = name
+	if token.Name.Valid {
+		res.Name = token.Name.String
 	}
 
 	return res

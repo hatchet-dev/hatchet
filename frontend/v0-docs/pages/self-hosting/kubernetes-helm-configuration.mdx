@@ -1,0 +1,59 @@
+# Configuring the Helm Chart
+
+## Shared Config
+
+For the `hatchet-stack` and `hatchet-ha` Helm charts, the `sharedConfig` object in the `values.yaml` file allows you to configure shared settings for all backend services. The default values are:
+
+```yaml
+sharedConfig:
+  # you can disable shared config by setting this to false
+  enabled: true
+
+  # these are the most commonly configured values
+  serverUrl: "http://localhost:8080"
+  serverAuthCookieDomain: "localhost:8080" # the domain for the auth cookie
+  serverAuthCookieInsecure: "t" # allows cookies to be set over http
+  serverAuthSetEmailVerified: "t" # automatically sets email_verified to true for all users
+  serverAuthBasicAuthEnabled: "t" # allows login via basic auth (email/password)
+  grpcBroadcastAddress: "localhost:7070" # the endpoint for the gRPC server, exposed via the `grpc` service
+  grpcInsecure: "true" # allows gRPC to be served over http
+  defaultAdminEmail: "admin@example.com" # in exposed/production environments, change this to a valid email
+  defaultAdminPassword: "Admin123!!" # in exposed/production environments, change this to a secure password
+
+  # you can set additional environment variables here, which will override any defaults
+  env: {}
+```
+
+### Networking
+
+- **`sharedConfig.serverUrl`** (default: `"http://localhost:8080"`): specifies the base URL for the server. This URL should be the public-facing URL of the Hatchet API server (which is typically bundled behind a reverse proxy with the Hatchet frontend).
+
+- **`sharedConfig.grpcBroadcastAddress`** (default: `"localhost:7070"`): defines the address for the gRPC server endpoint, which is exposed via the `grpc` service.
+
+- **`sharedConfig.grpcInsecure`** (default: `"true"`): when set to `true`, allows the gRPC server to be served over HTTP instead of HTTPS. Use this in non-production environments only.
+
+### Authentication
+
+- **`sharedConfig.serverAuthCookieDomain`** (default: `"localhost:8080"`): specifies the domain for the authentication cookie. Should be set to the appropriate domain when deploying to production.
+
+- **`sharedConfig.serverAuthCookieInsecure`** (default: `"t"`): if set to `"t"`, allows authentication cookies to be set over HTTP, useful for local development. In production, use a secure setting.
+
+- **`sharedConfig.serverAuthSetEmailVerified`** (default: `"t"`): automatically sets `email_verified` to `true` for all users. This is useful for testing environments where email verification is not necessary.
+
+- **`sharedConfig.serverAuthBasicAuthEnabled`** (default: `"t"`): enables basic authentication (using email and password) for users. Should be enabled if the system needs to support user logins via email/password.
+
+- **`sharedConfig.defaultAdminEmail`** (default: `"admin@example.com"`): specifies the email for the default administrator account. Change this to a valid email when deploying to production environments.
+
+- **`sharedConfig.defaultAdminPassword`** (default: `"Admin123!!"`): defines the password for the default administrator account. This should be changed to a strong password for production deployments.
+
+### Additional Env Variables
+
+You can set additional environment variables for the backend services using the `env` object. For example:
+
+```yaml
+sharedConfig:
+  env:
+    MY_ENV_VAR: "my-value"
+```
+
+This will set the environment variable `MY_ENV_VAR` to `"my-value"` for all backend services. These values will override any default environment settings for the services.

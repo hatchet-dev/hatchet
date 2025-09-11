@@ -1,5 +1,6 @@
 /* eslint-disable */
 /* tslint:disable */
+// @ts-nocheck
 /*
  * ---------------------------------------------------------------
  * ## THIS FILE WAS GENERATED VIA SWAGGER-TYPESCRIPT-API        ##
@@ -8,6 +9,97 @@
  * ## SOURCE: https://github.com/acacode/swagger-typescript-api ##
  * ---------------------------------------------------------------
  */
+
+export enum OrganizationInviteStatus {
+  PENDING = "PENDING",
+  ACCEPTED = "ACCEPTED",
+  REJECTED = "REJECTED",
+  EXPIRED = "EXPIRED",
+}
+
+export enum ManagementTokenDuration {
+  Value30D = "30d",
+  Value60D = "60d",
+  Value90D = "90d",
+}
+
+export enum TenantStatusType {
+  ACTIVE = "ACTIVE",
+  ARCHIVED = "ARCHIVED",
+}
+
+export enum OrganizationMemberRoleType {
+  OWNER = "OWNER",
+}
+
+export enum TemplateOptions {
+  QUICKSTART_PYTHON = "QUICKSTART_PYTHON",
+  QUICKSTART_TYPESCRIPT = "QUICKSTART_TYPESCRIPT",
+  QUICKSTART_GO = "QUICKSTART_GO",
+}
+
+export enum AutoscalingTargetKind {
+  PORTER = "PORTER",
+  FLY = "FLY",
+}
+
+export enum CouponFrequency {
+  Once = "once",
+  Recurring = "recurring",
+}
+
+export enum TenantSubscriptionStatus {
+  Active = "active",
+  Pending = "pending",
+  Terminated = "terminated",
+  Canceled = "canceled",
+}
+
+export enum ManagedWorkerRegion {
+  Ams = "ams",
+  Arn = "arn",
+  Atl = "atl",
+  Bog = "bog",
+  Bos = "bos",
+  Cdg = "cdg",
+  Den = "den",
+  Dfw = "dfw",
+  Ewr = "ewr",
+  Eze = "eze",
+  Fra = "fra",
+  Gdl = "gdl",
+  Gig = "gig",
+  Gru = "gru",
+  Hkg = "hkg",
+  Iad = "iad",
+  Jnb = "jnb",
+  Lax = "lax",
+  Lhr = "lhr",
+  Mad = "mad",
+  Mia = "mia",
+  Nrt = "nrt",
+  Ord = "ord",
+  Otp = "otp",
+  Phx = "phx",
+  Qro = "qro",
+  Scl = "scl",
+  Sea = "sea",
+  Sin = "sin",
+  Sjc = "sjc",
+  Syd = "syd",
+  Waw = "waw",
+  Yul = "yul",
+  Yyz = "yyz",
+}
+
+export enum ManagedWorkerEventStatus {
+  IN_PROGRESS = "IN_PROGRESS",
+  SUCCEEDED = "SUCCEEDED",
+  FAILED = "FAILED",
+  CANCELLED = "CANCELLED",
+  SCALE_UP = "SCALE_UP",
+  SCALE_DOWN = "SCALE_DOWN",
+}
 
 export interface APICloudMetadata {
   /**
@@ -25,80 +117,25 @@ export interface APICloudMetadata {
    * @example true
    */
   metricsEnabled?: boolean;
+  /**
+   * whether the tenant requires billing for managed compute
+   * @example true
+   */
+  requireBillingForManagedCompute?: boolean;
+  /**
+   * the inactivity timeout to log out for user sessions in milliseconds
+   * @example 3600000
+   */
+  inactivityLogoutMs?: number;
 }
 
-export interface APIErrors {
-  errors: APIError[];
-}
+export type APIErrors = any;
 
-export interface APIError {
-  /**
-   * a custom Hatchet error code
-   * @format uint64
-   * @example 1400
-   */
-  code?: number;
-  /**
-   * the field that this error is associated with, if applicable
-   * @example "name"
-   */
-  field?: string;
-  /**
-   * a description for this error
-   * @example "A descriptive error message"
-   */
-  description: string;
-  /**
-   * a link to the documentation for this error, if it exists
-   * @example "github.com/hatchet-dev/hatchet"
-   */
-  docs_link?: string;
-}
+export type APIError = any;
 
-/** @example {"next_page":3,"num_pages":10,"current_page":2} */
-export interface PaginationResponse {
-  /**
-   * the current page
-   * @format int64
-   * @example 2
-   */
-  current_page?: number;
-  /**
-   * the next page
-   * @format int64
-   * @example 3
-   */
-  next_page?: number;
-  /**
-   * the total number of pages for listing
-   * @format int64
-   * @example 10
-   */
-  num_pages?: number;
-}
+export type PaginationResponse = any;
 
-export interface APIResourceMeta {
-  /**
-   * the id of this resource, in UUID format
-   * @format uuid
-   * @minLength 36
-   * @maxLength 36
-   * @example "bb214807-246e-43a5-a25d-41761d1cff9e"
-   */
-  id: string;
-  /**
-   * the time that this resource was created
-   * @format date-time
-   * @example "2022-12-13T20:06:48.888Z"
-   */
-  createdAt: string;
-  /**
-   * the time that this resource was last updated
-   * @format date-time
-   * @example "2022-12-13T20:06:48.888Z"
-   */
-  updatedAt: string;
-}
+export type APIResourceMeta = any;
 
 export interface GithubBranch {
   branch_name: string;
@@ -111,10 +148,12 @@ export interface GithubRepo {
 }
 
 export interface GithubAppInstallation {
+  type?: "oauth" | "installation";
   metadata: APIResourceMeta;
   installation_settings_url: string;
   account_name: string;
   account_avatar_url: string;
+  is_linked_to_tenant: boolean;
 }
 
 export interface ListGithubAppInstallationsResponse {
@@ -129,11 +168,12 @@ export type ListGithubBranchesResponse = GithubBranch[];
 export interface ManagedWorker {
   metadata: APIResourceMeta;
   name: string;
-  buildConfig: ManagedWorkerBuildConfig;
+  buildConfig?: ManagedWorkerBuildConfig;
   isIac: boolean;
-  /** A map of environment variables to set for the worker */
-  envVars: Record<string, string>;
+  directSecrets: ManagedWorkerSecret[];
+  globalSecrets: ManagedWorkerSecret[];
   runtimeConfigs?: ManagedWorkerRuntimeConfig[];
+  canUpdate?: boolean;
 }
 
 export interface ManagedWorkerList {
@@ -154,6 +194,46 @@ export interface ManagedWorkerBuildConfig {
   steps?: BuildStep[];
 }
 
+export interface ManagedWorkerSecret {
+  key: string;
+  id: string;
+  hint: string;
+}
+
+export interface CreateManagedWorkerSecretRequest {
+  /** array of secret keys and values to add to the worker */
+  add?: {
+    key: string;
+    value: string;
+  }[];
+  /** array of global secret ids to add to the worker */
+  addGlobal?: string[];
+}
+
+export interface UpdateManagedWorkerSecretRequest {
+  /** array of secret keys and values to add to the worker */
+  add?: {
+    key: string;
+    value: string;
+  }[];
+  /** array of global secret ids to add to the worker */
+  addGlobal?: string[];
+  /** array of secret ids to delete from the worker */
+  delete?: string[];
+  /** array of existing secret ids and values to update in the worker */
+  update?: {
+    /**
+     * @format uuid
+     * @minLength 36
+     * @maxLength 36
+     */
+    id: string;
+    /** @minLength 1 */
+    key: string;
+    value: string;
+  }[];
+}
+
 export interface BuildStep {
   metadata: APIResourceMeta;
   /** The relative path to the build directory */
@@ -165,7 +245,7 @@ export interface BuildStep {
 export interface ManagedWorkerRuntimeConfig {
   metadata: APIResourceMeta;
   numReplicas: number;
-  autoscaling?: CreateOrUpdateAutoscalingRequest;
+  autoscaling?: AutoscalingConfig;
   /** The kind of CPU to use for the worker */
   cpuKind: string;
   /** The number of CPUs to use for the worker */
@@ -176,13 +256,6 @@ export interface ManagedWorkerRuntimeConfig {
   region: ManagedWorkerRegion;
   /** A list of actions this runtime config corresponds to */
   actions?: string[];
-}
-
-export enum ManagedWorkerEventStatus {
-  IN_PROGRESS = "IN_PROGRESS",
-  SUCCEEDED = "SUCCEEDED",
-  FAILED = "FAILED",
-  CANCELLED = "CANCELLED",
 }
 
 export interface ManagedWorkerEvent {
@@ -205,8 +278,7 @@ export interface ManagedWorkerEventList {
 export interface CreateManagedWorkerRequest {
   name: string;
   buildConfig: CreateManagedWorkerBuildConfigRequest;
-  /** A map of environment variables to set for the worker */
-  envVars: Record<string, string>;
+  secrets?: CreateManagedWorkerSecretRequest;
   isIac: boolean;
   runtimeConfig?: CreateManagedWorkerRuntimeConfigRequest;
 }
@@ -214,8 +286,7 @@ export interface CreateManagedWorkerRequest {
 export interface UpdateManagedWorkerRequest {
   name?: string;
   buildConfig?: CreateManagedWorkerBuildConfigRequest;
-  /** A map of environment variables to set for the worker */
-  envVars?: Record<string, string>;
+  secrets?: UpdateManagedWorkerSecretRequest;
   isIac?: boolean;
   runtimeConfig?: CreateManagedWorkerRuntimeConfigRequest;
 }
@@ -246,42 +317,6 @@ export interface CreateBuildStepRequest {
   buildDir: string;
   /** The relative path from the build dir to the Dockerfile */
   dockerfilePath: string;
-}
-
-export enum ManagedWorkerRegion {
-  Ams = "ams",
-  Arn = "arn",
-  Atl = "atl",
-  Bog = "bog",
-  Bos = "bos",
-  Cdg = "cdg",
-  Den = "den",
-  Dfw = "dfw",
-  Ewr = "ewr",
-  Eze = "eze",
-  Gdl = "gdl",
-  Gig = "gig",
-  Gru = "gru",
-  Hkg = "hkg",
-  Iad = "iad",
-  Jnb = "jnb",
-  Lax = "lax",
-  Lhr = "lhr",
-  Mad = "mad",
-  Mia = "mia",
-  Nrt = "nrt",
-  Ord = "ord",
-  Otp = "otp",
-  Phx = "phx",
-  Qro = "qro",
-  Scl = "scl",
-  Sea = "sea",
-  Sin = "sin",
-  Sjc = "sjc",
-  Syd = "syd",
-  Waw = "waw",
-  Yul = "yul",
-  Yyz = "yyz",
 }
 
 export interface CreateManagedWorkerRuntimeConfigRequest {
@@ -375,18 +410,6 @@ export interface TenantPaymentMethod {
   description?: string;
 }
 
-export enum TenantSubscriptionStatus {
-  Active = "active",
-  Pending = "pending",
-  Terminated = "terminated",
-  Canceled = "canceled",
-}
-
-export interface TenantUsage {
-  /** The usage of the tenant. */
-  usage: string;
-}
-
 export interface Coupon {
   /** The name of the coupon. */
   name: string;
@@ -404,11 +427,6 @@ export interface Coupon {
   frequency_duration_remaining?: number;
   /** The percentage off of the coupon. */
   percent?: number;
-}
-
-export enum CouponFrequency {
-  Once = "once",
-  Recurring = "recurring",
 }
 
 export type VectorPushRequest = EventObject[];
@@ -438,6 +456,9 @@ export interface LogLine {
   timestamp: string;
   instance: string;
   line: string;
+  metadata?: object;
+  retryCount?: number;
+  level?: string;
 }
 
 export interface LogLineList {
@@ -543,13 +564,25 @@ export interface WorkflowRunEventsMetricsCounts {
   results?: WorkflowRunEventsMetric[];
 }
 
+export interface AutoscalingConfig {
+  waitDuration: string;
+  rollingWindowDuration: string;
+  utilizationScaleUpThreshold: number;
+  utilizationScaleDownThreshold: number;
+  increment: number;
+  targetKind: AutoscalingTargetKind;
+  minAwakeReplicas: number;
+  maxReplicas: number;
+  scaleToZero: boolean;
+}
+
 export interface CreateOrUpdateAutoscalingRequest {
   waitDuration: string;
   rollingWindowDuration: string;
   utilizationScaleUpThreshold: number;
   utilizationScaleDownThreshold: number;
   increment: number;
-  targetKind?: "PORTER" | "FLY";
+  targetKind?: AutoscalingTargetKind;
   minAwakeReplicas: number;
   maxReplicas: number;
   scaleToZero: boolean;
@@ -568,4 +601,209 @@ export interface CreatePorterAutoscalingRequest {
 export interface CreateFlyAutoscalingRequest {
   autoscalingKey: string;
   currentReplicas: number;
+}
+
+export interface CreateManagedWorkerFromTemplateRequest {
+  name: TemplateOptions;
+}
+
+export interface MonthlyComputeCost {
+  cost: number;
+  hasCreditsRemaining: boolean;
+  creditsRemaining?: number;
+}
+
+export interface Organization {
+  metadata: APIResourceMeta;
+  /** Name of the organization */
+  name: string;
+  tenants?: OrganizationTenant[];
+  members?: OrganizationMember[];
+}
+
+export interface OrganizationForUser {
+  metadata: APIResourceMeta;
+  /** Name of the organization */
+  name: string;
+  tenants: OrganizationTenant[];
+  /** Whether the user is the owner of the organization */
+  isOwner: boolean;
+}
+
+export interface OrganizationForUserList {
+  rows: OrganizationForUser[];
+  pagination: PaginationResponse;
+}
+
+export interface CreateOrganizationRequest {
+  /**
+   * Name of the organization
+   * @minLength 1
+   * @maxLength 256
+   */
+  name: string;
+}
+
+export interface UpdateOrganizationRequest {
+  /**
+   * Name of the organization
+   * @minLength 1
+   * @maxLength 256
+   */
+  name: string;
+}
+
+export interface OrganizationMember {
+  metadata: APIResourceMeta;
+  /** Type/role of the member in the organization */
+  role: OrganizationMemberRoleType;
+  /**
+   * Email of the user
+   * @format email
+   */
+  email: string;
+}
+
+export interface OrganizationMemberList {
+  rows: OrganizationMember[];
+  pagination: PaginationResponse;
+}
+
+export interface InviteOrganizationMembersRequest {
+  /**
+   * Array of user emails to invite to the organization
+   * @minItems 1
+   */
+  emails: string[];
+}
+
+export interface RemoveOrganizationMembersRequest {
+  /**
+   * Array of user emails to remove from the organization
+   * @minItems 1
+   */
+  emails: string[];
+}
+
+export interface OrganizationTenant {
+  /**
+   * ID of the tenant
+   * @format uuid
+   */
+  id: string;
+  /** Status of the tenant */
+  status: TenantStatusType;
+  /**
+   * The timestamp at which the tenant was archived
+   * @format date-time
+   */
+  archivedAt?: string;
+}
+
+export interface OrganizationTenantList {
+  rows: OrganizationTenant[];
+}
+
+export interface CreateNewTenantForOrganizationRequest {
+  /** The name of the tenant. */
+  name: string;
+  /** The slug of the tenant. */
+  slug: string;
+}
+
+export type APIToken = any;
+
+export type APITokenList = any;
+
+export type CreateTenantAPITokenRequest = any;
+
+export type CreateTenantAPITokenResponse = any;
+
+export interface CreateManagementTokenRequest {
+  /** The name of the management token. */
+  name: string;
+  /** @default "30d" */
+  duration?: ManagementTokenDuration;
+}
+
+export interface CreateManagementTokenResponse {
+  /** The token of the management token. */
+  token: string;
+}
+
+export interface ManagementToken {
+  /**
+   * The ID of the management token.
+   * @format uuid
+   */
+  id: string;
+  /** The name of the management token. */
+  name: string;
+  /**
+   * The timestamp at which the management token expires
+   * @format date-time
+   */
+  expiresAt: string;
+}
+
+export interface ManagementTokenList {
+  rows: ManagementToken[];
+}
+
+export interface OrganizationInvite {
+  metadata: APIResourceMeta;
+  /**
+   * The ID of the organization
+   * @format uuid
+   */
+  organizationId: string;
+  /**
+   * The email of the inviter
+   * @format email
+   */
+  inviterEmail: string;
+  /**
+   * The email of the invitee
+   * @format email
+   */
+  inviteeEmail: string;
+  /**
+   * The timestamp at which the invite expires
+   * @format date-time
+   */
+  expires: string;
+  /** The status of the invite */
+  status: OrganizationInviteStatus;
+  /** The role of the invitee */
+  role: OrganizationMemberRoleType;
+}
+
+export interface OrganizationInviteList {
+  rows: OrganizationInvite[];
+}
+
+export interface CreateOrganizationInviteRequest {
+  /**
+   * The email of the invitee
+   * @format email
+   */
+  inviteeEmail: string;
+  /** The role of the invitee */
+  role: OrganizationMemberRoleType;
+}
+
+export interface AcceptOrganizationInviteRequest {
+  /**
+   * The ID of the organization invite
+   * @format uuid
+   */
+  id: string;
+}
+
+export interface RejectOrganizationInviteRequest {
+  /**
+   * The ID of the organization invite
+   * @format uuid
+   */
+  id: string;
 }

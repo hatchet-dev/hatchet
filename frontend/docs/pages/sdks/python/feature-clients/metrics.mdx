@@ -1,0 +1,98 @@
+# Metrics Client
+
+Bases: `BaseRestClient`
+
+The metrics client is a client for reading metrics out of Hatchet's metrics API.
+
+Methods:
+
+| Name                                   | Description                                                                               |
+| -------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `aio_get_queue_metrics`                | Retrieve the current queue metrics for the tenant.                                        |
+| `aio_get_task_metrics`                 | Retrieve task metrics, grouped by status (queued, running, completed, failed, cancelled). |
+| `aio_scrape_tenant_prometheus_metrics` | Scrape Prometheus metrics for the tenant. Returns the metrics in Prometheus text format.  |
+| `get_queue_metrics`                    | Retrieve the current queue metrics for the tenant.                                        |
+| `get_task_metrics`                     | Retrieve task metrics, grouped by status (queued, running, completed, failed, cancelled). |
+| `scrape_tenant_prometheus_metrics`     | Scrape Prometheus metrics for the tenant. Returns the metrics in Prometheus text format.  |
+
+### Functions
+
+#### `aio_get_queue_metrics`
+
+Retrieve the current queue metrics for the tenant.
+
+Returns:
+
+| Type             | Description               |
+| ---------------- | ------------------------- |
+| `dict[str, Any]` | The current queue metrics |
+
+#### `aio_get_task_metrics`
+
+Retrieve task metrics, grouped by status (queued, running, completed, failed, cancelled).
+
+Parameters:
+
+| Name                           | Type                | Description                                                                                                          | Default |
+| ------------------------------ | ------------------- | -------------------------------------------------------------------------------------------------------------------- | ------- |
+| `since`                        | `datetime \| None`  | Start time for the metrics query (defaults to the past day if unset)                                                 | `None`  |
+| `until`                        | `datetime \| None`  | End time for the metrics query                                                                                       | `None`  |
+| `workflow_ids`                 | `list[str] \| None` | List of workflow IDs to filter the metrics by                                                                        | `None`  |
+| `parent_task_external_id`      | `str \| None`       | ID of the parent task to filter by (note that parent task here refers to the task that spawned this task as a child) | `None`  |
+| `triggering_event_external_id` | `str \| None`       | ID of the triggering event to filter by                                                                              | `None`  |
+
+Returns:
+
+| Type          | Description  |
+| ------------- | ------------ |
+| `TaskMetrics` | Task metrics |
+
+#### `aio_scrape_tenant_prometheus_metrics`
+
+Scrape Prometheus metrics for the tenant. Returns the metrics in Prometheus text format.
+
+Returns:
+
+| Type  | Description                                     |
+| ----- | ----------------------------------------------- |
+| `str` | The metrics, returned in Prometheus text format |
+
+#### `get_queue_metrics`
+
+Retrieve the current queue metrics for the tenant.
+
+Returns:
+
+| Type             | Description               |
+| ---------------- | ------------------------- |
+| `dict[str, Any]` | The current queue metrics |
+
+#### `get_task_metrics`
+
+Retrieve task metrics, grouped by status (queued, running, completed, failed, cancelled).
+
+Parameters:
+
+| Name                           | Type                | Description                                                                                                          | Default |
+| ------------------------------ | ------------------- | -------------------------------------------------------------------------------------------------------------------- | ------- |
+| `since`                        | `datetime \| None`  | Start time for the metrics query (defaults to the past day if unset)                                                 | `None`  |
+| `until`                        | `datetime \| None`  | End time for the metrics query                                                                                       | `None`  |
+| `workflow_ids`                 | `list[str] \| None` | List of workflow IDs to filter the metrics by                                                                        | `None`  |
+| `parent_task_external_id`      | `str \| None`       | ID of the parent task to filter by (note that parent task here refers to the task that spawned this task as a child) | `None`  |
+| `triggering_event_external_id` | `str \| None`       | ID of the triggering event to filter by                                                                              | `None`  |
+
+Returns:
+
+| Type          | Description  |
+| ------------- | ------------ |
+| `TaskMetrics` | Task metrics |
+
+#### `scrape_tenant_prometheus_metrics`
+
+Scrape Prometheus metrics for the tenant. Returns the metrics in Prometheus text format.
+
+Returns:
+
+| Type  | Description                                     |
+| ----- | ----------------------------------------------- |
+| `str` | The metrics, returned in Prometheus text format |

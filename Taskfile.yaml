@@ -12,6 +12,7 @@ tasks:
       - task: set-env-all
       - task: seed-dev
       - task: copy-ca-to-sdks
+      - task: docs
   set-env-db:
     cmds:
       - |
@@ -47,9 +48,15 @@ tasks:
         DATABASE_LOGGER_LEVEL=error
         DATABASE_LOGGER_FORMAT=console
 
-        SERVER_GRPC_BROADCAST_ADDRESS=grpc.dev.hatchet-tools.com:443
+        SERVER_GRPC_BROADCAST_ADDRESS=127.0.0.1:7070
         SERVER_GRPC_INSECURE=true
+        SERVER_INTERNAL_CLIENT_BASE_STRATEGY=none
+        SERVER_INTERNAL_CLIENT_BASE_INHERIT_BASE=false
         EOF
+  pre:
+    cmds:
+      - cd frontend/app/ && pnpm run prettier:fix
+      - pre-commit run --all-files
   start-db:
     cmds:
       - docker compose up -d
@@ -58,26 +65,26 @@ tasks:
       - docker compose down
   recreate-db-from-scratch:
     cmds:
-      - docker compose down
-      - docker volume rm oss_hatchet_postgres_data
-      - docker volume rm oss_hatchet_rabbitmq_data
+      - docker compose down -v
       - docker compose up -d
       - task: setup
       - task: init-dev-env
   set-etc-hosts:
     cmds:
       - sudo sh ./hack/dev/manage-hosts.sh add 127.0.0.1 app.dev.hatchet-tools.com
+  empty-migration:
+    cmds:
+      - goose -dir cmd/hatchet-migrate/migrate/migrations/ create {{.CLI_ARGS | default "empty_migration"}} sql
   migrate:
     cmds:
       - task: generate-sqlc
-      - task: atlas-compare-schema-to-migrations-dir
-      - task: atlas-apply-migrations
-  atlas-compare-schema-to-migrations-dir:
+      - task: goose-migrate
+  atlas-migrate:
     cmds:
       - sh ./hack/dev/atlas-migrate.sh {{.CLI_ARGS}}
-  atlas-apply-migrations:
+  goose-migrate:
     cmds:
-      - DATABASE_URL='postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet' sh ./hack/db/atlas-apply.sh
+      - sh ./hack/dev/migrate.sh
   seed-dev:
     cmds:
       - SEED_DEVELOPMENT=true sh ./hack/dev/run-go-with-env.sh run ./cmd/hatchet-admin seed
@@ -87,6 +94,9 @@ tasks:
       - task: start-api
       - task: start-engine
       - task: start-frontend
+  start-dev-tmux:
+    cmds:
+      - sh ./hack/dev/start-dev-tmux.sh
   start-api:
     cmds:
       - sh ./hack/dev/start-api.sh
@@ -150,7 +160,8 @@ tasks:
       - sh ./generate.sh
   generate-sqlc:
     cmds:
-      - go run github.com/sqlc-dev/sqlc/cmd/sqlc@v1.24.0 generate --file pkg/repository/prisma/dbsqlc/sqlc.yaml
+      - go run github.com/sqlc-dev/sqlc/cmd/sqlc@v1.29.0 generate --file pkg/repository/postgres/dbsqlc/sqlc.yaml
+      - go run github.com/sqlc-dev/sqlc/cmd/sqlc@v1.29.0 generate --file pkg/repository/v1/sqlcv1/sqlc.yaml
   lint:
     cmds:
       - task: lint-go
@@ -161,9 +172,6 @@ tasks:
   lint-frontend:
     cmds:
       - cd frontend/app/ && pnpm run lint:check
-  kill-query-engines:
-    cmds:
-      - ps -A | grep 'prisma-query-engine-darwin-arm64' | grep -v grep | awk '{print $1}' | xargs kill -9 $1
   kill-apis:
     cmds:
       - ps -A | grep 'cmd/hatchet-api' | grep -v grep | awk '{print $1}' | xargs kill -9 $1
@@ -182,3 +190,12 @@ tasks:
   pre-commit-run:
     cmds:
       - pre-commit run --all-files || pre-commit run --all-files
+  docs:
+    cmds:
+      - |
+        # Create a trap to kill the watcher when the task exits
+        trap 'kill $(jobs -p) 2>/dev/null' EXIT
+
+        npx chokidar "sdks/**/*.{py,ts,go}" --ignore "**/node_modules/**" --ignore "**/.git/**" --ignore "**/dist/**" --ignore "**/build/**" --initial -c "echo 'TODO: Add a task to generate and sync the docs'" &
+
+        cd frontend/docs/ && pnpm run taskfile-dev

@@ -1,0 +1,50 @@
+import { snippets } from "@/lib/generated/snippets";
+import { Snippet } from "@/components/code";
+
+import { Callout } from "nextra/components";
+
+## Hatchet TypeScript V1 Migration Guide
+
+This guide will help you migrate Hatchet workflows from the V0 SDK to the V1 SDK.
+
+#### Introductory Example
+
+First, we've exposed a new `hatchet.task` method in the V1 SDK for single function tasks.
+
+<Snippet src={snippets.typescript.simple.workflow.declaring_a_task} />
+
+DAGs are still defined as workflows, but they can now be declared using the `hatchet.workflow` method.
+
+<Snippet src={snippets.typescript.dag.workflow.declaring_a_dag_workflow} />
+
+And you can bind tasks to workflows as follows:
+
+<Snippet src={snippets.typescript.dag.workflow.first_task} />
+
+You can now run work for tasks and workflows by directly interacting with the returned object.
+
+<Snippet src={snippets.typescript.dag.run.run_the_workflow} />
+
+There are a few important things to note when migrating to the new SDK:
+
+1. The new SDK uses a factory pattern (shown above) for creating tasks and workflows, which we've found to be more ergonomic than the previous SDK.
+2. The old method of defining tasks will still work in the new SDK, but we recommend migrating over to the new method shown above for improved type checking and for access to new features.
+3. New features of the SDK, such as the new durable execution features rolled out in V1, will only be accessible from the new `TaskDeclaration` object in the new SDK.
+
+Since the old pattern for declaring tasks will still work in the new SDK, we recommend migrating existing tasks to the new patterns in V1 gradually.
+
+#### Fanout Example
+
+The new SDK also provides improved type support for spawning child tasks from around the codebase. Consider the following example:
+
+First, we declare a child task:
+
+<Snippet src={snippets.typescript.child_workflows.workflow.declaring_a_child} />
+
+Next, we spawn that child from a parent task:
+
+<Snippet
+  src={snippets.typescript.child_workflows.workflow.declaring_a_parent}
+/>
+
+In this example, the compiler knows what to expect for the types of `input` and `ctx` for each of the tasks, as well as the type of the input of the `child` task when spawning it from the `parent` task.

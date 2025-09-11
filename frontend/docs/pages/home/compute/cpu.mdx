@@ -1,0 +1,100 @@
+import { Tabs, Callout } from "nextra/components";
+import UniversalTabs from "../../../components/UniversalTabs";
+
+# CPU Instance Configuration
+
+## Overview
+
+The Hatchet SDK provides a `Compute` class that allows you to define and manage compute resources for your workflows. Each step in your workflow can have its own compute configuration, enabling fine-grained control over resource allocation.
+
+## CPU Types and Memory Scaling
+
+### Shared CPU
+
+- **Use Case**: Development, testing, and lighter workloads
+- **Available Configurations**:
+  - 1 CPU, 1 GB RAM
+  - 1 CPU, 2 GB RAM
+  - 2 CPU, 2 GB RAM
+  - 2 CPU, 4 GB RAM
+  - 4 CPU, 8 GB RAM
+  - 8 CPU, 16 GB RAM
+
+### Performance CPU
+
+- **Use Case**: Production and compute-intensive workloads
+- **Available Configurations**:
+  - 1 CPU, 1 GB RAM
+  - 1 CPU, 2 GB RAM
+  - 2 CPU, 2 GB RAM
+  - 2 CPU, 4 GB RAM
+  - 4 CPU, 8 GB RAM
+  - 8 CPU, 16 GB RAM
+
+## Available Regions
+
+| Region Code | Location                     |
+| ----------- | ---------------------------- |
+| ams         | Amsterdam, Netherlands       |
+| arn         | Stockholm, Sweden            |
+| atl         | Atlanta, Georgia (US)        |
+| bog         | Bogotá, Colombia             |
+| bom         | Mumbai, India                |
+| bos         | Boston, Massachusetts (US)   |
+| cdg         | Paris, France                |
+| den         | Denver, Colorado (US)        |
+| dfw         | Dallas, Texas (US)           |
+| ewr         | Secaucus, NJ (US)            |
+| eze         | Ezeiza, Argentina            |
+| fra         | Frankfurt, Germany           |
+| gdl         | Guadalajara, Mexico          |
+| gig         | Rio de Janeiro, Brazil       |
+| gru         | Sao Paulo, Brazil            |
+| hkg         | Hong Kong                    |
+| iad         | Ashburn, Virginia (US)       |
+| lax         | Los Angeles, California (US) |
+| lhr         | London, United Kingdom       |
+| mad         | Madrid, Spain                |
+| mia         | Miami, Florida (US)          |
+| nrt         | Tokyo, Japan                 |
+| ord         | Chicago, Illinois (US)       |
+| otp         | Bucharest, Romania           |
+| phx         | Phoenix, Arizona (US)        |
+| qro         | Querétaro, Mexico            |
+| scl         | Santiago, Chile              |
+| sea         | Seattle, Washington (US)     |
+| sin         | Singapore                    |
+| sjc         | San Jose, California (US)    |
+| syd         | Sydney, Australia            |
+| waw         | Warsaw, Poland               |
+| yul         | Montreal, Canada             |
+| yyz         | Toronto, Canada              |
+
+## Replica Configuration
+
+The `num_replicas` parameter determines the total number of machines that will run your workload. These instances are randomly distributed across the specified regions.
+
+## Best Practices
+
+1. **Resource Allocation**
+   - Start with minimum required resources
+   - Scale up based on monitoring and performance needs
+   - Consider using performance CPUs for production workloads
+
+2. **Region Selection**
+   - Select regions close to your data sources and users
+   - Include multiple regions for global availability
+   - Consider selecting regions in different geographical areas for better redundancy
+
+3. **Memory Configuration**
+   - Stay within the allowed memory ranges for your CPU type
+   - Monitor memory usage to optimize allocation
+   - Consider workload memory requirements when selecting CPU type
+
+4. **Replica Strategy**
+   - Use multiple replicas for high availability
+   - Set enough replicas to handle your workload across regions
+   - Account for random distribution when setting replica count
+   - Consider potential region failures in your replica count
+
+Remember to monitor your workload performance and adjust these configurations as needed to optimize for your specific use case. Keep in mind that replicas are randomly distributed across regions, so you may need to provision more replicas than you would with an even distribution to ensure minimum coverage in all regions.

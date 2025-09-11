@@ -1,37 +1,172 @@
 # Configuration Options
 
-The Hatchet server and engine can be configured via `SERVER` and `DATABASE` environment variables. This document contains a list of all available options.
+The Hatchet server and engine can be configured via environment variables using several prefixes. This document contains a comprehensive list of all 193+ available options organized by component.
+
+## Environment Variable Prefixes
+
+Hatchet uses the following environment variable prefixes:
+
+- **`SERVER_`** (170 variables) - Main server configuration including runtime, authentication, encryption, monitoring, and integrations
+- **`DATABASE_`** (13 variables) - PostgreSQL database connection and configuration
+- **`READ_REPLICA_`** (4 variables) - Read replica database configuration
+- **`ADMIN_`** (3 variables) - Administrator user setup for initial seeding
+- **`DEFAULT_`** (3 variables) - Default tenant configuration
+- **`SCHEDULER_`** (1 variable) - Scheduler-specific rate limiting
+- **`SEED_`** (1 variable) - Development environment seeding
+- **`CACHE_`** (1 variable) - Cache duration settings
+
+_Note: This documentation excludes `HATCHET*CLIENT*_` variables which are specific to Go SDK client configuration.\*
+
+## Required Environment Variables
+
+The following variables are **absolutely required** for Hatchet to start successfully:
+
+### Encryption Keys (Required - Choose One Strategy)
+
+**Option A: Local Encryption Keys**
+
+```bash
+SERVER_ENCRYPTION_MASTER_KEYSET="<base64-encoded-keyset>"
+SERVER_ENCRYPTION_JWT_PUBLIC_KEYSET="<base64-encoded-jwt-public>"
+SERVER_ENCRYPTION_JWT_PRIVATE_KEYSET="<base64-encoded-jwt-private>"
+```
+
+**Option B: File-based Keys**
+
+```bash
+SERVER_ENCRYPTION_MASTER_KEYSET_FILE="/path/to/master.keyset"
+SERVER_ENCRYPTION_JWT_PUBLIC_KEYSET_FILE="/path/to/jwt-public.keyset"
+SERVER_ENCRYPTION_JWT_PRIVATE_KEYSET_FILE="/path/to/jwt-private.keyset"
+```
+
+**Option C: Google Cloud KMS**
+
+```bash
+SERVER_ENCRYPTION_CLOUDKMS_ENABLED=true
+SERVER_ENCRYPTION_CLOUDKMS_KEY_URI="gcp-kms://your-key-uri"
+SERVER_ENCRYPTION_CLOUDKMS_CREDENTIALS_JSON="<credentials-json>"
+```
+
+### Authentication Secrets (Required)
+
+```bash
+SERVER_AUTH_COOKIE_SECRETS="<secret1> <secret2>"
+```
+
+### Database Connection (Required)
+
+**Option A: Connection String**
+
+```bash
+DATABASE_URL="postgresql://user:password@host:port/dbname"
+```
+
+**Option B: Individual Parameters** (uses defaults if not specified)
+
+```bash
+DATABASE_POSTGRES_HOST=your-postgres-host
+DATABASE_POSTGRES_PASSWORD=your-secure-password
+```
+
+## Minimal Configuration Example
+
+```bash
+# Database
+DATABASE_URL='postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet'
+
+# Encryption (using key files - recommended for development)
+SERVER_ENCRYPTION_MASTER_KEYSET_FILE=./keys/master.key
+SERVER_ENCRYPTION_JWT_PRIVATE_KEYSET_FILE=./keys/private_ec256.key
+SERVER_ENCRYPTION_JWT_PUBLIC_KEYSET_FILE=./keys/public_ec256.key
+
+# Authentication
+SERVER_AUTH_COOKIE_SECRETS="your-secret-key-1 your-secret-key-2"
+SERVER_AUTH_SET_EMAIL_VERIFIED=true
+
+# Basic server config
+SERVER_PORT=8080
+SERVER_URL=http://localhost:8080
+
+# Development settings (optional but recommended)
+SERVER_GRPC_INSECURE=true
+SERVER_INTERNAL_CLIENT_BASE_STRATEGY=none
+SERVER_LOGGER_LEVEL=error
+SERVER_LOGGER_FORMAT=console
+DATABASE_LOGGER_LEVEL=error
+DATABASE_LOGGER_FORMAT=console
+```
+
+Generate encryption keys with:
+
+```bash
+go run ./cmd/hatchet-admin keyset create-local-keys --key-dir ./keys
+```
 
 ## Runtime Configuration
 
-| Variable                        | Description                             | Default Value           |
-| ------------------------------- | --------------------------------------- | ----------------------- |
-| `SERVER_PORT`                   | Port for the core server                | `8080`                  |
-| `SERVER_URL`                    | Full server URL, including protocol     | `http://localhost:8080` |
-| `SERVER_GRPC_PORT`              | Port for the GRPC service               | `7070`                  |
-| `SERVER_GRPC_BIND_ADDRESS`      | GRPC server bind address                | `127.0.0.1`             |
-| `SERVER_GRPC_BROADCAST_ADDRESS` | GRPC server broadcast address           | `127.0.0.1:7070`        |
-| `SERVER_GRPC_INSECURE`          | Controls if the GRPC server is insecure | `false`                 |
-| `SERVER_SHUTDOWN_WAIT`          | Shutdown wait duration                  | `20s`                   |
-| `SERVER_ENFORCE_LIMITS`         | Enforce tenant limits                   | `false`                 |
-| `SERVER_ALLOW_SIGNUP`           | Allow new tenant signups                | `true`                  |
-| `SERVER_ALLOW_INVITES`          | Allow new invites                       | `true`                  |
-| `SERVER_ALLOW_CREATE_TENANT`    | Allow tenant creation                   | `true`                  |
-| `SERVER_ALLOW_CHANGE_PASSWORD`  | Allow password changes                  | `true`                  |
+Variables marked with ⚠️ are conditionally required when specific features are enabled.
+
+| Variable                                | Description                             | Default Value           |
+| --------------------------------------- | --------------------------------------- | ----------------------- |
+| `SERVER_PORT`                           | Port for the core server                | `8080`                  |
+| `SERVER_URL`                            | Full server URL, including protocol     | `http://localhost:8080` |
+| `SERVER_GRPC_PORT`                      | Port for the GRPC service               | `7070`                  |
+| `SERVER_GRPC_BIND_ADDRESS`              | GRPC server bind address                | `127.0.0.1`             |
+| `SERVER_GRPC_BROADCAST_ADDRESS`         | GRPC server broadcast address           | `127.0.0.1:7070`        |
+| `SERVER_GRPC_INSECURE`                  | Controls if the GRPC server is insecure | `false`                 |
+| `SERVER_SHUTDOWN_WAIT`                  | Shutdown wait duration                  | `20s`                   |
+| `SERVER_ENFORCE_LIMITS`                 | Enforce tenant limits                   | `false`                 |
+| `SERVER_ALLOW_SIGNUP`                   | Allow new tenant signups                | `true`                  |
+| `SERVER_ALLOW_INVITES`                  | Allow new invites                       | `true`                  |
+| `SERVER_ALLOW_CREATE_TENANT`            | Allow tenant creation                   | `true`                  |
+| `SERVER_ALLOW_CHANGE_PASSWORD`          | Allow password changes                  | `true`                  |
+| `SERVER_HEALTHCHECK`                    | Enable healthcheck endpoint             | `true`                  |
+| `SERVER_HEALTHCHECK_PORT`               | Healthcheck port                        | `8733`                  |
+| `SERVER_GRPC_MAX_MSG_SIZE`              | gRPC max message size                   | `4194304`               |
+| `SERVER_GRPC_RATE_LIMIT`                | gRPC rate limit                         | `1000`                  |
+| `SCHEDULER_CONCURRENCY_RATE_LIMIT`      | Scheduler concurrency rate limit        | `20`                    |
+| `SERVER_SERVICES`                       | Services to run                         | `["all"]`               |
+| `SERVER_PAUSED_CONTROLLERS`             | Paused controllers                      |                         |
+| `SERVER_ENABLE_DATA_RETENTION`          | Enable data retention                   | `true`                  |
+| `SERVER_ENABLE_WORKER_RETENTION`        | Enable worker retention                 | `false`                 |
+| `SERVER_MAX_PENDING_INVITES`            | Max pending invites                     | `100`                   |
+| `SERVER_BUFFER_CREATE_WORKFLOW_RUNS`    | Buffer workflow run creation            | `true`                  |
+| `SERVER_DISABLE_TENANT_PUBS`            | Disable tenant pubsub                   |                         |
+| `SERVER_MAX_INTERNAL_RETRY_COUNT`       | Max internal retry count                | `10`                    |
+| `SERVER_PREVENT_TENANT_VERSION_UPGRADE` | Prevent tenant version upgrades         | `false`                 |
+| `SERVER_DEFAULT_ENGINE_VERSION`         | Default engine version                  | `V1`                    |
+| `SERVER_REPLAY_ENABLED`                 | Enable task replay                      | `true`                  |
 
 ## Database Configuration
 
-| Variable                     | Description              | Default Value |
-| ---------------------------- | ------------------------ | ------------- |
-| `DATABASE_POSTGRES_HOST`     | PostgreSQL host          | `127.0.0.1`   |
-| `DATABASE_POSTGRES_PORT`     | PostgreSQL port          | `5431`        |
-| `DATABASE_POSTGRES_USERNAME` | PostgreSQL username      | `hatchet`     |
-| `DATABASE_POSTGRES_PASSWORD` | PostgreSQL password      | `hatchet`     |
-| `DATABASE_POSTGRES_DB_NAME`  | PostgreSQL database name | `hatchet`     |
-| `DATABASE_POSTGRES_SSL_MODE` | PostgreSQL SSL mode      | `disable`     |
-| `DATABASE_MAX_CONNS`         | Max database connections | `5`           |
-| `DATABASE_LOG_QUERIES`       | Log database queries     | `false`       |
-| `CACHE_DURATION`             | Cache duration           | `60s`         |
+| Variable                     | Description                  | Default Value       |
+| ---------------------------- | ---------------------------- | ------------------- |
+| `DATABASE_URL`               | PostgreSQL connection string | `127.0.0.1`         |
+| `DATABASE_POSTGRES_HOST`     | PostgreSQL host              | `127.0.0.1`         |
+| `DATABASE_POSTGRES_PORT`     | PostgreSQL port              | `5431`              |
+| `DATABASE_POSTGRES_USERNAME` | PostgreSQL username          | `hatchet`           |
+| `DATABASE_POSTGRES_PASSWORD` | PostgreSQL password          | `hatchet`           |
+| `DATABASE_POSTGRES_DB_NAME`  | PostgreSQL database name     | `hatchet`           |
+| `DATABASE_POSTGRES_SSL_MODE` | PostgreSQL SSL mode          | `disable`           |
+| `DATABASE_MAX_CONNS`         | Max database connections     | `50`                |
+| `DATABASE_MIN_CONNS`         | Min database connections     | `10`                |
+| `DATABASE_MAX_QUEUE_CONNS`   | Max queue connections        | `50`                |
+| `DATABASE_MIN_QUEUE_CONNS`   | Min queue connections        | `10`                |
+| `DATABASE_LOG_QUERIES`       | Log database queries         | `false`             |
+| `CACHE_DURATION`             | Cache duration               | `5s`                |
+| `ADMIN_EMAIL`                | Admin email for seeding      | `admin@example.com` |
+| `ADMIN_PASSWORD`             | Admin password for seeding   | `Admin123!!`        |
+| `ADMIN_NAME`                 | Admin name for seeding       | `Admin`             |
+| `DEFAULT_TENANT_NAME`        | Default tenant name          | `Default`           |
+| `DEFAULT_TENANT_SLUG`        | Default tenant slug          | `default`           |
+| `DEFAULT_TENANT_ID`          | Default tenant ID            |                     |
+| `SEED_DEVELOPMENT`           | Development seeding flag     |                     |
+| `READ_REPLICA_ENABLED`       | Enable read replica          | `false`             |
+| `READ_REPLICA_DATABASE_URL`  | Read replica database URL    |                     |
+| `READ_REPLICA_MAX_CONNS`     | Read replica max connections | `50`                |
+| `READ_REPLICA_MIN_CONNS`     | Read replica min connections | `10`                |
+| `DATABASE_LOGGER_LEVEL`      | Database logger level        |                     |
+| `DATABASE_LOGGER_FORMAT`     | Database logger format       |                     |
 
 ## Security Check Configuration
 
@@ -57,14 +192,28 @@ The Hatchet server and engine can be configured via `SERVER` and `DATABASE` envi
 | `SERVER_LIMITS_DEFAULT_CRON_ALARM_LIMIT`         | Default cron alarm limit         | `2`           |
 | `SERVER_LIMITS_DEFAULT_SCHEDULE_LIMIT`           | Default schedule limit           | `1000`        |
 | `SERVER_LIMITS_DEFAULT_SCHEDULE_ALARM_LIMIT`     | Default schedule alarm limit     | `750`         |
+| `SERVER_LIMITS_DEFAULT_TASK_RUN_LIMIT`           | Default task run limit           | `2000`        |
+| `SERVER_LIMITS_DEFAULT_TASK_RUN_ALARM_LIMIT`     | Default task run alarm limit     | `1500`        |
+| `SERVER_LIMITS_DEFAULT_TASK_RUN_WINDOW`          | Default task run window          | `24h`         |
+| `SERVER_LIMITS_DEFAULT_WORKER_SLOT_LIMIT`        | Default worker slot limit        | `4000`        |
+| `SERVER_LIMITS_DEFAULT_WORKER_SLOT_ALARM_LIMIT`  | Default worker slot alarm limit  | `3000`        |
 
 ## Alerting Configuration
 
-| Variable                             | Description                | Default Value |
-| ------------------------------------ | -------------------------- | ------------- |
-| `SERVER_ALERTING_SENTRY_ENABLED`     | Enable Sentry for alerting |               |
-| `SERVER_ALERTING_SENTRY_DSN`         | Sentry DSN                 |               |
-| `SERVER_ALERTING_SENTRY_ENVIRONMENT` | Sentry environment         | `development` |
+| Variable                               | Description                              | Default Value |
+| -------------------------------------- | ---------------------------------------- | ------------- |
+| `SERVER_ALERTING_SENTRY_ENABLED`       | Enable Sentry for alerting               |               |
+| `SERVER_ALERTING_SENTRY_DSN`           | Sentry DSN                               |               |
+| `SERVER_ALERTING_SENTRY_ENVIRONMENT`   | Sentry environment                       | `development` |
+| `SERVER_ALERTING_SENTRY_SAMPLE_RATE`   | Sentry sample rate                       | `1.0`         |
+| `SERVER_ANALYTICS_POSTHOG_ENABLED`     | Enable PostHog analytics                 |               |
+| `SERVER_ANALYTICS_POSTHOG_API_KEY`     | PostHog API key                          |               |
+| `SERVER_ANALYTICS_POSTHOG_ENDPOINT`    | PostHog endpoint                         |               |
+| `SERVER_ANALYTICS_POSTHOG_FE_API_HOST` | PostHog frontend API host                |               |
+| `SERVER_ANALYTICS_POSTHOG_FE_API_KEY`  | PostHog frontend API key                 |               |
+| `SERVER_PYLON_ENABLED`                 | Enable Pylon                             |               |
+| `SERVER_PYLON_APP_ID` ⚠️               | Pylon app ID (required if Pylon enabled) |               |
+| `SERVER_PYLON_SECRET`                  | Pylon secret                             |               |
 
 ## Encryption Configuration
 
@@ -82,66 +231,130 @@ The Hatchet server and engine can be configured via `SERVER` and `DATABASE` envi
 
 ## Authentication Configuration
 
-| Variable                               | Description                                               | Default Value                    |
-| -------------------------------------- | --------------------------------------------------------- | -------------------------------- |
-| `SERVER_AUTH_RESTRICTED_EMAIL_DOMAINS` | Restricted email domains                                  |                                  |
-| `SERVER_AUTH_BASIC_AUTH_ENABLED`       | Whether basic auth is enabled                             | `true`                           |
-| `SERVER_AUTH_SET_EMAIL_VERIFIED`       | Whether the user's email is set to verified automatically | `false`                          |
-| `SERVER_AUTH_COOKIE_NAME`              | Name of the cookie                                        | `hatchet`                        |
-| `SERVER_AUTH_COOKIE_DOMAIN`            | Domain for the cookie                                     |                                  |
-| `SERVER_AUTH_COOKIE_SECRETS`           | Cookie secrets                                            |                                  |
-| `SERVER_AUTH_COOKIE_INSECURE`          | Whether the cookie is insecure                            | `false`                          |
-| `SERVER_AUTH_GOOGLE_ENABLED`           | Whether Google auth is enabled                            | `false`                          |
-| `SERVER_AUTH_GOOGLE_CLIENT_ID`         | Google auth client ID                                     |                                  |
-| `SERVER_AUTH_GOOGLE_CLIENT_SECRET`     | Google auth client secret                                 |                                  |
-| `SERVER_AUTH_GOOGLE_SCOPES`            | Google auth scopes                                        | `["openid", "profile", "email"]` |
-| `SERVER_AUTH_GITHUB_ENABLED`           | Whether GitHub auth is enabled                            | `false`                          |
-| `SERVER_AUTH_GITHUB_CLIENT_ID`         | GitHub auth client ID                                     |                                  |
-| `SERVER_AUTH_GITHUB_CLIENT_SECRET`     | GitHub auth client secret                                 |                                  |
-| `SERVER_AUTH_GITHUB_SCOPES`            | GitHub auth scopes                                        | `["read:user", "user:email"]`    |
+| Variable                               | Description                                                 | Default Value                    |
+| -------------------------------------- | ----------------------------------------------------------- | -------------------------------- |
+| `SERVER_AUTH_RESTRICTED_EMAIL_DOMAINS` | Restricted email domains                                    |                                  |
+| `SERVER_AUTH_BASIC_AUTH_ENABLED`       | Whether basic auth is enabled                               | `true`                           |
+| `SERVER_AUTH_SET_EMAIL_VERIFIED`       | Whether the user's email is set to verified automatically   | `false`                          |
+| `SERVER_AUTH_COOKIE_NAME`              | Name of the cookie                                          | `hatchet`                        |
+| `SERVER_AUTH_COOKIE_DOMAIN`            | Domain for the cookie                                       |                                  |
+| `SERVER_AUTH_COOKIE_SECRETS`           | Cookie secrets                                              |                                  |
+| `SERVER_AUTH_COOKIE_INSECURE`          | Whether the cookie is insecure                              | `false`                          |
+| `SERVER_AUTH_GOOGLE_ENABLED`           | Whether Google auth is enabled                              | `false`                          |
+| `SERVER_AUTH_GOOGLE_CLIENT_ID` ⚠️      | Google auth client ID (required if Google auth enabled)     |                                  |
+| `SERVER_AUTH_GOOGLE_CLIENT_SECRET` ⚠️  | Google auth client secret (required if Google auth enabled) |                                  |
+| `SERVER_AUTH_GOOGLE_SCOPES`            | Google auth scopes                                          | `["openid", "profile", "email"]` |
+| `SERVER_AUTH_GITHUB_ENABLED`           | Whether GitHub auth is enabled                              | `false`                          |
+| `SERVER_AUTH_GITHUB_CLIENT_ID` ⚠️      | GitHub auth client ID (required if GitHub auth enabled)     |                                  |
+| `SERVER_AUTH_GITHUB_CLIENT_SECRET` ⚠️  | GitHub auth client secret (required if GitHub auth enabled) |                                  |
+| `SERVER_AUTH_GITHUB_SCOPES`            | GitHub auth scopes                                          | `["read:user", "user:email"]`    |
 
 ## Task Queue Configuration
 
-| Variable                       | Description        | Default Value                          |
-| ------------------------------ | ------------------ | -------------------------------------- |
-| `SERVER_MSGQUEUE_KIND`         | Message queue kind |                                        |
-| `SERVER_MSGQUEUE_RABBITMQ_URL` | RabbitMQ URL       | `amqp://user:password@localhost:5672/` |
+| Variable                          | Description              | Default Value                          |
+| --------------------------------- | ------------------------ | -------------------------------------- |
+| `SERVER_MSGQUEUE_KIND`            | Message queue kind       | `rabbitmq`                             |
+| `SERVER_MSGQUEUE_RABBITMQ_URL`    | RabbitMQ URL             | `amqp://user:password@localhost:5672/` |
+| `SERVER_MSGQUEUE_RABBITMQ_QOS`    | RabbitMQ QoS             | `100`                                  |
+| `SERVER_REQUEUE_LIMIT`            | Requeue limit            | `100`                                  |
+| `SERVER_SINGLE_QUEUE_LIMIT`       | Single queue limit       | `100`                                  |
+| `SERVER_UPDATE_HASH_FACTOR`       | Update hash factor       | `100`                                  |
+| `SERVER_UPDATE_CONCURRENT_FACTOR` | Update concurrent factor | `10`                                   |
 
 ## TLS Configuration
 
-| Variable                  | Description                      | Default Value |
-| ------------------------- | -------------------------------- | ------------- |
-| `SERVER_TLS_STRATEGY`     | TLS strategy                     |               |
-| `SERVER_TLS_CERT`         | TLS certificate                  |               |
-| `SERVER_TLS_CERT_FILE`    | Path to the TLS certificate file |               |
-| `SERVER_TLS_KEY`          | TLS key                          |               |
-| `SERVER_TLS_KEY_FILE`     | Path to the TLS key file         |               |
-| `SERVER_TLS_ROOT_CA`      | TLS root CA                      |               |
-| `SERVER_TLS_ROOT_CA_FILE` | Path to the TLS root CA file     |               |
-| `SERVER_TLS_SERVER_NAME`  | TLS server name                  |               |
+| Variable                                                 | Description                      | Default Value |
+| -------------------------------------------------------- | -------------------------------- | ------------- |
+| `SERVER_TLS_STRATEGY`                                    | TLS strategy                     |               |
+| `SERVER_TLS_CERT`                                        | TLS certificate                  |               |
+| `SERVER_TLS_CERT_FILE`                                   | Path to the TLS certificate file |               |
+| `SERVER_TLS_KEY`                                         | TLS key                          |               |
+| `SERVER_TLS_KEY_FILE`                                    | Path to the TLS key file         |               |
+| `SERVER_TLS_ROOT_CA`                                     | TLS root CA                      |               |
+| `SERVER_TLS_ROOT_CA_FILE`                                | Path to the TLS root CA file     |               |
+| `SERVER_TLS_SERVER_NAME`                                 | TLS server name                  |               |
+| `SERVER_INTERNAL_CLIENT_BASE_STRATEGY`                   | Internal client TLS strategy     |               |
+| `SERVER_INTERNAL_CLIENT_BASE_INHERIT_BASE`               | Inherit base TLS config          | `true`        |
+| `SERVER_INTERNAL_CLIENT_TLS_BASE_CERT`                   | Internal client TLS cert         |               |
+| `SERVER_INTERNAL_CLIENT_TLS_BASE_CERT_FILE`              | Internal client TLS cert file    |               |
+| `SERVER_INTERNAL_CLIENT_TLS_BASE_KEY`                    | Internal client TLS key          |               |
+| `SERVER_INTERNAL_CLIENT_TLS_BASE_KEY_FILE`               | Internal client TLS key file     |               |
+| `SERVER_INTERNAL_CLIENT_TLS_BASE_ROOT_CA`                | Internal client TLS root CA      |               |
+| `SERVER_INTERNAL_CLIENT_TLS_BASE_ROOT_CA_FILE`           | Internal client TLS root CA file |               |
+| `SERVER_INTERNAL_CLIENT_TLS_SERVER_NAME`                 | Internal client TLS server name  |               |
+| `SERVER_INTERNAL_CLIENT_INTERNAL_GRPC_BROADCAST_ADDRESS` | Internal gRPC broadcast address  |               |
 
 ## Logging Configuration
 
-| Variable                 | Description   | Default Value |
-| ------------------------ | ------------- | ------------- |
-| `SERVER_LOGGER_LEVEL`    | Logger level  |               |
-| `SERVER_LOGGER_FORMAT`   | Logger format |               |
-| `DATABASE_LOGGER_LEVEL`  | Logger level  |               |
-| `DATABASE_LOGGER_FORMAT` | Logger format |               |
+| Variable                                    | Description             | Default Value |
+| ------------------------------------------- | ----------------------- | ------------- |
+| `SERVER_LOGGER_LEVEL`                       | Logger level            |               |
+| `SERVER_LOGGER_FORMAT`                      | Logger format           |               |
+| `SERVER_LOG_INGESTION_ENABLED`              | Enable log ingestion    | `true`        |
+| `SERVER_ADDITIONAL_LOGGERS_QUEUE_LEVEL`     | Queue logger level      |               |
+| `SERVER_ADDITIONAL_LOGGERS_QUEUE_FORMAT`    | Queue logger format     |               |
+| `SERVER_ADDITIONAL_LOGGERS_PGXSTATS_LEVEL`  | PGX stats logger level  |               |
+| `SERVER_ADDITIONAL_LOGGERS_PGXSTATS_FORMAT` | PGX stats logger format |               |
 
 ## OpenTelemetry Configuration
 
-| Variable                    | Description                                                | Default Value |
-| --------------------------- | ---------------------------------------------------------- | ------------- |
-| `SERVER_OTEL_SERVICE_NAME`  | Service name for OpenTelemetry                             |               |
-| `SERVER_OTEL_COLLECTOR_URL` | Collector URL for OpenTelemetry                            |               |
-| `SERVER_OTEL_INSECURE`      | Whether to use an insecure connection to the collector URL |               |
+| Variable                            | Description                                                | Default Value |
+| ----------------------------------- | ---------------------------------------------------------- | ------------- |
+| `SERVER_OTEL_SERVICE_NAME`          | Service name for OpenTelemetry                             |               |
+| `SERVER_OTEL_COLLECTOR_URL`         | Collector URL for OpenTelemetry                            |               |
+| `SERVER_OTEL_INSECURE`              | Whether to use an insecure connection to the collector URL |               |
+| `SERVER_OTEL_TRACE_ID_RATIO`        | OpenTelemetry trace ID ratio                               |               |
+| `SERVER_PROMETHEUS_ENABLED`         | Enable Prometheus                                          | `false`       |
+| `SERVER_PROMETHEUS_ADDRESS`         | Prometheus address                                         | `:9090`       |
+| `SERVER_PROMETHEUS_PATH`            | Prometheus metrics path                                    | `/metrics`    |
+| `SERVER_PROMETHEUS_SERVER_URL`      | Prometheus server URL                                      |               |
+| `SERVER_PROMETHEUS_SERVER_USERNAME` | Prometheus server username                                 |               |
+| `SERVER_PROMETHEUS_SERVER_PASSWORD` | Prometheus server password                                 |               |
 
 ## Tenant Alerting Configuration
 
-| Variable                                     | Description                      | Default Value          |
-| -------------------------------------------- | -------------------------------- | ---------------------- |
-| `SERVER_TENANT_ALERTING_SLACK_ENABLED`       | Enable Slack for tenant alerting |                        |
-| `SERVER_TENANT_ALERTING_SLACK_CLIENT_ID`     | Slack client ID                  |                        |
-| `SERVER_TENANT_ALERTING_SLACK_CLIENT_SECRET` | Slack client secret              |                        |
-| `SERVER_TENANT_ALERTING_SLACK_SCOPES`        | Slack scopes                     | `["incoming-webhook"]` |
+| Variable                                                  | Description                                  | Default Value          |
+| --------------------------------------------------------- | -------------------------------------------- | ---------------------- |
+| `SERVER_TENANT_ALERTING_SLACK_ENABLED`                    | Enable Slack for tenant alerting             |                        |
+| `SERVER_TENANT_ALERTING_SLACK_CLIENT_ID`                  | Slack client ID                              |                        |
+| `SERVER_TENANT_ALERTING_SLACK_CLIENT_SECRET`              | Slack client secret                          |                        |
+| `SERVER_TENANT_ALERTING_SLACK_SCOPES`                     | Slack scopes                                 | `["incoming-webhook"]` |
+| `SERVER_EMAIL_POSTMARK_ENABLED`                           | Enable Postmark                              |                        |
+| `SERVER_EMAIL_POSTMARK_SERVER_KEY`                        | Postmark server key                          |                        |
+| `SERVER_EMAIL_POSTMARK_FROM_EMAIL`                        | Postmark from email                          |                        |
+| `SERVER_EMAIL_POSTMARK_FROM_NAME`                         | Postmark from name                           | `Hatchet Support`      |
+| `SERVER_EMAIL_POSTMARK_SUPPORT_EMAIL`                     | Postmark support email                       |                        |
+| `SERVER_MONITORING_ENABLED`                               | Enable monitoring                            | `true`                 |
+| `SERVER_MONITORING_PERMITTED_TENANTS`                     | Permitted tenants for monitoring             |                        |
+| `SERVER_MONITORING_PROBE_TIMEOUT`                         | Monitoring probe timeout                     | `30s`                  |
+| `SERVER_MONITORING_TLS_ROOT_CA_FILE`                      | Monitoring TLS root CA file                  |                        |
+| `SERVER_SAMPLING_ENABLED`                                 | Enable sampling                              | `false`                |
+| `SERVER_SAMPLING_RATE`                                    | Sampling rate                                | `1.0`                  |
+| `SERVER_OPERATIONS_JITTER`                                | Operations jitter in milliseconds            | `0`                    |
+| `SERVER_OPERATIONS_POLL_INTERVAL`                         | Operations poll interval in seconds          | `2`                    |
+| `SERVER_WAIT_FOR_FLUSH`                                   | Default wait for flush                       | `1ms`                  |
+| `SERVER_MAX_CONCURRENT`                                   | Default max concurrent                       | `50`                   |
+| `SERVER_FLUSH_PERIOD_MILLISECONDS`                        | Default flush period                         | `10ms`                 |
+| `SERVER_FLUSH_ITEMS_THRESHOLD`                            | Default flush threshold                      | `100`                  |
+| `SERVER_FLUSH_STRATEGY`                                   | Default flush strategy                       | `DYNAMIC`              |
+| `SERVER_WORKFLOWRUNBUFFER_WAIT_FOR_FLUSH`                 | Workflow run buffer wait for flush           |                        |
+| `SERVER_WORKFLOWRUNBUFFER_MAX_CONCURRENT`                 | Max concurrent workflow run buffer ops       |                        |
+| `SERVER_WORKFLOWRUNBUFFER_FLUSH_PERIOD_MILLISECONDS`      | Flush period for workflow run buffer         |                        |
+| `SERVER_WORKFLOWRUNBUFFER_FLUSH_ITEMS_THRESHOLD`          | Items threshold for workflow run buffer      |                        |
+| `SERVER_WORKFLOWRUNBUFFER_FLUSH_STRATEGY`                 | Flush strategy for workflow run buffer       |                        |
+| `SERVER_EVENTBUFFER_WAIT_FOR_FLUSH`                       | Event buffer wait for flush                  |                        |
+| `SERVER_EVENTBUFFER_MAX_CONCURRENT`                       | Max concurrent event buffer ops              |                        |
+| `SERVER_EVENTBUFFER_FLUSH_PERIOD_MILLISECONDS`            | Flush period for event buffer                |                        |
+| `SERVER_EVENTBUFFER_FLUSH_ITEMS_THRESHOLD`                | Items threshold for event buffer             |                        |
+| `SERVER_EVENTBUFFER_SERIAL_BUFFER`                        | Event buffer serial mode                     |                        |
+| `SERVER_EVENTBUFFER_FLUSH_STRATEGY`                       | Flush strategy for event buffer              |                        |
+| `SERVER_RELEASESEMAPHOREBUFFER_WAIT_FOR_FLUSH`            | Release semaphore buffer wait for flush      |                        |
+| `SERVER_RELEASESEMAPHOREBUFFER_MAX_CONCURRENT`            | Max concurrent release semaphore buffer ops  |                        |
+| `SERVER_RELEASESEMAPHOREBUFFER_FLUSH_PERIOD_MILLISECONDS` | Flush period for release semaphore buffer    |                        |
+| `SERVER_RELEASESEMAPHOREBUFFER_FLUSH_ITEMS_THRESHOLD`     | Items threshold for release semaphore buffer |                        |
+| `SERVER_RELEASESEMAPHOREBUFFER_FLUSH_STRATEGY`            | Flush strategy for release semaphore buffer  |                        |
+| `SERVER_QUEUESTEPRUNBUFFER_WAIT_FOR_FLUSH`                | Queue step run buffer wait for flush         |                        |
+| `SERVER_QUEUESTEPRUNBUFFER_MAX_CONCURRENT`                | Max concurrent queue step run buffer ops     |                        |
+| `SERVER_QUEUESTEPRUNBUFFER_FLUSH_PERIOD_MILLISECONDS`     | Flush period for queue step run buffer       |                        |
+| `SERVER_QUEUESTEPRUNBUFFER_FLUSH_ITEMS_THRESHOLD`         | Items threshold for queue step run buffer    |                        |
+| `SERVER_QUEUESTEPRUNBUFFER_FLUSH_STRATEGY`                | Flush strategy for queue step run buffer     |                        |

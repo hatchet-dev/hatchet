@@ -12,12 +12,13 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 func (t *WorkflowRunsService) WorkflowRunUpdateReplay(ctx echo.Context, request gen.WorkflowRunUpdateReplayRequestObject) (gen.WorkflowRunUpdateReplayResponseObject, error) {
-	tenant := ctx.Get("tenant").(*db.TenantModel)
+	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
+	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
 	workflowRunIds := make([]string, len(request.Body.WorkflowRunIds))
 
@@ -28,7 +29,7 @@ func (t *WorkflowRunsService) WorkflowRunUpdateReplay(ctx echo.Context, request 
 	limit := 500
 
 	// make sure all workflow runs belong to the tenant
-	filteredWorkflowRuns, err := t.config.EngineRepository.WorkflowRun().ListWorkflowRuns(ctx.Request().Context(), tenant.ID, &repository.ListWorkflowRunsOpts{
+	filteredWorkflowRuns, err := t.config.EngineRepository.WorkflowRun().ListWorkflowRuns(ctx.Request().Context(), tenantId, &repository.ListWorkflowRunsOpts{
 		Ids:   workflowRunIds,
 		Limit: &limit,
 	})
@@ -44,7 +45,7 @@ func (t *WorkflowRunsService) WorkflowRunUpdateReplay(ctx echo.Context, request 
 		err = t.config.MessageQueue.AddMessage(
 			ctx.Request().Context(),
 			msgqueue.WORKFLOW_PROCESSING_QUEUE,
-			tasktypes.WorkflowRunReplayToTask(tenant.ID, sqlchelpers.UUIDToStr(filteredWorkflowRuns.Rows[i].WorkflowRun.ID)),
+			tasktypes.WorkflowRunReplayToTask(tenantId, sqlchelpers.UUIDToStr(filteredWorkflowRuns.Rows[i].WorkflowRun.ID)),
 		)
 
 		if err != nil {
@@ -59,7 +60,7 @@ func (t *WorkflowRunsService) WorkflowRunUpdateReplay(ctx echo.Context, request 
 	dbCtx, cancel := context.WithTimeout(ctx.Request().Context(), 60*time.Second)
 	defer cancel()
 
-	newWorkflowRuns, err := t.config.APIRepository.WorkflowRun().ListWorkflowRuns(dbCtx, tenant.ID, &repository.ListWorkflowRunsOpts{
+	newWorkflowRuns, err := t.config.APIRepository.WorkflowRun().ListWorkflowRuns(dbCtx, tenantId, &repository.ListWorkflowRunsOpts{
 		Ids:   workflowRunIds,
 		Limit: &limit,
 	})

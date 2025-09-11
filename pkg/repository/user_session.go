@@ -1,11 +1,10 @@
 package repository
 
 import (
+	"context"
 	"time"
 
-	"github.com/steebchen/prisma-client-go/runtime/types"
-
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 )
 
 type CreateSessionOpts struct {
@@ -16,19 +15,19 @@ type CreateSessionOpts struct {
 	// (optional) the user id, can be nil if session is unauthenticated
 	UserId *string `validate:"omitempty,uuid"`
 
-	Data *types.JSON
+	Data []byte
 }
 
 type UpdateSessionOpts struct {
 	UserId *string `validate:"omitempty,uuid"`
 
-	Data *types.JSON
+	Data []byte
 }
 
 // UserSessionRepository represents the set of queries on the UserSession model
 type UserSessionRepository interface {
-	Create(opts *CreateSessionOpts) (*db.UserSessionModel, error)
-	Update(sessionId string, opts *UpdateSessionOpts) (*db.UserSessionModel, error)
-	Delete(sessionId string) (*db.UserSessionModel, error)
-	GetById(sessionId string) (*db.UserSessionModel, error)
+	Create(ctx context.Context, opts *CreateSessionOpts) (*dbsqlc.UserSession, error)
+	Update(ctx context.Context, sessionId string, opts *UpdateSessionOpts) (*dbsqlc.UserSession, error)
+	Delete(ctx context.Context, sessionId string) (*dbsqlc.UserSession, error)
+	GetById(ctx context.Context, sessionId string) (*dbsqlc.UserSession, error)
 }

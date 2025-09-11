@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
-	"strings"
+	"sync"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -16,7 +16,10 @@ import (
 
 	admincontracts "github.com/hatchet-dev/hatchet/internal/services/admin/contracts"
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
+	"github.com/hatchet-dev/hatchet/pkg/config/client"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
+
+	v1contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 )
 
 type ChildWorkflowOpts struct {
@@ -26,6 +29,7 @@ type ChildWorkflowOpts struct {
 	ChildKey           *string
 	DesiredWorkerId    *string
 	AdditionalMetadata *map[string]string
+	Priority           *int32
 }
 
 type WorkflowRun struct {
@@ -36,6 +40,8 @@ type WorkflowRun struct {
 
 type AdminClient interface {
 	PutWorkflow(workflow *types.Workflow, opts ...PutOptFunc) error
+	PutWorkflowV1(workflow *v1contracts.CreateWorkflowVersionRequest, opts ...PutOptFunc) error
+
 	ScheduleWorkflow(workflowName string, opts ...ScheduleOptFunc) error
 
 	// RunWorkflow triggers a workflow run and returns the run id
@@ -58,7 +64,8 @@ func (d *DedupeViolationErr) Error() string {
 }
 
 type adminClientImpl struct {
-	client admincontracts.WorkflowServiceClient
+	client   admincontracts.WorkflowServiceClient
+	v1Client v1contracts.AdminServiceClient
 
 	l *zerolog.Logger
 
@@ -71,11 +78,15 @@ type adminClientImpl struct {
 	subscriber SubscribeClient
 
 	sharedMeta map[string]string
+
+	listenerMu sync.Mutex
+	listener   *WorkflowRunsListener
 }
 
 func newAdmin(conn *grpc.ClientConn, opts *sharedClientOpts, subscriber SubscribeClient) AdminClient {
 	return &adminClientImpl{
 		client:     admincontracts.NewWorkflowServiceClient(conn),
+		v1Client:   v1contracts.NewAdminServiceClient(conn),
 		l:          opts.l,
 		v:          opts.v,
 		ctx:        opts.ctxLoader,
@@ -116,9 +127,26 @@ func (a *adminClientImpl) PutWorkflow(workflow *types.Workflow, fs ...PutOptFunc
 	return nil
 }
 
+func (a *adminClientImpl) PutWorkflowV1(workflow *v1contracts.CreateWorkflowVersionRequest, fs ...PutOptFunc) error {
+	opts := defaultPutOpts()
+
+	for _, f := range fs {
+		f(opts)
+	}
+
+	_, err := a.v1Client.PutWorkflow(a.ctx.newContext(context.Background()), workflow)
+
+	if err != nil {
+		return fmt.Errorf("could not create workflow %s: %w", workflow.Name, err)
+	}
+
+	return nil
+}
+
 type scheduleOpts struct {
 	schedules []time.Time
 	input     any
+	priority  *int32
 }
 
 type ScheduleOptFunc func(*scheduleOpts)
@@ -162,10 +190,13 @@ func (a *adminClientImpl) ScheduleWorkflow(workflowName string, fs ...ScheduleOp
 		return err
 	}
 
+	workflowName = client.ApplyNamespace(workflowName, &a.namespace)
+
 	_, err = a.client.ScheduleWorkflow(a.ctx.newContext(context.Background()), &admincontracts.ScheduleWorkflowRequest{
 		Name:      workflowName,
 		Schedules: pbSchedules,
 		Input:     string(inputBytes),
+		Priority:  opts.priority,
 	})
 
 	if err != nil {
@@ -192,6 +223,22 @@ func WithRunMetadata(metadata interface{}) RunOptFunc {
 	}
 }
 
+func WithPriority(priority int32) RunOptFunc {
+	return func(r *admincontracts.TriggerWorkflowRequest) error {
+		r.Priority = &priority
+
+		return nil
+	}
+}
+
+// func WithSticky(sticky bool) RunOptFunc {
+// 	return func(r *admincontracts.TriggerWorkflowRequest) error {
+// 		r.Sticky = &sticky
+
+// 		return nil
+// 	}
+// }
+
 func (a *adminClientImpl) RunWorkflow(workflowName string, input interface{}, options ...RunOptFunc) (*Workflow, error) {
 	inputBytes, err := json.Marshal(input)
 
@@ -199,23 +246,21 @@ func (a *adminClientImpl) RunWorkflow(workflowName string, input interface{}, op
 		return nil, fmt.Errorf("could not marshal input: %w", err)
 	}
 
-	if a.namespace != "" && !strings.HasPrefix(workflowName, a.namespace) {
-		workflowName = fmt.Sprintf("%s%s", a.namespace, workflowName)
-	}
+	workflowName = client.ApplyNamespace(workflowName, &a.namespace)
 
-	request := admincontracts.TriggerWorkflowRequest{
+	request := &admincontracts.TriggerWorkflowRequest{
 		Name:  workflowName,
 		Input: string(inputBytes),
 	}
 
 	for _, optionFunc := range options {
-		err = optionFunc(&request)
+		err = optionFunc(request)
 		if err != nil {
 			return nil, fmt.Errorf("could not apply run option: %w", err)
 		}
 	}
 
-	res, err := a.client.TriggerWorkflow(a.ctx.newContext(context.Background()), &request)
+	res, err := a.client.TriggerWorkflow(a.ctx.newContext(context.Background()), request)
 
 	if err != nil {
 		if status.Code(err) == codes.AlreadyExists {
@@ -227,7 +272,7 @@ func (a *adminClientImpl) RunWorkflow(workflowName string, input interface{}, op
 		return nil, fmt.Errorf("could not trigger workflow: %w", err)
 	}
 
-	listener, err := a.subscriber.SubscribeToWorkflowRunEvents(context.Background())
+	listener, err := a.saveOrLoadListener()
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to subscribe to workflow run events: %w", err)
@@ -283,9 +328,7 @@ func (a *adminClientImpl) RunChildWorkflow(workflowName string, input interface{
 		return "", fmt.Errorf("could not marshal input: %w", err)
 	}
 
-	if a.namespace != "" && !strings.HasPrefix(workflowName, a.namespace) {
-		workflowName = fmt.Sprintf("%s%s", a.namespace, workflowName)
-	}
+	workflowName = client.ApplyNamespace(workflowName, &a.namespace)
 
 	childIndex := int32(opts.ChildIndex) // nolint: gosec
 
@@ -306,6 +349,7 @@ func (a *adminClientImpl) RunChildWorkflow(workflowName string, input interface{
 		ChildKey:           opts.ChildKey,
 		DesiredWorkerId:    opts.DesiredWorkerId,
 		AdditionalMetadata: &metadata,
+		Priority:           opts.Priority,
 	})
 
 	if err != nil {
@@ -343,11 +387,7 @@ func (a *adminClientImpl) RunChildWorkflows(workflows []*RunChildWorkflowsOpts) 
 			return nil, fmt.Errorf("could not marshal input: %w", err)
 		}
 
-		var workflowName = workflow.WorkflowName
-
-		if a.namespace != "" && !strings.HasPrefix(workflow.WorkflowName, a.namespace) {
-			workflowName = fmt.Sprintf("%s%s", a.namespace, workflow.WorkflowName)
-		}
+		workflowName := client.ApplyNamespace(workflow.WorkflowName, &a.namespace)
 
 		if workflow.Opts.ChildIndex < math.MinInt32 || workflow.Opts.ChildIndex > math.MaxInt32 {
 			return nil, fmt.Errorf("child index out of range")
@@ -371,6 +411,7 @@ func (a *adminClientImpl) RunChildWorkflows(workflows []*RunChildWorkflowsOpts) 
 			ChildKey:           workflow.Opts.ChildKey,
 			DesiredWorkerId:    workflow.Opts.DesiredWorkerId,
 			AdditionalMetadata: &metadata,
+			Priority:           workflow.Opts.Priority,
 		}
 
 	}
@@ -452,7 +493,6 @@ func (a *adminClientImpl) getPutRequest(workflow *types.Workflow) (*admincontrac
 
 		opts.Concurrency.LimitStrategy = &limitStrat
 
-		// TODO: should be a pointer because users might want to set maxRuns temporarily for disabling
 		if workflow.Concurrency.MaxRuns != 0 {
 			maxRuns := workflow.Concurrency.MaxRuns
 			opts.Concurrency.MaxRuns = &maxRuns
@@ -546,6 +586,29 @@ func (a *adminClientImpl) getJobOpts(jobName string, job *types.WorkflowJob) (*a
 				opt.Units = &units
 			}
 
+			if rateLimit.Duration != nil {
+				var duration admincontracts.RateLimitDuration
+
+				switch *rateLimit.Duration {
+				case types.Year:
+					duration = admincontracts.RateLimitDuration_YEAR
+				case types.Month:
+					duration = admincontracts.RateLimitDuration_MONTH
+				case types.Day:
+					duration = admincontracts.RateLimitDuration_DAY
+				case types.Hour:
+					duration = admincontracts.RateLimitDuration_HOUR
+				case types.Minute:
+					duration = admincontracts.RateLimitDuration_MINUTE
+				case types.Second:
+					duration = admincontracts.RateLimitDuration_SECOND
+				default:
+					duration = admincontracts.RateLimitDuration_MINUTE
+				}
+
+				opt.Duration = &duration
+			}
+
 			stepOpt.RateLimits = append(stepOpt.RateLimits, opt)
 		}
 
@@ -611,4 +674,23 @@ func (a *adminClientImpl) getAdditionalMetaBytes(opt *map[string]string) ([]byte
 	}
 
 	return metadataBytes, nil
+}
+
+func (h *adminClientImpl) saveOrLoadListener() (*WorkflowRunsListener, error) {
+	h.listenerMu.Lock()
+	defer h.listenerMu.Unlock()
+
+	if h.listener != nil {
+		return h.listener, nil
+	}
+
+	listener, err := h.subscriber.SubscribeToWorkflowRunEvents(context.Background())
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to subscribe to workflow run events: %w", err)
+	}
+
+	h.listener = listener
+
+	return listener, nil
 }

@@ -2,6 +2,7 @@ package queueutils
 
 import (
 	"context"
+	"math/rand"
 	"sync"
 	"time"
 
@@ -11,6 +12,10 @@ import (
 type OpMethod func(ctx context.Context, id string) (bool, error)
 
 // SerialOperation represents a method that can only run serially.
+// It can be configured with a maxJitter duration to add a random delay
+// before executing, which helps prevent the "thundering herd" problem
+// when many operations might start at the same time. The jitter is disabled
+// by default (maxJitter=0) and can be enabled via OperationPool.WithJitter().
 type SerialOperation struct {
 	mu             sync.RWMutex
 	shouldContinue bool
@@ -20,10 +25,10 @@ type SerialOperation struct {
 	description    string
 	timeout        time.Duration
 	method         OpMethod
+	maxJitter      time.Duration
 }
 
 func (o *SerialOperation) RunOrContinue(ql *zerolog.Logger) {
-
 	o.setContinue(true)
 	o.Run(ql)
 }
@@ -33,6 +38,8 @@ func (o *SerialOperation) Run(ql *zerolog.Logger) {
 		return
 	}
 
+	maxJitter := o.maxJitter
+
 	go func() {
 		defer func() {
 			o.setRunning(false, ql)
@@ -40,6 +47,12 @@ func (o *SerialOperation) Run(ql *zerolog.Logger) {
 
 		f := func() {
 			o.setContinue(false)
+
+			// Apply jitter if configured
+			if maxJitter > 0 {
+				jitter := time.Duration(rand.Int63n(int64(maxJitter))) // nolint:gosec
+				time.Sleep(jitter)
+			}
 
 			ctx, cancel := context.WithTimeout(context.Background(), o.timeout)
 			defer cancel()
@@ -78,7 +91,6 @@ func (o *SerialOperation) setRunning(isRunning bool, ql *zerolog.Logger) bool {
 	}
 
 	if isRunning {
-
 		ql.Info().Str("tenant_id", o.id).TimeDiff("last_run", time.Now(), o.lastRun).Msg(o.description)
 
 		o.lastRun = time.Now()

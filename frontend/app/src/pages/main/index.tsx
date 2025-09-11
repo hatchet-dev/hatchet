@@ -23,6 +23,7 @@ import { useTenant } from '@/lib/atoms';
 import { Loading } from '@/components/ui/loading.tsx';
 import { useSidebar } from '@/components/sidebar-provider';
 import { TenantSwitcher } from '@/components/molecules/nav-bar/tenant-switcher';
+import { OrganizationSelector } from '@/components/v1/molecules/nav-bar/organization-selector';
 import { Collapsible, CollapsibleContent } from '@/components/ui/collapsible';
 import useCloudApiMeta from '../auth/hooks/use-cloud-api-meta';
 import useCloudFeatureFlags from '../auth/hooks/use-cloud-feature-flags';
@@ -31,7 +32,6 @@ function Main() {
   const ctx = useOutletContext<UserContextType & MembershipsContextType>();
 
   const { user, memberships } = ctx;
-
   const { tenant: currTenant } = useTenant();
 
   const childCtx = useContextFromParent({
@@ -47,7 +47,7 @@ function Main() {
   return (
     <div className="flex flex-row flex-1 w-full h-full">
       <Sidebar memberships={memberships} currTenant={currTenant} />
-      <div className="pt-6 flex-grow overflow-y-auto overflow-x-hidden">
+      <div className="p-8 flex-grow overflow-y-auto overflow-x-hidden">
         <Outlet context={childCtx} />
       </div>
     </div>
@@ -64,7 +64,7 @@ interface SidebarProps extends React.HTMLAttributes<HTMLDivElement> {
 function Sidebar({ className, memberships, currTenant }: SidebarProps) {
   const { sidebarOpen, setSidebarOpen } = useSidebar();
 
-  const meta = useCloudApiMeta();
+  const { data: cloudMeta } = useCloudApiMeta();
   const featureFlags = useCloudFeatureFlags(currTenant.metadata.id);
 
   const onNavLinkClick = useCallback(() => {
@@ -97,7 +97,7 @@ function Sidebar({ className, memberships, currTenant }: SidebarProps) {
   return (
     <div
       className={cn(
-        'h-full border-r w-full md:w-80 top-16 absolute z-[100] md:relative md:top-0 md:bg-[unset] md:dark:bg-[unset] bg-slate-100 dark:bg-slate-900',
+        'h-full border-r overflow-y-auto w-full md:min-w-80 md:w-80 top-16 absolute z-[100] md:relative md:top-0 md:bg-[unset] md:dark:bg-[unset] bg-slate-100 dark:bg-slate-900',
         className,
       )}
     >
@@ -226,7 +226,7 @@ function Sidebar({ className, memberships, currTenant }: SidebarProps) {
                     onNavLinkClick={onNavLinkClick}
                     to="/tenant-settings/billing-and-limits"
                     name={
-                      meta?.data.canBill
+                      cloudMeta?.data.canBill
                         ? 'Billing & Limits'
                         : 'Resource Limits'
                     }
@@ -248,7 +248,11 @@ function Sidebar({ className, memberships, currTenant }: SidebarProps) {
             </div>
           </div>
         </div>
-        <TenantSwitcher memberships={memberships} currTenant={currTenant} />
+        {cloudMeta ? (
+          <OrganizationSelector memberships={memberships} />
+        ) : (
+          <TenantSwitcher memberships={memberships} currTenant={currTenant} />
+        )}
       </div>
     </div>
   );

@@ -1,0 +1,39 @@
+import { snippets } from "@/lib/generated/snippets";
+import { Snippet } from "@/components/code";
+import { Callout, Card, Cards, Steps, Tabs } from "nextra/components";
+import UniversalTabs from "@/components/UniversalTabs";
+import InstallCommand from "@/components/InstallCommand";
+
+#### Create a new project directory and cd into it
+
+```bash copy
+mkdir hatchet-tutorial && cd hatchet-tutorial
+```
+
+#### Initialize a new typescript project with required dependencies
+
+<InstallCommand withDevDependencies />
+
+#### Create project directories
+
+```bash copy
+mkdir src &&
+mkdir src/workflows &&
+mkdir src/workers
+```
+
+#### Instantiate your Hatchet Client
+
+It is recommended to instantiate a shared Hatchet Client in a separate file as a singleton.
+
+Create a new file called `hatchet-client.ts`
+
+```bash copy
+touch src/hatchet-client.ts
+```
+
+Add the following code to the file:
+
+<Snippet src={snippets.typescript.hatchet_client.create_client} />
+
+You can now import the Hatchet Client in any file that needs it.

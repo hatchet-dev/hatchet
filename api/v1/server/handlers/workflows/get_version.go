@@ -4,18 +4,19 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/labstack/echo/v4"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 func (t *WorkflowService) WorkflowVersionGet(ctx echo.Context, request gen.WorkflowVersionGetRequestObject) (gen.WorkflowVersionGetResponseObject, error) {
-	tenant := ctx.Get("tenant").(*db.TenantModel)
+	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
+	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 	workflow := ctx.Get("workflow").(*dbsqlc.GetWorkflowByIdRow)
 
 	var workflowVersionId string
@@ -29,7 +30,7 @@ func (t *WorkflowService) WorkflowVersionGet(ctx echo.Context, request gen.Workf
 		)
 
 		if err != nil {
-			if errors.Is(err, db.ErrNotFound) {
+			if errors.Is(err, pgx.ErrNoRows) {
 				return gen.WorkflowVersionGet404JSONResponse(
 					apierrors.NewAPIErrors("workflow not found"),
 				), nil
@@ -42,10 +43,10 @@ func (t *WorkflowService) WorkflowVersionGet(ctx echo.Context, request gen.Workf
 		workflowVersionId = sqlchelpers.UUIDToStr(row.WorkflowVersionId)
 	}
 
-	row, crons, events, scheduleT, err := t.config.APIRepository.Workflow().GetWorkflowVersionById(tenant.ID, workflowVersionId)
+	row, crons, events, scheduleT, err := t.config.APIRepository.Workflow().GetWorkflowVersionById(tenantId, workflowVersionId)
 
 	if err != nil {
-		if errors.Is(err, db.ErrNotFound) {
+		if errors.Is(err, pgx.ErrNoRows) {
 			return gen.WorkflowVersionGet404JSONResponse(
 				apierrors.NewAPIErrors("version not found"),
 			), nil

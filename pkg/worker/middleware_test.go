@@ -1,3 +1,5 @@
+//go:build !e2e && !load && !rampup && !integration
+
 package worker
 
 import (
@@ -6,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/hatchet-dev/hatchet/pkg/client"
+	"github.com/hatchet-dev/hatchet/pkg/client/create"
 )
 
 type testHatchetContext struct {
@@ -21,6 +24,18 @@ func (c *testHatchetContext) GetContext() context.Context {
 }
 
 func (c *testHatchetContext) StepOutput(step string, target interface{}) error {
+	return nil
+}
+
+func (c *testHatchetContext) TriggerDataKeys() []string {
+	return nil
+}
+
+func (c *testHatchetContext) TriggerData(key string, target interface{}) error {
+	return nil
+}
+
+func (c *testHatchetContext) ParentOutput(task create.NamedTask, target interface{}) error {
 	return nil
 }
 
@@ -67,6 +82,14 @@ func (c *testHatchetContext) WorkflowRunId() string {
 	panic("not implemented")
 }
 
+func (c *testHatchetContext) WorkflowId() *string {
+	panic("not implemented")
+}
+
+func (c *testHatchetContext) WorkflowVersionId() *string {
+	panic("not implemented")
+}
+
 func (c *testHatchetContext) Log(message string) {
 	panic("not implemented")
 }
@@ -83,7 +106,15 @@ func (c *testHatchetContext) StreamEvent(message []byte) {
 	panic("not implemented")
 }
 
+func (c *testHatchetContext) PutStream(message string) {
+	panic("not implemented")
+}
+
 func (c *testHatchetContext) RetryCount() int {
+	panic("not implemented")
+}
+
+func (c *testHatchetContext) Priority() int32 {
 	panic("not implemented")
 }
 
@@ -91,11 +122,11 @@ func (c *testHatchetContext) action() *client.Action {
 	panic("not implemented")
 }
 
-func (c *testHatchetContext) index() int {
+func (c *testHatchetContext) CurChildIndex() int {
 	panic("not implemented")
 }
 
-func (c *testHatchetContext) inc() {
+func (c *testHatchetContext) IncChildIndex() {
 	panic("not implemented")
 }
 
@@ -104,6 +135,10 @@ func (c *testHatchetContext) client() client.Client {
 }
 
 func (c *testHatchetContext) Worker() HatchetWorkerContext {
+	panic("not implemented")
+}
+
+func (c *testHatchetContext) FilterPayload() map[string]interface{} {
 	panic("not implemented")
 }
 

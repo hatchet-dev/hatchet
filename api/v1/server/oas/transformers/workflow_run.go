@@ -9,8 +9,8 @@ import (
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 func ToWorkflowRunShape(
@@ -530,6 +530,11 @@ func ToScheduledWorkflowsFromSQLC(scheduled *dbsqlc.ListScheduledWorkflowsRow) *
 		workflowRunIdPtr = &workflowRunId
 	}
 
+	input := make(map[string]interface{})
+	if scheduled.Input != nil {
+		json.Unmarshal(scheduled.Input, &input)
+	}
+
 	res := &gen.ScheduledWorkflows{
 		Metadata:             *toAPIMetadata(sqlchelpers.UUIDToStr(scheduled.ID), scheduled.CreatedAt.Time, scheduled.UpdatedAt.Time),
 		WorkflowVersionId:    sqlchelpers.UUIDToStr(scheduled.WorkflowVersionId),
@@ -543,6 +548,8 @@ func ToScheduledWorkflowsFromSQLC(scheduled *dbsqlc.ListScheduledWorkflowsRow) *
 		WorkflowRunId:        workflowRunIdPtr,
 		WorkflowRunName:      &scheduled.WorkflowRunName.String,
 		Method:               gen.ScheduledWorkflowsMethod(scheduled.Method),
+		Priority:             &scheduled.Priority,
+		Input:                &input,
 	}
 
 	return res
@@ -569,6 +576,7 @@ func ToCronWorkflowsFromSQLC(cron *dbsqlc.ListCronWorkflowsRow) *gen.CronWorkflo
 		Name:               &cron.Name.String,
 		Enabled:            cron.Enabled,
 		Method:             gen.CronWorkflowsMethod(cron.Method),
+		Priority:           &cron.Priority,
 	}
 
 	return res

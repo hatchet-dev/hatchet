@@ -1,9 +1,28 @@
-# Self-Hosting
+# Self-Hosting the Hatchet Control Plane
 
-There are currently three supported ways to self-host Hatchet:
+Self-hosting Hatchet means running your own instance of the **Hatchet Control Plane** - the central orchestration system that manages workflows, schedules tasks, and coordinates worker execution. This is different from running workers, which can connect to any Hatchet instance (self-hosted or Hatchet Cloud).
 
-1. [Hatchet Lite](./self-hosting/hatchet-lite)
-2. [Docker Compose](./self-hosting/docker-compose)
-3. Kubernetes:
-   - [Quickstart with Helm](./self-hosting/kubernetes-quickstart)
-   - [Glasskube](./self-hosting/kubernetes-glasskube)
+## What You're Self-Hosting
+
+When you self-host Hatchet, you're deploying:
+
+- **API Server** - REST and gRPC APIs for workflow management
+- **Engine** - Core workflow orchestration and task scheduling
+- **Database** - PostgreSQL for storing workflow state and metadata
+- **Message Queue (optional)** - RabbitMQ for inter-service communication and high-throughput real-time updates
+- **Dashboard** - Web UI for monitoring workflows and debugging
+
+Your **workers** (the processes that execute your workflow steps) will connect to your self-hosted control plane and execute tasks.
+
+## Deployment Options
+
+There are currently three supported ways to self-host the Hatchet Control Plane:
+
+Docker:
+
+1. [Hatchet Lite](./self-hosting/hatchet-lite.mdx) - Single docker image with embedded SQLite (development, testing, or low-throughput production)
+2. [Docker Compose](./self-hosting/docker-compose.mdx) - Multi-container setup with PostgreSQL and RabbitMQ (production)
+
+Kubernetes:
+
+1. [Quickstart with Helm](./self-hosting/kubernetes-quickstart.mdx) - Production-ready Helm charts (production)

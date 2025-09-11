@@ -1,11 +1,24 @@
 name: build
-on: pull_request
+on:
+  pull_request:
+    paths-ignore:
+      - 'sdks/**'
+      - 'frontend/docs/**'
+      - 'frontend/**/generated/**'
+      - 'examples/**'
+
 jobs:
   frontend:
     runs-on: ubuntu-latest
     steps:
       - name: Clone repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - name: Generate docs snippets and examples
+        working-directory: frontend/snippets
+        run: python3 generate.py
       - name: Build frontend
         run: docker build -f ./build/package/frontend.dockerfile .
 
@@ -13,7 +26,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Clone repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - name: Build servers
         run: docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=api
 
@@ -21,7 +34,7 @@ jobs:
     runs-on: hatchet-arm64-2
     steps:
       - name: Clone repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - name: Build servers
         run: docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=api
 
@@ -29,7 +42,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Clone repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - name: Build servers
         run: docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=engine
 
@@ -37,7 +50,7 @@ jobs:
     runs-on: hatchet-arm64-2
     steps:
       - name: Clone repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - name: Build servers
         run: docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=engine
 
@@ -45,7 +58,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Clone repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - name: Build servers
         run: docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=admin
 
@@ -53,7 +66,7 @@ jobs:
     runs-on: hatchet-arm64-2
     steps:
       - name: Clone repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - name: Build servers
         run: docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=admin
 
@@ -61,23 +74,29 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Clone repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - name: Build migrate
-        run: docker build -f ./build/package/migrate.dockerfile .
+        run: docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=migrate
 
   migrate-arm:
     runs-on: hatchet-arm64-2
     steps:
       - name: Clone repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - name: Build migrate
-        run: docker build -f ./build/package/migrate.dockerfile .
+        run: docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=migrate
 
   lite-arm:
     runs-on: hatchet-arm64-2
     steps:
       - name: Clone repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - name: Generate docs snippets and examples
+        working-directory: frontend/snippets
+        run: python3 generate.py
       - name: Build lite
         run: |
           DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
@@ -92,11 +111,18 @@ jobs:
             -t hatchet-admin-tmp:arm64 \
             . &
 
+          DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
+            --build-arg SERVER_TARGET=migrate \
+            --platform linux/arm64 \
+            -t hatchet-migrate-tmp:arm64 \
+            . &
+
           wait
 
           DOCKER_BUILDKIT=1 docker build -f ./build/package/lite.dockerfile \
             --build-arg HATCHET_LITE_IMAGE=hatchet-lite-tmp:arm64 \
             --build-arg HATCHET_ADMIN_IMAGE=hatchet-admin-tmp:arm64 \
+            --build-arg HATCHET_MIGRATE_IMAGE=hatchet-migrate-tmp:arm64 \
             --platform linux/arm64 \
             .
 
@@ -104,7 +130,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Clone repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - name: Generate docs snippets and examples
+        working-directory: frontend/snippets
+        run: python3 generate.py
       - name: Build lite
         run: |
           DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
@@ -119,11 +151,18 @@ jobs:
             -t hatchet-admin-tmp:amd64 \
             . &
 
+          DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
+            --build-arg SERVER_TARGET=migrate \
+            --platform linux/amd64 \
+            -t hatchet-migrate-tmp:amd64 \
+            . &
+
           wait
 
           DOCKER_BUILDKIT=1 docker build -f ./build/package/lite.dockerfile \
             --build-arg HATCHET_LITE_IMAGE=hatchet-lite-tmp:amd64 \
             --build-arg HATCHET_ADMIN_IMAGE=hatchet-admin-tmp:amd64 \
+            --build-arg HATCHET_MIGRATE_IMAGE=hatchet-migrate-tmp:amd64 \
             --platform linux/amd64 \
             .
 
@@ -131,7 +170,13 @@ jobs:
     runs-on: hatchet-arm64-2
     steps:
       - name: Clone repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - name: Generate docs snippets and examples
+        working-directory: frontend/snippets
+        run: python3 generate.py
       - name: Build dashboard
         run: |
           DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
@@ -149,7 +194,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Clone repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - name: Generate docs snippets and examples
+        working-directory: frontend/snippets
+        run: python3 generate.py
       - name: Build dashboard
         run: |
           DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
@@ -162,3 +213,19 @@ jobs:
             --build-arg HATCHET_API_IMAGE=hatchet-api-tmp:amd64 \
             --platform linux/amd64 \
             .
+
+  loadtest:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v5
+      - name: Build loadtest
+        run: docker build -f ./build/package/loadtest.dockerfile .
+
+  loadtest-arm:
+    runs-on: hatchet-arm64-2
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v5
+      - name: Build loadtest
+        run: docker build -f ./build/package/loadtest.dockerfile .

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/labstack/echo/v4"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
@@ -12,15 +13,16 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
+	"github.com/hatchet-dev/hatchet/pkg/constants"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/metered"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 func (t *WorkflowService) WorkflowRunCreate(ctx echo.Context, request gen.WorkflowRunCreateRequestObject) (gen.WorkflowRunCreateResponseObject, error) {
-	tenant := ctx.Get("tenant").(*db.TenantModel)
+	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
+	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 	workflow := ctx.Get("workflow").(*dbsqlc.GetWorkflowByIdRow)
 
 	var workflowVersionId string
@@ -38,10 +40,10 @@ func (t *WorkflowService) WorkflowRunCreate(ctx echo.Context, request gen.Workfl
 		workflowVersionId = sqlchelpers.UUIDToStr(workflow.WorkflowVersionId)
 	}
 
-	workflowVersion, err := t.config.EngineRepository.Workflow().GetWorkflowVersionById(ctx.Request().Context(), tenant.ID, workflowVersionId)
+	workflowVersion, err := t.config.EngineRepository.Workflow().GetWorkflowVersionById(ctx.Request().Context(), tenantId, workflowVersionId)
 
 	if err != nil {
-		if errors.Is(err, db.ErrNotFound) {
+		if errors.Is(err, pgx.ErrNoRows) {
 			return gen.WorkflowRunCreate400JSONResponse(
 				apierrors.NewAPIErrors("version not found"),
 			), nil
@@ -83,7 +85,7 @@ func (t *WorkflowService) WorkflowRunCreate(ctx echo.Context, request gen.Workfl
 		return nil, err
 	}
 
-	createdWorkflowRun, err := t.config.APIRepository.WorkflowRun().CreateNewWorkflowRun(ctx.Request().Context(), tenant.ID, createOpts)
+	createdWorkflowRun, err := t.config.APIRepository.WorkflowRun().CreateNewWorkflowRun(ctx.Request().Context(), tenantId, createOpts)
 
 	if err == metered.ErrResourceExhausted {
 		return gen.WorkflowRunCreate429JSONResponse(
@@ -109,7 +111,7 @@ func (t *WorkflowService) WorkflowRunCreate(ctx echo.Context, request gen.Workfl
 		return nil, fmt.Errorf("could not add workflow run to queue: %w", err)
 	}
 
-	workflowRun, err := t.config.APIRepository.WorkflowRun().GetWorkflowRunById(ctx.Request().Context(), tenant.ID, sqlchelpers.UUIDToStr(createdWorkflowRun.ID))
+	workflowRun, err := t.config.APIRepository.WorkflowRun().GetWorkflowRunById(ctx.Request().Context(), tenantId, sqlchelpers.UUIDToStr(createdWorkflowRun.ID))
 
 	if err != nil {
 		return nil, fmt.Errorf("could not get workflow run: %w", err)
@@ -120,6 +122,19 @@ func (t *WorkflowService) WorkflowRunCreate(ctx echo.Context, request gen.Workfl
 	if err != nil {
 		return nil, err
 	}
+
+	if request.Body.AdditionalMetadata != nil {
+		correlationIdInterface, ok := (*request.Body.AdditionalMetadata)[string(constants.CorrelationIdKey)]
+		if ok {
+			correlationId, ok := correlationIdInterface.(string)
+			if ok {
+				ctx.Set(constants.CorrelationIdKey.String(), correlationId)
+			}
+		}
+	}
+
+	ctx.Set(constants.ResourceIdKey.String(), createdWorkflowRun.ID.String())
+	ctx.Set(constants.ResourceTypeKey.String(), constants.ResourceTypeWorkflowRun.String())
 
 	return gen.WorkflowRunCreate200JSONResponse(
 		*res,

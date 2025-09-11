@@ -52,5 +52,4 @@ func (a *GRPCAuthN) Middleware(ctx context.Context) (context.Context, error) {
 	}
 
 	return context.WithValue(ctx, "tenant", queriedTenant), nil
-
 }

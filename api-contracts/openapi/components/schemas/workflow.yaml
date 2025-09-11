@@ -25,9 +25,13 @@ Workflow:
       items:
         $ref: "#/Job"
       description: The jobs of the workflow.
+    tenantId:
+      type: string
+      description: The tenant id of the workflow.
   required:
     - metadata
     - name
+    - tenantId
   type: object
 
 WorkflowUpdateRequest:
@@ -115,6 +119,8 @@ WorkflowVersion:
       type: array
       items:
         $ref: "#/Job"
+    workflowConfig:
+      type: object
   required:
     - metadata
     - version

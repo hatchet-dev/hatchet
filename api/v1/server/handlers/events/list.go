@@ -14,11 +14,13 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 func (t *EventService) EventList(ctx echo.Context, request gen.EventListRequestObject) (gen.EventListResponseObject, error) {
-	tenant := ctx.Get("tenant").(*db.TenantModel)
+	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
+	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
 	limit := 50
 	offset := 0
@@ -59,10 +61,10 @@ func (t *EventService) EventList(ctx echo.Context, request gen.EventListRequestO
 	}
 
 	if request.Params.Statuses != nil {
-		statuses := make([]db.WorkflowRunStatus, len(*request.Params.Statuses))
+		statuses := make([]dbsqlc.WorkflowRunStatus, len(*request.Params.Statuses))
 
 		for i, status := range *request.Params.Statuses {
-			statuses[i] = db.WorkflowRunStatus(status)
+			statuses[i] = dbsqlc.WorkflowRunStatus(status)
 		}
 
 		listOpts.WorkflowRunStatus = statuses
@@ -105,7 +107,7 @@ func (t *EventService) EventList(ctx echo.Context, request gen.EventListRequestO
 	dbCtx, cancel := context.WithTimeout(ctx.Request().Context(), 30*time.Second)
 	defer cancel()
 
-	listRes, err := t.config.APIRepository.Event().ListEvents(dbCtx, tenant.ID, listOpts)
+	listRes, err := t.config.APIRepository.Event().ListEvents(dbCtx, tenantId, listOpts)
 
 	if err != nil {
 		return nil, err

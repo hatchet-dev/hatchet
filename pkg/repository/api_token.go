@@ -4,8 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 )
 
 type CreateAPITokenOpts struct {
@@ -24,13 +23,12 @@ type CreateAPITokenOpts struct {
 	Internal bool
 }
 
-type APITokenRepository interface {
-	GetAPITokenById(id string) (*db.APITokenModel, error)
-	RevokeAPIToken(id string) error
-	ListAPITokensByTenant(tenantId string) ([]db.APITokenModel, error)
-}
+type APITokenGenerator func(ctx context.Context, tenantId, name string, internal bool, expires *time.Time) (string, error)
 
-type EngineTokenRepository interface {
+type APITokenRepository interface {
 	CreateAPIToken(ctx context.Context, opts *CreateAPITokenOpts) (*dbsqlc.APIToken, error)
 	GetAPITokenById(ctx context.Context, id string) (*dbsqlc.APIToken, error)
+	ListAPITokensByTenant(ctx context.Context, tenantId string) ([]*dbsqlc.APIToken, error)
+	RevokeAPIToken(ctx context.Context, id string) error
+	DeleteAPIToken(ctx context.Context, tenantId, id string) error
 }

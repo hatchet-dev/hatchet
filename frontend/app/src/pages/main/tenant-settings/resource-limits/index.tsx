@@ -11,7 +11,7 @@ import useCloudApiMeta from '@/pages/auth/hooks/use-cloud-api-meta';
 
 export default function ResourceLimits() {
   const { tenant } = useOutletContext<TenantContextType>();
-  const cloudMeta = useCloudApiMeta();
+  const { data: cloudMeta } = useCloudApiMeta();
 
   const resourcePolicyQuery = useQuery({
     ...queries.tenantResourcePolicy.get(tenant.metadata.id),
@@ -41,7 +41,7 @@ export default function ResourceLimits() {
     <div className="flex-grow h-full w-full">
       {billingEnabled && (
         <>
-          <div className="mx-auto max-w-7xl py-8 px-4 sm:px-6 lg:px-8">
+          <div className="mx-auto py-8 px-4 sm:px-6 lg:px-8">
             <div className="flex flex-row justify-between items-center">
               <h2 className="text-2xl font-semibold leading-tight text-foreground">
                 Billing and Limits
@@ -64,7 +64,7 @@ export default function ResourceLimits() {
         </>
       )}
 
-      <div className="mx-auto max-w-7xl py-8 px-4 sm:px-6 lg:px-8">
+      <div className="mx-auto py-8 px-4 sm:px-6 lg:px-8">
         <div className="flex flex-row justify-between items-center">
           <h3 className="text-xl font-semibold leading-tight text-foreground">
             Resource Limits

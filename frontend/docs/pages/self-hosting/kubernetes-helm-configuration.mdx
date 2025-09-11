@@ -57,3 +57,21 @@ sharedConfig:
 ```
 
 This will set the environment variable `MY_ENV_VAR` to `"my-value"` for all backend services. These values will override any default environment settings for the services.
+
+### Seeding Data
+
+The `sharedConfig` object also allows you to seed the database with a default tenant and user. The following environment variables are used for seeding:
+
+````yaml
+The following environment variables are used to seed the database:
+
+```yaml
+seed:
+  defaultAdminEmail: "admin@example.com" # in exposed/production environments, change this to a valid email
+  defaultAdminPassword: "Admin123!!" # in exposed/production environments, change this to a secure password
+  env:
+    ADMIN_NAME: "Admin User"
+    DEFAULT_TENANT_NAME: "Default"
+    DEFAULT_TENANT_SLUG: "default"
+    DEFAULT_TENANT_ID: "707d0855-80ab-4e1f-a156-f1c4546cbf52"
+````

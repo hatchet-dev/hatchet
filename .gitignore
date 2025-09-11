@@ -31,6 +31,8 @@ node_modules
 # Jetbrains IDEs
 *.iml
 
+.eslintcache
+
 # Local docs directories
 /docs/.obsidian
 
@@ -93,3 +95,7 @@ rabbitmq.conf
 certs/
 
 openapitools.json
+
+# Generated docs content
+frontend/app/src/next/lib/docs/generated/
+frontend/docs/lib/generated/

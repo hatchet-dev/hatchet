@@ -9,12 +9,13 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 func (t *LogService) LogLineList(ctx echo.Context, request gen.LogLineListRequestObject) (gen.LogLineListResponseObject, error) {
-	tenant := ctx.Get("tenant").(*db.TenantModel)
+	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
+	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 	stepRun := ctx.Get("step-run").(*repository.GetStepRunFull)
 
 	limit := 1000
@@ -60,7 +61,7 @@ func (t *LogService) LogLineList(ctx echo.Context, request gen.LogLineListReques
 		listOpts.Offset = &offset
 	}
 
-	listRes, err := t.config.APIRepository.Log().ListLogLines(tenant.ID, listOpts)
+	listRes, err := t.config.APIRepository.Log().ListLogLines(tenantId, listOpts)
 
 	if err != nil {
 		return nil, err

@@ -67,25 +67,20 @@ const PythonSetup: typeof pythonOnboarding.setup = ({ existingProject }) => (
       </p>
       <CodeHighlighter
         language="python"
-        code={`from hatchet_sdk import Hatchet
-from dotenv import load_dotenv
-
-load_dotenv()
+        code={`from hatchet_sdk import Context, EmptyModel, Hatchet
 
 hatchet = Hatchet()
 
-@hatchet.workflow(on_events=["tutorial:create"], name="first-workflow")
-class FirstWorkflow:
+first_workflow = hatchet.workflow(name="first-workflow")
 
-    @hatchet.step()
-    def first_step(self, ctx):
-        print("Congratulations! You've successfully triggered your first Python workflow run! 🎉")
-        return {"result": "success!"}
+@first_workflow.task()
+def first_step(input: EmptyModel, ctx: Context) -> dict[str, str]:
+    print("Congratulations! You've successfully triggered your first Python workflow run! 🎉")
+    return {"result": "success!"}
 
 
 def main():
-    worker = hatchet.worker("tutorial-worker")
-    worker.register_workflow(FirstWorkflow())
+    worker = hatchet.worker("tutorial-worker", workflows=[first_workflow])
     worker.start()
 
 

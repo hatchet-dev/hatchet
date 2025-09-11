@@ -7,7 +7,7 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 )
 
 func GetDataRetentionExpiredTime(duration string) (time.Time, error) {
@@ -23,7 +23,7 @@ func GetDataRetentionExpiredTime(duration string) (time.Time, error) {
 func (wc *RetentionControllerImpl) ForTenants(ctx context.Context, f func(ctx context.Context, tenant dbsqlc.Tenant) error) error {
 
 	// list all tenants
-	tenants, err := wc.repo.Tenant().ListTenantsByControllerPartition(ctx, wc.p.GetControllerPartitionId())
+	tenants, err := wc.p.ListTenantsForController(ctx, dbsqlc.TenantMajorEngineVersionV0)
 
 	if err != nil {
 		return fmt.Errorf("could not list tenants: %w", err)

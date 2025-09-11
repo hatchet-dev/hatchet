@@ -4,52 +4,52 @@ import (
 	"strings"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
-func ToTenant(tenant *db.TenantModel) *gen.Tenant {
-	return &gen.Tenant{
-		Metadata:          *toAPIMetadata(tenant.ID, tenant.CreatedAt, tenant.UpdatedAt),
-		Name:              tenant.Name,
-		Slug:              tenant.Slug,
-		AnalyticsOptOut:   &tenant.AnalyticsOptOut,
-		AlertMemberEmails: &tenant.AlertMemberEmails,
-	}
-}
+func ToTenant(tenant *dbsqlc.Tenant) *gen.Tenant {
+	uiVersion := gen.TenantUIVersion(tenant.UiVersion)
 
-func ToTenantSqlc(tenant *dbsqlc.Tenant) *gen.Tenant {
+	var environment *gen.TenantEnvironment
+	if tenant.Environment.Valid {
+		env := gen.TenantEnvironment(tenant.Environment.TenantEnvironment)
+		environment = &env
+	}
+
 	return &gen.Tenant{
 		Metadata:          *toAPIMetadata(sqlchelpers.UUIDToStr(tenant.ID), tenant.CreatedAt.Time, tenant.UpdatedAt.Time),
 		Name:              tenant.Name,
 		Slug:              tenant.Slug,
 		AnalyticsOptOut:   &tenant.AnalyticsOptOut,
 		AlertMemberEmails: &tenant.AlertMemberEmails,
+		Version:           gen.TenantVersion(tenant.Version),
+		UiVersion:         &uiVersion,
+		Environment:       environment,
 	}
 }
 
-func ToTenantAlertingSettings(alerting *db.TenantAlertingSettingsModel) *gen.TenantAlertingSettings {
+func ToTenantAlertingSettings(alerting *dbsqlc.TenantAlertingSettings) *gen.TenantAlertingSettings {
 	res := &gen.TenantAlertingSettings{
-		Metadata:                        *toAPIMetadata(alerting.ID, alerting.CreatedAt, alerting.UpdatedAt),
+		Metadata:                        *toAPIMetadata(sqlchelpers.UUIDToStr(alerting.ID), alerting.CreatedAt.Time, alerting.UpdatedAt.Time),
 		MaxAlertingFrequency:            alerting.MaxFrequency,
 		EnableExpiringTokenAlerts:       &alerting.EnableExpiringTokenAlerts,
 		EnableWorkflowRunFailureAlerts:  &alerting.EnableWorkflowRunFailureAlerts,
 		EnableTenantResourceLimitAlerts: &alerting.EnableTenantResourceLimitAlerts,
 	}
 
-	if lastAlertedAt, ok := alerting.LastAlertedAt(); ok {
-		res.LastAlertedAt = &lastAlertedAt
+	if alerting.LastAlertedAt.Valid {
+		res.LastAlertedAt = &alerting.LastAlertedAt.Time
 	}
 
 	return res
 }
 
-func ToTenantAlertEmailGroup(group *db.TenantAlertEmailGroupModel) *gen.TenantAlertEmailGroup {
+func ToTenantAlertEmailGroup(group *dbsqlc.TenantAlertEmailGroup) *gen.TenantAlertEmailGroup {
 	emails := strings.Split(group.Emails, ",")
 
 	return &gen.TenantAlertEmailGroup{
-		Metadata: *toAPIMetadata(group.ID, group.CreatedAt, group.UpdatedAt),
+		Metadata: *toAPIMetadata(sqlchelpers.UUIDToStr(group.ID), group.CreatedAt.Time, group.UpdatedAt.Time),
 		Emails:   emails,
 	}
 }

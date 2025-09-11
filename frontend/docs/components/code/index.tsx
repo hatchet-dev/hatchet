@@ -1,4 +1,3 @@
-export * from './GithubSnippet'
-export * from './CodeBlock'
-export * from './codeData'
-export * from './codeParser'
+export * from "./Snippet";
+export * from "./CodeBlock";
+export * from "./codeParser";

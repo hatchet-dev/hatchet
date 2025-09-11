@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/hatchet-dev/hatchet/api/v1/server/oas/openapi"
 	"github.com/oapi-codegen/runtime"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
@@ -160,6 +161,13 @@ const (
 	StepRunStatusSUCCEEDED         StepRunStatus = "SUCCEEDED"
 )
 
+// Defines values for TenantEnvironment.
+const (
+	Development TenantEnvironment = "development"
+	Local       TenantEnvironment = "local"
+	Production  TenantEnvironment = "production"
+)
+
 // Defines values for TenantMemberRole.
 const (
 	ADMIN  TenantMemberRole = "ADMIN"
@@ -172,8 +180,121 @@ const (
 	CRON        TenantResource = "CRON"
 	EVENT       TenantResource = "EVENT"
 	SCHEDULE    TenantResource = "SCHEDULE"
+	TASKRUN     TenantResource = "TASK_RUN"
 	WORKER      TenantResource = "WORKER"
+	WORKERSLOT  TenantResource = "WORKER_SLOT"
 	WORKFLOWRUN TenantResource = "WORKFLOW_RUN"
+)
+
+// Defines values for TenantUIVersion.
+const (
+	TenantUIVersionV0 TenantUIVersion = "V0"
+	TenantUIVersionV1 TenantUIVersion = "V1"
+)
+
+// Defines values for TenantVersion.
+const (
+	TenantVersionV0 TenantVersion = "V0"
+	TenantVersionV1 TenantVersion = "V1"
+)
+
+// Defines values for V1CELDebugResponseStatus.
+const (
+	V1CELDebugResponseStatusERROR   V1CELDebugResponseStatus = "ERROR"
+	V1CELDebugResponseStatusSUCCESS V1CELDebugResponseStatus = "SUCCESS"
+)
+
+// Defines values for V1CreateWebhookRequestAPIKeyAuthType.
+const (
+	V1CreateWebhookRequestAPIKeyAuthTypeAPIKEY V1CreateWebhookRequestAPIKeyAuthType = "API_KEY"
+)
+
+// Defines values for V1CreateWebhookRequestBasicAuthAuthType.
+const (
+	BASIC V1CreateWebhookRequestBasicAuthAuthType = "BASIC"
+)
+
+// Defines values for V1CreateWebhookRequestHMACAuthType.
+const (
+	HMAC V1CreateWebhookRequestHMACAuthType = "HMAC"
+)
+
+// Defines values for V1LogLineLevel.
+const (
+	V1LogLineLevelDEBUG V1LogLineLevel = "DEBUG"
+	V1LogLineLevelERROR V1LogLineLevel = "ERROR"
+	V1LogLineLevelINFO  V1LogLineLevel = "INFO"
+	V1LogLineLevelWARN  V1LogLineLevel = "WARN"
+)
+
+// Defines values for V1TaskEventType.
+const (
+	V1TaskEventTypeACKNOWLEDGED       V1TaskEventType = "ACKNOWLEDGED"
+	V1TaskEventTypeASSIGNED           V1TaskEventType = "ASSIGNED"
+	V1TaskEventTypeCANCELLED          V1TaskEventType = "CANCELLED"
+	V1TaskEventTypeCREATED            V1TaskEventType = "CREATED"
+	V1TaskEventTypeFAILED             V1TaskEventType = "FAILED"
+	V1TaskEventTypeFINISHED           V1TaskEventType = "FINISHED"
+	V1TaskEventTypeQUEUED             V1TaskEventType = "QUEUED"
+	V1TaskEventTypeRATELIMITERROR     V1TaskEventType = "RATE_LIMIT_ERROR"
+	V1TaskEventTypeREASSIGNED         V1TaskEventType = "REASSIGNED"
+	V1TaskEventTypeREQUEUEDNOWORKER   V1TaskEventType = "REQUEUED_NO_WORKER"
+	V1TaskEventTypeREQUEUEDRATELIMIT  V1TaskEventType = "REQUEUED_RATE_LIMIT"
+	V1TaskEventTypeRETRIEDBYUSER      V1TaskEventType = "RETRIED_BY_USER"
+	V1TaskEventTypeRETRYING           V1TaskEventType = "RETRYING"
+	V1TaskEventTypeSCHEDULINGTIMEDOUT V1TaskEventType = "SCHEDULING_TIMED_OUT"
+	V1TaskEventTypeSENTTOWORKER       V1TaskEventType = "SENT_TO_WORKER"
+	V1TaskEventTypeSKIPPED            V1TaskEventType = "SKIPPED"
+	V1TaskEventTypeSLOTRELEASED       V1TaskEventType = "SLOT_RELEASED"
+	V1TaskEventTypeSTARTED            V1TaskEventType = "STARTED"
+	V1TaskEventTypeTIMEDOUT           V1TaskEventType = "TIMED_OUT"
+	V1TaskEventTypeTIMEOUTREFRESHED   V1TaskEventType = "TIMEOUT_REFRESHED"
+)
+
+// Defines values for V1TaskStatus.
+const (
+	V1TaskStatusCANCELLED V1TaskStatus = "CANCELLED"
+	V1TaskStatusCOMPLETED V1TaskStatus = "COMPLETED"
+	V1TaskStatusFAILED    V1TaskStatus = "FAILED"
+	V1TaskStatusQUEUED    V1TaskStatus = "QUEUED"
+	V1TaskStatusRUNNING   V1TaskStatus = "RUNNING"
+)
+
+// Defines values for V1WebhookAuthType.
+const (
+	V1WebhookAuthTypeAPIKEY V1WebhookAuthType = "API_KEY"
+	V1WebhookAuthTypeBASIC  V1WebhookAuthType = "BASIC"
+	V1WebhookAuthTypeHMAC   V1WebhookAuthType = "HMAC"
+)
+
+// Defines values for V1WebhookHMACAlgorithm.
+const (
+	MD5    V1WebhookHMACAlgorithm = "MD5"
+	SHA1   V1WebhookHMACAlgorithm = "SHA1"
+	SHA256 V1WebhookHMACAlgorithm = "SHA256"
+	SHA512 V1WebhookHMACAlgorithm = "SHA512"
+)
+
+// Defines values for V1WebhookHMACEncoding.
+const (
+	BASE64    V1WebhookHMACEncoding = "BASE64"
+	BASE64URL V1WebhookHMACEncoding = "BASE64URL"
+	HEX       V1WebhookHMACEncoding = "HEX"
+)
+
+// Defines values for V1WebhookSourceName.
+const (
+	GENERIC V1WebhookSourceName = "GENERIC"
+	GITHUB  V1WebhookSourceName = "GITHUB"
+	LINEAR  V1WebhookSourceName = "LINEAR"
+	SLACK   V1WebhookSourceName = "SLACK"
+	STRIPE  V1WebhookSourceName = "STRIPE"
+)
+
+// Defines values for V1WorkflowType.
+const (
+	V1WorkflowTypeDAG  V1WorkflowType = "DAG"
+	V1WorkflowTypeTASK V1WorkflowType = "TASK"
 )
 
 // Defines values for WorkerStatus.
@@ -199,9 +320,9 @@ const (
 
 // Defines values for WorkflowKind.
 const (
-	DAG      WorkflowKind = "DAG"
-	DURABLE  WorkflowKind = "DURABLE"
-	FUNCTION WorkflowKind = "FUNCTION"
+	WorkflowKindDAG      WorkflowKind = "DAG"
+	WorkflowKindDURABLE  WorkflowKind = "DURABLE"
+	WorkflowKindFUNCTION WorkflowKind = "FUNCTION"
 )
 
 // Defines values for WorkflowRunOrderByDirection.
@@ -354,6 +475,7 @@ type CreateCronWorkflowTriggerRequest struct {
 	CronExpression     string                 `json:"cronExpression"`
 	CronName           string                 `json:"cronName"`
 	Input              map[string]interface{} `json:"input"`
+	Priority           *int32                 `json:"priority,omitempty"`
 }
 
 // CreateEventRequest defines model for CreateEventRequest.
@@ -366,6 +488,12 @@ type CreateEventRequest struct {
 
 	// Key The key for the event.
 	Key string `json:"key"`
+
+	// Priority The priority of the event.
+	Priority *int32 `json:"priority,omitempty"`
+
+	// Scope The scope for event filtering.
+	Scope *string `json:"scope,omitempty"`
 }
 
 // CreateSNSIntegrationRequest defines model for CreateSNSIntegrationRequest.
@@ -389,11 +517,18 @@ type CreateTenantInviteRequest struct {
 
 // CreateTenantRequest defines model for CreateTenantRequest.
 type CreateTenantRequest struct {
+	EngineVersion *TenantVersion     `json:"engineVersion,omitempty"`
+	Environment   *TenantEnvironment `json:"environment,omitempty"`
+
 	// Name The name of the tenant.
 	Name string `json:"name" validate:"required"`
 
+	// OnboardingData Additional onboarding data to store with the tenant.
+	OnboardingData *map[string]interface{} `json:"onboardingData,omitempty"`
+
 	// Slug The slug of the tenant.
-	Slug string `json:"slug" validate:"required,hatchetName"`
+	Slug      string           `json:"slug" validate:"required,hatchetName"`
+	UiVersion *TenantUIVersion `json:"uiVersion,omitempty"`
 }
 
 // CronWorkflows defines model for CronWorkflows.
@@ -405,6 +540,7 @@ type CronWorkflows struct {
 	Metadata           APIResourceMeta         `json:"metadata"`
 	Method             CronWorkflowsMethod     `json:"method"`
 	Name               *string                 `json:"name,omitempty"`
+	Priority           *int32                  `json:"priority,omitempty"`
 	TenantId           string                  `json:"tenantId"`
 	WorkflowId         string                  `json:"workflowId"`
 	WorkflowName       string                  `json:"workflowName"`
@@ -698,6 +834,7 @@ type SNSIntegration struct {
 type ScheduleWorkflowRunRequest struct {
 	AdditionalMetadata map[string]interface{} `json:"additionalMetadata"`
 	Input              map[string]interface{} `json:"input"`
+	Priority           *int32                 `json:"priority,omitempty"`
 	TriggerAt          time.Time              `json:"triggerAt"`
 }
 
@@ -710,6 +847,7 @@ type ScheduledWorkflows struct {
 	Input                *map[string]interface{}  `json:"input,omitempty"`
 	Metadata             APIResourceMeta          `json:"metadata"`
 	Method               ScheduledWorkflowsMethod `json:"method"`
+	Priority             *int32                   `json:"priority,omitempty"`
 	TenantId             string                   `json:"tenantId"`
 	TriggerAt            time.Time                `json:"triggerAt"`
 	WorkflowId           string                   `json:"workflowId"`
@@ -739,8 +877,8 @@ type SemaphoreSlots struct {
 	ActionId string `json:"actionId"`
 
 	// StartedAt The time this slot was started.
-	StartedAt *time.Time    `json:"startedAt,omitempty"`
-	Status    StepRunStatus `json:"status"`
+	StartedAt *time.Time     `json:"startedAt,omitempty"`
+	Status    *StepRunStatus `json:"status,omitempty"`
 
 	// StepRunId The step run id.
 	StepRunId openapi_types.UUID `json:"stepRunId"`
@@ -879,14 +1017,17 @@ type Tenant struct {
 	AlertMemberEmails *bool `json:"alertMemberEmails,omitempty"`
 
 	// AnalyticsOptOut Whether the tenant has opted out of analytics.
-	AnalyticsOptOut *bool           `json:"analyticsOptOut,omitempty"`
-	Metadata        APIResourceMeta `json:"metadata"`
+	AnalyticsOptOut *bool              `json:"analyticsOptOut,omitempty"`
+	Environment     *TenantEnvironment `json:"environment,omitempty"`
+	Metadata        APIResourceMeta    `json:"metadata"`
 
 	// Name The name of the tenant.
 	Name string `json:"name"`
 
 	// Slug The slug of the tenant.
-	Slug string `json:"slug"`
+	Slug      string           `json:"slug"`
+	UiVersion *TenantUIVersion `json:"uiVersion,omitempty"`
+	Version   TenantVersion    `json:"version"`
 }
 
 // TenantAlertEmailGroup defines model for TenantAlertEmailGroup.
@@ -923,6 +1064,9 @@ type TenantAlertingSettings struct {
 	MaxAlertingFrequency string          `json:"maxAlertingFrequency"`
 	Metadata             APIResourceMeta `json:"metadata"`
 }
+
+// TenantEnvironment defines model for TenantEnvironment.
+type TenantEnvironment string
 
 // TenantInvite defines model for TenantInvite.
 type TenantInvite struct {
@@ -1002,8 +1146,14 @@ type TenantResourcePolicy struct {
 
 // TenantStepRunQueueMetrics defines model for TenantStepRunQueueMetrics.
 type TenantStepRunQueueMetrics struct {
-	Queues *map[string]int `json:"queues,omitempty"`
+	Queues *map[string]interface{} `json:"queues,omitempty"`
 }
+
+// TenantUIVersion defines model for TenantUIVersion.
+type TenantUIVersion string
+
+// TenantVersion defines model for TenantVersion.
+type TenantVersion string
 
 // TriggerWorkflowRunRequest defines model for TriggerWorkflowRunRequest.
 type TriggerWorkflowRunRequest struct {
@@ -1019,6 +1169,11 @@ type UpdateTenantAlertEmailGroupRequest struct {
 
 // UpdateTenantInviteRequest defines model for UpdateTenantInviteRequest.
 type UpdateTenantInviteRequest struct {
+	Role TenantMemberRole `json:"role"`
+}
+
+// UpdateTenantMemberRequest defines model for UpdateTenantMemberRequest.
+type UpdateTenantMemberRequest struct {
 	Role TenantMemberRole `json:"role"`
 }
 
@@ -1043,7 +1198,9 @@ type UpdateTenantRequest struct {
 	MaxAlertingFrequency *string `json:"maxAlertingFrequency,omitempty" validate:"omitnil,duration"`
 
 	// Name The name of the tenant.
-	Name *string `json:"name,omitempty"`
+	Name      *string          `json:"name,omitempty"`
+	UiVersion *TenantUIVersion `json:"uiVersion,omitempty"`
+	Version   *TenantVersion   `json:"version,omitempty"`
 }
 
 // UpdateWorkerRequest defines model for UpdateWorkerRequest.
@@ -1115,6 +1272,625 @@ type UserTenantPublic struct {
 	// Name The display name of the user.
 	Name *string `json:"name,omitempty"`
 }
+
+// V1CELDebugRequest defines model for V1CELDebugRequest.
+type V1CELDebugRequest struct {
+	// AdditionalMetadata Additional metadata, which simulates metadata that could be sent with an event or a workflow run
+	AdditionalMetadata *map[string]interface{} `json:"additionalMetadata,omitempty"`
+
+	// Expression The CEL expression to evaluate
+	Expression string `json:"expression"`
+
+	// FilterPayload The filter payload, which simulates a payload set on a previous-created filter
+	FilterPayload *map[string]interface{} `json:"filterPayload,omitempty"`
+
+	// Input The input, which simulates the workflow run input
+	Input map[string]interface{} `json:"input"`
+}
+
+// V1CELDebugResponse defines model for V1CELDebugResponse.
+type V1CELDebugResponse struct {
+	// Error The error message if the evaluation failed
+	Error *string `json:"error,omitempty"`
+
+	// Output The result of the CEL expression evaluation, if successful
+	Output *bool `json:"output,omitempty"`
+
+	// Status The status of the CEL evaluation
+	Status V1CELDebugResponseStatus `json:"status"`
+}
+
+// V1CELDebugResponseStatus The status of the CEL evaluation
+type V1CELDebugResponseStatus string
+
+// V1CancelTaskRequest defines model for V1CancelTaskRequest.
+type V1CancelTaskRequest struct {
+	// ExternalIds A list of external IDs, which can refer to either task or workflow run external IDs
+	ExternalIds *[]openapi_types.UUID `json:"externalIds,omitempty"`
+	Filter      *V1TaskFilter         `json:"filter,omitempty"`
+}
+
+// V1CancelledTasks defines model for V1CancelledTasks.
+type V1CancelledTasks struct {
+	// Ids The list of task external ids that were cancelled
+	Ids *[]openapi_types.UUID `json:"ids,omitempty"`
+}
+
+// V1CreateFilterRequest defines model for V1CreateFilterRequest.
+type V1CreateFilterRequest struct {
+	// Expression The expression for the filter
+	Expression string `json:"expression"`
+
+	// Payload The payload for the filter
+	Payload *map[string]interface{} `json:"payload,omitempty"`
+
+	// Scope The scope associated with this filter. Used for subsetting candidate filters at evaluation time
+	Scope string `json:"scope"`
+
+	// WorkflowId The workflow id
+	WorkflowId openapi_types.UUID `json:"workflowId"`
+}
+
+// V1CreateWebhookRequest defines model for V1CreateWebhookRequest.
+type V1CreateWebhookRequest struct {
+	union json.RawMessage
+}
+
+// V1CreateWebhookRequestAPIKey defines model for V1CreateWebhookRequestAPIKey.
+type V1CreateWebhookRequestAPIKey struct {
+	Auth V1WebhookAPIKeyAuth `json:"auth"`
+
+	// AuthType The type of authentication to use for the webhook
+	AuthType V1CreateWebhookRequestAPIKeyAuthType `json:"authType"`
+
+	// EventKeyExpression The CEL expression to use for the event key. This is used to create the event key from the webhook payload.
+	EventKeyExpression string `json:"eventKeyExpression"`
+
+	// Name The name of the webhook
+	Name       string              `json:"name"`
+	SourceName V1WebhookSourceName `json:"sourceName"`
+}
+
+// V1CreateWebhookRequestAPIKeyAuthType The type of authentication to use for the webhook
+type V1CreateWebhookRequestAPIKeyAuthType string
+
+// V1CreateWebhookRequestBase defines model for V1CreateWebhookRequestBase.
+type V1CreateWebhookRequestBase struct {
+	// EventKeyExpression The CEL expression to use for the event key. This is used to create the event key from the webhook payload.
+	EventKeyExpression string `json:"eventKeyExpression"`
+
+	// Name The name of the webhook
+	Name       string              `json:"name"`
+	SourceName V1WebhookSourceName `json:"sourceName"`
+}
+
+// V1CreateWebhookRequestBasicAuth defines model for V1CreateWebhookRequestBasicAuth.
+type V1CreateWebhookRequestBasicAuth struct {
+	Auth V1WebhookBasicAuth `json:"auth"`
+
+	// AuthType The type of authentication to use for the webhook
+	AuthType V1CreateWebhookRequestBasicAuthAuthType `json:"authType"`
+
+	// EventKeyExpression The CEL expression to use for the event key. This is used to create the event key from the webhook payload.
+	EventKeyExpression string `json:"eventKeyExpression"`
+
+	// Name The name of the webhook
+	Name       string              `json:"name"`
+	SourceName V1WebhookSourceName `json:"sourceName"`
+}
+
+// V1CreateWebhookRequestBasicAuthAuthType The type of authentication to use for the webhook
+type V1CreateWebhookRequestBasicAuthAuthType string
+
+// V1CreateWebhookRequestHMAC defines model for V1CreateWebhookRequestHMAC.
+type V1CreateWebhookRequestHMAC struct {
+	Auth V1WebhookHMACAuth `json:"auth"`
+
+	// AuthType The type of authentication to use for the webhook
+	AuthType V1CreateWebhookRequestHMACAuthType `json:"authType"`
+
+	// EventKeyExpression The CEL expression to use for the event key. This is used to create the event key from the webhook payload.
+	EventKeyExpression string `json:"eventKeyExpression"`
+
+	// Name The name of the webhook
+	Name       string              `json:"name"`
+	SourceName V1WebhookSourceName `json:"sourceName"`
+}
+
+// V1CreateWebhookRequestHMACAuthType The type of authentication to use for the webhook
+type V1CreateWebhookRequestHMACAuthType string
+
+// V1DagChildren defines model for V1DagChildren.
+type V1DagChildren struct {
+	Children *[]V1TaskSummary    `json:"children,omitempty"`
+	DagId    *openapi_types.UUID `json:"dagId,omitempty"`
+}
+
+// V1Event defines model for V1Event.
+type V1Event struct {
+	// AdditionalMetadata Additional metadata for the event.
+	AdditionalMetadata *map[string]interface{} `json:"additionalMetadata,omitempty"`
+
+	// Key The key for the event.
+	Key      string          `json:"key"`
+	Metadata APIResourceMeta `json:"metadata"`
+
+	// Payload The payload of the event, which can be any JSON-serializable object.
+	Payload *map[string]interface{} `json:"payload,omitempty"`
+
+	// Scope The scope of the event, which can be used to filter or categorize events.
+	Scope *string `json:"scope,omitempty"`
+
+	// SeenAt The timestamp when the event was seen.
+	SeenAt *time.Time `json:"seenAt,omitempty"`
+	Tenant *Tenant    `json:"tenant,omitempty"`
+
+	// TenantId The ID of the tenant associated with this event.
+	TenantId string `json:"tenantId"`
+
+	// TriggeredRuns The external IDs of the runs that were triggered by this event.
+	TriggeredRuns *[]V1EventTriggeredRun `json:"triggeredRuns,omitempty"`
+
+	// TriggeringWebhookName The name of the webhook that triggered this event, if applicable.
+	TriggeringWebhookName *string                   `json:"triggeringWebhookName,omitempty"`
+	WorkflowRunSummary    V1EventWorkflowRunSummary `json:"workflowRunSummary"`
+}
+
+// V1EventList defines model for V1EventList.
+type V1EventList struct {
+	Pagination *PaginationResponse `json:"pagination,omitempty"`
+	Rows       *[]V1Event          `json:"rows,omitempty"`
+}
+
+// V1EventTriggeredRun defines model for V1EventTriggeredRun.
+type V1EventTriggeredRun struct {
+	// FilterId The ID of the filter that triggered the run, if applicable.
+	FilterId *openapi_types.UUID `json:"filterId,omitempty"`
+
+	// WorkflowRunId The external ID of the triggered run.
+	WorkflowRunId openapi_types.UUID `json:"workflowRunId"`
+}
+
+// V1EventWorkflowRunSummary defines model for V1EventWorkflowRunSummary.
+type V1EventWorkflowRunSummary struct {
+	// Cancelled The number of cancelled runs.
+	Cancelled int64 `json:"cancelled"`
+
+	// Failed The number of failed runs.
+	Failed int64 `json:"failed"`
+
+	// Queued The number of queued runs.
+	Queued int64 `json:"queued"`
+
+	// Running The number of running runs.
+	Running int64 `json:"running"`
+
+	// Succeeded The number of succeeded runs.
+	Succeeded int64 `json:"succeeded"`
+}
+
+// V1Filter defines model for V1Filter.
+type V1Filter struct {
+	// Expression The expression associated with this filter.
+	Expression string          `json:"expression"`
+	Metadata   APIResourceMeta `json:"metadata"`
+
+	// Payload Additional payload data associated with the filter
+	Payload map[string]interface{} `json:"payload"`
+
+	// Scope The scope associated with this filter. Used for subsetting candidate filters at evaluation time
+	Scope string `json:"scope"`
+
+	// TenantId The ID of the tenant associated with this filter.
+	TenantId string `json:"tenantId"`
+
+	// WorkflowId The workflow id associated with this filter.
+	WorkflowId openapi_types.UUID `json:"workflowId"`
+}
+
+// V1FilterList defines model for V1FilterList.
+type V1FilterList struct {
+	Pagination *PaginationResponse `json:"pagination,omitempty"`
+	Rows       *[]V1Filter         `json:"rows,omitempty"`
+}
+
+// V1LogLine defines model for V1LogLine.
+type V1LogLine struct {
+	// Attempt The attempt number of the log line.
+	Attempt *int `json:"attempt,omitempty"`
+
+	// CreatedAt The creation date of the log line.
+	CreatedAt time.Time       `json:"createdAt"`
+	Level     *V1LogLineLevel `json:"level,omitempty"`
+
+	// Message The log message.
+	Message string `json:"message"`
+
+	// Metadata The log metadata.
+	Metadata map[string]interface{} `json:"metadata"`
+
+	// RetryCount The retry count of the log line.
+	RetryCount *int `json:"retryCount,omitempty"`
+}
+
+// V1LogLineLevel defines model for V1LogLineLevel.
+type V1LogLineLevel string
+
+// V1LogLineList defines model for V1LogLineList.
+type V1LogLineList struct {
+	Pagination *PaginationResponse `json:"pagination,omitempty"`
+	Rows       *[]V1LogLine        `json:"rows,omitempty"`
+}
+
+// V1ReplayTaskRequest defines model for V1ReplayTaskRequest.
+type V1ReplayTaskRequest struct {
+	// ExternalIds A list of external IDs, which can refer to either task or workflow run external IDs
+	ExternalIds *[]openapi_types.UUID `json:"externalIds,omitempty"`
+	Filter      *V1TaskFilter         `json:"filter,omitempty"`
+}
+
+// V1ReplayedTasks defines model for V1ReplayedTasks.
+type V1ReplayedTasks struct {
+	// Ids The list of task external ids that were replayed
+	Ids *[]openapi_types.UUID `json:"ids,omitempty"`
+}
+
+// V1TaskEvent defines model for V1TaskEvent.
+type V1TaskEvent struct {
+	// Attempt The attempt number of the task.
+	Attempt      *int            `json:"attempt,omitempty"`
+	ErrorMessage *string         `json:"errorMessage,omitempty"`
+	EventType    V1TaskEventType `json:"eventType"`
+	Id           int             `json:"id"`
+	Message      string          `json:"message"`
+	Output       *string         `json:"output,omitempty"`
+
+	// RetryCount The number of retries of the task.
+	RetryCount      *int                `json:"retryCount,omitempty"`
+	TaskDisplayName *string             `json:"taskDisplayName,omitempty"`
+	TaskId          openapi_types.UUID  `json:"taskId"`
+	Timestamp       time.Time           `json:"timestamp"`
+	WorkerId        *openapi_types.UUID `json:"workerId,omitempty"`
+}
+
+// V1TaskEventList defines model for V1TaskEventList.
+type V1TaskEventList struct {
+	Pagination *PaginationResponse `json:"pagination,omitempty"`
+	Rows       *[]V1TaskEvent      `json:"rows,omitempty"`
+}
+
+// V1TaskEventType defines model for V1TaskEventType.
+type V1TaskEventType string
+
+// V1TaskFilter defines model for V1TaskFilter.
+type V1TaskFilter struct {
+	AdditionalMetadata *[]string             `json:"additionalMetadata,omitempty"`
+	Since              time.Time             `json:"since"`
+	Statuses           *[]V1TaskStatus       `json:"statuses,omitempty"`
+	Until              *time.Time            `json:"until,omitempty"`
+	WorkflowIds        *[]openapi_types.UUID `json:"workflowIds,omitempty"`
+}
+
+// V1TaskPointMetric defines model for V1TaskPointMetric.
+type V1TaskPointMetric struct {
+	FAILED    int       `json:"FAILED"`
+	SUCCEEDED int       `json:"SUCCEEDED"`
+	Time      time.Time `json:"time"`
+}
+
+// V1TaskPointMetrics defines model for V1TaskPointMetrics.
+type V1TaskPointMetrics struct {
+	Results *[]V1TaskPointMetric `json:"results,omitempty"`
+}
+
+// V1TaskRunMetric defines model for V1TaskRunMetric.
+type V1TaskRunMetric struct {
+	Count  int          `json:"count"`
+	Status V1TaskStatus `json:"status"`
+}
+
+// V1TaskRunMetrics defines model for V1TaskRunMetrics.
+type V1TaskRunMetrics = []V1TaskRunMetric
+
+// V1TaskStatus defines model for V1TaskStatus.
+type V1TaskStatus string
+
+// V1TaskSummary defines model for V1TaskSummary.
+type V1TaskSummary struct {
+	// ActionId The action ID of the task.
+	ActionId *string `json:"actionId,omitempty"`
+
+	// AdditionalMetadata Additional metadata for the task run.
+	AdditionalMetadata *map[string]interface{} `json:"additionalMetadata,omitempty"`
+
+	// Attempt The attempt number of the task.
+	Attempt *int `json:"attempt,omitempty"`
+
+	// Children The list of children tasks
+	Children *[]V1TaskSummary `json:"children,omitempty"`
+
+	// CreatedAt The timestamp the task was created.
+	CreatedAt time.Time `json:"createdAt"`
+
+	// DisplayName The display name of the task run.
+	DisplayName string `json:"displayName"`
+
+	// Duration The duration of the task run, in milliseconds.
+	Duration *int `json:"duration,omitempty"`
+
+	// ErrorMessage The error message of the task run (for the latest run)
+	ErrorMessage *string `json:"errorMessage,omitempty"`
+
+	// FinishedAt The timestamp the task run finished.
+	FinishedAt *time.Time `json:"finishedAt,omitempty"`
+
+	// Input The input of the task run.
+	Input    openapi.NonNullableJSON `json:"input"`
+	Metadata APIResourceMeta         `json:"metadata"`
+
+	// NumSpawnedChildren The number of spawned children tasks
+	NumSpawnedChildren int `json:"numSpawnedChildren"`
+
+	// Output The output of the task run (for the latest run)
+	Output openapi.NonNullableJSON `json:"output"`
+
+	// ParentTaskExternalId The external ID of the parent task.
+	ParentTaskExternalId *openapi_types.UUID `json:"parentTaskExternalId,omitempty"`
+
+	// RetryCount The number of retries of the task.
+	RetryCount *int `json:"retryCount,omitempty"`
+
+	// StartedAt The timestamp the task run started.
+	StartedAt *time.Time   `json:"startedAt,omitempty"`
+	Status    V1TaskStatus `json:"status"`
+
+	// StepId The step ID of the task.
+	StepId *openapi_types.UUID `json:"stepId,omitempty"`
+
+	// TaskExternalId The external ID of the task.
+	TaskExternalId openapi_types.UUID `json:"taskExternalId"`
+
+	// TaskId The ID of the task.
+	TaskId int `json:"taskId"`
+
+	// TaskInsertedAt The timestamp the task was inserted.
+	TaskInsertedAt time.Time `json:"taskInsertedAt"`
+
+	// TenantId The ID of the tenant.
+	TenantId       openapi_types.UUID      `json:"tenantId"`
+	Type           V1WorkflowType          `json:"type"`
+	WorkflowConfig *map[string]interface{} `json:"workflowConfig,omitempty"`
+	WorkflowId     openapi_types.UUID      `json:"workflowId"`
+	WorkflowName   *string                 `json:"workflowName,omitempty"`
+
+	// WorkflowRunExternalId The external ID of the workflow run
+	WorkflowRunExternalId openapi_types.UUID `json:"workflowRunExternalId"`
+
+	// WorkflowVersionId The version ID of the workflow
+	WorkflowVersionId *openapi_types.UUID `json:"workflowVersionId,omitempty"`
+}
+
+// V1TaskSummaryList defines model for V1TaskSummaryList.
+type V1TaskSummaryList struct {
+	Pagination PaginationResponse `json:"pagination"`
+
+	// Rows The list of tasks
+	Rows []V1TaskSummary `json:"rows"`
+}
+
+// V1TaskTiming defines model for V1TaskTiming.
+type V1TaskTiming struct {
+	// Attempt The attempt number of the task.
+	Attempt *int `json:"attempt,omitempty"`
+
+	// Depth The depth of the task in the waterfall.
+	Depth int `json:"depth"`
+
+	// FinishedAt The timestamp the task run finished.
+	FinishedAt *time.Time      `json:"finishedAt,omitempty"`
+	Metadata   APIResourceMeta `json:"metadata"`
+
+	// ParentTaskExternalId The external ID of the parent task.
+	ParentTaskExternalId *openapi_types.UUID `json:"parentTaskExternalId,omitempty"`
+
+	// QueuedAt The timestamp the task run was queued.
+	QueuedAt *time.Time `json:"queuedAt,omitempty"`
+
+	// RetryCount The number of retries of the task.
+	RetryCount *int `json:"retryCount,omitempty"`
+
+	// StartedAt The timestamp the task run started.
+	StartedAt *time.Time   `json:"startedAt,omitempty"`
+	Status    V1TaskStatus `json:"status"`
+
+	// TaskDisplayName The display name of the task run.
+	TaskDisplayName string `json:"taskDisplayName"`
+
+	// TaskExternalId The external ID of the task.
+	TaskExternalId openapi_types.UUID `json:"taskExternalId"`
+
+	// TaskId The ID of the task.
+	TaskId int `json:"taskId"`
+
+	// TaskInsertedAt The timestamp the task was inserted.
+	TaskInsertedAt time.Time `json:"taskInsertedAt"`
+
+	// TenantId The ID of the tenant.
+	TenantId openapi_types.UUID `json:"tenantId"`
+
+	// WorkflowRunId The external ID of the workflow run.
+	WorkflowRunId *openapi_types.UUID `json:"workflowRunId,omitempty"`
+}
+
+// V1TaskTimingList defines model for V1TaskTimingList.
+type V1TaskTimingList struct {
+	Pagination PaginationResponse `json:"pagination"`
+
+	// Rows The list of task timings
+	Rows []V1TaskTiming `json:"rows"`
+}
+
+// V1TriggerWorkflowRunRequest defines model for V1TriggerWorkflowRunRequest.
+type V1TriggerWorkflowRunRequest struct {
+	AdditionalMetadata *map[string]interface{} `json:"additionalMetadata,omitempty"`
+	Input              map[string]interface{}  `json:"input"`
+
+	// Priority The priority of the workflow run.
+	Priority *int `json:"priority,omitempty"`
+
+	// WorkflowName The name of the workflow.
+	WorkflowName string `json:"workflowName"`
+}
+
+// V1UpdateFilterRequest defines model for V1UpdateFilterRequest.
+type V1UpdateFilterRequest struct {
+	// Expression The expression for the filter
+	Expression *string `json:"expression,omitempty"`
+
+	// Payload The payload for the filter
+	Payload *map[string]interface{} `json:"payload,omitempty"`
+
+	// Scope The scope associated with this filter. Used for subsetting candidate filters at evaluation time
+	Scope *string `json:"scope,omitempty"`
+}
+
+// V1UpdateWebhookRequest defines model for V1UpdateWebhookRequest.
+type V1UpdateWebhookRequest struct {
+	// EventKeyExpression The CEL expression to use for the event key. This is used to create the event key from the webhook payload.
+	EventKeyExpression string `json:"eventKeyExpression"`
+}
+
+// V1Webhook defines model for V1Webhook.
+type V1Webhook struct {
+	AuthType V1WebhookAuthType `json:"authType"`
+
+	// EventKeyExpression The CEL expression to use for the event key. This is used to create the event key from the webhook payload.
+	EventKeyExpression string          `json:"eventKeyExpression"`
+	Metadata           APIResourceMeta `json:"metadata"`
+
+	// Name The name of the webhook
+	Name       string              `json:"name"`
+	SourceName V1WebhookSourceName `json:"sourceName"`
+
+	// TenantId The ID of the tenant associated with this webhook.
+	TenantId string `json:"tenantId"`
+}
+
+// V1WebhookAPIKeyAuth defines model for V1WebhookAPIKeyAuth.
+type V1WebhookAPIKeyAuth struct {
+	// ApiKey The API key to use for authentication
+	ApiKey string `json:"apiKey"`
+
+	// HeaderName The name of the header to use for the API key
+	HeaderName string `json:"headerName"`
+}
+
+// V1WebhookAuthType defines model for V1WebhookAuthType.
+type V1WebhookAuthType string
+
+// V1WebhookBasicAuth defines model for V1WebhookBasicAuth.
+type V1WebhookBasicAuth struct {
+	// Password The password for basic auth
+	Password string `json:"password"`
+
+	// Username The username for basic auth
+	Username string `json:"username"`
+}
+
+// V1WebhookHMACAlgorithm defines model for V1WebhookHMACAlgorithm.
+type V1WebhookHMACAlgorithm string
+
+// V1WebhookHMACAuth defines model for V1WebhookHMACAuth.
+type V1WebhookHMACAuth struct {
+	Algorithm V1WebhookHMACAlgorithm `json:"algorithm"`
+	Encoding  V1WebhookHMACEncoding  `json:"encoding"`
+
+	// SignatureHeaderName The name of the header to use for the HMAC signature
+	SignatureHeaderName string `json:"signatureHeaderName"`
+
+	// SigningSecret The secret key used to sign the HMAC signature
+	SigningSecret string `json:"signingSecret"`
+}
+
+// V1WebhookHMACEncoding defines model for V1WebhookHMACEncoding.
+type V1WebhookHMACEncoding string
+
+// V1WebhookList defines model for V1WebhookList.
+type V1WebhookList struct {
+	Pagination *PaginationResponse `json:"pagination,omitempty"`
+	Rows       *[]V1Webhook        `json:"rows,omitempty"`
+}
+
+// V1WebhookSourceName defines model for V1WebhookSourceName.
+type V1WebhookSourceName string
+
+// V1WorkflowRun defines model for V1WorkflowRun.
+type V1WorkflowRun struct {
+	// AdditionalMetadata Additional metadata for the task run.
+	AdditionalMetadata *map[string]interface{} `json:"additionalMetadata,omitempty"`
+
+	// CreatedAt The timestamp the task run was created.
+	CreatedAt *time.Time `json:"createdAt,omitempty"`
+
+	// DisplayName The display name of the task run.
+	DisplayName string `json:"displayName"`
+
+	// Duration The duration of the task run, in milliseconds.
+	Duration *int `json:"duration,omitempty"`
+
+	// ErrorMessage The error message of the task run (for the latest run)
+	ErrorMessage *string `json:"errorMessage,omitempty"`
+
+	// FinishedAt The timestamp the task run finished.
+	FinishedAt *time.Time `json:"finishedAt,omitempty"`
+
+	// Input The input of the task run.
+	Input    openapi.NonNullableJSON `json:"input"`
+	Metadata APIResourceMeta         `json:"metadata"`
+
+	// Output The output of the task run (for the latest run)
+	Output               openapi.NonNullableJSON `json:"output"`
+	ParentTaskExternalId *openapi_types.UUID     `json:"parentTaskExternalId,omitempty"`
+
+	// StartedAt The timestamp the task run started.
+	StartedAt *time.Time   `json:"startedAt,omitempty"`
+	Status    V1TaskStatus `json:"status"`
+
+	// TenantId The ID of the tenant.
+	TenantId   openapi_types.UUID `json:"tenantId"`
+	WorkflowId openapi_types.UUID `json:"workflowId"`
+
+	// WorkflowVersionId The ID of the workflow version.
+	WorkflowVersionId *openapi_types.UUID `json:"workflowVersionId,omitempty"`
+}
+
+// V1WorkflowRunDetails defines model for V1WorkflowRunDetails.
+type V1WorkflowRunDetails struct {
+	Run   V1WorkflowRun                         `json:"run"`
+	Shape WorkflowRunShapeForWorkflowRunDetails `json:"shape"`
+
+	// TaskEvents The list of task events for the workflow run
+	TaskEvents     []V1TaskEvent           `json:"taskEvents"`
+	Tasks          []V1TaskSummary         `json:"tasks"`
+	WorkflowConfig *map[string]interface{} `json:"workflowConfig,omitempty"`
+}
+
+// V1WorkflowRunDisplayName defines model for V1WorkflowRunDisplayName.
+type V1WorkflowRunDisplayName struct {
+	DisplayName string          `json:"displayName"`
+	Metadata    APIResourceMeta `json:"metadata"`
+}
+
+// V1WorkflowRunDisplayNameList defines model for V1WorkflowRunDisplayNameList.
+type V1WorkflowRunDisplayNameList struct {
+	Pagination PaginationResponse `json:"pagination"`
+
+	// Rows The list of display names
+	Rows []V1WorkflowRunDisplayName `json:"rows"`
+}
+
+// V1WorkflowType defines model for V1WorkflowType.
+type V1WorkflowType string
 
 // WebhookWorker defines model for WebhookWorker.
 type WebhookWorker struct {
@@ -1273,7 +2049,10 @@ type Workflow struct {
 	Name string `json:"name"`
 
 	// Tags The tags of the workflow.
-	Tags     *[]WorkflowTag         `json:"tags,omitempty"`
+	Tags *[]WorkflowTag `json:"tags,omitempty"`
+
+	// TenantId The tenant id of the workflow.
+	TenantId string                 `json:"tenantId"`
 	Versions *[]WorkflowVersionMeta `json:"versions,omitempty"`
 }
 
@@ -1365,6 +2144,17 @@ type WorkflowRunShape struct {
 	WorkflowVersionId  string                  `json:"workflowVersionId"`
 }
 
+// WorkflowRunShapeForWorkflowRunDetails defines model for WorkflowRunShapeForWorkflowRunDetails.
+type WorkflowRunShapeForWorkflowRunDetails = []WorkflowRunShapeItemForWorkflowRunDetails
+
+// WorkflowRunShapeItemForWorkflowRunDetails defines model for WorkflowRunShapeItemForWorkflowRunDetails.
+type WorkflowRunShapeItemForWorkflowRunDetails struct {
+	ChildrenStepIds []openapi_types.UUID `json:"childrenStepIds"`
+	StepId          openapi_types.UUID   `json:"stepId"`
+	TaskExternalId  openapi_types.UUID   `json:"taskExternalId"`
+	TaskName        string               `json:"taskName"`
+}
+
 // WorkflowRunStatus defines model for WorkflowRunStatus.
 type WorkflowRunStatus string
 
@@ -1452,9 +2242,10 @@ type WorkflowVersion struct {
 	Triggers *WorkflowTriggers `json:"triggers,omitempty"`
 
 	// Version The version of the workflow.
-	Version    string    `json:"version"`
-	Workflow   *Workflow `json:"workflow,omitempty"`
-	WorkflowId string    `json:"workflowId"`
+	Version        string                  `json:"version"`
+	Workflow       *Workflow               `json:"workflow,omitempty"`
+	WorkflowConfig *map[string]interface{} `json:"workflowConfig,omitempty"`
+	WorkflowId     string                  `json:"workflowId"`
 }
 
 // WorkflowVersionMeta defines model for WorkflowVersionMeta.
@@ -1473,6 +2264,183 @@ type WorkflowWorkersCount struct {
 	FreeSlotCount *int    `json:"freeSlotCount,omitempty"`
 	MaxSlotCount  *int    `json:"maxSlotCount,omitempty"`
 	WorkflowRunId *string `json:"workflowRunId,omitempty"`
+}
+
+// V1DagListTasksParams defines parameters for V1DagListTasks.
+type V1DagListTasksParams struct {
+	// DagIds The external id of the DAG
+	DagIds []openapi_types.UUID `form:"dag_ids" json:"dag_ids"`
+
+	// Tenant The tenant id
+	Tenant openapi_types.UUID `form:"tenant" json:"tenant"`
+}
+
+// V1TaskGetParams defines parameters for V1TaskGet.
+type V1TaskGetParams struct {
+	// Attempt The attempt number
+	Attempt *int `form:"attempt,omitempty" json:"attempt,omitempty"`
+}
+
+// V1TaskEventListParams defines parameters for V1TaskEventList.
+type V1TaskEventListParams struct {
+	// Offset The number to skip
+	Offset *int64 `form:"offset,omitempty" json:"offset,omitempty"`
+
+	// Limit The number to limit by
+	Limit *int64 `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
+// V1EventListParams defines parameters for V1EventList.
+type V1EventListParams struct {
+	// Offset The number to skip
+	Offset *int64 `form:"offset,omitempty" json:"offset,omitempty"`
+
+	// Limit The number to limit by
+	Limit *int64 `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Keys A list of keys to filter by
+	Keys *[]EventKey `form:"keys,omitempty" json:"keys,omitempty"`
+
+	// Since Consider events that occurred after this time
+	Since *time.Time `form:"since,omitempty" json:"since,omitempty"`
+
+	// Until Consider events that occurred before this time
+	Until *time.Time `form:"until,omitempty" json:"until,omitempty"`
+
+	// WorkflowIds Filter to events that are associated with a specific workflow run
+	WorkflowIds *[]openapi_types.UUID `form:"workflowIds,omitempty" json:"workflowIds,omitempty"`
+
+	// WorkflowRunStatuses Filter to events that are associated with workflow runs matching a certain status
+	WorkflowRunStatuses *[]V1TaskStatus `form:"workflowRunStatuses,omitempty" json:"workflowRunStatuses,omitempty"`
+
+	// EventIds Filter to specific events by their ids
+	EventIds *[]openapi_types.UUID `form:"eventIds,omitempty" json:"eventIds,omitempty"`
+
+	// AdditionalMetadata Filter by additional metadata on the events
+	AdditionalMetadata *[]string `form:"additionalMetadata,omitempty" json:"additionalMetadata,omitempty"`
+
+	// Scopes The scopes to filter by
+	Scopes *[]string `form:"scopes,omitempty" json:"scopes,omitempty"`
+}
+
+// V1FilterListParams defines parameters for V1FilterList.
+type V1FilterListParams struct {
+	// Offset The number to skip
+	Offset *int64 `form:"offset,omitempty" json:"offset,omitempty"`
+
+	// Limit The number to limit by
+	Limit *int64 `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// WorkflowIds The workflow ids to filter by
+	WorkflowIds *[]openapi_types.UUID `form:"workflowIds,omitempty" json:"workflowIds,omitempty"`
+
+	// Scopes The scopes to subset candidate filters by
+	Scopes *[]string `form:"scopes,omitempty" json:"scopes,omitempty"`
+}
+
+// V1TaskListStatusMetricsParams defines parameters for V1TaskListStatusMetrics.
+type V1TaskListStatusMetricsParams struct {
+	// Since The start time to get metrics for
+	Since time.Time `form:"since" json:"since"`
+
+	// Until The end time to get metrics for
+	Until *time.Time `form:"until,omitempty" json:"until,omitempty"`
+
+	// WorkflowIds The workflow id to find runs for
+	WorkflowIds *[]openapi_types.UUID `form:"workflow_ids,omitempty" json:"workflow_ids,omitempty"`
+
+	// ParentTaskExternalId The parent task's external id
+	ParentTaskExternalId *openapi_types.UUID `form:"parent_task_external_id,omitempty" json:"parent_task_external_id,omitempty"`
+
+	// TriggeringEventExternalId The id of the event that triggered the task
+	TriggeringEventExternalId *openapi_types.UUID `form:"triggering_event_external_id,omitempty" json:"triggering_event_external_id,omitempty"`
+
+	// AdditionalMetadata Additional metadata k-v pairs to filter by
+	AdditionalMetadata *[]string `form:"additional_metadata,omitempty" json:"additional_metadata,omitempty"`
+}
+
+// V1TaskGetPointMetricsParams defines parameters for V1TaskGetPointMetrics.
+type V1TaskGetPointMetricsParams struct {
+	// CreatedAfter The time after the task was created
+	CreatedAfter *time.Time `form:"createdAfter,omitempty" json:"createdAfter,omitempty"`
+
+	// FinishedBefore The time before the task was completed
+	FinishedBefore *time.Time `form:"finishedBefore,omitempty" json:"finishedBefore,omitempty"`
+}
+
+// V1WebhookListParams defines parameters for V1WebhookList.
+type V1WebhookListParams struct {
+	// Offset The number to skip
+	Offset *int64 `form:"offset,omitempty" json:"offset,omitempty"`
+
+	// Limit The number to limit by
+	Limit *int64 `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// SourceNames The source names to filter by
+	SourceNames *[]V1WebhookSourceName `form:"sourceNames,omitempty" json:"sourceNames,omitempty"`
+
+	// WebhookNames The webhook names to filter by
+	WebhookNames *[]string `form:"webhookNames,omitempty" json:"webhookNames,omitempty"`
+}
+
+// V1WorkflowRunListParams defines parameters for V1WorkflowRunList.
+type V1WorkflowRunListParams struct {
+	// Offset The number to skip
+	Offset *int64 `form:"offset,omitempty" json:"offset,omitempty"`
+
+	// Limit The number to limit by
+	Limit *int64 `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Statuses A list of statuses to filter by
+	Statuses *[]V1TaskStatus `form:"statuses,omitempty" json:"statuses,omitempty"`
+
+	// Since The earliest date to filter by
+	Since time.Time `form:"since" json:"since"`
+
+	// Until The latest date to filter by
+	Until *time.Time `form:"until,omitempty" json:"until,omitempty"`
+
+	// AdditionalMetadata Additional metadata k-v pairs to filter by
+	AdditionalMetadata *[]string `form:"additional_metadata,omitempty" json:"additional_metadata,omitempty"`
+
+	// WorkflowIds The workflow ids to find runs for
+	WorkflowIds *[]openapi_types.UUID `form:"workflow_ids,omitempty" json:"workflow_ids,omitempty"`
+
+	// WorkerId The worker id to filter by
+	WorkerId *openapi_types.UUID `form:"worker_id,omitempty" json:"worker_id,omitempty"`
+
+	// OnlyTasks Whether to include DAGs or only to include tasks
+	OnlyTasks bool `form:"only_tasks" json:"only_tasks"`
+
+	// ParentTaskExternalId The parent task external id to filter by
+	ParentTaskExternalId *openapi_types.UUID `form:"parent_task_external_id,omitempty" json:"parent_task_external_id,omitempty"`
+
+	// TriggeringEventExternalId The external id of the event that triggered the workflow run
+	TriggeringEventExternalId *openapi_types.UUID `form:"triggering_event_external_id,omitempty" json:"triggering_event_external_id,omitempty"`
+
+	// IncludePayloads A flag for whether or not to include the input and output payloads in the response. Defaults to `true` if unset.
+	IncludePayloads *bool `form:"include_payloads,omitempty" json:"include_payloads,omitempty"`
+}
+
+// V1WorkflowRunDisplayNamesListParams defines parameters for V1WorkflowRunDisplayNamesList.
+type V1WorkflowRunDisplayNamesListParams struct {
+	// ExternalIds The external ids of the workflow runs to get display names for
+	ExternalIds []openapi_types.UUID `form:"external_ids" json:"external_ids"`
+}
+
+// V1WorkflowRunTaskEventsListParams defines parameters for V1WorkflowRunTaskEventsList.
+type V1WorkflowRunTaskEventsListParams struct {
+	// Offset The number to skip
+	Offset *int64 `form:"offset,omitempty" json:"offset,omitempty"`
+
+	// Limit The number to limit by
+	Limit *int64 `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
+// V1WorkflowRunGetTimingsParams defines parameters for V1WorkflowRunGetTimings.
+type V1WorkflowRunGetTimingsParams struct {
+	// Depth The depth to retrieve children
+	Depth *int64 `form:"depth,omitempty" json:"depth,omitempty"`
 }
 
 // StepRunListArchivesParams defines parameters for StepRunListArchives.
@@ -1602,6 +2570,12 @@ type CronWorkflowListParams struct {
 
 	// WorkflowId The workflow id to get runs for.
 	WorkflowId *openapi_types.UUID `form:"workflowId,omitempty" json:"workflowId,omitempty"`
+
+	// WorkflowName The workflow name to get runs for.
+	WorkflowName *string `form:"workflowName,omitempty" json:"workflowName,omitempty"`
+
+	// CronName The cron name to get runs for.
+	CronName *string `form:"cronName,omitempty" json:"cronName,omitempty"`
 
 	// AdditionalMetadata A list of metadata key value pairs to filter by
 	AdditionalMetadata *[]string `form:"additionalMetadata,omitempty" json:"additionalMetadata,omitempty"`
@@ -1739,6 +2713,30 @@ type WorkflowVersionGetParams struct {
 // AlertEmailGroupUpdateJSONRequestBody defines body for AlertEmailGroupUpdate for application/json ContentType.
 type AlertEmailGroupUpdateJSONRequestBody = UpdateTenantAlertEmailGroupRequest
 
+// V1CelDebugJSONRequestBody defines body for V1CelDebug for application/json ContentType.
+type V1CelDebugJSONRequestBody = V1CELDebugRequest
+
+// V1FilterCreateJSONRequestBody defines body for V1FilterCreate for application/json ContentType.
+type V1FilterCreateJSONRequestBody = V1CreateFilterRequest
+
+// V1FilterUpdateJSONRequestBody defines body for V1FilterUpdate for application/json ContentType.
+type V1FilterUpdateJSONRequestBody = V1UpdateFilterRequest
+
+// V1TaskCancelJSONRequestBody defines body for V1TaskCancel for application/json ContentType.
+type V1TaskCancelJSONRequestBody = V1CancelTaskRequest
+
+// V1TaskReplayJSONRequestBody defines body for V1TaskReplay for application/json ContentType.
+type V1TaskReplayJSONRequestBody = V1ReplayTaskRequest
+
+// V1WebhookCreateJSONRequestBody defines body for V1WebhookCreate for application/json ContentType.
+type V1WebhookCreateJSONRequestBody = V1CreateWebhookRequest
+
+// V1WebhookUpdateJSONRequestBody defines body for V1WebhookUpdate for application/json ContentType.
+type V1WebhookUpdateJSONRequestBody = V1UpdateWebhookRequest
+
+// V1WorkflowRunCreateJSONRequestBody defines body for V1WorkflowRunCreate for application/json ContentType.
+type V1WorkflowRunCreateJSONRequestBody = V1TriggerWorkflowRunRequest
+
 // TenantCreateJSONRequestBody defines body for TenantCreate for application/json ContentType.
 type TenantCreateJSONRequestBody = CreateTenantRequest
 
@@ -1768,6 +2766,9 @@ type TenantInviteCreateJSONRequestBody = CreateTenantInviteRequest
 
 // TenantInviteUpdateJSONRequestBody defines body for TenantInviteUpdate for application/json ContentType.
 type TenantInviteUpdateJSONRequestBody = UpdateTenantInviteRequest
+
+// TenantMemberUpdateJSONRequestBody defines body for TenantMemberUpdate for application/json ContentType.
+type TenantMemberUpdateJSONRequestBody = UpdateTenantMemberRequest
 
 // SnsCreateJSONRequestBody defines body for SnsCreate for application/json ContentType.
 type SnsCreateJSONRequestBody = CreateSNSIntegrationRequest
@@ -1813,6 +2814,94 @@ type WorkflowUpdateJSONRequestBody = WorkflowUpdateRequest
 
 // WorkflowRunCreateJSONRequestBody defines body for WorkflowRunCreate for application/json ContentType.
 type WorkflowRunCreateJSONRequestBody = TriggerWorkflowRunRequest
+
+// AsV1CreateWebhookRequestBasicAuth returns the union data inside the V1CreateWebhookRequest as a V1CreateWebhookRequestBasicAuth
+func (t V1CreateWebhookRequest) AsV1CreateWebhookRequestBasicAuth() (V1CreateWebhookRequestBasicAuth, error) {
+	var body V1CreateWebhookRequestBasicAuth
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromV1CreateWebhookRequestBasicAuth overwrites any union data inside the V1CreateWebhookRequest as the provided V1CreateWebhookRequestBasicAuth
+func (t *V1CreateWebhookRequest) FromV1CreateWebhookRequestBasicAuth(v V1CreateWebhookRequestBasicAuth) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeV1CreateWebhookRequestBasicAuth performs a merge with any union data inside the V1CreateWebhookRequest, using the provided V1CreateWebhookRequestBasicAuth
+func (t *V1CreateWebhookRequest) MergeV1CreateWebhookRequestBasicAuth(v V1CreateWebhookRequestBasicAuth) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JsonMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsV1CreateWebhookRequestAPIKey returns the union data inside the V1CreateWebhookRequest as a V1CreateWebhookRequestAPIKey
+func (t V1CreateWebhookRequest) AsV1CreateWebhookRequestAPIKey() (V1CreateWebhookRequestAPIKey, error) {
+	var body V1CreateWebhookRequestAPIKey
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromV1CreateWebhookRequestAPIKey overwrites any union data inside the V1CreateWebhookRequest as the provided V1CreateWebhookRequestAPIKey
+func (t *V1CreateWebhookRequest) FromV1CreateWebhookRequestAPIKey(v V1CreateWebhookRequestAPIKey) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeV1CreateWebhookRequestAPIKey performs a merge with any union data inside the V1CreateWebhookRequest, using the provided V1CreateWebhookRequestAPIKey
+func (t *V1CreateWebhookRequest) MergeV1CreateWebhookRequestAPIKey(v V1CreateWebhookRequestAPIKey) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JsonMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsV1CreateWebhookRequestHMAC returns the union data inside the V1CreateWebhookRequest as a V1CreateWebhookRequestHMAC
+func (t V1CreateWebhookRequest) AsV1CreateWebhookRequestHMAC() (V1CreateWebhookRequestHMAC, error) {
+	var body V1CreateWebhookRequestHMAC
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromV1CreateWebhookRequestHMAC overwrites any union data inside the V1CreateWebhookRequest as the provided V1CreateWebhookRequestHMAC
+func (t *V1CreateWebhookRequest) FromV1CreateWebhookRequestHMAC(v V1CreateWebhookRequestHMAC) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeV1CreateWebhookRequestHMAC performs a merge with any union data inside the V1CreateWebhookRequest, using the provided V1CreateWebhookRequestHMAC
+func (t *V1CreateWebhookRequest) MergeV1CreateWebhookRequestHMAC(v V1CreateWebhookRequestHMAC) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JsonMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t V1CreateWebhookRequest) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *V1CreateWebhookRequest) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
 
 // RequestEditorFn  is the function signature for the RequestEditor callback function
 type RequestEditorFn func(ctx context.Context, req *http.Request) error
@@ -1931,6 +3020,109 @@ type ClientInterface interface {
 	// SnsUpdate request
 	SnsUpdate(ctx context.Context, tenant openapi_types.UUID, event string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// V1DagListTasks request
+	V1DagListTasks(ctx context.Context, params *V1DagListTasksParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// V1TaskGet request
+	V1TaskGet(ctx context.Context, task openapi_types.UUID, params *V1TaskGetParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// V1LogLineList request
+	V1LogLineList(ctx context.Context, task openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// V1TaskEventList request
+	V1TaskEventList(ctx context.Context, task openapi_types.UUID, params *V1TaskEventListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// V1CelDebugWithBody request with any body
+	V1CelDebugWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	V1CelDebug(ctx context.Context, tenant openapi_types.UUID, body V1CelDebugJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// V1EventList request
+	V1EventList(ctx context.Context, tenant openapi_types.UUID, params *V1EventListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// V1EventKeyList request
+	V1EventKeyList(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// V1FilterList request
+	V1FilterList(ctx context.Context, tenant openapi_types.UUID, params *V1FilterListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// V1FilterCreateWithBody request with any body
+	V1FilterCreateWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	V1FilterCreate(ctx context.Context, tenant openapi_types.UUID, body V1FilterCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// V1FilterDelete request
+	V1FilterDelete(ctx context.Context, tenant openapi_types.UUID, v1Filter openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// V1FilterGet request
+	V1FilterGet(ctx context.Context, tenant openapi_types.UUID, v1Filter openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// V1FilterUpdateWithBody request with any body
+	V1FilterUpdateWithBody(ctx context.Context, tenant openapi_types.UUID, v1Filter openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	V1FilterUpdate(ctx context.Context, tenant openapi_types.UUID, v1Filter openapi_types.UUID, body V1FilterUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// V1TaskListStatusMetrics request
+	V1TaskListStatusMetrics(ctx context.Context, tenant openapi_types.UUID, params *V1TaskListStatusMetricsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// V1TaskGetPointMetrics request
+	V1TaskGetPointMetrics(ctx context.Context, tenant openapi_types.UUID, params *V1TaskGetPointMetricsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// V1TaskCancelWithBody request with any body
+	V1TaskCancelWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	V1TaskCancel(ctx context.Context, tenant openapi_types.UUID, body V1TaskCancelJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// V1TaskReplayWithBody request with any body
+	V1TaskReplayWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	V1TaskReplay(ctx context.Context, tenant openapi_types.UUID, body V1TaskReplayJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// V1WebhookList request
+	V1WebhookList(ctx context.Context, tenant openapi_types.UUID, params *V1WebhookListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// V1WebhookCreateWithBody request with any body
+	V1WebhookCreateWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	V1WebhookCreate(ctx context.Context, tenant openapi_types.UUID, body V1WebhookCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// V1WebhookDelete request
+	V1WebhookDelete(ctx context.Context, tenant openapi_types.UUID, v1Webhook string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// V1WebhookGet request
+	V1WebhookGet(ctx context.Context, tenant openapi_types.UUID, v1Webhook string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// V1WebhookUpdateWithBody request with any body
+	V1WebhookUpdateWithBody(ctx context.Context, tenant openapi_types.UUID, v1Webhook string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	V1WebhookUpdate(ctx context.Context, tenant openapi_types.UUID, v1Webhook string, body V1WebhookUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// V1WebhookReceiveWithBody request with any body
+	V1WebhookReceiveWithBody(ctx context.Context, tenant openapi_types.UUID, v1Webhook string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// V1WorkflowRunList request
+	V1WorkflowRunList(ctx context.Context, tenant openapi_types.UUID, params *V1WorkflowRunListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// V1WorkflowRunDisplayNamesList request
+	V1WorkflowRunDisplayNamesList(ctx context.Context, tenant openapi_types.UUID, params *V1WorkflowRunDisplayNamesListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// V1WorkflowRunCreateWithBody request with any body
+	V1WorkflowRunCreateWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	V1WorkflowRunCreate(ctx context.Context, tenant openapi_types.UUID, body V1WorkflowRunCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// V1WorkflowRunGet request
+	V1WorkflowRunGet(ctx context.Context, v1WorkflowRun openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// V1WorkflowRunGetStatus request
+	V1WorkflowRunGetStatus(ctx context.Context, v1WorkflowRun openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// V1WorkflowRunTaskEventsList request
+	V1WorkflowRunTaskEventsList(ctx context.Context, v1WorkflowRun openapi_types.UUID, params *V1WorkflowRunTaskEventsListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// V1WorkflowRunGetTimings request
+	V1WorkflowRunGetTimings(ctx context.Context, v1WorkflowRun openapi_types.UUID, params *V1WorkflowRunGetTimingsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// StepRunListArchives request
 	StepRunListArchives(ctx context.Context, stepRun openapi_types.UUID, params *StepRunListArchivesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -1944,6 +3136,9 @@ type ClientInterface interface {
 	TenantCreateWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	TenantCreate(ctx context.Context, body TenantCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// TenantGet request
+	TenantGet(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// TenantUpdateWithBody request with any body
 	TenantUpdateWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -2016,6 +3211,14 @@ type ClientInterface interface {
 
 	// TenantMemberDelete request
 	TenantMemberDelete(ctx context.Context, tenant openapi_types.UUID, member openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// TenantMemberUpdateWithBody request with any body
+	TenantMemberUpdateWithBody(ctx context.Context, tenant openapi_types.UUID, member openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	TenantMemberUpdate(ctx context.Context, tenant openapi_types.UUID, member openapi_types.UUID, body TenantMemberUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// TenantGetPrometheusMetrics request
+	TenantGetPrometheusMetrics(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// TenantGetQueueMetrics request
 	TenantGetQueueMetrics(ctx context.Context, tenant openapi_types.UUID, params *TenantGetQueueMetricsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -2402,6 +3605,450 @@ func (c *Client) SnsUpdate(ctx context.Context, tenant openapi_types.UUID, event
 	return c.Client.Do(req)
 }
 
+func (c *Client) V1DagListTasks(ctx context.Context, params *V1DagListTasksParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1DagListTasksRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1TaskGet(ctx context.Context, task openapi_types.UUID, params *V1TaskGetParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1TaskGetRequest(c.Server, task, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1LogLineList(ctx context.Context, task openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1LogLineListRequest(c.Server, task)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1TaskEventList(ctx context.Context, task openapi_types.UUID, params *V1TaskEventListParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1TaskEventListRequest(c.Server, task, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1CelDebugWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1CelDebugRequestWithBody(c.Server, tenant, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1CelDebug(ctx context.Context, tenant openapi_types.UUID, body V1CelDebugJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1CelDebugRequest(c.Server, tenant, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1EventList(ctx context.Context, tenant openapi_types.UUID, params *V1EventListParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1EventListRequest(c.Server, tenant, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1EventKeyList(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1EventKeyListRequest(c.Server, tenant)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1FilterList(ctx context.Context, tenant openapi_types.UUID, params *V1FilterListParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1FilterListRequest(c.Server, tenant, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1FilterCreateWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1FilterCreateRequestWithBody(c.Server, tenant, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1FilterCreate(ctx context.Context, tenant openapi_types.UUID, body V1FilterCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1FilterCreateRequest(c.Server, tenant, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1FilterDelete(ctx context.Context, tenant openapi_types.UUID, v1Filter openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1FilterDeleteRequest(c.Server, tenant, v1Filter)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1FilterGet(ctx context.Context, tenant openapi_types.UUID, v1Filter openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1FilterGetRequest(c.Server, tenant, v1Filter)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1FilterUpdateWithBody(ctx context.Context, tenant openapi_types.UUID, v1Filter openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1FilterUpdateRequestWithBody(c.Server, tenant, v1Filter, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1FilterUpdate(ctx context.Context, tenant openapi_types.UUID, v1Filter openapi_types.UUID, body V1FilterUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1FilterUpdateRequest(c.Server, tenant, v1Filter, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1TaskListStatusMetrics(ctx context.Context, tenant openapi_types.UUID, params *V1TaskListStatusMetricsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1TaskListStatusMetricsRequest(c.Server, tenant, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1TaskGetPointMetrics(ctx context.Context, tenant openapi_types.UUID, params *V1TaskGetPointMetricsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1TaskGetPointMetricsRequest(c.Server, tenant, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1TaskCancelWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1TaskCancelRequestWithBody(c.Server, tenant, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1TaskCancel(ctx context.Context, tenant openapi_types.UUID, body V1TaskCancelJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1TaskCancelRequest(c.Server, tenant, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1TaskReplayWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1TaskReplayRequestWithBody(c.Server, tenant, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1TaskReplay(ctx context.Context, tenant openapi_types.UUID, body V1TaskReplayJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1TaskReplayRequest(c.Server, tenant, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1WebhookList(ctx context.Context, tenant openapi_types.UUID, params *V1WebhookListParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1WebhookListRequest(c.Server, tenant, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1WebhookCreateWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1WebhookCreateRequestWithBody(c.Server, tenant, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1WebhookCreate(ctx context.Context, tenant openapi_types.UUID, body V1WebhookCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1WebhookCreateRequest(c.Server, tenant, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1WebhookDelete(ctx context.Context, tenant openapi_types.UUID, v1Webhook string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1WebhookDeleteRequest(c.Server, tenant, v1Webhook)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1WebhookGet(ctx context.Context, tenant openapi_types.UUID, v1Webhook string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1WebhookGetRequest(c.Server, tenant, v1Webhook)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1WebhookUpdateWithBody(ctx context.Context, tenant openapi_types.UUID, v1Webhook string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1WebhookUpdateRequestWithBody(c.Server, tenant, v1Webhook, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1WebhookUpdate(ctx context.Context, tenant openapi_types.UUID, v1Webhook string, body V1WebhookUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1WebhookUpdateRequest(c.Server, tenant, v1Webhook, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1WebhookReceiveWithBody(ctx context.Context, tenant openapi_types.UUID, v1Webhook string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1WebhookReceiveRequestWithBody(c.Server, tenant, v1Webhook, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1WorkflowRunList(ctx context.Context, tenant openapi_types.UUID, params *V1WorkflowRunListParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1WorkflowRunListRequest(c.Server, tenant, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1WorkflowRunDisplayNamesList(ctx context.Context, tenant openapi_types.UUID, params *V1WorkflowRunDisplayNamesListParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1WorkflowRunDisplayNamesListRequest(c.Server, tenant, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1WorkflowRunCreateWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1WorkflowRunCreateRequestWithBody(c.Server, tenant, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1WorkflowRunCreate(ctx context.Context, tenant openapi_types.UUID, body V1WorkflowRunCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1WorkflowRunCreateRequest(c.Server, tenant, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1WorkflowRunGet(ctx context.Context, v1WorkflowRun openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1WorkflowRunGetRequest(c.Server, v1WorkflowRun)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1WorkflowRunGetStatus(ctx context.Context, v1WorkflowRun openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1WorkflowRunGetStatusRequest(c.Server, v1WorkflowRun)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1WorkflowRunTaskEventsList(ctx context.Context, v1WorkflowRun openapi_types.UUID, params *V1WorkflowRunTaskEventsListParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1WorkflowRunTaskEventsListRequest(c.Server, v1WorkflowRun, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1WorkflowRunGetTimings(ctx context.Context, v1WorkflowRun openapi_types.UUID, params *V1WorkflowRunGetTimingsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1WorkflowRunGetTimingsRequest(c.Server, v1WorkflowRun, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 func (c *Client) StepRunListArchives(ctx context.Context, stepRun openapi_types.UUID, params *StepRunListArchivesParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewStepRunListArchivesRequest(c.Server, stepRun, params)
 	if err != nil {
@@ -2452,6 +4099,18 @@ func (c *Client) TenantCreateWithBody(ctx context.Context, contentType string, b
 
 func (c *Client) TenantCreate(ctx context.Context, body TenantCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewTenantCreateRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) TenantGet(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewTenantGetRequest(c.Server, tenant)
 	if err != nil {
 		return nil, err
 	}
@@ -2776,6 +4435,42 @@ func (c *Client) TenantMemberList(ctx context.Context, tenant openapi_types.UUID
 
 func (c *Client) TenantMemberDelete(ctx context.Context, tenant openapi_types.UUID, member openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewTenantMemberDeleteRequest(c.Server, tenant, member)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) TenantMemberUpdateWithBody(ctx context.Context, tenant openapi_types.UUID, member openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewTenantMemberUpdateRequestWithBody(c.Server, tenant, member, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) TenantMemberUpdate(ctx context.Context, tenant openapi_types.UUID, member openapi_types.UUID, body TenantMemberUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewTenantMemberUpdateRequest(c.Server, tenant, member, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) TenantGetPrometheusMetrics(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewTenantGetPrometheusMetricsRequest(c.Server, tenant)
 	if err != nil {
 		return nil, err
 	}
@@ -4123,6 +5818,1940 @@ func NewSnsUpdateRequest(server string, tenant openapi_types.UUID, event string)
 	return req, nil
 }
 
+// NewV1DagListTasksRequest generates requests for V1DagListTasks
+func NewV1DagListTasksRequest(server string, params *V1DagListTasksParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/stable/dags/tasks")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "dag_ids", runtime.ParamLocationQuery, params.DagIds); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "tenant", runtime.ParamLocationQuery, params.Tenant); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewV1TaskGetRequest generates requests for V1TaskGet
+func NewV1TaskGetRequest(server string, task openapi_types.UUID, params *V1TaskGetParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "task", runtime.ParamLocationPath, task)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/stable/tasks/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Attempt != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "attempt", runtime.ParamLocationQuery, *params.Attempt); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewV1LogLineListRequest generates requests for V1LogLineList
+func NewV1LogLineListRequest(server string, task openapi_types.UUID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "task", runtime.ParamLocationPath, task)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/stable/tasks/%s/logs", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewV1TaskEventListRequest generates requests for V1TaskEventList
+func NewV1TaskEventListRequest(server string, task openapi_types.UUID, params *V1TaskEventListParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "task", runtime.ParamLocationPath, task)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/stable/tasks/%s/task-events", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Offset != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "offset", runtime.ParamLocationQuery, *params.Offset); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewV1CelDebugRequest calls the generic V1CelDebug builder with application/json body
+func NewV1CelDebugRequest(server string, tenant openapi_types.UUID, body V1CelDebugJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewV1CelDebugRequestWithBody(server, tenant, "application/json", bodyReader)
+}
+
+// NewV1CelDebugRequestWithBody generates requests for V1CelDebug with any type of body
+func NewV1CelDebugRequestWithBody(server string, tenant openapi_types.UUID, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/stable/tenants/%s/cel/debug", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewV1EventListRequest generates requests for V1EventList
+func NewV1EventListRequest(server string, tenant openapi_types.UUID, params *V1EventListParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/stable/tenants/%s/events", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Offset != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "offset", runtime.ParamLocationQuery, *params.Offset); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Keys != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "keys", runtime.ParamLocationQuery, *params.Keys); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Since != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "since", runtime.ParamLocationQuery, *params.Since); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Until != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "until", runtime.ParamLocationQuery, *params.Until); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.WorkflowIds != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "workflowIds", runtime.ParamLocationQuery, *params.WorkflowIds); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.WorkflowRunStatuses != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "workflowRunStatuses", runtime.ParamLocationQuery, *params.WorkflowRunStatuses); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.EventIds != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "eventIds", runtime.ParamLocationQuery, *params.EventIds); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.AdditionalMetadata != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "additionalMetadata", runtime.ParamLocationQuery, *params.AdditionalMetadata); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Scopes != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "scopes", runtime.ParamLocationQuery, *params.Scopes); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewV1EventKeyListRequest generates requests for V1EventKeyList
+func NewV1EventKeyListRequest(server string, tenant openapi_types.UUID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/stable/tenants/%s/events/keys", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewV1FilterListRequest generates requests for V1FilterList
+func NewV1FilterListRequest(server string, tenant openapi_types.UUID, params *V1FilterListParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/stable/tenants/%s/filters", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Offset != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "offset", runtime.ParamLocationQuery, *params.Offset); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.WorkflowIds != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "workflowIds", runtime.ParamLocationQuery, *params.WorkflowIds); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Scopes != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "scopes", runtime.ParamLocationQuery, *params.Scopes); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewV1FilterCreateRequest calls the generic V1FilterCreate builder with application/json body
+func NewV1FilterCreateRequest(server string, tenant openapi_types.UUID, body V1FilterCreateJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewV1FilterCreateRequestWithBody(server, tenant, "application/json", bodyReader)
+}
+
+// NewV1FilterCreateRequestWithBody generates requests for V1FilterCreate with any type of body
+func NewV1FilterCreateRequestWithBody(server string, tenant openapi_types.UUID, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/stable/tenants/%s/filters", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewV1FilterDeleteRequest generates requests for V1FilterDelete
+func NewV1FilterDeleteRequest(server string, tenant openapi_types.UUID, v1Filter openapi_types.UUID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "v1-filter", runtime.ParamLocationPath, v1Filter)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/stable/tenants/%s/filters/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewV1FilterGetRequest generates requests for V1FilterGet
+func NewV1FilterGetRequest(server string, tenant openapi_types.UUID, v1Filter openapi_types.UUID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "v1-filter", runtime.ParamLocationPath, v1Filter)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/stable/tenants/%s/filters/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewV1FilterUpdateRequest calls the generic V1FilterUpdate builder with application/json body
+func NewV1FilterUpdateRequest(server string, tenant openapi_types.UUID, v1Filter openapi_types.UUID, body V1FilterUpdateJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewV1FilterUpdateRequestWithBody(server, tenant, v1Filter, "application/json", bodyReader)
+}
+
+// NewV1FilterUpdateRequestWithBody generates requests for V1FilterUpdate with any type of body
+func NewV1FilterUpdateRequestWithBody(server string, tenant openapi_types.UUID, v1Filter openapi_types.UUID, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "v1-filter", runtime.ParamLocationPath, v1Filter)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/stable/tenants/%s/filters/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PATCH", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewV1TaskListStatusMetricsRequest generates requests for V1TaskListStatusMetrics
+func NewV1TaskListStatusMetricsRequest(server string, tenant openapi_types.UUID, params *V1TaskListStatusMetricsParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/stable/tenants/%s/task-metrics", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "since", runtime.ParamLocationQuery, params.Since); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+		if params.Until != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "until", runtime.ParamLocationQuery, *params.Until); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.WorkflowIds != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "workflow_ids", runtime.ParamLocationQuery, *params.WorkflowIds); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.ParentTaskExternalId != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "parent_task_external_id", runtime.ParamLocationQuery, *params.ParentTaskExternalId); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.TriggeringEventExternalId != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "triggering_event_external_id", runtime.ParamLocationQuery, *params.TriggeringEventExternalId); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.AdditionalMetadata != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "additional_metadata", runtime.ParamLocationQuery, *params.AdditionalMetadata); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewV1TaskGetPointMetricsRequest generates requests for V1TaskGetPointMetrics
+func NewV1TaskGetPointMetricsRequest(server string, tenant openapi_types.UUID, params *V1TaskGetPointMetricsParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/stable/tenants/%s/task-point-metrics", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.CreatedAfter != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "createdAfter", runtime.ParamLocationQuery, *params.CreatedAfter); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.FinishedBefore != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "finishedBefore", runtime.ParamLocationQuery, *params.FinishedBefore); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewV1TaskCancelRequest calls the generic V1TaskCancel builder with application/json body
+func NewV1TaskCancelRequest(server string, tenant openapi_types.UUID, body V1TaskCancelJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewV1TaskCancelRequestWithBody(server, tenant, "application/json", bodyReader)
+}
+
+// NewV1TaskCancelRequestWithBody generates requests for V1TaskCancel with any type of body
+func NewV1TaskCancelRequestWithBody(server string, tenant openapi_types.UUID, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/stable/tenants/%s/tasks/cancel", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewV1TaskReplayRequest calls the generic V1TaskReplay builder with application/json body
+func NewV1TaskReplayRequest(server string, tenant openapi_types.UUID, body V1TaskReplayJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewV1TaskReplayRequestWithBody(server, tenant, "application/json", bodyReader)
+}
+
+// NewV1TaskReplayRequestWithBody generates requests for V1TaskReplay with any type of body
+func NewV1TaskReplayRequestWithBody(server string, tenant openapi_types.UUID, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/stable/tenants/%s/tasks/replay", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewV1WebhookListRequest generates requests for V1WebhookList
+func NewV1WebhookListRequest(server string, tenant openapi_types.UUID, params *V1WebhookListParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/stable/tenants/%s/webhooks", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Offset != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "offset", runtime.ParamLocationQuery, *params.Offset); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.SourceNames != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "sourceNames", runtime.ParamLocationQuery, *params.SourceNames); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.WebhookNames != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "webhookNames", runtime.ParamLocationQuery, *params.WebhookNames); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewV1WebhookCreateRequest calls the generic V1WebhookCreate builder with application/json body
+func NewV1WebhookCreateRequest(server string, tenant openapi_types.UUID, body V1WebhookCreateJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewV1WebhookCreateRequestWithBody(server, tenant, "application/json", bodyReader)
+}
+
+// NewV1WebhookCreateRequestWithBody generates requests for V1WebhookCreate with any type of body
+func NewV1WebhookCreateRequestWithBody(server string, tenant openapi_types.UUID, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/stable/tenants/%s/webhooks", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewV1WebhookDeleteRequest generates requests for V1WebhookDelete
+func NewV1WebhookDeleteRequest(server string, tenant openapi_types.UUID, v1Webhook string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "v1-webhook", runtime.ParamLocationPath, v1Webhook)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/stable/tenants/%s/webhooks/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewV1WebhookGetRequest generates requests for V1WebhookGet
+func NewV1WebhookGetRequest(server string, tenant openapi_types.UUID, v1Webhook string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "v1-webhook", runtime.ParamLocationPath, v1Webhook)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/stable/tenants/%s/webhooks/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewV1WebhookUpdateRequest calls the generic V1WebhookUpdate builder with application/json body
+func NewV1WebhookUpdateRequest(server string, tenant openapi_types.UUID, v1Webhook string, body V1WebhookUpdateJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewV1WebhookUpdateRequestWithBody(server, tenant, v1Webhook, "application/json", bodyReader)
+}
+
+// NewV1WebhookUpdateRequestWithBody generates requests for V1WebhookUpdate with any type of body
+func NewV1WebhookUpdateRequestWithBody(server string, tenant openapi_types.UUID, v1Webhook string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "v1-webhook", runtime.ParamLocationPath, v1Webhook)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/stable/tenants/%s/webhooks/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PATCH", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewV1WebhookReceiveRequestWithBody generates requests for V1WebhookReceive with any type of body
+func NewV1WebhookReceiveRequestWithBody(server string, tenant openapi_types.UUID, v1Webhook string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "v1-webhook", runtime.ParamLocationPath, v1Webhook)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/stable/tenants/%s/webhooks/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewV1WorkflowRunListRequest generates requests for V1WorkflowRunList
+func NewV1WorkflowRunListRequest(server string, tenant openapi_types.UUID, params *V1WorkflowRunListParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/stable/tenants/%s/workflow-runs", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Offset != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "offset", runtime.ParamLocationQuery, *params.Offset); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Statuses != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "statuses", runtime.ParamLocationQuery, *params.Statuses); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "since", runtime.ParamLocationQuery, params.Since); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+		if params.Until != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "until", runtime.ParamLocationQuery, *params.Until); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.AdditionalMetadata != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "additional_metadata", runtime.ParamLocationQuery, *params.AdditionalMetadata); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.WorkflowIds != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "workflow_ids", runtime.ParamLocationQuery, *params.WorkflowIds); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.WorkerId != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "worker_id", runtime.ParamLocationQuery, *params.WorkerId); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "only_tasks", runtime.ParamLocationQuery, params.OnlyTasks); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+		if params.ParentTaskExternalId != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "parent_task_external_id", runtime.ParamLocationQuery, *params.ParentTaskExternalId); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.TriggeringEventExternalId != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "triggering_event_external_id", runtime.ParamLocationQuery, *params.TriggeringEventExternalId); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.IncludePayloads != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "include_payloads", runtime.ParamLocationQuery, *params.IncludePayloads); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewV1WorkflowRunDisplayNamesListRequest generates requests for V1WorkflowRunDisplayNamesList
+func NewV1WorkflowRunDisplayNamesListRequest(server string, tenant openapi_types.UUID, params *V1WorkflowRunDisplayNamesListParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/stable/tenants/%s/workflow-runs/display-names", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "external_ids", runtime.ParamLocationQuery, params.ExternalIds); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewV1WorkflowRunCreateRequest calls the generic V1WorkflowRunCreate builder with application/json body
+func NewV1WorkflowRunCreateRequest(server string, tenant openapi_types.UUID, body V1WorkflowRunCreateJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewV1WorkflowRunCreateRequestWithBody(server, tenant, "application/json", bodyReader)
+}
+
+// NewV1WorkflowRunCreateRequestWithBody generates requests for V1WorkflowRunCreate with any type of body
+func NewV1WorkflowRunCreateRequestWithBody(server string, tenant openapi_types.UUID, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/stable/tenants/%s/workflow-runs/trigger", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewV1WorkflowRunGetRequest generates requests for V1WorkflowRunGet
+func NewV1WorkflowRunGetRequest(server string, v1WorkflowRun openapi_types.UUID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "v1-workflow-run", runtime.ParamLocationPath, v1WorkflowRun)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/stable/workflow-runs/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewV1WorkflowRunGetStatusRequest generates requests for V1WorkflowRunGetStatus
+func NewV1WorkflowRunGetStatusRequest(server string, v1WorkflowRun openapi_types.UUID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "v1-workflow-run", runtime.ParamLocationPath, v1WorkflowRun)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/stable/workflow-runs/%s/status", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewV1WorkflowRunTaskEventsListRequest generates requests for V1WorkflowRunTaskEventsList
+func NewV1WorkflowRunTaskEventsListRequest(server string, v1WorkflowRun openapi_types.UUID, params *V1WorkflowRunTaskEventsListParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "v1-workflow-run", runtime.ParamLocationPath, v1WorkflowRun)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/stable/workflow-runs/%s/task-events", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Offset != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "offset", runtime.ParamLocationQuery, *params.Offset); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewV1WorkflowRunGetTimingsRequest generates requests for V1WorkflowRunGetTimings
+func NewV1WorkflowRunGetTimingsRequest(server string, v1WorkflowRun openapi_types.UUID, params *V1WorkflowRunGetTimingsParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "v1-workflow-run", runtime.ParamLocationPath, v1WorkflowRun)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/stable/workflow-runs/%s/task-timings", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Depth != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "depth", runtime.ParamLocationQuery, *params.Depth); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewStepRunListArchivesRequest generates requests for StepRunListArchives
 func NewStepRunListArchivesRequest(server string, stepRun openapi_types.UUID, params *StepRunListArchivesParams) (*http.Request, error) {
 	var err error
@@ -4439,6 +8068,40 @@ func NewTenantCreateRequestWithBody(server string, contentType string, body io.R
 	}
 
 	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewTenantGetRequest generates requests for TenantGet
+func NewTenantGetRequest(server string, tenant openapi_types.UUID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/tenants/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
 
 	return req, nil
 }
@@ -5352,6 +9015,94 @@ func NewTenantMemberDeleteRequest(server string, tenant openapi_types.UUID, memb
 	}
 
 	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewTenantMemberUpdateRequest calls the generic TenantMemberUpdate builder with application/json body
+func NewTenantMemberUpdateRequest(server string, tenant openapi_types.UUID, member openapi_types.UUID, body TenantMemberUpdateJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewTenantMemberUpdateRequestWithBody(server, tenant, member, "application/json", bodyReader)
+}
+
+// NewTenantMemberUpdateRequestWithBody generates requests for TenantMemberUpdate with any type of body
+func NewTenantMemberUpdateRequestWithBody(server string, tenant openapi_types.UUID, member openapi_types.UUID, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "member", runtime.ParamLocationPath, member)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/tenants/%s/members/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PATCH", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewTenantGetPrometheusMetricsRequest generates requests for TenantGetPrometheusMetrics
+func NewTenantGetPrometheusMetricsRequest(server string, tenant openapi_types.UUID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/tenants/%s/prometheus-metrics", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -6492,6 +10243,38 @@ func NewCronWorkflowListRequest(server string, tenant openapi_types.UUID, params
 		if params.WorkflowId != nil {
 
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "workflowId", runtime.ParamLocationQuery, *params.WorkflowId); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.WorkflowName != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "workflowName", runtime.ParamLocationQuery, *params.WorkflowName); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.CronName != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "cronName", runtime.ParamLocationQuery, *params.CronName); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
 				return nil, err
@@ -8511,6 +12294,109 @@ type ClientWithResponsesInterface interface {
 	// SnsUpdateWithResponse request
 	SnsUpdateWithResponse(ctx context.Context, tenant openapi_types.UUID, event string, reqEditors ...RequestEditorFn) (*SnsUpdateResponse, error)
 
+	// V1DagListTasksWithResponse request
+	V1DagListTasksWithResponse(ctx context.Context, params *V1DagListTasksParams, reqEditors ...RequestEditorFn) (*V1DagListTasksResponse, error)
+
+	// V1TaskGetWithResponse request
+	V1TaskGetWithResponse(ctx context.Context, task openapi_types.UUID, params *V1TaskGetParams, reqEditors ...RequestEditorFn) (*V1TaskGetResponse, error)
+
+	// V1LogLineListWithResponse request
+	V1LogLineListWithResponse(ctx context.Context, task openapi_types.UUID, reqEditors ...RequestEditorFn) (*V1LogLineListResponse, error)
+
+	// V1TaskEventListWithResponse request
+	V1TaskEventListWithResponse(ctx context.Context, task openapi_types.UUID, params *V1TaskEventListParams, reqEditors ...RequestEditorFn) (*V1TaskEventListResponse, error)
+
+	// V1CelDebugWithBodyWithResponse request with any body
+	V1CelDebugWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1CelDebugResponse, error)
+
+	V1CelDebugWithResponse(ctx context.Context, tenant openapi_types.UUID, body V1CelDebugJSONRequestBody, reqEditors ...RequestEditorFn) (*V1CelDebugResponse, error)
+
+	// V1EventListWithResponse request
+	V1EventListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V1EventListParams, reqEditors ...RequestEditorFn) (*V1EventListResponse, error)
+
+	// V1EventKeyListWithResponse request
+	V1EventKeyListWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*V1EventKeyListResponse, error)
+
+	// V1FilterListWithResponse request
+	V1FilterListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V1FilterListParams, reqEditors ...RequestEditorFn) (*V1FilterListResponse, error)
+
+	// V1FilterCreateWithBodyWithResponse request with any body
+	V1FilterCreateWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1FilterCreateResponse, error)
+
+	V1FilterCreateWithResponse(ctx context.Context, tenant openapi_types.UUID, body V1FilterCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*V1FilterCreateResponse, error)
+
+	// V1FilterDeleteWithResponse request
+	V1FilterDeleteWithResponse(ctx context.Context, tenant openapi_types.UUID, v1Filter openapi_types.UUID, reqEditors ...RequestEditorFn) (*V1FilterDeleteResponse, error)
+
+	// V1FilterGetWithResponse request
+	V1FilterGetWithResponse(ctx context.Context, tenant openapi_types.UUID, v1Filter openapi_types.UUID, reqEditors ...RequestEditorFn) (*V1FilterGetResponse, error)
+
+	// V1FilterUpdateWithBodyWithResponse request with any body
+	V1FilterUpdateWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, v1Filter openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1FilterUpdateResponse, error)
+
+	V1FilterUpdateWithResponse(ctx context.Context, tenant openapi_types.UUID, v1Filter openapi_types.UUID, body V1FilterUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*V1FilterUpdateResponse, error)
+
+	// V1TaskListStatusMetricsWithResponse request
+	V1TaskListStatusMetricsWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V1TaskListStatusMetricsParams, reqEditors ...RequestEditorFn) (*V1TaskListStatusMetricsResponse, error)
+
+	// V1TaskGetPointMetricsWithResponse request
+	V1TaskGetPointMetricsWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V1TaskGetPointMetricsParams, reqEditors ...RequestEditorFn) (*V1TaskGetPointMetricsResponse, error)
+
+	// V1TaskCancelWithBodyWithResponse request with any body
+	V1TaskCancelWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1TaskCancelResponse, error)
+
+	V1TaskCancelWithResponse(ctx context.Context, tenant openapi_types.UUID, body V1TaskCancelJSONRequestBody, reqEditors ...RequestEditorFn) (*V1TaskCancelResponse, error)
+
+	// V1TaskReplayWithBodyWithResponse request with any body
+	V1TaskReplayWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1TaskReplayResponse, error)
+
+	V1TaskReplayWithResponse(ctx context.Context, tenant openapi_types.UUID, body V1TaskReplayJSONRequestBody, reqEditors ...RequestEditorFn) (*V1TaskReplayResponse, error)
+
+	// V1WebhookListWithResponse request
+	V1WebhookListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V1WebhookListParams, reqEditors ...RequestEditorFn) (*V1WebhookListResponse, error)
+
+	// V1WebhookCreateWithBodyWithResponse request with any body
+	V1WebhookCreateWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1WebhookCreateResponse, error)
+
+	V1WebhookCreateWithResponse(ctx context.Context, tenant openapi_types.UUID, body V1WebhookCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*V1WebhookCreateResponse, error)
+
+	// V1WebhookDeleteWithResponse request
+	V1WebhookDeleteWithResponse(ctx context.Context, tenant openapi_types.UUID, v1Webhook string, reqEditors ...RequestEditorFn) (*V1WebhookDeleteResponse, error)
+
+	// V1WebhookGetWithResponse request
+	V1WebhookGetWithResponse(ctx context.Context, tenant openapi_types.UUID, v1Webhook string, reqEditors ...RequestEditorFn) (*V1WebhookGetResponse, error)
+
+	// V1WebhookUpdateWithBodyWithResponse request with any body
+	V1WebhookUpdateWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, v1Webhook string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1WebhookUpdateResponse, error)
+
+	V1WebhookUpdateWithResponse(ctx context.Context, tenant openapi_types.UUID, v1Webhook string, body V1WebhookUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*V1WebhookUpdateResponse, error)
+
+	// V1WebhookReceiveWithBodyWithResponse request with any body
+	V1WebhookReceiveWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, v1Webhook string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1WebhookReceiveResponse, error)
+
+	// V1WorkflowRunListWithResponse request
+	V1WorkflowRunListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V1WorkflowRunListParams, reqEditors ...RequestEditorFn) (*V1WorkflowRunListResponse, error)
+
+	// V1WorkflowRunDisplayNamesListWithResponse request
+	V1WorkflowRunDisplayNamesListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V1WorkflowRunDisplayNamesListParams, reqEditors ...RequestEditorFn) (*V1WorkflowRunDisplayNamesListResponse, error)
+
+	// V1WorkflowRunCreateWithBodyWithResponse request with any body
+	V1WorkflowRunCreateWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1WorkflowRunCreateResponse, error)
+
+	V1WorkflowRunCreateWithResponse(ctx context.Context, tenant openapi_types.UUID, body V1WorkflowRunCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*V1WorkflowRunCreateResponse, error)
+
+	// V1WorkflowRunGetWithResponse request
+	V1WorkflowRunGetWithResponse(ctx context.Context, v1WorkflowRun openapi_types.UUID, reqEditors ...RequestEditorFn) (*V1WorkflowRunGetResponse, error)
+
+	// V1WorkflowRunGetStatusWithResponse request
+	V1WorkflowRunGetStatusWithResponse(ctx context.Context, v1WorkflowRun openapi_types.UUID, reqEditors ...RequestEditorFn) (*V1WorkflowRunGetStatusResponse, error)
+
+	// V1WorkflowRunTaskEventsListWithResponse request
+	V1WorkflowRunTaskEventsListWithResponse(ctx context.Context, v1WorkflowRun openapi_types.UUID, params *V1WorkflowRunTaskEventsListParams, reqEditors ...RequestEditorFn) (*V1WorkflowRunTaskEventsListResponse, error)
+
+	// V1WorkflowRunGetTimingsWithResponse request
+	V1WorkflowRunGetTimingsWithResponse(ctx context.Context, v1WorkflowRun openapi_types.UUID, params *V1WorkflowRunGetTimingsParams, reqEditors ...RequestEditorFn) (*V1WorkflowRunGetTimingsResponse, error)
+
 	// StepRunListArchivesWithResponse request
 	StepRunListArchivesWithResponse(ctx context.Context, stepRun openapi_types.UUID, params *StepRunListArchivesParams, reqEditors ...RequestEditorFn) (*StepRunListArchivesResponse, error)
 
@@ -8524,6 +12410,9 @@ type ClientWithResponsesInterface interface {
 	TenantCreateWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*TenantCreateResponse, error)
 
 	TenantCreateWithResponse(ctx context.Context, body TenantCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*TenantCreateResponse, error)
+
+	// TenantGetWithResponse request
+	TenantGetWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*TenantGetResponse, error)
 
 	// TenantUpdateWithBodyWithResponse request with any body
 	TenantUpdateWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*TenantUpdateResponse, error)
@@ -8596,6 +12485,14 @@ type ClientWithResponsesInterface interface {
 
 	// TenantMemberDeleteWithResponse request
 	TenantMemberDeleteWithResponse(ctx context.Context, tenant openapi_types.UUID, member openapi_types.UUID, reqEditors ...RequestEditorFn) (*TenantMemberDeleteResponse, error)
+
+	// TenantMemberUpdateWithBodyWithResponse request with any body
+	TenantMemberUpdateWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, member openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*TenantMemberUpdateResponse, error)
+
+	TenantMemberUpdateWithResponse(ctx context.Context, tenant openapi_types.UUID, member openapi_types.UUID, body TenantMemberUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*TenantMemberUpdateResponse, error)
+
+	// TenantGetPrometheusMetricsWithResponse request
+	TenantGetPrometheusMetricsWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*TenantGetPrometheusMetricsResponse, error)
 
 	// TenantGetQueueMetricsWithResponse request
 	TenantGetQueueMetricsWithResponse(ctx context.Context, tenant openapi_types.UUID, params *TenantGetQueueMetricsParams, reqEditors ...RequestEditorFn) (*TenantGetQueueMetricsResponse, error)
@@ -9125,6 +13022,726 @@ func (r SnsUpdateResponse) StatusCode() int {
 	return 0
 }
 
+type V1DagListTasksResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *[]V1DagChildren
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+	JSON501      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r V1DagListTasksResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r V1DagListTasksResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type V1TaskGetResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *V1TaskSummary
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+	JSON404      *APIErrors
+	JSON501      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r V1TaskGetResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r V1TaskGetResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type V1LogLineListResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *V1LogLineList
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r V1LogLineListResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r V1LogLineListResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type V1TaskEventListResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *V1TaskEventList
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+	JSON404      *APIErrors
+	JSON501      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r V1TaskEventListResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r V1TaskEventListResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type V1CelDebugResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *V1CELDebugResponse
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r V1CelDebugResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r V1CelDebugResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type V1EventListResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *V1EventList
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r V1EventListResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r V1EventListResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type V1EventKeyListResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *EventKeyList
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r V1EventKeyListResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r V1EventKeyListResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type V1FilterListResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *V1FilterList
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r V1FilterListResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r V1FilterListResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type V1FilterCreateResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *V1Filter
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+	JSON404      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r V1FilterCreateResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r V1FilterCreateResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type V1FilterDeleteResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *V1Filter
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+	JSON404      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r V1FilterDeleteResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r V1FilterDeleteResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type V1FilterGetResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *V1Filter
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r V1FilterGetResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r V1FilterGetResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type V1FilterUpdateResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *V1Filter
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+	JSON404      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r V1FilterUpdateResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r V1FilterUpdateResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type V1TaskListStatusMetricsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *V1TaskRunMetrics
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+	JSON501      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r V1TaskListStatusMetricsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r V1TaskListStatusMetricsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type V1TaskGetPointMetricsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *V1TaskPointMetrics
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+	JSON501      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r V1TaskGetPointMetricsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r V1TaskGetPointMetricsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type V1TaskCancelResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *V1CancelledTasks
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+	JSON404      *APIErrors
+	JSON501      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r V1TaskCancelResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r V1TaskCancelResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type V1TaskReplayResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *V1ReplayedTasks
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+	JSON404      *APIErrors
+	JSON501      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r V1TaskReplayResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r V1TaskReplayResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type V1WebhookListResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *V1WebhookList
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r V1WebhookListResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r V1WebhookListResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type V1WebhookCreateResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *V1Webhook
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+	JSON404      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r V1WebhookCreateResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r V1WebhookCreateResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type V1WebhookDeleteResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *V1Webhook
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+	JSON404      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r V1WebhookDeleteResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r V1WebhookDeleteResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type V1WebhookGetResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *V1Webhook
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r V1WebhookGetResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r V1WebhookGetResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type V1WebhookUpdateResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *V1Webhook
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+	JSON404      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r V1WebhookUpdateResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r V1WebhookUpdateResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type V1WebhookReceiveResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *map[string]interface{}
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r V1WebhookReceiveResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r V1WebhookReceiveResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type V1WorkflowRunListResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *V1TaskSummaryList
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+	JSON501      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r V1WorkflowRunListResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r V1WorkflowRunListResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type V1WorkflowRunDisplayNamesListResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *V1WorkflowRunDisplayNameList
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+	JSON501      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r V1WorkflowRunDisplayNamesListResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r V1WorkflowRunDisplayNamesListResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type V1WorkflowRunCreateResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *V1WorkflowRunDetails
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r V1WorkflowRunCreateResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r V1WorkflowRunCreateResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type V1WorkflowRunGetResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *V1WorkflowRunDetails
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+	JSON501      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r V1WorkflowRunGetResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r V1WorkflowRunGetResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type V1WorkflowRunGetStatusResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *V1TaskStatus
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+	JSON404      *APIErrors
+	JSON501      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r V1WorkflowRunGetStatusResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r V1WorkflowRunGetStatusResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type V1WorkflowRunTaskEventsListResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *V1TaskEventList
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+	JSON501      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r V1WorkflowRunTaskEventsListResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r V1WorkflowRunTaskEventsListResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type V1WorkflowRunGetTimingsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *V1TaskTimingList
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+	JSON501      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r V1WorkflowRunGetTimingsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r V1WorkflowRunGetTimingsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type StepRunListArchivesResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -9217,6 +13834,31 @@ func (r TenantCreateResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r TenantCreateResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type TenantGetResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Tenant
+	JSON400      *APIErrors
+	JSON403      *APIError
+	JSON404      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r TenantGetResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r TenantGetResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -9654,6 +14296,55 @@ func (r TenantMemberDeleteResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r TenantMemberDeleteResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type TenantMemberUpdateResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *TenantMember
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+	JSON404      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r TenantMemberUpdateResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r TenantMemberUpdateResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type TenantGetPrometheusMetricsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+	JSON404      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r TenantGetPrometheusMetricsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r TenantGetPrometheusMetricsResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -11195,6 +15886,331 @@ func (c *ClientWithResponses) SnsUpdateWithResponse(ctx context.Context, tenant 
 	return ParseSnsUpdateResponse(rsp)
 }
 
+// V1DagListTasksWithResponse request returning *V1DagListTasksResponse
+func (c *ClientWithResponses) V1DagListTasksWithResponse(ctx context.Context, params *V1DagListTasksParams, reqEditors ...RequestEditorFn) (*V1DagListTasksResponse, error) {
+	rsp, err := c.V1DagListTasks(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1DagListTasksResponse(rsp)
+}
+
+// V1TaskGetWithResponse request returning *V1TaskGetResponse
+func (c *ClientWithResponses) V1TaskGetWithResponse(ctx context.Context, task openapi_types.UUID, params *V1TaskGetParams, reqEditors ...RequestEditorFn) (*V1TaskGetResponse, error) {
+	rsp, err := c.V1TaskGet(ctx, task, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1TaskGetResponse(rsp)
+}
+
+// V1LogLineListWithResponse request returning *V1LogLineListResponse
+func (c *ClientWithResponses) V1LogLineListWithResponse(ctx context.Context, task openapi_types.UUID, reqEditors ...RequestEditorFn) (*V1LogLineListResponse, error) {
+	rsp, err := c.V1LogLineList(ctx, task, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1LogLineListResponse(rsp)
+}
+
+// V1TaskEventListWithResponse request returning *V1TaskEventListResponse
+func (c *ClientWithResponses) V1TaskEventListWithResponse(ctx context.Context, task openapi_types.UUID, params *V1TaskEventListParams, reqEditors ...RequestEditorFn) (*V1TaskEventListResponse, error) {
+	rsp, err := c.V1TaskEventList(ctx, task, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1TaskEventListResponse(rsp)
+}
+
+// V1CelDebugWithBodyWithResponse request with arbitrary body returning *V1CelDebugResponse
+func (c *ClientWithResponses) V1CelDebugWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1CelDebugResponse, error) {
+	rsp, err := c.V1CelDebugWithBody(ctx, tenant, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1CelDebugResponse(rsp)
+}
+
+func (c *ClientWithResponses) V1CelDebugWithResponse(ctx context.Context, tenant openapi_types.UUID, body V1CelDebugJSONRequestBody, reqEditors ...RequestEditorFn) (*V1CelDebugResponse, error) {
+	rsp, err := c.V1CelDebug(ctx, tenant, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1CelDebugResponse(rsp)
+}
+
+// V1EventListWithResponse request returning *V1EventListResponse
+func (c *ClientWithResponses) V1EventListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V1EventListParams, reqEditors ...RequestEditorFn) (*V1EventListResponse, error) {
+	rsp, err := c.V1EventList(ctx, tenant, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1EventListResponse(rsp)
+}
+
+// V1EventKeyListWithResponse request returning *V1EventKeyListResponse
+func (c *ClientWithResponses) V1EventKeyListWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*V1EventKeyListResponse, error) {
+	rsp, err := c.V1EventKeyList(ctx, tenant, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1EventKeyListResponse(rsp)
+}
+
+// V1FilterListWithResponse request returning *V1FilterListResponse
+func (c *ClientWithResponses) V1FilterListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V1FilterListParams, reqEditors ...RequestEditorFn) (*V1FilterListResponse, error) {
+	rsp, err := c.V1FilterList(ctx, tenant, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1FilterListResponse(rsp)
+}
+
+// V1FilterCreateWithBodyWithResponse request with arbitrary body returning *V1FilterCreateResponse
+func (c *ClientWithResponses) V1FilterCreateWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1FilterCreateResponse, error) {
+	rsp, err := c.V1FilterCreateWithBody(ctx, tenant, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1FilterCreateResponse(rsp)
+}
+
+func (c *ClientWithResponses) V1FilterCreateWithResponse(ctx context.Context, tenant openapi_types.UUID, body V1FilterCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*V1FilterCreateResponse, error) {
+	rsp, err := c.V1FilterCreate(ctx, tenant, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1FilterCreateResponse(rsp)
+}
+
+// V1FilterDeleteWithResponse request returning *V1FilterDeleteResponse
+func (c *ClientWithResponses) V1FilterDeleteWithResponse(ctx context.Context, tenant openapi_types.UUID, v1Filter openapi_types.UUID, reqEditors ...RequestEditorFn) (*V1FilterDeleteResponse, error) {
+	rsp, err := c.V1FilterDelete(ctx, tenant, v1Filter, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1FilterDeleteResponse(rsp)
+}
+
+// V1FilterGetWithResponse request returning *V1FilterGetResponse
+func (c *ClientWithResponses) V1FilterGetWithResponse(ctx context.Context, tenant openapi_types.UUID, v1Filter openapi_types.UUID, reqEditors ...RequestEditorFn) (*V1FilterGetResponse, error) {
+	rsp, err := c.V1FilterGet(ctx, tenant, v1Filter, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1FilterGetResponse(rsp)
+}
+
+// V1FilterUpdateWithBodyWithResponse request with arbitrary body returning *V1FilterUpdateResponse
+func (c *ClientWithResponses) V1FilterUpdateWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, v1Filter openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1FilterUpdateResponse, error) {
+	rsp, err := c.V1FilterUpdateWithBody(ctx, tenant, v1Filter, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1FilterUpdateResponse(rsp)
+}
+
+func (c *ClientWithResponses) V1FilterUpdateWithResponse(ctx context.Context, tenant openapi_types.UUID, v1Filter openapi_types.UUID, body V1FilterUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*V1FilterUpdateResponse, error) {
+	rsp, err := c.V1FilterUpdate(ctx, tenant, v1Filter, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1FilterUpdateResponse(rsp)
+}
+
+// V1TaskListStatusMetricsWithResponse request returning *V1TaskListStatusMetricsResponse
+func (c *ClientWithResponses) V1TaskListStatusMetricsWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V1TaskListStatusMetricsParams, reqEditors ...RequestEditorFn) (*V1TaskListStatusMetricsResponse, error) {
+	rsp, err := c.V1TaskListStatusMetrics(ctx, tenant, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1TaskListStatusMetricsResponse(rsp)
+}
+
+// V1TaskGetPointMetricsWithResponse request returning *V1TaskGetPointMetricsResponse
+func (c *ClientWithResponses) V1TaskGetPointMetricsWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V1TaskGetPointMetricsParams, reqEditors ...RequestEditorFn) (*V1TaskGetPointMetricsResponse, error) {
+	rsp, err := c.V1TaskGetPointMetrics(ctx, tenant, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1TaskGetPointMetricsResponse(rsp)
+}
+
+// V1TaskCancelWithBodyWithResponse request with arbitrary body returning *V1TaskCancelResponse
+func (c *ClientWithResponses) V1TaskCancelWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1TaskCancelResponse, error) {
+	rsp, err := c.V1TaskCancelWithBody(ctx, tenant, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1TaskCancelResponse(rsp)
+}
+
+func (c *ClientWithResponses) V1TaskCancelWithResponse(ctx context.Context, tenant openapi_types.UUID, body V1TaskCancelJSONRequestBody, reqEditors ...RequestEditorFn) (*V1TaskCancelResponse, error) {
+	rsp, err := c.V1TaskCancel(ctx, tenant, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1TaskCancelResponse(rsp)
+}
+
+// V1TaskReplayWithBodyWithResponse request with arbitrary body returning *V1TaskReplayResponse
+func (c *ClientWithResponses) V1TaskReplayWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1TaskReplayResponse, error) {
+	rsp, err := c.V1TaskReplayWithBody(ctx, tenant, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1TaskReplayResponse(rsp)
+}
+
+func (c *ClientWithResponses) V1TaskReplayWithResponse(ctx context.Context, tenant openapi_types.UUID, body V1TaskReplayJSONRequestBody, reqEditors ...RequestEditorFn) (*V1TaskReplayResponse, error) {
+	rsp, err := c.V1TaskReplay(ctx, tenant, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1TaskReplayResponse(rsp)
+}
+
+// V1WebhookListWithResponse request returning *V1WebhookListResponse
+func (c *ClientWithResponses) V1WebhookListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V1WebhookListParams, reqEditors ...RequestEditorFn) (*V1WebhookListResponse, error) {
+	rsp, err := c.V1WebhookList(ctx, tenant, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1WebhookListResponse(rsp)
+}
+
+// V1WebhookCreateWithBodyWithResponse request with arbitrary body returning *V1WebhookCreateResponse
+func (c *ClientWithResponses) V1WebhookCreateWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1WebhookCreateResponse, error) {
+	rsp, err := c.V1WebhookCreateWithBody(ctx, tenant, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1WebhookCreateResponse(rsp)
+}
+
+func (c *ClientWithResponses) V1WebhookCreateWithResponse(ctx context.Context, tenant openapi_types.UUID, body V1WebhookCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*V1WebhookCreateResponse, error) {
+	rsp, err := c.V1WebhookCreate(ctx, tenant, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1WebhookCreateResponse(rsp)
+}
+
+// V1WebhookDeleteWithResponse request returning *V1WebhookDeleteResponse
+func (c *ClientWithResponses) V1WebhookDeleteWithResponse(ctx context.Context, tenant openapi_types.UUID, v1Webhook string, reqEditors ...RequestEditorFn) (*V1WebhookDeleteResponse, error) {
+	rsp, err := c.V1WebhookDelete(ctx, tenant, v1Webhook, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1WebhookDeleteResponse(rsp)
+}
+
+// V1WebhookGetWithResponse request returning *V1WebhookGetResponse
+func (c *ClientWithResponses) V1WebhookGetWithResponse(ctx context.Context, tenant openapi_types.UUID, v1Webhook string, reqEditors ...RequestEditorFn) (*V1WebhookGetResponse, error) {
+	rsp, err := c.V1WebhookGet(ctx, tenant, v1Webhook, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1WebhookGetResponse(rsp)
+}
+
+// V1WebhookUpdateWithBodyWithResponse request with arbitrary body returning *V1WebhookUpdateResponse
+func (c *ClientWithResponses) V1WebhookUpdateWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, v1Webhook string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1WebhookUpdateResponse, error) {
+	rsp, err := c.V1WebhookUpdateWithBody(ctx, tenant, v1Webhook, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1WebhookUpdateResponse(rsp)
+}
+
+func (c *ClientWithResponses) V1WebhookUpdateWithResponse(ctx context.Context, tenant openapi_types.UUID, v1Webhook string, body V1WebhookUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*V1WebhookUpdateResponse, error) {
+	rsp, err := c.V1WebhookUpdate(ctx, tenant, v1Webhook, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1WebhookUpdateResponse(rsp)
+}
+
+// V1WebhookReceiveWithBodyWithResponse request with arbitrary body returning *V1WebhookReceiveResponse
+func (c *ClientWithResponses) V1WebhookReceiveWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, v1Webhook string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1WebhookReceiveResponse, error) {
+	rsp, err := c.V1WebhookReceiveWithBody(ctx, tenant, v1Webhook, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1WebhookReceiveResponse(rsp)
+}
+
+// V1WorkflowRunListWithResponse request returning *V1WorkflowRunListResponse
+func (c *ClientWithResponses) V1WorkflowRunListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V1WorkflowRunListParams, reqEditors ...RequestEditorFn) (*V1WorkflowRunListResponse, error) {
+	rsp, err := c.V1WorkflowRunList(ctx, tenant, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1WorkflowRunListResponse(rsp)
+}
+
+// V1WorkflowRunDisplayNamesListWithResponse request returning *V1WorkflowRunDisplayNamesListResponse
+func (c *ClientWithResponses) V1WorkflowRunDisplayNamesListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V1WorkflowRunDisplayNamesListParams, reqEditors ...RequestEditorFn) (*V1WorkflowRunDisplayNamesListResponse, error) {
+	rsp, err := c.V1WorkflowRunDisplayNamesList(ctx, tenant, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1WorkflowRunDisplayNamesListResponse(rsp)
+}
+
+// V1WorkflowRunCreateWithBodyWithResponse request with arbitrary body returning *V1WorkflowRunCreateResponse
+func (c *ClientWithResponses) V1WorkflowRunCreateWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1WorkflowRunCreateResponse, error) {
+	rsp, err := c.V1WorkflowRunCreateWithBody(ctx, tenant, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1WorkflowRunCreateResponse(rsp)
+}
+
+func (c *ClientWithResponses) V1WorkflowRunCreateWithResponse(ctx context.Context, tenant openapi_types.UUID, body V1WorkflowRunCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*V1WorkflowRunCreateResponse, error) {
+	rsp, err := c.V1WorkflowRunCreate(ctx, tenant, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1WorkflowRunCreateResponse(rsp)
+}
+
+// V1WorkflowRunGetWithResponse request returning *V1WorkflowRunGetResponse
+func (c *ClientWithResponses) V1WorkflowRunGetWithResponse(ctx context.Context, v1WorkflowRun openapi_types.UUID, reqEditors ...RequestEditorFn) (*V1WorkflowRunGetResponse, error) {
+	rsp, err := c.V1WorkflowRunGet(ctx, v1WorkflowRun, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1WorkflowRunGetResponse(rsp)
+}
+
+// V1WorkflowRunGetStatusWithResponse request returning *V1WorkflowRunGetStatusResponse
+func (c *ClientWithResponses) V1WorkflowRunGetStatusWithResponse(ctx context.Context, v1WorkflowRun openapi_types.UUID, reqEditors ...RequestEditorFn) (*V1WorkflowRunGetStatusResponse, error) {
+	rsp, err := c.V1WorkflowRunGetStatus(ctx, v1WorkflowRun, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1WorkflowRunGetStatusResponse(rsp)
+}
+
+// V1WorkflowRunTaskEventsListWithResponse request returning *V1WorkflowRunTaskEventsListResponse
+func (c *ClientWithResponses) V1WorkflowRunTaskEventsListWithResponse(ctx context.Context, v1WorkflowRun openapi_types.UUID, params *V1WorkflowRunTaskEventsListParams, reqEditors ...RequestEditorFn) (*V1WorkflowRunTaskEventsListResponse, error) {
+	rsp, err := c.V1WorkflowRunTaskEventsList(ctx, v1WorkflowRun, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1WorkflowRunTaskEventsListResponse(rsp)
+}
+
+// V1WorkflowRunGetTimingsWithResponse request returning *V1WorkflowRunGetTimingsResponse
+func (c *ClientWithResponses) V1WorkflowRunGetTimingsWithResponse(ctx context.Context, v1WorkflowRun openapi_types.UUID, params *V1WorkflowRunGetTimingsParams, reqEditors ...RequestEditorFn) (*V1WorkflowRunGetTimingsResponse, error) {
+	rsp, err := c.V1WorkflowRunGetTimings(ctx, v1WorkflowRun, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1WorkflowRunGetTimingsResponse(rsp)
+}
+
 // StepRunListArchivesWithResponse request returning *StepRunListArchivesResponse
 func (c *ClientWithResponses) StepRunListArchivesWithResponse(ctx context.Context, stepRun openapi_types.UUID, params *StepRunListArchivesParams, reqEditors ...RequestEditorFn) (*StepRunListArchivesResponse, error) {
 	rsp, err := c.StepRunListArchives(ctx, stepRun, params, reqEditors...)
@@ -11237,6 +16253,15 @@ func (c *ClientWithResponses) TenantCreateWithResponse(ctx context.Context, body
 		return nil, err
 	}
 	return ParseTenantCreateResponse(rsp)
+}
+
+// TenantGetWithResponse request returning *TenantGetResponse
+func (c *ClientWithResponses) TenantGetWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*TenantGetResponse, error) {
+	rsp, err := c.TenantGet(ctx, tenant, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseTenantGetResponse(rsp)
 }
 
 // TenantUpdateWithBodyWithResponse request with arbitrary body returning *TenantUpdateResponse
@@ -11471,6 +16496,32 @@ func (c *ClientWithResponses) TenantMemberDeleteWithResponse(ctx context.Context
 		return nil, err
 	}
 	return ParseTenantMemberDeleteResponse(rsp)
+}
+
+// TenantMemberUpdateWithBodyWithResponse request with arbitrary body returning *TenantMemberUpdateResponse
+func (c *ClientWithResponses) TenantMemberUpdateWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, member openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*TenantMemberUpdateResponse, error) {
+	rsp, err := c.TenantMemberUpdateWithBody(ctx, tenant, member, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseTenantMemberUpdateResponse(rsp)
+}
+
+func (c *ClientWithResponses) TenantMemberUpdateWithResponse(ctx context.Context, tenant openapi_types.UUID, member openapi_types.UUID, body TenantMemberUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*TenantMemberUpdateResponse, error) {
+	rsp, err := c.TenantMemberUpdate(ctx, tenant, member, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseTenantMemberUpdateResponse(rsp)
+}
+
+// TenantGetPrometheusMetricsWithResponse request returning *TenantGetPrometheusMetricsResponse
+func (c *ClientWithResponses) TenantGetPrometheusMetricsWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*TenantGetPrometheusMetricsResponse, error) {
+	rsp, err := c.TenantGetPrometheusMetrics(ctx, tenant, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseTenantGetPrometheusMetricsResponse(rsp)
 }
 
 // TenantGetQueueMetricsWithResponse request returning *TenantGetQueueMetricsResponse
@@ -12578,6 +17629,1334 @@ func ParseSnsUpdateResponse(rsp *http.Response) (*SnsUpdateResponse, error) {
 	return response, nil
 }
 
+// ParseV1DagListTasksResponse parses an HTTP response from a V1DagListTasksWithResponse call
+func ParseV1DagListTasksResponse(rsp *http.Response) (*V1DagListTasksResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &V1DagListTasksResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest []V1DagChildren
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON501 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseV1TaskGetResponse parses an HTTP response from a V1TaskGetWithResponse call
+func ParseV1TaskGetResponse(rsp *http.Response) (*V1TaskGetResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &V1TaskGetResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest V1TaskSummary
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON501 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseV1LogLineListResponse parses an HTTP response from a V1LogLineListWithResponse call
+func ParseV1LogLineListResponse(rsp *http.Response) (*V1LogLineListResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &V1LogLineListResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest V1LogLineList
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseV1TaskEventListResponse parses an HTTP response from a V1TaskEventListWithResponse call
+func ParseV1TaskEventListResponse(rsp *http.Response) (*V1TaskEventListResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &V1TaskEventListResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest V1TaskEventList
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON501 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseV1CelDebugResponse parses an HTTP response from a V1CelDebugWithResponse call
+func ParseV1CelDebugResponse(rsp *http.Response) (*V1CelDebugResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &V1CelDebugResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest V1CELDebugResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseV1EventListResponse parses an HTTP response from a V1EventListWithResponse call
+func ParseV1EventListResponse(rsp *http.Response) (*V1EventListResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &V1EventListResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest V1EventList
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseV1EventKeyListResponse parses an HTTP response from a V1EventKeyListWithResponse call
+func ParseV1EventKeyListResponse(rsp *http.Response) (*V1EventKeyListResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &V1EventKeyListResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest EventKeyList
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseV1FilterListResponse parses an HTTP response from a V1FilterListWithResponse call
+func ParseV1FilterListResponse(rsp *http.Response) (*V1FilterListResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &V1FilterListResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest V1FilterList
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseV1FilterCreateResponse parses an HTTP response from a V1FilterCreateWithResponse call
+func ParseV1FilterCreateResponse(rsp *http.Response) (*V1FilterCreateResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &V1FilterCreateResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest V1Filter
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseV1FilterDeleteResponse parses an HTTP response from a V1FilterDeleteWithResponse call
+func ParseV1FilterDeleteResponse(rsp *http.Response) (*V1FilterDeleteResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &V1FilterDeleteResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest V1Filter
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseV1FilterGetResponse parses an HTTP response from a V1FilterGetWithResponse call
+func ParseV1FilterGetResponse(rsp *http.Response) (*V1FilterGetResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &V1FilterGetResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest V1Filter
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseV1FilterUpdateResponse parses an HTTP response from a V1FilterUpdateWithResponse call
+func ParseV1FilterUpdateResponse(rsp *http.Response) (*V1FilterUpdateResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &V1FilterUpdateResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest V1Filter
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseV1TaskListStatusMetricsResponse parses an HTTP response from a V1TaskListStatusMetricsWithResponse call
+func ParseV1TaskListStatusMetricsResponse(rsp *http.Response) (*V1TaskListStatusMetricsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &V1TaskListStatusMetricsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest V1TaskRunMetrics
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON501 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseV1TaskGetPointMetricsResponse parses an HTTP response from a V1TaskGetPointMetricsWithResponse call
+func ParseV1TaskGetPointMetricsResponse(rsp *http.Response) (*V1TaskGetPointMetricsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &V1TaskGetPointMetricsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest V1TaskPointMetrics
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON501 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseV1TaskCancelResponse parses an HTTP response from a V1TaskCancelWithResponse call
+func ParseV1TaskCancelResponse(rsp *http.Response) (*V1TaskCancelResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &V1TaskCancelResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest V1CancelledTasks
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON501 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseV1TaskReplayResponse parses an HTTP response from a V1TaskReplayWithResponse call
+func ParseV1TaskReplayResponse(rsp *http.Response) (*V1TaskReplayResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &V1TaskReplayResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest V1ReplayedTasks
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON501 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseV1WebhookListResponse parses an HTTP response from a V1WebhookListWithResponse call
+func ParseV1WebhookListResponse(rsp *http.Response) (*V1WebhookListResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &V1WebhookListResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest V1WebhookList
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseV1WebhookCreateResponse parses an HTTP response from a V1WebhookCreateWithResponse call
+func ParseV1WebhookCreateResponse(rsp *http.Response) (*V1WebhookCreateResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &V1WebhookCreateResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest V1Webhook
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseV1WebhookDeleteResponse parses an HTTP response from a V1WebhookDeleteWithResponse call
+func ParseV1WebhookDeleteResponse(rsp *http.Response) (*V1WebhookDeleteResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &V1WebhookDeleteResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest V1Webhook
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseV1WebhookGetResponse parses an HTTP response from a V1WebhookGetWithResponse call
+func ParseV1WebhookGetResponse(rsp *http.Response) (*V1WebhookGetResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &V1WebhookGetResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest V1Webhook
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseV1WebhookUpdateResponse parses an HTTP response from a V1WebhookUpdateWithResponse call
+func ParseV1WebhookUpdateResponse(rsp *http.Response) (*V1WebhookUpdateResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &V1WebhookUpdateResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest V1Webhook
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseV1WebhookReceiveResponse parses an HTTP response from a V1WebhookReceiveWithResponse call
+func ParseV1WebhookReceiveResponse(rsp *http.Response) (*V1WebhookReceiveResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &V1WebhookReceiveResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest map[string]interface{}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseV1WorkflowRunListResponse parses an HTTP response from a V1WorkflowRunListWithResponse call
+func ParseV1WorkflowRunListResponse(rsp *http.Response) (*V1WorkflowRunListResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &V1WorkflowRunListResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest V1TaskSummaryList
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON501 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseV1WorkflowRunDisplayNamesListResponse parses an HTTP response from a V1WorkflowRunDisplayNamesListWithResponse call
+func ParseV1WorkflowRunDisplayNamesListResponse(rsp *http.Response) (*V1WorkflowRunDisplayNamesListResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &V1WorkflowRunDisplayNamesListResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest V1WorkflowRunDisplayNameList
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON501 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseV1WorkflowRunCreateResponse parses an HTTP response from a V1WorkflowRunCreateWithResponse call
+func ParseV1WorkflowRunCreateResponse(rsp *http.Response) (*V1WorkflowRunCreateResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &V1WorkflowRunCreateResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest V1WorkflowRunDetails
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseV1WorkflowRunGetResponse parses an HTTP response from a V1WorkflowRunGetWithResponse call
+func ParseV1WorkflowRunGetResponse(rsp *http.Response) (*V1WorkflowRunGetResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &V1WorkflowRunGetResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest V1WorkflowRunDetails
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON501 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseV1WorkflowRunGetStatusResponse parses an HTTP response from a V1WorkflowRunGetStatusWithResponse call
+func ParseV1WorkflowRunGetStatusResponse(rsp *http.Response) (*V1WorkflowRunGetStatusResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &V1WorkflowRunGetStatusResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest V1TaskStatus
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON501 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseV1WorkflowRunTaskEventsListResponse parses an HTTP response from a V1WorkflowRunTaskEventsListWithResponse call
+func ParseV1WorkflowRunTaskEventsListResponse(rsp *http.Response) (*V1WorkflowRunTaskEventsListResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &V1WorkflowRunTaskEventsListResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest V1TaskEventList
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON501 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseV1WorkflowRunGetTimingsResponse parses an HTTP response from a V1WorkflowRunGetTimingsWithResponse call
+func ParseV1WorkflowRunGetTimingsResponse(rsp *http.Response) (*V1WorkflowRunGetTimingsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &V1WorkflowRunGetTimingsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest V1TaskTimingList
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON501 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseStepRunListArchivesResponse parses an HTTP response from a StepRunListArchivesWithResponse call
 func ParseStepRunListArchivesResponse(rsp *http.Response) (*StepRunListArchivesResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -12746,6 +19125,53 @@ func ParseTenantCreateResponse(rsp *http.Response) (*TenantCreateResponse, error
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseTenantGetResponse parses an HTTP response from a TenantGetWithResponse call
+func ParseTenantGetResponse(rsp *http.Response) (*TenantGetResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &TenantGetResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Tenant
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
 
 	}
 
@@ -13469,6 +19895,93 @@ func ParseTenantMemberDeleteResponse(rsp *http.Response) (*TenantMemberDeleteRes
 		}
 		response.JSON204 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseTenantMemberUpdateResponse parses an HTTP response from a TenantMemberUpdateWithResponse call
+func ParseTenantMemberUpdateResponse(rsp *http.Response) (*TenantMemberUpdateResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &TenantMemberUpdateResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest TenantMember
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseTenantGetPrometheusMetricsResponse parses an HTTP response from a TenantGetPrometheusMetricsWithResponse call
+func ParseTenantGetPrometheusMetricsResponse(rsp *http.Response) (*TenantGetPrometheusMetricsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &TenantGetPrometheusMetricsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
 		var dest APIErrors
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {

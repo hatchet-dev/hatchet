@@ -1,0 +1,128 @@
+# Benchmarking Hatchet
+
+This page provides example benchmarks for Hatchet throughput and latency on an 8 CPU database (Amazon RDS, `m7g.2xlarge` instance type). These benchmarks were all run against a v1 Hatchet engine running version `v0.55.26`. For more information on the setup, see the [Setup](#setup) section. Note that on better hardware, there will be significantly better performance: we have tested up to 10k/s on an `m7g.8xlarge` instance.
+
+The best way to benchmark Hatchet is to run your own benchmarks in your own environment. The benchmarks below are provided as a reference point for what you might expect to see in a typical setup. To run your own benchmarks, see the [Running your own benchmarks](#running-your-own-benchmarks) section.
+
+## Throughput
+
+Below are summarized throughput benchmarks run at different incoming event rates. For each run, we note the database CPU utilization and estimated IOPS, which are the most relevant metrics for tracking performance on the database.
+
+| Throughput (runs/s) | Database CPU | Database IOPs |
+| ------------------- | ------------ | ------------- |
+| 100                 | 15%          | 400           |
+| 500                 | 60%          | 600           |
+| 2000                | 83%          | 800           |
+
+## Latency
+
+Benchmarks run using event-based triggering: this approximately doubles the queueing time of a workflow. The average latency of events in Hatchet can be approximated by two measurements that Hatchet reports:
+
+- **Average execution time per executed event**: The time from when the event starts execution to when it completes.
+- **Average write time per event**: The acknowledgement time for Hatchet to write the event.
+
+Below is a table summarizing these latencies:
+
+| Throughput (runs/s) | Average Execution Time (ms) | Average Write Time (ms) |
+| ------------------- | --------------------------- | ----------------------- |
+| 100                 | ~40                         | ~2.5                    |
+| 500                 | ~48                         | ~2.6                    |
+| 2000                | ~220                        | ~5.7                    |
+
+For workloads up to around 100-500 events per second, the latency remains relatively low. As throughput scales toward 2000 events per second, the overall average execution time increases (though the Hatchet engine remained stable throughout the tests).
+
+## Running your own benchmarks
+
+Hatchet publishes a public load testing container which can be used for benchmarking. This container is available at `ghcr.io/hatchet-dev/hatchet/hatchet-loadtest`. It acts as a Hatchet worker and event emitter, so it simply expects a `HATCHET_CLIENT_TOKEN` to be set in the environment.
+
+For example, to run 100 events/second for 60 seconds, you can use the following command:
+
+```bash
+docker run -e HATCHET_CLIENT_TOKEN=your-token ghcr.io/hatchet-dev/hatchet/hatchet-loadtest -e "100" -d "60s" --level "warn" --slots "100"
+```
+
+The event emitter which is bundled into the container has difficulty emitting more than 2k events/s. As a result, to test higher throughputs, it is recommended to run multiple containers in parallel. Since each container manages its own workflows and worker, it is recommended to use the `HATCHET_CLIENT_NAMESPACE` environment variable to ensure that workflows are not duplicated across containers. For example:
+
+```bash
+# first container
+docker run -e HATCHET_CLIENT_TOKEN=your-token -e HATCHET_CLIENT_NAMESPACE=loadtest1 ghcr.io/hatchet-dev/hatchet/hatchet-loadtest -e "2000" -d "60s" --level "warn" --slots "100"
+
+# second container
+docker run -e HATCHET_CLIENT_TOKEN=your-token -e HATCHET_CLIENT_NAMESPACE=loadtest2 ghcr.io/hatchet-dev/hatchet/hatchet-loadtest -e "2000" -d "60s" --level "warn" --slots "100"
+```
+
+### Reference
+
+This container takes the following arguments:
+
+```sh
+Usage:
+  loadtest [flags]
+
+Flags:
+  -c, --concurrency int        concurrency specifies the maximum events to run at the same time
+  -D, --delay duration         delay specifies the time to wait in each event to simulate slow tasks
+  -d, --duration duration      duration specifies the total time to run the load test (default 10s)
+  -F, --eventFanout int        eventFanout specifies the number of events to fanout (default 1)
+  -e, --events int             events per second (default 10)
+  -f, --failureRate float32    failureRate specifies the rate of failure for the worker
+  -h, --help                   help for loadtest
+  -l, --level string           logLevel specifies the log level (debug, info, warn, error) (default "info")
+  -P, --payloadSize string     payload specifies the size of the payload to send (default "0kb")
+  -s, --slots int              slots specifies the number of slots to use in the worker
+  -w, --wait duration          wait specifies the total time to wait until events complete (default 10s)
+  -p, --workerDelay duration   workerDelay specifies the time to wait before starting the worker
+```
+
+### Running a benchmark on Kubernetes
+
+You can use the following Pod manifest to run the load test on Kubernetes (make sure to fill in `HATCHET_CLIENT_TOKEN`):
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: loadtest1a
+  namespace: staging
+spec:
+  restartPolicy: Never
+  containers:
+    - image: ghcr.io/hatchet-dev/hatchet/hatchet-loadtest:v0.56.0
+      imagePullPolicy: Always
+      name: loadtest
+      command: ["/hatchet/hatchet-load-test"]
+      args:
+        - loadtest
+        - --duration
+        - "60s"
+        - --events
+        - "100"
+        - --slots
+        - "100"
+        - --wait
+        - "10s"
+        - --level
+        - warn
+      env:
+        - name: HATCHET_CLIENT_TOKEN
+          value: "your-token"
+        - name: HATCHET_CLIENT_NAMESPACE
+          value: "loadtest1a"
+      resources:
+        limits:
+          memory: 1Gi
+        requests:
+          cpu: 500m
+          memory: 1Gi
+```
+
+## Setup
+
+All tests were run on a Kubernetes cluster on AWS configured with:
+
+- **Hatchet engine replicas:** 2 (using `c7i.4xlarge` instances to ensure CPU was not a bottleneck)
+- **Database:** `m7g.2xlarge` instance type (Amazon RDS)
+- **Hatchet version:** `v0.55.26`
+- **AWS region:** `us-west-1`
+
+The database configuration was chosen to avoid disk and CPU contention until higher throughputs were reached. We observed that up to around 2000 events/second, the chosen database instance size kept up without major performance degradation. The Hatchet engine was deployed with 2 replicas, and each engine instance had ample CPU headroom on `c7i.4xlarge` nodes.

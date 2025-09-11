@@ -18,8 +18,8 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	hatcheterrors "github.com/hatchet-dev/hatchet/pkg/errors"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 type queue struct {
@@ -212,7 +212,7 @@ func (q *queue) runTenantUpdateStepRunsV2(ctx context.Context) func() {
 		q.l.Debug().Msgf("partition: updating step run statuses (v2)")
 
 		// list all tenants
-		tenants, err := q.repo.Tenant().ListTenantsByControllerPartition(ctx, q.p.GetControllerPartitionId())
+		tenants, err := q.p.ListTenantsForController(ctx, dbsqlc.TenantMajorEngineVersionV0)
 
 		if err != nil {
 			q.l.Err(err).Msg("could not list tenants")
@@ -308,7 +308,7 @@ func (q *queue) runTenantTimeoutStepRuns(ctx context.Context) func() {
 		q.l.Debug().Msgf("partition: running timeout for step runs")
 
 		// list all tenants
-		tenants, err := q.repo.Tenant().ListTenantsByControllerPartition(ctx, q.p.GetControllerPartitionId())
+		tenants, err := q.p.ListTenantsForController(ctx, dbsqlc.TenantMajorEngineVersionV0)
 
 		if err != nil {
 			q.l.Err(err).Msg("could not list tenants")
@@ -330,7 +330,7 @@ func (q *queue) runTenantRetryStepRuns(ctx context.Context) func() {
 		q.l.Debug().Msgf("partition: running retry for step runs")
 
 		// list all tenants
-		tenants, err := q.repo.Tenant().ListTenantsByControllerPartition(ctx, q.p.GetControllerPartitionId())
+		tenants, err := q.p.ListTenantsForController(ctx, dbsqlc.TenantMajorEngineVersionV0)
 
 		if err != nil {
 			q.l.Err(err).Msg("could not list tenants")

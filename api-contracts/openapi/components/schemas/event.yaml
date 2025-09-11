@@ -54,6 +54,13 @@ CreateEventRequest:
     additionalMetadata:
       type: object
       description: Additional metadata for the event.
+    priority:
+      type: integer
+      description: The priority of the event.
+      format: int32
+    scope:
+      type: string
+      description: The scope for event filtering.
   required:
     - key
     - data

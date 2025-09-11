@@ -28,8 +28,8 @@ import (
 	hatcheterrors "github.com/hatchet-dev/hatchet/pkg/errors"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 type JobsController interface {
@@ -474,7 +474,7 @@ func (ec *JobsControllerImpl) handleStepRunRetry(ctx context.Context, task *msgq
 
 	// if the step has retry backoff enabled, then we should calculate the backoff time and insert into the retry queue
 	if retryAfter != nil {
-		return ec.repo.StepRun().StepRunRetryBackoff(ctx, metadata.TenantId, sqlchelpers.UUIDToStr(stepRun.SRID), *retryAfter, retryCount)
+		return ec.repo.StepRun().StepRunRetryBackoff(ctx, metadata.TenantId, sqlchelpers.UUIDToStr(stepRun.WorkflowRunId), sqlchelpers.UUIDToStr(stepRun.SRID), *retryAfter, retryCount)
 	}
 
 	return ec.queueStepRun(ctx, metadata.TenantId, sqlchelpers.UUIDToStr(stepRun.StepId), sqlchelpers.UUIDToStr(stepRun.SRID), true)
@@ -644,7 +644,7 @@ func (jc *JobsControllerImpl) runStepRunReassign(ctx context.Context, startedAt 
 		jc.l.Debug().Msgf("jobs controller: checking step run reassignment")
 
 		// list all tenants
-		tenants, err := jc.repo.Tenant().ListTenantsByControllerPartition(ctx, jc.p.GetControllerPartitionId())
+		tenants, err := jc.p.ListTenantsForController(ctx, dbsqlc.TenantMajorEngineVersionV0)
 
 		if err != nil {
 			jc.l.Err(err).Msg("could not list tenants")

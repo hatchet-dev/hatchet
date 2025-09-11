@@ -23,11 +23,14 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/services/admin"
 	admincontracts "github.com/hatchet-dev/hatchet/internal/services/admin/contracts"
+	adminv1 "github.com/hatchet-dev/hatchet/internal/services/admin/v1"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher"
 	dispatchercontracts "github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
+	dispatcherv1 "github.com/hatchet-dev/hatchet/internal/services/dispatcher/v1"
 	"github.com/hatchet-dev/hatchet/internal/services/grpc/middleware"
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor"
 	eventcontracts "github.com/hatchet-dev/hatchet/internal/services/ingestor/contracts"
+	v1contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
 	"github.com/hatchet-dev/hatchet/pkg/errors"
@@ -38,6 +41,8 @@ type Server struct {
 	eventcontracts.UnimplementedEventsServiceServer
 	dispatchercontracts.UnimplementedDispatcherServer
 	admincontracts.UnimplementedWorkflowServiceServer
+	v1contracts.UnimplementedAdminServiceServer
+	v1contracts.UnimplementedV1DispatcherServer
 
 	l           *zerolog.Logger
 	a           errors.Alerter
@@ -45,28 +50,32 @@ type Server struct {
 	port        int
 	bindAddress string
 
-	config     *server.ServerConfig
-	ingestor   ingestor.Ingestor
-	dispatcher dispatcher.Dispatcher
-	admin      admin.AdminService
-	tls        *tls.Config
-	insecure   bool
+	config       *server.ServerConfig
+	ingestor     ingestor.Ingestor
+	dispatcher   dispatcher.Dispatcher
+	dispatcherv1 dispatcherv1.DispatcherService
+	admin        admin.AdminService
+	adminv1      adminv1.AdminService
+	tls          *tls.Config
+	insecure     bool
 }
 
 type ServerOpt func(*ServerOpts)
 
 type ServerOpts struct {
-	config      *server.ServerConfig
-	l           *zerolog.Logger
-	a           errors.Alerter
-	analytics   analytics.Analytics
-	port        int
-	bindAddress string
-	ingestor    ingestor.Ingestor
-	dispatcher  dispatcher.Dispatcher
-	admin       admin.AdminService
-	tls         *tls.Config
-	insecure    bool
+	config       *server.ServerConfig
+	l            *zerolog.Logger
+	a            errors.Alerter
+	analytics    analytics.Analytics
+	port         int
+	bindAddress  string
+	ingestor     ingestor.Ingestor
+	dispatcher   dispatcher.Dispatcher
+	dispatcherv1 dispatcherv1.DispatcherService
+	admin        admin.AdminService
+	adminv1      adminv1.AdminService
+	tls          *tls.Config
+	insecure     bool
 }
 
 func defaultServerOpts() *ServerOpts {
@@ -143,9 +152,21 @@ func WithDispatcher(d dispatcher.Dispatcher) ServerOpt {
 	}
 }
 
+func WithDispatcherV1(d dispatcherv1.DispatcherService) ServerOpt {
+	return func(opts *ServerOpts) {
+		opts.dispatcherv1 = d
+	}
+}
+
 func WithAdmin(a admin.AdminService) ServerOpt {
 	return func(opts *ServerOpts) {
 		opts.admin = a
+	}
+}
+
+func WithAdminV1(a adminv1.AdminService) ServerOpt {
+	return func(opts *ServerOpts) {
+		opts.adminv1 = a
 	}
 }
 
@@ -168,17 +189,19 @@ func NewServer(fs ...ServerOpt) (*Server, error) {
 	opts.l = &newLogger
 
 	return &Server{
-		l:           opts.l,
-		a:           opts.a,
-		analytics:   opts.analytics,
-		config:      opts.config,
-		port:        opts.port,
-		bindAddress: opts.bindAddress,
-		ingestor:    opts.ingestor,
-		dispatcher:  opts.dispatcher,
-		admin:       opts.admin,
-		tls:         opts.tls,
-		insecure:    opts.insecure,
+		l:            opts.l,
+		a:            opts.a,
+		analytics:    opts.analytics,
+		config:       opts.config,
+		port:         opts.port,
+		bindAddress:  opts.bindAddress,
+		ingestor:     opts.ingestor,
+		dispatcher:   opts.dispatcher,
+		dispatcherv1: opts.dispatcherv1,
+		admin:        opts.admin,
+		adminv1:      opts.adminv1,
+		tls:          opts.tls,
+		insecure:     opts.insecure,
 	}, nil
 }
 
@@ -248,14 +271,21 @@ func (s *Server) startGRPC() (func() error, error) {
 		recovery.StreamServerInterceptor(recovery.WithRecoveryHandler(grpcPanicRecoveryHandler)),
 	))
 
-	serverOpts = append(serverOpts, grpc.ChainUnaryInterceptor(
+	// Prepare base unary interceptors
+	baseUnaryInterceptors := []grpc.UnaryServerInterceptor{
 		logging.UnaryServerInterceptor(middleware.InterceptorLogger(s.l), opts...),
 		auth.UnaryServerInterceptor(authMiddleware.Middleware),
 		middleware.AttachServerNameInterceptor,
 		ratelimit.UnaryServerInterceptor(limiter),
 		errorInterceptor.ErrorUnaryServerInterceptor(),
 		recovery.UnaryServerInterceptor(recovery.WithRecoveryHandler(grpcPanicRecoveryHandler)),
-	))
+	}
+
+	if len(s.config.GRPCInterceptors) > 0 {
+		baseUnaryInterceptors = append(baseUnaryInterceptors, s.config.GRPCInterceptors...)
+	}
+
+	serverOpts = append(serverOpts, grpc.ChainUnaryInterceptor(baseUnaryInterceptors...))
 
 	var enforcement = keepalive.EnforcementPolicy{
 		MinTime:             5 * time.Second,
@@ -277,6 +307,10 @@ func (s *Server) startGRPC() (func() error, error) {
 		s.config.Runtime.GRPCMaxMsgSize,
 	))
 
+	serverOpts = append(serverOpts, grpc.StaticStreamWindowSize(
+		s.config.Runtime.GRPCStaticStreamWindowSize,
+	))
+
 	grpcServer := grpc.NewServer(serverOpts...)
 
 	if s.ingestor != nil {
@@ -287,8 +321,16 @@ func (s *Server) startGRPC() (func() error, error) {
 		dispatchercontracts.RegisterDispatcherServer(grpcServer, s.dispatcher)
 	}
 
+	if s.dispatcherv1 != nil {
+		v1contracts.RegisterV1DispatcherServer(grpcServer, s.dispatcherv1)
+	}
+
 	if s.admin != nil {
 		admincontracts.RegisterWorkflowServiceServer(grpcServer, s.admin)
+	}
+
+	if s.adminv1 != nil {
+		v1contracts.RegisterAdminServiceServer(grpcServer, s.adminv1)
 	}
 
 	go func() {

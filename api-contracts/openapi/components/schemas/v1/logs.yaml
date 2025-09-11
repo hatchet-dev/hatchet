@@ -1,0 +1,42 @@
+V1LogLine:
+  properties:
+    createdAt:
+      type: string
+      format: date-time
+      description: The creation date of the log line.
+    message:
+      type: string
+      description: The log message.
+    metadata:
+      type: object
+      description: The log metadata.
+    retryCount:
+      type: integer
+      description: The retry count of the log line.
+    attempt:
+      type: integer
+      description: The attempt number of the log line.
+    level:
+      $ref: "#/V1LogLineLevel"
+      description: The log level.
+  required:
+    - createdAt
+    - message
+    - metadata
+
+V1LogLineLevel:
+  type: string
+  enum:
+    - DEBUG
+    - INFO
+    - WARN
+    - ERROR
+
+V1LogLineList:
+  properties:
+    pagination:
+      $ref: "../metadata.yaml#/PaginationResponse"
+    rows:
+      items:
+        $ref: "#/V1LogLine"
+      type: array

@@ -6,7 +6,7 @@ import (
 	"github.com/slack-go/slack"
 
 	"github.com/hatchet-dev/hatchet/internal/integrations/alerting/alerttypes"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 )
 
 func (t *TenantAlertManager) sendSlackWorkflowRunAlert(slackWebhook *dbsqlc.SlackAppWebhook, numFailed int, failedRuns []alerttypes.WorkflowRunFailedItem) error {

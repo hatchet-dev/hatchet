@@ -36,6 +36,7 @@ type Client interface {
 	Subscribe() SubscribeClient
 	API() *rest.ClientWithResponses
 	CloudAPI() *cloudrest.ClientWithResponses
+	Logger() *zerolog.Logger
 	TenantId() string
 	Namespace() string
 	CloudRegisterID() *string
@@ -137,6 +138,7 @@ func defaultClientOpts(token *string, cf *client.ClientConfigFile) *ClientOpts {
 	}
 }
 
+// Deprecated: use WithLogger instead
 func WithLogLevel(lvl string) ClientOpt {
 	return func(opts *ClientOpts) {
 		logger := logger.NewDefaultLogger("client")
@@ -147,6 +149,12 @@ func WithLogLevel(lvl string) ClientOpt {
 		}
 
 		opts.l = &logger
+	}
+}
+
+func WithLogger(l *zerolog.Logger) ClientOpt {
+	return func(opts *ClientOpts) {
+		opts.l = l
 	}
 }
 
@@ -189,16 +197,6 @@ func WithSharedMeta(meta map[string]string) ClientOpt {
 func InitWorkflows() ClientOpt {
 	return func(opts *ClientOpts) {
 		opts.initWorkflows = true
-	}
-}
-
-// WithWorkflows sets the workflow files to use for the worker. If this is not passed in, the workflows files will be loaded
-// from the .hatchet folder in the current directory.
-func WithWorkflows(files []*types.Workflow) ClientOpt {
-	return func(opts *ClientOpts) {
-		opts.filesLoader = func() []*types.Workflow {
-			return files
-		}
 	}
 }
 
@@ -395,6 +393,10 @@ func (c *clientImpl) Event() EventClient {
 
 func (c *clientImpl) Subscribe() SubscribeClient {
 	return c.subscribe
+}
+
+func (c *clientImpl) Logger() *zerolog.Logger {
+	return c.l
 }
 
 func (c *clientImpl) API() *rest.ClientWithResponses {

@@ -1,0 +1,330 @@
+import { Tabs, Callout } from "nextra/components";
+import UniversalTabs from "../../components/UniversalTabs";
+
+# Tuning Hatchet for Performance
+
+Generally, with a reasonable database instance (4 CPU, 8GB RAM) and small payload sizes, Hatchet can handle hundreds of events and workflow runs per second. However, as throughput increases, you will start to see performance degradation. The most common causes of performance degradation are listed below.
+
+## Database Connection Pooling
+
+The default max connection pool size is 50 per engine instance. If you have a high throughput, you may need to increase this value. This value can be set via the `DATABASE_MAX_CONNS` environment variable on the engine. Note that if you increase this value, you will need to increase the [`max_connections`](https://www.postgresql.org/docs/current/runtime-config-connection.html) value on your Postgres instance as well.
+
+## High Database CPU
+
+Due to the nature of Hatchet workloads, the first bottleneck you will typically see on the database is CPU. If you have access to database query performance metrics, it is worth checking the cause of high CPU. If there is high lock contention on a query, please let the Hatchet team know, as we are looking to reduce lock contention in future releases. Otherwise, if you are seeing high CPU usage without any lock contention, you should increase the number of cores on your database instance.
+
+If you are performing a high number of inserts, particularly in a short period of time, and this correlates with high CPU usage, you can improve performance in several ways by using bulk endpoints or tuning the buffer settings.
+
+### Using bulk endpoints
+
+There are two main ways to initiate workflows, by sending events to Hatchet and by starting workflows directly. In most example workflows, we push a single event or workflow at a time, but it is possible to send multiple events or workflows in one request.
+
+#### Events
+
+ <UniversalTabs items={['Python', 'Typescript', 'Go']}>
+  <Tabs.Tab>
+
+```python
+from hatchet_sdk import Hatchet
+
+hatchet = Hatchet()
+
+events: List[BulkPushEventWithMetadata] = [
+    {
+        "key": "user:create",
+        "payload": {"message": "This is event 1"},
+        "additional_metadata": {"source": "test", "user_id": "user123"},
+    },
+    {
+        "key": "user:create",
+        "payload": {"message": "This is event 2"},
+        "additional_metadata": {"source": "test", "user_id": "user456"},
+    },
+    {
+        "key": "user:create",
+        "payload": {"message": "This is event 3"},
+        "additional_metadata": {"source": "test", "user_id": "user789"},
+    },
+]
+
+result = hatchet.client.event.bulk_push(events)
+```
+
+  </Tabs.Tab>
+  <Tabs.Tab>
+
+```typescript
+import Hatchet from "@hatchet-dev/typescript-sdk";
+
+const hatchet = Hatchet.init();
+
+const events = [
+  {
+    payload: { test: "test1" },
+    additionalMetadata: { user_id: "user1", source: "test" },
+  },
+  {
+    payload: { test: "test2" },
+    additionalMetadata: { user_id: "user2", source: "test" },
+  },
+  {
+    payload: { test: "test3" },
+    additionalMetadata: { user_id: "user3", source: "test" },
+  },
+];
+
+hatchet.event.bulkPush("user:create", events);
+```
+
+  </Tabs.Tab>
+  <Tabs.Tab>
+
+```go
+c, err := client.New(
+  client.WithHostPort("127.0.0.1", 7077),
+)
+
+if err != nil {
+  panic(err)
+}
+
+events := []client.EventWithMetadata{
+  {
+    Event: &events.TestEvent{
+      Name: "testing",
+    },
+    AdditionalMetadata: map[string]string{"hello": "world1"},
+    Key: "user:create",
+  },
+  {
+    Event: &events.TestEvent{
+      Name: "testing2",
+    },
+    AdditionalMetadata: map[string]string{"hello": "world2"},
+    Key: "user:create",
+  },
+}
+
+c.Event().BulkPush(
+  context.Background(),
+  events,
+)
+```
+
+  </Tabs.Tab>
+</UniversalTabs>
+
+<Callout type="warning">
+  There is a maximum limit of 1000 events per request.
+</Callout>
+
+#### Workflows
+
+<UniversalTabs items={['Python', 'Typescript', 'Go']}>
+  <Tabs.Tab>
+
+```python
+@hatchet.workflow("fanout:create")
+class Parent:
+    @hatchet.step()
+    def spawn(self, context: Context):
+        workflow_requests = [
+            {
+                "workflow": "Child",
+                "input": {"a": str(i)},
+                "key": f"child{i}",
+                "options": {}
+            }
+            for i in range(10)
+        ]
+
+        # Spawn the workflows in bulk using spawn_workflows
+        context.spawn_workflows(workflow_requests)
+        return {}
+
+```
+
+  </Tabs.Tab>
+  <Tabs.Tab>
+
+```typescript
+const parentWorkflow: Workflow = {
+  id: "parent-workflow",
+  description: "Example workflow for spawning child workflows",
+  on: {
+    event: "fanout:create",
+  },
+  steps: [
+    {
+      name: "parent-spawn",
+      timeout: "10s",
+      run: async (ctx) => {
+        const workflowRequests = Array.from({ length: 10 }, (_, i) => ({
+          workflow: "child-workflow",
+          input: { input: `child-input-${i}` },
+          options: { additionalMetadata: { childKey: `child-${i}` } },
+        }));
+
+        const spawnedWorkflows = await ctx.spawnWorkflows<string, string>(
+          workflowRequests,
+        );
+
+        return spawnedWorkflows;
+      },
+    },
+  ],
+};
+```
+
+  </Tabs.Tab>
+  <Tabs.Tab>
+
+```go
+w.RegisterWorkflow(
+    &worker.WorkflowJob{
+        Name: "parent-workflow",
+        On: worker.Event("fanout:create"),
+        Description: "Example workflow for spawning child workflows.",
+        Steps: []*worker.WorkflowStep{
+            worker.Fn(func(ctx worker.HatchetContext) error {
+                // Prepare the batch of workflows to spawn
+                childWorkflows := make([]*worker.SpawnWorkflowsOpts, 10)
+
+                for i := 0; i < 10; i++ {
+                    childInput := "child-input-" + strconv.Itoa(i)
+                    childWorkflows[i] = &worker.SpawnWorkflowsOpts{
+                        WorkflowName: "child-workflow",
+                        Input:        childInput,
+                        Key:          "child-key-" + strconv.Itoa(i),
+                    }
+                }
+
+                // Spawn all workflows in bulk using SpawnWorkflows
+                createdWorkflows, err := ctx.SpawnWorkflows(childWorkflows)
+                if err != nil {
+                    return err
+                }
+
+                return nil
+            }),
+        },
+    },
+)
+
+```
+
+  </Tabs.Tab>
+</UniversalTabs>
+
+<Callout type="warning">
+  There is a maximum limit of 1000 workflows per bulk request.
+</Callout>
+
+### Tuning Buffer Settings
+
+Hatchet has configurable write buffers which enable it to reduce the total number of database queries by batching DB writes. This speeds up throughput dramatically at the expense of a slight increase in latency. In general, increasing the buffer size and reducing the buffer flush frequency reduces the CPU load on the DB.
+
+The two most important configurable settings for the buffers are
+
+1. **Flush Period:** The amount of milliseconds to wait between subsequent writes to the database
+
+2. **Max Buffer Size:** The maximum size of the internal buffer writing to the database.
+
+The following environment variables are all configurable:
+
+```sh
+# Default values if the values below are not set
+SERVER_FLUSH_PERIOD_MILLISECONDS
+SERVER_FLUSH_ITEMS_THRESHOLD
+
+# Settings for writing workflow runs to the database
+SERVER_WORKFLOWRUNBUFFER_FLUSH_PERIOD_MILLISECONDS
+SERVER_WORKFLOWRUNBUFFER_FLUSH_ITEMS_THRESHOLD
+
+# Settings for writing events to the database
+SERVER_EVENTBUFFER_FLUSH_PERIOD_MILLISECONDS
+SERVER_EVENTBUFFER_FLUSH_ITEMS_THRESHOLD
+
+# Settings for releasing slots for workers
+SERVER_RELEASESEMAPHOREBUFFER_FLUSH_PERIOD_MILLISECONDS
+SERVER_RELEASESEMAPHOREBUFFER_FLUSH_ITEMS_THRESHOLD
+
+# Settings for writing queue items to the database
+SERVER_QUEUESTEPRUNBUFFER_FLUSH_PERIOD_MILLISECONDS
+SERVER_QUEUESTEPRUNBUFFER_FLUSH_ITEMS_THRESHOLD
+```
+
+A buffer configuration for higher throughput might look like the following:
+
+```sh
+
+# Default values if the values below are not set
+SERVER_FLUSH_PERIOD_MILLISECONDS=250
+SERVER_FLUSH_ITEMS_THRESHOLD=1000
+
+# Settings for writing workflow runs to the database
+SERVER_WORKFLOWRUNBUFFER_FLUSH_PERIOD_MILLISECONDS=100
+SERVER_WORKFLOWRUNBUFFER_FLUSH_ITEMS_THRESHOLD=500
+
+# Settings for writing events to the database
+SERVER_EVENTBUFFER_FLUSH_PERIOD_MILLISECONDS=1000
+SERVER_EVENTBUFFER_FLUSH_ITEMS_THRESHOLD=1000
+
+# Settings for releasing slots for workers
+SERVER_RELEASESEMAPHOREBUFFER_FLUSH_PERIOD_MILLISECONDS=100
+SERVER_RELEASESEMAPHOREBUFFER_FLUSH_ITEMS_THRESHOLD=200
+
+# Settings for writing queue items to the database
+SERVER_QUEUESTEPRUNBUFFER_FLUSH_PERIOD_MILLISECONDS=100
+SERVER_QUEUESTEPRUNBUFFER_FLUSH_ITEMS_THRESHOLD=500
+
+```
+
+Benchmarking and tuning on your own infrastructure is recommended to find the optimal values for your workload and use case.
+
+## Slow Time to Start
+
+With higher throughput, you may see a slower time to start for each step run in a workflow. The reason for this is typically that each step run needs to be processed in an internal message queue before getting sent to the worker. You can increase the throughput of this internal queue by setting the following environment variable (default value of `100`):
+
+```
+SERVER_MSGQUEUE_RABBITMQ_QOS=200
+```
+
+Note that this refers to the number of messages that can be processed in parallel, and each message typically corresponds to at least one database write, so it will not improve performance if this value is significantly higher than the `DATABASE_MAX_CONNS` value. If you are seeing warnings in the engine logs that you are saturating connections, consider decreasing this value.
+
+## Database Settings and Autovacuum
+
+There are several scenarios where Postgres flags may need to be modified to improve performance. By default, every workflow run and step run are stored for 30 days in the Postgres instance. Without tuning autovacuum settings, you may see high table bloat across many tables. If you are storing > 500 GB of workflow run or step run data, we recommend the following autovacuum settings to autovacuum more aggressively:
+
+```
+autovacuum_max_workers=10
+autovacuum_vacuum_scale_factor=0.1
+autovacuum_analyze_scale_factor=0.05
+autovacuum_vacuum_threshold=25
+autovacuum_analyze_threshold=25
+autovacuum_vacuum_cost_delay=10
+autovacuum_vacuum_cost_limit=1000
+```
+
+If your database has enough memory capacity, you may need to increase the `work_mem` or `maintenance_work_mem` value. For example, on database instances with a large amount of memory available, we typically set the following settings:
+
+```
+maintenance_work_mem=2147483647
+work_mem=125828
+```
+
+Additionally, if there is enough disk capacity, you may see improved performance setting the following flag:
+
+```
+max_wal_size=15040
+```
+
+## Scaling the Hatchet Engine
+
+By default, the Hatchet engine runs all internal services on a single instance. The internal services on the Hatchet engine are as follows:
+
+- **grpc-api**: the gRPC endpoint for the Hatchet engine. This is the primary endpoint for Hatchet workers. Not to be confused with the Hatchet REST API, which is a separate service that we typically refer to as `api`.
+- **controllers**: the internal service that manages the lifecycle of workflow runs, step runs, and events. This service is write-heavy on the database and read-heavy from the message queue.
+- **scheduler**: the internal service that schedules step runs to workers. This service is both read-heavy and write-heavy on the database.
+
+It is possible to horizontally scale the Hatchet engine by running multiple instances of the engine. However, if you are seeing a large number of warnings from the scheduler when running the other services in the same engine instance, we recommend running the scheduler on a separate instance. See the [high availability](./high-availability) documentation for more information on how to run the scheduler on a separate instance.

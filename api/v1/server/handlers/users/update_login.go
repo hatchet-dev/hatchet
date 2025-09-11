@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/labstack/echo/v4"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/authn"
@@ -11,7 +12,7 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 func (u *UserService) UserUpdateLogin(ctx echo.Context, request gen.UserUpdateLoginRequestObject) (gen.UserUpdateLoginResponseObject, error) {
@@ -36,16 +37,16 @@ func (u *UserService) UserUpdateLogin(ctx echo.Context, request gen.UserUpdateLo
 	}
 
 	// determine if the user exists before attempting to write the user
-	existingUser, err := u.config.APIRepository.User().GetUserByEmail(string(request.Body.Email))
+	existingUser, err := u.config.APIRepository.User().GetUserByEmail(ctx.Request().Context(), string(request.Body.Email))
 	if err != nil {
-		if errors.Is(err, db.ErrNotFound) {
+		if errors.Is(err, pgx.ErrNoRows) {
 			return gen.UserUpdateLogin400JSONResponse(apierrors.NewAPIErrors("user not found")), nil
 		}
 
 		return nil, err
 	}
 
-	userPass, err := u.config.APIRepository.User().GetUserPassword(existingUser.ID)
+	userPass, err := u.config.APIRepository.User().GetUserPassword(ctx.Request().Context(), sqlchelpers.UUIDToStr(existingUser.ID))
 
 	if err != nil {
 		return nil, fmt.Errorf("could not get user password: %w", err)

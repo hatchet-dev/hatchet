@@ -3,6 +3,7 @@ import { createQueryKeyStore } from '@lukemorales/query-key-factory';
 import api, { cloudApi } from './api';
 import invariant from 'tiny-invariant';
 import { WebhookWorkerCreateRequest } from '.';
+import { TemplateOptions } from './generated/cloud/data-contracts';
 
 type ListEventQuery = Parameters<typeof api.eventList>[1];
 type ListRateLimitsQuery = Parameters<typeof api.rateLimitList>[1];
@@ -17,6 +18,13 @@ type WorkflowRunEventsMetrics = Parameters<
 >[1];
 type WorkflowScheduledQuery = Parameters<typeof api.workflowScheduledList>[1];
 type CronWorkflowsQuery = Parameters<typeof api.cronWorkflowList>[1];
+type V2ListWorkflowRunsQuery = Parameters<typeof api.v1WorkflowRunList>[1];
+type V1EventListQuery = Parameters<typeof api.v1EventList>[1];
+type V2TaskGetPointMetricsQuery = Parameters<
+  typeof api.v1TaskGetPointMetrics
+>[1];
+type GetTaskMetricsQuery = Parameters<typeof api.v1TaskListStatusMetrics>[1];
+type ListWebhooksQuery = Parameters<typeof api.v1WebhookList>[1];
 
 export const queries = createQueryKeyStore({
   cloud: {
@@ -24,6 +32,21 @@ export const queries = createQueryKeyStore({
       queryKey: ['billing-state:get', tenant],
       queryFn: async () => (await cloudApi.tenantBillingStateGet(tenant)).data,
     }),
+
+    getComputeCost: (tenant: string) => ({
+      queryKey: ['compute-cost:get', tenant],
+      queryFn: async () => (await cloudApi.computeCostGet(tenant)).data,
+    }),
+    createComputeDemoTemplate: (tenant: string, template: TemplateOptions) => ({
+      queryKey: ['compute-demo-template:create', tenant, template],
+      queryFn: async () =>
+        (
+          await cloudApi.managedWorkerTemplateCreate(tenant, {
+            name: template,
+          })
+        ).data,
+    }),
+
     getManagedWorker: (worker: string) => ({
       queryKey: ['managed-worker:get', worker],
       queryFn: async () => (await cloudApi.managedWorkerGet(worker)).data,
@@ -234,6 +257,108 @@ export const queries = createQueryKeyStore({
         (await api.workflowRunListStepRunEvents(tenantId, workflowRun)).data,
     }),
   },
+  v1Webhooks: {
+    list: (tenant: string, params?: ListWebhooksQuery | undefined) => ({
+      queryKey: ['v1:webhook:list', tenant],
+      queryFn: async () => (await api.v1WebhookList(tenant, params)).data,
+    }),
+  },
+  v1Events: {
+    list: (tenant: string, query: V1EventListQuery) => ({
+      queryKey: ['v1:events:list', tenant, query],
+      queryFn: async () => (await api.v1EventList(tenant, query)).data,
+    }),
+  },
+  v1WorkflowRuns: {
+    list: (tenant: string, query: V2ListWorkflowRunsQuery) => ({
+      queryKey: ['v1:workflow-run:list', tenant, query],
+      queryFn: async () => (await api.v1WorkflowRunList(tenant, query)).data,
+    }),
+    listTaskEvents: (workflowRunId: string) => ({
+      queryKey: ['v1:workflow-run:list-tasks', workflowRunId],
+      queryFn: async () =>
+        (await api.v1WorkflowRunTaskEventsList(workflowRunId)).data,
+    }),
+    listTaskTimings: (workflowRunId: string, depth: number) => ({
+      queryKey: ['v1:workflow-run:list-tasks-timings', workflowRunId, depth],
+      queryFn: async () =>
+        (
+          await api.v1WorkflowRunGetTimings(workflowRunId, {
+            depth,
+          })
+        ).data,
+    }),
+    details: (workflowRunId: string) => ({
+      queryKey: ['workflow-run-details:get', workflowRunId],
+      queryFn: async () => (await api.v1WorkflowRunGet(workflowRunId)).data,
+    }),
+    listDisplayNames: (tenant: string, externalIds: string[]) => ({
+      queryKey: ['workflow-run:display-names:list', tenant, externalIds],
+      queryFn: async () =>
+        (
+          await api.v1WorkflowRunDisplayNamesList(tenant, {
+            external_ids: externalIds,
+          })
+        ).data,
+    }),
+  },
+  v1Tasks: {
+    get: (task: string) => ({
+      queryKey: ['v1-task:get', task],
+      queryFn: async () => (await api.v1TaskGet(task)).data,
+    }),
+    getByDagId: (tenant: string, dagIds: string[]) => ({
+      queryKey: ['v1-task:get-by-dag-id', dagIds],
+      queryFn: async () =>
+        (
+          await api.v1DagListTasks({
+            dag_ids: dagIds,
+            tenant,
+          })
+        ).data,
+    }),
+    getLogs: (task: string) => ({
+      queryKey: ['v1-log-line:list', task],
+      queryFn: async () => (await api.v1LogLineList(task)).data,
+    }),
+  },
+  v1TaskEvents: {
+    list: (
+      tenant: string,
+      query: ListWorkflowRunsQuery,
+      taskRunId?: string | undefined,
+      workflowRunId?: string | undefined,
+    ) => ({
+      queryKey: [
+        'v1:workflow-run:list',
+        tenant,
+        taskRunId,
+        workflowRunId,
+        query,
+      ],
+      queryFn: async () => {
+        if (taskRunId) {
+          return (await api.v1TaskEventList(taskRunId, query)).data;
+        } else if (workflowRunId) {
+          return (await api.v1WorkflowRunTaskEventsList(workflowRunId)).data;
+        } else {
+          throw new Error('Either task or workflowRunId must be set');
+        }
+      },
+    }),
+  },
+  v1TaskRuns: {
+    metrics: (tenant: string, query: GetTaskMetricsQuery) => ({
+      queryKey: ['v1:task-run:metrics', tenant, query],
+      queryFn: async () =>
+        (await api.v1TaskListStatusMetrics(tenant, query)).data,
+    }),
+    pointMetrics: (tenant: string, query: V2TaskGetPointMetricsQuery) => ({
+      queryKey: ['v1-task:metrics', tenant, query],
+      queryFn: async () =>
+        (await api.v1TaskGetPointMetrics(tenant, query)).data,
+    }),
+  },
   metrics: {
     get: (tenant: string) => ({
       queryKey: ['queue-metrics:get', tenant],
@@ -302,25 +427,41 @@ export const queries = createQueryKeyStore({
     }),
   },
   github: {
-    listInstallations: {
+    listInstallations: (tenant: string) => ({
       queryKey: ['github-app:list:installations'],
-      queryFn: async () => (await cloudApi.githubAppListInstallations()).data,
-    },
-    listRepos: (installation?: string) => ({
-      queryKey: ['github-app:list:repos', installation],
+      queryFn: async () =>
+        (
+          await cloudApi.githubAppListInstallations({
+            tenant,
+          })
+        ).data,
+    }),
+    listRepos: (tenant: string, installation?: string) => ({
+      queryKey: ['github-app:list:repos', tenant, installation],
       queryFn: async () => {
         invariant(installation, 'Installation must be set');
-        const res = (await cloudApi.githubAppListRepos(installation)).data;
+        const res = (
+          await cloudApi.githubAppListRepos(installation, {
+            tenant,
+          })
+        ).data;
         return res;
       },
       enabled: !!installation,
     }),
     listBranches: (
+      tenant: string,
       installation?: string,
       repoOwner?: string,
       repoName?: string,
     ) => ({
-      queryKey: ['github-app:list:branches', installation, repoOwner, repoName],
+      queryKey: [
+        'github-app:list:branches',
+        tenant,
+        installation,
+        repoOwner,
+        repoName,
+      ],
       queryFn: async () => {
         invariant(installation, 'Installation must be set');
         invariant(repoOwner, 'Repo owner must be set');
@@ -330,6 +471,9 @@ export const queries = createQueryKeyStore({
             installation,
             repoOwner,
             repoName,
+            {
+              tenant,
+            },
           )
         ).data;
         return res;

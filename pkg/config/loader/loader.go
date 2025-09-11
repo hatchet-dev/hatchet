@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
@@ -13,13 +14,13 @@ import (
 
 	"github.com/exaring/otelpgx"
 	pgxzero "github.com/jackc/pgx-zerolog"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgx/v5/tracelog"
+	"github.com/rs/zerolog"
 	"golang.org/x/oauth2"
 
 	"github.com/hatchet-dev/hatchet/internal/integrations/alerting"
-	"github.com/hatchet-dev/hatchet/internal/integrations/email"
-	"github.com/hatchet-dev/hatchet/internal/integrations/email/postmark"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue/postgres"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue/rabbitmq"
@@ -29,21 +30,31 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/auth/cookie"
 	"github.com/hatchet-dev/hatchet/pkg/auth/oauth"
 	"github.com/hatchet-dev/hatchet/pkg/auth/token"
+	"github.com/hatchet-dev/hatchet/pkg/config/client"
 	"github.com/hatchet-dev/hatchet/pkg/config/database"
 	"github.com/hatchet-dev/hatchet/pkg/config/loader/loaderutils"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
+	"github.com/hatchet-dev/hatchet/pkg/config/shared"
 	"github.com/hatchet-dev/hatchet/pkg/encryption"
 	"github.com/hatchet-dev/hatchet/pkg/errors"
 	"github.com/hatchet-dev/hatchet/pkg/errors/sentry"
+	"github.com/hatchet-dev/hatchet/pkg/integrations/email"
+	"github.com/hatchet-dev/hatchet/pkg/integrations/email/postmark"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
 	"github.com/hatchet-dev/hatchet/pkg/repository/metered"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
-	v2 "github.com/hatchet-dev/hatchet/pkg/scheduling/v2"
+	postgresdb "github.com/hatchet-dev/hatchet/pkg/repository/postgres"
+	v0 "github.com/hatchet-dev/hatchet/pkg/scheduling/v0"
+	v1 "github.com/hatchet-dev/hatchet/pkg/scheduling/v1"
 	"github.com/hatchet-dev/hatchet/pkg/security"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
+
+	msgqueuev1 "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
+	pgmqv1 "github.com/hatchet-dev/hatchet/internal/msgqueue/v1/postgres"
+	rabbitmqv1 "github.com/hatchet-dev/hatchet/internal/msgqueue/v1/rabbitmq"
+	clientv1 "github.com/hatchet-dev/hatchet/pkg/client/v1"
+	repov1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 )
 
 // LoadDatabaseConfigFile loads the database config file via viper
@@ -94,7 +105,14 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		return nil, err
 	}
 
-	scf, err := LoadServerConfigFile(configFileBytes...)
+	serverSharedFilePath := filepath.Join(c.directory, "server.yaml")
+	serverConfigFileBytes, err := loaderutils.GetConfigBytes(serverSharedFilePath)
+
+	if err != nil {
+		return nil, err
+	}
+
+	scf, err := LoadServerConfigFile(serverConfigFileBytes...)
 
 	if err != nil {
 		return nil, err
@@ -115,19 +133,31 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 			cf.PostgresSSLMode,
 		)
 
-		// FIXME: needed for Prisma client, as db.WithDatasourceURL(databaseUrl) is not working
 		_ = os.Setenv("DATABASE_URL", databaseUrl)
-	}
-
-	client := db.NewClient()
-
-	if err := client.Prisma.Connect(); err != nil {
-		return nil, err
 	}
 
 	config, err := pgxpool.ParseConfig(databaseUrl)
 	if err != nil {
 		return nil, err
+	}
+
+	// ref: https://github.com/jackc/pgx/issues/1549
+	config.AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
+		t, err := conn.LoadType(ctx, "v1_readable_status_olap")
+		if err != nil {
+			return err
+		}
+
+		conn.TypeMap().RegisterType(t)
+
+		t, err = conn.LoadType(ctx, "_v1_readable_status_olap")
+		if err != nil {
+			return err
+		}
+
+		conn.TypeMap().RegisterType(t)
+
+		return nil
 	}
 
 	if cf.LogQueries {
@@ -158,57 +188,91 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		config.BeforeAcquire = debugger.beforeAcquire
 	}
 
-	// a smaller pool for essential services like the heartbeat
-	essentialConfig := config.Copy()
-	essentialConfig.MinConns = 1
-
-	essentialConfig.MaxConns /= 100
-	if essentialConfig.MaxConns < 1 {
-		essentialConfig.MaxConns = 1
-	}
-
-	config.MaxConns -= essentialConfig.MaxConns
-
-	essentialPool, err := pgxpool.NewWithConfig(context.Background(), essentialConfig)
-
-	if err != nil {
-		return nil, fmt.Errorf("could not connect to database: %w", err)
-	}
-
 	pool, err := pgxpool.NewWithConfig(context.Background(), config)
 
 	if err != nil {
 		return nil, fmt.Errorf("could not connect to database: %w", err)
 	}
 
+	// a pool for read replicas, if enabled
+	var readReplicaPool *pgxpool.Pool
+
+	if cf.ReadReplicaEnabled {
+		if cf.ReadReplicaDatabaseURL == "" {
+			return nil, fmt.Errorf("read replica database url is required if read replica is enabled")
+		}
+
+		readReplicaConfig, err := pgxpool.ParseConfig(cf.ReadReplicaDatabaseURL)
+
+		if err != nil {
+			return nil, fmt.Errorf("could not parse read replica database url: %w", err)
+		}
+
+		if cf.ReadReplicaMaxConns != 0 {
+			readReplicaConfig.MaxConns = int32(cf.ReadReplicaMaxConns) // nolint: gosec
+		}
+
+		if cf.ReadReplicaMinConns != 0 {
+			readReplicaConfig.MinConns = int32(cf.ReadReplicaMinConns) // nolint: gosec
+		}
+
+		readReplicaConfig.MaxConnLifetime = 15 * 60 * time.Second
+		readReplicaConfig.ConnConfig.Tracer = otelpgx.NewTracer()
+
+		readReplicaPool, err = pgxpool.NewWithConfig(context.Background(), readReplicaConfig)
+
+		if err != nil {
+			return nil, fmt.Errorf("could not connect to read replica database: %w", err)
+		}
+	}
+
 	ch := cache.New(cf.CacheDuration)
 
-	entitlementRepo := prisma.NewEntitlementRepository(pool, &scf.Runtime, prisma.WithLogger(&l), prisma.WithCache(ch))
+	entitlementRepo := postgresdb.NewEntitlementRepository(pool, &scf.Runtime, postgresdb.WithLogger(&l), postgresdb.WithCache(ch))
 
 	meter := metered.NewMetered(entitlementRepo, &l)
 
-	var opts []prisma.PrismaRepositoryOpt
+	var opts []postgresdb.PostgresRepositoryOpt
 
-	opts = append(opts, prisma.WithLogger(&l), prisma.WithCache(ch), prisma.WithMetered(meter))
+	opts = append(opts, postgresdb.WithLogger(&l), postgresdb.WithCache(ch), postgresdb.WithMetered(meter))
 
 	if c.RepositoryOverrides.LogsEngineRepository != nil {
-		opts = append(opts, prisma.WithLogsEngineRepository(c.RepositoryOverrides.LogsEngineRepository))
+		opts = append(opts, postgresdb.WithLogsEngineRepository(c.RepositoryOverrides.LogsEngineRepository))
 	}
 
-	cleanupEngine, engineRepo, err := prisma.NewEngineRepository(pool, essentialPool, &scf.Runtime, opts...)
+	cleanupEngine, engineRepo, err := postgresdb.NewEngineRepository(pool, &scf.Runtime, opts...)
 
 	if err != nil {
 		return nil, fmt.Errorf("could not create engine repository: %w", err)
 	}
 
 	if c.RepositoryOverrides.LogsAPIRepository != nil {
-		opts = append(opts, prisma.WithLogsAPIRepository(c.RepositoryOverrides.LogsAPIRepository))
+		opts = append(opts, postgresdb.WithLogsAPIRepository(c.RepositoryOverrides.LogsAPIRepository))
 	}
 
-	apiRepo, cleanupApiRepo, err := prisma.NewAPIRepository(client, pool, &scf.Runtime, opts...)
+	retentionPeriod, err := time.ParseDuration(scf.Runtime.Limits.DefaultTenantRetentionPeriod)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not parse retention period %s: %w", scf.Runtime.Limits.DefaultTenantRetentionPeriod, err)
+	}
+
+	taskLimits := repov1.TaskOperationLimits{
+		TimeoutLimit:      scf.Runtime.TaskOperationLimits.TimeoutLimit,
+		ReassignLimit:     scf.Runtime.TaskOperationLimits.ReassignLimit,
+		RetryQueueLimit:   scf.Runtime.TaskOperationLimits.RetryQueueLimit,
+		DurableSleepLimit: scf.Runtime.TaskOperationLimits.DurableSleepLimit,
+	}
+
+	v1, cleanupV1 := repov1.NewRepository(pool, &l, retentionPeriod, retentionPeriod, scf.Runtime.MaxInternalRetryCount, entitlementRepo, taskLimits)
+
+	apiRepo, cleanupApiRepo, err := postgresdb.NewAPIRepository(pool, &scf.Runtime, opts...)
 
 	if err != nil {
 		return nil, fmt.Errorf("could not create api repository: %w", err)
+	}
+
+	if readReplicaPool != nil {
+		v1.OLAP().SetReadReplicaPool(readReplicaPool)
 	}
 
 	return &database.Layer{
@@ -219,17 +283,19 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 
 			ch.Stop()
 			meter.Stop()
-			if err = cleanupApiRepo(); err != nil {
+
+			if err := cleanupV1(); err != nil {
 				return err
 			}
-			return client.Prisma.Disconnect()
+
+			return cleanupApiRepo()
 		},
 		Pool:                  pool,
-		EssentialPool:         essentialPool,
 		QueuePool:             pool,
 		APIRepository:         apiRepo,
 		EngineRepository:      engineRepo,
 		EntitlementRepository: entitlementRepo,
+		V1:                    v1,
 		Seed:                  cf.Seed,
 	}, nil
 
@@ -239,12 +305,10 @@ type ServerConfigFileOverride func(*server.ServerConfigFile)
 
 // CreateServerFromConfig loads the server configuration and returns a server
 func (c *ConfigLoader) CreateServerFromConfig(version string, overrides ...ServerConfigFileOverride) (cleanup func() error, res *server.ServerConfig, err error) {
-
-	log.Printf("Loading server config from %s", c.directory)
 	sharedFilePath := filepath.Join(c.directory, "server.yaml")
-	log.Printf("Shared file path: %s", sharedFilePath)
 
 	configFileBytes, err := loaderutils.GetConfigBytes(sharedFilePath)
+
 	if err != nil {
 		return nil, nil, err
 	}
@@ -289,6 +353,7 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 	}
 
 	var mq msgqueue.MessageQueue
+	var mqv1 msgqueuev1.MessageQueue
 	cleanup1 := func() error {
 		return nil
 	}
@@ -298,20 +363,53 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 	if cf.MessageQueue.Enabled {
 		switch strings.ToLower(cf.MessageQueue.Kind) {
 		case "postgres":
-			l.Warn().Msg("Using a Postgres-backed message queue. This feature is still in beta.")
+			var cleanupv0 func() error
+			var cleanupv1 func() error
 
-			mq = postgres.NewPostgresMQ(
+			cleanupv0, mq = postgres.NewPostgresMQ(
 				dc.EngineRepository.MessageQueue(),
 				postgres.WithLogger(&l),
 				postgres.WithQos(cf.MessageQueue.Postgres.Qos),
 			)
+
+			cleanupv1, mqv1 = pgmqv1.NewPostgresMQ(
+				dc.EngineRepository.MessageQueue(),
+				pgmqv1.WithLogger(&l),
+				pgmqv1.WithQos(cf.MessageQueue.Postgres.Qos),
+			)
+
+			cleanup1 = func() error {
+				if err := cleanupv0(); err != nil {
+					return err
+				}
+
+				return cleanupv1()
+			}
 		case "rabbitmq":
-			cleanup1, mq = rabbitmq.New(
+			var cleanupv0 func() error
+			var cleanupv1 func() error
+
+			cleanupv0, mq = rabbitmq.New(
 				rabbitmq.WithURL(cf.MessageQueue.RabbitMQ.URL),
 				rabbitmq.WithLogger(&l),
 				rabbitmq.WithQos(cf.MessageQueue.RabbitMQ.Qos),
 				rabbitmq.WithDisableTenantExchangePubs(cf.Runtime.DisableTenantPubs),
 			)
+
+			cleanupv1, mqv1 = rabbitmqv1.New(
+				rabbitmqv1.WithURL(cf.MessageQueue.RabbitMQ.URL),
+				rabbitmqv1.WithLogger(&l),
+				rabbitmqv1.WithQos(cf.MessageQueue.RabbitMQ.Qos),
+				rabbitmqv1.WithDisableTenantExchangePubs(cf.Runtime.DisableTenantPubs),
+			)
+
+			cleanup1 = func() error {
+				if err := cleanupv0(); err != nil {
+					return err
+				}
+
+				return cleanupv1()
+			}
 		}
 
 		ing, err = ingestor.NewIngestor(
@@ -319,8 +417,10 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 			ingestor.WithStreamEventsRepository(dc.EngineRepository.StreamEvent()),
 			ingestor.WithLogRepository(dc.EngineRepository.Log()),
 			ingestor.WithMessageQueue(mq),
+			ingestor.WithMessageQueueV1(mqv1),
 			ingestor.WithEntitlementsRepository(dc.EntitlementRepository),
 			ingestor.WithStepRunRepository(dc.EngineRepository.StepRun()),
+			ingestor.WithRepositoryV1(dc.V1),
 		)
 
 		if err != nil {
@@ -431,7 +531,7 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		})
 	}
 
-	encryptionSvc, err := loadEncryptionSvc(cf)
+	encryptionSvc, err := LoadEncryptionSvc(cf)
 
 	if err != nil {
 		return nil, nil, fmt.Errorf("could not load encryption service: %w", err)
@@ -473,7 +573,7 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 
 	v := validator.NewDefaultValidator()
 
-	schedulingPool, cleanupSchedulingPool, err := v2.NewSchedulingPool(
+	schedulingPool, cleanupSchedulingPool, err := v0.NewSchedulingPool(
 		dc.EngineRepository.Scheduler(),
 		&queueLogger,
 		cf.Runtime.SingleQueueLimit,
@@ -483,11 +583,28 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		return nil, nil, fmt.Errorf("could not create scheduling pool: %w", err)
 	}
 
+	schedulingPoolV1, cleanupSchedulingPoolV1, err := v1.NewSchedulingPool(
+		dc.V1.Scheduler(),
+		&queueLogger,
+		cf.Runtime.SingleQueueLimit,
+		cf.Runtime.SchedulerConcurrencyRateLimit,
+	)
+
+	if err != nil {
+		return nil, nil, fmt.Errorf("could not create scheduling pool (v1): %w", err)
+	}
+
+	schedulingPoolV1.Extensions.Add(v1.NewPrometheusExtension())
+
 	cleanup = func() error {
 		log.Printf("cleaning up server config")
 
 		if err := cleanupSchedulingPool(); err != nil {
 			return fmt.Errorf("error cleaning up scheduling pool: %w", err)
+		}
+
+		if err := cleanupSchedulingPoolV1(); err != nil {
+			return fmt.Errorf("error cleaning up scheduling pool (v1): %w", err)
 		}
 
 		if err := cleanup1(); err != nil {
@@ -503,8 +620,22 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		services = strings.Split(cf.ServicesString, " ")
 	}
 
+	pausedControllers := make(map[string]bool)
+
+	if cf.PausedControllers != "" {
+		for _, controller := range strings.Split(cf.PausedControllers, " ") {
+			pausedControllers[controller] = true
+		}
+	}
+
 	if cf.Runtime.Monitoring.TLSRootCAFile == "" {
 		cf.Runtime.Monitoring.TLSRootCAFile = cf.TLS.TLSRootCAFile
+	}
+
+	internalClientFactory, err := loadInternalClient(&l, &cf.InternalClient, cf.TLS, cf.Runtime.GRPCBroadcastAddress, cf.Runtime.GRPCInsecure)
+
+	if err != nil {
+		return nil, nil, fmt.Errorf("could not load internal client: %w", err)
 	}
 
 	return cleanup, &server.ServerConfig{
@@ -517,13 +648,17 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		Encryption:             encryptionSvc,
 		Layer:                  dc,
 		MessageQueue:           mq,
+		MessageQueueV1:         mqv1,
 		Services:               services,
+		PausedControllers:      pausedControllers,
+		InternalClientFactory:  internalClientFactory,
 		Logger:                 &l,
 		TLSConfig:              tls,
 		SessionStore:           ss,
 		Validator:              v,
 		Ingestor:               ing,
 		OpenTelemetry:          cf.OpenTelemetry,
+		Prometheus:             cf.Prometheus,
 		Email:                  emailSvc,
 		TenantAlerter:          alerting.New(dc.EngineRepository, encryptionSvc, cf.Runtime.ServerURL, emailSvc),
 		AdditionalOAuthConfigs: additionalOAuthConfigs,
@@ -531,7 +666,10 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		EnableDataRetention:    cf.EnableDataRetention,
 		EnableWorkerRetention:  cf.EnableWorkerRetention,
 		SchedulingPool:         schedulingPool,
+		SchedulingPoolV1:       schedulingPoolV1,
 		Version:                version,
+		Sampling:               cf.Sampling,
+		Operations:             cf.OLAP,
 	}, nil
 }
 
@@ -539,7 +677,7 @@ func getStrArr(v string) []string {
 	return strings.Split(v, " ")
 }
 
-func loadEncryptionSvc(cf *server.ServerConfigFile) (encryption.EncryptionService, error) {
+func LoadEncryptionSvc(cf *server.ServerConfigFile) (encryption.EncryptionService, error) {
 	var err error
 
 	hasLocalMasterKeyset := cf.Encryption.MasterKeyset != "" || cf.Encryption.MasterKeysetFile != ""
@@ -624,4 +762,54 @@ func loadEncryptionSvc(cf *server.ServerConfigFile) (encryption.EncryptionServic
 	}
 
 	return encryptionSvc, nil
+}
+
+func loadInternalClient(l *zerolog.Logger, conf *server.InternalClientTLSConfigFile, baseServerTLS shared.TLSConfigFile, grpcBroadcastAddress string, grpcInsecure bool) (*clientv1.GRPCClientFactory, error) {
+	// get gRPC broadcast address
+	broadcastAddress := grpcBroadcastAddress
+
+	if conf.InternalGRPCBroadcastAddress != "" {
+		broadcastAddress = conf.InternalGRPCBroadcastAddress
+	}
+
+	tlsServerName := conf.TLSServerName
+
+	if tlsServerName == "" {
+		// parse host from broadcast address
+		host, _, err := net.SplitHostPort(broadcastAddress)
+
+		if err != nil {
+			return nil, fmt.Errorf("could not parse host from broadcast address %s: %w", broadcastAddress, err)
+		}
+
+		tlsServerName = host
+	}
+
+	// construct TLS config
+	var base shared.TLSConfigFile
+
+	if conf.InheritBase {
+		base = baseServerTLS
+
+		if grpcInsecure {
+			base.TLSStrategy = "none"
+		}
+	} else {
+		base = conf.Base
+	}
+
+	tlsConfig, err := loaderutils.LoadClientTLSConfig(&client.ClientTLSConfigFile{
+		Base:          base,
+		TLSServerName: tlsServerName,
+	}, tlsServerName)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not load client TLS config: %w", err)
+	}
+
+	return clientv1.NewGRPCClientFactory(
+		clientv1.WithHostPort(broadcastAddress),
+		clientv1.WithTLS(tlsConfig),
+		clientv1.WithLogger(l),
+	), nil
 }

@@ -53,7 +53,7 @@ func (s *Service) On(t triggerConverter, workflow workflowConverter) error {
 		if parsedAction.Service != s.Name {
 			// check that it's concurrency, otherwise throw error
 			if parsedAction.Service != "concurrency" {
-				return fmt.Errorf("action %s does not belong to service %s", actionId, s.Name)
+				return fmt.Errorf("action %s does not belong to service %s (parsed action service %s)", actionId, s.Name, parsedAction.Service)
 			}
 		}
 

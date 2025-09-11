@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
 )
 
 func (rc *RetentionControllerImpl) runDeleteMessageQueueItems(ctx context.Context) func() {
@@ -15,21 +14,29 @@ func (rc *RetentionControllerImpl) runDeleteMessageQueueItems(ctx context.Contex
 
 		rc.l.Debug().Msgf("retention controller: deleting queue items")
 
-		err := rc.ForTenants(ctx, rc.runDeleteMessageQueueItemsTenant)
+		// get internal tenant
+		tenant, err := rc.p.GetInternalTenantForController(ctx)
 
 		if err != nil {
-			rc.l.Err(err).Msg("could not run delete queue items")
+			rc.l.Error().Err(err).Msg("could not get internal tenant")
+			return
+		}
+
+		if tenant == nil {
+			return
+		}
+
+		err = rc.runDeleteMessageQueueItemsQueries(ctx)
+
+		if err != nil {
+			rc.l.Err(err).Msg("could not run delete mq queue items")
 		}
 	}
 }
 
-func (rc *RetentionControllerImpl) runDeleteMessageQueueItemsTenant(ctx context.Context, tenant dbsqlc.Tenant) error {
+func (rc *RetentionControllerImpl) runDeleteMessageQueueItemsQueries(ctx context.Context) error {
 	ctx, span := telemetry.NewSpan(ctx, "delete-queue-items-tenant")
 	defer span.End()
-
-	if tenant.Name != "internal" {
-		return nil
-	}
 
 	err := rc.repo.MessageQueue().CleanupQueues(ctx)
 

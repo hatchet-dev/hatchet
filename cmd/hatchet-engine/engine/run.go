@@ -3,27 +3,37 @@ package engine
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"os"
 	"strings"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+
 	"github.com/hatchet-dev/hatchet/internal/services/admin"
+	adminv1 "github.com/hatchet-dev/hatchet/internal/services/admin/v1"
 	"github.com/hatchet-dev/hatchet/internal/services/controllers/events"
 	"github.com/hatchet-dev/hatchet/internal/services/controllers/jobs"
 	"github.com/hatchet-dev/hatchet/internal/services/controllers/retention"
+	"github.com/hatchet-dev/hatchet/internal/services/controllers/v1/olap"
+	"github.com/hatchet-dev/hatchet/internal/services/controllers/v1/task"
 	"github.com/hatchet-dev/hatchet/internal/services/controllers/workflows"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher"
+	dispatcherv1 "github.com/hatchet-dev/hatchet/internal/services/dispatcher/v1"
 	"github.com/hatchet-dev/hatchet/internal/services/grpc"
 	"github.com/hatchet-dev/hatchet/internal/services/health"
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor"
 	"github.com/hatchet-dev/hatchet/internal/services/partition"
 	"github.com/hatchet-dev/hatchet/internal/services/scheduler"
+	schedulerv1 "github.com/hatchet-dev/hatchet/internal/services/scheduler/v1"
 	"github.com/hatchet-dev/hatchet/internal/services/ticker"
 	"github.com/hatchet-dev/hatchet/internal/services/webhooks"
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/config/loader"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
+	"github.com/hatchet-dev/hatchet/pkg/config/shared"
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
+	"github.com/rs/zerolog"
 
 	"golang.org/x/sync/errgroup"
 )
@@ -38,6 +48,7 @@ func init() {
 	collectorURL := os.Getenv("SERVER_OTEL_COLLECTOR_URL")
 	insecure := os.Getenv("SERVER_OTEL_INSECURE")
 	traceIdRatio := os.Getenv("SERVER_OTEL_TRACE_ID_RATIO")
+	collectorAuth := os.Getenv("SERVER_OTEL_COLLECTOR_AUTH")
 
 	var insecureBool bool
 
@@ -48,10 +59,11 @@ func init() {
 	// we do this to we get the tracer set globally, which is needed by some of the otel
 	// integrations for the database before start
 	_, err := telemetry.InitTracer(&telemetry.TracerOpts{
-		ServiceName:  svcName,
-		CollectorURL: collectorURL,
-		TraceIdRatio: traceIdRatio,
-		Insecure:     insecureBool,
+		ServiceName:   svcName,
+		CollectorURL:  collectorURL,
+		TraceIdRatio:  traceIdRatio,
+		Insecure:      insecureBool,
+		CollectorAuth: collectorAuth,
 	})
 
 	if err != nil {
@@ -79,6 +91,7 @@ func Run(ctx context.Context, cf *loader.ConfigLoader, version string) error {
 			return serverCleanup()
 		},
 	})
+
 	teardown = append(teardown, Teardown{
 		Name: "database",
 		Fn: func() error {
@@ -121,13 +134,20 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 	var l = sc.Logger
 
 	shutdown, err := telemetry.InitTracer(&telemetry.TracerOpts{
-		ServiceName:  sc.OpenTelemetry.ServiceName,
-		CollectorURL: sc.OpenTelemetry.CollectorURL,
-		TraceIdRatio: sc.OpenTelemetry.TraceIdRatio,
-		Insecure:     sc.OpenTelemetry.Insecure,
+		ServiceName:   sc.OpenTelemetry.ServiceName,
+		CollectorURL:  sc.OpenTelemetry.CollectorURL,
+		TraceIdRatio:  sc.OpenTelemetry.TraceIdRatio,
+		Insecure:      sc.OpenTelemetry.Insecure,
+		CollectorAuth: sc.OpenTelemetry.CollectorAuth,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("could not initialize tracer: %w", err)
+	}
+
+	teardown := []Teardown{}
+
+	if sc.Prometheus.Enabled {
+		teardown = append(teardown, startPrometheus(l, sc.Prometheus))
 	}
 
 	p, err := partition.NewPartition(l, sc.EngineRepository.Tenant())
@@ -135,8 +155,6 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 	if err != nil {
 		return nil, fmt.Errorf("could not create partitioner: %w", err)
 	}
-
-	teardown := []Teardown{}
 
 	teardown = append(teardown, Teardown{
 		Name: "partitioner",
@@ -147,7 +165,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 	healthProbes := sc.HasService("health")
 	if healthProbes {
 		h = health.New(sc.EngineRepository, sc.MessageQueue, sc.Version)
-		cleanup, err := h.Start()
+		cleanup, err := h.Start(sc.Runtime.HealthcheckPort)
 		if err != nil {
 			return nil, fmt.Errorf("could not start health: %w", err)
 		}
@@ -228,16 +246,43 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			Name: "scheduler",
 			Fn:   cleanup,
 		})
+
+		sv1, err := schedulerv1.New(
+			schedulerv1.WithAlerter(sc.Alerter),
+			schedulerv1.WithMessageQueue(sc.MessageQueueV1),
+			schedulerv1.WithRepository(sc.EngineRepository),
+			schedulerv1.WithV2Repository(sc.V1),
+			schedulerv1.WithLogger(sc.Logger),
+			schedulerv1.WithPartition(p),
+			schedulerv1.WithQueueLoggerConfig(&sc.AdditionalLoggers.Queue),
+			schedulerv1.WithSchedulerPool(sc.SchedulingPoolV1),
+		)
+
+		if err != nil {
+			return nil, fmt.Errorf("could not create scheduler (v1): %w", err)
+		}
+
+		cleanup, err = sv1.Start()
+
+		if err != nil {
+			return nil, fmt.Errorf("could not start scheduler (v1): %w", err)
+		}
+
+		teardown = append(teardown, Teardown{
+			Name: "schedulerv1",
+			Fn:   cleanup,
+		})
 	}
 
 	if sc.HasService("ticker") {
 		t, err := ticker.New(
 			ticker.WithMessageQueue(sc.MessageQueue),
+			ticker.WithMessageQueueV1(sc.MessageQueueV1),
 			ticker.WithRepository(sc.EngineRepository),
+			ticker.WithRepositoryV1(sc.V1),
 			ticker.WithLogger(sc.Logger),
 			ticker.WithTenantAlerter(sc.TenantAlerter),
 			ticker.WithEntitlementsRepository(sc.EntitlementRepository),
-			ticker.WithPartition(p),
 		)
 
 		if err != nil {
@@ -298,6 +343,58 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			Name: "workflows controller",
 			Fn:   cleanupWorkflows,
 		})
+
+		tasks, err := task.New(
+			task.WithAlerter(sc.Alerter),
+			task.WithMessageQueue(sc.MessageQueueV1),
+			task.WithRepository(sc.EngineRepository),
+			task.WithV1Repository(sc.V1),
+			task.WithLogger(sc.Logger),
+			task.WithPartition(p),
+			task.WithQueueLoggerConfig(&sc.AdditionalLoggers.Queue),
+			task.WithPgxStatsLoggerConfig(&sc.AdditionalLoggers.PgxStats),
+		)
+
+		if err != nil {
+			return nil, fmt.Errorf("could not create tasks controller: %w", err)
+		}
+
+		cleanupTasks, err := tasks.Start()
+
+		if err != nil {
+			return nil, fmt.Errorf("could not start tasks controller: %w", err)
+		}
+
+		teardown = append(teardown, Teardown{
+			Name: "tasks controller",
+			Fn:   cleanupTasks,
+		})
+
+		olap, err := olap.New(
+			olap.WithAlerter(sc.Alerter),
+			olap.WithMessageQueue(sc.MessageQueueV1),
+			olap.WithRepository(sc.V1),
+			olap.WithLogger(sc.Logger),
+			olap.WithPartition(p),
+			olap.WithTenantAlertManager(sc.TenantAlerter),
+			olap.WithSamplingConfig(sc.Sampling),
+			olap.WithOperationsConfig(sc.Operations),
+		)
+
+		if err != nil {
+			return nil, fmt.Errorf("could not create olap controller: %w", err)
+		}
+
+		cleanupOlap, err := olap.Start()
+
+		if err != nil {
+			return nil, fmt.Errorf("could not start olap controller: %w", err)
+		}
+
+		teardown = append(teardown, Teardown{
+			Name: "olap controller",
+			Fn:   cleanupOlap,
+		})
 	}
 
 	if sc.HasService("retention") {
@@ -332,10 +429,13 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 		d, err := dispatcher.New(
 			dispatcher.WithAlerter(sc.Alerter),
 			dispatcher.WithMessageQueue(sc.MessageQueue),
+			dispatcher.WithMessageQueueV1(sc.MessageQueueV1),
 			dispatcher.WithRepository(sc.EngineRepository),
+			dispatcher.WithRepositoryV1(sc.V1),
 			dispatcher.WithLogger(sc.Logger),
 			dispatcher.WithEntitlementsRepository(sc.EntitlementRepository),
 			dispatcher.WithCache(cacheInstance),
+			dispatcher.WithPayloadSizeThreshold(sc.Runtime.GRPCMaxMsgSize),
 		)
 
 		if err != nil {
@@ -345,6 +445,16 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 		dispatcherCleanup, err := d.Start()
 		if err != nil {
 			return nil, fmt.Errorf("could not start dispatcher: %w", err)
+		}
+
+		dv1, err := dispatcherv1.NewDispatcherService(
+			dispatcherv1.WithRepository(sc.V1),
+			dispatcherv1.WithMessageQueue(sc.MessageQueueV1),
+			dispatcherv1.WithLogger(sc.Logger),
+		)
+
+		if err != nil {
+			return nil, fmt.Errorf("could not create dispatcher (v1): %w", err)
 		}
 
 		// create the event ingestor
@@ -359,8 +469,11 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 				sc.EngineRepository.Log(),
 			),
 			ingestor.WithMessageQueue(sc.MessageQueue),
+			ingestor.WithMessageQueueV1(sc.MessageQueueV1),
 			ingestor.WithEntitlementsRepository(sc.EntitlementRepository),
 			ingestor.WithStepRunRepository(sc.EngineRepository.StepRun()),
+			ingestor.WithRepositoryV1(sc.V1),
+			ingestor.WithLogIngestionEnabled(sc.Runtime.LogIngestionEnabled),
 		)
 
 		if err != nil {
@@ -369,18 +482,33 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 
 		adminSvc, err := admin.NewAdminService(
 			admin.WithRepository(sc.EngineRepository),
+			admin.WithRepositoryV1(sc.V1),
 			admin.WithMessageQueue(sc.MessageQueue),
+			admin.WithMessageQueueV1(sc.MessageQueueV1),
 			admin.WithEntitlementsRepository(sc.EntitlementRepository),
 		)
 		if err != nil {
 			return nil, fmt.Errorf("could not create admin service: %w", err)
 		}
 
+		adminv1Svc, err := adminv1.NewAdminService(
+			adminv1.WithRepository(sc.V1),
+			adminv1.WithMessageQueue(sc.MessageQueueV1),
+			adminv1.WithEntitlementsRepository(sc.EntitlementRepository),
+			adminv1.WithAnalytics(sc.Analytics),
+		)
+
+		if err != nil {
+			return nil, fmt.Errorf("could not create admin service (v1): %w", err)
+		}
+
 		grpcOpts := []grpc.ServerOpt{
 			grpc.WithConfig(sc),
 			grpc.WithIngestor(ei),
 			grpc.WithDispatcher(d),
+			grpc.WithDispatcherV1(dv1),
 			grpc.WithAdmin(adminSvc),
+			grpc.WithAdminV1(adminv1Svc),
 			grpc.WithLogger(sc.Logger),
 			grpc.WithAlerter(sc.Alerter),
 			grpc.WithTLSConfig(sc.TLSConfig),
@@ -451,7 +579,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			Fn:   cleanup1,
 		})
 
-		wh := webhooks.New(sc, p)
+		wh := webhooks.New(sc, p, l)
 
 		cleanup2, err := wh.Start()
 		if err != nil {
@@ -490,13 +618,20 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 	var l = sc.Logger
 
 	shutdown, err := telemetry.InitTracer(&telemetry.TracerOpts{
-		ServiceName:  sc.OpenTelemetry.ServiceName,
-		CollectorURL: sc.OpenTelemetry.CollectorURL,
-		TraceIdRatio: sc.OpenTelemetry.TraceIdRatio,
-		Insecure:     sc.OpenTelemetry.Insecure,
+		ServiceName:   sc.OpenTelemetry.ServiceName,
+		CollectorURL:  sc.OpenTelemetry.CollectorURL,
+		TraceIdRatio:  sc.OpenTelemetry.TraceIdRatio,
+		Insecure:      sc.OpenTelemetry.Insecure,
+		CollectorAuth: sc.OpenTelemetry.CollectorAuth,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("could not initialize tracer: %w", err)
+	}
+
+	teardown := []Teardown{}
+
+	if sc.Prometheus.Enabled {
+		teardown = append(teardown, startPrometheus(l, sc.Prometheus))
 	}
 
 	p, err := partition.NewPartition(l, sc.EngineRepository.Tenant())
@@ -504,8 +639,6 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 	if err != nil {
 		return nil, fmt.Errorf("could not create partitioner: %w", err)
 	}
-
-	teardown := []Teardown{}
 
 	teardown = append(teardown, Teardown{
 		Name: "partitioner",
@@ -518,7 +651,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 	if healthProbes {
 		h = health.New(sc.EngineRepository, sc.MessageQueue, sc.Version)
 
-		cleanup, err := h.Start()
+		cleanup, err := h.Start(sc.Runtime.HealthcheckPort)
 
 		if err != nil {
 			return nil, fmt.Errorf("could not start health: %w", err)
@@ -564,11 +697,12 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 
 		t, err := ticker.New(
 			ticker.WithMessageQueue(sc.MessageQueue),
+			ticker.WithMessageQueueV1(sc.MessageQueueV1),
 			ticker.WithRepository(sc.EngineRepository),
+			ticker.WithRepositoryV1(sc.V1),
 			ticker.WithLogger(sc.Logger),
 			ticker.WithTenantAlerter(sc.TenantAlerter),
 			ticker.WithEntitlementsRepository(sc.EntitlementRepository),
-			ticker.WithPartition(p),
 		)
 
 		if err != nil {
@@ -660,6 +794,65 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			Fn:   cleanupRetention,
 		})
 
+		if isControllerActive(sc.PausedControllers, TaskController) {
+			tasks, err := task.New(
+				task.WithAlerter(sc.Alerter),
+				task.WithMessageQueue(sc.MessageQueueV1),
+				task.WithRepository(sc.EngineRepository),
+				task.WithV1Repository(sc.V1),
+				task.WithLogger(sc.Logger),
+				task.WithPartition(p),
+				task.WithQueueLoggerConfig(&sc.AdditionalLoggers.Queue),
+				task.WithPgxStatsLoggerConfig(&sc.AdditionalLoggers.PgxStats),
+				task.WithOpsPoolJitter(sc.Operations),
+				task.WithReplayEnabled(sc.Runtime.ReplayEnabled),
+			)
+
+			if err != nil {
+				return nil, fmt.Errorf("could not create tasks controller: %w", err)
+			}
+
+			cleanupTasks, err := tasks.Start()
+
+			if err != nil {
+				return nil, fmt.Errorf("could not start tasks controller: %w", err)
+			}
+
+			teardown = append(teardown, Teardown{
+				Name: "tasks controller",
+				Fn:   cleanupTasks,
+			})
+		}
+
+		if isControllerActive(sc.PausedControllers, OLAPController) {
+			olap, err := olap.New(
+				olap.WithAlerter(sc.Alerter),
+				olap.WithMessageQueue(sc.MessageQueueV1),
+				olap.WithRepository(sc.V1),
+				olap.WithLogger(sc.Logger),
+				olap.WithPartition(p),
+				olap.WithTenantAlertManager(sc.TenantAlerter),
+				olap.WithSamplingConfig(sc.Sampling),
+				olap.WithOperationsConfig(sc.Operations),
+				olap.WithPrometheusMetricsEnabled(sc.Prometheus.Enabled),
+			)
+
+			if err != nil {
+				return nil, fmt.Errorf("could not create olap controller: %w", err)
+			}
+
+			cleanupOlap, err := olap.Start()
+
+			if err != nil {
+				return nil, fmt.Errorf("could not start olap controller: %w", err)
+			}
+
+			teardown = append(teardown, Teardown{
+				Name: "olap controller",
+				Fn:   cleanupOlap,
+			})
+		}
+
 		cleanup1, err := p.StartTenantWorkerPartition(ctx)
 
 		if err != nil {
@@ -671,7 +864,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			Fn:   cleanup1,
 		})
 
-		wh := webhooks.New(sc, p)
+		wh := webhooks.New(sc, p, l)
 
 		cleanup2, err := wh.Start()
 
@@ -692,10 +885,13 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 		d, err := dispatcher.New(
 			dispatcher.WithAlerter(sc.Alerter),
 			dispatcher.WithMessageQueue(sc.MessageQueue),
+			dispatcher.WithMessageQueueV1(sc.MessageQueueV1),
 			dispatcher.WithRepository(sc.EngineRepository),
+			dispatcher.WithRepositoryV1(sc.V1),
 			dispatcher.WithLogger(sc.Logger),
 			dispatcher.WithEntitlementsRepository(sc.EntitlementRepository),
 			dispatcher.WithCache(cacheInstance),
+			dispatcher.WithPayloadSizeThreshold(sc.Runtime.GRPCMaxMsgSize),
 		)
 
 		if err != nil {
@@ -706,6 +902,16 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 
 		if err != nil {
 			return nil, fmt.Errorf("could not start dispatcher: %w", err)
+		}
+
+		dv1, err := dispatcherv1.NewDispatcherService(
+			dispatcherv1.WithRepository(sc.V1),
+			dispatcherv1.WithMessageQueue(sc.MessageQueueV1),
+			dispatcherv1.WithLogger(sc.Logger),
+		)
+
+		if err != nil {
+			return nil, fmt.Errorf("could not create dispatcher (v1): %w", err)
 		}
 
 		// create the event ingestor
@@ -720,8 +926,11 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 				sc.EngineRepository.Log(),
 			),
 			ingestor.WithMessageQueue(sc.MessageQueue),
+			ingestor.WithMessageQueueV1(sc.MessageQueueV1),
 			ingestor.WithEntitlementsRepository(sc.EntitlementRepository),
 			ingestor.WithStepRunRepository(sc.EngineRepository.StepRun()),
+			ingestor.WithRepositoryV1(sc.V1),
+			ingestor.WithLogIngestionEnabled(sc.Runtime.LogIngestionEnabled),
 		)
 
 		if err != nil {
@@ -730,7 +939,9 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 
 		adminSvc, err := admin.NewAdminService(
 			admin.WithRepository(sc.EngineRepository),
+			admin.WithRepositoryV1(sc.V1),
 			admin.WithMessageQueue(sc.MessageQueue),
+			admin.WithMessageQueueV1(sc.MessageQueueV1),
 			admin.WithEntitlementsRepository(sc.EntitlementRepository),
 		)
 
@@ -738,11 +949,24 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			return nil, fmt.Errorf("could not create admin service: %w", err)
 		}
 
+		adminv1Svc, err := adminv1.NewAdminService(
+			adminv1.WithRepository(sc.V1),
+			adminv1.WithMessageQueue(sc.MessageQueueV1),
+			adminv1.WithEntitlementsRepository(sc.EntitlementRepository),
+			adminv1.WithAnalytics(sc.Analytics),
+		)
+
+		if err != nil {
+			return nil, fmt.Errorf("could not create admin service (v1): %w", err)
+		}
+
 		grpcOpts := []grpc.ServerOpt{
 			grpc.WithConfig(sc),
 			grpc.WithIngestor(ei),
 			grpc.WithDispatcher(d),
+			grpc.WithDispatcherV1(dv1),
 			grpc.WithAdmin(adminSvc),
+			grpc.WithAdminV1(adminv1Svc),
 			grpc.WithLogger(sc.Logger),
 			grpc.WithAlerter(sc.Alerter),
 			grpc.WithTLSConfig(sc.TLSConfig),
@@ -838,6 +1062,32 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			Name: "scheduler",
 			Fn:   cleanup,
 		})
+
+		sv1, err := schedulerv1.New(
+			schedulerv1.WithAlerter(sc.Alerter),
+			schedulerv1.WithMessageQueue(sc.MessageQueueV1),
+			schedulerv1.WithRepository(sc.EngineRepository),
+			schedulerv1.WithV2Repository(sc.V1),
+			schedulerv1.WithLogger(sc.Logger),
+			schedulerv1.WithPartition(p),
+			schedulerv1.WithQueueLoggerConfig(&sc.AdditionalLoggers.Queue),
+			schedulerv1.WithSchedulerPool(sc.SchedulingPoolV1),
+		)
+
+		if err != nil {
+			return nil, fmt.Errorf("could not create scheduler (v1): %w", err)
+		}
+
+		cleanup, err = sv1.Start()
+
+		if err != nil {
+			return nil, fmt.Errorf("could not start scheduler (v1): %w", err)
+		}
+
+		teardown = append(teardown, Teardown{
+			Name: "schedulerv1",
+			Fn:   cleanup,
+		})
 	}
 
 	teardown = append(teardown, Teardown{
@@ -860,4 +1110,52 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 	}
 
 	return teardown, nil
+}
+
+func startPrometheus(l *zerolog.Logger, c shared.PrometheusConfigFile) Teardown {
+	mux := http.NewServeMux()
+	mux.Handle(c.Path, promhttp.Handler())
+
+	srv := &http.Server{
+		Addr:    c.Address,
+		Handler: mux,
+	}
+
+	go func() {
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			l.Error().Err(err).Msg("failed to start prometheus server")
+		}
+	}()
+
+	l.Info().Msgf("Prometheus server started on %s", c.Address)
+
+	return Teardown{
+		Name: "prometheus",
+		Fn: func() error {
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+
+			if err := srv.Shutdown(ctx); err != nil {
+				return fmt.Errorf("failed to shutdown prometheus server: %w", err)
+			}
+
+			l.Info().Msg("Prometheus server shutdown gracefully")
+			return nil
+		},
+	}
+}
+
+type ControllerName string
+
+const (
+	OLAPController ControllerName = "olap"
+	TaskController ControllerName = "task"
+)
+
+func isControllerActive(pausedControllers map[string]bool, controllerName ControllerName) bool {
+	if isPaused, ok := pausedControllers[string(controllerName)]; !ok || !isPaused {
+		return true
+	}
+
+	return false
 }

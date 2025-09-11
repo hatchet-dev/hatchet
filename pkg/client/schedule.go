@@ -11,6 +11,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/client/rest"
+	"github.com/hatchet-dev/hatchet/pkg/config/client"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
 
@@ -23,6 +24,8 @@ type ScheduleOpts struct {
 
 	// AdditionalMetadata is additional metadata to be stored with the cron trigger
 	AdditionalMetadata map[string]string
+
+	Priority *int32 `json:"priority,omitempty"`
 }
 
 type ScheduleClient interface {
@@ -66,6 +69,7 @@ func NewScheduleClient(restClient *rest.ClientWithResponses, l *zerolog.Logger, 
 
 func (c *scheduleClientImpl) Create(ctx context.Context, workflow string, opts *ScheduleOpts) (*gen.ScheduledWorkflows, error) {
 	additionalMeta := make(map[string]any)
+	workflow = client.ApplyNamespace(workflow, &c.namespace)
 
 	for k, v := range opts.AdditionalMetadata {
 		additionalMeta[k] = v
@@ -79,6 +83,7 @@ func (c *scheduleClientImpl) Create(ctx context.Context, workflow string, opts *
 			TriggerAt:          opts.TriggerAt,
 			Input:              opts.Input,
 			AdditionalMetadata: additionalMeta,
+			Priority:           opts.Priority,
 		},
 	)
 

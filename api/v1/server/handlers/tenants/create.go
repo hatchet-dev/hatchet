@@ -4,18 +4,19 @@ import (
 	"context"
 	"errors"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/labstack/echo/v4"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 func (t *TenantService) TenantCreate(ctx echo.Context, request gen.TenantCreateRequestObject) (gen.TenantCreateResponseObject, error) {
-	user := ctx.Get("user").(*db.UserModel)
+	user := ctx.Get("user").(*dbsqlc.User)
 
 	if !t.config.Runtime.AllowCreateTenant {
 		return gen.TenantCreate400JSONResponse(
@@ -31,16 +32,16 @@ func (t *TenantService) TenantCreate(ctx echo.Context, request gen.TenantCreateR
 	}
 
 	// determine if a tenant with the slug already exists
-	existingTenant, err := t.config.APIRepository.Tenant().GetTenantBySlug(request.Body.Slug)
+	_, err := t.config.APIRepository.Tenant().GetTenantBySlug(ctx.Request().Context(), request.Body.Slug)
 
-	if err != nil && !errors.Is(err, db.ErrNotFound) {
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return nil, err
 	}
 
-	if existingTenant != nil {
+	if err == nil {
 		// just return bad request
 		return gen.TenantCreate400JSONResponse(
-			apierrors.NewAPIErrors("Tenant with the slug already exists."),
+			apierrors.NewAPIErrors("Tenant with that slug already exists."),
 		), nil
 	}
 
@@ -49,12 +50,39 @@ func (t *TenantService) TenantCreate(ctx echo.Context, request gen.TenantCreateR
 		Name: request.Body.Name,
 	}
 
+	if request.Body.OnboardingData != nil {
+		createOpts.OnboardingData = *request.Body.OnboardingData
+	}
+
+	if request.Body.Environment != nil {
+		environment := string(*request.Body.Environment)
+		createOpts.Environment = &environment
+	}
+
 	if t.config.Runtime.Limits.DefaultTenantRetentionPeriod != "" {
 		createOpts.DataRetentionPeriod = &t.config.Runtime.Limits.DefaultTenantRetentionPeriod
 	}
 
+	uiVersion := dbsqlc.TenantMajorUIVersionV0
+
+	if request.Body.UiVersion != nil {
+		ver := *request.Body.UiVersion
+		uiVersion = dbsqlc.TenantMajorUIVersion(ver)
+	}
+
+	createOpts.UIVersion = &uiVersion
+
+	var engineVersion *dbsqlc.TenantMajorEngineVersion
+
+	if request.Body.EngineVersion != nil {
+		ver := dbsqlc.TenantMajorEngineVersion(*request.Body.EngineVersion)
+		engineVersion = &ver
+	}
+
+	createOpts.EngineVersion = engineVersion
+
 	// write the user to the db
-	tenant, err := t.config.APIRepository.Tenant().CreateTenant(createOpts)
+	tenant, err := t.config.APIRepository.Tenant().CreateTenant(ctx.Request().Context(), createOpts)
 
 	if err != nil {
 		return nil, err
@@ -69,8 +97,8 @@ func (t *TenantService) TenantCreate(ctx echo.Context, request gen.TenantCreateR
 	}
 
 	// add the user as an owner of the tenant
-	_, err = t.config.APIRepository.Tenant().CreateTenantMember(tenantId, &repository.CreateTenantMemberOpts{
-		UserId: user.ID,
+	_, err = t.config.APIRepository.Tenant().CreateTenantMember(ctx.Request().Context(), tenantId, &repository.CreateTenantMemberOpts{
+		UserId: sqlchelpers.UUIDToStr(user.ID),
 		Role:   "OWNER",
 	})
 
@@ -85,12 +113,21 @@ func (t *TenantService) TenantCreate(ctx echo.Context, request gen.TenantCreateR
 
 	t.config.Analytics.Enqueue(
 		"tenant:create",
-		user.ID,
+		sqlchelpers.UUIDToStr(user.ID),
 		&tenantId,
-		nil,
+		map[string]interface{}{
+			"tenant_created": true,
+		},
+		map[string]interface{}{
+			"name":            tenant.Name,
+			"slug":            tenant.Slug,
+			"onboarding_data": createOpts.OnboardingData,
+		},
 	)
 
+	ctx.Set("tenant", tenant)
+
 	return gen.TenantCreate200JSONResponse(
-		*transformers.ToTenantSqlc(tenant),
+		*transformers.ToTenant(tenant),
 	), nil
 }

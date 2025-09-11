@@ -1,28 +1,28 @@
 package transformers
 
 import (
-	"context"
+	"encoding/json"
 
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
-	"github.com/hatchet-dev/hatchet/pkg/client/types"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 func ToWorkflow(
 	workflow *dbsqlc.Workflow,
 	version *dbsqlc.WorkflowVersion,
 ) *gen.Workflow {
+
 	res := &gen.Workflow{
 		Metadata: *toAPIMetadata(
 			sqlchelpers.UUIDToStr(workflow.ID),
 			workflow.CreatedAt.Time,
 			workflow.UpdatedAt.Time,
 		),
-		Name: workflow.Name,
+		Name:     workflow.Name,
+		TenantId: sqlchelpers.UUIDToStr(workflow.TenantId),
 	}
 
 	res.IsPaused = &workflow.IsPaused.Bool
@@ -68,6 +68,16 @@ func ToWorkflowVersion(
 	events []*dbsqlc.WorkflowTriggerEventRef,
 	schedules []*dbsqlc.WorkflowTriggerScheduledRef,
 ) *gen.WorkflowVersion {
+	wfConfig := make(map[string]interface{})
+
+	if version.CreateWorkflowVersionOpts != nil {
+		err := json.Unmarshal(version.CreateWorkflowVersionOpts, &wfConfig)
+
+		if err != nil {
+			return nil
+		}
+	}
+
 	res := &gen.WorkflowVersion{
 		Metadata: *toAPIMetadata(
 			sqlchelpers.UUIDToStr(version.ID),
@@ -79,6 +89,7 @@ func ToWorkflowVersion(
 		Version:         version.Version.String,
 		ScheduleTimeout: &version.ScheduleTimeout,
 		DefaultPriority: &version.DefaultPriority.Int32,
+		WorkflowConfig:  &wfConfig,
 	}
 
 	if version.Sticky.Valid {
@@ -153,81 +164,6 @@ func ToWorkflowVersionConcurrency(concurrency *WorkflowConcurrency) *gen.Workflo
 	}
 
 	return res
-}
-
-func ToWorkflowYAMLBytes(workflow *db.WorkflowModel, version *db.WorkflowVersionModel) ([]byte, error) {
-	res := &types.Workflow{
-		Name: workflow.Name,
-	}
-
-	if setVersion, ok := version.Version(); ok {
-		res.Version = setVersion
-	}
-
-	if description, ok := workflow.Description(); ok {
-		res.Description = description
-	}
-
-	if triggers, ok := version.Triggers(); ok && triggers != nil {
-		triggersResp := types.WorkflowTriggers{}
-
-		if crons := triggers.Crons(); len(crons) > 0 {
-			triggersResp.Cron = make([]string, len(crons))
-
-			for i, cron := range crons {
-				triggersResp.Cron[i] = cron.Cron
-			}
-		}
-
-		if events := triggers.Events(); len(events) > 0 {
-			triggersResp.Events = make([]string, len(events))
-
-			for i, event := range events {
-				triggersResp.Events[i] = event.EventKey
-			}
-		}
-
-		res.Triggers = triggersResp
-	}
-
-	if jobs := version.Jobs(); jobs != nil {
-		res.Jobs = make(map[string]types.WorkflowJob, len(jobs))
-
-		for _, job := range jobs {
-			jobCp := job
-
-			jobRes := types.WorkflowJob{}
-
-			if description, ok := jobCp.Description(); ok {
-				jobRes.Description = description
-			}
-
-			if steps := jobCp.Steps(); steps != nil {
-				jobRes.Steps = make([]types.WorkflowStep, 0)
-
-				for _, step := range steps {
-					stepRes := types.WorkflowStep{
-						ID:       step.ID,
-						ActionID: step.ActionID,
-					}
-
-					if readableId, ok := step.ReadableID(); ok {
-						stepRes.ID = readableId
-					}
-
-					if timeout, ok := step.Timeout(); ok {
-						stepRes.Timeout = timeout
-					}
-
-					jobRes.Steps = append(jobRes.Steps, stepRes)
-				}
-
-				res.Jobs[jobCp.Name] = jobRes
-			}
-		}
-	}
-
-	return types.ToYAML(context.Background(), res)
 }
 
 func ToJob(job *dbsqlc.Job, steps []*dbsqlc.GetStepsForJobsRow) *gen.Job {

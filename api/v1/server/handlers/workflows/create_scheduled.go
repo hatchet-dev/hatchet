@@ -6,25 +6,34 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
+	"github.com/hatchet-dev/hatchet/pkg/constants"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 func (t *WorkflowService) ScheduledWorkflowRunCreate(ctx echo.Context, request gen.ScheduledWorkflowRunCreateRequestObject) (gen.ScheduledWorkflowRunCreateResponseObject, error) {
-	tenant := ctx.Get("tenant").(*db.TenantModel)
+	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
+	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
-	workflow, err := t.config.EngineRepository.Workflow().GetWorkflowByName(ctx.Request().Context(), tenant.ID, request.Workflow)
+	workflow, err := t.config.EngineRepository.Workflow().GetWorkflowByName(ctx.Request().Context(), tenantId, request.Workflow)
 
 	if err != nil {
 		return gen.ScheduledWorkflowRunCreate400JSONResponse(apierrors.NewAPIErrors("workflow not found")), nil
 	}
 
-	scheduled, err := t.config.APIRepository.Workflow().CreateScheduledWorkflow(ctx.Request().Context(), tenant.ID, &repository.CreateScheduledWorkflowRunForWorkflowOpts{
+	var priority int32 = 1
+
+	if request.Body.Priority != nil {
+		priority = *request.Body.Priority
+	}
+
+	scheduled, err := t.config.APIRepository.Workflow().CreateScheduledWorkflow(ctx.Request().Context(), tenantId, &repository.CreateScheduledWorkflowRunForWorkflowOpts{
 		ScheduledTrigger:   request.Body.TriggerAt,
 		Input:              request.Body.Input,
 		AdditionalMetadata: request.Body.AdditionalMetadata,
 		WorkflowId:         sqlchelpers.UUIDToStr(workflow.ID),
+		Priority:           &priority,
 	})
 
 	if err != nil {
@@ -32,6 +41,17 @@ func (t *WorkflowService) ScheduledWorkflowRunCreate(ctx echo.Context, request g
 			apierrors.NewAPIErrors(err.Error()),
 		), nil
 	}
+
+	correlationIdInterface, ok := (request.Body.AdditionalMetadata)[string(constants.CorrelationIdKey)]
+	if ok {
+		correlationId, ok := correlationIdInterface.(string)
+		if ok {
+			ctx.Set(constants.CorrelationIdKey.String(), correlationId)
+		}
+	}
+
+	ctx.Set(constants.ResourceIdKey.String(), scheduled.ID.String())
+	ctx.Set(constants.ResourceTypeKey.String(), constants.ResourceTypeScheduledWorkflow.String())
 
 	return gen.ScheduledWorkflowRunCreate200JSONResponse(
 		*transformers.ToScheduledWorkflowsFromSQLC(scheduled),
