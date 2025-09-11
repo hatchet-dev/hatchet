@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { Table } from '@tanstack/react-table';
-import { DataTableCombinedOptions } from './data-table-options';
+import { DataTableOptions } from './data-table-options';
 import { Input } from '@/components/v1/ui/input.tsx';
 import { Spinner } from '@/components/v1/ui/loading';
 import { flattenDAGsKey } from '@/pages/main/v1/workflow-runs-v1/components/v1/task-runs-columns';
@@ -86,7 +86,7 @@ export function DataTableToolbar<TData>({
         )}
 
         {(hasFilters || showColumnToggle) && (
-          <DataTableCombinedOptions
+          <DataTableOptions
             table={table}
             filters={visibleFilters}
             onReset={onReset}
