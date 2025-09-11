@@ -37,7 +37,6 @@ var ErrNotInRestrictedDomain = errors.New("email is not in the restricted domain
 
 const ErrInvalidCredentials = "invalid credentials"
 const ErrRegistrationFailed = "registration failed"
-const ErrAuthAPIRateLimit = "auth API rate limit exceeded"
 
 func (u *UserService) checkUserRestrictions(conf *server.ServerConfig, emailDomain string) error {
 	if len(conf.Auth.ConfigFile.RestrictedEmailDomains) == 0 {

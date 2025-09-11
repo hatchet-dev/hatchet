@@ -13,8 +13,6 @@ import (
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/rs/zerolog"
 
-	"golang.org/x/time/rate"
-
 	"github.com/hatchet-dev/hatchet/api/v1/server/authn"
 	"github.com/hatchet-dev/hatchet/api/v1/server/authz"
 	apitokens "github.com/hatchet-dev/hatchet/api/v1/server/handlers/api-tokens"
@@ -535,11 +533,6 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 		middleware.Recover(),
 		rateLimitMW.Middleware(),
 		allHatchetMiddleware,
-		hatchetmiddleware.WebhookRateLimitMiddleware(
-			rate.Limit(t.config.Runtime.WebhookRateLimit),
-			t.config.Runtime.WebhookRateLimitBurst,
-			t.config.Logger,
-		),
 	)
 
 	return populatorMW, nil
