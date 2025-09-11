@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { DataTable } from '@/components/v1/molecules/data-table/data-table.tsx';
-import { columns } from './v1/task-runs-columns';
+import { columns, TaskRunColumn } from './v1/task-runs-columns';
 import { V1WorkflowRunsMetricsView } from './task-runs-metrics';
 import { Skeleton } from '@/components/v1/ui/skeleton';
 import {
@@ -346,6 +346,7 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
           onToolbarReset={resetState}
           headerClassName={headerClassName}
           hideFlatten={hideFlatten}
+          columnKeyToName={TaskRunColumn}
         />
       </div>
     </div>

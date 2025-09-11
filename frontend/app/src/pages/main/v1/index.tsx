@@ -28,7 +28,7 @@ import {
 import useCloudApiMeta from '@/pages/auth/hooks/use-cloud-api-meta';
 import useCloudFeatureFlags from '@/pages/auth/hooks/use-cloud-feature-flags';
 import { useSidebar } from '@/components/sidebar-provider';
-import { SquareActivityIcon, WebhookIcon } from 'lucide-react';
+import { Filter, SquareActivityIcon, WebhookIcon } from 'lucide-react';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { SidePanel } from '@/components/side-panel';
 import { SidePanelProvider } from '@/hooks/use-side-panel';
@@ -193,6 +193,13 @@ function Sidebar({ className, memberships }: SidebarProps) {
                 to={`/tenants/${tenantId}/rate-limits`}
                 name="Rate Limits"
                 icon={<ScaleIcon className="mr-2 h-4 w-4" />}
+              />
+              <SidebarButtonPrimary
+                key="filters"
+                onNavLinkClick={onNavLinkClick}
+                to={`/tenants/${tenantId}/filters`}
+                name="Filters"
+                icon={<Filter className="mr-2 h-4 w-4" />}
               />
             </div>
           </div>
