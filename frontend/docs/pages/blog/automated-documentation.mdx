@@ -8,13 +8,7 @@ import { MailingListSubscription } from "@/components/mailing-list-subscription"
 
 <div className="w-full pb-4 mx-auto flex flex-row justify-between items-center mt-10">
   <h5 className="text-xl font-bold tracking-tight text-foreground">
-    <a
-      href="https://www.linkedin.com/in/gruttner/"
-      target="_blank"
-      rel="noopener noreferrer"
-    >
-      Gabe Ruttner
-    </a>
+    [Gabe Ruttner](https://www.linkedin.com/in/gruttner/)
   </h5>
   <p className="font-light text-foreground">
     Published on September 11th, 2025
@@ -251,7 +245,7 @@ def parse_snippets(ctx: SDKParsingContext, filename: str) -> list[Snippet]:
     ]
 ```
 
-**Note:** This is simplified pseudo-code for clarity. The actual implementation includes additional logic for file reading, path handling, and fallback cases when no annotated blocks are found.
+> _Note: This is simplified pseudo-code for clarity. The actual implementation includes additional logic for file reading, path handling, and fallback cases when no annotated blocks are found._
 
 The trickiest part is handling indentation correctly. When you extract a code block from the middle of a function, it might be indented 8 spaces, but you want it to display starting at the left margin in documentation. Our `dedent_code` function automatically finds the minimum indentation level and normalizes everything:
 
@@ -328,7 +322,7 @@ def step1(input: MultiplyInput, ctx: Context) -> MultiplyOutput:
 }
 ```
 
-**Note:** the code in this example is truncated for brevity.
+> _Note: the code in this example is truncated for brevity._
 
 **Usage in Documentation:**
 
@@ -347,21 +341,21 @@ To create a simple task, use the `task` decorator:
 <Snippet src={snippets.python.path.to.example.create_the_task} />
 ```
 
-**Note:** This demonstrates real MDX usage where snippets are embedded directly into documentation content with explanatory text, exactly as they appear in our live documentation.
+> _Note: This demonstrates real MDX usage where snippets are embedded directly into documentation content with explanatory text, exactly as they appear in our live documentation._
 
 ## The Results: Documentation That Actually Works
 
 This system has transformed how we handle documentation at Hatchet:
 
-- **✅ Our examples always work.** When a user copies code from our documentation and pastes it into their project, it compiles and runs correctly. This isn't wishful thinking—it's guaranteed by our CI pipeline. If an example is broken, our builds fail, and someone fixes it before it ever reaches users.
+**✅ Our examples always work.** When a user copies code from our documentation and pastes it into their project, it compiles and runs correctly. This isn't wishful thinking—it's guaranteed by our CI pipeline. If an example is broken, our builds fail, and someone fixes it before it ever reaches users.
 
-- **✅ Consistency across languages is automatic.** When we add a new feature like distributed tracing, we implement it in all three SDKs and annotate examples in each. The documentation automatically reflects the idiomatic patterns for Python decorators, TypeScript configuration objects, and Go functional options, without any manual coordination.
+**✅ Consistency across languages is automatic.** When we add a new feature like distributed tracing, we implement it in all three SDKs and annotate examples in each. The documentation automatically reflects the idiomatic patterns for Python decorators, TypeScript configuration objects, and Go functional options, without any manual coordination.
 
-- **✅ Developer velocity has increased dramatically for SDK changes.** Our team no longer spends time hunting through markdown files to update examples. When they write new SDK features, they just annotate the natural examples they'd write anyway, and those examples flow into documentation automatically.
+**✅ Developer velocity has increased dramatically for SDK changes.** Our team no longer spends time hunting through markdown files to update examples. When they write new SDK features, they just annotate the natural examples they'd write anyway, and those examples flow into documentation automatically.
 
-- **✅ User onboarding is smooth.** We haven't had a single support ticket about broken documentation examples since launching this system. Users can trust that if they follow our guides step-by-step, everything will work.
+**✅ User onboarding is smooth.** We haven't had a single support ticket about broken documentation examples since launching this system. Users can trust that if they follow our guides step-by-step, everything will work.
 
-- **✅ Context is always available.** Every code snippet automatically includes a GitHub link to the complete, runnable example. Users can see the full context, explore related code, and understand how snippets fit into larger applications without hunting through repositories or guessing about missing imports and setup code.
+**✅ Context is always available.** Every code snippet automatically includes a GitHub link to the complete, runnable example. Users can see the full context, explore related code, and understand how snippets fit into larger applications without hunting through repositories or guessing about missing imports and setup code.
 
 ## What We Learned Along the Way
 
