@@ -200,7 +200,9 @@ If you're also running your worker application inside of `docker-compose`, you s
 ```yaml
 SERVER_GRPC_BROADCAST_ADDRESS: "hatchet-engine:7077"
 ```
+
 Make sure your worker depends on hatchet-engine:
+
 ```yaml
 worker:
 	depends_on:
