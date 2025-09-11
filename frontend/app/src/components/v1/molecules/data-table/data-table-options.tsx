@@ -436,7 +436,7 @@ function FilterControl<TData>({ column, filter }: FilterControlProps<TData>) {
   }
 }
 
-interface DataTableCombinedOptionsProps<TData> {
+interface DataTableOptionsProps<TData> {
   table: Table<TData>;
   filters: ToolbarFilters;
   onReset?: () => void;
@@ -444,13 +444,13 @@ interface DataTableCombinedOptionsProps<TData> {
   columnKeyToName?: Record<string, string>;
 }
 
-export function DataTableCombinedOptions<TData>({
+export function DataTableOptions<TData>({
   table,
   filters,
   onReset,
   hideFlatten,
   columnKeyToName,
-}: DataTableCombinedOptionsProps<TData>) {
+}: DataTableOptionsProps<TData>) {
   const isFiltered = table.getState().columnFilters?.length > 0;
   const activeFiltersCount = table.getState().columnFilters?.length || 0;
 
