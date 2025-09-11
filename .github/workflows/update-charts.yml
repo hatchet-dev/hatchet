@@ -21,7 +21,12 @@ jobs:
         run: |
           cd hatchet-charts
 
-          RELEASE_TAG="${{ github.event.release.tag_name }}"
+          RAW_TAG="${{ github.event.release.tag_name }}"
+          if ! echo "$RAW_TAG" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9\-\.]+)?$'; then
+            echo "Invalid release tag format: $RAW_TAG" >&2
+            exit 1
+          fi
+          RELEASE_TAG="$RAW_TAG"
           VERSION_NUMBER="${RELEASE_TAG#v}"
 
           echo "Updating charts to use release tag: $RELEASE_TAG (version: $VERSION_NUMBER)"
@@ -65,6 +70,6 @@ jobs:
             echo "No changes to commit"
           else
             git add .
-            git commit -m "Update charts to ${{ github.event.release.tag_name }}"
+            git commit -m "Update charts to $RELEASE_TAG"
             git push
           fi
