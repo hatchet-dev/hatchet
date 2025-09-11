@@ -69,9 +69,11 @@ Finally, Hatchet also has first-class support for cron jobs. You can either crea
 
 Or you can define them declaratively when you create your workflow:
 
-```python
-cron_workflow = hatchet.workflow(name="CronWorkflow", on_crons=["* * * * *"])
-```
+<Snippet
+  src={
+    snippets.python.cron.workflow_definition.workflow_definition_cron_trigger
+  }
+/>
 
 Importantly, first-class support for crons in Hatchet means there's no need for a tool like [Beat](https://docs.celeryq.dev/en/latest/userguide/periodic-tasks.html#introduction) in Celery for handling scheduling periodic tasks.
 
@@ -81,34 +83,7 @@ With Hatchet, all of your tasks can be defined as either sync or async functions
 
 As a simple example, you can easily run a Hatchet task that makes 10 concurrent API calls using `async` / `await` with `asyncio.gather` and `aiohttp`, as opposed to needing to run each one in a blocking fashion as its own task. For example:
 
-```python
-import asyncio
-
-from aiohttp import ClientSession
-
-from hatchet_sdk import Context, EmptyModel, Hatchet
-
-hatchet = Hatchet()
-
-
-async def fetch(session: ClientSession, url: str) -> bool:
-    async with session.get(url) as response:
-        return response.status == 200
-
-
-@hatchet.task(name="Fetch")
-async def hello_from_hatchet(input: EmptyModel, ctx: Context) -> int:
-    num_requests = 10
-
-    async with ClientSession() as session:
-        tasks = [
-            fetch(session, "https://docs.hatchet.run/home") for _ in range(num_requests)
-        ]
-
-        results = await asyncio.gather(*tasks)
-
-        return results.count(True)
-```
+<Snippet src={snippets.python.fastapi_blog.worker.worker} />
 
 With Hatchet, you can perform all of these requests concurrently, in a single task, as opposed to needing to e.g. enqueue a single task per request. This is more performant on your side (as the client), and also puts less pressure on the backing queue, since it needs to handle an order of magnitude fewer requests in this case.
 

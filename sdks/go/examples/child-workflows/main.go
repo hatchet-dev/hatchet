@@ -72,7 +72,7 @@ func main() {
 			}
 
 			var childOutput ChildOutput
-			taskResult := childResult.TaskOutput(processValueTask)
+			taskResult := childResult.TaskOutput(processValueTask.GetName())
 			err = taskResult.Into(&childOutput)
 			if err != nil {
 				return ParentOutput{}, fmt.Errorf("failed to get child workflow result: %w", err)

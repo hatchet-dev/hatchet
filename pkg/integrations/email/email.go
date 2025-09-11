@@ -52,6 +52,10 @@ type EmailService interface {
 	SendWorkflowRunFailedAlerts(ctx context.Context, emails []string, data WorkflowRunsFailedEmailData) error
 	SendExpiringTokenEmail(ctx context.Context, emails []string, data ExpiringTokenEmailData) error
 	SendTenantResourceLimitAlert(ctx context.Context, emails []string, data ResourceLimitAlertData) error
+
+	// For more generalised emails
+	SendTemplateEmail(ctx context.Context, to, templateAlias string, templateModelData interface{}, bccSupport bool) error
+	SendTemplateEmailBCC(ctx context.Context, bcc, templateAlias string, templateModelData interface{}, bccSupport bool) error
 }
 
 type NoOpService struct{}
@@ -73,5 +77,13 @@ func (s *NoOpService) SendExpiringTokenEmail(ctx context.Context, emails []strin
 }
 
 func (s *NoOpService) SendTenantResourceLimitAlert(ctx context.Context, emails []string, data ResourceLimitAlertData) error {
+	return nil
+}
+
+func (s *NoOpService) SendTemplateEmail(ctx context.Context, to, templateAlias string, templateModelData interface{}, bccSupport bool) error {
+	return nil
+}
+
+func (s *NoOpService) SendTemplateEmailBCC(ctx context.Context, bcc, templateAlias string, templateModelData interface{}, bccSupport bool) error {
 	return nil
 }

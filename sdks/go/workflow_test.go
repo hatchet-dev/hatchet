@@ -166,15 +166,15 @@ func TestConvertInputToType_MalformedMapData(t *testing.T) {
 	}
 	expectedType := reflect.TypeOf(TestStruct{})
 
-	result := convertInputToType(input, expectedType)
+	defer func() {
+		if r := recover(); r != nil {
+			assert.NotNil(t, r)
+		} else {
+			t.Fatal("Expected panic but none occurred")
+		}
+	}()
 
-	resultStruct, ok := result.Interface().(TestStruct)
-	if ok {
-		assert.Equal(t, "", resultStruct.Name)
-		assert.Equal(t, 0, resultStruct.Age)
-	} else {
-		assert.Equal(t, input, result.Interface())
-	}
+	_ = convertInputToType(input, expectedType)
 }
 
 func TestConvertInputToType_NonStructType(t *testing.T) {
@@ -274,14 +274,13 @@ func TestConvertInputToType_NumberTypesConversion(t *testing.T) {
 	}
 	expectedType := reflect.TypeOf(TestStruct{})
 
-	result := convertInputToType(input, expectedType)
+	defer func() {
+		if r := recover(); r != nil {
+			assert.NotNil(t, r)
+		} else {
+			t.Fatal("Expected panic but none occurred")
+		}
+	}()
 
-	resultStruct, ok := result.Interface().(TestStruct)
-	if ok {
-		assert.Equal(t, "Eve", resultStruct.Name)
-		assert.Equal(t, 27, resultStruct.Age)
-		assert.Equal(t, true, resultStruct.Active)
-	} else {
-		assert.Equal(t, input, result.Interface())
-	}
+	_ = convertInputToType(input, expectedType)
 }

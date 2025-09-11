@@ -855,6 +855,7 @@ func (s *Scheduler) getSnapshotInput(mustSnapshot bool) (*SnapshotInput, bool) {
 			WorkerId: workerId,
 			MaxRuns:  worker.MaxRuns,
 			Labels:   worker.Labels,
+			Name:     worker.Name,
 		}
 	}
 

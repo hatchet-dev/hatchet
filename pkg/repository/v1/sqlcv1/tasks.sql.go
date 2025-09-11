@@ -11,6 +11,24 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const analyzeV1Task = `-- name: AnalyzeV1Task :exec
+ANALYZE v1_task
+`
+
+func (q *Queries) AnalyzeV1Task(ctx context.Context, db DBTX) error {
+	_, err := db.Exec(ctx, analyzeV1Task)
+	return err
+}
+
+const analyzeV1TaskEvent = `-- name: AnalyzeV1TaskEvent :exec
+ANALYZE v1_task_event
+`
+
+func (q *Queries) AnalyzeV1TaskEvent(ctx context.Context, db DBTX) error {
+	_, err := db.Exec(ctx, analyzeV1TaskEvent)
+	return err
+}
+
 const cleanupWorkflowConcurrencySlotsAfterInsert = `-- name: CleanupWorkflowConcurrencySlotsAfterInsert :exec
 WITH input AS (
     SELECT

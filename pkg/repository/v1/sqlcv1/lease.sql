@@ -51,7 +51,8 @@ RETURNING l.*;
 -- name: ListActiveWorkers :many
 SELECT
     w."id",
-    w."maxRuns"
+    w."maxRuns",
+    w."name"
 FROM
     "Worker" w
 WHERE

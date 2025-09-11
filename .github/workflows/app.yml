@@ -16,7 +16,7 @@ jobs:
           version: 9.15.4
           run_install: false
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           cache: pnpm
           cache-dependency-path: frontend/app/pnpm-lock.yaml
@@ -38,13 +38,19 @@ jobs:
           version: 9.15.4
           run_install: false
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           cache: pnpm
           cache-dependency-path: frontend/app/pnpm-lock.yaml
       - name: Install dependencies
         working-directory: frontend/app
         run: pnpm install --frozen-lockfile
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - name: Generate docs snippets and examples
+        working-directory: frontend/snippets
+        run: python3 generate.py
       - name: Build
         working-directory: frontend/app
         run: npm run build

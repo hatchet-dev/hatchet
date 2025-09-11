@@ -18,6 +18,17 @@ import (
 // Client provides the main interface for interacting with Hatchet.
 type Client struct {
 	legacyClient v0Client.Client
+
+	// Feature clients (lazy loaded)
+	metrics    *features.MetricsClient
+	rateLimits *features.RateLimitsClient
+	crons      *features.CronsClient
+	cel        *features.CELClient
+	schedules  *features.SchedulesClient
+	filters    *features.FiltersClient
+	runs       *features.RunsClient
+	workers    *features.WorkersClient
+	workflows  *features.WorkflowsClient
 }
 
 // NewClient creates a new Hatchet client.
@@ -333,7 +344,7 @@ func (st *StandaloneTask) Run(ctx context.Context, input any) (*TaskResult, erro
 	}
 
 	// Extract the task result from the workflow result
-	taskResult := result.TaskOutput(st.task)
+	taskResult := result.TaskOutput(st.task.name)
 	return taskResult, nil
 }
 
@@ -346,11 +357,6 @@ func (st *StandaloneTask) RunNoWait(ctx context.Context, input any) (*WorkflowRe
 // Dump implements the WorkflowBase interface for internal use, delegating to the underlying workflow.
 func (st *StandaloneTask) Dump() (*contracts.CreateWorkflowVersionRequest, []internal.NamedFunction, []internal.NamedFunction, internal.WrappedTaskFn) {
 	return st.workflow.Dump()
-}
-
-// NamedTask represents any task that has a name.
-type NamedTask interface {
-	GetName() string
 }
 
 // WorkflowRef is a type that represents a reference to a workflow run.
@@ -373,10 +379,10 @@ type TaskResult struct {
 //
 // Example usage:
 //
-//	taskResult := workflowResult.TaskOutput(myTask)
+//	taskResult := workflowResult.TaskOutput("myTask")
 //	var output MyOutputType
 //	err := taskResult.Into(&output)
-func (wr *WorkflowResult) TaskOutput(task NamedTask) *TaskResult {
+func (wr *WorkflowResult) TaskOutput(taskName string) *TaskResult {
 	// Handle different result structures that might come from workflow execution
 	resultData := wr.result
 
@@ -393,7 +399,7 @@ func (wr *WorkflowResult) TaskOutput(task NamedTask) *TaskResult {
 
 	// If the result is a map, look for the specific task
 	if resultMap, ok := resultData.(map[string]any); ok {
-		if taskOutput, exists := resultMap[task.GetName()]; exists {
+		if taskOutput, exists := resultMap[taskName]; exists {
 			return &TaskResult{result: taskOutput}
 		}
 	}
@@ -493,65 +499,99 @@ func (c *Client) RunMany(ctx context.Context, workflowName string, inputs []RunM
 	return c.legacyClient.Admin().BulkRunWorkflow(workflows)
 }
 
-// Feature clients provide access to Hatchet's advanced functionality
+// Metrics returns a feature client for interacting with workflow and task metrics.
+func (c *Client) Metrics() *features.MetricsClient {
+	if c.metrics == nil {
+		tenantId := c.legacyClient.TenantId()
+		c.metrics = features.NewMetricsClient(c.legacyClient.API(), tenantId)
+	}
 
-// Metrics returns a client for interacting with workflow and task metrics.
-func (c *Client) Metrics() features.MetricsClient {
-	tenantId := c.legacyClient.TenantId()
-	return features.NewMetricsClient(c.legacyClient.API(), &tenantId)
+	return c.metrics
 }
 
 // RateLimits returns a client for managing rate limits.
-func (c *Client) RateLimits() features.RateLimitsClient {
-	tenantId := c.legacyClient.TenantId()
-	admin := c.legacyClient.Admin()
-	return features.NewRateLimitsClient(c.legacyClient.API(), &tenantId, &admin)
+func (c *Client) RateLimits() *features.RateLimitsClient {
+	if c.rateLimits == nil {
+		tenantId := c.legacyClient.TenantId()
+		admin := c.legacyClient.Admin()
+		c.rateLimits = features.NewRateLimitsClient(c.legacyClient.API(), tenantId, admin)
+	}
+
+	return c.rateLimits
 }
 
 // Runs returns a client for managing workflow runs.
-func (c *Client) Runs() features.RunsClient {
-	tenantId := c.legacyClient.TenantId()
-	return features.NewRunsClient(c.legacyClient.API(), &tenantId, c.legacyClient)
+func (c *Client) Runs() *features.RunsClient {
+	if c.runs == nil {
+		tenantId := c.legacyClient.TenantId()
+		c.runs = features.NewRunsClient(c.legacyClient.API(), tenantId, c.legacyClient)
+	}
+
+	return c.runs
 }
 
 // Workers returns a client for managing workers.
-func (c *Client) Workers() features.WorkersClient {
-	tenantId := c.legacyClient.TenantId()
-	return features.NewWorkersClient(c.legacyClient.API(), &tenantId)
+func (c *Client) Workers() *features.WorkersClient {
+	if c.workers == nil {
+		tenantId := c.legacyClient.TenantId()
+		c.workers = features.NewWorkersClient(c.legacyClient.API(), tenantId)
+	}
+
+	return c.workers
 }
 
 // Workflows returns a client for managing workflow definitions.
-func (c *Client) Workflows() features.WorkflowsClient {
-	tenantId := c.legacyClient.TenantId()
-	return features.NewWorkflowsClient(c.legacyClient.API(), &tenantId)
+func (c *Client) Workflows() *features.WorkflowsClient {
+	if c.workflows == nil {
+		tenantId := c.legacyClient.TenantId()
+		c.workflows = features.NewWorkflowsClient(c.legacyClient.API(), tenantId)
+	}
+
+	return c.workflows
 }
 
 // Crons returns a client for managing cron triggers.
-func (c *Client) Crons() features.CronsClient {
-	tenantId := c.legacyClient.TenantId()
-	return features.NewCronsClient(c.legacyClient.API(), &tenantId)
+func (c *Client) Crons() *features.CronsClient {
+	if c.crons == nil {
+		tenantId := c.legacyClient.TenantId()
+		c.crons = features.NewCronsClient(c.legacyClient.API(), tenantId)
+	}
+
+	return c.crons
 }
 
 // CEL returns a client for working with CEL expressions.
-func (c *Client) CEL() features.CELClient {
-	tenantId := c.legacyClient.TenantId()
-	return features.NewCELClient(c.legacyClient.API(), &tenantId)
+func (c *Client) CEL() *features.CELClient {
+	if c.cel == nil {
+		tenantId := c.legacyClient.TenantId()
+		c.cel = features.NewCELClient(c.legacyClient.API(), tenantId)
+	}
+
+	return c.cel
 }
 
 // Schedules returns a client for managing scheduled workflow runs.
-func (c *Client) Schedules() features.SchedulesClient {
-	tenantId := c.legacyClient.TenantId()
-	namespace := c.legacyClient.Namespace()
-	return features.NewSchedulesClient(c.legacyClient.API(), &tenantId, &namespace)
+func (c *Client) Schedules() *features.SchedulesClient {
+	if c.schedules == nil {
+		tenantId := c.legacyClient.TenantId()
+		namespace := c.legacyClient.Namespace()
+		c.schedules = features.NewSchedulesClient(c.legacyClient.API(), tenantId, &namespace)
+	}
+
+	return c.schedules
+}
+
+// Filters returns a client for managing event filters.
+func (c *Client) Filters() *features.FiltersClient {
+	if c.filters == nil {
+		tenantId := c.legacyClient.TenantId()
+		c.filters = features.NewFiltersClient(c.legacyClient.API(), tenantId)
+	}
+
+	return c.filters
 }
 
 // Events returns a client for sending and managing events.
 func (c *Client) Events() v0Client.EventClient {
 	return c.legacyClient.Event()
-}
-
-// Filters returns a client for managing event filters.
-func (c *Client) Filters() features.FiltersClient {
-	tenantId := c.legacyClient.TenantId()
-	return features.NewFiltersClient(c.legacyClient.API(), &tenantId)
 }
