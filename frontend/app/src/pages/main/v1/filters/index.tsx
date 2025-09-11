@@ -14,6 +14,8 @@ import { DataTable } from '@/components/v1/molecules/data-table/data-table';
 import { useFilters } from './hooks/use-filters';
 import { V1Filter } from '@/lib/api';
 import { useSidePanel } from '@/hooks/use-side-panel';
+import { DocsButton } from '@/components/v1/docs/docs-button';
+import { docsPages } from '@/lib/generated/docs';
 
 export default function Filters() {
   const [rotate, setRotate] = useState(false);
@@ -110,18 +112,13 @@ export default function Filters() {
       emptyState={
         <div className="flex flex-col items-center justify-center p-8 gap-3 text-gray-400">
           <p className="text-base font-medium">No filters found</p>
-          <p className="text-sm">
-            Learn more about filters in the{' '}
-            <a
-              href="https://docs.hatchet.run/home/run-on-event#event-filtering"
-              target="_blank"
-              rel="noreferrer"
-              className="underline text-blue-500 hover:text-blue-600 transition-colors"
-            >
-              documentation
-            </a>
-            .
-          </p>
+          <DocsButton
+            doc={docsPages.home['run-on-event']}
+            scrollTo="event-filtering"
+            size="full"
+            variant="outline"
+            label="Learn about event filters"
+          />
         </div>
       }
       columnKeyToName={FilterColumn}
