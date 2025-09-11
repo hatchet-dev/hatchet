@@ -45,6 +45,9 @@ type UseSidePanelProps =
   | {
       type: 'docs';
       content: DocPage;
+      queryParams?: Record<string, string>;
+      // fixme: make this type safe based on the hashes available in the doc
+      scrollTo?: string;
     }
   | {
       type: 'task-run-details';
@@ -115,12 +118,20 @@ export function useSidePanelData(): SidePanelData {
           title: 'Filter details',
         };
       case 'docs':
+        const query = props.queryParams ?? {};
+        query.theme = theme;
+
+        const queryString = new URLSearchParams(query).toString();
+        const url =
+          `${props.content.href}?${queryString}` +
+          (props.scrollTo ? `#${props.scrollTo}` : '');
+
         return {
           isDocs: true,
           component: (
             <div className="p-4 size-full">
               <iframe
-                src={`${props.content.href}?theme=${theme}`}
+                src={url}
                 className="inset-0 w-full rounded-md border border-slate-800 size-full"
                 title={`Documentation: ${props.content.title}`}
                 loading="lazy"
