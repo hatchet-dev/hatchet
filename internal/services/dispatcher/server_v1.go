@@ -18,6 +18,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
+	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
@@ -325,7 +326,7 @@ func (s *DispatcherImpl) subscribeToWorkflowRunsV1(server contracts.Dispatcher_S
 	wg := sync.WaitGroup{}
 	sendMu := sync.Mutex{}
 	ringIndex := 0
-	iterMu := sync.Mutex{}
+	ringMu := sync.Mutex{}
 
 	sendEvent := func(e *contracts.WorkflowRunEvent) error {
 		results := s.cleanResults(e.Results)
@@ -335,14 +336,19 @@ func (s *DispatcherImpl) subscribeToWorkflowRunsV1(server contracts.Dispatcher_S
 			e.Results = nil
 		}
 
-		// send the task to the client
 		sendMu.Lock()
-		err := server.Send(e)
-		sendMu.Unlock()
+		defer sendMu.Unlock()
 
-		if err != nil {
-			s.l.Error().Err(err).Msgf("could not subscribe to workflow events for run %s", e.WorkflowRunId)
-			return err
+		// only send if it has not been concurrently sent by another process
+		shouldSend := acks.hasWorkflowRun(e.WorkflowRunId)
+
+		if shouldSend {
+			err := server.Send(e)
+
+			if err != nil {
+				s.l.Error().Err(err).Msgf("could not send workflow event for run %s", e.WorkflowRunId)
+				return err
+			}
 		}
 
 		acks.ackWorkflowRun(e.WorkflowRunId)
@@ -355,16 +361,11 @@ func (s *DispatcherImpl) subscribeToWorkflowRunsV1(server contracts.Dispatcher_S
 			return nil
 		}
 
-		if !iterMu.TryLock() {
-			s.l.Debug().Msg("could not acquire lock")
-			return nil
-		}
-
-		defer iterMu.Unlock()
-
 		bufferSize := 1000
 
 		if len(workflowRunIds) > bufferSize {
+			ringMu.Lock()
+
 			start := ringIndex % len(workflowRunIds)
 
 			if start+bufferSize <= len(workflowRunIds) {
@@ -379,6 +380,8 @@ func (s *DispatcherImpl) subscribeToWorkflowRunsV1(server contracts.Dispatcher_S
 			if ringIndex >= len(workflowRunIds) {
 				ringIndex = 0
 			}
+
+			ringMu.Unlock()
 		}
 
 		start := time.Now()
@@ -549,6 +552,13 @@ func (s *DispatcherImpl) sendStepActionEventV1(ctx context.Context, request *con
 		retryCount = *request.RetryCount
 	} else {
 		s.l.Warn().Msg("retry count is nil, using task's current retry count")
+	}
+
+	if request.EventType == contracts.StepActionEventType_STEP_EVENT_TYPE_COMPLETED {
+		if err := repository.ValidateJSONB([]byte(request.EventPayload), "taskOutput"); err != nil {
+			request.EventPayload = err.Error()
+			request.EventType = contracts.StepActionEventType_STEP_EVENT_TYPE_FAILED
+		}
 	}
 
 	switch request.EventType {

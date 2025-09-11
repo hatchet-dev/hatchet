@@ -56,8 +56,6 @@ type Layer struct {
 
 	Pool *pgxpool.Pool
 
-	EssentialPool *pgxpool.Pool
-
 	ReadReplicaPool *pgxpool.Pool
 
 	QueuePool *pgxpool.Pool

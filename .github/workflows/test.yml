@@ -2,7 +2,8 @@ name: test
 on:
   pull_request:
     paths-ignore:
-      - "sdks/**"
+      - "sdks/typescript/**"
+      - "sdks/python/**"
       - "frontend/**"
       - "examples/**"
 
@@ -13,18 +14,21 @@ jobs:
       DATABASE_URL: postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet?sslmode=disable
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install Protoc
         uses: arduino/setup-protoc@v3
         with:
           version: "29.3"
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install Task
         uses: arduino/setup-task@v2
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: "1.24"
 
@@ -33,10 +37,6 @@ jobs:
         with:
           version: 9.15.4
           run_install: false
-
-      - name: Install Atlas
-        run: |
-          curl -sSf https://atlasgo.sh | sh
 
       - name: Compose
         run: docker compose up -d
@@ -56,9 +56,9 @@ jobs:
   unit:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Setup Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: "1.24"
 
@@ -77,12 +77,14 @@ jobs:
       DATABASE_URL: postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet?sslmode=disable
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Install Task
         uses: arduino/setup-task@v2
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: "1.24"
 
@@ -122,12 +124,15 @@ jobs:
       DATABASE_URL: postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet?sslmode=disable
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install Task
         uses: arduino/setup-task@v2
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Setup Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: "1.24"
 
@@ -209,14 +214,17 @@ jobs:
       DATABASE_URL: postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet?sslmode=disable
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install Task
         uses: arduino/setup-task@v2
-      - name: Setup Go
-        uses: actions/setup-go@v5
         with:
-          go-version: "1.22"
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: '1.24'
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -301,12 +309,15 @@ jobs:
         pg-version: ["15-alpine"]
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install Task
         uses: arduino/setup-task@v2
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Setup Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: "1.24"
 
@@ -337,12 +348,15 @@ jobs:
         pg-version: ["15-alpine"]
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install Task
         uses: arduino/setup-task@v2
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Setup Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: "1.24"
 

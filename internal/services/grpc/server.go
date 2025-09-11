@@ -271,14 +271,21 @@ func (s *Server) startGRPC() (func() error, error) {
 		recovery.StreamServerInterceptor(recovery.WithRecoveryHandler(grpcPanicRecoveryHandler)),
 	))
 
-	serverOpts = append(serverOpts, grpc.ChainUnaryInterceptor(
+	// Prepare base unary interceptors
+	baseUnaryInterceptors := []grpc.UnaryServerInterceptor{
 		logging.UnaryServerInterceptor(middleware.InterceptorLogger(s.l), opts...),
 		auth.UnaryServerInterceptor(authMiddleware.Middleware),
 		middleware.AttachServerNameInterceptor,
 		ratelimit.UnaryServerInterceptor(limiter),
 		errorInterceptor.ErrorUnaryServerInterceptor(),
 		recovery.UnaryServerInterceptor(recovery.WithRecoveryHandler(grpcPanicRecoveryHandler)),
-	))
+	}
+
+	if len(s.config.GRPCInterceptors) > 0 {
+		baseUnaryInterceptors = append(baseUnaryInterceptors, s.config.GRPCInterceptors...)
+	}
+
+	serverOpts = append(serverOpts, grpc.ChainUnaryInterceptor(baseUnaryInterceptors...))
 
 	var enforcement = keepalive.EnforcementPolicy{
 		MinTime:             5 * time.Second,
@@ -298,6 +305,10 @@ func (s *Server) startGRPC() (func() error, error) {
 		s.config.Runtime.GRPCMaxMsgSize,
 	), grpc.MaxSendMsgSize(
 		s.config.Runtime.GRPCMaxMsgSize,
+	))
+
+	serverOpts = append(serverOpts, grpc.StaticStreamWindowSize(
+		s.config.Runtime.GRPCStaticStreamWindowSize,
 	))
 
 	grpcServer := grpc.NewServer(serverOpts...)

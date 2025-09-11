@@ -21,6 +21,7 @@ from hatchet_sdk.clients.rest.models.workflow_run_order_by_direction import (
 from hatchet_sdk.clients.v1.api_client import (
     BaseRestClient,
     maybe_additional_metadata_to_kv,
+    retry,
 )
 from hatchet_sdk.utils.typing import JSONSerializableMapping
 
@@ -153,6 +154,7 @@ class ScheduledClient(BaseRestClient):
             statuses=statuses,
         )
 
+    @retry
     def list(
         self,
         offset: int | None = None,
@@ -193,6 +195,7 @@ class ScheduledClient(BaseRestClient):
                 statuses=statuses,
             )
 
+    @retry
     def get(self, scheduled_id: str) -> ScheduledWorkflows:
         """
         Retrieves a specific scheduled workflow by scheduled run trigger ID.

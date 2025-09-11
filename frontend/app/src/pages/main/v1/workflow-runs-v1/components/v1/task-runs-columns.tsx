@@ -12,26 +12,48 @@ import { cn } from '@/lib/utils';
 import { DataTableRowActions } from '@/components/v1/molecules/data-table/data-table-row-actions';
 import { V1RunStatus } from '../../../workflow-runs/components/run-statuses';
 import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
-import { V1TaskSummary } from '@/lib/api';
+import { V1TaskStatus, V1TaskSummary } from '@/lib/api';
+import { Duration } from '@/components/v1/shared/duration';
 
 export const TaskRunColumn = {
-  taskName: 'task_name',
-  status: 'status',
+  taskName: 'Task Name',
+  status: 'Status',
   workflow: 'Workflow',
-  parentTaskExternalId: 'parentTaskExternalId',
-  createdAt: 'Created at',
-  startedAt: 'Started at',
-  finishedAt: 'Finished at',
+  parentTaskExternalId: 'Parent Task External ID',
+  flattenDAGs: 'Flatten DAGs',
+  createdAt: 'Created At',
+  startedAt: 'Started At',
+  finishedAt: 'Finished At',
   duration: 'Duration',
-  additionalMetadata: 'additionalMetadata',
+  additionalMetadata: 'Metadata',
 } as const;
 
+export type TaskRunColumnKeys = keyof typeof TaskRunColumn;
+
+export const workflowKey: TaskRunColumnKeys = 'workflow';
+export const parentTaskExternalIdKey: TaskRunColumnKeys =
+  'parentTaskExternalId';
+export const flattenDAGsKey: TaskRunColumnKeys = 'flattenDAGs';
+export const createdAtKey: TaskRunColumnKeys = 'createdAt';
+export const startedAtKey: TaskRunColumnKeys = 'startedAt';
+export const finishedAtKey: TaskRunColumnKeys = 'finishedAt';
+export const durationKey: TaskRunColumnKeys = 'duration';
+export const additionalMetadataKey: TaskRunColumnKeys = 'additionalMetadata';
+export const taskNameKey: TaskRunColumnKeys = 'taskName';
+export const statusKey: TaskRunColumnKeys = 'status';
+
 export const columns: (
-  onAdditionalMetadataClick?: (click: AdditionalMetadataClick) => void,
-  onTaskRunIdClick?: (taskRunId: string) => void,
+  tenantId: string,
+  selectedAdditionalMetaRunId: string | null,
+  onAdditionalMetadataClick: (click: AdditionalMetadataClick) => void,
+  onTaskRunIdClick: (taskRunId: string) => void,
+  onAdditionalMetadataOpenChange: (rowId: string, open: boolean) => void,
 ) => ColumnDef<V1TaskSummary>[] = (
+  tenantId,
+  selectedAdditionalMetaRunId,
   onAdditionalMetadataClick,
   onTaskRunIdClick,
+  onAdditionalMetadataOpenChange,
 ) => [
   {
     id: 'select',
@@ -97,14 +119,14 @@ export const columns: (
   //   enableHiding: true,
   // },
   {
-    accessorKey: TaskRunColumn.taskName,
+    accessorKey: taskNameKey,
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Task" />
     ),
     cell: ({ row }) => {
       if (row.getCanExpand()) {
         return (
-          <Link to={'/v1/runs/' + row.original.metadata.id}>
+          <Link to={`/tenants/${tenantId}/runs/${row.original.metadata.id}`}>
             <div className="cursor-pointer hover:underline min-w-fit whitespace-nowrap">
               {row.original.displayName}
             </div>
@@ -114,11 +136,7 @@ export const columns: (
         return (
           <div
             className="cursor-pointer hover:underline min-w-fit whitespace-nowrap"
-            onClick={() =>
-              row.original.metadata.id &&
-              onTaskRunIdClick &&
-              onTaskRunIdClick(row.original.metadata.id)
-            }
+            onClick={() => onTaskRunIdClick(row.original.metadata.id)}
           >
             {row.original.displayName}
           </div>
@@ -129,9 +147,9 @@ export const columns: (
     enableHiding: false,
   },
   {
-    accessorKey: TaskRunColumn.status,
+    accessorKey: statusKey,
     header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Status" />
+      <DataTableColumnHeader column={column} title={TaskRunColumn.status} />
     ),
     cell: ({ row }) => (
       <V1RunStatus
@@ -143,9 +161,9 @@ export const columns: (
     enableHiding: false,
   },
   {
-    accessorKey: TaskRunColumn.workflow,
+    accessorKey: workflowKey,
     header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Workflow" />
+      <DataTableColumnHeader column={column} title={TaskRunColumn.workflow} />
     ),
     cell: ({ row }) => {
       const workflowId = row.original.workflowId;
@@ -154,7 +172,9 @@ export const columns: (
       return (
         <div className="min-w-fit whitespace-nowrap">
           {(workflowId && workflowName && (
-            <a href={`/v1/tasks/${workflowId}`}>{workflowName}</a>
+            <a href={`/tenants/${tenantId}/workflows/${workflowId}`}>
+              {workflowName}
+            </a>
           )) ||
             'N/A'}
         </div>
@@ -165,13 +185,28 @@ export const columns: (
     enableHiding: true,
   },
   {
-    accessorKey: TaskRunColumn.parentTaskExternalId,
+    accessorKey: parentTaskExternalIdKey,
     header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Parent Task External ID" />
+      <DataTableColumnHeader
+        column={column}
+        title={TaskRunColumn.parentTaskExternalId}
+      />
     ),
     cell: () => null,
     enableSorting: false,
-    enableHiding: true,
+    enableHiding: false,
+  },
+  {
+    accessorKey: flattenDAGsKey,
+    header: ({ column }) => (
+      <DataTableColumnHeader
+        column={column}
+        title={TaskRunColumn.flattenDAGs}
+      />
+    ),
+    cell: () => null,
+    enableSorting: false,
+    enableHiding: false,
   },
   // {
   //   accessorKey: 'Triggered by',
@@ -185,11 +220,11 @@ export const columns: (
   //   enableHiding: true,
   // },
   {
-    accessorKey: TaskRunColumn.createdAt,
+    accessorKey: createdAtKey,
     header: ({ column }) => (
       <DataTableColumnHeader
         column={column}
-        title="Created at"
+        title={TaskRunColumn.createdAt}
         className="whitespace-nowrap"
       />
     ),
@@ -208,11 +243,11 @@ export const columns: (
     enableHiding: true,
   },
   {
-    accessorKey: TaskRunColumn.startedAt,
+    accessorKey: startedAtKey,
     header: ({ column }) => (
       <DataTableColumnHeader
         column={column}
-        title="Started at"
+        title={TaskRunColumn.startedAt}
         className="whitespace-nowrap"
       />
     ),
@@ -231,11 +266,11 @@ export const columns: (
     enableHiding: true,
   },
   {
-    accessorKey: TaskRunColumn.finishedAt,
+    accessorKey: finishedAtKey,
     header: ({ column }) => (
       <DataTableColumnHeader
         column={column}
-        title="Finished at"
+        title={TaskRunColumn.finishedAt}
         className="whitespace-nowrap"
       />
     ),
@@ -252,24 +287,34 @@ export const columns: (
     enableHiding: true,
   },
   {
-    accessorKey: TaskRunColumn.duration,
+    accessorKey: durationKey,
     header: ({ column }) => (
-      <DataTableColumnHeader
-        column={column}
-        title="Duration (ms)"
-        className="whitespace-nowrap"
-      />
+      <DataTableColumnHeader column={column} title={TaskRunColumn.duration} />
     ),
     cell: ({ row }) => {
-      return <div className="whitespace-nowrap">{row.original.duration}</div>;
+      const startedAt = row.original.startedAt;
+      const finishedAt = row.original.finishedAt;
+      const status = row.getValue(statusKey) as V1TaskStatus;
+
+      return (
+        <Duration
+          start={startedAt}
+          end={finishedAt}
+          status={status}
+          variant="compact"
+        />
+      );
     },
     enableSorting: false,
     enableHiding: true,
   },
   {
-    accessorKey: TaskRunColumn.additionalMetadata,
+    accessorKey: additionalMetadataKey,
     header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Metadata" />
+      <DataTableColumnHeader
+        column={column}
+        title={TaskRunColumn.additionalMetadata}
+      />
     ),
     cell: ({ row }) => {
       if (!row.original.additionalMetadata) {
@@ -280,6 +325,10 @@ export const columns: (
         <AdditionalMetadata
           metadata={row.original.additionalMetadata}
           onClick={onAdditionalMetadataClick}
+          isOpen={selectedAdditionalMetaRunId === row.original.metadata.id}
+          onOpenChange={(open) => {
+            onAdditionalMetadataOpenChange(row.original.metadata.id, open);
+          }}
         />
       );
     },

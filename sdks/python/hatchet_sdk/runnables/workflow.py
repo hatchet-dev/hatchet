@@ -1,8 +1,19 @@
 import asyncio
 from collections.abc import Callable
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from functools import cached_property
-from typing import TYPE_CHECKING, Any, Generic, TypeVar, cast, get_type_hints
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Concatenate,
+    Generic,
+    Literal,
+    ParamSpec,
+    TypeVar,
+    cast,
+    get_type_hints,
+    overload,
+)
 
 from google.protobuf import timestamp_pb2
 from pydantic import BaseModel, model_validator
@@ -17,6 +28,7 @@ from hatchet_sdk.clients.rest.models.cron_workflows import CronWorkflows
 from hatchet_sdk.clients.rest.models.v1_filter import V1Filter
 from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
 from hatchet_sdk.clients.rest.models.v1_task_summary import V1TaskSummary
+from hatchet_sdk.conditions import Condition, OrGroup
 from hatchet_sdk.context.context import Context, DurableContext
 from hatchet_sdk.contracts.v1.workflows_pb2 import (
     CreateWorkflowVersionRequest,
@@ -43,7 +55,6 @@ from hatchet_sdk.utils.typing import (
     JSONSerializableMapping,
     is_basemodel_subclass,
 )
-from hatchet_sdk.waits import Condition, OrGroup
 from hatchet_sdk.workflow_run import WorkflowRunRef
 
 if TYPE_CHECKING:
@@ -51,6 +62,7 @@ if TYPE_CHECKING:
 
 
 T = TypeVar("T")
+P = ParamSpec("P")
 
 
 def fall_back_to_default(value: T, param_default: T, fallback_value: T | None) -> T:
@@ -211,6 +223,10 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         )
 
     @property
+    def input_validator(self) -> type[TWorkflowInput]:
+        return cast(type[TWorkflowInput], self.config.input_validator)
+
+    @property
     def tasks(self) -> list[Task[TWorkflowInput, Any]]:
         tasks = self._default_tasks + self._durable_tasks
 
@@ -310,9 +326,9 @@ class BaseWorkflow(Generic[TWorkflowInput]):
 
         :returns: A list of `V1TaskSummary` objects representing the runs of the workflow.
         """
-        response = self.client.runs.list(
+        return self.client.runs.list_with_pagination(
             workflow_ids=[self.id],
-            since=since or datetime.now(tz=timezone.utc) - timedelta(days=1),
+            since=since,
             only_tasks=only_tasks,
             offset=offset,
             limit=limit,
@@ -323,8 +339,6 @@ class BaseWorkflow(Generic[TWorkflowInput]):
             parent_task_external_id=parent_task_external_id,
             triggering_event_external_id=triggering_event_external_id,
         )
-
-        return response.rows
 
     async def aio_list_runs(
         self,
@@ -355,9 +369,9 @@ class BaseWorkflow(Generic[TWorkflowInput]):
 
         :returns: A list of `V1TaskSummary` objects representing the runs of the workflow.
         """
-        return await asyncio.to_thread(
-            self.list_runs,
-            since=since or datetime.now(tz=timezone.utc) - timedelta(days=1),
+        return await self.client.runs.aio_list_with_pagination(
+            workflow_ids=[self.id],
+            since=since,
             only_tasks=only_tasks,
             offset=offset,
             limit=limit,
@@ -511,6 +525,22 @@ class BaseWorkflow(Generic[TWorkflowInput]):
             priority=priority,
         )
 
+    def delete(self) -> None:
+        """
+        Permanently delete the workflow.
+
+        **DANGEROUS: This will delete a workflow and all of its data**
+        """
+        self.client.workflows.delete(self.id)
+
+    async def aio_delete(self) -> None:
+        """
+        Permanently delete the workflow.
+
+        **DANGEROUS: This will delete a workflow and all of its data**
+        """
+        await self.client.workflows.aio_delete(self.id)
+
 
 class Workflow(BaseWorkflow[TWorkflowInput]):
     """
@@ -637,39 +667,83 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
         return await ref.aio_result()
 
+    def _get_result(
+        self, ref: WorkflowRunRef, return_exceptions: bool
+    ) -> dict[str, Any] | BaseException:
+        try:
+            return ref.result()
+        except Exception as e:
+            if return_exceptions:
+                return e
+            raise e
+
+    @overload
     def run_many(
         self,
         workflows: list[WorkflowRunTriggerConfig],
-    ) -> list[dict[str, Any]]:
+        return_exceptions: Literal[True],
+    ) -> list[dict[str, Any] | BaseException]: ...
+
+    @overload
+    def run_many(
+        self,
+        workflows: list[WorkflowRunTriggerConfig],
+        return_exceptions: Literal[False] = False,
+    ) -> list[dict[str, Any]]: ...
+
+    def run_many(
+        self,
+        workflows: list[WorkflowRunTriggerConfig],
+        return_exceptions: bool = False,
+    ) -> list[dict[str, Any]] | list[dict[str, Any] | BaseException]:
         """
         Run a workflow in bulk and wait for all runs to complete.
         This method triggers multiple workflow runs, blocks until all of them complete, and returns the final results.
 
         :param workflows: A list of `WorkflowRunTriggerConfig` objects, each representing a workflow run to be triggered.
+        :param return_exceptions: If `True`, exceptions will be returned as part of the results instead of raising them.
         :returns: A list of results for each workflow run.
         """
         refs = self.client._client.admin.run_workflows(
             workflows=workflows,
         )
 
-        return [ref.result() for ref in refs]
+        return [self._get_result(ref, return_exceptions) for ref in refs]
+
+    @overload
+    async def aio_run_many(
+        self,
+        workflows: list[WorkflowRunTriggerConfig],
+        return_exceptions: Literal[True],
+    ) -> list[dict[str, Any] | BaseException]: ...
+
+    @overload
+    async def aio_run_many(
+        self,
+        workflows: list[WorkflowRunTriggerConfig],
+        return_exceptions: Literal[False] = False,
+    ) -> list[dict[str, Any]]: ...
 
     async def aio_run_many(
         self,
         workflows: list[WorkflowRunTriggerConfig],
-    ) -> list[dict[str, Any]]:
+        return_exceptions: bool = False,
+    ) -> list[dict[str, Any]] | list[dict[str, Any] | BaseException]:
         """
         Run a workflow in bulk and wait for all runs to complete.
         This method triggers multiple workflow runs, blocks until all of them complete, and returns the final results.
 
         :param workflows: A list of `WorkflowRunTriggerConfig` objects, each representing a workflow run to be triggered.
+        :param return_exceptions: If `True`, exceptions will be returned as part of the results instead of raising them.
         :returns: A list of results for each workflow run.
         """
         refs = await self.client._client.admin.aio_run_workflows(
             workflows=workflows,
         )
 
-        return await asyncio.gather(*[ref.aio_result() for ref in refs])
+        return await asyncio.gather(
+            *[ref.aio_result() for ref in refs], return_exceptions=return_exceptions
+        )
 
     def run_many_no_wait(
         self,
@@ -729,7 +803,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         skip_if: list[Condition | OrGroup] | None = None,
         cancel_if: list[Condition | OrGroup] | None = None,
     ) -> Callable[
-        [Callable[[TWorkflowInput, Context], R | CoroutineLike[R]]],
+        [Callable[Concatenate[TWorkflowInput, Context, P], R | CoroutineLike[R]]],
         Task[TWorkflowInput, R],
     ]:
         """
@@ -774,7 +848,9 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         )
 
         def inner(
-            func: Callable[[TWorkflowInput, Context], R | CoroutineLike[R]],
+            func: Callable[
+                Concatenate[TWorkflowInput, Context, P], R | CoroutineLike[R]
+            ],
         ) -> Task[TWorkflowInput, R]:
             task = Task(
                 _fn=func,
@@ -821,7 +897,11 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         skip_if: list[Condition | OrGroup] | None = None,
         cancel_if: list[Condition | OrGroup] | None = None,
     ) -> Callable[
-        [Callable[[TWorkflowInput, DurableContext], R | CoroutineLike[R]]],
+        [
+            Callable[
+                Concatenate[TWorkflowInput, DurableContext, P], R | CoroutineLike[R]
+            ]
+        ],
         Task[TWorkflowInput, R],
     ]:
         """
@@ -870,7 +950,9 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         )
 
         def inner(
-            func: Callable[[TWorkflowInput, DurableContext], R | CoroutineLike[R]],
+            func: Callable[
+                Concatenate[TWorkflowInput, DurableContext, P], R | CoroutineLike[R]
+            ],
         ) -> Task[TWorkflowInput, R]:
             task = Task(
                 _fn=func,
@@ -912,7 +994,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         backoff_max_seconds: int | None = None,
         concurrency: list[ConcurrencyExpression] | None = None,
     ) -> Callable[
-        [Callable[[TWorkflowInput, Context], R | CoroutineLike[R]]],
+        [Callable[Concatenate[TWorkflowInput, Context, P], R | CoroutineLike[R]]],
         Task[TWorkflowInput, R],
     ]:
         """
@@ -932,13 +1014,15 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
         :param backoff_max_seconds: The maximum number of seconds to allow retries with exponential backoff to continue.
 
-        :param concurrency: A list of concurrency expressions for the on-success task.
+        :param concurrency: A list of concurrency expressions for the on-failure task.
 
         :returns: A decorator which creates a `Task` object.
         """
 
         def inner(
-            func: Callable[[TWorkflowInput, Context], R | CoroutineLike[R]],
+            func: Callable[
+                Concatenate[TWorkflowInput, Context, P], R | CoroutineLike[R]
+            ],
         ) -> Task[TWorkflowInput, R]:
             task = Task(
                 is_durable=False,
@@ -980,7 +1064,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         backoff_max_seconds: int | None = None,
         concurrency: list[ConcurrencyExpression] | None = None,
     ) -> Callable[
-        [Callable[[TWorkflowInput, Context], R | CoroutineLike[R]]],
+        [Callable[Concatenate[TWorkflowInput, Context, P], R | CoroutineLike[R]]],
         Task[TWorkflowInput, R],
     ]:
         """
@@ -1006,7 +1090,9 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         """
 
         def inner(
-            func: Callable[[TWorkflowInput, Context], R | CoroutineLike[R]],
+            func: Callable[
+                Concatenate[TWorkflowInput, Context, P], R | CoroutineLike[R]
+            ],
         ) -> Task[TWorkflowInput, R]:
             task = Task(
                 is_durable=False,
@@ -1123,7 +1209,18 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
 
         self.config = self._workflow.config
 
-    def _extract_result(self, result: dict[str, Any]) -> R:
+    @overload
+    def _extract_result(self, result: dict[str, Any]) -> R: ...
+
+    @overload
+    def _extract_result(self, result: BaseException) -> BaseException: ...
+
+    def _extract_result(
+        self, result: dict[str, Any] | BaseException
+    ) -> R | BaseException:
+        if isinstance(result, BaseException):
+            return result
+
         output = result.get(self._task.name)
 
         if not self._output_validator:
@@ -1203,30 +1300,72 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
 
         return TaskRunRef[TWorkflowInput, R](self, ref)
 
-    def run_many(self, workflows: list[WorkflowRunTriggerConfig]) -> list[R]:
+    @overload
+    def run_many(
+        self,
+        workflows: list[WorkflowRunTriggerConfig],
+        return_exceptions: Literal[True],
+    ) -> list[R | BaseException]: ...
+
+    @overload
+    def run_many(
+        self,
+        workflows: list[WorkflowRunTriggerConfig],
+        return_exceptions: Literal[False] = False,
+    ) -> list[R]: ...
+
+    def run_many(
+        self, workflows: list[WorkflowRunTriggerConfig], return_exceptions: bool = False
+    ) -> list[R] | list[R | BaseException]:
         """
         Run a workflow in bulk and wait for all runs to complete.
         This method triggers multiple workflow runs, blocks until all of them complete, and returns the final results.
 
         :param workflows: A list of `WorkflowRunTriggerConfig` objects, each representing a workflow run to be triggered.
+        :param return_exceptions: If `True`, exceptions will be returned as part of the results instead of raising them.
         :returns: A list of results for each workflow run.
         """
         return [
             self._extract_result(result)
-            for result in self._workflow.run_many(workflows)
+            for result in self._workflow.run_many(
+                workflows,
+                ## hack: typing needs literal
+                True if return_exceptions else False,  # noqa: SIM210
+            )
         ]
 
-    async def aio_run_many(self, workflows: list[WorkflowRunTriggerConfig]) -> list[R]:
+    @overload
+    async def aio_run_many(
+        self,
+        workflows: list[WorkflowRunTriggerConfig],
+        return_exceptions: Literal[True],
+    ) -> list[R | BaseException]: ...
+
+    @overload
+    async def aio_run_many(
+        self,
+        workflows: list[WorkflowRunTriggerConfig],
+        return_exceptions: Literal[False] = False,
+    ) -> list[R]: ...
+
+    async def aio_run_many(
+        self, workflows: list[WorkflowRunTriggerConfig], return_exceptions: bool = False
+    ) -> list[R] | list[R | BaseException]:
         """
         Run a workflow in bulk and wait for all runs to complete.
         This method triggers multiple workflow runs, blocks until all of them complete, and returns the final results.
 
         :param workflows: A list of `WorkflowRunTriggerConfig` objects, each representing a workflow run to be triggered.
+        :param return_exceptions: If `True`, exceptions will be returned as part of the results instead of raising them.
         :returns: A list of results for each workflow run.
         """
         return [
             self._extract_result(result)
-            for result in await self._workflow.aio_run_many(workflows)
+            for result in await self._workflow.aio_run_many(
+                workflows,
+                ## hack: typing needs literal
+                True if return_exceptions else False,  # noqa: SIM210
+            )
         ]
 
     def run_many_no_wait(
@@ -1259,3 +1398,110 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         refs = await self._workflow.aio_run_many_no_wait(workflows)
 
         return [TaskRunRef[TWorkflowInput, R](self, ref) for ref in refs]
+
+    def mock_run(
+        self,
+        input: TWorkflowInput | None = None,
+        additional_metadata: JSONSerializableMapping | None = None,
+        parent_outputs: dict[str, JSONSerializableMapping] | None = None,
+        retry_count: int = 0,
+        lifespan: Any = None,
+        dependencies: dict[str, Any] | None = None,
+    ) -> R:
+        """
+        Mimic the execution of a task. This method is intended to be used to unit test
+        tasks without needing to interact with the Hatchet engine. Use `mock_run` for sync
+        tasks and `aio_mock_run` for async tasks.
+
+        :param input: The input to the task.
+        :param additional_metadata: Additional metadata to attach to the task.
+        :param parent_outputs: Outputs from parent tasks, if any. This is useful for mimicking DAG functionality. For instance, if you have a task `step_2` that has a `parent` which is `step_1`, you can pass `parent_outputs={"step_1": {"result": "Hello, world!"}}` to `step_2.mock_run()` to be able to access `ctx.task_output(step_1)` in `step_2`.
+        :param retry_count: The number of times the task has been retried.
+        :param lifespan: The lifespan to be used in the task, which is useful if one was set on the worker. This will allow you to access `ctx.lifespan` inside of your task.
+        :param dependencies: Dependencies to be injected into the task. This is useful for tasks that have dependencies defined using `Depends`. **IMPORTANT**: You must pass the dependencies _directly_, **not** the `Depends` objects themselves. For example, if you have a task that has a dependency `config: Annotated[str, Depends(get_config)]`, you should pass `dependencies={"config": "config_value"}` to `aio_mock_run`.
+
+        :return: The output of the task.
+        """
+
+        return self._task.mock_run(
+            input=input,
+            additional_metadata=additional_metadata,
+            parent_outputs=parent_outputs,
+            retry_count=retry_count,
+            lifespan=lifespan,
+            dependencies=dependencies,
+        )
+
+    async def aio_mock_run(
+        self,
+        input: TWorkflowInput | None = None,
+        additional_metadata: JSONSerializableMapping | None = None,
+        parent_outputs: dict[str, JSONSerializableMapping] | None = None,
+        retry_count: int = 0,
+        lifespan: Any = None,
+        dependencies: dict[str, Any] | None = None,
+    ) -> R:
+        """
+        Mimic the execution of a task. This method is intended to be used to unit test
+        tasks without needing to interact with the Hatchet engine. Use `mock_run` for sync
+        tasks and `aio_mock_run` for async tasks.
+
+        :param input: The input to the task.
+        :param additional_metadata: Additional metadata to attach to the task.
+        :param parent_outputs: Outputs from parent tasks, if any. This is useful for mimicking DAG functionality. For instance, if you have a task `step_2` that has a `parent` which is `step_1`, you can pass `parent_outputs={"step_1": {"result": "Hello, world!"}}` to `step_2.mock_run()` to be able to access `ctx.task_output(step_1)` in `step_2`.
+        :param retry_count: The number of times the task has been retried.
+        :param lifespan: The lifespan to be used in the task, which is useful if one was set on the worker. This will allow you to access `ctx.lifespan` inside of your task.
+        :param dependencies: Dependencies to be injected into the task. This is useful for tasks that have dependencies defined using `Depends`. **IMPORTANT**: You must pass the dependencies _directly_, **not** the `Depends` objects themselves. For example, if you have a task that has a dependency `config: Annotated[str, Depends(get_config)]`, you should pass `dependencies={"config": "config_value"}` to `aio_mock_run`.
+
+        :return: The output of the task.
+        """
+
+        return await self._task.aio_mock_run(
+            input=input,
+            additional_metadata=additional_metadata,
+            parent_outputs=parent_outputs,
+            retry_count=retry_count,
+            lifespan=lifespan,
+            dependencies=dependencies,
+        )
+
+    @property
+    def is_async_function(self) -> bool:
+        """
+        Check if the task is an async function.
+
+        :returns: True if the task is an async function, False otherwise.
+        """
+        return self._task.is_async_function
+
+    def get_run_ref(self, run_id: str) -> TaskRunRef[TWorkflowInput, R]:
+        """
+        Get a reference to a task run by its run ID.
+
+        :param run_id: The ID of the run to get the reference for.
+        :returns: A `TaskRunRef` object representing the reference to the task run.
+        """
+        wrr = self._workflow.client._client.runs.get_run_ref(run_id)
+        return TaskRunRef[TWorkflowInput, R](self, wrr)
+
+    async def aio_get_result(self, run_id: str) -> R:
+        """
+        Get the result of a task run by its run ID.
+
+        :param run_id: The ID of the run to get the result for.
+        :returns: The result of the task run.
+        """
+        run_ref = self.get_run_ref(run_id)
+
+        return await run_ref.aio_result()
+
+    def get_result(self, run_id: str) -> R:
+        """
+        Get the result of a task run by its run ID.
+
+        :param run_id: The ID of the run to get the result for.
+        :returns: The result of the task run.
+        """
+        run_ref = self.get_run_ref(run_id)
+
+        return run_ref.result()

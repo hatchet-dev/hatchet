@@ -11,9 +11,9 @@ from hatchet_sdk.clients.listeners.run_event_listener import (
     StepRunEventType,
     WorkflowRunEventType,
 )
-from hatchet_sdk.clients.rest.models.accept_invite_request import AcceptInviteRequest
 
 # import models into sdk package
+from hatchet_sdk.clients.rest.models.accept_invite_request import AcceptInviteRequest
 from hatchet_sdk.clients.rest.models.api_error import APIError
 from hatchet_sdk.clients.rest.models.api_errors import APIErrors
 from hatchet_sdk.clients.rest.models.api_meta import APIMeta
@@ -130,6 +130,14 @@ from hatchet_sdk.clients.rest.models.workflow_version_definition import (
     WorkflowVersionDefinition,
 )
 from hatchet_sdk.clients.rest.models.workflow_version_meta import WorkflowVersionMeta
+from hatchet_sdk.conditions import (
+    Condition,
+    OrGroup,
+    ParentCondition,
+    SleepCondition,
+    UserEventCondition,
+    or_,
+)
 from hatchet_sdk.config import ClientConfig, ClientTLSConfig, OpenTelemetryConfig
 from hatchet_sdk.context.context import Context, DurableContext
 from hatchet_sdk.context.worker_context import WorkerContext
@@ -144,9 +152,10 @@ from hatchet_sdk.exceptions import (
     NonRetryableException,
     TaskRunError,
 )
+from hatchet_sdk.features.cel import CELEvaluationResult, CELFailure, CELSuccess
 from hatchet_sdk.features.runs import BulkCancelReplayOpts, RunFilter
 from hatchet_sdk.hatchet import Hatchet
-from hatchet_sdk.runnables.task import Task
+from hatchet_sdk.runnables.task import Depends, Task
 from hatchet_sdk.runnables.types import (
     ConcurrencyExpression,
     ConcurrencyLimitStrategy,
@@ -158,14 +167,7 @@ from hatchet_sdk.runnables.types import (
 )
 from hatchet_sdk.runnables.workflow import TaskRunRef
 from hatchet_sdk.utils.opentelemetry import OTelAttribute
-from hatchet_sdk.waits import (
-    Condition,
-    OrGroup,
-    ParentCondition,
-    SleepCondition,
-    UserEventCondition,
-    or_,
-)
+from hatchet_sdk.utils.serde import remove_null_unicode_character
 from hatchet_sdk.worker.worker import Worker, WorkerStartOptions, WorkerStatus
 from hatchet_sdk.workflow_run import WorkflowRunRef
 
@@ -179,6 +181,9 @@ __all__ = [
     "APIToken",
     "AcceptInviteRequest",
     "BulkCancelReplayOpts",
+    "CELEvaluationResult",
+    "CELFailure",
+    "CELSuccess",
     "ClientConfig",
     "ClientTLSConfig",
     "ConcurrencyExpression",
@@ -193,6 +198,7 @@ __all__ = [
     "CreateWorkflowVersionOpts",
     "DedupeViolationError",
     "DefaultFilter",
+    "Depends",
     "DurableContext",
     "EmptyModel",
     "Event",
@@ -290,5 +296,6 @@ __all__ = [
     "WorkflowVersionDefinition",
     "WorkflowVersionMeta",
     "or_",
+    "remove_null_unicode_character",
     "workflow",
 ]

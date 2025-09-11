@@ -1,21 +1,55 @@
 import MainNav from '@/components/molecules/nav-bar/nav-bar';
-import { Outlet } from 'react-router-dom';
-import api, { queries } from '@/lib/api';
+import { Outlet, useNavigate } from 'react-router-dom';
+import api, { queries, TenantVersion, User } from '@/lib/api';
 import { Loading } from '@/components/ui/loading.tsx';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import SupportChat from '@/components/molecules/support-chat';
 import AnalyticsProvider from '@/components/molecules/analytics-provider';
 import { useState, useEffect } from 'react';
 import { useContextFromParent } from '@/lib/outlet';
+import { useTenant } from '@/lib/atoms';
+import { AxiosError } from 'axios';
+import { useInactivityDetection } from '@/pages/auth/hooks/use-inactivity-detection';
+import { cloudApi } from '@/lib/api/api';
 
 export default function Authenticated() {
   const [hasHasBanner, setHasBanner] = useState(false);
+
+  const { tenant } = useTenant();
+
+  const { data: cloudMetadata } = useQuery({
+    queryKey: ['metadata'],
+    queryFn: async () => {
+      const res = await cloudApi.metadataGet();
+      return res.data;
+    },
+  });
+
+  const navigate = useNavigate();
+
+  const logoutMutation = useMutation({
+    mutationKey: ['user:update:logout'],
+    mutationFn: async () => {
+      await api.userUpdateLogout();
+    },
+    onSuccess: () => {
+      navigate('/auth/login');
+    },
+  });
+
+  useInactivityDetection({
+    timeoutMs: cloudMetadata?.inactivityLogoutMs || -1,
+    onInactive: () => {
+      logoutMutation.mutate();
+    },
+  });
 
   const userQuery = useQuery({
     queryKey: ['user:get:current'],
     retry: false,
     queryFn: async () => {
       const res = await api.userGetCurrent();
+
       return res.data;
     },
   });
@@ -41,6 +75,17 @@ export default function Authenticated() {
 
   useEffect(() => {
     const currentUrl = window.location.pathname;
+    const userQueryError = userQuery.error as AxiosError<User> | null;
+
+    // Skip all redirects for organization pages
+    if (currentUrl.startsWith('/organizations')) {
+      return;
+    }
+
+    if (userQueryError?.status === 401 || userQueryError?.status === 403) {
+      window.location.href = '/auth/login';
+      return;
+    }
 
     if (
       userQuery.data &&
@@ -67,7 +112,22 @@ export default function Authenticated() {
       window.location.href = '/onboarding/create-tenant';
       return;
     }
-  }, [userQuery.data, invitesQuery.data, listMembershipsQuery.data]);
+
+    if (
+      tenant?.version === TenantVersion.V0 &&
+      currentUrl.startsWith('/tenants')
+    ) {
+      window.location.href = `/workflow-runs?tenant=${tenant.metadata.id}`;
+      return;
+    }
+  }, [
+    tenant?.metadata.id,
+    userQuery.data,
+    invitesQuery.data,
+    listMembershipsQuery.data,
+    tenant?.version,
+    userQuery.error,
+  ]);
 
   if (
     userQuery.isLoading ||
@@ -80,7 +140,6 @@ export default function Authenticated() {
   if (userQuery.error) {
     const currentUrl = window.location.pathname;
     if (
-      !currentUrl.startsWith('/next') &&
       !currentUrl.includes('/auth/login') &&
       !currentUrl.includes('/auth/register')
     ) {
@@ -89,7 +148,13 @@ export default function Authenticated() {
     }
   }
 
-  if (!userQuery.data || !listMembershipsQuery.data?.rows) {
+  if (!userQuery.data) {
+    return <Loading />;
+  }
+
+  // Allow organization pages even without tenant memberships
+  const isOrgPage = window.location.pathname.includes('/organizations');
+  if (!isOrgPage && !listMembershipsQuery.data?.rows) {
     return <Loading />;
   }
 
@@ -97,7 +162,11 @@ export default function Authenticated() {
     <AnalyticsProvider user={userQuery.data}>
       <SupportChat user={userQuery.data}>
         <div className="flex flex-row flex-1 w-full h-full">
-          <MainNav user={userQuery.data} setHasBanner={setHasBanner} />
+          <MainNav
+            user={userQuery.data}
+            tenantMemberships={listMembershipsQuery.data?.rows || []}
+            setHasBanner={setHasBanner}
+          />
           <div
             className={`${hasHasBanner ? 'pt-28' : 'pt-16'} flex-grow overflow-y-auto overflow-x-hidden`}
           >

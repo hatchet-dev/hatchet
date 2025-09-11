@@ -33,17 +33,20 @@ export default function GetStarted() {
 
   return (
     <div className="flex flex-col items-center w-full h-full overflow-auto">
-      <div className="container mx-auto px-4 py-8 lg:px-8 lg:py-12 max-w-4xl">
+      <div className="container mx-auto px-4 lg:px-8 max-w-4xl">
         <div className="flex flex-col justify-center space-y-4">
           <div className="flex flex-row justify-between mt-10">
-            <h1 className="text-3xl font-bold">Quickstart</h1>
+            <h1 className="text-3xl font-bold">
+              {/* TODO: we should give the production environment a different treatment */}
+              Setup your {currTenant.environment} environment
+            </h1>
             <a href="/">
               <Button variant="outline">Skip Quickstart</Button>
             </a>
           </div>
 
           <p className="text-gray-600 dark:text-gray-300 text-sm">
-            Get started by deploying your first worker.
+            Get started by running your first worker on your local machine.
           </p>
 
           <Steps className="mt-6">

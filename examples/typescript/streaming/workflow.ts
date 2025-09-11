@@ -1,4 +1,4 @@
-import sleep from '@hatchet-dev/typescript-sdk-dev/typescript-sdk/util/sleep';
+import sleep from '../../../util/sleep';
 import { hatchet } from '../hatchet-client';
 
 // > Streaming
@@ -17,6 +17,8 @@ function* createChunks(content: string, n: number): Generator<string, void, unkn
 export const streamingTask = hatchet.task({
   name: 'stream-example',
   fn: async (_, ctx) => {
+    await sleep(2000);
+
     for (const chunk of createChunks(annaKarenina, 10)) {
       ctx.putStream(chunk);
       await sleep(200);

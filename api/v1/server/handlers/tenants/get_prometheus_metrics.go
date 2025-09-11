@@ -7,6 +7,7 @@ import (
 
 	"github.com/labstack/echo/v4"
 
+	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
@@ -43,6 +44,13 @@ func (t *TenantService) TenantGetPrometheusMetrics(ctx echo.Context, request gen
 		}
 
 		response = string(body)
+
+		// even if there are no metrics, we still want to return a 200 response
+		// and an empty body is what Prometheus metrics expect so we follow convention
+	} else {
+		return gen.TenantGetPrometheusMetrics400JSONResponse(
+			apierrors.NewAPIErrors("Prometheus metrics are not enabled for this tenant."),
+		), nil
 	}
 
 	// Return the metrics as text response

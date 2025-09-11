@@ -36,7 +36,7 @@ type Event struct {
 	Payload string `protobuf:"bytes,4,opt,name=payload,proto3" json:"payload,omitempty"`
 	// when the event was generated
 	EventTimestamp *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=eventTimestamp,proto3" json:"eventTimestamp,omitempty"`
-	// the payload for the event
+	// the additional metadata for the event
 	AdditionalMetadata *string `protobuf:"bytes,6,opt,name=additionalMetadata,proto3,oneof" json:"additionalMetadata,omitempty"`
 	// the scope associated with this filter. Used for subsetting candidate filters at evaluation time
 	Scope *string `protobuf:"bytes,7,opt,name=scope,proto3,oneof" json:"scope,omitempty"`

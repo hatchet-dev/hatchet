@@ -51,6 +51,7 @@ func (u *UserService) UserGetCurrent(ctx echo.Context, request gen.UserGetCurren
 			"email": user.Email,
 			"name":  transformedUser.Name,
 		},
+		nil,
 	)
 
 	return gen.UserGetCurrent200JSONResponse(

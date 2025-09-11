@@ -3,12 +3,14 @@ import { Callout } from "nextra/components";
 # Prometheus Metrics
 
 <Callout type="info">
-  Only available in the Growth tier and above on Hatchet Cloud.
+  Only available in the Growth tier and above on Hatchet Cloud
 </Callout>
 
 Hatchet exports Prometheus Metrics for your tenant which can be scraped with services like Grafana and DataDog.
 
 ## Tenant Metrics
+
+<Callout type="warning">Only works with v1 tenants</Callout>
 
 Metrics for individual tenants are available in Prometheus Text Format via a REST API endpoint.
 

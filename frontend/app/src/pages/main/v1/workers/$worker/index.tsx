@@ -25,7 +25,10 @@ import {
 } from '@/components/v1/ui/dropdown-menu';
 import { useState } from 'react';
 import { RecentWebhookRequests } from '../webhooks/components/recent-webhook-requests';
-import { TaskRunsTable } from '../../workflow-runs-v1/components/task-runs-table';
+import { RunsTable } from '../../workflow-runs-v1/components/runs-table';
+import { RunsProvider } from '../../workflow-runs-v1/hooks/runs-provider';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
+import { capitalize } from '@/lib/utils';
 export const isHealthy = (worker?: Worker) => {
   const reasons = [];
 
@@ -88,6 +91,7 @@ export const WorkerStatus = ({
 
 export default function ExpandedWorkflowRun() {
   const { handleApiError } = useApiError({});
+  const { tenantId } = useCurrentTenantId();
 
   const params = useParams();
   invariant(params.worker);
@@ -127,7 +131,7 @@ export default function ExpandedWorkflowRun() {
             <ServerStackIcon className="h-6 w-6 text-foreground mt-1" />
             <Badge>{worker.type}</Badge>
             <h2 className="text-2xl font-bold leading-tight text-foreground">
-              <Link to="/v1/workers">Workers/</Link>
+              <Link to={`/tenants/${tenantId}/workers`}>Workers/</Link>
               {worker.webhookUrl || worker.name}
             </h2>
           </div>
@@ -215,15 +219,24 @@ export default function ExpandedWorkflowRun() {
         <Separator className="my-4" />
         <div className="flex flex-row justify-between items-center mb-4">
           <h3 className="text-xl font-bold leading-tight text-foreground">
-            Recent Tasks
+            Recent Task Runs
           </h3>
         </div>
-        <TaskRunsTable
-          workerId={worker.metadata.id}
-          createdAfter={worker.metadata.createdAt}
-          showMetrics={false}
-          showCounts={false}
-        />
+        <RunsProvider
+          tableKey={`worker-${worker.metadata.id}`}
+          display={{
+            hideMetrics: true,
+            hideCounts: true,
+            hideTriggerRunButton: true,
+            hideFlatten: true,
+            hideCancelAndReplayButtons: true,
+          }}
+          runFilters={{
+            workerId: worker.metadata.id,
+          }}
+        >
+          <RunsTable />
+        </RunsProvider>
         <Separator className="my-4" />
         <h3 className="text-xl font-bold leading-tight text-foreground mb-4">
           Registered Tasks
@@ -295,7 +308,8 @@ export default function ExpandedWorkflowRun() {
               )}
               {worker.runtimeInfo?.languageVersion && (
                 <div>
-                  <b>Runtime</b>: {worker.runtimeInfo?.language}{' '}
+                  <b>Runtime</b>:{' '}
+                  {capitalize(worker.runtimeInfo?.language ?? '')}{' '}
                   {worker.runtimeInfo?.languageVersion}
                 </div>
               )}

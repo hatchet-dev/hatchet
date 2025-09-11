@@ -41,6 +41,8 @@ type subscribedWorker struct {
 	finished chan<- bool
 
 	sendMu sync.Mutex
+
+	workerId string
 }
 
 func (worker *subscribedWorker) StartStepRun(
@@ -358,7 +360,7 @@ func (s *DispatcherImpl) Listen(request *contracts.WorkerListenRequest, stream c
 
 	fin := make(chan bool)
 
-	s.workers.Add(request.WorkerId, sessionId, &subscribedWorker{stream: stream, finished: fin})
+	s.workers.Add(request.WorkerId, sessionId, &subscribedWorker{stream: stream, finished: fin, workerId: request.WorkerId})
 
 	defer func() {
 		// non-blocking send
@@ -480,7 +482,7 @@ func (s *DispatcherImpl) ListenV2(request *contracts.WorkerListenRequest, stream
 
 	fin := make(chan bool)
 
-	s.workers.Add(request.WorkerId, sessionId, &subscribedWorker{stream: stream, finished: fin})
+	s.workers.Add(request.WorkerId, sessionId, &subscribedWorker{stream: stream, finished: fin, workerId: request.WorkerId})
 
 	defer func() {
 		// non-blocking send
@@ -830,7 +832,7 @@ func (w *workflowRunAcks) ackWorkflowRun(id string) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
-	w.acks[id] = true
+	delete(w.acks, id)
 }
 
 func (w *workflowRunAcks) hasWorkflowRun(id string) bool {

@@ -143,9 +143,8 @@ class Worker:
     def register_workflow_from_opts(self, opts: CreateWorkflowVersionRequest) -> None:
         try:
             self.client.admin.put_workflow(opts)
-        except Exception as e:
-            logger.error(f"failed to register workflow: {opts.name}")
-            logger.error(e)
+        except Exception:
+            logger.exception(f"failed to register workflow: {opts.name}")
             sys.exit(1)
 
     def register_workflow(self, workflow: BaseWorkflow[Any]) -> None:
@@ -156,9 +155,8 @@ class Worker:
 
         try:
             self.client.admin.put_workflow(workflow.to_proto())
-        except Exception as e:
-            logger.error(f"failed to register workflow: {workflow.name}")
-            logger.error(e)
+        except Exception:
+            logger.exception(f"failed to register workflow: {workflow.name}")
             sys.exit(1)
 
         for step in workflow.tasks:
@@ -189,7 +187,7 @@ class Worker:
         except RuntimeError:
             pass
 
-        logger.debug("Creating new event loop")
+        logger.debug("creating new event loop")
         self.loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self.loop)
 
@@ -226,9 +224,8 @@ class Worker:
         try:
             await runner.setup()
             await web.TCPSite(runner, "0.0.0.0", port).start()
-        except Exception as e:
-            logger.error("failed to start healthcheck server")
-            logger.error(str(e))
+        except Exception:
+            logger.exception("failed to start healthcheck server")
             return
 
         logger.info(f"healthcheck server running on port {port}")
@@ -371,8 +368,8 @@ class Worker:
             logger.debug(f"action listener starting on PID: {process.pid}")
 
             return process
-        except Exception as e:
-            logger.error(f"failed to start action listener: {e}")
+        except Exception:
+            logger.exception("failed to start action listener")
             sys.exit(1)
 
     async def _check_listener_health(self) -> None:
@@ -404,12 +401,26 @@ class Worker:
 
                 self._status = WorkerStatus.HEALTHY
                 await asyncio.sleep(1)
-        except Exception as e:
-            logger.error(f"error checking listener health: {e}")
+        except Exception:
+            logger.exception("error checking listener health")
 
     def _setup_signal_handlers(self) -> None:
-        signal.signal(signal.SIGTERM, self._handle_exit_signal)
-        signal.signal(signal.SIGINT, self._handle_exit_signal)
+        signal.signal(
+            signal.SIGTERM,
+            (
+                self._handle_force_quit_signal
+                if self.config.force_shutdown_on_shutdown_signal
+                else self._handle_exit_signal
+            ),
+        )
+        signal.signal(
+            signal.SIGINT,
+            (
+                self._handle_force_quit_signal
+                if self.config.force_shutdown_on_shutdown_signal
+                else self._handle_exit_signal
+            ),
+        )
         signal.signal(signal.SIGQUIT, self._handle_force_quit_signal)
 
     def _handle_exit_signal(self, signum: int, frame: FrameType | None) -> None:
@@ -419,7 +430,8 @@ class Worker:
             self.loop.create_task(self.exit_gracefully())
 
     def _handle_force_quit_signal(self, signum: int, frame: FrameType | None) -> None:
-        logger.info("received SIGQUIT...")
+        signal_received = signal.Signals(signum).name
+        logger.info(f"received {signal_received}...")
         if self.loop:
             self.loop.create_task(self._exit_forcefully())
 

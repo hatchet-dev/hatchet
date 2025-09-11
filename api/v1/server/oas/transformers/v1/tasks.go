@@ -64,7 +64,7 @@ func ToTaskSummary(task *sqlcv1.PopulateTaskRunDataRow) gen.V1TaskSummary {
 		StartedAt:             startedAt,
 		FinishedAt:            finishedAt,
 		AdditionalMetadata:    &additionalMetadata,
-		ErrorMessage:          &task.ErrorMessage.String,
+		ErrorMessage:          &task.ErrorMessage,
 		Status:                gen.V1TaskStatus(task.Status),
 		TenantId:              uuid.MustParse(sqlchelpers.UUIDToStr(task.TenantID)),
 		WorkflowId:            uuid.MustParse(sqlchelpers.UUIDToStr(task.WorkflowID)),
@@ -280,6 +280,16 @@ func ToTask(taskWithData *sqlcv1.PopulateSingleTaskRunDataRow, workflowRunExtern
 		workflowConfig = jsonToMap(workflowVersion.WorkflowVersion.CreateWorkflowVersionOpts)
 	}
 
+	var parentTaskExternalId *uuid.UUID
+
+	if taskWithData.ParentTaskExternalID.Valid {
+		parentTaskUUID, err := uuid.Parse(sqlchelpers.UUIDToStr(taskWithData.ParentTaskExternalID))
+
+		if err == nil {
+			parentTaskExternalId = &parentTaskUUID
+		}
+	}
+
 	return gen.V1TaskSummary{
 		Metadata: gen.APIResourceMeta{
 			Id:        sqlchelpers.UUIDToStr(taskWithData.ExternalID),
@@ -309,6 +319,7 @@ func ToTask(taskWithData *sqlcv1.PopulateSingleTaskRunDataRow, workflowRunExtern
 		RetryCount:            &retryCount,
 		Attempt:               &attempt,
 		WorkflowConfig:        &workflowConfig,
+		ParentTaskExternalId:  parentTaskExternalId,
 	}
 }
 
@@ -470,4 +481,16 @@ func ToTaskTimings(
 	}
 
 	return toReturn
+}
+
+func ToCancelledOrReplayedTaskResponse(ids []string) gen.V1ReplayedTasks {
+	idUuids := make([]types.UUID, len(ids))
+
+	for i, id := range ids {
+		idUuids[i] = uuid.MustParse(id)
+	}
+
+	return gen.V1ReplayedTasks{
+		Ids: &idUuids,
+	}
 }

@@ -77,7 +77,7 @@ async def test_bulk_replay(hatchet: Hatchet) -> None:
         )
     )
 
-    await asyncio.sleep(5)
+    await asyncio.sleep(10)
 
     runs = await hatchet.runs.aio_list(
         workflow_ids=workflow_ids,

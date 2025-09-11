@@ -1,4 +1,8 @@
+import { Callout } from "nextra/components";
+
 ## Prometheus Metrics for Hatchet
+
+<Callout type="warning">Only works with v1 tenants</Callout>
 
 This document provides an overview of the Prometheus metrics exposed by Hatchet, setup instructions for the metrics endpoint, and example PromQL queries to analyze them.
 
@@ -7,13 +11,11 @@ This document provides an overview of the Prometheus metrics exposed by Hatchet,
 To enable and configure the Prometheus metrics endpoint in your Hatchet server, set the following environment variables (bound to Viper keys as shown):
 
 - **`SERVER_PROMETHEUS_ENABLED`** (`prometheus.enabled`)
-
   - Type: boolean
   - Default: `false`
   - Description: Enables or disables the Prometheus metrics HTTP server.
 
 - **`SERVER_PROMETHEUS_ADDRESS`** (`prometheus.address`)
-
   - Type: string
   - Default: `":9090"`
   - Description: The network address and port to bind the Prometheus metrics server to.
@@ -26,17 +28,14 @@ To enable and configure the Prometheus metrics endpoint in your Hatchet server, 
 If you have set up a Prometheus instance to scrape Hatchet metrics, you can enable the [tenant API endpoint](/home/prometheus-metrics) by setting the following variables:
 
 - **`SERVER_PROMETHEUS_SERVER_URL`** (`prometheus.prometheusServerURL`)
-
   - Type: string
   - Description: The Prometheus server URL.
 
 - **`SERVER_PROMETHEUS_SERVER_USERNAME`** (`prometheus.prometheusServerUsername`)
-
   - Type: string
   - Description: The username to access the Prometheus instance via HTTP basic auth.
 
 - **`SERVER_PROMETHEUS_SERVER_PASSWORD`** (`prometheus.prometheusServerPassword`)
-
   - Type: string
   - Description: The password to access the Prometheus instance via HTTP basic auth.
 
@@ -68,6 +67,7 @@ Restart your Hatchet server after setting these variables to apply the changes.
 | `hatchet_rate_limited_total`         | Counter   | The total number of tasks that were rate limited                                  |
 | `hatchet_queued_to_assigned_total`   | Counter   | The total number of unique tasks that were queued and later assigned to a worker  |
 | `hatchet_queued_to_assigned_seconds` | Histogram | Buckets of time (in seconds) spent in the queue before being assigned to a worker |
+| `hatchet_reassigned_tasks_total`     | Counter   | The total number of tasks that were reassigned to a worker                        |
 
 #### Example PromQL Queries
 
@@ -152,6 +152,12 @@ rate(hatchet_skipped_tasks_total[5m])
 rate(hatchet_assigned_tasks_total[5m]) / rate(hatchet_created_tasks_total[5m])
 ```
 
+##### 13. Task Reassignment Rate
+
+```promql
+rate(hatchet_reassigned_tasks_total[5m])
+```
+
 ### Tenant Metrics
 
 | Metric Name                                      | Type      | Description                                                                          |
@@ -169,6 +175,10 @@ rate(hatchet_assigned_tasks_total[5m]) / rate(hatchet_created_tasks_total[5m])
 | `hatchet_tenant_rate_limited`                    | Counter   | The total number of tasks that were rate limited                                     |
 | `hatchet_tenant_queued_to_assigned`              | Counter   | The total number of unique tasks that were queued and later got assigned to a worker |
 | `hatchet_tenant_queued_to_assigned_time_seconds` | Histogram | Buckets of time in seconds spent in the queue before being assigned to a worker      |
+| `hatchet_tenant_reassigned_tasks`                | Counter   | The total number of tasks that were reassigned to a worker                           |
+| `hatchet_tenant_used_worker_slots`               | Gauge     | The current number of worker slots being used                                        |
+| `hatchet_tenant_available_worker_slots`          | Gauge     | The current number of worker slots available (free)                                  |
+| `hatchet_tenant_worker_slots`                    | Gauge     | The total number of worker slots (free + used)                                       |
 
 #### Example PromQL Queries
 
@@ -244,6 +254,12 @@ rate(hatchet_tenant_scheduling_timed_out[5m]) by (tenant_id)
 rate(hatchet_tenant_assigned_tasks[5m]) by (tenant_id)
 /
 rate(hatchet_tenant_created_tasks_total[5m]) by (tenant_id)
+```
+
+##### 11. Tenant Task Reassignment Rate
+
+```promql
+rate(hatchet_tenant_reassigned_tasks[5m]) by (tenant_id)
 ```
 
 ### Cross-Tenant Analysis

@@ -2,7 +2,7 @@
 
 `Runnables` in the Hatchet SDK are things that can be run, namely tasks and workflows. The two main types of runnables you'll encounter are:
 
-- `Workflow`, which lets you define tasks and call all of the run, schedule, etc. methods
+- `Workflow`, which lets you define tasks and call all of the run, schedule, etc. methods.
 - `Standalone`, which is a single task that's returned by `hatchet.task` and can be run, scheduled, etc.
 
 ## Workflow
@@ -118,9 +118,9 @@ Parameters:
 
 Returns:
 
-| Type                                                                                              | Description                                |
-| ------------------------------------------------------------------------------------------------- | ------------------------------------------ |
-| `Callable[[Callable[[TWorkflowInput, Context], R \| CoroutineLike[R]]], Task[TWorkflowInput, R]]` | A decorator which creates a `Task` object. |
+| Type                                                                                                            | Description                                |
+| --------------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
+| `Callable[[Callable[Concatenate[TWorkflowInput, Context, P], R \| CoroutineLike[R]]], Task[TWorkflowInput, R]]` | A decorator which creates a `Task` object. |
 
 #### `durable_task`
 
@@ -150,9 +150,9 @@ Parameters:
 
 Returns:
 
-| Type                                                                                                     | Description                                |
-| -------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
-| `Callable[[Callable[[TWorkflowInput, DurableContext], R \| CoroutineLike[R]]], Task[TWorkflowInput, R]]` | A decorator which creates a `Task` object. |
+| Type                                                                                                                   | Description                                |
+| ---------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
+| `Callable[[Callable[Concatenate[TWorkflowInput, DurableContext, P], R \| CoroutineLike[R]]], Task[TWorkflowInput, R]]` | A decorator which creates a `Task` object. |
 
 #### `on_failure_task`
 
@@ -169,13 +169,13 @@ Parameters:
 | `rate_limits`         | `list[RateLimit] \| None`             | A list of rate limit configurations for the on-failure task.                                                                              | `None`                  |
 | `backoff_factor`      | `float \| None`                       | The backoff factor for controlling exponential backoff in retries.                                                                        | `None`                  |
 | `backoff_max_seconds` | `int \| None`                         | The maximum number of seconds to allow retries with exponential backoff to continue.                                                      | `None`                  |
-| `concurrency`         | `list[ConcurrencyExpression] \| None` | A list of concurrency expressions for the on-success task.                                                                                | `None`                  |
+| `concurrency`         | `list[ConcurrencyExpression] \| None` | A list of concurrency expressions for the on-failure task.                                                                                | `None`                  |
 
 Returns:
 
-| Type                                                                                              | Description                                |
-| ------------------------------------------------------------------------------------------------- | ------------------------------------------ |
-| `Callable[[Callable[[TWorkflowInput, Context], R \| CoroutineLike[R]]], Task[TWorkflowInput, R]]` | A decorator which creates a `Task` object. |
+| Type                                                                                                            | Description                                |
+| --------------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
+| `Callable[[Callable[Concatenate[TWorkflowInput, Context, P], R \| CoroutineLike[R]]], Task[TWorkflowInput, R]]` | A decorator which creates a `Task` object. |
 
 #### `on_success_task`
 
@@ -188,7 +188,7 @@ Parameters:
 | `name`                | `str \| None`                         | The name of the on-success task. If not specified, defaults to the name of the function being wrapped by the `on_success_task` decorator. | `None`                  |
 | `schedule_timeout`    | `Duration`                            | The maximum time to wait for the task to be scheduled. The run will be canceled if the task does not begin within this time.              | `timedelta(minutes=5)`  |
 | `execution_timeout`   | `Duration`                            | The maximum time to wait for the task to complete. The run will be canceled if the task does not complete within this time.               | `timedelta(seconds=60)` |
-| `retries`             | `int`                                 | The number of times to retry the on-success task before failing                                                                           | `0`                     |
+| `retries`             | `int`                                 | The number of times to retry the on-success task before failing.                                                                          | `0`                     |
 | `rate_limits`         | `list[RateLimit] \| None`             | A list of rate limit configurations for the on-success task.                                                                              | `None`                  |
 | `backoff_factor`      | `float \| None`                       | The backoff factor for controlling exponential backoff in retries.                                                                        | `None`                  |
 | `backoff_max_seconds` | `int \| None`                         | The maximum number of seconds to allow retries with exponential backoff to continue.                                                      | `None`                  |
@@ -196,9 +196,9 @@ Parameters:
 
 Returns:
 
-| Type                                                                                              | Description                              |
-| ------------------------------------------------------------------------------------------------- | ---------------------------------------- |
-| `Callable[[Callable[[TWorkflowInput, Context], R \| CoroutineLike[R]]], Task[TWorkflowInput, R]]` | A decorator which creates a Task object. |
+| Type                                                                                                            | Description                                |
+| --------------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
+| `Callable[[Callable[Concatenate[TWorkflowInput, Context, P], R \| CoroutineLike[R]]], Task[TWorkflowInput, R]]` | A decorator which creates a `Task` object. |
 
 #### `run`
 
@@ -278,15 +278,16 @@ Run a workflow in bulk and wait for all runs to complete. This method triggers m
 
 Parameters:
 
-| Name        | Type                             | Description                                                                                     | Default    |
-| ----------- | -------------------------------- | ----------------------------------------------------------------------------------------------- | ---------- |
-| `workflows` | `list[WorkflowRunTriggerConfig]` | A list of `WorkflowRunTriggerConfig` objects, each representing a workflow run to be triggered. | _required_ |
+| Name                | Type                             | Description                                                                                     | Default    |
+| ------------------- | -------------------------------- | ----------------------------------------------------------------------------------------------- | ---------- |
+| `workflows`         | `list[WorkflowRunTriggerConfig]` | A list of `WorkflowRunTriggerConfig` objects, each representing a workflow run to be triggered. | _required_ |
+| `return_exceptions` | `bool`                           | If `True`, exceptions will be returned as part of the results instead of raising them.          | `False`    |
 
 Returns:
 
-| Type                   | Description                              |
-| ---------------------- | ---------------------------------------- |
-| `list[dict[str, Any]]` | A list of results for each workflow run. |
+| Type                                                            | Description                              |
+| --------------------------------------------------------------- | ---------------------------------------- |
+| `list[dict[str, Any]] \| list[dict[str, Any] \| BaseException]` | A list of results for each workflow run. |
 
 #### `aio_run_many`
 
@@ -294,15 +295,16 @@ Run a workflow in bulk and wait for all runs to complete. This method triggers m
 
 Parameters:
 
-| Name        | Type                             | Description                                                                                     | Default    |
-| ----------- | -------------------------------- | ----------------------------------------------------------------------------------------------- | ---------- |
-| `workflows` | `list[WorkflowRunTriggerConfig]` | A list of `WorkflowRunTriggerConfig` objects, each representing a workflow run to be triggered. | _required_ |
+| Name                | Type                             | Description                                                                                     | Default    |
+| ------------------- | -------------------------------- | ----------------------------------------------------------------------------------------------- | ---------- |
+| `workflows`         | `list[WorkflowRunTriggerConfig]` | A list of `WorkflowRunTriggerConfig` objects, each representing a workflow run to be triggered. | _required_ |
+| `return_exceptions` | `bool`                           | If `True`, exceptions will be returned as part of the results instead of raising them.          | `False`    |
 
 Returns:
 
-| Type                   | Description                              |
-| ---------------------- | ---------------------------------------- |
-| `list[dict[str, Any]]` | A list of results for each workflow run. |
+| Type                                                            | Description                              |
+| --------------------------------------------------------------- | ---------------------------------------- |
+| `list[dict[str, Any]] \| list[dict[str, Any] \| BaseException]` | A list of results for each workflow run. |
 
 #### `run_many_no_wait`
 
@@ -520,6 +522,73 @@ Returns:
 | ---------- | ------------------- |
 | `V1Filter` | The created filter. |
 
+## Task
+
+Bases: `Generic[TWorkflowInput, R]`
+
+Methods:
+
+| Name           | Description                                                                    |
+| -------------- | ------------------------------------------------------------------------------ |
+| `mock_run`     | Mimic the execution of a task. This method is intended to be used to unit test |
+| `aio_mock_run` | Mimic the execution of a task. This method is intended to be used to unit test |
+
+### Functions
+
+#### `mock_run`
+
+Mimic the execution of a task. This method is intended to be used to unit test tasks without needing to interact with the Hatchet engine. Use `mock_run` for sync tasks and `aio_mock_run` for async tasks.
+
+Parameters:
+
+| Name                  | Type                                         | Description                                                                                                                                                                                                                                                                                                                                                                                               | Default |
+| --------------------- | -------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
+| `input`               | `TWorkflowInput \| None`                     | The input to the task.                                                                                                                                                                                                                                                                                                                                                                                    | `None`  |
+| `additional_metadata` | `JSONSerializableMapping \| None`            | Additional metadata to attach to the task.                                                                                                                                                                                                                                                                                                                                                                | `None`  |
+| `parent_outputs`      | `dict[str, JSONSerializableMapping] \| None` | Outputs from parent tasks, if any. This is useful for mimicking DAG functionality. For instance, if you have a task `step_2` that has a `parent` which is `step_1`, you can pass `parent_outputs={"step_1": {"result": "Hello, world!"}}` to `step_2.mock_run()` to be able to access `ctx.task_output(step_1)` in `step_2`.                                                                              | `None`  |
+| `retry_count`         | `int`                                        | The number of times the task has been retried.                                                                                                                                                                                                                                                                                                                                                            | `0`     |
+| `lifespan`            | `Any`                                        | The lifespan to be used in the task, which is useful if one was set on the worker. This will allow you to access `ctx.lifespan` inside of your task.                                                                                                                                                                                                                                                      | `None`  |
+| `dependencies`        | `dict[str, Any] \| None`                     | Dependencies to be injected into the task. This is useful for tasks that have dependencies defined using `Depends`. **IMPORTANT**: You must pass the dependencies _directly_, **not** the `Depends` objects themselves. For example, if you have a task that has a dependency `config: Annotated[str, Depends(get_config)]`, you should pass `dependencies={"config": "config_value"}` to `aio_mock_run`. | `None`  |
+
+Returns:
+
+| Type | Description             |
+| ---- | ----------------------- |
+| `R`  | The output of the task. |
+
+Raises:
+
+| Type        | Description                                                                                                                |
+| ----------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `TypeError` | If the task is an async function and `mock_run` is called, or if the task is a sync function and `aio_mock_run` is called. |
+
+#### `aio_mock_run`
+
+Mimic the execution of a task. This method is intended to be used to unit test tasks without needing to interact with the Hatchet engine. Use `mock_run` for sync tasks and `aio_mock_run` for async tasks.
+
+Parameters:
+
+| Name                  | Type                                         | Description                                                                                                                                                                                                                                                                                                                                                                                               | Default |
+| --------------------- | -------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
+| `input`               | `TWorkflowInput \| None`                     | The input to the task.                                                                                                                                                                                                                                                                                                                                                                                    | `None`  |
+| `additional_metadata` | `JSONSerializableMapping \| None`            | Additional metadata to attach to the task.                                                                                                                                                                                                                                                                                                                                                                | `None`  |
+| `parent_outputs`      | `dict[str, JSONSerializableMapping] \| None` | Outputs from parent tasks, if any. This is useful for mimicking DAG functionality. For instance, if you have a task `step_2` that has a `parent` which is `step_1`, you can pass `parent_outputs={"step_1": {"result": "Hello, world!"}}` to `step_2.mock_run()` to be able to access `ctx.task_output(step_1)` in `step_2`.                                                                              | `None`  |
+| `retry_count`         | `int`                                        | The number of times the task has been retried.                                                                                                                                                                                                                                                                                                                                                            | `0`     |
+| `lifespan`            | `Any`                                        | The lifespan to be used in the task, which is useful if one was set on the worker. This will allow you to access `ctx.lifespan` inside of your task.                                                                                                                                                                                                                                                      | `None`  |
+| `dependencies`        | `dict[str, Any] \| None`                     | Dependencies to be injected into the task. This is useful for tasks that have dependencies defined using `Depends`. **IMPORTANT**: You must pass the dependencies _directly_, **not** the `Depends` objects themselves. For example, if you have a task that has a dependency `config: Annotated[str, Depends(get_config)]`, you should pass `dependencies={"config": "config_value"}` to `aio_mock_run`. | `None`  |
+
+Returns:
+
+| Type | Description             |
+| ---- | ----------------------- |
+| `R`  | The output of the task. |
+
+Raises:
+
+| Type        | Description                                                                                                                |
+| ----------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `TypeError` | If the task is an async function and `mock_run` is called, or if the task is a sync function and `aio_mock_run` is called. |
+
 ## Standalone
 
 Bases: `BaseWorkflow[TWorkflowInput]`, `Generic[TWorkflowInput, R]`
@@ -545,6 +614,13 @@ Methods:
 | `aio_list_runs`        | List runs of the workflow.                                                                                               |
 | `create_filter`        | Create a new filter.                                                                                                     |
 | `aio_create_filter`    | Create a new filter.                                                                                                     |
+| `delete`               | Permanently delete the workflow.                                                                                         |
+| `aio_delete`           | Permanently delete the workflow.                                                                                         |
+| `get_run_ref`          | Get a reference to a task run by its run ID.                                                                             |
+| `get_result`           | Get the result of a task run by its run ID.                                                                              |
+| `aio_get_result`       | Get the result of a task run by its run ID.                                                                              |
+| `mock_run`             | Mimic the execution of a task. This method is intended to be used to unit test                                           |
+| `aio_mock_run`         | Mimic the execution of a task. This method is intended to be used to unit test                                           |
 
 ### Functions
 
@@ -628,15 +704,16 @@ Run a workflow in bulk and wait for all runs to complete. This method triggers m
 
 Parameters:
 
-| Name        | Type                             | Description                                                                                     | Default    |
-| ----------- | -------------------------------- | ----------------------------------------------------------------------------------------------- | ---------- |
-| `workflows` | `list[WorkflowRunTriggerConfig]` | A list of `WorkflowRunTriggerConfig` objects, each representing a workflow run to be triggered. | _required_ |
+| Name                | Type                             | Description                                                                                     | Default    |
+| ------------------- | -------------------------------- | ----------------------------------------------------------------------------------------------- | ---------- |
+| `workflows`         | `list[WorkflowRunTriggerConfig]` | A list of `WorkflowRunTriggerConfig` objects, each representing a workflow run to be triggered. | _required_ |
+| `return_exceptions` | `bool`                           | If `True`, exceptions will be returned as part of the results instead of raising them.          | `False`    |
 
 Returns:
 
-| Type      | Description                              |
-| --------- | ---------------------------------------- |
-| `list[R]` | A list of results for each workflow run. |
+| Type                                  | Description                              |
+| ------------------------------------- | ---------------------------------------- |
+| `list[R] \| list[R \| BaseException]` | A list of results for each workflow run. |
 
 #### `aio_run_many`
 
@@ -644,15 +721,16 @@ Run a workflow in bulk and wait for all runs to complete. This method triggers m
 
 Parameters:
 
-| Name        | Type                             | Description                                                                                     | Default    |
-| ----------- | -------------------------------- | ----------------------------------------------------------------------------------------------- | ---------- |
-| `workflows` | `list[WorkflowRunTriggerConfig]` | A list of `WorkflowRunTriggerConfig` objects, each representing a workflow run to be triggered. | _required_ |
+| Name                | Type                             | Description                                                                                     | Default    |
+| ------------------- | -------------------------------- | ----------------------------------------------------------------------------------------------- | ---------- |
+| `workflows`         | `list[WorkflowRunTriggerConfig]` | A list of `WorkflowRunTriggerConfig` objects, each representing a workflow run to be triggered. | _required_ |
+| `return_exceptions` | `bool`                           | If `True`, exceptions will be returned as part of the results instead of raising them.          | `False`    |
 
 Returns:
 
-| Type      | Description                              |
-| --------- | ---------------------------------------- |
-| `list[R]` | A list of results for each workflow run. |
+| Type                                  | Description                              |
+| ------------------------------------- | ---------------------------------------- |
+| `list[R] \| list[R \| BaseException]` | A list of results for each workflow run. |
 
 #### `run_many_no_wait`
 
@@ -869,3 +947,103 @@ Returns:
 | Type       | Description         |
 | ---------- | ------------------- |
 | `V1Filter` | The created filter. |
+
+#### `delete`
+
+Permanently delete the workflow.
+
+**DANGEROUS: This will delete a workflow and all of its data**
+
+#### `aio_delete`
+
+Permanently delete the workflow.
+
+**DANGEROUS: This will delete a workflow and all of its data**
+
+#### `get_run_ref`
+
+Get a reference to a task run by its run ID.
+
+Parameters:
+
+| Name     | Type  | Description                                 | Default    |
+| -------- | ----- | ------------------------------------------- | ---------- |
+| `run_id` | `str` | The ID of the run to get the reference for. | _required_ |
+
+Returns:
+
+| Type                            | Description                                                       |
+| ------------------------------- | ----------------------------------------------------------------- |
+| `TaskRunRef[TWorkflowInput, R]` | A `TaskRunRef` object representing the reference to the task run. |
+
+#### `get_result`
+
+Get the result of a task run by its run ID.
+
+Parameters:
+
+| Name     | Type  | Description                              | Default    |
+| -------- | ----- | ---------------------------------------- | ---------- |
+| `run_id` | `str` | The ID of the run to get the result for. | _required_ |
+
+Returns:
+
+| Type | Description                 |
+| ---- | --------------------------- |
+| `R`  | The result of the task run. |
+
+#### `aio_get_result`
+
+Get the result of a task run by its run ID.
+
+Parameters:
+
+| Name     | Type  | Description                              | Default    |
+| -------- | ----- | ---------------------------------------- | ---------- |
+| `run_id` | `str` | The ID of the run to get the result for. | _required_ |
+
+Returns:
+
+| Type | Description                 |
+| ---- | --------------------------- |
+| `R`  | The result of the task run. |
+
+#### `mock_run`
+
+Mimic the execution of a task. This method is intended to be used to unit test tasks without needing to interact with the Hatchet engine. Use `mock_run` for sync tasks and `aio_mock_run` for async tasks.
+
+Parameters:
+
+| Name                  | Type                                         | Description                                                                                                                                                                                                                                                                                                                  | Default |
+| --------------------- | -------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
+| `input`               | `TWorkflowInput \| None`                     | The input to the task.                                                                                                                                                                                                                                                                                                       | `None`  |
+| `additional_metadata` | `JSONSerializableMapping \| None`            | Additional metadata to attach to the task.                                                                                                                                                                                                                                                                                   | `None`  |
+| `parent_outputs`      | `dict[str, JSONSerializableMapping] \| None` | Outputs from parent tasks, if any. This is useful for mimicking DAG functionality. For instance, if you have a task `step_2` that has a `parent` which is `step_1`, you can pass `parent_outputs={"step_1": {"result": "Hello, world!"}}` to `step_2.mock_run()` to be able to access `ctx.task_output(step_1)` in `step_2`. | `None`  |
+| `retry_count`         | `int`                                        | The number of times the task has been retried.                                                                                                                                                                                                                                                                               | `0`     |
+| `lifespan`            | `Any`                                        | The lifespan to be used in the task, which is useful if one was set on the worker. This will allow you to access `ctx.lifespan` inside of your task.                                                                                                                                                                         | `None`  |
+
+Returns:
+
+| Type | Description             |
+| ---- | ----------------------- |
+| `R`  | The output of the task. |
+
+#### `aio_mock_run`
+
+Mimic the execution of a task. This method is intended to be used to unit test tasks without needing to interact with the Hatchet engine. Use `mock_run` for sync tasks and `aio_mock_run` for async tasks.
+
+Parameters:
+
+| Name                  | Type                                         | Description                                                                                                                                                                                                                                                                                                                  | Default |
+| --------------------- | -------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
+| `input`               | `TWorkflowInput \| None`                     | The input to the task.                                                                                                                                                                                                                                                                                                       | `None`  |
+| `additional_metadata` | `JSONSerializableMapping \| None`            | Additional metadata to attach to the task.                                                                                                                                                                                                                                                                                   | `None`  |
+| `parent_outputs`      | `dict[str, JSONSerializableMapping] \| None` | Outputs from parent tasks, if any. This is useful for mimicking DAG functionality. For instance, if you have a task `step_2` that has a `parent` which is `step_1`, you can pass `parent_outputs={"step_1": {"result": "Hello, world!"}}` to `step_2.mock_run()` to be able to access `ctx.task_output(step_1)` in `step_2`. | `None`  |
+| `retry_count`         | `int`                                        | The number of times the task has been retried.                                                                                                                                                                                                                                                                               | `0`     |
+| `lifespan`            | `Any`                                        | The lifespan to be used in the task, which is useful if one was set on the worker. This will allow you to access `ctx.lifespan` inside of your task.                                                                                                                                                                         | `None`  |
+
+Returns:
+
+| Type | Description             |
+| ---- | ----------------------- |
+| `R`  | The output of the task. |

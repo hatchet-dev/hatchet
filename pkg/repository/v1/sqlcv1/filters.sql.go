@@ -11,18 +11,12 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const bulkUpsertDeclarativeFilters = `-- name: BulkUpsertDeclarativeFilters :many
+const bulkInsertDeclarativeFilters = `-- name: BulkInsertDeclarativeFilters :exec
 WITH inputs AS (
     SELECT
         UNNEST($3::TEXT[]) AS scope,
         UNNEST($4::TEXT[]) AS expression,
         UNNEST($5::JSONB[]) AS payload
-), deletions AS (
-    DELETE FROM v1_filter
-    WHERE
-        tenant_id = $1::UUID
-        AND workflow_id = $2::UUID
-        AND is_declarative
 )
 
 INSERT INTO v1_filter (
@@ -41,10 +35,9 @@ SELECT
     payload,
     true
 FROM inputs
-RETURNING id, tenant_id, workflow_id, scope, expression, payload, payload_hash, is_declarative, inserted_at, updated_at
 `
 
-type BulkUpsertDeclarativeFiltersParams struct {
+type BulkInsertDeclarativeFiltersParams struct {
 	Tenantid    pgtype.UUID `json:"tenantid"`
 	Workflowid  pgtype.UUID `json:"workflowid"`
 	Scopes      []string    `json:"scopes"`
@@ -52,43 +45,16 @@ type BulkUpsertDeclarativeFiltersParams struct {
 	Payloads    [][]byte    `json:"payloads"`
 }
 
-// IMPORTANT: This query overwrites all existing declarative filters for a workflow.
-// it's intended to be used when the workflow version is created.
-func (q *Queries) BulkUpsertDeclarativeFilters(ctx context.Context, db DBTX, arg BulkUpsertDeclarativeFiltersParams) ([]*V1Filter, error) {
-	rows, err := db.Query(ctx, bulkUpsertDeclarativeFilters,
+// IMPORTANT: This is intended to be used in conjunction with the `DeleteExistingDeclarativeFiltersForOverwrite` query.
+func (q *Queries) BulkInsertDeclarativeFilters(ctx context.Context, db DBTX, arg BulkInsertDeclarativeFiltersParams) error {
+	_, err := db.Exec(ctx, bulkInsertDeclarativeFilters,
 		arg.Tenantid,
 		arg.Workflowid,
 		arg.Scopes,
 		arg.Expressions,
 		arg.Payloads,
 	)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []*V1Filter
-	for rows.Next() {
-		var i V1Filter
-		if err := rows.Scan(
-			&i.ID,
-			&i.TenantID,
-			&i.WorkflowID,
-			&i.Scope,
-			&i.Expression,
-			&i.Payload,
-			&i.PayloadHash,
-			&i.IsDeclarative,
-			&i.InsertedAt,
-			&i.UpdatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, &i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
+	return err
 }
 
 const createFilter = `-- name: CreateFilter :one
@@ -140,6 +106,26 @@ func (q *Queries) CreateFilter(ctx context.Context, db DBTX, arg CreateFilterPar
 		&i.UpdatedAt,
 	)
 	return &i, err
+}
+
+const deleteExistingDeclarativeFiltersForOverwrite = `-- name: DeleteExistingDeclarativeFiltersForOverwrite :exec
+DELETE FROM v1_filter
+WHERE
+    tenant_id = $1::UUID
+    AND workflow_id = $2::UUID
+    AND is_declarative
+`
+
+type DeleteExistingDeclarativeFiltersForOverwriteParams struct {
+	Tenantid   pgtype.UUID `json:"tenantid"`
+	Workflowid pgtype.UUID `json:"workflowid"`
+}
+
+// IMPORTANT: This query overwrites all existing declarative filters for a workflow.
+// it's intended to be used when the workflow version is created.
+func (q *Queries) DeleteExistingDeclarativeFiltersForOverwrite(ctx context.Context, db DBTX, arg DeleteExistingDeclarativeFiltersForOverwriteParams) error {
+	_, err := db.Exec(ctx, deleteExistingDeclarativeFiltersForOverwrite, arg.Tenantid, arg.Workflowid)
+	return err
 }
 
 const deleteFilter = `-- name: DeleteFilter :one
@@ -312,7 +298,7 @@ func (q *Queries) ListFilters(ctx context.Context, db DBTX, arg ListFiltersParam
 
 const listFiltersForEventTriggers = `-- name: ListFiltersForEventTriggers :many
 WITH inputs AS (
-    SELECT
+    SELECT DISTINCT
         UNNEST($4::UUID[]) AS workflow_id,
         UNNEST($5::TEXT[]) AS scope
 )

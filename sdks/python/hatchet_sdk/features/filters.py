@@ -10,7 +10,7 @@ from hatchet_sdk.clients.rest.models.v1_filter_list import V1FilterList
 from hatchet_sdk.clients.rest.models.v1_update_filter_request import (
     V1UpdateFilterRequest,
 )
-from hatchet_sdk.clients.v1.api_client import BaseRestClient
+from hatchet_sdk.clients.v1.api_client import BaseRestClient, retry
 from hatchet_sdk.utils.typing import JSONSerializableMapping
 
 
@@ -41,6 +41,7 @@ class FiltersClient(BaseRestClient):
         """
         return await asyncio.to_thread(self.list, limit, offset, workflow_ids, scopes)
 
+    @retry
     def list(
         self,
         limit: int | None = None,
@@ -67,6 +68,7 @@ class FiltersClient(BaseRestClient):
                 scopes=scopes,
             )
 
+    @retry
     def get(
         self,
         filter_id: str,

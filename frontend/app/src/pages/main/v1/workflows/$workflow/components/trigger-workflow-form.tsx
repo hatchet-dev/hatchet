@@ -7,18 +7,16 @@ import {
 } from '@/components/v1/ui/dialog';
 import api, {
   CronWorkflows,
-  queries,
   ScheduledWorkflows,
   V1WorkflowRunDetails,
   Workflow,
 } from '@/lib/api';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState, useEffect } from 'react';
 import { Button } from '@/components/v1/ui/button';
-import invariant from 'tiny-invariant';
+import { debounce } from 'lodash';
 import { useApiError } from '@/lib/hooks';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { useNavigate, useOutletContext } from 'react-router-dom';
-import { TenantContextType } from '@/lib/outlet';
+import { useNavigate } from 'react-router-dom';
 import { CodeEditor } from '@/components/v1/ui/code-editor';
 import { Input } from '@/components/v1/ui/input';
 import {
@@ -27,11 +25,12 @@ import {
   TabsList,
   TabsTrigger,
 } from '@/components/v1/ui/tabs';
-import CronPrettifier from 'cronstrue';
 import { DateTimePicker } from '@/components/v1/molecules/time-picker/date-time-picker';
 import { ToolbarType } from '@/components/v1/molecules/data-table/data-table-toolbar';
 import { BiDownArrowCircle } from 'react-icons/bi';
 import { Combobox } from '@/components/v1/molecules/combobox/combobox';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
+import { formatCron } from '@/lib/utils';
 
 type TimingOption = 'now' | 'schedule' | 'cron';
 
@@ -46,9 +45,7 @@ export function TriggerWorkflowForm({
   onClose: () => void;
   defaultTimingOption?: TimingOption;
 }) {
-  const { tenant } = useOutletContext<TenantContextType>();
-  invariant(tenant);
-
+  const { tenantId } = useCurrentTenantId();
   const navigate = useNavigate();
 
   const [input, setInput] = useState<string | undefined>('{}');
@@ -67,6 +64,28 @@ export function TriggerWorkflowForm({
     defaultWorkflow?.metadata.id,
   );
 
+  const [workflowSearch, setWorkflowSearch] = useState('');
+  const [debouncedWorkflowSearch, setDebouncedWorkflowSearch] = useState('');
+
+  const debouncedSetSearch = useMemo(
+    () => debounce((value: string) => setDebouncedWorkflowSearch(value), 300),
+    [],
+  );
+
+  const handleSearchChange = useCallback(
+    (value: string) => {
+      setWorkflowSearch(value);
+      debouncedSetSearch(value);
+    },
+    [debouncedSetSearch],
+  );
+
+  useEffect(() => {
+    return () => {
+      debouncedSetSearch.cancel();
+    };
+  }, [debouncedSetSearch]);
+
   const handleClose = useCallback(() => {
     onClose();
     setInput('{}');
@@ -77,12 +96,15 @@ export function TriggerWorkflowForm({
     setScheduleTime(new Date());
     setCronExpression('* * * * *');
     setCronName('');
-  }, [onClose, defaultWorkflow, defaultTimingOption]);
+    setWorkflowSearch('');
+    setDebouncedWorkflowSearch('');
+    debouncedSetSearch.cancel();
+  }, [onClose, defaultWorkflow, defaultTimingOption, debouncedSetSearch]);
 
   const cronPretty = useMemo(() => {
     try {
       return {
-        pretty: CronPrettifier.toString(cronExpression || '').toLowerCase(),
+        pretty: formatCron(cronExpression),
       };
     } catch (e) {
       console.error(e);
@@ -94,8 +116,22 @@ export function TriggerWorkflowForm({
     setErrors,
   });
 
-  const { data: workflowKeys, isFetched } = useQuery({
-    ...queries.workflows.list(tenant.metadata.id, { limit: 200 }),
+  const { data: workflowKeys } = useQuery({
+    queryKey: [
+      'workflow:list',
+      tenantId,
+      {
+        limit: 200,
+        name: debouncedWorkflowSearch || undefined,
+      },
+    ],
+    queryFn: async () => {
+      const response = await api.workflowList(tenantId, {
+        limit: 200,
+        name: debouncedWorkflowSearch || undefined,
+      });
+      return response.data;
+    },
     refetchInterval: 15000,
   });
 
@@ -111,7 +147,7 @@ export function TriggerWorkflowForm({
         return;
       }
 
-      const res = await api.v1WorkflowRunCreate(tenant.metadata.id, {
+      const res = await api.v1WorkflowRunCreate(tenantId, {
         workflowName: selectedWorkflow.name,
         input: data.input,
         additionalMetadata: data.addlMeta,
@@ -127,7 +163,7 @@ export function TriggerWorkflowForm({
         return;
       }
 
-      navigate(`/v1/runs/${workflowRun.run.metadata.id}`);
+      navigate(`/tenants/${tenantId}/runs/${workflowRun.run.metadata.id}`);
     },
     onError: handleApiError,
   });
@@ -144,7 +180,7 @@ export function TriggerWorkflowForm({
       }
 
       const res = await api.scheduledWorkflowRunCreate(
-        tenant.metadata.id,
+        tenantId,
         selectedWorkflow?.name,
         {
           input: data.input,
@@ -163,7 +199,7 @@ export function TriggerWorkflowForm({
         return;
       }
       handleClose();
-      navigate(`/v1/scheduled`);
+      navigate(`/tenants/${tenantId}/scheduled`);
     },
     onError: handleApiError,
   });
@@ -181,7 +217,7 @@ export function TriggerWorkflowForm({
       }
 
       const res = await api.cronWorkflowTriggerCreate(
-        tenant.metadata.id,
+        tenantId,
         selectedWorkflow?.name,
         {
           input: data.input,
@@ -201,7 +237,7 @@ export function TriggerWorkflowForm({
         return;
       }
       handleClose();
-      navigate(`/v1/cron-jobs`);
+      navigate(`/tenants/${tenantId}/cron-jobs`);
     },
     onError: handleApiError,
   });
@@ -244,28 +280,6 @@ export function TriggerWorkflowForm({
     }
   };
 
-  if ((!workflowKeys || workflowKeys.rows?.length === 0) && isFetched) {
-    return (
-      <Dialog
-        open={show}
-        onOpenChange={(open) => {
-          if (!open) {
-            handleClose();
-          }
-        }}
-      >
-        <DialogContent className="sm:max-w-[625px] py-12 max-h-screen overflow-auto">
-          <DialogHeader className="gap-2">
-            <DialogTitle>Trigger Workflow</DialogTitle>
-            <DialogDescription className="text-muted-foreground">
-              No workflows found. Create a workflow first.
-            </DialogDescription>
-          </DialogHeader>
-        </DialogContent>
-      </Dialog>
-    );
-  }
-
   return (
     <Dialog
       open={show}
@@ -275,20 +289,20 @@ export function TriggerWorkflowForm({
         }
       }}
     >
-      <DialogContent className="sm:max-w-[625px] py-12 max-h-screen overflow-auto">
+      <DialogContent className="sm:max-w-[625px] py-12 max-h-[90%] overflow-auto">
         <DialogHeader className="gap-2">
           <DialogTitle>Trigger Run</DialogTitle>
           <DialogDescription className="text-muted-foreground">
-            Trigger a task or workflow to run now, at a scheduled time, or on a
-            cron schedule.
+            Trigger a workflow to run now, at a scheduled time, or on a cron
+            schedule.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="font-bold">Task or Workflow</div>
+        <div className="font-bold">Workflow</div>
         <Combobox
           values={selectedWorkflowId ? [selectedWorkflowId] : []}
           setValues={(values) => setSelectedWorkflowId(values[0])}
-          title="Select Task or Workflow"
+          title="Select Workflow"
           options={workflowKeys?.rows?.map((w) => ({
             value: w.metadata.id,
             label: w.name,
@@ -296,6 +310,13 @@ export function TriggerWorkflowForm({
           type={ToolbarType.Radio}
           icon={
             <BiDownArrowCircle className="h-5 w-5 text-gray-700 dark:text-gray-300 mr-2" />
+          }
+          searchValue={workflowSearch}
+          onSearchChange={handleSearchChange}
+          emptyMessage={
+            debouncedWorkflowSearch
+              ? `No workflows matching "${debouncedWorkflowSearch}"`
+              : 'No workflows found'
           }
         />
         <div className="font-bold">Input</div>
@@ -404,7 +425,7 @@ export function TriggerWorkflowForm({
             </TabsContent>
             <TabsContent value="cron">
               <div className="mt-4">
-                <div className="font-bold mb-2">Cron Expression</div>
+                <div className="font-bold mb-2">Cron Name</div>
                 <Input
                   type="text"
                   value={cronName}
@@ -421,7 +442,7 @@ export function TriggerWorkflowForm({
                   className="w-full"
                 />
                 <div className="text-sm text-gray-500">
-                  {cronPretty?.error || `(runs ${cronPretty?.pretty} UTC)`}
+                  {cronPretty?.error || `(runs ${cronPretty?.pretty})`}
                 </div>
               </div>
             </TabsContent>
@@ -439,7 +460,7 @@ export function TriggerWorkflowForm({
             }
             onClick={handleSubmit}
           >
-            Run Task
+            Submit
           </Button>
         </div>
         {(errors.length > 0 ||

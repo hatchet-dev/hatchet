@@ -17,6 +17,9 @@ components:
       type: apiKey
       in: cookie
       name: hatchet
+    customAuth:
+      type: http
+      scheme: bearer
   schemas:
     $ref: "./components/schemas/_index.yaml"
 paths:
@@ -58,6 +61,15 @@ paths:
     $ref: "./paths/v1/filters/filter.yaml#/V1FilterListCreate"
   /api/v1/stable/tenants/{tenant}/filters/{v1-filter}:
     $ref: "./paths/v1/filters/filter.yaml#/V1FilterGetDeleteUpdate"
+  /api/v1/stable/tenants/{tenant}/webhooks:
+    $ref: "./paths/v1/webhooks/webhook.yaml#/V1WebhookListCreate"
+
+  # !!! IMPORTANT: we directly reference this path in the webhook rate limiter in `webhook_rate_limit.go`
+  # changing this path will break the rate limiter. !!!
+  /api/v1/stable/tenants/{tenant}/webhooks/{v1-webhook}:
+    $ref: "./paths/v1/webhooks/webhook.yaml#/V1WebhookGetDeleteReceiveUpdate"
+  /api/v1/stable/tenants/{tenant}/cel/debug:
+    $ref: "./paths/v1/cel/cel.yaml#/V1CELDebug"
   /api/ready:
     $ref: "./paths/metadata/metadata.yaml#/readiness"
   /api/live:

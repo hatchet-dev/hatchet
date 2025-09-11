@@ -16,25 +16,29 @@ func (t *WorkflowService) WorkflowList(ctx echo.Context, request gen.WorkflowLis
 	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
-	if request.Params.Limit == nil {
-		request.Params.Limit = new(int)
-		*request.Params.Limit = 50
+	limit := 50
+	offset := 0
+	name := ""
+
+	if request.Params.Limit != nil {
+		limit = *request.Params.Limit
 	}
 
-	if request.Params.Offset == nil {
-		request.Params.Offset = new(int)
-		*request.Params.Offset = 0
+	if request.Params.Offset != nil {
+		offset = *request.Params.Offset
 	}
 
-	if request.Params.Name == nil {
-		request.Params.Name = new(string)
-
+	if request.Params.Name != nil {
+		name = *request.Params.Name
 	}
 
-	name := *request.Params.Name
+	if limit <= 0 {
+		limit = 50
+	}
 
-	limit := *request.Params.Limit
-	offset := *request.Params.Offset
+	if offset < 0 {
+		offset = 0
+	}
 
 	listOpts := &repository.ListWorkflowsOpts{
 		Limit:  &limit,

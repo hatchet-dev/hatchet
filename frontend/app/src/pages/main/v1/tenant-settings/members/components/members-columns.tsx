@@ -1,10 +1,10 @@
-import { ColumnDef, Row } from '@tanstack/react-table';
+import { ColumnDef } from '@tanstack/react-table';
 import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
 import api, { TenantMember, queries } from '@/lib/api';
 import { capitalize } from '@/lib/utils';
 import { DataTableRowActions } from '@/components/v1/molecules/data-table/data-table-row-actions';
 import { useOutletContext } from 'react-router-dom';
-import { TenantContextType, UserContextType } from '@/lib/outlet';
+import { UserContextType } from '@/lib/outlet';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { useMutation } from '@tanstack/react-query';
 import { useApiError } from '@/lib/hooks';
@@ -12,11 +12,105 @@ import queryClient from '@/query-client';
 import { ConfirmDialog } from '@/components/v1/molecules/confirm-dialog';
 import { useState } from 'react';
 import useApiMeta from '@/pages/auth/hooks/use-api-meta';
+import useCloudApiMeta from '@/pages/auth/hooks/use-cloud-api-meta';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
+
+// Component for handling member actions
+function MemberActions({
+  member,
+  onChangePasswordClick,
+  onEditRoleClick,
+}: {
+  member: TenantMember;
+  onChangePasswordClick: (member: TenantMember) => void;
+  onEditRoleClick: (member: TenantMember) => void;
+}) {
+  const { user } = useOutletContext<UserContextType>();
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const { handleApiError } = useApiError({});
+  const { tenantId } = useCurrentTenantId();
+  const meta = useApiMeta();
+  const { isCloudEnabled } = useCloudApiMeta();
+
+  const deleteMemberMutation = useMutation({
+    mutationKey: ['tenant-member:delete', tenantId],
+    mutationFn: async (data: { memberId: string }) => {
+      await api.tenantMemberDelete(tenantId, data.memberId);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: queries.members.list(tenantId).queryKey,
+      });
+    },
+    onError: handleApiError,
+  });
+
+  const isOwnerRole = member.role === 'OWNER';
+
+  const canDeleteMember =
+    member.user.email !== user?.email &&
+    meta.data?.allowInvites &&
+    !(isCloudEnabled && isOwnerRole); // Hide delete option for OWNER in cloud mode
+
+  const canChangePassword =
+    member.user.email === user?.email && meta.data?.allowChangePassword;
+
+  const canEditRole = member.user.email !== user?.email;
+
+  return (
+    <>
+      <DataTableRowActions
+        row={{ original: member } as any}
+        actions={[
+          ...(canEditRole
+            ? [
+                {
+                  label: 'Edit role',
+                  onClick: () => onEditRoleClick(member),
+                },
+              ]
+            : []),
+          ...(canChangePassword
+            ? [
+                {
+                  label: 'Change password',
+                  onClick: () => onChangePasswordClick(member),
+                },
+              ]
+            : []),
+          ...(canDeleteMember
+            ? [
+                {
+                  label: 'Remove from tenant',
+                  onClick: () => setShowDeleteDialog(true),
+                },
+              ]
+            : []),
+        ]}
+      />
+      <ConfirmDialog
+        isOpen={showDeleteDialog}
+        title="Remove member"
+        description={`Are you sure you want to remove ${member.user.name} from this tenant?`}
+        submitLabel="Remove"
+        onSubmit={() => {
+          deleteMemberMutation.mutate({
+            memberId: member.metadata.id,
+          });
+        }}
+        onCancel={() => setShowDeleteDialog(false)}
+        isLoading={deleteMemberMutation.isPending}
+      />
+    </>
+  );
+}
 
 export const columns = ({
   onChangePasswordClick,
+  onEditRoleClick,
 }: {
   onChangePasswordClick: (row: TenantMember) => void;
+  onEditRoleClick: (row: TenantMember) => void;
 }): ColumnDef<TenantMember>[] => {
   return [
     {
@@ -42,7 +136,9 @@ export const columns = ({
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title="Role" />
       ),
-      cell: ({ row }) => <div>{capitalize(row.getValue('role'))}</div>,
+      cell: ({ row }) => (
+        <div className="font-medium">{capitalize(row.getValue('role'))}</div>
+      ),
     },
     {
       accessorKey: 'joined',
@@ -50,97 +146,18 @@ export const columns = ({
         <DataTableColumnHeader column={column} title="Joined" />
       ),
       cell: ({ row }) => (
-        <div>
-          <RelativeDate date={row.original.metadata.createdAt} />
-        </div>
+        <RelativeDate date={row.original.metadata.createdAt} />
       ),
     },
     {
       id: 'actions',
       cell: ({ row }) => (
         <MemberActions
-          row={row}
+          member={row.original}
           onChangePasswordClick={onChangePasswordClick}
+          onEditRoleClick={onEditRoleClick}
         />
       ),
     },
   ];
 };
-
-function MemberActions({
-  row,
-  onChangePasswordClick,
-}: {
-  row: Row<TenantMember>;
-  onChangePasswordClick: (row: TenantMember) => void;
-}) {
-  const meta = useApiMeta();
-  const { user } = useOutletContext<UserContextType>();
-  const { tenant } = useOutletContext<TenantContextType>();
-
-  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
-  const [isDeleteLoading, setIsDeleteLoading] = useState(false);
-
-  const { handleApiError } = useApiError({});
-
-  const isCurrent = row.original.user.email !== user.email;
-
-  const deleteUserMutation = useMutation({
-    mutationKey: ['tenant-member:delete'],
-    mutationFn: async (data: TenantMember) => {
-      await api.tenantMemberDelete(tenant.metadata.id, data.metadata.id);
-    },
-    onMutate: () => {
-      setIsDeleteLoading(true);
-    },
-    onSuccess: async () => {
-      setIsDeleteLoading(false);
-      await queryClient.invalidateQueries({
-        queryKey: queries.members.list(tenant.metadata.id).queryKey,
-      });
-      setIsDeleteConfirmOpen(false);
-    },
-    onError: handleApiError,
-  });
-
-  const actions = [];
-
-  if (user.hasPassword && !isCurrent && meta.data?.allowChangePassword) {
-    actions.push({
-      label: 'Change Password',
-      onClick: () => onChangePasswordClick(row.original),
-    });
-  }
-
-  if (isCurrent) {
-    actions.push({
-      label: 'Remove',
-      onClick: async () => {
-        setIsDeleteConfirmOpen(true);
-      },
-    });
-  }
-
-  if (actions.length === 0) {
-    return <></>;
-  }
-
-  return (
-    <>
-      <ConfirmDialog
-        isOpen={isDeleteConfirmOpen}
-        title={'Remove member'}
-        description={`Are you sure you want to remove ${row.original.user.name} <${row.original.user.email}> from the tenant?`}
-        submitLabel={'Remove'}
-        onSubmit={() => {
-          deleteUserMutation.mutate(row.original);
-        }}
-        onCancel={function (): void {
-          setIsDeleteConfirmOpen(false);
-        }}
-        isLoading={isDeleteLoading}
-      />
-      <DataTableRowActions row={row} actions={actions} />
-    </>
-  );
-}
