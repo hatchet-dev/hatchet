@@ -20,7 +20,7 @@ export type RefetchIntervalOption = 'off' | '5s' | '10s' | '30s' | '1m' | '5m';
 
 export const RefetchInterval = {
   off: {
-    label: 'off',
+    label: 'Off',
     value: false,
   },
   '5s': {

@@ -16,7 +16,7 @@ import {
   ActionType,
   BaseTaskRunActionParams,
 } from '../../task-runs-v1/actions';
-import { LabeledRefetchInterval, RefetchInterval } from '@/lib/api/api';
+import { useRefetchInterval } from '@/contexts/refetch-interval-context';
 
 type DisplayProps = {
   hideMetrics?: boolean;
@@ -27,7 +27,6 @@ type DisplayProps = {
   hideColumnToggle?: boolean;
   hideFlatten?: boolean;
   hidePagination?: boolean;
-  refetchInterval: LabeledRefetchInterval;
 };
 
 type RunFilteringProps = {
@@ -43,7 +42,6 @@ type RunsProviderProps = {
   disableTaskRunPagination?: boolean;
   initColumnVisibility?: Record<string, boolean>;
   filterVisibility?: Record<string, boolean>;
-  refetchInterval?: LabeledRefetchInterval;
   display?: DisplayProps;
   runFilters?: RunFilteringProps;
 };
@@ -102,7 +100,6 @@ export const RunsProvider = ({
   disableTaskRunPagination = false,
   initColumnVisibility = {},
   filterVisibility = {},
-  refetchInterval = RefetchInterval.off,
   display,
   runFilters,
 }: RunsProviderProps) => {
@@ -111,6 +108,8 @@ export const RunsProvider = ({
   const [isActionDropdownOpen, setIsActionDropdownOpen] = useState(false);
   const [selectedActionType, setSelectedActionType] =
     useState<ActionType | null>(null);
+
+  const { currentInterval } = useRefetchInterval();
 
   const {
     workflowId,
@@ -196,7 +195,7 @@ export const RunsProvider = ({
     disablePagination: disableTaskRunPagination,
     pauseRefetch: isFrozen,
     onlyTasks: !!workerId || flattenDAGs,
-    refetchInterval,
+    refetchInterval: currentInterval,
   });
 
   const actionModalParams = useMemo(
@@ -222,7 +221,7 @@ export const RunsProvider = ({
     workflow,
     parentTaskExternalId: derivedParentTaskExternalId,
     createdAfter: state.createdAfter,
-    refetchInterval,
+    refetchInterval: currentInterval,
     pauseRefetch: isFrozen,
     additionalMetadata: filters.apiFilters.additionalMetadata,
   });
@@ -255,7 +254,6 @@ export const RunsProvider = ({
         hideColumnToggle,
         hidePagination: disableTaskRunPagination,
         hideFlatten,
-        refetchInterval,
       },
       actions: {
         updatePagination,
@@ -295,7 +293,6 @@ export const RunsProvider = ({
       hideFlatten,
       actionModalParams,
       selectedActionType,
-      refetchInterval,
       updatePagination,
       updateFilters,
       updateUIState,
