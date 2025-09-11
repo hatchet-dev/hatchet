@@ -7,7 +7,7 @@ import {
   CreateManagementTokenResponse,
   ManagementTokenDuration,
   OrganizationMember,
-  OrganizationForUser,
+  TenantStatusType,
 } from '@/lib/api/generated/cloud/data-contracts';
 
 export function useOrganizations() {
@@ -30,8 +30,8 @@ export function useOrganizations() {
 
   const getOrganizationForTenant = useCallback(
     (tenantId: string) => {
-      return organizations.find((org: OrganizationForUser) =>
-        (org.tenants || []).includes(tenantId),
+      return organizations.find((org) =>
+        (org.tenants || []).some((tenant) => tenant.id === tenantId),
       );
     },
     [organizations],
@@ -41,6 +41,21 @@ export function useOrganizations() {
     (tenantId: string) => {
       const org = getOrganizationForTenant(tenantId);
       return org?.metadata.id || null;
+    },
+    [getOrganizationForTenant],
+  );
+
+  const isTenantArchivedInOrg = useCallback(
+    (tenantId: string) => {
+      const orgForTenant = getOrganizationForTenant(tenantId);
+      if (!orgForTenant) {
+        return false; // Not part of any org, so not archived
+      }
+
+      return (
+        orgForTenant.tenants?.find((tenant) => tenant.id === tenantId)
+          ?.status === TenantStatusType.ARCHIVED
+      );
     },
     [getOrganizationForTenant],
   );
@@ -248,6 +263,7 @@ export function useOrganizations() {
     isCloudEnabled,
     getOrganizationForTenant,
     getOrganizationIdForTenant,
+    isTenantArchivedInOrg,
     hasOrganizations,
     acceptOrgInviteMutation,
     rejectOrgInviteMutation,

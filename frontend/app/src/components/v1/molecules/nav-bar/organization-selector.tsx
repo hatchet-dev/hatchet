@@ -162,7 +162,8 @@ export function OrganizationSelector({
   const { tenant: currTenant, setTenant: setCurrTenant } = useTenantDetails();
   const [open, setOpen] = useState(false);
   const [expandedOrgs, setExpandedOrgs] = useState<string[]>([]);
-  const { organizations, getOrganizationForTenant } = useOrganizations();
+  const { organizations, getOrganizationForTenant, isTenantArchivedInOrg } =
+    useOrganizations();
 
   const handleClose = () => setOpen(false);
   const handleNavigate = (path: string) => {
@@ -196,9 +197,12 @@ export function OrganizationSelector({
     const standalone: TenantMember[] = [];
 
     memberships.forEach((membership) => {
-      const org = getOrganizationForTenant(
-        membership.tenant?.metadata.id || '',
-      );
+      const tenantId = membership.tenant?.metadata.id || '';
+      if (isTenantArchivedInOrg(tenantId)) {
+        return;
+      }
+
+      const org = getOrganizationForTenant(tenantId);
       if (org) {
         const orgId = org.metadata.id;
         if (!orgMap.has(orgId)) {
@@ -231,7 +235,13 @@ export function OrganizationSelector({
       otherOrgsData: otherOrgs,
       standaloneTenants: standalone,
     };
-  }, [memberships, organizations, getOrganizationForTenant, currTenant]);
+  }, [
+    memberships,
+    organizations,
+    getOrganizationForTenant,
+    isTenantArchivedInOrg,
+    currTenant,
+  ]);
 
   if (!currTenant) {
     return null;
