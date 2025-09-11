@@ -8,6 +8,7 @@ import {
 } from '@/components/v1/molecules/data-table/data-table-toolbar';
 import {
   additionalMetadataKey,
+  createdAtKey,
   flattenDAGsKey,
   statusKey,
   workflowKey,
@@ -98,7 +99,7 @@ export const useToolbarFilters = ({
 
   return [
     {
-      columnId: 'time-range',
+      columnId: createdAtKey,
       title: 'Time Range',
       type: ToolbarType.TimeRange,
       timeRangeConfig,
