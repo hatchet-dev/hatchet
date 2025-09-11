@@ -30,7 +30,6 @@ import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { Waterfall } from '../waterfall';
 import { useCallback } from 'react';
 import { Toaster } from '@/components/v1/ui/toaster';
-import { RefetchInterval } from '@/lib/api/api';
 
 export enum TabOption {
   Output = 'output',
@@ -228,7 +227,6 @@ export const TaskRunDetail = ({
                     hideMetrics: true,
                     hideDateFilter: true,
                     hideTriggerRunButton: true,
-                    refetchInterval: RefetchInterval.off,
                   }}
                   runFilters={{
                     parentTaskExternalId: taskRunId,

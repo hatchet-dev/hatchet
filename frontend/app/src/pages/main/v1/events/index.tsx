@@ -28,7 +28,6 @@ import {
 import { useFilters } from '../filters/hooks/use-filters';
 import { useSidePanel } from '@/hooks/use-side-panel';
 import { useEvents } from './hooks/use-events';
-import { RefetchInterval } from '@/lib/api/api';
 
 export default function Events() {
   const [rotate, setRotate] = useState(false);
@@ -261,7 +260,6 @@ function EventWorkflowRunsList({ event }: { event: V1Event }) {
             hideDateFilter: true,
             hideTriggerRunButton: true,
             hideCancelAndReplayButtons: true,
-            refetchInterval: RefetchInterval.off,
           }}
           runFilters={{
             triggeringEventExternalId: event.metadata.id,

@@ -13,7 +13,6 @@ import RelativeDate from '@/components/v1/molecules/relative-date';
 import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
 import { RunsTable } from '../../workflow-runs-v1/components/runs-table';
 import { RunsProvider } from '../../workflow-runs-v1/hooks/runs-provider';
-import { RefetchInterval } from '@/lib/api/api';
 
 export const EventColumn = {
   id: 'Event ID',
@@ -229,7 +228,6 @@ function WorkflowRunSummary({ event }: { event: V1Event }) {
           hideDateFilter: true,
           hideTriggerRunButton: true,
           hideCancelAndReplayButtons: true,
-          refetchInterval: RefetchInterval.off,
         }}
         runFilters={{
           triggeringEventExternalId: event.metadata.id,

@@ -28,7 +28,6 @@ import {
 import { RunsTable } from '../../workflow-runs-v1/components/runs-table';
 import { RunsProvider } from '../../workflow-runs-v1/hooks/runs-provider';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
-import { RefetchInterval } from '@/lib/api/api';
 
 export default function ExpandedWorkflow() {
   // TODO list previous versions and make selectable
@@ -274,7 +273,6 @@ function RecentRunsList() {
       filterVisibility={{ Workflow: false }}
       display={{
         hideMetrics: true,
-        refetchInterval: RefetchInterval.off,
       }}
       runFilters={{
         workflowId: params.workflow,
