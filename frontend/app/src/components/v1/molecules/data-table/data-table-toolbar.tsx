@@ -95,372 +95,389 @@ function FilterControl<TData>({ column, filter }: FilterControlProps<TData>) {
   const [newValue, setNewValue] = React.useState('');
   const [newArrayValue, setNewArrayValue] = React.useState('');
 
-  if (filter.type === ToolbarType.TimeRange) {
-    const config = filter.timeRangeConfig;
-    if (!config) {
-      return null;
-    }
+  console.log({ column, filter, value });
 
-    return (
-      <div className="space-y-3">
-        {config.isCustomTimeRange && (
+  if (!filter.type) {
+    return null;
+  }
+
+  switch (filter.type) {
+    case ToolbarType.TimeRange:
+      const config = filter.timeRangeConfig;
+      if (!config) {
+        return null;
+      }
+
+      return (
+        <div className="space-y-3">
+          {config.isCustomTimeRange && (
+            <div className="space-y-3">
+              <div className="flex justify-between items-center">
+                <span className="text-xs font-medium text-muted-foreground">
+                  Custom Range
+                </span>
+                <Button
+                  onClick={config.onClearTimeRange}
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 px-2 text-xs"
+                >
+                  <XCircleIcon className="h-3 w-3 mr-1" />
+                  Clear
+                </Button>
+              </div>
+              <div className="space-y-2">
+                <div className="space-y-1 w-full">
+                  <DateTimePicker
+                    label="After"
+                    date={
+                      config.createdAfter
+                        ? new Date(config.createdAfter)
+                        : undefined
+                    }
+                    setDate={(date) =>
+                      config.onCreatedAfterChange?.(date?.toISOString())
+                    }
+                    triggerClassName="w-full"
+                  />
+                </div>
+                <div className="space-y-1 w-full">
+                  <DateTimePicker
+                    label="Before"
+                    date={
+                      config.finishedBefore
+                        ? new Date(config.finishedBefore)
+                        : undefined
+                    }
+                    setDate={(date) =>
+                      config.onFinishedBeforeChange?.(date?.toISOString())
+                    }
+                    triggerClassName="w-full"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {!config.isCustomTimeRange && (
+            <div className="space-y-1">
+              <Select
+                value={
+                  config.isCustomTimeRange ? 'custom' : config.currentTimeWindow
+                }
+                onValueChange={(value) => config.onTimeWindowChange?.(value)}
+              >
+                <SelectTrigger className="h-8 text-xs">
+                  <SelectValue placeholder="Choose time range" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="1h">1 hour</SelectItem>
+                  <SelectItem value="6h">6 hours</SelectItem>
+                  <SelectItem value="1d">1 day</SelectItem>
+                  <SelectItem value="7d">7 days</SelectItem>
+                  <SelectItem value="custom">Custom</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+        </div>
+      );
+    case ToolbarType.Switch:
+      return (
+        <div className="flex items-center justify-between p-2 bg-muted/30 rounded-md">
+          <Label
+            htmlFor={`filter-${filter.columnId}`}
+            className="text-sm font-medium"
+          >
+            {filter.title}
+          </Label>
+          <Checkbox
+            id={`filter-${filter.columnId}`}
+            checked={!!value}
+            onCheckedChange={(checked) =>
+              column?.setFilterValue(checked === true ? true : undefined)
+            }
+          />
+        </div>
+      );
+    case ToolbarType.KeyValue:
+      const currentKVPairs = Array.isArray(value)
+        ? value
+        : value
+          ? [value]
+          : [];
+
+      const addKeyValue = () => {
+        if (newKey.trim() && newValue.trim()) {
+          const keyValuePair = `${newKey.trim()}:${newValue.trim()}`;
+          column?.setFilterValue([...currentKVPairs, keyValuePair]);
+          setNewKey('');
+          setNewValue('');
+        }
+      };
+
+      return (
+        <div className="space-y-3">
+          {currentKVPairs.length > 0 && (
+            <div className="space-y-2">
+              {currentKVPairs.map((val: string, index: number) => {
+                const separator = val.includes(':') ? ':' : '=';
+                const [key, value] = val.split(separator);
+                return (
+                  <div
+                    key={index}
+                    className="flex items-center justify-between bg-muted/50 rounded-md px-2 py-1 text-xs"
+                  >
+                    <div className="flex items-center gap-1 font-mono">
+                      <span className="text-blue-600 font-medium">{key}</span>
+                      <span className="text-muted-foreground">{separator}</span>
+                      <span className="text-green-600">{value}</span>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        const newValues = currentKVPairs.filter(
+                          (_, i) => i !== index,
+                        );
+                        column?.setFilterValue(
+                          newValues.length > 0 ? newValues : undefined,
+                        );
+                      }}
+                      className="h-5 w-5 p-0 hover:bg-destructive/10 hover:text-destructive"
+                    >
+                      <Cross2Icon className="h-3 w-3" />
+                    </Button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
           <div className="space-y-3">
-            <div className="flex justify-between items-center">
-              <span className="text-xs font-medium text-muted-foreground">
-                Custom Range
-              </span>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1">
+                <label className="text-xs text-muted-foreground">Key</label>
+                <Input
+                  ref={keyInputRef}
+                  placeholder="ENV"
+                  value={newKey}
+                  onChange={(e) => setNewKey(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      addKeyValue();
+                    } else if (e.key === 'Tab' && !e.shiftKey) {
+                      e.preventDefault();
+                      valueInputRef.current?.focus();
+                    }
+                  }}
+                  className="h-8 text-xs placeholder:text-muted-foreground/50"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs text-muted-foreground">Value</label>
+                <Input
+                  ref={valueInputRef}
+                  placeholder="PRODUCTION"
+                  value={newValue}
+                  onChange={(e) => setNewValue(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      addKeyValue();
+                    } else if (e.key === 'Tab' && e.shiftKey) {
+                      e.preventDefault();
+                      keyInputRef.current?.focus();
+                    }
+                  }}
+                  className="h-8 text-xs placeholder:text-muted-foreground/50"
+                />
+              </div>
+            </div>
+            <div className="flex gap-2">
               <Button
-                onClick={config.onClearTimeRange}
+                variant="outline"
+                size="sm"
+                disabled={!newKey.trim() || !newValue.trim()}
+                onClick={addKeyValue}
+                className="flex-1 h-8 text-xs"
+              >
+                Add Filter
+              </Button>
+              <Button
                 variant="ghost"
                 size="sm"
-                className="h-6 px-2 text-xs"
+                disabled={!newKey.trim() && !newValue.trim()}
+                onClick={() => {
+                  setNewKey('');
+                  setNewValue('');
+                  keyInputRef.current?.focus();
+                }}
+                className="h-8 px-3 text-xs"
               >
-                <XCircleIcon className="h-3 w-3 mr-1" />
-                Clear
+                Reset
               </Button>
             </div>
+          </div>
+        </div>
+      );
+    case ToolbarType.Array:
+      const currentArrayValues = Array.isArray(value)
+        ? value
+        : value
+          ? [value]
+          : [];
+
+      const addArrayValue = () => {
+        if (newArrayValue.trim()) {
+          column?.setFilterValue([...currentArrayValues, newArrayValue]);
+          setNewArrayValue('');
+        }
+      };
+
+      return (
+        <div className="space-y-3">
+          {currentArrayValues.length > 0 && (
             <div className="space-y-2">
-              <div className="space-y-1 w-full">
-                <DateTimePicker
-                  label="After"
-                  date={
-                    config.createdAfter
-                      ? new Date(config.createdAfter)
-                      : undefined
-                  }
-                  setDate={(date) =>
-                    config.onCreatedAfterChange?.(date?.toISOString())
-                  }
-                  triggerClassName="w-full"
-                />
-              </div>
-              <div className="space-y-1 w-full">
-                <DateTimePicker
-                  label="Before"
-                  date={
-                    config.finishedBefore
-                      ? new Date(config.finishedBefore)
-                      : undefined
-                  }
-                  setDate={(date) =>
-                    config.onFinishedBeforeChange?.(date?.toISOString())
-                  }
-                  triggerClassName="w-full"
-                />
-              </div>
-            </div>
-          </div>
-        )}
-
-        {!config.isCustomTimeRange && (
-          <div className="space-y-1">
-            <Select
-              value={
-                config.isCustomTimeRange ? 'custom' : config.currentTimeWindow
-              }
-              onValueChange={(value) => config.onTimeWindowChange?.(value)}
-            >
-              <SelectTrigger className="h-8 text-xs">
-                <SelectValue placeholder="Choose time range" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="1h">1 hour</SelectItem>
-                <SelectItem value="6h">6 hours</SelectItem>
-                <SelectItem value="1d">1 day</SelectItem>
-                <SelectItem value="7d">7 days</SelectItem>
-                <SelectItem value="custom">Custom</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  if (filter.type === ToolbarType.Switch) {
-    return (
-      <div className="flex items-center justify-between p-2 bg-muted/30 rounded-md">
-        <Label
-          htmlFor={`filter-${filter.columnId}`}
-          className="text-sm font-medium"
-        >
-          {filter.title}
-        </Label>
-        <Checkbox
-          id={`filter-${filter.columnId}`}
-          checked={!!value}
-          onCheckedChange={(checked) =>
-            column?.setFilterValue(checked === true ? true : undefined)
-          }
-        />
-      </div>
-    );
-  }
-
-  if (filter.type === ToolbarType.KeyValue) {
-    const currentValues = Array.isArray(value) ? value : value ? [value] : [];
-
-    const addKeyValue = () => {
-      if (newKey.trim() && newValue.trim()) {
-        const keyValuePair = `${newKey.trim()}:${newValue.trim()}`;
-        column?.setFilterValue([...currentValues, keyValuePair]);
-        setNewKey('');
-        setNewValue('');
-      }
-    };
-
-    return (
-      <div className="space-y-3">
-        {currentValues.length > 0 && (
-          <div className="space-y-2">
-            {currentValues.map((val: string, index: number) => {
-              const separator = val.includes(':') ? ':' : '=';
-              const [key, value] = val.split(separator);
-              return (
-                <div
-                  key={index}
-                  className="flex items-center justify-between bg-muted/50 rounded-md px-2 py-1 text-xs"
-                >
-                  <div className="flex items-center gap-1 font-mono">
-                    <span className="text-blue-600 font-medium">{key}</span>
-                    <span className="text-muted-foreground">{separator}</span>
-                    <span className="text-green-600">{value}</span>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      const newValues = currentValues.filter(
-                        (_, i) => i !== index,
-                      );
-                      column?.setFilterValue(
-                        newValues.length > 0 ? newValues : undefined,
-                      );
-                    }}
-                    className="h-5 w-5 p-0 hover:bg-destructive/10 hover:text-destructive"
+              {currentArrayValues.map((val: string, index: number) => {
+                return (
+                  <div
+                    key={index}
+                    className="flex items-center justify-between bg-muted/50 rounded-md px-2 py-1 text-xs"
                   >
-                    <Cross2Icon className="h-3 w-3" />
-                  </Button>
-                </div>
-              );
-            })}
-          </div>
-        )}
-
-        <div className="space-y-3">
-          <div className="grid grid-cols-2 gap-2">
-            <div className="space-y-1">
-              <label className="text-xs text-muted-foreground">Key</label>
-              <Input
-                ref={keyInputRef}
-                placeholder="ENV"
-                value={newKey}
-                onChange={(e) => setNewKey(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    addKeyValue();
-                  } else if (e.key === 'Tab' && !e.shiftKey) {
-                    e.preventDefault();
-                    valueInputRef.current?.focus();
-                  }
-                }}
-                className="h-8 text-xs placeholder:text-muted-foreground/50"
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs text-muted-foreground">Value</label>
-              <Input
-                ref={valueInputRef}
-                placeholder="PRODUCTION"
-                value={newValue}
-                onChange={(e) => setNewValue(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    addKeyValue();
-                  } else if (e.key === 'Tab' && e.shiftKey) {
-                    e.preventDefault();
-                    keyInputRef.current?.focus();
-                  }
-                }}
-                className="h-8 text-xs placeholder:text-muted-foreground/50"
-              />
-            </div>
-          </div>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={!newKey.trim() || !newValue.trim()}
-              onClick={addKeyValue}
-              className="flex-1 h-8 text-xs"
-            >
-              Add Filter
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              disabled={!newKey.trim() && !newValue.trim()}
-              onClick={() => {
-                setNewKey('');
-                setNewValue('');
-                keyInputRef.current?.focus();
-              }}
-              className="h-8 px-3 text-xs"
-            >
-              Reset
-            </Button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (filter.type === ToolbarType.Array) {
-    const currentValues = Array.isArray(value) ? value : value ? [value] : [];
-
-    const addArrayValue = () => {
-      if (newArrayValue.trim()) {
-        column?.setFilterValue([...currentValues, newArrayValue]);
-        setNewArrayValue('');
-      }
-    };
-
-    return (
-      <div className="space-y-3">
-        {currentValues.length > 0 && (
-          <div className="space-y-2">
-            {currentValues.map((val: string, index: number) => {
-              return (
-                <div
-                  key={index}
-                  className="flex items-center justify-between bg-muted/50 rounded-md px-2 py-1 text-xs"
-                >
-                  <div className="flex items-center gap-1 font-mono">
-                    <span className="text-muted-foreground">{val}</span>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      const newValues = currentValues.filter(
-                        (_, i) => i !== index,
-                      );
-                      column?.setFilterValue(
-                        newValues.length > 0 ? newValues : undefined,
-                      );
-                    }}
-                    className="h-5 w-5 p-0 hover:bg-destructive/10 hover:text-destructive"
-                  >
-                    <Cross2Icon className="h-3 w-3" />
-                  </Button>
-                </div>
-              );
-            })}
-          </div>
-        )}
-
-        <div className="space-y-3">
-          <Input
-            ref={arrayValueInputRef}
-            placeholder="foobar"
-            value={newArrayValue}
-            onChange={(e) => setNewArrayValue(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                addArrayValue();
-              }
-            }}
-            className="h-8 text-xs placeholder:text-muted-foreground/50 w-full"
-          />
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={!newArrayValue.trim() || !newArrayValue.trim()}
-              onClick={addArrayValue}
-              className="flex-1 h-8 text-xs"
-            >
-              Add Filter
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              disabled={!newArrayValue.trim()}
-              onClick={() => {
-                setNewArrayValue('');
-                arrayValueInputRef.current?.focus();
-              }}
-              className="h-8 px-3 text-xs"
-            >
-              Reset
-            </Button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (filter.options && filter.options.length > 0) {
-    const selectedValues = Array.isArray(value) ? value : value ? [value] : [];
-    const filteredOptions = filter.options.filter((option) =>
-      option.label.toLowerCase().includes(searchTerm.toLowerCase()),
-    );
-
-    return (
-      <div className="space-y-3">
-        <div className="space-y-2">
-          {filter.options.length > 5 && (
-            <Input
-              placeholder={`Search ${filter.title.toLowerCase()}...`}
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="h-7 text-xs"
-            />
-          )}
-          <div className="max-h-48 overflow-y-auto space-y-1 border rounded-md p-2 bg-muted/20">
-            {filteredOptions.length > 0 ? (
-              filteredOptions.map((option) => (
-                <div
-                  key={option.value}
-                  className="flex items-center space-x-2 hover:bg-muted/50 rounded px-1 py-0.5"
-                >
-                  <Checkbox
-                    id={`${filter.columnId}-${option.value}`}
-                    checked={selectedValues.includes(option.value)}
-                    onCheckedChange={(checked) => {
-                      let newValue;
-                      if (checked) {
-                        newValue = [...selectedValues, option.value];
-                      } else {
-                        newValue = selectedValues.filter(
-                          (v) => v !== option.value,
+                    <div className="flex items-center gap-1 font-mono">
+                      <span className="text-muted-foreground">{val}</span>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        const newValues = currentArrayValues.filter(
+                          (_, i) => i !== index,
                         );
-                      }
-                      column?.setFilterValue(
-                        newValue.length > 0 ? newValue : undefined,
-                      );
-                    }}
-                  />
-                  <Label
-                    htmlFor={`${filter.columnId}-${option.value}`}
-                    className="text-sm cursor-pointer flex-1 truncate"
-                  >
-                    {option.label}
-                  </Label>
-                </div>
-              ))
-            ) : (
-              <div className="text-xs text-muted-foreground text-center py-2">
-                No workflows found
-              </div>
-            )}
+                        column?.setFilterValue(
+                          newValues.length > 0 ? newValues : undefined,
+                        );
+                      }}
+                      className="h-5 w-5 p-0 hover:bg-destructive/10 hover:text-destructive"
+                    >
+                      <Cross2Icon className="h-3 w-3" />
+                    </Button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          <div className="space-y-3">
+            <Input
+              ref={arrayValueInputRef}
+              placeholder="foobar"
+              value={newArrayValue}
+              onChange={(e) => setNewArrayValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  addArrayValue();
+                }
+              }}
+              className="h-8 text-xs placeholder:text-muted-foreground/50 w-full"
+            />
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={!newArrayValue.trim() || !newArrayValue.trim()}
+                onClick={addArrayValue}
+                className="flex-1 h-8 text-xs"
+              >
+                Add Filter
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={!newArrayValue.trim()}
+                onClick={() => {
+                  setNewArrayValue('');
+                  arrayValueInputRef.current?.focus();
+                }}
+                className="h-8 px-3 text-xs"
+              >
+                Reset
+              </Button>
+            </div>
           </div>
         </div>
-      </div>
-    );
-  }
+      );
+    case ToolbarType.Checkbox:
+    case ToolbarType.Radio:
+      if (!filter.options) {
+        return null;
+      }
 
-  return null;
+      const selectedValues = Array.isArray(value)
+        ? value
+        : value
+          ? [value]
+          : [];
+      const filteredOptions = filter.options.filter((option) =>
+        option.label.toLowerCase().includes(searchTerm.toLowerCase()),
+      );
+
+      return (
+        <div className="space-y-3">
+          <div className="space-y-2">
+            {filter.options.length > 5 && (
+              <Input
+                placeholder={`Search ${filter.title.toLowerCase()}...`}
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="h-7 text-xs"
+              />
+            )}
+            <div className="max-h-48 overflow-y-auto space-y-1 border rounded-md p-2 bg-muted/20">
+              {filteredOptions.length > 0 ? (
+                filteredOptions.map((option) => (
+                  <div
+                    key={option.value}
+                    className="flex items-center space-x-2 hover:bg-muted/50 rounded px-1 py-0.5"
+                  >
+                    <Checkbox
+                      id={`${filter.columnId}-${option.value}`}
+                      checked={selectedValues.includes(option.value)}
+                      onCheckedChange={(checked) => {
+                        let newValue;
+                        if (checked) {
+                          newValue = [...selectedValues, option.value];
+                        } else {
+                          newValue = selectedValues.filter(
+                            (v) => v !== option.value,
+                          );
+                        }
+                        column?.setFilterValue(
+                          newValue.length > 0 ? newValue : undefined,
+                        );
+                      }}
+                    />
+                    <Label
+                      htmlFor={`${filter.columnId}-${option.value}`}
+                      className="text-sm cursor-pointer flex-1 truncate"
+                    >
+                      {option.label}
+                    </Label>
+                  </div>
+                ))
+              ) : (
+                <div className="text-xs text-muted-foreground text-center py-2">
+                  No workflows found
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      );
+    default:
+      const exhaustiveCheck: never = filter.type;
+      return exhaustiveCheck;
+  }
 }
 
 export function DataTableToolbar<TData>({
