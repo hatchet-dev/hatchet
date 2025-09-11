@@ -88,6 +88,7 @@ interface ExtraDataTableProps {
     component: React.FC<any> | ((data: any) => JSX.Element);
   };
   onToolbarReset?: () => void;
+  columnKeyToName?: Record<string, string>;
 }
 
 export function DataTable<TData extends IDGetter<TData>, TValue>({
@@ -122,6 +123,7 @@ export function DataTable<TData extends IDGetter<TData>, TValue>({
   onToolbarReset,
   headerClassName,
   hideFlatten,
+  columnKeyToName,
 }: DataTableProps<TData, TValue> & ExtraDataTableProps) {
   const [expanded, setExpanded] = React.useState<ExpandedState>({});
 
@@ -283,6 +285,7 @@ export function DataTable<TData extends IDGetter<TData>, TValue>({
           showColumnToggle={showColumnToggle}
           onReset={onToolbarReset}
           hideFlatten={hideFlatten}
+          columnKeyToName={columnKeyToName}
         />
       )}
       <div

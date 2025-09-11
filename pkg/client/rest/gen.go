@@ -1472,8 +1472,11 @@ type V1EventWorkflowRunSummary struct {
 // V1Filter defines model for V1Filter.
 type V1Filter struct {
 	// Expression The expression associated with this filter.
-	Expression string          `json:"expression"`
-	Metadata   APIResourceMeta `json:"metadata"`
+	Expression string `json:"expression"`
+
+	// IsDeclarative Whether the filter is declarative (true) or programmatic (false)
+	IsDeclarative *bool           `json:"isDeclarative,omitempty"`
+	Metadata      APIResourceMeta `json:"metadata"`
 
 	// Payload Additional payload data associated with the filter
 	Payload map[string]interface{} `json:"payload"`
@@ -14189,6 +14192,7 @@ type TenantInviteCreateResponse struct {
 	JSON201      *TenantInvite
 	JSON400      *APIErrors
 	JSON403      *APIError
+	JSON422      *APIErrors
 }
 
 // Status returns HTTPResponse.Status
@@ -15344,6 +15348,7 @@ type UserUpdateLoginResponse struct {
 	JSON400      *APIErrors
 	JSON401      *APIErrors
 	JSON405      *APIErrors
+	JSON422      *APIErrors
 }
 
 // Status returns HTTPResponse.Status
@@ -15418,6 +15423,7 @@ type UserUpdatePasswordResponse struct {
 	JSON400      *APIErrors
 	JSON401      *APIErrors
 	JSON405      *APIErrors
+	JSON422      *APIErrors
 }
 
 // Status returns HTTPResponse.Status
@@ -15443,6 +15449,7 @@ type UserCreateResponse struct {
 	JSON400      *APIErrors
 	JSON401      *APIErrors
 	JSON405      *APIErrors
+	JSON422      *APIErrors
 }
 
 // Status returns HTTPResponse.Status
@@ -19763,6 +19770,13 @@ func ParseTenantInviteCreateResponse(rsp *http.Response) (*TenantInviteCreateRes
 		}
 		response.JSON403 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
 	}
 
 	return response, nil
@@ -21677,6 +21691,13 @@ func ParseUserUpdateLoginResponse(rsp *http.Response) (*UserUpdateLoginResponse,
 		}
 		response.JSON405 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
 	}
 
 	return response, nil
@@ -21811,6 +21832,13 @@ func ParseUserUpdatePasswordResponse(rsp *http.Response) (*UserUpdatePasswordRes
 		}
 		response.JSON405 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
 	}
 
 	return response, nil
@@ -21857,6 +21885,13 @@ func ParseUserCreateResponse(rsp *http.Response) (*UserCreateResponse, error) {
 			return nil, err
 		}
 		response.JSON405 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
 
 	}
 

@@ -40,6 +40,7 @@ interface DataTableToolbarProps<TData> {
   isLoading?: boolean;
   onReset?: () => void;
   hideFlatten?: boolean;
+  columnKeyToName?: Record<string, string>;
 }
 
 export function DataTableToolbar<TData>({
@@ -52,6 +53,7 @@ export function DataTableToolbar<TData>({
   isLoading = false,
   onReset,
   hideFlatten,
+  columnKeyToName,
 }: DataTableToolbarProps<TData>) {
   const isFiltered = table.getState().columnFilters?.length > 0;
 
@@ -112,7 +114,12 @@ export function DataTableToolbar<TData>({
       <div className="flex flex-row gap-4 items-center flex-shrink-0">
         {isLoading && <Spinner />}
         {actions && actions.length > 0 && actions}
-        {showColumnToggle && <DataTableViewOptions table={table} />}
+        {showColumnToggle && (
+          <DataTableViewOptions
+            table={table}
+            columnKeyToName={columnKeyToName}
+          />
+        )}
       </div>
     </div>
   );
