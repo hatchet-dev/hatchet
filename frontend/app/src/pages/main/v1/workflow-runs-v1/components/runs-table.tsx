@@ -254,16 +254,6 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
 
       {!hideMetrics && <GetWorkflowChart />}
 
-      {!hideCounts && (
-        <div className="flex flex-row justify-between items-center my-4 overflow-auto">
-          {metrics.length > 0 ? (
-            <V1WorkflowRunsMetricsView />
-          ) : (
-            <Skeleton className="max-w-[800px] w-[40vw] h-8" />
-          )}
-        </div>
-      )}
-
       <div className="flex-1 min-h-0">
         <DataTable
           emptyState={
@@ -345,6 +335,13 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
           headerClassName={headerClassName}
           hideFlatten={hideFlatten}
           columnKeyToName={TaskRunColumn}
+          metrics={
+            !hideCounts && metrics.length > 0 ? (
+              <V1WorkflowRunsMetricsView />
+            ) : !hideCounts ? (
+              <Skeleton className="max-w-[800px] w-[40vw] h-8" />
+            ) : undefined
+          }
         />
       </div>
     </div>
