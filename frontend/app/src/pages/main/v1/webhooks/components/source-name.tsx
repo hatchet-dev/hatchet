@@ -47,7 +47,6 @@ export const SourceName = ({
       );
 
     default:
-      // eslint-disable-next-line no-case-declarations
       const exhaustiveCheck: never = sourceName;
       throw new Error(`Unhandled source: ${exhaustiveCheck}`);
   }

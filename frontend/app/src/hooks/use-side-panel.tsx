@@ -130,7 +130,6 @@ export function useSidePanelData(): SidePanelData {
           title: props.content.title,
         };
       default:
-        // eslint-disable-next-line no-case-declarations
         const exhaustiveCheck: never = panelType;
         throw new Error(`Unhandled action type: ${exhaustiveCheck}`);
     }

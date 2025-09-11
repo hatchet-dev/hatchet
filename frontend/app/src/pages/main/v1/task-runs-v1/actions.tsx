@@ -117,7 +117,6 @@ export const useTaskRunActions = () => {
         case 'replay':
           return api.v1TaskReplay(tenantId, params);
         default:
-          // eslint-disable-next-line no-case-declarations
           const exhaustiveCheck: never = actionType;
           throw new Error(`Unhandled action type: ${exhaustiveCheck}`);
       }
@@ -174,7 +173,6 @@ const actionTypeToLabel = (actionType: ActionType) => {
     case 'replay':
       return 'Replay';
     default:
-      // eslint-disable-next-line no-case-declarations
       const exhaustiveCheck: never = actionType;
       throw new Error(`Unhandled action type: ${exhaustiveCheck}`);
   }
@@ -460,7 +458,6 @@ export const TaskRunActionButton = ({
         />
       );
     default:
-      // eslint-disable-next-line no-case-declarations
       const exhaustiveCheck: never = actionType;
       throw new Error(`Unhandled action type: ${exhaustiveCheck}`);
   }
