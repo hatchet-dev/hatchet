@@ -3,6 +3,12 @@ import { Badge, badgeVariants } from '@/components/v1/ui/badge';
 import { VariantProps } from 'class-variance-authority';
 import { useRunsContext } from '../hooks/runs-provider';
 import { getStatusesFromFilters } from '../hooks/use-runs-table-state';
+import {
+  CheckCircleIcon,
+  XCircleIcon,
+  ClockIcon,
+} from '@heroicons/react/24/outline';
+import { PlayIcon, PauseIcon, ChartColumn } from 'lucide-react';
 
 function statusToFriendlyName(status: V1TaskStatus) {
   switch (status) {
@@ -16,6 +22,24 @@ function statusToFriendlyName(status: V1TaskStatus) {
       return 'Queued';
     case V1TaskStatus.RUNNING:
       return 'Running';
+    default:
+      const exhaustivenessCheck: never = status;
+      throw new Error(`Unknown status: ${exhaustivenessCheck}`);
+  }
+}
+
+function statusToIcon(status: V1TaskStatus) {
+  switch (status) {
+    case V1TaskStatus.COMPLETED:
+      return CheckCircleIcon;
+    case V1TaskStatus.FAILED:
+      return XCircleIcon;
+    case V1TaskStatus.CANCELLED:
+      return PauseIcon;
+    case V1TaskStatus.RUNNING:
+      return PlayIcon;
+    case V1TaskStatus.QUEUED:
+      return ClockIcon;
     default:
       const exhaustivenessCheck: never = status;
       throw new Error(`Unknown status: ${exhaustivenessCheck}`);
@@ -41,13 +65,21 @@ function MetricBadge({
     return null;
   }
 
+  const IconComponent = statusToIcon(status);
+  const friendlyName = statusToFriendlyName(status);
+  const formattedCount = metric.count.toLocaleString('en-US');
+
   return (
     <Badge
       variant={variant}
       className={className}
       onClick={() => onClick?.(status)}
     >
-      {metric.count.toLocaleString('en-US')} {statusToFriendlyName(status)}
+      <span className="flex items-center gap-1">
+        <span>{formattedCount}</span>
+        <span className="hidden xl:inline">{friendlyName}</span>
+        <IconComponent className="size-4 xl:hidden" />
+      </span>
     </Badge>
   );
 }
@@ -124,7 +156,8 @@ export const V1WorkflowRunsMetricsView = () => {
           className="cursor-pointer rounded-sm font-normal text-sm px-2 py-1 w-fit"
           onClick={() => onViewQueueMetricsClick()}
         >
-          Queue metrics
+          <span className="hidden xl:inline">Queue metrics</span>
+          <ChartColumn className="size-4 xl:hidden" />
         </Badge>
       )}
     </dl>
