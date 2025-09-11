@@ -17,17 +17,17 @@ Towards the beginning of this year, our documentation was 💩.
 
 Not intentionally, of course. But when you're shipping SDKs for Python, TypeScript, and Go that change daily, keeping documentation examples accurate becomes an impossible game of whack-a-mole. We'd fix the Python example, break the TypeScript one, update the Go snippet, and suddenly the Python version was using deprecated APIs.
 
-At Hatchet, we face a challenge that many dev tool platform companies know all too well: keeping documentation in sync with rapidly evolving SDKs across multiple programming languages. But our problem was uniquely complex. Since our sdks are responsible for running code, we don't just build simple API wrappers so generating from an openapi spec wasn't an option. They are native libraries designed for functional programming paradigms, complete with type safety, advanced workflows, and sophisticated error handling.
+At Hatchet, we face a challenge that many dev tool platform companies know all too well: keeping documentation in sync with rapidly evolving SDKs across multiple programming languages. But our problem was uniquely complex. Since our sdks are responsible for running code, we don't just build simple API wrappers so generating from an OpenAPI spec wasn't an option. They are native libraries complete with type safety, advanced workflows, and sophisticated error handling.
 
-Like many engineering teams in 2025, our first instinct was to throw LLMs at the problem. The promise was compelling: AI could automatically update documentation when code changes, translate examples between languages, and even generate new tutorials. But as we experimented with various approaches, we kept hitting the same fundamental issues. LLMs would generate code that looked correct but wouldn't run, introduce subtle bugs in complex workflows, or make incorrect assumptions about our SDK's behavior. When your users are copying code directly into production systems, "mostly correct" isn't good enough—you need examples that are guaranteed to work.
+Like many engineering teams in 2025, our first instinct was to throw LLMs at the problem. The promise was compelling: AI could automatically update documentation when code changes, translate examples between languages, and even generate new tutorials. But as we experimented with various approaches, we kept hitting the same fundamental issues. LLMs would generate code that looked correct but wouldn't run, introduce subtle bugs in complex workflows, or make incorrect assumptions about our SDKs' behavior. When your users are copying code directly into production systems, "mostly correct" isn't good enough — you need examples that are guaranteed to work.
 
 Here's how we solved it with a system that keeps our documentation examples as living code that's actually tested and maintained as part of our SDK development workflow.
 
 ## The Problem: Native SDKs Don't Play Nice with Static Docs
 
-Most API companies can get away with simple code snippets in their documentation, or generating from docstrings or openapi specs.
+Most API companies can get away with simple code snippets in their documentation, or generating from doc strings or OpenAPI specs.
 
-_Note: We still generate traditional API reference documentation from docstrings for comprehensive method and class documentation—this system is supplemental to that, focusing specifically on user guide examples and tutorials where context and real-world usage patterns matter most._
+_Note: We still generate traditional API reference documentation from doc strings for comprehensive method and class documentation—this system is supplemental to that, focusing specifically on user guide examples and tutorials where context and real-world usage patterns matter most._
 
 ```python
 response = user.create("Jean-Luc", "Picard")
@@ -73,7 +73,7 @@ def simple(input: SimpleInput, ctx: Context) -> dict[str, str]:
 
 The developer needs to understand how we recommend using the SDK to avoid common pitfalls. ...And this is one of our _simple_ examples... its possible to mix-and-match features to build complex orchestration.
 
-Multiply this complexity across Python's multiple concurrency patterns, TypeScript's structural types, and Go's idiomatic nuances, and you start to see the problem. Each language has its own quirks and features for the same underlying concepts. A retry policy in Python uses decorators, in TypeScript it's a configuration object, and in Go it's a functional option. Every time we add a feature or fix a bug, we need to update examples in three different languages while ensuring they all demonstrate the same concepts correctly.
+Multiply this complexity across Python's multiple concurrency patterns, TypeScript's structural types, and Go's idiomatic nuances, and you start to see the problem. Each language has its own quirks and features for the same underlying concepts. A retry policy in Python uses decorators, in TypeScript it's a configuration object, and in Go it's a functional option. Every time we add a feature or fix a bug, we need to update examples in three (and soon to be more) different languages while ensuring they all demonstrate the same concepts correctly.
 
 ## The Traditional Approach (And Why It Failed Us)
 
@@ -278,7 +278,7 @@ The whole system integrates seamlessly into our development workflow. When a dev
 
 ### A Real Example: From Code to Docs
 
-To make this concrete, let's trace how a single workflow example file would written and then used in our documentation. For context, this is a simple two step dag that generates a random number and then multiplies it by 10.
+To make this concrete, let's trace how a single workflow example file would written and then used in our documentation. For context, this is a trivial task that accepts a number as input and multiplies it by ten.
 
 **Source (Python):**
 
@@ -291,38 +291,20 @@ from pydantic import BaseModel
 
 from hatchet_sdk import Context, EmptyModel, Hatchet
 
-
-class StepOutput(BaseModel):
-    random_number: int
-
-
-class RandomSum(BaseModel):
-    sum: int
-
-
 hatchet = Hatchet(debug=True)
 
-# > Create a workflow
-dag_workflow = hatchet.workflow(name="DAGWorkflow")
+# > Define schemas
+class MultiplyInput(BaseModel):
+  n: int
+
+class MultiplyOutput(BaseModel):
+  result: int
 # !!
 
-# > Add first tasks
-@dag_workflow.task(execution_timeout=timedelta(seconds=5))
-def step1(input: EmptyModel, ctx: Context) -> StepOutput:
-    return StepOutput(random_number=random.randint(1, 100))
-
-@dag_workflow.task(execution_timeout=timedelta(seconds=5))
-async def step2(input: EmptyModel, ctx: Context) -> StepOutput:
-    return StepOutput(random_number=random.randint(1, 100))
-# !!
-
-# > Add child task
-@dag_workflow.task(parents=[step1, step2])
-async def step3(input: EmptyModel, ctx: Context) -> RandomSum:
-    one = ctx.task_output(step1).random_number
-    two = ctx.task_output(step2).random_number
-
-    return RandomSum(sum=one + two)
+# > Create the task
+@hatchet.task(input_validator=MultiplyInput)
+def step1(input: MultiplyInput, ctx: Context) -> MultiplyOutput:
+    return MultiplyOutput(result=input.n * 10)
 # !!
 ```
 
@@ -330,21 +312,21 @@ async def step3(input: EmptyModel, ctx: Context) -> RandomSum:
 
 ```typescript
 {
-  "create_a_workflow": {
-    "title": "create_a_workflow",
-    "content": "dag_workflow = hatchet.workflow(name=\"DAGWorkflow\")",
-    "githubUrl": "https://github.com/hatchet-dev/hatchet/tree/main/examples/python/workflows/complex-conditions.py",
+  "define_schemas": {
+    "title": "define_schemas",
+    "content": "class MultiplyInput(BaseModel)...",
+    "githubUrl": "https://github.com/hatchet-dev/hatchet/tree/main/examples/python/...",
     "language": "python",
-    "codePath": "examples/python/workflows/complex-conditions.py"
+    "codePath": "examples/python/..."
   },
-  "add_first_tasks": {
-    "title": "add_first_tasks",
-    "content": "@dag_workflow.task(execution_timeout=timedelta(seconds=5))\ndef step1(input: ...",
-    "githubUrl": "https://github.com/hatchet-dev/hatchet/tree/main/examples/python/workflows/complex-conditions.py",
+  "create_the_task": {
+    "title": "create_the_task",
+    "content": "@hatchet.task(input_validator=MultiplyInput)\n...",
+    "githubUrl": "https://github.com/hatchet-dev/hatchet/tree/main/examples/python/...",
     "language": "python",
-    "codePath": "examples/python/workflows/complex-conditions.py"
+    "codePath": "examples/python/..."
+
   },
-  ...
 }
 ```
 
@@ -356,19 +338,15 @@ async def step3(input: EmptyModel, ctx: Context) -> RandomSum:
 import { snippets } from "@/lib/generated/snippets";
 import { Snippet } from "@/components/code";
 
-# Creating Complex Workflows
+# Creating a task
 
-To create a workflow with conditional logic, start by defining the workflow class:
+First, define an input and output schema for your task:
 
-<Snippet src={snippets.python.workflows.dag.create_a_workflow} />
+<Snippet src={snippets.python.path.to.example.define_schemas} />
 
-Then add your first tasks that will execute in parallel:
+To create a simple task, use the `task` decorator:
 
-<Snippet src={snippets.python.workflows.dag.add_first_tasks} />
-
-Finally, add a child task that will execute after the first tasks have completed:
-
-<Snippet src={snippets.python.workflows.dag.add_child_task} />
+<Snippet src={snippets.python.path.to.example.create_the_task} />
 ```
 
 > _Note: This demonstrates real MDX usage where snippets are embedded directly into documentation content with explanatory text, exactly as they appear in our live documentation._
