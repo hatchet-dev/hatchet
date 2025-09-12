@@ -55,6 +55,8 @@ func WithDurableSlots(durableSlots int) WorkerOption {
 }
 
 // WithPanicHandler sets a custom panic handler for the worker.
+//
+// recovered is the non-nil value that was obtained after calling recover()
 func WithPanicHandler(panicHandler func(ctx Context, recovered any)) WorkerOption {
 	return func(config *workerConfig) {
 		config.panicHandler = panicHandler
