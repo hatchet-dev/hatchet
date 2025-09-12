@@ -44,11 +44,6 @@ WITH inputs AS (
         AND claimed_by_external_id IS NULL
         AND expires_at > NOW()
 ), to_update AS (
-    -- Cases to handle:
-    -- 1. What happens if we get two incoming records for the same key but different claimed_by_external_id? (basically two runs trying to claim the same key)
-    --   1a. What about if we have two different idempotency keys for the same key value with different expirations?
-    --       e.g. key = 'abc', expires_at = 'x' and key = 'abc', expires_at = 'y'?
-    -- ✅ 2. What happens if we get two incoming records for the same key and same claimed_by_external_id?
     SELECT
         ck.tenant_id,
         ck.expires_at,
