@@ -81,6 +81,10 @@ func (c *Client) NewWorker(name string, options ...WorkerOption) (*Worker, error
 		return nil, err
 	}
 
+	if config.panicHandler != nil {
+		nonDurableWorker.SetPanicHandler(config.panicHandler)
+	}
+
 	var durableWorker *worker.Worker
 
 	for _, workflow := range config.workflows {
@@ -96,6 +100,10 @@ func (c *Client) NewWorker(name string, options ...WorkerOption) (*Worker, error
 				durableWorker, err = worker.NewWorker(durableWorkerOpts...)
 				if err != nil {
 					return nil, err
+				}
+
+				if config.panicHandler != nil {
+					durableWorker.SetPanicHandler(config.panicHandler)
 				}
 			}
 
