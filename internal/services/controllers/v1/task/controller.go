@@ -371,10 +371,7 @@ func (tc *TasksControllerImpl) Start() (func() error, error) {
 	}
 
 	_, err = tc.s.NewJob(
-		gocron.DailyJob(1, gocron.NewAtTimes(
-			// 5AM UTC
-			gocron.NewAtTime(5, 0, 0),
-		)),
+		gocron.DurationJob(3*time.Hour),
 		gocron.NewTask(
 			tc.runAnalyze(ctx),
 		),

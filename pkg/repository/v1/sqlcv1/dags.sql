@@ -63,3 +63,6 @@ INSERT INTO v1_dag_data (
     $3,
     $4
 );
+
+-- name: AnalyzeV1DAG :exec
+ANALYZE v1_dag;
