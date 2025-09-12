@@ -612,67 +612,67 @@ LEFT JOIN
 -- of the tasks as well.
 WITH input AS (
     SELECT
-        *
-    FROM
-        (
-            SELECT
-                unnest(@taskIds::bigint[]) AS task_id,
-                unnest(@taskInsertedAts::timestamptz[]) AS task_inserted_at
-        ) AS subquery
-), task_outputs AS (
+        UNNEST(@taskIds::BIGINT[]) AS task_id,
+        UNNEST(@taskInsertedAts::TIMESTAMPTZ[]) AS task_inserted_at
+), parent_tasks AS (
     SELECT
-        t.id,
-        t.inserted_at,
-        e.retry_count,
-        t.tenant_id,
-        t.dag_id,
-        t.dag_inserted_at,
-        t.step_readable_id,
-        t.workflow_run_id,
-        t.step_id,
-        t.workflow_id,
-        e.data AS output
+        parent.id,
+        parent.inserted_at,
+        parent.retry_count,
+        parent.tenant_id,
+        parent.dag_id,
+        parent.dag_inserted_at,
+        parent.step_readable_id,
+        parent.workflow_run_id,
+        parent.step_id,
+        parent.workflow_id
     FROM
-        v1_task t1
+        v1_task child
     JOIN
-        v1_dag_to_task dt ON dt.dag_id = t1.dag_id AND dt.dag_inserted_at = t1.dag_inserted_at
+        v1_dag_to_task dt ON dt.dag_id = child.dag_id AND dt.dag_inserted_at = child.dag_inserted_at
     JOIN
-        v1_task t ON t.id = dt.task_id AND t.inserted_at = dt.task_inserted_at
-    JOIN
-        v1_task_event e ON e.task_id = t.id AND e.task_inserted_at = t.inserted_at AND e.event_type = 'COMPLETED'
+        v1_task parent ON parent.id = dt.task_id AND parent.inserted_at = dt.task_inserted_at
     WHERE
-        (t1.id, t1.inserted_at) IN (
+        child.inserted_at >= @minTaskInsertedAt::TIMESTAMPTZ
+        AND dt.dag_inserted_at >= @minDagInsertedAt::TIMESTAMPTZ
+        AND (child.id, child.inserted_at) IN (
             SELECT
                 task_id,
                 task_inserted_at
             FROM
                 input
         )
-        AND t1.tenant_id = @tenantId::uuid
-        AND t1.dag_id IS NOT NULL
+        AND child.tenant_id = @tenantId::uuid
+        AND child.dag_id IS NOT NULL
 ), max_retry_counts AS (
     SELECT
         id,
         inserted_at,
         MAX(retry_count) AS max_retry_count
     FROM
-        task_outputs
+        parent_tasks
     GROUP BY
         id, inserted_at
 )
+
 SELECT
-    DISTINCT ON (task_outputs.id, task_outputs.inserted_at, task_outputs.retry_count)
-    task_outputs.*
+    DISTINCT ON (p.id, p.inserted_at, p.retry_count)
+    p.*,
+    e.data AS output
 FROM
-    task_outputs
+    parent_tasks p
 JOIN
-    max_retry_counts mrc ON task_outputs.id = mrc.id
-        AND task_outputs.inserted_at = mrc.inserted_at
-        AND task_outputs.retry_count = mrc.max_retry_count
+    max_retry_counts mrc ON p.id = mrc.id
+        AND p.inserted_at = mrc.inserted_at
+        AND p.retry_count = mrc.max_retry_count
+JOIN
+    v1_task_event e ON (e.task_id, e.task_inserted_at, e.retry_count) = (p.id, p.inserted_at, p.retry_count)
+WHERE
+    e.event_type = 'COMPLETED'
 ORDER BY
-    task_outputs.id,
-    task_outputs.inserted_at,
-    task_outputs.retry_count DESC;
+    p.id,
+    p.inserted_at,
+    p.retry_count DESC;
 
 -- name: LockDAGsForReplay :many
 -- Locks a list of DAGs for replay. Returns successfully locked DAGs which can be replayed.

@@ -1664,6 +1664,8 @@ CREATE TABLE v1_payload_wal (
     CONSTRAINT "v1_payload_wal_payload" FOREIGN KEY (payload_id, payload_inserted_at, payload_type, tenant_id) REFERENCES v1_payload (id, inserted_at, type, tenant_id) ON DELETE CASCADE
 ) PARTITION BY HASH (tenant_id);
 
+CREATE INDEX v1_payload_wal_payload_lookup_idx ON v1_payload_wal (payload_id, payload_inserted_at, payload_type, tenant_id);
+
 SELECT create_v1_hash_partitions('v1_payload_wal'::TEXT, 4);
 
 

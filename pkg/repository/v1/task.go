@@ -3288,10 +3288,25 @@ func (r *TaskRepositoryImpl) ListTaskParentOutputs(ctx context.Context, tenantId
 	taskIds := make([]int64, 0)
 	taskInsertedAts := make([]pgtype.Timestamptz, 0)
 
+	minTaskInsertedAt := pgtype.Timestamptz{
+		Valid: false,
+	}
+	minDagInsertedAt := pgtype.Timestamptz{
+		Valid: false,
+	}
+
 	for _, task := range tasks {
 		if task.DagID.Valid {
 			taskIds = append(taskIds, task.ID)
 			taskInsertedAts = append(taskInsertedAts, task.InsertedAt)
+
+			if task.DagInsertedAt.Valid && (!minDagInsertedAt.Valid || task.DagInsertedAt.Time.Before(minDagInsertedAt.Time)) {
+				minDagInsertedAt = task.DagInsertedAt
+			}
+
+			if task.InsertedAt.Valid && (!minTaskInsertedAt.Valid || task.InsertedAt.Time.Before(minTaskInsertedAt.Time)) {
+				minTaskInsertedAt = task.InsertedAt
+			}
 		}
 	}
 
@@ -3301,10 +3316,24 @@ func (r *TaskRepositoryImpl) ListTaskParentOutputs(ctx context.Context, tenantId
 		return resMap, nil
 	}
 
+	// if the inserted at values are still not valid, set them to a year ago as a placeholder
+	// this is the equivalent of no partition pruning
+	longTimeAgo := sqlchelpers.TimestamptzFromTime(time.Now().Add(-24 * 365 * time.Hour)) // 1 year ago
+
+	if !minTaskInsertedAt.Valid {
+		minTaskInsertedAt = longTimeAgo
+	}
+
+	if !minDagInsertedAt.Valid {
+		minDagInsertedAt = longTimeAgo
+	}
+
 	res, err := r.queries.ListTaskParentOutputs(ctx, r.pool, sqlcv1.ListTaskParentOutputsParams{
-		Tenantid:        sqlchelpers.UUIDFromStr(tenantId),
-		Taskids:         taskIds,
-		Taskinsertedats: taskInsertedAts,
+		Tenantid:          sqlchelpers.UUIDFromStr(tenantId),
+		Taskids:           taskIds,
+		Taskinsertedats:   taskInsertedAts,
+		Mintaskinsertedat: minTaskInsertedAt,
+		Mindaginsertedat:  minDagInsertedAt,
 	})
 
 	if err != nil {
