@@ -97,7 +97,7 @@ export const TableActions = ({
           className="h-8 border"
           onClick={onTriggerWorkflow}
         >
-          Trigger
+          Trigger Run
         </Button>,
         ...baseActions,
       ];
