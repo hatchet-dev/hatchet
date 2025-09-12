@@ -1,5 +1,8 @@
 -- +goose Up
 -- +goose StatementBegin
+-- +goose no transaction
+BEGIN;
+
 CREATE TABLE v1_dag_to_task_partitioned (
     dag_id BIGINT NOT NULL,
     dag_inserted_at TIMESTAMPTZ NOT NULL,
@@ -44,6 +47,11 @@ ALTER TABLE v1_dag_to_task_partitioned RENAME TO v1_dag_to_task;
 ALTER INDEX v1_dag_to_task_partitioned_pkey RENAME TO v1_dag_to_task_pkey;
 
 SELECT create_v1_range_partition('v1_dag_to_task', (NOW() + INTERVAL '1 day')::DATE);
+COMMIT;
+
+BEGIN;
+ANALYZE v1_dag_to_task;
+COMMIT;
 -- +goose StatementEnd
 
 -- +goose Down
