@@ -3288,10 +3288,27 @@ func (r *TaskRepositoryImpl) ListTaskParentOutputs(ctx context.Context, tenantId
 	taskIds := make([]int64, 0)
 	taskInsertedAts := make([]pgtype.Timestamptz, 0)
 
+	minTaskInsertedAt := pgtype.Timestamptz{
+		Time:  time.Now(),
+		Valid: true,
+	}
+	minDagInsertedAt := pgtype.Timestamptz{
+		Time:  time.Now(),
+		Valid: true,
+	}
+
 	for _, task := range tasks {
 		if task.DagID.Valid {
 			taskIds = append(taskIds, task.ID)
 			taskInsertedAts = append(taskInsertedAts, task.InsertedAt)
+
+			if task.DagInsertedAt.Valid && task.DagInsertedAt.Time.Before(minDagInsertedAt.Time) {
+				minDagInsertedAt = task.DagInsertedAt
+			}
+
+			if task.InsertedAt.Valid && task.InsertedAt.Time.Before(minTaskInsertedAt.Time) {
+				minTaskInsertedAt = task.InsertedAt
+			}
 		}
 	}
 
@@ -3302,9 +3319,11 @@ func (r *TaskRepositoryImpl) ListTaskParentOutputs(ctx context.Context, tenantId
 	}
 
 	res, err := r.queries.ListTaskParentOutputs(ctx, r.pool, sqlcv1.ListTaskParentOutputsParams{
-		Tenantid:        sqlchelpers.UUIDFromStr(tenantId),
-		Taskids:         taskIds,
-		Taskinsertedats: taskInsertedAts,
+		Tenantid:          sqlchelpers.UUIDFromStr(tenantId),
+		Taskids:           taskIds,
+		Taskinsertedats:   taskInsertedAts,
+		Mintaskinsertedat: minTaskInsertedAt,
+		Mindaginsertedat:  minDagInsertedAt,
 	})
 
 	if err != nil {
