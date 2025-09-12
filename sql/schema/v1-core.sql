@@ -1628,3 +1628,19 @@ CREATE TABLE v1_durable_sleep (
     sleep_duration TEXT NOT NULL,
     PRIMARY KEY (tenant_id, sleep_until, id)
 );
+
+CREATE TABLE v1_idempotency_key (
+    tenant_id UUID NOT NULL,
+
+    key TEXT NOT NULL,
+
+    expires_at TIMESTAMPTZ NOT NULL,
+    claimed_by_external_id UUID,
+
+    inserted_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (tenant_id, expires_at, key)
+);
+
+CREATE UNIQUE INDEX v1_idempotency_key_unique_tenant_key ON v1_idempotency_key (tenant_id, key);

@@ -63,6 +63,7 @@ type TriggerTaskData struct {
 	// (optional) the child key
 	ChildKey *string `json:"child_key"`
 
+	// (optional) the priority of the task
 	Priority *int32 `json:"priority"`
 }
 
@@ -440,8 +441,13 @@ func (r *TriggerRepositoryImpl) TriggerFromWorkflowNames(ctx context.Context, te
 	workflowNames := make([]string, 0, len(opts))
 	uniqueNames := make(map[string]struct{})
 	namesToOpts := make(map[string][]*WorkflowNameTriggerOpts)
+	idempotencyKeyToExternalIds := make(map[IdempotencyKey]pgtype.UUID)
 
 	for _, opt := range opts {
+		if opt.IdempotencyKey != nil {
+			idempotencyKeyToExternalIds[*opt.IdempotencyKey] = sqlchelpers.UUIDFromStr(opt.ExternalId)
+		}
+
 		namesToOpts[opt.WorkflowName] = append(namesToOpts[opt.WorkflowName], opt)
 
 		if _, ok := uniqueNames[opt.WorkflowName]; ok {
@@ -450,6 +456,21 @@ func (r *TriggerRepositoryImpl) TriggerFromWorkflowNames(ctx context.Context, te
 
 		uniqueNames[opt.WorkflowName] = struct{}{}
 		workflowNames = append(workflowNames, opt.WorkflowName)
+	}
+
+	keyClaimantPairs := make([]KeyClaimantPair, 0, len(idempotencyKeyToExternalIds))
+
+	for idempotencyKey, runExternalId := range idempotencyKeyToExternalIds {
+		keyClaimantPairs = append(keyClaimantPairs, KeyClaimantPair{
+			IdempotencyKey:      idempotencyKey,
+			ClaimedByExternalId: runExternalId,
+		})
+	}
+
+	keyClaimantPairToWasClaimed, err := claimIdempotencyKeys(ctx, r.queries, r.pool, tenantId, keyClaimantPairs)
+
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to claim idempotency keys: %w", err)
 	}
 
 	// we don't run this in a transaction because workflow versions won't change during the course of this operation
@@ -473,6 +494,20 @@ func (r *TriggerRepositoryImpl) TriggerFromWorkflowNames(ctx context.Context, te
 		}
 
 		for _, opt := range opts {
+			if opt.IdempotencyKey != nil {
+				keyClaimantPair := KeyClaimantPair{
+					IdempotencyKey:      *opt.IdempotencyKey,
+					ClaimedByExternalId: sqlchelpers.UUIDFromStr(opt.ExternalId),
+				}
+
+				wasSuccessfullyClaimed := keyClaimantPairToWasClaimed[keyClaimantPair]
+
+				// if we did not successfully claim the idempotency key, we should not trigger the workflow
+				if !wasSuccessfullyClaimed {
+					continue
+				}
+			}
+
 			triggerOpts = append(triggerOpts, triggerTuple{
 				workflowVersionId:    sqlchelpers.UUIDToStr(workflowVersion.WorkflowVersionId),
 				workflowId:           sqlchelpers.UUIDToStr(workflowVersion.WorkflowId),
