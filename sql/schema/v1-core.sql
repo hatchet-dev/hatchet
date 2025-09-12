@@ -58,7 +58,7 @@ BEGIN
     END IF;
 
     EXECUTE
-        format('CREATE TABLE %s (LIKE %s INCLUDING INDEXES)', newTableName, targetTableName);
+        format('CREATE TABLE %s (LIKE %s INCLUDING INDEXES INCLUDING CONSTRAINTS)', newTableName, targetTableName);
     EXECUTE
         format('ALTER TABLE %s SET (
             autovacuum_vacuum_scale_factor = ''0.1'',
@@ -1629,6 +1629,67 @@ CREATE TABLE v1_durable_sleep (
     PRIMARY KEY (tenant_id, sleep_until, id)
 );
 
+CREATE TYPE v1_payload_type AS ENUM ('TASK_INPUT', 'DAG_INPUT', 'TASK_OUTPUT');
+CREATE TYPE v1_payload_location AS ENUM ('INLINE', 'EXTERNAL');
+
+CREATE TABLE v1_payload (
+    tenant_id UUID NOT NULL,
+    id BIGINT NOT NULL,
+    inserted_at TIMESTAMPTZ NOT NULL,
+    type v1_payload_type NOT NULL,
+    location v1_payload_location NOT NULL,
+    external_location_key TEXT,
+    inline_content JSONB,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (tenant_id, inserted_at, id, type),
+    CHECK (
+        (location = 'INLINE' AND inline_content IS NOT NULL AND external_location_key IS NULL)
+        OR
+        (location = 'EXTERNAL' AND inline_content IS NULL AND external_location_key IS NOT NULL)
+    )
+) PARTITION BY RANGE(inserted_at);
+
+CREATE TYPE v1_payload_wal_operation AS ENUM ('CREATE', 'UPDATE', 'DELETE');
+
+CREATE TABLE v1_payload_wal (
+    tenant_id UUID NOT NULL,
+    offload_at TIMESTAMPTZ NOT NULL,
+    payload_id BIGINT NOT NULL,
+    payload_inserted_at TIMESTAMPTZ NOT NULL,
+    payload_type v1_payload_type NOT NULL,
+    operation v1_payload_wal_operation NOT NULL,
+
+    PRIMARY KEY (offload_at, tenant_id, payload_id, payload_inserted_at, payload_type),
+    CONSTRAINT "v1_payload_wal_payload" FOREIGN KEY (payload_id, payload_inserted_at, payload_type, tenant_id) REFERENCES v1_payload (id, inserted_at, type, tenant_id) ON DELETE CASCADE
+) PARTITION BY HASH (tenant_id);
+
+SELECT create_v1_hash_partitions('v1_payload_wal'::TEXT, 4);
+
+
+CREATE OR REPLACE FUNCTION find_matching_tenants_in_payload_wal_partition(
+    partition_number INT
+) RETURNS UUID[]
+LANGUAGE plpgsql AS
+$$
+DECLARE
+    partition_table text;
+    result UUID[];
+BEGIN
+    partition_table := 'v1_payload_wal_' || partition_number::text;
+
+    EXECUTE format(
+        'SELECT ARRAY(
+            SELECT DISTINCT e.tenant_id
+            FROM %I e
+            WHERE e.offload_at < NOW()
+        )',
+        partition_table)
+    INTO result;
+
+    RETURN result;
+END;
+$$;
 CREATE TABLE v1_idempotency_key (
     tenant_id UUID NOT NULL,
 

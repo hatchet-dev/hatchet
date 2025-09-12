@@ -216,7 +216,7 @@ type OLAPRepository interface {
 	ListTaskRunEventsByWorkflowRunId(ctx context.Context, tenantId string, workflowRunId pgtype.UUID) ([]*sqlcv1.ListTaskEventsForWorkflowRunRow, error)
 	ListWorkflowRunDisplayNames(ctx context.Context, tenantId pgtype.UUID, externalIds []pgtype.UUID) ([]*sqlcv1.ListWorkflowRunDisplayNamesRow, error)
 	ReadTaskRunMetrics(ctx context.Context, tenantId string, opts ReadTaskRunMetricsOpts) ([]TaskRunMetric, error)
-	CreateTasks(ctx context.Context, tenantId string, tasks []*sqlcv1.V1Task) error
+	CreateTasks(ctx context.Context, tenantId string, tasks []*V1TaskWithPayload) error
 	CreateTaskEvents(ctx context.Context, tenantId string, events []sqlcv1.CreateTaskEventsOLAPParams) error
 	CreateDAGs(ctx context.Context, tenantId string, dags []*DAGWithData) error
 	GetTaskPointMetrics(ctx context.Context, tenantId string, startTimestamp *time.Time, endTimestamp *time.Time, bucketInterval time.Duration) ([]*sqlcv1.GetTaskPointMetricsRow, error)
@@ -256,10 +256,10 @@ type OLAPRepositoryImpl struct {
 	shouldPartitionEventsTables bool
 }
 
-func NewOLAPRepositoryFromPool(pool *pgxpool.Pool, l *zerolog.Logger, olapRetentionPeriod time.Duration, entitlements repository.EntitlementsRepository, shouldPartitionEventsTables bool) (OLAPRepository, func() error) {
+func NewOLAPRepositoryFromPool(pool *pgxpool.Pool, l *zerolog.Logger, olapRetentionPeriod time.Duration, entitlements repository.EntitlementsRepository, shouldPartitionEventsTables, enablePayloadDualWrites bool) (OLAPRepository, func() error) {
 	v := validator.NewDefaultValidator()
 
-	shared, cleanupShared := newSharedRepository(pool, v, l, entitlements)
+	shared, cleanupShared := newSharedRepository(pool, v, l, entitlements, enablePayloadDualWrites)
 
 	return newOLAPRepository(shared, olapRetentionPeriod, shouldPartitionEventsTables), cleanupShared
 }
@@ -1294,7 +1294,7 @@ func (r *OLAPRepositoryImpl) UpdateDAGStatuses(ctx context.Context, tenantIds []
 	return isSaturated, rows, nil
 }
 
-func (r *OLAPRepositoryImpl) writeTaskBatch(ctx context.Context, tenantId string, tasks []*sqlcv1.V1Task) error {
+func (r *OLAPRepositoryImpl) writeTaskBatch(ctx context.Context, tenantId string, tasks []*V1TaskWithPayload) error {
 	params := make([]sqlcv1.CreateTasksOLAPParams, 0)
 
 	for _, task := range tasks {
@@ -1314,12 +1314,12 @@ func (r *OLAPRepositoryImpl) writeTaskBatch(ctx context.Context, tenantId string
 			DesiredWorkerID:      task.DesiredWorkerID,
 			ExternalID:           task.ExternalID,
 			DisplayName:          task.DisplayName,
-			Input:                task.Input,
 			AdditionalMetadata:   task.AdditionalMetadata,
 			DagID:                task.DagID,
 			DagInsertedAt:        task.DagInsertedAt,
 			ParentTaskExternalID: task.ParentTaskExternalID,
 			WorkflowRunID:        task.WorkflowRunID,
+			Input:                task.Payload,
 		})
 	}
 
@@ -1358,10 +1358,10 @@ func (r *OLAPRepositoryImpl) writeDAGBatch(ctx context.Context, tenantId string,
 			WorkflowVersionID:    dag.WorkflowVersionID,
 			ExternalID:           dag.ExternalID,
 			DisplayName:          dag.DisplayName,
-			Input:                dag.Input,
 			AdditionalMetadata:   dag.AdditionalMetadata,
 			ParentTaskExternalID: parentTaskExternalID,
 			TotalTasks:           int32(dag.TotalTasks), // nolint: gosec
+			Input:                dag.Input,
 		})
 	}
 
@@ -1387,7 +1387,7 @@ func (r *OLAPRepositoryImpl) CreateTaskEvents(ctx context.Context, tenantId stri
 	return r.writeTaskEventBatch(ctx, tenantId, events)
 }
 
-func (r *OLAPRepositoryImpl) CreateTasks(ctx context.Context, tenantId string, tasks []*sqlcv1.V1Task) error {
+func (r *OLAPRepositoryImpl) CreateTasks(ctx context.Context, tenantId string, tasks []*V1TaskWithPayload) error {
 	return r.writeTaskBatch(ctx, tenantId, tasks)
 }
 

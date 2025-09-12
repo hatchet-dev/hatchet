@@ -79,6 +79,8 @@ type ServerConfigFile struct {
 	Sampling ConfigFileSampling `mapstructure:"sampling" json:"sampling,omitempty"`
 
 	OLAP ConfigFileOperations `mapstructure:"olap" json:"olap,omitempty"`
+
+	PayloadStore PayloadStoreConfig `mapstructure:"payloadStore" json:"payloadStore,omitempty"`
 }
 
 type ConfigFileAdditionalLoggers struct {
@@ -593,6 +595,10 @@ type ServerConfig struct {
 	Version string
 }
 
+type PayloadStoreConfig struct {
+	EnablePayloadDualWrites bool `mapstructure:"enablePayloadDualWrites" json:"enablePayloadDualWrites,omitempty" default:"false"`
+}
+
 func (c *ServerConfig) HasService(name string) bool {
 	for _, s := range c.Services {
 		if s == name {
@@ -850,4 +856,7 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("taskOperationLimits.reassignLimit", "SERVER_TASK_OPERATION_LIMITS_REASSIGN_LIMIT")
 	_ = v.BindEnv("taskOperationLimits.retryQueueLimit", "SERVER_TASK_OPERATION_LIMITS_RETRY_QUEUE_LIMIT")
 	_ = v.BindEnv("taskOperationLimits.durableSleepLimit", "SERVER_TASK_OPERATION_LIMITS_DURABLE_SLEEP_LIMIT")
+
+	// payload store options
+	_ = v.BindEnv("payloadStore.enablePayloadDualWrites", "SERVER_PAYLOAD_STORE_ENABLE_PAYLOAD_DUAL_WRITES")
 }

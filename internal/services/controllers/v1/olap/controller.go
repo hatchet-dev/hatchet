@@ -40,7 +40,7 @@ type OLAPControllerImpl struct {
 	p                            *partition.Partition
 	s                            gocron.Scheduler
 	ta                           *alerting.TenantAlertManager
-	processTenantAlertOperations *queueutils.OperationPool
+	processTenantAlertOperations *queueutils.OperationPool[string]
 	samplingHashThreshold        *int64
 	olapConfig                   *server.ConfigFileOperations
 	prometheusMetricsEnabled     bool
@@ -383,7 +383,7 @@ func (tc *OLAPControllerImpl) handleCelEvaluationFailure(ctx context.Context, te
 
 // handleCreatedTask is responsible for flushing a created task to the OLAP repository
 func (tc *OLAPControllerImpl) handleCreatedTask(ctx context.Context, tenantId string, payloads [][]byte) error {
-	createTaskOpts := make([]*sqlcv1.V1Task, 0)
+	createTaskOpts := make([]*v1.V1TaskWithPayload, 0)
 
 	msgs := msgqueue.JSONConvert[tasktypes.CreatedTaskPayload](payloads)
 
@@ -393,7 +393,7 @@ func (tc *OLAPControllerImpl) handleCreatedTask(ctx context.Context, tenantId st
 			continue
 		}
 
-		createTaskOpts = append(createTaskOpts, msg.V1Task)
+		createTaskOpts = append(createTaskOpts, msg.V1TaskWithPayload)
 	}
 
 	return tc.repo.OLAP().CreateTasks(ctx, tenantId, createTaskOpts)

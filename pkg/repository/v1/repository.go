@@ -26,6 +26,8 @@ type Repository interface {
 	OverwriteOLAPRepository(o OLAPRepository)
 	Logs() LogLineRepository
 	OverwriteLogsRepository(l LogLineRepository)
+	Payloads() PayloadStoreRepository
+	OverwriteExternalPayloadStore(o ExternalStore, nativeStoreTTL time.Duration)
 	Workers() WorkerRepository
 	Workflows() WorkflowRepository
 	Ticker() TickerRepository
@@ -35,43 +37,39 @@ type Repository interface {
 }
 
 type repositoryImpl struct {
-	triggers    TriggerRepository
-	tasks       TaskRepository
-	scheduler   SchedulerRepository
-	matches     MatchRepository
-	olap        OLAPRepository
-	logs        LogLineRepository
-	workers     WorkerRepository
-	workflows   WorkflowRepository
-	ticker      TickerRepository
-	filters     FilterRepository
-	webhooks    WebhookRepository
+	triggers     TriggerRepository
+	tasks        TaskRepository
+	scheduler    SchedulerRepository
+	matches      MatchRepository
+	olap         OLAPRepository
+	logs         LogLineRepository
+	workers      WorkerRepository
+	workflows    WorkflowRepository
+	ticker       TickerRepository
+	filters      FilterRepository
+	webhooks     WebhookRepository
+	payloadStore PayloadStoreRepository
 	idempotency IdempotencyRepository
 }
 
-func NewRepository(pool *pgxpool.Pool, l *zerolog.Logger, taskRetentionPeriod, olapRetentionPeriod time.Duration, maxInternalRetryCount int32, entitlements repository.EntitlementsRepository, taskLimits TaskOperationLimits) (Repository, func() error) {
+func NewRepository(pool *pgxpool.Pool, l *zerolog.Logger, taskRetentionPeriod, olapRetentionPeriod time.Duration, maxInternalRetryCount int32, entitlements repository.EntitlementsRepository, taskLimits TaskOperationLimits, enablePayloadDualWrites bool) (Repository, func() error) {
 	v := validator.NewDefaultValidator()
 
-	shared, cleanupShared := newSharedRepository(pool, v, l, entitlements)
-
-	matchRepo, err := newMatchRepository(shared)
-
-	if err != nil {
-		l.Fatal().Err(err).Msg("cannot create match repository")
-	}
+	shared, cleanupShared := newSharedRepository(pool, v, l, entitlements, enablePayloadDualWrites)
 
 	impl := &repositoryImpl{
-		triggers:    newTriggerRepository(shared),
-		tasks:       newTaskRepository(shared, taskRetentionPeriod, maxInternalRetryCount, taskLimits.TimeoutLimit, taskLimits.ReassignLimit, taskLimits.RetryQueueLimit, taskLimits.DurableSleepLimit),
-		scheduler:   newSchedulerRepository(shared),
-		matches:     matchRepo,
-		olap:        newOLAPRepository(shared, olapRetentionPeriod, true),
-		logs:        newLogLineRepository(shared),
-		workers:     newWorkerRepository(shared),
-		workflows:   newWorkflowRepository(shared),
-		ticker:      newTickerRepository(shared),
-		filters:     newFilterRepository(shared),
-		webhooks:    newWebhookRepository(shared),
+		triggers:     newTriggerRepository(shared),
+		tasks:        newTaskRepository(shared, taskRetentionPeriod, maxInternalRetryCount, taskLimits.TimeoutLimit, taskLimits.ReassignLimit, taskLimits.RetryQueueLimit, taskLimits.DurableSleepLimit),
+		scheduler:    newSchedulerRepository(shared),
+		matches:      newMatchRepository(shared),
+		olap:         newOLAPRepository(shared, olapRetentionPeriod, true),
+		logs:         newLogLineRepository(shared),
+		workers:      newWorkerRepository(shared),
+		workflows:    newWorkflowRepository(shared),
+		ticker:       newTickerRepository(shared),
+		filters:      newFilterRepository(shared),
+		webhooks:     newWebhookRepository(shared),
+		payloadStore: shared.payloadStore,
 		idempotency: newIdempotencyRepository(shared),
 	}
 
@@ -110,6 +108,14 @@ func (r *repositoryImpl) Logs() LogLineRepository {
 
 func (r *repositoryImpl) OverwriteLogsRepository(l LogLineRepository) {
 	r.logs = l
+}
+
+func (r *repositoryImpl) Payloads() PayloadStoreRepository {
+	return r.payloadStore
+}
+
+func (r *repositoryImpl) OverwriteExternalPayloadStore(o ExternalStore, nativeStoreTTL time.Duration) {
+	r.payloadStore.OverwriteExternalStore(o, nativeStoreTTL)
 }
 
 func (r *repositoryImpl) Workers() WorkerRepository {

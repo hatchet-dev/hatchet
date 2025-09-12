@@ -26,18 +26,18 @@ import (
 func (worker *subscribedWorker) StartTaskFromBulk(
 	ctx context.Context,
 	tenantId string,
-	task *sqlcv1.V1Task,
+	task *v1.V1TaskWithPayload,
 ) error {
 	ctx, span := telemetry.NewSpan(ctx, "start-step-run-from-bulk") // nolint:ineffassign
 	defer span.End()
 
 	inputBytes := []byte{}
 
-	if task.Input != nil {
-		inputBytes = task.Input
+	if task.Payload != nil {
+		inputBytes = task.Payload
 	}
 
-	action := populateAssignedAction(tenantId, task, task.RetryCount)
+	action := populateAssignedAction(tenantId, task.V1Task, task.RetryCount)
 
 	action.ActionType = contracts.ActionType_START_STEP_RUN
 	action.ActionPayload = string(inputBytes)
@@ -226,12 +226,45 @@ func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *ms
 			continue
 		}
 
+		retrievePayloadOpts := make([]v1.RetrievePayloadOpts, len(bulkDatas))
+
+		for i, task := range bulkDatas {
+			retrievePayloadOpts[i] = v1.RetrievePayloadOpts{
+				Id:         task.ID,
+				InsertedAt: task.InsertedAt,
+				Type:       sqlcv1.V1PayloadTypeTASKINPUT,
+				TenantId:   task.TenantID,
+			}
+		}
+
+		inputs, err := d.repov1.Payloads().BulkRetrieve(ctx, retrievePayloadOpts...)
+
+		if err != nil {
+			d.l.Error().Err(err).Msgf("could not bulk retrieve inputs for %d tasks", len(bulkDatas))
+			for _, task := range bulkDatas {
+				requeue(task)
+			}
+		}
+
 		for _, task := range bulkDatas {
+			input, ok := inputs[v1.RetrievePayloadOpts{
+				Id:         task.ID,
+				InsertedAt: task.InsertedAt,
+				Type:       sqlcv1.V1PayloadTypeTASKINPUT,
+				TenantId:   task.TenantID,
+			}]
+
+			if input == nil || !ok {
+				// If the input wasn't found in the payload store,
+				// fall back to the input stored on the task itself.
+				input = task.Input
+			}
+
 			if parentData, ok := parentDataMap[task.ID]; ok {
 				currInput := &v1.V1StepRunData{}
 
-				if task.Input != nil {
-					err := json.Unmarshal(task.Input, currInput)
+				if input != nil {
+					err := json.Unmarshal(input, currInput)
 
 					if err != nil {
 						d.l.Warn().Err(err).Msg("failed to unmarshal input")
@@ -258,14 +291,35 @@ func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *ms
 
 				currInput.Parents = readableIdToData
 
-				task.Input = currInput.Bytes()
+				inputs[v1.RetrievePayloadOpts{
+					Id:         task.ID,
+					InsertedAt: task.InsertedAt,
+					Type:       sqlcv1.V1PayloadTypeTASKINPUT,
+					TenantId:   task.TenantID,
+				}] = currInput.Bytes()
 			}
 		}
 
-		taskIdToData := make(map[int64]*sqlcv1.V1Task)
+		taskIdToData := make(map[int64]*v1.V1TaskWithPayload)
 
 		for _, task := range bulkDatas {
-			taskIdToData[task.ID] = task
+			input, ok := inputs[v1.RetrievePayloadOpts{
+				Id:         task.ID,
+				InsertedAt: task.InsertedAt,
+				Type:       sqlcv1.V1PayloadTypeTASKINPUT,
+				TenantId:   task.TenantID,
+			}]
+
+			if input == nil || !ok {
+				// If the input wasn't found in the payload store,
+				// fall back to the input stored on the task itself.
+				input = task.Input
+			}
+
+			taskIdToData[task.ID] = &v1.V1TaskWithPayload{
+				V1Task:  task,
+				Payload: input,
+			}
 		}
 
 		for workerId, stepRunIds := range innerMsg.WorkerIdToTaskIds {
@@ -291,7 +345,7 @@ func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *ms
 
 						// if we've reached the context deadline, this should be requeued
 						if ctx.Err() != nil {
-							requeue(task)
+							requeue(task.V1Task)
 							return nil
 						}
 
@@ -316,7 +370,7 @@ func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *ms
 							return nil
 						}
 
-						requeue(task)
+						requeue(task.V1Task)
 
 						return multiErr
 					})

@@ -65,7 +65,8 @@ SELECT
     create_v1_range_partition('v1_task', $1::date),
     create_v1_range_partition('v1_dag', $1::date),
     create_v1_range_partition('v1_task_event', $1::date),
-    create_v1_range_partition('v1_log_line', $1::date)
+    create_v1_range_partition('v1_log_line', $1::date),
+    create_v1_range_partition('v1_payload', $1::date)
 `
 
 func (q *Queries) CreatePartitions(ctx context.Context, db DBTX, date pgtype.Date) error {
@@ -696,6 +697,8 @@ WITH task_partitions AS (
     SELECT 'v1_task_event' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_task_event', $1::date) AS p
 ), log_line_partitions AS (
     SELECT 'v1_log_line' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_log_line', $1::date) AS p
+), payload_partitions AS (
+    SELECT 'v1_payload' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_payload', $1::date) AS p
 )
 
 SELECT
@@ -723,6 +726,13 @@ SELECT
     parent_table, partition_name
 FROM
     log_line_partitions
+
+UNION ALL
+
+SELECT
+    parent_table, partition_name
+FROM
+    payload_partitions
 `
 
 type ListPartitionsBeforeDateRow struct {
@@ -984,8 +994,7 @@ func (q *Queries) ListTaskParentOutputs(ctx context.Context, db DBTX, arg ListTa
 }
 
 const listTasks = `-- name: ListTasks :many
-SELECT
-    id, inserted_at, tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, workflow_version_id, workflow_run_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, retry_count, internal_retry_count, app_retry_count, step_index, additional_metadata, dag_id, dag_inserted_at, parent_task_external_id, parent_task_id, parent_task_inserted_at, child_index, child_key, initial_state, initial_state_reason, concurrency_parent_strategy_ids, concurrency_strategy_ids, concurrency_keys, retry_backoff_factor, retry_max_backoff
+SELECT id, inserted_at, tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, workflow_version_id, workflow_run_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, retry_count, internal_retry_count, app_retry_count, step_index, additional_metadata, dag_id, dag_inserted_at, parent_task_external_id, parent_task_id, parent_task_inserted_at, child_index, child_key, initial_state, initial_state_reason, concurrency_parent_strategy_ids, concurrency_strategy_ids, concurrency_keys, retry_backoff_factor, retry_max_backoff
 FROM
     v1_task
 WHERE

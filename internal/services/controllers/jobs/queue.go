@@ -34,10 +34,10 @@ type queue struct {
 	// a custom queue logger
 	ql *zerolog.Logger
 
-	updateStepRunOperations   *queueutils.OperationPool
-	updateStepRunV2Operations *queueutils.OperationPool
-	timeoutStepRunOperations  *queueutils.OperationPool
-	retryStepRunOperations    *queueutils.OperationPool
+	updateStepRunOperations   *queueutils.OperationPool[string]
+	updateStepRunV2Operations *queueutils.OperationPool[string]
+	timeoutStepRunOperations  *queueutils.OperationPool[string]
+	retryStepRunOperations    *queueutils.OperationPool[string]
 }
 
 func newQueue(
