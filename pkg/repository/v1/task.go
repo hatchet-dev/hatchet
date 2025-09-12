@@ -251,6 +251,9 @@ type TaskRepository interface {
 	ReleaseSlot(ctx context.Context, tenantId string, externalId string) (*sqlcv1.V1TaskRuntime, error)
 
 	ListSignalCompletedEvents(ctx context.Context, tenantId string, tasks []TaskIdInsertedAtSignalKey) ([]*sqlcv1.V1TaskEvent, error)
+
+	// AnalyzeTaskTables runs ANALYZE on the task tables
+	AnalyzeTaskTables(ctx context.Context) error
 }
 
 type TaskRepositoryImpl struct {
@@ -378,8 +381,6 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 }
 
 func (r *TaskRepositoryImpl) GetTaskByExternalId(ctx context.Context, tenantId, taskExternalId string, skipCache bool) (*sqlcv1.FlattenExternalIdsRow, error) {
-	r.l.Debug().Str("method", "GetTaskByExternalId").Str("taskExternalId", taskExternalId).Bool("skipCache", skipCache).Msg("loki-debug: retrieving task by external id")
-
 	if !skipCache {
 		// check the cache first
 		key := taskExternalIdTenantIdTuple{
@@ -397,8 +398,6 @@ func (r *TaskRepositoryImpl) GetTaskByExternalId(ctx context.Context, tenantId, 
 		Tenantid:    sqlchelpers.UUIDFromStr(tenantId),
 		Externalids: []pgtype.UUID{sqlchelpers.UUIDFromStr(taskExternalId)},
 	})
-
-	r.l.Debug().Bool("FlattenExternalIdsSucceeded", err == nil).Int("lenTasks", len(dbTasks)).Msg("loki-debug: executed FlattenExternalIds query")
 
 	if err != nil {
 		return nil, err
@@ -3360,4 +3359,44 @@ func (r *TaskRepositoryImpl) ListSignalCompletedEvents(ctx context.Context, tena
 		Taskinsertedats: taskInsertedAts,
 		Eventkeys:       eventKeys,
 	})
+}
+
+func (r *TaskRepositoryImpl) AnalyzeTaskTables(ctx context.Context) error {
+	const timeout = 1000 * 60 * 30 // 30 minute timeout
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, timeout)
+
+	if err != nil {
+		return fmt.Errorf("error beginning transaction: %v", err)
+	}
+
+	defer rollback()
+
+	acquired, err := r.queries.TryAdvisoryLock(ctx, tx, hash("analyze-task-tables"))
+
+	if err != nil {
+		return fmt.Errorf("error acquiring advisory lock: %v", err)
+	}
+
+	if !acquired {
+		r.l.Info().Msg("advisory lock already held, skipping task table analysis")
+		return nil
+	}
+
+	err = r.queries.AnalyzeV1Task(ctx, tx)
+
+	if err != nil {
+		return fmt.Errorf("error analyzing v1_task: %v", err)
+	}
+
+	err = r.queries.AnalyzeV1TaskEvent(ctx, tx)
+
+	if err != nil {
+		return fmt.Errorf("error analyzing v1_task_event: %v", err)
+	}
+
+	if err := commit(ctx); err != nil {
+		return fmt.Errorf("error committing transaction: %v", err)
+	}
+
+	return nil
 }

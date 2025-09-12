@@ -4,7 +4,6 @@ import { RateLimit, ScheduledWorkflows } from '@/lib/api';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { AdditionalMetadata } from '../../events/components/additional-metadata';
 import { RunStatus } from '../../workflow-runs/components/run-statuses';
-import { Link } from 'react-router-dom';
 import { DataTableRowActions } from '@/components/v1/molecules/data-table/data-table-row-actions';
 export type RateLimitRow = RateLimit & {
   metadata: {
@@ -24,21 +23,6 @@ export const columns = ({
   handleSetSelectedAdditionalMetaJobId: (runId: string | null) => void;
 }): ColumnDef<ScheduledWorkflows>[] => {
   return [
-    {
-      accessorKey: 'runId',
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Run ID" />
-      ),
-      cell: ({ row }) => {
-        return row.original.workflowRunId ? (
-          <Link to={`/tenants/${tenantId}/runs/${row.original.workflowRunId}`}>
-            <div className="cursor-pointer hover:underline min-w-fit whitespace-nowrap">
-              {row.original.workflowRunName}
-            </div>
-          </Link>
-        ) : null;
-      },
-    },
     {
       accessorKey: 'status',
       header: ({ column }) => (

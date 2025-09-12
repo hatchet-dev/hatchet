@@ -44,6 +44,7 @@ WITH task_partitions AS (
 ), payload_partitions AS (
     SELECT 'v1_payload' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_payload', @date::date) AS p
 )
+
 SELECT
     *
 FROM
@@ -907,3 +908,9 @@ FROM
 -- name: RegisterBatch :batchexec
 -- DO NOT USE: dummy query to satisfy sqlc and register Batch calls on DBTX
 SELECT * FROM v1_task WHERE id = $1;
+
+-- name: AnalyzeV1Task :exec
+ANALYZE v1_task;
+
+-- name: AnalyzeV1TaskEvent :exec
+ANALYZE v1_task_event;

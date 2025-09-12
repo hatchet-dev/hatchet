@@ -1,6 +1,7 @@
 import { dag } from './workflow';
 
 async function main() {
+  // > Run the workflow
   const res = await dag.run({
     Message: 'hello world',
   });

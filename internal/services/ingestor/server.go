@@ -275,9 +275,7 @@ func (i *IngestorImpl) putStreamEventV0(ctx context.Context, tenant *dbsqlc.Tena
 }
 
 func (i *IngestorImpl) PutLog(ctx context.Context, req *contracts.PutLogRequest) (*contracts.PutLogResponse, error) {
-	i.l.Debug().Str("method", "PutLog").Str("stepRunId", req.StepRunId).Msg("loki-debug: handling PutLog request")
 	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
-	i.l.Debug().Str("tenantId", sqlchelpers.UUIDToStr(tenant.ID)).Msg("loki-debug: tenant context for PutLog")
 
 	switch tenant.Version {
 	case dbsqlc.TenantMajorEngineVersionV0:

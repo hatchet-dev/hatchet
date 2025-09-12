@@ -33,6 +33,7 @@ type Repository interface {
 	Ticker() TickerRepository
 	Filters() FilterRepository
 	Webhooks() WebhookRepository
+	Idempotency() IdempotencyRepository
 }
 
 type repositoryImpl struct {
@@ -48,6 +49,7 @@ type repositoryImpl struct {
 	filters      FilterRepository
 	webhooks     WebhookRepository
 	payloadStore PayloadStoreRepository
+	idempotency IdempotencyRepository
 }
 
 func NewRepository(pool *pgxpool.Pool, l *zerolog.Logger, taskRetentionPeriod, olapRetentionPeriod time.Duration, maxInternalRetryCount int32, entitlements repository.EntitlementsRepository, taskLimits TaskOperationLimits, enablePayloadDualWrites bool) (Repository, func() error) {
@@ -68,6 +70,7 @@ func NewRepository(pool *pgxpool.Pool, l *zerolog.Logger, taskRetentionPeriod, o
 		filters:      newFilterRepository(shared),
 		webhooks:     newWebhookRepository(shared),
 		payloadStore: shared.payloadStore,
+		idempotency: newIdempotencyRepository(shared),
 	}
 
 	return impl, func() error {
@@ -133,4 +136,8 @@ func (r *repositoryImpl) Filters() FilterRepository {
 
 func (r *repositoryImpl) Webhooks() WebhookRepository {
 	return r.webhooks
+}
+
+func (r *repositoryImpl) Idempotency() IdempotencyRepository {
+	return r.idempotency
 }

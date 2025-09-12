@@ -20,6 +20,9 @@ V1Filter:
     payload:
       type: object
       description: Additional payload data associated with the filter
+    isDeclarative:
+      type: boolean
+      description: Whether the filter is declarative (true) or programmatic (false)
   required:
     - metadata
     - tenantId

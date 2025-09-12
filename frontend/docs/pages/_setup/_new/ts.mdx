@@ -1,3 +1,5 @@
+import { snippets } from "@/lib/generated/snippets";
+import { Snippet } from "@/components/code";
 import { Callout, Card, Cards, Steps, Tabs } from "nextra/components";
 import UniversalTabs from "@/components/UniversalTabs";
 import InstallCommand from "@/components/InstallCommand";
@@ -32,14 +34,6 @@ touch src/hatchet-client.ts
 
 Add the following code to the file:
 
-```typescript copy
-import { Hatchet } from "@hatchet-dev/typescript-sdk";
-
-export const hatchet = Hatchet.init();
-```
+<Snippet src={snippets.typescript.hatchet_client.create_client} />
 
 You can now import the Hatchet Client in any file that needs it.
-
-```typescript copy
-import { hatchet } from "./hatchet-client";
-```

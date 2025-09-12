@@ -7,6 +7,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
 	hatchet "github.com/hatchet-dev/hatchet/sdks/go"
+	"github.com/hatchet-dev/hatchet/sdks/go/features"
 )
 
 type PriorityInput struct {
@@ -94,7 +95,7 @@ func main() {
 			input.TaskType, priority, input.UserID)
 
 		// Run workflow with specific priority
-		_, err := clientInstance.Run(context.Background(), "priority-demo", input, hatchet.WithPriority(priority))
+		_, err := clientInstance.Run(context.Background(), "priority-demo", input, hatchet.WithRunPriority(priority))
 		if err != nil {
 			log.Printf("Failed to run workflow with priority %d: %v", priority, err)
 		}
@@ -109,7 +110,7 @@ func main() {
 		log.Println("Watch the processing order - high priority should be processed first!")
 
 		// Submit low priority task first
-		go runWithPriority(hatchet.RunPriorityLow, PriorityInput{
+		go runWithPriority(features.RunPriorityLow, PriorityInput{
 			UserID:    "user-001",
 			TaskType:  "report",
 			Message:   "Generate monthly report",
@@ -117,7 +118,7 @@ func main() {
 		}, 0)
 
 		// Submit high priority task second (but should be processed first)
-		go runWithPriority(hatchet.RunPriorityHigh, PriorityInput{
+		go runWithPriority(features.RunPriorityHigh, PriorityInput{
 			UserID:    "user-002",
 			TaskType:  "alert",
 			Message:   "Critical system alert",
@@ -125,7 +126,7 @@ func main() {
 		}, 100*time.Millisecond)
 
 		// Submit medium priority task third
-		go runWithPriority(hatchet.RunPriorityMedium, PriorityInput{
+		go runWithPriority(features.RunPriorityMedium, PriorityInput{
 			UserID:    "user-003",
 			TaskType:  "notification",
 			Message:   "User notification",
@@ -133,7 +134,7 @@ func main() {
 		}, 200*time.Millisecond)
 
 		// Submit another high priority task
-		go runWithPriority(hatchet.RunPriorityHigh, PriorityInput{
+		go runWithPriority(features.RunPriorityHigh, PriorityInput{
 			UserID:    "user-004",
 			TaskType:  "emergency",
 			Message:   "Emergency response needed",
@@ -141,7 +142,7 @@ func main() {
 		}, 300*time.Millisecond)
 
 		// Submit more tasks to show queuing behavior
-		go runWithPriority(hatchet.RunPriorityLow, PriorityInput{
+		go runWithPriority(features.RunPriorityLow, PriorityInput{
 			UserID:    "user-005",
 			TaskType:  "backup",
 			Message:   "System backup",

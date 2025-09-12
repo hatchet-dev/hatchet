@@ -11,6 +11,24 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const analyzeV1Task = `-- name: AnalyzeV1Task :exec
+ANALYZE v1_task
+`
+
+func (q *Queries) AnalyzeV1Task(ctx context.Context, db DBTX) error {
+	_, err := db.Exec(ctx, analyzeV1Task)
+	return err
+}
+
+const analyzeV1TaskEvent = `-- name: AnalyzeV1TaskEvent :exec
+ANALYZE v1_task_event
+`
+
+func (q *Queries) AnalyzeV1TaskEvent(ctx context.Context, db DBTX) error {
+	_, err := db.Exec(ctx, analyzeV1TaskEvent)
+	return err
+}
+
 const cleanupWorkflowConcurrencySlotsAfterInsert = `-- name: CleanupWorkflowConcurrencySlotsAfterInsert :exec
 WITH input AS (
     SELECT
@@ -682,6 +700,7 @@ WITH task_partitions AS (
 ), payload_partitions AS (
     SELECT 'v1_payload' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_payload', $1::date) AS p
 )
+
 SELECT
     parent_table, partition_name
 FROM

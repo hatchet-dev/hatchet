@@ -1,10 +1,11 @@
 package celv1
 
 import (
+	"github.com/labstack/echo/v4"
+
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers/v1"
 	"github.com/hatchet-dev/hatchet/internal/cel"
-	"github.com/labstack/echo/v4"
 )
 
 func (c *V1CELService) V1CelDebug(ctx echo.Context, request gen.V1CelDebugRequestObject) (gen.V1CelDebugResponseObject, error) {
@@ -22,8 +23,7 @@ func (c *V1CELService) V1CelDebug(ctx echo.Context, request gen.V1CelDebugReques
 		cel.WithInput(request.Body.Input),
 		cel.WithAdditionalMetadata(additionalMetadata),
 		cel.WithPayload(filterPayload),
-	),
-	)
+	))
 
 	var output *bool
 	var errorMessage *string
