@@ -15,6 +15,7 @@ type workerConfig struct {
 	durableSlots int
 	labels       map[string]any
 	logger       *zerolog.Logger
+	panicHandler func(ctx Context, recovered any)
 }
 
 // WithWorkflows registers workflows and standalone tasks with the worker.
@@ -50,5 +51,14 @@ func WithLogger(logger *zerolog.Logger) WorkerOption {
 func WithDurableSlots(durableSlots int) WorkerOption {
 	return func(config *workerConfig) {
 		config.durableSlots = durableSlots
+	}
+}
+
+// WithPanicHandler sets a custom panic handler for the worker.
+//
+// recovered is the non-nil value that was obtained after calling recover()
+func WithPanicHandler(panicHandler func(ctx Context, recovered any)) WorkerOption {
+	return func(config *workerConfig) {
+		config.panicHandler = panicHandler
 	}
 }
