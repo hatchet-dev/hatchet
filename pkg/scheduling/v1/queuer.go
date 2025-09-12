@@ -68,21 +68,16 @@ func newQueuer(conf *sharedConfig, tenantId pgtype.UUID, queueName string, s *Sc
 		defaultLimit = conf.singleQueueLimit
 	}
 
-	cacheSize := 1000
-	if conf.singleQueueLimit > 1000 {
-		cacheSize = conf.singleQueueLimit
-	}
-
 	queueRepo := conf.repo.QueueFactory().NewQueue(tenantId, queueName)
 
 	notifyQueueCh := make(chan map[string]string, 1)
 
-	workflowNameCache, err := lru.New[pgtype.UUID, string](cacheSize)
+	workflowNameCache, err := lru.New[pgtype.UUID, string](1000)
 	if err != nil {
 		conf.l.Fatal().Err(err).Msg("failed to create workflow name cache")
 	}
 
-	stepReadableIdCache, err := lru.New[pgtype.UUID, string](cacheSize)
+	stepReadableIdCache, err := lru.New[pgtype.UUID, string](1000)
 	if err != nil {
 		conf.l.Fatal().Err(err).Msg("failed to create step readable ID cache")
 	}
@@ -476,6 +471,9 @@ func (q *Queuer) ack(r *assignResults) {
 
 	q.unassignedMu.Lock()
 	defer q.unassignedMu.Unlock()
+
+	// WARNING: this ordering is very important since we depend on rate limited items tobe
+	// processed last in order to make prometheus metrics for rate limited items work correctly
 
 	for _, assignedItem := range r.assigned {
 		delete(q.unacked, assignedItem.QueueItem.ID)
