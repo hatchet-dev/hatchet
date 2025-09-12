@@ -472,7 +472,7 @@ func (q *Queuer) ack(r *assignResults) {
 	q.unassignedMu.Lock()
 	defer q.unassignedMu.Unlock()
 
-	// WARNING: this ordering is very important since we depend on rate limited items tobe
+	// WARNING: this ordering is very important since we depend on rate limited items to be
 	// processed last in order to make prometheus metrics for rate limited items work correctly
 
 	for _, assignedItem := range r.assigned {
