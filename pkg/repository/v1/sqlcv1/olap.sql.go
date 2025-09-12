@@ -738,6 +738,17 @@ WITH task_external_ids AS (
                 AND lt.external_id = $6::UUID
         )
     )
+    AND (
+        $7::text[] IS NULL
+        OR $8::text[] IS NULL
+        OR EXISTS (
+            SELECT 1 FROM jsonb_each_text(additional_metadata) kv
+            JOIN LATERAL (
+                SELECT unnest($7::text[]) AS k,
+                    unnest($8::text[]) AS v
+            ) AS u ON kv.key = u.k AND kv.value = u.v
+        )
+    )
 )
 SELECT
     tenant_id,
@@ -770,6 +781,8 @@ type GetTenantStatusMetricsParams struct {
 	WorkflowIds               []pgtype.UUID      `json:"workflowIds"`
 	ParentTaskExternalId      pgtype.UUID        `json:"parentTaskExternalId"`
 	TriggeringEventExternalId pgtype.UUID        `json:"triggeringEventExternalId"`
+	AdditionalMetaKeys        []string           `json:"additionalMetaKeys"`
+	AdditionalMetaValues      []string           `json:"additionalMetaValues"`
 }
 
 type GetTenantStatusMetricsRow struct {
@@ -789,6 +802,8 @@ func (q *Queries) GetTenantStatusMetrics(ctx context.Context, db DBTX, arg GetTe
 		arg.WorkflowIds,
 		arg.ParentTaskExternalId,
 		arg.TriggeringEventExternalId,
+		arg.AdditionalMetaKeys,
+		arg.AdditionalMetaValues,
 	)
 	var i GetTenantStatusMetricsRow
 	err := row.Scan(

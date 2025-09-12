@@ -11,7 +11,7 @@ import { useCurrentTenantId } from '@/hooks/use-tenant';
 export default function ResourceLimits() {
   const { tenantId } = useCurrentTenantId();
 
-  const cloudMeta = useCloudApiMeta();
+  const { data: cloudMeta } = useCloudApiMeta();
 
   const resourcePolicyQuery = useQuery({
     ...queries.tenantResourcePolicy.get(tenantId),

@@ -238,6 +238,12 @@ export enum V1WebhookSourceName {
   LINEAR = "LINEAR",
 }
 
+export enum TenantEnvironment {
+  Local = "local",
+  Development = "development",
+  Production = "production",
+}
+
 export enum TenantUIVersion {
   V0 = "V0",
   V1 = "V1",
@@ -751,6 +757,8 @@ export interface Tenant {
   version: TenantVersion;
   /** The UI of the tenant. */
   uiVersion?: TenantUIVersion;
+  /** The environment type of the tenant. */
+  environment?: TenantEnvironment;
 }
 
 export interface V1EventWorkflowRunSummary {
@@ -850,6 +858,8 @@ export interface V1Filter {
   expression: string;
   /** Additional payload data associated with the filter */
   payload: object;
+  /** Whether the filter is declarative (true) or programmatic (false) */
+  isDeclarative?: boolean;
 }
 
 export interface V1FilterList {
@@ -1256,6 +1266,10 @@ export interface CreateTenantRequest {
   uiVersion?: TenantUIVersion;
   /** The engine version of the tenant. Defaults to V0. */
   engineVersion?: TenantVersion;
+  /** The environment type of the tenant. */
+  environment?: TenantEnvironment;
+  /** Additional onboarding data to store with the tenant. */
+  onboardingData?: Record<string, any>;
 }
 
 export interface UpdateTenantRequest {

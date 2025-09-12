@@ -10,6 +10,8 @@ const createRouteLabel = (path: TenantedPath): string => {
   switch (path) {
     case '/tenants/:tenant/events':
       return 'Events';
+    case '/tenants/:tenant/filters':
+      return 'Filters';
     case '/tenants/:tenant/webhooks':
       return 'Webhooks';
     case '/tenants/:tenant/rate-limits':

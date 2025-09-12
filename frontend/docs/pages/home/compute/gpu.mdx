@@ -72,29 +72,6 @@ FROM ubuntu:22.04
 COPY --from=builder /usr/local/cuda-12.2 /usr/local/cuda-12.2
 ```
 
-## Usage in Workflows
-
-```python
-from hatchet_sdk import Hatchet, Context
-
-hatchet = Hatchet()
-
-@hatchet.workflow()
-class GPUWorkflow:
-    @hatchet.step(
-        compute=Compute(
-            gpu_kind="a100-80gb",
-            gpus=1,
-            memory_mb=163840,
-            num_replicas=1,
-            regions=["ams"]
-        )
-    )
-    def train_model(self, context: Context):
-        # GPU-accelerated code here
-        pass
-```
-
 ## Memory and Resource Allocation
 
 ### Available Memory per GPU Type
@@ -105,34 +82,6 @@ class GPUWorkflow:
 - **A100-SXM4**: 80GB GPU Memory
 
 When configuring memory_mb, ensure it's sufficient for both system memory and GPU operations.
-
-## Region-Specific Configurations
-
-### A100-80GB Example
-
-```python
-# Multi-region A100-80GB configuration
-compute = Compute(
-    gpu_kind="a100-80gb",
-    gpus=1,
-    memory_mb=163840,
-    num_replicas=3,
-    regions=["ams", "sjc", "syd"]  # Replicas will be randomly distributed
-)
-```
-
-### A10 Example
-
-```python
-# Chicago-based A10 configuration
-compute = Compute(
-    gpu_kind="a10",
-    gpus=1,
-    memory_mb=49152,
-    num_replicas=2,
-    regions=["ord"]
-)
-```
 
 ## Best Practices
 

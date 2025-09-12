@@ -121,6 +121,28 @@ WHERE
         OR scope = ANY(sqlc.narg('scopes')::TEXT[])
     )
 ORDER BY id DESC
-LIMIT COALESCE(sqlc.narg('filterLimit')::BIGINT, 20000)
-OFFSET COALESCE(sqlc.narg('filterOffset')::BIGINT, 0)
+LIMIT @filterLimit::BIGINT
+OFFSET @filterOffset::BIGINT
+;
+
+-- name: CountFilters :one
+WITH filters AS (
+    SELECT *
+    FROM v1_filter
+    WHERE
+        tenant_id = @tenantId::UUID
+        AND (
+            sqlc.narg('workflowIds')::UUID[] IS NULL
+            OR workflow_id = ANY(sqlc.narg('workflowIds')::UUID[])
+        )
+        AND (
+            sqlc.narg('scopes')::TEXT[] IS NULL
+            OR scope = ANY(sqlc.narg('scopes')::TEXT[])
+        )
+    ORDER BY id DESC
+    LIMIT 20000
+)
+
+SELECT COUNT(*)
+FROM filters
 ;

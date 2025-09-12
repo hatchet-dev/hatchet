@@ -2,8 +2,9 @@ package hatchet
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"reflect"
-	"strings"
 	"time"
 
 	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
@@ -12,36 +13,26 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
 	"github.com/hatchet-dev/hatchet/pkg/worker"
 	"github.com/hatchet-dev/hatchet/pkg/worker/condition"
+	"github.com/hatchet-dev/hatchet/sdks/go/features"
 	"github.com/hatchet-dev/hatchet/sdks/go/internal"
 )
+
+type RunPriority = features.RunPriority
 
 // RunOpts is a type that represents the options for running a workflow.
 type RunOpts struct {
 	AdditionalMetadata *map[string]interface{}
-	Priority           *int32
-	// Sticky             *bool
-	// Key                *string
+	Priority           *RunPriority
 }
 
 type RunOptFunc = v0Client.RunOptFunc
 
-func WithRunMetadata(metadata interface{}) RunOptFunc {
+func WithRunMetadata(metadata any) RunOptFunc {
 	return v0Client.WithRunMetadata(metadata)
 }
 
-// RunPriority is the priority for a workflow run.
-type RunPriority int32
-
-const (
-	// RunPriorityLow is the lowest priority for a workflow run.
-	RunPriorityLow RunPriority = 1
-	// RunPriorityMedium is the medium priority for a workflow run.
-	RunPriorityMedium RunPriority = 2
-	// RunPriorityHigh is the highest priority for a workflow run.
-	RunPriorityHigh RunPriority = 3
-)
-
-func WithPriority(priority RunPriority) RunOptFunc {
+// WithRunPriority sets the priority for a workflow run.
+func WithRunPriority(priority RunPriority) RunOptFunc {
 	return v0Client.WithPriority(int32(priority))
 }
 
@@ -56,64 +47,29 @@ func convertInputToType(input any, expectedType reflect.Type) reflect.Value {
 		return inputValue
 	}
 
-	// Try to convert map[string]any to the expected struct type
-	if inputMap, ok := input.(map[string]any); ok && expectedType.Kind() == reflect.Struct {
-		convertedInput := reflect.New(expectedType).Elem()
-		for i := 0; i < expectedType.NumField(); i++ {
-			field := expectedType.Field(i)
-			jsonTag := field.Tag.Get("json")
-			if jsonTag == "" {
-				jsonTag = field.Name
-			} else {
-				// Handle JSON tag options like "count,omitempty" -> "count"
-				if commaIndex := strings.Index(jsonTag, ","); commaIndex != -1 {
-					jsonTag = jsonTag[:commaIndex]
-				}
-			}
-			if val, exists := inputMap[jsonTag]; exists {
-				fieldValue := convertedInput.Field(i)
-				if fieldValue.CanSet() {
-					valReflect := reflect.ValueOf(val)
-					if valReflect.Type().AssignableTo(field.Type) {
-						fieldValue.Set(valReflect)
-					} else {
-						// Try to convert common type mismatches
-						converted, ok := convertValue(val, field.Type)
-						if ok {
-							fieldValue.Set(converted)
-						}
-					}
-				}
-			}
+	// Try to convert using JSON marshal/unmarshal
+	if expectedType.Kind() == reflect.Struct {
+		// Marshal the input to JSON
+		jsonData, err := json.Marshal(input)
+		if err != nil {
+			// If marshaling fails, return the original input value
+			return reflect.ValueOf(input)
 		}
-		return convertedInput
+
+		// Create a new instance of the expected type
+		result := reflect.New(expectedType)
+
+		// Unmarshal JSON into the new instance
+		err = json.Unmarshal(jsonData, result.Interface())
+		if err != nil {
+			panic(err)
+		}
+
+		// Return the dereferenced value (not the pointer)
+		return result.Elem()
 	}
 
 	return reflect.ValueOf(input)
-}
-
-// convertValue attempts to convert a value to the target type for common type mismatches
-func convertValue(val any, targetType reflect.Type) (reflect.Value, bool) {
-	valReflect := reflect.ValueOf(val)
-
-	// Handle numeric conversions (e.g., float64 -> int, int -> float64)
-	if valReflect.Kind() == reflect.Float64 && targetType.Kind() == reflect.Int {
-		if f64, ok := val.(float64); ok {
-			return reflect.ValueOf(int(f64)), true
-		}
-	}
-	if valReflect.Kind() == reflect.Float64 && targetType.Kind() == reflect.Int32 {
-		if f64, ok := val.(float64); ok {
-			return reflect.ValueOf(int32(f64)), true
-		}
-	}
-	if valReflect.Kind() == reflect.Float64 && targetType.Kind() == reflect.Int64 {
-		if f64, ok := val.(float64); ok {
-			return reflect.ValueOf(int64(f64)), true
-		}
-	}
-
-	return reflect.Value{}, false
 }
 
 // Workflow defines a Hatchet workflow, which can then declare tasks and be run, scheduled, and so on.
@@ -227,6 +183,7 @@ type taskConfig struct {
 	parents                []create.NamedTask
 	waitFor                condition.Condition
 	skipIf                 condition.Condition
+	description            string
 }
 
 // WithRetries sets the number of retry attempts for failed tasks.
@@ -325,6 +282,13 @@ func WithWaitFor(condition condition.Condition) TaskOption {
 func WithSkipIf(condition condition.Condition) TaskOption {
 	return func(config *taskConfig) {
 		config.skipIf = condition
+	}
+}
+
+// WithDescription sets a human-readable description for the task.
+func WithDescription(description string) TaskOption {
+	return func(config *taskConfig) {
+		config.description = description
 	}
 }
 
@@ -530,8 +494,13 @@ func (w *Workflow) Dump() (*contracts.CreateWorkflowVersionRequest, []internal.N
 // Workflow execution methods
 
 // Run executes the workflow with the provided input and waits for completion.
-func (w *Workflow) Run(ctx context.Context, input any) (any, error) {
-	return w.declaration.Run(ctx, input)
+func (w *Workflow) Run(ctx context.Context, input any) (*WorkflowResult, error) {
+	result, err := w.declaration.Run(ctx, input)
+	if err != nil {
+		return nil, err
+	}
+
+	return &WorkflowResult{result: result}, nil
 }
 
 // RunNoWait executes the workflow with the provided input without waiting for completion.
@@ -549,6 +518,39 @@ func (w *Workflow) RunNoWait(ctx context.Context, input any) (*WorkflowRef, erro
 type RunAsChildOpts = internal.RunAsChildOpts
 
 // RunAsChild executes the workflow as a child workflow with the provided input.
-func (w *Workflow) RunAsChild(ctx worker.HatchetContext, input any, opts RunAsChildOpts) (any, error) {
-	return w.declaration.RunAsChild(ctx, input, opts)
+func (w *Workflow) RunAsChild(ctx worker.HatchetContext, input any, opts RunAsChildOpts) (*WorkflowResult, error) {
+	// Convert opts to internal format
+	var additionalMetaOpt *map[string]string
+
+	if opts.AdditionalMetadata != nil {
+		additionalMeta := make(map[string]string)
+
+		for key, value := range *opts.AdditionalMetadata {
+			additionalMeta[key] = fmt.Sprintf("%v", value)
+		}
+
+		additionalMetaOpt = &additionalMeta
+	}
+
+	// Spawn the child workflow directly
+	run, err := ctx.SpawnWorkflow(w.declaration.Name(), input, &worker.SpawnWorkflowOpts{
+		Key:                opts.Key,
+		Sticky:             opts.Sticky,
+		Priority:           opts.Priority,
+		AdditionalMetadata: additionalMetaOpt,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	// Get the raw workflow result
+	workflowResult, err := run.Result()
+	if err != nil {
+		return nil, err
+	}
+
+	// Return the raw workflow result wrapped in WorkflowResult
+	// This allows users to extract specific task outputs using .Into()
+	return &WorkflowResult{result: workflowResult}, nil
 }

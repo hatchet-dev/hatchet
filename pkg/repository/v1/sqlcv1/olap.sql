@@ -1019,6 +1019,17 @@ WITH task_external_ids AS (
                 AND lt.external_id = sqlc.narg('triggeringEventExternalId')::UUID
         )
     )
+    AND (
+        sqlc.narg('additionalMetaKeys')::text[] IS NULL
+        OR sqlc.narg('additionalMetaValues')::text[] IS NULL
+        OR EXISTS (
+            SELECT 1 FROM jsonb_each_text(additional_metadata) kv
+            JOIN LATERAL (
+                SELECT unnest(sqlc.narg('additionalMetaKeys')::text[]) AS k,
+                    unnest(sqlc.narg('additionalMetaValues')::text[]) AS v
+            ) AS u ON kv.key = u.k AND kv.value = u.v
+        )
+    )
 )
 SELECT
     tenant_id,

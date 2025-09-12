@@ -4,7 +4,23 @@ import os
 import re
 from dataclasses import asdict, dataclass
 from enum import Enum
-from typing import Any
+from typing import Any, cast
+
+
+ROOT = "../../"
+BASE_SNIPPETS_DIR = os.path.join(ROOT, "frontend", "docs", "lib")
+OUTPUT_DIR = os.path.join(BASE_SNIPPETS_DIR, "generated", "snippets")
+OUTPUT_GITHUB_ORG = "hatchet-dev"
+OUTPUT_GITHUB_REPO = "hatchet"
+IGNORED_FILE_PATTERNS = [
+    r"__init__\.py$",
+    r"test_.*\.py$",
+    r"\.test\.ts$",
+    r"\.test-d\.ts$",
+    r"test_.*\.go$",
+    r"_test\.go$",
+    r"\.e2e\.ts$",
+]
 
 
 @dataclass
@@ -46,20 +62,14 @@ class ProcessedExample:
     output_path: str
 
 
-ROOT = "../../"
-BASE_SNIPPETS_DIR = os.path.join(ROOT, "frontend", "docs", "lib")
-OUTPUT_DIR = os.path.join(BASE_SNIPPETS_DIR, "generated", "snippets")
-OUTPUT_GITHUB_ORG = "hatchet-dev"
-OUTPUT_GITHUB_REPO = "hatchet"
-IGNORED_FILE_PATTERNS = [
-    r"__init__\.py$",
-    r"test_.*\.py$",
-    r"\.test\.ts$",
-    r"\.test-d\.ts$",
-    r"test_.*\.go$",
-    r"_test\.go$",
-    r"\.e2e\.ts$",
-]
+@dataclass
+class DocumentationPage:
+    title: str
+    href: str
+
+
+Title = str
+Content = str
 
 
 def to_snake_case(text):
@@ -75,11 +85,25 @@ Title = str
 Content = str
 
 
+def dedent_code(code: str) -> str:
+    lines = code.split("\n")
+    if not lines:
+        return code
+
+    min_indent = min((len(line) - len(line.lstrip())) for line in lines if line.strip())
+
+    dedented_lines = [
+        line[min_indent:] if len(line) >= min_indent else line for line in lines
+    ]
+
+    return "\n".join(dedented_lines).strip() + "\n"
+
+
 def parse_snippet_from_block(match: re.Match[str]) -> tuple[Title, Content]:
     title = to_snake_case(match.group(1).strip())
-    code = match.group(2).strip()
+    code = match.group(2)
 
-    return title, code
+    return title, dedent_code(code)
 
 
 def parse_snippets(ctx: SDKParsingContext, filename: str) -> list[Snippet]:
@@ -215,6 +239,110 @@ def write_examples(examples: list[ProcessedExample]) -> None:
             )
 
 
+class JavaScriptObjectDecoder(json.JSONDecoder):
+    def replacement(self, match: re.Match[str]) -> str:
+        indent = match.group(1)
+        key = match.group(2)
+        return f'{indent}"{key}":'
+
+    def decode(self, raw: str) -> dict[str, Any]:
+        pattern = r"^(\s*)([a-zA-Z_$][a-zA-Z0-9_$-]*)\s*:"
+        quoted = re.sub(pattern, self.replacement, raw)
+        result = re.sub(pattern, self.replacement, quoted, flags=re.MULTILINE)
+        result = re.sub(r",(\s*\n?\s*})(\s*);?", r"\1", result)
+
+        return super().decode(result)
+
+
+def is_doc_page(key: str, children: str | dict[str, Any]) -> bool:
+    if key.strip().startswith("--"):
+        return False
+
+    if isinstance(children, str):
+        return True
+
+    return "title" in children
+
+
+def extract_doc_name(value: str | dict[str, Any]) -> str:
+    if isinstance(value, str):
+        return value
+
+    if "title" in value:
+        return value["title"]
+
+    raise ValueError(f"Invalid doc value: {value}")
+
+
+def keys_to_path(keys: list[str]) -> str:
+    keys = [k for k in keys if k]
+
+    if len(keys) == 0:
+        return ""
+
+    if len(keys) == 1:
+        return "/" + keys[0]
+
+    return "/" + "/".join(keys).replace("//", "/").rstrip("/")
+
+
+def write_doc_index_to_app() -> None:
+    docs_root = os.path.join(ROOT, "frontend", "docs")
+    pages_dir = os.path.join(docs_root, "pages/")
+
+    path = docs_root + "/**/_meta.js"
+    tree: dict[str, Any] = {}
+
+    for filename in glob.iglob(path, recursive=True):
+        with open(filename) as f:
+            content = f.read().replace("export default ", "")
+            parsed_meta = cast(
+                dict[str, Any], json.loads(content, cls=JavaScriptObjectDecoder)
+            )
+
+            keys = (
+                filename.replace(pages_dir, "")
+                .replace("_meta.js", "")
+                .rstrip("/")
+                .split("/")
+            )
+            docs = {
+                key: extract_doc_name(value)
+                for key, value in parsed_meta.items()
+                if is_doc_page(key, value)
+            }
+
+            for key, title in docs.items():
+                key = key.strip() or "index"
+                full_keys = keys + [key]
+                full_keys = [k for k in full_keys]
+
+                current = tree
+                for k in full_keys[:-1]:
+                    k = k or "index"
+                    if k not in current:
+                        current[k] = {}
+                    elif isinstance(current[k], str):
+                        break
+
+                    current = current[k]
+                else:
+                    current[full_keys[-1]] = asdict(
+                        DocumentationPage(
+                            title=title,
+                            href=f"https://docs.hatchet.run{keys_to_path(full_keys[:-1])}/{key}",
+                        )
+                    )
+
+    out_dir = os.path.join(ROOT, "frontend", "app", "src", "lib", "generated", "docs")
+    os.makedirs(out_dir, exist_ok=True)
+
+    with open(os.path.join(out_dir, "index.ts"), "w") as f:
+        f.write("export const docsPages = ")
+        json.dump(tree, f, indent=2)
+        f.write(" as const;\n")
+
+
 if __name__ == "__main__":
     processed_examples = process_examples()
 
@@ -243,3 +371,4 @@ if __name__ == "__main__":
         f.write(snippet_type)
 
     write_examples(processed_examples)
+    write_doc_index_to_app()

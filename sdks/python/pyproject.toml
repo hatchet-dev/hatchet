@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "hatchet-sdk"
-version = "1.17.2"
+version = "1.18.1"
 description = ""
 authors = ["Alexander Belanger <alexander@hatchet.run>"]
 readme = "README.md"
@@ -77,7 +77,7 @@ otel = [
     "opentelemetry-exporter-otlp",
     "opentelemetry-exporter-otlp-proto-http",
 ]
-v0 = ["cel-python"]
+v0-sdk = ["cel-python"]
 
 [build-system]
 requires = ["poetry-core"]

@@ -5,8 +5,7 @@
   "packageManager": "pnpm@9.15.4",
   "scripts": {
     "taskfile-dev": "pnpm run generate-examples && next dev",
-    "dev": "task docs",
-    "only:dev": "next dev",
+    "dev": "next dev",
     "build": "pnpm run generate-examples && next build",
     "start": "next start",
     "lint:check": "npm run prettier:check",

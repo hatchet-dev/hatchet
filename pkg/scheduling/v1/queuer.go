@@ -258,7 +258,7 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 
 				countMu.Lock()
 				count += numFlushed
-				processedQiLength += len(ar.assigned) + len(ar.unassigned) + len(ar.schedulingTimedOut) + len(ar.rateLimited)
+				processedQiLength += len(ar.assigned) + len(ar.unassigned) + len(ar.schedulingTimedOut) + len(ar.rateLimited) + len(ar.rateLimitedToMove)
 				countMu.Unlock()
 
 				if sinceStart := time.Since(startFlush); sinceStart > 100*time.Millisecond {
@@ -494,6 +494,11 @@ func (q *Queuer) ack(r *assignResults) {
 		delete(q.unassigned, schedulingTimedOutItem.ID)
 	}
 
+	for _, rateLimitedItemToMove := range r.rateLimitedToMove {
+		delete(q.unacked, rateLimitedItemToMove.qi.ID)
+		delete(q.unassigned, rateLimitedItemToMove.qi.ID)
+	}
+
 	for _, rateLimitedItem := range r.rateLimited {
 		delete(q.unacked, rateLimitedItem.qi.ID)
 		q.unassigned[rateLimitedItem.qi.ID] = rateLimitedItem.qi
@@ -525,7 +530,7 @@ func (q *Queuer) flushToDatabase(ctx context.Context, r *assignResults) int {
 
 	q.l.Debug().Int("assigned", len(r.assigned)).Int("unassigned", len(r.unassigned)).Int("scheduling_timed_out", len(r.schedulingTimedOut)).Msg("flushing to database")
 
-	if len(r.assigned) == 0 && len(r.unassigned) == 0 && len(r.schedulingTimedOut) == 0 && len(r.rateLimited) == 0 {
+	if len(r.assigned) == 0 && len(r.unassigned) == 0 && len(r.schedulingTimedOut) == 0 && len(r.rateLimited) == 0 && len(r.rateLimitedToMove) == 0 {
 		return 0
 	}
 
@@ -534,6 +539,7 @@ func (q *Queuer) flushToDatabase(ctx context.Context, r *assignResults) int {
 		Unassigned:         r.unassigned,
 		SchedulingTimedOut: r.schedulingTimedOut,
 		RateLimited:        make([]*v1.RateLimitResult, 0, len(r.rateLimited)),
+		RateLimitedToMove:  make([]*v1.RateLimitResult, 0, len(r.rateLimitedToMove)),
 	}
 
 	stepRunIdsToAcks := make(map[int64]int, len(r.assigned))
@@ -557,6 +563,19 @@ func (q *Queuer) flushToDatabase(ctx context.Context, r *assignResults) int {
 			TaskId:         rateLimitedItem.qi.TaskID,
 			TaskInsertedAt: rateLimitedItem.qi.TaskInsertedAt,
 			RetryCount:     rateLimitedItem.qi.RetryCount,
+		})
+	}
+
+	for _, rateLimitedItemToMove := range r.rateLimitedToMove {
+		opts.RateLimitedToMove = append(opts.RateLimitedToMove, &v1.RateLimitResult{
+			V1QueueItem:    rateLimitedItemToMove.qi,
+			ExceededKey:    rateLimitedItemToMove.exceededKey,
+			ExceededUnits:  rateLimitedItemToMove.exceededUnits,
+			ExceededVal:    rateLimitedItemToMove.exceededVal,
+			NextRefillAt:   rateLimitedItemToMove.nextRefillAt,
+			TaskId:         rateLimitedItemToMove.qi.TaskID,
+			TaskInsertedAt: rateLimitedItemToMove.qi.TaskInsertedAt,
+			RetryCount:     rateLimitedItemToMove.qi.RetryCount,
 		})
 	}
 
@@ -606,7 +625,7 @@ func (q *Queuer) flushToDatabase(ctx context.Context, r *assignResults) int {
 		TenantId:           q.tenantId,
 		Assigned:           succeeded,
 		SchedulingTimedOut: r.schedulingTimedOut,
-		RateLimited:        opts.RateLimited,
+		RateLimited:        append(opts.RateLimited, opts.RateLimitedToMove...),
 		Unassigned:         r.unassigned,
 	}
 

@@ -20,6 +20,7 @@ import {
 } from '@/lib/outlet';
 import { Loading } from '@/components/v1/ui/loading.tsx';
 import { TenantSwitcher } from '@/components/v1/molecules/nav-bar/tenant-switcher';
+import { OrganizationSelector } from '@/components/v1/molecules/nav-bar/organization-selector';
 import {
   Collapsible,
   CollapsibleContent,
@@ -27,8 +28,10 @@ import {
 import useCloudApiMeta from '@/pages/auth/hooks/use-cloud-api-meta';
 import useCloudFeatureFlags from '@/pages/auth/hooks/use-cloud-feature-flags';
 import { useSidebar } from '@/components/sidebar-provider';
-import { SquareActivityIcon, WebhookIcon } from 'lucide-react';
+import { Filter, SquareActivityIcon, WebhookIcon } from 'lucide-react';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
+import { SidePanel } from '@/components/side-panel';
+import { SidePanelProvider } from '@/hooks/use-side-panel';
 
 function Main() {
   const ctx = useOutletContext<UserContextType & MembershipsContextType>();
@@ -44,12 +47,15 @@ function Main() {
   }
 
   return (
-    <div className="flex flex-row flex-1 w-full h-full">
-      <Sidebar memberships={memberships} />
-      <div className="p-8 flex-grow overflow-y-auto overflow-x-hidden">
-        <Outlet context={childCtx} />
+    <SidePanelProvider>
+      <div className="flex flex-row flex-1 w-full h-full">
+        <Sidebar memberships={memberships} />
+        <div className="p-8 flex-grow overflow-y-auto overflow-x-hidden">
+          <Outlet context={childCtx} />
+        </div>
+        <SidePanel />
       </div>
-    </div>
+    </SidePanelProvider>
   );
 }
 
@@ -63,7 +69,7 @@ function Sidebar({ className, memberships }: SidebarProps) {
   const { sidebarOpen, setSidebarOpen } = useSidebar();
   const { tenantId } = useCurrentTenantId();
 
-  const meta = useCloudApiMeta();
+  const { data: cloudMeta } = useCloudApiMeta();
   const featureFlags = useCloudFeatureFlags(tenantId);
 
   const onNavLinkClick = useCallback(() => {
@@ -188,6 +194,13 @@ function Sidebar({ className, memberships }: SidebarProps) {
                 name="Rate Limits"
                 icon={<ScaleIcon className="mr-2 h-4 w-4" />}
               />
+              <SidebarButtonPrimary
+                key="filters"
+                onNavLinkClick={onNavLinkClick}
+                to={`/tenants/${tenantId}/filters`}
+                name="Filters"
+                icon={<Filter className="mr-2 h-4 w-4" />}
+              />
             </div>
           </div>
           <div className="py-2">
@@ -232,7 +245,7 @@ function Sidebar({ className, memberships }: SidebarProps) {
                     onNavLinkClick={onNavLinkClick}
                     to={`/tenants/${tenantId}/tenant-settings/billing-and-limits`}
                     name={
-                      meta?.data.canBill
+                      cloudMeta?.data.canBill
                         ? 'Billing & Limits'
                         : 'Resource Limits'
                     }
@@ -254,7 +267,11 @@ function Sidebar({ className, memberships }: SidebarProps) {
             </div>
           </div>
         </div>
-        <TenantSwitcher memberships={memberships} />
+        {cloudMeta ? (
+          <OrganizationSelector memberships={memberships} />
+        ) : (
+          <TenantSwitcher memberships={memberships} />
+        )}
       </div>
     </div>
   );

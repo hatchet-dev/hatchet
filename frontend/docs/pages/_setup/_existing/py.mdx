@@ -1,6 +1,8 @@
 import { Callout, Card, Cards, Steps, Tabs } from "nextra/components";
 import UniversalTabs from "@/components/UniversalTabs";
 import InstallCommand from "@/components/InstallCommand";
+import { Snippet } from "@/components/code";
+import { snippets } from "@/lib/generated/snippets";
 
 #### Cd into your project directory
 
@@ -33,11 +35,7 @@ touch hatchet-client.py
 
 Add the following code to the file:
 
-```python copy
-from hatchet_sdk import Hatchet
-
-hatchet = Hatchet()
-```
+<Snippet src={snippets.python.setup.client.create_a_hatchet_client} />
 
 You can now import the Hatchet Client in any file that needs it.
 

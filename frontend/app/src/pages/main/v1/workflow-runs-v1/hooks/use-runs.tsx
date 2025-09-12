@@ -41,6 +41,15 @@ export const useRuns = ({
   const [initialRenderTime] = useState(
     new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
   );
+  const since = useMemo(
+    () =>
+      // hack - when a parentTaskExternalId is provided, we want to show all child tasks regardless
+      // of how long ago they were run
+      parentTaskExternalId
+        ? new Date(Date.now() - 31 * 24 * 60 * 60 * 1000).toISOString()
+        : createdAfter || initialRenderTime,
+    [createdAfter, initialRenderTime, parentTaskExternalId],
+  );
 
   const listTasksQuery = useQuery({
     ...queries.v1WorkflowRuns.list(tenantId, {
@@ -49,7 +58,7 @@ export const useRuns = ({
       statuses: statuses && statuses.length > 0 ? statuses : undefined,
       workflow_ids: workflowIds && workflowIds.length > 0 ? workflowIds : [],
       parent_task_external_id: parentTaskExternalId,
-      since: createdAfter || initialRenderTime,
+      since,
       until: finishedBefore,
       additional_metadata: additionalMetadata,
       worker_id: workerId,
