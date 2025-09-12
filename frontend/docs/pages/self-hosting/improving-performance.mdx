@@ -26,57 +26,12 @@ There are two main ways to initiate workflows, by sending events to Hatchet and 
  <UniversalTabs items={['Python', 'Typescript', 'Go']}>
   <Tabs.Tab>
 
-```python
-from hatchet_sdk import Hatchet
-
-hatchet = Hatchet()
-
-events: List[BulkPushEventWithMetadata] = [
-    {
-        "key": "user:create",
-        "payload": {"message": "This is event 1"},
-        "additional_metadata": {"source": "test", "user_id": "user123"},
-    },
-    {
-        "key": "user:create",
-        "payload": {"message": "This is event 2"},
-        "additional_metadata": {"source": "test", "user_id": "user456"},
-    },
-    {
-        "key": "user:create",
-        "payload": {"message": "This is event 3"},
-        "additional_metadata": {"source": "test", "user_id": "user789"},
-    },
-]
-
-result = hatchet.client.event.bulk_push(events)
-```
+<Snippet src={snippets.python.events.event.bulk_event_push} />
 
   </Tabs.Tab>
   <Tabs.Tab>
 
-```typescript
-import Hatchet from "@hatchet-dev/typescript-sdk";
-
-const hatchet = Hatchet.init();
-
-const events = [
-  {
-    payload: { test: "test1" },
-    additionalMetadata: { user_id: "user1", source: "test" },
-  },
-  {
-    payload: { test: "test2" },
-    additionalMetadata: { user_id: "user2", source: "test" },
-  },
-  {
-    payload: { test: "test3" },
-    additionalMetadata: { user_id: "user3", source: "test" },
-  },
-];
-
-hatchet.event.bulkPush("user:create", events);
-```
+<Snippet src={snippets.typescript.on_event.event.bulk_push_events} />
 
   </Tabs.Tab>
   <Tabs.Tab>
@@ -130,34 +85,9 @@ c.Event().BulkPush(
   </Tabs.Tab>
   <Tabs.Tab>
 
-```typescript
-const parentWorkflow: Workflow = {
-  id: "parent-workflow",
-  description: "Example workflow for spawning child workflows",
-  on: {
-    event: "fanout:create",
-  },
-  steps: [
-    {
-      name: "parent-spawn",
-      timeout: "10s",
-      run: async (ctx) => {
-        const workflowRequests = Array.from({ length: 10 }, (_, i) => ({
-          workflow: "child-workflow",
-          input: { input: `child-input-${i}` },
-          options: { additionalMetadata: { childKey: `child-${i}` } },
-        }));
-
-        const spawnedWorkflows = await ctx.spawnWorkflows<string, string>(
-          workflowRequests,
-        );
-
-        return spawnedWorkflows;
-      },
-    },
-  ],
-};
-```
+<Snippet
+  src={snippets.typescript.simple.bulk.bulk_run_tasks_from_within_a_task}
+/>
 
   </Tabs.Tab>
   <Tabs.Tab>

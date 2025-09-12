@@ -122,33 +122,7 @@ Labels can also be set dynamically on workers using the `upsertLabels` method. T
   </Tabs.Tab>
   <Tabs.Tab>
 
-```typescript
-const affinity: Workflow = {
-  id: "dynamic-affinity-workflow",
-  description: "test",
-  tasks: [
-    {
-      name: "child-task1",
-      worker_labels: {
-        model: {
-          value: "fancy-vision-model",
-          required: false,
-        },
-      },
-      run: async (ctx) => {
-        if (ctx.worker.labels().model !== "fancy-vision-model") {
-          await ctx.worker.upsertLabels({ model: undefined });
-          await evictModel();
-          await loadNewModel("fancy-vision-model");
-          await ctx.worker.upsertLabels({ model: "fancy-vision-model" });
-        }
-        // DO WORK
-        return { childStep1: "childStep1 results!" };
-      },
-    },
-  ],
-};
-```
+<Snippet src={snippets.typescript.affinity.affinity_workers.task_with_labels} />
 
   </Tabs.Tab>
   <Tabs.Tab>

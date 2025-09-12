@@ -57,6 +57,41 @@ func (q *Queries) BulkInsertDeclarativeFilters(ctx context.Context, db DBTX, arg
 	return err
 }
 
+const countFilters = `-- name: CountFilters :one
+WITH filters AS (
+    SELECT id, tenant_id, workflow_id, scope, expression, payload, payload_hash, is_declarative, inserted_at, updated_at
+    FROM v1_filter
+    WHERE
+        tenant_id = $1::UUID
+        AND (
+            $2::UUID[] IS NULL
+            OR workflow_id = ANY($2::UUID[])
+        )
+        AND (
+            $3::TEXT[] IS NULL
+            OR scope = ANY($3::TEXT[])
+        )
+    ORDER BY id DESC
+    LIMIT 20000
+)
+
+SELECT COUNT(*)
+FROM filters
+`
+
+type CountFiltersParams struct {
+	Tenantid    pgtype.UUID   `json:"tenantid"`
+	WorkflowIds []pgtype.UUID `json:"workflowIds"`
+	Scopes      []string      `json:"scopes"`
+}
+
+func (q *Queries) CountFilters(ctx context.Context, db DBTX, arg CountFiltersParams) (int64, error) {
+	row := db.QueryRow(ctx, countFilters, arg.Tenantid, arg.WorkflowIds, arg.Scopes)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createFilter = `-- name: CreateFilter :one
 INSERT INTO v1_filter (
     tenant_id,
@@ -247,16 +282,16 @@ WHERE
         OR scope = ANY($3::TEXT[])
     )
 ORDER BY id DESC
-LIMIT COALESCE($5::BIGINT, 20000)
-OFFSET COALESCE($4::BIGINT, 0)
+LIMIT $5::BIGINT
+OFFSET $4::BIGINT
 `
 
 type ListFiltersParams struct {
 	Tenantid     pgtype.UUID   `json:"tenantid"`
 	WorkflowIds  []pgtype.UUID `json:"workflowIds"`
 	Scopes       []string      `json:"scopes"`
-	FilterOffset pgtype.Int8   `json:"filterOffset"`
-	FilterLimit  pgtype.Int8   `json:"filterLimit"`
+	Filteroffset int64         `json:"filteroffset"`
+	Filterlimit  int64         `json:"filterlimit"`
 }
 
 func (q *Queries) ListFilters(ctx context.Context, db DBTX, arg ListFiltersParams) ([]*V1Filter, error) {
@@ -264,8 +299,8 @@ func (q *Queries) ListFilters(ctx context.Context, db DBTX, arg ListFiltersParam
 		arg.Tenantid,
 		arg.WorkflowIds,
 		arg.Scopes,
-		arg.FilterOffset,
-		arg.FilterLimit,
+		arg.Filteroffset,
+		arg.Filterlimit,
 	)
 	if err != nil {
 		return nil, err

@@ -40,6 +40,7 @@ interface DataTableToolbarProps<TData> {
   isLoading?: boolean;
   onReset?: () => void;
   hideFlatten?: boolean;
+  columnKeyToName?: Record<string, string>;
 }
 
 export function DataTableToolbar<TData>({
@@ -52,18 +53,26 @@ export function DataTableToolbar<TData>({
   isLoading = false,
   onReset,
   hideFlatten,
+  columnKeyToName,
 }: DataTableToolbarProps<TData>) {
   const isFiltered = table.getState().columnFilters?.length > 0;
 
   return (
     <div className="flex items-center justify-between">
-      <div className="flex flex-1 items-center space-x-2">
+      <div
+        className="flex flex-1 items-center space-x-2 overflow-x-auto pr-4 min-w-0 [&::-webkit-scrollbar]:h-1 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-gray-400/50 [&::-webkit-scrollbar-thumb]:rounded-full"
+        style={{
+          scrollbarWidth: 'thin',
+          scrollbarColor: 'rgba(156, 163, 175, 0.5) transparent',
+          scrollbarGutter: 'stable both-edges',
+        }}
+      >
         {setSearch && (
           <Input
             placeholder="Search..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="h-8 w-[150px] lg:w-[250px]"
+            className="h-8 w-[150px] lg:w-[250px] flex-shrink-0"
           />
         )}
         {filters
@@ -95,17 +104,22 @@ export function DataTableToolbar<TData>({
                 table.resetColumnFilters();
               }
             }}
-            className="h-8 px-2 lg:px-3"
+            className="h-8 px-2 lg:px-3 flex-shrink-0"
           >
             Reset
             <Cross2Icon className="ml-2 h-4 w-4" />
           </Button>
         )}
       </div>
-      <div className="flex flex-row gap-4 items-center">
+      <div className="flex flex-row gap-4 items-center flex-shrink-0">
         {isLoading && <Spinner />}
         {actions && actions.length > 0 && actions}
-        {showColumnToggle && <DataTableViewOptions table={table} />}
+        {showColumnToggle && (
+          <DataTableViewOptions
+            table={table}
+            columnKeyToName={columnKeyToName}
+          />
+        )}
       </div>
     </div>
   );

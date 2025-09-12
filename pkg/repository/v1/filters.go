@@ -10,7 +10,7 @@ import (
 
 type FilterRepository interface {
 	CreateFilter(ctx context.Context, tenantId string, params CreateFilterOpts) (*sqlcv1.V1Filter, error)
-	ListFilters(ctx context.Context, tenantId string, params ListFiltersOpts) ([]*sqlcv1.V1Filter, error)
+	ListFilters(ctx context.Context, tenantId string, params ListFiltersOpts) ([]*sqlcv1.V1Filter, int64, error)
 	DeleteFilter(ctx context.Context, tenantId, filterId string) (*sqlcv1.V1Filter, error)
 	GetFilter(ctx context.Context, tenantId, filterId string) (*sqlcv1.V1Filter, error)
 	UpdateFilter(ctx context.Context, tenantId string, filterId string, opts UpdateFilterOpts) (*sqlcv1.V1Filter, error)
@@ -45,10 +45,10 @@ func (r *filterRepository) CreateFilter(ctx context.Context, tenantId string, op
 }
 
 type ListFiltersOpts struct {
-	WorkflowIds  []pgtype.UUID `json:"workflow_ids"`
-	Scopes       []string      `json:"scopes"`
-	FilterLimit  *int64        `json:"limit" validate:"omitnil,min=1"`
-	FilterOffset *int64        `json:"offset" validate:"omitnil,min=0"`
+	WorkflowIds []pgtype.UUID `json:"workflow_ids"`
+	Scopes      []string      `json:"scopes"`
+	Limit       int64         `json:"limit" validate:"omitnil,min=1"`
+	Offset      int64         `json:"offset" validate:"omitnil,min=0"`
 }
 
 type UpdateFilterOpts struct {
@@ -57,36 +57,34 @@ type UpdateFilterOpts struct {
 	Payload    []byte  `json:"payload"`
 }
 
-func (r *filterRepository) ListFilters(ctx context.Context, tenantId string, opts ListFiltersOpts) ([]*sqlcv1.V1Filter, error) {
+func (r *filterRepository) ListFilters(ctx context.Context, tenantId string, opts ListFiltersOpts) ([]*sqlcv1.V1Filter, int64, error) {
 	if err := r.v.Validate(opts); err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
-	var filterLimit pgtype.Int8
-	var filterOffset pgtype.Int8
-
-	if opts.FilterLimit != nil {
-		filterLimit = pgtype.Int8{
-			Int64: *opts.FilterLimit,
-			Valid: true,
-		}
-	}
-
-	if opts.FilterOffset != nil {
-		filterOffset = pgtype.Int8{
-			Int64: *opts.FilterOffset,
-			Valid: true,
-		}
-	}
-
-	return r.queries.ListFilters(ctx, r.pool, sqlcv1.ListFiltersParams{
+	filters, err := r.queries.ListFilters(ctx, r.pool, sqlcv1.ListFiltersParams{
 		Tenantid:     sqlchelpers.UUIDFromStr(tenantId),
 		WorkflowIds:  opts.WorkflowIds,
 		Scopes:       opts.Scopes,
-		FilterLimit:  filterLimit,
-		FilterOffset: filterOffset,
+		Filterlimit:  opts.Limit,
+		Filteroffset: opts.Offset,
 	})
 
+	if err != nil {
+		return nil, 0, err
+	}
+
+	filterCount, err := r.queries.CountFilters(ctx, r.pool, sqlcv1.CountFiltersParams{
+		Tenantid:    sqlchelpers.UUIDFromStr(tenantId),
+		WorkflowIds: opts.WorkflowIds,
+		Scopes:      opts.Scopes,
+	})
+
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return filters, filterCount, nil
 }
 
 func (r *filterRepository) DeleteFilter(ctx context.Context, tenantId, filterId string) (*sqlcv1.V1Filter, error) {

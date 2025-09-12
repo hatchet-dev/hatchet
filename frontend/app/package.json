@@ -13,7 +13,8 @@
     "eslint:fix": "eslint \"{src,apps,libs,test}/**/*.{ts,tsx,js}\" --fix",
     "prettier:check": "prettier \"src/**/*.{ts,tsx}\" --list-different",
     "prettier:fix": "prettier \"src/**/*.{ts,tsx}\" --write",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "docs:gen": "cd ../snippets && python3 generate.py"
   },
   "dependencies": {
     "@heroicons/react": "^2.2.0",
@@ -128,7 +129,7 @@
     "ts-unused-exports": "^11.0.1",
     "tsx": "^4.19.3",
     "typescript": "^5.8.2",
-    "vite": "^6.2.4",
+    "vite": "^6.3.6",
     "vite-plugin-eslint": "^1.8.1"
   },
   "pnpm": {

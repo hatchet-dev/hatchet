@@ -1,8 +1,9 @@
 package hatchet
 
 import (
-	"github.com/hatchet-dev/hatchet/sdks/go/internal"
 	"github.com/rs/zerolog"
+
+	"github.com/hatchet-dev/hatchet/sdks/go/internal"
 )
 
 // WorkerOption configures a worker instance.

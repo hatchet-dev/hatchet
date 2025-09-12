@@ -19,14 +19,7 @@ Declare a worker by calling the `worker` method on the Hatchet client. The `work
 
 <UniversalTabs items={["Python", "Typescript", "Go"]}>
   <Tabs.Tab title="Python">
-    ```python
-    def main() -> None:
-      worker = hatchet.worker("test-worker", workflows=[simple])
-      worker.start()
-
-    if __name__ == "__main__":
-        main()
-    ```
+  <Snippet src={snippets.python.dag.worker.declare_a_worker}/>
 
     <Callout type="warning">
       If you are using Windows, attempting to run a worker will result in an error:

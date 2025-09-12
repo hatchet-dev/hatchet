@@ -858,6 +858,8 @@ export interface V1Filter {
   expression: string;
   /** Additional payload data associated with the filter */
   payload: object;
+  /** Whether the filter is declarative (true) or programmatic (false) */
+  isDeclarative?: boolean;
 }
 
 export interface V1FilterList {

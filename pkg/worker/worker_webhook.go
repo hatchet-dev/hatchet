@@ -79,7 +79,8 @@ func (w *Worker) StartWebhook(ww WebhookWorkerOpts) (func() error, error) {
 			select {
 			case err := <-errCh:
 				// NOTE: this matches the behavior of the old worker, until we change the signature of the webhook workers
-				panic(err)
+				w.l.Error().Err(err).Msgf("error from action channel for webhook worker %s", w.name)
+				return
 			case action := <-actionCh:
 				go func(action *client.Action) {
 					err := w.sendWebhook(context.Background(), action, ww)
