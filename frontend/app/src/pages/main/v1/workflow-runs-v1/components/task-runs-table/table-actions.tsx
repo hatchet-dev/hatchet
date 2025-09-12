@@ -12,6 +12,7 @@ import {
 import { useMemo, useState } from 'react';
 import { Snowflake } from 'lucide-react';
 import { ChevronDownIcon } from '@radix-ui/react-icons';
+import { RefetchIntervalDropdown } from '../refetch-interval-dropdown';
 
 interface TableActionsProps {
   onRefresh: () => void;
@@ -34,6 +35,7 @@ export const TableActions = ({
 
   const actions = useMemo(() => {
     let baseActions = [
+      <RefetchIntervalDropdown key="refetch-interval" />,
       <DropdownMenu
         key="actions"
         open={isActionDropdownOpen}
@@ -95,7 +97,7 @@ export const TableActions = ({
           className="h-8 border"
           onClick={onTriggerWorkflow}
         >
-          Trigger Run
+          Trigger
         </Button>,
         ...baseActions,
       ];

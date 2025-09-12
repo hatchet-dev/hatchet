@@ -28,10 +28,10 @@ import { AdditionalMetadataProp } from '../hooks/use-runs-table-filters';
 import { useRunsContext } from '../hooks/runs-provider';
 
 import { TableActions } from './task-runs-table/table-actions';
-import { TimeFilter } from './task-runs-table/time-filter';
 import { ConfirmActionModal } from '../../task-runs-v1/actions';
 import { DocsButton } from '@/components/v1/docs/docs-button';
 import { docsPages } from '@/lib/generated/docs';
+import { useRefetchInterval } from '@/contexts/refetch-interval-context';
 
 export interface RunsTableProps {
   headerClassName?: string;
@@ -39,11 +39,11 @@ export interface RunsTableProps {
 
 const GetWorkflowChart = () => {
   const { tenantId } = useCurrentTenantId();
+  const { currentInterval } = useRefetchInterval();
 
   const {
     state: { createdAfter, finishedBefore },
     filters: { setCustomTimeRange },
-    display: { refetchInterval },
     isFrozen,
   } = useRunsContext();
 
@@ -63,7 +63,7 @@ const GetWorkflowChart = () => {
       finishedBefore,
     }),
     placeholderData: (prev) => prev,
-    refetchInterval: isFrozen ? false : refetchInterval,
+    refetchInterval: isFrozen ? false : currentInterval.value,
   });
 
   if (workflowRunEventsMetricsQuery.isLoading) {
@@ -211,7 +211,7 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
   const isFetching = !hasLoaded && (isRunsFetching || isMetricsFetching);
 
   return (
-    <div className="flex flex-col h-full overflow-hidden">
+    <div className="flex flex-col h-full overflow-hidden gap-y-2">
       <Toaster />
       {selectedActionType && (
         <ConfirmActionModal
@@ -252,12 +252,10 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
         </Dialog>
       )}
 
-      <TimeFilter />
-
       {!hideMetrics && <GetWorkflowChart />}
 
       {!hideCounts && (
-        <div className="flex flex-row justify-between items-center my-4 overflow-auto">
+        <div className="flex flex-row justify-start items-center mb-2">
           {metrics.length > 0 ? (
             <V1WorkflowRunsMetricsView />
           ) : (

@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useCallback, useMemo, useState } from 'react';
 import { RowSelectionState, PaginationState } from '@tanstack/react-table';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
+import { LabeledRefetchInterval } from '@/lib/api/api';
 
 type UseRunsProps = {
   rowSelection: RowSelectionState;
@@ -18,6 +19,7 @@ type UseRunsProps = {
   onlyTasks: boolean;
   disablePagination?: boolean;
   pauseRefetch?: boolean;
+  refetchInterval: LabeledRefetchInterval;
 };
 
 export const useRuns = ({
@@ -34,6 +36,7 @@ export const useRuns = ({
   onlyTasks,
   disablePagination = false,
   pauseRefetch = false,
+  refetchInterval,
 }: UseRunsProps) => {
   const { tenantId } = useCurrentTenantId();
   const offset = pagination.pageIndex * pagination.pageSize;
@@ -67,7 +70,9 @@ export const useRuns = ({
     }),
     placeholderData: (prev) => prev,
     refetchInterval:
-      Object.keys(rowSelection).length > 0 || pauseRefetch ? false : 5000,
+      Object.keys(rowSelection).length > 0 || pauseRefetch
+        ? false
+        : refetchInterval.value,
   });
 
   const tasks = listTasksQuery.data;

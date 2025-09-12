@@ -16,6 +16,7 @@ import {
   ActionType,
   BaseTaskRunActionParams,
 } from '../../task-runs-v1/actions';
+import { useRefetchInterval } from '@/contexts/refetch-interval-context';
 
 type DisplayProps = {
   hideMetrics?: boolean;
@@ -26,7 +27,6 @@ type DisplayProps = {
   hideColumnToggle?: boolean;
   hideFlatten?: boolean;
   hidePagination?: boolean;
-  refetchInterval?: number;
 };
 
 type RunFilteringProps = {
@@ -42,7 +42,6 @@ type RunsProviderProps = {
   disableTaskRunPagination?: boolean;
   initColumnVisibility?: Record<string, boolean>;
   filterVisibility?: Record<string, boolean>;
-  refetchInterval?: number;
   display?: DisplayProps;
   runFilters?: RunFilteringProps;
 };
@@ -101,7 +100,6 @@ export const RunsProvider = ({
   disableTaskRunPagination = false,
   initColumnVisibility = {},
   filterVisibility = {},
-  refetchInterval = 5000,
   display,
   runFilters,
 }: RunsProviderProps) => {
@@ -110,6 +108,8 @@ export const RunsProvider = ({
   const [isActionDropdownOpen, setIsActionDropdownOpen] = useState(false);
   const [selectedActionType, setSelectedActionType] =
     useState<ActionType | null>(null);
+
+  const { currentInterval } = useRefetchInterval();
 
   const {
     workflowId,
@@ -159,7 +159,11 @@ export const RunsProvider = ({
 
   const filters = useRunsTableFilters(state, updateFilters);
 
-  const toolbarFilters = useToolbarFilters({ filterVisibility });
+  const toolbarFilters = useToolbarFilters({
+    filterVisibility,
+    state,
+    filterActions: filters,
+  });
 
   const workflow =
     workflowId || getWorkflowIdsFromFilters(state.columnFilters)[0];
@@ -191,6 +195,7 @@ export const RunsProvider = ({
     disablePagination: disableTaskRunPagination,
     pauseRefetch: isFrozen,
     onlyTasks: !!workerId || flattenDAGs,
+    refetchInterval: currentInterval,
   });
 
   const actionModalParams = useMemo(
@@ -216,7 +221,7 @@ export const RunsProvider = ({
     workflow,
     parentTaskExternalId: derivedParentTaskExternalId,
     createdAfter: state.createdAfter,
-    refetchInterval,
+    refetchInterval: currentInterval,
     pauseRefetch: isFrozen,
     additionalMetadata: filters.apiFilters.additionalMetadata,
   });
@@ -249,7 +254,6 @@ export const RunsProvider = ({
         hideColumnToggle,
         hidePagination: disableTaskRunPagination,
         hideFlatten,
-        refetchInterval,
       },
       actions: {
         updatePagination,
@@ -289,7 +293,6 @@ export const RunsProvider = ({
       hideFlatten,
       actionModalParams,
       selectedActionType,
-      refetchInterval,
       updatePagination,
       updateFilters,
       updateUIState,

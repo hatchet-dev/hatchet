@@ -15,7 +15,7 @@ import { RunsTable } from '../../workflow-runs-v1/components/runs-table';
 import { RunsProvider } from '../../workflow-runs-v1/hooks/runs-provider';
 
 export const EventColumn = {
-  id: 'ID',
+  id: 'Event ID',
   key: 'Event',
   seenAt: 'Seen at',
   workflowId: 'Workflow',
