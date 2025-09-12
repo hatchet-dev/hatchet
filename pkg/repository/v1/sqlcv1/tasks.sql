@@ -1,5 +1,6 @@
 -- name: CreatePartitions :exec
 SELECT
+    -- intentionally formatted this way to limit merge conflicts
     create_v1_range_partition('v1_task', @date::date)
     , create_v1_range_partition('v1_dag', @date::date)
     , create_v1_range_partition('v1_task_event', @date::date)
@@ -35,17 +36,24 @@ SELECT
 FROM partition_check;
 
 -- name: ListPartitionsBeforeDate :many
-WITH task_partitions AS (
+WITH
+-- intentionally formatted this way to limit merge conflicts
+task_partitions AS (
     SELECT 'v1_task' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_task', @date::date) AS p
-), dag_partitions AS (
+)
+, dag_partitions AS (
     SELECT 'v1_dag' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_dag', @date::date) AS p
-), task_event_partitions AS (
+)
+, task_event_partitions AS (
     SELECT 'v1_task_event' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_task_event', @date::date) AS p
-), log_line_partitions AS (
+)
+, log_line_partitions AS (
     SELECT 'v1_log_line' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_log_line', @date::date) AS p
-), payload_partitions AS (
+)
+, payload_partitions AS (
     SELECT 'v1_payload' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_payload', @date::date) AS p
-), dag_to_task_partitions AS (
+)
+, dag_to_task_partitions AS (
     SELECT 'v1_dag_to_task' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_dag_to_task', @date::date) AS p
 )
 
@@ -87,7 +95,8 @@ UNION ALL
 SELECT
     *
 FROM
-    dag_to_task_partitions;
+    dag_to_task_partitions
+;
 
 -- name: FlattenExternalIds :many
 WITH lookup_rows AS (

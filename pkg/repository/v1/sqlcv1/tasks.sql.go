@@ -71,6 +71,7 @@ func (q *Queries) CleanupWorkflowConcurrencySlotsAfterInsert(ctx context.Context
 
 const createPartitions = `-- name: CreatePartitions :exec
 SELECT
+    -- intentionally formatted this way to limit merge conflicts
     create_v1_range_partition('v1_task', $1::date)
     , create_v1_range_partition('v1_dag', $1::date)
     , create_v1_range_partition('v1_task_event', $1::date)
@@ -699,17 +700,23 @@ func (q *Queries) ListMatchingTaskEvents(ctx context.Context, db DBTX, arg ListM
 }
 
 const listPartitionsBeforeDate = `-- name: ListPartitionsBeforeDate :many
-WITH task_partitions AS (
+WITH
+task_partitions AS (
     SELECT 'v1_task' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_task', $1::date) AS p
-), dag_partitions AS (
+)
+, dag_partitions AS (
     SELECT 'v1_dag' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_dag', $1::date) AS p
-), task_event_partitions AS (
+)
+, task_event_partitions AS (
     SELECT 'v1_task_event' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_task_event', $1::date) AS p
-), log_line_partitions AS (
+)
+, log_line_partitions AS (
     SELECT 'v1_log_line' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_log_line', $1::date) AS p
-), payload_partitions AS (
+)
+, payload_partitions AS (
     SELECT 'v1_payload' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_payload', $1::date) AS p
-), dag_to_task_partitions AS (
+)
+, dag_to_task_partitions AS (
     SELECT 'v1_dag_to_task' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_dag_to_task', $1::date) AS p
 )
 
@@ -759,6 +766,7 @@ type ListPartitionsBeforeDateRow struct {
 	PartitionName string `json:"partition_name"`
 }
 
+// intentionally formatted this way to limit merge conflicts
 func (q *Queries) ListPartitionsBeforeDate(ctx context.Context, db DBTX, date pgtype.Date) ([]*ListPartitionsBeforeDateRow, error) {
 	rows, err := db.Query(ctx, listPartitionsBeforeDate, date)
 	if err != nil {
