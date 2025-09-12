@@ -1,6 +1,7 @@
 package queueutils
 
 import (
+	"strconv"
 	"sync"
 	"time"
 
@@ -55,7 +56,17 @@ func (p *OperationPool[T]) SetPartitions(partitions []int64) {
 	partitionMap := make(map[T]bool)
 
 	for _, partitionId := range partitions {
-		partitionMap[T(partitionId)] = true
+		var key any
+		var zero T
+		switch any(zero).(type) {
+		case string:
+			key = strconv.FormatInt(partitionId, 10)
+		case int64:
+			key = partitionId
+		default:
+			panic("unsupported ID type")
+		}
+		partitionMap[key.(T)] = true
 	}
 
 	p.ops.Range(func(key, value interface{}) bool {
