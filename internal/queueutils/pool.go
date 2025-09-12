@@ -1,7 +1,6 @@
 package queueutils
 
 import (
-	"strconv"
 	"sync"
 	"time"
 
@@ -53,24 +52,14 @@ func (p *OperationPool[T]) SetTenants(tenants []*dbsqlc.Tenant) {
 }
 
 func (p *OperationPool[T]) SetPartitions(partitions []int64) {
-	partitionMap := make(map[T]bool)
+	partitionMap := make(map[int64]bool)
 
 	for _, partitionId := range partitions {
-		var key any
-		var zero T
-		switch any(zero).(type) {
-		case string:
-			key = strconv.FormatInt(partitionId, 10)
-		case int64:
-			key = partitionId
-		default:
-			panic("unsupported ID type")
-		}
-		partitionMap[key.(T)] = true
+		partitionMap[partitionId] = true
 	}
 
 	p.ops.Range(func(key, value interface{}) bool {
-		if _, ok := partitionMap[key.(T)]; !ok {
+		if _, ok := partitionMap[key.(int64)]; !ok {
 			p.ops.Delete(key)
 		}
 
