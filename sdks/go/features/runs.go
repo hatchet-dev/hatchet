@@ -73,10 +73,9 @@ func (r *RunsClient) GetStatus(ctx context.Context, runId string) (*rest.V1TaskS
 }
 
 // GetDetails retrieves detailed information about a workflow run by its ID.
-func (r *RunsClient) GetDetails(ctx context.Context, runId string) (*rest.WorkflowRunShape, error) {
-	resp, err := r.api.WorkflowRunGetShapeWithResponse(
+func (r *RunsClient) GetDetails(ctx context.Context, runId string) (*rest.V1WorkflowRunDetails, error) {
+	resp, err := r.api.V1WorkflowRunGetWithResponse(
 		ctx,
-		r.tenantId,
 		uuid.MustParse(runId),
 	)
 	if err != nil {

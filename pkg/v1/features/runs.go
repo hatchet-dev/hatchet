@@ -22,7 +22,7 @@ type RunsClient interface {
 	GetStatus(ctx context.Context, runId string) (*rest.V1WorkflowRunGetStatusResponse, error)
 
 	// GetDetails retrieves detailed information about a workflow run by its ID.
-	GetDetails(ctx context.Context, runId string) (*rest.WorkflowRunGetShapeResponse, error)
+	GetDetails(ctx context.Context, runId string) (*rest.V1WorkflowRunGetResponse, error)
 
 	// List retrieves a collection of workflow runs based on the provided parameters.
 	List(ctx context.Context, opts rest.V1WorkflowRunListParams) (*rest.V1WorkflowRunListResponse, error)
@@ -79,10 +79,9 @@ func (r *runsClientImpl) GetStatus(ctx context.Context, runId string) (*rest.V1W
 }
 
 // GetDetails retrieves detailed information about a workflow run by its ID.
-func (r *runsClientImpl) GetDetails(ctx context.Context, runId string) (*rest.WorkflowRunGetShapeResponse, error) {
-	return r.api.WorkflowRunGetShapeWithResponse(
+func (r *runsClientImpl) GetDetails(ctx context.Context, runId string) (*rest.V1WorkflowRunGetResponse, error) {
+	return r.api.V1WorkflowRunGetWithResponse(
 		ctx,
-		r.tenantId,
 		uuid.MustParse(runId),
 	)
 }
