@@ -22,6 +22,7 @@ type RunsClient interface {
 	GetStatus(ctx context.Context, runId string) (*rest.V1WorkflowRunGetStatusResponse, error)
 
 	// GetDetails retrieves detailed information about a workflow run by its ID.
+	// Deprecated: Use Get instead.
 	GetDetails(ctx context.Context, runId string) (*rest.V1WorkflowRunGetResponse, error)
 
 	// List retrieves a collection of workflow runs based on the provided parameters.
@@ -79,6 +80,7 @@ func (r *runsClientImpl) GetStatus(ctx context.Context, runId string) (*rest.V1W
 }
 
 // GetDetails retrieves detailed information about a workflow run by its ID.
+// Deprecated: Use Get instead.
 func (r *runsClientImpl) GetDetails(ctx context.Context, runId string) (*rest.V1WorkflowRunGetResponse, error) {
 	return r.api.V1WorkflowRunGetWithResponse(
 		ctx,
