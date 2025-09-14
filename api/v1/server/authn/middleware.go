@@ -64,6 +64,8 @@ func (a *AuthN) authenticate(c echo.Context, r *middleware.RouteInfo) error {
 
 		if cookieErr == nil {
 			return nil
+		} else {
+			a.l.Warn().Err(cookieErr).Msg("error handling cookie auth")
 		}
 	}
 
@@ -80,6 +82,8 @@ func (a *AuthN) authenticate(c echo.Context, r *middleware.RouteInfo) error {
 
 		if bearerErr == nil {
 			return nil
+		} else {
+			a.l.Warn().Err(bearerErr).Msg("error handling bearer auth")
 		}
 	}
 
@@ -96,6 +100,8 @@ func (a *AuthN) authenticate(c echo.Context, r *middleware.RouteInfo) error {
 
 		if customErr == nil {
 			return nil
+		} else {
+			a.l.Warn().Err(customErr).Msg("error handling custom auth")
 		}
 	}
 
