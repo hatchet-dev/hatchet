@@ -13,7 +13,7 @@ type avgResult struct {
 }
 
 func do(config LoadTestConfig) error {
-	l.Info().Msgf("testing with duration=%s, eventsPerSecond=%d, delay=%s, wait=%s, concurrency=%d", config.Duration, config.Events, config.Delay, config.Wait, config.Concurrency)
+	l.Info().Msgf("testing with duration=%s, eventsPerSecond=%d, delay=%s, wait=%s, concurrency=%d, averageDurationThreshold=%s", config.Duration, config.Events, config.Delay, config.Wait, config.Concurrency, config.AverageDurationThreshold)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -113,6 +113,10 @@ func do(config LoadTestConfig) error {
 
 	if int64(config.EventFanout)*emitted*int64(config.DagSteps) != uniques {
 		return fmt.Errorf("❌ emitted and unique executed counts do not match: %d != %d", int64(config.EventFanout)*emitted, uniques)
+	}
+
+	if finalDurationResult.avg > config.AverageDurationThreshold {
+		return fmt.Errorf("❌ average duration per executed event is greater than the threshold: %s > %s", finalDurationResult.avg, config.AverageDurationThreshold)
 	}
 
 	log.Printf("✅ success")
