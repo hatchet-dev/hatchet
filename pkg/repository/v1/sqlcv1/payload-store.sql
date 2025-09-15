@@ -106,6 +106,7 @@ WHERE
 ORDER BY offload_at, payload_id, payload_inserted_at, payload_type, tenant_id
 FOR UPDATE
 LIMIT @pollLimit::INT
+
 ;
 
 -- name: FinalizePayloadOffloads :exec
