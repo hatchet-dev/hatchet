@@ -275,7 +275,7 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadWAL(ctx context.Context, part
 
 	walRecords, err := p.queries.PollPayloadWALForRecordsToOffload(ctx, tx, sqlcv1.PollPayloadWALForRecordsToOffloadParams{
 		Polllimit:       int32(pollLimit),
-		Partitionnumber: partitionNumber,
+		Partitionnumber: int32(partitionNumber),
 	})
 
 	hasMoreWALRecords := len(walRecords) == pollLimit
