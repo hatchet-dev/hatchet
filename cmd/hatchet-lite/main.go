@@ -17,6 +17,7 @@ import (
 	"github.com/hatchet-dev/hatchet/cmd/hatchet-staticfileserver/staticfileserver"
 	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
 	"github.com/hatchet-dev/hatchet/pkg/config/loader"
+	"github.com/hatchet-dev/hatchet/pkg/config/loader/loaderutils"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
 )
 
@@ -93,11 +94,11 @@ func start(cf *loader.ConfigLoader, interruptCh <-chan interface{}, version stri
 	}
 
 	_, sc, err := cf.CreateServerFromConfig(version, func(sc *server.ServerConfigFile) {
-		// for Hatchet Lite we always want to use the postgres message queue by default
-		// but only if the SERVER_MSGQUEUE_KIND is not set
-		if _, exists := os.LookupEnv("SERVER_MSGQUEUE_KIND"); !exists && sc.MessageQueue.Kind != "postgres" {
+		if !loaderutils.GetViper().IsSet("msgQueue.kind") {
 			sc.MessageQueue.Kind = "postgres"
 		}
+
+		log.Printf("Using %s as the message queue backend", sc.MessageQueue.Kind)
 	})
 
 	if err != nil {

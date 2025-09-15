@@ -8,8 +8,14 @@ import (
 	"github.com/spf13/viper"
 )
 
+var v *viper.Viper
+
+func GetViper() *viper.Viper {
+	return v
+}
+
 func LoadConfigFromViper(bindFunc func(v *viper.Viper), configFile interface{}, files ...[]byte) (*viper.Viper, error) {
-	v := viper.New()
+	v = viper.New()
 	v.SetConfigType("yaml")
 	bindFunc(v)
 
