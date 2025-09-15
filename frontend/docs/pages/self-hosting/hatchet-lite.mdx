@@ -132,6 +132,8 @@ services:
       postgres:
         condition: service_healthy
     environment:
+      LITE_MSGQUEUE_KIND: rabbitmq
+      LITE_MSGQUEUE_RABBITMQ_URL: amqp://user:password@rabbitmq:5672
       # Refer to https://docs.hatchet.run/self-hosting/configuration-options
       # for a list of all supported environment variables
       DATABASE_URL: "postgresql://hatchet:hatchet@postgres:5432/hatchet?sslmode=disable"
@@ -144,8 +146,6 @@ services:
       SERVER_URL: http://localhost:8888
       SERVER_AUTH_SET_EMAIL_VERIFIED: "t"
       SERVER_DEFAULT_ENGINE_VERSION: "V1"
-      SERVER_MSGQUEUE_KIND: rabbitmq
-      SERVER_MSGQUEUE_RABBITMQ_URL: amqp://user:password@rabbitmq:5672
     volumes:
       - "hatchet_lite_config:/config"
 

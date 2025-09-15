@@ -17,8 +17,6 @@ import (
 	"github.com/hatchet-dev/hatchet/cmd/hatchet-staticfileserver/staticfileserver"
 	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
 	"github.com/hatchet-dev/hatchet/pkg/config/loader"
-	"github.com/hatchet-dev/hatchet/pkg/config/loader/loaderutils"
-	"github.com/hatchet-dev/hatchet/pkg/config/server"
 )
 
 var printVersion bool
@@ -74,6 +72,8 @@ func start(cf *loader.ConfigLoader, interruptCh <-chan interface{}, version stri
 	staticAssetDir := os.Getenv("LITE_STATIC_ASSET_DIR")
 	frontendPort := os.Getenv("LITE_FRONTEND_PORT")
 	runtimePort := os.Getenv("LITE_RUNTIME_PORT")
+	msgQueueKind := os.Getenv("LITE_MSGQUEUE_KIND")
+	rabbitmqURL := os.Getenv("LITE_MSGQUEUE_RABBITMQ_URL")
 
 	if staticAssetDir == "" {
 		return fmt.Errorf("LITE_STATIC_ASSET_DIR environment variable is required")
@@ -87,19 +87,20 @@ func start(cf *loader.ConfigLoader, interruptCh <-chan interface{}, version stri
 		runtimePort = "8082"
 	}
 
+	if msgQueueKind == "" {
+		msgQueueKind = "postgres"
+	}
+
+	_ = os.Setenv("SERVER_MSGQUEUE_KIND", msgQueueKind)
+	_ = os.Setenv("SERVER_MSGQUEUE_RABBITMQ_URL", rabbitmqURL)
+
 	feURL, err := url.Parse(fmt.Sprintf("http://localhost:%s", frontendPort))
 
 	if err != nil {
 		return fmt.Errorf("error parsing frontend URL: %w", err)
 	}
 
-	_, sc, err := cf.CreateServerFromConfig(version, func(sc *server.ServerConfigFile) {
-		if !loaderutils.GetViper().IsSet("msgQueue.kind") {
-			sc.MessageQueue.Kind = "postgres"
-		}
-
-		log.Printf("Using %s as the message queue backend", sc.MessageQueue.Kind)
-	})
+	_, sc, err := cf.CreateServerFromConfig(version)
 
 	if err != nil {
 		return fmt.Errorf("error loading server config: %w", err)
