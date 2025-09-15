@@ -89,6 +89,8 @@ func start(cf *loader.ConfigLoader, interruptCh <-chan interface{}, version stri
 
 	if msgQueueKind == "" {
 		msgQueueKind = "postgres"
+	} else if msgQueueKind != "rabbitmq" && msgQueueKind != "postgres" {
+		return fmt.Errorf("LITE_MSGQUEUE_KIND environment variable must be either rabbitmq or postgres")
 	}
 
 	_ = os.Setenv("SERVER_MSGQUEUE_KIND", msgQueueKind)
