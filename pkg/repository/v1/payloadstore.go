@@ -246,6 +246,12 @@ func (p *payloadStoreRepositoryImpl) offloadToExternal(ctx context.Context, payl
 
 func (p *payloadStoreRepositoryImpl) ProcessPayloadWAL(ctx context.Context, partitionNumber int64) (bool, error) {
 	// no need to process the WAL if external store is not enabled
+	fmt.Printf(
+		"DEBUG %s: processing payload WAL, external store enabled: %t, inline store TTL: %v\n",
+		time.Now().String(),
+		p.externalStoreEnabled,
+		p.inlineStoreTTL,
+	)
 	if !p.externalStoreEnabled {
 		return false, nil
 	}
@@ -253,7 +259,11 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadWAL(ctx context.Context, part
 	ctx, span := telemetry.NewSpan(ctx, "process-payload-wal")
 	defer span.End()
 
+	fmt.Printf("DEBUG %s: processing payload WAL for partition %d\n", time.Now().String(), partitionNumber)
+
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, p.pool, p.l, 5000)
+
+	fmt.Printf("DEBUG %s: prepared tx for processing payload WAL for partition %d\n", time.Now().String(), partitionNumber)
 
 	if err != nil {
 		return false, fmt.Errorf("failed to prepare transaction: %w", err)
@@ -261,7 +271,11 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadWAL(ctx context.Context, part
 
 	defer rollback()
 
+	fmt.Printf("DEBUG %s: acquiring advisory lock for processing payload WAL for partition %d\n", time.Now().String(), partitionNumber)
+
 	advisoryLockAcquired, err := p.queries.TryAdvisoryLock(ctx, tx, hash(fmt.Sprintf("process-payload-wal-lease-%d", partitionNumber)))
+
+	fmt.Printf("DEBUG %s: acquired advisory lock (%t) for processing payload WAL for partition %d\n", time.Now().String(), advisoryLockAcquired, partitionNumber)
 
 	if err != nil {
 		return false, fmt.Errorf("failed to acquire advisory lock: %w", err)
@@ -278,7 +292,11 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadWAL(ctx context.Context, part
 		Partitionnumber: int32(partitionNumber),
 	})
 
+	fmt.Printf("DEBUG %s: polled %d WAL records for processing payload WAL for partition %d\n", time.Now().String(), len(walRecords), partitionNumber)
+
 	hasMoreWALRecords := len(walRecords) == pollLimit
+
+	fmt.Printf("DEBUG %s: has more WAL records: %t for partition %d\n", time.Now().String(), hasMoreWALRecords, partitionNumber)
 
 	if len(walRecords) == 0 {
 		return false, nil
