@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
@@ -246,8 +247,11 @@ func (p *payloadStoreRepositoryImpl) offloadToExternal(ctx context.Context, payl
 
 func (p *payloadStoreRepositoryImpl) ProcessPayloadWAL(ctx context.Context, partitionNumber int64) (bool, error) {
 	// no need to process the WAL if external store is not enabled
+	runUUID := uuid.NewString()
+
 	fmt.Printf(
-		"DEBUG %s: processing payload WAL, external store enabled: %t, inline store TTL: %v\n",
+		"DEBUG %s %s: processing payload WAL, external store enabled: %t, inline store TTL: %v\n",
+		runUUID,
 		time.Now().String(),
 		p.externalStoreEnabled,
 		p.inlineStoreTTL,
@@ -259,11 +263,11 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadWAL(ctx context.Context, part
 	ctx, span := telemetry.NewSpan(ctx, "process-payload-wal")
 	defer span.End()
 
-	fmt.Printf("DEBUG %s: processing payload WAL for partition %d\n", time.Now().String(), partitionNumber)
+	fmt.Printf("DEBUG %s %s: processing payload WAL for partition %d\n", runUUID, time.Now().String(), partitionNumber)
 
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, p.pool, p.l, 5000)
 
-	fmt.Printf("DEBUG %s: prepared tx for processing payload WAL for partition %d\n", time.Now().String(), partitionNumber)
+	fmt.Printf("DEBUG %s %s: prepared tx for processing payload WAL for partition %d\n", runUUID, time.Now().String(), partitionNumber)
 
 	if err != nil {
 		return false, fmt.Errorf("failed to prepare transaction: %w", err)
@@ -271,11 +275,11 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadWAL(ctx context.Context, part
 
 	defer rollback()
 
-	fmt.Printf("DEBUG %s: acquiring advisory lock for processing payload WAL for partition %d\n", time.Now().String(), partitionNumber)
+	fmt.Printf("DEBUG %s %s: acquiring advisory lock for processing payload WAL for partition %d\n", runUUID, time.Now().String(), partitionNumber)
 
 	advisoryLockAcquired, err := p.queries.TryAdvisoryLock(ctx, tx, hash(fmt.Sprintf("process-payload-wal-lease-%d", partitionNumber)))
 
-	fmt.Printf("DEBUG %s: acquired advisory lock (%t) for processing payload WAL for partition %d\n", time.Now().String(), advisoryLockAcquired, partitionNumber)
+	fmt.Printf("DEBUG %s %s: acquired advisory lock (%t) for processing payload WAL for partition %d\n", runUUID, time.Now().String(), advisoryLockAcquired, partitionNumber)
 
 	if err != nil {
 		return false, fmt.Errorf("failed to acquire advisory lock: %w", err)
@@ -292,19 +296,35 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadWAL(ctx context.Context, part
 		Partitionnumber: int32(partitionNumber),
 	})
 
-	fmt.Printf("DEBUG %s: polled %d WAL records for processing payload WAL for partition %d\n", time.Now().String(), len(walRecords), partitionNumber)
+	fmt.Printf("DEBUG %s %s: polled %d WAL records for processing payload WAL for partition %d\n", runUUID, time.Now().String(), len(walRecords), partitionNumber)
 
 	hasMoreWALRecords := len(walRecords) == pollLimit
 
-	fmt.Printf("DEBUG %s: has more WAL records: %t for partition %d\n", time.Now().String(), hasMoreWALRecords, partitionNumber)
+	fmt.Printf("DEBUG %s %s: has more WAL records: %t for partition %d with %d WAL records\n", runUUID, time.Now().String(), hasMoreWALRecords, partitionNumber, len(walRecords))
 
 	if len(walRecords) == 0 {
 		return false, nil
 	}
 
+	fmt.Printf(
+		"DEBUG %s %s: processing %d WAL records for processing payload WAL for partition %d\n",
+		runUUID,
+		time.Now().String(),
+		len(walRecords),
+		partitionNumber,
+	)
+
 	if err != nil {
 		return false, err
 	}
+
+	fmt.Printf(
+		"DEBUG %s %s: preparing to retrieve %d payloads for processing payload WAL for partition %d\n",
+		runUUID,
+		time.Now().String(),
+		len(walRecords),
+		partitionNumber,
+	)
 
 	retrieveOpts := make([]RetrievePayloadOpts, len(walRecords))
 	retrieveOptsToOffloadAt := make(map[RetrievePayloadOpts]pgtype.Timestamptz)
@@ -321,11 +341,35 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadWAL(ctx context.Context, part
 		retrieveOptsToOffloadAt[opts] = record.OffloadAt
 	}
 
+	fmt.Printf(
+		"DEBUG %s %s: retrieving %d payloads for processing payload WAL for partition %d\n",
+		runUUID,
+		time.Now().String(),
+		len(retrieveOpts),
+		partitionNumber,
+	)
+
 	payloads, err := p.bulkRetrieve(ctx, tx, retrieveOpts...)
+
+	fmt.Printf(
+		"DEBUG %s %s: retrieved %d payloads for processing payload WAL for partition %d\n",
+		runUUID,
+		time.Now().String(),
+		len(payloads),
+		partitionNumber,
+	)
 
 	if err != nil {
 		return false, err
 	}
+
+	fmt.Printf(
+		"DEBUG %s %s: preparing to offload %d payloads for processing payload WAL for partition %d\n",
+		runUUID,
+		time.Now().String(),
+		len(payloads),
+		partitionNumber,
+	)
 
 	externalStoreOpts := make([]OffloadToExternalStoreOpts, 0)
 
@@ -347,6 +391,14 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadWAL(ctx context.Context, part
 			OffloadAt: offloadAt.Time,
 		})
 	}
+
+	fmt.Printf(
+		"DEBUG %s %s: offloading %d payloads to external store for processing payload WAL for partition %d\n",
+		runUUID,
+		time.Now().String(),
+		len(externalStoreOpts),
+		partitionNumber,
+	)
 
 	if err := commit(ctx); err != nil {
 		return false, err
