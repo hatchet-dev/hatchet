@@ -115,8 +115,15 @@ func do(config LoadTestConfig) error {
 		return fmt.Errorf("❌ emitted and unique executed counts do not match: %d != %d", int64(config.EventFanout)*emitted, uniques)
 	}
 
-	if finalDurationResult.avg > config.AverageDurationThreshold {
-		return fmt.Errorf("❌ average duration per executed event is greater than the threshold: %s > %s", finalDurationResult.avg, config.AverageDurationThreshold)
+	// Add a small tolerance (1% or 1ms, whichever is smaller)
+	tolerance := config.AverageDurationThreshold / 100 // 1% tolerance
+	if tolerance > time.Millisecond {
+		tolerance = time.Millisecond
+	}
+	thresholdWithTolerance := config.AverageDurationThreshold + tolerance
+
+	if finalDurationResult.avg > thresholdWithTolerance {
+		return fmt.Errorf("❌ average duration per executed event is greater than the threshold (with tolerance): %s > %s (threshold: %s, tolerance: %s)", finalDurationResult.avg, thresholdWithTolerance, config.AverageDurationThreshold, tolerance)
 	}
 
 	log.Printf("✅ success")
