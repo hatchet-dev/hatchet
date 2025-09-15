@@ -467,6 +467,234 @@ func (q *Queries) ListQueues(ctx context.Context, db DBTX, tenantid pgtype.UUID)
 	return items, nil
 }
 
+const moveRateLimitedQueueItems = `-- name: MoveRateLimitedQueueItems :many
+WITH input AS (
+    SELECT
+        UNNEST($1::bigint[]) AS id,
+        UNNEST($2::timestamptz[]) AS requeue_after
+), moved_items AS (
+    DELETE FROM v1_queue_item
+    WHERE id = ANY(SELECT id FROM input)
+    RETURNING
+        id,
+        tenant_id,
+        queue,
+        task_id,
+        task_inserted_at,
+        external_id,
+        action_id,
+        step_id,
+        workflow_id,
+        workflow_run_id,
+        schedule_timeout_at,
+        step_timeout,
+        priority,
+        sticky,
+        desired_worker_id,
+        retry_count
+)
+INSERT INTO v1_rate_limited_queue_items (
+    requeue_after,
+    tenant_id,
+    queue,
+    task_id,
+    task_inserted_at,
+    external_id,
+    action_id,
+    step_id,
+    workflow_id,
+    workflow_run_id,
+    schedule_timeout_at,
+    step_timeout,
+    priority,
+    sticky,
+    desired_worker_id,
+    retry_count
+)
+SELECT
+    i.requeue_after,
+    tenant_id,
+    queue,
+    task_id,
+    task_inserted_at,
+    external_id,
+    action_id,
+    step_id,
+    workflow_id,
+    workflow_run_id,
+    schedule_timeout_at,
+    step_timeout,
+    priority,
+    sticky,
+    desired_worker_id,
+    retry_count
+FROM moved_items
+JOIN input i ON moved_items.id = i.id
+ON CONFLICT (task_id, task_inserted_at, retry_count) DO NOTHING
+RETURNING tenant_id, task_id, task_inserted_at, retry_count
+`
+
+type MoveRateLimitedQueueItemsParams struct {
+	Ids          []int64              `json:"ids"`
+	Requeueafter []pgtype.Timestamptz `json:"requeueafter"`
+}
+
+type MoveRateLimitedQueueItemsRow struct {
+	TenantID       pgtype.UUID        `json:"tenant_id"`
+	TaskID         int64              `json:"task_id"`
+	TaskInsertedAt pgtype.Timestamptz `json:"task_inserted_at"`
+	RetryCount     int32              `json:"retry_count"`
+}
+
+func (q *Queries) MoveRateLimitedQueueItems(ctx context.Context, db DBTX, arg MoveRateLimitedQueueItemsParams) ([]*MoveRateLimitedQueueItemsRow, error) {
+	rows, err := db.Query(ctx, moveRateLimitedQueueItems, arg.Ids, arg.Requeueafter)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*MoveRateLimitedQueueItemsRow
+	for rows.Next() {
+		var i MoveRateLimitedQueueItemsRow
+		if err := rows.Scan(
+			&i.TenantID,
+			&i.TaskID,
+			&i.TaskInsertedAt,
+			&i.RetryCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const requeueRateLimitedQueueItems = `-- name: RequeueRateLimitedQueueItems :many
+WITH ready_items AS (
+    SELECT
+        tenant_id,
+        queue,
+        task_id,
+        task_inserted_at,
+        external_id,
+        action_id,
+        step_id,
+        workflow_id,
+        workflow_run_id,
+        schedule_timeout_at,
+        step_timeout,
+        priority,
+        sticky,
+        desired_worker_id,
+        retry_count
+    FROM
+        v1_rate_limited_queue_items
+    WHERE
+        tenant_id = $1::uuid
+        AND queue = $2::text
+        AND requeue_after <= NOW()
+    ORDER BY
+        task_id, task_inserted_at, retry_count
+    FOR UPDATE SKIP LOCKED -- locked are about to be deleted
+), deleted_items AS (
+    DELETE FROM v1_rate_limited_queue_items
+    WHERE
+        (task_id, task_inserted_at, retry_count) IN (SELECT task_id, task_inserted_at, retry_count FROM ready_items)
+    RETURNING
+        tenant_id,
+        queue,
+        task_id,
+        task_inserted_at,
+        external_id,
+        action_id,
+        step_id,
+        workflow_id,
+        workflow_run_id,
+        schedule_timeout_at,
+        step_timeout,
+        priority,
+        sticky,
+        desired_worker_id,
+        retry_count
+)
+INSERT INTO v1_queue_item (
+    tenant_id,
+    queue,
+    task_id,
+    task_inserted_at,
+    external_id,
+    action_id,
+    step_id,
+    workflow_id,
+    workflow_run_id,
+    schedule_timeout_at,
+    step_timeout,
+    priority,
+    sticky,
+    desired_worker_id,
+    retry_count
+)
+SELECT
+    tenant_id,
+    queue,
+    task_id,
+    task_inserted_at,
+    external_id,
+    action_id,
+    step_id,
+    workflow_id,
+    workflow_run_id,
+    schedule_timeout_at,
+    step_timeout,
+    priority,
+    sticky,
+    desired_worker_id,
+    retry_count
+FROM ready_items
+RETURNING id, tenant_id, task_id, task_inserted_at, retry_count
+`
+
+type RequeueRateLimitedQueueItemsParams struct {
+	Tenantid pgtype.UUID `json:"tenantid"`
+	Queue    string      `json:"queue"`
+}
+
+type RequeueRateLimitedQueueItemsRow struct {
+	ID             int64              `json:"id"`
+	TenantID       pgtype.UUID        `json:"tenant_id"`
+	TaskID         int64              `json:"task_id"`
+	TaskInsertedAt pgtype.Timestamptz `json:"task_inserted_at"`
+	RetryCount     int32              `json:"retry_count"`
+}
+
+func (q *Queries) RequeueRateLimitedQueueItems(ctx context.Context, db DBTX, arg RequeueRateLimitedQueueItemsParams) ([]*RequeueRateLimitedQueueItemsRow, error) {
+	rows, err := db.Query(ctx, requeueRateLimitedQueueItems, arg.Tenantid, arg.Queue)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*RequeueRateLimitedQueueItemsRow
+	for rows.Next() {
+		var i RequeueRateLimitedQueueItemsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.TenantID,
+			&i.TaskID,
+			&i.TaskInsertedAt,
+			&i.RetryCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const updateTasksToAssigned = `-- name: UpdateTasksToAssigned :many
 WITH input AS (
     SELECT

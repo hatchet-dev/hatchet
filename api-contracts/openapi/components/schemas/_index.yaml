@@ -34,6 +34,8 @@ TenantMember:
   $ref: "./tenant.yaml#/TenantMember"
 TenantMemberList:
   $ref: "./tenant.yaml#/TenantMemberList"
+TenantEnvironment:
+  $ref: "./tenant.yaml#/TenantEnvironment"
 TenantMemberRole:
   $ref: "./tenant.yaml#/TenantMemberRole"
 TenantResource:

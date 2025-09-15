@@ -5,6 +5,7 @@ import (
 	"log"
 	"time"
 
+	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
 	hatchet "github.com/hatchet-dev/hatchet/sdks/go"
 )
 
@@ -27,12 +28,7 @@ func main() {
 		log.Fatalf("failed to create hatchet client: %v", err)
 	}
 
-	// Create an event-triggered standalone task
-	workflow := client.NewWorkflow("process-user-event",
-		hatchet.WithWorkflowEvents("user:created", "user:updated"),
-	)
-
-	workflow.NewTask("process-user-event", func(ctx hatchet.Context, input EventInput) (ProcessOutput, error) {
+	task := client.NewStandaloneTask("process-user-event", func(ctx hatchet.Context, input EventInput) (ProcessOutput, error) {
 		log.Printf("Processing %s event for user %s", input.Action, input.UserID)
 		log.Printf("Event payload contains: %+v", input.Payload)
 
@@ -42,18 +38,18 @@ func main() {
 			Action:      input.Action,
 			Result:      "Event processed successfully",
 		}, nil
-	})
+	},
+		hatchet.WithWorkflowEvents("user:created", "user:updated"),
+	)
 
-	worker, err := client.NewWorker("event-worker", hatchet.WithWorkflows(workflow))
+	worker, err := client.NewWorker("event-worker", hatchet.WithWorkflows(task))
 	if err != nil {
 		log.Fatalf("failed to create worker: %v", err)
 	}
 
-	// Send events in a separate goroutine
 	go func() {
-		time.Sleep(3 * time.Second) // Wait for worker to start
+		time.Sleep(3 * time.Second)
 
-		// Send a user:created event
 		log.Println("Sending user:created event...")
 		err := client.Events().Push(context.Background(), "user:created", EventInput{
 			UserID: "user-123",
@@ -67,7 +63,6 @@ func main() {
 			log.Printf("Failed to send user:created event: %v", err)
 		}
 
-		// Send another event after a delay
 		time.Sleep(5 * time.Second)
 		log.Println("Sending user:updated event...")
 		err = client.Events().Push(context.Background(), "user:updated", EventInput{
@@ -88,7 +83,11 @@ func main() {
 	log.Println("  - Event-triggered standalone tasks")
 	log.Println("  - Processing event payloads")
 	log.Println("  - Real event sending and handling")
-	if err := worker.StartBlocking(); err != nil {
+
+	interruptCtx, cancel := cmdutils.NewInterruptContext()
+	defer cancel()
+
+	if err := worker.StartBlocking(interruptCtx); err != nil {
 		log.Fatalf("failed to start worker: %v", err)
 	}
 }

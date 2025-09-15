@@ -42,9 +42,9 @@ type WorkflowsControllerImpl struct {
 	a                        *hatcheterrors.Wrapped
 	p                        *partition.Partition
 	celParser                *cel.CELParser
-	processWorkflowEventsOps *queueutils.OperationPool
-	unpausedWorkflowRunsOps  *queueutils.OperationPool
-	bumpQueueOps             *queueutils.OperationPool
+	processWorkflowEventsOps *queueutils.OperationPool[string]
+	unpausedWorkflowRunsOps  *queueutils.OperationPool[string]
+	bumpQueueOps             *queueutils.OperationPool[string]
 
 	workflowVersionCache *cache.Cache
 }

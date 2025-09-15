@@ -9,7 +9,9 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-multierror"
+	"go.opentelemetry.io/otel/codes"
 	"golang.org/x/sync/errgroup"
+	"google.golang.org/grpc"
 
 	msgqueuev1 "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
 	"github.com/hatchet-dev/hatchet/internal/queueutils"
@@ -24,26 +26,92 @@ import (
 func (worker *subscribedWorker) StartTaskFromBulk(
 	ctx context.Context,
 	tenantId string,
-	task *sqlcv1.V1Task,
+	task *v1.V1TaskWithPayload,
 ) error {
 	ctx, span := telemetry.NewSpan(ctx, "start-step-run-from-bulk") // nolint:ineffassign
 	defer span.End()
 
 	inputBytes := []byte{}
 
-	if task.Input != nil {
-		inputBytes = task.Input
+	if task.Payload != nil {
+		inputBytes = task.Payload
 	}
 
-	action := populateAssignedAction(tenantId, task, task.RetryCount)
+	action := populateAssignedAction(tenantId, task.V1Task, task.RetryCount)
 
 	action.ActionType = contracts.ActionType_START_STEP_RUN
 	action.ActionPayload = string(inputBytes)
 
+	return worker.sendToWorker(ctx, action)
+}
+
+func (worker *subscribedWorker) sendToWorker(
+	ctx context.Context,
+	action *contracts.AssignedAction,
+) error {
+	ctx, span := telemetry.NewSpan(ctx, "send-to-worker") // nolint:ineffassign
+	defer span.End()
+
+	telemetry.WithAttributes(
+		span,
+		telemetry.AttributeKV{
+			Key:   "worker_id",
+			Value: worker.workerId,
+		},
+	)
+
+	telemetry.WithAttributes(
+		span,
+		telemetry.AttributeKV{
+			Key:   "payload_size",
+			Value: len(action.ActionPayload),
+		},
+	)
+
+	_, encodeSpan := telemetry.NewSpan(ctx, "encode-action")
+
+	msg := &grpc.PreparedMsg{}
+	err := msg.Encode(worker.stream, action)
+
+	if err != nil {
+		encodeSpan.RecordError(err)
+		encodeSpan.End()
+		return fmt.Errorf("could not encode action: %w", err)
+	}
+
+	encodeSpan.End()
+
+	lockBegin := time.Now()
+
+	_, lockSpan := telemetry.NewSpan(ctx, "acquire-worker-stream-lock")
+
 	worker.sendMu.Lock()
 	defer worker.sendMu.Unlock()
 
-	return worker.stream.Send(action)
+	lockSpan.End()
+
+	telemetry.WithAttributes(span, telemetry.AttributeKV{
+		Key:   "lock_duration_ms",
+		Value: time.Since(lockBegin).Milliseconds(),
+	})
+
+	_, streamSpan := telemetry.NewSpan(ctx, "send-worker-stream")
+	defer streamSpan.End()
+
+	sendMsgBegin := time.Now()
+
+	err = worker.stream.SendMsg(msg)
+
+	if err != nil {
+		span.RecordError(err)
+	}
+
+	if time.Since(sendMsgBegin) > 50*time.Millisecond {
+		span.SetStatus(codes.Error, "flow control detected")
+		span.RecordError(fmt.Errorf("send took too long, we may be in flow control: %s", time.Since(sendMsgBegin)))
+	}
+
+	return err
 }
 
 func (worker *subscribedWorker) CancelTask(
@@ -158,12 +226,45 @@ func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *ms
 			continue
 		}
 
+		retrievePayloadOpts := make([]v1.RetrievePayloadOpts, len(bulkDatas))
+
+		for i, task := range bulkDatas {
+			retrievePayloadOpts[i] = v1.RetrievePayloadOpts{
+				Id:         task.ID,
+				InsertedAt: task.InsertedAt,
+				Type:       sqlcv1.V1PayloadTypeTASKINPUT,
+				TenantId:   task.TenantID,
+			}
+		}
+
+		inputs, err := d.repov1.Payloads().BulkRetrieve(ctx, retrievePayloadOpts...)
+
+		if err != nil {
+			d.l.Error().Err(err).Msgf("could not bulk retrieve inputs for %d tasks", len(bulkDatas))
+			for _, task := range bulkDatas {
+				requeue(task)
+			}
+		}
+
 		for _, task := range bulkDatas {
+			input, ok := inputs[v1.RetrievePayloadOpts{
+				Id:         task.ID,
+				InsertedAt: task.InsertedAt,
+				Type:       sqlcv1.V1PayloadTypeTASKINPUT,
+				TenantId:   task.TenantID,
+			}]
+
+			if input == nil || !ok {
+				// If the input wasn't found in the payload store,
+				// fall back to the input stored on the task itself.
+				input = task.Input
+			}
+
 			if parentData, ok := parentDataMap[task.ID]; ok {
 				currInput := &v1.V1StepRunData{}
 
-				if task.Input != nil {
-					err := json.Unmarshal(task.Input, currInput)
+				if input != nil {
+					err := json.Unmarshal(input, currInput)
 
 					if err != nil {
 						d.l.Warn().Err(err).Msg("failed to unmarshal input")
@@ -190,14 +291,35 @@ func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *ms
 
 				currInput.Parents = readableIdToData
 
-				task.Input = currInput.Bytes()
+				inputs[v1.RetrievePayloadOpts{
+					Id:         task.ID,
+					InsertedAt: task.InsertedAt,
+					Type:       sqlcv1.V1PayloadTypeTASKINPUT,
+					TenantId:   task.TenantID,
+				}] = currInput.Bytes()
 			}
 		}
 
-		taskIdToData := make(map[int64]*sqlcv1.V1Task)
+		taskIdToData := make(map[int64]*v1.V1TaskWithPayload)
 
 		for _, task := range bulkDatas {
-			taskIdToData[task.ID] = task
+			input, ok := inputs[v1.RetrievePayloadOpts{
+				Id:         task.ID,
+				InsertedAt: task.InsertedAt,
+				Type:       sqlcv1.V1PayloadTypeTASKINPUT,
+				TenantId:   task.TenantID,
+			}]
+
+			if input == nil || !ok {
+				// If the input wasn't found in the payload store,
+				// fall back to the input stored on the task itself.
+				input = task.Input
+			}
+
+			taskIdToData[task.ID] = &v1.V1TaskWithPayload{
+				V1Task:  task,
+				Payload: input,
+			}
 		}
 
 		for workerId, stepRunIds := range innerMsg.WorkerIdToTaskIds {
@@ -223,7 +345,7 @@ func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *ms
 
 						// if we've reached the context deadline, this should be requeued
 						if ctx.Err() != nil {
-							requeue(task)
+							requeue(task.V1Task)
 							return nil
 						}
 
@@ -248,7 +370,7 @@ func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *ms
 							return nil
 						}
 
-						requeue(task)
+						requeue(task.V1Task)
 
 						return multiErr
 					})

@@ -21,8 +21,6 @@ import (
 	"golang.org/x/oauth2"
 
 	"github.com/hatchet-dev/hatchet/internal/integrations/alerting"
-	"github.com/hatchet-dev/hatchet/internal/integrations/email"
-	"github.com/hatchet-dev/hatchet/internal/integrations/email/postmark"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue/postgres"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue/rabbitmq"
@@ -40,6 +38,8 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/encryption"
 	"github.com/hatchet-dev/hatchet/pkg/errors"
 	"github.com/hatchet-dev/hatchet/pkg/errors/sentry"
+	"github.com/hatchet-dev/hatchet/pkg/integrations/email"
+	"github.com/hatchet-dev/hatchet/pkg/integrations/email/postmark"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
@@ -263,7 +263,7 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		DurableSleepLimit: scf.Runtime.TaskOperationLimits.DurableSleepLimit,
 	}
 
-	v1, cleanupV1 := repov1.NewRepository(pool, &l, retentionPeriod, retentionPeriod, scf.Runtime.MaxInternalRetryCount, entitlementRepo, taskLimits)
+	v1, cleanupV1 := repov1.NewRepository(pool, &l, retentionPeriod, retentionPeriod, scf.Runtime.MaxInternalRetryCount, entitlementRepo, taskLimits, scf.PayloadStore.EnablePayloadDualWrites)
 
 	apiRepo, cleanupApiRepo, err := postgresdb.NewAPIRepository(pool, &scf.Runtime, opts...)
 
@@ -593,6 +593,8 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 	if err != nil {
 		return nil, nil, fmt.Errorf("could not create scheduling pool (v1): %w", err)
 	}
+
+	schedulingPoolV1.Extensions.Add(v1.NewPrometheusExtension())
 
 	cleanup = func() error {
 		log.Printf("cleaning up server config")

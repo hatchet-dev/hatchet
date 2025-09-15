@@ -60,6 +60,10 @@ func (w *Worker) panicMiddleware(ctx HatchetContext, next func(HatchetContext) e
 					w.l.Error().Err(innerErr).Msg("could not send failure event")
 				}
 
+				if w.panicHandler != nil {
+					w.panicHandler(ctx, r)
+				}
+
 				return
 			}
 		}()

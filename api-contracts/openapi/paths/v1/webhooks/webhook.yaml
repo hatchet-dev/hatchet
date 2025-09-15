@@ -2,6 +2,7 @@ V1WebhookGetDeleteReceiveUpdate:
   get:
     description: Get a webhook by its name
     operationId: v1-webhook:get
+    x-enable-rate-limiting: true
     parameters:
       - description: The tenant id
         in: path

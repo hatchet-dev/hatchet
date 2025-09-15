@@ -2,36 +2,38 @@ package hatchet
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"reflect"
-	"strings"
 	"time"
 
 	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	v0Client "github.com/hatchet-dev/hatchet/pkg/client"
 	"github.com/hatchet-dev/hatchet/pkg/client/create"
-	"github.com/hatchet-dev/hatchet/pkg/client/rest"
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
 	"github.com/hatchet-dev/hatchet/pkg/worker"
 	"github.com/hatchet-dev/hatchet/pkg/worker/condition"
+	"github.com/hatchet-dev/hatchet/sdks/go/features"
 	"github.com/hatchet-dev/hatchet/sdks/go/internal"
 )
+
+type RunPriority = features.RunPriority
 
 // RunOpts is a type that represents the options for running a workflow.
 type RunOpts struct {
 	AdditionalMetadata *map[string]interface{}
-	Priority           *int32
-	// Sticky             *bool
-	// Key                *string
+	Priority           *RunPriority
 }
 
 type RunOptFunc = v0Client.RunOptFunc
 
-func WithRunMetadata(metadata interface{}) RunOptFunc {
+func WithRunMetadata(metadata any) RunOptFunc {
 	return v0Client.WithRunMetadata(metadata)
 }
 
-func WithPriority(priority int32) RunOptFunc {
-	return v0Client.WithPriority(priority)
+// WithRunPriority sets the priority for a workflow run.
+func WithRunPriority(priority RunPriority) RunOptFunc {
+	return v0Client.WithPriority(int32(priority))
 }
 
 // convertInputToType converts input (typically map[string]interface{}) to the expected struct type
@@ -45,64 +47,29 @@ func convertInputToType(input any, expectedType reflect.Type) reflect.Value {
 		return inputValue
 	}
 
-	// Try to convert map[string]any to the expected struct type
-	if inputMap, ok := input.(map[string]any); ok && expectedType.Kind() == reflect.Struct {
-		convertedInput := reflect.New(expectedType).Elem()
-		for i := 0; i < expectedType.NumField(); i++ {
-			field := expectedType.Field(i)
-			jsonTag := field.Tag.Get("json")
-			if jsonTag == "" {
-				jsonTag = field.Name
-			} else {
-				// Handle JSON tag options like "count,omitempty" -> "count"
-				if commaIndex := strings.Index(jsonTag, ","); commaIndex != -1 {
-					jsonTag = jsonTag[:commaIndex]
-				}
-			}
-			if val, exists := inputMap[jsonTag]; exists {
-				fieldValue := convertedInput.Field(i)
-				if fieldValue.CanSet() {
-					valReflect := reflect.ValueOf(val)
-					if valReflect.Type().AssignableTo(field.Type) {
-						fieldValue.Set(valReflect)
-					} else {
-						// Try to convert common type mismatches
-						converted, ok := convertValue(val, field.Type)
-						if ok {
-							fieldValue.Set(converted)
-						}
-					}
-				}
-			}
+	// Try to convert using JSON marshal/unmarshal
+	if expectedType.Kind() == reflect.Struct {
+		// Marshal the input to JSON
+		jsonData, err := json.Marshal(input)
+		if err != nil {
+			// If marshaling fails, return the original input value
+			return reflect.ValueOf(input)
 		}
-		return convertedInput
+
+		// Create a new instance of the expected type
+		result := reflect.New(expectedType)
+
+		// Unmarshal JSON into the new instance
+		err = json.Unmarshal(jsonData, result.Interface())
+		if err != nil {
+			panic(err)
+		}
+
+		// Return the dereferenced value (not the pointer)
+		return result.Elem()
 	}
 
 	return reflect.ValueOf(input)
-}
-
-// convertValue attempts to convert a value to the target type for common type mismatches
-func convertValue(val any, targetType reflect.Type) (reflect.Value, bool) {
-	valReflect := reflect.ValueOf(val)
-
-	// Handle numeric conversions (e.g., float64 -> int, int -> float64)
-	if valReflect.Kind() == reflect.Float64 && targetType.Kind() == reflect.Int {
-		if f64, ok := val.(float64); ok {
-			return reflect.ValueOf(int(f64)), true
-		}
-	}
-	if valReflect.Kind() == reflect.Float64 && targetType.Kind() == reflect.Int32 {
-		if f64, ok := val.(float64); ok {
-			return reflect.ValueOf(int32(f64)), true
-		}
-	}
-	if valReflect.Kind() == reflect.Float64 && targetType.Kind() == reflect.Int64 {
-		if f64, ok := val.(float64); ok {
-			return reflect.ValueOf(int64(f64)), true
-		}
-	}
-
-	return reflect.Value{}, false
 }
 
 // Workflow defines a Hatchet workflow, which can then declare tasks and be run, scheduled, and so on.
@@ -120,11 +87,12 @@ func (w *Workflow) GetName() string {
 type WorkflowOption func(*workflowConfig)
 
 type workflowConfig struct {
-	onCron      []string
-	onEvents    []string
-	concurrency []types.Concurrency
-	version     string
-	description string
+	onCron       []string
+	onEvents     []string
+	concurrency  []types.Concurrency
+	version      string
+	description  string
+	taskDefaults *create.TaskDefaults
 }
 
 // WithWorkflowCron configures the workflow to run on a cron schedule.
@@ -163,6 +131,13 @@ func WithWorkflowConcurrency(concurrency ...types.Concurrency) WorkflowOption {
 	}
 }
 
+// WithWorkflowTaskDefaults sets the default configuration for all tasks in the workflow.
+func WithWorkflowTaskDefaults(defaults *create.TaskDefaults) WorkflowOption {
+	return func(config *workflowConfig) {
+		config.taskDefaults = defaults
+	}
+}
+
 // newWorkflow creates a new workflow definition.
 func newWorkflow(name string, v0Client v0Client.Client, options ...WorkflowOption) *Workflow {
 	config := &workflowConfig{}
@@ -173,12 +148,13 @@ func newWorkflow(name string, v0Client v0Client.Client, options ...WorkflowOptio
 
 	declaration := internal.NewWorkflowDeclaration[any, any](
 		create.WorkflowCreateOpts[any]{
-			Name:        name,
-			Version:     config.version,
-			Description: config.description,
-			OnEvents:    config.onEvents,
-			OnCron:      config.onCron,
-			Concurrency: config.concurrency,
+			Name:         name,
+			Version:      config.version,
+			Description:  config.description,
+			OnEvents:     config.onEvents,
+			OnCron:       config.onCron,
+			Concurrency:  config.concurrency,
+			TaskDefaults: config.taskDefaults,
 		},
 		v0Client,
 	)
@@ -197,6 +173,7 @@ type taskConfig struct {
 	retryBackoffFactor     float32
 	retryMaxBackoffSeconds int32
 	executionTimeout       time.Duration
+	scheduleTimeout        time.Duration
 	onCron                 []string
 	onEvents               []string
 	defaultFilters         []types.DefaultFilter
@@ -206,6 +183,7 @@ type taskConfig struct {
 	parents                []create.NamedTask
 	waitFor                condition.Condition
 	skipIf                 condition.Condition
+	description            string
 }
 
 // WithRetries sets the number of retry attempts for failed tasks.
@@ -223,8 +201,15 @@ func WithRetryBackoff(factor float32, maxBackoffSeconds int) TaskOption {
 	}
 }
 
-// WithTimeout sets the maximum execution duration for a task.
-func WithTimeout(timeout time.Duration) TaskOption {
+// WithScheduleTimeout sets the maximum time a task can wait to be scheduled.
+func WithScheduleTimeout(timeout time.Duration) TaskOption {
+	return func(config *taskConfig) {
+		config.scheduleTimeout = timeout
+	}
+}
+
+// WithExecutionTimeout sets the maximum execution duration for a task.
+func WithExecutionTimeout(timeout time.Duration) TaskOption {
 	return func(config *taskConfig) {
 		config.executionTimeout = timeout
 	}
@@ -300,6 +285,13 @@ func WithSkipIf(condition condition.Condition) TaskOption {
 	}
 }
 
+// WithDescription sets a human-readable description for the task.
+func WithDescription(description string) TaskOption {
+	return func(config *taskConfig) {
+		config.description = description
+	}
+}
+
 // Task represents a task reference for building DAGs and conditions.
 type Task struct {
 	name string
@@ -314,14 +306,18 @@ func (t *Task) GetName() string {
 //
 // The function parameter must have the signature:
 //
-//	func(ctx Context, input T) (T, error)
-//
-// For durable tasks, use:
-//
-//	func(ctx DurableContext, input T) (T, error)
+//	func(ctx hatchet.Context, input any) (any, error)
 //
 // Function signatures are validated at runtime using reflection.
 func (w *Workflow) NewTask(name string, fn any, options ...TaskOption) *Task {
+	if name == "" {
+		panic("task name cannot be empty")
+	}
+
+	if fn == nil {
+		panic("task '" + name + "' has a nil input function")
+	}
+
 	config := &taskConfig{}
 
 	for _, opt := range options {
@@ -332,13 +328,15 @@ func (w *Workflow) NewTask(name string, fn any, options ...TaskOption) *Task {
 	fnType := fnValue.Type()
 
 	if fnType.Kind() != reflect.Func {
-		panic("task function must be a function")
+		panic("fn must be a function")
 	}
+
 	if fnType.NumIn() != 2 {
-		panic("task function must have exactly 2 parameters: (ctx Context, input T)")
+		panic("fn must have exactly 2 parameters: (ctx hatchet.Context, input T)")
 	}
+
 	if fnType.NumOut() != 2 {
-		panic("task function must return exactly 2 values: (output T, error)")
+		panic("fn must return exactly 2 values: (output T, err error)")
 	}
 
 	contextType := reflect.TypeOf((*Context)(nil)).Elem()
@@ -346,11 +344,11 @@ func (w *Workflow) NewTask(name string, fn any, options ...TaskOption) *Task {
 
 	if config.isDurable {
 		if !fnType.In(0).Implements(durableContextType) && fnType.In(0) != durableContextType {
-			panic("first parameter for durable task must be DurableHatchetContext")
+			panic("first parameter for durable task must be hatchet.DurableContext")
 		}
 	} else {
 		if !fnType.In(0).Implements(contextType) && fnType.In(0) != contextType {
-			panic("first parameter must be Context")
+			panic("first parameter must be hatchet.Context")
 		}
 	}
 
@@ -397,6 +395,7 @@ func (w *Workflow) NewTask(name string, fn any, options ...TaskOption) *Task {
 		RetryBackoffFactor:     config.retryBackoffFactor,
 		RetryMaxBackoffSeconds: config.retryMaxBackoffSeconds,
 		ExecutionTimeout:       config.executionTimeout,
+		ScheduleTimeout:        config.scheduleTimeout,
 		Concurrency:            config.concurrency,
 		RateLimits:             config.rateLimits,
 		Parents:                config.parents,
@@ -410,7 +409,12 @@ func (w *Workflow) NewTask(name string, fn any, options ...TaskOption) *Task {
 }
 
 // NewDurableTask transforms a function into a durable Hatchet task that runs as part of a workflow.
-// This is a convenience method that automatically sets the WithDurable option.
+//
+// The function parameter must have the signature:
+//
+//	func(ctx hatchet.DurableContext, input any) (any, error)
+//
+// Function signatures are validated at runtime using reflection.
 func (w *Workflow) NewDurableTask(name string, fn any, options ...TaskOption) *Task {
 	durableOptions := append(options, withDurable())
 	return w.NewTask(name, fn, durableOptions...)
@@ -490,8 +494,13 @@ func (w *Workflow) Dump() (*contracts.CreateWorkflowVersionRequest, []internal.N
 // Workflow execution methods
 
 // Run executes the workflow with the provided input and waits for completion.
-func (w *Workflow) Run(ctx context.Context, input any) (any, error) {
-	return w.declaration.Run(ctx, input)
+func (w *Workflow) Run(ctx context.Context, input any) (*WorkflowResult, error) {
+	result, err := w.declaration.Run(ctx, input)
+	if err != nil {
+		return nil, err
+	}
+
+	return &WorkflowResult{result: result}, nil
 }
 
 // RunNoWait executes the workflow with the provided input without waiting for completion.
@@ -505,12 +514,43 @@ func (w *Workflow) RunNoWait(ctx context.Context, input any) (*WorkflowRef, erro
 	return &WorkflowRef{RunId: wf.RunId()}, nil
 }
 
-// Cron schedules the workflow to run on a regular basis using a cron expression.
-func (w *Workflow) Cron(ctx context.Context, name string, cronExpr string, input any) (*rest.CronWorkflows, error) {
-	return w.declaration.Cron(ctx, name, cronExpr, input)
-}
+// RunAsChildOpts is the options for running a workflow as a child workflow.
+type RunAsChildOpts = internal.RunAsChildOpts
 
-// Schedule schedules the workflow to run at a specific time.
-func (w *Workflow) Schedule(ctx context.Context, triggerAt time.Time, input any) (*rest.ScheduledWorkflows, error) {
-	return w.declaration.Schedule(ctx, triggerAt, input)
+// RunAsChild executes the workflow as a child workflow with the provided input.
+func (w *Workflow) RunAsChild(ctx worker.HatchetContext, input any, opts RunAsChildOpts) (*WorkflowResult, error) {
+	// Convert opts to internal format
+	var additionalMetaOpt *map[string]string
+
+	if opts.AdditionalMetadata != nil {
+		additionalMeta := make(map[string]string)
+
+		for key, value := range *opts.AdditionalMetadata {
+			additionalMeta[key] = fmt.Sprintf("%v", value)
+		}
+
+		additionalMetaOpt = &additionalMeta
+	}
+
+	// Spawn the child workflow directly
+	run, err := ctx.SpawnWorkflow(w.declaration.Name(), input, &worker.SpawnWorkflowOpts{
+		Key:                opts.Key,
+		Sticky:             opts.Sticky,
+		Priority:           opts.Priority,
+		AdditionalMetadata: additionalMetaOpt,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	// Get the raw workflow result
+	workflowResult, err := run.Result()
+	if err != nil {
+		return nil, err
+	}
+
+	// Return the raw workflow result wrapped in WorkflowResult
+	// This allows users to extract specific task outputs using .Into()
+	return &WorkflowResult{result: workflowResult}, nil
 }

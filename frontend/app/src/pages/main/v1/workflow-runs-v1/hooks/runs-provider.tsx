@@ -12,6 +12,10 @@ import { useMetrics } from './use-metrics';
 import { workflowKey } from '../components/v1/task-runs-columns';
 import { V1TaskRunMetrics, V1TaskSummary } from '@/lib/api';
 import { PaginationState } from '@tanstack/react-table';
+import {
+  ActionType,
+  BaseTaskRunActionParams,
+} from '../../task-runs-v1/actions';
 
 type DisplayProps = {
   hideMetrics?: boolean;
@@ -64,6 +68,8 @@ type RunsContextType = {
     resetState: () => void;
     setIsFrozen: (isFrozen: boolean) => void;
     setIsActionModalOpen: (isOpen: boolean) => void;
+    setIsActionDropdownOpen: (isOpen: boolean) => void;
+    setSelectedActionType: (actionType: ActionType | null) => void;
     refetchRuns: () => void;
     refetchMetrics: () => void;
     getRowId: (row: V1TaskSummary) => string;
@@ -81,6 +87,9 @@ type RunsContextType = {
   tenantMetrics: object;
   isFrozen: boolean;
   isActionModalOpen: boolean;
+  isActionDropdownOpen: boolean;
+  selectedActionType: ActionType | null;
+  actionModalParams: BaseTaskRunActionParams;
   display: DisplayProps;
 };
 
@@ -98,6 +107,9 @@ export const RunsProvider = ({
 }: RunsProviderProps) => {
   const [isFrozen, setIsFrozen] = useState(false);
   const [isActionModalOpen, setIsActionModalOpen] = useState(false);
+  const [isActionDropdownOpen, setIsActionDropdownOpen] = useState(false);
+  const [selectedActionType, setSelectedActionType] =
+    useState<ActionType | null>(null);
 
   const {
     workflowId,
@@ -181,6 +193,19 @@ export const RunsProvider = ({
     onlyTasks: !!workerId || flattenDAGs,
   });
 
+  const actionModalParams = useMemo(
+    () =>
+      selectedRuns.length > 0
+        ? { externalIds: selectedRuns.map((run) => run?.metadata.id) }
+        : {
+            filter: {
+              ...filters.apiFilters,
+              since: filters.apiFilters.since || '',
+            },
+          },
+    [selectedRuns, filters.apiFilters],
+  );
+
   const {
     metrics,
     tenantMetrics,
@@ -192,7 +217,8 @@ export const RunsProvider = ({
     parentTaskExternalId: derivedParentTaskExternalId,
     createdAfter: state.createdAfter,
     refetchInterval,
-    pauseRefetch: state.hasOpenUI || isFrozen,
+    pauseRefetch: isFrozen,
+    additionalMetadata: filters.apiFilters.additionalMetadata,
   });
 
   const value = useMemo<RunsContextType>(
@@ -211,6 +237,9 @@ export const RunsProvider = ({
       tenantMetrics,
       isFrozen,
       isActionModalOpen,
+      isActionDropdownOpen,
+      actionModalParams,
+      selectedActionType,
       display: {
         hideMetrics,
         hideCounts,
@@ -230,6 +259,8 @@ export const RunsProvider = ({
         resetState,
         setIsFrozen,
         setIsActionModalOpen,
+        setIsActionDropdownOpen,
+        setSelectedActionType,
         refetchRuns,
         refetchMetrics,
         getRowId,
@@ -250,11 +281,14 @@ export const RunsProvider = ({
       tenantMetrics,
       isFrozen,
       isActionModalOpen,
+      isActionDropdownOpen,
       hideMetrics,
       hideCounts,
       hideDateFilter,
       hideTriggerRunButton,
       hideFlatten,
+      actionModalParams,
+      selectedActionType,
       refetchInterval,
       updatePagination,
       updateFilters,
@@ -263,6 +297,8 @@ export const RunsProvider = ({
       resetState,
       setIsFrozen,
       setIsActionModalOpen,
+      setIsActionDropdownOpen,
+      setSelectedActionType,
       refetchRuns,
       refetchMetrics,
       getRowId,

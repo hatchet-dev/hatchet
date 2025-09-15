@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/getkin/kin-openapi/openapi3"
@@ -39,10 +40,10 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/headers"
 	hatchetmiddleware "github.com/hatchet-dev/hatchet/api/v1/server/middleware"
 	"github.com/hatchet-dev/hatchet/api/v1/server/middleware/populator"
+	"github.com/hatchet-dev/hatchet/api/v1/server/middleware/ratelimit"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
-	"golang.org/x/time/rate"
 )
 
 type apiService struct {
@@ -179,6 +180,29 @@ func (t *APIServer) getCoreEchoService() (*echo.Echo, error) {
 	e := echo.New()
 	e.HideBanner = true
 	e.HidePort = true
+	e.IPExtractor = func(r *http.Request) string {
+		// Cloudflare sets CF-Connecting-IP header with the original client IP
+		if ip := r.Header.Get("CF-Connecting-IP"); ip != "" {
+			return ip
+		}
+
+		// Fallback to X-Forwarded-For
+		if ip := r.Header.Get("X-Forwarded-For"); ip != "" {
+			// X-Forwarded-For can contain multiple IPs, we only want the first one
+			ips := strings.Split(ip, ",")
+			if len(ips) > 0 {
+				return ips[0]
+			}
+		}
+
+		// Additional fallback to X-Real-IP used by certain proxies
+		if ip := r.Header.Get("X-Real-IP"); ip != "" {
+			return ip
+		}
+
+		// Final fallback to remote address
+		return r.RemoteAddr
+	}
 
 	g := e.Group("")
 
@@ -501,16 +525,14 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 		},
 	})
 
+	rateLimitMW := ratelimit.NewRateLimitMiddleware(t.config, spec)
+
 	// register echo middleware
 	g.Use(
 		loggerMiddleware,
 		middleware.Recover(),
+		rateLimitMW.Middleware(),
 		allHatchetMiddleware,
-		hatchetmiddleware.WebhookRateLimitMiddleware(
-			rate.Limit(t.config.Runtime.WebhookRateLimit),
-			t.config.Runtime.WebhookRateLimitBurst,
-			t.config.Logger,
-		),
 	)
 
 	return populatorMW, nil

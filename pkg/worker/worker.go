@@ -107,6 +107,8 @@ type Worker struct {
 	labels map[string]interface{}
 
 	id *string
+
+	panicHandler func(ctx HatchetContext, recovered any)
 }
 
 type WorkerOpt func(*WorkerOpts)
@@ -267,6 +269,10 @@ func NewWorker(fs ...WorkerOpt) (*Worker, error) {
 
 func (w *Worker) Use(mws ...MiddlewareFunc) {
 	w.middlewares.add(mws...)
+}
+
+func (w *Worker) SetPanicHandler(panicHandler func(ctx HatchetContext, recovered any)) {
+	w.panicHandler = panicHandler
 }
 
 func (w *Worker) NewService(name string) *Service {

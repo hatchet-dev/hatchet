@@ -19,6 +19,7 @@ type SecurityRequirement interface {
 	NoAuth() bool
 	CookieAuth() bool
 	BearerAuth() bool
+	CustomAuth() bool
 }
 
 type RouteInfo struct {
@@ -69,6 +70,20 @@ func (s *securityRequirement) BearerAuth() bool {
 	return false
 }
 
+func (s *securityRequirement) CustomAuth() bool {
+	if s.NoAuth() {
+		return false
+	}
+
+	for _, requirement := range s.requirements {
+		if _, ok := requirement["customAuth"]; ok {
+			return true
+		}
+	}
+
+	return false
+}
+
 type MiddlewareFunc func(r *RouteInfo) echo.HandlerFunc
 
 type MiddlewareHandler struct {
@@ -101,9 +116,7 @@ func (m *MiddlewareHandler) Use(mw MiddlewareFunc) {
 }
 
 func (m *MiddlewareHandler) Middleware() (echo.MiddlewareFunc, error) {
-
 	router, err := gorillamux.NewRouter(m.swagger)
-
 	if err != nil {
 		return nil, err
 	}

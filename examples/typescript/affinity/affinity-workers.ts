@@ -24,6 +24,7 @@ workflow.task({
 });
 
 
+// > Task with labels
 const childWorkflow = hatchet.workflow({
   name: 'child-affinity-workflow',
   description: 'test',

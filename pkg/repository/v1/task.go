@@ -77,7 +77,7 @@ type CreateTaskOpts struct {
 type ReplayTasksResult struct {
 	ReplayedTasks []TaskIdInsertedAtRetryCount
 
-	UpsertedTasks []*sqlcv1.V1Task
+	UpsertedTasks []*V1TaskWithPayload
 
 	InternalEventResults *EventMatchResults
 }
@@ -251,6 +251,9 @@ type TaskRepository interface {
 	ReleaseSlot(ctx context.Context, tenantId string, externalId string) (*sqlcv1.V1TaskRuntime, error)
 
 	ListSignalCompletedEvents(ctx context.Context, tenantId string, tasks []TaskIdInsertedAtSignalKey) ([]*sqlcv1.V1TaskEvent, error)
+
+	// AnalyzeTaskTables runs ANALYZE on the task tables
+	AnalyzeTaskTables(ctx context.Context) error
 }
 
 type TaskRepositoryImpl struct {
@@ -378,8 +381,6 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 }
 
 func (r *TaskRepositoryImpl) GetTaskByExternalId(ctx context.Context, tenantId, taskExternalId string, skipCache bool) (*sqlcv1.FlattenExternalIdsRow, error) {
-	r.l.Debug().Str("method", "GetTaskByExternalId").Str("taskExternalId", taskExternalId).Bool("skipCache", skipCache).Msg("loki-debug: retrieving task by external id")
-
 	if !skipCache {
 		// check the cache first
 		key := taskExternalIdTenantIdTuple{
@@ -397,8 +398,6 @@ func (r *TaskRepositoryImpl) GetTaskByExternalId(ctx context.Context, tenantId, 
 		Tenantid:    sqlchelpers.UUIDFromStr(tenantId),
 		Externalids: []pgtype.UUID{sqlchelpers.UUIDFromStr(taskExternalId)},
 	})
-
-	r.l.Debug().Bool("FlattenExternalIdsSucceeded", err == nil).Int("lenTasks", len(dbTasks)).Msg("loki-debug: executed FlattenExternalIds query")
 
 	if err != nil {
 		return nil, err
@@ -1559,15 +1558,17 @@ func (r *sharedRepository) createTasks(
 	tx sqlcv1.DBTX,
 	tenantId string,
 	tasks []CreateTaskOpts,
-) ([]*sqlcv1.V1Task, error) {
+) ([]*V1TaskWithPayload, error) {
 	// list the steps for the tasks
 	uniqueStepIds := make(map[string]struct{})
 	stepIds := make([]pgtype.UUID, 0)
+	externalIdToPayload := make(map[string][]byte, len(tasks))
 
 	for _, task := range tasks {
 		if _, ok := uniqueStepIds[task.StepId]; !ok {
 			uniqueStepIds[task.StepId] = struct{}{}
 			stepIds = append(stepIds, sqlchelpers.UUIDFromStr(task.StepId))
+			externalIdToPayload[task.ExternalId] = task.Input.Bytes()
 		}
 	}
 
@@ -1597,7 +1598,7 @@ func (r *sharedRepository) insertTasks(
 	tenantId string,
 	tasks []CreateTaskOpts,
 	stepIdsToConfig map[string]*sqlcv1.ListStepsByIdsRow,
-) ([]*sqlcv1.V1Task, error) {
+) ([]*V1TaskWithPayload, error) {
 	if len(tasks) == 0 {
 		return nil, nil
 	}
@@ -1627,7 +1628,6 @@ func (r *sharedRepository) insertTasks(
 	desiredWorkerIds := make([]pgtype.UUID, len(tasks))
 	externalIds := make([]pgtype.UUID, len(tasks))
 	displayNames := make([]string, len(tasks))
-	inputs := make([][]byte, len(tasks))
 	retryCounts := make([]int32, len(tasks))
 	additionalMetadatas := make([][]byte, len(tasks))
 	initialStates := make([]string, len(tasks))
@@ -1649,7 +1649,13 @@ func (r *sharedRepository) insertTasks(
 	workflowVersionIds := make([]pgtype.UUID, len(tasks))
 	workflowRunIds := make([]pgtype.UUID, len(tasks))
 
+	externalIdToInput := make(map[string][]byte, len(tasks))
+
 	unix := time.Now().UnixMilli()
+
+	cleanupParentStrategyIds := make([]int64, 0)
+	cleanupWorkflowVersionIds := make([]pgtype.UUID, 0)
+	cleanupWorkflowRunIds := make([]pgtype.UUID, 0)
 
 	for i, task := range tasks {
 		stepConfig := stepIdsToConfig[task.StepId]
@@ -1671,7 +1677,8 @@ func (r *sharedRepository) insertTasks(
 
 		// TODO: case on whether this is a v1 or v2 task by looking at the step data. for now,
 		// we're assuming a v1 task.
-		inputs[i] = r.ToV1StepRunData(task.Input).Bytes()
+		externalIdToInput[task.ExternalId] = r.ToV1StepRunData(task.Input).Bytes()
+
 		retryCounts[i] = 0
 
 		defaultPriority := stepConfig.DefaultPriority
@@ -1757,6 +1764,14 @@ func (r *sharedRepository) insertTasks(
 				taskStrategyIds = append(taskStrategyIds, strat.ID)
 				taskParentStrategyIds = append(taskParentStrategyIds, strat.ParentStrategyID)
 				emptyConcurrencyKeys = append(emptyConcurrencyKeys, "")
+
+				// we only need to cleanup parent strategy ids if the task is not in a QUEUED state, because
+				// this skips the creation of a concurrency slot and means we might want to cleanup the workflow slot
+				if strat.ParentStrategyID.Valid && task.InitialState != sqlcv1.V1TaskInitialStateQUEUED {
+					cleanupParentStrategyIds = append(cleanupParentStrategyIds, strat.ParentStrategyID.Int64)
+					cleanupWorkflowRunIds = append(cleanupWorkflowRunIds, sqlchelpers.UUIDFromStr(task.WorkflowRunId))
+					cleanupWorkflowVersionIds = append(cleanupWorkflowVersionIds, stepConfig.WorkflowVersionId)
+				}
 			}
 		}
 
@@ -1923,7 +1938,6 @@ func (r *sharedRepository) insertTasks(
 				Desiredworkerids:             make([]pgtype.UUID, 0),
 				Externalids:                  make([]pgtype.UUID, 0),
 				Displaynames:                 make([]string, 0),
-				Inputs:                       make([][]byte, 0),
 				Retrycounts:                  make([]int32, 0),
 				Additionalmetadatas:          make([][]byte, 0),
 				InitialStates:                make([]string, 0),
@@ -1943,6 +1957,7 @@ func (r *sharedRepository) insertTasks(
 				RetryMaxBackoff:              make([]pgtype.Int4, 0),
 				WorkflowVersionIds:           make([]pgtype.UUID, 0),
 				WorkflowRunIds:               make([]pgtype.UUID, 0),
+				Inputs:                       make([][]byte, 0),
 			}
 		}
 
@@ -1959,7 +1974,6 @@ func (r *sharedRepository) insertTasks(
 		params.Desiredworkerids = append(params.Desiredworkerids, desiredWorkerIds[i])
 		params.Externalids = append(params.Externalids, externalIds[i])
 		params.Displaynames = append(params.Displaynames, displayNames[i])
-		params.Inputs = append(params.Inputs, inputs[i])
 		params.Retrycounts = append(params.Retrycounts, retryCounts[i])
 		params.Additionalmetadatas = append(params.Additionalmetadatas, additionalMetadatas[i])
 		params.InitialStates = append(params.InitialStates, initialStates[i])
@@ -1980,10 +1994,18 @@ func (r *sharedRepository) insertTasks(
 		params.WorkflowVersionIds = append(params.WorkflowVersionIds, workflowVersionIds[i])
 		params.WorkflowRunIds = append(params.WorkflowRunIds, workflowRunIds[i])
 
+		if r.payloadStore.DualWritesEnabled() {
+			// if dual writes are enabled, write the inputs to the tasks table
+			params.Inputs = append(params.Inputs, externalIdToInput[task.ExternalId])
+		} else {
+			// otherwise, write an empty json object to the inputs column
+			params.Inputs = append(params.Inputs, []byte("{}"))
+		}
+
 		stepIdsToParams[task.StepId] = params
 	}
 
-	res := make([]*sqlcv1.V1Task, 0)
+	res := make([]*V1TaskWithPayload, 0)
 
 	// for any initial states which are not queued, create a finalizing task event
 	eventTaskIdRetryCounts := make([]TaskIdInsertedAtRetryCount, 0)
@@ -1998,9 +2020,20 @@ func (r *sharedRepository) insertTasks(
 			return nil, fmt.Errorf("failed to create tasks for step id %s: %w", stepId, err)
 		}
 
-		res = append(res, createdTasks...)
+		createdTasksWithPayloads := make([]*V1TaskWithPayload, len(createdTasks))
 
-		for _, createdTask := range createdTasks {
+		for i, task := range createdTasks {
+			input := externalIdToInput[sqlchelpers.UUIDToStr(task.ExternalID)]
+			withPayload := V1TaskWithPayload{
+				V1Task:  task,
+				Payload: input,
+			}
+
+			res = append(res, &withPayload)
+			createdTasksWithPayloads[i] = &withPayload
+		}
+
+		for _, createdTask := range createdTasksWithPayloads {
 			idRetryCount := TaskIdInsertedAtRetryCount{
 				Id:         createdTask.ID,
 				InsertedAt: createdTask.InsertedAt,
@@ -2050,6 +2083,22 @@ func (r *sharedRepository) insertTasks(
 		}
 	}
 
+	if len(cleanupParentStrategyIds) > 0 {
+		err = r.queries.CleanupWorkflowConcurrencySlotsAfterInsert(
+			ctx,
+			tx,
+			sqlcv1.CleanupWorkflowConcurrencySlotsAfterInsertParams{
+				Concurrencyparentstrategyids: cleanupParentStrategyIds,
+				Workflowrunids:               cleanupWorkflowRunIds,
+				Workflowversionids:           cleanupWorkflowVersionIds,
+			},
+		)
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to cleanup workflow concurrency slots after insert: %w", err)
+		}
+	}
+
 	// TODO: this should be moved to after the transaction commits
 	saveQueueCache()
 
@@ -2063,7 +2112,7 @@ func (r *sharedRepository) replayTasks(
 	tx sqlcv1.DBTX,
 	tenantId string,
 	tasks []ReplayTaskOpts,
-) ([]*sqlcv1.V1Task, error) {
+) ([]*V1TaskWithPayload, error) {
 	if len(tasks) == 0 {
 		return nil, nil
 	}
@@ -2101,12 +2150,13 @@ func (r *sharedRepository) replayTasks(
 
 	taskIds := make([]int64, len(tasks))
 	taskInsertedAts := make([]pgtype.Timestamptz, len(tasks))
-	inputs := make([][]byte, len(tasks))
 	initialStates := make([]string, len(tasks))
 	initialStateReasons := make([]pgtype.Text, len(tasks))
 	concurrencyKeys := make([][]string, len(tasks))
 	additionalMetadatas := make([][]byte, len(tasks))
 	queues := make([]string, len(tasks))
+
+	externalIdToInput := make(map[string][]byte, len(tasks))
 
 	for i, task := range tasks {
 		stepConfig := stepIdsToConfig[task.StepId]
@@ -2118,8 +2168,9 @@ func (r *sharedRepository) replayTasks(
 		// TODO: case on whether this is a v1 or v2 task by looking at the step data. for now,
 		// we're assuming a v1 task.
 		if task.Input != nil {
-			inputs[i] = r.ToV1StepRunData(task.Input).Bytes()
+			externalIdToInput[task.ExternalId] = r.ToV1StepRunData(task.Input).Bytes()
 		}
+
 		initialStates[i] = string(task.InitialState)
 		if initialStates[i] == "" {
 			initialStates[i] = string(sqlcv1.V1TaskInitialStateQUEUED)
@@ -2218,9 +2269,11 @@ func (r *sharedRepository) replayTasks(
 			}
 		}
 
+		input := externalIdToInput[task.ExternalId]
+
 		params.Taskids = append(params.Taskids, taskIds[i])
 		params.Taskinsertedats = append(params.Taskinsertedats, taskInsertedAts[i])
-		params.Inputs = append(params.Inputs, inputs[i])
+		params.Inputs = append(params.Inputs, input)
 		params.InitialStates = append(params.InitialStates, initialStates[i])
 		params.InitialStateReasons = append(params.InitialStateReasons, initialStateReasons[i])
 		params.Concurrencykeys = append(params.Concurrencykeys, concurrencyKeys[i])
@@ -2228,7 +2281,7 @@ func (r *sharedRepository) replayTasks(
 		stepIdsToParams[task.StepId] = params
 	}
 
-	res := make([]*sqlcv1.V1Task, 0)
+	res := make([]*V1TaskWithPayload, 0)
 
 	// for any initial states which are not queued, create a finalizing task event
 	eventTaskIdRetryCounts := make([]TaskIdInsertedAtRetryCount, 0)
@@ -2243,9 +2296,18 @@ func (r *sharedRepository) replayTasks(
 			return nil, fmt.Errorf("failed to replay tasks for step id %s: %w", stepId, err)
 		}
 
-		res = append(res, replayRes...)
+		replayResWithPayloads := make([]*V1TaskWithPayload, len(replayRes))
+		for i, task := range replayRes {
+			input := externalIdToInput[sqlchelpers.UUIDToStr(task.ExternalID)]
+			withPayload := V1TaskWithPayload{
+				V1Task:  task,
+				Payload: input,
+			}
+			replayResWithPayloads[i] = &withPayload
+			res = append(res, &withPayload)
+		}
 
-		for _, replayedTask := range replayRes {
+		for _, replayedTask := range replayResWithPayloads {
 			idRetryCount := TaskIdInsertedAtRetryCount{
 				Id:         replayedTask.ID,
 				InsertedAt: replayedTask.InsertedAt,
@@ -2739,6 +2801,23 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId string, t
 			}
 		}
 
+		input, err := r.payloadStore.Retrieve(ctx, RetrievePayloadOpts{
+			Id:         task.ID,
+			InsertedAt: task.InsertedAt,
+			Type:       sqlcv1.V1PayloadTypeTASKINPUT,
+			TenantId:   sqlchelpers.UUIDFromStr(tenantId),
+		})
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to retrieve task input: %w", err)
+		}
+
+		if input == nil {
+			// If the input wasn't found in the payload store,
+			// fall back to the input stored on the task itself.
+			input = task.Input
+		}
+
 		replayOpts = append(replayOpts, ReplayTaskOpts{
 			TaskId:             task.ID,
 			InsertedAt:         task.InsertedAt,
@@ -2749,7 +2828,7 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId string, t
 			// NOTE: we require the input to be passed in to the replay method so we can re-evaluate the concurrency keys
 			// Ideally we could preserve the same concurrency keys, but the replay tasks method is currently unaware of existing concurrency
 			// keys because they may change between retries.
-			Input: r.newTaskInputFromExistingBytes(task.Input),
+			Input: r.newTaskInputFromExistingBytes(input),
 		})
 	}
 
@@ -2781,7 +2860,7 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId string, t
 		dagIdsToAllTasks[task.DagID.Int64] = append(dagIdsToAllTasks[task.DagID.Int64], task)
 	}
 
-	upsertedTasks := make([]*sqlcv1.V1Task, 0)
+	upsertedTasks := make([]*V1TaskWithPayload, 0)
 
 	// NOTE: the tasks which are passed in represent a *subtree* of the DAG.
 	if len(replayOpts) > 0 {
@@ -3122,13 +3201,13 @@ type createTaskExpressionEvalOpt struct {
 	Kind     sqlcv1.StepExpressionKind
 }
 
-func (r *sharedRepository) createExpressionEvals(ctx context.Context, dbtx sqlcv1.DBTX, createdTasks []*sqlcv1.V1Task, opts map[string][]createTaskExpressionEvalOpt) error {
+func (r *sharedRepository) createExpressionEvals(ctx context.Context, dbtx sqlcv1.DBTX, createdTasks []*V1TaskWithPayload, opts map[string][]createTaskExpressionEvalOpt) error {
 	if len(opts) == 0 {
 		return nil
 	}
 
 	// map tasks using their external id
-	taskExternalIds := make(map[string]*sqlcv1.V1Task)
+	taskExternalIds := make(map[string]*V1TaskWithPayload)
 
 	for _, task := range createdTasks {
 		taskExternalIds[sqlchelpers.UUIDToStr(task.ExternalID)] = task
@@ -3280,4 +3359,44 @@ func (r *TaskRepositoryImpl) ListSignalCompletedEvents(ctx context.Context, tena
 		Taskinsertedats: taskInsertedAts,
 		Eventkeys:       eventKeys,
 	})
+}
+
+func (r *TaskRepositoryImpl) AnalyzeTaskTables(ctx context.Context) error {
+	const timeout = 1000 * 60 * 30 // 30 minute timeout
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, timeout)
+
+	if err != nil {
+		return fmt.Errorf("error beginning transaction: %v", err)
+	}
+
+	defer rollback()
+
+	acquired, err := r.queries.TryAdvisoryLock(ctx, tx, hash("analyze-task-tables"))
+
+	if err != nil {
+		return fmt.Errorf("error acquiring advisory lock: %v", err)
+	}
+
+	if !acquired {
+		r.l.Info().Msg("advisory lock already held, skipping task table analysis")
+		return nil
+	}
+
+	err = r.queries.AnalyzeV1Task(ctx, tx)
+
+	if err != nil {
+		return fmt.Errorf("error analyzing v1_task: %v", err)
+	}
+
+	err = r.queries.AnalyzeV1TaskEvent(ctx, tx)
+
+	if err != nil {
+		return fmt.Errorf("error analyzing v1_task_event: %v", err)
+	}
+
+	if err := commit(ctx); err != nil {
+		return fmt.Errorf("error committing transaction: %v", err)
+	}
+
+	return nil
 }

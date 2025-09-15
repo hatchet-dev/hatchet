@@ -30,7 +30,7 @@ type WebhooksController struct {
 	cleanups            map[string]func() error
 	p                   *partition.Partition
 	mu                  sync.Mutex // Add a mutex for concurrent map access
-	checkOps            *queueutils.OperationPool
+	checkOps            *queueutils.OperationPool[string]
 }
 
 func New(sc *server.ServerConfig, p *partition.Partition, l *zerolog.Logger) *WebhooksController {

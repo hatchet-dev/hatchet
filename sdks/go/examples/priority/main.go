@@ -5,7 +5,9 @@ import (
 	"log"
 	"time"
 
+	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
 	hatchet "github.com/hatchet-dev/hatchet/sdks/go"
+	"github.com/hatchet-dev/hatchet/sdks/go/features"
 )
 
 type PriorityInput struct {
@@ -35,7 +37,7 @@ func main() {
 	)
 
 	// Task that processes requests based on priority
-	priorityWorkflow.NewTask("process-request", func(ctx hatchet.Context, input PriorityInput) (PriorityOutput, error) {
+	_ = priorityWorkflow.NewTask("process-request", func(ctx hatchet.Context, input PriorityInput) (PriorityOutput, error) {
 		// Access the current priority from context
 		currentPriority := ctx.Priority()
 
@@ -87,13 +89,13 @@ func main() {
 	}
 
 	// Function to run workflow with specific priority
-	runWithPriority := func(priority int32, input PriorityInput, delay time.Duration) {
+	runWithPriority := func(priority hatchet.RunPriority, input PriorityInput, delay time.Duration) {
 		time.Sleep(delay)
 		log.Printf("Submitting %s task with priority %d for user %s",
 			input.TaskType, priority, input.UserID)
 
 		// Run workflow with specific priority
-		_, err := clientInstance.Run(context.Background(), "priority-demo", input, hatchet.WithPriority(priority))
+		_, err := clientInstance.Run(context.Background(), "priority-demo", input, hatchet.WithRunPriority(priority))
 		if err != nil {
 			log.Printf("Failed to run workflow with priority %d: %v", priority, err)
 		}
@@ -108,7 +110,7 @@ func main() {
 		log.Println("Watch the processing order - high priority should be processed first!")
 
 		// Submit low priority task first
-		go runWithPriority(1, PriorityInput{
+		go runWithPriority(features.RunPriorityLow, PriorityInput{
 			UserID:    "user-001",
 			TaskType:  "report",
 			Message:   "Generate monthly report",
@@ -116,7 +118,7 @@ func main() {
 		}, 0)
 
 		// Submit high priority task second (but should be processed first)
-		go runWithPriority(4, PriorityInput{
+		go runWithPriority(features.RunPriorityHigh, PriorityInput{
 			UserID:    "user-002",
 			TaskType:  "alert",
 			Message:   "Critical system alert",
@@ -124,7 +126,7 @@ func main() {
 		}, 100*time.Millisecond)
 
 		// Submit medium priority task third
-		go runWithPriority(2, PriorityInput{
+		go runWithPriority(features.RunPriorityMedium, PriorityInput{
 			UserID:    "user-003",
 			TaskType:  "notification",
 			Message:   "User notification",
@@ -132,7 +134,7 @@ func main() {
 		}, 200*time.Millisecond)
 
 		// Submit another high priority task
-		go runWithPriority(5, PriorityInput{
+		go runWithPriority(features.RunPriorityHigh, PriorityInput{
 			UserID:    "user-004",
 			TaskType:  "emergency",
 			Message:   "Emergency response needed",
@@ -140,7 +142,7 @@ func main() {
 		}, 300*time.Millisecond)
 
 		// Submit more tasks to show queuing behavior
-		go runWithPriority(1, PriorityInput{
+		go runWithPriority(features.RunPriorityLow, PriorityInput{
 			UserID:    "user-005",
 			TaskType:  "backup",
 			Message:   "System backup",
@@ -156,7 +158,10 @@ func main() {
 	log.Println("  - Different processing behavior based on priority")
 	log.Println("  - Premium vs standard user handling")
 
-	if err := worker.StartBlocking(); err != nil {
+	interruptCtx, cancel := cmdutils.NewInterruptContext()
+	defer cancel()
+
+	if err := worker.StartBlocking(interruptCtx); err != nil {
 		log.Fatalf("failed to start worker: %v", err)
 	}
 }

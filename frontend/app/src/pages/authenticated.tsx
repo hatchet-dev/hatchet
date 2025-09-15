@@ -77,6 +77,11 @@ export default function Authenticated() {
     const currentUrl = window.location.pathname;
     const userQueryError = userQuery.error as AxiosError<User> | null;
 
+    // Skip all redirects for organization pages
+    if (currentUrl.startsWith('/organizations')) {
+      return;
+    }
+
     if (userQueryError?.status === 401 || userQueryError?.status === 403) {
       window.location.href = '/auth/login';
       return;
@@ -143,7 +148,13 @@ export default function Authenticated() {
     }
   }
 
-  if (!userQuery.data || !listMembershipsQuery.data?.rows) {
+  if (!userQuery.data) {
+    return <Loading />;
+  }
+
+  // Allow organization pages even without tenant memberships
+  const isOrgPage = window.location.pathname.includes('/organizations');
+  if (!isOrgPage && !listMembershipsQuery.data?.rows) {
     return <Loading />;
   }
 
@@ -151,7 +162,11 @@ export default function Authenticated() {
     <AnalyticsProvider user={userQuery.data}>
       <SupportChat user={userQuery.data}>
         <div className="flex flex-row flex-1 w-full h-full">
-          <MainNav user={userQuery.data} setHasBanner={setHasBanner} />
+          <MainNav
+            user={userQuery.data}
+            tenantMemberships={listMembershipsQuery.data?.rows || []}
+            setHasBanner={setHasBanner}
+          />
           <div
             className={`${hasHasBanner ? 'pt-28' : 'pt-16'} flex-grow overflow-y-auto overflow-x-hidden`}
           >

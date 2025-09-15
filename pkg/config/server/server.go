@@ -4,13 +4,14 @@ import (
 	"crypto/tls"
 	"time"
 
+	"github.com/labstack/echo/v4"
 	"github.com/rs/zerolog"
 	"github.com/spf13/viper"
 	"golang.org/x/oauth2"
 	"google.golang.org/grpc"
 
+	"github.com/hatchet-dev/hatchet/api/v1/server/middleware"
 	"github.com/hatchet-dev/hatchet/internal/integrations/alerting"
-	"github.com/hatchet-dev/hatchet/internal/integrations/email"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	msgqueuev1 "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor"
@@ -22,6 +23,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/config/shared"
 	"github.com/hatchet-dev/hatchet/pkg/encryption"
 	"github.com/hatchet-dev/hatchet/pkg/errors"
+	"github.com/hatchet-dev/hatchet/pkg/integrations/email"
 	"github.com/hatchet-dev/hatchet/pkg/repository/buffer"
 	v0 "github.com/hatchet-dev/hatchet/pkg/scheduling/v0"
 	v1 "github.com/hatchet-dev/hatchet/pkg/scheduling/v1"
@@ -77,6 +79,8 @@ type ServerConfigFile struct {
 	Sampling ConfigFileSampling `mapstructure:"sampling" json:"sampling,omitempty"`
 
 	OLAP ConfigFileOperations `mapstructure:"olap" json:"olap,omitempty"`
+
+	PayloadStore PayloadStoreConfig `mapstructure:"payloadStore" json:"payloadStore,omitempty"`
 }
 
 type ConfigFileAdditionalLoggers struct {
@@ -146,14 +150,12 @@ type ConfigFileRuntime struct {
 	// GRPCMaxMsgSize is the maximum message size that the grpc server will accept
 	GRPCMaxMsgSize int `mapstructure:"grpcMaxMsgSize" json:"grpcMaxMsgSize,omitempty" default:"4194304"`
 
+	// GRPCStaticStreamWindowSize sets the static stream window size for the grpc server. This can help with performance
+	// with overloaded workers and large messages. Default is 10MB.
+	GRPCStaticStreamWindowSize int32 `mapstructure:"grpcStaticStreamWindowSize" json:"grpcStaticStreamWindowSize,omitempty" default:"10485760"`
+
 	// GRPCRateLimit is the rate limit for the grpc server. We count limits separately for the Workflow, Dispatcher and Events services. Workflow and Events service are set to this rate, Dispatcher is 10X this rate. The rate limit is per second, per engine, per api token.
 	GRPCRateLimit float64 `mapstructure:"grpcRateLimit" json:"grpcRateLimit,omitempty" default:"1000"`
-
-	// WebhookRateLimit is the rate limit for webhook endpoints per second, per webhook
-	WebhookRateLimit float64 `mapstructure:"webhookRateLimit" json:"webhookRateLimit,omitempty" default:"50"`
-
-	// WebhookRateLimitBurst is the burst size for webhook rate limiting
-	WebhookRateLimitBurst int `mapstructure:"webhookRateLimitBurst" json:"webhookRateLimitBurst,omitempty" default:"100"`
 
 	// ShutdownWait is the time between the readiness probe being offline when a shutdown is triggered and the actual start of cleaning up resources.
 	ShutdownWait time.Duration `mapstructure:"shutdownWait" json:"shutdownWait,omitempty" default:"20s"`
@@ -191,6 +193,10 @@ type ConfigFileRuntime struct {
 
 	// Allow passwords to be changed
 	AllowChangePassword bool `mapstructure:"allowChangePassword" json:"allowChangePassword,omitempty" default:"true"`
+
+	// Rate limiting configuration for API operations by IP
+	APIRateLimit       int           `mapstructure:"apiRateLimit" json:"apiRateLimit,omitempty" default:"10"`
+	APIRateLimitWindow time.Duration `mapstructure:"apiRateLimitWindow" json:"apiRateLimitWindow,omitempty" default:"300s"`
 
 	// Buffer create workflow runs
 	BufferCreateWorkflowRuns bool `mapstructure:"bufferCreateWorkflowRuns" json:"bufferCreateWorkflowRuns,omitempty" default:"true"`
@@ -487,6 +493,15 @@ type PostmarkConfigFile struct {
 	SupportEmail string `mapstructure:"supportEmail" json:"supportEmail,omitempty"`
 }
 
+type CustomAuthenticator interface {
+	// Authenticate is called to authenticate for endpoints that support the customAuth security scheme
+	Authenticate(c echo.Context) error
+	// Authorize is called to authorize for endpoints that support the customAuth security scheme
+	Authorize(c echo.Context, r *middleware.RouteInfo) error
+	// CookieAuthorizerHook is called as part of cookie authorization
+	CookieAuthorizerHook(c echo.Context, r *middleware.RouteInfo) error
+}
+
 type AuthConfig struct {
 	RestrictedEmailDomains []string
 
@@ -497,6 +512,8 @@ type AuthConfig struct {
 	GithubOAuthConfig *oauth2.Config
 
 	JWTManager token.JWTManager
+
+	CustomAuthenticator CustomAuthenticator
 }
 
 type PylonConfig struct {
@@ -578,6 +595,10 @@ type ServerConfig struct {
 	Version string
 }
 
+type PayloadStoreConfig struct {
+	EnablePayloadDualWrites bool `mapstructure:"enablePayloadDualWrites" json:"enablePayloadDualWrites,omitempty" default:"false"`
+}
+
 func (c *ServerConfig) HasService(name string) bool {
 	for _, s := range c.Services {
 		if s == name {
@@ -603,9 +624,8 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.grpcBroadcastAddress", "SERVER_GRPC_BROADCAST_ADDRESS")
 	_ = v.BindEnv("runtime.grpcInsecure", "SERVER_GRPC_INSECURE")
 	_ = v.BindEnv("runtime.grpcMaxMsgSize", "SERVER_GRPC_MAX_MSG_SIZE")
+	_ = v.BindEnv("runtime.grpcStaticStreamWindowSize", "SERVER_GRPC_STATIC_STREAM_WINDOW_SIZE")
 	_ = v.BindEnv("runtime.grpcRateLimit", "SERVER_GRPC_RATE_LIMIT")
-	_ = v.BindEnv("runtime.webhookRateLimit", "SERVER_INCOMING_WEBHOOK_RATE_LIMIT")
-	_ = v.BindEnv("runtime.webhookRateLimitBurst", "SERVER_INCOMING_WEBHOOK_RATE_LIMIT_BURST")
 	_ = v.BindEnv("runtime.schedulerConcurrencyRateLimit", "SCHEDULER_CONCURRENCY_RATE_LIMIT")
 	_ = v.BindEnv("runtime.shutdownWait", "SERVER_SHUTDOWN_WAIT")
 	_ = v.BindEnv("servicesString", "SERVER_SERVICES")
@@ -618,6 +638,8 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.allowCreateTenant", "SERVER_ALLOW_CREATE_TENANT")
 	_ = v.BindEnv("runtime.maxPendingInvites", "SERVER_MAX_PENDING_INVITES")
 	_ = v.BindEnv("runtime.allowChangePassword", "SERVER_ALLOW_CHANGE_PASSWORD")
+	_ = v.BindEnv("runtime.apiRateLimit", "SERVER_API_RATE_LIMIT")
+	_ = v.BindEnv("runtime.apiRateLimitWindow", "SERVER_API_RATE_LIMIT_WINDOW")
 	_ = v.BindEnv("runtime.bufferCreateWorkflowRuns", "SERVER_BUFFER_CREATE_WORKFLOW_RUNS")
 	_ = v.BindEnv("runtime.disableTenantPubs", "SERVER_DISABLE_TENANT_PUBS")
 	_ = v.BindEnv("runtime.maxInternalRetryCount", "SERVER_MAX_INTERNAL_RETRY_COUNT")
@@ -834,4 +856,7 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("taskOperationLimits.reassignLimit", "SERVER_TASK_OPERATION_LIMITS_REASSIGN_LIMIT")
 	_ = v.BindEnv("taskOperationLimits.retryQueueLimit", "SERVER_TASK_OPERATION_LIMITS_RETRY_QUEUE_LIMIT")
 	_ = v.BindEnv("taskOperationLimits.durableSleepLimit", "SERVER_TASK_OPERATION_LIMITS_DURABLE_SLEEP_LIMIT")
+
+	// payload store options
+	_ = v.BindEnv("payloadStore.enablePayloadDualWrites", "SERVER_PAYLOAD_STORE_ENABLE_PAYLOAD_DUAL_WRITES")
 }

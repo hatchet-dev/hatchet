@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 
+	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
 	hatchet "github.com/hatchet-dev/hatchet/sdks/go"
 )
 
@@ -62,7 +63,7 @@ func main() {
 	}, hatchet.WithParents(step1))
 
 	// Final step: Combines outputs from step 2 and step 3
-	finalStep := workflow.NewTask("final-step", func(ctx hatchet.Context, input Input) (StepOutput, error) {
+	_ = workflow.NewTask("final-step", func(ctx hatchet.Context, input Input) (StepOutput, error) {
 		var step2Output, step3Output StepOutput
 
 		if err := ctx.ParentOutput(step2, &step2Output); err != nil {
@@ -77,12 +78,20 @@ func main() {
 			Result: step2Output.Result + step3Output.Result,
 		}, nil
 	}, hatchet.WithParents(step2, step3))
-	_ = finalStep // Task reference available
 
 	worker, err := client.NewWorker("dag-worker", hatchet.WithWorkflows(workflow))
 	if err != nil {
 		log.Fatalf("failed to create worker: %v", err)
 	}
+
+	interruptCtx, cancel := cmdutils.NewInterruptContext()
+	defer cancel()
+
+	go func() {
+		if err := worker.StartBlocking(interruptCtx); err != nil {
+			log.Fatalf("failed to start worker: %v", err)
+		}
+	}()
 
 	// Run the workflow
 	_, err = client.Run(context.Background(), "dag-workflow", Input{Value: 5})
@@ -90,7 +99,5 @@ func main() {
 		log.Fatalf("failed to run workflow: %v", err)
 	}
 
-	if err := worker.StartBlocking(); err != nil {
-		log.Fatalf("failed to start worker: %v", err)
-	}
+	<-interruptCtx.Done()
 }

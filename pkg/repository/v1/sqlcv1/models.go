@@ -688,6 +688,49 @@ func (ns NullStickyStrategy) Value() (driver.Value, error) {
 	return string(ns.StickyStrategy), nil
 }
 
+type TenantEnvironment string
+
+const (
+	TenantEnvironmentLocal       TenantEnvironment = "local"
+	TenantEnvironmentDevelopment TenantEnvironment = "development"
+	TenantEnvironmentProduction  TenantEnvironment = "production"
+)
+
+func (e *TenantEnvironment) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = TenantEnvironment(s)
+	case string:
+		*e = TenantEnvironment(s)
+	default:
+		return fmt.Errorf("unsupported scan type for TenantEnvironment: %T", src)
+	}
+	return nil
+}
+
+type NullTenantEnvironment struct {
+	TenantEnvironment TenantEnvironment `json:"TenantEnvironment"`
+	Valid             bool              `json:"valid"` // Valid is true if TenantEnvironment is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullTenantEnvironment) Scan(value interface{}) error {
+	if value == nil {
+		ns.TenantEnvironment, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.TenantEnvironment.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullTenantEnvironment) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.TenantEnvironment), nil
+}
+
 type TenantMajorEngineVersion string
 
 const (
@@ -1182,6 +1225,7 @@ const (
 	V1IncomingWebhookSourceNameGITHUB  V1IncomingWebhookSourceName = "GITHUB"
 	V1IncomingWebhookSourceNameSTRIPE  V1IncomingWebhookSourceName = "STRIPE"
 	V1IncomingWebhookSourceNameSLACK   V1IncomingWebhookSourceName = "SLACK"
+	V1IncomingWebhookSourceNameLINEAR  V1IncomingWebhookSourceName = "LINEAR"
 )
 
 func (e *V1IncomingWebhookSourceName) Scan(src interface{}) error {
@@ -1348,6 +1392,134 @@ func (ns NullV1MatchKind) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.V1MatchKind), nil
+}
+
+type V1PayloadLocation string
+
+const (
+	V1PayloadLocationINLINE   V1PayloadLocation = "INLINE"
+	V1PayloadLocationEXTERNAL V1PayloadLocation = "EXTERNAL"
+)
+
+func (e *V1PayloadLocation) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = V1PayloadLocation(s)
+	case string:
+		*e = V1PayloadLocation(s)
+	default:
+		return fmt.Errorf("unsupported scan type for V1PayloadLocation: %T", src)
+	}
+	return nil
+}
+
+type NullV1PayloadLocation struct {
+	V1PayloadLocation V1PayloadLocation `json:"v1_payload_location"`
+	Valid             bool              `json:"valid"` // Valid is true if V1PayloadLocation is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullV1PayloadLocation) Scan(value interface{}) error {
+	if value == nil {
+		ns.V1PayloadLocation, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.V1PayloadLocation.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullV1PayloadLocation) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.V1PayloadLocation), nil
+}
+
+type V1PayloadType string
+
+const (
+	V1PayloadTypeTASKINPUT  V1PayloadType = "TASK_INPUT"
+	V1PayloadTypeDAGINPUT   V1PayloadType = "DAG_INPUT"
+	V1PayloadTypeTASKOUTPUT V1PayloadType = "TASK_OUTPUT"
+)
+
+func (e *V1PayloadType) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = V1PayloadType(s)
+	case string:
+		*e = V1PayloadType(s)
+	default:
+		return fmt.Errorf("unsupported scan type for V1PayloadType: %T", src)
+	}
+	return nil
+}
+
+type NullV1PayloadType struct {
+	V1PayloadType V1PayloadType `json:"v1_payload_type"`
+	Valid         bool          `json:"valid"` // Valid is true if V1PayloadType is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullV1PayloadType) Scan(value interface{}) error {
+	if value == nil {
+		ns.V1PayloadType, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.V1PayloadType.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullV1PayloadType) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.V1PayloadType), nil
+}
+
+type V1PayloadWalOperation string
+
+const (
+	V1PayloadWalOperationCREATE V1PayloadWalOperation = "CREATE"
+	V1PayloadWalOperationUPDATE V1PayloadWalOperation = "UPDATE"
+	V1PayloadWalOperationDELETE V1PayloadWalOperation = "DELETE"
+)
+
+func (e *V1PayloadWalOperation) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = V1PayloadWalOperation(s)
+	case string:
+		*e = V1PayloadWalOperation(s)
+	default:
+		return fmt.Errorf("unsupported scan type for V1PayloadWalOperation: %T", src)
+	}
+	return nil
+}
+
+type NullV1PayloadWalOperation struct {
+	V1PayloadWalOperation V1PayloadWalOperation `json:"v1_payload_wal_operation"`
+	Valid                 bool                  `json:"valid"` // Valid is true if V1PayloadWalOperation is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullV1PayloadWalOperation) Scan(value interface{}) error {
+	if value == nil {
+		ns.V1PayloadWalOperation, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.V1PayloadWalOperation.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullV1PayloadWalOperation) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.V1PayloadWalOperation), nil
 }
 
 type V1ReadableStatusOlap string
@@ -2506,6 +2678,8 @@ type Tenant struct {
 	DataRetentionPeriod   string                   `json:"dataRetentionPeriod"`
 	SchedulerPartitionId  pgtype.Text              `json:"schedulerPartitionId"`
 	CanUpgradeV1          bool                     `json:"canUpgradeV1"`
+	OnboardingData        []byte                   `json:"onboardingData"`
+	Environment           NullTenantEnvironment    `json:"environment"`
 }
 
 type TenantAlertEmailGroup struct {
@@ -2788,6 +2962,15 @@ type V1Filter struct {
 	UpdatedAt     pgtype.Timestamptz `json:"updated_at"`
 }
 
+type V1IdempotencyKey struct {
+	TenantID            pgtype.UUID        `json:"tenant_id"`
+	Key                 string             `json:"key"`
+	ExpiresAt           pgtype.Timestamptz `json:"expires_at"`
+	ClaimedByExternalID pgtype.UUID        `json:"claimed_by_external_id"`
+	InsertedAt          pgtype.Timestamptz `json:"inserted_at"`
+	UpdatedAt           pgtype.Timestamptz `json:"updated_at"`
+}
+
 type V1IncomingWebhook struct {
 	TenantID                     pgtype.UUID                        `json:"tenant_id"`
 	Name                         string                             `json:"name"`
@@ -2885,6 +3068,26 @@ type V1MatchCondition struct {
 	Data              []byte                 `json:"data"`
 }
 
+type V1Payload struct {
+	TenantID            pgtype.UUID        `json:"tenant_id"`
+	ID                  int64              `json:"id"`
+	InsertedAt          pgtype.Timestamptz `json:"inserted_at"`
+	Type                V1PayloadType      `json:"type"`
+	Location            V1PayloadLocation  `json:"location"`
+	ExternalLocationKey pgtype.Text        `json:"external_location_key"`
+	InlineContent       []byte             `json:"inline_content"`
+	UpdatedAt           pgtype.Timestamptz `json:"updated_at"`
+}
+
+type V1PayloadWal struct {
+	TenantID          pgtype.UUID           `json:"tenant_id"`
+	OffloadAt         pgtype.Timestamptz    `json:"offload_at"`
+	PayloadID         int64                 `json:"payload_id"`
+	PayloadInsertedAt pgtype.Timestamptz    `json:"payload_inserted_at"`
+	PayloadType       V1PayloadType         `json:"payload_type"`
+	Operation         V1PayloadWalOperation `json:"operation"`
+}
+
 type V1Queue struct {
 	TenantID   pgtype.UUID      `json:"tenant_id"`
 	Name       string           `json:"name"`
@@ -2893,6 +3096,25 @@ type V1Queue struct {
 
 type V1QueueItem struct {
 	ID                int64              `json:"id"`
+	TenantID          pgtype.UUID        `json:"tenant_id"`
+	Queue             string             `json:"queue"`
+	TaskID            int64              `json:"task_id"`
+	TaskInsertedAt    pgtype.Timestamptz `json:"task_inserted_at"`
+	ExternalID        pgtype.UUID        `json:"external_id"`
+	ActionID          string             `json:"action_id"`
+	StepID            pgtype.UUID        `json:"step_id"`
+	WorkflowID        pgtype.UUID        `json:"workflow_id"`
+	WorkflowRunID     pgtype.UUID        `json:"workflow_run_id"`
+	ScheduleTimeoutAt pgtype.Timestamp   `json:"schedule_timeout_at"`
+	StepTimeout       pgtype.Text        `json:"step_timeout"`
+	Priority          int32              `json:"priority"`
+	Sticky            V1StickyStrategy   `json:"sticky"`
+	DesiredWorkerID   pgtype.UUID        `json:"desired_worker_id"`
+	RetryCount        int32              `json:"retry_count"`
+}
+
+type V1RateLimitedQueueItems struct {
+	RequeueAfter      pgtype.Timestamptz `json:"requeue_after"`
 	TenantID          pgtype.UUID        `json:"tenant_id"`
 	Queue             string             `json:"queue"`
 	TaskID            int64              `json:"task_id"`

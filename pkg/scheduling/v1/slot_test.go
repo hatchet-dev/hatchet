@@ -1,6 +1,6 @@
 //go:build !e2e && !load && !rampup && !integration
 
-package v2
+package v1
 
 import (
 	"testing"

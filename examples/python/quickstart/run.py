@@ -4,6 +4,7 @@ from .workflows.first_task import SimpleInput, first_task
 
 
 async def main() -> None:
+    # > Run a Task
     result = await first_task.aio_run(SimpleInput(message="Hello World!"))
 
     print(

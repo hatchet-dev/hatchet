@@ -83,7 +83,7 @@ WITH active_controller_partitions AS (
     WHERE
         "lastHeartbeat" > NOW() - INTERVAL '1 minute'
 )
-INSERT INTO "Tenant" ("id", "name", "slug", "controllerPartitionId", "dataRetentionPeriod", "version", "uiVersion")
+INSERT INTO "Tenant" ("id", "name", "slug", "controllerPartitionId", "dataRetentionPeriod", "version", "uiVersion", "onboardingData", "environment")
 VALUES (
     $1::uuid,
     $2::text,
@@ -99,9 +99,11 @@ VALUES (
     ),
     COALESCE($4::text, '720h'),
     COALESCE($5::"TenantMajorEngineVersion", 'V0'),
-    COALESCE($6::"TenantMajorUIVersion", 'V0')
+    COALESCE($6::"TenantMajorUIVersion", 'V0'),
+    $7::jsonb,
+    $8::"TenantEnvironment"
 )
-RETURNING id, "createdAt", "updatedAt", "deletedAt", version, "uiVersion", name, slug, "analyticsOptOut", "alertMemberEmails", "controllerPartitionId", "workerPartitionId", "dataRetentionPeriod", "schedulerPartitionId", "canUpgradeV1"
+RETURNING id, "createdAt", "updatedAt", "deletedAt", version, "uiVersion", name, slug, "analyticsOptOut", "alertMemberEmails", "controllerPartitionId", "workerPartitionId", "dataRetentionPeriod", "schedulerPartitionId", "canUpgradeV1", "onboardingData", environment
 `
 
 type CreateTenantParams struct {
@@ -111,6 +113,8 @@ type CreateTenantParams struct {
 	DataRetentionPeriod pgtype.Text                  `json:"dataRetentionPeriod"`
 	Version             NullTenantMajorEngineVersion `json:"version"`
 	UiVersion           NullTenantMajorUIVersion     `json:"uiVersion"`
+	OnboardingData      []byte                       `json:"onboardingData"`
+	Environment         NullTenantEnvironment        `json:"environment"`
 }
 
 func (q *Queries) CreateTenant(ctx context.Context, db DBTX, arg CreateTenantParams) (*Tenant, error) {
@@ -121,6 +125,8 @@ func (q *Queries) CreateTenant(ctx context.Context, db DBTX, arg CreateTenantPar
 		arg.DataRetentionPeriod,
 		arg.Version,
 		arg.UiVersion,
+		arg.OnboardingData,
+		arg.Environment,
 	)
 	var i Tenant
 	err := row.Scan(
@@ -139,6 +145,8 @@ func (q *Queries) CreateTenant(ctx context.Context, db DBTX, arg CreateTenantPar
 		&i.DataRetentionPeriod,
 		&i.SchedulerPartitionId,
 		&i.CanUpgradeV1,
+		&i.OnboardingData,
+		&i.Environment,
 	)
 	return &i, err
 }
@@ -378,7 +386,7 @@ func (q *Queries) GetEmailGroups(ctx context.Context, db DBTX, tenantid pgtype.U
 
 const getInternalTenantForController = `-- name: GetInternalTenantForController :one
 SELECT
-    id, "createdAt", "updatedAt", "deletedAt", version, "uiVersion", name, slug, "analyticsOptOut", "alertMemberEmails", "controllerPartitionId", "workerPartitionId", "dataRetentionPeriod", "schedulerPartitionId", "canUpgradeV1"
+    id, "createdAt", "updatedAt", "deletedAt", version, "uiVersion", name, slug, "analyticsOptOut", "alertMemberEmails", "controllerPartitionId", "workerPartitionId", "dataRetentionPeriod", "schedulerPartitionId", "canUpgradeV1", "onboardingData", environment
 FROM
     "Tenant" as tenants
 WHERE
@@ -405,6 +413,8 @@ func (q *Queries) GetInternalTenantForController(ctx context.Context, db DBTX, c
 		&i.DataRetentionPeriod,
 		&i.SchedulerPartitionId,
 		&i.CanUpgradeV1,
+		&i.OnboardingData,
+		&i.Environment,
 	)
 	return &i, err
 }
@@ -530,7 +540,7 @@ func (q *Queries) GetTenantAlertingSettings(ctx context.Context, db DBTX, tenant
 
 const getTenantByID = `-- name: GetTenantByID :one
 SELECT
-    id, "createdAt", "updatedAt", "deletedAt", version, "uiVersion", name, slug, "analyticsOptOut", "alertMemberEmails", "controllerPartitionId", "workerPartitionId", "dataRetentionPeriod", "schedulerPartitionId", "canUpgradeV1"
+    id, "createdAt", "updatedAt", "deletedAt", version, "uiVersion", name, slug, "analyticsOptOut", "alertMemberEmails", "controllerPartitionId", "workerPartitionId", "dataRetentionPeriod", "schedulerPartitionId", "canUpgradeV1", "onboardingData", environment
 FROM
     "Tenant" as tenants
 WHERE
@@ -556,13 +566,15 @@ func (q *Queries) GetTenantByID(ctx context.Context, db DBTX, id pgtype.UUID) (*
 		&i.DataRetentionPeriod,
 		&i.SchedulerPartitionId,
 		&i.CanUpgradeV1,
+		&i.OnboardingData,
+		&i.Environment,
 	)
 	return &i, err
 }
 
 const getTenantBySlug = `-- name: GetTenantBySlug :one
 SELECT
-    id, "createdAt", "updatedAt", "deletedAt", version, "uiVersion", name, slug, "analyticsOptOut", "alertMemberEmails", "controllerPartitionId", "workerPartitionId", "dataRetentionPeriod", "schedulerPartitionId", "canUpgradeV1"
+    id, "createdAt", "updatedAt", "deletedAt", version, "uiVersion", name, slug, "analyticsOptOut", "alertMemberEmails", "controllerPartitionId", "workerPartitionId", "dataRetentionPeriod", "schedulerPartitionId", "canUpgradeV1", "onboardingData", environment
 FROM
     "Tenant" as tenants
 WHERE
@@ -588,6 +600,8 @@ func (q *Queries) GetTenantBySlug(ctx context.Context, db DBTX, slug string) (*T
 		&i.DataRetentionPeriod,
 		&i.SchedulerPartitionId,
 		&i.CanUpgradeV1,
+		&i.OnboardingData,
+		&i.Environment,
 	)
 	return &i, err
 }
@@ -885,7 +899,7 @@ func (q *Queries) ListTenantMembers(ctx context.Context, db DBTX, tenantid pgtyp
 
 const listTenants = `-- name: ListTenants :many
 SELECT
-    id, "createdAt", "updatedAt", "deletedAt", version, "uiVersion", name, slug, "analyticsOptOut", "alertMemberEmails", "controllerPartitionId", "workerPartitionId", "dataRetentionPeriod", "schedulerPartitionId", "canUpgradeV1"
+    id, "createdAt", "updatedAt", "deletedAt", version, "uiVersion", name, slug, "analyticsOptOut", "alertMemberEmails", "controllerPartitionId", "workerPartitionId", "dataRetentionPeriod", "schedulerPartitionId", "canUpgradeV1", "onboardingData", environment
 FROM
     "Tenant" as tenants
 `
@@ -915,6 +929,8 @@ func (q *Queries) ListTenants(ctx context.Context, db DBTX) ([]*Tenant, error) {
 			&i.DataRetentionPeriod,
 			&i.SchedulerPartitionId,
 			&i.CanUpgradeV1,
+			&i.OnboardingData,
+			&i.Environment,
 		); err != nil {
 			return nil, err
 		}
@@ -928,7 +944,7 @@ func (q *Queries) ListTenants(ctx context.Context, db DBTX) ([]*Tenant, error) {
 
 const listTenantsByControllerPartitionId = `-- name: ListTenantsByControllerPartitionId :many
 SELECT
-    id, "createdAt", "updatedAt", "deletedAt", version, "uiVersion", name, slug, "analyticsOptOut", "alertMemberEmails", "controllerPartitionId", "workerPartitionId", "dataRetentionPeriod", "schedulerPartitionId", "canUpgradeV1"
+    id, "createdAt", "updatedAt", "deletedAt", version, "uiVersion", name, slug, "analyticsOptOut", "alertMemberEmails", "controllerPartitionId", "workerPartitionId", "dataRetentionPeriod", "schedulerPartitionId", "canUpgradeV1", "onboardingData", environment
 FROM
     "Tenant" as tenants
 WHERE
@@ -966,6 +982,8 @@ func (q *Queries) ListTenantsByControllerPartitionId(ctx context.Context, db DBT
 			&i.DataRetentionPeriod,
 			&i.SchedulerPartitionId,
 			&i.CanUpgradeV1,
+			&i.OnboardingData,
+			&i.Environment,
 		); err != nil {
 			return nil, err
 		}
@@ -979,7 +997,7 @@ func (q *Queries) ListTenantsByControllerPartitionId(ctx context.Context, db DBT
 
 const listTenantsBySchedulerPartitionId = `-- name: ListTenantsBySchedulerPartitionId :many
 SELECT
-    id, "createdAt", "updatedAt", "deletedAt", version, "uiVersion", name, slug, "analyticsOptOut", "alertMemberEmails", "controllerPartitionId", "workerPartitionId", "dataRetentionPeriod", "schedulerPartitionId", "canUpgradeV1"
+    id, "createdAt", "updatedAt", "deletedAt", version, "uiVersion", name, slug, "analyticsOptOut", "alertMemberEmails", "controllerPartitionId", "workerPartitionId", "dataRetentionPeriod", "schedulerPartitionId", "canUpgradeV1", "onboardingData", environment
 FROM
     "Tenant" as tenants
 WHERE
@@ -1017,6 +1035,8 @@ func (q *Queries) ListTenantsBySchedulerPartitionId(ctx context.Context, db DBTX
 			&i.DataRetentionPeriod,
 			&i.SchedulerPartitionId,
 			&i.CanUpgradeV1,
+			&i.OnboardingData,
+			&i.Environment,
 		); err != nil {
 			return nil, err
 		}
@@ -1030,7 +1050,7 @@ func (q *Queries) ListTenantsBySchedulerPartitionId(ctx context.Context, db DBTX
 
 const listTenantsByTenantWorkerPartitionId = `-- name: ListTenantsByTenantWorkerPartitionId :many
 SELECT
-    id, "createdAt", "updatedAt", "deletedAt", version, "uiVersion", name, slug, "analyticsOptOut", "alertMemberEmails", "controllerPartitionId", "workerPartitionId", "dataRetentionPeriod", "schedulerPartitionId", "canUpgradeV1"
+    id, "createdAt", "updatedAt", "deletedAt", version, "uiVersion", name, slug, "analyticsOptOut", "alertMemberEmails", "controllerPartitionId", "workerPartitionId", "dataRetentionPeriod", "schedulerPartitionId", "canUpgradeV1", "onboardingData", environment
 FROM
     "Tenant" as tenants
 WHERE
@@ -1068,6 +1088,8 @@ func (q *Queries) ListTenantsByTenantWorkerPartitionId(ctx context.Context, db D
 			&i.DataRetentionPeriod,
 			&i.SchedulerPartitionId,
 			&i.CanUpgradeV1,
+			&i.OnboardingData,
+			&i.Environment,
 		); err != nil {
 			return nil, err
 		}
@@ -1092,7 +1114,8 @@ SELECT
     t."alertMemberEmails" as "alertMemberEmails",
     t."analyticsOptOut" as "analyticsOptOut",
     t."version" as "tenantVersion",
-    t."uiVersion" as "tenantUiVersion"
+    t."uiVersion" as "tenantUiVersion",
+    t."environment" as "tenantEnvironment"
 FROM
     "TenantMember" tm
 JOIN
@@ -1121,6 +1144,7 @@ type PopulateTenantMembersRow struct {
 	AnalyticsOptOut   bool                     `json:"analyticsOptOut"`
 	TenantVersion     TenantMajorEngineVersion `json:"tenantVersion"`
 	TenantUiVersion   TenantMajorUIVersion     `json:"tenantUiVersion"`
+	TenantEnvironment NullTenantEnvironment    `json:"tenantEnvironment"`
 }
 
 func (q *Queries) PopulateTenantMembers(ctx context.Context, db DBTX, ids []pgtype.UUID) ([]*PopulateTenantMembersRow, error) {
@@ -1150,6 +1174,7 @@ func (q *Queries) PopulateTenantMembers(ctx context.Context, db DBTX, ids []pgty
 			&i.AnalyticsOptOut,
 			&i.TenantVersion,
 			&i.TenantUiVersion,
+			&i.TenantEnvironment,
 		); err != nil {
 			return nil, err
 		}
@@ -1440,7 +1465,7 @@ SET
     "uiVersion" = COALESCE($5::"TenantMajorUIVersion", "uiVersion")
 WHERE
     "id" = $6::uuid
-RETURNING id, "createdAt", "updatedAt", "deletedAt", version, "uiVersion", name, slug, "analyticsOptOut", "alertMemberEmails", "controllerPartitionId", "workerPartitionId", "dataRetentionPeriod", "schedulerPartitionId", "canUpgradeV1"
+RETURNING id, "createdAt", "updatedAt", "deletedAt", version, "uiVersion", name, slug, "analyticsOptOut", "alertMemberEmails", "controllerPartitionId", "workerPartitionId", "dataRetentionPeriod", "schedulerPartitionId", "canUpgradeV1", "onboardingData", environment
 `
 
 type UpdateTenantParams struct {
@@ -1478,6 +1503,8 @@ func (q *Queries) UpdateTenant(ctx context.Context, db DBTX, arg UpdateTenantPar
 		&i.DataRetentionPeriod,
 		&i.SchedulerPartitionId,
 		&i.CanUpgradeV1,
+		&i.OnboardingData,
+		&i.Environment,
 	)
 	return &i, err
 }

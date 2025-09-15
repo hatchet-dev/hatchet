@@ -6,6 +6,7 @@ import (
 	"log"
 	"time"
 
+	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
 	"github.com/hatchet-dev/hatchet/pkg/worker"
 	hatchet "github.com/hatchet-dev/hatchet/sdks/go"
 )
@@ -204,17 +205,20 @@ func main() {
 		log.Fatalf("failed to create worker 2: %v", err)
 	}
 
+	interruptCtx, cancel := cmdutils.NewInterruptContext()
+	defer cancel()
+
 	// Start both workers
 	go func() {
 		log.Println("Starting worker 1...")
-		if err := worker1.StartBlocking(); err != nil {
+		if err := worker1.StartBlocking(interruptCtx); err != nil {
 			log.Printf("Worker 1 failed: %v", err)
 		}
 	}()
 
 	go func() {
 		log.Println("Starting worker 2...")
-		if err := worker2.StartBlocking(); err != nil {
+		if err := worker2.StartBlocking(interruptCtx); err != nil {
 			log.Printf("Worker 2 failed: %v", err)
 		}
 	}()
@@ -269,8 +273,9 @@ func main() {
 	log.Println("  - Session state maintenance across steps")
 	log.Println("  - Comparison with non-sticky execution")
 
-	// Keep the main thread alive
-	select {}
+	<-interruptCtx.Done()
+
+	time.Sleep(2 * time.Second)
 }
 
 func stringPtr(s string) *string {

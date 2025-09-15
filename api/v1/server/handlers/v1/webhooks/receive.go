@@ -18,10 +18,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/labstack/echo/v4"
+
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/internal/cel"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
-	"github.com/labstack/echo/v4"
 )
 
 func (w *V1WebhooksService) V1WebhookReceive(ctx echo.Context, request gen.V1WebhookReceiveRequestObject) (gen.V1WebhookReceiveResponseObject, error) {
@@ -441,6 +442,8 @@ func (w *V1WebhooksService) validateWebhook(webhookPayload []byte, webhook sqlcv
 			}
 		}
 	case sqlcv1.V1IncomingWebhookSourceNameGITHUB:
+		fallthrough
+	case sqlcv1.V1IncomingWebhookSourceNameLINEAR:
 		fallthrough
 	case sqlcv1.V1IncomingWebhookSourceNameGENERIC:
 		switch webhook.AuthMethod {

@@ -1,8 +1,9 @@
 package hatchet
 
 import (
-	"github.com/hatchet-dev/hatchet/sdks/go/internal"
 	"github.com/rs/zerolog"
+
+	"github.com/hatchet-dev/hatchet/sdks/go/internal"
 )
 
 // WorkerOption configures a worker instance.
@@ -12,12 +13,13 @@ type workerConfig struct {
 	workflows    []internal.WorkflowBase
 	slots        int
 	durableSlots int
-	labels       map[string]interface{}
+	labels       map[string]any
 	logger       *zerolog.Logger
-	logLevel     string
+	panicHandler func(ctx Context, recovered any)
 }
 
-// WithWorkflows registers workflows with the worker.
+// WithWorkflows registers workflows and standalone tasks with the worker.
+// Both workflows and standalone tasks implement the WorkflowBase interface.
 func WithWorkflows(workflows ...internal.WorkflowBase) WorkerOption {
 	return func(config *workerConfig) {
 		config.workflows = workflows
@@ -32,7 +34,7 @@ func WithSlots(slots int) WorkerOption {
 }
 
 // WithLabels assigns labels to the worker for task routing.
-func WithLabels(labels map[string]interface{}) WorkerOption {
+func WithLabels(labels map[string]any) WorkerOption {
 	return func(config *workerConfig) {
 		config.labels = labels
 	}
@@ -49,5 +51,14 @@ func WithLogger(logger *zerolog.Logger) WorkerOption {
 func WithDurableSlots(durableSlots int) WorkerOption {
 	return func(config *workerConfig) {
 		config.durableSlots = durableSlots
+	}
+}
+
+// WithPanicHandler sets a custom panic handler for the worker.
+//
+// recovered is the non-nil value that was obtained after calling recover()
+func WithPanicHandler(panicHandler func(ctx Context, recovered any)) WorkerOption {
+	return func(config *workerConfig) {
+		config.panicHandler = panicHandler
 	}
 }

@@ -7,10 +7,12 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
+	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/google/cel-go/cel"
 	"github.com/google/uuid"
 
+	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 )
@@ -111,10 +113,10 @@ type CreateMatchOpts struct {
 
 type EventMatchResults struct {
 	// The list of tasks which were created from the matches
-	CreatedTasks []*sqlcv1.V1Task
+	CreatedTasks []*V1TaskWithPayload
 
 	// The list of tasks which were replayed from the matches
-	ReplayedTasks []*sqlcv1.V1Task
+	ReplayedTasks []*V1TaskWithPayload
 }
 
 type GroupMatchCondition struct {
@@ -149,10 +151,10 @@ type MatchRepositoryImpl struct {
 	*sharedRepository
 }
 
-func newMatchRepository(s *sharedRepository) (MatchRepository, error) {
+func newMatchRepository(s *sharedRepository) MatchRepository {
 	return &MatchRepositoryImpl{
 		sharedRepository: s,
-	}, nil
+	}
 }
 
 func (m *MatchRepositoryImpl) RegisterSignalMatchConditions(ctx context.Context, tenantId string, signalMatches []ExternalCreateSignalMatchOpts) error {
@@ -254,6 +256,26 @@ func (m *MatchRepositoryImpl) ProcessInternalEventMatches(ctx context.Context, t
 		return nil, err
 	}
 
+	storePayloadOpts := make([]StorePayloadOpts, len(res.CreatedTasks))
+
+	for i, task := range res.CreatedTasks {
+		storePayloadOpts[i] = StorePayloadOpts{
+			Id:         task.ID,
+			InsertedAt: task.InsertedAt,
+			Type:       sqlcv1.V1PayloadTypeTASKINPUT,
+			Payload:    task.Payload,
+			TenantId:   task.TenantID.String(),
+		}
+	}
+
+	if len(storePayloadOpts) > 0 {
+		err = m.payloadStore.Store(ctx, tx, storePayloadOpts...)
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to store payloads for created tasks for internal event matches: %w", err)
+		}
+	}
+
 	if err := commit(ctx); err != nil {
 		return nil, err
 	}
@@ -275,6 +297,25 @@ func (m *MatchRepositoryImpl) ProcessUserEventMatches(ctx context.Context, tenan
 
 	if err != nil {
 		return nil, err
+	}
+
+	storePayloadOpts := make([]StorePayloadOpts, len(res.CreatedTasks))
+	for i, task := range res.CreatedTasks {
+		storePayloadOpts[i] = StorePayloadOpts{
+			Id:         task.ID,
+			InsertedAt: task.InsertedAt,
+			Type:       sqlcv1.V1PayloadTypeTASKINPUT,
+			Payload:    task.Payload,
+			TenantId:   task.TenantID.String(),
+		}
+	}
+
+	if len(storePayloadOpts) > 0 {
+		err = m.payloadStore.Store(ctx, tx, storePayloadOpts...)
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to store payloads for created tasks for user event matches: %w", err)
+		}
 	}
 
 	if err := commit(ctx); err != nil {
@@ -379,6 +420,7 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 
 			matchIds = append(matchIds, condition.V1MatchID)
 			conditionIds = append(conditionIds, condition.ID)
+
 			datas = append(datas, event.Data)
 		}
 	}
@@ -429,7 +471,7 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 		}
 	}
 
-	tasks := make([]*sqlcv1.V1Task, 0)
+	tasks := make([]*V1TaskWithPayload, 0)
 
 	if len(dagIds) > 0 {
 		dagInputDatas, err := m.queries.GetDAGData(ctx, tx, sqlcv1.GetDAGDataParams{
@@ -628,6 +670,19 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 }
 
 func (m *sharedRepository) processCELExpressions(ctx context.Context, events []CandidateEventMatch, conditions []*sqlcv1.ListMatchConditionsForEventRow, eventType sqlcv1.V1EventType) (map[string][]*sqlcv1.ListMatchConditionsForEventRow, error) {
+	ctx, span := telemetry.NewSpan(ctx, "MatchRepositoryImpl.processCELExpressions")
+	defer span.End()
+
+	span.SetAttributes(attribute.KeyValue{
+		Key:   "match_repository.process_cel_expressions.events_count",
+		Value: attribute.IntValue(len(events)),
+	})
+
+	span.SetAttributes(attribute.KeyValue{
+		Key:   "match_repository.process_cel_expressions.conditions_count",
+		Value: attribute.IntValue(len(conditions)),
+	})
+
 	// parse CEL expressions
 	programs := make(map[int64]cel.Program)
 	conditionIdsToConditions := make(map[int64]*sqlcv1.ListMatchConditionsForEventRow)
@@ -735,6 +790,11 @@ func (m *sharedRepository) processCELExpressions(ctx context.Context, events []C
 			}
 		}
 	}
+
+	span.SetAttributes(attribute.KeyValue{
+		Key:   "match_repository.process_cel_expressions.match_conditions_count",
+		Value: attribute.IntValue(len(matches)),
+	})
 
 	return matches, nil
 }

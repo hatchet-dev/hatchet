@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
+	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
 	hatchet "github.com/hatchet-dev/hatchet/sdks/go"
 )
 
@@ -37,7 +38,7 @@ func main() {
 	var maxRuns int32 = 2
 	strategy := types.GroupRoundRobin
 
-	workflow.NewTask("unreliable-task", func(ctx hatchet.Context, input TaskInput) (TaskOutput, error) {
+	_ = workflow.NewTask("unreliable-task", func(ctx hatchet.Context, input TaskInput) (TaskOutput, error) {
 		attempt := ctx.RetryCount()
 		log.Printf("Processing task %s (attempt %d)", input.ID, attempt)
 
@@ -58,9 +59,9 @@ func main() {
 	},
 		hatchet.WithRetries(3),
 		hatchet.WithRetryBackoff(2.0, 60), // Exponential backoff: 2s, 4s, 8s, then cap at 60s
-		hatchet.WithTimeout(30*time.Second),
+		hatchet.WithExecutionTimeout(30*time.Second),
 		hatchet.WithConcurrency(&types.Concurrency{
-			Expression:    "input.Category", // Limit concurrency per category
+			Expression:    "input.category", // Limit concurrency per category
 			MaxRuns:       &maxRuns,         // Max 2 concurrent tasks per category
 			LimitStrategy: &strategy,        // Round-robin distribution
 		}),
@@ -83,7 +84,7 @@ func main() {
 		for i := 0; i < 10; i++ {
 			category := categories[rand.Intn(len(categories))] //nolint:gosec // This is a demo
 
-			_, err = client.Run(context.Background(), "retry-concurrency-workflow", TaskInput{
+			_, err = client.RunNoWait(context.Background(), "retry-concurrency-workflow", TaskInput{
 				ID:       fmt.Sprintf("task-%d", i),
 				Category: category,
 				Payload:  fmt.Sprintf("data for task %d", i),
@@ -96,8 +97,11 @@ func main() {
 		}
 	}()
 
+	interruptCtx, cancel := cmdutils.NewInterruptContext()
+	defer cancel()
+
 	log.Println("Starting worker with retry and concurrency controls...")
-	if err := worker.StartBlocking(); err != nil {
+	if err := worker.StartBlocking(interruptCtx); err != nil {
 		log.Fatalf("failed to start worker: %v", err)
 	}
 }

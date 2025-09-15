@@ -10,6 +10,7 @@ import Root from './pages/root.tsx';
 
 export const tenantedPaths = [
   '/tenants/:tenant/events',
+  '/tenants/:tenant/filters',
   '/tenants/:tenant/webhooks',
   '/tenants/:tenant/rate-limits',
   '/tenants/:tenant/scheduled',
@@ -52,6 +53,16 @@ const createTenantedRoute = (path: TenantedPath): RouteObject => {
         path,
         lazy: async () =>
           import('./pages/main/v1/events').then((res) => {
+            return {
+              Component: res.default,
+            };
+          }),
+      };
+    case '/tenants/:tenant/filters':
+      return {
+        path,
+        lazy: async () =>
+          import('./pages/main/v1/filters').then((res) => {
             return {
               Component: res.default,
             };
@@ -436,6 +447,15 @@ export const routes: RouteObject[] = [
             return {
               Component: res.default,
               loader: res.loader,
+            };
+          }),
+      },
+      {
+        path: '/organizations/:organization',
+        lazy: async () =>
+          import('./pages/organizations/$organization').then((res) => {
+            return {
+              Component: res.default,
             };
           }),
       },

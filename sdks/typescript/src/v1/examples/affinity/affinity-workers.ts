@@ -26,6 +26,7 @@ workflow.task({
 
 // !!
 
+// > Task with labels
 const childWorkflow = hatchet.workflow({
   name: 'child-affinity-workflow',
   description: 'test',
@@ -43,6 +44,7 @@ childWorkflow.task({
     return { childStep1: 'childStep1 results!' };
   },
 });
+// !!
 
 childWorkflow.task({
   name: 'child-step2',

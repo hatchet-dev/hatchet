@@ -16,13 +16,18 @@ import (
 )
 
 type RateLimitResult struct {
+	*sqlcv1.V1QueueItem
+
 	ExceededKey    string
 	ExceededUnits  int32
 	ExceededVal    int32
+	NextRefillAt   *time.Time
 	TaskId         int64
 	TaskInsertedAt pgtype.Timestamptz
 	RetryCount     int32
 }
+
+const rateLimitedRequeueAfterThreshold = 2 * time.Second
 
 type AssignedItem struct {
 	WorkerId pgtype.UUID
@@ -35,6 +40,7 @@ type AssignResults struct {
 	Unassigned         []*sqlcv1.V1QueueItem
 	SchedulingTimedOut []*sqlcv1.V1QueueItem
 	RateLimited        []*RateLimitResult
+	RateLimitedToMove  []*RateLimitResult
 }
 
 type queueFactoryRepository struct {
@@ -210,6 +216,26 @@ func (d *queueRepository) MarkQueueItemsProcessed(ctx context.Context, r *Assign
 			InsertedAt: id.TaskInsertedAt,
 			RetryCount: id.RetryCount,
 		})
+	}
+
+	// remove rate limited queue items from the queue and place them in the v1_rate_limited_queue_items table
+	qisToMoveToRateLimited := make([]int64, 0, len(r.RateLimited))
+	qisToMoveToRateLimitedRQAfter := make([]pgtype.Timestamptz, 0, len(r.RateLimited))
+
+	for _, row := range r.RateLimitedToMove {
+		qisToMoveToRateLimited = append(qisToMoveToRateLimited, row.ID)
+		qisToMoveToRateLimitedRQAfter = append(qisToMoveToRateLimitedRQAfter, sqlchelpers.TimestamptzFromTime(*row.NextRefillAt))
+	}
+
+	if len(qisToMoveToRateLimited) > 0 {
+		_, err = d.queries.MoveRateLimitedQueueItems(ctx, tx, sqlcv1.MoveRateLimitedQueueItemsParams{
+			Ids:          qisToMoveToRateLimited,
+			Requeueafter: qisToMoveToRateLimitedRQAfter,
+		})
+
+		if err != nil {
+			return nil, nil, err
+		}
 	}
 
 	queuedItemIds, err := d.queries.BulkQueueItems(ctx, tx, idsToUnqueue)
@@ -565,6 +591,41 @@ func (d *queueRepository) GetDesiredLabels(ctx context.Context, stepIds []pgtype
 	}
 
 	return stepIdToLabels, nil
+}
+
+func (d *queueRepository) RequeueRateLimitedItems(ctx context.Context, tenantId pgtype.UUID, queueName string) ([]*sqlcv1.RequeueRateLimitedQueueItemsRow, error) {
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, d.pool, d.l, 5000)
+
+	if err != nil {
+		return nil, err
+	}
+
+	defer rollback()
+
+	rows, err := d.queries.RequeueRateLimitedQueueItems(ctx, tx, sqlcv1.RequeueRateLimitedQueueItemsParams{
+		Tenantid: tenantId,
+		Queue:    queueName,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	// if we moved items in v1_queue_item, we need to update the active status of the queue, in case we've
+	// been rate limited for longer than a day and the queue has gone inactive
+	saveQueues, err := d.upsertQueues(ctx, tx, sqlchelpers.UUIDToStr(tenantId), []string{queueName})
+
+	if err != nil {
+		return nil, err
+	}
+
+	if err := commit(ctx); err != nil {
+		return nil, err
+	}
+
+	saveQueues()
+
+	return rows, nil
 }
 
 func getLargerDuration(s1, s2 string) (string, error) {
