@@ -462,7 +462,7 @@ type PostgresMQConfigFile struct {
 }
 
 type RabbitMQConfigFile struct {
-	URL string `mapstructure:"url" json:"url,omitempty" validate:"required" default:"amqp://user:password@localhost:5672/"`
+	URL string `mapstructure:"url" json:"url,omitempty" validate:"required"`
 	Qos int    `mapstructure:"qos" json:"qos,omitempty" default:"100"`
 }
 

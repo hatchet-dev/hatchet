@@ -17,6 +17,7 @@ import (
 	"github.com/hatchet-dev/hatchet/cmd/hatchet-staticfileserver/staticfileserver"
 	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
 	"github.com/hatchet-dev/hatchet/pkg/config/loader"
+	"github.com/hatchet-dev/hatchet/pkg/config/server"
 )
 
 var printVersion bool
@@ -72,8 +73,6 @@ func start(cf *loader.ConfigLoader, interruptCh <-chan interface{}, version stri
 	staticAssetDir := os.Getenv("LITE_STATIC_ASSET_DIR")
 	frontendPort := os.Getenv("LITE_FRONTEND_PORT")
 	runtimePort := os.Getenv("LITE_RUNTIME_PORT")
-	msgQueueKind := os.Getenv("LITE_MSGQUEUE_KIND")
-	rabbitmqURL := os.Getenv("LITE_MSGQUEUE_RABBITMQ_URL")
 
 	if staticAssetDir == "" {
 		return fmt.Errorf("LITE_STATIC_ASSET_DIR environment variable is required")
@@ -87,22 +86,17 @@ func start(cf *loader.ConfigLoader, interruptCh <-chan interface{}, version stri
 		runtimePort = "8082"
 	}
 
-	if msgQueueKind == "" {
-		msgQueueKind = "postgres"
-	} else if msgQueueKind != "rabbitmq" && msgQueueKind != "postgres" {
-		return fmt.Errorf("LITE_MSGQUEUE_KIND environment variable must be either rabbitmq or postgres")
-	}
-
-	_ = os.Setenv("SERVER_MSGQUEUE_KIND", msgQueueKind)
-	_ = os.Setenv("SERVER_MSGQUEUE_RABBITMQ_URL", rabbitmqURL)
-
 	feURL, err := url.Parse(fmt.Sprintf("http://localhost:%s", frontendPort))
 
 	if err != nil {
 		return fmt.Errorf("error parsing frontend URL: %w", err)
 	}
 
-	_, sc, err := cf.CreateServerFromConfig(version)
+	_, sc, err := cf.CreateServerFromConfig(version, func(cf *server.ServerConfigFile) {
+		if cf.MessageQueue.RabbitMQ.URL == "" {
+			cf.MessageQueue.Kind = "postgres"
+		}
+	})
 
 	if err != nil {
 		return fmt.Errorf("error loading server config: %w", err)
