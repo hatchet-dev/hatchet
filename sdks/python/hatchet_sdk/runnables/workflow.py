@@ -16,6 +16,7 @@ from typing import (
     overload,
 )
 
+from dacite import from_dict
 from google.protobuf import timestamp_pb2
 from pydantic import BaseModel, model_validator
 
@@ -1227,7 +1228,7 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         if is_dataclass(self._output_validator) and isinstance(
             self._output_validator, type
         ):
-            return cast(R, self._output_validator(**output))
+            return cast(R, from_dict(self._output_validator, output))
 
         raise TypeError("Output validator is not set or invalid")
 
