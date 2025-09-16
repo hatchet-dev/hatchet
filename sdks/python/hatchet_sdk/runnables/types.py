@@ -1,6 +1,7 @@
 import asyncio
 import json
 from collections.abc import Callable, Mapping
+from dataclasses import Field as DataclassField
 from enum import Enum
 from typing import Any, ClassVar, ParamSpec, Protocol, TypeGuard, TypeVar
 
@@ -14,7 +15,7 @@ from hatchet_sdk.utils.typing import AwaitableLike, JSONSerializableMapping
 
 
 class DataclassInstance(Protocol):
-    __dataclass_fields__: ClassVar[dict[str, Field[Any]]]
+    __dataclass_fields__: ClassVar[dict[str, DataclassField[Any]]]
 
 
 ValidTaskReturnType = BaseModel | Mapping[str, Any] | DataclassInstance | None
