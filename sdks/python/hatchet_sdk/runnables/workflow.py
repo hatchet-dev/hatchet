@@ -1223,20 +1223,6 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
 
         return None
 
-    def validate_output(self, output: Any) -> R:
-        if is_basemodel_subclass(self._output_validator):
-            return cast(R, self._output_validator.model_validate(output))
-
-        if is_dataclass(self._output_validator) and isinstance(
-            self._output_validator, type
-        ):
-            return cast(
-                R,
-                TypeAdapter(self._output_validator).validate_python(output),
-            )
-
-        raise TypeError("Output validator is not set or invalid")
-
     @overload
     def _extract_result(self, result: dict[str, Any]) -> R: ...
 
@@ -1251,10 +1237,20 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
 
         output = result.get(self._task.name)
 
-        if not self._output_validator:
-            return cast(R, output)
+        if is_basemodel_subclass(self._output_validator):
+            return cast(R, self._output_validator.model_validate(output))
 
-        return self.validate_output(output)
+        if is_dataclass(self._output_validator) and isinstance(
+            self._output_validator, type
+        ):
+            return cast(
+                R,
+                TypeAdapter(self._output_validator).validate_python(output),
+            )
+
+        ## important: keep this as the last case, and make sure we handle every possible
+        ## case in the allowed types of `_output_validator`
+        return cast(R, output)
 
     def run(
         self,
