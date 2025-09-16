@@ -1206,9 +1206,6 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         return_type = get_type_hints(self._task.fn).get("return")
 
         self._output_validator = self.get_output_validator(return_type)
-        self._is_dataclass_output = bool(
-            is_dataclass(return_type) and isinstance(return_type, type)
-        )
 
         self.config = self._workflow.config
 
