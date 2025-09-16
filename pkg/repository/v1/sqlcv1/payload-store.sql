@@ -93,7 +93,7 @@ FROM
 WITH tenants AS (
     SELECT UNNEST(
         find_matching_tenants_in_payload_wal_partition(
-            @partitionNumber::BIGINT
+            @partitionNumber::INT
         )
     ) AS tenant_id
 )
