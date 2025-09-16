@@ -1,7 +1,7 @@
 import asyncio
 from collections.abc import Callable
 from dataclasses import is_dataclass
-from datetime import date, datetime, timedelta
+from datetime import datetime, timedelta
 from functools import cached_property
 from typing import (
     TYPE_CHECKING,
@@ -16,7 +16,7 @@ from typing import (
     overload,
 )
 
-from dacite import Config, from_dict
+from dacite import from_dict
 from google.protobuf import timestamp_pb2
 from pydantic import BaseModel, model_validator
 
@@ -1207,6 +1207,12 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         return_type = get_type_hints(self._task.fn).get("return")
 
         self._output_validator = self.get_output_validator(return_type)
+        self._is_dataclass_output = bool(
+            is_dataclass(return_type) and isinstance(return_type, type)
+        )
+        self._pydantic_dataclass_output = self.create_pydantic_dataclass_wrapper(
+            return_type
+        )
 
         self.config = self._workflow.config
 
@@ -1221,6 +1227,17 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
 
         return None
 
+    def create_pydantic_dataclass_wrapper(
+        self, return_type: Any | None
+    ) -> type[BaseModel] | None:
+        if not (is_dataclass(return_type) and isinstance(return_type, type)):
+            return None
+
+        class PydanticDataclassWrapper(BaseModel):
+            data: return_type  # type: ignore[valid-type]
+
+        return PydanticDataclassWrapper
+
     def validate_output(self, output: Any) -> R:
         if is_basemodel_subclass(self._output_validator):
             return cast(R, self._output_validator.model_validate(output))
@@ -1228,23 +1245,18 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         if is_dataclass(self._output_validator) and isinstance(
             self._output_validator, type
         ):
+            ## if it's a dataclass, we first convert to a Pydantic model
+            ## and then we parse it to a native dataclass
+            ## this is hack to get the native dataclass to validate types properly
+            ## after deserializing them
+            if self._pydantic_dataclass_output:
+                return self._pydantic_dataclass_output(data=output).data  # type: ignore
+
             return cast(
                 R,
                 from_dict(
                     data_class=self._output_validator,
                     data=output,
-                    config=Config(
-                        type_hooks={
-                            datetime: lambda x: (
-                                x
-                                if isinstance(x, datetime)
-                                else datetime.fromisoformat(x)
-                            ),
-                            date: lambda x: (
-                                x if isinstance(x, date) else date.fromisoformat(x)
-                            ),
-                        }
-                    ),
                 ),
             )
 
