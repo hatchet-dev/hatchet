@@ -4,6 +4,7 @@ package main
 
 import (
 	"context"
+	"os"
 	"testing"
 	"time"
 
@@ -13,6 +14,8 @@ import (
 )
 
 func TestMiddleware(t *testing.T) {
+	_ = os.Setenv("SERVER_MSGQUEUE_RABBITMQ_URL", "amqp://user:password@localhost:5672/")
+
 	testutils.Prepare(t)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
