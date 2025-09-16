@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 type StorePayloadOpts struct {
@@ -236,6 +237,9 @@ func (p *payloadStoreRepositoryImpl) bulkRetrieve(ctx context.Context, tx sqlcv1
 }
 
 func (p *payloadStoreRepositoryImpl) offloadToExternal(ctx context.Context, payloads ...OffloadToExternalStoreOpts) (map[RetrievePayloadOpts]ExternalPayloadLocationKey, error) {
+	ctx, span := telemetry.NewSpan(ctx, "payloadstore.offload_to_external_store")
+	defer span.End()
+
 	// this is only intended to be called from ProcessPayloadWAL, which short-circuits if external store is not enabled
 	if !p.externalStoreEnabled {
 		return nil, fmt.Errorf("external store not enabled")
@@ -250,7 +254,7 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadWAL(ctx context.Context, part
 		return false, nil
 	}
 
-	ctx, span := telemetry.NewSpan(ctx, "process-payload-wal")
+	ctx, span := telemetry.NewSpan(ctx, "payloadstore.process_payload_wal")
 	defer span.End()
 
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, p.pool, p.l, 5000)
@@ -310,6 +314,25 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadWAL(ctx context.Context, part
 	}
 
 	externalStoreOpts := make([]OffloadToExternalStoreOpts, 0)
+	minOffloadAt := time.Now().Add(100 * time.Hour)
+	offloadLag := time.Since(minOffloadAt).Seconds()
+
+	attrs := []attribute.KeyValue{
+		{
+			Key:   "payload_wal_offload_partition_number",
+			Value: attribute.Int64Value(partitionNumber),
+		},
+		{
+			Key:   "payload_wal_offload_count",
+			Value: attribute.IntValue(len(retrieveOpts)),
+		},
+		{
+			Key:   "payload_wal_offload_lag_seconds",
+			Value: attribute.Float64Value(offloadLag),
+		},
+	}
+
+	span.SetAttributes(attrs...)
 
 	for opts, payload := range payloads {
 		offloadAt, ok := retrieveOptsToOffloadAt[opts]
@@ -328,6 +351,10 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadWAL(ctx context.Context, part
 			},
 			OffloadAt: offloadAt.Time,
 		})
+
+		if offloadAt.Time.Before(minOffloadAt) {
+			minOffloadAt = offloadAt.Time
+		}
 	}
 
 	if err := commit(ctx); err != nil {
