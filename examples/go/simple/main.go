@@ -29,7 +29,6 @@ func main() {
 			Result: "Processed: " + input.Message,
 		}, nil
 	})
-	// !!
 
 	worker, err := client.NewWorker("simple-worker", hatchet.WithWorkflows(task))
 	if err != nil {
@@ -42,7 +41,6 @@ func main() {
 		if err != nil {
 			return err
 		}
-		// !!
 
 		var resultOutput SimpleOutput
 		err = result.Into(&result)

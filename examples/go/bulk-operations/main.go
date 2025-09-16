@@ -6,76 +6,99 @@ import (
 	"log"
 	"time"
 
-	"github.com/google/uuid"
-	"github.com/oapi-codegen/runtime/types"
-
-	"github.com/hatchet-dev/hatchet/pkg/client/rest"
-	v1 "github.com/hatchet-dev/hatchet/pkg/v1"
+	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
+	hatchet "github.com/hatchet-dev/hatchet/sdks/go"
 )
 
-func main() {
-	// > Setup
+type ProcessInput struct {
+	ID      int    `json:"id"`
+	Message string `json:"message"`
+}
 
-	hatchet, err := v1.NewHatchetClient()
+type ProcessOutput struct {
+	ID     int    `json:"id"`
+	Result string `json:"result"`
+}
+
+func main() {
+	// Create a new Hatchet client
+	client, err := hatchet.NewClient()
 	if err != nil {
 		log.Fatalf("failed to create hatchet client: %v", err)
 	}
 
+	// Create a workflow for bulk processing
+	workflow := client.NewWorkflow("bulk-processing-workflow")
+
+	// Define the processing task
+	workflow.NewTask("process-item", func(ctx hatchet.Context, input ProcessInput) (ProcessOutput, error) {
+		// Simulate some processing work
+		time.Sleep(time.Duration(100+input.ID*50) * time.Millisecond)
+
+		log.Printf("Processing item %d: %s", input.ID, input.Message)
+
+		return ProcessOutput{
+			ID:     input.ID,
+			Result: fmt.Sprintf("Processed item %d: %s", input.ID, input.Message),
+		}, nil
+	})
+
+	// Create a worker to run the workflow
+	worker, err := client.NewWorker("bulk-operations-worker", hatchet.WithWorkflows(workflow))
+	if err != nil {
+		log.Fatalf("failed to create worker: %v", err)
+	}
+
+	interruptCtx, cancel := cmdutils.NewInterruptContext()
+	defer cancel()
+
+	// Start the worker in a goroutine
+	go func() {
+		log.Println("Starting bulk operations worker...")
+		if err := worker.StartBlocking(interruptCtx); err != nil {
+			log.Printf("worker failed: %v", err)
+		}
+	}()
+
+	// Wait a moment for the worker to start
+	time.Sleep(2 * time.Second)
+
+	// Prepare bulk data
+	bulkInputs := make([]ProcessInput, 10)
+	for i := 0; i < 10; i++ {
+		bulkInputs[i] = ProcessInput{
+			ID:      i + 1,
+			Message: fmt.Sprintf("Task number %d", i+1),
+		}
+	}
+
+	log.Printf("Running bulk operations with %d items...", len(bulkInputs))
+
+	// Prepare inputs as []RunManyOpt for bulk run
+	inputs := make([]hatchet.RunManyOpt, len(bulkInputs))
+	for i, input := range bulkInputs {
+		inputs[i] = hatchet.RunManyOpt{
+			Input: input,
+		}
+	}
+
+	// Run workflows in bulk
 	ctx := context.Background()
-
-	workflows, err := hatchet.Workflows().List(ctx, nil)
+	runIDs, err := client.RunMany(ctx, "bulk-processing-workflow", inputs)
 	if err != nil {
-		log.Fatalf("failed to list workflows: %v", err)
+		log.Fatalf("failed to run bulk workflows: %v", err)
 	}
 
-	if workflows == nil || workflows.Rows == nil || len(*workflows.Rows) == 0 {
-		log.Fatalf("no workflows found")
+	log.Printf("Started %d bulk workflows with run IDs: %v", len(runIDs), runIDs)
+
+	// Optionally monitor some of the runs
+	for i, runID := range runIDs {
+		if i < 3 { // Monitor first 3 runs as examples
+			log.Printf("Monitoring run %d with ID: %s", i+1, runID)
+		}
 	}
 
-	selectedWorkflow := (*workflows.Rows)[0]
-	selectedWorkflowUUID := uuid.MustParse(selectedWorkflow.Metadata.Id)
+	log.Println("All bulk operations started. Press Ctrl+C to stop the worker.")
 
-
-	// > List runs
-	workflowRuns, err := hatchet.Runs().List(ctx, rest.V1WorkflowRunListParams{
-		WorkflowIds: &[]types.UUID{selectedWorkflowUUID},
-	})
-	if err != nil || workflowRuns == nil || workflowRuns.JSON200 == nil || workflowRuns.JSON200.Rows == nil {
-		log.Fatalf("failed to list workflow runs for workflow %s: %v", selectedWorkflow.Name, err)
-	}
-
-	var runIds []types.UUID
-
-	for _, run := range workflowRuns.JSON200.Rows {
-		runIds = append(runIds, uuid.MustParse(run.Metadata.Id))
-	}
-
-
-	// > Cancel by run ids
-	_, err = hatchet.Runs().Cancel(ctx, rest.V1CancelTaskRequest{
-		ExternalIds: &runIds,
-	})
-	if err != nil {
-		log.Fatalf("failed to cancel runs by ids: %v", err)
-	}
-
-
-	// > Cancel by filters
-	tNow := time.Now().UTC()
-
-	_, err = hatchet.Runs().Cancel(ctx, rest.V1CancelTaskRequest{
-		Filter: &rest.V1TaskFilter{
-			Since:              tNow.Add(-24 * time.Hour),
-			Until:              &tNow,
-			Statuses:           &[]rest.V1TaskStatus{rest.V1TaskStatusRUNNING},
-			WorkflowIds:        &[]types.UUID{selectedWorkflowUUID},
-			AdditionalMetadata: &[]string{`{"key": "value"}`},
-		},
-	})
-	if err != nil {
-		log.Fatalf("failed to cancel runs by filters: %v", err)
-	}
-
-
-	fmt.Println("cancelled all runs for workflow", selectedWorkflow.Name)
+	<-interruptCtx.Done()
 }
