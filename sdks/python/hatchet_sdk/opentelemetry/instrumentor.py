@@ -15,11 +15,11 @@ try:
     from opentelemetry.metrics import MeterProvider, NoOpMeterProvider, get_meter
     from opentelemetry.trace import (
         NoOpTracerProvider,
+        SpanKind,
         StatusCode,
         TracerProvider,
         get_tracer,
         get_tracer_provider,
-        SpanKind,
     )
     from opentelemetry.trace.propagation.tracecontext import (
         TraceContextTextMapPropagator,

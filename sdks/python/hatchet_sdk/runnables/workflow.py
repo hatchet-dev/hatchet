@@ -1,5 +1,6 @@
 import asyncio
 from collections.abc import Callable
+from dataclasses import is_dataclass
 from datetime import datetime, timedelta
 from functools import cached_property
 from typing import (
@@ -41,6 +42,7 @@ from hatchet_sdk.rate_limit import RateLimit
 from hatchet_sdk.runnables.task import Task
 from hatchet_sdk.runnables.types import (
     ConcurrencyExpression,
+    DataclassInstance,
     EmptyModel,
     R,
     StepType,
@@ -1203,11 +1205,31 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
 
         return_type = get_type_hints(self._task.fn).get("return")
 
-        self._output_validator = (
-            return_type if is_basemodel_subclass(return_type) else None
-        )
+        self._output_validator = self.get_output_validator(return_type)
 
         self.config = self._workflow.config
+
+    def get_output_validator(
+        self, return_type: Any | None
+    ) -> type[BaseModel] | type[DataclassInstance] | None:
+        if is_basemodel_subclass(return_type):
+            return return_type
+
+        if is_dataclass(return_type) and isinstance(return_type, type):
+            return return_type
+
+        return None
+
+    def validate_output(self, output: Any) -> R:
+        if is_basemodel_subclass(self._output_validator):
+            return cast(R, self._output_validator.model_validate(output))
+
+        if is_dataclass(self._output_validator) and isinstance(
+            self._output_validator, type
+        ):
+            return cast(R, self._output_validator(**output))
+
+        raise TypeError("Output validator is not set or invalid")
 
     @overload
     def _extract_result(self, result: dict[str, Any]) -> R: ...
@@ -1226,7 +1248,7 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         if not self._output_validator:
             return cast(R, output)
 
-        return cast(R, self._output_validator.model_validate(output))
+        return self.validate_output(output)
 
     def run(
         self,
