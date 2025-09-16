@@ -386,6 +386,10 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 				return cleanupv1()
 			}
 		case "rabbitmq":
+			if cf.MessageQueue.RabbitMQ.URL == "" {
+				return nil, nil, fmt.Errorf("using RabbitMQ as message queue requires a URL to be set")
+			}
+
 			var cleanupv0 func() error
 			var cleanupv1 func() error
 
