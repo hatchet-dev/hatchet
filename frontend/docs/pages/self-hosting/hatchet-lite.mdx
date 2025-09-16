@@ -133,7 +133,7 @@ services:
         condition: service_healthy
     environment:
       SERVER_MSGQUEUE_KIND: rabbitmq
-      SERVER_MSGQUEUE_RABBITMQ_URL: amqp://user:password@rabbitmq:5672
+      SERVER_MSGQUEUE_RABBITMQ_URL: "amqp://user:password@rabbitmq:5672/"
       # Refer to https://docs.hatchet.run/self-hosting/configuration-options
       # for a list of all supported environment variables
       DATABASE_URL: "postgresql://hatchet:hatchet@postgres:5432/hatchet?sslmode=disable"
