@@ -240,6 +240,8 @@ func (p *payloadStoreRepositoryImpl) offloadToExternal(ctx context.Context, payl
 	ctx, span := telemetry.NewSpan(ctx, "payloadstore.offload_to_external_store")
 	defer span.End()
 
+	span.SetAttributes(attribute.Int("payloadstore.offload_to_external_store.num_payloads_to_offload", len(payloads)))
+
 	// this is only intended to be called from ProcessPayloadWAL, which short-circuits if external store is not enabled
 	if !p.externalStoreEnabled {
 		return nil, fmt.Errorf("external store not enabled")
@@ -319,15 +321,15 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadWAL(ctx context.Context, part
 
 	attrs := []attribute.KeyValue{
 		{
-			Key:   "payload_wal_offload_partition_number",
+			Key:   "payloadstore.process_payload_wal.payload_wal_offload_partition_number",
 			Value: attribute.Int64Value(partitionNumber),
 		},
 		{
-			Key:   "payload_wal_offload_count",
+			Key:   "payloadstore.process_payload_wal.payload_wal_offload_count",
 			Value: attribute.IntValue(len(retrieveOpts)),
 		},
 		{
-			Key:   "payload_wal_offload_lag_seconds",
+			Key:   "payloadstore.process_payload_wal.payload_wal_offload_lag_seconds",
 			Value: attribute.Float64Value(offloadLag),
 		},
 	}
