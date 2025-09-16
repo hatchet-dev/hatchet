@@ -2,7 +2,7 @@ import asyncio
 import json
 from collections.abc import Callable, Mapping
 from enum import Enum
-from typing import Any, ParamSpec, TypeGuard, TypeVar
+from typing import Any, ParamSpec, Protocol, TypeGuard, TypeVar, runtime_checkable
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -12,7 +12,13 @@ from hatchet_sdk.contracts.v1.workflows_pb2 import DefaultFilter as DefaultFilte
 from hatchet_sdk.utils.timedelta_to_expression import Duration
 from hatchet_sdk.utils.typing import AwaitableLike, JSONSerializableMapping
 
-ValidTaskReturnType = BaseModel | Mapping[str, Any] | None
+
+@runtime_checkable
+class Dataclass(Protocol):
+    __dataclass_fields__: dict[Any, Any]
+
+
+ValidTaskReturnType = BaseModel | Mapping[str, Any] | Dataclass | None
 
 R = TypeVar("R", bound=ValidTaskReturnType)
 P = ParamSpec("P")
