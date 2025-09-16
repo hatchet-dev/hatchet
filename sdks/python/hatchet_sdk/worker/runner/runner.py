@@ -4,6 +4,7 @@ import functools
 import json
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import asdict, is_dataclass
 from enum import Enum
 from multiprocessing import Queue
 from textwrap import dedent
@@ -583,6 +584,9 @@ class Runner:
 
         if isinstance(output, BaseModel):
             output = output.model_dump(mode="json")
+
+        if is_dataclass(output) and not isinstance(output, type):
+            output = asdict(output)
 
         if not isinstance(output, dict):
             raise IllegalTaskOutputError(
