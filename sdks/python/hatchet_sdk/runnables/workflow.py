@@ -1,6 +1,6 @@
 import asyncio
 from collections.abc import Callable
-from dataclasses import is_dataclass
+from dataclasses import dataclass, is_dataclass
 from datetime import datetime, timedelta
 from functools import cached_property
 from typing import (
@@ -10,6 +10,7 @@ from typing import (
     Generic,
     Literal,
     ParamSpec,
+    TypeGuard,
     TypeVar,
     cast,
     get_type_hints,
@@ -65,6 +66,50 @@ if TYPE_CHECKING:
 
 T = TypeVar("T")
 P = ParamSpec("P")
+
+
+@dataclass
+class PydanticModelValidator:
+    validator_type: type[BaseModel]
+    kind: Literal["basemodel"] = "basemodel"
+
+
+@dataclass
+class DataclassValidator:
+    validator_type: type[DataclassInstance]
+    kind: Literal["dataclass"] = "dataclass"
+
+
+@dataclass
+class NoValidator:
+    kind: Literal["none"] = "none"
+
+
+OutputValidator = PydanticModelValidator | DataclassValidator | NoValidator
+
+
+def is_basemodel_validator(
+    validator: OutputValidator,
+) -> TypeGuard[PydanticModelValidator]:
+    return validator.kind == "basemodel"
+
+
+def is_dataclass_validator(validator: OutputValidator) -> TypeGuard[DataclassValidator]:
+    return validator.kind == "dataclass"
+
+
+def is_no_validator(validator: OutputValidator) -> TypeGuard[NoValidator]:
+    return validator.kind == "none"
+
+
+def classify_output_validator(return_type: Any | None) -> OutputValidator:
+    if is_basemodel_subclass(return_type):
+        return PydanticModelValidator(validator_type=return_type)
+
+    if is_dataclass(return_type) and isinstance(return_type, type):
+        return DataclassValidator(validator_type=return_type)
+
+    return NoValidator()
 
 
 def fall_back_to_default(value: T, param_default: T, fallback_value: T | None) -> T:
@@ -1212,13 +1257,18 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
     def get_output_validator(
         self, return_type: Any | None
     ) -> type[BaseModel] | type[DataclassInstance] | None:
-        if is_basemodel_subclass(return_type):
-            return return_type
+        validator = classify_output_validator(return_type)
 
-        if is_dataclass(return_type) and isinstance(return_type, type):
-            return return_type
+        if is_basemodel_validator(validator):
+            return validator.validator_type
 
-        return None
+        if is_dataclass_validator(validator):
+            return validator.validator_type
+
+        if is_no_validator(validator):
+            return None
+
+        raise AssertionError(f"Unhandled validator type: {validator}")
 
     @overload
     def _extract_result(self, result: dict[str, Any]) -> R: ...
@@ -1234,20 +1284,22 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
 
         output = result.get(self._task.name)
 
-        if is_basemodel_subclass(self._output_validator):
-            return cast(R, self._output_validator.model_validate(output))
+        validator = classify_output_validator(self._output_validator)
 
-        if is_dataclass(self._output_validator) and isinstance(
-            self._output_validator, type
-        ):
+        if is_basemodel_validator(validator):
+            return cast(R, validator.validator_type.model_validate(output))
+
+        if is_dataclass_validator(validator):
             return cast(
                 R,
-                TypeAdapter(self._output_validator).validate_python(output),
+                TypeAdapter(validator.validator_type).validate_python(output),
             )
 
-        ## important: keep this as the last case, and make sure we handle every possible
-        ## case in the allowed types of `_output_validator`
-        return cast(R, output)
+        if is_no_validator(validator):
+            return cast(R, output)
+
+        # This line should never be reached due to exhaustive checking
+        raise AssertionError(f"Unhandled validator type: {validator}")
 
     def run(
         self,
