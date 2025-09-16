@@ -1,7 +1,7 @@
 import asyncio
 from collections.abc import Callable
 from dataclasses import is_dataclass
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from functools import cached_property
 from typing import (
     TYPE_CHECKING,
@@ -16,7 +16,7 @@ from typing import (
     overload,
 )
 
-from dacite import from_dict
+from dacite import Config, from_dict
 from google.protobuf import timestamp_pb2
 from pydantic import BaseModel, model_validator
 
@@ -1228,7 +1228,25 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         if is_dataclass(self._output_validator) and isinstance(
             self._output_validator, type
         ):
-            return cast(R, from_dict(self._output_validator, output))
+            return cast(
+                R,
+                from_dict(
+                    data_class=self._output_validator,
+                    data=output,
+                    config=Config(
+                        type_hooks={
+                            datetime: lambda x: (
+                                x
+                                if isinstance(x, datetime)
+                                else datetime.fromisoformat(x)
+                            ),
+                            date: lambda x: (
+                                x if isinstance(x, date) else date.fromisoformat(x)
+                            ),
+                        }
+                    ),
+                ),
+            )
 
         raise TypeError("Output validator is not set or invalid")
 
