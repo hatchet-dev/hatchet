@@ -495,18 +495,28 @@ func (w *Workflow) Dump() (*contracts.CreateWorkflowVersionRequest, []internal.N
 
 // Run executes the workflow with the provided input and waits for completion.
 func (w *Workflow) Run(ctx context.Context, input any) (*WorkflowResult, error) {
-	result, err := w.declaration.Run(ctx, input)
+	v0Workflow, err := w.v0Client.Admin().RunWorkflow(w.declaration.Name(), input)
 	if err != nil {
 		return nil, err
 	}
 
-	return &WorkflowResult{result: result}, nil
+	result, err := v0Workflow.Result()
+	if err != nil {
+		return nil, err
+	}
+
+	workflowResult, err := result.Results()
+	if err != nil {
+		return nil, err
+	}
+
+	return &WorkflowResult{result: workflowResult}, nil
 }
 
 // RunNoWait executes the workflow with the provided input without waiting for completion.
 // Returns a workflow run reference that can be used to track the run status.
 func (w *Workflow) RunNoWait(ctx context.Context, input any) (*WorkflowRef, error) {
-	wf, err := w.declaration.RunNoWait(ctx, input)
+	wf, err := w.v0Client.Admin().RunWorkflow(w.declaration.Name(), input)
 	if err != nil {
 		return nil, err
 	}

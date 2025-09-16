@@ -346,20 +346,37 @@ func (c *Client) NewStandaloneDurableTask(name string, fn any, options ...Standa
 
 // Run executes the standalone task with the provided input and waits for completion.
 func (st *StandaloneTask) Run(ctx context.Context, input any) (*TaskResult, error) {
-	result, err := st.workflow.Run(ctx, input)
+	v0Workflow, err := st.workflow.v0Client.Admin().RunWorkflow(st.workflow.declaration.Name(), input)
 	if err != nil {
 		return nil, err
 	}
 
+	result, err := v0Workflow.Result()
+	if err != nil {
+		return nil, err
+	}
+
+	workflowResult, err := result.Results()
+	if err != nil {
+		return nil, err
+	}
+
+	res := WorkflowResult{result: workflowResult}
+
 	// Extract the task result from the workflow result
-	taskResult := result.TaskOutput(st.task.name)
+	taskResult := res.TaskOutput(st.task.name)
 	return taskResult, nil
 }
 
 // RunNoWait executes the standalone task with the provided input without waiting for completion.
 // Returns a workflow run reference that can be used to track the run status.
 func (st *StandaloneTask) RunNoWait(ctx context.Context, input any) (*WorkflowRef, error) {
-	return st.workflow.RunNoWait(ctx, input)
+	v0Workflow, err := st.workflow.v0Client.Admin().RunWorkflow(st.workflow.declaration.Name(), input)
+	if err != nil {
+		return nil, err
+	}
+
+	return &WorkflowRef{RunId: v0Workflow.RunId()}, nil
 }
 
 // Dump implements the WorkflowBase interface for internal use, delegating to the underlying workflow.

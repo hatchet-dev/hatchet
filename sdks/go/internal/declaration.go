@@ -72,16 +72,6 @@ type WorkflowDeclaration[I, O any] interface {
 	// OnFailureTask registers a task that will be executed if the workflow fails.
 	OnFailure(opts create.WorkflowOnFailureTask[I, O], fn func(ctx worker.HatchetContext, input I) (interface{}, error)) *task.OnFailureTaskDeclaration[I]
 
-	// Run executes the workflow with the provided input.
-	Run(ctx context.Context, input I, opts ...v0Client.RunOptFunc) (*O, error)
-
-	// RunNoWait executes the workflow with the provided input without waiting for it to complete.
-	// Instead it returns a run ID that can be used to check the status of the workflow.
-	RunNoWait(ctx context.Context, input I, opts ...v0Client.RunOptFunc) (*v0Client.Workflow, error)
-
-	// RunBulkNoWait executes the workflow with the provided inputs without waiting for them to complete.
-	RunBulkNoWait(ctx context.Context, input []I, opts ...v0Client.RunOptFunc) ([]string, error)
-
 	// Cron schedules the workflow to run on a regular basis using a cron expression.
 	Cron(ctx context.Context, name string, cronExpr string, input I, opts ...v0Client.RunOptFunc) (*rest.CronWorkflows, error)
 
@@ -494,124 +484,6 @@ func (w *workflowDeclarationImpl[I, O]) OnFailure(opts create.WorkflowOnFailureT
 	return taskDecl
 }
 
-// RunBulkNoWait executes the workflow with the provided inputs without waiting for them to complete.
-// Instead it returns a list of run IDs that can be used to check the status of the workflows.
-func (w *workflowDeclarationImpl[I, O]) RunBulkNoWait(ctx context.Context, input []I, opts ...v0Client.RunOptFunc) ([]string, error) {
-	toRun := make([]*v0Client.WorkflowRun, len(input))
-
-	for i, inp := range input {
-		toRun[i] = &v0Client.WorkflowRun{
-			Name:    w.name,
-			Input:   inp,
-			Options: opts,
-		}
-	}
-
-	run, err := w.v0.Admin().BulkRunWorkflow(toRun)
-	if err != nil {
-		return nil, err
-	}
-
-	return run, nil
-}
-
-// RunNoWait executes the workflow with the provided input without waiting for it to complete.
-// Instead it returns a run ID that can be used to check the status of the workflow.
-func (w *workflowDeclarationImpl[I, O]) RunNoWait(ctx context.Context, input I, opts ...v0Client.RunOptFunc) (*v0Client.Workflow, error) {
-	run, err := w.v0.Admin().RunWorkflow(w.name, input, opts...)
-	if err != nil {
-		return nil, err
-	}
-
-	return run, nil
-}
-
-func (w *workflowDeclarationImpl[I, O]) getOutputFromWorkflowResult(workflowResult *v0Client.WorkflowResult) (*O, error) {
-	// Create a new output object
-	var output O
-
-	if w.outputKey != nil {
-		// Extract task output using the StepOutput method for the specific output key
-		err := workflowResult.StepOutput(*w.outputKey, &output)
-		if err != nil {
-			// Log the error
-			fmt.Printf("Error extracting output for task %s: %v\n", *w.outputKey, err)
-			return nil, err
-		}
-	} else {
-		// Iterate through each task with a registered output setter
-		for taskName, setter := range w.outputSetters {
-			// Extract the specific task output using StepOutput
-			var taskOutput interface{}
-
-			// Use reflection to create the correct type for the task output
-			for fieldName, fieldType := range getStructFields(reflect.TypeOf(output)) {
-				if strings.EqualFold(fieldName, taskName) {
-					taskOutput = reflect.New(fieldType).Interface()
-					break
-				}
-			}
-
-			if taskOutput == nil {
-				continue // Skip if we couldn't find a matching field
-			}
-
-			// Extract task output using the StepOutput method
-			err := workflowResult.StepOutput(taskName, &taskOutput)
-			if err != nil {
-				// Log the error but continue with other tasks
-				fmt.Printf("Error extracting output for task %s: %v\n", taskName, err)
-				continue
-			}
-
-			// Set the output value using the registered setter
-			setter(&output, taskOutput)
-		}
-	}
-
-	return &output, nil
-}
-
-// Run executes the workflow with the provided input.
-// It triggers a workflow run via the Hatchet client and waits for the result.
-// Returns the workflow output and any error encountered during execution.
-func (w *workflowDeclarationImpl[I, O]) Run(ctx context.Context, input I, opts ...v0Client.RunOptFunc) (*O, error) {
-	run, err := w.RunNoWait(ctx, input, opts...)
-	if err != nil {
-		return nil, err
-	}
-
-	workflowResult, err := run.Result()
-	if err != nil {
-		return nil, err
-	}
-
-	return w.getOutputFromWorkflowResult(workflowResult)
-}
-
-// Helper function to get field names and types of a struct
-func getStructFields(t reflect.Type) map[string]reflect.Type {
-	if t == nil {
-		return nil
-	}
-
-	if t.Kind() == reflect.Ptr {
-		t = t.Elem()
-	}
-
-	if t.Kind() != reflect.Struct {
-		return nil
-	}
-
-	fields := make(map[string]reflect.Type)
-	for i := 0; i < t.NumField(); i++ {
-		field := t.Field(i)
-		fields[field.Name] = field.Type
-	}
-
-	return fields
-}
-
 // Cron schedules the workflow to run on a regular basis using a cron expression.
 func (w *workflowDeclarationImpl[I, O]) Cron(ctx context.Context, name string, cronExpr string, input I, opts ...v0Client.RunOptFunc) (*rest.CronWorkflows, error) {
 	var inputMap map[string]interface{}
@@ -853,36 +725,6 @@ func (w *workflowDeclarationImpl[I, O]) Get(ctx context.Context) (*rest.Workflow
 	return workflow, nil
 }
 
-// // IsPaused checks if the workflow is currently paused.
-// func (w *workflowDeclarationImpl[I, O]) IsPaused(ctx context.Context) (bool, error) {
-// 	paused, err := w.workflows.IsPaused(ctx, w.name)
-// 	if err != nil {
-// 		return false, err
-// 	}
-
-// 	return paused, nil
-// }
-
-// // Pause pauses the assignment of new workflow runs.
-// func (w *workflowDeclarationImpl[I, O]) Pause(ctx context.Context) error {
-// 	_, err := w.workflows.Pause(ctx, w.name)
-// 	if err != nil {
-// 		return err
-// 	}
-
-// 	return nil
-// }
-
-// // Unpause resumes the assignment of workflow runs.
-// func (w *workflowDeclarationImpl[I, O]) Unpause(ctx context.Context) error {
-// 	_, err := w.workflows.Unpause(ctx, w.name)
-// 	if err != nil {
-// 		return err
-// 	}
-
-// 	return nil
-// }
-
 // Metrics retrieves metrics for this workflow.
 func (w *workflowDeclarationImpl[I, O]) Metrics(ctx context.Context, opts ...rest.WorkflowGetMetricsParams) (*rest.WorkflowMetrics, error) {
 	var options rest.WorkflowGetMetricsParams
@@ -928,65 +770,4 @@ func (w *workflowDeclarationImpl[I, O]) QueueMetrics(ctx context.Context, opts .
 	}
 
 	return metrics, nil
-}
-
-// RunChildWorkflow is a helper function to run a child workflow with full type safety
-// It takes the parent context, the child workflow declaration, and input
-// Returns the typed output of the child workflow
-func RunChildWorkflow[I any, O any](
-	ctx worker.HatchetContext,
-	workflow WorkflowDeclaration[I, O],
-	input I,
-	opts ...v0Client.RunOptFunc,
-) (*O, error) {
-	// Get the workflow name
-	wfImpl, ok := workflow.(*workflowDeclarationImpl[I, O])
-	if !ok {
-		return nil, fmt.Errorf("invalid workflow declaration type")
-	}
-
-	spawnOpts := &worker.SpawnWorkflowOpts{}
-
-	runOpts := &admincontracts.TriggerWorkflowRequest{}
-
-	for _, opt := range opts {
-		opt(runOpts)
-	}
-
-	spawnOpts.Priority = runOpts.Priority
-
-	if runOpts.AdditionalMetadata != nil {
-		additionalMetadata := make(map[string]interface{})
-		json.Unmarshal([]byte(*runOpts.AdditionalMetadata), &additionalMetadata)
-
-		metadataStr := make(map[string]string)
-		for k, v := range additionalMetadata {
-			// Convert interface{} values to strings
-			switch val := v.(type) {
-			case string:
-				metadataStr[k] = val
-			default:
-				// For non-string values, convert to JSON string
-				bytes, err := json.Marshal(val)
-				if err != nil {
-					return nil, fmt.Errorf("failed to marshal metadata value: %w", err)
-				}
-				metadataStr[k] = string(bytes)
-			}
-		}
-		spawnOpts.AdditionalMetadata = &metadataStr
-	}
-
-	childWorkflow, err := ctx.SpawnWorkflow(wfImpl.name, input, spawnOpts)
-	if err != nil {
-		return nil, fmt.Errorf("failed to spawn child workflow: %w", err)
-	}
-
-	// Wait for the result
-	workflowResult, err := childWorkflow.Result()
-	if err != nil {
-		return nil, fmt.Errorf("child workflow execution failed: %w", err)
-	}
-
-	return wfImpl.getOutputFromWorkflowResult(workflowResult)
 }
