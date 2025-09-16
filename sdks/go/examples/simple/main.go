@@ -9,14 +9,6 @@ import (
 	hatchet "github.com/hatchet-dev/hatchet/sdks/go"
 )
 
-type SimpleInput struct {
-	Message string `json:"message"`
-}
-
-type SimpleOutput struct {
-	Result string `json:"result"`
-}
-
 func main() {
 	client, err := hatchet.NewClient()
 	if err != nil {
@@ -24,6 +16,14 @@ func main() {
 	}
 
 	// > Declaring a Task
+	type SimpleInput struct {
+		Message string `json:"message"`
+	}
+
+	type SimpleOutput struct {
+		Result string `json:"result"`
+	}
+
 	task := client.NewStandaloneTask("process-message", func(ctx hatchet.Context, input SimpleInput) (SimpleOutput, error) {
 		return SimpleOutput{
 			Result: "Processed: " + input.Message,
