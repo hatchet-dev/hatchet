@@ -242,14 +242,13 @@ func (c *Client) NewWorkflow(name string, options ...WorkflowOption) *Workflow {
 // StandaloneTask represents a single task that runs independently without a workflow wrapper.
 // It's essentially a specialized workflow containing only one task.
 type StandaloneTask struct {
-	name     string
 	workflow *Workflow
 	task     *Task
 }
 
 // GetName returns the name of the standalone task.
 func (st *StandaloneTask) GetName() string {
-	return st.name
+	return st.workflow.declaration.Name()
 }
 
 // StandaloneTaskOption represents options that can be applied to standalone tasks.
@@ -294,7 +293,6 @@ func (c *Client) NewStandaloneTask(name string, fn any, options ...StandaloneTas
 	task := workflow.NewTask(name, fn, taskOptions...)
 
 	return &StandaloneTask{
-		name:     name,
 		workflow: workflow,
 		task:     task,
 	}
@@ -338,7 +336,6 @@ func (c *Client) NewStandaloneDurableTask(name string, fn any, options ...Standa
 	task := workflow.NewDurableTask(name, fn, taskOptions...)
 
 	return &StandaloneTask{
-		name:     name,
 		workflow: workflow,
 		task:     task,
 	}
@@ -377,6 +374,58 @@ func (st *StandaloneTask) RunNoWait(ctx context.Context, input any) (*WorkflowRe
 	}
 
 	return &WorkflowRef{RunId: v0Workflow.RunId()}, nil
+}
+
+// RunMany executes multiple standalone task instances with different inputs.
+// Returns workflow run IDs that can be used to track the run statuses.
+func (st *StandaloneTask) RunMany(ctx context.Context, inputs []RunManyOpt) ([]string, error) {
+	workflows := make([]*v0Client.WorkflowRun, len(inputs))
+	for i, input := range inputs {
+		workflows[i] = &v0Client.WorkflowRun{
+			Name:    st.workflow.declaration.Name(),
+			Input:   input.Input,
+			Options: input.Opts,
+		}
+	}
+	return st.workflow.v0Client.Admin().BulkRunWorkflow(workflows)
+}
+
+// RunAsChild executes the workflow as a child workflow with the provided input.
+func (st *StandaloneTask) RunAsChild(ctx worker.HatchetContext, input any, opts RunAsChildOpts) (*WorkflowResult, error) {
+	// Convert opts to internal format
+	var additionalMetaOpt *map[string]string
+
+	if opts.AdditionalMetadata != nil {
+		additionalMeta := make(map[string]string)
+
+		for key, value := range *opts.AdditionalMetadata {
+			additionalMeta[key] = fmt.Sprintf("%v", value)
+		}
+
+		additionalMetaOpt = &additionalMeta
+	}
+
+	// Spawn the child workflow directly
+	run, err := ctx.SpawnWorkflow(st.workflow.declaration.Name(), input, &worker.SpawnWorkflowOpts{
+		Key:                opts.Key,
+		Sticky:             opts.Sticky,
+		Priority:           opts.Priority,
+		AdditionalMetadata: additionalMetaOpt,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	// Get the raw workflow result
+	workflowResult, err := run.Result()
+	if err != nil {
+		return nil, err
+	}
+
+	// Return the raw workflow result wrapped in WorkflowResult
+	// This allows users to extract specific task outputs using .Into()
+	return &WorkflowResult{result: workflowResult}, nil
 }
 
 // Dump implements the WorkflowBase interface for internal use, delegating to the underlying workflow.

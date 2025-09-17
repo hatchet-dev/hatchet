@@ -564,3 +564,17 @@ func (w *Workflow) RunAsChild(ctx worker.HatchetContext, input any, opts RunAsCh
 	// This allows users to extract specific task outputs using .Into()
 	return &WorkflowResult{result: workflowResult}, nil
 }
+
+// RunMany executes multiple workflow instances with different inputs.
+// Returns workflow run IDs that can be used to track the run statuses.
+func (w *Workflow) RunMany(ctx context.Context, inputs []RunManyOpt) ([]string, error) {
+	workflows := make([]*v0Client.WorkflowRun, len(inputs))
+	for i, input := range inputs {
+		workflows[i] = &v0Client.WorkflowRun{
+			Name:    w.declaration.Name(),
+			Input:   input.Input,
+			Options: input.Opts,
+		}
+	}
+	return w.v0Client.Admin().BulkRunWorkflow(workflows)
+}
