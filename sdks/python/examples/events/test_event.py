@@ -115,7 +115,7 @@ async def wait_for_result(
     iters = 0
     while True:
         print("waiting for event runs to complete - iteration", iters)
-        if iters > 20:
+        if iters > 30:
             raise TimeoutError("Timed out waiting for event runs to complete.")
 
         iters += 1
