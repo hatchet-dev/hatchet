@@ -24,9 +24,11 @@ func main() {
 	}
 
 	// Create a DAG workflow
+	// > Declaring a workflow
 	workflow := client.NewWorkflow("dag-workflow")
 
 	// Step 1: Initial processing
+	// > Defining a task
 	step1 := workflow.NewTask("step-1", func(ctx hatchet.Context, input Input) (StepOutput, error) {
 		return StepOutput{
 			Step:   1,
@@ -35,6 +37,7 @@ func main() {
 	})
 
 	// Step 2: Depends on step 1
+	// > Adding a task with a parent
 	step2 := workflow.NewTask("step-2", func(ctx hatchet.Context, input Input) (StepOutput, error) {
 		// Get output from step 1
 		var step1Output StepOutput
