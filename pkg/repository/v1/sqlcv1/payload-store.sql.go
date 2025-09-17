@@ -67,7 +67,7 @@ const pollPayloadWALForRecordsToOffload = `-- name: PollPayloadWALForRecordsToOf
 WITH tenants AS (
     SELECT UNNEST(
         find_matching_tenants_in_payload_wal_partition(
-            $2::BIGINT
+            $2::INT
         )
     ) AS tenant_id
 )
@@ -84,7 +84,7 @@ LIMIT $1::INT
 
 type PollPayloadWALForRecordsToOffloadParams struct {
 	Polllimit       int32 `json:"polllimit"`
-	Partitionnumber int64 `json:"partitionnumber"`
+	Partitionnumber int32 `json:"partitionnumber"`
 }
 
 func (q *Queries) PollPayloadWALForRecordsToOffload(ctx context.Context, db DBTX, arg PollPayloadWALForRecordsToOffloadParams) ([]*V1PayloadWal, error) {

@@ -450,7 +450,7 @@ type ConfigFileAuthCookie struct {
 type MessageQueueConfigFile struct {
 	Enabled bool `mapstructure:"enabled" json:"enabled,omitempty" default:"true"`
 
-	Kind string `mapstructure:"kind" json:"kind,omitempty" validate:"required" default:"rabbitmq"`
+	Kind string `mapstructure:"kind" json:"kind,omitempty" validate:"required,oneof=rabbitmq postgres" default:"rabbitmq"`
 
 	Postgres PostgresMQConfigFile `mapstructure:"postgres" json:"postgres,omitempty"`
 
@@ -462,7 +462,7 @@ type PostgresMQConfigFile struct {
 }
 
 type RabbitMQConfigFile struct {
-	URL string `mapstructure:"url" json:"url,omitempty" validate:"required" default:"amqp://user:password@localhost:5672/"`
+	URL string `mapstructure:"url" json:"url,omitempty" validate:"required"`
 	Qos int    `mapstructure:"qos" json:"qos,omitempty" default:"100"`
 }
 

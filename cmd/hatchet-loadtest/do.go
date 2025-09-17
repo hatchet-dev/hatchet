@@ -13,7 +13,7 @@ type avgResult struct {
 }
 
 func do(config LoadTestConfig) error {
-	l.Info().Msgf("testing with duration=%s, eventsPerSecond=%d, delay=%s, wait=%s, concurrency=%d", config.Duration, config.Events, config.Delay, config.Wait, config.Concurrency)
+	l.Info().Msgf("testing with duration=%s, eventsPerSecond=%d, delay=%s, wait=%s, concurrency=%d, averageDurationThreshold=%s", config.Duration, config.Events, config.Delay, config.Wait, config.Concurrency, config.AverageDurationThreshold)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -113,6 +113,17 @@ func do(config LoadTestConfig) error {
 
 	if int64(config.EventFanout)*emitted*int64(config.DagSteps) != uniques {
 		return fmt.Errorf("❌ emitted and unique executed counts do not match: %d != %d", int64(config.EventFanout)*emitted, uniques)
+	}
+
+	// Add a small tolerance (1% or 1ms, whichever is smaller)
+	tolerance := config.AverageDurationThreshold / 100 // 1% tolerance
+	if tolerance > time.Millisecond {
+		tolerance = time.Millisecond
+	}
+	thresholdWithTolerance := config.AverageDurationThreshold + tolerance
+
+	if finalDurationResult.avg > thresholdWithTolerance {
+		return fmt.Errorf("❌ average duration per executed event is greater than the threshold (with tolerance): %s > %s (threshold: %s, tolerance: %s)", finalDurationResult.avg, thresholdWithTolerance, config.AverageDurationThreshold, tolerance)
 	}
 
 	log.Printf("✅ success")

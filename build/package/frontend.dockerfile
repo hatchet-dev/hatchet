@@ -4,8 +4,8 @@ FROM node:20-alpine3.21 AS build
 WORKDIR /app
 
 COPY ./frontend/app/package.json ./frontend/app/pnpm-lock.yaml ./
-RUN corepack pnpm@9.15.4 --version
-RUN corepack pnpm@9.15.4 install --frozen-lockfile && corepack pnpm@9.15.4 store prune
+RUN corepack pnpm@10.16.1 --version
+RUN corepack pnpm@10.16.1 install --frozen-lockfile && corepack pnpm@10.16.1 store prune
 
 COPY ./frontend/app ./
 RUN npm run build

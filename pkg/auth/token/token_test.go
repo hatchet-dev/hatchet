@@ -21,6 +21,8 @@ import (
 )
 
 func TestCreateTenantToken(t *testing.T) { // make sure no cache is used for tests
+	_ = os.Setenv("SERVER_MSGQUEUE_RABBITMQ_URL", "amqp://user:password@localhost:5672/")
+
 	testutils.RunTestWithDatabase(t, func(conf *database.Layer) error {
 		jwtManager := getJWTManager(t, conf)
 
