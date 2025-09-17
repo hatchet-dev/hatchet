@@ -554,7 +554,10 @@ func (w *workflowDeclarationImpl[I, O]) Schedule(ctx context.Context, triggerAt 
 		triggerOpts.AdditionalMetadata = additionalMetadata
 	}
 
-	triggerOpts.Priority = runOpts.Priority
+	if runOpts.Priority != nil {
+		priority := features.RunPriority(*runOpts.Priority)
+		triggerOpts.Priority = &priority
+	}
 
 	scheduledWorkflow, err := w.schedules.Create(ctx, w.name, triggerOpts)
 	if err != nil {

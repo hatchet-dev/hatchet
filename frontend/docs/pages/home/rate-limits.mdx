@@ -59,7 +59,7 @@ We can add one or more rate limits to a task by adding the `rate_limits` configu
   <Tabs.Tab>
 > Note: Go requires both a key and KeyExpr be set and the LimitValueExpr must be a CEL.
 
-<Snippet src={snippets.go.workflows.ratelimit.dynamic_rate_limit} />
+<Snippet src={snippets.go.rate_limiting.main.dynamic_rate_limit} />
 
   </Tabs.Tab>
 </UniversalTabs>
@@ -99,7 +99,7 @@ Define the static rate limits that can be consumed by any step run across all wo
   </Tabs.Tab>
   <Tabs.Tab>
 
-    <Snippet src={snippets.go.workflows.ratelimit.upsert_rate_limit} />
+    <Snippet src={snippets.go.rate_limiting.main.upsert_rate_limit} />
 
   </Tabs.Tab>
 
@@ -121,7 +121,7 @@ With your rate limit key defined, specify the units of consumption for a specifi
 
   </Tabs.Tab>
   <Tabs.Tab>
-    <Snippet src={snippets.go.workflows.ratelimit.static_rate_limit} />
+    <Snippet src={snippets.go.rate_limiting.main.static_rate_limit} />
 
   </Tabs.Tab>
 </UniversalTabs>
