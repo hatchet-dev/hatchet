@@ -58,15 +58,17 @@ func MultipleConcurrencyKeys(client *hatchet.Client) *hatchet.StandaloneTask {
 				TransformedMessage: input.Message,
 			}, nil
 		},
-		hatchet.WithWorkflowConcurrency(types.Concurrency{
-			Expression:    "input.Tier",
-			MaxRuns:       &maxRuns,
-			LimitStrategy: &strategy,
-		}, types.Concurrency{
-			Expression:    "input.Account",
-			MaxRuns:       &maxRuns,
-			LimitStrategy: &strategy,
-		}),
+		hatchet.WithWorkflowConcurrency(
+			types.Concurrency{
+				Expression:    "input.Tier",
+				MaxRuns:       &maxRuns,
+				LimitStrategy: &strategy,
+			}, types.Concurrency{
+				Expression:    "input.Account",
+				MaxRuns:       &maxRuns,
+				LimitStrategy: &strategy,
+			},
+		),
 	)
 	// !!
 }

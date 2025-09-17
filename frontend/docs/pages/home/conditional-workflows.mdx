@@ -80,7 +80,7 @@ To get started, let's declare the workflow.
     />
   </Tabs.Tab>
   <Tabs.Tab title="Go">
-    <Snippet src={snippets.go.workflows.complex_conditions.create_a_workflow} />
+    <Snippet src={snippets.go.conditions.main.create_a_workflow} />
   </Tabs.Tab>
 </UniversalTabs>
 
@@ -98,7 +98,7 @@ Next, we'll start adding tasks to our workflow. First, we'll add a basic task th
     />
   </Tabs.Tab>
   <Tabs.Tab title="Go">
-    <Snippet src={snippets.go.workflows.complex_conditions.add_base_task} />
+    <Snippet src={snippets.go.conditions.main.add_base_task} />
   </Tabs.Tab>
 </UniversalTabs>
 
@@ -118,7 +118,7 @@ Next, we'll add a task to the workflow that's a child of the first task, but it 
   </Tabs.Tab>
   <Tabs.Tab title="Go">
     <Snippet
-      src={snippets.go.workflows.complex_conditions.add_wait_for_sleep}
+      src={snippets.go.conditions.main.add_wait_for_sleep}
     />
   </Tabs.Tab>
 </UniversalTabs>
@@ -140,7 +140,7 @@ Next, we'll add a task that will be skipped on an event:
     />
   </Tabs.Tab>
   <Tabs.Tab title="Go">
-    <Snippet src={snippets.go.workflows.complex_conditions.add_skip_on_event} />
+    <Snippet src={snippets.go.conditions.main.add_skip_on_event} />
   </Tabs.Tab>
 </UniversalTabs>
 
@@ -160,7 +160,7 @@ Next, let's add some branching logic. Here we'll add two more tasks, a left and 
     />
   </Tabs.Tab>
   <Tabs.Tab title="Go">
-    <Snippet src={snippets.go.workflows.complex_conditions.add_branching} />
+    <Snippet src={snippets.go.conditions.main.add_branching} />
   </Tabs.Tab>
 </UniversalTabs>
 
@@ -182,7 +182,7 @@ Next, we'll add a task that waits for an event:
   </Tabs.Tab>
   <Tabs.Tab title="Go">
     <Snippet
-      src={snippets.go.workflows.complex_conditions.add_wait_for_event}
+      src={snippets.go.conditions.main.add_wait_for_event}
     />
   </Tabs.Tab>
 </UniversalTabs>
@@ -200,7 +200,7 @@ Note that in this task, we rely on `ctx.was_skipped` to determine if a task was 
 <Snippet src={snippets.typescript.dag_match_condition.complex_workflow.add_sum}/>
   </Tabs.Tab>
     <Tabs.Tab title="Go">
-    <Snippet src={snippets.go.workflows.complex_conditions.add_sum}/>
+    <Snippet src={snippets.go.conditions.main.add_sum}/>
   </Tabs.Tab>
 
 </UniversalTabs>
