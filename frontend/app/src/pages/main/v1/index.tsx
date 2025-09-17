@@ -69,7 +69,7 @@ function Sidebar({ className, memberships }: SidebarProps) {
   const { sidebarOpen, setSidebarOpen } = useSidebar();
   const { tenantId } = useCurrentTenantId();
 
-  const { data: cloudMeta } = useCloudApiMeta();
+  const { data: cloudMeta, isCloudEnabled } = useCloudApiMeta();
   const featureFlags = useCloudFeatureFlags(tenantId);
 
   const onNavLinkClick = useCallback(() => {
@@ -267,7 +267,7 @@ function Sidebar({ className, memberships }: SidebarProps) {
             </div>
           </div>
         </div>
-        {cloudMeta ? (
+        {isCloudEnabled ? (
           <OrganizationSelector memberships={memberships} />
         ) : (
           <TenantSwitcher memberships={memberships} />
