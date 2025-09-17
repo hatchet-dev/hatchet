@@ -87,12 +87,13 @@ func (w *Workflow) GetName() string {
 type WorkflowOption func(*workflowConfig)
 
 type workflowConfig struct {
-	onCron       []string
-	onEvents     []string
-	concurrency  []types.Concurrency
-	version      string
-	description  string
-	taskDefaults *create.TaskDefaults
+	onCron          []string
+	onEvents        []string
+	concurrency     []types.Concurrency
+	version         string
+	description     string
+	taskDefaults    *create.TaskDefaults
+	defaultPriority *RunPriority
 }
 
 // WithWorkflowCron configures the workflow to run on a cron schedule.
@@ -138,6 +139,13 @@ func WithWorkflowTaskDefaults(defaults *create.TaskDefaults) WorkflowOption {
 	}
 }
 
+// WithWorkflowDefaultPriority sets the default priority for the workflow.
+func WithWorkflowDefaultPriority(priority RunPriority) WorkflowOption {
+	return func(config *workflowConfig) {
+		config.defaultPriority = &priority
+	}
+}
+
 // newWorkflow creates a new workflow definition.
 func newWorkflow(name string, v0Client v0Client.Client, options ...WorkflowOption) *Workflow {
 	config := &workflowConfig{}
@@ -146,18 +154,22 @@ func newWorkflow(name string, v0Client v0Client.Client, options ...WorkflowOptio
 		opt(config)
 	}
 
-	declaration := internal.NewWorkflowDeclaration[any, any](
-		create.WorkflowCreateOpts[any]{
-			Name:         name,
-			Version:      config.version,
-			Description:  config.description,
-			OnEvents:     config.onEvents,
-			OnCron:       config.onCron,
-			Concurrency:  config.concurrency,
-			TaskDefaults: config.taskDefaults,
-		},
-		v0Client,
-	)
+	createOpts := create.WorkflowCreateOpts[any]{
+		Name:         name,
+		Version:      config.version,
+		Description:  config.description,
+		OnEvents:     config.onEvents,
+		OnCron:       config.onCron,
+		Concurrency:  config.concurrency,
+		TaskDefaults: config.taskDefaults,
+	}
+
+	if config.defaultPriority != nil {
+		priority := int32(*config.defaultPriority)
+		createOpts.DefaultPriority = &priority
+	}
+
+	declaration := internal.NewWorkflowDeclaration[any, any](createOpts, v0Client)
 
 	return &Workflow{
 		declaration: declaration,

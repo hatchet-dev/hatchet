@@ -25,13 +25,64 @@ type PriorityOutput struct {
 }
 
 func main() {
-	clientInstance, err := hatchet.NewClient()
+	client, err := hatchet.NewClient()
 	if err != nil {
 		log.Fatalf("failed to create hatchet client: %v", err)
 	}
 
+	_ = func() error {
+		// > Default priority
+		workflow := client.NewWorkflow(
+			"priority",
+			hatchet.WithWorkflowDefaultPriority(features.RunPriorityLow),
+		)
+
+		// > Running a task with priority
+		ref, err := client.RunNoWait(
+			context.Background(),
+			workflow.GetName(),
+			PriorityInput{},
+			hatchet.WithRunPriority(features.RunPriorityLow),
+		)
+		if err != nil {
+			return err
+		}
+
+		_ = ref
+
+		// > Schedule and cron
+		priority := features.RunPriorityHigh
+
+		schedule, err := client.Schedules().Create(
+			context.Background(),
+			workflow.GetName(),
+			features.CreateScheduledRunTrigger{
+				Priority: &priority,
+			},
+		)
+		if err != nil {
+			return err
+		}
+
+		cron, err := client.Crons().Create(
+			context.Background(),
+			workflow.GetName(),
+			features.CreateCronTrigger{
+				Priority: &priority,
+			},
+		)
+		if err != nil {
+			return err
+		}
+
+		_ = schedule
+		_ = cron
+
+		return nil
+	}
+
 	// Create workflow that demonstrates priority-based processing
-	priorityWorkflow := clientInstance.NewWorkflow("priority-demo",
+	priorityWorkflow := client.NewWorkflow("priority-demo",
 		hatchet.WithWorkflowDescription("Demonstrates priority-based task processing"),
 		hatchet.WithWorkflowVersion("1.0.0"),
 	)
@@ -80,7 +131,7 @@ func main() {
 	})
 
 	// Create a worker to process the workflows
-	worker, err := clientInstance.NewWorker("priority-worker",
+	worker, err := client.NewWorker("priority-worker",
 		hatchet.WithWorkflows(priorityWorkflow),
 		hatchet.WithSlots(5), // Allow parallel processing
 	)
@@ -95,7 +146,7 @@ func main() {
 			input.TaskType, priority, input.UserID)
 
 		// Run workflow with specific priority
-		_, err := clientInstance.Run(context.Background(), "priority-demo", input, hatchet.WithRunPriority(priority))
+		_, err := client.Run(context.Background(), "priority-demo", input, hatchet.WithRunPriority(priority))
 		if err != nil {
 			log.Printf("Failed to run workflow with priority %d: %v", priority, err)
 		}
