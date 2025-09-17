@@ -66,7 +66,7 @@ async def event_filter(
 
 async def fetch_runs_for_event(
     hatchet: Hatchet, event: Event
-) -> tuple[ProcessedEvent, list[V1TaskSummary], bool]:
+) -> tuple[ProcessedEvent, list[V1TaskSummary]]:
     runs = await hatchet.runs.aio_list(triggering_event_external_id=event.eventId)
 
     meta = (
@@ -193,7 +193,9 @@ async def assert_event_runs_processed(
 
         for run in runs:
             assert run.status == V1TaskStatus.COMPLETED
-            assert run.additional_metadata.get("test_run_id") == event.test_run_id
+
+            meta = run.additional_metadata or {}
+            assert meta.get("test_run_id") == event.test_run_id
     else:
         assert len(runs) == 0
 
