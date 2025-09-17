@@ -15,8 +15,6 @@ import { ClientConfig, ClientConfigSchema } from './client-config';
 import { RunListenerClient } from '../listeners/run-listener/child-listener-client';
 import { Api } from '../rest/generated/Api';
 import api from '../rest';
-import { CronClient } from './features/cron-client';
-import { ScheduleClient } from './features/schedule-client';
 import { DurableListenerClient } from '../listeners/durable-listener/durable-listener-client';
 
 export interface HatchetClientOptions {
@@ -40,13 +38,12 @@ export class LegacyHatchetClient {
 
   logger: Logger;
 
-  cron: CronClient;
-  schedule: ScheduleClient;
   constructor(
     config?: Partial<ClientConfig>,
     options?: HatchetClientOptions,
     axiosOpts?: AxiosRequestConfig,
-    runs?: RunsClient
+    runs?: RunsClient,
+    listener?: RunListenerClient
   ) {
     // Initializes a new Client instance.
     // Loads config in the following order: config param > yaml file > env vars
@@ -87,19 +84,22 @@ export class LegacyHatchetClient {
     this.event = new EventClient(
       this.config,
       channelFactory(this.config, this.credentials),
-      clientFactory
+      clientFactory,
+      this
     );
     this.dispatcher = new DispatcherClient(
       this.config,
       channelFactory(this.config, this.credentials),
       clientFactory
     );
-    this.listener = new RunListenerClient(
-      this.config,
-      channelFactory(this.config, this.credentials),
-      clientFactory,
-      this.api
-    );
+    this.listener =
+      listener ||
+      new RunListenerClient(
+        this.config,
+        channelFactory(this.config, this.credentials),
+        clientFactory,
+        this.api
+      );
 
     this.admin = new AdminClient(
       this.config,
@@ -120,10 +120,6 @@ export class LegacyHatchetClient {
 
     this.logger = this.config.logger('HatchetClient', this.config.log_level);
     this.logger.debug(`Initialized HatchetClient`);
-
-    // Feature Clients
-    this.cron = new CronClient(this.tenantId, this.config, this.api, this.admin);
-    this.schedule = new ScheduleClient(this.tenantId, this.config, this.api, this.admin);
   }
 
   static init(

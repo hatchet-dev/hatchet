@@ -77,6 +77,8 @@ interface DataTableProps<TData extends IDGetter<TData>, TValue> {
   manualSorting?: boolean;
   manualFiltering?: boolean;
   getSubRows?: (row: TData) => TData[];
+  headerClassName?: string;
+  hideFlatten?: boolean;
 }
 
 interface ExtraDataTableProps {
@@ -86,6 +88,7 @@ interface ExtraDataTableProps {
     component: React.FC<any> | ((data: any) => JSX.Element);
   };
   onToolbarReset?: () => void;
+  columnKeyToName?: Record<string, string>;
 }
 
 export function DataTable<TData extends IDGetter<TData>, TValue>({
@@ -118,6 +121,9 @@ export function DataTable<TData extends IDGetter<TData>, TValue>({
   manualFiltering = true,
   getSubRows,
   onToolbarReset,
+  headerClassName,
+  hideFlatten,
+  columnKeyToName,
 }: DataTableProps<TData, TValue> & ExtraDataTableProps) {
   const [expanded, setExpanded] = React.useState<ExpandedState>({});
 
@@ -198,12 +204,16 @@ export function DataTable<TData extends IDGetter<TData>, TValue>({
 
   const getTable = () => (
     <Table>
-      <TableHeader>
+      <TableHeader className="sticky top-0 z-10 bg-background">
         {table.getHeaderGroups().map((headerGroup) => (
           <TableRow key={headerGroup.id}>
             {headerGroup.headers.map((header) => {
               return (
-                <TableHead key={header.id} colSpan={header.colSpan}>
+                <TableHead
+                  key={header.id}
+                  colSpan={header.colSpan}
+                  className={cn('bg-background border-b', headerClassName)}
+                >
                   {header.isPlaceholder
                     ? null
                     : flexRender(
@@ -263,7 +273,7 @@ export function DataTable<TData extends IDGetter<TData>, TValue>({
   );
 
   return (
-    <div className="space-y-4">
+    <div className="flex flex-col max-h-full space-y-4">
       {(setSearch || actions || (filters && filters.length > 0)) && (
         <DataTableToolbar
           table={table}
@@ -274,9 +284,13 @@ export function DataTable<TData extends IDGetter<TData>, TValue>({
           setSearch={setSearch}
           showColumnToggle={showColumnToggle}
           onReset={onToolbarReset}
+          hideFlatten={hideFlatten}
+          columnKeyToName={columnKeyToName}
         />
       )}
-      <div className={`rounded-md ${!card && 'border'}`}>
+      <div
+        className={`flex-1 min-h-0 rounded-md ${!card && 'border'} ${!card && 'overflow-auto'}`}
+      >
         {!card ? getTable() : getCards()}
       </div>
       {pagination && (

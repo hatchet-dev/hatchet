@@ -27,6 +27,14 @@ func ToUser(user *dbsqlc.User, hasPassword bool, hashedEmail *string) *gen.User 
 }
 
 func ToTenantMember(tenantMember *dbsqlc.PopulateTenantMembersRow) *gen.TenantMember {
+	uiVersion := gen.TenantUIVersion(tenantMember.TenantUiVersion)
+
+	var environment *gen.TenantEnvironment
+	if tenantMember.TenantEnvironment.Valid {
+		env := gen.TenantEnvironment(tenantMember.TenantEnvironment.TenantEnvironment)
+		environment = &env
+	}
+
 	res := &gen.TenantMember{
 		Metadata: *toAPIMetadata(sqlchelpers.UUIDToStr(tenantMember.ID), tenantMember.CreatedAt.Time, tenantMember.UpdatedAt.Time),
 		User: gen.UserTenantPublic{
@@ -40,6 +48,8 @@ func ToTenantMember(tenantMember *dbsqlc.PopulateTenantMembersRow) *gen.TenantMe
 			AnalyticsOptOut:   &tenantMember.AnalyticsOptOut,
 			AlertMemberEmails: &tenantMember.AlertMemberEmails,
 			Version:           gen.TenantVersion(tenantMember.TenantVersion),
+			UiVersion:         &uiVersion,
+			Environment:       environment,
 		},
 		Role: gen.TenantMemberRole(tenantMember.Role),
 	}

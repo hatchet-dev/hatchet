@@ -44,7 +44,8 @@ CREATE TYPE "LimitResource" AS ENUM (
     'WORKER',
     'WORKER_SLOT',
     'CRON',
-    'SCHEDULE'
+    'SCHEDULE',
+    'INCOMING_WEBHOOK'
 );
 
 -- CreateEnum
@@ -105,6 +106,10 @@ CREATE TYPE "StickyStrategy" AS ENUM ('SOFT', 'HARD');
 
 -- CreateEnum
 CREATE TYPE "TenantMemberRole" AS ENUM ('OWNER', 'ADMIN', 'MEMBER');
+
+-- CreateEnum
+-- IMPORTANT: keep values in sync with api-contracts/openapi/components/schemas/tenant.yaml#TenantEnvironment
+CREATE TYPE "TenantEnvironment" AS ENUM ('local', 'development', 'production');
 
 -- CreateEnum
 CREATE TYPE "TenantResourceLimitAlertType" AS ENUM ('Alarm', 'Exhausted');
@@ -591,6 +596,11 @@ CREATE TYPE "TenantMajorEngineVersion" AS ENUM (
     'V1'
 );
 
+CREATE TYPE "TenantMajorUIVersion" AS ENUM (
+    'V0',
+    'V1'
+);
+
 -- CreateTable
 CREATE TABLE "Tenant" (
     "id" UUID NOT NULL,
@@ -598,6 +608,7 @@ CREATE TABLE "Tenant" (
     "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "deletedAt" TIMESTAMP(3),
     "version" "TenantMajorEngineVersion" NOT NULL DEFAULT 'V0',
+    "uiVersion" "TenantMajorUIVersion" NOT NULL DEFAULT 'V0',
     "name" TEXT NOT NULL,
     "slug" TEXT NOT NULL,
     "analyticsOptOut" BOOLEAN NOT NULL DEFAULT false,
@@ -607,6 +618,8 @@ CREATE TABLE "Tenant" (
     "dataRetentionPeriod" TEXT NOT NULL DEFAULT '720h',
     "schedulerPartitionId" TEXT,
     "canUpgradeV1" BOOLEAN NOT NULL DEFAULT true,
+    "onboardingData" JSONB,
+    "environment" "TenantEnvironment",
 
     CONSTRAINT "Tenant_pkey" PRIMARY KEY ("id")
 );
@@ -1067,6 +1080,7 @@ CREATE TABLE
         "sticky" "StickyStrategy",
         "kind" "WorkflowKind" NOT NULL DEFAULT 'DAG',
         "defaultPriority" INTEGER,
+        "createWorkflowVersionOpts" JSONB,
         CONSTRAINT "WorkflowVersion_pkey" PRIMARY KEY ("id")
     );
 

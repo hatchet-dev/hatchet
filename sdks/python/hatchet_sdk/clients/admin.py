@@ -1,7 +1,8 @@
 import asyncio
 import json
+from collections.abc import Generator
 from datetime import datetime
-from typing import Generator, TypeVar, Union, cast
+from typing import TypeVar, cast
 
 import grpc
 from google.protobuf import timestamp_pb2
@@ -16,10 +17,13 @@ from hatchet_sdk.contracts import workflows_pb2 as v0_workflow_protos
 from hatchet_sdk.contracts.v1 import workflows_pb2 as workflow_protos
 from hatchet_sdk.contracts.v1.workflows_pb2_grpc import AdminServiceStub
 from hatchet_sdk.contracts.workflows_pb2_grpc import WorkflowServiceStub
+from hatchet_sdk.exceptions import DedupeViolationError
 from hatchet_sdk.features.runs import RunsClient
 from hatchet_sdk.metadata import get_metadata
 from hatchet_sdk.rate_limit import RateLimitDuration
 from hatchet_sdk.runnables.contextvars import (
+    ctx_action_key,
+    ctx_additional_metadata,
     ctx_step_run_id,
     ctx_worker_id,
     ctx_workflow_run_id,
@@ -46,9 +50,7 @@ class ScheduleTriggerWorkflowOptions(BaseModel):
 
 
 class TriggerWorkflowOptions(ScheduleTriggerWorkflowOptions):
-    additional_metadata: JSONSerializableMapping = Field(default_factory=dict)
     desired_worker_id: str | None = None
-    namespace: str | None = None
     sticky: bool = False
     key: str | None = None
 
@@ -58,12 +60,6 @@ class WorkflowRunTriggerConfig(BaseModel):
     input: JSONSerializableMapping
     options: TriggerWorkflowOptions
     key: str | None = None
-
-
-class DedupeViolationErr(Exception):
-    """Raised by the Hatchet library to indicate that a workflow has already been run with this deduplication value."""
-
-    pass
 
 
 class AdminClient:
@@ -114,7 +110,7 @@ class AdminClient:
             try:
                 return json.dumps(v).encode("utf-8")
             except json.JSONDecodeError as e:
-                raise ValueError(f"Error encoding payload: {e}")
+                raise ValueError("Error encoding payload") from e
 
     def _prepare_workflow_request(
         self,
@@ -125,7 +121,7 @@ class AdminClient:
         try:
             payload_data = json.dumps(input)
         except json.JSONDecodeError as e:
-            raise ValueError(f"Error encoding payload: {e}")
+            raise ValueError("Error encoding payload") from e
 
         _options = self.TriggerWorkflowRequest.model_validate(options.model_dump())
 
@@ -149,18 +145,17 @@ class AdminClient:
             seconds = int(t)
             nanos = int(t % 1 * 1e9)
             return timestamp_pb2.Timestamp(seconds=seconds, nanos=nanos)
-        elif isinstance(schedule, timestamp_pb2.Timestamp):
+        if isinstance(schedule, timestamp_pb2.Timestamp):
             return schedule
-        else:
-            raise ValueError(
-                "Invalid schedule type. Must be datetime or timestamp_pb2.Timestamp."
-            )
+        raise ValueError(
+            "Invalid schedule type. Must be datetime or timestamp_pb2.Timestamp."
+        )
 
     def _prepare_schedule_workflow_request(
         self,
         name: str,
-        schedules: list[Union[datetime, timestamp_pb2.Timestamp]],
-        input: JSONSerializableMapping = {},
+        schedules: list[datetime | timestamp_pb2.Timestamp],
+        input: JSONSerializableMapping | None = None,
         options: ScheduleTriggerWorkflowOptions = ScheduleTriggerWorkflowOptions(),
     ) -> v0_workflow_protos.ScheduleWorkflowRequest:
         return v0_workflow_protos.ScheduleWorkflowRequest(
@@ -195,8 +190,8 @@ class AdminClient:
     async def aio_schedule_workflow(
         self,
         name: str,
-        schedules: list[Union[datetime, timestamp_pb2.Timestamp]],
-        input: JSONSerializableMapping = {},
+        schedules: list[datetime | timestamp_pb2.Timestamp],
+        input: JSONSerializableMapping | None = None,
         options: ScheduleTriggerWorkflowOptions = ScheduleTriggerWorkflowOptions(),
     ) -> v0_workflow_protos.WorkflowVersion:
         return await asyncio.to_thread(
@@ -246,15 +241,14 @@ class AdminClient:
     def schedule_workflow(
         self,
         name: str,
-        schedules: list[Union[datetime, timestamp_pb2.Timestamp]],
-        input: JSONSerializableMapping = {},
+        schedules: list[datetime | timestamp_pb2.Timestamp],
+        input: JSONSerializableMapping | None = None,
         options: ScheduleTriggerWorkflowOptions = ScheduleTriggerWorkflowOptions(),
     ) -> v0_workflow_protos.WorkflowVersion:
         try:
             namespace = options.namespace or self.namespace
 
-            if namespace != "" and not name.startswith(self.namespace):
-                name = f"{namespace}{name}"
+            name = self.config.apply_namespace(name, namespace)
 
             request = self._prepare_schedule_workflow_request(
                 name, schedules, input, options
@@ -271,7 +265,7 @@ class AdminClient:
             )
         except (grpc.RpcError, grpc.aio.AioRpcError) as e:
             if e.code() == grpc.StatusCode.ALREADY_EXISTS:
-                raise DedupeViolationErr(e.details())
+                raise DedupeViolationError(e.details()) from e
 
             raise e
 
@@ -284,11 +278,13 @@ class AdminClient:
         workflow_run_id = ctx_workflow_run_id.get()
         step_run_id = ctx_step_run_id.get()
         worker_id = ctx_worker_id.get()
-        spawn_index = workflow_spawn_indices[workflow_run_id] if workflow_run_id else 0
+        action_key = ctx_action_key.get()
+        additional_metadata = ctx_additional_metadata.get() or {}
+        spawn_index = workflow_spawn_indices[action_key] if action_key else 0
 
         ## Increment the spawn_index for the parent workflow
-        if workflow_run_id:
-            workflow_spawn_indices[workflow_run_id] += 1
+        if action_key:
+            workflow_spawn_indices[action_key] += 1
 
         desired_worker_id = (
             (options.desired_worker_id or worker_id) if options.sticky else None
@@ -302,7 +298,7 @@ class AdminClient:
             parent_step_run_id=options.parent_step_run_id or step_run_id,
             child_key=options.child_key,
             child_index=child_index,
-            additional_metadata=options.additional_metadata,
+            additional_metadata={**additional_metadata, **options.additional_metadata},
             desired_worker_id=desired_worker_id,
             priority=options.priority,
             namespace=options.namespace,
@@ -312,8 +308,7 @@ class AdminClient:
 
         namespace = options.namespace or self.namespace
 
-        if namespace != "" and not workflow_name.startswith(self.namespace):
-            workflow_name = f"{namespace}{workflow_name}"
+        workflow_name = self.config.apply_namespace(workflow_name, namespace)
 
         return self._prepare_workflow_request(workflow_name, input, trigger_options)
 
@@ -338,7 +333,7 @@ class AdminClient:
             )
         except (grpc.RpcError, grpc.aio.AioRpcError) as e:
             if e.code() == grpc.StatusCode.ALREADY_EXISTS:
-                raise DedupeViolationErr(e.details())
+                raise DedupeViolationError(e.details()) from e
             raise e
 
         return WorkflowRunRef(
@@ -363,14 +358,15 @@ class AdminClient:
         try:
             resp = cast(
                 v0_workflow_protos.TriggerWorkflowResponse,
-                client.TriggerWorkflow(
+                await asyncio.to_thread(
+                    client.TriggerWorkflow,
                     request,
                     metadata=get_metadata(self.token),
                 ),
             )
         except (grpc.RpcError, grpc.aio.AioRpcError) as e:
             if e.code() == grpc.StatusCode.ALREADY_EXISTS:
-                raise DedupeViolationErr(e.details())
+                raise DedupeViolationError(e.details()) from e
 
             raise e
 
@@ -452,7 +448,8 @@ class AdminClient:
 
             resp = cast(
                 v0_workflow_protos.BulkTriggerWorkflowResponse,
-                client.BulkTriggerWorkflow(
+                await asyncio.to_thread(
+                    client.BulkTriggerWorkflow,
                     bulk_request,
                     metadata=get_metadata(self.token),
                 ),

@@ -1,3 +1,10 @@
+from hatchet_sdk.contracts.workflows_pb2 import (
+    ConcurrencyLimitStrategy,
+    CreateWorkflowVersionOpts,
+    RateLimitDuration,
+    StickyStrategy,
+    WorkerLabelComparator,
+)
 from hatchet_sdk.v0.clients.rest.models.accept_invite_request import AcceptInviteRequest
 
 # import models into sdk package
@@ -121,13 +128,6 @@ from hatchet_sdk.v0.clients.rest.models.workflow_version_definition import (
     WorkflowVersionDefinition,
 )
 from hatchet_sdk.v0.clients.rest.models.workflow_version_meta import WorkflowVersionMeta
-from hatchet_sdk.v0.contracts.workflows_pb2 import (
-    ConcurrencyLimitStrategy,
-    CreateWorkflowVersionOpts,
-    RateLimitDuration,
-    StickyStrategy,
-    WorkerLabelComparator,
-)
 from hatchet_sdk.v0.utils.aio_utils import sync_to_async
 
 from .client import new_client

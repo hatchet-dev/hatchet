@@ -21,8 +21,10 @@ from typing_extensions import Annotated
 from hatchet_sdk.clients.rest.api_client import ApiClient, RequestSerialized
 from hatchet_sdk.clients.rest.api_response import ApiResponse
 from hatchet_sdk.clients.rest.models.v1_cancel_task_request import V1CancelTaskRequest
+from hatchet_sdk.clients.rest.models.v1_cancelled_tasks import V1CancelledTasks
 from hatchet_sdk.clients.rest.models.v1_dag_children import V1DagChildren
 from hatchet_sdk.clients.rest.models.v1_replay_task_request import V1ReplayTaskRequest
+from hatchet_sdk.clients.rest.models.v1_replayed_tasks import V1ReplayedTasks
 from hatchet_sdk.clients.rest.models.v1_task_event_list import V1TaskEventList
 from hatchet_sdk.clients.rest.models.v1_task_point_metrics import V1TaskPointMetrics
 from hatchet_sdk.clients.rest.models.v1_task_run_metric import V1TaskRunMetric
@@ -361,7 +363,7 @@ class TaskApi:
         _content_type: Optional[StrictStr] = None,
         _headers: Optional[Dict[StrictStr, Any]] = None,
         _host_index: Annotated[StrictInt, Field(ge=0, le=0)] = 0,
-    ) -> None:
+    ) -> V1CancelledTasks:
         """Cancel tasks
 
         Cancel tasks
@@ -402,7 +404,7 @@ class TaskApi:
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            "200": None,
+            "200": "V1CancelledTasks",
             "400": "APIErrors",
             "403": "APIErrors",
             "404": "APIErrors",
@@ -440,7 +442,7 @@ class TaskApi:
         _content_type: Optional[StrictStr] = None,
         _headers: Optional[Dict[StrictStr, Any]] = None,
         _host_index: Annotated[StrictInt, Field(ge=0, le=0)] = 0,
-    ) -> ApiResponse[None]:
+    ) -> ApiResponse[V1CancelledTasks]:
         """Cancel tasks
 
         Cancel tasks
@@ -481,7 +483,7 @@ class TaskApi:
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            "200": None,
+            "200": "V1CancelledTasks",
             "400": "APIErrors",
             "403": "APIErrors",
             "404": "APIErrors",
@@ -560,7 +562,7 @@ class TaskApi:
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            "200": None,
+            "200": "V1CancelledTasks",
             "400": "APIErrors",
             "403": "APIErrors",
             "404": "APIErrors",
@@ -954,6 +956,9 @@ class TaskApi:
             str,
             Field(min_length=36, strict=True, max_length=36, description="The task id"),
         ],
+        attempt: Annotated[
+            Optional[StrictInt], Field(description="The attempt number")
+        ] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
@@ -972,6 +977,8 @@ class TaskApi:
 
         :param task: The task id (required)
         :type task: str
+        :param attempt: The attempt number
+        :type attempt: int
         :param _request_timeout: timeout setting for this request. If one
                                  number provided, it will be total request
                                  timeout. It can also be a pair (tuple) of
@@ -996,6 +1003,7 @@ class TaskApi:
 
         _param = self._v1_task_get_serialize(
             task=task,
+            attempt=attempt,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
@@ -1025,6 +1033,9 @@ class TaskApi:
             str,
             Field(min_length=36, strict=True, max_length=36, description="The task id"),
         ],
+        attempt: Annotated[
+            Optional[StrictInt], Field(description="The attempt number")
+        ] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
@@ -1043,6 +1054,8 @@ class TaskApi:
 
         :param task: The task id (required)
         :type task: str
+        :param attempt: The attempt number
+        :type attempt: int
         :param _request_timeout: timeout setting for this request. If one
                                  number provided, it will be total request
                                  timeout. It can also be a pair (tuple) of
@@ -1067,6 +1080,7 @@ class TaskApi:
 
         _param = self._v1_task_get_serialize(
             task=task,
+            attempt=attempt,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
@@ -1096,6 +1110,9 @@ class TaskApi:
             str,
             Field(min_length=36, strict=True, max_length=36, description="The task id"),
         ],
+        attempt: Annotated[
+            Optional[StrictInt], Field(description="The attempt number")
+        ] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
@@ -1114,6 +1131,8 @@ class TaskApi:
 
         :param task: The task id (required)
         :type task: str
+        :param attempt: The attempt number
+        :type attempt: int
         :param _request_timeout: timeout setting for this request. If one
                                  number provided, it will be total request
                                  timeout. It can also be a pair (tuple) of
@@ -1138,6 +1157,7 @@ class TaskApi:
 
         _param = self._v1_task_get_serialize(
             task=task,
+            attempt=attempt,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
@@ -1159,6 +1179,7 @@ class TaskApi:
     def _v1_task_get_serialize(
         self,
         task,
+        attempt,
         _request_auth,
         _content_type,
         _headers,
@@ -1182,6 +1203,10 @@ class TaskApi:
         if task is not None:
             _path_params["task"] = task
         # process the query parameters
+        if attempt is not None:
+
+            _query_params.append(("attempt", attempt))
+
         # process the header parameters
         # process the form parameters
         # process the body parameter
@@ -1568,6 +1593,10 @@ class TaskApi:
             Optional[Annotated[str, Field(min_length=36, strict=True, max_length=36)]],
             Field(description="The parent task's external id"),
         ] = None,
+        triggering_event_external_id: Annotated[
+            Optional[Annotated[str, Field(min_length=36, strict=True, max_length=36)]],
+            Field(description="The id of the event that triggered the task"),
+        ] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
@@ -1594,6 +1623,8 @@ class TaskApi:
         :type workflow_ids: List[str]
         :param parent_task_external_id: The parent task's external id
         :type parent_task_external_id: str
+        :param triggering_event_external_id: The id of the event that triggered the task
+        :type triggering_event_external_id: str
         :param _request_timeout: timeout setting for this request. If one
                                  number provided, it will be total request
                                  timeout. It can also be a pair (tuple) of
@@ -1622,6 +1653,7 @@ class TaskApi:
             until=until,
             workflow_ids=workflow_ids,
             parent_task_external_id=parent_task_external_id,
+            triggering_event_external_id=triggering_event_external_id,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
@@ -1668,6 +1700,10 @@ class TaskApi:
             Optional[Annotated[str, Field(min_length=36, strict=True, max_length=36)]],
             Field(description="The parent task's external id"),
         ] = None,
+        triggering_event_external_id: Annotated[
+            Optional[Annotated[str, Field(min_length=36, strict=True, max_length=36)]],
+            Field(description="The id of the event that triggered the task"),
+        ] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
@@ -1694,6 +1730,8 @@ class TaskApi:
         :type workflow_ids: List[str]
         :param parent_task_external_id: The parent task's external id
         :type parent_task_external_id: str
+        :param triggering_event_external_id: The id of the event that triggered the task
+        :type triggering_event_external_id: str
         :param _request_timeout: timeout setting for this request. If one
                                  number provided, it will be total request
                                  timeout. It can also be a pair (tuple) of
@@ -1722,6 +1760,7 @@ class TaskApi:
             until=until,
             workflow_ids=workflow_ids,
             parent_task_external_id=parent_task_external_id,
+            triggering_event_external_id=triggering_event_external_id,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
@@ -1768,6 +1807,10 @@ class TaskApi:
             Optional[Annotated[str, Field(min_length=36, strict=True, max_length=36)]],
             Field(description="The parent task's external id"),
         ] = None,
+        triggering_event_external_id: Annotated[
+            Optional[Annotated[str, Field(min_length=36, strict=True, max_length=36)]],
+            Field(description="The id of the event that triggered the task"),
+        ] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
@@ -1794,6 +1837,8 @@ class TaskApi:
         :type workflow_ids: List[str]
         :param parent_task_external_id: The parent task's external id
         :type parent_task_external_id: str
+        :param triggering_event_external_id: The id of the event that triggered the task
+        :type triggering_event_external_id: str
         :param _request_timeout: timeout setting for this request. If one
                                  number provided, it will be total request
                                  timeout. It can also be a pair (tuple) of
@@ -1822,6 +1867,7 @@ class TaskApi:
             until=until,
             workflow_ids=workflow_ids,
             parent_task_external_id=parent_task_external_id,
+            triggering_event_external_id=triggering_event_external_id,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
@@ -1846,6 +1892,7 @@ class TaskApi:
         until,
         workflow_ids,
         parent_task_external_id,
+        triggering_event_external_id,
         _request_auth,
         _content_type,
         _headers,
@@ -1901,6 +1948,12 @@ class TaskApi:
 
             _query_params.append(("parent_task_external_id", parent_task_external_id))
 
+        if triggering_event_external_id is not None:
+
+            _query_params.append(
+                ("triggering_event_external_id", triggering_event_external_id)
+            )
+
         # process the header parameters
         # process the form parameters
         # process the body parameter
@@ -1952,7 +2005,7 @@ class TaskApi:
         _content_type: Optional[StrictStr] = None,
         _headers: Optional[Dict[StrictStr, Any]] = None,
         _host_index: Annotated[StrictInt, Field(ge=0, le=0)] = 0,
-    ) -> None:
+    ) -> V1ReplayedTasks:
         """Replay tasks
 
         Replay tasks
@@ -1993,7 +2046,7 @@ class TaskApi:
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            "200": None,
+            "200": "V1ReplayedTasks",
             "400": "APIErrors",
             "403": "APIErrors",
             "404": "APIErrors",
@@ -2031,7 +2084,7 @@ class TaskApi:
         _content_type: Optional[StrictStr] = None,
         _headers: Optional[Dict[StrictStr, Any]] = None,
         _host_index: Annotated[StrictInt, Field(ge=0, le=0)] = 0,
-    ) -> ApiResponse[None]:
+    ) -> ApiResponse[V1ReplayedTasks]:
         """Replay tasks
 
         Replay tasks
@@ -2072,7 +2125,7 @@ class TaskApi:
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            "200": None,
+            "200": "V1ReplayedTasks",
             "400": "APIErrors",
             "403": "APIErrors",
             "404": "APIErrors",
@@ -2151,7 +2204,7 @@ class TaskApi:
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            "200": None,
+            "200": "V1ReplayedTasks",
             "400": "APIErrors",
             "403": "APIErrors",
             "404": "APIErrors",

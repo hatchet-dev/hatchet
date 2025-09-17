@@ -14,12 +14,13 @@ import { parseJSON } from '@hatchet/util/parse';
 import WorkflowRunRef from '@hatchet/util/workflow-run-ref';
 import { Conditions, Render } from '@hatchet/v1/conditions';
 import { conditionsToPb } from '@hatchet/v1/conditions/transformer';
-import { CreateWorkflowTaskOpts } from '@hatchet/v1/task';
+import { CreateWorkflowDurableTaskOpts, CreateWorkflowTaskOpts } from '@hatchet/v1/task';
 import { OutputType } from '@hatchet/v1/types';
 import { Workflow } from '@hatchet/workflow';
 import { Action as ConditionAction } from '@hatchet/protoc/v1/shared/condition';
 import { HatchetClient } from '@hatchet/v1';
 import { ContextWorker, NextStep } from '@hatchet/step';
+import { applyNamespace } from '@hatchet/util/apply-namespace';
 import { V1Worker } from './worker-internal';
 import { Duration } from '../duration';
 
@@ -57,6 +58,7 @@ export class Context<T, K = {}> {
   _logger: Logger;
 
   spawnIndex: number = 0;
+  streamIndex = 0;
 
   constructor(action: Action, v1: HatchetClient, worker: V1Worker) {
     try {
@@ -104,7 +106,7 @@ export class Context<T, K = {}> {
    * @throws An error if the task output is not found.
    */
   async parentOutput<L extends OutputType>(
-    parentTask: CreateWorkflowTaskOpts<any, L> | string
+    parentTask: CreateWorkflowTaskOpts<any, L> | CreateWorkflowDurableTaskOpts<any, L> | string
   ): Promise<L> {
     // NOTE: parentOutput is async since we plan on potentially making this a cacheable server call
     if (typeof parentTask !== 'string') {
@@ -153,6 +155,14 @@ export class Context<T, K = {}> {
    */
   triggers(): TriggerData {
     return this.data.triggers;
+  }
+
+  /**
+   * Gets the payload from the filter that matched when triggering the event.
+   * @returns The payload.
+   */
+  filterPayload(): Record<string, any> {
+    return this.data.triggers?.filter_payload || {};
   }
 
   /**
@@ -337,7 +347,9 @@ export class Context<T, K = {}> {
       return;
     }
 
-    await this.v1._v0.event.putStream(stepRunId, data);
+    const index = this._incrementStreamIndex();
+
+    await this.v1._v0.event.putStream(stepRunId, data, index);
   }
 
   private spawnOptions(workflow: string | Workflow | WorkflowV1<any, any>, options?: ChildRunOpts) {
@@ -579,7 +591,7 @@ export class Context<T, K = {}> {
         workflowName = workflow.id;
       }
 
-      const name = this.v1.config.namespace + workflowName;
+      const name = applyNamespace(workflowName, this.v1.config.namespace);
 
       const opts = options || {};
       const { sticky } = opts;
@@ -655,7 +667,7 @@ export class Context<T, K = {}> {
       workflowName = workflow.id;
     }
 
-    const name = this.v1.config.namespace + workflowName;
+    const name = applyNamespace(workflowName, this.v1.config.namespace);
 
     const opts = options || {};
     const { sticky } = opts;
@@ -685,6 +697,13 @@ export class Context<T, K = {}> {
     } catch (e: any) {
       throw new HatchetError(e.message);
     }
+  }
+
+  _incrementStreamIndex() {
+    const index = this.streamIndex;
+    this.streamIndex += 1;
+
+    return index;
   }
 }
 

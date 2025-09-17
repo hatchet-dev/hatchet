@@ -1,9 +1,10 @@
 import { hatchet } from '../hatchet-client';
 import { simple } from './workflow';
+import { parent } from './workflow-with-child';
 
 async function main() {
   // > Running a Task
-  const res = await simple.run(
+  const res = await parent.run(
     {
       Message: 'HeLlO WoRlD',
     },
@@ -34,11 +35,11 @@ export async function extra() {
   console.log(results[1].TransformedMessage);
 
   // > Spawning Tasks from within a Task
-  const parent = hatchet.task({
+  const parentTask = hatchet.task({
     name: 'parent',
     fn: async (input, ctx) => {
-      // Simply call ctx.runChild with the task you want to run
-      const child = await ctx.runChild(simple, {
+      // Simply the task and it will be spawned from the parent task
+      const child = await simple.run({
         Message: 'HeLlO WoRlD',
       });
 
@@ -47,8 +48,24 @@ export async function extra() {
       };
     },
   });
+
+  // > Run with metadata
+  const withMetadata = simple.run(
+    {
+      Message: 'HeLlO WoRlD',
+    },
+    {
+      additionalMetadata: {
+        source: 'api', // Arbitrary key-value pair
+      },
+    }
+  );
 }
 
 if (require.main === module) {
-  main();
+  main()
+    .catch(console.error)
+    .finally(() => {
+      process.exit(0);
+    });
 }

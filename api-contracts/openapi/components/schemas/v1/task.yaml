@@ -109,6 +109,12 @@ V1TaskSummary:
       type: string
       format: uuid
       description: The version ID of the workflow
+    workflowConfig:
+      type: object
+    parentTaskExternalId:
+      type: string
+      description: The external ID of the parent task.
+      format: uuid
   required:
     - metadata
     - createdAt
@@ -183,6 +189,28 @@ V1TaskEventList:
       items:
         $ref: "#/V1TaskEvent"
       type: array
+
+V1ReplayedTasks:
+  properties:
+    ids:
+      type: array
+      description: The list of task external ids that were replayed
+      items:
+        type: string
+        format: uuid
+        minLength: 36
+        maxLength: 36
+
+V1CancelledTasks:
+  properties:
+    ids:
+      type: array
+      description: The list of task external ids that were cancelled
+      items:
+        type: string
+        format: uuid
+        minLength: 36
+        maxLength: 36
 
 V1TaskEvent:
   type: object

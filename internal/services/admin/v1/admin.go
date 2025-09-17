@@ -5,6 +5,7 @@ import (
 
 	msgqueue "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
 	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
+	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
@@ -21,6 +22,7 @@ type AdminServiceImpl struct {
 	repo         v1.Repository
 	mq           msgqueue.MessageQueue
 	v            validator.Validator
+	analytics    analytics.Analytics
 }
 
 type AdminServiceOpt func(*AdminServiceOpts)
@@ -30,6 +32,7 @@ type AdminServiceOpts struct {
 	repo         v1.Repository
 	mq           msgqueue.MessageQueue
 	v            validator.Validator
+	analytics    analytics.Analytics
 }
 
 func defaultAdminServiceOpts() *AdminServiceOpts {
@@ -64,6 +67,12 @@ func WithValidator(v validator.Validator) AdminServiceOpt {
 	}
 }
 
+func WithAnalytics(a analytics.Analytics) AdminServiceOpt {
+	return func(opts *AdminServiceOpts) {
+		opts.analytics = a
+	}
+}
+
 func NewAdminService(fs ...AdminServiceOpt) (AdminService, error) {
 	opts := defaultAdminServiceOpts()
 
@@ -88,5 +97,6 @@ func NewAdminService(fs ...AdminServiceOpt) (AdminService, error) {
 		repo:         opts.repo,
 		mq:           opts.mq,
 		v:            opts.v,
+		analytics:    opts.analytics,
 	}, nil
 }

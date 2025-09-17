@@ -4,15 +4,14 @@ import signal
 import time
 from dataclasses import dataclass
 from multiprocessing import Queue
-from typing import Any, Literal
+from typing import Any
 
 import grpc
+from grpc.aio import UnaryUnaryCall
 
 from hatchet_sdk.client import Client
 from hatchet_sdk.clients.dispatcher.action_listener import (
-    Action,
     ActionListener,
-    ActionType,
     GetActionListenerRequest,
 )
 from hatchet_sdk.clients.dispatcher.dispatcher import DispatcherClient
@@ -21,14 +20,20 @@ from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.contracts.dispatcher_pb2 import (
     GROUP_KEY_EVENT_TYPE_STARTED,
     STEP_EVENT_TYPE_STARTED,
+    ActionEventResponse,
+    GroupKeyActionEvent,
+    StepActionEvent,
 )
 from hatchet_sdk.logger import logger
+from hatchet_sdk.runnables.action import Action, ActionType
 from hatchet_sdk.runnables.contextvars import (
+    ctx_action_key,
     ctx_step_run_id,
     ctx_worker_id,
     ctx_workflow_run_id,
 )
 from hatchet_sdk.utils.backoff import exp_backoff_sleep
+from hatchet_sdk.utils.typing import STOP_LOOP, STOP_LOOP_TYPE
 
 ACTION_EVENT_RETRY_COUNT = 5
 
@@ -41,13 +46,7 @@ class ActionEvent:
     should_not_retry: bool
 
 
-STOP_LOOP_TYPE = Literal["STOP_LOOP"]
-STOP_LOOP: STOP_LOOP_TYPE = "STOP_LOOP"  # Sentinel object to stop the loop
-
-# TODO link to a block post
-BLOCKED_THREAD_WARNING = (
-    "THE TIME TO START THE STEP RUN IS TOO LONG, THE MAIN THREAD MAY BE BLOCKED"
-)
+BLOCKED_THREAD_WARNING = "THE TIME TO START THE TASK RUN IS TOO LONG, THE EVENT LOOP MAY BE BLOCKED. See https://docs.hatchet.run/blog/warning-event-loop-blocked for details and debugging help."
 
 
 class WorkerActionListenerProcess:
@@ -59,9 +58,9 @@ class WorkerActionListenerProcess:
         config: ClientConfig,
         action_queue: "Queue[Action]",
         event_queue: "Queue[ActionEvent | STOP_LOOP_TYPE]",
-        handle_kill: bool = True,
-        debug: bool = False,
-        labels: dict[str, str | int] = {},
+        handle_kill: bool,
+        debug: bool,
+        labels: dict[str, str | int],
     ) -> None:
         self.name = name
         self.actions = actions
@@ -78,6 +77,14 @@ class WorkerActionListenerProcess:
         self.action_loop_task: asyncio.Task[None] | None = None
         self.event_send_loop_task: asyncio.Task[None] | None = None
         self.running_step_runs: dict[str, float] = {}
+        self.step_action_events: set[
+            asyncio.Task[UnaryUnaryCall[StepActionEvent, ActionEventResponse] | None]
+        ] = set()
+        self.group_key_action_events: set[
+            asyncio.Task[
+                UnaryUnaryCall[GroupKeyActionEvent, ActionEventResponse] | None
+            ]
+        ] = set()
 
         if self.debug:
             logger.setLevel(logging.DEBUG)
@@ -125,8 +132,8 @@ class WorkerActionListenerProcess:
             )
 
             logger.debug(f"acquired action listener: {self.listener.worker_id}")
-        except grpc.RpcError as rpc_error:
-            logger.error(f"could not start action listener: {rpc_error}")
+        except grpc.RpcError:
+            logger.exception("could not start action listener")
             return
 
         # Start both loops as background tasks
@@ -147,19 +154,21 @@ class WorkerActionListenerProcess:
                 break
 
             logger.debug(f"tx: event: {event.action.action_id}/{event.type}")
-            asyncio.create_task(self.send_event(event))
+            t = asyncio.create_task(self.send_event(event))
+            self.step_action_events.add(t)
+            t.add_done_callback(lambda t: self.step_action_events.discard(t))
 
     async def start_blocked_main_loop(self) -> None:
         threshold = 1
         while not self.killing:
             count = 0
-            for _, start_time in self.running_step_runs.items():
+            for start_time in self.running_step_runs.values():
                 diff = self.now() - start_time
                 if diff > threshold:
                     count += 1
 
             if count > 0:
-                logger.warning(f"{BLOCKED_THREAD_WARNING}: Waiting Steps {count}")
+                logger.warning(f"{BLOCKED_THREAD_WARNING} Waiting Steps {count}")
             await asyncio.sleep(1)
 
     async def send_event(self, event: ActionEvent, retry_attempt: int = 1) -> None:
@@ -179,7 +188,7 @@ class WorkerActionListenerProcess:
                             )
                             if diff > 0.1:
                                 logger.warning(
-                                    f"{BLOCKED_THREAD_WARNING}: time to start: {diff}s"
+                                    f"{BLOCKED_THREAD_WARNING} time to start: {diff}s"
                                 )
                             else:
                                 logger.debug(f"start time: {diff}")
@@ -189,7 +198,7 @@ class WorkerActionListenerProcess:
                                 self.now()
                             )
 
-                    asyncio.create_task(
+                    send_started_event_task = asyncio.create_task(
                         self.dispatcher_client.send_step_action_event(
                             event.action,
                             event.type,
@@ -197,19 +206,28 @@ class WorkerActionListenerProcess:
                             event.should_not_retry,
                         )
                     )
+
+                    self.step_action_events.add(send_started_event_task)
+                    send_started_event_task.add_done_callback(
+                        lambda t: self.step_action_events.discard(t)
+                    )
                 case ActionType.CANCEL_STEP_RUN:
                     logger.debug("unimplemented event send")
                 case ActionType.START_GET_GROUP_KEY:
-                    asyncio.create_task(
+                    get_group_key_task = asyncio.create_task(
                         self.dispatcher_client.send_group_key_action_event(
                             event.action, event.type, event.payload
                         )
                     )
+                    self.group_key_action_events.add(get_group_key_task)
+                    get_group_key_task.add_done_callback(
+                        lambda t: self.group_key_action_events.discard(t)
+                    )
                 case _:
                     logger.error("unknown action type for event send")
-        except Exception as e:
-            logger.error(
-                f"could not send action event ({retry_attempt}/{ACTION_EVENT_RETRY_COUNT}): {e}"
+        except Exception:
+            logger.exception(
+                f"could not send action event ({retry_attempt}/{ACTION_EVENT_RETRY_COUNT})"
             )
             if retry_attempt <= ACTION_EVENT_RETRY_COUNT:
                 await exp_backoff_sleep(retry_attempt, 1)
@@ -230,6 +248,7 @@ class WorkerActionListenerProcess:
                 ctx_step_run_id.set(action.step_run_id)
                 ctx_workflow_run_id.set(action.workflow_run_id)
                 ctx_worker_id.set(action.worker_id)
+                ctx_action_key.set(action.key)
 
                 # Process the action here
                 match action.action_type:
@@ -272,11 +291,11 @@ class WorkerActionListenerProcess:
                         )
                 try:
                     self.action_queue.put(action)
-                except Exception as e:
-                    logger.error(f"error putting action: {e}")
+                except Exception:
+                    logger.exception("error putting action")
 
-        except Exception as e:
-            logger.error(f"error in action loop: {e}")
+        except Exception:
+            logger.exception("error in action loop")
         finally:
             logger.info("action loop closed")
             if not self.killing:
@@ -318,7 +337,7 @@ def worker_action_listener_process(*args: Any, **kwargs: Any) -> None:
         process = WorkerActionListenerProcess(*args, **kwargs)
         await process.start()
         # Keep the process running
-        while not process.killing:
+        while not process.killing:  # noqa: ASYNC110
             await asyncio.sleep(0.1)
 
     asyncio.run(run())

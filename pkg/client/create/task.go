@@ -141,6 +141,8 @@ type StandaloneTask struct {
 	OnCron []string
 
 	DefaultPriority *int32
+
+	DefaultFilters []types.DefaultFilter
 }
 
 // DurableTaskCreateOpts defines options for creating a standalone durable task.

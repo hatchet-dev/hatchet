@@ -2,6 +2,7 @@ import { hatchet } from '../hatchet-client';
 
 export type Input = {
   Message: string;
+  ShouldSkip: boolean;
 };
 
 export const SIMPLE_EVENT = 'simple-event:create';
@@ -17,6 +18,25 @@ export const lower = hatchet.workflow<Input, LowerOutput>({
   name: 'lower',
   // 👀 Declare the event that will trigger the workflow
   onEvents: ['simple-event:create'],
+});
+// !!
+
+// > Workflow with filter
+export const lowerWithFilter = hatchet.workflow<Input, LowerOutput>({
+  name: 'lower',
+  // 👀 Declare the event that will trigger the workflow
+  onEvents: ['simple-event:create'],
+  defaultFilters: [
+    {
+      expression: 'true',
+      scope: 'example-scope',
+      payload: {
+        mainCharacter: 'Anna',
+        supportingCharacter: 'Stiva',
+        location: 'Moscow',
+      },
+    },
+  ],
 });
 // !!
 
@@ -50,3 +70,12 @@ upper.task({
     };
   },
 });
+
+// > Accessing the filter payload
+lowerWithFilter.task({
+  name: 'lowerWithFilter',
+  fn: (input, ctx) => {
+    console.log(ctx.filterPayload());
+  },
+});
+// !!

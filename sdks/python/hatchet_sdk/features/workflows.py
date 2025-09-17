@@ -6,7 +6,7 @@ from hatchet_sdk.clients.rest.api_client import ApiClient
 from hatchet_sdk.clients.rest.models.workflow import Workflow
 from hatchet_sdk.clients.rest.models.workflow_list import WorkflowList
 from hatchet_sdk.clients.rest.models.workflow_version import WorkflowVersion
-from hatchet_sdk.clients.v1.api_client import BaseRestClient
+from hatchet_sdk.clients.v1.api_client import BaseRestClient, retry
 
 
 class WorkflowsClient(BaseRestClient):
@@ -31,6 +31,7 @@ class WorkflowsClient(BaseRestClient):
         """
         return await asyncio.to_thread(self.get, workflow_id)
 
+    @retry
     def get(self, workflow_id: str) -> Workflow:
         """
         Get a workflow by its ID.
@@ -41,6 +42,7 @@ class WorkflowsClient(BaseRestClient):
         with self.client() as client:
             return self._wa(client).workflow_get(workflow_id)
 
+    @retry
     def list(
         self,
         workflow_name: str | None = None,
@@ -61,7 +63,7 @@ class WorkflowsClient(BaseRestClient):
                 tenant=self.client_config.tenant_id,
                 limit=limit,
                 offset=offset,
-                name=workflow_name,
+                name=self.client_config.apply_namespace(workflow_name),
             )
 
     async def aio_list(
@@ -81,6 +83,7 @@ class WorkflowsClient(BaseRestClient):
         """
         return await asyncio.to_thread(self.list, workflow_name, limit, offset)
 
+    @retry
     def get_version(
         self, workflow_id: str, version: str | None = None
     ) -> WorkflowVersion:
@@ -105,3 +108,28 @@ class WorkflowsClient(BaseRestClient):
         :return: The workflow version.
         """
         return await asyncio.to_thread(self.get_version, workflow_id, version)
+
+    def delete(self, workflow_id: str) -> None:
+        """
+        Permanently delete a workflow.
+
+        **DANGEROUS: This will delete a workflow and all of its data**
+
+        :param workflow_id: The ID of the workflow to delete.
+        :return: None
+        """
+
+        with self.client() as client:
+            return self._wa(client).workflow_delete(workflow_id)
+
+    async def aio_delete(self, workflow_id: str) -> None:
+        """
+        Permanently delete a workflow.
+
+        **DANGEROUS: This will delete a workflow and all of its data**
+
+        :param workflow_id: The ID of the workflow to delete.
+        :return: None
+        """
+
+        return await asyncio.to_thread(self.delete, workflow_id)

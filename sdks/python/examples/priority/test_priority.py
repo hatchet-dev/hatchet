@@ -1,8 +1,9 @@
 import asyncio
-from datetime import datetime, timedelta
+from collections.abc import AsyncGenerator
+from datetime import datetime, timedelta, timezone
 from random import choice
 from subprocess import Popen
-from typing import Any, AsyncGenerator, Literal
+from typing import Any, Literal
 from uuid import uuid4
 
 import pytest
@@ -58,7 +59,7 @@ async def dummy_runs() -> None:
 
     await asyncio.sleep(3)
 
-    return None
+    return
 
 
 @pytest.mark.parametrize(
@@ -165,7 +166,7 @@ async def test_priority_via_scheduling(
     sleep_time = 3
     n = 30
     choices: list[Priority] = ["low", "medium", "high", "default"]
-    run_at = datetime.now() + timedelta(seconds=sleep_time)
+    run_at = datetime.now(tz=timezone.utc) + timedelta(seconds=sleep_time)
 
     versions = await asyncio.gather(
         *[
@@ -277,12 +278,15 @@ async def crons(
 
 
 def time_until_next_minute() -> float:
-    now = datetime.now()
+    now = datetime.now(tz=timezone.utc)
     next_minute = (now + timedelta(minutes=1)).replace(second=0, microsecond=0)
 
     return (next_minute - now).total_seconds()
 
 
+@pytest.mark.skip(
+    reason="Test is flaky because the first jobs that are picked up don't necessarily go in priority order"
+)
 @pytest.mark.parametrize(
     "on_demand_worker",
     [

@@ -13,6 +13,7 @@ import {
 } from '@hatchet/protoc/workflows';
 import { Logger } from '@hatchet/util/logger';
 import { batch } from '@hatchet/util/batch';
+import { applyNamespace } from '@hatchet/util/apply-namespace';
 
 export type WorkflowRun<T = object> = {
   workflowName: string;
@@ -65,12 +66,8 @@ export class AdminClient {
       _standaloneTaskName?: string | undefined;
     }
   ) {
-    let computedName = workflowName;
-
     try {
-      if (this.config.namespace && !workflowName.startsWith(this.config.namespace)) {
-        computedName = this.config.namespace + workflowName;
-      }
+      const computedName = applyNamespace(workflowName, this.config.namespace);
 
       const inputStr = JSON.stringify(input);
 
@@ -126,12 +123,7 @@ export class AdminClient {
   ): Promise<WorkflowRunRef<P>[]> {
     // Prepare workflows to be triggered in bulk
     const workflowRequests = workflowRuns.map(({ workflowName, input, options }) => {
-      let computedName = workflowName;
-
-      if (this.config.namespace && !workflowName.startsWith(this.config.namespace)) {
-        computedName = this.config.namespace + workflowName;
-      }
-
+      const computedName = applyNamespace(workflowName, this.config.namespace);
       const inputStr = JSON.stringify(input);
 
       return {

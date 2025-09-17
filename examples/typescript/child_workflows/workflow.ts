@@ -27,7 +27,7 @@ export const parent = hatchet.task({
     const promises = [];
 
     for (let i = 0; i < n; i++) {
-      promises.push(ctx.runChild(child, { N: i }));
+      promises.push(child.run({ N: i }));
     }
 
     const childRes = await Promise.all(promises);
@@ -36,5 +36,36 @@ export const parent = hatchet.task({
     return {
       Result: sum,
     };
+  },
+});
+
+// > Parent with Single Child
+export const parentSingleChild = hatchet.task({
+  name: 'parent-single-child',
+  fn: async () => {
+    const childRes = await child.run({ N: 1 });
+
+    return {
+      Result: childRes.Value,
+    };
+  },
+});
+
+// > Parent with Error Handling
+export const withErrorHandling = hatchet.task({
+  name: 'parent-error-handling',
+  fn: async () => {
+    try {
+      const childRes = await child.run({ N: 1 });
+
+      return {
+        Result: childRes.Value,
+      };
+    } catch (error) {
+      // decide how to proceed here
+      return {
+        Result: -1,
+      };
+    }
   },
 });

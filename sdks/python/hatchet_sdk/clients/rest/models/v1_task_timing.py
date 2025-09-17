@@ -70,6 +70,19 @@ class V1TaskTiming(BaseModel):
         description="The timestamp the task run finished.",
         alias="finishedAt",
     )
+    workflow_run_id: Optional[StrictStr] = Field(
+        default=None,
+        description="The external ID of the workflow run.",
+        alias="workflowRunId",
+    )
+    retry_count: Optional[StrictInt] = Field(
+        default=None,
+        description="The number of retries of the task.",
+        alias="retryCount",
+    )
+    attempt: Optional[StrictInt] = Field(
+        default=None, description="The attempt number of the task."
+    )
     __properties: ClassVar[List[str]] = [
         "metadata",
         "depth",
@@ -83,6 +96,9 @@ class V1TaskTiming(BaseModel):
         "queuedAt",
         "startedAt",
         "finishedAt",
+        "workflowRunId",
+        "retryCount",
+        "attempt",
     ]
 
     model_config = ConfigDict(
@@ -154,6 +170,9 @@ class V1TaskTiming(BaseModel):
                 "queuedAt": obj.get("queuedAt"),
                 "startedAt": obj.get("startedAt"),
                 "finishedAt": obj.get("finishedAt"),
+                "workflowRunId": obj.get("workflowRunId"),
+                "retryCount": obj.get("retryCount"),
+                "attempt": obj.get("attempt"),
             }
         )
         return _obj

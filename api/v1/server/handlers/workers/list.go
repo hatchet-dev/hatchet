@@ -69,13 +69,34 @@ func (t *WorkerService) workerListV1(ctx echo.Context, tenant *dbsqlc.Tenant, re
 		return nil, err
 	}
 
+	workerIdSet := make(map[string]struct{})
+
+	for _, worker := range workers {
+		workerIdSet[sqlchelpers.UUIDToStr(worker.Worker.ID)] = struct{}{}
+	}
+
+	workerIds := make([]string, 0, len(workerIdSet))
+	for workerId := range workerIdSet {
+		workerIds = append(workerIds, workerId)
+	}
+
+	workerIdToActionIds, err := t.config.APIRepository.Worker().GetWorkerActionsByWorkerId(
+		sqlchelpers.UUIDToStr(tenant.ID),
+		workerIds,
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
 	rows := make([]gen.Worker, len(workers))
 
 	for i, worker := range workers {
 		workerCp := worker
 		slots := int(worker.RemainingSlots)
+		actions := workerIdToActionIds[sqlchelpers.UUIDToStr(workerCp.Worker.ID)]
 
-		rows[i] = *transformersv1.ToWorkerSqlc(&workerCp.Worker, &slots, &workerCp.WebhookUrl.String, nil)
+		rows[i] = *transformersv1.ToWorkerSqlc(&workerCp.Worker, &slots, &workerCp.WebhookUrl.String, actions)
 	}
 
 	return gen.WorkerList200JSONResponse(

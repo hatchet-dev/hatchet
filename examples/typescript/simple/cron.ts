@@ -17,7 +17,7 @@ async function main() {
 
   // > List
   const crons = await hatchet.crons.list({
-    workflowId: simple.id,
+    workflow: simple,
   });
 
   console.log(crons);

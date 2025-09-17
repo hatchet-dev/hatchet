@@ -51,6 +51,9 @@ class WorkflowVersion(BaseModel):
     triggers: Optional[WorkflowTriggers] = None
     schedule_timeout: Optional[StrictStr] = Field(default=None, alias="scheduleTimeout")
     jobs: Optional[List[Job]] = None
+    workflow_config: Optional[Dict[str, Any]] = Field(
+        default=None, alias="workflowConfig"
+    )
     __properties: ClassVar[List[str]] = [
         "metadata",
         "version",
@@ -63,6 +66,7 @@ class WorkflowVersion(BaseModel):
         "triggers",
         "scheduleTimeout",
         "jobs",
+        "workflowConfig",
     ]
 
     model_config = ConfigDict(
@@ -165,6 +169,7 @@ class WorkflowVersion(BaseModel):
                     if obj.get("jobs") is not None
                     else None
                 ),
+                "workflowConfig": obj.get("workflowConfig"),
             }
         )
         return _obj

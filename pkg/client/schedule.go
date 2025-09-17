@@ -11,6 +11,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/client/rest"
+	"github.com/hatchet-dev/hatchet/pkg/config/client"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
 
@@ -68,6 +69,7 @@ func NewScheduleClient(restClient *rest.ClientWithResponses, l *zerolog.Logger, 
 
 func (c *scheduleClientImpl) Create(ctx context.Context, workflow string, opts *ScheduleOpts) (*gen.ScheduledWorkflows, error) {
 	additionalMeta := make(map[string]any)
+	workflow = client.ApplyNamespace(workflow, &c.namespace)
 
 	for k, v := range opts.AdditionalMetadata {
 		additionalMeta[k] = v

@@ -4,7 +4,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
@@ -25,9 +24,11 @@ func ToSlotState(slots []*sqlcv1.ListSemaphoreSlotsWithStateForWorkerRow, remain
 			workflowRunId = uuid.MustParse(sqlchelpers.UUIDToStr(slot.ExternalID))
 		}
 
+		status := gen.StepRunStatusRUNNING
+
 		resp[i] = gen.SemaphoreSlots{
 			StepRunId:     stepRunId,
-			Status:        gen.StepRunStatusRUNNING,
+			Status:        &status,
 			ActionId:      slot.ActionID,
 			WorkflowRunId: workflowRunId,
 			TimeoutAt:     &slot.TimeoutAt.Time,
@@ -59,7 +60,7 @@ func ToWorkerRuntimeInfo(worker *sqlcv1.Worker) *gen.WorkerRuntimeInfo {
 	return runtime
 }
 
-func ToWorkerSqlc(worker *sqlcv1.Worker, remainingSlots *int, webhookUrl *string, actions []pgtype.Text) *gen.Worker {
+func ToWorkerSqlc(worker *sqlcv1.Worker, remainingSlots *int, webhookUrl *string, actions []string) *gen.Worker {
 
 	dispatcherId := uuid.MustParse(sqlchelpers.UUIDToStr(worker.DispatcherId))
 
@@ -106,15 +107,7 @@ func ToWorkerSqlc(worker *sqlcv1.Worker, remainingSlots *int, webhookUrl *string
 		res.LastHeartbeatAt = &worker.LastHeartbeatAt.Time
 	}
 
-	if actions != nil {
-		apiActions := make([]string, len(actions))
-
-		for i := range actions {
-			apiActions[i] = actions[i].String
-		}
-
-		res.Actions = &apiActions
-	}
+	res.Actions = &actions
 
 	return res
 }

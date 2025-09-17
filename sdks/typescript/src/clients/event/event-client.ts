@@ -9,6 +9,9 @@ import HatchetError from '@util/errors/hatchet-error';
 import { ClientConfig } from '@clients/hatchet-client/client-config';
 import { Logger } from '@hatchet/util/logger';
 import { retrier } from '@hatchet/util/retrier';
+import { applyNamespace } from '@hatchet/util/apply-namespace';
+import { HatchetClient } from '@hatchet/v1';
+import { LegacyHatchetClient } from '../hatchet-client';
 
 // eslint-disable-next-line no-shadow
 export enum LogLevel {
@@ -20,29 +23,42 @@ export enum LogLevel {
 
 export interface PushEventOptions {
   additionalMetadata?: Record<string, string>;
+  priority?: number;
+  scope?: string;
 }
 
 export interface EventWithMetadata<T> {
   payload: T;
   additionalMetadata?: Record<string, any>;
+  priority?: number;
+  scope?: string;
 }
 
 export class EventClient {
   config: ClientConfig;
   client: EventsServiceClient;
   retrier: typeof retrier;
+  api: HatchetClient['api'];
+  tenantId: string;
 
   logger: Logger;
 
-  constructor(config: ClientConfig, channel: Channel, factory: ClientFactory) {
+  constructor(
+    config: ClientConfig,
+    channel: Channel,
+    factory: ClientFactory,
+    hatchetClient: LegacyHatchetClient
+  ) {
     this.config = config;
     this.client = factory.create(EventsServiceDefinition, channel);
     this.logger = config.logger(`Dispatcher`, config.log_level);
     this.retrier = retrier;
+    this.api = hatchetClient.api;
+    this.tenantId = config.tenant_id;
   }
 
   push<T>(type: string, input: T, options: PushEventOptions = {}) {
-    const namespacedType = `${this.config.namespace ?? ''}${type}`;
+    const namespacedType = applyNamespace(type, this.config.namespace);
 
     const req: PushEventRequest = {
       key: namespacedType,
@@ -51,6 +67,8 @@ export class EventClient {
       additionalMetadata: options.additionalMetadata
         ? JSON.stringify(options.additionalMetadata)
         : undefined,
+      priority: options.priority,
+      scope: options.scope,
     };
 
     try {
@@ -63,7 +81,7 @@ export class EventClient {
   }
 
   bulkPush<T>(type: string, inputs: EventWithMetadata<T>[], options: PushEventOptions = {}) {
-    const namespacedType = `${this.config.namespace ?? ''}${type}`;
+    const namespacedType = applyNamespace(type, this.config.namespace);
 
     const events = inputs.map((input) => {
       return {
@@ -79,6 +97,8 @@ export class EventClient {
           }
           return undefined;
         })(),
+        priority: input.priority,
+        scope: input.scope,
       };
     });
 
@@ -125,7 +145,7 @@ export class EventClient {
       });
   }
 
-  async putStream(stepRunId: string, data: string | Uint8Array) {
+  async putStream(stepRunId: string, data: string | Uint8Array, index: number | undefined) {
     const createdAt = new Date();
 
     let dataBytes: Uint8Array;
@@ -143,11 +163,17 @@ export class EventClient {
           stepRunId,
           createdAt,
           message: dataBytes,
+          eventIndex: index,
         }),
       this.logger
     ).catch((e: any) => {
       // log a warning, but this is not a fatal error
       this.logger.warn(`Could not put log: ${e.message}`);
     });
+  }
+
+  async list(opts?: Parameters<typeof this.api.v1EventList>[1]) {
+    const { data } = await this.api.v1EventList(this.tenantId, opts);
+    return data;
   }
 }

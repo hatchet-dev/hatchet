@@ -77,6 +77,7 @@ import {
   TriggerWorkflowRunRequest,
   UpdateTenantAlertEmailGroupRequest,
   UpdateTenantInviteRequest,
+  UpdateTenantMemberRequest,
   UpdateTenantRequest,
   UpdateWorkerRequest,
   User,
@@ -84,11 +85,19 @@ import {
   UserLoginRequest,
   UserRegisterRequest,
   UserTenantMembershipsList,
+  V1CELDebugRequest,
+  V1CELDebugResponse,
   V1CancelTaskRequest,
+  V1CancelledTasks,
+  V1CreateFilterRequest,
+  V1CreateWebhookRequest,
   V1DagChildren,
   V1EventList,
+  V1Filter,
+  V1FilterList,
   V1LogLineList,
   V1ReplayTaskRequest,
+  V1ReplayedTasks,
   V1TaskEventList,
   V1TaskPointMetrics,
   V1TaskRunMetrics,
@@ -97,6 +106,11 @@ import {
   V1TaskSummaryList,
   V1TaskTimingList,
   V1TriggerWorkflowRunRequest,
+  V1UpdateFilterRequest,
+  V1UpdateWebhookRequest,
+  V1Webhook,
+  V1WebhookList,
+  V1WebhookSourceName,
   V1WorkflowRunDetails,
   V1WorkflowRunDisplayNameList,
   WebhookWorkerCreateRequest,
@@ -217,12 +231,13 @@ export class Api<
     data: V1CancelTaskRequest,
     params: RequestParams = {},
   ) =>
-    this.request<void, APIErrors>({
+    this.request<V1CancelledTasks, APIErrors>({
       path: `/api/v1/stable/tenants/${tenant}/tasks/cancel`,
       method: "POST",
       body: data,
       secure: true,
       type: ContentType.Json,
+      format: "json",
       ...params,
     });
   /**
@@ -239,12 +254,13 @@ export class Api<
     data: V1ReplayTaskRequest,
     params: RequestParams = {},
   ) =>
-    this.request<void, APIErrors>({
+    this.request<V1ReplayedTasks, APIErrors>({
       path: `/api/v1/stable/tenants/${tenant}/tasks/replay`,
       method: "POST",
       body: data,
       secure: true,
       type: ContentType.Json,
+      format: "json",
       ...params,
     });
   /**
@@ -339,6 +355,8 @@ export class Api<
        * @maxLength 36
        */
       triggering_event_external_id?: string;
+      /** A flag for whether or not to include the input and output payloads in the response. Defaults to `true` if unset. */
+      include_payloads?: boolean;
     },
     params: RequestParams = {},
   ) =>
@@ -410,6 +428,26 @@ export class Api<
   v1WorkflowRunGet = (v1WorkflowRun: string, params: RequestParams = {}) =>
     this.request<V1WorkflowRunDetails, APIErrors>({
       path: `/api/v1/stable/workflow-runs/${v1WorkflowRun}`,
+      method: "GET",
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Get the status of a workflow run.
+   *
+   * @tags Workflow Runs
+   * @name V1WorkflowRunGetStatus
+   * @summary Get workflow run status
+   * @request GET:/api/v1/stable/workflow-runs/{v1-workflow-run}/status
+   * @secure
+   */
+  v1WorkflowRunGetStatus = (
+    v1WorkflowRun: string,
+    params: RequestParams = {},
+  ) =>
+    this.request<V1TaskStatus, APIErrors>({
+      path: `/api/v1/stable/workflow-runs/${v1WorkflowRun}/status`,
       method: "GET",
       secure: true,
       format: "json",
@@ -514,6 +552,8 @@ export class Api<
        * @maxLength 36
        */
       triggering_event_external_id?: string;
+      /** Additional metadata k-v pairs to filter by */
+      additional_metadata?: string[];
     },
     params: RequestParams = {},
   ) =>
@@ -584,6 +624,26 @@ export class Api<
       limit?: number;
       /** A list of keys to filter by */
       keys?: EventKey[];
+      /**
+       * Consider events that occurred after this time
+       * @format date-time
+       */
+      since?: string;
+      /**
+       * Consider events that occurred before this time
+       * @format date-time
+       */
+      until?: string;
+      /** Filter to events that are associated with a specific workflow run */
+      workflowIds?: string[];
+      /** Filter to events that are associated with workflow runs matching a certain status */
+      workflowRunStatuses?: V1TaskStatus[];
+      /** Filter to specific events by their ids */
+      eventIds?: string[];
+      /** Filter by additional metadata on the events */
+      additionalMetadata?: string[];
+      /** The scopes to filter by */
+      scopes?: string[];
     },
     params: RequestParams = {},
   ) =>
@@ -592,6 +652,316 @@ export class Api<
       method: "GET",
       query: query,
       secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Lists all event keys for a tenant.
+   *
+   * @tags Event
+   * @name V1EventKeyList
+   * @summary List event keys
+   * @request GET:/api/v1/stable/tenants/{tenant}/events/keys
+   * @secure
+   */
+  v1EventKeyList = (tenant: string, params: RequestParams = {}) =>
+    this.request<EventKeyList, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/events/keys`,
+      method: "GET",
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Lists all filters for a tenant.
+   *
+   * @tags Filter
+   * @name V1FilterList
+   * @summary List filters
+   * @request GET:/api/v1/stable/tenants/{tenant}/filters
+   * @secure
+   */
+  v1FilterList = (
+    tenant: string,
+    query?: {
+      /**
+       * The number to skip
+       * @format int64
+       */
+      offset?: number;
+      /**
+       * The number to limit by
+       * @format int64
+       */
+      limit?: number;
+      /** The workflow ids to filter by */
+      workflowIds?: string[];
+      /** The scopes to subset candidate filters by */
+      scopes?: string[];
+    },
+    params: RequestParams = {},
+  ) =>
+    this.request<V1FilterList, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/filters`,
+      method: "GET",
+      query: query,
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Create a new filter
+   *
+   * @tags Filter
+   * @name V1FilterCreate
+   * @summary Create a filter
+   * @request POST:/api/v1/stable/tenants/{tenant}/filters
+   * @secure
+   */
+  v1FilterCreate = (
+    tenant: string,
+    data: V1CreateFilterRequest,
+    params: RequestParams = {},
+  ) =>
+    this.request<V1Filter, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/filters`,
+      method: "POST",
+      body: data,
+      secure: true,
+      type: ContentType.Json,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Get a filter by its id
+   *
+   * @tags Filter
+   * @name V1FilterGet
+   * @summary Get a filter
+   * @request GET:/api/v1/stable/tenants/{tenant}/filters/{v1-filter}
+   * @secure
+   */
+  v1FilterGet = (
+    tenant: string,
+    v1Filter: string,
+    params: RequestParams = {},
+  ) =>
+    this.request<V1Filter, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/filters/${v1Filter}`,
+      method: "GET",
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Delete a filter
+   *
+   * @tags Filter
+   * @name V1FilterDelete
+   * @request DELETE:/api/v1/stable/tenants/{tenant}/filters/{v1-filter}
+   * @secure
+   */
+  v1FilterDelete = (
+    tenant: string,
+    v1Filter: string,
+    params: RequestParams = {},
+  ) =>
+    this.request<V1Filter, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/filters/${v1Filter}`,
+      method: "DELETE",
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Update a filter
+   *
+   * @tags Filter
+   * @name V1FilterUpdate
+   * @request PATCH:/api/v1/stable/tenants/{tenant}/filters/{v1-filter}
+   * @secure
+   */
+  v1FilterUpdate = (
+    tenant: string,
+    v1Filter: string,
+    data: V1UpdateFilterRequest,
+    params: RequestParams = {},
+  ) =>
+    this.request<V1Filter, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/filters/${v1Filter}`,
+      method: "PATCH",
+      body: data,
+      secure: true,
+      type: ContentType.Json,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Lists all webhook for a tenant.
+   *
+   * @tags Webhook
+   * @name V1WebhookList
+   * @summary List webhooks
+   * @request GET:/api/v1/stable/tenants/{tenant}/webhooks
+   * @secure
+   */
+  v1WebhookList = (
+    tenant: string,
+    query?: {
+      /**
+       * The number to skip
+       * @format int64
+       */
+      offset?: number;
+      /**
+       * The number to limit by
+       * @format int64
+       */
+      limit?: number;
+      /** The source names to filter by */
+      sourceNames?: V1WebhookSourceName[];
+      /** The webhook names to filter by */
+      webhookNames?: string[];
+    },
+    params: RequestParams = {},
+  ) =>
+    this.request<V1WebhookList, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/webhooks`,
+      method: "GET",
+      query: query,
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Create a new webhook
+   *
+   * @tags Webhook
+   * @name V1WebhookCreate
+   * @summary Create a webhook
+   * @request POST:/api/v1/stable/tenants/{tenant}/webhooks
+   * @secure
+   */
+  v1WebhookCreate = (
+    tenant: string,
+    data: V1CreateWebhookRequest,
+    params: RequestParams = {},
+  ) =>
+    this.request<V1Webhook, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/webhooks`,
+      method: "POST",
+      body: data,
+      secure: true,
+      type: ContentType.Json,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Get a webhook by its name
+   *
+   * @tags Webhook
+   * @name V1WebhookGet
+   * @summary Get a webhook
+   * @request GET:/api/v1/stable/tenants/{tenant}/webhooks/{v1-webhook}
+   * @secure
+   */
+  v1WebhookGet = (
+    tenant: string,
+    v1Webhook: string,
+    params: RequestParams = {},
+  ) =>
+    this.request<V1Webhook, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/webhooks/${v1Webhook}`,
+      method: "GET",
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Delete a webhook
+   *
+   * @tags Webhook
+   * @name V1WebhookDelete
+   * @request DELETE:/api/v1/stable/tenants/{tenant}/webhooks/{v1-webhook}
+   * @secure
+   */
+  v1WebhookDelete = (
+    tenant: string,
+    v1Webhook: string,
+    params: RequestParams = {},
+  ) =>
+    this.request<V1Webhook, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/webhooks/${v1Webhook}`,
+      method: "DELETE",
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Post an incoming webhook message
+   *
+   * @tags Webhook
+   * @name V1WebhookReceive
+   * @summary Post a webhook message
+   * @request POST:/api/v1/stable/tenants/{tenant}/webhooks/{v1-webhook}
+   */
+  v1WebhookReceive = (
+    tenant: string,
+    v1Webhook: string,
+    data?: any,
+    params: RequestParams = {},
+  ) =>
+    this.request<Record<string, any>, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/webhooks/${v1Webhook}`,
+      method: "POST",
+      body: data,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Update a webhook
+   *
+   * @tags Webhook
+   * @name V1WebhookUpdate
+   * @summary Update a webhook
+   * @request PATCH:/api/v1/stable/tenants/{tenant}/webhooks/{v1-webhook}
+   * @secure
+   */
+  v1WebhookUpdate = (
+    tenant: string,
+    v1Webhook: string,
+    data: V1UpdateWebhookRequest,
+    params: RequestParams = {},
+  ) =>
+    this.request<V1Webhook, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/webhooks/${v1Webhook}`,
+      method: "PATCH",
+      body: data,
+      secure: true,
+      type: ContentType.Json,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Evaluate a CEL expression against provided input data.
+   *
+   * @tags CEL
+   * @name V1CelDebug
+   * @summary Debug a CEL expression
+   * @request POST:/api/v1/stable/tenants/{tenant}/cel/debug
+   * @secure
+   */
+  v1CelDebug = (
+    tenant: string,
+    data: V1CELDebugRequest,
+    params: RequestParams = {},
+  ) =>
+    this.request<V1CELDebugResponse, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/cel/debug`,
+      method: "POST",
+      body: data,
+      secure: true,
+      type: ContentType.Json,
       format: "json",
       ...params,
     });
@@ -1169,6 +1539,23 @@ export class Api<
       ...params,
     });
   /**
+   * @description Get the details of a tenant
+   *
+   * @tags Tenant
+   * @name TenantGet
+   * @summary Get tenant
+   * @request GET:/api/v1/tenants/{tenant}
+   * @secure
+   */
+  tenantGet = (tenant: string, params: RequestParams = {}) =>
+    this.request<Tenant, APIErrors | APIError>({
+      path: `/api/v1/tenants/${tenant}`,
+      method: "GET",
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
    * @description Gets the alerting settings for a tenant
    *
    * @tags Tenant
@@ -1573,6 +1960,30 @@ export class Api<
       path: `/api/v1/tenants/${tenant}/members`,
       method: "GET",
       secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Update a tenant member
+   *
+   * @tags Tenant
+   * @name TenantMemberUpdate
+   * @summary Update a tenant member
+   * @request PATCH:/api/v1/tenants/{tenant}/members/{member}
+   * @secure
+   */
+  tenantMemberUpdate = (
+    tenant: string,
+    member: string,
+    data: UpdateTenantMemberRequest,
+    params: RequestParams = {},
+  ) =>
+    this.request<TenantMember, APIErrors>({
+      path: `/api/v1/tenants/${tenant}/members/${member}`,
+      method: "PATCH",
+      body: data,
+      secure: true,
+      type: ContentType.Json,
       format: "json",
       ...params,
     });
@@ -2758,6 +3169,22 @@ export class Api<
       path: `/api/v1/version`,
       method: "GET",
       format: "json",
+      ...params,
+    });
+  /**
+   * @description Get the prometheus metrics for the tenant
+   *
+   * @tags Tenant
+   * @name TenantGetPrometheusMetrics
+   * @summary Get prometheus metrics
+   * @request GET:/api/v1/tenants/{tenant}/prometheus-metrics
+   * @secure
+   */
+  tenantGetPrometheusMetrics = (tenant: string, params: RequestParams = {}) =>
+    this.request<EventKey, APIErrors>({
+      path: `/api/v1/tenants/${tenant}/prometheus-metrics`,
+      method: "GET",
+      secure: true,
       ...params,
     });
 }

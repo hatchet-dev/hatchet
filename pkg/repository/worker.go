@@ -81,7 +81,7 @@ type WorkerAPIRepository interface {
 	ListWorkerState(tenantId, workerId string, maxRuns int) ([]*dbsqlc.ListSemaphoreSlotsWithStateForWorkerRow, []*dbsqlc.GetStepRunForEngineRow, error)
 
 	// GetWorkerActionsByWorkerId returns a list of actions for a worker
-	GetWorkerActionsByWorkerId(tenantid, workerId string) ([]pgtype.Text, error)
+	GetWorkerActionsByWorkerId(tenantid string, workerId []string) (map[string][]string, error)
 
 	// GetWorkerById returns a worker by its id.
 	GetWorkerById(workerId string) (*dbsqlc.GetWorkerByIdRow, error)

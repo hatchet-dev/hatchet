@@ -10,6 +10,13 @@ import (
 	"github.com/rs/zerolog"
 )
 
+type TaskOperationLimits struct {
+	TimeoutLimit      int
+	ReassignLimit     int
+	RetryQueueLimit   int
+	DurableSleepLimit int
+}
+
 type Repository interface {
 	Triggers() TriggerRepository
 	Tasks() TaskRepository
@@ -19,44 +26,51 @@ type Repository interface {
 	OverwriteOLAPRepository(o OLAPRepository)
 	Logs() LogLineRepository
 	OverwriteLogsRepository(l LogLineRepository)
+	Payloads() PayloadStoreRepository
+	OverwriteExternalPayloadStore(o ExternalStore, nativeStoreTTL time.Duration)
 	Workers() WorkerRepository
 	Workflows() WorkflowRepository
 	Ticker() TickerRepository
+	Filters() FilterRepository
+	Webhooks() WebhookRepository
+	Idempotency() IdempotencyRepository
 }
 
 type repositoryImpl struct {
-	triggers  TriggerRepository
-	tasks     TaskRepository
-	scheduler SchedulerRepository
-	matches   MatchRepository
-	olap      OLAPRepository
-	logs      LogLineRepository
-	workers   WorkerRepository
-	workflows WorkflowRepository
-	ticker    TickerRepository
+	triggers     TriggerRepository
+	tasks        TaskRepository
+	scheduler    SchedulerRepository
+	matches      MatchRepository
+	olap         OLAPRepository
+	logs         LogLineRepository
+	workers      WorkerRepository
+	workflows    WorkflowRepository
+	ticker       TickerRepository
+	filters      FilterRepository
+	webhooks     WebhookRepository
+	payloadStore PayloadStoreRepository
+	idempotency IdempotencyRepository
 }
 
-func NewRepository(pool *pgxpool.Pool, l *zerolog.Logger, taskRetentionPeriod, olapRetentionPeriod time.Duration, maxInternalRetryCount int32, entitlements repository.EntitlementsRepository) (Repository, func() error) {
+func NewRepository(pool *pgxpool.Pool, l *zerolog.Logger, taskRetentionPeriod, olapRetentionPeriod time.Duration, maxInternalRetryCount int32, entitlements repository.EntitlementsRepository, taskLimits TaskOperationLimits, enablePayloadDualWrites bool) (Repository, func() error) {
 	v := validator.NewDefaultValidator()
 
-	shared, cleanupShared := newSharedRepository(pool, v, l, entitlements)
-
-	matchRepo, err := newMatchRepository(shared)
-
-	if err != nil {
-		l.Fatal().Err(err).Msg("cannot create match repository")
-	}
+	shared, cleanupShared := newSharedRepository(pool, v, l, entitlements, enablePayloadDualWrites)
 
 	impl := &repositoryImpl{
-		triggers:  newTriggerRepository(shared),
-		tasks:     newTaskRepository(shared, taskRetentionPeriod, maxInternalRetryCount),
-		scheduler: newSchedulerRepository(shared),
-		matches:   matchRepo,
-		olap:      newOLAPRepository(shared, olapRetentionPeriod, true),
-		logs:      newLogLineRepository(shared),
-		workers:   newWorkerRepository(shared),
-		workflows: newWorkflowRepository(shared),
-		ticker:    newTickerRepository(shared),
+		triggers:     newTriggerRepository(shared),
+		tasks:        newTaskRepository(shared, taskRetentionPeriod, maxInternalRetryCount, taskLimits.TimeoutLimit, taskLimits.ReassignLimit, taskLimits.RetryQueueLimit, taskLimits.DurableSleepLimit),
+		scheduler:    newSchedulerRepository(shared),
+		matches:      newMatchRepository(shared),
+		olap:         newOLAPRepository(shared, olapRetentionPeriod, true),
+		logs:         newLogLineRepository(shared),
+		workers:      newWorkerRepository(shared),
+		workflows:    newWorkflowRepository(shared),
+		ticker:       newTickerRepository(shared),
+		filters:      newFilterRepository(shared),
+		webhooks:     newWebhookRepository(shared),
+		payloadStore: shared.payloadStore,
+		idempotency: newIdempotencyRepository(shared),
 	}
 
 	return impl, func() error {
@@ -96,6 +110,14 @@ func (r *repositoryImpl) OverwriteLogsRepository(l LogLineRepository) {
 	r.logs = l
 }
 
+func (r *repositoryImpl) Payloads() PayloadStoreRepository {
+	return r.payloadStore
+}
+
+func (r *repositoryImpl) OverwriteExternalPayloadStore(o ExternalStore, nativeStoreTTL time.Duration) {
+	r.payloadStore.OverwriteExternalStore(o, nativeStoreTTL)
+}
+
 func (r *repositoryImpl) Workers() WorkerRepository {
 	return r.workers
 }
@@ -106,4 +128,16 @@ func (r *repositoryImpl) Workflows() WorkflowRepository {
 
 func (r *repositoryImpl) Ticker() TickerRepository {
 	return r.ticker
+}
+
+func (r *repositoryImpl) Filters() FilterRepository {
+	return r.filters
+}
+
+func (r *repositoryImpl) Webhooks() WebhookRepository {
+	return r.webhooks
+}
+
+func (r *repositoryImpl) Idempotency() IdempotencyRepository {
+	return r.idempotency
 }

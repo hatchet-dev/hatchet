@@ -4,12 +4,15 @@ from hatchet_sdk.clients.events import EventClient
 from hatchet_sdk.clients.listeners.run_event_listener import RunEventListenerClient
 from hatchet_sdk.clients.listeners.workflow_listener import PooledWorkflowRunListener
 from hatchet_sdk.config import ClientConfig
+from hatchet_sdk.features.cel import CELClient
 from hatchet_sdk.features.cron import CronClient
+from hatchet_sdk.features.filters import FiltersClient
 from hatchet_sdk.features.logs import LogsClient
 from hatchet_sdk.features.metrics import MetricsClient
 from hatchet_sdk.features.rate_limits import RateLimitsClient
 from hatchet_sdk.features.runs import RunsClient
 from hatchet_sdk.features.scheduled import ScheduledClient
+from hatchet_sdk.features.tenant import TenantClient
 from hatchet_sdk.features.workers import WorkersClient
 from hatchet_sdk.features.workflows import WorkflowsClient
 
@@ -33,7 +36,9 @@ class Client:
         self.log_interceptor = config.logger
         self.debug = debug
 
+        self.cel = CELClient(self.config)
         self.cron = CronClient(self.config)
+        self.filters = FiltersClient(self.config)
         self.logs = LogsClient(self.config)
         self.metrics = MetricsClient(self.config)
         self.rate_limits = RateLimitsClient(self.config)
@@ -43,6 +48,7 @@ class Client:
             workflow_run_listener=self.workflow_listener,
         )
         self.scheduled = ScheduledClient(self.config)
+        self.tenant = TenantClient(self.config)
         self.workers = WorkersClient(self.config)
         self.workflows = WorkflowsClient(self.config)
 

@@ -136,8 +136,11 @@ export class RunEventListener {
           });
         }
       }
+
+      this.eventEmitter.emit('complete');
     } catch (e: any) {
       if (e.code === Status.CANCELLED) {
+        this.eventEmitter.emit('complete');
         return;
       }
       if (e.code === Status.UNAVAILABLE) {
@@ -164,12 +167,23 @@ export class RunEventListener {
   }
 
   async *stream(): AsyncGenerator<StepRunEvent, void, unknown> {
+    let completed = false;
+
+    this.eventEmitter.once('complete', () => {
+      completed = true;
+      this.eventEmitter.emit('event');
+    });
+
     for await (const _ of on(this.eventEmitter, 'event')) {
       while (this.q.length > 0) {
         const r = this.q.shift();
         if (r) {
           yield r;
         }
+      }
+
+      if (completed && this.q.length === 0) {
+        break;
       }
     }
   }

@@ -1,6 +1,6 @@
 # > Setup
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from hatchet_sdk import BulkCancelReplayOpts, Hatchet, RunFilter, V1TaskStatus
 
@@ -31,7 +31,7 @@ hatchet.runs.bulk_cancel(bulk_cancel_by_ids)
 bulk_cancel_by_filters = BulkCancelReplayOpts(
     filters=RunFilter(
         since=datetime.today() - timedelta(days=1),
-        until=datetime.now(),
+        until=datetime.now(tz=timezone.utc),
         statuses=[V1TaskStatus.RUNNING],
         workflow_ids=[workflow.metadata.id],
         additional_metadata={"key": "value"},

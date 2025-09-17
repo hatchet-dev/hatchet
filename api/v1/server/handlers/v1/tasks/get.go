@@ -13,7 +13,13 @@ func (t *TasksService) V1TaskGet(ctx echo.Context, request gen.V1TaskGetRequestO
 	taskInterface := ctx.Get("task")
 
 	if taskInterface == nil {
-		return nil, echo.NewHTTPError(404, "Task not found")
+		return gen.V1TaskGet404JSONResponse{
+			Errors: []gen.APIError{
+				{
+					Description: "task not found",
+				},
+			},
+		}, nil
 	}
 
 	task, ok := taskInterface.(*sqlcv1.V1TasksOlap)
@@ -47,7 +53,13 @@ func (t *TasksService) V1TaskGet(ctx echo.Context, request gen.V1TaskGetRequestO
 		return nil, err
 	}
 
-	result := transformers.ToTask(taskWithData, workflowRunExternalId)
+	workflowVersion, _, _, _, err := t.config.APIRepository.Workflow().GetWorkflowVersionById(task.TenantID.String(), taskWithData.WorkflowVersionID.String())
+
+	if err != nil {
+		return nil, err
+	}
+
+	result := transformers.ToTask(taskWithData, workflowRunExternalId, workflowVersion)
 
 	return gen.V1TaskGet200JSONResponse(
 		result,

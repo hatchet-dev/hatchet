@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "hatchet-sdk"
-version = "1.9.1"
+version = "1.18.1"
 description = ""
 authors = ["Alexander Belanger <alexander@hatchet.run>"]
 readme = "README.md"
@@ -17,23 +17,25 @@ grpcio-tools = [
     { version = ">=1.64.1, !=1.68.*", markers = "python_version < '3.13'" },
     { version = ">=1.69.0", markers = "python_version >= '3.13'" },
 ]
-protobuf = "^5.29.1"
+protobuf = "^5.29.5"
 pydantic = "^2.6.3"
 python-dateutil = "^2.9.0.post0"
 urllib3 = ">=1.26.20"
-aiostream = "^0.5.2"
 aiohttp = "^3.10.5"
-aiohttp-retry = "^2.8.3"
 tenacity = ">=8.4.1"
-cel-python = "^0.2.0"
+prometheus-client = ">=0.21.1"
+pydantic-settings = "^2.7.1"
+
+## OTel Extra
 opentelemetry-api = { version = "^1.28.0", optional = true }
 opentelemetry-sdk = { version = "^1.28.0", optional = true }
 opentelemetry-instrumentation = { version = ">=0.49b0", optional = true }
 opentelemetry-distro = { version = ">=0.49b0", optional = true }
 opentelemetry-exporter-otlp = { version = "^1.28.0", optional = true }
 opentelemetry-exporter-otlp-proto-http = { version = "^1.28.0", optional = true }
-prometheus-client = "^0.21.1"
-pydantic-settings = "^2.7.1"
+
+## CEL Extra (for v0 compatibility)
+cel-python = { version = "^0.4.0", optional = true }
 
 [tool.poetry.group.lint.dependencies]
 mypy = "^1.14.0"
@@ -52,6 +54,7 @@ pytest-asyncio = "^0.25.3"
 pytest-env = "^1.1.5"
 pytest-retry = "^1.7.0"
 psycopg = { extras = ["pool"], version = "^3.2.6" }
+pytest-xdist = "^3.7.0"
 
 
 [tool.poetry.group.docs.dependencies]
@@ -62,6 +65,8 @@ markdownify = "^1.1.0"
 openai = "^1.75.0"
 bs4 = "^0.0.2"
 types-beautifulsoup4 = "^4.12.0.20250204"
+fastapi = "^0.115.14"
+uvicorn = "^0.34.3"
 
 [tool.poetry.extras]
 otel = [
@@ -72,6 +77,7 @@ otel = [
     "opentelemetry-exporter-otlp",
     "opentelemetry-exporter-otlp-proto-http",
 ]
+v0-sdk = ["cel-python"]
 
 [build-system]
 requires = ["poetry-core"]
@@ -135,6 +141,82 @@ exclude = [
     "site/*",
 ]
 target-version = "py310"
+
+[tool.ruff.lint]
+select = [
+    # Pyflakes
+    "F",
+    # pycodestyle errors
+    "E",
+    # pycodestyle warnings
+    "W",
+    # isort
+    "I",
+    # pep8-naming
+    "N",
+    # pyupgrade (modern Python idioms)
+    "UP",
+    # flake8-async (async/await)
+    "ASYNC",
+    # flake8-bugbear (likely bugs)
+    "B",
+    # flake8-simplify (code simplification)
+    "SIM",
+    # flake8-comprehensions (list/dict comprehensions)
+    "C4",
+    # flake8-pie (misc improvements)
+    "PIE",
+    # flake8-return (return statement improvements)
+    "RET",
+    # flake8-unused-arguments
+    "ARG",
+    # flake8-logging-format
+    "G",
+    # Ruff-specific rules
+    "RUF",
+    # Datetime (timezone) rules
+    "DTZ",
+    "FIX",
+    ## Performance-related rules
+    "PERF",
+
+    # Print statements
+    "T201",
+]
+
+ignore = [
+    # Allow long lines
+    "E501",
+    # Allow complex variable names
+    "N806",
+    # Don't enforce specific exception types initially
+    "B008",
+    # Allow unused function arguments
+    "ARG001",
+    "ARG002",
+    # Allow empty returns
+    "RET503",
+
+    ## FIXME (ironic) - re-enable this later
+    "FIX",
+
+    "RET506",
+]
+exclude = [
+    "examples/*",
+    "docs/*",
+    "hatchet_sdk/clients/rest/api/*",
+    "hatchet_sdk/clients/rest/models/*",
+    "hatchet_sdk/contracts",
+    "hatchet_sdk/clients/rest/api_client.py",
+    "hatchet_sdk/clients/rest/configuration.py",
+    "hatchet_sdk/clients/rest/exceptions.py",
+    "hatchet_sdk/clients/rest/rest.py",
+    "hatchet_sdk/v0/*",
+    "apply_patches.py",
+    "site/*",
+    "tests/*",
+]
 
 [tool.poetry.scripts]
 

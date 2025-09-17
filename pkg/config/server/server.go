@@ -4,12 +4,14 @@ import (
 	"crypto/tls"
 	"time"
 
+	"github.com/labstack/echo/v4"
 	"github.com/rs/zerolog"
 	"github.com/spf13/viper"
 	"golang.org/x/oauth2"
+	"google.golang.org/grpc"
 
+	"github.com/hatchet-dev/hatchet/api/v1/server/middleware"
 	"github.com/hatchet-dev/hatchet/internal/integrations/alerting"
-	"github.com/hatchet-dev/hatchet/internal/integrations/email"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	msgqueuev1 "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor"
@@ -21,6 +23,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/config/shared"
 	"github.com/hatchet-dev/hatchet/pkg/encryption"
 	"github.com/hatchet-dev/hatchet/pkg/errors"
+	"github.com/hatchet-dev/hatchet/pkg/integrations/email"
 	"github.com/hatchet-dev/hatchet/pkg/repository/buffer"
 	v0 "github.com/hatchet-dev/hatchet/pkg/scheduling/v0"
 	v1 "github.com/hatchet-dev/hatchet/pkg/scheduling/v1"
@@ -74,6 +77,10 @@ type ServerConfigFile struct {
 	Monitoring ConfigFileMonitoring `mapstructure:"monitoring" json:"monitoring,omitempty"`
 
 	Sampling ConfigFileSampling `mapstructure:"sampling" json:"sampling,omitempty"`
+
+	OLAP ConfigFileOperations `mapstructure:"olap" json:"olap,omitempty"`
+
+	PayloadStore PayloadStoreConfig `mapstructure:"payloadStore" json:"payloadStore,omitempty"`
 }
 
 type ConfigFileAdditionalLoggers struct {
@@ -90,6 +97,28 @@ type ConfigFileSampling struct {
 
 	// SamplingRate is the rate at which to sample events. Default is 1.0 to sample all events.
 	SamplingRate float64 `mapstructure:"samplingRate" json:"samplingRate,omitempty" default:"1.0"`
+}
+
+type ConfigFileOperations struct {
+	// Jitter is the jitter duration for operations pools in milliseconds
+	Jitter int `mapstructure:"jitter" json:"jitter,omitempty" default:"0"`
+
+	// PollInterval is the polling interval for operations in seconds
+	PollInterval int `mapstructure:"pollInterval" json:"pollInterval,omitempty" default:"2"`
+}
+
+type TaskOperationLimitsConfigFile struct {
+	// TimeoutLimit is the limit for how many tasks to process in a single timeout operation
+	TimeoutLimit int `mapstructure:"timeoutLimit" json:"timeoutLimit,omitempty" default:"1000"`
+
+	// ReassignLimit is the limit for how many tasks to process in a single reassignment operation
+	ReassignLimit int `mapstructure:"reassignLimit" json:"reassignLimit,omitempty" default:"1000"`
+
+	// RetryQueueLimit is the limit for how many retry queue items to process in a single operation
+	RetryQueueLimit int `mapstructure:"retryQueueLimit" json:"retryQueueLimit,omitempty" default:"1000"`
+
+	// DurableSleepLimit is the limit for how many durable sleep items to process in a single operation
+	DurableSleepLimit int `mapstructure:"durableSleepLimit" json:"durableSleepLimit,omitempty" default:"1000"`
 }
 
 // General server runtime options
@@ -120,6 +149,10 @@ type ConfigFileRuntime struct {
 
 	// GRPCMaxMsgSize is the maximum message size that the grpc server will accept
 	GRPCMaxMsgSize int `mapstructure:"grpcMaxMsgSize" json:"grpcMaxMsgSize,omitempty" default:"4194304"`
+
+	// GRPCStaticStreamWindowSize sets the static stream window size for the grpc server. This can help with performance
+	// with overloaded workers and large messages. Default is 10MB.
+	GRPCStaticStreamWindowSize int32 `mapstructure:"grpcStaticStreamWindowSize" json:"grpcStaticStreamWindowSize,omitempty" default:"10485760"`
 
 	// GRPCRateLimit is the rate limit for the grpc server. We count limits separately for the Workflow, Dispatcher and Events services. Workflow and Events service are set to this rate, Dispatcher is 10X this rate. The rate limit is per second, per engine, per api token.
 	GRPCRateLimit float64 `mapstructure:"grpcRateLimit" json:"grpcRateLimit,omitempty" default:"1000"`
@@ -160,6 +193,10 @@ type ConfigFileRuntime struct {
 
 	// Allow passwords to be changed
 	AllowChangePassword bool `mapstructure:"allowChangePassword" json:"allowChangePassword,omitempty" default:"true"`
+
+	// Rate limiting configuration for API operations by IP
+	APIRateLimit       int           `mapstructure:"apiRateLimit" json:"apiRateLimit,omitempty" default:"10"`
+	APIRateLimitWindow time.Duration `mapstructure:"apiRateLimitWindow" json:"apiRateLimitWindow,omitempty" default:"300s"`
 
 	// Buffer create workflow runs
 	BufferCreateWorkflowRuns bool `mapstructure:"bufferCreateWorkflowRuns" json:"bufferCreateWorkflowRuns,omitempty" default:"true"`
@@ -203,7 +240,19 @@ type ConfigFileRuntime struct {
 	PreventTenantVersionUpgrade bool `mapstructure:"preventTenantVersionUpgrade" json:"preventTenantVersionUpgrade,omitempty" default:"false"`
 
 	// DefaultEngineVersion is the default engine version to use for new tenants
-	DefaultEngineVersion string `mapstructure:"defaultEngineVersion" json:"defaultEngineVersion,omitempty" default:"V0"`
+	DefaultEngineVersion string `mapstructure:"defaultEngineVersion" json:"defaultEngineVersion,omitempty" default:"V1"`
+
+	// ReplayEnabled controls whether the server enables replay for tasks
+	ReplayEnabled bool `mapstructure:"replayEnabled" json:"replayEnabled,omitempty" default:"true"`
+
+	// SchedulerConcurrencyRateLimit is the rate limit for scheduler concurrency strategy execution (per second)
+	SchedulerConcurrencyRateLimit int `mapstructure:"schedulerConcurrencyRateLimit" json:"schedulerConcurrencyRateLimit,omitempty" default:"20"`
+
+	// LogIngestionEnabled controls whether the server enables log ingestion for tasks
+	LogIngestionEnabled bool `mapstructure:"logIngestionEnabled" json:"logIngestionEnabled,omitempty" default:"true"`
+
+	// TaskOperationLimits controls the limits for various task operations
+	TaskOperationLimits TaskOperationLimitsConfigFile `mapstructure:"taskOperationLimits" json:"taskOperationLimits,omitempty"`
 }
 
 type InternalClientTLSConfigFile struct {
@@ -255,6 +304,9 @@ type LimitConfigFile struct {
 
 	DefaultScheduleLimit      int `mapstructure:"defaultScheduleLimit" json:"defaultScheduleLimit,omitempty" default:"1000"`
 	DefaultScheduleAlarmLimit int `mapstructure:"defaultScheduleAlarmLimit" json:"defaultScheduleAlarmLimit,omitempty" default:"750"`
+
+	DefaultIncomingWebhookLimit      int `mapstructure:"defaultIncomingWebhookLimit" json:"defaultIncomingWebhookLimit,omitempty" default:"5"`
+	DefaultIncomingWebhookAlarmLimit int `mapstructure:"defaultIncomingWebhookAlarmLimit" json:"defaultIncomingWebhookALarmLimit,omitempty" default:"4"`
 }
 
 // Alerting options
@@ -309,7 +361,7 @@ type EncryptionConfigFile struct {
 	JWT EncryptionConfigFileJWT `mapstructure:"jwt" json:"jwt,omitempty"`
 
 	// CloudKMS is the configuration for Google Cloud KMS. You must set either MasterKeyset or cloudKms.enabled.
-	CloudKMS EncryptionConfigFileCloudKMS `mapstructure:"cloudKms" json:"cloudKms,omitempty"`
+	CloudKMS EncryptionConfigFileCloudKMS `mapstructure:"cloudKms" json:"cloudKMS,omitempty"`
 }
 
 type EncryptionConfigFileJWT struct {
@@ -398,7 +450,7 @@ type ConfigFileAuthCookie struct {
 type MessageQueueConfigFile struct {
 	Enabled bool `mapstructure:"enabled" json:"enabled,omitempty" default:"true"`
 
-	Kind string `mapstructure:"kind" json:"kind,omitempty" validate:"required" default:"rabbitmq"`
+	Kind string `mapstructure:"kind" json:"kind,omitempty" validate:"required,oneof=rabbitmq postgres" default:"rabbitmq"`
 
 	Postgres PostgresMQConfigFile `mapstructure:"postgres" json:"postgres,omitempty"`
 
@@ -410,7 +462,7 @@ type PostgresMQConfigFile struct {
 }
 
 type RabbitMQConfigFile struct {
-	URL string `mapstructure:"url" json:"url,omitempty" validate:"required" default:"amqp://user:password@localhost:5672/"`
+	URL string `mapstructure:"url" json:"url,omitempty" validate:"required"`
 	Qos int    `mapstructure:"qos" json:"qos,omitempty" default:"100"`
 }
 
@@ -441,6 +493,15 @@ type PostmarkConfigFile struct {
 	SupportEmail string `mapstructure:"supportEmail" json:"supportEmail,omitempty"`
 }
 
+type CustomAuthenticator interface {
+	// Authenticate is called to authenticate for endpoints that support the customAuth security scheme
+	Authenticate(c echo.Context) error
+	// Authorize is called to authorize for endpoints that support the customAuth security scheme
+	Authorize(c echo.Context, r *middleware.RouteInfo) error
+	// CookieAuthorizerHook is called as part of cookie authorization
+	CookieAuthorizerHook(c echo.Context, r *middleware.RouteInfo) error
+}
+
 type AuthConfig struct {
 	RestrictedEmailDomains []string
 
@@ -451,6 +512,8 @@ type AuthConfig struct {
 	GithubOAuthConfig *oauth2.Config
 
 	JWTManager token.JWTManager
+
+	CustomAuthenticator CustomAuthenticator
 }
 
 type PylonConfig struct {
@@ -525,7 +588,15 @@ type ServerConfig struct {
 
 	Sampling ConfigFileSampling
 
+	Operations ConfigFileOperations
+
+	GRPCInterceptors []grpc.UnaryServerInterceptor
+
 	Version string
+}
+
+type PayloadStoreConfig struct {
+	EnablePayloadDualWrites bool `mapstructure:"enablePayloadDualWrites" json:"enablePayloadDualWrites,omitempty" default:"false"`
 }
 
 func (c *ServerConfig) HasService(name string) bool {
@@ -536,6 +607,10 @@ func (c *ServerConfig) HasService(name string) bool {
 	}
 
 	return false
+}
+
+func (c *ServerConfig) AddGRPCUnaryInterceptor(interceptor grpc.UnaryServerInterceptor) {
+	c.GRPCInterceptors = append(c.GRPCInterceptors, interceptor)
 }
 
 func BindAllEnv(v *viper.Viper) {
@@ -549,7 +624,9 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.grpcBroadcastAddress", "SERVER_GRPC_BROADCAST_ADDRESS")
 	_ = v.BindEnv("runtime.grpcInsecure", "SERVER_GRPC_INSECURE")
 	_ = v.BindEnv("runtime.grpcMaxMsgSize", "SERVER_GRPC_MAX_MSG_SIZE")
+	_ = v.BindEnv("runtime.grpcStaticStreamWindowSize", "SERVER_GRPC_STATIC_STREAM_WINDOW_SIZE")
 	_ = v.BindEnv("runtime.grpcRateLimit", "SERVER_GRPC_RATE_LIMIT")
+	_ = v.BindEnv("runtime.schedulerConcurrencyRateLimit", "SCHEDULER_CONCURRENCY_RATE_LIMIT")
 	_ = v.BindEnv("runtime.shutdownWait", "SERVER_SHUTDOWN_WAIT")
 	_ = v.BindEnv("servicesString", "SERVER_SERVICES")
 	_ = v.BindEnv("pausedControllers", "SERVER_PAUSED_CONTROLLERS")
@@ -561,11 +638,14 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.allowCreateTenant", "SERVER_ALLOW_CREATE_TENANT")
 	_ = v.BindEnv("runtime.maxPendingInvites", "SERVER_MAX_PENDING_INVITES")
 	_ = v.BindEnv("runtime.allowChangePassword", "SERVER_ALLOW_CHANGE_PASSWORD")
+	_ = v.BindEnv("runtime.apiRateLimit", "SERVER_API_RATE_LIMIT")
+	_ = v.BindEnv("runtime.apiRateLimitWindow", "SERVER_API_RATE_LIMIT_WINDOW")
 	_ = v.BindEnv("runtime.bufferCreateWorkflowRuns", "SERVER_BUFFER_CREATE_WORKFLOW_RUNS")
 	_ = v.BindEnv("runtime.disableTenantPubs", "SERVER_DISABLE_TENANT_PUBS")
 	_ = v.BindEnv("runtime.maxInternalRetryCount", "SERVER_MAX_INTERNAL_RETRY_COUNT")
 	_ = v.BindEnv("runtime.preventTenantVersionUpgrade", "SERVER_PREVENT_TENANT_VERSION_UPGRADE")
 	_ = v.BindEnv("runtime.defaultEngineVersion", "SERVER_DEFAULT_ENGINE_VERSION")
+	_ = v.BindEnv("runtime.replayEnabled", "SERVER_REPLAY_ENABLED")
 
 	// security check options
 	_ = v.BindEnv("securityCheck.enabled", "SERVER_SECURITY_CHECK_ENABLED")
@@ -598,6 +678,8 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.limits.defaultScheduleLimit", "SERVER_LIMITS_DEFAULT_SCHEDULE_LIMIT")
 	_ = v.BindEnv("runtime.limits.defaultScheduleAlarmLimit", "SERVER_LIMITS_DEFAULT_SCHEDULE_ALARM_LIMIT")
 
+	_ = v.BindEnv("runtime.limits.defaultIncomingWebhookLimit", "SERVER_LIMITS_DEFAULT_INCOMING_WEBHOOK_LIMIT")
+
 	// buffer options
 	_ = v.BindEnv("runtime.workflowRunBuffer.waitForFlush", "SERVER_WORKFLOWRUNBUFFER_WAIT_FOR_FLUSH")
 	_ = v.BindEnv("runtime.workflowRunBuffer.maxConcurrent", "SERVER_WORKFLOWRUNBUFFER_MAX_CONCURRENT")
@@ -629,6 +711,9 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.flushPeriodMilliseconds", "SERVER_FLUSH_PERIOD_MILLISECONDS")
 	_ = v.BindEnv("runtime.flushItemsThreshold", "SERVER_FLUSH_ITEMS_THRESHOLD")
 	_ = v.BindEnv("runtime.flushStrategy", "SERVER_FLUSH_STRATEGY")
+
+	// log ingestion
+	_ = v.BindEnv("runtime.logIngestionEnabled", "SERVER_LOG_INGESTION_ENABLED")
 
 	// alerting options
 	_ = v.BindEnv("alerting.sentry.enabled", "SERVER_ALERTING_SENTRY_ENABLED")
@@ -728,8 +813,12 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("otel.collectorURL", "SERVER_OTEL_COLLECTOR_URL")
 	_ = v.BindEnv("otel.traceIdRatio", "SERVER_OTEL_TRACE_ID_RATIO")
 	_ = v.BindEnv("otel.insecure", "SERVER_OTEL_INSECURE")
+	_ = v.BindEnv("otel.collectorAuth", "SERVER_OTEL_COLLECTOR_AUTH")
 
 	// prometheus options
+	_ = v.BindEnv("prometheus.prometheusServerURL", "SERVER_PROMETHEUS_SERVER_URL")
+	_ = v.BindEnv("prometheus.prometheusServerUsername", "SERVER_PROMETHEUS_SERVER_USERNAME")
+	_ = v.BindEnv("prometheus.prometheusServerPassword", "SERVER_PROMETHEUS_SERVER_PASSWORD")
 	_ = v.BindEnv("prometheus.enabled", "SERVER_PROMETHEUS_ENABLED")
 	_ = v.BindEnv("prometheus.address", "SERVER_PROMETHEUS_ADDRESS")
 	_ = v.BindEnv("prometheus.path", "SERVER_PROMETHEUS_PATH")
@@ -757,4 +846,17 @@ func BindAllEnv(v *viper.Viper) {
 	// sampling options
 	_ = v.BindEnv("sampling.enabled", "SERVER_SAMPLING_ENABLED")
 	_ = v.BindEnv("sampling.samplingRate", "SERVER_SAMPLING_RATE")
+
+	// operations options
+	_ = v.BindEnv("olap.jitter", "SERVER_OPERATIONS_JITTER")
+	_ = v.BindEnv("olap.pollInterval", "SERVER_OPERATIONS_POLL_INTERVAL")
+
+	// task operation limits options
+	_ = v.BindEnv("taskOperationLimits.timeoutLimit", "SERVER_TASK_OPERATION_LIMITS_TIMEOUT_LIMIT")
+	_ = v.BindEnv("taskOperationLimits.reassignLimit", "SERVER_TASK_OPERATION_LIMITS_REASSIGN_LIMIT")
+	_ = v.BindEnv("taskOperationLimits.retryQueueLimit", "SERVER_TASK_OPERATION_LIMITS_RETRY_QUEUE_LIMIT")
+	_ = v.BindEnv("taskOperationLimits.durableSleepLimit", "SERVER_TASK_OPERATION_LIMITS_DURABLE_SLEEP_LIMIT")
+
+	// payload store options
+	_ = v.BindEnv("payloadStore.enablePayloadDualWrites", "SERVER_PAYLOAD_STORE_ENABLE_PAYLOAD_DUAL_WRITES")
 }

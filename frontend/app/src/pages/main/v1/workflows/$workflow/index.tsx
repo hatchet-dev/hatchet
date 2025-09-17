@@ -1,18 +1,16 @@
-import { Separator } from '@/components/v1/ui/separator';
 import api, { queries, WorkflowUpdateRequest } from '@/lib/api';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { useNavigate, useOutletContext, useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import invariant from 'tiny-invariant';
 import { WorkflowTags } from '../components/workflow-tags';
 import { Badge } from '@/components/v1/ui/badge';
 import { relativeDate } from '@/lib/utils';
 import { Square3Stack3DIcon } from '@heroicons/react/24/outline';
 import { Loading } from '@/components/v1/ui/loading.tsx';
-import { TenantContextType } from '@/lib/outlet';
 import { TriggerWorkflowForm } from './components/trigger-workflow-form';
 import { useState } from 'react';
 import { Button } from '@/components/v1/ui/button';
-import { useApiError, useApiMetaIntegrations } from '@/lib/hooks';
+import { useApiError } from '@/lib/hooks';
 import {
   Tabs,
   TabsContent,
@@ -21,23 +19,21 @@ import {
 } from '@/components/v1/ui/tabs';
 import WorkflowGeneralSettings from './components/workflow-general-settings';
 import { ConfirmDialog } from '@/components/v1/molecules/confirm-dialog';
-import { useTenant } from '@/lib/atoms';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/v1/ui/dropdown-menu';
-import { TaskRunsTable } from '../../workflow-runs-v1/components/task-runs-table';
+import { RunsTable } from '../../workflow-runs-v1/components/runs-table';
+import { RunsProvider } from '../../workflow-runs-v1/hooks/runs-provider';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
 
 export default function ExpandedWorkflow() {
-  const { tenant } = useTenant();
-
   // TODO list previous versions and make selectable
   const [selectedVersion] = useState<string | undefined>();
   const { handleApiError } = useApiError({});
-
-  invariant(tenant);
+  const { tenantId } = useCurrentTenantId();
 
   const [triggerWorkflow, setTriggerWorkflow] = useState(false);
   const [deleteWorkflow, setDeleteWorkflow] = useState(false);
@@ -85,11 +81,9 @@ export default function ExpandedWorkflow() {
       return res.data;
     },
     onSuccess: () => {
-      navigate('/v1/tasks');
+      navigate(`/tenants/${tenantId}/workflows`);
     },
   });
-
-  const integrations = useApiMetaIntegrations();
 
   const workflow = workflowQuery.data;
 
@@ -97,12 +91,11 @@ export default function ExpandedWorkflow() {
     return <Loading />;
   }
 
-  const hasGithubIntegration = integrations?.find((i) => i.name === 'github');
   const currVersion = workflow.versions && workflow.versions[0].version;
 
   return (
-    <div className="flex-grow h-full w-full">
-      <div className="mx-auto py-8 px-4 sm:px-6 lg:px-8">
+    <div className="flex-grow h-full w-full flex flex-col overflow-hidden gap-y-4">
+      <div className="flex-shrink-0 px-4 sm:px-6 lg:px-8">
         <div className="flex flex-row justify-between items-center">
           <div className="flex flex-row gap-4 items-center">
             <Square3Stack3DIcon className="h-6 w-6 text-foreground mt-1" />
@@ -193,9 +186,10 @@ export default function ExpandedWorkflow() {
             {workflow.description}
           </div>
         )}
-        <div className="flex flex-row justify-start items-center mt-4"></div>
-        <Tabs defaultValue="runs">
-          <TabsList layout="underlined">
+      </div>
+      <div className="flex-1 min-h-0 px-4 sm:px-6 lg:px-8">
+        <Tabs defaultValue="runs" className="flex flex-col h-full">
+          <TabsList layout="underlined" className="mb-4">
             <TabsTrigger variant="underlined" value="runs">
               Runs
             </TabsTrigger>
@@ -203,45 +197,50 @@ export default function ExpandedWorkflow() {
               Settings
             </TabsTrigger>
           </TabsList>
-          <TabsContent value="runs">
-            <h3 className="text-xl font-bold leading-tight text-foreground mt-4">
-              Recent Runs
-            </h3>
-            <Separator className="my-4" />
+          <TabsContent value="runs" className="flex-1 min-h-0">
             <RecentRunsList />
           </TabsContent>
-          <TabsContent value="settings">
-            <h3 className="text-xl font-bold leading-tight text-foreground mt-4">
-              Settings
-            </h3>
-            <Separator className="my-4" />
+          <TabsContent
+            value="settings"
+            className="flex-1 min-h-0 overflow-y-auto pt-4"
+          >
             {workflowVersionQuery.isLoading || !workflowVersionQuery.data ? (
               <Loading />
             ) : (
               <WorkflowGeneralSettings workflow={workflowVersionQuery.data} />
             )}
-            <Separator className="my-4" />
-            {hasGithubIntegration && (
-              <div className="hidden">
-                <h3 className="hidden text-xl font-bold leading-tight text-foreground mt-8">
-                  Deployment Settings
+
+            <div className="mt-8">
+              <div className="space-y-3">
+                <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100 border-b border-gray-200 dark:border-gray-700 pb-2">
+                  Danger Zone
                 </h3>
-                <Separator className="hidden my-4" />
+                <div className="pl-1">
+                  <div className="border border-gray-200 dark:border-gray-700 rounded-md p-4 bg-gray-50 dark:bg-gray-800/50 max-w-xl">
+                    <div className="space-y-3">
+                      <div>
+                        <h4 className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                          Delete Workflow
+                        </h4>
+                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                          Permanently delete this workflow and all its data.
+                          This action cannot be undone.
+                        </p>
+                      </div>
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => {
+                          setDeleteWorkflow(true);
+                        }}
+                      >
+                        Delete Workflow
+                      </Button>
+                    </div>
+                  </div>
+                </div>
               </div>
-            )}
-            <h4 className="text-lg font-bold leading-tight text-foreground mt-8">
-              Danger Zone
-            </h4>
-            <Separator className="my-4" />
-            <Button
-              variant="destructive"
-              className="mt-2"
-              onClick={() => {
-                setDeleteWorkflow(true);
-              }}
-            >
-              Delete Workflow
-            </Button>
+            </div>
 
             <ConfirmDialog
               title={`Delete workflow`}
@@ -264,17 +263,22 @@ export default function ExpandedWorkflow() {
 }
 
 function RecentRunsList() {
-  const { tenant } = useOutletContext<TenantContextType>();
-  invariant(tenant);
-
   const params = useParams();
   invariant(params.workflow);
 
   return (
-    <TaskRunsTable
-      workflowId={params.workflow}
+    <RunsProvider
+      tableKey={`workflow-${params.workflow}`}
       initColumnVisibility={{ Workflow: false }}
       filterVisibility={{ Workflow: false }}
-    />
+      display={{
+        hideMetrics: true,
+      }}
+      runFilters={{
+        workflowId: params.workflow,
+      }}
+    >
+      <RunsTable />
+    </RunsProvider>
   );
 }

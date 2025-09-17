@@ -50,9 +50,36 @@ func (t *TenantService) TenantCreate(ctx echo.Context, request gen.TenantCreateR
 		Name: request.Body.Name,
 	}
 
+	if request.Body.OnboardingData != nil {
+		createOpts.OnboardingData = *request.Body.OnboardingData
+	}
+
+	if request.Body.Environment != nil {
+		environment := string(*request.Body.Environment)
+		createOpts.Environment = &environment
+	}
+
 	if t.config.Runtime.Limits.DefaultTenantRetentionPeriod != "" {
 		createOpts.DataRetentionPeriod = &t.config.Runtime.Limits.DefaultTenantRetentionPeriod
 	}
+
+	uiVersion := dbsqlc.TenantMajorUIVersionV0
+
+	if request.Body.UiVersion != nil {
+		ver := *request.Body.UiVersion
+		uiVersion = dbsqlc.TenantMajorUIVersion(ver)
+	}
+
+	createOpts.UIVersion = &uiVersion
+
+	var engineVersion *dbsqlc.TenantMajorEngineVersion
+
+	if request.Body.EngineVersion != nil {
+		ver := dbsqlc.TenantMajorEngineVersion(*request.Body.EngineVersion)
+		engineVersion = &ver
+	}
+
+	createOpts.EngineVersion = engineVersion
 
 	// write the user to the db
 	tenant, err := t.config.APIRepository.Tenant().CreateTenant(ctx.Request().Context(), createOpts, user)
@@ -78,8 +105,17 @@ func (t *TenantService) TenantCreate(ctx echo.Context, request gen.TenantCreateR
 		"tenant:create",
 		sqlchelpers.UUIDToStr(user.ID),
 		&tenantId,
-		nil,
+		map[string]interface{}{
+			"tenant_created": true,
+		},
+		map[string]interface{}{
+			"name":            tenant.Name,
+			"slug":            tenant.Slug,
+			"onboarding_data": createOpts.OnboardingData,
+		},
 	)
+
+	ctx.Set("tenant", tenant)
 
 	return gen.TenantCreate200JSONResponse(
 		*transformers.ToTenant(tenant),

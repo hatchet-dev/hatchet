@@ -6,25 +6,29 @@ The runs client is a client for interacting with task and workflow runs within H
 
 Methods:
 
-| Name              | Description                                                          |
-| ----------------- | -------------------------------------------------------------------- |
-| `get`             | Get workflow run details for a given workflow run ID.                |
-| `aio_get`         | Get workflow run details for a given workflow run ID.                |
-| `list`            | List task runs according to a set of filters.                        |
-| `aio_list`        | List task runs according to a set of filters.                        |
-| `create`          | Trigger a new workflow run.                                          |
-| `aio_create`      | Trigger a new workflow run.                                          |
-| `replay`          | Replay a task or workflow run.                                       |
-| `aio_replay`      | Replay a task or workflow run.                                       |
-| `bulk_replay`     | Replay task or workflow runs in bulk, according to a set of filters. |
-| `aio_bulk_replay` | Replay task or workflow runs in bulk, according to a set of filters. |
-| `cancel`          | Cancel a task or workflow run.                                       |
-| `aio_cancel`      | Cancel a task or workflow run.                                       |
-| `bulk_cancel`     | Cancel task or workflow runs in bulk, according to a set of filters. |
-| `aio_bulk_cancel` | Cancel task or workflow runs in bulk, according to a set of filters. |
-| `get_result`      | Get the result of a workflow run by its external ID.                 |
-| `aio_get_result`  | Get the result of a workflow run by its external ID.                 |
-| `get_run_ref`     | Get a reference to a workflow run.                                   |
+| Name               | Description                                                          |
+| ------------------ | -------------------------------------------------------------------- |
+| `get`              | Get workflow run details for a given workflow run ID.                |
+| `aio_get`          | Get workflow run details for a given workflow run ID.                |
+| `get_status`       | Get workflow run status for a given workflow run ID.                 |
+| `aio_get_status`   | Get workflow run status for a given workflow run ID.                 |
+| `list`             | List task runs according to a set of filters.                        |
+| `aio_list`         | List task runs according to a set of filters.                        |
+| `create`           | Trigger a new workflow run.                                          |
+| `aio_create`       | Trigger a new workflow run.                                          |
+| `replay`           | Replay a task or workflow run.                                       |
+| `aio_replay`       | Replay a task or workflow run.                                       |
+| `bulk_replay`      | Replay task or workflow runs in bulk, according to a set of filters. |
+| `aio_bulk_replay`  | Replay task or workflow runs in bulk, according to a set of filters. |
+| `cancel`           | Cancel a task or workflow run.                                       |
+| `aio_cancel`       | Cancel a task or workflow run.                                       |
+| `bulk_cancel`      | Cancel task or workflow runs in bulk, according to a set of filters. |
+| `aio_bulk_cancel`  | Cancel task or workflow runs in bulk, according to a set of filters. |
+| `get_result`       | Get the result of a workflow run by its external ID.                 |
+| `aio_get_result`   | Get the result of a workflow run by its external ID.                 |
+| `get_run_ref`      | Get a reference to a workflow run.                                   |
+| `get_task_run`     | Get task run details for a given task run ID.                        |
+| `aio_get_task_run` | Get task run details for a given task run ID.                        |
 
 ### Functions
 
@@ -60,24 +64,57 @@ Returns:
 | ---------------------- | ------------------------------------------------------- |
 | `V1WorkflowRunDetails` | Workflow run details for the specified workflow run ID. |
 
+#### `get_status`
+
+Get workflow run status for a given workflow run ID.
+
+Parameters:
+
+| Name              | Type  | Description                                         | Default    |
+| ----------------- | ----- | --------------------------------------------------- | ---------- |
+| `workflow_run_id` | `str` | The ID of the workflow run to retrieve details for. | _required_ |
+
+Returns:
+
+| Type           | Description     |
+| -------------- | --------------- |
+| `V1TaskStatus` | The task status |
+
+#### `aio_get_status`
+
+Get workflow run status for a given workflow run ID.
+
+Parameters:
+
+| Name              | Type  | Description                                         | Default    |
+| ----------------- | ----- | --------------------------------------------------- | ---------- |
+| `workflow_run_id` | `str` | The ID of the workflow run to retrieve details for. | _required_ |
+
+Returns:
+
+| Type           | Description     |
+| -------------- | --------------- |
+| `V1TaskStatus` | The task status |
+
 #### `list`
 
 List task runs according to a set of filters.
 
 Parameters:
 
-| Name                      | Type                         | Description                                         | Default |
-| ------------------------- | ---------------------------- | --------------------------------------------------- | ------- |
-| `since`                   | `datetime \| None`           | The start time for filtering task runs.             | `None`  |
-| `only_tasks`              | `bool`                       | Whether to only list task runs.                     | `False` |
-| `offset`                  | `int \| None`                | The offset for pagination.                          | `None`  |
-| `limit`                   | `int \| None`                | The maximum number of task runs to return.          | `None`  |
-| `statuses`                | `list[V1TaskStatus] \| None` | The statuses to filter task runs by.                | `None`  |
-| `until`                   | `datetime \| None`           | The end time for filtering task runs.               | `None`  |
-| `additional_metadata`     | `dict[str, str] \| None`     | Additional metadata to filter task runs by.         | `None`  |
-| `workflow_ids`            | `list[str] \| None`          | The workflow IDs to filter task runs by.            | `None`  |
-| `worker_id`               | `str \| None`                | The worker ID to filter task runs by.               | `None`  |
-| `parent_task_external_id` | `str \| None`                | The parent task external ID to filter task runs by. | `None`  |
+| Name                           | Type                         | Description                                         | Default |
+| ------------------------------ | ---------------------------- | --------------------------------------------------- | ------- |
+| `since`                        | `datetime \| None`           | The start time for filtering task runs.             | `None`  |
+| `only_tasks`                   | `bool`                       | Whether to only list task runs.                     | `False` |
+| `offset`                       | `int \| None`                | The offset for pagination.                          | `None`  |
+| `limit`                        | `int \| None`                | The maximum number of task runs to return.          | `None`  |
+| `statuses`                     | `list[V1TaskStatus] \| None` | The statuses to filter task runs by.                | `None`  |
+| `until`                        | `datetime \| None`           | The end time for filtering task runs.               | `None`  |
+| `additional_metadata`          | `dict[str, str] \| None`     | Additional metadata to filter task runs by.         | `None`  |
+| `workflow_ids`                 | `list[str] \| None`          | The workflow IDs to filter task runs by.            | `None`  |
+| `worker_id`                    | `str \| None`                | The worker ID to filter task runs by.               | `None`  |
+| `parent_task_external_id`      | `str \| None`                | The parent task external ID to filter task runs by. | `None`  |
+| `triggering_event_external_id` | `str \| None`                | The event id that triggered the task run.           | `None`  |
 
 Returns:
 
@@ -91,18 +128,19 @@ List task runs according to a set of filters.
 
 Parameters:
 
-| Name                      | Type                         | Description                                         | Default |
-| ------------------------- | ---------------------------- | --------------------------------------------------- | ------- |
-| `since`                   | `datetime \| None`           | The start time for filtering task runs.             | `None`  |
-| `only_tasks`              | `bool`                       | Whether to only list task runs.                     | `False` |
-| `offset`                  | `int \| None`                | The offset for pagination.                          | `None`  |
-| `limit`                   | `int \| None`                | The maximum number of task runs to return.          | `None`  |
-| `statuses`                | `list[V1TaskStatus] \| None` | The statuses to filter task runs by.                | `None`  |
-| `until`                   | `datetime \| None`           | The end time for filtering task runs.               | `None`  |
-| `additional_metadata`     | `dict[str, str] \| None`     | Additional metadata to filter task runs by.         | `None`  |
-| `workflow_ids`            | `list[str] \| None`          | The workflow IDs to filter task runs by.            | `None`  |
-| `worker_id`               | `str \| None`                | The worker ID to filter task runs by.               | `None`  |
-| `parent_task_external_id` | `str \| None`                | The parent task external ID to filter task runs by. | `None`  |
+| Name                           | Type                         | Description                                         | Default |
+| ------------------------------ | ---------------------------- | --------------------------------------------------- | ------- |
+| `since`                        | `datetime \| None`           | The start time for filtering task runs.             | `None`  |
+| `only_tasks`                   | `bool`                       | Whether to only list task runs.                     | `False` |
+| `offset`                       | `int \| None`                | The offset for pagination.                          | `None`  |
+| `limit`                        | `int \| None`                | The maximum number of task runs to return.          | `None`  |
+| `statuses`                     | `list[V1TaskStatus] \| None` | The statuses to filter task runs by.                | `None`  |
+| `until`                        | `datetime \| None`           | The end time for filtering task runs.               | `None`  |
+| `additional_metadata`          | `dict[str, str] \| None`     | Additional metadata to filter task runs by.         | `None`  |
+| `workflow_ids`                 | `list[str] \| None`          | The workflow IDs to filter task runs by.            | `None`  |
+| `worker_id`                    | `str \| None`                | The worker ID to filter task runs by.               | `None`  |
+| `parent_task_external_id`      | `str \| None`                | The parent task external ID to filter task runs by. | `None`  |
+| `triggering_event_external_id` | `str \| None`                | The event id that triggered the task run.           | `None`  |
 
 Returns:
 
@@ -118,12 +156,12 @@ IMPORTANT: It's preferable to use `Workflow.run` (and similar) to trigger workfl
 
 Parameters:
 
-| Name                  | Type                      | Description                                           | Default    |
-| --------------------- | ------------------------- | ----------------------------------------------------- | ---------- |
-| `workflow_name`       | `str`                     | The name of the workflow to trigger.                  | _required_ |
-| `input`               | `JSONSerializableMapping` | The input data for the workflow run.                  | _required_ |
-| `additional_metadata` | `JSONSerializableMapping` | Additional metadata associated with the workflow run. | `{}`       |
-| `priority`            | `int \| None`             | The priority of the workflow run.                     | `None`     |
+| Name                  | Type                              | Description                                           | Default    |
+| --------------------- | --------------------------------- | ----------------------------------------------------- | ---------- |
+| `workflow_name`       | `str`                             | The name of the workflow to trigger.                  | _required_ |
+| `input`               | `JSONSerializableMapping`         | The input data for the workflow run.                  | _required_ |
+| `additional_metadata` | `JSONSerializableMapping \| None` | Additional metadata associated with the workflow run. | `None`     |
+| `priority`            | `int \| None`                     | The priority of the workflow run.                     | `None`     |
 
 Returns:
 
@@ -139,12 +177,12 @@ IMPORTANT: It's preferable to use `Workflow.run` (and similar) to trigger workfl
 
 Parameters:
 
-| Name                  | Type                      | Description                                           | Default    |
-| --------------------- | ------------------------- | ----------------------------------------------------- | ---------- |
-| `workflow_name`       | `str`                     | The name of the workflow to trigger.                  | _required_ |
-| `input`               | `JSONSerializableMapping` | The input data for the workflow run.                  | _required_ |
-| `additional_metadata` | `JSONSerializableMapping` | Additional metadata associated with the workflow run. | `{}`       |
-| `priority`            | `int \| None`             | The priority of the workflow run.                     | `None`     |
+| Name                  | Type                              | Description                                           | Default    |
+| --------------------- | --------------------------------- | ----------------------------------------------------- | ---------- |
+| `workflow_name`       | `str`                             | The name of the workflow to trigger.                  | _required_ |
+| `input`               | `JSONSerializableMapping`         | The input data for the workflow run.                  | _required_ |
+| `additional_metadata` | `JSONSerializableMapping \| None` | Additional metadata associated with the workflow run. | `None`     |
+| `priority`            | `int \| None`                     | The priority of the workflow run.                     | `None`     |
 
 Returns:
 
@@ -327,3 +365,35 @@ Returns:
 | Type             | Description                                |
 | ---------------- | ------------------------------------------ |
 | `WorkflowRunRef` | A reference to the specified workflow run. |
+
+#### `get_task_run`
+
+Get task run details for a given task run ID.
+
+Parameters:
+
+| Name          | Type  | Description                                     | Default    |
+| ------------- | ----- | ----------------------------------------------- | ---------- |
+| `task_run_id` | `str` | The ID of the task run to retrieve details for. | _required_ |
+
+Returns:
+
+| Type            | Description                                     |
+| --------------- | ----------------------------------------------- |
+| `V1TaskSummary` | Task run details for the specified task run ID. |
+
+#### `aio_get_task_run`
+
+Get task run details for a given task run ID.
+
+Parameters:
+
+| Name          | Type  | Description                                     | Default    |
+| ------------- | ----- | ----------------------------------------------- | ---------- |
+| `task_run_id` | `str` | The ID of the task run to retrieve details for. | _required_ |
+
+Returns:
+
+| Type            | Description                                     |
+| --------------- | ----------------------------------------------- |
+| `V1TaskSummary` | Task run details for the specified task run ID. |

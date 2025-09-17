@@ -1,12 +1,10 @@
 <div align="center">
-
+<a href ="https://hatchet.run?utm_source=github&utm_campaign=readme">
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://framerusercontent.com/images/KBMnpSO12CyE6UANhf4mhrg6na0.png?scale-down-to=200">
-  <source media="(prefers-color-scheme: light)" srcset="https://framerusercontent.com/images/KBMnpSO12CyE6UANhf4mhrg6na0.png?scale-down-to=200">
-  <a href ="https://hatchet.run">
-	  <img alt="Hatchet Logo" src="https://framerusercontent.com/images/KBMnpSO12CyE6UANhf4mhrg6na0.png?scale-down-to=200">
-  </a>
+  <source media="(prefers-color-scheme: dark)" srcset="./frontend/docs/public/hatchet_logo.png">
+  <img width="200" alt="Hatchet Logo" src="./frontend/docs/public/hatchet_logo_light.png">
 </picture>
+</a>
 
 ### Run Background Tasks at Scale
 

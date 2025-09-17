@@ -1,5 +1,4 @@
 from hatchet_sdk.clients.admin import (
-    DedupeViolationErr,
     ScheduleTriggerWorkflowOptions,
     TriggerWorkflowOptions,
 )
@@ -8,12 +7,13 @@ from hatchet_sdk.clients.listeners.durable_event_listener import (
     RegisterDurableEventRequest,
 )
 from hatchet_sdk.clients.listeners.run_event_listener import (
+    RunEventListener,
     StepRunEventType,
     WorkflowRunEventType,
 )
-from hatchet_sdk.clients.rest.models.accept_invite_request import AcceptInviteRequest
 
 # import models into sdk package
+from hatchet_sdk.clients.rest.models.accept_invite_request import AcceptInviteRequest
 from hatchet_sdk.clients.rest.models.api_error import APIError
 from hatchet_sdk.clients.rest.models.api_errors import APIErrors
 from hatchet_sdk.clients.rest.models.api_meta import APIMeta
@@ -130,26 +130,7 @@ from hatchet_sdk.clients.rest.models.workflow_version_definition import (
     WorkflowVersionDefinition,
 )
 from hatchet_sdk.clients.rest.models.workflow_version_meta import WorkflowVersionMeta
-from hatchet_sdk.config import ClientConfig
-from hatchet_sdk.context.context import Context, DurableContext
-from hatchet_sdk.context.worker_context import WorkerContext
-from hatchet_sdk.contracts.workflows_pb2 import (
-    CreateWorkflowVersionOpts,
-    RateLimitDuration,
-    WorkerLabelComparator,
-)
-from hatchet_sdk.features.runs import BulkCancelReplayOpts, RunFilter
-from hatchet_sdk.hatchet import Hatchet
-from hatchet_sdk.runnables.task import Task
-from hatchet_sdk.runnables.types import (
-    ConcurrencyExpression,
-    ConcurrencyLimitStrategy,
-    EmptyModel,
-    StickyStrategy,
-    TaskDefaults,
-    WorkflowConfig,
-)
-from hatchet_sdk.waits import (
+from hatchet_sdk.conditions import (
     Condition,
     OrGroup,
     ParentCondition,
@@ -157,10 +138,40 @@ from hatchet_sdk.waits import (
     UserEventCondition,
     or_,
 )
+from hatchet_sdk.config import ClientConfig, ClientTLSConfig, OpenTelemetryConfig
+from hatchet_sdk.context.context import Context, DurableContext
+from hatchet_sdk.context.worker_context import WorkerContext
+from hatchet_sdk.contracts.workflows_pb2 import (
+    CreateWorkflowVersionOpts,
+    RateLimitDuration,
+    WorkerLabelComparator,
+)
+from hatchet_sdk.exceptions import (
+    DedupeViolationError,
+    FailedTaskRunExceptionGroup,
+    NonRetryableException,
+    TaskRunError,
+)
+from hatchet_sdk.features.cel import CELEvaluationResult, CELFailure, CELSuccess
+from hatchet_sdk.features.runs import BulkCancelReplayOpts, RunFilter
+from hatchet_sdk.hatchet import Hatchet
+from hatchet_sdk.runnables.task import Depends, Task
+from hatchet_sdk.runnables.types import (
+    ConcurrencyExpression,
+    ConcurrencyLimitStrategy,
+    DefaultFilter,
+    EmptyModel,
+    StickyStrategy,
+    TaskDefaults,
+    WorkflowConfig,
+)
+from hatchet_sdk.runnables.workflow import TaskRunRef
+from hatchet_sdk.utils.opentelemetry import OTelAttribute
+from hatchet_sdk.utils.serde import remove_null_unicode_character
 from hatchet_sdk.worker.worker import Worker, WorkerStartOptions, WorkerStatus
+from hatchet_sdk.workflow_run import WorkflowRunRef
 
 __all__ = [
-    "AcceptInviteRequest",
     "APIError",
     "APIErrors",
     "APIMeta",
@@ -168,11 +179,28 @@ __all__ = [
     "APIMetaIntegration",
     "APIResourceMeta",
     "APIToken",
+    "AcceptInviteRequest",
+    "BulkCancelReplayOpts",
+    "CELEvaluationResult",
+    "CELFailure",
+    "CELSuccess",
+    "ClientConfig",
+    "ClientTLSConfig",
+    "ConcurrencyExpression",
+    "ConcurrencyLimitStrategy",
+    "Condition",
+    "Context",
     "CreateAPITokenRequest",
     "CreateAPITokenResponse",
     "CreatePullRequestFromStepRun",
     "CreateTenantInviteRequest",
     "CreateTenantRequest",
+    "CreateWorkflowVersionOpts",
+    "DedupeViolationError",
+    "DefaultFilter",
+    "Depends",
+    "DurableContext",
+    "EmptyModel",
     "Event",
     "EventData",
     "EventKeyList",
@@ -180,10 +208,12 @@ __all__ = [
     "EventOrderByDirection",
     "EventOrderByField",
     "EventWorkflowRunSummary",
+    "FailedTaskRunExceptionGroup",
     "GetStepRunDiffResponse",
     "GithubAppInstallation",
     "GithubBranch",
     "GithubRepo",
+    "Hatchet",
     "Job",
     "JobRun",
     "JobRunStatus",
@@ -196,15 +226,33 @@ __all__ = [
     "LogLineList",
     "LogLineOrderByDirection",
     "LogLineOrderByField",
+    "NonRetryableException",
+    "OTelAttribute",
+    "OpenTelemetryConfig",
+    "OrGroup",
     "PaginationResponse",
+    "ParentCondition",
     "PullRequest",
     "PullRequestState",
+    "PushEventOptions",
+    "RateLimitDuration",
+    "RegisterDurableEventRequest",
     "RejectInviteRequest",
     "ReplayEventRequest",
     "RerunStepRunRequest",
+    "RunEventListener",
+    "RunFilter",
+    "ScheduleTriggerWorkflowOptions",
+    "SleepCondition",
     "StepRun",
     "StepRunDiff",
+    "StepRunEventType",
     "StepRunStatus",
+    "StickyStrategy",
+    "Task",
+    "TaskDefaults",
+    "TaskRunError",
+    "TaskRunRef",
     "Tenant",
     "TenantInvite",
     "TenantInviteList",
@@ -212,21 +260,32 @@ __all__ = [
     "TenantMember",
     "TenantMemberList",
     "TenantMemberRole",
+    "TriggerWorkflowOptions",
     "TriggerWorkflowRunRequest",
     "UpdateTenantInviteRequest",
     "User",
+    "UserEventCondition",
     "UserLoginRequest",
     "UserRegisterRequest",
     "UserTenantMembershipsList",
     "UserTenantPublic",
+    "V1TaskStatus",
     "Worker",
+    "Worker",
+    "WorkerContext",
     "WorkerLabelComparator",
     "WorkerList",
+    "WorkerStartOptions",
+    "WorkerStatus",
     "Workflow",
+    "Workflow",
+    "WorkflowConfig",
     "WorkflowDeploymentConfig",
     "WorkflowList",
     "WorkflowRun",
+    "WorkflowRunEventType",
     "WorkflowRunList",
+    "WorkflowRunRef",
     "WorkflowRunStatus",
     "WorkflowRunTriggeredBy",
     "WorkflowTag",
@@ -236,39 +295,7 @@ __all__ = [
     "WorkflowVersion",
     "WorkflowVersionDefinition",
     "WorkflowVersionMeta",
-    "ConcurrencyLimitStrategy",
-    "CreateWorkflowVersionOpts",
-    "RateLimitDuration",
-    "StickyStrategy",
-    "DedupeViolationErr",
-    "ScheduleTriggerWorkflowOptions",
-    "TriggerWorkflowOptions",
-    "PushEventOptions",
-    "StepRunEventType",
-    "WorkflowRunEventType",
-    "Context",
-    "WorkerContext",
-    "ClientConfig",
-    "Hatchet",
-    "workflow",
-    "Worker",
-    "WorkerStartOptions",
-    "WorkerStatus",
-    "ConcurrencyExpression",
-    "Workflow",
-    "WorkflowConfig",
-    "Task",
-    "EmptyModel",
-    "Condition",
-    "OrGroup",
     "or_",
-    "SleepCondition",
-    "UserEventCondition",
-    "ParentCondition",
-    "DurableContext",
-    "RegisterDurableEventRequest",
-    "TaskDefaults",
-    "BulkCancelReplayOpts",
-    "RunFilter",
-    "V1TaskStatus",
+    "remove_null_unicode_character",
+    "workflow",
 ]

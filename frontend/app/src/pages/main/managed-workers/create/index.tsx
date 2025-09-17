@@ -61,7 +61,9 @@ export default function CreateWorker() {
       return res.data;
     },
     onSuccess: (data) => {
-      navigate(`/v1/managed-workers/${data.metadata.id}`);
+      navigate(
+        `/tenants/${tenant?.metadata.id}/managed-workers/${data.metadata.id}`,
+      );
     },
     onError: handleApiError,
   });

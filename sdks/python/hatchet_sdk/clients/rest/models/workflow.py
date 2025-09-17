@@ -47,6 +47,9 @@ class Workflow(BaseModel):
     jobs: Optional[List[Job]] = Field(
         default=None, description="The jobs of the workflow."
     )
+    tenant_id: StrictStr = Field(
+        description="The tenant id of the workflow.", alias="tenantId"
+    )
     __properties: ClassVar[List[str]] = [
         "metadata",
         "name",
@@ -55,6 +58,7 @@ class Workflow(BaseModel):
         "versions",
         "tags",
         "jobs",
+        "tenantId",
     ]
 
     model_config = ConfigDict(
@@ -154,6 +158,7 @@ class Workflow(BaseModel):
                     if obj.get("jobs") is not None
                     else None
                 ),
+                "tenantId": obj.get("tenantId"),
             }
         )
         return _obj

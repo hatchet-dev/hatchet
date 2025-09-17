@@ -14,14 +14,13 @@ import (
 
 	"github.com/exaring/otelpgx"
 	pgxzero "github.com/jackc/pgx-zerolog"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgx/v5/tracelog"
 	"github.com/rs/zerolog"
 	"golang.org/x/oauth2"
 
 	"github.com/hatchet-dev/hatchet/internal/integrations/alerting"
-	"github.com/hatchet-dev/hatchet/internal/integrations/email"
-	"github.com/hatchet-dev/hatchet/internal/integrations/email/postmark"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue/postgres"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue/rabbitmq"
@@ -39,6 +38,8 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/encryption"
 	"github.com/hatchet-dev/hatchet/pkg/errors"
 	"github.com/hatchet-dev/hatchet/pkg/errors/sentry"
+	"github.com/hatchet-dev/hatchet/pkg/integrations/email"
+	"github.com/hatchet-dev/hatchet/pkg/integrations/email/postmark"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
@@ -140,6 +141,25 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		return nil, err
 	}
 
+	// ref: https://github.com/jackc/pgx/issues/1549
+	config.AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
+		t, err := conn.LoadType(ctx, "v1_readable_status_olap")
+		if err != nil {
+			return err
+		}
+
+		conn.TypeMap().RegisterType(t)
+
+		t, err = conn.LoadType(ctx, "_v1_readable_status_olap")
+		if err != nil {
+			return err
+		}
+
+		conn.TypeMap().RegisterType(t)
+
+		return nil
+	}
+
 	if cf.LogQueries {
 		config.ConnConfig.Tracer = &tracelog.TraceLog{
 			Logger:   pgxzero.NewLogger(l),
@@ -166,23 +186,6 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		}
 
 		config.BeforeAcquire = debugger.beforeAcquire
-	}
-
-	// a smaller pool for essential services like the heartbeat
-	essentialConfig := config.Copy()
-	essentialConfig.MinConns = 1
-
-	essentialConfig.MaxConns /= 100
-	if essentialConfig.MaxConns < 1 {
-		essentialConfig.MaxConns = 1
-	}
-
-	config.MaxConns -= essentialConfig.MaxConns
-
-	essentialPool, err := pgxpool.NewWithConfig(context.Background(), essentialConfig)
-
-	if err != nil {
-		return nil, fmt.Errorf("could not connect to database: %w", err)
 	}
 
 	pool, err := pgxpool.NewWithConfig(context.Background(), config)
@@ -237,7 +240,7 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		opts = append(opts, postgresdb.WithLogsEngineRepository(c.RepositoryOverrides.LogsEngineRepository))
 	}
 
-	cleanupEngine, engineRepo, err := postgresdb.NewEngineRepository(pool, essentialPool, &scf.Runtime, opts...)
+	cleanupEngine, engineRepo, err := postgresdb.NewEngineRepository(pool, &scf.Runtime, opts...)
 
 	if err != nil {
 		return nil, fmt.Errorf("could not create engine repository: %w", err)
@@ -253,7 +256,14 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		return nil, fmt.Errorf("could not parse retention period %s: %w", scf.Runtime.Limits.DefaultTenantRetentionPeriod, err)
 	}
 
-	v1, cleanupV1 := repov1.NewRepository(pool, &l, retentionPeriod, retentionPeriod, scf.Runtime.MaxInternalRetryCount, entitlementRepo)
+	taskLimits := repov1.TaskOperationLimits{
+		TimeoutLimit:      scf.Runtime.TaskOperationLimits.TimeoutLimit,
+		ReassignLimit:     scf.Runtime.TaskOperationLimits.ReassignLimit,
+		RetryQueueLimit:   scf.Runtime.TaskOperationLimits.RetryQueueLimit,
+		DurableSleepLimit: scf.Runtime.TaskOperationLimits.DurableSleepLimit,
+	}
+
+	v1, cleanupV1 := repov1.NewRepository(pool, &l, retentionPeriod, retentionPeriod, scf.Runtime.MaxInternalRetryCount, entitlementRepo, taskLimits, scf.PayloadStore.EnablePayloadDualWrites)
 
 	apiRepo, cleanupApiRepo, err := postgresdb.NewAPIRepository(pool, &scf.Runtime, opts...)
 
@@ -281,7 +291,6 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 			return cleanupApiRepo()
 		},
 		Pool:                  pool,
-		EssentialPool:         essentialPool,
 		QueuePool:             pool,
 		APIRepository:         apiRepo,
 		EngineRepository:      engineRepo,
@@ -377,6 +386,10 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 				return cleanupv1()
 			}
 		case "rabbitmq":
+			if cf.MessageQueue.RabbitMQ.URL == "" {
+				return nil, nil, fmt.Errorf("using RabbitMQ as message queue requires a URL to be set")
+			}
+
 			var cleanupv0 func() error
 			var cleanupv1 func() error
 
@@ -578,11 +591,14 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		dc.V1.Scheduler(),
 		&queueLogger,
 		cf.Runtime.SingleQueueLimit,
+		cf.Runtime.SchedulerConcurrencyRateLimit,
 	)
 
 	if err != nil {
 		return nil, nil, fmt.Errorf("could not create scheduling pool (v1): %w", err)
 	}
+
+	schedulingPoolV1.Extensions.Add(v1.NewPrometheusExtension())
 
 	cleanup = func() error {
 		log.Printf("cleaning up server config")
@@ -657,6 +673,7 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		SchedulingPoolV1:       schedulingPoolV1,
 		Version:                version,
 		Sampling:               cf.Sampling,
+		Operations:             cf.OLAP,
 	}, nil
 }
 

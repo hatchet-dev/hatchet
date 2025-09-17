@@ -1,4 +1,3 @@
-// > Declaring a Task
 import sleep from '@hatchet/util/sleep';
 import { hatchet } from '../hatchet-client';
 

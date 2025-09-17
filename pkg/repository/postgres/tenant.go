@@ -61,6 +61,17 @@ func (r *tenantAPIRepository) CreateTenant(ctx context.Context, opts *repository
 		dataRetentionPeriod = sqlchelpers.TextFromStr(*opts.DataRetentionPeriod)
 	}
 
+	uiVersion := dbsqlc.TenantMajorUIVersionV0
+	if opts.UIVersion != nil {
+		ver := *opts.UIVersion
+		uiVersion = dbsqlc.TenantMajorUIVersion(ver)
+	}
+
+	engineVersion := r.defaultTenantVersion
+	if opts.EngineVersion != nil {
+		engineVersion = *opts.EngineVersion
+	}
+
 	tx, err := r.pool.Begin(ctx)
 
 	if err != nil {
@@ -69,15 +80,43 @@ func (r *tenantAPIRepository) CreateTenant(ctx context.Context, opts *repository
 
 	defer sqlchelpers.DeferRollback(context.Background(), r.l, tx.Rollback)
 
+	var onboardingDataBytes []byte
+	if opts.OnboardingData != nil {
+		onboardingDataBytes, err = json.Marshal(opts.OnboardingData)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal onboarding data: %w", err)
+		}
+	}
+
+	var environment dbsqlc.NullTenantEnvironment
+	if opts.Environment != nil {
+		environment = dbsqlc.NullTenantEnvironment{
+			TenantEnvironment: dbsqlc.TenantEnvironment(*opts.Environment),
+			Valid:             true,
+		}
+	} else {
+		// Default to development environment if none is specified
+		environment = dbsqlc.NullTenantEnvironment{
+			TenantEnvironment: dbsqlc.TenantEnvironmentDevelopment,
+			Valid:             true,
+		}
+	}
+
 	createTenant, err := r.queries.CreateTenant(context.Background(), tx, dbsqlc.CreateTenantParams{
 		ID:                  sqlchelpers.UUIDFromStr(tenantId),
 		Slug:                opts.Slug,
 		Name:                opts.Name,
 		DataRetentionPeriod: dataRetentionPeriod,
 		Version: dbsqlc.NullTenantMajorEngineVersion{
-			TenantMajorEngineVersion: r.defaultTenantVersion,
+			TenantMajorEngineVersion: engineVersion,
 			Valid:                    true,
 		},
+		UiVersion: dbsqlc.NullTenantMajorUIVersion{
+			TenantMajorUIVersion: uiVersion,
+			Valid:                true,
+		},
+		OnboardingData: onboardingDataBytes,
+		Environment:    environment,
 	})
 
 	if err != nil {
@@ -137,6 +176,10 @@ func (r *tenantAPIRepository) UpdateTenant(ctx context.Context, id string, opts 
 
 	if opts.Version != nil && opts.Version.Valid {
 		params.Version = *opts.Version
+	}
+
+	if opts.UIVersion != nil && opts.UIVersion.Valid {
+		params.UiVersion = *opts.UIVersion
 	}
 
 	return r.queries.UpdateTenant(

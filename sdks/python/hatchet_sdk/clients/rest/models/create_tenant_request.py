@@ -22,6 +22,9 @@ from typing import Any, ClassVar, Dict, List, Optional, Set
 from pydantic import BaseModel, ConfigDict, Field, StrictStr
 from typing_extensions import Self
 
+from hatchet_sdk.clients.rest.models.tenant_ui_version import TenantUIVersion
+from hatchet_sdk.clients.rest.models.tenant_version import TenantVersion
+
 
 class CreateTenantRequest(BaseModel):
     """
@@ -30,7 +33,17 @@ class CreateTenantRequest(BaseModel):
 
     name: StrictStr = Field(description="The name of the tenant.")
     slug: StrictStr = Field(description="The slug of the tenant.")
-    __properties: ClassVar[List[str]] = ["name", "slug"]
+    ui_version: Optional[TenantUIVersion] = Field(
+        default=None,
+        description="The UI version of the tenant. Defaults to V0.",
+        alias="uiVersion",
+    )
+    engine_version: Optional[TenantVersion] = Field(
+        default=None,
+        description="The engine version of the tenant. Defaults to V0.",
+        alias="engineVersion",
+    )
+    __properties: ClassVar[List[str]] = ["name", "slug", "uiVersion", "engineVersion"]
 
     model_config = ConfigDict(
         populate_by_name=True,
@@ -80,5 +93,12 @@ class CreateTenantRequest(BaseModel):
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate({"name": obj.get("name"), "slug": obj.get("slug")})
+        _obj = cls.model_validate(
+            {
+                "name": obj.get("name"),
+                "slug": obj.get("slug"),
+                "uiVersion": obj.get("uiVersion"),
+                "engineVersion": obj.get("engineVersion"),
+            }
+        )
         return _obj

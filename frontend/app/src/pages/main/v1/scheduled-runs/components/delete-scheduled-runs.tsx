@@ -6,6 +6,7 @@ import {
   DialogTitle,
 } from '@/components/v1/ui/dialog';
 import { Spinner } from '@/components/v1/ui/loading';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
 import api, { ScheduledWorkflows } from '@/lib/api';
 import { useApiError } from '@/lib/hooks';
 import { useMutation } from '@tanstack/react-query';
@@ -19,25 +20,24 @@ interface DeleteScheduledRunFormProps {
 }
 
 export function DeleteScheduledRun({
-  tenant,
   scheduledRun,
   setShowScheduledRunRevoke,
   onSuccess,
 }: {
-  tenant: string;
   scheduledRun?: ScheduledWorkflows;
   setShowScheduledRunRevoke: (show?: ScheduledWorkflows) => void;
   onSuccess: () => void;
 }) {
+  const { tenantId } = useCurrentTenantId();
   const { handleApiError } = useApiError({});
 
   const deleteMutation = useMutation({
-    mutationKey: ['scheduled-run:delete', tenant, scheduledRun],
+    mutationKey: ['scheduled-run:delete', tenantId, scheduledRun],
     mutationFn: async () => {
       if (!scheduledRun) {
         return;
       }
-      await api.workflowScheduledDelete(tenant, scheduledRun.metadata.id);
+      await api.workflowScheduledDelete(tenantId, scheduledRun.metadata.id);
     },
     onSuccess: onSuccess,
     onError: handleApiError,

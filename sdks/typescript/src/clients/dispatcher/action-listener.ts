@@ -5,6 +5,7 @@ import {
 } from '@hatchet/protoc/dispatcher';
 
 import { Status } from 'nice-grpc';
+import { isAbortError } from 'abort-controller-x';
 import { ClientConfig } from '@clients/hatchet-client/client-config';
 import sleep from '@util/sleep';
 import HatchetError from '@util/errors/hatchet-error';
@@ -53,6 +54,7 @@ export class ActionListener {
   done = false;
   listenStrategy = ListenStrategy.LISTEN_STRATEGY_V2;
   heartbeat: Heartbeat;
+  abortController?: AbortController;
 
   constructor(
     client: DispatcherClient,
@@ -87,6 +89,12 @@ export class ActionListener {
             yield action;
           }
         } catch (e: any) {
+          // If the stream was aborted (e.g., during worker shutdown), exit gracefully
+          if (isAbortError(e)) {
+            client.logger.info('Listener aborted, exiting generator');
+            break;
+          }
+
           client.logger.info('Listener error');
 
           // if this is a HatchetError, we should throw this error
@@ -149,17 +157,30 @@ export class ActionListener {
     }
 
     try {
+      // Create a new AbortController for this connection
+      this.abortController = new AbortController();
+
       if (this.listenStrategy === ListenStrategy.LISTEN_STRATEGY_V1) {
-        const result = this.client.listen({
-          workerId: this.workerId,
-        });
+        const result = this.client.listen(
+          {
+            workerId: this.workerId,
+          },
+          {
+            signal: this.abortController.signal,
+          }
+        );
         this.logger.green('Connection established using LISTEN_STRATEGY_V1');
         return result;
       }
 
-      const res = this.client.listenV2({
-        workerId: this.workerId,
-      });
+      const res = this.client.listenV2(
+        {
+          workerId: this.workerId,
+        },
+        {
+          signal: this.abortController.signal,
+        }
+      );
 
       await this.heartbeat.start();
       this.logger.green('Connection established using LISTEN_STRATEGY_V2');
@@ -181,6 +202,12 @@ export class ActionListener {
   async unregister() {
     this.done = true;
     this.heartbeat.stop();
+
+    // Abort the gRPC stream to immediately cancel the generator
+    if (this.abortController) {
+      this.abortController.abort('Worker stopping');
+    }
+
     try {
       return await this.client.unsubscribe({
         workerId: this.workerId,

@@ -14,6 +14,10 @@ import api, { Api } from '@hatchet/clients/rest';
 import { ConfigLoader } from '@hatchet/util/config-loader';
 import { DEFAULT_LOGGER } from '@hatchet/clients/hatchet-client/hatchet-logger';
 import { z } from 'zod';
+import { LogLevel } from '@hatchet/clients/event/event-client';
+import { RunListenerClient } from '@hatchet/clients/listeners/run-listener/child-listener-client';
+import { addTokenMiddleware, channelFactory } from '@hatchet/util/grpc-helpers';
+import { createClientFactory } from 'nice-grpc';
 import {
   CreateTaskWorkflowOpts,
   CreateWorkflow,
@@ -35,6 +39,11 @@ import { RunsClient } from './features/runs';
 import { InputType, OutputType, UnknownInputType, StrictWorkflowOutputType } from '../types';
 import { RatelimitsClient } from './features';
 import { AdminClient } from './admin';
+import { FiltersClient } from './features/filters';
+import { ScheduleClient } from './features/schedules';
+import { CronClient } from './features/crons';
+import { CELClient } from './features/cel';
+import { TenantClient } from './features/tenant';
 
 /**
  * HatchetV1 implements the main client interface for interacting with the Hatchet workflow engine.
@@ -44,6 +53,7 @@ export class HatchetClient implements IHatchetClient {
   /** The underlying v0 client instance */
   _v0: LegacyHatchetClient;
   _api: Api;
+  _listener: RunListenerClient;
 
   /**
    * @deprecated v0 client will be removed in a future release, please upgrade to v1
@@ -90,24 +100,53 @@ export class HatchetClient implements IHatchetClient {
         logger: logConstructor,
       };
 
-      // FIXME: Remove this once we have a proper namespace validation
-      if (clientConfig.namespace) {
-        clientConfig.namespace = clientConfig.namespace.endsWith('_')
-          ? clientConfig.namespace.slice(0, -1)
-          : clientConfig.namespace;
-      }
-
       this._config = clientConfig;
 
       this.tenantId = clientConfig.tenant_id;
       this._api = api(clientConfig.api_url, clientConfig.token, axiosConfig);
 
-      this._v0 = new LegacyHatchetClient(clientConfig, options, axiosConfig, this.runs);
+      const clientFactory = createClientFactory().use(addTokenMiddleware(this.config.token));
+      const credentials =
+        options?.credentials ?? ConfigLoader.createCredentials(this.config.tls_config);
+
+      this._listener = new RunListenerClient(
+        this.config,
+        channelFactory(this.config, credentials),
+        clientFactory,
+        this.api
+      );
+
+      this._v0 = new LegacyHatchetClient(
+        clientConfig,
+        options,
+        axiosConfig,
+        this.runs,
+        this._listener
+      );
     } catch (e) {
       if (e instanceof z.ZodError) {
         throw new Error(`Invalid client config: ${e.message}`);
       }
       throw e;
+    }
+
+    try {
+      this.tenant
+        .get()
+        .then((tenant) => {
+          if (tenant.version !== 'V1') {
+            this.config
+              .logger('client-init', LogLevel.INFO)
+              .warn(
+                '🚨⚠️‼️ YOU ARE USING A V0 ENGINE WITH A V1 SDK, WHICH IS NOT SUPPORTED. PLEASE UPGRADE YOUR ENGINE TO V1.🚨⚠️‼️'
+              );
+          }
+        })
+        .catch((error) => {
+          // Do nothing here
+        });
+    } catch (e) {
+      // Do nothing here
     }
   }
 
@@ -290,12 +329,30 @@ export class HatchetClient implements IHatchetClient {
     return run.output as Promise<O>;
   }
 
+  private _cel: CELClient | undefined;
+
+  /**
+   * Get the CEL client for debugging CEL expressions
+   * @returns A CEL client instance
+   */
+  get cel() {
+    if (!this._cel) {
+      this._cel = new CELClient(this);
+    }
+    return this._cel;
+  }
+
+  private _crons: CronClient | undefined;
+
   /**
    * Get the cron client for creating and managing cron workflow runs
    * @returns A cron client instance
    */
   get crons() {
-    return this._v0.cron;
+    if (!this._crons) {
+      this._crons = new CronClient(this);
+    }
+    return this._crons;
   }
 
   /**
@@ -307,21 +364,33 @@ export class HatchetClient implements IHatchetClient {
     return this.crons;
   }
 
+  private _scheduled: ScheduleClient | undefined;
+
   /**
    * Get the schedules client for creating and managing scheduled workflow runs
    * @returns A schedules client instance
    */
-  get schedules() {
-    return this._v0.schedule;
+  get scheduled() {
+    if (!this._scheduled) {
+      this._scheduled = new ScheduleClient(this);
+    }
+    return this._scheduled;
   }
 
   /**
    * Get the schedule client for creating and managing scheduled workflow runs
    * @returns A schedule client instance
-   * @deprecated use client.schedules instead
+   * @deprecated use client.scheduled instead
    */
   get schedule() {
-    return this.schedules;
+    return this.scheduled;
+  }
+
+  /**
+   * @alias scheduled
+   */
+  get schedules() {
+    return this.scheduled;
   }
 
   /**
@@ -352,6 +421,31 @@ export class HatchetClient implements IHatchetClient {
       this._metrics = new MetricsClient(this);
     }
     return this._metrics;
+  }
+
+  private _filters: FiltersClient | undefined;
+
+  /**
+   * Get the filters client for creating and managing filters
+   * @returns A filters client instance
+   */
+  get filters() {
+    if (!this._filters) {
+      this._filters = new FiltersClient(this);
+    }
+    return this._filters;
+  }
+
+  private _tenant: TenantClient | undefined;
+  /**
+   * Get the tenant client for managing tenants
+   * @returns A tenant client instance
+   */
+  get tenant() {
+    if (!this._tenant) {
+      this._tenant = new TenantClient(this);
+    }
+    return this._tenant;
   }
 
   private _ratelimits: RatelimitsClient | undefined;
@@ -462,6 +556,6 @@ export class HatchetClient implements IHatchetClient {
   }
 
   runRef<T extends Record<string, any> = any>(id: string): WorkflowRunRef<T> {
-    return new WorkflowRunRef<T>(id, this.v0.listener, this.runs);
+    return this.runs.runRef(id);
   }
 }

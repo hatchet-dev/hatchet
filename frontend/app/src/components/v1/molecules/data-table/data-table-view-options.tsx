@@ -13,10 +13,13 @@ import {
 
 interface DataTableViewOptionsProps<TData> {
   table: Table<TData>;
+  // todo: make this required
+  columnKeyToName?: Record<string, string>;
 }
 
 export function DataTableViewOptions<TData>({
   table,
+  columnKeyToName,
 }: DataTableViewOptionsProps<TData>) {
   return (
     <DropdownMenu>
@@ -30,7 +33,7 @@ export function DataTableViewOptions<TData>({
           View
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-[150px]">
+      <DropdownMenuContent align="end" className="w-[180px] z-[70]">
         <DropdownMenuLabel>Toggle columns</DropdownMenuLabel>
         <DropdownMenuSeparator />
         {table
@@ -40,6 +43,10 @@ export function DataTableViewOptions<TData>({
               typeof column.accessorFn !== 'undefined' && column.getCanHide(),
           )
           .map((column) => {
+            const columnName =
+              (columnKeyToName ?? {})[
+                column.id as keyof typeof columnKeyToName
+              ] || column.id;
             return (
               <DropdownMenuCheckboxItem
                 key={column.id}
@@ -47,7 +54,7 @@ export function DataTableViewOptions<TData>({
                 checked={column.getIsVisible()}
                 onCheckedChange={(value) => column.toggleVisibility(!!value)}
               >
-                {column.id}
+                {columnName}
               </DropdownMenuCheckboxItem>
             );
           })}

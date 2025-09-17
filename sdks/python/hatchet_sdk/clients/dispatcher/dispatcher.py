@@ -1,10 +1,12 @@
+import platform
+from importlib.metadata import version
+from sys import version_info
 from typing import cast
 
 import grpc.aio
 from google.protobuf.timestamp_pb2 import Timestamp
 
 from hatchet_sdk.clients.dispatcher.action_listener import (
-    Action,
     ActionListener,
     GetActionListenerRequest,
 )
@@ -12,6 +14,7 @@ from hatchet_sdk.clients.rest.tenacity_utils import tenacity_retry
 from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.connection import new_conn
 from hatchet_sdk.contracts.dispatcher_pb2 import (
+    SDKS,
     STEP_EVENT_TYPE_COMPLETED,
     STEP_EVENT_TYPE_FAILED,
     ActionEventResponse,
@@ -20,6 +23,7 @@ from hatchet_sdk.contracts.dispatcher_pb2 import (
     OverridesData,
     RefreshTimeoutRequest,
     ReleaseSlotRequest,
+    RuntimeInfo,
     StepActionEvent,
     StepActionEventType,
     UpsertWorkerLabelsRequest,
@@ -29,6 +33,7 @@ from hatchet_sdk.contracts.dispatcher_pb2 import (
 )
 from hatchet_sdk.contracts.dispatcher_pb2_grpc import DispatcherStub
 from hatchet_sdk.metadata import get_metadata
+from hatchet_sdk.runnables.action import Action
 
 DEFAULT_REGISTER_TIMEOUT = 30
 
@@ -72,6 +77,12 @@ class DispatcherClient:
                     services=req.services,
                     maxRuns=req.slots,
                     labels=req.labels,
+                    runtimeInfo=RuntimeInfo(
+                        sdkVersion=version("hatchet_sdk"),
+                        language=SDKS.PYTHON,
+                        languageVersion=f"{version_info.major}.{version_info.minor}.{version_info.micro}",
+                        os=platform.system().lower(),
+                    ),
                 ),
                 timeout=DEFAULT_REGISTER_TIMEOUT,
                 metadata=get_metadata(self.token),
@@ -93,10 +104,7 @@ class DispatcherClient:
             )
         except Exception as e:
             # for step action events, send a failure event when we cannot send the completed event
-            if (
-                event_type == STEP_EVENT_TYPE_COMPLETED
-                or event_type == STEP_EVENT_TYPE_FAILED
-            ):
+            if event_type in (STEP_EVENT_TYPE_COMPLETED, STEP_EVENT_TYPE_FAILED):
                 await self._try_send_step_action_event(
                     action,
                     STEP_EVENT_TYPE_FAILED,

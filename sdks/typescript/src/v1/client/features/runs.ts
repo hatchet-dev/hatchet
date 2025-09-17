@@ -1,5 +1,9 @@
 import WorkflowRunRef from '@hatchet/util/workflow-run-ref';
 import { V1TaskStatus, V1TaskFilter } from '@hatchet/clients/rest/generated/data-contracts';
+import {
+  RunEventType,
+  RunListenerClient,
+} from '@hatchet/clients/listeners/run-listener/child-listener-client';
 import { WorkflowsClient } from './workflows';
 import { HatchetClient } from '../client';
 
@@ -50,6 +54,17 @@ export interface ListRunsOpts extends RunFilter {
    * @maxLength 36
    */
   parentTaskExternalId?: string;
+
+  /**
+   * The triggering event external id to filter by
+   * @format uuid
+   * @minLength 36
+   * @maxLength 36
+   */
+  triggeringEventExternalId?: string;
+
+  /** A flag for whether or not to include the input and output payloads in the response. Defaults to `true` if unset. */
+  includePayloads?: boolean;
 }
 
 /**
@@ -59,17 +74,28 @@ export class RunsClient {
   api: HatchetClient['api'];
   tenantId: string;
   workflows: WorkflowsClient;
+  listener: RunListenerClient;
 
   constructor(client: HatchetClient) {
     this.api = client.api;
     this.tenantId = client.tenantId;
     this.workflows = client.workflows;
+
+    // eslint-disable-next-line no-underscore-dangle
+    this.listener = client._listener;
   }
 
   async get<T = any>(run: string | WorkflowRunRef<T>) {
     const runId = typeof run === 'string' ? run : await run.getWorkflowRunId();
 
     const { data } = await this.api.v1WorkflowRunGet(runId);
+    return data;
+  }
+
+  async get_status<T = any>(run: string | WorkflowRunRef<T>) {
+    const runId = typeof run === 'string' ? run : await run.getWorkflowRunId();
+
+    const { data } = await this.api.v1WorkflowRunGetStatus(runId);
     return data;
   }
 
@@ -126,6 +152,8 @@ export class RunsClient {
     );
 
     return {
+      offset: opts.offset,
+      limit: opts.limit,
       // default to 1 hour ago
       since: opts.since
         ? opts.since.toISOString()
@@ -138,6 +166,24 @@ export class RunsClient {
       ),
       additional_metadata: am,
       only_tasks: opts.onlyTasks || false,
+      parent_task_external_id: opts.parentTaskExternalId,
+      triggering_event_external_id: opts.triggeringEventExternalId,
+      include_payloads: opts.includePayloads,
     };
+  }
+
+  runRef<T extends Record<string, any> = any>(id: string): WorkflowRunRef<T> {
+    return new WorkflowRunRef<T>(id, this.listener, this);
+  }
+
+  async *subscribeToStream(workflowRunId: string): AsyncIterableIterator<string> {
+    const ref = this.runRef(workflowRunId);
+    const stream = await ref.stream();
+
+    for await (const event of stream) {
+      if (event.type === RunEventType.STEP_RUN_EVENT_TYPE_STREAM) {
+        yield event.payload;
+      }
+    }
   }
 }

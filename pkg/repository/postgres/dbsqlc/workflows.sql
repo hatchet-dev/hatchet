@@ -20,7 +20,7 @@ WHERE
                         SELECT
                             t3."parentId"
                         FROM
-                            "public"."WorkflowTriggerEventRef" AS t3
+                            "WorkflowTriggerEventRef" AS t3
                         WHERE
                             t3."eventKey" = sqlc.narg('eventKey')::text
                             AND t3."parentId" IS NOT NULL
@@ -61,7 +61,7 @@ WHERE
                         SELECT
                             t3."parentId"
                         FROM
-                            "public"."WorkflowTriggerEventRef" AS t3
+                            "WorkflowTriggerEventRef" AS t3
                         WHERE
                             t3."eventKey" = sqlc.narg('eventKey')::text
                             AND t3."parentId" IS NOT NULL
@@ -86,7 +86,7 @@ WHERE
     workflows."deletedAt" IS NULL AND
     (
         sqlc.narg('search')::text IS NULL OR
-        workflows.name like concat('%', sqlc.narg('search')::text, '%')
+        workflows.name iLIKE concat('%', sqlc.narg('search')::TEXT, '%')
     )
 ORDER BY
     case when @orderBy = 'createdAt ASC' THEN workflows."createdAt" END ASC ,

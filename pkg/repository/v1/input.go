@@ -8,6 +8,8 @@ type TaskInput struct {
 	Input map[string]interface{} `json:"input"`
 
 	TriggerData *MatchData `json:"trigger_datas"`
+
+	FilterPayload map[string]interface{} `json:"filter_payload"`
 }
 
 func (s *sharedRepository) DesiredWorkerId(t *TaskInput) *string {
@@ -34,7 +36,7 @@ func (s *sharedRepository) newTaskInputFromExistingBytes(inputBytes []byte) *Tas
 	return i
 }
 
-func (s *sharedRepository) newTaskInput(inputBytes []byte, triggerData *MatchData) *TaskInput {
+func (s *sharedRepository) newTaskInput(inputBytes []byte, triggerData *MatchData, filterPayload []byte) *TaskInput {
 	var input map[string]interface{}
 
 	if len(inputBytes) > 0 {
@@ -45,9 +47,18 @@ func (s *sharedRepository) newTaskInput(inputBytes []byte, triggerData *MatchDat
 		}
 	}
 
+	var filterPayloadMap map[string]interface{}
+	if len(filterPayload) > 0 {
+		err := json.Unmarshal(filterPayload, &filterPayloadMap)
+		if err != nil {
+			s.l.Error().Err(err).Msg("failed to unmarshal event filter payload bytes")
+		}
+	}
+
 	return &TaskInput{
-		Input:       input,
-		TriggerData: triggerData,
+		Input:         input,
+		TriggerData:   triggerData,
+		FilterPayload: filterPayloadMap,
 	}
 }
 
@@ -100,6 +111,8 @@ func (s *sharedRepository) ToV1StepRunData(t *TaskInput) *V1StepRunData {
 			triggers[key] = dataMap
 		}
 	}
+
+	triggers["filter_payload"] = t.FilterPayload
 
 	return &V1StepRunData{
 		Input:         t.Input,

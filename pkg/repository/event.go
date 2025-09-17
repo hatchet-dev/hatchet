@@ -30,6 +30,12 @@ type CreateEventOpts struct {
 
 	// (optional) the event priority
 	Priority *int32 `validate:"omitempty,min=1,max=3"`
+
+	// (optional) the event scope
+	Scope *string `validate:"omitempty"`
+
+	// (optional) the triggering webhook name
+	TriggeringWebhookName *string `validate:"omitempty"`
 }
 
 type ListEventOpts struct {

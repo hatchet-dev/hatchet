@@ -119,6 +119,8 @@ WorkflowVersion:
       type: array
       items:
         $ref: "#/Job"
+    workflowConfig:
+      type: object
   required:
     - metadata
     - version

@@ -93,6 +93,13 @@ func (t *V1WorkflowRunsService) WithDags(ctx context.Context, request gen.V1Work
 		opts.TriggeringEventExternalId = &id
 	}
 
+	includePayloads := true
+	if request.Params.IncludePayloads != nil {
+		includePayloads = *request.Params.IncludePayloads
+	}
+
+	opts.IncludePayloads = includePayloads
+
 	dags, total, err := t.config.V1.OLAP().ListWorkflowRuns(
 		ctx,
 		tenantId,
@@ -115,6 +122,7 @@ func (t *V1WorkflowRunsService) WithDags(ctx context.Context, request gen.V1Work
 		ctx,
 		tenantId,
 		dagExternalIds,
+		includePayloads,
 	)
 
 	if err != nil {
@@ -214,12 +222,13 @@ func (t *V1WorkflowRunsService) OnlyTasks(ctx context.Context, request gen.V1Wor
 	}
 
 	opts := v1.ListTaskRunOpts{
-		CreatedAfter: since,
-		Statuses:     statuses,
-		WorkflowIds:  workflowIds,
-		Limit:        limit,
-		Offset:       offset,
-		WorkerId:     request.Params.WorkerId,
+		CreatedAfter:    since,
+		Statuses:        statuses,
+		WorkflowIds:     workflowIds,
+		Limit:           limit,
+		Offset:          offset,
+		WorkerId:        request.Params.WorkerId,
+		IncludePayloads: true,
 	}
 
 	additionalMetadataFilters := make(map[string]interface{})
@@ -243,6 +252,10 @@ func (t *V1WorkflowRunsService) OnlyTasks(ctx context.Context, request gen.V1Wor
 		opts.TriggeringEventExternalId = request.Params.TriggeringEventExternalId
 	}
 
+	if request.Params.IncludePayloads != nil {
+		opts.IncludePayloads = *request.Params.IncludePayloads
+	}
+
 	tasks, total, err := t.config.V1.OLAP().ListTasks(
 		ctx,
 		tenantId,
@@ -253,7 +266,27 @@ func (t *V1WorkflowRunsService) OnlyTasks(ctx context.Context, request gen.V1Wor
 		return nil, err
 	}
 
+	workflowIdsForNames := make([]pgtype.UUID, 0)
+	for _, task := range tasks {
+		workflowIdsForNames = append(workflowIdsForNames, task.WorkflowID)
+	}
+
+	workflowIdToName, err := t.config.V1.Workflows().ListWorkflowNamesByIds(
+		ctx,
+		tenantId,
+		workflowIdsForNames,
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
 	taskIdToWorkflowName := make(map[int64]string)
+	for _, task := range tasks {
+		if name, ok := workflowIdToName[task.WorkflowID]; ok {
+			taskIdToWorkflowName[task.ID] = name
+		}
+	}
 
 	result := transformers.TaskRunDataRowToWorkflowRunsMany(tasks, taskIdToWorkflowName, total, limit, offset)
 

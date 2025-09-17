@@ -4,45 +4,9 @@ on:
       - "v*" # Push events to matching v*, i.e. v1.0, v20.15.10
 name: Create prerelease w/ binaries and static assets
 jobs:
-  load:
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    strategy:
-      matrix:
-        migrate-strategy: ["latest"]
-        rabbitmq-enabled: ["true", "false"]
-        pg-version: ["15-alpine", "16-alpine", "17-alpine"]
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install Task
-        uses: arduino/setup-task@v2
-      - name: Setup Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: "1.24"
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 9.15.4
-          run_install: false
-
-      - name: Go deps
-        run: go mod download
-
-      - name: Test
-        run: |
-          go test -tags load ./... -p 5 -v -race -failfast -timeout 20m
-        env:
-          TESTING_MATRIX_MIGRATE: ${{ matrix.migrate-strategy }}
-          TESTING_MATRIX_RABBITMQ_ENABLED: ${{ matrix.rabbitmq-enabled }}
-          TESTING_MATRIX_PG_VERSION: ${{ matrix.pg-version }}
   build-push-hatchet-api-amd:
     name: hatchet-api
     runs-on: ubuntu-latest
-    needs: load
     steps:
       - name: Get tag name
         id: tag_name
@@ -50,7 +14,7 @@ jobs:
         env:
           GITHUB_TAG: ${{ github.ref }}
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - name: Login to GHCR
         id: login-ghcr
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
@@ -68,7 +32,6 @@ jobs:
   build-push-hatchet-api-arm:
     name: hatchet-api
     runs-on: hatchet-arm64-2
-    needs: load
     steps:
       - name: Get tag name
         id: tag_name
@@ -76,7 +39,7 @@ jobs:
         env:
           GITHUB_TAG: ${{ github.ref }}
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - name: Login to GHCR
         id: login-ghcr
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
@@ -104,7 +67,7 @@ jobs:
         env:
           GITHUB_TAG: ${{ github.ref }}
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - name: Login to GHCR
         id: login-ghcr
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
@@ -121,7 +84,6 @@ jobs:
   build-push-hatchet-admin-amd:
     name: hatchet-admin
     runs-on: ubuntu-latest
-    needs: load
     steps:
       - name: Get tag name
         id: tag_name
@@ -129,7 +91,7 @@ jobs:
         env:
           GITHUB_TAG: ${{ github.ref }}
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - name: Login to GHCR
         id: login-ghcr
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
@@ -147,7 +109,6 @@ jobs:
   build-push-hatchet-admin-arm:
     name: hatchet-admin
     runs-on: hatchet-arm64-2
-    needs: load
     steps:
       - name: Get tag name
         id: tag_name
@@ -155,7 +116,7 @@ jobs:
         env:
           GITHUB_TAG: ${{ github.ref }}
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - name: Login to GHCR
         id: login-ghcr
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
@@ -183,7 +144,7 @@ jobs:
         env:
           GITHUB_TAG: ${{ github.ref }}
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - name: Login to GHCR
         id: login-ghcr
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
@@ -200,7 +161,6 @@ jobs:
   build-push-hatchet-engine-amd:
     name: hatchet-engine
     runs-on: ubuntu-latest
-    needs: load
     steps:
       - name: Get tag name
         id: tag_name
@@ -208,7 +168,7 @@ jobs:
         env:
           GITHUB_TAG: ${{ github.ref }}
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - name: Login to GHCR
         id: login-ghcr
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
@@ -226,7 +186,6 @@ jobs:
   build-push-hatchet-engine-arm:
     name: hatchet-engine
     runs-on: hatchet-arm64-2
-    needs: load
     steps:
       - name: Get tag name
         id: tag_name
@@ -234,7 +193,7 @@ jobs:
         env:
           GITHUB_TAG: ${{ github.ref }}
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - name: Login to GHCR
         id: login-ghcr
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
@@ -262,7 +221,7 @@ jobs:
         env:
           GITHUB_TAG: ${{ github.ref }}
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - name: Login to GHCR
         id: login-ghcr
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
@@ -279,7 +238,6 @@ jobs:
   build-push-hatchet-migrate-amd:
     name: hatchet-migrate
     runs-on: ubuntu-latest
-    needs: load
     steps:
       - name: Get tag name
         id: tag_name
@@ -287,7 +245,7 @@ jobs:
         env:
           GITHUB_TAG: ${{ github.ref }}
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - name: Login to GHCR
         id: login-ghcr
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
@@ -305,7 +263,6 @@ jobs:
   build-push-hatchet-migrate-arm:
     name: hatchet-migrate
     runs-on: hatchet-arm64-2
-    needs: load
     steps:
       - name: Get tag name
         id: tag_name
@@ -313,7 +270,7 @@ jobs:
         env:
           GITHUB_TAG: ${{ github.ref }}
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - name: Login to GHCR
         id: login-ghcr
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
@@ -341,7 +298,7 @@ jobs:
         env:
           GITHUB_TAG: ${{ github.ref }}
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - name: Login to GHCR
         id: login-ghcr
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
@@ -358,7 +315,6 @@ jobs:
   build-push-hatchet-frontend-amd:
     name: hatchet-frontend
     runs-on: ubuntu-latest
-    needs: load
     steps:
       - name: Get tag name
         id: tag_name
@@ -366,7 +322,13 @@ jobs:
         env:
           GITHUB_TAG: ${{ github.ref }}
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - name: Generate docs snippets and examples
+        working-directory: frontend/snippets
+        run: python3 generate.py
       - name: Login to GHCR
         id: login-ghcr
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
@@ -382,7 +344,6 @@ jobs:
   build-push-hatchet-frontend-arm:
     name: hatchet-frontend
     runs-on: hatchet-arm64-2
-    needs: load
     steps:
       - name: Get tag name
         id: tag_name
@@ -390,7 +351,13 @@ jobs:
         env:
           GITHUB_TAG: ${{ github.ref }}
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - name: Generate docs snippets and examples
+        working-directory: frontend/snippets
+        run: python3 generate.py
       - name: Login to GHCR
         id: login-ghcr
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
@@ -416,7 +383,7 @@ jobs:
         env:
           GITHUB_TAG: ${{ github.ref }}
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - name: Login to GHCR
         id: login-ghcr
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
@@ -433,7 +400,6 @@ jobs:
   build-push-hatchet-lite-amd:
     name: hatchet-lite-amd
     runs-on: ubuntu-latest
-    needs: load
     steps:
       - name: Get tag name
         id: tag_name
@@ -441,7 +407,13 @@ jobs:
         env:
           GITHUB_TAG: ${{ github.ref }}
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - name: Generate docs snippets and examples
+        working-directory: frontend/snippets
+        run: python3 generate.py
       - name: Login to GHCR
         id: login-ghcr
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
@@ -487,7 +459,6 @@ jobs:
   build-push-hatchet-lite-arm:
     name: hatchet-lite-arm
     runs-on: hatchet-arm64-2
-    needs: load
     steps:
       - name: Get tag name
         id: tag_name
@@ -495,7 +466,13 @@ jobs:
         env:
           GITHUB_TAG: ${{ github.ref }}
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - name: Generate docs snippets and examples
+        working-directory: frontend/snippets
+        run: python3 generate.py
       - name: Login to GHCR
         id: login-ghcr
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
@@ -551,7 +528,7 @@ jobs:
         env:
           GITHUB_TAG: ${{ github.ref }}
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - name: Login to GHCR
         id: login-ghcr
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
@@ -568,7 +545,6 @@ jobs:
   build-push-hatchet-dashboard-amd:
     name: hatchet-dashboard-amd
     runs-on: ubuntu-latest
-    needs: load
     steps:
       - name: Get tag name
         id: tag_name
@@ -576,7 +552,13 @@ jobs:
         env:
           GITHUB_TAG: ${{ github.ref }}
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - name: Generate docs snippets and examples
+        working-directory: frontend/snippets
+        run: python3 generate.py
       - name: Login to GHCR
         id: login-ghcr
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
@@ -604,7 +586,6 @@ jobs:
   build-push-hatchet-dashboard-arm:
     name: hatchet-dashboard-arm
     runs-on: hatchet-arm64-2
-    needs: load
     steps:
       - name: Get tag name
         id: tag_name
@@ -612,7 +593,13 @@ jobs:
         env:
           GITHUB_TAG: ${{ github.ref }}
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - name: Generate docs snippets and examples
+        working-directory: frontend/snippets
+        run: python3 generate.py
       - name: Login to GHCR
         id: login-ghcr
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
@@ -650,7 +637,7 @@ jobs:
         env:
           GITHUB_TAG: ${{ github.ref }}
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - name: Login to GHCR
         id: login-ghcr
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
@@ -667,7 +654,6 @@ jobs:
   build-push-hatchet-loadtest-amd:
     name: hatchet-loadtest
     runs-on: ubuntu-latest
-    needs: load
     steps:
       - name: Get tag name
         id: tag_name
@@ -675,7 +661,7 @@ jobs:
         env:
           GITHUB_TAG: ${{ github.ref }}
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - name: Login to GHCR
         id: login-ghcr
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
@@ -691,7 +677,6 @@ jobs:
   build-push-hatchet-loadtest-arm:
     name: hatchet-loadtest
     runs-on: hatchet-arm64-2
-    needs: load
     steps:
       - name: Get tag name
         id: tag_name
@@ -699,7 +684,7 @@ jobs:
         env:
           GITHUB_TAG: ${{ github.ref }}
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - name: Login to GHCR
         id: login-ghcr
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
@@ -725,7 +710,7 @@ jobs:
         env:
           GITHUB_TAG: ${{ github.ref }}
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - name: Login to GHCR
         id: login-ghcr
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin

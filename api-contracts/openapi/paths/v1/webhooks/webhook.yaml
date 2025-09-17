@@ -1,0 +1,317 @@
+V1WebhookGetDeleteReceiveUpdate:
+  get:
+    description: Get a webhook by its name
+    operationId: v1-webhook:get
+    x-enable-rate-limiting: true
+    parameters:
+      - description: The tenant id
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+      - description: The webhook name
+        in: path
+        name: v1-webhook
+        required: true
+        schema:
+          type: string
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/V1Webhook"
+        description: Successfully got the webhook
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+    summary: Get a webhook
+    tags:
+      - Webhook
+  delete:
+    x-resources: ["tenant", "v1-webhook"]
+    description: Delete a webhook
+    operationId: v1-webhook:delete
+    parameters:
+      - description: The tenant id
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+      - description: The name of the webhook to delete
+        in: path
+        name: v1-webhook
+        required: true
+        schema:
+          type: string
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/V1Webhook"
+        description: Successfully deleted webhook
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+      "404":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Not found
+    tags:
+      - Webhook
+  post:
+    x-resources: ["tenant", "v1-webhook"]
+    description: Post an incoming webhook message
+    operationId: v1-webhook:receive
+    security: []
+    parameters:
+      - description: The tenant id
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+      - description: The webhook name
+        in: path
+        name: v1-webhook
+        required: true
+        schema:
+          type: string
+    requestBody:
+      description: Any payload in any format
+      required: false
+      content:
+      text/plain:
+        schema:
+          type: string
+    responses:
+      '200':
+        description: 'Success'
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+    summary: Post a webhook message
+    tags:
+      - Webhook
+  patch:
+    x-resources: ["tenant", "v1-webhook"]
+    description: Update a webhook
+    operationId: v1-webhook:update
+    parameters:
+      - description: The tenant id
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+      - description: The webhook name
+        in: path
+        name: v1-webhook
+        required: true
+        schema:
+          type: string
+    requestBody:
+      content:
+        application/json:
+          schema:
+            $ref: "../../../components/schemas/_index.yaml#/V1UpdateWebhookRequest"
+      description: The input to the webhook creation
+      required: true
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/V1Webhook"
+        description: Successfully updated the webhook
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+      "404":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Not found
+    summary: Update a webhook
+    tags:
+      - Webhook
+
+
+V1WebhookListCreate:
+  get:
+    x-resources: ["tenant"]
+    description: Lists all webhook for a tenant.
+    operationId: v1-webhook:list
+    parameters:
+      - description: The tenant id
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+      - description: The number to skip
+        in: query
+        name: offset
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - description: The number to limit by
+        in: query
+        name: limit
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - description: The source names to filter by
+        in: query
+        name: sourceNames
+        required: false
+        schema:
+          type: array
+          items:
+            $ref: "../../../components/schemas/_index.yaml#/V1WebhookSourceName"
+            description: The source name
+      - description: The webhook names to filter by
+        in: query
+        name: webhookNames
+        required: false
+        schema:
+          type: array
+          items:
+            type: string
+            description: The webhook name
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/V1WebhookList"
+        description: Successfully listed the webhooks
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+    summary: List webhooks
+    tags:
+      - Webhook
+  post:
+    x-resources: ["tenant"]
+    description: Create a new webhook
+    operationId: v1-webhook:create
+    parameters:
+      - description: The tenant id
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    requestBody:
+      content:
+        application/json:
+          schema:
+            $ref: "../../../components/schemas/_index.yaml#/V1CreateWebhookRequest"
+      description: The input to the webhook creation
+      required: true
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/V1Webhook"
+        description: Successfully created the webhook
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+      "404":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Not found
+    summary: Create a webhook
+    tags:
+      - Webhook

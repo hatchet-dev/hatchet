@@ -14,9 +14,10 @@ import (
 
 	"github.com/hatchet-dev/hatchet/cmd/hatchet-api/api"
 	"github.com/hatchet-dev/hatchet/cmd/hatchet-engine/engine"
-	"github.com/hatchet-dev/hatchet/cmd/hatchet-lite/staticfileserver"
+	"github.com/hatchet-dev/hatchet/cmd/hatchet-staticfileserver/staticfileserver"
 	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
 	"github.com/hatchet-dev/hatchet/pkg/config/loader"
+	"github.com/hatchet-dev/hatchet/pkg/config/server"
 )
 
 var printVersion bool
@@ -85,20 +86,17 @@ func start(cf *loader.ConfigLoader, interruptCh <-chan interface{}, version stri
 		runtimePort = "8082"
 	}
 
-	// we hard code the msg queue kind to postgres
-	err := os.Setenv("SERVER_MSGQUEUE_KIND", "postgres")
-
-	if err != nil {
-		return fmt.Errorf("error setting SERVER_MSGQUEUE_KIND to postgres: %w", err)
-	}
-
 	feURL, err := url.Parse(fmt.Sprintf("http://localhost:%s", frontendPort))
 
 	if err != nil {
 		return fmt.Errorf("error parsing frontend URL: %w", err)
 	}
 
-	_, sc, err := cf.CreateServerFromConfig(version)
+	_, sc, err := cf.CreateServerFromConfig(version, func(cf *server.ServerConfigFile) {
+		if cf.MessageQueue.RabbitMQ.URL == "" {
+			cf.MessageQueue.Kind = "postgres"
+		}
+	})
 
 	if err != nil {
 		return fmt.Errorf("error loading server config: %w", err)

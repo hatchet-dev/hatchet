@@ -24,6 +24,8 @@ export interface Event {
   eventTimestamp: Date | undefined;
   /** the payload for the event */
   additionalMetadata?: string | undefined;
+  /** the scope associated with this filter. Used for subsetting candidate filters at evaluation time */
+  scope?: string | undefined;
 }
 
 export interface Events {
@@ -56,6 +58,7 @@ export interface PutStreamEventRequest {
   message: Uint8Array;
   /** associated stream event metadata */
   metadata: string;
+  eventIndex?: number | undefined;
 }
 
 export interface PutStreamEventResponse {}
@@ -73,6 +76,9 @@ export interface PushEventRequest {
   eventTimestamp: Date | undefined;
   /** metadata for the event */
   additionalMetadata?: string | undefined;
+  priority?: number | undefined;
+  /** the scope associated with this filter. Used for subsetting candidate filters at evaluation time */
+  scope?: string | undefined;
 }
 
 export interface ReplayEventRequest {
@@ -88,6 +94,7 @@ function createBaseEvent(): Event {
     payload: '',
     eventTimestamp: undefined,
     additionalMetadata: undefined,
+    scope: undefined,
   };
 }
 
@@ -110,6 +117,9 @@ export const Event: MessageFns<Event> = {
     }
     if (message.additionalMetadata !== undefined) {
       writer.uint32(50).string(message.additionalMetadata);
+    }
+    if (message.scope !== undefined) {
+      writer.uint32(58).string(message.scope);
     }
     return writer;
   },
@@ -169,6 +179,14 @@ export const Event: MessageFns<Event> = {
           message.additionalMetadata = reader.string();
           continue;
         }
+        case 7: {
+          if (tag !== 58) {
+            break;
+          }
+
+          message.scope = reader.string();
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -190,6 +208,7 @@ export const Event: MessageFns<Event> = {
       additionalMetadata: isSet(object.additionalMetadata)
         ? globalThis.String(object.additionalMetadata)
         : undefined,
+      scope: isSet(object.scope) ? globalThis.String(object.scope) : undefined,
     };
   },
 
@@ -213,6 +232,9 @@ export const Event: MessageFns<Event> = {
     if (message.additionalMetadata !== undefined) {
       obj.additionalMetadata = message.additionalMetadata;
     }
+    if (message.scope !== undefined) {
+      obj.scope = message.scope;
+    }
     return obj;
   },
 
@@ -227,6 +249,7 @@ export const Event: MessageFns<Event> = {
     message.payload = object.payload ?? '';
     message.eventTimestamp = object.eventTimestamp ?? undefined;
     message.additionalMetadata = object.additionalMetadata ?? undefined;
+    message.scope = object.scope ?? undefined;
     return message;
   },
 };
@@ -486,7 +509,13 @@ export const PutLogResponse: MessageFns<PutLogResponse> = {
 };
 
 function createBasePutStreamEventRequest(): PutStreamEventRequest {
-  return { stepRunId: '', createdAt: undefined, message: new Uint8Array(0), metadata: '' };
+  return {
+    stepRunId: '',
+    createdAt: undefined,
+    message: new Uint8Array(0),
+    metadata: '',
+    eventIndex: undefined,
+  };
 }
 
 export const PutStreamEventRequest: MessageFns<PutStreamEventRequest> = {
@@ -502,6 +531,9 @@ export const PutStreamEventRequest: MessageFns<PutStreamEventRequest> = {
     }
     if (message.metadata !== '') {
       writer.uint32(42).string(message.metadata);
+    }
+    if (message.eventIndex !== undefined) {
+      writer.uint32(48).int64(message.eventIndex);
     }
     return writer;
   },
@@ -545,6 +577,14 @@ export const PutStreamEventRequest: MessageFns<PutStreamEventRequest> = {
           message.metadata = reader.string();
           continue;
         }
+        case 6: {
+          if (tag !== 48) {
+            break;
+          }
+
+          message.eventIndex = longToNumber(reader.int64());
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -560,6 +600,7 @@ export const PutStreamEventRequest: MessageFns<PutStreamEventRequest> = {
       createdAt: isSet(object.createdAt) ? fromJsonTimestamp(object.createdAt) : undefined,
       message: isSet(object.message) ? bytesFromBase64(object.message) : new Uint8Array(0),
       metadata: isSet(object.metadata) ? globalThis.String(object.metadata) : '',
+      eventIndex: isSet(object.eventIndex) ? globalThis.Number(object.eventIndex) : undefined,
     };
   },
 
@@ -577,6 +618,9 @@ export const PutStreamEventRequest: MessageFns<PutStreamEventRequest> = {
     if (message.metadata !== '') {
       obj.metadata = message.metadata;
     }
+    if (message.eventIndex !== undefined) {
+      obj.eventIndex = Math.round(message.eventIndex);
+    }
     return obj;
   },
 
@@ -589,6 +633,7 @@ export const PutStreamEventRequest: MessageFns<PutStreamEventRequest> = {
     message.createdAt = object.createdAt ?? undefined;
     message.message = object.message ?? new Uint8Array(0);
     message.metadata = object.metadata ?? '';
+    message.eventIndex = object.eventIndex ?? undefined;
     return message;
   },
 };
@@ -699,7 +744,14 @@ export const BulkPushEventRequest: MessageFns<BulkPushEventRequest> = {
 };
 
 function createBasePushEventRequest(): PushEventRequest {
-  return { key: '', payload: '', eventTimestamp: undefined, additionalMetadata: undefined };
+  return {
+    key: '',
+    payload: '',
+    eventTimestamp: undefined,
+    additionalMetadata: undefined,
+    priority: undefined,
+    scope: undefined,
+  };
 }
 
 export const PushEventRequest: MessageFns<PushEventRequest> = {
@@ -715,6 +767,12 @@ export const PushEventRequest: MessageFns<PushEventRequest> = {
     }
     if (message.additionalMetadata !== undefined) {
       writer.uint32(34).string(message.additionalMetadata);
+    }
+    if (message.priority !== undefined) {
+      writer.uint32(40).int32(message.priority);
+    }
+    if (message.scope !== undefined) {
+      writer.uint32(50).string(message.scope);
     }
     return writer;
   },
@@ -758,6 +816,22 @@ export const PushEventRequest: MessageFns<PushEventRequest> = {
           message.additionalMetadata = reader.string();
           continue;
         }
+        case 5: {
+          if (tag !== 40) {
+            break;
+          }
+
+          message.priority = reader.int32();
+          continue;
+        }
+        case 6: {
+          if (tag !== 50) {
+            break;
+          }
+
+          message.scope = reader.string();
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -777,6 +851,8 @@ export const PushEventRequest: MessageFns<PushEventRequest> = {
       additionalMetadata: isSet(object.additionalMetadata)
         ? globalThis.String(object.additionalMetadata)
         : undefined,
+      priority: isSet(object.priority) ? globalThis.Number(object.priority) : undefined,
+      scope: isSet(object.scope) ? globalThis.String(object.scope) : undefined,
     };
   },
 
@@ -794,6 +870,12 @@ export const PushEventRequest: MessageFns<PushEventRequest> = {
     if (message.additionalMetadata !== undefined) {
       obj.additionalMetadata = message.additionalMetadata;
     }
+    if (message.priority !== undefined) {
+      obj.priority = Math.round(message.priority);
+    }
+    if (message.scope !== undefined) {
+      obj.scope = message.scope;
+    }
     return obj;
   },
 
@@ -806,6 +888,8 @@ export const PushEventRequest: MessageFns<PushEventRequest> = {
     message.payload = object.payload ?? '';
     message.eventTimestamp = object.eventTimestamp ?? undefined;
     message.additionalMetadata = object.additionalMetadata ?? undefined;
+    message.priority = object.priority ?? undefined;
+    message.scope = object.scope ?? undefined;
     return message;
   },
 };
@@ -1019,6 +1103,17 @@ function fromJsonTimestamp(o: any): Date {
   } else {
     return fromTimestamp(Timestamp.fromJSON(o));
   }
+}
+
+function longToNumber(int64: { toString(): string }): number {
+  const num = globalThis.Number(int64.toString());
+  if (num > globalThis.Number.MAX_SAFE_INTEGER) {
+    throw new globalThis.Error('Value is larger than Number.MAX_SAFE_INTEGER');
+  }
+  if (num < globalThis.Number.MIN_SAFE_INTEGER) {
+    throw new globalThis.Error('Value is smaller than Number.MIN_SAFE_INTEGER');
+  }
+  return num;
 }
 
 function isSet(value: any): boolean {

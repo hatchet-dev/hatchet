@@ -37,6 +37,14 @@ class V1TaskSummary(BaseModel):
     action_id: Optional[StrictStr] = Field(
         default=None, description="The action ID of the task.", alias="actionId"
     )
+    retry_count: Optional[StrictInt] = Field(
+        default=None,
+        description="The number of retries of the task.",
+        alias="retryCount",
+    )
+    attempt: Optional[StrictInt] = Field(
+        default=None, description="The attempt number of the task."
+    )
     additional_metadata: Optional[Dict[str, Any]] = Field(
         default=None,
         description="Additional metadata for the task run.",
@@ -103,9 +111,19 @@ class V1TaskSummary(BaseModel):
         description="The version ID of the workflow",
         alias="workflowVersionId",
     )
+    workflow_config: Optional[Dict[str, Any]] = Field(
+        default=None, alias="workflowConfig"
+    )
+    parent_task_external_id: Optional[StrictStr] = Field(
+        default=None,
+        description="The external ID of the parent task.",
+        alias="parentTaskExternalId",
+    )
     __properties: ClassVar[List[str]] = [
         "metadata",
         "actionId",
+        "retryCount",
+        "attempt",
         "additionalMetadata",
         "children",
         "createdAt",
@@ -128,6 +146,8 @@ class V1TaskSummary(BaseModel):
         "workflowName",
         "workflowRunExternalId",
         "workflowVersionId",
+        "workflowConfig",
+        "parentTaskExternalId",
     ]
 
     model_config = ConfigDict(
@@ -196,6 +216,8 @@ class V1TaskSummary(BaseModel):
                     else None
                 ),
                 "actionId": obj.get("actionId"),
+                "retryCount": obj.get("retryCount"),
+                "attempt": obj.get("attempt"),
                 "additionalMetadata": obj.get("additionalMetadata"),
                 "children": (
                     [V1TaskSummary.from_dict(_item) for _item in obj["children"]]
@@ -222,6 +244,8 @@ class V1TaskSummary(BaseModel):
                 "workflowName": obj.get("workflowName"),
                 "workflowRunExternalId": obj.get("workflowRunExternalId"),
                 "workflowVersionId": obj.get("workflowVersionId"),
+                "workflowConfig": obj.get("workflowConfig"),
+                "parentTaskExternalId": obj.get("parentTaskExternalId"),
             }
         )
         return _obj

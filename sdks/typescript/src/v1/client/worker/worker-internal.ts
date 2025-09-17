@@ -21,20 +21,22 @@ import {
 } from '@hatchet/protoc/workflows';
 import { Logger } from '@hatchet/util/logger';
 import { WebhookWorkerCreateRequest } from '@clients/rest/generated/data-contracts';
-import { BaseWorkflowDeclaration, WorkflowDefinition } from '@hatchet/v1/declaration';
+import { BaseWorkflowDeclaration, WorkflowDefinition, HatchetClient } from '@hatchet/v1';
 import { CreateTaskOpts } from '@hatchet/protoc/v1/workflows';
 import {
   CreateOnFailureTaskOpts,
   CreateOnSuccessTaskOpts,
+  CreateWorkflowDurableTaskOpts,
   CreateWorkflowTaskOpts,
   NonRetryableError,
 } from '@hatchet/v1/task';
 import { taskConditionsToPb } from '@hatchet/v1/conditions/transformer';
-import { HatchetClient } from '@hatchet/v1';
 
 import { WorkerLabels } from '@hatchet/clients/dispatcher/dispatcher-client';
 import { CreateStep, mapRateLimit, StepRunFunction } from '@hatchet/step';
+import { applyNamespace } from '@hatchet/util/apply-namespace';
 import { Context, DurableContext } from './context';
+import { parentRunContextManager } from '../../parent-run-context-vars';
 
 export type ActionRegistry = Record<Action['actionId'], Function>;
 
@@ -75,7 +77,7 @@ export class V1Worker {
     }
   ) {
     this.client = client;
-    this.name = this.client.config.namespace + options.name;
+    this.name = applyNamespace(options.name, this.client.config.namespace);
     this.action_registry = {};
     this.maxRuns = options.maxRuns;
 
@@ -146,11 +148,17 @@ export class V1Worker {
   }
 
   registerDurableActionsV1(workflow: WorkflowDefinition) {
-    const newActions = workflow._durableTasks.reduce<ActionRegistry>((acc, task) => {
-      acc[`${workflow.name}:${task.name.toLowerCase()}`] = (ctx: Context<any, any>) =>
-        task.fn(ctx.input, ctx as DurableContext<any, any>);
-      return acc;
-    }, {});
+    const newActions = workflow._durableTasks
+      .filter((task) => !!task.fn)
+      .reduce<ActionRegistry>((acc, task) => {
+        acc[
+          `${applyNamespace(
+            workflow.name,
+            this.client.config.namespace
+          ).toLowerCase()}:${task.name.toLowerCase()}`
+        ] = (ctx: Context<any, any>) => task.fn!(ctx.input, ctx as DurableContext<any, any>);
+        return acc;
+      }, {});
 
     this.action_registry = {
       ...this.action_registry,
@@ -159,11 +167,13 @@ export class V1Worker {
   }
 
   private registerActionsV1(workflow: WorkflowDefinition) {
-    const newActions = workflow._tasks.reduce<ActionRegistry>((acc, task) => {
-      acc[`${workflow.name}:${task.name.toLowerCase()}`] = (ctx: Context<any, any>) =>
-        task.fn(ctx.input, ctx);
-      return acc;
-    }, {});
+    const newActions = workflow._tasks
+      .filter((task) => !!task.fn)
+      .reduce<ActionRegistry>((acc, task) => {
+        acc[`${workflow.name}:${task.name.toLowerCase()}`] = (ctx: Context<any, any>) =>
+          task.fn!(ctx.input, ctx);
+        return acc;
+      }, {});
 
     const onFailureFn = workflow.onFailure
       ? typeof workflow.onFailure === 'function'
@@ -184,11 +194,17 @@ export class V1Worker {
     };
   }
 
-  async registerWorkflowV1(initWorkflow: BaseWorkflowDeclaration<any, any>) {
+  async registerWorkflowV1(
+    initWorkflow: BaseWorkflowDeclaration<any, any>,
+    durable: boolean = false
+  ) {
     // patch the namespace
     const workflow: WorkflowDefinition = {
       ...initWorkflow.definition,
-      name: (this.client.config.namespace + initWorkflow.definition.name).toLowerCase(),
+      name: applyNamespace(
+        initWorkflow.definition.name,
+        this.client.config.namespace
+      ).toLowerCase(),
     };
 
     try {
@@ -196,7 +212,7 @@ export class V1Worker {
 
       let onFailureTask: CreateTaskOpts | undefined;
 
-      if (workflow.onFailure && typeof workflow.onFailure === 'function') {
+      if (!durable && workflow.onFailure && typeof workflow.onFailure === 'function') {
         onFailureTask = {
           readableId: 'on-failure-task',
           action: onFailureTaskName(workflow),
@@ -210,7 +226,7 @@ export class V1Worker {
         };
       }
 
-      if (workflow.onFailure && typeof workflow.onFailure === 'object') {
+      if (!durable && workflow.onFailure && typeof workflow.onFailure === 'object') {
         const onFailure = workflow.onFailure as CreateOnFailureTaskOpts<any, any>;
 
         onFailureTask = {
@@ -234,8 +250,8 @@ export class V1Worker {
 
       let onSuccessTask: CreateWorkflowTaskOpts<any, any> | undefined;
 
-      if (workflow.onSuccess && typeof workflow.onSuccess === 'function') {
-        const parents = getLeaves(workflow._tasks);
+      if (!durable && workflow.onSuccess && typeof workflow.onSuccess === 'function') {
+        const parents = getLeaves([...workflow._tasks, ...workflow._durableTasks]);
 
         onSuccessTask = {
           name: 'on-success-task',
@@ -249,9 +265,9 @@ export class V1Worker {
         };
       }
 
-      if (workflow.onSuccess && typeof workflow.onSuccess === 'object') {
+      if (!durable && workflow.onSuccess && typeof workflow.onSuccess === 'object') {
         const onSuccess = workflow.onSuccess as CreateOnSuccessTaskOpts<any, any>;
-        const parents = getLeaves(workflow._tasks);
+        const parents = getLeaves([...workflow._tasks, ...workflow._durableTasks]);
 
         onSuccessTask = {
           name: 'on-success-task',
@@ -333,6 +349,12 @@ export class V1Worker {
               : [],
         })),
         concurrency: concurrencySolo,
+        defaultFilters:
+          workflow.defaultFilters?.map((f) => ({
+            scope: f.scope,
+            expression: f.expression,
+            payload: f.payload ? new TextEncoder().encode(JSON.stringify(f.payload)) : undefined,
+          })) ?? [],
       });
       this.registeredWorkflowPromises.push(registeredWorkflow);
       await registeredWorkflow;
@@ -347,7 +369,7 @@ export class V1Worker {
   async registerWorkflow(initWorkflow: Workflow) {
     const workflow: Workflow = {
       ...initWorkflow,
-      id: (this.client.config.namespace + initWorkflow.id).toLowerCase(),
+      id: applyNamespace(initWorkflow.id, this.client.config.namespace).toLowerCase(),
     };
     try {
       if (workflow.concurrency?.key && workflow.concurrency.expression) {
@@ -395,7 +417,7 @@ export class V1Worker {
         version: workflow.version || '',
         eventTriggers:
           workflow.on && workflow.on.event
-            ? [this.client.config.namespace + workflow.on.event]
+            ? [applyNamespace(workflow.on.event, this.client.config.namespace)]
             : [],
         cronTriggers: workflow.on && workflow.on.cron ? [workflow.on.cron] : [],
         scheduledTriggers: [],
@@ -454,6 +476,12 @@ export class V1Worker {
       }
 
       const run = async () => {
+        parentRunContextManager.setContext({
+          parentId: action.workflowRunId,
+          parentRunId: action.stepRunId,
+          childIndex: 0,
+          desiredWorkerId: this.workerId || '',
+        });
         return step(context);
       };
 
@@ -885,13 +913,12 @@ function onFailureTaskName(workflow: WorkflowDefinition) {
   return `${workflow.name}:on-failure-task`;
 }
 
-function getLeaves(tasks: CreateWorkflowTaskOpts<any, any>[]): CreateWorkflowTaskOpts<any, any>[] {
+type LeafableTask = CreateWorkflowTaskOpts<any, any> | CreateWorkflowDurableTaskOpts<any, any>;
+
+function getLeaves(tasks: LeafableTask[]): LeafableTask[] {
   return tasks.filter((task) => isLeafTask(task, tasks));
 }
 
-function isLeafTask(
-  task: CreateWorkflowTaskOpts<any, any>,
-  allTasks: CreateWorkflowTaskOpts<any, any>[]
-): boolean {
+function isLeafTask(task: LeafableTask, allTasks: LeafableTask[]): boolean {
   return !allTasks.some((t) => t.parents?.some((p) => p.name === task.name));
 }

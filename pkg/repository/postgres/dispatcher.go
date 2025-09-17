@@ -14,22 +14,20 @@ import (
 )
 
 type dispatcherRepository struct {
-	pool          *pgxpool.Pool
-	essentialPool *pgxpool.Pool
-	v             validator.Validator
-	queries       *dbsqlc.Queries
-	l             *zerolog.Logger
+	pool    *pgxpool.Pool
+	v       validator.Validator
+	queries *dbsqlc.Queries
+	l       *zerolog.Logger
 }
 
-func NewDispatcherRepository(pool *pgxpool.Pool, essentialPool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger) repository.DispatcherEngineRepository {
+func NewDispatcherRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger) repository.DispatcherEngineRepository {
 	queries := dbsqlc.New()
 
 	return &dispatcherRepository{
-		pool:          pool,
-		essentialPool: essentialPool,
-		queries:       queries,
-		v:             v,
-		l:             l,
+		pool:    pool,
+		queries: queries,
+		v:       v,
+		l:       l,
 	}
 }
 
@@ -46,7 +44,7 @@ func (d *dispatcherRepository) UpdateDispatcher(ctx context.Context, dispatcherI
 		return nil, err
 	}
 
-	return d.queries.UpdateDispatcher(ctx, d.essentialPool, dbsqlc.UpdateDispatcherParams{
+	return d.queries.UpdateDispatcher(ctx, d.pool, dbsqlc.UpdateDispatcherParams{
 		ID:              sqlchelpers.UUIDFromStr(dispatcherId),
 		LastHeartbeatAt: sqlchelpers.TimestampFromTime(opts.LastHeartbeatAt.UTC()),
 	})

@@ -2,7 +2,11 @@
 /* eslint-disable no-underscore-dangle */
 /* eslint-disable no-dupe-class-members */
 import WorkflowRunRef from '@hatchet/util/workflow-run-ref';
-import { CronWorkflows, ScheduledWorkflows } from '@hatchet/clients/rest/generated/data-contracts';
+import {
+  CronWorkflows,
+  ScheduledWorkflows,
+  V1CreateFilterRequest,
+} from '@hatchet/clients/rest/generated/data-contracts';
 import { Workflow as WorkflowV0 } from '@hatchet/workflow';
 import { IHatchetClient } from './client/client.interface';
 import {
@@ -19,6 +23,7 @@ import { Duration } from './client/duration';
 import { MetricsClient } from './client/features/metrics';
 import { InputType, OutputType, UnknownInputType, JsonObject } from './types';
 import { Context, DurableContext } from './client/worker/context';
+import { parentRunContextManager } from './parent-run-context-vars';
 
 const UNBOUND_ERR = new Error('workflow unbound to hatchet client, hint: use client.run instead');
 
@@ -49,6 +54,18 @@ export type RunOpts = {
    * values: Priority.LOW, Priority.MEDIUM, Priority.HIGH (1, 2, or 3 )
    */
   priority?: Priority;
+
+  /**
+   * (optional) if the task run should be run on the same worker.
+   * only used if spawned from within a parent task.
+   */
+  sticky?: boolean;
+
+  /**
+   * (optional) the child key for the workflow run.
+   * only used if spawned from within a parent task.
+   */
+  childKey?: string;
 };
 
 /**
@@ -69,6 +86,8 @@ export type TaskOutputType<
     ? O[TaskName]
     : InferredType
   : InferredType;
+
+type DefaultFilter = Omit<V1CreateFilterRequest, 'workflowId'>;
 
 export type CreateBaseWorkflowOpts = {
   /**
@@ -114,6 +133,8 @@ export type CreateBaseWorkflowOpts = {
    * values: Priority.LOW, Priority.MEDIUM, Priority.HIGH (1, 2, or 3 )
    */
   defaultPriority?: Priority;
+
+  defaultFilters?: DefaultFilter[];
 };
 
 export type CreateTaskWorkflowOpts<
@@ -281,6 +302,25 @@ export class BaseWorkflowDeclaration<
       throw UNBOUND_ERR;
     }
 
+    // set the parent run context
+    const parentRunContext = parentRunContextManager.getContext();
+    parentRunContextManager.incrementChildIndex(Array.isArray(input) ? input.length : 1);
+
+    if (!parentRunContext && (options?.childKey || options?.sticky)) {
+      this.client.admin.logger.warn(
+        'ignoring childKey or sticky because run is not being spawned from a parent task'
+      );
+    }
+
+    const runOpts = {
+      ...options,
+      parentId: parentRunContext?.parentId,
+      parentStepRunId: parentRunContext?.parentRunId,
+      childIndex: parentRunContext?.childIndex,
+      sticky: options?.sticky ? parentRunContext?.desiredWorkerId : undefined,
+      childKey: options?.childKey,
+    };
+
     if (Array.isArray(input)) {
       let resp: WorkflowRunRef<O>[] = [];
       for (let i = 0; i < input.length; i += 500) {
@@ -289,7 +329,10 @@ export class BaseWorkflowDeclaration<
           batch.map((inp) => ({
             workflowName: this.definition.name,
             input: inp,
-            options,
+            options: {
+              ...runOpts,
+              childIndex: (runOpts.childIndex ?? 0) + i, // increment from initial child index state
+            },
           }))
         );
         resp = resp.concat(batchResp);
@@ -311,7 +354,7 @@ export class BaseWorkflowDeclaration<
       return res;
     }
 
-    const res = await this.client.admin.runWorkflow<I, O>(this.definition.name, input, options);
+    const res = await this.client.admin.runWorkflow<I, O>(this.definition.name, input, runOpts);
 
     if (_standaloneTaskName) {
       res._standaloneTaskName = _standaloneTaskName;
@@ -381,7 +424,7 @@ export class BaseWorkflowDeclaration<
       throw UNBOUND_ERR;
     }
 
-    const scheduled = this.client._v0.schedule.create(this.definition.name, {
+    const scheduled = this.client.scheduled.create(this.definition.name, {
       triggerAt: enqueueAt,
       input: input as JsonObject,
       ...options,
@@ -423,7 +466,7 @@ export class BaseWorkflowDeclaration<
       throw UNBOUND_ERR;
     }
 
-    const cronDef = this.client._v0.cron.create(this.definition.name, {
+    const cronDef = this.client.crons.create(this.definition.name, {
       expression,
       input: input as JsonObject,
       ...options,
@@ -505,7 +548,9 @@ export class BaseWorkflowDeclaration<
   //   return this.client.workflows.unpause(this);
   // }
 
-  // @deprecated use definition.name instead
+  /**
+   * @deprecated use definition.name instead
+   */
   get id() {
     return this.definition.name;
   }
@@ -552,7 +597,7 @@ export class WorkflowDeclaration<
     options:
       | (Omit<CreateWorkflowTaskOpts<I, TO>, 'fn'> & {
           name: Name;
-          fn: Fn;
+          fn?: Fn;
         })
       | TaskWorkflowDeclaration<I, TO>
   ): CreateWorkflowTaskOpts<I, TO> {
@@ -618,6 +663,7 @@ export class WorkflowDeclaration<
             ctx: Context<I>
           ) => TaskOutputType<O, Name, L> | Promise<TaskOutputType<O, Name, L>>;
         })
+      // FIXME this should be CreateOnSuccessTaskOpts to remove the name, but this is technically a breaking change
       | TaskWorkflowDeclaration<any, any>
   ): CreateWorkflowTaskOpts<I, TaskOutputType<O, Name, L>> {
     let typedOptions: CreateWorkflowTaskOpts<I, TaskOutputType<O, Name, L>>;

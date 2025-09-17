@@ -10,193 +10,6 @@
  * ---------------------------------------------------------------
  */
 
-export enum V1LogLineLevel {
-  DEBUG = 'DEBUG',
-  INFO = 'INFO',
-  WARN = 'WARN',
-  ERROR = 'ERROR',
-}
-
-export enum V1TaskRunStatus {
-  PENDING = 'PENDING',
-  RUNNING = 'RUNNING',
-  COMPLETED = 'COMPLETED',
-  FAILED = 'FAILED',
-  CANCELLED = 'CANCELLED',
-}
-
-export enum V1TaskStatus {
-  QUEUED = 'QUEUED',
-  RUNNING = 'RUNNING',
-  COMPLETED = 'COMPLETED',
-  CANCELLED = 'CANCELLED',
-  FAILED = 'FAILED',
-}
-
-export enum WebhookWorkerRequestMethod {
-  GET = 'GET',
-  POST = 'POST',
-  PUT = 'PUT',
-}
-
-export enum LogLineOrderByDirection {
-  Asc = 'asc',
-  Desc = 'desc',
-}
-
-export enum LogLineOrderByField {
-  CreatedAt = 'createdAt',
-}
-
-export enum LogLineLevel {
-  DEBUG = 'DEBUG',
-  INFO = 'INFO',
-  WARN = 'WARN',
-  ERROR = 'ERROR',
-}
-
-export enum PullRequestState {
-  Open = 'open',
-  Closed = 'closed',
-}
-
-export enum WorkerRuntimeSDKs {
-  GOLANG = 'GOLANG',
-  PYTHON = 'PYTHON',
-  TYPESCRIPT = 'TYPESCRIPT',
-}
-
-export enum StepRunEventSeverity {
-  INFO = 'INFO',
-  WARNING = 'WARNING',
-  CRITICAL = 'CRITICAL',
-}
-
-export enum StepRunEventReason {
-  REQUEUED_NO_WORKER = 'REQUEUED_NO_WORKER',
-  REQUEUED_RATE_LIMIT = 'REQUEUED_RATE_LIMIT',
-  SCHEDULING_TIMED_OUT = 'SCHEDULING_TIMED_OUT',
-  ASSIGNED = 'ASSIGNED',
-  STARTED = 'STARTED',
-  ACKNOWLEDGED = 'ACKNOWLEDGED',
-  FINISHED = 'FINISHED',
-  FAILED = 'FAILED',
-  RETRYING = 'RETRYING',
-  CANCELLED = 'CANCELLED',
-  TIMEOUT_REFRESHED = 'TIMEOUT_REFRESHED',
-  REASSIGNED = 'REASSIGNED',
-  TIMED_OUT = 'TIMED_OUT',
-  SLOT_RELEASED = 'SLOT_RELEASED',
-  RETRIED_BY_USER = 'RETRIED_BY_USER',
-  WORKFLOW_RUN_GROUP_KEY_SUCCEEDED = 'WORKFLOW_RUN_GROUP_KEY_SUCCEEDED',
-  WORKFLOW_RUN_GROUP_KEY_FAILED = 'WORKFLOW_RUN_GROUP_KEY_FAILED',
-}
-
-export enum StepRunStatus {
-  PENDING = 'PENDING',
-  PENDING_ASSIGNMENT = 'PENDING_ASSIGNMENT',
-  ASSIGNED = 'ASSIGNED',
-  RUNNING = 'RUNNING',
-  SUCCEEDED = 'SUCCEEDED',
-  FAILED = 'FAILED',
-  CANCELLED = 'CANCELLED',
-  CANCELLING = 'CANCELLING',
-  BACKOFF = 'BACKOFF',
-}
-
-export enum JobRunStatus {
-  PENDING = 'PENDING',
-  RUNNING = 'RUNNING',
-  SUCCEEDED = 'SUCCEEDED',
-  FAILED = 'FAILED',
-  CANCELLED = 'CANCELLED',
-  BACKOFF = 'BACKOFF',
-}
-
-export enum WorkflowKind {
-  FUNCTION = 'FUNCTION',
-  DURABLE = 'DURABLE',
-  DAG = 'DAG',
-}
-
-export enum WorkflowRunStatus {
-  PENDING = 'PENDING',
-  RUNNING = 'RUNNING',
-  SUCCEEDED = 'SUCCEEDED',
-  FAILED = 'FAILED',
-  CANCELLED = 'CANCELLED',
-  QUEUED = 'QUEUED',
-  BACKOFF = 'BACKOFF',
-}
-
-export enum WorkflowRunOrderByDirection {
-  ASC = 'ASC',
-  DESC = 'DESC',
-}
-
-export enum WorkflowRunOrderByField {
-  CreatedAt = 'createdAt',
-  StartedAt = 'startedAt',
-  FinishedAt = 'finishedAt',
-  Duration = 'duration',
-}
-
-export enum CronWorkflowsOrderByField {
-  Name = 'name',
-  CreatedAt = 'createdAt',
-}
-
-export enum ScheduledRunStatus {
-  PENDING = 'PENDING',
-  RUNNING = 'RUNNING',
-  SUCCEEDED = 'SUCCEEDED',
-  FAILED = 'FAILED',
-  CANCELLED = 'CANCELLED',
-  QUEUED = 'QUEUED',
-  SCHEDULED = 'SCHEDULED',
-}
-
-export enum ScheduledWorkflowsOrderByField {
-  TriggerAt = 'triggerAt',
-  CreatedAt = 'createdAt',
-}
-
-export enum RateLimitOrderByDirection {
-  Asc = 'asc',
-  Desc = 'desc',
-}
-
-export enum RateLimitOrderByField {
-  Key = 'key',
-  Value = 'value',
-  LimitValue = 'limitValue',
-}
-
-export enum EventOrderByDirection {
-  Asc = 'asc',
-  Desc = 'desc',
-}
-
-export enum EventOrderByField {
-  CreatedAt = 'createdAt',
-}
-
-export enum TenantResource {
-  WORKER = 'WORKER',
-  WORKER_SLOT = 'WORKER_SLOT',
-  EVENT = 'EVENT',
-  WORKFLOW_RUN = 'WORKFLOW_RUN',
-  TASK_RUN = 'TASK_RUN',
-  CRON = 'CRON',
-  SCHEDULE = 'SCHEDULE',
-}
-
-export enum TenantMemberRole {
-  OWNER = 'OWNER',
-  ADMIN = 'ADMIN',
-  MEMBER = 'MEMBER',
-}
-
 export interface APIMeta {
   auth?: APIMetaAuth;
   /**
@@ -405,6 +218,8 @@ export interface Tenant {
   alertMemberEmails?: boolean;
   /** The version of the tenant. */
   version: 'V0' | 'V1';
+  /** The UI of the tenant. */
+  uiVersion?: 'V0' | 'V1';
 }
 
 export interface TenantMember {
@@ -420,6 +235,22 @@ export interface TenantMember {
 export interface TenantMemberList {
   pagination?: PaginationResponse;
   rows?: TenantMember[];
+}
+
+export enum TenantMemberRole {
+  OWNER = 'OWNER',
+  ADMIN = 'ADMIN',
+  MEMBER = 'MEMBER',
+}
+
+export enum TenantResource {
+  WORKER = 'WORKER',
+  WORKER_SLOT = 'WORKER_SLOT',
+  EVENT = 'EVENT',
+  WORKFLOW_RUN = 'WORKFLOW_RUN',
+  TASK_RUN = 'TASK_RUN',
+  CRON = 'CRON',
+  SCHEDULE = 'SCHEDULE',
 }
 
 export interface TenantResourceLimit {
@@ -568,6 +399,10 @@ export interface CreateTenantRequest {
   name: string;
   /** The slug of the tenant. */
   slug: string;
+  /** The UI version of the tenant. Defaults to V0. */
+  uiVersion?: any;
+  /** The engine version of the tenant. Defaults to V0. */
+  engineVersion?: any;
 }
 
 export interface UpdateTenantRequest {
@@ -587,6 +422,8 @@ export interface UpdateTenantRequest {
   maxAlertingFrequency?: string;
   /** The version of the tenant. */
   version?: any;
+  /** The UI of the tenant. */
+  uiVersion?: any;
 }
 
 export interface Event {
@@ -615,6 +452,13 @@ export interface CreateEventRequest {
   data: object;
   /** Additional metadata for the event. */
   additionalMetadata?: object;
+  /**
+   * The priority of the event.
+   * @format int32
+   */
+  priority?: number;
+  /** The scope for event filtering. */
+  scope?: string;
 }
 
 export interface BulkCreateEventRequest {
@@ -660,6 +504,15 @@ export interface EventWorkflowRunSummary {
   cancelled?: number;
 }
 
+export enum EventOrderByField {
+  CreatedAt = 'createdAt',
+}
+
+export enum EventOrderByDirection {
+  Asc = 'asc',
+  Desc = 'desc',
+}
+
 export type EventSearch = string;
 
 export interface EventKeyList {
@@ -676,6 +529,130 @@ export type WorkflowID = string;
 export interface EventList {
   pagination?: PaginationResponse;
   rows?: Event[];
+}
+
+export interface V1EventList {
+  pagination?: PaginationResponse;
+  rows?: {
+    metadata: APIResourceMeta;
+    /** The key for the event. */
+    key: string;
+    /** The tenant associated with this event. */
+    tenant?: Tenant;
+    /** The ID of the tenant associated with this event. */
+    tenantId: string;
+    /** The workflow run summary for this event. */
+    workflowRunSummary: {
+      /**
+       * The number of running runs.
+       * @format int64
+       */
+      running: number;
+      /**
+       * The number of queued runs.
+       * @format int64
+       */
+      queued: number;
+      /**
+       * The number of succeeded runs.
+       * @format int64
+       */
+      succeeded: number;
+      /**
+       * The number of failed runs.
+       * @format int64
+       */
+      failed: number;
+      /**
+       * The number of cancelled runs.
+       * @format int64
+       */
+      cancelled: number;
+    };
+    /** Additional metadata for the event. */
+    additionalMetadata?: object;
+    /** The payload of the event, which can be any JSON-serializable object. */
+    payload?: object;
+    /** The scope of the event, which can be used to filter or categorize events. */
+    scope?: string;
+    /**
+     * The timestamp when the event was seen.
+     * @format date-time
+     */
+    seenAt?: string;
+    /** The external IDs of the runs that were triggered by this event. */
+    triggeredRuns?: {
+      /**
+       * The external ID of the triggered run.
+       * @format uuid
+       * @minLength 36
+       * @maxLength 36
+       */
+      workflowRunId: string;
+      /**
+       * The ID of the filter that triggered the run, if applicable.
+       * @format uuid
+       */
+      filterId?: string;
+    }[];
+    /** The name of the webhook that triggered this event, if applicable. */
+    triggeringWebhookName?: string;
+  }[];
+}
+
+export interface V1FilterList {
+  pagination?: PaginationResponse;
+  rows?: V1Filter[];
+}
+
+export interface V1Filter {
+  metadata: APIResourceMeta;
+  /** The ID of the tenant associated with this filter. */
+  tenantId: string;
+  /**
+   * The workflow id associated with this filter.
+   * @format uuid
+   * @minLength 36
+   * @maxLength 36
+   */
+  workflowId: string;
+  /** The scope associated with this filter. Used for subsetting candidate filters at evaluation time */
+  scope: string;
+  /** The expression associated with this filter. */
+  expression: string;
+  /** Additional payload data associated with the filter */
+  payload: object;
+}
+
+export interface V1WebhookList {
+  pagination?: PaginationResponse;
+  rows?: V1Webhook[];
+}
+
+export interface V1Webhook {
+  metadata: APIResourceMeta;
+  /** The ID of the tenant associated with this webhook. */
+  tenantId: string;
+  /** The name of the webhook */
+  name: string;
+  /** The name of the source for this webhook */
+  sourceName: V1WebhookSourceName;
+  /** The CEL expression to use for the event key. This is used to create the event key from the webhook payload. */
+  eventKeyExpression: string;
+  /** The type of authentication to use for the webhook */
+  authType: V1WebhookAuthType;
+}
+
+export enum V1WebhookSourceName {
+  GENERIC = 'GENERIC',
+  GITHUB = 'GITHUB',
+  STRIPE = 'STRIPE',
+}
+
+export enum V1WebhookAuthType {
+  BASIC = 'BASIC',
+  API_KEY = 'API_KEY',
+  HMAC = 'HMAC',
 }
 
 export interface RateLimit {
@@ -702,6 +679,17 @@ export interface RateLimitList {
   rows?: RateLimit[];
 }
 
+export enum RateLimitOrderByField {
+  Key = 'key',
+  Value = 'value',
+  LimitValue = 'limitValue',
+}
+
+export enum RateLimitOrderByDirection {
+  Asc = 'asc',
+  Desc = 'desc',
+}
+
 export interface ReplayEventRequest {
   eventIds: string[];
 }
@@ -723,6 +711,8 @@ export interface Workflow {
   tags?: WorkflowTag[];
   /** The jobs of the workflow. */
   jobs?: Job[];
+  /** The tenant id of the workflow. */
+  tenantId: string;
 }
 
 export interface WorkflowUpdateRequest {
@@ -771,6 +761,7 @@ export interface WorkflowVersion {
   triggers?: WorkflowTriggers;
   scheduleTimeout?: string;
   jobs?: Job[];
+  workflowConfig?: object;
 }
 
 export interface WorkflowVersionDefinition {
@@ -958,6 +949,21 @@ export interface ScheduledWorkflowsList {
   pagination?: PaginationResponse;
 }
 
+export enum ScheduledWorkflowsOrderByField {
+  TriggerAt = 'triggerAt',
+  CreatedAt = 'createdAt',
+}
+
+export enum ScheduledRunStatus {
+  PENDING = 'PENDING',
+  RUNNING = 'RUNNING',
+  SUCCEEDED = 'SUCCEEDED',
+  FAILED = 'FAILED',
+  CANCELLED = 'CANCELLED',
+  QUEUED = 'QUEUED',
+  SCHEDULED = 'SCHEDULED',
+}
+
 export interface CronWorkflows {
   metadata: APIResourceMeta;
   tenantId: string;
@@ -983,6 +989,23 @@ export interface CronWorkflowsList {
   pagination?: PaginationResponse;
 }
 
+export enum CronWorkflowsOrderByField {
+  Name = 'name',
+  CreatedAt = 'createdAt',
+}
+
+export enum WorkflowRunOrderByField {
+  CreatedAt = 'createdAt',
+  StartedAt = 'startedAt',
+  FinishedAt = 'finishedAt',
+  Duration = 'duration',
+}
+
+export enum WorkflowRunOrderByDirection {
+  ASC = 'ASC',
+  DESC = 'DESC',
+}
+
 export interface WorkflowRunsMetrics {
   counts?: WorkflowRunsMetricsCounts;
 }
@@ -996,12 +1019,49 @@ export interface WorkflowRunsMetricsCounts {
   CANCELLED?: number;
 }
 
+export enum WorkflowRunStatus {
+  PENDING = 'PENDING',
+  RUNNING = 'RUNNING',
+  SUCCEEDED = 'SUCCEEDED',
+  FAILED = 'FAILED',
+  CANCELLED = 'CANCELLED',
+  QUEUED = 'QUEUED',
+  BACKOFF = 'BACKOFF',
+}
+
 export type WorkflowRunStatusList = WorkflowRunStatus[];
+
+export enum WorkflowKind {
+  FUNCTION = 'FUNCTION',
+  DURABLE = 'DURABLE',
+  DAG = 'DAG',
+}
 
 export type WorkflowKindList = WorkflowKind[];
 
 export interface WorkflowRunsCancelRequest {
   workflowRunIds: string[];
+}
+
+export enum JobRunStatus {
+  PENDING = 'PENDING',
+  RUNNING = 'RUNNING',
+  SUCCEEDED = 'SUCCEEDED',
+  FAILED = 'FAILED',
+  CANCELLED = 'CANCELLED',
+  BACKOFF = 'BACKOFF',
+}
+
+export enum StepRunStatus {
+  PENDING = 'PENDING',
+  PENDING_ASSIGNMENT = 'PENDING_ASSIGNMENT',
+  ASSIGNED = 'ASSIGNED',
+  RUNNING = 'RUNNING',
+  SUCCEEDED = 'SUCCEEDED',
+  FAILED = 'FAILED',
+  CANCELLED = 'CANCELLED',
+  CANCELLING = 'CANCELLING',
+  BACKOFF = 'BACKOFF',
 }
 
 export interface JobRun {
@@ -1069,6 +1129,32 @@ export interface StepRun {
   cancelledError?: string;
 }
 
+export enum StepRunEventReason {
+  REQUEUED_NO_WORKER = 'REQUEUED_NO_WORKER',
+  REQUEUED_RATE_LIMIT = 'REQUEUED_RATE_LIMIT',
+  SCHEDULING_TIMED_OUT = 'SCHEDULING_TIMED_OUT',
+  ASSIGNED = 'ASSIGNED',
+  STARTED = 'STARTED',
+  ACKNOWLEDGED = 'ACKNOWLEDGED',
+  FINISHED = 'FINISHED',
+  FAILED = 'FAILED',
+  RETRYING = 'RETRYING',
+  CANCELLED = 'CANCELLED',
+  TIMEOUT_REFRESHED = 'TIMEOUT_REFRESHED',
+  REASSIGNED = 'REASSIGNED',
+  TIMED_OUT = 'TIMED_OUT',
+  SLOT_RELEASED = 'SLOT_RELEASED',
+  RETRIED_BY_USER = 'RETRIED_BY_USER',
+  WORKFLOW_RUN_GROUP_KEY_SUCCEEDED = 'WORKFLOW_RUN_GROUP_KEY_SUCCEEDED',
+  WORKFLOW_RUN_GROUP_KEY_FAILED = 'WORKFLOW_RUN_GROUP_KEY_FAILED',
+}
+
+export enum StepRunEventSeverity {
+  INFO = 'INFO',
+  WARNING = 'WARNING',
+  CRITICAL = 'CRITICAL',
+}
+
 export interface StepRunEvent {
   id: number;
   /** @format date-time */
@@ -1127,6 +1213,12 @@ export interface WorkerRuntimeInfo {
   runtimeExtra?: string;
 }
 
+export enum WorkerRuntimeSDKs {
+  GOLANG = 'GOLANG',
+  PYTHON = 'PYTHON',
+  TYPESCRIPT = 'TYPESCRIPT',
+}
+
 export interface WorkerList {
   pagination?: PaginationResponse;
   rows?: Worker[];
@@ -1155,7 +1247,7 @@ export interface SemaphoreSlots {
    * @format uuid
    */
   workflowRunId: string;
-  status: StepRunStatus;
+  status?: StepRunStatus;
 }
 
 export interface RecentStepRuns {
@@ -1333,6 +1425,11 @@ export interface PullRequest {
   pullRequestState: PullRequestState;
 }
 
+export enum PullRequestState {
+  Open = 'open',
+  Closed = 'closed',
+}
+
 export interface LogLine {
   /**
    * The creation date of the log line.
@@ -1345,9 +1442,25 @@ export interface LogLine {
   metadata: object;
 }
 
+export enum LogLineLevel {
+  DEBUG = 'DEBUG',
+  INFO = 'INFO',
+  WARN = 'WARN',
+  ERROR = 'ERROR',
+}
+
 export interface LogLineList {
   pagination?: PaginationResponse;
   rows?: LogLine[];
+}
+
+export enum LogLineOrderByField {
+  CreatedAt = 'createdAt',
+}
+
+export enum LogLineOrderByDirection {
+  Asc = 'asc',
+  Desc = 'desc',
 }
 
 export type LogLineSearch = string;
@@ -1412,6 +1525,12 @@ export interface WebhookWorker {
   name: string;
   /** The webhook url. */
   url: string;
+}
+
+export enum WebhookWorkerRequestMethod {
+  GET = 'GET',
+  POST = 'POST',
+  PUT = 'PUT',
 }
 
 export interface WebhookWorkerRequest {
@@ -1481,6 +1600,10 @@ export interface V1TaskSummary {
   metadata: APIResourceMeta;
   /** The action ID of the task. */
   actionId?: string;
+  /** The number of retries of the task. */
+  retryCount?: number;
+  /** The attempt number of the task. */
+  attempt?: number;
   /** Additional metadata for the task run. */
   additionalMetadata?: object;
   /** The list of children tasks */
@@ -1551,12 +1674,18 @@ export interface V1TaskSummary {
    * The external ID of the workflow run
    * @format uuid
    */
-  workflowRunExternalId?: string;
+  workflowRunExternalId: string;
   /**
    * The version ID of the workflow
    * @format uuid
    */
   workflowVersionId?: string;
+  workflowConfig?: object;
+  /**
+   * The external ID of the parent task.
+   * @format uuid
+   */
+  parentTaskExternalId?: string;
 }
 
 export interface V1DagChildren {
@@ -1600,7 +1729,29 @@ export interface V1TaskEventList {
     /** @format uuid */
     workerId?: string;
     taskDisplayName?: string;
+    /** The number of retries of the task. */
+    retryCount?: number;
+    /** The attempt number of the task. */
+    attempt?: number;
   }[];
+}
+
+export interface V1ReplayedTasks {
+  /** The list of task external ids that were replayed */
+  ids?: string[];
+}
+
+export interface V1CancelledTasks {
+  /** The list of task external ids that were cancelled */
+  ids?: string[];
+}
+
+export enum V1TaskStatus {
+  QUEUED = 'QUEUED',
+  RUNNING = 'RUNNING',
+  COMPLETED = 'COMPLETED',
+  CANCELLED = 'CANCELLED',
+  FAILED = 'FAILED',
 }
 
 export type V1TaskRunMetrics = {
@@ -1715,6 +1866,15 @@ export interface V1WorkflowRunDetails {
     taskName: string;
   }[];
   tasks: V1TaskSummary[];
+  workflowConfig?: object;
+}
+
+export enum V1TaskRunStatus {
+  PENDING = 'PENDING',
+  RUNNING = 'RUNNING',
+  COMPLETED = 'COMPLETED',
+  FAILED = 'FAILED',
+  CANCELLED = 'CANCELLED',
 }
 
 export interface V1TriggerWorkflowRunRequest {
@@ -1736,9 +1896,184 @@ export interface V1LogLine {
   message: string;
   /** The log metadata. */
   metadata: object;
+  /** The retry count of the log line. */
+  retryCount?: number;
+  /** The attempt number of the log line. */
+  attempt?: number;
+  /** The log level. */
+  level?: V1LogLineLevel;
+}
+
+export enum V1LogLineLevel {
+  DEBUG = 'DEBUG',
+  INFO = 'INFO',
+  WARN = 'WARN',
+  ERROR = 'ERROR',
 }
 
 export interface V1LogLineList {
   pagination?: PaginationResponse;
   rows?: V1LogLine[];
+}
+
+export interface V1TaskTiming {
+  metadata: APIResourceMeta;
+  /** The depth of the task in the waterfall. */
+  depth: number;
+  status: V1TaskStatus;
+  /** The display name of the task run. */
+  taskDisplayName: string;
+  /**
+   * The external ID of the task.
+   * @format uuid
+   * @minLength 36
+   * @maxLength 36
+   */
+  taskExternalId: string;
+  /** The ID of the task. */
+  taskId: number;
+  /**
+   * The timestamp the task was inserted.
+   * @format date-time
+   */
+  taskInsertedAt: string;
+  /**
+   * The ID of the tenant.
+   * @format uuid
+   * @minLength 36
+   * @maxLength 36
+   * @example "bb214807-246e-43a5-a25d-41761d1cff9e"
+   */
+  tenantId: string;
+  /**
+   * The external ID of the parent task.
+   * @format uuid
+   * @minLength 36
+   * @maxLength 36
+   */
+  parentTaskExternalId?: string;
+  /**
+   * The timestamp the task run was queued.
+   * @format date-time
+   */
+  queuedAt?: string;
+  /**
+   * The timestamp the task run started.
+   * @format date-time
+   */
+  startedAt?: string;
+  /**
+   * The timestamp the task run finished.
+   * @format date-time
+   */
+  finishedAt?: string;
+  /**
+   * The external ID of the workflow run.
+   * @format uuid
+   */
+  workflowRunId?: string;
+  /** The number of retries of the task. */
+  retryCount?: number;
+  /** The attempt number of the task. */
+  attempt?: number;
+}
+
+export interface V1TaskTimingList {
+  pagination: PaginationResponse;
+  /** The list of task timings */
+  rows: V1TaskTiming[];
+}
+
+export interface V1CreateFilterRequest {
+  /**
+   * The workflow id
+   * @format uuid
+   * @minLength 36
+   * @maxLength 36
+   */
+  workflowId: string;
+  /** The expression for the filter */
+  expression: string;
+  /** The scope associated with this filter. Used for subsetting candidate filters at evaluation time */
+  scope: string;
+  /** The payload for the filter */
+  payload?: object;
+}
+
+export type V1CreateWebhookRequest =
+  | ({
+      /** The name of the source for this webhook */
+      sourceName: V1WebhookSourceName;
+      /** The name of the webhook */
+      name: string;
+      /** The CEL expression to use for the event key. This is used to create the event key from the webhook payload. */
+      eventKeyExpression: string;
+    } & {
+      /** The type of authentication to use for the webhook */
+      authType: 'BASIC';
+      auth: {
+        /** The username for basic auth */
+        username: string;
+        /** The password for basic auth */
+        password: string;
+      };
+    })
+  | {
+      /** The type of authentication to use for the webhook */
+      authType: 'API_KEY';
+      auth: {
+        /** The name of the header to use for the API key */
+        headerName: string;
+        /** The API key to use for authentication */
+        apiKey: string;
+      };
+    }
+  | {
+      /** The type of authentication to use for the webhook */
+      authType: 'HMAC';
+      auth: {
+        /** The HMAC algorithm to use for the webhook */
+        algorithm: 'SHA1' | 'SHA256' | 'SHA512' | 'MD5';
+        /** The encoding to use for the HMAC signature */
+        encoding: 'HEX' | 'BASE64' | 'BASE64URL';
+        /** The name of the header to use for the HMAC signature */
+        signatureHeaderName: string;
+        /** The secret key used to sign the HMAC signature */
+        signingSecret: string;
+      };
+    };
+
+export interface V1UpdateFilterRequest {
+  /** The expression for the filter */
+  expression?: string;
+  /** The scope associated with this filter. Used for subsetting candidate filters at evaluation time */
+  scope?: string;
+  /** The payload for the filter */
+  payload?: object;
+}
+
+export interface V1CELDebugRequest {
+  /** The CEL expression to evaluate */
+  expression: string;
+  /** The input, which simulates the workflow run input */
+  input: object;
+  /** The filter payload, which simulates a payload set on a previous-created filter */
+  filterPayload?: object;
+  /** Additional metadata, which simulates metadata that could be sent with an event or a workflow run */
+  additionalMetadata?: object;
+}
+
+export interface V1CELDebugResponse {
+  /** The status of the CEL evaluation */
+  status: V1CELDebugResponseStatus;
+  /** The result of the CEL expression evaluation, if successful */
+  output?: boolean;
+  /** The error message if the evaluation failed */
+  error?: string;
+}
+
+/** The status of the CEL evaluation */
+export enum V1CELDebugResponseStatus {
+  SUCCESS = 'SUCCESS',
+  ERROR = 'ERROR',
 }

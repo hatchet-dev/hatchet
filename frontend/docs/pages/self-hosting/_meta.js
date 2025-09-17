@@ -21,7 +21,12 @@ export default {
     title: "Managing Hatchet",
   },
   "configuration-options": "Engine Configuration Options",
-  "prometheus-metrics": "Prometheus Metrics",
+  "prometheus-metrics": {
+    title: "Prometheus Metrics",
+    theme: {
+      toc: true,
+    },
+  },
   "worker-configuration-options": "Worker Configuration Options",
   benchmarking: "Benchmarking",
   "data-retention": "Data Retention",

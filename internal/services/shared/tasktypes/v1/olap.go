@@ -12,18 +12,34 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 )
 
-type CreatedTaskPayload struct {
-	*sqlcv1.V1Task
+type CELEvaluationFailures struct {
+	Failures []v1.CELEvaluationFailure
 }
 
-func CreatedTaskMessage(tenantId string, task *sqlcv1.V1Task) (*msgqueue.Message, error) {
+func CELEvaluationFailureMessage(tenantId string, failures []v1.CELEvaluationFailure) (*msgqueue.Message, error) {
+	return msgqueue.NewTenantMessage(
+		tenantId,
+		"cel-evaluation-failure",
+		false,
+		true,
+		CELEvaluationFailures{
+			Failures: failures,
+		},
+	)
+}
+
+type CreatedTaskPayload struct {
+	*v1.V1TaskWithPayload
+}
+
+func CreatedTaskMessage(tenantId string, task *v1.V1TaskWithPayload) (*msgqueue.Message, error) {
 	return msgqueue.NewTenantMessage(
 		tenantId,
 		"created-task",
 		false,
 		true,
 		CreatedTaskPayload{
-			V1Task: task,
+			V1TaskWithPayload: task,
 		},
 	)
 }
@@ -52,6 +68,9 @@ type CreatedEventTriggerPayloadSingleton struct {
 	EventExternalId         string     `json:"event_id"`
 	EventPayload            []byte     `json:"event_payload"`
 	EventAdditionalMetadata []byte     `json:"event_additional_metadata,omitempty"`
+	EventScope              *string    `json:"event_scope,omitempty"`
+	FilterId                *string    `json:"filter_id,omitempty"`
+	TriggeringWebhookName   *string    `json:"triggering_webhook_name,omitempty"`
 }
 
 type CreatedEventTriggerPayload struct {

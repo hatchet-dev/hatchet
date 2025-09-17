@@ -8,6 +8,7 @@ import (
 	"github.com/google/cel-go/checker/decls"
 	"github.com/google/cel-go/common/types"
 	"github.com/google/cel-go/common/types/ref"
+	"github.com/google/cel-go/ext"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
@@ -16,8 +17,10 @@ import (
 )
 
 type CELParser struct {
-	workflowStrEnv *cel.Env
-	stepRunEnv     *cel.Env
+	workflowStrEnv     *cel.Env
+	stepRunEnv         *cel.Env
+	eventEnv           *cel.Env
+	incomingWebhookEnv *cel.Env
 }
 
 var checksumDecl = decls.NewFunction("checksum",
@@ -54,6 +57,7 @@ func NewCELParser() *CELParser {
 			checksumDecl,
 		),
 		checksum,
+		ext.Strings(),
 	)
 
 	stepRunEnv, _ := cel.NewEnv(
@@ -65,11 +69,34 @@ func NewCELParser() *CELParser {
 			checksumDecl,
 		),
 		checksum,
+		ext.Strings(),
+	)
+
+	eventEnv, _ := cel.NewEnv(
+		cel.Declarations(
+			decls.NewVar("input", decls.NewMapType(decls.String, decls.Dyn)),
+			decls.NewVar("additional_metadata", decls.NewMapType(decls.String, decls.Dyn)),
+			decls.NewVar("payload", decls.NewMapType(decls.String, decls.Dyn)),
+			decls.NewVar("event_id", decls.String),
+			decls.NewVar("event_key", decls.String),
+			checksumDecl,
+		),
+		ext.Strings(),
+	)
+
+	incomingWebhookEnv, _ := cel.NewEnv(
+		cel.Declarations(
+			decls.NewVar("input", decls.NewMapType(decls.String, decls.Dyn)),
+			decls.NewVar("headers", decls.NewMapType(decls.String, decls.String)),
+			checksumDecl,
+		),
 	)
 
 	return &CELParser{
-		workflowStrEnv: workflowStrEnv,
-		stepRunEnv:     stepRunEnv,
+		workflowStrEnv:     workflowStrEnv,
+		stepRunEnv:         stepRunEnv,
+		eventEnv:           eventEnv,
+		incomingWebhookEnv: incomingWebhookEnv,
 	}
 }
 
@@ -80,6 +107,12 @@ type InputOpts func(Input)
 func WithInput(input map[string]interface{}) InputOpts {
 	return func(w Input) {
 		w["input"] = input
+	}
+}
+
+func WithHeaders(headers map[string]string) InputOpts {
+	return func(w Input) {
+		w["headers"] = headers
 	}
 }
 
@@ -98,6 +131,24 @@ func WithAdditionalMetadata(metadata map[string]interface{}) InputOpts {
 func WithWorkflowRunID(workflowRunID string) InputOpts {
 	return func(w Input) {
 		w["workflow_run_id"] = workflowRunID
+	}
+}
+
+func WithPayload(payload map[string]interface{}) InputOpts {
+	return func(w Input) {
+		w["payload"] = payload
+	}
+}
+
+func WithEventID(eventID string) InputOpts {
+	return func(w Input) {
+		w["event_id"] = eventID
+	}
+}
+
+func WithEventKey(key string) InputOpts {
+	return func(w Input) {
+		w["event_key"] = key
 	}
 }
 
@@ -293,4 +344,56 @@ func (p *CELParser) CheckStepRunOutAgainstKnownV1(out *StepRunOut, knownType sql
 	}
 
 	return nil
+}
+
+func (p *CELParser) EvaluateEventExpression(expr string, input Input) (bool, error) {
+	ast, issues := p.eventEnv.Compile(expr)
+
+	if issues != nil && issues.Err() != nil {
+		return false, fmt.Errorf("failed to compile expression: %w", issues.Err())
+	}
+
+	program, err := p.eventEnv.Program(ast)
+	if err != nil {
+		return false, fmt.Errorf("failed to create program: %w", err)
+	}
+
+	var inMap map[string]interface{} = input
+
+	out, _, err := program.Eval(inMap)
+	if err != nil {
+		return false, fmt.Errorf("failed to evaluate expression: %w", err)
+	}
+
+	if out.Type() != types.BoolType {
+		return false, fmt.Errorf("expression did not evaluate to a boolean: got %s", out.Type().TypeName())
+	}
+
+	return out.Value().(bool), nil
+}
+
+func (p *CELParser) EvaluateIncomingWebhookExpression(expr string, input Input) (string, error) {
+	ast, issues := p.incomingWebhookEnv.Compile(expr)
+
+	if issues != nil && issues.Err() != nil {
+		return "", fmt.Errorf("failed to compile expression: %w", issues.Err())
+	}
+
+	program, err := p.incomingWebhookEnv.Program(ast)
+	if err != nil {
+		return "", fmt.Errorf("failed to create program: %w", err)
+	}
+
+	var inMap map[string]interface{} = input
+
+	out, _, err := program.Eval(inMap)
+	if err != nil {
+		return "", fmt.Errorf("failed to evaluate expression: %w", err)
+	}
+
+	if out.Type() != types.StringType {
+		return "", fmt.Errorf("expression did not evaluate to a string: got %s", out.Type().TypeName())
+	}
+
+	return out.Value().(string), nil
 }

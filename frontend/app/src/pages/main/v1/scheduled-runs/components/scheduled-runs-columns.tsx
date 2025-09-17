@@ -4,7 +4,6 @@ import { RateLimit, ScheduledWorkflows } from '@/lib/api';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { AdditionalMetadata } from '../../events/components/additional-metadata';
 import { RunStatus } from '../../workflow-runs/components/run-statuses';
-import { Link } from 'react-router-dom';
 import { DataTableRowActions } from '@/components/v1/molecules/data-table/data-table-row-actions';
 export type RateLimitRow = RateLimit & {
   metadata: {
@@ -13,26 +12,17 @@ export type RateLimitRow = RateLimit & {
 };
 
 export const columns = ({
+  tenantId,
   onDeleteClick,
+  selectedAdditionalMetaJobId,
+  handleSetSelectedAdditionalMetaJobId,
 }: {
+  tenantId: string;
   onDeleteClick: (row: ScheduledWorkflows) => void;
+  selectedAdditionalMetaJobId: string | null;
+  handleSetSelectedAdditionalMetaJobId: (runId: string | null) => void;
 }): ColumnDef<ScheduledWorkflows>[] => {
   return [
-    {
-      accessorKey: 'runId',
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Run ID" />
-      ),
-      cell: ({ row }) => {
-        return row.original.workflowRunId ? (
-          <Link to={`/v1/runs/${row.original.workflowRunId}`}>
-            <div className="cursor-pointer hover:underline min-w-fit whitespace-nowrap">
-              {row.original.workflowRunName}
-            </div>
-          </Link>
-        ) : null;
-      },
-    },
     {
       accessorKey: 'status',
       header: ({ column }) => (
@@ -61,7 +51,9 @@ export const columns = ({
       cell: ({ row }) => (
         <div className="flex flex-row items-center gap-4">
           <div className="cursor-pointer hover:underline min-w-fit whitespace-nowrap">
-            <a href={`/v1/tasks/${row.original.workflowId}`}>
+            <a
+              href={`/tenants/${tenantId}/workflows/${row.original.workflowId}`}
+            >
               {row.original.workflowName}
             </a>
           </div>
@@ -81,7 +73,17 @@ export const columns = ({
         }
 
         return (
-          <AdditionalMetadata metadata={row.original.additionalMetadata} />
+          <AdditionalMetadata
+            metadata={row.original.additionalMetadata}
+            isOpen={selectedAdditionalMetaJobId === row.original.metadata.id}
+            onOpenChange={(open) => {
+              if (open) {
+                handleSetSelectedAdditionalMetaJobId(row.original.metadata.id);
+              } else {
+                handleSetSelectedAdditionalMetaJobId(null);
+              }
+            }}
+          />
         );
       },
       enableSorting: false,

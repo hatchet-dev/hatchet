@@ -60,14 +60,20 @@ WHERE
     w."id" = @id::uuid;
 
 -- name: GetWorkerActionsByWorkerId :many
+WITH inputs AS (
+    SELECT UNNEST(@workerIds::UUID[]) AS "workerId"
+)
+
 SELECT
+    w."id" AS "workerId",
     a."actionId" AS actionId
 FROM "Worker" w
+JOIN inputs i ON w."id" = i."workerId"
 LEFT JOIN "_ActionToWorker" aw ON w.id = aw."B"
 LEFT JOIN "Action" a ON aw."A" = a.id
 WHERE
-    a."tenantId" = @tenantId::uuid AND
-    w."id" = @workerId::uuid;
+    a."tenantId" = @tenantId::UUID
+;
 
 -- name: ListSemaphoreSlotsWithStateForWorker :many
 SELECT

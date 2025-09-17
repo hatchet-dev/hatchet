@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
+	"go.opentelemetry.io/otel/codes"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/hatchet-dev/hatchet/internal/cache"
@@ -107,7 +108,18 @@ func (p *PostgresMessageQueue) SetQOS(prefetchCount int) {
 }
 
 func (p *PostgresMessageQueue) SendMessage(ctx context.Context, queue msgqueue.Queue, task *msgqueue.Message) error {
-	return p.addMessage(ctx, queue, task)
+	ctx, span := telemetry.NewSpan(ctx, "PostgresMessageQueue.SendMessage")
+	defer span.End()
+
+	err := p.addMessage(ctx, queue, task)
+
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "error adding message")
+		return err
+	}
+
+	return nil
 }
 
 func (p *PostgresMessageQueue) addMessage(ctx context.Context, queue msgqueue.Queue, task *msgqueue.Message) error {
@@ -141,6 +153,13 @@ func (p *PostgresMessageQueue) addMessage(ctx context.Context, queue msgqueue.Qu
 	if err != nil {
 		p.l.Error().Err(err).Msgf("error adding message for queue %s", queue.Name())
 		return err
+	}
+
+	// notify the queue that a new message has been added
+	err = p.repo.Notify(ctx, queue.Name(), "")
+
+	if err != nil {
+		p.l.Error().Err(err).Msgf("error notifying queue %s", queue.Name())
 	}
 
 	if task.TenantID != "" {
@@ -233,7 +252,7 @@ func (p *PostgresMessageQueue) Subscribe(queue msgqueue.Queue, preAck msgqueue.A
 		return eg.Wait()
 	}
 
-	op := queueutils.NewOperationPool(p.l, 60*time.Second, "postgresmq", queueutils.OpMethod(func(ctx context.Context, id string) (bool, error) {
+	op := queueutils.NewOperationPool(p.l, 60*time.Second, "postgresmq", queueutils.OpMethod[string](func(ctx context.Context, id string) (bool, error) {
 		messages, err := p.repo.ReadMessages(subscribeCtx, queue.Name(), p.qos)
 
 		if err != nil {
@@ -259,7 +278,7 @@ func (p *PostgresMessageQueue) Subscribe(queue msgqueue.Queue, preAck msgqueue.A
 
 	// start the listener
 	go func() {
-		err := p.repo.Listen(subscribeCtx, queue.Name(), func(ctx context.Context, notification *repository.PubMessage) error {
+		err := p.repo.Listen(subscribeCtx, queue.Name(), func(ctx context.Context, notification *repository.PubSubMessage) error {
 			// if this is not a durable queue, and the message starts with JSON '{', then we process the message directly
 			if !queue.Durable() && len(notification.Payload) >= 1 && notification.Payload[0] == '{' {
 				var task msgqueue.Message

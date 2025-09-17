@@ -10,24 +10,31 @@ import (
 	"github.com/rs/zerolog"
 )
 
-type OperationPool struct {
+type OperationPool[T ID] struct {
 	ops         sync.Map
 	timeout     time.Duration
 	description string
-	method      OpMethod
+	method      OpMethod[T]
 	ql          *zerolog.Logger
+	maxJitter   time.Duration
 }
 
-func NewOperationPool(ql *zerolog.Logger, timeout time.Duration, description string, method OpMethod) *OperationPool {
-	return &OperationPool{
+func NewOperationPool[T ID](ql *zerolog.Logger, timeout time.Duration, description string, method OpMethod[T]) *OperationPool[T] {
+	return &OperationPool[T]{
 		timeout:     timeout,
 		description: description,
 		method:      method,
 		ql:          ql,
+		maxJitter:   0, // Default to no jitter
 	}
 }
 
-func (p *OperationPool) SetTenants(tenants []*dbsqlc.Tenant) {
+func (p *OperationPool[T]) WithJitter(maxJitter time.Duration) *OperationPool[T] {
+	p.maxJitter = maxJitter
+	return p
+}
+
+func (p *OperationPool[T]) SetTenants(tenants []*dbsqlc.Tenant) {
 	tenantMap := make(map[string]bool)
 
 	for _, t := range tenants {
@@ -44,24 +51,41 @@ func (p *OperationPool) SetTenants(tenants []*dbsqlc.Tenant) {
 	})
 }
 
-func (p *OperationPool) RunOrContinue(id string) {
+func (p *OperationPool[T]) SetPartitions(partitions []int64) {
+	partitionMap := make(map[int64]bool)
+
+	for _, partitionId := range partitions {
+		partitionMap[partitionId] = true
+	}
+
+	p.ops.Range(func(key, value interface{}) bool {
+		if _, ok := partitionMap[key.(int64)]; !ok {
+			p.ops.Delete(key)
+		}
+
+		return true
+	})
+}
+
+func (p *OperationPool[T]) RunOrContinue(id T) {
 	p.GetOperation(id).RunOrContinue(p.ql)
 }
 
-func (p *OperationPool) GetOperation(id string) *SerialOperation {
+func (p *OperationPool[T]) GetOperation(id T) *SerialOperation[T] {
 	op, ok := p.ops.Load(id)
 
 	if !ok {
-		op = &SerialOperation{
+		op = &SerialOperation[T]{
 			id:          id,
 			lastRun:     time.Now(),
 			description: p.description,
 			timeout:     p.timeout,
 			method:      p.method,
+			maxJitter:   p.maxJitter,
 		}
 
 		p.ops.Store(id, op)
 	}
 
-	return op.(*SerialOperation)
+	return op.(*SerialOperation[T])
 }

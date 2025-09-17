@@ -18,6 +18,7 @@ import {
   CreateWorkflowVersionRequest,
 } from '@hatchet/protoc/v1/workflows';
 import { Priority, RunsClient } from '@hatchet/v1';
+import { applyNamespace } from '@hatchet/util/apply-namespace';
 import { Api } from '../rest';
 import {
   WebhookWorkerCreateRequest,
@@ -179,13 +180,9 @@ export class AdminClient {
       priority?: Priority;
     }
   ) {
-    let computedName = workflowName;
+    const computedName = applyNamespace(workflowName, this.config.namespace);
 
     try {
-      if (this.config.namespace && !workflowName.startsWith(this.config.namespace)) {
-        computedName = this.config.namespace + workflowName;
-      }
-
       const inputStr = JSON.stringify(input);
 
       const resp = this.client.triggerWorkflow({
@@ -226,12 +223,7 @@ export class AdminClient {
   ): Promise<WorkflowRunRef<P>[]> {
     // Prepare workflows to be triggered in bulk
     const workflowRequests = workflowRuns.map(({ workflowName, input, options }) => {
-      let computedName = workflowName;
-
-      if (this.config.namespace && !workflowName.startsWith(this.config.namespace)) {
-        computedName = this.config.namespace + workflowName;
-      }
-
+      const computedName = applyNamespace(workflowName, this.config.namespace);
       const inputStr = JSON.stringify(input);
 
       return {
@@ -385,14 +377,13 @@ export class AdminClient {
    * @param name the name of the workflow to schedule
    * @param options an object containing the schedules to set
    * @param input an object containing the input to the workflow
+   * @deprecated use hatchet.schedules.create instead
    */
   scheduleWorkflow(name: string, options?: { schedules?: Date[]; input?: object }) {
     let computedName = name;
 
     try {
-      if (this.config.namespace && !name.startsWith(this.config.namespace)) {
-        computedName = this.config.namespace + name;
-      }
+      computedName = applyNamespace(name, this.config.namespace);
 
       let input: string | undefined;
 

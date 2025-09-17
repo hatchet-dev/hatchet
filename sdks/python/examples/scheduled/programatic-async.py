@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from hatchet_sdk import Hatchet
 
@@ -9,7 +9,7 @@ async def create_scheduled() -> None:
     # > Create
     scheduled_run = await hatchet.scheduled.aio_create(
         workflow_name="simple-workflow",
-        trigger_at=datetime.now() + timedelta(seconds=10),
+        trigger_at=datetime.now(tz=timezone.utc) + timedelta(seconds=10),
         input={
             "data": "simple-workflow-data",
         },

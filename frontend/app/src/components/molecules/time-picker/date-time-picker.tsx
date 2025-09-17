@@ -13,7 +13,18 @@ import { CalendarIcon } from '@radix-ui/react-icons';
 type DateTimePickerProps = {
   date: Date | undefined;
   setDate: (date: Date | undefined) => void;
-  label: string;
+  label?: string;
+};
+
+const formatDateWithLabel = (date: Date, label?: string) => {
+  const formattedDate =
+    format(date, 'PPP HH:mm') + ' (' + format(date, 'z') + ')';
+
+  if (!label) {
+    return formattedDate;
+  }
+
+  return label + ':  ' + formattedDate;
 };
 
 export function DateTimePicker({ date, setDate, label }: DateTimePickerProps) {
@@ -46,16 +57,7 @@ export function DateTimePicker({ date, setDate, label }: DateTimePickerProps) {
           )}
         >
           <CalendarIcon className="mr-2 h-4 w-4" />
-          {date ? (
-            label +
-            ':  ' +
-            format(date, 'PPP HH:mm') +
-            ' (' +
-            format(date, 'z') +
-            ')'
-          ) : (
-            <span>{label}</span>
-          )}
+          {date ? formatDateWithLabel(date, label) : <span>{label}</span>}
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0">

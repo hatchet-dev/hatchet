@@ -1,4 +1,4 @@
-package v2
+package v1
 
 import (
 	"slices"
@@ -168,6 +168,11 @@ func (r *rankedValidSlots) order() []*slot {
 	// iterate through sortedRanks in reverse order
 	for i := len(sortedRanks) - 1; i >= 0; i-- {
 		rank := sortedRanks[i]
+
+		if rank < 0 {
+			// skip negative ranks, as they are not valid for scheduling
+			continue
+		}
 
 		if r.ranksToSlots[rank] != nil {
 			nonNegativeSlots = append(nonNegativeSlots, r.ranksToSlots[rank]...)

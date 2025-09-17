@@ -1,4 +1,4 @@
-package v2
+package v1
 
 import (
 	"context"
@@ -43,6 +43,8 @@ type Queuer struct {
 
 	unassigned   map[int64]*sqlcv1.V1QueueItem
 	unassignedMu mutex
+
+	hasRateLimits bool
 }
 
 func newQueuer(conf *sharedConfig, tenantId pgtype.UUID, queueName string, s *Scheduler, resultsCh chan<- *QueueResults) *Queuer {
@@ -126,6 +128,7 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 		}
 
 		prometheus.QueueInvocations.Inc()
+		prometheus.TenantQueueInvocations.WithLabelValues(q.tenantId.String()).Inc()
 
 		ctx, span := telemetry.NewSpanWithCarrier(ctx, "queue", carrier)
 
@@ -137,9 +140,19 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 		start := time.Now()
 		checkpoint := start
 		var err error
+
+		if q.hasRateLimits {
+			_, err := q.repo.RequeueRateLimitedItems(ctx, q.tenantId, q.queueName)
+
+			if err != nil {
+				q.l.Error().Err(err).Msg("error requeuing rate limited items")
+			}
+		}
+
 		qis, err := q.refillQueue(ctx)
 
 		if err != nil {
+			span.RecordError(err)
 			span.End()
 			q.l.Error().Err(err).Msg("error refilling queue")
 			continue
@@ -154,10 +167,17 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 		rls, err := q.repo.GetTaskRateLimits(ctx, qis)
 
 		if err != nil {
+			span.RecordError(err)
+			span.End()
+
 			q.l.Error().Err(err).Msg("error getting rate limits")
 
 			q.unackedToUnassigned(qis)
 			continue
+		}
+
+		if len(rls) > 0 {
+			q.hasRateLimits = true
 		}
 
 		rateLimitTime := time.Since(checkpoint)
@@ -172,6 +192,8 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 		labels, err := q.repo.GetDesiredLabels(ctx, stepIds)
 
 		if err != nil {
+			span.RecordError(err)
+			span.End()
 			q.l.Error().Err(err).Msg("error getting desired labels")
 
 			q.unackedToUnassigned(qis)
@@ -203,7 +225,7 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 
 				countMu.Lock()
 				count += numFlushed
-				processedQiLength += len(ar.assigned) + len(ar.unassigned) + len(ar.schedulingTimedOut) + len(ar.rateLimited)
+				processedQiLength += len(ar.assigned) + len(ar.unassigned) + len(ar.schedulingTimedOut) + len(ar.rateLimited) + len(ar.rateLimitedToMove)
 				countMu.Unlock()
 
 				if sinceStart := time.Since(startFlush); sinceStart > 100*time.Millisecond {
@@ -215,6 +237,7 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 
 					for _, assignedItem := range ar.assigned {
 						prometheus.AssignedTasks.Inc()
+						prometheus.TenantAssignedTasks.WithLabelValues(q.tenantId.String()).Inc()
 
 						qi := assignedItem.QueueItem
 
@@ -226,21 +249,25 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 						}
 
 						prometheus.QueuedToAssigned.Inc()
+						prometheus.TenantQueuedToAssigned.WithLabelValues(q.tenantId.String()).Inc()
 
 						timeInQueueSeconds := now.Sub(qi.TaskInsertedAt.Time).Seconds()
 
 						if timeInQueueSeconds > 0 {
 							prometheus.QueuedToAssignedTimeBuckets.Observe(timeInQueueSeconds)
+							prometheus.TenantQueuedToAssignedTimeBuckets.WithLabelValues(q.tenantId.String()).Observe(timeInQueueSeconds)
 						}
 					}
 				}
 
 				for range ar.schedulingTimedOut {
 					prometheus.SchedulingTimedOut.Inc()
+					prometheus.TenantSchedulingTimedOut.WithLabelValues(q.tenantId.String()).Inc()
 				}
 
 				for range ar.rateLimited {
 					prometheus.RateLimited.Inc()
+					prometheus.TenantRateLimited.WithLabelValues(q.tenantId.String()).Inc()
 				}
 			}(r)
 		}
@@ -380,6 +407,11 @@ func (q *Queuer) ack(r *assignResults) {
 		delete(q.unassigned, schedulingTimedOutItem.ID)
 	}
 
+	for _, rateLimitedItemToMove := range r.rateLimitedToMove {
+		delete(q.unacked, rateLimitedItemToMove.qi.ID)
+		delete(q.unassigned, rateLimitedItemToMove.qi.ID)
+	}
+
 	for _, rateLimitedItem := range r.rateLimited {
 		delete(q.unacked, rateLimitedItem.qi.ID)
 		q.unassigned[rateLimitedItem.qi.ID] = rateLimitedItem.qi
@@ -410,7 +442,7 @@ func (q *Queuer) flushToDatabase(ctx context.Context, r *assignResults) int {
 
 	q.l.Debug().Int("assigned", len(r.assigned)).Int("unassigned", len(r.unassigned)).Int("scheduling_timed_out", len(r.schedulingTimedOut)).Msg("flushing to database")
 
-	if len(r.assigned) == 0 && len(r.unassigned) == 0 && len(r.schedulingTimedOut) == 0 && len(r.rateLimited) == 0 {
+	if len(r.assigned) == 0 && len(r.unassigned) == 0 && len(r.schedulingTimedOut) == 0 && len(r.rateLimited) == 0 && len(r.rateLimitedToMove) == 0 {
 		return 0
 	}
 
@@ -419,6 +451,7 @@ func (q *Queuer) flushToDatabase(ctx context.Context, r *assignResults) int {
 		Unassigned:         r.unassigned,
 		SchedulingTimedOut: r.schedulingTimedOut,
 		RateLimited:        make([]*v1.RateLimitResult, 0, len(r.rateLimited)),
+		RateLimitedToMove:  make([]*v1.RateLimitResult, 0, len(r.rateLimitedToMove)),
 	}
 
 	stepRunIdsToAcks := make(map[int64]int, len(r.assigned))
@@ -434,12 +467,27 @@ func (q *Queuer) flushToDatabase(ctx context.Context, r *assignResults) int {
 
 	for _, rateLimitedItem := range r.rateLimited {
 		opts.RateLimited = append(opts.RateLimited, &v1.RateLimitResult{
+			V1QueueItem:    rateLimitedItem.qi,
 			ExceededKey:    rateLimitedItem.exceededKey,
 			ExceededUnits:  rateLimitedItem.exceededUnits,
 			ExceededVal:    rateLimitedItem.exceededVal,
+			NextRefillAt:   rateLimitedItem.nextRefillAt,
 			TaskId:         rateLimitedItem.qi.TaskID,
 			TaskInsertedAt: rateLimitedItem.qi.TaskInsertedAt,
 			RetryCount:     rateLimitedItem.qi.RetryCount,
+		})
+	}
+
+	for _, rateLimitedItemToMove := range r.rateLimitedToMove {
+		opts.RateLimitedToMove = append(opts.RateLimitedToMove, &v1.RateLimitResult{
+			V1QueueItem:    rateLimitedItemToMove.qi,
+			ExceededKey:    rateLimitedItemToMove.exceededKey,
+			ExceededUnits:  rateLimitedItemToMove.exceededUnits,
+			ExceededVal:    rateLimitedItemToMove.exceededVal,
+			NextRefillAt:   rateLimitedItemToMove.nextRefillAt,
+			TaskId:         rateLimitedItemToMove.qi.TaskID,
+			TaskInsertedAt: rateLimitedItemToMove.qi.TaskInsertedAt,
+			RetryCount:     rateLimitedItemToMove.qi.RetryCount,
 		})
 	}
 
@@ -489,7 +537,7 @@ func (q *Queuer) flushToDatabase(ctx context.Context, r *assignResults) int {
 		TenantId:           q.tenantId,
 		Assigned:           succeeded,
 		SchedulingTimedOut: r.schedulingTimedOut,
-		RateLimited:        opts.RateLimited,
+		RateLimited:        append(opts.RateLimited, opts.RateLimitedToMove...),
 		Unassigned:         r.unassigned,
 	}
 

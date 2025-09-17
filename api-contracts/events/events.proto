@@ -32,8 +32,11 @@ message Event {
     // when the event was generated
     google.protobuf.Timestamp eventTimestamp = 5;
 
-    // the payload for the event
+    // the additional metadata for the event
     optional string additionalMetadata = 6;
+
+    // the scope associated with this filter. Used for subsetting candidate filters at evaluation time
+    optional string scope = 7;
 
 }
 
@@ -75,6 +78,8 @@ message PutStreamEventRequest {
 
     // associated stream event metadata
     string metadata = 5;
+
+    optional int64 eventIndex = 6;
 }
 
 message PutStreamEventResponse {}
@@ -99,6 +104,9 @@ message PushEventRequest {
     optional string additionalMetadata = 4;
 
     optional int32 priority = 5;
+
+    // the scope associated with this filter. Used for subsetting candidate filters at evaluation time
+    optional string scope = 6;
 }
 
 message ReplayEventRequest {

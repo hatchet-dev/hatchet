@@ -17,6 +17,27 @@ BEGIN
 END;
 $$;
 
+CREATE OR REPLACE FUNCTION get_v1_weekly_partitions_before_date(
+    targetTableName text,
+    targetDate date
+) RETURNS TABLE(partition_name text)
+    LANGUAGE plpgsql AS
+$$
+BEGIN
+    RETURN QUERY
+    SELECT
+        inhrelid::regclass::text AS partition_name
+    FROM
+        pg_inherits
+    WHERE
+        inhparent = targetTableName::regclass
+        AND substring(inhrelid::regclass::text, format('%s_(\d{8})', targetTableName)) ~ '^\d{8}'
+        AND (substring(inhrelid::regclass::text, format('%s_(\d{8})', targetTableName))::date) < targetDate
+        AND (substring(inhrelid::regclass::text, format('%s_(\d{8})', targetTableName))::date) < NOW() - INTERVAL '1 week'
+    ;
+END;
+$$;
+
 CREATE OR REPLACE FUNCTION create_v1_range_partition(
     targetTableName text,
     targetDate date
@@ -37,7 +58,7 @@ BEGIN
     END IF;
 
     EXECUTE
-        format('CREATE TABLE %s (LIKE %s INCLUDING INDEXES)', newTableName, targetTableName);
+        format('CREATE TABLE %s (LIKE %s INCLUDING INDEXES INCLUDING CONSTRAINTS)', newTableName, targetTableName);
     EXECUTE
         format('ALTER TABLE %s SET (
             autovacuum_vacuum_scale_factor = ''0.1'',
@@ -341,6 +362,7 @@ CREATE TABLE v1_task_expression_eval (
 );
 
 -- CreateTable
+-- NOTE: changes to v1_queue_item should be reflected in v1_rate_limited_queue_items
 CREATE TABLE v1_queue_item (
     id bigint GENERATED ALWAYS AS IDENTITY,
     tenant_id UUID NOT NULL,
@@ -408,6 +430,44 @@ alter table v1_task_runtime set (
     autovacuum_vacuum_cost_limit='1000'
 );
 
+-- v1_rate_limited_queue_items represents a queue item that has been rate limited and removed from the v1_queue_item table.
+CREATE TABLE v1_rate_limited_queue_items (
+    requeue_after TIMESTAMPTZ NOT NULL,
+    -- everything below this is the same as v1_queue_item
+    tenant_id UUID NOT NULL,
+    queue TEXT NOT NULL,
+    task_id bigint NOT NULL,
+    task_inserted_at TIMESTAMPTZ NOT NULL,
+    external_id UUID NOT NULL,
+    action_id TEXT NOT NULL,
+    step_id UUID NOT NULL,
+    workflow_id UUID NOT NULL,
+    workflow_run_id UUID NOT NULL,
+    schedule_timeout_at TIMESTAMP(3),
+    step_timeout TEXT,
+    priority INTEGER NOT NULL DEFAULT 1,
+    sticky v1_sticky_strategy NOT NULL,
+    desired_worker_id UUID,
+    retry_count INTEGER NOT NULL DEFAULT 0,
+
+    CONSTRAINT v1_rate_limited_queue_items_pkey PRIMARY KEY (task_id, task_inserted_at, retry_count)
+);
+
+CREATE INDEX v1_rate_limited_queue_items_tenant_requeue_after_idx ON v1_rate_limited_queue_items (
+    tenant_id ASC,
+    queue ASC,
+    requeue_after ASC
+);
+
+alter table v1_rate_limited_queue_items set (
+    autovacuum_vacuum_scale_factor = '0.1',
+    autovacuum_analyze_scale_factor='0.05',
+    autovacuum_vacuum_threshold='25',
+    autovacuum_analyze_threshold='25',
+    autovacuum_vacuum_cost_delay='10',
+    autovacuum_vacuum_cost_limit='1000'
+);
+
 CREATE TYPE v1_match_kind AS ENUM ('TRIGGER', 'SIGNAL');
 
 CREATE TABLE v1_match (
@@ -441,6 +501,7 @@ CREATE TABLE v1_match (
     -- references the existing task id, which may be set when we're replaying a task
     trigger_existing_task_id bigint,
     trigger_existing_task_inserted_at timestamptz,
+    trigger_priority integer,
     CONSTRAINT v1_match_pkey PRIMARY KEY (id)
 );
 
@@ -470,6 +531,98 @@ CREATE TABLE v1_match_condition (
     data JSONB,
     CONSTRAINT v1_match_condition_pkey PRIMARY KEY (v1_match_id, id)
 );
+
+CREATE TABLE v1_filter (
+    id UUID NOT NULL DEFAULT gen_random_uuid(),
+    tenant_id UUID NOT NULL,
+    workflow_id UUID NOT NULL,
+    scope TEXT NOT NULL,
+    expression TEXT NOT NULL,
+    payload JSONB NOT NULL DEFAULT '{}'::JSONB,
+    payload_hash TEXT GENERATED ALWAYS AS (MD5(payload::TEXT)) STORED,
+    is_declarative BOOLEAN NOT NULL DEFAULT FALSE,
+
+    inserted_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (tenant_id, id)
+);
+
+CREATE UNIQUE INDEX v1_filter_unique_tenant_workflow_id_scope_expression_payload ON v1_filter (
+    tenant_id ASC,
+    workflow_id ASC,
+    scope ASC,
+    expression ASC,
+    payload_hash
+);
+
+CREATE TYPE v1_incoming_webhook_auth_type AS ENUM ('BASIC', 'API_KEY', 'HMAC');
+CREATE TYPE v1_incoming_webhook_hmac_algorithm AS ENUM ('SHA1', 'SHA256', 'SHA512', 'MD5');
+CREATE TYPE v1_incoming_webhook_hmac_encoding AS ENUM ('HEX', 'BASE64', 'BASE64URL');
+
+-- Can add more sources in the future
+CREATE TYPE v1_incoming_webhook_source_name AS ENUM ('GENERIC', 'GITHUB', 'STRIPE', 'SLACK', 'LINEAR');
+
+CREATE TABLE v1_incoming_webhook (
+    tenant_id UUID NOT NULL,
+
+    -- names are tenant-unique
+    name TEXT NOT NULL,
+
+    source_name v1_incoming_webhook_source_name NOT NULL,
+
+    -- CEL expression that creates an event key
+    -- from the payload of the webhook
+    event_key_expression TEXT NOT NULL,
+
+    auth_method v1_incoming_webhook_auth_type NOT NULL,
+
+    auth__basic__username TEXT,
+    auth__basic__password BYTEA,
+
+    auth__api_key__header_name TEXT,
+    auth__api_key__key BYTEA,
+
+    auth__hmac__algorithm v1_incoming_webhook_hmac_algorithm,
+    auth__hmac__encoding v1_incoming_webhook_hmac_encoding,
+    auth__hmac__signature_header_name TEXT,
+    auth__hmac__webhook_signing_secret BYTEA,
+
+    inserted_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (tenant_id, name),
+    CHECK (
+        (
+            auth_method = 'BASIC'
+            AND (
+                auth__basic__username IS NOT NULL
+                AND auth__basic__password IS NOT NULL
+            )
+        )
+        OR
+        (
+            auth_method = 'API_KEY'
+            AND (
+                auth__api_key__header_name IS NOT NULL
+                AND auth__api_key__key IS NOT NULL
+            )
+        )
+        OR
+        (
+            auth_method = 'HMAC'
+            AND (
+                auth__hmac__algorithm IS NOT NULL
+                AND auth__hmac__encoding IS NOT NULL
+                AND auth__hmac__signature_header_name IS NOT NULL
+                AND auth__hmac__webhook_signing_secret IS NOT NULL
+            )
+        )
+    ),
+    CHECK (LENGTH(event_key_expression) > 0),
+    CHECK (LENGTH(name) > 0)
+);
+
 
 CREATE INDEX v1_match_condition_filter_idx ON v1_match_condition (
     tenant_id ASC,
@@ -932,17 +1085,6 @@ BEGIN
         inserted_at
     FROM new_table
     ON CONFLICT (external_id) DO NOTHING;
-
-    -- NOTE: this comes after the insert into v1_dag_to_task and v1_lookup_table, because we case on these tables for cleanup
-    FOR rec IN SELECT UNNEST(concurrency_parent_strategy_ids) AS parent_strategy_id, workflow_version_id, workflow_run_id FROM new_table WHERE initial_state != 'QUEUED' ORDER BY parent_strategy_id, workflow_version_id, workflow_run_id LOOP
-        IF rec.parent_strategy_id IS NOT NULL THEN
-            PERFORM cleanup_workflow_concurrency_slots(
-                rec.parent_strategy_id,
-                rec.workflow_version_id,
-                rec.workflow_run_id
-            );
-        END IF;
-    END LOOP;
 
     RETURN NULL;
 END;
@@ -1486,3 +1628,82 @@ CREATE TABLE v1_durable_sleep (
     sleep_duration TEXT NOT NULL,
     PRIMARY KEY (tenant_id, sleep_until, id)
 );
+
+CREATE TYPE v1_payload_type AS ENUM ('TASK_INPUT', 'DAG_INPUT', 'TASK_OUTPUT');
+CREATE TYPE v1_payload_location AS ENUM ('INLINE', 'EXTERNAL');
+
+CREATE TABLE v1_payload (
+    tenant_id UUID NOT NULL,
+    id BIGINT NOT NULL,
+    inserted_at TIMESTAMPTZ NOT NULL,
+    type v1_payload_type NOT NULL,
+    location v1_payload_location NOT NULL,
+    external_location_key TEXT,
+    inline_content JSONB,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (tenant_id, inserted_at, id, type),
+    CHECK (
+        (location = 'INLINE' AND inline_content IS NOT NULL AND external_location_key IS NULL)
+        OR
+        (location = 'EXTERNAL' AND inline_content IS NULL AND external_location_key IS NOT NULL)
+    )
+) PARTITION BY RANGE(inserted_at);
+
+CREATE TYPE v1_payload_wal_operation AS ENUM ('CREATE', 'UPDATE', 'DELETE');
+
+CREATE TABLE v1_payload_wal (
+    tenant_id UUID NOT NULL,
+    offload_at TIMESTAMPTZ NOT NULL,
+    payload_id BIGINT NOT NULL,
+    payload_inserted_at TIMESTAMPTZ NOT NULL,
+    payload_type v1_payload_type NOT NULL,
+    operation v1_payload_wal_operation NOT NULL,
+
+    PRIMARY KEY (offload_at, tenant_id, payload_id, payload_inserted_at, payload_type),
+    CONSTRAINT "v1_payload_wal_payload" FOREIGN KEY (payload_id, payload_inserted_at, payload_type, tenant_id) REFERENCES v1_payload (id, inserted_at, type, tenant_id) ON DELETE CASCADE
+) PARTITION BY HASH (tenant_id);
+
+CREATE INDEX v1_payload_wal_payload_lookup_idx ON v1_payload_wal (payload_id, payload_inserted_at, payload_type, tenant_id);
+
+SELECT create_v1_hash_partitions('v1_payload_wal'::TEXT, 4);
+
+
+CREATE OR REPLACE FUNCTION find_matching_tenants_in_payload_wal_partition(
+    partition_number INT
+) RETURNS UUID[]
+LANGUAGE plpgsql AS
+$$
+DECLARE
+    partition_table text;
+    result UUID[];
+BEGIN
+    partition_table := 'v1_payload_wal_' || partition_number::text;
+
+    EXECUTE format(
+        'SELECT ARRAY(
+            SELECT DISTINCT e.tenant_id
+            FROM %I e
+            WHERE e.offload_at < NOW()
+        )',
+        partition_table)
+    INTO result;
+
+    RETURN result;
+END;
+$$;
+CREATE TABLE v1_idempotency_key (
+    tenant_id UUID NOT NULL,
+
+    key TEXT NOT NULL,
+
+    expires_at TIMESTAMPTZ NOT NULL,
+    claimed_by_external_id UUID,
+
+    inserted_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (tenant_id, expires_at, key)
+);
+
+CREATE UNIQUE INDEX v1_idempotency_key_unique_tenant_key ON v1_idempotency_key (tenant_id, key);

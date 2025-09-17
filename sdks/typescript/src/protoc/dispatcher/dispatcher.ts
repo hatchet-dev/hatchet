@@ -522,6 +522,7 @@ export interface WorkflowEvent {
   stepRetries?: number | undefined;
   /** (optional) the retry count of this step */
   retryCount?: number | undefined;
+  eventIndex?: number | undefined;
 }
 
 export interface WorkflowRunEvent {
@@ -2690,6 +2691,7 @@ function createBaseWorkflowEvent(): WorkflowEvent {
     hangup: false,
     stepRetries: undefined,
     retryCount: undefined,
+    eventIndex: undefined,
   };
 }
 
@@ -2721,6 +2723,9 @@ export const WorkflowEvent: MessageFns<WorkflowEvent> = {
     }
     if (message.retryCount !== undefined) {
       writer.uint32(72).int32(message.retryCount);
+    }
+    if (message.eventIndex !== undefined) {
+      writer.uint32(80).int64(message.eventIndex);
     }
     return writer;
   },
@@ -2804,6 +2809,14 @@ export const WorkflowEvent: MessageFns<WorkflowEvent> = {
           message.retryCount = reader.int32();
           continue;
         }
+        case 10: {
+          if (tag !== 80) {
+            break;
+          }
+
+          message.eventIndex = longToNumber(reader.int64());
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -2826,6 +2839,7 @@ export const WorkflowEvent: MessageFns<WorkflowEvent> = {
       hangup: isSet(object.hangup) ? globalThis.Boolean(object.hangup) : false,
       stepRetries: isSet(object.stepRetries) ? globalThis.Number(object.stepRetries) : undefined,
       retryCount: isSet(object.retryCount) ? globalThis.Number(object.retryCount) : undefined,
+      eventIndex: isSet(object.eventIndex) ? globalThis.Number(object.eventIndex) : undefined,
     };
   },
 
@@ -2858,6 +2872,9 @@ export const WorkflowEvent: MessageFns<WorkflowEvent> = {
     if (message.retryCount !== undefined) {
       obj.retryCount = Math.round(message.retryCount);
     }
+    if (message.eventIndex !== undefined) {
+      obj.eventIndex = Math.round(message.eventIndex);
+    }
     return obj;
   },
 
@@ -2875,6 +2892,7 @@ export const WorkflowEvent: MessageFns<WorkflowEvent> = {
     message.hangup = object.hangup ?? false;
     message.stepRetries = object.stepRetries ?? undefined;
     message.retryCount = object.retryCount ?? undefined;
+    message.eventIndex = object.eventIndex ?? undefined;
     return message;
   },
 };
@@ -3891,6 +3909,17 @@ function fromJsonTimestamp(o: any): Date {
   } else {
     return fromTimestamp(Timestamp.fromJSON(o));
   }
+}
+
+function longToNumber(int64: { toString(): string }): number {
+  const num = globalThis.Number(int64.toString());
+  if (num > globalThis.Number.MAX_SAFE_INTEGER) {
+    throw new globalThis.Error('Value is larger than Number.MAX_SAFE_INTEGER');
+  }
+  if (num < globalThis.Number.MIN_SAFE_INTEGER) {
+    throw new globalThis.Error('Value is smaller than Number.MIN_SAFE_INTEGER');
+  }
+  return num;
 }
 
 function isObject(value: any): boolean {

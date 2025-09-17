@@ -5,6 +5,8 @@
       members:
         - get
         - aio_get
+        - get_status
+        - aio_get_status
         - list
         - aio_list
         - create
@@ -20,3 +22,5 @@
         - get_result
         - aio_get_result
         - get_run_ref
+        - get_task_run
+        - aio_get_task_run

@@ -6,6 +6,13 @@ export default {
     },
   },
 
+  filters: {
+    title: "Filters",
+    theme: {
+      toc: true,
+    },
+  },
+
   logs: {
     title: "Logs",
     theme: {

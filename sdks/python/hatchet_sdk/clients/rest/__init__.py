@@ -18,8 +18,10 @@ __version__ = "1.0.0"
 
 # import apis into sdk package
 from hatchet_sdk.clients.rest.api.api_token_api import APITokenApi
+from hatchet_sdk.clients.rest.api.cel_api import CELApi
 from hatchet_sdk.clients.rest.api.default_api import DefaultApi
 from hatchet_sdk.clients.rest.api.event_api import EventApi
+from hatchet_sdk.clients.rest.api.filter_api import FilterApi
 from hatchet_sdk.clients.rest.api.github_api import GithubApi
 from hatchet_sdk.clients.rest.api.healthcheck_api import HealthcheckApi
 from hatchet_sdk.clients.rest.api.log_api import LogApi
@@ -31,6 +33,7 @@ from hatchet_sdk.clients.rest.api.step_run_api import StepRunApi
 from hatchet_sdk.clients.rest.api.task_api import TaskApi
 from hatchet_sdk.clients.rest.api.tenant_api import TenantApi
 from hatchet_sdk.clients.rest.api.user_api import UserApi
+from hatchet_sdk.clients.rest.api.webhook_api import WebhookApi
 from hatchet_sdk.clients.rest.api.worker_api import WorkerApi
 from hatchet_sdk.clients.rest.api.workflow_api import WorkflowApi
 from hatchet_sdk.clients.rest.api.workflow_run_api import WorkflowRunApi
@@ -206,6 +209,7 @@ from hatchet_sdk.clients.rest.models.tenant_resource_policy import TenantResourc
 from hatchet_sdk.clients.rest.models.tenant_step_run_queue_metrics import (
     TenantStepRunQueueMetrics,
 )
+from hatchet_sdk.clients.rest.models.tenant_ui_version import TenantUIVersion
 from hatchet_sdk.clients.rest.models.tenant_version import TenantVersion
 from hatchet_sdk.clients.rest.models.trigger_workflow_run_request import (
     TriggerWorkflowRunRequest,
@@ -229,11 +233,44 @@ from hatchet_sdk.clients.rest.models.user_tenant_memberships_list import (
 )
 from hatchet_sdk.clients.rest.models.user_tenant_public import UserTenantPublic
 from hatchet_sdk.clients.rest.models.v1_cancel_task_request import V1CancelTaskRequest
+from hatchet_sdk.clients.rest.models.v1_cancelled_tasks import V1CancelledTasks
+from hatchet_sdk.clients.rest.models.v1_cel_debug_request import V1CELDebugRequest
+from hatchet_sdk.clients.rest.models.v1_cel_debug_response import V1CELDebugResponse
+from hatchet_sdk.clients.rest.models.v1_cel_debug_response_status import (
+    V1CELDebugResponseStatus,
+)
+from hatchet_sdk.clients.rest.models.v1_create_filter_request import (
+    V1CreateFilterRequest,
+)
+from hatchet_sdk.clients.rest.models.v1_create_webhook_request import (
+    V1CreateWebhookRequest,
+)
+from hatchet_sdk.clients.rest.models.v1_create_webhook_request_api_key import (
+    V1CreateWebhookRequestAPIKey,
+)
+from hatchet_sdk.clients.rest.models.v1_create_webhook_request_base import (
+    V1CreateWebhookRequestBase,
+)
+from hatchet_sdk.clients.rest.models.v1_create_webhook_request_basic_auth import (
+    V1CreateWebhookRequestBasicAuth,
+)
+from hatchet_sdk.clients.rest.models.v1_create_webhook_request_hmac import (
+    V1CreateWebhookRequestHMAC,
+)
 from hatchet_sdk.clients.rest.models.v1_dag_children import V1DagChildren
+from hatchet_sdk.clients.rest.models.v1_event import V1Event
+from hatchet_sdk.clients.rest.models.v1_event_list import V1EventList
+from hatchet_sdk.clients.rest.models.v1_event_triggered_run import V1EventTriggeredRun
+from hatchet_sdk.clients.rest.models.v1_event_workflow_run_summary import (
+    V1EventWorkflowRunSummary,
+)
+from hatchet_sdk.clients.rest.models.v1_filter import V1Filter
+from hatchet_sdk.clients.rest.models.v1_filter_list import V1FilterList
 from hatchet_sdk.clients.rest.models.v1_log_line import V1LogLine
 from hatchet_sdk.clients.rest.models.v1_log_line_level import V1LogLineLevel
 from hatchet_sdk.clients.rest.models.v1_log_line_list import V1LogLineList
 from hatchet_sdk.clients.rest.models.v1_replay_task_request import V1ReplayTaskRequest
+from hatchet_sdk.clients.rest.models.v1_replayed_tasks import V1ReplayedTasks
 from hatchet_sdk.clients.rest.models.v1_task_event import V1TaskEvent
 from hatchet_sdk.clients.rest.models.v1_task_event_list import V1TaskEventList
 from hatchet_sdk.clients.rest.models.v1_task_event_type import V1TaskEventType
@@ -250,6 +287,25 @@ from hatchet_sdk.clients.rest.models.v1_task_timing_list import V1TaskTimingList
 from hatchet_sdk.clients.rest.models.v1_trigger_workflow_run_request import (
     V1TriggerWorkflowRunRequest,
 )
+from hatchet_sdk.clients.rest.models.v1_update_filter_request import (
+    V1UpdateFilterRequest,
+)
+from hatchet_sdk.clients.rest.models.v1_webhook import V1Webhook
+from hatchet_sdk.clients.rest.models.v1_webhook_api_key_auth import V1WebhookAPIKeyAuth
+from hatchet_sdk.clients.rest.models.v1_webhook_auth_type import V1WebhookAuthType
+from hatchet_sdk.clients.rest.models.v1_webhook_basic_auth import V1WebhookBasicAuth
+from hatchet_sdk.clients.rest.models.v1_webhook_hmac_algorithm import (
+    V1WebhookHMACAlgorithm,
+)
+from hatchet_sdk.clients.rest.models.v1_webhook_hmac_auth import V1WebhookHMACAuth
+from hatchet_sdk.clients.rest.models.v1_webhook_hmac_encoding import (
+    V1WebhookHMACEncoding,
+)
+from hatchet_sdk.clients.rest.models.v1_webhook_list import V1WebhookList
+from hatchet_sdk.clients.rest.models.v1_webhook_receive200_response import (
+    V1WebhookReceive200Response,
+)
+from hatchet_sdk.clients.rest.models.v1_webhook_source_name import V1WebhookSourceName
 from hatchet_sdk.clients.rest.models.v1_workflow_run import V1WorkflowRun
 from hatchet_sdk.clients.rest.models.v1_workflow_run_details import V1WorkflowRunDetails
 from hatchet_sdk.clients.rest.models.v1_workflow_run_display_name import (

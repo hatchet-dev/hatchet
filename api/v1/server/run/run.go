@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/getkin/kin-openapi/openapi3"
@@ -26,8 +27,11 @@ import (
 	stepruns "github.com/hatchet-dev/hatchet/api/v1/server/handlers/step-runs"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/tenants"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/users"
+	celv1 "github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/cel"
 	eventsv1 "github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/events"
+	filtersv1 "github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/filters"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/tasks"
+	webhooksv1 "github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/webhooks"
 	workflowrunsv1 "github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/workflow-runs"
 	webhookworker "github.com/hatchet-dev/hatchet/api/v1/server/handlers/webhook-worker"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/workers"
@@ -36,6 +40,7 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/headers"
 	hatchetmiddleware "github.com/hatchet-dev/hatchet/api/v1/server/middleware"
 	"github.com/hatchet-dev/hatchet/api/v1/server/middleware/populator"
+	"github.com/hatchet-dev/hatchet/api/v1/server/middleware/ratelimit"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
@@ -61,6 +66,9 @@ type apiService struct {
 	*tasks.TasksService
 	*workflowrunsv1.V1WorkflowRunsService
 	*eventsv1.V1EventsService
+	*filtersv1.V1FiltersService
+	*webhooksv1.V1WebhooksService
+	*celv1.V1CELService
 }
 
 func newAPIService(config *server.ServerConfig) *apiService {
@@ -84,11 +92,15 @@ func newAPIService(config *server.ServerConfig) *apiService {
 		TasksService:          tasks.NewTasksService(config),
 		V1WorkflowRunsService: workflowrunsv1.NewV1WorkflowRunsService(config),
 		V1EventsService:       eventsv1.NewV1EventsService(config),
+		V1FiltersService:      filtersv1.NewV1FiltersService(config),
+		V1WebhooksService:     webhooksv1.NewV1WebhooksService(config),
+		V1CELService:          celv1.NewV1CELService(config),
 	}
 }
 
 type APIServer struct {
-	config *server.ServerConfig
+	config                *server.ServerConfig
+	additionalMiddlewares []hatchetmiddleware.MiddlewareFunc
 }
 
 func NewAPIServer(config *server.ServerConfig) *APIServer {
@@ -132,6 +144,12 @@ func (t *APIServer) Run(opts ...APIServerExtensionOpt) (func() error, error) {
 	return t.RunWithServer(e)
 }
 
+func (t *APIServer) RunWithMiddlewares(middlewares []hatchetmiddleware.MiddlewareFunc, opts ...APIServerExtensionOpt) (func() error, error) {
+	t.additionalMiddlewares = middlewares
+
+	return t.Run(opts...)
+}
+
 func (t *APIServer) RunWithServer(e *echo.Echo) (func() error, error) {
 	routes := e.Routes()
 
@@ -162,6 +180,29 @@ func (t *APIServer) getCoreEchoService() (*echo.Echo, error) {
 	e := echo.New()
 	e.HideBanner = true
 	e.HidePort = true
+	e.IPExtractor = func(r *http.Request) string {
+		// Cloudflare sets CF-Connecting-IP header with the original client IP
+		if ip := r.Header.Get("CF-Connecting-IP"); ip != "" {
+			return ip
+		}
+
+		// Fallback to X-Forwarded-For
+		if ip := r.Header.Get("X-Forwarded-For"); ip != "" {
+			// X-Forwarded-For can contain multiple IPs, we only want the first one
+			ips := strings.Split(ip, ",")
+			if len(ips) > 0 {
+				return ips[0]
+			}
+		}
+
+		// Additional fallback to X-Real-IP used by certain proxies
+		if ip := r.Header.Get("X-Real-IP"); ip != "" {
+			return ip
+		}
+
+		// Final fallback to remote address
+		return r.RemoteAddr
+	}
 
 	g := e.Group("")
 
@@ -171,7 +212,7 @@ func (t *APIServer) getCoreEchoService() (*echo.Echo, error) {
 
 	service := newAPIService(t.config)
 
-	myStrictApiHandler := gen.NewStrictHandler(service, []gen.StrictMiddlewareFunc{})
+	myStrictApiHandler := gen.NewStrictHandler(service)
 
 	gen.RegisterHandlers(g, myStrictApiHandler)
 
@@ -295,7 +336,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 		}
 
 		if scheduled == nil {
-			return nil, "", fmt.Errorf("scheduled workflow run not found")
+			return nil, "", echo.NewHTTPError(http.StatusNotFound, "scheduled workflow run not found")
 		}
 
 		return scheduled, sqlchelpers.UUIDToStr(scheduled.TenantId), nil
@@ -309,7 +350,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 		}
 
 		if scheduled == nil {
-			return nil, "", fmt.Errorf("cron workflow not found")
+			return nil, "", echo.NewHTTPError(http.StatusNotFound, "cron workflow not found")
 		}
 
 		return scheduled, sqlchelpers.UUIDToStr(scheduled.TenantId), nil
@@ -375,7 +416,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 		}
 
 		if task == nil {
-			return nil, "", fmt.Errorf("task not found")
+			return nil, "", echo.NewHTTPError(http.StatusNotFound, "task not found")
 		}
 
 		return task, sqlchelpers.UUIDToStr(task.TenantID), nil
@@ -390,6 +431,33 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 
 		return workflowRun, sqlchelpers.UUIDToStr(workflowRun.WorkflowRun.TenantID), nil
 	})
+	populatorMW.RegisterGetter("v1-filter", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
+		filter, err := t.config.V1.Filters().GetFilter(
+			context.Background(),
+			parentId,
+			id,
+		)
+
+		if err != nil {
+			return nil, "", err
+		}
+
+		return filter, sqlchelpers.UUIDToStr(filter.TenantID), nil
+	})
+
+	populatorMW.RegisterGetter("v1-webhook", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
+		webhook, err := t.config.V1.Webhooks().GetWebhook(
+			context.Background(),
+			parentId,
+			id,
+		)
+
+		if err != nil {
+			return nil, "", err
+		}
+
+		return webhook, sqlchelpers.UUIDToStr(webhook.TenantID), nil
+	})
 
 	authnMW := authn.NewAuthN(t.config)
 	authzMW := authz.NewAuthZ(t.config)
@@ -403,6 +471,9 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 	mw.Use(populatorMW.Middleware)
 	mw.Use(authnMW.Middleware)
 	mw.Use(authzMW.Middleware)
+	for _, m := range t.additionalMiddlewares {
+		mw.Use(m)
+	}
 
 	allHatchetMiddleware, err := mw.Middleware()
 
@@ -425,7 +496,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 
 			// note that the status code is not set yet as it gets picked up by the global err handler
 			// see here: https://github.com/labstack/echo/issues/2310#issuecomment-1288196898
-			if v.Error != nil {
+			if v.Error != nil && statusCode == 200 {
 				statusCode = 500
 			}
 
@@ -454,10 +525,13 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 		},
 	})
 
+	rateLimitMW := ratelimit.NewRateLimitMiddleware(t.config, spec)
+
 	// register echo middleware
 	g.Use(
 		loggerMiddleware,
 		middleware.Recover(),
+		rateLimitMW.Middleware(),
 		allHatchetMiddleware,
 	)
 
