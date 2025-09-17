@@ -25,6 +25,7 @@ func main() {
 		log.Fatalf("failed to create hatchet client: %v", err)
 	}
 
+	// > Durable Sleep
 	task := client.NewStandaloneDurableTask("long-running-task", func(ctx hatchet.DurableContext, input DurableInput) (DurableOutput, error) {
 		log.Printf("Starting task, will sleep for %d seconds", input.Delay)
 
@@ -39,6 +40,7 @@ func main() {
 			Message:     "Processed: " + input.Message,
 		}, nil
 	})
+	// !!
 
 	worker, err := client.NewWorker("durable-worker",
 		hatchet.WithWorkflows(task),
