@@ -199,6 +199,7 @@ RUN go mod download
 RUN go build -o hatchet-worker .
 
 # Stage 2: Production
+
 FROM golang:1.25-alpine3.21
 
 WORKDIR /app
@@ -206,6 +207,8 @@ WORKDIR /app
 COPY --from=builder hatchet-worker .
 
 CMD ["/app/hatchet-worker"]
+
 ```
   </Tabs.Tab>
 </Tabs>
+```
