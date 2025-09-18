@@ -1,294 +1,460 @@
 import { Callout } from "nextra/components";
 
-## Hatchet Go V1 Migration Guide
+## Hatchet Go SDK Migration Guide
 
-This guide will help you migrate from the V0 SDK to the V1 SDK. Note that the v1 engine will continue to support v0 tasks until September 30th, 2025.
+This comprehensive guide covers migration paths between all three major versions of the Hatchet Go SDK:
+- **V0 SDK** (`github.com/hatchet-dev/hatchet/pkg/client`) - Original SDK
+- **V1 Generics SDK** (`github.com/hatchet-dev/hatchet/pkg/v1`) - Type-safe SDK with Go generics (deprecated)
+- **V1 Reflection SDK** (`github.com/hatchet-dev/hatchet/sdks/go`) - Current SDK with reflection-based API
 
-The v1 Go SDK can be found in `github.com/hatchet-dev/hatchet/pkg/v1`. You can instantiate a new Hatchet client via:
+<Callout type="info">
+The V1 engine will continue to support V0 tasks until September 30th, 2025.
+</Callout>
+
+## Quick Start with V1 Reflection SDK (Current)
+
+The current V1 SDK provides the cleanest API using reflection for type safety:
 
 ```go
 package main
 
 import (
-    v1 "github.com/hatchet-dev/hatchet/pkg/v1"
+    "context"
+    "log"
+
+    hatchet "github.com/hatchet-dev/hatchet/sdks/go"
 )
 
 func main() {
-    hatchet, err := v1.NewHatchetClient()
+    client, err := hatchet.NewClient()
+    if err != nil {
+        log.Fatal(err)
+    }
 
-    // ...
+    // Define input/output types
+    type Input struct {
+        Message string `json:"message"`
+    }
+
+    type Output struct {
+        Result string `json:"result"`
+    }
+
+    // Create a simple task
+    task := client.NewStandaloneTask("simple-task", func(ctx hatchet.Context, input Input) (Output, error) {
+        return Output{Result: "Processed: " + input.Message}, nil
+    })
+
+    // Start worker
+    worker, err := client.NewWorker("worker", hatchet.WithWorkflows(task))
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    worker.StartBlocking(context.Background())
 }
 ```
 
-## Declaring Tasks and Workflows
+## Migration Paths
 
-In the new SDKs, tasks use Go generics to make typing easier. As a result, there are a number of improvements made to the context methods and the way tasks are defined.
+### From V0 SDK to V1 Reflection SDK
 
-### Single Function Tasks
-
-Single function tasks are much easier to define than before using the `factory` package in the V1 SDK. Here's an example of how to define a simple task with the V1 SDK:
-
+**V0 SDK (Legacy)**:
 ```go
-import "github.com/hatchet-dev/hatchet/pkg/v1/factory"
+import "github.com/hatchet-dev/hatchet/pkg/client"
 
-// ...
-
-type SimpleInput struct {
-    Message string
-}
-
-type SimpleResult struct {
-    TransformedMessage string
-}
-
-simple := factory.NewTask(
-    create.StandaloneTask{
-        Name: "simple-task",
-    }, func(ctx worker.HatchetContext, input SimpleInput) (*SimpleResult, error) {
-        return &SimpleResult{
-            TransformedMessage: strings.ToLower(input.Message),
-        }, nil
+c, err := client.New()
+worker, err := c.NewWorker("worker", "workflow")
+worker.RegisterWorkflow(
+    &client.WorkflowJob{
+        On: client.Events(client.UserEvent("user:create")),
+        Name: "simple-workflow",
+        Steps: []*client.WorkflowStep{
+            {
+                Name: "step1",
+                Function: func(ctx worker.HatchetContext) (any, error) {
+                    return map[string]string{"result": "done"}, nil
+                },
+            },
+        },
     },
-    hatchet, // a Hatchet client instance
 )
 ```
 
-The `simple` task automatically inherits type definitions from the function signature, so invoking `simple` will automatically provide type-checking when the task is run:
-
+**V1 Reflection SDK (Current)**:
 ```go
-result, err := simple.Run(ctx, SimpleInput{
-    Message: "Hello, World!",
+import hatchet "github.com/hatchet-dev/hatchet/sdks/go"
+
+client, err := hatchet.NewClient()
+workflow := client.NewWorkflow("simple-workflow",
+    hatchet.WithOnEvents("user:create"))
+
+step1 := workflow.NewTask("step1", func(ctx hatchet.Context, input any) (map[string]string, error) {
+    return map[string]string{"result": "done"}, nil
 })
 
-if err != nil {
-    return err
+worker, err := client.NewWorker("worker", hatchet.WithWorkflows(workflow))
+```
+
+### From V1 Generics SDK to V1 Reflection SDK
+
+**V1 Generics SDK (Deprecated)**:
+```go
+import v1 "github.com/hatchet-dev/hatchet/pkg/v1"
+import "github.com/hatchet-dev/hatchet/pkg/v1/factory"
+
+hatchet, err := v1.NewHatchetClient()
+
+simple := factory.NewTask(
+    create.StandaloneTask{Name: "simple-task"},
+    func(ctx worker.HatchetContext, input SimpleInput) (*SimpleResult, error) {
+        return &SimpleResult{TransformedMessage: strings.ToLower(input.Message)}, nil
+    },
+    hatchet,
+)
+```
+
+**V1 Reflection SDK (Current)**:
+```go
+import hatchet "github.com/hatchet-dev/hatchet/sdks/go"
+
+client, err := hatchet.NewClient()
+
+task := client.NewStandaloneTask("simple-task", func(ctx hatchet.Context, input SimpleInput) (SimpleResult, error) {
+    return SimpleResult{TransformedMessage: strings.ToLower(input.Message)}, nil
+})
+```
+
+## Key Differences Between SDKs
+
+### Type Safety Approach
+- **V0 SDK**: No type safety, uses `any` types
+- **V1 Generics SDK**: Explicit generics with type parameters
+- **V1 Reflection SDK**: Automatic type inference via reflection
+
+### Task Definition
+- **V0 SDK**: Manual workflow step registration
+- **V1 Generics SDK**: Factory methods with type parameters
+- **V1 Reflection SDK**: Direct function assignment with automatic typing
+
+### Client Creation
+- **V0 SDK**: `client.New()`
+- **V1 Generics SDK**: `v1.NewHatchetClient()`
+- **V1 Reflection SDK**: `hatchet.NewClient()`
+
+## V1 Reflection SDK Features
+
+### Standalone Tasks
+
+Create and run simple tasks without workflow boilerplate:
+
+```go
+type SimpleInput struct {
+    Message string `json:"message"`
 }
 
-fmt.Println(result.TransformedMessage)
+type SimpleResult struct {
+    TransformedMessage string `json:"result"`
+}
+
+task := client.NewStandaloneTask("simple-task", func(ctx hatchet.Context, input SimpleInput) (SimpleResult, error) {
+    return SimpleResult{
+        TransformedMessage: strings.ToLower(input.Message),
+    }, nil
+})
+
+// Run the task synchronously
+result, err := task.Run(ctx, SimpleInput{Message: "Hello, World!"})
+
+// Extract typed result
+var output SimpleResult
+err = result.Into(&output)
+fmt.Println(output.TransformedMessage)
 ```
 
 ### Complex Workflows
 
-Complex, multi-task workflows can be defined using the `NewWorkflow` method on the `factory` package. Here's an example of how to define a workflow with multiple tasks:
+Multi-task workflows with dependencies:
 
 ```go
-import "github.com/hatchet-dev/hatchet/pkg/v1/factory"
+workflow := client.NewWorkflow("complex-dag")
 
-// ...
+type Step1Input struct {
+    Message string `json:"message"`
+}
 
-simple := factory.NewWorkflow[DagInput, DagResult](
-    create.WorkflowCreateOpts[DagInput]{
-        Name: "simple-dag",
-    },
-    hatchet,
-)
+type Step1Output struct {
+    ProcessedMessage string `json:"processed_message"`
+    Step             int    `json:"step"`
+}
 
-step1 := simple.Task(
-    create.WorkflowTask[DagInput, DagResult]{
-        Name: "Step1",
-    }, func(ctx worker.HatchetContext, input DagInput) (interface{}, error) {
-        return &SimpleOutput{
-            Step: 1,
-        }, nil
-    },
-)
+type Step2Output struct {
+    FinalResult string `json:"final_result"`
+    Step        int    `json:"step"`
+}
 
-simple.Task(
-    create.WorkflowTask[DagInput, DagResult]{
-        Name: "Step2",
-        Parents: []create.NamedTask{
-            step1,
-        },
-    }, func(ctx worker.HatchetContext, input DagInput) (interface{}, error) {
-        var step1Output SimpleOutput
+// First task
+step1 := workflow.NewTask("step1", func(ctx hatchet.Context, input Step1Input) (Step1Output, error) {
+    return Step1Output{
+        ProcessedMessage: "Processed: " + input.Message,
+        Step:             1,
+    }, nil
+})
 
-        err := ctx.ParentOutput(step1, &step1Output)
-        if err != nil {
-            return nil, err
-        }
+// Second task depends on first
+step2 := workflow.NewTask("step2", func(ctx hatchet.Context, input Step1Input) (Step2Output, error) {
+    // Get output from step1
+    var step1Output Step1Output
+    err := ctx.TriggeredByEvent(&step1Output)
+    if err != nil {
+        return Step2Output{}, err
+    }
 
-        return &SimpleOutput{
-            Step: 2,
-        }, nil
-    },
-)
+    return Step2Output{
+        FinalResult: step1Output.ProcessedMessage + " -> Final",
+        Step:        2,
+    }, nil
+}, hatchet.WithParents(step1))
 
-return simple
+worker, err := client.NewWorker("worker", hatchet.WithWorkflows(workflow))
 ```
 
-<Callout type="warning">
-  Note that due to limitations with Go's type system, any methods defined on a
-  workflow from `factory.NewWorkflow` will need to return a `interface{}` type.
-</Callout>
+### Durable Tasks
+
+For long-running tasks with state persistence:
+
+```go
+durableTask := client.NewStandaloneDurableTask("durable-task", func(ctx hatchet.DurableContext, input any) (any, error) {
+    // Sleep for a duration while maintaining state
+    err := ctx.SleepFor(time.Minute * 5)
+    if err != nil {
+        return nil, err
+    }
+
+    return map[string]string{"status": "completed after sleep"}, nil
+})
+```
+
+### Event-Driven Workflows
+
+Trigger workflows based on events:
+
+```go
+workflow := client.NewWorkflow("event-driven",
+    hatchet.WithOnEvents("user:created", "user:updated"))
+
+task := workflow.NewTask("process-user", func(ctx hatchet.Context, input any) (any, error) {
+    // Process user event
+    return map[string]string{"status": "user processed"}, nil
+})
+```
+
+### Scheduled Workflows
+
+Create workflows that run on a schedule:
+
+```go
+workflow := client.NewWorkflow("scheduled-work",
+    hatchet.WithOnCron("0 9 * * MON")) // Every Monday at 9 AM
+
+task := workflow.NewTask("weekly-report", func(ctx hatchet.Context, input any) (any, error) {
+    // Generate weekly report
+    return map[string]string{"report": "generated"}, nil
+})
+```
 
 ### Task Configuration
 
-In the V1 SDK, tasks are configured using the `create` package. The `create` package provides a number of options for configuring tasks, such as setting the task name, setting the task's parent tasks, and setting the task's wait conditions:
+Tasks and workflows can be configured with various options:
 
 ```go
-// import the create package
-import "github.com/hatchet-dev/hatchet/pkg/client/create"
+// Task options
+task := workflow.NewTask("configured-task", func(ctx hatchet.Context, input any) (any, error) {
+    return "result", nil
+},
+    hatchet.WithRetries(3),
+    hatchet.WithExecutionTimeout(time.Minute*5),
+    hatchet.WithRateLimit("user_id", 10, time.Minute), // 10 requests per minute per user
+    hatchet.WithConcurrency(types.Concurrency{
+        Expression: "input.userId",
+        MaxRuns:    5,
+    }),
+)
 
-// utilize the following structs to configure tasks
+// Workflow options
+workflow := client.NewWorkflow("configured-workflow",
+    hatchet.WithOnEvents("user:created"),
+    hatchet.WithOnCron("0 */6 * * *"), // Every 6 hours
+    hatchet.WithWorkflowConcurrency(types.Concurrency{
+        Expression: "input.tenantId",
+        MaxRuns:    1, // Only one workflow per tenant at a time
+    }),
+)
 
-type WorkflowTask[I, O any] struct {
-	// (required) The name of the task
-	Name string
-
-	// (optional) The version of the task
-	Version string
-
-	// (optional) The human-readable description of the task
-	Description string
-
-	// (optional) ExecutionTimeout specifies the maximum duration a task can run before being terminated
-	ExecutionTimeout time.Duration
-
-	// (optional) ScheduleTimeout specifies the maximum time a task can wait to be scheduled
-	ScheduleTimeout time.Duration
-
-	// (optional) Retries defines the number of times to retry a failed task
-	Retries int32
-
-	// (optional) RetryBackoffFactor is the multiplier for increasing backoff between retries
-	RetryBackoffFactor float32
-
-	// (optional) RetryMaxBackoffSeconds is the maximum backoff duration in seconds between retries
-	RetryMaxBackoffSeconds int32
-
-	// (optional) RateLimits define constraints on how frequently the task can be executed
-	RateLimits []*types.RateLimit
-
-	// (optional) WorkerLabels specify requirements for workers that can execute this task
-	WorkerLabels map[string]*types.DesiredWorkerLabel
-
-	// (optional) Concurrency defines constraints on how many instances of this task can run simultaneously
-	Concurrency []*types.Concurrency
-
-	// WaitFor represents a set of conditions which must be satisfied before the task can run.
-	WaitFor condition.Condition
-
-	// SkipIf represents a set of conditions which, if satisfied, will cause the task to be skipped.
-	SkipIf condition.Condition
-
-	// CancelIf represents a set of conditions which, if satisfied, will cause the task to be canceled.
-	CancelIf condition.Condition
-
-	// (optional) Parents are the tasks that must successfully complete before this task can start
-	Parents []NamedTask
-}
-
-type WorkflowOnFailureTask[I, O any] struct {
-	// (optional) The version of the task
-	Version string
-
-	// (optional) The human-readable description of the task
-	Description string
-
-	// (optional) ExecutionTimeout specifies the maximum duration a task can run before being terminated
-	ExecutionTimeout time.Duration
-
-	// (optional) ScheduleTimeout specifies the maximum time a task can wait to be scheduled
-	ScheduleTimeout time.Duration
-
-	// (optional) Retries defines the number of times to retry a failed task
-	Retries int32
-
-	// (optional) RetryBackoffFactor is the multiplier for increasing backoff between retries
-	RetryBackoffFactor float32
-
-	// (optional) RetryMaxBackoffSeconds is the maximum backoff duration in seconds between retries
-	RetryMaxBackoffSeconds int32
-
-	// (optional) RateLimits define constraints on how frequently the task can be executed
-	RateLimits []*types.RateLimit
-
-	// (optional) WorkerLabels specify requirements for workers that can execute this task
-	WorkerLabels map[string]*types.DesiredWorkerLabel
-
-	// (optional) Concurrency defines constraints on how many instances of this task can run simultaneously
-	Concurrency []*types.Concurrency
-}
-
-// TaskCreateOpts defines options for creating a standalone task.
-type StandaloneTask struct {
-	// (required) The name of the task
-	Name string
-
-	// (optional) The version of the task
-	Version string
-
-	// (optional) The human-readable description of the task
-	Description string
-
-	// (optional) ExecutionTimeout specifies the maximum duration a task can run before being terminated
-	ExecutionTimeout time.Duration
-
-	// (optional) ScheduleTimeout specifies the maximum time a task can wait to be scheduled
-	ScheduleTimeout time.Duration
-
-	// (optional) Retries defines the number of times to retry a failed task
-	Retries int32
-
-	// (optional) RetryBackoffFactor is the multiplier for increasing backoff between retries
-	RetryBackoffFactor float32
-
-	// (optional) RetryMaxBackoffSeconds is the maximum backoff duration in seconds between retries
-	RetryMaxBackoffSeconds int32
-
-	// (optional) RateLimits define constraints on how frequently the task can be executed
-	RateLimits []*types.RateLimit
-
-	// (optional) WorkerLabels specify requirements for workers that can execute this task
-	WorkerLabels map[string]*types.DesiredWorkerLabel
-
-	// (optional) Concurrency defines constraints on how many instances of this task can run simultaneously
-	Concurrency []*types.Concurrency
-
-	// (optional) The event names that trigger the workflow
-	OnEvents []string
-
-	// (optional) The cron expressions for scheduled workflow runs
-	OnCron []string
-}
+// Worker options
+worker, err := client.NewWorker("configured-worker",
+    hatchet.WithWorkflows(workflow),
+    hatchet.WithMaxSlots(50),
+    hatchet.WithDurableSlots(100),
+    hatchet.WithLabels(map[string]string{
+        "region": "us-east-1",
+        "env":    "production",
+    }),
+)
 ```
 
-## Workers
+### Conditional Execution
 
-To declare workers, you can use the `Worker` method on the `v1` Hatchet client. Note that instead of calling `RegisterWorkflow` on the worker, you can pass the workflows directly to the `Worker` method:
+Control task execution with conditions:
+
+```go
+task := workflow.NewTask("conditional-task", func(ctx hatchet.Context, input any) (any, error) {
+    return "executed", nil
+},
+    // Wait for a user event before running
+    hatchet.WithWaitFor(hatchet.UserEventCondition("approval", "approval.status == 'approved'")),
+
+    // Skip if condition is met
+    hatchet.WithSkipIf(hatchet.ParentCondition(parentTask, "parent.skip == true")),
+
+    // Cancel if condition is met
+    hatchet.WithCancelIf(hatchet.UserEventCondition("cancel", "cancel.reason != ''")),
+)
+```
+
+## Worker Management
+
+### Basic Worker Setup
+
+The V1 Reflection SDK simplifies worker creation:
 
 ```go
 package main
 
 import (
-	"context"
-	"fmt"
+    "context"
+    "log"
 
-    v1 "github.com/hatchet-dev/hatchet/pkg/v1"
-	"github.com/hatchet-dev/hatchet/pkg/v1/worker"
-	"github.com/hatchet-dev/hatchet/pkg/v1/workflow"
+    hatchet "github.com/hatchet-dev/hatchet/sdks/go"
 )
 
 func main() {
-	hatchet, err := v1.NewHatchetClient()
+    client, err := hatchet.NewClient()
+    if err != nil {
+        log.Fatal(err)
+    }
 
-	if err != nil {
-		panic(err)
-	}
+    // Create workflows and tasks
+    workflow := client.NewWorkflow("my-workflow")
+    task := workflow.NewTask("my-task", func(ctx hatchet.Context, input any) (any, error) {
+        return "result", nil
+    })
 
-	worker, err := hatchet.Worker(
-		create.WorkerOpts{
-			Name: fmt.Sprintf("%s-worker", workflowName),
-            Workflows: []workflow.WorkflowBase{workflow}, // add your workflow here
-		},
-	)
+    // Create worker with workflows
+    worker, err := client.NewWorker("my-worker",
+        hatchet.WithWorkflows(workflow))
+    if err != nil {
+        log.Fatal(err)
+    }
 
-	if err != nil {
-		panic(err)
-	}
-
-	ctx, cancel := context.WithCancel(context.Background())
-
-	worker.StartBlocking(ctx)
+    // Start worker (blocking)
+    err = worker.StartBlocking(context.Background())
+    if err != nil {
+        log.Fatal(err)
+    }
 }
 ```
+
+### Advanced Worker Features
+
+```go
+// Worker with advanced configuration
+worker, err := client.NewWorker("advanced-worker",
+    hatchet.WithWorkflows(workflow1, workflow2),
+    hatchet.WithMaxSlots(100),           // Max concurrent non-durable tasks
+    hatchet.WithDurableSlots(50),        // Max concurrent durable tasks
+    hatchet.WithLabels(map[string]string{
+        "region":    "us-west-2",
+        "node_type": "compute-optimized",
+    }),
+    hatchet.WithPanicHandler(func(r any) {
+        log.Printf("Worker panic recovered: %v", r)
+    }),
+)
+
+// Non-blocking start with cleanup
+cleanup, err := worker.Start()
+if err != nil {
+    log.Fatal(err)
+}
+defer cleanup() // Important: cleanup resources
+
+// Your application logic here...
+```
+
+## Migration Checklist
+
+### From V0 to V1 Reflection SDK
+
+- [ ] Update import: `github.com/hatchet-dev/hatchet/pkg/client` → `github.com/hatchet-dev/hatchet/sdks/go`
+- [ ] Change client creation: `client.New()` → `hatchet.NewClient()`
+- [ ] Convert `WorkflowJob` to `NewWorkflow()` with tasks
+- [ ] Replace `RegisterWorkflow()` with `WithWorkflows()` option
+- [ ] Update function signatures to use typed inputs/outputs
+- [ ] Replace `worker.HatchetContext` with `hatchet.Context`
+
+### From V1 Generics to V1 Reflection SDK
+
+- [ ] Update import: `github.com/hatchet-dev/hatchet/pkg/v1` → `github.com/hatchet-dev/hatchet/sdks/go`
+- [ ] Change client creation: `v1.NewHatchetClient()` → `hatchet.NewClient()`
+- [ ] Remove factory imports and usage
+- [ ] Convert `factory.NewTask()` to `NewStandaloneTask()` or workflow tasks
+- [ ] Remove explicit type parameters (generics)
+- [ ] Update function return types (remove pointers where appropriate)
+- [ ] Replace `create.StandaloneTask{}` structs with option functions
+
+## Common Patterns
+
+### Error Handling and Retries
+
+```go
+task := workflow.NewTask("resilient-task", func(ctx hatchet.Context, input any) (any, error) {
+    // Your task logic here
+    return result, nil
+},
+    hatchet.WithRetries(5),
+    hatchet.WithRetryBackoff(2.0, time.Second*30), // 2x backoff, max 30s
+)
+```
+
+### Child Workflows
+
+```go
+parentTask := workflow.NewTask("parent", func(ctx hatchet.Context, input any) (any, error) {
+    // Spawn child workflow
+    result, err := childWorkflow.RunAsChild(ctx, input, hatchet.RunAsChildOpts{
+        Key:      "unique-key",
+        Priority: hatchet.High,
+    })
+    if err != nil {
+        return nil, err
+    }
+
+    return result, nil
+})
+```
+
+### Bulk Operations
+
+```go
+// Run multiple instances of a workflow
+runInputs := []hatchet.RunManyOpt{
+    {Input: map[string]string{"user": "alice"}},
+    {Input: map[string]string{"user": "bob"}},
+    {Input: map[string]string{"user": "charlie"}},
+}
+
+runIds, err := client.RunMany(ctx, "bulk-workflow", runInputs)
+```
+
+This guide should cover all major migration scenarios between the three Go SDK versions. The V1 Reflection SDK provides the most ergonomic API while maintaining full compatibility with the Hatchet platform.
