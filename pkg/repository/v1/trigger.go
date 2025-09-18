@@ -142,7 +142,7 @@ func (r *TriggerRepositoryImpl) makeTriggerDecisions(ctx context.Context, filter
 	// Case 1 - no filters exist for the workflow
 	if !hasAnyFilters {
 		return []TriggerDecision{
-			TriggerDecision{
+			{
 				ShouldTrigger: true,
 				FilterPayload: nil,
 				FilterId:      nil,
@@ -154,7 +154,7 @@ func (r *TriggerRepositoryImpl) makeTriggerDecisions(ctx context.Context, filter
 	// so we should not trigger the workflow
 	if len(filters) == 0 {
 		return []TriggerDecision{
-			TriggerDecision{
+			{
 				ShouldTrigger: false,
 				FilterPayload: nil,
 				FilterId:      nil,
@@ -262,12 +262,19 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 
 	workflowIdScopePairs := make(map[WorkflowAndScope]bool)
 
+	// important: need to include all workflow ids here, regardless of whether or
+	// not the corresponding event was pushed with a scope, so we can correctly
+	// tell if there are any filters for the workflows with these events registered
+	workflowIdsForFilterCounts := make([]pgtype.UUID, 0, len(workflowVersionIdsAndEventKeys))
+
 	for _, workflow := range workflowVersionIdsAndEventKeys {
 		opts, ok := eventKeysToOpts[workflow.IncomingEventKey]
 
 		if !ok {
 			continue
 		}
+
+		workflowIdsForFilterCounts = append(workflowIdsForFilterCounts, workflow.WorkflowId)
 
 		for _, opt := range opts {
 			if opt.Scope == nil {
@@ -281,8 +288,8 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 		}
 	}
 
-	workflowIds := make([]pgtype.UUID, 0)
-	scopes := make([]string, 0)
+	workflowIds := make([]pgtype.UUID, 0, len(workflowIdScopePairs))
+	scopes := make([]string, 0, len(workflowIdScopePairs))
 
 	for pair := range workflowIdScopePairs {
 		workflowIds = append(workflowIds, pair.WorkflowId)
@@ -312,7 +319,7 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 
 	filterCounts, err := r.queries.ListFilterCountsForWorkflows(ctx, r.pool, sqlcv1.ListFilterCountsForWorkflowsParams{
 		Tenantid:    sqlchelpers.UUIDFromStr(tenantId),
-		Workflowids: workflowIds,
+		Workflowids: workflowIdsForFilterCounts,
 	})
 
 	if err != nil {

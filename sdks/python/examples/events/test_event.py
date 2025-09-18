@@ -86,7 +86,13 @@ async def fetch_runs_for_event(
         test_run_id=cast(str, meta["test_run_id"]),
     )
 
-    if not all([r.output for r in runs.rows]):
+    if not all(
+        [
+            r.status
+            in [V1TaskStatus.COMPLETED, V1TaskStatus.FAILED, V1TaskStatus.CANCELLED]
+            for r in runs.rows
+        ]
+    ):
         return (processed_event, [])
 
     return (
@@ -108,25 +114,9 @@ async def wait_for_result(
 
     iters = 0
     while True:
-        print("Waiting for event runs to complete...")
-        if iters > 15:
-            print("Timed out waiting for event runs to complete.")
-            return {
-                ProcessedEvent(
-                    id=event.eventId,
-                    payload=json.loads(event.payload) if event.payload else {},
-                    meta=(
-                        json.loads(event.additionalMetadata)
-                        if event.additionalMetadata
-                        else {}
-                    ),
-                    should_have_runs=False,
-                    test_run_id=cast(
-                        str, json.loads(event.additionalMetadata).get("test_run_id", "")
-                    ),
-                ): []
-                for event in events
-            }
+        print("waiting for event runs to complete - iteration", iters)
+        if iters > 10:
+            raise TimeoutError("Timed out waiting for event runs to complete.")
 
         iters += 1
 
@@ -134,9 +124,21 @@ async def wait_for_result(
             *[fetch_runs_for_event(hatchet, event) for event in events]
         )
 
-        all_empty = all(not event_run for _, event_run in event_runs)
+        should_keep_waiting = any(
+            (not event_run and e.should_have_runs)
+            or any(
+                e.status
+                not in [
+                    V1TaskStatus.COMPLETED,
+                    V1TaskStatus.FAILED,
+                    V1TaskStatus.CANCELLED,
+                ]
+                for e in event_run
+            )
+            for e, event_run in event_runs
+        )
 
-        if all_empty:
+        if should_keep_waiting:
             await asyncio.sleep(1)
             continue
 
@@ -160,6 +162,18 @@ async def wait_for_result(
 async def wait_for_result_and_assert(hatchet: Hatchet, events: list[Event]) -> None:
     event_to_runs = await wait_for_result(hatchet, events)
 
+    unique_events_with_runs = {
+        event.eventId
+        for event in events
+        if json.loads(event.additionalMetadata).get("should_have_runs", False) is True
+    }
+
+    unique_events_with_runs_in_results = {
+        event.id for event, runs in event_to_runs.items() if len(runs) > 0
+    }
+
+    assert len(unique_events_with_runs) == len(unique_events_with_runs_in_results)
+
     for event, runs in event_to_runs.items():
         await assert_event_runs_processed(event, runs)
 
@@ -179,7 +193,9 @@ async def assert_event_runs_processed(
 
         for run in runs:
             assert run.status == V1TaskStatus.COMPLETED
-            assert run.output.get("test_run_id") == event.test_run_id
+
+            meta = run.additional_metadata or {}
+            assert meta.get("test_run_id") == event.test_run_id
     else:
         assert len(runs) == 0
 
@@ -430,7 +446,7 @@ async def test_filtering_by_event_key(hatchet: Hatchet, test_run_id: str) -> Non
     async with event_filter(
         hatchet,
         test_run_id,
-        f"event_key == '{SECONDARY_KEY}'",
+        f"event_key == '{hatchet.config.apply_namespace(SECONDARY_KEY)}'",
     ):
         event_1 = await hatchet.event.aio_push(
             event_key=SECONDARY_KEY,
