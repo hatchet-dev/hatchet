@@ -455,21 +455,6 @@ files = [
 markers = {lint = "platform_system == \"Windows\"", test = "sys_platform == \"win32\""}
 
 [[package]]
-name = "dacite"
-version = "1.9.2"
-description = "Simple creation of data classes from dictionaries."
-optional = false
-python-versions = ">=3.7"
-groups = ["main"]
-files = [
-    {file = "dacite-1.9.2-py3-none-any.whl", hash = "sha256:053f7c3f5128ca2e9aceb66892b1a3c8936d02c686e707bee96e19deef4bc4a0"},
-    {file = "dacite-1.9.2.tar.gz", hash = "sha256:6ccc3b299727c7aa17582f0021f6ae14d5de47c7227932c47fec4cdfefd26f09"},
-]
-
-[package.extras]
-dev = ["black", "coveralls", "mypy", "pre-commit", "pylint", "pytest (>=5)", "pytest-benchmark", "pytest-cov"]
-
-[[package]]
 name = "distro"
 version = "1.9.0"
 description = "Distro - an OS platform information API"
@@ -3218,4 +3203,4 @@ v0-sdk = ["cel-python"]
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.10"
-content-hash = "1f9f5e33c1f9c7369a2e609265ab087c1197b338454bfc312376a8da799c8d12"
+content-hash = "536c59516454f5e81dee78bc9bbb6f2d535dfd6f29226eb0ce01f78c7d403f07"
