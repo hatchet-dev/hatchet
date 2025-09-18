@@ -265,7 +265,7 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 	// important: need to include all workflow ids here, regardless of whether or
 	// not the corresponding event was pushed with a scope, so we can correctly
 	// tell if there are any filters for the workflows with these events registered
-	workflowIdsForFilterCounts := make([]pgtype.UUID, 0)
+	workflowIdsForFilterCounts := make([]pgtype.UUID, 0, len(workflowVersionIdsAndEventKeys))
 
 	for _, workflow := range workflowVersionIdsAndEventKeys {
 		opts, ok := eventKeysToOpts[workflow.IncomingEventKey]
