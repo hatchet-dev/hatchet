@@ -74,7 +74,7 @@ func Prepare(t *testing.T) {
 				ID:   &tenantId,
 				Name: "test-tenant",
 				Slug: "test-tenant",
-			})
+			}, nil)
 			if err != nil {
 				t.Fatalf("could not create tenant: %v", err)
 			}

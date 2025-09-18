@@ -56,7 +56,7 @@ func SeedDatabase(dc *database.Layer) error {
 				ID:   &dc.Seed.DefaultTenantID,
 				Name: dc.Seed.DefaultTenantName,
 				Slug: dc.Seed.DefaultTenantSlug,
-			})
+			}, nil)
 
 			if err != nil {
 				return err
