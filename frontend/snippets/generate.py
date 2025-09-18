@@ -356,13 +356,14 @@ if __name__ == "__main__":
         json.dump(tree, f, indent=2)
         f.write(" as const;\n")
 
+    languages = ' | '.join([f"'{v.name.lower()}'" for v in SDKParsingContext])
     snippet_type = (
         "export type Snippet = {\n"
         "    title: string;\n"
         "    content: string;\n"
         "    githubUrl: string;\n"
         "    codePath: string;\n"
-        f"    language: {' | '.join([f"'{v.name.lower()}'" for v in SDKParsingContext])}\n"
+        f"    language: {languages}\n"
         "};\n"
     )
 
