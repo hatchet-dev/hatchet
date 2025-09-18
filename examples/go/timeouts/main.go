@@ -30,6 +30,7 @@ func main() {
 		hatchet.WithWorkflowVersion("1.0.0"),
 	)
 
+	// > Execution Timeout
 	// Task that will timeout - sleeps for 10 seconds but has 3 second timeout
 	_ = timeoutWorkflow.NewTask("timeout-task",
 		func(ctx hatchet.Context, input TimeoutInput) (TimeoutOutput, error) {
@@ -48,6 +49,7 @@ func main() {
 		hatchet.WithExecutionTimeout(3*time.Second), // 3 second timeout
 	)
 
+	// > Refresh Timeout
 	// Create workflow with timeout refresh example
 	refreshTimeoutWorkflow := client.NewWorkflow("refresh-timeout-demo",
 		hatchet.WithWorkflowDescription("Demonstrates timeout refresh functionality"),
