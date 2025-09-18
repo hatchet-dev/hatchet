@@ -3,12 +3,13 @@ import { Callout } from "nextra/components";
 ## Hatchet Go SDK Migration Guide
 
 This comprehensive guide covers migration paths between all three major versions of the Hatchet Go SDK:
+
 - **V0 SDK** (`github.com/hatchet-dev/hatchet/pkg/client`) - Original SDK
 - **V1 Generics SDK** (`github.com/hatchet-dev/hatchet/pkg/v1`) - Type-safe SDK with Go generics (deprecated)
 - **V1 Reflection SDK** (`github.com/hatchet-dev/hatchet/sdks/go`) - Current SDK with reflection-based API
 
 <Callout type="info">
-The V1 engine will continue to support V0 tasks until September 30th, 2025.
+  The V1 engine will continue to support V0 tasks until September 30th, 2025.
 </Callout>
 
 ## Quick Start with V1 Reflection SDK (Current)
@@ -60,6 +61,7 @@ func main() {
 ### From V0 SDK to V1 Reflection SDK
 
 **V0 SDK (Legacy)**:
+
 ```go
 import "github.com/hatchet-dev/hatchet/pkg/client"
 
@@ -82,6 +84,7 @@ worker.RegisterWorkflow(
 ```
 
 **V1 Reflection SDK (Current)**:
+
 ```go
 import hatchet "github.com/hatchet-dev/hatchet/sdks/go"
 
@@ -99,6 +102,7 @@ worker, err := client.NewWorker("worker", hatchet.WithWorkflows(workflow))
 ### From V1 Generics SDK to V1 Reflection SDK
 
 **V1 Generics SDK (Deprecated)**:
+
 ```go
 import v1 "github.com/hatchet-dev/hatchet/pkg/v1"
 import "github.com/hatchet-dev/hatchet/pkg/v1/factory"
@@ -115,6 +119,7 @@ simple := factory.NewTask(
 ```
 
 **V1 Reflection SDK (Current)**:
+
 ```go
 import hatchet "github.com/hatchet-dev/hatchet/sdks/go"
 
@@ -124,23 +129,6 @@ task := client.NewStandaloneTask("simple-task", func(ctx hatchet.Context, input 
     return SimpleResult{TransformedMessage: strings.ToLower(input.Message)}, nil
 })
 ```
-
-## Key Differences Between SDKs
-
-### Type Safety Approach
-- **V0 SDK**: No type safety, uses `any` types
-- **V1 Generics SDK**: Explicit generics with type parameters
-- **V1 Reflection SDK**: Automatic type inference via reflection
-
-### Task Definition
-- **V0 SDK**: Manual workflow step registration
-- **V1 Generics SDK**: Factory methods with type parameters
-- **V1 Reflection SDK**: Direct function assignment with automatic typing
-
-### Client Creation
-- **V0 SDK**: `client.New()`
-- **V1 Generics SDK**: `v1.NewHatchetClient()`
-- **V1 Reflection SDK**: `hatchet.NewClient()`
 
 ## V1 Reflection SDK Features
 
