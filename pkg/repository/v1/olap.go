@@ -1302,7 +1302,7 @@ func (r *OLAPRepositoryImpl) writeTaskBatch(ctx context.Context, tenantId string
 
 		// fall back to input if payload is empty
 		// for backwards compatibility
-		if payload == nil || len(payload) == 0 {
+		if len(payload) == 0 {
 			payload = task.Input
 		}
 
