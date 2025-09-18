@@ -36,6 +36,7 @@ WITH inputs AS (
         UNNEST(@inlineContents::JSONB[]) AS inline_content,
         UNNEST(@tenantIds::UUID[]) AS tenant_id
 )
+
 INSERT INTO v1_payload (
     tenant_id,
     id,
@@ -45,7 +46,6 @@ INSERT INTO v1_payload (
     external_location_key,
     inline_content
 )
-
 SELECT
     i.tenant_id,
     i.id,
@@ -56,6 +56,12 @@ SELECT
     i.inline_content
 FROM
     inputs i
+ON CONFLICT (tenant_id, id, inserted_at, type)
+DO UPDATE SET
+    location = EXCLUDED.location,
+    external_location_key = CASE WHEN EXCLUDED.external_location_key = '' OR EXCLUDED.location = 'EXTERNAL' THEN NULL ELSE EXCLUDED.external_location_key END,
+    inline_content = EXCLUDED.inline_content,
+    updated_at = NOW()
 ;
 
 

@@ -2254,6 +2254,7 @@ func (r *sharedRepository) replayTasks(
 	}
 
 	stepIdsToParams := make(map[string]sqlcv1.ReplayTasksParams, 0)
+	stepIdsToStorePayloadOpts := make(map[string][]StorePayloadOpts, 0)
 
 	for i, task := range tasks {
 		params, ok := stepIdsToParams[task.StepId]
@@ -2279,6 +2280,16 @@ func (r *sharedRepository) replayTasks(
 		params.Concurrencykeys = append(params.Concurrencykeys, concurrencyKeys[i])
 
 		stepIdsToParams[task.StepId] = params
+
+		storePayloadOpts := StorePayloadOpts{
+			Id:         taskIds[i],
+			InsertedAt: taskInsertedAts[i],
+			Type:       sqlcv1.V1PayloadTypeTASKINPUT,
+			Payload:    input,
+			TenantId:   tenantId,
+		}
+
+		stepIdsToStorePayloadOpts[task.StepId] = append(stepIdsToStorePayloadOpts[task.StepId], storePayloadOpts)
 	}
 
 	res := make([]*V1TaskWithPayload, 0)
@@ -2294,6 +2305,18 @@ func (r *sharedRepository) replayTasks(
 
 		if err != nil {
 			return nil, fmt.Errorf("failed to replay tasks for step id %s: %w", stepId, err)
+		}
+
+		storePayloadOpts, ok := stepIdsToStorePayloadOpts[stepId]
+
+		if !ok {
+			return nil, fmt.Errorf("missing payload store opts for step id %s", stepId)
+		}
+
+		err = r.payloadStore.Store(ctx, tx, storePayloadOpts...)
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to store payloads for step id %s: %w", stepId, err)
 		}
 
 		replayResWithPayloads := make([]*V1TaskWithPayload, len(replayRes))
