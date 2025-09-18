@@ -167,7 +167,10 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		}
 	}
 
-	config.ConnConfig.Tracer = otelpgx.NewTracer()
+	config.ConnConfig.Tracer = otelpgx.NewTracer(
+		// for options, see: https://github.com/exaring/otelpgx/blob/main/options.go
+		otelpgx.WithIncludeQueryParameters(),
+	)
 
 	if cf.MaxConns != 0 {
 		config.MaxConns = int32(cf.MaxConns) // nolint: gosec
@@ -217,7 +220,10 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		}
 
 		readReplicaConfig.MaxConnLifetime = 15 * 60 * time.Second
-		readReplicaConfig.ConnConfig.Tracer = otelpgx.NewTracer()
+		readReplicaConfig.ConnConfig.Tracer = otelpgx.NewTracer(
+			// for options, see: https://github.com/exaring/otelpgx/blob/main/options.go
+			otelpgx.WithIncludeQueryParameters(),
+		)
 
 		readReplicaPool, err = pgxpool.NewWithConfig(context.Background(), readReplicaConfig)
 
