@@ -7,6 +7,7 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 
 	"github.com/jackc/pgx/v5/pgtype"
 )
@@ -55,6 +56,35 @@ func ToEventFromSQLC(eventRow *dbsqlc.ListEventsRow) (*gen.Event, error) {
 		Pending:   &eventRow.Pendingruns,
 		Queued:    &eventRow.Queuedruns,
 		Cancelled: &eventRow.Cancelledruns,
+	}
+
+	return res, nil
+}
+
+func ToEventFromSQLCV1(event *v1.ListEventsRow) (*gen.Event, error) {
+	var metadata map[string]interface{}
+
+	if event.EventAdditionalMetadata != nil {
+		err := json.Unmarshal(event.EventAdditionalMetadata, &metadata)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	res := &gen.Event{
+		Metadata:           *toAPIMetadata(pgUUIDToStr(event.EventExternalID), event.EventSeenAt.Time, event.EventSeenAt.Time),
+		Key:                event.EventKey,
+		TenantId:           pgUUIDToStr(event.TenantID),
+		AdditionalMetadata: &metadata,
+	}
+
+	res.WorkflowRunSummary = &gen.EventWorkflowRunSummary{
+		Failed:    &event.FailedCount,
+		Running:   &event.RunningCount,
+		Succeeded: &event.CompletedCount,
+		Pending:   &event.QueuedCount,
+		Queued:    &event.QueuedCount,
+		Cancelled: &event.CancelledCount,
 	}
 
 	return res, nil
