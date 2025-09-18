@@ -32,11 +32,6 @@ func main() {
 		}, nil
 	})
 
-	worker, err := client.NewWorker("simple-worker", hatchet.WithWorkflows(task))
-	if err != nil {
-		log.Fatalf("failed to create worker: %v", err)
-	}
-
 	_ = func() error {
 		// > Running a Task
 		result, err := task.Run(context.Background(), SimpleInput{Message: "Hello, World!"})
@@ -155,6 +150,12 @@ func main() {
 		wg.Wait()
 
 		return nil
+	}
+
+	// > Starting a worker
+	worker, err := client.NewWorker("simple-worker", hatchet.WithWorkflows(task))
+	if err != nil {
+		log.Fatalf("failed to create worker: %v", err)
 	}
 
 	interruptCtx, cancel := cmdutils.NewInterruptContext()
