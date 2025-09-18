@@ -263,7 +263,7 @@ func (q *Queries) WritePayloadWAL(ctx context.Context, db DBTX, arg WritePayload
 
 const writePayloads = `-- name: WritePayloads :exec
 WITH inputs AS (
-    SELECT
+    SELECT DISTINCT
         UNNEST($1::BIGINT[]) AS id,
         UNNEST($2::TIMESTAMPTZ[]) AS inserted_at,
         UNNEST(CAST($3::TEXT[] AS v1_payload_type[])) AS type,

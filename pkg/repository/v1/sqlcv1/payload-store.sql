@@ -27,7 +27,7 @@ WHERE (tenant_id, id, inserted_at, type) IN (
 
 -- name: WritePayloads :exec
 WITH inputs AS (
-    SELECT
+    SELECT DISTINCT
         UNNEST(@ids::BIGINT[]) AS id,
         UNNEST(@insertedAts::TIMESTAMPTZ[]) AS inserted_at,
         UNNEST(CAST(@types::TEXT[] AS v1_payload_type[])) AS type,
