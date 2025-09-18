@@ -527,13 +527,13 @@ func (w *Workflow) Run(ctx context.Context, input any) (*WorkflowResult, error) 
 
 // RunNoWait executes the workflow with the provided input without waiting for completion.
 // Returns a workflow run reference that can be used to track the run status.
-func (w *Workflow) RunNoWait(ctx context.Context, input any) (*WorkflowRef, error) {
+func (w *Workflow) RunNoWait(ctx context.Context, input any) (*WorkflowRunRef, error) {
 	wf, err := w.v0Client.Admin().RunWorkflow(w.declaration.Name(), input)
 	if err != nil {
 		return nil, err
 	}
 
-	return &WorkflowRef{RunId: wf.RunId()}, nil
+	return &WorkflowRunRef{RunId: wf.RunId(), v0Workflow: wf}, nil
 }
 
 // RunAsChildOpts is the options for running a workflow as a child workflow.

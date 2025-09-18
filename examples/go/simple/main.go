@@ -53,6 +53,32 @@ func main() {
 		return nil
 	}
 
+	_ = func() error {
+		// > Running a task without waiting
+		runRef, err := task.RunNoWait(context.Background(), SimpleInput{Message: "Hello, World!"})
+		if err != nil {
+			return err
+		}
+
+		fmt.Println(runRef.RunId)
+
+		// > Subscribing to results
+		result, err := runRef.Result()
+		if err != nil {
+			return err
+		}
+
+		var resultOutput SimpleOutput
+		err = result.TaskOutput("process-message").Into(&resultOutput)
+		if err != nil {
+			return err
+		}
+
+		fmt.Println(resultOutput.Result)
+
+		return nil
+	}
+
 	interruptCtx, cancel := cmdutils.NewInterruptContext()
 	defer cancel()
 
