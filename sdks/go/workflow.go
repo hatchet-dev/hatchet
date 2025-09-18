@@ -94,6 +94,7 @@ type workflowConfig struct {
 	description     string
 	taskDefaults    *create.TaskDefaults
 	defaultPriority *RunPriority
+	stickyStrategy  *types.StickyStrategy
 }
 
 // WithWorkflowCron configures the workflow to run on a cron schedule.
@@ -146,6 +147,13 @@ func WithWorkflowDefaultPriority(priority RunPriority) WorkflowOption {
 	}
 }
 
+// WithWorkflowStickyStrategy sets the sticky strategy for the workflow.
+func WithWorkflowStickyStrategy(stickyStrategy types.StickyStrategy) WorkflowOption {
+	return func(config *workflowConfig) {
+		config.stickyStrategy = &stickyStrategy
+	}
+}
+
 // newWorkflow creates a new workflow definition.
 func newWorkflow(name string, v0Client v0Client.Client, options ...WorkflowOption) *Workflow {
 	config := &workflowConfig{}
@@ -155,13 +163,14 @@ func newWorkflow(name string, v0Client v0Client.Client, options ...WorkflowOptio
 	}
 
 	createOpts := create.WorkflowCreateOpts[any]{
-		Name:         name,
-		Version:      config.version,
-		Description:  config.description,
-		OnEvents:     config.onEvents,
-		OnCron:       config.onCron,
-		Concurrency:  config.concurrency,
-		TaskDefaults: config.taskDefaults,
+		Name:           name,
+		Version:        config.version,
+		Description:    config.description,
+		OnEvents:       config.onEvents,
+		OnCron:         config.onCron,
+		Concurrency:    config.concurrency,
+		TaskDefaults:   config.taskDefaults,
+		StickyStrategy: config.stickyStrategy,
 	}
 
 	if config.defaultPriority != nil {
