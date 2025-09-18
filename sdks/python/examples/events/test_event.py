@@ -115,7 +115,7 @@ async def wait_for_result(
     iters = 0
     while True:
         print("waiting for event runs to complete - iteration", iters)
-        if iters > 30:
+        if iters > 10:
             raise TimeoutError("Timed out waiting for event runs to complete.")
 
         iters += 1
@@ -446,7 +446,7 @@ async def test_filtering_by_event_key(hatchet: Hatchet, test_run_id: str) -> Non
     async with event_filter(
         hatchet,
         test_run_id,
-        f"event_key == '{SECONDARY_KEY}'",
+        f"event_key == '{hatchet.config.apply_namespace(SECONDARY_KEY)}'",
     ):
         event_1 = await hatchet.event.aio_push(
             event_key=SECONDARY_KEY,
