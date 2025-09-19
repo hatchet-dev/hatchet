@@ -1,8 +1,9 @@
 import asyncio
 import json
 from collections.abc import Callable, Mapping
+from dataclasses import Field as DataclassField
 from enum import Enum
-from typing import Any, ParamSpec, TypeGuard, TypeVar
+from typing import Any, ClassVar, ParamSpec, Protocol, TypeGuard, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -12,7 +13,12 @@ from hatchet_sdk.contracts.v1.workflows_pb2 import DefaultFilter as DefaultFilte
 from hatchet_sdk.utils.timedelta_to_expression import Duration
 from hatchet_sdk.utils.typing import AwaitableLike, JSONSerializableMapping
 
-ValidTaskReturnType = BaseModel | Mapping[str, Any] | None
+
+class DataclassInstance(Protocol):
+    __dataclass_fields__: ClassVar[dict[str, DataclassField[Any]]]
+
+
+ValidTaskReturnType = BaseModel | Mapping[str, Any] | DataclassInstance | None
 
 R = TypeVar("R", bound=ValidTaskReturnType)
 P = ParamSpec("P")
