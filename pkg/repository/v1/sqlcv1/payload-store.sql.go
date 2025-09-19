@@ -239,8 +239,7 @@ SELECT
 FROM
     inputs i
 ON CONFLICT (offload_at, tenant_id, payload_id, payload_inserted_at, payload_type) DO UPDATE
-SET
-    operation = EXCLUDED.operation
+SET operation = EXCLUDED.operation
 `
 
 type WritePayloadWALParams struct {
