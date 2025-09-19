@@ -1,15 +1,16 @@
-import pytest
 import asyncio
+from uuid import uuid4
+
+import pytest
 
 from examples.bug_tests.payload_bug_on_replay.worker import (
+    Input,
+    StepOutput,
     payload_initial_cancel_bug_workflow,
     step1,
     step2,
-    Input,
-    StepOutput,
 )
 from hatchet_sdk import EmptyModel, Hatchet, TriggerWorkflowOptions, V1TaskStatus
-from uuid import uuid4
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -57,4 +58,12 @@ async def test_payload_replay_bug(hatchet: Hatchet) -> None:
     assert step_1_output.should_cancel is False
     assert step_2_output.should_cancel is False
 
-    assert False
+    await asyncio.sleep(3)
+
+    run = await hatchet.runs.aio_get(ref.workflow_run_id)
+
+    tasks = sorted(run.tasks, key=lambda t: t.metadata.created_at)
+
+    assert len(tasks) == 2
+    assert tasks[0].status == V1TaskStatus.COMPLETED
+    assert tasks[1].status == V1TaskStatus.COMPLETED

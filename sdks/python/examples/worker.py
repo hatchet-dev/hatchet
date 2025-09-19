@@ -1,4 +1,7 @@
 from examples.affinity_workers.worker import affinity_worker_workflow
+from examples.bug_tests.payload_bug_on_replay.worker import (
+    payload_initial_cancel_bug_workflow,
+)
 from examples.bulk_fanout.worker import bulk_child_wf, bulk_parent_wf
 from examples.bulk_operations.worker import (
     bulk_replay_test_1,
@@ -37,9 +40,6 @@ from examples.on_failure.worker import on_failure_wf, on_failure_wf_with_details
 from examples.return_exceptions.worker import return_exceptions_task
 from examples.simple.worker import simple, simple_durable
 from examples.timeout.worker import refresh_timeout_wf, timeout_wf
-from examples.bug_tests.payload_bug_on_replay.worker import (
-    payload_initial_cancel_bug_workflow,
-)
 from examples.webhooks.worker import webhook
 from hatchet_sdk import Hatchet
 
