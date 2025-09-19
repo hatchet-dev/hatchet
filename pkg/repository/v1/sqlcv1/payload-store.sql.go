@@ -288,14 +288,14 @@ SELECT
     i.inserted_at,
     i.type,
     i.location,
-    CASE WHEN i.external_location_key = '' OR i.location = 'EXTERNAL' THEN NULL ELSE i.external_location_key END,
+    CASE WHEN i.external_location_key = '' OR i.location != 'EXTERNAL' THEN NULL ELSE i.external_location_key END,
     i.inline_content
 FROM
     inputs i
 ON CONFLICT (tenant_id, id, inserted_at, type)
 DO UPDATE SET
     location = EXCLUDED.location,
-    external_location_key = CASE WHEN EXCLUDED.external_location_key = '' OR EXCLUDED.location = 'EXTERNAL' THEN NULL ELSE EXCLUDED.external_location_key END,
+    external_location_key = CASE WHEN EXCLUDED.external_location_key = '' OR EXCLUDED.location != 'EXTERNAL' THEN NULL ELSE EXCLUDED.external_location_key END,
     inline_content = EXCLUDED.inline_content,
     updated_at = NOW()
 `
