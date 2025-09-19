@@ -650,7 +650,7 @@ CREATE TABLE v1_dag_to_task (
     task_id BIGINT NOT NULL,
     task_inserted_at TIMESTAMPTZ NOT NULL,
     CONSTRAINT v1_dag_to_task_pkey PRIMARY KEY (dag_id, dag_inserted_at, task_id, task_inserted_at)
-);
+) PARTITION BY RANGE(dag_inserted_at);
 
 CREATE TABLE v1_dag_data (
     dag_id BIGINT NOT NULL,
