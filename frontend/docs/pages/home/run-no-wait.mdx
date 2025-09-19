@@ -39,7 +39,7 @@ Note that the type of `input` here is a Pydantic model that matches the input sc
   <Tabs.Tab title="Go">
     You can use your `Workflow` object to run a workflow and "forget" it by calling the `RunNoWait` method. This method enqueue a workflow run and return a `WorkflowRunRef`, a reference to that run, without waiting for the result.
 
-    <Snippet src={snippets.go.run.simple.running_a_task_without_waiting} />
+    <Snippet src={snippets.go.simple.main.running_a_task_without_waiting} />
 
   </Tabs.Tab>
 </UniversalTabs>
@@ -67,7 +67,7 @@ or await `aio_result`:
   <Tabs.Tab title="Go">
     You can use your `Workflow` object to run a workflow and "forget" it by calling the `RunNoWait` method. This method enqueue a workflow run and return a `WorkflowRunRef`, a reference to that run, without waiting for the result.
 
-    <Snippet src={snippets.go.run.simple.subscribing_to_results} />
+    <Snippet src={snippets.go.simple.main.subscribing_to_results} />
 
   </Tabs.Tab>
 </UniversalTabs>

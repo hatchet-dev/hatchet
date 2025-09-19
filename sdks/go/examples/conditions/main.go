@@ -32,9 +32,12 @@ func main() {
 		log.Fatalf("failed to create hatchet client: %v", err)
 	}
 
+	// > Create a workflow
 	workflow := client.NewWorkflow("conditional-workflow")
+	// !!
 
 	// Initial task
+	// > Add base task
 	start := workflow.NewTask("start", func(ctx hatchet.Context, input WorkflowInput) (StepOutput, error) {
 		randomNum := rand.Intn(100) + 1 //nolint:gosec // This is a demo
 		log.Printf("Starting workflow for process %s with random number: %d", input.ProcessID, randomNum)
@@ -45,49 +48,36 @@ func main() {
 			ProcessedAt:  time.Now().Format(time.RFC3339),
 		}, nil
 	})
+	// !!
 
-	// Task that waits for either 10 seconds or a user event
-	waitForEvent := workflow.NewTask("wait-for-event", func(ctx hatchet.Context, input WorkflowInput) (StepOutput, error) {
-		log.Printf("Wait task completed for process %s", input.ProcessID)
+	// > Add wait for sleep
+	waitForSleep := workflow.NewTask("wait-for-sleep", func(ctx hatchet.Context, input WorkflowInput) (StepOutput, error) {
 		return StepOutput{
-			StepName:     "wait-for-event",
+			RandomNumber: rand.Intn(100) + 1,
+		}, nil
+	},
+		hatchet.WithParents(start),
+		hatchet.WithWaitFor(hatchet.SleepCondition(10*time.Second)),
+	)
+	// !!
+
+	// > Add skip on event
+	// Task that waits for either 10 seconds or a user event
+	skipOnEvent := workflow.NewTask("skip-on-event", func(ctx hatchet.Context, input WorkflowInput) (StepOutput, error) {
+		log.Printf("Skip on event task completed for process %s", input.ProcessID)
+		return StepOutput{
+			StepName:     "skip-on-event",
 			RandomNumber: rand.Intn(50) + 1, //nolint:gosec // This is a demo
 			ProcessedAt:  time.Now().Format(time.RFC3339),
 		}, nil
 	},
 		hatchet.WithParents(start),
-		hatchet.WithWaitFor(hatchet.OrCondition(
-			hatchet.SleepCondition(10*time.Second),
-			hatchet.UserEventCondition("process:continue", "true"),
-		)),
+		hatchet.WithWaitFor(hatchet.SleepCondition(10*time.Second)),
+		hatchet.WithSkipIf(hatchet.UserEventCondition("process:skip", "true")),
 	)
+	// !!
 
-	// Left branch - only runs if start's random number <= 50
-	leftBranch := workflow.NewTask("left-branch", func(ctx hatchet.Context, input WorkflowInput) (StepOutput, error) {
-		log.Printf("Left branch executing for process %s", input.ProcessID)
-		return StepOutput{
-			StepName:     "left-branch",
-			RandomNumber: rand.Intn(25) + 1, //nolint:gosec // This is a demo
-			ProcessedAt:  time.Now().Format(time.RFC3339),
-		}, nil
-	},
-		hatchet.WithParents(start),
-		hatchet.WithSkipIf(hatchet.ParentCondition(start, "output.randomNumber > 50")),
-	)
-
-	// Right branch - only runs if start's random number > 50
-	rightBranch := workflow.NewTask("right-branch", func(ctx hatchet.Context, input WorkflowInput) (StepOutput, error) {
-		log.Printf("Right branch executing for process %s", input.ProcessID)
-		return StepOutput{
-			StepName:     "right-branch",
-			RandomNumber: rand.Intn(25) + 26, //nolint:gosec // This is a demo
-			ProcessedAt:  time.Now().Format(time.RFC3339),
-		}, nil
-	},
-		hatchet.WithParents(start),
-		hatchet.WithSkipIf(hatchet.ParentCondition(start, "output.randomNumber <= 50")),
-	)
-
+	// > Add wait for event
 	// Task that might be skipped based on external event
 	skipableTask := workflow.NewTask("skipable-task", func(ctx hatchet.Context, input WorkflowInput) (StepOutput, error) {
 		log.Printf("Skipable task executing for process %s", input.ProcessID)
@@ -101,8 +91,38 @@ func main() {
 		hatchet.WithWaitFor(hatchet.SleepCondition(3*time.Second)),
 		hatchet.WithSkipIf(hatchet.UserEventCondition("process:skip", "true")),
 	)
+	// !!
+
+	// > Add branching
+	// Left branch - only runs if start's random number <= 50
+	leftBranch := workflow.NewTask("left-branch", func(ctx hatchet.Context, input WorkflowInput) (StepOutput, error) {
+		log.Printf("Left branch executing for process %s", input.ProcessID)
+		return StepOutput{
+			StepName:     "left-branch",
+			RandomNumber: rand.Intn(25) + 1, //nolint:gosec // This is a demo
+			ProcessedAt:  time.Now().Format(time.RFC3339),
+		}, nil
+	},
+		hatchet.WithParents(waitForSleep),
+		hatchet.WithSkipIf(hatchet.ParentCondition(start, "output.randomNumber > 50")),
+	)
+
+	// Right branch - only runs if start's random number > 50
+	rightBranch := workflow.NewTask("right-branch", func(ctx hatchet.Context, input WorkflowInput) (StepOutput, error) {
+		log.Printf("Right branch executing for process %s", input.ProcessID)
+		return StepOutput{
+			StepName:     "right-branch",
+			RandomNumber: rand.Intn(25) + 26, //nolint:gosec // This is a demo
+			ProcessedAt:  time.Now().Format(time.RFC3339),
+		}, nil
+	},
+		hatchet.WithParents(waitForSleep),
+		hatchet.WithSkipIf(hatchet.ParentCondition(start, "output.randomNumber <= 50")),
+	)
+	// !!
 
 	// Final aggregation task
+	// > Add sum
 	_ = workflow.NewTask("summarize", func(ctx hatchet.Context, input WorkflowInput) (SumOutput, error) {
 		var total int
 		var summary string
@@ -115,13 +135,21 @@ func main() {
 		total += startOutput.RandomNumber
 		summary = fmt.Sprintf("Start: %d", startOutput.RandomNumber)
 
-		// Get wait output
-		var waitOutput StepOutput
-		if err := ctx.ParentOutput(waitForEvent, &waitOutput); err != nil {
+		// Get wait for sleep output
+		var waitForSleepOutput StepOutput
+		if err := ctx.ParentOutput(waitForSleep, &waitForSleepOutput); err != nil {
 			return SumOutput{}, err
 		}
-		total += waitOutput.RandomNumber
-		summary += fmt.Sprintf(", Wait: %d", waitOutput.RandomNumber)
+		total += waitForSleepOutput.RandomNumber
+		summary += fmt.Sprintf(", Wait for sleep: %d", waitForSleepOutput.RandomNumber)
+
+		// Get skip on event output
+		var skipOnEventOutput StepOutput
+		if err := ctx.ParentOutput(skipOnEvent, &skipOnEventOutput); err != nil {
+			return SumOutput{}, err
+		}
+		total += skipOnEventOutput.RandomNumber
+		summary += fmt.Sprintf(", Skip on event: %d", skipOnEventOutput.RandomNumber)
 
 		// Try to get left branch output (might be skipped)
 		var leftOutput StepOutput
@@ -157,11 +185,14 @@ func main() {
 			Summary: summary,
 		}, nil
 	}, hatchet.WithParents(
-		waitForEvent,
+		start,
+		waitForSleep,
+		skipOnEvent,
 		leftBranch,
 		rightBranch,
 		skipableTask,
 	))
+	// !!
 
 	worker, err := client.NewWorker("conditional-worker", hatchet.WithWorkflows(workflow))
 	if err != nil {

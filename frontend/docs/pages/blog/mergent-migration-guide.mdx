@@ -64,40 +64,11 @@ from .hatchet_client import hatchet
 </Tabs.Tab>
 <Tabs.Tab title="Go">
 
-It is recommended to instantiate a shared Hatchet Client in a separate file as a factory function.
+It is recommended to instantiate a Hatchet client in the `main` functtion of your worker.
 
-Create a new file called `hatchet-client.go` in your project root.
+<Snippet src={snippets.go.setup.client.create_a_hatchet_client} />
 
-```go
-package migration_guides
-
-import (
-	v1 "github.com/hatchet-dev/hatchet/pkg/v1"
-)
-
-func HatchetClient() (v1.HatchetClient, error) {
-	hatchet, err := v1.NewHatchetClient()
-
-	if err != nil {
-		return nil, err
-	}
-
-	return hatchet, nil
-}
-```
-
-You can now import the Hatchet Client in any file that needs it.
-
-```go
-import (
-	"github.com/your-project/migration_guides"
-)
-
-hatchet, err := migration_guides.HatchetClient()
-if err != nil {
-	panic(err)
-}
-```
+You can pass this client instance in separate functions in your Go worker.
 
 </Tabs.Tab>
 </UniversalTabs>

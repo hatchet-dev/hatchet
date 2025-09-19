@@ -1,4 +1,4 @@
-package migration_guides
+package mergent
 
 import (
 	"bytes"
@@ -8,12 +8,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/hatchet-dev/hatchet/pkg/client/create"
-	v1 "github.com/hatchet-dev/hatchet/pkg/v1"
-	"github.com/hatchet-dev/hatchet/pkg/v1/factory"
-	v1worker "github.com/hatchet-dev/hatchet/pkg/v1/worker"
-	"github.com/hatchet-dev/hatchet/pkg/v1/workflow"
-	"github.com/hatchet-dev/hatchet/pkg/worker"
+	hatchet "github.com/hatchet-dev/hatchet/sdks/go"
+	"github.com/hatchet-dev/hatchet/sdks/go/features"
 )
 
 // ProcessImage simulates image processing
@@ -65,12 +61,9 @@ type ImageProcessOutput struct {
 	} `json:"metadata"`
 }
 
-func ImageProcessor(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[ImageProcessInput, ImageProcessOutput] {
-	processor := factory.NewTask(
-		create.StandaloneTask{
-			Name: "image-processor",
-		},
-		func(ctx worker.HatchetContext, input ImageProcessInput) (*ImageProcessOutput, error) {
+func ImageProcessor(client *hatchet.Client) *hatchet.StandaloneTask {
+	processor := client.NewStandaloneTask("image-processor",
+		func(ctx hatchet.Context, input ImageProcessInput) (*ImageProcessOutput, error) {
 			result, err := ProcessImage(input.ImageURL, input.Filters)
 			if err != nil {
 				return nil, fmt.Errorf("processing image: %w", err)
@@ -95,7 +88,6 @@ func ImageProcessor(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[Image
 
 			return output, nil
 		},
-		hatchet,
 	)
 
 	// Example of running a task
@@ -108,26 +100,25 @@ func ImageProcessor(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[Image
 		if err != nil {
 			return err
 		}
+
 		fmt.Printf("Result: %+v\n", result)
+
 		return nil
 	}
 
 	// Example of registering a task on a worker
 	_ = func() error {
 		// > Declaring a Worker
-		w, err := hatchet.Worker(v1worker.WorkerOpts{
-			Name: "image-processor-worker",
-			Workflows: []workflow.WorkflowBase{
-				processor,
-			},
-		})
+		w, err := client.NewWorker("image-processor-worker", hatchet.WithWorkflows(processor))
 		if err != nil {
 			return err
 		}
+
 		err = w.StartBlocking(context.Background())
 		if err != nil {
 			return err
 		}
+
 		return nil
 	}
 
@@ -135,11 +126,10 @@ func ImageProcessor(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[Image
 }
 
 func RunMergentTask() error {
-
 	return nil
 }
 
-func RunningTasks(hatchet v1.HatchetClient) error {
+func RunningTasks(client *hatchet.Client) error {
 	// > Running a task (Mergent)
 	task := struct {
 		Request struct {
@@ -179,8 +169,8 @@ func RunningTasks(hatchet v1.HatchetClient) error {
 	req.Header.Add("Authorization", "Bearer <API_KEY>")
 	req.Header.Add("Content-Type", "application/json")
 
-	client := &http.Client{}
-	res, err := client.Do(req)
+	httpClient := &http.Client{}
+	res, err := httpClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("sending request: %w", err)
 	}
@@ -189,7 +179,7 @@ func RunningTasks(hatchet v1.HatchetClient) error {
 	fmt.Printf("Mergent task created with status: %d\n", res.StatusCode)
 
 	// > Running a task (Hatchet)
-	processor := ImageProcessor(hatchet)
+	processor := ImageProcessor(client)
 
 	result, err := processor.Run(context.Background(), ImageProcessInput{
 		ImageURL: "https://example.com/image.png",
@@ -202,12 +192,15 @@ func RunningTasks(hatchet v1.HatchetClient) error {
 
 	// > Scheduling tasks (Hatchet)
 	// Schedule the task to run at a specific time
-	scheduleRef, err := processor.Schedule(
+	scheduleRef, err := client.Schedules().Create(
 		context.Background(),
-		time.Now().Add(time.Second*10),
-		ImageProcessInput{
-			ImageURL: "https://example.com/image.png",
-			Filters:  []string{"blur"},
+		"image-processor",
+		features.CreateScheduledRunTrigger{
+			TriggerAt: time.Now().Add(time.Second * 10),
+			Input: map[string]interface{}{
+				"image_url": "https://example.com/image.png",
+				"filters":   []string{"blur"},
+			},
 		},
 	)
 	if err != nil {
@@ -215,13 +208,16 @@ func RunningTasks(hatchet v1.HatchetClient) error {
 	}
 
 	// or schedule to run every hour
-	cronRef, err := processor.Cron(
+	cronRef, err := client.Crons().Create(
 		context.Background(),
-		"run-hourly",
-		"0 * * * *",
-		ImageProcessInput{
-			ImageURL: "https://example.com/image.png",
-			Filters:  []string{"blur"},
+		"image-processor",
+		features.CreateCronTrigger{
+			Name:       "run-hourly",
+			Expression: "0 * * * *",
+			Input: map[string]interface{}{
+				"image_url": "https://example.com/image.png",
+				"filters":   []string{"blur"},
+			},
 		},
 	)
 	if err != nil {

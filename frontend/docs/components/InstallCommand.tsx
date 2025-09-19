@@ -94,7 +94,7 @@ export default function InstallCommand({
             return (
                 <CodeBlock source={{
                     language: "bash",
-                    raw: `go mod tidy`,
+                    raw: `go get -u github.com/hatchet-dev/hatchet/sdks/go@latest`,
                 }} />
             );
         }

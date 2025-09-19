@@ -6,30 +6,27 @@ import (
 	"log"
 
 	"github.com/hatchet-dev/hatchet/examples/go/streaming/shared"
-	v1 "github.com/hatchet-dev/hatchet/pkg/v1"
+	hatchet "github.com/hatchet-dev/hatchet/sdks/go"
 )
 
 // > Consume
 func main() {
-	hatchet, err := v1.NewHatchetClient()
+	client, err := hatchet.NewClient()
 	if err != nil {
 		log.Fatalf("Failed to create Hatchet client: %v", err)
 	}
 
 	ctx := context.Background()
 
-	streamingWorkflow := shared.StreamingWorkflow(hatchet)
+	streamingWorkflow := shared.StreamingWorkflow(client)
 
 	workflowRun, err := streamingWorkflow.RunNoWait(ctx, shared.StreamTaskInput{})
 	if err != nil {
 		log.Fatalf("Failed to run workflow: %v", err)
 	}
 
-	id := workflowRun.RunId()
-	stream, err := hatchet.Runs().SubscribeToStream(ctx, id)
-	if err != nil {
-		log.Fatalf("Failed to subscribe to stream: %v", err)
-	}
+	id := workflowRun.RunId
+	stream := client.Runs().SubscribeToStream(ctx, id)
 
 	for content := range stream {
 		fmt.Print(content)

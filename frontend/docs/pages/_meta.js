@@ -37,6 +37,12 @@ export default {
         href: "/sdks/python/client",
         type: "page",
       },
+      go: {
+        title: "Go",
+        href: "https://pkg.go.dev/github.com/hatchet-dev/hatchet/sdks/go",
+        type: "page",
+        newWindow: true,
+      },
     },
   },
 };

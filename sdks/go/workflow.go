@@ -87,12 +87,14 @@ func (w *Workflow) GetName() string {
 type WorkflowOption func(*workflowConfig)
 
 type workflowConfig struct {
-	onCron       []string
-	onEvents     []string
-	concurrency  []types.Concurrency
-	version      string
-	description  string
-	taskDefaults *create.TaskDefaults
+	onCron          []string
+	onEvents        []string
+	concurrency     []types.Concurrency
+	version         string
+	description     string
+	taskDefaults    *create.TaskDefaults
+	defaultPriority *RunPriority
+	stickyStrategy  *types.StickyStrategy
 }
 
 // WithWorkflowCron configures the workflow to run on a cron schedule.
@@ -138,6 +140,20 @@ func WithWorkflowTaskDefaults(defaults *create.TaskDefaults) WorkflowOption {
 	}
 }
 
+// WithWorkflowDefaultPriority sets the default priority for the workflow.
+func WithWorkflowDefaultPriority(priority RunPriority) WorkflowOption {
+	return func(config *workflowConfig) {
+		config.defaultPriority = &priority
+	}
+}
+
+// WithWorkflowStickyStrategy sets the sticky strategy for the workflow.
+func WithWorkflowStickyStrategy(stickyStrategy types.StickyStrategy) WorkflowOption {
+	return func(config *workflowConfig) {
+		config.stickyStrategy = &stickyStrategy
+	}
+}
+
 // newWorkflow creates a new workflow definition.
 func newWorkflow(name string, v0Client v0Client.Client, options ...WorkflowOption) *Workflow {
 	config := &workflowConfig{}
@@ -146,18 +162,23 @@ func newWorkflow(name string, v0Client v0Client.Client, options ...WorkflowOptio
 		opt(config)
 	}
 
-	declaration := internal.NewWorkflowDeclaration[any, any](
-		create.WorkflowCreateOpts[any]{
-			Name:         name,
-			Version:      config.version,
-			Description:  config.description,
-			OnEvents:     config.onEvents,
-			OnCron:       config.onCron,
-			Concurrency:  config.concurrency,
-			TaskDefaults: config.taskDefaults,
-		},
-		v0Client,
-	)
+	createOpts := create.WorkflowCreateOpts[any]{
+		Name:           name,
+		Version:        config.version,
+		Description:    config.description,
+		OnEvents:       config.onEvents,
+		OnCron:         config.onCron,
+		Concurrency:    config.concurrency,
+		TaskDefaults:   config.taskDefaults,
+		StickyStrategy: config.stickyStrategy,
+	}
+
+	if config.defaultPriority != nil {
+		priority := int32(*config.defaultPriority)
+		createOpts.DefaultPriority = &priority
+	}
+
+	declaration := internal.NewWorkflowDeclaration[any, any](createOpts, v0Client)
 
 	return &Workflow{
 		declaration: declaration,
@@ -495,23 +516,33 @@ func (w *Workflow) Dump() (*contracts.CreateWorkflowVersionRequest, []internal.N
 
 // Run executes the workflow with the provided input and waits for completion.
 func (w *Workflow) Run(ctx context.Context, input any) (*WorkflowResult, error) {
-	result, err := w.declaration.Run(ctx, input)
+	v0Workflow, err := w.v0Client.Admin().RunWorkflow(w.declaration.Name(), input)
 	if err != nil {
 		return nil, err
 	}
 
-	return &WorkflowResult{result: result}, nil
+	result, err := v0Workflow.Result()
+	if err != nil {
+		return nil, err
+	}
+
+	workflowResult, err := result.Results()
+	if err != nil {
+		return nil, err
+	}
+
+	return &WorkflowResult{result: workflowResult}, nil
 }
 
 // RunNoWait executes the workflow with the provided input without waiting for completion.
 // Returns a workflow run reference that can be used to track the run status.
-func (w *Workflow) RunNoWait(ctx context.Context, input any) (*WorkflowRef, error) {
-	wf, err := w.declaration.RunNoWait(ctx, input)
+func (w *Workflow) RunNoWait(ctx context.Context, input any) (*WorkflowRunRef, error) {
+	wf, err := w.v0Client.Admin().RunWorkflow(w.declaration.Name(), input)
 	if err != nil {
 		return nil, err
 	}
 
-	return &WorkflowRef{RunId: wf.RunId()}, nil
+	return &WorkflowRunRef{RunId: wf.RunId(), v0Workflow: wf}, nil
 }
 
 // RunAsChildOpts is the options for running a workflow as a child workflow.
@@ -553,4 +584,18 @@ func (w *Workflow) RunAsChild(ctx worker.HatchetContext, input any, opts RunAsCh
 	// Return the raw workflow result wrapped in WorkflowResult
 	// This allows users to extract specific task outputs using .Into()
 	return &WorkflowResult{result: workflowResult}, nil
+}
+
+// RunMany executes multiple workflow instances with different inputs.
+// Returns workflow run IDs that can be used to track the run statuses.
+func (w *Workflow) RunMany(ctx context.Context, inputs []RunManyOpt) ([]string, error) {
+	workflows := make([]*v0Client.WorkflowRun, len(inputs))
+	for i, input := range inputs {
+		workflows[i] = &v0Client.WorkflowRun{
+			Name:    w.declaration.Name(),
+			Input:   input.Input,
+			Options: input.Opts,
+		}
+	}
+	return w.v0Client.Admin().BulkRunWorkflow(workflows)
 }

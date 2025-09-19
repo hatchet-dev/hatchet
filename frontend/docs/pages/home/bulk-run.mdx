@@ -54,9 +54,9 @@ Available bulk methods on the `Context` object are: - `bulkRunChildren` - `bulkR
   </Tabs.Tab>
   <Tabs.Tab title="Go">
 
-You can use the `RunBulkNoWait` method directly on the `Task` object to bulk run tasks by passing an array of inputs. This will return a list of run IDs.
+You can use the `RunMany` method directly on the `Workflow` or `StandaloneTask` instance to bulk run tasks by passing an array of inputs. This will return a list of run IDs.
 
-<Snippet src={snippets.go.run.bulk.bulk_run_tasks} />
+<Snippet src={snippets.go.bulk_operations.main.bulk_run_tasks} />
 
 Additional bulk methods are coming soon for the Go SDK. Join our [Discord](https://hatchet.run/discord) to stay up to date.
 

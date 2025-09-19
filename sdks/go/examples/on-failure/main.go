@@ -130,6 +130,7 @@ func main() {
 	}, hatchet.WithParents(step1))
 
 	// Add failure handler for multi-step workflow
+	// > On Failure Task
 	multiStepWorkflow.OnFailure(func(ctx hatchet.Context, input FailureInput) (FailureHandlerOutput, error) {
 		log.Printf("Multi-step failure handler called for input: %s", input.Message)
 
@@ -152,6 +153,7 @@ func main() {
 			OriginalInput:  input.Message,
 		}, nil
 	})
+	// !!
 
 	// Create a worker with both workflows
 	worker, err := client.NewWorker("failure-handling-worker",

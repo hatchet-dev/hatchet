@@ -1,11 +1,14 @@
 package main
 
 import (
+	"context"
 	"log"
 	"time"
 
+	"github.com/hatchet-dev/hatchet/pkg/client/rest"
 	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
 	hatchet "github.com/hatchet-dev/hatchet/sdks/go"
+	"github.com/hatchet-dev/hatchet/sdks/go/features"
 )
 
 type CronInput struct {
@@ -24,6 +27,7 @@ func main() {
 		log.Fatalf("failed to create hatchet client: %v", err)
 	}
 
+	// > Workflow definition cron trigger
 	dailyCleanup := client.NewStandaloneTask("cleanup-temp-files", func(ctx hatchet.Context, input CronInput) (CronOutput, error) {
 		log.Printf("Running daily cleanup at %s", input.Timestamp)
 
@@ -38,6 +42,7 @@ func main() {
 		hatchet.WithWorkflowCron("0 2 * * *"),
 		hatchet.WithWorkflowDescription("Daily cleanup and maintenance tasks"),
 	)
+	// !!
 
 	healthCheck := client.NewStandaloneTask("check-system-health", func(ctx hatchet.Context, input CronInput) (CronOutput, error) {
 		log.Printf("Running health check at %s", input.Timestamp)
@@ -90,6 +95,44 @@ func main() {
 	)
 	if err != nil {
 		log.Fatalf("failed to create worker: %v", err)
+	}
+
+	_ = func() error {
+		// > Create
+		createdCron, err := client.Crons().Create(context.Background(), "cleanup-temp-files", features.CreateCronTrigger{
+			Name:       "daily-cleanup",
+			Expression: "0 0 * * *",
+			Input: map[string]interface{}{
+				"timestamp": time.Now().Format(time.RFC3339),
+			},
+			AdditionalMetadata: map[string]interface{}{
+				"description": "Daily cleanup and maintenance tasks",
+			},
+		})
+		if err != nil {
+			return err
+		}
+		// !!
+
+		// > Delete
+		err = client.Crons().Delete(context.Background(), createdCron.Metadata.Id)
+		if err != nil {
+			return err
+		}
+		// !!
+
+		// > List
+		cronList, err := client.Crons().List(context.Background(), rest.CronWorkflowListParams{
+			AdditionalMetadata: &[]string{"description:Daily cleanup and maintenance tasks"},
+		})
+		if err != nil {
+			return err
+		}
+		// !!
+
+		_ = cronList
+
+		return nil
 	}
 
 	log.Println("Starting cron worker...")

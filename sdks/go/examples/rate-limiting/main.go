@@ -23,17 +23,20 @@ func main() {
 		log.Fatalf("failed to create hatchet client: %v", err)
 	}
 
+	const RATE_LIMIT_KEY = "api-service-rate-limit"
+
+	// > Upsert rate limit
 	err = client.RateLimits().Upsert(features.CreateRatelimitOpts{
-		Key:      "api-service-rate-limit",
+		Key:      RATE_LIMIT_KEY,
 		Limit:    10,
 		Duration: types.Second,
 	})
 	if err != nil {
 		log.Fatalf("failed to create rate limit: %v", err)
 	}
+	// !!
 
-	const RATE_LIMIT_KEY = "api-service-rate-limit"
-
+	// > Static rate limit
 	units := 1
 	staticTask := client.NewStandaloneTask("task1",
 		func(ctx hatchet.Context, input APIRequest) (string, error) {
@@ -46,7 +49,9 @@ func main() {
 			Units: &units,
 		}),
 	)
+	// !!
 
+	// > Dynamic rate limit
 	userUnits := 1
 	userLimit := "10"
 	duration := types.Minute
@@ -63,6 +68,7 @@ func main() {
 			Duration:       &duration,
 		}),
 	)
+	// !!
 
 	worker, err := client.NewWorker("rate-limit-worker",
 		hatchet.WithWorkflows(staticTask, dynamicTask),
