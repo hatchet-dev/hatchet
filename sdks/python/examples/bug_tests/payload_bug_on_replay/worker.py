@@ -21,10 +21,7 @@ payload_initial_cancel_bug_workflow = hatchet.workflow(
 
 @payload_initial_cancel_bug_workflow.task()
 def step1(input: Input, ctx: Context) -> StepOutput:
-    if ctx.retry_count == 0:
-        return StepOutput(should_cancel=True)
-    else:
-        return StepOutput(should_cancel=False)
+    return StepOutput(should_cancel=ctx.retry_count == 0)
 
 
 @payload_initial_cancel_bug_workflow.task(
