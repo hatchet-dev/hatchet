@@ -1,40 +1,29 @@
 import { Button } from '@/components/v1/ui/button';
-import { ArrowPathIcon } from '@heroicons/react/24/outline';
 import { TaskRunActionButton } from '../../../task-runs-v1/actions';
 import { useRunsContext } from '../../hooks/runs-provider';
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/v1/ui/dropdown-menu';
 import { useMemo, useState } from 'react';
-import { Snowflake, Play, MoreHorizontal } from 'lucide-react';
+import { Play, MoreHorizontal } from 'lucide-react';
 import { ChevronDownIcon } from '@radix-ui/react-icons';
 import { RefetchIntervalDropdown } from '@/components/refetch-interval-dropdown';
 
 interface TableActionsProps {
   onRefresh: () => void;
   onTriggerWorkflow: () => void;
-  rotate: boolean;
 }
 
 export const TableActions = ({
   onRefresh,
   onTriggerWorkflow,
-  rotate,
 }: TableActionsProps) => {
   const [shouldDelayClose, setShouldDelayClose] = useState(false);
   const {
-    isFrozen,
     isActionDropdownOpen,
-    actions: {
-      setIsFrozen,
-      setIsActionDropdownOpen,
-      refetchRuns,
-      refetchMetrics,
-    },
+    actions: { setIsActionDropdownOpen, refetchRuns, refetchMetrics },
     display: { hideTriggerRunButton, hideCancelAndReplayButtons },
     isRefetching,
   } = useRunsContext();
@@ -50,59 +39,35 @@ export const TableActions = ({
           refetchMetrics();
         }}
       />,
-      <DropdownMenu
-        key="actions"
-        open={isActionDropdownOpen}
-        onOpenChange={(open) => {
-          if (open) {
-            setIsActionDropdownOpen(true);
-            setShouldDelayClose(false);
-          } else if (shouldDelayClose) {
-            setTimeout(() => setIsActionDropdownOpen(false), 150);
-            setShouldDelayClose(false);
-          } else {
-            setIsActionDropdownOpen(false);
-          }
-        }}
-      >
-        <DropdownMenuTrigger asChild>
-          <Button variant="outline" size="sm" className="h-8">
-            <MoreHorizontal className="h-4 w-4 cq-xl:hidden" />
-            <span className="cq-xl:inline hidden">Actions</span>
-            <ChevronDownIcon className="h-4 w-4 ml-2 hidden cq-xl:inline" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="z-[70]">
-          {!hideCancelAndReplayButtons && (
-            <>
-              <CancelMenuItem />
-              <ReplayMenuItem />
-              <DropdownMenuSeparator />
-            </>
-          )}
-          <DropdownMenuItem
-            onClick={() => {
-              setShouldDelayClose(true);
-              onRefresh();
-            }}
-          >
-            <ArrowPathIcon
-              className={`mr-2 h-4 w-4 transition-transform ${rotate ? 'rotate-180' : ''}`}
-            />
-            Refresh
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            onClick={() => {
-              setShouldDelayClose(true);
-              setIsFrozen(!isFrozen);
-            }}
-            className="text-sm"
-          >
-            <Snowflake className="mr-2 h-4 w-4" />
-            {isFrozen ? 'Unfreeze' : 'Freeze'}
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>,
+      !hideCancelAndReplayButtons && (
+        <DropdownMenu
+          key="actions"
+          open={isActionDropdownOpen}
+          onOpenChange={(open) => {
+            if (open) {
+              setIsActionDropdownOpen(true);
+              setShouldDelayClose(false);
+            } else if (shouldDelayClose) {
+              setTimeout(() => setIsActionDropdownOpen(false), 150);
+              setShouldDelayClose(false);
+            } else {
+              setIsActionDropdownOpen(false);
+            }
+          }}
+        >
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="sm" className="h-8">
+              <MoreHorizontal className="h-4 w-4 cq-xl:hidden" />
+              <span className="cq-xl:inline hidden">Actions</span>
+              <ChevronDownIcon className="h-4 w-4 ml-2 hidden cq-xl:inline" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="z-[70]">
+            <CancelMenuItem />
+            <ReplayMenuItem />
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ),
     ];
 
     if (!hideTriggerRunButton) {
@@ -124,10 +89,7 @@ export const TableActions = ({
     onRefresh,
     onTriggerWorkflow,
     hideTriggerRunButton,
-    rotate,
     hideCancelAndReplayButtons,
-    isFrozen,
-    setIsFrozen,
     setIsActionDropdownOpen,
     isActionDropdownOpen,
     shouldDelayClose,

@@ -22,11 +22,11 @@ import {
   ToolbarType,
 } from '@/components/v1/molecules/data-table/data-table-toolbar';
 import { Button } from '@/components/v1/ui/button';
-import { ArrowPathIcon } from '@heroicons/react/24/outline';
 import { columns } from './scheduled-runs-columns';
 import { DeleteScheduledRun } from './delete-scheduled-runs';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { TriggerWorkflowForm } from '../../workflows/$workflow/components/trigger-workflow-form';
+import { RefetchIntervalDropdown } from '@/components/refetch-interval-dropdown';
 
 export interface ScheduledWorkflowRunsTableProps {
   createdAfter?: string;
@@ -265,12 +265,6 @@ export function ScheduledRunsTable({
     },
   ].filter((filter) => filterVisibility[filter.columnId] != false);
 
-  const [rotate, setRotate] = useState(false);
-
-  const refetch = () => {
-    listWorkflowRunsQuery.refetch();
-  };
-
   const actions = [
     <Button
       key="schedule-run"
@@ -279,21 +273,11 @@ export function ScheduledRunsTable({
     >
       Schedule Run
     </Button>,
-    <Button
-      key="refresh"
-      className="h-8 px-2 lg:px-3"
-      size="sm"
-      onClick={() => {
-        refetch();
-        setRotate(!rotate);
-      }}
-      variant={'outline'}
-      aria-label="Refresh events list"
-    >
-      <ArrowPathIcon
-        className={`h-4 w-4 transition-transform ${rotate ? 'rotate-180' : ''}`}
-      />
-    </Button>,
+    <RefetchIntervalDropdown
+      key="scheduled-runs-table"
+      onRefetch={listWorkflowRunsQuery.refetch}
+      isRefetching={listWorkflowRunsQuery.isRefetching}
+    />,
   ];
 
   const [showScheduledRunRevoke, setShowScheduledRunRevoke] = useState<
@@ -308,7 +292,7 @@ export function ScheduledRunsTable({
         scheduledRun={showScheduledRunRevoke}
         setShowScheduledRunRevoke={setShowScheduledRunRevoke}
         onSuccess={() => {
-          refetch();
+          listWorkflowRunsQuery.refetch();
           setShowScheduledRunRevoke(undefined);
         }}
       />

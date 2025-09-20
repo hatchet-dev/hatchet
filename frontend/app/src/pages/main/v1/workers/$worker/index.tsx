@@ -3,7 +3,7 @@ import api, { queries, UpdateWorkerRequest, Worker } from '@/lib/api';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router-dom';
 import invariant from 'tiny-invariant';
-import { ArrowPathIcon, ServerStackIcon } from '@heroicons/react/24/outline';
+import { ServerStackIcon } from '@heroicons/react/24/outline';
 import { Button } from '@/components/v1/ui/button';
 import { Loading } from '@/components/v1/ui/loading.tsx';
 import { Badge, BadgeProps } from '@/components/v1/ui/badge';
@@ -23,7 +23,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/v1/ui/dropdown-menu';
-import { useState } from 'react';
 import { RecentWebhookRequests } from '../webhooks/components/recent-webhook-requests';
 import { RunsTable } from '../../workflow-runs-v1/components/runs-table';
 import { RunsProvider } from '../../workflow-runs-v1/hooks/runs-provider';
@@ -100,8 +99,6 @@ export default function ExpandedWorkflowRun() {
     ...queries.workers.get(params.worker),
     refetchInterval: 3000,
   });
-
-  const [rotate, setRotate] = useState(false);
 
   const worker = workerQuery.data;
 
@@ -191,21 +188,6 @@ export default function ExpandedWorkflowRun() {
               : '100'}{' '}
             Available Run Slots
           </h3>
-
-          <Button
-            size="icon"
-            aria-label="Refresh"
-            variant="outline"
-            disabled={workerQuery.isFetching}
-            onClick={() => {
-              workerQuery.refetch();
-              setRotate(!rotate);
-            }}
-          >
-            <ArrowPathIcon
-              className={`h-4 w-4 transition-transform ${rotate ? 'rotate-180' : ''}`}
-            />
-          </Button>
         </div>
         <div className="mb-4 text-sm text-gray-700 dark:text-gray-300">
           A slot represents one task run on a worker to limit load.{' '}
