@@ -56,7 +56,7 @@ export const RefetchIntervalDropdown = ({
           data-is-refetching={isRefetching}
           className="size-4 data-[is-refetching=true]:animate-spin"
         />
-        Refresh
+        <span className="hidden cq-xl:inline">Refresh</span>
       </Button>
       <Select value={value} onValueChange={handleValueChange}>
         <SelectTrigger className="flex flex-row items-center gap-x-2 h-full rounded-r-md rounded-l-none border-l-0 hover:bg-accent">
