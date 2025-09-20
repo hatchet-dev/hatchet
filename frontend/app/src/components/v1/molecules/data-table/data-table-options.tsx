@@ -485,7 +485,7 @@ export function DataTableOptions<TData>({
               {activeFiltersCount}
             </Badge>
           )}
-          <ChevronDownIcon className="h-4 w-4 cq-xl:ml-2" />
+          <ChevronDownIcon className="h-4 w-4 ml-2 hidden cq-xl:inline" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent

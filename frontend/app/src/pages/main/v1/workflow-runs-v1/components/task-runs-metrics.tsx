@@ -8,7 +8,7 @@ import {
   XCircleIcon,
   ClockIcon,
 } from '@heroicons/react/24/outline';
-import { PlayIcon, PauseIcon, ChartColumn } from 'lucide-react';
+import { PlayIcon, X, Ban, ChartColumn } from 'lucide-react';
 
 function statusToFriendlyName(status: V1TaskStatus) {
   switch (status) {
@@ -33,9 +33,9 @@ function statusToIcon(status: V1TaskStatus) {
     case V1TaskStatus.COMPLETED:
       return CheckCircleIcon;
     case V1TaskStatus.FAILED:
-      return XCircleIcon;
+      return X;
     case V1TaskStatus.CANCELLED:
-      return PauseIcon;
+      return Ban;
     case V1TaskStatus.RUNNING:
       return PlayIcon;
     case V1TaskStatus.QUEUED:
