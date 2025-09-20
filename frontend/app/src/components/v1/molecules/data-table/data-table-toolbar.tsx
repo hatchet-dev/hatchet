@@ -47,7 +47,6 @@ interface DataTableToolbarProps<TData> {
   search?: string;
   showColumnToggle?: boolean;
   isLoading?: boolean;
-  onReset?: () => void;
   hideFlatten?: boolean;
   columnKeyToName?: Record<string, string>;
 }
@@ -60,7 +59,6 @@ export function DataTableToolbar<TData>({
   search,
   showColumnToggle,
   isLoading = false,
-  onReset,
   hideFlatten,
   columnKeyToName,
 }: DataTableToolbarProps<TData>) {
@@ -97,7 +95,6 @@ export function DataTableToolbar<TData>({
             <DataTableOptions
               table={table}
               filters={visibleFilters}
-              onReset={onReset}
               hideFlatten={hideFlatten}
               columnKeyToName={columnKeyToName}
             />

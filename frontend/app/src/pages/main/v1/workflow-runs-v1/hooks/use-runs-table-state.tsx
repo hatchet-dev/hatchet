@@ -501,17 +501,6 @@ export const useRunsTableState = (
     [updateState],
   );
 
-  const resetState = useCallback(() => {
-    setSearchParams(
-      (prev) => {
-        const newParams = new URLSearchParams(prev);
-        newParams.delete(paramKey);
-        return newParams;
-      },
-      { replace: true },
-    );
-  }, [paramKey, setSearchParams]);
-
   const derivedState = useMemo(() => {
     const statuses = getStatusesFromFilters(currentState.columnFilters);
     const additionalMetadata = getAdditionalMetadataFromFilters(
@@ -548,6 +537,5 @@ export const useRunsTableState = (
     updateFilters,
     updateUIState,
     updateTableState,
-    resetState,
   };
 };

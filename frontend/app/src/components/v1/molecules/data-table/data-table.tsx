@@ -87,7 +87,6 @@ interface ExtraDataTableProps {
     containerStyle?: string;
     component: React.FC<any> | ((data: any) => JSX.Element);
   };
-  onToolbarReset?: () => void;
   columnKeyToName?: Record<string, string>;
 }
 
@@ -120,7 +119,6 @@ export function DataTable<TData extends IDGetter<TData>, TValue>({
   manualSorting = true,
   manualFiltering = true,
   getSubRows,
-  onToolbarReset,
   headerClassName,
   hideFlatten,
   columnKeyToName,
@@ -283,7 +281,6 @@ export function DataTable<TData extends IDGetter<TData>, TValue>({
           search={search}
           setSearch={setSearch}
           showColumnToggle={showColumnToggle}
-          onReset={onToolbarReset}
           hideFlatten={hideFlatten}
           columnKeyToName={columnKeyToName}
         />
