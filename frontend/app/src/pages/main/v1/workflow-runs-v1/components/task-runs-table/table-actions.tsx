@@ -12,7 +12,7 @@ import {
 import { useMemo, useState } from 'react';
 import { Snowflake, Play, MoreHorizontal } from 'lucide-react';
 import { ChevronDownIcon } from '@radix-ui/react-icons';
-import { RefetchIntervalDropdown } from '../refetch-interval-dropdown';
+import { RefetchIntervalDropdown } from '@/components/refetch-interval-dropdown';
 
 interface TableActionsProps {
   onRefresh: () => void;
