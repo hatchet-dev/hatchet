@@ -215,7 +215,7 @@ export const useEvents = ({ key, hoveredEventId }: UseEventsProps) => {
     [columnFilters, paramKey, setSearchParams],
   );
 
-  const { data, isLoading, refetch, error } = useQuery({
+  const { data, isLoading, refetch, error, isRefetching } = useQuery({
     queryKey: [
       'v1:events:list',
       tenantId,
@@ -339,5 +339,6 @@ export const useEvents = ({ key, hoveredEventId }: UseEventsProps) => {
     eventKeyFilters,
     workflowKeyFilters,
     workflowRunStatusFilters,
+    isRefetching,
   };
 };

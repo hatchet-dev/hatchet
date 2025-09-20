@@ -60,7 +60,13 @@ export default function Workers() {
     />
   );
 
-  const actions = [<RefetchIntervalDropdown key="refetch-interval" />];
+  const actions = [
+    <RefetchIntervalDropdown
+      key="refetch-interval"
+      isRefetching={listWorkersQuery.isRefetching}
+      onRefetch={listWorkersQuery.refetch}
+    />,
+  ];
 
   return (
     <DataTable

@@ -9,8 +9,17 @@ import {
 import { RefetchInterval, RefetchIntervalOption } from '@/lib/api/api';
 import { RefreshCw } from 'lucide-react';
 import { useRefetchInterval } from '@/contexts/refetch-interval-context';
+import { Button } from './v1/ui/button';
 
-export const RefetchIntervalDropdown = () => {
+type RefetchIntervalDropdownProps = {
+  isRefetching: boolean;
+  onRefetch: () => void;
+};
+
+export const RefetchIntervalDropdown = ({
+  isRefetching,
+  onRefetch,
+}: RefetchIntervalDropdownProps) => {
   const { currentInterval, setRefetchInterval } = useRefetchInterval();
 
   const intervalOptions = useMemo(
@@ -28,28 +37,41 @@ export const RefetchIntervalDropdown = () => {
     setRefetchInterval(selectedInterval);
   };
 
+  const value = useMemo(() => {
+    return (
+      Object.entries(RefetchInterval).find(
+        ([, interval]) => interval.value === currentInterval.value,
+      )?.[0] || 'off'
+    );
+  }, [currentInterval]);
+
   return (
-    <Select
-      value={
-        Object.entries(RefetchInterval).find(
-          ([, interval]) => interval.value === currentInterval.value,
-        )?.[0] || 'off'
-      }
-      onValueChange={handleValueChange}
-    >
-      <SelectTrigger className="flex flex-row items-center gap-x-2 h-8">
+    <div className="flex flex-row items-center h-8">
+      <Button
+        data-is-loading={isRefetching}
+        className="h-full rounded-l-md rounded-r-none flex flex-row gap-x-2 data-[is-loading]:animate-spin"
+        variant="outline"
+        onClick={onRefetch}
+      >
         <RefreshCw className="size-4" />
-        <div className="hidden cq-xl:inline">
-          <SelectValue />
-        </div>
-      </SelectTrigger>
-      <SelectContent>
-        {intervalOptions.map(({ key, label }) => (
-          <SelectItem key={key} value={key}>
-            {label}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
+        Refresh
+      </Button>
+      <Select value={value} onValueChange={handleValueChange}>
+        <SelectTrigger className="flex flex-row items-center gap-x-2 h-full rounded-r-md rounded-l-none border-l-0 hover:bg-accent">
+          {value !== 'off' && (
+            <div className="hidden cq-xl:inline">
+              <SelectValue />
+            </div>
+          )}
+        </SelectTrigger>
+        <SelectContent>
+          {intervalOptions.map(({ key, label }) => (
+            <SelectItem key={key} value={key}>
+              {label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
   );
 };

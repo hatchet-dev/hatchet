@@ -29,13 +29,27 @@ export const TableActions = ({
   const {
     isFrozen,
     isActionDropdownOpen,
-    actions: { setIsFrozen, setIsActionDropdownOpen },
+    actions: {
+      setIsFrozen,
+      setIsActionDropdownOpen,
+      refetchRuns,
+      refetchMetrics,
+    },
     display: { hideTriggerRunButton, hideCancelAndReplayButtons },
+    isRefetching,
   } = useRunsContext();
 
   const actions = useMemo(() => {
     let baseActions = [
-      <RefetchIntervalDropdown key="refetch-interval" />,
+      <RefetchIntervalDropdown
+        key="refetch-interval"
+        isRefetching={isRefetching}
+        onRefetch={() => {
+          onRefresh();
+          refetchRuns();
+          refetchMetrics();
+        }}
+      />,
       <DropdownMenu
         key="actions"
         open={isActionDropdownOpen}
@@ -117,6 +131,9 @@ export const TableActions = ({
     setIsActionDropdownOpen,
     isActionDropdownOpen,
     shouldDelayClose,
+    refetchRuns,
+    refetchMetrics,
+    isRefetching,
   ]);
 
   return <>{actions}</>;

@@ -32,6 +32,7 @@ export const useWorkflows = ({ key }: UseWorkflowsProps) => {
     workflows,
     numWorkflows,
     isLoading: listWorkflowQuery.isLoading,
+    isRefetching: listWorkflowQuery.isRefetching,
     error: listWorkflowQuery.error,
     refetch: listWorkflowQuery.refetch,
     pagination,

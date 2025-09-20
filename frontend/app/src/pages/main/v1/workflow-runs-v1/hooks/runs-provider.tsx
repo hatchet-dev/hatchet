@@ -81,6 +81,7 @@ type RunsContextType = {
   isRunsFetching: boolean;
   isMetricsLoading: boolean;
   isMetricsFetching: boolean;
+  isRefetching: boolean;
   metrics: V1TaskRunMetrics;
   tenantMetrics: object;
   isFrozen: boolean;
@@ -178,6 +179,7 @@ export const RunsProvider = ({
     isFetching: isRunsFetching,
     refetch: refetchRuns,
     getRowId,
+    isRefetching: isRunsRefetching,
   } = useRuns({
     rowSelection: state.rowSelection,
     pagination: state.pagination,
@@ -215,6 +217,7 @@ export const RunsProvider = ({
     isLoading: isMetricsLoading,
     isFetching: isMetricsFetching,
     refetch: refetchMetrics,
+    isRefetching: isMetricsRefetching,
   } = useMetrics({
     workflow,
     parentTaskExternalId: derivedParentTaskExternalId,
@@ -223,6 +226,8 @@ export const RunsProvider = ({
     pauseRefetch: isFrozen,
     additionalMetadata: filters.apiFilters.additionalMetadata,
   });
+
+  const isRefetching = isRunsRefetching || isMetricsRefetching;
 
   const value = useMemo<RunsContextType>(
     () => ({
@@ -236,6 +241,7 @@ export const RunsProvider = ({
       isRunsFetching,
       isMetricsLoading,
       isMetricsFetching,
+      isRefetching,
       metrics,
       tenantMetrics,
       isFrozen,
@@ -304,6 +310,7 @@ export const RunsProvider = ({
       hideCancelAndReplayButtons,
       hideColumnToggle,
       disableTaskRunPagination,
+      isRefetching,
     ],
   );
 

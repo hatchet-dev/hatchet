@@ -47,6 +47,7 @@ export const useMetrics = ({
   return {
     isLoading: metricsQuery.isLoading || tenantMetricsQuery.isLoading,
     isFetching: metricsQuery.isFetching || tenantMetricsQuery.isFetching,
+    isRefetching: metricsQuery.isRefetching || tenantMetricsQuery.isRefetching,
     tenantMetrics,
     metrics,
     refetch: () => {
