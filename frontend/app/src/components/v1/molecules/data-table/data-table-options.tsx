@@ -249,30 +249,15 @@ function FilterControl<TData>({ column, filter }: FilterControlProps<TData>) {
                 />
               </div>
             </div>
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={!newKey.trim() || !newValue.trim()}
-                onClick={addKeyValue}
-                className="flex-1 h-8 text-xs"
-              >
-                Add Filter
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                disabled={!newKey.trim() && !newValue.trim()}
-                onClick={() => {
-                  setNewKey('');
-                  setNewValue('');
-                  keyInputRef.current?.focus();
-                }}
-                className="h-8 px-3 text-xs"
-              >
-                Reset
-              </Button>
-            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={!newKey.trim() || !newValue.trim()}
+              onClick={addKeyValue}
+              className="w-full h-8 text-xs"
+            >
+              Add Filter
+            </Button>
           </div>
         </div>
       );
@@ -337,29 +322,15 @@ function FilterControl<TData>({ column, filter }: FilterControlProps<TData>) {
               }}
               className="h-8 text-xs placeholder:text-muted-foreground/50 w-full"
             />
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={!newArrayValue.trim() || !newArrayValue.trim()}
-                onClick={addArrayValue}
-                className="flex-1 h-8 text-xs"
-              >
-                Add Filter
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                disabled={!newArrayValue.trim()}
-                onClick={() => {
-                  setNewArrayValue('');
-                  arrayValueInputRef.current?.focus();
-                }}
-                className="h-8 px-3 text-xs"
-              >
-                Reset
-              </Button>
-            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={!newArrayValue.trim()}
+              onClick={addArrayValue}
+              className="w-full h-8 text-xs"
+            >
+              Add Filter
+            </Button>
           </div>
         </div>
       );
@@ -379,54 +350,52 @@ function FilterControl<TData>({ column, filter }: FilterControlProps<TData>) {
       );
 
       return (
-        <div className="space-y-3">
-          <div className="space-y-2">
-            {filter.options.length > 5 && (
-              <Input
-                placeholder={`Search ${filter.title.toLowerCase()}...`}
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="h-7 text-xs"
-              />
-            )}
-            <div className="max-h-48 overflow-y-auto space-y-1 border rounded-md p-2 bg-muted/20">
-              {filteredOptions.length > 0 ? (
-                filteredOptions.map((option) => (
-                  <div
-                    key={option.value}
-                    className="flex items-center space-x-2 hover:bg-muted/50 rounded px-1 py-0.5"
-                  >
-                    <Checkbox
-                      id={`${filter.columnId}-${option.value}`}
-                      checked={selectedValues.includes(option.value)}
-                      onCheckedChange={(checked) => {
-                        let newValue;
-                        if (checked) {
-                          newValue = [...selectedValues, option.value];
-                        } else {
-                          newValue = selectedValues.filter(
-                            (v) => v !== option.value,
-                          );
-                        }
-                        column?.setFilterValue(
-                          newValue.length > 0 ? newValue : undefined,
+        <div className="space-y-2">
+          {filter.options.length > 5 && (
+            <Input
+              placeholder={`Search ${filter.title.toLowerCase()}...`}
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="h-8 text-xs"
+            />
+          )}
+          <div className="max-h-56 overflow-y-auto space-y-1 border rounded-md p-2 bg-muted/10">
+            {filteredOptions.length > 0 ? (
+              filteredOptions.map((option) => (
+                <div
+                  key={option.value}
+                  className="flex items-center space-x-2 hover:bg-muted/50 rounded-md px-2 py-1.5"
+                >
+                  <Checkbox
+                    id={`${filter.columnId}-${option.value}`}
+                    checked={selectedValues.includes(option.value)}
+                    onCheckedChange={(checked) => {
+                      let newValue;
+                      if (checked) {
+                        newValue = [...selectedValues, option.value];
+                      } else {
+                        newValue = selectedValues.filter(
+                          (v) => v !== option.value,
                         );
-                      }}
-                    />
-                    <Label
-                      htmlFor={`${filter.columnId}-${option.value}`}
-                      className="text-sm cursor-pointer flex-1 truncate"
-                    >
-                      {option.label}
-                    </Label>
-                  </div>
-                ))
-              ) : (
-                <div className="text-xs text-muted-foreground text-center py-2">
-                  No workflows found
+                      }
+                      column?.setFilterValue(
+                        newValue.length > 0 ? newValue : undefined,
+                      );
+                    }}
+                  />
+                  <Label
+                    htmlFor={`${filter.columnId}-${option.value}`}
+                    className="text-sm cursor-pointer flex-1 truncate"
+                  >
+                    {option.label}
+                  </Label>
                 </div>
-              )}
-            </div>
+              ))
+            ) : (
+              <div className="text-xs text-muted-foreground text-center py-3">
+                No options found
+              </div>
+            )}
           </div>
         </div>
       );
@@ -496,45 +465,23 @@ export function DataTableOptions<TData>({
           <>
             <DropdownMenuLabel>Filters</DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <div className="p-4 space-y-6">
+            <div className="p-3 space-y-4">
               {visibleFilters.map((filter, index) => (
-                <div key={filter.columnId} className="space-y-3">
-                  <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 rounded-full bg-primary/60"></div>
-                    <label className="text-sm font-semibold text-foreground">
-                      {filter.title}
-                    </label>
-                  </div>
+                <div key={filter.columnId} className="space-y-2">
+                  <label className="text-sm font-medium text-foreground">
+                    {filter.title}
+                  </label>
                   <FilterControl
                     column={table.getColumn(filter.columnId)}
                     filter={filter}
                   />
                   {index < visibleFilters.length - 1 && (
-                    <div className="border-b border-border/50" />
+                    <DropdownMenuSeparator />
                   )}
                 </div>
               ))}
             </div>
 
-            {isFiltered && (
-              <div className="p-4 pt-0">
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  onClick={() => {
-                    if (onReset) {
-                      onReset();
-                    } else {
-                      table.resetColumnFilters();
-                    }
-                  }}
-                  className="w-full justify-center font-medium"
-                >
-                  <Cross2Icon className="mr-2 h-4 w-4" />
-                  Clear All Filters
-                </Button>
-              </div>
-            )}
 
             {hasVisibleColumns && <DropdownMenuSeparator />}
           </>
@@ -544,7 +491,7 @@ export function DataTableOptions<TData>({
           <>
             <DropdownMenuLabel>Column Visibility</DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <div className="p-4 space-y-2">
+            <div className="p-3 space-y-1">
               {table
                 .getAllColumns()
                 .filter(
@@ -561,7 +508,7 @@ export function DataTableOptions<TData>({
                   return (
                     <div
                       key={column.id}
-                      className="flex items-center space-x-2 hover:bg-muted/50 rounded px-1 py-0.5"
+                      className="flex items-center space-x-2 hover:bg-muted/50 rounded-md px-2 py-1.5"
                     >
                       <Checkbox
                         id={`column-${column.id}`}
@@ -572,7 +519,7 @@ export function DataTableOptions<TData>({
                       />
                       <Label
                         htmlFor={`column-${column.id}`}
-                        className="text-sm cursor-pointer flex-1 truncate capitalize"
+                        className="text-sm cursor-pointer flex-1 truncate"
                       >
                         {columnName}
                       </Label>
