@@ -43,7 +43,7 @@ export const TableActions = ({ onTriggerWorkflow }: TableActionsProps) => {
           <DropdownMenuTrigger asChild>
             <Button variant="outline" size="sm" className="h-8">
               <Command className="h-4 w-4 cq-xl:hidden" />
-              <span className="cq-xl:inline hidden">Actions</span>
+              <span className="cq-xl:inline hidden text-sm">Actions</span>
               <ChevronDownIcon className="h-4 w-4 ml-2 hidden cq-xl:inline" />
             </Button>
           </DropdownMenuTrigger>
@@ -62,7 +62,7 @@ export const TableActions = ({ onTriggerWorkflow }: TableActionsProps) => {
           className="h-8 border ml-2"
           onClick={onTriggerWorkflow}
         >
-          <span className="cq-xl:inline hidden">Trigger Run</span>
+          <span className="cq-xl:inline hidden text-sm">Trigger Run</span>
           <Play className="size-4 cq-xl:hidden" />
         </Button>,
         ...baseActions,
