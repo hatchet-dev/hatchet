@@ -254,16 +254,6 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
 
       {!hideMetrics && <GetWorkflowChart />}
 
-      {!hideCounts && (
-        <div className="flex flex-row justify-start items-center mb-2">
-          {metrics.length > 0 ? (
-            <V1WorkflowRunsMetricsView />
-          ) : (
-            <Skeleton className="max-w-[800px] w-[40vw] h-8" />
-          )}
-        </div>
-      )}
-
       <div className="flex-1 min-h-0">
         <DataTable
           emptyState={
@@ -294,6 +284,15 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
           data={tableRows}
           filters={toolbarFilters}
           actions={[
+            ...(!hideCounts ? [(
+              <div key="metrics" className="flex justify-start mr-auto">
+                {metrics.length > 0 ? (
+                  <V1WorkflowRunsMetricsView />
+                ) : (
+                  <Skeleton className="max-w-[800px] w-[40vw] h-8" />
+                )}
+              </div>
+            )] : []),
             <TableActions
               key="table-actions"
               onRefresh={handleRefresh}

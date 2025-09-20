@@ -86,10 +86,26 @@ export function DataTableToolbar<TData>({
         </div>
       )}
 
-      <div className="flex flex-row gap-2 items-center flex-shrink-0">
+      <div className="flex flex-row items-center flex-shrink-0 w-full justify-between">
         {isLoading && <Spinner />}
-        {actions && actions.length > 0 && actions}
-        {(hasFilters || showColumnToggle) && (
+        {actions && actions.length > 0 && (
+          <>
+            {actions[0]}
+            <div className="flex flex-row gap-2 items-center">
+              {actions.slice(1)}
+              {(hasFilters || showColumnToggle) && (
+                <DataTableOptions
+                  table={table}
+                  filters={visibleFilters}
+                  onReset={onReset}
+                  hideFlatten={hideFlatten}
+                  columnKeyToName={columnKeyToName}
+                />
+              )}
+            </div>
+          </>
+        )}
+        {(!actions || actions.length === 0) && (hasFilters || showColumnToggle) && (
           <DataTableOptions
             table={table}
             filters={visibleFilters}
@@ -97,7 +113,7 @@ export function DataTableToolbar<TData>({
             hideFlatten={hideFlatten}
             columnKeyToName={columnKeyToName}
           />
-        )}{' '}
+        )}
       </div>
     </div>
   );

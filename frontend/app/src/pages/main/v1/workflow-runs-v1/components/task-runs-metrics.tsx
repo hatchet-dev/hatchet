@@ -9,7 +9,6 @@ import {
   ClockIcon,
 } from '@heroicons/react/24/outline';
 import { PlayIcon, PauseIcon, ChartColumn } from 'lucide-react';
-import { useSidePanel } from '@/hooks/use-side-panel';
 
 function statusToFriendlyName(status: V1TaskStatus) {
   switch (status) {
@@ -69,7 +68,6 @@ function MetricBadge({
   const IconComponent = statusToIcon(status);
   const friendlyName = statusToFriendlyName(status);
   const formattedCount = metric.count.toLocaleString('en-US');
-  const { isOpen } = useSidePanel();
 
   return (
     <Badge
@@ -79,8 +77,8 @@ function MetricBadge({
     >
       <span className="flex items-center gap-1">
         <span>{formattedCount}</span>
-        <span className="cq-lg:inline hidden">{friendlyName}</span>
-        <IconComponent className="size-4 cq-lg:hidden" />
+        <span className="cq-xl:inline hidden">{friendlyName}</span>
+        <IconComponent className="size-4 cq-xl:hidden" />
       </span>
     </Badge>
   );
@@ -117,7 +115,7 @@ export const V1WorkflowRunsMetricsView = () => {
         status={V1TaskStatus.COMPLETED}
         onClick={handleStatusClick}
         variant="successful"
-        className="cursor-pointer text-sm px-2 py-1 w-fit"
+        className="cursor-pointer text-sm px-2 py-1 w-fit h-8"
       />
 
       <MetricBadge
@@ -125,7 +123,7 @@ export const V1WorkflowRunsMetricsView = () => {
         status={V1TaskStatus.RUNNING}
         onClick={handleStatusClick}
         variant="inProgress"
-        className="cursor-pointer text-sm px-2 py-1 w-fit"
+        className="cursor-pointer text-sm px-2 py-1 w-fit h-8"
       />
 
       <MetricBadge
@@ -133,7 +131,7 @@ export const V1WorkflowRunsMetricsView = () => {
         status={V1TaskStatus.FAILED}
         onClick={handleStatusClick}
         variant="failed"
-        className="cursor-pointer text-sm px-2 py-1 w-fit"
+        className="cursor-pointer text-sm px-2 py-1 w-fit h-8"
       />
 
       <MetricBadge
@@ -141,7 +139,7 @@ export const V1WorkflowRunsMetricsView = () => {
         status={V1TaskStatus.CANCELLED}
         onClick={handleStatusClick}
         variant="outlineDestructive"
-        className="cursor-pointer text-sm px-2 py-1 w-fit"
+        className="cursor-pointer text-sm px-2 py-1 w-fit h-8"
       />
 
       <MetricBadge
@@ -149,13 +147,13 @@ export const V1WorkflowRunsMetricsView = () => {
         status={V1TaskStatus.QUEUED}
         onClick={handleStatusClick}
         variant="outline"
-        className="cursor-pointer rounded-sm font-normal text-sm px-2 py-1 w-fit"
+        className="cursor-pointer rounded-sm font-normal text-sm px-2 py-1 w-fit h-8"
       />
 
       {!hideMetrics && (
         <Badge
           variant="outline"
-          className="cursor-pointer rounded-sm font-normal text-sm px-2 py-1 w-fit"
+          className="cursor-pointer rounded-sm font-normal text-sm px-2 py-1 w-fit h-8"
           onClick={() => onViewQueueMetricsClick()}
         >
           <span className="cq-lg:inline hidden">Queue metrics</span>
