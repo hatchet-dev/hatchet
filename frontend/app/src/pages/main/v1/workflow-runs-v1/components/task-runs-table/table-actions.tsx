@@ -94,7 +94,7 @@ export const TableActions = ({
       baseActions = [
         <Button
           key="trigger"
-          className="h-8 border"
+          className="h-8 border ml-2"
           onClick={onTriggerWorkflow}
         >
           <span className="cq-xl:inline hidden">Trigger Run</span>
