@@ -34,7 +34,7 @@ export interface TimeRangeConfig {
 export type ToolbarFilters = {
   columnId: string;
   title: string;
-  type?: ToolbarType;
+  type: ToolbarType;
   options?: FilterOption[];
   timeRangeConfig?: TimeRangeConfig;
 }[];

@@ -89,6 +89,7 @@ export default function Filters() {
           columnId: workflowIdKey,
           title: FilterColumn.workflowId,
           options: workflowNameFilters,
+          type: ToolbarType.Checkbox,
         },
         {
           columnId: scopeKey,
