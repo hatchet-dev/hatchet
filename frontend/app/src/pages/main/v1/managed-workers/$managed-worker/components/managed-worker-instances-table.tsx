@@ -133,7 +133,7 @@ export function ManagedWorkerInstancesTable({
       columnVisibility={columnVisibility}
       setColumnVisibility={setColumnVisibility}
       manualSorting={false}
-      actions={actions}
+      rightActions={actions}
       manualFiltering={false}
       card={
         cardToggle

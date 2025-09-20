@@ -1,7 +1,6 @@
 import * as React from 'react';
 import { Table } from '@tanstack/react-table';
 import { DataTableOptions } from './data-table-options';
-import { Input } from '@/components/v1/ui/input.tsx';
 import { Spinner } from '@/components/v1/ui/loading';
 import { flattenDAGsKey } from '@/pages/main/v1/workflow-runs-v1/components/v1/task-runs-columns';
 
@@ -18,6 +17,7 @@ export enum ToolbarType {
   Array = 'array',
   Switch = 'switch',
   TimeRange = 'time-range',
+  Search = 'search',
 }
 
 export interface TimeRangeConfig {
@@ -42,9 +42,8 @@ export type ToolbarFilters = {
 interface DataTableToolbarProps<TData> {
   table: Table<TData>;
   filters: ToolbarFilters;
-  actions: JSX.Element[];
-  setSearch?: (search: string) => void;
-  search?: string;
+  leftActions?: JSX.Element[];
+  rightActions?: JSX.Element[];
   showColumnToggle?: boolean;
   isLoading?: boolean;
   hideFlatten?: boolean;
@@ -54,9 +53,8 @@ interface DataTableToolbarProps<TData> {
 export function DataTableToolbar<TData>({
   table,
   filters,
-  actions,
-  setSearch,
-  search,
+  leftActions,
+  rightActions,
   showColumnToggle,
   isLoading = false,
   hideFlatten,
@@ -73,24 +71,13 @@ export function DataTableToolbar<TData>({
 
   return (
     <div className="flex items-center justify-between">
-      {setSearch && (
-        <div className="flex flex-1 items-center space-x-2 overflow-x-auto pr-4 min-w-0">
-          <Input
-            placeholder="Search..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="h-8 w-[150px] lg:w-[200px] flex-shrink-0"
-          />
-        </div>
-      )}
-
       <div className="flex flex-row items-center flex-shrink-0 w-full justify-between overflow-x-auto">
-        <div className="flex items-center min-w-0 flex-shrink-0">
+        <div className="flex items-center gap-2 min-w-0 flex-shrink-0">
           {isLoading && <Spinner />}
-          {actions && actions.length > 0 && actions[0]}
+          {leftActions}
         </div>
         <div className="flex flex-row gap-2 items-center flex-shrink-0">
-          {actions && actions.length > 0 && actions.slice(1)}
+          {rightActions}
           {(hasFilters || showColumnToggle) && (
             <DataTableOptions
               table={table}

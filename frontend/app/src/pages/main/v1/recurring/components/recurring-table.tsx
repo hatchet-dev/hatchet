@@ -246,7 +246,7 @@ export function CronsTable() {
         pageCount={data?.pagination?.num_pages || 0}
         rowSelection={rowSelection}
         setRowSelection={setRowSelection}
-        actions={actions}
+        rightActions={actions}
         getRowId={(row) => row.metadata.id}
       />
     </>

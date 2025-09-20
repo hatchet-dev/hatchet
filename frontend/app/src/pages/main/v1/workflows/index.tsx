@@ -6,6 +6,7 @@ import { IntroDocsEmptyState } from '@/pages/onboarding/intro-docs-empty-state';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { columns, WorkflowColumn } from './components/workflow-columns';
 import { useWorkflows } from './hooks/use-workflows';
+import { RefetchIntervalDropdown } from '@/components/refetch-interval-dropdown';
 
 export default function WorkflowTable() {
   const { tenantId } = useCurrentTenantId();
@@ -33,11 +34,14 @@ export default function WorkflowTable() {
     return <Loading />;
   }
 
+  const actions = [<RefetchIntervalDropdown key="refetch-interval" />];
+
   return (
     <DataTable
       columns={columns(tenantId)}
       data={workflows}
       filters={[]}
+      rightActions={actions}
       emptyState={
         <IntroDocsEmptyState
           link="/home/your-first-task"
