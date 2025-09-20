@@ -102,16 +102,6 @@ export function DataTableToolbar<TData>({
               columnKeyToName={columnKeyToName}
             />
           )}
-          {(!actions || actions.length === 0) &&
-            (hasFilters || showColumnToggle) && (
-              <DataTableOptions
-                table={table}
-                filters={visibleFilters}
-                onReset={onReset}
-                hideFlatten={hideFlatten}
-                columnKeyToName={columnKeyToName}
-              />
-            )}
         </div>
       </div>
     </div>

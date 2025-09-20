@@ -3,10 +3,11 @@ import { useQuery } from '@tanstack/react-query';
 import { queries } from '@/lib/api';
 import { DataTable } from '@/components/v1/molecules/data-table/data-table.tsx';
 import { Loading } from '@/components/v1/ui/loading.tsx';
-import { ColumnFiltersState } from '@tanstack/react-table';
+import { ColumnFiltersState, VisibilityState } from '@tanstack/react-table';
 import { IntroDocsEmptyState } from '@/pages/onboarding/intro-docs-empty-state';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
-import { columns } from './components/worker-columns';
+import { columns, WorkerColumn } from './components/worker-columns';
+import { ToolbarType } from '@/components/v1/molecules/data-table/data-table-toolbar';
 
 export default function Workers() {
   const { tenantId } = useCurrentTenantId();
@@ -17,6 +18,8 @@ export default function Workers() {
       value: ['ACTIVE', 'PAUSED'],
     },
   ]);
+
+  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
 
   const listWorkersQuery = useQuery({
     ...queries.workers.list(tenantId),
@@ -63,6 +66,7 @@ export default function Workers() {
         {
           columnId: 'status',
           title: 'Status',
+          type: ToolbarType.Checkbox,
           options: [
             { value: 'ACTIVE', label: 'Active' },
             { value: 'PAUSED', label: 'Paused' },
@@ -73,6 +77,10 @@ export default function Workers() {
       emptyState={emptyState}
       columnFilters={columnFilters}
       setColumnFilters={setColumnFilters}
+      columnVisibility={columnVisibility}
+      setColumnVisibility={setColumnVisibility}
+      showColumnToggle={true}
+      columnKeyToName={WorkerColumn}
     />
   );
 }
