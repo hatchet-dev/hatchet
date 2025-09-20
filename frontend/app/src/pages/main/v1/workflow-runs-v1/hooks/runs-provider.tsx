@@ -64,7 +64,6 @@ type RunsContextType = {
         Pick<RunsTableState, 'rowSelection' | 'columnVisibility'>
       >,
     ) => void;
-    resetState: () => void;
     setIsFrozen: (isFrozen: boolean) => void;
     setIsActionModalOpen: (isOpen: boolean) => void;
     setIsActionDropdownOpen: (isOpen: boolean) => void;
@@ -154,7 +153,6 @@ export const RunsProvider = ({
     updateFilters,
     updateUIState,
     updateTableState,
-    resetState,
   } = useRunsTableState(tableKey, initialState);
 
   const filters = useRunsTableFilters(state, updateFilters);
@@ -260,7 +258,6 @@ export const RunsProvider = ({
         updateFilters,
         updateUIState,
         updateTableState,
-        resetState,
         setIsFrozen,
         setIsActionModalOpen,
         setIsActionDropdownOpen,
@@ -297,7 +294,6 @@ export const RunsProvider = ({
       updateFilters,
       updateUIState,
       updateTableState,
-      resetState,
       setIsFrozen,
       setIsActionModalOpen,
       setIsActionDropdownOpen,

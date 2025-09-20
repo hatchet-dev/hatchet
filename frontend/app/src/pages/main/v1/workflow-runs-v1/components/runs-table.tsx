@@ -122,7 +122,6 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
       updateFilters,
       updateUIState,
       updateTableState,
-      resetState,
       setIsFrozen,
       refetchRuns,
       refetchMetrics,
@@ -342,7 +341,6 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
           showColumnToggle={!hideColumnToggle}
           getSubRows={(row) => row.children || []}
           getRowId={getRowId}
-          onToolbarReset={resetState}
           headerClassName={headerClassName}
           hideFlatten={hideFlatten}
           columnKeyToName={TaskRunColumn}

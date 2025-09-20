@@ -5,8 +5,6 @@ import { Button } from '@/components/v1/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/v1/ui/dropdown-menu';
 import { Badge } from '@/components/v1/ui/badge';
@@ -408,7 +406,6 @@ function FilterControl<TData>({ column, filter }: FilterControlProps<TData>) {
 interface DataTableOptionsProps<TData> {
   table: Table<TData>;
   filters: ToolbarFilters;
-  onReset?: () => void;
   hideFlatten?: boolean;
   columnKeyToName?: Record<string, string>;
 }
@@ -416,11 +413,9 @@ interface DataTableOptionsProps<TData> {
 export function DataTableOptions<TData>({
   table,
   filters,
-  onReset,
   hideFlatten,
   columnKeyToName,
 }: DataTableOptionsProps<TData>) {
-  const isFiltered = table.getState().columnFilters?.length > 0;
   const activeFiltersCount = table.getState().columnFilters?.length || 0;
 
   const visibleFilters = filters.filter((filter) => {
@@ -466,7 +461,9 @@ export function DataTableOptions<TData>({
             <div className="px-3 py-2 bg-muted/30">
               <div className="flex items-center gap-2">
                 <div className="w-1 h-4 bg-primary rounded-full"></div>
-                <span className="text-sm font-semibold text-foreground">Filters</span>
+                <span className="text-sm font-semibold text-foreground">
+                  Filters
+                </span>
               </div>
             </div>
             <div className="p-3 space-y-4">
@@ -495,7 +492,9 @@ export function DataTableOptions<TData>({
             <div className="px-3 py-2 bg-muted/30">
               <div className="flex items-center gap-2">
                 <div className="w-1 h-4 bg-secondary rounded-full"></div>
-                <span className="text-sm font-semibold text-foreground">Column Visibility</span>
+                <span className="text-sm font-semibold text-foreground">
+                  Column Visibility
+                </span>
               </div>
             </div>
             <div className="p-3 space-y-1">
