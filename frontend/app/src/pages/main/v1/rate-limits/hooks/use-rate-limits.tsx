@@ -11,7 +11,7 @@ import { ColumnFiltersState, Updater } from '@tanstack/react-table';
 import { useCallback, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { keyKey } from '../components/rate-limit-columns';
-import _ from 'lodash';
+import { useDebounce } from 'use-debounce';
 
 type RateLimitQueryShape = {
   s: string | undefined; // search
@@ -65,6 +65,8 @@ export const useRateLimits = ({ key }: { key: string }) => {
     return s;
   }, [searchParams, paramKey]);
 
+  const [debouncedSearch] = useDebounce(search, 300);
+
   const columnFilters = useMemo<ColumnFiltersState>(() => {
     const { s } = parseRateLimitParam(searchParams, paramKey);
     const filters: ColumnFiltersState = [];
@@ -102,7 +104,7 @@ export const useRateLimits = ({ key }: { key: string }) => {
 
   const { data, isLoading, error } = useQuery({
     ...queries.rate_limits.list(tenantId, {
-      search,
+      search: debouncedSearch,
       orderByField: RateLimitOrderByField.Key,
       orderByDirection: RateLimitOrderByDirection.Asc,
       offset,
