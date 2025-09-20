@@ -18,7 +18,6 @@ import { FilterOption } from '@/components/v1/molecules/data-table/data-table-to
 
 type UseEventsProps = {
   key: string;
-  hoveredEventId?: string | null;
 };
 
 type EventFilterQueryShape = {
@@ -69,7 +68,7 @@ const parseEventFilterParam = (searchParams: URLSearchParams, key: string) => {
   };
 };
 
-export const useEvents = ({ key, hoveredEventId }: UseEventsProps) => {
+export const useEvents = ({ key }: UseEventsProps) => {
   const [searchParams, setSearchParams] = useSearchParams();
   const { tenantId } = useCurrentTenantId();
   const { currentInterval } = useRefetchInterval();
@@ -246,10 +245,7 @@ export const useEvents = ({ key, hoveredEventId }: UseEventsProps) => {
 
       return response.data;
     },
-    refetchInterval:
-      hoveredEventId || selectedEventIds?.length
-        ? false
-        : currentInterval.value,
+    refetchInterval: selectedEventIds?.length ? false : currentInterval,
     placeholderData: (prev) => prev,
   });
 

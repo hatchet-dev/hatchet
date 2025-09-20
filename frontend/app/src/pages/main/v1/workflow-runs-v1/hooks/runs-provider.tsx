@@ -16,7 +16,6 @@ import {
   ActionType,
   BaseTaskRunActionParams,
 } from '../../task-runs-v1/actions';
-import { useRefetchInterval } from '@/contexts/refetch-interval-context';
 
 type DisplayProps = {
   hideMetrics?: boolean;
@@ -106,8 +105,6 @@ export const RunsProvider = ({
   const [selectedActionType, setSelectedActionType] =
     useState<ActionType | null>(null);
 
-  const { currentInterval } = useRefetchInterval();
-
   const {
     workflowId,
     parentTaskExternalId,
@@ -191,7 +188,6 @@ export const RunsProvider = ({
     triggeringEventExternalId,
     disablePagination: disableTaskRunPagination,
     onlyTasks: !!workerId || flattenDAGs,
-    refetchInterval: currentInterval,
   });
 
   const actionModalParams = useMemo(
@@ -218,7 +214,6 @@ export const RunsProvider = ({
     workflow,
     parentTaskExternalId: derivedParentTaskExternalId,
     createdAfter: state.createdAfter,
-    refetchInterval: currentInterval,
     additionalMetadata: filters.apiFilters.additionalMetadata,
   });
 

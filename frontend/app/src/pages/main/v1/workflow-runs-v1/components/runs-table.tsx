@@ -62,7 +62,7 @@ const GetWorkflowChart = () => {
       finishedBefore,
     }),
     placeholderData: (prev) => prev,
-    refetchInterval: currentInterval.value,
+    refetchInterval: currentInterval,
   });
 
   if (workflowRunEventsMetricsQuery.isLoading) {

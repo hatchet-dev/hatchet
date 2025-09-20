@@ -26,7 +26,7 @@ export default function Workers() {
 
   const listWorkersQuery = useQuery({
     ...queries.workers.list(tenantId),
-    refetchInterval: currentInterval.value,
+    refetchInterval: currentInterval,
   });
 
   const data = useMemo(() => {

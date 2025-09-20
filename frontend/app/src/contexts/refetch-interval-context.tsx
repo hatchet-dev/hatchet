@@ -13,9 +13,11 @@ import {
 import { useLocalStorageState } from '@/hooks/use-local-storage-state';
 
 interface RefetchIntervalContextType {
-  currentInterval: LabeledRefetchInterval;
+  isFrozen: boolean;
+  setIsFrozen: (isFrozen: boolean) => void;
+  userRefetchIntervalPreference: LabeledRefetchInterval;
+  currentInterval: number | false;
   setRefetchInterval: (interval: LabeledRefetchInterval) => void;
-  isOff: boolean;
 }
 
 const RefetchIntervalContext = createContext<RefetchIntervalContextType | null>(
@@ -33,11 +35,23 @@ export const RefetchIntervalProvider = ({
 }: RefetchIntervalProviderProps) => {
   const [storedInterval, setStoredInterval] =
     useLocalStorageState<RefetchIntervalOption>(STORAGE_KEY, 'off');
+  const [isFrozen, setIsFrozen] = useLocalStorageState<boolean>(
+    'app-refetch-interval-frozen',
+    false,
+  );
 
-  const currentInterval = useMemo(
+  const userRefetchIntervalPreference = useMemo(
     () => RefetchInterval[storedInterval],
     [storedInterval],
   );
+
+  const currentInterval = useMemo(() => {
+    if (isFrozen) {
+      return false;
+    }
+
+    return userRefetchIntervalPreference.value;
+  }, [isFrozen, userRefetchIntervalPreference]);
 
   const setRefetchInterval = useCallback(
     (interval: LabeledRefetchInterval) => {
@@ -52,15 +66,21 @@ export const RefetchIntervalProvider = ({
     [setStoredInterval],
   );
 
-  const isOff = currentInterval.value === false;
-
   const value = useMemo<RefetchIntervalContextType>(
     () => ({
+      isFrozen,
+      setIsFrozen,
+      userRefetchIntervalPreference,
       currentInterval,
       setRefetchInterval,
-      isOff,
     }),
-    [currentInterval, setRefetchInterval, isOff],
+    [
+      currentInterval,
+      setRefetchInterval,
+      isFrozen,
+      setIsFrozen,
+      userRefetchIntervalPreference,
+    ],
   );
 
   return (
