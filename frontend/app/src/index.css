@@ -391,25 +391,45 @@ pre.shiki > code > span::before {
   .cq-lg\:block {
     display: block;
   }
-  
+
   .cq-lg\:flex {
     display: flex;
   }
-  
+
+  .cq-lg\:inline {
+    display: inline;
+  }
+
   .cq-lg\:hidden {
     display: none;
   }
 }
 
 @container (min-width: 1024px) {
+  .cq-lg\:block {
+    display: block;
+  }
+
+  .cq-lg\:flex {
+    display: flex;
+  }
+
+  .cq-lg\:inline {
+    display: inline;
+  }
+
+  .cq-lg\:hidden {
+    display: none;
+  }
+
   .cq-xl\:block {
     display: block;
   }
-  
+
   .cq-xl\:inline {
     display: inline;
   }
-  
+
   .cq-xl\:hidden {
     display: none;
   }

@@ -9,6 +9,7 @@ import {
   ClockIcon,
 } from '@heroicons/react/24/outline';
 import { PlayIcon, PauseIcon, ChartColumn } from 'lucide-react';
+import { useSidePanel } from '@/hooks/use-side-panel';
 
 function statusToFriendlyName(status: V1TaskStatus) {
   switch (status) {
@@ -68,6 +69,7 @@ function MetricBadge({
   const IconComponent = statusToIcon(status);
   const friendlyName = statusToFriendlyName(status);
   const formattedCount = metric.count.toLocaleString('en-US');
+  const { isOpen } = useSidePanel();
 
   return (
     <Badge
@@ -77,8 +79,8 @@ function MetricBadge({
     >
       <span className="flex items-center gap-1">
         <span>{formattedCount}</span>
-        <span className="hidden xl:inline">{friendlyName}</span>
-        <IconComponent className="size-4 xl:hidden" />
+        <span className="cq-lg:inline hidden">{friendlyName}</span>
+        <IconComponent className="size-4 cq-lg:hidden" />
       </span>
     </Badge>
   );
@@ -156,8 +158,8 @@ export const V1WorkflowRunsMetricsView = () => {
           className="cursor-pointer rounded-sm font-normal text-sm px-2 py-1 w-fit"
           onClick={() => onViewQueueMetricsClick()}
         >
-          <span className="hidden xl:inline">Queue metrics</span>
-          <ChartColumn className="size-4 xl:hidden" />
+          <span className="cq-lg:inline hidden">Queue metrics</span>
+          <ChartColumn className="size-4 cq-lg:hidden" />
         </Badge>
       )}
     </dl>
