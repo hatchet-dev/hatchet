@@ -23,9 +23,11 @@ export default function WorkflowTable() {
     workflows,
     numWorkflows,
     isLoading,
+    isRefetching,
     pagination,
     setPagination,
     setPageSize,
+    refetch,
   } = useWorkflows({
     key: 'workflows-table',
   });
@@ -34,7 +36,13 @@ export default function WorkflowTable() {
     return <Loading />;
   }
 
-  const actions = [<RefetchIntervalDropdown key="refetch-interval" />];
+  const actions = [
+    <RefetchIntervalDropdown
+      key="refetch-interval"
+      isRefetching={isRefetching}
+      onRefetch={refetch}
+    />,
+  ];
 
   return (
     <DataTable

@@ -32,6 +32,7 @@ export default function Filters() {
     numFilters,
     error,
     isLoading,
+    isRefetching,
     columnFilters,
     setColumnFilters,
     workflowIdToName,
@@ -78,7 +79,11 @@ export default function Filters() {
         className={`h-4 w-4 transition-transform ${rotate ? 'rotate-180' : ''}`}
       />
     </Button>,
-    <RefetchIntervalDropdown key="refetch-interval" />,
+    <RefetchIntervalDropdown
+      key="refetch-interval"
+      isRefetching={isRefetching}
+      onRefetch={refetch}
+    />,
   ];
 
   return (

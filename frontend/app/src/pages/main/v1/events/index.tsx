@@ -55,6 +55,7 @@ export default function Events() {
     eventKeyFilters,
     workflowKeyFilters,
     workflowRunStatusFilters,
+    isRefetching,
   } = useEvents({
     key: 'table',
     hoveredEventId,
@@ -82,7 +83,11 @@ export default function Events() {
   });
 
   const actions = [
-    <RefetchIntervalDropdown key="refetch-interval" />,
+    <RefetchIntervalDropdown
+      key="refetch-interval"
+      isRefetching={isRefetching}
+      onRefetch={refetch}
+    />,
     <Button
       key="refresh"
       className="h-8 px-2 lg:px-3"

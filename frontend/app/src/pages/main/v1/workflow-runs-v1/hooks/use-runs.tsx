@@ -117,5 +117,6 @@ export const useRuns = ({
     isError: listTasksQuery.isError,
     isFetching: listTasksQuery.isFetching,
     getRowId,
+    isRefetching: listTasksQuery.isRefetching,
   };
 };

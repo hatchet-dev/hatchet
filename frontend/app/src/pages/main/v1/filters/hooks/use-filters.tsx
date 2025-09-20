@@ -132,7 +132,7 @@ export const useFilters = ({ key }: UseFiltersProps) => {
     [columnFilters, paramKey, setSearchParams],
   );
 
-  const { data, isLoading, refetch, error } = useQuery({
+  const { data, isLoading, isRefetching, refetch, error } = useQuery({
     queryKey: [
       'v1:filter:list',
       tenantId,
@@ -262,6 +262,7 @@ export const useFilters = ({ key }: UseFiltersProps) => {
     numFilters,
     isLoading: isLoading || workflowKeysIsLoading,
     refetch,
+    isRefetching,
     error: error || workflowKeysError,
     pagination,
     setPagination,
