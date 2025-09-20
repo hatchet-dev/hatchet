@@ -1,20 +1,13 @@
-import { useEffect, useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { queries } from '@/lib/api';
-import { useSearchParams } from 'react-router-dom';
+import { useState } from 'react';
 import { DataTable } from '@/components/v1/molecules/data-table/data-table.tsx';
 import { Loading } from '@/components/v1/ui/loading.tsx';
-import {
-  PaginationState,
-  SortingState,
-  VisibilityState,
-} from '@tanstack/react-table';
+import { SortingState, VisibilityState } from '@tanstack/react-table';
 import { IntroDocsEmptyState } from '@/pages/onboarding/intro-docs-empty-state';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
-import { columns } from './components/workflow-columns';
+import { columns, WorkflowColumn } from './components/workflow-columns';
+import { useWorkflows } from './hooks/use-workflows';
 
 export default function WorkflowTable() {
-  const [searchParams, setSearchParams] = useSearchParams();
   const { tenantId } = useCurrentTenantId();
 
   const [sorting, setSorting] = useState<SortingState>([
@@ -25,54 +18,25 @@ export default function WorkflowTable() {
   ]);
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
 
-  const [pagination, setPagination] = useState<PaginationState>(() => {
-    const pageIndex = Number(searchParams.get('pageIndex')) || 0;
-    const pageSize = Number(searchParams.get('pageSize')) || 50;
-
-    return { pageIndex, pageSize };
-  });
-  const [pageSize, setPageSize] = useState<number>(
-    Number(searchParams.get('pageSize')) || 50,
-  );
-
-  const [pageIndex, setPageIndex] = useState<number>(
-    Number(searchParams.get('pageIndex')) || 0,
-  );
-
-  const listWorkflowQuery = useQuery({
-    ...queries.workflows.list(tenantId, {
-      limit: pagination.pageSize,
-      offset: pagination.pageIndex * pageSize,
-    }),
-    refetchInterval: 5000,
-    placeholderData: (data) => data,
+  const {
+    workflows,
+    numWorkflows,
+    isLoading,
+    pagination,
+    setPagination,
+    setPageSize,
+  } = useWorkflows({
+    key: 'workflows-table',
   });
 
-  useEffect(() => {
-    const newSearchParams = new URLSearchParams(searchParams);
-    newSearchParams.set('pageIndex', pagination.pageIndex.toString());
-    newSearchParams.set('pageSize', pagination.pageSize.toString());
-    setSearchParams(newSearchParams, { replace: true });
-  }, [pagination, setSearchParams, searchParams]);
-
-  const data = useMemo(() => {
-    const data = listWorkflowQuery.data?.rows || [];
-    setPageIndex(listWorkflowQuery.data?.pagination?.num_pages || 0);
-
-    return data;
-  }, [
-    listWorkflowQuery.data?.rows,
-    listWorkflowQuery.data?.pagination?.num_pages,
-  ]);
-
-  if (listWorkflowQuery.isLoading) {
+  if (isLoading) {
     return <Loading />;
   }
 
   return (
     <DataTable
       columns={columns(tenantId)}
-      data={data}
+      data={workflows}
       filters={[]}
       emptyState={
         <IntroDocsEmptyState
@@ -88,12 +52,14 @@ export default function WorkflowTable() {
       setPagination={setPagination}
       onSetPageSize={setPageSize}
       showSelectedRows={false}
-      pageCount={pageIndex}
+      pageCount={numWorkflows}
       sorting={sorting}
       setSorting={setSorting}
-      isLoading={listWorkflowQuery.isLoading}
+      isLoading={isLoading}
       manualSorting={false}
       manualFiltering={false}
+      showColumnToggle={true}
+      columnKeyToName={WorkflowColumn}
     />
   );
 }
