@@ -27,6 +27,7 @@ import { DeleteScheduledRun } from './delete-scheduled-runs';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { TriggerWorkflowForm } from '../../workflows/$workflow/components/trigger-workflow-form';
 import { RefetchIntervalDropdown } from '@/components/refetch-interval-dropdown';
+import { useRefetchInterval } from '@/contexts/refetch-interval-context';
 
 export interface ScheduledWorkflowRunsTableProps {
   createdAfter?: string;
@@ -36,7 +37,6 @@ export interface ScheduledWorkflowRunsTableProps {
   parentStepRunId?: string;
   initColumnVisibility?: VisibilityState;
   filterVisibility?: { [key: string]: boolean };
-  refetchInterval?: number;
   showMetrics?: boolean;
 }
 
@@ -48,13 +48,13 @@ export function ScheduledRunsTable({
   filterVisibility = {},
   parentWorkflowRunId,
   parentStepRunId,
-  refetchInterval = 5000,
 }: ScheduledWorkflowRunsTableProps) {
   const { tenantId } = useCurrentTenantId();
   const [searchParams, setSearchParams] = useSearchParams();
   const [triggerWorkflow, setTriggerWorkflow] = useState(false);
   const [selectedAdditionalMetaJobId, setSelectedAdditionalMetaJobId] =
     useState<string | null>(null);
+  const { refetchInterval } = useRefetchInterval();
 
   const [sorting, setSorting] = useState<SortingState>(() => {
     const sortParam = searchParams.get('sort');
@@ -193,7 +193,7 @@ export function ScheduledRunsTable({
       additionalMetadata: AdditionalMetadataFilter,
     }),
     placeholderData: (prev) => prev,
-    refetchInterval: selectedAdditionalMetaJobId ? false : refetchInterval,
+    refetchInterval,
   });
 
   const {
@@ -202,7 +202,7 @@ export function ScheduledRunsTable({
     error: workflowKeysError,
   } = useQuery({
     ...queries.workflows.list(tenantId, { limit: 200 }),
-    refetchInterval: selectedAdditionalMetaJobId ? false : refetchInterval,
+    refetchInterval,
   });
 
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});

@@ -35,7 +35,7 @@ export const useRuns = ({
   disablePagination = false,
 }: UseRunsProps) => {
   const { tenantId } = useCurrentTenantId();
-  const { currentInterval } = useRefetchInterval();
+  const { refetchInterval } = useRefetchInterval();
   const offset = pagination.pageIndex * pagination.pageSize;
 
   const [initialRenderTime] = useState(
@@ -67,7 +67,7 @@ export const useRuns = ({
     }),
     placeholderData: (prev) => prev,
     refetchInterval:
-      Object.keys(rowSelection).length > 0 ? false : currentInterval,
+      Object.keys(rowSelection).length > 0 ? false : refetchInterval,
   });
 
   const tasks = listTasksQuery.data;

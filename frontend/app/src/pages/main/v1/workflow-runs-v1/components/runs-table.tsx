@@ -39,7 +39,7 @@ export interface RunsTableProps {
 
 const GetWorkflowChart = () => {
   const { tenantId } = useCurrentTenantId();
-  const { currentInterval } = useRefetchInterval();
+  const { refetchInterval } = useRefetchInterval();
 
   const {
     state: { createdAfter, finishedBefore },
@@ -62,7 +62,7 @@ const GetWorkflowChart = () => {
       finishedBefore,
     }),
     placeholderData: (prev) => prev,
-    refetchInterval: currentInterval,
+    refetchInterval,
   });
 
   if (workflowRunEventsMetricsQuery.isLoading) {
@@ -155,7 +155,7 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
         setIsFrozen(false);
       }
     },
-    [],
+    [setIsFrozen],
   );
 
   const handleAdditionalMetadataClick = useCallback(

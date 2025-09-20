@@ -16,7 +16,7 @@ interface RefetchIntervalContextType {
   isFrozen: boolean;
   setIsFrozen: (isFrozen: boolean) => void;
   userRefetchIntervalPreference: LabeledRefetchInterval;
-  currentInterval: number | false;
+  refetchInterval: number | false;
   setRefetchInterval: (interval: LabeledRefetchInterval) => void;
 }
 
@@ -45,7 +45,7 @@ export const RefetchIntervalProvider = ({
     [storedInterval],
   );
 
-  const currentInterval = useMemo(() => {
+  const refetchInterval = useMemo(() => {
     if (isFrozen) {
       return false;
     }
@@ -71,11 +71,11 @@ export const RefetchIntervalProvider = ({
       isFrozen,
       setIsFrozen,
       userRefetchIntervalPreference,
-      currentInterval,
+      refetchInterval,
       setRefetchInterval,
     }),
     [
-      currentInterval,
+      refetchInterval,
       setRefetchInterval,
       isFrozen,
       setIsFrozen,

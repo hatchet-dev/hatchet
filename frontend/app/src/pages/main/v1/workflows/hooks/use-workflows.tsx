@@ -10,7 +10,7 @@ type UseWorkflowsProps = {
 
 export const useWorkflows = ({ key }: UseWorkflowsProps) => {
   const { tenantId } = useCurrentTenantId();
-  const { currentInterval } = useRefetchInterval();
+  const { refetchInterval } = useRefetchInterval();
   const { pagination, setPagination, setPageSize, offset, limit } =
     usePagination({
       key,
@@ -21,7 +21,7 @@ export const useWorkflows = ({ key }: UseWorkflowsProps) => {
       limit,
       offset,
     }),
-    refetchInterval: currentInterval,
+    refetchInterval: refetchInterval,
     placeholderData: (data) => data,
   });
 

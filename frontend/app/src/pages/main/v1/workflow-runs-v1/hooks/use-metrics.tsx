@@ -15,7 +15,7 @@ export const useMetrics = ({
   createdAfter?: string;
 }) => {
   const { tenantId } = useCurrentTenantId();
-  const { currentInterval } = useRefetchInterval();
+  const { refetchInterval } = useRefetchInterval();
 
   const metricsQuery = useQuery({
     ...queries.v1TaskRuns.metrics(tenantId, {
@@ -27,14 +27,14 @@ export const useMetrics = ({
       additional_metadata: additionalMetadata,
     }),
     placeholderData: (prev) => prev,
-    refetchInterval: currentInterval,
+    refetchInterval: refetchInterval,
   });
 
   const metrics = metricsQuery.data || [];
 
   const tenantMetricsQuery = useQuery({
     ...queries.metrics.getStepRunQueueMetrics(tenantId),
-    refetchInterval: currentInterval,
+    refetchInterval: refetchInterval,
   });
 
   const tenantMetrics = tenantMetricsQuery.data?.queues || {};

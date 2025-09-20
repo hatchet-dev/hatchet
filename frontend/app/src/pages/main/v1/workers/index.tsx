@@ -13,7 +13,7 @@ import { RefetchIntervalDropdown } from '@/components/refetch-interval-dropdown'
 
 export default function Workers() {
   const { tenantId } = useCurrentTenantId();
-  const { currentInterval } = useRefetchInterval();
+  const { refetchInterval } = useRefetchInterval();
 
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([
     {
@@ -26,7 +26,7 @@ export default function Workers() {
 
   const listWorkersQuery = useQuery({
     ...queries.workers.list(tenantId),
-    refetchInterval: currentInterval,
+    refetchInterval: refetchInterval,
   });
 
   const data = useMemo(() => {
