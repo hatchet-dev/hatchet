@@ -478,8 +478,8 @@ export function DataTableOptions<TData>({
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="outline" size="sm" className="h-8 flex-shrink-0">
-          <MixerHorizontalIcon className="h-4 w-4 cq-xl:mr-2" />
-          <span className="cq-xl:inline hidden">Options</span>
+          <MixerHorizontalIcon className="h-4 w-4" />
+          <span className="cq-xl:inline hidden ml-2">Options</span>
           {activeFiltersCount > 0 && (
             <Badge variant="secondary" className="ml-2 px-1 py-0 text-xs">
               {activeFiltersCount}
