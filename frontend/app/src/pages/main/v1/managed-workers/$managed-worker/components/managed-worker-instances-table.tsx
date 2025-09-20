@@ -18,12 +18,14 @@ import { VisibilityState } from '@tanstack/react-table';
 import { BiCard, BiTable } from 'react-icons/bi';
 import { Instance } from '@/lib/api/generated/cloud/data-contracts';
 import { Badge } from '@/components/v1/ui/badge';
+import { useRefetchInterval } from '@/contexts/refetch-interval-context';
 
 export function ManagedWorkerInstancesTable({
   managedWorkerId,
 }: {
   managedWorkerId: string;
 }) {
+  const { refetchInterval } = useRefetchInterval();
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
   const [rotate, setRotate] = useState(false);
 
@@ -31,7 +33,7 @@ export function ManagedWorkerInstancesTable({
 
   const listManagedWorkerInstancesQuery = useQuery({
     ...queries.cloud.listManagedWorkerInstances(managedWorkerId),
-    refetchInterval: 5000,
+    refetchInterval,
   });
 
   const data = useMemo(() => {

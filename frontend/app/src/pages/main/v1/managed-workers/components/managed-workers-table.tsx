@@ -20,9 +20,11 @@ import RelativeDate from '@/components/v1/molecules/relative-date';
 import { ManagedWorker } from '@/lib/api/generated/cloud/data-contracts';
 import GithubButton from '../$managed-worker/components/github-button';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
+import { useRefetchInterval } from '@/contexts/refetch-interval-context';
 
 export function ManagedWorkersTable() {
   const { tenantId } = useCurrentTenantId();
+  const { refetchInterval } = useRefetchInterval();
 
   const [sorting, setSorting] = useState<SortingState>([
     {
@@ -37,7 +39,7 @@ export function ManagedWorkersTable() {
 
   const listManagedWorkersQuery = useQuery({
     ...queries.cloud.listManagedWorkers(tenantId),
-    refetchInterval: 5000,
+    refetchInterval,
   });
 
   const data = useMemo(() => {

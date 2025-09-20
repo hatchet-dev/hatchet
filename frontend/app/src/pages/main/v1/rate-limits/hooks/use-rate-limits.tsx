@@ -12,6 +12,7 @@ import { useCallback, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { keyKey } from '../components/rate-limit-columns';
 import { useDebounce } from 'use-debounce';
+import { useRefetchInterval } from '@/contexts/refetch-interval-context';
 
 type RateLimitQueryShape = {
   s: string | undefined; // search
@@ -57,6 +58,7 @@ export const useRateLimits = ({ key }: { key: string }) => {
     usePagination({
       key,
     });
+  const { refetchInterval } = useRefetchInterval();
 
   const paramKey = `rate-limits-${key}`;
 
@@ -110,7 +112,7 @@ export const useRateLimits = ({ key }: { key: string }) => {
       offset,
       limit,
     }),
-    refetchInterval: 2000,
+    refetchInterval,
     placeholderData: (data) => data,
   });
 
