@@ -10,7 +10,7 @@ import {
 } from './components/event-columns';
 import { Separator } from '@/components/v1/ui/separator';
 import { useMemo, useState } from 'react';
-import { RowSelectionState, VisibilityState } from '@tanstack/react-table';
+import { VisibilityState } from '@tanstack/react-table';
 import { V1Event, V1Filter } from '@/lib/api';
 import { ToolbarType } from '@/components/v1/molecules/data-table/data-table-toolbar';
 import { Button } from '@/components/v1/ui/button';
@@ -64,8 +64,6 @@ export default function Events() {
     [EventColumn.payload]: false,
     [scopeKey]: false,
   });
-
-  const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 
   const tableColumns = columns({
     onRowClick: (row: V1Event) => {
@@ -152,10 +150,9 @@ export default function Events() {
         setPagination={setPagination}
         onSetPageSize={setPageSize}
         pageCount={numEvents}
-        rowSelection={rowSelection}
-        setRowSelection={setRowSelection}
         getRowId={(row) => row.metadata.id}
         columnKeyToName={EventColumn}
+        showSelectedRows={false}
       />
     </>
   );

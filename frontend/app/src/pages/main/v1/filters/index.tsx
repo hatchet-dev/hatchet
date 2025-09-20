@@ -6,7 +6,7 @@ import {
 } from './components/filter-columns';
 import { FilterCreateButton } from './components/filter-create-form';
 import { useState } from 'react';
-import { RowSelectionState, VisibilityState } from '@tanstack/react-table';
+import { VisibilityState } from '@tanstack/react-table';
 import { ToolbarType } from '@/components/v1/molecules/data-table/data-table-toolbar';
 import { Button } from '@/components/v1/ui/button';
 import { ArrowPathIcon } from '@heroicons/react/24/outline';
@@ -40,8 +40,6 @@ export default function Filters() {
   });
 
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
-
-  const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 
   const handleRowClick = (filter: V1Filter) => {
     sidePanel.open({
@@ -107,8 +105,6 @@ export default function Filters() {
       setPagination={setPagination}
       onSetPageSize={setPageSize}
       pageCount={numFilters}
-      rowSelection={rowSelection}
-      setRowSelection={setRowSelection}
       getRowId={(row) => row.metadata.id}
       emptyState={
         <div className="flex flex-col items-center justify-center p-8 gap-3 text-gray-400">
@@ -123,6 +119,7 @@ export default function Filters() {
         </div>
       }
       columnKeyToName={FilterColumn}
+      showSelectedRows={false}
     />
   );
 }
