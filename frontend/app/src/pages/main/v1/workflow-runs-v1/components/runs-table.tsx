@@ -282,7 +282,7 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
           }}
           data={tableRows}
           filters={toolbarFilters}
-          actions={[
+          leftActions={[
             ...(!hideCounts
               ? [
                   <div key="metrics" className="flex justify-start mr-auto">
@@ -294,6 +294,8 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
                   </div>,
                 ]
               : []),
+          ]}
+          rightActions={[
             <TableActions
               key="table-actions"
               onRefresh={handleRefresh}

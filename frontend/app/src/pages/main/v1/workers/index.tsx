@@ -6,11 +6,14 @@ import { Loading } from '@/components/v1/ui/loading.tsx';
 import { ColumnFiltersState, VisibilityState } from '@tanstack/react-table';
 import { IntroDocsEmptyState } from '@/pages/onboarding/intro-docs-empty-state';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
+import { useRefetchInterval } from '@/contexts/refetch-interval-context';
 import { columns, WorkerColumn } from './components/worker-columns';
 import { ToolbarType } from '@/components/v1/molecules/data-table/data-table-toolbar';
+import { RefetchIntervalDropdown } from '@/components/refetch-interval-dropdown';
 
 export default function Workers() {
   const { tenantId } = useCurrentTenantId();
+  const { currentInterval } = useRefetchInterval();
 
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([
     {
@@ -23,7 +26,7 @@ export default function Workers() {
 
   const listWorkersQuery = useQuery({
     ...queries.workers.list(tenantId),
-    refetchInterval: 3000,
+    refetchInterval: currentInterval.value,
   });
 
   const data = useMemo(() => {
@@ -57,11 +60,14 @@ export default function Workers() {
     />
   );
 
+  const actions = [<RefetchIntervalDropdown key="refetch-interval" />];
+
   return (
     <DataTable
       columns={columns(tenantId)}
       data={data}
       pageCount={1}
+      rightActions={actions}
       filters={[
         {
           columnId: 'status',

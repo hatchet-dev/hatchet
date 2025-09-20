@@ -397,6 +397,24 @@ function FilterControl<TData>({ column, filter }: FilterControlProps<TData>) {
           </div>
         </div>
       );
+    case ToolbarType.Search:
+      const currentSearchTerm = value ? String(value) || '' : '';
+
+      return (
+        <Input
+          ref={keyInputRef}
+          placeholder={`Search ${filter.title.toLowerCase()}...`}
+          value={currentSearchTerm}
+          onChange={(e) => column?.setFilterValue(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') {
+              column?.setFilterValue(undefined);
+            }
+          }}
+          className="h-8 text-xs placeholder:text-muted-foreground/50 w-full"
+        />
+      );
+
     default:
       const exhaustiveCheck: never = filter.type;
       return exhaustiveCheck;

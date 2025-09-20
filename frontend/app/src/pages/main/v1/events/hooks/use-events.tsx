@@ -1,5 +1,6 @@
 import { usePagination } from '@/hooks/use-pagination';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
+import { useRefetchInterval } from '@/contexts/refetch-interval-context';
 import api, { queries, V1TaskStatus } from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
 import { ColumnFiltersState, Updater } from '@tanstack/react-table';
@@ -71,6 +72,7 @@ const parseEventFilterParam = (searchParams: URLSearchParams, key: string) => {
 export const useEvents = ({ key, hoveredEventId }: UseEventsProps) => {
   const [searchParams, setSearchParams] = useSearchParams();
   const { tenantId } = useCurrentTenantId();
+  const { currentInterval } = useRefetchInterval();
   const { limit, offset, pagination, setPagination, setPageSize } =
     usePagination({
       key,
@@ -244,7 +246,10 @@ export const useEvents = ({ key, hoveredEventId }: UseEventsProps) => {
 
       return response.data;
     },
-    refetchInterval: hoveredEventId || selectedEventIds?.length ? false : 5000,
+    refetchInterval:
+      hoveredEventId || selectedEventIds?.length
+        ? false
+        : currentInterval.value,
     placeholderData: (prev) => prev,
   });
 

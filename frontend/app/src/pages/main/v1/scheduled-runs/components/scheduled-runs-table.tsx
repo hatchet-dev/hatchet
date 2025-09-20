@@ -335,7 +335,7 @@ export function ScheduledRunsTable({
         setColumnVisibility={setColumnVisibility}
         data={listWorkflowRunsQuery.data?.rows || []}
         filters={filters}
-        actions={actions}
+        rightActions={actions}
         sorting={sorting}
         setSorting={setSorting}
         columnFilters={columnFilters}

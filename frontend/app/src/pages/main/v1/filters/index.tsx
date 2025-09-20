@@ -11,6 +11,7 @@ import { VisibilityState } from '@tanstack/react-table';
 import { ToolbarType } from '@/components/v1/molecules/data-table/data-table-toolbar';
 import { Button } from '@/components/v1/ui/button';
 import { ArrowPathIcon } from '@heroicons/react/24/outline';
+import { RefetchIntervalDropdown } from '@/components/refetch-interval-dropdown';
 import { DataTable } from '@/components/v1/molecules/data-table/data-table';
 import { useFilters } from './hooks/use-filters';
 import { V1Filter } from '@/lib/api';
@@ -77,6 +78,7 @@ export default function Filters() {
         className={`h-4 w-4 transition-transform ${rotate ? 'rotate-180' : ''}`}
       />
     </Button>,
+    <RefetchIntervalDropdown key="refetch-interval" />,
   ];
 
   return (
@@ -101,7 +103,7 @@ export default function Filters() {
       showColumnToggle={true}
       columnVisibility={columnVisibility}
       setColumnVisibility={setColumnVisibility}
-      actions={actions}
+      rightActions={actions}
       columnFilters={columnFilters}
       setColumnFilters={setColumnFilters}
       pagination={pagination}

@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { queries } from '@/lib/api';
 import { usePagination } from '@/hooks/use-pagination';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
+import { useRefetchInterval } from '@/contexts/refetch-interval-context';
 
 type UseWorkflowsProps = {
   key: string;
@@ -9,6 +10,7 @@ type UseWorkflowsProps = {
 
 export const useWorkflows = ({ key }: UseWorkflowsProps) => {
   const { tenantId } = useCurrentTenantId();
+  const { currentInterval } = useRefetchInterval();
   const { pagination, setPagination, setPageSize, offset, limit } =
     usePagination({
       key,
@@ -19,7 +21,7 @@ export const useWorkflows = ({ key }: UseWorkflowsProps) => {
       limit,
       offset,
     }),
-    refetchInterval: 5000,
+    refetchInterval: currentInterval.value,
     placeholderData: (data) => data,
   });
 

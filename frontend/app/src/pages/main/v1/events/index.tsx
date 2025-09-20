@@ -28,6 +28,7 @@ import {
 import { useFilters } from '../filters/hooks/use-filters';
 import { useSidePanel } from '@/hooks/use-side-panel';
 import { useEvents } from './hooks/use-events';
+import { RefetchIntervalDropdown } from '@/components/refetch-interval-dropdown';
 
 export default function Events() {
   const [rotate, setRotate] = useState(false);
@@ -81,6 +82,7 @@ export default function Events() {
   });
 
   const actions = [
+    <RefetchIntervalDropdown key="refetch-interval" />,
     <Button
       key="refresh"
       className="h-8 px-2 lg:px-3"
@@ -143,7 +145,7 @@ export default function Events() {
         showColumnToggle={true}
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}
-        actions={actions}
+        rightActions={actions}
         columnFilters={columnFilters}
         setColumnFilters={setColumnFilters}
         pagination={pagination}

@@ -165,7 +165,7 @@ export function ManagedWorkersTable() {
       sorting={sorting}
       setSorting={setSorting}
       manualSorting={false}
-      actions={actions}
+      rightActions={actions}
       manualFiltering={false}
       card={
         cardToggle
