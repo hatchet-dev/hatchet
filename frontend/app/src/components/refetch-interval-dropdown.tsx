@@ -48,21 +48,19 @@ export const RefetchIntervalDropdown = ({
   return (
     <div className="flex flex-row items-center h-8">
       <Button
-        data-is-loading={isRefetching}
-        className="h-full rounded-l-md rounded-r-none flex flex-row gap-x-2 data-[is-loading]:animate-spin"
+        className="h-full rounded-l-md rounded-r-none flex flex-row gap-x-2 "
         variant="outline"
         onClick={onRefetch}
       >
-        <RefreshCw className="size-4" />
+        <RefreshCw
+          data-is-refetching={isRefetching}
+          className="size-4 data-[is-refetching=true]:animate-spin"
+        />
         Refresh
       </Button>
       <Select value={value} onValueChange={handleValueChange}>
         <SelectTrigger className="flex flex-row items-center gap-x-2 h-full rounded-r-md rounded-l-none border-l-0 hover:bg-accent">
-          {value !== 'off' && (
-            <div className="hidden cq-xl:inline">
-              <SelectValue />
-            </div>
-          )}
+          {value !== 'off' && <SelectValue />}
         </SelectTrigger>
         <SelectContent>
           {intervalOptions.map(({ key, label }) => (
