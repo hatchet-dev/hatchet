@@ -94,6 +94,7 @@ const GetWorkflowChart = () => {
 export function RunsTable({ headerClassName }: RunsTableProps) {
   const { tenantId } = useCurrentTenantId();
   const sidePanel = useSidePanel();
+  const { setIsFrozen } = useRefetchInterval();
 
   const {
     state,
@@ -148,8 +149,10 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
     (rowId: string, open: boolean) => {
       if (open) {
         setSelectedAdditionalMetaRunId(rowId);
+        setIsFrozen(true);
       } else {
         setSelectedAdditionalMetaRunId(null);
+        setIsFrozen(false);
       }
     },
     [],
