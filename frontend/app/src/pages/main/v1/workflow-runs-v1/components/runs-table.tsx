@@ -44,7 +44,6 @@ const GetWorkflowChart = () => {
   const {
     state: { createdAfter, finishedBefore },
     filters: { setCustomTimeRange },
-    isFrozen,
   } = useRunsContext();
 
   const zoom = useCallback(
@@ -63,7 +62,7 @@ const GetWorkflowChart = () => {
       finishedBefore,
     }),
     placeholderData: (prev) => prev,
-    refetchInterval: isFrozen ? false : currentInterval.value,
+    refetchInterval: currentInterval.value,
   });
 
   if (workflowRunEventsMetricsQuery.isLoading) {
@@ -122,14 +121,12 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
       updateFilters,
       updateUIState,
       updateTableState,
-      setIsFrozen,
       refetchRuns,
       refetchMetrics,
       getRowId,
     },
   } = useRunsContext();
 
-  const [rotate, setRotate] = useState(false);
   const [selectedAdditionalMetaRunId, setSelectedAdditionalMetaRunId] =
     useState<string | null>(null);
 
@@ -154,18 +151,15 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
       } else {
         setSelectedAdditionalMetaRunId(null);
       }
-
-      setIsFrozen(open);
     },
-    [setIsFrozen],
+    [],
   );
 
   const handleAdditionalMetadataClick = useCallback(
     (m: AdditionalMetadataProp) => {
-      setIsFrozen(true);
       filters.setAdditionalMetadata(m);
     },
-    [setIsFrozen, filters],
+    [filters],
   );
 
   const tableColumns = useMemo(
@@ -189,8 +183,7 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
   const handleRefresh = useCallback(() => {
     refetchRuns();
     refetchMetrics();
-    setRotate(!rotate);
-  }, [refetchRuns, refetchMetrics, rotate]);
+  }, [refetchRuns, refetchMetrics]);
 
   useEffect(() => {
     if (state.isCustomTimeRange) {
@@ -300,7 +293,6 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
               key="table-actions"
               onRefresh={handleRefresh}
               onTriggerWorkflow={() => updateUIState({ triggerWorkflow: true })}
-              rotate={rotate}
             />,
           ]}
           columnFilters={state.columnFilters}

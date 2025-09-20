@@ -13,8 +13,6 @@ import { useMemo, useState } from 'react';
 import { VisibilityState } from '@tanstack/react-table';
 import { V1Event, V1Filter } from '@/lib/api';
 import { ToolbarType } from '@/components/v1/molecules/data-table/data-table-toolbar';
-import { Button } from '@/components/v1/ui/button';
-import { ArrowPathIcon } from '@heroicons/react/24/outline';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { DataTable } from '@/components/v1/molecules/data-table/data-table';
 import { RunsTable } from '../workflow-runs-v1/components/runs-table';
@@ -31,7 +29,6 @@ import { useEvents } from './hooks/use-events';
 import { RefetchIntervalDropdown } from '@/components/refetch-interval-dropdown';
 
 export default function Events() {
-  const [rotate, setRotate] = useState(false);
   const [hoveredEventId] = useState<string | null>(null);
   const [openMetadataPopover, setOpenMetadataPopover] = useState<string | null>(
     null,
@@ -88,21 +85,6 @@ export default function Events() {
       isRefetching={isRefetching}
       onRefetch={refetch}
     />,
-    <Button
-      key="refresh"
-      className="h-8 px-2 lg:px-3"
-      size="sm"
-      onClick={() => {
-        refetch();
-        setRotate(!rotate);
-      }}
-      variant={'outline'}
-      aria-label="Refresh events list"
-    >
-      <ArrowPathIcon
-        className={`h-4 w-4 transition-transform ${rotate ? 'rotate-180' : ''}`}
-      />
-    </Button>,
   ];
 
   return (

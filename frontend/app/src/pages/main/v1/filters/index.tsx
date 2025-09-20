@@ -9,8 +9,6 @@ import { FilterCreateButton } from './components/filter-create-form';
 import { useState } from 'react';
 import { VisibilityState } from '@tanstack/react-table';
 import { ToolbarType } from '@/components/v1/molecules/data-table/data-table-toolbar';
-import { Button } from '@/components/v1/ui/button';
-import { ArrowPathIcon } from '@heroicons/react/24/outline';
 import { RefetchIntervalDropdown } from '@/components/refetch-interval-dropdown';
 import { DataTable } from '@/components/v1/molecules/data-table/data-table';
 import { useFilters } from './hooks/use-filters';
@@ -20,7 +18,6 @@ import { DocsButton } from '@/components/v1/docs/docs-button';
 import { docsPages } from '@/lib/generated/docs';
 
 export default function Filters() {
-  const [rotate, setRotate] = useState(false);
   const sidePanel = useSidePanel();
 
   const {
@@ -64,21 +61,6 @@ export default function Filters() {
       onCreate={mutations.create.perform}
       isCreating={mutations.create.isPending}
     />,
-    <Button
-      key="refresh"
-      className="h-8 px-2 lg:px-3"
-      size="sm"
-      onClick={() => {
-        refetch();
-        setRotate(!rotate);
-      }}
-      variant={'outline'}
-      aria-label="Refresh filters list"
-    >
-      <ArrowPathIcon
-        className={`h-4 w-4 transition-transform ${rotate ? 'rotate-180' : ''}`}
-      />
-    </Button>,
     <RefetchIntervalDropdown
       key="refetch-interval"
       isRefetching={isRefetching}

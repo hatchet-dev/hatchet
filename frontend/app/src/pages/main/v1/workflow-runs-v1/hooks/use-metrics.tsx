@@ -9,18 +9,16 @@ export const useMetrics = ({
   additionalMetadata,
   createdAfter,
   refetchInterval,
-  pauseRefetch = false,
 }: {
   workflow: string | undefined;
   parentTaskExternalId: string | undefined;
   additionalMetadata?: string[] | undefined;
   createdAfter?: string;
   refetchInterval: LabeledRefetchInterval;
-  pauseRefetch?: boolean;
 }) => {
   const { tenantId } = useCurrentTenantId();
 
-  const effectiveRefetchInterval = pauseRefetch ? false : refetchInterval.value;
+  const effectiveRefetchInterval = refetchInterval.value;
 
   const metricsQuery = useQuery({
     ...queries.v1TaskRuns.metrics(tenantId, {

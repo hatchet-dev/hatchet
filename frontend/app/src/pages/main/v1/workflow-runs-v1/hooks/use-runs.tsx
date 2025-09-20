@@ -18,7 +18,6 @@ type UseRunsProps = {
   triggeringEventExternalId?: string | undefined;
   onlyTasks: boolean;
   disablePagination?: boolean;
-  pauseRefetch?: boolean;
   refetchInterval: LabeledRefetchInterval;
 };
 
@@ -35,7 +34,6 @@ export const useRuns = ({
   triggeringEventExternalId,
   onlyTasks,
   disablePagination = false,
-  pauseRefetch = false,
   refetchInterval,
 }: UseRunsProps) => {
   const { tenantId } = useCurrentTenantId();
@@ -70,9 +68,7 @@ export const useRuns = ({
     }),
     placeholderData: (prev) => prev,
     refetchInterval:
-      Object.keys(rowSelection).length > 0 || pauseRefetch
-        ? false
-        : refetchInterval.value,
+      Object.keys(rowSelection).length > 0 ? false : refetchInterval.value,
   });
 
   const tasks = listTasksQuery.data;

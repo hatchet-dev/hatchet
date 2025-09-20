@@ -17,7 +17,6 @@ import { useSearchParams } from 'react-router-dom';
 import { DataTable } from '@/components/v1/molecules/data-table/data-table';
 import { columns } from './recurring-columns';
 import { Button } from '@/components/v1/ui/button';
-import { ArrowPathIcon } from '@heroicons/react/24/outline';
 import { DeleteCron } from './delete-cron';
 import {
   FilterOption,
@@ -26,6 +25,7 @@ import {
 } from '@/components/v1/molecules/data-table/data-table-toolbar';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { TriggerWorkflowForm } from '../../workflows/$workflow/components/trigger-workflow-form';
+import { RefetchIntervalDropdown } from '@/components/refetch-interval-dropdown';
 
 export function CronsTable() {
   const { tenantId } = useCurrentTenantId();
@@ -127,6 +127,7 @@ export function CronsTable() {
     isLoading: queryIsLoading,
     error: queryError,
     refetch,
+    isRefetching,
   } = useQuery({
     ...queries.cronJobs.list(tenantId, {
       orderByField,
@@ -192,18 +193,11 @@ export function CronsTable() {
     >
       Create Cron Job
     </Button>,
-    <Button
-      key="refresh"
-      className="h-8 px-2 lg:px-3"
-      size="sm"
-      onClick={() => {
-        refetch();
-      }}
-      variant={'outline'}
-      aria-label="Refresh crons list"
-    >
-      <ArrowPathIcon className={`h-4 w-4`} />
-    </Button>,
+    <RefetchIntervalDropdown
+      key="crons-table"
+      onRefetch={refetch}
+      isRefetching={isRefetching}
+    />,
   ];
 
   return (

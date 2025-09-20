@@ -64,7 +64,6 @@ type RunsContextType = {
         Pick<RunsTableState, 'rowSelection' | 'columnVisibility'>
       >,
     ) => void;
-    setIsFrozen: (isFrozen: boolean) => void;
     setIsActionModalOpen: (isOpen: boolean) => void;
     setIsActionDropdownOpen: (isOpen: boolean) => void;
     setSelectedActionType: (actionType: ActionType | null) => void;
@@ -84,7 +83,6 @@ type RunsContextType = {
   isRefetching: boolean;
   metrics: V1TaskRunMetrics;
   tenantMetrics: object;
-  isFrozen: boolean;
   isActionModalOpen: boolean;
   isActionDropdownOpen: boolean;
   selectedActionType: ActionType | null;
@@ -103,7 +101,6 @@ export const RunsProvider = ({
   display,
   runFilters,
 }: RunsProviderProps) => {
-  const [isFrozen, setIsFrozen] = useState(false);
   const [isActionModalOpen, setIsActionModalOpen] = useState(false);
   const [isActionDropdownOpen, setIsActionDropdownOpen] = useState(false);
   const [selectedActionType, setSelectedActionType] =
@@ -193,7 +190,6 @@ export const RunsProvider = ({
     parentTaskExternalId: derivedParentTaskExternalId,
     triggeringEventExternalId,
     disablePagination: disableTaskRunPagination,
-    pauseRefetch: isFrozen,
     onlyTasks: !!workerId || flattenDAGs,
     refetchInterval: currentInterval,
   });
@@ -223,7 +219,6 @@ export const RunsProvider = ({
     parentTaskExternalId: derivedParentTaskExternalId,
     createdAfter: state.createdAfter,
     refetchInterval: currentInterval,
-    pauseRefetch: isFrozen,
     additionalMetadata: filters.apiFilters.additionalMetadata,
   });
 
@@ -244,7 +239,6 @@ export const RunsProvider = ({
       isRefetching,
       metrics,
       tenantMetrics,
-      isFrozen,
       isActionModalOpen,
       isActionDropdownOpen,
       actionModalParams,
@@ -264,7 +258,6 @@ export const RunsProvider = ({
         updateFilters,
         updateUIState,
         updateTableState,
-        setIsFrozen,
         setIsActionModalOpen,
         setIsActionDropdownOpen,
         setSelectedActionType,
@@ -286,7 +279,6 @@ export const RunsProvider = ({
       isMetricsFetching,
       metrics,
       tenantMetrics,
-      isFrozen,
       isActionModalOpen,
       isActionDropdownOpen,
       hideMetrics,
@@ -300,7 +292,6 @@ export const RunsProvider = ({
       updateFilters,
       updateUIState,
       updateTableState,
-      setIsFrozen,
       setIsActionModalOpen,
       setIsActionDropdownOpen,
       setSelectedActionType,
