@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   ColumnFiltersState,
   PaginationState,
-  RowSelectionState,
   SortingState,
   VisibilityState,
 } from '@tanstack/react-table';
@@ -62,7 +61,6 @@ export function CronsTable() {
   const [pageSize, setPageSize] = useState<number>(
     Number(searchParams.get('pageSize')) || 50,
   );
-  const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 
   useEffect(() => {
     const newSearchParams = new URLSearchParams(searchParams);
@@ -234,14 +232,13 @@ export function CronsTable() {
         setPagination={setPagination}
         onSetPageSize={setPageSize}
         pageCount={data?.pagination?.num_pages || 0}
-        rowSelection={rowSelection}
-        setRowSelection={setRowSelection}
         rightActions={actions}
         getRowId={(row) => row.metadata.id}
         refetchProps={{
           isRefetching,
           onRefetch: refetch,
         }}
+        showSelectedRows={false}
       />
     </>
   );

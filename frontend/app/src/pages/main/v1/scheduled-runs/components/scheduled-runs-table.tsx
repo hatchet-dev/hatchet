@@ -3,7 +3,6 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   ColumnFiltersState,
   PaginationState,
-  RowSelectionState,
   SortingState,
   VisibilityState,
 } from '@tanstack/react-table';
@@ -204,8 +203,6 @@ export function ScheduledRunsTable({
     refetchInterval,
   });
 
-  const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
-
   const workflowKeyFilters = useMemo((): FilterOption[] => {
     return (
       workflowKeys?.rows?.map((key) => ({
@@ -321,14 +318,13 @@ export function ScheduledRunsTable({
         pagination={pagination}
         setPagination={setPagination}
         onSetPageSize={setPageSize}
-        rowSelection={rowSelection}
-        setRowSelection={setRowSelection}
         pageCount={listWorkflowRunsQuery.data?.pagination?.num_pages || 0}
         showColumnToggle={true}
         refetchProps={{
           isRefetching: listWorkflowRunsQuery.isRefetching,
           onRefetch: listWorkflowRunsQuery.refetch,
         }}
+        showSelectedRows={false}
       />
     </>
   );
