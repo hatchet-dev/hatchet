@@ -3,11 +3,7 @@ import { Badge, badgeVariants } from '@/components/v1/ui/badge';
 import { VariantProps } from 'class-variance-authority';
 import { useRunsContext } from '../hooks/runs-provider';
 import { getStatusesFromFilters } from '../hooks/use-runs-table-state';
-import {
-  CheckCircleIcon,
-  XCircleIcon,
-  ClockIcon,
-} from '@heroicons/react/24/outline';
+import { CheckCircleIcon, ClockIcon } from '@heroicons/react/24/outline';
 import { PlayIcon, X, Ban, ChartColumn } from 'lucide-react';
 
 function statusToFriendlyName(status: V1TaskStatus) {

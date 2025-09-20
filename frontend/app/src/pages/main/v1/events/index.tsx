@@ -112,16 +112,19 @@ export default function Events() {
             columnId: keyKey,
             title: EventColumn.key,
             options: eventKeyFilters,
+            type: ToolbarType.Array,
           },
           {
             columnId: workflowKey,
             title: EventColumn.workflowId,
             options: workflowKeyFilters,
+            type: ToolbarType.Checkbox,
           },
           {
             columnId: statusKey,
             title: EventColumn.status,
             options: workflowRunStatusFilters,
+            type: ToolbarType.Checkbox,
           },
           {
             columnId: metadataKey,
