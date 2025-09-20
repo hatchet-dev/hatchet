@@ -126,7 +126,7 @@ function FilterControl<TData>({ column, filter }: FilterControlProps<TData>) {
                 <SelectTrigger className="h-8 text-xs">
                   <SelectValue placeholder="Choose time range" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="z-[80]">
                   <SelectItem value="1h">1 hour</SelectItem>
                   <SelectItem value="6h">6 hours</SelectItem>
                   <SelectItem value="1d">1 day</SelectItem>
