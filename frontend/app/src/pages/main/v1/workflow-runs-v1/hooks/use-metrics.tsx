@@ -27,14 +27,14 @@ export const useMetrics = ({
       additional_metadata: additionalMetadata,
     }),
     placeholderData: (prev) => prev,
-    refetchInterval: refetchInterval,
+    refetchInterval,
   });
 
   const metrics = metricsQuery.data || [];
 
   const tenantMetricsQuery = useQuery({
     ...queries.metrics.getStepRunQueueMetrics(tenantId),
-    refetchInterval: refetchInterval,
+    refetchInterval,
   });
 
   const tenantMetrics = tenantMetricsQuery.data?.queues || {};

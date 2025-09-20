@@ -11,6 +11,7 @@ import { DateTimePicker } from '@/components/v1/molecules/time-picker/date-time-
 import { Button } from '@/components/v1/ui/button';
 import { ArrowPathIcon } from '@heroicons/react/24/outline';
 import { ListCloudLogsQuery } from '@/lib/api/queries';
+import { useRefetchInterval } from '@/contexts/refetch-interval-context';
 
 export function ManagedWorkerLogs({
   managedWorker,
@@ -24,6 +25,7 @@ export function ManagedWorkerLogs({
   const [lastUpdatedAt, setLastUpdatedAt] = useState<number | undefined>();
   const [mergedLogs, setMergedLogs] = useState<LogLine[]>([]);
   const [rotate, setRotate] = useState(false);
+  const { refetchInterval } = useRefetchInterval();
 
   const getLogsQuery = useQuery({
     ...queries.cloud.getManagedWorkerLogs(
@@ -31,7 +33,7 @@ export function ManagedWorkerLogs({
       queryParams,
     ),
     enabled: !!managedWorker,
-    refetchInterval: 15000,
+    refetchInterval,
   });
 
   useEffect(() => {

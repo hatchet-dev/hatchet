@@ -152,7 +152,7 @@ export const useFilters = ({ key }: UseFiltersProps) => {
 
       return response.data;
     },
-    refetchInterval: refetchInterval,
+    refetchInterval,
     placeholderData: (prev) => prev,
   });
 

@@ -28,6 +28,7 @@ import { RunsTable } from '../../workflow-runs-v1/components/runs-table';
 import { RunsProvider } from '../../workflow-runs-v1/hooks/runs-provider';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { capitalize } from '@/lib/utils';
+import { useRefetchInterval } from '@/contexts/refetch-interval-context';
 export const isHealthy = (worker?: Worker) => {
   const reasons = [];
 
@@ -91,13 +92,14 @@ export const WorkerStatus = ({
 export default function ExpandedWorkflowRun() {
   const { handleApiError } = useApiError({});
   const { tenantId } = useCurrentTenantId();
+  const { refetchInterval } = useRefetchInterval();
 
   const params = useParams();
   invariant(params.worker);
 
   const workerQuery = useQuery({
     ...queries.workers.get(params.worker),
-    refetchInterval: 3000,
+    refetchInterval,
   });
 
   const worker = workerQuery.data;

@@ -23,6 +23,7 @@ import { Separator } from '@/components/v1/ui/separator';
 import { ManagedWorkerBuild } from './managed-worker-build';
 import GithubButton from './github-button';
 import { ManagedWorkerIaC } from './managed-worker-iac';
+import { useRefetchInterval } from '@/contexts/refetch-interval-context';
 
 export function ManagedWorkerActivity({
   managedWorker,
@@ -64,12 +65,12 @@ function EventList({
   setBuildId: (id: string) => void;
   setDeployKey: (key: string) => void;
 }) {
+  const { refetchInterval } = useRefetchInterval();
+
   const getLogsQuery = useQuery({
     ...queries.cloud.listManagedWorkerEvents(managedWorker!.metadata.id || ''),
     enabled: !!managedWorker,
-    refetchInterval: () => {
-      return 5000;
-    },
+    refetchInterval,
   });
 
   if (!managedWorker || getLogsQuery.isLoading) {
