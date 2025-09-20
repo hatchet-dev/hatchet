@@ -238,8 +238,10 @@ export function CronsTable() {
         setRowSelection={setRowSelection}
         rightActions={actions}
         getRowId={(row) => row.metadata.id}
-        onRefetch={refetch}
-        isRefetching={isRefetching}
+        refetchProps={{
+          isRefetching,
+          onRefetch: refetch,
+        }}
       />
     </>
   );

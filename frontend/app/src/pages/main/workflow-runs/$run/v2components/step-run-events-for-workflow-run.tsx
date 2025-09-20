@@ -122,6 +122,7 @@ export function StepRunEvents({
       isLoading={eventsQuery.isLoading}
       columns={cols}
       data={tableData}
+      filters={[]}
     />
   );
 }

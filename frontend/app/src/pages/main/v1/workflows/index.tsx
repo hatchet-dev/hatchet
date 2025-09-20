@@ -61,8 +61,10 @@ export default function WorkflowTable() {
       manualFiltering={false}
       showColumnToggle={true}
       columnKeyToName={WorkflowColumn}
-      isRefetching={isRefetching}
-      onRefetch={refetch}
+      refetchProps={{
+        isRefetching,
+        onRefetch: refetch,
+      }}
     />
   );
 }

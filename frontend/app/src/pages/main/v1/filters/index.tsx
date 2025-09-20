@@ -106,8 +106,10 @@ export default function Filters() {
       }
       columnKeyToName={FilterColumn}
       showSelectedRows={false}
-      isRefetching={isRefetching}
-      onRefetch={refetch}
+      refetchProps={{
+        isRefetching,
+        onRefetch: refetch,
+      }}
     />
   );
 }

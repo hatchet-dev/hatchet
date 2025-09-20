@@ -54,8 +54,10 @@ function RateLimitsTable() {
       pageCount={numPages}
       getRowId={(row) => row.metadata.id}
       columnKeyToName={RateLimitColumn}
-      isRefetching={isRefetching}
-      onRefetch={refetch}
+      refetchProps={{
+        isRefetching,
+        onRefetch: refetch,
+      }}
     />
   );
 }

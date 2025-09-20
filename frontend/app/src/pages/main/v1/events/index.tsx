@@ -130,8 +130,10 @@ export default function Events() {
         getRowId={(row) => row.metadata.id}
         columnKeyToName={EventColumn}
         showSelectedRows={false}
-        isRefetching={isRefetching}
-        onRefetch={refetch}
+        refetchProps={{
+          isRefetching,
+          onRefetch: refetch,
+        }}
       />
     </>
   );

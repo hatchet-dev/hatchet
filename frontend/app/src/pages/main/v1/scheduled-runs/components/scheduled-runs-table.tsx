@@ -325,8 +325,10 @@ export function ScheduledRunsTable({
         setRowSelection={setRowSelection}
         pageCount={listWorkflowRunsQuery.data?.pagination?.num_pages || 0}
         showColumnToggle={true}
-        onRefetch={listWorkflowRunsQuery.refetch}
-        isRefetching={listWorkflowRunsQuery.isRefetching}
+        refetchProps={{
+          isRefetching: listWorkflowRunsQuery.isRefetching,
+          onRefetch: listWorkflowRunsQuery.refetch,
+        }}
       />
     </>
   );

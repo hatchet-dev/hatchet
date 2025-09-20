@@ -40,6 +40,11 @@ export type ToolbarFilters = {
   timeRangeConfig?: TimeRangeConfig;
 }[];
 
+type RefetchProps = {
+  isRefetching: boolean;
+  onRefetch: () => void;
+};
+
 interface DataTableToolbarProps<TData> {
   table: Table<TData>;
   filters: ToolbarFilters;
@@ -49,8 +54,7 @@ interface DataTableToolbarProps<TData> {
   isLoading?: boolean;
   hideFlatten?: boolean;
   columnKeyToName?: Record<string, string>;
-  isRefetching: boolean;
-  onRefetch: () => void;
+  refetchProps?: RefetchProps;
 }
 
 export function DataTableToolbar<TData>({
@@ -62,8 +66,7 @@ export function DataTableToolbar<TData>({
   isLoading = false,
   hideFlatten,
   columnKeyToName,
-  isRefetching,
-  onRefetch,
+  refetchProps,
 }: DataTableToolbarProps<TData>) {
   const visibleFilters = filters.filter((filter) => {
     if (hideFlatten && filter.columnId === flattenDAGsKey) {
@@ -83,10 +86,12 @@ export function DataTableToolbar<TData>({
         </div>
         <div className="flex flex-row gap-2 items-center flex-shrink-0">
           {rightActions}
-          <RefetchIntervalDropdown
-            isRefetching={isRefetching}
-            onRefetch={onRefetch}
-          />
+          {refetchProps && (
+            <RefetchIntervalDropdown
+              isRefetching={refetchProps.isRefetching}
+              onRefetch={refetchProps.onRefetch}
+            />
+          )}
           {(hasFilters || showColumnToggle) && (
             <DataTableOptions
               table={table}

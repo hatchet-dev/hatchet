@@ -47,7 +47,7 @@ interface DataTableProps<TData extends IDGetter<TData>, TValue> {
   columns: ColumnDef<TData, TValue>[];
   data: TData[];
   error?: Error | null;
-  filters: ToolbarFilters;
+  filters?: ToolbarFilters;
   leftActions?: JSX.Element[];
   rightActions?: JSX.Element[];
   sorting?: SortingState;
@@ -82,6 +82,11 @@ interface DataTableProps<TData extends IDGetter<TData>, TValue> {
   hideFlatten?: boolean;
 }
 
+type RefetchProps = {
+  isRefetching: boolean;
+  onRefetch: () => void;
+};
+
 interface ExtraDataTableProps {
   emptyState?: JSX.Element;
   card?: {
@@ -89,8 +94,7 @@ interface ExtraDataTableProps {
     component: React.FC<any> | ((data: any) => JSX.Element);
   };
   columnKeyToName?: Record<string, string>;
-  isRefetching: boolean;
-  onRefetch: () => void;
+  refetchProps?: RefetchProps;
 }
 
 export function DataTable<TData extends IDGetter<TData>, TValue>({
@@ -124,8 +128,7 @@ export function DataTable<TData extends IDGetter<TData>, TValue>({
   headerClassName,
   hideFlatten,
   columnKeyToName,
-  isRefetching,
-  onRefetch,
+  refetchProps,
 }: DataTableProps<TData, TValue> & ExtraDataTableProps) {
   const [expanded, setExpanded] = React.useState<ExpandedState>({});
 
@@ -276,7 +279,7 @@ export function DataTable<TData extends IDGetter<TData>, TValue>({
 
   return (
     <div className="flex flex-col max-h-full space-y-4">
-      {(leftActions || rightActions || (filters && filters.length > 0)) && (
+      {(leftActions || rightActions || filters.length > 0) && (
         <DataTableToolbar
           table={table}
           filters={filters}
@@ -286,8 +289,7 @@ export function DataTable<TData extends IDGetter<TData>, TValue>({
           showColumnToggle={showColumnToggle}
           hideFlatten={hideFlatten}
           columnKeyToName={columnKeyToName}
-          isRefetching={isRefetching}
-          onRefetch={onRefetch}
+          refetchProps={refetchProps}
         />
       )}
       <div

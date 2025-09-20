@@ -341,8 +341,10 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
           headerClassName={headerClassName}
           hideFlatten={hideFlatten}
           columnKeyToName={TaskRunColumn}
-          onRefetch={handleRefresh}
-          isRefetching={isRefetching}
+          refetchProps={{
+            isRefetching,
+            onRefetch: handleRefresh,
+          }}
         />
       </div>
     </div>

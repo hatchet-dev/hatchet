@@ -83,8 +83,10 @@ export default function Workers() {
       setColumnVisibility={setColumnVisibility}
       showColumnToggle={true}
       columnKeyToName={WorkerColumn}
-      isRefetching={listWorkersQuery.isRefetching}
-      onRefetch={listWorkersQuery.refetch}
+      refetchProps={{
+        isRefetching: listWorkersQuery.isRefetching,
+        onRefetch: listWorkersQuery.refetch,
+      }}
     />
   );
 }
