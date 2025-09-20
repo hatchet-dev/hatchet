@@ -284,15 +284,17 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
           data={tableRows}
           filters={toolbarFilters}
           actions={[
-            ...(!hideCounts ? [(
-              <div key="metrics" className="flex justify-start mr-auto">
-                {metrics.length > 0 ? (
-                  <V1WorkflowRunsMetricsView />
-                ) : (
-                  <Skeleton className="max-w-[800px] w-[40vw] h-8" />
-                )}
-              </div>
-            )] : []),
+            ...(!hideCounts
+              ? [
+                  <div key="metrics" className="flex justify-start mr-auto">
+                    {metrics.length > 0 ? (
+                      <V1WorkflowRunsMetricsView />
+                    ) : (
+                      <Skeleton className="max-w-[800px] w-[40vw] h-8" />
+                    )}
+                  </div>,
+                ]
+              : []),
             <TableActions
               key="table-actions"
               onRefresh={handleRefresh}

@@ -37,9 +37,11 @@ export const RefetchIntervalDropdown = () => {
       }
       onValueChange={handleValueChange}
     >
-      <SelectTrigger className="flex flex-row items-center gap-x-2">
+      <SelectTrigger className="flex flex-row items-center gap-x-2 h-8">
         <RefreshCw className="size-4" />
-        <SelectValue />
+        <div className="hidden cq-xl:inline">
+          <SelectValue />
+        </div>
       </SelectTrigger>
       <SelectContent>
         {intervalOptions.map(({ key, label }) => (

@@ -156,8 +156,8 @@ export const V1WorkflowRunsMetricsView = () => {
           className="cursor-pointer rounded-sm font-normal text-sm px-2 py-1 w-fit h-8"
           onClick={() => onViewQueueMetricsClick()}
         >
-          <span className="cq-lg:inline hidden">Queue metrics</span>
-          <ChartColumn className="size-4 cq-lg:hidden" />
+          <span className="cq-xl:inline hidden">Queue metrics</span>
+          <ChartColumn className="size-4 cq-xl:hidden" />
         </Badge>
       )}
     </dl>

@@ -10,7 +10,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/v1/ui/dropdown-menu';
 import { useMemo, useState } from 'react';
-import { Snowflake } from 'lucide-react';
+import { Snowflake, Play } from 'lucide-react';
 import { ChevronDownIcon } from '@radix-ui/react-icons';
 import { RefetchIntervalDropdown } from '../refetch-interval-dropdown';
 
@@ -53,8 +53,8 @@ export const TableActions = ({
       >
         <DropdownMenuTrigger asChild>
           <Button variant="outline" size="sm" className="h-8">
-            Actions
-            <ChevronDownIcon className="ml-2 h-4 w-4" />
+            <span className="cq-xl:inline hidden">Actions</span>
+            <ChevronDownIcon className="h-4 w-4 cq-xl:ml-2" />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="z-[70]">
@@ -97,7 +97,8 @@ export const TableActions = ({
           className="h-8 border"
           onClick={onTriggerWorkflow}
         >
-          Trigger Run
+          <span className="cq-xl:inline hidden">Trigger Run</span>
+          <Play className="size-4 cq-xl:hidden" />
         </Button>,
         ...baseActions,
       ];

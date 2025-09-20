@@ -105,15 +105,16 @@ export function DataTableToolbar<TData>({
             </div>
           </>
         )}
-        {(!actions || actions.length === 0) && (hasFilters || showColumnToggle) && (
-          <DataTableOptions
-            table={table}
-            filters={visibleFilters}
-            onReset={onReset}
-            hideFlatten={hideFlatten}
-            columnKeyToName={columnKeyToName}
-          />
-        )}
+        {(!actions || actions.length === 0) &&
+          (hasFilters || showColumnToggle) && (
+            <DataTableOptions
+              table={table}
+              filters={visibleFilters}
+              onReset={onReset}
+              hideFlatten={hideFlatten}
+              columnKeyToName={columnKeyToName}
+            />
+          )}
       </div>
     </div>
   );
