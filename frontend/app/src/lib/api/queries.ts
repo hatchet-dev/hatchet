@@ -184,7 +184,7 @@ export const queries = createQueryKeyStore({
   },
   workflows: {
     list: (tenant: string, query?: ListWorkflowsQuery) => ({
-      queryKey: ['workflow:list', tenant],
+      queryKey: ['workflow:list', tenant, query],
       queryFn: async () => (await api.workflowList(tenant, query)).data,
     }),
     get: (workflow: string) => ({
