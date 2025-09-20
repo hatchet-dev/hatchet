@@ -50,7 +50,10 @@ function Main() {
     <SidePanelProvider>
       <div className="flex flex-row flex-1 w-full h-full">
         <Sidebar memberships={memberships} />
-        <div className="p-8 flex-grow overflow-y-auto overflow-x-hidden" style={{ containerType: 'inline-size' }}>
+        <div
+          className="p-8 flex-grow overflow-y-auto overflow-x-hidden"
+          style={{ containerType: 'inline-size' }}
+        >
           <Outlet context={childCtx} />
         </div>
         <SidePanel />
