@@ -29,7 +29,6 @@ import { useEvents } from './hooks/use-events';
 import { RefetchIntervalDropdown } from '@/components/refetch-interval-dropdown';
 
 export default function Events() {
-  const [hoveredEventId] = useState<string | null>(null);
   const [openMetadataPopover, setOpenMetadataPopover] = useState<string | null>(
     null,
   );
@@ -55,7 +54,6 @@ export default function Events() {
     isRefetching,
   } = useEvents({
     key: 'table',
-    hoveredEventId,
   });
 
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({

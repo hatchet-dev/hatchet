@@ -20,7 +20,8 @@ export const RefetchIntervalDropdown = ({
   isRefetching,
   onRefetch,
 }: RefetchIntervalDropdownProps) => {
-  const { currentInterval, setRefetchInterval } = useRefetchInterval();
+  const { userRefetchIntervalPreference, setRefetchInterval } =
+    useRefetchInterval();
 
   const intervalOptions = useMemo(
     () =>
@@ -40,10 +41,11 @@ export const RefetchIntervalDropdown = ({
   const value = useMemo(() => {
     return (
       Object.entries(RefetchInterval).find(
-        ([, interval]) => interval.value === currentInterval.value,
+        ([, interval]) =>
+          interval.value === userRefetchIntervalPreference.value,
       )?.[0] || 'off'
     );
-  }, [currentInterval]);
+  }, [userRefetchIntervalPreference]);
 
   return (
     <div className="flex flex-row items-center h-8">

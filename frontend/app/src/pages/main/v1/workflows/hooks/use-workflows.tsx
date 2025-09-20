@@ -21,7 +21,7 @@ export const useWorkflows = ({ key }: UseWorkflowsProps) => {
       limit,
       offset,
     }),
-    refetchInterval: currentInterval.value,
+    refetchInterval: currentInterval,
     placeholderData: (data) => data,
   });
 
