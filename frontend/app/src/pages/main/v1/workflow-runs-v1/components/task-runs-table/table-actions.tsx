@@ -7,7 +7,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/v1/ui/dropdown-menu';
 import { useMemo, useState } from 'react';
-import { Play, MoreHorizontal } from 'lucide-react';
+import { Play, Command } from 'lucide-react';
 import { ChevronDownIcon } from '@radix-ui/react-icons';
 import { RefetchIntervalDropdown } from '@/components/refetch-interval-dropdown';
 
@@ -57,7 +57,7 @@ export const TableActions = ({
         >
           <DropdownMenuTrigger asChild>
             <Button variant="outline" size="sm" className="h-8">
-              <MoreHorizontal className="h-4 w-4 cq-xl:hidden" />
+              <Command className="h-4 w-4 cq-xl:hidden" />
               <span className="cq-xl:inline hidden">Actions</span>
               <ChevronDownIcon className="h-4 w-4 ml-2 hidden cq-xl:inline" />
             </Button>
