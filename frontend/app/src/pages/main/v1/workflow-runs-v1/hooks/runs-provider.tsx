@@ -26,7 +26,6 @@ type DisplayProps = {
   hideColumnToggle?: boolean;
   hideFlatten?: boolean;
   hidePagination?: boolean;
-  refetchInterval?: number;
 };
 
 type RunFilteringProps = {
@@ -42,7 +41,6 @@ type RunsProviderProps = {
   disableTaskRunPagination?: boolean;
   initColumnVisibility?: Record<string, boolean>;
   filterVisibility?: Record<string, boolean>;
-  refetchInterval?: number;
   display?: DisplayProps;
   runFilters?: RunFilteringProps;
 };
@@ -65,8 +63,6 @@ type RunsContextType = {
         Pick<RunsTableState, 'rowSelection' | 'columnVisibility'>
       >,
     ) => void;
-    resetState: () => void;
-    setIsFrozen: (isFrozen: boolean) => void;
     setIsActionModalOpen: (isOpen: boolean) => void;
     setIsActionDropdownOpen: (isOpen: boolean) => void;
     setSelectedActionType: (actionType: ActionType | null) => void;
@@ -83,9 +79,9 @@ type RunsContextType = {
   isRunsFetching: boolean;
   isMetricsLoading: boolean;
   isMetricsFetching: boolean;
+  isRefetching: boolean;
   metrics: V1TaskRunMetrics;
   tenantMetrics: object;
-  isFrozen: boolean;
   isActionModalOpen: boolean;
   isActionDropdownOpen: boolean;
   selectedActionType: ActionType | null;
@@ -101,11 +97,9 @@ export const RunsProvider = ({
   disableTaskRunPagination = false,
   initColumnVisibility = {},
   filterVisibility = {},
-  refetchInterval = 5000,
   display,
   runFilters,
 }: RunsProviderProps) => {
-  const [isFrozen, setIsFrozen] = useState(false);
   const [isActionModalOpen, setIsActionModalOpen] = useState(false);
   const [isActionDropdownOpen, setIsActionDropdownOpen] = useState(false);
   const [selectedActionType, setSelectedActionType] =
@@ -154,12 +148,15 @@ export const RunsProvider = ({
     updateFilters,
     updateUIState,
     updateTableState,
-    resetState,
   } = useRunsTableState(tableKey, initialState);
 
   const filters = useRunsTableFilters(state, updateFilters);
 
-  const toolbarFilters = useToolbarFilters({ filterVisibility });
+  const toolbarFilters = useToolbarFilters({
+    filterVisibility,
+    state,
+    filterActions: filters,
+  });
 
   const workflow =
     workflowId || getWorkflowIdsFromFilters(state.columnFilters)[0];
@@ -176,6 +173,7 @@ export const RunsProvider = ({
     isFetching: isRunsFetching,
     refetch: refetchRuns,
     getRowId,
+    isRefetching: isRunsRefetching,
   } = useRuns({
     rowSelection: state.rowSelection,
     pagination: state.pagination,
@@ -189,7 +187,6 @@ export const RunsProvider = ({
     parentTaskExternalId: derivedParentTaskExternalId,
     triggeringEventExternalId,
     disablePagination: disableTaskRunPagination,
-    pauseRefetch: isFrozen,
     onlyTasks: !!workerId || flattenDAGs,
   });
 
@@ -212,14 +209,15 @@ export const RunsProvider = ({
     isLoading: isMetricsLoading,
     isFetching: isMetricsFetching,
     refetch: refetchMetrics,
+    isRefetching: isMetricsRefetching,
   } = useMetrics({
     workflow,
     parentTaskExternalId: derivedParentTaskExternalId,
     createdAfter: state.createdAfter,
-    refetchInterval,
-    pauseRefetch: isFrozen,
     additionalMetadata: filters.apiFilters.additionalMetadata,
   });
+
+  const isRefetching = isRunsRefetching || isMetricsRefetching;
 
   const value = useMemo<RunsContextType>(
     () => ({
@@ -233,9 +231,9 @@ export const RunsProvider = ({
       isRunsFetching,
       isMetricsLoading,
       isMetricsFetching,
+      isRefetching,
       metrics,
       tenantMetrics,
-      isFrozen,
       isActionModalOpen,
       isActionDropdownOpen,
       actionModalParams,
@@ -249,15 +247,12 @@ export const RunsProvider = ({
         hideColumnToggle,
         hidePagination: disableTaskRunPagination,
         hideFlatten,
-        refetchInterval,
       },
       actions: {
         updatePagination,
         updateFilters,
         updateUIState,
         updateTableState,
-        resetState,
-        setIsFrozen,
         setIsActionModalOpen,
         setIsActionDropdownOpen,
         setSelectedActionType,
@@ -279,7 +274,6 @@ export const RunsProvider = ({
       isMetricsFetching,
       metrics,
       tenantMetrics,
-      isFrozen,
       isActionModalOpen,
       isActionDropdownOpen,
       hideMetrics,
@@ -289,13 +283,10 @@ export const RunsProvider = ({
       hideFlatten,
       actionModalParams,
       selectedActionType,
-      refetchInterval,
       updatePagination,
       updateFilters,
       updateUIState,
       updateTableState,
-      resetState,
-      setIsFrozen,
       setIsActionModalOpen,
       setIsActionDropdownOpen,
       setSelectedActionType,
@@ -305,6 +296,7 @@ export const RunsProvider = ({
       hideCancelAndReplayButtons,
       hideColumnToggle,
       disableTaskRunPagination,
+      isRefetching,
     ],
   );
 

@@ -30,7 +30,6 @@ export const AuthMethod = ({
       );
 
     default:
-      // eslint-disable-next-line no-case-declarations
       const exhaustiveCheck: never = authMethod;
       throw new Error(`Unhandled auth method: ${exhaustiveCheck}`);
   }

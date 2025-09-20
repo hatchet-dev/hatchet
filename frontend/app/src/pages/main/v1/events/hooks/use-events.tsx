@@ -1,5 +1,6 @@
 import { usePagination } from '@/hooks/use-pagination';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
+import { useRefetchInterval } from '@/contexts/refetch-interval-context';
 import api, { queries, V1TaskStatus } from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
 import { ColumnFiltersState, Updater } from '@tanstack/react-table';
@@ -17,7 +18,6 @@ import { FilterOption } from '@/components/v1/molecules/data-table/data-table-to
 
 type UseEventsProps = {
   key: string;
-  hoveredEventId?: string | null;
 };
 
 type EventFilterQueryShape = {
@@ -68,9 +68,10 @@ const parseEventFilterParam = (searchParams: URLSearchParams, key: string) => {
   };
 };
 
-export const useEvents = ({ key, hoveredEventId }: UseEventsProps) => {
+export const useEvents = ({ key }: UseEventsProps) => {
   const [searchParams, setSearchParams] = useSearchParams();
   const { tenantId } = useCurrentTenantId();
+  const { refetchInterval } = useRefetchInterval();
   const { limit, offset, pagination, setPagination, setPageSize } =
     usePagination({
       key,
@@ -213,7 +214,7 @@ export const useEvents = ({ key, hoveredEventId }: UseEventsProps) => {
     [columnFilters, paramKey, setSearchParams],
   );
 
-  const { data, isLoading, refetch, error } = useQuery({
+  const { data, isLoading, refetch, error, isRefetching } = useQuery({
     queryKey: [
       'v1:events:list',
       tenantId,
@@ -244,7 +245,7 @@ export const useEvents = ({ key, hoveredEventId }: UseEventsProps) => {
 
       return response.data;
     },
-    refetchInterval: hoveredEventId || selectedEventIds?.length ? false : 5000,
+    refetchInterval: selectedEventIds?.length ? false : refetchInterval,
     placeholderData: (prev) => prev,
   });
 
@@ -334,5 +335,6 @@ export const useEvents = ({ key, hoveredEventId }: UseEventsProps) => {
     eventKeyFilters,
     workflowKeyFilters,
     workflowRunStatusFilters,
+    isRefetching,
   };
 };

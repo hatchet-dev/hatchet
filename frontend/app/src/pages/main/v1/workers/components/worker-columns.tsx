@@ -8,6 +8,26 @@ import { SdkInfo } from './sdk-info';
 import { Badge, BadgeProps } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 
+export const WorkerColumn = {
+  status: 'Status',
+  name: 'Name',
+  type: 'Type',
+  startedAt: 'Started at',
+  slots: 'Available Slots',
+  lastHeartbeatAt: 'Last seen',
+  runtime: 'SDK Version',
+} as const;
+
+export type WorkerColumnKeys = keyof typeof WorkerColumn;
+
+export const statusKey: WorkerColumnKeys = 'status';
+export const nameKey: WorkerColumnKeys = 'name';
+export const typeKey: WorkerColumnKeys = 'type';
+export const startedAtKey: WorkerColumnKeys = 'startedAt';
+export const slotsKey: WorkerColumnKeys = 'slots';
+export const lastHeartbeatAtKey: WorkerColumnKeys = 'lastHeartbeatAt';
+export const runtimeKey: WorkerColumnKeys = 'runtime';
+
 interface WorkerStatusBadgeProps extends BadgeProps {
   status?: string;
   count?: number;
@@ -105,9 +125,9 @@ export const columns: (tenantId: string) => ColumnDef<Worker>[] = (
   tenantId,
 ) => [
   {
-    accessorKey: 'status',
+    accessorKey: statusKey,
     header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Status" />
+      <DataTableColumnHeader column={column} title={WorkerColumn.status} />
     ),
     cell: ({ row }) => (
       <Link to={`/tenants/${tenantId}/workers/${row.original.metadata.id}`}>
@@ -118,9 +138,9 @@ export const columns: (tenantId: string) => ColumnDef<Worker>[] = (
     enableHiding: false,
   },
   {
-    accessorKey: 'name',
+    accessorKey: nameKey,
     header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Name" />
+      <DataTableColumnHeader column={column} title={WorkerColumn.name} />
     ),
     cell: ({ row }) => (
       <Link to={`/tenants/${tenantId}/workers/${row.original.metadata.id}`}>
@@ -133,9 +153,9 @@ export const columns: (tenantId: string) => ColumnDef<Worker>[] = (
     enableHiding: false,
   },
   {
-    accessorKey: 'type',
+    accessorKey: typeKey,
     header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Type" />
+      <DataTableColumnHeader column={column} title={WorkerColumn.type} />
     ),
     cell: ({ row }) => (
       <div className="cursor-pointer hover:underline min-w-fit whitespace-nowrap">
@@ -146,11 +166,11 @@ export const columns: (tenantId: string) => ColumnDef<Worker>[] = (
     enableHiding: false,
   },
   {
-    accessorKey: 'startedAt',
+    accessorKey: startedAtKey,
     header: ({ column }) => (
       <DataTableColumnHeader
         column={column}
-        title="Started at"
+        title={WorkerColumn.startedAt}
         className="whitespace-nowrap"
       />
     ),
@@ -165,9 +185,9 @@ export const columns: (tenantId: string) => ColumnDef<Worker>[] = (
     enableHiding: true,
   },
   {
-    accessorKey: 'slots',
+    accessorKey: slotsKey,
     header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Available Slots" />
+      <DataTableColumnHeader column={column} title={WorkerColumn.slots} />
     ),
     cell: ({ row }) => (
       <div>
@@ -178,11 +198,11 @@ export const columns: (tenantId: string) => ColumnDef<Worker>[] = (
     enableHiding: true,
   },
   {
-    accessorKey: 'lastHeartbeatAt',
+    accessorKey: lastHeartbeatAtKey,
     header: ({ column }) => (
       <DataTableColumnHeader
         column={column}
-        title="Last seen"
+        title={WorkerColumn.lastHeartbeatAt}
         className="whitespace-nowrap"
       />
     ),
@@ -199,9 +219,9 @@ export const columns: (tenantId: string) => ColumnDef<Worker>[] = (
     enableHiding: true,
   },
   {
-    accessorKey: 'runtime',
+    accessorKey: runtimeKey,
     header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="SDK Version" />
+      <DataTableColumnHeader column={column} title={WorkerColumn.runtime} />
     ),
     cell: ({ row }) => <SdkInfo runtimeInfo={row.original.runtimeInfo} />,
     enableSorting: false,

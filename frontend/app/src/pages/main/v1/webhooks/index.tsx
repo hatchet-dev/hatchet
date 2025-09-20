@@ -132,7 +132,6 @@ const buildWebhookPayload = (data: WebhookFormData): V1CreateWebhookRequest => {
             },
           };
         default:
-          // eslint-disable-next-line no-case-declarations
           const exhaustiveCheck: never = data.authType;
           throw new Error(`Unhandled auth type: ${exhaustiveCheck}`);
       }
@@ -219,7 +218,6 @@ const buildWebhookPayload = (data: WebhookFormData): V1CreateWebhookRequest => {
         },
       };
     default:
-      // eslint-disable-next-line no-case-declarations
       const exhaustiveCheck: never = data.sourceName;
       throw new Error(`Unhandled source name: ${exhaustiveCheck}`);
   }
@@ -235,7 +233,6 @@ const createSourceInlineDescription = (sourceName: V1WebhookSourceName) => {
     case V1WebhookSourceName.SLACK:
       return '';
     default:
-      // eslint-disable-next-line no-case-declarations
       const exhaustiveCheck: never = sourceName;
       throw new Error(`Unhandled source name: ${exhaustiveCheck}`);
   }
@@ -259,7 +256,6 @@ const SourceCaption = ({ sourceName }: { sourceName: V1WebhookSourceName }) => {
     case V1WebhookSourceName.SLACK:
       return '';
     default:
-      // eslint-disable-next-line no-case-declarations
       const exhaustiveCheck: never = sourceName;
       throw new Error(`Unhandled source name: ${exhaustiveCheck}`);
   }

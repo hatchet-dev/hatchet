@@ -17,7 +17,6 @@ import { useSearchParams } from 'react-router-dom';
 import { DataTable } from '@/components/v1/molecules/data-table/data-table';
 import { columns } from './recurring-columns';
 import { Button } from '@/components/v1/ui/button';
-import { ArrowPathIcon } from '@heroicons/react/24/outline';
 import { DeleteCron } from './delete-cron';
 import {
   FilterOption,
@@ -26,12 +25,15 @@ import {
 } from '@/components/v1/molecules/data-table/data-table-toolbar';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { TriggerWorkflowForm } from '../../workflows/$workflow/components/trigger-workflow-form';
+import { RefetchIntervalDropdown } from '@/components/refetch-interval-dropdown';
+import { useRefetchInterval } from '@/contexts/refetch-interval-context';
 
 export function CronsTable() {
   const { tenantId } = useCurrentTenantId();
   const [searchParams, setSearchParams] = useSearchParams();
   const [triggerWorkflow, setTriggerWorkflow] = useState(false);
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
+  const { refetchInterval } = useRefetchInterval();
 
   const [sorting, setSorting] = useState<SortingState>(() => {
     const sortParam = searchParams.get('sort');
@@ -127,6 +129,7 @@ export function CronsTable() {
     isLoading: queryIsLoading,
     error: queryError,
     refetch,
+    isRefetching,
   } = useQuery({
     ...queries.cronJobs.list(tenantId, {
       orderByField,
@@ -138,7 +141,7 @@ export function CronsTable() {
         (filter) => filter.id === 'Metadata',
       )?.value as string[] | undefined,
     }),
-    refetchInterval: selectedJobId ? false : 2000,
+    refetchInterval,
   });
 
   const [showDeleteCron, setShowDeleteCron] = useState<
@@ -158,7 +161,7 @@ export function CronsTable() {
 
   const { data: workflowKeys } = useQuery({
     ...queries.workflows.list(tenantId, { limit: 200 }),
-    refetchInterval: selectedJobId ? false : 2000,
+    refetchInterval,
   });
 
   const workflowKeyFilters = useMemo((): FilterOption[] => {
@@ -192,18 +195,11 @@ export function CronsTable() {
     >
       Create Cron Job
     </Button>,
-    <Button
-      key="refresh"
-      className="h-8 px-2 lg:px-3"
-      size="sm"
-      onClick={() => {
-        refetch();
-      }}
-      variant={'outline'}
-      aria-label="Refresh crons list"
-    >
-      <ArrowPathIcon className={`h-4 w-4`} />
-    </Button>,
+    <RefetchIntervalDropdown
+      key="crons-table"
+      onRefetch={refetch}
+      isRefetching={isRefetching}
+    />,
   ];
 
   return (
@@ -246,7 +242,7 @@ export function CronsTable() {
         pageCount={data?.pagination?.num_pages || 0}
         rowSelection={rowSelection}
         setRowSelection={setRowSelection}
-        actions={actions}
+        rightActions={actions}
         getRowId={(row) => row.metadata.id}
       />
     </>

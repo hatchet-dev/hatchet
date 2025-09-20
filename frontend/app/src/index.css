@@ -386,3 +386,51 @@ pre.shiki > code > span::before {
   background-color: #fbbf24;
   color: #000;
 }
+
+@container (min-width: 768px) {
+  .cq-lg\:block {
+    display: block;
+  }
+
+  .cq-lg\:flex {
+    display: flex;
+  }
+
+  .cq-lg\:inline {
+    display: inline;
+  }
+
+  .cq-lg\:hidden {
+    display: none;
+  }
+}
+
+@container (min-width: 1024px) {
+  .cq-lg\:block {
+    display: block;
+  }
+
+  .cq-lg\:flex {
+    display: flex;
+  }
+
+  .cq-lg\:inline {
+    display: inline;
+  }
+
+  .cq-lg\:hidden {
+    display: none;
+  }
+
+  .cq-xl\:block {
+    display: block;
+  }
+
+  .cq-xl\:inline {
+    display: inline;
+  }
+
+  .cq-xl\:hidden {
+    display: none;
+  }
+}

@@ -48,7 +48,8 @@ interface DataTableProps<TData extends IDGetter<TData>, TValue> {
   data: TData[];
   error?: Error | null;
   filters: ToolbarFilters;
-  actions?: JSX.Element[];
+  leftActions?: JSX.Element[];
+  rightActions?: JSX.Element[];
   sorting?: SortingState;
   setSorting?: OnChangeFn<SortingState>;
   setSearch?: (search: string) => void;
@@ -87,7 +88,6 @@ interface ExtraDataTableProps {
     containerStyle?: string;
     component: React.FC<any> | ((data: any) => JSX.Element);
   };
-  onToolbarReset?: () => void;
   columnKeyToName?: Record<string, string>;
 }
 
@@ -96,11 +96,10 @@ export function DataTable<TData extends IDGetter<TData>, TValue>({
   error,
   data,
   filters,
-  actions = [],
+  leftActions = [],
+  rightActions = [],
   sorting,
   setSorting,
-  setSearch,
-  search,
   columnFilters,
   setColumnFilters,
   pagination,
@@ -120,7 +119,6 @@ export function DataTable<TData extends IDGetter<TData>, TValue>({
   manualSorting = true,
   manualFiltering = true,
   getSubRows,
-  onToolbarReset,
   headerClassName,
   hideFlatten,
   columnKeyToName,
@@ -274,16 +272,14 @@ export function DataTable<TData extends IDGetter<TData>, TValue>({
 
   return (
     <div className="flex flex-col max-h-full space-y-4">
-      {(setSearch || actions || (filters && filters.length > 0)) && (
+      {(leftActions || rightActions || (filters && filters.length > 0)) && (
         <DataTableToolbar
           table={table}
           filters={filters}
           isLoading={isLoading}
-          actions={actions}
-          search={search}
-          setSearch={setSearch}
+          leftActions={leftActions}
+          rightActions={rightActions}
           showColumnToggle={showColumnToggle}
-          onReset={onToolbarReset}
           hideFlatten={hideFlatten}
           columnKeyToName={columnKeyToName}
         />

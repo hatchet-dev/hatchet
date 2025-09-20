@@ -14,9 +14,15 @@ type DateTimePickerProps = {
   date: Date | undefined;
   setDate: (date: Date | undefined) => void;
   label: string;
+  triggerClassName?: string;
 };
 
-export function DateTimePicker({ date, setDate, label }: DateTimePickerProps) {
+export function DateTimePicker({
+  date,
+  setDate,
+  label,
+  triggerClassName,
+}: DateTimePickerProps) {
   /**
    * carry over the current time when a user clicks a new day
    * instead of resetting to 00:00
@@ -43,6 +49,7 @@ export function DateTimePicker({ date, setDate, label }: DateTimePickerProps) {
           className={cn(
             'w-fit justify-start text-left font-normal text-xs',
             !date && 'text-muted-foreground',
+            triggerClassName,
           )}
         >
           <CalendarIcon className="mr-2 h-4 w-4" />
@@ -53,7 +60,7 @@ export function DateTimePicker({ date, setDate, label }: DateTimePickerProps) {
           )}
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-auto p-0">
+      <PopoverContent className="w-auto p-0 z-[80]">
         <Calendar
           mode="single"
           selected={date}

@@ -86,6 +86,7 @@ export const filterColumns = (
           className="whitespace-pre-wrap break-words text-sm leading-relaxed"
           code={row.original.expression}
           copy={false}
+          maxHeight="10rem"
         />
       ),
       enableSorting: false,

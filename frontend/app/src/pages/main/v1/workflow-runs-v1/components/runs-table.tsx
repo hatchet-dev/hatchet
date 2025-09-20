@@ -28,10 +28,10 @@ import { AdditionalMetadataProp } from '../hooks/use-runs-table-filters';
 import { useRunsContext } from '../hooks/runs-provider';
 
 import { TableActions } from './task-runs-table/table-actions';
-import { TimeFilter } from './task-runs-table/time-filter';
 import { ConfirmActionModal } from '../../task-runs-v1/actions';
 import { DocsButton } from '@/components/v1/docs/docs-button';
 import { docsPages } from '@/lib/generated/docs';
+import { useRefetchInterval } from '@/contexts/refetch-interval-context';
 
 export interface RunsTableProps {
   headerClassName?: string;
@@ -39,12 +39,11 @@ export interface RunsTableProps {
 
 const GetWorkflowChart = () => {
   const { tenantId } = useCurrentTenantId();
+  const { refetchInterval } = useRefetchInterval();
 
   const {
     state: { createdAfter, finishedBefore },
     filters: { setCustomTimeRange },
-    display: { refetchInterval },
-    isFrozen,
   } = useRunsContext();
 
   const zoom = useCallback(
@@ -63,7 +62,7 @@ const GetWorkflowChart = () => {
       finishedBefore,
     }),
     placeholderData: (prev) => prev,
-    refetchInterval: isFrozen ? false : refetchInterval,
+    refetchInterval,
   });
 
   if (workflowRunEventsMetricsQuery.isLoading) {
@@ -95,6 +94,7 @@ const GetWorkflowChart = () => {
 export function RunsTable({ headerClassName }: RunsTableProps) {
   const { tenantId } = useCurrentTenantId();
   const sidePanel = useSidePanel();
+  const { setIsFrozen } = useRefetchInterval();
 
   const {
     state,
@@ -122,15 +122,12 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
       updateFilters,
       updateUIState,
       updateTableState,
-      resetState,
-      setIsFrozen,
       refetchRuns,
       refetchMetrics,
       getRowId,
     },
   } = useRunsContext();
 
-  const [rotate, setRotate] = useState(false);
   const [selectedAdditionalMetaRunId, setSelectedAdditionalMetaRunId] =
     useState<string | null>(null);
 
@@ -152,21 +149,20 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
     (rowId: string, open: boolean) => {
       if (open) {
         setSelectedAdditionalMetaRunId(rowId);
+        setIsFrozen(true);
       } else {
         setSelectedAdditionalMetaRunId(null);
+        setIsFrozen(false);
       }
-
-      setIsFrozen(open);
     },
     [setIsFrozen],
   );
 
   const handleAdditionalMetadataClick = useCallback(
     (m: AdditionalMetadataProp) => {
-      setIsFrozen(true);
       filters.setAdditionalMetadata(m);
     },
-    [setIsFrozen, filters],
+    [filters],
   );
 
   const tableColumns = useMemo(
@@ -190,8 +186,7 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
   const handleRefresh = useCallback(() => {
     refetchRuns();
     refetchMetrics();
-    setRotate(!rotate);
-  }, [refetchRuns, refetchMetrics, rotate]);
+  }, [refetchRuns, refetchMetrics]);
 
   useEffect(() => {
     if (state.isCustomTimeRange) {
@@ -211,7 +206,7 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
   const isFetching = !hasLoaded && (isRunsFetching || isMetricsFetching);
 
   return (
-    <div className="flex flex-col h-full overflow-hidden">
+    <div className="flex flex-col h-full overflow-hidden gap-y-2">
       <Toaster />
       {selectedActionType && (
         <ConfirmActionModal
@@ -252,19 +247,7 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
         </Dialog>
       )}
 
-      <TimeFilter />
-
       {!hideMetrics && <GetWorkflowChart />}
-
-      {!hideCounts && (
-        <div className="flex flex-row justify-between items-center my-4 overflow-auto">
-          {metrics.length > 0 ? (
-            <V1WorkflowRunsMetricsView />
-          ) : (
-            <Skeleton className="max-w-[800px] w-[40vw] h-8" />
-          )}
-        </div>
-      )}
 
       <div className="flex-1 min-h-0">
         <DataTable
@@ -295,12 +278,24 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
           }}
           data={tableRows}
           filters={toolbarFilters}
-          actions={[
+          leftActions={[
+            ...(!hideCounts
+              ? [
+                  <div key="metrics" className="flex justify-start mr-auto">
+                    {metrics.length > 0 ? (
+                      <V1WorkflowRunsMetricsView />
+                    ) : (
+                      <Skeleton className="max-w-[800px] w-[40vw] h-8" />
+                    )}
+                  </div>,
+                ]
+              : []),
+          ]}
+          rightActions={[
             <TableActions
               key="table-actions"
               onRefresh={handleRefresh}
               onTriggerWorkflow={() => updateUIState({ triggerWorkflow: true })}
-              rotate={rotate}
             />,
           ]}
           columnFilters={state.columnFilters}
@@ -343,7 +338,6 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
           showColumnToggle={!hideColumnToggle}
           getSubRows={(row) => row.children || []}
           getRowId={getRowId}
-          onToolbarReset={resetState}
           headerClassName={headerClassName}
           hideFlatten={hideFlatten}
           columnKeyToName={TaskRunColumn}

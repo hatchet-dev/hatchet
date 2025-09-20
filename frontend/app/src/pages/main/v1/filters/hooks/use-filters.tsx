@@ -1,5 +1,6 @@
 import { usePagination } from '@/hooks/use-pagination';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
+import { useRefetchInterval } from '@/contexts/refetch-interval-context';
 import api, {
   queries,
   V1CreateFilterRequest,
@@ -57,6 +58,7 @@ export const useFilters = ({ key }: UseFiltersProps) => {
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   const { tenantId } = useCurrentTenantId();
+  const { refetchInterval } = useRefetchInterval();
   const { limit, offset, pagination, setPagination, setPageSize } =
     usePagination({
       key,
@@ -130,7 +132,7 @@ export const useFilters = ({ key }: UseFiltersProps) => {
     [columnFilters, paramKey, setSearchParams],
   );
 
-  const { data, isLoading, refetch, error } = useQuery({
+  const { data, isLoading, isRefetching, refetch, error } = useQuery({
     queryKey: [
       'v1:filter:list',
       tenantId,
@@ -150,7 +152,7 @@ export const useFilters = ({ key }: UseFiltersProps) => {
 
       return response.data;
     },
-    refetchInterval: 10000,
+    refetchInterval,
     placeholderData: (prev) => prev,
   });
 
@@ -260,6 +262,7 @@ export const useFilters = ({ key }: UseFiltersProps) => {
     numFilters,
     isLoading: isLoading || workflowKeysIsLoading,
     refetch,
+    isRefetching,
     error: error || workflowKeysError,
     pagination,
     setPagination,

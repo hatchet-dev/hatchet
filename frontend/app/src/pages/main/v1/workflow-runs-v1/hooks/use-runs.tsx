@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useCallback, useMemo, useState } from 'react';
 import { RowSelectionState, PaginationState } from '@tanstack/react-table';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
+import { useRefetchInterval } from '@/contexts/refetch-interval-context';
 
 type UseRunsProps = {
   rowSelection: RowSelectionState;
@@ -17,7 +18,6 @@ type UseRunsProps = {
   triggeringEventExternalId?: string | undefined;
   onlyTasks: boolean;
   disablePagination?: boolean;
-  pauseRefetch?: boolean;
 };
 
 export const useRuns = ({
@@ -33,9 +33,9 @@ export const useRuns = ({
   triggeringEventExternalId,
   onlyTasks,
   disablePagination = false,
-  pauseRefetch = false,
 }: UseRunsProps) => {
   const { tenantId } = useCurrentTenantId();
+  const { refetchInterval } = useRefetchInterval();
   const offset = pagination.pageIndex * pagination.pageSize;
 
   const [initialRenderTime] = useState(
@@ -67,7 +67,7 @@ export const useRuns = ({
     }),
     placeholderData: (prev) => prev,
     refetchInterval:
-      Object.keys(rowSelection).length > 0 || pauseRefetch ? false : 5000,
+      Object.keys(rowSelection).length > 0 ? false : refetchInterval,
   });
 
   const tasks = listTasksQuery.data;
@@ -112,5 +112,6 @@ export const useRuns = ({
     isError: listTasksQuery.isError,
     isFetching: listTasksQuery.isFetching,
     getRowId,
+    isRefetching: listTasksQuery.isRefetching,
   };
 };

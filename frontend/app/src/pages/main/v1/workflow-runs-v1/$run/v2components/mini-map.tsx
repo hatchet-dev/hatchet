@@ -4,6 +4,7 @@ import { TabOption } from './step-run-detail/step-run-detail';
 import StepRunNode from './step-run-node';
 import { useWorkflowDetails } from '../../hooks/use-workflow-details';
 import { useQuery } from '@tanstack/react-query';
+import { useRefetchInterval } from '@/contexts/refetch-interval-context';
 
 interface JobMiniMapProps {
   onClick: (stepRunId?: string, defaultOpenTab?: TabOption) => void;
@@ -141,9 +142,10 @@ type UseTaskRunProps = {
 };
 
 export const useTaskRun = ({ taskRunId }: UseTaskRunProps) => {
+  const { refetchInterval } = useRefetchInterval();
   const taskRunQuery = useQuery({
     ...queries.v1Tasks.get(taskRunId),
-    refetchInterval: 5000,
+    refetchInterval,
   });
 
   return {

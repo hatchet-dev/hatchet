@@ -15,7 +15,6 @@ const ToggleIcon = ({ view }: { view: ViewOptions | undefined }) => {
     case undefined:
       return null;
     default:
-      // eslint-disable-next-line no-case-declarations
       const exhaustiveCheck: never = view;
       throw new Error(`Unhandled case: ${exhaustiveCheck}`);
   }

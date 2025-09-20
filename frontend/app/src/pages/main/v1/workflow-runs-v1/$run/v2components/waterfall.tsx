@@ -22,6 +22,7 @@ import {
   TooltipTrigger,
 } from '@/components/v1/ui/tooltip';
 import { useQuery } from '@tanstack/react-query';
+import { useRefetchInterval } from '@/contexts/refetch-interval-context';
 
 // Helper function to check if a task is a descendant of another task
 function isDescendantOf(
@@ -190,11 +191,12 @@ export function Waterfall({
   const [showAllChildren, setShowAllChildren] = useState<Set<string>>(
     new Set(),
   );
+  const { refetchInterval } = useRefetchInterval();
 
   // Use v1 style queries instead of _next hooks
   const taskTimingsQuery = useQuery({
     ...queries.v1WorkflowRuns.listTaskTimings(workflowRunId, depth),
-    refetchInterval: 5000,
+    refetchInterval,
     enabled: !!workflowRunId,
   });
 

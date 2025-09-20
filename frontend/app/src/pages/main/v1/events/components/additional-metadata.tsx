@@ -47,7 +47,7 @@ export const AdditionalMetadata = memo(
       <div className="flex items-center justify-start max-w-32">
         <Popover open={isOpen} onOpenChange={onOpenChange}>
           <PopoverTrigger asChild>
-            <div className="flex items-center gap-1 cursor-pointer hover:bg-muted/50 rounded px-2 py-1 transition-colors z-[70]">
+            <div className="flex items-center gap-1 cursor-pointer hover:bg-muted/50 rounded px-2 py-1 transition-colors">
               <TagIcon className="h-3 w-3 text-muted-foreground flex-shrink-0" />
               <span className="text-xs text-muted-foreground font-medium">
                 {metadataCount}
