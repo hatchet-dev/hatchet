@@ -6,13 +6,25 @@ import RelativeDate from '@/components/v1/molecules/relative-date';
 import { Badge } from '@/components/v1/ui/badge';
 import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
 
+export const WorkflowColumn = {
+  status: 'Status',
+  name: 'Name',
+  createdAt: 'Created at',
+} as const;
+
+export type WorkflowColumnKeys = keyof typeof WorkflowColumn;
+
+export const statusKey: WorkflowColumnKeys = 'status';
+export const nameKey: WorkflowColumnKeys = 'name';
+export const createdAtKey: WorkflowColumnKeys = 'createdAt';
+
 export const columns: (tenantId: string) => ColumnDef<Workflow>[] = (
   tenantId,
 ) => [
   {
-    accessorKey: 'Status',
+    accessorKey: statusKey,
     header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Status" />
+      <DataTableColumnHeader column={column} title={WorkflowColumn.status} />
     ),
     cell: ({ row }) => (
       <>
@@ -27,9 +39,9 @@ export const columns: (tenantId: string) => ColumnDef<Workflow>[] = (
     enableHiding: false,
   },
   {
-    accessorKey: 'name',
+    accessorKey: nameKey,
     header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Name" />
+      <DataTableColumnHeader column={column} title={WorkflowColumn.name} />
     ),
     cell: ({ row }) => (
       <Link to={`/tenants/${tenantId}/workflows/${row.original.metadata.id}`}>
@@ -38,15 +50,15 @@ export const columns: (tenantId: string) => ColumnDef<Workflow>[] = (
         </div>
       </Link>
     ),
-    enableSorting: true,
+    enableSorting: false,
     enableHiding: false,
   },
   {
-    accessorKey: 'createdAt',
+    accessorKey: createdAtKey,
     header: ({ column }) => (
       <DataTableColumnHeader
         column={column}
-        title="Created at"
+        title={WorkflowColumn.createdAt}
         className="whitespace-nowrap"
       />
     ),
@@ -63,7 +75,7 @@ export const columns: (tenantId: string) => ColumnDef<Workflow>[] = (
         </div>
       );
     },
-    enableSorting: true,
+    enableSorting: false,
     enableHiding: true,
   },
   {
