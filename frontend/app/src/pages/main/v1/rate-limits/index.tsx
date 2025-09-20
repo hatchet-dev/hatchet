@@ -26,6 +26,8 @@ function RateLimitsTable() {
     setPageSize,
     setPagination,
     numPages,
+    isRefetching,
+    refetch,
   } = useRateLimits({ key: 'rate-limits-table' });
 
   return (
@@ -52,6 +54,8 @@ function RateLimitsTable() {
       pageCount={numPages}
       getRowId={(row) => row.metadata.id}
       columnKeyToName={RateLimitColumn}
+      isRefetching={isRefetching}
+      onRefetch={refetch}
     />
   );
 }

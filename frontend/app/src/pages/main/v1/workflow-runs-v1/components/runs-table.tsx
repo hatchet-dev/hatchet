@@ -106,6 +106,7 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
     isRunsFetching,
     isMetricsLoading,
     isMetricsFetching,
+    isRefetching,
     metrics,
     tenantMetrics,
     actionModalParams,
@@ -294,7 +295,6 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
           rightActions={[
             <TableActions
               key="table-actions"
-              onRefresh={handleRefresh}
               onTriggerWorkflow={() => updateUIState({ triggerWorkflow: true })}
             />,
           ]}
@@ -341,6 +341,8 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
           headerClassName={headerClassName}
           hideFlatten={hideFlatten}
           columnKeyToName={TaskRunColumn}
+          onRefetch={handleRefresh}
+          isRefetching={isRefetching}
         />
       </div>
     </div>

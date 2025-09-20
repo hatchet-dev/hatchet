@@ -62,7 +62,6 @@ export default function Webhooks() {
         isLoading={isLoading}
         columns={columns()}
         data={data}
-        filters={[]}
         emptyState={<WebhookEmptyState />}
       />
     </div>

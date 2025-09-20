@@ -158,7 +158,6 @@ export function ManagedWorkersTable() {
       columns={columns(tenantId)}
       data={data}
       pageCount={1}
-      filters={[]}
       emptyState={emptyState}
       columnVisibility={columnVisibility}
       setColumnVisibility={setColumnVisibility}

@@ -9,7 +9,6 @@ import { FilterCreateButton } from './components/filter-create-form';
 import { useState } from 'react';
 import { VisibilityState } from '@tanstack/react-table';
 import { ToolbarType } from '@/components/v1/molecules/data-table/data-table-toolbar';
-import { RefetchIntervalDropdown } from '@/components/refetch-interval-dropdown';
 import { DataTable } from '@/components/v1/molecules/data-table/data-table';
 import { useFilters } from './hooks/use-filters';
 import { V1Filter } from '@/lib/api';
@@ -61,11 +60,6 @@ export default function Filters() {
       onCreate={mutations.create.perform}
       isCreating={mutations.create.isPending}
     />,
-    <RefetchIntervalDropdown
-      key="refetch-interval"
-      isRefetching={isRefetching}
-      onRefetch={refetch}
-    />,
   ];
 
   return (
@@ -112,6 +106,8 @@ export default function Filters() {
       }
       columnKeyToName={FilterColumn}
       showSelectedRows={false}
+      isRefetching={isRefetching}
+      onRefetch={refetch}
     />
   );
 }

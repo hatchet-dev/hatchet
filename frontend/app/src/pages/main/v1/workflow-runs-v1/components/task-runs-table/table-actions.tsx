@@ -9,36 +9,21 @@ import {
 import { useMemo, useState } from 'react';
 import { Play, Command } from 'lucide-react';
 import { ChevronDownIcon } from '@radix-ui/react-icons';
-import { RefetchIntervalDropdown } from '@/components/refetch-interval-dropdown';
 
 interface TableActionsProps {
-  onRefresh: () => void;
   onTriggerWorkflow: () => void;
 }
 
-export const TableActions = ({
-  onRefresh,
-  onTriggerWorkflow,
-}: TableActionsProps) => {
+export const TableActions = ({ onTriggerWorkflow }: TableActionsProps) => {
   const [shouldDelayClose, setShouldDelayClose] = useState(false);
   const {
     isActionDropdownOpen,
-    actions: { setIsActionDropdownOpen, refetchRuns, refetchMetrics },
+    actions: { setIsActionDropdownOpen },
     display: { hideTriggerRunButton, hideCancelAndReplayButtons },
-    isRefetching,
   } = useRunsContext();
 
   const actions = useMemo(() => {
     let baseActions = [
-      <RefetchIntervalDropdown
-        key="refetch-interval"
-        isRefetching={isRefetching}
-        onRefetch={() => {
-          onRefresh();
-          refetchRuns();
-          refetchMetrics();
-        }}
-      />,
       !hideCancelAndReplayButtons && (
         <DropdownMenu
           key="actions"
@@ -86,16 +71,12 @@ export const TableActions = ({
 
     return baseActions;
   }, [
-    onRefresh,
     onTriggerWorkflow,
     hideTriggerRunButton,
     hideCancelAndReplayButtons,
     setIsActionDropdownOpen,
     isActionDropdownOpen,
     shouldDelayClose,
-    refetchRuns,
-    refetchMetrics,
-    isRefetching,
   ]);
 
   return <>{actions}</>;

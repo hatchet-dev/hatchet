@@ -26,7 +26,6 @@ import { columns } from './scheduled-runs-columns';
 import { DeleteScheduledRun } from './delete-scheduled-runs';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { TriggerWorkflowForm } from '../../workflows/$workflow/components/trigger-workflow-form';
-import { RefetchIntervalDropdown } from '@/components/refetch-interval-dropdown';
 import { useRefetchInterval } from '@/contexts/refetch-interval-context';
 
 export interface ScheduledWorkflowRunsTableProps {
@@ -273,11 +272,6 @@ export function ScheduledRunsTable({
     >
       Schedule Run
     </Button>,
-    <RefetchIntervalDropdown
-      key="scheduled-runs-table"
-      onRefetch={listWorkflowRunsQuery.refetch}
-      isRefetching={listWorkflowRunsQuery.isRefetching}
-    />,
   ];
 
   const [showScheduledRunRevoke, setShowScheduledRunRevoke] = useState<
@@ -331,6 +325,8 @@ export function ScheduledRunsTable({
         setRowSelection={setRowSelection}
         pageCount={listWorkflowRunsQuery.data?.pagination?.num_pages || 0}
         showColumnToggle={true}
+        onRefetch={listWorkflowRunsQuery.refetch}
+        isRefetching={listWorkflowRunsQuery.isRefetching}
       />
     </>
   );

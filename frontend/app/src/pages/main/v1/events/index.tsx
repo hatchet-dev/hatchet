@@ -26,7 +26,6 @@ import {
 import { useFilters } from '../filters/hooks/use-filters';
 import { useSidePanel } from '@/hooks/use-side-panel';
 import { useEvents } from './hooks/use-events';
-import { RefetchIntervalDropdown } from '@/components/refetch-interval-dropdown';
 
 export default function Events() {
   const [openMetadataPopover, setOpenMetadataPopover] = useState<string | null>(
@@ -77,14 +76,6 @@ export default function Events() {
     setOpenPayloadPopover,
   });
 
-  const actions = [
-    <RefetchIntervalDropdown
-      key="refetch-interval"
-      isRefetching={isRefetching}
-      onRefetch={refetch}
-    />,
-  ];
-
   return (
     <>
       <DataTable
@@ -130,7 +121,6 @@ export default function Events() {
         showColumnToggle={true}
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}
-        rightActions={actions}
         columnFilters={columnFilters}
         setColumnFilters={setColumnFilters}
         pagination={pagination}
@@ -140,6 +130,8 @@ export default function Events() {
         getRowId={(row) => row.metadata.id}
         columnKeyToName={EventColumn}
         showSelectedRows={false}
+        isRefetching={isRefetching}
+        onRefetch={refetch}
       />
     </>
   );
@@ -227,7 +219,6 @@ function FiltersSection({
         <DataTable
           columns={columns}
           data={filters}
-          filters={[]}
           columnKeyToName={FilterColumn}
         />
       </div>

@@ -89,13 +89,15 @@ interface ExtraDataTableProps {
     component: React.FC<any> | ((data: any) => JSX.Element);
   };
   columnKeyToName?: Record<string, string>;
+  isRefetching: boolean;
+  onRefetch: () => void;
 }
 
 export function DataTable<TData extends IDGetter<TData>, TValue>({
   columns,
   error,
   data,
-  filters,
+  filters = [],
   leftActions = [],
   rightActions = [],
   sorting,
@@ -122,6 +124,8 @@ export function DataTable<TData extends IDGetter<TData>, TValue>({
   headerClassName,
   hideFlatten,
   columnKeyToName,
+  isRefetching,
+  onRefetch,
 }: DataTableProps<TData, TValue> & ExtraDataTableProps) {
   const [expanded, setExpanded] = React.useState<ExpandedState>({});
 
@@ -282,6 +286,8 @@ export function DataTable<TData extends IDGetter<TData>, TValue>({
           showColumnToggle={showColumnToggle}
           hideFlatten={hideFlatten}
           columnKeyToName={columnKeyToName}
+          isRefetching={isRefetching}
+          onRefetch={onRefetch}
         />
       )}
       <div

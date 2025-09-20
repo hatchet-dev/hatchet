@@ -104,7 +104,7 @@ export const useRateLimits = ({ key }: { key: string }) => {
     [paramKey, setSearchParams, columnFilters],
   );
 
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, isRefetching, refetch } = useQuery({
     ...queries.rate_limits.list(tenantId, {
       search: debouncedSearch,
       orderByField: RateLimitOrderByField.Key,
@@ -135,5 +135,7 @@ export const useRateLimits = ({ key }: { key: string }) => {
     setPageSize,
     columnFilters,
     setColumnFilters,
+    isRefetching,
+    refetch,
   };
 };

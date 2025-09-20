@@ -58,7 +58,6 @@ export function StepRunEvents({
       emptyState={<>No events found.</>}
       isLoading={eventsQuery.isLoading}
       columns={cols as any} // TODO: This is a hack, figure out how to type this properly later
-      filters={[]}
       data={events}
     />
   );

@@ -25,7 +25,6 @@ import {
 } from '@/components/v1/molecules/data-table/data-table-toolbar';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { TriggerWorkflowForm } from '../../workflows/$workflow/components/trigger-workflow-form';
-import { RefetchIntervalDropdown } from '@/components/refetch-interval-dropdown';
 import { useRefetchInterval } from '@/contexts/refetch-interval-context';
 
 export function CronsTable() {
@@ -195,11 +194,6 @@ export function CronsTable() {
     >
       Create Cron Job
     </Button>,
-    <RefetchIntervalDropdown
-      key="crons-table"
-      onRefetch={refetch}
-      isRefetching={isRefetching}
-    />,
   ];
 
   return (
@@ -244,6 +238,8 @@ export function CronsTable() {
         setRowSelection={setRowSelection}
         rightActions={actions}
         getRowId={(row) => row.metadata.id}
+        onRefetch={refetch}
+        isRefetching={isRefetching}
       />
     </>
   );

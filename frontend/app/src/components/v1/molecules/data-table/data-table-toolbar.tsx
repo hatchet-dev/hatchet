@@ -3,6 +3,7 @@ import { Table } from '@tanstack/react-table';
 import { DataTableOptions } from './data-table-options';
 import { Spinner } from '@/components/v1/ui/loading';
 import { flattenDAGsKey } from '@/pages/main/v1/workflow-runs-v1/components/v1/task-runs-columns';
+import { RefetchIntervalDropdown } from '@/components/refetch-interval-dropdown';
 
 export interface FilterOption {
   label: string;
@@ -48,6 +49,8 @@ interface DataTableToolbarProps<TData> {
   isLoading?: boolean;
   hideFlatten?: boolean;
   columnKeyToName?: Record<string, string>;
+  isRefetching: boolean;
+  onRefetch: () => void;
 }
 
 export function DataTableToolbar<TData>({
@@ -59,6 +62,8 @@ export function DataTableToolbar<TData>({
   isLoading = false,
   hideFlatten,
   columnKeyToName,
+  isRefetching,
+  onRefetch,
 }: DataTableToolbarProps<TData>) {
   const visibleFilters = filters.filter((filter) => {
     if (hideFlatten && filter.columnId === flattenDAGsKey) {
@@ -78,6 +83,10 @@ export function DataTableToolbar<TData>({
         </div>
         <div className="flex flex-row gap-2 items-center flex-shrink-0">
           {rightActions}
+          <RefetchIntervalDropdown
+            isRefetching={isRefetching}
+            onRefetch={onRefetch}
+          />
           {(hasFilters || showColumnToggle) && (
             <DataTableOptions
               table={table}

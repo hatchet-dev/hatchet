@@ -130,7 +130,6 @@ export function ManagedWorkerInstancesTable({
       columns={columns}
       data={dataWithMetadata}
       pageCount={1}
-      filters={[]}
       emptyState={emptyState}
       columnVisibility={columnVisibility}
       setColumnVisibility={setColumnVisibility}
