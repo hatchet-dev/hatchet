@@ -256,6 +256,7 @@ export function ScheduledRunsTable({
       columnId: 'status',
       title: 'Status',
       options: workflowRunStatusFilters,
+      type: ToolbarType.Checkbox,
     },
     {
       columnId: 'Metadata',
