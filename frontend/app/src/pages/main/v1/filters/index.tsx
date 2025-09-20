@@ -1,6 +1,7 @@
 import {
   FilterColumn,
   filterColumns,
+  isDeclarativeKey,
   scopeKey,
   workflowIdKey,
 } from './components/filter-columns';
@@ -39,7 +40,9 @@ export default function Filters() {
     key: 'table',
   });
 
-  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
+  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({
+    [isDeclarativeKey]: false,
+  });
 
   const handleRowClick = (filter: V1Filter) => {
     sidePanel.open({
