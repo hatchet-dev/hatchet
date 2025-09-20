@@ -58,7 +58,7 @@ export const useFilters = ({ key }: UseFiltersProps) => {
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   const { tenantId } = useCurrentTenantId();
-  const { currentInterval } = useRefetchInterval();
+  const { refetchInterval } = useRefetchInterval();
   const { limit, offset, pagination, setPagination, setPageSize } =
     usePagination({
       key,
@@ -152,7 +152,7 @@ export const useFilters = ({ key }: UseFiltersProps) => {
 
       return response.data;
     },
-    refetchInterval: currentInterval,
+    refetchInterval: refetchInterval,
     placeholderData: (prev) => prev,
   });
 

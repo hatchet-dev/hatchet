@@ -71,7 +71,7 @@ const parseEventFilterParam = (searchParams: URLSearchParams, key: string) => {
 export const useEvents = ({ key }: UseEventsProps) => {
   const [searchParams, setSearchParams] = useSearchParams();
   const { tenantId } = useCurrentTenantId();
-  const { currentInterval } = useRefetchInterval();
+  const { refetchInterval } = useRefetchInterval();
   const { limit, offset, pagination, setPagination, setPageSize } =
     usePagination({
       key,
@@ -245,7 +245,7 @@ export const useEvents = ({ key }: UseEventsProps) => {
 
       return response.data;
     },
-    refetchInterval: selectedEventIds?.length ? false : currentInterval,
+    refetchInterval: selectedEventIds?.length ? false : refetchInterval,
     placeholderData: (prev) => prev,
   });
 

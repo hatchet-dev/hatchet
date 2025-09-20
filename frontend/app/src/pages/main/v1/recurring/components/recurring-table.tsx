@@ -26,12 +26,14 @@ import {
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { TriggerWorkflowForm } from '../../workflows/$workflow/components/trigger-workflow-form';
 import { RefetchIntervalDropdown } from '@/components/refetch-interval-dropdown';
+import { useRefetchInterval } from '@/contexts/refetch-interval-context';
 
 export function CronsTable() {
   const { tenantId } = useCurrentTenantId();
   const [searchParams, setSearchParams] = useSearchParams();
   const [triggerWorkflow, setTriggerWorkflow] = useState(false);
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
+  const { refetchInterval } = useRefetchInterval();
 
   const [sorting, setSorting] = useState<SortingState>(() => {
     const sortParam = searchParams.get('sort');
@@ -139,7 +141,7 @@ export function CronsTable() {
         (filter) => filter.id === 'Metadata',
       )?.value as string[] | undefined,
     }),
-    refetchInterval: selectedJobId ? false : 2000,
+    refetchInterval,
   });
 
   const [showDeleteCron, setShowDeleteCron] = useState<
@@ -159,7 +161,7 @@ export function CronsTable() {
 
   const { data: workflowKeys } = useQuery({
     ...queries.workflows.list(tenantId, { limit: 200 }),
-    refetchInterval: selectedJobId ? false : 2000,
+    refetchInterval,
   });
 
   const workflowKeyFilters = useMemo((): FilterOption[] => {
