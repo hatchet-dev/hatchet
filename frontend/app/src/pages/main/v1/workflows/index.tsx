@@ -45,6 +45,7 @@ export default function WorkflowTable() {
       offset: pagination.pageIndex * pageSize,
     }),
     refetchInterval: 5000,
+    placeholderData: (data) => data,
   });
 
   useEffect(() => {
