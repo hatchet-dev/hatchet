@@ -140,10 +140,10 @@ function FilterControl<TData>({ column, filter }: FilterControlProps<TData>) {
       );
     case ToolbarType.Switch:
       return (
-        <div className="flex items-center justify-between p-2 bg-muted/30 rounded-md">
+        <div className="flex items-center justify-between hover:bg-muted/50 rounded-md px-3 py-2 bg-muted/10 border">
           <Label
             htmlFor={`filter-${filter.columnId}`}
-            className="text-sm font-medium"
+            className="text-sm font-medium cursor-pointer flex-1"
           >
             {filter.title}
           </Label>
@@ -459,12 +459,16 @@ export function DataTableOptions<TData>({
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="end"
-        className="w-96 max-h-96 overflow-y-auto z-[70]"
+        className="w-96 max-h-[32rem] overflow-y-auto z-[70] shadow-lg"
       >
         {hasFilters && (
           <>
-            <DropdownMenuLabel>Filters</DropdownMenuLabel>
-            <DropdownMenuSeparator />
+            <div className="px-3 py-2 bg-muted/30">
+              <div className="flex items-center gap-2">
+                <div className="w-1 h-4 bg-primary rounded-full"></div>
+                <span className="text-sm font-semibold text-foreground">Filters</span>
+              </div>
+            </div>
             <div className="p-3 space-y-4">
               {visibleFilters.map((filter, index) => (
                 <div key={filter.columnId} className="space-y-2">
@@ -476,21 +480,24 @@ export function DataTableOptions<TData>({
                     filter={filter}
                   />
                   {index < visibleFilters.length - 1 && (
-                    <DropdownMenuSeparator />
+                    <div className="border-t border-border/30 my-3" />
                   )}
                 </div>
               ))}
             </div>
 
-
-            {hasVisibleColumns && <DropdownMenuSeparator />}
+            {hasVisibleColumns && <div className="border-t border-border/50" />}
           </>
         )}
 
         {hasVisibleColumns && (
           <>
-            <DropdownMenuLabel>Column Visibility</DropdownMenuLabel>
-            <DropdownMenuSeparator />
+            <div className="px-3 py-2 bg-muted/30">
+              <div className="flex items-center gap-2">
+                <div className="w-1 h-4 bg-secondary rounded-full"></div>
+                <span className="text-sm font-semibold text-foreground">Column Visibility</span>
+              </div>
+            </div>
             <div className="p-3 space-y-1">
               {table
                 .getAllColumns()
