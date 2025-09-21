@@ -337,6 +337,7 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
             selectedActionType,
             actionModalParams,
           }}
+          onResetFilters={filters.resetFilters}
         />
       </div>
     </div>

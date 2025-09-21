@@ -11,7 +11,6 @@ import {
   statusKey,
   workflowKey,
   additionalMetadataKey,
-  createdAtKey,
   flattenDAGsKey,
   createdAfterKey,
   finishedBeforeKey,
@@ -44,6 +43,7 @@ export type FilterActions = {
   setColumnFilters: (filters: ColumnFiltersState) => void;
   clearAllFilters: () => void;
   clearParentFilter: () => void;
+  resetFilters: () => void;
 };
 
 const apiFilterSchema = z.object({
@@ -75,6 +75,7 @@ export const useRunsTableFilters = (
     },
     columnFilters,
     setColumnFilters,
+    resetFilters,
   } = useZodColumnFilters(apiFilterSchema, paramKey, {
     u: finishedBeforeKey,
     s: createdAfterKey,
@@ -212,5 +213,6 @@ export const useRunsTableFilters = (
     setColumnFilters,
     clearAllFilters,
     clearParentFilter,
+    resetFilters,
   };
 };

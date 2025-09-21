@@ -68,6 +68,7 @@ interface DataTableToolbarProps<TData> {
   columnKeyToName?: Record<string, string>;
   refetchProps?: RefetchProps;
   tableActions?: ShowTableActionsProps;
+  onResetFilters?: () => void;
 }
 
 export function DataTableToolbar<TData>({
@@ -81,6 +82,7 @@ export function DataTableToolbar<TData>({
   columnKeyToName,
   refetchProps,
   tableActions,
+  onResetFilters,
 }: DataTableToolbarProps<TData>) {
   const visibleFilters = filters.filter((filter) => {
     if (hideFlatten && filter.columnId === flattenDAGsKey) {
@@ -120,6 +122,7 @@ export function DataTableToolbar<TData>({
               filters={visibleFilters}
               hideFlatten={hideFlatten}
               columnKeyToName={columnKeyToName}
+              onResetFilters={onResetFilters}
             />
           )}
         </div>

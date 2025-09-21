@@ -430,6 +430,7 @@ interface DataTableOptionsProps<TData> {
   filters: ToolbarFilters;
   hideFlatten?: boolean;
   columnKeyToName?: Record<string, string>;
+  onResetFilters?: () => void;
 }
 
 export function DataTableOptions<TData>({
@@ -437,6 +438,7 @@ export function DataTableOptions<TData>({
   filters,
   hideFlatten,
   columnKeyToName,
+  onResetFilters,
 }: DataTableOptionsProps<TData>) {
   const activeFiltersCount = React.useMemo(() => {
     const columnFilters = table.getState().columnFilters || [];
@@ -470,7 +472,7 @@ export function DataTableOptions<TData>({
     });
 
     return validFilters.length;
-  }, [table.getState().columnFilters, hideFlatten]);
+  }, [hideFlatten, table]);
 
   const visibleFilters = filters.filter((filter) => {
     if (hideFlatten && filter.columnId === flattenDAGsKey) {
@@ -516,6 +518,7 @@ export function DataTableOptions<TData>({
           hideFlatten={hideFlatten}
           columnKeyToName={columnKeyToName}
           showColumnVisiblity
+          onResetFilters={onResetFilters}
         />
       </DropdownMenuContent>
     </DropdownMenu>
@@ -528,6 +531,7 @@ export interface DataTableOptionsContentProps<TData> {
   columnKeyToName?: Record<string, string>;
   hideFlatten: boolean | undefined;
   showColumnVisiblity: boolean;
+  onResetFilters?: () => void;
 }
 
 export function DataTableOptionsContent<TData>({
@@ -536,6 +540,7 @@ export function DataTableOptionsContent<TData>({
   columnKeyToName,
   hideFlatten,
   showColumnVisiblity,
+  onResetFilters,
 }: DataTableOptionsContentProps<TData>) {
   const visibleFilters = filters.filter((filter) => {
     if (hideFlatten && filter.columnId === flattenDAGsKey) {
@@ -558,11 +563,20 @@ export function DataTableOptionsContent<TData>({
       {hasFilters && (
         <>
           <div className="px-3 py-2 bg-muted/30">
-            <div className="flex items-center gap-2">
-              <div className="w-1 h-4 bg-primary rounded-full"></div>
-              <span className="text-sm font-semibold text-foreground">
-                Filters
-              </span>
+            <div className="flex flex-row justify-between items-center gap-2">
+              <div className="flex flex-row items-center gap-2">
+                <div className="w-1 h-4 bg-primary rounded-full"></div>
+                <span className="text-sm font-semibold text-foreground">
+                  Filters
+                </span>
+              </div>
+              <div>
+                {onResetFilters && (
+                  <Button variant="outline" size="sm" onClick={onResetFilters}>
+                    Reset
+                  </Button>
+                )}
+              </div>
             </div>
           </div>
           <div className="p-3 space-y-4">

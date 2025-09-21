@@ -85,6 +85,7 @@ interface DataTableProps<TData extends IDGetter<TData>, TValue> {
   getSubRows?: (row: TData) => TData[];
   headerClassName?: string;
   hideFlatten?: boolean;
+  onResetFilters?: () => void;
 }
 
 type RefetchProps = {
@@ -133,6 +134,7 @@ export function DataTable<TData extends IDGetter<TData>, TValue>({
   getSubRows,
   headerClassName,
   hideFlatten,
+  onResetFilters,
   columnKeyToName,
   refetchProps,
   tableActions,
@@ -309,6 +311,7 @@ export function DataTable<TData extends IDGetter<TData>, TValue>({
           columnKeyToName={columnKeyToName}
           refetchProps={refetchProps}
           tableActions={tableActions}
+          onResetFilters={onResetFilters}
         />
       )}
       <div

@@ -15,6 +15,7 @@ export function useZodColumnFilters<T extends z.ZodType>(
   state: z.infer<T>;
   columnFilters: ColumnFiltersState;
   setColumnFilters: (updater: Updater<ColumnFiltersState>) => void;
+  resetFilters: () => void;
 } {
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -93,9 +94,15 @@ export function useZodColumnFilters<T extends z.ZodType>(
     [columnFilters, state, setQueryState, filterMapping],
   );
 
+  const resetFilters = useCallback(() => {
+    const defaultState = schema.parse({});
+    setQueryState(defaultState);
+  }, [schema, setQueryState]);
+
   return {
     state,
     columnFilters,
     setColumnFilters,
+    resetFilters,
   };
 }
