@@ -3,9 +3,7 @@ import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { useRefetchInterval } from '@/contexts/refetch-interval-context';
 import api, { queries, V1TaskStatus } from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
-import { ColumnFiltersState, Updater } from '@tanstack/react-table';
-import { useCallback, useMemo } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useMemo } from 'react';
 import {
   keyKey,
   workflowKey,
@@ -15,61 +13,26 @@ import {
   scopeKey,
 } from '../components/event-columns';
 import { FilterOption } from '@/components/v1/molecules/data-table/data-table-toolbar';
+import { useZodColumnFilters } from '@/hooks/use-zod-column-filters';
+import { z } from 'zod';
+import { workflowRunStatusFilters } from '../../workflow-runs-v1/hooks/use-toolbar-filters';
 
 type UseEventsProps = {
   key: string;
 };
 
-type EventFilterQueryShape = {
-  k: string[]; // keys
-  w: string[]; // workflow ids
-  s: string[]; // scopes
-  st: V1TaskStatus[]; // statuses
-  m: string[]; // metadata
-  i: string[]; // event ids
-};
-
-const parseEventFilterParam = (searchParams: URLSearchParams, key: string) => {
-  const rawFilterParamValue = searchParams.get(key);
-
-  if (!rawFilterParamValue) {
-    return {
-      k: [],
-      w: [],
-      s: [],
-      st: [],
-      m: [],
-      i: [],
-    };
-  }
-
-  const parsedFilterState = JSON.parse(rawFilterParamValue);
-
-  if (!parsedFilterState || typeof parsedFilterState !== 'object') {
-    return {
-      k: [],
-      w: [],
-      s: [],
-      st: [],
-      m: [],
-      i: [],
-    };
-  }
-
-  const { k, w, s, st, m, i }: EventFilterQueryShape = parsedFilterState;
-
-  return {
-    k: Array.isArray(k) && k.length > 0 ? k : undefined,
-    w: Array.isArray(w) && w.length > 0 ? w : undefined,
-    s: Array.isArray(s) && s.length > 0 ? s : undefined,
-    st: Array.isArray(st) && st.length > 0 ? st : undefined,
-    m: Array.isArray(m) && m.length > 0 ? m : undefined,
-    i: Array.isArray(i) && i.length > 0 ? i : undefined,
-  };
-};
+const eventFilterSchema = z
+  .object({
+    k: z.array(z.string()).default([]), // keys
+    w: z.array(z.string()).default([]), // workflow ids
+    s: z.array(z.string()).default([]), // scopes
+    st: z.array(z.nativeEnum(V1TaskStatus)).default([]), // statuses
+    m: z.array(z.string()).default([]), // metadata
+    i: z.array(z.string()).default([]), // event ids
+  })
+  .default({});
 
 export const useEvents = ({ key }: UseEventsProps) => {
-  const [searchParams, setSearchParams] = useSearchParams();
   const { tenantId } = useCurrentTenantId();
   const { refetchInterval } = useRefetchInterval();
   const { limit, offset, pagination, setPagination, setPageSize } =
@@ -78,141 +41,25 @@ export const useEvents = ({ key }: UseEventsProps) => {
     });
 
   const paramKey = `events-${key}`;
-
-  const selectedKeys = useMemo(() => {
-    const { k } = parseEventFilterParam(searchParams, paramKey);
-    return k;
-  }, [searchParams, paramKey]);
-
-  const selectedWorkflowIds = useMemo(() => {
-    const { w } = parseEventFilterParam(searchParams, paramKey);
-    return w;
-  }, [searchParams, paramKey]);
-
-  const selectedScopes = useMemo(() => {
-    const { s } = parseEventFilterParam(searchParams, paramKey);
-    return s;
-  }, [searchParams, paramKey]);
-
-  const selectedStatuses = useMemo(() => {
-    const { st } = parseEventFilterParam(searchParams, paramKey);
-    return st;
-  }, [searchParams, paramKey]);
-
-  const selectedMetadata = useMemo(() => {
-    const { m } = parseEventFilterParam(searchParams, paramKey);
-    return m;
-  }, [searchParams, paramKey]);
-
-  const selectedEventIds = useMemo(() => {
-    const { i } = parseEventFilterParam(searchParams, paramKey);
-    return i;
-  }, [searchParams, paramKey]);
-
-  const columnFilters = useMemo<ColumnFiltersState>(() => {
-    const { k, w, s, st, m, i } = parseEventFilterParam(searchParams, paramKey);
-    const filters: ColumnFiltersState = [];
-
-    if (k && k.length > 0) {
-      filters.push({ id: keyKey, value: k });
-    }
-
-    if (w && w.length > 0) {
-      filters.push({ id: workflowKey, value: w });
-    }
-
-    if (s && s.length > 0) {
-      filters.push({ id: scopeKey, value: s });
-    }
-
-    if (st && st.length > 0) {
-      filters.push({ id: statusKey, value: st });
-    }
-
-    if (m && m.length > 0) {
-      filters.push({ id: metadataKey, value: m });
-    }
-
-    if (i && i.length > 0) {
-      filters.push({ id: idKey, value: i });
-    }
-
-    return filters;
-  }, [searchParams, paramKey]);
-
-  const setColumnFilters = useCallback(
-    (updater: Updater<ColumnFiltersState>) => {
-      setSearchParams((prev) => {
-        const currentColumnFilters = columnFilters;
-        const newColumnFilters =
-          typeof updater === 'function'
-            ? updater(currentColumnFilters)
-            : updater;
-
-        const keyFilter = newColumnFilters.find((f) => f.id === keyKey);
-        const workflowFilter = newColumnFilters.find(
-          (f) => f.id === workflowKey,
-        );
-        const scopeFilter = newColumnFilters.find((f) => f.id === scopeKey);
-        const statusFilter = newColumnFilters.find((f) => f.id === statusKey);
-        const metadataFilter = newColumnFilters.find(
-          (f) => f.id === metadataKey,
-        );
-        const idFilter = newColumnFilters.find((f) => f.id === idKey);
-
-        const keys = keyFilter?.value
-          ? Array.isArray(keyFilter.value)
-            ? (keyFilter.value as string[])
-            : [keyFilter.value as string]
-          : [];
-
-        const workflowIds = workflowFilter?.value
-          ? Array.isArray(workflowFilter.value)
-            ? (workflowFilter.value as string[])
-            : [workflowFilter.value as string]
-          : [];
-
-        const scopes = scopeFilter?.value
-          ? Array.isArray(scopeFilter.value)
-            ? (scopeFilter.value as string[])
-            : [scopeFilter.value as string]
-          : [];
-
-        const statuses = statusFilter?.value
-          ? Array.isArray(statusFilter.value)
-            ? (statusFilter.value as V1TaskStatus[])
-            : [statusFilter.value as V1TaskStatus]
-          : [];
-
-        const metadata = metadataFilter?.value
-          ? Array.isArray(metadataFilter.value)
-            ? (metadataFilter.value as string[])
-            : [metadataFilter.value as string]
-          : [];
-
-        const eventIds = idFilter?.value
-          ? Array.isArray(idFilter.value)
-            ? (idFilter.value as string[])
-            : [idFilter.value as string]
-          : [];
-
-        const filterState: EventFilterQueryShape = {
-          k: keys,
-          w: workflowIds,
-          s: scopes,
-          st: statuses,
-          m: metadata,
-          i: eventIds,
-        };
-
-        return {
-          ...Object.fromEntries(prev.entries()),
-          [paramKey]: JSON.stringify(filterState),
-        };
-      });
+  const {
+    state: {
+      k: selectedKeys,
+      w: selectedWorkflowIds,
+      s: selectedScopes,
+      st: selectedStatuses,
+      m: selectedMetadata,
+      i: selectedEventIds,
     },
-    [columnFilters, paramKey, setSearchParams],
-  );
+    columnFilters,
+    setColumnFilters,
+  } = useZodColumnFilters(eventFilterSchema, paramKey, {
+    k: keyKey,
+    w: workflowKey,
+    s: scopeKey,
+    st: statusKey,
+    m: metadataKey,
+    i: idKey,
+  });
 
   const { data, isLoading, refetch, error, isRefetching } = useQuery({
     queryKey: [
@@ -289,31 +136,6 @@ export const useEvents = ({ key }: UseEventsProps) => {
       })) || []
     );
   }, [workflowKeys]);
-
-  const workflowRunStatusFilters = useMemo((): FilterOption[] => {
-    return [
-      {
-        value: V1TaskStatus.COMPLETED,
-        label: 'Succeeded',
-      },
-      {
-        value: V1TaskStatus.FAILED,
-        label: 'Failed',
-      },
-      {
-        value: V1TaskStatus.RUNNING,
-        label: 'Running',
-      },
-      {
-        value: V1TaskStatus.QUEUED,
-        label: 'Queued',
-      },
-      {
-        value: V1TaskStatus.CANCELLED,
-        label: 'Cancelled',
-      },
-    ];
-  }, []);
 
   return {
     events,
