@@ -13,6 +13,8 @@ import {
   additionalMetadataKey,
   createdAtKey,
   flattenDAGsKey,
+  createdAfterKey,
+  finishedBeforeKey,
 } from '../components/v1/task-runs-columns';
 import { z } from 'zod';
 import { useZodColumnFilters } from '@/hooks/use-zod-column-filters';
@@ -74,8 +76,8 @@ export const useRunsTableFilters = (
     columnFilters,
     setColumnFilters,
   } = useZodColumnFilters(apiFilterSchema, paramKey, {
-    u: createdAtKey,
-    s: createdAtKey,
+    u: finishedBeforeKey,
+    s: createdAfterKey,
     st: statusKey,
     w: workflowKey,
     m: additionalMetadataKey,

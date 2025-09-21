@@ -42,6 +42,9 @@ export const additionalMetadataKey: TaskRunColumnKeys = 'additionalMetadata';
 export const taskNameKey: TaskRunColumnKeys = 'taskName';
 export const statusKey: TaskRunColumnKeys = 'status';
 
+export const createdAfterKey = 'createdAfter';
+export const finishedBeforeKey = 'finishedBefore';
+
 export const columns: (
   tenantId: string,
   selectedAdditionalMetaRunId: string | null,

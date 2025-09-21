@@ -9,7 +9,11 @@ import {
 } from '@/components/v1/ui/dropdown-menu';
 import { Badge } from '@/components/v1/ui/badge';
 import { ChevronDownIcon } from '@radix-ui/react-icons';
-import { flattenDAGsKey } from '@/pages/main/v1/workflow-runs-v1/components/v1/task-runs-columns';
+import {
+  flattenDAGsKey,
+  createdAfterKey,
+  finishedBeforeKey,
+} from '@/pages/main/v1/workflow-runs-v1/components/v1/task-runs-columns';
 import { ToolbarFilters } from './data-table-toolbar';
 import {
   ToolbarType,
@@ -434,7 +438,39 @@ export function DataTableOptions<TData>({
   hideFlatten,
   columnKeyToName,
 }: DataTableOptionsProps<TData>) {
-  const activeFiltersCount = table.getState().columnFilters?.length || 0;
+  const activeFiltersCount = React.useMemo(() => {
+    const columnFilters = table.getState().columnFilters || [];
+
+    const validFilters = columnFilters.filter((filter) => {
+      if (filter.id === createdAfterKey || filter.id === finishedBeforeKey) {
+        return false;
+      }
+
+      if (filter.id === flattenDAGsKey && !filter.value) {
+        return false;
+      }
+
+      if (hideFlatten && filter.id === flattenDAGsKey) {
+        return false;
+      }
+
+      if (
+        filter.value === undefined ||
+        filter.value === null ||
+        filter.value === ''
+      ) {
+        return false;
+      }
+
+      if (Array.isArray(filter.value) && filter.value.length === 0) {
+        return false;
+      }
+
+      return true;
+    });
+
+    return validFilters.length;
+  }, [table.getState().columnFilters, hideFlatten]);
 
   const visibleFilters = filters.filter((filter) => {
     if (hideFlatten && filter.columnId === flattenDAGsKey) {
