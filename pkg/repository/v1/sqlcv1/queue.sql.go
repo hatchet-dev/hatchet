@@ -795,22 +795,34 @@ func (q *Queries) UpdateTasksToAssigned(ctx context.Context, db DBTX, arg Update
 const upsertQueues = `-- name: UpsertQueues :exec
 WITH ordered_names AS (
     SELECT unnest($2::text[]) AS name
-    ORDER BY name
+    ORDER BY name ASC
+), existing_queues AS (
+    SELECT tenant_id, name, last_active
+    FROM v1_queue
+    WHERE tenant_id = $1
+      AND name = ANY($2::text[])
+), locked_existing_queues AS (
+    SELECT tenant_id, name, last_active
+    FROM v1_queue
+    WHERE
+        tenant_id = $1
+        AND name IN (SELECT name FROM existing_queues)
+    ORDER BY name ASC
+    FOR UPDATE SKIP LOCKED
+), names_to_insert AS (
+    SELECT on1.name
+    FROM ordered_names on1
+    LEFT JOIN existing_queues eq ON eq.name = on1.name
+    WHERE eq.name IS NULL
+), updated_queues AS (
+    UPDATE v1_queue
+    SET last_active = NOW()
+    WHERE tenant_id = $1
+      AND name IN (SELECT name FROM locked_existing_queues)
 )
-INSERT INTO
-    v1_queue (
-        tenant_id,
-        name,
-        last_active
-    )
-SELECT
-    $1,
-    name,
-    NOW()
-FROM ordered_names
-ON CONFLICT (tenant_id, name) DO UPDATE
-SET
-    last_active = NOW()
+INSERT INTO v1_queue (tenant_id, name, last_active)
+SELECT $1, name, NOW()
+FROM names_to_insert
 `
 
 type UpsertQueuesParams struct {
@@ -818,6 +830,7 @@ type UpsertQueuesParams struct {
 	Names    []string    `json:"names"`
 }
 
+// Insert new queues
 func (q *Queries) UpsertQueues(ctx context.Context, db DBTX, arg UpsertQueuesParams) error {
 	_, err := db.Exec(ctx, upsertQueues, arg.TenantID, arg.Names)
 	return err
