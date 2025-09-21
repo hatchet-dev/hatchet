@@ -440,10 +440,9 @@ export function DataTableOptions<TData>({
   columnKeyToName,
   onResetFilters,
 }: DataTableOptionsProps<TData>) {
+  const cf = table.getState().columnFilters;
   const activeFiltersCount = React.useMemo(() => {
-    const columnFilters = table.getState().columnFilters || [];
-
-    const validFilters = columnFilters.filter((filter) => {
+    const validFilters = cf.filter((filter) => {
       if (filter.id === createdAfterKey || filter.id === finishedBeforeKey) {
         return false;
       }
@@ -472,7 +471,7 @@ export function DataTableOptions<TData>({
     });
 
     return validFilters.length;
-  }, [hideFlatten, table.getState().columnFilters]);
+  }, [hideFlatten, cf]);
 
   const visibleFilters = filters.filter((filter) => {
     if (hideFlatten && filter.columnId === flattenDAGsKey) {

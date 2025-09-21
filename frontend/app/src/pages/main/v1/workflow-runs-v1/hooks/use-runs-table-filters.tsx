@@ -36,12 +36,8 @@ export type FilterActions = {
   setTimeWindow: (timeWindow: TimeWindow) => void;
   setCustomTimeRange: (range: { start: string; end: string } | null) => void;
   setStatuses: (statuses: V1TaskStatus[]) => void;
-  setWorkflowIds: (workflowIds: string[]) => void;
   setAdditionalMetadata: (metadata: AdditionalMetadataProp) => void;
-  setParentTaskExternalId: (id: string | undefined) => void;
   setColumnFilters: (filters: ColumnFiltersState) => void;
-  clearAllFilters: () => void;
-  clearParentFilter: () => void;
   resetFilters: () => void;
 };
 
@@ -129,20 +125,6 @@ export const useRunsTableFilters = (
     [setColumnFilters, columnFilters],
   );
 
-  const setWorkflowIds = useCallback(
-    (workflowIds: string[]) => {
-      const newColumnFilters =
-        workflowIds.length > 0
-          ? columnFilters
-              .filter((f) => f.id !== workflowKey)
-              .concat([{ id: workflowKey, value: workflowIds }])
-          : columnFilters.filter((f) => f.id !== workflowKey);
-
-      setColumnFilters(newColumnFilters);
-    },
-    [setColumnFilters, columnFilters],
-  );
-
   const setAdditionalMetadata = useCallback(
     ({ key, value }: { key: string; value: string }) => {
       const existing = getAdditionalMetadataFromFilters(columnFilters) || [];
@@ -158,24 +140,6 @@ export const useRunsTableFilters = (
     [setColumnFilters, columnFilters],
   );
 
-  const clearAllFilters = useCallback(() => {
-    setColumnFilters([]);
-    updateFilters({
-      parentTaskExternalId: undefined,
-    });
-  }, [setColumnFilters, updateFilters]);
-
-  const clearParentFilter = useCallback(() => {
-    updateFilters({ parentTaskExternalId: undefined });
-  }, [updateFilters]);
-
-  const setParentTaskExternalId = useCallback(
-    (parentTaskExternalId: string | undefined) => {
-      updateFilters({ parentTaskExternalId });
-    },
-    [updateFilters],
-  );
-
   return {
     columnFilters,
     apiFilters: {
@@ -189,12 +153,8 @@ export const useRunsTableFilters = (
     setTimeWindow,
     setCustomTimeRange,
     setStatuses,
-    setWorkflowIds,
     setAdditionalMetadata,
-    setParentTaskExternalId,
     setColumnFilters,
-    clearAllFilters,
-    clearParentFilter,
     resetFilters,
   };
 };
