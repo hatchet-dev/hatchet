@@ -27,7 +27,6 @@ import { getCreatedAfterFromTimeRange } from '../hooks/use-runs-table-state';
 import { AdditionalMetadataProp } from '../hooks/use-runs-table-filters';
 import { useRunsContext } from '../hooks/runs-provider';
 
-import { ConfirmActionModal } from '../../task-runs-v1/actions';
 import { DocsButton } from '@/components/v1/docs/docs-button';
 import { docsPages } from '@/lib/generated/docs';
 import { useRefetchInterval } from '@/contexts/refetch-interval-context';

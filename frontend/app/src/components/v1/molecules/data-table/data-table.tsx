@@ -290,6 +290,10 @@ export function DataTable<TData extends IDGetter<TData>, TValue>({
         <ConfirmActionModal
           actionType={tableActions.selectedActionType}
           params={tableActions.actionModalParams}
+          table={table}
+          columnKeyToName={columnKeyToName}
+          filters={filters}
+          hideFlatten={hideFlatten}
         />
       )}
       {(leftActions || rightActions || filters.length > 0) && (

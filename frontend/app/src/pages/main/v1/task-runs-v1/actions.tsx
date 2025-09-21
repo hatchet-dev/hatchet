@@ -15,19 +15,16 @@ import { useApiError } from '@/lib/hooks';
 import { XCircleIcon } from '@heroicons/react/24/outline';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useCallback } from 'react';
-import { Combobox } from '@/components/v1/molecules/combobox/combobox';
-import {
-  additionalMetadataKey,
-  statusKey,
-  workflowKey,
-} from '../workflow-runs-v1/components/v1/task-runs-columns';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { useRunsContext } from '../workflow-runs-v1/hooks/runs-provider';
-import { TimeFilter } from '../workflow-runs-v1/components/task-runs-table/time-filter';
 import { cn } from '@/lib/utils';
 import { Repeat1 } from 'lucide-react';
 import { useToast } from '@/components/v1/hooks/use-toast';
 import { capitalize } from 'lodash';
+import {
+  DataTableOptionsContent,
+  DataTableOptionsContentProps,
+} from '@/components/v1/molecules/data-table/data-table-options';
 
 export const TASK_RUN_TERMINAL_STATUSES = [
   V1TaskStatus.CANCELLED,
@@ -219,109 +216,45 @@ const CancelByExternalIdsContent = ({ label, params }: ModalContentProps) => {
   );
 };
 
-const ModalContent = ({ label, params }: ModalContentProps) => {
-  const { filters, toolbarFilters: tf } = useRunsContext();
-
+function ModalContent<TData>({
+  label,
+  params,
+  table,
+  columnKeyToName,
+  filters,
+  hideFlatten,
+}: ModalContentProps & DataTableOptionsContentProps<TData>) {
   if (params.externalIds?.length) {
     return <CancelByExternalIdsContent label={label} params={params} />;
   } else if (params.filter) {
-    const statusToolbarFilter = tf.find((f) => f.columnId === statusKey);
-    const additionalMetaToolbarFilter = tf.find(
-      (f) => f.columnId === additionalMetadataKey,
-    );
-    const workflowToolbarFilter = tf.find((f) => f.columnId === workflowKey);
-
-    const hasFilters =
-      statusToolbarFilter ||
-      additionalMetaToolbarFilter ||
-      workflowToolbarFilter;
-
     return (
       <div className="space-y-6">
         <p className="text-sm text-muted-foreground">
           Confirm to {label.toLowerCase()} all runs matching the following
           filters:
         </p>
-
-        {hasFilters && (
-          <div className="space-y-4">
-            <h4 className="text-sm font-medium text-foreground">
-              Applied Filters
-            </h4>
-            <div className="space-y-3">
-              {statusToolbarFilter && (
-                <div className="flex flex-row items-center gap-x-2">
-                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                    {statusToolbarFilter.title}
-                  </label>
-                  <Combobox
-                    values={params.filter.statuses}
-                    title={statusToolbarFilter.title}
-                    type={statusToolbarFilter.type}
-                    options={statusToolbarFilter.options}
-                    setValues={(values) =>
-                      filters.setStatuses(values as V1TaskStatus[])
-                    }
-                  />
-                </div>
-              )}
-              {additionalMetaToolbarFilter && (
-                <div className="gap-x-2 flex flex-row items-center">
-                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                    {additionalMetaToolbarFilter.title}
-                  </label>
-                  <Combobox
-                    values={params.filter.additionalMetadata}
-                    title={additionalMetaToolbarFilter.title}
-                    type={additionalMetaToolbarFilter.type}
-                    options={additionalMetaToolbarFilter.options}
-                    setValues={(values) => {
-                      const kvPairs = values.map((v) => {
-                        const [key, value] = v.split(':');
-                        return { key, value };
-                      });
-
-                      filters.setAllAdditionalMetadata(kvPairs);
-                    }}
-                  />
-                </div>
-              )}
-              {workflowToolbarFilter && (
-                <div className="flex flex-row items-center gap-x-2">
-                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                    {workflowToolbarFilter.title}
-                  </label>
-                  <Combobox
-                    values={params.filter.workflowIds}
-                    title={workflowToolbarFilter.title}
-                    type={workflowToolbarFilter.type}
-                    options={workflowToolbarFilter.options}
-                    setValues={(values) =>
-                      filters.setWorkflowIds(values as string[])
-                    }
-                  />
-                </div>
-              )}
-              <div className="flex flex-row items-center gap-x-2">
-                <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  Time Range
-                </label>
-                <TimeFilter className="flex flex-row items-start gap-3 mb-0" />
-              </div>
-            </div>
-          </div>
-        )}
+        <DataTableOptionsContent
+          table={table}
+          filters={filters}
+          columnKeyToName={columnKeyToName}
+          hideFlatten={hideFlatten}
+          showColumnVisiblity={false}
+        />
       </div>
     );
   } else {
     throw new Error(`Unhandled case: ${params}`);
   }
-};
+}
 
-export const ConfirmActionModal = ({
+export function ConfirmActionModal<TData>({
   actionType,
   params,
-}: ConfirmActionModalProps) => {
+  table,
+  columnKeyToName,
+  filters,
+  hideFlatten,
+}: ConfirmActionModalProps & DataTableOptionsContentProps<TData>) {
   const label = actionTypeToLabel(actionType);
   const { handleTaskRunAction } = useTaskRunActions();
   const {
@@ -340,7 +273,14 @@ export const ConfirmActionModal = ({
 
         <div className="flex flex-col space-y-4">
           <div className="text-sm text-muted-foreground">
-            <ModalContent label={label} params={params} />
+            <ModalContent
+              label={label}
+              params={params}
+              table={table}
+              filters={filters}
+              columnKeyToName={columnKeyToName}
+              hideFlatten={hideFlatten}
+            />
           </div>
 
           <div className="flex flex-row items-center gap-3 justify-end pt-4 border-t">
@@ -368,7 +308,7 @@ export const ConfirmActionModal = ({
       </DialogContent>
     </Dialog>
   );
-};
+}
 
 const BaseActionButton = ({
   disabled,

@@ -476,31 +476,47 @@ export function DataTableOptions<TData>({
       >
         <DataTableOptionsContent
           table={table}
+          filters={filters}
+          hideFlatten={hideFlatten}
           columnKeyToName={columnKeyToName}
-          hasFilters={hasFilters}
-          hasVisibleColumns={hasVisibleColumns}
-          visibleFilters={visibleFilters}
+          showColumnVisiblity
         />
       </DropdownMenuContent>
     </DropdownMenu>
   );
 }
 
-interface DataTableOptionsContentProps<TData> {
+export interface DataTableOptionsContentProps<TData> {
   table: Table<TData>;
+  filters: ToolbarFilters;
   columnKeyToName?: Record<string, string>;
-  hasFilters: boolean;
-  hasVisibleColumns: boolean;
-  visibleFilters: ToolbarFilters;
+  hideFlatten: boolean | undefined;
+  showColumnVisiblity: boolean;
 }
 
 export function DataTableOptionsContent<TData>({
   table,
+  filters,
   columnKeyToName,
-  hasFilters,
-  hasVisibleColumns,
-  visibleFilters,
+  hideFlatten,
+  showColumnVisiblity,
 }: DataTableOptionsContentProps<TData>) {
+  const visibleFilters = filters.filter((filter) => {
+    if (hideFlatten && filter.columnId === flattenDAGsKey) {
+      return false;
+    }
+    return true;
+  });
+
+  const hasFilters = visibleFilters.length > 0;
+  const hasVisibleColumns =
+    table
+      .getAllColumns()
+      .filter(
+        (column) =>
+          typeof column.accessorFn !== 'undefined' && column.getCanHide(),
+      ).length > 0;
+
   return (
     <>
       {hasFilters && (
@@ -534,7 +550,7 @@ export function DataTableOptionsContent<TData>({
         </>
       )}
 
-      {hasVisibleColumns && (
+      {hasVisibleColumns && showColumnVisiblity && (
         <>
           <div className="px-3 py-2 bg-muted/30">
             <div className="flex items-center gap-2">
