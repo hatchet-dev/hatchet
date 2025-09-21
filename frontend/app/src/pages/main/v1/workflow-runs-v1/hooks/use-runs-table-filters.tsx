@@ -38,7 +38,6 @@ export type FilterActions = {
   setStatuses: (statuses: V1TaskStatus[]) => void;
   setWorkflowIds: (workflowIds: string[]) => void;
   setAdditionalMetadata: (metadata: AdditionalMetadataProp) => void;
-  setAllAdditionalMetadata: (kvPairs: AdditionalMetadataProp[]) => void;
   setParentTaskExternalId: (id: string | undefined) => void;
   setColumnFilters: (filters: ColumnFiltersState) => void;
   clearAllFilters: () => void;
@@ -159,22 +158,6 @@ export const useRunsTableFilters = (
     [setColumnFilters, columnFilters],
   );
 
-  const setAllAdditionalMetadata = useCallback(
-    (kvPairs: { key: string; value: string }[]) => {
-      const newMetadata = kvPairs.map(({ key, value }) => `${key}:${value}`);
-
-      const newColumnFilters =
-        newMetadata.length > 0
-          ? columnFilters
-              .filter((f) => f.id !== additionalMetadataKey)
-              .concat([{ id: additionalMetadataKey, value: newMetadata }])
-          : columnFilters.filter((f) => f.id !== additionalMetadataKey);
-
-      setColumnFilters(newColumnFilters);
-    },
-    [setColumnFilters, columnFilters],
-  );
-
   const clearAllFilters = useCallback(() => {
     setColumnFilters([]);
     updateFilters({
@@ -208,7 +191,6 @@ export const useRunsTableFilters = (
     setStatuses,
     setWorkflowIds,
     setAdditionalMetadata,
-    setAllAdditionalMetadata,
     setParentTaskExternalId,
     setColumnFilters,
     clearAllFilters,
