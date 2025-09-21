@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { Cross2Icon, MixerHorizontalIcon } from '@radix-ui/react-icons';
-import { Table } from '@tanstack/react-table';
+import { ColumnFiltersState, Table } from '@tanstack/react-table';
 import { Button } from '@/components/v1/ui/button';
 import {
   DropdownMenu,
@@ -440,38 +440,34 @@ export function DataTableOptions<TData>({
   columnKeyToName,
   onResetFilters,
 }: DataTableOptionsProps<TData>) {
-  const cf = table.getState().columnFilters;
-  const activeFiltersCount = React.useMemo(() => {
-    const validFilters = cf.filter((filter) => {
-      if (filter.id === createdAfterKey || filter.id === finishedBeforeKey) {
-        return false;
-      }
+  const cf: ColumnFiltersState | undefined = table.getState().columnFilters;
+  const activeFiltersCount = React.useMemo(
+    () =>
+      cf?.filter((f) => {
+        if (f.id === createdAfterKey || f.id === finishedBeforeKey) {
+          return false;
+        }
 
-      if (filter.id === flattenDAGsKey && !filter.value) {
-        return false;
-      }
+        if (f.id === flattenDAGsKey && !f.value) {
+          return false;
+        }
 
-      if (hideFlatten && filter.id === flattenDAGsKey) {
-        return false;
-      }
+        if (hideFlatten && f.id === flattenDAGsKey) {
+          return false;
+        }
 
-      if (
-        filter.value === undefined ||
-        filter.value === null ||
-        filter.value === ''
-      ) {
-        return false;
-      }
+        if (f.value === undefined || f.value === null || f.value === '') {
+          return false;
+        }
 
-      if (Array.isArray(filter.value) && filter.value.length === 0) {
-        return false;
-      }
+        if (Array.isArray(f.value) && f.value.length === 0) {
+          return false;
+        }
 
-      return true;
-    });
-
-    return validFilters.length;
-  }, [hideFlatten, cf]);
+        return true;
+      })?.length || 0,
+    [hideFlatten, cf],
+  );
 
   const visibleFilters = filters.filter((filter) => {
     if (hideFlatten && filter.columnId === flattenDAGsKey) {

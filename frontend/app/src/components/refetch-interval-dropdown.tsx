@@ -50,7 +50,7 @@ export const RefetchIntervalDropdown = ({
   return (
     <div className="flex flex-row items-center h-8">
       <Button
-        className="h-full rounded-l-md rounded-r-none flex flex-row gap-x-2 "
+        className="h-full rounded-l-md rounded-r-none flex flex-row gap-x-2 pl-3"
         variant="outline"
         onClick={onRefetch}
       >
