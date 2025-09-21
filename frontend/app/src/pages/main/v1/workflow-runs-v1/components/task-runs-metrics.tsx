@@ -83,18 +83,19 @@ function MetricBadge({
 export const V1WorkflowRunsMetricsView = () => {
   const {
     metrics,
-    state,
+    filters,
     display: { hideMetrics },
-    filters: { setStatuses },
     actions: { updateUIState },
   } = useRunsContext();
+
+  const { setStatuses } = filters;
 
   const onViewQueueMetricsClick = () => {
     updateUIState({ viewQueueMetrics: true });
   };
 
   const handleStatusClick = (status: V1TaskStatus) => {
-    const currentStatuses = getStatusesFromFilters(state.columnFilters);
+    const currentStatuses = getStatusesFromFilters(filters.columnFilters);
     const isSelected = currentStatuses.includes(status);
 
     if (isSelected) {

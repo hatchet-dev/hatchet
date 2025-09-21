@@ -284,10 +284,10 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
                 ]
               : []),
           ]}
-          columnFilters={state.columnFilters}
+          columnFilters={filters.columnFilters}
           setColumnFilters={(updaterOrValue) => {
             if (typeof updaterOrValue === 'function') {
-              filters.setColumnFilters(updaterOrValue(state.columnFilters));
+              filters.setColumnFilters(updaterOrValue(filters.columnFilters));
             } else {
               filters.setColumnFilters(updaterOrValue);
             }

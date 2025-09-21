@@ -1,24 +1,34 @@
-import { useMemo, useCallback } from 'react';
+import { useCallback } from 'react';
 import { V1TaskStatus } from '@/lib/api';
 import { ColumnFiltersState } from '@tanstack/react-table';
 import {
   RunsTableState,
   TimeWindow,
   getCreatedAfterFromTimeRange,
-  getWorkflowIdsFromFilters,
-  getStatusesFromFilters,
   getAdditionalMetadataFromFilters,
-  getFlattenDAGsFromFilters,
 } from './use-runs-table-state';
 import {
   statusKey,
   workflowKey,
   additionalMetadataKey,
+  createdAtKey,
+  flattenDAGsKey,
 } from '../components/v1/task-runs-columns';
+import { z } from 'zod';
+import { useZodColumnFilters } from '@/hooks/use-zod-column-filters';
 
 export type AdditionalMetadataProp = {
   key: string;
   value: string;
+};
+
+export type APIFilters = {
+  since?: string;
+  until?: string;
+  statuses?: V1TaskStatus[];
+  workflowIds?: string[];
+  additionalMetadata?: string[];
+  flattenDAGs: boolean;
 };
 
 export type FilterActions = {
@@ -34,36 +44,43 @@ export type FilterActions = {
   clearParentFilter: () => void;
 };
 
-export type APIFilters = {
-  since?: string;
-  until?: string;
-  statuses?: V1TaskStatus[];
-  workflowIds?: string[];
-  additionalMetadata?: string[];
-  flattenDAGs: boolean;
-};
+const apiFilterSchema = z.object({
+  s: z.string().optional(), // since
+  u: z.string().optional(), // until
+  st: z.array(z.nativeEnum(V1TaskStatus)).optional(), // statuses
+  w: z.array(z.string()).optional(), // workflow ids
+  m: z.array(z.string()).optional(), // additional metadata
+  f: z.boolean().default(false), // flatten dags
+});
 
 export const useRunsTableFilters = (
   state: RunsTableState,
   updateFilters: (filters: Partial<RunsTableState>) => void,
-): FilterActions & { apiFilters: APIFilters } => {
-  const apiFilters = useMemo((): APIFilters => {
-    const statuses = getStatusesFromFilters(state.columnFilters);
-    const workflowIds = getWorkflowIdsFromFilters(state.columnFilters);
-    const additionalMetadata = getAdditionalMetadataFromFilters(
-      state.columnFilters,
-    );
-    const flattenDAGs = getFlattenDAGsFromFilters(state.columnFilters);
+): FilterActions & {
+  columnFilters: ColumnFiltersState;
+  apiFilters: APIFilters;
+} => {
+  const paramKey = 'workflow-runs-filters';
 
-    return {
-      since: state.createdAfter,
-      until: state.finishedBefore,
-      statuses: statuses.length > 0 ? statuses : undefined,
-      workflowIds: workflowIds.length > 0 ? workflowIds : undefined,
-      additionalMetadata,
-      flattenDAGs,
-    };
-  }, [state.createdAfter, state.finishedBefore, state.columnFilters]);
+  const {
+    state: {
+      s: createdAfter,
+      u: finishedBefore,
+      st: selectedStatuses,
+      w: selectedWorkflowIds,
+      m: selectedAdditionalMetadata,
+      f: selectedFlattenDAGs,
+    },
+    columnFilters,
+    setColumnFilters,
+  } = useZodColumnFilters(apiFilterSchema, paramKey, {
+    u: createdAtKey,
+    s: createdAtKey,
+    st: statusKey,
+    w: workflowKey,
+    m: additionalMetadataKey,
+    f: flattenDAGsKey,
+  });
 
   const setTimeWindow = useCallback(
     (timeWindow: TimeWindow) => {
@@ -100,50 +117,43 @@ export const useRunsTableFilters = (
     (statuses: V1TaskStatus[]) => {
       const newColumnFilters =
         statuses.length > 0
-          ? state.columnFilters
+          ? columnFilters
               .filter((f) => f.id !== statusKey)
               .concat([{ id: statusKey, value: statuses }])
-          : state.columnFilters.filter((f) => f.id !== statusKey);
+          : columnFilters.filter((f) => f.id !== statusKey);
 
-      updateFilters({
-        columnFilters: newColumnFilters,
-      });
+      setColumnFilters(newColumnFilters);
     },
-    [updateFilters, state.columnFilters],
+    [setColumnFilters, columnFilters],
   );
 
   const setWorkflowIds = useCallback(
     (workflowIds: string[]) => {
       const newColumnFilters =
         workflowIds.length > 0
-          ? state.columnFilters
+          ? columnFilters
               .filter((f) => f.id !== workflowKey)
               .concat([{ id: workflowKey, value: workflowIds }])
-          : state.columnFilters.filter((f) => f.id !== workflowKey);
+          : columnFilters.filter((f) => f.id !== workflowKey);
 
-      updateFilters({
-        columnFilters: newColumnFilters,
-      });
+      setColumnFilters(newColumnFilters);
     },
-    [updateFilters, state.columnFilters],
+    [setColumnFilters, columnFilters],
   );
 
   const setAdditionalMetadata = useCallback(
     ({ key, value }: { key: string; value: string }) => {
-      const existing =
-        getAdditionalMetadataFromFilters(state.columnFilters) || [];
+      const existing = getAdditionalMetadataFromFilters(columnFilters) || [];
       const filtered = existing.filter((m: string) => m.split(':')[0] !== key);
       const newMetadata = [...filtered, `${key}:${value}`];
 
-      const newColumnFilters = state.columnFilters
+      const newColumnFilters = columnFilters
         .filter((f) => f.id !== additionalMetadataKey)
         .concat([{ id: additionalMetadataKey, value: newMetadata }]);
 
-      updateFilters({
-        columnFilters: newColumnFilters,
-      });
+      setColumnFilters(newColumnFilters);
     },
-    [updateFilters, state.columnFilters],
+    [setColumnFilters, columnFilters],
   );
 
   const setAllAdditionalMetadata = useCallback(
@@ -152,33 +162,22 @@ export const useRunsTableFilters = (
 
       const newColumnFilters =
         newMetadata.length > 0
-          ? state.columnFilters
+          ? columnFilters
               .filter((f) => f.id !== additionalMetadataKey)
               .concat([{ id: additionalMetadataKey, value: newMetadata }])
-          : state.columnFilters.filter((f) => f.id !== additionalMetadataKey);
+          : columnFilters.filter((f) => f.id !== additionalMetadataKey);
 
-      updateFilters({
-        columnFilters: newColumnFilters,
-      });
+      setColumnFilters(newColumnFilters);
     },
-    [updateFilters, state.columnFilters],
-  );
-
-  const setColumnFilters = useCallback(
-    (columnFilters: ColumnFiltersState) => {
-      updateFilters({
-        columnFilters,
-      });
-    },
-    [updateFilters],
+    [setColumnFilters, columnFilters],
   );
 
   const clearAllFilters = useCallback(() => {
+    setColumnFilters([]);
     updateFilters({
       parentTaskExternalId: undefined,
-      columnFilters: [],
     });
-  }, [updateFilters]);
+  }, [setColumnFilters, updateFilters]);
 
   const clearParentFilter = useCallback(() => {
     updateFilters({ parentTaskExternalId: undefined });
@@ -192,7 +191,15 @@ export const useRunsTableFilters = (
   );
 
   return {
-    apiFilters,
+    columnFilters,
+    apiFilters: {
+      since: createdAfter,
+      until: finishedBefore,
+      statuses: selectedStatuses,
+      workflowIds: selectedWorkflowIds,
+      additionalMetadata: selectedAdditionalMetadata,
+      flattenDAGs: selectedFlattenDAGs || false,
+    },
     setTimeWindow,
     setCustomTimeRange,
     setStatuses,

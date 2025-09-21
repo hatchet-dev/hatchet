@@ -159,8 +159,8 @@ export const RunsProvider = ({
   });
 
   const workflow =
-    workflowId || getWorkflowIdsFromFilters(state.columnFilters)[0];
-  const flattenDAGs = getFlattenDAGsFromFilters(state.columnFilters);
+    workflowId || getWorkflowIdsFromFilters(filters.columnFilters)[0];
+  const flattenDAGs = getFlattenDAGsFromFilters(filters.columnFilters);
 
   const derivedParentTaskExternalId =
     parentTaskExternalId || state.parentTaskExternalId;
@@ -219,9 +219,26 @@ export const RunsProvider = ({
 
   const isRefetching = isRunsRefetching || isMetricsRefetching;
 
+  const enhancedState = useMemo(() => {
+    const statuses = filters.apiFilters.statuses || [];
+    const additionalMetadata = filters.apiFilters.additionalMetadata || [];
+    const workflowIds = filters.apiFilters.workflowIds || [];
+
+    return {
+      ...state,
+      hasFiltersApplied: !!(
+        statuses.length ||
+        additionalMetadata.length ||
+        workflowIds.length ||
+        state.parentTaskExternalId ||
+        filters.apiFilters.flattenDAGs
+      ),
+    };
+  }, [state, filters.apiFilters]);
+
   const value = useMemo<RunsContextType>(
     () => ({
-      state,
+      state: enhancedState,
       filters,
       toolbarFilters,
       tableRows,
@@ -262,7 +279,7 @@ export const RunsProvider = ({
       },
     }),
     [
-      state,
+      enhancedState,
       filters,
       toolbarFilters,
       tableRows,

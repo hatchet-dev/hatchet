@@ -502,25 +502,12 @@ export const useRunsTableState = (
   );
 
   const derivedState = useMemo(() => {
-    const statuses = getStatusesFromFilters(currentState.columnFilters);
-    const additionalMetadata = getAdditionalMetadataFromFilters(
-      currentState.columnFilters,
-    );
-    const workflowIds = getWorkflowIdsFromFilters(currentState.columnFilters);
-    const flattenDAGs = getFlattenDAGsFromFilters(currentState.columnFilters);
-
     return {
       ...currentState,
       hasRowsSelected: Object.values(currentState.rowSelection).some(
         (selected) => !!selected,
       ),
-      hasFiltersApplied: !!(
-        statuses.length ||
-        additionalMetadata?.length ||
-        workflowIds.length ||
-        currentState.parentTaskExternalId ||
-        flattenDAGs
-      ),
+      hasFiltersApplied: !!currentState.parentTaskExternalId,
       hasOpenUI: !!(
         currentState.taskRunDetailSheet.isOpen ||
         currentState.viewQueueMetrics ||
