@@ -6,6 +6,8 @@ import { IntroDocsEmptyState } from '@/pages/onboarding/intro-docs-empty-state';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { columns, WorkflowColumn } from './components/workflow-columns';
 import { useWorkflows } from './hooks/use-workflows';
+import { DocsButton } from '@/components/v1/docs/docs-button';
+import { docsPages } from '@/lib/generated/docs';
 
 export default function WorkflowTable() {
   const { tenantId } = useCurrentTenantId();
@@ -40,12 +42,17 @@ export default function WorkflowTable() {
       columns={columns(tenantId)}
       data={workflows}
       emptyState={
-        <IntroDocsEmptyState
-          link="/home/your-first-task"
-          title="No Registered Workflows"
-          linkPreambleText="To learn more about workflows function in Hatchet,"
-          linkText="check out our documentation."
-        />
+        <div className="w-full h-full flex flex-col gap-y-4 text-foreground py-8 justify-center items-center">
+          <p className="text-lg font-semibold">No workflows found</p>
+          <div className="w-fit">
+            <DocsButton
+              doc={docsPages.home['your-first-task']}
+              size="full"
+              variant="outline"
+              label="Learn about creating workflows and tasks"
+            />
+          </div>
+        </div>
       }
       columnVisibility={columnVisibility}
       setColumnVisibility={setColumnVisibility}
