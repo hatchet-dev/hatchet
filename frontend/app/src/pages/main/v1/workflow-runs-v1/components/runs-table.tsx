@@ -208,12 +208,6 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
   return (
     <div className="flex flex-col h-full overflow-hidden gap-y-2">
       <Toaster />
-      {selectedActionType && (
-        <ConfirmActionModal
-          actionType={selectedActionType}
-          params={actionModalParams}
-        />
-      )}
 
       <TriggerWorkflowForm
         defaultWorkflow={undefined}

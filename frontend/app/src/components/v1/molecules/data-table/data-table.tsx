@@ -291,7 +291,7 @@ export function DataTable<TData extends IDGetter<TData>, TValue>({
           actionType={tableActions.selectedActionType}
           params={tableActions.actionModalParams}
         />
-      )}{' '}
+      )}
       {(leftActions || rightActions || filters.length > 0) && (
         <DataTableToolbar
           table={table}

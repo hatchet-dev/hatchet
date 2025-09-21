@@ -474,86 +474,114 @@ export function DataTableOptions<TData>({
         align="end"
         className="w-96 max-h-[32rem] overflow-y-auto z-[70] shadow-lg"
       >
-        {hasFilters && (
-          <>
-            <div className="px-3 py-2 bg-muted/30">
-              <div className="flex items-center gap-2">
-                <div className="w-1 h-4 bg-primary rounded-full"></div>
-                <span className="text-sm font-semibold text-foreground">
-                  Filters
-                </span>
-              </div>
-            </div>
-            <div className="p-3 space-y-4">
-              {visibleFilters.map((filter, index) => (
-                <div key={filter.columnId} className="space-y-2">
-                  <label className="text-sm font-medium text-foreground">
-                    {filter.title}
-                  </label>
-                  <FilterControl
-                    column={table.getColumn(filter.columnId)}
-                    filter={filter}
-                  />
-                  {index < visibleFilters.length - 1 && (
-                    <div className="border-t border-border/30 my-3" />
-                  )}
-                </div>
-              ))}
-            </div>
-
-            {hasVisibleColumns && <div className="border-t border-border/50" />}
-          </>
-        )}
-
-        {hasVisibleColumns && (
-          <>
-            <div className="px-3 py-2 bg-muted/30">
-              <div className="flex items-center gap-2">
-                <div className="w-1 h-4 bg-secondary rounded-full"></div>
-                <span className="text-sm font-semibold text-foreground">
-                  Column Visibility
-                </span>
-              </div>
-            </div>
-            <div className="p-3 space-y-1">
-              {table
-                .getAllColumns()
-                .filter(
-                  (column) =>
-                    typeof column.accessorFn !== 'undefined' &&
-                    column.getCanHide(),
-                )
-                .map((column) => {
-                  const columnName =
-                    (columnKeyToName ?? {})[
-                      column.id as keyof typeof columnKeyToName
-                    ] || column.id;
-
-                  return (
-                    <div
-                      key={column.id}
-                      className="flex items-center space-x-2 hover:bg-muted/50 rounded-md px-2 py-1.5"
-                    >
-                      <Checkbox
-                        id={`column-${column.id}`}
-                        checked={column.getIsVisible()}
-                        onCheckedChange={(value) =>
-                          column.toggleVisibility(!!value)
-                        }
-                      />
-                      <Label
-                        htmlFor={`column-${column.id}`}
-                        className="text-sm cursor-pointer flex-1 truncate"
-                      >
-                        {columnName}
-                      </Label>
-                    </div>
-                  );
-                })}
-            </div>
-          </>
-        )}
+        <DataTableOptionsContent
+          table={table}
+          columnKeyToName={columnKeyToName}
+          hasFilters={hasFilters}
+          hasVisibleColumns={hasVisibleColumns}
+          visibleFilters={visibleFilters}
+        />
       </DropdownMenuContent>
     </DropdownMenu>
+  );
+}
+
+interface DataTableOptionsContentProps<TData> {
+  table: Table<TData>;
+  columnKeyToName?: Record<string, string>;
+  hasFilters: boolean;
+  hasVisibleColumns: boolean;
+  visibleFilters: ToolbarFilters;
+}
+
+export function DataTableOptionsContent<TData>({
+  table,
+  columnKeyToName,
+  hasFilters,
+  hasVisibleColumns,
+  visibleFilters,
+}: DataTableOptionsContentProps<TData>) {
+  return (
+    <>
+      {hasFilters && (
+        <>
+          <div className="px-3 py-2 bg-muted/30">
+            <div className="flex items-center gap-2">
+              <div className="w-1 h-4 bg-primary rounded-full"></div>
+              <span className="text-sm font-semibold text-foreground">
+                Filters
+              </span>
+            </div>
+          </div>
+          <div className="p-3 space-y-4">
+            {visibleFilters.map((filter, index) => (
+              <div key={filter.columnId} className="space-y-2">
+                <label className="text-sm font-medium text-foreground">
+                  {filter.title}
+                </label>
+                <FilterControl
+                  column={table.getColumn(filter.columnId)}
+                  filter={filter}
+                />
+                {index < visibleFilters.length - 1 && (
+                  <div className="border-t border-border/30 my-3" />
+                )}
+              </div>
+            ))}
+          </div>
+
+          {hasVisibleColumns && <div className="border-t border-border/50" />}
+        </>
+      )}
+
+      {hasVisibleColumns && (
+        <>
+          <div className="px-3 py-2 bg-muted/30">
+            <div className="flex items-center gap-2">
+              <div className="w-1 h-4 bg-secondary rounded-full"></div>
+              <span className="text-sm font-semibold text-foreground">
+                Column Visibility
+              </span>
+            </div>
+          </div>
+          <div className="p-3 space-y-1">
+            {table
+              .getAllColumns()
+              .filter(
+                (column) =>
+                  typeof column.accessorFn !== 'undefined' &&
+                  column.getCanHide(),
+              )
+              .map((column) => {
+                const columnName =
+                  (columnKeyToName ?? {})[
+                    column.id as keyof typeof columnKeyToName
+                  ] || column.id;
+
+                return (
+                  <div
+                    key={column.id}
+                    className="flex items-center space-x-2 hover:bg-muted/50 rounded-md px-2 py-1.5"
+                  >
+                    <Checkbox
+                      id={`column-${column.id}`}
+                      checked={column.getIsVisible()}
+                      onCheckedChange={(value) =>
+                        column.toggleVisibility(!!value)
+                      }
+                    />
+                    <Label
+                      htmlFor={`column-${column.id}`}
+                      className="text-sm cursor-pointer flex-1 truncate"
+                    >
+                      {columnName}
+                    </Label>
+                  </div>
+                );
+              })}
+          </div>
+        </>
+      )}
+    </>
   );
 }
