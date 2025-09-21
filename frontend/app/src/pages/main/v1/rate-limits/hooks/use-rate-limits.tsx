@@ -7,16 +7,18 @@ import {
   RateLimitOrderByField,
 } from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
-import { ColumnFiltersState, Updater } from '@tanstack/react-table';
-import { useCallback, useMemo } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useMemo } from 'react';
 import { keyKey } from '../components/rate-limit-columns';
 import { useDebounce } from 'use-debounce';
 import { useRefetchInterval } from '@/contexts/refetch-interval-context';
+import { useZodColumnFilters } from '@/hooks/use-zod-column-filters';
+import { z } from 'zod';
 
-type RateLimitQueryShape = {
-  s: string | undefined; // search
-};
+const rateLimitQuerySchema = z
+  .object({
+    s: z.string().optional(), // search
+  })
+  .default({ s: undefined });
 
 export type RateLimitWithMetadata = RateLimit & {
   metadata: {
@@ -24,35 +26,7 @@ export type RateLimitWithMetadata = RateLimit & {
   };
 };
 
-const parseRateLimitParam = (
-  useSearchParams: URLSearchParams,
-  key: string,
-): RateLimitQueryShape => {
-  const rawFilterParamValue = useSearchParams.get(key);
-
-  if (!rawFilterParamValue) {
-    return {
-      s: undefined,
-    };
-  }
-
-  const parsedFilterState = JSON.parse(rawFilterParamValue);
-
-  if (!parsedFilterState || typeof parsedFilterState !== 'object') {
-    return {
-      s: undefined,
-    };
-  }
-
-  const { s }: RateLimitQueryShape = parsedFilterState;
-
-  return {
-    s,
-  };
-};
-
 export const useRateLimits = ({ key }: { key: string }) => {
-  const [searchParams, setSearchParams] = useSearchParams();
   const { tenantId } = useCurrentTenantId();
   const { limit, offset, pagination, setPagination, setPageSize } =
     usePagination({
@@ -62,47 +36,13 @@ export const useRateLimits = ({ key }: { key: string }) => {
 
   const paramKey = `rate-limits-${key}`;
 
-  const search = useMemo(() => {
-    const { s } = parseRateLimitParam(searchParams, paramKey);
-    return s;
-  }, [searchParams, paramKey]);
+  const {
+    state: { s: search },
+    columnFilters,
+    setColumnFilters,
+  } = useZodColumnFilters(rateLimitQuerySchema, paramKey, { s: keyKey });
 
   const [debouncedSearch] = useDebounce(search, 300);
-
-  const columnFilters = useMemo<ColumnFiltersState>(() => {
-    const { s } = parseRateLimitParam(searchParams, paramKey);
-    const filters: ColumnFiltersState = [];
-
-    if (s) {
-      filters.push({ id: keyKey, value: s });
-    }
-
-    return filters;
-  }, [searchParams, paramKey]);
-
-  const setColumnFilters = useCallback(
-    (updater: Updater<ColumnFiltersState>) => {
-      setSearchParams((prev) => {
-        const currentColumnFilters = columnFilters;
-        const newColumnFilters =
-          typeof updater === 'function'
-            ? updater(currentColumnFilters)
-            : updater;
-
-        const searchFilter = newColumnFilters.find((f) => f.id === keyKey);
-
-        const filterState: RateLimitQueryShape = {
-          s: searchFilter ? String(searchFilter.value) : undefined,
-        };
-
-        return {
-          ...Object.fromEntries(prev.entries()),
-          [paramKey]: JSON.stringify(filterState),
-        };
-      });
-    },
-    [paramKey, setSearchParams, columnFilters],
-  );
 
   const { data, isLoading, error, isRefetching, refetch } = useQuery({
     ...queries.rate_limits.list(tenantId, {
@@ -116,12 +56,16 @@ export const useRateLimits = ({ key }: { key: string }) => {
     placeholderData: (data) => data,
   });
 
-  const rateLimits = useMemo(() => data?.rows ?? [], [data]).map((rl) => ({
-    ...rl,
-    metadata: {
-      id: rl.key,
-    },
-  }));
+  const rateLimits = useMemo(
+    () =>
+      (data?.rows ?? []).map((rl) => ({
+        ...rl,
+        metadata: {
+          id: rl.key,
+        },
+      })),
+    [data],
+  );
 
   const numPages = useMemo(() => data?.pagination?.num_pages ?? 0, [data]);
 
