@@ -60,7 +60,7 @@ export default function Webhooks() {
             <p className="text-lg font-semibold">No webhooks found</p>
             <div className="w-fit">
               <DocsButton
-                doc={docsPages.home['webhooks']}
+                doc={docsPages.home.webhooks}
                 size="full"
                 variant="outline"
                 label="Learn about triggering runs from webhooks"

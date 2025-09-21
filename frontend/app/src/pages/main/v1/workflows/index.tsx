@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { DataTable } from '@/components/v1/molecules/data-table/data-table.tsx';
 import { Loading } from '@/components/v1/ui/loading.tsx';
 import { SortingState, VisibilityState } from '@tanstack/react-table';
-import { IntroDocsEmptyState } from '@/pages/onboarding/intro-docs-empty-state';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { columns, WorkflowColumn } from './components/workflow-columns';
 import { useWorkflows } from './hooks/use-workflows';

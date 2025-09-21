@@ -4,7 +4,6 @@ import { queries } from '@/lib/api';
 import { DataTable } from '@/components/v1/molecules/data-table/data-table.tsx';
 import { Loading } from '@/components/v1/ui/loading.tsx';
 import { ColumnFiltersState, VisibilityState } from '@tanstack/react-table';
-import { IntroDocsEmptyState } from '@/pages/onboarding/intro-docs-empty-state';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { useRefetchInterval } from '@/contexts/refetch-interval-context';
 import { columns, WorkerColumn } from './components/worker-columns';
@@ -52,15 +51,6 @@ export default function Workers() {
     return <Loading />;
   }
 
-  const emptyState = (
-    <IntroDocsEmptyState
-      link="/home/workers"
-      title="No Workers Found"
-      linkPreambleText="To learn more about how workers function in Hatchet,"
-      linkText="check out our documentation."
-    />
-  );
-
   return (
     <DataTable
       columns={columns(tenantId)}
@@ -83,7 +73,7 @@ export default function Workers() {
           <p className="text-lg font-semibold">No workers found</p>
           <div className="w-fit">
             <DocsButton
-              doc={docsPages.home['workers']}
+              doc={docsPages.home.workers}
               size="full"
               variant="outline"
               label="Learn about running workers"
