@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"sort"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -185,7 +187,17 @@ type CreateWorkflowStepRateLimitOpts struct {
 	LimitExpr *string `validate:"omitnil,celsteprunstr"`
 
 	// (optional) the rate limit duration, defaults to MINUTE
-	Duration *string `validate:"omitnil,oneof=SECOND MINUTE HOUR DAY WEEK MONTH YEAR"`
+	Duration *string `validate:"omitnil"`
+}
+
+var allowedRateLimitDurations = []string{
+	"SECOND",
+	"MINUTE",
+	"HOUR",
+	"DAY",
+	"WEEK",
+	"MONTH",
+	"YEAR",
 }
 
 type WorkflowRepository interface {
@@ -800,7 +812,11 @@ func (r *workflowRepository) createJobTx(ctx context.Context, tx sqlcv1.DBTX, te
 					windowExpr := cel.Str("MINUTE")
 
 					if rateLimit.Duration != nil {
-						windowExpr = fmt.Sprintf(`"%s"`, *rateLimit.Duration)
+						if slices.Contains(allowedRateLimitDurations, strings.ToUpper(*rateLimit.Duration)) {
+							windowExpr = cel.Str(strings.ToUpper(*rateLimit.Duration))
+						} else {
+							windowExpr = *rateLimit.Duration
+						}
 					}
 
 					if rateLimit.KeyExpr != nil {
