@@ -17,7 +17,7 @@ import { useWorkflows } from './use-workflows';
 import { RunsTableState } from './use-runs-table-state';
 import { FilterActions } from './use-runs-table-filters';
 
-const workflowRunStatusFilters = [
+export const workflowRunStatusFilters = [
   {
     value: V1TaskStatus.COMPLETED,
     label: 'Succeeded',
