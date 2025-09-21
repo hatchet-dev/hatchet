@@ -23,7 +23,7 @@ export type AdditionalMetadataProp = {
 };
 
 export type APIFilters = {
-  since?: string;
+  since: string;
   until?: string;
   statuses?: V1TaskStatus[];
   workflowIds?: string[];
@@ -45,7 +45,7 @@ export type FilterActions = {
 };
 
 const apiFilterSchema = z.object({
-  s: z.string().optional(), // since
+  s: z.string().default(() => getCreatedAfterFromTimeRange('1d')), // since
   u: z.string().optional(), // until
   st: z.array(z.nativeEnum(V1TaskStatus)).optional(), // statuses
   w: z.array(z.string()).optional(), // workflow ids
