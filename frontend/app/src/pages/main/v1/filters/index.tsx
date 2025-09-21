@@ -93,15 +93,17 @@ export default function Filters() {
       pageCount={numFilters}
       getRowId={(row) => row.metadata.id}
       emptyState={
-        <div className="flex flex-col items-center justify-center p-8 gap-3 text-gray-400">
-          <p className="text-base font-medium">No filters found</p>
-          <DocsButton
-            doc={docsPages.home['run-on-event']}
-            scrollTo="event-filtering"
-            size="full"
-            variant="outline"
-            label="Learn about event filters"
-          />
+        <div className="w-full h-full flex flex-col gap-y-4 text-foreground py-8 justify-center items-center">
+          <p className="text-lg font-semibold">No filters found</p>
+          <div className="w-fit">
+            <DocsButton
+              doc={docsPages.home['run-on-event']}
+              scrollTo="event-filtering"
+              size="full"
+              variant="outline"
+              label="Learn about event filters"
+            />
+          </div>
         </div>
       }
       columnKeyToName={FilterColumn}
