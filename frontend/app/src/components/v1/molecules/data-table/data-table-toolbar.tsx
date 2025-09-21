@@ -4,6 +4,7 @@ import { DataTableOptions } from './data-table-options';
 import { Spinner } from '@/components/v1/ui/loading';
 import { flattenDAGsKey } from '@/pages/main/v1/workflow-runs-v1/components/v1/task-runs-columns';
 import { RefetchIntervalDropdown } from '@/components/refetch-interval-dropdown';
+import { TableActions } from '@/pages/main/v1/workflow-runs-v1/components/task-runs-table/table-actions';
 
 export interface FilterOption {
   label: string;
@@ -45,6 +46,11 @@ type RefetchProps = {
   onRefetch: () => void;
 };
 
+export type ShowTableActionsProps = {
+  showTableActions: true;
+  onTriggerWorkflow: () => void;
+};
+
 interface DataTableToolbarProps<TData> {
   table: Table<TData>;
   filters: ToolbarFilters;
@@ -55,18 +61,20 @@ interface DataTableToolbarProps<TData> {
   hideFlatten?: boolean;
   columnKeyToName?: Record<string, string>;
   refetchProps?: RefetchProps;
+  tableActions?: ShowTableActionsProps;
 }
 
 export function DataTableToolbar<TData>({
   table,
   filters,
   leftActions,
-  rightActions,
+  rightActions = [],
   showColumnToggle,
   isLoading = false,
   hideFlatten,
   columnKeyToName,
   refetchProps,
+  tableActions,
 }: DataTableToolbarProps<TData>) {
   const visibleFilters = filters.filter((filter) => {
     if (hideFlatten && filter.columnId === flattenDAGsKey) {
@@ -76,6 +84,14 @@ export function DataTableToolbar<TData>({
   });
 
   const hasFilters = visibleFilters.length > 0;
+  if (tableActions) {
+    rightActions.push(
+      <TableActions
+        key="table-actions"
+        onTriggerWorkflow={tableActions.onTriggerWorkflow}
+      />,
+    );
+  }
 
   return (
     <div className="flex items-center justify-between">

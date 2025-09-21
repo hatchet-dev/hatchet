@@ -27,7 +27,6 @@ import { getCreatedAfterFromTimeRange } from '../hooks/use-runs-table-state';
 import { AdditionalMetadataProp } from '../hooks/use-runs-table-filters';
 import { useRunsContext } from '../hooks/runs-provider';
 
-import { TableActions } from './task-runs-table/table-actions';
 import { ConfirmActionModal } from '../../task-runs-v1/actions';
 import { DocsButton } from '@/components/v1/docs/docs-button';
 import { docsPages } from '@/lib/generated/docs';
@@ -292,12 +291,6 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
                 ]
               : []),
           ]}
-          rightActions={[
-            <TableActions
-              key="table-actions"
-              onTriggerWorkflow={() => updateUIState({ triggerWorkflow: true })}
-            />,
-          ]}
           columnFilters={state.columnFilters}
           setColumnFilters={(updaterOrValue) => {
             if (typeof updaterOrValue === 'function') {
@@ -344,6 +337,10 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
           refetchProps={{
             isRefetching,
             onRefetch: handleRefresh,
+          }}
+          tableActions={{
+            showTableActions: true,
+            onTriggerWorkflow: () => updateUIState({ triggerWorkflow: true }),
           }}
         />
       </div>

@@ -29,7 +29,11 @@ import {
 } from '@/components/v1/ui/table';
 
 import { DataTablePagination } from './data-table-pagination';
-import { DataTableToolbar, ToolbarFilters } from './data-table-toolbar';
+import {
+  DataTableToolbar,
+  ShowTableActionsProps,
+  ToolbarFilters,
+} from './data-table-toolbar';
 import { Skeleton } from '@/components/v1/ui/skeleton';
 import { cn } from '@/lib/utils';
 
@@ -95,6 +99,7 @@ interface ExtraDataTableProps {
   };
   columnKeyToName?: Record<string, string>;
   refetchProps?: RefetchProps;
+  tableActions?: ShowTableActionsProps;
 }
 
 export function DataTable<TData extends IDGetter<TData>, TValue>({
@@ -129,6 +134,7 @@ export function DataTable<TData extends IDGetter<TData>, TValue>({
   hideFlatten,
   columnKeyToName,
   refetchProps,
+  tableActions,
 }: DataTableProps<TData, TValue> & ExtraDataTableProps) {
   const [expanded, setExpanded] = React.useState<ExpandedState>({});
 
@@ -290,6 +296,7 @@ export function DataTable<TData extends IDGetter<TData>, TValue>({
           hideFlatten={hideFlatten}
           columnKeyToName={columnKeyToName}
           refetchProps={refetchProps}
+          tableActions={tableActions}
         />
       )}
       <div
