@@ -190,7 +190,7 @@ export function CronsTable() {
     <Button
       key="create-cron"
       onClick={() => setTriggerWorkflow(true)}
-      className="h-8 border"
+      className="h-8 border px-3"
     >
       Create Cron Job
     </Button>,
