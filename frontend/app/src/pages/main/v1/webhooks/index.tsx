@@ -39,15 +39,8 @@ import { SourceName } from './components/source-name';
 import { AuthMethod } from './components/auth-method';
 import { AuthSetup } from './components/auth-setup';
 import { Link } from 'react-router-dom';
-
-const WebhookEmptyState = () => {
-  return (
-    <div className="size-full flex flex-col items-center justify-center gap-y-4 p-6">
-      <span>No webhooks found. Create a webhook to get started.</span>
-      <CreateWebhookModal />
-    </div>
-  );
-};
+import { DocsButton } from '@/components/v1/docs/docs-button';
+import { docsPages } from '@/lib/generated/docs';
 
 export default function Webhooks() {
   const { data, isLoading, error } = useWebhooks();
@@ -62,7 +55,19 @@ export default function Webhooks() {
         isLoading={isLoading}
         columns={columns()}
         data={data}
-        emptyState={<WebhookEmptyState />}
+        emptyState={
+          <div className="w-full h-full flex flex-col gap-y-4 text-foreground py-8 justify-center items-center">
+            <p className="text-lg font-semibold">No webhooks found</p>
+            <div className="w-fit">
+              <DocsButton
+                doc={docsPages.home['webhooks']}
+                size="full"
+                variant="outline"
+                label="Learn about triggering runs from webhooks"
+              />
+            </div>
+          </div>
+        }
       />
     </div>
   );

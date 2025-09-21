@@ -26,6 +26,8 @@ import {
 import { useFilters } from '../filters/hooks/use-filters';
 import { useSidePanel } from '@/hooks/use-side-panel';
 import { useEvents } from './hooks/use-events';
+import { DocsButton } from '@/components/v1/docs/docs-button';
+import { docsPages } from '@/lib/generated/docs';
 
 export default function Events() {
   const [openMetadataPopover, setOpenMetadataPopover] = useState<string | null>(
@@ -136,6 +138,19 @@ export default function Events() {
           onRefetch: refetch,
         }}
         onResetFilters={resetFilters}
+        emptyState={
+          <div className="w-full h-full flex flex-col gap-y-4 text-foreground py-8 justify-center items-center">
+            <p className="text-lg font-semibold">No events found</p>
+            <div className="w-fit">
+              <DocsButton
+                doc={docsPages.home['run-on-event']}
+                size="full"
+                variant="outline"
+                label="Learn about pushing events to Hatchet"
+              />
+            </div>
+          </div>
+        }
       />
     </>
   );

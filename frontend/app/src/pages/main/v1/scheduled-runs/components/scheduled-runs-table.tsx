@@ -26,6 +26,8 @@ import { DeleteScheduledRun } from './delete-scheduled-runs';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { TriggerWorkflowForm } from '../../workflows/$workflow/components/trigger-workflow-form';
 import { useRefetchInterval } from '@/contexts/refetch-interval-context';
+import { DocsButton } from '@/components/v1/docs/docs-button';
+import { docsPages } from '@/lib/generated/docs';
 
 export interface ScheduledWorkflowRunsTableProps {
   createdAfter?: string;
@@ -295,7 +297,19 @@ export function ScheduledRunsTable({
       />
 
       <DataTable
-        emptyState={<>No runs found with the given filters.</>}
+        emptyState={
+          <div className="w-full h-full flex flex-col gap-y-4 text-foreground py-8 justify-center items-center">
+            <p className="text-lg font-semibold">No runs found</p>
+            <div className="w-fit">
+              <DocsButton
+                doc={docsPages.home['scheduled-runs']}
+                size="full"
+                variant="outline"
+                label="Learn about scheduled runs"
+              />
+            </div>
+          </div>
+        }
         error={workflowKeysError}
         isLoading={isLoading}
         columns={columns({

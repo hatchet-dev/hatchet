@@ -25,6 +25,8 @@ import {
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { TriggerWorkflowForm } from '../../workflows/$workflow/components/trigger-workflow-form';
 import { useRefetchInterval } from '@/contexts/refetch-interval-context';
+import { DocsButton } from '@/components/v1/docs/docs-button';
+import { docsPages } from '@/lib/generated/docs';
 
 export function CronsTable() {
   const { tenantId } = useCurrentTenantId();
@@ -239,6 +241,19 @@ export function CronsTable() {
           onRefetch: refetch,
         }}
         showSelectedRows={false}
+        emptyState={
+          <div className="w-full h-full flex flex-col gap-y-4 text-foreground py-8 justify-center items-center">
+            <p className="text-lg font-semibold">No crons found</p>
+            <div className="w-fit">
+              <DocsButton
+                doc={docsPages.home['cron-runs']}
+                size="full"
+                variant="outline"
+                label="Learn about cron jobs in Hatchet"
+              />
+            </div>
+          </div>
+        }
       />
     </>
   );

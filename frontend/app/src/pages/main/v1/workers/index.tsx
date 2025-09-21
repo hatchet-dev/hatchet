@@ -9,6 +9,8 @@ import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { useRefetchInterval } from '@/contexts/refetch-interval-context';
 import { columns, WorkerColumn } from './components/worker-columns';
 import { ToolbarType } from '@/components/v1/molecules/data-table/data-table-toolbar';
+import { DocsButton } from '@/components/v1/docs/docs-button';
+import { docsPages } from '@/lib/generated/docs';
 
 export default function Workers() {
   const { tenantId } = useCurrentTenantId();
@@ -76,7 +78,19 @@ export default function Workers() {
           ],
         },
       ]}
-      emptyState={emptyState}
+      emptyState={
+        <div className="w-full h-full flex flex-col gap-y-4 text-foreground py-8 justify-center items-center">
+          <p className="text-lg font-semibold">No workers found</p>
+          <div className="w-fit">
+            <DocsButton
+              doc={docsPages.home['workers']}
+              size="full"
+              variant="outline"
+              label="Learn about running workers"
+            />
+          </div>
+        </div>
+      }
       columnFilters={columnFilters}
       setColumnFilters={setColumnFilters}
       columnVisibility={columnVisibility}
