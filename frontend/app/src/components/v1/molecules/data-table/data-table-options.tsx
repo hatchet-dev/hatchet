@@ -546,7 +546,9 @@ export function DataTableOptionsContent<TData>({
             ))}
           </div>
 
-          {hasVisibleColumns && <div className="border-t border-border/50" />}
+          {hasVisibleColumns && showColumnVisiblity && (
+            <div className="border-t border-border/50" />
+          )}
         </>
       )}
 

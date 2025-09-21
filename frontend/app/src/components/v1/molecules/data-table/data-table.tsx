@@ -294,6 +294,7 @@ export function DataTable<TData extends IDGetter<TData>, TValue>({
           columnKeyToName={columnKeyToName}
           filters={filters}
           hideFlatten={hideFlatten}
+          showColumnVisiblity={false}
         />
       )}
       {(leftActions || rightActions || filters.length > 0) && (

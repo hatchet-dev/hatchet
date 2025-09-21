@@ -25,6 +25,7 @@ import {
   DataTableOptionsContent,
   DataTableOptionsContentProps,
 } from '@/components/v1/molecules/data-table/data-table-options';
+import { IDGetter } from '@/components/v1/molecules/data-table/data-table';
 
 export const TASK_RUN_TERMINAL_STATUSES = [
   V1TaskStatus.CANCELLED,
@@ -216,7 +217,7 @@ const CancelByExternalIdsContent = ({ label, params }: ModalContentProps) => {
   );
 };
 
-function ModalContent<TData>({
+function ModalContent<TData extends IDGetter<TData>>({
   label,
   params,
   table,
@@ -247,7 +248,7 @@ function ModalContent<TData>({
   }
 }
 
-export function ConfirmActionModal<TData>({
+export function ConfirmActionModal<TData extends IDGetter<TData>>({
   actionType,
   params,
   table,
@@ -264,7 +265,7 @@ export function ConfirmActionModal<TData>({
 
   return (
     <Dialog open={isActionModalOpen} onOpenChange={setIsActionModalOpen}>
-      <DialogContent className="sm:max-w-[700px] py-8 max-h-screen overflow-auto z-[70]">
+      <DialogContent className="sm:max-w-[700px] py-8 max-h-[90%] overflow-auto z-[70]">
         <DialogHeader className="gap-2">
           <div className="flex flex-row justify-between items-center w-full">
             <DialogTitle>{label} runs</DialogTitle>
@@ -280,6 +281,7 @@ export function ConfirmActionModal<TData>({
               filters={filters}
               columnKeyToName={columnKeyToName}
               hideFlatten={hideFlatten}
+              showColumnVisiblity={false}
             />
           </div>
 
