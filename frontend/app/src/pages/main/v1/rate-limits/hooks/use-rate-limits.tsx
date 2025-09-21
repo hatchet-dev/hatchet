@@ -40,6 +40,7 @@ export const useRateLimits = ({ key }: { key: string }) => {
     state: { s: search },
     columnFilters,
     setColumnFilters,
+    resetFilters,
   } = useZodColumnFilters(rateLimitQuerySchema, paramKey, { s: keyKey });
 
   const [debouncedSearch] = useDebounce(search, 300);
@@ -81,5 +82,6 @@ export const useRateLimits = ({ key }: { key: string }) => {
     setColumnFilters,
     isRefetching,
     refetch,
+    resetFilters,
   };
 };

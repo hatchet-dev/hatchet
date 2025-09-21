@@ -51,6 +51,7 @@ export default function Events() {
     workflowKeyFilters,
     workflowRunStatusFilters,
     isRefetching,
+    resetFilters,
   } = useEvents({
     key: 'table',
   });
@@ -134,6 +135,7 @@ export default function Events() {
           isRefetching,
           onRefetch: refetch,
         }}
+        onResetFilters={resetFilters}
       />
     </>
   );

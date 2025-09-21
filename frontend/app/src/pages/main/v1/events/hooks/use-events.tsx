@@ -52,6 +52,7 @@ export const useEvents = ({ key }: UseEventsProps) => {
     },
     columnFilters,
     setColumnFilters,
+    resetFilters,
   } = useZodColumnFilters(eventFilterSchema, paramKey, {
     k: keyKey,
     w: workflowKey,
@@ -158,5 +159,6 @@ export const useEvents = ({ key }: UseEventsProps) => {
     workflowKeyFilters,
     workflowRunStatusFilters,
     isRefetching,
+    resetFilters,
   };
 };

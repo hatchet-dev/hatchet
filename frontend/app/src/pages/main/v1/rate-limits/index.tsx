@@ -28,6 +28,7 @@ function RateLimitsTable() {
     numPages,
     isRefetching,
     refetch,
+    resetFilters,
   } = useRateLimits({ key: 'rate-limits-table' });
 
   return (
@@ -58,6 +59,7 @@ function RateLimitsTable() {
         isRefetching,
         onRefetch: refetch,
       }}
+      onResetFilters={resetFilters}
     />
   );
 }
