@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { DataTable } from '@/components/v1/molecules/data-table/data-table';
 import { columns } from './events-columns';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
+import { useRefetchInterval } from '@/contexts/refetch-interval-context';
 
 export function StepRunEvents({
   taskRunId,
@@ -16,6 +17,7 @@ export function StepRunEvents({
   onClick: (stepRunId: string) => void;
 }) {
   const { tenantId } = useCurrentTenantId();
+  const { refetchInterval } = useRefetchInterval();
 
   const eventsQuery = useQuery({
     ...queries.v1TaskEvents.list(
@@ -28,9 +30,7 @@ export function StepRunEvents({
       taskRunId,
       workflowRunId,
     ),
-    refetchInterval: () => {
-      return 5000;
-    },
+    refetchInterval,
   });
 
   type EventWithMetadata = V1TaskEvent & {
@@ -58,7 +58,6 @@ export function StepRunEvents({
       emptyState={<>No events found.</>}
       isLoading={eventsQuery.isLoading}
       columns={cols as any} // TODO: This is a hack, figure out how to type this properly later
-      filters={[]}
       data={events}
     />
   );

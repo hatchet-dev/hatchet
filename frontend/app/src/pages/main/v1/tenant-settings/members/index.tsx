@@ -153,7 +153,6 @@ function MembersList() {
           <DataTable
             columns={ownersColumns}
             data={owners}
-            filters={[]}
             getRowId={(row) => row.metadata.id}
             isLoading={listMembersQuery.isLoading}
           />
@@ -176,7 +175,6 @@ function MembersList() {
           },
         })}
         data={nonOwners}
-        filters={[]}
         getRowId={(row) => row.metadata.id}
         isLoading={listMembersQuery.isLoading}
       />
@@ -306,7 +304,6 @@ function InvitesList() {
         isLoading={listInvitesQuery.isLoading}
         columns={cols}
         data={listInvitesQuery.data?.rows || []}
-        filters={[]}
         getRowId={(row) => row.metadata.id}
       />
       {showCreateInviteModal && (

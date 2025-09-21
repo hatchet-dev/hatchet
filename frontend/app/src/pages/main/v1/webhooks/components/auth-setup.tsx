@@ -219,7 +219,6 @@ export const AuthSetup = ({
             <HMACAuth register={register} watch={watch} setValue={setValue} />
           );
         default:
-          // eslint-disable-next-line no-case-declarations
           const exhaustiveCheck: never = authMethod;
           throw new Error(`Unhandled auth method: ${exhaustiveCheck}`);
       }
@@ -242,7 +241,6 @@ export const AuthSetup = ({
     case V1WebhookSourceName.SLACK:
       return <PreconfiguredHMACAuth register={register} />;
     default:
-      // eslint-disable-next-line no-case-declarations
       const exhaustiveCheck: never = sourceName;
       throw new Error(`Unhandled source name: ${exhaustiveCheck}`);
   }

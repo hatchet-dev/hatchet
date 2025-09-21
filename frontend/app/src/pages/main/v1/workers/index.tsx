@@ -3,13 +3,17 @@ import { useQuery } from '@tanstack/react-query';
 import { queries } from '@/lib/api';
 import { DataTable } from '@/components/v1/molecules/data-table/data-table.tsx';
 import { Loading } from '@/components/v1/ui/loading.tsx';
-import { ColumnFiltersState } from '@tanstack/react-table';
-import { IntroDocsEmptyState } from '@/pages/onboarding/intro-docs-empty-state';
+import { ColumnFiltersState, VisibilityState } from '@tanstack/react-table';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
-import { columns } from './components/worker-columns';
+import { useRefetchInterval } from '@/contexts/refetch-interval-context';
+import { columns, WorkerColumn } from './components/worker-columns';
+import { ToolbarType } from '@/components/v1/molecules/data-table/data-table-toolbar';
+import { DocsButton } from '@/components/v1/docs/docs-button';
+import { docsPages } from '@/lib/generated/docs';
 
 export default function Workers() {
   const { tenantId } = useCurrentTenantId();
+  const { refetchInterval } = useRefetchInterval();
 
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([
     {
@@ -18,9 +22,11 @@ export default function Workers() {
     },
   ]);
 
+  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
+
   const listWorkersQuery = useQuery({
     ...queries.workers.list(tenantId),
-    refetchInterval: 3000,
+    refetchInterval,
   });
 
   const data = useMemo(() => {
@@ -45,15 +51,6 @@ export default function Workers() {
     return <Loading />;
   }
 
-  const emptyState = (
-    <IntroDocsEmptyState
-      link="/home/workers"
-      title="No Workers Found"
-      linkPreambleText="To learn more about how workers function in Hatchet,"
-      linkText="check out our documentation."
-    />
-  );
-
   return (
     <DataTable
       columns={columns(tenantId)}
@@ -63,6 +60,7 @@ export default function Workers() {
         {
           columnId: 'status',
           title: 'Status',
+          type: ToolbarType.Checkbox,
           options: [
             { value: 'ACTIVE', label: 'Active' },
             { value: 'PAUSED', label: 'Paused' },
@@ -70,9 +68,29 @@ export default function Workers() {
           ],
         },
       ]}
-      emptyState={emptyState}
+      emptyState={
+        <div className="w-full h-full flex flex-col gap-y-4 text-foreground py-8 justify-center items-center">
+          <p className="text-lg font-semibold">No workers found</p>
+          <div className="w-fit">
+            <DocsButton
+              doc={docsPages.home.workers}
+              size="full"
+              variant="outline"
+              label="Learn about running workers"
+            />
+          </div>
+        </div>
+      }
       columnFilters={columnFilters}
       setColumnFilters={setColumnFilters}
+      columnVisibility={columnVisibility}
+      setColumnVisibility={setColumnVisibility}
+      showColumnToggle={true}
+      columnKeyToName={WorkerColumn}
+      refetchProps={{
+        isRefetching: listWorkersQuery.isRefetching,
+        onRefetch: listWorkersQuery.refetch,
+      }}
     />
   );
 }

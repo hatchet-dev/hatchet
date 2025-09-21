@@ -25,18 +25,20 @@ import { cloudApi } from '@/lib/api/api';
 import { useApiError } from '@/lib/hooks';
 import GithubButton from './components/github-button';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
+import { useRefetchInterval } from '@/contexts/refetch-interval-context';
 
 export default function ExpandedWorkflow() {
   const navigate = useNavigate();
   const [deleteWorker, setDeleteWorker] = useState(false);
   const { tenantId } = useCurrentTenantId();
+  const { refetchInterval } = useRefetchInterval();
 
   const params = useParams();
   invariant(params['managed-worker']);
 
   const managedWorkerQuery = useQuery({
     ...queries.cloud.getManagedWorker(params['managed-worker']),
-    refetchInterval: 5000,
+    refetchInterval,
   });
 
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});

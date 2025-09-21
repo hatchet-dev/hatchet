@@ -3,7 +3,6 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   ColumnFiltersState,
   PaginationState,
-  RowSelectionState,
   SortingState,
   VisibilityState,
 } from '@tanstack/react-table';
@@ -22,11 +21,13 @@ import {
   ToolbarType,
 } from '@/components/v1/molecules/data-table/data-table-toolbar';
 import { Button } from '@/components/v1/ui/button';
-import { ArrowPathIcon } from '@heroicons/react/24/outline';
 import { columns } from './scheduled-runs-columns';
 import { DeleteScheduledRun } from './delete-scheduled-runs';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { TriggerWorkflowForm } from '../../workflows/$workflow/components/trigger-workflow-form';
+import { useRefetchInterval } from '@/contexts/refetch-interval-context';
+import { DocsButton } from '@/components/v1/docs/docs-button';
+import { docsPages } from '@/lib/generated/docs';
 
 export interface ScheduledWorkflowRunsTableProps {
   createdAfter?: string;
@@ -36,7 +37,6 @@ export interface ScheduledWorkflowRunsTableProps {
   parentStepRunId?: string;
   initColumnVisibility?: VisibilityState;
   filterVisibility?: { [key: string]: boolean };
-  refetchInterval?: number;
   showMetrics?: boolean;
 }
 
@@ -48,13 +48,13 @@ export function ScheduledRunsTable({
   filterVisibility = {},
   parentWorkflowRunId,
   parentStepRunId,
-  refetchInterval = 5000,
 }: ScheduledWorkflowRunsTableProps) {
   const { tenantId } = useCurrentTenantId();
   const [searchParams, setSearchParams] = useSearchParams();
   const [triggerWorkflow, setTriggerWorkflow] = useState(false);
   const [selectedAdditionalMetaJobId, setSelectedAdditionalMetaJobId] =
     useState<string | null>(null);
+  const { refetchInterval } = useRefetchInterval();
 
   const [sorting, setSorting] = useState<SortingState>(() => {
     const sortParam = searchParams.get('sort');
@@ -193,7 +193,7 @@ export function ScheduledRunsTable({
       additionalMetadata: AdditionalMetadataFilter,
     }),
     placeholderData: (prev) => prev,
-    refetchInterval: selectedAdditionalMetaJobId ? false : refetchInterval,
+    refetchInterval,
   });
 
   const {
@@ -202,10 +202,8 @@ export function ScheduledRunsTable({
     error: workflowKeysError,
   } = useQuery({
     ...queries.workflows.list(tenantId, { limit: 200 }),
-    refetchInterval: selectedAdditionalMetaJobId ? false : refetchInterval,
+    refetchInterval,
   });
-
-  const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 
   const workflowKeyFilters = useMemo((): FilterOption[] => {
     return (
@@ -256,6 +254,7 @@ export function ScheduledRunsTable({
       columnId: 'status',
       title: 'Status',
       options: workflowRunStatusFilters,
+      type: ToolbarType.Checkbox,
     },
     {
       columnId: 'Metadata',
@@ -264,34 +263,13 @@ export function ScheduledRunsTable({
     },
   ].filter((filter) => filterVisibility[filter.columnId] != false);
 
-  const [rotate, setRotate] = useState(false);
-
-  const refetch = () => {
-    listWorkflowRunsQuery.refetch();
-  };
-
   const actions = [
     <Button
       key="schedule-run"
       onClick={() => setTriggerWorkflow(true)}
-      className="h-8 border"
+      className="h-8 border px-3"
     >
       Schedule Run
-    </Button>,
-    <Button
-      key="refresh"
-      className="h-8 px-2 lg:px-3"
-      size="sm"
-      onClick={() => {
-        refetch();
-        setRotate(!rotate);
-      }}
-      variant={'outline'}
-      aria-label="Refresh events list"
-    >
-      <ArrowPathIcon
-        className={`h-4 w-4 transition-transform ${rotate ? 'rotate-180' : ''}`}
-      />
     </Button>,
   ];
 
@@ -307,7 +285,7 @@ export function ScheduledRunsTable({
         scheduledRun={showScheduledRunRevoke}
         setShowScheduledRunRevoke={setShowScheduledRunRevoke}
         onSuccess={() => {
-          refetch();
+          listWorkflowRunsQuery.refetch();
           setShowScheduledRunRevoke(undefined);
         }}
       />
@@ -319,7 +297,19 @@ export function ScheduledRunsTable({
       />
 
       <DataTable
-        emptyState={<>No runs found with the given filters.</>}
+        emptyState={
+          <div className="w-full h-full flex flex-col gap-y-4 text-foreground py-8 justify-center items-center">
+            <p className="text-lg font-semibold">No runs found</p>
+            <div className="w-fit">
+              <DocsButton
+                doc={docsPages.home['scheduled-runs']}
+                size="full"
+                variant="outline"
+                label="Learn about scheduled runs"
+              />
+            </div>
+          </div>
+        }
         error={workflowKeysError}
         isLoading={isLoading}
         columns={columns({
@@ -334,7 +324,7 @@ export function ScheduledRunsTable({
         setColumnVisibility={setColumnVisibility}
         data={listWorkflowRunsQuery.data?.rows || []}
         filters={filters}
-        actions={actions}
+        rightActions={actions}
         sorting={sorting}
         setSorting={setSorting}
         columnFilters={columnFilters}
@@ -342,10 +332,13 @@ export function ScheduledRunsTable({
         pagination={pagination}
         setPagination={setPagination}
         onSetPageSize={setPageSize}
-        rowSelection={rowSelection}
-        setRowSelection={setRowSelection}
         pageCount={listWorkflowRunsQuery.data?.pagination?.num_pages || 0}
         showColumnToggle={true}
+        refetchProps={{
+          isRefetching: listWorkflowRunsQuery.isRefetching,
+          onRefetch: listWorkflowRunsQuery.refetch,
+        }}
+        showSelectedRows={false}
       />
     </>
   );

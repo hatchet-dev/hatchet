@@ -84,7 +84,6 @@ export default function ResourceLimits() {
           isLoading={resourcePolicyQuery.isLoading}
           columns={cols}
           data={resourcePolicyQuery.data?.limits || []}
-          filters={[]}
           getRowId={(row) => row.metadata.id}
         />
       </div>
