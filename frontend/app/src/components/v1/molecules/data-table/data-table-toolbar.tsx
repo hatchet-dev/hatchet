@@ -5,6 +5,10 @@ import { Spinner } from '@/components/v1/ui/loading';
 import { flattenDAGsKey } from '@/pages/main/v1/workflow-runs-v1/components/v1/task-runs-columns';
 import { RefetchIntervalDropdown } from '@/components/refetch-interval-dropdown';
 import { TableActions } from '@/pages/main/v1/workflow-runs-v1/components/task-runs-table/table-actions';
+import {
+  ActionType,
+  BaseTaskRunActionParams,
+} from '@/pages/main/v1/task-runs-v1/actions';
 
 export interface FilterOption {
   label: string;
@@ -49,6 +53,8 @@ type RefetchProps = {
 export type ShowTableActionsProps = {
   showTableActions: true;
   onTriggerWorkflow: () => void;
+  selectedActionType: ActionType | null;
+  actionModalParams: BaseTaskRunActionParams;
 };
 
 interface DataTableToolbarProps<TData> {

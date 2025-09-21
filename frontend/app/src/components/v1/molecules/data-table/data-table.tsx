@@ -36,6 +36,7 @@ import {
 } from './data-table-toolbar';
 import { Skeleton } from '@/components/v1/ui/skeleton';
 import { cn } from '@/lib/utils';
+import { ConfirmActionModal } from '@/pages/main/v1/task-runs-v1/actions';
 
 export interface IDGetter<T> {
   metadata: {
@@ -285,6 +286,12 @@ export function DataTable<TData extends IDGetter<TData>, TValue>({
 
   return (
     <div className="flex flex-col max-h-full space-y-4">
+      {tableActions?.selectedActionType && (
+        <ConfirmActionModal
+          actionType={tableActions.selectedActionType}
+          params={tableActions.actionModalParams}
+        />
+      )}{' '}
       {(leftActions || rightActions || filters.length > 0) && (
         <DataTableToolbar
           table={table}

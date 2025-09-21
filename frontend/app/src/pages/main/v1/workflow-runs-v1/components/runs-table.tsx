@@ -341,6 +341,8 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
           tableActions={{
             showTableActions: true,
             onTriggerWorkflow: () => updateUIState({ triggerWorkflow: true }),
+            selectedActionType,
+            actionModalParams,
           }}
         />
       </div>
