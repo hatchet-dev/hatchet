@@ -472,7 +472,7 @@ export function DataTableOptions<TData>({
     });
 
     return validFilters.length;
-  }, [hideFlatten, table]);
+  }, [hideFlatten, table.getState().columnFilters]);
 
   const visibleFilters = filters.filter((filter) => {
     if (hideFlatten && filter.columnId === flattenDAGsKey) {
