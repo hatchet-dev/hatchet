@@ -9,7 +9,6 @@ import { useRunsTableFilters } from './use-runs-table-filters';
 import { useToolbarFilters } from './use-toolbar-filters';
 import { useRuns } from './use-runs';
 import { useMetrics } from './use-metrics';
-import { workflowKey } from '../components/v1/task-runs-columns';
 import { V1TaskRunMetrics, V1TaskSummary } from '@/lib/api';
 import { PaginationState } from '@tanstack/react-table';
 import {
@@ -131,16 +130,12 @@ export const RunsProvider = ({
       },
     };
 
-    if (workflowId) {
-      baseState.columnFilters = [{ id: workflowKey, value: workflowId }];
-    }
-
     if (parentTaskExternalId) {
       baseState.parentTaskExternalId = parentTaskExternalId;
     }
 
     return baseState;
-  }, [workflowId, parentTaskExternalId, initColumnVisibility]);
+  }, [parentTaskExternalId, initColumnVisibility]);
 
   const {
     state,
@@ -150,7 +145,9 @@ export const RunsProvider = ({
     updateTableState,
   } = useRunsTableState(tableKey, initialState);
 
-  const filters = useRunsTableFilters(state, updateFilters);
+  const filters = useRunsTableFilters(state, updateFilters, {
+    workflowIds: workflowId ? [workflowId] : undefined,
+  });
 
   const toolbarFilters = useToolbarFilters({
     filterVisibility,

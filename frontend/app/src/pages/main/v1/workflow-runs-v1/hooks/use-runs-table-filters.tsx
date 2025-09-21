@@ -41,23 +41,33 @@ export type FilterActions = {
   resetFilters: () => void;
 };
 
-const apiFilterSchema = z.object({
-  s: z.string().default(() => getCreatedAfterFromTimeRange('1d')), // since
-  u: z.string().optional(), // until
-  st: z.array(z.nativeEnum(V1TaskStatus)).optional(), // statuses
-  w: z.array(z.string()).optional(), // workflow ids
-  m: z.array(z.string()).optional(), // additional metadata
-  f: z.boolean().default(false), // flatten dags
-});
+const createApiFilterSchema = (initialValues?: { workflowIds?: string[] }) =>
+  z.object({
+    s: z.string().default(() => getCreatedAfterFromTimeRange('1d')), // since
+    u: z.string().optional(), // until
+    st: z.array(z.nativeEnum(V1TaskStatus)).optional(), // statuses
+    w: z // workflow ids
+      .array(z.string())
+      .optional()
+      .default(() =>
+        initialValues?.workflowIds?.length ? initialValues.workflowIds : [],
+      ),
+    m: z.array(z.string()).optional(), // additional metadata
+    f: z.boolean().default(false), // flatten dags
+  });
 
 export const useRunsTableFilters = (
   state: RunsTableState,
   updateFilters: (filters: Partial<RunsTableState>) => void,
+  initialValues?: {
+    workflowIds?: string[];
+  },
 ): FilterActions & {
   columnFilters: ColumnFiltersState;
   apiFilters: APIFilters;
 } => {
   const paramKey = 'workflow-runs-filters';
+  const apiFilterSchema = createApiFilterSchema(initialValues);
 
   const {
     state: {
