@@ -87,6 +87,7 @@ export const filterColumns = (
           code={row.original.expression}
           copy={false}
           maxHeight="10rem"
+          minWidth="20rem"
         />
       ),
       enableSorting: false,
