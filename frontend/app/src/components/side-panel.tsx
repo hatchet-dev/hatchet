@@ -108,9 +108,6 @@ export function SidePanel() {
                 data-is-docs={maybeContent.isDocs}
                 className="flex flex-row gap-x-2 w-full justify-between items-center data-[is-docs=true]:justify-end"
               >
-                {!maybeContent.isDocs && (
-                  <p className="text-lg font-semibold">{maybeContent.title}</p>
-                )}
                 <div className="flex flex-row gap-x-2 items-center">
                   <Button
                     variant="ghost"
