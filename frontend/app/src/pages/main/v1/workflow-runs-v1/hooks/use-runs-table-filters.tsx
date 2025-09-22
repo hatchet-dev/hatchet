@@ -45,7 +45,9 @@ const createApiFilterSchema = (initialValues?: { workflowIds?: string[] }) =>
   z.object({
     s: z.string().default(() => getCreatedAfterFromTimeRange('1d')), // since
     u: z.string().optional(), // until
-    st: z.array(z.nativeEnum(V1TaskStatus)).optional(), // statuses
+    st: z
+      .array(z.nativeEnum(V1TaskStatus))
+      .default(() => Object.values(V1TaskStatus)), // statuses
     w: z // workflow ids
       .array(z.string())
       .optional()
@@ -123,12 +125,12 @@ export const useRunsTableFilters = (
 
   const setStatuses = useCallback(
     (statuses: V1TaskStatus[]) => {
-      const newColumnFilters =
-        statuses.length > 0
-          ? columnFilters
-              .filter((f) => f.id !== statusKey)
-              .concat([{ id: statusKey, value: statuses }])
-          : columnFilters.filter((f) => f.id !== statusKey);
+      const finalStatuses =
+        statuses.length > 0 ? statuses : Object.values(V1TaskStatus);
+
+      const newColumnFilters = columnFilters
+        .filter((f) => f.id !== statusKey)
+        .concat([{ id: statusKey, value: finalStatuses }]);
 
       setColumnFilters(newColumnFilters);
     },

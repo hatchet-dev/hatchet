@@ -60,8 +60,24 @@ function MetricBadge({
       const currentStatuses = getStatusesFromFilters(filters.columnFilters);
       const isSelected = currentStatuses.includes(status);
 
+      const allStatuses = Object.values(V1TaskStatus);
+
+      const isAllSelected =
+        currentStatuses.length === allStatuses.length &&
+        allStatuses.every((s) => currentStatuses.includes(s));
+
       if (isSelected) {
-        setStatuses(currentStatuses.filter((s) => s !== status));
+        if (isAllSelected) {
+          setStatuses([status]);
+        } else {
+          const newStatuses = currentStatuses.filter((s) => s !== status);
+
+          if (newStatuses.length === 0) {
+            setStatuses(allStatuses);
+          } else {
+            setStatuses(newStatuses);
+          }
+        }
       } else {
         setStatuses([...currentStatuses, status]);
       }

@@ -13,6 +13,7 @@ import {
   flattenDAGsKey,
   createdAfterKey,
   finishedBeforeKey,
+  statusKey,
 } from '@/pages/main/v1/workflow-runs-v1/components/v1/task-runs-columns';
 import { ToolbarFilters } from './data-table-toolbar';
 import {
@@ -33,6 +34,7 @@ import {
 import { DateTimePicker } from '@/components/v1/molecules/time-picker/date-time-picker';
 import { XCircleIcon } from '@heroicons/react/24/outline';
 import { Column } from '@tanstack/react-table';
+import { V1TaskStatus } from '@/lib/api';
 
 interface FilterControlProps<TData> {
   column?: Column<TData, any>;
@@ -433,6 +435,15 @@ interface DataTableOptionsProps<TData> {
   onResetFilters?: () => void;
 }
 
+function arraysEqual<T>(a: T[], b: T[]) {
+  return (
+    Array.isArray(a) &&
+    Array.isArray(b) &&
+    a.length === b.length &&
+    a.every((val, index) => val === b[index])
+  );
+}
+
 export function DataTableOptions<TData>({
   table,
   filters,
@@ -444,6 +455,13 @@ export function DataTableOptions<TData>({
   const activeFiltersCount = React.useMemo(
     () =>
       cf?.filter((f) => {
+        if (
+          f.id === statusKey &&
+          arraysEqual(f.value as V1TaskStatus[], Object.values(V1TaskStatus))
+        ) {
+          return false;
+        }
+
         if (f.id === createdAfterKey || f.id === finishedBeforeKey) {
           return false;
         }
