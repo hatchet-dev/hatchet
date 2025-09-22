@@ -1,11 +1,11 @@
-import { V1TaskRunMetrics, V1TaskStatus } from '@/lib/api';
-import { Badge, badgeVariants } from '@/components/v1/ui/badge';
-import { VariantProps } from 'class-variance-authority';
+import { V1TaskStatus } from '@/lib/api';
+import { Badge } from '@/components/v1/ui/badge';
 import { useRunsContext } from '../hooks/runs-provider';
 import { getStatusesFromFilters } from '../hooks/use-runs-table-state';
 import { CheckCircleIcon, ClockIcon } from '@heroicons/react/24/outline';
 import { PlayIcon, X, Ban, ChartColumn } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useCallback } from 'react';
 
 function statusToFriendlyName(status: V1TaskStatus) {
   switch (status) {
@@ -44,18 +44,31 @@ function statusToIcon(status: V1TaskStatus) {
 }
 
 function MetricBadge({
-  metrics,
   status,
-  onClick,
-  variant,
   className,
 }: {
-  metrics: V1TaskRunMetrics;
   status: V1TaskStatus;
-  onClick?: (status: V1TaskStatus) => void;
-  variant: VariantProps<typeof badgeVariants>['variant'];
   className?: string;
 }) {
+  const { filters, metrics } = useRunsContext();
+  const currentStatuses = getStatusesFromFilters(filters.columnFilters);
+  const isSelected = currentStatuses.includes(status);
+  const { setStatuses } = filters;
+
+  const handleStatusClick = useCallback(
+    (status: V1TaskStatus) => {
+      const currentStatuses = getStatusesFromFilters(filters.columnFilters);
+      const isSelected = currentStatuses.includes(status);
+
+      if (isSelected) {
+        setStatuses(currentStatuses.filter((s) => s !== status));
+      } else {
+        setStatuses([...currentStatuses, status]);
+      }
+    },
+    [filters.columnFilters, setStatuses],
+  );
+
   const metric = metrics.find((m) => m.status === status);
 
   if (!metric) {
@@ -68,9 +81,10 @@ function MetricBadge({
 
   return (
     <Badge
-      variant={variant}
+      data-is-selected={isSelected}
+      variant={isSelected ? 'default' : 'outline'}
       className={cn('cursor-pointer text-sm px-3 py-1 w-fit h-8', className)}
-      onClick={() => onClick?.(status)}
+      onClick={() => handleStatusClick(status)}
     >
       <span className="flex items-center gap-1">
         <span>{formattedCount}</span>
@@ -83,66 +97,40 @@ function MetricBadge({
 
 export const V1WorkflowRunsMetricsView = () => {
   const {
-    metrics,
-    filters,
     display: { hideMetrics },
     actions: { updateUIState },
   } = useRunsContext();
-
-  const { setStatuses } = filters;
 
   const onViewQueueMetricsClick = () => {
     updateUIState({ viewQueueMetrics: true });
   };
 
-  const handleStatusClick = (status: V1TaskStatus) => {
-    const currentStatuses = getStatusesFromFilters(filters.columnFilters);
-    const isSelected = currentStatuses.includes(status);
-
-    if (isSelected) {
-      setStatuses(currentStatuses.filter((s) => s !== status));
-    } else {
-      setStatuses([...currentStatuses, status]);
-    }
-  };
-
+  // format of className strings is:
+  // default, then unselected, then selected, then hover+selected, then hover+unselected
   return (
-    <dl className="flex flex-row justify-start gap-2">
+    <div className="flex flex-row justify-start gap-2">
       <MetricBadge
-        metrics={metrics}
         status={V1TaskStatus.COMPLETED}
-        onClick={handleStatusClick}
-        variant="successful"
+        className={`
+          text-green-800 dark:text-green-300
+
+          data-[is-selected=false]:border data-[is-selected=false]:border-green-500/20
+
+          data-[is-selected=true]:bg-green-500/20
+
+          hover:data-[is-selected=true]:border hover:data-[is-selected=true]:border-green-500/20 hover:data-[is-selected=true]:bg-inherit
+
+          hover:data-[is-selected=false]:bg-green-500/20 hover:data-[is-selected=false]:border-transparent
+          `}
       />
 
-      <MetricBadge
-        metrics={metrics}
-        status={V1TaskStatus.RUNNING}
-        onClick={handleStatusClick}
-        variant="inProgress"
-      />
+      <MetricBadge status={V1TaskStatus.RUNNING} />
 
-      <MetricBadge
-        metrics={metrics}
-        status={V1TaskStatus.FAILED}
-        onClick={handleStatusClick}
-        variant="failed"
-      />
+      <MetricBadge status={V1TaskStatus.FAILED} />
 
-      <MetricBadge
-        metrics={metrics}
-        status={V1TaskStatus.CANCELLED}
-        onClick={handleStatusClick}
-        variant="outlineDestructive"
-      />
+      <MetricBadge status={V1TaskStatus.CANCELLED} />
 
-      <MetricBadge
-        metrics={metrics}
-        status={V1TaskStatus.QUEUED}
-        onClick={handleStatusClick}
-        variant="outline"
-        className="rounded-sm font-normal"
-      />
+      <MetricBadge status={V1TaskStatus.QUEUED} />
 
       {!hideMetrics && (
         <Badge
@@ -154,6 +142,6 @@ export const V1WorkflowRunsMetricsView = () => {
           <ChartColumn className="size-4 cq-xl:hidden" />
         </Badge>
       )}
-    </dl>
+    </div>
   );
 };
