@@ -34,8 +34,8 @@ func (m *RateLimitMiddleware) Middleware() echo.MiddlewareFunc {
 		Skipper: func(c echo.Context) bool {
 			route, _, err := router.FindRoute(c.Request())
 			if err != nil {
-				c.Logger().Error(err)
-				return false
+				c.Logger().Debug("route not found in OpenAPI spec, skipping rate limiting: ", err)
+				return true
 			}
 
 			enableRateLimitingInt := route.Operation.Extensions["x-enable-rate-limiting"]
@@ -53,7 +53,10 @@ func (m *RateLimitMiddleware) Middleware() echo.MiddlewareFunc {
 		IdentifierExtractor: func(ctx echo.Context) (string, error) {
 			route, _, err := router.FindRoute(ctx.Request())
 			if err != nil {
-				return "", err
+				// For routes not in OpenAPI spec, use a fallback identifier
+				// This should rarely happen due to the Skipper logic above
+				id := ctx.RealIP() + ":" + ctx.Request().Method + ":" + ctx.Request().URL.Path
+				return id, nil
 			}
 
 			id := ctx.RealIP() + ":" + route.Operation.OperationID
