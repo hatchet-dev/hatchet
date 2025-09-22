@@ -207,7 +207,6 @@ function mapEventTypeToTitle(eventType: V1TaskEventType | undefined): string {
     case undefined:
       return 'Unknown';
     default:
-      // eslint-disable-next-line no-case-declarations
       const exhaustiveCheck: never = eventType;
       throw new Error(`Unhandled case: ${exhaustiveCheck}`);
   }

@@ -10,11 +10,9 @@ import {
 } from './components/event-columns';
 import { Separator } from '@/components/v1/ui/separator';
 import { useMemo, useState } from 'react';
-import { RowSelectionState, VisibilityState } from '@tanstack/react-table';
+import { VisibilityState } from '@tanstack/react-table';
 import { V1Event, V1Filter } from '@/lib/api';
 import { ToolbarType } from '@/components/v1/molecules/data-table/data-table-toolbar';
-import { Button } from '@/components/v1/ui/button';
-import { ArrowPathIcon } from '@heroicons/react/24/outline';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { DataTable } from '@/components/v1/molecules/data-table/data-table';
 import { RunsTable } from '../workflow-runs-v1/components/runs-table';
@@ -28,10 +26,10 @@ import {
 import { useFilters } from '../filters/hooks/use-filters';
 import { useSidePanel } from '@/hooks/use-side-panel';
 import { useEvents } from './hooks/use-events';
+import { DocsButton } from '@/components/v1/docs/docs-button';
+import { docsPages } from '@/lib/generated/docs';
 
 export default function Events() {
-  const [rotate, setRotate] = useState(false);
-  const [hoveredEventId] = useState<string | null>(null);
   const [openMetadataPopover, setOpenMetadataPopover] = useState<string | null>(
     null,
   );
@@ -54,9 +52,10 @@ export default function Events() {
     eventKeyFilters,
     workflowKeyFilters,
     workflowRunStatusFilters,
+    isRefetching,
+    resetFilters,
   } = useEvents({
     key: 'table',
-    hoveredEventId,
   });
 
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({
@@ -64,8 +63,6 @@ export default function Events() {
     [EventColumn.payload]: false,
     [scopeKey]: false,
   });
-
-  const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 
   const tableColumns = columns({
     onRowClick: (row: V1Event) => {
@@ -82,24 +79,6 @@ export default function Events() {
     setOpenPayloadPopover,
   });
 
-  const actions = [
-    <Button
-      key="refresh"
-      className="h-8 px-2 lg:px-3"
-      size="sm"
-      onClick={() => {
-        refetch();
-        setRotate(!rotate);
-      }}
-      variant={'outline'}
-      aria-label="Refresh events list"
-    >
-      <ArrowPathIcon
-        className={`h-4 w-4 transition-transform ${rotate ? 'rotate-180' : ''}`}
-      />
-    </Button>,
-  ];
-
   return (
     <>
       <DataTable
@@ -112,16 +91,19 @@ export default function Events() {
             columnId: keyKey,
             title: EventColumn.key,
             options: eventKeyFilters,
+            type: ToolbarType.Array,
           },
           {
             columnId: workflowKey,
             title: EventColumn.workflowId,
             options: workflowKeyFilters,
+            type: ToolbarType.Checkbox,
           },
           {
             columnId: statusKey,
             title: EventColumn.status,
             options: workflowRunStatusFilters,
+            type: ToolbarType.Checkbox,
           },
           {
             columnId: metadataKey,
@@ -142,17 +124,33 @@ export default function Events() {
         showColumnToggle={true}
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}
-        actions={actions}
         columnFilters={columnFilters}
         setColumnFilters={setColumnFilters}
         pagination={pagination}
         setPagination={setPagination}
         onSetPageSize={setPageSize}
         pageCount={numEvents}
-        rowSelection={rowSelection}
-        setRowSelection={setRowSelection}
         getRowId={(row) => row.metadata.id}
         columnKeyToName={EventColumn}
+        showSelectedRows={false}
+        refetchProps={{
+          isRefetching,
+          onRefetch: refetch,
+        }}
+        onResetFilters={resetFilters}
+        emptyState={
+          <div className="w-full h-full flex flex-col gap-y-4 text-foreground py-8 justify-center items-center">
+            <p className="text-lg font-semibold">No events found</p>
+            <div className="w-fit">
+              <DocsButton
+                doc={docsPages.home['run-on-event']}
+                size="full"
+                variant="outline"
+                label="Learn about pushing events to Hatchet"
+              />
+            </div>
+          </div>
+        }
       />
     </>
   );
@@ -240,7 +238,6 @@ function FiltersSection({
         <DataTable
           columns={columns}
           data={filters}
-          filters={[]}
           columnKeyToName={FilterColumn}
         />
       </div>

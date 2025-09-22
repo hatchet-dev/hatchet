@@ -1298,6 +1298,14 @@ func (r *OLAPRepositoryImpl) writeTaskBatch(ctx context.Context, tenantId string
 	params := make([]sqlcv1.CreateTasksOLAPParams, 0)
 
 	for _, task := range tasks {
+		payload := task.Payload
+
+		// fall back to input if payload is empty
+		// for backwards compatibility
+		if len(payload) == 0 {
+			payload = task.Input
+		}
+
 		params = append(params, sqlcv1.CreateTasksOLAPParams{
 			TenantID:             task.TenantID,
 			ID:                   task.ID,
@@ -1319,7 +1327,7 @@ func (r *OLAPRepositoryImpl) writeTaskBatch(ctx context.Context, tenantId string
 			DagInsertedAt:        task.DagInsertedAt,
 			ParentTaskExternalID: task.ParentTaskExternalID,
 			WorkflowRunID:        task.WorkflowRunID,
-			Input:                task.Payload,
+			Input:                payload,
 		})
 	}
 

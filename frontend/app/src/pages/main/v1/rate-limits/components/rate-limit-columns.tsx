@@ -1,21 +1,31 @@
 import { ColumnDef } from '@tanstack/react-table';
-import { RateLimit } from '@/lib/api';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { LimitIndicator } from '../../tenant-settings/resource-limits/components/resource-limit-columns';
 import { capitalize } from '@/lib/utils';
 import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
+import { RateLimitWithMetadata } from '../hooks/use-rate-limits';
 
-export type RateLimitRow = RateLimit & {
-  metadata: {
-    id: string;
-  };
+export const RateLimitColumn = {
+  key: 'Key',
+  value: 'Value',
+  limit: 'Limit',
+  lastRefill: 'Last Refill',
+  window: 'Window',
 };
 
-export const columns: ColumnDef<RateLimitRow>[] = [
+export type RateLimitColumnKeys = keyof typeof RateLimitColumn;
+
+export const keyKey: RateLimitColumnKeys = 'key';
+export const valueKey: RateLimitColumnKeys = 'value';
+export const limitKey: RateLimitColumnKeys = 'limit';
+export const lastRefillKey: RateLimitColumnKeys = 'lastRefill';
+export const windowKey: RateLimitColumnKeys = 'window';
+
+export const columns: ColumnDef<RateLimitWithMetadata>[] = [
   {
-    accessorKey: 'RateLimitKey',
+    accessorKey: keyKey,
     header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Key" />
+      <DataTableColumnHeader column={column} title={RateLimitColumn.key} />
     ),
     cell: ({ row }) => (
       <div className="flex flex-row items-center gap-4 pl-4">
@@ -31,27 +41,30 @@ export const columns: ColumnDef<RateLimitRow>[] = [
     enableHiding: true,
   },
   {
-    accessorKey: 'Value',
+    accessorKey: valueKey,
     header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Value" />
+      <DataTableColumnHeader column={column} title={RateLimitColumn.value} />
     ),
     cell: ({ row }) => {
       return <div>{row.original.value}</div>;
     },
   },
   {
-    accessorKey: 'LimitValue',
+    accessorKey: limitKey,
     header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Limit" />
+      <DataTableColumnHeader column={column} title={RateLimitColumn.limit} />
     ),
     cell: ({ row }) => {
       return <div>{row.original.limitValue}</div>;
     },
   },
   {
-    accessorKey: 'LastRefill',
+    accessorKey: lastRefillKey,
     header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Last Refill" />
+      <DataTableColumnHeader
+        column={column}
+        title={RateLimitColumn.lastRefill}
+      />
     ),
     cell: ({ row }) => {
       return (
@@ -62,9 +75,9 @@ export const columns: ColumnDef<RateLimitRow>[] = [
     },
   },
   {
-    accessorKey: 'Window',
+    accessorKey: windowKey,
     header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Rate Limit Window" />
+      <DataTableColumnHeader column={column} title={RateLimitColumn.window} />
     ),
     cell: ({ row }) => {
       return <div>{capitalize(row.original.window)}</div>;

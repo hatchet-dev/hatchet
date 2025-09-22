@@ -64,7 +64,7 @@ interface SidebarProps extends React.HTMLAttributes<HTMLDivElement> {
 function Sidebar({ className, memberships, currTenant }: SidebarProps) {
   const { sidebarOpen, setSidebarOpen } = useSidebar();
 
-  const { data: cloudMeta } = useCloudApiMeta();
+  const { data: cloudMeta, isCloudEnabled } = useCloudApiMeta();
   const featureFlags = useCloudFeatureFlags(currTenant.metadata.id);
 
   const onNavLinkClick = useCallback(() => {
@@ -248,7 +248,7 @@ function Sidebar({ className, memberships, currTenant }: SidebarProps) {
             </div>
           </div>
         </div>
-        {cloudMeta ? (
+        {isCloudEnabled ? (
           <OrganizationSelector memberships={memberships} />
         ) : (
           <TenantSwitcher memberships={memberships} currTenant={currTenant} />

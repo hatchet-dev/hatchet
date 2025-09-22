@@ -50,7 +50,10 @@ function Main() {
     <SidePanelProvider>
       <div className="flex flex-row flex-1 w-full h-full">
         <Sidebar memberships={memberships} />
-        <div className="p-8 flex-grow overflow-y-auto overflow-x-hidden">
+        <div
+          className="p-8 flex-grow overflow-y-auto overflow-x-hidden"
+          style={{ containerType: 'inline-size' }}
+        >
           <Outlet context={childCtx} />
         </div>
         <SidePanel />
@@ -69,7 +72,7 @@ function Sidebar({ className, memberships }: SidebarProps) {
   const { sidebarOpen, setSidebarOpen } = useSidebar();
   const { tenantId } = useCurrentTenantId();
 
-  const { data: cloudMeta } = useCloudApiMeta();
+  const { data: cloudMeta, isCloudEnabled } = useCloudApiMeta();
   const featureFlags = useCloudFeatureFlags(tenantId);
 
   const onNavLinkClick = useCallback(() => {
@@ -267,7 +270,7 @@ function Sidebar({ className, memberships }: SidebarProps) {
             </div>
           </div>
         </div>
-        {cloudMeta ? (
+        {isCloudEnabled ? (
           <OrganizationSelector memberships={memberships} />
         ) : (
           <TenantSwitcher memberships={memberships} />

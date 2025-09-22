@@ -172,7 +172,6 @@ function EmailGroupsList() {
         isLoading={listEmailGroupQuery.isLoading}
         columns={cols}
         data={groups}
-        filters={[]}
         getRowId={(row) => row.metadata.id}
       />
       {showGroupsDialog && (
@@ -299,7 +298,6 @@ function SlackWebhooksList() {
         isLoading={listWebhooksQuery.isLoading}
         columns={cols}
         data={listWebhooksQuery.data?.rows || []}
-        filters={[]}
         getRowId={(row) => row.metadata.id}
       />
       {deleteSlack && (

@@ -1,22 +1,22 @@
 import {
   FilterColumn,
   filterColumns,
+  isDeclarativeKey,
   scopeKey,
   workflowIdKey,
 } from './components/filter-columns';
 import { FilterCreateButton } from './components/filter-create-form';
 import { useState } from 'react';
-import { RowSelectionState, VisibilityState } from '@tanstack/react-table';
+import { VisibilityState } from '@tanstack/react-table';
 import { ToolbarType } from '@/components/v1/molecules/data-table/data-table-toolbar';
-import { Button } from '@/components/v1/ui/button';
-import { ArrowPathIcon } from '@heroicons/react/24/outline';
 import { DataTable } from '@/components/v1/molecules/data-table/data-table';
 import { useFilters } from './hooks/use-filters';
 import { V1Filter } from '@/lib/api';
 import { useSidePanel } from '@/hooks/use-side-panel';
+import { DocsButton } from '@/components/v1/docs/docs-button';
+import { docsPages } from '@/lib/generated/docs';
 
 export default function Filters() {
-  const [rotate, setRotate] = useState(false);
   const sidePanel = useSidePanel();
 
   const {
@@ -28,6 +28,7 @@ export default function Filters() {
     numFilters,
     error,
     isLoading,
+    isRefetching,
     columnFilters,
     setColumnFilters,
     workflowIdToName,
@@ -37,9 +38,9 @@ export default function Filters() {
     key: 'table',
   });
 
-  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
-
-  const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
+  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({
+    [isDeclarativeKey]: false,
+  });
 
   const handleRowClick = (filter: V1Filter) => {
     sidePanel.open({
@@ -59,21 +60,6 @@ export default function Filters() {
       onCreate={mutations.create.perform}
       isCreating={mutations.create.isPending}
     />,
-    <Button
-      key="refresh"
-      className="h-8 px-2 lg:px-3"
-      size="sm"
-      onClick={() => {
-        refetch();
-        setRotate(!rotate);
-      }}
-      variant={'outline'}
-      aria-label="Refresh filters list"
-    >
-      <ArrowPathIcon
-        className={`h-4 w-4 transition-transform ${rotate ? 'rotate-180' : ''}`}
-      />
-    </Button>,
   ];
 
   return (
@@ -87,6 +73,7 @@ export default function Filters() {
           columnId: workflowIdKey,
           title: FilterColumn.workflowId,
           options: workflowNameFilters,
+          type: ToolbarType.Checkbox,
         },
         {
           columnId: scopeKey,
@@ -97,34 +84,34 @@ export default function Filters() {
       showColumnToggle={true}
       columnVisibility={columnVisibility}
       setColumnVisibility={setColumnVisibility}
-      actions={actions}
+      rightActions={actions}
       columnFilters={columnFilters}
       setColumnFilters={setColumnFilters}
       pagination={pagination}
       setPagination={setPagination}
       onSetPageSize={setPageSize}
       pageCount={numFilters}
-      rowSelection={rowSelection}
-      setRowSelection={setRowSelection}
       getRowId={(row) => row.metadata.id}
       emptyState={
-        <div className="flex flex-col items-center justify-center p-8 gap-3 text-gray-400">
-          <p className="text-base font-medium">No filters found</p>
-          <p className="text-sm">
-            Learn more about filters in the{' '}
-            <a
-              href="https://docs.hatchet.run/home/run-on-event#event-filtering"
-              target="_blank"
-              rel="noreferrer"
-              className="underline text-blue-500 hover:text-blue-600 transition-colors"
-            >
-              documentation
-            </a>
-            .
-          </p>
+        <div className="w-full h-full flex flex-col gap-y-4 text-foreground py-8 justify-center items-center">
+          <p className="text-lg font-semibold">No filters found</p>
+          <div className="w-fit">
+            <DocsButton
+              doc={docsPages.home['run-on-event']}
+              scrollTo="event-filtering"
+              size="full"
+              variant="outline"
+              label="Learn about event filters"
+            />
+          </div>
         </div>
       }
       columnKeyToName={FilterColumn}
+      showSelectedRows={false}
+      refetchProps={{
+        isRefetching,
+        onRefetch: refetch,
+      }}
     />
   );
 }

@@ -50,7 +50,6 @@ export default function APITokens() {
           isLoading={listTokensQuery.isLoading}
           columns={cols}
           data={listTokensQuery.data?.rows || []}
-          filters={[]}
           getRowId={(row) => row.metadata.id}
         />
 

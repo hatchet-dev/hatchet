@@ -7,7 +7,7 @@ import { CheckIcon } from '@heroicons/react/24/outline';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { OnboardingStepProps } from '../types';
 import { useQuery } from '@tanstack/react-query';
 import api, { TenantEnvironment } from '@/lib/api';
@@ -65,6 +65,8 @@ export function TenantCreateForm({
       environment: 'development',
     },
   });
+
+  const hasSetInitialDefault = useRef(false);
 
   const getEnvironmentPostfix = (environment: string | undefined): string => {
     switch (environment) {
@@ -137,16 +139,17 @@ export function TenantCreateForm({
 
   // Update form values when parent value changes
   useEffect(() => {
-    const nameValue = value?.name || emptyState;
+    const nameValue = value?.name ?? '';
     const environmentValue = value?.environment || 'development';
 
     setValue('name', nameValue);
     setValue('environment', environmentValue);
 
-    // Also update the parent if we're using the generated name
-    if (!value?.name && emptyState && nameValue) {
+    // Set the generated name only once on initial load when no name is provided
+    if (!hasSetInitialDefault.current && !value?.name && emptyState) {
+      hasSetInitialDefault.current = true;
       onChange({
-        name: nameValue,
+        name: emptyState,
         environment: environmentValue,
       });
     }

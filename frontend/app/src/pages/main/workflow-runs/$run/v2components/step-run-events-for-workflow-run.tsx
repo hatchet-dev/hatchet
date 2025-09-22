@@ -121,8 +121,8 @@ export function StepRunEvents({
       emptyState={<>No events found.</>}
       isLoading={eventsQuery.isLoading}
       columns={cols}
-      filters={[]}
       data={tableData}
+      filters={[]}
     />
   );
 }

@@ -46,7 +46,7 @@ func SeedDatabase(dc *database.Layer) error {
 		userID = sqlchelpers.UUIDToStr(user.ID)
 	}
 
-	_, err := dc.APIRepository.Tenant().GetTenantBySlug(context.Background(), "default")
+	_, err := dc.APIRepository.Tenant().GetTenantBySlug(context.Background(), dc.Seed.DefaultTenantSlug)
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {

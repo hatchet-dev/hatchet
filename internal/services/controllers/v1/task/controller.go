@@ -1156,7 +1156,7 @@ func (tc *TasksControllerImpl) handleProcessTaskTrigger(ctx context.Context, ten
 
 	if err != nil {
 		if err == metered.ErrResourceExhausted {
-			tc.l.Warn().Msg("resource exhausted while triggering workflows from names. Not retrying")
+			tc.l.Warn().Str("tenantId", tenantId).Msg("resource exhausted while triggering workflows from names. Not retrying")
 
 			return nil
 		}

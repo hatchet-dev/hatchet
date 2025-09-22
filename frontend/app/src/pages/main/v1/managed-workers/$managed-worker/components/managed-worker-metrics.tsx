@@ -24,12 +24,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/v1/ui/select';
+import { useRefetchInterval } from '@/contexts/refetch-interval-context';
 
 export function ManagedWorkerMetrics({
   managedWorker,
 }: {
   managedWorker: ManagedWorker;
 }) {
+  const { refetchInterval } = useRefetchInterval();
   const [defaultTimeRange, setDefaultTimeRange] = useAtom(
     lastWorkerMetricsTimeRangeAtom,
   );
@@ -86,9 +88,7 @@ export function ManagedWorkerMetrics({
       queryParams,
     ),
     enabled: !!managedWorker,
-    refetchInterval: () => {
-      return 5000;
-    },
+    refetchInterval,
   });
 
   const getMemoryMetricsQuery = useQuery({
@@ -97,9 +97,7 @@ export function ManagedWorkerMetrics({
       queryParams,
     ),
     enabled: !!managedWorker,
-    refetchInterval: () => {
-      return 5000;
-    },
+    refetchInterval,
   });
 
   const getDiskMetricsQuery = useQuery({
@@ -108,9 +106,7 @@ export function ManagedWorkerMetrics({
       queryParams,
     ),
     enabled: !!managedWorker,
-    refetchInterval: () => {
-      return 5000;
-    },
+    refetchInterval,
   });
 
   if (

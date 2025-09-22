@@ -17,7 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/v1/ui/select';
-import { Filter, PlusIcon } from 'lucide-react';
+import { Filter } from 'lucide-react';
 import { FilterOption } from '@/components/v1/molecules/data-table/data-table-toolbar';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -191,11 +191,7 @@ export function FilterCreateButton({
 
   return (
     <>
-      <Button
-        onClick={() => setIsOpen(true)}
-        className="flex items-center gap-2"
-      >
-        <PlusIcon className="h-4 w-4" />
+      <Button onClick={() => setIsOpen(true)} className="h-8 border px-3">
         Create Filter
       </Button>
       <FilterCreateForm

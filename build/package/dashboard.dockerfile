@@ -11,8 +11,8 @@ FROM node:18-alpine as frontend-build
 WORKDIR /app
 
 COPY ./frontend/app/package.json ./frontend/app/pnpm-lock.yaml ./
-RUN corepack pnpm@9.15.4 --version
-RUN corepack pnpm@9.15.4 install --frozen-lockfile && corepack pnpm@9.15.4 store prune
+RUN corepack pnpm@10.16.1 --version
+RUN corepack pnpm@10.16.1 install --frozen-lockfile && corepack pnpm@10.16.1 store prune
 
 COPY ./frontend/app ./
 

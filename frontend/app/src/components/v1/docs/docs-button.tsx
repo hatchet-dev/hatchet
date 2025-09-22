@@ -12,15 +12,26 @@ type DocsButtonProps = {
   size: 'mini' | 'full';
   variant: ButtonProps['variant'];
   label: string;
+  queryParams?: Record<string, string>;
+  scrollTo?: string;
 };
 
-export const DocsButton = ({ doc, size, variant, label }: DocsButtonProps) => {
+export const DocsButton = ({
+  doc,
+  size,
+  variant,
+  label,
+  queryParams,
+  scrollTo,
+}: DocsButtonProps) => {
   const { open } = useSidePanel();
 
   const handleClick = () => {
     open({
       type: 'docs',
       content: doc,
+      queryParams,
+      scrollTo,
     });
   };
 

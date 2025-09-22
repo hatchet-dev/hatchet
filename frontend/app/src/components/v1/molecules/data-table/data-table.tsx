@@ -29,9 +29,14 @@ import {
 } from '@/components/v1/ui/table';
 
 import { DataTablePagination } from './data-table-pagination';
-import { DataTableToolbar, ToolbarFilters } from './data-table-toolbar';
+import {
+  DataTableToolbar,
+  ShowTableActionsProps,
+  ToolbarFilters,
+} from './data-table-toolbar';
 import { Skeleton } from '@/components/v1/ui/skeleton';
 import { cn } from '@/lib/utils';
+import { ConfirmActionModal } from '@/pages/main/v1/task-runs-v1/actions';
 
 export interface IDGetter<T> {
   metadata: {
@@ -47,8 +52,9 @@ interface DataTableProps<TData extends IDGetter<TData>, TValue> {
   columns: ColumnDef<TData, TValue>[];
   data: TData[];
   error?: Error | null;
-  filters: ToolbarFilters;
-  actions?: JSX.Element[];
+  filters?: ToolbarFilters;
+  leftActions?: JSX.Element[];
+  rightActions?: JSX.Element[];
   sorting?: SortingState;
   setSorting?: OnChangeFn<SortingState>;
   setSearch?: (search: string) => void;
@@ -79,7 +85,13 @@ interface DataTableProps<TData extends IDGetter<TData>, TValue> {
   getSubRows?: (row: TData) => TData[];
   headerClassName?: string;
   hideFlatten?: boolean;
+  onResetFilters?: () => void;
 }
+
+type RefetchProps = {
+  isRefetching: boolean;
+  onRefetch: () => void;
+};
 
 interface ExtraDataTableProps {
   emptyState?: JSX.Element;
@@ -87,20 +99,20 @@ interface ExtraDataTableProps {
     containerStyle?: string;
     component: React.FC<any> | ((data: any) => JSX.Element);
   };
-  onToolbarReset?: () => void;
   columnKeyToName?: Record<string, string>;
+  refetchProps?: RefetchProps;
+  tableActions?: ShowTableActionsProps;
 }
 
 export function DataTable<TData extends IDGetter<TData>, TValue>({
   columns,
   error,
   data,
-  filters,
-  actions = [],
+  filters = [],
+  leftActions = [],
+  rightActions = [],
   sorting,
   setSorting,
-  setSearch,
-  search,
   columnFilters,
   setColumnFilters,
   pagination,
@@ -120,10 +132,12 @@ export function DataTable<TData extends IDGetter<TData>, TValue>({
   manualSorting = true,
   manualFiltering = true,
   getSubRows,
-  onToolbarReset,
   headerClassName,
   hideFlatten,
+  onResetFilters,
   columnKeyToName,
+  refetchProps,
+  tableActions,
 }: DataTableProps<TData, TValue> & ExtraDataTableProps) {
   const [expanded, setExpanded] = React.useState<ExpandedState>({});
 
@@ -274,18 +288,30 @@ export function DataTable<TData extends IDGetter<TData>, TValue>({
 
   return (
     <div className="flex flex-col max-h-full space-y-4">
-      {(setSearch || actions || (filters && filters.length > 0)) && (
+      {tableActions?.selectedActionType && (
+        <ConfirmActionModal
+          actionType={tableActions.selectedActionType}
+          params={tableActions.actionModalParams}
+          table={table}
+          columnKeyToName={columnKeyToName}
+          filters={filters}
+          hideFlatten={hideFlatten}
+          showColumnVisiblity={false}
+        />
+      )}
+      {(leftActions || rightActions || filters.length > 0) && (
         <DataTableToolbar
           table={table}
           filters={filters}
           isLoading={isLoading}
-          actions={actions}
-          search={search}
-          setSearch={setSearch}
+          leftActions={leftActions}
+          rightActions={rightActions}
           showColumnToggle={showColumnToggle}
-          onReset={onToolbarReset}
           hideFlatten={hideFlatten}
           columnKeyToName={columnKeyToName}
+          refetchProps={refetchProps}
+          tableActions={tableActions}
+          onResetFilters={onResetFilters}
         />
       )}
       <div

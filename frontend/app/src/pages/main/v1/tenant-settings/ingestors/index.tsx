@@ -62,7 +62,6 @@ function SNSIntegrationsList() {
         isLoading={listIntegrationsQuery.isLoading}
         columns={cols}
         data={listIntegrationsQuery.data?.rows || []}
-        filters={[]}
         getRowId={(row) => row.metadata.id}
       />
       {showSNSDialog && (
