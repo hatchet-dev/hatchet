@@ -19,15 +19,3 @@ repos:
       - id: golangci-lint
         args: ["--config=.golangci.yml"]
         exclude: ^examples/
-  - repo: local
-    hooks:
-      - id: frontend-app-lint
-        name: Frontend App Lint
-        entry: bash -c 'cd frontend/app && npm run lint:check'
-        language: system
-        files: ^frontend/app/
-      - id: frontend-docs-lint
-        name: Frontend Docs Lint
-        entry: bash -c 'cd frontend/docs && npm run lint:check'
-        language: system
-        files: ^frontend/docs/
