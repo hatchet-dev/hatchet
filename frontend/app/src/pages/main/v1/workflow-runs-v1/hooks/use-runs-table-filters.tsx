@@ -151,6 +151,11 @@ export const useRunsTableFilters = (
     [setColumnFilters, columnFilters, selectedAdditionalMetadata],
   );
 
+  const resetFiltersWithTableState = useCallback(() => {
+    resetFilters();
+    setTimeWindow('1d');
+  }, [resetFilters, updateFilters]);
+
   return {
     columnFilters,
     apiFilters: {
@@ -166,6 +171,6 @@ export const useRunsTableFilters = (
     setStatuses,
     setAdditionalMetadata,
     setColumnFilters,
-    resetFilters,
+    resetFilters: resetFiltersWithTableState,
   };
 };
