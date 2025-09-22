@@ -4,7 +4,7 @@ import { useRunsContext } from '../hooks/runs-provider';
 import { CheckCircleIcon, ClockIcon } from '@heroicons/react/24/outline';
 import { PlayIcon, X, Ban, ChartColumn } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 
 function statusToFriendlyName(status: V1TaskStatus) {
   switch (status) {
@@ -50,7 +50,10 @@ function MetricBadge({
   className?: string;
 }) {
   const { filters, metrics } = useRunsContext();
-  const currentStatuses = filters.apiFilters.statuses || [];
+  const currentStatuses = useMemo(
+    () => filters.apiFilters.statuses || [],
+    [filters.apiFilters.statuses],
+  );
   const isSelected = currentStatuses.includes(status);
   const { setStatuses } = filters;
 
