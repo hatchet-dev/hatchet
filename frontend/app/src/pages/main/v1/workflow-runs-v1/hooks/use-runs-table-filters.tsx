@@ -5,7 +5,6 @@ import {
   RunsTableState,
   TimeWindow,
   getCreatedAfterFromTimeRange,
-  getAdditionalMetadataFromFilters,
 } from './use-runs-table-state';
 import {
   statusKey,
@@ -139,7 +138,7 @@ export const useRunsTableFilters = (
 
   const setAdditionalMetadata = useCallback(
     ({ key, value }: { key: string; value: string }) => {
-      const existing = getAdditionalMetadataFromFilters(columnFilters) || [];
+      const existing = selectedAdditionalMetadata || [];
       const filtered = existing.filter((m: string) => m.split(':')[0] !== key);
       const newMetadata = [...filtered, `${key}:${value}`];
 
@@ -149,7 +148,7 @@ export const useRunsTableFilters = (
 
       setColumnFilters(newColumnFilters);
     },
-    [setColumnFilters, columnFilters],
+    [setColumnFilters, columnFilters, selectedAdditionalMetadata],
   );
 
   return {

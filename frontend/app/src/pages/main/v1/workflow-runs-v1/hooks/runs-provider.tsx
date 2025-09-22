@@ -1,10 +1,5 @@
 import { createContext, useContext, useMemo, useState } from 'react';
-import {
-  getFlattenDAGsFromFilters,
-  getWorkflowIdsFromFilters,
-  RunsTableState,
-  useRunsTableState,
-} from './use-runs-table-state';
+import { RunsTableState, useRunsTableState } from './use-runs-table-state';
 import { useRunsTableFilters } from './use-runs-table-filters';
 import { useToolbarFilters } from './use-toolbar-filters';
 import { useRuns } from './use-runs';
@@ -156,9 +151,8 @@ export const RunsProvider = ({
     filterActions: filters,
   });
 
-  const workflow =
-    workflowId || getWorkflowIdsFromFilters(filters.columnFilters)[0];
-  const flattenDAGs = getFlattenDAGsFromFilters(filters.columnFilters);
+  const workflow = workflowId || (filters.apiFilters.workflowIds ?? [])[0];
+  const flattenDAGs = filters.apiFilters.flattenDAGs;
 
   const derivedParentTaskExternalId =
     parentTaskExternalId || state.parentTaskExternalId;

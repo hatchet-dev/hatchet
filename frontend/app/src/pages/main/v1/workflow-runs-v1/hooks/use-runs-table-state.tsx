@@ -1,18 +1,11 @@
 import { useCallback, useMemo, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { V1TaskStatus } from '@/lib/api';
 import {
   ColumnFiltersState,
   PaginationState,
   RowSelectionState,
   VisibilityState,
 } from '@tanstack/react-table';
-import {
-  workflowKey,
-  statusKey,
-  additionalMetadataKey,
-  flattenDAGsKey,
-} from '../components/v1/task-runs-columns';
 
 export type TimeWindow = '1h' | '6h' | '1d' | '7d';
 
@@ -239,51 +232,6 @@ export const getCreatedAfterFromTimeRange = (
       throw new Error(`Unhandled time range: ${exhaustiveCheck}`);
     }
   }
-};
-
-export const getWorkflowIdsFromFilters = (
-  columnFilters: ColumnFiltersState,
-): string[] => {
-  const filter = columnFilters.find((f) => f.id === workflowKey);
-  if (!filter) {
-    return [];
-  }
-  const value = filter.value;
-  return Array.isArray(value) ? (value as string[]) : [value as string];
-};
-
-export const getStatusesFromFilters = (
-  columnFilters: ColumnFiltersState,
-): V1TaskStatus[] => {
-  const filter = columnFilters.find((f) => f.id === statusKey);
-  if (!filter) {
-    return [];
-  }
-  const value = filter.value;
-  return Array.isArray(value)
-    ? (value as V1TaskStatus[])
-    : [value as V1TaskStatus];
-};
-
-export const getAdditionalMetadataFromFilters = (
-  columnFilters: ColumnFiltersState,
-): string[] | undefined => {
-  const filter = columnFilters.find((f) => f.id === additionalMetadataKey);
-  if (!filter) {
-    return undefined;
-  }
-  const value = filter.value;
-  return Array.isArray(value) ? (value as string[]) : [value as string];
-};
-
-export const getFlattenDAGsFromFilters = (
-  columnFilters: ColumnFiltersState,
-): boolean => {
-  const filter = columnFilters.find((f) => f.id === flattenDAGsKey);
-  if (!filter || filter.value === undefined) {
-    return false;
-  }
-  return filter.value as boolean;
 };
 
 export const useRunsTableState = (
