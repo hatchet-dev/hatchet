@@ -99,7 +99,10 @@ function MetricBadge({
     <Badge
       data-is-selected={isSelected}
       variant={isSelected ? 'default' : 'outline'}
-      className={cn('cursor-pointer text-sm px-3 py-1 w-fit h-8', className)}
+      className={cn(
+        'cursor-pointer text-sm px-3 py-1 w-fit h-8 data-[is-selected=false]:font-light',
+        className,
+      )}
       onClick={() => handleStatusClick(status)}
     >
       <span className="flex items-center gap-1">
@@ -188,15 +191,15 @@ export const V1WorkflowRunsMetricsView = () => {
       <MetricBadge
         status={V1TaskStatus.QUEUED}
         className={`
-          text-blue-800 dark:text-blue-300
+          text-fuchsia-800 dark:text-fuchsia-300
 
-          data-[is-selected=false]:border data-[is-selected=false]:border-blue-500/20
+          data-[is-selected=false]:border data-[is-selected=false]:border-fuchsia-500/20
 
-          data-[is-selected=true]:bg-blue-500/20
+          data-[is-selected=true]:bg-fuchsia-500/20
 
-          hover:data-[is-selected=true]:bg-blue-500/20
+          hover:data-[is-selected=true]:bg-fuchsia-500/20
 
-          hover:data-[is-selected=false]:bg-blue-500/20 hover:data-[is-selected=false]:border-transparent
+          hover:data-[is-selected=false]:bg-fuchsia-500/20 hover:data-[is-selected=false]:border-transparent
           `}
       />
 
