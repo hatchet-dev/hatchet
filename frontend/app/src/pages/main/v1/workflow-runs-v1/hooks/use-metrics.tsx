@@ -1,25 +1,21 @@
 import { queries } from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
+import { useRefetchInterval } from '@/contexts/refetch-interval-context';
 
 export const useMetrics = ({
   workflow,
   parentTaskExternalId,
   additionalMetadata,
   createdAfter,
-  refetchInterval,
-  pauseRefetch = false,
 }: {
   workflow: string | undefined;
   parentTaskExternalId: string | undefined;
   additionalMetadata?: string[] | undefined;
   createdAfter?: string;
-  refetchInterval: number;
-  pauseRefetch?: boolean;
 }) => {
   const { tenantId } = useCurrentTenantId();
-
-  const effectiveRefetchInterval = pauseRefetch ? false : refetchInterval;
+  const { refetchInterval } = useRefetchInterval();
 
   const metricsQuery = useQuery({
     ...queries.v1TaskRuns.metrics(tenantId, {
@@ -31,14 +27,14 @@ export const useMetrics = ({
       additional_metadata: additionalMetadata,
     }),
     placeholderData: (prev) => prev,
-    refetchInterval: effectiveRefetchInterval,
+    refetchInterval,
   });
 
   const metrics = metricsQuery.data || [];
 
   const tenantMetricsQuery = useQuery({
     ...queries.metrics.getStepRunQueueMetrics(tenantId),
-    refetchInterval: effectiveRefetchInterval,
+    refetchInterval,
   });
 
   const tenantMetrics = tenantMetricsQuery.data?.queues || {};
@@ -46,6 +42,7 @@ export const useMetrics = ({
   return {
     isLoading: metricsQuery.isLoading || tenantMetricsQuery.isLoading,
     isFetching: metricsQuery.isFetching || tenantMetricsQuery.isFetching,
+    isRefetching: metricsQuery.isRefetching || tenantMetricsQuery.isRefetching,
     tenantMetrics,
     metrics,
     refetch: () => {

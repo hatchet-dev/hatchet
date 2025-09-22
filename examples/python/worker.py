@@ -1,4 +1,7 @@
 from examples.affinity_workers.worker import affinity_worker_workflow
+from examples.bug_tests.payload_bug_on_replay.worker import (
+    payload_initial_cancel_bug_workflow,
+)
 from examples.bulk_fanout.worker import bulk_child_wf, bulk_parent_wf
 from examples.bulk_operations.worker import (
     bulk_replay_test_1,
@@ -75,6 +78,7 @@ def main() -> None:
             concurrency_cancel_newest_workflow,
             concurrency_cancel_in_progress_workflow,
             di_workflow,
+            payload_initial_cancel_bug_workflow,
             lifespan_task,
             simple,
             simple_durable,

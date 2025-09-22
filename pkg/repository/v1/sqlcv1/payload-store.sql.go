@@ -238,6 +238,8 @@ SELECT
     i.operation
 FROM
     inputs i
+ON CONFLICT (offload_at, tenant_id, payload_id, payload_inserted_at, payload_type) DO UPDATE
+SET operation = EXCLUDED.operation
 `
 
 type WritePayloadWALParams struct {
@@ -263,7 +265,7 @@ func (q *Queries) WritePayloadWAL(ctx context.Context, db DBTX, arg WritePayload
 
 const writePayloads = `-- name: WritePayloads :exec
 WITH inputs AS (
-    SELECT
+    SELECT DISTINCT
         UNNEST($1::BIGINT[]) AS id,
         UNNEST($2::TIMESTAMPTZ[]) AS inserted_at,
         UNNEST(CAST($3::TEXT[] AS v1_payload_type[])) AS type,
@@ -272,6 +274,7 @@ WITH inputs AS (
         UNNEST($6::JSONB[]) AS inline_content,
         UNNEST($7::UUID[]) AS tenant_id
 )
+
 INSERT INTO v1_payload (
     tenant_id,
     id,
@@ -281,17 +284,22 @@ INSERT INTO v1_payload (
     external_location_key,
     inline_content
 )
-
 SELECT
     i.tenant_id,
     i.id,
     i.inserted_at,
     i.type,
     i.location,
-    CASE WHEN i.external_location_key = '' OR i.location = 'EXTERNAL' THEN NULL ELSE i.external_location_key END,
+    CASE WHEN i.external_location_key = '' OR i.location != 'EXTERNAL' THEN NULL ELSE i.external_location_key END,
     i.inline_content
 FROM
     inputs i
+ON CONFLICT (tenant_id, id, inserted_at, type)
+DO UPDATE SET
+    location = EXCLUDED.location,
+    external_location_key = CASE WHEN EXCLUDED.external_location_key = '' OR EXCLUDED.location != 'EXTERNAL' THEN NULL ELSE EXCLUDED.external_location_key END,
+    inline_content = EXCLUDED.inline_content,
+    updated_at = NOW()
 `
 
 type WritePayloadsParams struct {

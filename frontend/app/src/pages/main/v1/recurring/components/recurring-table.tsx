@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   ColumnFiltersState,
   PaginationState,
-  RowSelectionState,
   SortingState,
   VisibilityState,
 } from '@tanstack/react-table';
@@ -17,7 +16,6 @@ import { useSearchParams } from 'react-router-dom';
 import { DataTable } from '@/components/v1/molecules/data-table/data-table';
 import { columns } from './recurring-columns';
 import { Button } from '@/components/v1/ui/button';
-import { ArrowPathIcon } from '@heroicons/react/24/outline';
 import { DeleteCron } from './delete-cron';
 import {
   FilterOption,
@@ -26,12 +24,16 @@ import {
 } from '@/components/v1/molecules/data-table/data-table-toolbar';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { TriggerWorkflowForm } from '../../workflows/$workflow/components/trigger-workflow-form';
+import { useRefetchInterval } from '@/contexts/refetch-interval-context';
+import { DocsButton } from '@/components/v1/docs/docs-button';
+import { docsPages } from '@/lib/generated/docs';
 
 export function CronsTable() {
   const { tenantId } = useCurrentTenantId();
   const [searchParams, setSearchParams] = useSearchParams();
   const [triggerWorkflow, setTriggerWorkflow] = useState(false);
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
+  const { refetchInterval } = useRefetchInterval();
 
   const [sorting, setSorting] = useState<SortingState>(() => {
     const sortParam = searchParams.get('sort');
@@ -61,7 +63,6 @@ export function CronsTable() {
   const [pageSize, setPageSize] = useState<number>(
     Number(searchParams.get('pageSize')) || 50,
   );
-  const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 
   useEffect(() => {
     const newSearchParams = new URLSearchParams(searchParams);
@@ -127,6 +128,7 @@ export function CronsTable() {
     isLoading: queryIsLoading,
     error: queryError,
     refetch,
+    isRefetching,
   } = useQuery({
     ...queries.cronJobs.list(tenantId, {
       orderByField,
@@ -138,7 +140,7 @@ export function CronsTable() {
         (filter) => filter.id === 'Metadata',
       )?.value as string[] | undefined,
     }),
-    refetchInterval: selectedJobId ? false : 2000,
+    refetchInterval,
   });
 
   const [showDeleteCron, setShowDeleteCron] = useState<
@@ -158,7 +160,7 @@ export function CronsTable() {
 
   const { data: workflowKeys } = useQuery({
     ...queries.workflows.list(tenantId, { limit: 200 }),
-    refetchInterval: selectedJobId ? false : 2000,
+    refetchInterval,
   });
 
   const workflowKeyFilters = useMemo((): FilterOption[] => {
@@ -188,21 +190,9 @@ export function CronsTable() {
     <Button
       key="create-cron"
       onClick={() => setTriggerWorkflow(true)}
-      className="h-8 border"
+      className="h-8 border px-3"
     >
       Create Cron Job
-    </Button>,
-    <Button
-      key="refresh"
-      className="h-8 px-2 lg:px-3"
-      size="sm"
-      onClick={() => {
-        refetch();
-      }}
-      variant={'outline'}
-      aria-label="Refresh crons list"
-    >
-      <ArrowPathIcon className={`h-4 w-4`} />
     </Button>,
   ];
 
@@ -244,10 +234,26 @@ export function CronsTable() {
         setPagination={setPagination}
         onSetPageSize={setPageSize}
         pageCount={data?.pagination?.num_pages || 0}
-        rowSelection={rowSelection}
-        setRowSelection={setRowSelection}
-        actions={actions}
+        rightActions={actions}
         getRowId={(row) => row.metadata.id}
+        refetchProps={{
+          isRefetching,
+          onRefetch: refetch,
+        }}
+        showSelectedRows={false}
+        emptyState={
+          <div className="w-full h-full flex flex-col gap-y-4 text-foreground py-8 justify-center items-center">
+            <p className="text-lg font-semibold">No crons found</p>
+            <div className="w-fit">
+              <DocsButton
+                doc={docsPages.home['cron-runs']}
+                size="full"
+                variant="outline"
+                label="Learn about cron jobs in Hatchet"
+              />
+            </div>
+          </div>
+        }
       />
     </>
   );

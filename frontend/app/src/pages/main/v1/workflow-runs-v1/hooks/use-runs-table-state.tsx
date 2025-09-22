@@ -501,37 +501,13 @@ export const useRunsTableState = (
     [updateState],
   );
 
-  const resetState = useCallback(() => {
-    setSearchParams(
-      (prev) => {
-        const newParams = new URLSearchParams(prev);
-        newParams.delete(paramKey);
-        return newParams;
-      },
-      { replace: true },
-    );
-  }, [paramKey, setSearchParams]);
-
   const derivedState = useMemo(() => {
-    const statuses = getStatusesFromFilters(currentState.columnFilters);
-    const additionalMetadata = getAdditionalMetadataFromFilters(
-      currentState.columnFilters,
-    );
-    const workflowIds = getWorkflowIdsFromFilters(currentState.columnFilters);
-    const flattenDAGs = getFlattenDAGsFromFilters(currentState.columnFilters);
-
     return {
       ...currentState,
       hasRowsSelected: Object.values(currentState.rowSelection).some(
         (selected) => !!selected,
       ),
-      hasFiltersApplied: !!(
-        statuses.length ||
-        additionalMetadata?.length ||
-        workflowIds.length ||
-        currentState.parentTaskExternalId ||
-        flattenDAGs
-      ),
+      hasFiltersApplied: !!currentState.parentTaskExternalId,
       hasOpenUI: !!(
         currentState.taskRunDetailSheet.isOpen ||
         currentState.viewQueueMetrics ||
@@ -548,6 +524,5 @@ export const useRunsTableState = (
     updateFilters,
     updateUIState,
     updateTableState,
-    resetState,
   };
 };

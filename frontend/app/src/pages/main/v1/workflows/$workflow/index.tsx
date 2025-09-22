@@ -28,6 +28,7 @@ import {
 import { RunsTable } from '../../workflow-runs-v1/components/runs-table';
 import { RunsProvider } from '../../workflow-runs-v1/hooks/runs-provider';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
+import { useRefetchInterval } from '@/contexts/refetch-interval-context';
 
 export default function ExpandedWorkflow() {
   // TODO list previous versions and make selectable
@@ -37,18 +38,19 @@ export default function ExpandedWorkflow() {
 
   const [triggerWorkflow, setTriggerWorkflow] = useState(false);
   const [deleteWorkflow, setDeleteWorkflow] = useState(false);
+  const { refetchInterval } = useRefetchInterval();
 
   const params = useParams();
   invariant(params.workflow);
 
   const workflowQuery = useQuery({
     ...queries.workflows.get(params.workflow),
-    refetchInterval: 1000,
+    refetchInterval,
   });
 
   const workflowVersionQuery = useQuery({
     ...queries.workflows.getVersion(params.workflow, selectedVersion),
-    refetchInterval: 1000,
+    refetchInterval,
   });
 
   const navigate = useNavigate();

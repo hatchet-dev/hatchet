@@ -39,15 +39,8 @@ import { SourceName } from './components/source-name';
 import { AuthMethod } from './components/auth-method';
 import { AuthSetup } from './components/auth-setup';
 import { Link } from 'react-router-dom';
-
-const WebhookEmptyState = () => {
-  return (
-    <div className="size-full flex flex-col items-center justify-center gap-y-4 p-6">
-      <span>No webhooks found. Create a webhook to get started.</span>
-      <CreateWebhookModal />
-    </div>
-  );
-};
+import { DocsButton } from '@/components/v1/docs/docs-button';
+import { docsPages } from '@/lib/generated/docs';
 
 export default function Webhooks() {
   const { data, isLoading, error } = useWebhooks();
@@ -62,8 +55,19 @@ export default function Webhooks() {
         isLoading={isLoading}
         columns={columns()}
         data={data}
-        filters={[]}
-        emptyState={<WebhookEmptyState />}
+        emptyState={
+          <div className="w-full h-full flex flex-col gap-y-4 text-foreground py-8 justify-center items-center">
+            <p className="text-lg font-semibold">No webhooks found</p>
+            <div className="w-fit">
+              <DocsButton
+                doc={docsPages.home.webhooks}
+                size="full"
+                variant="outline"
+                label="Learn about triggering runs from webhooks"
+              />
+            </div>
+          </div>
+        }
       />
     </div>
   );
@@ -132,7 +136,6 @@ const buildWebhookPayload = (data: WebhookFormData): V1CreateWebhookRequest => {
             },
           };
         default:
-          // eslint-disable-next-line no-case-declarations
           const exhaustiveCheck: never = data.authType;
           throw new Error(`Unhandled auth type: ${exhaustiveCheck}`);
       }
@@ -219,7 +222,6 @@ const buildWebhookPayload = (data: WebhookFormData): V1CreateWebhookRequest => {
         },
       };
     default:
-      // eslint-disable-next-line no-case-declarations
       const exhaustiveCheck: never = data.sourceName;
       throw new Error(`Unhandled source name: ${exhaustiveCheck}`);
   }
@@ -235,7 +237,6 @@ const createSourceInlineDescription = (sourceName: V1WebhookSourceName) => {
     case V1WebhookSourceName.SLACK:
       return '';
     default:
-      // eslint-disable-next-line no-case-declarations
       const exhaustiveCheck: never = sourceName;
       throw new Error(`Unhandled source name: ${exhaustiveCheck}`);
   }
@@ -259,7 +260,6 @@ const SourceCaption = ({ sourceName }: { sourceName: V1WebhookSourceName }) => {
     case V1WebhookSourceName.SLACK:
       return '';
     default:
-      // eslint-disable-next-line no-case-declarations
       const exhaustiveCheck: never = sourceName;
       throw new Error(`Unhandled source name: ${exhaustiveCheck}`);
   }
@@ -333,7 +333,7 @@ const CreateWebhookModal = () => {
       }}
     >
       <DialogTrigger asChild>
-        <Button variant="default">Create Webhook</Button>
+        <Button className="h-8 border px-3">Create Webhook</Button>
       </DialogTrigger>
       <DialogContent className="max-w-[90%] md:max-w-[80%] lg:max-w-[60%] xl:max-w-[50%] max-h-[90dvh] overflow-y-auto">
         <DialogHeader>
