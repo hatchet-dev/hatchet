@@ -87,7 +87,7 @@ Instead of maintaining separate documentation examples, our examples live direct
 sdks/
 ├── python/examples/            # Python examples
 ├── typescript/src/v1/examples/ # TypeScript examples
-└── go/examples/            # Go examples
+└── go/examples/                # Go examples
 ```
 
 These are fully functional code examples that get linted, type-checked, and tested as part of our CI pipeline.
@@ -145,31 +145,36 @@ export const simple = hatchet.task({
   <Tabs.Tab title="Go">
 
 ```go
-package v1_workflows
+package main
 
 import (
-	"context"
-	"fmt"
-	"strings"
+  "log"
 
-	"github.com/hatchet-dev/hatchet/pkg/client/create"
-	"github.com/hatchet-dev/hatchet/pkg/v1/factory"
-	"github.com/hatchet-dev/hatchet/pkg/worker"
+  "github.com/hatchet-dev/hatchet/pkg/cmdutils"
+  hatchet "github.com/hatchet-dev/hatchet/sdks/go"
 )
 
-// > Simple Task Definition
-simple := factory.NewTask(
-	create.StandaloneTask{
-		Name: "simple-task",
-	}, func(ctx worker.HatchetContext, input SimpleInput) (*SimpleResult, error) {
-		// Transform the input message to lowercase
-		return &SimpleResult{
-			TransformedMessage: strings.ToLower(input.Message),
-		}, nil
-	},
-	hatchet,
-)
-// !!
+func main() {
+  client, err := hatchet.NewClient()
+  if err != nil {
+    log.Fatalf("failed to create hatchet client: %v", err)
+  }
+
+  // > Starting a worker
+  worker, err := client.NewWorker("simple-worker")
+  if err != nil {
+    log.Fatalf("failed to create worker: %v", err)
+  }
+
+  interruptCtx, cancel := cmdutils.NewInterruptContext()
+  defer cancel()
+
+  err = worker.StartBlocking(interruptCtx)
+  if err != nil {
+    log.Fatalf("failed to start worker: %v", err)
+  }
+  // !!
+}
 ```
 
   </Tabs.Tab>
@@ -216,7 +221,7 @@ class SDKParsingContext(Enum):
         comment_prefix="//",
     )
     GO = ParsingContext(
-        example_path="pkg/examples",
+        example_path="sdks/go/examples",
         extension=".go",
         comment_prefix="//"
     )
