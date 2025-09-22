@@ -118,19 +118,71 @@ export const V1WorkflowRunsMetricsView = () => {
 
           data-[is-selected=true]:bg-green-500/20
 
-          hover:data-[is-selected=true]:border hover:data-[is-selected=true]:border-green-500/20 hover:data-[is-selected=true]:bg-inherit
+          hover:data-[is-selected=true]:bg-green-500/20
 
           hover:data-[is-selected=false]:bg-green-500/20 hover:data-[is-selected=false]:border-transparent
           `}
       />
 
-      <MetricBadge status={V1TaskStatus.RUNNING} />
+      <MetricBadge
+        status={V1TaskStatus.RUNNING}
+        className={`
+          text-yellow-800 dark:text-yellow-300
 
-      <MetricBadge status={V1TaskStatus.FAILED} />
+          data-[is-selected=false]:border data-[is-selected=false]:border-yellow-500/20
 
-      <MetricBadge status={V1TaskStatus.CANCELLED} />
+          data-[is-selected=true]:bg-yellow-500/20
 
-      <MetricBadge status={V1TaskStatus.QUEUED} />
+          hover:data-[is-selected=true]:bg-yellow-500/20
+
+          hover:data-[is-selected=false]:bg-yellow-500/20 hover:data-[is-selected=false]:border-transparent
+          `}
+      />
+
+      <MetricBadge
+        status={V1TaskStatus.FAILED}
+        className={`
+          text-red-800 dark:text-red-300
+
+          data-[is-selected=false]:border data-[is-selected=false]:border-red-500/20
+
+          data-[is-selected=true]:bg-red-500/20
+
+          hover:data-[is-selected=true]:bg-red-500/20
+
+          hover:data-[is-selected=false]:bg-red-500/20 hover:data-[is-selected=false]:border-transparent
+          `}
+      />
+
+      <MetricBadge
+        status={V1TaskStatus.CANCELLED}
+        className={`
+          text-orange-800 dark:text-orange-300
+
+          data-[is-selected=false]:border data-[is-selected=false]:border-orange-500/20
+
+          data-[is-selected=true]:bg-orange-500/20
+
+          hover:data-[is-selected=true]:bg-orange-500/20
+
+          hover:data-[is-selected=false]:bg-orange-500/20 hover:data-[is-selected=false]:border-transparent
+          `}
+      />
+
+      <MetricBadge
+        status={V1TaskStatus.QUEUED}
+        className={`
+          text-blue-800 dark:text-blue-300
+
+          data-[is-selected=false]:border data-[is-selected=false]:border-blue-500/20
+
+          data-[is-selected=true]:bg-blue-500/20
+
+          hover:data-[is-selected=true]:bg-blue-500/20
+
+          hover:data-[is-selected=false]:bg-blue-500/20 hover:data-[is-selected=false]:border-transparent
+          `}
+      />
 
       {!hideMetrics && (
         <Badge
