@@ -84,7 +84,7 @@ interface DataTableProps<TData extends IDGetter<TData>, TValue> {
   manualFiltering?: boolean;
   getSubRows?: (row: TData) => TData[];
   headerClassName?: string;
-  hideFlatten?: boolean;
+  hiddenFilters?: string[];
   onResetFilters?: () => void;
 }
 
@@ -133,7 +133,7 @@ export function DataTable<TData extends IDGetter<TData>, TValue>({
   manualFiltering = true,
   getSubRows,
   headerClassName,
-  hideFlatten,
+  hiddenFilters = [],
   onResetFilters,
   columnKeyToName,
   refetchProps,
@@ -295,7 +295,7 @@ export function DataTable<TData extends IDGetter<TData>, TValue>({
           table={table}
           columnKeyToName={columnKeyToName}
           filters={filters}
-          hideFlatten={hideFlatten}
+          hiddenFilters={hiddenFilters}
           showColumnVisiblity={false}
         />
       )}
@@ -307,7 +307,7 @@ export function DataTable<TData extends IDGetter<TData>, TValue>({
           leftActions={leftActions}
           rightActions={rightActions}
           showColumnToggle={showColumnToggle}
-          hideFlatten={hideFlatten}
+          hiddenFilters={hiddenFilters}
           columnKeyToName={columnKeyToName}
           refetchProps={refetchProps}
           tableActions={tableActions}

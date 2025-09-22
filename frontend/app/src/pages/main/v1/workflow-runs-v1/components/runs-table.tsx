@@ -114,7 +114,7 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
       hideCounts,
       hideColumnToggle,
       hidePagination,
-      hideFlatten,
+      hiddenFilters,
     },
     actions: {
       updatePagination,
@@ -325,7 +325,7 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
           getSubRows={(row) => row.children || []}
           getRowId={getRowId}
           headerClassName={headerClassName}
-          hideFlatten={hideFlatten}
+          hiddenFilters={hiddenFilters}
           columnKeyToName={TaskRunColumn}
           refetchProps={{
             isRefetching,

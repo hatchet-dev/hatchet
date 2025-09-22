@@ -430,7 +430,7 @@ function FilterControl<TData>({ column, filter }: FilterControlProps<TData>) {
 interface DataTableOptionsProps<TData> {
   table: Table<TData>;
   filters: ToolbarFilters;
-  hideFlatten?: boolean;
+  hiddenFilters: string[];
   columnKeyToName?: Record<string, string>;
   onResetFilters?: () => void;
 }
@@ -447,7 +447,7 @@ function arraysEqual<T>(a: T[], b: T[]) {
 export function DataTableOptions<TData>({
   table,
   filters,
-  hideFlatten,
+  hiddenFilters,
   columnKeyToName,
   onResetFilters,
 }: DataTableOptionsProps<TData>) {
@@ -470,7 +470,7 @@ export function DataTableOptions<TData>({
           return false;
         }
 
-        if (hideFlatten && f.id === flattenDAGsKey) {
+        if (hiddenFilters.includes(f.id)) {
           return false;
         }
 
@@ -484,11 +484,11 @@ export function DataTableOptions<TData>({
 
         return true;
       })?.length || 0,
-    [hideFlatten, cf],
+    [hiddenFilters, cf],
   );
 
   const visibleFilters = filters.filter((filter) => {
-    if (hideFlatten && filter.columnId === flattenDAGsKey) {
+    if (hiddenFilters.includes(filter.columnId)) {
       return false;
     }
     return true;
@@ -528,7 +528,7 @@ export function DataTableOptions<TData>({
         <DataTableOptionsContent
           table={table}
           filters={filters}
-          hideFlatten={hideFlatten}
+          hiddenFilters={hiddenFilters}
           columnKeyToName={columnKeyToName}
           showColumnVisiblity
           onResetFilters={onResetFilters}
@@ -542,7 +542,7 @@ export interface DataTableOptionsContentProps<TData> {
   table: Table<TData>;
   filters: ToolbarFilters;
   columnKeyToName?: Record<string, string>;
-  hideFlatten: boolean | undefined;
+  hiddenFilters: string[];
   showColumnVisiblity: boolean;
   onResetFilters?: () => void;
 }
@@ -551,12 +551,12 @@ export function DataTableOptionsContent<TData>({
   table,
   filters,
   columnKeyToName,
-  hideFlatten,
+  hiddenFilters,
   showColumnVisiblity,
   onResetFilters,
 }: DataTableOptionsContentProps<TData>) {
   const visibleFilters = filters.filter((filter) => {
-    if (hideFlatten && filter.columnId === flattenDAGsKey) {
+    if (hiddenFilters.includes(filter.columnId)) {
       return false;
     }
     return true;

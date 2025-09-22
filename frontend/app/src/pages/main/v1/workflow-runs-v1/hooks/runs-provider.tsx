@@ -15,6 +15,7 @@ import {
   ActionType,
   BaseTaskRunActionParams,
 } from '../../task-runs-v1/actions';
+import { TaskRunColumnKeys } from '../components/v1/task-runs-columns';
 
 type DisplayProps = {
   hideMetrics?: boolean;
@@ -23,7 +24,7 @@ type DisplayProps = {
   hideTriggerRunButton?: boolean;
   hideCancelAndReplayButtons?: boolean;
   hideColumnToggle?: boolean;
-  hideFlatten?: boolean;
+  hiddenFilters?: TaskRunColumnKeys[];
   hidePagination?: boolean;
 };
 
@@ -118,7 +119,7 @@ export const RunsProvider = ({
     hideTriggerRunButton = false,
     hideCancelAndReplayButtons = false,
     hideColumnToggle = false,
-    hideFlatten = false,
+    hiddenFilters = [],
   } = display ?? {};
 
   const initialState = useMemo(() => {
@@ -260,7 +261,7 @@ export const RunsProvider = ({
         hideCancelAndReplayButtons,
         hideColumnToggle,
         hidePagination: disableTaskRunPagination,
-        hideFlatten,
+        hiddenFilters,
       },
       actions: {
         updatePagination,
@@ -294,7 +295,7 @@ export const RunsProvider = ({
       hideCounts,
       hideDateFilter,
       hideTriggerRunButton,
-      hideFlatten,
+      hiddenFilters,
       actionModalParams,
       selectedActionType,
       updatePagination,

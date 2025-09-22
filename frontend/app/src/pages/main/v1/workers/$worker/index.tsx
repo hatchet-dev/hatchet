@@ -29,6 +29,7 @@ import { RunsProvider } from '../../workflow-runs-v1/hooks/runs-provider';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { capitalize } from '@/lib/utils';
 import { useRefetchInterval } from '@/contexts/refetch-interval-context';
+import { flattenDAGsKey } from '../../workflow-runs-v1/components/v1/task-runs-columns';
 export const isHealthy = (worker?: Worker) => {
   const reasons = [];
 
@@ -198,8 +199,6 @@ export default function ExpandedWorkflowRun() {
           </a>
         </div>
 
-        {/* <WorkerSlotGrid slots={worker.slots} /> */}
-
         <Separator className="my-4" />
         <div className="flex flex-row justify-between items-center mb-4">
           <h3 className="text-xl font-bold leading-tight text-foreground">
@@ -212,7 +211,7 @@ export default function ExpandedWorkflowRun() {
             hideMetrics: true,
             hideCounts: true,
             hideTriggerRunButton: true,
-            hideFlatten: true,
+            hiddenFilters: [flattenDAGsKey],
             hideCancelAndReplayButtons: true,
           }}
           runFilters={{
