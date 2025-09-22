@@ -103,41 +103,38 @@ export function SidePanel() {
               isResizing && 'pointer-events-none',
             )}
           >
-            <div className="flex flex-row w-full justify-between items-center bg-background h-4 pt-2 pb-4">
-              <div
-                data-is-docs={maybeContent.isDocs}
-                className="flex flex-row gap-x-2 w-full justify-between items-center data-[is-docs=true]:justify-end"
-              >
-                <div className="flex flex-row gap-x-2 items-center">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={goBack}
-                    disabled={!canGoBack}
-                    className="rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 flex-shrink-0 border"
-                  >
-                    <ChevronLeftIcon className="h-4 w-4" />
-                    <span className="sr-only">Go Back</span>
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={goForward}
-                    disabled={!canGoForward}
-                    className="rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 flex-shrink-0 border"
-                  >
-                    <ChevronRightIcon className="h-4 w-4" />
-                    <span className="sr-only">Go Forward</span>
-                  </Button>{' '}
-                  <Button
-                    variant="ghost"
-                    onClick={close}
-                    className="rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 flex-shrink-0"
-                  >
-                    <Cross2Icon className="h-4 w-4" />
-                    <span className="sr-only">Close</span>
-                  </Button>
-                </div>
+            <div className="flex flex-row w-full justify-between items-center bg-background h-4 pt-2 pb-8">
+              <div className="flex flex-row gap-x-2 items-center">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={goBack}
+                  disabled={!canGoBack}
+                  className="rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 flex-shrink-0 border"
+                >
+                  <ChevronLeftIcon className="h-4 w-4" />
+                  <span className="sr-only">Go Back</span>
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={goForward}
+                  disabled={!canGoForward}
+                  className="rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 flex-shrink-0 border"
+                >
+                  <ChevronRightIcon className="h-4 w-4" />
+                  <span className="sr-only">Go Forward</span>
+                </Button>{' '}
+              </div>
+              <div>
+                <Button
+                  variant="ghost"
+                  onClick={close}
+                  className="rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 flex-shrink-0"
+                >
+                  <Cross2Icon className="h-4 w-4" />
+                  <span className="sr-only">Close</span>
+                </Button>
               </div>
             </div>
             {maybeContent.component}
