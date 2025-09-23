@@ -171,7 +171,7 @@ func main() {
 		_ = result
 
 		return nil
-	}()
+	}
 
 	log.Println("Starting worker for child workflows demo...")
 	log.Println("Features demonstrated:")
