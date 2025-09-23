@@ -1,6 +1,6 @@
 import { Button } from '@/components/v1/ui/button';
 import { useTenant } from '@/lib/atoms';
-import { ArrowTopRightIcon } from '@radix-ui/react-icons';
+import { Squares2X2Icon } from '@heroicons/react/24/outline';
 import { Link } from 'react-router-dom';
 
 export const WorkflowDefinitionLink = ({
@@ -17,7 +17,7 @@ export const WorkflowDefinitionLink = ({
       rel="noreferrer"
     >
       <Button size={'sm'} className="px-2 py-2 gap-2" variant="outline">
-        <ArrowTopRightIcon className="w-4 h-4" />
+        <Squares2X2Icon className="w-4 h-4" />
         Workflow
       </Button>
     </Link>

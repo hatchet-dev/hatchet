@@ -10,7 +10,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
 
 const DEFAULT_PANEL_WIDTH = 650;
-const MIN_PANEL_WIDTH = 450;
+const MIN_PANEL_WIDTH = 350;
 
 export function SidePanel() {
   const {
@@ -103,7 +103,7 @@ export function SidePanel() {
 
           <div
             className={cn(
-              'flex-1 p-4 overflow-auto',
+              'flex-1 p-4 overflow-auto side-panel-content',
               isResizing && 'pointer-events-none',
             )}
           >

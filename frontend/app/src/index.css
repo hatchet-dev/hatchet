@@ -434,3 +434,21 @@ pre.shiki > code > span::before {
     display: none;
   }
 }
+
+/* Side panel container query breakpoints */
+.side-panel-content {
+  container-type: inline-size;
+}
+
+@container (min-width: 600px) {
+  .side-responsive-layout {
+    flex-direction: row;
+    align-items: center;
+  }
+
+  .side-responsive-inner {
+    flex-direction: row;
+    align-items: center;
+    width: auto;
+  }
+}
