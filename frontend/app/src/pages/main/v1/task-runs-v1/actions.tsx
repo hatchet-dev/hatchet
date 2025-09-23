@@ -281,7 +281,7 @@ export function ConfirmActionModal<TData extends IDGetter<TData>>({
               filters={filters}
               columnKeyToName={columnKeyToName}
               hiddenFilters={hiddenFilters}
-              showColumnVisiblity={false}
+              showColumnVisibility={false}
             />
           </div>
 

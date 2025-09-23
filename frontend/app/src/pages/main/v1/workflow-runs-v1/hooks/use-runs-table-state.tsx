@@ -66,13 +66,8 @@ const KEY_MAP = {
 
   // Column filters
   parentTaskExternalId: 'pt',
-  flattenDAGs: 'fd',
-  workflow: 'w',
-  status: 'st',
-  additionalMetadata: 'am',
 
   // Table state
-  columnFilters: 'cf',
   rowSelection: 'rs',
   columnVisibility: 'cv',
 
@@ -360,11 +355,7 @@ export const useRunsTableState = (
   const updateFilters = useCallback(
     (
       filters: Partial<
-        Pick<
-          RunsTableState,
-          | 'parentTaskExternalId'
-          | 'columnFilters'
-        >
+        Pick<RunsTableState, 'parentTaskExternalId' | 'columnFilters'>
       >,
     ) => {
       updateState(filters);
