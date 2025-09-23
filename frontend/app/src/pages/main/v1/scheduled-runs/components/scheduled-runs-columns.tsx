@@ -6,7 +6,6 @@ import { AdditionalMetadata } from '../../events/components/additional-metadata'
 import { RunStatus } from '../../workflow-runs/components/run-statuses';
 import { DataTableRowActions } from '@/components/v1/molecules/data-table/data-table-row-actions';
 import { Link } from 'react-router-dom';
-import { Button } from '@/components/v1/ui/button';
 
 export type RateLimitRow = RateLimit & {
   metadata: {
@@ -55,13 +54,13 @@ export const columns = ({
         />
       ),
       cell: ({ row }) =>
-        row.original.workflowRunId && (
-          <Link
-            to={'/tenants/' + tenantId + '/runs/' + row.original.workflowRunId}
-          >
-            <Button>{row.original.workflowRunId}</Button>
+        row.original.workflowRunId ? (
+          <Link to={`/tenants/${tenantId}/runs/${row.original.workflowRunId}`}>
+            <div className="cursor-pointer hover:underline min-w-fit whitespace-nowrap">
+              {row.original.workflowRunName}
+            </div>
           </Link>
-        ),
+        ) : null,
     },
     {
       accessorKey: statusKey,
