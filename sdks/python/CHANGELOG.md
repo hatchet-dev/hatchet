@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Removed
 
 - Removed the deprecated `v0` client and all related code.
+- Removed unused dependencies.
 
 ## [1.18.1] - 2025-08-26
 
