@@ -547,7 +547,7 @@ export interface DataTableOptionsContentProps<TData> {
   hiddenFilters: string[];
   showColumnVisibility: boolean;
   onResetFilters?: () => void;
-  activeFiltersCount: number;
+  activeFiltersCount?: number;
 }
 
 interface FiltersContentProps<TData> {
@@ -555,7 +555,7 @@ interface FiltersContentProps<TData> {
   filters: ToolbarFilters;
   hiddenFilters: string[];
   onResetFilters?: () => void;
-  activeFiltersCount: number;
+  activeFiltersCount?: number;
 }
 
 function FiltersContent<TData>({
@@ -563,7 +563,7 @@ function FiltersContent<TData>({
   filters,
   hiddenFilters,
   onResetFilters,
-  activeFiltersCount,
+  activeFiltersCount = 0,
 }: FiltersContentProps<TData>) {
   const visibleFilters = filters.filter((filter) => {
     if (hiddenFilters.includes(filter.columnId)) {
@@ -712,7 +712,7 @@ export function DataTableOptionsContent<TData>({
   hiddenFilters,
   showColumnVisibility,
   onResetFilters,
-  activeFiltersCount,
+  activeFiltersCount = 0,
 }: DataTableOptionsContentProps<TData>) {
   const [selectedTab, setSelectedTab] = React.useState<'filters' | 'columns'>(
     'filters',
