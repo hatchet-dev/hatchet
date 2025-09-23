@@ -10,7 +10,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
 
 const DEFAULT_PANEL_WIDTH = 650;
-const MIN_PANEL_WIDTH = 200;
+const MIN_PANEL_WIDTH = 450;
 
 export function SidePanel() {
   const {
@@ -52,6 +52,10 @@ export function SidePanel() {
 
       const deltaX = startX - e.clientX;
       const newWidth = Math.max(MIN_PANEL_WIDTH, startWidth + deltaX);
+
+      if (newWidth < MIN_PANEL_WIDTH) {
+        return;
+      }
 
       setStoredPanelWidth(newWidth);
     },
