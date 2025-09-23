@@ -162,16 +162,25 @@ export function ExpandedEventContent({ event }: { event: V1Event }) {
   return (
     <div className="w-full">
       <div className="space-y-6">
-        <div className="space-y-2">
-          <p className="text-sm text-muted-foreground">
-            Seen <RelativeDate date={event.metadata.createdAt} />
-          </p>
+        <div className="flex flex-col justify-center items-start gap-3 pb-4 border-b text-sm">
+          <div className="flex items-center gap-3 min-w-0 w-full">
+            <span className="text-muted-foreground font-medium shrink-0">Key</span>
+            <div className="px-2 py-1 bg-muted/50 rounded font-mono text-xs overflow-x-auto min-w-0 flex-1">
+              <span className="whitespace-nowrap">{event.key}</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="text-muted-foreground font-medium">Seen</span>
+            <span className="font-medium">
+              <RelativeDate date={event.metadata.createdAt} />
+            </span>
+          </div>
         </div>
 
         <div className="space-y-4">
           <div>
             <h3 className="text-sm font-semibold text-foreground mb-2">
-              Event Data
+              Payload
             </h3>
             <Separator className="mb-3" />
             <EventDataSection event={event} />
