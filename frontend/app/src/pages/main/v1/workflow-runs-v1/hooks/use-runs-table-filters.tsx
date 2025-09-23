@@ -13,6 +13,8 @@ import {
   flattenDAGsKey,
   createdAfterKey,
   finishedBeforeKey,
+  isCustomTimeRangeKey,
+  timeWindowKey,
 } from '../components/v1/task-runs-columns';
 import { z } from 'zod';
 import { useZodColumnFilters } from '@/hooks/use-zod-column-filters';
@@ -76,8 +78,8 @@ export const useRunsTableFilters = (initialValues?: {
   const [, setSearchParams] = useSearchParams();
 
   const zodFiltersHook = useZodColumnFilters(apiFilterSchema, paramKey, {
-    timeWindow: 'timeWindow', // placeholders since they're not actually column filters
-    isCustomTimeRange: 'isCustomTimeRange',
+    timeWindow: timeWindowKey,
+    isCustomTimeRange: isCustomTimeRangeKey,
     u: finishedBeforeKey,
     s: createdAfterKey,
     st: statusKey,

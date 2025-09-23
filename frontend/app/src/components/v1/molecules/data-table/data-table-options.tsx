@@ -14,6 +14,8 @@ import {
   createdAfterKey,
   finishedBeforeKey,
   statusKey,
+  isCustomTimeRangeKey,
+  timeWindowKey,
 } from '@/pages/main/v1/workflow-runs-v1/components/v1/task-runs-columns';
 import { ToolbarFilters } from './data-table-toolbar';
 import {
@@ -463,7 +465,12 @@ export function DataTableOptions<TData>({
           return false;
         }
 
-        if (f.id === createdAfterKey || f.id === finishedBeforeKey) {
+        if (
+          f.id === createdAfterKey ||
+          f.id === finishedBeforeKey ||
+          f.id === isCustomTimeRangeKey ||
+          f.id === timeWindowKey
+        ) {
           return false;
         }
 
