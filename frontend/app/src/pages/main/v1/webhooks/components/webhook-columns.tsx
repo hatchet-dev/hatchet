@@ -16,21 +16,40 @@ import { useWebhooks } from '../hooks/use-webhooks';
 import { SourceName } from './source-name';
 import { AuthMethod } from './auth-method';
 
+export const WebhookColumn = {
+  name: 'Name',
+  sourceName: 'Source',
+  expression: 'Expression',
+  authType: 'Auth Method',
+  actions: 'Actions',
+};
+
+export type WebhookColumnKeys = keyof typeof WebhookColumn;
+
+export const nameKey: WebhookColumnKeys = 'name';
+export const sourceNameKey: WebhookColumnKeys = 'sourceName';
+export const expressionKey: WebhookColumnKeys = 'expression';
+export const authTypeKey: WebhookColumnKeys = 'authType';
+export const actionsKey: WebhookColumnKeys = 'actions';
+
 export const columns = (): ColumnDef<V1Webhook>[] => {
   return [
     {
-      accessorKey: 'name',
+      accessorKey: nameKey,
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Name" />
+        <DataTableColumnHeader column={column} title={WebhookColumn.name} />
       ),
       cell: ({ row }) => <div className="w-full">{row.original.name}</div>,
       enableSorting: false,
       enableHiding: true,
     },
     {
-      accessorKey: 'sourceName',
+      accessorKey: sourceNameKey,
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Source" />
+        <DataTableColumnHeader
+          column={column}
+          title={WebhookColumn.sourceName}
+        />
       ),
       cell: ({ row }) => (
         <div className="w-full">
@@ -41,18 +60,21 @@ export const columns = (): ColumnDef<V1Webhook>[] => {
       enableHiding: true,
     },
     {
-      accessorKey: 'expression',
+      accessorKey: expressionKey,
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Expression" />
+        <DataTableColumnHeader
+          column={column}
+          title={WebhookColumn.expression}
+        />
       ),
       cell: ({ row }) => <EditableExpressionCell row={row} />,
       enableSorting: false,
       enableHiding: true,
     },
     {
-      accessorKey: 'authType',
+      accessorKey: authTypeKey,
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Auth Method" />
+        <DataTableColumnHeader column={column} title={WebhookColumn.authType} />
       ),
       cell: ({ row }) => (
         <div className="w-full">
@@ -63,9 +85,9 @@ export const columns = (): ColumnDef<V1Webhook>[] => {
       enableHiding: true,
     },
     {
-      accessorKey: 'actions',
+      accessorKey: actionsKey,
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="" />
+        <DataTableColumnHeader column={column} title={WebhookColumn.actions} />
       ),
       cell: ({ row }) => <WebhookActionsCell row={row} />,
       enableSorting: false,
@@ -78,7 +100,6 @@ const WebhookActionsCell = ({ row }: { row: Row<V1Webhook> }) => {
   const { mutations, createWebhookURL } = useWebhooks(() =>
     setIsDropdownOpen(false),
   );
-
   const [isCopied, setIsCopied] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
