@@ -167,7 +167,7 @@ export const useRunsTableFilters = (initialValues?: {
       } else {
         setZodState({
           isCustomTimeRange: false,
-          s: getCreatedAfterFromTimeRange(timeWindow), // Set explicit value when clearing custom range
+          s: getCreatedAfterFromTimeRange(timeWindow),
           u: undefined,
         });
       }
@@ -204,10 +204,6 @@ export const useRunsTableFilters = (initialValues?: {
     [setColumnFilters, columnFilters, selectedAdditionalMetadata],
   );
 
-  const resetFiltersWithTableState = useCallback(() => {
-    resetFilters();
-  }, [resetFilters]);
-
   const apiFilters = useMemo(
     () => ({
       since: createdAfter || getCreatedAfterFromTimeRange('1d'),
@@ -238,6 +234,6 @@ export const useRunsTableFilters = (initialValues?: {
     setStatuses,
     setAdditionalMetadata,
     setColumnFilters,
-    resetFilters: resetFiltersWithTableState,
+    resetFilters,
   };
 };
