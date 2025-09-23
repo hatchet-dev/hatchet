@@ -330,7 +330,7 @@ function WorkflowRunSummary({ event }: { event: V1Event }) {
         >
           <PopoverTrigger>
             <Badge
-              variant="inProgress"
+              variant="cancelled"
               className="cursor-pointer"
               onClick={() => setPopoverOpen('cancelled')}
             >
@@ -356,7 +356,7 @@ function WorkflowRunSummary({ event }: { event: V1Event }) {
         >
           <PopoverTrigger>
             <Badge
-              variant="inProgress"
+              variant="queued"
               className="cursor-pointer"
               onClick={() => setPopoverOpen('queued')}
             >
