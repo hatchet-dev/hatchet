@@ -3,6 +3,7 @@ package hatchet
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sync"
 
@@ -564,15 +565,31 @@ type RunManyOpt struct {
 func (c *Client) RunMany(ctx context.Context, workflowName string, inputs []RunManyOpt) ([]WorkflowRunRef, error) {
 	var workflowRefs []WorkflowRunRef
 
+	var wg sync.WaitGroup
+	var errs []error
+	var errsMutex sync.Mutex
+
+	wg.Add(len(inputs))
+
 	for _, input := range inputs {
-		workflowRef, err := c.RunNoWait(ctx, workflowName, input.Input, input.Opts...)
-		if err != nil {
-			return nil, err
-		}
-		workflowRefs = append(workflowRefs, *workflowRef)
+		go func() {
+			defer wg.Done()
+
+			workflowRef, err := c.RunNoWait(ctx, workflowName, input.Input, input.Opts...)
+			if err != nil {
+				errsMutex.Lock()
+				errs = append(errs, err)
+				errsMutex.Unlock()
+				return
+			}
+
+			workflowRefs = append(workflowRefs, *workflowRef)
+		}()
 	}
 
-	return workflowRefs, nil
+	wg.Wait()
+
+	return workflowRefs, errors.Join(errs...)
 }
 
 // Metrics returns a feature client for interacting with workflow and task metrics.

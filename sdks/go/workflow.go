@@ -3,8 +3,10 @@ package hatchet
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"reflect"
+	"sync"
 	"time"
 
 	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
@@ -609,13 +611,29 @@ func (w *Workflow) RunNoWait(ctx context.Context, input any, opts ...RunOptFunc)
 func (w *Workflow) RunMany(ctx context.Context, inputs []RunManyOpt) ([]WorkflowRunRef, error) {
 	var workflowRefs []WorkflowRunRef
 
+	var wg sync.WaitGroup
+	var errs []error
+	var errsMutex sync.Mutex
+
+	wg.Add(len(inputs))
+
 	for _, input := range inputs {
-		workflowRef, err := w.RunNoWait(ctx, input.Input, input.Opts...)
-		if err != nil {
-			return nil, err
-		}
-		workflowRefs = append(workflowRefs, *workflowRef)
+		go func() {
+			defer wg.Done()
+
+			workflowRef, err := w.RunNoWait(ctx, input.Input, input.Opts...)
+			if err != nil {
+				errsMutex.Lock()
+				errs = append(errs, err)
+				errsMutex.Unlock()
+				return
+			}
+
+			workflowRefs = append(workflowRefs, *workflowRef)
+		}()
 	}
 
-	return workflowRefs, nil
+	wg.Wait()
+
+	return workflowRefs, errors.Join(errs...)
 }
