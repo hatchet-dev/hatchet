@@ -48,8 +48,8 @@ export type FilterActions = {
 
 const createApiFilterSchema = (initialValues?: { workflowIds?: string[] }) =>
   z.object({
-    timeWindow: z.enum(['1h', '6h', '1d', '7d']).default('1d'), // time window preset
-    isCustomTimeRange: z.boolean().default(false), // whether using custom range
+    tw: z.enum(['1h', '6h', '1d', '7d']).default('1d'), // time window preset
+    ctr: z.boolean().default(false), // whether using custom range
     s: z.string().optional(), // since
     u: z.string().optional(), // until
     st: z
@@ -78,8 +78,8 @@ export const useRunsTableFilters = (initialValues?: {
   const [, setSearchParams] = useSearchParams();
 
   const zodFiltersHook = useZodColumnFilters(apiFilterSchema, paramKey, {
-    timeWindow: timeWindowKey,
-    isCustomTimeRange: isCustomTimeRangeKey,
+    tw: timeWindowKey,
+    ctr: isCustomTimeRangeKey,
     u: finishedBeforeKey,
     s: createdAfterKey,
     st: statusKey,
@@ -96,8 +96,8 @@ export const useRunsTableFilters = (initialValues?: {
   } = zodFiltersHook;
 
   const {
-    timeWindow,
-    isCustomTimeRange,
+    tw: timeWindow,
+    ctr: isCustomTimeRange,
     s: rawCreatedAfter,
     u: finishedBefore,
     st: selectedStatuses,
@@ -138,8 +138,8 @@ export const useRunsTableFilters = (initialValues?: {
   const setTimeWindow = useCallback(
     (timeWindow: TimeWindow) => {
       setZodState({
-        timeWindow,
-        isCustomTimeRange: false,
+        tw: timeWindow,
+        ctr: false,
         s: getCreatedAfterFromTimeRange(timeWindow),
         u: undefined,
       });
@@ -160,13 +160,13 @@ export const useRunsTableFilters = (initialValues?: {
     (range: { start: string; end: string } | null) => {
       if (range) {
         setZodState({
-          isCustomTimeRange: true,
+          ctr: true,
           s: range.start,
           u: range.end,
         });
       } else {
         setZodState({
-          isCustomTimeRange: false,
+          ctr: false,
           s: getCreatedAfterFromTimeRange(timeWindow),
           u: undefined,
         });
