@@ -468,8 +468,8 @@ export function DataTableOptions<TData>({
         if (
           f.id === createdAfterKey ||
           f.id === finishedBeforeKey ||
-          f.id === isCustomTimeRangeKey ||
-          f.id === timeWindowKey
+          (f.id === isCustomTimeRangeKey && f.value !== true) ||
+          (f.id === timeWindowKey && f.value === '1d')
         ) {
           return false;
         }
@@ -603,20 +603,27 @@ function FiltersContent<TData>({
                   {filter.title}
                 </label>
                 {table.getColumn(filter.columnId)?.getFilterValue() !==
-                  undefined && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() =>
-                      table
-                        .getColumn(filter.columnId)
-                        ?.setFilterValue(undefined)
-                    }
-                    className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
-                  >
-                    <Cross2Icon className="h-3 w-3" />
-                  </Button>
-                )}
+                  undefined &&
+                  [
+                    ToolbarType.Array,
+                    ToolbarType.KeyValue,
+                    ToolbarType.Checkbox,
+                    ToolbarType.TimeRange,
+                    ToolbarType.Radio,
+                  ].includes(filter.type) && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() =>
+                        table
+                          .getColumn(filter.columnId)
+                          ?.setFilterValue(undefined)
+                      }
+                      className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
+                    >
+                      <Cross2Icon className="h-3 w-3" />
+                    </Button>
+                  )}
               </div>
               <FilterControl
                 column={table.getColumn(filter.columnId)}
