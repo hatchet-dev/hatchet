@@ -28,8 +28,21 @@ jobs:
         uses: actions/setup-go@v6
       - name: Compile Go SDK examples
         run: |
-          for dir in examples/*/; do
-            echo "Compiling $dir"
+          # Find all directories with go.mod files
+          for dir in $(find examples -name "go.mod" -exec dirname {} \;); do
+            echo "Compiling $dir (has go.mod)"
+            cd "$dir"
+            go build .
+            cd - > /dev/null
+          done
+
+          # Find directories with main.go but no go.mod (use parent's go.mod)
+          for dir in $(find examples -name "main.go" -exec dirname {} \; | while read d; do
+            if [ ! -f "$d/go.mod" ]; then
+              echo "$d"
+            fi
+          done | sort -u); do
+            echo "Compiling $dir (uses parent go.mod)"
             cd "$dir"
             go build .
             cd - > /dev/null

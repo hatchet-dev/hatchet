@@ -32,7 +32,7 @@ Note that the type of `input` here is a Pydantic model that matches the input sc
   </Tabs.Tab>
   <Tabs.Tab title="Go">
     You can use your `Task` object to run a task and wait for it to complete by calling the `Run` method. This method will block until the task completes and return the result.
-    <Snippet src={snippets.go.run.simple.running_a_task} />
+    <Snippet src={snippets.go.simple.main.running_a_task} />
   </Tabs.Tab>
 </UniversalTabs>
 
@@ -63,7 +63,7 @@ You can run a task from within a task by calling the `runChild` method on the `c
 
 You can run a task from within a task by calling the `Run` method on the task object from within a task function. This will associate the runs in the dashboard for easier debugging.
 
-    <Snippet src={snippets.go.workflows.simple.spawning_tasks_from_within_a_task} />
+    <Snippet src={snippets.go.simple.main.spawning_tasks_from_within_a_task} />
 
   </Tabs.Tab>
 </UniversalTabs>
@@ -91,7 +91,7 @@ Since the `run` method returns a promise, you can spawn multiple tasks in parall
 
 You can run multiple tasks in parallel by calling `Run` multiple times in goroutines and using a `sync.WaitGroup` to wait for them to complete.
 
-<Snippet src={snippets.go.run.simple.running_multiple_tasks} />
+<Snippet src={snippets.go.simple.main.running_multiple_tasks} />
 
 </Tabs.Tab>
 </UniversalTabs>

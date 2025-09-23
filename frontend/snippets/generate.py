@@ -40,7 +40,7 @@ class SDKParsingContext(Enum):
         comment_prefix="//",
     )
     GO = ParsingContext(
-        example_path="pkg/examples", extension=".go", comment_prefix="//"
+        example_path="sdks/go/examples", extension=".go", comment_prefix="//"
     )
 
 

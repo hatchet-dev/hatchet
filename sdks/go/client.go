@@ -3,6 +3,7 @@ package hatchet
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sync"
 
@@ -242,14 +243,13 @@ func (c *Client) NewWorkflow(name string, options ...WorkflowOption) *Workflow {
 // StandaloneTask represents a single task that runs independently without a workflow wrapper.
 // It's essentially a specialized workflow containing only one task.
 type StandaloneTask struct {
-	name     string
 	workflow *Workflow
 	task     *Task
 }
 
 // GetName returns the name of the standalone task.
 func (st *StandaloneTask) GetName() string {
-	return st.name
+	return st.workflow.declaration.Name()
 }
 
 // StandaloneTaskOption represents options that can be applied to standalone tasks.
@@ -294,7 +294,6 @@ func (c *Client) NewStandaloneTask(name string, fn any, options ...StandaloneTas
 	task := workflow.NewTask(name, fn, taskOptions...)
 
 	return &StandaloneTask{
-		name:     name,
 		workflow: workflow,
 		task:     task,
 	}
@@ -338,28 +337,45 @@ func (c *Client) NewStandaloneDurableTask(name string, fn any, options ...Standa
 	task := workflow.NewDurableTask(name, fn, taskOptions...)
 
 	return &StandaloneTask{
-		name:     name,
 		workflow: workflow,
 		task:     task,
 	}
 }
 
 // Run executes the standalone task with the provided input and waits for completion.
-func (st *StandaloneTask) Run(ctx context.Context, input any) (*TaskResult, error) {
-	result, err := st.workflow.Run(ctx, input)
+func (st *StandaloneTask) Run(ctx context.Context, input any, opts ...RunOptFunc) (*TaskResult, error) {
+	workflowRunRef, err := st.workflow.Run(ctx, input, opts...)
 	if err != nil {
 		return nil, err
 	}
 
+	res := WorkflowResult{result: workflowRunRef.result}
+
 	// Extract the task result from the workflow result
-	taskResult := result.TaskOutput(st.task.name)
+	taskResult := res.TaskOutput(st.task.name)
 	return taskResult, nil
 }
 
 // RunNoWait executes the standalone task with the provided input without waiting for completion.
 // Returns a workflow run reference that can be used to track the run status.
-func (st *StandaloneTask) RunNoWait(ctx context.Context, input any) (*WorkflowRef, error) {
-	return st.workflow.RunNoWait(ctx, input)
+func (st *StandaloneTask) RunNoWait(ctx context.Context, input any, opts ...RunOptFunc) (*WorkflowRunRef, error) {
+	workflowRunRef, err := st.workflow.RunNoWait(ctx, input, opts...)
+	if err != nil {
+		return nil, err
+	}
+
+	return workflowRunRef, nil
+}
+
+// RunMany executes multiple standalone task instances with different inputs.
+// Returns workflow run IDs that can be used to track the run statuses.
+func (st *StandaloneTask) RunMany(ctx context.Context, inputs []RunManyOpt) ([]WorkflowRunRef, error) {
+	workflowRefs, err := st.workflow.RunMany(ctx, inputs)
+	if err != nil {
+		return nil, err
+	}
+
+	return workflowRefs, nil
 }
 
 // Dump implements the WorkflowBase interface for internal use, delegating to the underlying workflow.
@@ -367,9 +383,25 @@ func (st *StandaloneTask) Dump() (*contracts.CreateWorkflowVersionRequest, []int
 	return st.workflow.Dump()
 }
 
-// WorkflowRef is a type that represents a reference to a workflow run.
-type WorkflowRef struct {
-	RunId string
+// WorkflowRunRef is a type that represents a reference to a workflow run.
+type WorkflowRunRef struct {
+	RunId      string
+	v0Workflow *v0Client.Workflow
+}
+
+// V0Workflow returns the underlying v0Client.Workflow.
+func (wr *WorkflowRunRef) Result() (*WorkflowResult, error) {
+	result, err := wr.v0Workflow.Result()
+	if err != nil {
+		return nil, err
+	}
+
+	workflowResult, err := result.Results()
+	if err != nil {
+		return nil, err
+	}
+
+	return &WorkflowResult{result: workflowResult}, nil
 }
 
 // WorkflowResult wraps workflow execution results and provides type-safe conversion methods.
@@ -458,33 +490,68 @@ func (wr *WorkflowResult) Raw() any {
 
 // Run executes a workflow with the provided input and waits for completion.
 func (c *Client) Run(ctx context.Context, workflowName string, input any, opts ...RunOptFunc) (*WorkflowResult, error) {
-	v0Workflow, err := c.legacyClient.Admin().RunWorkflow(workflowName, input, opts...)
+	workflowRunRef, err := c.RunNoWait(ctx, workflowName, input, opts...)
 	if err != nil {
 		return nil, err
 	}
 
-	result, err := v0Workflow.Result()
+	result, err := workflowRunRef.Result()
 	if err != nil {
 		return nil, err
 	}
 
-	workflowResult, err := result.Results()
-	if err != nil {
-		return nil, err
-	}
-
-	return &WorkflowResult{result: workflowResult}, nil
+	return result, nil
 }
 
 // RunNoWait executes a workflow with the provided input without waiting for completion.
 // Returns a workflow run reference that can be used to track the run status.
-func (c *Client) RunNoWait(ctx context.Context, workflowName string, input any, opts ...RunOptFunc) (*WorkflowRef, error) {
-	res, err := c.legacyClient.Admin().RunWorkflow(workflowName, input, opts...)
+func (c *Client) RunNoWait(ctx context.Context, workflowName string, input any, opts ...RunOptFunc) (*WorkflowRunRef, error) {
+	runOpts := &runOpts{}
+	for _, opt := range opts {
+		opt(runOpts)
+	}
+
+	var priority *int32
+	if runOpts.Priority != nil {
+		priority = &[]int32{int32(*runOpts.Priority)}[0]
+	}
+
+	var additionalMetadata *map[string]string
+	if runOpts.AdditionalMetadata != nil {
+		additionalMetadata = &map[string]string{}
+		for key, value := range *runOpts.AdditionalMetadata {
+			(*additionalMetadata)[key] = fmt.Sprintf("%v", value)
+		}
+	}
+
+	var v0Opts []v0Client.RunOptFunc
+	if additionalMetadata != nil {
+		v0Opts = append(v0Opts, v0Client.WithRunMetadata(*additionalMetadata))
+	}
+	if priority != nil {
+		v0Opts = append(v0Opts, v0Client.WithPriority(*priority))
+	}
+
+	var v0Workflow *v0Client.Workflow
+	var err error
+
+	hCtx, ok := ctx.(Context)
+	if ok {
+		v0Workflow, err = hCtx.SpawnWorkflow(workflowName, input, &worker.SpawnWorkflowOpts{
+			Key:                runOpts.Key,
+			Sticky:             runOpts.Sticky,
+			Priority:           priority,
+			AdditionalMetadata: additionalMetadata,
+		})
+	} else {
+		v0Workflow, err = c.legacyClient.Admin().RunWorkflow(workflowName, input, v0Opts...)
+	}
+
 	if err != nil {
 		return nil, err
 	}
 
-	return &WorkflowRef{res.RunId()}, nil
+	return &WorkflowRunRef{RunId: v0Workflow.RunId(), v0Workflow: v0Workflow}, nil
 }
 
 // RunManyOpt is a type that represents the options for running multiple instances of a workflow with different inputs and options.
@@ -495,16 +562,34 @@ type RunManyOpt struct {
 
 // RunMany executes multiple workflow instances with different inputs.
 // Returns workflow run IDs that can be used to track the run statuses.
-func (c *Client) RunMany(ctx context.Context, workflowName string, inputs []RunManyOpt) ([]string, error) {
-	workflows := make([]*v0Client.WorkflowRun, len(inputs))
-	for i, input := range inputs {
-		workflows[i] = &v0Client.WorkflowRun{
-			Name:    workflowName,
-			Input:   input.Input,
-			Options: input.Opts,
-		}
+func (c *Client) RunMany(ctx context.Context, workflowName string, inputs []RunManyOpt) ([]WorkflowRunRef, error) {
+	var workflowRefs []WorkflowRunRef
+
+	var wg sync.WaitGroup
+	var errs []error
+	var errsMutex sync.Mutex
+
+	wg.Add(len(inputs))
+
+	for _, input := range inputs {
+		go func() {
+			defer wg.Done()
+
+			workflowRef, err := c.RunNoWait(ctx, workflowName, input.Input, input.Opts...)
+			if err != nil {
+				errsMutex.Lock()
+				errs = append(errs, err)
+				errsMutex.Unlock()
+				return
+			}
+
+			workflowRefs = append(workflowRefs, *workflowRef)
+		}()
 	}
-	return c.legacyClient.Admin().BulkRunWorkflow(workflows)
+
+	wg.Wait()
+
+	return workflowRefs, errors.Join(errs...)
 }
 
 // Metrics returns a feature client for interacting with workflow and task metrics.

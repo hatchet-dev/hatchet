@@ -22,7 +22,7 @@ type CreateScheduledRunTrigger struct {
 	// AdditionalMetadata is optional metadata to associate with the scheduled run.
 	AdditionalMetadata map[string]interface{} `json:"additionalMetadata,omitempty"`
 
-	Priority *int32 `json:"priority,omitempty"`
+	Priority *RunPriority `json:"priority,omitempty"`
 }
 
 // SchedulesClient provides methods for interacting with workflow schedules
@@ -51,11 +51,18 @@ func NewSchedulesClient(
 func (s *SchedulesClient) Create(ctx context.Context, workflowName string, trigger CreateScheduledRunTrigger) (*rest.ScheduledWorkflows, error) {
 	workflowName = client.ApplyNamespace(workflowName, s.namespace)
 
+	var priority *int32
+
+	if trigger.Priority != nil {
+		priorityInt := int32(*trigger.Priority)
+		priority = &priorityInt
+	}
+
 	request := rest.ScheduleWorkflowRunRequest{
 		Input:              trigger.Input,
 		AdditionalMetadata: trigger.AdditionalMetadata,
 		TriggerAt:          trigger.TriggerAt,
-		Priority:           trigger.Priority,
+		Priority:           priority,
 	}
 
 	resp, err := s.api.ScheduledWorkflowRunCreateWithResponse(

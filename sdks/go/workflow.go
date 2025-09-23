@@ -3,8 +3,10 @@ package hatchet
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"reflect"
+	"sync"
 	"time"
 
 	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
@@ -19,21 +21,41 @@ import (
 
 type RunPriority = features.RunPriority
 
-// RunOpts is a type that represents the options for running a workflow.
-type RunOpts struct {
+type runOpts struct {
 	AdditionalMetadata *map[string]interface{}
 	Priority           *RunPriority
+	Sticky             *bool
+	Key                *string
 }
 
-type RunOptFunc = v0Client.RunOptFunc
+type RunOptFunc func(*runOpts)
 
-func WithRunMetadata(metadata any) RunOptFunc {
-	return v0Client.WithRunMetadata(metadata)
+// WithRunMetadata sets the additional metadata for the workflow run.
+func WithRunMetadata(metadata map[string]interface{}) RunOptFunc {
+	return func(opts *runOpts) {
+		opts.AdditionalMetadata = &metadata
+	}
 }
 
-// WithRunPriority sets the priority for a workflow run.
+// WithRunPriority sets the priority for the workflow run.
 func WithRunPriority(priority RunPriority) RunOptFunc {
-	return v0Client.WithPriority(int32(priority))
+	return func(opts *runOpts) {
+		opts.Priority = &priority
+	}
+}
+
+// WithRunSticky enables stickiness for the child workflow run.
+func WithRunSticky(sticky bool) RunOptFunc {
+	return func(opts *runOpts) {
+		opts.Sticky = &sticky
+	}
+}
+
+// WithRunKey sets the key for the child workflow run.
+func WithRunKey(key string) RunOptFunc {
+	return func(opts *runOpts) {
+		opts.Key = &key
+	}
 }
 
 // convertInputToType converts input (typically map[string]interface{}) to the expected struct type
@@ -87,12 +109,14 @@ func (w *Workflow) GetName() string {
 type WorkflowOption func(*workflowConfig)
 
 type workflowConfig struct {
-	onCron       []string
-	onEvents     []string
-	concurrency  []types.Concurrency
-	version      string
-	description  string
-	taskDefaults *create.TaskDefaults
+	onCron          []string
+	onEvents        []string
+	concurrency     []types.Concurrency
+	version         string
+	description     string
+	taskDefaults    *create.TaskDefaults
+	defaultPriority *RunPriority
+	stickyStrategy  *types.StickyStrategy
 }
 
 // WithWorkflowCron configures the workflow to run on a cron schedule.
@@ -138,6 +162,20 @@ func WithWorkflowTaskDefaults(defaults *create.TaskDefaults) WorkflowOption {
 	}
 }
 
+// WithWorkflowDefaultPriority sets the default priority for the workflow.
+func WithWorkflowDefaultPriority(priority RunPriority) WorkflowOption {
+	return func(config *workflowConfig) {
+		config.defaultPriority = &priority
+	}
+}
+
+// WithWorkflowStickyStrategy sets the sticky strategy for the workflow.
+func WithWorkflowStickyStrategy(stickyStrategy types.StickyStrategy) WorkflowOption {
+	return func(config *workflowConfig) {
+		config.stickyStrategy = &stickyStrategy
+	}
+}
+
 // newWorkflow creates a new workflow definition.
 func newWorkflow(name string, v0Client v0Client.Client, options ...WorkflowOption) *Workflow {
 	config := &workflowConfig{}
@@ -146,18 +184,23 @@ func newWorkflow(name string, v0Client v0Client.Client, options ...WorkflowOptio
 		opt(config)
 	}
 
-	declaration := internal.NewWorkflowDeclaration[any, any](
-		create.WorkflowCreateOpts[any]{
-			Name:         name,
-			Version:      config.version,
-			Description:  config.description,
-			OnEvents:     config.onEvents,
-			OnCron:       config.onCron,
-			Concurrency:  config.concurrency,
-			TaskDefaults: config.taskDefaults,
-		},
-		v0Client,
-	)
+	createOpts := create.WorkflowCreateOpts[any]{
+		Name:           name,
+		Version:        config.version,
+		Description:    config.description,
+		OnEvents:       config.onEvents,
+		OnCron:         config.onCron,
+		Concurrency:    config.concurrency,
+		TaskDefaults:   config.taskDefaults,
+		StickyStrategy: config.stickyStrategy,
+	}
+
+	if config.defaultPriority != nil {
+		priority := int32(*config.defaultPriority)
+		createOpts.DefaultPriority = &priority
+	}
+
+	declaration := internal.NewWorkflowDeclaration[any, any](createOpts, v0Client)
 
 	return &Workflow{
 		declaration: declaration,
@@ -494,63 +537,103 @@ func (w *Workflow) Dump() (*contracts.CreateWorkflowVersionRequest, []internal.N
 // Workflow execution methods
 
 // Run executes the workflow with the provided input and waits for completion.
-func (w *Workflow) Run(ctx context.Context, input any) (*WorkflowResult, error) {
-	result, err := w.declaration.Run(ctx, input)
+func (w *Workflow) Run(ctx context.Context, input any, opts ...RunOptFunc) (*WorkflowResult, error) {
+	workflowRunRef, err := w.RunNoWait(ctx, input, opts...)
 	if err != nil {
 		return nil, err
 	}
 
-	return &WorkflowResult{result: result}, nil
+	result, err := workflowRunRef.v0Workflow.Result()
+	if err != nil {
+		return nil, err
+	}
+
+	workflowResult, err := result.Results()
+	if err != nil {
+		return nil, err
+	}
+
+	return &WorkflowResult{result: workflowResult}, nil
 }
 
 // RunNoWait executes the workflow with the provided input without waiting for completion.
 // Returns a workflow run reference that can be used to track the run status.
-func (w *Workflow) RunNoWait(ctx context.Context, input any) (*WorkflowRef, error) {
-	wf, err := w.declaration.RunNoWait(ctx, input)
+func (w *Workflow) RunNoWait(ctx context.Context, input any, opts ...RunOptFunc) (*WorkflowRunRef, error) {
+	runOpts := &runOpts{}
+	for _, opt := range opts {
+		opt(runOpts)
+	}
+
+	var priority *int32
+	if runOpts.Priority != nil {
+		priority = &[]int32{int32(*runOpts.Priority)}[0]
+	}
+
+	var additionalMetadata *map[string]string
+	if runOpts.AdditionalMetadata != nil {
+		additionalMetadata = &map[string]string{}
+		for key, value := range *runOpts.AdditionalMetadata {
+			(*additionalMetadata)[key] = fmt.Sprintf("%v", value)
+		}
+	}
+
+	var v0Opts []v0Client.RunOptFunc
+	if additionalMetadata != nil {
+		v0Opts = append(v0Opts, v0Client.WithRunMetadata(*additionalMetadata))
+	}
+	if priority != nil {
+		v0Opts = append(v0Opts, v0Client.WithPriority(*priority))
+	}
+
+	var v0Workflow *v0Client.Workflow
+	var err error
+
+	hCtx, ok := ctx.(Context)
+	if ok {
+		v0Workflow, err = hCtx.SpawnWorkflow(w.declaration.Name(), input, &worker.SpawnWorkflowOpts{
+			Key:                runOpts.Key,
+			Sticky:             runOpts.Sticky,
+			Priority:           priority,
+			AdditionalMetadata: additionalMetadata,
+		})
+	} else {
+		v0Workflow, err = w.v0Client.Admin().RunWorkflow(w.declaration.Name(), input, v0Opts...)
+	}
+
 	if err != nil {
 		return nil, err
 	}
 
-	return &WorkflowRef{RunId: wf.RunId()}, nil
+	return &WorkflowRunRef{RunId: v0Workflow.RunId(), v0Workflow: v0Workflow}, nil
 }
 
-// RunAsChildOpts is the options for running a workflow as a child workflow.
-type RunAsChildOpts = internal.RunAsChildOpts
+// RunMany executes multiple workflow instances with different inputs.
+func (w *Workflow) RunMany(ctx context.Context, inputs []RunManyOpt) ([]WorkflowRunRef, error) {
+	var workflowRefs []WorkflowRunRef
 
-// RunAsChild executes the workflow as a child workflow with the provided input.
-func (w *Workflow) RunAsChild(ctx worker.HatchetContext, input any, opts RunAsChildOpts) (*WorkflowResult, error) {
-	// Convert opts to internal format
-	var additionalMetaOpt *map[string]string
+	var wg sync.WaitGroup
+	var errs []error
+	var errsMutex sync.Mutex
 
-	if opts.AdditionalMetadata != nil {
-		additionalMeta := make(map[string]string)
+	wg.Add(len(inputs))
 
-		for key, value := range *opts.AdditionalMetadata {
-			additionalMeta[key] = fmt.Sprintf("%v", value)
-		}
+	for _, input := range inputs {
+		go func() {
+			defer wg.Done()
 
-		additionalMetaOpt = &additionalMeta
+			workflowRef, err := w.RunNoWait(ctx, input.Input, input.Opts...)
+			if err != nil {
+				errsMutex.Lock()
+				errs = append(errs, err)
+				errsMutex.Unlock()
+				return
+			}
+
+			workflowRefs = append(workflowRefs, *workflowRef)
+		}()
 	}
 
-	// Spawn the child workflow directly
-	run, err := ctx.SpawnWorkflow(w.declaration.Name(), input, &worker.SpawnWorkflowOpts{
-		Key:                opts.Key,
-		Sticky:             opts.Sticky,
-		Priority:           opts.Priority,
-		AdditionalMetadata: additionalMetaOpt,
-	})
+	wg.Wait()
 
-	if err != nil {
-		return nil, err
-	}
-
-	// Get the raw workflow result
-	workflowResult, err := run.Result()
-	if err != nil {
-		return nil, err
-	}
-
-	// Return the raw workflow result wrapped in WorkflowResult
-	// This allows users to extract specific task outputs using .Into()
-	return &WorkflowResult{result: workflowResult}, nil
+	return workflowRefs, errors.Join(errs...)
 }

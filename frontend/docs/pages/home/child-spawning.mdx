@@ -39,133 +39,7 @@ And that's it! The fanout parent will run and spawn the child, and then will col
 </Tabs.Tab>
 <Tabs.Tab title="Go">
 
-```go
-import (
-	"sync"
-
-	v1 "github.com/hatchet-dev/hatchet/pkg/v1"
-	"github.com/hatchet-dev/hatchet/pkg/v1/task"
-	"github.com/hatchet-dev/hatchet/pkg/v1/workflow"
-	"github.com/hatchet-dev/hatchet/pkg/worker"
-)
-
-// Child task input and output types
-type ChildInput struct {
-	N int `json:"n"`
-}
-
-type ValueOutput struct {
-	Value int `json:"value"`
-}
-
-type ChildResult struct {
-	One ValueOutput `json:"one"`
-}
-
-// Child workflow definition
-func Child(hatchet *v1.HatchetClient) workflow.WorkflowDeclaration[ChildInput, ChildResult] {
-	child := v1.WorkflowFactory[ChildInput, ChildResult](
-		workflow.CreateOpts[ChildInput]{
-			Name: "child",
-		},
-		hatchet,
-	)
-
-	child.Task(
-		task.CreateOpts[ChildInput]{
-			Name: "one",
-			Fn: func(input ChildInput, ctx worker.HatchetContext) (*ValueOutput, error) {
-				return &ValueOutput{
-					Value: input.N,
-				}, nil
-			},
-		},
-	)
-
-	return child
-}
-
-// Parent task input and output types
-type ParentInput struct {
-	N int `json:"n"`
-}
-
-type SumOutput struct {
-	Result int `json:"result"`
-}
-
-type ParentResult struct {
-	Sum *SumOutput `json:"sum,omitempty"`
-}
-
-// Parent workflow definition
-func Parent(hatchet *v1.HatchetClient) workflow.WorkflowDeclaration[ParentInput, ParentResult] {
-	child := Child(hatchet)
-	parent := v1.WorkflowFactory[ParentInput, ParentResult](
-		workflow.CreateOpts[ParentInput]{
-			Name: "parent",
-		},
-		hatchet,
-	)
-
-	parent.Task(
-		task.CreateOpts[ParentInput]{
-			Name: "sum",
-			Fn: func(input ParentInput, ctx worker.HatchetContext) (*SumOutput, error) {
-				sum := 0
-
-				// Use a WaitGroup to coordinate parallel child workflows
-				var wg sync.WaitGroup
-				var mu sync.Mutex
-				var firstErr error
-
-				// Launch child workflows in parallel
-				results := make([]*ChildResult, 0, input.N)
-				wg.Add(input.N)
-				for j := 0; j < input.N; j++ {
-					go func(index int) {
-						defer wg.Done()
-
-						// Spawn and run a child workflow
-						result, err := child.RunAsChild(ctx, ChildInput{N: 1})
-
-						mu.Lock()
-						defer mu.Unlock()
-
-						if err != nil && firstErr == nil {
-							firstErr = err
-							return
-						}
-
-						if firstErr == nil {
-							results = append(results, result)
-						}
-					}(j)
-				}
-
-				// Wait for all goroutines to complete
-				wg.Wait()
-
-				// Check if any errors occurred
-				if firstErr != nil {
-					return nil, firstErr
-				}
-
-				// Sum results from all children
-				for _, result := range results {
-					sum += result.One.Value
-				}
-
-				return &SumOutput{
-					Result: sum,
-				}, nil
-			},
-		},
-	)
-
-	return parent
-}
-```
+<Snippet src={snippets.go.child_workflows.main.declaring_the_tasks} />
 
 </Tabs.Tab>
 </UniversalTabs>
@@ -189,10 +63,7 @@ To spawn and run a child task from a parent task, use the appropriate method for
 </Tabs.Tab>
 <Tabs.Tab title="Go">
 
-```go
-// Inside a parent task
-result, err := childWorkflow.RunAsChild(ctx, childInput)
-```
+<Snippet src={snippets.go.child_workflows.main.spawning_a_child_workflow} />
 
 </Tabs.Tab>
 </UniversalTabs>
@@ -216,27 +87,7 @@ As shown in the examples above, you can spawn multiple child tasks in parallel:
 </Tabs.Tab>
 <Tabs.Tab title="Go">
 
-```go
-// Run multiple child tasks in parallel using goroutines
-var wg sync.WaitGroup
-var mu sync.Mutex
-results := make([]*ChildResult, 0, n)
-
-wg.Add(n)
-for i := 0; i < n; i++ {
-    go func(index int) {
-        defer wg.Done()
-        result, err := child.RunAsChild(ctx, ChildInput{N: index})
-
-        if err == nil {
-            mu.Lock()
-            results = append(results, result)
-            mu.Unlock()
-        }
-    }(i)
-}
-wg.Wait()
-```
+<Snippet src={snippets.go.child_workflows.main.parallel_child_task_execution} />
 
 </Tabs.Tab>
 </UniversalTabs>
@@ -270,14 +121,7 @@ When working with child workflows, it's important to properly handle errors. Her
 </Tabs.Tab>
 <Tabs.Tab title="Go">
 
-```go
-result, err := child.RunAsChild(ctx, ChildInput{N: i})
-if err != nil {
-    // Handle error from child workflow
-    fmt.Printf("Child workflow failed: %v\n", err)
-    // Decide how to proceed - retry, skip, or fail the parent
-}
-```
+<Snippet src={snippets.go.child_workflows.main.error_handling} />
 
 </Tabs.Tab>
 </UniversalTabs>
