@@ -2,7 +2,6 @@ import { V1TaskStatus, V1TaskSummary, queries } from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/v1/ui/button';
 import { Loading } from '@/components/v1/ui/loading';
-import { LinkIcon } from '@heroicons/react/24/outline';
 import { Separator } from '@/components/v1/ui/separator';
 import {
   Tabs,
