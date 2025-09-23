@@ -24,10 +24,6 @@ export interface BaseRunsTableState {
   pagination: PaginationState;
 
   // Filters
-  timeWindow: TimeWindow;
-  isCustomTimeRange: boolean;
-  createdAfter?: string;
-  finishedBefore?: string;
   parentTaskExternalId?: string;
 
   // Table state / visibility
@@ -49,8 +45,6 @@ export interface RunsTableState extends BaseRunsTableState {
 
 const DEFAULT_STATE: RunsTableState = {
   pagination: { pageIndex: 0, pageSize: 50 },
-  timeWindow: '1d',
-  isCustomTimeRange: false,
   columnFilters: [],
   rowSelection: {},
   columnVisibility: {},
@@ -69,12 +63,6 @@ const KEY_MAP = {
   pagination: 'p',
   pageIndex: 'i',
   pageSize: 's',
-
-  // Time filters
-  timeWindow: 't',
-  isCustomTimeRange: 'c',
-  createdAfter: 'ca',
-  finishedBefore: 'fb',
 
   // Column filters
   parentTaskExternalId: 'pt',
@@ -249,9 +237,6 @@ export const useRunsTableState = (
 
     if (!stateParam) {
       const merged = { ...DEFAULT_STATE, ...initialStateRef.current };
-      if (!merged.isCustomTimeRange) {
-        merged.createdAfter = getCreatedAfterFromTimeRange(merged.timeWindow);
-      }
       return merged;
     }
 
@@ -271,17 +256,10 @@ export const useRunsTableState = (
         },
       };
 
-      if (!merged.isCustomTimeRange) {
-        merged.createdAfter = getCreatedAfterFromTimeRange(merged.timeWindow);
-      }
-
       return merged;
     } catch (error) {
       console.warn('Failed to parse table state from URL:', error);
       const merged = { ...DEFAULT_STATE, ...initialStateRef.current };
-      if (!merged.isCustomTimeRange) {
-        merged.createdAfter = getCreatedAfterFromTimeRange(merged.timeWindow);
-      }
       return merged;
     }
   }, [searchParams, paramKey]);
@@ -303,11 +281,6 @@ export const useRunsTableState = (
                 ...initialStateRef.current?.columnVisibility,
               },
             };
-            if (!merged.isCustomTimeRange) {
-              merged.createdAfter = getCreatedAfterFromTimeRange(
-                merged.timeWindow,
-              );
-            }
             currentStateFromURL = merged;
           } else {
             try {
@@ -325,11 +298,6 @@ export const useRunsTableState = (
                   ...initialStateRef.current?.columnVisibility,
                 },
               };
-              if (!merged.isCustomTimeRange) {
-                merged.createdAfter = getCreatedAfterFromTimeRange(
-                  merged.timeWindow,
-                );
-              }
               currentStateFromURL = merged;
             } catch (error) {
               const merged = {
@@ -340,23 +308,11 @@ export const useRunsTableState = (
                   ...initialStateRef.current?.columnVisibility,
                 },
               };
-              if (!merged.isCustomTimeRange) {
-                merged.createdAfter = getCreatedAfterFromTimeRange(
-                  merged.timeWindow,
-                );
-              }
               currentStateFromURL = merged;
             }
           }
 
           const newState = { ...currentStateFromURL, ...updates };
-
-          if (updates.timeWindow && !newState.isCustomTimeRange) {
-            newState.createdAfter = getCreatedAfterFromTimeRange(
-              newState.timeWindow,
-            );
-            newState.finishedBefore = undefined;
-          }
 
           if (
             Object.keys(updates).some(
@@ -371,10 +327,6 @@ export const useRunsTableState = (
 
           const stateToSerialize: BaseRunsTableState = {
             pagination: newState.pagination,
-            timeWindow: newState.timeWindow,
-            isCustomTimeRange: newState.isCustomTimeRange,
-            createdAfter: newState.createdAfter,
-            finishedBefore: newState.finishedBefore,
             parentTaskExternalId: newState.parentTaskExternalId,
             columnFilters: newState.columnFilters,
             rowSelection: newState.rowSelection,
@@ -410,10 +362,6 @@ export const useRunsTableState = (
       filters: Partial<
         Pick<
           RunsTableState,
-          | 'timeWindow'
-          | 'isCustomTimeRange'
-          | 'createdAfter'
-          | 'finishedBefore'
           | 'parentTaskExternalId'
           | 'columnFilters'
         >

@@ -141,13 +141,12 @@ export const RunsProvider = ({
     updateTableState,
   } = useRunsTableState(tableKey, initialState);
 
-  const filters = useRunsTableFilters(state, updateFilters, {
+  const filters = useRunsTableFilters({
     workflowIds: workflowId ? [workflowId] : undefined,
   });
 
   const toolbarFilters = useToolbarFilters({
     filterVisibility,
-    state,
     filterActions: filters,
   });
 
@@ -169,8 +168,8 @@ export const RunsProvider = ({
   } = useRuns({
     rowSelection: state.rowSelection,
     pagination: state.pagination,
-    createdAfter: state.createdAfter,
-    finishedBefore: state.finishedBefore,
+    createdAfter: filters.apiFilters.since,
+    finishedBefore: filters.apiFilters.until,
     statuses: filters.apiFilters.statuses,
     additionalMetadata: filters.apiFilters.additionalMetadata,
     workerId,
@@ -205,7 +204,7 @@ export const RunsProvider = ({
   } = useMetrics({
     workflow,
     parentTaskExternalId: derivedParentTaskExternalId,
-    createdAfter: state.createdAfter,
+    createdAfter: filters.apiFilters.since,
     additionalMetadata: filters.apiFilters.additionalMetadata,
   });
 

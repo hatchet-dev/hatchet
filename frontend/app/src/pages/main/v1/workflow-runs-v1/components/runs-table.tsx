@@ -23,7 +23,6 @@ import { Toaster } from '@/components/v1/ui/toaster';
 import { useQuery } from '@tanstack/react-query';
 import { queries } from '@/lib/api';
 
-import { getCreatedAfterFromTimeRange } from '../hooks/use-runs-table-state';
 import { AdditionalMetadataProp } from '../hooks/use-runs-table-filters';
 import { useRunsContext } from '../hooks/runs-provider';
 
@@ -40,8 +39,7 @@ const GetWorkflowChart = () => {
   const { refetchInterval } = useRefetchInterval();
 
   const {
-    state: { createdAfter, finishedBefore },
-    filters: { setCustomTimeRange },
+    filters: { apiFilters, setCustomTimeRange },
   } = useRunsContext();
 
   const zoom = useCallback(
@@ -56,8 +54,8 @@ const GetWorkflowChart = () => {
 
   const workflowRunEventsMetricsQuery = useQuery({
     ...queries.v1TaskRuns.pointMetrics(tenantId, {
-      createdAfter,
-      finishedBefore,
+      createdAfter: apiFilters.since,
+      finishedBefore: apiFilters.until,
     }),
     placeholderData: (prev) => prev,
     refetchInterval,
@@ -118,7 +116,6 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
     },
     actions: {
       updatePagination,
-      updateFilters,
       updateUIState,
       updateTableState,
       refetchRuns,
@@ -188,18 +185,16 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
   }, [refetchRuns, refetchMetrics]);
 
   useEffect(() => {
-    if (state.isCustomTimeRange) {
+    if (filters.isCustomTimeRange) {
       return;
     }
 
     const interval = setInterval(() => {
-      updateFilters({
-        createdAfter: getCreatedAfterFromTimeRange(state.timeWindow),
-      });
+      filters.updateCurrentTimeWindow();
     }, 60 * 1000);
 
     return () => clearInterval(interval);
-  }, [state.isCustomTimeRange, state.timeWindow, updateFilters]);
+  }, [filters.isCustomTimeRange, filters.updateCurrentTimeWindow]);
 
   const hasLoaded = !isRunsLoading && !isMetricsLoading;
   const isFetching = !hasLoaded && (isRunsFetching || isMetricsFetching);
