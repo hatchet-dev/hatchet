@@ -37,6 +37,7 @@ import {
 import { Skeleton } from '@/components/v1/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { ConfirmActionModal } from '@/pages/main/v1/task-runs-v1/actions';
+import { flattenDAGsKey } from '@/pages/main/v1/workflow-runs-v1/components/v1/task-runs-columns';
 
 export interface IDGetter<T> {
   metadata: {
@@ -295,7 +296,7 @@ export function DataTable<TData extends IDGetter<TData>, TValue>({
           table={table}
           columnKeyToName={columnKeyToName}
           filters={filters}
-          hiddenFilters={hiddenFilters}
+          hiddenFilters={[flattenDAGsKey]}
           showColumnVisibility={false}
         />
       )}

@@ -292,7 +292,7 @@ export function ConfirmActionModal<TData extends IDGetter<TData>>({
               }}
               variant="outline"
             >
-              Cancel
+              Close
             </Button>
             <Button
               onClick={() => {
