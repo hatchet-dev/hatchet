@@ -468,8 +468,8 @@ export function DataTableOptions<TData>({
         if (
           f.id === createdAfterKey ||
           f.id === finishedBeforeKey ||
-          f.id === isCustomTimeRangeKey ||
-          f.id === timeWindowKey
+          (f.id === isCustomTimeRangeKey && f.value !== true) ||
+          (f.id === timeWindowKey && f.value === '1d')
         ) {
           return false;
         }

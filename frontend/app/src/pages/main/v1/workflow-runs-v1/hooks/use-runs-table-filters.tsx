@@ -124,7 +124,6 @@ export const useRunsTableFilters = (initialValues?: {
     [zodState, setSearchParams, paramKey],
   );
 
-
   const setTimeWindow = useCallback(
     (timeWindow: TimeWindow) => {
       setZodState({
