@@ -531,7 +531,7 @@ export function DataTableOptions<TData>({
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="end"
-        className="w-96 max-h-[32rem] overflow-y-auto z-[70] shadow-lg"
+        className="w-96 max-h-[32rem] overflow-y-auto z-[70] shadow-lg p-0"
       >
         <DataTableOptionsContent
           table={table}
@@ -644,33 +644,6 @@ function ColumnsContent<TData>({
 }: ColumnsContentProps<TData>) {
   return (
     <div className="space-y-0">
-      <div className="p-3 border-b bg-muted/10">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-medium text-foreground">
-              Column Visibility
-            </span>
-          </div>
-          <div className="flex gap-1">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => table.toggleAllColumnsVisible(false)}
-              className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
-            >
-              Hide All
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => table.toggleAllColumnsVisible(true)}
-              className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
-            >
-              Show All
-            </Button>
-          </div>
-        </div>
-      </div>
       <div className="max-h-80 overflow-y-auto">
         <div className="p-3 space-y-1">
           {table
@@ -706,6 +679,26 @@ function ColumnsContent<TData>({
                 </div>
               );
             })}
+        </div>
+      </div>
+      <div className="p-3 border-t">
+        <div className="flex gap-1 w-full">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => table.toggleAllColumnsVisible(false)}
+            className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground flex-1"
+          >
+            Hide All
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => table.toggleAllColumnsVisible(true)}
+            className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground flex-1"
+          >
+            Show All
+          </Button>
         </div>
       </div>
     </div>
@@ -770,9 +763,9 @@ export function DataTableOptionsContent<TData>({
     <Tabs
       value={selectedTab}
       onValueChange={(value) => setSelectedTab(value as 'filters' | 'columns')}
-      className="w-full"
+      className="w-full rounded-none p-0"
     >
-      <TabsList className="grid w-full grid-cols-2 bg-muted/30">
+      <TabsList className="grid w-full grid-cols-2 bg-muted/30 rounded-none">
         <TabsTrigger
           value="filters"
           className="text-xs font-medium data-[state=active]:bg-background data-[state=active]:text-foreground"
@@ -793,7 +786,7 @@ export function DataTableOptionsContent<TData>({
           value="columns"
           className="text-xs font-medium data-[state=active]:bg-background data-[state=active]:text-foreground"
         >
-          Columns
+          Column Visibility
         </TabsTrigger>
       </TabsList>
 
