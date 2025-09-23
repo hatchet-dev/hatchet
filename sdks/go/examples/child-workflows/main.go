@@ -64,9 +64,9 @@ func main() {
 			log.Printf("Spawning child workflow %d/%d", i+1, input.Count)
 
 			// Spawn child workflow and wait for result
-			childResult, err := childWorkflow.RunAsChild(ctx, ChildInput{
+			childResult, err := childWorkflow.Run(ctx, ChildInput{
 				Value: i + 1,
-			}, hatchet.RunAsChildOpts{})
+			})
 			if err != nil {
 				return ParentOutput{}, fmt.Errorf("failed to spawn child workflow %d: %w", i, err)
 			}

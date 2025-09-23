@@ -7,7 +7,6 @@ import (
 	"sync"
 
 	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
-	v0Worker "github.com/hatchet-dev/hatchet/pkg/worker"
 	hatchet "github.com/hatchet-dev/hatchet/sdks/go"
 )
 
@@ -78,7 +77,7 @@ func main() {
 		// > Spawning tasks from within a task
 		parent := workflow.NewTask("parent-task", func(ctx hatchet.Context, input SimpleInput) (*SimpleOutput, error) {
 			// Run the child task
-			_, err := ctx.SpawnWorkflow(task.GetName(), SimpleInput{Message: input.Message}, &v0Worker.SpawnWorkflowOpts{})
+			_, err := task.Run(ctx, SimpleInput{Message: input.Message})
 			if err != nil {
 				return nil, err
 			}

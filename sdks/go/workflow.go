@@ -19,21 +19,41 @@ import (
 
 type RunPriority = features.RunPriority
 
-// RunOpts is a type that represents the options for running a workflow.
-type RunOpts struct {
+type runOpts struct {
 	AdditionalMetadata *map[string]interface{}
 	Priority           *RunPriority
+	Sticky             *bool
+	Key                *string
 }
 
-type RunOptFunc = v0Client.RunOptFunc
+type RunOptFunc func(*runOpts)
 
-func WithRunMetadata(metadata any) RunOptFunc {
-	return v0Client.WithRunMetadata(metadata)
+// WithRunMetadata sets the additional metadata for the workflow run.
+func WithRunMetadata(metadata map[string]interface{}) RunOptFunc {
+	return func(opts *runOpts) {
+		opts.AdditionalMetadata = &metadata
+	}
 }
 
-// WithRunPriority sets the priority for a workflow run.
+// WithRunPriority sets the priority for the workflow run.
 func WithRunPriority(priority RunPriority) RunOptFunc {
-	return v0Client.WithPriority(int32(priority))
+	return func(opts *runOpts) {
+		opts.Priority = &priority
+	}
+}
+
+// WithRunSticky enables stickiness for the child workflow run.
+func WithRunSticky(sticky bool) RunOptFunc {
+	return func(opts *runOpts) {
+		opts.Sticky = &sticky
+	}
+}
+
+// WithRunKey sets the key for the child workflow run.
+func WithRunKey(key string) RunOptFunc {
+	return func(opts *runOpts) {
+		opts.Key = &key
+	}
 }
 
 // convertInputToType converts input (typically map[string]interface{}) to the expected struct type
@@ -515,13 +535,13 @@ func (w *Workflow) Dump() (*contracts.CreateWorkflowVersionRequest, []internal.N
 // Workflow execution methods
 
 // Run executes the workflow with the provided input and waits for completion.
-func (w *Workflow) Run(ctx context.Context, input any) (*WorkflowResult, error) {
-	v0Workflow, err := w.v0Client.Admin().RunWorkflow(w.declaration.Name(), input)
+func (w *Workflow) Run(ctx context.Context, input any, opts ...RunOptFunc) (*WorkflowResult, error) {
+	workflowRunRef, err := w.RunNoWait(ctx, input, opts...)
 	if err != nil {
 		return nil, err
 	}
 
-	result, err := v0Workflow.Result()
+	result, err := workflowRunRef.v0Workflow.Result()
 	if err != nil {
 		return nil, err
 	}
@@ -536,66 +556,66 @@ func (w *Workflow) Run(ctx context.Context, input any) (*WorkflowResult, error) 
 
 // RunNoWait executes the workflow with the provided input without waiting for completion.
 // Returns a workflow run reference that can be used to track the run status.
-func (w *Workflow) RunNoWait(ctx context.Context, input any) (*WorkflowRunRef, error) {
-	wf, err := w.v0Client.Admin().RunWorkflow(w.declaration.Name(), input)
-	if err != nil {
-		return nil, err
+func (w *Workflow) RunNoWait(ctx context.Context, input any, opts ...RunOptFunc) (*WorkflowRunRef, error) {
+	runOpts := &runOpts{}
+	for _, opt := range opts {
+		opt(runOpts)
 	}
 
-	return &WorkflowRunRef{RunId: wf.RunId(), v0Workflow: wf}, nil
-}
+	var priority *int32
+	if runOpts.Priority != nil {
+		priority = &[]int32{int32(*runOpts.Priority)}[0]
+	}
 
-// RunAsChildOpts is the options for running a workflow as a child workflow.
-type RunAsChildOpts = internal.RunAsChildOpts
-
-// RunAsChild executes the workflow as a child workflow with the provided input.
-func (w *Workflow) RunAsChild(ctx worker.HatchetContext, input any, opts RunAsChildOpts) (*WorkflowResult, error) {
-	// Convert opts to internal format
-	var additionalMetaOpt *map[string]string
-
-	if opts.AdditionalMetadata != nil {
-		additionalMeta := make(map[string]string)
-
-		for key, value := range *opts.AdditionalMetadata {
-			additionalMeta[key] = fmt.Sprintf("%v", value)
+	var additionalMetadata *map[string]string
+	if runOpts.AdditionalMetadata != nil {
+		additionalMetadata = &map[string]string{}
+		for key, value := range *runOpts.AdditionalMetadata {
+			(*additionalMetadata)[key] = fmt.Sprintf("%v", value)
 		}
-
-		additionalMetaOpt = &additionalMeta
 	}
 
-	// Spawn the child workflow directly
-	run, err := ctx.SpawnWorkflow(w.declaration.Name(), input, &worker.SpawnWorkflowOpts{
-		Key:                opts.Key,
-		Sticky:             opts.Sticky,
-		Priority:           opts.Priority,
-		AdditionalMetadata: additionalMetaOpt,
-	})
+	var v0Opts []v0Client.RunOptFunc
+	if additionalMetadata != nil {
+		v0Opts = append(v0Opts, v0Client.WithRunMetadata(*additionalMetadata))
+	}
+	if priority != nil {
+		v0Opts = append(v0Opts, v0Client.WithPriority(*priority))
+	}
+
+	var v0Workflow *v0Client.Workflow
+	var err error
+
+	hCtx, ok := ctx.(Context)
+	if ok {
+		v0Workflow, err = hCtx.SpawnWorkflow(w.declaration.Name(), input, &worker.SpawnWorkflowOpts{
+			Key:                runOpts.Key,
+			Sticky:             runOpts.Sticky,
+			Priority:           priority,
+			AdditionalMetadata: additionalMetadata,
+		})
+	} else {
+		v0Workflow, err = w.v0Client.Admin().RunWorkflow(w.declaration.Name(), input, v0Opts...)
+	}
 
 	if err != nil {
 		return nil, err
 	}
 
-	// Get the raw workflow result
-	workflowResult, err := run.Result()
-	if err != nil {
-		return nil, err
-	}
-
-	// Return the raw workflow result wrapped in WorkflowResult
-	// This allows users to extract specific task outputs using .Into()
-	return &WorkflowResult{result: workflowResult}, nil
+	return &WorkflowRunRef{RunId: v0Workflow.RunId(), v0Workflow: v0Workflow}, nil
 }
 
 // RunMany executes multiple workflow instances with different inputs.
-// Returns workflow run IDs that can be used to track the run statuses.
-func (w *Workflow) RunMany(ctx context.Context, inputs []RunManyOpt) ([]string, error) {
-	workflows := make([]*v0Client.WorkflowRun, len(inputs))
-	for i, input := range inputs {
-		workflows[i] = &v0Client.WorkflowRun{
-			Name:    w.declaration.Name(),
-			Input:   input.Input,
-			Options: input.Opts,
+func (w *Workflow) RunMany(ctx context.Context, inputs []RunManyOpt) ([]WorkflowRunRef, error) {
+	var workflowRefs []WorkflowRunRef
+
+	for _, input := range inputs {
+		workflowRef, err := w.RunNoWait(ctx, input.Input, input.Opts...)
+		if err != nil {
+			return nil, err
 		}
+		workflowRefs = append(workflowRefs, *workflowRef)
 	}
-	return w.v0Client.Admin().BulkRunWorkflow(workflows)
+
+	return workflowRefs, nil
 }

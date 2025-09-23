@@ -71,17 +71,14 @@ func Sticky(client *hatchet.Client) *hatchet.StandaloneTask {
 		func(ctx worker.HatchetContext, input StickyInput) (*StickyResult, error) {
 			// Run a child workflow on the same worker
 			childWorkflow := Child(client)
-			sticky := true
-			childResult, err := childWorkflow.RunAsChild(ctx, ChildInput{N: 1}, hatchet.RunAsChildOpts{
-				Sticky: &sticky,
-			})
+			childResult, err := childWorkflow.Run(ctx, ChildInput{N: 1}, hatchet.WithRunSticky(true))
 
 			if err != nil {
 				return nil, err
 			}
 
 			var childOutput ChildResult
-			err = childResult.TaskOutput("child-task").Into(&childOutput)
+			err = childResult.Into(&childOutput)
 			if err != nil {
 				return nil, err
 			}
