@@ -2695,7 +2695,6 @@ files = [
     {file = "urllib3-2.5.0-py3-none-any.whl", hash = "sha256:e6b01673c0fa6a13e374b50871808eb3bf7046c4b125b216f6bf1cc604cff0dc"},
     {file = "urllib3-2.5.0.tar.gz", hash = "sha256:3fc47733c7e419d4bc3f6b3dc2b4f890bb743906a30d56ba4a5bfa4bbff92760"},
 ]
-markers = {main = "extra == \"otel\""}
 
 [package.extras]
 brotli = ["brotli (>=1.0.9)", "brotlicffi (>=0.8.0)"]
@@ -3003,4 +3002,4 @@ v0-sdk = []
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.10"
-content-hash = "eee0753c559c5c1e567da4e327c5172a3c5c966b2d4713cd07bda3ab5f1f092e"
+content-hash = "2a7ae38950fe4724d90fab58d0a5a49110a0fb049c31cc213799f9043a360051"

@@ -32,6 +32,7 @@ opentelemetry-instrumentation = { version = ">=0.49b0", optional = true }
 opentelemetry-distro = { version = ">=0.49b0", optional = true }
 opentelemetry-exporter-otlp = { version = "^1.28.0", optional = true }
 opentelemetry-exporter-otlp-proto-http = { version = "^1.28.0", optional = true }
+urllib3 = "^2.5.0"
 
 
 [tool.poetry.group.lint.dependencies]
