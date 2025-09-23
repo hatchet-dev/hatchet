@@ -44,7 +44,6 @@ type RunsContextType = {
   state: RunsTableState;
   actions: {
     updatePagination: (pagination: PaginationState) => void;
-    updateFilters: (filters: any) => void;
     updateUIState: (
       uiState: Partial<
         Pick<
@@ -133,13 +132,8 @@ export const RunsProvider = ({
     return baseState;
   }, [parentTaskExternalId, initColumnVisibility]);
 
-  const {
-    state,
-    updatePagination,
-    updateFilters,
-    updateUIState,
-    updateTableState,
-  } = useRunsTableState(tableKey, initialState);
+  const { state, updatePagination, updateUIState, updateTableState } =
+    useRunsTableState(tableKey, initialState);
 
   const filters = useRunsTableFilters({
     workflowIds: workflowId ? [workflowId] : undefined,
@@ -258,7 +252,6 @@ export const RunsProvider = ({
       },
       actions: {
         updatePagination,
-        updateFilters,
         updateUIState,
         updateTableState,
         setIsActionModalOpen,
@@ -292,7 +285,6 @@ export const RunsProvider = ({
       actionModalParams,
       selectedActionType,
       updatePagination,
-      updateFilters,
       updateUIState,
       updateTableState,
       setIsActionModalOpen,

@@ -1,7 +1,6 @@
 import { useCallback, useMemo, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
-  ColumnFiltersState,
   PaginationState,
   RowSelectionState,
   VisibilityState,
@@ -27,7 +26,6 @@ export interface BaseRunsTableState {
   parentTaskExternalId?: string;
 
   // Table state / visibility
-  columnFilters: ColumnFiltersState;
   rowSelection: RowSelectionState;
   columnVisibility: VisibilityState;
 
@@ -45,7 +43,6 @@ export interface RunsTableState extends BaseRunsTableState {
 
 const DEFAULT_STATE: RunsTableState = {
   pagination: { pageIndex: 0, pageSize: 50 },
-  columnFilters: [],
   rowSelection: {},
   columnVisibility: {},
   viewQueueMetrics: false,
@@ -87,12 +84,6 @@ const REVERSE_KEY_MAP = Object.fromEntries(
   Object.entries(KEY_MAP).map(([key, value]) => [value, key]),
 ) as Record<string, string>;
 
-interface ColumnFilterWithId {
-  id: string;
-  value: unknown;
-  [key: string]: unknown;
-}
-
 type CompressibleValue =
   | string
   | number
@@ -102,33 +93,7 @@ type CompressibleValue =
   | Array<CompressibleValue>
   | { [key: string]: CompressibleValue };
 
-const parseColumnFilters = (obj: CompressibleValue[]) => {
-  return obj.map((filter) => {
-    if (
-      filter &&
-      typeof filter === 'object' &&
-      !Array.isArray(filter) &&
-      'id' in filter
-    ) {
-      const columnFilter = filter as ColumnFilterWithId;
-      const compressedFilter = { ...columnFilter };
-      const compressedId =
-        KEY_MAP[columnFilter.id as keyof typeof KEY_MAP] || columnFilter.id;
-      compressedFilter.id = compressedId;
-
-      return compressKeys(
-        compressedFilter as CompressibleValue,
-        'columnFilter',
-      );
-    }
-    return compressKeys(filter);
-  });
-};
-
-function compressKeys(
-  obj: CompressibleValue,
-  parentKey?: string,
-): CompressibleValue {
+function compressKeys(obj: CompressibleValue): CompressibleValue {
   if (obj === null || obj === undefined) {
     return obj;
   }
@@ -136,47 +101,18 @@ function compressKeys(
     return obj;
   }
   if (Array.isArray(obj)) {
-    if (parentKey === 'columnFilters') {
-      return parseColumnFilters(obj);
-    }
-
     return obj.map((item) => compressKeys(item));
   }
 
   const compressed: Record<string, CompressibleValue> = {};
   for (const [key, value] of Object.entries(obj)) {
     const compressedKey = KEY_MAP[key as keyof typeof KEY_MAP] || key;
-    compressed[compressedKey] = compressKeys(value, key);
+    compressed[compressedKey] = compressKeys(value);
   }
   return compressed;
 }
 
-const decompressColumnFilters = (obj: CompressibleValue[]) => {
-  return obj.map((filter) => {
-    if (
-      filter &&
-      typeof filter === 'object' &&
-      !Array.isArray(filter) &&
-      'id' in filter
-    ) {
-      const columnFilter = filter as ColumnFilterWithId;
-      const decompressedFilter = { ...columnFilter };
-      const decompressedId =
-        REVERSE_KEY_MAP[columnFilter.id] || columnFilter.id;
-      decompressedFilter.id = decompressedId;
-      return decompressKeys(
-        decompressedFilter as CompressibleValue,
-        'columnFilter',
-      );
-    }
-    return decompressKeys(filter);
-  });
-};
-
-function decompressKeys(
-  obj: CompressibleValue,
-  parentKey?: string,
-): CompressibleValue {
+function decompressKeys(obj: CompressibleValue): CompressibleValue {
   if (obj === null || obj === undefined) {
     return obj;
   }
@@ -184,16 +120,13 @@ function decompressKeys(
     return obj;
   }
   if (Array.isArray(obj)) {
-    if (parentKey === 'cf') {
-      return decompressColumnFilters(obj);
-    }
     return obj.map((item) => decompressKeys(item));
   }
 
   const decompressed: Record<string, CompressibleValue> = {};
   for (const [key, value] of Object.entries(obj)) {
     const decompressedKey = REVERSE_KEY_MAP[key] || key;
-    decompressed[decompressedKey] = decompressKeys(value, key);
+    decompressed[decompressedKey] = decompressKeys(value);
   }
   return decompressed;
 }
@@ -244,7 +177,6 @@ export const useRunsTableState = (
         ...DEFAULT_STATE,
         ...parsedState,
         ...initialStateRef.current,
-        columnFilters: parsedState.columnFilters || [],
         columnVisibility: {
           ...parsedState.columnVisibility,
           ...initialStateRef.current?.columnVisibility,
@@ -287,7 +219,6 @@ export const useRunsTableState = (
                 ...DEFAULT_STATE,
                 ...parsedState,
                 ...initialStateRef.current,
-                columnFilters: parsedState.columnFilters || [],
                 columnVisibility: {
                   ...parsedState.columnVisibility,
                   ...initialStateRef.current?.columnVisibility,
@@ -323,7 +254,6 @@ export const useRunsTableState = (
           const stateToSerialize: BaseRunsTableState = {
             pagination: newState.pagination,
             parentTaskExternalId: newState.parentTaskExternalId,
-            columnFilters: newState.columnFilters,
             rowSelection: newState.rowSelection,
             columnVisibility: newState.columnVisibility,
             viewQueueMetrics: newState.viewQueueMetrics,
@@ -348,17 +278,6 @@ export const useRunsTableState = (
   const updatePagination = useCallback(
     (pagination: PaginationState) => {
       updateState({ pagination });
-    },
-    [updateState],
-  );
-
-  const updateFilters = useCallback(
-    (
-      filters: Partial<
-        Pick<RunsTableState, 'parentTaskExternalId' | 'columnFilters'>
-      >,
-    ) => {
-      updateState(filters);
     },
     [updateState],
   );
@@ -408,7 +327,6 @@ export const useRunsTableState = (
     state: derivedState,
     updateState,
     updatePagination,
-    updateFilters,
     updateUIState,
     updateTableState,
   };
