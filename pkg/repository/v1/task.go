@@ -1321,6 +1321,25 @@ func (r *TaskRepositoryImpl) ProcessDurableSleeps(ctx context.Context, tenantId 
 		return nil, false, err
 	}
 
+	storePayloadOpts := make([]StorePayloadOpts, len(results.CreatedTasks))
+	for i, task := range results.CreatedTasks {
+		storePayloadOpts[i] = StorePayloadOpts{
+			Id:         task.ID,
+			InsertedAt: task.InsertedAt,
+			Type:       sqlcv1.V1PayloadTypeTASKINPUT,
+			Payload:    task.Payload,
+			TenantId:   task.TenantID.String(),
+		}
+	}
+
+	if len(storePayloadOpts) > 0 {
+		err = r.payloadStore.Store(ctx, tx, storePayloadOpts...)
+
+		if err != nil {
+			return nil, false, fmt.Errorf("failed to store payloads for created tasks for durable sleep matches: %w", err)
+		}
+	}
+
 	if err := commit(ctx); err != nil {
 		return nil, false, err
 	}
