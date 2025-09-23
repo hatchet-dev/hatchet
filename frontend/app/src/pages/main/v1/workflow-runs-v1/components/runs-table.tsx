@@ -194,7 +194,7 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
     }, 60 * 1000);
 
     return () => clearInterval(interval);
-  }, [filters.isCustomTimeRange, filters.updateCurrentTimeWindow]);
+  }, [filters, filters.isCustomTimeRange, filters.updateCurrentTimeWindow]);
 
   const hasLoaded = !isRunsLoading && !isMetricsLoading;
   const isFetching = !hasLoaded && (isRunsFetching || isMetricsFetching);
