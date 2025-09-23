@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useEffect } from 'react';
+import { useCallback, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { V1TaskStatus } from '@/lib/api';
 import { ColumnFiltersState } from '@tanstack/react-table';
@@ -124,16 +124,6 @@ export const useRunsTableFilters = (initialValues?: {
     [zodState, setSearchParams, paramKey],
   );
 
-  const hasInitialized = useRef(false);
-  useEffect(() => {
-    if (!hasInitialized.current && !rawCreatedAfter && !isCustomTimeRange) {
-      hasInitialized.current = true;
-      setZodState({
-        ...zodState,
-        s: getCreatedAfterFromTimeRange(timeWindow),
-      });
-    }
-  }, [rawCreatedAfter, isCustomTimeRange, timeWindow, zodState, setZodState]);
 
   const setTimeWindow = useCallback(
     (timeWindow: TimeWindow) => {
