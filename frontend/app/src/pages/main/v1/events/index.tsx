@@ -164,7 +164,9 @@ export function ExpandedEventContent({ event }: { event: V1Event }) {
       <div className="space-y-6">
         <div className="flex flex-col justify-center items-start gap-3 pb-4 border-b text-sm">
           <div className="flex items-center gap-3 min-w-0 w-full">
-            <span className="text-muted-foreground font-medium shrink-0">Key</span>
+            <span className="text-muted-foreground font-medium shrink-0">
+              Key
+            </span>
             <div className="px-2 py-1 bg-muted/50 rounded font-mono text-xs overflow-x-auto min-w-0 flex-1">
               <span className="whitespace-nowrap">{event.key}</span>
             </div>

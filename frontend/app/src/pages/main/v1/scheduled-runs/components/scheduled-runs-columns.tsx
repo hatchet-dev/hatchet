@@ -5,11 +5,34 @@ import RelativeDate from '@/components/v1/molecules/relative-date';
 import { AdditionalMetadata } from '../../events/components/additional-metadata';
 import { RunStatus } from '../../workflow-runs/components/run-statuses';
 import { DataTableRowActions } from '@/components/v1/molecules/data-table/data-table-row-actions';
+import { Link } from 'react-router-dom';
+import { Button } from '@/components/v1/ui/button';
+
 export type RateLimitRow = RateLimit & {
   metadata: {
     id: string;
   };
 };
+
+export const ScheduledRunColumn = {
+  runId: 'Run ID',
+  status: 'Status',
+  triggerAt: 'Trigger At',
+  workflow: 'Workflow',
+  metadata: 'Metadata',
+  createdAt: 'Created At',
+  actions: 'Actions',
+};
+
+export type ScheduledRunColumnKeys = keyof typeof ScheduledRunColumn;
+
+export const idKey: ScheduledRunColumnKeys = 'runId';
+export const statusKey: ScheduledRunColumnKeys = 'status';
+export const triggerAtKey: ScheduledRunColumnKeys = 'triggerAt';
+export const workflowKey: ScheduledRunColumnKeys = 'workflow';
+export const metadataKey: ScheduledRunColumnKeys = 'metadata';
+export const createdAtKey: ScheduledRunColumnKeys = 'createdAt';
+export const actionsKey: ScheduledRunColumnKeys = 'actions';
 
 export const columns = ({
   tenantId,
@@ -24,18 +47,41 @@ export const columns = ({
 }): ColumnDef<ScheduledWorkflows>[] => {
   return [
     {
-      accessorKey: 'status',
+      accessorKey: idKey,
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Status" />
+        <DataTableColumnHeader
+          column={column}
+          title={ScheduledRunColumn.runId}
+        />
+      ),
+      cell: ({ row }) =>
+        row.original.workflowRunId && (
+          <Link
+            to={'/tenants/' + tenantId + '/runs/' + row.original.workflowRunId}
+          >
+            <Button>{row.original.workflowRunId}</Button>
+          </Link>
+        ),
+    },
+    {
+      accessorKey: statusKey,
+      header: ({ column }) => (
+        <DataTableColumnHeader
+          column={column}
+          title={ScheduledRunColumn.status}
+        />
       ),
       cell: ({ row }) => (
         <RunStatus status={row.original.workflowRunStatus || 'SCHEDULED'} />
       ),
     },
     {
-      accessorKey: 'triggerAt',
+      accessorKey: triggerAtKey,
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Trigger At" />
+        <DataTableColumnHeader
+          column={column}
+          title={ScheduledRunColumn.triggerAt}
+        />
       ),
       cell: ({ row }) => (
         <div className="flex flex-row items-center gap-4">
@@ -44,9 +90,12 @@ export const columns = ({
       ),
     },
     {
-      accessorKey: 'Workflow',
+      accessorKey: workflowKey,
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Workflow" />
+        <DataTableColumnHeader
+          column={column}
+          title={ScheduledRunColumn.workflow}
+        />
       ),
       cell: ({ row }) => (
         <div className="flex flex-row items-center gap-4">
@@ -63,9 +112,12 @@ export const columns = ({
       enableHiding: true,
     },
     {
-      accessorKey: 'Metadata',
+      accessorKey: metadataKey,
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Metadata" />
+        <DataTableColumnHeader
+          column={column}
+          title={ScheduledRunColumn.metadata}
+        />
       ),
       cell: ({ row }) => {
         if (!row.original.additionalMetadata) {
@@ -89,9 +141,12 @@ export const columns = ({
       enableSorting: false,
     },
     {
-      accessorKey: 'createdAt',
+      accessorKey: createdAtKey,
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Created At" />
+        <DataTableColumnHeader
+          column={column}
+          title={ScheduledRunColumn.createdAt}
+        />
       ),
       cell: ({ row }) => (
         <div className="flex flex-row items-center gap-4">
@@ -102,9 +157,12 @@ export const columns = ({
       enableHiding: true,
     },
     {
-      accessorKey: 'actions',
+      accessorKey: actionsKey,
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Actions" />
+        <DataTableColumnHeader
+          column={column}
+          title={ScheduledRunColumn.actions}
+        />
       ),
       cell: ({ row }) => (
         <div className="flex flex-row justify-center">

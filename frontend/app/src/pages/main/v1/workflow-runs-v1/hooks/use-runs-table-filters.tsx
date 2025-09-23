@@ -154,7 +154,7 @@ export const useRunsTableFilters = (
   const resetFiltersWithTableState = useCallback(() => {
     resetFilters();
     setTimeWindow('1d');
-  }, [resetFilters, updateFilters]);
+  }, [resetFilters, setTimeWindow]);
 
   return {
     columnFilters,
