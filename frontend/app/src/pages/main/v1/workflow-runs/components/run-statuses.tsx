@@ -1,4 +1,4 @@
-import { Badge } from '@/components/v1/ui/badge';
+import { Badge, BadgeProps } from '@/components/v1/ui/badge';
 import { HoverCard, HoverCardTrigger } from '@/components/v1/ui/hover-card';
 import {
   Tooltip,
@@ -20,7 +20,7 @@ type RunStatusType =
 
 type RunStatusVariant = {
   text: string;
-  variant: 'inProgress' | 'successful' | 'failed' | 'outline';
+  variant: BadgeProps['variant'];
 };
 
 export function createRunStatusVariant(
@@ -61,11 +61,11 @@ export function createV1RunStatusVariant(
     case V1TaskStatus.FAILED:
       return { text: 'Failed', variant: 'failed' };
     case V1TaskStatus.CANCELLED:
-      return { text: 'Cancelled', variant: 'failed' };
+      return { text: 'Cancelled', variant: 'cancelled' };
     case V1TaskStatus.RUNNING:
       return { text: 'Running', variant: 'inProgress' };
     case V1TaskStatus.QUEUED:
-      return { text: 'Queued', variant: 'outline' };
+      return { text: 'Queued', variant: 'queued' };
     default:
       return { text: 'Unknown', variant: 'outline' };
   }
