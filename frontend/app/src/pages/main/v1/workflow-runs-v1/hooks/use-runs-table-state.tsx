@@ -1,18 +1,10 @@
 import { useCallback, useMemo, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { V1TaskStatus } from '@/lib/api';
 import {
-  ColumnFiltersState,
   PaginationState,
   RowSelectionState,
   VisibilityState,
 } from '@tanstack/react-table';
-import {
-  workflowKey,
-  statusKey,
-  additionalMetadataKey,
-  flattenDAGsKey,
-} from '../components/v1/task-runs-columns';
 
 export type TimeWindow = '1h' | '6h' | '1d' | '7d';
 
@@ -31,14 +23,9 @@ export interface BaseRunsTableState {
   pagination: PaginationState;
 
   // Filters
-  timeWindow: TimeWindow;
-  isCustomTimeRange: boolean;
-  createdAfter?: string;
-  finishedBefore?: string;
   parentTaskExternalId?: string;
 
   // Table state / visibility
-  columnFilters: ColumnFiltersState;
   rowSelection: RowSelectionState;
   columnVisibility: VisibilityState;
 
@@ -56,9 +43,6 @@ export interface RunsTableState extends BaseRunsTableState {
 
 const DEFAULT_STATE: RunsTableState = {
   pagination: { pageIndex: 0, pageSize: 50 },
-  timeWindow: '1d',
-  isCustomTimeRange: false,
-  columnFilters: [],
   rowSelection: {},
   columnVisibility: {},
   viewQueueMetrics: false,
@@ -77,21 +61,10 @@ const KEY_MAP = {
   pageIndex: 'i',
   pageSize: 's',
 
-  // Time filters
-  timeWindow: 't',
-  isCustomTimeRange: 'c',
-  createdAfter: 'ca',
-  finishedBefore: 'fb',
-
   // Column filters
   parentTaskExternalId: 'pt',
-  flattenDAGs: 'fd',
-  workflow: 'w',
-  status: 'st',
-  additionalMetadata: 'am',
 
   // Table state
-  columnFilters: 'cf',
   rowSelection: 'rs',
   columnVisibility: 'cv',
 
@@ -111,12 +84,6 @@ const REVERSE_KEY_MAP = Object.fromEntries(
   Object.entries(KEY_MAP).map(([key, value]) => [value, key]),
 ) as Record<string, string>;
 
-interface ColumnFilterWithId {
-  id: string;
-  value: unknown;
-  [key: string]: unknown;
-}
-
 type CompressibleValue =
   | string
   | number
@@ -126,33 +93,7 @@ type CompressibleValue =
   | Array<CompressibleValue>
   | { [key: string]: CompressibleValue };
 
-const parseColumnFilters = (obj: CompressibleValue[]) => {
-  return obj.map((filter) => {
-    if (
-      filter &&
-      typeof filter === 'object' &&
-      !Array.isArray(filter) &&
-      'id' in filter
-    ) {
-      const columnFilter = filter as ColumnFilterWithId;
-      const compressedFilter = { ...columnFilter };
-      const compressedId =
-        KEY_MAP[columnFilter.id as keyof typeof KEY_MAP] || columnFilter.id;
-      compressedFilter.id = compressedId;
-
-      return compressKeys(
-        compressedFilter as CompressibleValue,
-        'columnFilter',
-      );
-    }
-    return compressKeys(filter);
-  });
-};
-
-function compressKeys(
-  obj: CompressibleValue,
-  parentKey?: string,
-): CompressibleValue {
+function compressKeys(obj: CompressibleValue): CompressibleValue {
   if (obj === null || obj === undefined) {
     return obj;
   }
@@ -160,47 +101,18 @@ function compressKeys(
     return obj;
   }
   if (Array.isArray(obj)) {
-    if (parentKey === 'columnFilters') {
-      return parseColumnFilters(obj);
-    }
-
     return obj.map((item) => compressKeys(item));
   }
 
   const compressed: Record<string, CompressibleValue> = {};
   for (const [key, value] of Object.entries(obj)) {
     const compressedKey = KEY_MAP[key as keyof typeof KEY_MAP] || key;
-    compressed[compressedKey] = compressKeys(value, key);
+    compressed[compressedKey] = compressKeys(value);
   }
   return compressed;
 }
 
-const decompressColumnFilters = (obj: CompressibleValue[]) => {
-  return obj.map((filter) => {
-    if (
-      filter &&
-      typeof filter === 'object' &&
-      !Array.isArray(filter) &&
-      'id' in filter
-    ) {
-      const columnFilter = filter as ColumnFilterWithId;
-      const decompressedFilter = { ...columnFilter };
-      const decompressedId =
-        REVERSE_KEY_MAP[columnFilter.id] || columnFilter.id;
-      decompressedFilter.id = decompressedId;
-      return decompressKeys(
-        decompressedFilter as CompressibleValue,
-        'columnFilter',
-      );
-    }
-    return decompressKeys(filter);
-  });
-};
-
-function decompressKeys(
-  obj: CompressibleValue,
-  parentKey?: string,
-): CompressibleValue {
+function decompressKeys(obj: CompressibleValue): CompressibleValue {
   if (obj === null || obj === undefined) {
     return obj;
   }
@@ -208,16 +120,13 @@ function decompressKeys(
     return obj;
   }
   if (Array.isArray(obj)) {
-    if (parentKey === 'cf') {
-      return decompressColumnFilters(obj);
-    }
     return obj.map((item) => decompressKeys(item));
   }
 
   const decompressed: Record<string, CompressibleValue> = {};
   for (const [key, value] of Object.entries(obj)) {
     const decompressedKey = REVERSE_KEY_MAP[key] || key;
-    decompressed[decompressedKey] = decompressKeys(value, key);
+    decompressed[decompressedKey] = decompressKeys(value);
   }
   return decompressed;
 }
@@ -241,51 +150,6 @@ export const getCreatedAfterFromTimeRange = (
   }
 };
 
-export const getWorkflowIdsFromFilters = (
-  columnFilters: ColumnFiltersState,
-): string[] => {
-  const filter = columnFilters.find((f) => f.id === workflowKey);
-  if (!filter) {
-    return [];
-  }
-  const value = filter.value;
-  return Array.isArray(value) ? (value as string[]) : [value as string];
-};
-
-export const getStatusesFromFilters = (
-  columnFilters: ColumnFiltersState,
-): V1TaskStatus[] => {
-  const filter = columnFilters.find((f) => f.id === statusKey);
-  if (!filter) {
-    return [];
-  }
-  const value = filter.value;
-  return Array.isArray(value)
-    ? (value as V1TaskStatus[])
-    : [value as V1TaskStatus];
-};
-
-export const getAdditionalMetadataFromFilters = (
-  columnFilters: ColumnFiltersState,
-): string[] | undefined => {
-  const filter = columnFilters.find((f) => f.id === additionalMetadataKey);
-  if (!filter) {
-    return undefined;
-  }
-  const value = filter.value;
-  return Array.isArray(value) ? (value as string[]) : [value as string];
-};
-
-export const getFlattenDAGsFromFilters = (
-  columnFilters: ColumnFiltersState,
-): boolean => {
-  const filter = columnFilters.find((f) => f.id === flattenDAGsKey);
-  if (!filter || filter.value === undefined) {
-    return false;
-  }
-  return filter.value as boolean;
-};
-
 export const useRunsTableState = (
   tableKey: string,
   initialState?: Partial<RunsTableState>,
@@ -301,9 +165,6 @@ export const useRunsTableState = (
 
     if (!stateParam) {
       const merged = { ...DEFAULT_STATE, ...initialStateRef.current };
-      if (!merged.isCustomTimeRange) {
-        merged.createdAfter = getCreatedAfterFromTimeRange(merged.timeWindow);
-      }
       return merged;
     }
 
@@ -316,24 +177,16 @@ export const useRunsTableState = (
         ...DEFAULT_STATE,
         ...parsedState,
         ...initialStateRef.current,
-        columnFilters: parsedState.columnFilters || [],
         columnVisibility: {
           ...parsedState.columnVisibility,
           ...initialStateRef.current?.columnVisibility,
         },
       };
 
-      if (!merged.isCustomTimeRange) {
-        merged.createdAfter = getCreatedAfterFromTimeRange(merged.timeWindow);
-      }
-
       return merged;
     } catch (error) {
       console.warn('Failed to parse table state from URL:', error);
       const merged = { ...DEFAULT_STATE, ...initialStateRef.current };
-      if (!merged.isCustomTimeRange) {
-        merged.createdAfter = getCreatedAfterFromTimeRange(merged.timeWindow);
-      }
       return merged;
     }
   }, [searchParams, paramKey]);
@@ -355,11 +208,6 @@ export const useRunsTableState = (
                 ...initialStateRef.current?.columnVisibility,
               },
             };
-            if (!merged.isCustomTimeRange) {
-              merged.createdAfter = getCreatedAfterFromTimeRange(
-                merged.timeWindow,
-              );
-            }
             currentStateFromURL = merged;
           } else {
             try {
@@ -371,17 +219,11 @@ export const useRunsTableState = (
                 ...DEFAULT_STATE,
                 ...parsedState,
                 ...initialStateRef.current,
-                columnFilters: parsedState.columnFilters || [],
                 columnVisibility: {
                   ...parsedState.columnVisibility,
                   ...initialStateRef.current?.columnVisibility,
                 },
               };
-              if (!merged.isCustomTimeRange) {
-                merged.createdAfter = getCreatedAfterFromTimeRange(
-                  merged.timeWindow,
-                );
-              }
               currentStateFromURL = merged;
             } catch (error) {
               const merged = {
@@ -392,23 +234,11 @@ export const useRunsTableState = (
                   ...initialStateRef.current?.columnVisibility,
                 },
               };
-              if (!merged.isCustomTimeRange) {
-                merged.createdAfter = getCreatedAfterFromTimeRange(
-                  merged.timeWindow,
-                );
-              }
               currentStateFromURL = merged;
             }
           }
 
           const newState = { ...currentStateFromURL, ...updates };
-
-          if (updates.timeWindow && !newState.isCustomTimeRange) {
-            newState.createdAfter = getCreatedAfterFromTimeRange(
-              newState.timeWindow,
-            );
-            newState.finishedBefore = undefined;
-          }
 
           if (
             Object.keys(updates).some(
@@ -423,12 +253,7 @@ export const useRunsTableState = (
 
           const stateToSerialize: BaseRunsTableState = {
             pagination: newState.pagination,
-            timeWindow: newState.timeWindow,
-            isCustomTimeRange: newState.isCustomTimeRange,
-            createdAfter: newState.createdAfter,
-            finishedBefore: newState.finishedBefore,
             parentTaskExternalId: newState.parentTaskExternalId,
-            columnFilters: newState.columnFilters,
             rowSelection: newState.rowSelection,
             columnVisibility: newState.columnVisibility,
             viewQueueMetrics: newState.viewQueueMetrics,
@@ -453,25 +278,6 @@ export const useRunsTableState = (
   const updatePagination = useCallback(
     (pagination: PaginationState) => {
       updateState({ pagination });
-    },
-    [updateState],
-  );
-
-  const updateFilters = useCallback(
-    (
-      filters: Partial<
-        Pick<
-          RunsTableState,
-          | 'timeWindow'
-          | 'isCustomTimeRange'
-          | 'createdAfter'
-          | 'finishedBefore'
-          | 'parentTaskExternalId'
-          | 'columnFilters'
-        >
-      >,
-    ) => {
-      updateState(filters);
     },
     [updateState],
   );
@@ -521,7 +327,6 @@ export const useRunsTableState = (
     state: derivedState,
     updateState,
     updatePagination,
-    updateFilters,
     updateUIState,
     updateTableState,
   };

@@ -44,6 +44,8 @@ export const statusKey: TaskRunColumnKeys = 'status';
 
 export const createdAfterKey = 'createdAfter';
 export const finishedBeforeKey = 'finishedBefore';
+export const isCustomTimeRangeKey = 'isCustomTimeRange';
+export const timeWindowKey = 'timeWindow';
 
 export const columns: (
   tenantId: string,

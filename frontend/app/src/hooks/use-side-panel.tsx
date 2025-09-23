@@ -21,12 +21,10 @@ type SidePanelContent =
   | {
       isDocs: false;
       component: React.ReactNode;
-      title: React.ReactNode;
       actions?: React.ReactNode;
     }
   | {
       isDocs: true;
-      title: string;
       component: React.ReactNode;
     };
 
@@ -101,13 +99,11 @@ export function useSidePanelData(): SidePanelData {
         return {
           isDocs: false,
           component: <TaskRunDetail {...props.content} />,
-          title: 'Run details',
         };
       case 'event-details':
         return {
           isDocs: false,
           component: <ExpandedEventContent event={props.content.event} />,
-          title: `Event ${props.content.event.key} details`,
         };
       case 'filter-detail':
         return {
@@ -115,7 +111,6 @@ export function useSidePanelData(): SidePanelData {
           component: (
             <FilterDetailView filterId={props.content.filter.metadata.id} />
           ),
-          title: 'Filter details',
         };
       case 'docs':
         const query = props.queryParams ?? {};
@@ -133,12 +128,10 @@ export function useSidePanelData(): SidePanelData {
               <iframe
                 src={url}
                 className="inset-0 w-full rounded-md border border-slate-800 size-full"
-                title={`Documentation: ${props.content.title}`}
                 loading="lazy"
               />
             </div>
           ),
-          title: props.content.title,
         };
       default:
         const exhaustiveCheck: never = panelType;

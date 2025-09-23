@@ -3,7 +3,6 @@ import { useSidePanel } from '@/hooks/use-side-panel';
 import { BookOpenText } from 'lucide-react';
 
 export type DocPage = {
-  title: string;
   href: string;
 };
 

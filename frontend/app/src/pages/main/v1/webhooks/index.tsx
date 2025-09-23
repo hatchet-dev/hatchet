@@ -1,4 +1,4 @@
-import { columns } from './components/webhook-columns';
+import { columns, WebhookColumn } from './components/webhook-columns';
 import { DataTable } from '@/components/v1/molecules/data-table/data-table';
 import {
   useWebhooks,
@@ -55,6 +55,7 @@ export default function Webhooks() {
         isLoading={isLoading}
         columns={columns()}
         data={data}
+        columnKeyToName={WebhookColumn}
         emptyState={
           <div className="w-full h-full flex flex-col gap-y-4 text-foreground py-8 justify-center items-center">
             <p className="text-lg font-semibold">No webhooks found</p>

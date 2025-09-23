@@ -223,7 +223,7 @@ function ModalContent<TData extends IDGetter<TData>>({
   table,
   columnKeyToName,
   filters,
-  hideFlatten,
+  hiddenFilters,
 }: ModalContentProps & DataTableOptionsContentProps<TData>) {
   if (params.externalIds?.length) {
     return <CancelByExternalIdsContent label={label} params={params} />;
@@ -238,8 +238,8 @@ function ModalContent<TData extends IDGetter<TData>>({
           table={table}
           filters={filters}
           columnKeyToName={columnKeyToName}
-          hideFlatten={hideFlatten}
-          showColumnVisiblity={false}
+          hiddenFilters={hiddenFilters}
+          showColumnVisibility={false}
         />
       </div>
     );
@@ -254,7 +254,7 @@ export function ConfirmActionModal<TData extends IDGetter<TData>>({
   table,
   columnKeyToName,
   filters,
-  hideFlatten,
+  hiddenFilters,
 }: ConfirmActionModalProps & DataTableOptionsContentProps<TData>) {
   const label = actionTypeToLabel(actionType);
   const { handleTaskRunAction } = useTaskRunActions();
@@ -280,8 +280,8 @@ export function ConfirmActionModal<TData extends IDGetter<TData>>({
               table={table}
               filters={filters}
               columnKeyToName={columnKeyToName}
-              hideFlatten={hideFlatten}
-              showColumnVisiblity={false}
+              hiddenFilters={hiddenFilters}
+              showColumnVisibility={false}
             />
           </div>
 
@@ -292,7 +292,7 @@ export function ConfirmActionModal<TData extends IDGetter<TData>>({
               }}
               variant="outline"
             >
-              Cancel
+              Close
             </Button>
             <Button
               onClick={() => {

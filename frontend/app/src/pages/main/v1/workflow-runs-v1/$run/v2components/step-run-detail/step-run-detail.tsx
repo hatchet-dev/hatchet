@@ -2,7 +2,6 @@ import { V1TaskStatus, V1TaskSummary, queries } from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/v1/ui/button';
 import { Loading } from '@/components/v1/ui/loading';
-import { LinkIcon } from '@heroicons/react/24/outline';
 import { Separator } from '@/components/v1/ui/separator';
 import {
   Tabs,
@@ -30,6 +29,7 @@ import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { Waterfall } from '../waterfall';
 import { useCallback } from 'react';
 import { Toaster } from '@/components/v1/ui/toaster';
+import { FullscreenIcon } from 'lucide-react';
 
 export enum TabOption {
   Output = 'output',
@@ -64,8 +64,8 @@ const TaskRunPermalinkOrBacklink = ({
     return (
       <Link to={`/tenants/${tenantId}/runs/${taskRun.metadata.id}`}>
         <Button size={'sm'} className="px-2 py-2 gap-2" variant={'outline'}>
-          <LinkIcon className="w-4 h-4" />
-          View Run
+          <FullscreenIcon className="w-4 h-4" />
+          Expand
         </Button>
       </Link>
     );
@@ -77,7 +77,7 @@ const TaskRunPermalinkOrBacklink = ({
     return (
       <Link to={`/tenants/${tenantId}/runs/${taskRun.workflowRunExternalId}`}>
         <Button size={'sm'} className="px-2 py-2 gap-2" variant={'outline'}>
-          <LinkIcon className="w-4 h-4" />
+          <FullscreenIcon className="w-4 h-4" />
           View DAG Run
         </Button>
       </Link>
@@ -154,27 +154,33 @@ export const TaskRunDetail = ({
           parentTaskExternalId={taskRun.parentTaskExternalId}
         />
       )}
-      <div className="flex flex-row gap-2 items-center">
-        <RunsProvider tableKey="task-run-detail">
-          <TaskRunActionButton
-            actionType="replay"
-            paramOverrides={{ externalIds: [taskRunId] }}
-            disabled={!TASK_RUN_TERMINAL_STATUSES.includes(taskRun.status)}
-            showModal={false}
-          />
-          <TaskRunActionButton
-            actionType="cancel"
-            paramOverrides={{ externalIds: [taskRunId] }}
-            disabled={TASK_RUN_TERMINAL_STATUSES.includes(taskRun.status)}
-            showModal={false}
-          />
-        </RunsProvider>
-        <TaskRunPermalinkOrBacklink
-          taskRun={taskRun}
-          showViewTaskRunButton={showViewTaskRunButton || false}
-        />
-        <WorkflowDefinitionLink workflowId={taskRun.workflowId} />
-        <CopyWorkflowConfigButton workflowConfig={taskRun.workflowConfig} />
+      <div className="flex flex-col gap-2 items-start justify-start side-responsive-layout">
+        <div className="flex flex-col gap-2 items-start w-full side-responsive-inner">
+          <div className="flex flex-row gap-2 items-center">
+            <RunsProvider tableKey="task-run-detail">
+              <TaskRunActionButton
+                actionType="replay"
+                paramOverrides={{ externalIds: [taskRunId] }}
+                disabled={!TASK_RUN_TERMINAL_STATUSES.includes(taskRun.status)}
+                showModal={false}
+              />
+              <TaskRunActionButton
+                actionType="cancel"
+                paramOverrides={{ externalIds: [taskRunId] }}
+                disabled={TASK_RUN_TERMINAL_STATUSES.includes(taskRun.status)}
+                showModal={false}
+              />
+            </RunsProvider>
+          </div>
+          <div className="flex flex-row gap-2 items-center">
+            <TaskRunPermalinkOrBacklink
+              taskRun={taskRun}
+              showViewTaskRunButton={showViewTaskRunButton || false}
+            />
+            <WorkflowDefinitionLink workflowId={taskRun.workflowId} />
+            <CopyWorkflowConfigButton workflowConfig={taskRun.workflowConfig} />
+          </div>
+        </div>
       </div>
       <div className="flex flex-row gap-2 items-center">
         <V1StepRunSummary taskRunId={taskRunId} />

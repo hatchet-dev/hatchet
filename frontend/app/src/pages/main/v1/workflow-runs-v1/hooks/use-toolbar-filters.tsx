@@ -14,7 +14,6 @@ import {
   workflowKey,
 } from '../components/v1/task-runs-columns';
 import { useWorkflows } from './use-workflows';
-import { RunsTableState } from './use-runs-table-state';
 import { FilterActions } from './use-runs-table-filters';
 
 export const workflowRunStatusFilters = [
@@ -42,11 +41,9 @@ export const workflowRunStatusFilters = [
 
 export const useToolbarFilters = ({
   filterVisibility,
-  state,
   filterActions,
 }: {
   filterVisibility: { [key: string]: boolean };
-  state: RunsTableState;
   filterActions: FilterActions;
 }): ToolbarFilters => {
   const workflows = useWorkflows();
@@ -67,34 +64,34 @@ export const useToolbarFilters = ({
       } else {
         filterActions.setCustomTimeRange({
           start:
-            state.createdAfter ||
+            filterActions.apiFilters.since ||
             new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-          end: state.finishedBefore || new Date().toISOString(),
+          end: filterActions.apiFilters.until || new Date().toISOString(),
         });
       }
     },
     onCreatedAfterChange: (date?: string) => {
-      if (state.isCustomTimeRange && state.finishedBefore) {
+      if (filterActions.isCustomTimeRange && filterActions.apiFilters.until) {
         filterActions.setCustomTimeRange({
           start:
             date || new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-          end: state.finishedBefore,
+          end: filterActions.apiFilters.until,
         });
       }
     },
     onFinishedBeforeChange: (date?: string) => {
-      if (state.isCustomTimeRange && state.createdAfter) {
+      if (filterActions.isCustomTimeRange && filterActions.apiFilters.since) {
         filterActions.setCustomTimeRange({
-          start: state.createdAfter,
+          start: filterActions.apiFilters.since,
           end: date || new Date().toISOString(),
         });
       }
     },
     onClearTimeRange: () => filterActions.setCustomTimeRange(null),
-    currentTimeWindow: state.timeWindow,
-    isCustomTimeRange: state.isCustomTimeRange,
-    createdAfter: state.createdAfter,
-    finishedBefore: state.finishedBefore,
+    currentTimeWindow: filterActions.timeWindow,
+    isCustomTimeRange: filterActions.isCustomTimeRange,
+    createdAfter: filterActions.apiFilters.since,
+    finishedBefore: filterActions.apiFilters.until,
   };
 
   return [

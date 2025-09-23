@@ -8,6 +8,28 @@ import { Badge } from '@/components/v1/ui/badge';
 import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
 import { extractCronTz, formatCron } from '@/lib/utils';
 
+export const CronColumn = {
+  expression: 'Expression',
+  description: 'Description',
+  timezone: 'Timezone',
+  name: 'Name',
+  workflow: 'Workflow',
+  metadata: 'Metadata',
+  createdAt: 'Created At',
+  actions: 'Actions',
+};
+
+export type CronColumnKeys = keyof typeof CronColumn;
+
+export const expressionKey: CronColumnKeys = 'expression';
+export const descriptionKey: CronColumnKeys = 'description';
+export const timezoneKey: CronColumnKeys = 'timezone';
+export const nameKey: CronColumnKeys = 'name';
+export const workflowKey: CronColumnKeys = 'workflow';
+export const metadataKey: CronColumnKeys = 'metadata';
+export const createdAtKey: CronColumnKeys = 'createdAt';
+export const actionsKey: CronColumnKeys = 'actions';
+
 export const columns = ({
   tenantId,
   onDeleteClick,
@@ -21,9 +43,9 @@ export const columns = ({
 }): ColumnDef<CronWorkflows>[] => {
   return [
     {
-      accessorKey: 'crons',
+      accessorKey: expressionKey,
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Cron" />
+        <DataTableColumnHeader column={column} title={CronColumn.expression} />
       ),
       cell: ({ row }) => (
         <div className="flex flex-row items-center gap-4 whitespace-nowrap">
@@ -33,9 +55,9 @@ export const columns = ({
       enableSorting: false,
     },
     {
-      accessorKey: 'description',
+      accessorKey: descriptionKey,
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Description" />
+        <DataTableColumnHeader column={column} title={CronColumn.description} />
       ),
       cell: ({ row }) => (
         <div className="flex flex-row items-center gap-4">
@@ -45,9 +67,9 @@ export const columns = ({
       enableSorting: false,
     },
     {
-      accessorKey: 'timezone',
+      accessorKey: timezoneKey,
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Timezone" />
+        <DataTableColumnHeader column={column} title={CronColumn.timezone} />
       ),
       cell: ({ row }) => (
         <div className="flex flex-row items-center gap-4">
@@ -57,9 +79,9 @@ export const columns = ({
       enableSorting: false,
     },
     {
-      accessorKey: 'name',
+      accessorKey: nameKey,
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Name" />
+        <DataTableColumnHeader column={column} title={CronColumn.name} />
       ),
       cell: ({ row }) => (
         <div>
@@ -72,9 +94,9 @@ export const columns = ({
       ),
     },
     {
-      accessorKey: 'Workflow',
+      accessorKey: workflowKey,
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Workflow" />
+        <DataTableColumnHeader column={column} title={CronColumn.workflow} />
       ),
       cell: ({ row }) => (
         <div className="flex flex-row items-center gap-4">
@@ -91,9 +113,9 @@ export const columns = ({
       enableHiding: true,
     },
     {
-      accessorKey: 'Metadata',
+      accessorKey: metadataKey,
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Metadata" />
+        <DataTableColumnHeader column={column} title={CronColumn.metadata} />
       ),
       cell: ({ row }) => {
         if (!row.original.additionalMetadata) {
@@ -117,9 +139,9 @@ export const columns = ({
       enableSorting: false,
     },
     {
-      accessorKey: 'createdAt',
+      accessorKey: createdAtKey,
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Created At" />
+        <DataTableColumnHeader column={column} title={CronColumn.createdAt} />
       ),
       cell: ({ row }) => (
         <div className="flex flex-row items-center gap-4">
@@ -144,9 +166,9 @@ export const columns = ({
     //   cell: ({ row }) => <div>{row.original.enabled ? 'Yes' : 'No'}</div>,
     // },
     {
-      accessorKey: 'actions',
+      accessorKey: actionsKey,
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Actions" />
+        <DataTableColumnHeader column={column} title={CronColumn.actions} />
       ),
       cell: ({ row }) => (
         <div className="flex flex-row justify-center">

@@ -1,10 +1,5 @@
 import { createContext, useContext, useMemo, useState } from 'react';
-import {
-  getFlattenDAGsFromFilters,
-  getWorkflowIdsFromFilters,
-  RunsTableState,
-  useRunsTableState,
-} from './use-runs-table-state';
+import { RunsTableState, useRunsTableState } from './use-runs-table-state';
 import { useRunsTableFilters } from './use-runs-table-filters';
 import { useToolbarFilters } from './use-toolbar-filters';
 import { useRuns } from './use-runs';
@@ -15,6 +10,7 @@ import {
   ActionType,
   BaseTaskRunActionParams,
 } from '../../task-runs-v1/actions';
+import { TaskRunColumnKeys } from '../components/v1/task-runs-columns';
 
 type DisplayProps = {
   hideMetrics?: boolean;
@@ -23,7 +19,7 @@ type DisplayProps = {
   hideTriggerRunButton?: boolean;
   hideCancelAndReplayButtons?: boolean;
   hideColumnToggle?: boolean;
-  hideFlatten?: boolean;
+  hiddenFilters?: TaskRunColumnKeys[];
   hidePagination?: boolean;
 };
 
@@ -48,7 +44,6 @@ type RunsContextType = {
   state: RunsTableState;
   actions: {
     updatePagination: (pagination: PaginationState) => void;
-    updateFilters: (filters: any) => void;
     updateUIState: (
       uiState: Partial<
         Pick<
@@ -118,7 +113,7 @@ export const RunsProvider = ({
     hideTriggerRunButton = false,
     hideCancelAndReplayButtons = false,
     hideColumnToggle = false,
-    hideFlatten = false,
+    hiddenFilters = [],
   } = display ?? {};
 
   const initialState = useMemo(() => {
@@ -137,27 +132,20 @@ export const RunsProvider = ({
     return baseState;
   }, [parentTaskExternalId, initColumnVisibility]);
 
-  const {
-    state,
-    updatePagination,
-    updateFilters,
-    updateUIState,
-    updateTableState,
-  } = useRunsTableState(tableKey, initialState);
+  const { state, updatePagination, updateUIState, updateTableState } =
+    useRunsTableState(tableKey, initialState);
 
-  const filters = useRunsTableFilters(state, updateFilters, {
+  const filters = useRunsTableFilters({
     workflowIds: workflowId ? [workflowId] : undefined,
   });
 
   const toolbarFilters = useToolbarFilters({
     filterVisibility,
-    state,
     filterActions: filters,
   });
 
-  const workflow =
-    workflowId || getWorkflowIdsFromFilters(filters.columnFilters)[0];
-  const flattenDAGs = getFlattenDAGsFromFilters(filters.columnFilters);
+  const workflow = workflowId || (filters.apiFilters.workflowIds ?? [])[0];
+  const flattenDAGs = filters.apiFilters.flattenDAGs;
 
   const derivedParentTaskExternalId =
     parentTaskExternalId || state.parentTaskExternalId;
@@ -174,8 +162,8 @@ export const RunsProvider = ({
   } = useRuns({
     rowSelection: state.rowSelection,
     pagination: state.pagination,
-    createdAfter: state.createdAfter,
-    finishedBefore: state.finishedBefore,
+    createdAfter: filters.apiFilters.since,
+    finishedBefore: filters.apiFilters.until,
     statuses: filters.apiFilters.statuses,
     additionalMetadata: filters.apiFilters.additionalMetadata,
     workerId,
@@ -210,7 +198,7 @@ export const RunsProvider = ({
   } = useMetrics({
     workflow,
     parentTaskExternalId: derivedParentTaskExternalId,
-    createdAfter: state.createdAfter,
+    createdAfter: filters.apiFilters.since,
     additionalMetadata: filters.apiFilters.additionalMetadata,
   });
 
@@ -260,11 +248,10 @@ export const RunsProvider = ({
         hideCancelAndReplayButtons,
         hideColumnToggle,
         hidePagination: disableTaskRunPagination,
-        hideFlatten,
+        hiddenFilters,
       },
       actions: {
         updatePagination,
-        updateFilters,
         updateUIState,
         updateTableState,
         setIsActionModalOpen,
@@ -294,11 +281,10 @@ export const RunsProvider = ({
       hideCounts,
       hideDateFilter,
       hideTriggerRunButton,
-      hideFlatten,
+      hiddenFilters,
       actionModalParams,
       selectedActionType,
       updatePagination,
-      updateFilters,
       updateUIState,
       updateTableState,
       setIsActionModalOpen,

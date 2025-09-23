@@ -1,11 +1,10 @@
 import { V1TaskStatus } from '@/lib/api';
 import { Badge } from '@/components/v1/ui/badge';
 import { useRunsContext } from '../hooks/runs-provider';
-import { getStatusesFromFilters } from '../hooks/use-runs-table-state';
 import { CheckCircleIcon, ClockIcon } from '@heroicons/react/24/outline';
 import { PlayIcon, X, Ban, ChartColumn } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 
 function statusToFriendlyName(status: V1TaskStatus) {
   switch (status) {
@@ -51,13 +50,15 @@ function MetricBadge({
   className?: string;
 }) {
   const { filters, metrics } = useRunsContext();
-  const currentStatuses = getStatusesFromFilters(filters.columnFilters);
+  const currentStatuses = useMemo(
+    () => filters.apiFilters.statuses || [],
+    [filters.apiFilters.statuses],
+  );
   const isSelected = currentStatuses.includes(status);
   const { setStatuses } = filters;
 
   const handleStatusClick = useCallback(
     (status: V1TaskStatus) => {
-      const currentStatuses = getStatusesFromFilters(filters.columnFilters);
       const isSelected = currentStatuses.includes(status);
 
       const allStatuses = Object.values(V1TaskStatus);
@@ -82,7 +83,7 @@ function MetricBadge({
         setStatuses([...currentStatuses, status]);
       }
     },
-    [filters.columnFilters, setStatuses],
+    [currentStatuses, setStatuses],
   );
 
   const metric = metrics.find((m) => m.status === status);

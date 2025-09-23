@@ -14,6 +14,8 @@ import {
   createdAfterKey,
   finishedBeforeKey,
   statusKey,
+  isCustomTimeRangeKey,
+  timeWindowKey,
 } from '@/pages/main/v1/workflow-runs-v1/components/v1/task-runs-columns';
 import { ToolbarFilters } from './data-table-toolbar';
 import {
@@ -35,6 +37,7 @@ import { DateTimePicker } from '@/components/v1/molecules/time-picker/date-time-
 import { XCircleIcon } from '@heroicons/react/24/outline';
 import { Column } from '@tanstack/react-table';
 import { V1TaskStatus } from '@/lib/api';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../ui/tabs';
 
 interface FilterControlProps<TData> {
   column?: Column<TData, any>;
@@ -430,7 +433,7 @@ function FilterControl<TData>({ column, filter }: FilterControlProps<TData>) {
 interface DataTableOptionsProps<TData> {
   table: Table<TData>;
   filters: ToolbarFilters;
-  hideFlatten?: boolean;
+  hiddenFilters: string[];
   columnKeyToName?: Record<string, string>;
   onResetFilters?: () => void;
 }
@@ -447,7 +450,7 @@ function arraysEqual<T>(a: T[], b: T[]) {
 export function DataTableOptions<TData>({
   table,
   filters,
-  hideFlatten,
+  hiddenFilters,
   columnKeyToName,
   onResetFilters,
 }: DataTableOptionsProps<TData>) {
@@ -462,7 +465,12 @@ export function DataTableOptions<TData>({
           return false;
         }
 
-        if (f.id === createdAfterKey || f.id === finishedBeforeKey) {
+        if (
+          f.id === createdAfterKey ||
+          f.id === finishedBeforeKey ||
+          f.id === isCustomTimeRangeKey ||
+          f.id === timeWindowKey
+        ) {
           return false;
         }
 
@@ -470,7 +478,7 @@ export function DataTableOptions<TData>({
           return false;
         }
 
-        if (hideFlatten && f.id === flattenDAGsKey) {
+        if (hiddenFilters.includes(f.id)) {
           return false;
         }
 
@@ -484,11 +492,11 @@ export function DataTableOptions<TData>({
 
         return true;
       })?.length || 0,
-    [hideFlatten, cf],
+    [hiddenFilters, cf],
   );
 
   const visibleFilters = filters.filter((filter) => {
-    if (hideFlatten && filter.columnId === flattenDAGsKey) {
+    if (hiddenFilters.includes(filter.columnId)) {
       return false;
     }
     return true;
@@ -512,7 +520,7 @@ export function DataTableOptions<TData>({
       <DropdownMenuTrigger asChild>
         <Button variant="outline" size="sm" className="h-8 flex-shrink-0">
           <MixerHorizontalIcon className="h-4 w-4" />
-          <span className="cq-xl:inline hidden ml-2 text-sm">Options</span>
+          <span className="cq-xl:inline hidden ml-2 text-sm">Filters</span>
           {activeFiltersCount > 0 && (
             <Badge variant="secondary" className="ml-2 px-1 py-0 text-xs">
               {activeFiltersCount}
@@ -523,15 +531,16 @@ export function DataTableOptions<TData>({
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="end"
-        className="w-96 max-h-[32rem] overflow-y-auto z-[70] shadow-lg"
+        className="w-96 max-h-[32rem] overflow-y-auto z-[70] shadow-lg p-0"
       >
         <DataTableOptionsContent
           table={table}
           filters={filters}
-          hideFlatten={hideFlatten}
+          hiddenFilters={hiddenFilters}
           columnKeyToName={columnKeyToName}
-          showColumnVisiblity
+          showColumnVisibility
           onResetFilters={onResetFilters}
+          activeFiltersCount={activeFiltersCount}
         />
       </DropdownMenuContent>
     </DropdownMenu>
@@ -542,21 +551,175 @@ export interface DataTableOptionsContentProps<TData> {
   table: Table<TData>;
   filters: ToolbarFilters;
   columnKeyToName?: Record<string, string>;
-  hideFlatten: boolean | undefined;
-  showColumnVisiblity: boolean;
+  hiddenFilters: string[];
+  showColumnVisibility: boolean;
   onResetFilters?: () => void;
+  activeFiltersCount?: number;
+}
+
+interface FiltersContentProps<TData> {
+  table: Table<TData>;
+  filters: ToolbarFilters;
+  hiddenFilters: string[];
+  onResetFilters?: () => void;
+  activeFiltersCount?: number;
+}
+
+function FiltersContent<TData>({
+  table,
+  filters,
+  hiddenFilters,
+  onResetFilters,
+  activeFiltersCount = 0,
+}: FiltersContentProps<TData>) {
+  const visibleFilters = filters.filter((filter) => {
+    if (hiddenFilters.includes(filter.columnId)) {
+      return false;
+    }
+    return true;
+  });
+
+  return (
+    <div className="space-y-0">
+      {onResetFilters && activeFiltersCount > 0 && (
+        <div className="p-3 border-b bg-muted/10">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onResetFilters}
+            className="w-full h-8 text-xs"
+          >
+            <Cross2Icon className="h-3 w-3 mr-2" />
+            Clear All Filters
+          </Button>
+        </div>
+      )}
+      <div className="max-h-96 overflow-y-auto">
+        <div className="p-3 space-y-4">
+          {visibleFilters.map((filter, index) => (
+            <div key={filter.columnId} className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-medium text-foreground">
+                  {filter.title}
+                </label>
+                {table.getColumn(filter.columnId)?.getFilterValue() !==
+                  undefined && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() =>
+                      table
+                        .getColumn(filter.columnId)
+                        ?.setFilterValue(undefined)
+                    }
+                    className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
+                  >
+                    <Cross2Icon className="h-3 w-3" />
+                  </Button>
+                )}
+              </div>
+              <FilterControl
+                column={table.getColumn(filter.columnId)}
+                filter={filter}
+              />
+              {index < visibleFilters.length - 1 && (
+                <div className="border-t border-border/20 pt-3" />
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+interface ColumnsContentProps<TData> {
+  table: Table<TData>;
+  columnKeyToName?: Record<string, string>;
+}
+
+function ColumnsContent<TData>({
+  table,
+  columnKeyToName,
+}: ColumnsContentProps<TData>) {
+  return (
+    <div className="space-y-0">
+      <div className="max-h-80 overflow-y-auto">
+        <div className="p-3 space-y-1">
+          {table
+            .getAllColumns()
+            .filter(
+              (column) =>
+                typeof column.accessorFn !== 'undefined' && column.getCanHide(),
+            )
+            .map((column) => {
+              const columnName =
+                (columnKeyToName ?? {})[
+                  column.id as keyof typeof columnKeyToName
+                ] || column.id;
+
+              return (
+                <div
+                  key={column.id}
+                  className="flex items-center space-x-3 hover:bg-muted/50 rounded-md px-2 py-2 transition-colors"
+                >
+                  <Checkbox
+                    id={`column-${column.id}`}
+                    checked={column.getIsVisible()}
+                    onCheckedChange={(value) =>
+                      column.toggleVisibility(!!value)
+                    }
+                  />
+                  <Label
+                    htmlFor={`column-${column.id}`}
+                    className="text-sm cursor-pointer flex-1 truncate font-medium"
+                  >
+                    {columnName}
+                  </Label>
+                </div>
+              );
+            })}
+        </div>
+      </div>
+      <div className="p-3 border-t">
+        <div className="flex gap-1 w-full">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => table.toggleAllColumnsVisible(false)}
+            className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground flex-1"
+          >
+            Hide All
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => table.toggleAllColumnsVisible(true)}
+            className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground flex-1"
+          >
+            Show All
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export function DataTableOptionsContent<TData>({
   table,
   filters,
   columnKeyToName,
-  hideFlatten,
-  showColumnVisiblity,
+  hiddenFilters,
+  showColumnVisibility,
   onResetFilters,
+  activeFiltersCount = 0,
 }: DataTableOptionsContentProps<TData>) {
+  const [selectedTab, setSelectedTab] = React.useState<'filters' | 'columns'>(
+    'filters',
+  );
+
   const visibleFilters = filters.filter((filter) => {
-    if (hideFlatten && filter.columnId === flattenDAGsKey) {
+    if (hiddenFilters.includes(filter.columnId)) {
       return false;
     }
     return true;
@@ -571,98 +734,75 @@ export function DataTableOptionsContent<TData>({
           typeof column.accessorFn !== 'undefined' && column.getCanHide(),
       ).length > 0;
 
+  const showBothSections =
+    hasFilters && hasVisibleColumns && showColumnVisibility;
+
+  if (!showBothSections) {
+    return (
+      <div className="w-full">
+        {hasFilters ? (
+          <FiltersContent
+            table={table}
+            filters={filters}
+            hiddenFilters={hiddenFilters}
+            onResetFilters={onResetFilters}
+            activeFiltersCount={activeFiltersCount}
+          />
+        ) : hasVisibleColumns && showColumnVisibility ? (
+          <ColumnsContent table={table} columnKeyToName={columnKeyToName} />
+        ) : (
+          <div className="p-6 text-center text-sm text-muted-foreground">
+            No options available
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
-    <>
-      {hasFilters && (
-        <>
-          <div className="px-3 py-2 bg-muted/30">
-            <div className="flex flex-row justify-between items-center gap-2">
-              <div className="flex flex-row items-center gap-2">
-                <div className="w-1 h-4 bg-primary rounded-full"></div>
-                <span className="text-sm font-semibold text-foreground">
-                  Filters
-                </span>
-              </div>
-              <div>
-                {onResetFilters && (
-                  <Button variant="outline" size="sm" onClick={onResetFilters}>
-                    Reset
-                  </Button>
-                )}
-              </div>
-            </div>
+    <Tabs
+      value={selectedTab}
+      onValueChange={(value) => setSelectedTab(value as 'filters' | 'columns')}
+      className="w-full rounded-none p-0"
+    >
+      <TabsList className="grid w-full grid-cols-2 bg-muted/30 rounded-none px-2">
+        <TabsTrigger
+          value="filters"
+          className="text-xs font-medium data-[state=active]:bg-background data-[state=active]:text-foreground"
+        >
+          <div className="flex items-center gap-2">
+            Filters
+            {activeFiltersCount > 0 && (
+              <Badge
+                variant="secondary"
+                className="h-4 px-1.5 text-[10px] leading-none"
+              >
+                {activeFiltersCount}
+              </Badge>
+            )}
           </div>
-          <div className="p-3 space-y-4">
-            {visibleFilters.map((filter, index) => (
-              <div key={filter.columnId} className="space-y-2">
-                <label className="text-sm font-medium text-foreground">
-                  {filter.title}
-                </label>
-                <FilterControl
-                  column={table.getColumn(filter.columnId)}
-                  filter={filter}
-                />
-                {index < visibleFilters.length - 1 && (
-                  <div className="border-t border-border/30 my-3" />
-                )}
-              </div>
-            ))}
-          </div>
+        </TabsTrigger>
+        <TabsTrigger
+          value="columns"
+          className="text-xs font-medium data-[state=active]:bg-background data-[state=active]:text-foreground"
+        >
+          Column Visibility
+        </TabsTrigger>
+      </TabsList>
 
-          {hasVisibleColumns && showColumnVisiblity && (
-            <div className="border-t border-border/50" />
-          )}
-        </>
-      )}
+      <TabsContent value="filters" className="mt-0 space-y-0">
+        <FiltersContent
+          table={table}
+          filters={filters}
+          hiddenFilters={hiddenFilters}
+          onResetFilters={onResetFilters}
+          activeFiltersCount={activeFiltersCount}
+        />
+      </TabsContent>
 
-      {hasVisibleColumns && showColumnVisiblity && (
-        <>
-          <div className="px-3 py-2 bg-muted/30">
-            <div className="flex items-center gap-2">
-              <div className="w-1 h-4 bg-secondary rounded-full"></div>
-              <span className="text-sm font-semibold text-foreground">
-                Column Visibility
-              </span>
-            </div>
-          </div>
-          <div className="p-3 space-y-1">
-            {table
-              .getAllColumns()
-              .filter(
-                (column) =>
-                  typeof column.accessorFn !== 'undefined' &&
-                  column.getCanHide(),
-              )
-              .map((column) => {
-                const columnName =
-                  (columnKeyToName ?? {})[
-                    column.id as keyof typeof columnKeyToName
-                  ] || column.id;
-
-                return (
-                  <div
-                    key={column.id}
-                    className="flex items-center space-x-2 hover:bg-muted/50 rounded-md px-2 py-1.5"
-                  >
-                    <Checkbox
-                      id={`column-${column.id}`}
-                      checked={column.getIsVisible()}
-                      onCheckedChange={(value) =>
-                        column.toggleVisibility(!!value)
-                      }
-                    />
-                    <Label
-                      htmlFor={`column-${column.id}`}
-                      className="text-sm cursor-pointer flex-1 truncate"
-                    >
-                      {columnName}
-                    </Label>
-                  </div>
-                );
-              })}
-          </div>
-        </>
-      )}
-    </>
+      <TabsContent value="columns" className="mt-0">
+        <ColumnsContent table={table} columnKeyToName={columnKeyToName} />
+      </TabsContent>
+    </Tabs>
   );
 }
