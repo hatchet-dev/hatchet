@@ -765,7 +765,7 @@ export function DataTableOptionsContent<TData>({
       onValueChange={(value) => setSelectedTab(value as 'filters' | 'columns')}
       className="w-full rounded-none p-0"
     >
-      <TabsList className="grid w-full grid-cols-2 bg-muted/30 rounded-none">
+      <TabsList className="grid w-full grid-cols-2 bg-muted/30 rounded-none px-2">
         <TabsTrigger
           value="filters"
           className="text-xs font-medium data-[state=active]:bg-background data-[state=active]:text-foreground"
