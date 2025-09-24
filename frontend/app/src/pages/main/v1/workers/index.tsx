@@ -51,7 +51,7 @@ export default function Workers() {
               new Date(b.metadata?.createdAt).getTime() -
               new Date(a.metadata?.createdAt).getTime(),
           ),
-      [listWorkersQuery.data?.rows, columnFilters],
+      [listWorkersQuery.data?.rows, statuses],
     ) ?? [];
 
   if (listWorkersQuery.isLoading) {
