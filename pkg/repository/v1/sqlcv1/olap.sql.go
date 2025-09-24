@@ -1900,6 +1900,7 @@ WHERE
     t.tenant_id = $2::UUID
     AND t.id = $3::BIGINT
     AND t.inserted_at = $4::TIMESTAMPTZ
+ORDER BY t.inserted_at DESC, t.id
 `
 
 type PopulateTaskRunDataParams struct {
