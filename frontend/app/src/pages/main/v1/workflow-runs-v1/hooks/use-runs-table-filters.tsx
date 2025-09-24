@@ -3,10 +3,6 @@ import { useSearchParams } from 'react-router-dom';
 import { V1TaskStatus } from '@/lib/api';
 import { ColumnFiltersState } from '@tanstack/react-table';
 import {
-  TimeWindow,
-  getCreatedAfterFromTimeRange,
-} from './use-runs-table-state';
-import {
   statusKey,
   workflowKey,
   additionalMetadataKey,
@@ -18,6 +14,31 @@ import {
 } from '../components/v1/task-runs-columns';
 import { z } from 'zod';
 import { useZodColumnFilters } from '@/hooks/use-zod-column-filters';
+
+export type TimeWindow = '1h' | '6h' | '1d' | '7d';
+
+export interface BaseRunsTableState {
+  parentTaskExternalId?: string;
+}
+
+export const getCreatedAfterFromTimeRange = (
+  timeWindow: TimeWindow,
+): string => {
+  switch (timeWindow) {
+    case '1h':
+      return new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    case '6h':
+      return new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString();
+    case '1d':
+      return new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    case '7d':
+      return new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    default: {
+      const exhaustiveCheck: never = timeWindow;
+      throw new Error(`Unhandled time range: ${exhaustiveCheck}`);
+    }
+  }
+};
 
 export type AdditionalMetadataProp = {
   key: string;
@@ -65,15 +86,18 @@ const createApiFilterSchema = (initialValues?: { workflowIds?: string[] }) =>
     f: z.boolean().default(false), // flatten dags
   });
 
-export const useRunsTableFilters = (initialValues?: {
-  workflowIds?: string[];
-}): FilterActions & {
+export const useRunsTableFilters = (
+  tableKey: string,
+  initialValues?: {
+    workflowIds?: string[];
+  },
+): FilterActions & {
   columnFilters: ColumnFiltersState;
   timeWindow: TimeWindow;
   isCustomTimeRange: boolean;
   apiFilters: APIFilters;
 } => {
-  const paramKey = 'workflow-runs-filters';
+  const paramKey = tableKey + '-workflow-runs-filters';
   const apiFilterSchema = createApiFilterSchema(initialValues);
   const [, setSearchParams] = useSearchParams();
 

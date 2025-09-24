@@ -93,7 +93,6 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
   const { setIsFrozen } = useRefetchInterval();
 
   const {
-    state,
     filters,
     toolbarFilters,
     tableRows,
@@ -107,6 +106,11 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
     tenantMetrics,
     actionModalParams,
     selectedActionType,
+    pagination,
+    columnVisibility,
+    rowSelection,
+    showTriggerWorkflow,
+    showQueueMetrics,
     display: {
       hideMetrics,
       hideCounts,
@@ -115,12 +119,15 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
       hiddenFilters,
     },
     actions: {
-      updatePagination,
-      updateUIState,
-      updateTableState,
       refetchRuns,
       refetchMetrics,
       getRowId,
+      setPageSize,
+      setPagination,
+      setColumnVisibility,
+      setRowSelection,
+      setShowTriggerWorkflow,
+      setShowQueueMetrics,
     },
   } = useRunsContext();
 
@@ -205,19 +212,12 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
 
       <TriggerWorkflowForm
         defaultWorkflow={undefined}
-        show={state.triggerWorkflow}
-        onClose={() => updateUIState({ triggerWorkflow: false })}
+        show={showTriggerWorkflow}
+        onClose={() => setShowTriggerWorkflow(false)}
       />
 
       {!hideMetrics && (
-        <Dialog
-          open={state.viewQueueMetrics}
-          onOpenChange={(open) => {
-            if (!open) {
-              updateUIState({ viewQueueMetrics: false });
-            }
-          }}
-        >
+        <Dialog open={showQueueMetrics} onOpenChange={setShowQueueMetrics}>
           <DialogContent className="w-fit max-w-[80%] min-w-[500px]">
             <DialogHeader>
               <DialogTitle>Queue Metrics</DialogTitle>
@@ -254,16 +254,8 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
           }
           isLoading={isFetching}
           columns={tableColumns}
-          columnVisibility={state.columnVisibility}
-          setColumnVisibility={(visibility) => {
-            if (typeof visibility === 'function') {
-              updateTableState({
-                columnVisibility: visibility(state.columnVisibility),
-              });
-            } else {
-              updateTableState({ columnVisibility: visibility });
-            }
-          }}
+          columnVisibility={columnVisibility}
+          setColumnVisibility={setColumnVisibility}
           data={tableRows}
           filters={toolbarFilters}
           leftActions={[
@@ -287,34 +279,11 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
               filters.setColumnFilters(updaterOrValue);
             }
           }}
-          pagination={hidePagination ? undefined : state.pagination}
-          setPagination={
-            hidePagination
-              ? undefined
-              : (updaterOrValue) => {
-                  if (typeof updaterOrValue === 'function') {
-                    updatePagination(updaterOrValue(state.pagination));
-                  } else {
-                    updatePagination(updaterOrValue);
-                  }
-                }
-          }
-          onSetPageSize={
-            hidePagination
-              ? undefined
-              : (size) =>
-                  updatePagination({ ...state.pagination, pageSize: size })
-          }
-          rowSelection={state.rowSelection}
-          setRowSelection={(updaterOrValue) => {
-            if (typeof updaterOrValue === 'function') {
-              updateTableState({
-                rowSelection: updaterOrValue(state.rowSelection),
-              });
-            } else {
-              updateTableState({ rowSelection: updaterOrValue });
-            }
-          }}
+          pagination={hidePagination ? undefined : pagination}
+          setPagination={setPagination}
+          onSetPageSize={setPageSize}
+          rowSelection={rowSelection}
+          setRowSelection={setRowSelection}
           pageCount={hidePagination ? undefined : numPages}
           showColumnToggle={!hideColumnToggle}
           getSubRows={(row) => row.children || []}
@@ -328,7 +297,7 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
           }}
           tableActions={{
             showTableActions: true,
-            onTriggerWorkflow: () => updateUIState({ triggerWorkflow: true }),
+            onTriggerWorkflow: () => setShowTriggerWorkflow(true),
             selectedActionType,
             actionModalParams,
           }}
