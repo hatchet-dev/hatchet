@@ -70,23 +70,15 @@ export const lastTenantAtom = atom(
 // search param sets the tenant, the last tenant set is used if the search param is empty,
 // otherwise the first membership is used
 export function useTenant(): TenantContext {
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
   const pathParams = useParams();
   const [lastTenant, setLastTenant] = useAtom(lastTenantAtom);
 
   const setTenant = useCallback(
     (tenant: Tenant) => {
       setLastTenant(tenant);
-
-      if (tenant.version === TenantVersion.V1) {
-        return;
-      }
-
-      const newSearchParams = new URLSearchParams(searchParams);
-      newSearchParams.set('tenant', tenant.metadata.id);
-      setSearchParams(newSearchParams, { replace: true });
     },
-    [searchParams, setSearchParams, setLastTenant],
+    [setLastTenant],
   );
 
   const membershipsQuery = useQuery({
@@ -186,17 +178,6 @@ export function useTenant(): TenantContext {
 
     if (pathname.startsWith('/onboarding')) {
       return;
-    }
-
-    if (
-      tenant?.version == TenantVersion.V0 &&
-      pathname.startsWith('/tenants')
-    ) {
-      setLastRedirected(tenant?.slug);
-      return navigate({
-        pathname: pathname.replace(`/tenants/${tenant.metadata.id}`, ''),
-        search: params.toString(),
-      });
     }
 
     if (

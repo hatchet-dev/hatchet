@@ -10,8 +10,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 
-import { useLocation, useNavigate } from 'react-router-dom';
-import api, { TenantMember, TenantVersion, User } from '@/lib/api';
+import { useNavigate } from 'react-router-dom';
+import api, { User } from '@/lib/api';
 import { useApiError } from '@/lib/hooks';
 import { useMutation } from '@tanstack/react-query';
 import hatchet from '@/assets/hatchet_logo.png';
@@ -29,11 +29,9 @@ import {
 } from 'react-icons/bi';
 import { Menu } from 'lucide-react';
 import { useTheme } from '@/components/theme-provider';
-import { useEffect, useMemo } from 'react';
+import { useMemo } from 'react';
 import useApiMeta from '@/pages/auth/hooks/use-api-meta';
 import { useTenant } from '@/lib/atoms';
-import { routes } from '@/router';
-import { Banner, BannerProps } from './banner';
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -101,10 +99,8 @@ function HelpDropdown() {
         </DropdownMenuItem>
         <DropdownMenuItem
           onClick={() => {
-            if (tenant?.version === TenantVersion.V1) {
+            if (tenant) {
               navigate(`/tenants/${tenant.metadata.id}/onboarding/get-started`);
-            } else {
-              navigate('/onboarding/get-started');
             }
           }}
         >
@@ -118,7 +114,6 @@ function HelpDropdown() {
 
 function AccountDropdown({ user }: { user: User }) {
   const navigate = useNavigate();
-  const { tenant } = useTenant();
 
   const { handleApiError } = useApiError({});
 
@@ -176,14 +171,6 @@ function AccountDropdown({ user }: { user: User }) {
         <DropdownMenuItem>
           <VersionInfo />
         </DropdownMenuItem>
-        {tenant?.version == TenantVersion.V1 &&
-          location.pathname.includes('v1') && (
-            <DropdownMenuItem
-              onClick={() => navigate('/workflow-runs?previewV0=true')}
-            >
-              View Legacy V0 Data
-            </DropdownMenuItem>
-          )}
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={() => toggleTheme()}>
           Toggle Theme
@@ -199,77 +186,15 @@ function AccountDropdown({ user }: { user: User }) {
 
 interface MainNavProps {
   user: User;
-  tenantMemberships: TenantMember[];
-  setHasBanner?: (state: boolean) => void;
 }
 
-export default function MainNav({ user, setHasBanner }: MainNavProps) {
+export default function MainNav({ user }: MainNavProps) {
   const { toggleSidebarOpen } = useSidebar();
   const { theme } = useTheme();
-  const { tenant } = useTenant();
-  const { pathname } = useLocation();
-  const navigate = useNavigate();
   const breadcrumbs = useBreadcrumbs();
-
-  const tenantedRoutes = useMemo(
-    () =>
-      routes
-        .at(0)
-        ?.children?.find((r) => r.path?.startsWith('/tenants/'))
-        ?.children?.find(
-          (r) => r.path?.startsWith('/tenants/') && r.children?.length,
-        )
-        ?.children?.map((c) => c.path)
-        ?.map((p) => p?.replace('/tenants/:tenant', '')) || [],
-    [],
-  );
-
-  const tenantVersion = tenant?.version || TenantVersion.V0;
-
-  const banner: BannerProps | undefined = useMemo(() => {
-    const pathnameWithoutTenant = pathname.replace(
-      `/tenants/${tenant?.metadata.id}`,
-      '',
-    );
-
-    const shouldShowVersionUpgradeButton =
-      tenantedRoutes.includes(pathnameWithoutTenant) && // It is a versioned route
-      !pathname.startsWith('/tenants') && // The user is not already on the v1 version
-      tenantVersion === TenantVersion.V1; // The tenant is on the v1 version
-
-    if (shouldShowVersionUpgradeButton) {
-      return {
-        message: (
-          <>
-            You are viewing legacy V0 data for a tenant that was upgraded to V1
-            runtime.
-          </>
-        ),
-        type: 'warning',
-        actionText: 'View V1',
-        onAction: () => {
-          navigate({
-            pathname: `/tenants/${tenant?.metadata.id}${pathname}`,
-            search: '?previewV0=false',
-          });
-        },
-      };
-    }
-
-    return;
-  }, [navigate, pathname, tenantVersion, tenantedRoutes, tenant?.metadata.id]);
-
-  useEffect(() => {
-    if (!setHasBanner) {
-      return;
-    }
-    setHasBanner(!!banner);
-  }, [setHasBanner, banner]);
 
   return (
     <div className="fixed top-0 w-screen z-50">
-      {banner && <Banner {...banner} />}
-
       <div className="h-16 border-b bg-background">
         <div className="flex h-16 items-center pr-4 pl-4">
           <div className="flex flex-row items-center gap-x-8">
