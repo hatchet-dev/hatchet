@@ -1,11 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import TimeAgo from 'timeago-react';
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/v1/ui/tooltip';
+  PortalTooltip,
+  PortalTooltipTrigger,
+  PortalTooltipContent,
+  PortalTooltipProvider,
+} from '@/components/v1/ui/portal-tooltip';
 
 interface RelativeDateProps {
   date?: Date | string;
@@ -70,24 +70,27 @@ const RelativeDate: React.FC<RelativeDateProps> = ({
   }
 
   return (
-    <TooltipProvider>
-      <Tooltip>
-        <TooltipTrigger
+    <PortalTooltipProvider>
+      <PortalTooltip>
+        <PortalTooltipTrigger
+          asChild
           onFocusCapture={(e) => {
             e.stopPropagation();
           }}
         >
-          {future && countdown ? (
-            <>{countdown}</>
-          ) : (
-            <TimeAgo datetime={formattedDate} />
-          )}
-        </TooltipTrigger>
-        <TooltipContent className="z-[80]">
+          <span>
+            {future && countdown ? (
+              <>{countdown}</>
+            ) : (
+              <TimeAgo datetime={formattedDate} />
+            )}
+          </span>
+        </PortalTooltipTrigger>
+        <PortalTooltipContent side="top">
           {formattedDate.toLocaleString()}
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
+        </PortalTooltipContent>
+      </PortalTooltip>
+    </PortalTooltipProvider>
   );
 };
 
