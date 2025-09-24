@@ -38,7 +38,7 @@ export const useRuns = ({
   const { tenantId } = useCurrentTenantId();
   const { refetchInterval } = useRefetchInterval();
   const { offset, pagination, setPageSize, setPagination } = usePagination({
-    key: 'runs-table' + key,
+    key: 'runs-table-' + key,
   });
 
   const [initialRenderTime] = useState(
