@@ -130,22 +130,25 @@ export default function ExpandedWorkflowRun() {
     refetchInterval,
   });
 
-  const filteredActions = useMemo(() => {
+  const registeredWorkflows = useMemo(() => {
     const workflowKeys =
       worker?.actions?.map((action) => action.split(':')[0].toLowerCase()) ||
       [];
 
-    const workflowsFromActiions =
+    return (
       workflowsData?.rows?.filter((w) =>
         workflowKeys.includes(w.name.toLowerCase()),
-      ) ?? [];
+      ) ?? []
+    );
+  }, [worker?.actions, workflowsData?.rows]);
 
+  const filteredWorkflows = useMemo(() => {
     if (showAllActions) {
-      return workflowsFromActiions;
+      return registeredWorkflows;
     }
 
-    return workflowsFromActiions.slice(0, N_ACTIONS_TO_PREVIEW);
-  }, [showAllActions, worker?.actions, workflowsData?.rows]);
+    return registeredWorkflows.slice(0, N_ACTIONS_TO_PREVIEW);
+  }, [showAllActions, registeredWorkflows]);
 
   if (!worker || workerQuery.isLoading || !workerQuery.data) {
     return <Loading />;
@@ -255,23 +258,23 @@ export default function ExpandedWorkflowRun() {
           Registered Tasks
         </h3>
         <div className="flex-wrap flex flex-row gap-4">
-          {filteredActions?.map((action) => {
+          {filteredWorkflows.map((workflow) => {
             return (
               <Link
-                to={`/tenants/${tenantId}/workflows/${action.metadata.id}`}
-                key={action.metadata.id}
+                to={`/tenants/${tenantId}/workflows/${workflow.metadata.id}`}
+                key={workflow.metadata.id}
               >
-                <Button variant="outline">{action.name}</Button>
+                <Button variant="outline">{workflow.name}</Button>
               </Link>
             );
           })}
         </div>
         <div className="flex flex-row w-full items-center justify-center py-4">
           {!showAllActions &&
-            (worker?.actions?.length || 0) > N_ACTIONS_TO_PREVIEW && (
+            registeredWorkflows.length > N_ACTIONS_TO_PREVIEW && (
               <Button variant="outline" onClick={() => setShowAllActions(true)}>
-                Show All (
-                {(worker?.actions?.length || 0) - N_ACTIONS_TO_PREVIEW} more)
+                Show All ({registeredWorkflows.length - N_ACTIONS_TO_PREVIEW}{' '}
+                more)
               </Button>
             )}
         </div>
