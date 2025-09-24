@@ -12,6 +12,7 @@ import { DocsButton } from '@/components/v1/docs/docs-button';
 import { docsPages } from '@/lib/generated/docs';
 import { useZodColumnFilters } from '@/hooks/use-zod-column-filters';
 import { z } from 'zod';
+import { usePagination } from '@/hooks/use-pagination';
 
 const workersQuerySchema = z
   .object({
@@ -26,6 +27,10 @@ export default function Workers() {
   const { tenantId } = useCurrentTenantId();
   const { refetchInterval } = useRefetchInterval();
   const paramKey = 'workers-table';
+  const { pagination, setPagination, limit, offset, setPageSize } =
+    usePagination({
+      key: paramKey,
+    });
 
   const {
     state: { s: statuses },
@@ -41,18 +46,22 @@ export default function Workers() {
     refetchInterval,
   });
 
-  const data =
-    useMemo(
-      () =>
-        listWorkersQuery.data?.rows
-          ?.filter((w) => w.status && statuses.includes(w.status))
-          .sort(
-            (a, b) =>
-              new Date(b.metadata?.createdAt).getTime() -
-              new Date(a.metadata?.createdAt).getTime(),
-          ),
-      [listWorkersQuery.data?.rows, statuses],
-    ) ?? [];
+  const data = useMemo(
+    () =>
+      listWorkersQuery.data?.rows
+        ?.filter((w) => w.status && statuses.includes(w.status))
+        ?.sort(
+          (a, b) =>
+            new Date(b.metadata?.createdAt).getTime() -
+            new Date(a.metadata?.createdAt).getTime(),
+        ) ?? [],
+    [listWorkersQuery.data?.rows, statuses],
+  );
+
+  const paginatedData = useMemo(
+    () => data.slice(offset, offset + limit),
+    [data, limit, offset],
+  );
 
   if (listWorkersQuery.isLoading) {
     return <Loading />;
@@ -61,8 +70,7 @@ export default function Workers() {
   return (
     <DataTable
       columns={columns(tenantId)}
-      data={data}
-      pageCount={1}
+      data={paginatedData}
       filters={[
         {
           columnId: 'status',
@@ -99,6 +107,10 @@ export default function Workers() {
         onRefetch: listWorkersQuery.refetch,
       }}
       onResetFilters={resetFilters}
+      pagination={pagination}
+      setPagination={setPagination}
+      onSetPageSize={setPageSize}
+      pageCount={Math.ceil(data.length / limit)}
     />
   );
 }
