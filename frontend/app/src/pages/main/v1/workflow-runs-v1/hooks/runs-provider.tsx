@@ -134,8 +134,6 @@ export const RunsProvider = ({
   const workflow = workflowId || (filters.apiFilters.workflowIds ?? [])[0];
   const flattenDAGs = filters.apiFilters.flattenDAGs;
 
-  console.log({ tableKey, f: filters.apiFilters, workflow });
-
   const {
     tableRows,
     selectedRuns,

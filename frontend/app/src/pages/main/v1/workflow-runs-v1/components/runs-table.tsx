@@ -217,14 +217,7 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
       />
 
       {!hideMetrics && (
-        <Dialog
-          open={showQueueMetrics}
-          onOpenChange={(open) => {
-            if (!open) {
-              setShowQueueMetrics(false);
-            }
-          }}
-        >
+        <Dialog open={showQueueMetrics} onOpenChange={setShowQueueMetrics}>
           <DialogContent className="w-fit max-w-[80%] min-w-[500px]">
             <DialogHeader>
               <DialogTitle>Queue Metrics</DialogTitle>

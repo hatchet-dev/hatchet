@@ -118,12 +118,8 @@ function MetricBadge({
 export const V1WorkflowRunsMetricsView = () => {
   const {
     display: { hideMetrics },
-    actions: { updateUIState },
+    actions: { setShowQueueMetrics },
   } = useRunsContext();
-
-  const onViewQueueMetricsClick = () => {
-    updateUIState({ viewQueueMetrics: true });
-  };
 
   // format of className strings is:
   // default, then unselected, then selected, then hover+selected, then hover+unselected
@@ -208,7 +204,7 @@ export const V1WorkflowRunsMetricsView = () => {
         <Badge
           variant="outline"
           className="rounded-sm font-normal cursor-pointer text-sm px-3 py-1 w-fit h-8"
-          onClick={() => onViewQueueMetricsClick()}
+          onClick={() => setShowQueueMetrics(true)}
         >
           <span className="cq-xl:inline hidden">Queue metrics</span>
           <ChartColumn className="size-4 cq-xl:hidden" />
