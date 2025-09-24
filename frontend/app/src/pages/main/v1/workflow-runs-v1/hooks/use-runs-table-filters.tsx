@@ -21,9 +21,7 @@ export interface BaseRunsTableState {
   parentTaskExternalId?: string;
 }
 
-export const getCreatedAfterFromTimeRange = (
-  timeWindow: TimeWindow,
-): string => {
+const getCreatedAfterFromTimeRange = (timeWindow: TimeWindow): string => {
   switch (timeWindow) {
     case '1h':
       return new Date(Date.now() - 60 * 60 * 1000).toISOString();
@@ -45,7 +43,7 @@ export type AdditionalMetadataProp = {
   value: string;
 };
 
-export type APIFilters = {
+type APIFilters = {
   since: string;
   until?: string;
   statuses?: V1TaskStatus[];

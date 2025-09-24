@@ -283,19 +283,6 @@ export function useTenant(): TenantContext {
   };
 }
 
-const lastTimeRange = 'lastTimeRange';
-
-const lastTimeRangeAtomInit = atom(
-  getInitialValue<string>(lastTimeRange, '1h'),
-);
-
-export const lastTimeRangeAtom = atom(
-  (get) => get(lastTimeRangeAtomInit),
-  (_get, set, newVal: string) => {
-    set(lastTimeRangeAtomInit, newVal);
-    localStorage.setItem(lastTimeRange, JSON.stringify(newVal));
-  },
-);
 
 const lastWorkerMetricsTimeRange = 'lastWorkerMetricsTimeRange';
 

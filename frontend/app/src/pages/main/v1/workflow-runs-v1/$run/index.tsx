@@ -39,12 +39,6 @@ import { Spinner } from '@/components/v1/ui/loading';
 import { Waterfall } from './v2components/waterfall';
 import { RunsProvider } from '../hooks/runs-provider';
 
-export const WORKFLOW_RUN_TERMINAL_STATUSES = [
-  WorkflowRunStatus.CANCELLED,
-  WorkflowRunStatus.FAILED,
-  WorkflowRunStatus.SUCCEEDED,
-];
-
 function statusToBadgeVariant(status: V1TaskStatus) {
   switch (status) {
     case V1TaskStatus.COMPLETED:

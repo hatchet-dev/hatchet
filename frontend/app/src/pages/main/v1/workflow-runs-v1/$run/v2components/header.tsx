@@ -20,12 +20,6 @@ import { useQuery } from '@tanstack/react-query';
 import { Toaster } from '@/components/v1/ui/toaster';
 import { WorkflowDefinitionLink } from './step-run-detail/workflow-definition';
 
-export const WORKFLOW_RUN_TERMINAL_STATUSES = [
-  WorkflowRunStatus.CANCELLED,
-  WorkflowRunStatus.FAILED,
-  WorkflowRunStatus.SUCCEEDED,
-];
-
 export const V1RunDetailHeader = () => {
   const { tenantId } = useCurrentTenantId();
   const {

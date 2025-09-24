@@ -22,7 +22,7 @@ import {
 } from './scheduled-runs-columns';
 import { workflowRunStatusFilters } from '../../workflow-runs-v1/hooks/use-toolbar-filters';
 
-export interface ScheduledWorkflowRunsTableProps {
+interface ScheduledWorkflowRunsTableProps {
   createdAfter?: string;
   createdBefore?: string;
   workflowId?: string;

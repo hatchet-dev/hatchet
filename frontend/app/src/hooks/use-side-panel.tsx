@@ -68,7 +68,7 @@ type UseSidePanelProps =
       };
     };
 
-export function useSidePanelData(): SidePanelData {
+function useSidePanelData(): SidePanelData {
   const [isOpen, setIsOpen] = useState(false);
   const [history, setHistory] = useState<UseSidePanelProps[]>([]);
   const [currentIndex, setCurrentIndex] = useState(-1);

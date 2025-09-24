@@ -78,21 +78,3 @@ export default memo(({ data }: { data: NodeData }) => {
     </div>
   );
 });
-
-export function getTiming({ stepRun }: { stepRun: StepRun }) {
-  const start = stepRun.startedAtEpoch;
-  const end = stepRun.finishedAtEpoch;
-
-  // otherwise just return started at or created at time
-  return (
-    <Label className="cursor-pointer">
-      <span className="font-bold mr-2 text-xs">
-        <RunStatus status={stepRun?.status || StepRunStatus.PENDING} />
-      </span>
-      <span className="text-gray-500 font-medium text-xs">
-        {stepRun.startedAt && !end && <RelativeDate date={stepRun.startedAt} />}
-        {start && end && formatDuration(end - start)}
-      </span>
-    </Label>
-  );
-}

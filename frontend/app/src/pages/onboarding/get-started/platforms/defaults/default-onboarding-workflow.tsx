@@ -1,5 +1,5 @@
 import { Button } from '@/components/v1/ui/button';
-import { useToast } from '@/components/hooks/use-toast';
+import { useToast } from '@/components/v1/hooks/use-toast';
 import api, { V1WorkflowRunDetails, queries } from '@/lib/api';
 import { useApiError } from '@/lib/hooks';
 import { useMutation, useQuery } from '@tanstack/react-query';
