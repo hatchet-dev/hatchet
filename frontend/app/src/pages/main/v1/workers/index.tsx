@@ -3,24 +3,36 @@ import { useQuery } from '@tanstack/react-query';
 import { queries } from '@/lib/api';
 import { DataTable } from '@/components/v1/molecules/data-table/data-table.tsx';
 import { Loading } from '@/components/v1/ui/loading.tsx';
-import { ColumnFiltersState, VisibilityState } from '@tanstack/react-table';
+import { VisibilityState } from '@tanstack/react-table';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { useRefetchInterval } from '@/contexts/refetch-interval-context';
-import { columns, WorkerColumn } from './components/worker-columns';
+import { columns, statusKey, WorkerColumn } from './components/worker-columns';
 import { ToolbarType } from '@/components/v1/molecules/data-table/data-table-toolbar';
 import { DocsButton } from '@/components/v1/docs/docs-button';
 import { docsPages } from '@/lib/generated/docs';
+import { useZodColumnFilters } from '@/hooks/use-zod-column-filters';
+import z from 'zod';
+
+const workersQuerySchema = z
+  .object({
+    s: z.array(z.enum(['ACTIVE', 'INACTIVE', 'PAUSED'])).optional(), // status
+  })
+  .default({})
+  .transform((data) => ({
+    s: data.s ?? ['ACTIVE', 'PAUSED'],
+  }));
 
 export default function Workers() {
   const { tenantId } = useCurrentTenantId();
   const { refetchInterval } = useRefetchInterval();
+  const paramKey = 'workers-table';
 
-  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([
-    {
-      id: 'status',
-      value: ['ACTIVE', 'PAUSED'],
-    },
-  ]);
+  const {
+    state: { s: statuses },
+    columnFilters,
+    setColumnFilters,
+    resetFilters,
+  } = useZodColumnFilters(workersQuerySchema, paramKey, { s: statusKey });
 
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
 
@@ -29,23 +41,18 @@ export default function Workers() {
     refetchInterval,
   });
 
-  const data = useMemo(() => {
-    let rows = listWorkersQuery.data?.rows || [];
-
-    columnFilters.map((filter) => {
-      if (filter.id === 'status') {
-        rows = rows.filter((row) =>
-          (filter.value as any[]).includes(row.status),
-        );
-      }
-    });
-
-    return rows.sort(
-      (a, b) =>
-        new Date(b.metadata?.createdAt).getTime() -
-        new Date(a.metadata?.createdAt).getTime(),
-    );
-  }, [listWorkersQuery.data?.rows, columnFilters]);
+  const data =
+    useMemo(
+      () =>
+        listWorkersQuery.data?.rows
+          ?.filter((w) => w.status && statuses.includes(w.status))
+          .sort(
+            (a, b) =>
+              new Date(b.metadata?.createdAt).getTime() -
+              new Date(a.metadata?.createdAt).getTime(),
+          ),
+      [listWorkersQuery.data?.rows, columnFilters],
+    ) ?? [];
 
   if (listWorkersQuery.isLoading) {
     return <Loading />;
@@ -91,6 +98,7 @@ export default function Workers() {
         isRefetching: listWorkersQuery.isRefetching,
         onRefetch: listWorkersQuery.refetch,
       }}
+      onResetFilters={resetFilters}
     />
   );
 }
