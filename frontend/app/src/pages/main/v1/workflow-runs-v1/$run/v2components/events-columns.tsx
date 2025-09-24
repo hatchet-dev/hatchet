@@ -17,6 +17,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/v1/ui/popover';
+import { EventWithMetadata } from './step-run-events-for-workflow-run';
 
 function eventTypeToSeverity(
   eventType: V1TaskEventType | undefined,
@@ -39,7 +40,7 @@ function eventTypeToSeverity(
   }
 }
 
-const columnHelper = createColumnHelper<V1TaskEvent>();
+const columnHelper = createColumnHelper<EventWithMetadata>();
 
 export const columns = ({
   tenantId,
@@ -47,7 +48,7 @@ export const columns = ({
   fallbackTaskDisplayName,
 }: {
   tenantId: string;
-  onRowClick: (row: V1TaskEvent) => void;
+  onRowClick: (row: EventWithMetadata) => void;
   fallbackTaskDisplayName: string;
 }) => {
   return [
