@@ -5,6 +5,12 @@ import { columns } from './events-columns';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { useRefetchInterval } from '@/contexts/refetch-interval-context';
 
+export type EventWithMetadata = V1TaskEvent & {
+  metadata: {
+    id: string;
+  };
+};
+
 export function StepRunEvents({
   taskRunId,
   workflowRunId,
@@ -33,12 +39,6 @@ export function StepRunEvents({
     refetchInterval,
   });
 
-  type EventWithMetadata = V1TaskEvent & {
-    metadata: {
-      id: string;
-    };
-  };
-
   const events: EventWithMetadata[] =
     eventsQuery.data?.rows?.map((row) => ({
       ...row,
@@ -54,11 +54,13 @@ export function StepRunEvents({
   });
 
   return (
-    <DataTable
-      emptyState={<>No events found.</>}
-      isLoading={eventsQuery.isLoading}
-      columns={cols as any} // TODO: This is a hack, figure out how to type this properly later
-      data={events}
-    />
+    <div className="flex-1 min-h-0 h-[400px]">
+      <DataTable
+        emptyState={<>No events found.</>}
+        isLoading={eventsQuery.isLoading}
+        columns={cols as any} // TODO: This is a hack, figure out how to type this properly later
+        data={events}
+      />
+    </div>
   );
 }

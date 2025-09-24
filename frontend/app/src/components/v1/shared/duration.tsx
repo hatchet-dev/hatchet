@@ -4,11 +4,11 @@ import { cn } from '@/lib/utils';
 import { intervalToDuration } from 'date-fns';
 import { Clock } from 'lucide-react';
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip';
+  PortalTooltip,
+  PortalTooltipTrigger,
+  PortalTooltipContent,
+  PortalTooltipProvider,
+} from '@/components/v1/ui/portal-tooltip';
 import { V1TaskStatus } from '@/lib/api';
 import { Duration as DateFnsDuration } from 'date-fns';
 
@@ -137,21 +137,21 @@ export function Duration({
   }
 
   return (
-    <TooltipProvider>
-      <Tooltip>
-        <TooltipTrigger asChild>
+    <PortalTooltipProvider>
+      <PortalTooltip>
+        <PortalTooltipTrigger asChild>
           <span
             className={cn(!asChild && durationVariants({ variant }), className)}
             {...props}
           >
             {content}
           </span>
-        </TooltipTrigger>
-        <TooltipContent>
+        </PortalTooltipTrigger>
+        <PortalTooltipContent>
           {isRunning ? 'Running for ' : ''}
           {formatDuration(duration, rawDuration)}
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
+        </PortalTooltipContent>
+      </PortalTooltip>
+    </PortalTooltipProvider>
   );
 }
