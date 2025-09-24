@@ -80,7 +80,7 @@ const RelativeDate: React.FC<RelativeDateProps> = ({
         >
           <span>
             {future && countdown ? (
-              <>{countdown}</>
+              countdown
             ) : (
               <TimeAgo datetime={formattedDate} />
             )}
