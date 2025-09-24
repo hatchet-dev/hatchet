@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/getkin/kin-openapi/openapi3"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/rs/zerolog"
@@ -43,6 +45,7 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/middleware/ratelimit"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
@@ -376,8 +379,25 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 
 		event, err := config.APIRepository.Event().GetEventById(timeoutCtx, id)
 
-		if err != nil {
+		fmt.Println(err, errors.Is(err, pgx.ErrNoRows))
+
+		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 			return nil, "", err
+		} else if errors.Is(err, pgx.ErrNoRows) {
+			v1Event, err := t.config.V1.OLAP().GetEvent(context.Background(), id)
+
+			if err != nil {
+				return nil, "", err
+			}
+
+			event = &dbsqlc.Event{
+				ID:                 v1Event.ExternalID,
+				TenantId:           v1Event.TenantID,
+				Data:               v1Event.Payload,
+				CreatedAt:          pgtype.Timestamp(v1Event.SeenAt),
+				AdditionalMetadata: v1Event.AdditionalMetadata,
+				Key:                v1Event.Key,
+			}
 		}
 
 		return event, sqlchelpers.UUIDToStr(event.TenantId), nil
