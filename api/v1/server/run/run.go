@@ -382,7 +382,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 			return nil, "", err
 		} else if errors.Is(err, pgx.ErrNoRows) {
-			v1Event, err := t.config.V1.OLAP().GetEvent(context.Background(), id)
+			v1Event, err := t.config.V1.OLAP().GetEvent(timeoutCtx, id)
 
 			if err != nil {
 				return nil, "", err
