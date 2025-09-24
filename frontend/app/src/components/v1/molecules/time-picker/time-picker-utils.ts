@@ -191,7 +191,7 @@ export function getArrowByType(
  * 12:00 PM is 12:00
  * 12:00 AM is 00:00
  */
-export function convert12HourTo24Hour(hour: number, period: Period) {
+function convert12HourTo24Hour(hour: number, period: Period) {
   if (period === 'PM') {
     if (hour <= 11) {
       return hour + 12;

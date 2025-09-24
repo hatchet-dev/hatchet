@@ -54,7 +54,7 @@ export const isHealthy = (worker?: Worker) => {
   return reasons;
 };
 
-export const WorkerStatus = ({
+const WorkerStatus = ({
   status = 'INACTIVE',
   health,
 }: {

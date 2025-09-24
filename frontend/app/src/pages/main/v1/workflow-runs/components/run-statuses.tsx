@@ -23,9 +23,7 @@ type RunStatusVariant = {
   variant: BadgeProps['variant'];
 };
 
-export function createRunStatusVariant(
-  status: RunStatusType,
-): RunStatusVariant {
+function createRunStatusVariant(status: RunStatusType): RunStatusVariant {
   switch (status) {
     case 'SUCCEEDED':
       return { text: 'Succeeded', variant: 'successful' };
@@ -52,9 +50,7 @@ export function createRunStatusVariant(
   }
 }
 
-export function createV1RunStatusVariant(
-  status: V1TaskStatus,
-): RunStatusVariant {
+function createV1RunStatusVariant(status: V1TaskStatus): RunStatusVariant {
   switch (status) {
     case V1TaskStatus.COMPLETED:
       return { text: 'Succeeded', variant: 'successful' };

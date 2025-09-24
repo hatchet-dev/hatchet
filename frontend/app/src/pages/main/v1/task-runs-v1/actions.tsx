@@ -9,7 +9,6 @@ import api, {
   queries,
   V1CancelTaskRequest,
   V1ReplayTaskRequest,
-  V1TaskStatus,
 } from '@/lib/api';
 import { useApiError } from '@/lib/hooks';
 import { XCircleIcon } from '@heroicons/react/24/outline';
@@ -26,12 +25,6 @@ import {
   DataTableOptionsContentProps,
 } from '@/components/v1/molecules/data-table/data-table-options';
 import { IDGetter } from '@/components/v1/molecules/data-table/data-table';
-
-export const TASK_RUN_TERMINAL_STATUSES = [
-  V1TaskStatus.CANCELLED,
-  V1TaskStatus.FAILED,
-  V1TaskStatus.COMPLETED,
-];
 
 export type ActionType = 'cancel' | 'replay';
 

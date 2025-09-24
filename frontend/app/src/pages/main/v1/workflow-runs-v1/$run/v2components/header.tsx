@@ -101,7 +101,7 @@ export const V1RunDetailHeader = () => {
   );
 };
 
-export const V1RunSummary = () => {
+const V1RunSummary = () => {
   const { workflowRun } = useWorkflowDetails();
 
   const timings = [];

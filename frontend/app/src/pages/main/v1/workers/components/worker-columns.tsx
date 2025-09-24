@@ -42,7 +42,7 @@ type StatusConfig = {
   label: string;
 };
 
-export const WorkerStatusConfigs: Record<string, StatusConfig> = {
+const WorkerStatusConfigs: Record<string, StatusConfig> = {
   ACTIVE: {
     colors:
       'text-green-800 dark:text-green-300 bg-green-500/20 ring-green-500/30',
@@ -65,7 +65,7 @@ export const WorkerStatusConfigs: Record<string, StatusConfig> = {
   },
 };
 
-export function WorkerStatusBadge({
+function WorkerStatusBadge({
   status,
   count,
   variant,

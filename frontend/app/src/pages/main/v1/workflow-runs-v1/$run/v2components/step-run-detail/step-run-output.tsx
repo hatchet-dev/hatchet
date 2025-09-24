@@ -112,7 +112,7 @@ const OUTPUT_STATE_MAP: Record<StepRunStatus, React.FC<StepRunOutputProps>> = {
   [StepRunStatus.BACKOFF]: StepRunOutputPending,
 };
 
-const StepRunOutput: React.FC<StepRunOutputProps> = (props) => {
+export const StepRunOutput: React.FC<StepRunOutputProps> = (props) => {
   const Component = OUTPUT_STATE_MAP[props.stepRun.status];
   return <Component {...props} />;
 };
@@ -141,5 +141,3 @@ export const V1StepRunOutput = (props: { taskRunId: string }) => {
     />
   );
 };
-
-export default StepRunOutput;
