@@ -1,5 +1,5 @@
-import { CodeHighlighter } from '@/components/ui/code-highlighter';
-import { Loading } from '@/components/ui/loading';
+import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
+import { Loading } from '@/components/v1/ui/loading';
 import { WorkflowRun, queries } from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
 

@@ -6,15 +6,15 @@ import { TenantContextType } from '@/lib/outlet';
 import { Link, useOutletContext, useSearchParams } from 'react-router-dom';
 import { DataTable } from '@/components/molecules/data-table/data-table.tsx';
 import { columns } from './workflow-columns';
-import { Loading } from '@/components/ui/loading.tsx';
-import { Button } from '@/components/ui/button';
+import { Loading } from '@/components/v1/ui/loading.tsx';
+import { Button } from '@/components/v1/ui/button';
 import {
   Card,
   CardHeader,
   CardTitle,
   CardDescription,
   CardFooter,
-} from '@/components/ui/card';
+} from '@/components/v1/ui/card';
 import { cn } from '@/lib/utils';
 import {
   ArrowPathIcon,
@@ -27,7 +27,7 @@ import {
 } from '@tanstack/react-table';
 import { BiCard, BiTable } from 'react-icons/bi';
 import RelativeDate from '@/components/molecules/relative-date';
-import { Badge } from '@/components/ui/badge';
+import { Badge } from '@/components/v1/ui/badge';
 
 export function WorkflowTable() {
   const [searchParams, setSearchParams] = useSearchParams();

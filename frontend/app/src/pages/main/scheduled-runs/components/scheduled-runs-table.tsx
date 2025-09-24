@@ -23,7 +23,7 @@ import {
   ToolbarFilters,
   ToolbarType,
 } from '@/components/molecules/data-table/data-table-toolbar';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/components/v1/ui/button';
 import { ArrowPathIcon } from '@heroicons/react/24/outline';
 import { columns } from './scheduled-runs-columns';
 import { DeleteScheduledRun } from './delete-scheduled-runs';

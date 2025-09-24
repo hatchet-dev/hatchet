@@ -1,4 +1,4 @@
-import { Button } from '@/components/ui/button';
+import { Button } from '@/components/v1/ui/button';
 import {
   FaCcAmex,
   FaCcDiscover,
@@ -16,7 +16,7 @@ import { TenantContextType } from '@/lib/outlet';
 import { useOutletContext } from 'react-router-dom';
 import { useApiError } from '@/lib/hooks';
 import { useState } from 'react';
-import { Spinner } from '@/components/ui/loading';
+import { Spinner } from '@/components/v1/ui/loading';
 import { TenantPaymentMethod } from '@/lib/api/generated/cloud/data-contracts';
 import { cloudApi } from '@/lib/api/api';
 

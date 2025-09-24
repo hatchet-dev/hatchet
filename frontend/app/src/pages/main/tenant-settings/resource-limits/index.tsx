@@ -1,4 +1,4 @@
-import { Separator } from '@/components/ui/separator';
+import { Separator } from '@/components/v1/ui/separator';
 import { TenantContextType } from '@/lib/outlet';
 import { useOutletContext } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
@@ -6,7 +6,7 @@ import { queries } from '@/lib/api';
 import { DataTable } from '@/components/molecules/data-table/data-table';
 import { columns } from './components/resource-limit-columns';
 import { PaymentMethods, Subscription } from '@/components/cloud/billing';
-import { Spinner } from '@/components/ui/loading';
+import { Spinner } from '@/components/v1/ui/loading';
 import useCloudApiMeta from '@/pages/auth/hooks/use-cloud-api-meta';
 
 export default function ResourceLimits() {

@@ -5,16 +5,21 @@ import { useOutletContext, useParams } from 'react-router-dom';
 import invariant from 'tiny-invariant';
 import RunDetailHeader from './v2components/header';
 import { WorkflowRunInputDialog } from './v2components/workflow-run-input';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from '@/components/v1/ui/tabs';
 import { StepRunEvents } from './v2components/step-run-events-for-workflow-run';
 import { useEffect, useState } from 'react';
 import { MiniMap } from './v2components/mini-map';
-import { Sheet, SheetContent } from '@/components/ui/sheet';
+import { Sheet, SheetContent } from '@/components/v1/ui/sheet';
 import StepRunDetail, {
   TabOption,
 } from './v2components/step-run-detail/step-run-detail';
-import { Separator } from '@/components/ui/separator';
-import { CodeHighlighter } from '@/components/ui/code-highlighter';
+import { Separator } from '@/components/v1/ui/separator';
+import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
 import WorkflowRunVisualizer from './v2components/workflow-run-visualizer-v2';
 import { useAtom } from 'jotai';
 import { preferredWorkflowRunViewAtom } from '@/lib/atoms';

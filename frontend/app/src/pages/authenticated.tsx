@@ -1,7 +1,7 @@
 import MainNav from '@/components/molecules/nav-bar/nav-bar';
 import { Outlet, useNavigate } from 'react-router-dom';
 import api, { queries, TenantVersion, User } from '@/lib/api';
-import { Loading } from '@/components/ui/loading.tsx';
+import { Loading } from '@/components/v1/ui/loading.tsx';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import SupportChat from '@/components/molecules/support-chat';
 import AnalyticsProvider from '@/components/molecules/analytics-provider';

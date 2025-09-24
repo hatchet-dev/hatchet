@@ -1,5 +1,5 @@
-import { Button } from '@/components/ui/button';
-import { Separator } from '@/components/ui/separator';
+import { Button } from '@/components/v1/ui/button';
+import { Separator } from '@/components/v1/ui/separator';
 import { useTenant } from '@/lib/atoms';
 import { Link } from 'react-router-dom';
 import { useState, useEffect, useCallback } from 'react';
@@ -11,19 +11,24 @@ import {
   KeyIcon,
 } from '@heroicons/react/24/outline';
 import { Step, Steps } from '@/components/v1/ui/steps';
-import { CodeHighlighter } from '@/components/ui/code-highlighter';
+import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { queries } from '@/lib/api/queries';
 import {
   ManagedWorkerEventStatus,
   TemplateOptions,
 } from '@/lib/api/generated/cloud/data-contracts';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Label } from '@/components/ui/label';
-import { Card } from '@/components/ui/card';
+import { RadioGroup, RadioGroupItem } from '@/components/v1/ui/radio-group';
+import { Label } from '@/components/v1/ui/label';
+import { Card } from '@/components/v1/ui/card';
 import { cloudApi } from '@/lib/api/api';
 import api from '@/lib/api';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from '@/components/v1/ui/tabs';
 import { GitHubLogoIcon } from '@radix-ui/react-icons';
 
 export default function DemoTemplate() {

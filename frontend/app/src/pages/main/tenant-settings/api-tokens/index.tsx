@@ -1,5 +1,5 @@
-import { Button } from '@/components/ui/button';
-import { Separator } from '@/components/ui/separator';
+import { Button } from '@/components/v1/ui/button';
+import { Separator } from '@/components/v1/ui/separator';
 import { TenantContextType } from '@/lib/outlet';
 import { useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
@@ -9,7 +9,7 @@ import { DataTable } from '@/components/molecules/data-table/data-table';
 import { columns as apiTokensColumns } from './components/api-tokens-columns';
 import { CreateTokenDialog } from './components/create-token-dialog';
 import { RevokeTokenForm } from './components/revoke-token-form';
-import { Dialog } from '@/components/ui/dialog';
+import { Dialog } from '@/components/v1/ui/dialog';
 import { useApiError } from '@/lib/hooks';
 
 export default function APITokens() {

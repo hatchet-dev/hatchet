@@ -8,7 +8,7 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import invariant from 'tiny-invariant';
 import { useApiError } from '@/lib/hooks';
 import { TenantContextType } from '@/lib/outlet';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/components/v1/ui/button';
 import {
   AdjustmentsHorizontalIcon,
   ArrowPathIcon,
@@ -22,7 +22,7 @@ import {
   BreadcrumbLink,
   BreadcrumbSeparator,
   BreadcrumbPage,
-} from '@/components/ui/breadcrumb';
+} from '@/components/v1/ui/breadcrumb';
 import { formatDuration } from '@/lib/utils';
 import RelativeDate from '@/components/molecules/relative-date';
 import { useToast } from '@/components/hooks/use-toast';

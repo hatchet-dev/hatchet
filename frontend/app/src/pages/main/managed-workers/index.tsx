@@ -1,7 +1,7 @@
-import { Separator } from '@/components/ui/separator';
+import { Separator } from '@/components/v1/ui/separator';
 import { Link } from 'react-router-dom';
 import { ManagedWorkersTable } from './components/managed-workers-table';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/components/v1/ui/button';
 import { useTenant } from '@/lib/atoms';
 import { cloudApi } from '@/lib/api/api';
 import { useApiError } from '@/lib/hooks';

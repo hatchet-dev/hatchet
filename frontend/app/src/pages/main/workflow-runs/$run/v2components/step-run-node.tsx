@@ -1,4 +1,4 @@
-import { Label } from '@/components/ui/label';
+import { Label } from '@/components/v1/ui/label';
 import { Step, StepRun, StepRunStatus } from '@/lib/api';
 import { cn, formatDuration } from '@/lib/utils';
 import { memo, useState } from 'react';

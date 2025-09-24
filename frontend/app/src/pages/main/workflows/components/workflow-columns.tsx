@@ -4,7 +4,7 @@ import { Workflow } from '@/lib/api';
 import { Link } from 'react-router-dom';
 import { ChevronRightIcon } from '@radix-ui/react-icons';
 import RelativeDate from '@/components/molecules/relative-date';
-import { Badge } from '@/components/ui/badge';
+import { Badge } from '@/components/v1/ui/badge';
 
 export const columns: ColumnDef<Workflow>[] = [
   {

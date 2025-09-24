@@ -1,4 +1,4 @@
-import { CodeHighlighter } from '@/components/ui/code-highlighter';
+import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
 import { StepRun, StepRunStatus, WorkflowRunShape } from '@/lib/api';
 import React from 'react';
 import LoggingComponent from '@/components/cloud/logging/logs';

@@ -3,14 +3,14 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
+} from '@/components/v1/ui/dialog';
+import { Button } from '@/components/v1/ui/button';
 import { z } from 'zod';
 import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { cn } from '@/lib/utils';
-import { Spinner } from '@/components/ui/loading';
-import { Textarea } from '@/components/ui/textarea';
+import { Spinner } from '@/components/v1/ui/loading';
+import { Textarea } from '@/components/v1/ui/textarea';
 
 const schema = z.object({
   emails: z.array(z.string().email()).min(1).max(100),

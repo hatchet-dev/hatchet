@@ -6,15 +6,15 @@ import { TenantContextType } from '@/lib/outlet';
 import { Link, useOutletContext } from 'react-router-dom';
 import { DataTable } from '@/components/molecules/data-table/data-table.tsx';
 import { columns } from './worker-columns';
-import { Loading } from '@/components/ui/loading.tsx';
-import { Button } from '@/components/ui/button';
+import { Loading } from '@/components/v1/ui/loading.tsx';
+import { Button } from '@/components/v1/ui/button';
 import {
   Card,
   CardHeader,
   CardTitle,
   CardDescription,
   CardFooter,
-} from '@/components/ui/card';
+} from '@/components/v1/ui/card';
 import { cn } from '@/lib/utils';
 import {
   ArrowPathIcon,
@@ -24,7 +24,7 @@ import { BiCard, BiTable } from 'react-icons/bi';
 import { WorkerStatus, isHealthy } from '../$worker';
 import { ColumnFiltersState } from '@tanstack/react-table';
 import RelativeDate from '@/components/molecules/relative-date';
-import { Badge } from '@/components/ui/badge';
+import { Badge } from '@/components/v1/ui/badge';
 import { SdkInfo } from './sdk-info';
 
 export function WorkersTable() {

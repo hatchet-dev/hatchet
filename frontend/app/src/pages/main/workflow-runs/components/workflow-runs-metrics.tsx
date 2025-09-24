@@ -1,7 +1,7 @@
 import React from 'react';
 
 import { WorkflowRunStatus, WorkflowRunsMetrics } from '@/lib/api';
-import { Badge } from '@/components/ui/badge';
+import { Badge } from '@/components/v1/ui/badge';
 
 interface WorkflowRunsMetricsProps {
   metrics: WorkflowRunsMetrics;

@@ -1,7 +1,7 @@
 import { cn } from '@/lib/utils';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Card, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/v1/ui/input';
+import { Label } from '@/components/v1/ui/label';
+import { Card, CardContent } from '@/components/v1/ui/card';
 import { Monitor, Settings, Rocket } from 'lucide-react';
 import { CheckIcon } from '@heroicons/react/24/outline';
 import { useForm } from 'react-hook-form';
@@ -18,7 +18,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
+} from '@/components/v1/ui/select';
 import { OrganizationForUserList } from '@/lib/api/generated/cloud/data-contracts';
 
 const schema = z.object({

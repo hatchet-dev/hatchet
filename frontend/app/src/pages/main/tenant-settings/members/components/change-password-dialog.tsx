@@ -2,15 +2,15 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
+} from '@/components/v1/ui/dialog';
+import { Button } from '@/components/v1/ui/button';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Label } from '@/components/ui/label';
-import { Input } from '@/components/ui/input';
+import { Label } from '@/components/v1/ui/label';
+import { Input } from '@/components/v1/ui/input';
 import { cn } from '@/lib/utils';
-import { Spinner } from '@/components/ui/loading';
+import { Spinner } from '@/components/v1/ui/loading';
 
 const passwordSchema = z
   .string()

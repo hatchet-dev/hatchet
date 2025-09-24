@@ -3,8 +3,8 @@ import { CheckIcon, CircleIcon, PlusCircledIcon } from '@radix-ui/react-icons';
 import { Column } from '@tanstack/react-table';
 
 import { cn } from '@/lib/utils';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/v1/ui/badge';
+import { Button } from '@/components/v1/ui/button';
 import {
   Command,
   CommandEmpty,
@@ -13,15 +13,15 @@ import {
   CommandItem,
   CommandList,
   CommandSeparator,
-} from '@/components/ui/command';
+} from '@/components/v1/ui/command';
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-} from '@/components/ui/popover';
-import { Separator } from '@/components/ui/separator';
+} from '@/components/v1/ui/popover';
+import { Separator } from '@/components/v1/ui/separator';
 import { ToolbarType } from '../data-table/data-table-toolbar';
-import { Input } from '@/components/ui/input';
+import { Input } from '@/components/v1/ui/input';
 import { BiX } from 'react-icons/bi';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';

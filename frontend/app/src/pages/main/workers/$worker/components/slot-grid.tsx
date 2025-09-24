@@ -4,7 +4,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
   TooltipContent,
-} from '@/components/ui/tooltip';
+} from '@/components/v1/ui/tooltip';
 import { SemaphoreSlots } from '@/lib/api';
 import { Link } from 'react-router-dom';
 

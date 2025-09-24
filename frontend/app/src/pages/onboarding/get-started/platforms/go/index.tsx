@@ -1,5 +1,5 @@
-import { Badge } from '@/components/ui/badge';
-import { CodeHighlighter } from '@/components/ui/code-highlighter';
+import { Badge } from '@/components/v1/ui/badge';
+import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
 import { OnboardingInterface } from '../_onboarding.interface';
 
 const GoSetup: typeof goOnboarding.setup = ({ existingProject }) => (

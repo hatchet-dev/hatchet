@@ -18,7 +18,7 @@ import { useOutletContext, useSearchParams } from 'react-router-dom';
 import { TenantContextType } from '@/lib/outlet';
 import { DataTable } from '@/components/molecules/data-table/data-table';
 import { columns } from './recurring-columns';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/components/v1/ui/button';
 import { ArrowPathIcon } from '@heroicons/react/24/outline';
 import { DeleteCron } from './delete-cron';
 import {

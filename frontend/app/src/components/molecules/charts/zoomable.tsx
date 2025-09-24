@@ -17,7 +17,7 @@ import {
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
-} from '@/components/ui/chart';
+} from '@/components/v1/ui/chart';
 import { capitalize, cn } from '@/lib/utils';
 
 export type DataPoint<T extends string> = Record<T, number> & {
