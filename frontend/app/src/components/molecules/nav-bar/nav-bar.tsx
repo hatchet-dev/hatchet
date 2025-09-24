@@ -31,7 +31,6 @@ import { Menu } from 'lucide-react';
 import { useTheme } from '@/components/theme-provider';
 import { useEffect, useMemo } from 'react';
 import useApiMeta from '@/pages/auth/hooks/use-api-meta';
-import { VersionInfo } from '@/pages/main/info/components/version-info';
 import { useTenant } from '@/lib/atoms';
 import { routes } from '@/router';
 import { Banner, BannerProps } from './banner';
@@ -45,6 +44,7 @@ import {
 } from '@/components/v1/ui/breadcrumb';
 import { useBreadcrumbs } from '@/hooks/use-breadcrumbs';
 import { usePendingInvites } from '@/hooks/use-pending-invites';
+import { VersionInfo } from '@/pages/main/v1/info/components';
 
 function HelpDropdown() {
   const meta = useApiMeta();

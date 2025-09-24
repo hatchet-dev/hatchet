@@ -13,12 +13,12 @@ import RelativeDate from '@/components/v1/molecules/relative-date';
 import { useWorkflowDetails } from '../../hooks/use-workflow-details';
 import { TaskRunActionButton } from '../../../task-runs-v1/actions';
 import { TASK_RUN_TERMINAL_STATUSES } from './step-run-detail/step-run-detail';
-import { WorkflowDefinitionLink } from '@/pages/main/workflow-runs/$run/v2components/workflow-definition';
 import { CopyWorkflowConfigButton } from '@/components/v1/shared/copy-workflow-config';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Toaster } from '@/components/v1/ui/toaster';
+import { WorkflowDefinitionLink } from './step-run-detail/workflow-definition';
 
 export const WORKFLOW_RUN_TERMINAL_STATUSES = [
   WorkflowRunStatus.CANCELLED,

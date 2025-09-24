@@ -21,7 +21,6 @@ import { V1StepRunOutput } from './step-run-output';
 import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
 import { TaskRunActionButton } from '@/pages/main/v1/task-runs-v1/actions';
 import { TaskRunMiniMap } from '../mini-map';
-import { WorkflowDefinitionLink } from '@/pages/main/workflow-runs/$run/v2components/workflow-definition';
 import { StepRunLogs } from './step-run-logs';
 import { isTerminalState } from '../../../hooks/use-workflow-details';
 import { CopyWorkflowConfigButton } from '@/components/v1/shared/copy-workflow-config';
@@ -30,6 +29,7 @@ import { Waterfall } from '../waterfall';
 import { useCallback } from 'react';
 import { Toaster } from '@/components/v1/ui/toaster';
 import { FullscreenIcon } from 'lucide-react';
+import { WorkflowDefinitionLink } from './workflow-definition';
 
 export enum TabOption {
   Output = 'output',

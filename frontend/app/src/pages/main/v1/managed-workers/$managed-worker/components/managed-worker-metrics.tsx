@@ -16,7 +16,6 @@ import {
 } from '@/components/v1/molecules/charts/zoomable';
 import { useAtom } from 'jotai';
 import { lastWorkerMetricsTimeRangeAtom } from '@/lib/atoms';
-import { getCreatedAfterFromTimeRange } from '@/pages/main/workflow-runs/components/workflow-runs-table';
 import {
   Select,
   SelectContent,
@@ -25,6 +24,19 @@ import {
   SelectValue,
 } from '@/components/v1/ui/select';
 import { useRefetchInterval } from '@/contexts/refetch-interval-context';
+
+const getCreatedAfterFromTimeRange = (timeRange?: string) => {
+  switch (timeRange) {
+    case '1h':
+      return new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    case '6h':
+      return new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString();
+    case '1d':
+      return new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    case '7d':
+      return new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+  }
+};
 
 export function ManagedWorkerMetrics({
   managedWorker,
