@@ -20,7 +20,7 @@ import {
   statusKey,
   metadataKey,
 } from './scheduled-runs-columns';
-import { workflowRunStatusFilters } from '../../workflow-runs-v1/hooks/use-toolbar-filters';
+import { workflowRunStatusFilters } from '../../workflow-runs/hooks/use-toolbar-filters';
 
 interface ScheduledWorkflowRunsTableProps {
   createdAfter?: string;

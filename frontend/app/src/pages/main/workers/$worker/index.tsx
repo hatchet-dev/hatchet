@@ -24,12 +24,12 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { RecentWebhookRequests } from '../webhooks/components/recent-webhook-requests';
-import { RunsTable } from '../../workflow-runs-v1/components/runs-table';
-import { RunsProvider } from '../../workflow-runs-v1/hooks/runs-provider';
+import { RunsTable } from '../../workflow-runs/components/runs-table';
+import { RunsProvider } from '../../workflow-runs/hooks/runs-provider';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { capitalize } from '@/lib/utils';
 import { useRefetchInterval } from '@/contexts/refetch-interval-context';
-import { flattenDAGsKey } from '../../workflow-runs-v1/components/v1/task-runs-columns';
+import { flattenDAGsKey } from '../../workflow-runs/components/v1/task-runs-columns';
 import { useMemo, useState } from 'react';
 export const isHealthy = (worker?: Worker) => {
   const reasons = [];

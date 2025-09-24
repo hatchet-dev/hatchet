@@ -132,7 +132,7 @@ const createTenantedRoute = (path: TenantedPath): RouteObject => {
       return {
         path,
         lazy: async () =>
-          import('./pages/main/workflow-runs-v1/index.tsx').then((res) => {
+          import('./pages/main/workflow-runs/index.tsx').then((res) => {
             return {
               Component: res.default,
             };
@@ -142,7 +142,7 @@ const createTenantedRoute = (path: TenantedPath): RouteObject => {
       return {
         path,
         lazy: async () =>
-          import('./pages/main/workflow-runs-v1/$run/index.tsx').then((res) => {
+          import('./pages/main/workflow-runs/$run/index.tsx').then((res) => {
             return {
               Component: res.default,
             };

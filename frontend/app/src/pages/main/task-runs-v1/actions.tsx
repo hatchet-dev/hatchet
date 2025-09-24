@@ -15,7 +15,7 @@ import { XCircleIcon } from '@heroicons/react/24/outline';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useCallback } from 'react';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
-import { useRunsContext } from '../workflow-runs-v1/hooks/runs-provider';
+import { useRunsContext } from '../workflow-runs/hooks/runs-provider';
 import { cn } from '@/lib/utils';
 import { Repeat1 } from 'lucide-react';
 import { useToast } from '@/components/hooks/use-toast';

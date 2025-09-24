@@ -15,7 +15,7 @@ import {
 import { FilterOption } from '@/components/molecules/data-table/data-table-toolbar';
 import { useZodColumnFilters } from '@/hooks/use-zod-column-filters';
 import { z } from 'zod';
-import { workflowRunStatusFilters } from '../../workflow-runs-v1/hooks/use-toolbar-filters';
+import { workflowRunStatusFilters } from '../../workflow-runs/hooks/use-toolbar-filters';
 
 type UseEventsProps = {
   key: string;

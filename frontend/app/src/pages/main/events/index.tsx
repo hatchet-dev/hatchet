@@ -15,8 +15,8 @@ import { V1Event, V1Filter } from '@/lib/api';
 import { ToolbarType } from '@/components/molecules/data-table/data-table-toolbar';
 import RelativeDate from '@/components/molecules/relative-date';
 import { DataTable } from '@/components/molecules/data-table/data-table';
-import { RunsTable } from '../workflow-runs-v1/components/runs-table';
-import { RunsProvider } from '../workflow-runs-v1/hooks/runs-provider';
+import { RunsTable } from '../workflow-runs/components/runs-table';
+import { RunsProvider } from '../workflow-runs/hooks/runs-provider';
 import { CodeHighlighter } from '@/components/ui/code-highlighter';
 
 import {

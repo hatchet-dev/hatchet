@@ -10,7 +10,7 @@ import { ChevronDownIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { DataTableRowActions } from '@/components/molecules/data-table/data-table-row-actions';
-import { V1RunStatus } from '../../../workflow-runs/components/run-statuses';
+import { V1RunStatus } from '../run-statuses';
 import { DataTableColumnHeader } from '@/components/molecules/data-table/data-table-column-header';
 import { V1TaskStatus, V1TaskSummary } from '@/lib/api';
 import { Duration } from '@/components/shared/duration';

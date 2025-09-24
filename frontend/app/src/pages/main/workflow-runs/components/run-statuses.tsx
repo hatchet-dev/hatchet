@@ -12,7 +12,7 @@ import {
   V1TaskStatus,
   WorkflowRunStatus,
 } from '@/lib/api';
-import { capitalize } from '@/lib/utils';
+import { capitalize, cn } from '@/lib/utils';
 import { HoverCardContent } from '@radix-ui/react-hover-card';
 
 type RunStatusType =
@@ -155,4 +155,31 @@ export function V1RunStatus({
       </HoverCardContent>
     </HoverCard>
   );
+}
+
+function createIndicatorVariant(eventType: V1TaskStatus | undefined) {
+  switch (eventType) {
+    case V1TaskStatus.CANCELLED:
+      return 'border-transparent rounded-full bg-orange-500';
+    case V1TaskStatus.FAILED:
+      return 'border-transparent rounded-full bg-red-500';
+    case V1TaskStatus.RUNNING:
+      return 'border-transparent rounded-full bg-yellow-500';
+    case V1TaskStatus.QUEUED:
+      return 'border-transparent rounded-full bg-fuchsia-500';
+    case V1TaskStatus.COMPLETED:
+      return 'border-transparent rounded-full bg-green-500';
+    default:
+      return 'border-transparent rounded-full bg-muted';
+  }
+}
+
+export function V1RunIndicator({
+  status,
+}: {
+  status: V1TaskStatus | undefined;
+}) {
+  const indicator = createIndicatorVariant(status);
+
+  return <div className={cn(indicator, 'rounded-full h-[6px] w-[6px]')} />;
 }

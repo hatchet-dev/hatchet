@@ -10,7 +10,7 @@ import { useLocation } from 'react-router-dom';
 import {
   TaskRunDetail,
   TabOption,
-} from '@/pages/main/workflow-runs-v1/$run/v2components/step-run-detail/step-run-detail';
+} from '@/pages/main/workflow-runs/$run/v2components/step-run-detail/step-run-detail';
 import { DocPage } from '@/components/docs/docs-button';
 import { V1Event, V1Filter } from '@/lib/api';
 import { FilterDetailView } from '@/pages/main/filters/components/filter-detail-view';
