@@ -52,7 +52,7 @@ const createTenantedRoute = (path: TenantedPath): RouteObject => {
       return {
         path,
         lazy: async () =>
-          import('./pages/main/v1/events').then((res) => {
+          import('./pages/main/events/index.tsx').then((res) => {
             return {
               Component: res.default,
             };
@@ -62,7 +62,7 @@ const createTenantedRoute = (path: TenantedPath): RouteObject => {
       return {
         path,
         lazy: async () =>
-          import('./pages/main/v1/filters').then((res) => {
+          import('./pages/main/filters/index.tsx').then((res) => {
             return {
               Component: res.default,
             };
@@ -72,7 +72,7 @@ const createTenantedRoute = (path: TenantedPath): RouteObject => {
       return {
         path,
         lazy: async () =>
-          import('./pages/main/v1/webhooks').then((res) => {
+          import('./pages/main/webhooks/index.tsx').then((res) => {
             return {
               Component: res.default,
             };
@@ -82,7 +82,7 @@ const createTenantedRoute = (path: TenantedPath): RouteObject => {
       return {
         path,
         lazy: async () =>
-          import('./pages/main/v1/rate-limits').then((res) => {
+          import('./pages/main/rate-limits/index.tsx').then((res) => {
             return {
               Component: res.default,
             };
@@ -92,7 +92,7 @@ const createTenantedRoute = (path: TenantedPath): RouteObject => {
       return {
         path,
         lazy: async () =>
-          import('./pages/main/v1/scheduled-runs').then((res) => {
+          import('./pages/main/scheduled-runs/index.tsx').then((res) => {
             return {
               Component: res.default,
             };
@@ -102,7 +102,7 @@ const createTenantedRoute = (path: TenantedPath): RouteObject => {
       return {
         path,
         lazy: async () =>
-          import('./pages/main/v1/recurring').then((res) => {
+          import('./pages/main/recurring/index.tsx').then((res) => {
             return {
               Component: res.default,
             };
@@ -112,7 +112,7 @@ const createTenantedRoute = (path: TenantedPath): RouteObject => {
       return {
         path,
         lazy: async () =>
-          import('./pages/main/v1/workflows').then((res) => {
+          import('./pages/main/workflows/index.tsx').then((res) => {
             return {
               Component: res.default,
             };
@@ -122,7 +122,7 @@ const createTenantedRoute = (path: TenantedPath): RouteObject => {
       return {
         path,
         lazy: async () =>
-          import('./pages/main/v1/workflows/$workflow').then((res) => {
+          import('./pages/main/workflows/$workflow/index.tsx').then((res) => {
             return {
               Component: res.default,
             };
@@ -132,7 +132,7 @@ const createTenantedRoute = (path: TenantedPath): RouteObject => {
       return {
         path,
         lazy: async () =>
-          import('./pages/main/v1/workflow-runs-v1/index.tsx').then((res) => {
+          import('./pages/main/workflow-runs-v1/index.tsx').then((res) => {
             return {
               Component: res.default,
             };
@@ -142,7 +142,7 @@ const createTenantedRoute = (path: TenantedPath): RouteObject => {
       return {
         path,
         lazy: async () =>
-          import('./pages/main/v1/workflow-runs-v1/$run').then((res) => {
+          import('./pages/main/workflow-runs-v1/$run/index.tsx').then((res) => {
             return {
               Component: res.default,
             };
@@ -163,7 +163,7 @@ const createTenantedRoute = (path: TenantedPath): RouteObject => {
       return {
         path,
         lazy: async () =>
-          import('./pages/main/v1/workers').then((res) => {
+          import('./pages/main/workers/index.tsx').then((res) => {
             return {
               Component: res.default,
             };
@@ -184,7 +184,7 @@ const createTenantedRoute = (path: TenantedPath): RouteObject => {
       return {
         path,
         lazy: async () =>
-          import('./pages/main/v1/workers/webhooks/index.tsx').then((res) => {
+          import('./pages/main/workers/webhooks/index.tsx').then((res) => {
             return {
               Component: res.default,
             };
@@ -194,7 +194,7 @@ const createTenantedRoute = (path: TenantedPath): RouteObject => {
       return {
         path,
         lazy: async () =>
-          import('./pages/main/v1/workers/$worker').then((res) => {
+          import('./pages/main/workers/$worker/index.tsx').then((res) => {
             return {
               Component: res.default,
             };
@@ -204,7 +204,7 @@ const createTenantedRoute = (path: TenantedPath): RouteObject => {
       return {
         path,
         lazy: async () =>
-          import('./pages/main/v1/managed-workers/index.tsx').then((res) => {
+          import('./pages/main/managed-workers/index.tsx').then((res) => {
             return {
               Component: res.default,
             };
@@ -214,19 +214,19 @@ const createTenantedRoute = (path: TenantedPath): RouteObject => {
       return {
         path,
         lazy: async () =>
-          import(
-            './pages/main/v1/managed-workers/demo-template/index.tsx'
-          ).then((res) => {
-            return {
-              Component: res.default,
-            };
-          }),
+          import('./pages/main/managed-workers/demo-template/index.tsx').then(
+            (res) => {
+              return {
+                Component: res.default,
+              };
+            },
+          ),
       };
     case '/tenants/:tenant/managed-workers/create':
       return {
         path,
         lazy: async () =>
-          import('./pages/main/v1/managed-workers/create/index.tsx').then(
+          import('./pages/main/managed-workers/create/index.tsx').then(
             (res) => {
               return {
                 Component: res.default,
@@ -238,69 +238,79 @@ const createTenantedRoute = (path: TenantedPath): RouteObject => {
       return {
         path,
         lazy: async () =>
-          import(
-            './pages/main/v1/managed-workers/$managed-worker/index.tsx'
-          ).then((res) => {
-            return {
-              Component: res.default,
-            };
-          }),
+          import('./pages/main/managed-workers/$managed-worker/index.tsx').then(
+            (res) => {
+              return {
+                Component: res.default,
+              };
+            },
+          ),
       };
     case '/tenants/:tenant/tenant-settings/overview':
       return {
         path,
         lazy: async () =>
-          import('./pages/main/v1/tenant-settings/overview').then((res) => {
-            return {
-              Component: res.default,
-            };
-          }),
+          import('./pages/main/tenant-settings/overview/index.tsx').then(
+            (res) => {
+              return {
+                Component: res.default,
+              };
+            },
+          ),
       };
     case '/tenants/:tenant/tenant-settings/api-tokens':
       return {
         path,
         lazy: async () =>
-          import('./pages/main/v1/tenant-settings/api-tokens').then((res) => {
-            return {
-              Component: res.default,
-            };
-          }),
+          import('./pages/main/tenant-settings/api-tokens/index.tsx').then(
+            (res) => {
+              return {
+                Component: res.default,
+              };
+            },
+          ),
       };
     case '/tenants/:tenant/tenant-settings/github':
       return {
         path,
         lazy: async () =>
-          import('./pages/main/v1/tenant-settings/github').then((res) => {
-            return {
-              Component: res.default,
-            };
-          }),
+          import('./pages/main/tenant-settings/github/index.tsx').then(
+            (res) => {
+              return {
+                Component: res.default,
+              };
+            },
+          ),
       };
     case '/tenants/:tenant/tenant-settings/members':
       return {
         path,
         lazy: async () =>
-          import('./pages/main/v1/tenant-settings/members').then((res) => {
-            return {
-              Component: res.default,
-            };
-          }),
+          import('./pages/main/tenant-settings/members/index.tsx').then(
+            (res) => {
+              return {
+                Component: res.default,
+              };
+            },
+          ),
       };
     case '/tenants/:tenant/tenant-settings/alerting':
       return {
         path,
         lazy: async () =>
-          import('./pages/main/v1/tenant-settings/alerting').then((res) => {
-            return {
-              Component: res.default,
-            };
-          }),
+          import('./pages/main/tenant-settings/alerting/index.tsx').then(
+            (res) => {
+              return {
+                Component: res.default,
+              };
+            },
+          ),
       };
     case '/tenants/:tenant/tenant-settings/billing-and-limits':
       return {
         path,
         lazy: async () =>
-          import('./pages/main/v1/tenant-settings/resource-limits').then(
+          import('./pages/main/tenant-settings/resource-limits/index.tsx').then(
             (res) => {
               return {
                 Component: res.default,
@@ -312,11 +322,13 @@ const createTenantedRoute = (path: TenantedPath): RouteObject => {
       return {
         path,
         lazy: async () =>
-          import('./pages/main/v1/tenant-settings/ingestors').then((res) => {
-            return {
-              Component: res.default,
-            };
-          }),
+          import('./pages/main/tenant-settings/ingestors/index.tsx').then(
+            (res) => {
+              return {
+                Component: res.default,
+              };
+            },
+          ),
       };
     case '/tenants/:tenant/onboarding/get-started':
       return {
@@ -481,7 +493,7 @@ export const routes: RouteObject[] = [
           {
             path: '/tenants/:tenant',
             lazy: async () =>
-              import('./pages/main/v1').then((res) => {
+              import('./pages/main/index.tsx').then((res) => {
                 return {
                   Component: res.default,
                 };

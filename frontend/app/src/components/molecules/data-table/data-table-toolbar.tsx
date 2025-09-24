@@ -3,11 +3,11 @@ import { Table } from '@tanstack/react-table';
 import { DataTableOptions } from './data-table-options';
 import { Spinner } from '@/components/ui/loading';
 import { RefetchIntervalDropdown } from '@/components/refetch-interval-dropdown';
-import { TableActions } from '@/pages/main/v1/workflow-runs-v1/components/task-runs-table/table-actions';
+import { TableActions } from '@/pages/main/workflow-runs-v1/components/task-runs-table/table-actions';
 import {
   ActionType,
   BaseTaskRunActionParams,
-} from '@/pages/main/v1/task-runs-v1/actions';
+} from '@/pages/main/task-runs-v1/actions';
 
 export interface FilterOption {
   label: string;

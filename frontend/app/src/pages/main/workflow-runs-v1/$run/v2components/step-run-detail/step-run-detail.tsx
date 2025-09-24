@@ -14,7 +14,7 @@ import RelativeDate from '@/components/molecules/relative-date';
 import { emptyGolangUUID, formatDuration } from '@/lib/utils';
 import { V1StepRunOutput } from './step-run-output';
 import { CodeHighlighter } from '@/components/ui/code-highlighter';
-import { TaskRunActionButton } from '@/pages/main/v1/task-runs-v1/actions';
+import { TaskRunActionButton } from '@/pages/main/task-runs-v1/actions';
 import { TaskRunMiniMap } from '../mini-map';
 import { StepRunLogs } from './step-run-logs';
 import { isTerminalState } from '../../../hooks/use-workflow-details';

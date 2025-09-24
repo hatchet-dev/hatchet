@@ -44,7 +44,7 @@ import {
 } from '@/components/ui/breadcrumb';
 import { useBreadcrumbs } from '@/hooks/use-breadcrumbs';
 import { usePendingInvites } from '@/hooks/use-pending-invites';
-import { VersionInfo } from '@/pages/main/v1/info/components';
+import { VersionInfo } from '@/pages/main/components';
 
 function HelpDropdown() {
   const meta = useApiMeta();
