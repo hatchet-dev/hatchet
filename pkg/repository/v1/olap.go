@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"sort"
 	"sync"
 	"time"
 
@@ -1915,6 +1916,14 @@ func (r *OLAPRepositoryImpl) populateTaskRunData(ctx context.Context, tx pgx.Tx,
 	for _, taskData := range idInsertedAtToData {
 		result = append(result, taskData)
 	}
+
+	sort.Slice(result, func(i, j int) bool {
+		if result[i].InsertedAt.Time.Equal(result[j].InsertedAt.Time) {
+			return result[i].ID < result[j].ID
+		}
+
+		return result[i].InsertedAt.Time.After(result[j].InsertedAt.Time)
+	})
 
 	return result, nil
 

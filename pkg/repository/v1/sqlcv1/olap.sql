@@ -566,6 +566,7 @@ WHERE
     t.tenant_id = @tenantId::UUID
     AND t.id = @taskId::BIGINT
     AND t.inserted_at = @taskInsertedAt::TIMESTAMPTZ
+ORDER BY t.inserted_at DESC, t.id
 ;
 
 -- name: FindMinInsertedAtForTaskStatusUpdates :one
