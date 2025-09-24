@@ -145,7 +145,7 @@ export default function ExpandedWorkflowRun() {
     }
 
     return workflowsFromActiions.slice(0, N_ACTIONS_TO_PREVIEW);
-  }, [showAllActions, worker?.actions]);
+  }, [showAllActions, worker?.actions, workflowsData?.rows]);
 
   if (!worker || workerQuery.isLoading || !workerQuery.data) {
     return <Loading />;
