@@ -379,8 +379,6 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 
 		event, err := config.APIRepository.Event().GetEventById(timeoutCtx, id)
 
-		fmt.Println(err, errors.Is(err, pgx.ErrNoRows))
-
 		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 			return nil, "", err
 		} else if errors.Is(err, pgx.ErrNoRows) {
