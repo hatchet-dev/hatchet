@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/hatchet-dev/hatchet/pkg/client"
+	hatchet "github.com/hatchet-dev/hatchet/sdks/go"
 )
 
 type Event struct {
@@ -15,7 +15,7 @@ type Event struct {
 }
 
 func emit(ctx context.Context, startEventsPerSecond, amount int, increase, duration, maxAcceptableSchedule time.Duration, hook <-chan time.Duration, scheduled chan<- int64) int64 {
-	c, err := client.New()
+	c, err := hatchet.NewClient()
 
 	if err != nil {
 		panic(err)
@@ -54,7 +54,7 @@ func emit(ctx context.Context, startEventsPerSecond, amount int, increase, durat
 					var err error
 					ev := Event{CreatedAt: time.Now(), ID: id}
 					l.Debug().Msgf("pushed event %d", ev.ID)
-					err = c.Event().Push(context.Background(), "load-test:event", ev)
+					err = c.Events().Push(context.Background(), "load-test:event", ev)
 					if err != nil {
 						panic(fmt.Errorf("error pushing event: %w", err))
 					}

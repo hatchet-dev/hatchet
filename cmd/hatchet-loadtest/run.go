@@ -7,15 +7,15 @@ import (
 	"sync"
 	"time"
 
+	"github.com/hatchet-dev/hatchet/pkg/client"
 	"github.com/hatchet-dev/hatchet/pkg/client/create"
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
-	v1 "github.com/hatchet-dev/hatchet/pkg/v1"
 	"github.com/hatchet-dev/hatchet/pkg/v1/factory"
-	"github.com/hatchet-dev/hatchet/pkg/v1/features"
 	"github.com/hatchet-dev/hatchet/pkg/v1/task"
 	"github.com/hatchet-dev/hatchet/pkg/v1/worker"
-	"github.com/hatchet-dev/hatchet/pkg/v1/workflow"
 	v0worker "github.com/hatchet-dev/hatchet/pkg/worker"
+	hatchet "github.com/hatchet-dev/hatchet/sdks/go"
+	"github.com/hatchet-dev/hatchet/sdks/go/features"
 )
 
 type stepOneOutput struct {
@@ -23,11 +23,9 @@ type stepOneOutput struct {
 }
 
 func run(ctx context.Context, config LoadTestConfig, executions chan<- time.Duration) (int64, int64) {
-	hatchet, err := v1.NewHatchetClient(
-		v1.Config{
-			Namespace: config.Namespace,
-			Logger:    &l,
-		},
+	c, err := hatchet.NewClient(
+		client.WithNamespace(config.Namespace),
+		client.WithLogger(&l),
 	)
 
 	if err != nil {
@@ -78,7 +76,7 @@ func run(ctx context.Context, config LoadTestConfig, executions chan<- time.Dura
 
 	// put the rate limits
 	for i := range config.RlKeys {
-		err = hatchet.RateLimits().Upsert(
+		err = c.RateLimits().Upsert(
 			features.CreateRatelimitOpts{
 				// FIXME: namespace?
 				Key:      "rl-key-" + fmt.Sprintf("%d", i),
@@ -92,7 +90,7 @@ func run(ctx context.Context, config LoadTestConfig, executions chan<- time.Dura
 		}
 	}
 
-	workflows := []workflow.WorkflowBase{}
+	workflows := []hatchet.WorkflowBase{}
 
 	for i := range config.EventFanout {
 		var concurrencyOpt []types.Concurrency

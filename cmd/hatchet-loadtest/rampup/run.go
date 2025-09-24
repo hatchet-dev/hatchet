@@ -3,36 +3,25 @@ package rampup
 import (
 	"context"
 	"fmt"
+	"os"
 	"sync"
 	"time"
 
 	"github.com/hatchet-dev/hatchet/pkg/client"
-	"github.com/hatchet-dev/hatchet/pkg/worker"
+	"github.com/hatchet-dev/hatchet/pkg/client/types"
+	hatchet "github.com/hatchet-dev/hatchet/sdks/go"
+	"github.com/rs/zerolog"
 )
 
 type stepOneOutput struct {
 	Message string `json:"message"`
 }
 
-func getConcurrencyKey(ctx worker.HatchetContext) (string, error) {
-	return "my-key", nil
-}
-
 func run(ctx context.Context, delay time.Duration, concurrency int, maxAcceptableDuration time.Duration, hook chan<- time.Duration, executedCh chan<- int64) (int64, int64) {
-	c, err := client.New(
-		client.WithLogLevel("warn"), // nolint: staticcheck
-	)
+	l := zerolog.New(os.Stderr).Level(zerolog.WarnLevel)
 
-	if err != nil {
-		panic(err)
-	}
-
-	w, err := worker.NewWorker(
-		worker.WithClient(
-			c,
-		),
-		worker.WithLogLevel("warn"),
-		worker.WithMaxRuns(200),
+	c, err := hatchet.NewClient(
+		client.WithLogger(&l),
 	)
 
 	if err != nil {
@@ -44,76 +33,72 @@ func run(ctx context.Context, delay time.Duration, concurrency int, maxAcceptabl
 	var uniques int64
 	var executed []int64
 
-	var concurrencyOpts *worker.WorkflowConcurrency
+	var concurrencyOpts []types.Concurrency
 	if concurrency > 0 {
-		concurrencyOpts = worker.Concurrency(getConcurrencyKey).MaxRuns(int32(concurrency)) // nolint: gosec
+		concurrencyOpts = []types.Concurrency{
+			{
+				Expression: "'my-key'",
+				MaxRuns:    &[]int32{int32(concurrency)}[0],
+			},
+		}
 	}
 
-	err = w.On( // nolint: staticcheck
-		worker.Event("load-test:event"),
-		&worker.WorkflowJob{
-			Name:        "load-test",
-			Description: "Load testing",
-			Concurrency: concurrencyOpts,
-			Steps: []*worker.WorkflowStep{
-				worker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
-					var input Event
-					err = ctx.WorkflowInput(&input)
-					if err != nil {
-						return nil, err
-					}
+	task := c.NewStandaloneTask( // nolint: staticcheck
+		"load-test",
+		func(ctx hatchet.Context, input Event) (result *stepOneOutput, err error) {
+			took := time.Since(input.CreatedAt)
 
-					took := time.Since(input.CreatedAt)
+			l.Debug().Msgf("executing %d took %s", input.ID, took)
 
-					l.Debug().Msgf("executing %d took %s", input.ID, took)
+			if took > maxAcceptableDuration {
+				hook <- took
+			}
 
-					if took > maxAcceptableDuration {
-						hook <- took
-					}
+			executedCh <- input.ID
 
-					executedCh <- input.ID
+			mx.Lock()
 
-					mx.Lock()
+			// detect duplicate in executed slice
+			var duplicate bool
+			for i := 0; i < len(executed)-1; i++ {
+				if executed[i] == input.ID {
+					duplicate = true
+				}
+			}
+			if duplicate {
+				l.Warn().Str("step-run-id", ctx.StepRunId()).Msgf("duplicate %d", input.ID)
+			} else {
+				uniques++
+			}
+			count++
+			executed = append(executed, input.ID)
+			mx.Unlock()
 
-					// detect duplicate in executed slice
-					var duplicate bool
-					for i := 0; i < len(executed)-1; i++ {
-						if executed[i] == input.ID {
-							duplicate = true
-						}
-					}
-					if duplicate {
-						l.Warn().Str("step-run-id", ctx.StepRunId()).Msgf("duplicate %d", input.ID)
-					} else {
-						uniques++
-					}
-					count++
-					executed = append(executed, input.ID)
-					mx.Unlock()
+			time.Sleep(delay)
 
-					time.Sleep(delay)
-
-					return &stepOneOutput{
-						Message: "This ran at: " + time.Now().Format(time.RFC3339Nano),
-					}, nil
-				}).SetName("step-one"),
-			},
+			return &stepOneOutput{
+				Message: "This ran at: " + time.Now().Format(time.RFC3339Nano),
+			}, nil
 		},
+		hatchet.WithWorkflowDescription("Load testing"),
+		hatchet.WithWorkflowEvents("load-test:event"),
+		hatchet.WithWorkflowConcurrency(concurrencyOpts...),
+	)
+
+	w, err := c.NewWorker(
+		"load-test-worker",
+		hatchet.WithSlots(200),
+		hatchet.WithLogger(&l),
+		hatchet.WithWorkflows(task),
 	)
 
 	if err != nil {
 		panic(err)
 	}
 
-	cleanup, err := w.Start()
+	err = w.StartBlocking(ctx)
 	if err != nil {
 		panic(fmt.Errorf("error starting worker: %w", err))
-	}
-
-	<-ctx.Done()
-
-	if err := cleanup(); err != nil {
-		panic(fmt.Errorf("error cleaning up: %w", err))
 	}
 
 	mx.Lock()

@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/hatchet-dev/hatchet/pkg/client"
-	v1 "github.com/hatchet-dev/hatchet/pkg/v1"
+	hatchet "github.com/hatchet-dev/hatchet/sdks/go"
 )
 
 type Event struct {
@@ -41,11 +41,16 @@ func parseSize(s string) int {
 }
 
 func emit(ctx context.Context, namespace string, amountPerSecond int, duration time.Duration, scheduled chan<- time.Duration, payloadArg string) int64 {
-	c, err := v1.NewHatchetClient(
-		v1.Config{
-			Namespace: namespace,
-			Logger:    &l,
-		},
+	// c, err := v1.NewHatchetClient(
+	// 	v1.Config{
+	// 		Namespace: namespace,
+	// 		Logger:    &l,
+	// 	},
+	// )
+
+	c, err := hatchet.NewClient(
+		client.WithNamespace(namespace),
+		client.WithLogger(&l),
 	)
 
 	if err != nil {
