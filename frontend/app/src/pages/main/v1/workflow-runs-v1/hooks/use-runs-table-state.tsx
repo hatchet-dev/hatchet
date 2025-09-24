@@ -1,27 +1,10 @@
 import { useCallback, useMemo, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import {
-  PaginationState,
-  RowSelectionState,
-  VisibilityState,
-} from '@tanstack/react-table';
+import { RowSelectionState, VisibilityState } from '@tanstack/react-table';
 
 export type TimeWindow = '1h' | '6h' | '1d' | '7d';
 
-type TaskRunDetailSheetState =
-  | {
-      isOpen: true;
-      taskRunId: string;
-    }
-  | {
-      isOpen: false;
-      taskRunId?: never;
-    };
-
 export interface BaseRunsTableState {
-  // Pagination
-  pagination: PaginationState;
-
   // Filters
   parentTaskExternalId?: string;
 
@@ -32,7 +15,6 @@ export interface BaseRunsTableState {
   // UI state
   viewQueueMetrics: boolean;
   triggerWorkflow: boolean;
-  taskRunDetailSheet: TaskRunDetailSheetState;
 }
 
 export interface RunsTableState extends BaseRunsTableState {
@@ -42,12 +24,10 @@ export interface RunsTableState extends BaseRunsTableState {
 }
 
 const DEFAULT_STATE: RunsTableState = {
-  pagination: { pageIndex: 0, pageSize: 50 },
   rowSelection: {},
   columnVisibility: {},
   viewQueueMetrics: false,
   triggerWorkflow: false,
-  taskRunDetailSheet: { isOpen: false },
   hasFiltersApplied: false,
   hasRowsSelected: false,
 };
@@ -56,11 +36,6 @@ const DEFAULT_STATE: RunsTableState = {
 // so we don't accidentally overflow browser URL length limits
 // It's not bulletproof, but it should help a lot
 const KEY_MAP = {
-  // Pagination
-  pagination: 'p',
-  pageIndex: 'i',
-  pageSize: 's',
-
   // Column filters
   parentTaskExternalId: 'pt',
 
@@ -240,25 +215,12 @@ export const useRunsTableState = (
 
           const newState = { ...currentStateFromURL, ...updates };
 
-          if (
-            Object.keys(updates).some(
-              (key) =>
-                key !== 'pagination' &&
-                key !== 'rowSelection' &&
-                key !== 'columnVisibility',
-            )
-          ) {
-            newState.pagination = { ...newState.pagination, pageIndex: 0 };
-          }
-
           const stateToSerialize: BaseRunsTableState = {
-            pagination: newState.pagination,
             parentTaskExternalId: newState.parentTaskExternalId,
             rowSelection: newState.rowSelection,
             columnVisibility: newState.columnVisibility,
             viewQueueMetrics: newState.viewQueueMetrics,
             triggerWorkflow: newState.triggerWorkflow,
-            taskRunDetailSheet: newState.taskRunDetailSheet,
           };
 
           const compressedState = compressKeys(
@@ -275,20 +237,10 @@ export const useRunsTableState = (
     [paramKey, setSearchParams],
   );
 
-  const updatePagination = useCallback(
-    (pagination: PaginationState) => {
-      updateState({ pagination });
-    },
-    [updateState],
-  );
-
   const updateUIState = useCallback(
     (
       uiState: Partial<
-        Pick<
-          RunsTableState,
-          'viewQueueMetrics' | 'triggerWorkflow' | 'taskRunDetailSheet'
-        >
+        Pick<RunsTableState, 'viewQueueMetrics' | 'triggerWorkflow'>
       >,
     ) => {
       updateState(uiState);
@@ -315,7 +267,6 @@ export const useRunsTableState = (
       ),
       hasFiltersApplied: !!currentState.parentTaskExternalId,
       hasOpenUI: !!(
-        currentState.taskRunDetailSheet.isOpen ||
         currentState.viewQueueMetrics ||
         currentState.triggerWorkflow ||
         currentState.selectedAdditionalMetaRunId
@@ -326,7 +277,6 @@ export const useRunsTableState = (
   return {
     state: derivedState,
     updateState,
-    updatePagination,
     updateUIState,
     updateTableState,
   };

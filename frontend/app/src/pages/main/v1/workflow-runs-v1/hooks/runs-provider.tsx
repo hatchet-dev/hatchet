@@ -5,7 +5,7 @@ import { useToolbarFilters } from './use-toolbar-filters';
 import { useRuns } from './use-runs';
 import { useMetrics } from './use-metrics';
 import { V1TaskRunMetrics, V1TaskSummary } from '@/lib/api';
-import { PaginationState } from '@tanstack/react-table';
+import { PaginationState, Updater } from '@tanstack/react-table';
 import {
   ActionType,
   BaseTaskRunActionParams,
@@ -43,13 +43,9 @@ type RunsProviderProps = {
 type RunsContextType = {
   state: RunsTableState;
   actions: {
-    updatePagination: (pagination: PaginationState) => void;
     updateUIState: (
       uiState: Partial<
-        Pick<
-          RunsTableState,
-          'viewQueueMetrics' | 'triggerWorkflow' | 'taskRunDetailSheet'
-        >
+        Pick<RunsTableState, 'viewQueueMetrics' | 'triggerWorkflow'>
       >,
     ) => void;
     updateTableState: (
@@ -63,6 +59,8 @@ type RunsContextType = {
     refetchRuns: () => void;
     refetchMetrics: () => void;
     getRowId: (row: V1TaskSummary) => string;
+    setPagination: (updater: Updater<PaginationState>) => void;
+    setPageSize: (size: number) => void;
   };
   filters: ReturnType<typeof useRunsTableFilters>;
   toolbarFilters: ReturnType<typeof useToolbarFilters>;
@@ -81,6 +79,7 @@ type RunsContextType = {
   selectedActionType: ActionType | null;
   actionModalParams: BaseTaskRunActionParams;
   display: DisplayProps;
+  pagination: PaginationState;
 };
 
 const RunsContext = createContext<RunsContextType | null>(null);
@@ -132,8 +131,10 @@ export const RunsProvider = ({
     return baseState;
   }, [parentTaskExternalId, initColumnVisibility]);
 
-  const { state, updatePagination, updateUIState, updateTableState } =
-    useRunsTableState(tableKey, initialState);
+  const { state, updateUIState, updateTableState } = useRunsTableState(
+    tableKey,
+    initialState,
+  );
 
   const filters = useRunsTableFilters({
     workflowIds: workflowId ? [workflowId] : undefined,
@@ -159,9 +160,12 @@ export const RunsProvider = ({
     refetch: refetchRuns,
     getRowId,
     isRefetching: isRunsRefetching,
+    pagination,
+    setPagination,
+    setPageSize,
   } = useRuns({
+    key: tableKey,
     rowSelection: state.rowSelection,
-    pagination: state.pagination,
     createdAfter: filters.apiFilters.since,
     finishedBefore: filters.apiFilters.until,
     statuses: filters.apiFilters.statuses,
@@ -240,6 +244,7 @@ export const RunsProvider = ({
       isActionDropdownOpen,
       actionModalParams,
       selectedActionType,
+      pagination,
       display: {
         hideMetrics,
         hideCounts,
@@ -251,7 +256,6 @@ export const RunsProvider = ({
         hiddenFilters,
       },
       actions: {
-        updatePagination,
         updateUIState,
         updateTableState,
         setIsActionModalOpen,
@@ -260,6 +264,8 @@ export const RunsProvider = ({
         refetchRuns,
         refetchMetrics,
         getRowId,
+        setPagination,
+        setPageSize,
       },
     }),
     [
@@ -284,7 +290,6 @@ export const RunsProvider = ({
       hiddenFilters,
       actionModalParams,
       selectedActionType,
-      updatePagination,
       updateUIState,
       updateTableState,
       setIsActionModalOpen,
@@ -293,6 +298,9 @@ export const RunsProvider = ({
       refetchRuns,
       refetchMetrics,
       getRowId,
+      setPageSize,
+      pagination,
+      setPagination,
       hideCancelAndReplayButtons,
       hideColumnToggle,
       disableTaskRunPagination,

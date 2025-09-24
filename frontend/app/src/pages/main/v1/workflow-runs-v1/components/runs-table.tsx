@@ -107,6 +107,7 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
     tenantMetrics,
     actionModalParams,
     selectedActionType,
+    pagination,
     display: {
       hideMetrics,
       hideCounts,
@@ -115,12 +116,13 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
       hiddenFilters,
     },
     actions: {
-      updatePagination,
       updateUIState,
       updateTableState,
       refetchRuns,
       refetchMetrics,
       getRowId,
+      setPageSize,
+      setPagination,
     },
   } = useRunsContext();
 
@@ -287,24 +289,9 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
               filters.setColumnFilters(updaterOrValue);
             }
           }}
-          pagination={hidePagination ? undefined : state.pagination}
-          setPagination={
-            hidePagination
-              ? undefined
-              : (updaterOrValue) => {
-                  if (typeof updaterOrValue === 'function') {
-                    updatePagination(updaterOrValue(state.pagination));
-                  } else {
-                    updatePagination(updaterOrValue);
-                  }
-                }
-          }
-          onSetPageSize={
-            hidePagination
-              ? undefined
-              : (size) =>
-                  updatePagination({ ...state.pagination, pageSize: size })
-          }
+          pagination={hidePagination ? undefined : pagination}
+          setPagination={setPagination}
+          onSetPageSize={setPageSize}
           rowSelection={state.rowSelection}
           setRowSelection={(updaterOrValue) => {
             if (typeof updaterOrValue === 'function') {

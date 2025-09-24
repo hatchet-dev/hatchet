@@ -1,13 +1,14 @@
 import { queries, V1TaskSummary, V1TaskStatus } from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
 import { useCallback, useMemo, useState } from 'react';
-import { RowSelectionState, PaginationState } from '@tanstack/react-table';
+import { RowSelectionState } from '@tanstack/react-table';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { useRefetchInterval } from '@/contexts/refetch-interval-context';
+import { usePagination } from '@/hooks/use-pagination';
 
 type UseRunsProps = {
+  key: string;
   rowSelection: RowSelectionState;
-  pagination: PaginationState;
   createdAfter?: string;
   finishedBefore?: string;
   statuses?: V1TaskStatus[];
@@ -21,8 +22,8 @@ type UseRunsProps = {
 };
 
 export const useRuns = ({
+  key,
   rowSelection,
-  pagination,
   createdAfter,
   finishedBefore,
   statuses,
@@ -36,7 +37,9 @@ export const useRuns = ({
 }: UseRunsProps) => {
   const { tenantId } = useCurrentTenantId();
   const { refetchInterval } = useRefetchInterval();
-  const offset = pagination.pageIndex * pagination.pageSize;
+  const { offset, pagination, setPageSize, setPagination } = usePagination({
+    key: 'runs-table' + key,
+  });
 
   const [initialRenderTime] = useState(
     new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
@@ -113,5 +116,8 @@ export const useRuns = ({
     isFetching: listTasksQuery.isFetching,
     getRowId,
     isRefetching: listTasksQuery.isRefetching,
+    pagination,
+    setPagination,
+    setPageSize,
   };
 };
