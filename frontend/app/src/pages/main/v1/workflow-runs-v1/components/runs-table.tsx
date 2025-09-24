@@ -93,7 +93,6 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
   const { setIsFrozen } = useRefetchInterval();
 
   const {
-    state,
     filters,
     toolbarFilters,
     tableRows,
@@ -108,6 +107,10 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
     actionModalParams,
     selectedActionType,
     pagination,
+    columnVisibility,
+    rowSelection,
+    showTriggerWorkflow,
+    showQueueMetrics,
     display: {
       hideMetrics,
       hideCounts,
@@ -116,13 +119,15 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
       hiddenFilters,
     },
     actions: {
-      updateUIState,
-      updateTableState,
       refetchRuns,
       refetchMetrics,
       getRowId,
       setPageSize,
       setPagination,
+      setColumnVisibility,
+      setRowSelection,
+      setShowTriggerWorkflow,
+      setShowQueueMetrics,
     },
   } = useRunsContext();
 
@@ -207,16 +212,16 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
 
       <TriggerWorkflowForm
         defaultWorkflow={undefined}
-        show={state.triggerWorkflow}
-        onClose={() => updateUIState({ triggerWorkflow: false })}
+        show={showTriggerWorkflow}
+        onClose={() => setShowTriggerWorkflow(false)}
       />
 
       {!hideMetrics && (
         <Dialog
-          open={state.viewQueueMetrics}
+          open={showQueueMetrics}
           onOpenChange={(open) => {
             if (!open) {
-              updateUIState({ viewQueueMetrics: false });
+              setShowQueueMetrics(false);
             }
           }}
         >
@@ -256,16 +261,8 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
           }
           isLoading={isFetching}
           columns={tableColumns}
-          columnVisibility={state.columnVisibility}
-          setColumnVisibility={(visibility) => {
-            if (typeof visibility === 'function') {
-              updateTableState({
-                columnVisibility: visibility(state.columnVisibility),
-              });
-            } else {
-              updateTableState({ columnVisibility: visibility });
-            }
-          }}
+          columnVisibility={columnVisibility}
+          setColumnVisibility={setColumnVisibility}
           data={tableRows}
           filters={toolbarFilters}
           leftActions={[
@@ -292,16 +289,8 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
           pagination={hidePagination ? undefined : pagination}
           setPagination={setPagination}
           onSetPageSize={setPageSize}
-          rowSelection={state.rowSelection}
-          setRowSelection={(updaterOrValue) => {
-            if (typeof updaterOrValue === 'function') {
-              updateTableState({
-                rowSelection: updaterOrValue(state.rowSelection),
-              });
-            } else {
-              updateTableState({ rowSelection: updaterOrValue });
-            }
-          }}
+          rowSelection={rowSelection}
+          setRowSelection={setRowSelection}
           pageCount={hidePagination ? undefined : numPages}
           showColumnToggle={!hideColumnToggle}
           getSubRows={(row) => row.children || []}
@@ -315,7 +304,7 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
           }}
           tableActions={{
             showTableActions: true,
-            onTriggerWorkflow: () => updateUIState({ triggerWorkflow: true }),
+            onTriggerWorkflow: () => setShowTriggerWorkflow(true),
             selectedActionType,
             actionModalParams,
           }}
