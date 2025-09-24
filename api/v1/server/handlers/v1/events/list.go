@@ -97,7 +97,7 @@ func (t *V1EventsService) V1EventList(ctx echo.Context, request gen.V1EventListR
 		additionalMeta := make(map[string]interface{})
 
 		for _, m := range *request.Params.AdditionalMetadata {
-			split := strings.Split(m, ":")
+			split := strings.SplitN(m, ":", 2)
 
 			if len(split) != 2 {
 				return nil, fmt.Errorf("invalid additional metadata format: %s, expected key:value", m)
