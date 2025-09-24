@@ -11,7 +11,7 @@ import { ToolbarType } from '@/components/v1/molecules/data-table/data-table-too
 import { DocsButton } from '@/components/v1/docs/docs-button';
 import { docsPages } from '@/lib/generated/docs';
 import { useZodColumnFilters } from '@/hooks/use-zod-column-filters';
-import z from 'zod';
+import { z } from 'zod';
 
 const workersQuerySchema = z
   .object({
