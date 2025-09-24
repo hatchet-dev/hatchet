@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { DataTable } from '@/components/molecules/data-table/data-table';
-import { columns, TaskRunColumn } from './v1/task-runs-columns';
+import { columns, TaskRunColumn } from './task-runs-columns';
 import { V1WorkflowRunsMetricsView } from './task-runs-metrics';
 import { Skeleton } from '@/components/ui/skeleton';
 import {

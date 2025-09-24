@@ -24,7 +24,7 @@ import { RunsTable } from '../../workflow-runs/components/runs-table';
 import { RunsProvider } from '../../workflow-runs/hooks/runs-provider';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { useRefetchInterval } from '@/contexts/refetch-interval-context';
-import { workflowKey } from '../../workflow-runs/components/v1/task-runs-columns';
+import { workflowKey } from '../../workflow-runs/components/task-runs-columns';
 
 export default function ExpandedWorkflow() {
   // TODO list previous versions and make selectable

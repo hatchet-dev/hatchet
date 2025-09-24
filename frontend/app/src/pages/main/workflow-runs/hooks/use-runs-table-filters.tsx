@@ -11,7 +11,7 @@ import {
   finishedBeforeKey,
   isCustomTimeRangeKey,
   timeWindowKey,
-} from '../components/v1/task-runs-columns';
+} from '../components/task-runs-columns';
 import { z } from 'zod';
 import { useZodColumnFilters } from '@/hooks/use-zod-column-filters';
 

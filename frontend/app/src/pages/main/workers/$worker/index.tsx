@@ -29,7 +29,7 @@ import { RunsProvider } from '../../workflow-runs/hooks/runs-provider';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { capitalize } from '@/lib/utils';
 import { useRefetchInterval } from '@/contexts/refetch-interval-context';
-import { flattenDAGsKey } from '../../workflow-runs/components/v1/task-runs-columns';
+import { flattenDAGsKey } from '../../workflow-runs/components/task-runs-columns';
 import { useMemo, useState } from 'react';
 export const isHealthy = (worker?: Worker) => {
   const reasons = [];

@@ -1,5 +1,5 @@
 import { Button } from '@/components/ui/button';
-import { TaskRunActionButton } from '../../../task-runs-v1/actions';
+import { TaskRunActionButton } from '../../../task-runs/actions';
 import { useRunsContext } from '../../hooks/runs-provider';
 import {
   DropdownMenu,

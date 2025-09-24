@@ -11,7 +11,7 @@ import {
 import { formatDuration } from '@/lib/utils';
 import RelativeDate from '@/components/molecules/relative-date';
 import { useWorkflowDetails } from '../../hooks/use-workflow-details';
-import { TaskRunActionButton } from '../../../task-runs-v1/actions';
+import { TaskRunActionButton } from '../../../task-runs/actions';
 import { TASK_RUN_TERMINAL_STATUSES } from './step-run-detail/step-run-detail';
 import { CopyWorkflowConfigButton } from '@/components/shared/copy-workflow-config';
 import { useCurrentTenantId } from '@/hooks/use-tenant';

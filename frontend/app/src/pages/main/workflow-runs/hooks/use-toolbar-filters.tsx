@@ -12,7 +12,7 @@ import {
   flattenDAGsKey,
   statusKey,
   workflowKey,
-} from '../components/v1/task-runs-columns';
+} from '../components/task-runs-columns';
 import { useWorkflows } from './use-workflows';
 import { FilterActions } from './use-runs-table-filters';
 

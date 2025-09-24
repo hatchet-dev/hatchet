@@ -6,11 +6,8 @@ import { useRuns } from './use-runs';
 import { useMetrics } from './use-metrics';
 import { V1TaskRunMetrics, V1TaskSummary } from '@/lib/api';
 import { PaginationState, Updater } from '@tanstack/react-table';
-import {
-  ActionType,
-  BaseTaskRunActionParams,
-} from '../../task-runs-v1/actions';
-import { TaskRunColumnKeys } from '../components/v1/task-runs-columns';
+import { ActionType, BaseTaskRunActionParams } from '../../task-runs/actions';
+import { TaskRunColumnKeys } from '../components/task-runs-columns';
 
 type DisplayProps = {
   hideMetrics?: boolean;

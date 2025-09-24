@@ -16,7 +16,7 @@ import {
   statusKey,
   isCustomTimeRangeKey,
   timeWindowKey,
-} from '@/pages/main/workflow-runs/components/v1/task-runs-columns';
+} from '@/pages/main/workflow-runs/components/task-runs-columns';
 import { ToolbarFilters } from './data-table-toolbar';
 import {
   ToolbarType,

@@ -7,7 +7,7 @@ import { TableActions } from '@/pages/main/workflow-runs/components/task-runs-ta
 import {
   ActionType,
   BaseTaskRunActionParams,
-} from '@/pages/main/task-runs-v1/actions';
+} from '@/pages/main/task-runs/actions';
 
 export interface FilterOption {
   label: string;
