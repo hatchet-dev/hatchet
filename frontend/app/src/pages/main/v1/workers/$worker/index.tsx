@@ -30,6 +30,7 @@ import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { capitalize } from '@/lib/utils';
 import { useRefetchInterval } from '@/contexts/refetch-interval-context';
 import { flattenDAGsKey } from '../../workflow-runs-v1/components/v1/task-runs-columns';
+import { useMemo, useState } from 'react';
 export const isHealthy = (worker?: Worker) => {
   const reasons = [];
 
@@ -90,10 +91,13 @@ export const WorkerStatus = ({
   );
 };
 
+const N_ACTIONS_TO_PREVIEW = 10;
+
 export default function ExpandedWorkflowRun() {
   const { handleApiError } = useApiError({});
   const { tenantId } = useCurrentTenantId();
   const { refetchInterval } = useRefetchInterval();
+  const [showAllActions, setShowAllActions] = useState(false);
 
   const params = useParams();
   invariant(params.worker);
@@ -118,6 +122,14 @@ export default function ExpandedWorkflowRun() {
     },
     onError: handleApiError,
   });
+
+  const filteredActions = useMemo(() => {
+    if (showAllActions) {
+      return worker?.actions;
+    }
+
+    return worker?.actions?.slice(0, N_ACTIONS_TO_PREVIEW);
+  }, [showAllActions, worker?.actions]);
 
   if (!worker || workerQuery.isLoading || !workerQuery.data) {
     return <Loading />;
@@ -205,27 +217,29 @@ export default function ExpandedWorkflowRun() {
             Recent Task Runs
           </h3>
         </div>
-        <RunsProvider
-          tableKey={`worker-${worker.metadata.id}`}
-          display={{
-            hideMetrics: true,
-            hideCounts: true,
-            hideTriggerRunButton: true,
-            hiddenFilters: [flattenDAGsKey],
-            hideCancelAndReplayButtons: true,
-          }}
-          runFilters={{
-            workerId: worker.metadata.id,
-          }}
-        >
-          <RunsTable />
-        </RunsProvider>
+        <div className="flex-1 min-h-0 h-[600px]">
+          <RunsProvider
+            tableKey={`worker-${worker.metadata.id}`}
+            display={{
+              hideMetrics: true,
+              hideCounts: true,
+              hideTriggerRunButton: true,
+              hiddenFilters: [flattenDAGsKey],
+              hideCancelAndReplayButtons: true,
+            }}
+            runFilters={{
+              workerId: worker.metadata.id,
+            }}
+          >
+            <RunsTable />
+          </RunsProvider>
+        </div>
         <Separator className="my-4" />
         <h3 className="text-xl font-bold leading-tight text-foreground mb-4">
           Registered Tasks
         </h3>
         <div className="flex-wrap flex flex-row gap-4">
-          {worker.actions?.map((action) => {
+          {filteredActions?.map((action) => {
             const [name, method] = action.split(':');
 
             const printable = name === method ? name : action;
@@ -237,6 +251,15 @@ export default function ExpandedWorkflowRun() {
               </Button>
             );
           })}
+        </div>
+        <div className="flex flex-row w-full items-center justify-center py-4">
+          {!showAllActions &&
+            (worker?.actions?.length || 0) > N_ACTIONS_TO_PREVIEW && (
+              <Button variant="outline" onClick={() => setShowAllActions(true)}>
+                Show All (
+                {(worker?.actions?.length || 0) - N_ACTIONS_TO_PREVIEW} more)
+              </Button>
+            )}
         </div>
         {worker.webhookId && (
           <>
@@ -250,33 +273,31 @@ export default function ExpandedWorkflowRun() {
           </>
         )}
 
-        <Separator className="my-4" />
-        <h3 className="text-xl font-bold leading-tight text-foreground mb-4">
-          Worker Labels
-        </h3>
-        <div className="mb-4 text-sm text-gray-700 dark:text-gray-300">
-          Worker labels are key-value pairs that can be used to prioritize
-          assignment of steps to specific workers.{' '}
-          <a
-            className="underline"
-            href="https://docs.hatchet.run/home/features/worker-assignment/worker-affinity#specifying-worker-labels"
-          >
-            Learn more.
-          </a>
-        </div>
-        <div className="flex gap-2">
-          {!worker.labels || worker.labels.length === 0 ? (
-            <>
-              <>No Labels Assigned.</>
-            </>
-          ) : (
-            worker.labels?.map(({ key, value }) => (
-              <Badge key={key}>
-                {key}:{value}
-              </Badge>
-            ))
-          )}
-        </div>
+        {worker.labels && worker.labels.length > 0 && (
+          <>
+            <Separator className="my-4" />
+            <h3 className="text-xl font-bold leading-tight text-foreground mb-4">
+              Worker Labels
+            </h3>
+            <div className="mb-4 text-sm text-gray-700 dark:text-gray-300">
+              Worker labels are key-value pairs that can be used to prioritize
+              assignment of steps to specific workers.{' '}
+              <a
+                className="underline"
+                href="https://docs.hatchet.run/home/features/worker-assignment/worker-affinity#specifying-worker-labels"
+              >
+                Learn more.
+              </a>
+            </div>
+            <div className="flex gap-2">
+              {worker.labels?.map(({ key, value }) => (
+                <Badge key={key}>
+                  {key}:{value}
+                </Badge>
+              ))}
+            </div>
+          </>
+        )}
         {worker.runtimeInfo && (
           <>
             <Separator className="my-4" />
