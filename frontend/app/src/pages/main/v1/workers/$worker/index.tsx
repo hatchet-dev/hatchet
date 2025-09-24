@@ -123,12 +123,28 @@ export default function ExpandedWorkflowRun() {
     onError: handleApiError,
   });
 
+  const { data: workflowsData } = useQuery({
+    ...queries.workflows.list(tenantId, {
+      limit: 1000,
+    }),
+    refetchInterval,
+  });
+
   const filteredActions = useMemo(() => {
+    const workflowKeys =
+      worker?.actions?.map((action) => action.split(':')[0].toLowerCase()) ||
+      [];
+
+    const workflowsFromActiions =
+      workflowsData?.rows?.filter((w) =>
+        workflowKeys.includes(w.name.toLowerCase()),
+      ) ?? [];
+
     if (showAllActions) {
-      return worker?.actions;
+      return workflowsFromActiions;
     }
 
-    return worker?.actions?.slice(0, N_ACTIONS_TO_PREVIEW);
+    return workflowsFromActiions.slice(0, N_ACTIONS_TO_PREVIEW);
   }, [showAllActions, worker?.actions]);
 
   if (!worker || workerQuery.isLoading || !workerQuery.data) {
@@ -240,15 +256,13 @@ export default function ExpandedWorkflowRun() {
         </h3>
         <div className="flex-wrap flex flex-row gap-4">
           {filteredActions?.map((action) => {
-            const [name, method] = action.split(':');
-
-            const printable = name === method ? name : action;
-            // FIXME Link to the task
-
             return (
-              <Button variant="outline" key={printable}>
-                {printable}
-              </Button>
+              <Link
+                to={`/tenants/${tenantId}/workflows/${action.metadata.id}`}
+                key={action.metadata.id}
+              >
+                <Button variant="outline">{action.name}</Button>
+              </Link>
             );
           })}
         </div>
