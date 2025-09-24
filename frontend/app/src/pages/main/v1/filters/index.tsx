@@ -8,12 +8,12 @@ import {
 import { FilterCreateButton } from './components/filter-create-form';
 import { useState } from 'react';
 import { VisibilityState } from '@tanstack/react-table';
-import { ToolbarType } from '@/components/v1/molecules/data-table/data-table-toolbar';
-import { DataTable } from '@/components/v1/molecules/data-table/data-table';
+import { ToolbarType } from '@/components/molecules/data-table/data-table-toolbar';
+import { DataTable } from '@/components/molecules/data-table/data-table';
 import { useFilters } from './hooks/use-filters';
 import { V1Filter } from '@/lib/api';
 import { useSidePanel } from '@/hooks/use-side-panel';
-import { DocsButton } from '@/components/v1/docs/docs-button';
+import { DocsButton } from '@/components/docs/docs-button';
 import { docsPages } from '@/lib/generated/docs';
 
 export default function Filters() {

@@ -1,4 +1,4 @@
-import { Separator } from '@/components/v1/ui/separator';
+import { Separator } from '@/components/ui/separator';
 import { useNavigate } from 'react-router-dom';
 import { ServerStackIcon } from '@heroicons/react/24/outline';
 import CreateWorkerForm from './components/create-worker-form';

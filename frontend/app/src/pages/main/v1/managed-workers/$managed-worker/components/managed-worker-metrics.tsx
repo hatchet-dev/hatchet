@@ -4,16 +4,16 @@ import {
   ManagedWorker,
   Matrix,
 } from '@/lib/api/generated/cloud/data-contracts';
-import { Loading } from '@/components/v1/ui/loading';
+import { Loading } from '@/components/ui/loading';
 import { useEffect, useMemo, useState } from 'react';
-import { Separator } from '@/components/v1/ui/separator';
-import { DateTimePicker } from '@/components/v1/molecules/time-picker/date-time-picker';
-import { Button } from '@/components/v1/ui/button';
+import { Separator } from '@/components/ui/separator';
+import { DateTimePicker } from '@/components/molecules/time-picker/date-time-picker';
+import { Button } from '@/components/ui/button';
 import { XCircleIcon } from '@heroicons/react/24/outline';
 import {
   DataPoint,
   ZoomableChart,
-} from '@/components/v1/molecules/charts/zoomable';
+} from '@/components/molecules/charts/zoomable';
 import { useAtom } from 'jotai';
 import { lastWorkerMetricsTimeRangeAtom } from '@/lib/atoms';
 import {
@@ -22,7 +22,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/v1/ui/select';
+} from '@/components/ui/select';
 import { useRefetchInterval } from '@/contexts/refetch-interval-context';
 
 const getCreatedAfterFromTimeRange = (timeRange?: string) => {

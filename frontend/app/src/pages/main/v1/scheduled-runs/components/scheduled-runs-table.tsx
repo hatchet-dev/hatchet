@@ -1,17 +1,17 @@
-import { DataTable } from '@/components/v1/molecules/data-table/data-table.tsx';
+import { DataTable } from '@/components/molecules/data-table/data-table';
 import { useState } from 'react';
 import { VisibilityState } from '@tanstack/react-table';
 import { ScheduledWorkflows } from '@/lib/api';
 import {
   ToolbarFilters,
   ToolbarType,
-} from '@/components/v1/molecules/data-table/data-table-toolbar';
-import { Button } from '@/components/v1/ui/button';
+} from '@/components/molecules/data-table/data-table-toolbar';
+import { Button } from '@/components/ui/button';
 import { columns } from './scheduled-runs-columns';
 import { DeleteScheduledRun } from './delete-scheduled-runs';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { TriggerWorkflowForm } from '../../workflows/$workflow/components/trigger-workflow-form';
-import { DocsButton } from '@/components/v1/docs/docs-button';
+import { DocsButton } from '@/components/docs/docs-button';
 import { docsPages } from '@/lib/generated/docs';
 import { useScheduledRuns } from '../hooks/use-scheduled-runs';
 import {

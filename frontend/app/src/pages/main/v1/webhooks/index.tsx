@@ -1,11 +1,11 @@
 import { columns, WebhookColumn } from './components/webhook-columns';
-import { DataTable } from '@/components/v1/molecules/data-table/data-table';
+import { DataTable } from '@/components/molecules/data-table/data-table';
 import {
   useWebhooks,
   WebhookFormData,
   webhookFormSchema,
 } from './hooks/use-webhooks';
-import { Button } from '@/components/v1/ui/button';
+import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogClose,
@@ -13,16 +13,16 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from '@/components/v1/ui/dialog';
-import { Input } from '@/components/v1/ui/input';
-import { Label } from '@/components/v1/ui/label';
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/v1/ui/select';
+} from '@/components/ui/select';
 import { useCallback, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -34,12 +34,12 @@ import {
   V1WebhookHMACEncoding,
 } from '@/lib/api';
 import { Webhook, Copy, Check, AlertTriangle, Lightbulb } from 'lucide-react';
-import { Spinner } from '@/components/v1/ui/loading';
+import { Spinner } from '@/components/ui/loading';
 import { SourceName } from './components/source-name';
 import { AuthMethod } from './components/auth-method';
 import { AuthSetup } from './components/auth-setup';
 import { Link } from 'react-router-dom';
-import { DocsButton } from '@/components/v1/docs/docs-button';
+import { DocsButton } from '@/components/docs/docs-button';
 import { docsPages } from '@/lib/generated/docs';
 
 export default function Webhooks() {

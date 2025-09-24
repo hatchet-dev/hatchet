@@ -1,19 +1,19 @@
-import { Separator } from '@/components/v1/ui/separator';
+import { Separator } from '@/components/ui/separator';
 import api, { queries, UpdateWorkerRequest, Worker } from '@/lib/api';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router-dom';
 import invariant from 'tiny-invariant';
 import { ServerStackIcon } from '@heroicons/react/24/outline';
-import { Button } from '@/components/v1/ui/button';
-import { Loading } from '@/components/v1/ui/loading.tsx';
-import { Badge, BadgeProps } from '@/components/v1/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Loading } from '@/components/ui/loading';
+import { Badge, BadgeProps } from '@/components/ui/badge';
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from '@/components/v1/ui/tooltip';
-import RelativeDate from '@/components/v1/molecules/relative-date';
+} from '@/components/ui/tooltip';
+import RelativeDate from '@/components/molecules/relative-date';
 import { useApiError } from '@/lib/hooks';
 import queryClient from '@/query-client';
 import { BiDotsVertical } from 'react-icons/bi';
@@ -22,7 +22,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '@/components/v1/ui/dropdown-menu';
+} from '@/components/ui/dropdown-menu';
 import { RecentWebhookRequests } from '../webhooks/components/recent-webhook-requests';
 import { RunsTable } from '../../workflow-runs-v1/components/runs-table';
 import { RunsProvider } from '../../workflow-runs-v1/hooks/runs-provider';

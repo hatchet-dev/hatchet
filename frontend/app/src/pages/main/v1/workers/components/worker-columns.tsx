@@ -1,11 +1,11 @@
 import { ColumnDef } from '@tanstack/react-table';
-import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
+import { DataTableColumnHeader } from '@/components/molecules/data-table/data-table-column-header';
 import { Worker } from '@/lib/api';
 import { Link } from 'react-router-dom';
-import RelativeDate from '@/components/v1/molecules/relative-date';
+import RelativeDate from '@/components/molecules/relative-date';
 import { SdkInfo } from './sdk-info';
 
-import { Badge, BadgeProps } from '@/components/v1/ui/badge';
+import { Badge, BadgeProps } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 
 export const WorkerColumn = {

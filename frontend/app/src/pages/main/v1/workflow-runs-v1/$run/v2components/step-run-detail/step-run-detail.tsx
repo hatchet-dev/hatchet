@@ -1,33 +1,28 @@
 import { V1TaskStatus, V1TaskSummary, queries } from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
-import { Button } from '@/components/v1/ui/button';
-import { Loading } from '@/components/v1/ui/loading';
-import { Separator } from '@/components/v1/ui/separator';
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from '@/components/v1/ui/tabs';
+import { Button } from '@/components/ui/button';
+import { Loading } from '@/components/ui/loading';
+import { Separator } from '@/components/ui/separator';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useSidePanel } from '@/hooks/use-side-panel';
 import { StepRunEvents } from '../step-run-events-for-workflow-run';
 import { Link } from 'react-router-dom';
 import { RunsTable } from '../../../components/runs-table';
 import { RunsProvider } from '../../../hooks/runs-provider';
 import { V1RunIndicator } from '../../../components/run-statuses';
-import RelativeDate from '@/components/v1/molecules/relative-date';
+import RelativeDate from '@/components/molecules/relative-date';
 import { emptyGolangUUID, formatDuration } from '@/lib/utils';
 import { V1StepRunOutput } from './step-run-output';
-import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
+import { CodeHighlighter } from '@/components/ui/code-highlighter';
 import { TaskRunActionButton } from '@/pages/main/v1/task-runs-v1/actions';
 import { TaskRunMiniMap } from '../mini-map';
 import { StepRunLogs } from './step-run-logs';
 import { isTerminalState } from '../../../hooks/use-workflow-details';
-import { CopyWorkflowConfigButton } from '@/components/v1/shared/copy-workflow-config';
+import { CopyWorkflowConfigButton } from '@/components/shared/copy-workflow-config';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { Waterfall } from '../waterfall';
 import { useCallback } from 'react';
-import { Toaster } from '@/components/v1/ui/toaster';
+import { Toaster } from '@/components/ui/toaster';
 import { FullscreenIcon } from 'lucide-react';
 import { WorkflowDefinitionLink } from './workflow-definition';
 

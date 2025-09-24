@@ -1,7 +1,7 @@
-import { CopyWorkflowConfigButton } from '@/components/v1/shared/copy-workflow-config';
-import { Badge } from '@/components/v1/ui/badge';
-import { Input } from '@/components/v1/ui/input';
-import { Label } from '@/components/v1/ui/label';
+import { CopyWorkflowConfigButton } from '@/components/shared/copy-workflow-config';
+import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { WorkflowVersion } from '@/lib/api';
 import { formatCron } from '@/lib/utils';
 

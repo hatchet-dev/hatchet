@@ -1,11 +1,11 @@
-import { Button } from '@/components/v1/ui/button';
+import { Button } from '@/components/ui/button';
 import { TaskRunActionButton } from '../../../task-runs-v1/actions';
 import { useRunsContext } from '../../hooks/runs-provider';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuTrigger,
-} from '@/components/v1/ui/dropdown-menu';
+} from '@/components/ui/dropdown-menu';
 import { useMemo, useState } from 'react';
 import { Play, Command } from 'lucide-react';
 import { ChevronDownIcon } from '@radix-ui/react-icons';

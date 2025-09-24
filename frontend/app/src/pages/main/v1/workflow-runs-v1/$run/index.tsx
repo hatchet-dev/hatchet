@@ -6,23 +6,18 @@ import api, {
 } from '@/lib/api';
 import { useParams } from 'react-router-dom';
 import { WorkflowRunInputDialog } from './v2components/workflow-run-input';
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from '@/components/v1/ui/tabs';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { StepRunEvents } from './v2components/step-run-events-for-workflow-run';
 import { useCallback, useRef } from 'react';
 import {
   TabOption,
   TaskRunDetail,
 } from './v2components/step-run-detail/step-run-detail';
-import { Separator } from '@/components/v1/ui/separator';
-import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
+import { Separator } from '@/components/ui/separator';
+import { CodeHighlighter } from '@/components/ui/code-highlighter';
 import { useSidePanel } from '@/hooks/use-side-panel';
 import { V1RunDetailHeader } from './v2components/header';
-import { Badge } from '@/components/v1/ui/badge';
+import { Badge } from '@/components/ui/badge';
 import { ViewToggle } from './v2components/view-toggle';
 import WorkflowRunVisualizer from './v2components/workflow-run-visualizer-v2';
 import { useAtom } from 'jotai';
@@ -34,7 +29,7 @@ import {
 } from '../hooks/use-workflow-details';
 import { useQuery } from '@tanstack/react-query';
 import invariant from 'tiny-invariant';
-import { Spinner } from '@/components/v1/ui/loading';
+import { Spinner } from '@/components/ui/loading';
 import { Waterfall } from './v2components/waterfall';
 import { RunsProvider } from '../hooks/runs-provider';
 

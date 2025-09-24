@@ -3,9 +3,9 @@ import { useQuery, useQueries, useQueryClient } from '@tanstack/react-query';
 import { cloudApi } from '@/lib/api/api';
 import api from '@/lib/api';
 import { useOrganizations } from '@/hooks/use-organizations';
-import { Loading } from '@/components/v1/ui/loading';
-import { Button } from '@/components/v1/ui/button';
-import { Input } from '@/components/v1/ui/input';
+import { Loading } from '@/components/ui/loading';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { formatDistanceToNow } from 'date-fns';
 import {
   PlusIcon,
@@ -23,7 +23,7 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
-} from '@/components/v1/ui/card';
+} from '@/components/ui/card';
 import {
   Table,
   TableBody,
@@ -31,8 +31,8 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/v1/ui/table';
-import { Badge } from '@/components/v1/ui/badge';
+} from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
 import { useState } from 'react';
 import { InviteMemberModal } from './components/invite-member-modal';
 import { DeleteMemberModal } from './components/delete-member-modal';
@@ -51,15 +51,15 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '@/components/v1/ui/dropdown-menu';
+} from '@/components/ui/dropdown-menu';
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from '@/components/v1/ui/tooltip';
+} from '@/components/ui/tooltip';
 import { EllipsisVerticalIcon, TrashIcon } from '@heroicons/react/24/outline';
-import CopyToClipboard from '@/components/v1/ui/copy-to-clipboard';
+import CopyToClipboard from '@/components/ui/copy-to-clipboard';
 
 export default function OrganizationPage() {
   const { organization: orgId } = useParams<{ organization: string }>();

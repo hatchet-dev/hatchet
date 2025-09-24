@@ -1,8 +1,8 @@
 import { ColumnDef } from '@tanstack/react-table';
-import RelativeDate from '@/components/v1/molecules/relative-date';
+import RelativeDate from '@/components/molecules/relative-date';
 import { LimitIndicator } from '../../tenant-settings/resource-limits/components/resource-limit-columns';
 import { capitalize } from '@/lib/utils';
-import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
+import { DataTableColumnHeader } from '@/components/molecules/data-table/data-table-column-header';
 import { RateLimitWithMetadata } from '../hooks/use-rate-limits';
 
 export const RateLimitColumn = {

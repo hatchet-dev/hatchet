@@ -1,5 +1,5 @@
-import { Button } from '@/components/v1/ui/button';
-import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
+import { Button } from '@/components/ui/button';
+import { CodeHighlighter } from '@/components/ui/code-highlighter';
 import api, { CreateAPITokenRequest } from '@/lib/api';
 import { useApiError } from '@/lib/hooks';
 import { useMutation } from '@tanstack/react-query';

@@ -1,4 +1,4 @@
-import { useToast } from '@/components/v1/hooks/use-toast';
+import { useToast } from '@/components/hooks/use-toast';
 import { AxiosError } from 'axios';
 import { Dispatch, SetStateAction } from 'react';
 import api, { APIErrors } from './api';

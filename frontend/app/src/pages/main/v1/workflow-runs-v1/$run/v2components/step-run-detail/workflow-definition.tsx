@@ -1,4 +1,4 @@
-import { Button } from '@/components/v1/ui/button';
+import { Button } from '@/components/ui/button';
 import { useTenant } from '@/lib/atoms';
 import { Squares2X2Icon } from '@heroicons/react/24/outline';
 import { Link } from 'react-router-dom';

@@ -1,17 +1,17 @@
 import { useState } from 'react';
 import { VisibilityState } from '@tanstack/react-table';
 import { CronWorkflows } from '@/lib/api';
-import { DataTable } from '@/components/v1/molecules/data-table/data-table';
+import { DataTable } from '@/components/molecules/data-table/data-table';
 import { columns } from './recurring-columns';
-import { Button } from '@/components/v1/ui/button';
+import { Button } from '@/components/ui/button';
 import { DeleteCron } from './delete-cron';
 import {
   ToolbarFilters,
   ToolbarType,
-} from '@/components/v1/molecules/data-table/data-table-toolbar';
+} from '@/components/molecules/data-table/data-table-toolbar';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { TriggerWorkflowForm } from '../../workflows/$workflow/components/trigger-workflow-form';
-import { DocsButton } from '@/components/v1/docs/docs-button';
+import { DocsButton } from '@/components/docs/docs-button';
 import { docsPages } from '@/lib/generated/docs';
 import { useCrons } from '../hooks/use-crons';
 import { CronColumn, workflowKey, metadataKey } from './recurring-columns';

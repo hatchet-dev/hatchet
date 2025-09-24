@@ -1,11 +1,11 @@
-import { Button } from '@/components/v1/ui/button';
+import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from '@/components/v1/ui/dialog';
-import { Spinner } from '@/components/v1/ui/loading';
+} from '@/components/ui/dialog';
+import { Spinner } from '@/components/ui/loading';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import api, { ScheduledWorkflows } from '@/lib/api';
 import { useApiError } from '@/lib/hooks';

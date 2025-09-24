@@ -1,12 +1,12 @@
-import { Input } from '@/components/v1/ui/input';
-import { Label } from '@/components/v1/ui/label';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/v1/ui/select';
+} from '@/components/ui/select';
 import { useForm } from 'react-hook-form';
 import {
   V1WebhookAuthType,

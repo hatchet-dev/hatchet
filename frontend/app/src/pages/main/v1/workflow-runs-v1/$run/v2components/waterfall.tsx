@@ -11,16 +11,16 @@ import {
 } from 'recharts';
 import { CirclePlus, CircleMinus, Loader } from 'lucide-react';
 
-import { ChartContainer, ChartTooltipContent } from '@/components/v1/ui/chart';
+import { ChartContainer, ChartTooltipContent } from '@/components/ui/chart';
 import { V1TaskStatus, V1TaskTiming, queries } from '@/lib/api';
-import { Button } from '@/components/v1/ui/button';
-import { Skeleton } from '@/components/v1/ui/skeleton';
+import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
   TooltipProvider,
   Tooltip as BaseTooltip,
   TooltipContent,
   TooltipTrigger,
-} from '@/components/v1/ui/tooltip';
+} from '@/components/ui/tooltip';
 import { useQuery } from '@tanstack/react-query';
 import { useRefetchInterval } from '@/contexts/refetch-interval-context';
 

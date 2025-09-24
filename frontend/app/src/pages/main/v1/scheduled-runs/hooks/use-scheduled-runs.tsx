@@ -9,7 +9,7 @@ import {
 } from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
-import { FilterOption } from '@/components/v1/molecules/data-table/data-table-toolbar';
+import { FilterOption } from '@/components/molecules/data-table/data-table-toolbar';
 import { useZodColumnFilters } from '@/hooks/use-zod-column-filters';
 import { z } from 'zod';
 import {

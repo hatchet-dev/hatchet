@@ -3,28 +3,23 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
 import invariant from 'tiny-invariant';
 import { WorkflowTags } from '../components/workflow-tags';
-import { Badge } from '@/components/v1/ui/badge';
+import { Badge } from '@/components/ui/badge';
 import { relativeDate } from '@/lib/utils';
 import { Square3Stack3DIcon } from '@heroicons/react/24/outline';
-import { Loading } from '@/components/v1/ui/loading.tsx';
+import { Loading } from '@/components/ui/loading';
 import { TriggerWorkflowForm } from './components/trigger-workflow-form';
 import { useState } from 'react';
-import { Button } from '@/components/v1/ui/button';
+import { Button } from '@/components/ui/button';
 import { useApiError } from '@/lib/hooks';
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from '@/components/v1/ui/tabs';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import WorkflowGeneralSettings from './components/workflow-general-settings';
-import { ConfirmDialog } from '@/components/v1/molecules/confirm-dialog';
+import { ConfirmDialog } from '@/components/molecules/confirm-dialog';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '@/components/v1/ui/dropdown-menu';
+} from '@/components/ui/dropdown-menu';
 import { RunsTable } from '../../workflow-runs-v1/components/runs-table';
 import { RunsProvider } from '../../workflow-runs-v1/hooks/runs-provider';
 import { useCurrentTenantId } from '@/hooks/use-tenant';

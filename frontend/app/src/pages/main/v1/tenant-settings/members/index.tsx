@@ -1,5 +1,5 @@
-import { Button } from '@/components/v1/ui/button';
-import { Separator } from '@/components/v1/ui/separator';
+import { Button } from '@/components/ui/button';
+import { Separator } from '@/components/ui/separator';
 import { useState, useEffect, useMemo } from 'react';
 import { CreateInviteForm } from './components/create-invite-form';
 import { useApiError } from '@/lib/hooks';
@@ -13,13 +13,13 @@ import api, {
   UserChangePasswordRequest,
   queries,
 } from '@/lib/api';
-import { Dialog } from '@/components/v1/ui/dialog';
-import { DataTable } from '@/components/v1/molecules/data-table/data-table';
+import { Dialog } from '@/components/ui/dialog';
+import { DataTable } from '@/components/molecules/data-table/data-table';
 import { columns } from './components/invites-columns';
 import { columns as membersColumns } from './components/members-columns';
 import { ColumnDef } from '@tanstack/react-table';
-import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
-import RelativeDate from '@/components/v1/molecules/relative-date';
+import { DataTableColumnHeader } from '@/components/molecules/data-table/data-table-column-header';
+import RelativeDate from '@/components/molecules/relative-date';
 import { UpdateInviteForm } from './components/update-invite-form';
 import { UpdateMemberForm } from './components/update-member-form';
 import { DeleteInviteForm } from './components/delete-invite-form';

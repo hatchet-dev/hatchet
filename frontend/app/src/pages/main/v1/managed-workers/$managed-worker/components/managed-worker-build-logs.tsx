@@ -1,6 +1,6 @@
 import { queries } from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
-import LoggingComponent from '@/components/v1/cloud/logging/logs';
+import LoggingComponent from '@/components/cloud/logging/logs';
 import { useRefetchInterval } from '@/contexts/refetch-interval-context';
 
 export function ManagedWorkerBuildLogs({ buildId }: { buildId: string }) {

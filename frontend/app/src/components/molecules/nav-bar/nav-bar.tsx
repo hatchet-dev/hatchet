@@ -1,5 +1,5 @@
 import React from 'react';
-import { Button } from '@/components/v1/ui/button';
+import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -8,7 +8,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuShortcut,
   DropdownMenuTrigger,
-} from '@/components/v1/ui/dropdown-menu';
+} from '@/components/ui/dropdown-menu';
 
 import { useLocation, useNavigate } from 'react-router-dom';
 import api, { TenantMember, TenantVersion, User } from '@/lib/api';
@@ -41,7 +41,7 @@ import {
   BreadcrumbList,
   BreadcrumbPage,
   BreadcrumbSeparator,
-} from '@/components/v1/ui/breadcrumb';
+} from '@/components/ui/breadcrumb';
 import { useBreadcrumbs } from '@/hooks/use-breadcrumbs';
 import { usePendingInvites } from '@/hooks/use-pending-invites';
 import { VersionInfo } from '@/pages/main/v1/info/components';

@@ -1,11 +1,11 @@
 import { useState } from 'react';
-import { DataTable } from '@/components/v1/molecules/data-table/data-table.tsx';
-import { Loading } from '@/components/v1/ui/loading.tsx';
+import { DataTable } from '@/components/molecules/data-table/data-table';
+import { Loading } from '@/components/ui/loading';
 import { SortingState, VisibilityState } from '@tanstack/react-table';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { columns, WorkflowColumn } from './components/workflow-columns';
 import { useWorkflows } from './hooks/use-workflows';
-import { DocsButton } from '@/components/v1/docs/docs-button';
+import { DocsButton } from '@/components/docs/docs-button';
 import { docsPages } from '@/lib/generated/docs';
 
 export default function WorkflowTable() {

@@ -1,4 +1,4 @@
-import { Button } from '@/components/v1/ui/button';
+import { Button } from '@/components/ui/button';
 import { Link } from 'react-router-dom';
 import {
   CalendarIcon,

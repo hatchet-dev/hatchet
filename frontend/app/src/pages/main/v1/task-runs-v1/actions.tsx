@@ -1,10 +1,10 @@
-import { Button } from '@/components/v1/ui/button';
+import { Button } from '@/components/ui/button';
 import {
   DialogTitle,
   Dialog,
   DialogContent,
   DialogHeader,
-} from '@/components/v1/ui/dialog';
+} from '@/components/ui/dialog';
 import api, {
   queries,
   V1CancelTaskRequest,
@@ -18,13 +18,13 @@ import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { useRunsContext } from '../workflow-runs-v1/hooks/runs-provider';
 import { cn } from '@/lib/utils';
 import { Repeat1 } from 'lucide-react';
-import { useToast } from '@/components/v1/hooks/use-toast';
+import { useToast } from '@/components/hooks/use-toast';
 import { capitalize } from 'lodash';
 import {
   DataTableOptionsContent,
   DataTableOptionsContentProps,
-} from '@/components/v1/molecules/data-table/data-table-options';
-import { IDGetter } from '@/components/v1/molecules/data-table/data-table';
+} from '@/components/molecules/data-table/data-table-options';
+import { IDGetter } from '@/components/molecules/data-table/data-table';
 
 export type ActionType = 'cancel' | 'replay';
 

@@ -1,9 +1,9 @@
 import { ColumnDef } from '@tanstack/react-table';
 import { V1Filter } from '@/lib/api';
-import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
-import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
+import { DataTableColumnHeader } from '@/components/molecules/data-table/data-table-column-header';
+import { CodeHighlighter } from '@/components/ui/code-highlighter';
 import { CheckIcon } from 'lucide-react';
-import { Button } from '@/components/v1/ui/button';
+import { Button } from '@/components/ui/button';
 
 export const FilterColumn = {
   id: 'ID',

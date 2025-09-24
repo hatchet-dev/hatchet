@@ -2,13 +2,13 @@ import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-} from '@/components/v1/ui/popover';
+} from '@/components/ui/popover';
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from '@/components/v1/ui/tooltip';
+} from '@/components/ui/tooltip';
 import { TagIcon } from '@heroicons/react/24/outline';
 import { memo } from 'react';
 

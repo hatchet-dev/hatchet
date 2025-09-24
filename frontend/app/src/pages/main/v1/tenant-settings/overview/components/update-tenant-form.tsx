@@ -1,11 +1,11 @@
 import { cn } from '@/lib/utils';
-import { Button } from '@/components/v1/ui/button';
-import { Label } from '@/components/v1/ui/label';
+import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Spinner } from '@/components/v1/ui/loading.tsx';
-import { Input } from '@/components/v1/ui/input';
+import { Spinner } from '@/components/ui/loading';
+import { Input } from '@/components/ui/input';
 import { useTenantDetails } from '@/hooks/use-tenant';
 
 const schema = z.object({

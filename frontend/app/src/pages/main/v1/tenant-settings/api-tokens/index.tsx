@@ -1,13 +1,13 @@
-import { Button } from '@/components/v1/ui/button';
-import { Separator } from '@/components/v1/ui/separator';
+import { Button } from '@/components/ui/button';
+import { Separator } from '@/components/ui/separator';
 import { useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import api, { APIToken, CreateAPITokenRequest, queries } from '@/lib/api';
-import { DataTable } from '@/components/v1/molecules/data-table/data-table';
+import { DataTable } from '@/components/molecules/data-table/data-table';
 import { columns as apiTokensColumns } from './components/api-tokens-columns';
 import { CreateTokenDialog } from './components/create-token-dialog';
 import { RevokeTokenForm } from './components/revoke-token-form';
-import { Dialog } from '@/components/v1/ui/dialog';
+import { Dialog } from '@/components/ui/dialog';
 import { useApiError } from '@/lib/hooks';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 

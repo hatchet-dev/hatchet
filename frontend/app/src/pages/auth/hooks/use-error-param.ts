@@ -1,4 +1,4 @@
-import { useToast } from '@/components/v1/hooks/use-toast';
+import { useToast } from '@/components/hooks/use-toast';
 import { useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 

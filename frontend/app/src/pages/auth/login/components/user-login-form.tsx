@@ -1,11 +1,11 @@
 import { cn } from '@/lib/utils';
-import { Button } from '@/components/v1/ui/button';
-import { Input } from '@/components/v1/ui/input';
-import { Label } from '@/components/v1/ui/label';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Spinner } from '@/components/v1/ui/loading.tsx';
+import { Spinner } from '@/components/ui/loading';
 
 const schema = z.object({
   email: z.string().email('Invalid email address'),

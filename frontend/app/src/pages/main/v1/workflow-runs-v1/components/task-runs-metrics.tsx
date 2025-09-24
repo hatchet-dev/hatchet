@@ -1,5 +1,5 @@
 import { V1TaskStatus } from '@/lib/api';
-import { Badge } from '@/components/v1/ui/badge';
+import { Badge } from '@/components/ui/badge';
 import { useRunsContext } from '../hooks/runs-provider';
 import { CheckCircleIcon, ClockIcon } from '@heroicons/react/24/outline';
 import { PlayIcon, X, Ban, ChartColumn } from 'lucide-react';

@@ -1,4 +1,4 @@
-import { Loading } from '@/components/v1/ui/loading';
+import { Loading } from '@/components/ui/loading';
 import { queries } from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useRef } from 'react';

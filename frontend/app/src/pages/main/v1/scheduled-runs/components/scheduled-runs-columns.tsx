@@ -1,10 +1,10 @@
 import { ColumnDef } from '@tanstack/react-table';
-import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
+import { DataTableColumnHeader } from '@/components/molecules/data-table/data-table-column-header';
 import { ScheduledWorkflows } from '@/lib/api';
-import RelativeDate from '@/components/v1/molecules/relative-date';
+import RelativeDate from '@/components/molecules/relative-date';
 import { AdditionalMetadata } from '../../events/components/additional-metadata';
 import { RunStatus } from '../../workflow-runs/components/run-statuses';
-import { DataTableRowActions } from '@/components/v1/molecules/data-table/data-table-row-actions';
+import { DataTableRowActions } from '@/components/molecules/data-table/data-table-row-actions';
 import { Link } from 'react-router-dom';
 
 export const ScheduledRunColumn = {

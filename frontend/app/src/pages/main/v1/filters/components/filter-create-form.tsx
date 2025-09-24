@@ -5,20 +5,20 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
-} from '@/components/v1/ui/dialog';
-import { Button } from '@/components/v1/ui/button';
-import { Input } from '@/components/v1/ui/input';
-import { Label } from '@/components/v1/ui/label';
-import { Textarea } from '@/components/v1/ui/textarea';
+} from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/v1/ui/select';
+} from '@/components/ui/select';
 import { Filter } from 'lucide-react';
-import { FilterOption } from '@/components/v1/molecules/data-table/data-table-toolbar';
+import { FilterOption } from '@/components/molecules/data-table/data-table-toolbar';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { createFilterSchema, CreateFilterFormData } from '../schemas';

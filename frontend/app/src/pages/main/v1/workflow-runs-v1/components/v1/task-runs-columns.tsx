@@ -4,16 +4,16 @@ import {
   AdditionalMetadata,
   AdditionalMetadataClick,
 } from '../../../events/components/additional-metadata';
-import RelativeDate from '@/components/v1/molecules/relative-date';
-import { Checkbox } from '@/components/v1/ui/checkbox';
+import RelativeDate from '@/components/molecules/relative-date';
+import { Checkbox } from '@/components/ui/checkbox';
 import { ChevronDownIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
-import { Button } from '@/components/v1/ui/button';
+import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { DataTableRowActions } from '@/components/v1/molecules/data-table/data-table-row-actions';
+import { DataTableRowActions } from '@/components/molecules/data-table/data-table-row-actions';
 import { V1RunStatus } from '../../../workflow-runs/components/run-statuses';
-import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
+import { DataTableColumnHeader } from '@/components/molecules/data-table/data-table-column-header';
 import { V1TaskStatus, V1TaskSummary } from '@/lib/api';
-import { Duration } from '@/components/v1/shared/duration';
+import { Duration } from '@/components/shared/duration';
 
 export const TaskRunColumn = {
   taskName: 'Task Name',

@@ -4,7 +4,7 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from '@/components/v1/ui/dialog';
+} from '@/components/ui/dialog';
 import api, {
   CronWorkflows,
   ScheduledWorkflows,
@@ -12,23 +12,18 @@ import api, {
   Workflow,
 } from '@/lib/api';
 import { useCallback, useMemo, useState, useEffect } from 'react';
-import { Button } from '@/components/v1/ui/button';
+import { Button } from '@/components/ui/button';
 import { debounce } from 'lodash';
 import { useApiError } from '@/lib/hooks';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { CodeEditor } from '@/components/v1/ui/code-editor';
-import { Input } from '@/components/v1/ui/input';
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from '@/components/v1/ui/tabs';
-import { DateTimePicker } from '@/components/v1/molecules/time-picker/date-time-picker';
-import { ToolbarType } from '@/components/v1/molecules/data-table/data-table-toolbar';
+import { CodeEditor } from '@/components/ui/code-editor';
+import { Input } from '@/components/ui/input';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { DateTimePicker } from '@/components/molecules/time-picker/date-time-picker';
+import { ToolbarType } from '@/components/molecules/data-table/data-table-toolbar';
 import { BiDownArrowCircle } from 'react-icons/bi';
-import { Combobox } from '@/components/v1/molecules/combobox/combobox';
+import { Combobox } from '@/components/molecules/combobox/combobox';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { formatCron } from '@/lib/utils';
 

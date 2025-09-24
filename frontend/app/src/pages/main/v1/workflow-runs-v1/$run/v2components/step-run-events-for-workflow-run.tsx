@@ -1,6 +1,6 @@
 import { queries, V1TaskEvent } from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
-import { DataTable } from '@/components/v1/molecules/data-table/data-table';
+import { DataTable } from '@/components/molecules/data-table/data-table';
 import { columns } from './events-columns';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { useRefetchInterval } from '@/contexts/refetch-interval-context';

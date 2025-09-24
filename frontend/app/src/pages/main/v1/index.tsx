@@ -1,4 +1,4 @@
-import { Button } from '@/components/v1/ui/button';
+import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import {
   CalendarDaysIcon,
@@ -18,13 +18,10 @@ import {
   UserContextType,
   useContextFromParent,
 } from '@/lib/outlet';
-import { Loading } from '@/components/v1/ui/loading.tsx';
-import { TenantSwitcher } from '@/components/v1/molecules/nav-bar/tenant-switcher';
-import { OrganizationSelector } from '@/components/v1/molecules/nav-bar/organization-selector';
-import {
-  Collapsible,
-  CollapsibleContent,
-} from '@/components/v1/ui/collapsible';
+import { Loading } from '@/components/ui/loading';
+import { TenantSwitcher } from '@/components/molecules/nav-bar/tenant-switcher';
+import { OrganizationSelector } from '@/components/molecules/nav-bar/organization-selector';
+import { Collapsible, CollapsibleContent } from '@/components/ui/collapsible';
 import useCloudApiMeta from '@/pages/auth/hooks/use-cloud-api-meta';
 import useCloudFeatureFlags from '@/pages/auth/hooks/use-cloud-feature-flags';
 import { useSidebar } from '@/components/sidebar-provider';

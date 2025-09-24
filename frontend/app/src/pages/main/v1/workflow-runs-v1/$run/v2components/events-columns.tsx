@@ -1,22 +1,22 @@
 import { createColumnHelper } from '@tanstack/react-table';
 import { V1TaskEventType, V1TaskEvent, StepRunEventSeverity } from '@/lib/api';
-import RelativeDate from '@/components/v1/molecules/relative-date';
-import { Badge } from '@/components/v1/ui/badge';
+import RelativeDate from '@/components/molecules/relative-date';
+import { Badge } from '@/components/ui/badge';
 import {
   ArrowLeftEndOnRectangleIcon,
   ServerStackIcon,
   XCircleIcon,
 } from '@heroicons/react/24/outline';
-import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
+import { DataTableColumnHeader } from '@/components/molecules/data-table/data-table-column-header';
 import { cn, emptyGolangUUID } from '@/lib/utils';
 import { Link } from 'react-router-dom';
-import { Button } from '@/components/v1/ui/button';
+import { Button } from '@/components/ui/button';
 import { useRef, useState } from 'react';
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-} from '@/components/v1/ui/popover';
+} from '@/components/ui/popover';
 import { EventWithMetadata } from './step-run-events-for-workflow-run';
 
 function eventTypeToSeverity(

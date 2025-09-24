@@ -4,7 +4,7 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
-} from '@/components/v1/ui/card';
+} from '@/components/ui/card';
 import { MonthlyComputeCost } from '@/lib/api/generated/cloud/data-contracts';
 import { CurrencyDollarIcon } from '@heroicons/react/24/outline';
 

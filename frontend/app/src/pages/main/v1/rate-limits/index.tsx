@@ -5,9 +5,9 @@ import {
 } from './components/rate-limit-columns';
 import { useState } from 'react';
 import { VisibilityState } from '@tanstack/react-table';
-import { DataTable } from '@/components/v1/molecules/data-table/data-table';
+import { DataTable } from '@/components/molecules/data-table/data-table';
 import { useRateLimits } from './hooks/use-rate-limits';
-import { ToolbarType } from '@/components/v1/molecules/data-table/data-table-toolbar';
+import { ToolbarType } from '@/components/molecules/data-table/data-table-toolbar';
 
 export default function RateLimits() {
   return <RateLimitsTable />;

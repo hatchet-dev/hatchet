@@ -5,7 +5,7 @@ import {
   ToolbarFilters,
   ToolbarType,
   TimeRangeConfig,
-} from '@/components/v1/molecules/data-table/data-table-toolbar';
+} from '@/components/molecules/data-table/data-table-toolbar';
 import {
   additionalMetadataKey,
   createdAtKey,

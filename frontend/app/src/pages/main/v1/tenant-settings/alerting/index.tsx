@@ -1,4 +1,4 @@
-import { Separator } from '@/components/v1/ui/separator';
+import { Separator } from '@/components/ui/separator';
 import { useMemo, useState } from 'react';
 import { useApiError, useApiMetaIntegrations } from '@/lib/hooks';
 import { useMutation, useQuery } from '@tanstack/react-query';
@@ -9,14 +9,14 @@ import api, {
   UpdateTenantRequest,
   queries,
 } from '@/lib/api';
-import { Spinner } from '@/components/v1/ui/loading';
+import { Spinner } from '@/components/ui/loading';
 import { UpdateTenantAlertingSettings } from './components/update-tenant-alerting-settings-form';
 import { columns } from './components/slack-webhooks-columns';
 import { columns as emailGroupsColumns } from './components/email-groups-columns';
 
-import { DataTable } from '@/components/v1/molecules/data-table/data-table';
+import { DataTable } from '@/components/molecules/data-table/data-table';
 import { DeleteSlackForm } from './components/delete-slack-form';
-import { Button } from '@/components/v1/ui/button';
+import { Button } from '@/components/ui/button';
 import { Dialog } from '@radix-ui/react-dialog';
 import { CreateEmailGroupDialog } from './components/create-email-group-dialog';
 import { DeleteEmailGroupForm } from './components/delete-email-group-form';

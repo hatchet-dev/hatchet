@@ -2,10 +2,10 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from '@/components/v1/ui/dialog';
-import { Button } from '@/components/v1/ui/button';
+} from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { Spinner } from '@/components/v1/ui/loading';
+import { Spinner } from '@/components/ui/loading';
 
 interface DeleteWebhookWorkerDialogProps {
   onSubmit: () => void;

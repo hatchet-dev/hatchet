@@ -1,4 +1,4 @@
-import { Button } from '@/components/v1/ui/button';
+import { Button } from '@/components/ui/button';
 import { PropsWithChildren } from 'react';
 import { ErrorResponse, useNavigate, useRouteError } from 'react-router-dom';
 import { useLocation } from 'react-router-dom';

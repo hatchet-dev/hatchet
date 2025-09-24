@@ -1,4 +1,4 @@
-import { Separator } from '@/components/v1/ui/separator';
+import { Separator } from '@/components/ui/separator';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import api, { queries, WebhookWorkerCreateRequest } from '@/lib/api';
 import {
@@ -6,21 +6,21 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
-} from '@/components/v1/ui/card.tsx';
-import { Button } from '@/components/v1/ui/button.tsx';
+} from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { useEffect, useState } from 'react';
 import { useApiError } from '@/lib/hooks.ts';
-import { Dialog } from '@/components/v1/ui/dialog.tsx';
+import { Dialog } from '@/components/ui/dialog';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '@/components/v1/ui/dropdown-menu.tsx';
+} from '@/components/ui/dropdown-menu';
 import { BiDotsVertical } from 'react-icons/bi';
 import { CreateWebhookWorkerDialog } from './components/create-webhook-worker-dialog';
 import { DeleteWebhookWorkerDialog } from './components/delete-webhook-worker-dialog';
-import { Badge } from '@/components/v1/ui/badge';
+import { Badge } from '@/components/ui/badge';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 
 export default function Webhooks() {

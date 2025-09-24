@@ -8,16 +8,16 @@ import {
   statusKey,
   workflowKey,
 } from './components/event-columns';
-import { Separator } from '@/components/v1/ui/separator';
+import { Separator } from '@/components/ui/separator';
 import { useMemo, useState } from 'react';
 import { VisibilityState } from '@tanstack/react-table';
 import { V1Event, V1Filter } from '@/lib/api';
-import { ToolbarType } from '@/components/v1/molecules/data-table/data-table-toolbar';
-import RelativeDate from '@/components/v1/molecules/relative-date';
-import { DataTable } from '@/components/v1/molecules/data-table/data-table';
+import { ToolbarType } from '@/components/molecules/data-table/data-table-toolbar';
+import RelativeDate from '@/components/molecules/relative-date';
+import { DataTable } from '@/components/molecules/data-table/data-table';
 import { RunsTable } from '../workflow-runs-v1/components/runs-table';
 import { RunsProvider } from '../workflow-runs-v1/hooks/runs-provider';
-import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
+import { CodeHighlighter } from '@/components/ui/code-highlighter';
 
 import {
   FilterColumn,
@@ -26,7 +26,7 @@ import {
 import { useFilters } from '../filters/hooks/use-filters';
 import { useSidePanel } from '@/hooks/use-side-panel';
 import { useEvents } from './hooks/use-events';
-import { DocsButton } from '@/components/v1/docs/docs-button';
+import { DocsButton } from '@/components/docs/docs-button';
 import { docsPages } from '@/lib/generated/docs';
 
 export default function Events() {

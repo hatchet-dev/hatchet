@@ -1,32 +1,32 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { DataTable } from '@/components/v1/molecules/data-table/data-table.tsx';
+import { DataTable } from '@/components/molecules/data-table/data-table';
 import { columns, TaskRunColumn } from './v1/task-runs-columns';
 import { V1WorkflowRunsMetricsView } from './task-runs-metrics';
-import { Skeleton } from '@/components/v1/ui/skeleton';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from '@/components/v1/ui/dialog';
-import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
-import { Separator } from '@/components/v1/ui/separator';
+} from '@/components/ui/dialog';
+import { CodeHighlighter } from '@/components/ui/code-highlighter';
+import { Separator } from '@/components/ui/separator';
 import {
   DataPoint,
   ZoomableChart,
-} from '@/components/v1/molecules/charts/zoomable';
+} from '@/components/molecules/charts/zoomable';
 import { TabOption } from '../$run/v2components/step-run-detail/step-run-detail';
 import { useSidePanel } from '@/hooks/use-side-panel';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { TriggerWorkflowForm } from '../../workflows/$workflow/components/trigger-workflow-form';
-import { Toaster } from '@/components/v1/ui/toaster';
+import { Toaster } from '@/components/ui/toaster';
 import { useQuery } from '@tanstack/react-query';
 import { queries } from '@/lib/api';
 
 import { AdditionalMetadataProp } from '../hooks/use-runs-table-filters';
 import { useRunsContext } from '../hooks/runs-provider';
 
-import { DocsButton } from '@/components/v1/docs/docs-button';
+import { DocsButton } from '@/components/docs/docs-button';
 import { docsPages } from '@/lib/generated/docs';
 import { useRefetchInterval } from '@/contexts/refetch-interval-context';
 

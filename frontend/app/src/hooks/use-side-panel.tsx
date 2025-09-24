@@ -11,7 +11,7 @@ import {
   TaskRunDetail,
   TabOption,
 } from '@/pages/main/v1/workflow-runs-v1/$run/v2components/step-run-detail/step-run-detail';
-import { DocPage } from '@/components/v1/docs/docs-button';
+import { DocPage } from '@/components/docs/docs-button';
 import { V1Event, V1Filter } from '@/lib/api';
 import { FilterDetailView } from '@/pages/main/v1/filters/components/filter-detail-view';
 import { ExpandedEventContent } from '@/pages/main/v1/events';

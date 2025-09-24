@@ -7,17 +7,17 @@ import {
   BreadcrumbLink,
   BreadcrumbSeparator,
   BreadcrumbPage,
-} from '@/components/v1/ui/breadcrumb';
+} from '@/components/ui/breadcrumb';
 import { formatDuration } from '@/lib/utils';
-import RelativeDate from '@/components/v1/molecules/relative-date';
+import RelativeDate from '@/components/molecules/relative-date';
 import { useWorkflowDetails } from '../../hooks/use-workflow-details';
 import { TaskRunActionButton } from '../../../task-runs-v1/actions';
 import { TASK_RUN_TERMINAL_STATUSES } from './step-run-detail/step-run-detail';
-import { CopyWorkflowConfigButton } from '@/components/v1/shared/copy-workflow-config';
+import { CopyWorkflowConfigButton } from '@/components/shared/copy-workflow-config';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Toaster } from '@/components/v1/ui/toaster';
+import { Toaster } from '@/components/ui/toaster';
 import { WorkflowDefinitionLink } from './step-run-detail/workflow-definition';
 
 export const V1RunDetailHeader = () => {

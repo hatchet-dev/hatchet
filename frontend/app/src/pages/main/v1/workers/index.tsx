@@ -1,14 +1,14 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { queries } from '@/lib/api';
-import { DataTable } from '@/components/v1/molecules/data-table/data-table.tsx';
-import { Loading } from '@/components/v1/ui/loading.tsx';
+import { DataTable } from '@/components/molecules/data-table/data-table';
+import { Loading } from '@/components/ui/loading';
 import { VisibilityState } from '@tanstack/react-table';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { useRefetchInterval } from '@/contexts/refetch-interval-context';
 import { columns, statusKey, WorkerColumn } from './components/worker-columns';
-import { ToolbarType } from '@/components/v1/molecules/data-table/data-table-toolbar';
-import { DocsButton } from '@/components/v1/docs/docs-button';
+import { ToolbarType } from '@/components/molecules/data-table/data-table-toolbar';
+import { DocsButton } from '@/components/docs/docs-button';
 import { docsPages } from '@/lib/generated/docs';
 import { useZodColumnFilters } from '@/hooks/use-zod-column-filters';
 import { z } from 'zod';

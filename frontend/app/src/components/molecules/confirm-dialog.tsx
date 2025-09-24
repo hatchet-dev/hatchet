@@ -1,11 +1,11 @@
-import { Button, ButtonProps } from '@/components/v1/ui/button';
-import { Spinner } from '@/components/v1/ui/loading.tsx';
+import { Button, ButtonProps } from '@/components/ui/button';
+import { Spinner } from '@/components/ui/loading';
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from '@/components/v1/ui/dialog';
+} from '@/components/ui/dialog';
 
 interface ConfirmDialogProps {
   title: string;

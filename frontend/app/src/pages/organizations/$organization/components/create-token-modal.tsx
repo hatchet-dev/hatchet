@@ -1,20 +1,20 @@
-import { Button } from '@/components/v1/ui/button';
+import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from '@/components/v1/ui/dialog';
-import { Input } from '@/components/v1/ui/input';
-import { Label } from '@/components/v1/ui/label';
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/v1/ui/select';
+} from '@/components/ui/select';
 import { useState, useEffect, useCallback } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { useOrganizations } from '@/hooks/use-organizations';
@@ -22,7 +22,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { KeyIcon } from '@heroicons/react/24/outline';
 import { ManagementTokenDuration } from '@/lib/api/generated/cloud/data-contracts';
-import CopyToClipboard from '@/components/v1/ui/copy-to-clipboard';
+import CopyToClipboard from '@/components/ui/copy-to-clipboard';
 
 const schema = z.object({
   name: z.string().min(1, 'Token name is required'),

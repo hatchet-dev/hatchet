@@ -1,16 +1,16 @@
 import { ColumnDef, Row } from '@tanstack/react-table';
 import { V1Webhook } from '@/lib/api';
-import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
+import { DataTableColumnHeader } from '@/components/molecules/data-table/data-table-column-header';
 import { DotsVerticalIcon } from '@radix-ui/react-icons';
 import { Check, Copy, Loader, Save, Trash2, X } from 'lucide-react';
-import { Button } from '@/components/v1/ui/button';
-import { Input } from '@/components/v1/ui/input';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '@/components/v1/ui/dropdown-menu';
+} from '@/components/ui/dropdown-menu';
 import { useCallback, useState } from 'react';
 import { useWebhooks } from '../hooks/use-webhooks';
 import { SourceName } from './source-name';
