@@ -466,7 +466,7 @@ func (q *Queries) GetDagDurations(ctx context.Context, db DBTX, arg GetDagDurati
 const getEventByExternalId = `-- name: GetEventByExternalId :one
 SELECT e.tenant_id, e.id, e.external_id, e.seen_at, e.key, e.payload, e.additional_metadata, e.scope, e.triggering_webhook_name
 FROM v1_event_lookup_table_olap elt
-JOIN v1_events_olap e ON (elt.tenant_id, elt.event_id, elt.event_seen_at) = (e.tenant_id, e.id, e.seen_at)
+JOIN v1_events_olap e ON (elt.event_id, elt.event_seen_at) = (e.id, e.seen_at)
 WHERE elt.external_id = $1::uuid
 `
 
