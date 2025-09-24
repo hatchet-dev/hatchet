@@ -97,7 +97,7 @@ export const useRunsTableFilters = (
   isCustomTimeRange: boolean;
   apiFilters: APIFilters;
 } => {
-  const paramKey = tableKey + 'workflow-runs-filters';
+  const paramKey = tableKey + '-workflow-runs-filters';
   const apiFilterSchema = createApiFilterSchema(initialValues);
   const [, setSearchParams] = useSearchParams();
 
