@@ -1918,7 +1918,7 @@ func (r *OLAPRepositoryImpl) populateTaskRunData(ctx context.Context, tx pgx.Tx,
 	}
 
 	sort.Slice(result, func(i, j int) bool {
-		if result[i].InsertedAt.Time.Unix() == result[j].InsertedAt.Time.Unix() {
+		if result[i].InsertedAt.Time.Equal(result[j].InsertedAt.Time) {
 			return result[i].ID < result[j].ID
 		}
 
