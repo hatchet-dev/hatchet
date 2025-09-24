@@ -1,19 +1,19 @@
-import type { NextApiRequest, NextApiResponse } from 'next';
-import fs from 'fs';
-import path from 'path';
-import yaml from 'js-yaml';
+import type { NextApiRequest, NextApiResponse } from "next";
+import fs from "fs";
+import path from "path";
+import yaml from "js-yaml";
 
 export default async function handler(
   req: NextApiRequest,
-  res: NextApiResponse
+  res: NextApiResponse,
 ) {
-  if (req.method !== 'GET') {
-    return res.status(405).json({ error: 'Method not allowed' });
+  if (req.method !== "GET") {
+    return res.status(405).json({ error: "Method not allowed" });
   }
 
   try {
-    const filePath = path.join(process.cwd(), 'lib', 'management.openapi.yaml');
-    const fileContents = fs.readFileSync(filePath, 'utf8');
+    const filePath = path.join(process.cwd(), "lib", "management.openapi.yaml");
+    const fileContents = fs.readFileSync(filePath, "utf8");
     const spec = yaml.load(fileContents) as any;
 
     const html = `
@@ -48,10 +48,10 @@ export default async function handler(
   </body>
 </html>`;
 
-    res.setHeader('Content-Type', 'text/html');
+    res.setHeader("Content-Type", "text/html");
     return res.status(200).send(html);
   } catch (error) {
-    console.error('Error loading OpenAPI spec:', error);
-    return res.status(500).json({ error: 'Failed to load OpenAPI spec' });
+    console.error("Error loading OpenAPI spec:", error);
+    return res.status(500).json({ error: "Failed to load OpenAPI spec" });
   }
 }
