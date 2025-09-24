@@ -424,6 +424,15 @@ export const routes: RouteObject[] = [
     ),
     children: [
       {
+        index: true,
+        lazy: async () =>
+          import('./pages/authenticated').then((res) => {
+            return {
+              Component: res.default,
+            };
+          }),
+      },
+      {
         path: '/auth',
         lazy: async () =>
           import('./pages/auth/no-auth').then((res) => {
