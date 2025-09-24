@@ -255,7 +255,7 @@ export default function ExpandedWorkflowRun() {
         </div>
         <Separator className="my-4" />
         <h3 className="text-xl font-bold leading-tight text-foreground mb-4">
-          Registered Tasks
+          Registered Workflows
         </h3>
         <div className="flex-wrap flex flex-row gap-4">
           {filteredWorkflows.map((workflow) => {
