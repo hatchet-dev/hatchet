@@ -83,7 +83,7 @@ func (t *EventService) EventList(ctx echo.Context, request gen.EventListRequestO
 			additionalMetadata := make(map[string]interface{}, len(*request.Params.AdditionalMetadata))
 
 			for _, v := range *request.Params.AdditionalMetadata {
-				splitValue := strings.Split(fmt.Sprintf("%v", v), ":")
+				splitValue := strings.SplitN(fmt.Sprintf("%v", v), ":", 2)
 
 				if len(splitValue) == 2 {
 					additionalMetadata[splitValue[0]] = splitValue[1]
@@ -192,7 +192,7 @@ func (t *EventService) EventList(ctx echo.Context, request gen.EventListRequestO
 			additionalMeta := make(map[string]interface{})
 
 			for _, m := range *request.Params.AdditionalMetadata {
-				split := strings.Split(m, ":")
+				split := strings.SplitN(m, ":", 2)
 
 				if len(split) != 2 {
 					return nil, fmt.Errorf("invalid additional metadata format: %s, expected key:value", m)

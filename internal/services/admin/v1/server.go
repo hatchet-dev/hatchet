@@ -72,7 +72,7 @@ func (a *AdminServiceImpl) CancelTasks(ctx context.Context, req *contracts.Cance
 		if len(req.Filter.AdditionalMetadata) > 0 {
 			additionalMetadataFilters = make(map[string]interface{})
 			for _, v := range req.Filter.AdditionalMetadata {
-				kv_pairs := strings.Split(v, ":")
+				kv_pairs := strings.SplitN(v, ":", 2)
 				if len(kv_pairs) == 2 {
 					additionalMetadataFilters[kv_pairs[0]] = kv_pairs[1]
 				} else {
@@ -200,7 +200,7 @@ func (a *AdminServiceImpl) ReplayTasks(ctx context.Context, req *contracts.Repla
 		if len(req.Filter.AdditionalMetadata) > 0 {
 			additionalMetadataFilters = make(map[string]interface{})
 			for _, v := range req.Filter.AdditionalMetadata {
-				kv_pairs := strings.Split(v, ":")
+				kv_pairs := strings.SplitN(v, ":", 2)
 				if len(kv_pairs) == 2 {
 					additionalMetadataFilters[kv_pairs[0]] = kv_pairs[1]
 				} else {
