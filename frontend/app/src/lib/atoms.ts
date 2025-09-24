@@ -283,7 +283,6 @@ export function useTenant(): TenantContext {
   };
 }
 
-
 const lastWorkerMetricsTimeRange = 'lastWorkerMetricsTimeRange';
 
 const lastWorkerMetricsTimeRangeAtomInit = atom(

@@ -1,10 +1,8 @@
-import { Label } from '@/components/v1/ui/label';
-import { StepRun, StepRunStatus, V1TaskStatus, V1TaskSummary } from '@/lib/api';
+import { V1TaskStatus, V1TaskSummary } from '@/lib/api';
 import { cn, formatDuration } from '@/lib/utils';
 import { memo } from 'react';
 import { Handle, Position } from 'reactflow';
-import { RunStatus, V1RunIndicator } from '../../components/run-statuses';
-import RelativeDate from '@/components/v1/molecules/relative-date';
+import { V1RunIndicator } from '../../components/run-statuses';
 import { TabOption } from './step-run-detail/step-run-detail';
 
 export type NodeData = {

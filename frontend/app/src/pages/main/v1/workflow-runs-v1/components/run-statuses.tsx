@@ -105,13 +105,6 @@ export function RunStatus({
   );
 }
 
-const indicatorVariants = {
-  successful: 'border-transparent rounded-full bg-green-500',
-  failed: 'border-transparent rounded-full bg-red-500',
-  inProgress: 'border-transparent rounded-full bg-yellow-500',
-  outline: 'border-transparent rounded-full bg-muted',
-};
-
 function createV2IndicatorVariant(eventType: V1TaskStatus | undefined) {
   switch (eventType) {
     case V1TaskStatus.CANCELLED:

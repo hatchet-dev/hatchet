@@ -3,7 +3,6 @@ import api, {
   V1TaskSummary,
   V1WorkflowRunDetails,
   WorkflowRunShapeForWorkflowRunDetails,
-  WorkflowRunStatus,
 } from '@/lib/api';
 import { useParams } from 'react-router-dom';
 import { WorkflowRunInputDialog } from './v2components/workflow-run-input';

@@ -1,4 +1,4 @@
-import { V1TaskStatus, WorkflowRunStatus, queries } from '@/lib/api';
+import { V1TaskStatus, queries } from '@/lib/api';
 import { AdjustmentsHorizontalIcon } from '@heroicons/react/24/outline';
 import {
   Breadcrumb,
