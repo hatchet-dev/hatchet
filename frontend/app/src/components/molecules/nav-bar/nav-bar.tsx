@@ -31,7 +31,6 @@ import { Menu } from 'lucide-react';
 import { useTheme } from '@/components/theme-provider';
 import { useMemo } from 'react';
 import useApiMeta from '@/pages/auth/hooks/use-api-meta';
-import { useTenant } from '@/lib/atoms';
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -43,11 +42,12 @@ import {
 import { useBreadcrumbs } from '@/hooks/use-breadcrumbs';
 import { usePendingInvites } from '@/hooks/use-pending-invites';
 import { VersionInfo } from '@/pages/main/components';
+import { useTenantDetails } from '@/hooks/use-tenant';
 
 function HelpDropdown() {
   const meta = useApiMeta();
   const navigate = useNavigate();
-  const { tenant } = useTenant();
+  const { tenant } = useTenantDetails();
 
   const hasPylon = useMemo(() => {
     if (!meta.data?.pylonAppId) {

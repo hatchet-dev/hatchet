@@ -1,8 +1,8 @@
 import { User } from '@/lib/api';
-import { useTenant } from '@/lib/atoms';
 import useApiMeta from '@/pages/auth/hooks/use-api-meta';
 import { useAnalytics } from '@/hooks/use-analytics';
 import React, { PropsWithChildren, useEffect, useMemo } from 'react';
+import { useTenantDetails } from '@/hooks/use-tenant';
 
 interface AnalyticsProviderProps {
   user: User;
@@ -15,7 +15,7 @@ const AnalyticsProvider: React.FC<
 
   const [loaded, setLoaded] = React.useState(false);
 
-  const { tenant } = useTenant();
+  const { tenant } = useTenantDetails();
   const { identify } = useAnalytics();
 
   const config = useMemo(() => {

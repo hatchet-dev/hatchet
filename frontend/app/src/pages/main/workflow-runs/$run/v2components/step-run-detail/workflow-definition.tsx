@@ -1,5 +1,5 @@
 import { Button } from '@/components/ui/button';
-import { useTenant } from '@/lib/atoms';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { Squares2X2Icon } from '@heroicons/react/24/outline';
 import { Link } from 'react-router-dom';
 
@@ -8,11 +8,11 @@ export const WorkflowDefinitionLink = ({
 }: {
   workflowId: string;
 }) => {
-  const { tenant } = useTenant();
+  const { tenantId } = useCurrentTenantId();
 
   return (
     <Link
-      to={`/tenants/${tenant?.metadata.id}/workflows/${workflowId}`}
+      to={`/tenants/${tenantId}/workflows/${workflowId}`}
       target="_blank"
       rel="noreferrer"
     >
