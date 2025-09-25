@@ -188,7 +188,13 @@ func (t *MessageQueueImpl) SendMessage(ctx context.Context, q msgqueue.Queue, ms
 	}
 
 	if totalSize > maxSizeErrorLogThreshold {
-		t.l.Error().Int("message_size_bytes", totalSize).Int("num_messages", len(msg.Payloads)).Str("tenant_id", msg.TenantID).Str("queue_name", q.Name()).Msg("sending a very large message, this may impact performance")
+		t.l.Error().
+			Int("message_size_bytes", totalSize).
+			Int("num_messages", len(msg.Payloads)).
+			Str("tenant_id", msg.TenantID).
+			Str("queue_name", q.Name()).
+			Str("message_id", msg.ID).
+			Msg("sending a very large message, this may impact performance")
 	}
 
 	span.SetAttributes(
