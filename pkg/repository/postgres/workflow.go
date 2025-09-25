@@ -62,7 +62,9 @@ func (r *workflowAPIRepository) ListWorkflows(tenantId string, opts *repository.
 	}
 
 	if opts.Name != nil {
-		queryParams.Search = pgtype.Text{String: *opts.Name, Valid: true}
+		search := pgtype.Text{String: *opts.Name, Valid: true}
+		queryParams.Search = search
+		countParams.Search = search
 	}
 
 	orderByField := "createdAt"

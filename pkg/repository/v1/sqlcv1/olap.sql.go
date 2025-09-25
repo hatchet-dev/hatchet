@@ -11,6 +11,15 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const analyzeV1DAGToTaskOLAP = `-- name: AnalyzeV1DAGToTaskOLAP :exec
+ANALYZE v1_dag_to_task_olap
+`
+
+func (q *Queries) AnalyzeV1DAGToTaskOLAP(ctx context.Context, db DBTX) error {
+	_, err := db.Exec(ctx, analyzeV1DAGToTaskOLAP)
+	return err
+}
+
 const analyzeV1DAGsOLAP = `-- name: AnalyzeV1DAGsOLAP :exec
 ANALYZE v1_dags_olap
 `
@@ -2350,6 +2359,28 @@ WITH tenants AS (
     ORDER BY
         d.inserted_at, d.id
     FOR UPDATE
+), relevant_tasks AS (
+    SELECT
+        t.tenant_id,
+        t.id,
+        d.id AS dag_id,
+        d.inserted_at AS dag_inserted_at,
+        t.readable_status
+    FROM
+        locked_dags d
+    JOIN
+        v1_dag_to_task_olap dt ON
+            (d.id, d.inserted_at) = (dt.dag_id, dt.dag_inserted_at)
+    JOIN
+        v1_tasks_olap t ON
+            (dt.task_id, dt.task_inserted_at) = (t.id, t.inserted_at)
+    WHERE
+        t.inserted_at >= $4::TIMESTAMPTZ
+    -- Note that the ORDER BY seems to help the query planner by pruning partitions earlier. We
+    -- have previously seen Postgres use an index-only scan on partitions older than the minInsertedAt,
+    -- each of which can take a long time to scan. This can be very pathological since we partition on
+    -- both the status and the date, so 14 days of data with 5 statuses is 70 partitions to index scan.
+    ORDER BY t.inserted_at DESC
 ), dag_task_counts AS (
     SELECT
         d.id,
@@ -2364,12 +2395,7 @@ WITH tenants AS (
     FROM
         locked_dags d
     LEFT JOIN
-        v1_dag_to_task_olap dt ON
-            (d.id, d.inserted_at) = (dt.dag_id, dt.dag_inserted_at)
-    LEFT JOIN
-        v1_tasks_olap t ON
-            (dt.task_id, dt.task_inserted_at) = (t.id, t.inserted_at)
-    WHERE t.inserted_at >= $4::TIMESTAMPTZ
+        relevant_tasks t ON (d.tenant_id, d.id, d.inserted_at) = (t.tenant_id, t.dag_id, t.dag_inserted_at)
     GROUP BY
         d.id, d.inserted_at, d.total_tasks
 ), updated_dags AS (

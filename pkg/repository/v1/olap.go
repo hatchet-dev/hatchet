@@ -1860,6 +1860,12 @@ func (r *OLAPRepositoryImpl) AnalyzeOLAPTables(ctx context.Context) error {
 		return fmt.Errorf("error analyzing v1_dags_olap: %v", err)
 	}
 
+	err = r.queries.AnalyzeV1DAGToTaskOLAP(ctx, tx)
+
+	if err != nil {
+		return fmt.Errorf("error analyzing v1_dag_to_task_olap: %v", err)
+	}
+
 	if err := commit(ctx); err != nil {
 		return fmt.Errorf("error committing transaction: %v", err)
 	}
