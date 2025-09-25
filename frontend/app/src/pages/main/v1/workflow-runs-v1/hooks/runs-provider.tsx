@@ -187,6 +187,7 @@ export const RunsProvider = ({
     parentTaskExternalId,
     createdAfter: filters.apiFilters.since,
     additionalMetadata: filters.apiFilters.additionalMetadata,
+    showQueueMetrics,
   });
 
   const isRefetching = isRunsRefetching || isMetricsRefetching;

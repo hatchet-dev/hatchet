@@ -8,11 +8,13 @@ export const useMetrics = ({
   parentTaskExternalId,
   additionalMetadata,
   createdAfter,
+  showQueueMetrics,
 }: {
   workflow: string | undefined;
   parentTaskExternalId: string | undefined;
   additionalMetadata?: string[] | undefined;
   createdAfter?: string;
+  showQueueMetrics: boolean;
 }) => {
   const { tenantId } = useCurrentTenantId();
   const { refetchInterval } = useRefetchInterval();
@@ -41,6 +43,7 @@ export const useMetrics = ({
   const { data: queueMetricsRaw } = useQuery({
     ...queries.metrics.getStepRunQueueMetrics(tenantId),
     refetchInterval: 5000,
+    enabled: showQueueMetrics,
   });
 
   const queueMetrics = queueMetricsRaw?.queues || {};
