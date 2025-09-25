@@ -8,10 +8,12 @@ from typing import Literal, ParamSpec, TypeVar
 from pydantic import BaseModel, Field
 
 from hatchet_sdk.clients.events import EventClient
+from hatchet_sdk.context.context import Context
 from hatchet_sdk.logger import logger
 from hatchet_sdk.runnables.contextvars import (
     ctx_action_key,
     ctx_additional_metadata,
+    ctx_context,
     ctx_step_run_id,
     ctx_worker_id,
     ctx_workflow_run_id,
@@ -42,8 +44,15 @@ class ContextVarToCopyDict(BaseModel):
     value: JSONSerializableMapping | None
 
 
+class ContextVarToCopyContext(BaseModel):
+    name: Literal["ctx_context"]
+    value: Context | None
+
+
 class ContextVarToCopy(BaseModel):
-    var: ContextVarToCopyStr | ContextVarToCopyDict = Field(discriminator="name")
+    var: ContextVarToCopyStr | ContextVarToCopyDict | ContextVarToCopyContext = Field(
+        discriminator="name"
+    )
 
 
 def copy_context_vars(
@@ -63,6 +72,8 @@ def copy_context_vars(
             ctx_worker_id.set(var.var.value)
         elif var.var.name == "ctx_additional_metadata":
             ctx_additional_metadata.set(var.var.value or {})
+        elif var.var.name == "ctx_context":
+            ctx_context.set(var.var.value)
         else:
             raise ValueError(f"Unknown context variable name: {var.var.name}")
 
