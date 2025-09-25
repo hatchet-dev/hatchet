@@ -5,7 +5,7 @@ from collections.abc import Awaitable, Callable
 from io import StringIO
 from typing import Literal, ParamSpec, TypeVar
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from hatchet_sdk.clients.events import EventClient
 from hatchet_sdk.context.context import Context
@@ -24,6 +24,7 @@ from hatchet_sdk.utils.typing import (
     JSONSerializableMapping,
     LogLevel,
 )
+from hatchet_sdk.worker.runner.utils.schemas import LogRecord
 
 T = TypeVar("T")
 P = ParamSpec("P")
@@ -45,6 +46,8 @@ class ContextVarToCopyDict(BaseModel):
 
 
 class ContextVarToCopyContext(BaseModel):
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
     name: Literal["ctx_context"]
     value: Context | None
 
@@ -78,12 +81,6 @@ def copy_context_vars(
             raise ValueError(f"Unknown context variable name: {var.var.name}")
 
     return func(*args, **kwargs)
-
-
-class LogRecord(BaseModel):
-    message: str
-    step_run_id: str
-    level: LogLevel
 
 
 class AsyncLogSender:
