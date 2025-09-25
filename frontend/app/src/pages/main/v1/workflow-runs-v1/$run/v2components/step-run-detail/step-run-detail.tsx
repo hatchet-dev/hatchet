@@ -37,6 +37,7 @@ export enum TabOption {
   Input = 'input',
   Logs = 'logs',
   Waterfall = 'waterfall',
+  AdditionalMetadata = 'additional-metadata',
 }
 
 interface TaskRunDetailProps {
@@ -220,6 +221,12 @@ export const TaskRunDetail = ({
               <TabsTrigger variant="underlined" value={TabOption.Logs}>
                 Logs
               </TabsTrigger>
+              <TabsTrigger
+                variant="underlined"
+                value={TabOption.AdditionalMetadata}
+              >
+                Metadata
+              </TabsTrigger>
             </TabsList>
             <TabsContent value={TabOption.Output}>
               <V1StepRunOutput taskRunId={taskRunId} />
@@ -255,6 +262,15 @@ export const TaskRunDetail = ({
             </TabsContent>
             <TabsContent value={TabOption.Logs}>
               <StepRunLogs taskRun={taskRun} />
+            </TabsContent>
+            <TabsContent value={TabOption.AdditionalMetadata}>
+              <CodeHighlighter
+                className="my-4 h-[400px] max-h-[400px] overflow-y-auto"
+                maxHeight="400px"
+                minHeight="400px"
+                language="json"
+                code={JSON.stringify(taskRun.additionalMetadata ?? {}, null, 2)}
+              />
             </TabsContent>
           </Tabs>
         </TabsContent>
