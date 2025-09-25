@@ -28,7 +28,7 @@ interface RefetchIntervalProviderProps {
   children: ReactNode;
 }
 
-const STORAGE_KEY = 'app-refetch-interval';
+const STORAGE_KEY = 'app-default-refetch-interval';
 
 export const RefetchIntervalProvider = ({
   children,
