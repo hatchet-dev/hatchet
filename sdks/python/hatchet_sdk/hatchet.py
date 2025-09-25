@@ -26,7 +26,7 @@ from hatchet_sdk.features.workflows import WorkflowsClient
 from hatchet_sdk.labels import DesiredWorkerLabel
 from hatchet_sdk.logger import logger
 from hatchet_sdk.rate_limit import RateLimit
-from hatchet_sdk.runnables.contextvars import ctx_context, ctx_step_run_id
+from hatchet_sdk.runnables.contextvars import ctx_step_run_id
 from hatchet_sdk.runnables.types import (
     ConcurrencyExpression,
     DefaultFilter,
@@ -72,17 +72,13 @@ class Hatchet:
             )
 
     @property
-    def current_ctx(self) -> Context | None:
-        return ctx_context.get()
-
-    @property
     def is_in_task_run(self) -> bool:
         """
         Whether the current code is running inside a Hatchet task run.
 
         This is determined by checking if the `ctx_step_run_id` context variable is set.
         """
-        return ctx_step_run_id.get() is not None and self.current_ctx is not None
+        return ctx_step_run_id.get() is not None
 
     @property
     def cel(self) -> CELClient:
