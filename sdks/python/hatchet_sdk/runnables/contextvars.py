@@ -3,6 +3,7 @@ import threading
 from collections import Counter
 from contextvars import ContextVar
 
+from hatchet_sdk.context.context import Context
 from hatchet_sdk.runnables.action import ActionKey
 from hatchet_sdk.utils.typing import JSONSerializableMapping
 
@@ -17,6 +18,7 @@ ctx_worker_id: ContextVar[str | None] = ContextVar("ctx_worker_id", default=None
 ctx_additional_metadata: ContextVar[JSONSerializableMapping | None] = ContextVar(
     "ctx_additional_metadata", default=None
 )
+ctx_context: ContextVar[Context | None] = ContextVar("ctx_context", default=None)
 
 workflow_spawn_indices = Counter[ActionKey]()
 spawn_index_lock = asyncio.Lock()

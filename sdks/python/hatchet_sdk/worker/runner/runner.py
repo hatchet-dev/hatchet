@@ -42,6 +42,7 @@ from hatchet_sdk.runnables.action import Action, ActionKey, ActionType
 from hatchet_sdk.runnables.contextvars import (
     ctx_action_key,
     ctx_additional_metadata,
+    ctx_context,
     ctx_step_run_id,
     ctx_worker_id,
     ctx_workflow_run_id,
@@ -304,6 +305,7 @@ class Runner:
         ctx_worker_id.set(action.worker_id)
         ctx_action_key.set(action.key)
         ctx_additional_metadata.set(action.additional_metadata)
+        ctx_context.set(ctx)
 
         dependencies = await task._unpack_dependencies(ctx)
 
