@@ -34,7 +34,7 @@ export const RefetchIntervalProvider = ({
   children,
 }: RefetchIntervalProviderProps) => {
   const [storedInterval, setStoredInterval] =
-    useLocalStorageState<RefetchIntervalOption>(STORAGE_KEY, 'off');
+    useLocalStorageState<RefetchIntervalOption>(STORAGE_KEY, '10s');
   const [isFrozen, setIsFrozen] = useLocalStorageState<boolean>(
     'app-refetch-interval-frozen',
     false,
