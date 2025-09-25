@@ -224,8 +224,16 @@ export const TaskRunDetail = ({
               <TabsTrigger
                 variant="underlined"
                 value={TabOption.AdditionalMetadata}
+                className="side-responsive-layout"
               >
-                Metadata
+                <span className="flex side-responsive-inner">
+                  <span className="block side-sm:hidden">
+                    Metadata
+                  </span>
+                  <span className="hidden side-sm:block">
+                    Additional Metadata
+                  </span>
+                </span>
               </TabsTrigger>
             </TabsList>
             <TabsContent value={TabOption.Output}>

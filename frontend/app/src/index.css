@@ -451,4 +451,12 @@ pre.shiki > code > span::before {
     align-items: center;
     width: auto;
   }
+
+  .side-sm\:hidden {
+    display: none;
+  }
+
+  .side-sm\:block {
+    display: block;
+  }
 }
