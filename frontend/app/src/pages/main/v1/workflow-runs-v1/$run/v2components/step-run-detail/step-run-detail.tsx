@@ -227,9 +227,7 @@ export const TaskRunDetail = ({
                 className="side-responsive-layout"
               >
                 <span className="flex side-responsive-inner">
-                  <span className="block side-sm:hidden">
-                    Metadata
-                  </span>
+                  <span className="block side-sm:hidden">Metadata</span>
                   <span className="hidden side-sm:block">
                     Additional Metadata
                   </span>
