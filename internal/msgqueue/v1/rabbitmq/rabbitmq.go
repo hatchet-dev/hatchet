@@ -192,26 +192,11 @@ func (t *MessageQueueImpl) SendMessage(ctx context.Context, q msgqueue.Queue, ms
 	}
 
 	span.SetAttributes(
-		attribute.KeyValue{
-			Key:   "MessageQueueImpl.SendMessage.queue_name",
-			Value: attribute.StringValue(q.Name()),
-		},
-		attribute.KeyValue{
-			Key:   "MessageQueueImpl.SendMessage.tenant_id",
-			Value: attribute.StringValue(msg.TenantID),
-		},
-		attribute.KeyValue{
-			Key:   "MessageQueueImpl.SendMessage.message_id",
-			Value: attribute.StringValue(msg.ID),
-		},
-		attribute.KeyValue{
-			Key:   "MessageQueueImpl.SendMessage.num_payloads",
-			Value: attribute.IntValue(len(msg.Payloads)),
-		},
-		attribute.KeyValue{
-			Key:   "MessageQueueImpl.SendMessage.total_size_bytes",
-			Value: attribute.IntValue(totalSize),
-		},
+		attribute.String("MessageQueueImpl.SendMessage.queue_name", q.Name()),
+		attribute.String("MessageQueueImpl.SendMessage.tenant_id", msg.TenantID),
+		attribute.String("MessageQueueImpl.SendMessage.message_id", msg.ID),
+		attribute.Int("MessageQueueImpl.SendMessage.num_payloads", len(msg.Payloads)),
+		attribute.Int("MessageQueueImpl.SendMessage.total_size_bytes", totalSize),
 	)
 
 	err := t.pubMessage(ctx, q, msg)
