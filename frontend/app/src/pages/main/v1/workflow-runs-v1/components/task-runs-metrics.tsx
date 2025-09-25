@@ -49,7 +49,7 @@ function MetricBadge({
   status: V1TaskStatus;
   className?: string;
 }) {
-  const { filters, metrics } = useRunsContext();
+  const { filters, runStatusCounts } = useRunsContext();
   const currentStatuses = useMemo(
     () => filters.apiFilters.statuses || [],
     [filters.apiFilters.statuses],
@@ -86,7 +86,7 @@ function MetricBadge({
     [currentStatuses, setStatuses],
   );
 
-  const metric = metrics.find((m) => m.status === status);
+  const metric = runStatusCounts.find((m) => m.status === status);
 
   if (!metric) {
     return null;

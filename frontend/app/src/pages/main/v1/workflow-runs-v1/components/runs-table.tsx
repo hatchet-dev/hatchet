@@ -102,8 +102,8 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
     isMetricsLoading,
     isMetricsFetching,
     isRefetching,
-    metrics,
-    tenantMetrics,
+    runStatusCounts,
+    queueMetrics,
     actionModalParams,
     selectedActionType,
     pagination,
@@ -223,11 +223,11 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
               <DialogTitle>Queue Metrics</DialogTitle>
             </DialogHeader>
             <Separator />
-            {tenantMetrics && (
+            {queueMetrics && (
               <CodeHighlighter
                 language="json"
                 className="max-h-[400px] overflow-y-auto"
-                code={JSON.stringify(tenantMetrics || '{}', null, 2)}
+                code={JSON.stringify(queueMetrics || '{}', null, 2)}
               />
             )}
             {isMetricsLoading && 'Loading...'}
@@ -262,7 +262,7 @@ export function RunsTable({ headerClassName }: RunsTableProps) {
             ...(!hideCounts
               ? [
                   <div key="metrics" className="flex justify-start mr-auto">
-                    {metrics.length > 0 ? (
+                    {runStatusCounts.length > 0 ? (
                       <V1WorkflowRunsMetricsView />
                     ) : (
                       <Skeleton className="max-w-[800px] w-[40vw] h-8" />

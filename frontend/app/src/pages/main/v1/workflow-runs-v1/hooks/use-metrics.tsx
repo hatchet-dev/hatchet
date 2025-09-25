@@ -17,7 +17,13 @@ export const useMetrics = ({
   const { tenantId } = useCurrentTenantId();
   const { refetchInterval } = useRefetchInterval();
 
-  const metricsQuery = useQuery({
+  const {
+    data: rawStatusCounts,
+    isLoading,
+    isFetching,
+    isRefetching,
+    refetch,
+  } = useQuery({
     ...queries.v1TaskRuns.metrics(tenantId, {
       since:
         createdAfter ||
@@ -30,24 +36,21 @@ export const useMetrics = ({
     refetchInterval,
   });
 
-  const metrics = metricsQuery.data || [];
+  const runStatusCounts = rawStatusCounts || [];
 
-  const tenantMetricsQuery = useQuery({
+  const { data: queueMetricsRaw } = useQuery({
     ...queries.metrics.getStepRunQueueMetrics(tenantId),
-    refetchInterval,
+    refetchInterval: 5000,
   });
 
-  const tenantMetrics = tenantMetricsQuery.data?.queues || {};
+  const queueMetrics = queueMetricsRaw?.queues || {};
 
   return {
-    isLoading: metricsQuery.isLoading || tenantMetricsQuery.isLoading,
-    isFetching: metricsQuery.isFetching || tenantMetricsQuery.isFetching,
-    isRefetching: metricsQuery.isRefetching || tenantMetricsQuery.isRefetching,
-    tenantMetrics,
-    metrics,
-    refetch: () => {
-      tenantMetricsQuery.refetch();
-      metricsQuery.refetch();
-    },
+    runStatusCounts,
+    isLoading,
+    isFetching,
+    isRefetching,
+    refetch,
+    queueMetrics,
   };
 };

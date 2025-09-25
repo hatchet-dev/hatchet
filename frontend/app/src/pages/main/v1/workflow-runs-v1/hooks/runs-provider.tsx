@@ -65,8 +65,8 @@ type RunsContextType = {
   isMetricsLoading: boolean;
   isMetricsFetching: boolean;
   isRefetching: boolean;
-  metrics: V1TaskRunMetrics;
-  tenantMetrics: object;
+  runStatusCounts: V1TaskRunMetrics;
+  queueMetrics: object;
   isActionModalOpen: boolean;
   isActionDropdownOpen: boolean;
   selectedActionType: ActionType | null;
@@ -176,8 +176,8 @@ export const RunsProvider = ({
   );
 
   const {
-    metrics,
-    tenantMetrics,
+    runStatusCounts,
+    queueMetrics,
     isLoading: isMetricsLoading,
     isFetching: isMetricsFetching,
     refetch: refetchMetrics,
@@ -203,8 +203,8 @@ export const RunsProvider = ({
       isMetricsLoading,
       isMetricsFetching,
       isRefetching,
-      metrics,
-      tenantMetrics,
+      runStatusCounts,
+      queueMetrics,
       isActionModalOpen,
       isActionDropdownOpen,
       actionModalParams,
@@ -249,8 +249,8 @@ export const RunsProvider = ({
       isRunsFetching,
       isMetricsLoading,
       isMetricsFetching,
-      metrics,
-      tenantMetrics,
+      runStatusCounts,
+      queueMetrics,
       isActionModalOpen,
       isActionDropdownOpen,
       hideMetrics,
