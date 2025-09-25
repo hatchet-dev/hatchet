@@ -29,7 +29,8 @@ WITH ordered_names AS (
 -- Insert new queues
 INSERT INTO v1_queue (tenant_id, name, last_active)
 SELECT $1, name, NOW()
-FROM names_to_insert;
+FROM names_to_insert
+ON CONFLICT (tenant_id, name) DO NOTHING;
 
 -- name: ListActionsForWorkers :many
 SELECT

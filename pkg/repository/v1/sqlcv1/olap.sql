@@ -25,6 +25,9 @@ ANALYZE v1_tasks_olap;
 -- name: AnalyzeV1DAGsOLAP :exec
 ANALYZE v1_dags_olap;
 
+-- name: AnalyzeV1DAGToTaskOLAP :exec
+ANALYZE v1_dag_to_task_olap;
+
 -- name: ListOLAPPartitionsBeforeDate :many
 WITH task_partitions AS (
     SELECT 'v1_tasks_olap' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_tasks_olap'::text, @date::date) AS p
@@ -822,6 +825,28 @@ WITH tenants AS (
     ORDER BY
         d.inserted_at, d.id
     FOR UPDATE
+), relevant_tasks AS (
+    SELECT
+        t.tenant_id,
+        t.id,
+        d.id AS dag_id,
+        d.inserted_at AS dag_inserted_at,
+        t.readable_status
+    FROM
+        locked_dags d
+    JOIN
+        v1_dag_to_task_olap dt ON
+            (d.id, d.inserted_at) = (dt.dag_id, dt.dag_inserted_at)
+    JOIN
+        v1_tasks_olap t ON
+            (dt.task_id, dt.task_inserted_at) = (t.id, t.inserted_at)
+    WHERE
+        t.inserted_at >= @minInsertedAt::TIMESTAMPTZ
+    -- Note that the ORDER BY seems to help the query planner by pruning partitions earlier. We
+    -- have previously seen Postgres use an index-only scan on partitions older than the minInsertedAt,
+    -- each of which can take a long time to scan. This can be very pathological since we partition on
+    -- both the status and the date, so 14 days of data with 5 statuses is 70 partitions to index scan.
+    ORDER BY t.inserted_at DESC
 ), dag_task_counts AS (
     SELECT
         d.id,
@@ -836,12 +861,7 @@ WITH tenants AS (
     FROM
         locked_dags d
     LEFT JOIN
-        v1_dag_to_task_olap dt ON
-            (d.id, d.inserted_at) = (dt.dag_id, dt.dag_inserted_at)
-    LEFT JOIN
-        v1_tasks_olap t ON
-            (dt.task_id, dt.task_inserted_at) = (t.id, t.inserted_at)
-    WHERE t.inserted_at >= @minInsertedAt::TIMESTAMPTZ
+        relevant_tasks t ON (d.tenant_id, d.id, d.inserted_at) = (t.tenant_id, t.dag_id, t.dag_inserted_at)
     GROUP BY
         d.id, d.inserted_at, d.total_tasks
 ), updated_dags AS (
