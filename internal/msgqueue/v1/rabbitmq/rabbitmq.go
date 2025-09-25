@@ -12,6 +12,7 @@ import (
 	lru "github.com/hashicorp/golang-lru/v2"
 	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/rs/zerolog"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 
 	msgqueue "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
@@ -189,6 +190,29 @@ func (t *MessageQueueImpl) SendMessage(ctx context.Context, q msgqueue.Queue, ms
 	if totalSize > maxSizeErrorLogThreshold {
 		t.l.Error().Int("message_size_bytes", totalSize).Int("num_messages", len(msg.Payloads)).Str("tenant_id", msg.TenantID).Str("queue_name", q.Name()).Msg("sending a very large message, this may impact performance")
 	}
+
+	span.SetAttributes(
+		attribute.KeyValue{
+			Key:   "queue_name",
+			Value: attribute.StringValue(q.Name()),
+		},
+		attribute.KeyValue{
+			Key:   "tenant_id",
+			Value: attribute.StringValue(msg.TenantID),
+		},
+		attribute.KeyValue{
+			Key:   "message_id",
+			Value: attribute.StringValue(msg.ID),
+		},
+		attribute.KeyValue{
+			Key:   "num_payloads",
+			Value: attribute.IntValue(len(msg.Payloads)),
+		},
+		attribute.KeyValue{
+			Key:   "total_size_bytes",
+			Value: attribute.IntValue(totalSize),
+		},
+	)
 
 	err := t.pubMessage(ctx, q, msg)
 
