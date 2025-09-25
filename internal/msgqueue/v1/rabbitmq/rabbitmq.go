@@ -172,9 +172,23 @@ func (t *MessageQueueImpl) SetQOS(prefetchCount int) {
 	t.qos = prefetchCount
 }
 
+const (
+	mb                       = 1024 * 1024 // 1 MB in bytes
+	maxSizeErrorLogThreshold = 10 * mb
+)
+
 func (t *MessageQueueImpl) SendMessage(ctx context.Context, q msgqueue.Queue, msg *msgqueue.Message) error {
 	ctx, span := telemetry.NewSpan(ctx, "MessageQueueImpl.SendMessage")
 	defer span.End()
+
+	totalSize := 0
+	for _, payload := range msg.Payloads {
+		totalSize += len(payload)
+	}
+
+	if totalSize > maxSizeErrorLogThreshold {
+		t.l.Error().Int("message_size_bytes", totalSize).Int("num_messages", len(msg.Payloads)).Str("tenant_id", msg.TenantID).Str("queue_name", q.Name()).Msg("sending a very large message, this may impact performance")
+	}
 
 	err := t.pubMessage(ctx, q, msg)
 
