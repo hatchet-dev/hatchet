@@ -4,32 +4,46 @@ import {
   ManagedWorker,
   Matrix,
 } from '@/lib/api/generated/cloud/data-contracts';
-import { Loading } from '@/components/v1/ui/loading';
+import { Loading } from '@/components/ui/loading';
 import { useEffect, useMemo, useState } from 'react';
-import { Separator } from '@/components/v1/ui/separator';
-import { DateTimePicker } from '@/components/v1/molecules/time-picker/date-time-picker';
-import { Button } from '@/components/v1/ui/button';
+import { Separator } from '@/components/ui/separator';
+import { DateTimePicker } from '@/components/molecules/time-picker/date-time-picker';
+import { Button } from '@/components/ui/button';
 import { XCircleIcon } from '@heroicons/react/24/outline';
 import {
   DataPoint,
   ZoomableChart,
-} from '@/components/v1/molecules/charts/zoomable';
+} from '@/components/molecules/charts/zoomable';
 import { useAtom } from 'jotai';
 import { lastWorkerMetricsTimeRangeAtom } from '@/lib/atoms';
-import { getCreatedAfterFromTimeRange } from '@/pages/main/workflow-runs/components/workflow-runs-table';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/v1/ui/select';
+} from '@/components/ui/select';
+import { useRefetchInterval } from '@/contexts/refetch-interval-context';
+
+const getCreatedAfterFromTimeRange = (timeRange?: string) => {
+  switch (timeRange) {
+    case '1h':
+      return new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    case '6h':
+      return new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString();
+    case '1d':
+      return new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    case '7d':
+      return new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+  }
+};
 
 export function ManagedWorkerMetrics({
   managedWorker,
 }: {
   managedWorker: ManagedWorker;
 }) {
+  const { refetchInterval } = useRefetchInterval();
   const [defaultTimeRange, setDefaultTimeRange] = useAtom(
     lastWorkerMetricsTimeRangeAtom,
   );
@@ -86,9 +100,7 @@ export function ManagedWorkerMetrics({
       queryParams,
     ),
     enabled: !!managedWorker,
-    refetchInterval: () => {
-      return 5000;
-    },
+    refetchInterval,
   });
 
   const getMemoryMetricsQuery = useQuery({
@@ -97,9 +109,7 @@ export function ManagedWorkerMetrics({
       queryParams,
     ),
     enabled: !!managedWorker,
-    refetchInterval: () => {
-      return 5000;
-    },
+    refetchInterval,
   });
 
   const getDiskMetricsQuery = useQuery({
@@ -108,9 +118,7 @@ export function ManagedWorkerMetrics({
       queryParams,
     ),
     enabled: !!managedWorker,
-    refetchInterval: () => {
-      return 5000;
-    },
+    refetchInterval,
   });
 
   if (

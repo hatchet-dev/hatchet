@@ -1,30 +1,30 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { queries } from '@/lib/api';
-import invariant from 'tiny-invariant';
-import { TenantContextType } from '@/lib/outlet';
-import { Link, useOutletContext } from 'react-router-dom';
-import { DataTable } from '@/components/molecules/data-table/data-table.tsx';
+import { Link } from 'react-router-dom';
+import { DataTable } from '@/components/molecules/data-table/data-table';
 import { columns } from './managed-worker-columns';
-import { Loading } from '@/components/v1/ui/loading.tsx';
-import { Button } from '@/components/v1/ui/button';
+import { Loading } from '@/components/ui/loading';
+import { Button } from '@/components/ui/button';
 import {
   Card,
   CardHeader,
   CardTitle,
   CardDescription,
   CardFooter,
-} from '@/components/v1/ui/card';
+} from '@/components/ui/card';
 import { ArrowPathIcon, CpuChipIcon } from '@heroicons/react/24/outline';
 import { SortingState, VisibilityState } from '@tanstack/react-table';
 import { BiCard, BiTable } from 'react-icons/bi';
-import RelativeDate from '@/components/v1/molecules/relative-date';
+import RelativeDate from '@/components/molecules/relative-date';
 import { ManagedWorker } from '@/lib/api/generated/cloud/data-contracts';
 import GithubButton from '../$managed-worker/components/github-button';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
+import { useRefetchInterval } from '@/contexts/refetch-interval-context';
 
 export function ManagedWorkersTable() {
-  const { tenant } = useOutletContext<TenantContextType>();
-  invariant(tenant);
+  const { tenantId } = useCurrentTenantId();
+  const { refetchInterval } = useRefetchInterval();
 
   const [sorting, setSorting] = useState<SortingState>([
     {
@@ -38,8 +38,8 @@ export function ManagedWorkersTable() {
   const [cardToggle, setCardToggle] = useState(true);
 
   const listManagedWorkersQuery = useQuery({
-    ...queries.cloud.listManagedWorkers(tenant.metadata.id),
-    refetchInterval: 5000,
+    ...queries.cloud.listManagedWorkers(tenantId),
+    refetchInterval,
   });
 
   const data = useMemo(() => {
@@ -109,7 +109,7 @@ export function ManagedWorkersTable() {
         <div className="px-4 py-4 sm:px-6">
           <div className="text-sm text-background-secondary">
             <Link
-              to={`/tenants/${tenant.metadata.id}/managed-workers/${data.metadata?.id}`}
+              to={`/tenants/${tenantId}/managed-workers/${data.metadata?.id}`}
             >
               <Button>View Compute Instance</Button>
             </Link>
@@ -155,17 +155,16 @@ export function ManagedWorkersTable() {
 
   return (
     <DataTable
-      columns={columns(tenant.metadata.id)}
+      columns={columns(tenantId)}
       data={data}
       pageCount={1}
-      filters={[]}
       emptyState={emptyState}
       columnVisibility={columnVisibility}
       setColumnVisibility={setColumnVisibility}
       sorting={sorting}
       setSorting={setSorting}
       manualSorting={false}
-      actions={actions}
+      rightActions={actions}
       manualFiltering={false}
       card={
         cardToggle

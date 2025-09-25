@@ -1,20 +1,15 @@
-import { Separator } from '@/components/v1/ui/separator';
+import { Separator } from '@/components/ui/separator';
 import { queries } from '@/lib/api';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
 import invariant from 'tiny-invariant';
 import { relativeDate } from '@/lib/utils';
 import { CpuChipIcon } from '@heroicons/react/24/outline';
-import { Loading } from '@/components/v1/ui/loading.tsx';
+import { Loading } from '@/components/ui/loading';
 import { useState } from 'react';
-import { Button } from '@/components/v1/ui/button';
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from '@/components/v1/ui/tabs';
-import { ConfirmDialog } from '@/components/v1/molecules/confirm-dialog';
+import { Button } from '@/components/ui/button';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { ConfirmDialog } from '@/components/molecules/confirm-dialog';
 import { ManagedWorkerLogs } from './components/managed-worker-logs';
 import { ManagedWorkerMetrics } from './components/managed-worker-metrics';
 import { ManagedWorkerActivity } from './components/managed-worker-activity';
@@ -24,21 +19,21 @@ import UpdateWorkerForm from './components/update-form';
 import { cloudApi } from '@/lib/api/api';
 import { useApiError } from '@/lib/hooks';
 import GithubButton from './components/github-button';
-import { useTenant } from '@/lib/atoms';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
+import { useRefetchInterval } from '@/contexts/refetch-interval-context';
 
 export default function ExpandedWorkflow() {
   const navigate = useNavigate();
   const [deleteWorker, setDeleteWorker] = useState(false);
+  const { tenantId } = useCurrentTenantId();
+  const { refetchInterval } = useRefetchInterval();
 
   const params = useParams();
   invariant(params['managed-worker']);
 
-  const tenant = useTenant();
-  invariant(tenant.tenantId);
-
   const managedWorkerQuery = useQuery({
     ...queries.cloud.getManagedWorker(params['managed-worker']),
-    refetchInterval: 5000,
+    refetchInterval,
   });
 
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -78,7 +73,7 @@ export default function ExpandedWorkflow() {
     },
     onSuccess: () => {
       setDeleteWorker(false);
-      navigate('/managed-workers');
+      navigate(`/tenants/${tenantId}/managed-workers`);
     },
     onError: handleApiError,
   });
@@ -159,7 +154,6 @@ export default function ExpandedWorkflow() {
             <Separator className="my-4" />
             <UpdateWorkerForm
               managedWorker={managedWorker}
-              tenantId={tenant.tenantId}
               onSubmit={updateManagedWorkerMutation.mutate}
               isLoading={updateManagedWorkerMutation.isPending}
               fieldErrors={fieldErrors}

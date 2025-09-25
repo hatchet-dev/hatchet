@@ -2,6 +2,7 @@ import * as React from 'react';
 import {
   ColumnDef,
   ColumnFiltersState,
+  ExpandedState,
   OnChangeFn,
   PaginationState,
   Row,
@@ -28,25 +29,33 @@ import {
 } from '@/components/ui/table';
 
 import { DataTablePagination } from './data-table-pagination';
-import { DataTableToolbar, ToolbarFilters } from './data-table-toolbar';
+import {
+  DataTableToolbar,
+  ShowTableActionsProps,
+  ToolbarFilters,
+} from './data-table-toolbar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
+import { ConfirmActionModal } from '@/pages/main/task-runs/actions';
+import { flattenDAGsKey } from '@/pages/main/workflow-runs/components/task-runs-columns';
 
-export interface IDGetter {
+export interface IDGetter<T> {
   metadata: {
     id: string;
   };
+  subRows?: T[];
   getRow?: () => JSX.Element;
   onClick?: () => void;
   isExpandable?: boolean;
 }
 
-interface DataTableProps<TData extends IDGetter, TValue> {
+interface DataTableProps<TData extends IDGetter<TData>, TValue> {
   columns: ColumnDef<TData, TValue>[];
   data: TData[];
   error?: Error | null;
-  filters: ToolbarFilters;
-  actions?: JSX.Element[];
+  filters?: ToolbarFilters;
+  leftActions?: JSX.Element[];
+  rightActions?: JSX.Element[];
   sorting?: SortingState;
   setSorting?: OnChangeFn<SortingState>;
   setSearch?: (search: string) => void;
@@ -74,7 +83,16 @@ interface DataTableProps<TData extends IDGetter, TValue> {
     | undefined;
   manualSorting?: boolean;
   manualFiltering?: boolean;
+  getSubRows?: (row: TData) => TData[];
+  headerClassName?: string;
+  hiddenFilters?: string[];
+  onResetFilters?: () => void;
 }
+
+type RefetchProps = {
+  isRefetching: boolean;
+  onRefetch: () => void;
+};
 
 interface ExtraDataTableProps {
   emptyState?: JSX.Element;
@@ -82,18 +100,20 @@ interface ExtraDataTableProps {
     containerStyle?: string;
     component: React.FC<any> | ((data: any) => JSX.Element);
   };
+  columnKeyToName?: Record<string, string>;
+  refetchProps?: RefetchProps;
+  tableActions?: ShowTableActionsProps;
 }
 
-export function DataTable<TData extends IDGetter, TValue>({
+export function DataTable<TData extends IDGetter<TData>, TValue>({
   columns,
   error,
   data,
-  filters,
-  actions = [],
+  filters = [],
+  leftActions = [],
+  rightActions = [],
   sorting,
   setSorting,
-  setSearch,
-  search,
   columnFilters,
   setColumnFilters,
   pagination,
@@ -112,7 +132,16 @@ export function DataTable<TData extends IDGetter, TValue>({
   card,
   manualSorting = true,
   manualFiltering = true,
+  getSubRows,
+  headerClassName,
+  hiddenFilters = [],
+  onResetFilters,
+  columnKeyToName,
+  refetchProps,
+  tableActions,
 }: DataTableProps<TData, TValue> & ExtraDataTableProps) {
+  const [expanded, setExpanded] = React.useState<ExpandedState>({});
+
   const loadingNoData = isLoading && !data.length;
 
   const tableData = React.useMemo(
@@ -140,6 +169,7 @@ export function DataTable<TData extends IDGetter, TValue>({
       rowSelection: rowSelection || {},
       columnFilters,
       pagination,
+      expanded,
     },
     pageCount,
     enableRowSelection: !!rowSelection,
@@ -154,6 +184,10 @@ export function DataTable<TData extends IDGetter, TValue>({
     getSortedRowModel: getSortedRowModel(),
     getFacetedRowModel: getFacetedRowModel(),
     getFacetedUniqueValues: getFacetedUniqueValues(),
+    getSubRows: getSubRows,
+    onExpandedChange: setExpanded,
+    // TODO: Figure this out
+    getRowCanExpand: (row) => row.subRows.length > 0,
     manualSorting,
     manualFiltering,
     manualPagination: true,
@@ -185,12 +219,16 @@ export function DataTable<TData extends IDGetter, TValue>({
 
   const getTable = () => (
     <Table>
-      <TableHeader>
+      <TableHeader className="sticky top-0 z-10 bg-background">
         {table.getHeaderGroups().map((headerGroup) => (
           <TableRow key={headerGroup.id}>
             {headerGroup.headers.map((header) => {
               return (
-                <TableHead key={header.id} colSpan={header.colSpan}>
+                <TableHead
+                  key={header.id}
+                  colSpan={header.colSpan}
+                  className={cn('bg-background border-b', headerClassName)}
+                >
                   {header.isPlaceholder
                     ? null
                     : flexRender(
@@ -211,7 +249,12 @@ export function DataTable<TData extends IDGetter, TValue>({
             </TableCell>
           </TableRow>
         ) : table.getRowModel().rows?.length ? (
-          table.getRowModel().rows.map((row) => getTableRow(row))
+          table.getRowModel().rows.map((row) => (
+            <React.Fragment key={row.id}>
+              {getTableRow(row)}
+              {row.getIsExpanded() && row.subRows.map((r) => getTableRow(r))}
+            </React.Fragment>
+          ))
         ) : (
           <TableRow>
             <TableCell colSpan={columns.length} className="h-24 text-center">
@@ -245,19 +288,36 @@ export function DataTable<TData extends IDGetter, TValue>({
   );
 
   return (
-    <div className="space-y-4">
-      {(setSearch || actions || (filters && filters.length > 0)) && (
+    <div className="flex flex-col max-h-full space-y-4">
+      {tableActions?.selectedActionType && (
+        <ConfirmActionModal
+          actionType={tableActions.selectedActionType}
+          params={tableActions.actionModalParams}
+          table={table}
+          columnKeyToName={columnKeyToName}
+          filters={filters}
+          hiddenFilters={[flattenDAGsKey]}
+          showColumnVisibility={false}
+        />
+      )}
+      {(leftActions || rightActions || filters.length > 0) && (
         <DataTableToolbar
           table={table}
           filters={filters}
           isLoading={isLoading}
-          actions={actions}
-          search={search}
-          setSearch={setSearch}
+          leftActions={leftActions}
+          rightActions={rightActions}
           showColumnToggle={showColumnToggle}
+          hiddenFilters={hiddenFilters}
+          columnKeyToName={columnKeyToName}
+          refetchProps={refetchProps}
+          tableActions={tableActions}
+          onResetFilters={onResetFilters}
         />
       )}
-      <div className={`rounded-md ${!card && 'border'}`}>
+      <div
+        className={`flex-1 min-h-0 rounded-md ${!card && 'border'} ${!card && 'overflow-auto'}`}
+      >
         {!card ? getTable() : getCards()}
       </div>
       {pagination && (

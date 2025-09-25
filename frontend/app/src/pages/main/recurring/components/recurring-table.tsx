@@ -1,144 +1,44 @@
-import { useEffect, useMemo, useState } from 'react';
-import {
-  ColumnFiltersState,
-  PaginationState,
-  RowSelectionState,
-  SortingState,
-  VisibilityState,
-} from '@tanstack/react-table';
-import { useQuery } from '@tanstack/react-query';
-import {
-  CronWorkflows,
-  CronWorkflowsOrderByField,
-  WorkflowRunOrderByDirection,
-  queries,
-} from '@/lib/api';
-import invariant from 'tiny-invariant';
-import { useOutletContext, useSearchParams } from 'react-router-dom';
-import { TenantContextType } from '@/lib/outlet';
+import { useState } from 'react';
+import { VisibilityState } from '@tanstack/react-table';
+import { CronWorkflows } from '@/lib/api';
 import { DataTable } from '@/components/molecules/data-table/data-table';
 import { columns } from './recurring-columns';
 import { Button } from '@/components/ui/button';
-import { ArrowPathIcon } from '@heroicons/react/24/outline';
 import { DeleteCron } from './delete-cron';
 import {
-  FilterOption,
   ToolbarFilters,
   ToolbarType,
 } from '@/components/molecules/data-table/data-table-toolbar';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
+import { TriggerWorkflowForm } from '../../workflows/$workflow/components/trigger-workflow-form';
+import { DocsButton } from '@/components/docs/docs-button';
+import { docsPages } from '@/lib/generated/docs';
+import { useCrons } from '../hooks/use-crons';
+import { CronColumn, workflowKey, metadataKey } from './recurring-columns';
 
 export function CronsTable() {
-  const { tenant } = useOutletContext<TenantContextType>();
-  const [searchParams, setSearchParams] = useSearchParams();
-
-  invariant(tenant);
-
-  const [sorting, setSorting] = useState<SortingState>(() => {
-    const sortParam = searchParams.get('sort');
-    if (sortParam) {
-      const [id, desc] = sortParam.split(':');
-      return [{ id, desc: desc === 'desc' }];
-    }
-    return [];
-  });
-
-  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>(() => {
-    const filtersParam = searchParams.get('filters');
-    if (filtersParam) {
-      return JSON.parse(filtersParam);
-    }
-    return [];
-  });
+  const { tenantId } = useCurrentTenantId();
+  const [triggerWorkflow, setTriggerWorkflow] = useState(false);
+  const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
 
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
 
-  const [pagination, setPagination] = useState<PaginationState>(() => {
-    const pageIndex = Number(searchParams.get('pageIndex')) || 0;
-    const pageSize = Number(searchParams.get('pageSize')) || 50;
-    return { pageIndex, pageSize };
-  });
-
-  const [pageSize, setPageSize] = useState<number>(
-    Number(searchParams.get('pageSize')) || 50,
-  );
-  const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
-
-  useEffect(() => {
-    const newSearchParams = new URLSearchParams(searchParams);
-
-    newSearchParams.set(
-      'sort',
-      sorting.map((s) => `${s.id}:${s.desc ? 'desc' : 'asc'}`).join(','),
-    );
-    newSearchParams.set('filters', JSON.stringify(columnFilters));
-    newSearchParams.set('pageIndex', pagination.pageIndex.toString());
-    newSearchParams.set('pageSize', pagination.pageSize.toString());
-    setSearchParams(newSearchParams);
-  }, [sorting, columnFilters, pagination, setSearchParams, searchParams]);
-
-  const workflow = useMemo<string | undefined>(() => {
-    const filter = columnFilters.find((filter) => filter.id === 'Workflow');
-
-    if (!filter) {
-      return;
-    }
-
-    const vals = filter?.value as Array<string>;
-    return vals[0];
-  }, [columnFilters]);
-
-  const orderByDirection = useMemo<
-    WorkflowRunOrderByDirection | undefined
-  >(() => {
-    if (!sorting.length) {
-      return;
-    }
-
-    return sorting[0]?.desc
-      ? WorkflowRunOrderByDirection.DESC
-      : WorkflowRunOrderByDirection.ASC;
-  }, [sorting]);
-
-  const orderByField = useMemo<CronWorkflowsOrderByField | undefined>(() => {
-    if (!sorting.length) {
-      return;
-    }
-
-    switch (sorting[0]?.id) {
-      case 'createdAt':
-        return CronWorkflowsOrderByField.CreatedAt;
-      case 'name':
-        return CronWorkflowsOrderByField.Name;
-      default:
-        return CronWorkflowsOrderByField.CreatedAt;
-    }
-  }, [sorting]);
-
-  const offset = useMemo(() => {
-    if (!pagination) {
-      return;
-    }
-
-    return pagination.pageIndex * pagination.pageSize;
-  }, [pagination]);
-
   const {
-    data,
-    isLoading: queryIsLoading,
-    error: queryError,
+    crons,
+    numPages,
+    isLoading,
     refetch,
-  } = useQuery({
-    ...queries.cronJobs.list(tenant.metadata.id, {
-      orderByField,
-      orderByDirection,
-      offset,
-      limit: pageSize,
-      workflowId: workflow,
-      additionalMetadata: columnFilters.find(
-        (filter) => filter.id === 'Metadata',
-      )?.value as string[] | undefined,
-    }),
-    refetchInterval: 2000,
+    error,
+    pagination,
+    setPagination,
+    setPageSize,
+    columnFilters,
+    setColumnFilters,
+    workflowKeyFilters,
+    isRefetching,
+    resetFilters,
+  } = useCrons({
+    key: 'table',
   });
 
   const [showDeleteCron, setShowDeleteCron] = useState<
@@ -156,45 +56,27 @@ export function CronsTable() {
     }
   };
 
-  const { data: workflowKeys } = useQuery({
-    ...queries.workflows.list(tenant.metadata.id, { limit: 200 }),
-  });
-
-  const workflowKeyFilters = useMemo((): FilterOption[] => {
-    return (
-      workflowKeys?.rows?.map((key) => ({
-        value: key.metadata.id,
-        label: key.name,
-      })) || []
-    );
-  }, [workflowKeys]);
-
   const filters: ToolbarFilters = [
     {
-      columnId: 'Workflow',
-      title: 'Workflow',
+      columnId: workflowKey,
+      title: CronColumn.workflow,
       options: workflowKeyFilters,
       type: ToolbarType.Radio,
     },
     {
-      columnId: 'Metadata',
-      title: 'Metadata',
+      columnId: metadataKey,
+      title: CronColumn.metadata,
       type: ToolbarType.KeyValue,
     },
   ];
 
   const actions = [
     <Button
-      key="refresh"
-      className="h-8 px-2 lg:px-3"
-      size="sm"
-      onClick={() => {
-        refetch();
-      }}
-      variant={'outline'}
-      aria-label="Refresh crons list"
+      key="create-cron"
+      onClick={() => setTriggerWorkflow(true)}
+      className="h-8 border px-3"
     >
-      <ArrowPathIcon className={`h-4 w-4`} />
+      Create Cron Job
     </Button>,
   ];
 
@@ -202,35 +84,60 @@ export function CronsTable() {
     <>
       {showDeleteCron && (
         <DeleteCron
-          tenant={tenant.metadata.id}
           cron={showDeleteCron}
           setShowCronRevoke={setShowDeleteCron}
           onSuccess={handleConfirmDelete}
         />
       )}
+      <TriggerWorkflowForm
+        defaultTimingOption="cron"
+        defaultWorkflow={undefined}
+        show={triggerWorkflow}
+        onClose={() => setTriggerWorkflow(false)}
+      />
+
       <DataTable
-        error={queryError}
-        isLoading={queryIsLoading}
+        error={error}
+        isLoading={isLoading}
         columns={columns({
+          tenantId,
           onDeleteClick: handleDeleteClick,
+          selectedJobId,
+          setSelectedJobId,
         })}
-        data={data?.rows || []}
+        data={crons}
         filters={filters}
         showColumnToggle={true}
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}
-        sorting={sorting}
-        setSorting={setSorting}
         columnFilters={columnFilters}
         setColumnFilters={setColumnFilters}
         pagination={pagination}
         setPagination={setPagination}
         onSetPageSize={setPageSize}
-        pageCount={data?.pagination?.num_pages || 0}
-        rowSelection={rowSelection}
-        setRowSelection={setRowSelection}
-        actions={actions}
+        pageCount={numPages}
+        rightActions={actions}
         getRowId={(row) => row.metadata.id}
+        columnKeyToName={CronColumn}
+        refetchProps={{
+          isRefetching,
+          onRefetch: refetch,
+        }}
+        onResetFilters={resetFilters}
+        showSelectedRows={false}
+        emptyState={
+          <div className="w-full h-full flex flex-col gap-y-4 text-foreground py-8 justify-center items-center">
+            <p className="text-lg font-semibold">No crons found</p>
+            <div className="w-fit">
+              <DocsButton
+                doc={docsPages.home['cron-runs']}
+                size="full"
+                variant="outline"
+                label="Learn about cron jobs in Hatchet"
+              />
+            </div>
+          </div>
+        }
       />
     </>
   );

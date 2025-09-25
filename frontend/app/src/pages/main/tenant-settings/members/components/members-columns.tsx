@@ -1,10 +1,10 @@
 import { ColumnDef } from '@tanstack/react-table';
-import { DataTableColumnHeader } from '../../../../../components/molecules/data-table/data-table-column-header';
+import { DataTableColumnHeader } from '@/components/molecules/data-table/data-table-column-header';
 import api, { TenantMember, queries } from '@/lib/api';
 import { capitalize } from '@/lib/utils';
 import { DataTableRowActions } from '@/components/molecules/data-table/data-table-row-actions';
 import { useOutletContext } from 'react-router-dom';
-import { TenantContextType, UserContextType } from '@/lib/outlet';
+import { UserContextType } from '@/lib/outlet';
 import RelativeDate from '@/components/molecules/relative-date';
 import { useMutation } from '@tanstack/react-query';
 import { useApiError } from '@/lib/hooks';
@@ -12,6 +12,8 @@ import queryClient from '@/query-client';
 import { ConfirmDialog } from '@/components/molecules/confirm-dialog';
 import { useState } from 'react';
 import useApiMeta from '@/pages/auth/hooks/use-api-meta';
+import useCloudApiMeta from '@/pages/auth/hooks/use-cloud-api-meta';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
 
 // Component for handling member actions
 function MemberActions({
@@ -23,28 +25,32 @@ function MemberActions({
   onChangePasswordClick: (member: TenantMember) => void;
   onEditRoleClick: (member: TenantMember) => void;
 }) {
-  const { tenant, user } = useOutletContext<
-    TenantContextType & UserContextType
-  >();
+  const { user } = useOutletContext<UserContextType>();
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const { handleApiError } = useApiError({});
+  const { tenantId } = useCurrentTenantId();
   const meta = useApiMeta();
+  const { isCloudEnabled } = useCloudApiMeta();
 
   const deleteMemberMutation = useMutation({
-    mutationKey: ['tenant-member:delete', tenant.metadata.id],
+    mutationKey: ['tenant-member:delete', tenantId],
     mutationFn: async (data: { memberId: string }) => {
-      await api.tenantMemberDelete(tenant.metadata.id, data.memberId);
+      await api.tenantMemberDelete(tenantId, data.memberId);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: queries.members.list(tenant.metadata.id).queryKey,
+        queryKey: queries.members.list(tenantId).queryKey,
       });
     },
     onError: handleApiError,
   });
 
+  const isOwnerRole = member.role === 'OWNER';
+
   const canDeleteMember =
-    member.user.email !== user?.email && meta.data?.allowInvites;
+    member.user.email !== user?.email &&
+    meta.data?.allowInvites &&
+    !(isCloudEnabled && isOwnerRole); // Hide delete option for OWNER in cloud mode
 
   const canChangePassword =
     member.user.email === user?.email && meta.data?.allowChangePassword;

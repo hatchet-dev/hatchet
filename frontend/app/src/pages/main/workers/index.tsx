@@ -1,29 +1,116 @@
-import { Separator } from '@/components/ui/separator';
-import invariant from 'tiny-invariant';
-import { useOutletContext } from 'react-router-dom';
-import { TenantContextType } from '@/lib/outlet';
+import { useMemo, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { queries } from '@/lib/api';
+import { DataTable } from '@/components/molecules/data-table/data-table';
+import { Loading } from '@/components/ui/loading';
+import { VisibilityState } from '@tanstack/react-table';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
+import { useRefetchInterval } from '@/contexts/refetch-interval-context';
+import { columns, statusKey, WorkerColumn } from './components/worker-columns';
+import { ToolbarType } from '@/components/molecules/data-table/data-table-toolbar';
+import { DocsButton } from '@/components/docs/docs-button';
+import { docsPages } from '@/lib/generated/docs';
+import { useZodColumnFilters } from '@/hooks/use-zod-column-filters';
+import { z } from 'zod';
+import { usePagination } from '@/hooks/use-pagination';
 
-import { WorkersTable } from './components/worker-table';
-import { ServerStackIcon } from '@heroicons/react/24/outline';
+const workersQuerySchema = z
+  .object({
+    s: z.array(z.enum(['ACTIVE', 'INACTIVE', 'PAUSED'])).optional(), // status
+  })
+  .default({})
+  .transform((data) => ({
+    s: data.s ?? ['ACTIVE', 'PAUSED'],
+  }));
 
 export default function Workers() {
-  const { tenant } = useOutletContext<TenantContextType>();
-  invariant(tenant);
+  const { tenantId } = useCurrentTenantId();
+  const { refetchInterval } = useRefetchInterval();
+  const paramKey = 'workers-table';
+  const { pagination, setPagination, limit, offset, setPageSize } =
+    usePagination({
+      key: paramKey,
+    });
+
+  const {
+    state: { s: statuses },
+    columnFilters,
+    setColumnFilters,
+    resetFilters,
+  } = useZodColumnFilters(workersQuerySchema, paramKey, { s: statusKey });
+
+  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
+
+  const listWorkersQuery = useQuery({
+    ...queries.workers.list(tenantId),
+    refetchInterval,
+  });
+
+  const data = useMemo(
+    () =>
+      listWorkersQuery.data?.rows
+        ?.filter((w) => w.status && statuses.includes(w.status))
+        ?.sort(
+          (a, b) =>
+            new Date(b.metadata?.createdAt).getTime() -
+            new Date(a.metadata?.createdAt).getTime(),
+        ) ?? [],
+    [listWorkersQuery.data?.rows, statuses],
+  );
+
+  const paginatedData = useMemo(
+    () => data.slice(offset, offset + limit),
+    [data, limit, offset],
+  );
+
+  if (listWorkersQuery.isLoading) {
+    return <Loading />;
+  }
 
   return (
-    <div className="flex-grow h-full w-full">
-      <div className="mx-auto py-8 px-4 sm:px-6 lg:px-8">
-        <div className="flex flex-row justify-between items-center">
-          <div className="flex flex-row gap-4 items-center justify-between">
-            <ServerStackIcon className="h-6 w-6 text-foreground mt-1" />
-            <h2 className="text-2xl font-bold leading-tight text-foreground">
-              Workers
-            </h2>
+    <DataTable
+      columns={columns(tenantId)}
+      data={paginatedData}
+      filters={[
+        {
+          columnId: 'status',
+          title: 'Status',
+          type: ToolbarType.Checkbox,
+          options: [
+            { value: 'ACTIVE', label: 'Active' },
+            { value: 'PAUSED', label: 'Paused' },
+            { value: 'INACTIVE', label: 'Inactive' },
+          ],
+        },
+      ]}
+      emptyState={
+        <div className="w-full h-full flex flex-col gap-y-4 text-foreground py-8 justify-center items-center">
+          <p className="text-lg font-semibold">No workers found</p>
+          <div className="w-fit">
+            <DocsButton
+              doc={docsPages.home.workers}
+              size="full"
+              variant="outline"
+              label="Learn about running workers"
+            />
           </div>
         </div>
-        <Separator className="my-4" />
-        <WorkersTable />
-      </div>
-    </div>
+      }
+      columnFilters={columnFilters}
+      setColumnFilters={setColumnFilters}
+      columnVisibility={columnVisibility}
+      setColumnVisibility={setColumnVisibility}
+      showColumnToggle={true}
+      columnKeyToName={WorkerColumn}
+      refetchProps={{
+        isRefetching: listWorkersQuery.isRefetching,
+        onRefetch: listWorkersQuery.refetch,
+      }}
+      onResetFilters={resetFilters}
+      pagination={pagination}
+      setPagination={setPagination}
+      onSetPageSize={setPageSize}
+      pageCount={Math.ceil(data.length / limit)}
+    />
   );
 }

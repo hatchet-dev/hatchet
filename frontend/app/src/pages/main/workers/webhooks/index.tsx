@@ -1,6 +1,4 @@
 import { Separator } from '@/components/ui/separator';
-import { TenantContextType } from '@/lib/outlet';
-import { useOutletContext } from 'react-router-dom';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import api, { queries, WebhookWorkerCreateRequest } from '@/lib/api';
 import {
@@ -8,29 +6,30 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
-} from '@/components/ui/card.tsx';
-import { Button } from '@/components/ui/button.tsx';
+} from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { useEffect, useState } from 'react';
 import { useApiError } from '@/lib/hooks.ts';
-import { Dialog } from '@/components/ui/dialog.tsx';
+import { Dialog } from '@/components/ui/dialog';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu.tsx';
+} from '@/components/ui/dropdown-menu';
 import { BiDotsVertical } from 'react-icons/bi';
 import { CreateWebhookWorkerDialog } from './components/create-webhook-worker-dialog';
 import { DeleteWebhookWorkerDialog } from './components/delete-webhook-worker-dialog';
 import { Badge } from '@/components/ui/badge';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
 
 export default function Webhooks() {
-  const { tenant } = useOutletContext<TenantContextType>();
+  const { tenantId } = useCurrentTenantId();
   const [showCreateTokenDialog, setShowCreateTokenDialog] = useState(false);
   const [showDeleteTokenDialog, setShowDeleteTokenDialog] = useState('');
 
   const listWebhookWorkersQuery = useQuery({
-    ...queries.webhookWorkers.list(tenant.metadata.id),
+    ...queries.webhookWorkers.list(tenantId),
   });
 
   return (
@@ -49,7 +48,7 @@ export default function Webhooks() {
           </Button>
         </div>
         <p className="text-gray-700 dark:text-gray-300 my-4">
-          Assign workflow runs to a HTTP endpoint.{' '}
+          Assign task runs to a HTTP endpoint.{' '}
           <a
             className="underline"
             target="_blank"
@@ -76,7 +75,7 @@ export default function Webhooks() {
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button
-                            aria-label="Workflow Actions"
+                            aria-label="Registered Tasks"
                             size="icon"
                             variant="ghost"
                           >
@@ -107,7 +106,6 @@ export default function Webhooks() {
           ))}
 
           <CreateWebhookWorker
-            tenant={tenant.metadata.id}
             showDialog={showCreateTokenDialog}
             setShowDialog={setShowCreateTokenDialog}
             onSuccess={() => {
@@ -172,16 +170,15 @@ function DeleteWebhookWorker({
 }
 
 function CreateWebhookWorker({
-  tenant,
   showDialog,
   setShowDialog,
   onSuccess,
 }: {
-  tenant: string;
   onSuccess: () => void;
   showDialog: boolean;
   setShowDialog: (show: boolean) => void;
 }) {
+  const { tenantId } = useCurrentTenantId();
   const [generatedToken, setGeneratedToken] = useState<string | undefined>();
   const [webhookId, setWebhookId] = useState<string | undefined>();
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -190,9 +187,9 @@ function CreateWebhookWorker({
   });
 
   const createWebhookWorkerMutation = useMutation({
-    mutationKey: ['webhook-worker:create', tenant],
+    mutationKey: ['webhook-worker:create', tenantId],
     mutationFn: async (data: WebhookWorkerCreateRequest) => {
-      const res = await api.webhookCreate(tenant, data);
+      const res = await api.webhookCreate(tenantId, data);
       return res.data;
     },
     onSuccess: (data) => {

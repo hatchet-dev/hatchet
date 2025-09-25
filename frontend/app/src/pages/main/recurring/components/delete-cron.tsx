@@ -6,6 +6,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Spinner } from '@/components/ui/loading';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
 import api, { CronWorkflows } from '@/lib/api';
 import { useApiError } from '@/lib/hooks';
 import { useMutation } from '@tanstack/react-query';
@@ -18,25 +19,24 @@ interface DeleteCronFormProps {
 }
 
 export function DeleteCron({
-  tenant,
   cron,
   setShowCronRevoke,
   onSuccess,
 }: {
-  tenant: string;
   cron?: CronWorkflows;
   setShowCronRevoke: (show?: CronWorkflows) => void;
   onSuccess: () => void;
 }) {
+  const { tenantId } = useCurrentTenantId();
   const { handleApiError } = useApiError({});
 
   const deleteMutation = useMutation({
-    mutationKey: ['cron-job:delete', tenant, cron],
+    mutationKey: ['cron-job:delete', tenantId, cron],
     mutationFn: async () => {
       if (!cron) {
         return;
       }
-      await api.workflowCronDelete(tenant, cron.metadata.id);
+      await api.workflowCronDelete(tenantId, cron.metadata.id);
     },
     onSuccess: onSuccess,
     onError: handleApiError,
@@ -56,7 +56,7 @@ export function DeleteCron({
   );
 }
 
-export function DeleteCronForm({ className, ...props }: DeleteCronFormProps) {
+function DeleteCronForm({ className, ...props }: DeleteCronFormProps) {
   return (
     <DialogContent className="w-fit max-w-[80%] min-w-[500px]">
       <DialogHeader>

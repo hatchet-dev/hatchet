@@ -1,13 +1,5 @@
-import { ColumnDef } from '@tanstack/react-table';
-import {
-  APIResourceMeta,
-  Step,
-  StepRun,
-  StepRunEvent,
-  StepRunEventReason,
-  StepRunEventSeverity,
-  queries,
-} from '@/lib/api';
+import { createColumnHelper } from '@tanstack/react-table';
+import { V1TaskEventType, V1TaskEvent, StepRunEventSeverity } from '@/lib/api';
 import RelativeDate from '@/components/molecules/relative-date';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -16,45 +8,56 @@ import {
   XCircleIcon,
 } from '@heroicons/react/24/outline';
 import { DataTableColumnHeader } from '@/components/molecules/data-table/data-table-column-header';
-import { cn } from '@/lib/utils';
-import { Link, useOutletContext } from 'react-router-dom';
+import { cn, emptyGolangUUID } from '@/lib/utils';
+import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { TenantContextType } from '@/lib/outlet';
-import invariant from 'tiny-invariant';
-import { useMemo, useRef, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useRef, useState } from 'react';
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
+import { EventWithMetadata } from './step-run-events-for-workflow-run';
 
-export type ActivityEventData = {
-  metadata: APIResourceMeta;
-  event: StepRunEvent;
-  stepRun?: StepRun;
-  step?: Step;
-};
+function eventTypeToSeverity(
+  eventType: V1TaskEventType | undefined,
+): StepRunEventSeverity {
+  switch (eventType) {
+    case V1TaskEventType.FAILED:
+    case V1TaskEventType.RATE_LIMIT_ERROR:
+    case V1TaskEventType.SCHEDULING_TIMED_OUT:
+    case V1TaskEventType.TIMED_OUT:
+    case V1TaskEventType.CANCELLED:
+      return StepRunEventSeverity.CRITICAL;
+    case V1TaskEventType.REASSIGNED:
+    case V1TaskEventType.REQUEUED_NO_WORKER:
+    case V1TaskEventType.REQUEUED_RATE_LIMIT:
+    case V1TaskEventType.RETRIED_BY_USER:
+    case V1TaskEventType.RETRYING:
+      return StepRunEventSeverity.WARNING;
+    default:
+      return StepRunEventSeverity.INFO;
+  }
+}
+
+const columnHelper = createColumnHelper<EventWithMetadata>();
 
 export const columns = ({
+  tenantId,
   onRowClick,
-  allEvents,
+  fallbackTaskDisplayName,
 }: {
-  onRowClick?: (row: ActivityEventData) => void;
-  allEvents: ActivityEventData[];
-}): ColumnDef<ActivityEventData>[] => {
-  const res: ColumnDef<ActivityEventData>[] = [];
-
-  if (onRowClick) {
-    res.push({
-      accessorKey: 'resource',
+  tenantId: string;
+  onRowClick: (row: EventWithMetadata) => void;
+  fallbackTaskDisplayName: string;
+}) => {
+  return [
+    columnHelper.accessor((row) => row.id, {
+      id: 'task',
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title="Task" />
       ),
       cell: ({ row }) => {
-        if (!row.original.stepRun) {
-          return null;
-        }
         return (
           <div className="min-w-[120px] max-w-[180px]">
             <Badge
@@ -64,7 +67,7 @@ export const columns = ({
             >
               <ArrowLeftEndOnRectangleIcon className="w-4 h-4 mr-1" />
               <div className="truncate max-w-[150px]">
-                {row.original.step?.readableId}
+                {row.original.taskDisplayName || fallbackTaskDisplayName}
               </div>
             </Badge>
           </div>
@@ -72,73 +75,70 @@ export const columns = ({
       },
       enableSorting: false,
       enableHiding: false,
-    });
-  }
-  res.push(
-    {
-      accessorKey: 'createdAt',
+    }),
+    columnHelper.accessor((row) => row.timestamp, {
+      id: 'timestamp',
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title="Seen at" />
       ),
       cell: ({ row }) => (
         <div className="w-fit min-w-[120px]">
-          <RelativeDate date={row.original.event.timeFirstSeen} />
+          <RelativeDate date={row.original.timestamp} />
         </div>
       ),
       enableSorting: false,
       enableHiding: false,
-    },
-    {
-      accessorKey: 'event',
+    }),
+    columnHelper.accessor((row) => eventTypeToSeverity(row.eventType), {
+      id: 'event',
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title="Event" />
       ),
       cell: ({ row }) => {
         const event = row.original;
+        const severity = eventTypeToSeverity(event.eventType);
+
         return (
           <div className="flex flex-row items-center gap-2">
-            <EventIndicator severity={event.event.severity} />
+            <EventIndicator severity={severity} />
             <div className="tracking-wide text-sm flex flex-row gap-4">
-              {getTitleFromReason(event.event.reason, event.event.message)}
+              {mapEventTypeToTitle(event.eventType)}
             </div>
           </div>
         );
       },
       enableSorting: false,
       enableHiding: false,
-    },
-    {
-      accessorKey: 'description',
+    }),
+    columnHelper.accessor((row) => row.workerId, {
+      id: 'description',
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title="Description" />
       ),
       cell: ({ row }) => {
         const items: JSX.Element[] = [];
-        const event = row.original.event;
+        const event = row.original;
 
-        if (event.reason === StepRunEventReason.FAILED) {
-          items.push(
-            <ErrorWithHoverCard event={row.original} rows={allEvents} />,
-          );
+        if (event.eventType === V1TaskEventType.FAILED) {
+          items.push(<ErrorWithHoverCard key="error" event={row.original} />);
         }
 
-        if (event.data) {
-          const data = event.data as any;
-
-          if (data.worker_id) {
-            items.push(
-              <Link to={`/workers/${data.worker_id}`}>
-                <Button
-                  variant="link"
-                  size="xs"
-                  className="font-mono text-xs text-muted-foreground tracking-tight brightness-150"
-                >
-                  <ServerStackIcon className="w-4 h-4 mr-1" />
-                  View Worker
-                </Button>
-              </Link>,
-            );
-          }
+        if (event.workerId && event.workerId !== emptyGolangUUID) {
+          items.push(
+            <Link
+              to={`/tenants/${tenantId}/workers/${event.workerId}`}
+              key="worker"
+            >
+              <Button
+                variant="link"
+                size="xs"
+                className="font-mono text-xs text-muted-foreground tracking-tight brightness-150"
+              >
+                <ServerStackIcon className="w-4 h-4 mr-1" />
+                View Worker
+              </Button>
+            </Link>,
+          );
         }
 
         return (
@@ -147,7 +147,7 @@ export const columns = ({
               key="message"
               className="text-xs text-muted-foreground font-mono tracking-tight"
             >
-              {row.original.event.message}
+              {event.message}
             </div>
             {items.length > 0 && (
               <div key="items" className="flex flex-col gap-2 mt-2">
@@ -159,35 +159,58 @@ export const columns = ({
       },
       enableSorting: false,
       enableHiding: false,
-    },
-  );
-
-  return res;
+    }),
+  ];
 };
 
-const REASON_TO_TITLE: Record<StepRunEventReason, string> = {
-  [StepRunEventReason.ASSIGNED]: 'Assigned to worker',
-  [StepRunEventReason.STARTED]: 'Started',
-  [StepRunEventReason.FINISHED]: 'Completed',
-  [StepRunEventReason.FAILED]: 'Failed',
-  [StepRunEventReason.CANCELLED]: 'Cancelled',
-  [StepRunEventReason.RETRYING]: 'Retrying',
-  [StepRunEventReason.REQUEUED_NO_WORKER]: 'Requeuing (no worker available)',
-  [StepRunEventReason.REQUEUED_RATE_LIMIT]: 'Requeuing (rate limit)',
-  [StepRunEventReason.SCHEDULING_TIMED_OUT]: 'Scheduling timed out',
-  [StepRunEventReason.TIMEOUT_REFRESHED]: 'Timeout refreshed',
-  [StepRunEventReason.REASSIGNED]: 'Reassigned',
-  [StepRunEventReason.TIMED_OUT]: 'Execution timed out',
-  [StepRunEventReason.SLOT_RELEASED]: 'Slot released',
-  [StepRunEventReason.RETRIED_BY_USER]: 'Replayed by user',
-  [StepRunEventReason.WORKFLOW_RUN_GROUP_KEY_SUCCEEDED]:
-    'Successfully got group key',
-  [StepRunEventReason.WORKFLOW_RUN_GROUP_KEY_FAILED]: 'Failed to get group key',
-  [StepRunEventReason.ACKNOWLEDGED]: 'Acknowledged by worker',
-};
-
-function getTitleFromReason(reason: StepRunEventReason, message: string) {
-  return REASON_TO_TITLE[reason] || message;
+function mapEventTypeToTitle(eventType: V1TaskEventType | undefined): string {
+  switch (eventType) {
+    case V1TaskEventType.ASSIGNED:
+      return 'Assigned to worker';
+    case V1TaskEventType.STARTED:
+      return 'Started';
+    case V1TaskEventType.FINISHED:
+      return 'Completed';
+    case V1TaskEventType.FAILED:
+      return 'Failed';
+    case V1TaskEventType.CANCELLED:
+      return 'Cancelled';
+    case V1TaskEventType.RETRYING:
+      return 'Retrying';
+    case V1TaskEventType.REQUEUED_NO_WORKER:
+      return 'Requeuing (no worker available)';
+    case V1TaskEventType.REQUEUED_RATE_LIMIT:
+      return 'Requeuing (rate limit)';
+    case V1TaskEventType.SCHEDULING_TIMED_OUT:
+      return 'Scheduling timed out';
+    case V1TaskEventType.TIMEOUT_REFRESHED:
+      return 'Timeout refreshed';
+    case V1TaskEventType.REASSIGNED:
+      return 'Reassigned';
+    case V1TaskEventType.TIMED_OUT:
+      return 'Execution timed out';
+    case V1TaskEventType.SLOT_RELEASED:
+      return 'Slot released';
+    case V1TaskEventType.RETRIED_BY_USER:
+      return 'Replayed by user';
+    case V1TaskEventType.ACKNOWLEDGED:
+      return 'Acknowledged by worker';
+    case V1TaskEventType.CREATED:
+      return 'Created';
+    case V1TaskEventType.RATE_LIMIT_ERROR:
+      return 'Rate limit error';
+    case V1TaskEventType.SENT_TO_WORKER:
+      return 'Sent to worker';
+    case V1TaskEventType.QUEUED:
+      return 'Queued';
+    case V1TaskEventType.SKIPPED:
+      return 'Skipped';
+    case undefined:
+      return 'Unknown';
+    default:
+      const exhaustiveCheck: never = eventType;
+      throw new Error(`Unhandled case: ${exhaustiveCheck}`);
+  }
 }
 
 const RUN_STATUS_VARIANTS: Record<StepRunEventSeverity, string> = {
@@ -207,17 +230,7 @@ function EventIndicator({ severity }: { severity: StepRunEventSeverity }) {
   );
 }
 
-function ErrorWithHoverCard({
-  event,
-  rows,
-}: {
-  event: ActivityEventData;
-  rows: ActivityEventData[];
-}) {
-  const { tenant } = useOutletContext<TenantContextType>();
-  invariant(tenant);
-  invariant(event.stepRun);
-
+function ErrorWithHoverCard({ event }: { event: V1TaskEvent }) {
   const [popoverOpen, setPopoverOpen] = useState(false);
 
   // containerRef needed due to https://github.com/radix-ui/primitives/issues/1159#issuecomment-2105108943
@@ -258,7 +271,7 @@ function ErrorWithHoverCard({
           container={containerRef.current}
         >
           <div className="p-4 w-[300px] sm:w-[400px] md:w-[500px] lg:w-[600px] max-w-[90vw]">
-            <ErrorHoverContents event={event} rows={rows} />
+            <ErrorHoverContents event={event} />
           </div>
         </PopoverContent>
       </Popover>
@@ -266,104 +279,8 @@ function ErrorWithHoverCard({
   );
 }
 
-function ErrorHoverContents({
-  event,
-  rows,
-}: {
-  event: ActivityEventData;
-  rows: ActivityEventData[];
-}) {
-  // We cannot call this component without stepRun being defined.
-  invariant(event.stepRun);
-
-  const failureRows = rows.filter(
-    (row) =>
-      row.event.reason === StepRunEventReason.FAILED ||
-      row.event.reason === StepRunEventReason.CANCELLED,
-  );
-
-  const latestFailure = failureRows[0];
-
-  // If this is the latest failure, we use the step run to get the error message on hover. Otherwise,
-  // we look in the archives.
-  const isLatestFailure = latestFailure.event.id === event.event.id;
-
-  const getStepRunQuery = useQuery({
-    ...queries.stepRuns.get(event.stepRun.tenantId, event.stepRun.metadata.id),
-    enabled: isLatestFailure,
-  });
-
-  const listStepRunArchiveQuery = useQuery({
-    ...queries.stepRuns.listArchives(event.stepRun?.metadata.id),
-    enabled: !isLatestFailure,
-  });
-
-  const errorString = useMemo(() => {
-    if (isLatestFailure && !getStepRunQuery.data) {
-      return 'Loading...';
-    }
-
-    if (!isLatestFailure && !listStepRunArchiveQuery.data) {
-      return 'Loading...';
-    }
-
-    if (isLatestFailure) {
-      return getStepRunQuery.data?.error || 'No error message found';
-    }
-
-    const eventData: any = event.event.data;
-
-    const hasRetryCount = Object.keys(eventData).includes('retry_count');
-
-    if (hasRetryCount) {
-      const eventRetryCount = eventData.retry_count;
-
-      // Track down the correct archived step run. Step runs have both retries and replays, so we have to find the
-      // matching retryCount, but make sure that we skip the replays correctly.
-      const matchingRows = failureRows.filter((row) => {
-        const data: any = row.event?.data;
-        if (Object.keys(data).includes('retry_count')) {
-          return (
-            data.retry_count === eventRetryCount &&
-            row.event.timeFirstSeen > event.event.timeFirstSeen
-          );
-        }
-      });
-
-      let numArchivesToSkip = matchingRows.length;
-
-      // if the retry count of the most recent error is equal to the event's retry count, we need to skip 1
-      // fewer.
-      const latestFailureEventData: any = latestFailure.event.data;
-
-      if (
-        Object.keys(latestFailureEventData).includes('retry_count') &&
-        latestFailureEventData?.retry_count === eventRetryCount
-      ) {
-        numArchivesToSkip -= 1;
-      }
-
-      // find the corresponding archive
-      const matchingArchives = listStepRunArchiveQuery.data?.rows?.filter(
-        (archivedStepRun) => {
-          return archivedStepRun.retryCount === eventRetryCount;
-        },
-      );
-
-      const archivedStepRun = matchingArchives?.[numArchivesToSkip];
-
-      return archivedStepRun?.error || 'No error message found';
-    }
-
-    return 'No error message found';
-  }, [
-    event,
-    getStepRunQuery,
-    isLatestFailure,
-    listStepRunArchiveQuery,
-    failureRows,
-    latestFailure.event.data,
-  ]);
+function ErrorHoverContents({ event }: { event: V1TaskEvent }) {
+  const errorText = event.errorMessage;
 
   return (
     <div className="space-y-3">
@@ -374,7 +291,7 @@ function ErrorHoverContents({
       <div className="rounded-md h-[400px] bg-muted/50 border border-border overflow-hidden">
         <div className="h-full overflow-y-scroll overflow-x-hidden p-4 text-sm font-mono text-foreground scrollbar-thin scrollbar-track-muted scrollbar-thumb-muted-foreground">
           <pre className="whitespace-pre-wrap break-words min-h-[500px]">
-            {errorString || 'No error message available'}
+            {errorText || 'No error message found'}
           </pre>
         </div>
       </div>

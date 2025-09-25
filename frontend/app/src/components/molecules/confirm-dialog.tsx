@@ -1,5 +1,5 @@
 import { Button, ButtonProps } from '@/components/ui/button';
-import { Spinner } from '@/components/ui/loading.tsx';
+import { Spinner } from '@/components/ui/loading';
 import {
   Dialog,
   DialogContent,

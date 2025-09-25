@@ -1,6 +1,5 @@
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
-import { useTenant } from '@/lib/atoms';
 import { Link } from 'react-router-dom';
 import { useState, useEffect, useCallback } from 'react';
 import { ArrowLeftIcon } from '@radix-ui/react-icons';
@@ -10,7 +9,7 @@ import {
   ArrowPathIcon,
   KeyIcon,
 } from '@heroicons/react/24/outline';
-import { Step, Steps } from '@/components/v1/ui/steps';
+import { Step, Steps } from '@/components/ui/steps';
 import { CodeHighlighter } from '@/components/ui/code-highlighter';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { queries } from '@/lib/api/queries';
@@ -25,9 +24,10 @@ import { cloudApi } from '@/lib/api/api';
 import api from '@/lib/api';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { GitHubLogoIcon } from '@radix-ui/react-icons';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
 
 export default function DemoTemplate() {
-  const { tenant } = useTenant();
+  const { tenantId } = useCurrentTenantId();
   const [deploying, setDeploying] = useState(false);
   const [deployed, setDeployed] = useState(false);
   const [deployedWorkerId, setDeployedWorkerId] = useState<string | null>(null);
@@ -54,7 +54,7 @@ export default function DemoTemplate() {
   // Create demo template mutation
   const { mutate: createComputeDemoTemplate, isPending } = useMutation({
     mutationFn: (template: TemplateOptions) =>
-      cloudApi.managedWorkerTemplateCreate(tenant!.metadata.id, {
+      cloudApi.managedWorkerTemplateCreate(tenantId, {
         name: template,
       }),
     onSuccess: (response) => {
@@ -122,7 +122,7 @@ export default function DemoTemplate() {
 
   // Trigger a workflow run
   const triggerWorkflow = useCallback(async () => {
-    if (!tenant || !workflowId) {
+    if (!workflowId) {
       return;
     }
 
@@ -153,12 +153,12 @@ export default function DemoTemplate() {
         }
       }, 1000);
     } catch (error) {
-      console.error('Failed to trigger workflow:', error);
+      console.error('Failed to trigger run:', error);
       setTriggering(false);
     }
-  }, [tenant, workflowId, isSimulation, runsTriggered]);
+  }, [workflowId, isSimulation, runsTriggered]);
 
-  // Automatically trigger workflow runs when success step is opened
+  // Automatically trigger task runs when success step is opened
   useEffect(() => {
     if (successStepOpen && workflowId && !allRunsTriggered) {
       const triggerRuns = async () => {
@@ -215,10 +215,6 @@ export default function DemoTemplate() {
   }, [deployedWorkerId, workerEventsQuery.data, isSimulation, workflowId]);
 
   const handleDeploy = async () => {
-    if (!tenant) {
-      return;
-    }
-
     if (isSimulation) {
       simulateDeployment();
       return;
@@ -264,15 +260,9 @@ export default function DemoTemplate() {
         setIsGeneratingToken(false);
       }, 1500);
     } else {
-      // Use the real API to generate a token in real mode
-      if (!tenant) {
-        setIsGeneratingToken(false);
-        return;
-      }
-
       // Call the real API to generate a token
       api
-        .apiTokenCreate(tenant.metadata.id, { name: 'demo-template-token' })
+        .apiTokenCreate(tenantId, { name: 'demo-template-token' })
         .then((response: any) => {
           if (response.data && response.data.token) {
             setApiToken(response.data.token);
@@ -314,7 +304,7 @@ print(result)
 import (
 	"fmt"
 
-	v1_workflows "github.com/hatchet-dev/hatchet/examples/go/workflows"
+	v1_workflows "github.com/hatchet-dev/hatchet/examples/go/tasks"
 	v1 "github.com/hatchet-dev/hatchet/pkg/v1"
 	"github.com/hatchet-dev/hatchet/pkg/v1/workflow"
 	"github.com/joho/godotenv"
@@ -356,7 +346,7 @@ func main() {
     <div className="flex-grow h-full w-full">
       <div className="mx-auto py-8 px-4 sm:px-6 lg:px-8">
         <div className="flex flex-row items-center mb-4">
-          <Link to="/managed-workers" className="mr-4">
+          <Link to={`/tenants/${tenantId}/managed-workers`} className="mr-4">
             <Button variant="ghost" size="icon">
               <ArrowLeftIcon className="h-4 w-4" />
             </Button>
@@ -661,7 +651,7 @@ func main() {
                             <span>{deploymentStatus}</span>
                             {deployedWorkerId && (
                               <a
-                                href={`/tenants/${tenant?.metadata.id}/managed-workers/${deployedWorkerId}`}
+                                href={`/tenants/${tenantId}/managed-workers/${deployedWorkerId}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="text-primary hover:underline ml-2"
@@ -695,11 +685,7 @@ func main() {
                           </div>
                           <Button
                             onClick={handleDeploy}
-                            disabled={
-                              deploying ||
-                              !tenant ||
-                              (!isSimulation && isPending)
-                            }
+                            disabled={deploying || (!isSimulation && isPending)}
                             className="min-w-32"
                           >
                             {deploying || (!isSimulation && isPending)
@@ -876,29 +862,27 @@ func main() {
                         •
                       </span>
                       <span>
-                        Three demo workflow runs have been triggered for you
+                        Three demo task runs have been triggered for you
                       </span>
                     </li>
                     <li className="flex items-start">
                       <span className="text-primary mr-2 flex items-center mt-0.5">
                         •
                       </span>
-                      <span>
-                        Use the API to trigger additional workflow runs
-                      </span>
+                      <span>Use the API to trigger additional task runs</span>
                     </li>
                     <li className="flex items-start">
                       <span className="text-primary mr-2 flex items-center mt-0.5">
                         •
                       </span>
-                      <span>Monitor workflow runs in the dashboard</span>
+                      <span>Monitor task runs in the dashboard</span>
                     </li>
                   </ul>
 
                   {/* Main action button */}
                   {deployedWorkerId && (
                     <Link
-                      to={`/tenants/${tenant?.metadata.id}/managed-workers/${deployedWorkerId}`}
+                      to={`/tenants/${tenantId}/managed-workers/${deployedWorkerId}`}
                     >
                       <Button variant="default" className="w-full mb-4">
                         View Your Service
@@ -908,14 +892,14 @@ func main() {
 
                   {/* Secondary action buttons */}
                   <div className="grid grid-cols-2 gap-3">
-                    <Link to="/workflow-runs">
+                    <Link to={`/tenants/${tenantId}/runs`}>
                       <Button variant="outline" className="w-full">
-                        View Workflow Runs
+                        View Runs
                       </Button>
                     </Link>
-                    <Link to="/workflows">
+                    <Link to={`/tenants/${tenantId}/workflows`}>
                       <Button variant="outline" className="w-full">
-                        View Workflows
+                        View RegisteredTasks
                       </Button>
                     </Link>
                   </div>

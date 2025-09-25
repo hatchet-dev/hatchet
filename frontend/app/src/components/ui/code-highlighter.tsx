@@ -10,7 +10,7 @@ import {
 } from 'react-syntax-highlighter/dist/esm/styles/hljs';
 import CopyToClipboard from './copy-to-clipboard';
 import { cn } from '@/lib/utils';
-import { useTheme } from '../theme-provider';
+import { useTheme } from '@/components/theme-provider';
 
 SyntaxHighlighter.registerLanguage('typescript', typescript);
 SyntaxHighlighter.registerLanguage('yaml', yaml);
@@ -24,6 +24,7 @@ export function CodeHighlighter({
   maxHeight,
   minHeight,
   maxWidth,
+  minWidth,
   copy = true,
   wrapLines = true,
 }: {
@@ -34,6 +35,7 @@ export function CodeHighlighter({
   maxHeight?: string;
   minHeight?: string;
   maxWidth?: string;
+  minWidth?: string;
   copy?: boolean;
   wrapLines?: boolean;
 }) {
@@ -51,9 +53,10 @@ export function CodeHighlighter({
         customStyle={{
           cursor: 'default',
           borderRadius: '0.5rem',
-          maxHeight: maxHeight,
-          minHeight: minHeight,
-          maxWidth: maxWidth,
+          maxHeight,
+          minHeight,
+          maxWidth,
+          minWidth,
           fontFamily:
             "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
           fontSize: '0.75rem',

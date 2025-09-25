@@ -1,22 +1,84 @@
-import { Separator } from '@/components/ui/separator';
-import invariant from 'tiny-invariant';
-import { useOutletContext } from 'react-router-dom';
-import { TenantContextType } from '@/lib/outlet';
-import { WorkflowTable } from './components/workflow-table';
+import { useState } from 'react';
+import { DataTable } from '@/components/molecules/data-table/data-table';
+import { Loading } from '@/components/ui/loading';
+import { VisibilityState } from '@tanstack/react-table';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
+import {
+  columns,
+  nameKey,
+  WorkflowColumn,
+} from './components/workflow-columns';
+import { useWorkflows } from './hooks/use-workflows';
+import { DocsButton } from '@/components/docs/docs-button';
+import { docsPages } from '@/lib/generated/docs';
+import { ToolbarType } from '@/components/molecules/data-table/data-table-toolbar';
 
-export default function Workflows() {
-  const { tenant } = useOutletContext<TenantContextType>();
-  invariant(tenant);
+export default function WorkflowTable() {
+  const { tenantId } = useCurrentTenantId();
+
+  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
+
+  const {
+    workflows,
+    numWorkflows,
+    isLoading,
+    isRefetching,
+    pagination,
+    setPagination,
+    setPageSize,
+    refetch,
+    columnFilters,
+    setColumnFilters,
+    resetFilters,
+  } = useWorkflows({
+    key: 'workflows-table',
+  });
+
+  if (isLoading) {
+    return <Loading />;
+  }
 
   return (
-    <div className="flex-grow h-full w-full">
-      <div className="mx-auto py-8 px-4 sm:px-6 lg:px-8">
-        <h2 className="text-2xl font-bold leading-tight text-foreground">
-          Workflows
-        </h2>
-        <Separator className="my-4" />
-        <WorkflowTable />
-      </div>
-    </div>
+    <DataTable
+      columns={columns(tenantId)}
+      data={workflows}
+      emptyState={
+        <div className="w-full h-full flex flex-col gap-y-4 text-foreground py-8 justify-center items-center">
+          <p className="text-lg font-semibold">No workflows found</p>
+          <div className="w-fit">
+            <DocsButton
+              doc={docsPages.home['your-first-task']}
+              size="full"
+              variant="outline"
+              label="Learn about creating workflows and tasks"
+            />
+          </div>
+        </div>
+      }
+      filters={[
+        {
+          columnId: nameKey,
+          title: WorkflowColumn.name,
+          type: ToolbarType.Search,
+        },
+      ]}
+      columnVisibility={columnVisibility}
+      setColumnVisibility={setColumnVisibility}
+      pagination={pagination}
+      setPagination={setPagination}
+      onSetPageSize={setPageSize}
+      showSelectedRows={false}
+      pageCount={numWorkflows}
+      isLoading={isLoading}
+      showColumnToggle={true}
+      columnKeyToName={WorkflowColumn}
+      refetchProps={{
+        isRefetching,
+        onRefetch: refetch,
+      }}
+      columnFilters={columnFilters}
+      setColumnFilters={setColumnFilters}
+      onResetFilters={resetFilters}
+    />
   );
 }

@@ -5,7 +5,7 @@ import { Label } from '@/components/ui/label';
 import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Spinner } from '@/components/ui/loading.tsx';
+import { Spinner } from '@/components/ui/loading';
 import {
   Select,
   SelectContent,
@@ -30,6 +30,7 @@ interface UpdateMemberFormProps {
   isLoading: boolean;
   fieldErrors?: Record<string, string>;
   member: TenantMember;
+  isCloudEnabled?: boolean;
 }
 
 export function UpdateMemberForm({
@@ -96,7 +97,9 @@ export function UpdateMemberForm({
                         <SelectValue id="role" placeholder="Role..." />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="OWNER">Owner</SelectItem>
+                        {!props.isCloudEnabled && (
+                          <SelectItem value="OWNER">Owner</SelectItem>
+                        )}
                         <SelectItem value="ADMIN">Admin</SelectItem>
                         <SelectItem value="MEMBER">Member</SelectItem>
                       </SelectContent>

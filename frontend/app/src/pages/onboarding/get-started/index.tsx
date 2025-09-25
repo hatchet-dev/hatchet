@@ -1,20 +1,20 @@
 import { Loading } from '@/components/ui/loading';
-import { useTenant } from '@/lib/atoms';
 import { UserContextType, MembershipsContextType } from '@/lib/outlet';
 import { useOutletContext } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Step, Steps } from '@/components/v1/ui/steps';
+import { Step, Steps } from '@/components/ui/steps';
 import { DefaultOnboardingAuth } from './platforms/defaults/default-onboarding-auth';
 import { DefaultOnboardingWorkflow } from './platforms/defaults/default-onboarding-workflow';
 import { useState } from 'react';
 import { WorkerListener } from './platforms/defaults/default-worker-listener';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { CodeHighlighter } from '@/components/ui/code-highlighter';
+import { useTenantDetails } from '@/hooks/use-tenant';
 
 export default function GetStarted() {
   const ctx = useOutletContext<UserContextType & MembershipsContextType>();
   const { user, memberships } = ctx;
-  const { tenant: currTenant } = useTenant();
+  const { tenant: currTenant } = useTenantDetails();
 
   const [quickstartClonedOpen, setQuickstartClonedOpen] = useState(true);
   const [quickstartCloned, setQuickstartCloned] = useState(false);

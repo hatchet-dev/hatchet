@@ -1,9 +1,9 @@
 import { ColumnDef } from '@tanstack/react-table';
-import { DataTableColumnHeader } from '../../../../../components/molecules/data-table/data-table-column-header';
 import { TenantInvite } from '@/lib/api';
 import { DataTableRowActions } from '@/components/molecules/data-table/data-table-row-actions';
 import { capitalize } from '@/lib/utils';
 import RelativeDate from '@/components/molecules/relative-date';
+import { DataTableColumnHeader } from '@/components/molecules/data-table/data-table-column-header';
 
 export const columns = ({
   onEditClick,

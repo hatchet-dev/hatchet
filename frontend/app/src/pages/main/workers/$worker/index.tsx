@@ -1,12 +1,11 @@
 import { Separator } from '@/components/ui/separator';
 import api, { queries, UpdateWorkerRequest, Worker } from '@/lib/api';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { Link, useOutletContext, useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import invariant from 'tiny-invariant';
-import { ArrowPathIcon, ServerStackIcon } from '@heroicons/react/24/outline';
+import { ServerStackIcon } from '@heroicons/react/24/outline';
 import { Button } from '@/components/ui/button';
-import { Loading } from '@/components/ui/loading.tsx';
-import { TenantContextType } from '@/lib/outlet';
+import { Loading } from '@/components/ui/loading';
 import { Badge, BadgeProps } from '@/components/ui/badge';
 import {
   Tooltip,
@@ -24,11 +23,14 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import WorkerSlotGrid from './components/slot-grid';
-import { useState } from 'react';
-import { DataTable } from '@/components/molecules/data-table/data-table';
-import { columns } from './components/step-runs-columns';
 import { RecentWebhookRequests } from '../webhooks/components/recent-webhook-requests';
+import { RunsTable } from '../../workflow-runs/components/runs-table';
+import { RunsProvider } from '../../workflow-runs/hooks/runs-provider';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
+import { capitalize } from '@/lib/utils';
+import { useRefetchInterval } from '@/contexts/refetch-interval-context';
+import { flattenDAGsKey } from '../../workflow-runs/components/task-runs-columns';
+import { useMemo, useState } from 'react';
 export const isHealthy = (worker?: Worker) => {
   const reasons = [];
 
@@ -52,7 +54,7 @@ export const isHealthy = (worker?: Worker) => {
   return reasons;
 };
 
-export const WorkerStatus = ({
+const WorkerStatus = ({
   status = 'INACTIVE',
   health,
 }: {
@@ -89,21 +91,21 @@ export const WorkerStatus = ({
   );
 };
 
-export default function ExpandedWorkflowRun() {
-  const { tenant } = useOutletContext<TenantContextType>();
-  invariant(tenant);
+const N_ACTIONS_TO_PREVIEW = 10;
 
+export default function ExpandedWorkflowRun() {
   const { handleApiError } = useApiError({});
+  const { tenantId } = useCurrentTenantId();
+  const { refetchInterval } = useRefetchInterval();
+  const [showAllActions, setShowAllActions] = useState(false);
 
   const params = useParams();
   invariant(params.worker);
 
   const workerQuery = useQuery({
     ...queries.workers.get(params.worker),
-    refetchInterval: 3000,
+    refetchInterval,
   });
-
-  const [rotate, setRotate] = useState(false);
 
   const worker = workerQuery.data;
 
@@ -121,6 +123,33 @@ export default function ExpandedWorkflowRun() {
     onError: handleApiError,
   });
 
+  const { data: workflowsData } = useQuery({
+    ...queries.workflows.list(tenantId, {
+      limit: 1000,
+    }),
+    refetchInterval,
+  });
+
+  const registeredWorkflows = useMemo(() => {
+    const workflowKeys =
+      worker?.actions?.map((action) => action.split(':')[0].toLowerCase()) ||
+      [];
+
+    return (
+      workflowsData?.rows?.filter((w) =>
+        workflowKeys.includes(w.name.toLowerCase()),
+      ) ?? []
+    );
+  }, [worker?.actions, workflowsData?.rows]);
+
+  const filteredWorkflows = useMemo(() => {
+    if (showAllActions) {
+      return registeredWorkflows;
+    }
+
+    return registeredWorkflows.slice(0, N_ACTIONS_TO_PREVIEW);
+  }, [showAllActions, registeredWorkflows]);
+
   if (!worker || workerQuery.isLoading || !workerQuery.data) {
     return <Loading />;
   }
@@ -133,7 +162,7 @@ export default function ExpandedWorkflowRun() {
             <ServerStackIcon className="h-6 w-6 text-foreground mt-1" />
             <Badge>{worker.type}</Badge>
             <h2 className="text-2xl font-bold leading-tight text-foreground">
-              <Link to="/workers">Workers/</Link>
+              <Link to={`/tenants/${tenantId}/workers`}>Workers/</Link>
               {worker.webhookUrl || worker.name}
             </h2>
           </div>
@@ -193,55 +222,61 @@ export default function ExpandedWorkflowRun() {
               : '100'}{' '}
             Available Run Slots
           </h3>
-
-          <Button
-            size="icon"
-            aria-label="Refresh"
-            variant="outline"
-            disabled={workerQuery.isFetching}
-            onClick={() => {
-              workerQuery.refetch();
-              setRotate(!rotate);
-            }}
-          >
-            <ArrowPathIcon
-              className={`h-4 w-4 transition-transform ${rotate ? 'rotate-180' : ''}`}
-            />
-          </Button>
         </div>
         <div className="mb-4 text-sm text-gray-700 dark:text-gray-300">
-          A slot represents one step run on a worker to limit load.{' '}
+          A slot represents one task run on a worker to limit load.{' '}
           <a href="https://docs.hatchet.run/home/workers" className="underline">
             Learn more.
           </a>
         </div>
 
-        <WorkerSlotGrid slots={worker.slots} />
-
         <Separator className="my-4" />
         <div className="flex flex-row justify-between items-center mb-4">
           <h3 className="text-xl font-bold leading-tight text-foreground">
-            Recent Step Runs
+            Recent Task Runs
           </h3>
         </div>
-        <DataTable
-          isLoading={workerQuery.isLoading}
-          columns={columns}
-          data={worker.recentStepRuns || []}
-          filters={[]}
-        />
+        <div className="flex-1 min-h-0 h-[600px]">
+          <RunsProvider
+            tableKey={`worker-${worker.metadata.id}`}
+            display={{
+              hideMetrics: true,
+              hideCounts: true,
+              hideTriggerRunButton: true,
+              hiddenFilters: [flattenDAGsKey],
+              hideCancelAndReplayButtons: true,
+            }}
+            runFilters={{
+              workerId: worker.metadata.id,
+            }}
+          >
+            <RunsTable />
+          </RunsProvider>
+        </div>
         <Separator className="my-4" />
         <h3 className="text-xl font-bold leading-tight text-foreground mb-4">
-          Worker Actions
+          Registered Workflows
         </h3>
         <div className="flex-wrap flex flex-row gap-4">
-          {worker.actions?.map((action) => {
+          {filteredWorkflows.map((workflow) => {
             return (
-              <Button variant="outline" key={action}>
-                {action}
-              </Button>
+              <Link
+                to={`/tenants/${tenantId}/workflows/${workflow.metadata.id}`}
+                key={workflow.metadata.id}
+              >
+                <Button variant="outline">{workflow.name}</Button>
+              </Link>
             );
           })}
+        </div>
+        <div className="flex flex-row w-full items-center justify-center py-4">
+          {!showAllActions &&
+            registeredWorkflows.length > N_ACTIONS_TO_PREVIEW && (
+              <Button variant="outline" onClick={() => setShowAllActions(true)}>
+                Show All ({registeredWorkflows.length - N_ACTIONS_TO_PREVIEW}{' '}
+                more)
+              </Button>
+            )}
         </div>
         {worker.webhookId && (
           <>
@@ -255,33 +290,31 @@ export default function ExpandedWorkflowRun() {
           </>
         )}
 
-        <Separator className="my-4" />
-        <h3 className="text-xl font-bold leading-tight text-foreground mb-4">
-          Worker Labels
-        </h3>
-        <div className="mb-4 text-sm text-gray-700 dark:text-gray-300">
-          Worker labels are key-value pairs that can be used to prioritize
-          assignment of steps to specific workers.{' '}
-          <a
-            className="underline"
-            href="https://docs.hatchet.run/home/features/worker-assignment/worker-affinity#specifying-worker-labels"
-          >
-            Learn more.
-          </a>
-        </div>
-        <div className="flex gap-2">
-          {!worker.labels || worker.labels.length === 0 ? (
-            <>
-              <>No Labels Assigned.</>
-            </>
-          ) : (
-            worker.labels?.map(({ key, value }) => (
-              <Badge key={key}>
-                {key}:{value}
-              </Badge>
-            ))
-          )}
-        </div>
+        {worker.labels && worker.labels.length > 0 && (
+          <>
+            <Separator className="my-4" />
+            <h3 className="text-xl font-bold leading-tight text-foreground mb-4">
+              Worker Labels
+            </h3>
+            <div className="mb-4 text-sm text-gray-700 dark:text-gray-300">
+              Worker labels are key-value pairs that can be used to prioritize
+              assignment of steps to specific workers.{' '}
+              <a
+                className="underline"
+                href="https://docs.hatchet.run/home/features/worker-assignment/worker-affinity#specifying-worker-labels"
+              >
+                Learn more.
+              </a>
+            </div>
+            <div className="flex gap-2">
+              {worker.labels?.map(({ key, value }) => (
+                <Badge key={key}>
+                  {key}:{value}
+                </Badge>
+              ))}
+            </div>
+          </>
+        )}
         {worker.runtimeInfo && (
           <>
             <Separator className="my-4" />
@@ -296,7 +329,8 @@ export default function ExpandedWorkflowRun() {
               )}
               {worker.runtimeInfo?.languageVersion && (
                 <div>
-                  <b>Runtime</b>: {worker.runtimeInfo?.language}{' '}
+                  <b>Runtime</b>:{' '}
+                  {capitalize(worker.runtimeInfo?.language ?? '')}{' '}
                   {worker.runtimeInfo?.languageVersion}
                 </div>
               )}

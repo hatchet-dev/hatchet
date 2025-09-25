@@ -1,69 +1,54 @@
 import { ColumnDef } from '@tanstack/react-table';
 import { Badge } from '@/components/ui/badge';
-import { Checkbox } from '@/components/ui/checkbox';
-import { DataTableColumnHeader } from '../../../../components/molecules/data-table/data-table-column-header';
-import { columns as workflowRunsColumns } from '../../workflow-runs/components/workflow-runs-columns';
-import { Event, queries } from '@/lib/api';
+import { V1Event } from '@/lib/api';
 import { Button } from '@/components/ui/button';
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover';
-import { useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import invariant from 'tiny-invariant';
-import { DataTable } from '@/components/molecules/data-table/data-table';
-import { TenantContextType } from '@/lib/outlet';
-import { useOutletContext } from 'react-router-dom';
+
 import { AdditionalMetadata } from './additional-metadata';
 import RelativeDate from '@/components/molecules/relative-date';
+import { DataTableColumnHeader } from '@/components/molecules/data-table/data-table-column-header';
+
+export const EventColumn = {
+  id: 'Event ID',
+  key: 'Event',
+  seenAt: 'Seen at',
+  workflowId: 'Workflow',
+  status: 'Status',
+  runs: 'Runs',
+  metadata: 'Metadata',
+  payload: 'Payload',
+  scope: 'Scope',
+};
+
+export type EventColumnKeys = keyof typeof EventColumn;
+
+export const idKey: EventColumnKeys = 'id';
+export const keyKey: EventColumnKeys = 'key';
+export const seenAtKey: EventColumnKeys = 'seenAt';
+export const workflowKey: EventColumnKeys = 'workflowId';
+export const statusKey: EventColumnKeys = 'status';
+export const runsKey: EventColumnKeys = 'runs';
+export const metadataKey: EventColumnKeys = 'metadata';
+export const payloadKey: EventColumnKeys = 'payload';
+export const scopeKey: EventColumnKeys = 'scope';
 
 export const columns = ({
   onRowClick,
+  openMetadataPopover,
+  setOpenMetadataPopover,
+  openPayloadPopover,
+  setOpenPayloadPopover,
 }: {
-  onRowClick?: (row: Event) => void;
-}): ColumnDef<Event>[] => {
+  onRowClick?: (row: V1Event) => void;
+  openMetadataPopover: string | null;
+  setOpenMetadataPopover: (id: string | null) => void;
+  openPayloadPopover: string | null;
+  setOpenPayloadPopover: (id: string | null) => void;
+}): ColumnDef<V1Event>[] => {
   return [
     {
-      id: 'select',
-      header: ({ table }) => (
-        <Checkbox
-          checked={
-            table.getIsAllPageRowsSelected() ||
-            (table.getIsSomePageRowsSelected() && 'indeterminate')
-          }
-          onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
-          aria-label="Select all"
-          className="translate-y-[2px]"
-        />
-      ),
-      cell: ({ row }) => (
-        <Checkbox
-          checked={row.getIsSelected()}
-          onCheckedChange={(value) => row.toggleSelected(!!value)}
-          aria-label="Select row"
-          className="translate-y-[2px]"
-        />
-      ),
-      enableSorting: false,
-      enableHiding: false,
-    },
-    {
-      accessorKey: 'EventId',
+      accessorKey: idKey,
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Event Id" />
-      ),
-      cell: ({ row }) => (
-        <div className="w-full">{row.original.metadata.id}</div>
-      ),
-      enableSorting: false,
-      enableHiding: true,
-    },
-    {
-      accessorKey: 'key',
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Event" />
+        <DataTableColumnHeader column={column} title={EventColumn.id} />
       ),
       cell: ({ row }) => (
         <div className="w-full">
@@ -74,7 +59,28 @@ export const columns = ({
               onRowClick?.(row.original);
             }}
           >
-            {row.getValue('key')}
+            {row.original.metadata.id}
+          </Button>
+        </div>
+      ),
+      enableSorting: false,
+      enableHiding: true,
+    },
+    {
+      accessorKey: keyKey,
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title={EventColumn.key} />
+      ),
+      cell: ({ row }) => (
+        <div className="w-full">
+          <Button
+            className="cursor-pointer pl-0 text-left h-auto whitespace-normal min-w-0 justify-start"
+            variant="link"
+            onClick={() => {
+              onRowClick?.(row.original);
+            }}
+          >
+            <span className="break-all">{row.original.key}</span>
           </Button>
         </div>
       ),
@@ -82,9 +88,9 @@ export const columns = ({
       enableHiding: false,
     },
     {
-      accessorKey: 'Seen at',
+      accessorKey: seenAtKey,
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Seen at" />
+        <DataTableColumnHeader column={column} title={EventColumn.seenAt} />
       ),
       cell: ({ row }) => {
         return (
@@ -93,26 +99,27 @@ export const columns = ({
           </div>
         );
       },
+      enableSorting: false,
     },
     // empty columns to get column filtering to work properly
     {
-      accessorKey: 'workflows',
+      accessorKey: workflowKey,
       header: () => <></>,
       cell: () => {
         return <div></div>;
       },
     },
     {
-      accessorKey: 'status',
+      accessorKey: statusKey,
       header: () => <></>,
       cell: () => {
         return <div></div>;
       },
     },
     {
-      accessorKey: 'Workflow Runs',
+      accessorKey: runsKey,
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Workflow Runs" />
+        <DataTableColumnHeader column={column} title={EventColumn.runs} />
       ),
       cell: ({ row }) => {
         if (!row.original.workflowRunSummary) {
@@ -121,11 +128,12 @@ export const columns = ({
 
         return <WorkflowRunSummary event={row.original} />;
       },
+      enableSorting: false,
     },
     {
-      accessorKey: 'Metadata',
+      accessorKey: metadataKey,
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Metadata" />
+        <DataTableColumnHeader column={column} title={EventColumn.metadata} />
       ),
       cell: ({ row }) => {
         if (!row.original.additionalMetadata) {
@@ -133,242 +141,94 @@ export const columns = ({
         }
 
         return (
-          <AdditionalMetadata metadata={row.original.additionalMetadata} />
+          <AdditionalMetadata
+            metadata={row.original.additionalMetadata}
+            isOpen={openMetadataPopover === row.original.metadata.id}
+            onOpenChange={(open) => {
+              if (open) {
+                setOpenMetadataPopover(row.original.metadata.id);
+              } else {
+                setOpenMetadataPopover(null);
+              }
+            }}
+            title="Metadata"
+            align="end"
+          />
         );
       },
       enableSorting: false,
     },
-    // {
-    //   id: "actions",
-    //   cell: ({ row }) => <DataTableRowActions row={row} labels={[]} />,
-    // },
+    {
+      accessorKey: payloadKey,
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title={EventColumn.payload} />
+      ),
+      cell: ({ row }) => {
+        if (!row.original.payload) {
+          return <div></div>;
+        }
+
+        return (
+          <AdditionalMetadata
+            metadata={row.original.payload}
+            isOpen={openPayloadPopover === row.original.metadata.id}
+            onOpenChange={(open) => {
+              if (open) {
+                setOpenPayloadPopover(row.original.metadata.id);
+              } else {
+                setOpenPayloadPopover(null);
+              }
+            }}
+            title="Payload"
+            align="start"
+          />
+        );
+      },
+      enableSorting: false,
+      enableHiding: true,
+    },
+    {
+      accessorKey: scopeKey,
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title={EventColumn.scope} />
+      ),
+      cell: ({ row }) => <div className="w-full">{row.original.scope}</div>,
+      enableSorting: false,
+      enableHiding: true,
+    },
   ];
 };
 
-// eslint-disable-next-line react-refresh/only-export-components
-function WorkflowRunSummary({ event }: { event: Event }) {
-  const { tenant } = useOutletContext<TenantContextType>();
-  invariant(tenant);
+type BadgeProps = {
+  variant: 'failed' | 'successful' | 'inProgress' | 'cancelled' | 'queued';
+  count: number;
+  label: string;
+};
 
-  const [hoverCardOpen, setPopoverOpen] = useState<
-    'failed' | 'succeeded' | 'running' | 'queued' | 'pending' | 'cancelled'
-  >();
-
+function WorkflowRunSummary({ event }: { event: V1Event }) {
   const numFailed = event.workflowRunSummary?.failed || 0;
   const numSucceeded = event.workflowRunSummary?.succeeded || 0;
   const numRunning = event.workflowRunSummary?.running || 0;
-  const numPending = event.workflowRunSummary?.pending || 0;
-  const numQueued = event.workflowRunSummary?.queued || 0;
   const numCancelled = event.workflowRunSummary?.cancelled || 0;
+  const numQueued = event.workflowRunSummary?.queued || 0;
 
-  const listWorkflowRunsQuery = useQuery({
-    ...queries.workflowRuns.list(tenant.metadata.id, {
-      offset: 0,
-      limit: 10,
-      eventId: event.metadata.id,
-    }),
-    enabled: !!hoverCardOpen,
-  });
-
-  const workflowRuns = useMemo(() => {
-    return (
-      listWorkflowRunsQuery.data?.rows?.filter((run) => {
-        if (hoverCardOpen) {
-          if (hoverCardOpen == 'failed') {
-            return run.status == 'FAILED';
-          }
-          if (hoverCardOpen == 'succeeded') {
-            return run.status == 'SUCCEEDED';
-          }
-          if (hoverCardOpen == 'running') {
-            return run.status == 'RUNNING';
-          }
-          if (hoverCardOpen == 'pending') {
-            return run.status == 'PENDING';
-          }
-          if (hoverCardOpen == 'queued') {
-            return run.status == 'QUEUED';
-          }
-          if (hoverCardOpen == 'cancelled') {
-            return run.status == 'CANCELLED';
-          }
-        }
-
-        return false;
-      }) || []
-    );
-  }, [listWorkflowRunsQuery, hoverCardOpen]);
-
-  const hoverCardContent = (
-    <div className="min-w-fit z-40 bg-white/10 rounded">
-      <DataTable
-        columns={workflowRunsColumns()}
-        data={workflowRuns}
-        filters={[]}
-        pageCount={0}
-        columnVisibility={{
-          select: false,
-          'Triggered by': false,
-          actions: false,
-          Metadata: false,
-        }}
-        showColumnToggle={false}
-        isLoading={listWorkflowRunsQuery.isLoading}
-      />
-    </div>
-  );
+  const badges: BadgeProps[] = [
+    { variant: 'failed', count: numFailed, label: 'Failed' },
+    { variant: 'successful', count: numSucceeded, label: 'Succeeded' },
+    { variant: 'inProgress', count: numRunning, label: 'Running' },
+    { variant: 'cancelled', count: numCancelled, label: 'Cancelled' },
+    { variant: 'queued', count: numQueued, label: 'Queued' },
+  ];
 
   return (
     <div className="flex flex-row gap-2 items-center justify-start">
-      {numFailed > 0 && (
-        <Popover
-          open={hoverCardOpen == 'failed'}
-          onOpenChange={(open) => {
-            if (!open) {
-              setPopoverOpen(undefined);
-            }
-          }}
-        >
-          <PopoverTrigger>
-            <Badge
-              variant="failed"
-              className="cursor-pointer"
-              onClick={() => setPopoverOpen('failed')}
-            >
-              {numFailed} Failed
+      {badges.map(
+        ({ variant, count, label }) =>
+          count > 0 && (
+            <Badge variant={variant} key={variant}>
+              {count} {label}
             </Badge>
-          </PopoverTrigger>
-          <PopoverContent
-            className="min-w-fit p-0 bg-background border-none z-40"
-            align="end"
-          >
-            {hoverCardContent}
-          </PopoverContent>
-        </Popover>
-      )}
-      {numSucceeded > 0 && (
-        <Popover
-          open={hoverCardOpen == 'succeeded'}
-          onOpenChange={(open) => {
-            if (!open) {
-              setPopoverOpen(undefined);
-            }
-          }}
-        >
-          <PopoverTrigger>
-            <Badge
-              variant="successful"
-              className="cursor-pointer"
-              onClick={() => setPopoverOpen('succeeded')}
-            >
-              {numSucceeded} Succeeded
-            </Badge>
-          </PopoverTrigger>
-          <PopoverContent
-            className="min-w-fit p-0 bg-background border-none z-40"
-            align="end"
-          >
-            {hoverCardContent}
-          </PopoverContent>
-        </Popover>
-      )}
-      {numRunning > 0 && (
-        <Popover
-          open={hoverCardOpen == 'running'}
-          onOpenChange={(open) => {
-            if (!open) {
-              setPopoverOpen(undefined);
-            }
-          }}
-        >
-          <PopoverTrigger>
-            <Badge
-              variant="inProgress"
-              className="cursor-pointer"
-              onClick={() => setPopoverOpen('running')}
-            >
-              {numRunning} Running
-            </Badge>
-          </PopoverTrigger>
-          <PopoverContent
-            className="min-w-fit p-0 bg-background border-none z-40"
-            align="end"
-          >
-            {hoverCardContent}
-          </PopoverContent>
-        </Popover>
-      )}
-      {numPending > 0 && (
-        <Popover
-          open={hoverCardOpen == 'pending'}
-          onOpenChange={(open) => {
-            if (!open) {
-              setPopoverOpen(undefined);
-            }
-          }}
-        >
-          <PopoverTrigger>
-            <Badge
-              variant="inProgress"
-              className="cursor-pointer"
-              onClick={() => setPopoverOpen('pending')}
-            >
-              {numPending} Pending
-            </Badge>
-          </PopoverTrigger>
-          <PopoverContent
-            className="min-w-fit p-0 bg-background border-none z-40"
-            align="end"
-          >
-            {hoverCardContent}
-          </PopoverContent>
-        </Popover>
-      )}
-      {numQueued > 0 && (
-        <Popover
-          open={hoverCardOpen == 'queued'}
-          onOpenChange={(open) => {
-            if (!open) {
-              setPopoverOpen(undefined);
-            }
-          }}
-        >
-          <PopoverTrigger>
-            <Badge
-              variant="inProgress"
-              className="cursor-pointer"
-              onClick={() => setPopoverOpen('queued')}
-            >
-              {numQueued} Queued
-            </Badge>
-          </PopoverTrigger>
-          <PopoverContent
-            className="min-w-fit p-0 bg-background border-none z-40"
-            align="end"
-          >
-            {hoverCardContent}
-          </PopoverContent>
-        </Popover>
-      )}
-      {numCancelled > 0 && (
-        <Popover
-          open={hoverCardOpen == 'cancelled'}
-          onOpenChange={(open) => {
-            if (!open) {
-              setPopoverOpen(undefined);
-            }
-          }}
-        >
-          <PopoverTrigger>
-            <Badge
-              variant="outlineDestructive"
-              className="cursor-pointer"
-              onClick={() => setPopoverOpen('cancelled')}
-            >
-              {numCancelled} Cancelled
-            </Badge>
-          </PopoverTrigger>
-        </Popover>
+          ),
       )}
     </div>
   );

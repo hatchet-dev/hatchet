@@ -10,11 +10,11 @@ import { useLocation } from 'react-router-dom';
 import {
   TaskRunDetail,
   TabOption,
-} from '@/pages/main/v1/workflow-runs-v1/$run/v2components/step-run-detail/step-run-detail';
-import { DocPage } from '@/components/v1/docs/docs-button';
+} from '@/pages/main/workflow-runs/$run/v2components/step-run-detail/step-run-detail';
+import { DocPage } from '@/components/docs/docs-button';
 import { V1Event, V1Filter } from '@/lib/api';
-import { FilterDetailView } from '@/pages/main/v1/filters/components/filter-detail-view';
-import { ExpandedEventContent } from '@/pages/main/v1/events';
+import { FilterDetailView } from '@/pages/main/filters/components/filter-detail-view';
+import { ExpandedEventContent } from '@/pages/main/events';
 import { useTheme } from '@/components/theme-provider';
 
 type SidePanelContent =
@@ -68,7 +68,7 @@ type UseSidePanelProps =
       };
     };
 
-export function useSidePanelData(): SidePanelData {
+function useSidePanelData(): SidePanelData {
   const [isOpen, setIsOpen] = useState(false);
   const [history, setHistory] = useState<UseSidePanelProps[]>([]);
   const [currentIndex, setCurrentIndex] = useState(-1);

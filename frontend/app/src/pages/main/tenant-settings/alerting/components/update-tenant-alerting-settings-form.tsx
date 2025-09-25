@@ -4,7 +4,7 @@ import { Label } from '@/components/ui/label';
 import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Spinner } from '@/components/ui/loading.tsx';
+import { Spinner } from '@/components/ui/loading';
 import {
   Select,
   SelectContent,
@@ -107,7 +107,7 @@ export function UpdateTenantAlertingSettings({
             }}
           />
           <Label htmlFor="awrf" className="text-sm">
-            Enable Workflow Run Failure Alerts
+            Enable Run Failure Alerts
           </Label>
         </div>
 
@@ -115,7 +115,7 @@ export function UpdateTenantAlertingSettings({
           {enabledWorkflowAlerting && (
             <div className="grid gap-2">
               <Label htmlFor="maxAlertingFrequency">
-                Max Workflow Run Failure Alerting Frequency
+                Max Run Failure Alerting Frequency
               </Label>
               <Controller
                 control={control}

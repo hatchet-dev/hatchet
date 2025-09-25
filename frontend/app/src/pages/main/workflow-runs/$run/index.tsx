@@ -1,168 +1,293 @@
-import { queries, WorkflowRunStatus } from '@/lib/api';
-import { TenantContextType } from '@/lib/outlet';
-import { useQuery } from '@tanstack/react-query';
-import { useOutletContext, useParams } from 'react-router-dom';
-import invariant from 'tiny-invariant';
-import RunDetailHeader from './v2components/header';
+import api, {
+  V1TaskStatus,
+  V1TaskSummary,
+  V1WorkflowRunDetails,
+  WorkflowRunShapeForWorkflowRunDetails,
+} from '@/lib/api';
+import { useParams } from 'react-router-dom';
 import { WorkflowRunInputDialog } from './v2components/workflow-run-input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { StepRunEvents } from './v2components/step-run-events-for-workflow-run';
-import { useEffect, useState } from 'react';
-import { MiniMap } from './v2components/mini-map';
-import { Sheet, SheetContent } from '@/components/ui/sheet';
-import StepRunDetail, {
+import { useCallback, useRef } from 'react';
+import {
   TabOption,
+  TaskRunDetail,
 } from './v2components/step-run-detail/step-run-detail';
 import { Separator } from '@/components/ui/separator';
 import { CodeHighlighter } from '@/components/ui/code-highlighter';
+import { useSidePanel } from '@/hooks/use-side-panel';
+import { V1RunDetailHeader } from './v2components/header';
+import { Badge } from '@/components/ui/badge';
+import { ViewToggle } from './v2components/view-toggle';
 import WorkflowRunVisualizer from './v2components/workflow-run-visualizer-v2';
 import { useAtom } from 'jotai';
 import { preferredWorkflowRunViewAtom } from '@/lib/atoms';
-import { hasChildSteps, ViewToggle } from './v2components/view-toggle';
+import { JobMiniMap } from './v2components/mini-map';
+import {
+  isTerminalState,
+  useWorkflowDetails,
+} from '../hooks/use-workflow-details';
+import { useQuery } from '@tanstack/react-query';
+import invariant from 'tiny-invariant';
+import { Spinner } from '@/components/ui/loading';
+import { Waterfall } from './v2components/waterfall';
+import { RunsProvider } from '../hooks/runs-provider';
 
-export const WORKFLOW_RUN_TERMINAL_STATUSES = [
-  WorkflowRunStatus.CANCELLED,
-  WorkflowRunStatus.FAILED,
-  WorkflowRunStatus.SUCCEEDED,
-];
-
-interface WorkflowRunSidebarState {
-  workflowRunId?: string;
-  stepRunId?: string;
-  defaultOpenTab?: TabOption;
+function statusToBadgeVariant(status: V1TaskStatus) {
+  switch (status) {
+    case V1TaskStatus.COMPLETED:
+      return 'successful';
+    case V1TaskStatus.FAILED:
+      return 'failed';
+    case V1TaskStatus.CANCELLED:
+      return 'cancelled';
+    case V1TaskStatus.QUEUED:
+      return 'queued';
+    default:
+      return 'inProgress';
+  }
 }
 
-export default function ExpandedWorkflowRun() {
-  const [sidebarState, setSidebarState] = useState<WorkflowRunSidebarState>();
+const GraphView = ({
+  shape,
+  handleTaskRunExpand,
+}: {
+  shape: WorkflowRunShapeForWorkflowRunDetails;
+  handleTaskRunExpand: (stepRunId: string) => void;
+}) => {
+  const [view] = useAtom(preferredWorkflowRunViewAtom);
 
-  const { tenant } = useOutletContext<TenantContextType>();
-  invariant(tenant);
+  const showGraphView =
+    view == 'graph' && shape.some((task) => task.childrenStepIds.length > 0);
 
-  const params = useParams();
-  invariant(params.run);
+  return showGraphView ? (
+    <WorkflowRunVisualizer setSelectedTaskRunId={handleTaskRunExpand} />
+  ) : (
+    <JobMiniMap
+      onClick={(stepRunId) => {
+        if (stepRunId) {
+          handleTaskRunExpand(stepRunId);
+        }
+      }}
+    />
+  );
+};
 
-  const shape = useQuery({
-    ...queries.workflowRuns.shape(tenant.metadata.id, params.run),
-    refetchInterval: 1000,
+type TaskRunDispatchQueryReturnType = {
+  status: V1TaskStatus;
+  type: 'task' | 'dag';
+  task?: V1TaskSummary;
+  dag?: V1WorkflowRunDetails;
+};
+
+async function fetchTaskRun(id: string) {
+  try {
+    return await api.v1TaskGet(id);
+  } catch (error) {
+    return undefined;
+  }
+}
+
+async function fetchDAGRun(id: string) {
+  try {
+    return await api.v1WorkflowRunGet(id);
+  } catch (error) {
+    return undefined;
+  }
+}
+
+export default function Run() {
+  const { run } = useParams();
+
+  invariant(run, 'Run ID is required');
+
+  const taskRunQuery = useQuery({
+    queryKey: ['workflow-run', run],
+    queryFn: async (): Promise<TaskRunDispatchQueryReturnType> => {
+      const [task, dag] = await Promise.all([
+        fetchTaskRun(run),
+        fetchDAGRun(run),
+      ]);
+
+      if (!task && !dag) {
+        throw new Error(`Task or Workflow Run with ID ${run} not found`);
+      }
+
+      if (task?.data) {
+        const taskData = task.data;
+
+        return {
+          status: taskData.status,
+          type: 'task',
+          task: taskData,
+        };
+      }
+
+      if (dag?.data?.run) {
+        const dagData = dag.data;
+
+        return {
+          status: dagData.run.status,
+          type: 'dag',
+          dag: dagData,
+        };
+      }
+
+      throw new Error(`Task or Workflow Run with ID ${run} not found`);
+    },
+    refetchInterval: (query) => {
+      const status = query.state.data?.status;
+
+      if (isTerminalState(status)) {
+        return 5000;
+      }
+
+      return 1000;
+    },
   });
 
-  useEffect(() => {
-    if (
-      sidebarState?.workflowRunId &&
-      params.run &&
-      params.run !== sidebarState?.workflowRunId
-    ) {
-      setSidebarState(undefined);
-    }
-  }, [params.run, sidebarState]);
+  if (taskRunQuery.isLoading) {
+    return <Spinner />;
+  }
 
-  const [view] = useAtom(preferredWorkflowRunViewAtom);
+  const runData = taskRunQuery.data;
+
+  if (!runData) {
+    return null;
+  }
+
+  if (runData.type === 'task') {
+    return (
+      <RunsProvider tableKey={`task-runs-${run}`}>
+        <ExpandedTaskRun id={run} />
+      </RunsProvider>
+    );
+  }
+
+  if (runData.type === 'dag') {
+    return (
+      <RunsProvider tableKey={`workflow-runs-${run}`}>
+        <ExpandedWorkflowRun id={run} />
+      </RunsProvider>
+    );
+  }
+}
+
+function ExpandedTaskRun({ id }: { id: string }) {
+  return <TaskRunDetail taskRunId={id} defaultOpenTab={TabOption.Output} />;
+}
+
+function ExpandedWorkflowRun({ id }: { id: string }) {
+  const { open } = useSidePanel();
+  const executingRef = useRef(false);
+
+  const handleTaskRunExpand = useCallback(
+    (taskRunId: string) => {
+      // hack to prevent click handler from firing multiple times,
+      // causing index offset issues
+      if (executingRef.current) {
+        return;
+      }
+
+      executingRef.current = true;
+
+      open({
+        type: 'task-run-details',
+        content: {
+          taskRunId,
+          defaultOpenTab: TabOption.Output,
+          showViewTaskRunButton: true,
+        },
+      });
+
+      setTimeout(() => {
+        executingRef.current = false;
+      }, 100);
+    },
+    [open],
+  );
+
+  const { workflowRun, shape, isLoading, isError } = useWorkflowDetails();
+
+  if (isLoading || isError || !workflowRun) {
+    return null;
+  }
+
+  const inputData = JSON.stringify(workflowRun.input || {});
+  const additionalMetadata = workflowRun.additionalMetadata;
 
   return (
     <div className="flex-grow h-full w-full">
       <div className="mx-auto pt-2 px-4 sm:px-6 lg:px-8">
-        <RunDetailHeader
-          loading={shape.isLoading}
-          data={shape.data}
-          refetch={() => shape.refetch()}
-        />
+        <V1RunDetailHeader />
         <Separator className="my-4" />
-        <div className="w-full h-fit flex overflow-auto relative bg-slate-100 dark:bg-slate-900">
-          {shape.data && view == 'graph' && hasChildSteps(shape.data) && (
-            <WorkflowRunVisualizer
-              shape={shape.data}
-              selectedStepRunId={sidebarState?.stepRunId}
-              setSelectedStepRunId={(stepRunId) => {
-                setSidebarState({
-                  stepRunId,
-                  defaultOpenTab: TabOption.Output,
-                  workflowRunId: params.run,
-                });
-              }}
-            />
-          )}
-          {shape.data && (view == 'minimap' || !hasChildSteps(shape.data)) && (
-            <MiniMap
-              shape={shape.data}
-              selectedStepRunId={sidebarState?.stepRunId}
-              onClick={(stepRunId, defaultOpenTab?: TabOption) =>
-                setSidebarState(
-                  stepRunId == sidebarState?.stepRunId
-                    ? undefined
-                    : {
-                        stepRunId,
-                        defaultOpenTab,
-                        workflowRunId: params.run,
-                      },
-                )
-              }
-            />
-          )}
-          {shape.data && <ViewToggle shape={shape.data} />}
+        <div className="flex flex-row gap-x-4 mb-4">
+          <p className="font-semibold">Status</p>
+          <Badge variant={statusToBadgeVariant(workflowRun.status)}>
+            {workflowRun.status}
+          </Badge>
         </div>
         <div className="h-4" />
-        <Tabs defaultValue="activity">
-          <TabsList layout="underlined">
-            <TabsTrigger variant="underlined" value="activity">
-              Activity
+        <Tabs defaultValue="overview" className="flex flex-col h-full">
+          <TabsList layout="underlined" className="mb-4">
+            <TabsTrigger variant="underlined" value="overview">
+              Overview
             </TabsTrigger>
-            <TabsTrigger variant="underlined" value="input">
-              Input
+            <TabsTrigger variant="underlined" value="waterfall">
+              Waterfall
             </TabsTrigger>
-            <TabsTrigger variant="underlined" value="additional-metadata">
-              Additional Metadata
-            </TabsTrigger>
-            {/* <TabsTrigger value="logs">App Logs</TabsTrigger> */}
           </TabsList>
-          <TabsContent value="activity">
-            <div className="h-4" />
-            {!shape.isLoading && shape.data && (
-              <StepRunEvents
-                workflowRun={shape.data}
-                onClick={(stepRunId) =>
-                  setSidebarState(
-                    stepRunId == sidebarState?.stepRunId
-                      ? undefined
-                      : { stepRunId, workflowRunId: params.run },
-                  )
-                }
+          <TabsContent value="overview" className="flex-1 min-h-0">
+            <div className="w-full h-fit flex overflow-auto relative bg-slate-100 dark:bg-slate-900">
+              <GraphView
+                shape={shape}
+                handleTaskRunExpand={handleTaskRunExpand}
               />
-            )}
+              <ViewToggle />
+            </div>
+            <div className="h-4" />
+            <Tabs defaultValue="activity">
+              <TabsList layout="underlined">
+                <TabsTrigger variant="underlined" value="activity">
+                  Activity
+                </TabsTrigger>
+                <TabsTrigger variant="underlined" value="input">
+                  Input
+                </TabsTrigger>
+                <TabsTrigger variant="underlined" value="additional-metadata">
+                  Additional Metadata
+                </TabsTrigger>
+                {/* <TabsTrigger value="logs">App Logs</TabsTrigger> */}
+              </TabsList>
+              <TabsContent value="activity">
+                <div className="h-4" />
+                <StepRunEvents
+                  workflowRunId={id}
+                  fallbackTaskDisplayName={workflowRun.displayName}
+                  onClick={handleTaskRunExpand}
+                />
+              </TabsContent>
+              <TabsContent value="input">
+                <WorkflowRunInputDialog input={JSON.parse(inputData)} />
+              </TabsContent>
+              <TabsContent value="additional-metadata">
+                <CodeHighlighter
+                  className="my-4"
+                  language="json"
+                  code={JSON.stringify(additionalMetadata, null, 2)}
+                />
+              </TabsContent>
+            </Tabs>
           </TabsContent>
-          <TabsContent value="input">
-            {shape.data && <WorkflowRunInputDialog run={shape.data} />}
-          </TabsContent>
-          <TabsContent value="additional-metadata">
-            <CodeHighlighter
-              className="my-4"
-              language="json"
-              code={JSON.stringify(
-                shape.data?.additionalMetadata || {},
-                null,
-                2,
-              )}
+          <TabsContent value="waterfall" className="flex-1 min-h-0">
+            <Waterfall
+              workflowRunId={id}
+              selectedTaskId={undefined}
+              handleTaskSelect={handleTaskRunExpand}
             />
           </TabsContent>
         </Tabs>
       </div>
-      {shape.data && (
-        <Sheet
-          open={!!sidebarState}
-          onOpenChange={(open) =>
-            open ? undefined : setSidebarState(undefined)
-          }
-        >
-          <SheetContent className="w-fit min-w-[56rem] max-w-4xl sm:max-w-2xl z-[60]">
-            {sidebarState?.stepRunId && (
-              <StepRunDetail
-                stepRunId={sidebarState?.stepRunId}
-                workflowRun={shape.data}
-                defaultOpenTab={sidebarState?.defaultOpenTab}
-              />
-            )}
-          </SheetContent>
-        </Sheet>
-      )}
     </div>
   );
 }

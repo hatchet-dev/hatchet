@@ -5,7 +5,7 @@ import { Label } from '@/components/ui/label';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Spinner } from '@/components/ui/loading.tsx';
+import { Spinner } from '@/components/ui/loading';
 
 const schema = z.object({
   email: z.string().email('Invalid email address'),

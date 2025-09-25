@@ -1,23 +1,6 @@
 import { CodeHighlighter } from '@/components/ui/code-highlighter';
-import { Loading } from '@/components/ui/loading';
-import { WorkflowRun, queries } from '@/lib/api';
-import { useQuery } from '@tanstack/react-query';
 
-export function WorkflowRunInputDialog({ run }: { run: WorkflowRun }) {
-  const getInputQuery = useQuery({
-    ...queries.workflowRuns.getInput(run.tenantId, run.metadata.id),
-  });
-
-  if (getInputQuery.isLoading) {
-    return <Loading />;
-  }
-
-  if (!getInputQuery.data) {
-    return null;
-  }
-
-  const input = getInputQuery.data;
-
+export function WorkflowRunInputDialog({ input }: { input: object }) {
   return (
     <CodeHighlighter
       className="my-4"

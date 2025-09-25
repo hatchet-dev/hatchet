@@ -1,6 +1,6 @@
 import { queries } from '@/lib/api';
 import { useEffect, useState, useMemo } from 'react';
-import { Button } from '@/components/v1/ui/button';
+import { Button } from '@/components/ui/button';
 import { useQuery } from '@tanstack/react-query';
 import { PlusIcon, ArrowUpIcon } from '@heroicons/react/24/outline';
 import {
@@ -9,33 +9,28 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/v1/ui/select';
+} from '@/components/ui/select';
 import { z } from 'zod';
 import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Label } from '@/components/v1/ui/label';
-import { Input } from '@/components/v1/ui/input';
-import { Step, Steps } from '@/components/v1/ui/steps';
-import EnvGroupArray, { KeyValueType } from '@/components/v1/ui/envvar';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
+import { Step, Steps } from '@/components/ui/steps';
+import EnvGroupArray, { KeyValueType } from '@/components/ui/envvar';
 import { ManagedWorkerRegion } from '@/lib/api/generated/cloud/data-contracts';
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from '@/components/v1/ui/tabs';
-import { Checkbox } from '@/components/v1/ui/checkbox';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Accordion,
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
-} from '@/components/v1/ui/accordion';
-import { useTenant } from '@/lib/atoms';
+} from '@/components/ui/accordion';
 import {
   managedCompute,
   ComputeType,
 } from '@/lib/can/features/managed-compute';
+import { useCurrentTenantId, useTenantDetails } from '@/hooks/use-tenant';
 
 export const machineTypes = [
   {
@@ -298,18 +293,17 @@ const createManagedWorkerSchema = z.object({
 
 interface CreateWorkerFormProps {
   onSubmit: (opts: z.infer<typeof createManagedWorkerSchema>) => void;
-  tenantId: string;
   isLoading: boolean;
   fieldErrors?: Record<string, string>;
 }
 
 export default function CreateWorkerForm({
   onSubmit,
-  tenantId,
   isLoading,
   fieldErrors,
 }: CreateWorkerFormProps) {
-  const { can } = useTenant();
+  const { can } = useTenantDetails();
+  const { tenantId } = useCurrentTenantId();
 
   const {
     watch,
@@ -562,7 +556,7 @@ export default function CreateWorkerForm({
                       <div className="text-sm text-muted-foreground">
                         Not seeing your repository?{' '}
                         <a
-                          href={`/api/v1/cloud/users/github-app/start?redirect_to=/managed-workers/create&with_repo_installation=true`}
+                          href={`/api/v1/cloud/users/github-app/start?redirect_to=/v1/managed-workers/create&with_repo_installation=true`}
                           className="text-indigo-400"
                         >
                           Link a new repository
@@ -1299,6 +1293,7 @@ const getBillingPortalUrl = () => {
   // Replace with your actual billing portal URL or API call
   return '/tenant-settings/billing-and-limits';
 };
+
 export const UpgradeMessage = ({ feature }: { feature: string }) => (
   <div className="flex flex-col gap-2 border border-yellow-400 dark:border-yellow-500 bg-yellow-50 dark:bg-yellow-900/30 p-4 rounded-md my-3">
     <div className="flex items-start gap-2">

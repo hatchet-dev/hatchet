@@ -1,7 +1,14 @@
 import { CodeHighlighter } from '@/components/ui/code-highlighter';
-import { StepRun, StepRunStatus, WorkflowRunShape } from '@/lib/api';
+import {
+  queries,
+  StepRun,
+  StepRunStatus,
+  V1TaskStatus,
+  WorkflowRunShape,
+} from '@/lib/api';
 import React from 'react';
 import LoggingComponent from '@/components/cloud/logging/logs';
+import { useQuery } from '@tanstack/react-query';
 
 const readableReason = (reason?: string): string => {
   return reason ? reason.toLowerCase().split('_').join(' ') : '';
@@ -93,10 +100,6 @@ const StepRunOutputCancelling = () => {
   return oneLiner('Step run is being cancelled');
 };
 
-const StepRunOutputBackoff = () => {
-  return oneLiner('Step run is in a retry backoff state');
-};
-
 const OUTPUT_STATE_MAP: Record<StepRunStatus, React.FC<StepRunOutputProps>> = {
   [StepRunStatus.CANCELLED]: StepRunOutputCancelled,
   [StepRunStatus.PENDING]: StepRunOutputPending,
@@ -106,12 +109,35 @@ const OUTPUT_STATE_MAP: Record<StepRunStatus, React.FC<StepRunOutputProps>> = {
   [StepRunStatus.SUCCEEDED]: StepRunOutputSucceeded,
   [StepRunStatus.FAILED]: StepRunOutputFailed,
   [StepRunStatus.CANCELLING]: StepRunOutputCancelling,
-  [StepRunStatus.BACKOFF]: StepRunOutputBackoff,
+  [StepRunStatus.BACKOFF]: StepRunOutputPending,
 };
 
-const StepRunOutput: React.FC<StepRunOutputProps> = (props) => {
+export const StepRunOutput: React.FC<StepRunOutputProps> = (props) => {
   const Component = OUTPUT_STATE_MAP[props.stepRun.status];
   return <Component {...props} />;
 };
 
-export default StepRunOutput;
+export const V1StepRunOutput = (props: { taskRunId: string }) => {
+  const { isLoading, data } = useQuery({
+    ...queries.v1Tasks.get(props.taskRunId),
+  });
+
+  if (isLoading || !data) {
+    return null;
+  }
+
+  const outputData =
+    (data.status === V1TaskStatus.FAILED
+      ? data.errorMessage
+      : JSON.stringify(data.output, null, 2)) || '';
+
+  return (
+    <CodeHighlighter
+      className="my-4 h-[400px] max-h-[400px] overflow-y-auto"
+      language="json"
+      maxHeight="400px"
+      minHeight="400px"
+      code={outputData}
+    />
+  );
+};

@@ -9,21 +9,18 @@ import api, {
   UpdateTenantRequest,
   queries,
 } from '@/lib/api';
-import { useTenant } from '@/lib/atoms';
 import { Spinner } from '@/components/ui/loading';
 import { UpdateTenantAlertingSettings } from './components/update-tenant-alerting-settings-form';
-import invariant from 'tiny-invariant';
 import { columns } from './components/slack-webhooks-columns';
 import { columns as emailGroupsColumns } from './components/email-groups-columns';
 
 import { DataTable } from '@/components/molecules/data-table/data-table';
 import { DeleteSlackForm } from './components/delete-slack-form';
 import { Button } from '@/components/ui/button';
-import { TenantContextType } from '@/lib/outlet';
 import { Dialog } from '@radix-ui/react-dialog';
-import { useOutletContext } from 'react-router-dom';
 import { CreateEmailGroupDialog } from './components/create-email-group-dialog';
 import { DeleteEmailGroupForm } from './components/delete-email-group-form';
+import { useCurrentTenantId, useTenantDetails } from '@/hooks/use-tenant';
 
 export default function Alerting() {
   const integrations = useApiMetaIntegrations();
@@ -38,7 +35,7 @@ export default function Alerting() {
           Alerting
         </h2>
         <p className="text-gray-700 dark:text-gray-300 my-4">
-          Manage alerts to get notified on workflow failure.
+          Manage alerts to get notified on task failure.
         </p>
         <Separator className="my-4" />
         <AlertingSettings />
@@ -52,12 +49,9 @@ export default function Alerting() {
 }
 
 const AlertingSettings: React.FC = () => {
-  const { tenant } = useTenant();
-
-  invariant(tenant, 'tenant should be defined');
-
+  const { tenantId } = useCurrentTenantId();
   const alertingSettings = useQuery({
-    ...queries.alertingSettings.get(tenant.metadata.id),
+    ...queries.alertingSettings.get(tenantId),
   });
 
   const [isLoading, setIsLoading] = useState(false);
@@ -67,7 +61,7 @@ const AlertingSettings: React.FC = () => {
   const updateMutation = useMutation({
     mutationKey: ['tenant:update'],
     mutationFn: async (data: UpdateTenantRequest) => {
-      await api.tenantUpdate(tenant.metadata.id, data);
+      await api.tenantUpdate(tenantId, data);
     },
     onMutate: () => {
       setIsLoading(true);
@@ -104,13 +98,14 @@ const AlertingSettings: React.FC = () => {
 };
 
 function EmailGroupsList() {
-  const { tenant } = useOutletContext<TenantContextType>();
+  const { tenant } = useTenantDetails();
+  const { tenantId } = useCurrentTenantId();
   const [showGroupsDialog, setShowGroupsDialog] = useState(false);
   const [deleteEmailGroup, setDeleteEmailGroup] =
     useState<TenantAlertEmailGroup | null>(null);
 
   const [isAlertMemberEmails, setIsAlertMemberEmails] = useState(
-    tenant.alertMemberEmails || false,
+    tenant?.alertMemberEmails || false,
   );
 
   const { handleApiError } = useApiError({});
@@ -118,13 +113,13 @@ function EmailGroupsList() {
   const updateMutation = useMutation({
     mutationKey: ['tenant:update'],
     mutationFn: async (data: UpdateTenantRequest) => {
-      await api.tenantUpdate(tenant.metadata.id, data);
+      await api.tenantUpdate(tenantId, data);
     },
     onError: handleApiError,
   });
 
   const listEmailGroupQuery = useQuery({
-    ...queries.emailGroups.list(tenant.metadata.id),
+    ...queries.emailGroups.list(tenantId),
   });
 
   const cols = emailGroupsColumns({
@@ -177,12 +172,10 @@ function EmailGroupsList() {
         isLoading={listEmailGroupQuery.isLoading}
         columns={cols}
         data={groups}
-        filters={[]}
         getRowId={(row) => row.metadata.id}
       />
       {showGroupsDialog && (
         <CreateEmailGroup
-          tenant={tenant.metadata.id}
           onSuccess={() => {
             setShowGroupsDialog(false);
             listEmailGroupQuery.refetch();
@@ -193,7 +186,6 @@ function EmailGroupsList() {
       )}
       {deleteEmailGroup && (
         <DeleteEmailGroup
-          tenant={tenant.metadata.id}
           emailGroup={deleteEmailGroup}
           setShowEmailGroupDelete={() => setDeleteEmailGroup(null)}
           onSuccess={() => {
@@ -207,25 +199,24 @@ function EmailGroupsList() {
 }
 
 function CreateEmailGroup({
-  tenant,
   showGroupDialog,
   setShowGroupDialog,
   onSuccess,
 }: {
-  tenant: string;
   onSuccess: () => void;
   showGroupDialog: boolean;
   setShowGroupDialog: (show: boolean) => void;
 }) {
+  const { tenantId } = useCurrentTenantId();
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const { handleApiError } = useApiError({
     setFieldErrors: setFieldErrors,
   });
 
   const createTokenMutation = useMutation({
-    mutationKey: ['api-token:create', tenant],
+    mutationKey: ['api-token:create', tenantId],
     mutationFn: async (data: CreateTenantAlertEmailGroupRequest) => {
-      const res = await api.alertEmailGroupCreate(tenant, data);
+      const res = await api.alertEmailGroupCreate(tenantId, data);
       return res.data;
     },
     onSuccess: () => {
@@ -246,20 +237,19 @@ function CreateEmailGroup({
 }
 
 function DeleteEmailGroup({
-  tenant,
   emailGroup,
   setShowEmailGroupDelete,
   onSuccess,
 }: {
-  tenant: string;
   emailGroup: TenantAlertEmailGroup;
   setShowEmailGroupDelete: (show: boolean) => void;
   onSuccess: () => void;
 }) {
+  const { tenantId } = useCurrentTenantId();
   const { handleApiError } = useApiError({});
 
   const deleteMutation = useMutation({
-    mutationKey: ['alert-email-group:delete', tenant, emailGroup],
+    mutationKey: ['alert-email-group:delete', tenantId, emailGroup],
     mutationFn: async () => {
       await api.alertEmailGroupDelete(emailGroup.metadata.id);
     },
@@ -280,11 +270,11 @@ function DeleteEmailGroup({
 }
 
 function SlackWebhooksList() {
-  const { tenant } = useOutletContext<TenantContextType>();
+  const { tenantId } = useCurrentTenantId();
   const [deleteSlack, setDeleteSlack] = useState<SlackWebhook | null>(null);
 
   const listWebhooksQuery = useQuery({
-    ...queries.slackWebhooks.list(tenant.metadata.id),
+    ...queries.slackWebhooks.list(tenantId),
   });
 
   const cols = columns({
@@ -299,7 +289,7 @@ function SlackWebhooksList() {
         <h3 className="text-xl font-semibold leading-tight text-foreground">
           Slack Webhooks
         </h3>
-        <a href={'/api/v1/tenants/' + tenant.metadata.id + '/slack/start'}>
+        <a href={'/api/v1/tenants/' + tenantId + '/slack/start'}>
           <Button key="create-slack-webhook">Add Slack Webhook</Button>
         </a>
       </div>
@@ -308,12 +298,10 @@ function SlackWebhooksList() {
         isLoading={listWebhooksQuery.isLoading}
         columns={cols}
         data={listWebhooksQuery.data?.rows || []}
-        filters={[]}
         getRowId={(row) => row.metadata.id}
       />
       {deleteSlack && (
         <DeleteSlackWebhook
-          tenant={tenant.metadata.id}
           slackWebhook={deleteSlack}
           setShowSlackWebhookDelete={() => setDeleteSlack(null)}
           onSuccess={() => {
@@ -327,20 +315,19 @@ function SlackWebhooksList() {
 }
 
 function DeleteSlackWebhook({
-  tenant,
   slackWebhook,
   setShowSlackWebhookDelete,
   onSuccess,
 }: {
-  tenant: string;
   slackWebhook: SlackWebhook;
   setShowSlackWebhookDelete: (show: boolean) => void;
   onSuccess: () => void;
 }) {
+  const { tenantId } = useCurrentTenantId();
   const { handleApiError } = useApiError({});
 
   const deleteMutation = useMutation({
-    mutationKey: ['slack-webhook:delete', tenant, slackWebhook],
+    mutationKey: ['slack-webhook:delete', tenantId, slackWebhook],
     mutationFn: async () => {
       await api.slackWebhookDelete(slackWebhook.metadata.id);
     },

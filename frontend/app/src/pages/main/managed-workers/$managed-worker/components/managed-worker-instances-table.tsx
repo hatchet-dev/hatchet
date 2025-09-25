@@ -1,35 +1,31 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { queries } from '@/lib/api';
-import invariant from 'tiny-invariant';
-import { TenantContextType } from '@/lib/outlet';
-import { useOutletContext } from 'react-router-dom';
-import { DataTable } from '@/components/molecules/data-table/data-table.tsx';
+import { DataTable } from '@/components/molecules/data-table/data-table';
 import { columns } from './managed-worker-instances-columns';
-import { Loading } from '@/components/v1/ui/loading.tsx';
-import { Button } from '@/components/v1/ui/button';
+import { Loading } from '@/components/ui/loading';
+import { Button } from '@/components/ui/button';
 import {
   Card,
   CardHeader,
   CardTitle,
   CardDescription,
   CardFooter,
-} from '@/components/v1/ui/card';
+} from '@/components/ui/card';
 import { capitalize } from '@/lib/utils';
 import { ArrowPathIcon } from '@heroicons/react/24/outline';
 import { VisibilityState } from '@tanstack/react-table';
 import { BiCard, BiTable } from 'react-icons/bi';
 import { Instance } from '@/lib/api/generated/cloud/data-contracts';
-import { Badge } from '@/components/v1/ui/badge';
+import { Badge } from '@/components/ui/badge';
+import { useRefetchInterval } from '@/contexts/refetch-interval-context';
 
 export function ManagedWorkerInstancesTable({
   managedWorkerId,
 }: {
   managedWorkerId: string;
 }) {
-  const { tenant } = useOutletContext<TenantContextType>();
-  invariant(tenant);
-
+  const { refetchInterval } = useRefetchInterval();
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
   const [rotate, setRotate] = useState(false);
 
@@ -37,7 +33,7 @@ export function ManagedWorkerInstancesTable({
 
   const listManagedWorkerInstancesQuery = useQuery({
     ...queries.cloud.listManagedWorkerInstances(managedWorkerId),
-    refetchInterval: 5000,
+    refetchInterval,
   });
 
   const data = useMemo(() => {
@@ -134,12 +130,11 @@ export function ManagedWorkerInstancesTable({
       columns={columns}
       data={dataWithMetadata}
       pageCount={1}
-      filters={[]}
       emptyState={emptyState}
       columnVisibility={columnVisibility}
       setColumnVisibility={setColumnVisibility}
       manualSorting={false}
-      actions={actions}
+      rightActions={actions}
       manualFiltering={false}
       card={
         cardToggle

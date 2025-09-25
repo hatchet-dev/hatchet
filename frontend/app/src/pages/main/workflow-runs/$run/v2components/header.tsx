@@ -1,20 +1,5 @@
-import React from 'react';
-import { Link, useOutletContext } from 'react-router-dom';
-
-import CronPrettifier from 'cronstrue';
-
-import api, { WorkflowRunShape, WorkflowRunStatus, queries } from '@/lib/api';
-import { useMutation, useQuery } from '@tanstack/react-query';
-import invariant from 'tiny-invariant';
-import { useApiError } from '@/lib/hooks';
-import { TenantContextType } from '@/lib/outlet';
-import { Button } from '@/components/ui/button';
-import {
-  AdjustmentsHorizontalIcon,
-  ArrowPathIcon,
-  XCircleIcon,
-} from '@heroicons/react/24/outline';
-import { ArrowTopRightIcon } from '@radix-ui/react-icons';
+import { V1TaskStatus, queries } from '@/lib/api';
+import { AdjustmentsHorizontalIcon } from '@heroicons/react/24/outline';
 import {
   Breadcrumb,
   BreadcrumbList,
@@ -25,97 +10,47 @@ import {
 } from '@/components/ui/breadcrumb';
 import { formatDuration } from '@/lib/utils';
 import RelativeDate from '@/components/molecules/relative-date';
-import { useToast } from '@/components/hooks/use-toast';
+import { useWorkflowDetails } from '../../hooks/use-workflow-details';
+import { TaskRunActionButton } from '../../../task-runs/actions';
+import { TASK_RUN_TERMINAL_STATUSES } from './step-run-detail/step-run-detail';
+import { CopyWorkflowConfigButton } from '@/components/shared/copy-workflow-config';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
+import { Link } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+import { Toaster } from '@/components/ui/toaster';
+import { WorkflowDefinitionLink } from './step-run-detail/workflow-definition';
 
-interface RunDetailHeaderProps {
-  data?: WorkflowRunShape;
-  loading?: boolean;
-  refetch: () => void;
-}
+export const V1RunDetailHeader = () => {
+  const { tenantId } = useCurrentTenantId();
+  const {
+    workflowRun,
+    workflowConfig,
+    isLoading: loading,
+  } = useWorkflowDetails();
 
-export const WORKFLOW_RUN_TERMINAL_STATUSES = [
-  WorkflowRunStatus.CANCELLED,
-  WorkflowRunStatus.FAILED,
-  WorkflowRunStatus.SUCCEEDED,
-];
-
-const RunDetailHeader: React.FC<RunDetailHeaderProps> = ({
-  data,
-  loading,
-  refetch,
-}) => {
-  const { tenant } = useOutletContext<TenantContextType>();
-  invariant(tenant);
-
-  const { toast } = useToast();
-
-  const { handleApiError } = useApiError({});
-
-  const cancelWorkflowRunMutation = useMutation({
-    mutationKey: ['workflow-run:cancel', data?.tenantId, data?.metadata.id],
-    onMutate: () => {
-      toast({
-        title: 'Cancelling workflow run...',
-        duration: 3000,
-      });
-    },
-    mutationFn: async () => {
-      const tenantId = data?.tenantId;
-      const workflowRunId = data?.metadata.id;
-
-      invariant(tenantId, 'has tenantId');
-      invariant(workflowRunId, 'has tenantId');
-
-      const res = await api.workflowRunCancel(tenantId, {
-        workflowRunIds: [workflowRunId],
-      });
-
-      return res.data;
-    },
-    onError: handleApiError,
-  });
-
-  const replayWorkflowRunsMutation = useMutation({
-    mutationKey: ['workflow-run:update:replay', tenant.metadata.id],
-    onMutate: () => {
-      toast({
-        title: 'Replaying workflow run...',
-        duration: 3000,
-      });
-    },
-    mutationFn: async () => {
-      if (!data) {
-        return;
-      }
-
-      await api.workflowRunUpdateReplay(tenant.metadata.id, {
-        workflowRunIds: [data?.metadata.id],
-      });
-    },
-    onSuccess: () => {
-      refetch();
-    },
-    onError: handleApiError,
-  });
-
-  if (loading || !data) {
+  if (loading || !workflowRun) {
     return <div>Loading...</div>;
   }
 
   return (
     <div className="flex flex-col gap-4">
+      <Toaster />
       <Breadcrumb>
         <BreadcrumbList>
           <BreadcrumbItem>
-            <BreadcrumbLink href="/">Home</BreadcrumbLink>
+            <BreadcrumbLink href={`/tenants/${tenantId}/runs`}>
+              Home
+            </BreadcrumbLink>
           </BreadcrumbItem>
           <BreadcrumbSeparator />
           <BreadcrumbItem>
-            <BreadcrumbLink href="/workflow-runs">Workflow Runs</BreadcrumbLink>
+            <BreadcrumbLink href={`/tenants/${tenantId}/runs`}>
+              Runs
+            </BreadcrumbLink>
           </BreadcrumbItem>
           <BreadcrumbSeparator />
           <BreadcrumbItem>
-            <BreadcrumbPage>{data.displayName}</BreadcrumbPage>
+            <BreadcrumbPage>{workflowRun.displayName}</BreadcrumbPage>
           </BreadcrumbItem>
         </BreadcrumbList>
       </Breadcrumb>
@@ -124,124 +59,110 @@ const RunDetailHeader: React.FC<RunDetailHeaderProps> = ({
           <div>
             <h2 className="text-2xl font-bold leading-tight text-foreground flex flex-row gap-4 items-center">
               <AdjustmentsHorizontalIcon className="w-5 h-5 mt-1" />
-              {data?.displayName}
+              {workflowRun.displayName}
             </h2>
           </div>
           <div className="flex flex-row gap-2 items-center">
-            <a
-              href={`/workflows/${data.workflowId}`}
-              target="_blank"
-              rel="noreferrer"
-            >
-              <Button size={'sm'} className="px-2 py-2 gap-2" variant="outline">
-                <ArrowTopRightIcon className="w-4 h-4" />
-                Workflow Definition
-              </Button>
-            </a>
-            <Button
-              size={'sm'}
-              className="px-2 py-2 gap-2"
-              variant={'outline'}
-              disabled={!WORKFLOW_RUN_TERMINAL_STATUSES.includes(data.status)}
-              onClick={() => {
-                replayWorkflowRunsMutation.mutate();
-              }}
-            >
-              <ArrowPathIcon className="w-4 h-4" />
-              Replay
-            </Button>
-            <Button
-              size={'sm'}
-              className="px-2 py-2 gap-2"
-              variant={'outline'}
-              disabled={WORKFLOW_RUN_TERMINAL_STATUSES.includes(data.status)}
-              onClick={() => {
-                cancelWorkflowRunMutation.mutate();
-              }}
-            >
-              <XCircleIcon className="w-4 h-4" />
-              Cancel
-            </Button>
+            <CopyWorkflowConfigButton workflowConfig={workflowConfig} />
+            <WorkflowDefinitionLink workflowId={workflowRun.workflowId} />
+            <TaskRunActionButton
+              actionType="replay"
+              paramOverrides={{ externalIds: [workflowRun.metadata.id] }}
+              disabled={
+                !TASK_RUN_TERMINAL_STATUSES.includes(workflowRun.status)
+              }
+              showModal={false}
+            />
+            <TaskRunActionButton
+              actionType="cancel"
+              paramOverrides={{ externalIds: [workflowRun.metadata.id] }}
+              disabled={TASK_RUN_TERMINAL_STATUSES.includes(workflowRun.status)}
+              showModal={false}
+            />
           </div>
         </div>
       </div>
-      {data.triggeredBy?.parentWorkflowRunId && (
+      {workflowRun.parentTaskExternalId && (
         <TriggeringParentWorkflowRunSection
-          tenantId={data.tenantId}
-          parentWorkflowRunId={data.triggeredBy.parentWorkflowRunId}
+          tenantId={tenantId}
+          parentTaskExternalId={workflowRun.parentTaskExternalId}
         />
       )}
-      {data.triggeredBy?.eventId && (
+      {/* {data.triggeredBy?.eventId && (
         <TriggeringEventSection eventId={data.triggeredBy.eventId} />
-      )}
-      {data.triggeredBy?.cronSchedule && (
+      )} */}
+      {/* {data.triggeredBy?.cronSchedule && (
         <TriggeringCronSection cron={data.triggeredBy.cronSchedule} />
-      )}
+      )} */}
       <div className="flex flex-row gap-2 items-center">
-        <RunSummary data={data} />
+        <V1RunSummary />
       </div>
     </div>
   );
 };
 
-export default RunDetailHeader;
+const V1RunSummary = () => {
+  const { workflowRun } = useWorkflowDetails();
 
-const RunSummary: React.FC<{ data: WorkflowRunShape }> = ({ data }) => {
   const timings = [];
+
+  if (!workflowRun) {
+    return null;
+  }
 
   timings.push(
     <div key="created" className="text-sm text-muted-foreground">
       {'Created '}
-      <RelativeDate date={data.metadata.createdAt} />
+      <RelativeDate date={workflowRun.createdAt} />
     </div>,
   );
 
-  if (data.startedAt) {
+  if (workflowRun.startedAt) {
     timings.push(
-      <div key="created" className="text-sm text-muted-foreground">
+      <div key="started" className="text-sm text-muted-foreground">
         {'Started '}
-        <RelativeDate date={data.startedAt} />
+        <RelativeDate date={workflowRun.startedAt} />
       </div>,
     );
   } else {
     timings.push(
-      <div key="created" className="text-sm text-muted-foreground">
+      <div key="running" className="text-sm text-muted-foreground">
         Running
       </div>,
     );
   }
 
-  if (data.status === WorkflowRunStatus.CANCELLED && data.finishedAt) {
+  if (workflowRun.status === V1TaskStatus.CANCELLED && workflowRun.finishedAt) {
     timings.push(
       <div key="finished" className="text-sm text-muted-foreground">
         {'Cancelled '}
-        <RelativeDate date={data.finishedAt} />
+        <RelativeDate date={workflowRun.finishedAt} />
       </div>,
     );
   }
 
-  if (data.status === WorkflowRunStatus.FAILED && data.finishedAt) {
+  if (workflowRun.status === V1TaskStatus.FAILED && workflowRun.finishedAt) {
     timings.push(
       <div key="finished" className="text-sm text-muted-foreground">
         {'Failed '}
-        <RelativeDate date={data.finishedAt} />
+        <RelativeDate date={workflowRun.finishedAt} />
       </div>,
     );
   }
 
-  if (data.status === WorkflowRunStatus.SUCCEEDED && data.finishedAt) {
+  if (workflowRun.status === V1TaskStatus.COMPLETED && workflowRun.finishedAt) {
     timings.push(
       <div key="finished" className="text-sm text-muted-foreground">
         {'Succeeded '}
-        <RelativeDate date={data.finishedAt} />
+        <RelativeDate date={workflowRun.finishedAt} />
       </div>,
     );
   }
 
-  if (data.duration) {
+  if (workflowRun.duration) {
     timings.push(
       <div key="duration" className="text-sm text-muted-foreground">
-        Run took {formatDuration(data.duration)}
+        Run took {formatDuration(workflowRun.duration)}
       </div>,
     );
   }
@@ -267,62 +188,45 @@ const RunSummary: React.FC<{ data: WorkflowRunShape }> = ({ data }) => {
 
 function TriggeringParentWorkflowRunSection({
   tenantId,
-  parentWorkflowRunId,
+  parentTaskExternalId,
 }: {
   tenantId: string;
-  parentWorkflowRunId: string;
+  parentTaskExternalId: string;
 }) {
-  // get the parent workflow run id
-  const workflowRunQuery = useQuery({
-    ...queries.workflowRuns.get(tenantId, parentWorkflowRunId),
+  // Get the parent task to find the parent workflow run
+  const parentTaskQuery = useQuery({
+    ...queries.v1Tasks.get(parentTaskExternalId),
   });
 
-  if (workflowRunQuery.isLoading || !workflowRunQuery.data) {
+  const parentTask = parentTaskQuery.data;
+  const parentWorkflowRunId = parentTask?.workflowRunExternalId;
+
+  // Get the parent workflow run details - only enabled when we have a parent workflow run ID
+  const parentWorkflowRunQuery = useQuery({
+    ...queries.v1WorkflowRuns.details(parentWorkflowRunId || ''),
+    enabled: !!parentWorkflowRunId,
+  });
+
+  // Show nothing while loading or if no data
+  if (parentTaskQuery.isLoading || !parentTask || !parentWorkflowRunId) {
     return null;
   }
 
-  const workflowRun = workflowRunQuery.data;
+  if (parentWorkflowRunQuery.isLoading || !parentWorkflowRunQuery.data) {
+    return null;
+  }
+
+  const parentWorkflowRun = parentWorkflowRunQuery.data.run;
 
   return (
     <div className="text-sm text-gray-700 dark:text-gray-300 flex flex-row gap-1">
       Triggered by
       <Link
-        to={`/workflow-runs/${parentWorkflowRunId}`}
-        className="font-semibold hover:underline  text-indigo-500 dark:text-indigo-200"
+        to={`/tenants/${tenantId}/runs/${parentWorkflowRunId}`}
+        className="font-semibold hover:underline text-indigo-500 dark:text-indigo-200"
       >
-        {workflowRun.displayName} ➶
+        {parentWorkflowRun.displayName} ➶
       </Link>
-    </div>
-  );
-}
-
-function TriggeringEventSection({ eventId }: { eventId: string }) {
-  // get the parent workflow run id
-  const eventData = useQuery({
-    ...queries.events.get(eventId),
-  });
-
-  if (eventData.isLoading || !eventData.data) {
-    return null;
-  }
-
-  const event = eventData.data;
-
-  return (
-    <div className="text-sm text-gray-700 dark:text-gray-300 flex flex-row gap-1">
-      Triggered by {event.key}
-    </div>
-  );
-}
-
-function TriggeringCronSection({ cron }: { cron: string }) {
-  const prettyInterval = `runs ${CronPrettifier.toString(
-    cron,
-  ).toLowerCase()} UTC`;
-
-  return (
-    <div className="text-sm text-gray-700 dark:text-gray-300">
-      Triggered by cron {cron} which {prettyInterval}
     </div>
   );
 }

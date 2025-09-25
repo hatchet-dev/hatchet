@@ -1,72 +1,71 @@
-import { Badge } from '@/components/ui/badge';
+import { Badge, BadgeProps } from '@/components/ui/badge';
+import { HoverCard, HoverCardTrigger } from '@/components/ui/hover-card';
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { JobRunStatus, StepRunStatus, WorkflowRunStatus } from '@/lib/api';
+import {
+  JobRunStatus,
+  StepRunStatus,
+  V1TaskStatus,
+  WorkflowRunStatus,
+} from '@/lib/api';
 import { capitalize, cn } from '@/lib/utils';
+import { HoverCardContent } from '@radix-ui/react-hover-card';
 
 type RunStatusType =
   `${StepRunStatus | WorkflowRunStatus | JobRunStatus | 'SCHEDULED'}`;
 
 type RunStatusVariant = {
   text: string;
-  variant:
-    | 'inProgress'
-    | 'successful'
-    | 'failed'
-    | 'outline'
-    | 'outlineDestructive';
+  variant: BadgeProps['variant'];
 };
 
-const RUN_STATUS_VARIANTS: Record<RunStatusType, RunStatusVariant> = {
-  SUCCEEDED: {
-    text: 'Succeeded',
-    variant: 'successful',
-  },
-  FAILED: {
-    text: 'Failed',
-    variant: 'failed',
-  },
-  CANCELLED: {
-    text: 'Cancelled',
-    variant: 'outlineDestructive',
-  },
-  CANCELLING: {
-    text: 'Cancelling',
-    variant: 'inProgress',
-  },
-  RUNNING: {
-    text: 'Running',
-    variant: 'inProgress',
-  },
-  QUEUED: {
-    text: 'Queued',
-    variant: 'outline',
-  },
-  PENDING: {
-    text: 'Pending',
-    variant: 'outline',
-  },
-  PENDING_ASSIGNMENT: {
-    text: 'Pending',
-    variant: 'outline',
-  },
-  ASSIGNED: {
-    text: 'Assigned',
-    variant: 'inProgress',
-  },
-  SCHEDULED: {
-    text: 'Scheduled',
-    variant: 'outline',
-  },
-  BACKOFF: {
-    text: 'Backoff',
-    variant: 'outline',
-  },
-};
+function createRunStatusVariant(status: RunStatusType): RunStatusVariant {
+  switch (status) {
+    case 'SUCCEEDED':
+      return { text: 'Succeeded', variant: 'successful' };
+    case 'FAILED':
+      return { text: 'Failed', variant: 'failed' };
+    case 'CANCELLED':
+      return { text: 'Cancelled', variant: 'cancelled' };
+    case 'CANCELLING':
+      return { text: 'Cancelling', variant: 'cancelled' };
+    case 'RUNNING':
+      return { text: 'Running', variant: 'inProgress' };
+    case 'QUEUED':
+      return { text: 'Queued', variant: 'queued' };
+    case 'PENDING':
+      return { text: 'Pending', variant: 'queued' };
+    case 'PENDING_ASSIGNMENT':
+      return { text: 'Pending', variant: 'queued' };
+    case 'ASSIGNED':
+      return { text: 'Assigned', variant: 'inProgress' };
+    case 'SCHEDULED':
+      return { text: 'Scheduled', variant: 'queued' };
+    default:
+      return { text: 'Unknown', variant: 'outline' };
+  }
+}
+
+function createV1RunStatusVariant(status: V1TaskStatus): RunStatusVariant {
+  switch (status) {
+    case V1TaskStatus.COMPLETED:
+      return { text: 'Succeeded', variant: 'successful' };
+    case V1TaskStatus.FAILED:
+      return { text: 'Failed', variant: 'failed' };
+    case V1TaskStatus.CANCELLED:
+      return { text: 'Cancelled', variant: 'cancelled' };
+    case V1TaskStatus.RUNNING:
+      return { text: 'Running', variant: 'inProgress' };
+    case V1TaskStatus.QUEUED:
+      return { text: 'Queued', variant: 'queued' };
+    default:
+      return { text: 'Unknown', variant: 'outline' };
+  }
+}
 
 const RUN_STATUS_REASONS: Record<string, string> = {
   TIMED_OUT: 'Runtime Timed Out',
@@ -99,7 +98,7 @@ export function RunStatus({
   reason?: string;
   className?: string;
 }) {
-  const { text, variant } = RUN_STATUS_VARIANTS[status];
+  const { text, variant } = createRunStatusVariant(status);
   const { text: overrideText, variant: overrideVariant } =
     (reason && RUN_STATUS_VARIANTS_REASON_OVERRIDES[reason]) || {};
 
@@ -125,25 +124,62 @@ export function RunStatus({
   );
 }
 
-const indicatorVariants = {
-  successful: 'border-transparent rounded-full bg-green-500',
-  failed: 'border-transparent rounded-full bg-red-500',
-  inProgress: 'border-transparent rounded-full bg-yellow-500',
-  outline: 'border-transparent rounded-full bg-muted',
-  outlineDestructive: 'border-transparent rounded-full bg-red-500',
-};
-
-export function RunIndicator({
+export function V1RunStatus({
   status,
+  errorMessage,
+  className,
 }: {
-  status: RunStatusType;
-  reason?: string;
+  status: V1TaskStatus;
+  errorMessage?: string;
+  className?: string;
 }) {
-  const variant = RUN_STATUS_VARIANTS[status].variant;
+  const { text, variant } = createV1RunStatusVariant(status);
+
+  const StatusBadge = () => (
+    <Badge variant={variant} className={className}>
+      {capitalize(text)}
+    </Badge>
+  );
+
+  if (!errorMessage) {
+    return <StatusBadge />;
+  }
 
   return (
-    <div
-      className={cn(indicatorVariants[variant], 'rounded-full h-[6px] w-[6px]')}
-    />
+    <HoverCard>
+      <HoverCardTrigger className="hover:cursor-help">
+        <StatusBadge />
+      </HoverCardTrigger>
+      <HoverCardContent className="bg-card max-w-96 lg:max-w-[500px] overflow-auto z-10 shadow-xl p-4 rounded-md border border-gray-600 border-opacity-50 max-h-96">
+        <p className="text-xs">{errorMessage}</p>
+      </HoverCardContent>
+    </HoverCard>
   );
+}
+
+function createIndicatorVariant(eventType: V1TaskStatus | undefined) {
+  switch (eventType) {
+    case V1TaskStatus.CANCELLED:
+      return 'border-transparent rounded-full bg-orange-500';
+    case V1TaskStatus.FAILED:
+      return 'border-transparent rounded-full bg-red-500';
+    case V1TaskStatus.RUNNING:
+      return 'border-transparent rounded-full bg-yellow-500';
+    case V1TaskStatus.QUEUED:
+      return 'border-transparent rounded-full bg-fuchsia-500';
+    case V1TaskStatus.COMPLETED:
+      return 'border-transparent rounded-full bg-green-500';
+    default:
+      return 'border-transparent rounded-full bg-muted';
+  }
+}
+
+export function V1RunIndicator({
+  status,
+}: {
+  status: V1TaskStatus | undefined;
+}) {
+  const indicator = createIndicatorVariant(status);
+
+  return <div className={cn(indicator, 'rounded-full h-[6px] w-[6px]')} />;
 }

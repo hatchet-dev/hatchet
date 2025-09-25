@@ -1,6 +1,5 @@
 import * as React from 'react';
-import { CheckIcon, CircleIcon, PlusCircledIcon } from '@radix-ui/react-icons';
-import { Column } from '@tanstack/react-table';
+import { CheckIcon, PlusCircledIcon } from '@radix-ui/react-icons';
 
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
@@ -27,17 +26,6 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 
-interface DataTableFacetedFilterProps<TData, TValue> {
-  column?: Column<TData, TValue>;
-  title?: string;
-  type?: ToolbarType;
-  options?: {
-    label: string;
-    value: string;
-    icon?: React.ComponentType<{ className?: string }>;
-  }[];
-}
-
 const keyValuePairSchema = z.object({
   key: z.string().min(1, 'Key is required'),
   value: z.string().min(1, 'Value is required'),
@@ -50,23 +38,6 @@ const arrayInputSchema = z.object({
 type KeyValuePair = z.infer<typeof keyValuePairSchema>;
 type ArrayInput = z.infer<typeof arrayInputSchema>;
 
-export function DataTableFacetedFilter<TData, TValue>({
-  column,
-  title,
-  type = ToolbarType.Checkbox,
-  options,
-}: DataTableFacetedFilterProps<TData, TValue>) {
-  return (
-    <Combobox
-      values={column?.getFilterValue() as string[]}
-      title={title}
-      type={type}
-      options={options}
-      setValues={(values) => column?.setFilterValue(values)}
-    />
-  );
-}
-
 export function Combobox({
   values = [],
   title,
@@ -74,6 +45,9 @@ export function Combobox({
   type = ToolbarType.Checkbox,
   options,
   setValues,
+  onSearchChange,
+  searchValue,
+  emptyMessage,
 }: {
   values?: string[];
   icon?: JSX.Element;
@@ -85,6 +59,9 @@ export function Combobox({
     icon?: React.ComponentType<{ className?: string }>;
   }[];
   setValues: (selectedValues: string[]) => void;
+  onSearchChange?: (value: string) => void;
+  searchValue?: string;
+  emptyMessage?: string;
 }) {
   const { register, handleSubmit, reset } = useForm<KeyValuePair | ArrayInput>({
     resolver: zodResolver(
@@ -164,7 +141,7 @@ export function Combobox({
           )}
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[300px] p-2" align="start">
+      <PopoverContent className="w-[300px] p-2 z-[70]" align="start">
         {[ToolbarType.Array, ToolbarType.KeyValue].includes(type) && (
           <div>
             <div className="">
@@ -230,10 +207,16 @@ export function Combobox({
         )}
 
         {[ToolbarType.Checkbox, ToolbarType.Radio].includes(type) && (
-          <Command>
-            <CommandInput placeholder={title} />
+          <Command shouldFilter={!onSearchChange}>
+            <CommandInput
+              placeholder={title}
+              value={searchValue}
+              onValueChange={onSearchChange}
+            />
             <CommandList>
-              <CommandEmpty>No results found.</CommandEmpty>
+              <CommandEmpty className="py-2 text-sm text-muted-foreground text-center">
+                {emptyMessage || 'No results found.'}
+              </CommandEmpty>
               <CommandGroup>
                 {options?.map((option) => {
                   const isSelected = values.indexOf(option.value) != -1;
@@ -244,10 +227,12 @@ export function Combobox({
                         if (isSelected) {
                           values.splice(values.indexOf(option.value), 1);
                         } else {
-                          if (type == 'radio') {
-                            values = [];
+                          if (type === ToolbarType.Radio) {
+                            setValues([option.value]);
+                            return;
+                          } else {
+                            values.push(option.value);
                           }
-                          values.push(option.value);
                         }
                         setValues(values);
                       }}
@@ -260,11 +245,7 @@ export function Combobox({
                             : 'opacity-50 [&_svg]:invisible',
                         )}
                       >
-                        {type === 'checkbox' ? (
-                          <CheckIcon className={cn('h-4 w-4')} />
-                        ) : (
-                          <CircleIcon className={cn('h-4 w-4')} />
-                        )}
+                        <CheckIcon className={cn('h-4 w-4')} />
                       </div>
                       {option.icon && (
                         <option.icon className="mr-2 h-4 w-4 text-gray-700 dark:text-gray-300" />
