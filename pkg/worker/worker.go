@@ -536,8 +536,12 @@ func (w *Worker) startStepRun(ctx context.Context, assignedAction *client.Action
 	actionEvent := w.getActionEvent(assignedAction, client.ActionEventTypeStarted)
 
 	go func() {
+		eventCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+
+		defer cancel()
+
 		_, err := w.client.Dispatcher().SendStepActionEvent(
-			ctx,
+			eventCtx,
 			actionEvent,
 		)
 
