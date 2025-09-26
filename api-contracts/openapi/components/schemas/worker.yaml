@@ -100,6 +100,11 @@ Worker:
       description: The actions this worker can perform.
       items:
         type: string
+    registeredWorkflowIds:
+      type: array
+      description: The workflow ids registered on this worker.
+      items:
+        type: string
     slots:
       type: array
       description: The semaphore slot state for the worker.

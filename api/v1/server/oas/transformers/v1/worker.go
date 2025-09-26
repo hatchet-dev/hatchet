@@ -60,7 +60,7 @@ func ToWorkerRuntimeInfo(worker *sqlcv1.Worker) *gen.WorkerRuntimeInfo {
 	return runtime
 }
 
-func ToWorkerSqlc(worker *sqlcv1.Worker, remainingSlots *int, webhookUrl *string, actions []string) *gen.Worker {
+func ToWorkerSqlc(worker *sqlcv1.Worker, remainingSlots *int, webhookUrl *string, actions []string, workflowIds *[]string) *gen.Worker {
 
 	dispatcherId := uuid.MustParse(sqlchelpers.UUIDToStr(worker.DispatcherId))
 
@@ -108,6 +108,7 @@ func ToWorkerSqlc(worker *sqlcv1.Worker, remainingSlots *int, webhookUrl *string
 	}
 
 	res.Actions = &actions
+	res.RegisteredWorkflowIds = workflowIds
 
 	return res
 }

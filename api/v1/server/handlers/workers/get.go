@@ -114,6 +114,12 @@ func (t *WorkerService) workerGetV1(ctx echo.Context, tenant *dbsqlc.Tenant, req
 		return nil, err
 	}
 
+	workerWorkflows, err := t.config.APIRepository.Worker().GetWorkerWorkflowsByWorkerId(tenant.ID.String(), worker.Worker.ID.String())
+
+	if err != nil {
+		return nil, err
+	}
+
 	actions, ok := workerIdToActions[sqlchelpers.UUIDToStr(worker.Worker.ID)]
 	if !ok {
 		return nil, fmt.Errorf("worker %s has no actions", sqlchelpers.UUIDToStr(worker.Worker.ID))
@@ -133,7 +139,12 @@ func (t *WorkerService) workerGetV1(ctx echo.Context, tenant *dbsqlc.Tenant, req
 
 	slots := int(worker.RemainingSlots)
 
-	workerResp := *transformersv1.ToWorkerSqlc(&worker.Worker, &slots, &worker.WebhookUrl.String, actions)
+	workflowIds := make([]string, len(workerWorkflows))
+	for i, wf := range workerWorkflows {
+		workflowIds[i] = wf.ID.String()
+	}
+
+	workerResp := *transformersv1.ToWorkerSqlc(&worker.Worker, &slots, &worker.WebhookUrl.String, actions, &workflowIds)
 
 	workerResp.RecentStepRuns = &respStepRuns
 	workerResp.Slots = transformersv1.ToSlotState(slotState, slots)

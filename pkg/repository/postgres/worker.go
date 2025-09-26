@@ -68,6 +68,10 @@ func (w *workerAPIRepository) GetWorkerActionsByWorkerId(tenantid string, worker
 	return workerIdToActionIds, nil
 }
 
+func (w *workerAPIRepository) GetWorkerWorkflowsByWorkerId(tenantid string, workerId string) ([]*dbsqlc.Workflow, error) {
+	return w.queries.GetWorkerWorkflowsByWorkerId(context.Background(), w.pool, sqlchelpers.UUIDFromStr(workerId))
+}
+
 func (w *workerAPIRepository) ListWorkerState(tenantId, workerId string, maxRuns int) ([]*dbsqlc.ListSemaphoreSlotsWithStateForWorkerRow, []*dbsqlc.GetStepRunForEngineRow, error) {
 	slots, err := w.queries.ListSemaphoreSlotsWithStateForWorker(context.Background(), w.pool, dbsqlc.ListSemaphoreSlotsWithStateForWorkerParams{
 		Workerid: sqlchelpers.UUIDFromStr(workerId),

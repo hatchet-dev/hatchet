@@ -2054,6 +2054,8 @@ export interface Worker {
   lastListenerEstablished?: string;
   /** The actions this worker can perform. */
   actions?: string[];
+  /** The workflow ids registered on this worker. */
+  registeredWorkflowIds?: string[];
   /** The semaphore slot state for the worker. */
   slots?: SemaphoreSlots[];
   /** The recent step runs for the worker. */

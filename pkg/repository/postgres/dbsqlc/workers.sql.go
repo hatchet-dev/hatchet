@@ -403,6 +403,47 @@ func (q *Queries) GetWorkerForEngine(ctx context.Context, db DBTX, arg GetWorker
 	return &i, err
 }
 
+const getWorkerWorkflowsByWorkerId = `-- name: GetWorkerWorkflowsByWorkerId :many
+SELECT wf.id, wf."createdAt", wf."updatedAt", wf."deletedAt", wf."tenantId", wf.name, wf.description, wf."isPaused"
+FROM "Worker" w
+JOIN "_ActionToWorker" aw ON w.id = aw."B"
+JOIN "Action" a ON aw."A" = a.id
+JOIN "Step" s ON s."actionId" = a."actionId" AND s."tenantId" = a."tenantId"
+JOIN "Job" j ON j."id" = s."jobId" AND j."tenantId" = a."tenantId"
+JOIN "WorkflowVersion" wv ON wv."id" = j."workflowVersionId"
+JOIN "Workflow" wf ON wf."id" = wv."workflowId" AND wf."tenantId" = a."tenantId"
+WHERE w."id" = $1::UUID
+`
+
+func (q *Queries) GetWorkerWorkflowsByWorkerId(ctx context.Context, db DBTX, workerid pgtype.UUID) ([]*Workflow, error) {
+	rows, err := db.Query(ctx, getWorkerWorkflowsByWorkerId, workerid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*Workflow
+	for rows.Next() {
+		var i Workflow
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+			&i.TenantId,
+			&i.Name,
+			&i.Description,
+			&i.IsPaused,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const linkActionsToWorker = `-- name: LinkActionsToWorker :exec
 INSERT INTO "_ActionToWorker" (
     "A",
