@@ -281,8 +281,6 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadWAL(ctx context.Context, part
 		return false, nil
 	}
 
-	fmt.Println("WAL Poll Limit", int32(p.walPollLimit))
-
 	walRecords, err := p.queries.PollPayloadWALForRecordsToOffload(ctx, tx, sqlcv1.PollPayloadWALForRecordsToOffloadParams{
 		Polllimit:       int32(p.walPollLimit),
 		Partitionnumber: int32(partitionNumber),
