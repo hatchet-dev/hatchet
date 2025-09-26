@@ -257,9 +257,9 @@ export default function ExpandedWorkflowRun() {
         </div>
         <div className="flex flex-row w-full items-center justify-center py-4">
           {!showAllActions &&
-            filteredWorkflows.length > N_ACTIONS_TO_PREVIEW && (
+            registeredWorkflows.length > N_ACTIONS_TO_PREVIEW && (
               <Button variant="outline" onClick={() => setShowAllActions(true)}>
-                Show All ({filteredWorkflows.length - N_ACTIONS_TO_PREVIEW}{' '}
+                Show All ({registeredWorkflows.length - N_ACTIONS_TO_PREVIEW}
                 more)
               </Button>
             )}
