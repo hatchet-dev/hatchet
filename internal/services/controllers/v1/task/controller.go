@@ -1563,7 +1563,7 @@ func (tc *TasksControllerImpl) signalTasksCreatedAndQueued(ctx context.Context, 
 		return err
 	}
 
-	if tenant.SchedulerPartitionId.Valid {
+	if tenant.SchedulerPartitionId.Valid && (disableFlag != "true" && disableFlag != "t") {
 		msg, err := tasktypes.NotifyTaskCreated(tenantId, tasks)
 
 		if err != nil {
