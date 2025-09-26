@@ -141,12 +141,13 @@ jobs:
           PYTHON_VERSION=$(python -c "import sys; print(f'py{sys.version_info.major}{sys.version_info.minor}')")
           SHORT_SHA=$(git rev-parse --short HEAD)
           echo "HATCHET_CLIENT_NAMESPACE=${PYTHON_VERSION}-${SHORT_SHA}" >> $GITHUB_ENV
+          echo "NUM_PYTEST_WORKERS=2" >> $GITHUB_ENV
 
       - name: Run pytest
         run: |
           echo "Using HATCHET_CLIENT_NAMESPACE: $HATCHET_CLIENT_NAMESPACE"
 
-          poetry run pytest -s -vvv --maxfail=5 --capture=no --retries 3 --retry-delay 2
+          poetry run pytest -s -vvv --maxfail=5 --capture=no --retries 3 --retry-delay 2 -n $NUM_PYTEST_WORKERS
 
       - name: Upload engine logs
         if: always()

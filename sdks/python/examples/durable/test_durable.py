@@ -1,6 +1,7 @@
 import asyncio
 
 import pytest
+import os
 
 from examples.durable.worker import (
     EVENT_KEY,
@@ -27,7 +28,7 @@ async def test_durable(hatchet: Hatchet) -> None:
 
     active_workers = [w for w in workers.rows if w.status == "ACTIVE"]
 
-    assert len(active_workers) == 2
+    assert len(active_workers) == 2 * int(os.getenv("NUM_PYTEST_WORKERS", "1"))
     assert any(
         w.name == hatchet.config.apply_namespace("e2e-test-worker")
         for w in active_workers
