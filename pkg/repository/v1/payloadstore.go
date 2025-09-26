@@ -52,7 +52,7 @@ type PayloadStoreRepository interface {
 	Retrieve(ctx context.Context, opts RetrievePayloadOpts) ([]byte, error)
 	BulkRetrieve(ctx context.Context, opts ...RetrievePayloadOpts) (map[RetrievePayloadOpts][]byte, error)
 	ProcessPayloadWAL(ctx context.Context, partitionNumber int64) (bool, error)
-	OverwriteExternalStore(store ExternalStore, inlineStoreTTL time.Duration)
+	OverwriteExternalStore(store ExternalStore, inlineStoreTTL time.Duration, walPollLimit int)
 	DualWritesEnabled() bool
 }
 
@@ -64,6 +64,7 @@ type payloadStoreRepositoryImpl struct {
 	inlineStoreTTL          *time.Duration
 	externalStore           ExternalStore
 	enablePayloadDualWrites bool
+	walPollLimit            int
 }
 
 func NewPayloadStoreRepository(
@@ -81,6 +82,7 @@ func NewPayloadStoreRepository(
 		inlineStoreTTL:          nil,
 		externalStore:           &NoOpExternalStore{},
 		enablePayloadDualWrites: enablePayloadDualWrites,
+		walPollLimit:            1000,
 	}
 }
 
@@ -277,14 +279,12 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadWAL(ctx context.Context, part
 		return false, nil
 	}
 
-	pollLimit := 1000
-
 	walRecords, err := p.queries.PollPayloadWALForRecordsToOffload(ctx, tx, sqlcv1.PollPayloadWALForRecordsToOffloadParams{
-		Polllimit:       int32(pollLimit),
+		Polllimit:       int32(p.walPollLimit),
 		Partitionnumber: int32(partitionNumber),
 	})
 
-	hasMoreWALRecords := len(walRecords) == pollLimit
+	hasMoreWALRecords := len(walRecords) == p.walPollLimit
 
 	if len(walRecords) == 0 {
 		return false, nil
@@ -425,9 +425,10 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadWAL(ctx context.Context, part
 	return hasMoreWALRecords, nil
 }
 
-func (p *payloadStoreRepositoryImpl) OverwriteExternalStore(store ExternalStore, inlineStoreTTL time.Duration) {
+func (p *payloadStoreRepositoryImpl) OverwriteExternalStore(store ExternalStore, inlineStoreTTL time.Duration, walPollLimit int) {
 	p.externalStoreEnabled = true
 	p.inlineStoreTTL = &inlineStoreTTL
+	p.walPollLimit = walPollLimit
 	p.externalStore = store
 }
 
