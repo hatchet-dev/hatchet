@@ -52,7 +52,7 @@ type PayloadStoreRepository interface {
 	Retrieve(ctx context.Context, opts RetrievePayloadOpts) ([]byte, error)
 	BulkRetrieve(ctx context.Context, opts ...RetrievePayloadOpts) (map[RetrievePayloadOpts][]byte, error)
 	ProcessPayloadWAL(ctx context.Context, partitionNumber int64) (bool, error)
-	OverwriteExternalStore(store ExternalStore, inlineStoreTTL time.Duration, walPollLimit int)
+	OverwriteExternalStore(store ExternalStore, inlineStoreTTL time.Duration)
 	DualWritesEnabled() bool
 }
 
@@ -72,6 +72,7 @@ func NewPayloadStoreRepository(
 	l *zerolog.Logger,
 	queries *sqlcv1.Queries,
 	enablePayloadDualWrites bool,
+	walPollLimit int,
 ) PayloadStoreRepository {
 	return &payloadStoreRepositoryImpl{
 		pool:    pool,
@@ -82,7 +83,7 @@ func NewPayloadStoreRepository(
 		inlineStoreTTL:          nil,
 		externalStore:           &NoOpExternalStore{},
 		enablePayloadDualWrites: enablePayloadDualWrites,
-		walPollLimit:            1000,
+		walPollLimit:            walPollLimit,
 	}
 }
 
@@ -425,10 +426,9 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadWAL(ctx context.Context, part
 	return hasMoreWALRecords, nil
 }
 
-func (p *payloadStoreRepositoryImpl) OverwriteExternalStore(store ExternalStore, inlineStoreTTL time.Duration, walPollLimit int) {
+func (p *payloadStoreRepositoryImpl) OverwriteExternalStore(store ExternalStore, inlineStoreTTL time.Duration) {
 	p.externalStoreEnabled = true
 	p.inlineStoreTTL = &inlineStoreTTL
-	p.walPollLimit = walPollLimit
 	p.externalStore = store
 }
 

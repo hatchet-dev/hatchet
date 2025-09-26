@@ -49,13 +49,13 @@ type repositoryImpl struct {
 	filters      FilterRepository
 	webhooks     WebhookRepository
 	payloadStore PayloadStoreRepository
-	idempotency IdempotencyRepository
+	idempotency  IdempotencyRepository
 }
 
-func NewRepository(pool *pgxpool.Pool, l *zerolog.Logger, taskRetentionPeriod, olapRetentionPeriod time.Duration, maxInternalRetryCount int32, entitlements repository.EntitlementsRepository, taskLimits TaskOperationLimits, enablePayloadDualWrites bool) (Repository, func() error) {
+func NewRepository(pool *pgxpool.Pool, l *zerolog.Logger, taskRetentionPeriod, olapRetentionPeriod time.Duration, maxInternalRetryCount int32, entitlements repository.EntitlementsRepository, taskLimits TaskOperationLimits, enablePayloadDualWrites bool, payloadStoreWALPollLimit int) (Repository, func() error) {
 	v := validator.NewDefaultValidator()
 
-	shared, cleanupShared := newSharedRepository(pool, v, l, entitlements, enablePayloadDualWrites)
+	shared, cleanupShared := newSharedRepository(pool, v, l, entitlements, enablePayloadDualWrites, payloadStoreWALPollLimit)
 
 	impl := &repositoryImpl{
 		triggers:     newTriggerRepository(shared),
@@ -70,7 +70,7 @@ func NewRepository(pool *pgxpool.Pool, l *zerolog.Logger, taskRetentionPeriod, o
 		filters:      newFilterRepository(shared),
 		webhooks:     newWebhookRepository(shared),
 		payloadStore: shared.payloadStore,
-		idempotency: newIdempotencyRepository(shared),
+		idempotency:  newIdempotencyRepository(shared),
 	}
 
 	return impl, func() error {
