@@ -54,6 +54,7 @@ type PayloadStoreRepository interface {
 	ProcessPayloadWAL(ctx context.Context, partitionNumber int64) (bool, error)
 	OverwriteExternalStore(store ExternalStore, inlineStoreTTL time.Duration)
 	DualWritesEnabled() bool
+	WALPollLimit() int
 }
 
 type payloadStoreRepositoryImpl struct {
@@ -436,6 +437,10 @@ func (p *payloadStoreRepositoryImpl) OverwriteExternalStore(store ExternalStore,
 
 func (p *payloadStoreRepositoryImpl) DualWritesEnabled() bool {
 	return p.enablePayloadDualWrites
+}
+
+func (p *payloadStoreRepositoryImpl) WALPollLimit() int {
+	return p.walPollLimit
 }
 
 type NoOpExternalStore struct{}
