@@ -157,7 +157,11 @@ export default function Events() {
 }
 
 export function ExpandedEventContent({ event }: { event: V1Event }) {
-  const { filters, workflowIdToName } = useFilters({ key: 'events-table' });
+  const hasScope = Boolean(event.scope && event.scope.length > 0);
+  const { filters, workflowIdToName } = useFilters({
+    key: 'events-table',
+    scopeOverrides: event.scope ? [event.scope] : undefined,
+  });
 
   return (
     <div className="w-full">
@@ -188,7 +192,7 @@ export function ExpandedEventContent({ event }: { event: V1Event }) {
             <EventDataSection event={event} />
           </div>
 
-          {filters && filters.length > 0 && (
+          {hasScope && filters && filters.length > 0 && (
             <div>
               <h3 className="text-sm font-semibold text-foreground mb-2">
                 Filters
