@@ -123,24 +123,10 @@ export default function ExpandedWorkflowRun() {
     onError: handleApiError,
   });
 
-  const { data: workflowsData } = useQuery({
-    ...queries.workflows.list(tenantId, {
-      limit: 1000,
-    }),
-    refetchInterval,
-  });
-
-  const registeredWorkflows = useMemo(() => {
-    const workflowKeys =
-      worker?.actions?.map((action) => action.split(':')[0].toLowerCase()) ||
-      [];
-
-    return (
-      workflowsData?.rows?.filter((w) =>
-        workflowKeys.includes(w.name.toLowerCase()),
-      ) ?? []
-    );
-  }, [worker?.actions, workflowsData?.rows]);
+  const registeredWorkflows = useMemo(
+    () => worker?.registeredWorkflows || [],
+    [worker],
+  );
 
   const filteredWorkflows = useMemo(() => {
     if (showAllActions) {
@@ -156,7 +142,7 @@ export default function ExpandedWorkflowRun() {
 
   return (
     <div className="flex-grow h-full w-full">
-      <div className="mx-auto py-8 px-4 sm:px-6 lg:px-8">
+      <div className="mx-auto py-8 px-4 sm:px-6 lg:px-8 h-full flex flex-col">
         <div className="flex flex-row justify-between items-center">
           <div className="flex flex-row gap-4 items-center justify-between">
             <ServerStackIcon className="h-6 w-6 text-foreground mt-1" />
@@ -236,7 +222,7 @@ export default function ExpandedWorkflowRun() {
             Recent Task Runs
           </h3>
         </div>
-        <div className="flex-1 min-h-0 h-[600px]">
+        <div className="max-h-[600px]">
           <RunsProvider
             tableKey={`worker-${worker.metadata.id}`}
             display={{
@@ -261,8 +247,8 @@ export default function ExpandedWorkflowRun() {
           {filteredWorkflows.map((workflow) => {
             return (
               <Link
-                to={`/tenants/${tenantId}/workflows/${workflow.metadata.id}`}
-                key={workflow.metadata.id}
+                to={`/tenants/${tenantId}/workflows/${workflow.id}`}
+                key={workflow.id}
               >
                 <Button variant="outline">{workflow.name}</Button>
               </Link>
@@ -273,7 +259,7 @@ export default function ExpandedWorkflowRun() {
           {!showAllActions &&
             registeredWorkflows.length > N_ACTIONS_TO_PREVIEW && (
               <Button variant="outline" onClick={() => setShowAllActions(true)}>
-                Show All ({registeredWorkflows.length - N_ACTIONS_TO_PREVIEW}{' '}
+                Show All ({registeredWorkflows.length - N_ACTIONS_TO_PREVIEW}
                 more)
               </Button>
             )}

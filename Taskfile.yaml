@@ -199,3 +199,11 @@ tasks:
         npx chokidar "sdks/**/*.{py,ts,go}" --ignore "**/node_modules/**" --ignore "**/.git/**" --ignore "**/dist/**" --ignore "**/build/**" --initial -c "echo 'TODO: Add a task to generate and sync the docs'" &
 
         cd frontend/docs/ && pnpm run taskfile-dev
+  pytest:
+    dir: ./sdks/python
+    vars:
+      WORKERS: '{{.WORKERS | default "auto"}}'
+      RETRIES: '{{.RETRIES | default "3"}}'
+      EXTRA_ARGS: '{{.EXTRA_ARGS | default ""}}'
+    cmds:
+      - poetry run pytest -n auto --retries 3 --retry-delay 5

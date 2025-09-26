@@ -83,6 +83,9 @@ type WorkerAPIRepository interface {
 	// GetWorkerActionsByWorkerId returns a list of actions for a worker
 	GetWorkerActionsByWorkerId(tenantid string, workerId []string) (map[string][]string, error)
 
+	// GetWorkerWorkflowsByWorkerId returns a list of workflows for a worker
+	GetWorkerWorkflowsByWorkerId(tenantid string, workerId string) ([]*dbsqlc.Workflow, error)
+
 	// GetWorkerById returns a worker by its id.
 	GetWorkerById(workerId string) (*dbsqlc.GetWorkerByIdRow, error)
 
