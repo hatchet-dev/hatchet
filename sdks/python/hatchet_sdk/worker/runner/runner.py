@@ -4,6 +4,7 @@ import functools
 import json
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import asdict, is_dataclass
 from enum import Enum
 from multiprocessing import Queue
 from textwrap import dedent
@@ -41,6 +42,7 @@ from hatchet_sdk.runnables.action import Action, ActionKey, ActionType
 from hatchet_sdk.runnables.contextvars import (
     ctx_action_key,
     ctx_additional_metadata,
+    ctx_context,
     ctx_step_run_id,
     ctx_worker_id,
     ctx_workflow_run_id,
@@ -303,6 +305,7 @@ class Runner:
         ctx_worker_id.set(action.worker_id)
         ctx_action_key.set(action.key)
         ctx_additional_metadata.set(action.additional_metadata)
+        ctx_context.set(ctx)
 
         dependencies = await task._unpack_dependencies(ctx)
 
@@ -583,6 +586,9 @@ class Runner:
 
         if isinstance(output, BaseModel):
             output = output.model_dump(mode="json")
+
+        if is_dataclass(output) and not isinstance(output, type):
+            output = asdict(output)
 
         if not isinstance(output, dict):
             raise IllegalTaskOutputError(

@@ -4,7 +4,6 @@ from datetime import timedelta
 from typing import TYPE_CHECKING, Any, cast
 from warnings import warn
 
-from hatchet_sdk.clients.admin import AdminClient
 from hatchet_sdk.clients.dispatcher.dispatcher import (  # type: ignore[attr-defined]
     Action,
     DispatcherClient,
@@ -26,11 +25,13 @@ from hatchet_sdk.features.runs import RunsClient
 from hatchet_sdk.logger import logger
 from hatchet_sdk.utils.timedelta_to_expression import Duration, timedelta_to_expr
 from hatchet_sdk.utils.typing import JSONSerializableMapping, LogLevel
-from hatchet_sdk.worker.runner.utils.capture_logs import AsyncLogSender, LogRecord
+from hatchet_sdk.worker.runner.utils.schemas import LogRecord
 
 if TYPE_CHECKING:
+    from hatchet_sdk.clients.admin import AdminClient
     from hatchet_sdk.runnables.task import Task
     from hatchet_sdk.runnables.types import R, TWorkflowInput
+    from hatchet_sdk.worker.runner.utils.capture_logs import AsyncLogSender
 
 
 class Context:
@@ -38,13 +39,13 @@ class Context:
         self,
         action: Action,
         dispatcher_client: DispatcherClient,
-        admin_client: AdminClient,
+        admin_client: "AdminClient",
         event_client: EventClient,
         durable_event_listener: DurableEventListener | None,
         worker: WorkerContext,
         runs_client: RunsClient,
         lifespan_context: Any | None,
-        log_sender: AsyncLogSender,
+        log_sender: "AsyncLogSender",
     ):
         self.worker = worker
 
@@ -404,13 +405,13 @@ class DurableContext(Context):
         self,
         action: Action,
         dispatcher_client: DispatcherClient,
-        admin_client: AdminClient,
+        admin_client: "AdminClient",
         event_client: EventClient,
         durable_event_listener: DurableEventListener | None,
         worker: WorkerContext,
         runs_client: RunsClient,
         lifespan_context: Any | None,
-        log_sender: AsyncLogSender,
+        log_sender: "AsyncLogSender",
     ):
         super().__init__(
             action,
