@@ -107,7 +107,7 @@ export const columns: (
   {
     accessorKey: taskNameKey,
     header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Task" />
+      <DataTableColumnHeader column={column} title={TaskRunColumn.taskName} />
     ),
     cell: ({ row }) => {
       if (row.getCanExpand()) {
@@ -139,7 +139,7 @@ export const columns: (
     ),
     cell: ({ row }) => (
       <V1RunStatus
-        className="w-full text-center items-center justify-center px-2"
+        className="text-center items-center justify-center px-2"
         status={row.original.status}
         errorMessage={row.original.errorMessage}
       />

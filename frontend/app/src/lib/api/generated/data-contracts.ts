@@ -1978,6 +1978,16 @@ export interface RerunStepRunRequest {
   input: object;
 }
 
+export interface RegisteredWorkflow {
+  /**
+   * The workflow id registered on this worker.
+   * @format uuid
+   */
+  id: string;
+  /** The name of the workflow registered on this worker. */
+  name: string;
+}
+
 export interface SemaphoreSlots {
   /**
    * The step run id.
@@ -2054,6 +2064,8 @@ export interface Worker {
   lastListenerEstablished?: string;
   /** The actions this worker can perform. */
   actions?: string[];
+  /** The workflow ids registered on this worker. */
+  registeredWorkflows?: RegisteredWorkflow[];
   /** The semaphore slot state for the worker. */
   slots?: SemaphoreSlots[];
   /** The recent step runs for the worker. */
