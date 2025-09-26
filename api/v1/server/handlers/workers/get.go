@@ -139,9 +139,15 @@ func (t *WorkerService) workerGetV1(ctx echo.Context, tenant *dbsqlc.Tenant, req
 
 	slots := int(worker.RemainingSlots)
 
-	workflowIds := make([]string, len(workerWorkflows))
-	for i, wf := range workerWorkflows {
-		workflowIds[i] = wf.ID.String()
+	workflowIds := make([]string, 0, len(workerWorkflows))
+	uniqueWorkflowIds := make(map[string]struct{})
+	for _, wf := range workerWorkflows {
+		if _, ok := uniqueWorkflowIds[wf.ID.String()]; ok {
+			continue
+		}
+
+		workflowIds = append(workflowIds, wf.ID.String())
+		uniqueWorkflowIds[wf.ID.String()] = struct{}{}
 	}
 
 	workerResp := *transformersv1.ToWorkerSqlc(&worker.Worker, &slots, &worker.WebhookUrl.String, actions, &workflowIds)
