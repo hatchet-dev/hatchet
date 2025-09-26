@@ -206,4 +206,4 @@ tasks:
       RETRIES: '{{.RETRIES | default "3"}}'
       EXTRA_ARGS: '{{.EXTRA_ARGS | default ""}}'
     cmds:
-      - poetry run pytest -n auto --retries 3 --retry-delay 2
+      - poetry run pytest -n auto --retries 3 --retry-delay 5
