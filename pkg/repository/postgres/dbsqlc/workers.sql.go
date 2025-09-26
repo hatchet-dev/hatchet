@@ -412,11 +412,18 @@ JOIN "Step" s ON s."actionId" = a."actionId" AND s."tenantId" = a."tenantId"
 JOIN "Job" j ON j."id" = s."jobId" AND j."tenantId" = a."tenantId"
 JOIN "WorkflowVersion" wv ON wv."id" = j."workflowVersionId"
 JOIN "Workflow" wf ON wf."id" = wv."workflowId" AND wf."tenantId" = a."tenantId"
-WHERE w."id" = $1::UUID
+WHERE
+    w."id" = $1::UUID
+    AND w."tenantId" = $2::UUID
 `
 
-func (q *Queries) GetWorkerWorkflowsByWorkerId(ctx context.Context, db DBTX, workerid pgtype.UUID) ([]*Workflow, error) {
-	rows, err := db.Query(ctx, getWorkerWorkflowsByWorkerId, workerid)
+type GetWorkerWorkflowsByWorkerIdParams struct {
+	Workerid pgtype.UUID `json:"workerid"`
+	Tenantid pgtype.UUID `json:"tenantid"`
+}
+
+func (q *Queries) GetWorkerWorkflowsByWorkerId(ctx context.Context, db DBTX, arg GetWorkerWorkflowsByWorkerIdParams) ([]*Workflow, error) {
+	rows, err := db.Query(ctx, getWorkerWorkflowsByWorkerId, arg.Workerid, arg.Tenantid)
 	if err != nil {
 		return nil, err
 	}

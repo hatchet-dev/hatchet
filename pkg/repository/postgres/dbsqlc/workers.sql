@@ -84,7 +84,9 @@ JOIN "Step" s ON s."actionId" = a."actionId" AND s."tenantId" = a."tenantId"
 JOIN "Job" j ON j."id" = s."jobId" AND j."tenantId" = a."tenantId"
 JOIN "WorkflowVersion" wv ON wv."id" = j."workflowVersionId"
 JOIN "Workflow" wf ON wf."id" = wv."workflowId" AND wf."tenantId" = a."tenantId"
-WHERE w."id" = @workerId::UUID
+WHERE
+    w."id" = @workerId::UUID
+    AND w."tenantId" = @tenantId::UUID
 ;
 
 -- name: ListSemaphoreSlotsWithStateForWorker :many
