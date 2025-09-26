@@ -142,7 +142,7 @@ export function createV2IndicatorVariant(eventType: V1TaskStatus | undefined) {
     case V1TaskStatus.RUNNING:
       return 'border-transparent rounded-full bg-yellow-500';
     case V1TaskStatus.QUEUED:
-      return 'border-transparent rounded-full bg-fuchsia-500';
+      return 'border-transparent rounded-full bg-slate-500';
     case V1TaskStatus.COMPLETED:
       return 'border-transparent rounded-full bg-green-500';
     default:
