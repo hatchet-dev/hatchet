@@ -156,7 +156,7 @@ export default function ExpandedWorkflowRun() {
 
   return (
     <div className="flex-grow h-full w-full">
-      <div className="mx-auto py-8 px-4 sm:px-6 lg:px-8">
+      <div className="mx-auto py-8 px-4 sm:px-6 lg:px-8 h-full flex flex-col">
         <div className="flex flex-row justify-between items-center">
           <div className="flex flex-row gap-4 items-center justify-between">
             <ServerStackIcon className="h-6 w-6 text-foreground mt-1" />
@@ -236,7 +236,7 @@ export default function ExpandedWorkflowRun() {
             Recent Task Runs
           </h3>
         </div>
-        <div className="flex-1 min-h-0 h-[600px]">
+        <div className="max-h-[600px]">
           <RunsProvider
             tableKey={`worker-${worker.metadata.id}`}
             display={{
