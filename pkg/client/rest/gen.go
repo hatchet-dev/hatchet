@@ -792,6 +792,15 @@ type RecentStepRuns struct {
 	WorkflowRunId openapi_types.UUID `json:"workflowRunId"`
 }
 
+// RegisteredWorkflow defines model for RegisteredWorkflow.
+type RegisteredWorkflow struct {
+	// Id The workflow id registered on this worker.
+	Id openapi_types.UUID `json:"id"`
+
+	// Name The name of the workflow registered on this worker.
+	Name string `json:"name"`
+}
+
 // RejectInviteRequest defines model for RejectInviteRequest.
 type RejectInviteRequest struct {
 	Invite string `json:"invite" validate:"required,uuid"`
@@ -1987,9 +1996,9 @@ type Worker struct {
 	// RecentStepRuns The recent step runs for the worker.
 	RecentStepRuns *[]RecentStepRuns `json:"recentStepRuns,omitempty"`
 
-	// RegisteredWorkflowIds The workflow ids registered on this worker.
-	RegisteredWorkflowIds *[]string          `json:"registeredWorkflowIds,omitempty"`
-	RuntimeInfo           *WorkerRuntimeInfo `json:"runtimeInfo,omitempty"`
+	// RegisteredWorkflows The workflow ids registered on this worker.
+	RegisteredWorkflows *[]RegisteredWorkflow `json:"registeredWorkflows,omitempty"`
+	RuntimeInfo         *WorkerRuntimeInfo    `json:"runtimeInfo,omitempty"`
 
 	// Slots The semaphore slot state for the worker.
 	Slots *[]SemaphoreSlots `json:"slots,omitempty"`

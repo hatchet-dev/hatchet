@@ -123,24 +123,7 @@ export default function ExpandedWorkflowRun() {
     onError: handleApiError,
   });
 
-  const { data: workflowsData } = useQuery({
-    ...queries.workflows.list(tenantId, {
-      limit: 1000,
-    }),
-    refetchInterval,
-  });
-
-  const registeredWorkflows = useMemo(() => {
-    const workflowKeys =
-      worker?.actions?.map((action) => action.split(':')[0].toLowerCase()) ||
-      [];
-
-    return (
-      workflowsData?.rows?.filter((w) =>
-        workflowKeys.includes(w.name.toLowerCase()),
-      ) ?? []
-    );
-  }, [worker?.actions, workflowsData?.rows]);
+  const registeredWorkflows = worker?.registeredWorkflows || [];
 
   const filteredWorkflows = useMemo(() => {
     if (showAllActions) {
@@ -261,8 +244,8 @@ export default function ExpandedWorkflowRun() {
           {filteredWorkflows.map((workflow) => {
             return (
               <Link
-                to={`/tenants/${tenantId}/workflows/${workflow.metadata.id}`}
-                key={workflow.metadata.id}
+                to={`/tenants/${tenantId}/workflows/${workflow.id}`}
+                key={workflow.id}
               >
                 <Button variant="outline">{workflow.name}</Button>
               </Link>
@@ -271,9 +254,9 @@ export default function ExpandedWorkflowRun() {
         </div>
         <div className="flex flex-row w-full items-center justify-center py-4">
           {!showAllActions &&
-            registeredWorkflows.length > N_ACTIONS_TO_PREVIEW && (
+            filteredWorkflows.length > N_ACTIONS_TO_PREVIEW && (
               <Button variant="outline" onClick={() => setShowAllActions(true)}>
-                Show All ({registeredWorkflows.length - N_ACTIONS_TO_PREVIEW}{' '}
+                Show All ({filteredWorkflows.length - N_ACTIONS_TO_PREVIEW}{' '}
                 more)
               </Button>
             )}

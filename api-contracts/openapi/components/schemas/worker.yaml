@@ -76,6 +76,20 @@ WorkerType:
     - MANAGED
     - WEBHOOK
 
+RegisteredWorkflow:
+  type: object
+  properties:
+    id:
+      type: string
+      description: The workflow id registered on this worker.
+      format: uuid
+    name:
+      type: string
+      description: The name of the workflow registered on this worker.
+  required:
+    - id
+    - name
+
 Worker:
   properties:
     metadata:
@@ -100,11 +114,11 @@ Worker:
       description: The actions this worker can perform.
       items:
         type: string
-    registeredWorkflowIds:
+    registeredWorkflows:
       type: array
       description: The workflow ids registered on this worker.
       items:
-        type: string
+        $ref: "#/RegisteredWorkflow"
     slots:
       type: array
       description: The semaphore slot state for the worker.
