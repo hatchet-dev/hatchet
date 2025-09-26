@@ -28,13 +28,13 @@ interface RefetchIntervalProviderProps {
   children: ReactNode;
 }
 
-const STORAGE_KEY = 'app-refetch-interval';
+const STORAGE_KEY = 'app-default-refetch-interval';
 
 export const RefetchIntervalProvider = ({
   children,
 }: RefetchIntervalProviderProps) => {
   const [storedInterval, setStoredInterval] =
-    useLocalStorageState<RefetchIntervalOption>(STORAGE_KEY, 'off');
+    useLocalStorageState<RefetchIntervalOption>(STORAGE_KEY, '10s');
   const [isFrozen, setIsFrozen] = useLocalStorageState<boolean>(
     'app-refetch-interval-frozen',
     false,
