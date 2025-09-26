@@ -123,7 +123,10 @@ export default function ExpandedWorkflowRun() {
     onError: handleApiError,
   });
 
-  const registeredWorkflows = worker?.registeredWorkflows || [];
+  const registeredWorkflows = useMemo(
+    () => worker?.registeredWorkflows || [],
+    [worker],
+  );
 
   const filteredWorkflows = useMemo(() => {
     if (showAllActions) {
