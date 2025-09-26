@@ -1,0 +1,674 @@
+openapi: 3.0.1
+servers:
+  - url: ''
+info:
+  version: 1.0.0
+  title: Hatchet Cloud Management API
+  description: Management endpoints for Hatchet Cloud - organizations, tenants, API tokens, and invitations
+security:
+  - customAuth: []
+components:
+  securitySchemes:
+    customAuth:
+      type: http
+      scheme: bearer
+  schemas:
+    APIError:
+      type: object
+      properties:
+        code:
+          type: integer
+          description: a custom Hatchet error code
+          format: uint64
+          example: 1400
+        field:
+          type: string
+          description: the field that this error is associated with, if applicable
+          example: name
+        description:
+          type: string
+          description: a description for this error
+          example: A descriptive error message
+        docs_link:
+          type: string
+          description: "a link to the documentation for this error, if it exists"
+          example: github.com/hatchet-dev/hatchet
+      required:
+        - description
+    APIResourceMeta:
+      type: object
+      properties:
+        id:
+          type: string
+          description: "the id of this resource, in UUID format"
+          example: bb214807-246e-43a5-a25d-41761d1cff9e
+          minLength: 0
+          maxLength: 36
+        createdAt:
+          type: string
+          description: the time that this resource was created
+          format: date-time
+          example: 2022-12-13T15:06:48.888358-05:00
+        updatedAt:
+          type: string
+          description: the time that this resource was last updated
+          format: date-time
+          example: 2022-12-13T15:06:48.888358-05:00
+      required:
+        - id
+        - createdAt
+        - updatedAt
+    PaginationResponse:
+      type: object
+      properties:
+        current_page:
+          type: integer
+          description: the current page
+          format: int64
+          example: 2
+        next_page:
+          type: integer
+          description: the next page
+          format: int64
+          example: 3
+        num_pages:
+          type: integer
+          description: the total number of pages for listing
+          format: int64
+          example: 10
+      example:
+        next_page: 3
+        num_pages: 10
+        current_page: 2
+    Organization:
+      type: object
+      properties:
+        metadata:
+          $ref: '#/components/schemas/APIResourceMeta'
+        name:
+          type: string
+          description: Name of the organization
+        tenants:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrganizationTenant'
+        members:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrganizationMember'
+      required:
+        - metadata
+        - name
+    OrganizationMemberRoleType:
+      type: string
+      enum:
+        - OWNER
+    OrganizationMember:
+      type: object
+      properties:
+        metadata:
+          $ref: '#/components/schemas/APIResourceMeta'
+        role:
+          $ref: '#/components/schemas/OrganizationMemberRoleType'
+        email:
+          type: string
+          format: email
+          description: Email of the user
+      required:
+        - metadata
+        - role
+        - email
+    TenantStatusType:
+      type: string
+      enum:
+        - ACTIVE
+        - ARCHIVED
+    OrganizationTenant:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: ID of the tenant
+        status:
+          $ref: '#/components/schemas/TenantStatusType'
+        archivedAt:
+          type: string
+          format: date-time
+          description: The timestamp at which the tenant was archived
+      required:
+        - id
+        - status
+    CreateNewTenantForOrganizationRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          description: The name of the tenant.
+        slug:
+          type: string
+          description: The slug of the tenant.
+      required:
+        - name
+        - slug
+    APIToken:
+      type: object
+      properties:
+        metadata:
+          $ref: "#/components/schemas/APIResourceMeta"
+        name:
+          type: string
+          description: The name of the API token.
+          maxLength: 255
+        expiresAt:
+          type: string
+          format: date-time
+          description: When the API token expires.
+      required:
+        - metadata
+        - name
+        - expiresAt
+    CreateTenantAPITokenRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          description: A name for the API token.
+          maxLength: 255
+        expiresIn:
+          type: string
+          description: The duration for which the token is valid.
+          x-oapi-codegen-extra-tags:
+            validate: "omitnil,duration"
+      required:
+        - name
+    CreateTenantAPITokenResponse:
+      type: object
+      properties:
+        token:
+          type: string
+          description: The API token.
+      required:
+        - token
+    APITokenList:
+      properties:
+        pagination:
+          $ref: "#/components/schemas/PaginationResponse"
+        rows:
+          items:
+            $ref: "#/components/schemas/APIToken"
+          type: array
+    OrganizationInviteStatus:
+      type: string
+      enum:
+        - PENDING
+        - ACCEPTED
+        - REJECTED
+        - EXPIRED
+    OrganizationInvite:
+      type: object
+      properties:
+        metadata:
+          $ref: '#/components/schemas/APIResourceMeta'
+        organizationId:
+          type: string
+          format: uuid
+          description: The ID of the organization
+        inviterEmail:
+          type: string
+          format: email
+          description: The email of the inviter
+        inviteeEmail:
+          type: string
+          format: email
+          description: The email of the invitee
+        expires:
+          type: string
+          format: date-time
+          description: The timestamp at which the invite expires
+        status:
+          $ref: '#/components/schemas/OrganizationInviteStatus'
+        role:
+          $ref: '#/components/schemas/OrganizationMemberRoleType'
+      required:
+        - metadata
+        - organizationId
+        - inviterEmail
+        - inviteeEmail
+        - expires
+        - status
+        - role
+    OrganizationInviteList:
+      type: object
+      properties:
+        rows:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrganizationInvite'
+      required:
+        - rows
+    CreateOrganizationInviteRequest:
+      type: object
+      properties:
+        inviteeEmail:
+          type: string
+          format: email
+          description: The email of the invitee
+        role:
+          $ref: '#/components/schemas/OrganizationMemberRoleType'
+      required:
+        - inviteeEmail
+        - role
+paths:
+  '/api/v1/management/organizations/{organization}':
+    get:
+      description: Get organization details
+      operationId: 'organization:get'
+      x-resources:
+        - organization
+      security:
+        - customAuth: []
+      parameters:
+        - description: The organization ID
+          in: path
+          name: organization
+          required: true
+          schema:
+            type: string
+            format: uuid
+            minLength: 36
+            maxLength: 36
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Organization'
+          description: Successfully retrieved the organization
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: A malformed or bad request
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Forbidden
+      summary: Get Organization
+      tags:
+        - Management
+  '/api/v1/management/organizations/{organization}/tenants':
+    post:
+      description: Create a new tenant in the organization
+      operationId: 'organization:create:tenant'
+      x-resources:
+        - organization
+      security:
+        - customAuth: []
+      parameters:
+        - description: The organization ID
+          in: path
+          name: organization
+          required: true
+          schema:
+            type: string
+            format: uuid
+            minLength: 36
+            maxLength: 36
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateNewTenantForOrganizationRequest'
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrganizationTenant'
+          description: Successfully created the tenant
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: A malformed or bad request
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Forbidden
+      summary: Create Tenant in Organization
+      tags:
+        - Management
+  '/api/v1/management/organization-tenants/{organization-tenant}':
+    delete:
+      description: Delete (archive) a tenant in the organization
+      operationId: 'organization-tenant:delete'
+      x-resources:
+        - organization
+        - organization-tenant
+      security:
+        - customAuth: []
+      parameters:
+        - description: The tenant ID
+          in: path
+          name: organization-tenant
+          required: true
+          schema:
+            type: string
+            format: uuid
+            minLength: 36
+            maxLength: 36
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrganizationTenant'
+          description: Successfully deleted the tenant
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: A malformed or bad request
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Forbidden
+      summary: Delete Tenant in Organization
+      tags:
+        - Management
+  '/api/v1/management/organization-tenants/{organization-tenant}/api-tokens':
+    get:
+      description: List all API tokens for a tenant
+      operationId: 'organization-tenant:list:api-tokens'
+      x-resources:
+        - organization
+        - organization-tenant
+      security:
+        - customAuth: []
+      parameters:
+        - description: The organization tenant ID
+          in: path
+          name: organization-tenant
+          required: true
+          schema:
+            type: string
+            format: uuid
+            minLength: 36
+            maxLength: 36
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APITokenList'
+          description: Successfully retrieved the API tokens
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: A malformed or bad request
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Forbidden
+      summary: List API Tokens for Tenant
+      tags:
+        - Management
+    post:
+      description: Create a new API token for a tenant
+      operationId: 'organization-tenant:create:api-token'
+      x-resources:
+        - organization
+        - organization-tenant
+      security:
+        - customAuth: []
+      parameters:
+        - description: The organization tenant ID
+          in: path
+          name: organization-tenant
+          required: true
+          schema:
+            type: string
+            format: uuid
+            minLength: 36
+            maxLength: 36
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTenantAPITokenRequest'
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateTenantAPITokenResponse'
+          description: Successfully created the API token
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: A malformed or bad request
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Forbidden
+      summary: Create API Token for Tenant
+      tags:
+        - Management
+  '/api/v1/management/organization-tenants/{organization-tenant}/api-tokens/{api-token}':
+    delete:
+      description: Delete an API token for a tenant
+      operationId: 'organization-tenant:delete:api-token'
+      x-resources:
+        - organization
+        - organization-tenant
+      security:
+        - customAuth: []
+      parameters:
+        - description: The organization tenant ID
+          in: path
+          name: organization-tenant
+          required: true
+          schema:
+            type: string
+            format: uuid
+            minLength: 36
+            maxLength: 36
+        - description: The API token ID
+          in: path
+          name: api-token
+          required: true
+          schema:
+            type: string
+            format: uuid
+            minLength: 36
+            maxLength: 36
+      responses:
+        '204':
+          description: Successfully deleted the API token
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: A malformed or bad request
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Forbidden
+      summary: Delete API Token for Tenant
+      tags:
+        - Management
+  '/api/v1/management/organization-members/{organization-member}':
+    delete:
+      description: Remove a member from an organization
+      operationId: 'organization-member:delete'
+      x-resources:
+        - organization
+        - organization-member
+      security:
+        - customAuth: []
+      parameters:
+        - description: The organization member ID
+          in: path
+          name: organization-member
+          required: true
+          schema:
+            type: string
+            format: uuid
+            minLength: 36
+            maxLength: 36
+      responses:
+        '204':
+          description: Successfully removed the member
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: A malformed or bad request
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Forbidden
+      summary: Remove Member from Organization
+      tags:
+        - Management
+  '/api/v1/management/organizations/{organization}/invites':
+    get:
+      description: List all organization invites for an organization
+      operationId: 'organization-invite:list'
+      x-resources:
+        - organization
+      security:
+        - customAuth: []
+      parameters:
+        - description: The organization ID
+          in: path
+          name: organization
+          required: true
+          schema:
+            type: string
+            format: uuid
+            minLength: 36
+            maxLength: 36
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrganizationInviteList'
+          description: Successfully retrieved the organization invites
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: A malformed or bad request
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Forbidden
+      summary: List Organization Invites for Organization
+      tags:
+        - Management
+    post:
+      description: Create a new organization invite
+      operationId: 'organization-invite:create'
+      x-resources:
+        - organization
+      security:
+        - customAuth: []
+      parameters:
+        - description: The organization ID
+          in: path
+          name: organization
+          required: true
+          schema:
+            type: string
+            format: uuid
+            minLength: 36
+            maxLength: 36
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateOrganizationInviteRequest'
+      responses:
+        '200':
+          description: Successfully created the organization invite
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: A malformed or bad request
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Forbidden
+      summary: Create Organization Invite for Organization
+      tags:
+        - Management
+  '/api/v1/management/organization-invites/{organization-invite}':
+    delete:
+      description: Delete an organization invite
+      operationId: 'organization-invite:delete'
+      x-resources:
+        - organization
+        - organization-invite
+      security:
+        - customAuth: []
+      parameters:
+        - description: The organization invite ID
+          in: path
+          name: organization-invite
+          required: true
+          schema:
+            type: string
+            format: uuid
+            minLength: 36
+            maxLength: 36
+      responses:
+        '200':
+          description: Successfully deleted the organization invite
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: A malformed or bad request
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Forbidden
+      summary: Delete Organization Invite for Organization
+      tags:
+        - Management
