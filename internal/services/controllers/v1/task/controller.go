@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"os"
 	"time"
 
 	"github.com/go-co-op/gocron/v2"
@@ -33,6 +34,8 @@ import (
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 )
+
+var disableFlag = os.Getenv("SERVER_ALPHA_DISABLE_INTERNAL_EVENTS")
 
 const BULK_MSG_BATCH_SIZE = 50
 
@@ -505,6 +508,10 @@ func (tc *TasksControllerImpl) handleTaskCompleted(ctx context.Context, tenantId
 	for range res.ReleasedTasks {
 		prometheus.SucceededTasks.Inc()
 		prometheus.TenantSucceededTasks.WithLabelValues(tenantId).Inc()
+	}
+
+	if disableFlag == "true" || disableFlag == "t" {
+		return nil
 	}
 
 	tc.notifyQueuesOnCompletion(ctx, tenantId, res.ReleasedTasks)
