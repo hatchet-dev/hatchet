@@ -27,8 +27,6 @@ RUN go generate ./...
 FROM node:18-alpine as build-openapi
 WORKDIR /openapi
 
-RUN npm install -g npm@8.1 @redocly/cli@latest
-
 COPY /api-contracts/openapi ./openapi
 
 RUN echo '{ \
@@ -41,6 +39,7 @@ RUN echo '{ \
     "mobx-react": "9.2.0" \
     } \
     }' > package.json && \
+    npm install -g npm@8.1 @redocly/cli@latest && \
     npx @redocly/cli@latest bundle ./openapi/openapi.yaml --output ./bin/oas/openapi.yaml --ext yaml && \
     rm package.json
 
