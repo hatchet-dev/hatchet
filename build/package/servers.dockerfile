@@ -24,14 +24,25 @@ RUN go generate ./...
 
 # OpenAPI bundle environment
 # -------------------------
-FROM node:22-alpine as build-openapi
+FROM node:18-alpine as build-openapi
 WORKDIR /openapi
 
 RUN npm install -g npm@11.6.1
 
 COPY /api-contracts/openapi ./openapi
 
-RUN npx @redocly/cli@2.2.0 bundle ./openapi/openapi.yaml --output ./bin/oas/openapi.yaml --ext yaml
+RUN echo '{ \
+    "name": "hack-for-redocly-cli-bug", \
+    "version": "1.0.0", \
+    "dependencies": { \
+    "@redocly/cli": "latest" \
+    }, \
+    "overrides": { \
+    "mobx-react": "9.2.0" \
+    } \
+    }' > package.json && \
+    npx @redocly/cli@2.2.0 bundle ./openapi/openapi.yaml --output ./bin/oas/openapi.yaml --ext yaml && \
+    rm package.json
 
 # Go build environment
 # --------------------

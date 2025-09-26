@@ -1985,8 +1985,11 @@ type Worker struct {
 	Name string `json:"name"`
 
 	// RecentStepRuns The recent step runs for the worker.
-	RecentStepRuns *[]RecentStepRuns  `json:"recentStepRuns,omitempty"`
-	RuntimeInfo    *WorkerRuntimeInfo `json:"runtimeInfo,omitempty"`
+	RecentStepRuns *[]RecentStepRuns `json:"recentStepRuns,omitempty"`
+
+	// RegisteredWorkflowIds The workflow ids registered on this worker.
+	RegisteredWorkflowIds *[]string          `json:"registeredWorkflowIds,omitempty"`
+	RuntimeInfo           *WorkerRuntimeInfo `json:"runtimeInfo,omitempty"`
 
 	// Slots The semaphore slot state for the worker.
 	Slots *[]SemaphoreSlots `json:"slots,omitempty"`
