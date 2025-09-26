@@ -533,14 +533,18 @@ func (w *Worker) executeAction(ctx context.Context, assignedAction *client.Actio
 
 func (w *Worker) startStepRun(ctx context.Context, assignedAction *client.Action) error {
 	// send a message that the step run started
-	_, err := w.client.Dispatcher().SendStepActionEvent(
-		ctx,
-		w.getActionEvent(assignedAction, client.ActionEventTypeStarted),
-	)
+	actionEvent := w.getActionEvent(assignedAction, client.ActionEventTypeStarted)
 
-	if err != nil {
-		return fmt.Errorf("could not send action event: %w", err)
-	}
+	go func() {
+		_, err := w.client.Dispatcher().SendStepActionEvent(
+			ctx,
+			actionEvent,
+		)
+
+		if err != nil {
+			w.l.Error().Err(err).Msgf("could not send action event")
+		}
+	}()
 
 	action, ok := w.actions[assignedAction.ActionId]
 
