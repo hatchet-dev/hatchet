@@ -27,7 +27,7 @@ RUN go generate ./...
 FROM node:18-alpine as build-openapi
 WORKDIR /openapi
 
-RUN npm install -g npm@8.1 @redocly/cli@2.2.0
+RUN npm install -g npm@11.6.1
 
 COPY /api-contracts/openapi ./openapi
 
