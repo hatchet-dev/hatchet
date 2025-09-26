@@ -21,9 +21,9 @@ export const useMetrics = ({
 
   const {
     data: rawStatusCounts,
-    isLoading,
-    isFetching,
-    isRefetching,
+    isLoading: isStatusCountsLoading,
+    isFetching: isStatusCountsFetching,
+    isRefetching: isStatusCountsRefetching,
     refetch,
   } = useQuery({
     ...queries.v1TaskRuns.metrics(tenantId, {
@@ -40,7 +40,7 @@ export const useMetrics = ({
 
   const runStatusCounts = rawStatusCounts || [];
 
-  const { data: queueMetricsRaw } = useQuery({
+  const { data: queueMetricsRaw, isLoading: isQueueMetricsLoading } = useQuery({
     ...queries.metrics.getStepRunQueueMetrics(tenantId),
     refetchInterval: 5000,
     enabled: showQueueMetrics,
@@ -50,9 +50,10 @@ export const useMetrics = ({
 
   return {
     runStatusCounts,
-    isLoading,
-    isFetching,
-    isRefetching,
+    isStatusCountsRefetching,
+    isStatusCountsLoading,
+    isStatusCountsFetching,
+    isQueueMetricsLoading,
     refetch,
     queueMetrics,
   };

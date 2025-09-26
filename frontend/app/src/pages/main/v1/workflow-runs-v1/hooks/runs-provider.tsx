@@ -62,8 +62,9 @@ type RunsContextType = {
   numPages: number;
   isRunsLoading: boolean;
   isRunsFetching: boolean;
-  isMetricsLoading: boolean;
-  isMetricsFetching: boolean;
+  isStatusCountsLoading: boolean;
+  isStatusCountsFetching: boolean;
+  isQueueMetricsLoading: boolean;
   isRefetching: boolean;
   runStatusCounts: V1TaskRunMetrics;
   queueMetrics: object;
@@ -178,10 +179,11 @@ export const RunsProvider = ({
   const {
     runStatusCounts,
     queueMetrics,
-    isLoading: isMetricsLoading,
-    isFetching: isMetricsFetching,
+    isStatusCountsLoading,
+    isStatusCountsFetching,
     refetch: refetchMetrics,
-    isRefetching: isMetricsRefetching,
+    isStatusCountsRefetching,
+    isQueueMetricsLoading,
   } = useMetrics({
     workflow,
     parentTaskExternalId,
@@ -190,7 +192,7 @@ export const RunsProvider = ({
     showQueueMetrics,
   });
 
-  const isRefetching = isRunsRefetching || isMetricsRefetching;
+  const isRefetching = isRunsRefetching || isStatusCountsRefetching;
 
   const value = useMemo<RunsContextType>(
     () => ({
@@ -201,8 +203,9 @@ export const RunsProvider = ({
       numPages,
       isRunsLoading,
       isRunsFetching,
-      isMetricsLoading,
-      isMetricsFetching,
+      isStatusCountsFetching,
+      isStatusCountsLoading,
+      isQueueMetricsLoading,
       isRefetching,
       runStatusCounts,
       queueMetrics,
@@ -248,8 +251,9 @@ export const RunsProvider = ({
       numPages,
       isRunsLoading,
       isRunsFetching,
-      isMetricsLoading,
-      isMetricsFetching,
+      isStatusCountsFetching,
+      isStatusCountsLoading,
+      isQueueMetricsLoading,
       runStatusCounts,
       queueMetrics,
       isActionModalOpen,
