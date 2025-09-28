@@ -11,6 +11,28 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const countLogLines = `-- name: CountLogLines :one
+SELECT COUNT(*) AS total
+FROM v1_log_line l
+WHERE
+    l.tenant_id = $1::uuid
+    AND l.task_id = $2::bigint
+    AND l.task_inserted_at = $3::timestamptz
+`
+
+type CountLogLinesParams struct {
+	Tenantid       pgtype.UUID        `json:"tenantid"`
+	Taskid         int64              `json:"taskid"`
+	Taskinsertedat pgtype.Timestamptz `json:"taskinsertedat"`
+}
+
+func (q *Queries) CountLogLines(ctx context.Context, db DBTX, arg CountLogLinesParams) (int64, error) {
+	row := db.QueryRow(ctx, countLogLines, arg.Tenantid, arg.Taskid, arg.Taskinsertedat)
+	var total int64
+	err := row.Scan(&total)
+	return total, err
+}
+
 type InsertLogLineParams struct {
 	TenantID       pgtype.UUID        `json:"tenant_id"`
 	TaskID         int64              `json:"task_id"`

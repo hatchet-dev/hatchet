@@ -31,3 +31,12 @@ ORDER BY
     l.created_at ASC
 LIMIT COALESCE(sqlc.narg('limit'), 1000)
 OFFSET COALESCE(sqlc.narg('offset'), 0);
+
+
+-- name: CountLogLines :one
+SELECT COUNT(*) AS total
+FROM v1_log_line l
+WHERE
+    l.tenant_id = @tenantId::uuid
+    AND l.task_id = @taskId::bigint
+    AND l.task_inserted_at = @taskInsertedAt::timestamptz;

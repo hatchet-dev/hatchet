@@ -20,6 +20,7 @@ type WorkflowScheduledQuery = Parameters<typeof api.workflowScheduledList>[1];
 type CronWorkflowsQuery = Parameters<typeof api.cronWorkflowList>[1];
 type V2ListWorkflowRunsQuery = Parameters<typeof api.v1WorkflowRunList>[1];
 type V1EventListQuery = Parameters<typeof api.v1EventList>[1];
+type V1LogLineListQuery = Parameters<typeof api.v1LogLineList>[1];
 type V2TaskGetPointMetricsQuery = Parameters<
   typeof api.v1TaskGetPointMetrics
 >[1];
@@ -317,9 +318,9 @@ export const queries = createQueryKeyStore({
           })
         ).data,
     }),
-    getLogs: (task: string) => ({
-      queryKey: ['v1-log-line:list', task],
-      queryFn: async () => (await api.v1LogLineList(task)).data,
+    getLogs: (task: string, query?: V1LogLineListQuery) => ({
+      queryKey: ['v1-log-line:list', task, query],
+      queryFn: async () => (await api.v1LogLineList(task, query)).data,
     }),
   },
   v1TaskEvents: {
