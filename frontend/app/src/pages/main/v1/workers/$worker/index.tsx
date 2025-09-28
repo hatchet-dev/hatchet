@@ -259,8 +259,7 @@ export default function ExpandedWorkflowRun() {
           {!showAllActions &&
             registeredWorkflows.length > N_ACTIONS_TO_PREVIEW && (
               <Button variant="outline" onClick={() => setShowAllActions(true)}>
-                Show All ({registeredWorkflows.length - N_ACTIONS_TO_PREVIEW}{' '}
-                more)
+                {`Show All (${registeredWorkflows.length - N_ACTIONS_TO_PREVIEW} more)`}
               </Button>
             )}
         </div>
