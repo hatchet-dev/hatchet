@@ -205,10 +205,26 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @request GET:/api/v1/stable/tasks/{task}/logs
    * @secure
    */
-  v1LogLineList = (task: string, params: RequestParams = {}) =>
+  v1LogLineList = (
+    task: string,
+    query?: {
+      /**
+       * The number to skip
+       * @format int64
+       */
+      offset?: number;
+      /**
+       * The number to limit by
+       * @format int64
+       */
+      limit?: number;
+    },
+    params: RequestParams = {}
+  ) =>
     this.request<V1LogLineList, APIErrors>({
       path: `/api/v1/stable/tasks/${task}/logs`,
       method: 'GET',
+      query: query,
       secure: true,
       format: 'json',
       ...params,
