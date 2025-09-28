@@ -20,6 +20,8 @@ class LogsClient(BaseRestClient):
         List log lines for a given task run.
 
         :param task_run_id: The ID of the task run to list logs for.
+        :param limit: Maximum number of log lines to return (default: 100).
+        :param offset: Number of log lines to skip for pagination (default: 0).
         :return: A list of log lines for the specified task run.
         """
         with self.client() as client:
@@ -30,6 +32,8 @@ class LogsClient(BaseRestClient):
         List log lines for a given task run.
 
         :param task_run_id: The ID of the task run to list logs for.
+        :param limit: Maximum number of log lines to return (default: 100).
+        :param offset: Number of log lines to skip for pagination (default: 0).
         :return: A list of log lines for the specified task run.
         """
         return await asyncio.to_thread(self.list, task_run_id, limit, offset)
