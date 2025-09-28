@@ -46,7 +46,7 @@ type CreateLogLineOpts struct {
 }
 
 type LogLineRepository interface {
-	ListLogLines(ctx context.Context, tenantId string, taskId int64, taskInsertedAt pgtype.Timestamptz, opts *ListLogsOpts) ([]*sqlcv1.V1LogLine, error)
+	ListLogLines(ctx context.Context, tenantId string, taskId int64, taskInsertedAt pgtype.Timestamptz, opts *ListLogsOpts) ([]*sqlcv1.V1LogLine, int64, error)
 
 	PutLog(ctx context.Context, tenantId string, opts *CreateLogLineOpts) error
 }
@@ -61,9 +61,9 @@ func newLogLineRepository(s *sharedRepository) LogLineRepository {
 	}
 }
 
-func (r *logLineRepositoryImpl) ListLogLines(ctx context.Context, tenantId string, taskId int64, taskInsertedAt pgtype.Timestamptz, opts *ListLogsOpts) ([]*sqlcv1.V1LogLine, error) {
+func (r *logLineRepositoryImpl) ListLogLines(ctx context.Context, tenantId string, taskId int64, taskInsertedAt pgtype.Timestamptz, opts *ListLogsOpts) ([]*sqlcv1.V1LogLine, int64, error) {
 	if err := r.v.Validate(opts); err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
 	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
@@ -78,7 +78,30 @@ func (r *logLineRepositoryImpl) ListLogLines(ctx context.Context, tenantId strin
 		queryParams.Search = sqlchelpers.TextFromStr(*opts.Search)
 	}
 
-	return r.queries.ListLogLines(ctx, r.pool, queryParams)
+	if opts.Limit != nil {
+		queryParams.Limit = *opts.Limit
+	}
+
+	if opts.Offset != nil {
+		queryParams.Offset = *opts.Offset
+	}
+
+	logLines, err := r.queries.ListLogLines(ctx, r.pool, queryParams)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	count, err := r.queries.CountLogLines(ctx, r.pool, sqlcv1.CountLogLinesParams{
+		Tenantid:       pgTenantId,
+		Taskid:         taskId,
+		Taskinsertedat: taskInsertedAt,
+	})
+	if err != nil {
+		r.l.Error().Msgf("error counting log lines: %v", err)
+		return nil, 0, err
+	}
+
+	return logLines, count, nil
 }
 
 func (r *logLineRepositoryImpl) PutLog(ctx context.Context, tenantId string, opts *CreateLogLineOpts) error {

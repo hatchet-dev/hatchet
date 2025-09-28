@@ -1,6 +1,8 @@
 package tasks
 
 import (
+	"math"
+
 	"github.com/labstack/echo/v4"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
@@ -17,7 +19,29 @@ func (t *TasksService) V1LogLineList(ctx echo.Context, request gen.V1LogLineList
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 	task := ctx.Get("task").(*sqlcv1.V1TasksOlap)
 
-	logLines, err := t.config.V1.Logs().ListLogLines(ctx.Request().Context(), tenantId, task.ID, task.InsertedAt, &v1.ListLogsOpts{})
+	var (
+		limit    = int64(50)
+		offset   = int64(0)
+		nextPage *int64
+	)
+
+	if request.Params.Limit != nil {
+		limit = *request.Params.Limit
+	}
+
+	if request.Params.Offset != nil {
+		offset = *request.Params.Offset
+	}
+
+	limitInt := int(limit)
+	offsetInt := int(offset)
+
+	opts := &v1.ListLogsOpts{
+		Limit:  &limitInt,
+		Offset: &offsetInt,
+	}
+
+	logLines, count, err := t.config.V1.Logs().ListLogLines(ctx.Request().Context(), tenantId, task.ID, task.InsertedAt, opts)
 
 	if err != nil {
 		return nil, err
@@ -29,10 +53,12 @@ func (t *TasksService) V1LogLineList(ctx echo.Context, request gen.V1LogLineList
 		rows[i] = *transformers.ToV1LogLine(log)
 	}
 
-	// use the total rows and limit to calculate the total pages
-	totalPages := int64(1)
-	currPage := int64(1)
-	nextPage := int64(1)
+	currPage := (offset / limit) + 1
+	totalPages := int64(math.Ceil(float64(count) / float64(limit)))
+	if currPage < totalPages {
+		next := currPage + 1
+		nextPage = &next
+	}
 
 	return gen.V1LogLineList200JSONResponse(
 		gen.V1LogLineList{
@@ -40,7 +66,7 @@ func (t *TasksService) V1LogLineList(ctx echo.Context, request gen.V1LogLineList
 			Pagination: &gen.PaginationResponse{
 				NumPages:    &totalPages,
 				CurrentPage: &currPage,
-				NextPage:    &nextPage,
+				NextPage:    nextPage,
 			},
 		},
 	), nil
