@@ -1,3 +1,5 @@
+// Code contributed by @jnfrati as part of https://github.com/hatchet-dev/hatchet/issues/2356
+
 package main
 
 import (
