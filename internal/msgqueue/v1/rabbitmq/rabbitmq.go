@@ -366,7 +366,7 @@ func (t *MessageQueueImpl) Subscribe(
 
 func (t *MessageQueueImpl) RegisterTenant(ctx context.Context, tenantId string) error {
 	// create a new fanout exchange for the tenant
-	poolCh, err := t.subChannels.Acquire(ctx)
+	poolCh, err := t.pubChannels.Acquire(ctx)
 
 	if err != nil {
 		t.l.Error().Msgf("cannot acquire channel: %v", err)
