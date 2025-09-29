@@ -222,23 +222,21 @@ export default function ExpandedWorkflowRun() {
             Recent Task Runs
           </h3>
         </div>
-        <div className="max-h-[600px]">
-          <RunsProvider
-            tableKey={`worker-${worker.metadata.id}`}
-            display={{
-              hideMetrics: true,
-              hideCounts: true,
-              hideTriggerRunButton: true,
-              hiddenFilters: [flattenDAGsKey],
-              hideCancelAndReplayButtons: true,
-            }}
-            runFilters={{
-              workerId: worker.metadata.id,
-            }}
-          >
-            <RunsTable />
-          </RunsProvider>
-        </div>
+        <RunsProvider
+          tableKey={`worker-${worker.metadata.id}`}
+          display={{
+            hideMetrics: true,
+            hideCounts: true,
+            hideTriggerRunButton: true,
+            hiddenFilters: [flattenDAGsKey],
+            hideCancelAndReplayButtons: true,
+          }}
+          runFilters={{
+            workerId: worker.metadata.id,
+          }}
+        >
+          <RunsTable />
+        </RunsProvider>
         <Separator className="my-4" />
         <h3 className="text-xl font-bold leading-tight text-foreground mb-4">
           Registered Workflows
