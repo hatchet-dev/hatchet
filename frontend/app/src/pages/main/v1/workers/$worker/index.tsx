@@ -142,7 +142,7 @@ export default function ExpandedWorkflowRun() {
 
   return (
     <div className="flex-grow h-full w-full">
-      <div className="mx-auto py-8 px-4 sm:px-6 lg:px-8 h-full flex flex-col">
+      <div className="mx-auto px-4 sm:px-6 lg:px-8 flex flex-col">
         <div className="flex flex-row justify-between items-center">
           <div className="flex flex-row gap-4 items-center justify-between">
             <ServerStackIcon className="h-6 w-6 text-foreground mt-1" />
@@ -259,8 +259,7 @@ export default function ExpandedWorkflowRun() {
           {!showAllActions &&
             registeredWorkflows.length > N_ACTIONS_TO_PREVIEW && (
               <Button variant="outline" onClick={() => setShowAllActions(true)}>
-                Show All ({registeredWorkflows.length - N_ACTIONS_TO_PREVIEW}
-                more)
+                {`Show All (${registeredWorkflows.length - N_ACTIONS_TO_PREVIEW} more)`}
               </Button>
             )}
         </div>
@@ -301,38 +300,42 @@ export default function ExpandedWorkflowRun() {
             </div>
           </>
         )}
-        {worker.runtimeInfo && (
-          <>
-            <Separator className="my-4" />
-            <h3 className="text-xl font-bold leading-tight text-foreground mb-4">
-              Worker Runtime Info
-            </h3>
-            <div className="mb-4 text-sm text-gray-700 dark:text-gray-300">
-              {worker.runtimeInfo?.sdkVersion && (
-                <div>
-                  <b>Hatchet SDK</b>: {worker.runtimeInfo?.sdkVersion}
-                </div>
-              )}
-              {worker.runtimeInfo?.languageVersion && (
-                <div>
-                  <b>Runtime</b>:{' '}
-                  {capitalize(worker.runtimeInfo?.language ?? '')}{' '}
-                  {worker.runtimeInfo?.languageVersion}
-                </div>
-              )}
-              {worker.runtimeInfo?.os && (
-                <div>
-                  <b>OS</b>: {worker.runtimeInfo?.os}
-                </div>
-              )}
-              {worker.runtimeInfo?.runtimeExtra && (
-                <div>
-                  <b>Runtime Extra</b>: {worker.runtimeInfo?.runtimeExtra}
-                </div>
-              )}
-            </div>
-          </>
-        )}
+        {worker.runtimeInfo &&
+          (worker.runtimeInfo?.sdkVersion ||
+            worker.runtimeInfo?.languageVersion ||
+            worker.runtimeInfo?.os ||
+            worker.runtimeInfo?.runtimeExtra) && (
+            <>
+              <Separator className="my-4" />
+              <h3 className="text-xl font-bold leading-tight text-foreground mb-4">
+                Worker Runtime Info
+              </h3>
+              <div className="mb-4 text-sm text-gray-700 dark:text-gray-300">
+                {worker.runtimeInfo?.sdkVersion && (
+                  <div>
+                    <b>Hatchet SDK</b>: {worker.runtimeInfo?.sdkVersion}
+                  </div>
+                )}
+                {worker.runtimeInfo?.languageVersion && (
+                  <div>
+                    <b>Runtime</b>:{' '}
+                    {capitalize(worker.runtimeInfo?.language ?? '')}{' '}
+                    {worker.runtimeInfo?.languageVersion}
+                  </div>
+                )}
+                {worker.runtimeInfo?.os && (
+                  <div>
+                    <b>OS</b>: {worker.runtimeInfo?.os}
+                  </div>
+                )}
+                {worker.runtimeInfo?.runtimeExtra && (
+                  <div>
+                    <b>Runtime Extra</b>: {worker.runtimeInfo?.runtimeExtra}
+                  </div>
+                )}
+              </div>
+            </>
+          )}
       </div>
     </div>
   );
