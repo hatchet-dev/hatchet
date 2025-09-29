@@ -98,7 +98,7 @@ export default function ExpandedWorkflow() {
 
   return (
     <div className="flex-grow h-full w-full flex flex-col overflow-hidden gap-y-4">
-      <div className="flex-shrink-0">
+      <div className="flex-shrink-0 px-4 sm:px-6 lg:px-8">
         <div className="flex flex-row justify-between items-center">
           <div className="flex flex-row gap-4 items-center">
             <Square3Stack3DIcon className="h-6 w-6 text-foreground mt-1" />
@@ -190,7 +190,7 @@ export default function ExpandedWorkflow() {
           </div>
         )}
       </div>
-      <div className="flex-1 min-h-0">
+      <div className="flex-1 min-h-0 px-4 sm:px-6 lg:px-8">
         <Tabs defaultValue="runs" className="flex flex-col h-full">
           <TabsList layout="underlined" className="mb-4">
             <TabsTrigger variant="underlined" value="runs">
