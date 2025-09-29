@@ -560,7 +560,7 @@ members:
       - Tenant
 member:
   patch:
-    x-resources: ["tenant"]
+    x-resources: ["tenant", "member"]
     description: Update a tenant member
     operationId: tenant-member:update
     parameters:
@@ -618,7 +618,7 @@ member:
     tags:
       - Tenant
   delete:
-    x-resources: ["tenant"]
+    x-resources: ["tenant", "member"]
     description: Delete a member from a tenant
     operationId: tenant-member:delete
     parameters:
