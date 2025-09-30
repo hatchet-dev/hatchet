@@ -3248,6 +3248,7 @@ type V1TaskEvent struct {
 	EventKey       pgtype.Text        `json:"event_key"`
 	CreatedAt      pgtype.Timestamp   `json:"created_at"`
 	Data           []byte             `json:"data"`
+	ExternalID     pgtype.UUID        `json:"external_id"`
 }
 
 type V1TaskEventsOlap struct {

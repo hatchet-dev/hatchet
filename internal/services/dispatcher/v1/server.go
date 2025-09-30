@@ -168,12 +168,24 @@ func (d *DispatcherServiceImpl) ListenForDurableEvent(server contracts.V1Dispatc
 			return fmt.Errorf("could not find external id for task %d, signal key %s", e.TaskID, e.EventKey.String)
 		}
 
+		payload, err := d.repo.Payloads().Retrieve(ctx, v1.RetrievePayloadOpts{
+			Id:         e.ID,
+			InsertedAt: pgtype.Timestamptz(e.CreatedAt),
+			Type:       sqlcv1.V1PayloadTypeTASKEVENTDATA,
+			TenantId:   sqlchelpers.UUIDFromStr(tenantId),
+		})
+
+		if err != nil {
+			d.l.Error().Err(err).Msgf("could not retrieve payload for task event %d", e.ID)
+			return err
+		}
+
 		// send the task to the client
 		sendMu.Lock()
-		err := server.Send(&contracts.DurableEvent{
+		err = server.Send(&contracts.DurableEvent{
 			TaskId:    externalId,
 			SignalKey: e.EventKey.String,
-			Data:      e.Data,
+			Data:      payload,
 		})
 		sendMu.Unlock()
 

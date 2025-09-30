@@ -1083,10 +1083,28 @@ func (r *TaskRepositoryImpl) listTaskOutputEvents(ctx context.Context, tx sqlcv1
 		return nil, err
 	}
 
+	retrieveOpts := make([]RetrievePayloadOpts, len(matchedEvents))
+
+	for i, event := range matchedEvents {
+		retrieveOpts[i] = RetrievePayloadOpts{
+			Id:         event.ID,
+			InsertedAt: event.TaskInsertedAt,
+			Type:       sqlcv1.V1PayloadTypeTASKEVENTDATA,
+			TenantId:   sqlchelpers.UUIDFromStr(tenantId),
+		}
+
+	}
+
+	payloads, err := r.payloadStore.BulkRetrieve(ctx, retrieveOpts...)
+
+	if err != nil {
+		return nil, err
+	}
+
 	res := make([]*TaskOutputEvent, 0, len(matchedEvents))
 
-	for _, event := range matchedEvents {
-		o, err := newTaskEventFromBytes(event.Data)
+	for _, payload := range payloads {
+		o, err := newTaskEventFromBytes(payload)
 
 		if err != nil {
 			return nil, err
@@ -2578,8 +2596,11 @@ func (r *sharedRepository) createTaskEvents(
 	eventTypesStrs := make([]string, len(tasks))
 	paramDatas := make([][]byte, len(tasks))
 	paramKeys := make([]pgtype.Text, len(tasks))
+	externalIds := make([]pgtype.UUID, len(tasks))
 
 	internalTaskEvents := make([]InternalTaskEvent, len(tasks))
+
+	externalIdToData := make(map[pgtype.UUID][]byte, len(tasks))
 
 	for i, task := range tasks {
 		taskIds[i] = task.Id
@@ -2587,11 +2608,16 @@ func (r *sharedRepository) createTaskEvents(
 		retryCounts[i] = task.RetryCount
 		eventTypesStrs[i] = string(eventTypes[i])
 
+		externalId := sqlchelpers.UUIDFromStr(uuid.NewString())
+		externalIds[i] = externalId
+
 		if len(eventDatas[i]) == 0 {
 			paramDatas[i] = nil
 		} else {
 			paramDatas[i] = eventDatas[i]
 		}
+
+		externalIdToData[externalId] = eventDatas[i]
 
 		if eventKeys[i] != "" {
 			paramKeys[i] = pgtype.Text{
@@ -2628,11 +2654,13 @@ func (r *sharedRepository) createTaskEvents(
 	storePayloadOpts := make([]StorePayloadOpts, len(taskEvents))
 
 	for i, taskEvent := range taskEvents {
+		data := externalIdToData[taskEvent.ExternalID]
+
 		storePayloadOpts[i] = StorePayloadOpts{
 			Id:         taskEvent.ID,
-			InsertedAt: taskEvent.TaskInsertedAt,
+			InsertedAt: pgtype.Timestamptz(taskEvent.CreatedAt),
 			Type:       sqlcv1.V1PayloadTypeTASKEVENTDATA,
-			Payload:    taskEvent.Data,
+			Payload:    data,
 			TenantId:   tenantId,
 		}
 	}
@@ -3373,21 +3401,45 @@ func (r *TaskRepositoryImpl) ListTaskParentOutputs(ctx context.Context, tenantId
 		return nil, err
 	}
 
-	workflowRunIdsToOutputs := make(map[string][]*TaskOutputEvent)
+	retrieveOpts := make([]RetrievePayloadOpts, 0, len(res))
+	retrieveOptsToWorkflowRunId := make(map[RetrievePayloadOpts]pgtype.UUID, len(res))
 
 	for _, outputTask := range res {
-		if outputTask.WorkflowRunID.Valid {
-			wrId := sqlchelpers.UUIDToStr(outputTask.WorkflowRunID)
-
-			e, err := newTaskEventFromBytes(outputTask.Output)
-
-			if err != nil {
-				r.l.Warn().Msgf("failed to parse task output: %v", err)
-				continue
-			}
-
-			workflowRunIdsToOutputs[wrId] = append(workflowRunIdsToOutputs[wrId], e)
+		if !outputTask.WorkflowRunID.Valid {
+			continue
 		}
+
+		opt := RetrievePayloadOpts{
+			Id:         outputTask.TaskEventID,
+			InsertedAt: pgtype.Timestamptz(outputTask.TaskEventCreatedAt),
+			Type:       sqlcv1.V1PayloadTypeTASKEVENTDATA,
+			TenantId:   sqlchelpers.UUIDFromStr(tenantId),
+		}
+
+		retrieveOpts = append(retrieveOpts, opt)
+		retrieveOptsToWorkflowRunId[opt] = outputTask.WorkflowRunID
+	}
+
+	payloads, err := r.payloadStore.BulkRetrieve(ctx, retrieveOpts...)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve task output payloads: %w", err)
+	}
+
+	workflowRunIdsToOutputs := make(map[string][]*TaskOutputEvent)
+
+	for retrieveOpts, workflowRunId := range retrieveOptsToWorkflowRunId {
+		wrId := sqlchelpers.UUIDToStr(workflowRunId)
+		payload := payloads[retrieveOpts]
+
+		e, err := newTaskEventFromBytes(payload)
+
+		if err != nil {
+			r.l.Warn().Msgf("failed to parse task output: %v", err)
+			continue
+		}
+
+		workflowRunIdsToOutputs[wrId] = append(workflowRunIdsToOutputs[wrId], e)
 	}
 
 	for _, task := range tasks {
