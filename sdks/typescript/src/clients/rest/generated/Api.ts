@@ -218,6 +218,11 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
        * @format int64
        */
       limit?: number;
+      /**
+       * The start time to get logs for
+       * @format date-time
+       */
+      since?: string;
     },
     params: RequestParams = {}
   ) =>

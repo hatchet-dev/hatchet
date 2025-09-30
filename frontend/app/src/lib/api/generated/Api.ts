@@ -222,6 +222,11 @@ export class Api<
        * @format int64
        */
       limit?: number;
+      /**
+       * The start time to get logs for
+       * @format date-time
+       */
+      since?: string;
     },
     params: RequestParams = {},
   ) =>
