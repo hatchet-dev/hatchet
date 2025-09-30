@@ -12,12 +12,18 @@ import (
 )
 
 const countLogLines = `-- name: CountLogLines :one
-SELECT COUNT(*) AS total
-FROM v1_log_line l
-WHERE
-    l.tenant_id = $1::uuid
-    AND l.task_id = $2::bigint
-    AND l.task_inserted_at = $3::timestamptz
+WITH filtered_logs AS (
+    SELECT id, created_at, tenant_id, task_id, task_inserted_at, message, level, metadata, retry_count
+    FROM v1_log_line
+    WHERE
+        tenant_id = $1::UUID
+        AND task_id = $2::BIGINT
+        AND task_inserted_at = $3::TIMESTAMPTZ
+    LIMIT 20000
+)
+
+SELECT COUNT(*)
+FROM filtered_logs
 `
 
 type CountLogLinesParams struct {
@@ -28,9 +34,9 @@ type CountLogLinesParams struct {
 
 func (q *Queries) CountLogLines(ctx context.Context, db DBTX, arg CountLogLinesParams) (int64, error) {
 	row := db.QueryRow(ctx, countLogLines, arg.Tenantid, arg.Taskid, arg.Taskinsertedat)
-	var total int64
-	err := row.Scan(&total)
-	return total, err
+	var count int64
+	err := row.Scan(&count)
+	return count, err
 }
 
 type InsertLogLineParams struct {
@@ -49,14 +55,15 @@ SELECT
 FROM
     v1_log_line l
 WHERE
-    l.tenant_id = $1::uuid
-    AND l.task_id = $2::bigint
-    AND l.task_inserted_at = $3::timestamptz
-    AND ($4::text IS NULL OR l.message iLIKE concat('%', $4::text, '%'))
+    l.tenant_id = $1::UUID
+    AND l.task_id = $2::BIGINT
+    AND l.task_inserted_at = $3::TIMESTAMPTZ
+    AND ($4::TEXT IS NULL OR l.message iLIKE concat('%', $4::TEXT, '%'))
+    AND ($5::TIMESTAMPTZ IS NULL OR l.created_at > $5::TIMESTAMPTZ)
 ORDER BY
     l.created_at ASC
-LIMIT COALESCE($6, 1000)
-OFFSET COALESCE($5, 0)
+LIMIT COALESCE($7, 1000)
+OFFSET COALESCE($6, 0)
 `
 
 type ListLogLinesParams struct {
@@ -64,6 +71,7 @@ type ListLogLinesParams struct {
 	Taskid         int64              `json:"taskid"`
 	Taskinsertedat pgtype.Timestamptz `json:"taskinsertedat"`
 	Search         pgtype.Text        `json:"search"`
+	Since          pgtype.Timestamptz `json:"since"`
 	Offset         interface{}        `json:"offset"`
 	Limit          interface{}        `json:"limit"`
 }
@@ -74,6 +82,7 @@ func (q *Queries) ListLogLines(ctx context.Context, db DBTX, arg ListLogLinesPar
 		arg.Taskid,
 		arg.Taskinsertedat,
 		arg.Search,
+		arg.Since,
 		arg.Offset,
 		arg.Limit,
 	)

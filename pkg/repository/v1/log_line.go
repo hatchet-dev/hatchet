@@ -22,6 +22,9 @@ type ListLogsOpts struct {
 
 	// (optional) a search query
 	Search *string
+
+	// (optional) the start time to get logs for
+	Since *time.Time
 }
 
 type CreateLogLineOpts struct {
@@ -84,6 +87,13 @@ func (r *logLineRepositoryImpl) ListLogLines(ctx context.Context, tenantId strin
 
 	if opts.Offset != nil {
 		queryParams.Offset = *opts.Offset
+	}
+
+	if opts.Since != nil {
+		queryParams.Since = pgtype.Timestamptz{
+			Time:  *opts.Since,
+			Valid: true,
+		}
 	}
 
 	logLines, err := r.queries.ListLogLines(ctx, r.pool, queryParams)

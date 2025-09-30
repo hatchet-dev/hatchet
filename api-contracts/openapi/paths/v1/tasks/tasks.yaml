@@ -470,6 +470,13 @@ listLogs:
         schema:
           type: integer
           format: int64
+      - description: The start time to get logs for
+        in: query
+        name: since
+        required: false
+        schema:
+          type: string
+          format: date-time
     responses:
       "200":
         content:

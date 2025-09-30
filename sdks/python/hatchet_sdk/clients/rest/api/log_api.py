@@ -12,6 +12,7 @@
 """  # noqa: E501
 
 import warnings
+from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 from pydantic import Field, StrictFloat, StrictInt, StrictStr, validate_call
@@ -460,6 +461,9 @@ class LogApi:
         limit: Annotated[
             Optional[StrictInt], Field(description="The number to limit by")
         ] = None,
+        since: Annotated[
+            Optional[datetime], Field(description="The start time to get logs for")
+        ] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
@@ -482,6 +486,8 @@ class LogApi:
         :type offset: int
         :param limit: The number to limit by
         :type limit: int
+        :param since: The start time to get logs for
+        :type since: datetime
         :param _request_timeout: timeout setting for this request. If one
                                  number provided, it will be total request
                                  timeout. It can also be a pair (tuple) of
@@ -508,6 +514,7 @@ class LogApi:
             task=task,
             offset=offset,
             limit=limit,
+            since=since,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
@@ -541,6 +548,9 @@ class LogApi:
         limit: Annotated[
             Optional[StrictInt], Field(description="The number to limit by")
         ] = None,
+        since: Annotated[
+            Optional[datetime], Field(description="The start time to get logs for")
+        ] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
@@ -563,6 +573,8 @@ class LogApi:
         :type offset: int
         :param limit: The number to limit by
         :type limit: int
+        :param since: The start time to get logs for
+        :type since: datetime
         :param _request_timeout: timeout setting for this request. If one
                                  number provided, it will be total request
                                  timeout. It can also be a pair (tuple) of
@@ -589,6 +601,7 @@ class LogApi:
             task=task,
             offset=offset,
             limit=limit,
+            since=since,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
@@ -622,6 +635,9 @@ class LogApi:
         limit: Annotated[
             Optional[StrictInt], Field(description="The number to limit by")
         ] = None,
+        since: Annotated[
+            Optional[datetime], Field(description="The start time to get logs for")
+        ] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
@@ -644,6 +660,8 @@ class LogApi:
         :type offset: int
         :param limit: The number to limit by
         :type limit: int
+        :param since: The start time to get logs for
+        :type since: datetime
         :param _request_timeout: timeout setting for this request. If one
                                  number provided, it will be total request
                                  timeout. It can also be a pair (tuple) of
@@ -670,6 +688,7 @@ class LogApi:
             task=task,
             offset=offset,
             limit=limit,
+            since=since,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
@@ -691,6 +710,7 @@ class LogApi:
         task,
         offset,
         limit,
+        since,
         _request_auth,
         _content_type,
         _headers,
@@ -721,6 +741,17 @@ class LogApi:
         if limit is not None:
 
             _query_params.append(("limit", limit))
+
+        if since is not None:
+            if isinstance(since, datetime):
+                _query_params.append(
+                    (
+                        "since",
+                        since.strftime(self.api_client.configuration.datetime_format),
+                    )
+                )
+            else:
+                _query_params.append(("since", since))
 
         # process the header parameters
         # process the form parameters
