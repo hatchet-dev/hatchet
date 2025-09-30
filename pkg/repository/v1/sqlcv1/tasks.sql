@@ -395,28 +395,22 @@ WHERE
 -- modify the events.
 WITH input AS (
     SELECT
-        *
-    FROM
-        (
-            SELECT
-                unnest(@taskIds::bigint[]) AS task_id,
-                unnest(@taskInsertedAts::timestamptz[]) AS task_inserted_at,
-                unnest(@eventKeys::text[]) AS event_key
-        ) AS subquery
-),
-distinct_events AS (
+        UNNEST(@taskIds::BIGINT[]) AS task_id,
+        UNNEST(@taskInsertedAts::TIMESTAMPTZ[]) AS task_inserted_at,
+        UNNEST(@eventKeys::TEXT[]) AS event_key
+), distinct_events AS (
     SELECT DISTINCT
         task_id, task_inserted_at
     FROM
         input
-),
-events_to_lock AS (
+), events_to_lock AS (
     SELECT
         e.id,
         e.event_key,
         e.data,
 		e.task_id,
-		e.task_inserted_at
+		e.task_inserted_at,
+        e.created_at
     FROM
         v1_task_event e
     JOIN
@@ -429,6 +423,7 @@ events_to_lock AS (
 )
 SELECT
 	e.id,
+    e.created_at,
 	e.event_key,
 	e.data
 FROM
@@ -612,13 +607,8 @@ LEFT JOIN
 -- of the tasks as well.
 WITH input AS (
     SELECT
-        *
-    FROM
-        (
-            SELECT
-                unnest(@taskIds::bigint[]) AS task_id,
-                unnest(@taskInsertedAts::timestamptz[]) AS task_inserted_at
-        ) AS subquery
+        UNNEST(@taskIds::BIGINT[]) AS task_id,
+        UNNEST(@taskInsertedAts::TIMESTAMPTZ[]) AS task_inserted_at
 ), task_outputs AS (
     SELECT
         t.id,
@@ -631,6 +621,8 @@ WITH input AS (
         t.workflow_run_id,
         t.step_id,
         t.workflow_id,
+        e.id AS task_event_id,
+        e.created_at AS task_event_created_at,
         e.data AS output
     FROM
         v1_task t1
@@ -662,7 +654,9 @@ WITH input AS (
 )
 SELECT
     DISTINCT ON (task_outputs.id, task_outputs.inserted_at, task_outputs.retry_count)
-    task_outputs.*
+    task_outputs.task_event_id,
+    task_outputs.task_event_created_at,
+    task_outputs.workflow_run_id
 FROM
     task_outputs
 JOIN

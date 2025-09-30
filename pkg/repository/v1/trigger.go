@@ -1486,12 +1486,36 @@ func (r *TriggerRepositoryImpl) registerChildWorkflows(
 		return nil, err
 	}
 
+	retrievePaylodOpts := make([]RetrievePayloadOpts, len(matchingEvents))
+
+	for i, event := range matchingEvents {
+		retrievePaylodOpts[i] = RetrievePayloadOpts{
+			Id:         event.ID,
+			InsertedAt: pgtype.Timestamptz(event.CreatedAt),
+			Type:       sqlcv1.V1PayloadTypeTASKEVENTDATA,
+			TenantId:   sqlchelpers.UUIDFromStr(tenantId),
+		}
+	}
+
+	payloads, err := r.payloadStore.BulkRetrieve(ctx, retrievePaylodOpts...)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve payloads for signal created events: %w", err)
+	}
+
 	// parse the event match data, and determine whether the child external ID has already been written
 	// we're safe to do this read since we've acquired a lock on the relevant rows
 	rootExternalIdsToLookup := make([]pgtype.UUID, 0, len(matchingEvents))
 
 	for _, event := range matchingEvents {
-		c, err := newChildWorkflowSignalCreatedDataFromBytes(event.Data)
+		payload := payloads[RetrievePayloadOpts{
+			Id:         event.ID,
+			InsertedAt: pgtype.Timestamptz(event.CreatedAt),
+			Type:       sqlcv1.V1PayloadTypeTASKEVENTDATA,
+			TenantId:   sqlchelpers.UUIDFromStr(tenantId),
+		}]
+
+		c, err := newChildWorkflowSignalCreatedDataFromBytes(payload)
 
 		if err != nil {
 			r.l.Error().Msgf("failed to unmarshal child workflow signal created data: %s", err)
