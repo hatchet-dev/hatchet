@@ -89,6 +89,13 @@ func NewPayloadStoreRepository(
 	}
 }
 
+type PayloadUniqueKey struct {
+	ID         int64
+	InsertedAt pgtype.Timestamptz
+	TenantId   pgtype.UUID
+	Type       sqlcv1.V1PayloadType
+}
+
 func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx sqlcv1.DBTX, payloads ...StorePayloadOpts) error {
 	taskIds := make([]int64, 0, len(payloads))
 	taskInsertedAts := make([]pgtype.Timestamptz, 0, len(payloads))
@@ -99,7 +106,7 @@ func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx sqlcv1.DBTX, 
 	tenantIds := make([]pgtype.UUID, 0, len(payloads))
 	locations := make([]string, 0, len(payloads))
 
-	seenIdInsertedAts := make(map[IdInsertedAt]struct{})
+	seenPayloadUniqueKeys := make(map[PayloadUniqueKey]struct{})
 
 	sort.Slice(payloads, func(i, j int) bool {
 		// sort payloads descending by inserted at to deduplicate operations
@@ -107,21 +114,24 @@ func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx sqlcv1.DBTX, 
 	})
 
 	for _, payload := range payloads {
-		idInsertedAt := IdInsertedAt{
+		tenantId := sqlchelpers.UUIDFromStr(payload.TenantId)
+		uniqueKey := PayloadUniqueKey{
 			ID:         payload.Id,
 			InsertedAt: payload.InsertedAt,
+			TenantId:   tenantId,
+			Type:       payload.Type,
 		}
 
-		if _, exists := seenIdInsertedAts[idInsertedAt]; exists {
+		if _, exists := seenPayloadUniqueKeys[uniqueKey]; exists {
 			continue
 		}
 
-		seenIdInsertedAts[idInsertedAt] = struct{}{}
+		seenPayloadUniqueKeys[uniqueKey] = struct{}{}
 
 		taskIds = append(taskIds, payload.Id)
 		taskInsertedAts = append(taskInsertedAts, payload.InsertedAt)
 		payloadTypes = append(payloadTypes, string(payload.Type))
-		tenantIds = append(tenantIds, sqlchelpers.UUIDFromStr(payload.TenantId))
+		tenantIds = append(tenantIds, tenantId)
 		locations = append(locations, string(sqlcv1.V1PayloadLocationINLINE))
 		inlineContents = append(inlineContents, payload.Payload)
 		operations = append(operations, string(sqlcv1.V1PayloadWalOperationCREATE))
