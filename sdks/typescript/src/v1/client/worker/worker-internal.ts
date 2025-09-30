@@ -212,7 +212,7 @@ export class V1Worker {
 
       let onFailureTask: CreateTaskOpts | undefined;
 
-      if (!durable && workflow.onFailure && typeof workflow.onFailure === 'function') {
+      if (workflow.onFailure && typeof workflow.onFailure === 'function') {
         onFailureTask = {
           readableId: 'on-failure-task',
           action: onFailureTaskName(workflow),
@@ -226,7 +226,7 @@ export class V1Worker {
         };
       }
 
-      if (!durable && workflow.onFailure && typeof workflow.onFailure === 'object') {
+      if (workflow.onFailure && typeof workflow.onFailure === 'object') {
         const onFailure = workflow.onFailure as CreateOnFailureTaskOpts<any, any>;
 
         onFailureTask = {
