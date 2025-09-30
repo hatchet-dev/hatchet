@@ -260,12 +260,19 @@ func (t *MessageQueueImpl) pubMessage(ctx context.Context, q msgqueue.Queue, msg
 
 	msg.SetOtelCarrier(otelCarrier)
 
-	poolCh, err := t.pubChannels.Acquire(ctx)
+	acquireCtx, acquireSpan := telemetry.NewSpan(ctx, "acquire_publish_channel")
+
+	poolCh, err := t.pubChannels.Acquire(acquireCtx)
 
 	if err != nil {
+		acquireSpan.RecordError(err)
+		acquireSpan.SetStatus(codes.Error, "error acquiring publish channel")
+		acquireSpan.End()
 		t.l.Error().Msgf("cannot acquire channel: %v", err)
 		return err
 	}
+
+	acquireSpan.End()
 
 	pub := poolCh.Value()
 
@@ -283,7 +290,7 @@ func (t *MessageQueueImpl) pubMessage(ctx context.Context, q msgqueue.Queue, msg
 		return err
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
 	t.l.Debug().Msgf("publishing msg to queue %s", q.Name())
@@ -300,12 +307,19 @@ func (t *MessageQueueImpl) pubMessage(ctx context.Context, q msgqueue.Queue, msg
 		pubMsg.Expiration = "0"
 	}
 
+	ctx, pubSpan := telemetry.NewSpan(ctx, "publish_message")
+
 	err = pub.PublishWithContext(ctx, "", q.Name(), false, false, pubMsg)
 
 	// retry failed delivery on the next session
 	if err != nil {
+		pubSpan.RecordError(err)
+		pubSpan.SetStatus(codes.Error, "error publishing message")
+		pubSpan.End()
 		return err
 	}
+
+	pubSpan.End()
 
 	// if this is a tenant msg, publish to the tenant exchange
 	if (!t.disableTenantExchangePubs || msg.ID == "task-stream-event") && msg.TenantID != "" {
