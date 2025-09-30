@@ -176,8 +176,8 @@ func (d *DispatcherServiceImpl) ListenForDurableEvent(server contracts.V1Dispatc
 		})
 
 		if err != nil {
-			d.l.Error().Err(err).Msgf("could not retrieve payload for task event %d", e.ID)
-			return err
+			d.l.Error().Msgf("ListenForDurableEvent: task %s has empty payload, falling back to input", externalId)
+			payload = e.Data
 		}
 
 		// send the task to the client
