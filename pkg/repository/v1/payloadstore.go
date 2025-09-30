@@ -3,6 +3,7 @@ package v1
 import (
 	"context"
 	"fmt"
+	"sort"
 	"time"
 
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
@@ -88,31 +89,58 @@ func NewPayloadStoreRepository(
 	}
 }
 
+type PayloadUniqueKey struct {
+	ID         int64
+	InsertedAt pgtype.Timestamptz
+	TenantId   pgtype.UUID
+	Type       sqlcv1.V1PayloadType
+}
+
 func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx sqlcv1.DBTX, payloads ...StorePayloadOpts) error {
-	taskIds := make([]int64, len(payloads))
-	taskInsertedAts := make([]pgtype.Timestamptz, len(payloads))
-	payloadTypes := make([]string, len(payloads))
-	inlineContents := make([][]byte, len(payloads))
-	offloadAts := make([]pgtype.Timestamptz, len(payloads))
-	operations := make([]string, len(payloads))
-	tenantIds := make([]pgtype.UUID, len(payloads))
-	locations := make([]string, len(payloads))
+	taskIds := make([]int64, 0, len(payloads))
+	taskInsertedAts := make([]pgtype.Timestamptz, 0, len(payloads))
+	payloadTypes := make([]string, 0, len(payloads))
+	inlineContents := make([][]byte, 0, len(payloads))
+	offloadAts := make([]pgtype.Timestamptz, 0, len(payloads))
+	operations := make([]string, 0, len(payloads))
+	tenantIds := make([]pgtype.UUID, 0, len(payloads))
+	locations := make([]string, 0, len(payloads))
 
-	for i, payload := range payloads {
-		taskIds[i] = payload.Id
-		taskInsertedAts[i] = payload.InsertedAt
-		payloadTypes[i] = string(payload.Type)
-		tenantIds[i] = sqlchelpers.UUIDFromStr(payload.TenantId)
-		locations[i] = string(sqlcv1.V1PayloadLocationINLINE)
+	seenPayloadUniqueKeys := make(map[PayloadUniqueKey]struct{})
 
-		if p.externalStoreEnabled {
-			offloadAts[i] = pgtype.Timestamptz{Time: payload.InsertedAt.Time.Add(*p.inlineStoreTTL), Valid: true}
-		} else {
-			offloadAts[i] = pgtype.Timestamptz{Time: time.Now(), Valid: true}
+	sort.Slice(payloads, func(i, j int) bool {
+		// sort payloads descending by inserted at to deduplicate operations
+		return payloads[i].InsertedAt.Time.After(payloads[j].InsertedAt.Time)
+	})
+
+	for _, payload := range payloads {
+		tenantId := sqlchelpers.UUIDFromStr(payload.TenantId)
+		uniqueKey := PayloadUniqueKey{
+			ID:         payload.Id,
+			InsertedAt: payload.InsertedAt,
+			TenantId:   tenantId,
+			Type:       payload.Type,
 		}
 
-		operations[i] = string(sqlcv1.V1PayloadWalOperationCREATE)
-		inlineContents[i] = payload.Payload
+		if _, exists := seenPayloadUniqueKeys[uniqueKey]; exists {
+			continue
+		}
+
+		seenPayloadUniqueKeys[uniqueKey] = struct{}{}
+
+		taskIds = append(taskIds, payload.Id)
+		taskInsertedAts = append(taskInsertedAts, payload.InsertedAt)
+		payloadTypes = append(payloadTypes, string(payload.Type))
+		tenantIds = append(tenantIds, tenantId)
+		locations = append(locations, string(sqlcv1.V1PayloadLocationINLINE))
+		inlineContents = append(inlineContents, payload.Payload)
+		operations = append(operations, string(sqlcv1.V1PayloadWalOperationCREATE))
+
+		if p.externalStoreEnabled {
+			offloadAts = append(offloadAts, pgtype.Timestamptz{Time: payload.InsertedAt.Time.Add(*p.inlineStoreTTL), Valid: true})
+		} else {
+			offloadAts = append(offloadAts, pgtype.Timestamptz{Time: time.Now(), Valid: true})
+		}
 	}
 
 	err := p.queries.WritePayloads(ctx, p.pool, sqlcv1.WritePayloadsParams{
