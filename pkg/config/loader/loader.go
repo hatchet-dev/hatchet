@@ -405,6 +405,8 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 				rabbitmqv1.WithLogger(&l),
 				rabbitmqv1.WithQos(cf.MessageQueue.RabbitMQ.Qos),
 				rabbitmqv1.WithDisableTenantExchangePubs(cf.Runtime.DisableTenantPubs),
+				rabbitmqv1.WithMaxPubChannels(cf.MessageQueue.RabbitMQ.MaxPubChans),
+				rabbitmqv1.WithMaxSubChannels(cf.MessageQueue.RabbitMQ.MaxSubChans),
 			)
 
 			cleanup1 = func() error {
