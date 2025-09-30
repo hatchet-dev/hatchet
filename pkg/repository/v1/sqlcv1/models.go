@@ -1439,9 +1439,10 @@ func (ns NullV1PayloadLocation) Value() (driver.Value, error) {
 type V1PayloadType string
 
 const (
-	V1PayloadTypeTASKINPUT  V1PayloadType = "TASK_INPUT"
-	V1PayloadTypeDAGINPUT   V1PayloadType = "DAG_INPUT"
-	V1PayloadTypeTASKOUTPUT V1PayloadType = "TASK_OUTPUT"
+	V1PayloadTypeTASKINPUT     V1PayloadType = "TASK_INPUT"
+	V1PayloadTypeDAGINPUT      V1PayloadType = "DAG_INPUT"
+	V1PayloadTypeTASKOUTPUT    V1PayloadType = "TASK_OUTPUT"
+	V1PayloadTypeTASKEVENTDATA V1PayloadType = "TASK_EVENT_DATA"
 )
 
 func (e *V1PayloadType) Scan(src interface{}) error {

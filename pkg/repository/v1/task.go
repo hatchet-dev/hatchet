@@ -2611,7 +2611,7 @@ func (r *sharedRepository) createTaskEvents(
 		}
 	}
 
-	err := r.queries.CreateTaskEvents(ctx, dbtx, sqlcv1.CreateTaskEventsParams{
+	taskEvents, err := r.queries.CreateTaskEvents(ctx, dbtx, sqlcv1.CreateTaskEventsParams{
 		Tenantid:        sqlchelpers.UUIDFromStr(tenantId),
 		Taskids:         taskIds,
 		Taskinsertedats: taskInsertedAts,
@@ -2623,6 +2623,24 @@ func (r *sharedRepository) createTaskEvents(
 
 	if err != nil {
 		return nil, err
+	}
+
+	storePayloadOpts := make([]StorePayloadOpts, len(tasks))
+
+	for i, taskEvent := range taskEvents {
+		storePayloadOpts[i] = StorePayloadOpts{
+			Id:         taskEvent.ID,
+			InsertedAt: taskEvent.TaskInsertedAt,
+			Type:       sqlcv1.V1PayloadTypeTASKEVENTDATA,
+			Payload:    taskEvent.Data,
+			TenantId:   tenantId,
+		}
+	}
+
+	err = r.payloadStore.Store(ctx, dbtx, storePayloadOpts...)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to store task event payloads: %w", err)
 	}
 
 	return internalTaskEvents, nil

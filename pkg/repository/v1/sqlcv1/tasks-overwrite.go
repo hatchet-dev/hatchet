@@ -269,7 +269,7 @@ func (q *Queries) CreateTasks(ctx context.Context, db DBTX, arg CreateTasksParam
 	return items, nil
 }
 
-const createTaskEvents = `-- name: CreateTaskEvents :exec
+const createTaskEvents = `-- name: CreateTaskEvents :many
 WITH locked_tasks AS (
     SELECT
         id
@@ -316,6 +316,17 @@ SELECT
 FROM
     input i
 ON CONFLICT (tenant_id, task_id, task_inserted_at, event_type, event_key) WHERE event_key IS NOT NULL DO NOTHING
+RETURNING
+    v1_task_event.id,
+	v1_task_event.tenant_id,
+	v1_task_event.task_id,
+	v1_task_event.task_inserted_at,
+	v1_task_event.retry_count,
+	v1_task_event.event_type,
+	v1_task_event.event_key,
+	v1_task_event.created_at,
+	v1_task_event.data
+;
 `
 
 type CreateTaskEventsParams struct {
@@ -330,8 +341,8 @@ type CreateTaskEventsParams struct {
 
 // We get a FOR UPDATE lock on tasks to prevent concurrent writes to the task events
 // tables for each task
-func (q *Queries) CreateTaskEvents(ctx context.Context, db DBTX, arg CreateTaskEventsParams) error {
-	_, err := db.Exec(ctx, createTaskEvents,
+func (q *Queries) CreateTaskEvents(ctx context.Context, db DBTX, arg CreateTaskEventsParams) ([]*V1TaskEvent, error) {
+	rows, err := db.Query(ctx, createTaskEvents,
 		arg.Tenantid,
 		arg.Taskids,
 		arg.Taskinsertedats,
@@ -340,7 +351,37 @@ func (q *Queries) CreateTaskEvents(ctx context.Context, db DBTX, arg CreateTaskE
 		arg.Eventkeys,
 		arg.Datas,
 	)
-	return err
+
+	if err != nil {
+		return nil, err
+	}
+
+	defer rows.Close()
+
+	var items []*V1TaskEvent
+	for rows.Next() {
+		var i V1TaskEvent
+		if err := rows.Scan(
+			&i.ID,
+			&i.TenantID,
+			&i.TaskID,
+			&i.TaskInsertedAt,
+			&i.RetryCount,
+			&i.EventType,
+			&i.EventKey,
+			&i.CreatedAt,
+			&i.Data,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return items, nil
 }
 
 const replayTasks = `-- name: ReplayTasks :many
