@@ -1084,15 +1084,20 @@ func (r *TaskRepositoryImpl) listTaskOutputEvents(ctx context.Context, tx sqlcv1
 	}
 
 	retrieveOpts := make([]RetrievePayloadOpts, len(matchedEvents))
+	retrieveOptsToEventData := make(map[RetrievePayloadOpts][]byte)
+	matchedEventToRetrieveOpts := make(map[*sqlcv1.ListMatchingTaskEventsRow]RetrievePayloadOpts)
 
 	for i, event := range matchedEvents {
-		retrieveOpts[i] = RetrievePayloadOpts{
+		opt := RetrievePayloadOpts{
 			Id:         event.ID,
 			InsertedAt: event.TaskInsertedAt,
 			Type:       sqlcv1.V1PayloadTypeTASKEVENTDATA,
 			TenantId:   sqlchelpers.UUIDFromStr(tenantId),
 		}
 
+		retrieveOpts[i] = opt
+		retrieveOptsToEventData[opt] = event.Data
+		matchedEventToRetrieveOpts[event] = opt
 	}
 
 	payloads, err := r.payloadStore.BulkRetrieve(ctx, retrieveOpts...)
@@ -1103,7 +1108,15 @@ func (r *TaskRepositoryImpl) listTaskOutputEvents(ctx context.Context, tx sqlcv1
 
 	res := make([]*TaskOutputEvent, 0, len(matchedEvents))
 
-	for _, payload := range payloads {
+	for _, event := range matchedEvents {
+		retrieveOpts := matchedEventToRetrieveOpts[event]
+		payload, ok := payloads[retrieveOpts]
+
+		if !ok {
+			r.l.Error().Msgf("ListenForDurableEvent: matched event %s has empty payload, falling back to input", event.ExternalID)
+			payload = retrieveOptsToEventData[retrieveOpts]
+		}
+
 		o, err := newTaskEventFromBytes(payload)
 
 		if err != nil {
@@ -3403,6 +3416,7 @@ func (r *TaskRepositoryImpl) ListTaskParentOutputs(ctx context.Context, tenantId
 
 	retrieveOpts := make([]RetrievePayloadOpts, 0, len(res))
 	retrieveOptsToWorkflowRunId := make(map[RetrievePayloadOpts]pgtype.UUID, len(res))
+	retrieveOptToPayload := make(map[RetrievePayloadOpts][]byte)
 
 	for _, outputTask := range res {
 		if !outputTask.WorkflowRunID.Valid {
@@ -3418,6 +3432,7 @@ func (r *TaskRepositoryImpl) ListTaskParentOutputs(ctx context.Context, tenantId
 
 		retrieveOpts = append(retrieveOpts, opt)
 		retrieveOptsToWorkflowRunId[opt] = outputTask.WorkflowRunID
+		retrieveOptToPayload[opt] = outputTask.Output
 	}
 
 	payloads, err := r.payloadStore.BulkRetrieve(ctx, retrieveOpts...)
@@ -3430,7 +3445,12 @@ func (r *TaskRepositoryImpl) ListTaskParentOutputs(ctx context.Context, tenantId
 
 	for retrieveOpts, workflowRunId := range retrieveOptsToWorkflowRunId {
 		wrId := sqlchelpers.UUIDToStr(workflowRunId)
-		payload := payloads[retrieveOpts]
+		payload, ok := payloads[retrieveOpts]
+
+		if !ok {
+			r.l.Error().Msgf("ListenForDurableEvent: task %s has empty payload, falling back to input", wrId)
+			payload = retrieveOptToPayload[retrieveOpts]
+		}
 
 		e, err := newTaskEventFromBytes(payload)
 

@@ -656,7 +656,8 @@ SELECT
     DISTINCT ON (task_outputs.id, task_outputs.inserted_at, task_outputs.retry_count)
     task_outputs.task_event_id,
     task_outputs.task_event_created_at,
-    task_outputs.workflow_run_id
+    task_outputs.workflow_run_id,
+    task_outputs.output
 FROM
     task_outputs
 JOIN

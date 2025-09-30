@@ -928,7 +928,8 @@ SELECT
     DISTINCT ON (task_outputs.id, task_outputs.inserted_at, task_outputs.retry_count)
     task_outputs.task_event_id,
     task_outputs.task_event_created_at,
-    task_outputs.workflow_run_id
+    task_outputs.workflow_run_id,
+    task_outputs.output
 FROM
     task_outputs
 JOIN
@@ -951,6 +952,7 @@ type ListTaskParentOutputsRow struct {
 	TaskEventID        int64            `json:"task_event_id"`
 	TaskEventCreatedAt pgtype.Timestamp `json:"task_event_created_at"`
 	WorkflowRunID      pgtype.UUID      `json:"workflow_run_id"`
+	Output             []byte           `json:"output"`
 }
 
 // Lists the outputs of parent steps for a list of tasks. This is recursive because it looks at all grandparents
@@ -964,7 +966,12 @@ func (q *Queries) ListTaskParentOutputs(ctx context.Context, db DBTX, arg ListTa
 	var items []*ListTaskParentOutputsRow
 	for rows.Next() {
 		var i ListTaskParentOutputsRow
-		if err := rows.Scan(&i.TaskEventID, &i.TaskEventCreatedAt, &i.WorkflowRunID); err != nil {
+		if err := rows.Scan(
+			&i.TaskEventID,
+			&i.TaskEventCreatedAt,
+			&i.WorkflowRunID,
+			&i.Output,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, &i)
