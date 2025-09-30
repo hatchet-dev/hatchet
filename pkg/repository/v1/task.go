@@ -2625,7 +2625,7 @@ func (r *sharedRepository) createTaskEvents(
 		return nil, err
 	}
 
-	storePayloadOpts := make([]StorePayloadOpts, len(tasks))
+	storePayloadOpts := make([]StorePayloadOpts, len(taskEvents))
 
 	for i, taskEvent := range taskEvents {
 		storePayloadOpts[i] = StorePayloadOpts{
