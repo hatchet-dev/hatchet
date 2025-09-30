@@ -51,7 +51,7 @@ func (p *channelPool) hasActiveConnection() bool {
 	return p.conn != nil && !p.conn.IsClosed()
 }
 
-func newChannelPool(ctx context.Context, l *zerolog.Logger, url string, maxConns int32) (*channelPool, error) {
+func newChannelPool(ctx context.Context, l *zerolog.Logger, url string, maxChannels int32) (*channelPool, error) {
 	p := &channelPool{
 		l:   l,
 		url: url,
@@ -116,7 +116,7 @@ func newChannelPool(ctx context.Context, l *zerolog.Logger, url string, maxConns
 	}()
 
 	// FIXME: this is probably too many channels
-	maxPoolSize := maxConns
+	maxPoolSize := maxChannels
 
 	pool, err := puddle.NewPool(&puddle.Config[*amqp.Channel]{
 		Constructor: constructor,

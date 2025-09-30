@@ -59,8 +59,8 @@ type MessageQueueImplOpts struct {
 	qos                       int
 	disableTenantExchangePubs bool
 	deadLetterBackoff         time.Duration
-	maxPubConnections         int32
-	maxSubConnections         int32
+	maxPubChannels            int32
+	maxSubChannels            int32
 }
 
 func defaultMessageQueueImplOpts() *MessageQueueImplOpts {
@@ -85,15 +85,15 @@ func WithURL(url string) MessageQueueImplOpt {
 	}
 }
 
-func WithMaxPubConnections(maxConns int32) MessageQueueImplOpt {
+func WithMaxPubChannels(maxConns int32) MessageQueueImplOpt {
 	return func(opts *MessageQueueImplOpts) {
-		opts.maxPubConnections = maxConns
+		opts.maxPubChannels = maxConns
 	}
 }
 
-func WithMaxSubConnections(maxConns int32) MessageQueueImplOpt {
+func WithMaxSubChannels(maxConns int32) MessageQueueImplOpt {
 	return func(opts *MessageQueueImplOpts) {
-		opts.maxSubConnections = maxConns
+		opts.maxSubChannels = maxConns
 	}
 }
 
@@ -128,26 +128,26 @@ func New(fs ...MessageQueueImplOpt) (func() error, *MessageQueueImpl) {
 	newLogger := opts.l.With().Str("service", "rabbitmq").Logger()
 	opts.l = &newLogger
 
-	pubMaxConns := opts.maxPubConnections
+	pubMaxChans := opts.maxPubChannels
 
-	if pubMaxConns <= 0 {
-		pubMaxConns = 20
+	if pubMaxChans <= 0 {
+		pubMaxChans = 20
 	}
 
-	pubChannelPool, err := newChannelPool(ctx, opts.l, opts.url, pubMaxConns)
+	pubChannelPool, err := newChannelPool(ctx, opts.l, opts.url, pubMaxChans)
 
 	if err != nil {
 		cancel()
 		return nil, nil
 	}
 
-	subMaxConns := opts.maxSubConnections
+	subMaxChans := opts.maxSubChannels
 
-	if subMaxConns <= 0 {
-		subMaxConns = 100
+	if subMaxChans <= 0 {
+		subMaxChans = 100
 	}
 
-	subChannelPool, err := newChannelPool(ctx, opts.l, opts.url, subMaxConns)
+	subChannelPool, err := newChannelPool(ctx, opts.l, opts.url, subMaxChans)
 
 	if err != nil {
 		pubChannelPool.Close()
