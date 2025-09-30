@@ -257,7 +257,7 @@ func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *ms
 			if input == nil || !ok {
 				// If the input wasn't found in the payload store,
 				// fall back to the input stored on the task itself.
-				d.l.Error().Msgf("task %s has empty payload, falling back to input", task.ExternalID.String())
+				d.l.Error().Msgf("handleTaskBulkAssignedTask-1: task %s has empty payload, falling back to input", task.ExternalID.String())
 				input = task.Input
 			}
 
@@ -314,7 +314,7 @@ func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *ms
 			if input == nil || !ok {
 				// If the input wasn't found in the payload store,
 				// fall back to the input stored on the task itself.
-				d.l.Error().Msgf("task %s has empty payload, falling back to input", task.ExternalID.String())
+				d.l.Error().Msgf("handleTaskBulkAssignedTask-2: task %s has empty payload, falling back to input", task.ExternalID.String())
 				input = task.Input
 			}
 
