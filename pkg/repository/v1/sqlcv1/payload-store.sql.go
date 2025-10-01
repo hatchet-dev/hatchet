@@ -11,6 +11,54 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const cutOverPayloadsToExternal = `-- name: CutOverPayloadsToExternal :exec
+WITH inputs AS (
+    SELECT
+        UNNEST($1::BIGINT[]) AS id,
+        UNNEST($2::TIMESTAMPTZ[]) AS inserted_at,
+        UNNEST(CAST($3::TEXT[] AS v1_payload_type[])) AS type,
+        UNNEST($4::TIMESTAMPTZ[]) AS cut_over_at,
+        UNNEST($5::UUID[]) AS tenant_id
+), payload_updates AS (
+    UPDATE v1_payload
+    SET
+        location = 'EXTERNAL',
+        inline_content = NULL,
+        updated_at = NOW()
+    FROM inputs i
+    WHERE
+        v1_payload.id = i.id
+        AND v1_payload.inserted_at = i.inserted_at
+        AND v1_payload.tenant_id = i.tenant_id
+)
+
+DELETE FROM v1_payload_cutover_queue_item
+WHERE
+    (cut_over_at, payload_id, payload_inserted_at, payload_type, tenant_id) IN (
+        SELECT cut_over_at, id, inserted_at, type, tenant_id
+        FROM inputs
+    )
+`
+
+type CutOverPayloadsToExternalParams struct {
+	Ids          []int64              `json:"ids"`
+	Insertedats  []pgtype.Timestamptz `json:"insertedats"`
+	Payloadtypes []string             `json:"payloadtypes"`
+	Cutoverats   []pgtype.Timestamptz `json:"cutoverats"`
+	Tenantids    []pgtype.UUID        `json:"tenantids"`
+}
+
+func (q *Queries) CutOverPayloadsToExternal(ctx context.Context, db DBTX, arg CutOverPayloadsToExternalParams) error {
+	_, err := db.Exec(ctx, cutOverPayloadsToExternal,
+		arg.Ids,
+		arg.Insertedats,
+		arg.Payloadtypes,
+		arg.Cutoverats,
+		arg.Tenantids,
+	)
+	return err
+}
+
 const pollPayloadWALForRecordsToReplicate = `-- name: PollPayloadWALForRecordsToReplicate :many
 WITH tenants AS (
     SELECT UNNEST(
