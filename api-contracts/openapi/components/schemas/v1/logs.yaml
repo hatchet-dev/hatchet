@@ -34,8 +34,6 @@ V1LogLineLevel:
 
 V1LogLineList:
   properties:
-    pagination:
-      $ref: "../metadata.yaml#/PaginationResponse"
     rows:
       items:
         $ref: "#/V1LogLine"

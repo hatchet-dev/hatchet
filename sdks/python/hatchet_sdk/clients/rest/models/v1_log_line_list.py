@@ -22,7 +22,6 @@ from typing import Any, ClassVar, Dict, List, Optional, Set
 from pydantic import BaseModel, ConfigDict
 from typing_extensions import Self
 
-from hatchet_sdk.clients.rest.models.pagination_response import PaginationResponse
 from hatchet_sdk.clients.rest.models.v1_log_line import V1LogLine
 
 
@@ -31,9 +30,8 @@ class V1LogLineList(BaseModel):
     V1LogLineList
     """  # noqa: E501
 
-    pagination: Optional[PaginationResponse] = None
     rows: Optional[List[V1LogLine]] = None
-    __properties: ClassVar[List[str]] = ["pagination", "rows"]
+    __properties: ClassVar[List[str]] = ["rows"]
 
     model_config = ConfigDict(
         populate_by_name=True,
@@ -72,9 +70,6 @@ class V1LogLineList(BaseModel):
             exclude=excluded_fields,
             exclude_none=True,
         )
-        # override the default output from pydantic by calling `to_dict()` of pagination
-        if self.pagination:
-            _dict["pagination"] = self.pagination.to_dict()
         # override the default output from pydantic by calling `to_dict()` of each item in rows (list)
         _items = []
         if self.rows:
@@ -95,16 +90,11 @@ class V1LogLineList(BaseModel):
 
         _obj = cls.model_validate(
             {
-                "pagination": (
-                    PaginationResponse.from_dict(obj["pagination"])
-                    if obj.get("pagination") is not None
-                    else None
-                ),
                 "rows": (
                     [V1LogLine.from_dict(_item) for _item in obj["rows"]]
                     if obj.get("rows") is not None
                     else None
-                ),
+                )
             }
         )
         return _obj
