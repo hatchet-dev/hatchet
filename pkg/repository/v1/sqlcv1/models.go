@@ -1479,48 +1479,6 @@ func (ns NullV1PayloadType) Value() (driver.Value, error) {
 	return string(ns.V1PayloadType), nil
 }
 
-type V1PayloadWalOperation string
-
-const (
-	V1PayloadWalOperationREPLICATETOEXTERNAL V1PayloadWalOperation = "REPLICATE_TO_EXTERNAL"
-	V1PayloadWalOperationCUTOVERTOEXTERNAL   V1PayloadWalOperation = "CUT_OVER_TO_EXTERNAL"
-)
-
-func (e *V1PayloadWalOperation) Scan(src interface{}) error {
-	switch s := src.(type) {
-	case []byte:
-		*e = V1PayloadWalOperation(s)
-	case string:
-		*e = V1PayloadWalOperation(s)
-	default:
-		return fmt.Errorf("unsupported scan type for V1PayloadWalOperation: %T", src)
-	}
-	return nil
-}
-
-type NullV1PayloadWalOperation struct {
-	V1PayloadWalOperation V1PayloadWalOperation `json:"v1_payload_wal_operation"`
-	Valid                 bool                  `json:"valid"` // Valid is true if V1PayloadWalOperation is not NULL
-}
-
-// Scan implements the Scanner interface.
-func (ns *NullV1PayloadWalOperation) Scan(value interface{}) error {
-	if value == nil {
-		ns.V1PayloadWalOperation, ns.Valid = "", false
-		return nil
-	}
-	ns.Valid = true
-	return ns.V1PayloadWalOperation.Scan(value)
-}
-
-// Value implements the driver Valuer interface.
-func (ns NullV1PayloadWalOperation) Value() (driver.Value, error) {
-	if !ns.Valid {
-		return nil, nil
-	}
-	return string(ns.V1PayloadWalOperation), nil
-}
-
 type V1ReadableStatusOlap string
 
 const (
