@@ -9,6 +9,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
@@ -185,7 +186,7 @@ func (p *payloadStoreRepositoryImpl) Retrieve(ctx context.Context, opts Retrieve
 	payload, ok := payloadMap[opts]
 
 	if !ok {
-		return nil, nil
+		return nil, pgx.ErrNoRows
 	}
 
 	return payload, nil
