@@ -139,6 +139,25 @@ WHERE
     )
 ;
 
+-- name: PollPayloadCutOverQueueItemsForRecordsToCutOver :many
+WITH tenants AS (
+    SELECT UNNEST(
+        find_matching_tenants_in_payload_cutover_queue_item_partition(
+            @partitionNumber::INT
+        )
+    ) AS tenant_id
+)
+
+SELECT *
+FROM v1_payload_cutover_queue_item
+WHERE
+    tenant_id = ANY(SELECT tenant_id FROM tenants)
+    AND cut_over_at <= NOW()
+ORDER BY cut_over_at, tenant_id, payload_id, payload_inserted_at, payload_type
+LIMIT @pollLimit::INT
+FOR UPDATE SKIP LOCKED
+;
+
 -- name: WritePayloadCutOverQueueItems :many
 WITH inputs AS (
     SELECT

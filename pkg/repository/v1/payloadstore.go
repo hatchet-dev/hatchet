@@ -106,7 +106,6 @@ func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx sqlcv1.DBTX, 
 	offloadAts := make([]pgtype.Timestamptz, 0, len(payloads))
 	tenantIds := make([]pgtype.UUID, 0, len(payloads))
 	locations := make([]string, 0, len(payloads))
-	operations := make([]string, 0, len(payloads))
 
 	seenPayloadUniqueKeys := make(map[PayloadUniqueKey]struct{})
 
@@ -136,7 +135,6 @@ func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx sqlcv1.DBTX, 
 		tenantIds = append(tenantIds, tenantId)
 		locations = append(locations, string(sqlcv1.V1PayloadLocationINLINE))
 		inlineContents = append(inlineContents, payload.Payload)
-		operations = append(operations, string(sqlcv1.V1PayloadWalOperationREPLICATETOEXTERNAL))
 
 		if p.externalStoreEnabled {
 			offloadAts = append(offloadAts, pgtype.Timestamptz{Time: payload.InsertedAt.Time.Add(*p.inlineStoreTTL), Valid: true})
@@ -166,7 +164,6 @@ func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx sqlcv1.DBTX, 
 			Payloadinsertedats: taskInsertedAts,
 			Payloadtypes:       payloadTypes,
 			Offloadats:         offloadAts,
-			Operations:         operations,
 		})
 
 		if err != nil {
@@ -311,7 +308,7 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadWAL(ctx context.Context, part
 		return false, nil
 	}
 
-	walRecords, err := p.queries.PollPayloadWALForRecordsToOffload(ctx, tx, sqlcv1.PollPayloadWALForRecordsToOffloadParams{
+	walRecords, err := p.queries.PollPayloadWALForRecordsToReplicate(ctx, tx, sqlcv1.PollPayloadWALForRecordsToReplicateParams{
 		Polllimit:       int32(p.walPollLimit),
 		Partitionnumber: int32(partitionNumber),
 	})
@@ -418,7 +415,6 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadWAL(ctx context.Context, part
 	types := make([]string, 0, len(retrieveOptsToStoredKey))
 	tenantIds := make([]pgtype.UUID, 0, len(retrieveOptsToStoredKey))
 	externalLocationKeys := make([]string, 0, len(retrieveOptsToStoredKey))
-	operations := make([]string, 0, len(retrieveOptsToStoredKey))
 
 	for _, opt := range retrieveOpts {
 		offloadAt, exists := retrieveOptsToOffloadAt[opt]
@@ -444,12 +440,6 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadWAL(ctx context.Context, part
 
 		externalLocationKeys = append(externalLocationKeys, string(key))
 		tenantIds = append(tenantIds, opt.TenantId)
-
-		if offloadAt.Time.Before(time.Now()) && key != "" {
-			operations = append(operations, string(sqlcv1.V1PayloadWalOperationCUTOVERTOEXTERNAL))
-		} else {
-			operations = append(operations, string(sqlcv1.V1PayloadWalOperationREPLICATETOEXTERNAL))
-		}
 	}
 
 	// Second transaction, persist the offload to the db once we've successfully offloaded to the external store
@@ -460,26 +450,24 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadWAL(ctx context.Context, part
 		return false, fmt.Errorf("failed to prepare transaction for offloading: %w", err)
 	}
 
-	fj, _ := json.MarshalIndent(sqlcv1.FinalizePayloadOffloadsParams{
+	fj, _ := json.MarshalIndent(sqlcv1.SetPayloadExternalKeysParams{
 		Ids:                  ids,
 		Insertedats:          insertedAts,
 		Payloadtypes:         types,
 		Offloadats:           offloadAts,
 		Tenantids:            tenantIds,
 		Externallocationkeys: externalLocationKeys,
-		Operations:           operations,
 	}, "", "  ")
 
 	fmt.Println("finalizePayloadOffloadsParams", string(fj))
 
-	err = p.queries.FinalizePayloadOffloads(ctx, tx, sqlcv1.FinalizePayloadOffloadsParams{
+	err = p.queries.SetPayloadExternalKeys(ctx, tx, sqlcv1.SetPayloadExternalKeysParams{
 		Ids:                  ids,
 		Insertedats:          insertedAts,
 		Payloadtypes:         types,
 		Offloadats:           offloadAts,
 		Tenantids:            tenantIds,
 		Externallocationkeys: externalLocationKeys,
-		Operations:           operations,
 	})
 
 	if err != nil {
