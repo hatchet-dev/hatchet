@@ -422,7 +422,7 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadWAL(ctx context.Context, part
 			// this is okay - it can happen if e.g. a payload partition is dropped before the WAL is processed (not a great situation, but not catastrophic)
 			// if this happens, we log an error and set the key to `""` which will allow it to be evicted from the WAL. it'll never cause
 			// an update in the payloads table because there won't be a matching row
-			p.l.Error().Int64("id", opt.Id).Time("insertedAt", opt.InsertedAt.Time).Msgf("external location key not found for opts: %+v", opt)
+			p.l.Error().Int64("id", opt.Id).Time("insertedAt", opt.InsertedAt.Time).Msg("external location key not found for opts")
 			key = ""
 		}
 
