@@ -456,13 +456,6 @@ listLogs:
           format: uuid
           minLength: 36
           maxLength: 36
-      - description: The number to skip
-        in: query
-        name: offset
-        required: false
-        schema:
-          type: integer
-          format: int64
       - description: The number to limit by
         in: query
         name: limit
@@ -473,6 +466,13 @@ listLogs:
       - description: The start time to get logs for
         in: query
         name: since
+        required: false
+        schema:
+          type: string
+          format: date-time
+      - description: The end time to get logs for
+        in: query
+        name: until
         required: false
         schema:
           type: string

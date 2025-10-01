@@ -25,6 +25,9 @@ type ListLogsOpts struct {
 
 	// (optional) the start time to get logs for
 	Since *time.Time
+
+	// (optional) the end time to get logs for
+	Until *time.Time
 }
 
 type CreateLogLineOpts struct {
@@ -49,7 +52,7 @@ type CreateLogLineOpts struct {
 }
 
 type LogLineRepository interface {
-	ListLogLines(ctx context.Context, tenantId string, taskId int64, taskInsertedAt pgtype.Timestamptz, opts *ListLogsOpts) ([]*sqlcv1.V1LogLine, int64, error)
+	ListLogLines(ctx context.Context, tenantId string, taskId int64, taskInsertedAt pgtype.Timestamptz, opts *ListLogsOpts) ([]*sqlcv1.V1LogLine, error)
 
 	PutLog(ctx context.Context, tenantId string, opts *CreateLogLineOpts) error
 }
@@ -64,9 +67,9 @@ func newLogLineRepository(s *sharedRepository) LogLineRepository {
 	}
 }
 
-func (r *logLineRepositoryImpl) ListLogLines(ctx context.Context, tenantId string, taskId int64, taskInsertedAt pgtype.Timestamptz, opts *ListLogsOpts) ([]*sqlcv1.V1LogLine, int64, error) {
+func (r *logLineRepositoryImpl) ListLogLines(ctx context.Context, tenantId string, taskId int64, taskInsertedAt pgtype.Timestamptz, opts *ListLogsOpts) ([]*sqlcv1.V1LogLine, error) {
 	if err := r.v.Validate(opts); err != nil {
-		return nil, 0, err
+		return nil, err
 	}
 
 	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
@@ -96,22 +99,19 @@ func (r *logLineRepositoryImpl) ListLogLines(ctx context.Context, tenantId strin
 		}
 	}
 
+	if opts.Until != nil {
+		queryParams.Until = pgtype.Timestamptz{
+			Time:  *opts.Until,
+			Valid: true,
+		}
+	}
+
 	logLines, err := r.queries.ListLogLines(ctx, r.pool, queryParams)
 	if err != nil {
-		return nil, 0, err
+		return nil, err
 	}
 
-	count, err := r.queries.CountLogLines(ctx, r.pool, sqlcv1.CountLogLinesParams{
-		Tenantid:       pgTenantId,
-		Taskid:         taskId,
-		Taskinsertedat: taskInsertedAt,
-	})
-	if err != nil {
-		r.l.Error().Msgf("error counting log lines: %v", err)
-		return nil, 0, err
-	}
-
-	return logLines, count, nil
+	return logLines, nil
 }
 
 func (r *logLineRepositoryImpl) PutLog(ctx context.Context, tenantId string, opts *CreateLogLineOpts) error {

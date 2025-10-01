@@ -505,7 +505,6 @@ export interface V1LogLine {
 }
 
 export interface V1LogLineList {
-  pagination?: PaginationResponse;
   rows?: V1LogLine[];
 }
 

@@ -455,14 +455,14 @@ class LogApi:
             str,
             Field(min_length=36, strict=True, max_length=36, description="The task id"),
         ],
-        offset: Annotated[
-            Optional[StrictInt], Field(description="The number to skip")
-        ] = None,
         limit: Annotated[
             Optional[StrictInt], Field(description="The number to limit by")
         ] = None,
         since: Annotated[
             Optional[datetime], Field(description="The start time to get logs for")
+        ] = None,
+        until: Annotated[
+            Optional[datetime], Field(description="The end time to get logs for")
         ] = None,
         _request_timeout: Union[
             None,
@@ -482,12 +482,12 @@ class LogApi:
 
         :param task: The task id (required)
         :type task: str
-        :param offset: The number to skip
-        :type offset: int
         :param limit: The number to limit by
         :type limit: int
         :param since: The start time to get logs for
         :type since: datetime
+        :param until: The end time to get logs for
+        :type until: datetime
         :param _request_timeout: timeout setting for this request. If one
                                  number provided, it will be total request
                                  timeout. It can also be a pair (tuple) of
@@ -512,9 +512,9 @@ class LogApi:
 
         _param = self._v1_log_line_list_serialize(
             task=task,
-            offset=offset,
             limit=limit,
             since=since,
+            until=until,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
@@ -542,14 +542,14 @@ class LogApi:
             str,
             Field(min_length=36, strict=True, max_length=36, description="The task id"),
         ],
-        offset: Annotated[
-            Optional[StrictInt], Field(description="The number to skip")
-        ] = None,
         limit: Annotated[
             Optional[StrictInt], Field(description="The number to limit by")
         ] = None,
         since: Annotated[
             Optional[datetime], Field(description="The start time to get logs for")
+        ] = None,
+        until: Annotated[
+            Optional[datetime], Field(description="The end time to get logs for")
         ] = None,
         _request_timeout: Union[
             None,
@@ -569,12 +569,12 @@ class LogApi:
 
         :param task: The task id (required)
         :type task: str
-        :param offset: The number to skip
-        :type offset: int
         :param limit: The number to limit by
         :type limit: int
         :param since: The start time to get logs for
         :type since: datetime
+        :param until: The end time to get logs for
+        :type until: datetime
         :param _request_timeout: timeout setting for this request. If one
                                  number provided, it will be total request
                                  timeout. It can also be a pair (tuple) of
@@ -599,9 +599,9 @@ class LogApi:
 
         _param = self._v1_log_line_list_serialize(
             task=task,
-            offset=offset,
             limit=limit,
             since=since,
+            until=until,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
@@ -629,14 +629,14 @@ class LogApi:
             str,
             Field(min_length=36, strict=True, max_length=36, description="The task id"),
         ],
-        offset: Annotated[
-            Optional[StrictInt], Field(description="The number to skip")
-        ] = None,
         limit: Annotated[
             Optional[StrictInt], Field(description="The number to limit by")
         ] = None,
         since: Annotated[
             Optional[datetime], Field(description="The start time to get logs for")
+        ] = None,
+        until: Annotated[
+            Optional[datetime], Field(description="The end time to get logs for")
         ] = None,
         _request_timeout: Union[
             None,
@@ -656,12 +656,12 @@ class LogApi:
 
         :param task: The task id (required)
         :type task: str
-        :param offset: The number to skip
-        :type offset: int
         :param limit: The number to limit by
         :type limit: int
         :param since: The start time to get logs for
         :type since: datetime
+        :param until: The end time to get logs for
+        :type until: datetime
         :param _request_timeout: timeout setting for this request. If one
                                  number provided, it will be total request
                                  timeout. It can also be a pair (tuple) of
@@ -686,9 +686,9 @@ class LogApi:
 
         _param = self._v1_log_line_list_serialize(
             task=task,
-            offset=offset,
             limit=limit,
             since=since,
+            until=until,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
@@ -708,9 +708,9 @@ class LogApi:
     def _v1_log_line_list_serialize(
         self,
         task,
-        offset,
         limit,
         since,
+        until,
         _request_auth,
         _content_type,
         _headers,
@@ -734,10 +734,6 @@ class LogApi:
         if task is not None:
             _path_params["task"] = task
         # process the query parameters
-        if offset is not None:
-
-            _query_params.append(("offset", offset))
-
         if limit is not None:
 
             _query_params.append(("limit", limit))
@@ -752,6 +748,17 @@ class LogApi:
                 )
             else:
                 _query_params.append(("since", since))
+
+        if until is not None:
+            if isinstance(until, datetime):
+                _query_params.append(
+                    (
+                        "until",
+                        until.strftime(self.api_client.configuration.datetime_format),
+                    )
+                )
+            else:
+                _query_params.append(("until", until))
 
         # process the header parameters
         # process the form parameters

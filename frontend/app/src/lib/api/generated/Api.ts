@@ -216,11 +216,6 @@ export class Api<
     task: string,
     query?: {
       /**
-       * The number to skip
-       * @format int64
-       */
-      offset?: number;
-      /**
        * The number to limit by
        * @format int64
        */
@@ -230,6 +225,11 @@ export class Api<
        * @format date-time
        */
       since?: string;
+      /**
+       * The end time to get logs for
+       * @format date-time
+       */
+      until?: string;
     },
     params: RequestParams = {},
   ) =>

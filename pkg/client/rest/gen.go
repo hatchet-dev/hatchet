@@ -1559,8 +1559,7 @@ type V1LogLineLevel string
 
 // V1LogLineList defines model for V1LogLineList.
 type V1LogLineList struct {
-	Pagination *PaginationResponse `json:"pagination,omitempty"`
-	Rows       *[]V1LogLine        `json:"rows,omitempty"`
+	Rows *[]V1LogLine `json:"rows,omitempty"`
 }
 
 // V1ReplayTaskRequest defines model for V1ReplayTaskRequest.
@@ -2330,14 +2329,14 @@ type V1TaskGetParams struct {
 
 // V1LogLineListParams defines parameters for V1LogLineList.
 type V1LogLineListParams struct {
-	// Offset The number to skip
-	Offset *int64 `form:"offset,omitempty" json:"offset,omitempty"`
-
 	// Limit The number to limit by
 	Limit *int64 `form:"limit,omitempty" json:"limit,omitempty"`
 
 	// Since The start time to get logs for
 	Since *time.Time `form:"since,omitempty" json:"since,omitempty"`
+
+	// Until The end time to get logs for
+	Until *time.Time `form:"until,omitempty" json:"until,omitempty"`
 }
 
 // V1TaskEventListParams defines parameters for V1TaskEventList.
@@ -6099,22 +6098,6 @@ func NewV1LogLineListRequest(server string, task openapi_types.UUID, params *V1L
 	if params != nil {
 		queryValues := queryURL.Query()
 
-		if params.Offset != nil {
-
-			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "offset", runtime.ParamLocationQuery, *params.Offset); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
 		if params.Limit != nil {
 
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
@@ -6134,6 +6117,22 @@ func NewV1LogLineListRequest(server string, task openapi_types.UUID, params *V1L
 		if params.Since != nil {
 
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "since", runtime.ParamLocationQuery, *params.Since); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Until != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "until", runtime.ParamLocationQuery, *params.Until); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
 				return nil, err

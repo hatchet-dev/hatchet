@@ -1912,7 +1912,6 @@ export enum V1LogLineLevel {
 }
 
 export interface V1LogLineList {
-  pagination?: PaginationResponse;
   rows?: V1LogLine[];
 }
 
