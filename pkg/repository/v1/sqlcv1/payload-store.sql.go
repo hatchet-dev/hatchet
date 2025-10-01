@@ -46,7 +46,7 @@ WITH inputs AS (
             SELECT offload_at, id, inserted_at, type, tenant_id
             FROM inputs
         )
-    RETURNING tenant_id, offload_at, payload_id, payload_inserted_at, payload_type, operation
+    RETURNING tenant_id, offload_at, payload_id, payload_inserted_at, payload_type
 )
 
 INSERT INTO v1_payload_wal (
@@ -100,7 +100,7 @@ WITH tenants AS (
     ) AS tenant_id
 )
 
-SELECT tenant_id, offload_at, payload_id, payload_inserted_at, payload_type, operation
+SELECT tenant_id, offload_at, payload_id, payload_inserted_at, payload_type
 FROM v1_payload_wal
 WHERE
     tenant_id = ANY(SELECT tenant_id FROM tenants)
@@ -134,7 +134,6 @@ func (q *Queries) PollPayloadWALForRecordsToOffload(ctx context.Context, db DBTX
 			&i.PayloadID,
 			&i.PayloadInsertedAt,
 			&i.PayloadType,
-			&i.Operation,
 		); err != nil {
 			return nil, err
 		}

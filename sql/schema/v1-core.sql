@@ -1658,7 +1658,6 @@ CREATE TABLE v1_payload_wal (
     payload_id BIGINT NOT NULL,
     payload_inserted_at TIMESTAMPTZ NOT NULL,
     payload_type v1_payload_type NOT NULL,
-    operation v1_payload_wal_operation NOT NULL DEFAULT 'REPLICATE_TO_EXTERNAL',
 
     PRIMARY KEY (offload_at, tenant_id, payload_id, payload_inserted_at, payload_type),
     CONSTRAINT "v1_payload_wal_payload" FOREIGN KEY (payload_id, payload_inserted_at, payload_type, tenant_id) REFERENCES v1_payload (id, inserted_at, type, tenant_id) ON DELETE CASCADE
@@ -1668,6 +1667,18 @@ CREATE INDEX v1_payload_wal_payload_lookup_idx ON v1_payload_wal (payload_id, pa
 
 SELECT create_v1_hash_partitions('v1_payload_wal'::TEXT, 4);
 
+CREATE TABLE v1_payload_cutover_queue_item (
+    tenant_id UUID NOT NULL,
+    cut_over_at TIMESTAMPTZ NOT NULL,
+    payload_id BIGINT NOT NULL,
+    payload_inserted_at TIMESTAMPTZ NOT NULL,
+    payload_type v1_payload_type NOT NULL,
+
+    PRIMARY KEY (cut_over_at, tenant_id, payload_id, payload_inserted_at, payload_type),
+    CONSTRAINT "v1_payload_cutover_queue_item_payload" FOREIGN KEY (payload_id, payload_inserted_at, payload_type, tenant_id) REFERENCES v1_payload (id, inserted_at, type, tenant_id) ON DELETE CASCADE
+) PARTITION BY HASH (tenant_id);
+
+SELECT create_v1_hash_partitions('v1_payload_wal'::TEXT, 4);
 
 CREATE OR REPLACE FUNCTION find_matching_tenants_in_payload_wal_partition(
     partition_number INT
@@ -1684,10 +1695,30 @@ BEGIN
         'SELECT ARRAY(
             SELECT DISTINCT e.tenant_id
             FROM %I e
-            WHERE
-                (e.offload_at <= NOW() AND e.operation = 'CUT_OVER_TO_EXTERNAL'::v1_payload_wal_operation)
-                OR
-                e.operation = 'REPLICATE_TO_EXTERNAL'::v1_payload_wal_operation
+        )',
+        partition_table)
+    INTO result;
+
+    RETURN result;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION find_matching_tenants_in_payload_cutover_queue_item_partition(
+    partition_number INT
+) RETURNS UUID[]
+LANGUAGE plpgsql AS
+$$
+DECLARE
+    partition_table text;
+    result UUID[];
+BEGIN
+    partition_table := 'v1_payload_cutover_queue_item_' || partition_number::text;
+
+    EXECUTE format(
+        'SELECT ARRAY(
+            SELECT DISTINCT e.tenant_id
+            FROM %I e
+            WHERE e.cut_over_at <= NOW()
         )',
         partition_table)
     INTO result;

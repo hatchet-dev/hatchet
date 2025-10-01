@@ -3078,13 +3078,20 @@ type V1Payload struct {
 	UpdatedAt           pgtype.Timestamptz `json:"updated_at"`
 }
 
+type V1PayloadCutoverQueueItem struct {
+	TenantID          pgtype.UUID        `json:"tenant_id"`
+	CutOverAt         pgtype.Timestamptz `json:"cut_over_at"`
+	PayloadID         int64              `json:"payload_id"`
+	PayloadInsertedAt pgtype.Timestamptz `json:"payload_inserted_at"`
+	PayloadType       V1PayloadType      `json:"payload_type"`
+}
+
 type V1PayloadWal struct {
-	TenantID          pgtype.UUID           `json:"tenant_id"`
-	OffloadAt         pgtype.Timestamptz    `json:"offload_at"`
-	PayloadID         int64                 `json:"payload_id"`
-	PayloadInsertedAt pgtype.Timestamptz    `json:"payload_inserted_at"`
-	PayloadType       V1PayloadType         `json:"payload_type"`
-	Operation         V1PayloadWalOperation `json:"operation"`
+	TenantID          pgtype.UUID        `json:"tenant_id"`
+	OffloadAt         pgtype.Timestamptz `json:"offload_at"`
+	PayloadID         int64              `json:"payload_id"`
+	PayloadInsertedAt pgtype.Timestamptz `json:"payload_inserted_at"`
+	PayloadType       V1PayloadType      `json:"payload_type"`
 }
 
 type V1Queue struct {
