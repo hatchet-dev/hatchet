@@ -217,7 +217,8 @@ WITH inputs AS (
         UNNEST($2::TIMESTAMPTZ[]) AS payload_inserted_at,
         UNNEST(CAST($3::TEXT[] AS v1_payload_type[])) AS payload_type,
         UNNEST($4::TIMESTAMPTZ[]) AS offload_at,
-        UNNEST($5::UUID[]) AS tenant_id
+        UNNEST($5::UUID[]) AS tenant_id,
+        UNNEST(CAST($6::TEXT[] AS v1_payload_wal_operation[])) AS operation
 )
 
 INSERT INTO v1_payload_wal (
@@ -225,14 +226,16 @@ INSERT INTO v1_payload_wal (
     offload_at,
     payload_id,
     payload_inserted_at,
-    payload_type
+    payload_type,
+    operation
 )
 SELECT
     i.tenant_id,
     i.offload_at,
     i.payload_id,
     i.payload_inserted_at,
-    i.payload_type
+    i.payload_type,
+    i.operation
 FROM
     inputs i
 ON CONFLICT DO NOTHING
@@ -244,6 +247,7 @@ type WritePayloadWALParams struct {
 	Payloadtypes       []string             `json:"payloadtypes"`
 	Offloadats         []pgtype.Timestamptz `json:"offloadats"`
 	Tenantids          []pgtype.UUID        `json:"tenantids"`
+	Operations         []string             `json:"operations"`
 }
 
 func (q *Queries) WritePayloadWAL(ctx context.Context, db DBTX, arg WritePayloadWALParams) error {
@@ -253,6 +257,7 @@ func (q *Queries) WritePayloadWAL(ctx context.Context, db DBTX, arg WritePayload
 		arg.Payloadtypes,
 		arg.Offloadats,
 		arg.Tenantids,
+		arg.Operations,
 	)
 	return err
 }

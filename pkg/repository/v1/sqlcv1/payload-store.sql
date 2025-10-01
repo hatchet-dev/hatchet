@@ -72,7 +72,8 @@ WITH inputs AS (
         UNNEST(@payloadInsertedAts::TIMESTAMPTZ[]) AS payload_inserted_at,
         UNNEST(CAST(@payloadTypes::TEXT[] AS v1_payload_type[])) AS payload_type,
         UNNEST(@offloadAts::TIMESTAMPTZ[]) AS offload_at,
-        UNNEST(@tenantIds::UUID[]) AS tenant_id
+        UNNEST(@tenantIds::UUID[]) AS tenant_id,
+        UNNEST(CAST(@operations::TEXT[] AS v1_payload_wal_operation[])) AS operation
 )
 
 INSERT INTO v1_payload_wal (
@@ -80,14 +81,16 @@ INSERT INTO v1_payload_wal (
     offload_at,
     payload_id,
     payload_inserted_at,
-    payload_type
+    payload_type,
+    operation
 )
 SELECT
     i.tenant_id,
     i.offload_at,
     i.payload_id,
     i.payload_inserted_at,
-    i.payload_type
+    i.payload_type,
+    i.operation
 FROM
     inputs i
 ON CONFLICT DO NOTHING

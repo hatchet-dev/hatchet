@@ -1482,9 +1482,8 @@ func (ns NullV1PayloadType) Value() (driver.Value, error) {
 type V1PayloadWalOperation string
 
 const (
-	V1PayloadWalOperationCREATE V1PayloadWalOperation = "CREATE"
-	V1PayloadWalOperationUPDATE V1PayloadWalOperation = "UPDATE"
-	V1PayloadWalOperationDELETE V1PayloadWalOperation = "DELETE"
+	V1PayloadWalOperationREPLICATETOEXTERNAL V1PayloadWalOperation = "REPLICATE_TO_EXTERNAL"
+	V1PayloadWalOperationCUTOVERTOEXTERNAL   V1PayloadWalOperation = "CUT_OVER_TO_EXTERNAL"
 )
 
 func (e *V1PayloadWalOperation) Scan(src interface{}) error {
