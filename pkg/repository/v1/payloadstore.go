@@ -403,6 +403,7 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadWAL(ctx context.Context, part
 	types := make([]string, 0, len(retrieveOptsToStoredKey))
 	tenantIds := make([]pgtype.UUID, 0, len(retrieveOptsToStoredKey))
 	externalLocationKeys := make([]string, 0, len(retrieveOptsToStoredKey))
+	operations := make([]string, 0, len(retrieveOptsToStoredKey))
 
 	for _, opt := range retrieveOpts {
 		offloadAt, exists := retrieveOptsToOffloadAt[opt]
@@ -428,6 +429,12 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadWAL(ctx context.Context, part
 
 		externalLocationKeys = append(externalLocationKeys, string(key))
 		tenantIds = append(tenantIds, opt.TenantId)
+
+		if offloadAt.Time.Before(time.Now()) && key != "" {
+			operations = append(operations, string(sqlcv1.V1PayloadWalOperationCUTOVERTOEXTERNAL))
+		} else {
+			operations = append(operations, string(sqlcv1.V1PayloadWalOperationREPLICATETOEXTERNAL))
+		}
 	}
 
 	// Second transaction, persist the offload to the db once we've successfully offloaded to the external store
@@ -445,6 +452,7 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadWAL(ctx context.Context, part
 		Offloadats:           offloadAts,
 		Tenantids:            tenantIds,
 		Externallocationkeys: externalLocationKeys,
+		Operations:           operations,
 	})
 
 	if err != nil {
