@@ -272,6 +272,23 @@ WITH inputs AS (
         v1_payload.id = i.id
         AND v1_payload.inserted_at = i.inserted_at
         AND v1_payload.tenant_id = i.tenant_id
+), cutover_queue_items AS (
+    INSERT INTO v1_payload_cutover_queue_item (
+        tenant_id,
+        cut_over_at,
+        payload_id,
+        payload_inserted_at,
+        payload_type
+    )
+    SELECT
+        i.tenant_id,
+        i.offload_at,
+        i.id,
+        i.inserted_at,
+        i.type
+    FROM
+        inputs i
+    ON CONFLICT DO NOTHING
 )
 
 DELETE FROM v1_payload_wal
@@ -301,75 +318,6 @@ func (q *Queries) SetPayloadExternalKeys(ctx context.Context, db DBTX, arg SetPa
 		arg.Tenantids,
 	)
 	return err
-}
-
-const writePayloadCutOverQueueItems = `-- name: WritePayloadCutOverQueueItems :many
-WITH inputs AS (
-    SELECT
-        UNNEST($1::BIGINT[]) AS payload_id,
-        UNNEST($2::TIMESTAMPTZ[]) AS payload_inserted_at,
-        UNNEST(CAST($3::TEXT[] AS v1_payload_type[])) AS payload_type,
-        UNNEST($4::TIMESTAMPTZ[]) AS cut_over_at,
-        UNNEST($5::UUID[]) AS tenant_id
-)
-
-INSERT INTO v1_payload_cutover_queue_item (
-    tenant_id,
-    cut_over_at,
-    payload_id,
-    payload_inserted_at,
-    payload_type
-)
-SELECT
-    i.tenant_id,
-    i.cut_over_at,
-    i.payload_id,
-    i.payload_inserted_at,
-    i.payload_type
-FROM
-    inputs i
-ON CONFLICT DO NOTHING
-RETURNING tenant_id, cut_over_at, payload_id, payload_inserted_at, payload_type
-`
-
-type WritePayloadCutOverQueueItemsParams struct {
-	Payloadids         []int64              `json:"payloadids"`
-	Payloadinsertedats []pgtype.Timestamptz `json:"payloadinsertedats"`
-	Payloadtypes       []string             `json:"payloadtypes"`
-	Cutoverats         []pgtype.Timestamptz `json:"cutoverats"`
-	Tenantids          []pgtype.UUID        `json:"tenantids"`
-}
-
-func (q *Queries) WritePayloadCutOverQueueItems(ctx context.Context, db DBTX, arg WritePayloadCutOverQueueItemsParams) ([]*V1PayloadCutoverQueueItem, error) {
-	rows, err := db.Query(ctx, writePayloadCutOverQueueItems,
-		arg.Payloadids,
-		arg.Payloadinsertedats,
-		arg.Payloadtypes,
-		arg.Cutoverats,
-		arg.Tenantids,
-	)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []*V1PayloadCutoverQueueItem
-	for rows.Next() {
-		var i V1PayloadCutoverQueueItem
-		if err := rows.Scan(
-			&i.TenantID,
-			&i.CutOverAt,
-			&i.PayloadID,
-			&i.PayloadInsertedAt,
-			&i.PayloadType,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, &i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
 }
 
 const writePayloadWAL = `-- name: WritePayloadWAL :exec
