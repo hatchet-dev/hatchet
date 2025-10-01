@@ -41,27 +41,28 @@ type TasksController interface {
 }
 
 type TasksControllerImpl struct {
-	mq                                    msgqueue.MessageQueue
-	pubBuffer                             *msgqueue.MQPubBuffer
-	l                                     *zerolog.Logger
-	queueLogger                           *zerolog.Logger
-	pgxStatsLogger                        *zerolog.Logger
-	repo                                  repository.EngineRepository
-	repov1                                v1.Repository
-	dv                                    datautils.DataDecoderValidator
-	s                                     gocron.Scheduler
-	a                                     *hatcheterrors.Wrapped
-	p                                     *partition.Partition
-	celParser                             *cel.CELParser
-	opsPoolPollInterval                   time.Duration
-	opsPoolJitter                         time.Duration
-	timeoutTaskOperations                 *queueutils.OperationPool[string]
-	reassignTaskOperations                *queueutils.OperationPool[string]
-	retryTaskOperations                   *queueutils.OperationPool[string]
-	emitSleepOperations                   *queueutils.OperationPool[string]
-	processPayloadWALOperations           *queueutils.OperationPool[int64]
-	evictExpiredIdempotencyKeysOperations *queueutils.OperationPool[string]
-	replayEnabled                         bool
+	mq                                       msgqueue.MessageQueue
+	pubBuffer                                *msgqueue.MQPubBuffer
+	l                                        *zerolog.Logger
+	queueLogger                              *zerolog.Logger
+	pgxStatsLogger                           *zerolog.Logger
+	repo                                     repository.EngineRepository
+	repov1                                   v1.Repository
+	dv                                       datautils.DataDecoderValidator
+	s                                        gocron.Scheduler
+	a                                        *hatcheterrors.Wrapped
+	p                                        *partition.Partition
+	celParser                                *cel.CELParser
+	opsPoolPollInterval                      time.Duration
+	opsPoolJitter                            time.Duration
+	timeoutTaskOperations                    *queueutils.OperationPool[string]
+	reassignTaskOperations                   *queueutils.OperationPool[string]
+	retryTaskOperations                      *queueutils.OperationPool[string]
+	emitSleepOperations                      *queueutils.OperationPool[string]
+	processPayloadWALOperations              *queueutils.OperationPool[int64]
+	processPayloadExternalCutoversOperations *queueutils.OperationPool[int64]
+	evictExpiredIdempotencyKeysOperations    *queueutils.OperationPool[string]
+	replayEnabled                            bool
 }
 
 type TasksControllerOpt func(*TasksControllerOpts)
@@ -232,6 +233,7 @@ func New(fs ...TasksControllerOpt) (*TasksControllerImpl, error) {
 	t.reassignTaskOperations = queueutils.NewOperationPool(opts.l, timeout, "reassign step runs", t.processTaskReassignments).WithJitter(jitter)
 	t.retryTaskOperations = queueutils.NewOperationPool(opts.l, timeout, "retry step runs", t.processTaskRetryQueueItems).WithJitter(jitter)
 	t.processPayloadWALOperations = queueutils.NewOperationPool(opts.l, timeout, "process payload WAL", t.processPayloadWAL).WithJitter(jitter)
+	t.processPayloadExternalCutoversOperations = queueutils.NewOperationPool(opts.l, timeout, "process payload external cutovers", t.processPayloadExternalCutovers).WithJitter(jitter)
 	t.evictExpiredIdempotencyKeysOperations = queueutils.NewOperationPool(opts.l, timeout, "evict expired idempotency keys", t.evictExpiredIdempotencyKeys).WithJitter(jitter)
 
 	return t, nil
@@ -364,7 +366,26 @@ func (tc *TasksControllerImpl) Start() (func() error, error) {
 
 		cancel()
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "could not run analyze")
+		span.SetStatus(codes.Error, "could not run process payload WAL")
+		span.End()
+
+		return nil, wrappedErr
+	}
+
+	_, err = tc.s.NewJob(
+		// TODO: Make this configurable
+		gocron.DurationJob(time.Second*15),
+		gocron.NewTask(
+			tc.runProcessPayloadExternalCutovers(ctx),
+		),
+	)
+
+	if err != nil {
+		wrappedErr := fmt.Errorf("could not schedule process payload external cutovers: %w", err)
+
+		cancel()
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "could not run process payload external cutovers")
 		span.End()
 
 		return nil, wrappedErr

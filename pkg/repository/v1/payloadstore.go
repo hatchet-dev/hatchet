@@ -55,6 +55,7 @@ type PayloadStoreRepository interface {
 	Retrieve(ctx context.Context, opts RetrievePayloadOpts) ([]byte, error)
 	BulkRetrieve(ctx context.Context, opts ...RetrievePayloadOpts) (map[RetrievePayloadOpts][]byte, error)
 	ProcessPayloadWAL(ctx context.Context, partitionNumber int64) (bool, error)
+	ProcessPayloadExternalCutovers(ctx context.Context, partitionNumber int64) (bool, error)
 	OverwriteExternalStore(store ExternalStore, inlineStoreTTL time.Duration)
 	DualWritesEnabled() bool
 	WALPollLimit() int
@@ -479,6 +480,87 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadWAL(ctx context.Context, part
 	}
 
 	return hasMoreWALRecords, nil
+}
+
+func (p *payloadStoreRepositoryImpl) ProcessPayloadExternalCutovers(ctx context.Context, partitionNumber int64) (bool, error) {
+	// no need to cut over if external store is not enabled
+	if !p.externalStoreEnabled {
+		return false, nil
+	}
+
+	ctx, span := telemetry.NewSpan(ctx, "payloadstore.process_payload_external_cutovers")
+	defer span.End()
+
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, p.pool, p.l, 5000)
+
+	if err != nil {
+		return false, fmt.Errorf("failed to prepare transaction: %w", err)
+	}
+
+	defer rollback()
+
+	advisoryLockAcquired, err := p.queries.TryAdvisoryLock(ctx, tx, hash(fmt.Sprintf("process-payload-cut-overs-lease-%d", partitionNumber)))
+
+	if err != nil {
+		return false, fmt.Errorf("failed to acquire advisory lock: %w", err)
+	}
+
+	if !advisoryLockAcquired {
+		return false, nil
+	}
+
+	queueItemsToCutOver, err := p.queries.PollPayloadCutOverQueueItemsForRecordsToCutOver(ctx, tx, sqlcv1.PollPayloadCutOverQueueItemsForRecordsToCutOverParams{
+		Polllimit:       int32(p.walPollLimit),
+		Partitionnumber: int32(partitionNumber),
+	})
+
+	fmt.Println("queueItemsToCutOver", queueItemsToCutOver)
+
+	hasMoreQueueItems := len(queueItemsToCutOver) == p.walPollLimit
+
+	if len(queueItemsToCutOver) == 0 {
+		return false, nil
+	}
+
+	if err != nil {
+		return false, err
+	}
+
+	ids := make([]int64, 0, len(queueItemsToCutOver))
+	insertedAts := make([]pgtype.Timestamptz, 0, len(queueItemsToCutOver))
+	types := make([]string, 0, len(queueItemsToCutOver))
+	offloadAts := make([]pgtype.Timestamptz, 0, len(queueItemsToCutOver))
+	tenantIds := make([]pgtype.UUID, 0, len(queueItemsToCutOver))
+
+	for _, item := range queueItemsToCutOver {
+		if item == nil {
+			continue
+		}
+
+		ids = append(ids, item.PayloadID)
+		insertedAts = append(insertedAts, item.PayloadInsertedAt)
+		types = append(types, string(item.PayloadType))
+		offloadAts = append(offloadAts, item.CutOverAt)
+		tenantIds = append(tenantIds, item.TenantID)
+	}
+
+	err = p.queries.CutOverPayloadsToExternal(ctx, tx, sqlcv1.CutOverPayloadsToExternalParams{
+		Ids:          ids,
+		Insertedats:  insertedAts,
+		Payloadtypes: types,
+		Cutoverats:   offloadAts,
+		Tenantids:    tenantIds,
+	})
+
+	if err != nil {
+		return false, err
+	}
+
+	if err := commit(ctx); err != nil {
+		return false, err
+	}
+
+	return hasMoreQueueItems, nil
 }
 
 func (p *payloadStoreRepositoryImpl) OverwriteExternalStore(store ExternalStore, inlineStoreTTL time.Duration) {
