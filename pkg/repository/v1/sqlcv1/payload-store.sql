@@ -129,6 +129,23 @@ WITH inputs AS (
         v1_payload.id = i.id
         AND v1_payload.inserted_at = i.inserted_at
         AND v1_payload.tenant_id = i.tenant_id
+), cutover_queue_items AS (
+    INSERT INTO v1_payload_cutover_queue_item (
+        tenant_id,
+        cut_over_at,
+        payload_id,
+        payload_inserted_at,
+        payload_type
+    )
+    SELECT
+        i.tenant_id,
+        i.offload_at,
+        i.id,
+        i.inserted_at,
+        i.type
+    FROM
+        inputs i
+    ON CONFLICT DO NOTHING
 )
 
 DELETE FROM v1_payload_wal
@@ -157,36 +174,6 @@ ORDER BY cut_over_at, tenant_id, payload_id, payload_inserted_at, payload_type
 LIMIT @pollLimit::INT
 FOR UPDATE SKIP LOCKED
 ;
-
--- name: WritePayloadCutOverQueueItems :many
-WITH inputs AS (
-    SELECT
-        UNNEST(@payloadIds::BIGINT[]) AS payload_id,
-        UNNEST(@payloadInsertedAts::TIMESTAMPTZ[]) AS payload_inserted_at,
-        UNNEST(CAST(@payloadTypes::TEXT[] AS v1_payload_type[])) AS payload_type,
-        UNNEST(@cutOverAts::TIMESTAMPTZ[]) AS cut_over_at,
-        UNNEST(@tenantIds::UUID[]) AS tenant_id
-)
-
-INSERT INTO v1_payload_cutover_queue_item (
-    tenant_id,
-    cut_over_at,
-    payload_id,
-    payload_inserted_at,
-    payload_type
-)
-SELECT
-    i.tenant_id,
-    i.cut_over_at,
-    i.payload_id,
-    i.payload_inserted_at,
-    i.payload_type
-FROM
-    inputs i
-ON CONFLICT DO NOTHING
-RETURNING *
-;
-
 
 -- name: CutOverPayloadsToExternal :exec
 WITH inputs AS (
