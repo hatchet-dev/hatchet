@@ -77,6 +77,7 @@ FROM v1_payload_wal
 WHERE tenant_id = ANY(SELECT tenant_id FROM tenants)
 ORDER BY offload_at, tenant_id, payload_id, payload_inserted_at, payload_type
 LIMIT $1::INT
+FOR UPDATE SKIP LOCKED
 `
 
 type PollPayloadWALForRecordsToReplicateParams struct {
