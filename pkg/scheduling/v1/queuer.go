@@ -2,7 +2,6 @@ package v1
 
 import (
 	"context"
-	"fmt"
 	"sort"
 	"sync"
 	"time"
@@ -158,8 +157,6 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 			q.l.Error().Err(err).Msg("error refilling queue")
 			continue
 		}
-
-		fmt.Printf("refillQueue returned %d queue items for queue %s\n", len(qis), q.queueName)
 
 		// NOTE: we don't terminate early out of this loop because calling `tryAssign` is necessary
 		// for calling the scheduling extensions.

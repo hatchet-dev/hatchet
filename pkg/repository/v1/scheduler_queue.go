@@ -106,8 +106,6 @@ func (d *queueRepository) getMinId() pgtype.Int8 {
 }
 
 func (d *queueRepository) ListQueueItems(ctx context.Context, limit int) ([]*sqlcv1.V1QueueItem, error) {
-	fmt.Printf("ListQueueItems called for queue %s with limit %d\n", d.queueName, limit)
-
 	ctx, span := telemetry.NewSpan(ctx, "list-queue-items")
 	defer span.End()
 
@@ -127,8 +125,6 @@ func (d *queueRepository) ListQueueItems(ctx context.Context, limit int) ([]*sql
 	if err != nil {
 		return nil, err
 	}
-
-	fmt.Printf("getMinId: %v, found %d queue items\n", d.getMinId(), len(qis))
 
 	if len(qis) == 0 {
 		return nil, nil
