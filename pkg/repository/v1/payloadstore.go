@@ -2,6 +2,7 @@ package v1
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"sort"
 	"time"
@@ -315,6 +316,8 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadWAL(ctx context.Context, part
 		Partitionnumber: int32(partitionNumber),
 	})
 
+	fmt.Println("walRecords", walRecords)
+
 	hasMoreWALRecords := len(walRecords) == p.walPollLimit
 
 	if len(walRecords) == 0 {
@@ -340,7 +343,13 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadWAL(ctx context.Context, part
 		retrieveOptsToOffloadAt[opts] = record.OffloadAt
 	}
 
+	rj, _ := json.MarshalIndent(retrieveOpts, "", "  ")
+	fmt.Println("retrieveOpts", string(rj))
+
 	payloads, err := p.bulkRetrieve(ctx, tx, retrieveOpts...)
+
+	pj, _ := json.MarshalIndent(payloads, "", "  ")
+	fmt.Println("payloads", string(pj))
 
 	if err != nil {
 		return false, err
@@ -389,6 +398,9 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadWAL(ctx context.Context, part
 			minOffloadAt = offloadAt.Time
 		}
 	}
+
+	oj, _ := json.MarshalIndent(externalStoreOpts, "", "  ")
+	fmt.Println("externalStoreOpts", string(oj))
 
 	if err := commit(ctx); err != nil {
 		return false, err
@@ -447,6 +459,18 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadWAL(ctx context.Context, part
 	if err != nil {
 		return false, fmt.Errorf("failed to prepare transaction for offloading: %w", err)
 	}
+
+	fj, _ := json.MarshalIndent(sqlcv1.FinalizePayloadOffloadsParams{
+		Ids:                  ids,
+		Insertedats:          insertedAts,
+		Payloadtypes:         types,
+		Offloadats:           offloadAts,
+		Tenantids:            tenantIds,
+		Externallocationkeys: externalLocationKeys,
+		Operations:           operations,
+	}, "", "  ")
+
+	fmt.Println("finalizePayloadOffloadsParams", string(fj))
 
 	err = p.queries.FinalizePayloadOffloads(ctx, tx, sqlcv1.FinalizePayloadOffloadsParams{
 		Ids:                  ids,
