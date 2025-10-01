@@ -2854,7 +2854,7 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId string, t
 			return nil, fmt.Errorf("failed to retrieve task input: %w", err)
 		}
 
-		if err == pgx.ErrNoRows {
+		if errors.Is(err, pgx.ErrNoRows) {
 			// If the input wasn't found in the payload store,
 			// fall back to the input stored on the task itself.
 			r.l.Error().Msgf("ReplayTasks: task %s has empty payload, falling back to input", task.ExternalID.String())
