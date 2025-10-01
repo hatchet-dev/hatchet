@@ -1053,58 +1053,58 @@ func (tc *TasksControllerImpl) handleProcessUserEventTrigger(ctx context.Context
 		return fmt.Errorf("could not trigger tasks from events: %w", err)
 	}
 
-	// eventTriggerOpts := make([]tasktypes.CreatedEventTriggerPayloadSingleton, 0)
+	eventTriggerOpts := make([]tasktypes.CreatedEventTriggerPayloadSingleton, 0)
 
-	// // FIXME: Should `SeenAt` be set on the SDK when the event is created?
-	// eventSeenAt := time.Now()
+	// FIXME: Should `SeenAt` be set on the SDK when the event is created?
+	eventSeenAt := time.Now()
 
-	// for eventExternalId, runs := range result.EventExternalIdToRuns {
-	// 	opts := eventIdToOpts[eventExternalId]
+	for eventExternalId, runs := range result.EventExternalIdToRuns {
+		opts := eventIdToOpts[eventExternalId]
 
-	// 	if len(runs) == 0 {
-	// 		eventTriggerOpts = append(eventTriggerOpts, tasktypes.CreatedEventTriggerPayloadSingleton{
-	// 			EventSeenAt:             eventSeenAt,
-	// 			EventKey:                opts.Key,
-	// 			EventExternalId:         opts.ExternalId,
-	// 			EventPayload:            opts.Data,
-	// 			EventAdditionalMetadata: opts.AdditionalMetadata,
-	// 			TriggeringWebhookName:   opts.TriggeringWebhookName,
-	// 			EventScope:              opts.Scope,
-	// 		})
-	// 	} else {
-	// 		for _, run := range runs {
-	// 			eventTriggerOpts = append(eventTriggerOpts, tasktypes.CreatedEventTriggerPayloadSingleton{
-	// 				MaybeRunId:              &run.Id,
-	// 				MaybeRunInsertedAt:      &run.InsertedAt,
-	// 				EventSeenAt:             eventSeenAt,
-	// 				EventKey:                opts.Key,
-	// 				EventExternalId:         opts.ExternalId,
-	// 				EventPayload:            opts.Data,
-	// 				EventAdditionalMetadata: opts.AdditionalMetadata,
-	// 				EventScope:              opts.Scope,
-	// 				FilterId:                run.FilterId,
-	// 				TriggeringWebhookName:   opts.TriggeringWebhookName,
-	// 			})
-	// 		}
-	// 	}
-	// }
+		if len(runs) == 0 {
+			eventTriggerOpts = append(eventTriggerOpts, tasktypes.CreatedEventTriggerPayloadSingleton{
+				EventSeenAt:             eventSeenAt,
+				EventKey:                opts.Key,
+				EventExternalId:         opts.ExternalId,
+				EventPayload:            opts.Data,
+				EventAdditionalMetadata: opts.AdditionalMetadata,
+				TriggeringWebhookName:   opts.TriggeringWebhookName,
+				EventScope:              opts.Scope,
+			})
+		} else {
+			for _, run := range runs {
+				eventTriggerOpts = append(eventTriggerOpts, tasktypes.CreatedEventTriggerPayloadSingleton{
+					MaybeRunId:              &run.Id,
+					MaybeRunInsertedAt:      &run.InsertedAt,
+					EventSeenAt:             eventSeenAt,
+					EventKey:                opts.Key,
+					EventExternalId:         opts.ExternalId,
+					EventPayload:            opts.Data,
+					EventAdditionalMetadata: opts.AdditionalMetadata,
+					EventScope:              opts.Scope,
+					FilterId:                run.FilterId,
+					TriggeringWebhookName:   opts.TriggeringWebhookName,
+				})
+			}
+		}
+	}
 
-	// msg, err := tasktypes.CreatedEventTriggerMessage(
-	// 	tenantId,
-	// 	tasktypes.CreatedEventTriggerPayload{
-	// 		Payloads: eventTriggerOpts,
-	// 	},
-	// )
+	msg, err := tasktypes.CreatedEventTriggerMessage(
+		tenantId,
+		tasktypes.CreatedEventTriggerPayload{
+			Payloads: eventTriggerOpts,
+		},
+	)
 
-	// if err != nil {
-	// 	return fmt.Errorf("could not create event trigger message: %w", err)
-	// }
+	if err != nil {
+		return fmt.Errorf("could not create event trigger message: %w", err)
+	}
 
-	// err = tc.pubBuffer.Pub(ctx, msgqueue.OLAP_QUEUE, msg, false)
+	err = tc.pubBuffer.Pub(ctx, msgqueue.OLAP_QUEUE, msg, false)
 
-	// if err != nil {
-	// 	return fmt.Errorf("could not trigger tasks from events: %w", err)
-	// }
+	if err != nil {
+		return fmt.Errorf("could not trigger tasks from events: %w", err)
+	}
 
 	evalFailuresMsg, err := tasktypes.CELEvaluationFailureMessage(
 		tenantId,
