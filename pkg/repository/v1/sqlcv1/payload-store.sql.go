@@ -59,6 +59,56 @@ func (q *Queries) CutOverPayloadsToExternal(ctx context.Context, db DBTX, arg Cu
 	return err
 }
 
+const pollPayloadCutOverQueueItemsForRecordsToCutOver = `-- name: PollPayloadCutOverQueueItemsForRecordsToCutOver :many
+WITH tenants AS (
+    SELECT UNNEST(
+        find_matching_tenants_in_payload_cutover_queue_item_partition(
+            $2::INT
+        )
+    ) AS tenant_id
+)
+
+SELECT tenant_id, cut_over_at, payload_id, payload_inserted_at, payload_type
+FROM v1_payload_cutover_queue_item
+WHERE
+    tenant_id = ANY(SELECT tenant_id FROM tenants)
+    AND cut_over_at <= NOW()
+ORDER BY cut_over_at, tenant_id, payload_id, payload_inserted_at, payload_type
+LIMIT $1::INT
+FOR UPDATE SKIP LOCKED
+`
+
+type PollPayloadCutOverQueueItemsForRecordsToCutOverParams struct {
+	Polllimit       int32 `json:"polllimit"`
+	Partitionnumber int32 `json:"partitionnumber"`
+}
+
+func (q *Queries) PollPayloadCutOverQueueItemsForRecordsToCutOver(ctx context.Context, db DBTX, arg PollPayloadCutOverQueueItemsForRecordsToCutOverParams) ([]*V1PayloadCutoverQueueItem, error) {
+	rows, err := db.Query(ctx, pollPayloadCutOverQueueItemsForRecordsToCutOver, arg.Polllimit, arg.Partitionnumber)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*V1PayloadCutoverQueueItem
+	for rows.Next() {
+		var i V1PayloadCutoverQueueItem
+		if err := rows.Scan(
+			&i.TenantID,
+			&i.CutOverAt,
+			&i.PayloadID,
+			&i.PayloadInsertedAt,
+			&i.PayloadType,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const pollPayloadWALForRecordsToReplicate = `-- name: PollPayloadWALForRecordsToReplicate :many
 WITH tenants AS (
     SELECT UNNEST(
