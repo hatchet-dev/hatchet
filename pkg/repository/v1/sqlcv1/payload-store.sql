@@ -110,7 +110,7 @@ LIMIT @pollLimit::INT
 FOR UPDATE SKIP LOCKED
 ;
 
--- name: FinalizePayloadOffloads :exec
+-- name: SetPayloadExternalKeys :exec
 WITH inputs AS (
     SELECT
         UNNEST(@ids::BIGINT[]) AS id,
@@ -122,9 +122,7 @@ WITH inputs AS (
 ), payload_updates AS (
     UPDATE v1_payload
     SET
-        location = 'EXTERNAL',
         external_location_key = i.external_location_key,
-        inline_content = NULL,
         updated_at = NOW()
     FROM inputs i
     WHERE
