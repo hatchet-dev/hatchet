@@ -364,7 +364,7 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadWAL(ctx context.Context, part
 
 	span.SetAttributes(attrs...)
 
-	for opts, payload := range payloads {
+	for _, opts := range retrieveOpts {
 		offloadAt, ok := retrieveOptsToOffloadAt[opts]
 
 		if !ok {
@@ -376,7 +376,7 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadWAL(ctx context.Context, part
 				Id:         opts.Id,
 				InsertedAt: opts.InsertedAt,
 				Type:       opts.Type,
-				Payload:    payload,
+				Payload:    payloads[opts],
 				TenantId:   opts.TenantId.String(),
 			},
 			OffloadAt: offloadAt.Time,
@@ -404,7 +404,7 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadWAL(ctx context.Context, part
 	tenantIds := make([]pgtype.UUID, 0, len(retrieveOptsToStoredKey))
 	externalLocationKeys := make([]string, 0, len(retrieveOptsToStoredKey))
 
-	for opt := range retrieveOptsToStoredKey {
+	for _, opt := range retrieveOpts {
 		offloadAt, exists := retrieveOptsToOffloadAt[opt]
 
 		if !exists {
@@ -418,7 +418,12 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadWAL(ctx context.Context, part
 
 		key, ok := retrieveOptsToStoredKey[opt]
 		if !ok {
-			return false, fmt.Errorf("external location key not found for opts: %+v", opt)
+			// important: if there's no key here, it's likely because the payloads table did not contain the payload
+			// this is okay - it can happen if e.g. a payload partition is dropped before the WAL is processed (not a great situation, but not catastrophic)
+			// if this happens, we log an error and set the key to `""` which will allow it to be evicted from the WAL. it'll never cause
+			// an update in the payloads table because there won't be a matching row
+			p.l.Error().Int64("id", opt.Id).Time("insertedAt", opt.InsertedAt.Time).Msgf("external location key not found for opts: %+v", opt)
+			key = ""
 		}
 
 		externalLocationKeys = append(externalLocationKeys, string(key))
