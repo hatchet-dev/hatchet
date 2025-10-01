@@ -19,27 +19,53 @@ WITH inputs AS (
         UNNEST(CAST($3::TEXT[] AS v1_payload_type[])) AS type,
         UNNEST($4::TIMESTAMPTZ[]) AS offload_at,
         UNNEST($5::TEXT[]) AS external_location_key,
-        UNNEST($6::UUID[]) AS tenant_id
+        UNNEST($6::UUID[]) AS tenant_id,
+        UNNEST(CAST($7::TEXT[] AS v1_payload_wal_operation[])) AS operation
 ), payload_updates AS (
     UPDATE v1_payload
     SET
-        location = 'EXTERNAL',
+        location = CASE
+            WHEN i.operation = 'CUT_OVER_TO_EXTERNAL'::v1_payload_wal_operation AND i.external_location_key IS NOT NULL THEN 'EXTERNAL'::v1_payload_location
+            ELSE location
+        END,
         external_location_key = i.external_location_key,
-        inline_content = NULL,
+        inline_content = CASE
+            WHEN i.operation = 'CUT_OVER_TO_EXTERNAL'::v1_payload_wal_operation AND i.external_location_key IS NOT NULL THEN NULL
+            ELSE inline_content
+        END,
         updated_at = NOW()
     FROM inputs i
     WHERE
         v1_payload.id = i.id
         AND v1_payload.inserted_at = i.inserted_at
         AND v1_payload.tenant_id = i.tenant_id
+), deleted_wal_records AS (
+    DELETE FROM v1_payload_wal
+    WHERE
+        (offload_at, payload_id, payload_inserted_at, payload_type, tenant_id) IN (
+            SELECT offload_at, id, inserted_at, type, tenant_id
+            FROM inputs
+        )
+    RETURNING tenant_id, offload_at, payload_id, payload_inserted_at, payload_type, operation
 )
 
-DELETE FROM v1_payload_wal
-WHERE
-    (offload_at, payload_id, payload_inserted_at, payload_type, tenant_id) IN (
-        SELECT offload_at, id, inserted_at, type, tenant_id
-        FROM inputs
-    )
+INSERT INTO v1_payload_wal (
+    tenant_id,
+    offload_at,
+    payload_id,
+    payload_inserted_at,
+    payload_type,
+    operation
+)
+SELECT
+    tenant_id,
+    offload_at,
+    payload_id,
+    payload_inserted_at,
+    payload_type,
+    'CUT_OVER_TO_EXTERNAL'::v1_payload_wal_operation AS operation
+FROM deleted_wal_records
+WHERE operation = 'REPLICATE_TO_EXTERNAL'::v1_payload_wal_operation
 `
 
 type FinalizePayloadOffloadsParams struct {
@@ -49,6 +75,7 @@ type FinalizePayloadOffloadsParams struct {
 	Offloadats           []pgtype.Timestamptz `json:"offloadats"`
 	Externallocationkeys []string             `json:"externallocationkeys"`
 	Tenantids            []pgtype.UUID        `json:"tenantids"`
+	Operations           []string             `json:"operations"`
 }
 
 func (q *Queries) FinalizePayloadOffloads(ctx context.Context, db DBTX, arg FinalizePayloadOffloadsParams) error {
@@ -59,6 +86,7 @@ func (q *Queries) FinalizePayloadOffloads(ctx context.Context, db DBTX, arg Fina
 		arg.Offloadats,
 		arg.Externallocationkeys,
 		arg.Tenantids,
+		arg.Operations,
 	)
 	return err
 }
@@ -74,11 +102,8 @@ WITH tenants AS (
 
 SELECT tenant_id, offload_at, payload_id, payload_inserted_at, payload_type, operation
 FROM v1_payload_wal
-WHERE
-    offload_at < NOW()
-    AND tenant_id = ANY(SELECT tenant_id FROM tenants)
-ORDER BY offload_at, payload_id, payload_inserted_at, payload_type, tenant_id
-FOR UPDATE
+WHERE tenant_id = ANY(SELECT tenant_id FROM tenants)
+ORDER BY offload_at, tenant_id, payload_id, payload_inserted_at, payload_type
 LIMIT $1::INT
 `
 

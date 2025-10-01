@@ -107,13 +107,9 @@ WITH tenants AS (
 
 SELECT *
 FROM v1_payload_wal
-WHERE
-    offload_at < NOW()
-    AND tenant_id = ANY(SELECT tenant_id FROM tenants)
-ORDER BY offload_at, payload_id, payload_inserted_at, payload_type, tenant_id
-FOR UPDATE
+WHERE tenant_id = ANY(SELECT tenant_id FROM tenants)
+ORDER BY offload_at, tenant_id, payload_id, payload_inserted_at, payload_type
 LIMIT @pollLimit::INT
-
 ;
 
 -- name: FinalizePayloadOffloads :exec
@@ -124,25 +120,51 @@ WITH inputs AS (
         UNNEST(CAST(@payloadTypes::TEXT[] AS v1_payload_type[])) AS type,
         UNNEST(@offloadAts::TIMESTAMPTZ[]) AS offload_at,
         UNNEST(@externalLocationKeys::TEXT[]) AS external_location_key,
-        UNNEST(@tenantIds::UUID[]) AS tenant_id
+        UNNEST(@tenantIds::UUID[]) AS tenant_id,
+        UNNEST(CAST(@operations::TEXT[] AS v1_payload_wal_operation[])) AS operation
 ), payload_updates AS (
     UPDATE v1_payload
     SET
-        location = 'EXTERNAL',
+        location = CASE
+            WHEN i.operation = 'CUT_OVER_TO_EXTERNAL'::v1_payload_wal_operation AND i.external_location_key IS NOT NULL THEN 'EXTERNAL'::v1_payload_location
+            ELSE location
+        END,
         external_location_key = i.external_location_key,
-        inline_content = NULL,
+        inline_content = CASE
+            WHEN i.operation = 'CUT_OVER_TO_EXTERNAL'::v1_payload_wal_operation AND i.external_location_key IS NOT NULL THEN NULL
+            ELSE inline_content
+        END,
         updated_at = NOW()
     FROM inputs i
     WHERE
         v1_payload.id = i.id
         AND v1_payload.inserted_at = i.inserted_at
         AND v1_payload.tenant_id = i.tenant_id
+), deleted_wal_records AS (
+    DELETE FROM v1_payload_wal
+    WHERE
+        (offload_at, payload_id, payload_inserted_at, payload_type, tenant_id) IN (
+            SELECT offload_at, id, inserted_at, type, tenant_id
+            FROM inputs
+        )
+    RETURNING *
 )
 
-DELETE FROM v1_payload_wal
-WHERE
-    (offload_at, payload_id, payload_inserted_at, payload_type, tenant_id) IN (
-        SELECT offload_at, id, inserted_at, type, tenant_id
-        FROM inputs
-    )
+INSERT INTO v1_payload_wal (
+    tenant_id,
+    offload_at,
+    payload_id,
+    payload_inserted_at,
+    payload_type,
+    operation
+)
+SELECT
+    tenant_id,
+    offload_at,
+    payload_id,
+    payload_inserted_at,
+    payload_type,
+    'CUT_OVER_TO_EXTERNAL'::v1_payload_wal_operation AS operation
+FROM deleted_wal_records
+WHERE operation = 'REPLICATE_TO_EXTERNAL'::v1_payload_wal_operation
 ;
