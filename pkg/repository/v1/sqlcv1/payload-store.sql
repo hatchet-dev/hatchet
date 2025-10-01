@@ -139,6 +139,36 @@ WHERE
     )
 ;
 
+-- name: WritePayloadCutOverQueueItems :many
+WITH inputs AS (
+    SELECT
+        UNNEST(@payloadIds::BIGINT[]) AS payload_id,
+        UNNEST(@payloadInsertedAts::TIMESTAMPTZ[]) AS payload_inserted_at,
+        UNNEST(CAST(@payloadTypes::TEXT[] AS v1_payload_type[])) AS payload_type,
+        UNNEST(@cutOverAts::TIMESTAMPTZ[]) AS cut_over_at,
+        UNNEST(@tenantIds::UUID[]) AS tenant_id
+)
+
+INSERT INTO v1_payload_cutover_queue_item (
+    tenant_id,
+    cut_over_at,
+    payload_id,
+    payload_inserted_at,
+    payload_type
+)
+SELECT
+    i.tenant_id,
+    i.cut_over_at,
+    i.payload_id,
+    i.payload_inserted_at,
+    i.payload_type
+FROM
+    inputs i
+ON CONFLICT DO NOTHING
+RETURNING *
+;
+
+
 -- name: CutOverPayloadsToExternal :exec
 WITH inputs AS (
     SELECT
