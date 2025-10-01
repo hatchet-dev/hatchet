@@ -1650,8 +1650,6 @@ CREATE TABLE v1_payload (
     )
 ) PARTITION BY RANGE(inserted_at);
 
-CREATE TYPE v1_payload_wal_operation AS ENUM ('REPLICATE_TO_EXTERNAL', 'CUT_OVER_TO_EXTERNAL');
-
 CREATE TABLE v1_payload_wal (
     tenant_id UUID NOT NULL,
     offload_at TIMESTAMPTZ NOT NULL,
