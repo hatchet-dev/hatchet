@@ -14,10 +14,12 @@ import (
 const finalizePayloadOffloads = `-- name: FinalizePayloadOffloads :exec
 WITH inputs AS (
     SELECT
-        UNNEST(CAST($1::TEXT[] AS v1_payload_type[])) AS type,
-        UNNEST($2::TIMESTAMPTZ[]) AS offload_at,
-        UNNEST($3::TEXT[]) AS external_location_key,
-        UNNEST($4::UUID[]) AS tenant_id
+        UNNEST($1::BIGINT[]) AS id,
+        UNNEST($2::TIMESTAMPTZ[]) AS inserted_at,
+        UNNEST(CAST($3::TEXT[] AS v1_payload_type[])) AS type,
+        UNNEST($4::TIMESTAMPTZ[]) AS offload_at,
+        UNNEST($5::TEXT[]) AS external_location_key,
+        UNNEST($6::UUID[]) AS tenant_id
 ), payload_updates AS (
     UPDATE v1_payload
     SET
@@ -41,6 +43,8 @@ WHERE
 `
 
 type FinalizePayloadOffloadsParams struct {
+	Ids                  []int64              `json:"ids"`
+	Insertedats          []pgtype.Timestamptz `json:"insertedats"`
 	Payloadtypes         []string             `json:"payloadtypes"`
 	Offloadats           []pgtype.Timestamptz `json:"offloadats"`
 	Externallocationkeys []string             `json:"externallocationkeys"`
@@ -49,6 +53,8 @@ type FinalizePayloadOffloadsParams struct {
 
 func (q *Queries) FinalizePayloadOffloads(ctx context.Context, db DBTX, arg FinalizePayloadOffloadsParams) error {
 	_, err := db.Exec(ctx, finalizePayloadOffloads,
+		arg.Ids,
+		arg.Insertedats,
 		arg.Payloadtypes,
 		arg.Offloadats,
 		arg.Externallocationkeys,
