@@ -138,3 +138,32 @@ WHERE
         FROM inputs
     )
 ;
+
+-- name: CutOverPayloadsToExternal :exec
+WITH inputs AS (
+    SELECT
+        UNNEST(@ids::BIGINT[]) AS id,
+        UNNEST(@insertedAts::TIMESTAMPTZ[]) AS inserted_at,
+        UNNEST(CAST(@payloadTypes::TEXT[] AS v1_payload_type[])) AS type,
+        UNNEST(@cutOverAts::TIMESTAMPTZ[]) AS cut_over_at,
+        UNNEST(@tenantIds::UUID[]) AS tenant_id
+), payload_updates AS (
+    UPDATE v1_payload
+    SET
+        location = 'EXTERNAL',
+        inline_content = NULL,
+        updated_at = NOW()
+    FROM inputs i
+    WHERE
+        v1_payload.id = i.id
+        AND v1_payload.inserted_at = i.inserted_at
+        AND v1_payload.tenant_id = i.tenant_id
+)
+
+DELETE FROM v1_payload_cutover_queue_item
+WHERE
+    (cut_over_at, payload_id, payload_inserted_at, payload_type, tenant_id) IN (
+        SELECT cut_over_at, id, inserted_at, type, tenant_id
+        FROM inputs
+    )
+;
