@@ -105,6 +105,7 @@ func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx sqlcv1.DBTX, 
 	offloadAts := make([]pgtype.Timestamptz, 0, len(payloads))
 	tenantIds := make([]pgtype.UUID, 0, len(payloads))
 	locations := make([]string, 0, len(payloads))
+	operations := make([]string, 0, len(payloads))
 
 	seenPayloadUniqueKeys := make(map[PayloadUniqueKey]struct{})
 
@@ -134,6 +135,7 @@ func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx sqlcv1.DBTX, 
 		tenantIds = append(tenantIds, tenantId)
 		locations = append(locations, string(sqlcv1.V1PayloadLocationINLINE))
 		inlineContents = append(inlineContents, payload.Payload)
+		operations = append(operations, string(sqlcv1.V1PayloadWalOperationREPLICATETOEXTERNAL))
 
 		if p.externalStoreEnabled {
 			offloadAts = append(offloadAts, pgtype.Timestamptz{Time: payload.InsertedAt.Time.Add(*p.inlineStoreTTL), Valid: true})
@@ -163,6 +165,7 @@ func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx sqlcv1.DBTX, 
 			Payloadinsertedats: taskInsertedAts,
 			Payloadtypes:       payloadTypes,
 			Offloadats:         offloadAts,
+			Operations:         operations,
 		})
 
 		if err != nil {
