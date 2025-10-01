@@ -106,7 +106,7 @@ WHERE
     tenant_id = ANY(SELECT tenant_id FROM tenants)
     -- todo: need to figure out the indexing situation for this, might end up needing two tables
     AND (
-        offload_at <= NOW() AND operation = 'CUT_OVER_TO_EXTERNAL'::v1_payload_wal_operation
+        (offload_at <= NOW() AND operation = 'CUT_OVER_TO_EXTERNAL'::v1_payload_wal_operation)
         OR
         operation = 'REPLICATE_TO_EXTERNAL'::v1_payload_wal_operation
     )

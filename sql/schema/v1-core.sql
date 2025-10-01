@@ -1684,7 +1684,10 @@ BEGIN
         'SELECT ARRAY(
             SELECT DISTINCT e.tenant_id
             FROM %I e
-            WHERE e.offload_at < NOW()
+            WHERE
+                (e.offload_at <= NOW() AND e.operation = 'CUT_OVER_TO_EXTERNAL'::v1_payload_wal_operation)
+                OR
+                e.operation = 'REPLICATE_TO_EXTERNAL'::v1_payload_wal_operation
         )',
         partition_table)
     INTO result;
@@ -1692,6 +1695,7 @@ BEGIN
     RETURN result;
 END;
 $$;
+
 CREATE TABLE v1_idempotency_key (
     tenant_id UUID NOT NULL,
 
