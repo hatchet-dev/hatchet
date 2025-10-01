@@ -111,10 +111,11 @@ LIMIT @pollLimit::INT
 
 -- name: FinalizePayloadOffloads :exec
 WITH inputs AS (
-    UNNEST(CAST(@payloadTypes::TEXT[] AS v1_payload_type[])) AS type,
-    UNNEST(@offloadAts::TIMESTAMPTZ[]) AS offload_at,
-    UNNEST(@externalLocationKeys::TEXT[]) AS external_location_key,
-    UNNEST(@tenantIds::UUID[]) AS tenant_id
+    SELECT
+        UNNEST(CAST(@payloadTypes::TEXT[] AS v1_payload_type[])) AS type,
+        UNNEST(@offloadAts::TIMESTAMPTZ[]) AS offload_at,
+        UNNEST(@externalLocationKeys::TEXT[]) AS external_location_key,
+        UNNEST(@tenantIds::UUID[]) AS tenant_id
 ), payload_updates AS (
     UPDATE v1_payload
     SET
