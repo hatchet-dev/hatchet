@@ -29,8 +29,8 @@ INSERT INTO "Worker" (
     "runtimeExtra"
 ) VALUES (
     gen_random_uuid(),
-    CURRENT_TIMESTAMP,
-    CURRENT_TIMESTAMP,
+    CURRENT_TIMESTAMP AT TIME ZONE 'UTC',
+    CURRENT_TIMESTAMP AT TIME ZONE 'UTC',
     $1::uuid,
     $2::text,
     $3::uuid,
@@ -853,7 +853,7 @@ const updateWorker = `-- name: UpdateWorker :one
 UPDATE
     "Worker"
 SET
-    "updatedAt" = CURRENT_TIMESTAMP,
+    "updatedAt" = CURRENT_TIMESTAMP AT TIME ZONE 'UTC' AT TIME ZONE 'UTC',
     "dispatcherId" = coalesce($1::uuid, "dispatcherId"),
     "maxRuns" = coalesce($2::int, "maxRuns"),
     "lastHeartbeatAt" = coalesce($3::timestamp, "lastHeartbeatAt"),
@@ -958,7 +958,7 @@ const updateWorkerHeartbeat = `-- name: UpdateWorkerHeartbeat :one
 UPDATE
     "Worker"
 SET
-    "updatedAt" = CURRENT_TIMESTAMP,
+    "updatedAt" = CURRENT_TIMESTAMP AT TIME ZONE 'UTC' AT TIME ZONE 'UTC',
     "lastHeartbeatAt" = $1::timestamp
 WHERE
     "id" = $2::uuid
@@ -1062,14 +1062,14 @@ INSERT INTO "Service" (
 )
 VALUES (
     gen_random_uuid(),
-    CURRENT_TIMESTAMP,
-    CURRENT_TIMESTAMP,
+    CURRENT_TIMESTAMP AT TIME ZONE 'UTC',
+    CURRENT_TIMESTAMP AT TIME ZONE 'UTC',
     $1::text,
     $2::uuid
 )
 ON CONFLICT ("tenantId", "name") DO UPDATE
 SET
-    "updatedAt" = CURRENT_TIMESTAMP
+    "updatedAt" = CURRENT_TIMESTAMP AT TIME ZONE 'UTC'
 WHERE
     "Service"."tenantId" = $2 AND "Service"."name" = $1::text
 RETURNING id, "createdAt", "updatedAt", "deletedAt", name, description, "tenantId"
@@ -1104,15 +1104,15 @@ INSERT INTO "WorkerLabel" (
     "intValue",
     "strValue"
 ) VALUES (
-    CURRENT_TIMESTAMP,
-    CURRENT_TIMESTAMP,
+    CURRENT_TIMESTAMP AT TIME ZONE 'UTC',
+    CURRENT_TIMESTAMP AT TIME ZONE 'UTC',
     $1::uuid,
     $2::text,
     $3::int,
     $4::text
 ) ON CONFLICT ("workerId", "key") DO UPDATE
 SET
-    "updatedAt" = CURRENT_TIMESTAMP,
+    "updatedAt" = CURRENT_TIMESTAMP AT TIME ZONE 'UTC' AT TIME ZONE 'UTC',
     "intValue" = $3::int,
     "strValue" = $4::text
 RETURNING id, "createdAt", "updatedAt", "workerId", key, "strValue", "intValue"

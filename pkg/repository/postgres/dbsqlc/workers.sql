@@ -159,8 +159,8 @@ INSERT INTO "Worker" (
     "runtimeExtra"
 ) VALUES (
     gen_random_uuid(),
-    CURRENT_TIMESTAMP,
-    CURRENT_TIMESTAMP,
+    CURRENT_TIMESTAMP AT TIME ZONE 'UTC',
+    CURRENT_TIMESTAMP AT TIME ZONE 'UTC',
     @tenantId::uuid,
     @name::text,
     @dispatcherId::uuid,
@@ -187,7 +187,7 @@ WHERE
 UPDATE
     "Worker"
 SET
-    "updatedAt" = CURRENT_TIMESTAMP,
+    "updatedAt" = CURRENT_TIMESTAMP AT TIME ZONE 'UTC' AT TIME ZONE 'UTC',
     "lastHeartbeatAt" = sqlc.narg('lastHeartbeatAt')::timestamp
 WHERE
     "id" = @id::uuid
@@ -197,7 +197,7 @@ RETURNING *;
 UPDATE
     "Worker"
 SET
-    "updatedAt" = CURRENT_TIMESTAMP,
+    "updatedAt" = CURRENT_TIMESTAMP AT TIME ZONE 'UTC' AT TIME ZONE 'UTC',
     "dispatcherId" = coalesce(sqlc.narg('dispatcherId')::uuid, "dispatcherId"),
     "maxRuns" = coalesce(sqlc.narg('maxRuns')::int, "maxRuns"),
     "lastHeartbeatAt" = coalesce(sqlc.narg('lastHeartbeatAt')::timestamp, "lastHeartbeatAt"),
@@ -226,14 +226,14 @@ INSERT INTO "Service" (
 )
 VALUES (
     gen_random_uuid(),
-    CURRENT_TIMESTAMP,
-    CURRENT_TIMESTAMP,
+    CURRENT_TIMESTAMP AT TIME ZONE 'UTC',
+    CURRENT_TIMESTAMP AT TIME ZONE 'UTC',
     @name::text,
     @tenantId::uuid
 )
 ON CONFLICT ("tenantId", "name") DO UPDATE
 SET
-    "updatedAt" = CURRENT_TIMESTAMP
+    "updatedAt" = CURRENT_TIMESTAMP AT TIME ZONE 'UTC'
 WHERE
     "Service"."tenantId" = @tenantId AND "Service"."name" = @name::text
 RETURNING *;
@@ -297,15 +297,15 @@ INSERT INTO "WorkerLabel" (
     "intValue",
     "strValue"
 ) VALUES (
-    CURRENT_TIMESTAMP,
-    CURRENT_TIMESTAMP,
+    CURRENT_TIMESTAMP AT TIME ZONE 'UTC',
+    CURRENT_TIMESTAMP AT TIME ZONE 'UTC',
     @workerId::uuid,
     @key::text,
     sqlc.narg('intValue')::int,
     sqlc.narg('strValue')::text
 ) ON CONFLICT ("workerId", "key") DO UPDATE
 SET
-    "updatedAt" = CURRENT_TIMESTAMP,
+    "updatedAt" = CURRENT_TIMESTAMP AT TIME ZONE 'UTC' AT TIME ZONE 'UTC',
     "intValue" = sqlc.narg('intValue')::int,
     "strValue" = sqlc.narg('strValue')::text
 RETURNING *;

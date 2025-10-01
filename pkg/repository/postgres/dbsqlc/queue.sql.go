@@ -544,7 +544,7 @@ JOIN
 WHERE
     w."tenantId" = $1::uuid
     AND w."dispatcherId" IS NOT NULL
-    AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
+    AND w."lastHeartbeatAt" > NOW() AT TIME ZONE 'UTC' - INTERVAL '5 seconds'
     AND w."isActive" = true
     AND w."isPaused" = false
 `
@@ -588,7 +588,7 @@ WHERE
     w."tenantId" = $1::uuid
     AND w."id" = ANY($2::uuid[])
     AND w."dispatcherId" IS NOT NULL
-    AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
+    AND w."lastHeartbeatAt" > NOW() AT TIME ZONE 'UTC' - INTERVAL '5 seconds'
     AND w."isActive" = true
     AND w."isPaused" = false
 `
@@ -632,7 +632,7 @@ FROM
 WHERE
     w."tenantId" = $1::uuid
     AND w."dispatcherId" IS NOT NULL
-    AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
+    AND w."lastHeartbeatAt" > NOW() AT TIME ZONE 'UTC' - INTERVAL '5 seconds'
     AND w."isActive" = true
     AND w."isPaused" = false
 `
@@ -961,7 +961,7 @@ FROM
     "Queue"
 WHERE
     "tenantId" = $1::uuid
-    AND "lastActive" > NOW() - INTERVAL '1 day'
+    AND "lastActive" > NOW() AT TIME ZONE 'UTC' - INTERVAL '1 day'
 `
 
 func (q *Queries) ListQueues(ctx context.Context, db DBTX, tenantid pgtype.UUID) ([]*Queue, error) {

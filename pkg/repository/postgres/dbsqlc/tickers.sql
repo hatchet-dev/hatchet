@@ -2,7 +2,7 @@
 INSERT INTO
     "Ticker" ("id", "lastHeartbeatAt", "isActive")
 VALUES
-    (sqlc.arg('id')::uuid, CURRENT_TIMESTAMP, 't')
+    (sqlc.arg('id')::uuid, CURRENT_TIMESTAMP AT TIME ZONE 'UTC', 't')
 RETURNING *;
 
 -- name: ListNewlyStaleTickers :many
@@ -77,11 +77,11 @@ WITH getGroupKeyRunsToTimeout AS (
         "GetGroupKeyRun" as getGroupKeyRun
     WHERE
         "status" = ANY(ARRAY['RUNNING', 'ASSIGNED']::"StepRunStatus"[])
-        AND "timeoutAt" < NOW()
+        AND "timeoutAt" < NOW() AT TIME ZONE 'UTC'
         AND "deletedAt" IS NULL
         AND (
             NOT EXISTS (
-                SELECT 1 FROM "Ticker" WHERE "id" = getGroupKeyRun."tickerId" AND "isActive" = true AND "lastHeartbeatAt" >= NOW() - INTERVAL '10 seconds'
+                SELECT 1 FROM "Ticker" WHERE "id" = getGroupKeyRun."tickerId" AND "isActive" = true AND "lastHeartbeatAt" >= NOW() AT TIME ZONE 'UTC' - INTERVAL '10 seconds'
             )
             OR "tickerId" IS NULL
         )
@@ -127,7 +127,7 @@ active_cron_schedules AS (
         AND (
             "tickerId" IS NULL
             OR NOT EXISTS (
-                SELECT 1 FROM "Ticker" WHERE "id" = cronSchedule."tickerId" AND "isActive" = true AND "lastHeartbeatAt" >= NOW() - INTERVAL '10 seconds'
+                SELECT 1 FROM "Ticker" WHERE "id" = cronSchedule."tickerId" AND "isActive" = true AND "lastHeartbeatAt" >= NOW() AT TIME ZONE 'UTC' - INTERVAL '10 seconds'
             )
             OR "tickerId" = @tickerId::uuid
         )
@@ -173,14 +173,14 @@ WITH latest_workflow_versions AS (
     LEFT JOIN
         "WorkflowRunTriggeredBy" AS runTriggeredBy ON runTriggeredBy."scheduledId" = scheduledWorkflow."id"
     WHERE
-        "triggerAt" <= NOW() + INTERVAL '5 seconds'
+        "triggerAt" <= NOW() AT TIME ZONE 'UTC' + INTERVAL '5 seconds'
         AND runTriggeredBy IS NULL
         AND versions."deletedAt" IS NULL
         AND workflow."deletedAt" IS NULL
         AND (
             "tickerId" IS NULL
             OR NOT EXISTS (
-                SELECT 1 FROM "Ticker" WHERE "id" = scheduledWorkflow."tickerId" AND "isActive" = true AND "lastHeartbeatAt" >= NOW() - INTERVAL '10 seconds'
+                SELECT 1 FROM "Ticker" WHERE "id" = scheduledWorkflow."tickerId" AND "isActive" = true AND "lastHeartbeatAt" >= NOW() AT TIME ZONE 'UTC' - INTERVAL '10 seconds'
             )
             OR "tickerId" = @tickerId::uuid
         )
@@ -211,7 +211,7 @@ WITH active_tenant_alerts AS (
         "TenantAlertingSettings" as alerts
     WHERE
         "lastAlertedAt" IS NULL OR
-        "lastAlertedAt" <= NOW() - convert_duration_to_interval(alerts."maxFrequency")
+        "lastAlertedAt" <= NOW() AT TIME ZONE 'UTC' - convert_duration_to_interval(alerts."maxFrequency")
     FOR UPDATE SKIP LOCKED
 ),
 failed_run_count_by_tenant AS (
@@ -228,7 +228,7 @@ failed_run_count_by_tenant AS (
         AND (
             (
                 "lastAlertedAt" IS NULL AND
-                workflowRun."finishedAt" >= NOW() - convert_duration_to_interval(active_tenant_alerts."maxFrequency")
+                workflowRun."finishedAt" >= NOW() AT TIME ZONE 'UTC' - convert_duration_to_interval(active_tenant_alerts."maxFrequency")
             ) OR
             workflowRun."finishedAt" >= "lastAlertedAt"
         )
@@ -238,7 +238,7 @@ UPDATE
     "TenantAlertingSettings" as alerts
 SET
     "tickerId" = @tickerId::uuid,
-    "lastAlertedAt" = NOW()
+    "lastAlertedAt" = NOW() AT TIME ZONE 'UTC'
 FROM
     active_tenant_alerts
 WHERE
@@ -255,11 +255,11 @@ WITH expiring_tokens AS (
         "APIToken" as t0
     WHERE
         t0."revoked" = false
-        AND t0."expiresAt" <= NOW() + INTERVAL '7 days'
-        AND t0."expiresAt" >= NOW()
+        AND t0."expiresAt" <= NOW() AT TIME ZONE 'UTC' + INTERVAL '7 days'
+        AND t0."expiresAt" >= NOW() AT TIME ZONE 'UTC'
         AND (
             t0."nextAlertAt" IS NULL OR
-            t0."nextAlertAt" <= NOW()
+            t0."nextAlertAt" <= NOW() AT TIME ZONE 'UTC'
         )
     FOR UPDATE SKIP LOCKED
     LIMIT 100
@@ -267,7 +267,7 @@ WITH expiring_tokens AS (
 UPDATE
     "APIToken" as t1
 SET
-    "nextAlertAt" = NOW() + INTERVAL '1 day'
+    "nextAlertAt" = NOW() AT TIME ZONE 'UTC' + INTERVAL '1 day'
 FROM
     expiring_tokens
 WHERE
@@ -320,7 +320,7 @@ new_alerts AS (
             FROM "TenantResourceLimitAlert" AS trla
             WHERE trla."resourceLimitId" = arl."resourceLimitId"
             AND trla."alertType" = arl."alertType"::"TenantResourceLimitAlertType"
-            AND trla."createdAt" >= NOW() - arl."window"::INTERVAL
+            AND trla."createdAt" >= NOW() AT TIME ZONE 'UTC' - arl."window"::INTERVAL
         ) AS "existingAlert"
     FROM
         alerting_resource_limits AS arl
@@ -338,8 +338,8 @@ INSERT INTO "TenantResourceLimitAlert" (
 )
 SELECT
     gen_random_uuid(),
-    NOW(),
-    NOW(),
+    NOW() AT TIME ZONE 'UTC',
+    NOW() AT TIME ZONE 'UTC',
     na."resourceLimitId",
     na."resource",
     na."alertType"::"TenantResourceLimitAlertType",
@@ -364,5 +364,5 @@ WHERE
 	OR
 		(sr."status" = 'CANCELLED' AND jr."status" != 'CANCELLED')
 	)
-	AND sr."updatedAt" < CURRENT_TIMESTAMP - INTERVAL '5 seconds'
+	AND sr."updatedAt" < CURRENT_TIMESTAMP AT TIME ZONE 'UTC' - INTERVAL '5 seconds'
 ;

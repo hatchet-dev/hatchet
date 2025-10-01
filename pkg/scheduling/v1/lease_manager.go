@@ -52,6 +52,8 @@ func newLeaseManager(conf *sharedConfig, tenantId pgtype.UUID) (*LeaseManager, <
 }
 
 func (l *LeaseManager) sendWorkerIds(workerIds []*v1.ListActiveWorkersResult) {
+	fmt.Printf("sendWorkerIds called with %d workers\n", len(workerIds))
+
 	defer func() {
 		if r := recover(); r != nil {
 			l.conf.l.Error().Interface("recovered", r).Msg("recovered from panic")
@@ -60,12 +62,15 @@ func (l *LeaseManager) sendWorkerIds(workerIds []*v1.ListActiveWorkersResult) {
 
 	// at this point, we have a cleanupMu lock, so it's safe to read
 	if l.cleanedUp {
+		fmt.Printf("LeaseManager is cleaned up, not sending workers\n")
 		return
 	}
 
 	select {
 	case l.workersCh <- workerIds:
+		fmt.Printf("Successfully sent %d workers to channel\n", len(workerIds))
 	default:
+		fmt.Printf("Failed to send workers to channel (channel full)\n")
 	}
 }
 
@@ -106,11 +111,16 @@ func (l *LeaseManager) sendConcurrencyLeases(concurrencyLeases []*sqlcv1.V1StepC
 }
 
 func (l *LeaseManager) acquireWorkerLeases(ctx context.Context) error {
+	fmt.Printf("acquireWorkerLeases called for tenant %s\n", l.tenantId.String())
+
 	activeWorkers, err := l.lr.ListActiveWorkers(ctx, l.tenantId)
 
 	if err != nil {
+		fmt.Printf("Error listing active workers: %v\n", err)
 		return err
 	}
+
+	fmt.Printf("ListActiveWorkers returned %d workers\n", len(activeWorkers))
 
 	currResourceIdsToLease := make(map[string]*sqlcv1.Lease, len(l.workerLeases))
 
@@ -155,6 +165,7 @@ func (l *LeaseManager) acquireWorkerLeases(ctx context.Context) error {
 		}
 	}
 
+	fmt.Printf("Sending %d successfully acquired workers\n", len(successfullyAcquiredWorkerIds))
 	l.sendWorkerIds(successfullyAcquiredWorkerIds)
 
 	if len(leasesToRelease) != 0 {
@@ -167,16 +178,22 @@ func (l *LeaseManager) acquireWorkerLeases(ctx context.Context) error {
 }
 
 func (l *LeaseManager) acquireQueueLeases(ctx context.Context) error {
+	fmt.Printf("acquireQueueLeases called for tenant %s\n", l.tenantId.String())
+
 	queues, err := l.lr.ListQueues(ctx, l.tenantId)
 
 	if err != nil {
+		fmt.Printf("Error listing queues: %v\n", err)
 		return err
 	}
+
+	fmt.Printf("ListQueues returned %d queues\n", len(queues))
 
 	currResourceIdsToLease := make(map[string]*sqlcv1.Lease, len(l.queueLeases))
 
 	for _, lease := range l.queueLeases {
 		currResourceIdsToLease[lease.ResourceId] = lease
+		fmt.Printf("Existing lease: resourceId=%s, expiresAt=%v, id=%d\n", lease.ResourceId, lease.ExpiresAt, lease.ID)
 	}
 
 	queueIdsStr := make([]string, len(queues))
@@ -185,12 +202,19 @@ func (l *LeaseManager) acquireQueueLeases(ctx context.Context) error {
 
 	for i, q := range queues {
 		queueIdsStr[i] = q.Name
+		fmt.Printf("Queue %d: name=%s, last_active=%v\n", i, q.Name, q.LastActive)
 
 		if lease, ok := currResourceIdsToLease[queueIdsStr[i]]; ok {
+			fmt.Printf("Found existing lease for queue %s: id=%d, expiresAt=%v\n", q.Name, lease.ID, lease.ExpiresAt)
 			leasesToExtend = append(leasesToExtend, lease)
 			delete(currResourceIdsToLease, queueIdsStr[i])
+		} else {
+			fmt.Printf("No existing lease for queue %s\n", q.Name)
 		}
 	}
+
+	fmt.Printf("queueIdsStr: %v\n", queueIdsStr)
+	fmt.Printf("leasesToExtend: %d leases\n", len(leasesToExtend))
 
 	for _, lease := range currResourceIdsToLease {
 		leasesToRelease = append(leasesToRelease, lease)
@@ -199,20 +223,34 @@ func (l *LeaseManager) acquireQueueLeases(ctx context.Context) error {
 	successfullyAcquiredQueues := []string{}
 
 	if len(queueIdsStr) != 0 {
+		fmt.Printf("Attempting to acquire leases for %d queues: %v\n", len(queueIdsStr), queueIdsStr)
+		fmt.Printf("leasesToExtend: %d leases, existingLeaseIds: %v\n", len(leasesToExtend), func() []int64 {
+			ids := make([]int64, 0, len(leasesToExtend))
+			for _, lease := range leasesToExtend {
+				ids = append(ids, lease.ID)
+			}
+			return ids
+		}())
 
 		queueLeases, err := l.lr.AcquireOrExtendLeases(ctx, l.tenantId, sqlcv1.LeaseKindQUEUE, queueIdsStr, leasesToExtend)
 
 		if err != nil {
+			fmt.Printf("Error acquiring queue leases: %v\n", err)
 			return err
 		}
+
+		fmt.Printf("AcquireOrExtendLeases returned %d leases\n", len(queueLeases))
 
 		l.queueLeases = queueLeases
 
 		for _, lease := range queueLeases {
 			successfullyAcquiredQueues = append(successfullyAcquiredQueues, lease.ResourceId)
 		}
+	} else {
+		fmt.Printf("No queue IDs to acquire leases for\n")
 	}
 
+	fmt.Printf("Sending %d successfully acquired queues: %v\n", len(successfullyAcquiredQueues), successfullyAcquiredQueues)
 	l.sendQueues(successfullyAcquiredQueues)
 
 	if len(leasesToRelease) != 0 {

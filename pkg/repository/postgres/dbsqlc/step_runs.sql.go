@@ -420,7 +420,7 @@ WHERE
     AND "dispatcherId" IS NOT NULL
     AND "isActive" = true
     AND "isPaused" = false
-    AND "lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
+    AND "lastHeartbeatAt" > NOW() AT TIME ZONE 'UTC' - INTERVAL '5 seconds'
     AND "id" = $2::uuid
 `
 
@@ -1532,7 +1532,7 @@ WHERE
     w."tenantId" = $1::uuid
     AND a."actionId" = $2::text
     AND w."isActive" = true
-    AND w."lastHeartbeatAt" > NOW() - INTERVAL '6 seconds'
+    AND w."lastHeartbeatAt" > NOW() AT TIME ZONE 'UTC' - INTERVAL '6 seconds'
 `
 
 type HasActiveWorkersForActionIdParams struct {
@@ -2288,7 +2288,7 @@ WITH step_runs_on_inactive_workers AS (
         "Step" s ON sr."stepId" = s."id"
     WHERE
         w."tenantId" = $1::uuid
-        AND w."lastHeartbeatAt" < NOW() - INTERVAL '30 seconds'),
+        AND w."lastHeartbeatAt" < NOW() AT TIME ZONE 'UTC' - INTERVAL '30 seconds'),
 step_runs_to_reassign AS (
     SELECT
         id, "tenantId", "scheduleTimeoutAt", "retryCount", "internalRetryCount", "workerId", "actionId", "stepId", "stepTimeout", "scheduleTimeout"

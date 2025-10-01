@@ -26,8 +26,8 @@ INSERT INTO "WebhookWorker" (
 )
 VALUES (
     gen_random_uuid(),
-    CURRENT_TIMESTAMP,
-    CURRENT_TIMESTAMP,
+    CURRENT_TIMESTAMP AT TIME ZONE 'UTC',
+    CURRENT_TIMESTAMP AT TIME ZONE 'UTC',
     $1::text,
     $2::text,
     $3::text,
@@ -121,7 +121,7 @@ WITH delete_old AS (
     -- Delete old requests
     DELETE FROM "WebhookWorkerRequest"
     WHERE "webhookWorkerId" = $1::uuid
-    AND "createdAt" < NOW() - INTERVAL '15 minutes'
+    AND "createdAt" < NOW() AT TIME ZONE 'UTC' - INTERVAL '15 minutes'
 )
 INSERT INTO "WebhookWorkerRequest" (
     "id",
@@ -131,7 +131,7 @@ INSERT INTO "WebhookWorkerRequest" (
     "statusCode"
 ) VALUES (
     gen_random_uuid(),
-    CURRENT_TIMESTAMP,
+    CURRENT_TIMESTAMP AT TIME ZONE 'UTC',
     $1::uuid,
     $2::"WebhookWorkerRequestMethod",
     $3::integer
@@ -233,7 +233,7 @@ WITH tenants AS (
     UPDATE
         "TenantWorkerPartition"
     SET
-        "lastHeartbeat" = NOW()
+        "lastHeartbeat" = NOW() AT TIME ZONE 'UTC'
     WHERE
         "id" = $1::text
 )
@@ -277,7 +277,7 @@ const softDeleteWebhookWorker = `-- name: SoftDeleteWebhookWorker :exec
 UPDATE "WebhookWorker"
 SET
   "deleted" = true,
-  "updatedAt" = CURRENT_TIMESTAMP
+  "updatedAt" = CURRENT_TIMESTAMP AT TIME ZONE 'UTC'
 WHERE
   "id" = $1::uuid
   AND "tenantId" = $2::uuid
@@ -296,7 +296,7 @@ func (q *Queries) SoftDeleteWebhookWorker(ctx context.Context, db DBTX, arg Soft
 const updateWebhookWorkerToken = `-- name: UpdateWebhookWorkerToken :one
 UPDATE "WebhookWorker"
 SET
-    "updatedAt" = CURRENT_TIMESTAMP,
+    "updatedAt" = CURRENT_TIMESTAMP AT TIME ZONE 'UTC' AT TIME ZONE 'UTC',
     "tokenValue" = COALESCE($1::text, "tokenValue"),
     "tokenId" = COALESCE($2::uuid, "tokenId")
 WHERE

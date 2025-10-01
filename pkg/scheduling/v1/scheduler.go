@@ -2,6 +2,7 @@ package v1
 
 import (
 	"context"
+	"fmt"
 	"math/rand"
 	"sync"
 	"time"
@@ -90,6 +91,14 @@ func (s *Scheduler) nack(ids []int) {
 }
 
 func (s *Scheduler) setWorkers(workers []*v1.ListActiveWorkersResult) {
+	fmt.Printf("setWorkers called with %d workers: %v\n", len(workers), func() []string {
+		ids := make([]string, 0, len(workers))
+		for _, w := range workers {
+			ids = append(ids, w.ID)
+		}
+		return ids
+	}())
+
 	s.workersMu.Lock()
 	defer s.workersMu.Unlock()
 
@@ -134,9 +143,18 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 
 	defer s.actionsMu.Unlock()
 
+	fmt.Printf("replenishing slots\n")
 	s.l.Debug().Msg("replenishing slots")
 
 	workers := s.getWorkers()
+	fmt.Printf("Found %d workers: %v\n", len(workers), func() []string {
+		keys := make([]string, 0, len(workers))
+		for k := range workers {
+			keys = append(keys, k)
+		}
+		return keys
+	}())
+
 	workerIds := make([]pgtype.UUID, 0)
 
 	for workerIdStr := range workers {
@@ -151,6 +169,8 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 	if err != nil {
 		return err
 	}
+
+	fmt.Printf("Found %d worker-action mappings\n", len(workersToActiveActions))
 
 	if sinceStart := time.Since(start); sinceStart > 100*time.Millisecond {
 		s.l.Warn().Msgf("listing actions for workers took %s for %d workers", time.Since(checkpoint), len(workerIds))
@@ -174,6 +194,8 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 		actionsToWorkerIds[actionId] = append(actionsToWorkerIds[actionId], workerId)
 		workerIdsToActions[workerId] = append(workerIdsToActions[workerId], actionId)
 	}
+
+	fmt.Printf("Actions to worker IDs: %v\n", actionsToWorkerIds)
 
 	// FUNCTION 1: determine which actions should be replenished. Logic is the following:
 	// - zero or one slots for an action: replenish all slots
@@ -334,6 +356,7 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 		s.actions[actionId].lastReplenishedSlotCount = actionsToTotalSlots[actionId]
 		s.actions[actionId].lastReplenishedWorkerCount = len(actionsToWorkerIds[actionId])
 
+		fmt.Printf("Action %s has %d slots after replenish\n", actionId, len(newSlots))
 		s.l.Debug().Msgf("before cleanup, action %s has %d slots", actionId, len(newSlots))
 	}
 
@@ -464,6 +487,7 @@ func (s *Scheduler) tryAssignBatch(
 ) (
 	res []*assignSingleResult, newRingOffset int, err error,
 ) {
+	fmt.Printf("tryAssignBatch called for actionId=%s with %d queue items\n", actionId, len(qis))
 	s.l.Debug().Msgf("trying to assign %d queue items", len(qis))
 
 	newRingOffset = ringOffset
@@ -530,6 +554,12 @@ func (s *Scheduler) tryAssignBatch(
 	if !ok || len(action.slots) == 0 {
 		s.actionsMu.RUnlock()
 
+		fmt.Printf("No slots for actionId=%s (ok=%v, slots=%d)\n", actionId, ok, func() int {
+			if ok {
+				return len(action.slots)
+			}
+			return 0
+		}())
 		s.l.Debug().Msgf("no slots for action %s", actionId)
 
 		// if the action is not in the map, then we have no slots to assign to
@@ -541,6 +571,8 @@ func (s *Scheduler) tryAssignBatch(
 		return res, newRingOffset, nil
 	}
 
+	fmt.Printf("Found actionId=%s with %d slots\n", actionId, len(action.slots))
+
 	s.actionsMu.RUnlock()
 
 	action.mu.Lock()
@@ -550,12 +582,14 @@ func (s *Scheduler) tryAssignBatch(
 
 	for i := range res {
 		if res[i].rateLimitResult != nil {
+			fmt.Printf("Queue item %d skipped due to rate limit\n", qis[i].ID)
 			continue
 		}
 
 		denom := len(candidateSlots)
 
 		if denom == 0 {
+			fmt.Printf("Queue item %d: no candidate slots available\n", qis[i].ID)
 			res[i].noSlots = true
 			rlNacks[i]()
 
@@ -565,6 +599,8 @@ func (s *Scheduler) tryAssignBatch(
 		childRingOffset := newRingOffset % denom
 
 		qi := qis[i]
+
+		fmt.Printf("Trying to assign queue item %d to %d candidate slots (ringOffset=%d)\n", qi.ID, denom, childRingOffset)
 
 		singleRes, err := s.tryAssignSingleton(
 			ctx,
@@ -578,6 +614,12 @@ func (s *Scheduler) tryAssignBatch(
 
 		if err != nil {
 			s.l.Error().Err(err).Msg("error assigning queue item")
+		}
+
+		if singleRes.succeeded {
+			fmt.Printf("Successfully assigned queue item %d to worker %s\n", qi.ID, singleRes.workerId.String())
+		} else {
+			fmt.Printf("Failed to assign queue item %d (noSlots=%v)\n", qi.ID, singleRes.noSlots)
 		}
 
 		if !singleRes.succeeded {
@@ -685,6 +727,8 @@ func (s *Scheduler) tryAssign(
 	stepIdsToLabels map[string][]*sqlcv1.GetDesiredLabelsRow,
 	taskIdsToRateLimits map[int64]map[string]int32,
 ) <-chan *assignResults {
+	fmt.Printf("tryAssign called with %d queue items\n", len(qis))
+
 	ctx, span := telemetry.NewSpan(ctx, "try-assign")
 
 	// split into groups based on action ids, and process each action id in parallel
@@ -694,6 +738,7 @@ func (s *Scheduler) tryAssign(
 		qi := qis[i]
 
 		actionId := qi.ActionID
+		fmt.Printf("Queue item %d: actionId=%s, taskId=%d, queue=%s\n", qi.ID, actionId, qi.TaskID, qi.Queue)
 
 		if _, ok := actionIdToQueueItems[actionId]; !ok {
 			actionIdToQueueItems[actionId] = make([]*sqlcv1.V1QueueItem, 0)
@@ -701,6 +746,14 @@ func (s *Scheduler) tryAssign(
 
 		actionIdToQueueItems[actionId] = append(actionIdToQueueItems[actionId], qi)
 	}
+
+	fmt.Printf("Grouped queue items into %d action IDs: %v\n", len(actionIdToQueueItems), func() []string {
+		keys := make([]string, 0, len(actionIdToQueueItems))
+		for k := range actionIdToQueueItems {
+			keys = append(keys, k)
+		}
+		return keys
+	}())
 
 	resultsCh := make(chan *assignResults, len(actionIdToQueueItems))
 
@@ -718,6 +771,8 @@ func (s *Scheduler) tryAssign(
 			go func(actionId string, qis []*sqlcv1.V1QueueItem) {
 				defer wg.Done()
 
+				fmt.Printf("Processing actionId=%s with %d queue items\n", actionId, len(qis))
+
 				ringOffset := 0
 
 				batched := make([]*sqlcv1.V1QueueItem, 0)
@@ -727,12 +782,15 @@ func (s *Scheduler) tryAssign(
 					qi := qis[i]
 
 					if isTimedOut(qi) {
+						fmt.Printf("Queue item %d is timed out\n", qi.ID)
 						schedulingTimedOut = append(schedulingTimedOut, qi)
 						continue
 					}
 
 					batched = append(batched, qi)
 				}
+
+				fmt.Printf("ActionId=%s: %d batched items, %d timed out items\n", actionId, len(batched), len(schedulingTimedOut))
 
 				resultsCh <- &assignResults{
 					schedulingTimedOut: schedulingTimedOut,

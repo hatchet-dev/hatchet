@@ -2,6 +2,7 @@ package v1
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 
@@ -112,6 +113,7 @@ func (t *tenantManager) listenForWorkerLeases(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case workerIds := <-t.workersCh:
+			fmt.Printf("listenForWorkerLeases received %d workers\n", len(workerIds))
 			t.scheduler.setWorkers(workerIds)
 		}
 	}
@@ -123,6 +125,7 @@ func (t *tenantManager) listenForQueueLeases(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case queueNames := <-t.queuesCh:
+			fmt.Printf("listenForQueueLeases received %d queues: %v\n", len(queueNames), queueNames)
 			t.setQueuers(queueNames)
 		}
 	}
@@ -140,6 +143,8 @@ func (t *tenantManager) listenForConcurrencyLeases(ctx context.Context) {
 }
 
 func (t *tenantManager) setQueuers(queueNames []string) {
+	fmt.Printf("setQueuers called with %d queues: %v\n", len(queueNames), queueNames)
+
 	t.queuersMu.Lock()
 	defer t.queuersMu.Unlock()
 
@@ -164,10 +169,12 @@ func (t *tenantManager) setQueuers(queueNames []string) {
 	}
 
 	for queueName := range queueNamesSet {
+		fmt.Printf("Creating new queuer for queue: %s\n", queueName)
 		newQueueArr = append(newQueueArr, newQueuer(t.cf, t.tenantId, queueName, t.scheduler, t.resultsCh))
 	}
 
 	t.queuers = newQueueArr
+	fmt.Printf("Total queuers after setQueuers: %d\n", len(t.queuers))
 }
 
 func (t *tenantManager) setConcurrencyStrategies(strategies []*sqlcv1.V1StepConcurrency) {

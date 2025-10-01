@@ -110,8 +110,8 @@ INSERT INTO "Workflow" (
     "description"
 ) VALUES (
     @id::uuid,
-    coalesce(sqlc.narg('createdAt')::timestamp, CURRENT_TIMESTAMP),
-    coalesce(sqlc.narg('updatedAt')::timestamp, CURRENT_TIMESTAMP),
+    coalesce(sqlc.narg('createdAt')::timestamp, CURRENT_TIMESTAMP AT TIME ZONE 'UTC'),
+    coalesce(sqlc.narg('updatedAt')::timestamp, CURRENT_TIMESTAMP AT TIME ZONE 'UTC'),
     @deletedAt::timestamp,
     @tenantId::uuid,
     @name::text,
@@ -133,8 +133,8 @@ INSERT INTO "WorkflowVersion" (
     "defaultPriority"
 ) VALUES (
     @id::uuid,
-    coalesce(sqlc.narg('createdAt')::timestamp, CURRENT_TIMESTAMP),
-    coalesce(sqlc.narg('updatedAt')::timestamp, CURRENT_TIMESTAMP),
+    coalesce(sqlc.narg('createdAt')::timestamp, CURRENT_TIMESTAMP AT TIME ZONE 'UTC'),
+    coalesce(sqlc.narg('updatedAt')::timestamp, CURRENT_TIMESTAMP AT TIME ZONE 'UTC'),
     @deletedAt::timestamp,
     @checksum::text,
     sqlc.narg('version')::text,
@@ -179,8 +179,8 @@ INSERT INTO "WorkflowConcurrency" (
     "concurrencyGroupExpression"
 ) VALUES (
     gen_random_uuid(),
-    coalesce(sqlc.narg('createdAt')::timestamp, CURRENT_TIMESTAMP),
-    coalesce(sqlc.narg('updatedAt')::timestamp, CURRENT_TIMESTAMP),
+    coalesce(sqlc.narg('createdAt')::timestamp, CURRENT_TIMESTAMP AT TIME ZONE 'UTC'),
+    coalesce(sqlc.narg('updatedAt')::timestamp, CURRENT_TIMESTAMP AT TIME ZONE 'UTC'),
     @workflowVersionId::uuid,
     sqlc.narg('getConcurrencyGroupId')::uuid,
     coalesce(sqlc.narg('maxRuns')::integer, 1),
@@ -202,8 +202,8 @@ INSERT INTO "Job" (
     "kind"
 ) VALUES (
     @id::uuid,
-    coalesce(sqlc.narg('createdAt')::timestamp, CURRENT_TIMESTAMP),
-    coalesce(sqlc.narg('updatedAt')::timestamp, CURRENT_TIMESTAMP),
+    coalesce(sqlc.narg('createdAt')::timestamp, CURRENT_TIMESTAMP AT TIME ZONE 'UTC'),
+    coalesce(sqlc.narg('updatedAt')::timestamp, CURRENT_TIMESTAMP AT TIME ZONE 'UTC'),
     @deletedAt::timestamp,
     @tenantId::uuid,
     @workflowVersionId::uuid,
@@ -237,8 +237,8 @@ INSERT INTO "Step" (
     "retryMaxBackoff"
 ) VALUES (
     @id::uuid,
-    coalesce(sqlc.narg('createdAt')::timestamp, CURRENT_TIMESTAMP),
-    coalesce(sqlc.narg('updatedAt')::timestamp, CURRENT_TIMESTAMP),
+    coalesce(sqlc.narg('createdAt')::timestamp, CURRENT_TIMESTAMP AT TIME ZONE 'UTC'),
+    coalesce(sqlc.narg('updatedAt')::timestamp, CURRENT_TIMESTAMP AT TIME ZONE 'UTC'),
     @deletedAt::timestamp,
     @readableId::text,
     @tenantId::uuid,
@@ -344,8 +344,8 @@ INSERT INTO "WorkflowTriggers" (
     "tenantId"
 ) VALUES (
     @id::uuid,
-    CURRENT_TIMESTAMP,
-    CURRENT_TIMESTAMP,
+    CURRENT_TIMESTAMP AT TIME ZONE 'UTC',
+    CURRENT_TIMESTAMP AT TIME ZONE 'UTC',
     NULL,
     @workflowVersionId::uuid,
     @tenantId::uuid
@@ -631,14 +631,14 @@ WHERE
 -- name: SoftDeleteWorkflow :one
 WITH versions AS (
     UPDATE "WorkflowVersion"
-    SET "deletedAt" = CURRENT_TIMESTAMP
+    SET "deletedAt" = CURRENT_TIMESTAMP AT TIME ZONE 'UTC'
     WHERE "workflowId" = @id::uuid
 )
 UPDATE "Workflow"
 SET
     -- set name to the current name plus a random suffix to avoid conflicts
     "name" = "name" || '-' || gen_random_uuid(),
-    "deletedAt" = CURRENT_TIMESTAMP
+    "deletedAt" = CURRENT_TIMESTAMP AT TIME ZONE 'UTC'
 WHERE "id" = @id::uuid
 RETURNING *;
 
@@ -655,7 +655,7 @@ WHERE
 -- name: UpdateWorkflow :one
 UPDATE "Workflow"
 SET
-    "updatedAt" = CURRENT_TIMESTAMP,
+    "updatedAt" = CURRENT_TIMESTAMP AT TIME ZONE 'UTC',
     "isPaused" = coalesce(sqlc.narg('isPaused')::boolean, "isPaused")
 WHERE "id" = @id::uuid
 RETURNING *;
@@ -699,7 +699,7 @@ WITH UniqueWorkers AS (
         AND workflowVersion."deletedAt" IS NULL
         AND w."deletedAt" IS NULL
         AND w."dispatcherId" IS NOT NULL
-        AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
+        AND w."lastHeartbeatAt" > NOW() AT TIME ZONE 'UTC' - INTERVAL '5 seconds'
         AND w."isActive" = true
         AND w."isPaused" = false
         AND workflowVersion."workflowId" = @workflowId::uuid

@@ -15,7 +15,7 @@ const controllerPartitionHeartbeat = `-- name: ControllerPartitionHeartbeat :one
 UPDATE
     "ControllerPartition" p
 SET
-    "lastHeartbeat" = NOW()
+    "lastHeartbeat" = NOW() AT TIME ZONE 'UTC'
 WHERE
     p."id" = $1::text
 RETURNING id, "createdAt", "updatedAt", "lastHeartbeat", name
@@ -36,7 +36,7 @@ func (q *Queries) ControllerPartitionHeartbeat(ctx context.Context, db DBTX, con
 
 const createControllerPartition = `-- name: CreateControllerPartition :one
 INSERT INTO "ControllerPartition" ("id", "createdAt", "lastHeartbeat", "name")
-VALUES (gen_random_uuid()::text, NOW(), NOW(), $1::text)
+VALUES (gen_random_uuid()::text, NOW() AT TIME ZONE 'UTC', NOW() AT TIME ZONE 'UTC', $1::text)
 ON CONFLICT DO NOTHING
 RETURNING id, "createdAt", "updatedAt", "lastHeartbeat", name
 `
@@ -56,7 +56,7 @@ func (q *Queries) CreateControllerPartition(ctx context.Context, db DBTX, name p
 
 const createSchedulerPartition = `-- name: CreateSchedulerPartition :one
 INSERT INTO "SchedulerPartition" ("id", "createdAt", "lastHeartbeat", "name")
-VALUES (gen_random_uuid()::text, NOW(), NOW(), $1::text)
+VALUES (gen_random_uuid()::text, NOW() AT TIME ZONE 'UTC', NOW() AT TIME ZONE 'UTC', $1::text)
 ON CONFLICT DO NOTHING
 RETURNING id, "createdAt", "updatedAt", "lastHeartbeat", name
 `
@@ -81,7 +81,7 @@ WITH active_controller_partitions AS (
     FROM
         "ControllerPartition"
     WHERE
-        "lastHeartbeat" > NOW() - INTERVAL '1 minute'
+        "lastHeartbeat" > NOW() AT TIME ZONE 'UTC' - INTERVAL '1 minute'
 )
 INSERT INTO "Tenant" ("id", "name", "slug", "controllerPartitionId", "dataRetentionPeriod", "version", "uiVersion", "onboardingData", "environment")
 VALUES (
@@ -245,7 +245,7 @@ func (q *Queries) CreateTenantMember(ctx context.Context, db DBTX, arg CreateTen
 
 const createTenantWorkerPartition = `-- name: CreateTenantWorkerPartition :one
 INSERT INTO "TenantWorkerPartition" ("id", "createdAt", "lastHeartbeat", "name")
-VALUES (gen_random_uuid()::text, NOW(), NOW(), $1::text)
+VALUES (gen_random_uuid()::text, NOW() AT TIME ZONE 'UTC', NOW() AT TIME ZONE 'UTC', $1::text)
 ON CONFLICT DO NOTHING
 RETURNING id, "createdAt", "updatedAt", "lastHeartbeat", name
 `
@@ -1201,7 +1201,7 @@ WITH active_partitions AS (
     FROM
         "ControllerPartition"
     WHERE
-        "lastHeartbeat" > NOW() - INTERVAL '1 minute'
+        "lastHeartbeat" > NOW() AT TIME ZONE 'UTC' - INTERVAL '1 minute'
 ),
 tenants_to_update AS (
     SELECT
@@ -1236,7 +1236,7 @@ WITH active_partitions AS (
     FROM
         "SchedulerPartition"
     WHERE
-        "lastHeartbeat" > NOW() - INTERVAL '1 minute'
+        "lastHeartbeat" > NOW() AT TIME ZONE 'UTC' - INTERVAL '1 minute'
 ),
 tenants_to_update AS (
     SELECT
@@ -1272,7 +1272,7 @@ WITH active_partitions AS (
     FROM
         "TenantWorkerPartition"
     WHERE
-        "lastHeartbeat" > NOW() - INTERVAL '1 minute'
+        "lastHeartbeat" > NOW() AT TIME ZONE 'UTC' - INTERVAL '1 minute'
 ),
 tenants_to_update AS (
     SELECT
@@ -1308,14 +1308,14 @@ WITH active_partitions AS (
     FROM
         "ControllerPartition"
     WHERE
-        "lastHeartbeat" > NOW() - INTERVAL '1 minute'
+        "lastHeartbeat" > NOW() AT TIME ZONE 'UTC' - INTERVAL '1 minute'
 ), inactive_partitions AS (
     SELECT
         "id"
     FROM
         "ControllerPartition"
     WHERE
-        "lastHeartbeat" <= NOW() - INTERVAL '1 minute'
+        "lastHeartbeat" <= NOW() AT TIME ZONE 'UTC' - INTERVAL '1 minute'
 ), tenants_to_update AS (
     SELECT
         tenants."id" AS "id",
@@ -1352,14 +1352,14 @@ WITH active_partitions AS (
     FROM
         "SchedulerPartition"
     WHERE
-        "lastHeartbeat" > NOW() - INTERVAL '1 minute'
+        "lastHeartbeat" > NOW() AT TIME ZONE 'UTC' - INTERVAL '1 minute'
 ), inactive_partitions AS (
     SELECT
         "id"
     FROM
         "SchedulerPartition"
     WHERE
-        "lastHeartbeat" <= NOW() - INTERVAL '1 minute'
+        "lastHeartbeat" <= NOW() AT TIME ZONE 'UTC' - INTERVAL '1 minute'
 ), tenants_to_update AS (
     SELECT
         tenants."id" AS "id",
@@ -1399,14 +1399,14 @@ WITH active_partitions AS (
     FROM
         "TenantWorkerPartition"
     WHERE
-        "lastHeartbeat" > NOW() - INTERVAL '1 minute'
+        "lastHeartbeat" > NOW() AT TIME ZONE 'UTC' - INTERVAL '1 minute'
 ), inactive_partitions AS (
     SELECT
         "id"
     FROM
         "TenantWorkerPartition"
     WHERE
-        "lastHeartbeat" <= NOW() - INTERVAL '1 minute'
+        "lastHeartbeat" <= NOW() AT TIME ZONE 'UTC' - INTERVAL '1 minute'
 ), tenants_to_update AS (
     SELECT
         tenants."id" AS "id",
@@ -1442,7 +1442,7 @@ const schedulerPartitionHeartbeat = `-- name: SchedulerPartitionHeartbeat :one
 UPDATE
     "SchedulerPartition" p
 SET
-    "lastHeartbeat" = NOW()
+    "lastHeartbeat" = NOW() AT TIME ZONE 'UTC'
 WHERE
     p."id" = $1::text
 RETURNING id, "createdAt", "updatedAt", "lastHeartbeat", name
@@ -1663,7 +1663,7 @@ const workerPartitionHeartbeat = `-- name: WorkerPartitionHeartbeat :one
 UPDATE
     "TenantWorkerPartition" p
 SET
-    "lastHeartbeat" = NOW()
+    "lastHeartbeat" = NOW() AT TIME ZONE 'UTC'
 WHERE
     p."id" = $1::text
 RETURNING id, "createdAt", "updatedAt", "lastHeartbeat", name

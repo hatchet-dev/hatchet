@@ -33,7 +33,7 @@ BEGIN
         inhparent = targetTableName::regclass
         AND substring(inhrelid::regclass::text, format('%s_(\d{8})', targetTableName)) ~ '^\d{8}'
         AND (substring(inhrelid::regclass::text, format('%s_(\d{8})', targetTableName))::date) < targetDate
-        AND (substring(inhrelid::regclass::text, format('%s_(\d{8})', targetTableName))::date) < NOW() - INTERVAL '1 week'
+        AND (substring(inhrelid::regclass::text, format('%s_(\d{8})', targetTableName))::date) < NOW() AT TIME ZONE 'UTC' - INTERVAL '1 week'
     ;
 END;
 $$;
@@ -979,7 +979,7 @@ BEGIN
             workflow_id,
             workflow_version_id,
             queue,
-            CURRENT_TIMESTAMP + convert_duration_to_interval(schedule_timeout) AS schedule_timeout_at
+            CURRENT_TIMESTAMP AT TIME ZONE 'UTC' + convert_duration_to_interval(schedule_timeout) AS schedule_timeout_at
         FROM new_table
         WHERE initial_state = 'QUEUED' AND concurrency_strategy_ids[1] IS NOT NULL
     )
@@ -1049,7 +1049,7 @@ BEGIN
         step_id,
         workflow_id,
         workflow_run_id,
-        CURRENT_TIMESTAMP + convert_duration_to_interval(schedule_timeout),
+        CURRENT_TIMESTAMP AT TIME ZONE 'UTC' + convert_duration_to_interval(schedule_timeout),
         step_timeout,
         COALESCE(priority, 1),
         sticky,
@@ -1108,7 +1108,7 @@ BEGIN
             nt.retry_count,
             nt.tenant_id,
             -- Convert the retry_after based on min(retry_backoff_factor ^ retry_count, retry_max_backoff)
-            NOW() + (LEAST(nt.retry_max_backoff, POWER(nt.retry_backoff_factor, nt.app_retry_count)) * interval '1 second') AS retry_after
+            NOW() AT TIME ZONE 'UTC' + (LEAST(nt.retry_max_backoff, POWER(nt.retry_backoff_factor, nt.app_retry_count)) * interval '1 second') AS retry_after
         FROM new_table nt
         JOIN old_table ot ON ot.id = nt.id
         WHERE nt.initial_state = 'QUEUED'
@@ -1316,7 +1316,7 @@ BEGIN
         JOIN
             v1_task t ON t.id = dr.task_id AND t.inserted_at = dr.task_inserted_at
         WHERE
-            dr.retry_after <= NOW()
+            dr.retry_after <= NOW() AT TIME ZONE 'UTC'
             AND t.initial_state = 'QUEUED'
             -- Check to see if the task has a concurrency strategy
             AND t.concurrency_strategy_ids[1] IS NOT NULL
@@ -1367,7 +1367,7 @@ BEGIN
             deleted_rows dr
         JOIN v1_task t ON t.id = dr.task_id AND t.inserted_at = dr.task_inserted_at
         WHERE
-            dr.retry_after <= NOW()
+            dr.retry_after <= NOW() AT TIME ZONE 'UTC'
             AND t.initial_state = 'QUEUED'
             AND t.concurrency_strategy_ids[1] IS NULL
     )
@@ -1398,7 +1398,7 @@ BEGIN
         step_id,
         workflow_id,
         workflow_run_id,
-        CURRENT_TIMESTAMP + convert_duration_to_interval(schedule_timeout),
+        CURRENT_TIMESTAMP AT TIME ZONE 'UTC' + convert_duration_to_interval(schedule_timeout),
         step_timeout,
         4,
         sticky,
@@ -1537,7 +1537,7 @@ BEGIN
         step_id,
         workflow_id,
         workflow_run_id,
-        CURRENT_TIMESTAMP + convert_duration_to_interval(schedule_timeout),
+        CURRENT_TIMESTAMP AT TIME ZONE 'UTC' + convert_duration_to_interval(schedule_timeout),
         step_timeout,
         COALESCE(priority, 1),
         sticky,
@@ -1684,7 +1684,7 @@ BEGIN
         'SELECT ARRAY(
             SELECT DISTINCT e.tenant_id
             FROM %I e
-            WHERE e.offload_at < NOW()
+            WHERE e.offload_at < NOW() AT TIME ZONE 'UTC'
         )',
         partition_table)
     INTO result;

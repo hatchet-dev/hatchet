@@ -5,7 +5,7 @@ WITH active_controller_partitions AS (
     FROM
         "ControllerPartition"
     WHERE
-        "lastHeartbeat" > NOW() - INTERVAL '1 minute'
+        "lastHeartbeat" > NOW() AT TIME ZONE 'UTC' - INTERVAL '1 minute'
 )
 INSERT INTO "Tenant" ("id", "name", "slug", "controllerPartitionId", "dataRetentionPeriod", "version", "uiVersion", "onboardingData", "environment")
 VALUES (
@@ -59,7 +59,7 @@ WHERE
 UPDATE
     "ControllerPartition" p
 SET
-    "lastHeartbeat" = NOW()
+    "lastHeartbeat" = NOW() AT TIME ZONE 'UTC'
 WHERE
     p."id" = sqlc.arg('controllerPartitionId')::text
 RETURNING *;
@@ -68,7 +68,7 @@ RETURNING *;
 UPDATE
     "TenantWorkerPartition" p
 SET
-    "lastHeartbeat" = NOW()
+    "lastHeartbeat" = NOW() AT TIME ZONE 'UTC'
 WHERE
     p."id" = sqlc.arg('workerPartitionId')::text
 RETURNING *;
@@ -239,7 +239,7 @@ GROUP BY
 
 -- name: CreateControllerPartition :one
 INSERT INTO "ControllerPartition" ("id", "createdAt", "lastHeartbeat", "name")
-VALUES (gen_random_uuid()::text, NOW(), NOW(), sqlc.narg('name')::text)
+VALUES (gen_random_uuid()::text, NOW() AT TIME ZONE 'UTC', NOW() AT TIME ZONE 'UTC', sqlc.narg('name')::text)
 ON CONFLICT DO NOTHING
 RETURNING *;
 
@@ -256,7 +256,7 @@ WITH active_partitions AS (
     FROM
         "ControllerPartition"
     WHERE
-        "lastHeartbeat" > NOW() - INTERVAL '1 minute'
+        "lastHeartbeat" > NOW() AT TIME ZONE 'UTC' - INTERVAL '1 minute'
 ),
 tenants_to_update AS (
     SELECT
@@ -285,14 +285,14 @@ WITH active_partitions AS (
     FROM
         "ControllerPartition"
     WHERE
-        "lastHeartbeat" > NOW() - INTERVAL '1 minute'
+        "lastHeartbeat" > NOW() AT TIME ZONE 'UTC' - INTERVAL '1 minute'
 ), inactive_partitions AS (
     SELECT
         "id"
     FROM
         "ControllerPartition"
     WHERE
-        "lastHeartbeat" <= NOW() - INTERVAL '1 minute'
+        "lastHeartbeat" <= NOW() AT TIME ZONE 'UTC' - INTERVAL '1 minute'
 ), tenants_to_update AS (
     SELECT
         tenants."id" AS "id",
@@ -317,7 +317,7 @@ WHERE "id" IN (SELECT "id" FROM inactive_partitions);
 
 -- name: CreateTenantWorkerPartition :one
 INSERT INTO "TenantWorkerPartition" ("id", "createdAt", "lastHeartbeat", "name")
-VALUES (gen_random_uuid()::text, NOW(), NOW(), sqlc.narg('name')::text)
+VALUES (gen_random_uuid()::text, NOW() AT TIME ZONE 'UTC', NOW() AT TIME ZONE 'UTC', sqlc.narg('name')::text)
 ON CONFLICT DO NOTHING
 RETURNING *;
 
@@ -334,7 +334,7 @@ WITH active_partitions AS (
     FROM
         "TenantWorkerPartition"
     WHERE
-        "lastHeartbeat" > NOW() - INTERVAL '1 minute'
+        "lastHeartbeat" > NOW() AT TIME ZONE 'UTC' - INTERVAL '1 minute'
 ),
 tenants_to_update AS (
     SELECT
@@ -364,14 +364,14 @@ WITH active_partitions AS (
     FROM
         "TenantWorkerPartition"
     WHERE
-        "lastHeartbeat" > NOW() - INTERVAL '1 minute'
+        "lastHeartbeat" > NOW() AT TIME ZONE 'UTC' - INTERVAL '1 minute'
 ), inactive_partitions AS (
     SELECT
         "id"
     FROM
         "TenantWorkerPartition"
     WHERE
-        "lastHeartbeat" <= NOW() - INTERVAL '1 minute'
+        "lastHeartbeat" <= NOW() AT TIME ZONE 'UTC' - INTERVAL '1 minute'
 ), tenants_to_update AS (
     SELECT
         tenants."id" AS "id",
@@ -401,14 +401,14 @@ WHERE "id" IN (SELECT "id" FROM inactive_partitions);
 UPDATE
     "SchedulerPartition" p
 SET
-    "lastHeartbeat" = NOW()
+    "lastHeartbeat" = NOW() AT TIME ZONE 'UTC'
 WHERE
     p."id" = sqlc.arg('schedulerPartitionId')::text
 RETURNING *;
 
 -- name: CreateSchedulerPartition :one
 INSERT INTO "SchedulerPartition" ("id", "createdAt", "lastHeartbeat", "name")
-VALUES (gen_random_uuid()::text, NOW(), NOW(), sqlc.narg('name')::text)
+VALUES (gen_random_uuid()::text, NOW() AT TIME ZONE 'UTC', NOW() AT TIME ZONE 'UTC', sqlc.narg('name')::text)
 ON CONFLICT DO NOTHING
 RETURNING *;
 
@@ -425,7 +425,7 @@ WITH active_partitions AS (
     FROM
         "SchedulerPartition"
     WHERE
-        "lastHeartbeat" > NOW() - INTERVAL '1 minute'
+        "lastHeartbeat" > NOW() AT TIME ZONE 'UTC' - INTERVAL '1 minute'
 ),
 tenants_to_update AS (
     SELECT
@@ -455,14 +455,14 @@ WITH active_partitions AS (
     FROM
         "SchedulerPartition"
     WHERE
-        "lastHeartbeat" > NOW() - INTERVAL '1 minute'
+        "lastHeartbeat" > NOW() AT TIME ZONE 'UTC' - INTERVAL '1 minute'
 ), inactive_partitions AS (
     SELECT
         "id"
     FROM
         "SchedulerPartition"
     WHERE
-        "lastHeartbeat" <= NOW() - INTERVAL '1 minute'
+        "lastHeartbeat" <= NOW() AT TIME ZONE 'UTC' - INTERVAL '1 minute'
 ), tenants_to_update AS (
     SELECT
         tenants."id" AS "id",

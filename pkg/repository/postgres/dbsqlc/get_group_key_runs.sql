@@ -56,7 +56,7 @@ WITH valid_workers AS (
         "Worker" w
     WHERE
         w."tenantId" = @tenantId::uuid
-        AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
+        AND w."lastHeartbeatAt" > NOW() AT TIME ZONE 'UTC' - INTERVAL '5 seconds'
         AND w."isActive" = true
         AND w."isPaused" = false
     GROUP BY
@@ -85,7 +85,7 @@ group_key_runs AS (
         ggr."tenantId" = @tenantId::uuid
         AND ggr."deletedAt" IS NULL
         AND ggr."status" = ANY(ARRAY['RUNNING', 'ASSIGNED']::"StepRunStatus"[])
-        AND w."lastHeartbeatAt" < NOW() - INTERVAL '30 seconds'
+        AND w."lastHeartbeatAt" < NOW() AT TIME ZONE 'UTC' - INTERVAL '30 seconds'
     ORDER BY
         ggr."createdAt" ASC
     LIMIT
@@ -120,7 +120,7 @@ WITH valid_workers AS (
         "Worker" w
     WHERE
         w."tenantId" = @tenantId::uuid
-        AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
+        AND w."lastHeartbeatAt" > NOW() AT TIME ZONE 'UTC' - INTERVAL '5 seconds'
         AND w."isActive" = true
     GROUP BY
         w."id"
@@ -196,7 +196,7 @@ WITH get_group_key_run AS (
         "Worker" w, get_group_key_run
     WHERE
         w."tenantId" = @tenantId::uuid
-        AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
+        AND w."lastHeartbeatAt" > NOW() AT TIME ZONE 'UTC' - INTERVAL '5 seconds'
         AND w."id" IN (
             SELECT "_ActionToWorker"."B"
             FROM "_ActionToWorker"
@@ -233,7 +233,7 @@ WITH selected_ticker AS (
     FROM
         "Ticker" t
     WHERE
-        t."lastHeartbeatAt" > NOW() - INTERVAL '6 seconds'
+        t."lastHeartbeatAt" > NOW() AT TIME ZONE 'UTC' - INTERVAL '6 seconds'
         AND t."isActive" = true
     ORDER BY random()
     LIMIT 1

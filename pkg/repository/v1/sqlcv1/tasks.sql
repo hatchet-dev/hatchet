@@ -8,7 +8,7 @@ SELECT
 
 -- name: EnsureTablePartitionsExist :one
 WITH tomorrow_date AS (
-    SELECT (NOW() + INTERVAL '1 day')::date AS date
+    SELECT (NOW() AT TIME ZONE 'UTC' + INTERVAL '1 day')::date AS date
 ), expected_partitions AS (
     SELECT
         'v1_task_' || to_char((SELECT date FROM tomorrow_date), 'YYYYMMDD') AS expected_partition_name
@@ -290,7 +290,7 @@ WITH expired_runtimes AS (
         v1_task_runtime
     WHERE
         tenant_id = @tenantId::uuid
-        AND timeout_at <= NOW()
+        AND timeout_at <= NOW() AT TIME ZONE 'UTC'
     ORDER BY
         task_id, task_inserted_at, retry_count
     LIMIT
@@ -326,7 +326,7 @@ WITH tasks_on_inactive_workers AS (
         v1_task_runtime runtime ON w."id" = runtime.worker_id
     WHERE
         w."tenantId" = @tenantId::uuid
-        AND w."lastHeartbeatAt" < NOW() - INTERVAL '30 seconds'
+        AND w."lastHeartbeatAt" < NOW() AT TIME ZONE 'UTC' - INTERVAL '30 seconds'
     LIMIT
         COALESCE(sqlc.narg('limit')::integer, 1000)
 )
@@ -347,7 +347,7 @@ WITH rqis_to_delete AS (
         v1_retry_queue_item rqi
     WHERE
         rqi.tenant_id = @tenantId::uuid
-        AND rqi.retry_after <= NOW()
+        AND rqi.retry_after <= NOW() AT TIME ZONE 'UTC'
     ORDER BY
         rqi.task_id, rqi.task_inserted_at, rqi.task_retry_count
     LIMIT

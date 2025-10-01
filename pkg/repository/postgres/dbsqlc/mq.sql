@@ -25,7 +25,7 @@ RETURNING *;
 UPDATE
     "MessageQueue"
 SET
-    "lastActive" = NOW()
+    "lastActive" = NOW() AT TIME ZONE 'UTC'
 WHERE
     "name" = @name::text;
 
@@ -33,7 +33,7 @@ WHERE
 DELETE FROM
     "MessageQueue"
 WHERE
-    "lastActive" < NOW() - INTERVAL '1 hour'
+    "lastActive" < NOW() AT TIME ZONE 'UTC' - INTERVAL '1 hour'
     AND "autoDeleted" = true;
 
 -- name: AddMessage :exec
@@ -48,8 +48,8 @@ VALUES
     (
         @payload::jsonb,
         @queueId::text,
-        NOW(),
-        NOW() + INTERVAL '5 minutes'
+        NOW() AT TIME ZONE 'UTC',
+        NOW() AT TIME ZONE 'UTC' + INTERVAL '5 minutes'
     );
 
 -- name: BulkAddMessage :copyfrom
@@ -74,9 +74,9 @@ WITH messages AS (
     FROM
         "MessageQueueItem"
     WHERE
-        "expiresAt" > NOW()
+        "expiresAt" > NOW() AT TIME ZONE 'UTC'
         AND "queueId" = @queueId::text
-        AND "readAfter" <= NOW()
+        AND "readAfter" <= NOW() AT TIME ZONE 'UTC'
         AND "status" = 'PENDING'
     ORDER BY
         "id" ASC
@@ -105,7 +105,7 @@ WHERE
 DELETE FROM
     "MessageQueueItem"
 WHERE
-    "expiresAt" < NOW();
+    "expiresAt" < NOW() AT TIME ZONE 'UTC';
 
 -- name: GetMinMaxExpiredMessageQueueItems :one
 SELECT
@@ -114,7 +114,7 @@ SELECT
 FROM
     "MessageQueueItem"
 WHERE
-    "expiresAt" < NOW();
+    "expiresAt" < NOW() AT TIME ZONE 'UTC';
 
 -- name: CleanupMessageQueueItems :exec
 DELETE FROM "MessageQueueItem"
