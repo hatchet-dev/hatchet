@@ -11,58 +11,6 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const finalizePayloadOffloads = `-- name: FinalizePayloadOffloads :exec
-WITH inputs AS (
-    SELECT
-        UNNEST($1::BIGINT[]) AS id,
-        UNNEST($2::TIMESTAMPTZ[]) AS inserted_at,
-        UNNEST(CAST($3::TEXT[] AS v1_payload_type[])) AS type,
-        UNNEST($4::TIMESTAMPTZ[]) AS offload_at,
-        UNNEST($5::TEXT[]) AS external_location_key,
-        UNNEST($6::UUID[]) AS tenant_id
-), payload_updates AS (
-    UPDATE v1_payload
-    SET
-        location = 'EXTERNAL',
-        external_location_key = i.external_location_key,
-        inline_content = NULL,
-        updated_at = NOW()
-    FROM inputs i
-    WHERE
-        v1_payload.id = i.id
-        AND v1_payload.inserted_at = i.inserted_at
-        AND v1_payload.tenant_id = i.tenant_id
-)
-
-DELETE FROM v1_payload_wal
-WHERE
-    (offload_at, payload_id, payload_inserted_at, payload_type, tenant_id) IN (
-        SELECT offload_at, id, inserted_at, type, tenant_id
-        FROM inputs
-    )
-`
-
-type FinalizePayloadOffloadsParams struct {
-	Ids                  []int64              `json:"ids"`
-	Insertedats          []pgtype.Timestamptz `json:"insertedats"`
-	Payloadtypes         []string             `json:"payloadtypes"`
-	Offloadats           []pgtype.Timestamptz `json:"offloadats"`
-	Externallocationkeys []string             `json:"externallocationkeys"`
-	Tenantids            []pgtype.UUID        `json:"tenantids"`
-}
-
-func (q *Queries) FinalizePayloadOffloads(ctx context.Context, db DBTX, arg FinalizePayloadOffloadsParams) error {
-	_, err := db.Exec(ctx, finalizePayloadOffloads,
-		arg.Ids,
-		arg.Insertedats,
-		arg.Payloadtypes,
-		arg.Offloadats,
-		arg.Externallocationkeys,
-		arg.Tenantids,
-	)
-	return err
-}
-
 const pollPayloadWALForRecordsToReplicate = `-- name: PollPayloadWALForRecordsToReplicate :many
 WITH tenants AS (
     SELECT UNNEST(
@@ -205,6 +153,56 @@ func (q *Queries) ReadPayloads(ctx context.Context, db DBTX, arg ReadPayloadsPar
 		return nil, err
 	}
 	return items, nil
+}
+
+const setPayloadExternalKeys = `-- name: SetPayloadExternalKeys :exec
+WITH inputs AS (
+    SELECT
+        UNNEST($1::BIGINT[]) AS id,
+        UNNEST($2::TIMESTAMPTZ[]) AS inserted_at,
+        UNNEST(CAST($3::TEXT[] AS v1_payload_type[])) AS type,
+        UNNEST($4::TIMESTAMPTZ[]) AS offload_at,
+        UNNEST($5::TEXT[]) AS external_location_key,
+        UNNEST($6::UUID[]) AS tenant_id
+), payload_updates AS (
+    UPDATE v1_payload
+    SET
+        external_location_key = i.external_location_key,
+        updated_at = NOW()
+    FROM inputs i
+    WHERE
+        v1_payload.id = i.id
+        AND v1_payload.inserted_at = i.inserted_at
+        AND v1_payload.tenant_id = i.tenant_id
+)
+
+DELETE FROM v1_payload_wal
+WHERE
+    (offload_at, payload_id, payload_inserted_at, payload_type, tenant_id) IN (
+        SELECT offload_at, id, inserted_at, type, tenant_id
+        FROM inputs
+    )
+`
+
+type SetPayloadExternalKeysParams struct {
+	Ids                  []int64              `json:"ids"`
+	Insertedats          []pgtype.Timestamptz `json:"insertedats"`
+	Payloadtypes         []string             `json:"payloadtypes"`
+	Offloadats           []pgtype.Timestamptz `json:"offloadats"`
+	Externallocationkeys []string             `json:"externallocationkeys"`
+	Tenantids            []pgtype.UUID        `json:"tenantids"`
+}
+
+func (q *Queries) SetPayloadExternalKeys(ctx context.Context, db DBTX, arg SetPayloadExternalKeysParams) error {
+	_, err := db.Exec(ctx, setPayloadExternalKeys,
+		arg.Ids,
+		arg.Insertedats,
+		arg.Payloadtypes,
+		arg.Offloadats,
+		arg.Externallocationkeys,
+		arg.Tenantids,
+	)
+	return err
 }
 
 const writePayloadWAL = `-- name: WritePayloadWAL :exec
