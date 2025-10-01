@@ -33,6 +33,7 @@ type CreatedTaskPayload struct {
 }
 
 func CreatedTaskMessage(tenantId string, task *v1.V1TaskWithPayload) (*msgqueue.Message, error) {
+	task.Payload = []byte("{}")
 	return msgqueue.NewTenantMessage(
 		tenantId,
 		"created-task",
