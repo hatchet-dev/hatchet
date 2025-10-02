@@ -342,6 +342,25 @@ func (t *MessageQueueImpl) pubMessage(ctx context.Context, q msgqueue.Queue, msg
 
 	msg.SetOtelCarrier(otelCarrier)
 
+	var compressionResult *CompressionResult
+
+	if len(msg.Payloads) > 0 {
+		var err error
+		compressionResult, err = compressPayloads(msg.Payloads)
+		if err != nil {
+			t.l.Error().Msgf("error compressing payloads: %v", err)
+			return fmt.Errorf("failed to compress payloads: %w", err)
+		}
+
+		if compressionResult.WasCompressed {
+			msg.Payloads = compressionResult.Payloads
+			msg.Compressed = true
+
+			t.l.Debug().Msgf("compressed payloads for message %s: original=%d bytes, compressed=%d bytes, ratio=%.2f%%",
+				msg.ID, compressionResult.OriginalSize, compressionResult.CompressedSize, compressionResult.CompressionRatio*100)
+		}
+	}
+
 	acquireCtx, acquireSpan := telemetry.NewSpan(ctx, "acquire_publish_channel")
 
 	poolCh, err := t.pubChannels.Acquire(acquireCtx)
@@ -391,11 +410,23 @@ func (t *MessageQueueImpl) pubMessage(ctx context.Context, q msgqueue.Queue, msg
 
 	ctx, pubSpan := telemetry.NewSpan(ctx, "publish_message")
 
-	pubSpan.SetAttributes(
+	spanAttrs := []attribute.KeyValue{
 		attribute.String("MessageQueueImpl.publish_message.queue_name", q.Name()),
 		attribute.String("MessageQueueImpl.publish_message.tenant_id", msg.TenantID),
 		attribute.String("MessageQueueImpl.publish_message.message_id", msg.ID),
-	)
+	}
+
+	// Add compression metrics if payloads were present
+	if compressionResult != nil && compressionResult.WasCompressed {
+		spanAttrs = append(spanAttrs,
+			attribute.Bool("MessageQueueImpl.publish_message.compressed", compressionResult.WasCompressed),
+			attribute.Int("MessageQueueImpl.publish_message.original_size", compressionResult.OriginalSize),
+			attribute.Int("MessageQueueImpl.publish_message.compressed_size", compressionResult.CompressedSize),
+			attribute.Float64("MessageQueueImpl.publish_message.compression_ratio", compressionResult.CompressionRatio),
+		)
+	}
+
+	pubSpan.SetAttributes(spanAttrs...)
 
 	err = pub.PublishWithContext(ctx, "", q.Name(), false, false, pubMsg)
 
@@ -854,6 +885,19 @@ func (t *MessageQueueImpl) subscribe(
 					}
 
 					return
+				}
+
+				if msg.Compressed {
+					decompressedPayloads, err := decompressPayloads(msg.Payloads)
+					if err != nil {
+						t.l.Error().Msgf("error decompressing payloads: %v", err)
+						// reject this message
+						if err := rabbitMsg.Reject(false); err != nil {
+							t.l.Error().Msgf("error rejecting message: %v", err)
+						}
+						return
+					}
+					msg.Payloads = decompressedPayloads
 				}
 
 				// determine if we've hit the max number of retries
