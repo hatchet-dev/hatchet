@@ -352,6 +352,12 @@ func (t *MessageQueueImpl) pubMessage(ctx context.Context, q msgqueue.Queue, msg
 
 	ctx, pubSpan := telemetry.NewSpan(ctx, "publish_message")
 
+	pubSpan.SetAttributes(
+		attribute.String("MessageQueueImpl.publish_message.queue_name", q.Name()),
+		attribute.String("MessageQueueImpl.publish_message.tenant_id", msg.TenantID),
+		attribute.String("MessageQueueImpl.publish_message.message_id", msg.ID),
+	)
+
 	err = pub.PublishWithContext(ctx, "", q.Name(), false, false, pubMsg)
 
 	// retry failed delivery on the next session
