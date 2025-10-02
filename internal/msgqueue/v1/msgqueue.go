@@ -39,6 +39,10 @@ type staticQueue string
 const (
 	TASK_PROCESSING_QUEUE staticQueue = "task_processing_queue_v2"
 	OLAP_QUEUE            staticQueue = "olap_queue_v2"
+	OLAP_QUEUE_HASH_0     staticQueue = "olap_queue_hash_00_v2"
+	OLAP_QUEUE_HASH_1     staticQueue = "olap_queue_hash_01_v2"
+	OLAP_QUEUE_HASH_2     staticQueue = "olap_queue_hash_02_v2"
+	OLAP_QUEUE_HASH_3     staticQueue = "olap_queue_hash_03_v2"
 )
 
 func (s staticQueue) Name() string {

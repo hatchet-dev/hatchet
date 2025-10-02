@@ -617,6 +617,9 @@ func (s *DispatcherImpl) handleTaskCompleted(inputCtx context.Context, task *sql
 	// }
 
 	go func() {
+		newCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+
 		olapMsg, err := tasktypes.MonitoringEventMessageFromActionEvent(
 			tenantId,
 			task.ID,
@@ -629,7 +632,7 @@ func (s *DispatcherImpl) handleTaskCompleted(inputCtx context.Context, task *sql
 			return
 		}
 
-		err = s.mqv1.SendMessage(inputCtx, msgqueue.OLAP_QUEUE, olapMsg)
+		err = s.mqv1.SendMessage(newCtx, msgqueue.OLAP_QUEUE, olapMsg)
 
 		// pubBuffer.Pub(inputCtx, msgqueue.OLAP_QUEUE, olapMsg, false)
 
