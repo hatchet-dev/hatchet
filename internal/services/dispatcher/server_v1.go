@@ -594,7 +594,9 @@ func (s *DispatcherImpl) handleTaskStarted(inputCtx context.Context, task *sqlcv
 		return nil, err
 	}
 
-	err = s.pubBuffer.Pub(inputCtx, msgqueue.OLAP_QUEUE, msg, false)
+	err = s.mqv1.SendMessage(inputCtx, msgqueue.TASK_PROCESSING_QUEUE, msg)
+
+	// pubBuffer.Pub(inputCtx, msgqueue.OLAP_QUEUE, msg, false)
 
 	if err != nil {
 		return nil, err
@@ -627,7 +629,9 @@ func (s *DispatcherImpl) handleTaskCompleted(inputCtx context.Context, task *sql
 			return
 		}
 
-		err = s.pubBuffer.Pub(inputCtx, msgqueue.OLAP_QUEUE, olapMsg, false)
+		err = s.mqv1.SendMessage(inputCtx, msgqueue.OLAP_QUEUE, olapMsg)
+
+		// pubBuffer.Pub(inputCtx, msgqueue.OLAP_QUEUE, olapMsg, false)
 
 		if err != nil {
 			s.l.Error().Err(err).Msg("could not publish to OLAP queue")
@@ -741,7 +745,9 @@ func (d *DispatcherImpl) refreshTimeoutV1(ctx context.Context, tenant *dbsqlc.Te
 		return nil, err
 	}
 
-	err = d.pubBuffer.Pub(ctx, msgqueue.OLAP_QUEUE, msg, false)
+	err = d.mqv1.SendMessage(ctx, msgqueue.OLAP_QUEUE, msg)
+
+	// d.pubBuffer.Pub(ctx, msgqueue.OLAP_QUEUE, msg, false)
 
 	if err != nil {
 		return nil, err
@@ -779,7 +785,9 @@ func (d *DispatcherImpl) releaseSlotV1(ctx context.Context, tenant *dbsqlc.Tenan
 		return nil, err
 	}
 
-	err = d.pubBuffer.Pub(ctx, msgqueue.OLAP_QUEUE, msg, false)
+	err = d.mqv1.SendMessage(ctx, msgqueue.OLAP_QUEUE, msg)
+
+	// d.pubBuffer.Pub(ctx, msgqueue.OLAP_QUEUE, msg, false)
 
 	if err != nil {
 		return nil, err

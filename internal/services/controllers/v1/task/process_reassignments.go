@@ -81,7 +81,13 @@ func (tc *TasksControllerImpl) processTaskReassignments(ctx context.Context, ten
 			continue
 		}
 
-		err = tc.pubBuffer.Pub(ctx, msgqueue.OLAP_QUEUE, olapMsg, false)
+		err = tc.mq.SendMessage(
+			ctx,
+			msgqueue.OLAP_QUEUE,
+			olapMsg,
+		)
+
+		// pubBuffer.Pub(ctx, msgqueue.OLAP_QUEUE, olapMsg, false)
 
 		if err != nil {
 			tc.l.Error().Err(err).Msg("could not create monitoring event message")
@@ -109,7 +115,13 @@ func (tc *TasksControllerImpl) processTaskReassignments(ctx context.Context, ten
 				continue
 			}
 
-			err = tc.pubBuffer.Pub(ctx, msgqueue.OLAP_QUEUE, olapMsg, false)
+			err = tc.mq.SendMessage(
+				ctx,
+				msgqueue.OLAP_QUEUE,
+				olapMsg,
+			)
+
+			// pubBuffer.Pub(ctx, msgqueue.OLAP_QUEUE, olapMsg, false)
 
 			if err != nil {
 				tc.l.Error().Err(err).Msg("could not create monitoring event message")
