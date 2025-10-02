@@ -462,8 +462,10 @@ type PostgresMQConfigFile struct {
 }
 
 type RabbitMQConfigFile struct {
-	URL string `mapstructure:"url" json:"url,omitempty" validate:"required"`
-	Qos int    `mapstructure:"qos" json:"qos,omitempty" default:"100"`
+	URL         string `mapstructure:"url" json:"url,omitempty" validate:"required"`
+	Qos         int    `mapstructure:"qos" json:"qos,omitempty" default:"100"`
+	MaxPubChans int32  `mapstructure:"maxPubChans" json:"maxPubChans,omitempty" default:"20"`
+	MaxSubChans int32  `mapstructure:"maxSubChans" json:"maxSubChans,omitempty" default:"100"`
 }
 
 type ConfigFileEmail struct {
@@ -597,6 +599,7 @@ type ServerConfig struct {
 
 type PayloadStoreConfig struct {
 	EnablePayloadDualWrites bool `mapstructure:"enablePayloadDualWrites" json:"enablePayloadDualWrites,omitempty" default:"false"`
+	WALPollLimit            int  `mapstructure:"walPollLimit" json:"walPollLimit,omitempty" default:"1000"`
 }
 
 func (c *ServerConfig) HasService(name string) bool {
@@ -768,6 +771,8 @@ func BindAllEnv(v *viper.Viper) {
 
 	_ = v.BindEnv("msgQueue.kind", "SERVER_MSGQUEUE_KIND")
 	_ = v.BindEnv("msgQueue.rabbitmq.url", "SERVER_MSGQUEUE_RABBITMQ_URL")
+	_ = v.BindEnv("msgQueue.rabbitmq.maxPubChans", "SERVER_MSGQUEUE_RABBITMQ_MAX_PUB_CHANS")
+	_ = v.BindEnv("msgQueue.rabbitmq.maxSubChans", "SERVER_MSGQUEUE_RABBITMQ_MAX_SUB_CHANS")
 
 	// throughput options
 	_ = v.BindEnv("msgQueue.rabbitmq.qos", "SERVER_MSGQUEUE_RABBITMQ_QOS")
@@ -859,4 +864,5 @@ func BindAllEnv(v *viper.Viper) {
 
 	// payload store options
 	_ = v.BindEnv("payloadStore.enablePayloadDualWrites", "SERVER_PAYLOAD_STORE_ENABLE_PAYLOAD_DUAL_WRITES")
+	_ = v.BindEnv("payloadStore.walPollLimit", "SERVER_PAYLOAD_STORE_WAL_POLL_LIMIT")
 }

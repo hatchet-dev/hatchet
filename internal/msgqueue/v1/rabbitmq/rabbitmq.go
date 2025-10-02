@@ -12,6 +12,7 @@ import (
 	lru "github.com/hashicorp/golang-lru/v2"
 	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/rs/zerolog"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 
 	msgqueue "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
@@ -40,13 +41,14 @@ type MessageQueueImpl struct {
 	// lru cache for tenant ids
 	tenantIdCache *lru.Cache[string, bool]
 
-	channels *channelPool
+	pubChannels *channelPool
+	subChannels *channelPool
 
 	deadLetterBackoff time.Duration
 }
 
 func (t *MessageQueueImpl) IsReady() bool {
-	return t.channels.hasActiveConnection()
+	return t.pubChannels.hasActiveConnection() && t.subChannels.hasActiveConnection()
 }
 
 type MessageQueueImplOpt func(*MessageQueueImplOpts)
@@ -57,6 +59,8 @@ type MessageQueueImplOpts struct {
 	qos                       int
 	disableTenantExchangePubs bool
 	deadLetterBackoff         time.Duration
+	maxPubChannels            int32
+	maxSubChannels            int32
 }
 
 func defaultMessageQueueImplOpts() *MessageQueueImplOpts {
@@ -78,6 +82,18 @@ func WithLogger(l *zerolog.Logger) MessageQueueImplOpt {
 func WithURL(url string) MessageQueueImplOpt {
 	return func(opts *MessageQueueImplOpts) {
 		opts.url = url
+	}
+}
+
+func WithMaxPubChannels(maxConns int32) MessageQueueImplOpt {
+	return func(opts *MessageQueueImplOpts) {
+		opts.maxPubChannels = maxConns
+	}
+}
+
+func WithMaxSubChannels(maxConns int32) MessageQueueImplOpt {
+	return func(opts *MessageQueueImplOpts) {
+		opts.maxSubChannels = maxConns
 	}
 }
 
@@ -112,9 +128,29 @@ func New(fs ...MessageQueueImplOpt) (func() error, *MessageQueueImpl) {
 	newLogger := opts.l.With().Str("service", "rabbitmq").Logger()
 	opts.l = &newLogger
 
-	channelPool, err := newChannelPool(ctx, opts.l, opts.url)
+	pubMaxChans := opts.maxPubChannels
+
+	if pubMaxChans <= 0 {
+		pubMaxChans = 20
+	}
+
+	pubChannelPool, err := newChannelPool(ctx, opts.l, opts.url, pubMaxChans)
 
 	if err != nil {
+		cancel()
+		return nil, nil
+	}
+
+	subMaxChans := opts.maxSubChannels
+
+	if subMaxChans <= 0 {
+		subMaxChans = 100
+	}
+
+	subChannelPool, err := newChannelPool(ctx, opts.l, opts.url, subMaxChans)
+
+	if err != nil {
+		pubChannelPool.Close()
 		cancel()
 		return nil, nil
 	}
@@ -126,7 +162,8 @@ func New(fs ...MessageQueueImplOpt) (func() error, *MessageQueueImpl) {
 		qos:                       opts.qos,
 		configFs:                  fs,
 		disableTenantExchangePubs: opts.disableTenantExchangePubs,
-		channels:                  channelPool,
+		pubChannels:               pubChannelPool,
+		subChannels:               subChannelPool,
 		deadLetterBackoff:         opts.deadLetterBackoff,
 	}
 
@@ -134,7 +171,7 @@ func New(fs ...MessageQueueImplOpt) (func() error, *MessageQueueImpl) {
 	t.tenantIdCache, _ = lru.New[string, bool](2000) // nolint: errcheck - this only returns an error if the size is less than 0
 
 	// init the queues in a blocking fashion
-	poolCh, err := channelPool.Acquire(ctx)
+	poolCh, err := subChannelPool.Acquire(ctx)
 
 	if err != nil {
 		t.l.Error().Msgf("cannot acquire channel: %v", err)
@@ -172,9 +209,37 @@ func (t *MessageQueueImpl) SetQOS(prefetchCount int) {
 	t.qos = prefetchCount
 }
 
+const (
+	mb                       = 1024 * 1024 // 1 MB in bytes
+	maxSizeErrorLogThreshold = 10 * mb
+)
+
 func (t *MessageQueueImpl) SendMessage(ctx context.Context, q msgqueue.Queue, msg *msgqueue.Message) error {
 	ctx, span := telemetry.NewSpan(ctx, "MessageQueueImpl.SendMessage")
 	defer span.End()
+
+	totalSize := 0
+	for _, payload := range msg.Payloads {
+		totalSize += len(payload)
+	}
+
+	if totalSize > maxSizeErrorLogThreshold {
+		t.l.Error().
+			Int("message_size_bytes", totalSize).
+			Int("num_messages", len(msg.Payloads)).
+			Str("tenant_id", msg.TenantID).
+			Str("queue_name", q.Name()).
+			Str("message_id", msg.ID).
+			Msg("sending a very large message, this may impact performance")
+	}
+
+	span.SetAttributes(
+		attribute.String("MessageQueueImpl.SendMessage.queue_name", q.Name()),
+		attribute.String("MessageQueueImpl.SendMessage.tenant_id", msg.TenantID),
+		attribute.String("MessageQueueImpl.SendMessage.message_id", msg.ID),
+		attribute.Int("MessageQueueImpl.SendMessage.num_payloads", len(msg.Payloads)),
+		attribute.Int("MessageQueueImpl.SendMessage.total_size_bytes", totalSize),
+	)
 
 	err := t.pubMessage(ctx, q, msg)
 
@@ -195,7 +260,7 @@ func (t *MessageQueueImpl) pubMessage(ctx context.Context, q msgqueue.Queue, msg
 
 	msg.SetOtelCarrier(otelCarrier)
 
-	poolCh, err := t.channels.Acquire(ctx)
+	poolCh, err := t.pubChannels.Acquire(ctx)
 
 	if err != nil {
 		t.l.Error().Msgf("cannot acquire channel: %v", err)
@@ -327,7 +392,7 @@ func (t *MessageQueueImpl) Subscribe(
 
 func (t *MessageQueueImpl) RegisterTenant(ctx context.Context, tenantId string) error {
 	// create a new fanout exchange for the tenant
-	poolCh, err := t.channels.Acquire(ctx)
+	poolCh, err := t.pubChannels.Acquire(ctx)
 
 	if err != nil {
 		t.l.Error().Msgf("cannot acquire channel: %v", err)
@@ -437,7 +502,7 @@ func (t *MessageQueueImpl) initQueue(ch *amqp.Channel, q msgqueue.Queue) (string
 
 // deleteQueue is a helper function for removing durable queues which are used for tests.
 func (t *MessageQueueImpl) deleteQueue(q msgqueue.Queue) error {
-	poolCh, err := t.channels.Acquire(context.Background())
+	poolCh, err := t.subChannels.Acquire(context.Background())
 
 	if err != nil {
 		t.l.Error().Msgf("cannot acquire channel for deleting queue: %v", err)
@@ -495,7 +560,7 @@ func (t *MessageQueueImpl) subscribe(
 	var queueName string
 
 	if !q.Exclusive() {
-		poolCh, err := t.channels.Acquire(ctx)
+		poolCh, err := t.subChannels.Acquire(ctx)
 
 		if err != nil {
 			return nil, fmt.Errorf("cannot acquire channel for initializing queue: %v", err)
@@ -525,7 +590,7 @@ func (t *MessageQueueImpl) subscribe(
 	}
 
 	innerFn := func() error {
-		poolCh, err := t.channels.Acquire(ctx)
+		poolCh, err := t.subChannels.Acquire(ctx)
 
 		if err != nil {
 			return err

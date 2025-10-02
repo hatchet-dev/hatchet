@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
+	v1 "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	v0Client "github.com/hatchet-dev/hatchet/pkg/client"
 	"github.com/hatchet-dev/hatchet/pkg/client/create"
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
@@ -463,9 +463,14 @@ func (w *Workflow) NewDurableTask(name string, fn any, options ...TaskOption) *T
 	return w.NewTask(name, fn, durableOptions...)
 }
 
+// Dump implements the WorkflowBase interface for internal use.
+func (w *Workflow) Dump() (*v1.CreateWorkflowVersionRequest, []internal.NamedFunction, []internal.NamedFunction, internal.WrappedTaskFn) {
+	return w.declaration.Dump()
+}
+
 // OnFailure sets a failure handler for the workflow.
 // The handler will be called when any task in the workflow fails.
-func (w *Workflow) OnFailure(fn any) *Workflow {
+func (w *Workflow) OnFailure(fn any) {
 	fnValue := reflect.ValueOf(fn)
 	fnType := fnValue.Type()
 
@@ -525,13 +530,6 @@ func (w *Workflow) OnFailure(fn any) *Workflow {
 		create.WorkflowOnFailureTask[any, any]{},
 		wrapper,
 	)
-
-	return w
-}
-
-// Dump implements the WorkflowBase interface for internal use.
-func (w *Workflow) Dump() (*contracts.CreateWorkflowVersionRequest, []internal.NamedFunction, []internal.NamedFunction, internal.WrappedTaskFn) {
-	return w.declaration.Dump()
 }
 
 // Workflow execution methods

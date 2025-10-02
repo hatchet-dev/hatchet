@@ -181,16 +181,14 @@ func (q *Queries) CountWorkflowRunsRoundRobin(ctx context.Context, db DBTX, arg 
 }
 
 const countWorkflows = `-- name: CountWorkflows :one
-SELECT
-    count(workflows) OVER() AS total
-FROM
-    "Workflow" as workflows
+SELECT COUNT(w.*)
+FROM "Workflow" w
 WHERE
-    workflows."tenantId" = $1 AND
-    workflows."deletedAt" IS NULL AND
-    (
-        $2::text IS NULL OR
-        workflows."id" IN (
+    w."tenantId" = $1
+    AND w."deletedAt" IS NULL
+    AND (
+        $2::TEXT IS NULL OR
+        w."id" IN (
             SELECT
                 DISTINCT ON(t1."workflowId") t1."workflowId"
             FROM
@@ -214,18 +212,23 @@ WHERE
                 t1."workflowId" DESC, t1."order" DESC
         )
     )
+    AND (
+        $3::TEXT IS NULL
+        OR w.name ILIKE CONCAT('%', $3::TEXT, '%')
+    )
 `
 
 type CountWorkflowsParams struct {
 	TenantId pgtype.UUID `json:"tenantId"`
 	EventKey pgtype.Text `json:"eventKey"`
+	Search   pgtype.Text `json:"search"`
 }
 
 func (q *Queries) CountWorkflows(ctx context.Context, db DBTX, arg CountWorkflowsParams) (int64, error) {
-	row := db.QueryRow(ctx, countWorkflows, arg.TenantId, arg.EventKey)
-	var total int64
-	err := row.Scan(&total)
-	return total, err
+	row := db.QueryRow(ctx, countWorkflows, arg.TenantId, arg.EventKey, arg.Search)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
 }
 
 const createJob = `-- name: CreateJob :one

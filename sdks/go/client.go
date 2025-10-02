@@ -9,7 +9,7 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
-	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
+	v1 "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	v0Client "github.com/hatchet-dev/hatchet/pkg/client"
 	"github.com/hatchet-dev/hatchet/pkg/worker"
 	"github.com/hatchet-dev/hatchet/sdks/go/features"
@@ -252,6 +252,11 @@ func (st *StandaloneTask) GetName() string {
 	return st.workflow.declaration.Name()
 }
 
+// Dump implements the WorkflowBase interface for internal use.
+func (st *StandaloneTask) Dump() (*v1.CreateWorkflowVersionRequest, []internal.NamedFunction, []internal.NamedFunction, internal.WrappedTaskFn) {
+	return st.workflow.declaration.Dump()
+}
+
 // StandaloneTaskOption represents options that can be applied to standalone tasks.
 // This interface allows both WorkflowOption and TaskOption to be used interchangeably.
 type StandaloneTaskOption any
@@ -378,9 +383,10 @@ func (st *StandaloneTask) RunMany(ctx context.Context, inputs []RunManyOpt) ([]W
 	return workflowRefs, nil
 }
 
-// Dump implements the WorkflowBase interface for internal use, delegating to the underlying workflow.
-func (st *StandaloneTask) Dump() (*contracts.CreateWorkflowVersionRequest, []internal.NamedFunction, []internal.NamedFunction, internal.WrappedTaskFn) {
-	return st.workflow.Dump()
+// OnFailure sets a failure handler for the standalone task.
+// The handler will be called when the standalone task fails.
+func (st *StandaloneTask) OnFailure(fn any) {
+	st.workflow.OnFailure(fn)
 }
 
 // WorkflowRunRef is a type that represents a reference to a workflow run.

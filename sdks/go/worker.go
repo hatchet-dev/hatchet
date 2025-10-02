@@ -3,6 +3,7 @@ package hatchet
 import (
 	"github.com/rs/zerolog"
 
+	v1 "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	"github.com/hatchet-dev/hatchet/sdks/go/internal"
 )
 
@@ -10,7 +11,7 @@ import (
 type WorkerOption func(*workerConfig)
 
 type workerConfig struct {
-	workflows    []internal.WorkflowBase
+	workflows    []WorkflowBase
 	slots        int
 	durableSlots int
 	labels       map[string]any
@@ -18,9 +19,17 @@ type workerConfig struct {
 	panicHandler func(ctx Context, recovered any)
 }
 
+type WorkflowBase interface {
+	GetName() string
+	OnFailure(fn any)
+
+	// Internal use only. Will be removed in the future.
+	Dump() (*v1.CreateWorkflowVersionRequest, []internal.NamedFunction, []internal.NamedFunction, internal.WrappedTaskFn)
+}
+
 // WithWorkflows registers workflows and standalone tasks with the worker.
 // Both workflows and standalone tasks implement the WorkflowBase interface.
-func WithWorkflows(workflows ...internal.WorkflowBase) WorkerOption {
+func WithWorkflows(workflows ...WorkflowBase) WorkerOption {
 	return func(config *workerConfig) {
 		config.workflows = workflows
 	}

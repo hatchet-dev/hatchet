@@ -1644,7 +1644,7 @@ CREATE TABLE v1_payload (
 
     PRIMARY KEY (tenant_id, inserted_at, id, type),
     CHECK (
-        (location = 'INLINE' AND inline_content IS NOT NULL AND external_location_key IS NULL)
+        (location = 'INLINE' AND external_location_key IS NULL)
         OR
         (location = 'EXTERNAL' AND inline_content IS NULL AND external_location_key IS NOT NULL)
     )

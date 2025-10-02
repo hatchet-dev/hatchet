@@ -263,7 +263,7 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		DurableSleepLimit: scf.Runtime.TaskOperationLimits.DurableSleepLimit,
 	}
 
-	v1, cleanupV1 := repov1.NewRepository(pool, &l, retentionPeriod, retentionPeriod, scf.Runtime.MaxInternalRetryCount, entitlementRepo, taskLimits, scf.PayloadStore.EnablePayloadDualWrites)
+	v1, cleanupV1 := repov1.NewRepository(pool, &l, retentionPeriod, retentionPeriod, scf.Runtime.MaxInternalRetryCount, entitlementRepo, taskLimits, scf.PayloadStore.EnablePayloadDualWrites, scf.PayloadStore.WALPollLimit)
 
 	apiRepo, cleanupApiRepo, err := postgresdb.NewAPIRepository(pool, &scf.Runtime, opts...)
 
@@ -405,6 +405,8 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 				rabbitmqv1.WithLogger(&l),
 				rabbitmqv1.WithQos(cf.MessageQueue.RabbitMQ.Qos),
 				rabbitmqv1.WithDisableTenantExchangePubs(cf.Runtime.DisableTenantPubs),
+				rabbitmqv1.WithMaxPubChannels(cf.MessageQueue.RabbitMQ.MaxPubChans),
+				rabbitmqv1.WithMaxSubChannels(cf.MessageQueue.RabbitMQ.MaxSubChans),
 			)
 
 			cleanup1 = func() error {

@@ -823,6 +823,7 @@ WITH ordered_names AS (
 INSERT INTO v1_queue (tenant_id, name, last_active)
 SELECT $1, name, NOW()
 FROM names_to_insert
+ON CONFLICT (tenant_id, name) DO NOTHING
 `
 
 type UpsertQueuesParams struct {

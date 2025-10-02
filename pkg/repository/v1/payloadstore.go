@@ -3,6 +3,7 @@ package v1
 import (
 	"context"
 	"fmt"
+	"sort"
 	"time"
 
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
@@ -54,6 +55,7 @@ type PayloadStoreRepository interface {
 	ProcessPayloadWAL(ctx context.Context, partitionNumber int64) (bool, error)
 	OverwriteExternalStore(store ExternalStore, inlineStoreTTL time.Duration)
 	DualWritesEnabled() bool
+	WALPollLimit() int
 }
 
 type payloadStoreRepositoryImpl struct {
@@ -64,6 +66,7 @@ type payloadStoreRepositoryImpl struct {
 	inlineStoreTTL          *time.Duration
 	externalStore           ExternalStore
 	enablePayloadDualWrites bool
+	walPollLimit            int
 }
 
 func NewPayloadStoreRepository(
@@ -71,6 +74,7 @@ func NewPayloadStoreRepository(
 	l *zerolog.Logger,
 	queries *sqlcv1.Queries,
 	enablePayloadDualWrites bool,
+	walPollLimit int,
 ) PayloadStoreRepository {
 	return &payloadStoreRepositoryImpl{
 		pool:    pool,
@@ -81,34 +85,62 @@ func NewPayloadStoreRepository(
 		inlineStoreTTL:          nil,
 		externalStore:           &NoOpExternalStore{},
 		enablePayloadDualWrites: enablePayloadDualWrites,
+		walPollLimit:            walPollLimit,
 	}
 }
 
+type PayloadUniqueKey struct {
+	ID         int64
+	InsertedAt pgtype.Timestamptz
+	TenantId   pgtype.UUID
+	Type       sqlcv1.V1PayloadType
+}
+
 func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx sqlcv1.DBTX, payloads ...StorePayloadOpts) error {
-	taskIds := make([]int64, len(payloads))
-	taskInsertedAts := make([]pgtype.Timestamptz, len(payloads))
-	payloadTypes := make([]string, len(payloads))
-	inlineContents := make([][]byte, len(payloads))
-	offloadAts := make([]pgtype.Timestamptz, len(payloads))
-	operations := make([]string, len(payloads))
-	tenantIds := make([]pgtype.UUID, len(payloads))
-	locations := make([]string, len(payloads))
+	taskIds := make([]int64, 0, len(payloads))
+	taskInsertedAts := make([]pgtype.Timestamptz, 0, len(payloads))
+	payloadTypes := make([]string, 0, len(payloads))
+	inlineContents := make([][]byte, 0, len(payloads))
+	offloadAts := make([]pgtype.Timestamptz, 0, len(payloads))
+	operations := make([]string, 0, len(payloads))
+	tenantIds := make([]pgtype.UUID, 0, len(payloads))
+	locations := make([]string, 0, len(payloads))
 
-	for i, payload := range payloads {
-		taskIds[i] = payload.Id
-		taskInsertedAts[i] = payload.InsertedAt
-		payloadTypes[i] = string(payload.Type)
-		tenantIds[i] = sqlchelpers.UUIDFromStr(payload.TenantId)
-		locations[i] = string(sqlcv1.V1PayloadLocationINLINE)
+	seenPayloadUniqueKeys := make(map[PayloadUniqueKey]struct{})
 
-		if p.externalStoreEnabled {
-			offloadAts[i] = pgtype.Timestamptz{Time: payload.InsertedAt.Time.Add(*p.inlineStoreTTL), Valid: true}
-		} else {
-			offloadAts[i] = pgtype.Timestamptz{Time: time.Now(), Valid: true}
+	sort.Slice(payloads, func(i, j int) bool {
+		// sort payloads descending by inserted at to deduplicate operations
+		return payloads[i].InsertedAt.Time.After(payloads[j].InsertedAt.Time)
+	})
+
+	for _, payload := range payloads {
+		tenantId := sqlchelpers.UUIDFromStr(payload.TenantId)
+		uniqueKey := PayloadUniqueKey{
+			ID:         payload.Id,
+			InsertedAt: payload.InsertedAt,
+			TenantId:   tenantId,
+			Type:       payload.Type,
 		}
 
-		operations[i] = string(sqlcv1.V1PayloadWalOperationCREATE)
-		inlineContents[i] = payload.Payload
+		if _, exists := seenPayloadUniqueKeys[uniqueKey]; exists {
+			continue
+		}
+
+		seenPayloadUniqueKeys[uniqueKey] = struct{}{}
+
+		taskIds = append(taskIds, payload.Id)
+		taskInsertedAts = append(taskInsertedAts, payload.InsertedAt)
+		payloadTypes = append(payloadTypes, string(payload.Type))
+		tenantIds = append(tenantIds, tenantId)
+		locations = append(locations, string(sqlcv1.V1PayloadLocationINLINE))
+		inlineContents = append(inlineContents, payload.Payload)
+		operations = append(operations, string(sqlcv1.V1PayloadWalOperationCREATE))
+
+		if p.externalStoreEnabled {
+			offloadAts = append(offloadAts, pgtype.Timestamptz{Time: payload.InsertedAt.Time.Add(*p.inlineStoreTTL), Valid: true})
+		} else {
+			offloadAts = append(offloadAts, pgtype.Timestamptz{Time: time.Now(), Valid: true})
+		}
 	}
 
 	err := p.queries.WritePayloads(ctx, p.pool, sqlcv1.WritePayloadsParams{
@@ -277,14 +309,12 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadWAL(ctx context.Context, part
 		return false, nil
 	}
 
-	pollLimit := 1000
-
 	walRecords, err := p.queries.PollPayloadWALForRecordsToOffload(ctx, tx, sqlcv1.PollPayloadWALForRecordsToOffloadParams{
-		Polllimit:       int32(pollLimit),
+		Polllimit:       int32(p.walPollLimit),
 		Partitionnumber: int32(partitionNumber),
 	})
 
-	hasMoreWALRecords := len(walRecords) == pollLimit
+	hasMoreWALRecords := len(walRecords) == p.walPollLimit
 
 	if len(walRecords) == 0 {
 		return false, nil
@@ -433,6 +463,10 @@ func (p *payloadStoreRepositoryImpl) OverwriteExternalStore(store ExternalStore,
 
 func (p *payloadStoreRepositoryImpl) DualWritesEnabled() bool {
 	return p.enablePayloadDualWrites
+}
+
+func (p *payloadStoreRepositoryImpl) WALPollLimit() int {
+	return p.walPollLimit
 }
 
 type NoOpExternalStore struct{}

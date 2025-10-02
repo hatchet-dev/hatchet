@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"sort"
 	"sync"
 	"time"
 
@@ -233,6 +234,7 @@ type OLAPRepository interface {
 	GetTaskTimings(ctx context.Context, tenantId string, workflowRunId pgtype.UUID, depth int32) ([]*sqlcv1.PopulateTaskRunDataRow, map[string]int32, error)
 	BulkCreateEventsAndTriggers(ctx context.Context, events sqlcv1.BulkCreateEventsParams, triggers []EventTriggersFromExternalId) error
 	ListEvents(ctx context.Context, opts sqlcv1.ListEventsParams) ([]*ListEventsRow, *int64, error)
+	GetEvent(ctx context.Context, externalId string) (*sqlcv1.V1EventsOlap, error)
 	ListEventKeys(ctx context.Context, tenantId string) ([]string, error)
 
 	GetDAGDurations(ctx context.Context, tenantId string, externalIds []pgtype.UUID, minInsertedAt pgtype.Timestamptz) (map[string]*sqlcv1.GetDagDurationsRow, error)
@@ -256,10 +258,10 @@ type OLAPRepositoryImpl struct {
 	shouldPartitionEventsTables bool
 }
 
-func NewOLAPRepositoryFromPool(pool *pgxpool.Pool, l *zerolog.Logger, olapRetentionPeriod time.Duration, entitlements repository.EntitlementsRepository, shouldPartitionEventsTables, enablePayloadDualWrites bool) (OLAPRepository, func() error) {
+func NewOLAPRepositoryFromPool(pool *pgxpool.Pool, l *zerolog.Logger, olapRetentionPeriod time.Duration, entitlements repository.EntitlementsRepository, shouldPartitionEventsTables, enablePayloadDualWrites bool, payloadStoreWALPollLimit int) (OLAPRepository, func() error) {
 	v := validator.NewDefaultValidator()
 
-	shared, cleanupShared := newSharedRepository(pool, v, l, entitlements, enablePayloadDualWrites)
+	shared, cleanupShared := newSharedRepository(pool, v, l, entitlements, enablePayloadDualWrites, payloadStoreWALPollLimit)
 
 	return newOLAPRepository(shared, olapRetentionPeriod, shouldPartitionEventsTables), cleanupShared
 }
@@ -1303,7 +1305,7 @@ func (r *OLAPRepositoryImpl) writeTaskBatch(ctx context.Context, tenantId string
 		// fall back to input if payload is empty
 		// for backwards compatibility
 		if len(payload) == 0 {
-			r.l.Error().Msgf("task %s has empty payload, falling back to input", task.ExternalID.String())
+			r.l.Error().Msgf("writeTaskBatch: task %s has empty payload, falling back to input", task.ExternalID.String())
 			payload = task.Input
 		}
 
@@ -1597,6 +1599,10 @@ func (r *OLAPRepositoryImpl) BulkCreateEventsAndTriggers(ctx context.Context, ev
 	return nil
 }
 
+func (r *OLAPRepositoryImpl) GetEvent(ctx context.Context, externalId string) (*sqlcv1.V1EventsOlap, error) {
+	return r.queries.GetEventByExternalId(ctx, r.readPool, sqlchelpers.UUIDFromStr(externalId))
+}
+
 type ListEventsRow struct {
 	TenantID                pgtype.UUID        `json:"tenant_id"`
 	EventID                 int64              `json:"event_id"`
@@ -1854,6 +1860,12 @@ func (r *OLAPRepositoryImpl) AnalyzeOLAPTables(ctx context.Context) error {
 		return fmt.Errorf("error analyzing v1_dags_olap: %v", err)
 	}
 
+	err = r.queries.AnalyzeV1DAGToTaskOLAP(ctx, tx)
+
+	if err != nil {
+		return fmt.Errorf("error analyzing v1_dag_to_task_olap: %v", err)
+	}
+
 	if err := commit(ctx); err != nil {
 		return fmt.Errorf("error committing transaction: %v", err)
 	}
@@ -1915,6 +1927,14 @@ func (r *OLAPRepositoryImpl) populateTaskRunData(ctx context.Context, tx pgx.Tx,
 	for _, taskData := range idInsertedAtToData {
 		result = append(result, taskData)
 	}
+
+	sort.Slice(result, func(i, j int) bool {
+		if result[i].InsertedAt.Time.Equal(result[j].InsertedAt.Time) {
+			return result[i].ID < result[j].ID
+		}
+
+		return result[i].InsertedAt.Time.After(result[j].InsertedAt.Time)
+	})
 
 	return result, nil
 

@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/getkin/kin-openapi/openapi3"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/rs/zerolog"
@@ -43,6 +45,7 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/middleware/ratelimit"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
@@ -236,6 +239,19 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 		return tenant, "", nil
 	})
 
+	populatorMW.RegisterGetter("member", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
+		ctxTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		member, err := config.APIRepository.Tenant().GetTenantMemberByID(ctxTimeout, id)
+
+		if err != nil {
+			return nil, "", err
+		}
+
+		return member, sqlchelpers.UUIDToStr(member.TenantId), nil
+	})
+
 	populatorMW.RegisterGetter("api-token", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
 		ctxTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
@@ -376,8 +392,23 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 
 		event, err := config.APIRepository.Event().GetEventById(timeoutCtx, id)
 
-		if err != nil {
+		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 			return nil, "", err
+		} else if errors.Is(err, pgx.ErrNoRows) {
+			v1Event, err := t.config.V1.OLAP().GetEvent(timeoutCtx, id)
+
+			if err != nil {
+				return nil, "", err
+			}
+
+			event = &dbsqlc.Event{
+				ID:                 v1Event.ExternalID,
+				TenantId:           v1Event.TenantID,
+				Data:               v1Event.Payload,
+				CreatedAt:          pgtype.Timestamp(v1Event.SeenAt),
+				AdditionalMetadata: v1Event.AdditionalMetadata,
+				Key:                v1Event.Key,
+			}
 		}
 
 		return event, sqlchelpers.UUIDToStr(event.TenantId), nil
