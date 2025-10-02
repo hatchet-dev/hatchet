@@ -51,13 +51,14 @@ func (q *Queries) BulkQueueItems(ctx context.Context, db DBTX, ids []int64) ([]i
 	return items, nil
 }
 
-const cleanupV1QueueItem = `-- name: CleanupV1QueueItem :exec
+const cleanupV1QueueItem = `-- name: CleanupV1QueueItem :one
 WITH qis as (
     SELECT qi.task_id, qi.task_inserted_at, qi.retry_count
     FROM v1_queue_item qi
     LEFT JOIN v1_task vt ON qi.task_id = vt.id
         AND qi.task_inserted_at = vt.inserted_at
     WHERE vt.id IS NULL
+    LIMIT $1::int
 ), locked_qis AS (
     SELECT task_id, task_inserted_at, retry_count
     FROM v1_queue_item
@@ -66,18 +67,21 @@ WITH qis as (
         FROM qis
     )
     order by id ASC
-    FOR UPDATE
+    FOR UPDATE SKIP LOCKED
 )
 DELETE FROM v1_queue_item
 WHERE (task_id, task_inserted_at, retry_count) IN (
     SELECT task_id, task_inserted_at, retry_count
     FROM locked_qis
 )
+RETURNING (SELECT COUNT(*) FROM locked_qis) as deleted_count
 `
 
-func (q *Queries) CleanupV1QueueItem(ctx context.Context, db DBTX) error {
-	_, err := db.Exec(ctx, cleanupV1QueueItem)
-	return err
+func (q *Queries) CleanupV1QueueItem(ctx context.Context, db DBTX, batchSize int32) (int64, error) {
+	row := db.QueryRow(ctx, cleanupV1QueueItem, batchSize)
+	var deleted_count int64
+	err := row.Scan(&deleted_count)
+	return deleted_count, err
 }
 
 const deleteTasksFromQueue = `-- name: DeleteTasksFromQueue :exec

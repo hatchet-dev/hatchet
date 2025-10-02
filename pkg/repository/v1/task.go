@@ -3469,22 +3469,65 @@ func (r *TaskRepositoryImpl) Cleanup(ctx context.Context) error {
 		return nil
 	}
 
-	err = r.queries.CleanupV1QueueItem(ctx, tx)
+	const batchSize = 1000
+	totalDeleted := int64(0)
 
-	if err != nil {
-		return fmt.Errorf("error cleaning up v1_queue_item: %v", err)
+	for {
+		deleted, err := r.queries.CleanupV1QueueItem(ctx, tx, batchSize)
+		if err != nil {
+			return fmt.Errorf("error cleaning up v1_queue_item: %v", err)
+		}
+
+		totalDeleted += deleted
+
+		if deleted == 0 {
+			break
+		}
+
+		r.l.Debug().Int64("deleted", deleted).Int64("total", totalDeleted).Msg("cleaned up v1_queue_item batch")
 	}
 
-	err = r.queries.CleanupV1TaskRuntime(ctx, tx)
-
-	if err != nil {
-		return fmt.Errorf("error cleaning up v1_task_runtime: %v", err)
+	if totalDeleted > 0 {
+		r.l.Info().Int64("total_deleted", totalDeleted).Msg("cleaned up v1_queue_item")
 	}
 
-	err = r.queries.CleanupV1ConcurrencySlot(ctx, tx)
+	totalDeleted = 0
+	for {
+		deleted, err := r.queries.CleanupV1TaskRuntime(ctx, tx, batchSize)
+		if err != nil {
+			return fmt.Errorf("error cleaning up v1_task_runtime: %v", err)
+		}
 
-	if err != nil {
-		return fmt.Errorf("error cleaning up v1_concurrency_slot: %v", err)
+		totalDeleted += deleted
+
+		if deleted == 0 {
+			break
+		}
+
+		r.l.Debug().Int64("deleted", deleted).Int64("total", totalDeleted).Msg("cleaned up v1_task_runtime batch")
+	}
+
+	if totalDeleted > 0 {
+		r.l.Info().Int64("total_deleted", totalDeleted).Msg("cleaned up v1_task_runtime")
+	}
+
+	totalDeleted = 0
+	for {
+		deleted, err := r.queries.CleanupV1ConcurrencySlot(ctx, tx, batchSize)
+		if err != nil {
+			return fmt.Errorf("error cleaning up v1_concurrency_slot: %v", err)
+		}
+
+		totalDeleted += deleted
+		if deleted == 0 {
+			break
+		}
+
+		r.l.Debug().Int64("deleted", deleted).Int64("total", totalDeleted).Msg("cleaned up v1_concurrency_slot batch")
+	}
+
+	if totalDeleted > 0 {
+		r.l.Info().Int64("total_deleted", totalDeleted).Msg("cleaned up v1_concurrency_slot")
 	}
 
 	if err := commit(ctx); err != nil {
