@@ -11,102 +11,58 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const cutOverPayloadsToExternal = `-- name: CutOverPayloadsToExternal :exec
-WITH inputs AS (
-    SELECT
-        UNNEST($1::BIGINT[]) AS id,
-        UNNEST($2::TIMESTAMPTZ[]) AS inserted_at,
-        UNNEST(CAST($3::TEXT[] AS v1_payload_type[])) AS type,
-        UNNEST($4::TIMESTAMPTZ[]) AS cut_over_at,
-        UNNEST($5::UUID[]) AS tenant_id
+const cutOverPayloadsToExternal = `-- name: CutOverPayloadsToExternal :one
+WITH tenants AS (
+    SELECT UNNEST(
+        find_matching_tenants_in_payload_cutover_queue_item_partition(
+            $1::INT
+        )
+    ) AS tenant_id
+), queue_items AS (
+    SELECT tenant_id, cut_over_at, payload_id, payload_inserted_at, payload_type
+    FROM v1_payload_cutover_queue_item
+    WHERE
+        tenant_id = ANY(SELECT tenant_id FROM tenants)
+        AND cut_over_at <= NOW()
+    ORDER BY cut_over_at, tenant_id, payload_id, payload_inserted_at, payload_type
+    LIMIT $2::INT
+    FOR UPDATE SKIP LOCKED
 ), payload_updates AS (
     UPDATE v1_payload
     SET
         location = 'EXTERNAL',
         inline_content = NULL,
         updated_at = NOW()
-    FROM inputs i
+    FROM queue_items qi
     WHERE
-        v1_payload.id = i.id
-        AND v1_payload.inserted_at = i.inserted_at
-        AND v1_payload.tenant_id = i.tenant_id
+        v1_payload.id = qi.payload_id
+        AND v1_payload.inserted_at = qi.payload_inserted_at
+        AND v1_payload.tenant_id = qi.tenant_id
+        AND v1_payload.type = qi.payload_type
+        AND v1_payload.external_location_key IS NOT NULL
+), deletions AS (
+    DELETE FROM v1_payload_cutover_queue_item
+    WHERE
+        (cut_over_at, payload_id, payload_inserted_at, payload_type, tenant_id) IN (
+            SELECT cut_over_at, payload_id, payload_inserted_at, payload_type, tenant_id
+            FROM queue_items
+        )
 )
 
-DELETE FROM v1_payload_cutover_queue_item
-WHERE
-    (cut_over_at, payload_id, payload_inserted_at, payload_type, tenant_id) IN (
-        SELECT cut_over_at, id, inserted_at, type, tenant_id
-        FROM inputs
-    )
+SELECT COUNT(*)
+FROM queue_items
 `
 
 type CutOverPayloadsToExternalParams struct {
-	Ids          []int64              `json:"ids"`
-	Insertedats  []pgtype.Timestamptz `json:"insertedats"`
-	Payloadtypes []string             `json:"payloadtypes"`
-	Cutoverats   []pgtype.Timestamptz `json:"cutoverats"`
-	Tenantids    []pgtype.UUID        `json:"tenantids"`
-}
-
-func (q *Queries) CutOverPayloadsToExternal(ctx context.Context, db DBTX, arg CutOverPayloadsToExternalParams) error {
-	_, err := db.Exec(ctx, cutOverPayloadsToExternal,
-		arg.Ids,
-		arg.Insertedats,
-		arg.Payloadtypes,
-		arg.Cutoverats,
-		arg.Tenantids,
-	)
-	return err
-}
-
-const pollPayloadCutOverQueueItemsForRecordsToCutOver = `-- name: PollPayloadCutOverQueueItemsForRecordsToCutOver :many
-WITH tenants AS (
-    SELECT UNNEST(
-        find_matching_tenants_in_payload_cutover_queue_item_partition(
-            $2::INT
-        )
-    ) AS tenant_id
-)
-
-SELECT tenant_id, cut_over_at, payload_id, payload_inserted_at, payload_type
-FROM v1_payload_cutover_queue_item
-WHERE
-    tenant_id = ANY(SELECT tenant_id FROM tenants)
-    AND cut_over_at <= NOW()
-ORDER BY cut_over_at, tenant_id, payload_id, payload_inserted_at, payload_type
-LIMIT $1::INT
-FOR UPDATE SKIP LOCKED
-`
-
-type PollPayloadCutOverQueueItemsForRecordsToCutOverParams struct {
-	Polllimit       int32 `json:"polllimit"`
 	Partitionnumber int32 `json:"partitionnumber"`
+	Polllimit       int32 `json:"polllimit"`
 }
 
-func (q *Queries) PollPayloadCutOverQueueItemsForRecordsToCutOver(ctx context.Context, db DBTX, arg PollPayloadCutOverQueueItemsForRecordsToCutOverParams) ([]*V1PayloadCutoverQueueItem, error) {
-	rows, err := db.Query(ctx, pollPayloadCutOverQueueItemsForRecordsToCutOver, arg.Polllimit, arg.Partitionnumber)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []*V1PayloadCutoverQueueItem
-	for rows.Next() {
-		var i V1PayloadCutoverQueueItem
-		if err := rows.Scan(
-			&i.TenantID,
-			&i.CutOverAt,
-			&i.PayloadID,
-			&i.PayloadInsertedAt,
-			&i.PayloadType,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, &i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
+func (q *Queries) CutOverPayloadsToExternal(ctx context.Context, db DBTX, arg CutOverPayloadsToExternalParams) (int64, error) {
+	row := db.QueryRow(ctx, cutOverPayloadsToExternal, arg.Partitionnumber, arg.Polllimit)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
 }
 
 const pollPayloadWALForRecordsToReplicate = `-- name: PollPayloadWALForRecordsToReplicate :many

@@ -156,50 +156,45 @@ WHERE
     )
 ;
 
--- name: PollPayloadCutOverQueueItemsForRecordsToCutOver :many
+
+-- name: CutOverPayloadsToExternal :one
 WITH tenants AS (
     SELECT UNNEST(
         find_matching_tenants_in_payload_cutover_queue_item_partition(
             @partitionNumber::INT
         )
     ) AS tenant_id
-)
-
-SELECT *
-FROM v1_payload_cutover_queue_item
-WHERE
-    tenant_id = ANY(SELECT tenant_id FROM tenants)
-    AND cut_over_at <= NOW()
-ORDER BY cut_over_at, tenant_id, payload_id, payload_inserted_at, payload_type
-LIMIT @pollLimit::INT
-FOR UPDATE SKIP LOCKED
-;
-
--- name: CutOverPayloadsToExternal :exec
-WITH inputs AS (
-    SELECT
-        UNNEST(@ids::BIGINT[]) AS id,
-        UNNEST(@insertedAts::TIMESTAMPTZ[]) AS inserted_at,
-        UNNEST(CAST(@payloadTypes::TEXT[] AS v1_payload_type[])) AS type,
-        UNNEST(@cutOverAts::TIMESTAMPTZ[]) AS cut_over_at,
-        UNNEST(@tenantIds::UUID[]) AS tenant_id
+), queue_items AS (
+    SELECT *
+    FROM v1_payload_cutover_queue_item
+    WHERE
+        tenant_id = ANY(SELECT tenant_id FROM tenants)
+        AND cut_over_at <= NOW()
+    ORDER BY cut_over_at, tenant_id, payload_id, payload_inserted_at, payload_type
+    LIMIT @pollLimit::INT
+    FOR UPDATE SKIP LOCKED
 ), payload_updates AS (
     UPDATE v1_payload
     SET
         location = 'EXTERNAL',
         inline_content = NULL,
         updated_at = NOW()
-    FROM inputs i
+    FROM queue_items qi
     WHERE
-        v1_payload.id = i.id
-        AND v1_payload.inserted_at = i.inserted_at
-        AND v1_payload.tenant_id = i.tenant_id
+        v1_payload.id = qi.payload_id
+        AND v1_payload.inserted_at = qi.payload_inserted_at
+        AND v1_payload.tenant_id = qi.tenant_id
+        AND v1_payload.type = qi.payload_type
+        AND v1_payload.external_location_key IS NOT NULL
+), deletions AS (
+    DELETE FROM v1_payload_cutover_queue_item
+    WHERE
+        (cut_over_at, payload_id, payload_inserted_at, payload_type, tenant_id) IN (
+            SELECT cut_over_at, payload_id, payload_inserted_at, payload_type, tenant_id
+            FROM queue_items
+        )
 )
 
-DELETE FROM v1_payload_cutover_queue_item
-WHERE
-    (cut_over_at, payload_id, payload_inserted_at, payload_type, tenant_id) IN (
-        SELECT cut_over_at, id, inserted_at, type, tenant_id
-        FROM inputs
-    )
+SELECT COUNT(*)
+FROM queue_items
 ;
