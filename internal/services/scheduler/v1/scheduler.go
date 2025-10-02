@@ -8,6 +8,7 @@ import (
 
 	"github.com/go-co-op/gocron/v2"
 	"github.com/hashicorp/go-multierror"
+	"github.com/hashicorp/golang-lru/v2/expirable"
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/internal/datautils"
@@ -125,6 +126,8 @@ type Scheduler struct {
 	ql *zerolog.Logger
 
 	pool *v1.SchedulingPool
+
+	tasksWithNoWorkerCache *expirable.LRU[string, struct{}]
 }
 
 func New(
@@ -167,18 +170,22 @@ func New(
 
 	pubBuffer := msgqueue.NewMQPubBuffer(opts.mq)
 
+	// TODO: replace with config or pull into a constant
+	tasksWithNoWorkerCache := expirable.NewLRU(10000, func(string, struct{}) {}, 5*time.Minute)
+
 	q := &Scheduler{
-		mq:        opts.mq,
-		pubBuffer: pubBuffer,
-		l:         opts.l,
-		repo:      opts.repo,
-		repov1:    opts.repov1,
-		dv:        opts.dv,
-		s:         s,
-		a:         a,
-		p:         opts.p,
-		ql:        opts.queueLogger,
-		pool:      opts.pool,
+		mq:                     opts.mq,
+		pubBuffer:              pubBuffer,
+		l:                      opts.l,
+		repo:                   opts.repo,
+		repov1:                 opts.repov1,
+		dv:                     opts.dv,
+		s:                      s,
+		a:                      a,
+		p:                      opts.p,
+		ql:                     opts.queueLogger,
+		pool:                   opts.pool,
+		tasksWithNoWorkerCache: tasksWithNoWorkerCache,
 	}
 
 	return q, nil
@@ -546,41 +553,45 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId string, res *
 	}
 
 	if len(res.Unassigned) > 0 {
-		// for _, unassigned := range res.Unassigned {
-		// taskId := unassigned.TaskID
+		for _, unassigned := range res.Unassigned {
+			taskExternalId := sqlchelpers.UUIDToStr(unassigned.ExternalID)
 
-		// msg, err := tasktypes.MonitoringEventMessageFromInternal(
-		// 	tenantId,
-		// 	tasktypes.CreateMonitoringEventPayload{
-		// 		TaskId:         taskId,
-		// 		RetryCount:     unassigned.RetryCount,
-		// 		EventType:      sqlcv1.V1EventTypeOlapREQUEUEDNOWORKER,
-		// 		EventTimestamp: time.Now(),
-		// 	},
-		// )
+			// if we have seen this task recently, don't send it again
+			if _, ok := s.tasksWithNoWorkerCache.Get(taskExternalId); ok {
+				s.l.Debug().Msgf("skipping unassigned task %s as it was recently unassigned", taskExternalId)
+				continue
+			}
 
-		// if err != nil {
-		// 	outerErr = multierror.Append(outerErr, fmt.Errorf("could not create cancelled task: %w", err))
-		// 	continue
-		// }
+			taskId := unassigned.TaskID
 
-		// err = s.mq.SendMessage(
-		// 	ctx,
-		// 	msgqueue.OLAP_QUEUE,
-		// 	msg,
-		// )
+			msg, err := tasktypes.MonitoringEventMessageFromInternal(
+				tenantId,
+				tasktypes.CreateMonitoringEventPayload{
+					TaskId:         taskId,
+					RetryCount:     unassigned.RetryCount,
+					EventType:      sqlcv1.V1EventTypeOlapREQUEUEDNOWORKER,
+					EventTimestamp: time.Now(),
+				},
+			)
 
-		// err = s.pubBuffer.Pub(
-		// 	ctx,
-		// 	msgqueue.OLAP_QUEUE,
-		// 	msg,
-		// 	false,
-		// )
+			if err != nil {
+				outerErr = multierror.Append(outerErr, fmt.Errorf("could not create cancelled task: %w", err))
+				continue
+			}
 
-		// if err != nil {
-		// 	outerErr = multierror.Append(outerErr, fmt.Errorf("could not send cancelled task: %w", err))
-		// }
-		// }
+			err = s.pubBuffer.Pub(
+				ctx,
+				msgqueue.OLAP_QUEUE,
+				msg,
+				false,
+			)
+
+			if err != nil {
+				outerErr = multierror.Append(outerErr, fmt.Errorf("could not send cancelled task: %w", err))
+			}
+
+			s.tasksWithNoWorkerCache.Add(taskExternalId, struct{}{})
+		}
 	}
 
 	return outerErr
