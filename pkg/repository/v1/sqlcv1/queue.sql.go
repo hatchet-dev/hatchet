@@ -51,6 +51,35 @@ func (q *Queries) BulkQueueItems(ctx context.Context, db DBTX, ids []int64) ([]i
 	return items, nil
 }
 
+const cleanupV1QueueItem = `-- name: CleanupV1QueueItem :exec
+WITH qis as (
+    SELECT qi.task_id, qi.task_inserted_at, qi.retry_count
+    FROM v1_queue_item qi
+    LEFT JOIN v1_task vt ON qi.task_id = vt.id
+        AND qi.task_inserted_at = vt.inserted_at
+    WHERE vt.id IS NULL
+), locked_qis AS (
+    SELECT task_id, task_inserted_at, retry_count
+    FROM v1_queue_item
+    WHERE (task_id, task_inserted_at, retry_count) IN (
+        SELECT task_id, task_inserted_at, retry_count
+        FROM qis
+    )
+    order by id ASC
+    FOR UPDATE
+)
+DELETE FROM v1_queue_item
+WHERE (task_id, task_inserted_at, retry_count) IN (
+    SELECT task_id, task_inserted_at, retry_count
+    FROM locked_qis
+)
+`
+
+func (q *Queries) CleanupV1QueueItem(ctx context.Context, db DBTX) error {
+	_, err := db.Exec(ctx, cleanupV1QueueItem)
+	return err
+}
+
 const deleteTasksFromQueue = `-- name: DeleteTasksFromQueue :exec
 WITH input AS (
     SELECT

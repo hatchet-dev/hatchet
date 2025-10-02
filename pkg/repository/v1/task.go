@@ -254,6 +254,9 @@ type TaskRepository interface {
 
 	// AnalyzeTaskTables runs ANALYZE on the task tables
 	AnalyzeTaskTables(ctx context.Context) error
+
+	// Cleanup makes sure to get rid of invalid old entries
+	Cleanup(ctx context.Context) error
 }
 
 type TaskRepositoryImpl struct {
@@ -3436,6 +3439,52 @@ func (r *TaskRepositoryImpl) AnalyzeTaskTables(ctx context.Context) error {
 
 	if err != nil {
 		return fmt.Errorf("error analyzing v1_task_event: %v", err)
+	}
+
+	if err := commit(ctx); err != nil {
+		return fmt.Errorf("error committing transaction: %v", err)
+	}
+
+	return nil
+}
+
+func (r *TaskRepositoryImpl) Cleanup(ctx context.Context) error {
+	const timeout = 1000 * 60 * 5 // 5 minute timeout
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, timeout)
+
+	if err != nil {
+		return fmt.Errorf("error beginning transaction: %v", err)
+	}
+
+	defer rollback()
+
+	acquired, err := r.queries.TryAdvisoryLock(ctx, tx, hash("cleanup-tables"))
+
+	if err != nil {
+		return fmt.Errorf("error acquiring advisory lock: %v", err)
+	}
+
+	if !acquired {
+		r.l.Info().Msg("advisory lock already held, skipping table cleanup")
+		return nil
+	}
+
+	err = r.queries.CleanupV1QueueItem(ctx, tx)
+
+	if err != nil {
+		return fmt.Errorf("error cleaning up v1_queue_item: %v", err)
+	}
+
+	err = r.queries.CleanupV1TaskRuntime(ctx, tx)
+
+	if err != nil {
+		return fmt.Errorf("error cleaning up v1_task_runtime: %v", err)
+	}
+
+	err = r.queries.CleanupV1ConcurrencySlot(ctx, tx)
+
+	if err != nil {
+		return fmt.Errorf("error cleaning up v1_concurrency_slot: %v", err)
 	}
 
 	if err := commit(ctx); err != nil {

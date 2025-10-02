@@ -29,6 +29,64 @@ func (q *Queries) AnalyzeV1TaskEvent(ctx context.Context, db DBTX) error {
 	return err
 }
 
+const cleanupV1ConcurrencySlot = `-- name: CleanupV1ConcurrencySlot :exec
+WITH cs as (
+    SELECT cs.task_id, cs.task_inserted_at, cs.task_retry_count
+    FROM v1_concurrency_slot cs
+    LEFT JOIN v1_task vt ON cs.task_id = vt.id
+        AND cs.task_inserted_at = vt.inserted_at
+    WHERE vt.id IS NULL
+), locked_cs AS (
+    SELECT task_id, task_inserted_at, task_retry_count
+    FROM v1_concurrency_slot
+    WHERE (task_id, task_inserted_at, task_retry_count) IN (
+        SELECT task_id, task_inserted_at, task_retry_count
+        FROM cs
+    )
+    order by task_id, task_inserted_at, task_retry_count, strategy_id
+    FOR UPDATE
+)
+DELETE FROM v1_concurrency_slot
+WHERE (task_id, task_inserted_at, task_retry_count) IN (
+    SELECT task_id, task_inserted_at, task_retry_count
+    FROM locked_cs
+)
+`
+
+func (q *Queries) CleanupV1ConcurrencySlot(ctx context.Context, db DBTX) error {
+	_, err := db.Exec(ctx, cleanupV1ConcurrencySlot)
+	return err
+}
+
+const cleanupV1TaskRuntime = `-- name: CleanupV1TaskRuntime :exec
+WITH trs as (
+    SELECT vtr.task_id, vtr.task_inserted_at, vtr.retry_count
+    FROM v1_task_runtime vtr
+    LEFT JOIN v1_task vt ON vtr.task_id = vt.id
+        AND vtr.task_inserted_at = vt.inserted_at
+    WHERE vt.id IS NULL
+), locked_trs AS (
+    SELECT task_id, task_inserted_at, retry_count
+    FROM v1_task_runtime
+    WHERE (task_id, task_inserted_at, retry_count) IN (
+        SELECT task_id, task_inserted_at, retry_count
+        FROM trs
+    )
+    order by task_id ASC
+    FOR UPDATE
+)
+DELETE FROM v1_task_runtime
+WHERE (task_id, task_inserted_at, retry_count) IN (
+    SELECT task_id, task_inserted_at, retry_count
+    FROM locked_trs
+)
+`
+
+func (q *Queries) CleanupV1TaskRuntime(ctx context.Context, db DBTX) error {
+	_, err := db.Exec(ctx, cleanupV1TaskRuntime)
+	return err
+}
+
 const cleanupWorkflowConcurrencySlotsAfterInsert = `-- name: CleanupWorkflowConcurrencySlotsAfterInsert :exec
 WITH input AS (
     SELECT
