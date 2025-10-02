@@ -594,7 +594,7 @@ func (s *DispatcherImpl) handleTaskStarted(inputCtx context.Context, task *sqlcv
 		return nil, err
 	}
 
-	err = s.mqv1.SendMessage(inputCtx, msgqueue.TASK_PROCESSING_QUEUE, msg)
+	err = s.mqv1.SendMessage(inputCtx, msgqueue.OLAP_QUEUE, msg)
 
 	// pubBuffer.Pub(inputCtx, msgqueue.OLAP_QUEUE, msg, false)
 
