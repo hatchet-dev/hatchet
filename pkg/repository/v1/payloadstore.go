@@ -509,52 +509,20 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadExternalCutovers(ctx context.
 		return false, nil
 	}
 
-	queueItemsToCutOver, err := p.queries.PollPayloadCutOverQueueItemsForRecordsToCutOver(ctx, tx, sqlcv1.PollPayloadCutOverQueueItemsForRecordsToCutOverParams{
+	queueItemsCutOver, err := p.queries.CutOverPayloadsToExternal(ctx, tx, sqlcv1.CutOverPayloadsToExternalParams{
 		Polllimit:       int32(p.walPollLimit),
 		Partitionnumber: int32(partitionNumber),
 	})
 
-	fmt.Println("queueItemsToCutOver", queueItemsToCutOver)
+	if err != nil {
+		return false, err
+	}
 
-	hasMoreQueueItems := len(queueItemsToCutOver) == p.walPollLimit
-
-	if len(queueItemsToCutOver) == 0 {
+	if queueItemsCutOver == 0 {
 		return false, nil
 	}
 
-	if err != nil {
-		return false, err
-	}
-
-	ids := make([]int64, 0, len(queueItemsToCutOver))
-	insertedAts := make([]pgtype.Timestamptz, 0, len(queueItemsToCutOver))
-	types := make([]string, 0, len(queueItemsToCutOver))
-	offloadAts := make([]pgtype.Timestamptz, 0, len(queueItemsToCutOver))
-	tenantIds := make([]pgtype.UUID, 0, len(queueItemsToCutOver))
-
-	for _, item := range queueItemsToCutOver {
-		if item == nil {
-			continue
-		}
-
-		ids = append(ids, item.PayloadID)
-		insertedAts = append(insertedAts, item.PayloadInsertedAt)
-		types = append(types, string(item.PayloadType))
-		offloadAts = append(offloadAts, item.CutOverAt)
-		tenantIds = append(tenantIds, item.TenantID)
-	}
-
-	err = p.queries.CutOverPayloadsToExternal(ctx, tx, sqlcv1.CutOverPayloadsToExternalParams{
-		Ids:          ids,
-		Insertedats:  insertedAts,
-		Payloadtypes: types,
-		Cutoverats:   offloadAts,
-		Tenantids:    tenantIds,
-	})
-
-	if err != nil {
-		return false, err
-	}
+	hasMoreQueueItems := int(queueItemsCutOver) == p.walPollLimit
 
 	if err := commit(ctx); err != nil {
 		return false, err
