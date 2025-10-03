@@ -217,8 +217,7 @@ WITH inputs AS (
         UNNEST($2::TIMESTAMPTZ[]) AS payload_inserted_at,
         UNNEST(CAST($3::TEXT[] AS v1_payload_type[])) AS payload_type,
         UNNEST($4::TIMESTAMPTZ[]) AS offload_at,
-        UNNEST(CAST($5::TEXT[] AS v1_payload_wal_operation[])) AS operation,
-        UNNEST($6::UUID[]) AS tenant_id
+        UNNEST($5::UUID[]) AS tenant_id
 )
 
 INSERT INTO v1_payload_wal (
@@ -226,20 +225,17 @@ INSERT INTO v1_payload_wal (
     offload_at,
     payload_id,
     payload_inserted_at,
-    payload_type,
-    operation
+    payload_type
 )
 SELECT
     i.tenant_id,
     i.offload_at,
     i.payload_id,
     i.payload_inserted_at,
-    i.payload_type,
-    i.operation
+    i.payload_type
 FROM
     inputs i
-ON CONFLICT (offload_at, tenant_id, payload_id, payload_inserted_at, payload_type) DO UPDATE
-SET operation = EXCLUDED.operation
+ON CONFLICT DO NOTHING
 `
 
 type WritePayloadWALParams struct {
@@ -247,7 +243,6 @@ type WritePayloadWALParams struct {
 	Payloadinsertedats []pgtype.Timestamptz `json:"payloadinsertedats"`
 	Payloadtypes       []string             `json:"payloadtypes"`
 	Offloadats         []pgtype.Timestamptz `json:"offloadats"`
-	Operations         []string             `json:"operations"`
 	Tenantids          []pgtype.UUID        `json:"tenantids"`
 }
 
@@ -257,7 +252,6 @@ func (q *Queries) WritePayloadWAL(ctx context.Context, db DBTX, arg WritePayload
 		arg.Payloadinsertedats,
 		arg.Payloadtypes,
 		arg.Offloadats,
-		arg.Operations,
 		arg.Tenantids,
 	)
 	return err

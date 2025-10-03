@@ -9,6 +9,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
@@ -102,7 +103,6 @@ func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx sqlcv1.DBTX, 
 	payloadTypes := make([]string, 0, len(payloads))
 	inlineContents := make([][]byte, 0, len(payloads))
 	offloadAts := make([]pgtype.Timestamptz, 0, len(payloads))
-	operations := make([]string, 0, len(payloads))
 	tenantIds := make([]pgtype.UUID, 0, len(payloads))
 	locations := make([]string, 0, len(payloads))
 
@@ -134,7 +134,6 @@ func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx sqlcv1.DBTX, 
 		tenantIds = append(tenantIds, tenantId)
 		locations = append(locations, string(sqlcv1.V1PayloadLocationINLINE))
 		inlineContents = append(inlineContents, payload.Payload)
-		operations = append(operations, string(sqlcv1.V1PayloadWalOperationCREATE))
 
 		if p.externalStoreEnabled {
 			offloadAts = append(offloadAts, pgtype.Timestamptz{Time: payload.InsertedAt.Time.Add(*p.inlineStoreTTL), Valid: true})
@@ -164,7 +163,6 @@ func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx sqlcv1.DBTX, 
 			Payloadinsertedats: taskInsertedAts,
 			Payloadtypes:       payloadTypes,
 			Offloadats:         offloadAts,
-			Operations:         operations,
 		})
 
 		if err != nil {
@@ -185,7 +183,7 @@ func (p *payloadStoreRepositoryImpl) Retrieve(ctx context.Context, opts Retrieve
 	payload, ok := payloadMap[opts]
 
 	if !ok {
-		return nil, nil
+		return nil, pgx.ErrNoRows
 	}
 
 	return payload, nil
@@ -366,7 +364,7 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadWAL(ctx context.Context, part
 
 	span.SetAttributes(attrs...)
 
-	for opts, payload := range payloads {
+	for _, opts := range retrieveOpts {
 		offloadAt, ok := retrieveOptsToOffloadAt[opts]
 
 		if !ok {
@@ -378,7 +376,7 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadWAL(ctx context.Context, part
 				Id:         opts.Id,
 				InsertedAt: opts.InsertedAt,
 				Type:       opts.Type,
-				Payload:    payload,
+				Payload:    payloads[opts],
 				TenantId:   opts.TenantId.String(),
 			},
 			OffloadAt: offloadAt.Time,
@@ -406,7 +404,7 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadWAL(ctx context.Context, part
 	tenantIds := make([]pgtype.UUID, 0, len(retrieveOptsToStoredKey))
 	externalLocationKeys := make([]string, 0, len(retrieveOptsToStoredKey))
 
-	for opt := range retrieveOptsToStoredKey {
+	for _, opt := range retrieveOpts {
 		offloadAt, exists := retrieveOptsToOffloadAt[opt]
 
 		if !exists {
@@ -420,7 +418,12 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadWAL(ctx context.Context, part
 
 		key, ok := retrieveOptsToStoredKey[opt]
 		if !ok {
-			return false, fmt.Errorf("external location key not found for opts: %+v", opt)
+			// important: if there's no key here, it's likely because the payloads table did not contain the payload
+			// this is okay - it can happen if e.g. a payload partition is dropped before the WAL is processed (not a great situation, but not catastrophic)
+			// if this happens, we log an error and set the key to `""` which will allow it to be evicted from the WAL. it'll never cause
+			// an update in the payloads table because there won't be a matching row
+			p.l.Error().Int64("id", opt.Id).Time("insertedAt", opt.InsertedAt.Time).Msg("external location key not found for opts")
+			key = ""
 		}
 
 		externalLocationKeys = append(externalLocationKeys, string(key))
