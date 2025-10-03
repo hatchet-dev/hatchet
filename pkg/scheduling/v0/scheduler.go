@@ -450,14 +450,9 @@ func (s *Scheduler) tryAssignBatch(
 	defer span.End()
 
 	if len(qis) > 0 {
-		tenantIds := make(map[string]bool)
-		for _, qi := range qis {
-			tenantIds[sqlchelpers.UUIDToStr(qi.TenantId)] = true
-		}
-		uniqueTenantIds := make([]string, 0, len(tenantIds))
-		for tid := range tenantIds {
-			uniqueTenantIds = append(uniqueTenantIds, tid)
-		}
+		uniqueTenantIds := telemetry.CollectUniqueTenantIDs(qis, func(qi *dbsqlc.QueueItem) string {
+			return sqlchelpers.UUIDToStr(qi.TenantId)
+		})
 		telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant_id", Value: uniqueTenantIds})
 	}
 
@@ -676,14 +671,9 @@ func (s *Scheduler) tryAssign(
 	ctx, span := telemetry.NewSpan(ctx, "try-assign")
 
 	if len(qis) > 0 {
-		tenantIds := make(map[string]bool)
-		for _, qi := range qis {
-			tenantIds[sqlchelpers.UUIDToStr(qi.TenantId)] = true
-		}
-		uniqueTenantIds := make([]string, 0, len(tenantIds))
-		for tid := range tenantIds {
-			uniqueTenantIds = append(uniqueTenantIds, tid)
-		}
+		uniqueTenantIds := telemetry.CollectUniqueTenantIDs(qis, func(qi *dbsqlc.QueueItem) string {
+			return sqlchelpers.UUIDToStr(qi.TenantId)
+		})
 		telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant_id", Value: uniqueTenantIds})
 	}
 
