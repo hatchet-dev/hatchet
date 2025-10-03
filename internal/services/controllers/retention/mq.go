@@ -38,6 +38,8 @@ func (rc *RetentionControllerImpl) runDeleteMessageQueueItemsQueries(ctx context
 	ctx, span := telemetry.NewSpan(ctx, "delete-queue-items-tenant")
 	defer span.End()
 
+	// Note: This function operates across all tenants, so no single tenant_id attribute
+
 	err := rc.repo.MessageQueue().CleanupQueues(ctx)
 
 	if err != nil {

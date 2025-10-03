@@ -449,6 +449,18 @@ func (s *Scheduler) tryAssignBatch(
 	ctx, span := telemetry.NewSpan(ctx, "try-assign-batch")
 	defer span.End()
 
+	if len(qis) > 0 {
+		tenantIds := make(map[string]bool)
+		for _, qi := range qis {
+			tenantIds[sqlchelpers.UUIDToStr(qi.TenantId)] = true
+		}
+		uniqueTenantIds := make([]string, 0, len(tenantIds))
+		for tid := range tenantIds {
+			uniqueTenantIds = append(uniqueTenantIds, tid)
+		}
+		telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant_id", Value: uniqueTenantIds})
+	}
+
 	res = make([]*assignSingleResult, len(qis))
 
 	for i := range qis {
@@ -609,6 +621,8 @@ func (s *Scheduler) tryAssignSingleton(
 	ctx, span := telemetry.NewSpan(ctx, "try-assign-singleton") // nolint: ineffassign
 	defer span.End()
 
+	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant_id", Value: sqlchelpers.UUIDToStr(qi.TenantId)})
+
 	if qi.Sticky.Valid || len(labels) > 0 {
 		candidateSlots = getRankedSlots(qi, labels, candidateSlots)
 	}
@@ -660,6 +674,18 @@ func (s *Scheduler) tryAssign(
 	stepRunIdsToRateLimits map[string]map[string]int32,
 ) <-chan *assignResults {
 	ctx, span := telemetry.NewSpan(ctx, "try-assign")
+
+	if len(qis) > 0 {
+		tenantIds := make(map[string]bool)
+		for _, qi := range qis {
+			tenantIds[sqlchelpers.UUIDToStr(qi.TenantId)] = true
+		}
+		uniqueTenantIds := make([]string, 0, len(tenantIds))
+		for tid := range tenantIds {
+			uniqueTenantIds = append(uniqueTenantIds, tid)
+		}
+		telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant_id", Value: uniqueTenantIds})
+	}
 
 	// split into groups based on action ids, and process each action id in parallel
 	actionIdToQueueItems := make(map[string][]*dbsqlc.QueueItem)

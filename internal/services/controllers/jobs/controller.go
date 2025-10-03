@@ -318,6 +318,10 @@ func (ec *JobsControllerImpl) handleJobRunQueued(ctx context.Context, task *msgq
 
 	err = ec.dv.DecodeAndValidate(task.Metadata, &metadata)
 
+	if err == nil {
+		telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant_id", Value: metadata.TenantId})
+	}
+
 	if err != nil {
 		return fmt.Errorf("could not decode job task metadata: %w", err)
 	}
@@ -374,6 +378,10 @@ func (ec *JobsControllerImpl) handleJobRunCancelled(ctx context.Context, task *m
 
 	err = ec.dv.DecodeAndValidate(task.Metadata, &metadata)
 
+	if err == nil {
+		telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant_id", Value: metadata.TenantId})
+	}
+
 	if err != nil {
 		return fmt.Errorf("could not decode job task metadata: %w", err)
 	}
@@ -428,6 +436,10 @@ func (ec *JobsControllerImpl) handleStepRunRetry(ctx context.Context, task *msgq
 	}
 
 	err = ec.dv.DecodeAndValidate(task.Metadata, &metadata)
+
+	if err == nil {
+		telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant_id", Value: metadata.TenantId})
+	}
 
 	if err != nil {
 		return fmt.Errorf("could not decode job task metadata: %w", err)
@@ -496,6 +508,10 @@ func (ec *JobsControllerImpl) handleStepRunReplay(ctx context.Context, task *msg
 	}
 
 	err = ec.dv.DecodeAndValidate(task.Metadata, &metadata)
+
+	if err == nil {
+		telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant_id", Value: metadata.TenantId})
+	}
 
 	if err != nil {
 		return fmt.Errorf("could not decode job task metadata: %w", err)
@@ -593,6 +609,10 @@ func (ec *JobsControllerImpl) handleStepRunQueued(ctx context.Context, task *msg
 
 	err = ec.dv.DecodeAndValidate(task.Metadata, &metadata)
 
+	if err == nil {
+		telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant_id", Value: metadata.TenantId})
+	}
+
 	if err != nil {
 		return fmt.Errorf("could not decode job task metadata: %w", err)
 	}
@@ -689,6 +709,8 @@ func (ec *JobsControllerImpl) runStepRunReassignTenant(ctx context.Context, tena
 	ctx, span := telemetry.NewSpan(ctx, "handle-step-run-reassign")
 	defer span.End()
 
+	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant_id", Value: tenantId})
+
 	_, stepRunsToFail, err := ec.repo.StepRun().ListStepRunsToReassign(ctx, tenantId)
 
 	if err != nil {
@@ -719,6 +741,8 @@ func (ec *JobsControllerImpl) runStepRunReassignTenant(ctx context.Context, tena
 func (ec *JobsControllerImpl) queueStepRun(ctx context.Context, tenantId, stepId, stepRunId string, isRetry bool) error {
 	ctx, span := telemetry.NewSpan(ctx, "queue-step-run")
 	defer span.End()
+
+	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant_id", Value: tenantId})
 
 	// add the rendered data to the step run
 	stepRun, err := ec.repo.StepRun().GetStepRunForEngine(ctx, tenantId, stepRunId)
@@ -929,6 +953,10 @@ func (ec *JobsControllerImpl) handleStepRunStarted(ctx context.Context, task *ms
 
 	err = ec.dv.DecodeAndValidate(task.Metadata, &metadata)
 
+	if err == nil {
+		telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant_id", Value: metadata.TenantId})
+	}
+
 	if err != nil {
 		return fmt.Errorf("could not decode step run started task metadata: %w", err)
 	}
@@ -964,6 +992,10 @@ func (ec *JobsControllerImpl) handleStepRunAcked(ctx context.Context, task *msgq
 
 	err = ec.dv.DecodeAndValidate(task.Metadata, &metadata)
 
+	if err == nil {
+		telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant_id", Value: metadata.TenantId})
+	}
+
 	if err != nil {
 		return fmt.Errorf("could not decode step run started task metadata: %w", err)
 	}
@@ -998,6 +1030,10 @@ func (ec *JobsControllerImpl) handleStepRunFinished(ctx context.Context, task *m
 	}
 
 	err = ec.dv.DecodeAndValidate(task.Metadata, &metadata)
+
+	if err == nil {
+		telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant_id", Value: metadata.TenantId})
+	}
 
 	if err != nil {
 		return fmt.Errorf("could not decode step run finished task metadata: %w", err)
@@ -1066,6 +1102,10 @@ func (ec *JobsControllerImpl) handleStepRunFailed(ctx context.Context, task *msg
 	}
 
 	err = ec.dv.DecodeAndValidate(task.Metadata, &metadata)
+
+	if err == nil {
+		telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant_id", Value: metadata.TenantId})
+	}
 
 	if err != nil {
 		return fmt.Errorf("could not decode step run failed task metadata: %w", err)
@@ -1195,6 +1235,10 @@ func (ec *JobsControllerImpl) handleStepRunTimedOut(ctx context.Context, task *m
 
 	err = ec.dv.DecodeAndValidate(task.Metadata, &metadata)
 
+	if err == nil {
+		telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant_id", Value: metadata.TenantId})
+	}
+
 	if err != nil {
 		return fmt.Errorf("could not decode step run timed out task metadata: %w", err)
 	}
@@ -1217,6 +1261,10 @@ func (ec *JobsControllerImpl) handleStepRunCancel(ctx context.Context, task *msg
 
 	err = ec.dv.DecodeAndValidate(task.Metadata, &metadata)
 
+	if err == nil {
+		telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant_id", Value: metadata.TenantId})
+	}
+
 	if err != nil {
 		return fmt.Errorf("could not decode step run notify cancel task metadata: %w", err)
 	}
@@ -1227,6 +1275,8 @@ func (ec *JobsControllerImpl) handleStepRunCancel(ctx context.Context, task *msg
 func (ec *JobsControllerImpl) cancelStepRun(ctx context.Context, tenantId, stepRunId, reason string, propagate bool) error {
 	ctx, span := telemetry.NewSpan(ctx, "cancel-step-run")
 	defer span.End()
+
+	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant_id", Value: tenantId})
 
 	// cancel current step run
 	now := time.Now().UTC()

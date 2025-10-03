@@ -258,6 +258,8 @@ func (t *MessageQueueImpl) pubMessage(ctx context.Context, q msgqueue.Queue, msg
 	ctx, span := telemetry.NewSpanWithCarrier(ctx, "publish-message", otelCarrier)
 	defer span.End()
 
+	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant_id", Value: msg.TenantID})
+
 	msg.SetOtelCarrier(otelCarrier)
 
 	poolCh, err := t.pubChannels.Acquire(ctx)

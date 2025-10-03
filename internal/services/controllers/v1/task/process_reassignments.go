@@ -40,6 +40,8 @@ func (tc *TasksControllerImpl) processTaskReassignments(ctx context.Context, ten
 	ctx, span := telemetry.NewSpan(ctx, "process-task-reassignments")
 	defer span.End()
 
+	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant_id", Value: tenantId})
+
 	res, shouldContinue, err := tc.repov1.Tasks().ProcessTaskReassignments(ctx, tenantId)
 
 	if err != nil {

@@ -39,6 +39,10 @@ func (wc *WorkflowsControllerImpl) handleWorkflowRunQueued(ctx context.Context, 
 
 	err = wc.dv.DecodeAndValidate(task.Metadata, &metadata)
 
+	if err == nil {
+		telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant_id", Value: metadata.TenantId})
+	}
+
 	if err != nil {
 
 		return fmt.Errorf("could not decode job task metadata: %w", err)
@@ -287,6 +291,10 @@ func (wc *WorkflowsControllerImpl) handleWorkflowRunFinished(ctx context.Context
 
 	err = wc.dv.DecodeAndValidate(task.Metadata, &metadata)
 
+	if err == nil {
+		telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant_id", Value: metadata.TenantId})
+	}
+
 	if err != nil {
 		return fmt.Errorf("could not decode job task metadata: %w", err)
 	}
@@ -388,6 +396,8 @@ func (wc *WorkflowsControllerImpl) scheduleGetGroupAction(
 	defer span.End()
 
 	tenantId := sqlchelpers.UUIDToStr(getGroupKeyRun.GetGroupKeyRun.TenantId)
+
+	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant_id", Value: tenantId})
 	getGroupKeyRunId := sqlchelpers.UUIDToStr(getGroupKeyRun.GetGroupKeyRun.ID)
 	workflowRunId := sqlchelpers.UUIDToStr(getGroupKeyRun.WorkflowRunId)
 
@@ -469,6 +479,8 @@ func (ec *WorkflowsControllerImpl) runGetGroupKeyRunRequeueTenant(ctx context.Co
 	ctx, span := telemetry.NewSpan(ctx, "handle-get-group-key-run-requeue")
 	defer span.End()
 
+	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant_id", Value: tenantId})
+
 	getGroupKeyRuns, err := ec.repo.GetGroupKeyRun().ListGetGroupKeyRunsToRequeue(ctx, tenantId)
 
 	if err != nil {
@@ -486,6 +498,8 @@ func (ec *WorkflowsControllerImpl) runGetGroupKeyRunRequeueTenant(ctx context.Co
 
 			ctx, span := telemetry.NewSpan(ctx, "handle-get-group-key-run-requeue-tenant")
 			defer span.End()
+
+			telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant_id", Value: tenantId})
 
 			getGroupKeyRunId := sqlchelpers.UUIDToStr(getGroupKeyRunCp.ID)
 
@@ -556,6 +570,8 @@ func (ec *WorkflowsControllerImpl) runGetGroupKeyRunReassignTenant(ctx context.C
 	ctx, span := telemetry.NewSpan(ctx, "handle-get-group-key-run-reassign")
 	defer span.End()
 
+	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant_id", Value: tenantId})
+
 	getGroupKeyRuns, err := ec.repo.GetGroupKeyRun().ListGetGroupKeyRunsToReassign(ctx, tenantId)
 
 	if err != nil {
@@ -573,6 +589,8 @@ func (ec *WorkflowsControllerImpl) runGetGroupKeyRunReassignTenant(ctx context.C
 
 			ctx, span := telemetry.NewSpan(ctx, "handle-get-group-key-run-reassign-tenant")
 			defer span.End()
+
+			telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant_id", Value: tenantId})
 
 			getGroupKeyRunId := sqlchelpers.UUIDToStr(getGroupKeyRunCp.ID)
 
@@ -599,6 +617,8 @@ func (ec *WorkflowsControllerImpl) runGetGroupKeyRunReassignTenant(ctx context.C
 func (wc *WorkflowsControllerImpl) queueByCancelInProgress(ctx context.Context, tenantId string, workflowVersion *dbsqlc.GetWorkflowVersionForEngineRow) error {
 	ctx, span := telemetry.NewSpan(ctx, "queue-by-cancel-in-progress")
 	defer span.End()
+
+	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant_id", Value: tenantId})
 
 	workflowVersionId := sqlchelpers.UUIDToStr(workflowVersion.WorkflowVersion.ID)
 	maxRuns := int(workflowVersion.ConcurrencyMaxRuns.Int32)
@@ -657,6 +677,8 @@ func (wc *WorkflowsControllerImpl) queueByCancelNewest(ctx context.Context, tena
 	ctx, span := telemetry.NewSpan(ctx, "queue-by-cancel-newest")
 	defer span.End()
 
+	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant_id", Value: tenantId})
+
 	workflowVersionId := sqlchelpers.UUIDToStr(workflowVersion.WorkflowVersion.ID)
 	maxRuns := int(workflowVersion.ConcurrencyMaxRuns.Int32)
 
@@ -713,6 +735,8 @@ func (wc *WorkflowsControllerImpl) queueByCancelNewest(ctx context.Context, tena
 func (wc *WorkflowsControllerImpl) queueByGroupRoundRobin(ctx context.Context, tenantId string, workflowVersion *dbsqlc.GetWorkflowVersionForEngineRow) error {
 	ctx, span := telemetry.NewSpan(ctx, "queue-by-group-round-robin")
 	defer span.End()
+
+	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant_id", Value: tenantId})
 
 	workflowVersionId := sqlchelpers.UUIDToStr(workflowVersion.WorkflowVersion.ID)
 	maxRuns := int(workflowVersion.ConcurrencyMaxRuns.Int32)

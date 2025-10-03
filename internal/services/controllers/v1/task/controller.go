@@ -474,6 +474,8 @@ func (tc *TasksControllerImpl) handleTaskCompleted(ctx context.Context, tenantId
 	ctx, span := telemetry.NewSpan(ctx, "TasksControllerImpl.handleTaskCompleted")
 	defer span.End()
 
+	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant_id", Value: tenantId})
+
 	opts := make([]v1.CompleteTaskOpts, 0)
 	idsToData := make(map[int64][]byte)
 
@@ -515,6 +517,8 @@ func (tc *TasksControllerImpl) handleTaskCompleted(ctx context.Context, tenantId
 func (tc *TasksControllerImpl) handleTaskFailed(ctx context.Context, tenantId string, payloads [][]byte) error {
 	ctx, span := telemetry.NewSpan(ctx, "TasksControllerImpl.handleTaskFailed")
 	defer span.End()
+
+	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant_id", Value: tenantId})
 
 	opts := make([]v1.FailTaskOpts, 0)
 
@@ -593,6 +597,8 @@ func (tc *TasksControllerImpl) processFailTasksResponse(ctx context.Context, ten
 	ctx, span := telemetry.NewSpan(ctx, "TasksControllerImpl.processFailTasksResponse")
 	defer span.End()
 
+	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant_id", Value: tenantId})
+
 	retriedTaskIds := make(map[int64]struct{})
 
 	for _, task := range res.RetriedTasks {
@@ -648,6 +654,8 @@ func (tc *TasksControllerImpl) processFailTasksResponse(ctx context.Context, ten
 func (tc *TasksControllerImpl) handleTaskCancelled(ctx context.Context, tenantId string, payloads [][]byte) error {
 	ctx, span := telemetry.NewSpan(ctx, "TasksControllerImpl.handleTaskCancelled")
 	defer span.End()
+
+	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant_id", Value: tenantId})
 
 	opts := make([]v1.TaskIdInsertedAtRetryCount, 0)
 
@@ -1010,6 +1018,8 @@ func (tc *TasksControllerImpl) handleProcessUserEvents(ctx context.Context, tena
 	ctx, span := telemetry.NewSpan(ctx, "TasksControllerImpl.handleProcessUserEvents")
 	defer span.End()
 
+	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant_id", Value: tenantId})
+
 	msgs := msgqueue.JSONConvert[tasktypes.UserEventTaskPayload](payloads)
 
 	eg := &errgroup.Group{}
@@ -1144,6 +1154,8 @@ func (tc *TasksControllerImpl) handleProcessInternalEvents(ctx context.Context, 
 	ctx, span := telemetry.NewSpan(ctx, "TasksControllerImpl.handleProcessInternalEvents")
 	defer span.End()
 
+	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant_id", Value: tenantId})
+
 	msgs := msgqueue.JSONConvert[v1.InternalTaskEvent](payloads)
 
 	return tc.processInternalEvents(ctx, tenantId, msgs)
@@ -1180,6 +1192,8 @@ func (tc *TasksControllerImpl) handleProcessTaskTrigger(ctx context.Context, ten
 func (tc *TasksControllerImpl) sendInternalEvents(ctx context.Context, tenantId string, events []v1.InternalTaskEvent) error {
 	ctx, span := telemetry.NewSpan(ctx, "TasksControllerImpl.sendInternalEvents")
 	defer span.End()
+
+	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant_id", Value: tenantId})
 
 	if len(events) == 0 {
 		return nil
