@@ -5,7 +5,6 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
-	"math/rand"
 	"os"
 	"sync"
 	"time"
@@ -196,55 +195,6 @@ func New(fs ...MessageQueueImplOpt) (func() error, *MessageQueueImpl) {
 		return nil, nil
 	}
 
-	// init the hash queues
-	if _, err := t.initQueue(ch, msgqueue.OLAP_QUEUE_HASH_0); err != nil {
-		t.l.Debug().Msgf("error initializing olap hash queue: %v", err)
-		cancel()
-		return nil, nil
-	}
-
-	if _, err := t.initQueue(ch, msgqueue.OLAP_QUEUE_HASH_1); err != nil {
-		t.l.Debug().Msgf("error initializing olap hash queue: %v", err)
-		cancel()
-		return nil, nil
-	}
-
-	if _, err := t.initQueue(ch, msgqueue.OLAP_QUEUE_HASH_2); err != nil {
-		t.l.Debug().Msgf("error initializing olap hash queue: %v", err)
-		cancel()
-		return nil, nil
-	}
-
-	if _, err := t.initQueue(ch, msgqueue.OLAP_QUEUE_HASH_3); err != nil {
-		t.l.Debug().Msgf("error initializing olap hash queue: %v", err)
-		cancel()
-		return nil, nil
-	}
-
-	if _, err := t.initQueue(ch, msgqueue.TASK_PROCESSING_QUEUE_HASH_0); err != nil {
-		t.l.Debug().Msgf("error initializing TASK hash queue: %v", err)
-		cancel()
-		return nil, nil
-	}
-
-	if _, err := t.initQueue(ch, msgqueue.TASK_PROCESSING_QUEUE_HASH_1); err != nil {
-		t.l.Debug().Msgf("error initializing TASK hash queue: %v", err)
-		cancel()
-		return nil, nil
-	}
-
-	if _, err := t.initQueue(ch, msgqueue.TASK_PROCESSING_QUEUE_HASH_2); err != nil {
-		t.l.Debug().Msgf("error initializing TASK hash queue: %v", err)
-		cancel()
-		return nil, nil
-	}
-
-	if _, err := t.initQueue(ch, msgqueue.TASK_PROCESSING_QUEUE_HASH_3); err != nil {
-		t.l.Debug().Msgf("error initializing TASK hash queue: %v", err)
-		cancel()
-		return nil, nil
-	}
-
 	return func() error {
 		cancel()
 		return nil
@@ -290,38 +240,6 @@ func (t *MessageQueueImpl) SendMessage(ctx context.Context, q msgqueue.Queue, ms
 		attribute.Int("MessageQueueImpl.SendMessage.num_payloads", len(msg.Payloads)),
 		attribute.Int("MessageQueueImpl.SendMessage.total_size_bytes", totalSize),
 	)
-
-	// if this is an OLAP message, determine which hash queue to send it to
-	if q == msgqueue.OLAP_QUEUE {
-		// just random hashing for now
-		val := rand.Intn(4) // nolint: gosec
-
-		switch val {
-		case 0:
-			q = msgqueue.OLAP_QUEUE_HASH_0
-		case 1:
-			q = msgqueue.OLAP_QUEUE_HASH_1
-		case 2:
-			q = msgqueue.OLAP_QUEUE_HASH_2
-		case 3:
-			q = msgqueue.OLAP_QUEUE_HASH_3
-		}
-	}
-
-	if q == msgqueue.TASK_PROCESSING_QUEUE {
-		val := rand.Intn(4) // nolint: gosec
-
-		switch val {
-		case 0:
-			q = msgqueue.TASK_PROCESSING_QUEUE_HASH_0
-		case 1:
-			q = msgqueue.TASK_PROCESSING_QUEUE_HASH_1
-		case 2:
-			q = msgqueue.TASK_PROCESSING_QUEUE_HASH_2
-		case 3:
-			q = msgqueue.TASK_PROCESSING_QUEUE_HASH_3
-		}
-	}
 
 	err := t.pubMessage(ctx, q, msg)
 
@@ -472,99 +390,6 @@ func (t *MessageQueueImpl) pubMessage(ctx context.Context, q msgqueue.Queue, msg
 
 // Subscribe subscribes to the msg queue.
 func (t *MessageQueueImpl) Subscribe(
-	q msgqueue.Queue,
-	preAck msgqueue.AckHook,
-	postAck msgqueue.AckHook,
-) (func() error, error) {
-	// if this is an olap queue, we want to create multiple consumers for it
-	if q == msgqueue.OLAP_QUEUE {
-		var cleanupFns []func() error
-
-		for i := 0; i < 4; i++ {
-			var qHash msgqueue.Queue
-
-			switch i {
-			case 0:
-				qHash = msgqueue.OLAP_QUEUE_HASH_0
-			case 1:
-				qHash = msgqueue.OLAP_QUEUE_HASH_1
-			case 2:
-				qHash = msgqueue.OLAP_QUEUE_HASH_2
-			case 3:
-				qHash = msgqueue.OLAP_QUEUE_HASH_3
-			}
-
-			cleanupFn, err := t.subscribeWrapper(qHash, preAck, postAck)
-
-			if err != nil {
-				// cleanup all previous subscriptions
-				for _, fn := range cleanupFns {
-					fn() // nolint: errcheck
-				}
-				return nil, err
-			}
-
-			cleanupFns = append(cleanupFns, cleanupFn)
-		}
-
-		return func() error {
-			var firstErr error
-			for _, fn := range cleanupFns {
-				if err := fn(); err != nil && firstErr == nil {
-					firstErr = err
-				}
-
-			}
-			return firstErr
-		}, nil
-	}
-
-	if q == msgqueue.TASK_PROCESSING_QUEUE {
-		var cleanupFns []func() error
-
-		for i := 0; i < 4; i++ {
-			var qHash msgqueue.Queue
-
-			switch i {
-			case 0:
-				qHash = msgqueue.TASK_PROCESSING_QUEUE_HASH_0
-			case 1:
-				qHash = msgqueue.TASK_PROCESSING_QUEUE_HASH_1
-			case 2:
-				qHash = msgqueue.TASK_PROCESSING_QUEUE_HASH_2
-			case 3:
-				qHash = msgqueue.TASK_PROCESSING_QUEUE_HASH_3
-			}
-
-			cleanupFn, err := t.subscribeWrapper(qHash, preAck, postAck)
-
-			if err != nil {
-				// cleanup all previous subscriptions
-				for _, fn := range cleanupFns {
-					fn() // nolint: errcheck
-				}
-				return nil, err
-			}
-
-			cleanupFns = append(cleanupFns, cleanupFn)
-		}
-
-		return func() error {
-			var firstErr error
-			for _, fn := range cleanupFns {
-				if err := fn(); err != nil && firstErr == nil {
-					firstErr = err
-				}
-
-			}
-			return firstErr
-		}, nil
-	}
-
-	return t.subscribeWrapper(q, preAck, postAck)
-}
-
-func (t *MessageQueueImpl) subscribeWrapper(
 	q msgqueue.Queue,
 	preAck msgqueue.AckHook,
 	postAck msgqueue.AckHook,
