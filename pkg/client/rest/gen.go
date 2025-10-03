@@ -1559,7 +1559,8 @@ type V1LogLineLevel string
 
 // V1LogLineList defines model for V1LogLineList.
 type V1LogLineList struct {
-	Rows *[]V1LogLine `json:"rows,omitempty"`
+	Pagination *PaginationResponse `json:"pagination,omitempty"`
+	Rows       *[]V1LogLine        `json:"rows,omitempty"`
 }
 
 // V1ReplayTaskRequest defines model for V1ReplayTaskRequest.

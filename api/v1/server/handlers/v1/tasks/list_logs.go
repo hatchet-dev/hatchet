@@ -71,9 +71,18 @@ func (t *TasksService) V1LogLineList(ctx echo.Context, request gen.V1LogLineList
 		rows[i] = *transformers.ToV1LogLine(log)
 	}
 
+	totalPages := int64(0)
+	currPage := int64(0)
+	nextPage := int64(0)
+
 	return gen.V1LogLineList200JSONResponse(
 		gen.V1LogLineList{
 			Rows: &rows,
+			Pagination: &gen.PaginationResponse{
+				NumPages:    &totalPages,
+				CurrentPage: &currPage,
+				NextPage:    &nextPage,
+			},
 		},
 	), nil
 }
