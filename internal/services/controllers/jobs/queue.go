@@ -194,9 +194,7 @@ func (q *queue) handleCheckQueue(ctx context.Context, task *msgqueue.Message) er
 
 	if err == nil {
 		telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant_id", Value: metadata.TenantId})
-	}
-
-	if err != nil {
+	} else {
 		return fmt.Errorf("could not decode check queue metadata: %w", err)
 	}
 

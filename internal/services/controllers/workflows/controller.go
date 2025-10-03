@@ -369,9 +369,7 @@ func (wc *WorkflowsControllerImpl) handleCheckQueue(ctx context.Context, task *m
 
 	if err == nil {
 		telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant_id", Value: metadata.TenantId})
-	}
-
-	if err != nil {
+	} else {
 		return fmt.Errorf("could not decode check queue metadata: %w", err)
 	}
 
@@ -420,9 +418,7 @@ func (wc *WorkflowsControllerImpl) handleReplayWorkflowRun(ctx context.Context, 
 
 	if err == nil {
 		telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant_id", Value: metadata.TenantId})
-	}
-
-	if err != nil {
+	} else {
 		return fmt.Errorf("could not decode replay workflow run task metadata: %w", err)
 	}
 
@@ -457,9 +453,7 @@ func (ec *WorkflowsControllerImpl) handleGroupKeyRunStarted(ctx context.Context,
 
 	if err == nil {
 		telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant_id", Value: metadata.TenantId})
-	}
-
-	if err != nil {
+	} else {
 		return fmt.Errorf("could not decode group key run started task metadata: %w", err)
 	}
 
@@ -495,9 +489,7 @@ func (wc *WorkflowsControllerImpl) handleGroupKeyRunFinished(ctx context.Context
 
 	if err == nil {
 		telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant_id", Value: metadata.TenantId})
-	}
-
-	if err != nil {
+	} else {
 		return fmt.Errorf("could not decode group key run finished task metadata: %w", err)
 	}
 
@@ -625,9 +617,7 @@ func (wc *WorkflowsControllerImpl) handleGroupKeyRunFailed(ctx context.Context, 
 
 	if err == nil {
 		telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant_id", Value: metadata.TenantId})
-	}
-
-	if err != nil {
+	} else {
 		return fmt.Errorf("could not decode group key run failed task metadata: %w", err)
 	}
 
@@ -667,9 +657,7 @@ func (wc *WorkflowsControllerImpl) handleGetGroupKeyRunTimedOut(ctx context.Cont
 
 	if err == nil {
 		telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant_id", Value: metadata.TenantId})
-	}
-
-	if err != nil {
+	} else {
 		return fmt.Errorf("could not decode get group key run run timed out task metadata: %w", err)
 	}
 

@@ -320,9 +320,7 @@ func (ec *JobsControllerImpl) handleJobRunQueued(ctx context.Context, task *msgq
 
 	if err == nil {
 		telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant_id", Value: metadata.TenantId})
-	}
-
-	if err != nil {
+	} else {
 		return fmt.Errorf("could not decode job task metadata: %w", err)
 	}
 
@@ -380,9 +378,7 @@ func (ec *JobsControllerImpl) handleJobRunCancelled(ctx context.Context, task *m
 
 	if err == nil {
 		telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant_id", Value: metadata.TenantId})
-	}
-
-	if err != nil {
+	} else {
 		return fmt.Errorf("could not decode job task metadata: %w", err)
 	}
 
@@ -439,9 +435,7 @@ func (ec *JobsControllerImpl) handleStepRunRetry(ctx context.Context, task *msgq
 
 	if err == nil {
 		telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant_id", Value: metadata.TenantId})
-	}
-
-	if err != nil {
+	} else {
 		return fmt.Errorf("could not decode job task metadata: %w", err)
 	}
 
@@ -511,9 +505,7 @@ func (ec *JobsControllerImpl) handleStepRunReplay(ctx context.Context, task *msg
 
 	if err == nil {
 		telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant_id", Value: metadata.TenantId})
-	}
-
-	if err != nil {
+	} else {
 		return fmt.Errorf("could not decode job task metadata: %w", err)
 	}
 
@@ -611,9 +603,7 @@ func (ec *JobsControllerImpl) handleStepRunQueued(ctx context.Context, task *msg
 
 	if err == nil {
 		telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant_id", Value: metadata.TenantId})
-	}
-
-	if err != nil {
+	} else {
 		return fmt.Errorf("could not decode job task metadata: %w", err)
 	}
 
@@ -955,9 +945,7 @@ func (ec *JobsControllerImpl) handleStepRunStarted(ctx context.Context, task *ms
 
 	if err == nil {
 		telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant_id", Value: metadata.TenantId})
-	}
-
-	if err != nil {
+	} else {
 		return fmt.Errorf("could not decode step run started task metadata: %w", err)
 	}
 
@@ -994,9 +982,7 @@ func (ec *JobsControllerImpl) handleStepRunAcked(ctx context.Context, task *msgq
 
 	if err == nil {
 		telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant_id", Value: metadata.TenantId})
-	}
-
-	if err != nil {
+	} else {
 		return fmt.Errorf("could not decode step run started task metadata: %w", err)
 	}
 
@@ -1033,9 +1019,7 @@ func (ec *JobsControllerImpl) handleStepRunFinished(ctx context.Context, task *m
 
 	if err == nil {
 		telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant_id", Value: metadata.TenantId})
-	}
-
-	if err != nil {
+	} else {
 		return fmt.Errorf("could not decode step run finished task metadata: %w", err)
 	}
 
@@ -1105,9 +1089,7 @@ func (ec *JobsControllerImpl) handleStepRunFailed(ctx context.Context, task *msg
 
 	if err == nil {
 		telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant_id", Value: metadata.TenantId})
-	}
-
-	if err != nil {
+	} else {
 		return fmt.Errorf("could not decode step run failed task metadata: %w", err)
 	}
 
@@ -1237,9 +1219,7 @@ func (ec *JobsControllerImpl) handleStepRunTimedOut(ctx context.Context, task *m
 
 	if err == nil {
 		telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant_id", Value: metadata.TenantId})
-	}
-
-	if err != nil {
+	} else {
 		return fmt.Errorf("could not decode step run timed out task metadata: %w", err)
 	}
 
@@ -1263,9 +1243,7 @@ func (ec *JobsControllerImpl) handleStepRunCancel(ctx context.Context, task *msg
 
 	if err == nil {
 		telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant_id", Value: metadata.TenantId})
-	}
-
-	if err != nil {
+	} else {
 		return fmt.Errorf("could not decode step run notify cancel task metadata: %w", err)
 	}
 

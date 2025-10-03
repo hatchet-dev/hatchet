@@ -41,10 +41,7 @@ func (wc *WorkflowsControllerImpl) handleWorkflowRunQueued(ctx context.Context, 
 
 	if err == nil {
 		telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant_id", Value: metadata.TenantId})
-	}
-
-	if err != nil {
-
+	} else {
 		return fmt.Errorf("could not decode job task metadata: %w", err)
 	}
 
@@ -293,9 +290,7 @@ func (wc *WorkflowsControllerImpl) handleWorkflowRunFinished(ctx context.Context
 
 	if err == nil {
 		telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant_id", Value: metadata.TenantId})
-	}
-
-	if err != nil {
+	} else {
 		return fmt.Errorf("could not decode job task metadata: %w", err)
 	}
 
