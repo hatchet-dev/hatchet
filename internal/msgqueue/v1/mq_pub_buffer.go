@@ -186,6 +186,9 @@ func (m *msgIdPubBuffer) flush() {
 
 	msgsWithErrCh := make([]*msgWithErrCh, 0)
 	payloadBytes := make([][]byte, 0)
+	var isPersistent *bool
+	var immediatelyExpire *bool
+	var retries *int
 
 	// read all messages currently in the buffer
 	for i := 0; i < PUB_BUFFER_SIZE; i++ {
@@ -194,6 +197,24 @@ func (m *msgIdPubBuffer) flush() {
 			msgsWithErrCh = append(msgsWithErrCh, msg)
 
 			payloadBytes = append(payloadBytes, msg.msg.Payloads...)
+
+			if isPersistent == nil {
+				isPersistent = &msg.msg.Persistent
+			} else if *isPersistent != msg.msg.Persistent { // nolint: revive,staticcheck
+				// TODO: log warning about mixed persistence
+			}
+
+			if immediatelyExpire == nil {
+				immediatelyExpire = &msg.msg.ImmediatelyExpire
+			} else if *immediatelyExpire != msg.msg.ImmediatelyExpire { // nolint: revive,staticcheck
+				// TODO: log warning about mixed persistence
+			}
+
+			if retries == nil {
+				retries = &msg.msg.Retries
+			} else if *retries != msg.msg.Retries { // nolint: revive,staticcheck
+				// TODO: log warning about mixed retries
+			}
 		default:
 			i = PUB_BUFFER_SIZE
 		}
@@ -203,11 +224,25 @@ func (m *msgIdPubBuffer) flush() {
 		return
 	}
 
-	err := m.pub(&Message{
+	msgToSend := &Message{
 		TenantID: m.tenantId,
 		ID:       m.msgId,
 		Payloads: payloadBytes,
-	})
+	}
+
+	if isPersistent != nil {
+		msgToSend.Persistent = *isPersistent
+	}
+
+	if immediatelyExpire != nil {
+		msgToSend.ImmediatelyExpire = *immediatelyExpire
+	}
+
+	if retries != nil {
+		msgToSend.Retries = *retries
+	}
+
+	err := m.pub(msgToSend)
 
 	for _, msgWithErrCh := range msgsWithErrCh {
 		if msgWithErrCh.errCh != nil {

@@ -131,7 +131,7 @@ func MonitoringEventMessageFromActionEvent(tenantId string, taskId int64, retryC
 		tenantId,
 		"create-monitoring-event",
 		false,
-		false,
+		true,
 		payload,
 	)
 }
@@ -141,7 +141,7 @@ func MonitoringEventMessageFromInternal(tenantId string, payload CreateMonitorin
 		tenantId,
 		"create-monitoring-event",
 		false,
-		false,
+		true,
 		payload,
 	)
 }

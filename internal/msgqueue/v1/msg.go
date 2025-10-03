@@ -28,6 +28,9 @@ type Message struct {
 
 	// Retries is the number of retries for the task.
 	Retries int `json:"retries"`
+
+	// Compressed indicates whether the payloads are gzip compressed
+	Compressed bool `json:"compressed,omitempty"`
 }
 
 func NewTenantMessage[T any](tenantId, id string, immediatelyExpire, persistent bool, payloads ...T) (*Message, error) {

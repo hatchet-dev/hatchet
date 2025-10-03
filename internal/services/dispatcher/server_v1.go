@@ -614,26 +614,6 @@ func (s *DispatcherImpl) handleTaskCompleted(inputCtx context.Context, task *sql
 	// 	return nil, fmt.Errorf("retry count is required in v2")
 	// }
 
-	go func() {
-		olapMsg, err := tasktypes.MonitoringEventMessageFromActionEvent(
-			tenantId,
-			task.ID,
-			retryCount,
-			request,
-		)
-
-		if err != nil {
-			s.l.Error().Err(err).Msg("could not create monitoring event message")
-			return
-		}
-
-		err = s.pubBuffer.Pub(inputCtx, msgqueue.OLAP_QUEUE, olapMsg, false)
-
-		if err != nil {
-			s.l.Error().Err(err).Msg("could not publish to OLAP queue")
-		}
-	}()
-
 	msg, err := tasktypes.CompletedTaskMessage(
 		tenantId,
 		task.ID,
@@ -654,10 +634,31 @@ func (s *DispatcherImpl) handleTaskCompleted(inputCtx context.Context, task *sql
 		return nil, err
 	}
 
-	return &contracts.ActionEventResponse{
+	resp := &contracts.ActionEventResponse{
 		TenantId: tenantId,
 		WorkerId: request.WorkerId,
-	}, nil
+	}
+
+	olapMsg, err := tasktypes.MonitoringEventMessageFromActionEvent(
+		tenantId,
+		task.ID,
+		retryCount,
+		request,
+	)
+
+	if err != nil {
+		s.l.Error().Err(err).Msg("could not create monitoring event message")
+		return resp, nil
+	}
+
+	err = s.pubBuffer.Pub(inputCtx, msgqueue.OLAP_QUEUE, olapMsg, false)
+
+	if err != nil {
+		s.l.Error().Err(err).Msg("could not publish monitoring event message")
+		return resp, nil
+	}
+
+	return resp, nil
 }
 
 func (s *DispatcherImpl) handleTaskFailed(inputCtx context.Context, task *sqlcv1.FlattenExternalIdsRow, retryCount int32, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
