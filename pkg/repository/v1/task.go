@@ -254,6 +254,9 @@ type TaskRepository interface {
 
 	// AnalyzeTaskTables runs ANALYZE on the task tables
 	AnalyzeTaskTables(ctx context.Context) error
+
+	// Cleanup makes sure to get rid of invalid old entries
+	Cleanup(ctx context.Context) error
 }
 
 type TaskRepositoryImpl struct {
@@ -3436,6 +3439,95 @@ func (r *TaskRepositoryImpl) AnalyzeTaskTables(ctx context.Context) error {
 
 	if err != nil {
 		return fmt.Errorf("error analyzing v1_task_event: %v", err)
+	}
+
+	if err := commit(ctx); err != nil {
+		return fmt.Errorf("error committing transaction: %v", err)
+	}
+
+	return nil
+}
+
+func (r *TaskRepositoryImpl) Cleanup(ctx context.Context) error {
+	const timeout = 1000 * 60 * 5 // 5 minute timeout
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, timeout)
+
+	if err != nil {
+		return fmt.Errorf("error beginning transaction: %v", err)
+	}
+
+	defer rollback()
+
+	acquired, err := r.queries.TryAdvisoryLock(ctx, tx, hash("cleanup-tables"))
+
+	if err != nil {
+		return fmt.Errorf("error acquiring advisory lock: %v", err)
+	}
+
+	if !acquired {
+		r.l.Info().Msg("advisory lock already held, skipping table cleanup")
+		return nil
+	}
+
+	const batchSize = 1000
+	totalDeleted := int64(0)
+
+	for {
+		deleted, err := r.queries.CleanupV1QueueItem(ctx, tx, batchSize)
+		if err != nil {
+			return fmt.Errorf("error cleaning up v1_queue_item: %v", err)
+		}
+
+		totalDeleted += deleted
+
+		if deleted == 0 {
+			break
+		}
+
+		r.l.Debug().Int64("deleted", deleted).Int64("total", totalDeleted).Msg("cleaned up v1_queue_item batch")
+	}
+
+	if totalDeleted > 0 {
+		r.l.Info().Int64("total_deleted", totalDeleted).Msg("cleaned up v1_queue_item")
+	}
+
+	totalDeleted = 0
+	for {
+		deleted, err := r.queries.CleanupV1TaskRuntime(ctx, tx, batchSize)
+		if err != nil {
+			return fmt.Errorf("error cleaning up v1_task_runtime: %v", err)
+		}
+
+		totalDeleted += deleted
+
+		if deleted == 0 {
+			break
+		}
+
+		r.l.Debug().Int64("deleted", deleted).Int64("total", totalDeleted).Msg("cleaned up v1_task_runtime batch")
+	}
+
+	if totalDeleted > 0 {
+		r.l.Info().Int64("total_deleted", totalDeleted).Msg("cleaned up v1_task_runtime")
+	}
+
+	totalDeleted = 0
+	for {
+		deleted, err := r.queries.CleanupV1ConcurrencySlot(ctx, tx, batchSize)
+		if err != nil {
+			return fmt.Errorf("error cleaning up v1_concurrency_slot: %v", err)
+		}
+
+		totalDeleted += deleted
+		if deleted == 0 {
+			break
+		}
+
+		r.l.Debug().Int64("deleted", deleted).Int64("total", totalDeleted).Msg("cleaned up v1_concurrency_slot batch")
+	}
+
+	if totalDeleted > 0 {
+		r.l.Info().Int64("total_deleted", totalDeleted).Msg("cleaned up v1_concurrency_slot")
 	}
 
 	if err := commit(ctx); err != nil {
