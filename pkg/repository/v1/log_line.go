@@ -22,6 +22,12 @@ type ListLogsOpts struct {
 
 	// (optional) a search query
 	Search *string
+
+	// (optional) the start time to get logs for
+	Since *time.Time
+
+	// (optional) the end time to get logs for
+	Until *time.Time
 }
 
 type CreateLogLineOpts struct {
@@ -78,7 +84,34 @@ func (r *logLineRepositoryImpl) ListLogLines(ctx context.Context, tenantId strin
 		queryParams.Search = sqlchelpers.TextFromStr(*opts.Search)
 	}
 
-	return r.queries.ListLogLines(ctx, r.pool, queryParams)
+	if opts.Limit != nil {
+		queryParams.Limit = *opts.Limit
+	}
+
+	if opts.Offset != nil {
+		queryParams.Offset = *opts.Offset
+	}
+
+	if opts.Since != nil {
+		queryParams.Since = pgtype.Timestamptz{
+			Time:  *opts.Since,
+			Valid: true,
+		}
+	}
+
+	if opts.Until != nil {
+		queryParams.Until = pgtype.Timestamptz{
+			Time:  *opts.Until,
+			Valid: true,
+		}
+	}
+
+	logLines, err := r.queries.ListLogLines(ctx, r.pool, queryParams)
+	if err != nil {
+		return nil, err
+	}
+
+	return logLines, nil
 }
 
 func (r *logLineRepositoryImpl) PutLog(ctx context.Context, tenantId string, opts *CreateLogLineOpts) error {
