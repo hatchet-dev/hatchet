@@ -137,6 +137,7 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 	s.l.Debug().Msg("replenishing slots")
 
 	workers := s.getWorkers()
+
 	workerIds := make([]pgtype.UUID, 0)
 
 	for workerIdStr := range workers {

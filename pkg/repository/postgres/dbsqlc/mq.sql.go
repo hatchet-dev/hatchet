@@ -23,8 +23,8 @@ VALUES
     (
         $1::jsonb,
         $2::text,
-        NOW(),
-        NOW() + INTERVAL '5 minutes'
+        NOW() AT TIME ZONE 'UTC',
+        NOW() AT TIME ZONE 'UTC' + INTERVAL '5 minutes'
     )
 `
 
@@ -62,7 +62,7 @@ const cleanupMessageQueue = `-- name: CleanupMessageQueue :exec
 DELETE FROM
     "MessageQueue"
 WHERE
-    "lastActive" < NOW() - INTERVAL '1 hour'
+    "lastActive" < NOW() AT TIME ZONE 'UTC' - INTERVAL '1 hour'
     AND "autoDeleted" = true
 `
 
@@ -93,7 +93,7 @@ const deleteExpiredMessages = `-- name: DeleteExpiredMessages :exec
 DELETE FROM
     "MessageQueueItem"
 WHERE
-    "expiresAt" < NOW()
+    "expiresAt" < NOW() AT TIME ZONE 'UTC'
 `
 
 func (q *Queries) DeleteExpiredMessages(ctx context.Context, db DBTX) error {
@@ -108,7 +108,7 @@ SELECT
 FROM
     "MessageQueueItem"
 WHERE
-    "expiresAt" < NOW()
+    "expiresAt" < NOW() AT TIME ZONE 'UTC'
 `
 
 type GetMinMaxExpiredMessageQueueItemsRow struct {
@@ -130,9 +130,9 @@ WITH messages AS (
     FROM
         "MessageQueueItem"
     WHERE
-        "expiresAt" > NOW()
+        "expiresAt" > NOW() AT TIME ZONE 'UTC'
         AND "queueId" = $1::text
-        AND "readAfter" <= NOW()
+        AND "readAfter" <= NOW() AT TIME ZONE 'UTC'
         AND "status" = 'PENDING'
     ORDER BY
         "id" ASC
@@ -196,7 +196,7 @@ const updateMessageQueueActive = `-- name: UpdateMessageQueueActive :exec
 UPDATE
     "MessageQueue"
 SET
-    "lastActive" = NOW()
+    "lastActive" = NOW() AT TIME ZONE 'UTC'
 WHERE
     "name" = $1::text
 `

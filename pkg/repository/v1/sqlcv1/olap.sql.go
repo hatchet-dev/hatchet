@@ -876,7 +876,7 @@ FROM
     v1_events_olap
 WHERE
     tenant_id = $1::uuid
-    AND seen_at > NOW() - INTERVAL '1 day'
+    AND seen_at > NOW() AT TIME ZONE 'UTC' - INTERVAL '1 day'
 `
 
 func (q *Queries) ListEventKeys(ctx context.Context, db DBTX, tenantid pgtype.UUID) ([]string, error) {
@@ -2451,7 +2451,7 @@ WITH tenants AS (
     SELECT
         tenant_id,
         -- Exponential backoff, we limit to 10 retries which is 2048 seconds/34 minutes
-        CURRENT_TIMESTAMP + (2 ^ requeue_retries) * INTERVAL '2 seconds',
+        CURRENT_TIMESTAMP AT TIME ZONE 'UTC' + (2 ^ requeue_retries) * INTERVAL '2 seconds',
         requeue_retries + 1,
         dag_id,
         dag_inserted_at
@@ -2666,7 +2666,7 @@ WITH tenants AS (
     SELECT
         tenant_id,
         -- Exponential backoff, we limit to 10 retries which is 2048 seconds/34 minutes
-        CURRENT_TIMESTAMP + (2 ^ requeue_retries) * INTERVAL '2 seconds',
+        CURRENT_TIMESTAMP AT TIME ZONE 'UTC' + (2 ^ requeue_retries) * INTERVAL '2 seconds',
         requeue_retries + 1,
         task_id,
         task_inserted_at,

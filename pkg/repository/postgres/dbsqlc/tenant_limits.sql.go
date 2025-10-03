@@ -15,7 +15,7 @@ const countTenantWorkerSlots = `-- name: CountTenantWorkerSlots :one
 SELECT COALESCE(SUM(w."maxRuns"), 0)::int AS "count"
 FROM "Worker" w
 WHERE "tenantId" = $1::uuid
-AND "lastHeartbeatAt" >= NOW() - '30 seconds'::INTERVAL
+AND "lastHeartbeatAt" >= NOW() AT TIME ZONE 'UTC' - '30 seconds'::INTERVAL
 AND "isActive" = true
 `
 
@@ -30,7 +30,7 @@ const countTenantWorkers = `-- name: CountTenantWorkers :one
 SELECT COUNT(distinct id) AS "count"
 FROM "Worker"
 WHERE "tenantId" = $1::uuid
-AND "lastHeartbeatAt" >= NOW() - '30 seconds'::INTERVAL
+AND "lastHeartbeatAt" >= NOW() AT TIME ZONE 'UTC' - '30 seconds'::INTERVAL
 AND "isActive" = true
 `
 
@@ -48,7 +48,7 @@ WITH updated AS (
         "value" = 0, -- Reset to 0 if the window has passed
         "lastRefill" = CURRENT_TIMESTAMP -- Update lastRefill if the window has passed
     WHERE "tenantId" = $1::uuid
-      AND (("window" IS NOT NULL AND "window" != '' AND NOW() - "lastRefill" >= "window"::INTERVAL))
+      AND (("window" IS NOT NULL AND "window" != '' AND NOW() AT TIME ZONE 'UTC' - "lastRefill" >= "window"::INTERVAL))
       AND "resource" = $2::"LimitResource"
       AND "customValueMeter" = false
     RETURNING id, "createdAt", "updatedAt", resource, "tenantId", "limitValue", "alarmValue", value, "window", "lastRefill", "customValueMeter"
@@ -140,13 +140,13 @@ const meterTenantResource = `-- name: MeterTenantResource :one
 UPDATE "TenantResourceLimit"
 SET
     "value" = CASE
-        WHEN ("customValueMeter" = true OR ("window" IS NOT NULL AND "window" != '' AND NOW() - "lastRefill" >= "window"::INTERVAL)) THEN
+        WHEN ("customValueMeter" = true OR ("window" IS NOT NULL AND "window" != '' AND NOW() AT TIME ZONE 'UTC' - "lastRefill" >= "window"::INTERVAL)) THEN
             0 -- Refill to 0 since the window has passed
         ELSE
             "value" + $1::int -- Increment the current value within the window by the number of resources
     END,
     "lastRefill" = CASE
-        WHEN ("window" IS NOT NULL AND "window" != '' AND NOW() - "lastRefill" >= "window"::INTERVAL) THEN
+        WHEN ("window" IS NOT NULL AND "window" != '' AND NOW() AT TIME ZONE 'UTC' - "lastRefill" >= "window"::INTERVAL) THEN
             CURRENT_TIMESTAMP -- Update lastRefill if the window has passed
         ELSE
             "lastRefill" -- Keep the lastRefill unchanged if within the window
@@ -188,7 +188,7 @@ WITH resolved_limits AS (
         "value" = 0, -- Reset value to 0
         "lastRefill" = CURRENT_TIMESTAMP -- Update lastRefill timestamp
     WHERE
-        ("window" IS NOT NULL AND "window" != '' AND NOW() - "lastRefill" >= "window"::INTERVAL)
+        ("window" IS NOT NULL AND "window" != '' AND NOW() AT TIME ZONE 'UTC' - "lastRefill" >= "window"::INTERVAL)
     RETURNING id, "createdAt", "updatedAt", resource, "tenantId", "limitValue", "alarmValue", value, "window", "lastRefill", "customValueMeter"
 )
 SELECT id, "createdAt", "updatedAt", resource, "tenantId", "limitValue", "alarmValue", value, "window", "lastRefill", "customValueMeter"

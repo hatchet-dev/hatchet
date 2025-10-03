@@ -245,8 +245,8 @@ INSERT INTO "Job" (
     "kind"
 ) VALUES (
     $1::uuid,
-    coalesce($2::timestamp, CURRENT_TIMESTAMP),
-    coalesce($3::timestamp, CURRENT_TIMESTAMP),
+    coalesce($2::timestamp, CURRENT_TIMESTAMP AT TIME ZONE 'UTC'),
+    coalesce($3::timestamp, CURRENT_TIMESTAMP AT TIME ZONE 'UTC'),
     $4::timestamp,
     $5::uuid,
     $6::uuid,
@@ -385,8 +385,8 @@ INSERT INTO "Step" (
     "retryMaxBackoff"
 ) VALUES (
     $1::uuid,
-    coalesce($2::timestamp, CURRENT_TIMESTAMP),
-    coalesce($3::timestamp, CURRENT_TIMESTAMP),
+    coalesce($2::timestamp, CURRENT_TIMESTAMP AT TIME ZONE 'UTC'),
+    coalesce($3::timestamp, CURRENT_TIMESTAMP AT TIME ZONE 'UTC'),
     $4::timestamp,
     $5::text,
     $6::uuid,
@@ -542,8 +542,8 @@ INSERT INTO "Workflow" (
     "description"
 ) VALUES (
     $1::uuid,
-    coalesce($2::timestamp, CURRENT_TIMESTAMP),
-    coalesce($3::timestamp, CURRENT_TIMESTAMP),
+    coalesce($2::timestamp, CURRENT_TIMESTAMP AT TIME ZONE 'UTC'),
+    coalesce($3::timestamp, CURRENT_TIMESTAMP AT TIME ZONE 'UTC'),
     $4::timestamp,
     $5::uuid,
     $6::text,
@@ -597,8 +597,8 @@ INSERT INTO "WorkflowConcurrency" (
     "concurrencyGroupExpression"
 ) VALUES (
     gen_random_uuid(),
-    coalesce($1::timestamp, CURRENT_TIMESTAMP),
-    coalesce($2::timestamp, CURRENT_TIMESTAMP),
+    coalesce($1::timestamp, CURRENT_TIMESTAMP AT TIME ZONE 'UTC'),
+    coalesce($2::timestamp, CURRENT_TIMESTAMP AT TIME ZONE 'UTC'),
     $3::uuid,
     $4::uuid,
     coalesce($5::integer, 1),
@@ -933,8 +933,8 @@ INSERT INTO "WorkflowTriggers" (
     "tenantId"
 ) VALUES (
     $1::uuid,
-    CURRENT_TIMESTAMP,
-    CURRENT_TIMESTAMP,
+    CURRENT_TIMESTAMP AT TIME ZONE 'UTC',
+    CURRENT_TIMESTAMP AT TIME ZONE 'UTC',
     NULL,
     $2::uuid,
     $3::uuid
@@ -976,8 +976,8 @@ INSERT INTO "WorkflowVersion" (
     "defaultPriority"
 ) VALUES (
     $1::uuid,
-    coalesce($2::timestamp, CURRENT_TIMESTAMP),
-    coalesce($3::timestamp, CURRENT_TIMESTAMP),
+    coalesce($2::timestamp, CURRENT_TIMESTAMP AT TIME ZONE 'UTC'),
+    coalesce($3::timestamp, CURRENT_TIMESTAMP AT TIME ZONE 'UTC'),
     $4::timestamp,
     $5::text,
     $6::text,
@@ -1462,7 +1462,7 @@ WITH UniqueWorkers AS (
         AND workflowVersion."deletedAt" IS NULL
         AND w."deletedAt" IS NULL
         AND w."dispatcherId" IS NOT NULL
-        AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
+        AND w."lastHeartbeatAt" > NOW() AT TIME ZONE 'UTC' - INTERVAL '5 seconds'
         AND w."isActive" = true
         AND w."isPaused" = false
         AND workflowVersion."workflowId" = $2::uuid
@@ -2079,14 +2079,14 @@ func (q *Queries) MoveScheduledTriggerToNewWorkflowTriggers(ctx context.Context,
 const softDeleteWorkflow = `-- name: SoftDeleteWorkflow :one
 WITH versions AS (
     UPDATE "WorkflowVersion"
-    SET "deletedAt" = CURRENT_TIMESTAMP
+    SET "deletedAt" = CURRENT_TIMESTAMP AT TIME ZONE 'UTC'
     WHERE "workflowId" = $1::uuid
 )
 UPDATE "Workflow"
 SET
     -- set name to the current name plus a random suffix to avoid conflicts
     "name" = "name" || '-' || gen_random_uuid(),
-    "deletedAt" = CURRENT_TIMESTAMP
+    "deletedAt" = CURRENT_TIMESTAMP AT TIME ZONE 'UTC'
 WHERE "id" = $1::uuid
 RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", name, description, "isPaused"
 `
@@ -2110,7 +2110,7 @@ func (q *Queries) SoftDeleteWorkflow(ctx context.Context, db DBTX, id pgtype.UUI
 const updateWorkflow = `-- name: UpdateWorkflow :one
 UPDATE "Workflow"
 SET
-    "updatedAt" = CURRENT_TIMESTAMP,
+    "updatedAt" = CURRENT_TIMESTAMP AT TIME ZONE 'UTC',
     "isPaused" = coalesce($1::boolean, "isPaused")
 WHERE "id" = $2::uuid
 RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", name, description, "isPaused"

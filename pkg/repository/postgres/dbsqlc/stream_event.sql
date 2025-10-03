@@ -38,4 +38,4 @@ WHERE
 DELETE FROM "StreamEvent"
 WHERE
   -- older than than 5 minutes ago
-  "createdAt" < NOW() - INTERVAL '5 minutes';
+  "createdAt" < NOW() AT TIME ZONE 'UTC' - INTERVAL '5 minutes';

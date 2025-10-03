@@ -6,7 +6,7 @@ FROM
 WHERE
     "tenantId" = @tenantId::uuid
     AND "kind" = @kind::"LeaseKind"
-    AND "expiresAt" < now()
+    AND "expiresAt" < now() AT TIME ZONE 'UTC'
     AND "resourceId" = ANY(@resourceIds::text[])
 FOR UPDATE;
 
@@ -20,7 +20,7 @@ INSERT INTO "Lease" (
     "kind"
 )
 SELECT
-    now() + COALESCE(sqlc.narg('leaseDuration')::interval, '30 seconds'::interval),
+    (now() AT TIME ZONE 'UTC' + COALESCE(sqlc.narg('leaseDuration')::interval, '30 seconds'::interval))::timestamp,
     @tenantId::uuid,
     input."resourceId",
     @kind::"LeaseKind"
@@ -33,7 +33,7 @@ ON CONFLICT ("tenantId", "kind", "resourceId") DO UPDATE
 SET
     "expiresAt" = EXCLUDED."expiresAt"
 WHERE
-    "Lease"."expiresAt" < now() OR
+    "Lease"."expiresAt" < now() AT TIME ZONE 'UTC' OR
     "Lease"."id" = ANY(@existingLeaseIds::bigint[])
 RETURNING *;
 
@@ -58,6 +58,6 @@ FROM
 WHERE
     w."tenantId" = @tenantId::uuid
     AND w."dispatcherId" IS NOT NULL
-    AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
+    AND w."lastHeartbeatAt" > NOW() AT TIME ZONE 'UTC' - INTERVAL '5 seconds'
     AND w."isActive" = true
     AND w."isPaused" = false;

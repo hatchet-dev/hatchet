@@ -22,13 +22,13 @@ WITH ordered_names AS (
     WHERE eq.name IS NULL
 ), updated_queues AS (
     UPDATE v1_queue
-    SET last_active = NOW()
+    SET last_active = NOW() AT TIME ZONE 'UTC'
     WHERE tenant_id = $1
       AND name IN (SELECT name FROM locked_existing_queues)
 )
 -- Insert new queues
 INSERT INTO v1_queue (tenant_id, name, last_active)
-SELECT $1, name, NOW()
+SELECT $1, name, NOW() AT TIME ZONE 'UTC'
 FROM names_to_insert
 ON CONFLICT (tenant_id, name) DO NOTHING;
 
@@ -46,7 +46,7 @@ WHERE
     w."tenantId" = @tenantId::uuid
     AND w."id" = ANY(@workerIds::uuid[])
     AND w."dispatcherId" IS NOT NULL
-    AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
+    AND w."lastHeartbeatAt" > NOW() AT TIME ZONE 'UTC' - INTERVAL '5 seconds'
     AND w."isActive" = true
     AND w."isPaused" = false;
 
@@ -88,7 +88,7 @@ FROM
     v1_queue
 WHERE
     tenant_id = @tenantId::uuid
-    AND last_active > NOW() - INTERVAL '1 day';
+    AND last_active > NOW() AT TIME ZONE 'UTC' - INTERVAL '1 day';
 
 -- name: ListQueueItemsForQueue :many
 SELECT
@@ -215,7 +215,7 @@ WITH input AS (
         t.retry_count,
         i.worker_id,
         t.tenant_id,
-        CURRENT_TIMESTAMP + convert_duration_to_interval(t.step_timeout) AS timeout_at
+        CURRENT_TIMESTAMP AT TIME ZONE 'UTC' + convert_duration_to_interval(t.step_timeout) AS timeout_at
     FROM
         v1_task t
     JOIN
@@ -391,7 +391,7 @@ WITH ready_items AS (
     WHERE
         tenant_id = @tenantId::uuid
         AND queue = @queue::text
-        AND requeue_after <= NOW()
+        AND requeue_after <= NOW() AT TIME ZONE 'UTC'
     ORDER BY
         task_id, task_inserted_at, retry_count
     FOR UPDATE SKIP LOCKED -- locked are about to be deleted

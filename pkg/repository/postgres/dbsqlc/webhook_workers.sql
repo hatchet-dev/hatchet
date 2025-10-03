@@ -11,7 +11,7 @@ WITH tenants AS (
     UPDATE
         "TenantWorkerPartition"
     SET
-        "lastHeartbeat" = NOW()
+        "lastHeartbeat" = NOW() AT TIME ZONE 'UTC'
     WHERE
         "id" = sqlc.arg('workerPartitionId')::text
 )
@@ -36,7 +36,7 @@ WITH delete_old AS (
     -- Delete old requests
     DELETE FROM "WebhookWorkerRequest"
     WHERE "webhookWorkerId" = @webhookWorkerId::uuid
-    AND "createdAt" < NOW() - INTERVAL '15 minutes'
+    AND "createdAt" < NOW() AT TIME ZONE 'UTC' - INTERVAL '15 minutes'
 )
 INSERT INTO "WebhookWorkerRequest" (
     "id",
@@ -46,7 +46,7 @@ INSERT INTO "WebhookWorkerRequest" (
     "statusCode"
 ) VALUES (
     gen_random_uuid(),
-    CURRENT_TIMESTAMP,
+    CURRENT_TIMESTAMP AT TIME ZONE 'UTC',
     @webhookWorkerId::uuid,
     @method::"WebhookWorkerRequestMethod",
     @statusCode::integer
@@ -55,7 +55,7 @@ INSERT INTO "WebhookWorkerRequest" (
 -- name: UpdateWebhookWorkerToken :one
 UPDATE "WebhookWorker"
 SET
-    "updatedAt" = CURRENT_TIMESTAMP,
+    "updatedAt" = CURRENT_TIMESTAMP AT TIME ZONE 'UTC' AT TIME ZONE 'UTC',
     "tokenValue" = COALESCE(sqlc.narg('tokenValue')::text, "tokenValue"),
     "tokenId" = COALESCE(sqlc.narg('tokenId')::uuid, "tokenId")
 WHERE
@@ -78,8 +78,8 @@ INSERT INTO "WebhookWorker" (
 )
 VALUES (
     gen_random_uuid(),
-    CURRENT_TIMESTAMP,
-    CURRENT_TIMESTAMP,
+    CURRENT_TIMESTAMP AT TIME ZONE 'UTC',
+    CURRENT_TIMESTAMP AT TIME ZONE 'UTC',
     @name::text,
     @secret::text,
     @url::text,
@@ -99,7 +99,7 @@ WHERE "id" = @id::uuid;
 UPDATE "WebhookWorker"
 SET
   "deleted" = true,
-  "updatedAt" = CURRENT_TIMESTAMP
+  "updatedAt" = CURRENT_TIMESTAMP AT TIME ZONE 'UTC'
 WHERE
   "id" = @id::uuid
   AND "tenantId" = @tenantId::uuid;

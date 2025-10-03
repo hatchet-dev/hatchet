@@ -199,7 +199,6 @@ func (l *LeaseManager) acquireQueueLeases(ctx context.Context) error {
 	successfullyAcquiredQueues := []string{}
 
 	if len(queueIdsStr) != 0 {
-
 		queueLeases, err := l.lr.AcquireOrExtendLeases(ctx, l.tenantId, sqlcv1.LeaseKindQUEUE, queueIdsStr, leasesToExtend)
 
 		if err != nil {

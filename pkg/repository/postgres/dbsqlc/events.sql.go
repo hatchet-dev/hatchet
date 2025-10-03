@@ -269,7 +269,7 @@ FROM
     "Event"
 WHERE
     events."deletedAt" IS NOT NULL AND
-    "createdAt" >= NOW() - INTERVAL '1 week'
+    "createdAt" >= NOW() AT TIME ZONE 'UTC' - INTERVAL '1 week'
 GROUP BY
     event_hour
 ORDER BY

@@ -19,7 +19,7 @@ INSERT INTO "Lease" (
     "kind"
 )
 SELECT
-    now() + COALESCE($1::interval, '30 seconds'::interval),
+    (now() AT TIME ZONE 'UTC' + COALESCE($1::interval, '30 seconds'::interval))::timestamp,
     $2::uuid,
     input."resourceId",
     $3::"LeaseKind"
@@ -31,7 +31,7 @@ ON CONFLICT ("tenantId", "kind", "resourceId") DO UPDATE
 SET
     "expiresAt" = EXCLUDED."expiresAt"
 WHERE
-    "Lease"."expiresAt" < now() OR
+    "Lease"."expiresAt" < now() AT TIME ZONE 'UTC' OR
     "Lease"."id" = ANY($5::bigint[])
 RETURNING id, "expiresAt", "tenantId", "resourceId", kind
 `
@@ -87,7 +87,7 @@ FROM
 WHERE
     "tenantId" = $1::uuid
     AND "kind" = $2::"LeaseKind"
-    AND "expiresAt" < now()
+    AND "expiresAt" < now() AT TIME ZONE 'UTC'
     AND "resourceId" = ANY($3::text[])
 FOR UPDATE
 `
@@ -113,7 +113,7 @@ FROM
 WHERE
     w."tenantId" = $1::uuid
     AND w."dispatcherId" IS NOT NULL
-    AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
+    AND w."lastHeartbeatAt" > NOW() AT TIME ZONE 'UTC' - INTERVAL '5 seconds'
     AND w."isActive" = true
     AND w."isPaused" = false
 `

@@ -55,7 +55,7 @@ FROM
     "Queue"
 WHERE
     "tenantId" = @tenantId::uuid
-    AND "lastActive" > NOW() - INTERVAL '1 day';
+    AND "lastActive" > NOW() AT TIME ZONE 'UTC' - INTERVAL '1 day';
 
 -- name: CreateQueueItem :exec
 INSERT INTO
@@ -519,7 +519,7 @@ WHERE
     w."tenantId" = @tenantId::uuid
     AND w."id" = ANY(@workerIds::uuid[])
     AND w."dispatcherId" IS NOT NULL
-    AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
+    AND w."lastHeartbeatAt" > NOW() AT TIME ZONE 'UTC' - INTERVAL '5 seconds'
     AND w."isActive" = true
     AND w."isPaused" = false;
 
@@ -536,7 +536,7 @@ JOIN
 WHERE
     w."tenantId" = @tenantId::uuid
     AND w."dispatcherId" IS NOT NULL
-    AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
+    AND w."lastHeartbeatAt" > NOW() AT TIME ZONE 'UTC' - INTERVAL '5 seconds'
     AND w."isActive" = true
     AND w."isPaused" = false;
 
@@ -549,7 +549,7 @@ FROM
 WHERE
     w."tenantId" = @tenantId::uuid
     AND w."dispatcherId" IS NOT NULL
-    AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
+    AND w."lastHeartbeatAt" > NOW() AT TIME ZONE 'UTC' - INTERVAL '5 seconds'
     AND w."isActive" = true
     AND w."isPaused" = false;
 

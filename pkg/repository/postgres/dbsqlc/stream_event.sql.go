@@ -15,7 +15,7 @@ const cleanupStreamEvents = `-- name: CleanupStreamEvents :exec
 DELETE FROM "StreamEvent"
 WHERE
   -- older than than 5 minutes ago
-  "createdAt" < NOW() - INTERVAL '5 minutes'
+  "createdAt" < NOW() AT TIME ZONE 'UTC' - INTERVAL '5 minutes'
 `
 
 func (q *Queries) CleanupStreamEvents(ctx context.Context, db DBTX) error {
