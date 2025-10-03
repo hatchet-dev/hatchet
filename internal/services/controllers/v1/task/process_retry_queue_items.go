@@ -71,18 +71,12 @@ func (tc *TasksControllerImpl) processTaskRetryQueueItems(ctx context.Context, t
 			continue
 		}
 
-		innerErr = tc.mq.SendMessage(
+		innerErr = tc.pubBuffer.Pub(
 			ctx,
 			msgqueue.OLAP_QUEUE,
 			olapMsg,
+			false,
 		)
-
-		// pubBuffer.Pub(
-		// 	ctx,
-		// 	msgqueue.OLAP_QUEUE,
-		// 	olapMsg,
-		// 	false,
-		// )
 
 		if innerErr != nil {
 			err = multierror.Append(err, fmt.Errorf("could not publish monitoring event message: %w", err))

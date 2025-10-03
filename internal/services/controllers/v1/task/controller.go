@@ -41,8 +41,8 @@ type TasksController interface {
 }
 
 type TasksControllerImpl struct {
-	mq msgqueue.MessageQueue
-	// pubBuffer                             *msgqueue.MQPubBuffer
+	mq                                    msgqueue.MessageQueue
+	pubBuffer                             *msgqueue.MQPubBuffer
 	l                                     *zerolog.Logger
 	queueLogger                           *zerolog.Logger
 	pgxStatsLogger                        *zerolog.Logger
@@ -204,11 +204,11 @@ func New(fs ...TasksControllerOpt) (*TasksControllerImpl, error) {
 	a := hatcheterrors.NewWrapped(opts.alerter)
 	a.WithData(map[string]interface{}{"service": "tasks-controller"})
 
-	// pubBuffer := msgqueue.NewMQPubBuffer(opts.mq)
+	pubBuffer := msgqueue.NewMQPubBuffer(opts.mq)
 
 	t := &TasksControllerImpl{
-		mq: opts.mq,
-		// pubBuffer:           pubBuffer,
+		mq:                  opts.mq,
+		pubBuffer:           pubBuffer,
 		l:                   opts.l,
 		queueLogger:         opts.queueLogger,
 		pgxStatsLogger:      opts.pgxStatsLogger,
@@ -419,7 +419,7 @@ func (tc *TasksControllerImpl) Start() (func() error, error) {
 			return err
 		}
 
-		// tc.pubBuffer.Stop()
+		tc.pubBuffer.Stop()
 
 		if err := tc.s.Shutdown(); err != nil {
 			err := fmt.Errorf("could not shutdown scheduler: %w", err)
@@ -557,13 +557,7 @@ func (tc *TasksControllerImpl) handleTaskFailed(ctx context.Context, tenantId st
 			continue
 		}
 
-		err = tc.mq.SendMessage(
-			ctx,
-			msgqueue.OLAP_QUEUE,
-			olapMsg,
-		)
-
-		// pubBuffer.Pub(ctx, msgqueue.OLAP_QUEUE, olapMsg, false)
+		err = tc.pubBuffer.Pub(ctx, msgqueue.OLAP_QUEUE, olapMsg, false)
 
 		if err != nil {
 			tc.l.Error().Err(err).Msg("could not publish monitoring event message")
@@ -738,18 +732,12 @@ func (tc *TasksControllerImpl) handleTaskCancelled(ctx context.Context, tenantId
 			continue
 		}
 
-		err = tc.mq.SendMessage(
+		err = tc.pubBuffer.Pub(
 			ctx,
 			msgqueue.OLAP_QUEUE,
 			olapMsg,
+			false,
 		)
-
-		// pubBuffer.Pub(
-		// 	ctx,
-		// 	msgqueue.OLAP_QUEUE,
-		// 	olapMsg,
-		// 	false,
-		// )
 
 		if err != nil {
 			tc.l.Error().Err(err).Msg("could not publish monitoring event message")
@@ -1112,13 +1100,7 @@ func (tc *TasksControllerImpl) handleProcessUserEventTrigger(ctx context.Context
 		return fmt.Errorf("could not create event trigger message: %w", err)
 	}
 
-	err = tc.mq.SendMessage(
-		ctx,
-		msgqueue.OLAP_QUEUE,
-		msg,
-	)
-
-	// pubBuffer.Pub(ctx, msgqueue.OLAP_QUEUE, msg, false)
+	err = tc.pubBuffer.Pub(ctx, msgqueue.OLAP_QUEUE, msg, false)
 
 	if err != nil {
 		return fmt.Errorf("could not trigger tasks from events: %w", err)
@@ -1133,13 +1115,7 @@ func (tc *TasksControllerImpl) handleProcessUserEventTrigger(ctx context.Context
 		return fmt.Errorf("could not create CEL evaluation failure message: %w", err)
 	}
 
-	err = tc.mq.SendMessage(
-		ctx,
-		msgqueue.OLAP_QUEUE,
-		evalFailuresMsg,
-	)
-
-	// pubBuffer.Pub(ctx, msgqueue.OLAP_QUEUE, evalFailuresMsg, false)
+	err = tc.pubBuffer.Pub(ctx, msgqueue.OLAP_QUEUE, evalFailuresMsg, false)
 
 	if err != nil {
 		return fmt.Errorf("could not deliver CEL evaluation failure message: %w", err)
@@ -1307,18 +1283,12 @@ func (tc *TasksControllerImpl) signalDAGsCreated(ctx context.Context, tenantId s
 			continue
 		}
 
-		err = tc.mq.SendMessage(
+		err = tc.pubBuffer.Pub(
 			ctx,
 			msgqueue.OLAP_QUEUE,
 			msg,
+			false,
 		)
-
-		// pubBuffer.Pub(
-		// 	ctx,
-		// 	msgqueue.OLAP_QUEUE,
-		// 	msg,
-		// 	false,
-		// )
 
 		if err != nil {
 			tc.l.Err(err).Msg("could not add message to olap queue")
@@ -1355,18 +1325,12 @@ func (tc *TasksControllerImpl) signalTasksCreated(ctx context.Context, tenantId 
 			continue
 		}
 
-		err = tc.mq.SendMessage(
+		err = tc.pubBuffer.Pub(
 			ctx,
 			msgqueue.OLAP_QUEUE,
 			msg,
+			false,
 		)
-
-		// pubBuffer.Pub(
-		// 	ctx,
-		// 	msgqueue.OLAP_QUEUE,
-		// 	msg,
-		// 	false,
-		// )
 
 		if err != nil {
 			tc.l.Err(err).Msg("could not add message to olap queue")
@@ -1639,18 +1603,12 @@ func (tc *TasksControllerImpl) signalTasksCreatedAndQueued(ctx context.Context, 
 			continue
 		}
 
-		err = tc.mq.SendMessage(
+		err = tc.pubBuffer.Pub(
 			ctx,
 			msgqueue.OLAP_QUEUE,
 			olapMsg,
+			false,
 		)
-
-		// pubBuffer.Pub(
-		// 	ctx,
-		// 	msgqueue.OLAP_QUEUE,
-		// 	olapMsg,
-		// 	false,
-		// )
 
 		if err != nil {
 			tc.l.Err(err).Msg("could not add monitoring event message to olap queue")
@@ -1708,18 +1666,12 @@ func (tc *TasksControllerImpl) signalTasksCreatedAndCancelled(ctx context.Contex
 			continue
 		}
 
-		err = tc.mq.SendMessage(
+		err = tc.pubBuffer.Pub(
 			ctx,
 			msgqueue.OLAP_QUEUE,
 			msg,
+			false,
 		)
-
-		// pubBuffer.Pub(
-		// 	ctx,
-		// 	msgqueue.OLAP_QUEUE,
-		// 	msg,
-		// 	false,
-		// )
 
 		if err != nil {
 			tc.l.Err(err).Msg("could not add message to olap queue")
@@ -1780,18 +1732,12 @@ func (tc *TasksControllerImpl) signalTasksCreatedAndFailed(ctx context.Context, 
 			continue
 		}
 
-		err = tc.mq.SendMessage(
+		err = tc.pubBuffer.Pub(
 			ctx,
 			msgqueue.OLAP_QUEUE,
 			msg,
+			false,
 		)
-
-		// pubBuffer.Pub(
-		// 	ctx,
-		// 	msgqueue.OLAP_QUEUE,
-		// 	msg,
-		// 	false,
-		// )
 
 		if err != nil {
 			tc.l.Err(err).Msg("could not add message to olap queue")
@@ -1851,18 +1797,12 @@ func (tc *TasksControllerImpl) signalTasksCreatedAndSkipped(ctx context.Context,
 			continue
 		}
 
-		err = tc.mq.SendMessage(
+		err = tc.pubBuffer.Pub(
 			ctx,
 			msgqueue.OLAP_QUEUE,
 			msg,
+			false,
 		)
-
-		// pubBuffer.Pub(
-		// 	ctx,
-		// 	msgqueue.OLAP_QUEUE,
-		// 	msg,
-		// 	false,
-		// )
 
 		if err != nil {
 			tc.l.Err(err).Msg("could not add message to olap queue")
@@ -1910,18 +1850,12 @@ func (tc *TasksControllerImpl) signalTasksReplayed(ctx context.Context, tenantId
 			continue
 		}
 
-		err = tc.mq.SendMessage(
+		err = tc.pubBuffer.Pub(
 			ctx,
 			msgqueue.OLAP_QUEUE,
 			olapMsg,
+			false,
 		)
-
-		// pubBuffer.Pub(
-		// 	ctx,
-		// 	msgqueue.OLAP_QUEUE,
-		// 	olapMsg,
-		// 	false,
-		// )
 
 		if err != nil {
 			tc.l.Err(err).Msg("could not add monitoring event message to olap queue")
@@ -1964,18 +1898,12 @@ func (tc *TasksControllerImpl) pubRetryEvent(ctx context.Context, tenantId strin
 		return fmt.Errorf("could not create monitoring event message: %w", err)
 	}
 
-	err = tc.mq.SendMessage(
+	err = tc.pubBuffer.Pub(
 		ctx,
 		msgqueue.OLAP_QUEUE,
 		olapMsg,
+		false,
 	)
-
-	// pubBuffer.Pub(
-	// 	ctx,
-	// 	msgqueue.OLAP_QUEUE,
-	// 	olapMsg,
-	// 	false,
-	// )
 
 	if err != nil {
 		return fmt.Errorf("could not publish monitoring event message: %w", err)
@@ -1996,18 +1924,12 @@ func (tc *TasksControllerImpl) pubRetryEvent(ctx context.Context, tenantId strin
 			return fmt.Errorf("could not create monitoring event message: %w", err)
 		}
 
-		err = tc.mq.SendMessage(
+		err = tc.pubBuffer.Pub(
 			ctx,
 			msgqueue.OLAP_QUEUE,
 			olapMsg,
+			false,
 		)
-
-		// pubBuffer.Pub(
-		// 	ctx,
-		// 	msgqueue.OLAP_QUEUE,
-		// 	olapMsg,
-		// 	false,
-		// )
 
 		if err != nil {
 			return fmt.Errorf("could not publish monitoring event message: %w", err)

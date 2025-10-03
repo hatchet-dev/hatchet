@@ -458,18 +458,12 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId string, res *
 		}
 
 		for _, assignedMsg := range assignedMsgs {
-			err = s.mq.SendMessage(
+			err = s.pubBuffer.Pub(
 				ctx,
 				msgqueue.OLAP_QUEUE,
 				assignedMsg,
+				false,
 			)
-
-			// err = s.pubBuffer.Pub(
-			// 	ctx,
-			// 	msgqueue.OLAP_QUEUE,
-			// 	assignedMsg,
-			// 	false,
-			// )
 
 			if err != nil {
 				outerErr = multierror.Append(outerErr, fmt.Errorf("could not send monitoring event message: %w", err))
@@ -502,18 +496,12 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId string, res *
 				continue
 			}
 
-			err = s.mq.SendMessage(
+			err = s.pubBuffer.Pub(
 				ctx,
 				msgqueue.OLAP_QUEUE,
 				msg,
+				false,
 			)
-
-			// err = s.pubBuffer.Pub(
-			// 	ctx,
-			// 	msgqueue.OLAP_QUEUE,
-			// 	msg,
-			// 	false,
-			// )
 
 			if err != nil {
 				outerErr = multierror.Append(outerErr, fmt.Errorf("could not send cancelled task: %w", err))
