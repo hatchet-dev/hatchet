@@ -1822,7 +1822,7 @@ func (r *OLAPRepositoryImpl) StoreCELEvaluationFailures(ctx context.Context, ten
 }
 
 func (r *OLAPRepositoryImpl) AnalyzeOLAPTables(ctx context.Context) error {
-	const timeout = 1000 * 60 * 30 // 30 minute timeout
+	const timeout = 1000 * 60 * 60 // 60 minute timeout
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, timeout)
 
 	if err != nil {

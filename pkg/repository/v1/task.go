@@ -3406,7 +3406,7 @@ func (r *TaskRepositoryImpl) ListSignalCompletedEvents(ctx context.Context, tena
 }
 
 func (r *TaskRepositoryImpl) AnalyzeTaskTables(ctx context.Context) error {
-	const timeout = 1000 * 60 * 30 // 30 minute timeout
+	const timeout = 1000 * 60 * 60 // 60 minute timeout
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, timeout)
 
 	if err != nil {
