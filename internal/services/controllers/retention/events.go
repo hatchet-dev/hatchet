@@ -45,6 +45,8 @@ func (wc *RetentionControllerImpl) runDeleteExpiredEventsTenant(ctx context.Cont
 
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
+	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant_id", Value: tenantId})
+
 	createdBefore, err := GetDataRetentionExpiredTime(tenant.DataRetentionPeriod)
 
 	if err != nil {
@@ -77,6 +79,8 @@ func (wc *RetentionControllerImpl) runClearDeletedEventsPayloadTenant(ctx contex
 	defer span.End()
 
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+
+	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant_id", Value: tenantId})
 
 	// keep deleting until the context is done
 	for {

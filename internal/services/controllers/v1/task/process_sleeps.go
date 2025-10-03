@@ -35,6 +35,8 @@ func (tc *TasksControllerImpl) processSleeps(ctx context.Context, tenantId strin
 	ctx, span := telemetry.NewSpan(ctx, "process-sleep")
 	defer span.End()
 
+	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant_id", Value: tenantId})
+
 	matchResult, shouldContinue, err := tc.repov1.Tasks().ProcessDurableSleeps(ctx, tenantId)
 
 	if err != nil {

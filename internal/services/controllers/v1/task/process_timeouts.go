@@ -39,6 +39,8 @@ func (tc *TasksControllerImpl) processTaskTimeouts(ctx context.Context, tenantId
 	ctx, span := telemetry.NewSpan(ctx, "process-task-timeout")
 	defer span.End()
 
+	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant_id", Value: tenantId})
+
 	res, shouldContinue, err := tc.repov1.Tasks().ProcessTaskTimeouts(ctx, tenantId)
 
 	if err != nil {

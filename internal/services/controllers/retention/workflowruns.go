@@ -31,6 +31,8 @@ func (wc *RetentionControllerImpl) runDeleteExpiredWorkflowRunsTenant(ctx contex
 
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
+	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant_id", Value: tenantId})
+
 	createdBefore, err := GetDataRetentionExpiredTime(tenant.DataRetentionPeriod)
 
 	if err != nil {

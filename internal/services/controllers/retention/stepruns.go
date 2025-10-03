@@ -31,6 +31,8 @@ func (wc *RetentionControllerImpl) runDeleteExpireStepRunsTenant(ctx context.Con
 
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
+	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant_id", Value: tenantId})
+
 	// keep deleting until the context is done
 	for {
 		select {
