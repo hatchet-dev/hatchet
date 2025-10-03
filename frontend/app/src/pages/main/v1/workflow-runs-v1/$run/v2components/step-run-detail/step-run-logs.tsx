@@ -6,11 +6,18 @@ import {
   InfiniteData,
 } from '@tanstack/react-query';
 import LoggingComponent from '@/components/v1/cloud/logging/logs';
-import { useMemo, useCallback } from 'react';
+import { useMemo, useCallback, useRef } from 'react';
 
 const LOGS_PER_PAGE = 100;
 
 export function StepRunLogs({ taskRun }: { taskRun: V1TaskSummary }) {
+  interface PageBoundary {
+    rowFirstTimestamp: string;
+    rowLastTimestamp: string;
+  }
+  const pageBoundariesRef = useRef<Record<number, PageBoundary>>({});
+  const currentPageNumberRef = useRef<number>(0);
+  const isRefetchingRef = useRef<boolean>(false);
   const getLogsQuery = useInfiniteQuery<
   V1LogLineList,
   Error,
@@ -29,30 +36,53 @@ export function StepRunLogs({ taskRun }: { taskRun: V1TaskSummary }) {
         taskRun?.metadata.id || '',
         params,
       );
+
+      const rows = response.data.rows;
+
+      if (pageParam.since == null && pageParam.until == null) {
+        currentPageNumberRef.current = 1;
+      } else if (pageParam.since != null && pageParam.until == null && !isRefetchingRef.current) {
+        currentPageNumberRef.current += 1;
+      } else if (!isRefetchingRef.current) {
+        currentPageNumberRef.current = Math.max(1, currentPageNumberRef.current - 1);
+      }
+
+      pageBoundariesRef.current[currentPageNumberRef.current] = {
+        "rowFirstTimestamp": rows?.[0]?.createdAt || '',
+        "rowLastTimestamp": rows?.[rows.length - 1]?.createdAt || '',
+      }
+
       return response.data;
     },
     initialPageParam: { since: undefined, until: undefined },
     enabled: !!taskRun,
-    maxPages: 2,
-    refetchInterval: taskRun?.status === V1TaskStatus.RUNNING ? 1000 : 5000,
+    maxPages: 1,
+    refetchInterval: taskRun?.status === V1TaskStatus.RUNNING ? 1000 : false,
     getPreviousPageParam: (firstPage) => {
-      const rows = firstPage?.rows;
-      if (rows && rows.length > 0 && rows.length === LOGS_PER_PAGE) {
-        const firstLog = rows?.[0];
-        return { since: undefined, until: firstLog?.createdAt };
+      if (currentPageNumberRef.current === 1) {
+        return undefined;
       }
-      return { since: undefined, until: undefined };
+      const rows = firstPage?.rows;
+
+      if (rows && rows.length > 0) {
+        const firstLog = rows?.[0];
+        const sinceTsForPreviousPage = currentPageNumberRef.current > 2 ? pageBoundariesRef.current[currentPageNumberRef.current - 2].rowLastTimestamp : undefined;
+        return { since: sinceTsForPreviousPage, until: firstLog?.createdAt };
+      }
+      return undefined;
     },
     getNextPageParam: (lastPage) => {
       const rows = lastPage?.rows;
-
       if (rows && rows.length > 0 && rows.length === LOGS_PER_PAGE) {
         const lastLog = rows?.[rows.length - 1];
         return { since: lastLog?.createdAt, until: undefined };
       }
-      return { since: undefined, until: undefined };
+      return undefined;
     },
+
   });
+
+  isRefetchingRef.current = getLogsQuery.isRefetching;
 
   const allLogs = useMemo(() => {
     if (!getLogsQuery.data?.pages) return [];
@@ -85,6 +115,9 @@ export function StepRunLogs({ taskRun }: { taskRun: V1TaskSummary }) {
         logs={allLogs}
         onTopReached={handleTopReached}
         onBottomReached={handleBottomReached}
+        autoScroll={false}
+        isFetchingNextPage={getLogsQuery.isFetchingNextPage}
+        isFetchingPreviousPage={getLogsQuery.isFetchingPreviousPage}
       />
       {getLogsQuery.isFetchingNextPage && (
         <div className="flex justify-center py-4">
