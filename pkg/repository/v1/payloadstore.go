@@ -54,6 +54,7 @@ type PayloadStoreRepository interface {
 	Retrieve(ctx context.Context, opts RetrievePayloadOpts) ([]byte, error)
 	BulkRetrieve(ctx context.Context, opts ...RetrievePayloadOpts) (map[RetrievePayloadOpts][]byte, error)
 	ProcessPayloadWAL(ctx context.Context, partitionNumber int64) (bool, error)
+	ProcessPayloadExternalCutovers(ctx context.Context, partitionNumber int64) (bool, error)
 	OverwriteExternalStore(store ExternalStore, inlineStoreTTL time.Duration)
 	DualWritesEnabled() bool
 	WALPollLimit() int
@@ -307,7 +308,7 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadWAL(ctx context.Context, part
 		return false, nil
 	}
 
-	walRecords, err := p.queries.PollPayloadWALForRecordsToOffload(ctx, tx, sqlcv1.PollPayloadWALForRecordsToOffloadParams{
+	walRecords, err := p.queries.PollPayloadWALForRecordsToReplicate(ctx, tx, sqlcv1.PollPayloadWALForRecordsToReplicateParams{
 		Polllimit:       int32(p.walPollLimit),
 		Partitionnumber: int32(partitionNumber),
 	})
@@ -438,7 +439,7 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadWAL(ctx context.Context, part
 		return false, fmt.Errorf("failed to prepare transaction for offloading: %w", err)
 	}
 
-	err = p.queries.FinalizePayloadOffloads(ctx, tx, sqlcv1.FinalizePayloadOffloadsParams{
+	err = p.queries.SetPayloadExternalKeys(ctx, tx, sqlcv1.SetPayloadExternalKeysParams{
 		Ids:                  ids,
 		Insertedats:          insertedAts,
 		Payloadtypes:         types,
@@ -456,6 +457,55 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadWAL(ctx context.Context, part
 	}
 
 	return hasMoreWALRecords, nil
+}
+
+func (p *payloadStoreRepositoryImpl) ProcessPayloadExternalCutovers(ctx context.Context, partitionNumber int64) (bool, error) {
+	// no need to cut over if external store is not enabled
+	if !p.externalStoreEnabled {
+		return false, nil
+	}
+
+	ctx, span := telemetry.NewSpan(ctx, "payloadstore.process_payload_external_cutovers")
+	defer span.End()
+
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, p.pool, p.l, 5000)
+
+	if err != nil {
+		return false, fmt.Errorf("failed to prepare transaction: %w", err)
+	}
+
+	defer rollback()
+
+	advisoryLockAcquired, err := p.queries.TryAdvisoryLock(ctx, tx, hash(fmt.Sprintf("process-payload-cut-overs-lease-%d", partitionNumber)))
+
+	if err != nil {
+		return false, fmt.Errorf("failed to acquire advisory lock: %w", err)
+	}
+
+	if !advisoryLockAcquired {
+		return false, nil
+	}
+
+	queueItemsCutOver, err := p.queries.CutOverPayloadsToExternal(ctx, tx, sqlcv1.CutOverPayloadsToExternalParams{
+		Polllimit:       int32(p.walPollLimit),
+		Partitionnumber: int32(partitionNumber),
+	})
+
+	if err != nil {
+		return false, err
+	}
+
+	if queueItemsCutOver == 0 {
+		return false, nil
+	}
+
+	hasMoreQueueItems := int(queueItemsCutOver) == p.walPollLimit
+
+	if err := commit(ctx); err != nil {
+		return false, err
+	}
+
+	return hasMoreQueueItems, nil
 }
 
 func (p *payloadStoreRepositoryImpl) OverwriteExternalStore(store ExternalStore, inlineStoreTTL time.Duration) {
