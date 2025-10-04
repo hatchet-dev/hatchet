@@ -10,7 +10,7 @@ func ValidateJSONB(jsonb []byte, fieldName string) error {
 		return nil
 	}
 
-	if strings.Contains(string(jsonb), "\\u0000") {
+	if strings.Contains(string(jsonb), "\u0000") {
 		return fmt.Errorf("encoded jsonb contains invalid null character \\u0000 in field `%s`", fieldName)
 	}
 
