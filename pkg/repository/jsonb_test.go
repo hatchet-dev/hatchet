@@ -21,17 +21,17 @@ func TestValidateJSONB(t *testing.T) {
 		},
 		{
 			name:    "valid_jsonb_with_encoded_NUL",
-			jsonb:   []byte(`{"NUL":"\\u0000"}`),
+			jsonb:   []byte("{\"NUL\":\"\\u0000\"}"),
 			wantErr: false,
 		},
 		{
 			name:    "invalid_jsonb_with_unicode_NUL",
-			jsonb:   []byte(`{"NUL":"\u0000"}`),
+			jsonb:   []byte("{\"NUL\":\"\u0000\"}"),
 			wantErr: true,
 		},
 		{
 			name:    "invalid_jsonb_with_utf8_NUL",
-			jsonb:   []byte(`{"NUL":"\x00"}`),
+			jsonb:   []byte("{\"NUL\":\"\x00\"}"),
 			wantErr: true,
 		},
 	}
