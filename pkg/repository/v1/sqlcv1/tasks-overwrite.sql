@@ -102,7 +102,8 @@ WITH locked_tasks AS (
                 unnest(@retryCounts::integer[]) AS retry_count,
                 unnest(cast(@eventTypes::text[] as v1_task_event_type[])) AS event_type,
                 unnest(@eventKeys::text[]) AS event_key,
-                unnest(@datas::jsonb[]) AS data
+                unnest(@datas::jsonb[]) AS data,
+                unnest(@externalIds::uuid[]) AS external_id
         ) AS subquery
 )
 INSERT INTO v1_task_event (
@@ -111,7 +112,8 @@ INSERT INTO v1_task_event (
     retry_count,
     event_type,
     event_key,
-    data
+    data,
+    external_id
 )
 SELECT
     @tenantId::uuid,
@@ -119,7 +121,8 @@ SELECT
     i.retry_count,
     i.event_type,
     i.event_key,
-    i.data
+    i.data,
+    i.external_id
 FROM
     input i
 ON CONFLICT (tenant_id, task_id, event_type, event_key) WHERE event_key IS NOT NULL DO NOTHING;

@@ -1083,10 +1083,41 @@ func (r *TaskRepositoryImpl) listTaskOutputEvents(ctx context.Context, tx sqlcv1
 		return nil, err
 	}
 
+	retrieveOpts := make([]RetrievePayloadOpts, len(matchedEvents))
+	retrieveOptsToEventData := make(map[RetrievePayloadOpts][]byte)
+	matchedEventToRetrieveOpts := make(map[*sqlcv1.ListMatchingTaskEventsRow]RetrievePayloadOpts)
+
+	for i, event := range matchedEvents {
+		opt := RetrievePayloadOpts{
+			Id:         event.ID,
+			InsertedAt: event.TaskInsertedAt,
+			Type:       sqlcv1.V1PayloadTypeTASKEVENTDATA,
+			TenantId:   sqlchelpers.UUIDFromStr(tenantId),
+		}
+
+		retrieveOpts[i] = opt
+		retrieveOptsToEventData[opt] = event.Data
+		matchedEventToRetrieveOpts[event] = opt
+	}
+
+	payloads, err := r.payloadStore.BulkRetrieve(ctx, retrieveOpts...)
+
+	if err != nil {
+		return nil, err
+	}
+
 	res := make([]*TaskOutputEvent, 0, len(matchedEvents))
 
 	for _, event := range matchedEvents {
-		o, err := newTaskEventFromBytes(event.Data)
+		retrieveOpts := matchedEventToRetrieveOpts[event]
+		payload, ok := payloads[retrieveOpts]
+
+		if !ok {
+			r.l.Error().Msgf("ListenForDurableEvent: matched event %s has empty payload, falling back to input", event.ExternalID)
+			payload = retrieveOptsToEventData[retrieveOpts]
+		}
+
+		o, err := newTaskEventFromBytes(payload)
 
 		if err != nil {
 			return nil, err
@@ -2578,8 +2609,11 @@ func (r *sharedRepository) createTaskEvents(
 	eventTypesStrs := make([]string, len(tasks))
 	paramDatas := make([][]byte, len(tasks))
 	paramKeys := make([]pgtype.Text, len(tasks))
+	externalIds := make([]pgtype.UUID, len(tasks))
 
 	internalTaskEvents := make([]InternalTaskEvent, len(tasks))
+
+	externalIdToData := make(map[pgtype.UUID][]byte, len(tasks))
 
 	for i, task := range tasks {
 		taskIds[i] = task.Id
@@ -2587,11 +2621,16 @@ func (r *sharedRepository) createTaskEvents(
 		retryCounts[i] = task.RetryCount
 		eventTypesStrs[i] = string(eventTypes[i])
 
+		externalId := sqlchelpers.UUIDFromStr(uuid.NewString())
+		externalIds[i] = externalId
+
 		if len(eventDatas[i]) == 0 {
 			paramDatas[i] = nil
 		} else {
 			paramDatas[i] = eventDatas[i]
 		}
+
+		externalIdToData[externalId] = eventDatas[i]
 
 		if eventKeys[i] != "" {
 			paramKeys[i] = pgtype.Text{
@@ -2611,7 +2650,7 @@ func (r *sharedRepository) createTaskEvents(
 		}
 	}
 
-	err := r.queries.CreateTaskEvents(ctx, dbtx, sqlcv1.CreateTaskEventsParams{
+	taskEvents, err := r.queries.CreateTaskEvents(ctx, dbtx, sqlcv1.CreateTaskEventsParams{
 		Tenantid:        sqlchelpers.UUIDFromStr(tenantId),
 		Taskids:         taskIds,
 		Taskinsertedats: taskInsertedAts,
@@ -2623,6 +2662,26 @@ func (r *sharedRepository) createTaskEvents(
 
 	if err != nil {
 		return nil, err
+	}
+
+	storePayloadOpts := make([]StorePayloadOpts, len(taskEvents))
+
+	for i, taskEvent := range taskEvents {
+		data := externalIdToData[taskEvent.ExternalID]
+
+		storePayloadOpts[i] = StorePayloadOpts{
+			Id:         taskEvent.ID,
+			InsertedAt: pgtype.Timestamptz(taskEvent.CreatedAt),
+			Type:       sqlcv1.V1PayloadTypeTASKEVENTDATA,
+			Payload:    data,
+			TenantId:   tenantId,
+		}
+	}
+
+	err = r.payloadStore.Store(ctx, dbtx, storePayloadOpts...)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to store task event payloads: %w", err)
 	}
 
 	return internalTaskEvents, nil
@@ -3355,21 +3414,52 @@ func (r *TaskRepositoryImpl) ListTaskParentOutputs(ctx context.Context, tenantId
 		return nil, err
 	}
 
-	workflowRunIdsToOutputs := make(map[string][]*TaskOutputEvent)
+	retrieveOpts := make([]RetrievePayloadOpts, 0, len(res))
+	retrieveOptsToWorkflowRunId := make(map[RetrievePayloadOpts]pgtype.UUID, len(res))
+	retrieveOptToPayload := make(map[RetrievePayloadOpts][]byte)
 
 	for _, outputTask := range res {
-		if outputTask.WorkflowRunID.Valid {
-			wrId := sqlchelpers.UUIDToStr(outputTask.WorkflowRunID)
-
-			e, err := newTaskEventFromBytes(outputTask.Output)
-
-			if err != nil {
-				r.l.Warn().Msgf("failed to parse task output: %v", err)
-				continue
-			}
-
-			workflowRunIdsToOutputs[wrId] = append(workflowRunIdsToOutputs[wrId], e)
+		if !outputTask.WorkflowRunID.Valid {
+			continue
 		}
+
+		opt := RetrievePayloadOpts{
+			Id:         outputTask.TaskEventID,
+			InsertedAt: pgtype.Timestamptz(outputTask.TaskEventCreatedAt),
+			Type:       sqlcv1.V1PayloadTypeTASKEVENTDATA,
+			TenantId:   sqlchelpers.UUIDFromStr(tenantId),
+		}
+
+		retrieveOpts = append(retrieveOpts, opt)
+		retrieveOptsToWorkflowRunId[opt] = outputTask.WorkflowRunID
+		retrieveOptToPayload[opt] = outputTask.Output
+	}
+
+	payloads, err := r.payloadStore.BulkRetrieve(ctx, retrieveOpts...)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve task output payloads: %w", err)
+	}
+
+	workflowRunIdsToOutputs := make(map[string][]*TaskOutputEvent)
+
+	for retrieveOpts, workflowRunId := range retrieveOptsToWorkflowRunId {
+		wrId := sqlchelpers.UUIDToStr(workflowRunId)
+		payload, ok := payloads[retrieveOpts]
+
+		if !ok {
+			r.l.Error().Msgf("ListenForDurableEvent: task %s has empty payload, falling back to input", wrId)
+			payload = retrieveOptToPayload[retrieveOpts]
+		}
+
+		e, err := newTaskEventFromBytes(payload)
+
+		if err != nil {
+			r.l.Warn().Msgf("failed to parse task output: %v", err)
+			continue
+		}
+
+		workflowRunIdsToOutputs[wrId] = append(workflowRunIdsToOutputs[wrId], e)
 	}
 
 	for _, task := range tasks {
