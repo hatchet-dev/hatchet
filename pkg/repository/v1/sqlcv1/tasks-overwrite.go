@@ -551,15 +551,25 @@ WITH input AS (
                 unnest($2::timestamptz[]) AS task_inserted_at,
                 unnest($3::integer[]) AS retry_count
         ) AS subquery
-), concurrency_slots_to_delete AS (
-    SELECT
-        task_id, task_inserted_at, task_retry_count
-    FROM
-        v1_concurrency_slot
-    WHERE
-        (task_id, task_inserted_at, task_retry_count) IN (SELECT task_id, task_inserted_at, retry_count FROM input)
-    ORDER BY
-        task_id, task_inserted_at, task_retry_count
+),
+strategies_to_lock AS (
+    SELECT DISTINCT strategy_id
+    FROM v1_concurrency_slot
+    WHERE (task_id, task_inserted_at, task_retry_count) IN (
+        SELECT task_id, task_inserted_at, retry_count FROM input
+    )
+),
+acquire_locks AS (
+    SELECT pg_advisory_xact_lock(strategy_id)
+    FROM strategies_to_lock
+),
+concurrency_slots_to_delete AS (
+    SELECT task_id, task_inserted_at, task_retry_count
+    FROM v1_concurrency_slot
+    WHERE (task_id, task_inserted_at, task_retry_count) IN (
+        SELECT task_id, task_inserted_at, retry_count FROM input
+    )
+    ORDER BY task_id, task_inserted_at, task_retry_count
     FOR UPDATE
 )
 DELETE FROM
