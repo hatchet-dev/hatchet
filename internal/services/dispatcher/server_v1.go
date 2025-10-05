@@ -554,7 +554,8 @@ func (s *DispatcherImpl) sendStepActionEventV1(ctx context.Context, request *con
 		s.l.Warn().Msg("retry count is nil, using task's current retry count")
 	}
 
-	if request.EventType == contracts.StepActionEventType_STEP_EVENT_TYPE_COMPLETED {
+	if request.EventType == contracts.StepActionEventType_STEP_EVENT_TYPE_COMPLETED ||
+		request.EventType == contracts.StepActionEventType_STEP_EVENT_TYPE_FAILED {
 		if err := repository.ValidateJSONB([]byte(request.EventPayload), "taskOutput"); err != nil {
 			request.EventPayload = err.Error()
 			request.EventType = contracts.StepActionEventType_STEP_EVENT_TYPE_FAILED
