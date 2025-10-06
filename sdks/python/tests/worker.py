@@ -9,6 +9,7 @@ from tests.child_spawn_cache_on_retry.worker import (
 from tests.correct_failure_on_timeout_with_multi_concurrency.workflow import (
     multiple_concurrent_cancellations_test_workflow,
 )
+from tests.engine_null_unicode_character.task import engine_null_unicode_rejection
 
 hatchet = Hatchet(debug=True)
 
@@ -21,6 +22,7 @@ def main(slots: int) -> None:
             multiple_concurrent_cancellations_test_workflow,
             spawn_cache_on_retry_parent,
             spawn_cache_on_retry_child,
+            engine_null_unicode_rejection,
         ],
     )
 
