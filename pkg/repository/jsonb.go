@@ -1,8 +1,8 @@
 package repository
 
 import (
-	"bytes"
 	"fmt"
+	"strings"
 )
 
 func ValidateJSONB(jsonb []byte, fieldName string) error {
@@ -10,7 +10,7 @@ func ValidateJSONB(jsonb []byte, fieldName string) error {
 		return nil
 	}
 
-	if bytes.Contains(jsonb, []byte("\u0000")) {
+	if strings.Contains(string(jsonb), "\\u0000") {
 		return fmt.Errorf("encoded jsonb contains invalid null character \\u0000 in field `%s`", fieldName)
 	}
 
