@@ -26,7 +26,7 @@ require (
 	github.com/opencontainers/go-digest v1.0.0
 	github.com/pingcap/errors v0.11.4
 	github.com/posthog/posthog-go v1.6.10
-	github.com/pressly/goose/v3 v3.25.0
+	github.com/pressly/goose/v3 v3.26.0
 	github.com/sethvargo/go-retry v0.3.0
 	github.com/spf13/cobra v1.10.1
 	github.com/spf13/viper v1.21.0
