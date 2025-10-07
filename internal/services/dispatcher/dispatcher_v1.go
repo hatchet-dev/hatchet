@@ -278,7 +278,7 @@ func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *ms
 				for _, outputEvent := range parentData {
 					outputMap := make(map[string]interface{})
 
-					if outputEvent.Output != nil {
+					if len(outputEvent.Output) > 0 {
 						err := json.Unmarshal(outputEvent.Output, &outputMap)
 
 						if err != nil {
