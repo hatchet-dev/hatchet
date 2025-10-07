@@ -1102,11 +1102,6 @@ func (r *TaskRepositoryImpl) listTaskOutputEvents(ctx context.Context, tx sqlcv1
 
 	payloads, err := r.payloadStore.BulkRetrieve(ctx, retrieveOpts...)
 
-	for o, p := range payloads {
-		oj, _ := json.MarshalIndent(o, "", "  ")
-		fmt.Println("payload for retrieve opts", string(oj), "is", string(p))
-	}
-
 	if err != nil {
 		return nil, err
 	}
@@ -1117,16 +1112,10 @@ func (r *TaskRepositoryImpl) listTaskOutputEvents(ctx context.Context, tx sqlcv1
 		retrieveOpts := matchedEventToRetrieveOpts[event]
 		payload, ok := payloads[retrieveOpts]
 
-		rj, _ := json.MarshalIndent(retrieveOpts, "", "  ")
-		fmt.Println("looking for payload for retrieve opts", string(rj), "found?", ok, "payload len", len(payload))
-
 		if !ok {
-			r.l.Error().Msgf("ListenForDurableEvent: matched event %s with created at %s and id %d has empty payload, falling back to input", event.ExternalID, event.CreatedAt, event.ID)
+			r.l.Error().Msgf("ListenForDurableEvent: matched event %s with created at %s and id %d has empty payload, falling back to input", event.ExternalID, event.CreatedAt.Time, event.ID)
 			payload = retrieveOptsToEventData[retrieveOpts]
-			fmt.Println("input from fallback", string(retrieveOptsToEventData[retrieveOpts]))
 		}
-
-		fmt.Println("\n\n")
 
 		o, err := newTaskEventFromBytes(payload)
 
