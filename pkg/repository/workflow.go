@@ -258,6 +258,11 @@ type UpdateWorkflowOpts struct {
 	IsPaused *bool
 }
 
+type UpdateCronOpts struct {
+	// (optional) is paused -- if true, the cron will not be scheduled
+	IsPaused bool
+}
+
 type WorkflowAPIRepository interface {
 	// ListWorkflows returns all workflows for a given tenant.
 	ListWorkflows(tenantId string, opts *ListWorkflowsOpts) (*ListWorkflowsResult, error)
@@ -296,6 +301,9 @@ type WorkflowAPIRepository interface {
 
 	// DeleteCronWorkflow deletes a cron workflow run
 	DeleteCronWorkflow(ctx context.Context, tenantId, id string) error
+
+	// UpdateCronWorkflow updates a cron workflow
+	UpdateCronWorkflow(ctx context.Context, tenantId, id string, opts *UpdateCronOpts) error
 
 	// CreateScheduledWorkflow creates a scheduled workflow run
 	CreateScheduledWorkflow(ctx context.Context, tenantId string, opts *CreateScheduledWorkflowRunForWorkflowOpts) (*dbsqlc.ListScheduledWorkflowsRow, error)

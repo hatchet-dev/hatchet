@@ -382,6 +382,13 @@ func (w *workflowAPIRepository) DeleteCronWorkflow(ctx context.Context, tenantId
 	return w.queries.DeleteWorkflowTriggerCronRef(ctx, w.pool, sqlchelpers.UUIDFromStr(id))
 }
 
+func (w *workflowAPIRepository) UpdateCronWorkflow(ctx context.Context, tenantId, id string, opts *repository.UpdateCronOpts) error {
+	return w.queries.UpdateCronTrigger(ctx, w.pool, dbsqlc.UpdateCronTriggerParams{
+		IsPaused:      sqlchelpers.BoolFromBoolean(opts.IsPaused),
+		Crontriggerid: sqlchelpers.UUIDFromStr(id),
+	})
+}
+
 func (w *workflowAPIRepository) CreateCronWorkflow(ctx context.Context, tenantId string, opts *repository.CreateCronWorkflowTriggerOpts) (*dbsqlc.ListCronWorkflowsRow, error) {
 
 	var input, additionalMetadata []byte

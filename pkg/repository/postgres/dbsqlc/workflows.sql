@@ -157,19 +157,10 @@ SET "parentId" = @newWorkflowTriggerId::uuid
 WHERE "id" IN (SELECT "id" FROM triggersToUpdate);
 
 -- name: UpdateCronTrigger :exec
-WITH latest_version AS (
-    SELECT "id" FROM "WorkflowVersion"
-    WHERE "workflowId" = @workflowId::uuid
-    ORDER BY "order" DESC
-    LIMIT 1
-)
 UPDATE "WorkflowTriggerCronRef"
 SET
-    "enabled" = NOT sqlc.narg('isPaused')::BOOLEAN
-FROM "WorkflowTriggerCronRef" c
-JOIN "WorkflowTriggers" t ON t."id" = c."parentId"
-JOIN latest_version lv ON lv."id" = t."workflowVersionId"
-WHERE c."id" = @cronTriggerId::uuid
+    "enabled" = NOT COALESCE(sqlc.narg('isPaused')::BOOLEAN, NOT c."enabled")
+WHERE "id" = @cronTriggerId::uuid
 ;
 
 -- name: MoveScheduledTriggerToNewWorkflowTriggers :exec
