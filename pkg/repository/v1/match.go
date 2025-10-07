@@ -483,7 +483,7 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 			return nil, fmt.Errorf("failed to get DAG data: %w", err)
 		}
 
-		retrievePayloadOpts := make([]RetrievePayloadOpts, 0, len(dagInputDatas))
+		retrievePayloadOpts := make([]RetrievePayloadOpts, len(dagInputDatas))
 		for i, dagData := range dagInputDatas {
 			retrievePayloadOpts[i] = RetrievePayloadOpts{
 				Id:         dagData.DagID,
