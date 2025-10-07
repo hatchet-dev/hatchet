@@ -1897,7 +1897,7 @@ func (r *OLAPRepositoryImpl) populateTaskRunData(ctx context.Context, tx pgx.Tx,
 	})
 
 	if len(uniqueTaskIdInsertedAts) == 0 {
-		r.l.Warn().Msg("populateTaskRunData called with empty opts, returning empty result")
+		r.l.Debug().Msg("populateTaskRunData called with empty opts, returning empty result")
 		return []*sqlcv1.PopulateTaskRunDataRow{}, nil
 	}
 
