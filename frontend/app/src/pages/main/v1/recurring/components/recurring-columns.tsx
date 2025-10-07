@@ -7,6 +7,8 @@ import { AdditionalMetadata } from '../../events/components/additional-metadata'
 import { Badge } from '@/components/v1/ui/badge';
 import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
 import { extractCronTz, formatCron } from '@/lib/utils';
+import { Check, X } from 'lucide-react';
+import { Spinner } from '@/components/v1/ui/loading';
 
 export const CronColumn = {
   expression: 'Expression',
@@ -17,12 +19,12 @@ export const CronColumn = {
   metadata: 'Metadata',
   createdAt: 'Created At',
   actions: 'Actions',
-  paused: 'Paused',
+  enabled: 'Enabled',
 };
 
 export type CronColumnKeys = keyof typeof CronColumn;
 
-export const pausedKey: CronColumnKeys = 'paused';
+export const enabledKey: CronColumnKeys = 'enabled';
 export const expressionKey: CronColumnKeys = 'expression';
 export const descriptionKey: CronColumnKeys = 'description';
 export const timezoneKey: CronColumnKeys = 'timezone';
@@ -158,11 +160,21 @@ export const columns = ({
       enableHiding: true,
     },
     {
-      accessorKey: pausedKey,
+      accessorKey: enabledKey,
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={CronColumn.paused} />
+        <DataTableColumnHeader column={column} title={CronColumn.enabled} />
       ),
-      cell: ({ row }) => <div>{row.original.enabled ? 'No' : 'Yes'}</div>,
+      cell: ({ row }) => (
+        <div>
+          {isUpdatePending ? (
+            <Spinner />
+          ) : row.original.enabled ? (
+            <Check className="size-4 text-emerald-500" />
+          ) : (
+            <X className="size-4 text-red-500" />
+          )}
+        </div>
+      ),
     },
     {
       accessorKey: actionsKey,
@@ -183,7 +195,7 @@ export const columns = ({
                     : undefined,
               },
               {
-                label: 'Pause',
+                label: row.original.enabled ? 'Disable' : 'Enable',
                 onClick: () => onPauseClick(row.original),
                 disabled: isUpdatePending
                   ? 'Another update is pending'
