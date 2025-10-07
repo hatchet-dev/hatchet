@@ -2916,7 +2916,7 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId string, t
 		if errors.Is(err, pgx.ErrNoRows) {
 			// If the input wasn't found in the payload store,
 			// fall back to the input stored on the task itself.
-			r.l.Error().Msgf("ReplayTasks: task %s has empty payload, falling back to input", task.ExternalID.String())
+			r.l.Error().Msgf("ReplayTasks: task %s with ID %d and inserted_at %s has empty payload, falling back to input", task.ExternalID.String(), task.ID, task.InsertedAt.Time)
 
 			input = task.Input
 		}
@@ -3448,7 +3448,7 @@ func (r *TaskRepositoryImpl) ListTaskParentOutputs(ctx context.Context, tenantId
 		payload, ok := payloads[retrieveOpts]
 
 		if !ok {
-			r.l.Error().Msgf("ListenForDurableEvent: task %s has empty payload, falling back to input", wrId)
+			r.l.Error().Msgf("ListenForDurableEvent: task %s with ID %d and inserted_at %s has empty payload, falling back to input", wrId, retrieveOpts.Id, retrieveOpts.InsertedAt.Time)
 			payload = retrieveOptToPayload[retrieveOpts]
 		}
 

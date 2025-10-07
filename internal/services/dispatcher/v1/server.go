@@ -176,7 +176,7 @@ func (d *DispatcherServiceImpl) ListenForDurableEvent(server contracts.V1Dispatc
 		})
 
 		if err != nil {
-			d.l.Error().Msgf("ListenForDurableEvent: task %s has empty payload, falling back to input", externalId)
+			d.l.Error().Msgf("ListenForDurableEvent: task %s with ID %d and inserted_at %s has empty payload, falling back to input", externalId, e.ID, e.InsertedAt.Time)
 			payload = e.Data
 		}
 
