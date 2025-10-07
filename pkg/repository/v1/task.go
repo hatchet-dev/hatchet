@@ -2623,6 +2623,10 @@ func (r *sharedRepository) createTaskEvents(
 
 		externalId := sqlchelpers.UUIDFromStr(uuid.NewString())
 		externalIds[i] = externalId
+
+		// important: if we don't set this to `eventDatas[i]` and instead allow it to be nil optionally
+		// we'll get errors downstream when we try to read the payload back and parse it in `registerChildWorkflows`
+		// because it'll try to unmarshal the `nil` value.
 		externalIdToData[externalId] = eventDatas[i]
 
 		if len(eventDatas[i]) == 0 || !r.payloadStore.TaskEventDualWritesEnabled() {
