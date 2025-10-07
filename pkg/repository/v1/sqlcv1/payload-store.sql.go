@@ -33,7 +33,7 @@ WITH tenants AS (
     WHERE
         tenant_id = ANY(SELECT tenant_id FROM tenants)
         AND cut_over_at <= NOW()
-    ORDER BY cut_over_at, tenant_id, payload_id, payload_inserted_at, payload_type
+    ORDER BY cut_over_at, tenant_id
     LIMIT $2::INT
     FOR UPDATE SKIP LOCKED
 ), payload_updates AS (
@@ -86,7 +86,7 @@ WITH tenants AS (
 SELECT tenant_id, offload_at, payload_id, payload_inserted_at, payload_type, operation
 FROM v1_payload_wal
 WHERE tenant_id = ANY(SELECT tenant_id FROM tenants)
-ORDER BY offload_at, tenant_id, payload_id, payload_inserted_at, payload_type
+ORDER BY offload_at, tenant_id
 LIMIT $1::INT
 FOR UPDATE SKIP LOCKED
 `
