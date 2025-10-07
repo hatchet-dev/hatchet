@@ -719,6 +719,11 @@ CreateCronWorkflowTriggerRequest:
     - cronName
     - cronExpression
 
+UpdateCronWorkflowTriggerRequest:
+  properties:
+    isPaused:
+      type: boolean
+
 ScheduleWorkflowRunRequest:
   properties:
     input:

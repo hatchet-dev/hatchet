@@ -1170,6 +1170,11 @@ type TriggerWorkflowRunRequest struct {
 	Input              map[string]interface{}  `json:"input"`
 }
 
+// UpdateCronWorkflowTriggerRequest defines model for UpdateCronWorkflowTriggerRequest.
+type UpdateCronWorkflowTriggerRequest struct {
+	IsPaused *bool `json:"isPaused,omitempty"`
+}
+
 // UpdateTenantAlertEmailGroupRequest defines model for UpdateTenantAlertEmailGroupRequest.
 type UpdateTenantAlertEmailGroupRequest struct {
 	// Emails A list of emails for users
@@ -2800,6 +2805,9 @@ type WorkflowRunUpdateReplayJSONRequestBody = ReplayWorkflowRunsRequest
 // WorkflowRunCancelJSONRequestBody defines body for WorkflowRunCancel for application/json ContentType.
 type WorkflowRunCancelJSONRequestBody = WorkflowRunsCancelRequest
 
+// WorkflowCronUpdateJSONRequestBody defines body for WorkflowCronUpdate for application/json ContentType.
+type WorkflowCronUpdateJSONRequestBody = UpdateCronWorkflowTriggerRequest
+
 // CronWorkflowTriggerCreateJSONRequestBody defines body for CronWorkflowTriggerCreate for application/json ContentType.
 type CronWorkflowTriggerCreateJSONRequestBody = CreateCronWorkflowTriggerRequest
 
@@ -3319,6 +3327,11 @@ type ClientInterface interface {
 
 	// WorkflowCronGet request
 	WorkflowCronGet(ctx context.Context, tenant openapi_types.UUID, cronWorkflow openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// WorkflowCronUpdateWithBody request with any body
+	WorkflowCronUpdateWithBody(ctx context.Context, tenant openapi_types.UUID, cronWorkflow openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	WorkflowCronUpdate(ctx context.Context, tenant openapi_types.UUID, cronWorkflow openapi_types.UUID, body WorkflowCronUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// WorkflowRunList request
 	WorkflowRunList(ctx context.Context, tenant openapi_types.UUID, params *WorkflowRunListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -4846,6 +4859,30 @@ func (c *Client) WorkflowCronDelete(ctx context.Context, tenant openapi_types.UU
 
 func (c *Client) WorkflowCronGet(ctx context.Context, tenant openapi_types.UUID, cronWorkflow openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewWorkflowCronGetRequest(c.Server, tenant, cronWorkflow)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) WorkflowCronUpdateWithBody(ctx context.Context, tenant openapi_types.UUID, cronWorkflow openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewWorkflowCronUpdateRequestWithBody(c.Server, tenant, cronWorkflow, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) WorkflowCronUpdate(ctx context.Context, tenant openapi_types.UUID, cronWorkflow openapi_types.UUID, body WorkflowCronUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewWorkflowCronUpdateRequest(c.Server, tenant, cronWorkflow, body)
 	if err != nil {
 		return nil, err
 	}
@@ -10444,6 +10481,60 @@ func NewWorkflowCronGetRequest(server string, tenant openapi_types.UUID, cronWor
 	return req, nil
 }
 
+// NewWorkflowCronUpdateRequest calls the generic WorkflowCronUpdate builder with application/json body
+func NewWorkflowCronUpdateRequest(server string, tenant openapi_types.UUID, cronWorkflow openapi_types.UUID, body WorkflowCronUpdateJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewWorkflowCronUpdateRequestWithBody(server, tenant, cronWorkflow, "application/json", bodyReader)
+}
+
+// NewWorkflowCronUpdateRequestWithBody generates requests for WorkflowCronUpdate with any type of body
+func NewWorkflowCronUpdateRequestWithBody(server string, tenant openapi_types.UUID, cronWorkflow openapi_types.UUID, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "cron-workflow", runtime.ParamLocationPath, cronWorkflow)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/tenants/%s/workflows/crons/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PATCH", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewWorkflowRunListRequest generates requests for WorkflowRunList
 func NewWorkflowRunListRequest(server string, tenant openapi_types.UUID, params *WorkflowRunListParams) (*http.Request, error) {
 	var err error
@@ -12593,6 +12684,11 @@ type ClientWithResponsesInterface interface {
 
 	// WorkflowCronGetWithResponse request
 	WorkflowCronGetWithResponse(ctx context.Context, tenant openapi_types.UUID, cronWorkflow openapi_types.UUID, reqEditors ...RequestEditorFn) (*WorkflowCronGetResponse, error)
+
+	// WorkflowCronUpdateWithBodyWithResponse request with any body
+	WorkflowCronUpdateWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, cronWorkflow openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*WorkflowCronUpdateResponse, error)
+
+	WorkflowCronUpdateWithResponse(ctx context.Context, tenant openapi_types.UUID, cronWorkflow openapi_types.UUID, body WorkflowCronUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*WorkflowCronUpdateResponse, error)
 
 	// WorkflowRunListWithResponse request
 	WorkflowRunListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *WorkflowRunListParams, reqEditors ...RequestEditorFn) (*WorkflowRunListResponse, error)
@@ -14978,6 +15074,29 @@ func (r WorkflowCronGetResponse) StatusCode() int {
 	return 0
 }
 
+type WorkflowCronUpdateResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON400      *APIErrors
+	JSON403      *APIError
+}
+
+// Status returns HTTPResponse.Status
+func (r WorkflowCronUpdateResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r WorkflowCronUpdateResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type WorkflowRunListResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -16806,6 +16925,23 @@ func (c *ClientWithResponses) WorkflowCronGetWithResponse(ctx context.Context, t
 		return nil, err
 	}
 	return ParseWorkflowCronGetResponse(rsp)
+}
+
+// WorkflowCronUpdateWithBodyWithResponse request with arbitrary body returning *WorkflowCronUpdateResponse
+func (c *ClientWithResponses) WorkflowCronUpdateWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, cronWorkflow openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*WorkflowCronUpdateResponse, error) {
+	rsp, err := c.WorkflowCronUpdateWithBody(ctx, tenant, cronWorkflow, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseWorkflowCronUpdateResponse(rsp)
+}
+
+func (c *ClientWithResponses) WorkflowCronUpdateWithResponse(ctx context.Context, tenant openapi_types.UUID, cronWorkflow openapi_types.UUID, body WorkflowCronUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*WorkflowCronUpdateResponse, error) {
+	rsp, err := c.WorkflowCronUpdate(ctx, tenant, cronWorkflow, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseWorkflowCronUpdateResponse(rsp)
 }
 
 // WorkflowRunListWithResponse request returning *WorkflowRunListResponse
@@ -21090,6 +21226,39 @@ func ParseWorkflowCronGetResponse(rsp *http.Response) (*WorkflowCronGetResponse,
 			return nil, err
 		}
 		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseWorkflowCronUpdateResponse parses an HTTP response from a WorkflowCronUpdateWithResponse call
+func ParseWorkflowCronUpdateResponse(rsp *http.Response) (*WorkflowCronUpdateResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &WorkflowCronUpdateResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
 
 	}
 

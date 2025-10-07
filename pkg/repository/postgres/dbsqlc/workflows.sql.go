@@ -2107,6 +2107,33 @@ func (q *Queries) SoftDeleteWorkflow(ctx context.Context, db DBTX, id pgtype.UUI
 	return &i, err
 }
 
+const updateCronTrigger = `-- name: UpdateCronTrigger :exec
+WITH latest_version AS (
+    SELECT "id" FROM "WorkflowVersion"
+    WHERE "workflowId" = $3::uuid
+    ORDER BY "order" DESC
+    LIMIT 1
+)
+UPDATE "WorkflowTriggerCronRef"
+SET
+    "enabled" = NOT $1::BOOLEAN
+FROM "WorkflowTriggerCronRef" c
+JOIN "WorkflowTriggers" t ON t."id" = c."parentId"
+JOIN latest_version lv ON lv."id" = t."workflowVersionId"
+WHERE c."id" = $2::uuid
+`
+
+type UpdateCronTriggerParams struct {
+	IsPaused      pgtype.Bool `json:"isPaused"`
+	Crontriggerid pgtype.UUID `json:"crontriggerid"`
+	Workflowid    pgtype.UUID `json:"workflowid"`
+}
+
+func (q *Queries) UpdateCronTrigger(ctx context.Context, db DBTX, arg UpdateCronTriggerParams) error {
+	_, err := db.Exec(ctx, updateCronTrigger, arg.IsPaused, arg.Crontriggerid, arg.Workflowid)
+	return err
+}
+
 const updateWorkflow = `-- name: UpdateWorkflow :one
 UPDATE "Workflow"
 SET
