@@ -174,7 +174,7 @@ func (s *sharedRepository) generateExternalIdsForChildWorkflows(ctx context.Cont
 	for i, lockedEvent := range lockedEvents {
 		retrievePayloadOpts[i] = RetrievePayloadOpts{
 			Id:         lockedEvent.ID,
-			InsertedAt: pgtype.Timestamptz(lockedEvent.CreatedAt),
+			InsertedAt: lockedEvent.InsertedAt,
 			Type:       sqlcv1.V1PayloadTypeTASKEVENTDATA,
 			TenantId:   sqlchelpers.UUIDFromStr(tenantId),
 		}
@@ -191,7 +191,7 @@ func (s *sharedRepository) generateExternalIdsForChildWorkflows(ctx context.Cont
 		opt := spawnKeyToOpt[lockedEvent.EventKey.String]
 		payload, ok := payloads[RetrievePayloadOpts{
 			Id:         lockedEvent.ID,
-			InsertedAt: pgtype.Timestamptz(lockedEvent.CreatedAt),
+			InsertedAt: lockedEvent.InsertedAt,
 			Type:       sqlcv1.V1PayloadTypeTASKEVENTDATA,
 			TenantId:   sqlchelpers.UUIDFromStr(tenantId),
 		}]

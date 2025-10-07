@@ -1090,7 +1090,7 @@ func (r *TaskRepositoryImpl) listTaskOutputEvents(ctx context.Context, tx sqlcv1
 	for i, event := range matchedEvents {
 		opt := RetrievePayloadOpts{
 			Id:         event.ID,
-			InsertedAt: event.TaskInsertedAt,
+			InsertedAt: event.InsertedAt,
 			Type:       sqlcv1.V1PayloadTypeTASKEVENTDATA,
 			TenantId:   sqlchelpers.UUIDFromStr(tenantId),
 		}
@@ -1102,6 +1102,11 @@ func (r *TaskRepositoryImpl) listTaskOutputEvents(ctx context.Context, tx sqlcv1
 
 	payloads, err := r.payloadStore.BulkRetrieve(ctx, retrieveOpts...)
 
+	for o, p := range payloads {
+		oj, _ := json.MarshalIndent(o, "", "  ")
+		fmt.Println("payload for retrieve opts", string(oj), "is", string(p))
+	}
+
 	if err != nil {
 		return nil, err
 	}
@@ -1112,10 +1117,16 @@ func (r *TaskRepositoryImpl) listTaskOutputEvents(ctx context.Context, tx sqlcv1
 		retrieveOpts := matchedEventToRetrieveOpts[event]
 		payload, ok := payloads[retrieveOpts]
 
+		rj, _ := json.MarshalIndent(retrieveOpts, "", "  ")
+		fmt.Println("looking for payload for retrieve opts", string(rj), "found?", ok, "payload len", len(payload))
+
 		if !ok {
-			r.l.Error().Msgf("ListenForDurableEvent: matched event %s has empty payload, falling back to input", event.ExternalID)
+			r.l.Error().Msgf("ListenForDurableEvent: matched event %s with created at %s and id %d has empty payload, falling back to input", event.ExternalID, event.CreatedAt, event.ID)
 			payload = retrieveOptsToEventData[retrieveOpts]
+			fmt.Println("input from fallback", string(retrieveOptsToEventData[retrieveOpts]))
 		}
+
+		fmt.Println("\n\n")
 
 		o, err := newTaskEventFromBytes(payload)
 
@@ -2658,6 +2669,7 @@ func (r *sharedRepository) createTaskEvents(
 		Eventtypes:      eventTypesStrs,
 		Datas:           paramDatas,
 		Eventkeys:       paramKeys,
+		Externalids:     externalIds,
 	})
 
 	if err != nil {
@@ -2671,7 +2683,7 @@ func (r *sharedRepository) createTaskEvents(
 
 		storePayloadOpts[i] = StorePayloadOpts{
 			Id:         taskEvent.ID,
-			InsertedAt: pgtype.Timestamptz(taskEvent.CreatedAt),
+			InsertedAt: taskEvent.InsertedAt,
 			Type:       sqlcv1.V1PayloadTypeTASKEVENTDATA,
 			Payload:    data,
 			TenantId:   tenantId,
@@ -3425,7 +3437,7 @@ func (r *TaskRepositoryImpl) ListTaskParentOutputs(ctx context.Context, tenantId
 
 		opt := RetrievePayloadOpts{
 			Id:         outputTask.TaskEventID,
-			InsertedAt: pgtype.Timestamptz(outputTask.TaskEventCreatedAt),
+			InsertedAt: outputTask.TaskEventInsertedAt,
 			Type:       sqlcv1.V1PayloadTypeTASKEVENTDATA,
 			TenantId:   sqlchelpers.UUIDFromStr(tenantId),
 		}

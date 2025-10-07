@@ -170,7 +170,7 @@ func (d *DispatcherServiceImpl) ListenForDurableEvent(server contracts.V1Dispatc
 
 		payload, err := d.repo.Payloads().Retrieve(ctx, v1.RetrievePayloadOpts{
 			Id:         e.ID,
-			InsertedAt: pgtype.Timestamptz(e.CreatedAt),
+			InsertedAt: e.InsertedAt,
 			Type:       sqlcv1.V1PayloadTypeTASKEVENTDATA,
 			TenantId:   sqlchelpers.UUIDFromStr(tenantId),
 		})

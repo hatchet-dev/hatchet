@@ -553,7 +553,7 @@ WITH input AS (
         ) AS subquery
 )
 SELECT
-    e.id, e.tenant_id, e.task_id, e.task_inserted_at, e.retry_count, e.event_type, e.event_key, e.created_at, e.data, e.external_id
+    e.id, e.inserted_at, e.tenant_id, e.task_id, e.task_inserted_at, e.retry_count, e.event_type, e.event_key, e.created_at, e.data, e.external_id
 FROM
     v1_task_event e
 JOIN
@@ -588,6 +588,7 @@ func (q *Queries) ListMatchingSignalEvents(ctx context.Context, db DBTX, arg Lis
 		var i V1TaskEvent
 		if err := rows.Scan(
 			&i.ID,
+			&i.InsertedAt,
 			&i.TenantID,
 			&i.TaskID,
 			&i.TaskInsertedAt,
@@ -622,7 +623,7 @@ WITH input AS (
 )
 SELECT
     t.external_id,
-    e.id, e.tenant_id, e.task_id, e.task_inserted_at, e.retry_count, e.event_type, e.event_key, e.created_at, e.data, e.external_id
+    e.id, e.inserted_at, e.tenant_id, e.task_id, e.task_inserted_at, e.retry_count, e.event_type, e.event_key, e.created_at, e.data, e.external_id
 FROM
     v1_lookup_table l
 JOIN
@@ -646,6 +647,7 @@ type ListMatchingTaskEventsParams struct {
 type ListMatchingTaskEventsRow struct {
 	ExternalID     pgtype.UUID        `json:"external_id"`
 	ID             int64              `json:"id"`
+	InsertedAt     pgtype.Timestamptz `json:"inserted_at"`
 	TenantID       pgtype.UUID        `json:"tenant_id"`
 	TaskID         int64              `json:"task_id"`
 	TaskInsertedAt pgtype.Timestamptz `json:"task_inserted_at"`
@@ -671,6 +673,7 @@ func (q *Queries) ListMatchingTaskEvents(ctx context.Context, db DBTX, arg ListM
 		if err := rows.Scan(
 			&i.ExternalID,
 			&i.ID,
+			&i.InsertedAt,
 			&i.TenantID,
 			&i.TaskID,
 			&i.TaskInsertedAt,
@@ -895,6 +898,7 @@ WITH input AS (
         t.workflow_id,
         e.id AS task_event_id,
         e.created_at AS task_event_created_at,
+        e.inserted_at AS task_event_inserted_at,
         e.data AS output
     FROM
         v1_task t1
@@ -928,6 +932,7 @@ SELECT
     DISTINCT ON (task_outputs.id, task_outputs.inserted_at, task_outputs.retry_count)
     task_outputs.task_event_id,
     task_outputs.task_event_created_at,
+    task_outputs.task_event_inserted_at,
     task_outputs.workflow_run_id,
     task_outputs.output
 FROM
@@ -949,10 +954,11 @@ type ListTaskParentOutputsParams struct {
 }
 
 type ListTaskParentOutputsRow struct {
-	TaskEventID        int64            `json:"task_event_id"`
-	TaskEventCreatedAt pgtype.Timestamp `json:"task_event_created_at"`
-	WorkflowRunID      pgtype.UUID      `json:"workflow_run_id"`
-	Output             []byte           `json:"output"`
+	TaskEventID         int64              `json:"task_event_id"`
+	TaskEventCreatedAt  pgtype.Timestamp   `json:"task_event_created_at"`
+	TaskEventInsertedAt pgtype.Timestamptz `json:"task_event_inserted_at"`
+	WorkflowRunID       pgtype.UUID        `json:"workflow_run_id"`
+	Output              []byte             `json:"output"`
 }
 
 // Lists the outputs of parent steps for a list of tasks. This is recursive because it looks at all grandparents
@@ -969,6 +975,7 @@ func (q *Queries) ListTaskParentOutputs(ctx context.Context, db DBTX, arg ListTa
 		if err := rows.Scan(
 			&i.TaskEventID,
 			&i.TaskEventCreatedAt,
+			&i.TaskEventInsertedAt,
 			&i.WorkflowRunID,
 			&i.Output,
 		); err != nil {
@@ -1443,7 +1450,8 @@ WITH input AS (
         e.data,
 		e.task_id,
 		e.task_inserted_at,
-        e.created_at
+        e.created_at,
+        e.inserted_at
     FROM
         v1_task_event e
     JOIN
@@ -1457,6 +1465,7 @@ WITH input AS (
 SELECT
 	e.id,
     e.created_at,
+    e.inserted_at,
 	e.event_key,
 	e.data
 FROM
@@ -1473,10 +1482,11 @@ type LockSignalCreatedEventsParams struct {
 }
 
 type LockSignalCreatedEventsRow struct {
-	ID        int64            `json:"id"`
-	CreatedAt pgtype.Timestamp `json:"created_at"`
-	EventKey  pgtype.Text      `json:"event_key"`
-	Data      []byte           `json:"data"`
+	ID         int64              `json:"id"`
+	CreatedAt  pgtype.Timestamp   `json:"created_at"`
+	InsertedAt pgtype.Timestamptz `json:"inserted_at"`
+	EventKey   pgtype.Text        `json:"event_key"`
+	Data       []byte             `json:"data"`
 }
 
 // Places a lock on the SIGNAL_CREATED events to make sure concurrent operations don't
@@ -1498,6 +1508,7 @@ func (q *Queries) LockSignalCreatedEvents(ctx context.Context, db DBTX, arg Lock
 		if err := rows.Scan(
 			&i.ID,
 			&i.CreatedAt,
+			&i.InsertedAt,
 			&i.EventKey,
 			&i.Data,
 		); err != nil {

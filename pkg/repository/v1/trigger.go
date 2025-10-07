@@ -1491,7 +1491,7 @@ func (r *TriggerRepositoryImpl) registerChildWorkflows(
 	for i, event := range matchingEvents {
 		retrievePaylodOpts[i] = RetrievePayloadOpts{
 			Id:         event.ID,
-			InsertedAt: pgtype.Timestamptz(event.CreatedAt),
+			InsertedAt: event.InsertedAt,
 			Type:       sqlcv1.V1PayloadTypeTASKEVENTDATA,
 			TenantId:   sqlchelpers.UUIDFromStr(tenantId),
 		}
@@ -1510,7 +1510,7 @@ func (r *TriggerRepositoryImpl) registerChildWorkflows(
 	for _, event := range matchingEvents {
 		payload := payloads[RetrievePayloadOpts{
 			Id:         event.ID,
-			InsertedAt: pgtype.Timestamptz(event.CreatedAt),
+			InsertedAt: event.InsertedAt,
 			Type:       sqlcv1.V1PayloadTypeTASKEVENTDATA,
 			TenantId:   sqlchelpers.UUIDFromStr(tenantId),
 		}]

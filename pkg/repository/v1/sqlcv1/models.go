@@ -3240,6 +3240,7 @@ type V1Task struct {
 
 type V1TaskEvent struct {
 	ID             int64              `json:"id"`
+	InsertedAt     pgtype.Timestamptz `json:"inserted_at"`
 	TenantID       pgtype.UUID        `json:"tenant_id"`
 	TaskID         int64              `json:"task_id"`
 	TaskInsertedAt pgtype.Timestamptz `json:"task_inserted_at"`
