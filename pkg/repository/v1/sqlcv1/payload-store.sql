@@ -105,7 +105,7 @@ WITH tenants AS (
 SELECT *
 FROM v1_payload_wal
 WHERE tenant_id = ANY(SELECT tenant_id FROM tenants)
-ORDER BY offload_at, tenant_id
+ORDER BY offload_at
 LIMIT @pollLimit::INT
 FOR UPDATE SKIP LOCKED
 ;
@@ -170,7 +170,7 @@ WITH tenants AS (
     WHERE
         tenant_id = ANY(SELECT tenant_id FROM tenants)
         AND cut_over_at <= NOW()
-    ORDER BY cut_over_at, tenant_id
+    ORDER BY cut_over_at
     LIMIT @pollLimit::INT
     FOR UPDATE SKIP LOCKED
 ), payload_updates AS (
