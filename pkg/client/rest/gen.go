@@ -1172,7 +1172,7 @@ type TriggerWorkflowRunRequest struct {
 
 // UpdateCronWorkflowTriggerRequest defines model for UpdateCronWorkflowTriggerRequest.
 type UpdateCronWorkflowTriggerRequest struct {
-	IsPaused *bool `json:"isPaused,omitempty"`
+	Enabled *bool `json:"enabled,omitempty"`
 }
 
 // UpdateTenantAlertEmailGroupRequest defines model for UpdateTenantAlertEmailGroupRequest.

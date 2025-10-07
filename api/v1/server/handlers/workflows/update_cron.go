@@ -19,9 +19,9 @@ func (t *WorkflowService) WorkflowCronUpdate(ctx echo.Context, request gen.Workf
 	dbCtx, cancel := context.WithTimeout(ctx.Request().Context(), 30*time.Second)
 	defer cancel()
 
-	isPaused := !cron.Enabled
-	if request.Body.IsPaused != nil {
-		isPaused = *request.Body.IsPaused
+	enabled := cron.Enabled
+	if request.Body.Enabled != nil {
+		enabled = *request.Body.Enabled
 	}
 
 	err := t.config.APIRepository.Workflow().UpdateCronWorkflow(
@@ -29,7 +29,7 @@ func (t *WorkflowService) WorkflowCronUpdate(ctx echo.Context, request gen.Workf
 		sqlchelpers.UUIDToStr(cron.TenantId),
 		sqlchelpers.UUIDToStr(cron.CronId),
 		&repository.UpdateCronOpts{
-			IsPaused: isPaused,
+			Enabled: enabled,
 		},
 	)
 

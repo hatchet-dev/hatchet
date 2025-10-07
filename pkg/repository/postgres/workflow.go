@@ -384,7 +384,7 @@ func (w *workflowAPIRepository) DeleteCronWorkflow(ctx context.Context, tenantId
 
 func (w *workflowAPIRepository) UpdateCronWorkflow(ctx context.Context, tenantId, id string, opts *repository.UpdateCronOpts) error {
 	return w.queries.UpdateCronTrigger(ctx, w.pool, dbsqlc.UpdateCronTriggerParams{
-		IsPaused:      sqlchelpers.BoolFromBoolean(opts.IsPaused),
+		Enabled:       sqlchelpers.BoolFromBoolean(opts.Enabled),
 		Crontriggerid: sqlchelpers.UUIDFromStr(id),
 	})
 }

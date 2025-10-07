@@ -1662,7 +1662,7 @@ export interface CronWorkflowsList {
 }
 
 export interface UpdateCronWorkflowTriggerRequest {
-  isPaused?: boolean;
+  enabled?: boolean;
 }
 
 export interface WorkflowRunsCancelRequest {

@@ -57,7 +57,7 @@ export default function CronsTable() {
 
   const onPauseClick = (cron: CronWorkflows) => {
     updateCron(cron.tenantId, cron.metadata.id, {
-      isPaused: cron.enabled,
+      enabled: !cron.enabled,
     });
   };
 

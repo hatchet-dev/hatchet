@@ -260,7 +260,7 @@ type UpdateWorkflowOpts struct {
 
 type UpdateCronOpts struct {
 	// (optional) is paused -- if true, the cron will not be scheduled
-	IsPaused bool
+	Enabled bool
 }
 
 type WorkflowAPIRepository interface {
