@@ -57,45 +57,53 @@ type PayloadStoreRepository interface {
 	ProcessPayloadExternalCutovers(ctx context.Context, partitionNumber int64) (bool, error)
 	OverwriteExternalStore(store ExternalStore, inlineStoreTTL time.Duration)
 	DualWritesEnabled() bool
+	TaskEventDualWritesEnabled() bool
 	WALPollLimit() int
 	WALProcessInterval() time.Duration
 	ExternalCutoverProcessInterval() time.Duration
 }
 
 type payloadStoreRepositoryImpl struct {
-	pool                           *pgxpool.Pool
-	l                              *zerolog.Logger
-	queries                        *sqlcv1.Queries
-	externalStoreEnabled           bool
-	inlineStoreTTL                 *time.Duration
-	externalStore                  ExternalStore
-	enablePayloadDualWrites        bool
-	walPollLimit                   int
-	walProcessInterval             time.Duration
-	externalCutoverProcessInterval time.Duration
+	pool                             *pgxpool.Pool
+	l                                *zerolog.Logger
+	queries                          *sqlcv1.Queries
+	externalStoreEnabled             bool
+	inlineStoreTTL                   *time.Duration
+	externalStore                    ExternalStore
+	enablePayloadDualWrites          bool
+	enableTaskEventPayloadDualWrites bool
+	walPollLimit                     int
+	walProcessInterval               time.Duration
+	externalCutoverProcessInterval   time.Duration
+}
+
+type PayloadStoreRepositoryOpts struct {
+	EnablePayloadDualWrites          bool
+	EnableTaskEventPayloadDualWrites bool
+	WALPollLimit                     int
+	WALProcessInterval               time.Duration
+	ExternalCutoverProcessInterval   time.Duration
 }
 
 func NewPayloadStoreRepository(
 	pool *pgxpool.Pool,
 	l *zerolog.Logger,
 	queries *sqlcv1.Queries,
-	enablePayloadDualWrites bool,
-	walPollLimit int,
-	walProcessInterval time.Duration,
-	externalCutoverProcessInterval time.Duration,
+	opts PayloadStoreRepositoryOpts,
 ) PayloadStoreRepository {
 	return &payloadStoreRepositoryImpl{
 		pool:    pool,
 		l:       l,
 		queries: queries,
 
-		externalStoreEnabled:           false,
-		inlineStoreTTL:                 nil,
-		externalStore:                  &NoOpExternalStore{},
-		enablePayloadDualWrites:        enablePayloadDualWrites,
-		walPollLimit:                   walPollLimit,
-		walProcessInterval:             walProcessInterval,
-		externalCutoverProcessInterval: externalCutoverProcessInterval,
+		externalStoreEnabled:             false,
+		inlineStoreTTL:                   nil,
+		externalStore:                    &NoOpExternalStore{},
+		enablePayloadDualWrites:          opts.EnablePayloadDualWrites,
+		enableTaskEventPayloadDualWrites: opts.EnableTaskEventPayloadDualWrites,
+		walPollLimit:                     opts.WALPollLimit,
+		walProcessInterval:               opts.WALProcessInterval,
+		externalCutoverProcessInterval:   opts.ExternalCutoverProcessInterval,
 	}
 }
 
@@ -524,6 +532,10 @@ func (p *payloadStoreRepositoryImpl) OverwriteExternalStore(store ExternalStore,
 
 func (p *payloadStoreRepositoryImpl) DualWritesEnabled() bool {
 	return p.enablePayloadDualWrites
+}
+
+func (p *payloadStoreRepositoryImpl) TaskEventDualWritesEnabled() bool {
+	return p.enableTaskEventPayloadDualWrites
 }
 
 func (p *payloadStoreRepositoryImpl) WALPollLimit() int {

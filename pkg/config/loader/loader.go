@@ -264,10 +264,11 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 	}
 
 	payloadStoreOpts := repov1.PayloadStoreRepositoryOpts{
-		EnablePayloadDualWrites:        scf.PayloadStore.EnablePayloadDualWrites,
-		WALPollLimit:                   scf.PayloadStore.WALPollLimit,
-		WALProcessInterval:             scf.PayloadStore.WALProcessInterval,
-		ExternalCutoverProcessInterval: scf.PayloadStore.ExternalCutoverProcessInterval,
+		EnablePayloadDualWrites:          scf.PayloadStore.EnablePayloadDualWrites,
+		EnableTaskEventPayloadDualWrites: scf.PayloadStore.EnableTaskEventPayloadDualWrites,
+		WALPollLimit:                     scf.PayloadStore.WALPollLimit,
+		WALProcessInterval:               scf.PayloadStore.WALProcessInterval,
+		ExternalCutoverProcessInterval:   scf.PayloadStore.ExternalCutoverProcessInterval,
 	}
 
 	v1, cleanupV1 := repov1.NewRepository(pool, &l, retentionPeriod, retentionPeriod, scf.Runtime.MaxInternalRetryCount, entitlementRepo, taskLimits, payloadStoreOpts)

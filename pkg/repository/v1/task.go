@@ -2624,13 +2624,12 @@ func (r *sharedRepository) createTaskEvents(
 		externalId := sqlchelpers.UUIDFromStr(uuid.NewString())
 		externalIds[i] = externalId
 
-		if len(eventDatas[i]) == 0 {
+		if len(eventDatas[i]) == 0 || !r.payloadStore.TaskEventDualWritesEnabled() {
 			paramDatas[i] = nil
 		} else {
 			paramDatas[i] = eventDatas[i]
+			externalIdToData[externalId] = eventDatas[i]
 		}
-
-		externalIdToData[externalId] = eventDatas[i]
 
 		if eventKeys[i] != "" {
 			paramKeys[i] = pgtype.Text{
