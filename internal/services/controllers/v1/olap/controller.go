@@ -532,7 +532,7 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 		taskMeta := taskIdsToMetas[msg.TaskId]
 
 		if taskMeta == nil {
-			tc.l.Error().Msgf("could not find task meta for task id %d", msg.TaskId)
+			tc.l.Debug().Msgf("could not find task meta for task id %d", msg.TaskId)
 			continue
 		}
 
