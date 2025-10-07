@@ -3450,7 +3450,7 @@ func (r *TaskRepositoryImpl) AnalyzeTaskTables(ctx context.Context) error {
 }
 
 func (r *TaskRepositoryImpl) Cleanup(ctx context.Context) (bool, error) {
-	const timeout = 1000 * 60 * 5 // 5 minute timeout
+	const timeout = 1000 * 60 // 1 minute timeout
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, timeout)
 
 	if err != nil {
