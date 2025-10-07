@@ -318,6 +318,7 @@ FROM
 ON CONFLICT (tenant_id, task_id, task_inserted_at, event_type, event_key) WHERE event_key IS NOT NULL DO NOTHING
 RETURNING
     v1_task_event.id,
+	v1_task_event.inserted_at,
 	v1_task_event.tenant_id,
 	v1_task_event.task_id,
 	v1_task_event.task_inserted_at,
@@ -366,6 +367,7 @@ func (q *Queries) CreateTaskEvents(ctx context.Context, db DBTX, arg CreateTaskE
 		var i V1TaskEvent
 		if err := rows.Scan(
 			&i.ID,
+			&i.InsertedAt,
 			&i.TenantID,
 			&i.TaskID,
 			&i.TaskInsertedAt,
