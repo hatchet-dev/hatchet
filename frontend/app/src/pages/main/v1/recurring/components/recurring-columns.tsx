@@ -17,10 +17,12 @@ export const CronColumn = {
   metadata: 'Metadata',
   createdAt: 'Created At',
   actions: 'Actions',
+  paused: 'Paused',
 };
 
 export type CronColumnKeys = keyof typeof CronColumn;
 
+export const pausedKey: CronColumnKeys = 'paused';
 export const expressionKey: CronColumnKeys = 'expression';
 export const descriptionKey: CronColumnKeys = 'description';
 export const timezoneKey: CronColumnKeys = 'timezone';
@@ -33,13 +35,17 @@ export const actionsKey: CronColumnKeys = 'actions';
 export const columns = ({
   tenantId,
   onDeleteClick,
+  onPauseClick,
   selectedJobId,
   setSelectedJobId,
+  isUpdatePending,
 }: {
   tenantId: string;
   onDeleteClick: (row: CronWorkflows) => void;
+  onPauseClick: (row: CronWorkflows) => void;
   selectedJobId: string | null;
   setSelectedJobId: (jobId: string | null) => void;
+  isUpdatePending: boolean;
 }): ColumnDef<CronWorkflows>[] => {
   return [
     {
@@ -151,20 +157,13 @@ export const columns = ({
       enableSorting: true,
       enableHiding: true,
     },
-    // {
-    //   accessorKey: 'method',
-    //   header: ({ column }) => (
-    //     <DataTableColumnHeader column={column} title="Create Method" />
-    //   ),
-    //   cell: ({ row }) => <div>{row.original.method}</div>,
-    // },
-    // {
-    //   accessorKey: 'enabled',
-    //   header: ({ column }) => (
-    //     <DataTableColumnHeader column={column} title="Enabled" />
-    //   ),
-    //   cell: ({ row }) => <div>{row.original.enabled ? 'Yes' : 'No'}</div>,
-    // },
+    {
+      accessorKey: pausedKey,
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title={CronColumn.paused} />
+      ),
+      cell: ({ row }) => <div>{row.original.enabled ? 'No' : 'Yes'}</div>,
+    },
     {
       accessorKey: actionsKey,
       header: ({ column }) => (
@@ -182,6 +181,13 @@ export const columns = ({
                   row.original.method !== 'API'
                     ? 'This cron was created via a code definition. Delete it from the code definition instead.'
                     : undefined,
+              },
+              {
+                label: 'Pause',
+                onClick: () => onPauseClick(row.original),
+                disabled: isUpdatePending
+                  ? 'Another update is pending'
+                  : undefined,
               },
             ]}
           />

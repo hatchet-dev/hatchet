@@ -2110,7 +2110,7 @@ func (q *Queries) SoftDeleteWorkflow(ctx context.Context, db DBTX, id pgtype.UUI
 const updateCronTrigger = `-- name: UpdateCronTrigger :exec
 UPDATE "WorkflowTriggerCronRef"
 SET
-    "enabled" = NOT COALESCE($1::BOOLEAN, NOT c."enabled")
+    "enabled" = NOT COALESCE($1::BOOLEAN, NOT "enabled")
 WHERE "id" = $2::uuid
 `
 

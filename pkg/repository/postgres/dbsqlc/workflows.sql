@@ -159,7 +159,7 @@ WHERE "id" IN (SELECT "id" FROM triggersToUpdate);
 -- name: UpdateCronTrigger :exec
 UPDATE "WorkflowTriggerCronRef"
 SET
-    "enabled" = NOT COALESCE(sqlc.narg('isPaused')::BOOLEAN, NOT c."enabled")
+    "enabled" = NOT COALESCE(sqlc.narg('isPaused')::BOOLEAN, NOT "enabled")
 WHERE "id" = @cronTriggerId::uuid
 ;
 

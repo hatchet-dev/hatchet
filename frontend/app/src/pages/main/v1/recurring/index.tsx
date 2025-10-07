@@ -10,7 +10,6 @@ import {
   ToolbarType,
 } from '@/components/v1/molecules/data-table/data-table-toolbar';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
-import { TriggerWorkflowForm } from '../../workflows/$workflow/components/trigger-workflow-form';
 import { DocsButton } from '@/components/v1/docs/docs-button';
 import { docsPages } from '@/lib/generated/docs';
 import { useCrons } from './hooks/use-crons';
@@ -19,6 +18,7 @@ import {
   workflowKey,
   metadataKey,
 } from './components/recurring-columns';
+import { TriggerWorkflowForm } from '../workflows/$workflow/components/trigger-workflow-form';
 
 export default function CronsTable() {
   const { tenantId } = useCurrentTenantId();
@@ -41,6 +41,8 @@ export default function CronsTable() {
     workflowKeyFilters,
     isRefetching,
     resetFilters,
+    updateCron,
+    isUpdatePending,
   } = useCrons({
     key: 'table',
   });
@@ -51,6 +53,12 @@ export default function CronsTable() {
 
   const handleDeleteClick = (cron: CronWorkflows) => {
     setShowDeleteCron(cron);
+  };
+
+  const onPauseClick = (cron: CronWorkflows) => {
+    updateCron(cron.tenantId, cron.metadata.id, {
+      isPaused: cron.enabled,
+    });
   };
 
   const handleConfirmDelete = () => {
@@ -106,8 +114,10 @@ export default function CronsTable() {
         columns={columns({
           tenantId,
           onDeleteClick: handleDeleteClick,
+          onPauseClick,
           selectedJobId,
           setSelectedJobId,
+          isUpdatePending,
         })}
         data={crons}
         filters={filters}
