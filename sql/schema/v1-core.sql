@@ -1667,6 +1667,7 @@ CREATE TABLE v1_payload_wal (
 ) PARTITION BY HASH (tenant_id);
 
 CREATE INDEX v1_payload_wal_payload_lookup_idx ON v1_payload_wal (payload_id, payload_inserted_at, payload_type, tenant_id);
+CREATE INDEX CONCURRENTLY v1_payload_wal_poll_idx ON v1_payload_wal (tenant_id, offload_at);
 
 SELECT create_v1_hash_partitions('v1_payload_wal'::TEXT, 4);
 
