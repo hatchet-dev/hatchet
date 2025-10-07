@@ -18,7 +18,7 @@ from tests.engine_null_unicode_character.task import (
     indirect=True,
 )
 @pytest.mark.asyncio(loop_scope="session")
-async def test_failure_on_timeout(
+async def test_unicode_rejection(
     hatchet: Hatchet,
     on_demand_worker: Popen[Any],
 ) -> None:
