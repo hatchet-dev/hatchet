@@ -1508,12 +1508,19 @@ func (r *TriggerRepositoryImpl) registerChildWorkflows(
 	rootExternalIdsToLookup := make([]pgtype.UUID, 0, len(matchingEvents))
 
 	for _, event := range matchingEvents {
-		payload := payloads[RetrievePayloadOpts{
+		retrieveOpt := RetrievePayloadOpts{
 			Id:         event.ID,
 			InsertedAt: event.InsertedAt,
 			Type:       sqlcv1.V1PayloadTypeTASKEVENTDATA,
 			TenantId:   sqlchelpers.UUIDFromStr(tenantId),
-		}]
+		}
+
+		rj, _ := json.MarshalIndent(retrieveOpt, "", "  ")
+		fmt.Println("retrieveOpt:", string(rj))
+
+		payload, ok := payloads[retrieveOpt]
+
+		fmt.Println("payload:", string(payload), "ok:", ok)
 
 		c, err := newChildWorkflowSignalCreatedDataFromBytes(payload)
 
