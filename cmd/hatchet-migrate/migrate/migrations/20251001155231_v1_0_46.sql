@@ -7,6 +7,8 @@ ALTER TABLE v1_payload ADD CONSTRAINT v1_payload_check CHECK (
     (location = 'EXTERNAL' AND inline_content IS NULL AND external_location_key IS NOT NULL)
 ) NOT VALID;
 
+ALTER TABLE v1_payload_wal DROP CONSTRAINT v1_payload_wal_payload;
+
 CREATE TABLE v1_payload_cutover_queue_item (
     tenant_id UUID NOT NULL,
     cut_over_at TIMESTAMPTZ NOT NULL,
@@ -14,8 +16,7 @@ CREATE TABLE v1_payload_cutover_queue_item (
     payload_inserted_at TIMESTAMPTZ NOT NULL,
     payload_type v1_payload_type NOT NULL,
 
-    PRIMARY KEY (cut_over_at, tenant_id, payload_id, payload_inserted_at, payload_type),
-    CONSTRAINT "v1_payload_cutover_queue_item_payload" FOREIGN KEY (payload_id, payload_inserted_at, payload_type, tenant_id) REFERENCES v1_payload (id, inserted_at, type, tenant_id) ON DELETE CASCADE
+    PRIMARY KEY (cut_over_at, tenant_id, payload_id, payload_inserted_at, payload_type)
 ) PARTITION BY HASH (tenant_id);
 
 SELECT create_v1_hash_partitions('v1_payload_cutover_queue_item'::TEXT, 4);

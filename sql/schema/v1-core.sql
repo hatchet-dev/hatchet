@@ -1660,8 +1660,10 @@ CREATE TABLE v1_payload_wal (
     payload_type v1_payload_type NOT NULL,
     operation v1_payload_wal_operation NOT NULL DEFAULT 'CREATE',
 
-    PRIMARY KEY (offload_at, tenant_id, payload_id, payload_inserted_at, payload_type),
-    CONSTRAINT "v1_payload_wal_payload" FOREIGN KEY (payload_id, payload_inserted_at, payload_type, tenant_id) REFERENCES v1_payload (id, inserted_at, type, tenant_id) ON DELETE CASCADE
+    -- todo: we probably should shuffle this index around - it'd make more sense now for the order to be
+    -- (tenant_id, offload_at, payload_id, payload_inserted_at, payload_type)
+    -- so we can filter by the tenant id first, then order by offload_at
+    PRIMARY KEY (offload_at, tenant_id, payload_id, payload_inserted_at, payload_type)
 ) PARTITION BY HASH (tenant_id);
 
 CREATE INDEX v1_payload_wal_payload_lookup_idx ON v1_payload_wal (payload_id, payload_inserted_at, payload_type, tenant_id);
@@ -1675,8 +1677,7 @@ CREATE TABLE v1_payload_cutover_queue_item (
     payload_inserted_at TIMESTAMPTZ NOT NULL,
     payload_type v1_payload_type NOT NULL,
 
-    PRIMARY KEY (cut_over_at, tenant_id, payload_id, payload_inserted_at, payload_type),
-    CONSTRAINT "v1_payload_cutover_queue_item_payload" FOREIGN KEY (payload_id, payload_inserted_at, payload_type, tenant_id) REFERENCES v1_payload (id, inserted_at, type, tenant_id) ON DELETE CASCADE
+    PRIMARY KEY (cut_over_at, tenant_id, payload_id, payload_inserted_at, payload_type)
 ) PARTITION BY HASH (tenant_id);
 
 SELECT create_v1_hash_partitions('v1_payload_cutover_queue_item'::TEXT, 4);
