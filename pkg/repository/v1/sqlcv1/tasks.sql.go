@@ -897,7 +897,6 @@ WITH input AS (
         t.step_id,
         t.workflow_id,
         e.id AS task_event_id,
-        e.created_at AS task_event_created_at,
         e.inserted_at AS task_event_inserted_at,
         e.data AS output
     FROM
@@ -931,7 +930,6 @@ WITH input AS (
 SELECT
     DISTINCT ON (task_outputs.id, task_outputs.inserted_at, task_outputs.retry_count)
     task_outputs.task_event_id,
-    task_outputs.task_event_created_at,
     task_outputs.task_event_inserted_at,
     task_outputs.workflow_run_id,
     task_outputs.output
@@ -955,7 +953,6 @@ type ListTaskParentOutputsParams struct {
 
 type ListTaskParentOutputsRow struct {
 	TaskEventID         int64              `json:"task_event_id"`
-	TaskEventCreatedAt  pgtype.Timestamp   `json:"task_event_created_at"`
 	TaskEventInsertedAt pgtype.Timestamptz `json:"task_event_inserted_at"`
 	WorkflowRunID       pgtype.UUID        `json:"workflow_run_id"`
 	Output              []byte             `json:"output"`
@@ -974,7 +971,6 @@ func (q *Queries) ListTaskParentOutputs(ctx context.Context, db DBTX, arg ListTa
 		var i ListTaskParentOutputsRow
 		if err := rows.Scan(
 			&i.TaskEventID,
-			&i.TaskEventCreatedAt,
 			&i.TaskEventInsertedAt,
 			&i.WorkflowRunID,
 			&i.Output,
@@ -1450,7 +1446,6 @@ WITH input AS (
         e.data,
 		e.task_id,
 		e.task_inserted_at,
-        e.created_at,
         e.inserted_at
     FROM
         v1_task_event e
@@ -1464,7 +1459,6 @@ WITH input AS (
 )
 SELECT
 	e.id,
-    e.created_at,
     e.inserted_at,
 	e.event_key,
 	e.data
@@ -1483,7 +1477,6 @@ type LockSignalCreatedEventsParams struct {
 
 type LockSignalCreatedEventsRow struct {
 	ID         int64              `json:"id"`
-	CreatedAt  pgtype.Timestamp   `json:"created_at"`
 	InsertedAt pgtype.Timestamptz `json:"inserted_at"`
 	EventKey   pgtype.Text        `json:"event_key"`
 	Data       []byte             `json:"data"`
@@ -1507,7 +1500,6 @@ func (q *Queries) LockSignalCreatedEvents(ctx context.Context, db DBTX, arg Lock
 		var i LockSignalCreatedEventsRow
 		if err := rows.Scan(
 			&i.ID,
-			&i.CreatedAt,
 			&i.InsertedAt,
 			&i.EventKey,
 			&i.Data,

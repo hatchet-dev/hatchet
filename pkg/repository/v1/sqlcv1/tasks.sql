@@ -410,7 +410,6 @@ WITH input AS (
         e.data,
 		e.task_id,
 		e.task_inserted_at,
-        e.created_at,
         e.inserted_at
     FROM
         v1_task_event e
@@ -424,7 +423,6 @@ WITH input AS (
 )
 SELECT
 	e.id,
-    e.created_at,
     e.inserted_at,
 	e.event_key,
 	e.data
@@ -624,7 +622,6 @@ WITH input AS (
         t.step_id,
         t.workflow_id,
         e.id AS task_event_id,
-        e.created_at AS task_event_created_at,
         e.inserted_at AS task_event_inserted_at,
         e.data AS output
     FROM
@@ -658,7 +655,6 @@ WITH input AS (
 SELECT
     DISTINCT ON (task_outputs.id, task_outputs.inserted_at, task_outputs.retry_count)
     task_outputs.task_event_id,
-    task_outputs.task_event_created_at,
     task_outputs.task_event_inserted_at,
     task_outputs.workflow_run_id,
     task_outputs.output
