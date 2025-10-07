@@ -8,6 +8,7 @@ package sqlcv1
 import (
 	"context"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -29,13 +30,16 @@ func (q *Queries) AnalyzeV1TaskEvent(ctx context.Context, db DBTX) error {
 	return err
 }
 
-const cleanupV1ConcurrencySlot = `-- name: CleanupV1ConcurrencySlot :one
+const cleanupV1ConcurrencySlot = `-- name: CleanupV1ConcurrencySlot :execresult
 WITH cs as (
     SELECT cs.task_id, cs.task_inserted_at, cs.task_retry_count
     FROM v1_concurrency_slot cs
-    LEFT JOIN v1_task vt ON cs.task_id = vt.id
-        AND cs.task_inserted_at = vt.inserted_at
-    WHERE vt.id IS NULL
+    WHERE NOT EXISTS (
+        SELECT 1
+        FROM v1_task vt
+        WHERE cs.task_id = vt.id
+            AND cs.task_inserted_at = vt.inserted_at
+    )
     LIMIT $1::int
 ), locked_cs AS (
     SELECT task_id, task_inserted_at, task_retry_count
@@ -52,23 +56,22 @@ WHERE (task_id, task_inserted_at, task_retry_count) IN (
     SELECT task_id, task_inserted_at, task_retry_count
     FROM locked_cs
 )
-RETURNING (SELECT COUNT(*) FROM locked_cs) as deleted_count
 `
 
-func (q *Queries) CleanupV1ConcurrencySlot(ctx context.Context, db DBTX, batchSize int32) (int64, error) {
-	row := db.QueryRow(ctx, cleanupV1ConcurrencySlot, batchSize)
-	var deleted_count int64
-	err := row.Scan(&deleted_count)
-	return deleted_count, err
+func (q *Queries) CleanupV1ConcurrencySlot(ctx context.Context, db DBTX, batchsize int32) (pgconn.CommandTag, error) {
+	return db.Exec(ctx, cleanupV1ConcurrencySlot, batchsize)
 }
 
-const cleanupV1TaskRuntime = `-- name: CleanupV1TaskRuntime :one
+const cleanupV1TaskRuntime = `-- name: CleanupV1TaskRuntime :execresult
 WITH trs as (
     SELECT vtr.task_id, vtr.task_inserted_at, vtr.retry_count
     FROM v1_task_runtime vtr
-    LEFT JOIN v1_task vt ON vtr.task_id = vt.id
-        AND vtr.task_inserted_at = vt.inserted_at
-    WHERE vt.id IS NULL
+    WHERE NOT EXISTS (
+        SELECT 1
+        FROM v1_task vt
+        WHERE vtr.task_id = vt.id
+            AND vtr.task_inserted_at = vt.inserted_at
+    )
     LIMIT $1::int
 ), locked_trs AS (
     SELECT task_id, task_inserted_at, retry_count
@@ -85,14 +88,10 @@ WHERE (task_id, task_inserted_at, retry_count) IN (
     SELECT task_id, task_inserted_at, retry_count
     FROM locked_trs
 )
-RETURNING (SELECT COUNT(*) FROM locked_trs) as deleted_count
 `
 
-func (q *Queries) CleanupV1TaskRuntime(ctx context.Context, db DBTX, batchSize int32) (int64, error) {
-	row := db.QueryRow(ctx, cleanupV1TaskRuntime, batchSize)
-	var deleted_count int64
-	err := row.Scan(&deleted_count)
-	return deleted_count, err
+func (q *Queries) CleanupV1TaskRuntime(ctx context.Context, db DBTX, batchsize int32) (pgconn.CommandTag, error) {
+	return db.Exec(ctx, cleanupV1TaskRuntime, batchsize)
 }
 
 const cleanupWorkflowConcurrencySlotsAfterInsert = `-- name: CleanupWorkflowConcurrencySlotsAfterInsert :exec

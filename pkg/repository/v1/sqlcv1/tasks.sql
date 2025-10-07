@@ -915,14 +915,17 @@ ANALYZE v1_task;
 -- name: AnalyzeV1TaskEvent :exec
 ANALYZE v1_task_event;
 
--- name: CleanupV1TaskRuntime :one
+-- name: CleanupV1TaskRuntime :execresult
 WITH trs as (
     SELECT vtr.task_id, vtr.task_inserted_at, vtr.retry_count
     FROM v1_task_runtime vtr
-    LEFT JOIN v1_task vt ON vtr.task_id = vt.id
-        AND vtr.task_inserted_at = vt.inserted_at
-    WHERE vt.id IS NULL
-    LIMIT sqlc.arg(batch_size)::int
+    WHERE NOT EXISTS (
+        SELECT 1
+        FROM v1_task vt
+        WHERE vtr.task_id = vt.id
+            AND vtr.task_inserted_at = vt.inserted_at
+    )
+    LIMIT @batchSize::int
 ), locked_trs AS (
     SELECT task_id, task_inserted_at, retry_count
     FROM v1_task_runtime
@@ -937,17 +940,19 @@ DELETE FROM v1_task_runtime
 WHERE (task_id, task_inserted_at, retry_count) IN (
     SELECT task_id, task_inserted_at, retry_count
     FROM locked_trs
-)
-RETURNING (SELECT COUNT(*) FROM locked_trs) as deleted_count;
+);
 
--- name: CleanupV1ConcurrencySlot :one
+-- name: CleanupV1ConcurrencySlot :execresult
 WITH cs as (
     SELECT cs.task_id, cs.task_inserted_at, cs.task_retry_count
     FROM v1_concurrency_slot cs
-    LEFT JOIN v1_task vt ON cs.task_id = vt.id
-        AND cs.task_inserted_at = vt.inserted_at
-    WHERE vt.id IS NULL
-    LIMIT sqlc.arg(batch_size)::int
+    WHERE NOT EXISTS (
+        SELECT 1
+        FROM v1_task vt
+        WHERE cs.task_id = vt.id
+            AND cs.task_inserted_at = vt.inserted_at
+    )
+    LIMIT @batchSize::int
 ), locked_cs AS (
     SELECT task_id, task_inserted_at, task_retry_count
     FROM v1_concurrency_slot
@@ -962,5 +967,4 @@ DELETE FROM v1_concurrency_slot
 WHERE (task_id, task_inserted_at, task_retry_count) IN (
     SELECT task_id, task_inserted_at, task_retry_count
     FROM locked_cs
-)
-RETURNING (SELECT COUNT(*) FROM locked_cs) as deleted_count;
+);
