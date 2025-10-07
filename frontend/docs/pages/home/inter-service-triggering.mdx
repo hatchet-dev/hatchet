@@ -1,0 +1,59 @@
+import { Callout, Tabs } from "nextra/components";
+import UniversalTabs from "@/components/UniversalTabs";
+import { Snippet } from "@/components/code";
+import { snippets } from "@/lib/generated/snippets";
+
+## Invoking Tasks From Other Services
+
+While Hatchet recommends importing your workflows and standalone tasks directly to use for triggering runs, this only works in monorepo or similar setups where you have access to those objects. However, it's common to have a polyrepo, have code written in multiple languages, or otherwise not be able to import your workflows and standalone tasks directly. Hatchet provides first-class, type-safe support for handling these cases as well, with only minor code duplication, to allow you to trigger your tasks from anywhere in a type-safe way.
+
+### Creating a "Stub" Task on your External Service (Recommended)
+
+The recommended way to trigger a run from a service where you _cannot_ import the workflow or standalone task definition directly is to create a "stub" task or workflow on your external service. This is a Hatchet task or workflow that has the same name and input/output types as the task you want to trigger on your Hatchet worker, but without the function or other configuration.
+
+This allows you to have polyglot, fully typed interface with full SDK support.
+
+<UniversalTabs items={["Typescript", "Python", "Go"]}>
+<Tabs.Tab title="Typescript">
+
+<Snippet
+  src={
+    snippets.typescript.simple.stub_workflow
+      .declaring_an_external_workflow_reference
+  }
+/>
+
+</Tabs.Tab>
+<Tabs.Tab title="Python">
+
+Consider a task with an implementation like this:
+
+<Snippet src={snippets.python.stubs.implementation.all} />
+
+To trigger this task from a separate service, for instance, in a microservices architecture, where the code is not shared, start by defining models that match the input and output types of the task defined above.
+
+<Snippet src={snippets.python.stubs.stub_trigger.define_models} />
+
+Next, create the stub task.
+
+<Snippet src={snippets.python.stubs.stub_trigger.create_a_stub_task} />
+
+Finally, use the stub to trigger the underlying task, and (optionally) retrieve the result.
+
+<Snippet src={snippets.python.stubs.stub_trigger.trigger_the_task} />
+
+</Tabs.Tab>
+<Tabs.Tab title="Go">
+
+<Snippet src={snippets.go.stubs.stub_workflow.all} />
+
+</Tabs.Tab>
+</UniversalTabs>
+
+<Callout>
+  Note that this approach requires code duplication, which can break type
+  safety. For instance, if the input type to your workflow changes, you need to
+  remember to also change the type passed to the stub. Some ways to mitigate
+  risks here are helpful comments reminding developers to keep these types in
+  sync, code generation tools, and end-to-end tests.
+</Callout>
