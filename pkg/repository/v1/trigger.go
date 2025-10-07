@@ -1369,6 +1369,14 @@ func (r *TriggerRepositoryImpl) createDAGs(ctx context.Context, tx sqlcv1.DBTX, 
 			input = []byte("{}")
 		}
 
+		// todo: remove this logic when we remove the need for dual writes
+		// in the meantime, basically just passes the dag data through this function
+		// back to the caller without writing it
+		inputToWrite := input
+		if !r.payloadStore.DagDataDualWritesEnabled() {
+			inputToWrite = []byte("{}")
+		}
+
 		additionalMeta := opt.AdditionalMetadata
 
 		if len(additionalMeta) == 0 {
@@ -1378,7 +1386,7 @@ func (r *TriggerRepositoryImpl) createDAGs(ctx context.Context, tx sqlcv1.DBTX, 
 		dagDataParams = append(dagDataParams, sqlcv1.CreateDAGDataParams{
 			DagID:              dag.ID,
 			DagInsertedAt:      dag.InsertedAt,
-			Input:              input,
+			Input:              inputToWrite,
 			AdditionalMetadata: additionalMeta,
 		})
 
