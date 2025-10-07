@@ -5,13 +5,13 @@ import { snippets } from "@/lib/generated/snippets";
 
 ## Invoking Tasks From Other Services
 
-While Hatchet recommends importing your workflows and standalone tasks directly to use for triggering runs, this only works in monorepo or similar setups where you have access to those objects. However, it's common to have a polyrepo, have code written in multiple languages, or otherwise not be able to import your workflows and standalone tasks directly. Hatchet provides first-class, type-safe support for handling these cases as well, with only minor code duplication, to allow you to trigger your tasks from anywhere in a type-safe way.
+While Hatchet recommends importing your workflows and standalone tasks directly to use for triggering runs, this only works in a monorepo or similar setups where you have access to those objects. However, it's common to have a polyrepo, have code written in multiple languages, or otherwise not be able to import your workflows and standalone tasks directly. Hatchet provides first-class, type-safe support for handling these cases as well, with only minor code duplication, to allow you to trigger your tasks from anywhere in a type-safe way.
 
 ### Creating a "Stub" Task on your External Service (Recommended)
 
 The recommended way to trigger a run from a service where you _cannot_ import the workflow or standalone task definition directly is to create a "stub" task or workflow on your external service. This is a Hatchet task or workflow that has the same name and input/output types as the task you want to trigger on your Hatchet worker, but without the function or other configuration.
 
-This allows you to have polyglot, fully typed interface with full SDK support.
+This allows you to have a polyglot, fully typed interface with full SDK support.
 
 <UniversalTabs items={["Typescript", "Python", "Go"]}>
 <Tabs.Tab title="Typescript">
