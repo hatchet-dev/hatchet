@@ -55,7 +55,7 @@ export default function CronsTable() {
     setShowDeleteCron(cron);
   };
 
-  const onPauseClick = (cron: CronWorkflows) => {
+  const onEnableClick = (cron: CronWorkflows) => {
     updateCron(cron.tenantId, cron.metadata.id, {
       enabled: !cron.enabled,
     });
@@ -114,7 +114,7 @@ export default function CronsTable() {
         columns={columns({
           tenantId,
           onDeleteClick: handleDeleteClick,
-          onPauseClick,
+          onEnableClick,
           selectedJobId,
           setSelectedJobId,
           isUpdatePending,

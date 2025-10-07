@@ -37,14 +37,14 @@ export const actionsKey: CronColumnKeys = 'actions';
 export const columns = ({
   tenantId,
   onDeleteClick,
-  onPauseClick,
+  onEnableClick,
   selectedJobId,
   setSelectedJobId,
   isUpdatePending,
 }: {
   tenantId: string;
   onDeleteClick: (row: CronWorkflows) => void;
-  onPauseClick: (row: CronWorkflows) => void;
+  onEnableClick: (row: CronWorkflows) => void;
   selectedJobId: string | null;
   setSelectedJobId: (jobId: string | null) => void;
   isUpdatePending: boolean;
@@ -196,7 +196,7 @@ export const columns = ({
               },
               {
                 label: row.original.enabled ? 'Disable' : 'Enable',
-                onClick: () => onPauseClick(row.original),
+                onClick: () => onEnableClick(row.original),
                 disabled: isUpdatePending
                   ? 'Another update is pending'
                   : undefined,
