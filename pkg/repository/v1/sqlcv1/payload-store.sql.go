@@ -74,7 +74,7 @@ WITH tenants AS (
     ) AS tenant_id
 )
 
-SELECT tenant_id, offload_at, payload_id, payload_inserted_at, payload_type
+SELECT tenant_id, offload_at, payload_id, payload_inserted_at, payload_type, operation
 FROM v1_payload_wal
 WHERE tenant_id = ANY(SELECT tenant_id FROM tenants)
 ORDER BY offload_at, tenant_id, payload_id, payload_inserted_at, payload_type
@@ -102,6 +102,7 @@ func (q *Queries) PollPayloadWALForRecordsToReplicate(ctx context.Context, db DB
 			&i.PayloadID,
 			&i.PayloadInsertedAt,
 			&i.PayloadType,
+			&i.Operation,
 		); err != nil {
 			return nil, err
 		}
