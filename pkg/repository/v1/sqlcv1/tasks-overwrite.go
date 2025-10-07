@@ -374,7 +374,7 @@ func (q *Queries) CreateTaskEvents(ctx context.Context, db DBTX, arg CreateTaskE
 			&i.EventKey,
 			&i.CreatedAt,
 			&i.Data,
-			&i.EventType,
+			&i.ExternalID,
 		); err != nil {
 			return nil, err
 		}
