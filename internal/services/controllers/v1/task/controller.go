@@ -354,8 +354,7 @@ func (tc *TasksControllerImpl) Start() (func() error, error) {
 	}
 
 	_, err = tc.s.NewJob(
-		// TODO: Make this configurable
-		gocron.DurationJob(time.Second*15),
+		gocron.DurationJob(tc.repov1.Payloads().WALProcessInterval()),
 		gocron.NewTask(
 			tc.runProcessPayloadWAL(ctx),
 		),
@@ -373,8 +372,7 @@ func (tc *TasksControllerImpl) Start() (func() error, error) {
 	}
 
 	_, err = tc.s.NewJob(
-		// TODO: Make this configurable
-		gocron.DurationJob(time.Second*15),
+		gocron.DurationJob(tc.repov1.Payloads().ExternalCutoverProcessInterval()),
 		gocron.NewTask(
 			tc.runProcessPayloadExternalCutovers(ctx),
 		),

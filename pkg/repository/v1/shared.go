@@ -39,14 +39,21 @@ type sharedRepository struct {
 	payloadStore              PayloadStoreRepository
 }
 
-func newSharedRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger, entitlements repository.EntitlementsRepository, enablePayloadDualWrites bool, payloadStoreWALPollLimit int) (*sharedRepository, func() error) {
+type PayloadStoreRepositoryOpts struct {
+	EnablePayloadDualWrites        bool
+	WALPollLimit                   int
+	WALProcessInterval             time.Duration
+	ExternalCutoverProcessInterval time.Duration
+}
+
+func newSharedRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger, entitlements repository.EntitlementsRepository, payloadStoreOpts PayloadStoreRepositoryOpts) (*sharedRepository, func() error) {
 	m := metered.NewMetered(entitlements, l)
 
 	queries := sqlcv1.New()
 	queueCache := cache.New(5 * time.Minute)
 	stepExpressionCache := cache.New(5 * time.Minute)
 	tenantIdWorkflowNameCache := cache.New(5 * time.Minute)
-	payloadStore := NewPayloadStoreRepository(pool, l, queries, enablePayloadDualWrites, payloadStoreWALPollLimit)
+	payloadStore := NewPayloadStoreRepository(pool, l, queries, payloadStoreOpts.EnablePayloadDualWrites, payloadStoreOpts.WALPollLimit, payloadStoreOpts.WALProcessInterval, payloadStoreOpts.ExternalCutoverProcessInterval)
 
 	celParser := cel.NewCELParser()
 

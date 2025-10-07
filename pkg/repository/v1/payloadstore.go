@@ -58,17 +58,21 @@ type PayloadStoreRepository interface {
 	OverwriteExternalStore(store ExternalStore, inlineStoreTTL time.Duration)
 	DualWritesEnabled() bool
 	WALPollLimit() int
+	WALProcessInterval() time.Duration
+	ExternalCutoverProcessInterval() time.Duration
 }
 
 type payloadStoreRepositoryImpl struct {
-	pool                    *pgxpool.Pool
-	l                       *zerolog.Logger
-	queries                 *sqlcv1.Queries
-	externalStoreEnabled    bool
-	inlineStoreTTL          *time.Duration
-	externalStore           ExternalStore
-	enablePayloadDualWrites bool
-	walPollLimit            int
+	pool                           *pgxpool.Pool
+	l                              *zerolog.Logger
+	queries                        *sqlcv1.Queries
+	externalStoreEnabled           bool
+	inlineStoreTTL                 *time.Duration
+	externalStore                  ExternalStore
+	enablePayloadDualWrites        bool
+	walPollLimit                   int
+	walProcessInterval             time.Duration
+	externalCutoverProcessInterval time.Duration
 }
 
 func NewPayloadStoreRepository(
@@ -77,17 +81,21 @@ func NewPayloadStoreRepository(
 	queries *sqlcv1.Queries,
 	enablePayloadDualWrites bool,
 	walPollLimit int,
+	walProcessInterval time.Duration,
+	externalCutoverProcessInterval time.Duration,
 ) PayloadStoreRepository {
 	return &payloadStoreRepositoryImpl{
 		pool:    pool,
 		l:       l,
 		queries: queries,
 
-		externalStoreEnabled:    false,
-		inlineStoreTTL:          nil,
-		externalStore:           &NoOpExternalStore{},
-		enablePayloadDualWrites: enablePayloadDualWrites,
-		walPollLimit:            walPollLimit,
+		externalStoreEnabled:           false,
+		inlineStoreTTL:                 nil,
+		externalStore:                  &NoOpExternalStore{},
+		enablePayloadDualWrites:        enablePayloadDualWrites,
+		walPollLimit:                   walPollLimit,
+		walProcessInterval:             walProcessInterval,
+		externalCutoverProcessInterval: externalCutoverProcessInterval,
 	}
 }
 
@@ -520,6 +528,14 @@ func (p *payloadStoreRepositoryImpl) DualWritesEnabled() bool {
 
 func (p *payloadStoreRepositoryImpl) WALPollLimit() int {
 	return p.walPollLimit
+}
+
+func (p *payloadStoreRepositoryImpl) WALProcessInterval() time.Duration {
+	return p.walProcessInterval
+}
+
+func (p *payloadStoreRepositoryImpl) ExternalCutoverProcessInterval() time.Duration {
+	return p.externalCutoverProcessInterval
 }
 
 type NoOpExternalStore struct{}
