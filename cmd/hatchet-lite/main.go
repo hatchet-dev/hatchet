@@ -93,8 +93,11 @@ func start(cf *loader.ConfigLoader, interruptCh <-chan interface{}, version stri
 
 	_, msgQueueKindSet := os.LookupEnv("SERVER_MSGQUEUE_KIND")
 	_, msgQueueRabbitMQURLSet := os.LookupEnv("SERVER_MSGQUEUE_RABBITMQ_URL")
+	// for legacy reasons let us also check for these two variables
+	_, taskQueueKindSet := os.LookupEnv("SERVER_TASKQUEUE_KIND")
+	_, taskQueueRabbitMQURLSet := os.LookupEnv("SERVER_TASKQUEUE_RABBITMQ_URL")
 
-	if !msgQueueKindSet && !msgQueueRabbitMQURLSet {
+	if !msgQueueKindSet && !msgQueueRabbitMQURLSet && !taskQueueKindSet && !taskQueueRabbitMQURLSet {
 		err := os.Setenv("SERVER_MSGQUEUE_KIND", "postgres")
 
 		if err != nil {
