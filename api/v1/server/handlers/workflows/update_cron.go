@@ -19,17 +19,12 @@ func (t *WorkflowService) WorkflowCronUpdate(ctx echo.Context, request gen.Workf
 	dbCtx, cancel := context.WithTimeout(ctx.Request().Context(), 30*time.Second)
 	defer cancel()
 
-	enabled := cron.Enabled
-	if request.Body.Enabled != nil {
-		enabled = *request.Body.Enabled
-	}
-
 	err := t.config.APIRepository.Workflow().UpdateCronWorkflow(
 		dbCtx,
 		sqlchelpers.UUIDToStr(cron.TenantId),
 		sqlchelpers.UUIDToStr(cron.CronId),
 		&repository.UpdateCronOpts{
-			Enabled: enabled,
+			Enabled: request.Body.Enabled,
 		},
 	)
 

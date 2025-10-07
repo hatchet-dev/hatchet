@@ -383,10 +383,15 @@ func (w *workflowAPIRepository) DeleteCronWorkflow(ctx context.Context, tenantId
 }
 
 func (w *workflowAPIRepository) UpdateCronWorkflow(ctx context.Context, tenantId, id string, opts *repository.UpdateCronOpts) error {
-	return w.queries.UpdateCronTrigger(ctx, w.pool, dbsqlc.UpdateCronTriggerParams{
-		Enabled:       sqlchelpers.BoolFromBoolean(opts.Enabled),
+	params := dbsqlc.UpdateCronTriggerParams{
 		Crontriggerid: sqlchelpers.UUIDFromStr(id),
-	})
+	}
+
+	if opts.Enabled != nil {
+		params.Enabled = sqlchelpers.BoolFromBoolean(*opts.Enabled)
+	}
+
+	return w.queries.UpdateCronTrigger(ctx, w.pool, params)
 }
 
 func (w *workflowAPIRepository) CreateCronWorkflow(ctx context.Context, tenantId string, opts *repository.CreateCronWorkflowTriggerOpts) (*dbsqlc.ListCronWorkflowsRow, error) {
