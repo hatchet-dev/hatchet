@@ -1486,10 +1486,10 @@ func (r *TriggerRepositoryImpl) registerChildWorkflows(
 		return nil, err
 	}
 
-	retrievePaylodOpts := make([]RetrievePayloadOpts, len(matchingEvents))
+	retrievePayloadOpts := make([]RetrievePayloadOpts, len(matchingEvents))
 
 	for i, event := range matchingEvents {
-		retrievePaylodOpts[i] = RetrievePayloadOpts{
+		retrievePayloadOpts[i] = RetrievePayloadOpts{
 			Id:         event.ID,
 			InsertedAt: event.InsertedAt,
 			Type:       sqlcv1.V1PayloadTypeTASKEVENTDATA,
@@ -1497,7 +1497,7 @@ func (r *TriggerRepositoryImpl) registerChildWorkflows(
 		}
 	}
 
-	payloads, err := r.payloadStore.BulkRetrieve(ctx, retrievePaylodOpts...)
+	payloads, err := r.payloadStore.BulkRetrieve(ctx, retrievePayloadOpts...)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve payloads for signal created events: %w", err)
