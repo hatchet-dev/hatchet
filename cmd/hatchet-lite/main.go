@@ -17,7 +17,6 @@ import (
 	"github.com/hatchet-dev/hatchet/cmd/hatchet-staticfileserver/staticfileserver"
 	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
 	"github.com/hatchet-dev/hatchet/pkg/config/loader"
-	"github.com/hatchet-dev/hatchet/pkg/config/server"
 )
 
 var printVersion bool
@@ -92,11 +91,18 @@ func start(cf *loader.ConfigLoader, interruptCh <-chan interface{}, version stri
 		return fmt.Errorf("error parsing frontend URL: %w", err)
 	}
 
-	_, sc, err := cf.CreateServerFromConfig(version, func(cf *server.ServerConfigFile) {
-		if cf.MessageQueue.RabbitMQ.URL == "" {
-			cf.MessageQueue.Kind = "postgres"
+	_, msgQueueKindSet := os.LookupEnv("SERVER_MSGQUEUE_KIND")
+	_, msgQueueRabbitMQURLSet := os.LookupEnv("SERVER_MSGQUEUE_RABBITMQ_URL")
+
+	if !msgQueueKindSet && !msgQueueRabbitMQURLSet {
+		err := os.Setenv("SERVER_MSGQUEUE_KIND", "postgres")
+
+		if err != nil {
+			return fmt.Errorf("error setting SERVER_MSGQUEUE_KIND to postgres: %w", err)
 		}
-	})
+	}
+
+	_, sc, err := cf.CreateServerFromConfig(version)
 
 	if err != nil {
 		return fmt.Errorf("error loading server config: %w", err)
