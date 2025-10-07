@@ -11,6 +11,15 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const analyzeV1Payload = `-- name: AnalyzeV1Payload :exec
+ANALYZE v1_payload
+`
+
+func (q *Queries) AnalyzeV1Payload(ctx context.Context, db DBTX) error {
+	_, err := db.Exec(ctx, analyzeV1Payload)
+	return err
+}
+
 const cutOverPayloadsToExternal = `-- name: CutOverPayloadsToExternal :one
 WITH tenants AS (
     SELECT UNNEST(

@@ -198,3 +198,6 @@ WITH tenants AS (
 SELECT COUNT(*)
 FROM queue_items
 ;
+
+-- name: AnalyzeV1Payload :exec
+ANALYZE v1_payload;
