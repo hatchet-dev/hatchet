@@ -270,6 +270,8 @@ func (q *Queries) CreateTasks(ctx context.Context, db DBTX, arg CreateTasksParam
 }
 
 const createTaskEvents = `-- name: CreateTaskEvents :many
+-- We get a FOR UPDATE lock on tasks to prevent concurrent writes to the task events
+-- tables for each task
 WITH locked_tasks AS (
     SELECT
         id
@@ -284,18 +286,13 @@ WITH locked_tasks AS (
     FOR UPDATE
 ), input AS (
     SELECT
-        task_id, task_inserted_at, retry_count, event_type, event_key, data
-    FROM
-        (
-            SELECT
-                unnest($2::bigint[]) AS task_id,
-				unnest($3::timestamptz[]) AS task_inserted_at,
-                unnest($4::integer[]) AS retry_count,
-                unnest(cast($5::text[] as v1_task_event_type[])) AS event_type,
-                unnest($6::text[]) AS event_key,
-                unnest($7::jsonb[]) AS data,
-				unnest($8::uuid[]) as external_id
-        ) AS subquery
+		UNNEST($2::BIGINT[]) AS task_id,
+		UNNEST($3::TIMESTAMPTZ[]) AS task_inserted_at,
+		UNNEST($4::INTEGER[]) AS retry_count,
+		UNNEST(CAST($5::TEXT[] as v1_task_event_type[])) AS event_type,
+		UNNEST($6::TEXT[]) AS event_key,
+		UNNEST($7::JSONB[]) AS data,
+		UNNEST($8::UUID[]) as external_id
 )
 INSERT INTO v1_task_event (
     tenant_id,
