@@ -354,6 +354,29 @@ CREATE TABLE v1_incoming_webhook_validation_failures_olap (
 
 CREATE INDEX v1_incoming_webhook_validation_failures_olap_tenant_id_incoming_webhook_name_idx ON v1_incoming_webhook_validation_failures_olap (tenant_id, incoming_webhook_name);
 
+-- IMPORTANT: Keep these values in sync with `v1_payload_type` and `v1_payload_location` in the core db
+CREATE TYPE v1_payload_type_olap AS ENUM ('TASK_INPUT', 'DAG_INPUT', 'TASK_OUTPUT', 'TASK_EVENT_DATA');
+CREATE TYPE v1_payload_location_olap AS ENUM ('INLINE', 'EXTERNAL');
+
+CREATE TABLE v1_payloads_olap (
+    tenant_id UUID NOT NULL,
+    id BIGINT NOT NULL,
+    inserted_at TIMESTAMPTZ NOT NULL,
+    type v1_payload_type_olap NOT NULL,
+    location v1_payload_location_olap NOT NULL,
+    external_location_key TEXT,
+    inline_content JSONB,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (tenant_id, inserted_at, id, type),
+    CHECK (
+        location = 'INLINE'
+        OR
+        (location = 'EXTERNAL' AND inline_content IS NULL AND external_location_key IS NOT NULL)
+    )
+) PARTITION BY RANGE(inserted_at);
+
+
 
 -- this is a hash-partitioned table on the dag_id, so that we can process batches of events in parallel
 -- without needing to place conflicting locks on dags.

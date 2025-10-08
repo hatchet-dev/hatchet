@@ -1436,6 +1436,48 @@ func (ns NullV1PayloadLocation) Value() (driver.Value, error) {
 	return string(ns.V1PayloadLocation), nil
 }
 
+type V1PayloadLocationOlap string
+
+const (
+	V1PayloadLocationOlapINLINE   V1PayloadLocationOlap = "INLINE"
+	V1PayloadLocationOlapEXTERNAL V1PayloadLocationOlap = "EXTERNAL"
+)
+
+func (e *V1PayloadLocationOlap) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = V1PayloadLocationOlap(s)
+	case string:
+		*e = V1PayloadLocationOlap(s)
+	default:
+		return fmt.Errorf("unsupported scan type for V1PayloadLocationOlap: %T", src)
+	}
+	return nil
+}
+
+type NullV1PayloadLocationOlap struct {
+	V1PayloadLocationOlap V1PayloadLocationOlap `json:"v1_payload_location_olap"`
+	Valid                 bool                  `json:"valid"` // Valid is true if V1PayloadLocationOlap is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullV1PayloadLocationOlap) Scan(value interface{}) error {
+	if value == nil {
+		ns.V1PayloadLocationOlap, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.V1PayloadLocationOlap.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullV1PayloadLocationOlap) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.V1PayloadLocationOlap), nil
+}
+
 type V1PayloadType string
 
 const (
@@ -1478,6 +1520,50 @@ func (ns NullV1PayloadType) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.V1PayloadType), nil
+}
+
+type V1PayloadTypeOlap string
+
+const (
+	V1PayloadTypeOlapTASKINPUT     V1PayloadTypeOlap = "TASK_INPUT"
+	V1PayloadTypeOlapDAGINPUT      V1PayloadTypeOlap = "DAG_INPUT"
+	V1PayloadTypeOlapTASKOUTPUT    V1PayloadTypeOlap = "TASK_OUTPUT"
+	V1PayloadTypeOlapTASKEVENTDATA V1PayloadTypeOlap = "TASK_EVENT_DATA"
+)
+
+func (e *V1PayloadTypeOlap) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = V1PayloadTypeOlap(s)
+	case string:
+		*e = V1PayloadTypeOlap(s)
+	default:
+		return fmt.Errorf("unsupported scan type for V1PayloadTypeOlap: %T", src)
+	}
+	return nil
+}
+
+type NullV1PayloadTypeOlap struct {
+	V1PayloadTypeOlap V1PayloadTypeOlap `json:"v1_payload_type_olap"`
+	Valid             bool              `json:"valid"` // Valid is true if V1PayloadTypeOlap is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullV1PayloadTypeOlap) Scan(value interface{}) error {
+	if value == nil {
+		ns.V1PayloadTypeOlap, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.V1PayloadTypeOlap.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullV1PayloadTypeOlap) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.V1PayloadTypeOlap), nil
 }
 
 type V1PayloadWalOperation string
@@ -3095,6 +3181,17 @@ type V1PayloadWal struct {
 	PayloadInsertedAt pgtype.Timestamptz    `json:"payload_inserted_at"`
 	PayloadType       V1PayloadType         `json:"payload_type"`
 	Operation         V1PayloadWalOperation `json:"operation"`
+}
+
+type V1PayloadsOlap struct {
+	TenantID            pgtype.UUID           `json:"tenant_id"`
+	ID                  int64                 `json:"id"`
+	InsertedAt          pgtype.Timestamptz    `json:"inserted_at"`
+	Type                V1PayloadTypeOlap     `json:"type"`
+	Location            V1PayloadLocationOlap `json:"location"`
+	ExternalLocationKey pgtype.Text           `json:"external_location_key"`
+	InlineContent       []byte                `json:"inline_content"`
+	UpdatedAt           pgtype.Timestamptz    `json:"updated_at"`
 }
 
 type V1Queue struct {
