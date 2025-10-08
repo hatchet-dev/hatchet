@@ -60,6 +60,27 @@ func CreatedDAGMessage(tenantId string, dag *v1.DAGWithData) (*msgqueue.Message,
 	)
 }
 
+type PutOLAPPayloadOpts struct {
+	*v1.StorePayloadOpts
+	Location sqlcv1.V1PayloadLocationOlap
+}
+
+type Payloads struct {
+	Payloads []PutOLAPPayloadOpts
+}
+
+func PutPayloadMessage(tenantId string, payloads []PutOLAPPayloadOpts) (*msgqueue.Message, error) {
+	return msgqueue.NewTenantMessage(
+		tenantId,
+		"put-payloads",
+		false,
+		true,
+		Payloads{
+			Payloads: payloads,
+		},
+	)
+}
+
 type CreatedEventTriggerPayloadSingleton struct {
 	MaybeRunId              *int64     `json:"run_id"`
 	MaybeRunInsertedAt      *time.Time `json:"run_inserted_at"`

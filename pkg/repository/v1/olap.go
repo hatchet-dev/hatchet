@@ -242,6 +242,7 @@ type OLAPRepository interface {
 
 	CreateIncomingWebhookValidationFailureLogs(ctx context.Context, tenantId string, opts []CreateIncomingWebhookFailureLogOpts) error
 	StoreCELEvaluationFailures(ctx context.Context, tenantId string, failures []CELEvaluationFailure) error
+	PutPayloads(ctx context.Context, tenantId string, failures []PutPayloadOpts) error
 
 	AnalyzeOLAPTables(ctx context.Context) error
 }
@@ -1818,6 +1819,38 @@ func (r *OLAPRepositoryImpl) StoreCELEvaluationFailures(ctx context.Context, ten
 		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
 		Sources:  sources,
 		Errors:   errorMessages,
+	})
+}
+
+type PutPayloadOpts struct {
+	*StorePayloadOpts
+	Location sqlcv1.V1PayloadLocationOlap
+}
+
+func (r *OLAPRepositoryImpl) PutPayloads(ctx context.Context, tenantId string, putPayloadOpts []PutPayloadOpts) error {
+	ids := make([]int64, len(putPayloadOpts))
+	insertedAts := make([]pgtype.Timestamptz, len(putPayloadOpts))
+	tenantIds := make([]pgtype.UUID, len(putPayloadOpts))
+	payloads := make([][]byte, len(putPayloadOpts))
+	types := make([]string, len(putPayloadOpts))
+	locations := make([]string, len(putPayloadOpts))
+
+	for i, opt := range putPayloadOpts {
+		ids[i] = opt.Id
+		insertedAts[i] = opt.InsertedAt
+		tenantIds[i] = sqlchelpers.UUIDFromStr(tenantId)
+		payloads[i] = opt.Payload
+		types[i] = string(opt.Type)
+		locations[i] = string(opt.Location)
+	}
+
+	return r.queries.PutPayloads(ctx, r.pool, sqlcv1.PutPayloadsParams{
+		Ids:         ids,
+		Insertedats: insertedAts,
+		Tenantids:   tenantIds,
+		Payloads:    payloads,
+		Types:       types,
+		Locations:   locations,
 	})
 }
 
