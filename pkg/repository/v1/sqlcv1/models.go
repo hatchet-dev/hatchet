@@ -1439,9 +1439,10 @@ func (ns NullV1PayloadLocation) Value() (driver.Value, error) {
 type V1PayloadType string
 
 const (
-	V1PayloadTypeTASKINPUT  V1PayloadType = "TASK_INPUT"
-	V1PayloadTypeDAGINPUT   V1PayloadType = "DAG_INPUT"
-	V1PayloadTypeTASKOUTPUT V1PayloadType = "TASK_OUTPUT"
+	V1PayloadTypeTASKINPUT     V1PayloadType = "TASK_INPUT"
+	V1PayloadTypeDAGINPUT      V1PayloadType = "DAG_INPUT"
+	V1PayloadTypeTASKOUTPUT    V1PayloadType = "TASK_OUTPUT"
+	V1PayloadTypeTASKEVENTDATA V1PayloadType = "TASK_EVENT_DATA"
 )
 
 func (e *V1PayloadType) Scan(src interface{}) error {
@@ -3239,6 +3240,7 @@ type V1Task struct {
 
 type V1TaskEvent struct {
 	ID             int64              `json:"id"`
+	InsertedAt     pgtype.Timestamptz `json:"inserted_at"`
 	TenantID       pgtype.UUID        `json:"tenant_id"`
 	TaskID         int64              `json:"task_id"`
 	TaskInsertedAt pgtype.Timestamptz `json:"task_inserted_at"`
@@ -3247,6 +3249,7 @@ type V1TaskEvent struct {
 	EventKey       pgtype.Text        `json:"event_key"`
 	CreatedAt      pgtype.Timestamp   `json:"created_at"`
 	Data           []byte             `json:"data"`
+	ExternalID     pgtype.UUID        `json:"external_id"`
 }
 
 type V1TaskEventsOlap struct {

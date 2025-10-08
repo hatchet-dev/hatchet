@@ -9,7 +9,6 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
@@ -51,51 +50,62 @@ type ExternalStore interface {
 
 type PayloadStoreRepository interface {
 	Store(ctx context.Context, tx sqlcv1.DBTX, payloads ...StorePayloadOpts) error
-	Retrieve(ctx context.Context, opts RetrievePayloadOpts) ([]byte, error)
 	BulkRetrieve(ctx context.Context, opts ...RetrievePayloadOpts) (map[RetrievePayloadOpts][]byte, error)
 	ProcessPayloadWAL(ctx context.Context, partitionNumber int64) (bool, error)
 	ProcessPayloadExternalCutovers(ctx context.Context, partitionNumber int64) (bool, error)
 	OverwriteExternalStore(store ExternalStore, inlineStoreTTL time.Duration)
 	DualWritesEnabled() bool
+	TaskEventDualWritesEnabled() bool
+	DagDataDualWritesEnabled() bool
 	WALPollLimit() int
 	WALProcessInterval() time.Duration
 	ExternalCutoverProcessInterval() time.Duration
 }
 
 type payloadStoreRepositoryImpl struct {
-	pool                           *pgxpool.Pool
-	l                              *zerolog.Logger
-	queries                        *sqlcv1.Queries
-	externalStoreEnabled           bool
-	inlineStoreTTL                 *time.Duration
-	externalStore                  ExternalStore
-	enablePayloadDualWrites        bool
-	walPollLimit                   int
-	walProcessInterval             time.Duration
-	externalCutoverProcessInterval time.Duration
+	pool                             *pgxpool.Pool
+	l                                *zerolog.Logger
+	queries                          *sqlcv1.Queries
+	externalStoreEnabled             bool
+	inlineStoreTTL                   *time.Duration
+	externalStore                    ExternalStore
+	enablePayloadDualWrites          bool
+	enableTaskEventPayloadDualWrites bool
+	enableDagDataPayloadDualWrites   bool
+	walPollLimit                     int
+	walProcessInterval               time.Duration
+	externalCutoverProcessInterval   time.Duration
+}
+
+type PayloadStoreRepositoryOpts struct {
+	EnablePayloadDualWrites          bool
+	EnableTaskEventPayloadDualWrites bool
+	EnableDagDataPayloadDualWrites   bool
+	WALPollLimit                     int
+	WALProcessInterval               time.Duration
+	ExternalCutoverProcessInterval   time.Duration
 }
 
 func NewPayloadStoreRepository(
 	pool *pgxpool.Pool,
 	l *zerolog.Logger,
 	queries *sqlcv1.Queries,
-	enablePayloadDualWrites bool,
-	walPollLimit int,
-	walProcessInterval time.Duration,
-	externalCutoverProcessInterval time.Duration,
+	opts PayloadStoreRepositoryOpts,
 ) PayloadStoreRepository {
 	return &payloadStoreRepositoryImpl{
 		pool:    pool,
 		l:       l,
 		queries: queries,
 
-		externalStoreEnabled:           false,
-		inlineStoreTTL:                 nil,
-		externalStore:                  &NoOpExternalStore{},
-		enablePayloadDualWrites:        enablePayloadDualWrites,
-		walPollLimit:                   walPollLimit,
-		walProcessInterval:             walProcessInterval,
-		externalCutoverProcessInterval: externalCutoverProcessInterval,
+		externalStoreEnabled:             false,
+		inlineStoreTTL:                   nil,
+		externalStore:                    &NoOpExternalStore{},
+		enablePayloadDualWrites:          opts.EnablePayloadDualWrites,
+		enableTaskEventPayloadDualWrites: opts.EnableTaskEventPayloadDualWrites,
+		enableDagDataPayloadDualWrites:   opts.EnableDagDataPayloadDualWrites,
+		walPollLimit:                     opts.WALPollLimit,
+		walProcessInterval:               opts.WALProcessInterval,
+		externalCutoverProcessInterval:   opts.ExternalCutoverProcessInterval,
 	}
 }
 
@@ -180,22 +190,6 @@ func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx sqlcv1.DBTX, 
 	}
 
 	return err
-}
-
-func (p *payloadStoreRepositoryImpl) Retrieve(ctx context.Context, opts RetrievePayloadOpts) ([]byte, error) {
-	payloadMap, err := p.BulkRetrieve(ctx, opts)
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to read payload metadata: %w", err)
-	}
-
-	payload, ok := payloadMap[opts]
-
-	if !ok {
-		return nil, pgx.ErrNoRows
-	}
-
-	return payload, nil
 }
 
 func (p *payloadStoreRepositoryImpl) BulkRetrieve(ctx context.Context, opts ...RetrievePayloadOpts) (map[RetrievePayloadOpts][]byte, error) {
@@ -524,6 +518,14 @@ func (p *payloadStoreRepositoryImpl) OverwriteExternalStore(store ExternalStore,
 
 func (p *payloadStoreRepositoryImpl) DualWritesEnabled() bool {
 	return p.enablePayloadDualWrites
+}
+
+func (p *payloadStoreRepositoryImpl) TaskEventDualWritesEnabled() bool {
+	return p.enableTaskEventPayloadDualWrites
+}
+
+func (p *payloadStoreRepositoryImpl) DagDataDualWritesEnabled() bool {
+	return p.enableDagDataPayloadDualWrites
 }
 
 func (p *payloadStoreRepositoryImpl) WALPollLimit() int {

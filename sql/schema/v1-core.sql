@@ -327,6 +327,7 @@ CREATE TYPE v1_task_event_type AS ENUM (
 -- CreateTable
 CREATE TABLE v1_task_event (
     id bigint GENERATED ALWAYS AS IDENTITY,
+    inserted_at timestamptz DEFAULT CURRENT_TIMESTAMP,
     tenant_id UUID NOT NULL,
     task_id bigint NOT NULL,
     task_inserted_at TIMESTAMPTZ NOT NULL,
@@ -337,6 +338,7 @@ CREATE TABLE v1_task_event (
     event_key TEXT,
     created_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     data JSONB,
+    external_id UUID,
     CONSTRAINT v1_task_event_pkey PRIMARY KEY (task_id, task_inserted_at, id)
 ) PARTITION BY RANGE(task_inserted_at);
 
@@ -1629,7 +1631,7 @@ CREATE TABLE v1_durable_sleep (
     PRIMARY KEY (tenant_id, sleep_until, id)
 );
 
-CREATE TYPE v1_payload_type AS ENUM ('TASK_INPUT', 'DAG_INPUT', 'TASK_OUTPUT');
+CREATE TYPE v1_payload_type AS ENUM ('TASK_INPUT', 'DAG_INPUT', 'TASK_OUTPUT', 'TASK_EVENT_DATA');
 CREATE TYPE v1_payload_location AS ENUM ('INLINE', 'EXTERNAL');
 
 CREATE TABLE v1_payload (

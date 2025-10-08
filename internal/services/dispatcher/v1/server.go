@@ -18,7 +18,6 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
-	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 )
 
 func (d *DispatcherServiceImpl) RegisterDurableEvent(ctx context.Context, req *contracts.RegisterDurableEventRequest) (*contracts.RegisterDurableEventResponse, error) {
@@ -152,7 +151,7 @@ func (d *DispatcherServiceImpl) ListenForDurableEvent(server contracts.V1Dispatc
 	sendMu := sync.Mutex{}
 	iterMu := sync.Mutex{}
 
-	sendEvent := func(e *sqlcv1.V1TaskEvent) error {
+	sendEvent := func(e *v1.V1TaskEventWithPayload) error {
 		// FIXME: check max size of msg
 		// results := cleanResults(e.Results)
 
@@ -173,7 +172,7 @@ func (d *DispatcherServiceImpl) ListenForDurableEvent(server contracts.V1Dispatc
 		err := server.Send(&contracts.DurableEvent{
 			TaskId:    externalId,
 			SignalKey: e.EventKey.String,
-			Data:      e.Data,
+			Data:      e.Payload,
 		})
 		sendMu.Unlock()
 
