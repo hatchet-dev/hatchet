@@ -18,7 +18,6 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
-	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 )
 
 func (d *DispatcherServiceImpl) RegisterDurableEvent(ctx context.Context, req *contracts.RegisterDurableEventRequest) (*contracts.RegisterDurableEventResponse, error) {
@@ -152,7 +151,7 @@ func (d *DispatcherServiceImpl) ListenForDurableEvent(server contracts.V1Dispatc
 	sendMu := sync.Mutex{}
 	iterMu := sync.Mutex{}
 
-	sendEvent := func(e *sqlcv1.V1TaskEvent) error {
+	sendEvent := func(e *v1.V1TaskEventWithPayload) error {
 		// FIXME: check max size of msg
 		// results := cleanResults(e.Results)
 
@@ -168,24 +167,12 @@ func (d *DispatcherServiceImpl) ListenForDurableEvent(server contracts.V1Dispatc
 			return fmt.Errorf("could not find external id for task %d, signal key %s", e.TaskID, e.EventKey.String)
 		}
 
-		payload, err := d.repo.Payloads().Retrieve(ctx, v1.RetrievePayloadOpts{
-			Id:         e.ID,
-			InsertedAt: e.InsertedAt,
-			Type:       sqlcv1.V1PayloadTypeTASKEVENTDATA,
-			TenantId:   sqlchelpers.UUIDFromStr(tenantId),
-		})
-
-		if err != nil {
-			d.l.Error().Msgf("ListenForDurableEvent: task %s with ID %d and inserted_at %s has empty payload, falling back to input", externalId, e.ID, e.InsertedAt.Time)
-			payload = e.Data
-		}
-
 		// send the task to the client
 		sendMu.Lock()
-		err = server.Send(&contracts.DurableEvent{
+		err := server.Send(&contracts.DurableEvent{
 			TaskId:    externalId,
 			SignalKey: e.EventKey.String,
-			Data:      payload,
+			Data:      e.Payload,
 		})
 		sendMu.Unlock()
 

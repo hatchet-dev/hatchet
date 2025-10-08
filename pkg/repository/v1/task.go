@@ -250,7 +250,7 @@ type TaskRepository interface {
 
 	ReleaseSlot(ctx context.Context, tenantId string, externalId string) (*sqlcv1.V1TaskRuntime, error)
 
-	ListSignalCompletedEvents(ctx context.Context, tenantId string, tasks []TaskIdInsertedAtSignalKey) ([]*sqlcv1.V1TaskEvent, error)
+	ListSignalCompletedEvents(ctx context.Context, tenantId string, tasks []TaskIdInsertedAtSignalKey) ([]*V1TaskEventWithPayload, error)
 
 	// AnalyzeTaskTables runs ANALYZE on the task tables
 	AnalyzeTaskTables(ctx context.Context) error
@@ -3479,7 +3479,7 @@ func (r *TaskRepositoryImpl) ListTaskParentOutputs(ctx context.Context, tenantId
 	return resMap, nil
 }
 
-func (r *TaskRepositoryImpl) ListSignalCompletedEvents(ctx context.Context, tenantId string, tasks []TaskIdInsertedAtSignalKey) ([]*sqlcv1.V1TaskEvent, error) {
+func (r *TaskRepositoryImpl) ListSignalCompletedEvents(ctx context.Context, tenantId string, tasks []TaskIdInsertedAtSignalKey) ([]*V1TaskEventWithPayload, error) {
 	taskIds := make([]int64, 0)
 	taskInsertedAts := make([]pgtype.Timestamptz, 0)
 	eventKeys := make([]string, 0)
@@ -3490,13 +3490,61 @@ func (r *TaskRepositoryImpl) ListSignalCompletedEvents(ctx context.Context, tena
 		eventKeys = append(eventKeys, task.SignalKey)
 	}
 
-	return r.queries.ListMatchingSignalEvents(ctx, r.pool, sqlcv1.ListMatchingSignalEventsParams{
+	signalEvents, err := r.queries.ListMatchingSignalEvents(ctx, r.pool, sqlcv1.ListMatchingSignalEventsParams{
 		Tenantid:        sqlchelpers.UUIDFromStr(tenantId),
 		Eventtype:       sqlcv1.V1TaskEventTypeSIGNALCOMPLETED,
 		Taskids:         taskIds,
 		Taskinsertedats: taskInsertedAts,
 		Eventkeys:       eventKeys,
 	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to list matching signal events: %w", err)
+	}
+
+	retrieveOpts := make([]RetrievePayloadOpts, len(signalEvents))
+
+	for i, event := range signalEvents {
+		retrieveOpt := RetrievePayloadOpts{
+			Id:         event.ID,
+			InsertedAt: event.InsertedAt,
+			Type:       sqlcv1.V1PayloadTypeTASKEVENTDATA,
+			TenantId:   sqlchelpers.UUIDFromStr(tenantId),
+		}
+
+		retrieveOpts[i] = retrieveOpt
+	}
+
+	payloads, err := r.payloadStore.BulkRetrieve(ctx, retrieveOpts...)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve task event payloads: %w", err)
+	}
+
+	res := make([]*V1TaskEventWithPayload, len(signalEvents))
+
+	for i, event := range signalEvents {
+		retrieveOpt := RetrievePayloadOpts{
+			Id:         event.ID,
+			InsertedAt: event.InsertedAt,
+			Type:       sqlcv1.V1PayloadTypeTASKEVENTDATA,
+			TenantId:   sqlchelpers.UUIDFromStr(tenantId),
+		}
+
+		payload, ok := payloads[retrieveOpt]
+
+		if !ok {
+			r.l.Error().Msgf("ListenForDurableEvent: task %s with ID %d and inserted_at %s has empty payload, falling back to input", event.ExternalID, event.ID, event.InsertedAt.Time)
+			payload = event.Data
+		}
+
+		res[i] = &V1TaskEventWithPayload{
+			V1TaskEvent: event,
+			Payload:     payload,
+		}
+	}
+
+	return res, nil
 }
 
 func (r *TaskRepositoryImpl) AnalyzeTaskTables(ctx context.Context) error {

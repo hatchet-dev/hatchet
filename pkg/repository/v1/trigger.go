@@ -1307,6 +1307,11 @@ type V1TaskWithPayload struct {
 	Payload []byte `json:"payload"`
 }
 
+type V1TaskEventWithPayload struct {
+	*sqlcv1.V1TaskEvent
+	Payload []byte `json:"payload"`
+}
+
 func (r *TriggerRepositoryImpl) createDAGs(ctx context.Context, tx sqlcv1.DBTX, tenantId string, opts []createDAGOpts) ([]*DAGWithData, error) {
 	if len(opts) == 0 {
 		return nil, nil
