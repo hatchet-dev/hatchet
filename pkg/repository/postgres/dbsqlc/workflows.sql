@@ -156,6 +156,13 @@ UPDATE "WorkflowTriggerCronRef"
 SET "parentId" = @newWorkflowTriggerId::uuid
 WHERE "id" IN (SELECT "id" FROM triggersToUpdate);
 
+-- name: UpdateCronTrigger :exec
+UPDATE "WorkflowTriggerCronRef"
+SET
+    "enabled" = COALESCE(sqlc.narg('enabled')::BOOLEAN, "enabled")
+WHERE "id" = @cronTriggerId::uuid
+;
+
 -- name: MoveScheduledTriggerToNewWorkflowTriggers :exec
 WITH triggersToUpdate AS (
     SELECT scheduledTrigger."id" FROM "WorkflowTriggerScheduledRef" scheduledTrigger

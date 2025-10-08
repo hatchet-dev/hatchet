@@ -9,7 +9,6 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
@@ -51,42 +50,62 @@ type ExternalStore interface {
 
 type PayloadStoreRepository interface {
 	Store(ctx context.Context, tx sqlcv1.DBTX, payloads ...StorePayloadOpts) error
-	Retrieve(ctx context.Context, opts RetrievePayloadOpts) ([]byte, error)
 	BulkRetrieve(ctx context.Context, opts ...RetrievePayloadOpts) (map[RetrievePayloadOpts][]byte, error)
 	ProcessPayloadWAL(ctx context.Context, partitionNumber int64) (bool, error)
+	ProcessPayloadExternalCutovers(ctx context.Context, partitionNumber int64) (bool, error)
 	OverwriteExternalStore(store ExternalStore, inlineStoreTTL time.Duration)
 	DualWritesEnabled() bool
+	TaskEventDualWritesEnabled() bool
+	DagDataDualWritesEnabled() bool
 	WALPollLimit() int
+	WALProcessInterval() time.Duration
+	ExternalCutoverProcessInterval() time.Duration
 }
 
 type payloadStoreRepositoryImpl struct {
-	pool                    *pgxpool.Pool
-	l                       *zerolog.Logger
-	queries                 *sqlcv1.Queries
-	externalStoreEnabled    bool
-	inlineStoreTTL          *time.Duration
-	externalStore           ExternalStore
-	enablePayloadDualWrites bool
-	walPollLimit            int
+	pool                             *pgxpool.Pool
+	l                                *zerolog.Logger
+	queries                          *sqlcv1.Queries
+	externalStoreEnabled             bool
+	inlineStoreTTL                   *time.Duration
+	externalStore                    ExternalStore
+	enablePayloadDualWrites          bool
+	enableTaskEventPayloadDualWrites bool
+	enableDagDataPayloadDualWrites   bool
+	walPollLimit                     int
+	walProcessInterval               time.Duration
+	externalCutoverProcessInterval   time.Duration
+}
+
+type PayloadStoreRepositoryOpts struct {
+	EnablePayloadDualWrites          bool
+	EnableTaskEventPayloadDualWrites bool
+	EnableDagDataPayloadDualWrites   bool
+	WALPollLimit                     int
+	WALProcessInterval               time.Duration
+	ExternalCutoverProcessInterval   time.Duration
 }
 
 func NewPayloadStoreRepository(
 	pool *pgxpool.Pool,
 	l *zerolog.Logger,
 	queries *sqlcv1.Queries,
-	enablePayloadDualWrites bool,
-	walPollLimit int,
+	opts PayloadStoreRepositoryOpts,
 ) PayloadStoreRepository {
 	return &payloadStoreRepositoryImpl{
 		pool:    pool,
 		l:       l,
 		queries: queries,
 
-		externalStoreEnabled:    false,
-		inlineStoreTTL:          nil,
-		externalStore:           &NoOpExternalStore{},
-		enablePayloadDualWrites: enablePayloadDualWrites,
-		walPollLimit:            walPollLimit,
+		externalStoreEnabled:             false,
+		inlineStoreTTL:                   nil,
+		externalStore:                    &NoOpExternalStore{},
+		enablePayloadDualWrites:          opts.EnablePayloadDualWrites,
+		enableTaskEventPayloadDualWrites: opts.EnableTaskEventPayloadDualWrites,
+		enableDagDataPayloadDualWrites:   opts.EnableDagDataPayloadDualWrites,
+		walPollLimit:                     opts.WALPollLimit,
+		walProcessInterval:               opts.WALProcessInterval,
+		externalCutoverProcessInterval:   opts.ExternalCutoverProcessInterval,
 	}
 }
 
@@ -171,22 +190,6 @@ func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx sqlcv1.DBTX, 
 	}
 
 	return err
-}
-
-func (p *payloadStoreRepositoryImpl) Retrieve(ctx context.Context, opts RetrievePayloadOpts) ([]byte, error) {
-	payloadMap, err := p.BulkRetrieve(ctx, opts)
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to read payload metadata: %w", err)
-	}
-
-	payload, ok := payloadMap[opts]
-
-	if !ok {
-		return nil, pgx.ErrNoRows
-	}
-
-	return payload, nil
 }
 
 func (p *payloadStoreRepositoryImpl) BulkRetrieve(ctx context.Context, opts ...RetrievePayloadOpts) (map[RetrievePayloadOpts][]byte, error) {
@@ -307,7 +310,7 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadWAL(ctx context.Context, part
 		return false, nil
 	}
 
-	walRecords, err := p.queries.PollPayloadWALForRecordsToOffload(ctx, tx, sqlcv1.PollPayloadWALForRecordsToOffloadParams{
+	walRecords, err := p.queries.PollPayloadWALForRecordsToReplicate(ctx, tx, sqlcv1.PollPayloadWALForRecordsToReplicateParams{
 		Polllimit:       int32(p.walPollLimit),
 		Partitionnumber: int32(partitionNumber),
 	})
@@ -438,7 +441,7 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadWAL(ctx context.Context, part
 		return false, fmt.Errorf("failed to prepare transaction for offloading: %w", err)
 	}
 
-	err = p.queries.FinalizePayloadOffloads(ctx, tx, sqlcv1.FinalizePayloadOffloadsParams{
+	err = p.queries.SetPayloadExternalKeys(ctx, tx, sqlcv1.SetPayloadExternalKeysParams{
 		Ids:                  ids,
 		Insertedats:          insertedAts,
 		Payloadtypes:         types,
@@ -458,6 +461,55 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadWAL(ctx context.Context, part
 	return hasMoreWALRecords, nil
 }
 
+func (p *payloadStoreRepositoryImpl) ProcessPayloadExternalCutovers(ctx context.Context, partitionNumber int64) (bool, error) {
+	// no need to cut over if external store is not enabled
+	if !p.externalStoreEnabled {
+		return false, nil
+	}
+
+	ctx, span := telemetry.NewSpan(ctx, "payloadstore.process_payload_external_cutovers")
+	defer span.End()
+
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, p.pool, p.l, 5000)
+
+	if err != nil {
+		return false, fmt.Errorf("failed to prepare transaction: %w", err)
+	}
+
+	defer rollback()
+
+	advisoryLockAcquired, err := p.queries.TryAdvisoryLock(ctx, tx, hash(fmt.Sprintf("process-payload-cut-overs-lease-%d", partitionNumber)))
+
+	if err != nil {
+		return false, fmt.Errorf("failed to acquire advisory lock: %w", err)
+	}
+
+	if !advisoryLockAcquired {
+		return false, nil
+	}
+
+	queueItemsCutOver, err := p.queries.CutOverPayloadsToExternal(ctx, tx, sqlcv1.CutOverPayloadsToExternalParams{
+		Polllimit:       int32(p.walPollLimit),
+		Partitionnumber: int32(partitionNumber),
+	})
+
+	if err != nil {
+		return false, err
+	}
+
+	if queueItemsCutOver == 0 {
+		return false, nil
+	}
+
+	hasMoreQueueItems := int(queueItemsCutOver) == p.walPollLimit
+
+	if err := commit(ctx); err != nil {
+		return false, err
+	}
+
+	return hasMoreQueueItems, nil
+}
+
 func (p *payloadStoreRepositoryImpl) OverwriteExternalStore(store ExternalStore, inlineStoreTTL time.Duration) {
 	p.externalStoreEnabled = true
 	p.inlineStoreTTL = &inlineStoreTTL
@@ -468,8 +520,24 @@ func (p *payloadStoreRepositoryImpl) DualWritesEnabled() bool {
 	return p.enablePayloadDualWrites
 }
 
+func (p *payloadStoreRepositoryImpl) TaskEventDualWritesEnabled() bool {
+	return p.enableTaskEventPayloadDualWrites
+}
+
+func (p *payloadStoreRepositoryImpl) DagDataDualWritesEnabled() bool {
+	return p.enableDagDataPayloadDualWrites
+}
+
 func (p *payloadStoreRepositoryImpl) WALPollLimit() int {
 	return p.walPollLimit
+}
+
+func (p *payloadStoreRepositoryImpl) WALProcessInterval() time.Duration {
+	return p.walProcessInterval
+}
+
+func (p *payloadStoreRepositoryImpl) ExternalCutoverProcessInterval() time.Duration {
+	return p.externalCutoverProcessInterval
 }
 
 type NoOpExternalStore struct{}

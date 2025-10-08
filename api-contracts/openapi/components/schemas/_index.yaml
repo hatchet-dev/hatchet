@@ -256,6 +256,8 @@ ScheduleWorkflowRunRequest:
   $ref: "./workflow_run.yaml#/ScheduleWorkflowRunRequest"
 CreateCronWorkflowTriggerRequest:
   $ref: "./workflow_run.yaml#/CreateCronWorkflowTriggerRequest"
+UpdateCronWorkflowTriggerRequest:
+  $ref: "./workflow_run.yaml#/UpdateCronWorkflowTriggerRequest"
 CreatePullRequestFromStepRun:
   $ref: "./workflow_run.yaml#/CreatePullRequestFromStepRun"
 GetStepRunDiffResponse:
