@@ -200,20 +200,14 @@ func (m *msgIdPubBuffer) flush() {
 
 			if isPersistent == nil {
 				isPersistent = &msg.msg.Persistent
-			} else if *isPersistent != msg.msg.Persistent { // nolint: revive,staticcheck
-				// TODO: log warning about mixed persistence
 			}
 
 			if immediatelyExpire == nil {
 				immediatelyExpire = &msg.msg.ImmediatelyExpire
-			} else if *immediatelyExpire != msg.msg.ImmediatelyExpire { // nolint: revive,staticcheck
-				// TODO: log warning about mixed persistence
 			}
 
 			if retries == nil {
 				retries = &msg.msg.Retries
-			} else if *retries != msg.msg.Retries { // nolint: revive,staticcheck
-				// TODO: log warning about mixed retries
 			}
 		default:
 			i = PUB_BUFFER_SIZE

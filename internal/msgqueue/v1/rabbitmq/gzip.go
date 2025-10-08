@@ -12,12 +12,13 @@ const (
 	MinCompressionSize = 5 * 1024 // 5KB
 )
 
-// CompressionResult contains the results of payload compression
 type CompressionResult struct {
-	Payloads         [][]byte
-	WasCompressed    bool
-	OriginalSize     int
-	CompressedSize   int
+	Payloads       [][]byte
+	WasCompressed  bool
+	OriginalSize   int
+	CompressedSize int
+
+	// CompressionRatio is the ratio of compressed size to original size (compressed / original)
 	CompressionRatio float64
 }
 
