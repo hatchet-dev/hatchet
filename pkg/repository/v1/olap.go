@@ -258,10 +258,10 @@ type OLAPRepositoryImpl struct {
 	shouldPartitionEventsTables bool
 }
 
-func NewOLAPRepositoryFromPool(pool *pgxpool.Pool, l *zerolog.Logger, olapRetentionPeriod time.Duration, entitlements repository.EntitlementsRepository, shouldPartitionEventsTables, enablePayloadDualWrites bool, payloadStoreWALPollLimit int) (OLAPRepository, func() error) {
+func NewOLAPRepositoryFromPool(pool *pgxpool.Pool, l *zerolog.Logger, olapRetentionPeriod time.Duration, entitlements repository.EntitlementsRepository, shouldPartitionEventsTables bool, payloadStoreOpts PayloadStoreRepositoryOpts) (OLAPRepository, func() error) {
 	v := validator.NewDefaultValidator()
 
-	shared, cleanupShared := newSharedRepository(pool, v, l, entitlements, enablePayloadDualWrites, payloadStoreWALPollLimit)
+	shared, cleanupShared := newSharedRepository(pool, v, l, entitlements, payloadStoreOpts)
 
 	return newOLAPRepository(shared, olapRetentionPeriod, shouldPartitionEventsTables), cleanupShared
 }
@@ -1305,7 +1305,7 @@ func (r *OLAPRepositoryImpl) writeTaskBatch(ctx context.Context, tenantId string
 		// fall back to input if payload is empty
 		// for backwards compatibility
 		if len(payload) == 0 {
-			r.l.Error().Msgf("writeTaskBatch: task %s has empty payload, falling back to input", task.ExternalID.String())
+			r.l.Error().Msgf("writeTaskBatch: task %s with ID %d and inserted_at %s has empty payload, falling back to input", task.ExternalID.String(), task.ID, task.InsertedAt.Time)
 			payload = task.Input
 		}
 
@@ -1897,7 +1897,7 @@ func (r *OLAPRepositoryImpl) populateTaskRunData(ctx context.Context, tx pgx.Tx,
 	})
 
 	if len(uniqueTaskIdInsertedAts) == 0 {
-		r.l.Warn().Msg("populateTaskRunData called with empty opts, returning empty result")
+		r.l.Debug().Msg("populateTaskRunData called with empty opts, returning empty result")
 		return []*sqlcv1.PopulateTaskRunDataRow{}, nil
 	}
 

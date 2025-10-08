@@ -93,7 +93,7 @@ FROM
 ON CONFLICT DO NOTHING
 ;
 
--- name: PollPayloadWALForRecordsToOffload :many
+-- name: PollPayloadWALForRecordsToReplicate :many
 WITH tenants AS (
     SELECT UNNEST(
         find_matching_tenants_in_payload_wal_partition(
@@ -104,16 +104,13 @@ WITH tenants AS (
 
 SELECT *
 FROM v1_payload_wal
-WHERE
-    offload_at < NOW()
-    AND tenant_id = ANY(SELECT tenant_id FROM tenants)
-ORDER BY offload_at, payload_id, payload_inserted_at, payload_type, tenant_id
-FOR UPDATE
+WHERE tenant_id = ANY(SELECT tenant_id FROM tenants)
+ORDER BY offload_at
 LIMIT @pollLimit::INT
-
+FOR UPDATE SKIP LOCKED
 ;
 
--- name: FinalizePayloadOffloads :exec
+-- name: SetPayloadExternalKeys :exec
 WITH inputs AS (
     SELECT
         UNNEST(@ids::BIGINT[]) AS id,
@@ -125,15 +122,30 @@ WITH inputs AS (
 ), payload_updates AS (
     UPDATE v1_payload
     SET
-        location = 'EXTERNAL',
         external_location_key = i.external_location_key,
-        inline_content = NULL,
         updated_at = NOW()
     FROM inputs i
     WHERE
         v1_payload.id = i.id
         AND v1_payload.inserted_at = i.inserted_at
         AND v1_payload.tenant_id = i.tenant_id
+), cutover_queue_items AS (
+    INSERT INTO v1_payload_cutover_queue_item (
+        tenant_id,
+        cut_over_at,
+        payload_id,
+        payload_inserted_at,
+        payload_type
+    )
+    SELECT
+        i.tenant_id,
+        i.offload_at,
+        i.id,
+        i.inserted_at,
+        i.type
+    FROM
+        inputs i
+    ON CONFLICT DO NOTHING
 )
 
 DELETE FROM v1_payload_wal
@@ -143,3 +155,49 @@ WHERE
         FROM inputs
     )
 ;
+
+
+-- name: CutOverPayloadsToExternal :one
+WITH tenants AS (
+    SELECT UNNEST(
+        find_matching_tenants_in_payload_cutover_queue_item_partition(
+            @partitionNumber::INT
+        )
+    ) AS tenant_id
+), queue_items AS (
+    SELECT *
+    FROM v1_payload_cutover_queue_item
+    WHERE
+        tenant_id = ANY(SELECT tenant_id FROM tenants)
+        AND cut_over_at <= NOW()
+    ORDER BY cut_over_at
+    LIMIT @pollLimit::INT
+    FOR UPDATE SKIP LOCKED
+), payload_updates AS (
+    UPDATE v1_payload
+    SET
+        location = 'EXTERNAL',
+        inline_content = NULL,
+        updated_at = NOW()
+    FROM queue_items qi
+    WHERE
+        v1_payload.id = qi.payload_id
+        AND v1_payload.inserted_at = qi.payload_inserted_at
+        AND v1_payload.tenant_id = qi.tenant_id
+        AND v1_payload.type = qi.payload_type
+        AND v1_payload.external_location_key IS NOT NULL
+), deletions AS (
+    DELETE FROM v1_payload_cutover_queue_item
+    WHERE
+        (cut_over_at, payload_id, payload_inserted_at, payload_type, tenant_id) IN (
+            SELECT cut_over_at, payload_id, payload_inserted_at, payload_type, tenant_id
+            FROM queue_items
+        )
+)
+
+SELECT COUNT(*)
+FROM queue_items
+;
+
+-- name: AnalyzeV1Payload :exec
+ANALYZE v1_payload;
