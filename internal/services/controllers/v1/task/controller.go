@@ -374,7 +374,7 @@ func (tc *TasksControllerImpl) Start() (func() error, error) {
 	_, err = tc.s.NewJob(
 		gocron.DurationJob(tc.repov1.Payloads().ExternalCutoverProcessInterval()),
 		gocron.NewTask(
-			tc.runProcessPayloadExternalCutovers(ctx),
+			tc.runProcessPayloadExternalCutovers(spanContext),
 		),
 	)
 
