@@ -2009,6 +2009,71 @@ func (q *Queries) PopulateTaskRunData(ctx context.Context, db DBTX, arg Populate
 	return &i, err
 }
 
+const putPayloads = `-- name: PutPayloads :exec
+WITH inputs AS (
+    SELECT
+        UNNEST($1::BIGINT[]) AS id,
+        UNNEST($2::TIMESTAMPTZ[]) AS inserted_at,
+        UNNEST($3::JSONB[]) AS payload,
+        UNNEST(CAST($4::TEXT[] AS v1_payload_type[])) AS type,
+        UNNEST($5::UUID[]) AS tenant_id,
+        UNNEST(CAST($6::TEXT[] AS v1_payload_location[])) AS location
+)
+
+INSERT INTO v1_payloads_olap (
+    tenant_id,
+    id,
+    inserted_at,
+    type,
+    location,
+    external_location_key,
+    inline_content
+)
+
+SELECT
+    i.tenant_id,
+    i.id,
+    i.inserted_at,
+    i.type,
+    i.location,
+    CASE
+        WHEN i.location = 'EXTERNAL' THEN i.payload
+        ELSE NULL
+    END,
+    CASE
+        WHEN i.location = 'INLINE' THEN i.payload
+        ELSE NULL
+    END AS inline_content
+FROM inputs i
+ON CONFLICT (tenant_id, id, inserted_at, type) DO UPDATE
+SET
+    location = EXCLUDED.location,
+    external_location_key = EXCLUDED.external_location_key,
+    inline_content = EXCLUDED.inline_content,
+    updated_at = NOW()
+`
+
+type PutPayloadsParams struct {
+	Ids         []int64              `json:"ids"`
+	Insertedats []pgtype.Timestamptz `json:"insertedats"`
+	Payloads    [][]byte             `json:"payloads"`
+	Types       []string             `json:"types"`
+	Tenantids   []pgtype.UUID        `json:"tenantids"`
+	Locations   []string             `json:"locations"`
+}
+
+func (q *Queries) PutPayloads(ctx context.Context, db DBTX, arg PutPayloadsParams) error {
+	_, err := db.Exec(ctx, putPayloads,
+		arg.Ids,
+		arg.Insertedats,
+		arg.Payloads,
+		arg.Types,
+		arg.Tenantids,
+		arg.Locations,
+	)
+	return err
+}
+
 const readDAGByExternalID = `-- name: ReadDAGByExternalID :one
 WITH lookup_task AS (
     SELECT

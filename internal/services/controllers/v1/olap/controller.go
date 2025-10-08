@@ -354,6 +354,8 @@ func (tc *OLAPControllerImpl) handleBufferedMsgs(tenantId, msgId string, payload
 		return tc.handleFailedWebhookValidation(context.Background(), tenantId, payloads)
 	case "cel-evaluation-failure":
 		return tc.handleCelEvaluationFailure(context.Background(), tenantId, payloads)
+	case "put-payloads":
+		return tc.handlePayloadPut(context.Background(), tenantId, payloads)
 	}
 
 	return fmt.Errorf("unknown message id: %s", msgId)
@@ -411,6 +413,37 @@ func (tc *OLAPControllerImpl) handleCreatedDAG(ctx context.Context, tenantId str
 	}
 
 	return tc.repo.OLAP().CreateDAGs(ctx, tenantId, createDAGOpts)
+}
+
+func (tc *OLAPControllerImpl) handlePayloadPut(ctx context.Context, tenantId string, payloads [][]byte) error {
+	storePayloadOpts := make([]v1.PutPayloadOpts, 0)
+
+	msgs := msgqueue.JSONConvert[tasktypes.Payloads](payloads)
+
+	for _, msg := range msgs {
+		for _, payload := range msg.Payloads {
+			// qq: do we want sampling here?
+			// if !tc.sample(string(failure.Payload)) {
+			// tc.l.Debug().Msgf("skipping payload with id %d and inserted_at %s", payload.Id, payload.InsertedAt.Time)
+			// 	continue
+			// }
+
+			opt := v1.PutPayloadOpts{
+				StorePayloadOpts: &v1.StorePayloadOpts{
+					Id:         payload.Id,
+					InsertedAt: payload.InsertedAt,
+					Type:       payload.Type,
+					Payload:    payload.Payload,
+					TenantId:   tenantId,
+				},
+				Location: payload.Location,
+			}
+
+			storePayloadOpts = append(storePayloadOpts, opt)
+		}
+	}
+
+	return tc.repo.OLAP().PutPayloads(ctx, tenantId, storePayloadOpts)
 }
 
 func (tc *OLAPControllerImpl) handleCreateEventTriggers(ctx context.Context, tenantId string, payloads [][]byte) error {
