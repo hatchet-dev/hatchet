@@ -79,6 +79,8 @@ export const useCrons = ({ key }: UseCronsProps) => {
     },
   });
 
+  const updatingCronId = updateCronMutation.variables?.cronId;
+
   const updateCron = useCallback(
     (
       tenantId: string,
@@ -132,5 +134,6 @@ export const useCrons = ({ key }: UseCronsProps) => {
     resetFilters,
     updateCron,
     isUpdatePending: updateCronMutation.isPending,
+    updatingCronId,
   };
 };

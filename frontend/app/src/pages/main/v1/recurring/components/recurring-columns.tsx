@@ -41,6 +41,7 @@ export const columns = ({
   selectedJobId,
   setSelectedJobId,
   isUpdatePending,
+  updatingCronId,
 }: {
   tenantId: string;
   onDeleteClick: (row: CronWorkflows) => void;
@@ -48,6 +49,7 @@ export const columns = ({
   selectedJobId: string | null;
   setSelectedJobId: (jobId: string | null) => void;
   isUpdatePending: boolean;
+  updatingCronId: string | undefined;
 }): ColumnDef<CronWorkflows>[] => {
   return [
     {
@@ -166,7 +168,7 @@ export const columns = ({
       ),
       cell: ({ row }) => (
         <div>
-          {isUpdatePending ? (
+          {isUpdatePending && updatingCronId === row.original.metadata.id ? (
             <Spinner />
           ) : row.original.enabled ? (
             <Check className="size-4 text-emerald-500" />
@@ -197,9 +199,10 @@ export const columns = ({
               {
                 label: row.original.enabled ? 'Disable' : 'Enable',
                 onClick: () => onEnableClick(row.original),
-                disabled: isUpdatePending
-                  ? 'Another update is pending'
-                  : undefined,
+                disabled:
+                  isUpdatePending && updatingCronId === row.original.metadata.id
+                    ? 'Update in progress'
+                    : undefined,
               },
             ]}
           />

@@ -43,6 +43,7 @@ export default function CronsTable() {
     resetFilters,
     updateCron,
     isUpdatePending,
+    updatingCronId,
   } = useCrons({
     key: 'table',
   });
@@ -118,6 +119,7 @@ export default function CronsTable() {
           selectedJobId,
           setSelectedJobId,
           isUpdatePending,
+          updatingCronId,
         })}
         data={crons}
         filters={filters}
