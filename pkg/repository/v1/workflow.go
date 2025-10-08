@@ -536,6 +536,11 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 			priority = sqlchelpers.ToInt(*opts.DefaultPriority)
 		}
 
+		var oldWorkflowVersionId pgtype.UUID
+		if oldWorkflowVersion != nil {
+			oldWorkflowVersionId = oldWorkflowVersion.WorkflowVersion.ID
+		}
+
 		_, err := r.queries.CreateWorkflowTriggerCronRef(
 			ctx,
 			tx,
@@ -547,7 +552,8 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 					String: "",
 					Valid:  true,
 				},
-				Priority: priority,
+				Priority:             priority,
+				OldWorkflowVersionId: oldWorkflowVersionId,
 			},
 		)
 
