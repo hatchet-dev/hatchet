@@ -75,6 +75,7 @@ import {
   TenantResourcePolicy,
   TenantStepRunQueueMetrics,
   TriggerWorkflowRunRequest,
+  UpdateCronWorkflowTriggerRequest,
   UpdateTenantAlertEmailGroupRequest,
   UpdateTenantInviteRequest,
   UpdateTenantMemberRequest,
@@ -2342,6 +2343,29 @@ export class Api<
       path: `/api/v1/tenants/${tenant}/workflows/crons/${cronWorkflow}`,
       method: "DELETE",
       secure: true,
+      ...params,
+    });
+  /**
+   * @description Update a cron workflow for a tenant
+   *
+   * @tags Workflow
+   * @name WorkflowCronUpdate
+   * @summary Update cron job workflow run
+   * @request PATCH:/api/v1/tenants/{tenant}/workflows/crons/{cron-workflow}
+   * @secure
+   */
+  workflowCronUpdate = (
+    tenant: string,
+    cronWorkflow: string,
+    data: UpdateCronWorkflowTriggerRequest,
+    params: RequestParams = {},
+  ) =>
+    this.request<void, APIErrors | APIError>({
+      path: `/api/v1/tenants/${tenant}/workflows/crons/${cronWorkflow}`,
+      method: "PATCH",
+      body: data,
+      secure: true,
+      type: ContentType.Json,
       ...params,
     });
   /**

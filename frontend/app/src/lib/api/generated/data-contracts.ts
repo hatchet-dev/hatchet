@@ -1661,6 +1661,10 @@ export interface CronWorkflowsList {
   pagination?: PaginationResponse;
 }
 
+export interface UpdateCronWorkflowTriggerRequest {
+  enabled?: boolean;
+}
+
 export interface WorkflowRunsCancelRequest {
   workflowRunIds: string[];
 }
