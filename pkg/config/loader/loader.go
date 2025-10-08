@@ -860,12 +860,13 @@ func checkDatabaseTimezone(connConfig *pgx.ConnConfig, dbName string, dbLabel st
 		return fmt.Errorf("could not query %s timezone: %w", dbLabel, err)
 	}
 
-	if dbTimezone != "UTC" {
+	// Accept both "UTC" and "Etc/UTC" as valid UTC timezones
+	if dbTimezone != "UTC" && dbTimezone != "Etc/UTC" {
 		if dbName == "" {
 			dbName = "<your_database_name>"
 		}
 		return fmt.Errorf(
-			"%s instance timezone is set to '%s' but must be 'UTC'\n"+
+			"%s instance timezone is set to '%s' but must be 'UTC' or 'Etc/UTC'\n"+
 				"This check ensures time-based operations work correctly across all sessions\n"+
 				"To fix this issue, you have two options:\n"+
 				"  1. Set your PostgreSQL instance timezone to UTC by running: ALTER DATABASE %s SET TIMEZONE='UTC'\n"+
