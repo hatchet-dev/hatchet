@@ -1589,9 +1589,9 @@ WITH inputs AS (
         UNNEST(@ids::BIGINT[]) AS id,
         UNNEST(@insertedAts::TIMESTAMPTZ[]) AS inserted_at,
         UNNEST(@payloads::JSONB[]) AS payload,
-        UNNEST(CAST(@types::TEXT[] AS v1_payload_type[])) AS type,
+        UNNEST(CAST(@types::TEXT[] AS v1_payload_type_olap[])) AS type,
         UNNEST(@tenantIds::UUID[]) AS tenant_id,
-        UNNEST(CAST(@locations::TEXT[] AS v1_payload_location[])) AS location
+        UNNEST(CAST(@locations::TEXT[] AS v1_payload_location_olap[])) AS location
 )
 
 INSERT INTO v1_payloads_olap (

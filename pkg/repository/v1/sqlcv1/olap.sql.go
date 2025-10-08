@@ -2015,9 +2015,9 @@ WITH inputs AS (
         UNNEST($1::BIGINT[]) AS id,
         UNNEST($2::TIMESTAMPTZ[]) AS inserted_at,
         UNNEST($3::JSONB[]) AS payload,
-        UNNEST(CAST($4::TEXT[] AS v1_payload_type[])) AS type,
+        UNNEST(CAST($4::TEXT[] AS v1_payload_type_olap[])) AS type,
         UNNEST($5::UUID[]) AS tenant_id,
-        UNNEST(CAST($6::TEXT[] AS v1_payload_location[])) AS location
+        UNNEST(CAST($6::TEXT[] AS v1_payload_location_olap[])) AS location
 )
 
 INSERT INTO v1_payloads_olap (
