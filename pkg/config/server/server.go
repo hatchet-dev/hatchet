@@ -462,10 +462,12 @@ type PostgresMQConfigFile struct {
 }
 
 type RabbitMQConfigFile struct {
-	URL         string `mapstructure:"url" json:"url,omitempty" validate:"required"`
-	Qos         int    `mapstructure:"qos" json:"qos,omitempty" default:"100"`
-	MaxPubChans int32  `mapstructure:"maxPubChans" json:"maxPubChans,omitempty" default:"20"`
-	MaxSubChans int32  `mapstructure:"maxSubChans" json:"maxSubChans,omitempty" default:"100"`
+	URL                  string `mapstructure:"url" json:"url,omitempty" validate:"required"`
+	Qos                  int    `mapstructure:"qos" json:"qos,omitempty" default:"100"`
+	MaxPubChans          int32  `mapstructure:"maxPubChans" json:"maxPubChans,omitempty" default:"20"`
+	MaxSubChans          int32  `mapstructure:"maxSubChans" json:"maxSubChans,omitempty" default:"100"`
+	CompressionEnabled   bool   `mapstructure:"compressionEnabled" json:"compressionEnabled,omitempty" default:"false"`
+	CompressionThreshold int    `mapstructure:"compressionThreshold" json:"compressionThreshold,omitempty" default:"5120"`
 }
 
 type ConfigFileEmail struct {
@@ -777,6 +779,8 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("msgQueue.rabbitmq.url", "SERVER_MSGQUEUE_RABBITMQ_URL")
 	_ = v.BindEnv("msgQueue.rabbitmq.maxPubChans", "SERVER_MSGQUEUE_RABBITMQ_MAX_PUB_CHANS")
 	_ = v.BindEnv("msgQueue.rabbitmq.maxSubChans", "SERVER_MSGQUEUE_RABBITMQ_MAX_SUB_CHANS")
+	_ = v.BindEnv("msgQueue.rabbitmq.compressionEnabled", "SERVER_MSGQUEUE_RABBITMQ_COMPRESSION_ENABLED")
+	_ = v.BindEnv("msgQueue.rabbitmq.compressionThreshold", "SERVER_MSGQUEUE_RABBITMQ_COMPRESSION_THRESHOLD")
 
 	// throughput options
 	_ = v.BindEnv("msgQueue.rabbitmq.qos", "SERVER_MSGQUEUE_RABBITMQ_QOS")

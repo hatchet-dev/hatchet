@@ -45,6 +45,11 @@ type MessageQueueImpl struct {
 	subChannels *channelPool
 
 	deadLetterBackoff time.Duration
+
+	compressionEnabled bool
+
+	// compressionThreshold is the minimum payload size (in bytes) that will be compressed
+	compressionThreshold int
 }
 
 func (t *MessageQueueImpl) IsReady() bool {
@@ -61,6 +66,10 @@ type MessageQueueImplOpts struct {
 	deadLetterBackoff         time.Duration
 	maxPubChannels            int32
 	maxSubChannels            int32
+	compressionEnabled        bool
+
+	// compressionThreshold is the minimum payload size (in bytes) that will be compressed
+	compressionThreshold int
 }
 
 func defaultMessageQueueImplOpts() *MessageQueueImplOpts {
@@ -115,6 +124,18 @@ func WithDeadLetterBackoff(backoff time.Duration) MessageQueueImplOpt {
 	}
 }
 
+func WithGzipCompression(enabled bool, threshold int) MessageQueueImplOpt {
+	return func(opts *MessageQueueImplOpts) {
+		opts.compressionEnabled = enabled
+
+		if threshold <= 0 {
+			threshold = 5 * 1024 // default to 5KB
+		}
+
+		opts.compressionThreshold = threshold
+	}
+}
+
 // New creates a new MessageQueueImpl.
 func New(fs ...MessageQueueImplOpt) (func() error, *MessageQueueImpl) {
 	ctx, cancel := context.WithCancel(context.Background())
@@ -165,6 +186,8 @@ func New(fs ...MessageQueueImplOpt) (func() error, *MessageQueueImpl) {
 		pubChannels:               pubChannelPool,
 		subChannels:               subChannelPool,
 		deadLetterBackoff:         opts.deadLetterBackoff,
+		compressionEnabled:        opts.compressionEnabled,
+		compressionThreshold:      opts.compressionThreshold,
 	}
 
 	// create a new lru cache for tenant ids
@@ -262,12 +285,38 @@ func (t *MessageQueueImpl) pubMessage(ctx context.Context, q msgqueue.Queue, msg
 
 	msg.SetOtelCarrier(otelCarrier)
 
-	poolCh, err := t.pubChannels.Acquire(ctx)
+	var compressionResult *CompressionResult
+
+	if len(msg.Payloads) > 0 {
+		var err error
+		compressionResult, err = t.compressPayloads(msg.Payloads)
+		if err != nil {
+			t.l.Error().Msgf("error compressing payloads: %v", err)
+			return fmt.Errorf("failed to compress payloads: %w", err)
+		}
+
+		if compressionResult.WasCompressed {
+			msg.Payloads = compressionResult.Payloads
+			msg.Compressed = true
+
+			t.l.Debug().Msgf("compressed payloads for message %s: original=%d bytes, compressed=%d bytes, ratio=%.2f%%",
+				msg.ID, compressionResult.OriginalSize, compressionResult.CompressedSize, compressionResult.CompressionRatio*100)
+		}
+	}
+
+	acquireCtx, acquireSpan := telemetry.NewSpan(ctx, "acquire_publish_channel")
+
+	poolCh, err := t.pubChannels.Acquire(acquireCtx)
 
 	if err != nil {
+		acquireSpan.RecordError(err)
+		acquireSpan.SetStatus(codes.Error, "error acquiring publish channel")
+		acquireSpan.End()
 		t.l.Error().Msgf("cannot acquire channel: %v", err)
 		return err
 	}
+
+	acquireSpan.End()
 
 	pub := poolCh.Value()
 
@@ -285,7 +334,7 @@ func (t *MessageQueueImpl) pubMessage(ctx context.Context, q msgqueue.Queue, msg
 		return err
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
 	t.l.Debug().Msgf("publishing msg to queue %s", q.Name())
@@ -302,12 +351,37 @@ func (t *MessageQueueImpl) pubMessage(ctx context.Context, q msgqueue.Queue, msg
 		pubMsg.Expiration = "0"
 	}
 
+	ctx, pubSpan := telemetry.NewSpan(ctx, "publish_message")
+
+	spanAttrs := []attribute.KeyValue{
+		attribute.String("MessageQueueImpl.publish_message.queue_name", q.Name()),
+		attribute.String("MessageQueueImpl.publish_message.tenant_id", msg.TenantID),
+		attribute.String("MessageQueueImpl.publish_message.message_id", msg.ID),
+	}
+
+	// Add compression metrics if payloads were present
+	if compressionResult != nil && compressionResult.WasCompressed {
+		spanAttrs = append(spanAttrs,
+			attribute.Bool("MessageQueueImpl.publish_message.compressed", compressionResult.WasCompressed),
+			attribute.Int("MessageQueueImpl.publish_message.original_size", compressionResult.OriginalSize),
+			attribute.Int("MessageQueueImpl.publish_message.compressed_size", compressionResult.CompressedSize),
+			attribute.Float64("MessageQueueImpl.publish_message.compression_ratio", compressionResult.CompressionRatio),
+		)
+	}
+
+	pubSpan.SetAttributes(spanAttrs...)
+
 	err = pub.PublishWithContext(ctx, "", q.Name(), false, false, pubMsg)
 
 	// retry failed delivery on the next session
 	if err != nil {
+		pubSpan.RecordError(err)
+		pubSpan.SetStatus(codes.Error, "error publishing message")
+		pubSpan.End()
 		return err
 	}
+
+	pubSpan.End()
 
 	// if this is a tenant msg, publish to the tenant exchange
 	if (!t.disableTenantExchangePubs || msg.ID == "task-stream-event") && msg.TenantID != "" {
@@ -661,6 +735,19 @@ func (t *MessageQueueImpl) subscribe(
 					}
 
 					return
+				}
+
+				if msg.Compressed {
+					decompressedPayloads, err := t.decompressPayloads(msg.Payloads)
+					if err != nil {
+						t.l.Error().Msgf("error decompressing payloads: %v", err)
+						// reject this message
+						if err := rabbitMsg.Reject(false); err != nil {
+							t.l.Error().Msgf("error rejecting message: %v", err)
+						}
+						return
+					}
+					msg.Payloads = decompressedPayloads
 				}
 
 				// determine if we've hit the max number of retries
