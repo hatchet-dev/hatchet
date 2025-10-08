@@ -143,6 +143,11 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 
 	// ref: https://github.com/jackc/pgx/issues/1549
 	config.AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
+		// Set timezone to UTC for all connections
+		if _, err := conn.Exec(ctx, "SET TIME ZONE 'UTC'"); err != nil {
+			return err
+		}
+
 		t, err := conn.LoadType(ctx, "v1_readable_status_olap")
 		if err != nil {
 			return err
@@ -194,6 +199,33 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		return nil, fmt.Errorf("could not connect to database: %w", err)
 	}
 
+	// Check database instance timezone if enforcement is enabled
+	if cf.EnforceUTCTimezone {
+		var dbTimezone string
+		err = pool.QueryRow(context.Background(), "SHOW timezone").Scan(&dbTimezone)
+		if err != nil {
+			return nil, fmt.Errorf("could not query database timezone: %w", err)
+		}
+
+		if dbTimezone != "UTC" {
+			dbName := cf.PostgresDbName
+			if dbName == "" {
+				dbName = "<your_database_name>"
+			}
+			return nil, fmt.Errorf(
+				"database instance timezone is set to '%s' but must be 'UTC'\n"+
+					"This check ensures time-based operations work correctly across all sessions\n"+
+					"To fix this issue, you have two options:\n"+
+					"  1. Set your PostgreSQL instance timezone to UTC by running: ALTER DATABASE %s SET TIMEZONE='UTC'\n"+
+					"  2. Disable this check by setting the environment variable: DATABASE_ENFORCE_UTC_TIMEZONE=false\n"+
+					"Note: Disabling this check is not recommended as it may lead to timezone-related issues",
+				dbTimezone, dbName,
+			)
+		}
+
+		l.Info().Msgf("Database instance timezone verified: %s", dbTimezone)
+	}
+
 	// a pool for read replicas, if enabled
 	var readReplicaPool *pgxpool.Pool
 
@@ -219,10 +251,39 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		readReplicaConfig.MaxConnLifetime = 15 * 60 * time.Second
 		readReplicaConfig.ConnConfig.Tracer = otelpgx.NewTracer()
 
+		// Set timezone to UTC for read replica connections
+		readReplicaConfig.AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
+			_, err := conn.Exec(ctx, "SET TIME ZONE 'UTC'")
+			return err
+		}
+
 		readReplicaPool, err = pgxpool.NewWithConfig(context.Background(), readReplicaConfig)
 
 		if err != nil {
 			return nil, fmt.Errorf("could not connect to read replica database: %w", err)
+		}
+
+		// Check read replica database instance timezone if enforcement is enabled
+		if cf.EnforceUTCTimezone {
+			var dbTimezone string
+			err = readReplicaPool.QueryRow(context.Background(), "SHOW timezone").Scan(&dbTimezone)
+			if err != nil {
+				return nil, fmt.Errorf("could not query read replica database timezone: %w", err)
+			}
+
+			if dbTimezone != "UTC" {
+				return nil, fmt.Errorf(
+					"read replica database instance timezone is set to '%s' but must be 'UTC'\n"+
+						"This check ensures time-based operations work correctly across all sessions\n"+
+						"To fix this issue, you have two options:\n"+
+						"  1. Set your PostgreSQL read replica instance timezone to UTC by running: ALTER DATABASE <db_name> SET TIMEZONE='UTC'\n"+
+						"  2. Disable this check by setting the environment variable: DATABASE_ENFORCE_UTC_TIMEZONE=false\n"+
+						"Note: Disabling this check is not recommended as it may lead to timezone-related issues",
+					dbTimezone,
+				)
+			}
+
+			l.Info().Msgf("Read replica database instance timezone verified: %s", dbTimezone)
 		}
 	}
 
