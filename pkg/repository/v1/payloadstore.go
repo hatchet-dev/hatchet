@@ -9,7 +9,6 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
@@ -51,7 +50,6 @@ type ExternalStore interface {
 
 type PayloadStoreRepository interface {
 	Store(ctx context.Context, tx sqlcv1.DBTX, payloads ...StorePayloadOpts) error
-	Retrieve(ctx context.Context, opts RetrievePayloadOpts) ([]byte, error)
 	BulkRetrieve(ctx context.Context, opts ...RetrievePayloadOpts) (map[RetrievePayloadOpts][]byte, error)
 	ProcessPayloadWAL(ctx context.Context, partitionNumber int64) (bool, error)
 	ProcessPayloadExternalCutovers(ctx context.Context, partitionNumber int64) (bool, error)
@@ -192,22 +190,6 @@ func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx sqlcv1.DBTX, 
 	}
 
 	return err
-}
-
-func (p *payloadStoreRepositoryImpl) Retrieve(ctx context.Context, opts RetrievePayloadOpts) ([]byte, error) {
-	payloadMap, err := p.BulkRetrieve(ctx, opts)
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to read payload metadata: %w", err)
-	}
-
-	payload, ok := payloadMap[opts]
-
-	if !ok {
-		return nil, pgx.ErrNoRows
-	}
-
-	return payload, nil
 }
 
 func (p *payloadStoreRepositoryImpl) BulkRetrieve(ctx context.Context, opts ...RetrievePayloadOpts) (map[RetrievePayloadOpts][]byte, error) {
