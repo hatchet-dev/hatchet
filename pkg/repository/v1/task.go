@@ -3452,7 +3452,7 @@ func (r *TaskRepositoryImpl) ListTaskParentOutputs(ctx context.Context, tenantId
 		payload, ok := payloads[retrieveOpts]
 
 		if !ok {
-			r.l.Error().Msgf("ListenForDurableEvent: task %s with ID %d and inserted_at %s has empty payload, falling back to input", wrId, retrieveOpts.Id, retrieveOpts.InsertedAt.Time)
+			r.l.Error().Msgf("ListTaskParentOutputs: task %s with ID %d and inserted_at %s has empty payload, falling back to input", wrId, retrieveOpts.Id, retrieveOpts.InsertedAt.Time)
 			payload = retrieveOptToPayload[retrieveOpts]
 		}
 
