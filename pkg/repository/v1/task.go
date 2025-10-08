@@ -2835,6 +2835,23 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId string, t
 	replayOpts := make([]ReplayTaskOpts, 0)
 	replayedTasks := make([]TaskIdInsertedAtRetryCount, 0)
 
+	retrieveOpts := make([]RetrievePayloadOpts, len(lockedTasks))
+
+	for i, task := range lockedTasks {
+		retrieveOpts[i] = RetrievePayloadOpts{
+			Id:         task.ID,
+			InsertedAt: task.InsertedAt,
+			Type:       sqlcv1.V1PayloadTypeTASKINPUT,
+			TenantId:   sqlchelpers.UUIDFromStr(tenantId),
+		}
+	}
+
+	payloads, err := r.payloadStore.BulkRetrieve(ctx, retrieveOpts...)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to bulk retrieve task inputs: %w", err)
+	}
+
 	for _, task := range lockedTasks {
 		// check whether to discard the task
 		if task.DagID.Valid && !successfullyLockedDAGsMap[task.DagID.Int64] {
@@ -2906,18 +2923,16 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId string, t
 			}
 		}
 
-		input, err := r.payloadStore.Retrieve(ctx, RetrievePayloadOpts{
+		retrieveOpt := RetrievePayloadOpts{
 			Id:         task.ID,
 			InsertedAt: task.InsertedAt,
 			Type:       sqlcv1.V1PayloadTypeTASKINPUT,
 			TenantId:   sqlchelpers.UUIDFromStr(tenantId),
-		})
-
-		if err != nil && err != pgx.ErrNoRows {
-			return nil, fmt.Errorf("failed to retrieve task input: %w", err)
 		}
 
-		if errors.Is(err, pgx.ErrNoRows) {
+		input, ok := payloads[retrieveOpt]
+
+		if !ok {
 			// If the input wasn't found in the payload store,
 			// fall back to the input stored on the task itself.
 			r.l.Error().Msgf("ReplayTasks: task %s with ID %d and inserted_at %s has empty payload, falling back to input", task.ExternalID.String(), task.ID, task.InsertedAt.Time)
