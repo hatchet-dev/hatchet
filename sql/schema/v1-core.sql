@@ -327,7 +327,7 @@ CREATE TYPE v1_task_event_type AS ENUM (
 -- CreateTable
 CREATE TABLE v1_task_event (
     id bigint GENERATED ALWAYS AS IDENTITY,
-    inserted_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    inserted_at timestamptz DEFAULT CURRENT_TIMESTAMP,
     tenant_id UUID NOT NULL,
     task_id bigint NOT NULL,
     task_inserted_at TIMESTAMPTZ NOT NULL,
