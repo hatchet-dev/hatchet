@@ -45,6 +45,11 @@ type MessageQueueImpl struct {
 	subChannels *channelPool
 
 	deadLetterBackoff time.Duration
+
+	compressionEnabled bool
+
+	// compressionThreshold is the minimum payload size (in bytes) that will be compressed
+	compressionThreshold int
 }
 
 func (t *MessageQueueImpl) IsReady() bool {
@@ -61,6 +66,10 @@ type MessageQueueImplOpts struct {
 	deadLetterBackoff         time.Duration
 	maxPubChannels            int32
 	maxSubChannels            int32
+	compressionEnabled        bool
+
+	// compressionThreshold is the minimum payload size (in bytes) that will be compressed
+	compressionThreshold int
 }
 
 func defaultMessageQueueImplOpts() *MessageQueueImplOpts {
@@ -115,6 +124,18 @@ func WithDeadLetterBackoff(backoff time.Duration) MessageQueueImplOpt {
 	}
 }
 
+func WithGzipCompression(enabled bool, threshold int) MessageQueueImplOpt {
+	return func(opts *MessageQueueImplOpts) {
+		opts.compressionEnabled = enabled
+
+		if threshold <= 0 {
+			threshold = 5 * 1024 // default to 5KB
+		}
+
+		opts.compressionThreshold = threshold
+	}
+}
+
 // New creates a new MessageQueueImpl.
 func New(fs ...MessageQueueImplOpt) (func() error, *MessageQueueImpl) {
 	ctx, cancel := context.WithCancel(context.Background())
@@ -165,6 +186,8 @@ func New(fs ...MessageQueueImplOpt) (func() error, *MessageQueueImpl) {
 		pubChannels:               pubChannelPool,
 		subChannels:               subChannelPool,
 		deadLetterBackoff:         opts.deadLetterBackoff,
+		compressionEnabled:        opts.compressionEnabled,
+		compressionThreshold:      opts.compressionThreshold,
 	}
 
 	// create a new lru cache for tenant ids
@@ -264,7 +287,7 @@ func (t *MessageQueueImpl) pubMessage(ctx context.Context, q msgqueue.Queue, msg
 
 	if len(msg.Payloads) > 0 {
 		var err error
-		compressionResult, err = compressPayloads(msg.Payloads)
+		compressionResult, err = t.compressPayloads(msg.Payloads)
 		if err != nil {
 			t.l.Error().Msgf("error compressing payloads: %v", err)
 			return fmt.Errorf("failed to compress payloads: %w", err)
@@ -713,7 +736,7 @@ func (t *MessageQueueImpl) subscribe(
 				}
 
 				if msg.Compressed {
-					decompressedPayloads, err := decompressPayloads(msg.Payloads)
+					decompressedPayloads, err := t.decompressPayloads(msg.Payloads)
 					if err != nil {
 						t.l.Error().Msgf("error decompressing payloads: %v", err)
 						// reject this message

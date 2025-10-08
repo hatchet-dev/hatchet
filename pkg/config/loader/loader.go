@@ -407,6 +407,10 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 				rabbitmqv1.WithDisableTenantExchangePubs(cf.Runtime.DisableTenantPubs),
 				rabbitmqv1.WithMaxPubChannels(cf.MessageQueue.RabbitMQ.MaxPubChans),
 				rabbitmqv1.WithMaxSubChannels(cf.MessageQueue.RabbitMQ.MaxSubChans),
+				rabbitmqv1.WithGzipCompression(
+					cf.MessageQueue.RabbitMQ.CompressionEnabled,
+					cf.MessageQueue.RabbitMQ.CompressionThreshold,
+				),
 			)
 
 			cleanup1 = func() error {

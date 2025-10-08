@@ -7,11 +7,6 @@ import (
 	"io"
 )
 
-const (
-	// MinCompressionSize is the minimum payload size (in bytes) that will be compressed
-	MinCompressionSize = 5 * 1024 // 5KB
-)
-
 type CompressionResult struct {
 	Payloads       [][]byte
 	WasCompressed  bool
@@ -24,13 +19,13 @@ type CompressionResult struct {
 
 // compressPayloads compresses message payloads using gzip if they exceed the minimum size threshold.
 // Returns compression results including the compressed payloads and compression statistics.
-func compressPayloads(payloads [][]byte) (*CompressionResult, error) {
+func (t *MessageQueueImpl) compressPayloads(payloads [][]byte) (*CompressionResult, error) {
 	result := &CompressionResult{
 		Payloads:      payloads,
 		WasCompressed: false,
 	}
 
-	if len(payloads) == 0 {
+	if !t.compressionEnabled || len(payloads) == 0 {
 		return result, nil
 	}
 
@@ -42,7 +37,7 @@ func compressPayloads(payloads [][]byte) (*CompressionResult, error) {
 	result.OriginalSize = totalSize
 
 	// Only compress if total size exceeds threshold
-	if totalSize < MinCompressionSize {
+	if totalSize < t.compressionThreshold {
 		result.CompressedSize = totalSize
 		result.CompressionRatio = 1.0
 		return result, nil
@@ -81,7 +76,7 @@ func compressPayloads(payloads [][]byte) (*CompressionResult, error) {
 }
 
 // decompressPayloads decompresses message payloads using gzip.
-func decompressPayloads(payloads [][]byte) ([][]byte, error) {
+func (t *MessageQueueImpl) decompressPayloads(payloads [][]byte) ([][]byte, error) {
 	if len(payloads) == 0 {
 		return payloads, nil
 	}
