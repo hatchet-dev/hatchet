@@ -1298,6 +1298,13 @@ func (r *OLAPRepositoryImpl) UpdateDAGStatuses(ctx context.Context, tenantIds []
 }
 
 func (r *OLAPRepositoryImpl) writeTaskBatch(ctx context.Context, tenantId string, tasks []*V1TaskWithPayload) error {
+	ids := make([]int64, 0, len(tasks))
+	insertedAts := make([]pgtype.Timestamptz, 0, len(tasks))
+	tenantIds := make([]pgtype.UUID, 0, len(tasks))
+	payloads := make([][]byte, 0, len(tasks))
+	types := make([]string, 0, len(tasks))
+	locations := make([]string, 0, len(tasks))
+
 	params := make([]sqlcv1.CreateTasksOLAPParams, 0)
 
 	for _, task := range tasks {
@@ -1333,6 +1340,13 @@ func (r *OLAPRepositoryImpl) writeTaskBatch(ctx context.Context, tenantId string
 			WorkflowRunID:        task.WorkflowRunID,
 			Input:                payload,
 		})
+
+		ids = append(ids, task.ID)
+		insertedAts = append(insertedAts, task.InsertedAt)
+		tenantIds = append(tenantIds, task.TenantID)
+		payloads = append(payloads, payload)
+		types = append(types, string(sqlcv1.V1PayloadTypeOlapTASKINPUT))
+		locations = append(locations, string(sqlcv1.V1PayloadLocationOlapINLINE))
 	}
 
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 5000)
@@ -1342,6 +1356,22 @@ func (r *OLAPRepositoryImpl) writeTaskBatch(ctx context.Context, tenantId string
 	defer rollback()
 
 	_, err = r.queries.CreateTasksOLAP(ctx, tx, params)
+	if err != nil {
+		return err
+	}
+
+	err = r.queries.PutPayloads(
+		ctx,
+		tx,
+		sqlcv1.PutPayloadsParams{
+			Ids:         ids,
+			Insertedats: insertedAts,
+			Tenantids:   tenantIds,
+			Payloads:    payloads,
+			Types:       types,
+			Locations:   locations,
+		},
+	)
 	if err != nil {
 		return err
 	}
