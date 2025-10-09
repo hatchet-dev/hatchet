@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"reflect"
 	"sync"
 	"time"
@@ -22,7 +21,7 @@ import (
 type RunPriority = features.RunPriority
 
 type runOpts struct {
-	AdditionalMetadata *map[string]interface{}
+	AdditionalMetadata *map[string]string
 	Priority           *RunPriority
 	Sticky             *bool
 	Key                *string
@@ -31,7 +30,7 @@ type runOpts struct {
 type RunOptFunc func(*runOpts)
 
 // WithRunMetadata sets the additional metadata for the workflow run.
-func WithRunMetadata(metadata map[string]interface{}) RunOptFunc {
+func WithRunMetadata(metadata map[string]string) RunOptFunc {
 	return func(opts *runOpts) {
 		opts.AdditionalMetadata = &metadata
 	}
@@ -567,18 +566,12 @@ func (w *Workflow) RunNoWait(ctx context.Context, input any, opts ...RunOptFunc)
 		priority = &[]int32{int32(*runOpts.Priority)}[0]
 	}
 
-	var additionalMetadata *map[string]string
+	var v0Opts []v0Client.RunOptFunc
+
 	if runOpts.AdditionalMetadata != nil {
-		additionalMetadata = &map[string]string{}
-		for key, value := range *runOpts.AdditionalMetadata {
-			(*additionalMetadata)[key] = fmt.Sprintf("%v", value)
-		}
+		v0Opts = append(v0Opts, v0Client.WithRunMetadata(*runOpts.AdditionalMetadata))
 	}
 
-	var v0Opts []v0Client.RunOptFunc
-	if additionalMetadata != nil {
-		v0Opts = append(v0Opts, v0Client.WithRunMetadata(*additionalMetadata))
-	}
 	if priority != nil {
 		v0Opts = append(v0Opts, v0Client.WithPriority(*priority))
 	}
@@ -592,7 +585,7 @@ func (w *Workflow) RunNoWait(ctx context.Context, input any, opts ...RunOptFunc)
 			Key:                runOpts.Key,
 			Sticky:             runOpts.Sticky,
 			Priority:           priority,
-			AdditionalMetadata: additionalMetadata,
+			AdditionalMetadata: runOpts.AdditionalMetadata,
 		})
 	} else {
 		v0Workflow, err = w.v0Client.Admin().RunWorkflow(w.declaration.Name(), input, v0Opts...)
