@@ -356,7 +356,7 @@ func (tc *TasksControllerImpl) Start() (func() error, error) {
 	_, err = tc.s.NewJob(
 		gocron.DurationJob(tc.repov1.Payloads().WALProcessInterval()),
 		gocron.NewTask(
-			tc.runProcessPayloadWAL(ctx),
+			tc.runProcessPayloadWAL(spanContext),
 		),
 	)
 
@@ -392,7 +392,7 @@ func (tc *TasksControllerImpl) Start() (func() error, error) {
 	_, err = tc.s.NewJob(
 		gocron.DurationJob(3*time.Hour),
 		gocron.NewTask(
-			tc.runAnalyze(ctx),
+			tc.runAnalyze(spanContext),
 		),
 		gocron.WithSingletonMode(gocron.LimitModeReschedule),
 	)
@@ -421,6 +421,27 @@ func (tc *TasksControllerImpl) Start() (func() error, error) {
 		cancel()
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to evict expired idempotency keys for tenant")
+		span.End()
+
+		return nil, wrappedErr
+	}
+
+	_, err = tc.s.NewJob(
+		gocron.DailyJob(1, gocron.NewAtTimes(
+			// 2AM UTC
+			gocron.NewAtTime(2, 0, 0),
+		)),
+		gocron.NewTask(
+			tc.runCleanup(spanContext),
+		),
+	)
+
+	if err != nil {
+		wrappedErr := fmt.Errorf("could not run cleanup: %w", err)
+
+		cancel()
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "could not run cleanup")
 		span.End()
 
 		return nil, wrappedErr

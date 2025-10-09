@@ -8,6 +8,7 @@ package sqlcv1
 import (
 	"context"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -49,6 +50,38 @@ func (q *Queries) BulkQueueItems(ctx context.Context, db DBTX, ids []int64) ([]i
 		return nil, err
 	}
 	return items, nil
+}
+
+const cleanupV1QueueItem = `-- name: CleanupV1QueueItem :execresult
+WITH qis as (
+    SELECT qi.task_id, qi.task_inserted_at, qi.retry_count
+    FROM v1_queue_item qi
+    WHERE NOT EXISTS (
+        SELECT 1
+        FROM v1_task vt
+        WHERE qi.task_id = vt.id
+            AND qi.task_inserted_at = vt.inserted_at
+    )
+    LIMIT $1::int
+), locked_qis AS (
+    SELECT task_id, task_inserted_at, retry_count
+    FROM v1_queue_item
+    WHERE (task_id, task_inserted_at, retry_count) IN (
+        SELECT task_id, task_inserted_at, retry_count
+        FROM qis
+    )
+    order by id ASC
+    FOR UPDATE SKIP LOCKED
+)
+DELETE FROM v1_queue_item
+WHERE (task_id, task_inserted_at, retry_count) IN (
+    SELECT task_id, task_inserted_at, retry_count
+    FROM locked_qis
+)
+`
+
+func (q *Queries) CleanupV1QueueItem(ctx context.Context, db DBTX, batchsize int32) (pgconn.CommandTag, error) {
+	return db.Exec(ctx, cleanupV1QueueItem, batchsize)
 }
 
 const deleteTasksFromQueue = `-- name: DeleteTasksFromQueue :exec
