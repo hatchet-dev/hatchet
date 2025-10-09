@@ -30,6 +30,6 @@ SELECT create_v1_range_partition('v1_payloads_olap'::TEXT, (NOW() + INTERVAL '2 
 -- +goose StatementBegin
 DROP TABLE v1_payloads_olap;
 
-DROP TYPE v1_payload_location;
-DROP TYPE v1_payload_type;
+DROP TYPE v1_payload_location_olap;
+DROP TYPE v1_payload_type_olap;
 -- +goose StatementEnd
