@@ -194,6 +194,7 @@ func New(fs ...OLAPControllerOpt) (*OLAPControllerImpl, error) {
 		samplingHashThreshold:    opts.samplingHashThreshold,
 		olapConfig:               opts.olapConfig,
 		prometheusMetricsEnabled: opts.prometheusMetricsEnabled,
+		analyzeCronInterval:      opts.analyzeCronInterval,
 	}
 
 	// Default jitter value

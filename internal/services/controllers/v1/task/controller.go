@@ -232,6 +232,7 @@ func New(fs ...TasksControllerOpt) (*TasksControllerImpl, error) {
 		opsPoolJitter:       opts.opsPoolJitter,
 		opsPoolPollInterval: opts.opsPoolPollInterval,
 		replayEnabled:       opts.replayEnabled,
+		analyzeCronInterval: opts.analyzeCronInterval,
 	}
 
 	jitter := t.opsPoolJitter
