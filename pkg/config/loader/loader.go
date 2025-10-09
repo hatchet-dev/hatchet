@@ -715,6 +715,7 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		Version:                version,
 		Sampling:               cf.Sampling,
 		Operations:             cf.OLAP,
+		CronOperations:         cf.CronOperations,
 	}, nil
 }
 

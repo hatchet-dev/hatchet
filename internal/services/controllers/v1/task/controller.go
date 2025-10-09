@@ -63,6 +63,7 @@ type TasksControllerImpl struct {
 	processPayloadExternalCutoversOperations *queueutils.OperationPool[int64]
 	evictExpiredIdempotencyKeysOperations    *queueutils.OperationPool[string]
 	replayEnabled                            bool
+	analyzeCronInterval                      time.Duration
 }
 
 type TasksControllerOpt func(*TasksControllerOpts)
@@ -80,6 +81,7 @@ type TasksControllerOpts struct {
 	opsPoolJitter       time.Duration
 	opsPoolPollInterval time.Duration
 	replayEnabled       bool
+	analyzeCronInterval time.Duration
 }
 
 func defaultTasksControllerOpts() *TasksControllerOpts {
@@ -98,6 +100,7 @@ func defaultTasksControllerOpts() *TasksControllerOpts {
 		opsPoolJitter:       1500 * time.Millisecond,
 		opsPoolPollInterval: 2 * time.Second,
 		replayEnabled:       true, // default to enabled for backward compatibility
+		analyzeCronInterval: 3 * time.Hour,
 	}
 }
 
@@ -167,6 +170,12 @@ func WithOpsPoolJitter(cf server.ConfigFileOperations) TasksControllerOpt {
 func WithReplayEnabled(enabled bool) TasksControllerOpt {
 	return func(opts *TasksControllerOpts) {
 		opts.replayEnabled = enabled
+	}
+}
+
+func WithAnalyzeCronInterval(interval time.Duration) TasksControllerOpt {
+	return func(opts *TasksControllerOpts) {
+		opts.analyzeCronInterval = interval
 	}
 }
 
@@ -390,7 +399,7 @@ func (tc *TasksControllerImpl) Start() (func() error, error) {
 	}
 
 	_, err = tc.s.NewJob(
-		gocron.DurationJob(3*time.Hour),
+		gocron.DurationJob(tc.analyzeCronInterval),
 		gocron.NewTask(
 			tc.runAnalyze(ctx),
 		),
