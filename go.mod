@@ -204,7 +204,7 @@ require (
 	golang.org/x/oauth2 v0.32.0
 	golang.org/x/sync v0.17.0
 	golang.org/x/sys v0.36.0 // indirect
-	golang.org/x/text v0.29.0
+	golang.org/x/text v0.30.0
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20251002232023-7c0ddcbb5797 // indirect
 	google.golang.org/grpc v1.76.0
 	google.golang.org/protobuf v1.36.10
