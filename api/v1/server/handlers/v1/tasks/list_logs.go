@@ -8,6 +8,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
+	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 
 	transformers "github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers/v1"
 )
@@ -17,11 +18,24 @@ func (t *TasksService) V1LogLineList(ctx echo.Context, request gen.V1LogLineList
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 	task := ctx.Get("task").(*sqlcv1.V1TasksOlap)
 
-	logLines, err := t.config.V1.Logs().ListLogLines(ctx.Request().Context(), tenantId, task.ID, task.InsertedAt, &v1.ListLogsOpts{})
+	reqCtx, span := telemetry.NewSpan(ctx.Request().Context(), "GET /api/v1/stable/tasks/{task}/logs")
+	defer span.End()
+
+	telemetry.WithAttributes(span,
+		telemetry.AttributeKV{Key: "tenant.id", Value: tenantId},
+		telemetry.AttributeKV{Key: "task.id", Value: task.ID},
+	)
+
+	logLines, err := t.config.V1.Logs().ListLogLines(reqCtx, tenantId, task.ID, task.InsertedAt, &v1.ListLogsOpts{})
 
 	if err != nil {
+		span.RecordError(err)
 		return nil, err
 	}
+
+	telemetry.WithAttributes(span,
+		telemetry.AttributeKV{Key: "log_lines.count", Value: len(logLines)},
+	)
 
 	rows := make([]gen.V1LogLine, len(logLines))
 

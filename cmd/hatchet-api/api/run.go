@@ -6,8 +6,8 @@ import (
 	"strings"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/run"
-	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/config/loader"
+	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
 func init() {

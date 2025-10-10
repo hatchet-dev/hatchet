@@ -4,9 +4,9 @@ import (
 	"context"
 	"time"
 
-	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
 func (rc *RetentionControllerImpl) runDeleteQueueItems(ctx context.Context) func() {
@@ -30,7 +30,7 @@ func (rc *RetentionControllerImpl) runDeleteQueueItemsTenant(ctx context.Context
 
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
-	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant_id", Value: tenantId})
+	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant.id", Value: tenantId})
 
 	return rc.repo.StepRun().CleanupQueueItems(ctx, tenantId)
 }
@@ -56,7 +56,7 @@ func (rc *RetentionControllerImpl) runDeleteInternalQueueItemsTenant(ctx context
 
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
-	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant_id", Value: tenantId})
+	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant.id", Value: tenantId})
 
 	return rc.repo.StepRun().CleanupInternalQueueItems(ctx, tenantId)
 }
@@ -82,7 +82,7 @@ func (rc *RetentionControllerImpl) runDeleteRetryQueueItemsTenant(ctx context.Co
 
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
-	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant_id", Value: tenantId})
+	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant.id", Value: tenantId})
 
 	return rc.repo.StepRun().CleanupRetryQueueItems(ctx, tenantId)
 }

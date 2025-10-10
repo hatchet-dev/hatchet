@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
 func (tc *TasksControllerImpl) runTenantEvictExpiredIdempotencyKeys(ctx context.Context) func() {
@@ -35,7 +35,7 @@ func (tc *TasksControllerImpl) evictExpiredIdempotencyKeys(ctx context.Context, 
 	ctx, span := telemetry.NewSpan(ctx, "evict-expired-idempotency-keys")
 	defer span.End()
 
-	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant_id", Value: tenantId})
+	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant.id", Value: tenantId})
 
 	err := tc.repov1.Idempotency().EvictExpiredIdempotencyKeys(ctx, sqlchelpers.UUIDFromStr(tenantId))
 

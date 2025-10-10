@@ -9,10 +9,10 @@ import (
 	"github.com/rs/zerolog"
 	"golang.org/x/time/rate"
 
-	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/scheduling/v0/randomticker"
+	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
 type ConcurrencyResults struct {
@@ -86,7 +86,7 @@ func (c *ConcurrencyManager) notify(ctx context.Context) {
 	ctx, span := telemetry.NewSpan(ctx, "notify-concurrency")
 	defer span.End()
 
-	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant_id", Value: c.tenantId.String()})
+	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant.id", Value: c.tenantId.String()})
 
 	// non-blocking write
 	select {
@@ -112,8 +112,8 @@ func (c *ConcurrencyManager) loopConcurrency(ctx context.Context) {
 		ctx, span := telemetry.NewSpanWithCarrier(ctx, "concurrency-manager", carrier)
 
 		telemetry.WithAttributes(span,
-			telemetry.AttributeKV{Key: "strategy_id", Value: c.strategy.ID},
-			telemetry.AttributeKV{Key: "tenant_id", Value: c.tenantId.String()},
+			telemetry.AttributeKV{Key: "concurrency.strategy.id", Value: c.strategy.ID},
+			telemetry.AttributeKV{Key: "tenant.id", Value: c.tenantId.String()},
 		)
 
 		if !c.rateLimiter.Allow() {
@@ -159,8 +159,8 @@ func (c *ConcurrencyManager) loopCheckActive(ctx context.Context) {
 		ctx, span := telemetry.NewSpan(ctx, "concurrency-check-active")
 
 		telemetry.WithAttributes(span,
-			telemetry.AttributeKV{Key: "strategy_id", Value: c.strategy.ID},
-			telemetry.AttributeKV{Key: "tenant_id", Value: c.tenantId.String()},
+			telemetry.AttributeKV{Key: "concurrency.strategy.id", Value: c.strategy.ID},
+			telemetry.AttributeKV{Key: "tenant.id", Value: c.tenantId.String()},
 		)
 
 		start := time.Now()

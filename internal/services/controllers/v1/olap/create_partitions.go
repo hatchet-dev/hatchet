@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/hatchet-dev/hatchet/internal/telemetry"
+	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
 func (oc *OLAPControllerImpl) runOLAPTablePartition(ctx context.Context) func() {

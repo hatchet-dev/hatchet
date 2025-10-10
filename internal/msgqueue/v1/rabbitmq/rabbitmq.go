@@ -17,9 +17,9 @@ import (
 
 	msgqueue "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
 	"github.com/hatchet-dev/hatchet/internal/queueutils"
-	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	"github.com/hatchet-dev/hatchet/pkg/random"
+	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
 const MAX_RETRY_COUNT = 15
@@ -281,7 +281,7 @@ func (t *MessageQueueImpl) pubMessage(ctx context.Context, q msgqueue.Queue, msg
 	ctx, span := telemetry.NewSpanWithCarrier(ctx, "publish-message", otelCarrier)
 	defer span.End()
 
-	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant_id", Value: msg.TenantID})
+	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant.id", Value: msg.TenantID})
 
 	msg.SetOtelCarrier(otelCarrier)
 

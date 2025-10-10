@@ -11,13 +11,13 @@ import (
 	msgqueuev1 "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor/contracts"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
-	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/metered"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
+	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
 
@@ -216,7 +216,7 @@ func (i *IngestorImpl) ingestEventV0(ctx context.Context, tenant *dbsqlc.Tenant,
 	}
 
 	telemetry.WithAttributes(span, telemetry.AttributeKV{
-		Key:   "event_id",
+		Key:   "event.id",
 		Value: event.ID,
 	})
 
