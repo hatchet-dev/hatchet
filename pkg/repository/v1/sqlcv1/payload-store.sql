@@ -20,6 +20,7 @@ WITH inputs AS (
     SELECT DISTINCT
         UNNEST(@ids::BIGINT[]) AS id,
         UNNEST(@insertedAts::TIMESTAMPTZ[]) AS inserted_at,
+        UNNEST(@externalIds::UUID[]) AS external_id,
         UNNEST(CAST(@types::TEXT[] AS v1_payload_type[])) AS type,
         UNNEST(CAST(@locations::TEXT[] AS v1_payload_location[])) AS location,
         UNNEST(@externalLocationKeys::TEXT[]) AS external_location_key,
@@ -31,6 +32,7 @@ INSERT INTO v1_payload (
     tenant_id,
     id,
     inserted_at,
+    external_id,
     type,
     location,
     external_location_key,
@@ -40,6 +42,7 @@ SELECT
     i.tenant_id,
     i.id,
     i.inserted_at,
+    i.external_id,
     i.type,
     i.location,
     CASE WHEN i.external_location_key = '' OR i.location != 'EXTERNAL' THEN NULL ELSE i.external_location_key END,
