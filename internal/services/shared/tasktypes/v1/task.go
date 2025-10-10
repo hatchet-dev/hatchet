@@ -87,6 +87,9 @@ type FailedTaskPayload struct {
 
 	// (optional) A boolean flag to indicate whether the error is non-retryable, meaning it should _not_ be retried. Defaults to false.
 	IsNonRetryable bool `json:"is_non_retryable"`
+
+	// an external id for the event
+	EventExternalId pgtype.UUID
 }
 
 func FailedTaskMessage(
@@ -99,6 +102,7 @@ func FailedTaskMessage(
 	isAppError bool,
 	errorMsg string,
 	isNonRetryable bool,
+	eventExternalId pgtype.UUID,
 ) (*msgqueue.Message, error) {
 	return msgqueue.NewTenantMessage(
 		tenantId,
@@ -106,14 +110,15 @@ func FailedTaskMessage(
 		false,
 		true,
 		FailedTaskPayload{
-			TaskId:         taskId,
-			InsertedAt:     taskInsertedAt,
-			ExternalId:     taskExternalId,
-			WorkflowRunId:  workflowRunId,
-			RetryCount:     retryCount,
-			IsAppError:     isAppError,
-			ErrorMsg:       errorMsg,
-			IsNonRetryable: isNonRetryable,
+			TaskId:          taskId,
+			InsertedAt:      taskInsertedAt,
+			ExternalId:      taskExternalId,
+			WorkflowRunId:   workflowRunId,
+			RetryCount:      retryCount,
+			IsAppError:      isAppError,
+			ErrorMsg:        errorMsg,
+			IsNonRetryable:  isNonRetryable,
+			EventExternalId: eventExternalId,
 		},
 	)
 }

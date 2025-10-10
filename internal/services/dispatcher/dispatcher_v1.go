@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-multierror"
+	"github.com/jackc/pgx/v5/pgtype"
 	"go.opentelemetry.io/otel/codes"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
@@ -411,6 +412,7 @@ func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *ms
 						false,
 						"Could not send task to worker",
 						false,
+						pgtype.UUID{},
 					)
 
 					if err != nil {

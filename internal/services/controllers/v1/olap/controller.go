@@ -423,35 +423,6 @@ func (tc *OLAPControllerImpl) handleCreatedDAG(ctx context.Context, tenantId str
 	return tc.repo.OLAP().CreateDAGs(ctx, tenantId, createDAGOpts)
 }
 
-func (tc *OLAPControllerImpl) handlePayloadPut(ctx context.Context, tenantId string, payloads [][]byte) error {
-	storePayloadOpts := make([]v1.PutOLAPPayloadOpts, 0)
-
-	msgs := msgqueue.JSONConvert[tasktypes.Payloads](payloads)
-
-	for _, msg := range msgs {
-		for _, payload := range msg.Payloads {
-			// qq: do we want sampling here?
-			// if !tc.sample(string(failure.Payload)) {
-			// tc.l.Debug().Msgf("skipping payload with id %d and inserted_at %s", payload.Id, payload.InsertedAt.Time)
-			// 	continue
-			// }
-
-			opt := v1.PutOLAPPayloadOpts{
-				StoreOLAPPayloadOpts: &v1.StoreOLAPPayloadOpts{
-					ExternalId: payload.ExternalId,
-					InsertedAt: payload.InsertedAt,
-					Payload:    payload.Payload,
-				},
-				Location: payload.Location,
-			}
-
-			storePayloadOpts = append(storePayloadOpts, opt)
-		}
-	}
-
-	return tc.repo.OLAP().PutPayloads(ctx, tenantId, storePayloadOpts)
-}
-
 func (tc *OLAPControllerImpl) handleCreateEventTriggers(ctx context.Context, tenantId string, payloads [][]byte) error {
 	msgs := msgqueue.JSONConvert[tasktypes.CreatedEventTriggerPayload](payloads)
 
@@ -566,6 +537,7 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 	eventPayloads := make([]string, 0)
 	eventMessages := make([]string, 0)
 	timestamps := make([]pgtype.Timestamptz, 0)
+	eventExternalIds := make([]pgtype.UUID, 0)
 
 	for _, msg := range msgs {
 		taskMeta := taskIdsToMetas[msg.TaskId]
@@ -588,6 +560,7 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 		eventPayloads = append(eventPayloads, msg.EventPayload)
 		eventMessages = append(eventMessages, msg.EventMessage)
 		timestamps = append(timestamps, sqlchelpers.TimestamptzFromTime(msg.EventTimestamp))
+		eventExternalIds = append(eventExternalIds, msg.EventExternalId)
 
 		if msg.WorkerId != nil {
 			workerIds = append(workerIds, *msg.WorkerId)
@@ -659,6 +632,7 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 			RetryCount:             retryCounts[i],
 			WorkerID:               workerId,
 			AdditionalEventMessage: sqlchelpers.TextFromStr(eventMessages[i]),
+			ExternalID:             eventExternalIds[i],
 		}
 
 		switch eventTypes[i] {
