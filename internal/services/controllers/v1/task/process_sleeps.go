@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
 func (tc *TasksControllerImpl) runTenantSleepEmitter(ctx context.Context) func() {
@@ -35,7 +35,7 @@ func (tc *TasksControllerImpl) processSleeps(ctx context.Context, tenantId strin
 	ctx, span := telemetry.NewSpan(ctx, "process-sleep")
 	defer span.End()
 
-	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant_id", Value: tenantId})
+	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant.id", Value: tenantId})
 
 	matchResult, shouldContinue, err := tc.repov1.Tasks().ProcessDurableSleeps(ctx, tenantId)
 

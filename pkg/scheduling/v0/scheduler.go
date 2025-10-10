@@ -10,11 +10,11 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/internal/queueutils"
-	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/scheduling/v0/randomticker"
+	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
 // Scheduler is responsible for scheduling steps to workers as efficiently as possible.
@@ -453,7 +453,7 @@ func (s *Scheduler) tryAssignBatch(
 		uniqueTenantIds := telemetry.CollectUniqueTenantIDs(qis, func(qi *dbsqlc.QueueItem) string {
 			return sqlchelpers.UUIDToStr(qi.TenantId)
 		})
-		telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant_id", Value: uniqueTenantIds})
+		telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant.id", Value: uniqueTenantIds})
 	}
 
 	res = make([]*assignSingleResult, len(qis))
@@ -616,7 +616,7 @@ func (s *Scheduler) tryAssignSingleton(
 	ctx, span := telemetry.NewSpan(ctx, "try-assign-singleton") // nolint: ineffassign
 	defer span.End()
 
-	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant_id", Value: sqlchelpers.UUIDToStr(qi.TenantId)})
+	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant.id", Value: sqlchelpers.UUIDToStr(qi.TenantId)})
 
 	if qi.Sticky.Valid || len(labels) > 0 {
 		candidateSlots = getRankedSlots(qi, labels, candidateSlots)
@@ -674,7 +674,7 @@ func (s *Scheduler) tryAssign(
 		uniqueTenantIds := telemetry.CollectUniqueTenantIDs(qis, func(qi *dbsqlc.QueueItem) string {
 			return sqlchelpers.UUIDToStr(qi.TenantId)
 		})
-		telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant_id", Value: uniqueTenantIds})
+		telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant.id", Value: uniqueTenantIds})
 	}
 
 	// split into groups based on action ids, and process each action id in parallel
