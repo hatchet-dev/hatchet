@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/go-co-op/gocron/v2"
-	"github.com/google/uuid"
 	"github.com/hashicorp/go-multierror"
 	"github.com/hashicorp/golang-lru/v2/expirable"
 	"github.com/rs/zerolog"
@@ -423,12 +422,11 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId string, res *
 			assignedMsg, err := tasktypes.MonitoringEventMessageFromInternal(
 				tenantId,
 				tasktypes.CreateMonitoringEventPayload{
-					TaskId:          taskId,
-					RetryCount:      bulkAssigned.QueueItem.RetryCount,
-					WorkerId:        &workerId,
-					EventType:       sqlcv1.V1EventTypeOlapASSIGNED,
-					EventTimestamp:  time.Now(),
-					EventExternalId: uuid.NewString(),
+					TaskId:         taskId,
+					RetryCount:     bulkAssigned.QueueItem.RetryCount,
+					WorkerId:       &workerId,
+					EventType:      sqlcv1.V1EventTypeOlapASSIGNED,
+					EventTimestamp: time.Now(),
 				},
 			)
 
@@ -485,12 +483,11 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId string, res *
 			msg, err := tasktypes.MonitoringEventMessageFromInternal(
 				tenantId,
 				tasktypes.CreateMonitoringEventPayload{
-					TaskId:          rateLimited.TaskId,
-					RetryCount:      rateLimited.RetryCount,
-					EventType:       sqlcv1.V1EventTypeOlapREQUEUEDRATELIMIT,
-					EventTimestamp:  time.Now(),
-					EventMessage:    message,
-					EventExternalId: uuid.NewString(),
+					TaskId:         rateLimited.TaskId,
+					RetryCount:     rateLimited.RetryCount,
+					EventType:      sqlcv1.V1EventTypeOlapREQUEUEDRATELIMIT,
+					EventTimestamp: time.Now(),
+					EventMessage:   message,
 				},
 			)
 
@@ -524,7 +521,6 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId string, res *
 				sqlcv1.V1EventTypeOlapSCHEDULINGTIMEDOUT,
 				"",
 				false,
-				uuid.NewString(),
 			)
 
 			if err != nil {
@@ -559,11 +555,10 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId string, res *
 			msg, err := tasktypes.MonitoringEventMessageFromInternal(
 				tenantId,
 				tasktypes.CreateMonitoringEventPayload{
-					TaskId:          taskId,
-					RetryCount:      unassigned.RetryCount,
-					EventType:       sqlcv1.V1EventTypeOlapREQUEUEDNOWORKER,
-					EventTimestamp:  time.Now(),
-					EventExternalId: uuid.NewString(),
+					TaskId:         taskId,
+					RetryCount:     unassigned.RetryCount,
+					EventType:      sqlcv1.V1EventTypeOlapREQUEUEDNOWORKER,
+					EventTimestamp: time.Now(),
 				},
 			)
 
@@ -602,7 +597,6 @@ func (s *Scheduler) internalRetry(ctx context.Context, tenantId string, assigned
 			false,
 			"could not assign step run to worker",
 			false,
-			uuid.NewString(),
 		)
 
 		if err != nil {
@@ -675,7 +669,6 @@ func (s *Scheduler) notifyAfterConcurrency(ctx context.Context, tenantId string,
 			eventType,
 			eventMessage,
 			shouldNotify,
-			uuid.NewString(),
 		)
 
 		if err != nil {

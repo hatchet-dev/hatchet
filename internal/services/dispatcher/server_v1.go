@@ -582,14 +582,12 @@ func (s *DispatcherImpl) sendStepActionEventV1(ctx context.Context, request *con
 func (s *DispatcherImpl) handleTaskStarted(inputCtx context.Context, task *sqlcv1.FlattenExternalIdsRow, retryCount int32, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
 	tenant := inputCtx.Value("tenant").(*dbsqlc.Tenant)
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
-	eventExternalId := uuid.NewString()
 
 	msg, err := tasktypes.MonitoringEventMessageFromActionEvent(
 		tenantId,
 		task.ID,
 		retryCount,
 		request,
-		eventExternalId,
 	)
 
 	if err != nil {
@@ -611,7 +609,6 @@ func (s *DispatcherImpl) handleTaskStarted(inputCtx context.Context, task *sqlcv
 func (s *DispatcherImpl) handleTaskCompleted(inputCtx context.Context, task *sqlcv1.FlattenExternalIdsRow, retryCount int32, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
 	tenant := inputCtx.Value("tenant").(*dbsqlc.Tenant)
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
-	eventExternalId := uuid.NewString()
 
 	// if request.RetryCount == nil {
 	// 	return nil, fmt.Errorf("retry count is required in v2")
@@ -625,7 +622,6 @@ func (s *DispatcherImpl) handleTaskCompleted(inputCtx context.Context, task *sql
 		sqlchelpers.UUIDToStr(task.WorkflowRunID),
 		retryCount,
 		[]byte(request.EventPayload),
-		eventExternalId,
 	)
 
 	if err != nil {
@@ -648,7 +644,6 @@ func (s *DispatcherImpl) handleTaskCompleted(inputCtx context.Context, task *sql
 		task.ID,
 		retryCount,
 		request,
-		eventExternalId,
 	)
 
 	if err != nil {
@@ -669,7 +664,6 @@ func (s *DispatcherImpl) handleTaskCompleted(inputCtx context.Context, task *sql
 func (s *DispatcherImpl) handleTaskFailed(inputCtx context.Context, task *sqlcv1.FlattenExternalIdsRow, retryCount int32, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
 	tenant := inputCtx.Value("tenant").(*dbsqlc.Tenant)
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
-	eventExternalId := uuid.NewString()
 
 	shouldNotRetry := false
 
@@ -687,7 +681,6 @@ func (s *DispatcherImpl) handleTaskFailed(inputCtx context.Context, task *sqlcv1
 		true,
 		request.EventPayload,
 		shouldNotRetry,
-		eventExternalId,
 	)
 
 	if err != nil {
@@ -736,13 +729,12 @@ func (d *DispatcherImpl) refreshTimeoutV1(ctx context.Context, tenant *dbsqlc.Te
 	msg, err := tasktypes.MonitoringEventMessageFromInternal(
 		tenantId,
 		tasktypes.CreateMonitoringEventPayload{
-			TaskId:          taskRuntime.TaskID,
-			RetryCount:      taskRuntime.RetryCount,
-			WorkerId:        &workerId,
-			EventTimestamp:  time.Now(),
-			EventType:       sqlcv1.V1EventTypeOlapTIMEOUTREFRESHED,
-			EventMessage:    fmt.Sprintf("Timeout refreshed by %s", request.IncrementTimeoutBy),
-			EventExternalId: uuid.NewString(),
+			TaskId:         taskRuntime.TaskID,
+			RetryCount:     taskRuntime.RetryCount,
+			WorkerId:       &workerId,
+			EventTimestamp: time.Now(),
+			EventType:      sqlcv1.V1EventTypeOlapTIMEOUTREFRESHED,
+			EventMessage:   fmt.Sprintf("Timeout refreshed by %s", request.IncrementTimeoutBy),
 		},
 	)
 
@@ -776,12 +768,11 @@ func (d *DispatcherImpl) releaseSlotV1(ctx context.Context, tenant *dbsqlc.Tenan
 	msg, err := tasktypes.MonitoringEventMessageFromInternal(
 		tenantId,
 		tasktypes.CreateMonitoringEventPayload{
-			TaskId:          releasedSlot.TaskID,
-			RetryCount:      releasedSlot.RetryCount,
-			WorkerId:        &workerId,
-			EventTimestamp:  time.Now(),
-			EventType:       sqlcv1.V1EventTypeOlapSLOTRELEASED,
-			EventExternalId: uuid.NewString(),
+			TaskId:         releasedSlot.TaskID,
+			RetryCount:     releasedSlot.RetryCount,
+			WorkerId:       &workerId,
+			EventTimestamp: time.Now(),
+			EventType:      sqlcv1.V1EventTypeOlapSLOTRELEASED,
 		},
 	)
 

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/google/uuid"
 	msgqueue "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
@@ -70,13 +69,12 @@ func (tc *TasksControllerImpl) processTaskReassignments(ctx context.Context, ten
 		olapMsg, err := tasktypes.MonitoringEventMessageFromInternal(
 			tenantId,
 			tasktypes.CreateMonitoringEventPayload{
-				TaskId:          task.ID,
-				RetryCount:      task.RetryCount,
-				EventType:       sqlcv1.V1EventTypeOlapREASSIGNED,
-				EventTimestamp:  time.Now(),
-				EventMessage:    "Worker did not send a heartbeat for 30 seconds",
-				WorkerId:        workerId,
-				EventExternalId: uuid.NewString(),
+				TaskId:         task.ID,
+				RetryCount:     task.RetryCount,
+				EventType:      sqlcv1.V1EventTypeOlapREASSIGNED,
+				EventTimestamp: time.Now(),
+				EventMessage:   "Worker did not send a heartbeat for 30 seconds",
+				WorkerId:       workerId,
 			},
 		)
 
@@ -98,14 +96,13 @@ func (tc *TasksControllerImpl) processTaskReassignments(ctx context.Context, ten
 			olapMsg, err := tasktypes.MonitoringEventMessageFromInternal(
 				tenantId,
 				tasktypes.CreateMonitoringEventPayload{
-					TaskId:          task.ID,
-					RetryCount:      task.RetryCount,
-					EventType:       sqlcv1.V1EventTypeOlapFAILED,
-					EventTimestamp:  time.Now(),
-					EventMessage:    "Task reached its maximum reassignment count",
-					EventPayload:    "Task reached its maximum reassignment count",
-					WorkerId:        workerId,
-					EventExternalId: uuid.NewString(),
+					TaskId:         task.ID,
+					RetryCount:     task.RetryCount,
+					EventType:      sqlcv1.V1EventTypeOlapFAILED,
+					EventTimestamp: time.Now(),
+					EventMessage:   "Task reached its maximum reassignment count",
+					EventPayload:   "Task reached its maximum reassignment count",
+					WorkerId:       workerId,
 				},
 			)
 

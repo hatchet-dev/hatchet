@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/hashicorp/go-multierror"
 
 	msgqueue "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
@@ -58,11 +57,10 @@ func (tc *TasksControllerImpl) processTaskRetryQueueItems(ctx context.Context, t
 		taskId := task.TaskID
 
 		monitoringEvent := tasktypes.CreateMonitoringEventPayload{
-			TaskId:          taskId,
-			RetryCount:      task.TaskRetryCount,
-			EventType:       sqlcv1.V1EventTypeOlapQUEUED,
-			EventTimestamp:  time.Now(),
-			EventExternalId: uuid.NewString(),
+			TaskId:         taskId,
+			RetryCount:     task.TaskRetryCount,
+			EventType:      sqlcv1.V1EventTypeOlapQUEUED,
+			EventTimestamp: time.Now(),
 		}
 
 		olapMsg, innerErr := tasktypes.MonitoringEventMessageFromInternal(
