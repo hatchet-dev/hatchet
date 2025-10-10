@@ -2012,19 +2012,17 @@ func (q *Queries) PopulateTaskRunData(ctx context.Context, db DBTX, arg Populate
 const putPayloads = `-- name: PutPayloads :exec
 WITH inputs AS (
     SELECT
-        UNNEST($1::BIGINT[]) AS id,
+        UNNEST($1::UUID[]) AS external_id,
         UNNEST($2::TIMESTAMPTZ[]) AS inserted_at,
         UNNEST($3::JSONB[]) AS payload,
-        UNNEST(CAST($4::TEXT[] AS v1_payload_type_olap[])) AS type,
-        UNNEST($5::UUID[]) AS tenant_id,
-        UNNEST(CAST($6::TEXT[] AS v1_payload_location_olap[])) AS location
+        UNNEST($4::UUID[]) AS tenant_id,
+        UNNEST(CAST($5::TEXT[] AS v1_payload_location_olap[])) AS location
 )
 
 INSERT INTO v1_payloads_olap (
     tenant_id,
-    id,
+    external_id,
     inserted_at,
-    type,
     location,
     external_location_key,
     inline_content
@@ -2032,9 +2030,8 @@ INSERT INTO v1_payloads_olap (
 
 SELECT
     i.tenant_id,
-    i.id,
+    i.external_id,
     i.inserted_at,
-    i.type,
     i.location,
     CASE
         WHEN i.location = 'EXTERNAL' THEN i.payload
@@ -2045,7 +2042,7 @@ SELECT
         ELSE NULL
     END AS inline_content
 FROM inputs i
-ON CONFLICT (tenant_id, id, inserted_at, type) DO UPDATE
+ON CONFLICT (tenant_id, external_id, inserted_at) DO UPDATE
 SET
     location = EXCLUDED.location,
     external_location_key = EXCLUDED.external_location_key,
@@ -2054,20 +2051,18 @@ SET
 `
 
 type PutPayloadsParams struct {
-	Ids         []int64              `json:"ids"`
+	Externalids []pgtype.UUID        `json:"externalids"`
 	Insertedats []pgtype.Timestamptz `json:"insertedats"`
 	Payloads    [][]byte             `json:"payloads"`
-	Types       []string             `json:"types"`
 	Tenantids   []pgtype.UUID        `json:"tenantids"`
 	Locations   []string             `json:"locations"`
 }
 
 func (q *Queries) PutPayloads(ctx context.Context, db DBTX, arg PutPayloadsParams) error {
 	_, err := db.Exec(ctx, putPayloads,
-		arg.Ids,
+		arg.Externalids,
 		arg.Insertedats,
 		arg.Payloads,
-		arg.Types,
 		arg.Tenantids,
 		arg.Locations,
 	)
