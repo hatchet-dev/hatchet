@@ -119,6 +119,7 @@ WITH inputs AS (
         v1_payload.id = i.id
         AND v1_payload.inserted_at = i.inserted_at
         AND v1_payload.tenant_id = i.tenant_id
+    RETURNING v1_payload.*
 ), cutover_queue_items AS (
     INSERT INTO v1_payload_cutover_queue_item (
         tenant_id,

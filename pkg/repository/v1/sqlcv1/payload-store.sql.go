@@ -201,6 +201,7 @@ WITH inputs AS (
         v1_payload.id = i.id
         AND v1_payload.inserted_at = i.inserted_at
         AND v1_payload.tenant_id = i.tenant_id
+    RETURNING v1_payload.tenant_id, v1_payload.id, v1_payload.inserted_at, v1_payload.external_id, v1_payload.type, v1_payload.location, v1_payload.external_location_key, v1_payload.inline_content, v1_payload.updated_at
 ), cutover_queue_items AS (
     INSERT INTO v1_payload_cutover_queue_item (
         tenant_id,
@@ -227,7 +228,7 @@ WITH inputs AS (
         )
 )
 
-SELECT 
+SELECT tenant_id, id, inserted_at, external_id, type, location, external_location_key, inline_content, updated_at
 FROM payload_updates
 `
 
@@ -241,6 +242,15 @@ type SetPayloadExternalKeysParams struct {
 }
 
 type SetPayloadExternalKeysRow struct {
+	TenantID            pgtype.UUID        `json:"tenant_id"`
+	ID                  int64              `json:"id"`
+	InsertedAt          pgtype.Timestamptz `json:"inserted_at"`
+	ExternalID          pgtype.UUID        `json:"external_id"`
+	Type                V1PayloadType      `json:"type"`
+	Location            V1PayloadLocation  `json:"location"`
+	ExternalLocationKey pgtype.Text        `json:"external_location_key"`
+	InlineContent       []byte             `json:"inline_content"`
+	UpdatedAt           pgtype.Timestamptz `json:"updated_at"`
 }
 
 func (q *Queries) SetPayloadExternalKeys(ctx context.Context, db DBTX, arg SetPayloadExternalKeysParams) ([]*SetPayloadExternalKeysRow, error) {
@@ -259,7 +269,17 @@ func (q *Queries) SetPayloadExternalKeys(ctx context.Context, db DBTX, arg SetPa
 	var items []*SetPayloadExternalKeysRow
 	for rows.Next() {
 		var i SetPayloadExternalKeysRow
-		if err := rows.Scan(); err != nil {
+		if err := rows.Scan(
+			&i.TenantID,
+			&i.ID,
+			&i.InsertedAt,
+			&i.ExternalID,
+			&i.Type,
+			&i.Location,
+			&i.ExternalLocationKey,
+			&i.InlineContent,
+			&i.UpdatedAt,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, &i)
