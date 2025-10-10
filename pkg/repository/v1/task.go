@@ -2119,6 +2119,7 @@ func (r *sharedRepository) insertTasks(
 		eventDatas,
 		eventTypes,
 		make([]string, len(eventTaskIdRetryCounts)),
+		nil,
 	)
 
 	if err != nil {
@@ -2416,6 +2417,7 @@ func (r *sharedRepository) replayTasks(
 		eventDatas,
 		eventTypes,
 		make([]string, len(eventTaskIdRetryCounts)),
+		nil,
 	)
 
 	if err != nil {
@@ -2586,6 +2588,7 @@ func (r *sharedRepository) createTaskEventsAfterRelease(
 		filteredDatas,
 		makeEventTypeArr(eventType, len(filteredExternalIds)),
 		make([]string, len(filteredExternalIds)),
+		nil,
 	)
 }
 
@@ -2598,6 +2601,7 @@ func (r *sharedRepository) createTaskEvents(
 	eventDatas [][]byte,
 	eventTypes []sqlcv1.V1TaskEventType,
 	eventKeys []string,
+	eventExternalIds *[]string,
 ) ([]InternalTaskEvent, error) {
 	if len(tasks) != len(eventDatas) {
 		return nil, fmt.Errorf("mismatched task and event data lengths")
@@ -2622,6 +2626,11 @@ func (r *sharedRepository) createTaskEvents(
 		eventTypesStrs[i] = string(eventTypes[i])
 
 		externalId := sqlchelpers.UUIDFromStr(uuid.NewString())
+
+		if eventExternalIds != nil {
+			externalId = sqlchelpers.UUIDFromStr((*eventExternalIds)[i])
+		}
+
 		externalIds[i] = externalId
 
 		// important: if we don't set this to `eventDatas[i]` and instead allow it to be nil optionally

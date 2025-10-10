@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
 	msgqueue "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
@@ -67,11 +68,12 @@ func (tc *TasksControllerImpl) processTaskTimeouts(ctx context.Context, tenantId
 		olapMsg, err := tasktypes.MonitoringEventMessageFromInternal(
 			tenantId,
 			tasktypes.CreateMonitoringEventPayload{
-				TaskId:         task.ID,
-				RetryCount:     task.RetryCount,
-				EventType:      sqlcv1.V1EventTypeOlapTIMEDOUT,
-				EventTimestamp: time.Now(),
-				EventMessage:   fmt.Sprintf("Task exceeded timeout of %s", task.StepTimeout.String),
+				TaskId:          task.ID,
+				RetryCount:      task.RetryCount,
+				EventType:       sqlcv1.V1EventTypeOlapTIMEDOUT,
+				EventTimestamp:  time.Now(),
+				EventMessage:    fmt.Sprintf("Task exceeded timeout of %s", task.StepTimeout.String),
+				EventExternalId: uuid.NewString(),
 			},
 		)
 

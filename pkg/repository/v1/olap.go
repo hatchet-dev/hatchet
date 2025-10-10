@@ -1882,7 +1882,16 @@ func (r *OLAPRepositoryImpl) PutPayloads(ctx context.Context, tenantId string, p
 	payloads := make([][]byte, len(putPayloadOpts))
 	locations := make([]string, len(putPayloadOpts))
 
+	seenExternalIds := make(map[pgtype.UUID]struct{})
+
 	for i, opt := range putPayloadOpts {
+		_, exists := seenExternalIds[opt.ExternalId]
+		if exists {
+			continue
+		}
+
+		seenExternalIds[opt.ExternalId] = struct{}{}
+
 		externalIds[i] = opt.ExternalId
 		insertedAts[i] = opt.InsertedAt
 		tenantIds[i] = sqlchelpers.UUIDFromStr(tenantId)
