@@ -1088,14 +1088,17 @@ func (r *OLAPRepositoryImpl) writeTaskEventBatch(ctx context.Context, tenantId s
 			})
 		}
 
-		payloadsToWrite = append(payloadsToWrite, PutOLAPPayloadOpts{
-			StoreOLAPPayloadOpts: &StoreOLAPPayloadOpts{
-				ExternalId: event.ExternalID,
-				InsertedAt: event.TaskInsertedAt,
-				Payload:    event.Output,
-			},
-			Location: sqlcv1.V1PayloadLocationOlapINLINE,
-		})
+		if len(event.Output) > 0 {
+			payloadsToWrite = append(payloadsToWrite, PutOLAPPayloadOpts{
+				StoreOLAPPayloadOpts: &StoreOLAPPayloadOpts{
+					ExternalId: event.ExternalID,
+					InsertedAt: event.TaskInsertedAt,
+					Payload:    event.Output,
+				},
+				Location: sqlcv1.V1PayloadLocationOlapINLINE,
+			})
+		}
+
 	}
 
 	if len(eventsToWrite) == 0 {

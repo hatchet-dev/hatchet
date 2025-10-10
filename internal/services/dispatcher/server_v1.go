@@ -671,6 +671,8 @@ func (s *DispatcherImpl) handleTaskFailed(inputCtx context.Context, task *sqlcv1
 		shouldNotRetry = *request.ShouldNotRetry
 	}
 
+	externalId := sqlchelpers.UUIDFromStr(uuid.NewString())
+
 	msg, err := tasktypes.FailedTaskMessage(
 		tenantId,
 		task.ID,
@@ -681,6 +683,7 @@ func (s *DispatcherImpl) handleTaskFailed(inputCtx context.Context, task *sqlcv1
 		true,
 		request.EventPayload,
 		shouldNotRetry,
+		externalId,
 	)
 
 	if err != nil {
