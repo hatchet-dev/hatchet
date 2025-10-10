@@ -1586,19 +1586,17 @@ FROM inputs
 -- name: PutPayloads :exec
 WITH inputs AS (
     SELECT
-        UNNEST(@ids::BIGINT[]) AS id,
+        UNNEST(@externalIds::UUID[]) AS external_id,
         UNNEST(@insertedAts::TIMESTAMPTZ[]) AS inserted_at,
         UNNEST(@payloads::JSONB[]) AS payload,
-        UNNEST(CAST(@types::TEXT[] AS v1_payload_type_olap[])) AS type,
         UNNEST(@tenantIds::UUID[]) AS tenant_id,
         UNNEST(CAST(@locations::TEXT[] AS v1_payload_location_olap[])) AS location
 )
 
 INSERT INTO v1_payloads_olap (
     tenant_id,
-    id,
+    external_id,
     inserted_at,
-    type,
     location,
     external_location_key,
     inline_content
@@ -1606,9 +1604,8 @@ INSERT INTO v1_payloads_olap (
 
 SELECT
     i.tenant_id,
-    i.id,
+    i.external_id,
     i.inserted_at,
-    i.type,
     i.location,
     CASE
         WHEN i.location = 'EXTERNAL' THEN i.payload
@@ -1619,7 +1616,7 @@ SELECT
         ELSE NULL
     END AS inline_content
 FROM inputs i
-ON CONFLICT (tenant_id, id, inserted_at, type) DO UPDATE
+ON CONFLICT (tenant_id, external_id, inserted_at) DO UPDATE
 SET
     location = EXCLUDED.location,
     external_location_key = EXCLUDED.external_location_key,
