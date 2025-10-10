@@ -374,7 +374,7 @@ func (tc *OLAPControllerImpl) handleBufferedMsgs(tenantId, msgId string, payload
 func (tc *OLAPControllerImpl) handlePayloadOffload(ctx context.Context, tenantId string, payloads [][]byte) error {
 	offloads := make([]v1.OffloadPayloadOpts, 0)
 
-	msgs := msgqueue.JSONConvert[tasktypes.OLAPPayloadsToOffload](payloads)
+	msgs := msgqueue.JSONConvert[v1.OLAPPayloadsToOffload](payloads)
 
 	for _, msg := range msgs {
 		for _, payload := range msg.Payloads {
