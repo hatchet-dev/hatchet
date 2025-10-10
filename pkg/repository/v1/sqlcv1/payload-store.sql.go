@@ -123,44 +123,6 @@ func (q *Queries) PollPayloadWALForRecordsToReplicate(ctx context.Context, db DB
 	return items, nil
 }
 
-const readPayload = `-- name: ReadPayload :one
-SELECT tenant_id, id, inserted_at, type, location, external_location_key, inline_content, updated_at
-FROM v1_payload
-WHERE
-    tenant_id = $1::UUID
-    AND type = $2::v1_payload_type
-    AND id = $3::BIGINT
-    AND inserted_at = $4::TIMESTAMPTZ
-`
-
-type ReadPayloadParams struct {
-	Tenantid   pgtype.UUID        `json:"tenantid"`
-	Type       V1PayloadType      `json:"type"`
-	ID         int64              `json:"id"`
-	Insertedat pgtype.Timestamptz `json:"insertedat"`
-}
-
-func (q *Queries) ReadPayload(ctx context.Context, db DBTX, arg ReadPayloadParams) (*V1Payload, error) {
-	row := db.QueryRow(ctx, readPayload,
-		arg.Tenantid,
-		arg.Type,
-		arg.ID,
-		arg.Insertedat,
-	)
-	var i V1Payload
-	err := row.Scan(
-		&i.TenantID,
-		&i.ID,
-		&i.InsertedAt,
-		&i.Type,
-		&i.Location,
-		&i.ExternalLocationKey,
-		&i.InlineContent,
-		&i.UpdatedAt,
-	)
-	return &i, err
-}
-
 const readPayloads = `-- name: ReadPayloads :many
 WITH inputs AS (
     SELECT

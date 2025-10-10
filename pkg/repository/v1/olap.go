@@ -1070,6 +1070,13 @@ func (r *OLAPRepositoryImpl) writeTaskEventBatch(ctx context.Context, tenantId s
 	eventsToWrite := make([]sqlcv1.CreateTaskEventsOLAPParams, 0)
 	tmpEventsToWrite := make([]sqlcv1.CreateTaskEventsOLAPTmpParams, 0)
 
+	ids := make([]int64, 0, len(events))
+	insertedAts := make([]pgtype.Timestamptz, 0, len(events))
+	tenantIds := make([]pgtype.UUID, 0, len(events))
+	types := make([]string, 0, len(events))
+	locations := make([]string, 0, len(events))
+	payloads := make([][]byte, 0, len(events))
+
 	for _, event := range events {
 		key := getCacheKey(event)
 
@@ -1086,6 +1093,13 @@ func (r *OLAPRepositoryImpl) writeTaskEventBatch(ctx context.Context, tenantId s
 				WorkerID:       event.WorkerID,
 			})
 		}
+
+		ids = append(ids, event.TaskID)
+		insertedAts = append(insertedAts, event.TaskInsertedAt)
+		tenantIds = append(tenantIds, event.TenantID)
+		types = append(types, event.EventType)
+		locations = append(locations, event.Location)
+		payloads = append(payloads, event.Payload)
 	}
 
 	if len(eventsToWrite) == 0 {
