@@ -232,6 +232,7 @@ type CreateTaskEventsOLAPParams struct {
 	WorkerID               pgtype.UUID          `json:"worker_id"`
 	AdditionalEventData    pgtype.Text          `json:"additional__event_data"`
 	AdditionalEventMessage pgtype.Text          `json:"additional__event_message"`
+	ExternalID             pgtype.UUID          `json:"external_id"`
 }
 
 type CreateTaskEventsOLAPTmpParams struct {
