@@ -2,7 +2,6 @@ package v1
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"sort"
 	"time"
@@ -479,24 +478,12 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadWAL(ctx context.Context, part
 		})
 	}
 
-	tj, _ := json.MarshalIndent(tenantIdToPayloads, "", " ")
-	fmt.Println("tenant to payloads", string(tj))
-
 	for tenantId, payloads := range tenantIdToPayloads {
 		msg, err := OLAPPayloadOffloadMessage(tenantId, payloads)
-
 		if err != nil {
 			return false, fmt.Errorf("failed to create OLAP payload offload message: %w", err)
 		}
-
-		mj, _ := json.Marshal(msg)
-		fmt.Println("publishing OLAP payload offload message", string(mj))
-
-		err = pubBuffer.Pub(ctx, msgqueue.OLAP_QUEUE, msg, false)
-
-		if err != nil {
-			return false, fmt.Errorf("failed to publish OLAP payload offload message: %w", err)
-		}
+		pubBuffer.Pub(ctx, msgqueue.OLAP_QUEUE, msg, false)
 	}
 
 	if err := commit(ctx); err != nil {

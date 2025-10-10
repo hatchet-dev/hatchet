@@ -2,7 +2,6 @@ package olap
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"hash/fnv"
@@ -379,15 +378,15 @@ func (tc *OLAPControllerImpl) handlePayloadOffload(ctx context.Context, tenantId
 
 	for _, msg := range msgs {
 		for _, payload := range msg.Payloads {
-			pj, _ := json.Marshal(payload)
-			fmt.Println("handling payload offload", string(pj))
+			if !tc.sample(payload.ExternalLocationKey) {
+				tc.l.Debug().Msgf("skipping payload offload external id %s", payload.ExternalId)
+				continue
+			}
 
-			// if !tc.sample(payload.ExternalLocationKey) {
-			// 	tc.l.Debug().Msgf("skipping payload offload external id %s", payload.ExternalId)
-			// 	continue
-			// }
-
-			offloads = append(offloads, v1.OffloadPayloadOpts(payload))
+			offloads = append(offloads, v1.OffloadPayloadOpts{
+				ExternalId:          payload.ExternalId,
+				ExternalLocationKey: payload.ExternalLocationKey,
+			})
 		}
 	}
 
