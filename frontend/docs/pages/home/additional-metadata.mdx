@@ -29,16 +29,9 @@ You can attach additional metadata when pushing events or triggering task runs u
 
   </Tabs.Tab>
   <Tabs.Tab>
-```go
-err := c.Event().Push(
-    context.Background(),
-    "user:create",
-    testEvent,
-    client.WithEventMetadata(map[string]string{
-        "source": "api", // Arbitrary key-value pair
-    }),
-)
-```
+
+<Snippet src={snippets.go.run_with_metadata.main.push_an_event_with_metadata} />
+
   </Tabs.Tab>
 </UniversalTabs>
   </Tabs.Tab>
@@ -58,17 +51,9 @@ err := c.Event().Push(
 
   </Tabs.Tab>
   <Tabs.Tab>
-```go
-taskRunId, err := c.Admin().RunWorkflow(
-    "user-task",
-    &userCreateEvent{
-        UserID: "1234",
-    },
-    client.WithRunMetadata(map[string]interface{}{
-        "source": "api", // Arbitrary key-value pair
-    }),
-)
-```
+
+<Snippet src={snippets.go.run_with_metadata.main.run_with_metadata} />
+
   </Tabs.Tab>
 </UniversalTabs>
   </Tabs.Tab>
