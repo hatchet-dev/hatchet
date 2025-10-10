@@ -1387,6 +1387,7 @@ func (r *OLAPRepositoryImpl) writeTaskBatch(ctx context.Context, tenantId string
 
 func (r *OLAPRepositoryImpl) writeDAGBatch(ctx context.Context, tenantId string, dags []*DAGWithData) error {
 	params := make([]sqlcv1.CreateDAGsOLAPParams, 0)
+	putPayloadOpts := make([]PutPayloadOpts, 0)
 
 	for _, dag := range dags {
 		var parentTaskExternalID = pgtype.UUID{}
@@ -1407,6 +1408,15 @@ func (r *OLAPRepositoryImpl) writeDAGBatch(ctx context.Context, tenantId string,
 			TotalTasks:           int32(dag.TotalTasks), // nolint: gosec
 			Input:                dag.Input,
 		})
+
+		putPayloadOpts = append(putPayloadOpts, PutPayloadOpts{
+			StoreOLAPPayloadOpts: &StoreOLAPPayloadOpts{
+				ExternalId: dag.ExternalID,
+				InsertedAt: dag.InsertedAt,
+				Payload:    dag.Input,
+			},
+			Location: sqlcv1.V1PayloadLocationOlapINLINE,
+		})
 	}
 
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 5000)
@@ -1416,6 +1426,12 @@ func (r *OLAPRepositoryImpl) writeDAGBatch(ctx context.Context, tenantId string,
 	defer rollback()
 
 	_, err = r.queries.CreateDAGsOLAP(ctx, tx, params)
+	if err != nil {
+		return err
+	}
+
+	err = r.PutPayloads(ctx, tenantId, putPayloadOpts)
+
 	if err != nil {
 		return err
 	}
