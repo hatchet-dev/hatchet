@@ -416,7 +416,7 @@ func (tc *OLAPControllerImpl) handleCreatedDAG(ctx context.Context, tenantId str
 }
 
 func (tc *OLAPControllerImpl) handlePayloadPut(ctx context.Context, tenantId string, payloads [][]byte) error {
-	storePayloadOpts := make([]v1.PutPayloadOpts, 0)
+	storePayloadOpts := make([]v1.PutOLAPPayloadOpts, 0)
 
 	msgs := msgqueue.JSONConvert[tasktypes.Payloads](payloads)
 
@@ -428,13 +428,11 @@ func (tc *OLAPControllerImpl) handlePayloadPut(ctx context.Context, tenantId str
 			// 	continue
 			// }
 
-			opt := v1.PutPayloadOpts{
-				StorePayloadOpts: &v1.StorePayloadOpts{
-					Id:         payload.Id,
+			opt := v1.PutOLAPPayloadOpts{
+				StoreOLAPPayloadOpts: &v1.StoreOLAPPayloadOpts{
+					ExternalId: payload.ExternalId,
 					InsertedAt: payload.InsertedAt,
-					Type:       payload.Type,
 					Payload:    payload.Payload,
-					TenantId:   tenantId,
 				},
 				Location: payload.Location,
 			}

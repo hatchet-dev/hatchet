@@ -61,7 +61,7 @@ func CreatedDAGMessage(tenantId string, dag *v1.DAGWithData) (*msgqueue.Message,
 }
 
 type PutOLAPPayloadOpts struct {
-	*v1.StorePayloadOpts
+	*v1.StoreOLAPPayloadOpts
 	Location sqlcv1.V1PayloadLocationOlap
 }
 
