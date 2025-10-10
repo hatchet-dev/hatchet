@@ -242,7 +242,7 @@ type OLAPRepository interface {
 
 	CreateIncomingWebhookValidationFailureLogs(ctx context.Context, tenantId string, opts []CreateIncomingWebhookFailureLogOpts) error
 	StoreCELEvaluationFailures(ctx context.Context, tenantId string, failures []CELEvaluationFailure) error
-	PutPayloads(ctx context.Context, tenantId string, failures []PutPayloadOpts) error
+	PutPayloads(ctx context.Context, tenantId string, failures []PutOLAPPayloadOpts) error
 
 	AnalyzeOLAPTables(ctx context.Context) error
 }
@@ -1069,7 +1069,7 @@ func (r *OLAPRepositoryImpl) writeTaskEventBatch(ctx context.Context, tenantId s
 	// skip any events which have a corresponding event already
 	eventsToWrite := make([]sqlcv1.CreateTaskEventsOLAPParams, 0)
 	tmpEventsToWrite := make([]sqlcv1.CreateTaskEventsOLAPTmpParams, 0)
-	payloadsToWrite := make([]PutPayloadOpts, 0)
+	payloadsToWrite := make([]PutOLAPPayloadOpts, 0)
 
 	for _, event := range events {
 		key := getCacheKey(event)
@@ -1088,9 +1088,9 @@ func (r *OLAPRepositoryImpl) writeTaskEventBatch(ctx context.Context, tenantId s
 			})
 		}
 
-		payloadsToWrite = append(payloadsToWrite, PutPayloadOpts{
+		payloadsToWrite = append(payloadsToWrite, PutOLAPPayloadOpts{
 			StoreOLAPPayloadOpts: &StoreOLAPPayloadOpts{
-				ExternalId: event.ExternalId,
+				ExternalId: pgtype.UUID{},
 				InsertedAt: event.TaskInsertedAt,
 				Payload:    event.Output,
 			},
@@ -1315,7 +1315,7 @@ func (r *OLAPRepositoryImpl) UpdateDAGStatuses(ctx context.Context, tenantIds []
 
 func (r *OLAPRepositoryImpl) writeTaskBatch(ctx context.Context, tenantId string, tasks []*V1TaskWithPayload) error {
 	params := make([]sqlcv1.CreateTasksOLAPParams, 0)
-	putPayloadOpts := make([]PutPayloadOpts, 0)
+	putPayloadOpts := make([]PutOLAPPayloadOpts, 0)
 
 	for _, task := range tasks {
 		payload := task.Payload
@@ -1351,7 +1351,7 @@ func (r *OLAPRepositoryImpl) writeTaskBatch(ctx context.Context, tenantId string
 			Input:                payload,
 		})
 
-		putPayloadOpts = append(putPayloadOpts, PutPayloadOpts{
+		putPayloadOpts = append(putPayloadOpts, PutOLAPPayloadOpts{
 			StoreOLAPPayloadOpts: &StoreOLAPPayloadOpts{
 				ExternalId: task.ExternalID,
 				InsertedAt: task.InsertedAt,
@@ -1387,7 +1387,7 @@ func (r *OLAPRepositoryImpl) writeTaskBatch(ctx context.Context, tenantId string
 
 func (r *OLAPRepositoryImpl) writeDAGBatch(ctx context.Context, tenantId string, dags []*DAGWithData) error {
 	params := make([]sqlcv1.CreateDAGsOLAPParams, 0)
-	putPayloadOpts := make([]PutPayloadOpts, 0)
+	putPayloadOpts := make([]PutOLAPPayloadOpts, 0)
 
 	for _, dag := range dags {
 		var parentTaskExternalID = pgtype.UUID{}
@@ -1409,7 +1409,7 @@ func (r *OLAPRepositoryImpl) writeDAGBatch(ctx context.Context, tenantId string,
 			Input:                dag.Input,
 		})
 
-		putPayloadOpts = append(putPayloadOpts, PutPayloadOpts{
+		putPayloadOpts = append(putPayloadOpts, PutOLAPPayloadOpts{
 			StoreOLAPPayloadOpts: &StoreOLAPPayloadOpts{
 				ExternalId: dag.ExternalID,
 				InsertedAt: dag.InsertedAt,
@@ -1870,12 +1870,12 @@ func (r *OLAPRepositoryImpl) StoreCELEvaluationFailures(ctx context.Context, ten
 	})
 }
 
-type PutPayloadOpts struct {
+type PutOLAPPayloadOpts struct {
 	*StoreOLAPPayloadOpts
 	Location sqlcv1.V1PayloadLocationOlap
 }
 
-func (r *OLAPRepositoryImpl) PutPayloads(ctx context.Context, tenantId string, putPayloadOpts []PutPayloadOpts) error {
+func (r *OLAPRepositoryImpl) PutPayloads(ctx context.Context, tenantId string, putPayloadOpts []PutOLAPPayloadOpts) error {
 	insertedAts := make([]pgtype.Timestamptz, len(putPayloadOpts))
 	tenantIds := make([]pgtype.UUID, len(putPayloadOpts))
 	externalIds := make([]pgtype.UUID, len(putPayloadOpts))
