@@ -1522,50 +1522,6 @@ func (ns NullV1PayloadType) Value() (driver.Value, error) {
 	return string(ns.V1PayloadType), nil
 }
 
-type V1PayloadTypeOlap string
-
-const (
-	V1PayloadTypeOlapTASKINPUT     V1PayloadTypeOlap = "TASK_INPUT"
-	V1PayloadTypeOlapDAGINPUT      V1PayloadTypeOlap = "DAG_INPUT"
-	V1PayloadTypeOlapTASKOUTPUT    V1PayloadTypeOlap = "TASK_OUTPUT"
-	V1PayloadTypeOlapTASKEVENTDATA V1PayloadTypeOlap = "TASK_EVENT_DATA"
-)
-
-func (e *V1PayloadTypeOlap) Scan(src interface{}) error {
-	switch s := src.(type) {
-	case []byte:
-		*e = V1PayloadTypeOlap(s)
-	case string:
-		*e = V1PayloadTypeOlap(s)
-	default:
-		return fmt.Errorf("unsupported scan type for V1PayloadTypeOlap: %T", src)
-	}
-	return nil
-}
-
-type NullV1PayloadTypeOlap struct {
-	V1PayloadTypeOlap V1PayloadTypeOlap `json:"v1_payload_type_olap"`
-	Valid             bool              `json:"valid"` // Valid is true if V1PayloadTypeOlap is not NULL
-}
-
-// Scan implements the Scanner interface.
-func (ns *NullV1PayloadTypeOlap) Scan(value interface{}) error {
-	if value == nil {
-		ns.V1PayloadTypeOlap, ns.Valid = "", false
-		return nil
-	}
-	ns.Valid = true
-	return ns.V1PayloadTypeOlap.Scan(value)
-}
-
-// Value implements the driver Valuer interface.
-func (ns NullV1PayloadTypeOlap) Value() (driver.Value, error) {
-	if !ns.Valid {
-		return nil, nil
-	}
-	return string(ns.V1PayloadTypeOlap), nil
-}
-
 type V1PayloadWalOperation string
 
 const (
@@ -3185,12 +3141,11 @@ type V1PayloadWal struct {
 
 type V1PayloadsOlap struct {
 	TenantID            pgtype.UUID           `json:"tenant_id"`
-	ID                  int64                 `json:"id"`
-	InsertedAt          pgtype.Timestamptz    `json:"inserted_at"`
-	Type                V1PayloadTypeOlap     `json:"type"`
+	ExternalID          pgtype.UUID           `json:"external_id"`
 	Location            V1PayloadLocationOlap `json:"location"`
 	ExternalLocationKey pgtype.Text           `json:"external_location_key"`
 	InlineContent       []byte                `json:"inline_content"`
+	InsertedAt          pgtype.Timestamptz    `json:"inserted_at"`
 	UpdatedAt           pgtype.Timestamptz    `json:"updated_at"`
 }
 
@@ -3353,6 +3308,7 @@ type V1TaskEventsOlap struct {
 	TenantID               pgtype.UUID          `json:"tenant_id"`
 	ID                     int64                `json:"id"`
 	InsertedAt             pgtype.Timestamptz   `json:"inserted_at"`
+	ExternalID             pgtype.UUID          `json:"external_id"`
 	TaskID                 int64                `json:"task_id"`
 	TaskInsertedAt         pgtype.Timestamptz   `json:"task_inserted_at"`
 	EventType              V1EventTypeOlap      `json:"event_type"`

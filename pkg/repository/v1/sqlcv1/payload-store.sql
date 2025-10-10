@@ -1,13 +1,3 @@
--- name: ReadPayload :one
-SELECT *
-FROM v1_payload
-WHERE
-    tenant_id = @tenantId::UUID
-    AND type = @type::v1_payload_type
-    AND id = @id::BIGINT
-    AND inserted_at = @insertedAt::TIMESTAMPTZ
-;
-
 -- name: ReadPayloads :many
 WITH inputs AS (
     SELECT
