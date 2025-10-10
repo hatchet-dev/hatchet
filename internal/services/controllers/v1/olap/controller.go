@@ -568,6 +568,7 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 	eventPayloads := make([]string, 0)
 	eventMessages := make([]string, 0)
 	timestamps := make([]pgtype.Timestamptz, 0)
+	externalIds := make([]pgtype.UUID, 0)
 
 	for _, msg := range msgs {
 		taskMeta := taskIdsToMetas[msg.TaskId]
@@ -590,6 +591,7 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 		eventPayloads = append(eventPayloads, msg.EventPayload)
 		eventMessages = append(eventMessages, msg.EventMessage)
 		timestamps = append(timestamps, sqlchelpers.TimestamptzFromTime(msg.EventTimestamp))
+		externalIds = append(externalIds, sqlchelpers.UUIDFromStr(msg.EventExternalId))
 
 		if msg.WorkerId != nil {
 			workerIds = append(workerIds, *msg.WorkerId)
@@ -661,6 +663,7 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 			RetryCount:             retryCounts[i],
 			WorkerID:               workerId,
 			AdditionalEventMessage: sqlchelpers.TextFromStr(eventMessages[i]),
+			ExternalID:             externalIds[i],
 		}
 
 		switch eventTypes[i] {

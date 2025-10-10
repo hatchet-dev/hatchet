@@ -36,6 +36,9 @@ type CompletedTaskPayload struct {
 
 	// (optional) the output data
 	Output []byte
+
+	// the external id of the event
+	EventExternalId string
 }
 
 func CompletedTaskMessage(
@@ -46,6 +49,7 @@ func CompletedTaskMessage(
 	workflowRunId string,
 	retryCount int32,
 	output []byte,
+	eventExternalId string,
 ) (*msgqueue.Message, error) {
 	return msgqueue.NewTenantMessage(
 		tenantId,
@@ -53,12 +57,13 @@ func CompletedTaskMessage(
 		false,
 		true,
 		CompletedTaskPayload{
-			TaskId:        taskId,
-			InsertedAt:    taskInsertedAt,
-			ExternalId:    taskExternalId,
-			WorkflowRunId: workflowRunId,
-			RetryCount:    retryCount,
-			Output:        output,
+			TaskId:          taskId,
+			InsertedAt:      taskInsertedAt,
+			ExternalId:      taskExternalId,
+			WorkflowRunId:   workflowRunId,
+			RetryCount:      retryCount,
+			Output:          output,
+			EventExternalId: eventExternalId,
 		},
 	)
 }
@@ -87,6 +92,9 @@ type FailedTaskPayload struct {
 
 	// (optional) A boolean flag to indicate whether the error is non-retryable, meaning it should _not_ be retried. Defaults to false.
 	IsNonRetryable bool `json:"is_non_retryable"`
+
+	// the external id of the event
+	EventExternalId string
 }
 
 func FailedTaskMessage(
@@ -99,6 +107,7 @@ func FailedTaskMessage(
 	isAppError bool,
 	errorMsg string,
 	isNonRetryable bool,
+	eventExternalId string,
 ) (*msgqueue.Message, error) {
 	return msgqueue.NewTenantMessage(
 		tenantId,
@@ -106,14 +115,15 @@ func FailedTaskMessage(
 		false,
 		true,
 		FailedTaskPayload{
-			TaskId:         taskId,
-			InsertedAt:     taskInsertedAt,
-			ExternalId:     taskExternalId,
-			WorkflowRunId:  workflowRunId,
-			RetryCount:     retryCount,
-			IsAppError:     isAppError,
-			ErrorMsg:       errorMsg,
-			IsNonRetryable: isNonRetryable,
+			TaskId:          taskId,
+			InsertedAt:      taskInsertedAt,
+			ExternalId:      taskExternalId,
+			WorkflowRunId:   workflowRunId,
+			RetryCount:      retryCount,
+			IsAppError:      isAppError,
+			ErrorMsg:        errorMsg,
+			IsNonRetryable:  isNonRetryable,
+			EventExternalId: eventExternalId,
 		},
 	)
 }
@@ -142,6 +152,9 @@ type CancelledTaskPayload struct {
 
 	// (optional) whether the task should notify the worker
 	ShouldNotify bool
+
+	// the external id of the event
+	EventExternalId string
 }
 
 func CancelledTaskMessage(
@@ -154,6 +167,7 @@ func CancelledTaskMessage(
 	eventType sqlcv1.V1EventTypeOlap,
 	eventMessage string,
 	shouldNotify bool,
+	eventExternalId string,
 ) (*msgqueue.Message, error) {
 	return msgqueue.NewTenantMessage(
 		tenantId,
@@ -161,14 +175,15 @@ func CancelledTaskMessage(
 		false,
 		true,
 		CancelledTaskPayload{
-			TaskId:        taskId,
-			InsertedAt:    taskInsertedAt,
-			ExternalId:    taskExternalId,
-			WorkflowRunId: workflowRunId,
-			RetryCount:    retryCount,
-			EventType:     eventType,
-			EventMessage:  eventMessage,
-			ShouldNotify:  shouldNotify,
+			TaskId:          taskId,
+			InsertedAt:      taskInsertedAt,
+			ExternalId:      taskExternalId,
+			WorkflowRunId:   workflowRunId,
+			RetryCount:      retryCount,
+			EventType:       eventType,
+			EventMessage:    eventMessage,
+			ShouldNotify:    shouldNotify,
+			EventExternalId: eventExternalId,
 		},
 	)
 }
@@ -185,6 +200,9 @@ type SignalTaskCancelledPayload struct {
 
 	// (required) the retry count
 	RetryCount int32
+
+	// the external id of the event
+	EventExternalId string
 }
 
 type CancelTasksPayload struct {

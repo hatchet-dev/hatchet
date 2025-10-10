@@ -117,12 +117,13 @@ type CreateMonitoringEventPayload struct {
 
 	EventType sqlcv1.V1EventTypeOlap `json:"event_type"`
 
-	EventTimestamp time.Time `json:"event_timestamp" validate:"required"`
-	EventPayload   string    `json:"event_payload" validate:"required"`
-	EventMessage   string    `json:"event_message,omitempty"`
+	EventTimestamp  time.Time `json:"event_timestamp" validate:"required"`
+	EventPayload    string    `json:"event_payload" validate:"required"`
+	EventMessage    string    `json:"event_message,omitempty"`
+	EventExternalId string    `json:"event_external_id,omitempty"`
 }
 
-func MonitoringEventMessageFromActionEvent(tenantId string, taskId int64, retryCount int32, request *contracts.StepActionEvent) (*msgqueue.Message, error) {
+func MonitoringEventMessageFromActionEvent(tenantId string, taskId int64, retryCount int32, request *contracts.StepActionEvent, eventExternalId string) (*msgqueue.Message, error) {
 	var workerId *string
 
 	if _, err := uuid.Parse(request.WorkerId); err == nil {
@@ -130,11 +131,12 @@ func MonitoringEventMessageFromActionEvent(tenantId string, taskId int64, retryC
 	}
 
 	payload := CreateMonitoringEventPayload{
-		TaskId:         taskId,
-		RetryCount:     retryCount,
-		WorkerId:       workerId,
-		EventTimestamp: request.EventTimestamp.AsTime(),
-		EventPayload:   request.EventPayload,
+		TaskId:          taskId,
+		RetryCount:      retryCount,
+		WorkerId:        workerId,
+		EventTimestamp:  request.EventTimestamp.AsTime(),
+		EventPayload:    request.EventPayload,
+		EventExternalId: eventExternalId,
 	}
 
 	switch request.EventType {

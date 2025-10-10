@@ -571,11 +571,12 @@ func (tc *TasksControllerImpl) handleTaskFailed(ctx context.Context, tenantId st
 		olapMsg, err := tasktypes.MonitoringEventMessageFromInternal(
 			tenantId,
 			tasktypes.CreateMonitoringEventPayload{
-				TaskId:         msg.TaskId,
-				RetryCount:     msg.RetryCount,
-				EventType:      sqlcv1.V1EventTypeOlapFAILED,
-				EventTimestamp: time.Now().UTC(),
-				EventPayload:   msg.ErrorMsg,
+				TaskId:          msg.TaskId,
+				RetryCount:      msg.RetryCount,
+				EventType:       sqlcv1.V1EventTypeOlapFAILED,
+				EventTimestamp:  time.Now().UTC(),
+				EventPayload:    msg.ErrorMsg,
+				EventExternalId: msg.EventExternalId,
 			},
 		)
 
@@ -749,11 +750,12 @@ func (tc *TasksControllerImpl) handleTaskCancelled(ctx context.Context, tenantId
 		olapMsg, err := tasktypes.MonitoringEventMessageFromInternal(
 			tenantId,
 			tasktypes.CreateMonitoringEventPayload{
-				TaskId:         taskId,
-				RetryCount:     msg.RetryCount,
-				EventType:      msg.EventType,
-				EventTimestamp: time.Now(),
-				EventMessage:   msg.EventMessage,
+				TaskId:          taskId,
+				RetryCount:      msg.RetryCount,
+				EventType:       msg.EventType,
+				EventTimestamp:  time.Now(),
+				EventMessage:    msg.EventMessage,
+				EventExternalId: msg.EventExternalId,
 			},
 		)
 
@@ -1630,11 +1632,12 @@ func (tc *TasksControllerImpl) signalTasksCreatedAndQueued(ctx context.Context, 
 		olapMsg, err := tasktypes.MonitoringEventMessageFromInternal(
 			tenantId,
 			tasktypes.CreateMonitoringEventPayload{
-				TaskId:         task.ID,
-				RetryCount:     task.RetryCount,
-				EventType:      sqlcv1.V1EventTypeOlapQUEUED,
-				EventTimestamp: time.Now(),
-				EventMessage:   msg,
+				TaskId:          task.ID,
+				RetryCount:      task.RetryCount,
+				EventType:       sqlcv1.V1EventTypeOlapQUEUED,
+				EventTimestamp:  time.Now(),
+				EventMessage:    msg,
+				EventExternalId: uuid.NewString(),
 			},
 		)
 
@@ -1695,10 +1698,11 @@ func (tc *TasksControllerImpl) signalTasksCreatedAndCancelled(ctx context.Contex
 	// TODO: make this transactionally safe?
 	for _, task := range tasks {
 		msg, err := tasktypes.MonitoringEventMessageFromInternal(tenantId, tasktypes.CreateMonitoringEventPayload{
-			TaskId:         task.ID,
-			RetryCount:     task.RetryCount,
-			EventType:      sqlcv1.V1EventTypeOlapCANCELLED,
-			EventTimestamp: time.Now(),
+			TaskId:          task.ID,
+			RetryCount:      task.RetryCount,
+			EventType:       sqlcv1.V1EventTypeOlapCANCELLED,
+			EventTimestamp:  time.Now(),
+			EventExternalId: uuid.NewString(),
 		})
 
 		if err != nil {
@@ -1760,11 +1764,12 @@ func (tc *TasksControllerImpl) signalTasksCreatedAndFailed(ctx context.Context, 
 	// TODO: make this transactionally safe?
 	for _, task := range tasks {
 		msg, err := tasktypes.MonitoringEventMessageFromInternal(tenantId, tasktypes.CreateMonitoringEventPayload{
-			TaskId:         task.ID,
-			RetryCount:     task.RetryCount,
-			EventType:      sqlcv1.V1EventTypeOlapFAILED,
-			EventPayload:   task.InitialStateReason.String,
-			EventTimestamp: time.Now(),
+			TaskId:          task.ID,
+			RetryCount:      task.RetryCount,
+			EventType:       sqlcv1.V1EventTypeOlapFAILED,
+			EventPayload:    task.InitialStateReason.String,
+			EventTimestamp:  time.Now(),
+			EventExternalId: uuid.NewString(),
 		})
 
 		if err != nil {
@@ -1826,10 +1831,11 @@ func (tc *TasksControllerImpl) signalTasksCreatedAndSkipped(ctx context.Context,
 	// TODO: make this transactionally safe?
 	for _, task := range tasks {
 		msg, err := tasktypes.MonitoringEventMessageFromInternal(tenantId, tasktypes.CreateMonitoringEventPayload{
-			TaskId:         task.ID,
-			RetryCount:     task.RetryCount,
-			EventType:      sqlcv1.V1EventTypeOlapSKIPPED,
-			EventTimestamp: time.Now(),
+			TaskId:          task.ID,
+			RetryCount:      task.RetryCount,
+			EventType:       sqlcv1.V1EventTypeOlapSKIPPED,
+			EventTimestamp:  time.Now(),
+			EventExternalId: uuid.NewString(),
 		})
 
 		if err != nil {
@@ -1877,11 +1883,12 @@ func (tc *TasksControllerImpl) signalTasksReplayed(ctx context.Context, tenantId
 		olapMsg, err := tasktypes.MonitoringEventMessageFromInternal(
 			tenantId,
 			tasktypes.CreateMonitoringEventPayload{
-				TaskId:         task.Id,
-				RetryCount:     task.RetryCount,
-				EventType:      sqlcv1.V1EventTypeOlapRETRIEDBYUSER,
-				EventTimestamp: time.Now(),
-				EventMessage:   msg,
+				TaskId:          task.Id,
+				RetryCount:      task.RetryCount,
+				EventType:       sqlcv1.V1EventTypeOlapRETRIEDBYUSER,
+				EventTimestamp:  time.Now(),
+				EventMessage:    msg,
+				EventExternalId: uuid.NewString(),
 			},
 		)
 
@@ -1926,11 +1933,12 @@ func (tc *TasksControllerImpl) pubRetryEvent(ctx context.Context, tenantId strin
 	olapMsg, err := tasktypes.MonitoringEventMessageFromInternal(
 		tenantId,
 		tasktypes.CreateMonitoringEventPayload{
-			TaskId:         taskId,
-			RetryCount:     task.RetryCount,
-			EventType:      sqlcv1.V1EventTypeOlapRETRYING,
-			EventTimestamp: time.Now(),
-			EventMessage:   retryMsg,
+			TaskId:          taskId,
+			RetryCount:      task.RetryCount,
+			EventType:       sqlcv1.V1EventTypeOlapRETRYING,
+			EventTimestamp:  time.Now(),
+			EventMessage:    retryMsg,
+			EventExternalId: uuid.NewString(),
 		},
 	)
 
@@ -1953,10 +1961,11 @@ func (tc *TasksControllerImpl) pubRetryEvent(ctx context.Context, tenantId strin
 		olapMsg, err = tasktypes.MonitoringEventMessageFromInternal(
 			tenantId,
 			tasktypes.CreateMonitoringEventPayload{
-				TaskId:         taskId,
-				RetryCount:     task.RetryCount,
-				EventType:      sqlcv1.V1EventTypeOlapQUEUED,
-				EventTimestamp: time.Now(),
+				TaskId:          taskId,
+				RetryCount:      task.RetryCount,
+				EventType:       sqlcv1.V1EventTypeOlapQUEUED,
+				EventTimestamp:  time.Now(),
+				EventExternalId: uuid.NewString(),
 			},
 		)
 
