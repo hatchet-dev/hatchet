@@ -792,12 +792,11 @@ func (tc *TasksControllerImpl) handleCancelTasks(ctx context.Context, tenantId s
 	for _, msg := range msgs {
 		for _, task := range msg.Tasks {
 			pubPayloads = append(pubPayloads, tasktypes.CancelledTaskPayload{
-				TaskId:          task.Id,
-				InsertedAt:      task.InsertedAt,
-				RetryCount:      task.RetryCount,
-				EventType:       sqlcv1.V1EventTypeOlapCANCELLED,
-				ShouldNotify:    true,
-				EventExternalId: uuid.NewString(),
+				TaskId:       task.Id,
+				InsertedAt:   task.InsertedAt,
+				RetryCount:   task.RetryCount,
+				EventType:    sqlcv1.V1EventTypeOlapCANCELLED,
+				ShouldNotify: true,
 			})
 		}
 	}
