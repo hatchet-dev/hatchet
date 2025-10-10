@@ -2591,9 +2591,14 @@ func (r *sharedRepository) createTaskEventsAfterRelease(
 		filteredTaskIdRetryCounts = append(filteredTaskIdRetryCounts, taskIdRetryCounts[i])
 		filteredDatas = append(filteredDatas, datas[i])
 		filteredExternalIds = append(filteredExternalIds, externalIds[i])
+
+		var eventExternalId pgtype.UUID
+
 		if eventExternalIds != nil {
-			filteredEventExternalIds = append(filteredEventExternalIds, (*eventExternalIds)[i])
+			eventExternalId = (*eventExternalIds)[i]
 		}
+
+		filteredEventExternalIds = append(filteredEventExternalIds, eventExternalId)
 	}
 
 	return r.createTaskEvents(
