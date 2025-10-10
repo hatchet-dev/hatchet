@@ -613,6 +613,7 @@ func (s *DispatcherImpl) handleTaskCompleted(inputCtx context.Context, task *sql
 	// if request.RetryCount == nil {
 	// 	return nil, fmt.Errorf("retry count is required in v2")
 	// }
+	externalId := sqlchelpers.UUIDFromStr(uuid.NewString())
 
 	msg, err := tasktypes.CompletedTaskMessage(
 		tenantId,
@@ -622,6 +623,7 @@ func (s *DispatcherImpl) handleTaskCompleted(inputCtx context.Context, task *sql
 		sqlchelpers.UUIDToStr(task.WorkflowRunID),
 		retryCount,
 		[]byte(request.EventPayload),
+		externalId,
 	)
 
 	if err != nil {
