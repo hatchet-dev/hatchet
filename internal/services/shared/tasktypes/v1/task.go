@@ -36,6 +36,9 @@ type CompletedTaskPayload struct {
 
 	// (optional) the output data
 	Output []byte
+
+	// an external id for the event
+	EventExternalId pgtype.UUID
 }
 
 func CompletedTaskMessage(
