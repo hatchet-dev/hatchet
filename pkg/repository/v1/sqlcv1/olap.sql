@@ -217,7 +217,8 @@ INSERT INTO v1_task_events_olap (
     output,
     worker_id,
     additional__event_data,
-    additional__event_message
+    additional__event_message,
+    external_id
 ) VALUES (
     $1,
     $2,
@@ -231,7 +232,8 @@ INSERT INTO v1_task_events_olap (
     $10,
     $11,
     $12,
-    $13
+    $13,
+    $14
 );
 
 -- name: ReadTaskByExternalID :one
