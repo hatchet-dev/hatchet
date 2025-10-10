@@ -27,7 +27,6 @@ type StoreOLAPPayloadOpts struct {
 	ExternalId pgtype.UUID
 	InsertedAt pgtype.Timestamptz
 	Payload    []byte
-	TenantId   string
 }
 
 type OffloadToExternalStoreOpts struct {

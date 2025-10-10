@@ -1069,12 +1069,7 @@ func (r *OLAPRepositoryImpl) writeTaskEventBatch(ctx context.Context, tenantId s
 	// skip any events which have a corresponding event already
 	eventsToWrite := make([]sqlcv1.CreateTaskEventsOLAPParams, 0)
 	tmpEventsToWrite := make([]sqlcv1.CreateTaskEventsOLAPTmpParams, 0)
-
-	insertedAts := make([]pgtype.Timestamptz, 0, len(events))
-	tenantIds := make([]pgtype.UUID, 0, len(events))
-	externalIds := make([]pgtype.UUID, 0, len(events))
-	locations := make([]string, 0, len(events))
-	payloads := make([][]byte, 0, len(events))
+	payloadsToWrite := make([]PutPayloadOpts, 0)
 
 	for _, event := range events {
 		key := getCacheKey(event)
@@ -1093,11 +1088,14 @@ func (r *OLAPRepositoryImpl) writeTaskEventBatch(ctx context.Context, tenantId s
 			})
 		}
 
-		externalIds = append(externalIds, event.ExternalID)
-		insertedAts = append(insertedAts, event.TaskInsertedAt)
-		tenantIds = append(tenantIds, event.TenantID)
-		locations = append(locations, string(sqlcv1.V1PayloadLocationOlapINLINE))
-		payloads = append(payloads, event.Output)
+		payloadsToWrite = append(payloadsToWrite, PutPayloadOpts{
+			StoreOLAPPayloadOpts: &StoreOLAPPayloadOpts{
+				ExternalId: event.ExternalId,
+				InsertedAt: event.TaskInsertedAt,
+				Payload:    event.Output,
+			},
+			Location: sqlcv1.V1PayloadLocationOlapINLINE,
+		})
 	}
 
 	if len(eventsToWrite) == 0 {
@@ -1124,13 +1122,11 @@ func (r *OLAPRepositoryImpl) writeTaskEventBatch(ctx context.Context, tenantId s
 		return err
 	}
 
-	err = r.queries.PutPayloads(ctx, tx, sqlcv1.PutPayloadsParams{
-		Externalids: externalIds,
-		Insertedats: insertedAts,
-		Payloads:    payloads,
-		Tenantids:   tenantIds,
-		Locations:   locations,
-	})
+	err = r.PutPayloads(ctx, tenantId, payloadsToWrite)
+
+	if err != nil {
+		return err
+	}
 
 	if err := commit(ctx); err != nil {
 		return err
@@ -1318,13 +1314,8 @@ func (r *OLAPRepositoryImpl) UpdateDAGStatuses(ctx context.Context, tenantIds []
 }
 
 func (r *OLAPRepositoryImpl) writeTaskBatch(ctx context.Context, tenantId string, tasks []*V1TaskWithPayload) error {
-	insertedAts := make([]pgtype.Timestamptz, 0, len(tasks))
-	tenantIds := make([]pgtype.UUID, 0, len(tasks))
-	externalIds := make([]pgtype.UUID, 0, len(tasks))
-	payloads := make([][]byte, 0, len(tasks))
-	locations := make([]string, 0, len(tasks))
-
 	params := make([]sqlcv1.CreateTasksOLAPParams, 0)
+	putPayloadOpts := make([]PutPayloadOpts, 0)
 
 	for _, task := range tasks {
 		payload := task.Payload
@@ -1360,11 +1351,14 @@ func (r *OLAPRepositoryImpl) writeTaskBatch(ctx context.Context, tenantId string
 			Input:                payload,
 		})
 
-		externalIds = append(externalIds, task.ExternalID)
-		insertedAts = append(insertedAts, task.InsertedAt)
-		tenantIds = append(tenantIds, task.TenantID)
-		payloads = append(payloads, payload)
-		locations = append(locations, string(sqlcv1.V1PayloadLocationOlapINLINE))
+		putPayloadOpts = append(putPayloadOpts, PutPayloadOpts{
+			StoreOLAPPayloadOpts: &StoreOLAPPayloadOpts{
+				ExternalId: task.ExternalID,
+				InsertedAt: task.InsertedAt,
+				Payload:    payload,
+			},
+			Location: sqlcv1.V1PayloadLocationOlapINLINE,
+		})
 	}
 
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 5000)
@@ -1378,17 +1372,8 @@ func (r *OLAPRepositoryImpl) writeTaskBatch(ctx context.Context, tenantId string
 		return err
 	}
 
-	err = r.queries.PutPayloads(
-		ctx,
-		tx,
-		sqlcv1.PutPayloadsParams{
-			Externalids: externalIds,
-			Insertedats: insertedAts,
-			Tenantids:   tenantIds,
-			Payloads:    payloads,
-			Locations:   locations,
-		},
-	)
+	err = r.PutPayloads(ctx, tenantId, putPayloadOpts)
+
 	if err != nil {
 		return err
 	}
