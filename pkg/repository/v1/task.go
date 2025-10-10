@@ -1370,6 +1370,7 @@ func (r *TaskRepositoryImpl) ProcessDurableSleeps(ctx context.Context, tenantId 
 			Id:         task.ID,
 			InsertedAt: task.InsertedAt,
 			Type:       sqlcv1.V1PayloadTypeTASKINPUT,
+			ExternalId: task.ExternalID,
 			Payload:    task.Payload,
 			TenantId:   task.TenantID.String(),
 		}
@@ -2348,6 +2349,7 @@ func (r *sharedRepository) replayTasks(
 			Id:         taskIds[i],
 			InsertedAt: taskInsertedAts[i],
 			Type:       sqlcv1.V1PayloadTypeTASKINPUT,
+			ExternalId: sqlchelpers.UUIDFromStr(task.ExternalId),
 			Payload:    input,
 			TenantId:   tenantId,
 		}
@@ -2707,6 +2709,7 @@ func (r *sharedRepository) createTaskEvents(
 		storePayloadOpts[i] = StorePayloadOpts{
 			Id:         taskEvent.ID,
 			InsertedAt: taskEvent.InsertedAt,
+			ExternalId: taskEvent.ExternalID,
 			Type:       sqlcv1.V1PayloadTypeTASKEVENTDATA,
 			Payload:    data,
 			TenantId:   tenantId,

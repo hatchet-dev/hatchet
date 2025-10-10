@@ -1496,6 +1496,38 @@ func (q *Queries) ListWorkflowRunDisplayNames(ctx context.Context, db DBTX, arg 
 	return items, nil
 }
 
+const offloadPayloads = `-- name: OffloadPayloads :exec
+WITH inputs AS (
+    SELECT
+        UNNEST($1::UUID[]) AS external_id,
+        UNNEST($2::UUID[]) AS tenant_id,
+        UNNEST($3::TEXT[]) AS external_location_key
+)
+
+UPDATE v1_payloads_olap
+SET
+    location = 'EXTERNAL',
+    external_location_key = i.external_location_key,
+    inline_content = NULL,
+    updated_at = NOW()
+FROM inputs i
+WHERE
+    (v1_payloads_olap.tenant_id, v1_payloads_olap.external_id) = (i.tenant_id, i.external_id)
+    AND v1_payloads_olap.location = 'INLINE'
+    AND v1_payloads_olap.external_location_key IS NULL
+`
+
+type OffloadPayloadsParams struct {
+	Externalids          []pgtype.UUID `json:"externalids"`
+	Tenantids            []pgtype.UUID `json:"tenantids"`
+	Externallocationkeys []string      `json:"externallocationkeys"`
+}
+
+func (q *Queries) OffloadPayloads(ctx context.Context, db DBTX, arg OffloadPayloadsParams) error {
+	_, err := db.Exec(ctx, offloadPayloads, arg.Externalids, arg.Tenantids, arg.Externallocationkeys)
+	return err
+}
+
 const populateDAGMetadata = `-- name: PopulateDAGMetadata :one
 WITH run AS (
     SELECT

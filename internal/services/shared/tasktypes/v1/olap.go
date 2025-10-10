@@ -61,6 +61,27 @@ func CreatedDAGMessage(tenantId string, dag *v1.DAGWithData) (*msgqueue.Message,
 	)
 }
 
+type OLAPPayloadToOffload struct {
+	ExternalId          pgtype.UUID
+	ExternalLocationKey string
+}
+
+type OLAPPayloadsToOffload struct {
+	Payloads []OLAPPayloadToOffload
+}
+
+func OLAPPayloadOffloadMessage(tenantId string, payloads []OLAPPayloadToOffload) (*msgqueue.Message, error) {
+	return msgqueue.NewTenantMessage(
+		tenantId,
+		"offload-payload",
+		false,
+		true,
+		OLAPPayloadsToOffload{
+			Payloads: payloads,
+		},
+	)
+}
+
 type PutOLAPPayloadOpts struct {
 	*v1.StoreOLAPPayloadOpts
 	Location sqlcv1.V1PayloadLocationOlap
