@@ -469,7 +469,10 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadWAL(ctx context.Context, part
 			continue
 		}
 
-		fmt.Println(updatedPayload)
+		tenantIdToPayloads[updatedPayload.TenantID.String()] = append(tenantIdToPayloads[updatedPayload.TenantID.String()], OLAPPayloadToOffload{
+			ExternalId:          updatedPayload.ExternalID,
+			ExternalLocationKey: updatedPayload.ExternalLocationKey.String,
+		})
 	}
 
 	for tenantId, payloads := range tenantIdToPayloads {
