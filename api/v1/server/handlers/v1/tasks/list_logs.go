@@ -1,8 +1,6 @@
 package tasks
 
 import (
-	"fmt"
-
 	"github.com/labstack/echo/v4"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
@@ -20,7 +18,7 @@ func (t *TasksService) V1LogLineList(ctx echo.Context, request gen.V1LogLineList
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 	task := ctx.Get("task").(*sqlcv1.V1TasksOlap)
 
-	reqCtx, span := telemetry.NewSpan(ctx.Request().Context(), fmt.Sprintf("GET /api/v1/stable/tasks/%d/logs", task.ID))
+	reqCtx, span := telemetry.NewSpan(ctx.Request().Context(), "GET /api/v1/stable/tasks/{task}/logs")
 	defer span.End()
 
 	telemetry.WithAttributes(span,
