@@ -182,7 +182,7 @@ func (q *Queries) ReadPayloads(ctx context.Context, db DBTX, arg ReadPayloadsPar
 	return items, nil
 }
 
-const setPayloadExternalKeys = `-- name: SetPayloadExternalKeys :exec
+const setPayloadExternalKeys = `-- name: SetPayloadExternalKeys :many
 WITH inputs AS (
     SELECT
         UNNEST($1::BIGINT[]) AS id,
@@ -218,14 +218,17 @@ WITH inputs AS (
     FROM
         inputs i
     ON CONFLICT DO NOTHING
+), deletions AS (
+    DELETE FROM v1_payload_wal
+    WHERE
+        (offload_at, payload_id, payload_inserted_at, payload_type, tenant_id) IN (
+            SELECT offload_at, id, inserted_at, type, tenant_id
+            FROM inputs
+        )
 )
 
-DELETE FROM v1_payload_wal
-WHERE
-    (offload_at, payload_id, payload_inserted_at, payload_type, tenant_id) IN (
-        SELECT offload_at, id, inserted_at, type, tenant_id
-        FROM inputs
-    )
+SELECT 
+FROM payload_updates
 `
 
 type SetPayloadExternalKeysParams struct {
@@ -237,8 +240,11 @@ type SetPayloadExternalKeysParams struct {
 	Tenantids            []pgtype.UUID        `json:"tenantids"`
 }
 
-func (q *Queries) SetPayloadExternalKeys(ctx context.Context, db DBTX, arg SetPayloadExternalKeysParams) error {
-	_, err := db.Exec(ctx, setPayloadExternalKeys,
+type SetPayloadExternalKeysRow struct {
+}
+
+func (q *Queries) SetPayloadExternalKeys(ctx context.Context, db DBTX, arg SetPayloadExternalKeysParams) ([]*SetPayloadExternalKeysRow, error) {
+	rows, err := db.Query(ctx, setPayloadExternalKeys,
 		arg.Ids,
 		arg.Insertedats,
 		arg.Payloadtypes,
@@ -246,7 +252,22 @@ func (q *Queries) SetPayloadExternalKeys(ctx context.Context, db DBTX, arg SetPa
 		arg.Externallocationkeys,
 		arg.Tenantids,
 	)
-	return err
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*SetPayloadExternalKeysRow
+	for rows.Next() {
+		var i SetPayloadExternalKeysRow
+		if err := rows.Scan(); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const writePayloadWAL = `-- name: WritePayloadWAL :exec

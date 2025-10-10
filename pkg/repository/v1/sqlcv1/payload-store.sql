@@ -100,7 +100,7 @@ LIMIT @pollLimit::INT
 FOR UPDATE SKIP LOCKED
 ;
 
--- name: SetPayloadExternalKeys :exec
+-- name: SetPayloadExternalKeys :many
 WITH inputs AS (
     SELECT
         UNNEST(@ids::BIGINT[]) AS id,
@@ -136,14 +136,17 @@ WITH inputs AS (
     FROM
         inputs i
     ON CONFLICT DO NOTHING
+), deletions AS (
+    DELETE FROM v1_payload_wal
+    WHERE
+        (offload_at, payload_id, payload_inserted_at, payload_type, tenant_id) IN (
+            SELECT offload_at, id, inserted_at, type, tenant_id
+            FROM inputs
+        )
 )
 
-DELETE FROM v1_payload_wal
-WHERE
-    (offload_at, payload_id, payload_inserted_at, payload_type, tenant_id) IN (
-        SELECT offload_at, id, inserted_at, type, tenant_id
-        FROM inputs
-    )
+SELECT *
+FROM payload_updates
 ;
 
 

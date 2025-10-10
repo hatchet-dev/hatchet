@@ -7,7 +7,6 @@ import (
 	"time"
 
 	msgqueue "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
-	v1 "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
@@ -60,7 +59,7 @@ type ExternalStore interface {
 type PayloadStoreRepository interface {
 	Store(ctx context.Context, tx sqlcv1.DBTX, payloads ...StorePayloadOpts) error
 	BulkRetrieve(ctx context.Context, opts ...RetrievePayloadOpts) (map[RetrievePayloadOpts][]byte, error)
-	ProcessPayloadWAL(ctx context.Context, partitionNumber int64) (bool, error)
+	ProcessPayloadWAL(ctx context.Context, partitionNumber int64, pubBuffer *msgqueue.MQPubBuffer) (bool, error)
 	ProcessPayloadExternalCutovers(ctx context.Context, partitionNumber int64) (bool, error)
 	OverwriteExternalStore(store ExternalStore, inlineStoreTTL time.Duration)
 	DualWritesEnabled() bool
@@ -75,7 +74,6 @@ type payloadStoreRepositoryImpl struct {
 	pool                             *pgxpool.Pool
 	l                                *zerolog.Logger
 	queries                          *sqlcv1.Queries
-	pubBuffer                        *msgqueue.MQPubBuffer
 	externalStoreEnabled             bool
 	inlineStoreTTL                   *time.Duration
 	externalStore                    ExternalStore
@@ -101,13 +99,11 @@ func NewPayloadStoreRepository(
 	l *zerolog.Logger,
 	queries *sqlcv1.Queries,
 	opts PayloadStoreRepositoryOpts,
-	pubBuffer *msgqueue.MQPubBuffer,
 ) PayloadStoreRepository {
 	return &payloadStoreRepositoryImpl{
-		pool:      pool,
-		l:         l,
-		queries:   queries,
-		pubBuffer: pubBuffer,
+		pool:    pool,
+		l:       l,
+		queries: queries,
 
 		externalStoreEnabled:             false,
 		inlineStoreTTL:                   nil,
@@ -295,7 +291,7 @@ func (p *payloadStoreRepositoryImpl) offloadToExternal(ctx context.Context, payl
 	return p.externalStore.Store(ctx, payloads...)
 }
 
-func (p *payloadStoreRepositoryImpl) ProcessPayloadWAL(ctx context.Context, partitionNumber int64) (bool, error) {
+func (p *payloadStoreRepositoryImpl) ProcessPayloadWAL(ctx context.Context, partitionNumber int64, pubBuffer *msgqueue.MQPubBuffer) (bool, error) {
 	// no need to process the WAL if external store is not enabled
 	if !p.externalStoreEnabled {
 		return false, nil
@@ -418,7 +414,6 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadWAL(ctx context.Context, part
 	types := make([]string, 0, len(retrieveOptsToStoredKey))
 	tenantIds := make([]pgtype.UUID, 0, len(retrieveOptsToStoredKey))
 	externalLocationKeys := make([]string, 0, len(retrieveOptsToStoredKey))
-	tenantIdToPayloads := make(map[string][]v1.OLAPPayloadToOffload)
 
 	for _, opt := range retrieveOpts {
 		offloadAt, exists := retrieveOptsToOffloadAt[opt]
@@ -444,11 +439,6 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadWAL(ctx context.Context, part
 
 		externalLocationKeys = append(externalLocationKeys, string(key))
 		tenantIds = append(tenantIds, opt.TenantId)
-
-		tenantIdToPayloads[opt.TenantId.String()] = append(tenantIdToPayloads[opt.TenantId.String()], v1.OLAPPayloadToOffload{
-			ExternalId:          pgtype.UUID{Int64: opt.Id, Valid: true},
-			ExternalLocationKey: string(key),
-		})
 	}
 
 	// Second transaction, persist the offload to the db once we've successfully offloaded to the external store
@@ -459,7 +449,7 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadWAL(ctx context.Context, part
 		return false, fmt.Errorf("failed to prepare transaction for offloading: %w", err)
 	}
 
-	err = p.queries.SetPayloadExternalKeys(ctx, tx, sqlcv1.SetPayloadExternalKeysParams{
+	updatedPayloads, err := p.queries.SetPayloadExternalKeys(ctx, tx, sqlcv1.SetPayloadExternalKeysParams{
 		Ids:                  ids,
 		Insertedats:          insertedAts,
 		Payloadtypes:         types,
@@ -472,9 +462,23 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadWAL(ctx context.Context, part
 		return false, err
 	}
 
-	p.pubBuffer.Pub(ctx, msgqueue.OLAP_QUEUE, v1.OLAPPayloadOffloadMessage(
-		tenantIds,
-	))
+	tenantIdToPayloads := make(map[string][]OLAPPayloadToOffload)
+
+	for _, updatedPayload := range updatedPayloads {
+		if updatedPayload == nil {
+			continue
+		}
+
+		fmt.Println(updatedPayload)
+	}
+
+	for tenantId, payloads := range tenantIdToPayloads {
+		msg, err := OLAPPayloadOffloadMessage(tenantId, payloads)
+		if err != nil {
+			return false, fmt.Errorf("failed to create OLAP payload offload message: %w", err)
+		}
+		pubBuffer.Pub(ctx, msgqueue.OLAP_QUEUE, msg, false)
+	}
 
 	if err := commit(ctx); err != nil {
 		return false, err
