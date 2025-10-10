@@ -6,6 +6,8 @@ import (
 	"sort"
 	"time"
 
+	msgqueue "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
+	v1 "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
@@ -18,6 +20,7 @@ import (
 type StorePayloadOpts struct {
 	Id         int64
 	InsertedAt pgtype.Timestamptz
+	ExternalId pgtype.UUID
 	Type       sqlcv1.V1PayloadType
 	Payload    []byte
 	TenantId   string
@@ -72,6 +75,7 @@ type payloadStoreRepositoryImpl struct {
 	pool                             *pgxpool.Pool
 	l                                *zerolog.Logger
 	queries                          *sqlcv1.Queries
+	pubBuffer                        *msgqueue.MQPubBuffer
 	externalStoreEnabled             bool
 	inlineStoreTTL                   *time.Duration
 	externalStore                    ExternalStore
@@ -97,11 +101,13 @@ func NewPayloadStoreRepository(
 	l *zerolog.Logger,
 	queries *sqlcv1.Queries,
 	opts PayloadStoreRepositoryOpts,
+	pubBuffer *msgqueue.MQPubBuffer,
 ) PayloadStoreRepository {
 	return &payloadStoreRepositoryImpl{
-		pool:    pool,
-		l:       l,
-		queries: queries,
+		pool:      pool,
+		l:         l,
+		queries:   queries,
+		pubBuffer: pubBuffer,
 
 		externalStoreEnabled:             false,
 		inlineStoreTTL:                   nil,
@@ -412,6 +418,7 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadWAL(ctx context.Context, part
 	types := make([]string, 0, len(retrieveOptsToStoredKey))
 	tenantIds := make([]pgtype.UUID, 0, len(retrieveOptsToStoredKey))
 	externalLocationKeys := make([]string, 0, len(retrieveOptsToStoredKey))
+	tenantIdToPayloads := make(map[string][]v1.OLAPPayloadToOffload)
 
 	for _, opt := range retrieveOpts {
 		offloadAt, exists := retrieveOptsToOffloadAt[opt]
@@ -437,6 +444,11 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadWAL(ctx context.Context, part
 
 		externalLocationKeys = append(externalLocationKeys, string(key))
 		tenantIds = append(tenantIds, opt.TenantId)
+
+		tenantIdToPayloads[opt.TenantId.String()] = append(tenantIdToPayloads[opt.TenantId.String()], v1.OLAPPayloadToOffload{
+			ExternalId:          pgtype.UUID{Int64: opt.Id, Valid: true},
+			ExternalLocationKey: string(key),
+		})
 	}
 
 	// Second transaction, persist the offload to the db once we've successfully offloaded to the external store
@@ -459,6 +471,10 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadWAL(ctx context.Context, part
 	if err != nil {
 		return false, err
 	}
+
+	p.pubBuffer.Pub(ctx, msgqueue.OLAP_QUEUE, v1.OLAPPayloadOffloadMessage(
+		tenantIds,
+	))
 
 	if err := commit(ctx); err != nil {
 		return false, err

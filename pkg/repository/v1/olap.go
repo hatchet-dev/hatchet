@@ -245,6 +245,7 @@ type OLAPRepository interface {
 	PutPayloads(ctx context.Context, tenantId string, failures []PutOLAPPayloadOpts) error
 
 	AnalyzeOLAPTables(ctx context.Context) error
+	OffloadPayloads(ctx context.Context, tenantId string, payloads []OffloadPayloadOpts) error
 }
 
 type OLAPRepositoryImpl struct {
@@ -1873,6 +1874,11 @@ func (r *OLAPRepositoryImpl) StoreCELEvaluationFailures(ctx context.Context, ten
 	})
 }
 
+type OffloadPayloadOpts struct {
+	ExternalId          pgtype.UUID
+	ExternalLocationKey string
+}
+
 type PutOLAPPayloadOpts struct {
 	*StoreOLAPPayloadOpts
 	Location sqlcv1.V1PayloadLocationOlap
@@ -1899,6 +1905,24 @@ func (r *OLAPRepositoryImpl) PutPayloads(ctx context.Context, tenantId string, p
 		Tenantids:   tenantIds,
 		Payloads:    payloads,
 		Locations:   locations,
+	})
+}
+
+func (r *OLAPRepositoryImpl) OffloadPayloads(ctx context.Context, tenantId string, payloads []OffloadPayloadOpts) error {
+	tenantIds := make([]pgtype.UUID, len(payloads))
+	externalIds := make([]pgtype.UUID, len(payloads))
+	externalLocationKeys := make([]string, len(payloads))
+
+	for i, opt := range payloads {
+		externalIds[i] = opt.ExternalId
+		tenantIds[i] = sqlchelpers.UUIDFromStr(tenantId)
+		externalLocationKeys[i] = opt.ExternalLocationKey
+	}
+
+	return r.queries.OffloadPayloads(ctx, r.pool, sqlcv1.OffloadPayloadsParams{
+		Externalids:          externalIds,
+		Tenantids:            tenantIds,
+		Externallocationkeys: externalLocationKeys,
 	})
 }
 

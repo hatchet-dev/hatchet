@@ -27,11 +27,13 @@ SELECT create_v1_range_partition('v1_payloads_olap'::TEXT, (NOW() + INTERVAL '1 
 SELECT create_v1_range_partition('v1_payloads_olap'::TEXT, (NOW() + INTERVAL '2 day')::DATE);
 
 ALTER TABLE v1_task_events_olap ADD COLUMN external_id UUID;
+ALTER TABLE v1_payload ADD COLUMN external_id UUID;
 -- +goose StatementEnd
 
 -- +goose Down
 -- +goose StatementBegin
 ALTER TABLE v1_task_events_olap DROP COLUMN external_id;
+ALTER TABLE v1_payload DROP COLUMN external_id;
 
 DROP TABLE v1_payloads_olap;
 
