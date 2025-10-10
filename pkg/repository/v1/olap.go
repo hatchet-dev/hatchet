@@ -1090,7 +1090,8 @@ func (r *OLAPRepositoryImpl) writeTaskEventBatch(ctx context.Context, tenantId s
 
 		payloadsToWrite = append(payloadsToWrite, PutOLAPPayloadOpts{
 			StoreOLAPPayloadOpts: &StoreOLAPPayloadOpts{
-				ExternalId: pgtype.UUID{},
+				// todo: wire this up properly
+				ExternalId: sqlchelpers.UUIDFromStr(uuid.NewString()),
 				InsertedAt: event.TaskInsertedAt,
 				Payload:    event.Output,
 			},
