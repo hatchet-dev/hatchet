@@ -1070,10 +1070,9 @@ func (r *OLAPRepositoryImpl) writeTaskEventBatch(ctx context.Context, tenantId s
 	eventsToWrite := make([]sqlcv1.CreateTaskEventsOLAPParams, 0)
 	tmpEventsToWrite := make([]sqlcv1.CreateTaskEventsOLAPTmpParams, 0)
 
-	ids := make([]int64, 0, len(events))
 	insertedAts := make([]pgtype.Timestamptz, 0, len(events))
 	tenantIds := make([]pgtype.UUID, 0, len(events))
-	types := make([]string, 0, len(events))
+	externalIds := make([]pgtype.UUID, 0, len(events))
 	locations := make([]string, 0, len(events))
 	payloads := make([][]byte, 0, len(events))
 
@@ -1094,12 +1093,11 @@ func (r *OLAPRepositoryImpl) writeTaskEventBatch(ctx context.Context, tenantId s
 			})
 		}
 
-		ids = append(ids, event.TaskID)
+		externalIds = append(externalIds, event.ExternalID)
 		insertedAts = append(insertedAts, event.TaskInsertedAt)
 		tenantIds = append(tenantIds, event.TenantID)
-		types = append(types, event.EventType)
-		locations = append(locations, event.Location)
-		payloads = append(payloads, event.Payload)
+		locations = append(locations, string(sqlcv1.V1PayloadLocationOlapINLINE))
+		payloads = append(payloads, event.Output)
 	}
 
 	if len(eventsToWrite) == 0 {
@@ -1125,6 +1123,14 @@ func (r *OLAPRepositoryImpl) writeTaskEventBatch(ctx context.Context, tenantId s
 	if err != nil {
 		return err
 	}
+
+	err = r.queries.PutPayloads(ctx, tx, sqlcv1.PutPayloadsParams{
+		Externalids: externalIds,
+		Insertedats: insertedAts,
+		Payloads:    payloads,
+		Tenantids:   tenantIds,
+		Locations:   locations,
+	})
 
 	if err := commit(ctx); err != nil {
 		return err
@@ -1312,11 +1318,10 @@ func (r *OLAPRepositoryImpl) UpdateDAGStatuses(ctx context.Context, tenantIds []
 }
 
 func (r *OLAPRepositoryImpl) writeTaskBatch(ctx context.Context, tenantId string, tasks []*V1TaskWithPayload) error {
-	ids := make([]int64, 0, len(tasks))
 	insertedAts := make([]pgtype.Timestamptz, 0, len(tasks))
 	tenantIds := make([]pgtype.UUID, 0, len(tasks))
+	externalIds := make([]pgtype.UUID, 0, len(tasks))
 	payloads := make([][]byte, 0, len(tasks))
-	types := make([]string, 0, len(tasks))
 	locations := make([]string, 0, len(tasks))
 
 	params := make([]sqlcv1.CreateTasksOLAPParams, 0)
@@ -1355,11 +1360,10 @@ func (r *OLAPRepositoryImpl) writeTaskBatch(ctx context.Context, tenantId string
 			Input:                payload,
 		})
 
-		ids = append(ids, task.ID)
+		externalIds = append(externalIds, task.ExternalID)
 		insertedAts = append(insertedAts, task.InsertedAt)
 		tenantIds = append(tenantIds, task.TenantID)
 		payloads = append(payloads, payload)
-		types = append(types, string(sqlcv1.V1PayloadTypeOlapTASKINPUT))
 		locations = append(locations, string(sqlcv1.V1PayloadLocationOlapINLINE))
 	}
 
@@ -1378,11 +1382,10 @@ func (r *OLAPRepositoryImpl) writeTaskBatch(ctx context.Context, tenantId string
 		ctx,
 		tx,
 		sqlcv1.PutPayloadsParams{
-			Ids:         ids,
+			Externalids: externalIds,
 			Insertedats: insertedAts,
 			Tenantids:   tenantIds,
 			Payloads:    payloads,
-			Types:       types,
 			Locations:   locations,
 		},
 	)
@@ -1867,33 +1870,30 @@ func (r *OLAPRepositoryImpl) StoreCELEvaluationFailures(ctx context.Context, ten
 }
 
 type PutPayloadOpts struct {
-	*StorePayloadOpts
+	*StoreOLAPPayloadOpts
 	Location sqlcv1.V1PayloadLocationOlap
 }
 
 func (r *OLAPRepositoryImpl) PutPayloads(ctx context.Context, tenantId string, putPayloadOpts []PutPayloadOpts) error {
-	ids := make([]int64, len(putPayloadOpts))
 	insertedAts := make([]pgtype.Timestamptz, len(putPayloadOpts))
 	tenantIds := make([]pgtype.UUID, len(putPayloadOpts))
+	externalIds := make([]pgtype.UUID, len(putPayloadOpts))
 	payloads := make([][]byte, len(putPayloadOpts))
-	types := make([]string, len(putPayloadOpts))
 	locations := make([]string, len(putPayloadOpts))
 
 	for i, opt := range putPayloadOpts {
-		ids[i] = opt.Id
+		externalIds[i] = opt.ExternalId
 		insertedAts[i] = opt.InsertedAt
 		tenantIds[i] = sqlchelpers.UUIDFromStr(tenantId)
 		payloads[i] = opt.Payload
-		types[i] = string(opt.Type)
 		locations[i] = string(opt.Location)
 	}
 
 	return r.queries.PutPayloads(ctx, r.pool, sqlcv1.PutPayloadsParams{
-		Ids:         ids,
+		Externalids: externalIds,
 		Insertedats: insertedAts,
 		Tenantids:   tenantIds,
 		Payloads:    payloads,
-		Types:       types,
 		Locations:   locations,
 	})
 }
