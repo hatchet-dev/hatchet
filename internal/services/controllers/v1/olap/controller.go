@@ -364,8 +364,6 @@ func (tc *OLAPControllerImpl) handleBufferedMsgs(tenantId, msgId string, payload
 		return tc.handleFailedWebhookValidation(context.Background(), tenantId, payloads)
 	case "cel-evaluation-failure":
 		return tc.handleCelEvaluationFailure(context.Background(), tenantId, payloads)
-	case "put-payloads":
-		return tc.handlePayloadPut(context.Background(), tenantId, payloads)
 	}
 
 	return fmt.Errorf("unknown message id: %s", msgId)
