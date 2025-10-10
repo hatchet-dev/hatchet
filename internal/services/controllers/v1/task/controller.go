@@ -514,7 +514,8 @@ func (tc *TasksControllerImpl) handleTaskCompleted(ctx context.Context, tenantId
 				InsertedAt: msg.InsertedAt,
 				RetryCount: msg.RetryCount,
 			},
-			Output: msg.Output,
+			Output:          msg.Output,
+			EventExternalId: msg.EventExternalId,
 		})
 
 		idsToData[msg.TaskId] = msg.Output
