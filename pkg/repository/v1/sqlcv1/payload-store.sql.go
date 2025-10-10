@@ -342,17 +342,19 @@ WITH inputs AS (
     SELECT DISTINCT
         UNNEST($1::BIGINT[]) AS id,
         UNNEST($2::TIMESTAMPTZ[]) AS inserted_at,
-        UNNEST(CAST($3::TEXT[] AS v1_payload_type[])) AS type,
-        UNNEST(CAST($4::TEXT[] AS v1_payload_location[])) AS location,
-        UNNEST($5::TEXT[]) AS external_location_key,
-        UNNEST($6::JSONB[]) AS inline_content,
-        UNNEST($7::UUID[]) AS tenant_id
+        UNNEST($3::UUID[]) AS external_id,
+        UNNEST(CAST($4::TEXT[] AS v1_payload_type[])) AS type,
+        UNNEST(CAST($5::TEXT[] AS v1_payload_location[])) AS location,
+        UNNEST($6::TEXT[]) AS external_location_key,
+        UNNEST($7::JSONB[]) AS inline_content,
+        UNNEST($8::UUID[]) AS tenant_id
 )
 
 INSERT INTO v1_payload (
     tenant_id,
     id,
     inserted_at,
+    external_id,
     type,
     location,
     external_location_key,
@@ -362,6 +364,7 @@ SELECT
     i.tenant_id,
     i.id,
     i.inserted_at,
+    i.external_id,
     i.type,
     i.location,
     CASE WHEN i.external_location_key = '' OR i.location != 'EXTERNAL' THEN NULL ELSE i.external_location_key END,
@@ -379,6 +382,7 @@ DO UPDATE SET
 type WritePayloadsParams struct {
 	Ids                  []int64              `json:"ids"`
 	Insertedats          []pgtype.Timestamptz `json:"insertedats"`
+	Externalids          []pgtype.UUID        `json:"externalids"`
 	Types                []string             `json:"types"`
 	Locations            []string             `json:"locations"`
 	Externallocationkeys []string             `json:"externallocationkeys"`
@@ -390,6 +394,7 @@ func (q *Queries) WritePayloads(ctx context.Context, db DBTX, arg WritePayloadsP
 	_, err := db.Exec(ctx, writePayloads,
 		arg.Ids,
 		arg.Insertedats,
+		arg.Externalids,
 		arg.Types,
 		arg.Locations,
 		arg.Externallocationkeys,
