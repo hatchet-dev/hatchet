@@ -49,6 +49,7 @@ func CompletedTaskMessage(
 	workflowRunId string,
 	retryCount int32,
 	output []byte,
+	eventExternalId pgtype.UUID,
 ) (*msgqueue.Message, error) {
 	return msgqueue.NewTenantMessage(
 		tenantId,
@@ -56,12 +57,13 @@ func CompletedTaskMessage(
 		false,
 		true,
 		CompletedTaskPayload{
-			TaskId:        taskId,
-			InsertedAt:    taskInsertedAt,
-			ExternalId:    taskExternalId,
-			WorkflowRunId: workflowRunId,
-			RetryCount:    retryCount,
-			Output:        output,
+			TaskId:          taskId,
+			InsertedAt:      taskInsertedAt,
+			ExternalId:      taskExternalId,
+			WorkflowRunId:   workflowRunId,
+			RetryCount:      retryCount,
+			Output:          output,
+			EventExternalId: eventExternalId,
 		},
 	)
 }
