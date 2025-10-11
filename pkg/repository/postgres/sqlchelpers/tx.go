@@ -15,7 +15,11 @@ import (
 func PrepareTx(ctx context.Context, pool *pgxpool.Pool, l *zerolog.Logger, timeoutMs int) (pgx.Tx, func(context.Context) error, func(), error) {
 	start := time.Now()
 
+	fmt.Println("start time", start)
+
 	tx, err := pool.Begin(ctx)
+
+	fmt.Println("began tx", tx)
 
 	if err != nil {
 		return nil, nil, nil, err
@@ -47,9 +51,13 @@ func PrepareTx(ctx context.Context, pool *pgxpool.Pool, l *zerolog.Logger, timeo
 	// set tx timeout to 5 seconds to avoid deadlocks
 	_, err = tx.Exec(ctx, fmt.Sprintf("SET statement_timeout=%d", timeoutMs))
 
+	fmt.Println("set statement timeout")
+
 	if err != nil {
 		return nil, nil, nil, err
 	}
+
+	fmt.Println("returning")
 
 	return tx, commit, rollback, nil
 }
