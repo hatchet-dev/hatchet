@@ -2,11 +2,11 @@ package v1
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"sort"
 	"time"
 
-	msgqueue "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
@@ -59,7 +59,7 @@ type ExternalStore interface {
 type PayloadStoreRepository interface {
 	Store(ctx context.Context, tx sqlcv1.DBTX, payloads ...StorePayloadOpts) error
 	BulkRetrieve(ctx context.Context, opts ...RetrievePayloadOpts) (map[RetrievePayloadOpts][]byte, error)
-	ProcessPayloadWAL(ctx context.Context, partitionNumber int64, pubBuffer *msgqueue.MQPubBuffer) (bool, error)
+	ProcessPayloadWAL(ctx context.Context, partitionNumber int64) (bool, error)
 	ProcessPayloadExternalCutovers(ctx context.Context, partitionNumber int64) (bool, error)
 	OverwriteExternalStore(store ExternalStore, inlineStoreTTL time.Duration)
 	DualWritesEnabled() bool
@@ -294,7 +294,7 @@ func (p *payloadStoreRepositoryImpl) offloadToExternal(ctx context.Context, payl
 	return p.externalStore.Store(ctx, payloads...)
 }
 
-func (p *payloadStoreRepositoryImpl) ProcessPayloadWAL(ctx context.Context, partitionNumber int64, pubBuffer *msgqueue.MQPubBuffer) (bool, error) {
+func (p *payloadStoreRepositoryImpl) ProcessPayloadWAL(ctx context.Context, partitionNumber int64) (bool, error) {
 	// no need to process the WAL if external store is not enabled
 	if !p.externalStoreEnabled {
 		return false, nil
@@ -483,7 +483,9 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadWAL(ctx context.Context, part
 		if err != nil {
 			return false, fmt.Errorf("failed to create OLAP payload offload message: %w", err)
 		}
-		pubBuffer.Pub(ctx, msgqueue.OLAP_QUEUE, msg, false)
+		mj, _ := json.Marshal(msg)
+		fmt.Println(string(mj))
+		// pubBuffer.Pub(ctx, msgqueue.OLAP_QUEUE, msg, false)
 	}
 
 	if err := commit(ctx); err != nil {
