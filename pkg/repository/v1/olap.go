@@ -1250,7 +1250,7 @@ func (r *OLAPRepositoryImpl) UpdateDAGStatuses(ctx context.Context, tenantIds []
 		partitionNumber := i
 
 		eg.Go(func() error {
-			tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 15000)
+			tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 30000)
 
 			if err != nil {
 				return fmt.Errorf("failed to prepare transaction: %w", err)
@@ -1264,6 +1264,8 @@ func (r *OLAPRepositoryImpl) UpdateDAGStatuses(ctx context.Context, tenantIds []
 				Eventlimit:      limit,
 			})
 
+			fmt.Println("minInsertedAt", minInsertedAt, err)
+
 			if err != nil {
 				return fmt.Errorf("failed to find min inserted at for DAG status updates: %w", err)
 			}
@@ -1274,6 +1276,8 @@ func (r *OLAPRepositoryImpl) UpdateDAGStatuses(ctx context.Context, tenantIds []
 				Eventlimit:      limit,
 				Mininsertedat:   minInsertedAt,
 			})
+
+			fmt.Println("statusUpdateRes", statusUpdateRes, err)
 
 			if err != nil {
 				return fmt.Errorf("failed to update DAG statuses: %w", err)
