@@ -262,6 +262,7 @@ func (m *MatchRepositoryImpl) ProcessInternalEventMatches(ctx context.Context, t
 		storePayloadOpts[i] = StorePayloadOpts{
 			Id:         task.ID,
 			InsertedAt: task.InsertedAt,
+			ExternalId: task.ExternalID,
 			Type:       sqlcv1.V1PayloadTypeTASKINPUT,
 			Payload:    task.Payload,
 			TenantId:   task.TenantID.String(),
@@ -304,6 +305,7 @@ func (m *MatchRepositoryImpl) ProcessUserEventMatches(ctx context.Context, tenan
 		storePayloadOpts[i] = StorePayloadOpts{
 			Id:         task.ID,
 			InsertedAt: task.InsertedAt,
+			ExternalId: task.ExternalID,
 			Type:       sqlcv1.V1PayloadTypeTASKINPUT,
 			Payload:    task.Payload,
 			TenantId:   task.TenantID.String(),
@@ -683,6 +685,7 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 			datas,
 			makeEventTypeArr(sqlcv1.V1TaskEventTypeSIGNALCOMPLETED, len(taskIds)),
 			eventKeys,
+			nil,
 		)
 
 		if err != nil {

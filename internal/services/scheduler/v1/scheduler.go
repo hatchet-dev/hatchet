@@ -9,6 +9,7 @@ import (
 	"github.com/go-co-op/gocron/v2"
 	"github.com/hashicorp/go-multierror"
 	"github.com/hashicorp/golang-lru/v2/expirable"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/internal/datautils"
@@ -597,6 +598,7 @@ func (s *Scheduler) internalRetry(ctx context.Context, tenantId string, assigned
 			false,
 			"could not assign step run to worker",
 			false,
+			pgtype.UUID{},
 		)
 
 		if err != nil {

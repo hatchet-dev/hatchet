@@ -232,6 +232,7 @@ type CreateTaskEventsOLAPParams struct {
 	WorkerID               pgtype.UUID          `json:"worker_id"`
 	AdditionalEventData    pgtype.Text          `json:"additional__event_data"`
 	AdditionalEventMessage pgtype.Text          `json:"additional__event_message"`
+	ExternalID             pgtype.UUID          `json:"external_id"`
 }
 
 type CreateTaskEventsOLAPTmpParams struct {
@@ -1495,6 +1496,38 @@ func (q *Queries) ListWorkflowRunDisplayNames(ctx context.Context, db DBTX, arg 
 	return items, nil
 }
 
+const offloadPayloads = `-- name: OffloadPayloads :exec
+WITH inputs AS (
+    SELECT
+        UNNEST($1::UUID[]) AS external_id,
+        UNNEST($2::UUID[]) AS tenant_id,
+        UNNEST($3::TEXT[]) AS external_location_key
+)
+
+UPDATE v1_payloads_olap
+SET
+    location = 'EXTERNAL',
+    external_location_key = i.external_location_key,
+    inline_content = NULL,
+    updated_at = NOW()
+FROM inputs i
+WHERE
+    (v1_payloads_olap.tenant_id, v1_payloads_olap.external_id) = (i.tenant_id, i.external_id)
+    AND v1_payloads_olap.location = 'INLINE'
+    AND v1_payloads_olap.external_location_key IS NULL
+`
+
+type OffloadPayloadsParams struct {
+	Externalids          []pgtype.UUID `json:"externalids"`
+	Tenantids            []pgtype.UUID `json:"tenantids"`
+	Externallocationkeys []string      `json:"externallocationkeys"`
+}
+
+func (q *Queries) OffloadPayloads(ctx context.Context, db DBTX, arg OffloadPayloadsParams) error {
+	_, err := db.Exec(ctx, offloadPayloads, arg.Externalids, arg.Tenantids, arg.Externallocationkeys)
+	return err
+}
+
 const populateDAGMetadata = `-- name: PopulateDAGMetadata :one
 WITH run AS (
     SELECT
@@ -1525,7 +1558,7 @@ WITH run AS (
         AND r.tenant_id = $4::UUID
         AND r.kind = 'DAG'
 ), relevant_events AS (
-    SELECT e.tenant_id, e.id, e.inserted_at, e.task_id, e.task_inserted_at, e.event_type, e.workflow_id, e.event_timestamp, e.readable_status, e.retry_count, e.error_message, e.output, e.worker_id, e.additional__event_data, e.additional__event_message
+    SELECT e.tenant_id, e.id, e.inserted_at, e.external_id, e.task_id, e.task_inserted_at, e.event_type, e.workflow_id, e.event_timestamp, e.readable_status, e.retry_count, e.error_message, e.output, e.worker_id, e.additional__event_data, e.additional__event_message
     FROM run r
     JOIN v1_dag_to_task_olap dt ON (r.dag_id, r.inserted_at) = (dt.dag_id, dt.dag_inserted_at)
     JOIN v1_task_events_olap e ON (e.task_id, e.task_inserted_at) = (dt.task_id, dt.task_inserted_at)
@@ -1695,7 +1728,7 @@ WITH selected_retry_count AS (
     LIMIT 1
 ), relevant_events AS (
     SELECT
-        tenant_id, id, inserted_at, task_id, task_inserted_at, event_type, workflow_id, event_timestamp, readable_status, retry_count, error_message, output, worker_id, additional__event_data, additional__event_message
+        tenant_id, id, inserted_at, external_id, task_id, task_inserted_at, event_type, workflow_id, event_timestamp, readable_status, retry_count, error_message, output, worker_id, additional__event_data, additional__event_message
     FROM
         v1_task_events_olap
     WHERE
@@ -2009,6 +2042,66 @@ func (q *Queries) PopulateTaskRunData(ctx context.Context, db DBTX, arg Populate
 	return &i, err
 }
 
+const putPayloads = `-- name: PutPayloads :exec
+WITH inputs AS (
+    SELECT
+        UNNEST($1::UUID[]) AS external_id,
+        UNNEST($2::TIMESTAMPTZ[]) AS inserted_at,
+        UNNEST($3::JSONB[]) AS payload,
+        UNNEST($4::UUID[]) AS tenant_id,
+        UNNEST(CAST($5::TEXT[] AS v1_payload_location_olap[])) AS location
+)
+
+INSERT INTO v1_payloads_olap (
+    tenant_id,
+    external_id,
+    inserted_at,
+    location,
+    external_location_key,
+    inline_content
+)
+
+SELECT
+    i.tenant_id,
+    i.external_id,
+    i.inserted_at,
+    i.location,
+    CASE
+        WHEN i.location = 'EXTERNAL' THEN i.payload
+        ELSE NULL
+    END,
+    CASE
+        WHEN i.location = 'INLINE' THEN i.payload
+        ELSE NULL
+    END AS inline_content
+FROM inputs i
+ON CONFLICT (tenant_id, external_id, inserted_at) DO UPDATE
+SET
+    location = EXCLUDED.location,
+    external_location_key = EXCLUDED.external_location_key,
+    inline_content = EXCLUDED.inline_content,
+    updated_at = NOW()
+`
+
+type PutPayloadsParams struct {
+	Externalids []pgtype.UUID        `json:"externalids"`
+	Insertedats []pgtype.Timestamptz `json:"insertedats"`
+	Payloads    [][]byte             `json:"payloads"`
+	Tenantids   []pgtype.UUID        `json:"tenantids"`
+	Locations   []string             `json:"locations"`
+}
+
+func (q *Queries) PutPayloads(ctx context.Context, db DBTX, arg PutPayloadsParams) error {
+	_, err := db.Exec(ctx, putPayloads,
+		arg.Externalids,
+		arg.Insertedats,
+		arg.Payloads,
+		arg.Tenantids,
+		arg.Locations,
+	)
+	return err
+}
+
 const readDAGByExternalID = `-- name: ReadDAGByExternalID :one
 WITH lookup_task AS (
     SELECT
@@ -2189,7 +2282,7 @@ WITH runs AS (
         AND lt.task_id IS NOT NULL
 ), relevant_events AS (
     SELECT
-        e.tenant_id, e.id, e.inserted_at, e.task_id, e.task_inserted_at, e.event_type, e.workflow_id, e.event_timestamp, e.readable_status, e.retry_count, e.error_message, e.output, e.worker_id, e.additional__event_data, e.additional__event_message
+        e.tenant_id, e.id, e.inserted_at, e.external_id, e.task_id, e.task_inserted_at, e.event_type, e.workflow_id, e.event_timestamp, e.readable_status, e.retry_count, e.error_message, e.output, e.worker_id, e.additional__event_data, e.additional__event_message
     FROM runs r
     JOIN v1_dag_to_task_olap dt ON r.dag_id = dt.dag_id AND r.inserted_at = dt.dag_inserted_at
     JOIN v1_task_events_olap e ON (e.task_id, e.task_inserted_at) = (dt.task_id, dt.task_inserted_at)
@@ -2198,7 +2291,7 @@ WITH runs AS (
     UNION ALL
 
     SELECT
-        e.tenant_id, e.id, e.inserted_at, e.task_id, e.task_inserted_at, e.event_type, e.workflow_id, e.event_timestamp, e.readable_status, e.retry_count, e.error_message, e.output, e.worker_id, e.additional__event_data, e.additional__event_message
+        e.tenant_id, e.id, e.inserted_at, e.external_id, e.task_id, e.task_inserted_at, e.event_type, e.workflow_id, e.event_timestamp, e.readable_status, e.retry_count, e.error_message, e.output, e.worker_id, e.additional__event_data, e.additional__event_message
     FROM runs r
     JOIN v1_task_events_olap e ON e.task_id = r.task_id AND e.task_inserted_at = r.inserted_at
     WHERE r.task_id IS NOT NULL

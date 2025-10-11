@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 
 	msgqueue "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
@@ -60,6 +61,15 @@ func CreatedDAGMessage(tenantId string, dag *v1.DAGWithData) (*msgqueue.Message,
 	)
 }
 
+type PutOLAPPayloadOpts struct {
+	*v1.StoreOLAPPayloadOpts
+	Location sqlcv1.V1PayloadLocationOlap
+}
+
+type Payloads struct {
+	Payloads []PutOLAPPayloadOpts
+}
+
 type CreatedEventTriggerPayloadSingleton struct {
 	MaybeRunId              *int64     `json:"run_id"`
 	MaybeRunInsertedAt      *time.Time `json:"run_inserted_at"`
@@ -96,12 +106,13 @@ type CreateMonitoringEventPayload struct {
 
 	EventType sqlcv1.V1EventTypeOlap `json:"event_type"`
 
-	EventTimestamp time.Time `json:"event_timestamp" validate:"required"`
-	EventPayload   string    `json:"event_payload" validate:"required"`
-	EventMessage   string    `json:"event_message,omitempty"`
+	EventTimestamp  time.Time   `json:"event_timestamp" validate:"required"`
+	EventPayload    string      `json:"event_payload" validate:"required"`
+	EventMessage    string      `json:"event_message,omitempty"`
+	EventExternalId pgtype.UUID `json:"event_external_id,omitempty"`
 }
 
-func MonitoringEventMessageFromActionEvent(tenantId string, taskId int64, retryCount int32, request *contracts.StepActionEvent) (*msgqueue.Message, error) {
+func MonitoringEventMessageFromActionEvent(tenantId string, taskId int64, retryCount int32, request *contracts.StepActionEvent, eventExternalId pgtype.UUID) (*msgqueue.Message, error) {
 	var workerId *string
 
 	if _, err := uuid.Parse(request.WorkerId); err == nil {
@@ -109,11 +120,12 @@ func MonitoringEventMessageFromActionEvent(tenantId string, taskId int64, retryC
 	}
 
 	payload := CreateMonitoringEventPayload{
-		TaskId:         taskId,
-		RetryCount:     retryCount,
-		WorkerId:       workerId,
-		EventTimestamp: request.EventTimestamp.AsTime(),
-		EventPayload:   request.EventPayload,
+		TaskId:          taskId,
+		RetryCount:      retryCount,
+		WorkerId:        workerId,
+		EventTimestamp:  request.EventTimestamp.AsTime(),
+		EventPayload:    request.EventPayload,
+		EventExternalId: eventExternalId,
 	}
 
 	switch request.EventType {

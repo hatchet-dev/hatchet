@@ -6,6 +6,7 @@ import (
 	"sort"
 	"time"
 
+	msgqueue "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
@@ -18,9 +19,16 @@ import (
 type StorePayloadOpts struct {
 	Id         int64
 	InsertedAt pgtype.Timestamptz
+	ExternalId pgtype.UUID
 	Type       sqlcv1.V1PayloadType
 	Payload    []byte
 	TenantId   string
+}
+
+type StoreOLAPPayloadOpts struct {
+	ExternalId pgtype.UUID
+	InsertedAt pgtype.Timestamptz
+	Payload    []byte
 }
 
 type OffloadToExternalStoreOpts struct {
@@ -51,7 +59,7 @@ type ExternalStore interface {
 type PayloadStoreRepository interface {
 	Store(ctx context.Context, tx sqlcv1.DBTX, payloads ...StorePayloadOpts) error
 	BulkRetrieve(ctx context.Context, opts ...RetrievePayloadOpts) (map[RetrievePayloadOpts][]byte, error)
-	ProcessPayloadWAL(ctx context.Context, partitionNumber int64) (bool, error)
+	ProcessPayloadWAL(ctx context.Context, partitionNumber int64, pubBuffer *msgqueue.MQPubBuffer) (bool, error)
 	ProcessPayloadExternalCutovers(ctx context.Context, partitionNumber int64) (bool, error)
 	OverwriteExternalStore(store ExternalStore, inlineStoreTTL time.Duration)
 	DualWritesEnabled() bool
@@ -124,6 +132,7 @@ func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx sqlcv1.DBTX, 
 	offloadAts := make([]pgtype.Timestamptz, 0, len(payloads))
 	tenantIds := make([]pgtype.UUID, 0, len(payloads))
 	locations := make([]string, 0, len(payloads))
+	externalIds := make([]pgtype.UUID, 0, len(payloads))
 
 	seenPayloadUniqueKeys := make(map[PayloadUniqueKey]struct{})
 
@@ -153,6 +162,7 @@ func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx sqlcv1.DBTX, 
 		tenantIds = append(tenantIds, tenantId)
 		locations = append(locations, string(sqlcv1.V1PayloadLocationINLINE))
 		inlineContents = append(inlineContents, payload.Payload)
+		externalIds = append(externalIds, payload.ExternalId)
 
 		if p.externalStoreEnabled {
 			offloadAts = append(offloadAts, pgtype.Timestamptz{Time: payload.InsertedAt.Time.Add(*p.inlineStoreTTL), Valid: true})
@@ -168,6 +178,7 @@ func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx sqlcv1.DBTX, 
 		Locations:      locations,
 		Tenantids:      tenantIds,
 		Inlinecontents: inlineContents,
+		Externalids:    externalIds,
 	})
 
 	if err != nil {
@@ -283,7 +294,7 @@ func (p *payloadStoreRepositoryImpl) offloadToExternal(ctx context.Context, payl
 	return p.externalStore.Store(ctx, payloads...)
 }
 
-func (p *payloadStoreRepositoryImpl) ProcessPayloadWAL(ctx context.Context, partitionNumber int64) (bool, error) {
+func (p *payloadStoreRepositoryImpl) ProcessPayloadWAL(ctx context.Context, partitionNumber int64, pubBuffer *msgqueue.MQPubBuffer) (bool, error) {
 	// no need to process the WAL if external store is not enabled
 	if !p.externalStoreEnabled {
 		return false, nil
@@ -441,7 +452,7 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadWAL(ctx context.Context, part
 		return false, fmt.Errorf("failed to prepare transaction for offloading: %w", err)
 	}
 
-	err = p.queries.SetPayloadExternalKeys(ctx, tx, sqlcv1.SetPayloadExternalKeysParams{
+	updatedPayloads, err := p.queries.SetPayloadExternalKeys(ctx, tx, sqlcv1.SetPayloadExternalKeysParams{
 		Ids:                  ids,
 		Insertedats:          insertedAts,
 		Payloadtypes:         types,
@@ -452,6 +463,27 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadWAL(ctx context.Context, part
 
 	if err != nil {
 		return false, err
+	}
+
+	tenantIdToPayloads := make(map[string][]OLAPPayloadToOffload)
+
+	for _, updatedPayload := range updatedPayloads {
+		if updatedPayload == nil {
+			continue
+		}
+
+		tenantIdToPayloads[updatedPayload.TenantID.String()] = append(tenantIdToPayloads[updatedPayload.TenantID.String()], OLAPPayloadToOffload{
+			ExternalId:          updatedPayload.ExternalID,
+			ExternalLocationKey: updatedPayload.ExternalLocationKey.String,
+		})
+	}
+
+	for tenantId, payloads := range tenantIdToPayloads {
+		msg, err := OLAPPayloadOffloadMessage(tenantId, payloads)
+		if err != nil {
+			return false, fmt.Errorf("failed to create OLAP payload offload message: %w", err)
+		}
+		pubBuffer.Pub(ctx, msgqueue.OLAP_QUEUE, msg, false)
 	}
 
 	if err := commit(ctx); err != nil {

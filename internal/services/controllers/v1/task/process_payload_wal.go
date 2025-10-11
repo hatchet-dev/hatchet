@@ -19,7 +19,7 @@ func (tc *TasksControllerImpl) runProcessPayloadWAL(ctx context.Context) func() 
 }
 
 func (tc *TasksControllerImpl) processPayloadWAL(ctx context.Context, partitionNumber int64) (bool, error) {
-	return tc.repov1.Payloads().ProcessPayloadWAL(ctx, partitionNumber)
+	return tc.repov1.Payloads().ProcessPayloadWAL(ctx, partitionNumber, tc.pubBuffer)
 }
 
 func (tc *TasksControllerImpl) runProcessPayloadExternalCutovers(ctx context.Context) func() {

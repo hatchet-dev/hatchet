@@ -364,9 +364,34 @@ func (tc *OLAPControllerImpl) handleBufferedMsgs(tenantId, msgId string, payload
 		return tc.handleFailedWebhookValidation(context.Background(), tenantId, payloads)
 	case "cel-evaluation-failure":
 		return tc.handleCelEvaluationFailure(context.Background(), tenantId, payloads)
+	case "offload-payload":
+		return tc.handlePayloadOffload(context.Background(), tenantId, payloads)
 	}
 
 	return fmt.Errorf("unknown message id: %s", msgId)
+}
+
+func (tc *OLAPControllerImpl) handlePayloadOffload(ctx context.Context, tenantId string, payloads [][]byte) error {
+	offloads := make([]v1.OffloadPayloadOpts, 0)
+
+	msgs := msgqueue.JSONConvert[v1.OLAPPayloadsToOffload](payloads)
+
+	for _, msg := range msgs {
+		for _, payload := range msg.Payloads {
+			// todo: should we sample here?
+			// if !tc.sample(payload.ExternalLocationKey) {
+			// 	tc.l.Debug().Msgf("skipping payload offload external id %s", payload.ExternalId)
+			// 	continue
+			// }
+
+			offloads = append(offloads, v1.OffloadPayloadOpts{
+				ExternalId:          payload.ExternalId,
+				ExternalLocationKey: payload.ExternalLocationKey,
+			})
+		}
+	}
+
+	return tc.repo.OLAP().OffloadPayloads(ctx, tenantId, offloads)
 }
 
 func (tc *OLAPControllerImpl) handleCelEvaluationFailure(ctx context.Context, tenantId string, payloads [][]byte) error {
@@ -537,6 +562,7 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 	eventPayloads := make([]string, 0)
 	eventMessages := make([]string, 0)
 	timestamps := make([]pgtype.Timestamptz, 0)
+	eventExternalIds := make([]pgtype.UUID, 0)
 
 	for _, msg := range msgs {
 		taskMeta := taskIdsToMetas[msg.TaskId]
@@ -559,6 +585,7 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 		eventPayloads = append(eventPayloads, msg.EventPayload)
 		eventMessages = append(eventMessages, msg.EventMessage)
 		timestamps = append(timestamps, sqlchelpers.TimestamptzFromTime(msg.EventTimestamp))
+		eventExternalIds = append(eventExternalIds, msg.EventExternalId)
 
 		if msg.WorkerId != nil {
 			workerIds = append(workerIds, *msg.WorkerId)
@@ -630,6 +657,7 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 			RetryCount:             retryCounts[i],
 			WorkerID:               workerId,
 			AdditionalEventMessage: sqlchelpers.TextFromStr(eventMessages[i]),
+			ExternalID:             eventExternalIds[i],
 		}
 
 		switch eventTypes[i] {
