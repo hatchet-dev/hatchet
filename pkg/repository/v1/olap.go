@@ -1247,10 +1247,13 @@ func (r *OLAPRepositoryImpl) UpdateDAGStatuses(ctx context.Context, tenantIds []
 	}
 
 	for i := 0; i < NUM_PARTITIONS; i++ {
+		fmt.Println("running dag status updates for partition", i)
 		partitionNumber := i
 
 		eg.Go(func() error {
 			tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 30000)
+
+			fmt.Println("prepared tx")
 
 			if err != nil {
 				return fmt.Errorf("failed to prepare transaction: %w", err)
