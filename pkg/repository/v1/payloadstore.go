@@ -46,14 +46,14 @@ type RetrievePayloadOpts struct {
 type PayloadLocation string
 type ExternalPayloadLocationKey string
 
-type BulkRetrievePayloadOpts struct {
+type RetrieveExternalPayloadOpts struct {
 	Keys     []ExternalPayloadLocationKey
 	TenantId string
 }
 
 type ExternalStore interface {
 	Store(ctx context.Context, payloads ...OffloadToExternalStoreOpts) (map[RetrievePayloadOpts]ExternalPayloadLocationKey, error)
-	Retrieve(ctx context.Context, opts ...BulkRetrievePayloadOpts) (map[ExternalPayloadLocationKey][]byte, error)
+	Retrieve(ctx context.Context, opts ...RetrieveExternalPayloadOpts) (map[ExternalPayloadLocationKey][]byte, error)
 }
 
 type PayloadStoreRepository interface {
@@ -238,7 +238,7 @@ func (p *payloadStoreRepositoryImpl) retrieve(ctx context.Context, tx sqlcv1.DBT
 	optsToPayload := make(map[RetrievePayloadOpts][]byte)
 
 	externalKeysToOpts := make(map[ExternalPayloadLocationKey]RetrievePayloadOpts)
-	retrievePayloadOpts := make([]BulkRetrievePayloadOpts, 0)
+	retrievePayloadOpts := make([]RetrieveExternalPayloadOpts, 0)
 
 	for _, payload := range payloads {
 		if payload == nil {
@@ -255,7 +255,7 @@ func (p *payloadStoreRepositoryImpl) retrieve(ctx context.Context, tx sqlcv1.DBT
 		if payload.Location == sqlcv1.V1PayloadLocationEXTERNAL {
 			key := ExternalPayloadLocationKey(payload.ExternalLocationKey.String)
 			externalKeysToOpts[key] = opts
-			retrievePayloadOpts = append(retrievePayloadOpts, BulkRetrievePayloadOpts{
+			retrievePayloadOpts = append(retrievePayloadOpts, RetrieveExternalPayloadOpts{
 				Keys:     []ExternalPayloadLocationKey{key},
 				TenantId: opts.TenantId.String(),
 			})
@@ -578,6 +578,6 @@ func (n *NoOpExternalStore) Store(ctx context.Context, payloads ...OffloadToExte
 	return nil, fmt.Errorf("external store disabled")
 }
 
-func (n *NoOpExternalStore) Retrieve(ctx context.Context, opts ...BulkRetrievePayloadOpts) (map[ExternalPayloadLocationKey][]byte, error) {
+func (n *NoOpExternalStore) Retrieve(ctx context.Context, opts ...RetrieveExternalPayloadOpts) (map[ExternalPayloadLocationKey][]byte, error) {
 	return nil, fmt.Errorf("external store disabled")
 }
