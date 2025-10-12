@@ -146,7 +146,7 @@ func ToWorkflowRunMany(
 	}
 }
 
-func PopulateTaskRunDataRowToV1TaskSummary(task *sqlcv1.PopulateTaskRunDataRow, workflowName *string) gen.V1TaskSummary {
+func PopulateTaskRunDataRowToV1TaskSummary(task *sqlcv1.PopulateTaskRunDataRow, workflowName *string, externalIdToPayload map[pgtype.UUID][]byte) gen.V1TaskSummary {
 	workflowVersionID := uuid.MustParse(sqlchelpers.UUIDToStr(task.WorkflowVersionID))
 	additionalMetadata := jsonToMap(task.AdditionalMetadata)
 
@@ -169,8 +169,9 @@ func PopulateTaskRunDataRowToV1TaskSummary(task *sqlcv1.PopulateTaskRunDataRow, 
 		durationPtr = &duration
 	}
 
-	input := jsonToMap(task.Input)
-	output := jsonToMap(task.Output)
+	input := jsonToMap(externalIdToPayload[task.ExternalID])
+	output := jsonToMap(externalIdToPayload[task.OutputEventExternalID])
+
 	stepId := uuid.MustParse(sqlchelpers.UUIDToStr(task.StepID))
 
 	retryCount := int(task.RetryCount)
@@ -212,12 +213,13 @@ func TaskRunDataRowToWorkflowRunsMany(
 	tasks []*sqlcv1.PopulateTaskRunDataRow,
 	taskIdToWorkflowName map[int64]string,
 	total int, limit, offset int64,
+	externalIdToPayload map[pgtype.UUID][]byte,
 ) gen.V1TaskSummaryList {
 	toReturn := make([]gen.V1TaskSummary, len(tasks))
 
 	for i, task := range tasks {
 		workflowName := taskIdToWorkflowName[task.ID]
-		toReturn[i] = PopulateTaskRunDataRowToV1TaskSummary(task, &workflowName)
+		toReturn[i] = PopulateTaskRunDataRowToV1TaskSummary(task, &workflowName, externalIdToPayload)
 	}
 
 	currentPage := (offset / limit) + 1

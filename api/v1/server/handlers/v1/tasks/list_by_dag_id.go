@@ -30,7 +30,20 @@ func (t *TasksService) V1DagListTasks(ctx echo.Context, request gen.V1DagListTas
 		return nil, err
 	}
 
-	result := transformers.ToDagChildren(tasks, taskIdToDagExternalId)
+	externalIdsForPayloads := make([]pgtype.UUID, 0)
+
+	for _, task := range tasks {
+		externalIdsForPayloads = append(externalIdsForPayloads, task.ExternalID)
+		externalIdsForPayloads = append(externalIdsForPayloads, task.OutputEventExternalID)
+	}
+
+	externalIdToPayload, err := t.config.V1.OLAP().ReadPayloads(ctx.Request().Context(), tenantId, externalIdsForPayloads)
+
+	if err != nil {
+		return nil, err
+	}
+
+	result := transformers.ToDagChildren(tasks, taskIdToDagExternalId, externalIdToPayload)
 
 	// Search for api errors to see how we handle errors in other cases
 	return gen.V1DagListTasks200JSONResponse(

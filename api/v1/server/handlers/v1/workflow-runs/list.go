@@ -146,20 +146,25 @@ func (t *V1WorkflowRunsService) WithDags(ctx context.Context, request gen.V1Work
 	}
 
 	taskIdToWorkflowName := make(map[int64]string)
+	taskIdToActionId := make(map[int64]string)
+	externalIdsForPayloads := make([]pgtype.UUID, 0)
 
 	for _, task := range tasks {
+		externalIdsForPayloads = append(externalIdsForPayloads, task.ExternalID)
+		externalIdsForPayloads = append(externalIdsForPayloads, task.OutputEventExternalID)
+		taskIdToActionId[task.ID] = task.ActionID
 		if name, ok := workflowNames[task.WorkflowID]; ok {
 			taskIdToWorkflowName[task.ID] = name
 		}
 	}
 
-	taskIdToActionId := make(map[int64]string)
+	externalIdToPayload, err := t.config.V1.OLAP().ReadPayloads(ctx, tenantId, externalIdsForPayloads)
 
-	for _, task := range tasks {
-		taskIdToActionId[task.ID] = task.ActionID
+	if err != nil {
+		return nil, err
 	}
 
-	parsedTasks := transformers.TaskRunDataRowToWorkflowRunsMany(tasks, taskIdToWorkflowName, total, limit, offset)
+	parsedTasks := transformers.TaskRunDataRowToWorkflowRunsMany(tasks, taskIdToWorkflowName, total, limit, offset, externalIdToPayload)
 
 	dagChildren := make(map[uuid.UUID][]gen.V1TaskSummary)
 
@@ -282,13 +287,23 @@ func (t *V1WorkflowRunsService) OnlyTasks(ctx context.Context, request gen.V1Wor
 	}
 
 	taskIdToWorkflowName := make(map[int64]string)
+	externalIdsForPayloads := make([]pgtype.UUID, 0)
+
 	for _, task := range tasks {
+		externalIdsForPayloads = append(externalIdsForPayloads, task.ExternalID)
+		externalIdsForPayloads = append(externalIdsForPayloads, task.OutputEventExternalID)
 		if name, ok := workflowIdToName[task.WorkflowID]; ok {
 			taskIdToWorkflowName[task.ID] = name
 		}
 	}
 
-	result := transformers.TaskRunDataRowToWorkflowRunsMany(tasks, taskIdToWorkflowName, total, limit, offset)
+	externalIdToPayload, err := t.config.V1.OLAP().ReadPayloads(ctx, tenantId, externalIdsForPayloads)
+
+	if err != nil {
+		return nil, err
+	}
+
+	result := transformers.TaskRunDataRowToWorkflowRunsMany(tasks, taskIdToWorkflowName, total, limit, offset, externalIdToPayload)
 
 	// Search for api errors to see how we handle errors in other cases
 	return gen.V1WorkflowRunList200JSONResponse(

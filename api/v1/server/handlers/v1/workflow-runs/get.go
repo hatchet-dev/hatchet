@@ -68,8 +68,12 @@ func (t *V1WorkflowRunsService) getWorkflowRunDetails(
 	}
 
 	stepIdToTaskExternalId := make(map[pgtype.UUID]pgtype.UUID)
+	externalIds := make([]pgtype.UUID, 0)
+
 	for _, task := range tasks {
 		stepIdToTaskExternalId[task.StepID] = task.ExternalID
+		externalIds = append(externalIds, task.ExternalID)
+		externalIds = append(externalIds, task.OutputEventExternalID)
 	}
 
 	workflowVersionId := uuid.MustParse(sqlchelpers.UUIDToStr(workflowRun.WorkflowVersionId))
@@ -88,7 +92,13 @@ func (t *V1WorkflowRunsService) getWorkflowRunDetails(
 		return nil, err
 	}
 
-	result, err := transformers.ToWorkflowRunDetails(taskRunEvents, workflowRun, shape, tasks, stepIdToTaskExternalId, workflowVersion)
+	externalIdToPayload, err := t.config.V1.OLAP().ReadPayloads(ctx, tenantId, externalIds)
+
+	if err != nil {
+		return nil, err
+	}
+
+	result, err := transformers.ToWorkflowRunDetails(taskRunEvents, workflowRun, shape, tasks, stepIdToTaskExternalId, workflowVersion, externalIdToPayload)
 
 	if err != nil {
 		return nil, err
