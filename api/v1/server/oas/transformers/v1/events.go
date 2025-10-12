@@ -7,6 +7,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 func parseTriggeredRuns(triggeredRuns []byte) ([]gen.V1EventTriggeredRun, error) {
@@ -49,7 +50,7 @@ func parseTriggeredRuns(triggeredRuns []byte) ([]gen.V1EventTriggeredRun, error)
 	return result, nil
 }
 
-func ToV1EventList(events []*v1.ListEventsRow, limit, offset, total int64) gen.V1EventList {
+func ToV1EventList(events []*v1.ListEventsRow, limit, offset, total int64, externalIdToPayload map[pgtype.UUID][]byte) gen.V1EventList {
 	rows := make([]gen.V1Event, len(events))
 
 	numPages := int64(math.Ceil(float64(total) / float64(limit)))
@@ -70,7 +71,7 @@ func ToV1EventList(events []*v1.ListEventsRow, limit, offset, total int64) gen.V
 
 	for i, row := range events {
 		additionalMetadata := jsonToMap(row.EventAdditionalMetadata)
-		payload := jsonToMap(row.EventPayload)
+		payload := jsonToMap(externalIdToPayload[row.EventExternalID])
 		triggeredRuns, err := parseTriggeredRuns(row.TriggeredRuns)
 
 		if err != nil {
