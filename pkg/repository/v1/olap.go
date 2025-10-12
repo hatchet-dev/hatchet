@@ -243,6 +243,7 @@ type OLAPRepository interface {
 	CreateIncomingWebhookValidationFailureLogs(ctx context.Context, tenantId string, opts []CreateIncomingWebhookFailureLogOpts) error
 	StoreCELEvaluationFailures(ctx context.Context, tenantId string, failures []CELEvaluationFailure) error
 	PutPayloads(ctx context.Context, tx sqlcv1.DBTX, tenantId string, payloads []PutOLAPPayloadOpts) error
+	ReadPayload(ctx context.Context, tenantId string, externalId pgtype.UUID) ([]byte, error)
 	ReadPayloads(ctx context.Context, tenantId string, externalIds []pgtype.UUID) (map[pgtype.UUID][]byte, error)
 
 	AnalyzeOLAPTables(ctx context.Context) error
@@ -464,6 +465,12 @@ func (r *OLAPRepositoryImpl) ReadWorkflowRun(ctx context.Context, workflowRunExt
 		return nil, err
 	}
 
+	inputPayload, err := r.ReadPayload(ctx, row.TenantID.String(), row.ExternalID)
+
+	if err != nil {
+		return nil, err
+	}
+
 	return &V1WorkflowRunPopulator{
 		WorkflowRun: &WorkflowRunData{
 			TenantID:             row.TenantID,
@@ -479,7 +486,7 @@ func (r *OLAPRepositoryImpl) ReadWorkflowRun(ctx context.Context, workflowRunExt
 			FinishedAt:           row.FinishedAt,
 			ErrorMessage:         row.ErrorMessage.String,
 			WorkflowVersionId:    row.WorkflowVersionID,
-			Input:                row.Input,
+			Input:                inputPayload,
 			ParentTaskExternalId: &row.ParentTaskExternalID,
 		},
 		TaskMetadata: taskMetadata,
@@ -828,10 +835,9 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId stri
 
 	for _, idInsertedAt := range dagIdsInsertedAts {
 		dag, err := r.queries.PopulateDAGMetadata(ctx, tx, sqlcv1.PopulateDAGMetadataParams{
-			ID:              idInsertedAt.ID,
-			Insertedat:      idInsertedAt.InsertedAt,
-			Tenantid:        sqlchelpers.UUIDFromStr(tenantId),
-			Includepayloads: opts.IncludePayloads,
+			ID:         idInsertedAt.ID,
+			Insertedat: idInsertedAt.InsertedAt,
+			Tenantid:   sqlchelpers.UUIDFromStr(tenantId),
 		})
 
 		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
@@ -870,6 +876,13 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId stri
 		return nil, 0, err
 	}
 
+	externalIds := make([]pgtype.UUID, 0, len(workflowRunIds))
+	for _, row := range workflowRunIds {
+		externalIds = append(externalIds, row.ExternalID)
+	}
+
+	externalIdToPayload, err := r.ReadPayloads(ctx, tenantId, externalIds)
+
 	res := make([]*WorkflowRunData, 0)
 
 	for _, row := range workflowRunIds {
@@ -877,6 +890,9 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId stri
 
 		if row.Kind == sqlcv1.V1RunKindDAG {
 			dag, ok := dagsToPopulated[externalId]
+
+			outputPayload := externalIdToPayload[dag.OutputEventExternalID]
+			inputPayload := externalIdToPayload[dag.ExternalID]
 
 			if !ok {
 				r.l.Error().Msgf("could not find dag with external id %s", externalId)
@@ -903,8 +919,8 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId stri
 				TaskExternalId:       nil,
 				TaskId:               nil,
 				TaskInsertedAt:       nil,
-				Output:               &dag.Output,
-				Input:                dag.Input,
+				Output:               &outputPayload,
+				Input:                inputPayload,
 				ParentTaskExternalId: &dag.ParentTaskExternalID,
 				RetryCount:           &retryCount,
 			})
@@ -917,6 +933,9 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId stri
 			}
 
 			retryCount := int(task.RetryCount)
+
+			outputPayload := externalIdToPayload[task.OutputEventExternalID]
+			inputPayload := externalIdToPayload[task.ExternalID]
 
 			res = append(res, &WorkflowRunData{
 				TenantID:           task.TenantID,
@@ -935,8 +954,8 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId stri
 				TaskExternalId:     &task.ExternalID,
 				TaskId:             &task.ID,
 				TaskInsertedAt:     &task.InsertedAt,
-				Output:             &task.Output,
-				Input:              task.Input,
+				Output:             &outputPayload,
+				Input:              inputPayload,
 				StepId:             &task.StepID,
 				RetryCount:         &retryCount,
 			})
@@ -1909,6 +1928,22 @@ func (r *OLAPRepositoryImpl) PutPayloads(ctx context.Context, tx sqlcv1.DBTX, te
 	})
 }
 
+func (r *OLAPRepositoryImpl) ReadPayload(ctx context.Context, tenantId string, externalId pgtype.UUID) ([]byte, error) {
+	payloads, err := r.ReadPayloads(ctx, tenantId, []pgtype.UUID{externalId})
+
+	if err != nil {
+		return nil, err
+	}
+
+	payload, exists := payloads[externalId]
+
+	if !exists {
+		r.l.Warn().Msgf("payload for external ID %s not found", sqlchelpers.UUIDToStr(externalId))
+	}
+
+	return payload, nil
+}
+
 func (r *OLAPRepositoryImpl) ReadPayloads(ctx context.Context, tenantId string, externalIds []pgtype.UUID) (map[pgtype.UUID][]byte, error) {
 	payloads, err := r.queries.ReadPayloadsOLAP(ctx, r.readPool, sqlcv1.ReadPayloadsOLAPParams{
 		Tenantid:    sqlchelpers.UUIDFromStr(tenantId),
@@ -2049,10 +2084,9 @@ func (r *OLAPRepositoryImpl) populateTaskRunData(ctx context.Context, tx pgx.Tx,
 
 	for idInsertedAt := range uniqueTaskIdInsertedAts {
 		taskData, err := r.queries.PopulateTaskRunData(ctx, tx, sqlcv1.PopulateTaskRunDataParams{
-			Includepayloads: includePayloads,
-			Taskid:          idInsertedAt.ID,
-			Taskinsertedat:  idInsertedAt.InsertedAt,
-			Tenantid:        sqlchelpers.UUIDFromStr(tenantId),
+			Taskid:         idInsertedAt.ID,
+			Taskinsertedat: idInsertedAt.InsertedAt,
+			Tenantid:       sqlchelpers.UUIDFromStr(tenantId),
 		})
 
 		if err != nil && !errors.Is(err, pgx.ErrNoRows) {

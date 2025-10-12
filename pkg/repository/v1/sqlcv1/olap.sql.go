@@ -1156,7 +1156,7 @@ SELECT
   t.event_timestamp,
   t.readable_status,
   t.error_message,
-  t.output,
+  t.external_id AS event_external_id,
   t.worker_id,
   t.additional__event_data,
   t.additional__event_message
@@ -1188,7 +1188,7 @@ type ListTaskEventsRow struct {
 	EventTimestamp         pgtype.Timestamptz   `json:"event_timestamp"`
 	ReadableStatus         V1ReadableStatusOlap `json:"readable_status"`
 	ErrorMessage           pgtype.Text          `json:"error_message"`
-	Output                 []byte               `json:"output"`
+	EventExternalID        pgtype.UUID          `json:"event_external_id"`
 	WorkerID               pgtype.UUID          `json:"worker_id"`
 	AdditionalEventData    pgtype.Text          `json:"additional__event_data"`
 	AdditionalEventMessage pgtype.Text          `json:"additional__event_message"`
@@ -1216,7 +1216,7 @@ func (q *Queries) ListTaskEvents(ctx context.Context, db DBTX, arg ListTaskEvent
 			&i.EventTimestamp,
 			&i.ReadableStatus,
 			&i.ErrorMessage,
-			&i.Output,
+			&i.EventExternalID,
 			&i.WorkerID,
 			&i.AdditionalEventData,
 			&i.AdditionalEventMessage,
@@ -1269,7 +1269,7 @@ SELECT
   t.event_timestamp,
   t.readable_status,
   t.error_message,
-  t.output,
+  t.external_id AS event_external_id,
   t.worker_id,
   t.additional__event_data,
   t.additional__event_message,
@@ -1304,7 +1304,7 @@ type ListTaskEventsForWorkflowRunRow struct {
 	EventTimestamp         pgtype.Timestamptz   `json:"event_timestamp"`
 	ReadableStatus         V1ReadableStatusOlap `json:"readable_status"`
 	ErrorMessage           pgtype.Text          `json:"error_message"`
-	Output                 []byte               `json:"output"`
+	EventExternalID        pgtype.UUID          `json:"event_external_id"`
 	WorkerID               pgtype.UUID          `json:"worker_id"`
 	AdditionalEventData    pgtype.Text          `json:"additional__event_data"`
 	AdditionalEventMessage pgtype.Text          `json:"additional__event_message"`
@@ -1334,7 +1334,7 @@ func (q *Queries) ListTaskEventsForWorkflowRun(ctx context.Context, db DBTX, arg
 			&i.EventTimestamp,
 			&i.ReadableStatus,
 			&i.ErrorMessage,
-			&i.Output,
+			&i.EventExternalID,
 			&i.WorkerID,
 			&i.AdditionalEventData,
 			&i.AdditionalEventMessage,
@@ -1540,22 +1540,18 @@ WITH run AS (
         r.kind,
         r.workflow_id,
         d.display_name,
-        CASE
-            WHEN $1::BOOLEAN THEN d.input
-            ELSE '{}'::JSONB
-        END::JSONB AS input,
         d.additional_metadata,
         d.workflow_version_id,
         d.parent_task_external_id
     FROM v1_runs_olap r
     JOIN v1_dags_olap d ON (r.id, r.inserted_at) = (d.id, d.inserted_at)
     WHERE
-        r.id = $2::BIGINT
-        AND r.inserted_at = $3::TIMESTAMPTZ
+        r.id = $1::BIGINT
+        AND r.inserted_at = $2::TIMESTAMPTZ
         -- hack to make sure PG correctly prunes partitions
-        AND d.id = $2::BIGINT
-        AND d.inserted_at = $3::TIMESTAMPTZ
-        AND r.tenant_id = $4::UUID
+        AND d.id = $1::BIGINT
+        AND d.inserted_at = $2::TIMESTAMPTZ
+        AND r.tenant_id = $3::UUID
         AND r.kind = 'DAG'
 ), relevant_events AS (
     SELECT e.tenant_id, e.id, e.inserted_at, e.external_id, e.task_id, e.task_inserted_at, e.event_type, e.workflow_id, e.event_timestamp, e.readable_status, e.retry_count, e.error_message, e.output, e.worker_id, e.additional__event_data, e.additional__event_message
@@ -1568,7 +1564,7 @@ WITH run AS (
         MIN(e.event_timestamp) FILTER (WHERE e.readable_status = 'RUNNING')::timestamptz AS started_at,
         MAX(e.event_timestamp) FILTER (WHERE e.readable_status IN ('COMPLETED', 'CANCELLED', 'FAILED'))::timestamptz AS finished_at,
         MAX(e.error_message) FILTER (WHERE e.readable_status = 'FAILED') AS error_message,
-        MAX(e.output::TEXT) FILTER (WHERE e.event_type = 'FINISHED')::JSONB AS output,
+        MAX(e.external_id::TEXT) FILTER (WHERE e.event_type = 'FINISHED')::UUID AS output_event_external_id,
         MAX(e.retry_count) AS max_retry_count
     FROM relevant_events e
     WHERE e.retry_count = (
@@ -1578,53 +1574,46 @@ WITH run AS (
 )
 
 SELECT
-    r.dag_id, r.run_id, r.tenant_id, r.inserted_at, r.external_id, r.readable_status, r.kind, r.workflow_id, r.display_name, r.input, r.additional_metadata, r.workflow_version_id, r.parent_task_external_id,
+    r.dag_id, r.run_id, r.tenant_id, r.inserted_at, r.external_id, r.readable_status, r.kind, r.workflow_id, r.display_name, r.additional_metadata, r.workflow_version_id, r.parent_task_external_id,
     m.created_at::TIMESTAMPTZ AS created_at,
     m.started_at::TIMESTAMPTZ AS started_at,
     m.finished_at::TIMESTAMPTZ AS finished_at,
     -- hack to force this to string since sqlc can't figure out that this should be pgtype.Text
     COALESCE(m.error_message, '')::TEXT AS error_message,
-    m.output::JSONB AS output,
+    m.output_event_external_id::UUID AS output_event_external_id,
     COALESCE(m.max_retry_count, 0)::int as retry_count
 FROM run r, metadata m
 `
 
 type PopulateDAGMetadataParams struct {
-	Includepayloads bool               `json:"includepayloads"`
-	ID              int64              `json:"id"`
-	Insertedat      pgtype.Timestamptz `json:"insertedat"`
-	Tenantid        pgtype.UUID        `json:"tenantid"`
+	ID         int64              `json:"id"`
+	Insertedat pgtype.Timestamptz `json:"insertedat"`
+	Tenantid   pgtype.UUID        `json:"tenantid"`
 }
 
 type PopulateDAGMetadataRow struct {
-	DagID                int64                `json:"dag_id"`
-	RunID                int64                `json:"run_id"`
-	TenantID             pgtype.UUID          `json:"tenant_id"`
-	InsertedAt           pgtype.Timestamptz   `json:"inserted_at"`
-	ExternalID           pgtype.UUID          `json:"external_id"`
-	ReadableStatus       V1ReadableStatusOlap `json:"readable_status"`
-	Kind                 V1RunKind            `json:"kind"`
-	WorkflowID           pgtype.UUID          `json:"workflow_id"`
-	DisplayName          string               `json:"display_name"`
-	Input                []byte               `json:"input"`
-	AdditionalMetadata   []byte               `json:"additional_metadata"`
-	WorkflowVersionID    pgtype.UUID          `json:"workflow_version_id"`
-	ParentTaskExternalID pgtype.UUID          `json:"parent_task_external_id"`
-	CreatedAt            pgtype.Timestamptz   `json:"created_at"`
-	StartedAt            pgtype.Timestamptz   `json:"started_at"`
-	FinishedAt           pgtype.Timestamptz   `json:"finished_at"`
-	ErrorMessage         string               `json:"error_message"`
-	Output               []byte               `json:"output"`
-	RetryCount           int32                `json:"retry_count"`
+	DagID                 int64                `json:"dag_id"`
+	RunID                 int64                `json:"run_id"`
+	TenantID              pgtype.UUID          `json:"tenant_id"`
+	InsertedAt            pgtype.Timestamptz   `json:"inserted_at"`
+	ExternalID            pgtype.UUID          `json:"external_id"`
+	ReadableStatus        V1ReadableStatusOlap `json:"readable_status"`
+	Kind                  V1RunKind            `json:"kind"`
+	WorkflowID            pgtype.UUID          `json:"workflow_id"`
+	DisplayName           string               `json:"display_name"`
+	AdditionalMetadata    []byte               `json:"additional_metadata"`
+	WorkflowVersionID     pgtype.UUID          `json:"workflow_version_id"`
+	ParentTaskExternalID  pgtype.UUID          `json:"parent_task_external_id"`
+	CreatedAt             pgtype.Timestamptz   `json:"created_at"`
+	StartedAt             pgtype.Timestamptz   `json:"started_at"`
+	FinishedAt            pgtype.Timestamptz   `json:"finished_at"`
+	ErrorMessage          string               `json:"error_message"`
+	OutputEventExternalID pgtype.UUID          `json:"output_event_external_id"`
+	RetryCount            int32                `json:"retry_count"`
 }
 
 func (q *Queries) PopulateDAGMetadata(ctx context.Context, db DBTX, arg PopulateDAGMetadataParams) (*PopulateDAGMetadataRow, error) {
-	row := db.QueryRow(ctx, populateDAGMetadata,
-		arg.Includepayloads,
-		arg.ID,
-		arg.Insertedat,
-		arg.Tenantid,
-	)
+	row := db.QueryRow(ctx, populateDAGMetadata, arg.ID, arg.Insertedat, arg.Tenantid)
 	var i PopulateDAGMetadataRow
 	err := row.Scan(
 		&i.DagID,
@@ -1636,7 +1625,6 @@ func (q *Queries) PopulateDAGMetadata(ctx context.Context, db DBTX, arg Populate
 		&i.Kind,
 		&i.WorkflowID,
 		&i.DisplayName,
-		&i.Input,
 		&i.AdditionalMetadata,
 		&i.WorkflowVersionID,
 		&i.ParentTaskExternalID,
@@ -1644,7 +1632,7 @@ func (q *Queries) PopulateDAGMetadata(ctx context.Context, db DBTX, arg Populate
 		&i.StartedAt,
 		&i.FinishedAt,
 		&i.ErrorMessage,
-		&i.Output,
+		&i.OutputEventExternalID,
 		&i.RetryCount,
 	)
 	return &i, err
@@ -1752,7 +1740,7 @@ WITH selected_retry_count AS (
         event_type = 'STARTED'
 ), task_output AS (
     SELECT
-        output
+        external_id
     FROM
         relevant_events
     WHERE
@@ -1794,7 +1782,7 @@ SELECT
     st.readable_status::v1_readable_status_olap as status,
     f.finished_at::timestamptz as finished_at,
     s.started_at::timestamptz as started_at,
-    o.output::jsonb as output,
+    o.external_id::UUID AS output_event_external_id,
     e.error_message as error_message,
     sc.spawned_children,
     (SELECT retry_count FROM selected_retry_count) as retry_count
@@ -1824,37 +1812,37 @@ type PopulateSingleTaskRunDataParams struct {
 }
 
 type PopulateSingleTaskRunDataRow struct {
-	TenantID             pgtype.UUID          `json:"tenant_id"`
-	ID                   int64                `json:"id"`
-	InsertedAt           pgtype.Timestamptz   `json:"inserted_at"`
-	ExternalID           pgtype.UUID          `json:"external_id"`
-	Queue                string               `json:"queue"`
-	ActionID             string               `json:"action_id"`
-	StepID               pgtype.UUID          `json:"step_id"`
-	WorkflowID           pgtype.UUID          `json:"workflow_id"`
-	WorkflowVersionID    pgtype.UUID          `json:"workflow_version_id"`
-	WorkflowRunID        pgtype.UUID          `json:"workflow_run_id"`
-	ScheduleTimeout      string               `json:"schedule_timeout"`
-	StepTimeout          pgtype.Text          `json:"step_timeout"`
-	Priority             pgtype.Int4          `json:"priority"`
-	Sticky               V1StickyStrategyOlap `json:"sticky"`
-	DesiredWorkerID      pgtype.UUID          `json:"desired_worker_id"`
-	DisplayName          string               `json:"display_name"`
-	Input                []byte               `json:"input"`
-	AdditionalMetadata   []byte               `json:"additional_metadata"`
-	ReadableStatus       V1ReadableStatusOlap `json:"readable_status"`
-	LatestRetryCount     int32                `json:"latest_retry_count"`
-	LatestWorkerID       pgtype.UUID          `json:"latest_worker_id"`
-	DagID                pgtype.Int8          `json:"dag_id"`
-	DagInsertedAt        pgtype.Timestamptz   `json:"dag_inserted_at"`
-	ParentTaskExternalID pgtype.UUID          `json:"parent_task_external_id"`
-	Status               V1ReadableStatusOlap `json:"status"`
-	FinishedAt           pgtype.Timestamptz   `json:"finished_at"`
-	StartedAt            pgtype.Timestamptz   `json:"started_at"`
-	Output               []byte               `json:"output"`
-	ErrorMessage         pgtype.Text          `json:"error_message"`
-	SpawnedChildren      pgtype.Int8          `json:"spawned_children"`
-	RetryCount           int32                `json:"retry_count"`
+	TenantID              pgtype.UUID          `json:"tenant_id"`
+	ID                    int64                `json:"id"`
+	InsertedAt            pgtype.Timestamptz   `json:"inserted_at"`
+	ExternalID            pgtype.UUID          `json:"external_id"`
+	Queue                 string               `json:"queue"`
+	ActionID              string               `json:"action_id"`
+	StepID                pgtype.UUID          `json:"step_id"`
+	WorkflowID            pgtype.UUID          `json:"workflow_id"`
+	WorkflowVersionID     pgtype.UUID          `json:"workflow_version_id"`
+	WorkflowRunID         pgtype.UUID          `json:"workflow_run_id"`
+	ScheduleTimeout       string               `json:"schedule_timeout"`
+	StepTimeout           pgtype.Text          `json:"step_timeout"`
+	Priority              pgtype.Int4          `json:"priority"`
+	Sticky                V1StickyStrategyOlap `json:"sticky"`
+	DesiredWorkerID       pgtype.UUID          `json:"desired_worker_id"`
+	DisplayName           string               `json:"display_name"`
+	Input                 []byte               `json:"input"`
+	AdditionalMetadata    []byte               `json:"additional_metadata"`
+	ReadableStatus        V1ReadableStatusOlap `json:"readable_status"`
+	LatestRetryCount      int32                `json:"latest_retry_count"`
+	LatestWorkerID        pgtype.UUID          `json:"latest_worker_id"`
+	DagID                 pgtype.Int8          `json:"dag_id"`
+	DagInsertedAt         pgtype.Timestamptz   `json:"dag_inserted_at"`
+	ParentTaskExternalID  pgtype.UUID          `json:"parent_task_external_id"`
+	Status                V1ReadableStatusOlap `json:"status"`
+	FinishedAt            pgtype.Timestamptz   `json:"finished_at"`
+	StartedAt             pgtype.Timestamptz   `json:"started_at"`
+	OutputEventExternalID pgtype.UUID          `json:"output_event_external_id"`
+	ErrorMessage          pgtype.Text          `json:"error_message"`
+	SpawnedChildren       pgtype.Int8          `json:"spawned_children"`
+	RetryCount            int32                `json:"retry_count"`
 }
 
 func (q *Queries) PopulateSingleTaskRunData(ctx context.Context, db DBTX, arg PopulateSingleTaskRunDataParams) (*PopulateSingleTaskRunDataRow, error) {
@@ -1893,7 +1881,7 @@ func (q *Queries) PopulateSingleTaskRunData(ctx context.Context, db DBTX, arg Po
 		&i.Status,
 		&i.FinishedAt,
 		&i.StartedAt,
-		&i.Output,
+		&i.OutputEventExternalID,
 		&i.ErrorMessage,
 		&i.SpawnedChildren,
 		&i.RetryCount,
@@ -1907,22 +1895,22 @@ WITH metadata AS (
         MAX(event_timestamp) FILTER (WHERE event_type = 'QUEUED')::TIMESTAMPTZ AS queued_at,
         MAX(event_timestamp) FILTER (WHERE event_type = 'STARTED')::TIMESTAMPTZ AS started_at,
         MAX(event_timestamp) FILTER (WHERE readable_status = ANY(ARRAY['COMPLETED', 'FAILED', 'CANCELLED']::v1_readable_status_olap[]))::TIMESTAMPTZ AS finished_at,
-        MAX(output::TEXT) FILTER (WHERE readable_status = 'COMPLETED')::JSONB AS output,
+        MAX(external_id) FILTER (WHERE readable_status = 'COMPLETED')::UUID AS output_event_external_id,
         MAX(error_message) FILTER (WHERE readable_status = 'FAILED')::TEXT AS error_message
     FROM
         v1_task_events_olap
     WHERE
-        tenant_id = $2::UUID
-        AND task_id = $3::BIGINT
-        AND task_inserted_at = $4::TIMESTAMPTZ
+        tenant_id = $1::UUID
+        AND task_id = $2::BIGINT
+        AND task_inserted_at = $3::TIMESTAMPTZ
         AND retry_count = (
             SELECT MAX(retry_count) AS ct
             FROM
                 v1_task_events_olap
             WHERE
-                tenant_id = $2::UUID
-                AND task_id = $3::BIGINT
-                AND task_inserted_at = $4::TIMESTAMPTZ
+                tenant_id = $1::UUID
+                AND task_id = $2::BIGINT
+                AND task_inserted_at = $3::TIMESTAMPTZ
         )
 )
 
@@ -1943,10 +1931,6 @@ SELECT
     t.display_name,
     t.additional_metadata,
     t.parent_task_external_id,
-    CASE
-        WHEN $1::BOOLEAN THEN t.input
-        ELSE '{}'::JSONB
-    END::JSONB AS input,
     t.readable_status::v1_readable_status_olap AS status,
     t.workflow_run_id,
     m.finished_at AS finished_at,
@@ -1956,61 +1940,51 @@ SELECT
     -- this should be pgtype.Text
     COALESCE(m.error_message, '')::TEXT AS error_message,
     COALESCE(t.latest_retry_count, 0) AS retry_count,
-    CASE
-        WHEN $1::BOOLEAN THEN m.output::JSONB
-        ELSE '{}'::JSONB
-    END::JSONB AS output
+    m.output_event_external_id::UUID AS output_event_external_id
 FROM
     v1_tasks_olap t, metadata m
 WHERE
-    t.tenant_id = $2::UUID
-    AND t.id = $3::BIGINT
-    AND t.inserted_at = $4::TIMESTAMPTZ
+    t.tenant_id = $1::UUID
+    AND t.id = $2::BIGINT
+    AND t.inserted_at = $3::TIMESTAMPTZ
 ORDER BY t.inserted_at DESC, t.id
 `
 
 type PopulateTaskRunDataParams struct {
-	Includepayloads bool               `json:"includepayloads"`
-	Tenantid        pgtype.UUID        `json:"tenantid"`
-	Taskid          int64              `json:"taskid"`
-	Taskinsertedat  pgtype.Timestamptz `json:"taskinsertedat"`
+	Tenantid       pgtype.UUID        `json:"tenantid"`
+	Taskid         int64              `json:"taskid"`
+	Taskinsertedat pgtype.Timestamptz `json:"taskinsertedat"`
 }
 
 type PopulateTaskRunDataRow struct {
-	TenantID             pgtype.UUID          `json:"tenant_id"`
-	ID                   int64                `json:"id"`
-	InsertedAt           pgtype.Timestamptz   `json:"inserted_at"`
-	ExternalID           pgtype.UUID          `json:"external_id"`
-	Queue                string               `json:"queue"`
-	ActionID             string               `json:"action_id"`
-	StepID               pgtype.UUID          `json:"step_id"`
-	WorkflowID           pgtype.UUID          `json:"workflow_id"`
-	WorkflowVersionID    pgtype.UUID          `json:"workflow_version_id"`
-	ScheduleTimeout      string               `json:"schedule_timeout"`
-	StepTimeout          pgtype.Text          `json:"step_timeout"`
-	Priority             pgtype.Int4          `json:"priority"`
-	Sticky               V1StickyStrategyOlap `json:"sticky"`
-	DisplayName          string               `json:"display_name"`
-	AdditionalMetadata   []byte               `json:"additional_metadata"`
-	ParentTaskExternalID pgtype.UUID          `json:"parent_task_external_id"`
-	Input                []byte               `json:"input"`
-	Status               V1ReadableStatusOlap `json:"status"`
-	WorkflowRunID        pgtype.UUID          `json:"workflow_run_id"`
-	FinishedAt           pgtype.Timestamptz   `json:"finished_at"`
-	StartedAt            pgtype.Timestamptz   `json:"started_at"`
-	QueuedAt             pgtype.Timestamptz   `json:"queued_at"`
-	ErrorMessage         string               `json:"error_message"`
-	RetryCount           int32                `json:"retry_count"`
-	Output               []byte               `json:"output"`
+	TenantID              pgtype.UUID          `json:"tenant_id"`
+	ID                    int64                `json:"id"`
+	InsertedAt            pgtype.Timestamptz   `json:"inserted_at"`
+	ExternalID            pgtype.UUID          `json:"external_id"`
+	Queue                 string               `json:"queue"`
+	ActionID              string               `json:"action_id"`
+	StepID                pgtype.UUID          `json:"step_id"`
+	WorkflowID            pgtype.UUID          `json:"workflow_id"`
+	WorkflowVersionID     pgtype.UUID          `json:"workflow_version_id"`
+	ScheduleTimeout       string               `json:"schedule_timeout"`
+	StepTimeout           pgtype.Text          `json:"step_timeout"`
+	Priority              pgtype.Int4          `json:"priority"`
+	Sticky                V1StickyStrategyOlap `json:"sticky"`
+	DisplayName           string               `json:"display_name"`
+	AdditionalMetadata    []byte               `json:"additional_metadata"`
+	ParentTaskExternalID  pgtype.UUID          `json:"parent_task_external_id"`
+	Status                V1ReadableStatusOlap `json:"status"`
+	WorkflowRunID         pgtype.UUID          `json:"workflow_run_id"`
+	FinishedAt            pgtype.Timestamptz   `json:"finished_at"`
+	StartedAt             pgtype.Timestamptz   `json:"started_at"`
+	QueuedAt              pgtype.Timestamptz   `json:"queued_at"`
+	ErrorMessage          string               `json:"error_message"`
+	RetryCount            int32                `json:"retry_count"`
+	OutputEventExternalID pgtype.UUID          `json:"output_event_external_id"`
 }
 
 func (q *Queries) PopulateTaskRunData(ctx context.Context, db DBTX, arg PopulateTaskRunDataParams) (*PopulateTaskRunDataRow, error) {
-	row := db.QueryRow(ctx, populateTaskRunData,
-		arg.Includepayloads,
-		arg.Tenantid,
-		arg.Taskid,
-		arg.Taskinsertedat,
-	)
+	row := db.QueryRow(ctx, populateTaskRunData, arg.Tenantid, arg.Taskid, arg.Taskinsertedat)
 	var i PopulateTaskRunDataRow
 	err := row.Scan(
 		&i.TenantID,
@@ -2029,7 +2003,6 @@ func (q *Queries) PopulateTaskRunData(ctx context.Context, db DBTX, arg Populate
 		&i.DisplayName,
 		&i.AdditionalMetadata,
 		&i.ParentTaskExternalID,
-		&i.Input,
 		&i.Status,
 		&i.WorkflowRunID,
 		&i.FinishedAt,
@@ -2037,7 +2010,7 @@ func (q *Queries) PopulateTaskRunData(ctx context.Context, db DBTX, arg Populate
 		&i.QueuedAt,
 		&i.ErrorMessage,
 		&i.RetryCount,
-		&i.Output,
+		&i.OutputEventExternalID,
 	)
 	return &i, err
 }
@@ -2195,7 +2168,7 @@ WITH lookup_task AS (
 )
 SELECT
     t.tenant_id, t.id, t.inserted_at, t.external_id, t.queue, t.action_id, t.step_id, t.workflow_id, t.workflow_version_id, t.workflow_run_id, t.schedule_timeout, t.step_timeout, t.priority, t.sticky, t.desired_worker_id, t.display_name, t.input, t.additional_metadata, t.readable_status, t.latest_retry_count, t.latest_worker_id, t.dag_id, t.dag_inserted_at, t.parent_task_external_id,
-    e.output,
+    e.external_id AS event_external_id,
     e.error_message
 FROM
     v1_tasks_olap t
@@ -2230,7 +2203,7 @@ type ReadTaskByExternalIDRow struct {
 	DagID                pgtype.Int8          `json:"dag_id"`
 	DagInsertedAt        pgtype.Timestamptz   `json:"dag_inserted_at"`
 	ParentTaskExternalID pgtype.UUID          `json:"parent_task_external_id"`
-	Output               []byte               `json:"output"`
+	EventExternalID      pgtype.UUID          `json:"event_external_id"`
 	ErrorMessage         pgtype.Text          `json:"error_message"`
 }
 
@@ -2262,7 +2235,7 @@ func (q *Queries) ReadTaskByExternalID(ctx context.Context, db DBTX, externalid 
 		&i.DagID,
 		&i.DagInsertedAt,
 		&i.ParentTaskExternalID,
-		&i.Output,
+		&i.EventExternalID,
 		&i.ErrorMessage,
 	)
 	return &i, err
@@ -2281,7 +2254,6 @@ WITH runs AS (
         r.kind,
         r.workflow_id,
         d.display_name AS display_name,
-        d.input AS input,
         d.additional_metadata AS additional_metadata,
         d.workflow_version_id AS workflow_version_id,
         d.parent_task_external_id AS parent_task_external_id
@@ -2308,7 +2280,6 @@ WITH runs AS (
         r.kind,
         r.workflow_id,
         t.display_name AS display_name,
-        t.input AS input,
         t.additional_metadata AS additional_metadata,
         t.workflow_version_id AS workflow_version_id,
         NULL :: UUID AS parent_task_external_id
@@ -2361,7 +2332,7 @@ WITH runs AS (
     LIMIT 1
 )
 SELECT
-    r.dag_id, r.task_id, r.id, r.tenant_id, r.inserted_at, r.external_id, r.readable_status, r.kind, r.workflow_id, r.display_name, r.input, r.additional_metadata, r.workflow_version_id, r.parent_task_external_id,
+    r.dag_id, r.task_id, r.id, r.tenant_id, r.inserted_at, r.external_id, r.readable_status, r.kind, r.workflow_id, r.display_name, r.additional_metadata, r.workflow_version_id, r.parent_task_external_id,
     m.created_at,
     m.started_at,
     m.finished_at,
@@ -2384,7 +2355,6 @@ type ReadWorkflowRunByExternalIdRow struct {
 	Kind                 V1RunKind            `json:"kind"`
 	WorkflowID           pgtype.UUID          `json:"workflow_id"`
 	DisplayName          string               `json:"display_name"`
-	Input                []byte               `json:"input"`
 	AdditionalMetadata   []byte               `json:"additional_metadata"`
 	WorkflowVersionID    pgtype.UUID          `json:"workflow_version_id"`
 	ParentTaskExternalID pgtype.UUID          `json:"parent_task_external_id"`
@@ -2409,7 +2379,6 @@ func (q *Queries) ReadWorkflowRunByExternalId(ctx context.Context, db DBTX, work
 		&i.Kind,
 		&i.WorkflowID,
 		&i.DisplayName,
-		&i.Input,
 		&i.AdditionalMetadata,
 		&i.WorkflowVersionID,
 		&i.ParentTaskExternalID,

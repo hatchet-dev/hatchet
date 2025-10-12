@@ -1,6 +1,7 @@
 package tasks
 
 import (
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/labstack/echo/v4"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
@@ -59,7 +60,18 @@ func (t *TasksService) V1TaskGet(ctx echo.Context, request gen.V1TaskGetRequestO
 		return nil, err
 	}
 
-	result := transformers.ToTask(taskWithData, workflowRunExternalId, workflowVersion)
+	externalIds := []pgtype.UUID{
+		taskWithData.ExternalID,
+		taskWithData.OutputEventExternalID,
+	}
+
+	externalIdToPayload, err := t.config.V1.OLAP().ReadPayloads(ctx.Request().Context(), task.TenantID.String(), externalIds)
+
+	if err != nil {
+		return nil, err
+	}
+
+	result := transformers.ToTask(taskWithData, workflowRunExternalId, workflowVersion, externalIdToPayload)
 
 	return gen.V1TaskGet200JSONResponse(
 		result,

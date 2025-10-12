@@ -249,7 +249,7 @@ WITH lookup_task AS (
 )
 SELECT
     t.*,
-    e.output,
+    e.external_id AS event_external_id,
     e.error_message
 FROM
     v1_tasks_olap t
@@ -337,7 +337,7 @@ SELECT
   t.event_timestamp,
   t.readable_status,
   t.error_message,
-  t.output,
+  t.external_id AS event_external_id,
   t.worker_id,
   t.additional__event_data,
   t.additional__event_message
@@ -387,7 +387,7 @@ SELECT
   t.event_timestamp,
   t.readable_status,
   t.error_message,
-  t.output,
+  t.external_id AS event_external_id,
   t.worker_id,
   t.additional__event_data,
   t.additional__event_message,
@@ -443,7 +443,7 @@ WITH selected_retry_count AS (
         event_type = 'STARTED'
 ), task_output AS (
     SELECT
-        output
+        external_id
     FROM
         relevant_events
     WHERE
@@ -485,7 +485,7 @@ SELECT
     st.readable_status::v1_readable_status_olap as status,
     f.finished_at::timestamptz as finished_at,
     s.started_at::timestamptz as started_at,
-    o.output::jsonb as output,
+    o.external_id::UUID AS output_event_external_id,
     e.error_message as error_message,
     sc.spawned_children,
     (SELECT retry_count FROM selected_retry_count) as retry_count
@@ -512,7 +512,7 @@ WITH metadata AS (
         MAX(event_timestamp) FILTER (WHERE event_type = 'QUEUED')::TIMESTAMPTZ AS queued_at,
         MAX(event_timestamp) FILTER (WHERE event_type = 'STARTED')::TIMESTAMPTZ AS started_at,
         MAX(event_timestamp) FILTER (WHERE readable_status = ANY(ARRAY['COMPLETED', 'FAILED', 'CANCELLED']::v1_readable_status_olap[]))::TIMESTAMPTZ AS finished_at,
-        MAX(output::TEXT) FILTER (WHERE readable_status = 'COMPLETED')::JSONB AS output,
+        MAX(external_id) FILTER (WHERE readable_status = 'COMPLETED')::UUID AS output_event_external_id,
         MAX(error_message) FILTER (WHERE readable_status = 'FAILED')::TEXT AS error_message
     FROM
         v1_task_events_olap
@@ -548,10 +548,6 @@ SELECT
     t.display_name,
     t.additional_metadata,
     t.parent_task_external_id,
-    CASE
-        WHEN @includePayloads::BOOLEAN THEN t.input
-        ELSE '{}'::JSONB
-    END::JSONB AS input,
     t.readable_status::v1_readable_status_olap AS status,
     t.workflow_run_id,
     m.finished_at AS finished_at,
@@ -561,10 +557,7 @@ SELECT
     -- this should be pgtype.Text
     COALESCE(m.error_message, '')::TEXT AS error_message,
     COALESCE(t.latest_retry_count, 0) AS retry_count,
-    CASE
-        WHEN @includePayloads::BOOLEAN THEN m.output::JSONB
-        ELSE '{}'::JSONB
-    END::JSONB AS output
+    m.output_event_external_id::UUID AS output_event_external_id
 FROM
     v1_tasks_olap t, metadata m
 WHERE
@@ -956,10 +949,6 @@ WITH run AS (
         r.kind,
         r.workflow_id,
         d.display_name,
-        CASE
-            WHEN @includePayloads::BOOLEAN THEN d.input
-            ELSE '{}'::JSONB
-        END::JSONB AS input,
         d.additional_metadata,
         d.workflow_version_id,
         d.parent_task_external_id
@@ -984,7 +973,7 @@ WITH run AS (
         MIN(e.event_timestamp) FILTER (WHERE e.readable_status = 'RUNNING')::timestamptz AS started_at,
         MAX(e.event_timestamp) FILTER (WHERE e.readable_status IN ('COMPLETED', 'CANCELLED', 'FAILED'))::timestamptz AS finished_at,
         MAX(e.error_message) FILTER (WHERE e.readable_status = 'FAILED') AS error_message,
-        MAX(e.output::TEXT) FILTER (WHERE e.event_type = 'FINISHED')::JSONB AS output,
+        MAX(e.external_id::TEXT) FILTER (WHERE e.event_type = 'FINISHED')::UUID AS output_event_external_id,
         MAX(e.retry_count) AS max_retry_count
     FROM relevant_events e
     WHERE e.retry_count = (
@@ -1000,7 +989,7 @@ SELECT
     m.finished_at::TIMESTAMPTZ AS finished_at,
     -- hack to force this to string since sqlc can't figure out that this should be pgtype.Text
     COALESCE(m.error_message, '')::TEXT AS error_message,
-    m.output::JSONB AS output,
+    m.output_event_external_id::UUID AS output_event_external_id,
     COALESCE(m.max_retry_count, 0)::int as retry_count
 FROM run r, metadata m
 ;
@@ -1091,7 +1080,6 @@ WITH runs AS (
         r.kind,
         r.workflow_id,
         d.display_name AS display_name,
-        d.input AS input,
         d.additional_metadata AS additional_metadata,
         d.workflow_version_id AS workflow_version_id,
         d.parent_task_external_id AS parent_task_external_id
@@ -1118,7 +1106,6 @@ WITH runs AS (
         r.kind,
         r.workflow_id,
         t.display_name AS display_name,
-        t.input AS input,
         t.additional_metadata AS additional_metadata,
         t.workflow_version_id AS workflow_version_id,
         NULL :: UUID AS parent_task_external_id
