@@ -242,7 +242,8 @@ type OLAPRepository interface {
 
 	CreateIncomingWebhookValidationFailureLogs(ctx context.Context, tenantId string, opts []CreateIncomingWebhookFailureLogOpts) error
 	StoreCELEvaluationFailures(ctx context.Context, tenantId string, failures []CELEvaluationFailure) error
-	PutPayloads(ctx context.Context, tx sqlcv1.DBTX, tenantId string, failures []PutOLAPPayloadOpts) error
+	PutPayloads(ctx context.Context, tx sqlcv1.DBTX, tenantId string, payloads []PutOLAPPayloadOpts) error
+	ReadPayloads(ctx context.Context, tenantId string, externalIds []pgtype.UUID) (map[pgtype.UUID][]byte, error)
 
 	AnalyzeOLAPTables(ctx context.Context) error
 	OffloadPayloads(ctx context.Context, tenantId string, payloads []OffloadPayloadOpts) error
@@ -1906,6 +1907,38 @@ func (r *OLAPRepositoryImpl) PutPayloads(ctx context.Context, tx sqlcv1.DBTX, te
 		Payloads:    payloads,
 		Locations:   locations,
 	})
+}
+
+func (r *OLAPRepositoryImpl) ReadPayloads(ctx context.Context, tenantId string, externalIds []pgtype.UUID) (map[pgtype.UUID][]byte, error) {
+	payloads, err := r.queries.ReadPayloadsOLAP(ctx, r.readPool, sqlcv1.ReadPayloadsOLAPParams{
+		Tenantid:    sqlchelpers.UUIDFromStr(tenantId),
+		Externalids: externalIds,
+	})
+
+	externalIdToPayload := make(map[pgtype.UUID][]byte)
+	externalIdToExternalKey := make(map[pgtype.UUID]ExternalPayloadLocationKey)
+	externalKeys := make([]string, 0)
+
+	for _, payload := range payloads {
+		if payload.Location == sqlcv1.V1PayloadLocationOlapINLINE {
+			externalIdToPayload[payload.ExternalID] = payload.InlineContent
+		} else {
+			externalIdToExternalKey[payload.ExternalID] = ExternalPayloadLocationKey(payload.ExternalLocationKey.String)
+			externalKeys = append(externalKeys, payload.ExternalLocationKey.String)
+		}
+	}
+
+	keyToPayload, err := r.payloadStore.RetrieveFromExternal(ctx, externalKeys)
+
+	if err != nil {
+		return nil, err
+	}
+
+	for externalId, externalKey := range externalIdToExternalKey {
+		externalIdToPayload[externalId] = keyToPayload[externalKey]
+	}
+
+	return externalIdToPayload, nil
 }
 
 func (r *OLAPRepositoryImpl) OffloadPayloads(ctx context.Context, tenantId string, payloads []OffloadPayloadOpts) error {

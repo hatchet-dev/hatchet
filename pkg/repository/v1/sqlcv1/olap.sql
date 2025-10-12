@@ -1646,3 +1646,11 @@ WHERE
     AND v1_payloads_olap.location = 'INLINE'
     AND v1_payloads_olap.external_location_key IS NULL
 ;
+
+-- name: ReadPayloadsOLAP :many
+SELECT *
+FROM v1_payloads_olap
+WHERE
+    tenant_id = @tenantId::UUID
+    AND external_id = ANY(@externalIds::UUID[])
+;
