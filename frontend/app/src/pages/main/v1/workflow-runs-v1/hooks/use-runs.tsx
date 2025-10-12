@@ -67,6 +67,7 @@ export const useRuns = ({
       worker_id: workerId,
       only_tasks: onlyTasks,
       triggering_event_external_id: triggeringEventExternalId,
+      include_payloads: false,
     }),
     placeholderData: (prev) => prev,
     refetchInterval:

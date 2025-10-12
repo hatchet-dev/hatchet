@@ -57,12 +57,18 @@ func (t *V1WorkflowRunsService) WithDags(ctx context.Context, request gen.V1Work
 		workflowIds = *request.Params.WorkflowIds
 	}
 
+	includePayloads := true
+	if request.Params.IncludePayloads != nil {
+		includePayloads = *request.Params.IncludePayloads
+	}
+
 	opts := v1.ListWorkflowRunOpts{
-		CreatedAfter: since,
-		Statuses:     statuses,
-		WorkflowIds:  workflowIds,
-		Limit:        limit,
-		Offset:       offset,
+		CreatedAfter:    since,
+		Statuses:        statuses,
+		WorkflowIds:     workflowIds,
+		Limit:           limit,
+		Offset:          offset,
+		IncludePayloads: includePayloads,
 	}
 
 	additionalMetadataFilters := make(map[string]interface{})
@@ -91,11 +97,6 @@ func (t *V1WorkflowRunsService) WithDags(ctx context.Context, request gen.V1Work
 	if request.Params.TriggeringEventExternalId != nil {
 		id := sqlchelpers.UUIDFromStr(request.Params.TriggeringEventExternalId.String())
 		opts.TriggeringEventExternalId = &id
-	}
-
-	includePayloads := true
-	if request.Params.IncludePayloads != nil {
-		includePayloads = *request.Params.IncludePayloads
 	}
 
 	dags, total, err := t.config.V1.OLAP().ListWorkflowRuns(
@@ -159,10 +160,10 @@ func (t *V1WorkflowRunsService) WithDags(ctx context.Context, request gen.V1Work
 
 	if includePayloads {
 		externalIdToPayload, err = t.config.V1.OLAP().ReadPayloads(ctx, tenantId, externalIdsForPayloads)
-	}
 
-	if err != nil {
-		return nil, err
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	parsedTasks := transformers.TaskRunDataRowToWorkflowRunsMany(tasks, taskIdToWorkflowName, total, limit, offset, externalIdToPayload)
@@ -227,13 +228,19 @@ func (t *V1WorkflowRunsService) OnlyTasks(ctx context.Context, request gen.V1Wor
 		workflowIds = *request.Params.WorkflowIds
 	}
 
+	includePayloads := false
+	if request.Params.IncludePayloads != nil {
+		includePayloads = *request.Params.IncludePayloads
+	}
+
 	opts := v1.ListTaskRunOpts{
-		CreatedAfter: since,
-		Statuses:     statuses,
-		WorkflowIds:  workflowIds,
-		Limit:        limit,
-		Offset:       offset,
-		WorkerId:     request.Params.WorkerId,
+		CreatedAfter:    since,
+		Statuses:        statuses,
+		WorkflowIds:     workflowIds,
+		Limit:           limit,
+		Offset:          offset,
+		WorkerId:        request.Params.WorkerId,
+		IncludePayloads: includePayloads,
 	}
 
 	additionalMetadataFilters := make(map[string]interface{})
@@ -291,11 +298,6 @@ func (t *V1WorkflowRunsService) OnlyTasks(ctx context.Context, request gen.V1Wor
 		if name, ok := workflowIdToName[task.WorkflowID]; ok {
 			taskIdToWorkflowName[task.ID] = name
 		}
-	}
-
-	includePayloads := false
-	if request.Params.IncludePayloads != nil {
-		includePayloads = *request.Params.IncludePayloads
 	}
 
 	externalIdToPayload := make(map[pgtype.UUID][]byte)
