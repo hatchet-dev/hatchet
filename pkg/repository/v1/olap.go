@@ -1915,16 +1915,22 @@ func (r *OLAPRepositoryImpl) ReadPayloads(ctx context.Context, tenantId string, 
 		Externalids: externalIds,
 	})
 
+	if err != nil {
+		return nil, err
+	}
+
 	externalIdToPayload := make(map[pgtype.UUID][]byte)
 	externalIdToExternalKey := make(map[pgtype.UUID]ExternalPayloadLocationKey)
-	externalKeys := make([]string, 0)
+	externalKeys := make([]ExternalPayloadLocationKey, 0)
 
 	for _, payload := range payloads {
 		if payload.Location == sqlcv1.V1PayloadLocationOlapINLINE {
 			externalIdToPayload[payload.ExternalID] = payload.InlineContent
 		} else {
-			externalIdToExternalKey[payload.ExternalID] = ExternalPayloadLocationKey(payload.ExternalLocationKey.String)
-			externalKeys = append(externalKeys, payload.ExternalLocationKey.String)
+			key := ExternalPayloadLocationKey(payload.ExternalLocationKey.String)
+
+			externalIdToExternalKey[payload.ExternalID] = key
+			externalKeys = append(externalKeys, key)
 		}
 	}
 
