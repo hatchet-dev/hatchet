@@ -19,7 +19,7 @@ func PrepareTx(ctx context.Context, pool *pgxpool.Pool, l *zerolog.Logger, timeo
 
 	tx, err := pool.Begin(ctx)
 
-	fmt.Println("began tx", tx)
+	fmt.Println("began tx", tx, err)
 
 	if err != nil {
 		return nil, nil, nil, err
