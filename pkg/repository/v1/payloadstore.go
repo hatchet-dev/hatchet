@@ -53,12 +53,12 @@ type BulkRetrievePayloadOpts struct {
 
 type ExternalStore interface {
 	Store(ctx context.Context, payloads ...OffloadToExternalStoreOpts) (map[RetrievePayloadOpts]ExternalPayloadLocationKey, error)
-	BulkRetrieve(ctx context.Context, opts ...BulkRetrievePayloadOpts) (map[ExternalPayloadLocationKey][]byte, error)
+	Retrieve(ctx context.Context, opts ...BulkRetrievePayloadOpts) (map[ExternalPayloadLocationKey][]byte, error)
 }
 
 type PayloadStoreRepository interface {
 	Store(ctx context.Context, tx sqlcv1.DBTX, payloads ...StorePayloadOpts) error
-	BulkRetrieve(ctx context.Context, opts ...RetrievePayloadOpts) (map[RetrievePayloadOpts][]byte, error)
+	Retrieve(ctx context.Context, opts ...RetrievePayloadOpts) (map[RetrievePayloadOpts][]byte, error)
 	ProcessPayloadWAL(ctx context.Context, partitionNumber int64, pubBuffer *msgqueue.MQPubBuffer) (bool, error)
 	ProcessPayloadExternalCutovers(ctx context.Context, partitionNumber int64) (bool, error)
 	OverwriteExternalStore(store ExternalStore, inlineStoreTTL time.Duration)
@@ -203,11 +203,11 @@ func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx sqlcv1.DBTX, 
 	return err
 }
 
-func (p *payloadStoreRepositoryImpl) BulkRetrieve(ctx context.Context, opts ...RetrievePayloadOpts) (map[RetrievePayloadOpts][]byte, error) {
-	return p.bulkRetrieve(ctx, p.pool, opts...)
+func (p *payloadStoreRepositoryImpl) Retrieve(ctx context.Context, opts ...RetrievePayloadOpts) (map[RetrievePayloadOpts][]byte, error) {
+	return p.retrieve(ctx, p.pool, opts...)
 }
 
-func (p *payloadStoreRepositoryImpl) bulkRetrieve(ctx context.Context, tx sqlcv1.DBTX, opts ...RetrievePayloadOpts) (map[RetrievePayloadOpts][]byte, error) {
+func (p *payloadStoreRepositoryImpl) retrieve(ctx context.Context, tx sqlcv1.DBTX, opts ...RetrievePayloadOpts) (map[RetrievePayloadOpts][]byte, error) {
 	if len(opts) == 0 {
 		return make(map[RetrievePayloadOpts][]byte), nil
 	}
@@ -265,7 +265,7 @@ func (p *payloadStoreRepositoryImpl) bulkRetrieve(ctx context.Context, tx sqlcv1
 	}
 
 	if len(retrievePayloadOpts) > 0 {
-		externalData, err := p.externalStore.BulkRetrieve(ctx, retrievePayloadOpts...)
+		externalData, err := p.externalStore.Retrieve(ctx, retrievePayloadOpts...)
 		if err != nil {
 			return nil, fmt.Errorf("failed to retrieve external payloads: %w", err)
 		}
@@ -351,7 +351,7 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadWAL(ctx context.Context, part
 		retrieveOptsToOffloadAt[opts] = record.OffloadAt
 	}
 
-	payloads, err := p.bulkRetrieve(ctx, tx, retrieveOpts...)
+	payloads, err := p.retrieve(ctx, tx, retrieveOpts...)
 
 	if err != nil {
 		return false, err
@@ -578,6 +578,6 @@ func (n *NoOpExternalStore) Store(ctx context.Context, payloads ...OffloadToExte
 	return nil, fmt.Errorf("external store disabled")
 }
 
-func (n *NoOpExternalStore) BulkRetrieve(ctx context.Context, opts ...BulkRetrievePayloadOpts) (map[ExternalPayloadLocationKey][]byte, error) {
+func (n *NoOpExternalStore) Retrieve(ctx context.Context, opts ...BulkRetrievePayloadOpts) (map[ExternalPayloadLocationKey][]byte, error) {
 	return nil, fmt.Errorf("external store disabled")
 }

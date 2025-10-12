@@ -495,7 +495,7 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 			}
 		}
 
-		payloads, err := m.payloadStore.BulkRetrieve(ctx, retrievePayloadOpts...)
+		payloads, err := m.payloadStore.Retrieve(ctx, retrievePayloadOpts...)
 
 		if err != nil {
 			return nil, fmt.Errorf("failed to retrieve dag input payloads: %w", err)
