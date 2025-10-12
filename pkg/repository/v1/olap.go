@@ -49,8 +49,6 @@ type ListTaskRunOpts struct {
 	Limit int64
 
 	Offset int64
-
-	IncludePayloads bool
 }
 
 type ListWorkflowRunOpts struct {
@@ -73,8 +71,6 @@ type ListWorkflowRunOpts struct {
 	ParentTaskExternalId *pgtype.UUID
 
 	TriggeringEventExternalId *pgtype.UUID
-
-	IncludePayloads bool
 }
 
 type ReadTaskRunMetricsOpts struct {
@@ -224,7 +220,7 @@ type OLAPRepository interface {
 	UpdateTaskStatuses(ctx context.Context, tenantIds []string) (bool, []UpdateTaskStatusRow, error)
 	UpdateDAGStatuses(ctx context.Context, tenantIds []string) (bool, []UpdateDAGStatusRow, error)
 	ReadDAG(ctx context.Context, dagExternalId string) (*sqlcv1.V1DagsOlap, error)
-	ListTasksByDAGId(ctx context.Context, tenantId string, dagIds []pgtype.UUID, includePayloads bool) ([]*sqlcv1.PopulateTaskRunDataRow, map[int64]uuid.UUID, error)
+	ListTasksByDAGId(ctx context.Context, tenantId string, dagIds []pgtype.UUID) ([]*sqlcv1.PopulateTaskRunDataRow, map[int64]uuid.UUID, error)
 	ListTasksByIdAndInsertedAt(ctx context.Context, tenantId string, taskMetadata []TaskMetadata) ([]*sqlcv1.PopulateTaskRunDataRow, error)
 
 	// ListTasksByExternalIds returns a list of tasks based on their external ids or the external id of their parent DAG.
@@ -631,7 +627,7 @@ func (r *OLAPRepositoryImpl) ListTasks(ctx context.Context, tenantId string, opt
 		})
 	}
 
-	tasksWithData, err := r.populateTaskRunData(ctx, tx, tenantId, idsInsertedAts, opts.IncludePayloads)
+	tasksWithData, err := r.populateTaskRunData(ctx, tx, tenantId, idsInsertedAts)
 
 	if err != nil {
 		return nil, 0, err
@@ -650,7 +646,7 @@ func (r *OLAPRepositoryImpl) ListTasks(ctx context.Context, tenantId string, opt
 	return tasksWithData, int(count), nil
 }
 
-func (r *OLAPRepositoryImpl) ListTasksByDAGId(ctx context.Context, tenantId string, dagids []pgtype.UUID, includePayloads bool) ([]*sqlcv1.PopulateTaskRunDataRow, map[int64]uuid.UUID, error) {
+func (r *OLAPRepositoryImpl) ListTasksByDAGId(ctx context.Context, tenantId string, dagids []pgtype.UUID) ([]*sqlcv1.PopulateTaskRunDataRow, map[int64]uuid.UUID, error) {
 	ctx, span := telemetry.NewSpan(ctx, "list-tasks-by-dag-id-olap")
 	defer span.End()
 
@@ -682,7 +678,7 @@ func (r *OLAPRepositoryImpl) ListTasksByDAGId(ctx context.Context, tenantId stri
 		})
 	}
 
-	tasksWithData, err := r.populateTaskRunData(ctx, tx, tenantId, idsInsertedAts, includePayloads)
+	tasksWithData, err := r.populateTaskRunData(ctx, tx, tenantId, idsInsertedAts)
 
 	if err != nil {
 		return nil, taskIdToDagExternalId, err
@@ -716,7 +712,7 @@ func (r *OLAPRepositoryImpl) ListTasksByIdAndInsertedAt(ctx context.Context, ten
 		})
 	}
 
-	tasksWithData, err := r.populateTaskRunData(ctx, tx, tenantId, idsInsertedAts, true)
+	tasksWithData, err := r.populateTaskRunData(ctx, tx, tenantId, idsInsertedAts)
 
 	if err != nil {
 		return nil, err
@@ -861,7 +857,7 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId stri
 
 	tasksToPopulated := make(map[string]*sqlcv1.PopulateTaskRunDataRow)
 
-	populatedTasks, err := r.populateTaskRunData(ctx, tx, tenantId, idsInsertedAts, opts.IncludePayloads)
+	populatedTasks, err := r.populateTaskRunData(ctx, tx, tenantId, idsInsertedAts)
 
 	if err != nil {
 		return nil, 0, err
@@ -1599,7 +1595,7 @@ func (r *OLAPRepositoryImpl) GetTaskTimings(ctx context.Context, tenantId string
 		return nil, nil, fmt.Errorf("error beginning transaction: %v", err)
 	}
 
-	tasksWithData, err := r.populateTaskRunData(ctx, tx, tenantId, idsInsertedAts, false)
+	tasksWithData, err := r.populateTaskRunData(ctx, tx, tenantId, idsInsertedAts)
 
 	if err != nil {
 		return nil, nil, err
@@ -2059,7 +2055,7 @@ type IdInsertedAt struct {
 	InsertedAt pgtype.Timestamptz `json:"inserted_at"`
 }
 
-func (r *OLAPRepositoryImpl) populateTaskRunData(ctx context.Context, tx pgx.Tx, tenantId string, opts []IdInsertedAt, includePayloads bool) ([]*sqlcv1.PopulateTaskRunDataRow, error) {
+func (r *OLAPRepositoryImpl) populateTaskRunData(ctx context.Context, tx pgx.Tx, tenantId string, opts []IdInsertedAt) ([]*sqlcv1.PopulateTaskRunDataRow, error) {
 	ctx, span := telemetry.NewSpan(ctx, "populate-task-run-data-olap")
 	defer span.End()
 

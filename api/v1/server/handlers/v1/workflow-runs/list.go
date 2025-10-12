@@ -98,8 +98,6 @@ func (t *V1WorkflowRunsService) WithDags(ctx context.Context, request gen.V1Work
 		includePayloads = *request.Params.IncludePayloads
 	}
 
-	opts.IncludePayloads = includePayloads
-
 	dags, total, err := t.config.V1.OLAP().ListWorkflowRuns(
 		ctx,
 		tenantId,
@@ -122,7 +120,6 @@ func (t *V1WorkflowRunsService) WithDags(ctx context.Context, request gen.V1Work
 		ctx,
 		tenantId,
 		dagExternalIds,
-		includePayloads,
 	)
 
 	if err != nil {
@@ -158,7 +155,11 @@ func (t *V1WorkflowRunsService) WithDags(ctx context.Context, request gen.V1Work
 		}
 	}
 
-	externalIdToPayload, err := t.config.V1.OLAP().ReadPayloads(ctx, tenantId, externalIdsForPayloads)
+	externalIdToPayload := make(map[pgtype.UUID][]byte)
+
+	if includePayloads {
+		externalIdToPayload, err = t.config.V1.OLAP().ReadPayloads(ctx, tenantId, externalIdsForPayloads)
+	}
 
 	if err != nil {
 		return nil, err
@@ -227,13 +228,12 @@ func (t *V1WorkflowRunsService) OnlyTasks(ctx context.Context, request gen.V1Wor
 	}
 
 	opts := v1.ListTaskRunOpts{
-		CreatedAfter:    since,
-		Statuses:        statuses,
-		WorkflowIds:     workflowIds,
-		Limit:           limit,
-		Offset:          offset,
-		WorkerId:        request.Params.WorkerId,
-		IncludePayloads: true,
+		CreatedAfter: since,
+		Statuses:     statuses,
+		WorkflowIds:  workflowIds,
+		Limit:        limit,
+		Offset:       offset,
+		WorkerId:     request.Params.WorkerId,
 	}
 
 	additionalMetadataFilters := make(map[string]interface{})
@@ -255,10 +255,6 @@ func (t *V1WorkflowRunsService) OnlyTasks(ctx context.Context, request gen.V1Wor
 
 	if request.Params.TriggeringEventExternalId != nil {
 		opts.TriggeringEventExternalId = request.Params.TriggeringEventExternalId
-	}
-
-	if request.Params.IncludePayloads != nil {
-		opts.IncludePayloads = *request.Params.IncludePayloads
 	}
 
 	tasks, total, err := t.config.V1.OLAP().ListTasks(
@@ -297,10 +293,19 @@ func (t *V1WorkflowRunsService) OnlyTasks(ctx context.Context, request gen.V1Wor
 		}
 	}
 
-	externalIdToPayload, err := t.config.V1.OLAP().ReadPayloads(ctx, tenantId, externalIdsForPayloads)
+	includePayloads := false
+	if request.Params.IncludePayloads != nil {
+		includePayloads = *request.Params.IncludePayloads
+	}
 
-	if err != nil {
-		return nil, err
+	externalIdToPayload := make(map[pgtype.UUID][]byte)
+
+	if includePayloads {
+		externalIdToPayload, err = t.config.V1.OLAP().ReadPayloads(ctx, tenantId, externalIdsForPayloads)
+
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	result := transformers.TaskRunDataRowToWorkflowRunsMany(tasks, taskIdToWorkflowName, total, limit, offset, externalIdToPayload)
