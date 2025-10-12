@@ -64,6 +64,7 @@ type PayloadStoreRepository interface {
 	WALPollLimit() int
 	WALProcessInterval() time.Duration
 	ExternalCutoverProcessInterval() time.Duration
+	ExternalStoreEnabled() bool
 }
 
 type payloadStoreRepositoryImpl struct {
@@ -571,6 +572,10 @@ func (p *payloadStoreRepositoryImpl) WALProcessInterval() time.Duration {
 
 func (p *payloadStoreRepositoryImpl) ExternalCutoverProcessInterval() time.Duration {
 	return p.externalCutoverProcessInterval
+}
+
+func (p *payloadStoreRepositoryImpl) ExternalStoreEnabled() bool {
+	return p.externalStoreEnabled
 }
 
 type NoOpExternalStore struct{}

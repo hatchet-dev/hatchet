@@ -1969,14 +1969,16 @@ func (r *OLAPRepositoryImpl) ReadPayloads(ctx context.Context, tenantId string, 
 		}
 	}
 
-	keyToPayload, err := r.payloadStore.RetrieveFromExternal(ctx, externalKeys)
+	if len(externalKeys) == 0 && r.payloadStore.ExternalStoreEnabled() {
+		keyToPayload, err := r.payloadStore.RetrieveFromExternal(ctx, externalKeys)
 
-	if err != nil {
-		return nil, err
-	}
+		if err != nil {
+			return nil, err
+		}
 
-	for externalId, externalKey := range externalIdToExternalKey {
-		externalIdToPayload[externalId] = keyToPayload[externalKey]
+		for externalId, externalKey := range externalIdToExternalKey {
+			externalIdToPayload[externalId] = keyToPayload[externalKey]
+		}
 	}
 
 	return externalIdToPayload, nil

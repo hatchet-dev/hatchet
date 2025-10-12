@@ -512,7 +512,7 @@ WITH metadata AS (
         MAX(event_timestamp) FILTER (WHERE event_type = 'QUEUED')::TIMESTAMPTZ AS queued_at,
         MAX(event_timestamp) FILTER (WHERE event_type = 'STARTED')::TIMESTAMPTZ AS started_at,
         MAX(event_timestamp) FILTER (WHERE readable_status = ANY(ARRAY['COMPLETED', 'FAILED', 'CANCELLED']::v1_readable_status_olap[]))::TIMESTAMPTZ AS finished_at,
-        MAX(external_id) FILTER (WHERE readable_status = 'COMPLETED')::UUID AS output_event_external_id,
+        MAX(external_id::TEXT) FILTER (WHERE readable_status = 'COMPLETED')::UUID AS output_event_external_id,
         MAX(error_message) FILTER (WHERE readable_status = 'FAILED')::TEXT AS error_message
     FROM
         v1_task_events_olap
