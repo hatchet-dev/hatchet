@@ -49,6 +49,8 @@ type ListTaskRunOpts struct {
 	Limit int64
 
 	Offset int64
+
+	IncludePayloads bool
 }
 
 type ListWorkflowRunOpts struct {
@@ -71,6 +73,8 @@ type ListWorkflowRunOpts struct {
 	ParentTaskExternalId *pgtype.UUID
 
 	TriggeringEventExternalId *pgtype.UUID
+
+	IncludePayloads bool
 }
 
 type ReadTaskRunMetricsOpts struct {
@@ -872,12 +876,20 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId stri
 		return nil, 0, err
 	}
 
-	externalIds := make([]pgtype.UUID, 0, len(workflowRunIds))
-	for _, row := range workflowRunIds {
-		externalIds = append(externalIds, row.ExternalID)
-	}
+	externalIdToPayload := make(map[pgtype.UUID][]byte)
 
-	externalIdToPayload, err := r.ReadPayloads(ctx, tenantId, externalIds)
+	if opts.IncludePayloads {
+		externalIds := make([]pgtype.UUID, 0, len(workflowRunIds))
+		for _, row := range workflowRunIds {
+			externalIds = append(externalIds, row.ExternalID)
+		}
+
+		externalIdToPayload, err = r.ReadPayloads(ctx, tenantId, externalIds)
+
+		if err != nil {
+			return nil, 0, err
+		}
+	}
 
 	res := make([]*WorkflowRunData, 0)
 
