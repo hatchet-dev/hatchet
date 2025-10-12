@@ -242,7 +242,7 @@ type OLAPRepository interface {
 
 	CreateIncomingWebhookValidationFailureLogs(ctx context.Context, tenantId string, opts []CreateIncomingWebhookFailureLogOpts) error
 	StoreCELEvaluationFailures(ctx context.Context, tenantId string, failures []CELEvaluationFailure) error
-	PutPayloads(ctx context.Context, tenantId string, failures []PutOLAPPayloadOpts) error
+	PutPayloads(ctx context.Context, tx sqlcv1.DBTX, tenantId string, failures []PutOLAPPayloadOpts) error
 
 	AnalyzeOLAPTables(ctx context.Context) error
 	OffloadPayloads(ctx context.Context, tenantId string, payloads []OffloadPayloadOpts) error
@@ -1126,7 +1126,7 @@ func (r *OLAPRepositoryImpl) writeTaskEventBatch(ctx context.Context, tenantId s
 		return err
 	}
 
-	err = r.PutPayloads(ctx, tenantId, payloadsToWrite)
+	err = r.PutPayloads(ctx, tx, tenantId, payloadsToWrite)
 
 	if err != nil {
 		return err
@@ -1383,7 +1383,7 @@ func (r *OLAPRepositoryImpl) writeTaskBatch(ctx context.Context, tenantId string
 		return err
 	}
 
-	err = r.PutPayloads(ctx, tenantId, putPayloadOpts)
+	err = r.PutPayloads(ctx, tx, tenantId, putPayloadOpts)
 
 	if err != nil {
 		return err
@@ -1441,7 +1441,7 @@ func (r *OLAPRepositoryImpl) writeDAGBatch(ctx context.Context, tenantId string,
 		return err
 	}
 
-	err = r.PutPayloads(ctx, tenantId, putPayloadOpts)
+	err = r.PutPayloads(ctx, tx, tenantId, putPayloadOpts)
 
 	if err != nil {
 		return err
@@ -1891,7 +1891,7 @@ type PutOLAPPayloadOpts struct {
 	Location sqlcv1.V1PayloadLocationOlap
 }
 
-func (r *OLAPRepositoryImpl) PutPayloads(ctx context.Context, tenantId string, putPayloadOpts []PutOLAPPayloadOpts) error {
+func (r *OLAPRepositoryImpl) PutPayloads(ctx context.Context, tx sqlcv1.DBTX, tenantId string, putPayloadOpts []PutOLAPPayloadOpts) error {
 	insertedAts := make([]pgtype.Timestamptz, len(putPayloadOpts))
 	tenantIds := make([]pgtype.UUID, len(putPayloadOpts))
 	externalIds := make([]pgtype.UUID, len(putPayloadOpts))
@@ -1906,7 +1906,7 @@ func (r *OLAPRepositoryImpl) PutPayloads(ctx context.Context, tenantId string, p
 		locations[i] = string(opt.Location)
 	}
 
-	return r.queries.PutPayloads(ctx, r.pool, sqlcv1.PutPayloadsParams{
+	return r.queries.PutPayloads(ctx, tx, sqlcv1.PutPayloadsParams{
 		Externalids: externalIds,
 		Insertedats: insertedAts,
 		Tenantids:   tenantIds,
