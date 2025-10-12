@@ -2141,6 +2141,47 @@ func (q *Queries) ReadDAGByExternalID(ctx context.Context, db DBTX, externalid p
 	return &i, err
 }
 
+const readPayloadsOLAP = `-- name: ReadPayloadsOLAP :many
+SELECT tenant_id, external_id, location, external_location_key, inline_content, inserted_at, updated_at
+FROM v1_payloads_olap
+WHERE
+    tenant_id = $1::UUID
+    AND external_id = ANY($2::UUID[])
+`
+
+type ReadPayloadsOLAPParams struct {
+	Tenantid    pgtype.UUID   `json:"tenantid"`
+	Externalids []pgtype.UUID `json:"externalids"`
+}
+
+func (q *Queries) ReadPayloadsOLAP(ctx context.Context, db DBTX, arg ReadPayloadsOLAPParams) ([]*V1PayloadsOlap, error) {
+	rows, err := db.Query(ctx, readPayloadsOLAP, arg.Tenantid, arg.Externalids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*V1PayloadsOlap
+	for rows.Next() {
+		var i V1PayloadsOlap
+		if err := rows.Scan(
+			&i.TenantID,
+			&i.ExternalID,
+			&i.Location,
+			&i.ExternalLocationKey,
+			&i.InlineContent,
+			&i.InsertedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const readTaskByExternalID = `-- name: ReadTaskByExternalID :one
 WITH lookup_task AS (
     SELECT

@@ -46,19 +46,15 @@ type RetrievePayloadOpts struct {
 type PayloadLocation string
 type ExternalPayloadLocationKey string
 
-type RetrieveExternalPayloadOpts struct {
-	Keys     []ExternalPayloadLocationKey
-	TenantId string
-}
-
 type ExternalStore interface {
 	Store(ctx context.Context, payloads ...OffloadToExternalStoreOpts) (map[RetrievePayloadOpts]ExternalPayloadLocationKey, error)
-	Retrieve(ctx context.Context, opts ...RetrieveExternalPayloadOpts) (map[ExternalPayloadLocationKey][]byte, error)
+	Retrieve(ctx context.Context, keys []string) (map[ExternalPayloadLocationKey][]byte, error)
 }
 
 type PayloadStoreRepository interface {
 	Store(ctx context.Context, tx sqlcv1.DBTX, payloads ...StorePayloadOpts) error
 	Retrieve(ctx context.Context, opts ...RetrievePayloadOpts) (map[RetrievePayloadOpts][]byte, error)
+	RetrieveFromExternal(ctx context.Context, keys []string) (map[ExternalPayloadLocationKey][]byte, error)
 	ProcessPayloadWAL(ctx context.Context, partitionNumber int64, pubBuffer *msgqueue.MQPubBuffer) (bool, error)
 	ProcessPayloadExternalCutovers(ctx context.Context, partitionNumber int64) (bool, error)
 	OverwriteExternalStore(store ExternalStore, inlineStoreTTL time.Duration)
@@ -207,6 +203,14 @@ func (p *payloadStoreRepositoryImpl) Retrieve(ctx context.Context, opts ...Retri
 	return p.retrieve(ctx, p.pool, opts...)
 }
 
+func (p *payloadStoreRepositoryImpl) RetrieveFromExternal(ctx context.Context, keys []string) (map[ExternalPayloadLocationKey][]byte, error) {
+	if !p.externalStoreEnabled {
+		return nil, fmt.Errorf("external store not enabled")
+	}
+
+	return p.externalStore.Retrieve(ctx, keys)
+}
+
 func (p *payloadStoreRepositoryImpl) retrieve(ctx context.Context, tx sqlcv1.DBTX, opts ...RetrievePayloadOpts) (map[RetrievePayloadOpts][]byte, error) {
 	if len(opts) == 0 {
 		return make(map[RetrievePayloadOpts][]byte), nil
@@ -238,7 +242,7 @@ func (p *payloadStoreRepositoryImpl) retrieve(ctx context.Context, tx sqlcv1.DBT
 	optsToPayload := make(map[RetrievePayloadOpts][]byte)
 
 	externalKeysToOpts := make(map[ExternalPayloadLocationKey]RetrievePayloadOpts)
-	retrievePayloadOpts := make([]RetrieveExternalPayloadOpts, 0)
+	externalKeys := make([]string, 0)
 
 	for _, payload := range payloads {
 		if payload == nil {
@@ -255,17 +259,14 @@ func (p *payloadStoreRepositoryImpl) retrieve(ctx context.Context, tx sqlcv1.DBT
 		if payload.Location == sqlcv1.V1PayloadLocationEXTERNAL {
 			key := ExternalPayloadLocationKey(payload.ExternalLocationKey.String)
 			externalKeysToOpts[key] = opts
-			retrievePayloadOpts = append(retrievePayloadOpts, RetrieveExternalPayloadOpts{
-				Keys:     []ExternalPayloadLocationKey{key},
-				TenantId: opts.TenantId.String(),
-			})
+			externalKeys = append(externalKeys, string(key))
 		} else {
 			optsToPayload[opts] = payload.InlineContent
 		}
 	}
 
-	if len(retrievePayloadOpts) > 0 {
-		externalData, err := p.externalStore.Retrieve(ctx, retrievePayloadOpts...)
+	if len(externalKeys) > 0 {
+		externalData, err := p.RetrieveFromExternal(ctx, externalKeys)
 		if err != nil {
 			return nil, fmt.Errorf("failed to retrieve external payloads: %w", err)
 		}
@@ -578,6 +579,6 @@ func (n *NoOpExternalStore) Store(ctx context.Context, payloads ...OffloadToExte
 	return nil, fmt.Errorf("external store disabled")
 }
 
-func (n *NoOpExternalStore) Retrieve(ctx context.Context, opts ...RetrieveExternalPayloadOpts) (map[ExternalPayloadLocationKey][]byte, error) {
+func (n *NoOpExternalStore) Retrieve(ctx context.Context, keys []string) (map[ExternalPayloadLocationKey][]byte, error) {
 	return nil, fmt.Errorf("external store disabled")
 }
