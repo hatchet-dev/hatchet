@@ -2077,13 +2077,18 @@ func (r *OLAPRepositoryImpl) PutPayloads(ctx context.Context, tx sqlcv1.DBTX, te
 }
 
 func (r *OLAPRepositoryImpl) ReadPayload(ctx context.Context, tenantId string, externalId pgtype.UUID) ([]byte, error) {
+	fmt.Println("external id", externalId)
 	payloads, err := r.ReadPayloads(ctx, tenantId, []pgtype.UUID{externalId})
+	fmt.Println("payloads", payloads)
+	fmt.Println("num payloads", len(payloads))
 
 	if err != nil {
 		return nil, err
 	}
 
 	payload, exists := payloads[externalId]
+
+	fmt.Println("payload", string(payload), "exists", exists)
 
 	if !exists {
 		r.l.Debug().Msgf("payload for external ID %s not found", sqlchelpers.UUIDToStr(externalId))
@@ -2118,7 +2123,7 @@ func (r *OLAPRepositoryImpl) ReadPayloads(ctx context.Context, tenantId string, 
 	}
 
 	if len(externalKeys) == 0 && r.payloadStore.ExternalStoreEnabled() {
-		keyToPayload, err := r.payloadStore.RetrieveFromExternal(ctx, externalKeys)
+		keyToPayload, err := r.payloadStore.RetrieveFromExternal(ctx, externalKeys...)
 
 		if err != nil {
 			return nil, err
