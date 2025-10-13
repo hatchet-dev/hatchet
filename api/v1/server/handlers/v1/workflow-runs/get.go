@@ -93,7 +93,7 @@ func (t *V1WorkflowRunsService) getWorkflowRunDetails(
 		return nil, err
 	}
 
-	externalIdToPayload, err := t.config.V1.OLAP().ReadPayloads(ctx, tenantId, externalIds)
+	externalIdToPayload, err := t.config.V1.OLAP().ReadPayloads(ctx, tenantId, externalIds...)
 
 	if err != nil {
 		return nil, err
