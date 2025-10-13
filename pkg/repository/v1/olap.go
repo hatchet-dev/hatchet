@@ -2112,6 +2112,7 @@ func (r *OLAPRepositoryImpl) ReadPayloads(ctx context.Context, tenantId string, 
 	externalKeys := make([]ExternalPayloadLocationKey, 0)
 
 	for _, payload := range payloads {
+		fmt.Println("retrieving payload with external id", payload.ExternalID, "location", payload.Location, "external location key", payload.ExternalLocationKey.String)
 		if payload.Location == sqlcv1.V1PayloadLocationOlapINLINE {
 			externalIdToPayload[payload.ExternalID] = payload.InlineContent
 		} else {
@@ -2121,6 +2122,8 @@ func (r *OLAPRepositoryImpl) ReadPayloads(ctx context.Context, tenantId string, 
 			externalKeys = append(externalKeys, key)
 		}
 	}
+
+	fmt.Println("num external keys to fetch", len(externalKeys), externalKeys)
 
 	if len(externalKeys) == 0 && r.payloadStore.ExternalStoreEnabled() {
 		keyToPayload, err := r.payloadStore.RetrieveFromExternal(ctx, externalKeys...)
