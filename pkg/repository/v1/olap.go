@@ -250,7 +250,7 @@ type OLAPRepository interface {
 	StoreCELEvaluationFailures(ctx context.Context, tenantId string, failures []CELEvaluationFailure) error
 	PutPayloads(ctx context.Context, tx sqlcv1.DBTX, tenantId string, payloads []StoreOLAPPayloadOpts) error
 	ReadPayload(ctx context.Context, tenantId string, externalId pgtype.UUID) ([]byte, error)
-	ReadPayloads(ctx context.Context, tenantId string, externalIds []pgtype.UUID) (map[pgtype.UUID][]byte, error)
+	ReadPayloads(ctx context.Context, tenantId string, externalIds ...pgtype.UUID) (map[pgtype.UUID][]byte, error)
 
 	AnalyzeOLAPTables(ctx context.Context) error
 	OffloadPayloads(ctx context.Context, tenantId string, payloads []OffloadPayloadOpts) error
@@ -658,7 +658,7 @@ func (r *OLAPRepositoryImpl) ListTasks(ctx context.Context, tenantId string, opt
 			externalIds = append(externalIds, task.OutputEventExternalID)
 		}
 
-		payloads, err = r.ReadPayloads(ctx, tenantId, externalIds)
+		payloads, err = r.ReadPayloads(ctx, tenantId, externalIds...)
 
 		if err != nil {
 			return nil, 0, err
@@ -737,7 +737,7 @@ func (r *OLAPRepositoryImpl) ListTasksByDAGId(ctx context.Context, tenantId stri
 			externalIds = append(externalIds, task.OutputEventExternalID)
 		}
 
-		payloads, err = r.ReadPayloads(ctx, tenantId, externalIds)
+		payloads, err = r.ReadPayloads(ctx, tenantId, externalIds...)
 
 		if err != nil {
 			return nil, taskIdToDagExternalId, err
@@ -800,7 +800,7 @@ func (r *OLAPRepositoryImpl) ListTasksByIdAndInsertedAt(ctx context.Context, ten
 			externalIds = append(externalIds, task.OutputEventExternalID)
 		}
 
-		payloads, err = r.ReadPayloads(ctx, tenantId, externalIds)
+		payloads, err = r.ReadPayloads(ctx, tenantId, externalIds...)
 
 		if err != nil {
 			return nil, err
@@ -983,7 +983,7 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId stri
 	externalIdToPayload := make(map[pgtype.UUID][]byte)
 
 	if opts.IncludePayloads {
-		externalIdToPayload, err = r.ReadPayloads(ctx, tenantId, externalIdsForPayloads)
+		externalIdToPayload, err = r.ReadPayloads(ctx, tenantId, externalIdsForPayloads...)
 
 		if err != nil {
 			return nil, 0, err
@@ -1884,7 +1884,7 @@ func (r *OLAPRepositoryImpl) ListEvents(ctx context.Context, opts sqlcv1.ListEve
 		externalIdToEventData[data.ExternalID] = append(externalIdToEventData[data.ExternalID], data)
 	}
 
-	externalIdToPayload, err := r.ReadPayloads(ctx, opts.Tenantid.String(), eventExternalIds)
+	externalIdToPayload, err := r.ReadPayloads(ctx, opts.Tenantid.String(), eventExternalIds...)
 
 	if err != nil {
 		return nil, nil, fmt.Errorf("error reading event payloads: %v", err)
@@ -2078,7 +2078,7 @@ func (r *OLAPRepositoryImpl) PutPayloads(ctx context.Context, tx sqlcv1.DBTX, te
 
 func (r *OLAPRepositoryImpl) ReadPayload(ctx context.Context, tenantId string, externalId pgtype.UUID) ([]byte, error) {
 	fmt.Println("external id", externalId)
-	payloads, err := r.ReadPayloads(ctx, tenantId, []pgtype.UUID{externalId})
+	payloads, err := r.ReadPayloads(ctx, tenantId, externalId)
 	fmt.Println("payloads", payloads)
 	fmt.Println("num payloads", len(payloads))
 
@@ -2097,7 +2097,7 @@ func (r *OLAPRepositoryImpl) ReadPayload(ctx context.Context, tenantId string, e
 	return payload, nil
 }
 
-func (r *OLAPRepositoryImpl) ReadPayloads(ctx context.Context, tenantId string, externalIds []pgtype.UUID) (map[pgtype.UUID][]byte, error) {
+func (r *OLAPRepositoryImpl) ReadPayloads(ctx context.Context, tenantId string, externalIds ...pgtype.UUID) (map[pgtype.UUID][]byte, error) {
 	payloads, err := r.queries.ReadPayloadsOLAP(ctx, r.readPool, sqlcv1.ReadPayloadsOLAPParams{
 		Tenantid:    sqlchelpers.UUIDFromStr(tenantId),
 		Externalids: externalIds,
