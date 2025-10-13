@@ -1219,7 +1219,7 @@ func (r *OLAPRepositoryImpl) writeTaskEventBatch(ctx context.Context, tenantId s
 		}
 
 		if !r.payloadStore.OLAPDualWritesEnabled() {
-			event.Output = nil
+			event.Output = []byte("{}")
 		}
 	}
 
@@ -1455,7 +1455,7 @@ func (r *OLAPRepositoryImpl) writeTaskBatch(ctx context.Context, tenantId string
 		// todo: remove this when we remove dual writes
 		payloadToWriteToTask := payload
 		if !r.payloadStore.OLAPDualWritesEnabled() {
-			payloadToWriteToTask = nil
+			payloadToWriteToTask = []byte("{}")
 		}
 
 		params = append(params, sqlcv1.CreateTasksOLAPParams{
@@ -1526,7 +1526,7 @@ func (r *OLAPRepositoryImpl) writeDAGBatch(ctx context.Context, tenantId string,
 		// todo: remove this when we remove dual writes
 		input := dag.Input
 		if !r.payloadStore.OLAPDualWritesEnabled() {
-			input = nil
+			input = []byte("{}")
 		}
 
 		params = append(params, sqlcv1.CreateDAGsOLAPParams{
