@@ -61,6 +61,7 @@ type PayloadStoreRepository interface {
 	DualWritesEnabled() bool
 	TaskEventDualWritesEnabled() bool
 	DagDataDualWritesEnabled() bool
+	OLAPDualWritesEnabled() bool
 	WALPollLimit() int
 	WALProcessInterval() time.Duration
 	ExternalCutoverProcessInterval() time.Duration
@@ -77,6 +78,7 @@ type payloadStoreRepositoryImpl struct {
 	enablePayloadDualWrites          bool
 	enableTaskEventPayloadDualWrites bool
 	enableDagDataPayloadDualWrites   bool
+	enableOLAPPayloadDualWrites      bool
 	walPollLimit                     int
 	walProcessInterval               time.Duration
 	externalCutoverProcessInterval   time.Duration
@@ -86,6 +88,7 @@ type PayloadStoreRepositoryOpts struct {
 	EnablePayloadDualWrites          bool
 	EnableTaskEventPayloadDualWrites bool
 	EnableDagDataPayloadDualWrites   bool
+	EnableOLAPPayloadDualWrites      bool
 	WALPollLimit                     int
 	WALProcessInterval               time.Duration
 	ExternalCutoverProcessInterval   time.Duration
@@ -108,6 +111,7 @@ func NewPayloadStoreRepository(
 		enablePayloadDualWrites:          opts.EnablePayloadDualWrites,
 		enableTaskEventPayloadDualWrites: opts.EnableTaskEventPayloadDualWrites,
 		enableDagDataPayloadDualWrites:   opts.EnableDagDataPayloadDualWrites,
+		enableOLAPPayloadDualWrites:      opts.EnableOLAPPayloadDualWrites,
 		walPollLimit:                     opts.WALPollLimit,
 		walProcessInterval:               opts.WALProcessInterval,
 		externalCutoverProcessInterval:   opts.ExternalCutoverProcessInterval,
@@ -560,6 +564,10 @@ func (p *payloadStoreRepositoryImpl) TaskEventDualWritesEnabled() bool {
 
 func (p *payloadStoreRepositoryImpl) DagDataDualWritesEnabled() bool {
 	return p.enableDagDataPayloadDualWrites
+}
+
+func (p *payloadStoreRepositoryImpl) OLAPDualWritesEnabled() bool {
+	return p.enableOLAPPayloadDualWrites
 }
 
 func (p *payloadStoreRepositoryImpl) WALPollLimit() int {
