@@ -484,16 +484,20 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadWAL(ctx context.Context, part
 		})
 	}
 
+	if err := commit(ctx); err != nil {
+		return false, err
+	}
+
+	// todo: make this transactionally safe
+	// there's no application-level risk here because the worst case if
+	// we miss an event is we don't mark the payload as external and there's a bit
+	// of disk bloat, but it'd be good to not need to worry about that
 	for tenantId, payloads := range tenantIdToPayloads {
 		msg, err := OLAPPayloadOffloadMessage(tenantId, payloads)
 		if err != nil {
 			return false, fmt.Errorf("failed to create OLAP payload offload message: %w", err)
 		}
 		pubBuffer.Pub(ctx, msgqueue.OLAP_QUEUE, msg, false)
-	}
-
-	if err := commit(ctx); err != nil {
-		return false, err
 	}
 
 	return hasMoreWALRecords, nil
