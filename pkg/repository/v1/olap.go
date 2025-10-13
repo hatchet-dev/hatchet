@@ -2126,7 +2126,7 @@ func (r *OLAPRepositoryImpl) ReadPayloads(ctx context.Context, tenantId string, 
 	fmt.Println("num external keys to fetch", len(externalKeys), externalKeys)
 	fmt.Println("bool value", len(externalKeys) == 0 && r.payloadStore.ExternalStoreEnabled(), len(externalKeys) == 0, r.payloadStore.ExternalStoreEnabled())
 
-	if len(externalKeys) == 0 && r.payloadStore.ExternalStoreEnabled() {
+	if len(externalKeys) > 0 && r.payloadStore.ExternalStoreEnabled() {
 		keyToPayload, err := r.payloadStore.RetrieveFromExternal(ctx, externalKeys...)
 
 		if err != nil {
