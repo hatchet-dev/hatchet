@@ -35,7 +35,7 @@ func (t *V1WorkflowRunsService) V1WorkflowRunTaskEventsList(ctx echo.Context, re
 		externalIds = append(externalIds, event.EventExternalID)
 	}
 
-	externalIdToPayload, err := t.config.V1.OLAP().ReadPayloads(ctx.Request().Context(), tenantId, externalIds)
+	externalIdToPayload, err := t.config.V1.OLAP().ReadPayloads(ctx.Request().Context(), tenantId, externalIds...)
 
 	if err != nil {
 		return nil, err

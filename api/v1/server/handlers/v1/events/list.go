@@ -134,7 +134,7 @@ func (t *V1EventsService) V1EventList(ctx echo.Context, request gen.V1EventListR
 		externalIds = append(externalIds, event.EventExternalID)
 	}
 
-	externalIdToPayload, err := t.config.V1.OLAP().ReadPayloads(ctx.Request().Context(), tenantId, externalIds)
+	externalIdToPayload, err := t.config.V1.OLAP().ReadPayloads(ctx.Request().Context(), tenantId, externalIds...)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to read event payloads: %w", err)

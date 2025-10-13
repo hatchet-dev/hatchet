@@ -65,7 +65,7 @@ func (t *TasksService) V1TaskGet(ctx echo.Context, request gen.V1TaskGetRequestO
 		taskWithData.OutputEventExternalID,
 	}
 
-	externalIdToPayload, err := t.config.V1.OLAP().ReadPayloads(ctx.Request().Context(), task.TenantID.String(), externalIds)
+	externalIdToPayload, err := t.config.V1.OLAP().ReadPayloads(ctx.Request().Context(), task.TenantID.String(), externalIds...)
 
 	if err != nil {
 		return nil, err

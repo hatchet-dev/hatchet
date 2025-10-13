@@ -37,7 +37,7 @@ func (t *TasksService) V1DagListTasks(ctx echo.Context, request gen.V1DagListTas
 		externalIdsForPayloads = append(externalIdsForPayloads, task.OutputEventExternalID)
 	}
 
-	externalIdToPayload, err := t.config.V1.OLAP().ReadPayloads(ctx.Request().Context(), tenantId, externalIdsForPayloads)
+	externalIdToPayload, err := t.config.V1.OLAP().ReadPayloads(ctx.Request().Context(), tenantId, externalIdsForPayloads...)
 
 	if err != nil {
 		return nil, err
