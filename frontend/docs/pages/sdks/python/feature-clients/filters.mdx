@@ -78,11 +78,12 @@ List filters for a given tenant.
 
 Parameters:
 
-| Name                      | Type                            | Description                                                                                                           | Default |
-| ------------------------- | ------------------------------- | --------------------------------------------------------------------------------------------------------------------- | ------- |
-| `limit`                   | `int \| None`                   | The maximum number of filters to return.                                                                              | `None`  |
-| `offset`                  | `int \| None`                   | The number of filters to skip before starting to collect the result set.                                              | `None`  |
-| `workflow_id_scope_pairs` | `list[tuple[str, str]] \| None` | A list of tuples containing workflow IDs and scopes to filter by. The workflow id is first, then the scope is second. | `None`  |
+| Name           | Type                | Description                                                              | Default |
+| -------------- | ------------------- | ------------------------------------------------------------------------ | ------- |
+| `limit`        | `int \| None`       | The maximum number of filters to return.                                 | `None`  |
+| `offset`       | `int \| None`       | The number of filters to skip before starting to collect the result set. | `None`  |
+| `workflow_ids` | `list[str] \| None` | A list of workflow IDs to filter by.                                     | `None`  |
+| `scopes`       | `list[str] \| None` | A list of scopes to filter by.                                           | `None`  |
 
 Returns:
 
@@ -164,11 +165,12 @@ List filters for a given tenant.
 
 Parameters:
 
-| Name                      | Type                            | Description                                                                                                           | Default |
-| ------------------------- | ------------------------------- | --------------------------------------------------------------------------------------------------------------------- | ------- |
-| `limit`                   | `int \| None`                   | The maximum number of filters to return.                                                                              | `None`  |
-| `offset`                  | `int \| None`                   | The number of filters to skip before starting to collect the result set.                                              | `None`  |
-| `workflow_id_scope_pairs` | `list[tuple[str, str]] \| None` | A list of tuples containing workflow IDs and scopes to filter by. The workflow id is first, then the scope is second. | `None`  |
+| Name           | Type                | Description                                                              | Default |
+| -------------- | ------------------- | ------------------------------------------------------------------------ | ------- |
+| `limit`        | `int \| None`       | The maximum number of filters to return.                                 | `None`  |
+| `offset`       | `int \| None`       | The number of filters to skip before starting to collect the result set. | `None`  |
+| `workflow_ids` | `list[str] \| None` | A list of workflow IDs to filter by.                                     | `None`  |
+| `scopes`       | `list[str] \| None` | A list of scopes to filter by.                                           | `None`  |
 
 Returns:
 

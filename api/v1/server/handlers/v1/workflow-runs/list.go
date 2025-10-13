@@ -57,7 +57,7 @@ func (t *V1WorkflowRunsService) WithDags(ctx context.Context, request gen.V1Work
 		workflowIds = *request.Params.WorkflowIds
 	}
 
-	includePayloads := true
+	includePayloads := false
 	if request.Params.IncludePayloads != nil {
 		includePayloads = *request.Params.IncludePayloads
 	}
