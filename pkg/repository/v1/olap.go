@@ -1218,6 +1218,9 @@ func (r *OLAPRepositoryImpl) writeTaskEventBatch(ctx context.Context, tenantId s
 			})
 		}
 
+		if !r.payloadStore.OLAPDualWritesEnabled() {
+			event.Output = nil
+		}
 	}
 
 	if len(eventsToWrite) == 0 {
@@ -1449,6 +1452,12 @@ func (r *OLAPRepositoryImpl) writeTaskBatch(ctx context.Context, tenantId string
 			payload = task.Input
 		}
 
+		// todo: remove this when we remove dual writes
+		payloadToWriteToTask := payload
+		if !r.payloadStore.OLAPDualWritesEnabled() {
+			payloadToWriteToTask = nil
+		}
+
 		params = append(params, sqlcv1.CreateTasksOLAPParams{
 			TenantID:             task.TenantID,
 			ID:                   task.ID,
@@ -1470,7 +1479,7 @@ func (r *OLAPRepositoryImpl) writeTaskBatch(ctx context.Context, tenantId string
 			DagInsertedAt:        task.DagInsertedAt,
 			ParentTaskExternalID: task.ParentTaskExternalID,
 			WorkflowRunID:        task.WorkflowRunID,
-			Input:                payload,
+			Input:                payloadToWriteToTask,
 		})
 
 		putPayloadOpts = append(putPayloadOpts, StoreOLAPPayloadOpts{
@@ -1514,6 +1523,12 @@ func (r *OLAPRepositoryImpl) writeDAGBatch(ctx context.Context, tenantId string,
 			parentTaskExternalID = *dag.ParentTaskExternalID
 		}
 
+		// todo: remove this when we remove dual writes
+		input := dag.Input
+		if !r.payloadStore.OLAPDualWritesEnabled() {
+			input = nil
+		}
+
 		params = append(params, sqlcv1.CreateDAGsOLAPParams{
 			TenantID:             dag.TenantID,
 			ID:                   dag.ID,
@@ -1525,7 +1540,7 @@ func (r *OLAPRepositoryImpl) writeDAGBatch(ctx context.Context, tenantId string,
 			AdditionalMetadata:   dag.AdditionalMetadata,
 			ParentTaskExternalID: parentTaskExternalID,
 			TotalTasks:           int32(dag.TotalTasks), // nolint: gosec
-			Input:                dag.Input,
+			Input:                input,
 		})
 
 		putPayloadOpts = append(putPayloadOpts, StoreOLAPPayloadOpts{
@@ -1721,7 +1736,13 @@ func (r *OLAPRepositoryImpl) BulkCreateEventsAndTriggers(ctx context.Context, ev
 
 	defer rollback()
 
-	insertedEvents, err := r.queries.BulkCreateEvents(ctx, tx, events)
+	// todo: remove this when we remove dual writes
+	eventsToInsert := events
+	if !r.payloadStore.OLAPDualWritesEnabled() {
+		eventsToInsert.Payloads = make([][]byte, len(eventsToInsert.Payloads))
+	}
+
+	insertedEvents, err := r.queries.BulkCreateEvents(ctx, tx, eventsToInsert)
 
 	if err != nil {
 		return fmt.Errorf("error creating events: %v", err)
