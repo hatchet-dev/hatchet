@@ -1739,7 +1739,11 @@ func (r *OLAPRepositoryImpl) BulkCreateEventsAndTriggers(ctx context.Context, ev
 	// todo: remove this when we remove dual writes
 	eventsToInsert := events
 	if !r.payloadStore.OLAPDualWritesEnabled() {
-		eventsToInsert.Payloads = make([][]byte, len(eventsToInsert.Payloads))
+		payloads := make([][]byte, len(eventsToInsert.Payloads))
+
+		for i := range eventsToInsert.Payloads {
+			payloads[i] = []byte("{}")
+		}
 	}
 
 	insertedEvents, err := r.queries.BulkCreateEvents(ctx, tx, eventsToInsert)
