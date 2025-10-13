@@ -465,6 +465,9 @@ func (r *OLAPRepositoryImpl) ReadWorkflowRun(ctx context.Context, workflowRunExt
 		return nil, err
 	}
 
+	rj, _ := json.Marshal(row)
+	fmt.Println("row", string(rj))
+
 	taskMetadata, err := ParseTaskMetadata(row.TaskMetadata)
 
 	if err != nil {
@@ -472,6 +475,9 @@ func (r *OLAPRepositoryImpl) ReadWorkflowRun(ctx context.Context, workflowRunExt
 	}
 
 	inputPayload, err := r.ReadPayload(ctx, row.TenantID.String(), row.ExternalID)
+
+	fmt.Println("row external id", row.ExternalID)
+	fmt.Println("input payload", inputPayload)
 
 	if err != nil {
 		return nil, err
@@ -2080,7 +2086,7 @@ func (r *OLAPRepositoryImpl) ReadPayload(ctx context.Context, tenantId string, e
 	payload, exists := payloads[externalId]
 
 	if !exists {
-		r.l.Warn().Msgf("payload for external ID %s not found", sqlchelpers.UUIDToStr(externalId))
+		r.l.Debug().Msgf("payload for external ID %s not found", sqlchelpers.UUIDToStr(externalId))
 	}
 
 	return payload, nil
