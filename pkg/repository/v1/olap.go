@@ -471,9 +471,6 @@ func (r *OLAPRepositoryImpl) ReadWorkflowRun(ctx context.Context, workflowRunExt
 		return nil, err
 	}
 
-	rj, _ := json.Marshal(row)
-	fmt.Println("row", string(rj))
-
 	taskMetadata, err := ParseTaskMetadata(row.TaskMetadata)
 
 	if err != nil {
@@ -481,9 +478,6 @@ func (r *OLAPRepositoryImpl) ReadWorkflowRun(ctx context.Context, workflowRunExt
 	}
 
 	inputPayload, err := r.ReadPayload(ctx, row.TenantID.String(), row.ExternalID)
-
-	fmt.Println("row external id", row.ExternalID)
-	fmt.Println("input payload", inputPayload)
 
 	if err != nil {
 		return nil, err
@@ -2083,18 +2077,13 @@ func (r *OLAPRepositoryImpl) PutPayloads(ctx context.Context, tx sqlcv1.DBTX, te
 }
 
 func (r *OLAPRepositoryImpl) ReadPayload(ctx context.Context, tenantId string, externalId pgtype.UUID) ([]byte, error) {
-	fmt.Println("external id", externalId)
 	payloads, err := r.ReadPayloads(ctx, tenantId, externalId)
-	fmt.Println("payloads", payloads)
-	fmt.Println("num payloads", len(payloads))
 
 	if err != nil {
 		return nil, err
 	}
 
 	payload, exists := payloads[externalId]
-
-	fmt.Println("payload", string(payload), "exists", exists)
 
 	if !exists {
 		r.l.Debug().Msgf("payload for external ID %s not found", sqlchelpers.UUIDToStr(externalId))
@@ -2118,7 +2107,6 @@ func (r *OLAPRepositoryImpl) ReadPayloads(ctx context.Context, tenantId string, 
 	externalKeys := make([]ExternalPayloadLocationKey, 0)
 
 	for _, payload := range payloads {
-		fmt.Println("retrieving payload with external id", payload.ExternalID, "location", payload.Location, "external location key", payload.ExternalLocationKey.String)
 		if payload.Location == sqlcv1.V1PayloadLocationOlapINLINE {
 			externalIdToPayload[payload.ExternalID] = payload.InlineContent
 		} else {
@@ -2128,9 +2116,6 @@ func (r *OLAPRepositoryImpl) ReadPayloads(ctx context.Context, tenantId string, 
 			externalKeys = append(externalKeys, key)
 		}
 	}
-
-	fmt.Println("num external keys to fetch", len(externalKeys), externalKeys)
-	fmt.Println("bool value", len(externalKeys) > 0 && r.payloadStore.ExternalStoreEnabled(), len(externalKeys) > 0, r.payloadStore.ExternalStoreEnabled())
 
 	if len(externalKeys) > 0 && r.payloadStore.ExternalStoreEnabled() {
 		keyToPayload, err := r.payloadStore.RetrieveFromExternal(ctx, externalKeys...)
