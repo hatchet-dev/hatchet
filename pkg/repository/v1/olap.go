@@ -254,6 +254,8 @@ type OLAPRepository interface {
 
 	AnalyzeOLAPTables(ctx context.Context) error
 	OffloadPayloads(ctx context.Context, tenantId string, payloads []OffloadPayloadOpts) error
+
+	PayloadStore() PayloadStoreRepository
 }
 
 type OLAPRepositoryImpl struct {
@@ -388,6 +390,10 @@ func (r *OLAPRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 
 func (r *OLAPRepositoryImpl) SetReadReplicaPool(pool *pgxpool.Pool) {
 	r.readPool = pool
+}
+
+func (r *OLAPRepositoryImpl) PayloadStore() PayloadStoreRepository {
+	return r.payloadStore
 }
 
 func StringToReadableStatus(status string) ReadableTaskStatus {
@@ -2124,7 +2130,7 @@ func (r *OLAPRepositoryImpl) ReadPayloads(ctx context.Context, tenantId string, 
 	}
 
 	fmt.Println("num external keys to fetch", len(externalKeys), externalKeys)
-	fmt.Println("bool value", len(externalKeys) == 0 && r.payloadStore.ExternalStoreEnabled(), len(externalKeys) == 0, r.payloadStore.ExternalStoreEnabled())
+	fmt.Println("bool value", len(externalKeys) > 0 && r.payloadStore.ExternalStoreEnabled(), len(externalKeys) > 0, r.payloadStore.ExternalStoreEnabled())
 
 	if len(externalKeys) > 0 && r.payloadStore.ExternalStoreEnabled() {
 		keyToPayload, err := r.payloadStore.RetrieveFromExternal(ctx, externalKeys...)
