@@ -61,6 +61,7 @@ func (t *V1WorkflowRunsService) getWorkflowRunDetails(
 		ctx,
 		tenantId,
 		taskMetadata,
+		true,
 	)
 
 	if err != nil {
