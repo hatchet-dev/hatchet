@@ -1793,6 +1793,8 @@ func (r *OLAPRepositoryImpl) BulkCreateEventsAndTriggers(ctx context.Context, ev
 		for i := range eventsToInsert.Payloads {
 			payloads[i] = []byte("{}")
 		}
+
+		eventsToInsert.Payloads = payloads
 	}
 
 	insertedEvents, err := r.queries.BulkCreateEvents(ctx, tx, eventsToInsert)
