@@ -355,7 +355,7 @@ CREATE TABLE v1_incoming_webhook_validation_failures_olap (
 
 CREATE INDEX v1_incoming_webhook_validation_failures_olap_tenant_id_incoming_webhook_name_idx ON v1_incoming_webhook_validation_failures_olap (tenant_id, incoming_webhook_name);
 
--- IMPORTANT: Keep these values in sync with `v1_payload_type` and `v1_payload_location` in the core db
+-- IMPORTANT: Keep these values in sync with `v1_payload_type` in the core db
 CREATE TYPE v1_payload_location_olap AS ENUM ('INLINE', 'EXTERNAL');
 
 CREATE TABLE v1_payloads_olap (

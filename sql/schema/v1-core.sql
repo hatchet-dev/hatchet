@@ -1642,7 +1642,7 @@ CREATE TABLE v1_durable_sleep (
 
 CREATE TYPE v1_payload_type AS ENUM ('TASK_INPUT', 'DAG_INPUT', 'TASK_OUTPUT', 'TASK_EVENT_DATA');
 
--- IMPORTANT: Keep these values in sync with `v1_payload_type_olap` and `v1_payload_location_olap` in the OLAP db
+-- IMPORTANT: Keep these values in sync with `v1_payload_type_olap` in the OLAP db
 CREATE TYPE v1_payload_location AS ENUM ('INLINE', 'EXTERNAL');
 
 CREATE TABLE v1_payload (
