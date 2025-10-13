@@ -200,7 +200,8 @@ SELECT
     create_v1_range_partition('v1_event_to_run_olap'::text, $1::date),
     create_v1_weekly_range_partition('v1_event_lookup_table_olap'::text, $1::date),
     create_v1_range_partition('v1_incoming_webhook_validation_failures_olap'::text, $1::date),
-    create_v1_range_partition('v1_cel_evaluation_failures_olap'::text, $1::date)
+    create_v1_range_partition('v1_cel_evaluation_failures_olap'::text, $1::date),
+    create_v1_range_partition('v1_payloads_olap'::text, $1::date)
 `
 
 func (q *Queries) CreateOLAPEventPartitions(ctx context.Context, db DBTX, date pgtype.Date) error {
@@ -1038,6 +1039,8 @@ WITH task_partitions AS (
     SELECT 'v1_incoming_webhook_validation_failures_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_incoming_webhook_validation_failures_olap', $2::date) AS p
 ), cel_evaluation_failures_partitions AS (
     SELECT 'v1_cel_evaluation_failures_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_cel_evaluation_failures_olap', $2::date) AS p
+), payloads_partitions AS (
+    SELECT 'v1_payloads_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_payloads_olap', $2::date) AS p
 ), candidates AS (
     SELECT
         parent_table, partition_name
@@ -1092,6 +1095,13 @@ WITH task_partitions AS (
         parent_table, partition_name
     FROM
         cel_evaluation_failures_partitions
+
+    UNION ALL
+
+    SELECT
+        parent_table, partition_name
+    FROM
+        payloads_partitions
 )
 
 SELECT parent_table, partition_name
@@ -1099,7 +1109,9 @@ FROM candidates
 WHERE
     CASE
         WHEN $1::BOOLEAN THEN TRUE
-        ELSE parent_table NOT IN ('v1_events_olap', 'v1_event_to_run_olap', 'v1_cel_evaluation_failures_olap', 'v1_incoming_webhook_validation_failures_olap')
+        -- this is a list of all of the tables which are hypertables in timescale, so we should not manually drop their
+        -- partitions if @shouldPartitionEventsTables is false
+        ELSE parent_table NOT IN ('v1_events_olap', 'v1_event_to_run_olap', 'v1_cel_evaluation_failures_olap', 'v1_incoming_webhook_validation_failures_olap', 'v1_payloads_olap')
     END
 `
 
