@@ -354,11 +354,9 @@ func (st *StandaloneTask) Run(ctx context.Context, input any, opts ...RunOptFunc
 		return nil, err
 	}
 
-	res := WorkflowResult{result: workflowRunRef.result}
+	res := WorkflowResult{result: workflowRunRef.result, RunId: workflowRunRef.RunId}
 
-	// Extract the task result from the workflow result
-	taskResult := res.TaskOutput(st.task.name)
-	return taskResult, nil
+	return res.TaskOutput(st.task.name), nil
 }
 
 // RunNoWait executes the standalone task with the provided input without waiting for completion.
@@ -407,16 +405,18 @@ func (wr *WorkflowRunRef) Result() (*WorkflowResult, error) {
 		return nil, err
 	}
 
-	return &WorkflowResult{result: workflowResult}, nil
+	return &WorkflowResult{result: workflowResult, RunId: wr.RunId}, nil
 }
 
 // WorkflowResult wraps workflow execution results and provides type-safe conversion methods.
 type WorkflowResult struct {
+	RunId  string
 	result any
 }
 
 // TaskResult wraps a single task's output and provides type-safe conversion methods.
 type TaskResult struct {
+	RunId  string
 	result any
 }
 
@@ -432,13 +432,15 @@ func (wr *WorkflowResult) TaskOutput(taskName string) *TaskResult {
 	// Handle different result structures that might come from workflow execution
 	resultData := wr.result
 
+	taskResult := &TaskResult{RunId: wr.RunId}
+
 	// Check if this is a raw v0Client.WorkflowResult that we need to extract from
 	if workflowResult, ok := resultData.(*v0Client.WorkflowResult); ok {
 		// Try to get the workflow results as a map
 		results, err := workflowResult.Results()
 		if err != nil {
 			// Return empty TaskResult if we can't extract results
-			return &TaskResult{result: nil}
+			return taskResult
 		}
 		resultData = results
 	}
@@ -446,13 +448,15 @@ func (wr *WorkflowResult) TaskOutput(taskName string) *TaskResult {
 	// If the result is a map, look for the specific task
 	if resultMap, ok := resultData.(map[string]any); ok {
 		if taskOutput, exists := resultMap[taskName]; exists {
-			return &TaskResult{result: taskOutput}
+			taskResult.result = taskOutput
+			return taskResult
 		}
 	}
 
 	// If we can't find the specific task, return the entire result
 	// This handles cases where there's only one task
-	return &TaskResult{result: resultData}
+	taskResult.result = resultData
+	return taskResult
 }
 
 // Into converts the task result into the provided destination using JSON marshal/unmarshal.

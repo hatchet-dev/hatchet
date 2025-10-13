@@ -550,7 +550,7 @@ func (w *Workflow) Run(ctx context.Context, input any, opts ...RunOptFunc) (*Wor
 		return nil, err
 	}
 
-	return &WorkflowResult{result: workflowResult}, nil
+	return &WorkflowResult{result: workflowResult, RunId: workflowRunRef.RunId}, nil
 }
 
 // RunNoWait executes the workflow with the provided input without waiting for completion.
