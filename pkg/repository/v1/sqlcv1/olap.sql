@@ -444,6 +444,13 @@ WITH selected_retry_count AS (
         relevant_events
     WHERE
         event_type = 'STARTED'
+), queued_at AS (
+    SELECT
+        MAX(event_timestamp) AS queued_at
+    FROM
+        relevant_events
+    WHERE
+        event_type = 'QUEUED'
 ), task_output AS (
     SELECT
         external_id
@@ -488,6 +495,7 @@ SELECT
     st.readable_status::v1_readable_status_olap as status,
     f.finished_at::timestamptz as finished_at,
     s.started_at::timestamptz as started_at,
+    q.queued_at::timestamptz as queued_at,
     o.external_id::UUID AS output_event_external_id,
     e.error_message as error_message,
     sc.spawned_children,
@@ -498,6 +506,8 @@ LEFT JOIN
     finished_at f ON true
 LEFT JOIN
     started_at s ON true
+LEFT JOIN
+    queued_at q ON true
 LEFT JOIN
     task_output o ON true
 LEFT JOIN

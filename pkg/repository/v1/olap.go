@@ -205,8 +205,9 @@ type UpdateDAGStatusRow struct {
 
 type TaskWithPayloads struct {
 	*sqlcv1.PopulateTaskRunDataRow
-	Input  []byte
-	Output []byte
+	Input              []byte
+	Output             []byte
+	NumSpawnedChildren int64
 }
 
 type OLAPRepository interface {
@@ -215,7 +216,7 @@ type OLAPRepository interface {
 
 	ReadTaskRun(ctx context.Context, taskExternalId string) (*sqlcv1.V1TasksOlap, error)
 	ReadWorkflowRun(ctx context.Context, workflowRunExternalId pgtype.UUID) (*V1WorkflowRunPopulator, error)
-	ReadTaskRunData(ctx context.Context, tenantId pgtype.UUID, taskId int64, taskInsertedAt pgtype.Timestamptz, retryCount *int) (*sqlcv1.PopulateSingleTaskRunDataRow, pgtype.UUID, error)
+	ReadTaskRunData(ctx context.Context, tenantId pgtype.UUID, taskId int64, taskInsertedAt pgtype.Timestamptz, retryCount *int) (*TaskWithPayloads, pgtype.UUID, error)
 
 	ListTasks(ctx context.Context, tenantId string, opts ListTaskRunOpts) ([]*TaskWithPayloads, int, error)
 	ListWorkflowRuns(ctx context.Context, tenantId string, opts ListWorkflowRunOpts) ([]*WorkflowRunData, int, error)
@@ -505,7 +506,7 @@ func (r *OLAPRepositoryImpl) ReadWorkflowRun(ctx context.Context, workflowRunExt
 	}, nil
 }
 
-func (r *OLAPRepositoryImpl) ReadTaskRunData(ctx context.Context, tenantId pgtype.UUID, taskId int64, taskInsertedAt pgtype.Timestamptz, retryCount *int) (*sqlcv1.PopulateSingleTaskRunDataRow, pgtype.UUID, error) {
+func (r *OLAPRepositoryImpl) ReadTaskRunData(ctx context.Context, tenantId pgtype.UUID, taskId int64, taskInsertedAt pgtype.Timestamptz, retryCount *int) (*TaskWithPayloads, pgtype.UUID, error) {
 	emptyUUID := pgtype.UUID{}
 
 	params := sqlcv1.PopulateSingleTaskRunDataParams{
@@ -542,7 +543,46 @@ func (r *OLAPRepositoryImpl) ReadTaskRunData(ctx context.Context, tenantId pgtyp
 		workflowRunId = taskRun.ExternalID
 	}
 
-	return taskRun, workflowRunId, nil
+	payloads, err := r.ReadPayloads(ctx, tenantId.String(), taskRun.ExternalID, taskRun.OutputEventExternalID)
+
+	if err != nil {
+		return nil, emptyUUID, err
+	}
+
+	input := payloads[taskRun.ExternalID]
+	output := payloads[taskRun.OutputEventExternalID]
+
+	return &TaskWithPayloads{
+		&sqlcv1.PopulateTaskRunDataRow{
+			TenantID:              taskRun.TenantID,
+			ID:                    taskRun.ID,
+			InsertedAt:            taskRun.InsertedAt,
+			ExternalID:            taskRun.ExternalID,
+			Queue:                 taskRun.Queue,
+			ActionID:              taskRun.ActionID,
+			StepID:                taskRun.StepID,
+			WorkflowID:            taskRun.WorkflowID,
+			WorkflowVersionID:     taskRun.WorkflowVersionID,
+			ScheduleTimeout:       taskRun.ScheduleTimeout,
+			StepTimeout:           taskRun.StepTimeout,
+			Priority:              taskRun.Priority,
+			Sticky:                taskRun.Sticky,
+			DisplayName:           taskRun.DisplayName,
+			AdditionalMetadata:    taskRun.AdditionalMetadata,
+			ParentTaskExternalID:  taskRun.ParentTaskExternalID,
+			Status:                taskRun.Status,
+			WorkflowRunID:         workflowRunId,
+			FinishedAt:            taskRun.FinishedAt,
+			StartedAt:             taskRun.StartedAt,
+			QueuedAt:              taskRun.QueuedAt,
+			ErrorMessage:          taskRun.ErrorMessage.String,
+			RetryCount:            taskRun.RetryCount,
+			OutputEventExternalID: taskRun.OutputEventExternalID,
+		},
+		input,
+		output,
+		taskRun.SpawnedChildren.Int64,
+	}, workflowRunId, nil
 }
 
 func (r *OLAPRepositoryImpl) ListTasks(ctx context.Context, tenantId string, opts ListTaskRunOpts) ([]*TaskWithPayloads, int, error) {
@@ -674,6 +714,7 @@ func (r *OLAPRepositoryImpl) ListTasks(ctx context.Context, tenantId string, opt
 			task,
 			input,
 			output,
+			int64(0),
 		})
 	}
 
@@ -754,6 +795,7 @@ func (r *OLAPRepositoryImpl) ListTasksByDAGId(ctx context.Context, tenantId stri
 			task,
 			input,
 			output,
+			int64(0),
 		})
 	}
 
@@ -817,6 +859,7 @@ func (r *OLAPRepositoryImpl) ListTasksByIdAndInsertedAt(ctx context.Context, ten
 			task,
 			input,
 			output,
+			int64(0),
 		})
 	}
 
