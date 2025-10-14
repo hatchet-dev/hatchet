@@ -2178,6 +2178,14 @@ func (r *OLAPRepositoryImpl) ReadPayloads(ctx context.Context, tenantId string, 
 }
 
 func (r *OLAPRepositoryImpl) OffloadPayloads(ctx context.Context, tenantId string, payloads []OffloadPayloadOpts) error {
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 5000)
+
+	if err != nil {
+		return fmt.Errorf("error beginning transaction: %v", err)
+	}
+
+	defer rollback()
+
 	tenantIds := make([]pgtype.UUID, len(payloads))
 	externalIds := make([]pgtype.UUID, len(payloads))
 	externalLocationKeys := make([]string, len(payloads))
@@ -2188,11 +2196,21 @@ func (r *OLAPRepositoryImpl) OffloadPayloads(ctx context.Context, tenantId strin
 		externalLocationKeys[i] = opt.ExternalLocationKey
 	}
 
-	return r.queries.OffloadPayloads(ctx, r.pool, sqlcv1.OffloadPayloadsParams{
+	err = r.queries.OffloadPayloads(ctx, tx, sqlcv1.OffloadPayloadsParams{
 		Externalids:          externalIds,
 		Tenantids:            tenantIds,
 		Externallocationkeys: externalLocationKeys,
 	})
+
+	if err != nil {
+		return fmt.Errorf("error offloading payloads: %v", err)
+	}
+
+	if err := commit(ctx); err != nil {
+		return fmt.Errorf("error committing transaction: %v", err)
+	}
+
+	return nil
 }
 
 func (r *OLAPRepositoryImpl) AnalyzeOLAPTables(ctx context.Context) error {

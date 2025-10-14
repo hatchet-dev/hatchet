@@ -376,10 +376,7 @@ func (tc *OLAPControllerImpl) handlePayloadOffload(ctx context.Context, tenantId
 			// 	continue
 			// }
 
-			offloads = append(offloads, v1.OffloadPayloadOpts{
-				ExternalId:          payload.ExternalId,
-				ExternalLocationKey: payload.ExternalLocationKey,
-			})
+			offloads = append(offloads, v1.OffloadPayloadOpts(payload))
 		}
 	}
 
