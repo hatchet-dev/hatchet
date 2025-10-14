@@ -184,11 +184,11 @@ class RunsClient(BaseRestClient):
     def _perform_action_with_pagination(
         self,
         action: Literal["cancel", "replay"],
+        statuses: list[V1TaskStatus],
         sleep_time: int = 3,
         chunk_size: int = 500,
         since: datetime | None = None,
         until: datetime | None = None,
-        statuses: list[V1TaskStatus] | None = None,
         additional_metadata: dict[str, str] | None = None,
         workflow_ids: list[str] | None = None,
     ) -> None:
@@ -236,7 +236,7 @@ class RunsClient(BaseRestClient):
             sleep_time=sleep_time,
             chunk_size=chunk_size,
             until=until,
-            statuses=statuses,
+            statuses=statuses or [V1TaskStatus.FAILED, V1TaskStatus.CANCELLED],
             additional_metadata=additional_metadata,
             workflow_ids=workflow_ids,
         )
@@ -257,7 +257,7 @@ class RunsClient(BaseRestClient):
             sleep_time=sleep_time,
             chunk_size=chunk_size,
             until=until,
-            statuses=statuses,
+            statuses=statuses or [V1TaskStatus.RUNNING, V1TaskStatus.QUEUED],
             additional_metadata=additional_metadata,
             workflow_ids=workflow_ids,
         )
@@ -279,7 +279,7 @@ class RunsClient(BaseRestClient):
             sleep_time=sleep_time,
             chunk_size=chunk_size,
             until=until,
-            statuses=statuses,
+            statuses=statuses or [V1TaskStatus.FAILED, V1TaskStatus.CANCELLED],
             additional_metadata=additional_metadata,
             workflow_ids=workflow_ids,
         )
@@ -301,7 +301,7 @@ class RunsClient(BaseRestClient):
             sleep_time=sleep_time,
             chunk_size=chunk_size,
             until=until,
-            statuses=statuses,
+            statuses=statuses or [V1TaskStatus.RUNNING, V1TaskStatus.QUEUED],
             additional_metadata=additional_metadata,
             workflow_ids=workflow_ids,
         )
