@@ -3068,6 +3068,12 @@ type V1MatchCondition struct {
 	Data              []byte                 `json:"data"`
 }
 
+type V1OperationIntervalSettings struct {
+	TenantID            pgtype.UUID `json:"tenant_id"`
+	OperationID         string      `json:"operation_id"`
+	IntervalNanoseconds int64       `json:"interval_nanoseconds"`
+}
+
 type V1Payload struct {
 	TenantID            pgtype.UUID        `json:"tenant_id"`
 	ID                  int64              `json:"id"`

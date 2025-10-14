@@ -17,6 +17,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/cel"
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	msgqueue "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
+	"github.com/hatchet-dev/hatchet/internal/operation"
 	"github.com/hatchet-dev/hatchet/internal/queueutils"
 	"github.com/hatchet-dev/hatchet/internal/services/partition"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/recoveryutils"
@@ -55,10 +56,10 @@ type TasksControllerImpl struct {
 	celParser                             *cel.CELParser
 	opsPoolPollInterval                   time.Duration
 	opsPoolJitter                         time.Duration
-	timeoutTaskOperations                 *queueutils.OperationPool[string]
-	reassignTaskOperations                *queueutils.OperationPool[string]
-	retryTaskOperations                   *queueutils.OperationPool[string]
-	emitSleepOperations                   *queueutils.OperationPool[string]
+	timeoutTaskOperations                 *operation.OperationPool
+	reassignTaskOperations                *operation.OperationPool
+	retryTaskOperations                   *operation.OperationPool
+	emitSleepOperations                   *operation.OperationPool
 	processPayloadWALOperations           *queueutils.OperationPool[int64]
 	evictExpiredIdempotencyKeysOperations *queueutils.OperationPool[string]
 	replayEnabled                         bool
@@ -227,10 +228,42 @@ func New(fs ...TasksControllerOpt) (*TasksControllerImpl, error) {
 	jitter := t.opsPoolJitter
 	timeout := time.Second * 30
 
-	t.timeoutTaskOperations = queueutils.NewOperationPool(opts.l, timeout, "timeout step runs", t.processTaskTimeouts).WithJitter(jitter)
-	t.emitSleepOperations = queueutils.NewOperationPool(opts.l, timeout, "emit sleep step runs", t.processSleeps).WithJitter(jitter)
-	t.reassignTaskOperations = queueutils.NewOperationPool(opts.l, timeout, "reassign step runs", t.processTaskReassignments).WithJitter(jitter)
-	t.retryTaskOperations = queueutils.NewOperationPool(opts.l, timeout, "retry step runs", t.processTaskRetryQueueItems).WithJitter(jitter)
+	t.timeoutTaskOperations = operation.NewOperationPool(opts.p, opts.l, "timeout-step-runs", timeout, "timeout step runs", t.processTaskTimeouts, operation.WithPoolInterval(
+		opts.repov1.IntervalSettings(),
+		jitter,
+		1*time.Second,
+		30*time.Second,
+		3,
+		opts.repov1.Tasks().DefaultTaskActivityGauge,
+	))
+
+	t.emitSleepOperations = operation.NewOperationPool(opts.p, opts.l, "emit-sleep-step-runs", timeout, "emit sleep step runs", t.processSleeps, operation.WithPoolInterval(
+		opts.repov1.IntervalSettings(),
+		jitter,
+		1*time.Second,
+		30*time.Second,
+		3,
+		opts.repov1.Tasks().DefaultTaskActivityGauge,
+	))
+
+	t.reassignTaskOperations = operation.NewOperationPool(opts.p, opts.l, "reassign-step-runs", timeout, "reassign step runs", t.processTaskReassignments, operation.WithPoolInterval(
+		opts.repov1.IntervalSettings(),
+		jitter,
+		1*time.Second,
+		30*time.Second,
+		3,
+		opts.repov1.Tasks().DefaultTaskActivityGauge,
+	))
+
+	t.retryTaskOperations = operation.NewOperationPool(opts.p, opts.l, "retry-step-runs", timeout, "retry step runs", t.processTaskRetryQueueItems, operation.WithPoolInterval(
+		opts.repov1.IntervalSettings(),
+		jitter,
+		1*time.Second,
+		30*time.Second,
+		3,
+		opts.repov1.Tasks().DefaultTaskActivityGauge,
+	))
+
 	t.processPayloadWALOperations = queueutils.NewOperationPool(opts.l, timeout, "process payload WAL", t.processPayloadWAL).WithJitter(jitter)
 	t.evictExpiredIdempotencyKeysOperations = queueutils.NewOperationPool(opts.l, timeout, "evict expired idempotency keys", t.evictExpiredIdempotencyKeys).WithJitter(jitter)
 
@@ -259,78 +292,6 @@ func (tc *TasksControllerImpl) Start() (func() error, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	spanContext, span := telemetry.NewSpan(ctx, "TasksControllerImpl.Start")
-
-	_, err = tc.s.NewJob(
-		gocron.DurationJob(tc.opsPoolPollInterval),
-		gocron.NewTask(
-			tc.runTenantTimeoutTasks(spanContext),
-		),
-	)
-
-	if err != nil {
-		wrappedErr := fmt.Errorf("could not schedule step run timeout: %w", err)
-
-		cancel()
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "could not schedule step run timeout")
-		span.End()
-
-		return nil, wrappedErr
-	}
-
-	_, err = tc.s.NewJob(
-		gocron.DurationJob(tc.opsPoolPollInterval),
-		gocron.NewTask(
-			tc.runTenantSleepEmitter(spanContext),
-		),
-	)
-
-	if err != nil {
-		wrappedErr := fmt.Errorf("could not schedule step run emit sleep: %w", err)
-
-		cancel()
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "could not schedule step run emit sleep")
-		span.End()
-
-		return nil, wrappedErr
-	}
-
-	_, err = tc.s.NewJob(
-		gocron.DurationJob(tc.opsPoolPollInterval),
-		gocron.NewTask(
-			tc.runTenantReassignTasks(spanContext),
-		),
-	)
-
-	if err != nil {
-		wrappedErr := fmt.Errorf("could not schedule step run reassignment: %w", err)
-
-		cancel()
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "could not schedule step run reassignment")
-		span.End()
-
-		return nil, wrappedErr
-	}
-
-	_, err = tc.s.NewJob(
-		gocron.DurationJob(tc.opsPoolPollInterval),
-		gocron.NewTask(
-			tc.runTenantRetryQueueItems(spanContext),
-		),
-	)
-
-	if err != nil {
-		wrappedErr := fmt.Errorf("could not schedule step run retry queue items: %w", err)
-
-		cancel()
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "could not schedule step run retry queue items")
-		span.End()
-
-		return nil, wrappedErr
-	}
 
 	_, err = tc.s.NewJob(
 		gocron.DurationJob(time.Minute*15),

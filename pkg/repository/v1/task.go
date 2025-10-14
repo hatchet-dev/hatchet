@@ -234,6 +234,8 @@ type TaskRepository interface {
 	// with the v1 engine, and shouldn't be called from new v1 endpoints.
 	ListTaskParentOutputs(ctx context.Context, tenantId string, tasks []*sqlcv1.V1Task) (map[int64][]*TaskOutputEvent, error)
 
+	DefaultTaskActivityGauge(ctx context.Context, tenantId string) (int, error)
+
 	ProcessTaskTimeouts(ctx context.Context, tenantId string) (*TimeoutTasksResponse, bool, error)
 
 	ProcessTaskReassignments(ctx context.Context, tenantId string) (*FailTasksResponse, bool, error)
@@ -1103,6 +1105,23 @@ func (r *TaskRepositoryImpl) ListTaskMetas(ctx context.Context, tenantId string,
 		TenantID: sqlchelpers.UUIDFromStr(tenantId),
 		Ids:      tasks,
 	})
+}
+
+// DefaultTaskActivityGauge is a heavily cached method that returns the number of queues that have had activity since
+// the task retention period.
+func (r *TaskRepositoryImpl) DefaultTaskActivityGauge(ctx context.Context, tenantId string) (int, error) {
+	today := time.Now().UTC()
+	notBefore := today.Add(-1 * r.taskRetentionPeriod)
+
+	res, err := r.queries.DefaultTaskActivityGauge(ctx, r.pool, sqlcv1.DefaultTaskActivityGaugeParams{
+		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+		Activesince: pgtype.Timestamptz{
+			Time:  notBefore,
+			Valid: true,
+		},
+	})
+
+	return int(res), err
 }
 
 func (r *TaskRepositoryImpl) ProcessTaskTimeouts(ctx context.Context, tenantId string) (*TimeoutTasksResponse, bool, error) {
