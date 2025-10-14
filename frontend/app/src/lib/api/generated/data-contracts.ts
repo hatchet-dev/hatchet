@@ -203,6 +203,7 @@ export enum TenantResource {
   TASK_RUN = "TASK_RUN",
   CRON = "CRON",
   SCHEDULE = "SCHEDULE",
+  INCOMING_WEBHOOK = "INCOMING_WEBHOOK",
 }
 
 /** The status of the CEL evaluation */

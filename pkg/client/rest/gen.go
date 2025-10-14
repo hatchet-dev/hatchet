@@ -177,13 +177,14 @@ const (
 
 // Defines values for TenantResource.
 const (
-	CRON        TenantResource = "CRON"
-	EVENT       TenantResource = "EVENT"
-	SCHEDULE    TenantResource = "SCHEDULE"
-	TASKRUN     TenantResource = "TASK_RUN"
-	WORKER      TenantResource = "WORKER"
-	WORKERSLOT  TenantResource = "WORKER_SLOT"
-	WORKFLOWRUN TenantResource = "WORKFLOW_RUN"
+	CRON            TenantResource = "CRON"
+	EVENT           TenantResource = "EVENT"
+	INCOMINGWEBHOOK TenantResource = "INCOMING_WEBHOOK"
+	SCHEDULE        TenantResource = "SCHEDULE"
+	TASKRUN         TenantResource = "TASK_RUN"
+	WORKER          TenantResource = "WORKER"
+	WORKERSLOT      TenantResource = "WORKER_SLOT"
+	WORKFLOWRUN     TenantResource = "WORKFLOW_RUN"
 )
 
 // Defines values for TenantUIVersion.
