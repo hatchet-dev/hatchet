@@ -22,44 +22,17 @@ from typing import Any, ClassVar, Dict, List, Optional, Set
 from pydantic import BaseModel, ConfigDict, Field, StrictStr
 from typing_extensions import Self
 
-from hatchet_sdk.clients.rest.models.tenant_environment import TenantEnvironment
-from hatchet_sdk.clients.rest.models.tenant_ui_version import TenantUIVersion
-from hatchet_sdk.clients.rest.models.tenant_version import TenantVersion
 
-
-class CreateTenantRequest(BaseModel):
+class RegisteredWorkflow(BaseModel):
     """
-    CreateTenantRequest
+    RegisteredWorkflow
     """  # noqa: E501
 
-    name: StrictStr = Field(description="The name of the tenant.")
-    slug: StrictStr = Field(description="The slug of the tenant.")
-    ui_version: Optional[TenantUIVersion] = Field(
-        default=None,
-        description="The UI version of the tenant. Defaults to V0.",
-        alias="uiVersion",
+    id: StrictStr = Field(description="The workflow id registered on this worker.")
+    name: StrictStr = Field(
+        description="The name of the workflow registered on this worker."
     )
-    engine_version: Optional[TenantVersion] = Field(
-        default=None,
-        description="The engine version of the tenant. Defaults to V0.",
-        alias="engineVersion",
-    )
-    environment: Optional[TenantEnvironment] = Field(
-        default=None, description="The environment type of the tenant."
-    )
-    onboarding_data: Optional[Dict[str, Any]] = Field(
-        default=None,
-        description="Additional onboarding data to store with the tenant.",
-        alias="onboardingData",
-    )
-    __properties: ClassVar[List[str]] = [
-        "name",
-        "slug",
-        "uiVersion",
-        "engineVersion",
-        "environment",
-        "onboardingData",
-    ]
+    __properties: ClassVar[List[str]] = ["id", "name"]
 
     model_config = ConfigDict(
         populate_by_name=True,
@@ -78,7 +51,7 @@ class CreateTenantRequest(BaseModel):
 
     @classmethod
     def from_json(cls, json_str: str) -> Optional[Self]:
-        """Create an instance of CreateTenantRequest from a JSON string"""
+        """Create an instance of RegisteredWorkflow from a JSON string"""
         return cls.from_dict(json.loads(json_str))
 
     def to_dict(self) -> Dict[str, Any]:
@@ -102,21 +75,12 @@ class CreateTenantRequest(BaseModel):
 
     @classmethod
     def from_dict(cls, obj: Optional[Dict[str, Any]]) -> Optional[Self]:
-        """Create an instance of CreateTenantRequest from a dict"""
+        """Create an instance of RegisteredWorkflow from a dict"""
         if obj is None:
             return None
 
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate(
-            {
-                "name": obj.get("name"),
-                "slug": obj.get("slug"),
-                "uiVersion": obj.get("uiVersion"),
-                "engineVersion": obj.get("engineVersion"),
-                "environment": obj.get("environment"),
-                "onboardingData": obj.get("onboardingData"),
-            }
-        )
+        _obj = cls.model_validate({"id": obj.get("id"), "name": obj.get("name")})
         return _obj
